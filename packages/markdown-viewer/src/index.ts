@@ -85,6 +85,17 @@ export {
 export type { FileHandle, FileOpenResult, FileSystemProvider } from './types/fileSystem';
 export { WebFileSystemProvider } from './fs/webFileSystemProvider';
 export type {
+  WebImportFetchResult,
+  WebImportProvider,
+  WebImportProviderChangeListener,
+} from './webImport/webImportProvider';
+export {
+  getWebImportProvider,
+  setWebImportProvider,
+  subscribeWebImportProvider,
+} from './webImport/webImportProvider';
+export { fetchAndConvert } from './webImport/importWebPage';
+export type {
 ToolbarFileCapabilities,
 ToolbarFileHandlers, ToolbarModeHandlers,
   ToolbarModeState,   ToolbarVisibility, } from './types/toolbar';

@@ -45,6 +45,7 @@ import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 import type { FileSystemProvider } from "../types/fileSystem";
 import { createFileOpsController } from "./fileOpsController";
 import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
+import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
 import { EDITOR_CODE_VARS_CHANGED_EVENT } from "../utils/editorCodeCssVars";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
@@ -107,9 +108,35 @@ import {
   type LinkedMdSaveResult,
   type LinkedMdToken,
 } from "../linkedMdProvider";
+import { getWebImportProvider } from "../webImport/webImportProvider";
+import { fetchAndConvert } from "../webImport/importWebPage";
+import { composeInsertSnippet, composeNewDocument } from "../webImport/composeMarkdown";
 
 /** 保存（onContentChange / localStorage）デバウンス（React useMarkdownEditor と同値）。 */
 const SAVE_DEBOUNCE_MS = 500;
+
+function logWebImportWarn(message: string, error?: unknown): void {
+  const ts = new Date().toISOString();
+  if (error === undefined) {
+    console.warn(`[${ts}] [WARN] webImport: ${message}`);
+  } else {
+    console.warn(`[${ts}] [WARN] webImport: ${message}`, error);
+  }
+}
+
+function insertMarkdownAtCursor(editor: Editor, markdown: string): void {
+  const processed = preserveBlankLines(sanitizeMarkdown(markdown));
+  const savedDoc = editor.state.doc.toJSON();
+  const savedFrom = editor.state.selection.from;
+  editor.commands.setContent(processed);
+  const parsedFragment = editor.state.doc.content;
+  editor.commands.setContent(savedDoc);
+  const insertPos = Math.min(savedFrom, editor.state.doc.content.size);
+  const { tr } = editor.state;
+  tr.insert(insertPos, parsedFragment);
+  editor.view.dispatch(tr);
+  editor.commands.focus();
+}
 
 /**
  * ノート網パネルのスロット。ホストが所有する DOM 要素を右サイドバーに
@@ -743,7 +770,48 @@ export function mountVanillaMarkdownEditor(
       minimapSlot.appendChild(minimap.el);
       disposers.push(() => minimap.destroy());
 
-      // === EditorDialogs（comment/link/image insert → editor コマンド） =========
+      // BubbleMenu / SlashCommand が storage.*Dialog.open 経由で各ダイアログを開く
+      // （React useEditorDialogs 相当の配線）。
+      const editorStorage = getEditorStorage(editor);
+      editorStorage.webImportDialog ??= {};
+
+      const handleWebImportSubmit = async (
+        url: string,
+        mode: "insert" | "create",
+      ): Promise<void> => {
+        const provider = getWebImportProvider();
+        if (!provider) {
+          const message = t("webImportErrorNoProvider");
+          layout.liveRegion.textContent = message;
+          logWebImportWarn(message);
+          throw new Error(message);
+        }
+        layout.liveRegion.textContent = t("webImportLoading");
+        try {
+          const result = await fetchAndConvert(url, provider, new Date());
+          if (mode === "insert") {
+            insertMarkdownAtCursor(editor, composeInsertSnippet(result));
+            return;
+          }
+
+          const markdown = composeNewDocument(result);
+          const webImportDialog = editorStorage.webImportDialog as
+            | { onCreateDocument?: (markdown: string, title: string) => void }
+            | undefined;
+          if (webImportDialog?.onCreateDocument) {
+            webImportDialog.onCreateDocument(markdown, result.title);
+          } else {
+            logWebImportWarn("create document callback is not configured");
+          }
+        } catch (error) {
+          const message = t("webImportErrorFetch");
+          layout.liveRegion.textContent = message;
+          logWebImportWarn(message, error);
+          throw error;
+        }
+      };
+
+      // === EditorDialogs（comment/link/image/web import insert → editor コマンド） =========
       const dialogs = createEditorDialogs({
         t,
         onCommentInsert: (text) => editor.chain().focus().addComment(text.trim()).run(),
@@ -763,19 +831,19 @@ export function mountVanillaMarkdownEditor(
           }
         },
         onImageInsert: (src, alt) => editor.chain().focus().setImage({ src: src.trim(), alt }).run(),
+        onWebImportSubmit: handleWebImportSubmit,
       });
       disposers.push(() => dialogs.destroy());
 
-      // BubbleMenu / SlashCommand が storage.commentDialog.open 経由でコメントダイアログを
-      // 開く（React useEditorDialogs 相当の配線）。
-      const editorStorage = getEditorStorage(editor);
       editorStorage.commentDialog ??= {};
       editorStorage.commentDialog.open = () => dialogs.openComment();
       editorStorage.linkDialog ??= {};
       editorStorage.linkDialog.open = () => dialogs.openLink();
+      editorStorage.webImportDialog.open = () => dialogs.openWebImport("insert");
       disposers.push(() => {
         if (editorStorage.commentDialog) editorStorage.commentDialog.open = null;
         if (editorStorage.linkDialog) editorStorage.linkDialog.open = null;
+        if (editorStorage.webImportDialog) editorStorage.webImportDialog.open = null;
       });
 
       // === settings panel（intent で開閉。onUpdate→store+apply+notify） =========
@@ -913,6 +981,7 @@ export function mountVanillaMarkdownEditor(
         onSaveAsFile:
           current.fileHandlers?.onSaveAsFile ??
           (current.fileSystemProvider ? () => void fileOps.saveAsFile() : undefined),
+        onWebImport: current.fileHandlers?.onWebImport ?? (() => dialogs.openWebImport("create")),
         onExportPdf: current.fileHandlers?.onExportPdf,
         onLoadRightFile: current.fileHandlers?.onLoadRightFile,
         onExportRightFile: current.fileHandlers?.onExportRightFile,
