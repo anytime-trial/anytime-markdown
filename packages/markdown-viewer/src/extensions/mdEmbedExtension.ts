@@ -1,6 +1,7 @@
 import { mergeAttributes, Node as TiptapNode } from "@anytime-markdown/markdown-core";
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 
+import { createMdEmbedNodeView } from "../components-vanilla/MdEmbedNodeView";
 import type { MdSerializerState } from "../types";
 import { isMarkdownHref } from "../utils/isMarkdownHref";
 
@@ -91,6 +92,10 @@ export const MdEmbed = TiptapNode.create({
       ),
       ["a", { href: hrefWithAnchor, title: attrs.title ?? undefined }, attrs.text ?? hrefWithAnchor],
     ];
+  },
+
+  addNodeView() {
+    return (props) => createMdEmbedNodeView(props);
   },
 });
 
