@@ -79,7 +79,7 @@ Without any manual setup, session info, edit state, commit history, and token co
 | --- | --- | --- |
 | `PreToolUse` / `PostToolUse` | Writes `claude-code-status.json` | Records the file being edited (used by the Markdown extension's editor lock and the C4 graph activity overlay) |
 | `PostToolUse` | `commit-tracker.sh` | Detects git commits after Bash tool execution and records them in the Trail DB |
-| `Stop` | `trail-token-budget.sh` | Aggregates token consumption at session end for budget monitoring |
+| `Stop` | `token-budget.sh` | Aggregates token consumption at session end for budget monitoring |
 | `UserPromptSubmit` | `session-guard.sh` | Warns when session duration or turn count exceeds the threshold |
 
 > Hook scripts are placed in `~/.claude/scripts/`.\

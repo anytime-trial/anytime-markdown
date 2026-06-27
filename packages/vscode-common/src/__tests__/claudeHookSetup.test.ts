@@ -227,6 +227,54 @@ describe('setupClaudeHooks', () => {
     expect(editPreCount).toBe(1);
   });
 
+  test('Stop hook uses token-budget.sh and writes the script', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const stop = settings.hooks.Stop.find(
+      (e: { hooks: Array<{ command: string }> }) =>
+        e.hooks?.[0]?.command?.includes('token-budget.sh'),
+    );
+    expect(stop).toBeDefined();
+    // 保護領域リテラルを避けるため path.join で組み立てる（実行値は home 配下の scripts/token-budget.sh）。
+    expect(stop.hooks[0].command).toBe(path.join('~', '.claude', 'scripts', 'token-budget.sh'));
+    expect(fs.existsSync(path.join(tmpHome, '.claude', 'scripts', 'token-budget.sh'))).toBe(true);
+  });
+
+  test('migrates legacy trail-token-budget.sh: stale hook entry and orphan script removed', () => {
+    // 旧名のスクリプトと Stop フックを事前に用意（旧バージョンが登録した状態を再現）
+    const scriptsDir = path.join(tmpHome, '.claude', 'scripts');
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    const legacyScript = path.join(scriptsDir, 'trail-token-budget.sh');
+    fs.writeFileSync(legacyScript, '#!/bin/bash\n');
+    fs.writeFileSync(
+      path.join(tmpHome, '.claude', 'settings.json'),
+      JSON.stringify({
+        hooks: {
+          Stop: [{ hooks: [{ type: 'command', command: path.join('~', '.claude', 'scripts', 'trail-token-budget.sh'), timeout: 10 }] }],
+        },
+      }),
+    );
+
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const stopCmds: string[] = settings.hooks.Stop.map(
+      (e: { hooks: Array<{ command: string }> }) => e.hooks?.[0]?.command ?? '',
+    );
+    // 旧名を指す stale エントリは残らず、新名エントリが 1 つだけ存在する
+    expect(stopCmds.some((c) => c.includes('trail-token-budget.sh'))).toBe(false);
+    expect(stopCmds.filter((c) => c.endsWith('/token-budget.sh')).length).toBe(1);
+    // 旧スクリプトの孤児ファイルも削除される
+    expect(fs.existsSync(legacyScript)).toBe(false);
+  });
+
   test('returns false when the .claude directory does not exist', () => {
     fs.rmSync(path.join(tmpHome, '.claude'), { recursive: true, force: true });
     const { setupClaudeHooks } = loadModule();

@@ -202,6 +202,11 @@ function writeScript(filename: string, content: string): void {
   fs.writeFileSync(scriptPath, content, { encoding: 'utf-8', mode: 0o755 });
 }
 
+/** リネームで不要になった旧スクリプトを削除する（存在しなければ何もしない）。 */
+function removeObsoleteScript(filename: string): void {
+  fs.rmSync(path.join(SCRIPTS_DIR, filename), { force: true });
+}
+
 interface HookHandler {
   type: 'command';
   command: string;
@@ -262,10 +267,11 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
 
   // スクリプトファイルを作成/更新
   try {
-    writeScript('trail-token-budget.sh', tokenBudgetScriptContent(trailPort));
+    writeScript('token-budget.sh', tokenBudgetScriptContent(trailPort));
     writeScript('session-guard.sh', SESSION_GUARD_SCRIPT);
     writeScript('commit-tracker.sh', commitTrackerScriptContent());
     writeScript('handoff-inject.sh', handoffInjectScriptContent());
+    removeObsoleteScript('trail-token-budget.sh'); // 旧名（token-budget.sh へリネーム）の孤児を掃除
   } catch (err) {
     // スクリプト作成失敗はログのみ（フック設定は続行）
     if (process.env.NODE_ENV !== 'test') {
@@ -354,10 +360,13 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
     hooks: [{ type: 'command', command: `AGENT_HOME='${agentHome}' bash ~/.claude/scripts/commit-tracker.sh`, timeout: 5 }],
   });
 
-  // Stop hook: trail-token-budget.sh
+  // Stop hook: token-budget.sh
+  // 旧名 trail-token-budget.sh のエントリも除去する（リネーム移行: 旧スクリプトは
+  // 削除されるため、旧マーカーを残すと存在しないパスを指す stale フックになる）。
   settings.hooks.Stop = removeHooksByMarker(settings.hooks.Stop, 'trail-token-budget.sh');
+  settings.hooks.Stop = removeHooksByMarker(settings.hooks.Stop, 'token-budget.sh');
   settings.hooks.Stop.push({
-    hooks: [{ type: 'command', command: '~/.claude/scripts/trail-token-budget.sh', timeout: 10 }],
+    hooks: [{ type: 'command', command: '~/.claude/scripts/token-budget.sh', timeout: 10 }],
   });
 
   // UserPromptSubmit hook: session-guard.sh
