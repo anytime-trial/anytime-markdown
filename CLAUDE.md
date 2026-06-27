@@ -10,6 +10,9 @@
 - プライマリリポジトリ: 本リポジトリ（`/anytime-markdown/`）。VS Code ワークスペースのメイン。
 - `/Shared/anytime-markdown-docs/` — ドキュメント。Claude Code の出力先（`/anytime-markdown/` 内には出力しない）。独立 Git リポジトリのため完了時に `git status` で確認。Git ルールは両方に適用。
 
+> [!NOTE]
+> 知識の正本（source of truth）は `/Shared/anytime-markdown-docs/` 配下の Markdown（ベンダー中立な可搬形式）である。Trail DB（`trail.db` / `memory-core.db` / `doc-core.db`）・Serena memory は、その正本から導出される検索インデックスと位置づける（Open Knowledge Format の「プラットフォームでなく形式」原則）。知識をチャットや DB に閉じ込めず、可搬な Markdown へ外部化することを優先する。
+
 ## ドキュメント出力先・参照パス
 
 - プランファイル: `/Shared/anytime-markdown-docs/plan/*.md`（3 ファイル以上変更する機能で作成し、承認後に実装）。
