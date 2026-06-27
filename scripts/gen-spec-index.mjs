@@ -9,9 +9,10 @@
 // トップレベル番号ディレクトリ単位でグルーピングした索引 markdown を出力する。
 // related は型付き（{ to, type }）/ 素の文字列（= references）の両方を正規化する。
 //
-// 使い方: node scripts/gen-spec-index.mjs [specDir] [outFile]
-//   specDir 既定: /Shared/anytime-markdown-docs/spec
-//   outFile 既定: <specDir>/00-index.ja.md
+// 使い方: node scripts/gen-spec-index.mjs [docDir] [outFile] [title] [scopeName]
+//   docDir 既定: /Shared/anytime-markdown-docs/spec
+//   outFile 既定: <docDir>/00-index.ja.md
+//   title 既定: 設計書 索引（自動生成） / scopeName 既定: spec（excerpt の「<scopeName> 配下」に使う）
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -102,7 +103,9 @@ function formatRelated(related) {
 }
 
 /** エントリ配列から索引 markdown を生成する（純粋関数）。 */
-export function buildSpecIndexMarkdown(entries, date) {
+export function buildSpecIndexMarkdown(entries, date, opts = {}) {
+  const indexTitle = typeof opts.title === 'string' && opts.title ? opts.title : '設計書 索引（自動生成）';
+  const scopeName = typeof opts.scopeName === 'string' && opts.scopeName ? opts.scopeName : 'spec';
   const groups = new Map();
   for (const e of entries) {
     const g = topGroup(e.relFromSpec);
@@ -113,15 +116,15 @@ export function buildSpecIndexMarkdown(entries, date) {
 
   const lines = [];
   lines.push('---');
-  lines.push('title: "設計書 索引（自動生成）"');
+  lines.push(`title: "${indexTitle}"`);
   lines.push(`date: "${date}"`);
   lines.push('type: "reference"');
   lines.push('lang: "ja"');
   lines.push('graph: false');
-  lines.push('excerpt: "spec 配下の frontmatter（title / category / excerpt / 型付き related）から自動生成した索引。人と Claude の決定論的ナビゲーションの入口。"');
+  lines.push(`excerpt: "${scopeName} 配下の frontmatter（title / category / excerpt / 型付き related）から自動生成した索引。人と Claude の決定論的ナビゲーションの入口。"`);
   lines.push('---');
   lines.push('');
-  lines.push('# 設計書 索引（自動生成）');
+  lines.push(`# ${indexTitle}`);
   lines.push('');
   lines.push('> このファイルは `scripts/gen-spec-index.mjs` が frontmatter から生成する。手で編集しない。');
   lines.push('> 関係は各ファイルの frontmatter `related`（型付き）が単一ソース。型: ' + RELATION_TYPES.join(' / ') + '。');
@@ -164,7 +167,7 @@ function main() {
     process.exit(1);
   }
   const entries = collectEntries(specDir);
-  const md = buildSpecIndexMarkdown(entries, isoDate());
+  const md = buildSpecIndexMarkdown(entries, isoDate(), { title: process.argv[4], scopeName: process.argv[5] });
   fs.writeFileSync(outFile, md + '\n', 'utf8');
   process.stdout.write(`[gen-spec-index] wrote ${entries.length} entries to ${outFile}\n`);
 }
