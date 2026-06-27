@@ -1,35 +1,19 @@
 # CLAUDE.md（anytime-markdown プロジェクト固有）
 
-更新日: 2026-05-24
+更新日: 2026-06-27
 
 > 汎用の作業スタイル・Git 哲学・サブエージェント方針・応答ルールは `~/.claude/CLAUDE.md`（global）に従う。\
-> 本ファイルは anytime-markdown 固有のパス・モノレポ構造・Trail DB・並行セッション検知のみを定義する。
+> ツール中立な規約（リポジトリ構成・ドキュメント正本の位置づけ・出力先・モノレポ構造・Git 基本）は `AGENTS.md`（Claude / Codex 共通）に従う。\
+> 本ファイルは Claude 固有の補足（discovery 手順・Trail DB・並行セッション検知・スキル参照）のみを定義する。
 
-## リポジトリ構成
+## ツール中立規約は AGENTS.md を参照
 
-- プライマリリポジトリ: 本リポジトリ（`/anytime-markdown/`）。VS Code ワークスペースのメイン。
-- `/Shared/anytime-markdown-docs/` — ドキュメント。Claude Code の出力先（`/anytime-markdown/` 内には出力しない）。独立 Git リポジトリのため完了時に `git status` で確認。Git ルールは両方に適用。
+- リポジトリ構成・ドキュメント正本の位置づけ（OKF 形式優先）・出力先・モノレポ構造・検証コマンド実在確認・Git 基本ルールは `AGENTS.md`（ツール中立規約の単一の正。Claude / Codex 双方が従う）に集約した。重複時は `AGENTS.md` を優先する。本ファイルは Claude 固有の補足のみを定義する。
 
-> [!NOTE]
-> 知識の正本（source of truth）は `/Shared/anytime-markdown-docs/` 配下の Markdown（ベンダー中立な可搬形式）である。Trail DB（`trail.db` / `memory-core.db` / `doc-core.db`）・Serena memory は、その正本から導出される検索インデックスと位置づける（Open Knowledge Format の「プラットフォームでなく形式」原則）。知識をチャットや DB に閉じ込めず、可搬な Markdown へ外部化することを優先する。
+## Claude 固有のドキュメント参照
 
-## ドキュメント出力先・参照パス
-
-- プランファイル: `/Shared/anytime-markdown-docs/plan/*.md`（3 ファイル以上変更する機能で作成し、承認後に実装）。
-- レビュー: `/Shared/anytime-markdown-docs/review/`。
 - UI / 画面コンポーネントの実装・修正時は `/Shared/anytime-markdown-docs/spec/12.design/design.md` を必ず Read してから着手する（指針は `screen-design` スキル）。
 - worktree とブランチ切替の詳細判断: `/Shared/anytime-markdown-docs/tech/branch/worktree-vs-branch.ja.md`。
-
-## モノレポ構造
-
-- `packages/*` の npm workspace 構成。
-- VS Code 拡張と Web アプリは同一機能を提供することが多い。両者で使うロジック・UI は共通パッケージに配置し、確認なしに片側だけ実装・修正することは禁止。
-- i18n キー（`packages/<viewer>/src/i18n/{ja,en}.ts` など）を追加・変更する場合は `i18n-naming` スキルに従う（階層構造・top namespace の選び方・サフィックス規則・新規追加チェックリスト）。
-- 検証コマンドの実在確認: プランに書くビルド・テスト・型チェックコマンド（`npm run X` / `npx jest <path>` / `npm run build --workspace=...` 等）は、対象 `package.json` の `scripts` と `devDependencies` を事前確認する。確認手段:
-  - `jq -r '.scripts | keys[]' packages/<pkg>/package.json`
-  - `jq -r '.devDependencies | keys[]' packages/<pkg>/package.json`
-  - `<pkg>/jest.config.js` の `testMatch` で `.tsx` 拡張子を含むか
-  - workspace ルートに該当 script があるか（root の `package.json`）
 
 ## Trail DB
 
