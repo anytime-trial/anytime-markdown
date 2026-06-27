@@ -6,6 +6,9 @@
   "scripts": {
     "version:sync": "npm version --no-git-tag-version --workspaces",
     "spec:index": "node scripts/gen-spec-index.mjs",
+    "tech:index": "node scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/tech /Shared/anytime-markdown-docs/tech/00-index.ja.md '技術ドキュメント 索引（自動生成）' tech",
+    "proposal:index": "node scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/proposal /Shared/anytime-markdown-docs/proposal/00-index.ja.md '提案 索引（自動生成）' proposal",
+    "review:index": "node scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/review /Shared/anytime-markdown-docs/review/00-index.ja.md 'レビュー 索引（自動生成）' review",
     "check-skills": "node scripts/check-bundled-skills.mjs",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
     "lint": "eslint packages/markdown-viewer/src packages/web-app/src",
