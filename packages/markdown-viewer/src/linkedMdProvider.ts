@@ -34,7 +34,10 @@ export interface LinkedMdProvider {
   ): Promise<LinkedMdSaveResult>;
 }
 
+export type LinkedMdProviderChangeListener = (provider: LinkedMdProvider | null) => void;
+
 let _provider: LinkedMdProvider | null = null;
+const listeners = new Set<LinkedMdProviderChangeListener>();
 
 /**
  * LinkedMdProvider を注入する。
@@ -43,6 +46,13 @@ let _provider: LinkedMdProvider | null = null;
  */
 export function setLinkedMdProvider(provider: LinkedMdProvider | null): void {
   _provider = provider;
+  for (const listener of listeners) {
+    try {
+      listener(_provider);
+    } catch (error: unknown) {
+      console.error("[linkedMdProvider] listener failed", error);
+    }
+  }
 }
 
 /**
@@ -51,4 +61,13 @@ export function setLinkedMdProvider(provider: LinkedMdProvider | null): void {
  */
 export function getLinkedMdProvider(): LinkedMdProvider | null {
   return _provider;
+}
+
+export function subscribeLinkedMdProvider(
+  listener: LinkedMdProviderChangeListener,
+): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }

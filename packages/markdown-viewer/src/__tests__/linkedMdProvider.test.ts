@@ -1,6 +1,7 @@
 import {
   getLinkedMdProvider,
   setLinkedMdProvider,
+  subscribeLinkedMdProvider,
   type LinkedMdProvider,
 } from "../linkedMdProvider";
 
@@ -45,5 +46,20 @@ describe("linkedMdProvider", () => {
     setLinkedMdProvider(null);
 
     expect(getLinkedMdProvider()).toBeNull();
+  });
+
+  test("subscribeLinkedMdProvider は provider 変更を通知し、解除後は通知しない", () => {
+    const provider = makeProvider();
+    const listener = jest.fn();
+    const unsubscribe = subscribeLinkedMdProvider(listener);
+
+    setLinkedMdProvider(provider);
+
+    expect(listener).toHaveBeenCalledWith(provider);
+
+    unsubscribe();
+    setLinkedMdProvider(null);
+
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });

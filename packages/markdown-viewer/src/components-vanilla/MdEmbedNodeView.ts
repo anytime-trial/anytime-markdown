@@ -5,6 +5,7 @@ import type { NodeView } from "@anytime-markdown/markdown-pm/view";
 
 import {
   getLinkedMdProvider,
+  subscribeLinkedMdProvider,
   type LinkedMdProvider,
   type LinkedMdToken,
 } from "../linkedMdProvider";
@@ -57,10 +58,12 @@ export function createMdEmbedNodeView({
   let token: LinkedMdToken | null = null;
   let nestedEditor: MdEmbedNestedEditor | null = null;
   let removeNestedUpdateListener: (() => void) | null = null;
+  let unsubscribeLinkedMdProvider: (() => void) | null = null;
   let pendingSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let destroyed = false;
   let dirty = false;
   let saving = false;
+  let fetching = false;
   let collapsed = false;
   let editSeq = 0;
 
@@ -296,6 +299,7 @@ export function createMdEmbedNodeView({
       return;
     }
 
+    fetching = true;
     try {
       const content = await provider.fetch(attrs.href);
       if (destroyed) return;
@@ -307,6 +311,8 @@ export function createMdEmbedNodeView({
       body.textContent = tr("mdEmbed.loadError", "Failed to load linked Markdown.");
       setStatus("error");
       setMessage(formatError(tr("mdEmbed.fetchError", "Failed to fetch linked Markdown"), error));
+    } finally {
+      fetching = false;
     }
   }
 
@@ -330,6 +336,10 @@ export function createMdEmbedNodeView({
   setStatus("idle");
   setCollapsed(false);
   void fetchAndMount();
+  unsubscribeLinkedMdProvider = subscribeLinkedMdProvider((nextProvider) => {
+    if (!nextProvider || destroyed || nestedEditor || fetching) return;
+    void fetchAndMount();
+  });
 
   return {
     dom,
@@ -368,6 +378,8 @@ export function createMdEmbedNodeView({
     },
     destroy() {
       destroyed = true;
+      unsubscribeLinkedMdProvider?.();
+      unsubscribeLinkedMdProvider = null;
       editor.off("transaction", syncNestedEditable);
       collapseButton.removeEventListener("click", onCollapseClick);
       openButton.removeEventListener("click", onOpenClick);
