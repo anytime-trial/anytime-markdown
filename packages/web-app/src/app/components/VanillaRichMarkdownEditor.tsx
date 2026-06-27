@@ -19,7 +19,13 @@ import {
   VanillaMarkdownEditorMount,
   type VanillaMarkdownEditorMountProps,
 } from '@anytime-markdown/markdown-react-islands';
+import {
+  getWebImportProvider,
+  setWebImportProvider,
+} from '@anytime-markdown/markdown-viewer/src/webImport/webImportProvider';
+import { useEffect, useMemo } from 'react';
 
+import { createWebImportProvider } from '../../lib/webImportProvider';
 import { createWebComponentMount } from './markdownWebComponentMount';
 
 const mountRichWebComponent = createWebComponentMount('anytime-markdown-rich-editor');
@@ -27,5 +33,17 @@ const mountRichWebComponent = createWebComponentMount('anytime-markdown-rich-edi
 export default function VanillaRichMarkdownEditor(
   props: Readonly<Omit<VanillaMarkdownEditorMountProps, 'mount'>>,
 ) {
+  const webImportProvider = useMemo(() => createWebImportProvider(), []);
+
+  useEffect(() => {
+    if (!webImportProvider) return undefined;
+    setWebImportProvider(webImportProvider);
+    return () => {
+      if (getWebImportProvider() === webImportProvider) {
+        setWebImportProvider(null);
+      }
+    };
+  }, [webImportProvider]);
+
   return <VanillaMarkdownEditorMount mount={mountRichWebComponent} {...props} />;
 }

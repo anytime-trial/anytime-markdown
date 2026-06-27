@@ -34,8 +34,8 @@ export function convertWebPageToMarkdown(
   }
 
   return {
-    title: article.title,
-    markdownBody: turndown.turndown(article.content),
+    title: article.title ?? doc.title,
+    markdownBody: turndown.turndown(article.content ?? ""),
     sourceUrl,
     ...(article.byline ? { byline: article.byline } : {}),
     fetchedAt: now.toISOString(),
