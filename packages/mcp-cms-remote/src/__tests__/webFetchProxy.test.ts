@@ -2,7 +2,38 @@ import {
   assertSafeFetchUrl,
   assertSafeRedirectUrl,
   isBlockedHost,
+  resolveAllowedOrigin,
 } from '../webFetchProxy';
+
+describe('IPv4-mapped IPv6 SSRF', () => {
+  it.each([
+    '::ffff:127.0.0.1',
+    '[::ffff:127.0.0.1]',
+    '::ffff:7f00:1',
+    '::ffff:192.168.0.1',
+    '::ffff:169.254.169.254',
+  ])('blocks mapped private %s', (host) => {
+    expect(isBlockedHost(host)).toBe(true);
+  });
+
+  it('allows mapped public address', () => {
+    expect(isBlockedHost('::ffff:8.8.8.8')).toBe(false);
+  });
+});
+
+describe('resolveAllowedOrigin', () => {
+  it('returns * when no allowlist configured', () => {
+    expect(resolveAllowedOrigin(undefined, 'https://app.example')).toBe('*');
+    expect(resolveAllowedOrigin('', 'https://app.example')).toBe('*');
+  });
+
+  it('reflects an allowed origin and rejects others', () => {
+    const config = 'https://app.example, https://www.example';
+    expect(resolveAllowedOrigin(config, 'https://app.example')).toBe('https://app.example');
+    expect(resolveAllowedOrigin(config, 'https://evil.example')).toBeNull();
+    expect(resolveAllowedOrigin(config, undefined)).toBeNull();
+  });
+});
 
 describe('webFetchProxy URL safety', () => {
   it.each([

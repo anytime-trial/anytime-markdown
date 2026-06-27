@@ -19,7 +19,7 @@ import { toReqRes, toFetchResponse } from 'fetch-to-node';
 import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
 import { createRemoteMcpServer } from './server.js';
 import { paperConfig } from './paperConfig.js';
-import { fetchWebPageForImport, WebFetchProxyError } from './webFetchProxy.js';
+import { fetchWebPageForImport, resolveAllowedOrigin, WebFetchProxyError } from './webFetchProxy.js';
 
 interface Env {
   MCP_API_KEY: string;
@@ -37,11 +37,12 @@ interface Env {
 
 const app = new Hono<{ Bindings: Env }>();
 
-function webImportCorsHeaders(env: Env): Record<string, string> {
+function webImportCorsHeaders(allowOrigin: string): Record<string, string> {
   return {
-    'Access-Control-Allow-Origin': env.WEB_IMPORT_ALLOW_ORIGIN || '*',
+    'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    Vary: 'Origin',
   };
 }
 
@@ -98,10 +99,18 @@ app.delete('/mcp', (c) => c.json({ error: 'Method not allowed. Use POST.' }, 405
 // ヘルスチェック
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-app.options('/fetch', (c) => c.body(null, 204, webImportCorsHeaders(c.env)));
+app.options('/fetch', (c) => {
+  const allowOrigin = resolveAllowedOrigin(c.env.WEB_IMPORT_ALLOW_ORIGIN, c.req.header('origin'));
+  if (allowOrigin === null) return c.body(null, 403);
+  return c.body(null, 204, webImportCorsHeaders(allowOrigin));
+});
 
 app.get('/fetch', async (c) => {
-  const corsHeaders = webImportCorsHeaders(c.env);
+  const allowOrigin = resolveAllowedOrigin(c.env.WEB_IMPORT_ALLOW_ORIGIN, c.req.header('origin'));
+  if (allowOrigin === null) {
+    return c.json({ error: 'origin_not_allowed' }, 403);
+  }
+  const corsHeaders = webImportCorsHeaders(allowOrigin);
   const url = c.req.query('url');
   if (!url) {
     return c.json({ error: 'missing_url' }, 400, corsHeaders);

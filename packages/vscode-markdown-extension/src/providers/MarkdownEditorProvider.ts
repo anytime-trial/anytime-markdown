@@ -751,7 +751,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         }
       } catch (err) {
         const error = err instanceof Error ? err.message : 'fetch-failed';
-        this.logLine?.(`[webImport] fetch failed: ${url} ${error}`);
+        this.logLine?.(`[${new Date().toISOString()}] [WARN] [webImport] fetch failed: ${url} ${error}`);
         ctx.webviewPanel.webview.postMessage({ type: 'fetchWebPageResult', requestId, error });
       }
     };
@@ -760,7 +760,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const markdown = typeof message.markdown === 'string' ? message.markdown : '';
       const title = typeof message.title === 'string' ? message.title : '';
       if (!markdown) {
-        this.logLine?.('[webImport] create document rejected: empty markdown');
+        this.logLine?.(`[${new Date().toISOString()}] [WARN] [webImport] create document rejected: empty markdown`);
         return;
       }
       try {
@@ -771,7 +771,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         await vscode.window.showTextDocument(doc);
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
-        this.logLine?.(`[webImport] create document failed${title ? `: ${title}` : ''} ${error}`);
+        this.logLine?.(`[${new Date().toISOString()}] [WARN] [webImport] create document failed${title ? `: ${title}` : ''} ${error}`);
         void vscode.window.showErrorMessage(`Web import: failed to create document: ${error}`);
       }
     };

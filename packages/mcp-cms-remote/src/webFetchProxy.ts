@@ -42,6 +42,35 @@ function normalizeIpv6(hostname: string): string | null {
   return host.includes(':') && /^[0-9a-f:.]+$/.test(host) ? host : null;
 }
 
+function isPrivateIpv4(octets: number[]): boolean {
+  const [a, b] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254)
+  );
+}
+
+/**
+ * IPv4-mapped IPv6（例 `::ffff:127.0.0.1` の点表記、`::ffff:7f00:1` の hextet 表記）から
+ * 埋め込み IPv4 を抽出する。SSRF 回避（mapped 表記で private IP を渡す）を塞ぐため。
+ */
+function extractMappedIpv4(ipv6: string): number[] | null {
+  const dotted = /(?:^|:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(ipv6);
+  if (dotted) return parseIpv4(dotted[1]);
+
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(ipv6);
+  if (hex) {
+    const hi = Number.parseInt(hex[1], 16);
+    const lo = Number.parseInt(hex[2], 16);
+    return [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff];
+  }
+  return null;
+}
+
 export function isBlockedHost(hostname: string): boolean {
   const host = stripIpv6Brackets(hostname).toLowerCase().replace(/\.$/, '');
   if (!host) return true;
@@ -59,19 +88,13 @@ export function isBlockedHost(hostname: string): boolean {
 
   const ipv4 = parseIpv4(host);
   if (ipv4) {
-    const [a, b] = ipv4;
-    return (
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 169 && b === 254)
-    );
+    return isPrivateIpv4(ipv4);
   }
 
   const ipv6 = normalizeIpv6(host);
   if (ipv6) {
+    const mapped = extractMappedIpv4(ipv6);
+    if (mapped && isPrivateIpv4(mapped)) return true;
     return (
       ipv6 === '::1' ||
       ipv6 === '0:0:0:0:0:0:0:1' ||
@@ -85,6 +108,24 @@ export function isBlockedHost(hostname: string): boolean {
   }
 
   return false;
+}
+
+/**
+ * CORS の Access-Control-Allow-Origin を解決する。
+ * allowConfig（カンマ区切り許可オリジン）が未設定なら `*`（開発・本番では設定必須）。
+ * 設定済みなら requestOrigin が許可リストにある場合のみ反映し、無ければ null（拒否）。
+ */
+export function resolveAllowedOrigin(
+  allowConfig: string | undefined,
+  requestOrigin: string | undefined,
+): string | null {
+  const allowed = (allowConfig ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (allowed.length === 0) return '*';
+  if (requestOrigin && allowed.includes(requestOrigin)) return requestOrigin;
+  return null;
 }
 
 export function assertSafeFetchUrl(url: string): URL {
