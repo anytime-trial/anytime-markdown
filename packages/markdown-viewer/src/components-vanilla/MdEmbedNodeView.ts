@@ -5,6 +5,7 @@ import type { NodeView } from "@anytime-markdown/markdown-pm/view";
 
 import {
   getLinkedMdProvider,
+  subscribeLinkedMdProvider,
   type LinkedMdProvider,
   type LinkedMdToken,
 } from "../linkedMdProvider";
@@ -57,10 +58,13 @@ export function createMdEmbedNodeView({
   let token: LinkedMdToken | null = null;
   let nestedEditor: MdEmbedNestedEditor | null = null;
   let removeNestedUpdateListener: (() => void) | null = null;
+  let unsubscribeLinkedMdProvider: (() => void) | null = null;
   let pendingSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let destroyed = false;
   let dirty = false;
   let saving = false;
+  let fetching = false;
+  let pendingProviderRefetch = false;
   let collapsed = false;
   let editSeq = 0;
 
@@ -280,25 +284,33 @@ export function createMdEmbedNodeView({
   }
 
   async function fetchAndMount(): Promise<void> {
-    provider = getLinkedMdProvider();
-    token = null;
-    dirty = false;
-    setStatus("idle");
-    setMessage(null);
-    disposeNestedEditor();
-    body.textContent = tr("mdEmbed.loading", "Loading linked Markdown...");
-
-    if (!provider) {
-      body.textContent = tr(
-        "mdEmbed.providerMissing",
-        "Linked Markdown provider is not configured.",
-      );
+    if (fetching) {
+      pendingProviderRefetch = true;
       return;
     }
 
+    fetching = true;
+    pendingProviderRefetch = false;
     try {
+      provider = getLinkedMdProvider();
+      token = null;
+      dirty = false;
+      setStatus("idle");
+      setMessage(null);
+      disposeNestedEditor();
+      body.textContent = tr("mdEmbed.loading", "Loading linked Markdown...");
+
+      if (!provider) {
+        body.textContent = tr(
+          "mdEmbed.providerMissing",
+          "Linked Markdown provider is not configured.",
+        );
+        return;
+      }
+
       const content = await provider.fetch(attrs.href);
       if (destroyed) return;
+      if (pendingProviderRefetch) return;
       token = content.token;
       createNestedEditor(content.content);
       setStatus("idle");
@@ -307,6 +319,12 @@ export function createMdEmbedNodeView({
       body.textContent = tr("mdEmbed.loadError", "Failed to load linked Markdown.");
       setStatus("error");
       setMessage(formatError(tr("mdEmbed.fetchError", "Failed to fetch linked Markdown"), error));
+    } finally {
+      fetching = false;
+      if (pendingProviderRefetch && !destroyed && !nestedEditor) {
+        pendingProviderRefetch = false;
+        void fetchAndMount();
+      }
     }
   }
 
@@ -330,6 +348,14 @@ export function createMdEmbedNodeView({
   setStatus("idle");
   setCollapsed(false);
   void fetchAndMount();
+  unsubscribeLinkedMdProvider = subscribeLinkedMdProvider((nextProvider) => {
+    if (!nextProvider || destroyed || nestedEditor) return;
+    if (fetching) {
+      pendingProviderRefetch = true;
+      return;
+    }
+    void fetchAndMount();
+  });
 
   return {
     dom,
@@ -368,6 +394,8 @@ export function createMdEmbedNodeView({
     },
     destroy() {
       destroyed = true;
+      unsubscribeLinkedMdProvider?.();
+      unsubscribeLinkedMdProvider = null;
       editor.off("transaction", syncNestedEditable);
       collapseButton.removeEventListener("click", onCollapseClick);
       openButton.removeEventListener("click", onOpenClick);
