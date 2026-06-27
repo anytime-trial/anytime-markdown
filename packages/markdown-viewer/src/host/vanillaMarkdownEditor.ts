@@ -101,6 +101,12 @@ import { createSearchReplaceBar } from "../components-vanilla/SearchReplaceBar";
 import { createOutlinePanel } from "../components-vanilla/OutlinePanel";
 import { createCommentPanel } from "../components-vanilla/CommentPanel";
 import { createMarkdownMinimap } from "../components-vanilla/MarkdownMinimap";
+import {
+  setLinkedMdProvider,
+  type LinkedMdContent,
+  type LinkedMdSaveResult,
+  type LinkedMdToken,
+} from "../linkedMdProvider";
 
 /** 保存（onContentChange / localStorage）デバウンス（React useMarkdownEditor と同値）。 */
 const SAVE_DEBOUNCE_MS = 500;
@@ -421,6 +427,128 @@ function loadDraft(initialContent: string): string {
     console.warn("[vanillaMarkdownEditor] localStorage read failed", error);
     return initialContent;
   }
+}
+
+type LinkedMdPending =
+  | {
+      kind: "fetch";
+      timer: ReturnType<typeof setTimeout>;
+      resolve: (value: LinkedMdContent) => void;
+      reject: (reason: Error) => void;
+    }
+  | {
+      kind: "save";
+      timer: ReturnType<typeof setTimeout>;
+      resolve: (value: LinkedMdSaveResult) => void;
+      reject: (reason: Error) => void;
+    };
+
+function isLinkedMdToken(value: unknown): value is LinkedMdToken {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.mtimeMs === "number" && typeof record.size === "number";
+}
+
+function nextLinkedMdRequestId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `linked-md-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function installLinkedMdProviderBridge(vscodeApi: VsCodeApi | null | undefined): () => void {
+  if (!vscodeApi) {
+    setLinkedMdProvider(null);
+    return () => setLinkedMdProvider(null);
+  }
+
+  const pendingRequests = new Map<string, LinkedMdPending>();
+  const timeoutMs = 15_000;
+  const makeTimeout = (requestId: string, reject: (reason: Error) => void): ReturnType<typeof setTimeout> =>
+    setTimeout(() => {
+      pendingRequests.delete(requestId);
+      reject(new Error("linked-md-timeout"));
+    }, timeoutMs);
+
+  const postFetch = (href: string): Promise<LinkedMdContent> =>
+    new Promise((resolve, reject) => {
+      const requestId = nextLinkedMdRequestId();
+      const timer = makeTimeout(requestId, reject);
+      pendingRequests.set(requestId, { kind: "fetch", timer, resolve, reject });
+      vscodeApi.postMessage({ type: "fetchLinkedMd", requestId, href });
+    });
+
+  const postSave = (
+    href: string,
+    content: string,
+    baseToken: LinkedMdToken,
+  ): Promise<LinkedMdSaveResult> =>
+    new Promise((resolve, reject) => {
+      const requestId = nextLinkedMdRequestId();
+      const timer = makeTimeout(requestId, reject);
+      pendingRequests.set(requestId, { kind: "save", timer, resolve, reject });
+      vscodeApi.postMessage({ type: "saveLinkedMd", requestId, href, content, baseToken });
+    });
+
+  const onMessage = (event: MessageEvent): void => {
+    if (
+      event.origin &&
+      !event.origin.startsWith("vscode-webview://") &&
+      event.origin !== globalThis.location?.origin
+    ) {
+      return;
+    }
+    const data = event.data;
+    if (typeof data !== "object" || data === null) return;
+    const record = data as Record<string, unknown>;
+    const requestId = typeof record.requestId === "string" ? record.requestId : "";
+    if (!requestId) return;
+    const pending = pendingRequests.get(requestId);
+    if (!pending) return;
+
+    if (record.type === "linkedMdContent" && pending.kind === "fetch") {
+      pendingRequests.delete(requestId);
+      clearTimeout(pending.timer);
+      const error = typeof record.error === "string" ? record.error : "";
+      if (error) {
+        pending.reject(new Error(error));
+        return;
+      }
+      if (
+        typeof record.content === "string" &&
+        typeof record.resolvedPath === "string" &&
+        isLinkedMdToken(record.token)
+      ) {
+        pending.resolve({
+          content: record.content,
+          resolvedPath: record.resolvedPath,
+          token: record.token,
+        });
+      } else {
+        pending.reject(new Error("invalid-linked-md-content"));
+      }
+      return;
+    }
+
+    if (record.type === "linkedMdSaved" && pending.kind === "save") {
+      pendingRequests.delete(requestId);
+      clearTimeout(pending.timer);
+      const token = isLinkedMdToken(record.token) ? record.token : null;
+      const conflict = record.conflict === true;
+      const error = typeof record.error === "string" ? record.error : undefined;
+      pending.resolve({ token, conflict, error });
+    }
+  };
+
+  window.addEventListener("message", onMessage);
+  setLinkedMdProvider({ fetch: postFetch, save: postSave });
+
+  return () => {
+    window.removeEventListener("message", onMessage);
+    for (const pending of pendingRequests.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error("linked-md-provider-disposed"));
+    }
+    pendingRequests.clear();
+    setLinkedMdProvider(null);
+  };
 }
 
 /**
@@ -1344,6 +1472,7 @@ export function mountVanillaMarkdownEditor(
       disposers.push(() => autoReloadController.dispose());
 
       // === VS Code カスタムイベント連携 =========================================
+      disposers.push(installLinkedMdProviderBridge(current.vscodeApi));
       disposers.push(installVSCodeEditorEvents(editor));
       disposers.push(
         installVSCodeModeEvents({

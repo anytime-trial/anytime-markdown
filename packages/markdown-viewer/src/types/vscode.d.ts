@@ -9,7 +9,15 @@ declare global {
     | { type: "readClipboard" }
     | { type: "readClipboardForCodeBlock" }
     | { type: "writeClipboard"; text: string }
-    | { type: "editorError"; message: string; stack: string; componentStack: string };
+    | { type: "editorError"; message: string; stack: string; componentStack: string }
+    | { type: "fetchLinkedMd"; requestId: string; href: string }
+    | {
+        type: "saveLinkedMd";
+        requestId: string;
+        href: string;
+        content: string;
+        baseToken: { mtimeMs: number; size: number };
+      };
 
   /** VS Code Webview API type stub */
   interface VsCodeApi {
