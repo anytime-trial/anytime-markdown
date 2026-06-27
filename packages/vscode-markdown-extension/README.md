@@ -36,7 +36,7 @@ Available from both the Explorer context menu and the editor title bar context m
 While Claude Code is editing a file, the editor becomes read-only to prevent conflicts.\
 When editing finishes, the lock is released and the content is updated automatically.
 
-- **[Anytime Trail](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-trail) required** — Trail registers the Claude Code hooks; this extension reads the status to control locking
+- **[Anytime Agent](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-agent) required** — the Agent extension registers the Claude Code hooks; this extension reads the status to control locking
 - **Handles rapid edits** — lock is released 3 seconds after the last edit
 - **Crash safe** — auto-unlocks after 30 seconds if Claude Code stops responding
 
