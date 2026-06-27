@@ -6,6 +6,7 @@
  */
 
 import { interpolateDsmColor } from '@anytime-markdown/trail-core/c4';
+import type { ArchitectureLayer } from '@anytime-markdown/trail-core/codeGraph';
 
 // ---------------------------------------------------------------------------
 // Mode-independent constants
@@ -64,6 +65,8 @@ export interface C4ThemeColors {
   readonly overlayLegendBg: string;
   readonly overlayLegendText: string;
   readonly scrollbarThumb: string;
+  // Architecture layer overlay（9 層・モジュール粒度）
+  readonly layerColors: Record<ArchitectureLayer, string>;
 }
 
 const DARK: C4ThemeColors = {
@@ -106,6 +109,17 @@ const DARK: C4ThemeColors = {
   overlayLegendBg: 'rgba(0,0,0,0.65)',
   overlayLegendText: '#e0e0e0',
   scrollbarThumb: 'rgba(255,255,255,0.2)',
+  layerColors: {
+    foundation: '#90a4ae',
+    analysis: '#ba68c8',
+    data: '#4fc3f7',
+    'service-domain': '#aed581',
+    'service-server': '#4db6ac',
+    integration: '#ffb74d',
+    'presentation-ui': '#f06292',
+    'presentation-extension': '#9575cd',
+    utility: '#a1887f',
+  },
 };
 
 const LIGHT: C4ThemeColors = {
@@ -148,6 +162,17 @@ const LIGHT: C4ThemeColors = {
   overlayLegendBg: 'rgba(255,255,255,0.85)',
   overlayLegendText: '#212121',
   scrollbarThumb: 'rgba(0,0,0,0.2)',
+  layerColors: {
+    foundation: '#607d8b',
+    analysis: '#8e24aa',
+    data: '#0288d1',
+    'service-domain': '#689f38',
+    'service-server': '#00897b',
+    integration: '#ef6c00',
+    'presentation-ui': '#d81b60',
+    'presentation-extension': '#5e35b1',
+    utility: '#6d4c41',
+  },
 };
 
 export function getC4Colors(isDark: boolean): C4ThemeColors {

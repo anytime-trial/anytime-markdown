@@ -6,6 +6,13 @@ import { resolveLocale } from '@anytime-markdown/vscode-common';
 import { resolveRepositoryRoot, scanRepository, resolveDocPath } from '../noteGraph/scan';
 import { addRelatedEntry, isSafeRelPath } from '../noteGraph/frontmatter';
 import { coerceRelationType, type RelationType } from '../noteGraph/relations';
+import { buildLinkCandidates } from '../utils/linkCandidates';
+import { planLinkOpen } from '../utils/linkOpenTarget';
+import {
+  resolveLinkedMdCandidates,
+  tokensMatch,
+  type LinkedMdToken,
+} from '../utils/linkedMdFs';
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -629,30 +636,17 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
-    const buildLinkCandidates = (filePath: string): string[] | null => {
-      if (path.isAbsolute(filePath)) return null;
-      const docDir = path.dirname(ctx.document.uri.fsPath);
-      const targetPath = path.resolve(docDir, filePath);
-      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      if (workspaceRoot && !targetPath.startsWith(workspaceRoot + path.sep) && targetPath !== workspaceRoot) {
-        const fromRoot = path.resolve(workspaceRoot, filePath);
-        if (!fromRoot.startsWith(workspaceRoot + path.sep)) return null;
-      }
-      const candidates = [targetPath];
-      if (workspaceRoot) {
-        const fromRoot = path.resolve(workspaceRoot, filePath);
-        if (fromRoot !== targetPath) candidates.push(fromRoot);
-      }
-      return candidates;
-    };
-
     const tryOpenCandidate = async (candidate: string, lineMatch: RegExpMatchArray | null): Promise<boolean> => {
       const uri = vscode.Uri.file(candidate);
+      const line = lineMatch ? Math.max(0, Number.parseInt(lineMatch[1], 10) - 1) : null;
+      const plan = planLinkOpen(candidate, line);
       try {
-        if (lineMatch) {
-          const line = Math.max(0, Number.parseInt(lineMatch[1], 10) - 1);
+        if (plan.kind === 'customEditor') {
+          // md は Anytime Markdown カスタムエディタ（WYSIWYG）で開く。
+          await vscode.commands.executeCommand('vscode.openWith', uri, plan.viewType);
+        } else if (plan.kind === 'textEditorAtLine') {
           const doc = await vscode.workspace.openTextDocument(uri);
-          await vscode.window.showTextDocument(doc, { selection: new vscode.Range(line, 0, line, 0) });
+          await vscode.window.showTextDocument(doc, { selection: new vscode.Range(plan.line, 0, plan.line, 0) });
         } else {
           await vscode.commands.executeCommand('vscode.open', uri);
         }
@@ -668,7 +662,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       const href = decodeURIComponent(rawHref);
       const lineMatch = /#L(\d+)$/.exec(href);
       const filePath = lineMatch ? href.replace(/#L\d+$/, '') : href;
-      const candidates = buildLinkCandidates(filePath);
+      const docDir = path.dirname(ctx.document.uri.fsPath);
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const candidates = buildLinkCandidates(filePath, docDir, workspaceRoot);
       if (!candidates) {
         vscode.window.showWarningMessage(`Invalid file path: ${filePath}`);
         return;
@@ -719,6 +715,171 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       } catch (err) {
         const error = err instanceof Error ? err.message : 'fetch-failed';
         ctx.webviewPanel.webview.postMessage({ type: 'ogpResult', requestId, error });
+      }
+    };
+
+    const tokenFromStats = (stats: fs.Stats): LinkedMdToken => ({
+      mtimeMs: stats.mtimeMs,
+      size: stats.size,
+    });
+
+    const findExistingLinkedMd = async (candidates: string[]): Promise<string | null> => {
+      for (const candidate of candidates) {
+        try {
+          const stats = await fs.promises.stat(candidate);
+          if (stats.isFile()) return candidate;
+        } catch (err) {
+          const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : '';
+          if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+            throw err;
+          }
+        }
+      }
+      return null;
+    };
+
+    const isLinkedMdToken = (value: unknown): value is LinkedMdToken => {
+      if (typeof value !== 'object' || value === null) return false;
+      const record = value as Record<string, unknown>;
+      return typeof record.mtimeMs === 'number' && typeof record.size === 'number';
+    };
+
+    const handleFetchLinkedMd = async (message: Record<string, unknown>) => {
+      const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+      const href = typeof message.href === 'string' ? message.href : '';
+      if (!requestId) return;
+
+      const respondError = (error: string): void => {
+        ctx.webviewPanel.webview.postMessage({
+          type: 'linkedMdContent',
+          requestId,
+          content: '',
+          resolvedPath: '',
+          token: { mtimeMs: 0, size: 0 },
+          error,
+        });
+      };
+
+      if (!href) {
+        respondError('missing-href');
+        return;
+      }
+
+      try {
+        const docDir = path.dirname(ctx.document.uri.fsPath);
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const candidates = resolveLinkedMdCandidates(href, docDir, workspaceRoot);
+        if (candidates.length === 0) {
+          respondError('no-candidates');
+          return;
+        }
+
+        const selected = await findExistingLinkedMd(candidates);
+        if (!selected) {
+          respondError('not-found');
+          return;
+        }
+
+        const [content, stats] = await Promise.all([
+          fs.promises.readFile(selected, 'utf8'),
+          fs.promises.stat(selected),
+        ]);
+        ctx.webviewPanel.webview.postMessage({
+          type: 'linkedMdContent',
+          requestId,
+          content,
+          resolvedPath: selected,
+          token: tokenFromStats(stats),
+        });
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        respondError(`fetch-failed: ${error}`);
+      }
+    };
+
+    const replaceOpenTextDocument = async (
+      targetPath: string,
+      content: string,
+    ): Promise<void> => {
+      const target = path.resolve(targetPath);
+      const opened = vscode.workspace.textDocuments.find(doc => path.resolve(doc.uri.fsPath) === target);
+      if (!opened) {
+        await fs.promises.writeFile(targetPath, content, 'utf8');
+        return;
+      }
+
+      const edit = new vscode.WorkspaceEdit();
+      const currentText = opened.getText();
+      edit.replace(
+        opened.uri,
+        new vscode.Range(opened.positionAt(0), opened.positionAt(currentText.length)),
+        content,
+      );
+      const success = await vscode.workspace.applyEdit(edit);
+      if (!success) {
+        throw new Error('apply-edit-failed');
+      }
+      await opened.save();
+    };
+
+    const handleSaveLinkedMd = async (message: Record<string, unknown>) => {
+      const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+      const href = typeof message.href === 'string' ? message.href : '';
+      const content = typeof message.content === 'string' ? message.content : null;
+      const baseToken = isLinkedMdToken(message.baseToken) ? message.baseToken : null;
+      if (!requestId) return;
+
+      const respond = (payload: {
+        token: LinkedMdToken | null;
+        conflict: boolean;
+        error?: string;
+      }): void => {
+        ctx.webviewPanel.webview.postMessage({
+          type: 'linkedMdSaved',
+          requestId,
+          ...payload,
+        });
+      };
+
+      if (!href || content === null || !baseToken) {
+        respond({ token: null, conflict: false, error: 'invalid-save-request' });
+        return;
+      }
+
+      try {
+        const docDir = path.dirname(ctx.document.uri.fsPath);
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const candidates = resolveLinkedMdCandidates(href, docDir, workspaceRoot);
+        if (candidates.length === 0) {
+          respond({ token: null, conflict: false, error: 'no-candidates' });
+          return;
+        }
+
+        const existing = await findExistingLinkedMd(candidates);
+        const target = existing ?? candidates[0];
+
+        if (existing) {
+          const currentToken = tokenFromStats(await fs.promises.stat(existing));
+          if (!tokensMatch(currentToken, baseToken)) {
+            respond({ token: currentToken, conflict: true });
+            return;
+          }
+          const target = path.resolve(existing);
+          const opened = vscode.workspace.textDocuments.find(
+            doc => doc.uri.scheme === 'file' && path.resolve(doc.uri.fsPath) === target
+          );
+          if (opened?.isDirty) {
+            respond({ token: currentToken, conflict: true });
+            return;
+          }
+        }
+
+        await replaceOpenTextDocument(target, content);
+        const nextToken = tokenFromStats(await fs.promises.stat(target));
+        respond({ token: nextToken, conflict: false });
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        respond({ token: null, conflict: false, error: `save-failed: ${error}` });
       }
     };
 
@@ -872,6 +1033,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         case 'save': await handleSave(); break;
         case 'fetchOgp': await handleFetchOgp(message); break;
+        case 'fetchLinkedMd': await handleFetchLinkedMd(message); break;
+        case 'saveLinkedMd': await handleSaveLinkedMd(message); break;
         case 'fetchOembed': await handleFetchOembed(message); break;
         case 'fetchRss': await handleFetchRss(message); break;
         case 'requestNoteGraphDocs': await sendNoteGraphDocs(); break;

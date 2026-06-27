@@ -24,6 +24,7 @@ export class AgentStatusWorkerHost {
     private readonly workspaceRoot: string,
     private readonly workerScriptPath: string,
     private readonly logger: Logger,
+    private readonly sessionRetentionDays: number = 7,
   ) {
     this.jsonPath = agentWorkerJsonPath(workspaceRoot);
   }
@@ -47,7 +48,13 @@ export class AgentStatusWorkerHost {
     const child = cp.spawn(
       process.execPath,
       ['--disable-warning=ExperimentalWarning', this.workerScriptPath, this.workspaceRoot],
-      { stdio: 'ignore' },
+      {
+        stdio: 'ignore',
+        env: {
+          ...process.env,
+          ANYTIME_AGENT_SESSION_RETENTION_DAYS: String(this.sessionRetentionDays),
+        },
+      },
     );
     this.child = child;
     child.on('error', (err) => {

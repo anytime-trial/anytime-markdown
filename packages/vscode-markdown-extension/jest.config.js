@@ -7,7 +7,12 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
-  testMatch: ['**/noteGraph/__tests__/**/*.test.ts', '**/claude/__tests__/**/*.test.ts'],
+  testMatch: [
+    '**/noteGraph/__tests__/**/*.test.ts',
+    '**/claude/__tests__/**/*.test.ts',
+    '**/webview/__tests__/**/*.test.ts',
+    '**/utils/__tests__/**/*.test.ts',
+  ],
   transform: {
     '^.+\\.ts$': ['ts-jest', { isolatedModules: true }],
   },

@@ -137,15 +137,22 @@ export function mountResizablePopup(
     const maximized = liveMaximized;
     const size = liveSize;
 
-    // Backdrop
+    // Backdrop.
+    // `pointer-events:auto` is required because the C4 viewer mounts popups into
+    // a `pointer-events:none` host (so the host overlay never blocks the graph
+    // canvas behind it). `pointer-events` is inherited, so the backdrop must
+    // re-enable it to capture clicks while the modal is shown.
     backdrop.style.cssText = withBackdrop
       ? `position:absolute;inset:0;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);` +
-        `background:${isDark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.15)'};z-index:10;`
+        `background:${isDark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.15)'};z-index:10;pointer-events:auto;`
       : 'display:none;';
 
-    // Base
+    // Base.
+    // `pointer-events:auto` re-enables interaction for the popup and all of its
+    // content (level buttons, scrollable grid) inside the `pointer-events:none`
+    // host; without it every click/wheel inside the popup is swallowed.
     root.style.cssText =
-      'position:absolute;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;z-index:11;' +
+      'position:absolute;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;z-index:11;pointer-events:auto;' +
       `border:1px solid ${colors.border};` +
       `background:${isDark ? 'rgba(18,18,18,0.96)' : 'rgba(251,249,243,0.98)'};` +
       `color:${colors.text};` +

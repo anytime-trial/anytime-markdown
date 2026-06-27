@@ -16,7 +16,7 @@
     "kicker": "This site is an experimental project",
     "title1": "<ruby>理<rt>ことわり</rt></ruby>を、",
     "title2": "<ruby>一図<rt>いちず</rt></ruby>に",
-    "description": "AIエージェントは、苛酷な砂漠（開発環境）を往くキャラバン。\nMarkdown の WYSIWYG 編集・差分レビューと、TypeScript プロジェクトのリアルタイム可視化で、その旅路を安全に見守り導く\n— AI時代の羅針盤となる2つの VS Code 拡張です。",
+    "description": "AIエージェントは、苛酷な砂漠（開発環境）を往くキャラバン。\nMarkdown の WYSIWYG 編集・差分レビューと、TypeScript プロジェクトのリアルタイム可視化、そして複数の AI セッションの一望と引き継ぎで、その旅路を安全に見守り導く\n— AI時代の羅針盤となる3つの VS Code 拡張です。",
     "byline": "Filed by <b>Claude Code</b> - Kiyotaka Ueda - 全文無料公開",
     "asideVert": "砂嵐を渡る、長い旅の供。",
     "asideEditor": "From the editor's desk",
@@ -35,18 +35,30 @@
     "harnessHeading": "ハーネスのジレンマ。",
     "harnessBody": "主流のアプローチは AI を「ハーネス（手綱）」で縛る ― ホワイトリスト、ガードレール、ツール制限、サンドボックス。しかし<vermilion>縛るほどに自律性も判断力も失われる</vermilion>。",
     "caravanHeading": "見える化で築く、伴走。",
-    "caravanBody": "Anytime は制約をかけない。行動を見える化（<vermilion>Trail</vermilion>）し、成果物をレビュー可能（<vermilion>Markdown</vermilion>）にすることで、事前事後の検証で信頼を築く ― この思想を、2 つの拡張で具現化した。",
+    "caravanBody": "Anytime は制約をかけない。行動を見える化（<vermilion>Trail</vermilion>）し、成果物をレビュー可能（<vermilion>Markdown</vermilion>）にし、隊列そのものを見渡せる（<vermilion>Agent</vermilion>）ようにすることで、事前事後の検証で信頼を築く ― この思想を、3 つの拡張で具現化した。",
     "editorHeading": "編集後記。",
     "editorBody": "本サイトは、設計・実装・テストのすべてを <vermilion>Claude Code</vermilion>（AI コーディングアシスタント）が行い、人間は指示のみを担当する実験的なプロジェクトです。Anytime Markdown 自体を仕様の把握やテスト内容の確認に活用しながら開発しています。ソースコードは <github>GitHub</github> で公開しています。"
   },
   "briefing": {
     "trailEmbedTitle": "anytime-trail — trail viewer",
     "markdownEmbedTitle": "anytime-markdown — markdown editor",
+    "agentEmbedTitle": "anytime-agent — agent panel",
     "shipped": "— shipped",
     "trailHeader": "Anytime",
     "trailHeaderEm": "Trail.",
     "markdownHeader": "Anytime",
-    "markdownHeaderEm": "Markdown."
+    "markdownHeaderEm": "Markdown.",
+    "agentHeader": "Anytime",
+    "agentHeaderEm": "Agent."
+  },
+  "agent": {
+    "shotAlt": "Anytime Agent の Agent マッピングパネルのスクリーンショット",
+    "agent1Title": "Claude Code セッションを一望 ― Agent マッピング",
+    "agent1Body": "すべての Claude Code セッションを最近のアクティビティ順に一覧。ブランチ・worktree・コミット数・コンテキスト警告をホバーで把握し、肥大化したセッションを ⚠️ バッジで即座に発見できます。",
+    "agent2Title": "文脈を保ったまま乗り換える ― セッション引き継ぎ",
+    "agent2Body": "肥大化したセッションを圧縮要約とともに新セッションへ移行。ターミナルで新しい claude を起動し、引き継ぎ内容を自動注入することで、文脈を失わずに作業を継続できます。",
+    "agent3Title": "視覚情報を AI に渡す ― AI ノート",
+    "agent3Body": "画像・表・自由記述のメモを、画面を直接見られない AI ツールに共有。同梱の anytime-note スキルから AI が依頼に応じてノートを読み取り、視覚情報をもとに作業します。"
   },
   "pullQuote": {
     "text": "速い道具は、書き手を迷子にする。隊商の歩幅で、文字を運ぶ。",
@@ -103,7 +115,8 @@
   "cta": {
     "openViewer": "Open Viewer",
     "onlineEditor": "Online Editor",
-    "vsCode": "VS Code Extension"
+    "vsCode": "VS Code Extension",
+    "chrome": "Chrome 拡張"
   },
   "colophon": {
     "press": "The Press",

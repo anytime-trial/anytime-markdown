@@ -10,6 +10,22 @@ if (typeof globalThis.structuredClone === 'undefined') {
   globalThis.structuredClone = <T>(val: T): T => JSON.parse(JSON.stringify(val)) as T;
 }
 
+// c4Viewer now statically imports the code-graph popup (mountCodeGraphPanel),
+// which pulls in sigma. Sigma needs WebGL2RenderingContext, absent in jsdom, so
+// mock it at module level. Jest hoists jest.mock() above the imports.
+jest.mock('sigma', () => ({
+  __esModule: true,
+  default: class MockSigma {
+    on() { /* no-op */ }
+    getGraph() { return { forEachNode: () => { /* no-op */ }, setNodeAttribute: () => { /* no-op */ } }; }
+    refresh() { /* no-op */ }
+    kill() { /* no-op */ }
+  },
+}));
+jest.mock('sigma/rendering', () => ({
+  EdgeArrowProgram: class MockEdgeArrowProgram {},
+}));
+
 import { mountC4Viewer, computeMatrixGridOptions } from '../c4Viewer';
 import type { C4ViewerViewProps } from '../c4Viewer';
 import type { C4Model, CoverageMatrix } from '@anytime-markdown/trail-core/c4';
@@ -211,6 +227,26 @@ describe('mountC4Viewer', () => {
     handle.destroy();
   });
 
+  it('Code Graph ボタンで code graph ポップアップを開閉する', async () => {
+    const handle = mountC4Viewer(container, makeProps());
+    const btn = container.querySelector<HTMLButtonElement>('button[aria-label="Code Graph"]');
+    expect(btn).toBeTruthy();
+
+    // Open: showGraphPopup の配線で popup が mount される（旧デッドコードの回帰防止）。
+    btn!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(container.querySelector('[role="dialog"][aria-label="Code graph panel"]')).toBeTruthy();
+
+    // Toggle close.
+    btn!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(container.querySelector('[role="dialog"][aria-label="Code graph panel"]')).toBeNull();
+
+    handle.destroy();
+  });
+
   it('context menu is appended to document.body (not container)', () => {
     const handle = mountC4Viewer(container, makeProps());
     // Context menus go to document.body so they can be fixed-position
@@ -244,6 +280,33 @@ describe('mountC4Viewer', () => {
     const dialogs = container.querySelectorAll('[role="dialog"]');
     // At minimum the loading dialog and the 3 mount dialogs (even if closed)
     expect(dialogs.length).toBeGreaterThanOrEqual(1);
+    handle.destroy();
+  });
+
+  // Regression: Ghost Edges 詳細コントロールは左コントロールパネル(leftPanel)列に積む。
+  // 旧実装は graphCanvasArea へフロー追加され 100%高 canvas 背後でクリップ→不可視だった。
+  // mount 先が graphCanvasArea に戻ると left:8px の leftPanel 配下から外れ、本テストが落ちる。
+  it('Ghost Edges 詳細コントロールを leftPanel 列に inline 配置する（不可視回帰の防止）', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c4Model: any = {
+      title: 'T', level: 'component',
+      elements: [{ id: 'cmp1', type: 'component', name: 'Svc' }],
+      relationships: [],
+    };
+    // showTC = tcValue.enabled && (level === 3 || 4)。level3 で Ghost Edges を有効化。
+    const handle = mountC4Viewer(container, makeProps({ c4Model, initialLevel: 3 }));
+    const ghostBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Ghost Edges"]');
+    expect(ghostBtn).toBeTruthy();
+    ghostBtn!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const tcGroup = container.querySelector<HTMLElement>('[role="group"][aria-label="時間的結合エッジの表示制御"]');
+    expect(tcGroup).toBeTruthy();
+    // 親が leftPanel（position:absolute;left:8px の列）であること = graphCanvasArea 直下ではない。
+    expect(tcGroup!.parentElement?.style.left).toBe('8px');
+    // inline 縦カードとして描画される。
+    expect(tcGroup!.style.flexDirection).toBe('column');
     handle.destroy();
   });
 });

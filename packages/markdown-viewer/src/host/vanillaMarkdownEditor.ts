@@ -100,6 +100,13 @@ import { createEditorSideToolbar } from "../components-vanilla/EditorSideToolbar
 import { createSearchReplaceBar } from "../components-vanilla/SearchReplaceBar";
 import { createOutlinePanel } from "../components-vanilla/OutlinePanel";
 import { createCommentPanel } from "../components-vanilla/CommentPanel";
+import { createMarkdownMinimap } from "../components-vanilla/MarkdownMinimap";
+import {
+  setLinkedMdProvider,
+  type LinkedMdContent,
+  type LinkedMdSaveResult,
+  type LinkedMdToken,
+} from "../linkedMdProvider";
 
 /** 保存（onContentChange / localStorage）デバウンス（React useMarkdownEditor と同値）。 */
 const SAVE_DEBOUNCE_MS = 500;
@@ -269,8 +276,10 @@ interface VanillaLayout {
   toolbarSlot: HTMLElement;
   frontmatterEl: HTMLElement;
   contentEl: HTMLElement;
+  contentArea: HTMLElement;
   editorMountEl: HTMLElement;
   mainRow: HTMLElement;
+  minimapSlot: HTMLElement;
   sidebarSlot: HTMLElement;
   sideToolbarSlot: HTMLElement;
   statusBarSlot: HTMLElement;
@@ -304,7 +313,7 @@ function buildLayout(): VanillaLayout {
 
   const contentEl = document.createElement("div");
   contentEl.setAttribute("data-am-content", "");
-  // position:relative は SearchReplaceBar（absolute・右上）配置の基準。
+  // position:relative は merge ビュー等 contentEl 直下の絶対配置子の基準（従来挙動を維持）。
   // min-width:0 は flex item の自動最小サイズ（min-width:auto）を無効化し、狭幅でも flex
   // コンテナ幅まで縮小可能にする。これがないと noScroll（overflow:visible）時に本文が
   // 折り返されず横にはみ出す（scroll モードは overflow:auto で自動最小サイズが 0 のため不要）。
@@ -317,6 +326,21 @@ function buildLayout(): VanillaLayout {
   editorMountEl.style.display = "contents";
   contentEl.appendChild(editorMountEl);
 
+  // contentEl（overflow:auto のスクロールコンテナ）を非スクロールの relative ラッパで包む。
+  // SearchReplaceBar（absolute・右上）はこの contentArea を基準に配置し、本文スクロールへ
+  // 追従せず常時最上部に留める（contentEl 直下に置くとスクロール内容と一緒に流れてしまう）。
+  const contentArea = document.createElement("div");
+  contentArea.setAttribute("data-am-content-area", "");
+  contentArea.style.cssText =
+    "position:relative;flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column;";
+  contentArea.appendChild(contentEl);
+
+  // 変更オーバービュー（MarkdownMinimap）のマウント先。本文スクロールバーの直右・
+  // sidebar（outline/comment）の手前に縦置きし、旧 React EditorContentArea と同じ位置関係にする。
+  const minimapSlot = document.createElement("div");
+  minimapSlot.setAttribute("data-am-minimap-slot", "");
+  minimapSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
+
   // Outline / Comment パネルのマウント先（toggle で表示）。
   const sidebarSlot = document.createElement("div");
   sidebarSlot.setAttribute("data-am-sidebar-slot", "");
@@ -327,7 +351,7 @@ function buildLayout(): VanillaLayout {
   sideToolbarSlot.setAttribute("data-am-side-toolbar-slot", "");
   sideToolbarSlot.style.cssText = "flex-shrink:0;display:flex;min-height:0;";
 
-  mainRow.append(contentEl, sidebarSlot);
+  mainRow.append(contentArea, minimapSlot, sidebarSlot);
 
   const statusBarSlot = document.createElement("div");
   statusBarSlot.setAttribute("data-am-statusbar-slot", "");
@@ -359,8 +383,10 @@ function buildLayout(): VanillaLayout {
     toolbarSlot,
     frontmatterEl,
     contentEl,
+    contentArea,
     editorMountEl,
     mainRow,
+    minimapSlot,
     sidebarSlot,
     sideToolbarSlot,
     statusBarSlot,
@@ -403,6 +429,128 @@ function loadDraft(initialContent: string): string {
   }
 }
 
+type LinkedMdPending =
+  | {
+      kind: "fetch";
+      timer: ReturnType<typeof setTimeout>;
+      resolve: (value: LinkedMdContent) => void;
+      reject: (reason: Error) => void;
+    }
+  | {
+      kind: "save";
+      timer: ReturnType<typeof setTimeout>;
+      resolve: (value: LinkedMdSaveResult) => void;
+      reject: (reason: Error) => void;
+    };
+
+function isLinkedMdToken(value: unknown): value is LinkedMdToken {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.mtimeMs === "number" && typeof record.size === "number";
+}
+
+function nextLinkedMdRequestId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `linked-md-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function installLinkedMdProviderBridge(vscodeApi: VsCodeApi | null | undefined): () => void {
+  if (!vscodeApi) {
+    setLinkedMdProvider(null);
+    return () => setLinkedMdProvider(null);
+  }
+
+  const pendingRequests = new Map<string, LinkedMdPending>();
+  const timeoutMs = 15_000;
+  const makeTimeout = (requestId: string, reject: (reason: Error) => void): ReturnType<typeof setTimeout> =>
+    setTimeout(() => {
+      pendingRequests.delete(requestId);
+      reject(new Error("linked-md-timeout"));
+    }, timeoutMs);
+
+  const postFetch = (href: string): Promise<LinkedMdContent> =>
+    new Promise((resolve, reject) => {
+      const requestId = nextLinkedMdRequestId();
+      const timer = makeTimeout(requestId, reject);
+      pendingRequests.set(requestId, { kind: "fetch", timer, resolve, reject });
+      vscodeApi.postMessage({ type: "fetchLinkedMd", requestId, href });
+    });
+
+  const postSave = (
+    href: string,
+    content: string,
+    baseToken: LinkedMdToken,
+  ): Promise<LinkedMdSaveResult> =>
+    new Promise((resolve, reject) => {
+      const requestId = nextLinkedMdRequestId();
+      const timer = makeTimeout(requestId, reject);
+      pendingRequests.set(requestId, { kind: "save", timer, resolve, reject });
+      vscodeApi.postMessage({ type: "saveLinkedMd", requestId, href, content, baseToken });
+    });
+
+  const onMessage = (event: MessageEvent): void => {
+    if (
+      event.origin &&
+      !event.origin.startsWith("vscode-webview://") &&
+      event.origin !== globalThis.location?.origin
+    ) {
+      return;
+    }
+    const data = event.data;
+    if (typeof data !== "object" || data === null) return;
+    const record = data as Record<string, unknown>;
+    const requestId = typeof record.requestId === "string" ? record.requestId : "";
+    if (!requestId) return;
+    const pending = pendingRequests.get(requestId);
+    if (!pending) return;
+
+    if (record.type === "linkedMdContent" && pending.kind === "fetch") {
+      pendingRequests.delete(requestId);
+      clearTimeout(pending.timer);
+      const error = typeof record.error === "string" ? record.error : "";
+      if (error) {
+        pending.reject(new Error(error));
+        return;
+      }
+      if (
+        typeof record.content === "string" &&
+        typeof record.resolvedPath === "string" &&
+        isLinkedMdToken(record.token)
+      ) {
+        pending.resolve({
+          content: record.content,
+          resolvedPath: record.resolvedPath,
+          token: record.token,
+        });
+      } else {
+        pending.reject(new Error("invalid-linked-md-content"));
+      }
+      return;
+    }
+
+    if (record.type === "linkedMdSaved" && pending.kind === "save") {
+      pendingRequests.delete(requestId);
+      clearTimeout(pending.timer);
+      const token = isLinkedMdToken(record.token) ? record.token : null;
+      const conflict = record.conflict === true;
+      const error = typeof record.error === "string" ? record.error : undefined;
+      pending.resolve({ token, conflict, error });
+    }
+  };
+
+  window.addEventListener("message", onMessage);
+  setLinkedMdProvider({ fetch: postFetch, save: postSave });
+
+  return () => {
+    window.removeEventListener("message", onMessage);
+    for (const pending of pendingRequests.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error("linked-md-provider-disposed"));
+    }
+    pendingRequests.clear();
+    setLinkedMdProvider(null);
+  };
+}
+
 /**
  * vanilla で markdown editor + chrome を mount する。
  *
@@ -422,7 +570,9 @@ export function mountVanillaMarkdownEditor(
     toolbarSlot,
     frontmatterEl,
     contentEl,
+    contentArea,
     editorMountEl,
+    minimapSlot,
     sidebarSlot,
     sideToolbarSlot,
     statusBarSlot,
@@ -433,6 +583,13 @@ export function mountVanillaMarkdownEditor(
     contentEl.style.height = `${current.fixedEditorHeight}px`;
   }
   container.appendChild(root);
+
+  const handleOpenLinkEvent = (event: Event): void => {
+    if (!(event instanceof CustomEvent)) return;
+    if (!isOpenLinkDetail(event.detail)) return;
+    current.vscodeApi?.postMessage({ type: "openLink", href: event.detail.href });
+  };
+  root.addEventListener("am-open-link", handleOpenLinkEvent);
 
   // === 初期コンテンツ前処理（React useMarkdownEditor + parseCommentData 相当） ==
   const raw = current.persistDraft
@@ -467,6 +624,8 @@ export function mountVanillaMarkdownEditor(
     gridRows: current.gridRows,
     gridCols: current.gridCols,
     codeBlockExtension: current.codeBlockExtension,
+    enableMdEmbed: true,
+    t,
     onSlashStateChange: (state: SlashCommandState) => slashCb?.(state),
   });
 
@@ -577,12 +736,32 @@ export function mountVanillaMarkdownEditor(
       editor.on("update", onEditorUpdate);
       disposers.push(() => editor.off("update", onEditorUpdate));
 
+      // === 変更オーバービュー（MarkdownMinimap・本文スクロールバー横） ============
+      // スクロールコンテナ（contentEl）は overflow:auto。changeGutterExtension の
+      // getChangedPositions を読み、変更箇所マーカー + 前/次ナビを minimapSlot へ縦置きする。
+      const minimap = createMarkdownMinimap({ editor, scrollContainer: contentEl, t });
+      minimapSlot.appendChild(minimap.el);
+      disposers.push(() => minimap.destroy());
+
       // === EditorDialogs（comment/link/image insert → editor コマンド） =========
       const dialogs = createEditorDialogs({
         t,
         onCommentInsert: (text) => editor.chain().focus().addComment(text.trim()).run(),
-        onLinkInsert: (url) =>
-          editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run(),
+        onLinkInsert: (url) => {
+          const href = url.trim();
+          if (!href) return;
+          // 選択範囲があれば既存挙動（範囲にリンクを付与）。無選択（スラッシュコマンド等）は
+          // URL を可視テキストとしてリンク付きで挿入する。
+          if (editor.state.selection.empty) {
+            editor
+              .chain()
+              .focus()
+              .insertContent({ type: "text", text: href, marks: [{ type: "link", attrs: { href } }] })
+              .run();
+          } else {
+            editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+          }
+        },
         onImageInsert: (src, alt) => editor.chain().focus().setImage({ src: src.trim(), alt }).run(),
       });
       disposers.push(() => dialogs.destroy());
@@ -592,8 +771,11 @@ export function mountVanillaMarkdownEditor(
       const editorStorage = getEditorStorage(editor);
       editorStorage.commentDialog ??= {};
       editorStorage.commentDialog.open = () => dialogs.openComment();
+      editorStorage.linkDialog ??= {};
+      editorStorage.linkDialog.open = () => dialogs.openLink();
       disposers.push(() => {
         if (editorStorage.commentDialog) editorStorage.commentDialog.open = null;
+        if (editorStorage.linkDialog) editorStorage.linkDialog.open = null;
       });
 
       // === settings panel（intent で開閉。onUpdate→store+apply+notify） =========
@@ -899,6 +1081,9 @@ export function mountVanillaMarkdownEditor(
           modeState.reviewMode = mode === "review";
           modeState.readonlyMode = mode === "readonly" || (current.readOnly ?? false);
           editor.setEditable(!readonlyNow() && mode !== "review");
+          // source モードは WYSIWYG 本文を隠すため、ミニマップも畳む（マーカーが上端に集中して
+          // 表示されるグリッチを防ぐ）。WYSIWYG/review/readonly では本文が見えるので表示する。
+          minimap.setActive(mode !== "source");
           // 比較モード中はモード切替を比較ビューへ反映する（standalone DOM は出さない）。
           // source→wysiwyg では右ペイン diff の基準となる editorMarkdown を最新化する。
           if (modeState.inlineMergeOpen) {
@@ -1069,7 +1254,7 @@ export function mountVanillaMarkdownEditor(
 
       // === SearchReplaceBar（Mod-f / openSearch コマンドで表示） ================
       const searchBar = createSearchReplaceBar({ editor, t });
-      contentEl.appendChild(searchBar.el);
+      contentArea.appendChild(searchBar.el);
       disposers.push(() => searchBar.destroy());
 
       // === SlashCommand ========================================================
@@ -1124,9 +1309,17 @@ export function mountVanillaMarkdownEditor(
               saveContent(() => text, false);
             },
             onUndoRedoChange: (handle) => toolbar?.update({ mergeUndoRedo: handle }),
+            // 差分ハイライト/アライン確定時にミニマップの差分マーカーを再計算する。
+            onDiffChange: () => minimap.refresh(),
           });
           contentEl.appendChild(mergeView.el);
           applyCompareEditorVisibility();
+          // ミニマップを差分モードへ切替（右ペインを基準に [data-diff-block] をマーカー表示）。
+          const activeMerge = mergeView;
+          minimap.setDiffSource({
+            scrollContainer: activeMerge.getRightScroller(),
+            getRatios: () => activeMerge.getDiffBlockRatios(),
+          });
         } else if (modeState.inlineMergeOpen && mergeView) {
           mergeView.update({
             sourceMode: modeState.sourceMode === true,
@@ -1140,6 +1333,8 @@ export function mountVanillaMarkdownEditor(
           mergeView.el.remove();
           mergeView = null;
           toolbar?.update({ mergeUndoRedo: null });
+          // ミニマップを既定（本文の変更追跡）へ戻す。
+          minimap.setDiffSource(null);
           // editorMountEl は merge 右パネル内に移設されている場合があるため contentEl へ戻す。
           if (editorMountEl.parentElement !== contentEl) {
             contentEl.appendChild(editorMountEl);
@@ -1284,6 +1479,7 @@ export function mountVanillaMarkdownEditor(
       disposers.push(() => autoReloadController.dispose());
 
       // === VS Code カスタムイベント連携 =========================================
+      disposers.push(installLinkedMdProviderBridge(current.vscodeApi));
       disposers.push(installVSCodeEditorEvents(editor));
       disposers.push(
         installVSCodeModeEvents({
@@ -1484,8 +1680,18 @@ export function mountVanillaMarkdownEditor(
       applyLivePatch?.(patch);
     },
     destroy() {
+      root.removeEventListener("am-open-link", handleOpenLinkEvent);
       host.destroy();
       root.remove();
     },
   };
+}
+
+function isOpenLinkDetail(value: unknown): value is { href: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "href" in value &&
+    typeof value.href === "string"
+  );
 }

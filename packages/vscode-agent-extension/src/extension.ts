@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
   ClaudeStatusWatcher,
+  CodexSessionScanner,
+  installStaticSkillDir,
   installTemplatedSkill,
   setupClaudeHooks,
 } from '@anytime-markdown/vscode-common';
@@ -12,11 +14,9 @@ import {
   AgentStatusWorkerHost,
   resolveWorkerScriptPath,
 } from './worker/AgentStatusWorkerHost';
+import { registerHandoffSessionCommand } from './commands/handoffSession';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
-import {
-  WorktreeTreeItem,
-  SessionTreeItem,
-} from './providers/AgentMappingItem';
+import { SessionTreeItem } from './providers/AgentMappingItem';
 import { AiNoteItem, AiNoteProvider } from './providers/AiNoteProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
 import { AgentLogger } from './utils/AgentLogger';
@@ -92,6 +92,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         });
       } catch (err) {
         AgentLogger.warn(`[install-skills] anytime-note unexpected failure: ${String(err)}`);
+      }
+
+      // .claude/skills/anytime-agent-rotation/SKILL.md（静的スキル）を配置。
+      // 旧名 subagent-rotation からのリネームに伴い oldSkillNames で旧 dir を掃除する。
+      try {
+        installStaticSkillDir({
+          claudeDir,
+          extensionPath: context.extensionUri.fsPath,
+          skillName: 'anytime-agent-rotation',
+          oldSkillNames: ['subagent-rotation'],
+          logger: {
+            info: (m) => AgentLogger.info(m),
+            warn: (m) => AgentLogger.warn(m),
+            error: (m) => AgentLogger.error(m),
+          },
+        });
+      } catch (err) {
+        AgentLogger.warn(`[install-skills] anytime-agent-rotation unexpected failure: ${String(err)}`);
       }
     }
   }
@@ -230,6 +248,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   }
 
+  // セッション保持期間（Claude worker prune と Codex スキャンの recency 絞り込みで共有）。
+  const sessionRetentionDays = vscode.workspace
+    .getConfiguration('anytimeAgent')
+    .get<number>('sessionRetentionDays', 7);
+
   // agent-status ワーカーを起動（owner は agent 拡張のみ）。既存ワーカーがいれば接続のみ。
   // SQLite を import するのはこのワーカーバンドルだけ。拡張ホストは HTTP クライアント経由で読む。
   if (workspaceFolder) {
@@ -237,6 +260,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       workspacePath,
       resolveWorkerScriptPath(context.extensionPath),
       AgentLogger,
+      sessionRetentionDays,
     );
     agentStatusWorkerHost.start();
   }
@@ -245,7 +269,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // watcher のデータ源は agent-status ワーカーの HTTP（agent-status.db）。旧 claude-code-status.json は廃止。
   const agentStatusClient = new AgentStatusClient({ workspaceRoot: workspacePath });
   const watcher = new ClaudeStatusWatcher(agentStatusClient);
-  const mappingProvider = new AgentMappingProvider(watcher, workspacePath);
+  // Codex セッションは rollout .jsonl の読み取り専用スキャン（worker DB 非対象）。保持期間は Claude と共有。
+  const codexScanner = new CodexSessionScanner({
+    retentionDays: sessionRetentionDays,
+    logger: (m) => AgentLogger.warn(m),
+  });
+  const mappingProvider = new AgentMappingProvider(watcher, workspacePath, codexScanner, context.extensionUri);
   const mappingTreeView = vscode.window.createTreeView('anytimeAgent.mapping', {
     treeDataProvider: mappingProvider,
     showCollapseAll: true,
@@ -255,6 +284,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push({ dispose: () => agentStatusWorkerHost?.dispose() });
   }
   void vscode.commands.executeCommand('setContext', 'anytimeAgent.mapping.filterActive', false);
+
+  registerHandoffSessionCommand(context);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('anytime-agent.mapping.refresh', () => {
@@ -270,20 +301,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         'anytimeAgent.mapping.filterActive',
         !mappingProvider.showStale,
       );
-    }),
-    vscode.commands.registerCommand('anytime-agent.mapping.openWorktree', (item: WorktreeTreeItem) => {
-      void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(item.mapping.worktreePath), true);
-    }),
-    vscode.commands.registerCommand('anytime-agent.mapping.copyWorktreePath', (item: WorktreeTreeItem) => {
-      void vscode.env.clipboard.writeText(item.mapping.worktreePath);
-    }),
-    vscode.commands.registerCommand('anytime-agent.mapping.showSessionEdits', (item: SessionTreeItem) => {
-      const edits = item.session.sessionEdits.map(e => ({ label: e.file, description: e.timestamp }));
-      if (edits.length === 0) {
-        void vscode.window.showInformationMessage('No session edits recorded.');
-        return;
-      }
-      void vscode.window.showQuickPick(edits, { title: `Session Edits: ${item.session.sessionId.slice(0, 8)}` });
     }),
     vscode.commands.registerCommand('anytime-agent.mapping.copySessionId', (item: SessionTreeItem) => {
       void vscode.env.clipboard.writeText(item.session.sessionId);

@@ -3,6 +3,10 @@
 export const Uri = {
   file: (path: string) => ({ scheme: 'file', fsPath: path, path, toString: () => path }),
   parse: (str: string) => ({ scheme: 'file', fsPath: str, path: str, toString: () => str }),
+  joinPath: (base: { fsPath: string }, ...segments: string[]) => {
+    const joined = [base.fsPath, ...segments].join('/');
+    return { scheme: 'file', fsPath: joined, path: joined, toString: () => joined };
+  },
 };
 
 export enum TreeItemCollapsibleState {
@@ -34,6 +38,13 @@ export const ThemeIcon = class {
 export const ThemeColor = class {
   constructor(public id: string) {}
 };
+
+export class MarkdownString {
+  value: string;
+  constructor(value?: string) {
+    this.value = value ?? '';
+  }
+}
 
 export const window = {
   showInformationMessage: jest.fn(),

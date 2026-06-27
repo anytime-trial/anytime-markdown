@@ -8,9 +8,6 @@
   "command.mapping.refresh": "Refresh Agent Mapping",
   "command.mapping.cleanupStale": "Cleanup Stale Sessions",
   "command.mapping.toggleStale": "Toggle Stale Sessions",
-  "command.mapping.openWorktree": "Open Worktree in New Window",
-  "command.mapping.copyWorktreePath": "Copy Worktree Path",
-  "command.mapping.showSessionEdits": "Show Session Edits",
   "command.mapping.copySessionId": "Copy Session ID",
   "command.mapping.deleteStatusFile": "Delete Status File",
   "command.startOllama": "Start Ollama",
@@ -22,5 +19,6 @@
   "command.deleteAiNotePage": "Delete AI Note Page",
   "command.openAiNotePage": "Open AI Note Page",
   "command.clearAiNote": "Clear AI Note",
-  "command.copyAiNotePath": "Copy AI Note Path"
+  "command.copyAiNotePath": "Copy AI Note Path",
+  "command.mapping.handoffSession": "Hand Off to New Session"
 }

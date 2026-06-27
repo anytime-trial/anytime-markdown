@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-06-27
+
+### Changed
+
+- Documentation: the Stop hook script is now `token-budget.sh` (renamed from `trail-token-budget.sh`); the hook is registered by the Anytime Agent extension.
+
+### Trail Core (trail-viewer)
+
+- C4: architecture-layer annotation and visualization wired through `classifyLayer`; completed the vanilla wiring of the Scatter / Code Graph popups; turned element-tree type badges into SVG icons (dropped the S / C / Co text); consolidated the C4 left-panel controls into a single scrollable column (Ghost Edges / Hotspot / overlay-legend / defectRisk-TC overlap fixes); restored the selected-element details panel's missing sections and enlarged its fonts; removed the C4 layer-container auto-seed (Phase 4).
+
 ## [0.30.1] - 2026-06-24
 
 ### Trail Core (trail-viewer / memory-core)

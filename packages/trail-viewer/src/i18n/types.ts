@@ -19,6 +19,7 @@ export interface TrailI18n {
   // filter
   'filter.searchPlaceholder': string;
   'filter.workspace': string;
+  'filter.workspaceAll': string;
   'analytics.chartCumulativeInferenceTime': string;
   'analytics.openInTraces': string;
   'filter.searchLabel': string;
@@ -261,6 +262,21 @@ export interface TrailI18n {
   'c4.overlayHelp.size.description': string;
   'c4.overlayHelp.architectureUi': string;
   'c4.overlayHelp.architectureUi.description': string;
+  'c4.overlay.architectureLayer': string;
+  'c4.overlayHelp.architectureLayer': string;
+  'c4.overlayHelp.architectureLayer.description': string;
+  'c4.layer.foundation': string;
+  'c4.layer.analysis': string;
+  'c4.layer.data': string;
+  'c4.layer.serviceDomain': string;
+  'c4.layer.serviceServer': string;
+  'c4.layer.integration': string;
+  'c4.layer.presentationUi': string;
+  'c4.layer.presentationExtension': string;
+  'c4.layer.utility': string;
+  'codeGraph.colorBy.label': string;
+  'codeGraph.colorBy.community': string;
+  'codeGraph.colorBy.layer': string;
   'c4.overlay.groupStructure': string;
   'c4.overlay.functionRoles': string;
   'c4.overlayHelp.functionRoles': string;
@@ -273,6 +289,10 @@ export interface TrailI18n {
   'c4.hotspot.controls.granularity': string;
   'c4.hotspot.controls.granularityCommit': string;
   'c4.hotspot.controls.granularitySession': string;
+  'c4.defectRisk.window': string;
+  'c4.defectRisk.halfLife': string;
+  'c4.defectRisk.calculating': string;
+  'c4.defectRisk.off': string;
   'c4.level.L5': string;
   'c4.level.L5.description': string;
   'c4.level.L5.emptySelection': string;
@@ -299,6 +319,13 @@ export interface TrailI18n {
   'c4.scatter.tooltipRole': string;
   'c4.scatter.tooltipCog': string;
   'c4.scatter.entriesCount': string;
+  'c4.matrix.title': string;
+  'c4.graph.title': string;
+  'c4.scatter.tabScatter': string;
+  'c4.scatter.tabGalaxy': string;
+  'c4.scatter.tabCity': string;
+  'c4.scatter.tour': string;
+  'c4.scatter.tourStop': string;
   'c4.frameFilter.reset': string;
   'c4.elementPanel.searchPlaceholder': string;
   'c4.elementPanel.searchClear': string;
@@ -310,6 +337,7 @@ export interface TrailI18n {
   'c4.popup.size': string;
   'c4.popup.quality': string;
   'c4.popup.structure': string;
+  'c4.popup.layer': string;
   'c4.popup.metric.coverage': string;
   'c4.popup.metric.branches': string;
   'c4.popup.metric.functions': string;

@@ -13,6 +13,7 @@
 	"exclude": [
 		"src/webview/**/*",
 		"src/noteGraph/__tests__/**/*",
-		"src/claude/__tests__/**/*"
+		"src/claude/__tests__/**/*",
+		"src/utils/__tests__/**/*"
 	]
 }

@@ -7,7 +7,10 @@ export {
   mountVanillaMarkdownEditor,
   type MountVanillaMarkdownEditorOptions,
   type VanillaMarkdownEditorHandle,
+  type VanillaMarkdownEditorUpdatePatch,
 } from './host/vanillaMarkdownEditor';
+// live patch の差分計算（冪等でない sink の不要発火を source 側で防ぐ）
+export { diffLivePatch } from './host/liveUpdateDiff';
 
 // Editor settings（React 非依存の単一ソース）
 export type { EditorSettings } from './editorSettings';

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-06-27
+
+### Added
+
+- Landing page: added an Anytime Agent extension section.
+- Added a Chrome extension install link to the Markdown description.
+
+### Changed
+
+- Landing page: replaced the Agent section visuals with real screenshots.
+
+### Removed
+
+- Landing page: removed the Anytime Trail skill description section, and removed the Ollama integration item from the Agent section.
+
 ## [0.31.3] - 2026-06-24
 
 ### Fixed

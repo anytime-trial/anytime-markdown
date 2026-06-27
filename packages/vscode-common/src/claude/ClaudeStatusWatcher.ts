@@ -203,6 +203,7 @@ export class ClaudeStatusWatcher implements Disposable {
       if (!row.sessionId) continue;
       agents.set(row.sessionId, {
         sessionId: row.sessionId,
+        source: 'claude',
         editing: row.editing,
         file: row.file,
         timestamp: row.updatedAt,

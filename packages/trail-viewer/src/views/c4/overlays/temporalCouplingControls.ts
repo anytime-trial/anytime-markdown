@@ -1,6 +1,6 @@
 /**
- * TemporalCouplingControls + TemporalCouplingSettingsPopup — vanilla DOM views.
- * Thin ports of c4/components/overlays/TemporalCouplingControls.tsx.
+ * TemporalCouplingControls — vanilla DOM view（floating 横バー / inline 縦カード）。
+ * Thin port of c4/components/overlays/TemporalCouplingControls.tsx.
  */
 import {
   createSwitch,
@@ -34,14 +34,12 @@ export interface TemporalCouplingControlsVanillaProps {
   readonly showDirectionalControls?: boolean;
   readonly showSubagentGranularity?: boolean;
   readonly showCombinedGhostEdgeSelector?: boolean;
-}
-
-export interface TemporalCouplingSettingsPopupVanillaProps {
-  readonly value: TemporalCouplingControlsValue;
-  readonly onChange: (next: TemporalCouplingControlsValue) => void;
-  readonly resultCount: number;
-  readonly loading: boolean;
   readonly isDark?: boolean;
+  /**
+   * 'floating'（既定）= キャンバス下部に並ぶ横並びツールバー帯。
+   * 'inline' = 左コントロールパネル列に積む縦カード（leftPanel 組み込み用途）。
+   */
+  readonly variant?: 'floating' | 'inline';
 }
 
 const WINDOW_OPTIONS = [
@@ -54,13 +52,10 @@ const WINDOW_OPTIONS = [
 const TOP_K_OPTIONS = [10, 50, 100] as const;
 const GHOST_EDGE_OPTIONS: ReadonlyArray<GhostEdgeMode> = ['none', 'commit', 'session'];
 
-// ---- helper: caption text ---------------------------------------------------
+// ---- helper: card background (matches hotspot / overlay panels) -------------
 
-function makeCaption(text: string): HTMLSpanElement {
-  const el = document.createElement('span');
-  el.style.cssText = 'font-size:0.75rem;white-space:nowrap;';
-  el.textContent = text;
-  return el;
+function buildBg(isDark: boolean): string {
+  return isDark ? 'rgba(18,18,18,0.92)' : 'rgba(251,249,243,0.94)';
 }
 
 function makeStatusText(): HTMLSpanElement {
@@ -141,9 +136,23 @@ export function mountTemporalCouplingControls(
   const root = document.createElement('div');
   root.setAttribute('role', 'group');
   root.setAttribute('aria-label', '時間的結合エッジの表示制御');
-  root.style.cssText =
-    'display:flex;gap:16px;align-items:center;flex-wrap:wrap;' +
-    'padding:4px 8px;border-top:1px solid var(--am-color-divider);';
+
+  function applyRootStyle(): void {
+    if ((props.variant ?? 'floating') === 'inline') {
+      // 左パネル列の縦カード。横バーだと 220px 列で折り返すため flex-direction:column。
+      root.style.cssText =
+        'display:flex;flex-direction:column;gap:8px;width:220px;' +
+        'border:1px solid var(--am-color-divider);border-radius:8px;' +
+        `background:${buildBg(props.isDark ?? false)};` +
+        'box-shadow:0 8px 24px rgba(0,0,0,0.28);' +
+        'backdrop-filter:blur(10px);padding:10px 12px;';
+    } else {
+      root.style.cssText =
+        'display:flex;gap:16px;align-items:center;flex-wrap:wrap;' +
+        'padding:4px 8px;border-top:1px solid var(--am-color-divider);';
+    }
+  }
+  applyRootStyle();
 
   // -- Ghost Edge Select (combined mode) --
   const ghostEdgeSelect = createSelect<string>({
@@ -335,7 +344,11 @@ export function mountTemporalCouplingControls(
       const prevShowCombined = props.showCombinedGhostEdgeSelector;
       const prevDirectional = props.value.directional;
       const prevShowDirectional = props.showDirectionalControls;
+      const prevIsDark = props.isDark;
+      const prevVariant = props.variant;
       props = next;
+
+      if (prevIsDark !== next.isDark || prevVariant !== next.variant) applyRootStyle();
 
       const structureChanged =
         prevShowCombined !== next.showCombinedGhostEdgeSelector ||
@@ -357,133 +370,6 @@ export function mountTemporalCouplingControls(
       thresholdRow.destroy();
       confidenceRow.destroy();
       diffRow.destroy();
-      topKSelect.destroy();
-      root.remove();
-    },
-  };
-}
-
-// =============================================================================
-// TemporalCouplingSettingsPopup
-// =============================================================================
-
-export function mountTemporalCouplingSettingsPopup(
-  container: HTMLElement,
-  initial: TemporalCouplingSettingsPopupVanillaProps,
-): VanillaViewHandle<TemporalCouplingSettingsPopupVanillaProps> {
-  let props = initial;
-
-  const POPUP_GHOST_EDGE_MODES: ReadonlyArray<Exclude<GhostEdgeMode, 'none'>> = ['commit', 'session'];
-
-  const root = document.createElement('div');
-  root.setAttribute('role', 'dialog');
-  root.setAttribute('aria-label', 'Ghost Edges 設定');
-
-  function applyBg(): void {
-    root.style.cssText =
-      'position:absolute;top:8px;left:8px;width:220px;z-index:10;' +
-      'border:1px solid var(--am-color-divider);border-radius:8px;' +
-      `background:${(props.isDark ?? false) ? 'rgba(18,18,18,0.92)' : 'rgba(251,249,243,0.94)'};` +
-      'box-shadow:0 8px 24px rgba(0,0,0,0.28);' +
-      'backdrop-filter:blur(10px);padding:10px 12px;';
-  }
-  applyBg();
-
-  const caption = document.createElement('span');
-  caption.style.cssText =
-    'display:block;color:var(--am-color-text-secondary);font-size:0.65rem;margin-bottom:8px;';
-  caption.textContent = 'Ghost Edges';
-  root.appendChild(caption);
-
-  // Mode select
-  const modeSelect = createSelect<string>({
-    value: getGhostEdgeMode(props.value),
-    options: POPUP_GHOST_EDGE_MODES.map((m) => ({ value: m, label: m })),
-    ariaLabel: 'Ghost Edges の粒度',
-    fullWidth: true,
-    onChange: (v) => {
-      props.onChange(applyGhostEdgeMode(props.value, v as GhostEdgeMode));
-    },
-  });
-  modeSelect.el.style.marginBottom = '10px';
-  root.appendChild(modeSelect.el);
-
-  // Window select
-  const windowSelect = createSelect<string>({
-    value: String(props.value.windowDays),
-    options: WINDOW_OPTIONS.map((o) => ({ value: String(o.days), label: o.label })),
-    ariaLabel: '集計期間',
-    fullWidth: true,
-    onChange: (v) => {
-      props.onChange({ ...props.value, windowDays: Number.parseInt(v, 10) });
-    },
-  });
-  windowSelect.el.style.marginBottom = '10px';
-  root.appendChild(windowSelect.el);
-
-  // Threshold slider
-  const thresholdCaption = makeCaption(`閾値 ${props.value.threshold.toFixed(2)}`);
-  thresholdCaption.style.cssText = 'display:block;font-size:0.75rem;margin-bottom:4px;';
-  root.appendChild(thresholdCaption);
-
-  const thresholdSlider = createSlider({
-    value: props.value.threshold,
-    min: 0,
-    max: 1,
-    step: 0.05,
-    size: 'small',
-    ariaLabel: 'Jaccard 閾値',
-    onChange: (v) => {
-      thresholdCaption.textContent = `閾値 ${v.toFixed(2)}`;
-      props.onChange({ ...props.value, threshold: v });
-    },
-  });
-  thresholdSlider.el.style.cssText = 'width:100%;margin-bottom:10px;';
-  root.appendChild(thresholdSlider.el);
-
-  // Top-K select
-  const topKSelect = createSelect<string>({
-    value: String(props.value.topK),
-    options: TOP_K_OPTIONS.map((k) => ({ value: String(k), label: String(k) })),
-    ariaLabel: 'Top-K 件数',
-    fullWidth: true,
-    onChange: (v) => {
-      props.onChange({ ...props.value, topK: Number.parseInt(v, 10) });
-    },
-  });
-  topKSelect.el.style.marginBottom = '8px';
-  root.appendChild(topKSelect.el);
-
-  const statusText = makeStatusText();
-  root.appendChild(statusText);
-
-  function applyVisible(): void {
-    root.style.display = props.value.enabled ? '' : 'none';
-  }
-
-  setStatusText(statusText, props.value, props.resultCount, props.loading);
-  applyVisible();
-  container.appendChild(root);
-
-  return {
-    update(next) {
-      const prevIsDark = props.isDark;
-      props = next;
-
-      if (prevIsDark !== next.isDark) applyBg();
-      applyVisible();
-
-      modeSelect.update({ value: getGhostEdgeMode(next.value) });
-      windowSelect.update({ value: String(next.value.windowDays) });
-      thresholdCaption.textContent = `閾値 ${next.value.threshold.toFixed(2)}`;
-      thresholdSlider.update({ value: next.value.threshold });
-      topKSelect.update({ value: String(next.value.topK) });
-      setStatusText(statusText, next.value, next.resultCount, next.loading);
-    },
-    destroy() {
-      modeSelect.destroy();
-      windowSelect.destroy();
-      thresholdSlider.destroy();
       topKSelect.destroy();
       root.remove();
     },

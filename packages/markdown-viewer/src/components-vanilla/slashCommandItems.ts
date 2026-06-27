@@ -349,6 +349,19 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
     },
   },
   {
+    id: "link",
+    labelKey: "slashLink",
+    iconPath: PATH.link,
+    keywords: ["link", "url", "anchor", "hyperlink", "md", "リンク", "ハイパーリンク"],
+    action: (editor) => {
+      const storage = getEditorStorage(editor);
+      const openDialog = storage.linkDialog?.open as (() => void) | undefined;
+      if (openDialog) {
+        openDialog();
+      }
+    },
+  },
+  {
     id: "embed",
     labelKey: "slashEmbed",
     iconPath: PATH.link,

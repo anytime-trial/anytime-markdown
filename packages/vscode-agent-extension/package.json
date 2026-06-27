@@ -2,7 +2,7 @@
   "name": "anytime-agent",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.3.3",
+  "version": "1.0.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -85,18 +85,8 @@
         "category": "Anytime Agent"
       },
       {
-        "command": "anytime-agent.mapping.openWorktree",
-        "title": "%command.mapping.openWorktree%",
-        "category": "Anytime Agent"
-      },
-      {
-        "command": "anytime-agent.mapping.copyWorktreePath",
-        "title": "%command.mapping.copyWorktreePath%",
-        "category": "Anytime Agent"
-      },
-      {
-        "command": "anytime-agent.mapping.showSessionEdits",
-        "title": "%command.mapping.showSessionEdits%",
+        "command": "anytime-agent.mapping.handoffSession",
+        "title": "%command.mapping.handoffSession%",
         "category": "Anytime Agent"
       },
       {
@@ -209,23 +199,13 @@
       ],
       "view/item/context": [
         {
-          "command": "anytime-agent.mapping.openWorktree",
-          "when": "view == anytimeAgent.mapping && viewItem =~ /^worktree/",
-          "group": "1_open@1"
-        },
-        {
-          "command": "anytime-agent.mapping.copyWorktreePath",
-          "when": "view == anytimeAgent.mapping && viewItem =~ /^worktree/",
-          "group": "2_copy@1"
-        },
-        {
-          "command": "anytime-agent.mapping.showSessionEdits",
+          "command": "anytime-agent.mapping.handoffSession",
           "when": "view == anytimeAgent.mapping && viewItem =~ /^session/",
-          "group": "1_open@1"
+          "group": "1_open@2"
         },
         {
           "command": "anytime-agent.mapping.copySessionId",
-          "when": "view == anytimeAgent.mapping && viewItem =~ /^session/",
+          "when": "view == anytimeAgent.mapping && viewItem =~ /^(session|codexSession)/",
           "group": "2_copy@1"
         },
         {
@@ -265,6 +245,23 @@
           "minimum": 1,
           "maximum": 100,
           "markdownDescription": "上限に対する警告閾値（%）。"
+        },
+        "anytimeAgent.contextWarnTokens": {
+          "type": "number",
+          "default": 160000,
+          "minimum": 1000,
+          "markdownDescription": "セッションのコンテキストトークンがこの値を超えるとツリーに引き継ぎ推奨バッジ（⚠️）を表示する。"
+        },
+        "anytimeAgent.sessionRetentionDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "markdownDescription": "未使用セッションを agent-status DB から自動削除するまでの保持日数。最終アクティビティからこの日数を超えたセッションを worker 起動時および 1 日ごとに削除する。Codex セッションのツリー表示もこの日数で絞り込む。"
+        },
+        "anytimeAgent.showCodexSessions": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Agent マッピングに Codex（OpenAI CLI）のセッションを「Codex」グループとして表示する。Codex は rollout ファイルの読み取り専用スキャンのため、最終アクティビティとコンテキストトークンのみ表示され、編集中ロック・コミット・引き継ぎは非対応。"
         }
       }
     }

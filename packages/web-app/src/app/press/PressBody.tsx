@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 
 import { useThemeMode } from '../providers';
-import { BriefingPrimary, BriefingRoadmap, BriefingSecondary } from './components/Briefing';
+import { BriefingAgent, BriefingPrimary, BriefingRoadmap, BriefingSecondary } from './components/Briefing';
 import { Caravan } from './components/Caravan';
 import { Colophon } from './components/Colophon';
 import { CtaActions } from './components/CtaStrip';
@@ -44,6 +44,7 @@ const MARKDOWN_PREVIEW_HEIGHT = 'clamp(300px, 42vh, 520px)';
 export function PressBody() {
   const { themeMode } = useThemeMode();
   const tCta = useTranslations('press.cta');
+  const tAgent = useTranslations('press.agent');
   return (
     <div className={`${styles.root} ${FONT_CLASSES}`} data-cp-mode={themeMode}>
       <ProgressRule />
@@ -51,6 +52,22 @@ export function PressBody() {
       <Headline />
       <Caravan />
       <Dispatch />
+      <BriefingAgent
+        subtitle="- セッション"
+        embed={
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className={styles.agentShot} src="/images/agent_mapping.png" alt={tAgent('shotAlt')} />
+        }
+        embedActions={
+          <CtaActions
+            primaryLabel={tCta('vsCode')}
+            secondaryLabel="GitHub"
+            primaryHref="https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-agent"
+            secondaryHref="https://github.com/anytime-trial/anytime-markdown/tree/master/packages/vscode-agent-extension"
+            primaryExternal
+          />
+        }
+      />
       <BriefingPrimary
         subtitle="- アクティビティ"
         trailKeys={['trail2', 'trail3', 'trail5', 'trail6']}
@@ -90,11 +107,6 @@ export function PressBody() {
           />
         }
       />
-      <BriefingPrimary
-        subtitle="- スキル"
-        trailKeys={['trail4', 'trail12', 'trail13']}
-        embed={null}
-      />
       <BriefingRoadmap
         subtitle="- 将来対応"
         trailKeys={[
@@ -129,8 +141,10 @@ export function PressBody() {
           <CtaActions
             primaryLabel={tCta('onlineEditor')}
             secondaryLabel={tCta('vsCode')}
+            tertiaryLabel={tCta('chrome')}
             primaryHref="/markdown"
             secondaryHref="https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-markdown"
+            tertiaryHref="https://chromewebstore.google.com/detail/anytime-markdown-editor/joebjfjekfmmcpboldblhgdbbmldfngh"
           />
         }
       />

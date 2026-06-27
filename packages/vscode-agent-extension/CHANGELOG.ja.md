@@ -6,6 +6,26 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-27
+
+### 変更
+
+- Stop フックスクリプト `trail-token-budget.sh` を `token-budget.sh` にリネーム。setup 時に旧スクリプトと stale なフックエントリを掃除する。
+- Agent マッピングツリーを、worktree/ブランチでグルーピングせずセッションをフラットに（最近使用順・新しい順で）並べるようにした。各セッションの hover（tooltip）に最後に利用したブランチ名と worktree 名を表示する。worktree ノードとその `Open Worktree` / `Copy Worktree Path` コマンドは削除した。
+- Agent マッピングツリーのセッション経過時間を、1 時間以上は `Xh Ymin ago` 形式で表示するようにした（従来は分のみ。例 `135 min ago`）。
+- Agent マッピングツリーのセッション行からコミット数（`committed(N)`）の表示を削除した。コミット数はセッションの hover（tooltip）と Today サマリ行には引き続き表示する。
+- セッションのタイトル/最終ファイル名を Agent マッピングツリーの行から削除した。タイトルは hover（tooltip）に **タイトル** として表示し、最終ファイル名はツリーに表示しない。
+
+### 追加
+
+- セッション引き継ぎ: セッションツリーの **新セッションへ引き継ぎ** コマンドで、圧縮した文脈保持ステート（決定論的な recall 抽出）を agent-status ワーカーの `/handoff` エンドポイント経由で fresh な Claude Code セッションへ引き継ぐ。コンテキストが肥大したセッションには引き継ぎ推奨バッジを表示する。
+- Agent マッピングツリーをソース別に **Claude Code** と **Codex** の見出しでグルーピング。現在のワークスペースの Codex（OpenAI CLI）セッションを Codex rollout ファイル（`~/.codex/sessions`）の読み取り専用スキャンで表示する（保持期間内かつ作業ディレクトリが現ワークスペースの worktree 配下のもののみ）。Codex はライフサイクルフックを持たないため **最終アクティビティ** と **コンテキストトークン**（⚠️ handoff ヒントバッジ）のみ利用可能で、編集ロック・コミット数・引き継ぎは Claude 限定。`anytimeAgent.showCodexSessions`（既定 on）で切替。**Today** サマリは Claude 限定として明記。
+- 未使用セッションの定期削除: agent-status ワーカーが、最終アクティビティから保持期間を超えたセッションを起動時および 1 日ごとに DB から削除します。保持期間は `anytimeAgent.sessionRetentionDays`（既定 7 日）で設定可能です。
+
+### 削除
+
+- 「セッション編集履歴を表示」（セッションツリー右クリックの QuickPick とツールチップの **Edits:** 一覧）を削除。編集履歴は分かりづらいため撤去しました。内部の `session_edits` 記録は維持します（handoff の変更ファイルは transcript から独立して導出するため影響なし）。
+
 ## [0.3.3] - 2026-06-24
 
 ### 変更

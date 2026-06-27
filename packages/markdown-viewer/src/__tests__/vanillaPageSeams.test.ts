@@ -29,10 +29,15 @@ jest.mock("@floating-ui/dom", () => ({
 import { Editor } from "@anytime-markdown/markdown-core";
 
 import {
+  createAutoReloadController,
   installHeadingsNotifier,
   installVSCodeModeEvents,
 } from "../host/vanillaPageSeams";
 import { mountVanillaMarkdownEditor } from "../host/vanillaMarkdownEditor";
+import {
+  ChangeGutterExtension,
+  getChangedPositions,
+} from "../extensions/changeGutterExtension";
 
 const t = (key: string): string => key;
 
@@ -128,6 +133,26 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     expect(handle.root.querySelector("[data-am-source-textarea]")).toBeNull();
     // 退出時に元の overflow を復元する。
     expect(contentEl?.style.overflow).toBe(overflowBefore);
+    handle.destroy();
+  });
+
+  it("本文スクロールバー横に変更オーバービュー（minimap）を常設する（回帰: G4-B 脱React で欠落）", () => {
+    const handle = mountVanillaMarkdownEditor(container, {
+      t,
+      initialContent: "# Hello",
+      persistModeState: false,
+    });
+    // minimap スロットとバー本体が mainRow の content と sidebar の間に存在する。
+    const minimap = handle.root.querySelector("[data-am-minimap]");
+    expect(minimap).not.toBeNull();
+    expect(minimap?.querySelector("[data-am-minimap-bar]")).not.toBeNull();
+    // 前/次の変更ナビボタン（aria-label は t() のキーがそのまま返る）。
+    const labels = Array.from(
+      handle.root.querySelectorAll<HTMLButtonElement>("[data-am-minimap] button"),
+    ).map((b) => b.getAttribute("aria-label"));
+    expect(labels).toEqual(
+      expect.arrayContaining(["minimapPrevChange", "minimapNextChange"]),
+    );
     handle.destroy();
   });
 
@@ -312,5 +337,49 @@ describe("mountVanillaMarkdownEditor: 新 seam", () => {
     });
     expect(handle.editor.getText()).toContain("Draft");
     handle.destroy();
+  });
+});
+
+describe("createAutoReloadController: 変更 gutter baseline の冪等性", () => {
+  function makeGutterEditor(): Editor {
+    return new Editor({
+      extensions: [StarterKit, ChangeGutterExtension],
+      content: "<p>one</p><p>two</p>",
+    });
+  }
+
+  it("同値の set(true) 再呼び出しで baseline を取り直さない（マーカーが消えない）", () => {
+    const editor = makeGutterEditor();
+    const controller = createAutoReloadController(editor);
+    controller.set(true); // baseline = 現在の doc
+
+    // 末尾に段落を追加 → 変更ノードが検出されマーカーが付く
+    editor.commands.insertContentAt(editor.state.doc.content.size, "<p>three</p>");
+    expect(getChangedPositions(editor.state).length).toBeGreaterThan(0);
+
+    // 同値で再度 set(true)。回帰前は setChangeGutterBaseline が再実行され
+    // baseline が現状に更新されてマーカーが消えていた。
+    controller.set(true);
+    expect(getChangedPositions(editor.state).length).toBeGreaterThan(0);
+
+    controller.dispose();
+    editor.destroy();
+  });
+
+  it("set(false) で明示クリア、true→false→true で新 baseline を取り直す", () => {
+    const editor = makeGutterEditor();
+    const controller = createAutoReloadController(editor);
+    controller.set(true);
+    editor.commands.insertContentAt(editor.state.doc.content.size, "<p>three</p>");
+    expect(getChangedPositions(editor.state).length).toBeGreaterThan(0);
+
+    controller.set(false); // clearChangeGutter
+    expect(getChangedPositions(editor.state).length).toBe(0);
+
+    controller.set(true); // 値が変わったので新 baseline（= 現状、差分なし）
+    expect(getChangedPositions(editor.state).length).toBe(0);
+
+    controller.dispose();
+    editor.destroy();
   });
 });

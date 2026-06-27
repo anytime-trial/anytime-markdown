@@ -2,9 +2,7 @@ import * as React from 'react';
 import { VanillaIsland } from '../../../shared/vanillaIsland';
 import {
   mountTemporalCouplingControls,
-  mountTemporalCouplingSettingsPopup,
   type TemporalCouplingControlsVanillaProps,
-  type TemporalCouplingSettingsPopupVanillaProps,
 } from '../../../views/c4/overlays/temporalCouplingControls';
 
 export type TemporalCouplingGranularity = 'commit' | 'session' | 'subagentType';
@@ -29,15 +27,6 @@ export interface TemporalCouplingControlsProps {
   readonly showDirectionalControls?: boolean;
   readonly showSubagentGranularity?: boolean;
   readonly showCombinedGhostEdgeSelector?: boolean;
-}
-
-export interface TemporalCouplingSettingsPopupProps {
-  readonly value: TemporalCouplingControlsValue;
-  readonly onChange: (next: TemporalCouplingControlsValue) => void;
-  readonly resultCount: number;
-  readonly loading: boolean;
-  readonly isDark?: boolean;
-  readonly sx?: Record<string, unknown>;
 }
 
 const WINDOW_OPTIONS: ReadonlyArray<{ label: string; days: number }> = [
@@ -150,15 +139,4 @@ export function TemporalCouplingControls(props: Readonly<TemporalCouplingControl
     showCombinedGhostEdgeSelector: props.showCombinedGhostEdgeSelector,
   };
   return <VanillaIsland mount={mountTemporalCouplingControls} props={vanillaProps} />;
-}
-
-export function TemporalCouplingSettingsPopup(props: Readonly<TemporalCouplingSettingsPopupProps>): React.ReactElement {
-  const vanillaProps: TemporalCouplingSettingsPopupVanillaProps = {
-    value: props.value,
-    onChange: props.onChange,
-    resultCount: props.resultCount,
-    loading: props.loading,
-    isDark: props.isDark,
-  };
-  return <VanillaIsland mount={mountTemporalCouplingSettingsPopup} props={vanillaProps} />;
 }

@@ -79,7 +79,7 @@ Marketplace から導入すれば従来通り利用できます。\
 | --- | --- | --- |
 | `PreToolUse` / `PostToolUse` | `claude-code-status.json` 書き込み | 編集中ファイルの状態を記録（Markdown 拡張のエディタロック・C4 グラフのアクティビティ表示に利用） |
 | `PostToolUse` | `commit-tracker.sh` | Bash ツール実行後の git commit を検知し Trail DB に記録 |
-| `Stop` | `trail-token-budget.sh` | セッション終了時のトークン消費を集計しバジェット監視に反映 |
+| `Stop` | `token-budget.sh` | セッション終了時のトークン消費を集計しバジェット監視に反映 |
 | `UserPromptSubmit` | `session-guard.sh` | セッション時間・ターン数が閾値を超えた場合に警告 |
 
 > フックスクリプトは `~/.claude/scripts/` に配置されます。\

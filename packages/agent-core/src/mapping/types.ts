@@ -1,5 +1,12 @@
 export type MappingState = 'active' | 'recent' | 'stale';
 
+/**
+ * セッションの出自。`'claude'` は agent-status worker DB（フック経由）由来、
+ * `'codex'` は Codex rollout `.jsonl` の読み取り専用スキャン由来。
+ * 変換漏れを Claude 扱いで隠さないよう必須とする（optional 既定 `'claude'` は不可）。
+ */
+export type AgentSource = 'claude' | 'codex';
+
 export interface SessionLastCommit {
   readonly hash: string;
   /** UTC ISO 8601 */
@@ -8,6 +15,7 @@ export interface SessionLastCommit {
 
 export interface SessionMapping {
   readonly sessionId: string;
+  readonly source: AgentSource;
   readonly state: MappingState;
   readonly editing: boolean;
   readonly file: string;

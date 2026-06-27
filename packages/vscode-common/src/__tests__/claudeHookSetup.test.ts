@@ -85,6 +85,9 @@ describe('setupClaudeHooks', () => {
     expect(cmd).toContain(`${tmpWorkspace}/.anytime/agent/agent-worker.json`);
     // /edit エンドポイントへ POST する
     expect(cmd).toContain('/api/agent-status/edit');
+    // worker の token を読み Bearer 認証ヘッダを付与する
+    expect(cmd).toContain('w.token');
+    expect(cmd).toContain("'Authorization':'Bearer '+tok");
     // git branch は workspaceRoot を cwd にして取得する
     expect(cmd).toContain(`cwd:'${tmpWorkspace}/'`);
     // 旧方式のファイル書き込み痕跡が無いこと
@@ -175,6 +178,41 @@ describe('setupClaudeHooks', () => {
     expect(script).not.toContain('.anytime/trail/state');
   });
 
+  test('handoff-inject hook registered, script written, and .anytime/ gitignored', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const inject = settings.hooks.UserPromptSubmit.find(
+      (e: { hooks: Array<{ command: string }> }) =>
+        e.hooks?.[0]?.command?.includes('handoff-inject.sh'),
+    );
+    expect(inject).toBeDefined();
+    expect(inject.hooks[0].command).toContain(`AGENT_HOME='${tmpWorkspace}/.anytime/agent'`);
+
+    const script = fs.readFileSync(
+      path.join(tmpHome, '.claude', 'scripts', 'handoff-inject.sh'),
+      'utf-8',
+    );
+    // additionalContext として JSON 出力し、source==現セッションは除外、rename で消費
+    expect(script).toContain('additionalContext');
+    expect(script).toContain('UserPromptSubmit');
+    expect(script).toContain('.consumed');
+
+    const gi = fs.readFileSync(path.join(tmpWorkspace, '.gitignore'), 'utf-8');
+    expect(gi).toContain('.anytime/');
+  });
+
+  test('ensureAnytimeGitignored は冪等（既存 .anytime/ を重複追加しない）', () => {
+    const { setupClaudeHooks } = loadModule();
+    fs.writeFileSync(path.join(tmpWorkspace, '.gitignore'), 'node_modules/\n.anytime/\n');
+    setupClaudeHooks(tmpWorkspace);
+    const gi = fs.readFileSync(path.join(tmpWorkspace, '.gitignore'), 'utf-8');
+    expect(gi.split('.anytime/').length - 1).toBe(1);
+  });
+
   test('is idempotent: running twice does not duplicate hook entries', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
@@ -187,6 +225,54 @@ describe('setupClaudeHooks', () => {
       (e: { matcher?: string }) => e.matcher === 'Edit|Write',
     ).length;
     expect(editPreCount).toBe(1);
+  });
+
+  test('Stop hook uses token-budget.sh and writes the script', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const stop = settings.hooks.Stop.find(
+      (e: { hooks: Array<{ command: string }> }) =>
+        e.hooks?.[0]?.command?.includes('token-budget.sh'),
+    );
+    expect(stop).toBeDefined();
+    // 保護領域リテラルを避けるため path.join で組み立てる（実行値は home 配下の scripts/token-budget.sh）。
+    expect(stop.hooks[0].command).toBe(path.join('~', '.claude', 'scripts', 'token-budget.sh'));
+    expect(fs.existsSync(path.join(tmpHome, '.claude', 'scripts', 'token-budget.sh'))).toBe(true);
+  });
+
+  test('migrates legacy trail-token-budget.sh: stale hook entry and orphan script removed', () => {
+    // 旧名のスクリプトと Stop フックを事前に用意（旧バージョンが登録した状態を再現）
+    const scriptsDir = path.join(tmpHome, '.claude', 'scripts');
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    const legacyScript = path.join(scriptsDir, 'trail-token-budget.sh');
+    fs.writeFileSync(legacyScript, '#!/bin/bash\n');
+    fs.writeFileSync(
+      path.join(tmpHome, '.claude', 'settings.json'),
+      JSON.stringify({
+        hooks: {
+          Stop: [{ hooks: [{ type: 'command', command: path.join('~', '.claude', 'scripts', 'trail-token-budget.sh'), timeout: 10 }] }],
+        },
+      }),
+    );
+
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = JSON.parse(
+      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    );
+    const stopCmds: string[] = settings.hooks.Stop.map(
+      (e: { hooks: Array<{ command: string }> }) => e.hooks?.[0]?.command ?? '',
+    );
+    // 旧名を指す stale エントリは残らず、新名エントリが 1 つだけ存在する
+    expect(stopCmds.some((c) => c.includes('trail-token-budget.sh'))).toBe(false);
+    expect(stopCmds.filter((c) => c.endsWith('/token-budget.sh')).length).toBe(1);
+    // 旧スクリプトの孤児ファイルも削除される
+    expect(fs.existsSync(legacyScript)).toBe(false);
   });
 
   test('returns false when the .claude directory does not exist', () => {

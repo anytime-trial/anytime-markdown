@@ -30,10 +30,16 @@ import {
 } from '@anytime-markdown/markdown-viewer/src/utils/measurePreset';
 import { detectLocale } from '@anytime-markdown/markdown-viewer/src/i18n/createMarkdownT';
 import { setEmbedProviders } from '@anytime-markdown/markdown-viewer/src/embedProviders';
-import type { VanillaMarkdownEditorHandle } from '@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor';
+import type {
+  VanillaMarkdownEditorHandle,
+  VanillaMarkdownEditorUpdatePatch,
+} from '@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor';
+import { diffLivePatch } from '@anytime-markdown/markdown-viewer/src/host/liveUpdateDiff';
 import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/src/vanilla/mountVanillaRichMarkdownEditor';
 
 import { getVsCodeApi } from './vscodeApi';
+import { buildWebviewFileHandlers } from './fileHandlers';
+import { isInternalLink } from './linkClick';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
 import { createNoteGraphPanel, type NoteGraphPanelHandle } from './noteGraph/panel';
 
@@ -188,6 +194,8 @@ function buildEditorSettings(): EditorSettings {
 
 let rootEl: HTMLElement | null = null;
 let editorHandle: VanillaMarkdownEditorHandle | null = null;
+// 直前に送った live props。pushLiveUpdate はこれとの差分のみ送る（冪等でない sink の不要発火防止）。
+let lastSentLivePatch: VanillaMarkdownEditorUpdatePatch = {};
 let bannerEl: HTMLElement | null = null;
 // 履歴比較フロー（loadHistoryContent → compareModeChanged(active) で remount）の一時保持
 let latestContent: string | null = null;
@@ -331,8 +339,12 @@ function buildMountOptions() {
   return {
     t: createMarkdownT('MarkdownEditor', state.locale),
     locale: state.locale,
+    vscodeApi: vscode,
     hideToolbar: true,
     sideToolbar: true,
+    // Ctrl+S を host の `document.save()` へ配線。未設定だと orchestrator が
+    // onDownload（blob ダウンロード）にフォールバックし「名前を付けて保存」ダイアログが出る。
+    fileHandlers: buildWebviewFileHandlers((message) => vscode.postMessage(message)),
     // ピン留め中は別ファイルを開いた初期表示でもパネルを開いた状態にする
     defaultNoteGraphOpen: getNoteGraphPanel().isPinned(),
     noteGraph: {
@@ -371,6 +383,8 @@ function buildMountOptions() {
 function mountEditor(container: HTMLElement): void {
   try {
     editorHandle = mountVanillaRichMarkdownEditor(container, buildMountOptions());
+    // mount 直後の live props を基準値として記録し、最初の pushLiveUpdate での全キー再送を防ぐ。
+    lastSentLivePatch = currentLiveProps();
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     // eslint-disable-next-line no-console
@@ -425,9 +439,9 @@ function renderApp(): void {
   syncClaudeBanner(container);
 }
 
-/** live props を orchestrator へ反映する（remount 不要な変更）。 */
-function pushLiveUpdate(): void {
-  editorHandle?.update({
+/** 現在の live props（update 可能なキーのみ）。mount オプションと同じ値を返す。 */
+function currentLiveProps(): VanillaMarkdownEditorUpdatePatch {
+  return {
     readOnly: state.claudeEditing,
     themeMode: state.themeMode,
     presetName: state.presetName,
@@ -435,7 +449,20 @@ function pushLiveUpdate(): void {
     externalCompareContent: state.compareContent,
     // host 側で settings をマージ → applyAllSettings。measure/fontSize を反映する。
     settings: buildEditorSettings(),
-  });
+  };
+}
+
+/**
+ * live props を orchestrator へ反映する（remount 不要な変更）。
+ * 変化したキーのみを送る差分 patch。autoReload 等の冪等でない sink が
+ * 不変値で再発火し、変更 gutter マーカーが消える回帰を防ぐ。
+ */
+function pushLiveUpdate(): void {
+  const next = currentLiveProps();
+  const diff = diffLivePatch(lastSentLivePatch, next);
+  lastSentLivePatch = next;
+  if (Object.keys(diff).length === 0) return;
+  editorHandle?.update(diff);
 }
 
 // --- メッセージ配線 ---
@@ -653,22 +680,22 @@ function installScrollSync(): void {
 // --- リンク横取り（相対リンクを extension host で解決） ---
 
 function installLinkInterception(): void {
-  const openLink = (e: MouseEvent) => {
-    const anchor = (e.target as HTMLElement).closest('a');
-    if (!anchor) return;
-    const href = anchor.getAttribute('href');
-    if (!href) return;
-    if (/^https?:\/\//.test(href)) return;
+  const handle = (e: MouseEvent) => {
+    const anchor = (e.target as HTMLElement | null)?.closest('a') ?? null;
+    const href = anchor?.getAttribute('href') ?? null;
+    if (!isInternalLink(href)) return;
+    // 内部リンク（ファイルを指す相対/ワークスペースルート相対）は、イベント順序に
+    // 依存せず確実に止めるため window の capture フェーズで最初に捕捉し、デフォルトの
+    // ブラウザ遷移（webview オリジン = vscode-resource URL への遷移）と、他リスナー
+    // （VS Code プリロードの外部オープン処理）への伝播を両方遮断したうえで、extension
+    // host にファイルを開かせる。
     e.preventDefault();
     e.stopImmediatePropagation();
     vscode.postMessage({ type: 'openLink', href });
   };
-  const handleCtrlClick = (e: MouseEvent) => {
-    if (e.ctrlKey || e.metaKey) openLink(e);
-  };
-  // capture フェーズで VS Code プリロードスクリプトより先にイベントを捕捉
-  document.addEventListener('click', handleCtrlClick, true);
-  document.addEventListener('dblclick', openLink, true);
+  // window の capture フェーズ = 最も早く発火（document 上の VS Code プリロードより先）。
+  window.addEventListener('click', handle, true);
+  window.addEventListener('auxclick', handle, true);
 }
 
 // --- 起動 ---

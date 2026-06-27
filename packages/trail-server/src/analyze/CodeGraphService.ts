@@ -13,6 +13,7 @@ import { GraphBuilder } from './GraphBuilder';
 import { GraphClusterer } from './GraphClusterer';
 import { GraphDetector } from './GraphDetector';
 import { GraphLayout } from './GraphLayout';
+import { resolveLayers } from './moduleLayer';
 import { trailGraphToCodeGraphInputs } from './trailGraphToCodeGraphInputs';
 
 export interface CodeGraphServiceConfig {
@@ -224,18 +225,27 @@ export class CodeGraphService {
       )
       .slice(0, 10);
 
-    const nodes: CodeGraphNode[] = graph.nodes().map((id) => ({
-      id,
-      label: graph.getNodeAttribute(id, 'label') as string,
-      repo: graph.getNodeAttribute(id, 'repo') as string,
-      package: graph.getNodeAttribute(id, 'package') as string,
-      fileType: graph.getNodeAttribute(id, 'fileType') as 'code' | 'document',
-      community: graph.getNodeAttribute(id, 'community') as number,
-      communityLabel: graph.getNodeAttribute(id, 'communityLabel') as string,
-      x: graph.getNodeAttribute(id, 'x') as number,
-      y: graph.getNodeAttribute(id, 'y') as number,
-      size: graph.getNodeAttribute(id, 'size') as number,
-    }));
+    // パッケージ単位でアーキテクチャ層を一度ずつ解決し、各ノードへ注釈する。
+    const packages = graph.nodes().map((id) => graph.getNodeAttribute(id, 'package') as string);
+    const layerByPkg = resolveLayers(repo.path, packages, this.logger);
+
+    const nodes: CodeGraphNode[] = graph.nodes().map((id) => {
+      const pkg = graph.getNodeAttribute(id, 'package') as string;
+      const layer = layerByPkg.get(pkg);
+      return {
+        id,
+        label: graph.getNodeAttribute(id, 'label') as string,
+        repo: graph.getNodeAttribute(id, 'repo') as string,
+        package: pkg,
+        fileType: graph.getNodeAttribute(id, 'fileType') as 'code' | 'document',
+        community: graph.getNodeAttribute(id, 'community') as number,
+        communityLabel: graph.getNodeAttribute(id, 'communityLabel') as string,
+        x: graph.getNodeAttribute(id, 'x') as number,
+        y: graph.getNodeAttribute(id, 'y') as number,
+        size: graph.getNodeAttribute(id, 'size') as number,
+        ...(layer ? { layer } : {}),
+      };
+    });
 
     const seenEdgeKeys = new Set<string>();
     const edges: CodeGraphEdge[] = [];

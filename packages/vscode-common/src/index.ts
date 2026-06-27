@@ -1,6 +1,8 @@
 export { ClaudeStatusWatcher, jstDateString } from './claude/ClaudeStatusWatcher';
 export { setupClaudeHooks } from './claude/claudeHookSetup';
-export type { Disposable, ClaudeStatus, SessionEdit, StatusChangeCallback, AgentInfo, AgentLastCommit, AgentStatusRow, AgentStatusSource, MultiStatusChangeCallback, TodayStats } from './claude/types';
+export type { Disposable, ClaudeStatus, SessionEdit, StatusChangeCallback, AgentInfo, AgentSource, AgentLastCommit, AgentStatusRow, AgentStatusSource, MultiStatusChangeCallback, TodayStats } from './claude/types';
+export { CodexSessionScanner } from './codex/CodexSessionScanner';
+export type { CodexSessionScannerOptions } from './codex/CodexSessionScanner';
 export { resolveLocale } from './locale';
 export { TimelineProvider, TimelineItem } from './git/TimelineProvider';
 export {

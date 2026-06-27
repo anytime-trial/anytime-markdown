@@ -126,6 +126,12 @@ export interface CreateInlineMergeViewOptions {
   onEditTextChange?: (text: string) => void;
   /** undo/redo ハンドルの変更通知（毎更新で最新を渡す）。null は無効化。 */
   onUndoRedoChange?: (handle: MergeUndoRedo | null) => void;
+  /**
+   * 差分ハイライト/ブロックアライン適用後の通知。diff は meta-only transaction で適用され
+   * editor の "update"（docChanged のみ）に乗らないため、ミニマップ等の外部表示を更新する
+   * フックとして使う。
+   */
+  onDiffChange?: () => void;
   /** 右パネルのファイル操作ハンドルの変更通知。null は無効化。 */
   onRightFileOpsChange?: (ops: MergeRightFileOps | null) => void;
   /** 比較固有 tiptap 実 CSS（左右両パネルへ渡す）。 */
@@ -138,6 +144,13 @@ export interface InlineMergeViewHandle {
   el: HTMLElement;
   /** opts の一部を差し替えて再同期する。 */
   update: (next: Partial<CreateInlineMergeViewOptions>) => void;
+  /** 右ペイン（本文）のスクロールコンテナ。ミニマップ等が基準にする。 */
+  getRightScroller: () => HTMLElement;
+  /**
+   * 右ペインの差分ブロック（[data-diff-block]）を、右スクローラ基準の 0〜1 比率配列で返す。
+   * ミニマップの差分マーカー表示に使う。
+   */
+  getDiffBlockRatios: () => number[];
   /** 全 listener / ResizeObserver / 左エディタ / パネルを解放する。 */
   destroy: () => void;
 }
@@ -713,6 +726,8 @@ export function createInlineMergeView(
       leftEditor.commands.setDiffHighlight(right, "right");
       rightEditor.commands.setCollapsePlan(plan ? plan.aRuns : [], label);
       leftEditor.commands.setCollapsePlan(plan ? plan.bRuns : [], label);
+      // 差分 Decoration（[data-diff-block]）が確定したので外部（ミニマップ）へ通知する。
+      state.onDiffChange?.();
     });
   };
 
@@ -749,6 +764,8 @@ export function createInlineMergeView(
       rightEditor.commands.setAlignSpacers(aSpacers);
       leftEditor.commands.setAlignSpacers(bSpacers);
       aligning = false;
+      // アライン spacer で各ブロックの縦位置が変わるため、差分マーカー比率を再計算させる。
+      state.onDiffChange?.();
     });
   };
 
@@ -1009,8 +1026,29 @@ export function createInlineMergeView(
   };
   consumeCompareContent();
 
+  /**
+   * 右ペインの差分ブロック（diffHighlight が付与する [data-diff-block]）を右スクローラ基準の
+   * 比率に変換する。比率はスクロール非依存（elTop - top0 + scrollTop で絶対 Y 正規化）。
+   */
+  const getDiffBlockRatios = (): number[] => {
+    const rightEditor = state.editor;
+    if (!rightEditor || rightEditor.isDestroyed) return [];
+    const scroller = getRightScroller();
+    const { scrollTop, scrollHeight } = scroller;
+    if (scrollHeight <= 0) return [];
+    const top0 = scroller.getBoundingClientRect().top;
+    const blocks = rightEditor.view.dom.querySelectorAll<HTMLElement>("[data-diff-block]");
+    return Array.from(blocks, (el) => {
+      const elTop = el.getBoundingClientRect().top;
+      const ratio = (elTop - top0 + scrollTop) / scrollHeight;
+      return Math.max(0, Math.min(1, ratio));
+    });
+  };
+
   return {
     el: root,
+    getRightScroller,
+    getDiffBlockRatios,
     update(next: Partial<CreateInlineMergeViewOptions>) {
       if (destroyed) return;
       const editorChanged = "editor" in next && next.editor !== state.editor;

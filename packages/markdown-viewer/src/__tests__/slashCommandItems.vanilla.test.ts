@@ -58,7 +58,7 @@ describe("DEFAULT_SLASH_ITEMS", () => {
     expect(Array.isArray(DEFAULT_SLASH_ITEMS)).toBe(true);
     // 思考法ダイアグラムは6図種→総称1項目に集約したため 40→35。
     // チャート（anytime-chart）総称1項目を追加して 36。
-    expect(DEFAULT_SLASH_ITEMS.length).toBe(36);
+    expect(DEFAULT_SLASH_ITEMS.length).toBe(37);
   });
 
   it("必須プロパティが揃い id が一意である", () => {
@@ -95,6 +95,7 @@ describe("DEFAULT_SLASH_ITEMS", () => {
     ["code", "codeBlock"],
     ["table", "table"],
     ["hr", "horizontalRule"],
+    ["anchor", "link"],
     ["embed", "embed"],
     ["mermaid", "mermaid"],
     ["plantuml", "plantuml"],
@@ -146,6 +147,15 @@ describe("DEFAULT_SLASH_ITEMS", () => {
     expect(call).toBeDefined();
     expect(call?.args).toEqual(args);
     expect(calls.some((c) => c.method === "run")).toBe(true);
+  });
+
+  it("link の action が storage.linkDialog.open を呼ぶ", () => {
+    const item = DEFAULT_SLASH_ITEMS.find((i) => i.id === "link");
+    expect(item).toBeDefined();
+    const open = jest.fn();
+    const editor = { storage: { linkDialog: { open } } } as never;
+    item?.action(editor);
+    expect(open).toHaveBeenCalledTimes(1);
   });
 
   it("mermaid の action が language=mermaid の codeBlock を autoEditOpen で挿入する", () => {

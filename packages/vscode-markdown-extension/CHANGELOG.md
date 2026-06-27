@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-27
+
+### Added
+
+- Open linked Markdown files in the Markdown editor: clicking an internal link opens the target in the editor, and the linked file can be fetched and saved through the host.
+
+### Fixed
+
+- Intercept internal links at the window-capture phase so they no longer escape to the browser via `vscode-resource` URLs; resolve workspace-root (`/`-prefixed) links against the workspace root.
+- Wire the webview `Ctrl+S` to the host save handler (it was falling back to a "Save As" download dialog).
+- Wire `vscodeApi` into the webview mount.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- mdEmbed transclusion (inline-editable embedded Markdown links), a `link` slash command, comparison-mode minimap diff markers, the restored change-overview minimap, and several change-gutter / search-bar / mdEmbed save-integrity fixes.
+
 ## [1.6.0] - 2026-06-24
 
 ### Added

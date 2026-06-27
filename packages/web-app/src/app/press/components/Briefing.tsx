@@ -29,6 +29,7 @@ interface BriefingEmbedProps {
 const TRAFFIC_LIGHT_COLORS = ['#FF5F57', '#FFBD2E', '#28C840'] as const;
 const TRAIL_KEYS = ['trail1', 'trail2', 'trail3', 'trail4', 'trail5', 'trail6', 'trail7', 'trail8', 'trail9', 'trail10', 'trail11', 'trail12', 'trail13', 'trail14', 'trail15', 'trail16', 'trail17', 'trail18', 'trail19', 'trail20', 'trail21', 'trail22', 'trail23', 'trail24', 'trail25', 'trail26'] as const;
 const MARKDOWN_KEYS = ['md3', 'md1', 'md2'] as const;
+const AGENT_KEYS = ['agent1', 'agent2', 'agent3'] as const;
 const ROMAN = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'] as const;
 
 function BriefingWithEmbed({
@@ -100,6 +101,37 @@ export function BriefingPrimary({ embed, embedActions, subtitle, trailKeys = TRA
       title={
         <>
           {tBriefing('trailHeader')} <em>{tBriefing('trailHeaderEm')}</em>{subtitle ? ` ${subtitle}` : null}
+        </>
+      }
+    />
+  );
+}
+
+interface BriefingAgentProps {
+  embed: ReactNode;
+  embedActions?: ReactNode;
+  subtitle?: string;
+}
+
+export function BriefingAgent({ embed, embedActions, subtitle }: Readonly<BriefingAgentProps>) {
+  const t = useTranslations('press.agent');
+  const tBriefing = useTranslations('press.briefing');
+  const items: BriefingItem[] = AGENT_KEYS.map((key, idx) => ({
+    num: ROMAN[idx],
+    head: t(`${key}Title`),
+    body: t(`${key}Body`),
+    verdict: tBriefing('shipped'),
+  }));
+  return (
+    <BriefingWithEmbed
+      id="agent"
+      embedTitle={tBriefing('agentEmbedTitle')}
+      items={items}
+      embed={embed}
+      embedActions={embedActions}
+      title={
+        <>
+          {tBriefing('agentHeader')} <em>{tBriefing('agentHeaderEm')}</em>{subtitle ? ` ${subtitle}` : null}
         </>
       }
     />
