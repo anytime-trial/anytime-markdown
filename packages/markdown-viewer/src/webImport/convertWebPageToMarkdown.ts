@@ -1,6 +1,10 @@
 import { Readability } from "@mozilla/readability";
 import TurndownService from "turndown";
 
+// turndown-plugin-gfm は型定義を同梱しない CJS パッケージ。ESM import は markdown-viewer /
+// web-app(next build) 双方で TS7016 になり ambient 宣言も web-app から不可視のため、
+// 型解決が両環境で成立する require で読み込む（該当行のみ no-require-imports を抑制）。
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { gfm } = require("turndown-plugin-gfm") as {
   gfm: TurndownService.Plugin;
 };
