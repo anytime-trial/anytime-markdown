@@ -64,6 +64,7 @@ export const MdEmbed = TiptapNode.create({
 
           const hrefWithAnchor = anchor.getAttribute("href");
           if (!hrefWithAnchor || !isMarkdownHref(hrefWithAnchor)) return false;
+          if (!isSafePlainAnchor(anchor, hrefWithAnchor)) return false;
 
           const hrefParts = splitAnchor(hrefWithAnchor);
           const text = anchor.textContent ?? "";
@@ -126,6 +127,16 @@ function getSingleAnchorElement(parent: HTMLElement): HTMLAnchorElement | null {
   }
 
   return anchor;
+}
+
+function isSafePlainAnchor(anchor: HTMLAnchorElement, hrefWithAnchor: string): boolean {
+  const text = anchor.textContent ?? "";
+
+  return (
+    anchor.childElementCount === 0 &&
+    !/[\[\]()\\`\n\r]/.test(text) &&
+    !/[\s()]/.test(hrefWithAnchor)
+  );
 }
 
 function readMdEmbedAttrs(attrs: Record<string, unknown>): MdEmbedAttrs {

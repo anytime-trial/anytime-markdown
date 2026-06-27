@@ -864,6 +864,14 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
             respond({ token: currentToken, conflict: true });
             return;
           }
+          const target = path.resolve(existing);
+          const opened = vscode.workspace.textDocuments.find(
+            doc => doc.uri.scheme === 'file' && path.resolve(doc.uri.fsPath) === target
+          );
+          if (opened?.isDirty) {
+            respond({ token: currentToken, conflict: true });
+            return;
+          }
         }
 
         await replaceOpenTextDocument(target, content);

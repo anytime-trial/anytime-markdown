@@ -62,7 +62,7 @@ export function createMdEmbedNodeView({
   let dirty = false;
   let saving = false;
   let collapsed = false;
-  let saveAgainAfterCurrent = false;
+  let editSeq = 0;
 
   const tr = (key: string, fallback: string): string => t?.(key) ?? fallback;
 
@@ -160,10 +160,15 @@ export function createMdEmbedNodeView({
     nestedEditor.setEditable(editor.isEditable);
     removeNestedUpdateListener = nestedEditor.onUpdate((event) => {
       if (!isDocChanged(event)) return;
+      editSeq += 1;
       dirty = true;
       setStatus("dirty");
       scheduleSave();
     });
+  };
+
+  const syncNestedEditable = (): void => {
+    nestedEditor?.setEditable(editor.isEditable);
   };
 
   const reload = (): void => {
@@ -226,7 +231,6 @@ export function createMdEmbedNodeView({
 
   const saveNow = async (): Promise<void> => {
     if (!dirty || saving || !token || !nestedEditor || !provider) {
-      if (saving) saveAgainAfterCurrent = true;
       return;
     }
     if (pendingSaveTimer) {
@@ -234,6 +238,7 @@ export function createMdEmbedNodeView({
       pendingSaveTimer = null;
     }
     saving = true;
+    const seqAtSave = editSeq;
     setStatus("saving");
     setMessage(null);
     try {
@@ -250,18 +255,19 @@ export function createMdEmbedNodeView({
         return;
       }
       token = result.token ?? token;
-      dirty = false;
-      setStatus("saved");
+      if (editSeq === seqAtSave) {
+        dirty = false;
+        setStatus("saved");
+      } else {
+        dirty = true;
+        if (!destroyed) scheduleSave();
+      }
     } catch (error: unknown) {
       dirty = true;
       setStatus("error");
       setMessage(formatError(tr("mdEmbed.saveError", "Failed to save linked Markdown"), error));
     } finally {
       saving = false;
-      if (saveAgainAfterCurrent && !destroyed) {
-        saveAgainAfterCurrent = false;
-        scheduleSave();
-      }
     }
   };
 
@@ -318,6 +324,7 @@ export function createMdEmbedNodeView({
 
   collapseButton.addEventListener("click", onCollapseClick);
   openButton.addEventListener("click", onOpenClick);
+  editor.on("transaction", syncNestedEditable);
 
   renderTitle();
   setStatus("idle");
@@ -361,6 +368,7 @@ export function createMdEmbedNodeView({
     },
     destroy() {
       destroyed = true;
+      editor.off("transaction", syncNestedEditable);
       collapseButton.removeEventListener("click", onCollapseClick);
       openButton.removeEventListener("click", onOpenClick);
       if (pendingSaveTimer) {

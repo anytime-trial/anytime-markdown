@@ -18,6 +18,7 @@ import { createTestEditor } from "../testUtils/createTestEditor";
 interface FakeNestedEditor extends MdEmbedNestedEditor {
   editableValues: boolean[];
   emitDocChanged(): void;
+  setMarkdown(markdown: string): void;
 }
 
 const tokenA: LinkedMdToken = { mtimeMs: 1, size: 10 };
@@ -64,6 +65,7 @@ function installFakeNestedEditorFactory(markdown = "# Edited\n"): FakeNestedEdit
   const editors: FakeNestedEditor[] = [];
   setMdEmbedNestedEditorFactoryForTest(({ mount, editable }) => {
     const listeners: Array<(event: { transaction: { docChanged: boolean } }) => void> = [];
+    let currentMarkdown = markdown;
     const root = document.createElement("div");
     root.dataset.fakeNestedEditor = "";
     mount.append(root);
@@ -81,7 +83,7 @@ function installFakeNestedEditorFactory(markdown = "# Edited\n"): FakeNestedEdit
         };
       },
       getMarkdown() {
-        return markdown;
+        return currentMarkdown;
       },
       setContent() {},
       destroy() {},
@@ -89,6 +91,9 @@ function installFakeNestedEditorFactory(markdown = "# Edited\n"): FakeNestedEdit
         for (const listener of listeners) {
           listener({ transaction: { docChanged: true } });
         }
+      },
+      setMarkdown(nextMarkdown) {
+        currentMarkdown = nextMarkdown;
       },
     };
     editors.push(fake);
@@ -100,6 +105,27 @@ function installFakeNestedEditorFactory(markdown = "# Edited\n"): FakeNestedEdit
 async function flushPromises(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
+} {
+  let resolvePromise: ((value: T) => void) | null = null;
+  let rejectPromise: ((reason: unknown) => void) | null = null;
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  if (!resolvePromise || !rejectPromise) {
+    throw new Error("deferred promise callbacks were not initialized");
+  }
+  return {
+    promise,
+    resolve: resolvePromise,
+    reject: rejectPromise,
+  };
 }
 
 describe("createMdEmbedNodeView", () => {
@@ -151,6 +177,36 @@ describe("createMdEmbedNodeView", () => {
     editor.destroy();
   });
 
+  it("saves edits made while a previous save is in flight", async () => {
+    const provider = makeProvider();
+    const firstSave = deferred<LinkedMdSaveResult>();
+    provider.save.mockImplementationOnce(() => firstSave.promise);
+    const { editor, node } = makeEditorAndNode();
+    setLinkedMdProvider(provider);
+    const nestedEditors = installFakeNestedEditorFactory("# First\n");
+    const view = createMdEmbedNodeView({ node, editor, getPos: () => 0 });
+    await flushPromises();
+
+    nestedEditors[0].emitDocChanged();
+    jest.advanceTimersByTime(500);
+    await flushPromises();
+
+    expect(provider.save).toHaveBeenCalledWith("notes/linked.md", "# First\n", tokenA);
+
+    nestedEditors[0].setMarkdown("# Second\n");
+    nestedEditors[0].emitDocChanged();
+    firstSave.resolve({ token: tokenB, conflict: false });
+    await flushPromises();
+    jest.advanceTimersByTime(500);
+    await flushPromises();
+
+    expect(provider.save).toHaveBeenCalledTimes(2);
+    expect(provider.save).toHaveBeenLastCalledWith("notes/linked.md", "# Second\n", tokenB);
+
+    view.destroy?.();
+    editor.destroy();
+  });
+
   it("flushes a pending save during destroy", async () => {
     const provider = makeProvider();
     const { editor, node } = makeEditorAndNode();
@@ -178,6 +234,24 @@ describe("createMdEmbedNodeView", () => {
     await flushPromises();
 
     expect(nestedEditors[0].editableValues).toContain(false);
+
+    view.destroy?.();
+    editor.destroy();
+  });
+
+  it("propagates parent read-only changes after mount", async () => {
+    const provider = makeProvider();
+    const { editor, node } = makeEditorAndNode(true);
+    setLinkedMdProvider(provider);
+    const nestedEditors = installFakeNestedEditorFactory();
+
+    const view = createMdEmbedNodeView({ node, editor, getPos: () => 0 });
+    await flushPromises();
+
+    editor.setEditable(false);
+    editor.view.dispatch(editor.state.tr);
+
+    expect(nestedEditors[0].editableValues.at(-1)).toBe(false);
 
     view.destroy?.();
     editor.destroy();

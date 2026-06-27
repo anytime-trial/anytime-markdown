@@ -584,6 +584,13 @@ export function mountVanillaMarkdownEditor(
   }
   container.appendChild(root);
 
+  const handleOpenLinkEvent = (event: Event): void => {
+    if (!(event instanceof CustomEvent)) return;
+    if (!isOpenLinkDetail(event.detail)) return;
+    current.vscodeApi?.postMessage({ type: "openLink", href: event.detail.href });
+  };
+  root.addEventListener("am-open-link", handleOpenLinkEvent);
+
   // === 初期コンテンツ前処理（React useMarkdownEditor + parseCommentData 相当） ==
   const raw = current.persistDraft
     ? loadDraft(current.initialContent ?? "")
@@ -1673,8 +1680,18 @@ export function mountVanillaMarkdownEditor(
       applyLivePatch?.(patch);
     },
     destroy() {
+      root.removeEventListener("am-open-link", handleOpenLinkEvent);
       host.destroy();
       root.remove();
     },
   };
+}
+
+function isOpenLinkDetail(value: unknown): value is { href: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "href" in value &&
+    typeof value.href === "string"
+  );
 }

@@ -84,6 +84,24 @@ describe("MdEmbed", () => {
     editor.destroy();
   });
 
+  it("leaves decorated link text as a normal paragraph", () => {
+    const { editor, mdEmbeds, markdown } = setMarkdownAndGetResult("[**bold**](x.md)");
+
+    expect(mdEmbeds).toHaveLength(0);
+    expect(markdown.trim()).toBe("[**bold**](x.md)");
+
+    editor.destroy();
+  });
+
+  it("leaves escaped special characters in link text to the standard serializer", () => {
+    const { editor, mdEmbeds, markdown } = setMarkdownAndGetResult("[a\\]b](x.md)");
+
+    expect(mdEmbeds).toHaveLength(0);
+    expect(markdown.trim()).toBe("[a\\]b](x.md)");
+
+    editor.destroy();
+  });
+
   it("leaves external markdown-looking links as normal paragraphs", () => {
     const { editor, mdEmbeds, markdown } = setMarkdownAndGetResult("[a](https://e.com/x.md)");
 
