@@ -16,7 +16,7 @@ path: "**/*.md"
 
 - **共通ドキュメント**（設計書・テスト項目書・マニュアル等）: `[topic]/` フォルダを作成し、その中に `[topic].[lang].md`（日英両方）を出力する。画像は `[topic]/images/` に配置する。
 - **都度作成ドキュメント**（plan・review）: `[YYYYMMDD]-[topic].[lang].md` — 指示がなければ日本語のみ出力する。
-- **予約ファイル `00-index.[lang].md`（各 type フォルダ必須）**: `spec/`・`tech/`・`test/`・`manual/` 等の各 type フォルダ直下に索引ファイル `00-index.[lang].md` を置き、配下ドキュメントの一覧・概要・読み始める順を記す（OKF の `index.md` 段階開示に相当）。ドキュメントを新規追加・改名した際は索引も更新する。AI・人間がフォルダ全体を読まずに目的の文書へ到達できるようにするための予約ファイルである。
+- **予約ファイル `index.[lang].md`（各フォルダ必須・OKF 段階開示）**: type フォルダおよびその全サブフォルダの直下に索引 `index.[lang].md` を置く（OKF の `index.md` 入れ子構造に相当）。各索引は (1) 直下サブフォルダの索引へのリンク（件数つき）と (2) 直下ドキュメントの一覧・概要を載せ、ルートの `<type>/index.[lang].md` がサブフォルダ目次になる。索引は frontmatter（title / category / excerpt / 型付き related）から `scripts/gen-spec-index.mjs`（`npm run spec:index` 等）で自動生成し手書きしない。ドキュメント追加・改名時は再生成する。
 - `lang` は `ja`（日本語）/ `en`（英語）。
 - 分類が不明な場合はユーザーに確認する。
 

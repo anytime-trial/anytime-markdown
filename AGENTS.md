@@ -19,6 +19,7 @@
 - レビュー: `/Shared/anytime-markdown-docs/review/`。
 - 提案: `/Shared/anytime-markdown-docs/proposal/`。
 - ドキュメントの構文・フロントマター・整形は `anytime-markdown-output` 規約（`packages/vscode-markdown-extension/skills/anytime-markdown-output/SKILL.md`）に従う。
+- 各フォルダ（type フォルダ＋全サブフォルダ）に予約索引 `index.[lang].md` を置く（OKF 段階開示・フォルダ別 index）。`scripts/gen-spec-index.mjs` で frontmatter から自動生成する（手書き禁止）。
 
 ## モノレポ構造
 
