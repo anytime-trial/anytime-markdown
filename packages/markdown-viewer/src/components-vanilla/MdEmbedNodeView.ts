@@ -48,7 +48,10 @@ export function setMdEmbedNestedEditorFactoryForTest(
 export function createMdEmbedNodeView({
   node,
   editor,
-}: Pick<NodeViewRendererProps, "node" | "editor" | "getPos">): NodeView {
+  t,
+}: Pick<NodeViewRendererProps, "node" | "editor" | "getPos"> & {
+  t?: ((key: string) => string) | null;
+}): NodeView {
   let attrs = readAttrs(node);
   let provider = getLinkedMdProvider();
   let token: LinkedMdToken | null = null;
@@ -60,6 +63,8 @@ export function createMdEmbedNodeView({
   let saving = false;
   let collapsed = false;
   let saveAgainAfterCurrent = false;
+
+  const tr = (key: string, fallback: string): string => t?.(key) ?? fallback;
 
   const dom = document.createElement("div");
   dom.className = "am-md-embed-card";
@@ -77,7 +82,8 @@ export function createMdEmbedNodeView({
 
   const collapseButton = document.createElement("button");
   collapseButton.type = "button";
-  collapseButton.setAttribute("aria-label", "Collapse linked Markdown");
+  collapseButton.setAttribute("aria-label", tr("mdEmbed.collapse", "Collapse"));
+  collapseButton.title = tr("mdEmbed.collapse", "Collapse");
   collapseButton.textContent = "▾";
   collapseButton.style.cssText = buttonStyle();
 
@@ -90,7 +96,7 @@ export function createMdEmbedNodeView({
 
   const openButton = document.createElement("button");
   openButton.type = "button";
-  openButton.textContent = "Open in editor";
+  openButton.textContent = tr("mdEmbed.open", "Open in editor");
   openButton.style.cssText = buttonStyle();
 
   const status = document.createElement("span");
@@ -115,7 +121,7 @@ export function createMdEmbedNodeView({
 
   const setStatus = (next: SaveStatus): void => {
     status.dataset.amMdEmbedStatus = next;
-    status.textContent = next;
+    status.textContent = statusText(next, tr);
   };
 
   const renderTitle = (): void => {
@@ -126,10 +132,14 @@ export function createMdEmbedNodeView({
     collapsed = next;
     body.hidden = collapsed;
     collapseButton.textContent = collapsed ? "▸" : "▾";
+    const label = collapsed
+      ? tr("mdEmbed.expand", "Expand")
+      : tr("mdEmbed.collapse", "Collapse");
     collapseButton.setAttribute(
       "aria-label",
-      collapsed ? "Expand linked Markdown" : "Collapse linked Markdown",
+      label,
     );
+    collapseButton.title = label;
   };
 
   const disposeNestedEditor = (): void => {
@@ -188,7 +198,7 @@ export function createMdEmbedNodeView({
       .catch((error: unknown) => {
         dirty = true;
         setStatus("error");
-        setMessage(formatError("Failed to overwrite linked Markdown", error));
+        setMessage(formatError(tr("mdEmbed.overwriteError", "Failed to overwrite linked Markdown"), error));
       });
   };
 
@@ -200,15 +210,15 @@ export function createMdEmbedNodeView({
     message.style.display = "block";
     message.textContent = "";
     const text = document.createElement("span");
-    text.textContent = "Linked Markdown changed on disk. ";
+    text.textContent = tr("mdEmbed.conflictMessage", "Linked Markdown changed on disk. ");
     const reloadButton = document.createElement("button");
     reloadButton.type = "button";
-    reloadButton.textContent = "Reload";
+    reloadButton.textContent = tr("mdEmbed.conflictReload", "Reload");
     reloadButton.style.cssText = buttonStyle();
     reloadButton.addEventListener("click", onReload);
     const overwriteButton = document.createElement("button");
     overwriteButton.type = "button";
-    overwriteButton.textContent = "Overwrite";
+    overwriteButton.textContent = tr("mdEmbed.conflictOverwrite", "Overwrite");
     overwriteButton.style.cssText = buttonStyle();
     overwriteButton.addEventListener("click", onOverwrite);
     message.append(text, reloadButton, document.createTextNode(" "), overwriteButton);
@@ -245,7 +255,7 @@ export function createMdEmbedNodeView({
     } catch (error: unknown) {
       dirty = true;
       setStatus("error");
-      setMessage(formatError("Failed to save linked Markdown", error));
+      setMessage(formatError(tr("mdEmbed.saveError", "Failed to save linked Markdown"), error));
     } finally {
       saving = false;
       if (saveAgainAfterCurrent && !destroyed) {
@@ -270,10 +280,13 @@ export function createMdEmbedNodeView({
     setStatus("idle");
     setMessage(null);
     disposeNestedEditor();
-    body.textContent = "Loading linked Markdown...";
+    body.textContent = tr("mdEmbed.loading", "Loading linked Markdown...");
 
     if (!provider) {
-      body.textContent = "Linked Markdown provider is not configured.";
+      body.textContent = tr(
+        "mdEmbed.providerMissing",
+        "Linked Markdown provider is not configured.",
+      );
       return;
     }
 
@@ -285,9 +298,9 @@ export function createMdEmbedNodeView({
       setStatus("idle");
     } catch (error: unknown) {
       if (destroyed) return;
-      body.textContent = "Failed to load linked Markdown.";
+      body.textContent = tr("mdEmbed.loadError", "Failed to load linked Markdown.");
       setStatus("error");
-      setMessage(formatError("Failed to fetch linked Markdown", error));
+      setMessage(formatError(tr("mdEmbed.fetchError", "Failed to fetch linked Markdown"), error));
     }
   }
 
@@ -427,6 +440,26 @@ function formatError(prefix: string, error: unknown): string {
   if (error instanceof Error) return `${prefix}: ${error.message}`;
   if (typeof error === "string") return `${prefix}: ${error}`;
   return prefix;
+}
+
+function statusText(
+  status: SaveStatus,
+  tr: (key: string, fallback: string) => string,
+): string {
+  switch (status) {
+    case "idle":
+      return "";
+    case "saving":
+      return tr("mdEmbed.statusSaving", "Saving...");
+    case "saved":
+      return tr("mdEmbed.statusSaved", "Saved");
+    case "dirty":
+      return tr("mdEmbed.statusDirty", "Unsaved");
+    case "error":
+      return tr("mdEmbed.statusError", "Error");
+    case "conflict":
+      return tr("mdEmbed.statusConflict", "Conflict");
+  }
 }
 
 function buttonStyle(): string {

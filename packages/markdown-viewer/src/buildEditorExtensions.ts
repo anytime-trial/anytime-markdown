@@ -24,6 +24,8 @@ interface BuildEditorExtensionsOptions {
   placeholder?: string;
   /** main 専用・既定 false: mdEmbed カードを有効化する。ネスト Editor では再帰防止のため false を指定する。 */
   enableMdEmbed?: boolean;
+  /** main 専用: mdEmbed カードのラベル翻訳 */
+  t?: (key: string) => string;
   /** main 専用: スラッシュコマンド状態変化コールバック */
   onSlashStateChange?: (state: SlashCommandState) => void;
 }
@@ -44,6 +46,7 @@ export function buildEditorExtensions(options: BuildEditorExtensionsOptions): Ex
     gridCols,
     placeholder,
     enableMdEmbed = false,
+    t,
     onSlashStateChange,
   } = options;
 
@@ -63,7 +66,7 @@ export function buildEditorExtensions(options: BuildEditorExtensionsOptions): Ex
   // main（本体）。拡張の並び順は従来の useEditorConfig と同一に保つ。
   return [
     ...base,
-    ...(enableMdEmbed ? [MdEmbed] : []),
+    ...(enableMdEmbed ? [MdEmbed.configure({ t })] : []),
     CustomHardBreak,
     DeleteLineExtension,
     SearchReplaceExtension,

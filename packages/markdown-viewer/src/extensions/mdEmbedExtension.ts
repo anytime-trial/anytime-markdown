@@ -13,12 +13,22 @@ interface MdEmbedAttrs {
   raw: string | null;
 }
 
+interface MdEmbedOptions {
+  t: ((key: string) => string) | null;
+}
+
 export const MdEmbed = TiptapNode.create({
   name: "mdEmbed",
   group: "block",
   atom: true,
   selectable: true,
   draggable: false,
+
+  addOptions(): MdEmbedOptions {
+    return {
+      t: null,
+    };
+  },
 
   addStorage() {
     return {
@@ -95,7 +105,7 @@ export const MdEmbed = TiptapNode.create({
   },
 
   addNodeView() {
-    return (props) => createMdEmbedNodeView(props);
+    return (props) => createMdEmbedNodeView({ ...props, t: this.options.t });
   },
 });
 

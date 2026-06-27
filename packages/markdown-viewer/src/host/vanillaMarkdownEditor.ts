@@ -489,6 +489,8 @@ export function mountVanillaMarkdownEditor(
     gridRows: current.gridRows,
     gridCols: current.gridCols,
     codeBlockExtension: current.codeBlockExtension,
+    enableMdEmbed: true,
+    t,
     onSlashStateChange: (state: SlashCommandState) => slashCb?.(state),
   });
 
