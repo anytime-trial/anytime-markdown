@@ -165,16 +165,31 @@ export class ClaudeStatusWatcher implements Disposable {
     }
     if (!latest) return;
 
+    const isStale = Date.now() - new Date(latest.timestamp).getTime() > STALE_THRESHOLD_MS;
+
+    // stale 安全網: ワーカーが editing=true のまま更新を止める（ツール中断・PostToolUse 欠落・
+    // セッション終了等）と timestamp が進まず、下の「timestamp 未更新なら return」より先に
+    // stale 判定へ到達できない。stale 化した行はタイムスタンプ更新に依存せず一度だけ false へ
+    // 落とす（editing バナーの取りこぼし解除を防ぐ）。
+    if (isStale) {
+      if (this.lastEditing === true) {
+        this.lastEditing = false;
+        for (const cb of this.callbacks) {
+          cb(false, latest.file);
+        }
+      }
+      return;
+    }
+
     if (latest.timestamp === this.lastTimestamp) return;
     this.lastTimestamp = latest.timestamp;
 
-    const isStale = Date.now() - new Date(latest.timestamp).getTime() > STALE_THRESHOLD_MS;
-    const editing = isStale ? false : latest.editing;
+    const editing = latest.editing;
 
     // PreToolUse と PostToolUse が連続して同一のポーリングサイクルに合流した場合、
-    // editing=false しか観測できない。非 stale な editing=false は直前に editing=true が
-    // あったことを示すため、synthetic な true イベントを先に発火してから false を発火する。
-    if (!editing && !isStale && this.lastEditing !== true) {
+    // editing=false しか観測できない。直前に editing=true があったことを示すため、
+    // synthetic な true イベントを先に発火してから false を発火する。
+    if (!editing && this.lastEditing !== true) {
       this.lastEditing = true;
       for (const cb of this.callbacks) {
         cb(true, latest.file);
