@@ -11,6 +11,7 @@ declare global {
     | { type: "writeClipboard"; text: string }
     | { type: "editorError"; message: string; stack: string; componentStack: string }
     | { type: "fetchLinkedMd"; requestId: string; href: string }
+    | { type: "openLink"; href: string }
     | {
         type: "saveLinkedMd";
         requestId: string;

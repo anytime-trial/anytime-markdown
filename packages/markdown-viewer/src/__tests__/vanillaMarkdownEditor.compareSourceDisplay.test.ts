@@ -31,6 +31,9 @@ jest.mock("../components-vanilla/InlineMergeView", () => ({
   createInlineMergeView: () => ({
     el: document.createElement("div"),
     update: jest.fn(),
+    // ミニマップ差分配線（setDiffSource）が参照する。scrollContainer は実 element が必要。
+    getRightScroller: () => document.createElement("div"),
+    getDiffBlockRatios: () => [],
     destroy: jest.fn(),
   }),
 }));

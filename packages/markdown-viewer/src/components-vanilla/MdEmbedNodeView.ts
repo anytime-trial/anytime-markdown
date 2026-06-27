@@ -86,8 +86,8 @@ export function createMdEmbedNodeView({
 
   const collapseButton = document.createElement("button");
   collapseButton.type = "button";
-  collapseButton.setAttribute("aria-label", tr("mdEmbed.collapse", "Collapse"));
-  collapseButton.title = tr("mdEmbed.collapse", "Collapse");
+  collapseButton.setAttribute("aria-label", tr("mdEmbedCollapse", "Collapse"));
+  collapseButton.title = tr("mdEmbedCollapse", "Collapse");
   collapseButton.textContent = "▾";
   collapseButton.style.cssText = buttonStyle();
 
@@ -100,7 +100,7 @@ export function createMdEmbedNodeView({
 
   const openButton = document.createElement("button");
   openButton.type = "button";
-  openButton.textContent = tr("mdEmbed.open", "Open in editor");
+  openButton.textContent = tr("mdEmbedOpen", "Open in editor");
   openButton.style.cssText = buttonStyle();
 
   const status = document.createElement("span");
@@ -137,8 +137,8 @@ export function createMdEmbedNodeView({
     body.hidden = collapsed;
     collapseButton.textContent = collapsed ? "▸" : "▾";
     const label = collapsed
-      ? tr("mdEmbed.expand", "Expand")
-      : tr("mdEmbed.collapse", "Collapse");
+      ? tr("mdEmbedExpand", "Expand")
+      : tr("mdEmbedCollapse", "Collapse");
     collapseButton.setAttribute(
       "aria-label",
       label,
@@ -207,7 +207,7 @@ export function createMdEmbedNodeView({
       .catch((error: unknown) => {
         dirty = true;
         setStatus("error");
-        setMessage(formatError(tr("mdEmbed.overwriteError", "Failed to overwrite linked Markdown"), error));
+        setMessage(formatError(tr("mdEmbedOverwriteError", "Failed to overwrite linked Markdown"), error));
       });
   };
 
@@ -219,15 +219,15 @@ export function createMdEmbedNodeView({
     message.style.display = "block";
     message.textContent = "";
     const text = document.createElement("span");
-    text.textContent = tr("mdEmbed.conflictMessage", "Linked Markdown changed on disk. ");
+    text.textContent = tr("mdEmbedConflictMessage", "Linked Markdown changed on disk. ");
     const reloadButton = document.createElement("button");
     reloadButton.type = "button";
-    reloadButton.textContent = tr("mdEmbed.conflictReload", "Reload");
+    reloadButton.textContent = tr("mdEmbedConflictReload", "Reload");
     reloadButton.style.cssText = buttonStyle();
     reloadButton.addEventListener("click", onReload);
     const overwriteButton = document.createElement("button");
     overwriteButton.type = "button";
-    overwriteButton.textContent = tr("mdEmbed.conflictOverwrite", "Overwrite");
+    overwriteButton.textContent = tr("mdEmbedConflictOverwrite", "Overwrite");
     overwriteButton.style.cssText = buttonStyle();
     overwriteButton.addEventListener("click", onOverwrite);
     message.append(text, reloadButton, document.createTextNode(" "), overwriteButton);
@@ -269,7 +269,7 @@ export function createMdEmbedNodeView({
     } catch (error: unknown) {
       dirty = true;
       setStatus("error");
-      setMessage(formatError(tr("mdEmbed.saveError", "Failed to save linked Markdown"), error));
+      setMessage(formatError(tr("mdEmbedSaveError", "Failed to save linked Markdown"), error));
     } finally {
       saving = false;
     }
@@ -298,11 +298,11 @@ export function createMdEmbedNodeView({
       setStatus("idle");
       setMessage(null);
       disposeNestedEditor();
-      body.textContent = tr("mdEmbed.loading", "Loading linked Markdown...");
+      body.textContent = tr("mdEmbedLoading", "Loading linked Markdown...");
 
       if (!provider) {
         body.textContent = tr(
-          "mdEmbed.providerMissing",
+          "mdEmbedProviderMissing",
           "Linked Markdown provider is not configured.",
         );
         return;
@@ -316,9 +316,9 @@ export function createMdEmbedNodeView({
       setStatus("idle");
     } catch (error: unknown) {
       if (destroyed) return;
-      body.textContent = tr("mdEmbed.loadError", "Failed to load linked Markdown.");
+      body.textContent = tr("mdEmbedLoadError", "Failed to load linked Markdown.");
       setStatus("error");
-      setMessage(formatError(tr("mdEmbed.fetchError", "Failed to fetch linked Markdown"), error));
+      setMessage(formatError(tr("mdEmbedFetchError", "Failed to fetch linked Markdown"), error));
     } finally {
       fetching = false;
       if (pendingProviderRefetch && !destroyed && !nestedEditor) {
@@ -381,7 +381,7 @@ export function createMdEmbedNodeView({
     stopEvent(event: Event) {
       return body.contains(event.target as Node);
     },
-    ignoreMutation(mutation: MutationRecord) {
+    ignoreMutation(mutation) {
       return body.contains(mutation.target);
     },
     selectNode() {
@@ -423,8 +423,8 @@ function createDefaultNestedEditor({
   editable: boolean;
 }): MdEmbedNestedEditor {
   // 遅延 require: 循環依存(buildEditorExtensions→mdEmbedExtension→本ファイル)回避と、重い editor スタック(lowlight 等)をモジュール load/ユニットテストから隔離するため。
-  const { buildEditorExtensions } =
-    require("../buildEditorExtensions") as typeof import("../buildEditorExtensions");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- 上記コメントの遅延 require のため require 構文が必須
+  const { buildEditorExtensions } = require("../buildEditorExtensions") as typeof import("../buildEditorExtensions");
   const editor = new Editor({
     element: mount,
     extensions: buildEditorExtensions({ mode: "main", enableMdEmbed: false }),
@@ -486,15 +486,15 @@ function statusText(
     case "idle":
       return "";
     case "saving":
-      return tr("mdEmbed.statusSaving", "Saving...");
+      return tr("mdEmbedStatusSaving", "Saving...");
     case "saved":
-      return tr("mdEmbed.statusSaved", "Saved");
+      return tr("mdEmbedStatusSaved", "Saved");
     case "dirty":
-      return tr("mdEmbed.statusDirty", "Unsaved");
+      return tr("mdEmbedStatusDirty", "Unsaved");
     case "error":
-      return tr("mdEmbed.statusError", "Error");
+      return tr("mdEmbedStatusError", "Error");
     case "conflict":
-      return tr("mdEmbed.statusConflict", "Conflict");
+      return tr("mdEmbedStatusConflict", "Conflict");
   }
 }
 
