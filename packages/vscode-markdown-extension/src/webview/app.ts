@@ -339,6 +339,7 @@ function buildMountOptions() {
   return {
     t: createMarkdownT('MarkdownEditor', state.locale),
     locale: state.locale,
+    vscodeApi: vscode,
     hideToolbar: true,
     sideToolbar: true,
     // Ctrl+S を host の `document.save()` へ配線。未設定だと orchestrator が
