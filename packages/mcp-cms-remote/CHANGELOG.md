@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-27
+
+### Added
+
+- Public `GET /fetch` proxy endpoint for browser-side web page import: fetches a URL server-side and returns `{ html, finalUrl, contentType }` with CORS. SSRF defenses block private / loopback / link-local / metadata IPs (including IPv4-mapped IPv6), re-validate each redirect hop, and enforce scheme / content-type / size / timeout limits. CORS origin allowlist is configurable via `WEB_IMPORT_ALLOW_ORIGIN` (defaults to `*` when unset).
+
 ## [0.0.8] - 2026-06-20
 
 ### Added

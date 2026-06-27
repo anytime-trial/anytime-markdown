@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-27
+
+### Added
+
+- Web page import: fetch a web page by URL, extract its main article with Readability, and convert it to Markdown with Turndown (GFM). Insert at the cursor via the `/web` slash command, or create a new document via the toolbar button. Conversion runs in the editor; an injectable provider supplies the raw HTML per environment, and frontmatter values are escaped to prevent YAML injection.
+
 ## [1.7.0] - 2026-06-27
 
 ### Added

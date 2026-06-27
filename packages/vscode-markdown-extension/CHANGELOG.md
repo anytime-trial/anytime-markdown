@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-27
+
+### Added
+
+- Web page import: fetch a URL in the extension host with an SSRF-guarded fetch (manual redirect re-validation, content-type/size/timeout limits) and import it as Markdown — inserted at the cursor (`/web`) or opened as a new untitled document (toolbar).
+
+### Editor Core (markdown-viewer)
+
+- Web page import (Readability + Turndown) via slash command and toolbar, with YAML-safe frontmatter.
+
 ## [1.7.0] - 2026-06-27
 
 ### Added

@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-06-27
+
+### Added
+
+- Web page import in the browser editor: fetch via the mcp-cms-remote `/fetch` proxy and convert to Markdown; new documents are downloaded as `.md`. Enabled when `NEXT_PUBLIC_WEB_IMPORT_PROXY_URL` is set.
+
+### Changed
+
+- CI/CD: the mcp-cms-remote deploy workflow now passes `WEB_IMPORT_ALLOW_ORIGIN` (from a repository variable) to the Cloudflare Workers deploy to drive the `/fetch` CORS allowlist.
+
 ## [0.32.0] - 2026-06-27
 
 ### Added

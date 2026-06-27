@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-27
+
+### 追加
+
+- Web ページ取り込み: 拡張ホストで SSRF ガード付き fetch（リダイレクト各ホップ再検証・content-type/サイズ/タイムアウト制限）により URL を取得し Markdown 化。カーソル位置へ挿入（`/web`）または無題ドキュメントとして新規作成（ツールバー）。
+
+### Editor Core (markdown-viewer)
+
+- スラッシュコマンド/ツールバーから Web ページ取り込み（Readability + Turndown）。フロントマターは YAML 安全化。
+
 ## [1.7.0] - 2026-06-27
 
 ### 追加
