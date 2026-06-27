@@ -36,6 +36,8 @@ export default defineConfig({
       ? [
           {
             name: "firefox",
+            // VR 基準画像は Linux + chromium 専用のため他ブラウザでは除外する。
+            testIgnore: [/visual-baseline/, /chart-fence-vr/],
             use: {
               browserName: "firefox" as const,
               launchOptions: {
@@ -50,6 +52,8 @@ export default defineConfig({
           },
           {
             name: "webkit",
+            // VR 基準画像は Linux + chromium 専用のため他ブラウザでは除外する。
+            testIgnore: [/visual-baseline/, /chart-fence-vr/],
             use: { browserName: "webkit" as const },
           },
         ]
