@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-06-27
+
+### Fixed
+
+- Web page import was blocked by Content Security Policy: the proxy origin (`NEXT_PUBLIC_WEB_IMPORT_PROXY_URL`) is now added to the `connect-src` directive, so the browser can reach the mcp-cms-remote `/fetch` proxy.
+
+### Changed
+
+- CI/CD: e2e visual-regression tests are restricted to Chromium (Firefox/WebKit ignore the Linux+Chromium baseline images).
+
 ## [0.33.0] - 2026-06-27
 
 ### Added
