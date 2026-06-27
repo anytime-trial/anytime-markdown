@@ -136,6 +136,22 @@ describe("proxy", () => {
       const csp = mockResponseHeaders.get("Content-Security-Policy")!;
       expect(csp).toContain("'unsafe-eval'");
     });
+
+    it("allows the web import proxy origin in connect-src when configured", () => {
+      (process.env as Record<string, string>).NEXT_PUBLIC_WEB_IMPORT_PROXY_URL =
+        "https://mcp-cms-remote.example.workers.dev/";
+      proxy(createMockRequest());
+      const csp = mockResponseHeaders.get("Content-Security-Policy")!;
+      // connect-src に proxy のオリジン（パスなし）が含まれること
+      expect(csp).toMatch(/connect-src[^;]*https:\/\/mcp-cms-remote\.example\.workers\.dev(\s|;|$)/);
+    });
+
+    it("omits the web import proxy from connect-src when unset", () => {
+      delete (process.env as Record<string, string>).NEXT_PUBLIC_WEB_IMPORT_PROXY_URL;
+      proxy(createMockRequest());
+      const csp = mockResponseHeaders.get("Content-Security-Policy")!;
+      expect(csp).not.toContain("workers.dev");
+    });
   });
 });
 
