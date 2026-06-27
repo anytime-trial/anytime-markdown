@@ -5,6 +5,7 @@ import { getBaseExtensions } from "./editorExtensions";
 import { ChangeGutterExtension } from "./extensions/changeGutterExtension";
 import { CustomHardBreak } from "./extensions/customHardBreak";
 import { DeleteLineExtension } from "./extensions/deleteLineExtension";
+import { MdEmbed } from "./extensions/mdEmbedExtension";
 import { ReviewModeExtension } from "./extensions/reviewModeExtension";
 import type { SlashCommandState } from "./extensions/slashCommandExtension";
 import { SlashCommandExtension } from "./extensions/slashCommandExtension";
@@ -21,6 +22,10 @@ interface BuildEditorExtensionsOptions {
   gridCols?: number;
   /** main 専用: プレースホルダ文字列 */
   placeholder?: string;
+  /** main 専用・既定 false: mdEmbed カードを有効化する。ネスト Editor では再帰防止のため false を指定する。 */
+  enableMdEmbed?: boolean;
+  /** main 専用: mdEmbed カードのラベル翻訳 */
+  t?: (key: string) => string;
   /** main 専用: スラッシュコマンド状態変化コールバック */
   onSlashStateChange?: (state: SlashCommandState) => void;
 }
@@ -34,7 +39,16 @@ interface BuildEditorExtensionsOptions {
  * ソース表示に退化していた。）
  */
 export function buildEditorExtensions(options: BuildEditorExtensionsOptions): Extensions {
-  const { mode, codeBlockExtension, gridRows, gridCols, placeholder, onSlashStateChange } = options;
+  const {
+    mode,
+    codeBlockExtension,
+    gridRows,
+    gridCols,
+    placeholder,
+    enableMdEmbed = false,
+    t,
+    onSlashStateChange,
+  } = options;
 
   const base = getBaseExtensions({
     gridRows,
@@ -52,6 +66,7 @@ export function buildEditorExtensions(options: BuildEditorExtensionsOptions): Ex
   // main（本体）。拡張の並び順は従来の useEditorConfig と同一に保つ。
   return [
     ...base,
+    ...(enableMdEmbed ? [MdEmbed.configure({ t })] : []),
     CustomHardBreak,
     DeleteLineExtension,
     SearchReplaceExtension,
