@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-27
+
+### Added
+
+- mdEmbed transclusion: expand a standalone Markdown link in a paragraph into a collapsible, inline-editable embedded block. The linked Markdown is rendered in a nested editor and written back on edit, with round-trip serialization and a singleton provider that resolves link targets.
+- `link` slash command to insert a link inline.
+- Comparison mode now marks the changed locations on the minimap.
+
+### Fixed
+
+- Restored the change-overview minimap beside the scrollbar (lost in the vanilla migration).
+- Keep the search bar always visible instead of letting it scroll away with the body.
+- mdEmbed: resolved save-consistency and edit-conflict handling, the late provider-injection "unconfigured" sticky state, the pending re-fetch when the provider is swapped mid-fetch, and special-character link escaping.
+- Prevented change-gutter markers from disappearing by sending live updates as diffs and not re-acquiring the gutter baseline on identical live-patch re-application.
+
 ## [1.6.0] - 2026-06-24
 
 ### Removed

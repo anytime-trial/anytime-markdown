@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-06-27
+
+### 変更
+
+- ドキュメント: Stop フックスクリプトを `token-budget.sh` に変更（旧 `trail-token-budget.sh`）。当該フックは Anytime Agent 拡張が登録します。
+
+### Trail Core (trail-viewer)
+
+- C4: `classifyLayer` 配線による層注釈・可視化、Scatter / Code Graph ポップアップの vanilla 配線完成、要素ツリーの種別バッジを SVG アイコン化、C4 左パネルのコントロールを高さ上限付き 1 列へ集約（Ghost Edges / Hotspot / オーバーレイ凡例 / defectRisk・TC の重なり解消）、選択要素 詳細パネルの欠落セクション復元とフォント拡大、C4 層コンテナ自動シード（Phase 4）の撤去。
+
 ## [0.30.1] - 2026-06-24
 
 ### Trail Core (trail-viewer / memory-core)

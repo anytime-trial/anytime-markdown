@@ -6,8 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-27
+
 ### Changed
 
+- Renamed the Stop hook script `trail-token-budget.sh` to `token-budget.sh`; the obsolete script and its stale hook entry are cleaned up on setup.
 - The Agent mapping tree now lists sessions as a flat list sorted by recency (most recently active first), instead of grouping them under worktree/branch nodes. Each session's hover (tooltip) shows the last-used branch and worktree name. The worktree-level nodes and their `Open Worktree` / `Copy Worktree Path` commands were removed.
 - Session age in the Agent mapping tree is now shown as `Xh Ymin ago` for ages of one hour or more (previously minutes only, e.g. `135 min ago`).
 - Removed the per-session commit count (`committed(N)`) from the Agent mapping tree row. The commit count remains in the session hover (tooltip) and in the Today summary row.
@@ -15,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Session handoff: a **Hand off to a new session** command on the session tree carries a compressed, context-preserving handoff state (deterministic recall extraction) into a fresh Claude Code session via the agent-status worker `/handoff` endpoint, and a context-bloat handoff-recommendation badge flags sessions that have grown large.
 - The Agent mapping tree now groups sessions by source under **Claude Code** and **Codex** headings. Codex (OpenAI CLI) sessions for the current workspace are surfaced by a read-only scan of the Codex rollout files (`~/.codex/sessions`); only sessions within the retention period whose working directory is inside the current workspace's worktrees are listed. Codex has no agent-status lifecycle hook, so only **last activity** and **context tokens** (⚠️ handoff-hint badge) are available — editing-lock, commit count, and session handoff are Claude-only. Toggle with `anytimeAgent.showCodexSessions` (default on). The **Today** summary is Claude-only and is now labeled accordingly.
 - Periodic cleanup of unused sessions: the agent-status worker deletes sessions whose last activity is older than the retention period from the database, on startup and once per day. The retention period is configurable via `anytimeAgent.sessionRetentionDays` (default 7 days).
 

@@ -6,8 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- C4: architecture-layer annotation and visualization driven by `classifyLayer` (code-graph coloring + a C4 architecture-layer overlay).
+- C4 selected-element details panel now shows the architecture layer.
+- Completed the vanilla wiring of the Scatter and Code Graph popups.
+
+### Changed
+
+- C4 element-tree type badges are now SVG icons (dropped the S / C / Co text labels).
+- Consolidated the C4 left-panel controls (Ghost Edges, Hotspot, overlay legend) into a single column with a height cap and internal scroll.
+- Enlarged the C4 right-panel (selected element / community) fonts to match the other panels.
+
 ### Fixed
 
+- Restored the missing sections of the C4 selected-element details panel.
+- Resolved the invisible C4 defectRisk / TC control bar by moving it into the left-panel column.
+- Fixed the Ghost Edges and Hotspot overlay panels overlapping the C4 left control panel.
+- C4 Matrix now updates the table data when switching between C2 / C3 / C4.
+- Added `pointer-events: auto` to C4 popups to fix unoperable popups.
+- Reset the code-graph popup search / selection state when it is closed.
+- Completed the i18n keys for C4 popups (no more raw key display).
 - Fixed a vanilla-migration regression where the resizable popup's maximize / resize stopped responding (the component now holds live state and re-renders itself before notifying callbacks).
 - Restored the ↗ popup trigger on combined charts.
 - Matched the popup top-right icon color to the theme color.
