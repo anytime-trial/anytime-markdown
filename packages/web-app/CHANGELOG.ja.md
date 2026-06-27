@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-06-27
+
+### 追加
+
+- ブラウザエディタでの Web ページ取り込み: mcp-cms-remote の `/fetch` プロキシ経由で取得し Markdown 化。新規作成は `.md` としてダウンロード。`NEXT_PUBLIC_WEB_IMPORT_PROXY_URL` 設定時に有効。
+
+### 変更
+
+- CI/CD: mcp-cms-remote デプロイワークフローが `WEB_IMPORT_ALLOW_ORIGIN`（リポジトリ変数）を Cloudflare Workers デプロイへ渡し、`/fetch` の CORS 許可リストを制御。
+
 ## [0.32.0] - 2026-06-27
 
 ### 追加

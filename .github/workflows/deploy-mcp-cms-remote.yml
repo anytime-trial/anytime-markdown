@@ -76,6 +76,7 @@ jobs:
           printf '%s' "${{ secrets.ANYTIME_AWS_SECRET_ACCESS_KEY }}" | npx wrangler secret put ANYTIME_AWS_SECRET_ACCESS_KEY 2>/dev/null
           printf '%s' "${{ secrets.S3_DOCS_BUCKET }}" | npx wrangler secret put S3_DOCS_BUCKET 2>/dev/null
           printf '%s' "${{ secrets.OPENALEX_MAILTO }}" | npx wrangler secret put OPENALEX_MAILTO 2>/dev/null
+          printf '%s' "${{ vars.WEB_IMPORT_ALLOW_ORIGIN }}" | npx wrangler secret put WEB_IMPORT_ALLOW_ORIGIN 2>/dev/null
 
       - name: Deploy to Cloudflare Workers
         run: npx wrangler deploy

@@ -19,6 +19,7 @@ import { toReqRes, toFetchResponse } from 'fetch-to-node';
 import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
 import { createRemoteMcpServer } from './server.js';
 import { paperConfig } from './paperConfig.js';
+import { fetchWebPageForImport, resolveAllowedOrigin, WebFetchProxyError } from './webFetchProxy.js';
 
 interface Env {
   MCP_API_KEY: string;
@@ -31,9 +32,19 @@ interface Env {
   // Paper ranking
   PAPER_S3_BUCKET?: string;
   OPENALEX_MAILTO: string;
+  WEB_IMPORT_ALLOW_ORIGIN?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
+
+function webImportCorsHeaders(allowOrigin: string): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    Vary: 'Origin',
+  };
+}
 
 // API キー検証ミドルウェア
 app.use('/mcp', async (c, next) => {
@@ -87,5 +98,34 @@ app.delete('/mcp', (c) => c.json({ error: 'Method not allowed. Use POST.' }, 405
 
 // ヘルスチェック
 app.get('/health', (c) => c.json({ status: 'ok' }));
+
+app.options('/fetch', (c) => {
+  const allowOrigin = resolveAllowedOrigin(c.env.WEB_IMPORT_ALLOW_ORIGIN, c.req.header('origin'));
+  if (allowOrigin === null) return c.body(null, 403);
+  return c.body(null, 204, webImportCorsHeaders(allowOrigin));
+});
+
+app.get('/fetch', async (c) => {
+  const allowOrigin = resolveAllowedOrigin(c.env.WEB_IMPORT_ALLOW_ORIGIN, c.req.header('origin'));
+  if (allowOrigin === null) {
+    return c.json({ error: 'origin_not_allowed' }, 403);
+  }
+  const corsHeaders = webImportCorsHeaders(allowOrigin);
+  const url = c.req.query('url');
+  if (!url) {
+    return c.json({ error: 'missing_url' }, 400, corsHeaders);
+  }
+
+  try {
+    const result = await fetchWebPageForImport(url);
+    return c.json(result, 200, corsHeaders);
+  } catch (error) {
+    if (error instanceof WebFetchProxyError) {
+      return c.json({ error: error.code }, error.status as 400, corsHeaders);
+    }
+    console.error('[Web Import Fetch Error]', error);
+    return c.json({ error: 'internal_error' }, 500, corsHeaders);
+  }
+});
 
 export default app;

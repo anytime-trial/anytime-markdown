@@ -73,6 +73,8 @@ const PATH = {
   save: "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3m3-10H5V5h10z",
   saveAs:
     "M21 12.4V7l-4-4H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h7.4zM15 15c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3M6 6h9v4H6zm13.99 10.25 1.77 1.77L16.77 23H15v-1.77zm3.26.26-.85.85-1.77-1.77.85-.85c.2-.2.51-.2.71 0l1.06 1.06c.2.2.2.52 0 .71",
+  web:
+    "M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2m-5 14H4v-4h11zm0-5H4V9h11zm5 5h-4V9h4z",
   pictureAsPdf:
     "M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5zm4-3H19v1h1.5V11H19v2h-1.5V7h3zM9 9.5h1v-1H9zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4zm10 5.5h1v-3h-1z",
 } as const;
@@ -393,6 +395,16 @@ export function createEditorToolbar(
         tipTitle: t("exportPdf"),
         disabled: modeState.sourceMode || modeState.inlineMergeOpen,
         onClick: () => fileHandlers.onExportPdf?.(),
+      });
+    }
+    if (fileHandlers.onWebImport) {
+      addBtn({
+        value: "webImport",
+        ariaLabel: t("slashWebImport"),
+        icon: PATH.web,
+        tipTitle: t("slashWebImport"),
+        disabled: readonlyMode,
+        onClick: () => fileHandlers.onWebImport?.(),
       });
     }
     wrap.appendChild(group.el);

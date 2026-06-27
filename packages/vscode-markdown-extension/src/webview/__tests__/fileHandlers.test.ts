@@ -1,4 +1,8 @@
-import { buildWebviewFileHandlers, SAVE_MESSAGE_TYPE } from '../fileHandlers';
+import {
+  buildWebviewFileHandlers,
+  CREATE_WEB_IMPORT_DOCUMENT_MESSAGE_TYPE,
+  SAVE_MESSAGE_TYPE,
+} from '../fileHandlers';
 
 describe('buildWebviewFileHandlers', () => {
   it('onSaveFile は host へ save メッセージを送る（回帰: 保存ダイアログ誘発を防ぐ）', () => {
@@ -15,5 +19,20 @@ describe('buildWebviewFileHandlers', () => {
     const handlers = buildWebviewFileHandlers(() => {});
 
     expect(typeof handlers.onSaveFile).toBe('function');
+  });
+
+  it('onWebImportCreate は host へ createWebImportDocument メッセージを送る', () => {
+    const posted: Array<{ type: string; [key: string]: unknown }> = [];
+    const handlers = buildWebviewFileHandlers((message) => posted.push(message));
+
+    handlers.onWebImportCreate('# Imported', 'Imported');
+
+    expect(posted).toEqual([
+      {
+        type: CREATE_WEB_IMPORT_DOCUMENT_MESSAGE_TYPE,
+        markdown: '# Imported',
+        title: 'Imported',
+      },
+    ]);
   });
 });

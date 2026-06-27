@@ -50,6 +50,8 @@ interface CreateEditorDialogsOptions {
   onLinkInsert: (url: string) => void;
   /** image 挿入確定（URL と alt を渡す）。 */
   onImageInsert: (url: string, alt: string) => void;
+  /** Web import URL 確定。mode は挿入または新規ドキュメント作成経路を示す。 */
+  onWebImportSubmit?: (url: string, mode: "insert" | "create") => void | Promise<void>;
   /** image ダイアログの挿入ボタンを「適用」表記にする（編集モード）。 */
   imageEditMode?: boolean;
 }
@@ -58,6 +60,7 @@ interface CreateEditorDialogsOptions {
 export interface EditorDialogsHandle {
   openComment: (initialText?: string) => void;
   openLink: (initialUrl?: string) => void;
+  openWebImport: (mode?: "insert" | "create", initialUrl?: string) => void;
   openImage: (initialUrl?: string, initialAlt?: string) => void;
   openShortcuts: () => void;
   openVersion: () => void;
@@ -261,6 +264,72 @@ export function createEditorDialogs(opts: CreateEditorDialogsOptions): EditorDia
         bindRevalidate: (fn) => {
           revalidate = fn;
         },
+      });
+    },
+
+    openWebImport(mode = "insert", initialUrl = "") {
+      const titleId = nextDialogTitleId();
+      let value = initialUrl;
+      let loading = false;
+      const isEmpty = (): boolean => !value.trim();
+      const loadingText = createText({
+        variant: "caption",
+        text: "",
+        style: "display:block;margin-top:8px;color:var(--am-color-text-secondary);",
+      });
+      const field = createTextField({
+        autoFocus: true,
+        required: true,
+        label: t("webImportUrlPlaceholder"),
+        value,
+        size: "small",
+        fullWidth: true,
+        helperTextId: "web-import-url-helper",
+        style: { marginTop: "8px" },
+        onChange: (e) => {
+          value = (e.target as HTMLInputElement).value;
+          revalidate();
+        },
+        onBlur: () => {
+          field.update({ error: isEmpty(), helperText: isEmpty() ? t("requiredField") : undefined });
+        },
+        onKeyDown: (e) => {
+          if (e.key === "Enter" && !isEmpty() && !loading) void submit();
+        },
+      });
+      const setLoading = (next: boolean): void => {
+        loading = next;
+        field.update({ disabled: loading });
+        insertBtn.update({ disabled: loading || isEmpty(), label: loading ? t("webImportLoading") : t("webImportSubmit") });
+        loadingText.el.textContent = loading ? t("webImportLoading") : "";
+      };
+      const submit = async (): Promise<void> => {
+        if (isEmpty() || loading) return;
+        setLoading(true);
+        try {
+          await opts.onWebImportSubmit?.(value, mode);
+          close();
+        } catch {
+          setLoading(false);
+        }
+      };
+      let revalidate = (): void => {};
+      const content = createDialogContent({ children: [field.el, loadingText.el] }).el;
+      const cancelBtn = createButton({ label: t("cancel"), onClick: close });
+      const insertBtn = createButton({
+        label: t("webImportSubmit"),
+        variant: "contained",
+        disabled: isEmpty(),
+        onClick: () => void submit(),
+      });
+      revalidate = () => insertBtn.update({ disabled: loading || isEmpty() });
+      const actions = createDialogActions({ children: [cancelBtn.el, insertBtn.el] }).el;
+      openShell({
+        titleId,
+        titleChildren: t("webImportDialogTitle"),
+        content,
+        actions,
+        childHandles: [field, loadingText, cancelBtn, insertBtn],
       });
     },
 

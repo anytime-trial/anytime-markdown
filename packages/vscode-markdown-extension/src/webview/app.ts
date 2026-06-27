@@ -19,6 +19,7 @@ import {
   DEFAULT_DARK_BG,
   DEFAULT_LIGHT_BG,
   DEFAULT_SETTINGS,
+  setWebImportProvider,
   type EditorSettings,
   STORAGE_KEY_CONTENT,
   STORAGE_KEY_SETTINGS,
@@ -41,6 +42,7 @@ import { getVsCodeApi } from './vscodeApi';
 import { buildWebviewFileHandlers } from './fileHandlers';
 import { isInternalLink } from './linkClick';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
+import { createWebImportBridgeProvider } from './webImportBridge';
 import { createNoteGraphPanel, type NoteGraphPanelHandle } from './noteGraph/panel';
 
 const vscode = getVsCodeApi();
@@ -705,6 +707,7 @@ export function startApp(container: HTMLElement): void {
   rootEl = container;
   // embed プレビュー（vanilla）の外部 fetch を拡張ホスト経由に注入（起動時に一度）
   setEmbedProviders(createVsCodeEmbedProviders());
+  setWebImportProvider(createWebImportBridgeProvider((message) => vscode.postMessage(message)));
   applyTheme();
   window.addEventListener('message', handleMessage);
   window.addEventListener('vscode-save-compare-file', (e: Event) => {

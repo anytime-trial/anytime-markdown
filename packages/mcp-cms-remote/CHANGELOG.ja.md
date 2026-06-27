@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-27
+
+### 追加
+
+- ブラウザ側 Web ページ取り込み用の公開 `GET /fetch` プロキシエンドポイント。サーバー側で URL を取得し `{ html, finalUrl, contentType }` を CORS 付きで返す。SSRF 防御として private / loopback / link-local / metadata IP（IPv4-mapped IPv6 含む）を遮断し、リダイレクト各ホップを再検証、スキーム / content-type / サイズ / タイムアウトを制限。CORS 許可オリジンは `WEB_IMPORT_ALLOW_ORIGIN` で設定（未設定時は `*`）。
+
 ## [0.0.8] - 2026-06-20
 
 ### 追加
