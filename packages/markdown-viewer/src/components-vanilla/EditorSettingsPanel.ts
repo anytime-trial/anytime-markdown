@@ -48,6 +48,7 @@ const MEASURE_LABEL_KEY: Record<EditorSettings["measure"], string> = {
   focus: "settingMeasureFocus",
   standard: "settingMeasureStandard",
   wide: "settingMeasureWide",
+  full: "settingMeasureFull",
 };
 
 // ui/icons.tsx と同一の Material SVG path（Close / RestartAlt）。
