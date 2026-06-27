@@ -11,6 +11,7 @@ import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
+import { downloadMarkdownBlob } from '../../lib/webImportProvider';
 import { useEditorPage } from './useEditorPage';
 
 function EditorLoading() {
@@ -61,6 +62,14 @@ export default function Page() {
     (state: { explorerOpen?: boolean }) => setExplorerOpenV(state.explorerOpen === true),
     [],
   );
+  const fileHandlers = useMemo(
+    () => ({
+      onWebImportCreate: (markdown: string, title: string) => {
+        downloadMarkdownBlob(markdown, title);
+      },
+    }),
+    [],
+  );
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
@@ -88,6 +97,7 @@ export default function Page() {
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar
           hide={{ explorer: !enableGitHub }}
+          fileHandlers={fileHandlers}
           onModeChange={handleVanillaModeChange}
           onContentChange={handleContentChange}
           gridRows={process.env.NEXT_PUBLIC_GRID_ROWS ? Number(process.env.NEXT_PUBLIC_GRID_ROWS) : undefined}

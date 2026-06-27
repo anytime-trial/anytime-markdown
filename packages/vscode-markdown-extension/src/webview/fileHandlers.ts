@@ -13,18 +13,21 @@
 import type { ToolbarFileHandlers } from '@anytime-markdown/markdown-viewer/src/types/toolbar';
 
 /** extension host へメッセージを送る関数（`vscode.postMessage` 相当）。 */
-export type PostMessage = (message: { type: string }) => void;
+export type PostMessage = (message: { type: string; [key: string]: unknown }) => void;
 
 /** host の保存ハンドラ（`MarkdownEditorProvider` の `case 'save'`）と一致させる型名。 */
 export const SAVE_MESSAGE_TYPE = 'save';
+export const CREATE_WEB_IMPORT_DOCUMENT_MESSAGE_TYPE = 'createWebImportDocument';
 
 /**
  * Ctrl+S（および保存操作）を extension host の `save` メッセージへ配線したハンドラを返す。
  */
 export function buildWebviewFileHandlers(
   postMessage: PostMessage,
-): Required<Pick<ToolbarFileHandlers, 'onSaveFile'>> {
+): Required<Pick<ToolbarFileHandlers, 'onSaveFile' | 'onWebImportCreate'>> {
   return {
     onSaveFile: () => postMessage({ type: SAVE_MESSAGE_TYPE }),
+    onWebImportCreate: (markdown, title) =>
+      postMessage({ type: CREATE_WEB_IMPORT_DOCUMENT_MESSAGE_TYPE, markdown, title }),
   };
 }

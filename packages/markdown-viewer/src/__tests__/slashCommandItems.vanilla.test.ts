@@ -54,11 +54,12 @@ function createChainEditor() {
 }
 
 describe("DEFAULT_SLASH_ITEMS", () => {
-  it("全コマンド分（36 件）が定義されている", () => {
+  it("全コマンド分（38 件）が定義されている", () => {
     expect(Array.isArray(DEFAULT_SLASH_ITEMS)).toBe(true);
     // 思考法ダイアグラムは6図種→総称1項目に集約したため 40→35。
     // チャート（anytime-chart）総称1項目を追加して 36。
-    expect(DEFAULT_SLASH_ITEMS.length).toBe(37);
+    // Web 取り込みを追加して 38。
+    expect(DEFAULT_SLASH_ITEMS.length).toBe(38);
   });
 
   it("必須プロパティが揃い id が一意である", () => {
@@ -96,6 +97,7 @@ describe("DEFAULT_SLASH_ITEMS", () => {
     ["table", "table"],
     ["hr", "horizontalRule"],
     ["anchor", "link"],
+    ["web", "webImport"],
     ["embed", "embed"],
     ["mermaid", "mermaid"],
     ["plantuml", "plantuml"],
@@ -154,6 +156,15 @@ describe("DEFAULT_SLASH_ITEMS", () => {
     expect(item).toBeDefined();
     const open = jest.fn();
     const editor = { storage: { linkDialog: { open } } } as never;
+    item?.action(editor);
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it("webImport の action が storage.webImportDialog.open を呼ぶ", () => {
+    const item = DEFAULT_SLASH_ITEMS.find((i) => i.id === "webImport");
+    expect(item).toBeDefined();
+    const open = jest.fn();
+    const editor = { storage: { webImportDialog: { open } } } as never;
     item?.action(editor);
     expect(open).toHaveBeenCalledTimes(1);
   });

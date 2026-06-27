@@ -362,6 +362,19 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
     },
   },
   {
+    id: "webImport",
+    labelKey: "slashWebImport",
+    iconPath: PATH.link,
+    keywords: ["web", "url", "import", "html", "記事", "取り込み", "ウェブ"],
+    action: (editor) => {
+      const storage = getEditorStorage(editor);
+      const openDialog = storage.webImportDialog?.open as (() => void) | undefined;
+      if (openDialog) {
+        openDialog();
+      }
+    },
+  },
+  {
     id: "embed",
     labelKey: "slashEmbed",
     iconPath: PATH.link,
@@ -615,4 +628,3 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
     },
   },
 ];
-
