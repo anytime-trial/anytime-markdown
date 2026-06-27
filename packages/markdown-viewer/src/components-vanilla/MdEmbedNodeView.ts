@@ -64,6 +64,7 @@ export function createMdEmbedNodeView({
   let dirty = false;
   let saving = false;
   let fetching = false;
+  let pendingProviderRefetch = false;
   let collapsed = false;
   let editSeq = 0;
 
@@ -283,26 +284,33 @@ export function createMdEmbedNodeView({
   }
 
   async function fetchAndMount(): Promise<void> {
-    provider = getLinkedMdProvider();
-    token = null;
-    dirty = false;
-    setStatus("idle");
-    setMessage(null);
-    disposeNestedEditor();
-    body.textContent = tr("mdEmbed.loading", "Loading linked Markdown...");
-
-    if (!provider) {
-      body.textContent = tr(
-        "mdEmbed.providerMissing",
-        "Linked Markdown provider is not configured.",
-      );
+    if (fetching) {
+      pendingProviderRefetch = true;
       return;
     }
 
     fetching = true;
+    pendingProviderRefetch = false;
     try {
+      provider = getLinkedMdProvider();
+      token = null;
+      dirty = false;
+      setStatus("idle");
+      setMessage(null);
+      disposeNestedEditor();
+      body.textContent = tr("mdEmbed.loading", "Loading linked Markdown...");
+
+      if (!provider) {
+        body.textContent = tr(
+          "mdEmbed.providerMissing",
+          "Linked Markdown provider is not configured.",
+        );
+        return;
+      }
+
       const content = await provider.fetch(attrs.href);
       if (destroyed) return;
+      if (pendingProviderRefetch) return;
       token = content.token;
       createNestedEditor(content.content);
       setStatus("idle");
@@ -313,6 +321,10 @@ export function createMdEmbedNodeView({
       setMessage(formatError(tr("mdEmbed.fetchError", "Failed to fetch linked Markdown"), error));
     } finally {
       fetching = false;
+      if (pendingProviderRefetch && !destroyed && !nestedEditor) {
+        pendingProviderRefetch = false;
+        void fetchAndMount();
+      }
     }
   }
 
@@ -337,7 +349,11 @@ export function createMdEmbedNodeView({
   setCollapsed(false);
   void fetchAndMount();
   unsubscribeLinkedMdProvider = subscribeLinkedMdProvider((nextProvider) => {
-    if (!nextProvider || destroyed || nestedEditor || fetching) return;
+    if (!nextProvider || destroyed || nestedEditor) return;
+    if (fetching) {
+      pendingProviderRefetch = true;
+      return;
+    }
     void fetchAndMount();
   });
 

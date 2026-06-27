@@ -17,6 +17,7 @@ import { createTestEditor } from "../testUtils/createTestEditor";
 
 interface FakeNestedEditor extends MdEmbedNestedEditor {
   editableValues: boolean[];
+  initialContent: string;
   emitDocChanged(): void;
   setMarkdown(markdown: string): void;
 }
@@ -61,9 +62,23 @@ function makeEditorAndNode(editable = true): { editor: Editor; node: PMNode } {
   return { editor, node: found };
 }
 
+function makeEditorAndDetachedMdEmbedNode(editable = true): { editor: Editor; node: PMNode } {
+  const editor = createTestEditor({
+    withMarkdown: true,
+    extraExtensions: [MdEmbed],
+  });
+  editor.setEditable(editable);
+  const nodeType = editor.schema.nodes.mdEmbed;
+  if (!nodeType) throw new Error("mdEmbed node type was not registered");
+  return {
+    editor,
+    node: nodeType.create({ href: "notes/linked.md", title: null }),
+  };
+}
+
 function installFakeNestedEditorFactory(markdown = "# Edited\n"): FakeNestedEditor[] {
   const editors: FakeNestedEditor[] = [];
-  setMdEmbedNestedEditorFactoryForTest(({ mount, editable }) => {
+  setMdEmbedNestedEditorFactoryForTest(({ mount, content, editable }) => {
     const listeners: Array<(event: { transaction: { docChanged: boolean } }) => void> = [];
     let currentMarkdown = markdown;
     const root = document.createElement("div");
@@ -72,6 +87,7 @@ function installFakeNestedEditorFactory(markdown = "# Edited\n"): FakeNestedEdit
     const fake: FakeNestedEditor = {
       mount,
       editableValues: [editable],
+      initialContent: content,
       setEditable(nextEditable) {
         fake.editableValues.push(nextEditable);
       },
@@ -324,6 +340,54 @@ describe("createMdEmbedNodeView", () => {
     expect(lastNestedEditor(nestedEditors).mount).toBe(
       view.dom.querySelector("[data-am-md-embed-body]"),
     );
+
+    view.destroy?.();
+    editor.destroy();
+  });
+
+  it("refetches with the latest provider when provider changes during fetch", async () => {
+    const provider1Fetch = deferred<Awaited<ReturnType<LinkedMdProvider["fetch"]>>>();
+    const provider1: LinkedMdProvider & {
+      fetch: jest.MockedFunction<LinkedMdProvider["fetch"]>;
+      save: jest.MockedFunction<LinkedMdProvider["save"]>;
+    } = {
+      fetch: jest.fn(() => provider1Fetch.promise),
+      save: jest.fn(async (): Promise<LinkedMdSaveResult> => ({
+        token: tokenA,
+        conflict: false,
+      })),
+    };
+    const provider2 = makeProvider();
+    provider2.fetch.mockResolvedValue({
+      content: "# Provider 2\n",
+      resolvedPath: "/docs/provider-2.md",
+      token: tokenB,
+    });
+    const nestedEditors = installFakeNestedEditorFactory();
+    const { editor, node } = makeEditorAndDetachedMdEmbedNode();
+    setLinkedMdProvider(provider1);
+
+    const view = createMdEmbedNodeView({ node, editor, getPos: () => 0 });
+    await flushPromises();
+
+    expect(provider1.fetch).toHaveBeenCalledTimes(1);
+    expect(provider1.fetch).toHaveBeenCalledWith("notes/linked.md");
+    expect(nestedEditors).toHaveLength(0);
+
+    setLinkedMdProvider(provider2);
+    await flushPromises();
+    expect(provider2.fetch).not.toHaveBeenCalled();
+
+    provider1Fetch.resolve({
+      content: "# Provider 1\n",
+      resolvedPath: "/docs/provider-1.md",
+      token: tokenA,
+    });
+    await flushPromises();
+
+    expect(provider2.fetch).toHaveBeenCalledWith("notes/linked.md");
+    expect(nestedEditors).toHaveLength(1);
+    expect(lastNestedEditor(nestedEditors).initialContent).toBe("# Provider 2\n");
 
     view.destroy?.();
     editor.destroy();
