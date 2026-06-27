@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-06-27
+
+### 修正
+
+- Web ページ取り込みが Content Security Policy でブロックされていた問題を修正。プロキシのオリジン（`NEXT_PUBLIC_WEB_IMPORT_PROXY_URL`）を `connect-src` に追加し、ブラウザから mcp-cms-remote の `/fetch` プロキシへ接続できるようにした。
+
+### 変更
+
+- CI/CD: e2e のビジュアルリグレッションテストを Chromium 限定にした（Firefox/WebKit は Linux+Chromium 基準画像を除外）。
+
 ## [0.33.0] - 2026-06-27
 
 ### 追加
