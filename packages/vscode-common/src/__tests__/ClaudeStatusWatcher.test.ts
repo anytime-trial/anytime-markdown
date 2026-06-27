@@ -40,6 +40,11 @@ async function tick(): Promise<void> {
   await new Promise((r) => setImmediate(r));
 }
 
+/** fake timers 下で浮いた microtask（queryAll の await 連鎖）を排出する */
+async function flushMicrotasks(): Promise<void> {
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+}
+
 describe('ClaudeStatusWatcher', () => {
   let source: FakeSource;
   let watcher: ClaudeStatusWatcher;
@@ -102,6 +107,78 @@ describe('ClaudeStatusWatcher', () => {
     watcher.onMultiStatusChange(cb);
     await tick();
     expect(cb).toHaveBeenCalled();
+  });
+
+  it('timestamp が進まない frozen editing=true 行も stale 化で false に解除される (RC1 回帰)', async () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-06-27T00:00:00.000Z'));
+      const frozen = new Date().toISOString();
+      source.rows = [row({ sessionId: 's1', editing: true, file: '/ws/a.ts', updatedAt: frozen })];
+      const cb = jest.fn();
+      watcher = new ClaudeStatusWatcher(source);
+      watcher.onStatusChange(cb);
+      await flushMicrotasks();
+      expect(cb).toHaveBeenLastCalledWith(true, '/ws/a.ts');
+      cb.mockClear();
+
+      // 行は一切更新されない（timestamp 据え置き）。時計だけ 31s 進めて stale 化させる。
+      jest.setSystemTime(new Date(Date.parse(frozen) + 31_000));
+      await (watcher as unknown as { handlePoll(): Promise<void> }).handlePoll();
+      await flushMicrotasks();
+      expect(cb).toHaveBeenCalledWith(false, '/ws/a.ts');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('stale 解除は一度だけ発火し、以降は繰り返さない (RC1)', async () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-06-27T00:00:00.000Z'));
+      const frozen = new Date().toISOString();
+      source.rows = [row({ sessionId: 's1', editing: true, file: '/ws/a.ts', updatedAt: frozen })];
+      const cb = jest.fn();
+      watcher = new ClaudeStatusWatcher(source);
+      watcher.onStatusChange(cb);
+      await flushMicrotasks();
+      cb.mockClear();
+
+      jest.setSystemTime(new Date(Date.parse(frozen) + 31_000));
+      const poll = (watcher as unknown as { handlePoll(): Promise<void> }).handlePoll.bind(watcher);
+      await poll();
+      await flushMicrotasks();
+      await poll();
+      await flushMicrotasks();
+      const falseCalls = cb.mock.calls.filter(([editing]) => editing === false);
+      expect(falseCalls).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('新しい timestamp で editing=false が来れば通常どおり解除する (RC1 非回帰)', async () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-06-27T00:00:00.000Z'));
+      const t0 = new Date().toISOString();
+      source.rows = [row({ sessionId: 's1', editing: true, file: '/ws/a.ts', updatedAt: t0 })];
+      const cb = jest.fn();
+      watcher = new ClaudeStatusWatcher(source);
+      watcher.onStatusChange(cb);
+      await flushMicrotasks();
+      expect(cb).toHaveBeenLastCalledWith(true, '/ws/a.ts');
+      cb.mockClear();
+
+      // 直後（stale 前）に editing=false の新しい行が来る通常フロー。
+      jest.setSystemTime(new Date(Date.parse(t0) + 1_000));
+      source.rows = [row({ sessionId: 's1', editing: false, file: '/ws/a.ts', updatedAt: new Date().toISOString() })];
+      await (watcher as unknown as { handlePoll(): Promise<void> }).handlePoll();
+      await flushMicrotasks();
+      expect(cb).toHaveBeenLastCalledWith(false, '/ws/a.ts');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('deleteSession はソースへ委譲する', async () => {
