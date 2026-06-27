@@ -795,13 +795,11 @@ export function mountVanillaMarkdownEditor(
           }
 
           const markdown = composeNewDocument(result);
-          const webImportDialog = editorStorage.webImportDialog as
-            | { onCreateDocument?: (markdown: string, title: string) => void }
-            | undefined;
-          if (webImportDialog?.onCreateDocument) {
-            webImportDialog.onCreateDocument(markdown, result.title);
+          const onCreate = current.fileHandlers?.onWebImportCreate;
+          if (onCreate) {
+            await onCreate(markdown, result.title);
           } else {
-            logWebImportWarn("create document callback is not configured");
+            logWebImportWarn("create document handler is not configured");
           }
         } catch (error) {
           const message = t("webImportErrorFetch");

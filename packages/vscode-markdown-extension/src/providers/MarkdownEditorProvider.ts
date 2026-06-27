@@ -718,6 +718,64 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
+    const handleFetchWebPage = async (message: Record<string, unknown>) => {
+      const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+      const url = typeof message.url === 'string' ? message.url : '';
+      if (!requestId || !url) return;
+      try {
+        const { safeFetch } = await import('./embedFetchHelpers.js');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+        try {
+          const res = await safeFetch(url, {
+            signal: controller.signal,
+            headers: { 'User-Agent': 'anytime-markdown-webimport/1.0' },
+          });
+          if (!res.ok) throw new Error(`upstream-${res.status}`);
+          const ct = res.headers.get('content-type') ?? '';
+          if (!ct.includes('html')) throw new Error('unsupported-content');
+          const declaredLen = Number(res.headers.get('content-length'));
+          if (Number.isFinite(declaredLen) && declaredLen > 2 * 1024 * 1024) throw new Error('too-large');
+          const buf = await res.arrayBuffer();
+          if (buf.byteLength > 2 * 1024 * 1024) throw new Error('too-large');
+          const html = new TextDecoder().decode(Buffer.from(buf));
+          ctx.webviewPanel.webview.postMessage({
+            type: 'fetchWebPageResult',
+            requestId,
+            html,
+            finalUrl: res.url,
+            contentType: ct,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err.message : 'fetch-failed';
+        this.logLine?.(`[webImport] fetch failed: ${url} ${error}`);
+        ctx.webviewPanel.webview.postMessage({ type: 'fetchWebPageResult', requestId, error });
+      }
+    };
+
+    const handleCreateWebImportDocument = async (message: Record<string, unknown>) => {
+      const markdown = typeof message.markdown === 'string' ? message.markdown : '';
+      const title = typeof message.title === 'string' ? message.title : '';
+      if (!markdown) {
+        this.logLine?.('[webImport] create document rejected: empty markdown');
+        return;
+      }
+      try {
+        const doc = await vscode.workspace.openTextDocument({
+          language: 'markdown',
+          content: markdown,
+        });
+        await vscode.window.showTextDocument(doc);
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        this.logLine?.(`[webImport] create document failed${title ? `: ${title}` : ''} ${error}`);
+        void vscode.window.showErrorMessage(`Web import: failed to create document: ${error}`);
+      }
+    };
+
     const tokenFromStats = (stats: fs.Stats): LinkedMdToken => ({
       mtimeMs: stats.mtimeMs,
       size: stats.size,
@@ -1033,6 +1091,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         case 'save': await handleSave(); break;
         case 'fetchOgp': await handleFetchOgp(message); break;
+        case 'fetchWebPage': await handleFetchWebPage(message); break;
+        case 'createWebImportDocument': await handleCreateWebImportDocument(message); break;
         case 'fetchLinkedMd': await handleFetchLinkedMd(message); break;
         case 'saveLinkedMd': await handleSaveLinkedMd(message); break;
         case 'fetchOembed': await handleFetchOembed(message); break;
