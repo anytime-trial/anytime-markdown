@@ -13,8 +13,8 @@
 
 export type MeasurePreset = "focus" | "standard" | "wide" | "full";
 
-/** プリセット → CSS `max-width`。`full` は上限撤廃（画面=コンテナ幅いっぱい）。 */
-const MEASURE_EM: Record<MeasurePreset, string> = {
+/** プリセット → CSS `max-width` 値（focus/standard/wide は em 基準、`full` は上限撤廃の `none`）。 */
+const MEASURE_MAX_WIDTH: Record<MeasurePreset, string> = {
   focus: "40em",
   standard: "46em",
   wide: "60em",
@@ -28,9 +28,9 @@ export const MEASURE_PRESETS: readonly MeasurePreset[] = ["focus", "standard", "
 export const DEFAULT_MEASURE: MeasurePreset = "standard";
 
 /**
- * プリセット名を CSS `max-width` 値（em 基準、`full` は `none`）へ変換する。
+ * プリセット名を CSS `max-width` 値（focus/standard/wide は em 基準、`full` は `none`）へ変換する。
  * 未知値・undefined（旧 localStorage に measure 未設定のケース等）は既定（standard）へフォールバックする。
  */
-export function measureToEm(preset: MeasurePreset | string | undefined): string {
-  return MEASURE_EM[preset as MeasurePreset] ?? MEASURE_EM[DEFAULT_MEASURE];
+export function measureToCssMaxWidth(preset: MeasurePreset | string | undefined): string {
+  return MEASURE_MAX_WIDTH[preset as MeasurePreset] ?? MEASURE_MAX_WIDTH[DEFAULT_MEASURE];
 }
