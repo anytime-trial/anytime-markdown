@@ -12,7 +12,7 @@
 
 ## Claude 固有のドキュメント参照
 
-- UI / 画面コンポーネントの実装・修正時は `/Shared/anytime-markdown-docs/spec/12.design/design.md` を必ず Read してから着手する（指針は `screen-design` スキル）。
+- UI / 画面コンポーネントの実装・修正時は `/Shared/anytime-markdown-docs/spec/10.web-app/design.md` を必ず Read してから着手する（指針は `screen-design` スキル）。
 - worktree とブランチ切替の詳細判断: `/Shared/anytime-markdown-docs/tech/branch/worktree-vs-branch.ja.md`。
 
 ## Trail DB
