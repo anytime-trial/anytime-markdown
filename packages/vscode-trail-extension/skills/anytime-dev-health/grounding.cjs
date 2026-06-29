@@ -156,4 +156,94 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (db) db.close();
 }
 
+// ── source: SHORTCUT 技術負債マーカー(read-only 走査) ──────────────────────────
+// DB 非依存。ソースの意図的簡略化マーカーを台帳化し no-trigger(昇格経路欠落)を高リスクとして数える。
+// 走査基点は cwd(ワークスペースルート。SKILL.md 記載の起動方法では cwd=workspace)。
+// DB_DIR を起点にすると引数付き起動で高位ディレクトリへ解決し得るため cwd に固定する。
+{
+  const WS_ROOT = process.cwd();
+  const SKIP_DIRS = new Set([
+    'node_modules', 'dist', 'out', 'build', '.git', '.anytime',
+    '.next', 'coverage', '.worktrees', '.vscode-test',
+  ]);
+  const EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.cjs', '.mjs']);
+  // タグは分割構築(この grounding.cjs 自身が完全リテラルを含まず誤検出されないように)。
+  // コメント接頭辞付きのみ採用(コード中の文字列リテラルを拾わない)。
+  const TAG = 'SHORT' + 'CUT';
+  const NEEDLE = `${TAG}:`;
+  const MARKER_RE = new RegExp(String.raw`(?:\/\/|\/\*|\*|#)\s*${NEEDLE}`);
+  const UPGRADE_RE = /\bupgrade:/i;
+  const MAX_FILES = 20000;
+  const markers = [];
+  let scanned = 0;
+  let truncated = false;
+
+  // 1 ファイルを行走査して marker を収集(walk の認知的複雑度を S3776<=15 に抑えるため分離)。
+  function scanFile(full) {
+    let text;
+    try {
+      text = fs.readFileSync(full, 'utf8');
+    } catch (e) {
+      snapshot.errors.push(`techDebt read failed ${full}: ${e.message}`);
+      return;
+    }
+    if (!text.includes(NEEDLE)) return;
+    const rel = path.relative(WS_ROOT, full);
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (MARKER_RE.test(lines[i])) {
+        markers.push({ file: rel, line: i + 1, noTrigger: !UPGRADE_RE.test(lines[i]) });
+      }
+    }
+  }
+
+  function walk(dir) {
+    if (scanned >= MAX_FILES) { truncated = true; return; }
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (e) {
+      snapshot.errors.push(`techDebt walk failed ${dir}: ${e.message}`);
+      return;
+    }
+    // 名前順で走査し marker/サンプル順を決定的にする(プラットフォーム間のスナップショット差分ノイズ防止)。
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const ent of entries) {
+      if (scanned >= MAX_FILES) { truncated = true; return; }
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (!SKIP_DIRS.has(ent.name)) walk(full);
+        continue;
+      }
+      const isTarget = ent.isFile() && EXT.has(path.extname(ent.name));
+      if (!isTarget) continue;
+      scanned++;
+      scanFile(full);
+    }
+  }
+
+  try {
+    walk(WS_ROOT);
+    // 上限到達で静かに打ち切ると過小カウントを「改善」と誤読し得るため明示記録する。
+    if (truncated) snapshot.errors.push(`techDebt scan truncated at MAX_FILES=${MAX_FILES}`);
+    const noTrigger = markers.filter((m) => m.noTrigger).length;
+    const byFile = {};
+    for (const m of markers) byFile[m.file] = (byFile[m.file] || 0) + 1;
+    snapshot.techDebt = {
+      shortcutMarkers: markers.length,
+      noTriggerMarkers: noTrigger,
+      noTriggerSharePct: pct(noTrigger, markers.length),
+      topFiles: Object.entries(byFile)
+        .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
+        .slice(0, 8)
+        .map(([file, count]) => ({ file, count })),
+      noTriggerSamples: markers.filter((m) => m.noTrigger).slice(0, 8).map((m) => `${m.file}:${m.line}`),
+      filesScanned: scanned,
+      truncated,
+    };
+  } catch (e) {
+    snapshot.errors.push(`techDebt scan failed: ${e.message}`);
+  }
+}
+
 process.stdout.write(JSON.stringify(snapshot, null, 2) + '\n');
