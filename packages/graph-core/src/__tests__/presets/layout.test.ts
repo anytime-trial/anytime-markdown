@@ -6,6 +6,7 @@ import {
   fishboneGeometry,
   tidyTreeLayout,
   radialBranches,
+  partitionBalanced,
   type TreeInput,
 } from '../../presets/layout';
 
@@ -123,6 +124,32 @@ describe('tidyTreeLayout', () => {
   it('全ノードに座標が割り当てられる', () => {
     const map = tidyTreeLayout(tree);
     expect(new Set(map.keys())).toEqual(new Set(['root', 'a', 'a1', 'a2', 'b']));
+  });
+});
+
+describe('partitionBalanced', () => {
+  it('空配列は空を返す', () => {
+    expect(partitionBalanced([])).toEqual([]);
+  });
+
+  it('重み降順に貪欲割当して左右の累計を均等化する', () => {
+    // [5,4,3,2] → 5=右, 4=左, 3=左(累計4<5), 2=右? いや 右5 左7 → 2は右(5)へ
+    const sides = partitionBalanced([5, 4, 3, 2]);
+    const right = [5, 4, 3, 2].filter((_, i) => sides[i]).reduce((a, b) => a + b, 0);
+    const left = [5, 4, 3, 2].filter((_, i) => !sides[i]).reduce((a, b) => a + b, 0);
+    expect(Math.abs(right - left)).toBeLessThanOrEqual(2);
+  });
+
+  it('決定的（同入力は同出力）', () => {
+    const a = partitionBalanced([1, 1, 1, 1, 1]);
+    const b = partitionBalanced([1, 1, 1, 1, 1]);
+    expect(a).toEqual(b);
+  });
+
+  it('各サイドに少なくとも要素が1つは入る（2要素以上）', () => {
+    const sides = partitionBalanced([3, 1]);
+    expect(sides.some((s) => s)).toBe(true);
+    expect(sides.some((s) => !s)).toBe(true);
   });
 });
 

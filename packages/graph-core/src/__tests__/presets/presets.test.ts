@@ -64,7 +64,7 @@ describe('buildThinkingDiagram', () => {
     expect(doc.nodes).toHaveLength(5);
   });
 
-  it('mindmap: 真上ブランチでも兄弟の子ノードが重ならない（spread が NODE_W を下回らない）', () => {
+  it('mindmap(FreeMind): 兄弟の子ノードが重ならない（縦積み）', () => {
     const doc = buildThinkingDiagram(
       {
         type: 'mindmap',
@@ -77,15 +77,77 @@ describe('buildThinkingDiagram', () => {
       },
       true,
     );
-    // ブランチ1（真上, perp が水平）の 2 子ノードを取得
     const child1 = doc.nodes.find((n) => n.text === '子1')!;
     const child2 = doc.nodes.find((n) => n.text === '子2')!;
     expect(child1).toBeDefined();
     expect(child2).toBeDefined();
-    // AABB が水平方向に重ならない（一方の左端 ≥ 他方の右端）
-    const noOverlapX =
-      child1.x >= child2.x + child2.width || child2.x >= child1.x + child1.width;
-    expect(noOverlapX).toBe(true);
+    // AABB が重ならない（x または y のいずれかで分離）
+    const overlap =
+      child1.x < child2.x + child2.width &&
+      child2.x < child1.x + child1.width &&
+      child1.y < child2.y + child2.height &&
+      child2.y < child1.y + child1.height;
+    expect(overlap).toBe(false);
+  });
+
+  it('mindmap(FreeMind): ブランチを葉数バランスで左右に振り分ける', () => {
+    const doc = buildThinkingDiagram(
+      {
+        type: 'mindmap',
+        root: '新規事業',
+        branches: [
+          { label: '市場', children: [{ label: 'B2B' }, { label: 'B2C' }] },
+          { label: '技術' },
+        ],
+      },
+      true,
+    );
+    // 葉数 [市場=2, 技術=1] → 市場=右(x>0), 技術=左(x<0)
+    const center = (n: { x: number; width: number }): number => n.x + n.width / 2;
+    const market = doc.nodes.find((n) => n.text === '市場')!;
+    const tech = doc.nodes.find((n) => n.text === '技術')!;
+    const b2b = doc.nodes.find((n) => n.text === 'B2B')!;
+    expect(center(market)).toBeGreaterThan(0);
+    expect(center(tech)).toBeLessThan(0);
+    // 子は親と同じ右サイドへ伸びる
+    expect(center(b2b)).toBeGreaterThan(0);
+    // ブランチが root の左右に分離している
+    expect(Math.sign(center(market))).not.toBe(Math.sign(center(tech)));
+  });
+
+  it('mindmap(FreeMind): metadata.path を維持し全エッジが bezier connector', () => {
+    const doc = buildThinkingDiagram(
+      {
+        type: 'mindmap',
+        root: 'R',
+        branches: [{ label: 'b0', children: [{ label: 'c0' }, { label: 'c1' }] }, { label: 'b1' }],
+      },
+      false,
+    );
+    const paths = doc.nodes.map((n) => n.metadata?.path).sort();
+    expect(paths).toEqual(
+      ['branches.0', 'branches.0.children.0', 'branches.0.children.1', 'branches.1', 'root'].sort(),
+    );
+    // FreeMind カーブは connector + bezier 専用（line では bezier 描画されない）
+    expect(doc.edges.every((e) => e.type === 'connector')).toBe(true);
+    expect(doc.edges.every((e) => e.style.routing === 'bezier')).toBe(true);
+    // root + 各ブランチ/子へ 1 本ずつ = 4 本
+    expect(doc.edges).toHaveLength(4);
+  });
+
+  it('mindmap(FreeMind): 出力 SVG に3次ベジェ曲線(C コマンド)が含まれる', () => {
+    const doc = buildThinkingDiagram(
+      {
+        type: 'mindmap',
+        root: 'R',
+        branches: [{ label: 'b0', children: [{ label: 'c0' }] }, { label: 'b1' }],
+      },
+      true,
+    );
+    const svg = exportToSvg(doc, { background: 'transparent', textColor: '#fff' });
+    // bezier connector は <path d="M.. C.. "> として描画される（直角/直線ではない）
+    expect(svg).toMatch(/<path d="M[\d.,-]+ C[\d.,\s-]+"/);
+    expect(svg).not.toContain('NaN');
   });
 
   it('double-diamond: 2ダイヤ＋4見出し＋4項目', () => {

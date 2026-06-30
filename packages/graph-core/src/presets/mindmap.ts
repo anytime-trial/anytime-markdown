@@ -1,12 +1,14 @@
 /**
- * マインドマップ（放射状）プリセット。ラテラル思考 / IF 思考向け。
- * 中心トピックから第1階層ブランチを円状に配し、子はブランチ方向へ外側に伸ばす。
+ * マインドマップ（FreeMind 風）プリセット。ラテラル思考 / IF 思考向け。
+ * 中央トピックからブランチを葉数バランスで左右に振り分け、各サイドを
+ * 水平 tidy ツリーとして外側へ展開する。子は縦に積み、親は子の縦範囲の
+ * 中央に置く。ブランチ↔ノードは色付きの bezier カーブで結ぶ。
  */
 
 import type { GraphDocument, GraphNode, GraphEdge } from '../types';
-import { radialBranches, type Point } from './layout';
+import { tidyTreeLayout, partitionBalanced, type TreeInput } from './layout';
 import { thinkingPalette, categoryColor, withAlpha } from './palette';
-import { mkNode, lineEdge, mkDoc, type NodeOpts } from './build';
+import { mkNode, connectorEdge, mkDoc, type NodeOpts } from './build';
 import type { TreeNodeSpec } from './trees';
 
 export interface MindmapSpec {
@@ -15,21 +17,41 @@ export interface MindmapSpec {
   branches: TreeNodeSpec[];
 }
 
-const RADIUS_STEP = 200;
 const NODE_W = 150;
 const NODE_H = 50;
+const ROOT_W = 180;
+const ROOT_H = 72;
+const LEVEL_GAP = 80;
+const SIBLING_GAP = 22;
+/** ルート楕円外周から第1階層ブランチ左端までの水平ギャップ */
+const ROOT_BRANCH_GAP = 46;
+
+/** サブツリーの葉ノード数（子なしは 1）。左右バランス配分の重みに使う。 */
+function leafCount(node: TreeNodeSpec): number {
+  const children = node.children ?? [];
+  if (children.length === 0) return 1;
+  return children.reduce((sum, c) => sum + leafCount(c), 0);
+}
+
+interface BranchEntry {
+  spec: TreeNodeSpec;
+  /** spec 内位置パス（インライン編集・WYSIWYG mutate 用に厳密維持） */
+  path: string;
+  color: string;
+  parentId: string;
+  /** 第1階層ブランチか（root 直下） */
+  isBranch: boolean;
+}
 
 export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument {
   const pal = thinkingPalette(isDark);
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
-  let counter = 0;
-  const nextId = (): string => `m${counter++}`;
 
-  // 中心トピック
-  const centerId = nextId();
+  // 中央トピック（原点中心）
+  const centerId = 'm0';
   nodes.push(
-    mkNode(centerId, 'ellipse', { x: -90, y: -36, width: 180, height: 72 }, spec.root, {
+    mkNode(centerId, 'ellipse', { x: -ROOT_W / 2, y: -ROOT_H / 2, width: ROOT_W, height: ROOT_H }, spec.root, {
       fill: withAlpha(pal.accent, isDark ? 0.24 : 0.18),
       stroke: pal.accent,
       strokeWidth: 2.5,
@@ -40,70 +62,89 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
     } satisfies NodeOpts),
   );
 
-  const branchGeo = radialBranches(spec.branches.length, { radius: RADIUS_STEP });
+  if (spec.branches.length === 0) {
+    return mkDoc(spec.root || 'mindmap', nodes, edges);
+  }
 
-  // ブランチ配下の子を outward 方向へ再帰配置（兄弟は outward に垂直方向へ広げる）
-  const placeSubtree = (
+  // 合成ツリーの id ↔ スペック/パス/色 を保持
+  const registry = new Map<string, BranchEntry>();
+  let counter = 1;
+  const nextId = (): string => `m${counter++}`;
+
+  const buildTreeInput = (
     node: TreeNodeSpec,
+    path: string,
+    color: string,
     parentId: string,
-    center: Point,
-    outward: Point,
-    depth: number,
-    branchColor: string,
-    parentPath: string,
-  ): void => {
-    const children = node.children ?? [];
-    if (children.length === 0) return;
-    const perp = { x: -outward.y, y: outward.x };
-    // 兄弟の中心間隔。perp（兄弟を広げる軸）方向へのノード矩形の投影 extent に
-    // ギャップを足す。真上/真下ブランチ（perp が水平＝幅 NODE_W 支配）でも
-    // 隣接ボックスが重ならないよう、固定値ではなく角度依存で算出する。
-    const SIBLING_GAP = 30;
-    const projected = NODE_W * Math.abs(perp.x) + NODE_H * Math.abs(perp.y);
-    const spread = projected + SIBLING_GAP;
-    children.forEach((child, idx) => {
-      const offset = (idx - (children.length - 1) / 2) * spread;
-      const cx = center.x + outward.x * RADIUS_STEP + perp.x * offset;
-      const cy = center.y + outward.y * RADIUS_STEP + perp.y * offset;
-      const id = nextId();
-      const childPath = `${parentPath}.children.${idx}`;
+    isBranch: boolean,
+  ): TreeInput => {
+    const id = nextId();
+    registry.set(id, { spec: node, path, color, parentId, isBranch });
+    const children = (node.children ?? []).map((child, idx) =>
+      buildTreeInput(child, `${path}.children.${idx}`, color, id, false),
+    );
+    return { id, children };
+  };
+
+  // 葉数バランスで左右に振り分け、サイドごとに合成ルート木を作る
+  const sides = partitionBalanced(spec.branches.map(leafCount)); // true=右
+  const rightRoots: TreeInput[] = [];
+  const leftRoots: TreeInput[] = [];
+  spec.branches.forEach((branch, i) => {
+    const ti = buildTreeInput(branch, `branches.${i}`, categoryColor(i, isDark), centerId, true);
+    (sides[i] ? rightRoots : leftRoots).push(ti);
+  });
+
+  const SYNTH_ROOT = '__root__';
+  // LR 配置でブランチ(depth1)左端を ROOT_BRANCH_GAP に合わせる水平シフト量
+  const firstBranchLeft = ROOT_W / 2 + ROOT_BRANCH_GAP;
+  const dxRight = firstBranchLeft - (NODE_W + LEVEL_GAP);
+
+  const placeSide = (roots: TreeInput[], mirror: boolean): void => {
+    if (roots.length === 0) return;
+    const synth: TreeInput = { id: SYNTH_ROOT, children: roots };
+    const layout = tidyTreeLayout(synth, {
+      nodeWidth: NODE_W,
+      nodeHeight: NODE_H,
+      levelGap: LEVEL_GAP,
+      siblingGap: SIBLING_GAP,
+      direction: 'LR',
+    });
+    // 合成ルート中心 y を 0（実ルート中心）へ揃える
+    const rootRect = layout.get(SYNTH_ROOT)!;
+    const dy = -(rootRect.y + NODE_H / 2);
+    const dx = mirror ? -dxRight : dxRight;
+
+    for (const [id, rect] of layout) {
+      if (id === SYNTH_ROOT) continue;
+      const entry = registry.get(id)!;
+      const x = (mirror ? -(rect.x + rect.width) : rect.x) + dx;
+      const y = rect.y + dy;
       nodes.push(
-        mkNode(id, 'rect', { x: cx - NODE_W / 2, y: cy - NODE_H / 2, width: NODE_W, height: NODE_H }, child.label, {
-          fill: withAlpha(branchColor, isDark ? 0.14 : 0.1),
-          stroke: branchColor,
-          strokeWidth: 1.5,
+        mkNode(id, 'rect', { x, y, width: rect.width, height: rect.height }, entry.spec.label, {
+          fill: withAlpha(entry.color, isDark ? (entry.isBranch ? 0.2 : 0.14) : entry.isBranch ? 0.14 : 0.1),
+          stroke: entry.color,
+          strokeWidth: entry.isBranch ? 2 : 1.5,
           fontColor: pal.text,
-          fontSize: 13,
-          borderRadius: 6,
-          metadata: { path: childPath },
+          fontSize: entry.isBranch ? 14 : 13,
+          fontStyle: entry.isBranch ? 1 : 0,
+          borderRadius: entry.isBranch ? 8 : 6,
+          metadata: { path: entry.path },
         } satisfies NodeOpts),
       );
       edges.push(
-        lineEdge(`${parentId}->${id}`, center, { x: cx, y: cy }, { stroke: branchColor, strokeWidth: 1.5 }),
+        connectorEdge(`${entry.parentId}->${id}`, entry.parentId, id, {
+          routing: 'bezier',
+          stroke: entry.color,
+          strokeWidth: entry.isBranch ? 2 : 1.5,
+          endShape: 'none',
+        }),
       );
-      placeSubtree(child, id, { x: cx, y: cy }, outward, depth + 1, branchColor, childPath);
-    });
+    }
   };
 
-  spec.branches.forEach((branch, i) => {
-    const geo = branchGeo[i];
-    const color = categoryColor(i, isDark);
-    const id = nextId();
-    nodes.push(
-      mkNode(id, 'rect', { x: geo.base.x - NODE_W / 2, y: geo.base.y - NODE_H / 2, width: NODE_W, height: NODE_H }, branch.label, {
-        fill: withAlpha(color, isDark ? 0.2 : 0.14),
-        stroke: color,
-        strokeWidth: 2,
-        fontColor: pal.text,
-        fontSize: 14,
-        fontStyle: 1,
-        borderRadius: 8,
-        metadata: { path: `branches.${i}` },
-      } satisfies NodeOpts),
-    );
-    edges.push(lineEdge(`${centerId}->${id}`, { x: 0, y: 0 }, geo.base, { stroke: color, strokeWidth: 2 }));
-    placeSubtree(branch, id, geo.base, geo.outward, 1, color, `branches.${i}`);
-  });
+  placeSide(rightRoots, false);
+  placeSide(leftRoots, true);
 
   return mkDoc(spec.root || 'mindmap', nodes, edges);
 }
