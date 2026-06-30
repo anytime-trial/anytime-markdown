@@ -158,8 +158,8 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
 
   /**
    * ノード rect 上にテキストエリアを重ねて直接編集する。
-   * mode='label': Enter=確定 / Shift+Enter=改行。mode='list': Enter=改行 / Ctrl(⌘)+Enter=確定。
-   * いずれも blur=確定 / Escape=取消。
+   * mode='label': Enter=確定（改行不可。DSL が行ベースのためラベルに改行は入れられない）。
+   * mode='list': Enter=改行 / Ctrl(⌘)+Enter=確定。いずれも blur=確定 / Escape=取消。
    */
   function openInlineEditor(
     anchor: Element,
@@ -210,14 +210,15 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
         return;
       }
       if (e.key === "Enter") {
-        if (mode === "label" && !e.shiftKey) {
+        if (mode === "label") {
+          // ラベルは改行を持てない（行ベース DSL）。Shift 有無に関わらず確定する。
           e.preventDefault();
           confirm();
-        } else if (mode === "list" && (e.ctrlKey || e.metaKey)) {
+        } else if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
           confirm();
         }
-        // それ以外の Enter は改行（既定動作）。
+        // mode='list' の素の Enter は改行（既定動作）。
       }
     });
     ta.addEventListener("blur", () => confirm());
@@ -232,7 +233,9 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
     if (d.label !== null) {
       const current = d.label;
       openInlineEditor(anchor, "label", current, (value) => {
-        if (value !== current) applyOp({ kind: "setLabel", path, value });
+        // 貼り付け等で混入し得る改行は除去（行ベース DSL を壊さない）。
+        const next = value.replace(/[\r\n]+/g, " ");
+        if (next !== current) applyOp({ kind: "setLabel", path, value: next });
       });
       return;
     }

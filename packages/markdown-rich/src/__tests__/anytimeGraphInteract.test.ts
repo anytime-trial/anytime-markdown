@@ -133,6 +133,16 @@ describe("attachAnytimeGraphInteractions: インライン編集", () => {
     expect(setCode).not.toHaveBeenCalled();
   });
 
+  it("ラベルに混入した改行は空白へ正規化して反映する（行ベース DSL を壊さない）", () => {
+    const { previewEl, setCode } = setup("type: fishbone\nproblem: 旧\n- 人: a");
+    clickNode(previewEl, "problem");
+    const ta = inlineEditor();
+    ta.value = "新\nしい";
+    ta.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    const next = parseGraphDsl(setCode.mock.calls[0][0]);
+    expect(next.type === "fishbone" && next.problem).toBe("新 しい");
+  });
+
   it("Escape では反映せずインライン編集欄を閉じる", () => {
     const { previewEl, setCode } = setup("type: fishbone\nproblem: P\n- 人: a");
     clickNode(previewEl, "problem");
