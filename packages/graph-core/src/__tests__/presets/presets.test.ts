@@ -139,6 +139,54 @@ describe('buildThinkingDiagram', () => {
     expect(doc.nodes).toHaveLength(5);
     expect(doc.nodes.filter((n) => n.type === 'sticky')).toHaveLength(3);
   });
+
+  it('structure-map: 全体＋部分見出し＋要素＋他領域ノードと、全体→部分・関係・全体→領域のエッジ', () => {
+    const doc = buildThinkingDiagram(
+      {
+        type: 'structure-map',
+        whole: '検索体験',
+        parts: [
+          { label: '入力', items: ['クエリ補完', '履歴'] },
+          { label: 'ランキング', items: ['スコア', '鮮度'] },
+          { label: '表示', items: ['ハイライト'] },
+        ],
+        relations: [
+          { from: '入力', to: 'ランキング' },
+          { from: 'ランキング', to: '表示' },
+        ],
+        domains: ['推薦システム', 'データ基盤'],
+      },
+      true,
+    );
+    // 1 whole + 3 headers + (2+2+1) items + 2 domains
+    expect(doc.nodes).toHaveLength(11);
+    expect(doc.nodes.find((n) => n.id === 'whole')!.text).toBe('検索体験');
+    expect(doc.nodes.find((n) => n.id === 'whole')!.type).toBe('ellipse');
+    // 3 whole->part + 2 relations + 2 whole->domain
+    expect(doc.edges).toHaveLength(7);
+    expect(doc.edges.filter((e) => e.id.startsWith('rel-'))).toHaveLength(2);
+    // 関係エッジは見出しノード id を端点に持つ
+    const rel0 = doc.edges.find((e) => e.id === 'rel-0')!;
+    expect(rel0.from.nodeId).toBe('part-0');
+    expect(rel0.to.nodeId).toBe('part-1');
+  });
+
+  it('structure-map: relations/domains 省略でも全体＋部分のみで描画できる', () => {
+    const doc = buildThinkingDiagram(
+      {
+        type: 'structure-map',
+        whole: 'W',
+        parts: [{ label: 'A', items: [] }],
+        relations: [],
+        domains: [],
+      },
+      false,
+    );
+    // whole + 1 header
+    expect(doc.nodes).toHaveLength(2);
+    // whole -> part のみ
+    expect(doc.edges).toHaveLength(1);
+  });
 });
 
 describe('exportToSvg 全図種スモーク（ダーク/ライト・透過背景）', () => {
@@ -153,6 +201,13 @@ describe('exportToSvg 全図種スモーク（ダーク/ライト・透過背景
     { type: 'swot', strengths: ['s'], weaknesses: [], opportunities: [], threats: [] },
     { type: 'morph-box', parameters: [{ label: 'p', options: ['o'] }] },
     { type: 'affinity', groups: [{ label: 'g', notes: ['n'] }] },
+    {
+      type: 'structure-map',
+      whole: 'W',
+      parts: [{ label: 'A', items: ['x'] }, { label: 'B', items: [] }],
+      relations: [{ from: 'A', to: 'B' }],
+      domains: ['D'],
+    },
   ];
 
   for (const spec of specs) {

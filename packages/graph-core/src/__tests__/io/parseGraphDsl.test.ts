@@ -82,6 +82,45 @@ describe('parseGraphDsl', () => {
     expect(parseGraphDsl(['type: issue-tree', 'root: r', '- c'].join('\n')).type).toBe('logic-tree');
   });
 
+  it('structure-map を解析する（部分・関係・他領域）', () => {
+    const spec = parseGraphDsl(
+      [
+        'type: structure-map',
+        'whole: 検索体験',
+        '- 入力: クエリ補完, 履歴',
+        '- ランキング: スコア',
+        'relations:',
+        '- 入力 -> ランキング',
+        'domains: 推薦システム, データ基盤',
+      ].join('\n'),
+    );
+    expect(spec).toEqual({
+      type: 'structure-map',
+      whole: '検索体験',
+      parts: [
+        { label: '入力', items: ['クエリ補完', '履歴'] },
+        { label: 'ランキング', items: ['スコア'] },
+      ],
+      relations: [{ from: '入力', to: 'ランキング' }],
+      domains: ['推薦システム', 'データ基盤'],
+    });
+  });
+
+  it('structure-map: 関係・他領域は省略可', () => {
+    const spec = parseGraphDsl(['type: structure-map', 'whole: W', '- A: x', '- B'].join('\n'));
+    expect(spec.type).toBe('structure-map');
+    if (spec.type === 'structure-map') {
+      expect(spec.parts).toEqual([{ label: 'A', items: ['x'] }, { label: 'B', items: [] }]);
+      expect(spec.relations).toEqual([]);
+      expect(spec.domains).toEqual([]);
+    }
+  });
+
+  it('structure-map: エイリアス structure / whole-part を正規化する', () => {
+    expect(parseGraphDsl(['type: structure', 'whole: W', '- A'].join('\n')).type).toBe('structure-map');
+    expect(parseGraphDsl(['type: whole-part', 'whole: W', '- A'].join('\n')).type).toBe('structure-map');
+  });
+
   describe('エラー（silent catch 禁止・明示エラー）', () => {
     it('空入力', () => {
       expect(() => parseGraphDsl('   ')).toThrow(GraphDslError);
@@ -106,6 +145,17 @@ describe('parseGraphDsl', () => {
     });
     it('causal-loop の自己参照は明示エラー', () => {
       expect(() => parseGraphDsl('type: causal-loop\n在庫 -> 在庫: +')).toThrow(/自己参照/);
+    });
+    it('structure-map で whole 欠落', () => {
+      expect(() => parseGraphDsl('type: structure-map\n- A: x')).toThrow(/whole/);
+    });
+    it('structure-map で部分欠落', () => {
+      expect(() => parseGraphDsl('type: structure-map\nwhole: W')).toThrow(/部分/);
+    });
+    it('structure-map の関係端点が部分に無いと明示エラー', () => {
+      expect(() =>
+        parseGraphDsl(['type: structure-map', 'whole: W', '- A: x', '- A -> Z'].join('\n')),
+      ).toThrow(/存在しません/);
     });
   });
 

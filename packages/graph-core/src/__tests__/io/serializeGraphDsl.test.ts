@@ -65,6 +65,26 @@ describe('serializeGraphDsl', () => {
     expectRoundTrip(['type: affinity', 'title: 課題', '- UI: 迷う, 重い', '- 価格: 高い'].join('\n'));
   });
 
+  it('structure-map をラウンドトリップする（関係・他領域あり）', () => {
+    expectRoundTrip(
+      [
+        'type: structure-map',
+        'whole: 検索体験',
+        '- 入力: クエリ補完, 履歴',
+        '- ランキング: スコア',
+        '- 表示',
+        'relations:',
+        '- 入力 -> ランキング',
+        '- ランキング -> 表示',
+        'domains: 推薦システム, データ基盤',
+      ].join('\n'),
+    );
+  });
+
+  it('structure-map をラウンドトリップする（関係・他領域なし）', () => {
+    expectRoundTrip(['type: structure-map', 'whole: W', '- A: x', '- B'].join('\n'));
+  });
+
   it('全図種のエイリアス正規形でラウンドトリップする', () => {
     // double-diamond は全フェーズ空でも構造維持
     const empty = serializeGraphDsl({
