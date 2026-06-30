@@ -294,3 +294,28 @@ export function radialBranches(
   }
   return out;
 }
+
+/**
+ * 重み付き要素を左右2グループへ均等配分する。重み降順に貪欲に
+ * 「現在の累計が小さい側」へ割り当てる。戻り値は入力 index 順の
+ * boolean 配列（true=右 / false=左）。決定的（同重みは index 安定、
+ * タイは右を優先）。FreeMind 風マインドマップの左右ブランチ分割に利用。
+ */
+export function partitionBalanced(weights: number[]): boolean[] {
+  const sides = new Array<boolean>(weights.length).fill(true);
+  const order = weights
+    .map((w, i) => ({ w, i }))
+    .sort((a, b) => b.w - a.w || a.i - b.i);
+  let right = 0;
+  let left = 0;
+  for (const { w, i } of order) {
+    if (right <= left) {
+      sides[i] = true;
+      right += w;
+    } else {
+      sides[i] = false;
+      left += w;
+    }
+  }
+  return sides;
+}

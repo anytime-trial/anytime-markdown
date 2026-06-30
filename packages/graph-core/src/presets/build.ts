@@ -4,7 +4,7 @@
  * ID は呼び出し側が与える固定値を使い、SVG 出力を決定的に保つ。
  */
 
-import type { GraphDocument, GraphNode, GraphEdge, NodeType, NodeStyle, EdgeStyle, EndpointShape } from '../types';
+import type { GraphDocument, GraphNode, GraphEdge, NodeType, NodeStyle, EdgeStyle, EndpointShape, RoutingMode } from '../types';
 import { FONT_FAMILY } from '../theme';
 import type { Point, Rect } from './layout';
 
@@ -61,6 +61,7 @@ export interface EdgeOpts {
   dashed?: boolean;
   endShape?: EndpointShape;
   label?: string;
+  routing?: RoutingMode;
 }
 
 function edgeStyle(opts: EdgeOpts): EdgeStyle {
@@ -69,6 +70,7 @@ function edgeStyle(opts: EdgeOpts): EdgeStyle {
     strokeWidth: opts.strokeWidth ?? 2,
     dashed: opts.dashed,
     endShape: opts.endShape,
+    routing: opts.routing,
   };
 }
 
