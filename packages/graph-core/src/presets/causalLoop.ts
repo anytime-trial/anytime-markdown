@@ -83,6 +83,7 @@ export function buildCausalLoop(spec: CausalLoopSpec, isDark: boolean): GraphDoc
       strokeWidth: 2,
       endShape: 'arrow',
       label: link.polarity,
+      metadata: { path: `links.${i}.polarity` },
     });
   });
 

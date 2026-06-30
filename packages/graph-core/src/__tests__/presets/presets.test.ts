@@ -37,6 +37,11 @@ describe('buildThinkingDiagram', () => {
     expect(doc.nodes).toHaveLength(2);
     expect(doc.edges).toHaveLength(2);
     expect(doc.edges.map((e) => e.label)).toEqual(['+', '-']);
+    // 極性エッジは links.N.polarity の metadata を持ち、SVG に data-metadata として出力される（インライン編集対象）
+    expect(doc.edges.map((e) => e.metadata?.path)).toEqual(['links.0.polarity', 'links.1.polarity']);
+    const svg = exportToSvg(doc, { background: 'transparent', textColor: '#fff' });
+    expect(svg).toContain('data-metadata="');
+    expect(svg).toContain('links.0.polarity');
   });
 
   it('pyramid: tier 数のノード・上段ほど幅が狭い', () => {

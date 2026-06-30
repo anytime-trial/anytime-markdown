@@ -95,6 +95,14 @@ function causalLoopVarIndex(path: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** 極性ラベルの入力値を '+' / '-' に正規化する。半角/全角を許容し、不明値は null。 */
+function normalizePolarity(value: string): "+" | "-" | null {
+  const v = value.trim();
+  if (v === "-" || v === "－") return "-";
+  if (v === "+" || v === "＋") return "+";
+  return null;
+}
+
 // ── 子配列のキー解決 ─────────────────────────────────────────────────
 
 /** addChild 時、対象ノードに子を追加する配列の参照を返す（必要なら生成）。 */
@@ -180,6 +188,12 @@ function leafArray(spec: ThinkingDiagramSpec, path: string): string[] {
       }
       return arr as string[];
     }
+    case "structure-map": {
+      const part = getTarget(spec, path) as { items?: string[] } | undefined;
+      if (!part) throw new AnytimeGraphMutateError(`part がありません: ${path}`);
+      part.items ??= [];
+      return part.items;
+    }
     default:
       throw new AnytimeGraphMutateError(`${spec.type} は集約リーフ操作非対応です: ${path}`);
   }
@@ -189,6 +203,15 @@ function leafArray(spec: ThinkingDiagramSpec, path: string): string[] {
 
 function applySetLabel(spec: ThinkingDiagramSpec, path: string, value: string): void {
   if (spec.type === "causal-loop") {
+    const polMatch = /^links\.(\d+)\.polarity$/.exec(path);
+    if (polMatch) {
+      const link = spec.links[Number(polMatch[1])];
+      if (!link) throw new AnytimeGraphMutateError(`link index ${polMatch[1]} がありません`);
+      // 極性は +/- に正規化。不正値は既存値を維持し DSL の round-trip を壊さない。
+      const norm = normalizePolarity(value);
+      if (norm) link.polarity = norm;
+      return;
+    }
     const idx = causalLoopVarIndex(path);
     if (idx !== null) {
       const vars = causalLoopVariables(spec);
@@ -387,6 +410,12 @@ export function describeNode(spec: ThinkingDiagramSpec, path: string): NodeDescr
       return null;
     }
     case "causal-loop": {
+      const polMatch = /^links\.(\d+)\.polarity$/.exec(path);
+      if (polMatch) {
+        const link = spec.links[Number(polMatch[1])];
+        // 極性 +/- はエッジ上の DSL 由来ラベル。構造操作なしの編集専用。
+        return link ? { ...base, label: link.polarity } : null;
+      }
       const idx = causalLoopVarIndex(path);
       if (idx === null) return null;
       const v = causalLoopVariables(spec)[idx];

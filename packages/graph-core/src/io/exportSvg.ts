@@ -166,7 +166,10 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[], textColor: string = 
   const sw = style.strokeWidth;
   const dashAttr = style.dashed ? ' stroke-dasharray="6 4"' : '';
   const lines: string[] = [];
-  lines.push(`<g id="${escapeXml(id)}">`);
+  const metadataAttr = edge.metadata
+    ? ` data-metadata="${escapeXml(JSON.stringify(edge.metadata))}"`
+    : '';
+  lines.push(`<g id="${escapeXml(id)}"${metadataAttr}>`);
 
   const bezier = resolveBezierPath(edge, nodes);
   const points = bezier ?? resolveEdgePoints(edge, nodes);
