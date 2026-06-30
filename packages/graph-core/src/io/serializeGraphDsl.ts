@@ -122,6 +122,22 @@ export function serializeGraphDsl(spec: ThinkingDiagramSpec): string {
       break;
     }
 
+    case 'structure-map': {
+      lines.push(`whole: ${spec.whole}`);
+      for (const part of spec.parts) {
+        lines.push(labeledBulletLine(part.label, part.items));
+      }
+      // 関係は `relations:` 見出しに続けて `A -> B` 行で出力する（parser は `->` 行を関係として拾う）。
+      if (spec.relations.length > 0) {
+        lines.push('relations:');
+        for (const rel of spec.relations) {
+          lines.push(`- ${rel.from} -> ${rel.to}`);
+        }
+      }
+      pushHeader(lines, 'domains', spec.domains.length > 0 ? joinItems(spec.domains) : undefined);
+      break;
+    }
+
     default: {
       const _exhaustive: never = spec;
       throw new Error(`Unknown thinking diagram type: ${JSON.stringify(_exhaustive)}`);

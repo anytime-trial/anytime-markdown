@@ -232,6 +232,9 @@ const THINKING_DIAGRAM_ITEMS: readonly VanillaSlashCommandItem[] = [
       "affinity",
       "親和図",
       "kj",
+      "structure-map",
+      "構造マップ",
+      "構造化",
     ],
     action: (editor) => {
       insertThinkingDiagram(editor, THINKING_DIAGRAM_SKELETON);

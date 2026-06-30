@@ -45,6 +45,10 @@ const TYPE_ALIASES: Record<string, ThinkingDiagramType> = {
   affinity: 'affinity',
   kj: 'affinity',
   'kj-method': 'affinity',
+  'structure-map': 'structure-map',
+  structuremap: 'structure-map',
+  structure: 'structure-map',
+  'whole-part': 'structure-map',
 };
 
 function splitItems(value: string): string[] {
@@ -274,6 +278,40 @@ export function parseGraphDsl(text: string): ThinkingDiagramSpec {
         throw new GraphDslError('affinity には "- グループ: 付箋, 付箋" を1つ以上記述してください');
       }
       return { type, title, groups };
+    }
+
+    case 'structure-map': {
+      const whole = requireValue(headerValue(lines, 'whole'), 'whole', 'structure-map');
+      // 部分（`- ラベル: 要素…`）。関係行（`->` を含む）は除外する。
+      const parts = labeledBullets(lines)
+        .filter((b) => b.label.length > 0 && !b.label.includes('->'))
+        .map((b) => ({ label: b.label, items: b.items }));
+      if (parts.length === 0) {
+        throw new GraphDslError('structure-map には "- 部分: 要素, 要素" を1つ以上記述してください');
+      }
+      const partLabels = new Set(parts.map((p) => p.label));
+      // 関係（`A -> B`）。先頭の `- ` は任意。端点は部分ラベルで実在検証する。
+      const relations: Array<{ from: string; to: string }> = [];
+      for (const raw of lines) {
+        const t = raw.trim().replace(/^-\s+/, '');
+        if (!t.includes('->')) continue;
+        const m = /^(.+?)->(.+)$/.exec(t);
+        if (!m) {
+          throw new GraphDslError(`関係行を解釈できません: "${t}"（例: "入力 -> ランキング"）`);
+        }
+        const from = m[1].trim();
+        const to = m[2].trim();
+        if (!from || !to) {
+          throw new GraphDslError(`関係行を解釈できません: "${t}"（例: "入力 -> ランキング"）`);
+        }
+        if (!partLabels.has(from) || !partLabels.has(to)) {
+          const missing = partLabels.has(from) ? to : from;
+          throw new GraphDslError(`関係の端点 "${missing}" が部分に存在しません（"- ${missing}: …" を定義してください）`);
+        }
+        relations.push({ from, to });
+      }
+      const domains = splitItems(headerValue(lines, 'domains') ?? '');
+      return { type, whole, parts, relations, domains };
     }
 
     default: {
