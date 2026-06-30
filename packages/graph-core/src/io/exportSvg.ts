@@ -1,5 +1,5 @@
 import { GraphDocument, GraphNode, GraphEdge } from '../types';
-import { computeOrthogonalPath, bestSides, getConnectionPoints } from '../engine/connector';
+import { computeOrthogonalPath, bestSides, getConnectionPoints, computeBezierPath } from '../engine/connector';
 import { computeVisibilityPath } from '../engine/orthogonalRouter';
 import {
   CANVAS_BG, COLOR_TEXT_PRIMARY,
@@ -119,6 +119,26 @@ function resolveEdgePoints(edge: GraphEdge, nodes: GraphNode[]): { x: number; y:
   return computeVisibilityPath(fromPt, sides.fromSide, toPt, sides.toSide, obstacles);
 }
 
+/**
+ * routing:'bezier' の connector エッジについて、境界間の3次ベジェ制御点
+ * [start, cp1, cp2, end] を返す（それ以外は null）。静的 SVG 出力でも
+ * ライブエンジンと同じ曲線（FreeMind 風マインドマップ等）を描くために使う。
+ */
+function resolveBezierPath(edge: GraphEdge, nodes: GraphNode[]): { x: number; y: number }[] | null {
+  if (edge.type !== 'connector' || edge.style.routing !== 'bezier') {
+    return null;
+  }
+  if (!edge.from.nodeId || !edge.to.nodeId) {
+    return null;
+  }
+  const fromNode = nodes.find(n => n.id === edge.from.nodeId);
+  const toNode = nodes.find(n => n.id === edge.to.nodeId);
+  if (!fromNode || !toNode) {
+    return null;
+  }
+  return computeBezierPath(fromNode, toNode);
+}
+
 function renderArrowMarker(
   lines: string[],
   points: { x: number; y: number }[],
@@ -146,12 +166,22 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[], textColor: string = 
   const sw = style.strokeWidth;
   const dashAttr = style.dashed ? ' stroke-dasharray="6 4"' : '';
   const lines: string[] = [];
-  lines.push(`<g id="${escapeXml(id)}">`);
+  const metadataAttr = edge.metadata
+    ? ` data-metadata="${escapeXml(JSON.stringify(edge.metadata))}"`
+    : '';
+  // ラベルがあればクリック対象/インライン編集アンカーをラベル <text> に置く
+  // （エッジ <g> の bbox は線分全長に及び、編集欄が肥大化するため）。
+  // ラベルが無いメタデータ付きエッジは従来どおり <g> に出力する。
+  const labelCarriesMetadata = Boolean(edge.metadata) && Boolean(edge.label);
+  lines.push(`<g id="${escapeXml(id)}"${labelCarriesMetadata ? '' : metadataAttr}>`);
 
-  const points = resolveEdgePoints(edge, nodes);
+  const bezier = resolveBezierPath(edge, nodes);
+  const points = bezier ?? resolveEdgePoints(edge, nodes);
 
   if (points.length >= 2) {
-    const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+    const d = bezier
+      ? `M${points[0].x},${points[0].y} C${points[1].x},${points[1].y} ${points[2].x},${points[2].y} ${points[3].x},${points[3].y}`
+      : points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
     lines.push(`<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${sw}"${dashAttr}/>`);
   } else {
     lines.push(`<line x1="${edge.from.x}" y1="${edge.from.y}" x2="${edge.to.x}" y2="${edge.to.y}" stroke="${stroke}" stroke-width="${sw}"${dashAttr}/>`);
@@ -170,7 +200,7 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[], textColor: string = 
       my = (edge.from.y + edge.to.y) / 2;
     }
     lines.push(
-      `<text x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central" fill="${escapeXml(textColor)}" font-size="13" font-family="${FONT_FAMILY}" paint-order="stroke" stroke="${escapeXml(textColor)}" stroke-width="0">${escapeXml(edge.label)}</text>`,
+      `<text x="${mx}" y="${my}"${labelCarriesMetadata ? metadataAttr : ''} text-anchor="middle" dominant-baseline="central" fill="${escapeXml(textColor)}" font-size="13" font-family="${FONT_FAMILY}" paint-order="stroke" stroke="${escapeXml(textColor)}" stroke-width="0">${escapeXml(edge.label)}</text>`,
     );
   }
 

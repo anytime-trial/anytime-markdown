@@ -4,7 +4,7 @@
  * ID は呼び出し側が与える固定値を使い、SVG 出力を決定的に保つ。
  */
 
-import type { GraphDocument, GraphNode, GraphEdge, NodeType, NodeStyle, EdgeStyle, EndpointShape } from '../types';
+import type { GraphDocument, GraphNode, GraphEdge, NodeType, NodeStyle, EdgeStyle, EndpointShape, RoutingMode } from '../types';
 import { FONT_FAMILY } from '../theme';
 import type { Point, Rect } from './layout';
 
@@ -61,6 +61,9 @@ export interface EdgeOpts {
   dashed?: boolean;
   endShape?: EndpointShape;
   label?: string;
+  routing?: RoutingMode;
+  /** spec 内位置などのデータ駆動メタデータ（SVG では data-metadata として出力され、インライン編集の対象になる）。 */
+  metadata?: Record<string, string | number>;
 }
 
 function edgeStyle(opts: EdgeOpts): EdgeStyle {
@@ -69,6 +72,7 @@ function edgeStyle(opts: EdgeOpts): EdgeStyle {
     strokeWidth: opts.strokeWidth ?? 2,
     dashed: opts.dashed,
     endShape: opts.endShape,
+    routing: opts.routing,
   };
 }
 
@@ -81,6 +85,7 @@ export function connectorEdge(id: string, fromId: string, toId: string, opts: Ed
     to: { nodeId: toId, x: 0, y: 0 },
     style: edgeStyle({ endShape: 'arrow', ...opts }),
     label: opts.label,
+    ...(opts.metadata ? { metadata: opts.metadata } : {}),
   };
 }
 
@@ -93,6 +98,7 @@ export function lineEdge(id: string, from: Point, to: Point, opts: EdgeOpts = {}
     to: { x: to.x, y: to.y },
     style: edgeStyle(opts),
     label: opts.label,
+    ...(opts.metadata ? { metadata: opts.metadata } : {}),
   };
 }
 

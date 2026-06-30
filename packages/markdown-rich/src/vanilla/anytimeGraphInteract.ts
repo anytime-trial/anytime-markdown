@@ -1,14 +1,13 @@
 /**
  * 思考法ダイアグラム（anytime-thinking-model）プレビューの WYSIWYG 操作層（DOM 配線）。
  *
- * 再描画後の SVG 内 `[data-metadata]` ノードにクリックハンドラを装着し、ノードに
- * アンカーした小ポップオーバーでラベル編集・要素の追加/削除を行う。確定操作は
- * 「parse → mutate（applyAnytimeGraphOp）→ setCode」で書き戻す。
+ * 再描画後の SVG 内 `[data-metadata]` ノードに対し:
+ *  - ノードの文字をクリック → その文字の位置に重ねたインライン入力欄でラベル/項目を直接編集。
+ *  - ノードに hover → 隅に出る極小「…」ボタン → 追加/削除など構造操作のポップオーバー。
+ * いずれの確定操作も「parse → mutate（applyAnytimeGraphOp）→ setCode」で DSL へ書き戻す。
  *
- * 設計メモ: 設計書はインライン編集 / ホバーボタン / ポップオーバーの 3 機構を挙げていたが、
- * SVG（zoom/pan transform 配下）上に input を正確に重ねる方式は座標計算が脆く実機検証も
- * 困難なため、堅牢性・アクセシビリティを優先して「クリックでアンカー型ポップオーバーを開く」
- * 単一機構へ統合した。ラベル編集・追加・削除という WYSIWYG の能力は同等に提供する。
+ * 座標は `getBoundingClientRect()`（レイアウト後のスクリーン座標）で取得するため、SVG の
+ * viewBox スケーリング（レスポンシブ）に追従し、重ね合わせが堅牢に成立する。
  */
 
 import { parseGraphDsl } from "@anytime-markdown/graph-core";
@@ -27,16 +26,29 @@ interface AttachAnytimeGraphInteractionsOptions {
 }
 
 const STYLE_ID = "am-atm-interact";
+const HIDE_DELAY_MS = 160;
 
 function ensureInteractStyle(isDark: boolean): void {
   const fg = isDark ? "#e6e6e6" : "#1a1a1a";
   const bg = isDark ? "#2b2b2b" : "#ffffff";
   const border = isDark ? "#555" : "#ccc";
   const hover = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
+  const accent = isDark ? "#5b9dff" : "#3b82f6";
   const danger = isDark ? "#e57373" : "#c0392b";
   ensureStyle(STYLE_ID, `
 .am-atm-interactive [data-metadata]{cursor:pointer;}
 .am-atm-interactive [data-metadata]:hover{opacity:0.85;}
+.am-atm-inline{position:fixed;z-index:2147483601;box-sizing:border-box;resize:none;overflow:auto;
+  background:var(--am-color-bg-paper, ${bg});color:var(--am-color-text-primary, ${fg});
+  border:2px solid var(--am-color-primary-main, ${accent});border-radius:6px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.25);padding:4px 6px;font-size:14px;line-height:1.3;
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;}
+.am-atm-inline.am-atm-inline--list{text-align:left;}
+.am-atm-more{position:fixed;z-index:2147483600;display:flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1;padding:0;
+  background:var(--am-color-bg-paper, ${bg});color:var(--am-color-text-primary, ${fg});
+  border:1px solid var(--am-color-divider, ${border});box-shadow:0 2px 8px rgba(0,0,0,0.25);}
+.am-atm-more:hover{background:var(--am-color-action-hover, ${hover});}
 .am-atm-pop{position:fixed;z-index:2147483600;min-width:200px;max-width:300px;
   background:var(--am-color-bg-paper, ${bg});color:var(--am-color-text-primary, ${fg});
   border:1px solid var(--am-color-divider, ${border});border-radius:8px;
@@ -56,6 +68,18 @@ function ensureInteractStyle(isDark: boolean): void {
 .am-atm-pop .am-atm-section{margin-top:8px;border-top:1px solid var(--am-color-divider, ${border});padding-top:8px;}
 .am-atm-pop .am-atm-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 `);
+}
+
+/** ノードが構造操作（追加/削除・causes/desc 管理）を持つか。持つノードだけ「…」を出す。 */
+function hasStructuralActions(d: NodeDescriptor): boolean {
+  return (
+    d.canAddChild ||
+    d.canAddSibling ||
+    d.canRemove ||
+    d.desc !== null ||
+    // fishbone カテゴリ等、ラベルはインライン編集しつつ causes をポップオーバーで管理する場合。
+    (d.items !== null && d.label !== null)
+  );
 }
 
 export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteractionsOptions): () => void {
@@ -79,7 +103,26 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
 
   const controller = new AbortController();
   const { signal } = controller;
+
+  let activeInline: HTMLTextAreaElement | null = null;
+  let activeMore: HTMLButtonElement | null = null;
   let activePopover: HTMLElement | null = null;
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearHideTimer(): void {
+    if (hideTimer !== null) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+  }
+
+  function closeMore(): void {
+    clearHideTimer();
+    if (activeMore) {
+      activeMore.remove();
+      activeMore = null;
+    }
+  }
 
   function closePopover(): void {
     if (activePopover) {
@@ -88,11 +131,20 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
     }
   }
 
+  function closeInline(): void {
+    if (activeInline) {
+      const el = activeInline;
+      activeInline = null; // blur ハンドラの再入を防ぐ
+      el.remove();
+    }
+  }
+
   /** 操作を適用して書き戻す（再描画 → 再装着が走る）。失敗はログして破棄。 */
   function applyOp(op: AnytimeGraphOp): void {
     try {
       const next = applyAnytimeGraphOp(getCode(), op);
       closePopover();
+      closeMore();
       setCode(next);
     } catch (err) {
       console.warn(
@@ -101,6 +153,104 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
       );
     }
   }
+
+  // ── インライン編集（文字をクリック → その場で直接編集） ──────────────────
+
+  /**
+   * ノード rect 上にテキストエリアを重ねて直接編集する。
+   * mode='label': Enter=確定（改行不可。DSL が行ベースのためラベルに改行は入れられない）。
+   * mode='list': Enter=改行 / Ctrl(⌘)+Enter=確定。いずれも blur=確定 / Escape=取消。
+   */
+  function openInlineEditor(
+    anchor: Element,
+    mode: "label" | "list",
+    initial: string,
+    onConfirm: (value: string) => void,
+  ): void {
+    closeInline();
+    closePopover();
+    closeMore();
+
+    const rect = anchor.getBoundingClientRect();
+    const ta = document.createElement("textarea");
+    ta.className = mode === "list" ? "am-atm-inline am-atm-inline--list" : "am-atm-inline";
+    ta.value = initial;
+    ta.setAttribute("aria-label", mode === "list" ? t("anytimeGraphItems") : t("anytimeGraphEditLabel"));
+    if (mode === "list") ta.title = t("anytimeGraphItemsPerLineHint");
+
+    const w = Math.max(96, Math.round(rect.width));
+    const h = Math.max(mode === "list" ? 72 : 30, Math.round(rect.height));
+    ta.style.width = `${w}px`;
+    ta.style.height = `${h}px`;
+    ta.style.left = `${Math.round(rect.left + rect.width / 2 - w / 2)}px`;
+    ta.style.top = `${Math.round(rect.top + rect.height / 2 - h / 2)}px`;
+
+    document.body.appendChild(ta);
+    activeInline = ta;
+
+    let settled = false;
+    const confirm = (): void => {
+      if (settled) return;
+      settled = true;
+      const value = ta.value;
+      closeInline();
+      onConfirm(value);
+    };
+    const cancel = (): void => {
+      if (settled) return;
+      settled = true;
+      closeInline();
+    };
+
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        cancel();
+        return;
+      }
+      if (e.key === "Enter") {
+        if (mode === "label") {
+          // ラベルは改行を持てない（行ベース DSL）。Shift 有無に関わらず確定する。
+          e.preventDefault();
+          confirm();
+        } else if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          confirm();
+        }
+        // mode='list' の素の Enter は改行（既定動作）。
+      }
+    });
+    ta.addEventListener("blur", () => confirm());
+
+    queueMicrotask(() => {
+      ta.focus();
+      ta.select();
+    });
+  }
+
+  function startInlineEdit(anchor: Element, path: string, d: NodeDescriptor): void {
+    if (d.label !== null) {
+      const current = d.label;
+      openInlineEditor(anchor, "label", current, (value) => {
+        // 貼り付け等で混入し得る改行は除去（行ベース DSL を壊さない）。
+        const next = value.replace(/[\r\n]+/g, " ");
+        if (next !== current) applyOp({ kind: "setLabel", path, value: next });
+      });
+      return;
+    }
+    if (d.items !== null) {
+      const current = d.items;
+      openInlineEditor(anchor, "list", current.join("\n"), (value) => {
+        const next = value.split("\n").map((s) => s.trim()).filter((s) => s.length > 0);
+        if (next.length !== current.length || next.some((s, i) => s !== current[i])) {
+          applyOp({ kind: "setItems", path, values: value.split("\n") });
+        }
+      });
+    }
+  }
+
+  // ── 構造操作ポップオーバー（「…」から開く・ラベル行は持たない） ─────────────
 
   function makeButton(text: string, cls: string, onClick: () => void): HTMLButtonElement {
     const b = document.createElement("button");
@@ -111,7 +261,7 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
     return b;
   }
 
-  /** ラベル/説明など「入力 + 確定」の 1 行を作る。 */
+  /** 「入力 + 確定（+ 削除）」の 1 行（causes・desc 用）。 */
   function makeEditRow(
     labelText: string,
     initial: string,
@@ -143,31 +293,22 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
     return wrap;
   }
 
-  function buildPopover(path: string, d: NodeDescriptor): HTMLElement {
+  function buildStructuralPopover(path: string, d: NodeDescriptor): HTMLElement {
     const pop = document.createElement("div");
     pop.className = "am-atm-pop";
     pop.setAttribute("role", "dialog");
-    pop.setAttribute("aria-label", t("anytimeGraphEditLabel"));
+    pop.setAttribute("aria-label", t("anytimeGraphMoreActions"));
 
-    let firstInput: HTMLInputElement | null = null;
-
-    // ラベル編集
-    if (d.label !== null) {
-      const row = makeEditRow(t("anytimeGraphEditLabel"), d.label, (value) =>
-        applyOp({ kind: "setLabel", path, value }),
-      );
-      pop.appendChild(row);
-      firstInput = row.querySelector("input");
-    }
+    let firstControl: HTMLElement | null = null;
 
     // pyramid の説明
     if (d.desc !== null) {
-      pop.appendChild(
-        makeEditRow(t("anytimeGraphDesc"), d.desc, (value) => applyOp({ kind: "setDesc", path, value })),
-      );
+      const row = makeEditRow(t("anytimeGraphDesc"), d.desc, (value) => applyOp({ kind: "setDesc", path, value }));
+      pop.appendChild(row);
+      firstControl = row.querySelector("input");
     }
 
-    // 集約リーフ（fishbone causes・double-diamond/swot 項目）
+    // 集約リーフ（fishbone causes）の管理
     if (d.items !== null) {
       const section = document.createElement("div");
       section.className = "am-atm-section";
@@ -193,7 +334,7 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
       );
       section.appendChild(addRow);
       pop.appendChild(section);
-      if (!firstInput) firstInput = section.querySelector("input");
+      if (!firstControl) firstControl = section.querySelector("input");
     }
 
     // 構造操作（兄弟/子の追加・削除）
@@ -218,34 +359,67 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
     }
     if (actions.childElementCount > 0) pop.appendChild(actions);
 
-    // フォーカス（開いた直後に最初の入力へ）
-    queueMicrotask(() => firstInput?.focus());
+    queueMicrotask(() => firstControl?.focus());
     return pop;
   }
 
-  function positionPopover(pop: HTMLElement, anchor: Element): void {
-    const rect = anchor.getBoundingClientRect();
-    document.body.appendChild(pop);
-    const pw = pop.offsetWidth;
-    const ph = pop.offsetHeight;
+  function positionFixed(el: HTMLElement, rect: DOMRect, preferBelow: boolean): void {
     const margin = 8;
+    const pw = el.offsetWidth;
+    const ph = el.offsetHeight;
     let left = rect.left;
-    let top = rect.bottom + 6;
+    let top = preferBelow ? rect.bottom + 6 : rect.top;
     if (left + pw > window.innerWidth - margin) left = window.innerWidth - pw - margin;
     if (left < margin) left = margin;
     if (top + ph > window.innerHeight - margin) top = Math.max(margin, rect.top - ph - 6);
-    pop.style.left = `${Math.round(left)}px`;
-    pop.style.top = `${Math.round(top)}px`;
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top = `${Math.round(top)}px`;
   }
 
   function openPopover(anchor: Element, path: string, d: NodeDescriptor): void {
     closePopover();
-    const pop = buildPopover(path, d);
-    positionPopover(pop, anchor);
+    const pop = buildStructuralPopover(path, d);
+    document.body.appendChild(pop);
+    positionFixed(pop, anchor.getBoundingClientRect(), true);
     activePopover = pop;
   }
 
-  // ノードへハンドラ装着
+  // ── 「…」ボタン（hover で出現 → 構造操作ポップオーバーを開く） ─────────────
+
+  function scheduleHideMore(): void {
+    clearHideTimer();
+    hideTimer = setTimeout(() => {
+      if (!activePopover) closeMore();
+    }, HIDE_DELAY_MS);
+  }
+
+  function showMore(anchor: Element, path: string, d: NodeDescriptor): void {
+    // インライン編集中・既に同ノードのポップオーバー表示中は出さない。
+    if (activeInline) return;
+    clearHideTimer();
+    closeMore();
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "am-atm-more";
+    btn.textContent = "…";
+    btn.setAttribute("aria-label", t("anytimeGraphMoreActions"));
+    btn.title = t("anytimeGraphMoreActions");
+    btn.addEventListener("mouseenter", clearHideTimer);
+    btn.addEventListener("mouseleave", scheduleHideMore);
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPopover(anchor, path, d);
+    });
+    document.body.appendChild(btn);
+    const rect = anchor.getBoundingClientRect();
+    const size = 22;
+    btn.style.left = `${Math.round(Math.min(rect.right - size / 2, window.innerWidth - size - 4))}px`;
+    btn.style.top = `${Math.round(Math.max(4, rect.top - size / 2))}px`;
+    activeMore = btn;
+  }
+
+  // ── ノードへハンドラ装着 ────────────────────────────────────────────────
+
   const groups = previewEl.querySelectorAll<SVGGElement>("svg [data-metadata]");
   groups.forEach((g) => {
     const raw = g.getAttribute("data-metadata");
@@ -262,21 +436,35 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
     const descriptor = describeNode(spec, path);
     if (!descriptor) return;
     const nodePath = path; // ガード後の string をクロージャへ束縛（非ヌルアサーション回避）
-    g.addEventListener(
-      "click",
-      (e) => {
-        e.stopPropagation();
-        openPopover(g, nodePath, descriptor);
-      },
-      { signal },
-    );
+
+    // 文字（ラベル/項目）を持つノードはクリックでインライン編集。
+    if (descriptor.label !== null || descriptor.items !== null) {
+      g.addEventListener(
+        "click",
+        (e) => {
+          e.stopPropagation();
+          startInlineEdit(g, nodePath, descriptor);
+        },
+        { signal },
+      );
+    }
+
+    // 構造操作を持つノードは hover で「…」ボタンを出す。
+    if (hasStructuralActions(descriptor)) {
+      g.addEventListener("mouseenter", () => showMore(g, nodePath, descriptor), { signal });
+      g.addEventListener("mouseleave", scheduleHideMore, { signal });
+    }
   });
 
-  // ポップオーバー外クリック・Escape で閉じる
+  // 外側クリック・Escape でポップオーバーを閉じる（インライン編集は blur/Escape で自己完結）。
   document.addEventListener(
     "pointerdown",
     (e) => {
-      if (activePopover && !activePopover.contains(e.target as Node)) closePopover();
+      const target = e.target as Node;
+      if (activePopover && !activePopover.contains(target) && activeMore !== target) {
+        closePopover();
+        closeMore();
+      }
     },
     { signal, capture: true },
   );
@@ -286,6 +474,7 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
       if (e.key === "Escape" && activePopover) {
         e.stopPropagation();
         closePopover();
+        closeMore();
       }
     },
     { signal, capture: true },
@@ -293,7 +482,10 @@ export function attachAnytimeGraphInteractions(opts: AttachAnytimeGraphInteracti
 
   return () => {
     controller.abort();
+    clearHideTimer();
+    closeInline();
     closePopover();
+    closeMore();
     previewEl.classList.remove("am-atm-interactive");
   };
 }

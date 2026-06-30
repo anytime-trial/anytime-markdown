@@ -1,0 +1,33 @@
+{
+  "name": "@anytime-markdown/markdown-view-lite",
+  "version": "1.8.0",
+  "license": "MIT",
+  "description": "Readonly markdown viewer Web Component (lean, no diagram rendering).",
+  "type": "module",
+  "main": "./dist/markdown-view-lite.js",
+  "module": "./dist/markdown-view-lite.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/markdown-view-lite.js"
+    },
+    "./iife": "./dist/markdown-view-lite.iife.js"
+  },
+  "files": ["dist"],
+  "sideEffects": ["./dist/markdown-view-lite.js", "./dist/markdown-view-lite.iife.js"],
+  "scripts": {
+    "build": "node esbuild.mjs"
+  },
+  "dependencies": {
+    "dompurify": "^3.0.0",
+    "diff": "^8.0.3"
+  },
+  "devDependencies": {
+    "@anytime-markdown/markdown-viewer": "*",
+    "esbuild": "0.27.3"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

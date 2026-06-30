@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-06-30
+
+### Added
+
+- Thinking-method diagrams: new `structure-map` diagram type.
+- Edit diagram text in place: click a label in the preview to edit it directly; structure operations move to a "…" popover.
+- DSL-derived label editing coverage: structure-map summary-label editing and causal-loop polarity (+/-) inline editing.
+- Mindmaps now use a FreeMind-style layout (central root, leaf-count-balanced left/right expansion, bezier curves).
+- Body width: new `full` (full screen width) preset.
+- Read-only embedding: a lean read-only `<anytime-markdown-view>` custom element and published `view-element` package exports.
+
+### Fixed
+
+- Mindmap child-node overlap resolved (sibling spacing made angle-dependent).
+- Inline label editing now blocks line breaks to avoid corrupting the line-based diagram DSL.
+
 ## [1.8.0] - 2026-06-27
 
 ### Added

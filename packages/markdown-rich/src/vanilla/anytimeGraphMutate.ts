@@ -30,6 +30,8 @@ export type AnytimeGraphOp =
   | { kind: "removeItem"; path: string; index: number }
   /** 集約リーフ配列に要素を追加 */
   | { kind: "addItem"; path: string; value: string }
+  /** 集約リーフ配列を新リストへ一括置換（複数行インライン編集の確定。空行/前後空白は除去） */
+  | { kind: "setItems"; path: string; values: string[] }
   /** pyramid tier の説明文を設定（空文字で説明を消す） */
   | { kind: "setDesc"; path: string; value: string };
 
@@ -93,6 +95,14 @@ function causalLoopVarIndex(path: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** 極性ラベルの入力値を '+' / '-' に正規化する。半角/全角を許容し、不明値は null。 */
+function normalizePolarity(value: string): "+" | "-" | null {
+  const v = value.trim();
+  if (v === "-" || v === "－") return "-";
+  if (v === "+" || v === "＋") return "+";
+  return null;
+}
+
 // ── 子配列のキー解決 ─────────────────────────────────────────────────
 
 /** addChild 時、対象ノードに子を追加する配列の参照を返す（必要なら生成）。 */
@@ -122,6 +132,12 @@ function childArray(spec: ThinkingDiagramSpec, path: string): unknown[] {
       if (!group) throw new AnytimeGraphMutateError(`group がありません: ${path}`);
       group.notes ??= [];
       return group.notes;
+    }
+    case "structure-map": {
+      const part = getTarget(spec, path) as { items?: string[] } | undefined;
+      if (!part || typeof part !== "object") throw new AnytimeGraphMutateError(`part がありません: ${path}`);
+      part.items ??= [];
+      return part.items;
     }
     default:
       throw new AnytimeGraphMutateError(`${spec.type} は addChild 非対応です: ${path}`);
@@ -172,6 +188,12 @@ function leafArray(spec: ThinkingDiagramSpec, path: string): string[] {
       }
       return arr as string[];
     }
+    case "structure-map": {
+      const part = getTarget(spec, path) as { items?: string[] } | undefined;
+      if (!part) throw new AnytimeGraphMutateError(`part がありません: ${path}`);
+      part.items ??= [];
+      return part.items;
+    }
     default:
       throw new AnytimeGraphMutateError(`${spec.type} は集約リーフ操作非対応です: ${path}`);
   }
@@ -181,6 +203,15 @@ function leafArray(spec: ThinkingDiagramSpec, path: string): string[] {
 
 function applySetLabel(spec: ThinkingDiagramSpec, path: string, value: string): void {
   if (spec.type === "causal-loop") {
+    const polMatch = /^links\.(\d+)\.polarity$/.exec(path);
+    if (polMatch) {
+      const link = spec.links[Number(polMatch[1])];
+      if (!link) throw new AnytimeGraphMutateError(`link index ${polMatch[1]} がありません`);
+      // 極性は +/- に正規化。不正値は既存値を維持し DSL の round-trip を壊さない。
+      const norm = normalizePolarity(value);
+      if (norm) link.polarity = norm;
+      return;
+    }
     const idx = causalLoopVarIndex(path);
     if (idx !== null) {
       const vars = causalLoopVariables(spec);
@@ -191,6 +222,21 @@ function applySetLabel(spec: ThinkingDiagramSpec, path: string, value: string): 
         if (link.to === old) link.to = value;
       }
       return;
+    }
+  }
+  // structure-map で部分の見出しを改名する場合、その部分を端点に持つ関係も追従改名する
+  // （追従しないと関係が旧ラベルを指して dangling になり、再パースで GraphDslError）。
+  if (spec.type === "structure-map") {
+    const m = /^parts\.(\d+)$/.exec(path);
+    if (m) {
+      const part = spec.parts[Number(m[1])];
+      if (part) {
+        const old = part.label;
+        for (const r of spec.relations) {
+          if (r.from === old) r.from = value;
+          if (r.to === old) r.to = value;
+        }
+      }
     }
   }
   const { parent, key } = resolveRef(spec, path);
@@ -220,6 +266,18 @@ function applyRemove(spec: ThinkingDiagramSpec, path: string): void {
       if (old === undefined) throw new AnytimeGraphMutateError(`変数 index ${idx} がありません`);
       spec.links = spec.links.filter((l) => l.from !== old && l.to !== old);
       return;
+    }
+  }
+  // structure-map で部分を削除する場合、その部分を端点に持つ関係も連動して削除する
+  // （残すとシリアライズ後の DSL が dangling 端点で再パース不能になるため）。後段の
+  // 汎用 splice が部分配列から当該要素を取り除く。
+  if (spec.type === "structure-map") {
+    const m = /^parts\.(\d+)$/.exec(path);
+    if (m) {
+      const removed = spec.parts[Number(m[1])];
+      if (removed) {
+        spec.relations = spec.relations.filter((r) => r.from !== removed.label && r.to !== removed.label);
+      }
     }
   }
   const { parent, key } = resolveRef(spec, path);
@@ -292,6 +350,13 @@ export function mutateSpec(spec: ThinkingDiagramSpec, op: AnytimeGraphOp): void 
     case "addItem":
       leafArray(spec, op.path).push(op.value);
       break;
+    case "setItems": {
+      const arr = leafArray(spec, op.path);
+      const next = op.values.map((v) => v.trim()).filter((v) => v.length > 0);
+      arr.length = 0;
+      arr.push(...next);
+      break;
+    }
     case "setDesc":
       applyDescSet(spec, op.path, op.value);
       break;
@@ -345,6 +410,12 @@ export function describeNode(spec: ThinkingDiagramSpec, path: string): NodeDescr
       return null;
     }
     case "causal-loop": {
+      const polMatch = /^links\.(\d+)\.polarity$/.exec(path);
+      if (polMatch) {
+        const link = spec.links[Number(polMatch[1])];
+        // 極性 +/- はエッジ上の DSL 由来ラベル。構造操作なしの編集専用。
+        return link ? { ...base, label: link.polarity } : null;
+      }
       const idx = causalLoopVarIndex(path);
       if (idx === null) return null;
       const v = causalLoopVariables(spec)[idx];
@@ -411,6 +482,21 @@ export function describeNode(spec: ThinkingDiagramSpec, path: string): NodeDescr
       const group = getTarget(spec, path) as { label?: string } | undefined;
       if (/^groups\.\d+$/.test(path) && group && typeof group.label === "string") {
         return { ...base, label: group.label, canRemove: true, canAddSibling: true, canAddChild: true };
+      }
+      return null;
+    }
+    case "structure-map": {
+      if (path === "whole") return { ...base, label: spec.whole };
+      // 部分の構成要素 / 他領域（string[] の要素）
+      if (/^parts\.\d+\.items\.\d+$/.test(path) || /^domains\.\d+$/.test(path)) {
+        const leaf = getTarget(spec, path);
+        if (typeof leaf === "string") return { ...base, label: leaf, canRemove: true, canAddSibling: true };
+        return null;
+      }
+      // 部分の見出し（addChild で構成要素を追加できる）
+      const part = getTarget(spec, path) as { label?: string; items?: string[] } | undefined;
+      if (/^parts\.\d+$/.test(path) && part && typeof part.label === "string") {
+        return { ...base, label: part.label, canRemove: true, canAddSibling: true, canAddChild: true, items: part.items ?? [] };
       }
       return null;
     }

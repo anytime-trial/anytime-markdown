@@ -8,6 +8,7 @@
   "configuration.measure.focus": "集中 — 最も狭い（没入して読む）",
   "configuration.measure.standard": "標準 — 既定",
   "configuration.measure.wide": "広い — 表・コード主体",
+  "configuration.measure.full": "全て — 画面幅いっぱい（幅の上限なし）",
   "command.openEditorWithFile": "Open with Anytime Markdown",
   "command.compareWithMarkdownEditor": "Compare with Anytime Markdown",
   "submenu.editorMode": "エディタモード",

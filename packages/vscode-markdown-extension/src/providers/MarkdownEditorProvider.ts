@@ -13,6 +13,10 @@ import {
   tokensMatch,
   type LinkedMdToken,
 } from '../utils/linkedMdFs';
+import { ClaudeLockTracker } from '../claude/ClaudeLockTracker';
+
+/** Claude editing=false 観測からロック解除を確定するまでの遅延 (ms)。 */
+const CLAUDE_UNLOCK_DELAY_MS = 3000;
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'anytimeMarkdown';
 
@@ -83,34 +87,26 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     return false;
   }
 
-  /** Claude Code 編集通知に基づくロック/リロード処理 */
-  private readonly claudeUnlockTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private claudeEditing = false;
+  /**
+   * Claude Code 編集ロックのファイル別状態。解除は「対象ファイルのパネル」へ直接配信する
+   * （`retainContextWhenHidden` のため非表示パネルにも届く）。アクティブパネル限定だと、
+   * 解除確定の瞬間に別ファイルへ切り替えているとバナーが残る不具合があった。
+   */
+  private readonly claudeLock = new ClaudeLockTracker({
+    unlockDelayMs: CLAUDE_UNLOCK_DELAY_MS,
+    setTimer: (fn, ms) => setTimeout(fn, ms),
+    clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+    onLockChange: (filePath, locked) => this.postClaudeLock(filePath, locked),
+  });
+
+  /** 指定ファイルのパネルへロック状態を送る（存在しなければ no-op）。 */
+  private postClaudeLock(filePath: string, locked: boolean): void {
+    const panel = this.panels.get(vscode.Uri.file(filePath).toString());
+    panel?.webview.postMessage({ type: 'setTheme', claudeLocked: locked });
+  }
 
   public handleClaudeStatus(editing: boolean, filePath: string): void {
-    if (editing) {
-      this.claudeEditing = true;
-      const existing = this.claudeUnlockTimers.get(filePath);
-      if (existing) {
-        clearTimeout(existing);
-        this.claudeUnlockTimers.delete(filePath);
-      }
-      if (this.activeDocumentUri?.fsPath === filePath) {
-        this.postMessageToActivePanel({ type: 'setTheme', claudeLocked: true });
-      }
-    } else {
-      const existing = this.claudeUnlockTimers.get(filePath);
-      if (existing) {
-        clearTimeout(existing);
-      }
-      this.claudeUnlockTimers.set(filePath, setTimeout(() => {
-        this.claudeEditing = false;
-        this.claudeUnlockTimers.delete(filePath);
-        if (this.activeDocumentUri?.fsPath === filePath) {
-          this.postMessageToActivePanel({ type: 'setTheme', claudeLocked: false });
-        }
-      }, 3000));
-    }
+    this.claudeLock.setStatus(editing, filePath);
   }
 
   public static register(
@@ -377,6 +373,12 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       ctx.updateWebview();
       ctx.sendSettings();
       ctx.sendTheme();
+      // ロック中ファイルを開いた/再読込した直後に現在のロック状態を反映する
+      // （sendTheme は claudeLocked を載せないため、ここで明示同期する）。
+      ctx.webviewPanel.webview.postMessage({
+        type: 'setTheme',
+        claudeLocked: this.claudeLock.isLocked(ctx.document.uri.fsPath),
+      });
       if (ctx.isDiffView) {
         for (const [, panel] of this.panels) {
           panel.webview.postMessage({ type: 'setLanding', landing: true });
@@ -460,7 +462,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           const success = await vscode.workspace.applyEdit(edit);
           if (!success) {
             vscode.window.showWarningMessage('Failed to apply edit to the document.');
-          } else if (!this.claudeEditing) {
+          } else if (!this.claudeLock.isLocked(ctx.document.uri.fsPath)) {
             await ctx.document.save();
           }
         } catch (err) {

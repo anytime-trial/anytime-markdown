@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-30
+
+### Graph Core (graph-core)
+
+- 思考法ダイアグラム: `structure-map` 図種を追加。
+- FreeMind 風マインドマップレイアウト（中央ルート＋左右バランス展開＋ベジェ曲線）。
+- マインドマップ子ノード重なりを修正、エッジ metadata をラベル text へ載せ編集欄をコンパクト化。
+
 ## [0.8.0] - 2026-06-20
 
 ### Graph Core (graph-core)

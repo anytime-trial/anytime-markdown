@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-30
+
+### Graph Core (graph-core)
+
+- Thinking-method diagrams: new `structure-map` diagram type.
+- FreeMind-style mindmap layout (central root, balanced left/right expansion, bezier curves).
+- Mindmap child-node overlap fixed; edge metadata moved onto the label text to keep edit fields compact.
+
 ## [0.8.0] - 2026-06-20
 
 ### Graph Core (graph-core)

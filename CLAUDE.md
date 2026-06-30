@@ -12,7 +12,7 @@
 
 ## Claude 固有のドキュメント参照
 
-- UI / 画面コンポーネントの実装・修正時は `/Shared/anytime-markdown-docs/spec/12.design/design.md` を必ず Read してから着手する（指針は `screen-design` スキル）。
+- UI / 画面コンポーネントの実装・修正時は `/Shared/anytime-markdown-docs/spec/10.web-app/design.md` を必ず Read してから着手する（指針は `screen-design` スキル）。
 - worktree とブランチ切替の詳細判断: `/Shared/anytime-markdown-docs/tech/branch/worktree-vs-branch.ja.md`。
 
 ## Trail DB
@@ -44,3 +44,5 @@
 | `sqlite-table-definition-trail-core` | SQLite テーブル定義の新規作成・変更・マイグレーション時（trail-core 固有補足。汎用ルールは global スキル `sqlite-table-definition`） |
 | `review-finding-format` | コードレビュー結果の出力時（trail memory-core ingest 対応書式） |
 | `vanilla-ui-conventions` | 脱React vanilla UI（markdown-viewer）・エディタ状態購読の実装・修正時 |
+| `production-release` | 本番リリース（拡張機能の vsix 作成・Marketplace 公開・バージョン bump）時。anytime-markdown 固有のパッケージ系統・CI 配線に特化（global から移設） |
+| `deploy-cms-remote` | `packages/mcp-cms-remote`（Cloudflare Workers）のデプロイ時。当該パッケージ専用（global から移設） |

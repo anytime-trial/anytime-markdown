@@ -1,5 +1,5 @@
 import { parseGraphDsl } from "@anytime-markdown/graph-core";
-import { applyAnytimeGraphOp, AnytimeGraphMutateError } from "../vanilla/anytimeGraphMutate";
+import { applyAnytimeGraphOp, AnytimeGraphMutateError, describeNode } from "../vanilla/anytimeGraphMutate";
 import type { AnytimeGraphOp } from "../vanilla/anytimeGraphMutate";
 
 /** 操作を適用した後の DSL を再パースした spec を返す。 */
@@ -35,6 +35,29 @@ describe("anytimeGraphMutate", () => {
           { from: "出荷", to: "在庫量", polarity: "-" },
         ]);
       }
+    });
+
+    it("causal-loop の極性 +/- をリンク単位で編集する", () => {
+      const dsl = ["type: causal-loop", "在庫 -> 出荷: +", "出荷 -> 在庫: -"].join("\n");
+      const spec = apply(dsl, { kind: "setLabel", path: "links.0.polarity", value: "-" });
+      if (spec.type === "causal-loop") expect(spec.links[0].polarity).toBe("-");
+    });
+
+    it("causal-loop の極性は全角を正規化し、不正値は既存値を維持する", () => {
+      const dsl = ["type: causal-loop", "在庫 -> 出荷: +"].join("\n");
+      const full = apply(dsl, { kind: "setLabel", path: "links.0.polarity", value: "－" });
+      if (full.type === "causal-loop") expect(full.links[0].polarity).toBe("-");
+      // 不正値（+/- 以外）は破棄し既存維持 → DSL は再パース可能
+      const invalid = apply(dsl, { kind: "setLabel", path: "links.0.polarity", value: "増加" });
+      if (invalid.type === "causal-loop") expect(invalid.links[0].polarity).toBe("+");
+    });
+
+    it("describeNode は causal-loop 極性パスを編集可能ラベルとして返す（構造操作なし）", () => {
+      const spec = parseGraphDsl(["type: causal-loop", "在庫 -> 出荷: +"].join("\n"));
+      const d = describeNode(spec, "links.0.polarity");
+      expect(d?.label).toBe("+");
+      expect(d?.canRemove).toBe(false);
+      expect(d?.canAddChild).toBe(false);
     });
   });
 
@@ -140,6 +163,39 @@ describe("anytimeGraphMutate", () => {
     });
   });
 
+  describe("setItems (複数行インライン編集の一括置換)", () => {
+    it("double-diamond のフェーズを新リストへ置換する（追加・削除・並べ替え）", () => {
+      const dsl = "type: double-diamond\ndiscover: a, b, c";
+      const spec = apply(dsl, { kind: "setItems", path: "discover", values: ["c", "a", "d"] });
+      if (spec.type === "double-diamond") expect(spec.discover).toEqual(["c", "a", "d"]);
+    });
+
+    it("swot 象限を空リストにできる", () => {
+      const dsl = "type: swot\nstrengths: a, b";
+      const spec = apply(dsl, { kind: "setItems", path: "strengths", values: [] });
+      if (spec.type === "swot") expect(spec.strengths).toEqual([]);
+    });
+
+    it("空行・前後空白を除去して項目化する", () => {
+      const dsl = "type: swot\nstrengths: a";
+      const spec = apply(dsl, { kind: "setItems", path: "strengths", values: ["  x ", "", "   ", "y"] });
+      if (spec.type === "swot") expect(spec.strengths).toEqual(["x", "y"]);
+    });
+
+    it("fishbone カテゴリの causes を一括置換する", () => {
+      const dsl = "type: fishbone\nproblem: P\n- 人: a, b";
+      const spec = apply(dsl, { kind: "setItems", path: "categories.0", values: ["a", "b", "c"] });
+      if (spec.type === "fishbone") expect(spec.categories[0].causes).toEqual(["a", "b", "c"]);
+    });
+
+    it("集約リーフ非対応の図種では AnytimeGraphMutateError", () => {
+      const dsl = "type: pyramid\n- 理念";
+      expect(() => applyAnytimeGraphOp(dsl, { kind: "setItems", path: "tiers.0", values: ["x"] })).toThrow(
+        AnytimeGraphMutateError,
+      );
+    });
+  });
+
   describe("setDesc (pyramid)", () => {
     it("tier の説明を設定する", () => {
       const dsl = "type: pyramid\n- 理念\n- 戦略";
@@ -151,6 +207,81 @@ describe("anytimeGraphMutate", () => {
       const dsl = "type: pyramid\n- 理念: 長期";
       const spec = apply(dsl, { kind: "setDesc", path: "tiers.0", value: "" });
       if (spec.type === "pyramid") expect(spec.tiers[0].desc).toBeUndefined();
+    });
+  });
+
+  describe("structure-map", () => {
+    const base = ["type: structure-map", "whole: 検索体験", "- 入力: 補完", "- 表示", "domains: 推薦"].join("\n");
+
+    it("whole / 部分見出し / 構成要素 / 他領域を改名する", () => {
+      const whole = apply(base, { kind: "setLabel", path: "whole", value: "検索UX" });
+      if (whole.type === "structure-map") expect(whole.whole).toBe("検索UX");
+      const part = apply(base, { kind: "setLabel", path: "parts.0", value: "入力系" });
+      if (part.type === "structure-map") expect(part.parts[0].label).toBe("入力系");
+      const item = apply(base, { kind: "setLabel", path: "parts.0.items.0", value: "履歴" });
+      if (item.type === "structure-map") expect(item.parts[0].items).toEqual(["履歴"]);
+      const domain = apply(base, { kind: "setLabel", path: "domains.0", value: "推薦基盤" });
+      if (domain.type === "structure-map") expect(domain.domains).toEqual(["推薦基盤"]);
+    });
+
+    it("部分見出しを改名すると関係端点も追従し、再パース可能", () => {
+      const withRel = [
+        "type: structure-map",
+        "whole: W",
+        "- 入力: 補完",
+        "- 表示",
+        "relations:",
+        "- 入力 -> 表示",
+      ].join("\n");
+      const out = applyAnytimeGraphOp(withRel, { kind: "setLabel", path: "parts.0", value: "入力系" });
+      expect(() => parseGraphDsl(out)).not.toThrow();
+      const spec = parseGraphDsl(out);
+      if (spec.type === "structure-map") {
+        expect(spec.parts[0].label).toBe("入力系");
+        expect(spec.relations).toEqual([{ from: "入力系", to: "表示" }]);
+      }
+    });
+
+    it("部分に構成要素を追加（addChild）し、再パース可能", () => {
+      const out = applyAnytimeGraphOp(base, { kind: "addChild", path: "parts.1", value: "スニペット" });
+      expect(() => parseGraphDsl(out)).not.toThrow();
+      const spec = parseGraphDsl(out);
+      if (spec.type === "structure-map") expect(spec.parts[1].items).toEqual(["スニペット"]);
+    });
+
+    it("部分の構成要素を集約編集（setItem/addItem/removeItem）でき、再パース可能", () => {
+      // 「…」ポップオーバーの項目編集は path=parts.N + index で leafArray を経由する
+      const setItem = applyAnytimeGraphOp(base, { kind: "setItem", path: "parts.0", index: 0, value: "履歴" });
+      expect(() => parseGraphDsl(setItem)).not.toThrow();
+      const s1 = parseGraphDsl(setItem);
+      if (s1.type === "structure-map") expect(s1.parts[0].items).toEqual(["履歴"]);
+
+      const addItem = applyAnytimeGraphOp(base, { kind: "addItem", path: "parts.0", value: "新規" });
+      const s2 = parseGraphDsl(addItem);
+      if (s2.type === "structure-map") expect(s2.parts[0].items).toEqual(["補完", "新規"]);
+
+      const removeItem = applyAnytimeGraphOp(base, { kind: "removeItem", path: "parts.0", index: 0 });
+      const s3 = parseGraphDsl(removeItem);
+      if (s3.type === "structure-map") expect(s3.parts[0].items).toEqual([]);
+    });
+
+    it("部分を削除すると当該端点の関係も連動削除され、再パース可能", () => {
+      const withRel = [
+        "type: structure-map",
+        "whole: W",
+        "- 入力: 補完",
+        "- 表示",
+        "relations:",
+        "- 入力 -> 表示",
+      ].join("\n");
+      // remove は dangling 関係を残さない（残すと再パースで GraphDslError）
+      const out = applyAnytimeGraphOp(withRel, { kind: "remove", path: "parts.0" });
+      expect(() => parseGraphDsl(out)).not.toThrow();
+      const spec = parseGraphDsl(out);
+      if (spec.type === "structure-map") {
+        expect(spec.parts.map((p) => p.label)).toEqual(["表示"]);
+        expect(spec.relations).toEqual([]);
+      }
     });
   });
 

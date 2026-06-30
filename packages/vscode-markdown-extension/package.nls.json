@@ -8,6 +8,7 @@
   "configuration.measure.focus": "Focus — narrowest, for immersive reading",
   "configuration.measure.standard": "Standard — default",
   "configuration.measure.wide": "Wide — for tables and code",
+  "configuration.measure.full": "All — full width (no max-width)",
   "command.openEditorWithFile": "Open with Anytime",
   "command.compareWithMarkdownEditor": "Compare with Anytime",
   "submenu.editorMode": "Editor Mode",

@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/markdown-viewer",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -13,6 +13,7 @@
     "./embed-utils": "./src/exports/embedUtils.ts",
     "./i18n/messages": "./src/i18n/index.ts",
     "./element": "./src/element.ts",
+    "./view-element": "./src/view-element.ts",
     "./fs/web-file-system-provider": "./src/fs/webFileSystemProvider.ts",
     "./src/*": "./src/*"
   },
