@@ -12,6 +12,7 @@ import { buildMindmap, type MindmapSpec } from './mindmap';
 import { buildDoubleDiamond, type DoubleDiamondSpec } from './doubleDiamond';
 import { buildLogicTree, buildWhyChain, type LogicTreeSpec, type WhyChainSpec, type TreeNodeSpec } from './trees';
 import { buildSwot, buildMorphBox, buildAffinity, type SwotSpec, type MorphBoxSpec, type AffinitySpec } from './grids';
+import { buildStructureMap, type StructureMapSpec } from './structureMap';
 
 export type ThinkingDiagramSpec =
   | FishboneSpec
@@ -23,7 +24,8 @@ export type ThinkingDiagramSpec =
   | WhyChainSpec
   | SwotSpec
   | MorphBoxSpec
-  | AffinitySpec;
+  | AffinitySpec
+  | StructureMapSpec;
 
 export type ThinkingDiagramType = ThinkingDiagramSpec['type'];
 
@@ -38,6 +40,7 @@ export const THINKING_DIAGRAM_TYPES: readonly ThinkingDiagramType[] = [
   'swot',
   'morph-box',
   'affinity',
+  'structure-map',
 ];
 
 export function buildThinkingDiagram(spec: ThinkingDiagramSpec, isDark: boolean): GraphDocument {
@@ -62,6 +65,8 @@ export function buildThinkingDiagram(spec: ThinkingDiagramSpec, isDark: boolean)
       return buildMorphBox(spec, isDark);
     case 'affinity':
       return buildAffinity(spec, isDark);
+    case 'structure-map':
+      return buildStructureMap(spec, isDark);
     default: {
       const _exhaustive: never = spec;
       throw new Error(`Unknown thinking diagram type: ${JSON.stringify(_exhaustive)}`);
@@ -80,6 +85,7 @@ export type {
   SwotSpec,
   MorphBoxSpec,
   AffinitySpec,
+  StructureMapSpec,
   TreeNodeSpec,
 };
 

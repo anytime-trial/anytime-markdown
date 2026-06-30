@@ -545,6 +545,7 @@
     "slashThinkWhyChain": "なぜなぜ分析（Why チェーン）",
     "slashThinkMorphBox": "形態分析表（モルフォロジカル）",
     "slashThinkAffinity": "親和図（KJ法）",
+    "slashThinkStructureMap": "構造マップ（全体↔部分↔他領域）",
     "slashMath": "数式",
     "slashHtml": "HTML",
     "slashToc": "目次",

@@ -68,5 +68,12 @@
     "icon": "schema",
     "enabled": true,
     "code": "type: affinity\ntitle: 親和図\n- グループA: 付箋1, 付箋2\n- グループB: 付箋1, 付箋2"
+  },
+  {
+    "label": "Structure Map",
+    "i18nKey": "slashThinkStructureMap",
+    "icon": "schema",
+    "enabled": true,
+    "code": "type: structure-map\nwhole: 全体テーマ\n- 部分A: 要素1, 要素2\n- 部分B: 要素3\n- 部分C: 要素4\nrelations:\n- 部分A -> 部分B\n- 部分B -> 部分C\ndomains: 隣接領域1, 隣接領域2"
   }
 ]

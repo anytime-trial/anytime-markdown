@@ -123,6 +123,12 @@ function childArray(spec: ThinkingDiagramSpec, path: string): unknown[] {
       group.notes ??= [];
       return group.notes;
     }
+    case "structure-map": {
+      const part = getTarget(spec, path) as { items?: string[] } | undefined;
+      if (!part || typeof part !== "object") throw new AnytimeGraphMutateError(`part がありません: ${path}`);
+      part.items ??= [];
+      return part.items;
+    }
     default:
       throw new AnytimeGraphMutateError(`${spec.type} は addChild 非対応です: ${path}`);
   }
@@ -411,6 +417,21 @@ export function describeNode(spec: ThinkingDiagramSpec, path: string): NodeDescr
       const group = getTarget(spec, path) as { label?: string } | undefined;
       if (/^groups\.\d+$/.test(path) && group && typeof group.label === "string") {
         return { ...base, label: group.label, canRemove: true, canAddSibling: true, canAddChild: true };
+      }
+      return null;
+    }
+    case "structure-map": {
+      if (path === "whole") return { ...base, label: spec.whole };
+      // 部分の構成要素 / 他領域（string[] の要素）
+      if (/^parts\.\d+\.items\.\d+$/.test(path) || /^domains\.\d+$/.test(path)) {
+        const leaf = getTarget(spec, path);
+        if (typeof leaf === "string") return { ...base, label: leaf, canRemove: true, canAddSibling: true };
+        return null;
+      }
+      // 部分の見出し（addChild で構成要素を追加できる）
+      const part = getTarget(spec, path) as { label?: string; items?: string[] } | undefined;
+      if (/^parts\.\d+$/.test(path) && part && typeof part.label === "string") {
+        return { ...base, label: part.label, canRemove: true, canAddSibling: true, canAddChild: true, items: part.items ?? [] };
       }
       return null;
     }

@@ -154,6 +154,33 @@ describe("anytimeGraphMutate", () => {
     });
   });
 
+  describe("structure-map", () => {
+    const base = ["type: structure-map", "whole: 検索体験", "- 入力: 補完", "- 表示", "domains: 推薦"].join("\n");
+
+    it("whole / 部分見出し / 構成要素 / 他領域を改名する", () => {
+      const whole = apply(base, { kind: "setLabel", path: "whole", value: "検索UX" });
+      if (whole.type === "structure-map") expect(whole.whole).toBe("検索UX");
+      const part = apply(base, { kind: "setLabel", path: "parts.0", value: "入力系" });
+      if (part.type === "structure-map") expect(part.parts[0].label).toBe("入力系");
+      const item = apply(base, { kind: "setLabel", path: "parts.0.items.0", value: "履歴" });
+      if (item.type === "structure-map") expect(item.parts[0].items).toEqual(["履歴"]);
+      const domain = apply(base, { kind: "setLabel", path: "domains.0", value: "推薦基盤" });
+      if (domain.type === "structure-map") expect(domain.domains).toEqual(["推薦基盤"]);
+    });
+
+    it("部分に構成要素を追加（addChild）し、再パース可能", () => {
+      const out = applyAnytimeGraphOp(base, { kind: "addChild", path: "parts.1", value: "スニペット" });
+      expect(() => parseGraphDsl(out)).not.toThrow();
+      const spec = parseGraphDsl(out);
+      if (spec.type === "structure-map") expect(spec.parts[1].items).toEqual(["スニペット"]);
+    });
+
+    it("部分を削除しても関係端点の整合は DSL 側に委ねる（部分削除自体は成功）", () => {
+      const spec = apply(base, { kind: "remove", path: "parts.0" });
+      if (spec.type === "structure-map") expect(spec.parts.map((p) => p.label)).toEqual(["表示"]);
+    });
+  });
+
   it("生成 DSL は常に再パース可能", () => {
     const dsl = "type: affinity\n- g0: n0, n1";
     const out = applyAnytimeGraphOp(dsl, { kind: "addChild", path: "groups.0", value: "n2" });
