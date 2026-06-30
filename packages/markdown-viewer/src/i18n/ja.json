@@ -240,6 +240,8 @@
     "anytimeGraphAddSibling": "兄弟を追加",
     "anytimeGraphRemove": "削除",
     "anytimeGraphNewLabel": "新規",
+    "anytimeGraphMoreActions": "追加 / 削除",
+    "anytimeGraphItemsPerLineHint": "1 行に 1 項目",
     "lists": "リスト",
     "codeQuote": "コード・引用",
     "insertDiagram": "図を挿入",
