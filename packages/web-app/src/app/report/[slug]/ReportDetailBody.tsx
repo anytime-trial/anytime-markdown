@@ -78,7 +78,7 @@ export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyPr
       </Box>
 
       {/* Article Header */}
-      <Container maxWidth="md" sx={{ pt: { xs: 4, md: 6 }, px: { xs: 2, md: 3 } }}>
+      <Container maxWidth="lg" sx={{ pt: { xs: 4, md: 6 }, px: { xs: 2, md: 3 } }}>
         {meta.category && (
           <Chip
             label={meta.category}
@@ -120,12 +120,13 @@ export default function ReportDetailBody({ report }: Readonly<ReportDetailBodyPr
       </Container>
 
       {/* Article Body */}
-      <Container maxWidth="md" sx={{ flex: 1, px: { xs: 0, md: 3 }, '& #main-content': { px: { xs: 0, md: 3 } } }}>
+      <Container maxWidth="lg" sx={{ flex: 1, px: { xs: 0, md: 3 }, '& #main-content': { px: { xs: 0, md: 3 } } }}>
         <MarkdownViewer
           docKey={meta.key}
           contentApiPath="/api/reports/content"
           noScroll
           minimal
+          measure="wide"
         />
       </Container>
     </Box>

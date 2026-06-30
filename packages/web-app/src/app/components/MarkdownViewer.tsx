@@ -1,7 +1,9 @@
 'use client';
 
 // barrel ではなく i18n モジュールを deep import（jest が viewer barrel の CSS module を解析しないように）。
+import { DEFAULT_SETTINGS } from '@anytime-markdown/markdown-viewer/src/editorSettings';
 import { createMarkdownT } from '@anytime-markdown/markdown-viewer/src/i18n/createMarkdownT';
+import type { MeasurePreset } from '@anytime-markdown/markdown-viewer/src/utils/measurePreset';
 import { Alert, Box, Button, CircularProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -52,9 +54,11 @@ interface MarkdownViewerProps {
   fallbackDocKey?: string;
   /** read-only・最小（ツールバー/ステータスバー非表示）の Web Component 表示にする（report 記事等）。 */
   minimal?: boolean;
+  /** 本文カラム幅（measure）プリセット。未指定時は既定（standard）。report 記事は "wide" 等を指定。 */
+  measure?: MeasurePreset;
 }
 
-export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content', showFrontmatter, bottomOffset: _bottomOffset, fallbackDocKey, minimal }: Readonly<MarkdownViewerProps>) {
+export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60vh', editorHeight, noScroll, contentApiPath = '/api/docs/content', showFrontmatter, bottomOffset: _bottomOffset, fallbackDocKey, minimal, measure }: Readonly<MarkdownViewerProps>) {
   const t = useTranslations('Landing');
   const { themeMode, setThemeMode } = useThemeMode();
   const { presetName, setPresetName } = usePreset();
@@ -62,6 +66,12 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
   const muiTheme = useTheme();
   const isBelowMd = useMediaQuery(muiTheme.breakpoints.down('md'));
   const vanillaT = useMemo(() => createMarkdownT('MarkdownEditor', locale), [locale]);
+  // measure（本文カラム幅）指定時のみ settings を上書きする。安定参照のため memo 化し
+  // mount の不要な再適用を防ぐ（未指定時は undefined＝既定 standard）。
+  const editorSettings = useMemo(
+    () => (measure ? { ...DEFAULT_SETTINGS, measure } : undefined),
+    [measure],
+  );
 
   // ロケールに応じた docKey を決定
   const resolvedDocKey = docKeyByLocale?.[locale] ?? docKey;
@@ -142,6 +152,7 @@ export default function MarkdownViewer({ docKey, docKeyByLocale, minHeight = '60
         readOnly
         hideStatusBar
         noScroll={noScroll}
+        settings={editorSettings}
         fixedEditorHeight={editorHeight}
         initialFontSize={isBelowMd ? 14 : undefined}
         defaultBlockAlign="left"
