@@ -209,4 +209,6 @@ export { setEmbedProviders, getEmbedProviders } from './embedProviders';
 
 // Web Component（クラスのみ。customElements.define の副作用は "./element" 側に置く）
 export { AnytimeMarkdownEditorElement } from './AnytimeMarkdownEditorElement';
+// lean read-only view 要素（クラスのみ。customElements.define は "./view-element" 側）
+export { AnytimeMarkdownViewElement } from './AnytimeMarkdownViewElement';
 export type { MarkdownChangeDetail } from './AnytimeMarkdownEditorElement';

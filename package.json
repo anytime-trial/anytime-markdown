@@ -18,6 +18,8 @@
   "workspaces": [
     "packages/markdown-viewer",
     "packages/markdown-rich",
+    "packages/markdown-view",
+    "packages/markdown-view-lite",
     "packages/markdown-react-islands",
     "packages/browser-extension",
     "packages/markdown-core",
