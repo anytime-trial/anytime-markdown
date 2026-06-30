@@ -199,6 +199,21 @@ function applySetLabel(spec: ThinkingDiagramSpec, path: string, value: string): 
       return;
     }
   }
+  // structure-map で部分の見出しを改名する場合、その部分を端点に持つ関係も追従改名する
+  // （追従しないと関係が旧ラベルを指して dangling になり、再パースで GraphDslError）。
+  if (spec.type === "structure-map") {
+    const m = /^parts\.(\d+)$/.exec(path);
+    if (m) {
+      const part = spec.parts[Number(m[1])];
+      if (part) {
+        const old = part.label;
+        for (const r of spec.relations) {
+          if (r.from === old) r.from = value;
+          if (r.to === old) r.to = value;
+        }
+      }
+    }
+  }
   const { parent, key } = resolveRef(spec, path);
   if (Array.isArray(parent) && isIndex(key)) {
     const i = Number(key);
@@ -226,6 +241,18 @@ function applyRemove(spec: ThinkingDiagramSpec, path: string): void {
       if (old === undefined) throw new AnytimeGraphMutateError(`変数 index ${idx} がありません`);
       spec.links = spec.links.filter((l) => l.from !== old && l.to !== old);
       return;
+    }
+  }
+  // structure-map で部分を削除する場合、その部分を端点に持つ関係も連動して削除する
+  // （残すとシリアライズ後の DSL が dangling 端点で再パース不能になるため）。後段の
+  // 汎用 splice が部分配列から当該要素を取り除く。
+  if (spec.type === "structure-map") {
+    const m = /^parts\.(\d+)$/.exec(path);
+    if (m) {
+      const removed = spec.parts[Number(m[1])];
+      if (removed) {
+        spec.relations = spec.relations.filter((r) => r.from !== removed.label && r.to !== removed.label);
+      }
     }
   }
   const { parent, key } = resolveRef(spec, path);

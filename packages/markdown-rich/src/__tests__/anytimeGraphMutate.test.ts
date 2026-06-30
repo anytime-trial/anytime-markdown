@@ -168,6 +168,24 @@ describe("anytimeGraphMutate", () => {
       if (domain.type === "structure-map") expect(domain.domains).toEqual(["推薦基盤"]);
     });
 
+    it("部分見出しを改名すると関係端点も追従し、再パース可能", () => {
+      const withRel = [
+        "type: structure-map",
+        "whole: W",
+        "- 入力: 補完",
+        "- 表示",
+        "relations:",
+        "- 入力 -> 表示",
+      ].join("\n");
+      const out = applyAnytimeGraphOp(withRel, { kind: "setLabel", path: "parts.0", value: "入力系" });
+      expect(() => parseGraphDsl(out)).not.toThrow();
+      const spec = parseGraphDsl(out);
+      if (spec.type === "structure-map") {
+        expect(spec.parts[0].label).toBe("入力系");
+        expect(spec.relations).toEqual([{ from: "入力系", to: "表示" }]);
+      }
+    });
+
     it("部分に構成要素を追加（addChild）し、再パース可能", () => {
       const out = applyAnytimeGraphOp(base, { kind: "addChild", path: "parts.1", value: "スニペット" });
       expect(() => parseGraphDsl(out)).not.toThrow();
@@ -175,9 +193,23 @@ describe("anytimeGraphMutate", () => {
       if (spec.type === "structure-map") expect(spec.parts[1].items).toEqual(["スニペット"]);
     });
 
-    it("部分を削除しても関係端点の整合は DSL 側に委ねる（部分削除自体は成功）", () => {
-      const spec = apply(base, { kind: "remove", path: "parts.0" });
-      if (spec.type === "structure-map") expect(spec.parts.map((p) => p.label)).toEqual(["表示"]);
+    it("部分を削除すると当該端点の関係も連動削除され、再パース可能", () => {
+      const withRel = [
+        "type: structure-map",
+        "whole: W",
+        "- 入力: 補完",
+        "- 表示",
+        "relations:",
+        "- 入力 -> 表示",
+      ].join("\n");
+      // remove は dangling 関係を残さない（残すと再パースで GraphDslError）
+      const out = applyAnytimeGraphOp(withRel, { kind: "remove", path: "parts.0" });
+      expect(() => parseGraphDsl(out)).not.toThrow();
+      const spec = parseGraphDsl(out);
+      if (spec.type === "structure-map") {
+        expect(spec.parts.map((p) => p.label)).toEqual(["表示"]);
+        expect(spec.relations).toEqual([]);
+      }
     });
   });
 
