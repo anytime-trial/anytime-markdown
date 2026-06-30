@@ -1,5 +1,5 @@
 import { parseGraphDsl } from "@anytime-markdown/graph-core";
-import { applyAnytimeGraphOp, AnytimeGraphMutateError } from "../vanilla/anytimeGraphMutate";
+import { applyAnytimeGraphOp, AnytimeGraphMutateError, describeNode } from "../vanilla/anytimeGraphMutate";
 import type { AnytimeGraphOp } from "../vanilla/anytimeGraphMutate";
 
 /** 操作を適用した後の DSL を再パースした spec を返す。 */
@@ -35,6 +35,29 @@ describe("anytimeGraphMutate", () => {
           { from: "出荷", to: "在庫量", polarity: "-" },
         ]);
       }
+    });
+
+    it("causal-loop の極性 +/- をリンク単位で編集する", () => {
+      const dsl = ["type: causal-loop", "在庫 -> 出荷: +", "出荷 -> 在庫: -"].join("\n");
+      const spec = apply(dsl, { kind: "setLabel", path: "links.0.polarity", value: "-" });
+      if (spec.type === "causal-loop") expect(spec.links[0].polarity).toBe("-");
+    });
+
+    it("causal-loop の極性は全角を正規化し、不正値は既存値を維持する", () => {
+      const dsl = ["type: causal-loop", "在庫 -> 出荷: +"].join("\n");
+      const full = apply(dsl, { kind: "setLabel", path: "links.0.polarity", value: "－" });
+      if (full.type === "causal-loop") expect(full.links[0].polarity).toBe("-");
+      // 不正値（+/- 以外）は破棄し既存維持 → DSL は再パース可能
+      const invalid = apply(dsl, { kind: "setLabel", path: "links.0.polarity", value: "増加" });
+      if (invalid.type === "causal-loop") expect(invalid.links[0].polarity).toBe("+");
+    });
+
+    it("describeNode は causal-loop 極性パスを編集可能ラベルとして返す（構造操作なし）", () => {
+      const spec = parseGraphDsl(["type: causal-loop", "在庫 -> 出荷: +"].join("\n"));
+      const d = describeNode(spec, "links.0.polarity");
+      expect(d?.label).toBe("+");
+      expect(d?.canRemove).toBe(false);
+      expect(d?.canAddChild).toBe(false);
     });
   });
 
@@ -224,6 +247,22 @@ describe("anytimeGraphMutate", () => {
       expect(() => parseGraphDsl(out)).not.toThrow();
       const spec = parseGraphDsl(out);
       if (spec.type === "structure-map") expect(spec.parts[1].items).toEqual(["スニペット"]);
+    });
+
+    it("部分の構成要素を集約編集（setItem/addItem/removeItem）でき、再パース可能", () => {
+      // 「…」ポップオーバーの項目編集は path=parts.N + index で leafArray を経由する
+      const setItem = applyAnytimeGraphOp(base, { kind: "setItem", path: "parts.0", index: 0, value: "履歴" });
+      expect(() => parseGraphDsl(setItem)).not.toThrow();
+      const s1 = parseGraphDsl(setItem);
+      if (s1.type === "structure-map") expect(s1.parts[0].items).toEqual(["履歴"]);
+
+      const addItem = applyAnytimeGraphOp(base, { kind: "addItem", path: "parts.0", value: "新規" });
+      const s2 = parseGraphDsl(addItem);
+      if (s2.type === "structure-map") expect(s2.parts[0].items).toEqual(["補完", "新規"]);
+
+      const removeItem = applyAnytimeGraphOp(base, { kind: "removeItem", path: "parts.0", index: 0 });
+      const s3 = parseGraphDsl(removeItem);
+      if (s3.type === "structure-map") expect(s3.parts[0].items).toEqual([]);
     });
 
     it("部分を削除すると当該端点の関係も連動削除され、再パース可能", () => {

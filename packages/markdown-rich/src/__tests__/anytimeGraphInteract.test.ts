@@ -126,6 +126,17 @@ describe("attachAnytimeGraphInteractions: インライン編集", () => {
     expect(next.type === "fishbone" && next.problem).toBe("新");
   });
 
+  it("causal-loop の極性エッジをクリックしてインライン編集し、DSL に反映される", () => {
+    const { previewEl, setCode } = setup("type: causal-loop\n在庫 -> 出荷: +");
+    clickNode(previewEl, "links.0.polarity");
+    const ta = inlineEditor();
+    ta.value = "-";
+    ta.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(setCode).toHaveBeenCalledTimes(1);
+    const next = parseGraphDsl(setCode.mock.calls[0][0]);
+    expect(next.type === "causal-loop" && next.links[0].polarity).toBe("-");
+  });
+
   it("値が同じなら確定しても setCode を呼ばない", () => {
     const { previewEl, setCode } = setup("type: fishbone\nproblem: P\n- 人: a");
     clickNode(previewEl, "problem");

@@ -62,6 +62,8 @@ export interface EdgeOpts {
   endShape?: EndpointShape;
   label?: string;
   routing?: RoutingMode;
+  /** spec 内位置などのデータ駆動メタデータ（SVG では data-metadata として出力され、インライン編集の対象になる）。 */
+  metadata?: Record<string, string | number>;
 }
 
 function edgeStyle(opts: EdgeOpts): EdgeStyle {
@@ -83,6 +85,7 @@ export function connectorEdge(id: string, fromId: string, toId: string, opts: Ed
     to: { nodeId: toId, x: 0, y: 0 },
     style: edgeStyle({ endShape: 'arrow', ...opts }),
     label: opts.label,
+    ...(opts.metadata ? { metadata: opts.metadata } : {}),
   };
 }
 
@@ -95,6 +98,7 @@ export function lineEdge(id: string, from: Point, to: Point, opts: EdgeOpts = {}
     to: { x: to.x, y: to.y },
     style: edgeStyle(opts),
     label: opts.label,
+    ...(opts.metadata ? { metadata: opts.metadata } : {}),
   };
 }
 

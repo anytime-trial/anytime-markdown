@@ -91,6 +91,8 @@ export interface GraphEdge {
   bezierPath?: { x: number; y: number }[];
   /** エッジの重み（0-1）。データ駆動スタイリングで太さに変換される */
   weight?: number;
+  /** spec 内位置などのデータ駆動メタデータ（SVG では data-metadata 属性として出力され、インライン編集の対象になる）。 */
+  metadata?: Record<string, string | number>;
 }
 
 export interface Viewport {

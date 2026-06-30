@@ -166,7 +166,14 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[], textColor: string = 
   const sw = style.strokeWidth;
   const dashAttr = style.dashed ? ' stroke-dasharray="6 4"' : '';
   const lines: string[] = [];
-  lines.push(`<g id="${escapeXml(id)}">`);
+  const metadataAttr = edge.metadata
+    ? ` data-metadata="${escapeXml(JSON.stringify(edge.metadata))}"`
+    : '';
+  // ラベルがあればクリック対象/インライン編集アンカーをラベル <text> に置く
+  // （エッジ <g> の bbox は線分全長に及び、編集欄が肥大化するため）。
+  // ラベルが無いメタデータ付きエッジは従来どおり <g> に出力する。
+  const labelCarriesMetadata = Boolean(edge.metadata) && Boolean(edge.label);
+  lines.push(`<g id="${escapeXml(id)}"${labelCarriesMetadata ? '' : metadataAttr}>`);
 
   const bezier = resolveBezierPath(edge, nodes);
   const points = bezier ?? resolveEdgePoints(edge, nodes);
@@ -193,7 +200,7 @@ function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[], textColor: string = 
       my = (edge.from.y + edge.to.y) / 2;
     }
     lines.push(
-      `<text x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central" fill="${escapeXml(textColor)}" font-size="13" font-family="${FONT_FAMILY}" paint-order="stroke" stroke="${escapeXml(textColor)}" stroke-width="0">${escapeXml(edge.label)}</text>`,
+      `<text x="${mx}" y="${my}"${labelCarriesMetadata ? metadataAttr : ''} text-anchor="middle" dominant-baseline="central" fill="${escapeXml(textColor)}" font-size="13" font-family="${FONT_FAMILY}" paint-order="stroke" stroke="${escapeXml(textColor)}" stroke-width="0">${escapeXml(edge.label)}</text>`,
     );
   }
 
