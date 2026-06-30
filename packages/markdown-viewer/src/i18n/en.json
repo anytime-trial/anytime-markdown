@@ -240,6 +240,8 @@
     "anytimeGraphAddSibling": "Add sibling",
     "anytimeGraphRemove": "Delete",
     "anytimeGraphNewLabel": "New",
+    "anytimeGraphMoreActions": "Add / remove",
+    "anytimeGraphItemsPerLineHint": "One item per line",
     "lists": "Lists",
     "codeQuote": "Code & Quote",
     "insertDiagram": "Insert Diagram",

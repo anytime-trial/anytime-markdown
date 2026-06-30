@@ -140,6 +140,39 @@ describe("anytimeGraphMutate", () => {
     });
   });
 
+  describe("setItems (複数行インライン編集の一括置換)", () => {
+    it("double-diamond のフェーズを新リストへ置換する（追加・削除・並べ替え）", () => {
+      const dsl = "type: double-diamond\ndiscover: a, b, c";
+      const spec = apply(dsl, { kind: "setItems", path: "discover", values: ["c", "a", "d"] });
+      if (spec.type === "double-diamond") expect(spec.discover).toEqual(["c", "a", "d"]);
+    });
+
+    it("swot 象限を空リストにできる", () => {
+      const dsl = "type: swot\nstrengths: a, b";
+      const spec = apply(dsl, { kind: "setItems", path: "strengths", values: [] });
+      if (spec.type === "swot") expect(spec.strengths).toEqual([]);
+    });
+
+    it("空行・前後空白を除去して項目化する", () => {
+      const dsl = "type: swot\nstrengths: a";
+      const spec = apply(dsl, { kind: "setItems", path: "strengths", values: ["  x ", "", "   ", "y"] });
+      if (spec.type === "swot") expect(spec.strengths).toEqual(["x", "y"]);
+    });
+
+    it("fishbone カテゴリの causes を一括置換する", () => {
+      const dsl = "type: fishbone\nproblem: P\n- 人: a, b";
+      const spec = apply(dsl, { kind: "setItems", path: "categories.0", values: ["a", "b", "c"] });
+      if (spec.type === "fishbone") expect(spec.categories[0].causes).toEqual(["a", "b", "c"]);
+    });
+
+    it("集約リーフ非対応の図種では AnytimeGraphMutateError", () => {
+      const dsl = "type: pyramid\n- 理念";
+      expect(() => applyAnytimeGraphOp(dsl, { kind: "setItems", path: "tiers.0", values: ["x"] })).toThrow(
+        AnytimeGraphMutateError,
+      );
+    });
+  });
+
   describe("setDesc (pyramid)", () => {
     it("tier の説明を設定する", () => {
       const dsl = "type: pyramid\n- 理念\n- 戦略";

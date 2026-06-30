@@ -30,6 +30,8 @@ export type AnytimeGraphOp =
   | { kind: "removeItem"; path: string; index: number }
   /** 集約リーフ配列に要素を追加 */
   | { kind: "addItem"; path: string; value: string }
+  /** 集約リーフ配列を新リストへ一括置換（複数行インライン編集の確定。空行/前後空白は除去） */
+  | { kind: "setItems"; path: string; values: string[] }
   /** pyramid tier の説明文を設定（空文字で説明を消す） */
   | { kind: "setDesc"; path: string; value: string };
 
@@ -325,6 +327,13 @@ export function mutateSpec(spec: ThinkingDiagramSpec, op: AnytimeGraphOp): void 
     case "addItem":
       leafArray(spec, op.path).push(op.value);
       break;
+    case "setItems": {
+      const arr = leafArray(spec, op.path);
+      const next = op.values.map((v) => v.trim()).filter((v) => v.length > 0);
+      arr.length = 0;
+      arr.push(...next);
+      break;
+    }
     case "setDesc":
       applyDescSet(spec, op.path, op.value);
       break;
