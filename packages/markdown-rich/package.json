@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./element": "./src/element.ts",
+    "./view-element": "./src/view-element.ts",
     "./src/*": "./src/*"
   },
   "scripts": {
