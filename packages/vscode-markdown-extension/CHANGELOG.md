@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-06-30
+
+### Added
+
+- Body-width `full` (full screen width) preset added to the VS Code measure setting.
+
+### Fixed
+
+- "Claude is editing" banner sometimes failed to clear; added a stale-state safety net and per-file lock delivery.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Thinking-method diagrams: structure-map diagram type, in-place inline label editing, and DSL-derived label editing (structure-map summaries, causal-loop polarity).
+- Mindmaps switched to a FreeMind-style layout; child-node overlap fixed.
+- New read-only `<anytime-markdown-view>` element for embedding.
+
 ## [1.8.0] - 2026-06-27
 
 ### Added

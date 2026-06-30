@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-06-30
+
+### Changed
+
+- Version aligned with the Anytime Trail extension 0.31.1 release (security dependency updates and bundled skill changes). No functional changes to `trail-core` itself.
+
 ## [0.31.0] - 2026-06-27
 
 ### Changed

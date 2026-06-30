@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-06-30
+
+### Changed
+
+- Report body now renders with a wide measure and a large container for more comfortable reading.
+- MarkdownViewer adjustments accompanying the wide report layout.
+
 ## [0.33.1] - 2026-06-27
 
 ### Fixed

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-30
+
+### Added
+
+- Thinking-method diagrams: new `structure-map` diagram type, with cascading relation updates on partial delete/rename.
+- Mindmaps now use a FreeMind-style layout (central root, leaf-count-balanced left/right expansion, bezier curves).
+
+### Fixed
+
+- Mindmap child-node overlap resolved (sibling spacing made angle-dependent).
+- Edge metadata is now carried on the label text element to prevent the edit field from inflating.
+
 ## [0.8.0] - 2026-06-20
 
 ### Added

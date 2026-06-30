@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-06-30
+
+### 追加
+
+- VS Code の measure 設定に `full`（画面幅いっぱい）プリセットを追加。
+
+### 修正
+
+- 「Claude 編集中」バナーが解除されない問題を修正（stale 状態の安全網＋ファイル単位ロック配信）。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- 思考法ダイアグラム: structure-map 図種、プレビュー上でのインラインラベル編集、DSL 由来ラベル編集（structure-map まとめ／causal-loop 極性）。
+- マインドマップを FreeMind 風レイアウトへ変更、子ノード重なりを修正。
+- 埋め込み用の読み取り専用 `<anytime-markdown-view>` 要素を追加。
+
 ## [1.8.0] - 2026-06-27
 
 ### 追加

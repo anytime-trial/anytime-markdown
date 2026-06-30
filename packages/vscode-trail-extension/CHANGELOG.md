@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-06-30
+
+### Security
+
+- Updated bundled dependencies for security: `ws` 8.20.1 → 8.21.0, `dompurify` 3.4.0 → 3.4.11.
+
+### Changed
+
+- Bundled `anytime-dev-health` skill: added scanning and ledgering of intentional-simplification markers (`// SHORTCUT: … ceiling … upgrade`).
+
 ## [0.31.0] - 2026-06-27
 
 ### Changed
