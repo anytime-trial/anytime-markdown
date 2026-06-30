@@ -55,7 +55,12 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
     const children = node.children ?? [];
     if (children.length === 0) return;
     const perp = { x: -outward.y, y: outward.x };
-    const spread = 86;
+    // 兄弟の中心間隔。perp（兄弟を広げる軸）方向へのノード矩形の投影 extent に
+    // ギャップを足す。真上/真下ブランチ（perp が水平＝幅 NODE_W 支配）でも
+    // 隣接ボックスが重ならないよう、固定値ではなく角度依存で算出する。
+    const SIBLING_GAP = 30;
+    const projected = NODE_W * Math.abs(perp.x) + NODE_H * Math.abs(perp.y);
+    const spread = projected + SIBLING_GAP;
     children.forEach((child, idx) => {
       const offset = (idx - (children.length - 1) / 2) * spread;
       const cx = center.x + outward.x * RADIUS_STEP + perp.x * offset;

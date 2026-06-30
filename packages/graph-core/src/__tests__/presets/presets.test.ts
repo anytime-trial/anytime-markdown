@@ -64,6 +64,30 @@ describe('buildThinkingDiagram', () => {
     expect(doc.nodes).toHaveLength(5);
   });
 
+  it('mindmap: 真上ブランチでも兄弟の子ノードが重ならない（spread が NODE_W を下回らない）', () => {
+    const doc = buildThinkingDiagram(
+      {
+        type: 'mindmap',
+        root: '中心テーマ',
+        branches: [
+          { label: 'ブランチ1', children: [{ label: '子1' }, { label: '子2' }] },
+          { label: 'ブランチ2' },
+          { label: 'ブランチ3' },
+        ],
+      },
+      true,
+    );
+    // ブランチ1（真上, perp が水平）の 2 子ノードを取得
+    const child1 = doc.nodes.find((n) => n.text === '子1')!;
+    const child2 = doc.nodes.find((n) => n.text === '子2')!;
+    expect(child1).toBeDefined();
+    expect(child2).toBeDefined();
+    // AABB が水平方向に重ならない（一方の左端 ≥ 他方の右端）
+    const noOverlapX =
+      child1.x >= child2.x + child2.width || child2.x >= child1.x + child1.width;
+    expect(noOverlapX).toBe(true);
+  });
+
   it('double-diamond: 2ダイヤ＋4見出し＋4項目', () => {
     const doc = buildThinkingDiagram(
       { type: 'double-diamond', discover: ['観察'], define: ['課題定義'], develop: ['アイデア'], deliver: ['検証'] },
