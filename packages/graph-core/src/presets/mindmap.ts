@@ -114,6 +114,8 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
     const rootRect = layout.get(SYNTH_ROOT)!;
     const dy = -(rootRect.y + NODE_H / 2);
     const dx = mirror ? -dxRight : dxRight;
+    const branchFillAlpha = isDark ? 0.2 : 0.14;
+    const leafFillAlpha = isDark ? 0.14 : 0.1;
 
     for (const [id, rect] of layout) {
       if (id === SYNTH_ROOT) continue;
@@ -122,7 +124,7 @@ export function buildMindmap(spec: MindmapSpec, isDark: boolean): GraphDocument 
       const y = rect.y + dy;
       nodes.push(
         mkNode(id, 'rect', { x, y, width: rect.width, height: rect.height }, entry.spec.label, {
-          fill: withAlpha(entry.color, isDark ? (entry.isBranch ? 0.2 : 0.14) : entry.isBranch ? 0.14 : 0.1),
+          fill: withAlpha(entry.color, entry.isBranch ? branchFillAlpha : leafFillAlpha),
           stroke: entry.color,
           strokeWidth: entry.isBranch ? 2 : 1.5,
           fontColor: pal.text,
