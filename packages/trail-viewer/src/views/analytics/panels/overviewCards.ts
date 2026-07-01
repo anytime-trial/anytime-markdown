@@ -207,7 +207,7 @@ export function mountOverviewCards(
       tip.title = card.tooltip;
       tip.textContent = '?';
       tip.style.cssText =
-        'cursor:help;flex-shrink:0;color:var(--am-color-text-secondary);font-size:12px;';
+        'cursor:help;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:14px;height:14px;border:1px solid currentColor;border-radius:50%;color:var(--am-color-text-secondary);font-size:9px;line-height:1;';
       header.appendChild(tip);
     }
     doraContainer.appendChild(header);
