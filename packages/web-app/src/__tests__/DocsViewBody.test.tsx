@@ -30,7 +30,15 @@ jest.mock("../app/components/SiteFooter", () => ({
 
 jest.mock("../app/components/MarkdownViewer", () => ({
   __esModule: true,
-  default: (props: any) => <div data-testid="markdown-viewer" data-doc-key={props.docKey} />,
+  default: (props: any) => (
+    <div
+      data-testid="markdown-viewer"
+      data-doc-key={props.docKey}
+      data-minimal={props.minimal ? "true" : "false"}
+      data-measure={props.measure ?? ""}
+      data-no-scroll={props.noScroll ? "true" : "false"}
+    />
+  ),
 }));
 
 import DocsViewBody from "../app/docs/view/DocsViewBody";
@@ -46,6 +54,16 @@ describe("DocsViewBody", () => {
   it("renders header", () => {
     render(<DocsViewBody />);
     expect(screen.getByTestId("landing-header")).toBeTruthy();
+  });
+
+  // report 記事と同一の read-only view 要素（<anytime-markdown-view>）経路にするため、
+  // minimal / measure="wide" / noScroll を MarkdownViewer に渡すことを保証する。
+  it("uses the same read-only view component as reports (minimal + wide + noScroll)", () => {
+    render(<DocsViewBody />);
+    const viewer = screen.getByTestId("markdown-viewer");
+    expect(viewer.getAttribute("data-minimal")).toBe("true");
+    expect(viewer.getAttribute("data-measure")).toBe("wide");
+    expect(viewer.getAttribute("data-no-scroll")).toBe("true");
   });
 });
 
