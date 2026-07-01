@@ -321,7 +321,7 @@ function buildHelpHeader(
   helpBtn.setAttribute('aria-label', title);
   helpBtn.title = description;
   helpBtn.style.cssText =
-    `opacity:0.7;cursor:help;flex-shrink:0;font-size:12px;color:${textColor};`;
+    `opacity:0.7;cursor:help;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:14px;height:14px;border:1px solid currentColor;border-radius:50%;font-size:9px;line-height:1;color:${textColor};`;
   helpBtn.textContent = '?';
   header.appendChild(helpBtn);
 
