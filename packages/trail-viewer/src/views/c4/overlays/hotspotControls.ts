@@ -102,6 +102,7 @@ export function mountHotspotControls(
 
   const radioGroup = createRadioGroup({
     value: props.value.granularity,
+    ariaLabel: props.labelGranularity,
     onChange: (v) => {
       props.onChange({ ...props.value, granularity: v as HotspotGranularity });
     },

@@ -9,6 +9,7 @@ import {
   createRadio,
   createFormControlLabel,
   createRadioGroup,
+  createInputLabel,
 } from '@anytime-markdown/ui-core';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 import type {
@@ -197,6 +198,7 @@ export function mountTemporalCouplingControls(
   const granularityRadioGroup = createRadioGroup({
     value: props.value.granularity,
     row: true,
+    ariaLabel: granularityLabel.textContent ?? '粒度',
     onChange: (v) => {
       const gran = v as TemporalCouplingGranularity;
       if (gran === props.value.granularity) return;
@@ -238,6 +240,10 @@ export function mountTemporalCouplingControls(
   });
   windowSelect.el.style.minWidth = '88px';
   windowSelect.el.disabled = !props.value.enabled;
+  const windowWrap = document.createElement('div');
+  windowWrap.style.cssText = 'display:flex;flex-direction:column;';
+  windowWrap.appendChild(createInputLabel({ shrink: true, children: '集計期間' }).el);
+  windowWrap.appendChild(windowSelect.el);
 
   // -- Threshold slider row --
   const thresholdRow = makeSliderRow(
@@ -274,6 +280,10 @@ export function mountTemporalCouplingControls(
   });
   topKSelect.el.style.minWidth = '80px';
   topKSelect.el.disabled = !props.value.enabled;
+  const topKWrap = document.createElement('div');
+  topKWrap.style.cssText = 'display:flex;flex-direction:column;';
+  topKWrap.appendChild(createInputLabel({ shrink: true, children: 'Top-K' }).el);
+  topKWrap.appendChild(topKSelect.el);
 
   // -- Status text --
   const statusText = makeStatusText();
@@ -296,14 +306,14 @@ export function mountTemporalCouplingControls(
     }
 
     if (showInline) {
-      root.appendChild(windowSelect.el);
+      root.appendChild(windowWrap);
       if (!props.value.directional) {
         root.appendChild(thresholdRow.el);
       } else if (showDirectional) {
         root.appendChild(confidenceRow.el);
         root.appendChild(diffRow.el);
       }
-      root.appendChild(topKSelect.el);
+      root.appendChild(topKWrap);
     }
 
     root.appendChild(statusText);
