@@ -502,7 +502,7 @@ export function mountDailySessionList(
     if (p.sessionsLoading) {
       const loadingEl = document.createElement('div');
       loadingEl.style.cssText = 'display:flex;justify-content:center;padding:24px 0;';
-      loadingEl.appendChild(createSpinner({ size: 24 }).el);
+      loadingEl.appendChild(createSpinner({ size: 24, ariaLabel: p.t('viewer.loading') }).el);
       leftBox.appendChild(loadingEl);
     } else if (daySessions.length === 0) {
       const emptyEl = document.createElement('div');

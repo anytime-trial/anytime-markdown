@@ -499,7 +499,7 @@ export function mountCombinedChartsSection(
         const loadingEl = document.createElement('div');
         loadingEl.style.cssText =
           'display:flex;justify-content:center;align-items:center;min-height:240px;';
-        loadingEl.appendChild(createSpinner({ size: 24 }).el);
+        loadingEl.appendChild(createSpinner({ size: 24, ariaLabel: p.t('viewer.loading') }).el);
         parent.appendChild(loadingEl);
         return;
       }

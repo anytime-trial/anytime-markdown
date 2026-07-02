@@ -34,8 +34,9 @@ const SEVERITY_BG: Record<AlertSeverity, string> = {
   success: "var(--am-color-success-main)",
   error: "var(--am-color-error-main)",
   // info の CSS 変数は trail 系ホスト（applyTrailThemeVars）でのみ注入されるため、
-  // 未注入ホスト（markdown-viewer 等）向けに MUI info.main 相当のフォールバック色を持たせる。
-  info: "var(--am-color-info-main, #42A5F5)",
+  // 未注入ホスト（markdown-viewer 等）向けにフォールバック色を持たせる。白文字（ROOT_CSS）との
+  // コントラストが AA 近傍になる MUI light info.main（#0288d1）を使う。
+  info: "var(--am-color-info-main, #0288d1)",
 };
 
 /** root（.root）の基本スタイル（Alert.module.css と一致）。背景は severity 別に追加する。 */
