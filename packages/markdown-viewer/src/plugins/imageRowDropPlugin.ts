@@ -2,6 +2,8 @@ import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/mode
 import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
+import { safeResolve } from "../utils/safeResolve";
+
 type DropDecision =
   | { action: "wrap-left" | "wrap-right"; targetPos: number; targetElement: Element }
   | { action: "default" };
@@ -176,14 +178,11 @@ function resolveSourceFromDragPos(
 ): { node: ProseMirrorNode; pos: number } | null {
   if (dragSourcePos == null) return null;
   if (dragSourcePos < 0 || dragSourcePos > view.state.doc.content.size) return null;
-  try {
-    const resolved = resolveTargetImage(view.state.doc.resolve(dragSourcePos));
-    if (resolved && resolved.node.attrs.src === expectedSrc) {
-      return { node: resolved.node, pos: resolved.pos };
-    }
-  } catch {
-    // 位置が古い等で resolve に失敗した場合はフォールバックへ
-    return null;
+  const $pos = safeResolve(view.state.doc, dragSourcePos, "resolveSourceFromDragPos");
+  if (!$pos) return null;
+  const resolved = resolveTargetImage($pos);
+  if (resolved && resolved.node.attrs.src === expectedSrc) {
+    return { node: resolved.node, pos: resolved.pos };
   }
   return null;
 }

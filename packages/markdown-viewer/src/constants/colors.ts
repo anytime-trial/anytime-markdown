@@ -215,6 +215,15 @@ export const LIGHT_SUCCESS_BG = "rgba(75,90,62,0.08)";
 export const LIGHT_INFO_MAIN = "#3D4A52";
 export const LIGHT_INFO_BG = "rgba(61,74,82,0.08)";
 
+// ── Diff（差分表示・changeGutter/diffHighlight 共通） ──
+// collapse ウィジェット（折りたたみ展開ボタン）の中立グレー。add/removed とは独立した UI 要素。
+export const DARK_DIFF_COLLAPSE_FG = "rgba(176,176,176,0.9)";
+export const LIGHT_DIFF_COLLAPSE_FG = "rgba(90,90,90,0.9)";
+export const DARK_DIFF_COLLAPSE_BG = "rgba(255,255,255,0.06)";
+export const LIGHT_DIFF_COLLAPSE_BG = "rgba(0,0,0,0.05)";
+export const DARK_DIFF_COLLAPSE_BORDER = "rgba(255,255,255,0.25)";
+export const LIGHT_DIFF_COLLAPSE_BORDER = "rgba(0,0,0,0.25)";
+
 export const DARK_GREY_100 = "#f5f5f5";
 export const DARK_GREY_300 = "#e0e0e0";
 export const DARK_GREY_900 = "#212121";
@@ -267,6 +276,31 @@ export function getSuccessBg(isDark: boolean): string {
 }
 export function getInfoBg(isDark: boolean): string {
   return isDark ? DARK_INFO_BG : LIGHT_INFO_BG;
+}
+
+/** 差分ブロックハイライト背景（削除=error / 追加=success、alpha 0.10）を返す */
+export function getDiffRemovedBlockBg(isDark: boolean): string {
+  return alpha(getErrorMain(isDark), 0.1);
+}
+export function getDiffAddedBlockBg(isDark: boolean): string {
+  return alpha(getSuccessMain(isDark), 0.1);
+}
+/** 差分セルハイライト背景（削除=error / 追加=success、alpha 0.18）を返す */
+export function getDiffRemovedCellBg(isDark: boolean): string {
+  return alpha(getErrorMain(isDark), 0.18);
+}
+export function getDiffAddedCellBg(isDark: boolean): string {
+  return alpha(getSuccessMain(isDark), 0.18);
+}
+/** 差分 collapse 展開ウィジェットの中立グレー（文字色/背景/罫線）を返す */
+export function getDiffCollapseFg(isDark: boolean): string {
+  return isDark ? DARK_DIFF_COLLAPSE_FG : LIGHT_DIFF_COLLAPSE_FG;
+}
+export function getDiffCollapseBg(isDark: boolean): string {
+  return isDark ? DARK_DIFF_COLLAPSE_BG : LIGHT_DIFF_COLLAPSE_BG;
+}
+export function getDiffCollapseBorder(isDark: boolean): string {
+  return isDark ? DARK_DIFF_COLLAPSE_BORDER : LIGHT_DIFF_COLLAPSE_BORDER;
 }
 
 /**

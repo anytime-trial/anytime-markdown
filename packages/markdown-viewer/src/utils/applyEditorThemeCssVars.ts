@@ -8,6 +8,13 @@ import {
   getActionHover,
   getActionSelected,
   getBgPaper,
+  getDiffAddedBlockBg,
+  getDiffAddedCellBg,
+  getDiffCollapseBg,
+  getDiffCollapseBorder,
+  getDiffCollapseFg,
+  getDiffRemovedBlockBg,
+  getDiffRemovedCellBg,
   getDivider,
   getErrorMain,
   getPrimaryContrast,
@@ -250,6 +257,14 @@ export function applyChromeTokens(root: HTMLElement, isDark: boolean): void {
   root.style.setProperty("--am-color-code-bg", isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG);
   root.style.setProperty("--am-color-diff-removed-bg", alpha(getErrorMain(isDark), 0.35));
   root.style.setProperty("--am-color-diff-added-bg", alpha(getSuccessMain(isDark), 0.35));
+  // changeGutter / diffHighlight のブロック・セルハイライト・collapse ウィジェット用トークン。
+  root.style.setProperty("--am-color-diff-removed-block-bg", getDiffRemovedBlockBg(isDark));
+  root.style.setProperty("--am-color-diff-added-block-bg", getDiffAddedBlockBg(isDark));
+  root.style.setProperty("--am-color-diff-removed-cell-bg", getDiffRemovedCellBg(isDark));
+  root.style.setProperty("--am-color-diff-added-cell-bg", getDiffAddedCellBg(isDark));
+  root.style.setProperty("--am-color-diff-collapse-fg", getDiffCollapseFg(isDark));
+  root.style.setProperty("--am-color-diff-collapse-bg", getDiffCollapseBg(isDark));
+  root.style.setProperty("--am-color-diff-collapse-border", getDiffCollapseBorder(isDark));
 
   // chrome 寸法トークン（モード非依存・spec/12.design 準拠）。
   // Next.js のグローバル CSS import 制約を避けるため CSS ファイルではなく JS で注入する。

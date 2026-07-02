@@ -1,6 +1,7 @@
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 import { TableMap } from "@anytime-markdown/markdown-pm/tables";
 
+import { safeResolve } from "../../utils/safeResolve";
 import { tableCellModePluginKey } from "./tableCellModePlugin";
 
 // ----------------------------------------------------------------
@@ -78,8 +79,8 @@ function findTable(
   cellPos: number,
 ): { tableNode: import("@anytime-markdown/markdown-pm/model").Node; tableStart: number } | null {
   const { doc } = view.state;
-  try {
-    const $pos = doc.resolve(cellPos);
+  const $pos = safeResolve(doc, cellPos, "findTable");
+  if ($pos) {
     for (let depth = $pos.depth; depth >= 0; depth--) {
       if ($pos.node(depth).type.name === "table") {
         return {
@@ -88,8 +89,6 @@ function findTable(
         };
       }
     }
-  } catch {
-    // 位置が無効
   }
   return null;
 }
