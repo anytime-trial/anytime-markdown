@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-07-02
+
+### Trail Core (trail-viewer)
+
+- De-React parity recheck: restored missing behavior/appearance across C4, the shell/panels, logs/messages/memory, analytics tooltips, the C4 toolbar (i18n/a11y), the C4 canvas dynamic aria-label, and the codeGraph/evaluation/sessionList panels; restored loading/empty-state presentations; circled the metric-card `?` help icon; restored visible labels, aria, and variants (Alert fallback color, Spinner aria).
+
 ## [0.31.1] - 2026-06-30
 
 ### Security

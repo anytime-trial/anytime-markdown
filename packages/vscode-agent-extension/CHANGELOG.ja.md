@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-02
+
+### 追加
+
+- Agent 委任契約: 返却契約に abstention 出口（`taskStatus` / `abstainReason`、additive optional）を追加し、委任先サブエージェントがタスクを辞退できるようにした。`anytime-agent-rotation` スキルに対応するハンドリングを追加。
+
 ## [1.0.0] - 2026-06-27
 
 ### 変更

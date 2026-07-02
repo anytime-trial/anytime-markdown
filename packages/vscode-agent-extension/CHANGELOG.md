@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-02
+
+### Added
+
+- Agent delegation contract: an abstention exit (`taskStatus` / `abstainReason`, additive optional) so a delegated subagent can decline a task, with matching handling in the `anytime-agent-rotation` skill.
+
 ## [1.0.0] - 2026-06-27
 
 ### Changed

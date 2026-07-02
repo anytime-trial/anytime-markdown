@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-07-02
+
+### 変更
+
+- `/docs` 表示を、report ページと同一の読み取り専用 view 要素（`<anytime-markdown-view>`）で描画するよう統一。
+
+### 修正
+
+- `/api/ogp`・`/api/rss` が使うサーバー側 SSRF ガード（`assertSafeUrl`）と OGP パーサ（`parseOgpHtml`）を、markdown-viewer 内部からの deep import（dead code として削除済み）ではなく web-app 内に保持するよう移設し、本番ビルドを復旧。
+
 ## [0.34.0] - 2026-06-30
 
 ### 変更

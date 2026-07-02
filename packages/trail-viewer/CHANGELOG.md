@@ -30,6 +30,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Fixed a vanilla-migration regression where the resizable popup's maximize / resize stopped responding (the component now holds live state and re-renders itself before notifying callbacks).
 - Restored the ↗ popup trigger on combined charts.
 - Matched the popup top-right icon color to the theme color.
+- De-React parity recheck: restored missing behavior/appearance across C4 (6 gaps), the shell/panels (6 gaps), logs/messages/memory, analytics tooltips, the C4 toolbar (i18n/a11y), the C4 canvas dynamic aria-label, and the codeGraph/evaluation/sessionList panels.
+- Restored the loading and empty-state presentations lost in the de-React migration.
+- Rendered the metric-card `?` help mark as a circled icon.
+- Accessibility: restored visible labels, aria, and variants dropped during the de-React migration; fixed the Alert fallback color and Spinner aria.
 
 ## [0.16.0] - 2026-05-08
 

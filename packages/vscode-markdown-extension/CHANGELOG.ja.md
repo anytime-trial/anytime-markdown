@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-07-02
+
+### セキュリティ
+
+- workspace trust ガードを追加し、Disposable 処理とログ規約をプロジェクト規約に整合。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- vanilla UI のロジック・状態購読・エラー可視化の回帰を修正、diff 色をテーマトークン化。
+- PlantUML encoder 修正、KaTeX/印刷 SVG サニタイズ、webImport サニタイズの対称化と origin 検証。
+- vanilla UI のキーボード操作・aria・i18n に対応。
+
 ## [1.9.0] - 2026-06-30
 
 ### 追加

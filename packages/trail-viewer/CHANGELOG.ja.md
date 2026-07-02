@@ -30,6 +30,10 @@
 - resizable ポップアップの全画面化／リサイズが効かなくなる vanilla 化回帰を修正（コンポーネントが live state を持って自己再描画してからコールバック通知するように）。
 - combined チャートの ↗ ポップアップトリガを復元。
 - ポップアップ右上アイコンの色をテーマ色に一致。
+- 脱React パリティ再監査: C4（欠落 6 件）・シェル/パネル（欠落 6 件）・logs/messages/memory・analytics ツールチップ・C4 ツールバー（i18n/a11y）・C4 canvas の動的 aria-label・codeGraph/evaluation/sessionList パネルの挙動/見た目回帰を復元。
+- 脱React 化で失われたローディング/空状態の表現を復元。
+- 指標カードの `?` ヘルプ記号を円囲みアイコン化。
+- アクセシビリティ: 脱React 化で欠落した可視ラベル・aria・variant を復元、Alert フォールバック色と Spinner aria を修正。
 
 ## [0.16.0] - 2026-05-08
 

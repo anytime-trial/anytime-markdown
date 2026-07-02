@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-07-02
+
+### Changed
+
+- `/docs` view now renders through the same read-only view element (`<anytime-markdown-view>`) used by report pages, for consistent display.
+
+### Fixed
+
+- Server-side SSRF guard (`assertSafeUrl`) and OGP parser (`parseOgpHtml`), used by the `/api/ogp` and `/api/rss` routes, now live inside web-app instead of being deep-imported from markdown-viewer internals (which had removed them as dead code), restoring the production build.
+
 ## [0.34.0] - 2026-06-30
 
 ### Changed
