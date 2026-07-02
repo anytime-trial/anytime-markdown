@@ -7,7 +7,7 @@ import type {
 } from '../../../domain/parser/types';
 import { fmtNum, fmtTokens, fmtUsd } from '../../../domain/analytics/formatters';
 import { sessionCost } from '../../../domain/analytics/calculators';
-import { createTooltip } from '@anytime-markdown/ui-core';
+import { createTooltip, createSpinner } from '@anytime-markdown/ui-core';
 import { agentBrandColors } from '../../../theme/designTokens';
 import { applyThinScrollbar } from '../../../theme/thinScrollbar';
 import { buildDaySession } from '../../../components/analytics/helpers';
@@ -502,7 +502,7 @@ export function mountDailySessionList(
     if (p.sessionsLoading) {
       const loadingEl = document.createElement('div');
       loadingEl.style.cssText = 'display:flex;justify-content:center;padding:24px 0;';
-      loadingEl.textContent = '...';
+      loadingEl.appendChild(createSpinner({ size: 24 }).el);
       leftBox.appendChild(loadingEl);
     } else if (daySessions.length === 0) {
       const emptyEl = document.createElement('div');

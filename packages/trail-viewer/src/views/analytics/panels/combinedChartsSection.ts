@@ -34,7 +34,7 @@ import {
   type CombinedChartsContentThemeProps,
 } from '../charts/combined/combinedChartsContent';
 import { mountDailySessionList } from './dailySessionList';
-import { createTooltip } from '@anytime-markdown/ui-core';
+import { createTooltip, createSpinner } from '@anytime-markdown/ui-core';
 
 // メトリクストグルの説明ツールチップ i18n キー（value → key。旧 CombinedChartsSection の
 // 各 ToggleButton を包んでいた Tooltip title を復元する。value 名とキー名は一部非対称）。
@@ -498,8 +498,8 @@ export function mountCombinedChartsSection(
       if (combinedLoading && !combinedData) {
         const loadingEl = document.createElement('div');
         loadingEl.style.cssText =
-          'display:flex;justify-content:center;align-items:center;min-height:240px;font-size:0.875rem;color:var(--am-color-text-secondary);';
-        loadingEl.textContent = '...';
+          'display:flex;justify-content:center;align-items:center;min-height:240px;';
+        loadingEl.appendChild(createSpinner({ size: 24 }).el);
         parent.appendChild(loadingEl);
         return;
       }

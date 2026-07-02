@@ -47,12 +47,14 @@ export function mountPipelineRunsTimeline(
 
   const root = document.createElement('div');
   root.setAttribute('aria-label', props.t('memory.runs.timeline'));
-  root.style.cssText = 'height:160px;padding:0 8px;box-sizing:border-box;';
+  // 高さは状態別: チャート表示時のみ 160px、空状態は内容最小（旧 p:2 相当）。固定 160px 枠を空でも
+  // 出すのは回帰だった。
+  root.style.cssText = 'padding:0 8px;box-sizing:border-box;';
   container.appendChild(root);
 
   const emptyEl = document.createElement('div');
   emptyEl.style.cssText =
-    'height:100%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:var(--am-color-text-secondary);';
+    'display:flex;align-items:center;justify-content:center;padding:16px;font-size:0.75rem;color:var(--am-color-text-secondary);';
   emptyEl.textContent = props.t('memory.runs.empty');
 
   function buildSpec(rows: readonly MemoryPipelineRunStatsByDayRow[]) {
@@ -67,11 +69,13 @@ export function mountPipelineRunsTimeline(
   function renderEmpty(): void {
     chartEl?.remove();
     chartEl = null;
+    root.style.height = 'auto';
     if (!emptyEl.isConnected) root.appendChild(emptyEl);
   }
 
   function renderChart(rows: readonly MemoryPipelineRunStatsByDayRow[]): void {
     if (emptyEl.isConnected) emptyEl.remove();
+    root.style.height = '160px';
     const spec = buildSpec(rows);
     if (chartEl) {
       chartEl.spec = spec;
