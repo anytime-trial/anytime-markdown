@@ -27,6 +27,12 @@ export interface MatrixPanelVanillaProps {
   readonly level: 'package' | 'component' | 'code';
   readonly onLevelChange: (level: 'package' | 'component' | 'code') => void;
   readonly colors: MatrixPanelColors;
+  /**
+   * データ世代の署名。grid は mount 時にセルデータ・色関数を固定し update() では差し替えられない。
+   * 構造（rows/cols/headers）が不変のまま hotspot/complexity/community 等が非同期確定した場合でも
+   * この署名が変われば remount してセル値・色を反映する。省略時は構造署名のみで判定する。
+   */
+  readonly dataSig?: string;
   /** Reserved for future i18n; currently unused. */
   readonly t: (key: string) => string;
 }
@@ -108,7 +114,9 @@ export function mountMatrixPanel(
   function renderSheet(): void {
     if (props.gridOptions) {
       if (emptyEl) { emptyEl.remove(); emptyEl = null; }
-      const sig = gridStructureSig(props.gridOptions);
+      // 構造署名に加えデータ世代署名（dataSig）も含める。grid は mount 時にデータを固定するため、
+      // 構造不変でもデータ（セル値・色）が変われば remount が要る。
+      const sig = `${gridStructureSig(props.gridOptions)}|${props.dataSig ?? ''}`;
       // The grid's update() only swaps the theme, not the adapter/dimensions, so
       // a structural change (e.g. DSM level C2/C3/C4) requires a remount.
       if (gridHandle && sig !== gridSig) {

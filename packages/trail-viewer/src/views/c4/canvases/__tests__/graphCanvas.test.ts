@@ -161,6 +161,33 @@ describe('mountGraphCanvas', () => {
     handle.destroy();
   });
 
+  // Regression: nodeAtScreen が frame（Boundary 枠）をヒットテストしないと、frame の
+  // ダブルクリック・body ドラッグでのグループ一括移動・frame 選択が全て無反応になる
+  // （handleMouseDown の hit.type==='frame' 分岐が到達不能になる）。
+  it('double-click on a frame body hits the frame and fires onNodeDoubleClick', () => {
+    const onNodeDoubleClick = jest.fn();
+    const container = document.createElement('div');
+    const doc = {
+      nodes: [
+        {
+          id: 'f1', x: 50, y: 50, width: 300, height: 200,
+          label: 'Boundary', type: 'frame', metadata: { c4Id: 'c4-frame' },
+        },
+      ],
+      edges: [],
+      groups: [],
+      viewport: makeViewport(),
+    } as unknown as GraphDocument;
+    const handle = mountGraphCanvas(container, makeProps({ document: doc, onNodeDoubleClick }));
+    const cvs = container.querySelector('canvas')!;
+
+    // jsdom の getBoundingClientRect は 0 を返すため screen 座標 = world 座標。frame 内部を狙う。
+    cvs.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: 200, clientY: 150 }));
+
+    expect(onNodeDoubleClick).toHaveBeenCalledWith('c4-frame');
+    handle.destroy();
+  });
+
   it('mousedown → mousemove → mouseup pan sequence calls SET_VIEWPORT dispatch without throwing', () => {
     const dispatch = jest.fn();
     const container = document.createElement('div');

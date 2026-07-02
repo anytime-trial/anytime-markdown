@@ -497,6 +497,15 @@ export function mountGraphCanvas(
       if (n.type === 'frame') continue;
       if (hitTestNode(n, world.x, world.y)) return n;
     }
+    // 非 frame がヒットしなければ frame（Boundary 枠）もヒットテストする。
+    // 旧 useCanvasBase は skipFrames=false（C4 GraphCanvas）でこの第二ループを持ち、
+    // frame body ドラッグでのグループ一括移動・frame 選択・frame ダブルクリックを成立させていた。
+    // これが無いと handleMouseDown の frame 分岐（hit.type==='frame'）が到達不能になる。
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const n = nodes[i];
+      if (n.type !== 'frame') continue;
+      if (hitTestNode(n, world.x, world.y)) return n;
+    }
     return undefined;
   }
 
