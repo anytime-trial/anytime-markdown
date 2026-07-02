@@ -33,6 +33,13 @@ export interface HandoffState {
   readonly structured: HandoffStructured;
   /** 将来の LLM ナラティブ要約用。構造化状態のみの現段階では null。 */
   readonly narrative: string | null;
+  /**
+   * タスクの帰結（abstention 出口・proposal 20260702-agentic-abstention-adoption）。
+   * 省略時は completed 扱い（旧形式の返却を version bump なしで受理する後方互換）。
+   */
+  readonly taskStatus?: 'completed' | 'abstained';
+  /** abstained の理由。abstained のとき非空必須。completed では null。 */
+  readonly abstainReason?: string | null;
 }
 
 export const HANDOFF_VERSION = 1;
