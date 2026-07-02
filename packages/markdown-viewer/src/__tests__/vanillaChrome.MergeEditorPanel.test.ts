@@ -89,6 +89,21 @@ describe("createMergeEditorPanel", () => {
     expect(text).toContain("4");
   });
 
+  it("ガターに追加/削除の記号セルを持つ（色以外の手がかり。指摘48）", () => {
+    const diffLines: DiffLine[] = [
+      { text: "a", type: "equal", blockId: null, lineNumber: 1 },
+      { text: "b", type: "added", blockId: 0, lineNumber: 2 },
+      { text: "c", type: "removed", blockId: 1, lineNumber: 3 },
+    ];
+    handle = createMergeEditorPanel(mkOpts({ sourceText: "a\nb\nc", diffLines }));
+    document.body.appendChild(handle.el);
+    const symbols = handle.el.querySelectorAll("[data-diff-gutter-symbol]");
+    expect(symbols.length).toBe(3);
+    expect(symbols[0].textContent?.charCodeAt(0)).toBe(" ".charCodeAt(0)); // equal は記号なし
+    expect(symbols[1].textContent).toBe("+");
+    expect(symbols[2].textContent).toBe("-");
+  });
+
   it("ソースモード: 入力で onSourceChange が発火する", () => {
     const changes: string[] = [];
     handle = createMergeEditorPanel(mkOpts({ sourceText: "hello", onSourceChange: (v) => changes.push(v) }));

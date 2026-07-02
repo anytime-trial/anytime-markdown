@@ -17,6 +17,9 @@ import type { NodeView } from "@anytime-markdown/markdown-pm/view";
 /** placeholder クリック等の「録画を開きたい」意図をオーバーレイへ伝える DOM イベント名 */
 export const GIF_RECORD_INTENT_EVENT = "md-gif-record-intent";
 
+/** t 未指定時のフォールバック（キーをそのまま返す）。CodeBlockBlockContent と同パターン。 */
+const identityT = (key: string): string => key;
+
 /** GIF を一時停止（現在フレームを canvas へ焼いて img.src を差し替え）/ 再開する */
 function togglePlayback(
   img: HTMLImageElement,
@@ -50,7 +53,12 @@ export function createGifBlockNodeView({
   node,
   editor,
   getPos,
-}: Pick<NodeViewRendererProps, "node" | "editor" | "getPos">): NodeView {
+  t,
+}: Pick<NodeViewRendererProps, "node" | "editor" | "getPos"> & {
+  /** i18n。未指定時（未 configure）はキーをそのまま表示する identityT へフォールバックする。 */
+  t?: ((key: string) => string) | null;
+}): NodeView {
+  const resolvedT = t ?? identityT;
   let attrs = node.attrs;
   let playing = true;
   let mode: "src" | "placeholder" | null = null;
@@ -70,7 +78,7 @@ export function createGifBlockNodeView({
   // --- 再生切替ボタン（選択時のみ表示） ---
   const toggleBtn = document.createElement("button");
   toggleBtn.type = "button";
-  toggleBtn.setAttribute("aria-label", "Pause");
+  toggleBtn.setAttribute("aria-label", resolvedT("gifPause"));
   toggleBtn.style.cssText =
     "position:absolute;bottom:8px;right:8px;display:none;border:none;cursor:pointer;" +
     "background:rgba(0,0,0,0.6);color:#fff;border-radius:4px;padding:2px 6px;font-size:14px;line-height:1;";
@@ -85,14 +93,14 @@ export function createGifBlockNodeView({
     "display:flex;flex-direction:column;align-items:center;justify-content:center;" +
     "padding:32px 0;cursor:pointer;background:rgba(127,127,127,0.05);" +
     "border-top:1px solid var(--am-color-divider);color:var(--am-color-text-secondary);font-size:0.75rem;";
-  placeholder.textContent = "Click to record GIF";
+  placeholder.textContent = resolvedT("gifRecordPlaceholder");
 
   const onToggle = (e: MouseEvent): void => {
     e.preventDefault();
     e.stopPropagation();
     playing = togglePlayback(img, (attrs.src as string) ?? "", playing, pausedSrcRef);
     toggleBtn.textContent = playing ? "⏸" : "▶";
-    toggleBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+    toggleBtn.setAttribute("aria-label", playing ? resolvedT("gifPause") : resolvedT("gifPlay"));
   };
 
   const onPlaceholderClick = (): void => {

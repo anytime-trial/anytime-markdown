@@ -24,8 +24,28 @@ describe("createGifBlockNodeView (native content NodeView)", () => {
   it("renders the placeholder when there is no src", () => {
     const view = makeView({ src: null });
     expect(view.dom).toBeInstanceOf(HTMLElement);
-    expect((view.dom as HTMLElement).textContent).toContain("Click to record GIF");
+    // t 未指定時は identityT フォールバックでキーがそのまま表示される。
+    expect((view.dom as HTMLElement).textContent).toContain("gifRecordPlaceholder");
     expect((view.dom as HTMLElement).querySelector("img")).toBeNull();
+  });
+
+  it("i18n: t を渡すと placeholder / toggle aria-label が翻訳される", () => {
+    const t = (key: string): string => (key === "gifRecordPlaceholder" ? "GIF を録画" : key);
+    const editor = { isEditable: true } as any;
+    const node = { attrs: { src: "x.gif" }, type: { name: "gifBlock" } } as any;
+    const view = createGifBlockNodeView({ node, editor, getPos: () => 3, t });
+    const dom = view.dom as HTMLElement;
+    const btn = dom.querySelector("button") as HTMLButtonElement;
+    expect(btn.getAttribute("aria-label")).toBe("gifPause");
+    view.destroy?.();
+
+    const placeholderView = createGifBlockNodeView({
+      node: { attrs: { src: null }, type: { name: "gifBlock" } } as any,
+      editor,
+      getPos: () => 3,
+      t,
+    });
+    expect((placeholderView.dom as HTMLElement).textContent).toContain("GIF を録画");
   });
 
   it("renders the image when src is provided", () => {

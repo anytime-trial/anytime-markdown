@@ -173,6 +173,8 @@ export function createSlashCommandMenu(
   let menuItemHandles: Array<{ destroy: () => void }> = [];
   let filteredItems: VanillaSlashCommandItem[] = [];
   let destroyed = false;
+  /** status 行（role=status・選択ラベル/件数の live region）。renderMenu で生成、applySelection で更新。 */
+  let statusEl: HTMLDivElement | null = null;
 
   /** 開いているメニュー DOM / floating / 子ハンドルを解放する（state は触らない）。 */
   const teardownMenu = (): void => {
@@ -184,6 +186,7 @@ export function createSlashCommandMenu(
     menuList = null;
     menuEl?.remove();
     menuEl = null;
+    statusEl = null;
   };
 
   /** index の項目を確定する（"/" + query 削除 → action → 閉じる）。React 版 executeCommand 相当。 */
@@ -204,8 +207,15 @@ export function createSlashCommandMenu(
     teardownMenu();
   };
 
-  /** selectedIndex に応じて選択項目のハイライト・aria・スクロールを反映する。 */
-  const applySelection = (): void => {
+  /**
+   * selectedIndex に応じて選択項目のハイライト・aria・スクロールを反映する。
+   *
+   * @param announceSelection - true のとき status（aria-live）を選択ラベルで更新する。
+   *   フォーカスは contenteditable 側に残るため aria-activedescendant によるネイティブ通知は
+   *   効かず、role=status 更新で代替する（指摘42）。renderMenu 直後の初期呼び出しでは
+   *   件数アナウンス（renderMenu が書いた「N items」）を残すため false を渡す。
+   */
+  const applySelection = (announceSelection = true): void => {
     if (!menuEl) return;
     const itemEls = [...menuEl.querySelectorAll<HTMLElement>('[role="menuitem"]')];
     itemEls.forEach((el, i) => {
@@ -225,6 +235,10 @@ export function createSlashCommandMenu(
     });
     // scrollIntoView は jsdom 未実装。メソッド自体を optional 呼び出しして環境差を吸収する。
     itemEls[selectedIndex]?.scrollIntoView?.({ block: "nearest" });
+    const selectedItem = filteredItems[selectedIndex];
+    if (announceSelection && statusEl && selectedItem) {
+      statusEl.textContent = t("slashCommandSelected", { label: t(selectedItem.labelKey) });
+    }
   };
 
   /**
@@ -263,7 +277,7 @@ export function createSlashCommandMenu(
       // 視覚的に隠す（React 版の clip rect 相当）。
       status.style.cssText =
         "position:absolute;width:100%;height:100%;overflow:hidden;clip:rect(0,0,0,0);";
-      status.textContent = `${filteredItems.length} items`;
+      status.textContent = t("slashCommandItemCount", { count: filteredItems.length });
     } else {
       status.style.cssText =
         `padding:12px 16px;color:var(--am-color-text-secondary);` +
@@ -271,6 +285,7 @@ export function createSlashCommandMenu(
       status.textContent = t("slashCommandNoResults");
     }
     paper.appendChild(status);
+    statusEl = status;
 
     if (filteredItems.length > 0) {
       // MenuList（dense）。キーボード state machine は SlashCommand 側で持つため keyboard=false。
@@ -306,7 +321,9 @@ export function createSlashCommandMenu(
       offsetPx: 4,
     });
 
-    applySelection();
+    // 初期描画では renderMenu が書いた件数アナウンス（status.textContent）を残す
+    // （announceSelection=false）。選択ラベルへの更新は以後の moveSelection から行う。
+    applySelection(false);
   };
 
   /** ArrowDown/ArrowUp の selectedIndex 移動（wraparound・React 版と同一）。 */

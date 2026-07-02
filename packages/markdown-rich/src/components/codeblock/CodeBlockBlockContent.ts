@@ -241,7 +241,7 @@ export function createCodeBlockNodeView(
     if (kind === "embed") {
       // vanilla embed プレビューを直接マウント（providers は setEmbedProviders で注入）。
       if (!embedMount) {
-        embedMount = createEmbedPreview(previewInner);
+        embedMount = createEmbedPreview(previewInner, resolvedT);
       }
       embedMount.render(lang, codeText, getEmbedStoredWidth(lang) ?? undefined, onBaselineWrite);
       return;

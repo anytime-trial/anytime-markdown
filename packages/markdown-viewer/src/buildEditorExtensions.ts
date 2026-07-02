@@ -56,6 +56,7 @@ export function buildEditorExtensions(options: BuildEditorExtensionsOptions): Ex
     codeBlockExtension,
     disableComments: mode === "compare",
     disableCheckboxToggle: mode === "compare",
+    t,
   });
 
   // compare（左パネル）は read-only。編集系拡張を持たせない。

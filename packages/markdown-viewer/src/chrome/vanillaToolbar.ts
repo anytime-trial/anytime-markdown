@@ -53,13 +53,20 @@ export function createToolbarContainer(ariaLabel: string): HTMLElement {
   return el;
 }
 
-/** ドラッグハンドル（`data-drag-handle`）。 */
+/**
+ * ドラッグハンドル（`data-drag-handle`）。
+ *
+ * `data-drag-handle` は vendored tiptap の NodeView.ts（core/src/NodeView.ts の
+ * mousedown/dragstart ハンドラ）が実際に参照する属性で、このハンドル配下からの
+ * mousedown のみを HTML5 ネイティブ drag-and-drop の起点として認識する（別経路として
+ * 処理済み）。一方 HTML5 ネイティブ drag-and-drop 自体に標準のキーボード操作手段が無く、
+ * click/keydown ハンドラも持たないため、`role="button"` + `tabIndex=0` は「フォーカスは
+ * できるが Enter/Space で何も起きない」見せかけの button になる（指摘33）。キーボード
+ * 並べ替えを提供する予定が無い限り role/tabIndex は外し、装飾的な把手として扱う。
+ */
 export function mkDragHandle(label: string): HTMLElement {
   const el = document.createElement("div");
   el.setAttribute("data-drag-handle", "");
-  el.setAttribute("role", "button");
-  el.tabIndex = 0;
-  el.setAttribute("aria-roledescription", "draggable item");
   el.setAttribute("aria-label", label);
   el.style.cssText =
     "display:inline-flex;align-items:center;cursor:grab;color:var(--am-color-text-secondary);";

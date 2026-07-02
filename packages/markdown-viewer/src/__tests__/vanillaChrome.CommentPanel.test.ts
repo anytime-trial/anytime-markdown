@@ -345,6 +345,64 @@ describe("createCommentPanel", () => {
     handle.destroy();
   });
 
+  it("カードで Enter キーを押すと onNavigate を呼ぶ（キーボード操作）", () => {
+    const editor = makeEditor([comment({ id: "x", text: "body" })]);
+    (editor.state as { doc: { descendants: unknown } }).doc.descendants = (
+      fn: (node: unknown, pos: number) => unknown,
+    ) => {
+      fn(
+        {
+          isText: true,
+          text: "target",
+          type: { name: "text" },
+          marks: [{ type: { name: "commentHighlight" }, attrs: { commentId: "x" } }],
+        },
+        10,
+      );
+    };
+    const navigated: number[] = [];
+    const handle = createCommentPanel({
+      editor: editor as unknown as CreateCommentPanelOptions["editor"],
+      t,
+      onNavigate: (pos) => navigated.push(pos),
+    });
+    document.body.appendChild(handle.el);
+    const card = handle.el.querySelector("[data-am-comment-card]") as HTMLElement;
+    card.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    expect(navigated).toEqual([11]);
+    handle.destroy();
+  });
+
+  it("カードで Space キーを押すと onNavigate を呼び preventDefault する（スクロール抑止）", () => {
+    const editor = makeEditor([comment({ id: "x", text: "body" })]);
+    (editor.state as { doc: { descendants: unknown } }).doc.descendants = (
+      fn: (node: unknown, pos: number) => unknown,
+    ) => {
+      fn(
+        {
+          isText: true,
+          text: "target",
+          type: { name: "text" },
+          marks: [{ type: { name: "commentHighlight" }, attrs: { commentId: "x" } }],
+        },
+        10,
+      );
+    };
+    const navigated: number[] = [];
+    const handle = createCommentPanel({
+      editor: editor as unknown as CreateCommentPanelOptions["editor"],
+      t,
+      onNavigate: (pos) => navigated.push(pos),
+    });
+    document.body.appendChild(handle.el);
+    const card = handle.el.querySelector("[data-am-comment-card]") as HTMLElement;
+    const ev = new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true });
+    card.dispatchEvent(ev);
+    expect(navigated).toEqual([11]);
+    expect(ev.defaultPrevented).toBe(true);
+    handle.destroy();
+  });
+
   it("editor update 購読でコメント追加が再描画される", () => {
     const { handle, editor, root } = mount();
     expect(root.textContent).toContain("noComments");

@@ -50,6 +50,33 @@ describe("createImageBlockNodeView (native content NodeView)", () => {
     expect((view.dom as HTMLElement).querySelector("img")).toBeNull();
   });
 
+  it("error box は role=img + aria-label でスクリーンリーダーに失敗を伝える", () => {
+    const view = makeView({ src: "broken.png", alt: "" });
+    const img = (view.dom as HTMLElement).querySelector("img") as HTMLImageElement;
+    img.dispatchEvent(new Event("error"));
+    const errorBox = (view.dom as HTMLElement).querySelector('[role="img"]') as HTMLElement;
+    expect(errorBox).toBeTruthy();
+    // t 未指定時は identityT フォールバックでキーがそのまま入る。
+    expect(errorBox.getAttribute("aria-label")).toBe("imageLoadError");
+  });
+
+  it("i18n: t を渡すと resize handle / error box の aria-label が翻訳される", () => {
+    const t = (key: string): string =>
+      key === "resizeImage" ? "画像のリサイズ" : key === "imageLoadError" ? "読み込み失敗" : key;
+    const editor = { isEditable: true, chain: () => ({ command: () => ({ run: () => true }) }) } as any;
+    const node = { attrs: { src: "broken.png", alt: "" }, type: { name: "image" } } as any;
+    const view = createImageBlockNodeView({ node, editor, getPos: () => 3, t });
+    const handle = (view.dom as HTMLElement).querySelector(
+      "[data-am-resize-handle]",
+    ) as HTMLElement;
+    expect(handle.getAttribute("aria-label")).toBe("画像のリサイズ");
+
+    const img = (view.dom as HTMLElement).querySelector("img") as HTMLImageElement;
+    img.dispatchEvent(new Event("error"));
+    const errorBox = (view.dom as HTMLElement).querySelector('[role="img"]') as HTMLElement;
+    expect(errorBox.getAttribute("aria-label")).toBe("読み込み失敗");
+  });
+
   it("renders annotations as an SVG overlay", () => {
     const annotations = JSON.stringify([
       { id: "a", type: "rect", x1: 0, y1: 0, x2: 10, y2: 10, color: "#f00" },
@@ -73,7 +100,7 @@ describe("createImageBlockNodeView (native content NodeView)", () => {
   it("shows the resize handle only while selected and editable", () => {
     const view = makeView({ src: "p.png", alt: "x" });
     const handle = (view.dom as HTMLElement).querySelector(
-      '[role="slider"]',
+      "[data-am-resize-handle]",
     ) as HTMLElement;
     expect(handle.style.display).toBe("none");
     view.selectNode?.();
@@ -87,7 +114,7 @@ describe("createImageBlockNodeView (native content NodeView)", () => {
     const view = makeView({ src: "p.png", alt: "x" }, { pos: 4, commandSink: sink });
     view.selectNode?.();
     const handle = (view.dom as HTMLElement).querySelector(
-      '[role="slider"]',
+      "[data-am-resize-handle]",
     ) as HTMLElement;
 
     // jsdom には PointerEvent が無いため、同型名の MouseEvent で代用する

@@ -24,6 +24,9 @@ import {
 } from "./embedData";
 import type { OgpData, OembedData } from "../../types/embedProvider";
 
+/** t 未指定時のフォールバック（キーをそのまま返す）。CodeBlockBlockContent と同パターン。 */
+const identityT = (key: string): string => key;
+
 // ===== 共有スタイル注入 =====
 
 const EMBED_STYLE_ID = "am-embed-views-styles";
@@ -477,8 +480,10 @@ export function createOgpCardView(
   baseline: EmbedBaseline | undefined,
   onBaselineWrite: ((b: EmbedBaseline) => void) | undefined,
   isDark: boolean,
+  t?: ((key: string) => string) | null,
 ): OgpCardViewResult {
   ensureEmbedStyles();
+  const resolvedT = t ?? identityT;
 
   const effectiveBaseline = baseline ?? DEFAULT_EMBED_BASELINE;
   const noopWrite = (_b: EmbedBaseline): void => undefined;
@@ -515,10 +520,12 @@ export function createOgpCardView(
 
   function renderBadge(cardEl: HTMLElement, fingerprint: string, newTitle: string | null): void {
     removeBadge();
-    const title = newTitle ? `更新あり: ${newTitle}` : "前回確認後に更新されました";
+    const title = newTitle
+      ? `${resolvedT("mdEmbedUpdateAvailable")}: ${newTitle}`
+      : resolvedT("mdEmbedUpdateAvailableGeneric");
     const { el: btn } = createIconButton({
       size: "small",
-      ariaLabel: "embed 更新あり",
+      ariaLabel: resolvedT("mdEmbedUpdateBadgeAriaLabel"),
       className: "am-embed-badge",
     });
 

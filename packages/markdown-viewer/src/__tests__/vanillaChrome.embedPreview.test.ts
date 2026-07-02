@@ -192,17 +192,18 @@ describe("createEmbedPreview — URL ディスパッチ", () => {
     setEmbedProviders(null);
   });
 
+  // t 未指定時は identityT フォールバックでキーがそのまま表示される（他 vanilla コンポーネントと同パターン）。
   test("body が空の場合はプレースホルダ表示", () => {
     const handle = createEmbedPreview(container);
     handle.render("embed card", "", undefined, jest.fn());
-    expect(container.textContent).toContain("有効な URL");
+    expect(container.textContent).toContain("mdEmbedInvalidUrl");
     handle.destroy();
   });
 
   test("分類不能 URL はプレースホルダ表示", () => {
     const handle = createEmbedPreview(container);
     handle.render("embed card", "not-a-url", undefined, jest.fn());
-    expect(container.textContent).toContain("埋め込めません");
+    expect(container.textContent).toContain("mdEmbedUnclassifiedUrl");
     handle.destroy();
   });
 
@@ -210,7 +211,7 @@ describe("createEmbedPreview — URL ディスパッチ", () => {
     setEmbedProviders(null);
     const handle = createEmbedPreview(container);
     handle.render("embed card", "https://twitter.com/u/status/12345", undefined, jest.fn());
-    expect(container.textContent).toContain("プロバイダ");
+    expect(container.textContent).toContain("mdEmbedProvidersMissing");
     handle.destroy();
   });
 
@@ -218,7 +219,20 @@ describe("createEmbedPreview — URL ディスパッチ", () => {
     setEmbedProviders(null);
     const handle = createEmbedPreview(container);
     handle.render("embed card", "https://example.com/article", undefined, jest.fn());
-    expect(container.textContent).toContain("プロバイダ");
+    expect(container.textContent).toContain("mdEmbedProvidersMissing");
+    handle.destroy();
+  });
+
+  test("i18n: t を渡すと URL 未入力・分類不能・プロバイダ未設定のメッセージが翻訳される", () => {
+    const t = (key: string): string =>
+      ({
+        mdEmbedInvalidUrl: "URLを入力してください",
+        mdEmbedUnclassifiedUrl: "埋め込み不可URL",
+        mdEmbedProvidersMissing: "プロバイダ未設定",
+      })[key] ?? key;
+    const handle = createEmbedPreview(container, t);
+    handle.render("embed card", "", undefined, jest.fn());
+    expect(container.textContent).toContain("URLを入力してください");
     handle.destroy();
   });
 

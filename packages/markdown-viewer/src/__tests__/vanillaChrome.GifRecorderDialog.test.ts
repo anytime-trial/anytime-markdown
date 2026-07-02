@@ -133,7 +133,7 @@ function findBtn(root: HTMLElement, label: string): HTMLButtonElement | undefine
 /** previewing 状態まで進める（getDisplayMedia 解決待ち）。 */
 async function toPreviewing(root: HTMLElement, track: ReturnType<typeof makeTrack>) {
   getDisplayMediaMock.mockResolvedValue(makeStream(track));
-  findBtn(root, "Select Screen")!.click();
+  findBtn(root, "gifSelectScreen")!.click();
   await flush();
 }
 
@@ -157,14 +157,14 @@ async function drainMicrotasks(n = 4): Promise<void> {
 async function toDone(root: HTMLElement, track: ReturnType<typeof makeTrack>): Promise<void> {
   jest.useFakeTimers();
   getDisplayMediaMock.mockResolvedValue(makeStream(track));
-  findBtn(root, "Select Screen")!.click();
+  findBtn(root, "gifSelectScreen")!.click();
   // getDisplayMedia の microtask 解決（fake timer 下でも Promise は microtask で進む）。
   await drainMicrotasks();
   const canvas = root.querySelector("canvas") as HTMLCanvasElement;
   dragSelect(canvas);
-  findBtn(root, "Record")!.click();
+  findBtn(root, "gifRecord")!.click();
   jest.advanceTimersByTime(100); // interval 1 tick → recorder.addFrame で 1 枚。
-  findBtn(root, "Stop")!.click();
+  findBtn(root, "gifStopRecord")!.click();
   jest.useRealTimers();
   await drainMicrotasks();
 }
@@ -177,7 +177,7 @@ describe("createGifRecorderDialog", () => {
     // aria-labelledby が title 要素を指す。
     const labelledBy = dialog.getAttribute("aria-labelledby");
     expect(labelledBy).toBeTruthy();
-    expect(handle.el.querySelector(`#${labelledBy}`)?.textContent).toContain("GIF Recorder");
+    expect(handle.el.querySelector(`#${labelledBy}`)?.textContent).toContain("gifRecorderTitle");
 
     // video / canvas overlay が存在し idle では video 非表示。
     const video = handle.el.querySelector("video") as HTMLVideoElement;
@@ -186,7 +186,7 @@ describe("createGifRecorderDialog", () => {
     expect(canvas.style.display).toBe("none");
 
     // idle 下部バーに Select Screen ボタン。
-    expect(findBtn(handle.el, "Select Screen")).toBeTruthy();
+    expect(findBtn(handle.el, "gifSelectScreen")).toBeTruthy();
 
     handle.destroy();
   });
@@ -202,8 +202,8 @@ describe("createGifRecorderDialog", () => {
     expect(video.style.display).toBe("block");
     expect(canvas.style.display).toBe("block");
     // previewing バーに Select Area（disabled）+ ドラッグ案内。
-    expect(findBtn(handle.el, "Select Area")?.disabled).toBe(true);
-    expect(handle.el.textContent).toContain("Drag on the preview");
+    expect(findBtn(handle.el, "gifSelectArea")?.disabled).toBe(true);
+    expect(handle.el.textContent).toContain("gifDragAreaHint");
 
     handle.destroy();
   });
@@ -211,11 +211,11 @@ describe("createGifRecorderDialog", () => {
   it("getDisplayMedia 拒否では idle のまま（onClose は呼ばない）", async () => {
     getDisplayMediaMock.mockRejectedValue(new Error("denied"));
     const { handle, onClose } = open();
-    findBtn(handle.el, "Select Screen")!.click();
+    findBtn(handle.el, "gifSelectScreen")!.click();
     await flush();
 
     expect(onClose).not.toHaveBeenCalled();
-    expect(findBtn(handle.el, "Select Screen")).toBeTruthy();
+    expect(findBtn(handle.el, "gifSelectScreen")).toBeTruthy();
 
     handle.destroy();
   });
@@ -228,8 +228,8 @@ describe("createGifRecorderDialog", () => {
     const canvas = handle.el.querySelector("canvas") as HTMLCanvasElement;
     dragSelect(canvas);
 
-    expect(findBtn(handle.el, "Record")).toBeTruthy();
-    expect(findBtn(handle.el, "Reselect Area")).toBeTruthy();
+    expect(findBtn(handle.el, "gifRecord")).toBeTruthy();
+    expect(findBtn(handle.el, "gifReselectArea")).toBeTruthy();
 
     handle.destroy();
   });
@@ -244,8 +244,8 @@ describe("createGifRecorderDialog", () => {
     canvas.dispatchEvent(new MouseEvent("mousedown", { clientX: 100, clientY: 100 }));
     canvas.dispatchEvent(new MouseEvent("mouseup", { clientX: 102, clientY: 102 }));
 
-    expect(findBtn(handle.el, "Record")).toBeFalsy();
-    expect(findBtn(handle.el, "Select Area")).toBeTruthy();
+    expect(findBtn(handle.el, "gifRecord")).toBeFalsy();
+    expect(findBtn(handle.el, "gifSelectArea")).toBeTruthy();
 
     handle.destroy();
   });
@@ -257,9 +257,9 @@ describe("createGifRecorderDialog", () => {
     const canvas = handle.el.querySelector("canvas") as HTMLCanvasElement;
     dragSelect(canvas);
 
-    findBtn(handle.el, "Reselect Area")!.click();
-    expect(findBtn(handle.el, "Record")).toBeFalsy();
-    expect(findBtn(handle.el, "Select Area")).toBeTruthy();
+    findBtn(handle.el, "gifReselectArea")!.click();
+    expect(findBtn(handle.el, "gifRecord")).toBeFalsy();
+    expect(findBtn(handle.el, "gifSelectArea")).toBeTruthy();
 
     handle.destroy();
   });
@@ -270,16 +270,16 @@ describe("createGifRecorderDialog", () => {
       const track = makeTrack();
       getDisplayMediaMock.mockResolvedValue(makeStream(track));
       const { handle } = open();
-      findBtn(handle.el, "Select Screen")!.click();
+      findBtn(handle.el, "gifSelectScreen")!.click();
       // getDisplayMedia + video.play().catch() の microtask チェーンを排出して previewing へ。
       await drainMicrotasks();
 
       const canvas = handle.el.querySelector("canvas") as HTMLCanvasElement;
       dragSelect(canvas);
-      findBtn(handle.el, "Record")!.click();
+      findBtn(handle.el, "gifRecord")!.click();
 
       // recording バー（Stop + タイマー）。
-      expect(findBtn(handle.el, "Stop")).toBeTruthy();
+      expect(findBtn(handle.el, "gifStopRecord")).toBeTruthy();
       expect(handle.el.textContent).toContain("00:00 / 00:30");
 
       // interval を進めてフレーム取得（addFrame でタイマーが進む）。
@@ -302,8 +302,8 @@ describe("createGifRecorderDialog", () => {
     const img = handle.el.querySelector("img") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe("blob:gif-result");
     // done バー（Save / Retry / ファイル名入力）。
-    expect(findBtn(handle.el, "Save")).toBeTruthy();
-    expect(findBtn(handle.el, "Retry")).toBeTruthy();
+    expect(findBtn(handle.el, "gifSave")).toBeTruthy();
+    expect(findBtn(handle.el, "gifRetry")).toBeTruthy();
     expect(onComplete).not.toHaveBeenCalled();
 
     handle.destroy();
@@ -318,13 +318,13 @@ describe("createGifRecorderDialog", () => {
     // Record 直後にフレームが入る前に Stop（encodeGif を spy 経由で観測）。
     const spy = gifEncoder.encodeGif as jest.Mock;
     spy.mockClear();
-    findBtn(handle.el, "Record")!.click();
-    findBtn(handle.el, "Stop")!.click();
+    findBtn(handle.el, "gifRecord")!.click();
+    findBtn(handle.el, "gifStopRecord")!.click();
     await flush();
 
     expect(spy).not.toHaveBeenCalled();
     // ready バーへ戻る。
-    expect(findBtn(handle.el, "Record")).toBeTruthy();
+    expect(findBtn(handle.el, "gifRecord")).toBeTruthy();
 
     handle.destroy();
   });
@@ -334,7 +334,7 @@ describe("createGifRecorderDialog", () => {
     const { handle, onComplete } = open();
     await toDone(handle.el, track);
 
-    findBtn(handle.el, "Save")!.click();
+    findBtn(handle.el, "gifSave")!.click();
     expect(onComplete).toHaveBeenCalledTimes(1);
     const [blob, fileName, settings] = onComplete.mock.calls[0];
     expect(blob).toBeInstanceOf(Blob);
@@ -349,11 +349,11 @@ describe("createGifRecorderDialog", () => {
     const { handle, onComplete } = open();
     await toDone(handle.el, track);
 
-    const input = handle.el.querySelector('input[aria-label="File name"]') as HTMLInputElement;
+    const input = handle.el.querySelector('input[aria-label="gifFileName"]') as HTMLInputElement;
     expect(input).toBeTruthy();
     input.value = "custom.gif";
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    findBtn(handle.el, "Save")!.click();
+    findBtn(handle.el, "gifSave")!.click();
 
     expect(onComplete.mock.calls[0][1]).toBe("custom.gif");
 
@@ -366,11 +366,11 @@ describe("createGifRecorderDialog", () => {
     await toDone(handle.el, track);
 
     revokeObjectURLMock.mockClear();
-    findBtn(handle.el, "Retry")!.click();
+    findBtn(handle.el, "gifRetry")!.click();
 
     expect(revokeObjectURLMock).toHaveBeenCalledWith("blob:gif-result");
     // stream が生きているので previewing に戻る。
-    expect(findBtn(handle.el, "Select Area")).toBeTruthy();
+    expect(findBtn(handle.el, "gifSelectArea")).toBeTruthy();
 
     handle.destroy();
   });
@@ -384,7 +384,7 @@ describe("createGifRecorderDialog", () => {
     expect(track.stopped).toBeGreaterThanOrEqual(1);
     const video = handle.el.querySelector("video") as HTMLVideoElement;
     expect(video.style.display).toBe("none");
-    expect(findBtn(handle.el, "Select Screen")).toBeTruthy();
+    expect(findBtn(handle.el, "gifSelectScreen")).toBeTruthy();
 
     handle.destroy();
   });

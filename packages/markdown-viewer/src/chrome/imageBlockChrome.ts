@@ -85,6 +85,25 @@ export function createImageBlockChrome(
       annotations: (node.attrs.annotations as string | null) ?? null,
     });
   });
+  annotateBtn.setAttribute("aria-pressed", "false");
+  // 注釈件数バッジ（mkIconButton の badge オプションと同一の見た目）。件数は annotations
+  // 変化に合わせて動的に変わるため、mkIconButton の静的 opts.badge ではなく、生成後に
+  // ここで wrap + badge span を差し込み syncDynamic から textContent を更新する。
+  const annotateIcon = annotateBtn.firstElementChild;
+  const annotateBadgeWrap = document.createElement("span");
+  annotateBadgeWrap.style.cssText = "position:relative;display:inline-flex;line-height:0;";
+  if (annotateIcon) {
+    annotateBtn.replaceChild(annotateBadgeWrap, annotateIcon);
+    annotateBadgeWrap.appendChild(annotateIcon);
+  } else {
+    annotateBtn.appendChild(annotateBadgeWrap);
+  }
+  const annotateBadge = document.createElement("span");
+  annotateBadge.setAttribute("data-am-annotation-badge", "");
+  annotateBadge.style.cssText =
+    "position:absolute;top:-4px;right:-4px;font-size:9px;font-weight:700;line-height:1;" +
+    "color:var(--am-color-primary-main);display:none;";
+  annotateBadgeWrap.appendChild(annotateBadge);
   const deleteBtn = mkIconButton(cb.t("delete"), ICON.delete, () => {
     if (currentPos >= 0) cb.onDelete(currentPos);
   });
@@ -113,10 +132,16 @@ export function createImageBlockChrome(
     lastAlt = alt;
     lastAnnStr = annStr;
     warningWrap.style.display = alt ? "none" : "inline-flex";
-    annotateBtn.style.color =
-      parseAnnotations(annStr).length > 0
-        ? "var(--am-color-primary-main)"
-        : "var(--am-color-text-secondary)";
+    const count = parseAnnotations(annStr).length;
+    const hasAnnotations = count > 0;
+    // 色だけでなく aria-pressed（状態）+ バッジ（件数）でも注釈の有無を伝える
+    // （色覚多様性のあるユーザー対策。指摘32）。
+    annotateBtn.style.color = hasAnnotations
+      ? "var(--am-color-primary-main)"
+      : "var(--am-color-text-secondary)";
+    annotateBtn.setAttribute("aria-pressed", hasAnnotations ? "true" : "false");
+    annotateBadge.textContent = hasAnnotations ? String(count) : "";
+    annotateBadge.style.display = hasAnnotations ? "inline" : "none";
   };
 
   const stop = createSelectedBlockTracker(editor, "image", ({ pos, node, rect }) => {

@@ -18,11 +18,19 @@ import { buildAnnotationSvg } from "../utils/annotationSvg";
  */
 const MIN_WIDTH = 50;
 
+/** t 未指定時のフォールバック（キーをそのまま返す）。CodeBlockBlockContent と同パターン。 */
+const identityT = (key: string): string => key;
+
 export function createImageBlockNodeView({
   node,
   editor,
   getPos,
-}: Pick<NodeViewRendererProps, "node" | "editor" | "getPos">): NodeView {
+  t,
+}: Pick<NodeViewRendererProps, "node" | "editor" | "getPos"> & {
+  /** i18n。未指定時（未 configure）はキーをそのまま表示する identityT へフォールバックする。 */
+  t?: ((key: string) => string) | null;
+}): NodeView {
+  const resolvedT = t ?? identityT;
   let attrs = node.attrs;
 
   const posOrNull = (): number | null => {
@@ -44,15 +52,21 @@ export function createImageBlockNodeView({
   const img = document.createElement("img");
   img.style.cssText = "max-width:100%;height:auto;display:block;";
 
-  // エラー表示（壊れた画像）。
+  // エラー表示（壊れた画像）。role="img" + aria-label でスクリーンリーダーにも失敗を伝える
+  // （alt 付き img が丸ごと消えるため、代替の可視/非可視テキストが無いと状態が伝わらない）。
   const errorBox = document.createElement("div");
+  errorBox.setAttribute("role", "img");
+  errorBox.setAttribute("aria-label", resolvedT("imageLoadError"));
   errorBox.style.cssText =
     "height:2em;border-top:1px solid var(--am-color-divider);background:var(--am-color-action-hover);";
 
-  // リサイズハンドル（選択 + 編集可能時のみ表示）。
+  // リサイズハンドル（選択 + 編集可能時のみ表示）。pointer drag のみでキーボード操作は
+  // 提供しないため、必須 aria-valuenow/min/max を欠いたまま role="slider" を名乗らない
+  // （指摘30: 値もキーボード操作も提供しない slider は誤誘導になる）。装飾的なハンドルとして
+  // aria-label のみ付与する。
   const handle = document.createElement("div");
-  handle.setAttribute("role", "slider");
-  handle.setAttribute("aria-label", "Resize image");
+  handle.setAttribute("data-am-resize-handle", "");
+  handle.setAttribute("aria-label", resolvedT("resizeImage"));
   handle.style.cssText =
     "position:absolute;right:0;bottom:0;width:16px;height:16px;display:none;" +
     "cursor:nwse-resize;opacity:0.7;border-top-left-radius:4px;" +

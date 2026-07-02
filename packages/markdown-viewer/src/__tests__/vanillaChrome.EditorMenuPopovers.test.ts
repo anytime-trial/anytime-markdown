@@ -324,8 +324,11 @@ describe("createEditorMenuPopovers", () => {
     handle.openHeading({ anchorEl: anchor, pos: 3, currentLevel: 2 });
     const paper = getPaper("headingMenu")!;
     // 6 (levels) + 3 (list) + 1 (blockquote) = 10 menuitem。
-    expect(paper.querySelectorAll('[role="menuitem"]').length).toBe(10);
+    const items = paper.querySelectorAll('[role="menuitem"]');
+    expect(items.length).toBe(10);
     expect(paper.querySelectorAll('[role="separator"]').length).toBe(2);
+    // 指摘46: "Paragraph" 固定文字列でなく既存キー headingParagraph を配線する。
+    expect(items[0].textContent).toContain("headingParagraph");
   });
 
   it("heading の現在レベル項目が selected になる", () => {

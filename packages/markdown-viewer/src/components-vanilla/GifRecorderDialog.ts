@@ -168,7 +168,7 @@ export function createGifRecorderDialog(
 
   const headerLabel = createText({
     variant: "subtitle2",
-    text: "GIF Recorder",
+    text: t("gifRecorderTitle"),
     style: "font-weight:600;",
   });
   headerLabel.el.id = titleId;
@@ -200,7 +200,7 @@ export function createGifRecorderDialog(
   idlePlaceholder.style.cssText =
     "display:flex;flex-direction:column;align-items:center;gap:16px;color:var(--am-color-text-secondary);";
   idlePlaceholder.appendChild(svgIcon(SCREEN_SHARE_PATH, 48));
-  const idleText = createText({ variant: "body2", text: "Select a screen to start" });
+  const idleText = createText({ variant: "body2", text: t("gifSelectScreenHint") });
   idlePlaceholder.appendChild(idleText.el);
 
   // done プレビュー（生成済み GIF を img で表示）。
@@ -239,7 +239,7 @@ export function createGifRecorderDialog(
   const selectScreenBtn = createButton({
     size: "small",
     variant: "outlined",
-    label: "Select Screen",
+    label: t("gifSelectScreen"),
     startIcon: svgIcon(SCREEN_SHARE_PATH, 16),
     onClick: () => void handleSelectScreen(),
   });
@@ -249,14 +249,14 @@ export function createGifRecorderDialog(
   const selectAreaBtn = createButton({
     size: "small",
     variant: "outlined",
-    label: "Select Area",
+    label: t("gifSelectArea"),
     startIcon: svgIcon(CROP_FREE_PATH, 16),
     disabled: true,
   });
   handles.push(selectAreaBtn);
   const dragHint = createText({
     variant: "caption",
-    text: "Drag on the preview to select recording area",
+    text: t("gifDragAreaHint"),
     style: "color:var(--am-color-text-secondary);",
   });
   handles.push(dragHint);
@@ -265,7 +265,7 @@ export function createGifRecorderDialog(
   const reselectBtn = createButton({
     size: "small",
     variant: "outlined",
-    label: "Reselect Area",
+    label: t("gifReselectArea"),
     startIcon: svgIcon(CROP_FREE_PATH, 16),
     onClick: () => {
       phase = "previewing";
@@ -279,7 +279,7 @@ export function createGifRecorderDialog(
     size: "small",
     variant: "contained",
     color: "error",
-    label: "Record",
+    label: t("gifRecord"),
     startIcon: svgIcon(GIF_PATH, 16), // FiberManualRecord は circle のみ。代替に GIF icon を使う。
     onClick: () => handleStartRecording(),
   });
@@ -290,7 +290,7 @@ export function createGifRecorderDialog(
     size: "small",
     variant: "contained",
     color: "error",
-    label: "Stop",
+    label: t("gifStopRecord"),
     startIcon: svgIcon(STOP_PATH, 16),
     onClick: () => void handleStopRecording(),
   });
@@ -307,7 +307,7 @@ export function createGifRecorderDialog(
     size: "small",
     value: fileName,
     style: { flex: "1" },
-    inputAttrs: { "aria-label": "File name" },
+    inputAttrs: { "aria-label": t("gifFileName") },
     onChange: (e) => {
       fileName = (e.target as HTMLInputElement).value;
     },
@@ -316,7 +316,7 @@ export function createGifRecorderDialog(
   const saveBtn = createButton({
     size: "small",
     variant: "contained",
-    label: "Save",
+    label: t("gifSave"),
     startIcon: svgIcon(SAVE_PATH, 16),
     onClick: () => handleSave(),
   });
@@ -324,7 +324,7 @@ export function createGifRecorderDialog(
   const retryBtn = createButton({
     size: "small",
     variant: "outlined",
-    label: "Retry",
+    label: t("gifRetry"),
     startIcon: svgIcon(REFRESH_PATH, 16),
     onClick: () => handleRetry(),
   });
