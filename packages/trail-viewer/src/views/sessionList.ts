@@ -81,8 +81,6 @@ export function mountSessionList(
     }
 
     for (const session of props.sessions) {
-      const li = document.createElement('li');
-
       // Primary line: label + copy button
       const primaryRow = document.createElement('span');
       primaryRow.style.cssText =
@@ -182,8 +180,9 @@ export function mountSessionList(
         },
       });
 
-      li.appendChild(itemBtn.el);
-      root.appendChild(li);
+      // createListItemButton 自体が <li role="button"> なので ul 直下に置く（外側 li で二重に
+      // しない。SR の行数・位置アナウンスが崩れる回帰の修正）。
+      root.appendChild(itemBtn.el);
 
       rowHandles.push({ itemBtn, copyBtn, tooltip });
     }

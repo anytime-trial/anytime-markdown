@@ -165,14 +165,27 @@ export function mountCodeGraphPanel(
   }
 
   // --- Hint alert ---
+  // role="alert" + info アイコンで a11y を担保しつつ、従来の subtle な見た目（薄い info 背景 +
+  // info 文字色）を維持する（createAlert の filled banner とは意図的に異なる軽量表示）。
   const hintEl = document.createElement('div');
+  hintEl.setAttribute('role', 'alert');
   hintEl.style.cssText =
     'margin:4px 8px;padding:4px 12px;background:var(--am-color-info-bg,rgba(66,165,245,0.12));' +
-    'border-radius:4px;font-size:0.75rem;color:var(--am-color-info-main,#42A5F5);display:none;';
-  hintEl.textContent =
+    'border-radius:4px;font-size:0.75rem;color:var(--am-color-info-main,#42A5F5);display:none;' +
+    'align-items:center;gap:6px;';
+  const hintIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  hintIcon.setAttribute('viewBox', '0 0 24 24');
+  hintIcon.setAttribute('aria-hidden', 'true');
+  hintIcon.style.cssText = 'width:16px;height:16px;flex-shrink:0;fill:currentColor;';
+  const hintIconPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  hintIconPath.setAttribute('d', 'M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z');
+  hintIcon.appendChild(hintIconPath);
+  const hintText = document.createElement('span');
+  hintText.textContent =
     'subagent 粒度では複数の subagent_type が共通ファイルを触っていないと方向性（矢印）は出ません。' +
     '現在のデータは対称的なため全エッジが無向です。期間（windowDays）を伸ばすか、' +
     '別の subagent_type を含むセッションが取り込まれているか確認してください。';
+  hintEl.append(hintIcon, hintText);
   root.appendChild(hintEl);
 
   // --- Body (canvas + detail) ---
@@ -213,11 +226,21 @@ export function mountCodeGraphPanel(
     placeholderEl = el;
   }
 
+  /** 外部由来テキスト（エラーメッセージ等）を安全に表示する（innerHTML を使わない）。 */
+  function showPlaceholderText(text: string, color: string): void {
+    clearCanvas();
+    const el = document.createElement('div');
+    el.style.cssText = `padding:24px;font-size:0.875rem;color:${color};`;
+    el.textContent = text;
+    canvasPane.appendChild(el);
+    placeholderEl = el;
+  }
+
   function renderState(): void {
     if (destroyed) return;
 
     // Hint
-    hintEl.style.display = props.showSubagentDirectionalHint ? '' : 'none';
+    hintEl.style.display = props.showSubagentDirectionalHint ? 'flex' : 'none';
 
     // Color-by toggle / layer legend
     refreshColorByLabels();
@@ -231,6 +254,15 @@ export function mountCodeGraphPanel(
 
     const state = props.graphState;
 
+    // 検索ツールバー / colorBy トグルは ready 状態でのみ表示（旧 React は非 ready で early return し
+    // 非表示だった）。非 ready では詳細サイドバーもクリアして stale 表示を防ぐ。
+    const isReady = state.status === 'ready';
+    toolbar.style.display = isReady ? '' : 'none';
+    if (!isReady) {
+      detailPane.style.display = 'none';
+      detailPane.replaceChildren();
+    }
+
     if (state.status === 'loading') {
       showPlaceholder(
         '<div style="display:flex;align-items:center;gap:12px;">' +
@@ -242,9 +274,8 @@ export function mountCodeGraphPanel(
     }
 
     if (state.status === 'error') {
-      showPlaceholder(
-        `<div style="color:var(--am-color-error-main);">${state.message}</div>`,
-      );
+      // state.message は外部由来の可能性があるため textContent で挿入（XSS 回避）。
+      showPlaceholderText(state.message, 'var(--am-color-error-main)');
       // Add retry button
       const retryBtn = document.createElement('button');
       retryBtn.textContent = '再試行';
