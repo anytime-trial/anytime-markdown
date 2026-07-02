@@ -27,7 +27,8 @@ import type { TrailFilter } from '../domain/parser/types';
 import type { ElementFormData, RelationshipFormData } from '../c4/components/dialogs/C4EditDialogs';
 import { mountTrailViewer } from './trailViewer';
 import type { TrailViewerViewProps } from './trailViewer';
-import { isC4RelatedTab } from '../components/trailTabs';
+import { isC4RelatedTab, isMemoryTab } from '../components/trailTabs';
+import { createChatBridge, type ChatBridgeStore } from '../hooks/createChatBridge';
 import { en } from '../i18n/en';
 import { ja } from '../i18n/ja';
 import type { TrailI18n } from '../i18n/types';
@@ -150,6 +151,9 @@ export function mountTrailViewerApp(
   let c4Enabled = false;
   let promptsEnabled = false;
 
+  // ── Chat bridge（Memory タブ初回訪問で遅延生成。旧 MemoryPanel の useChatBridge 相当） ──
+  let chatBridgeStore: ChatBridgeStore | null = null;
+
   // ── Category state ──
   let commitCategories: ReadonlyMap<string, number> = DEFAULT_COMMIT_CATEGORIES;
   let commitCategoryLabels: ReadonlyMap<number, string> = DEFAULT_COMMIT_CATEGORY_LABELS;
@@ -161,6 +165,9 @@ export function mountTrailViewerApp(
   // ── Filter + selection state ──
   let filter: TrailFilter = EMPTY_FILTER;
   let selectedSessionId: string | undefined;
+  // 旧 TrailViewerApp.tsx: initialTab===1（Messages 起点）で最初のセッションを一度だけ自動選択する。
+  // これが無いと press 埋め込み等で右ペインが「セッションを選択してください」の空状態で始まる。
+  let didAutoSelect = false;
 
   // ── Stores ──
   const trailStore = createTrailDataStore(props.serverUrl, { promptsEnabled });
@@ -333,6 +340,11 @@ export function mountTrailViewerApp(
           // 初回 fetch + WS 接続を起動する（これが無いと C4 モデルが永久に空になる）。
           c4Store.setEnabled(true);
         }
+        if (isMemoryTab(tab)) {
+          // Memory タブ初回訪問で ChatBridge を生成し WS 接続する（これが無いと Chat タブが
+          // 常時「接続不可」になる。旧 MemoryPanel の useChatBridge(serverUrl) 相当）。
+          ensureChatBridge();
+        }
       },
       onPromptsOpen: () => {
         promptsEnabled = true;
@@ -343,6 +355,7 @@ export function mountTrailViewerApp(
       sendCommand: c4.sendCommand,
       wsConnected: c4.connected,
       serverUrl: props.serverUrl,
+      bridge: chatBridgeStore ? chatBridgeStore.getSnapshot() : undefined,
       commitCategories,
       commitCategoryLabels,
       toolCategories,
@@ -360,8 +373,27 @@ export function mountTrailViewerApp(
   // ── Initial inner mount ──
   let innerHandle = mountTrailViewer(container, buildViewerProps());
 
+  /** Memory タブ初回訪問で ChatBridge を生成する（一度だけ。WS 接続 + 再描画）。 */
+  function ensureChatBridge(): void {
+    if (chatBridgeStore || destroyed) return;
+    chatBridgeStore = createChatBridge(props.serverUrl, notifyUpdate);
+    notifyUpdate();
+  }
+
+  /** initialTab===1 のとき最初のセッションを一度だけ自動選択する（旧 didAutoSelect ロジック）。 */
+  function maybeAutoSelectFirstSession(): void {
+    if (didAutoSelect || props.initialTab !== 1 || selectedSessionId) return;
+    const trail = trailStore.getState();
+    const first = (trail.allSessions ?? trail.sessions)[0];
+    if (!first) return;
+    didAutoSelect = true;
+    selectedSessionId = first.id;
+    trail.loadSession(first.id);
+  }
+
   function notifyUpdate(): void {
     if (destroyed) return;
+    maybeAutoSelectFirstSession();
     innerHandle.update(buildViewerProps());
   }
 
@@ -382,6 +414,7 @@ export function mountTrailViewerApp(
       trailStore.dispose();
       c4Store.dispose();
       traceStore.dispose();
+      chatBridgeStore?.dispose();
       innerHandle.destroy();
     },
   };

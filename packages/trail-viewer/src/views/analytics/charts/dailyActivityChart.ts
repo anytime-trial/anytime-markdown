@@ -114,16 +114,13 @@ export function mountDailyActivityChart(
 ): VanillaViewHandle<DailyActivityChartProps> {
   let props = initial;
 
-  if (props.items.length === 0) {
-    return {
-      update(next) { props = next; },
-      destroy() {},
-    };
-  }
-
+  // 空データでも card は常に mount し、items が非同期到着したら update で描画する。
+  // （旧 React は items 空で null を返し、到着時に自動再描画していた。mount 時 no-op スタブを
+  //  返すと到着後も永久に空のまま固着する回帰の修正。）
   const card = document.createElement('div');
-  applyCardStyle(card, props.cardSx);
   container.appendChild(card);
+  let chartHandle: ReturnType<typeof mountAnytimeChartView> | null = null;
+  let dataset: ChartEntry[] = [];
 
   function buildSpec(p: DailyActivityChartProps) {
     const dataset = computeDataset(p);
@@ -149,39 +146,41 @@ export function mountDailyActivityChart(
     };
   }
 
-  const { spec: initialSpec, dataset: initialDataset } = buildSpec(props);
-  let dataset = initialDataset;
+  // dataset を通じて現在値を読む click ハンドラ（period 90 は週次集計のため無効）。
+  const onCategoryClick = (idx: number): void => {
+    if (idx >= 0 && idx < dataset.length) props.onDateClick?.(dataset[idx].fullDate);
+  };
 
-  const onCategoryClick =
-    props.period === 90
-      ? undefined
-      : (idx: number) => {
-          if (idx >= 0 && idx < dataset.length) props.onDateClick?.(dataset[idx].fullDate);
-        };
+  function render(): void {
+    if (props.items.length === 0) {
+      // 空: チャートを外し card を装飾しない（旧 React の null 返却相当）。
+      if (chartHandle) { chartHandle.destroy(); chartHandle = null; }
+      card.replaceChildren();
+      card.removeAttribute('style');
+      dataset = [];
+      return;
+    }
+    applyCardStyle(card, props.cardSx);
+    const { spec, dataset: newDataset } = buildSpec(props);
+    dataset = newDataset;
+    const cb = props.period === 90 ? undefined : onCategoryClick;
+    if (!chartHandle) {
+      chartHandle = mountAnytimeChartView(card, { spec, height: 240, isDark: props.isDark, onCategoryClick: cb });
+    } else {
+      chartHandle.update({ spec, height: 240, isDark: props.isDark, onCategoryClick: cb });
+    }
+  }
 
-  const chartHandle = mountAnytimeChartView(card, {
-    spec: initialSpec,
-    height: 240,
-    isDark: props.isDark,
-    onCategoryClick,
-  });
+  render();
 
   return {
     update(next) {
       props = next;
-      applyCardStyle(card, next.cardSx);
-      const { spec, dataset: newDataset } = buildSpec(next);
-      dataset = newDataset;
-      const nextOnCategoryClick =
-        next.period === 90
-          ? undefined
-          : (idx: number) => {
-              if (idx >= 0 && idx < dataset.length) props.onDateClick?.(dataset[idx].fullDate);
-            };
-      chartHandle.update({ spec, height: 240, isDark: next.isDark, onCategoryClick: nextOnCategoryClick });
+      render();
     },
     destroy() {
-      chartHandle.destroy();
+      chartHandle?.destroy();
+      chartHandle = null;
       card.remove();
     },
   };

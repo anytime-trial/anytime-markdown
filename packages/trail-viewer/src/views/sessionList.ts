@@ -98,7 +98,10 @@ export function mountSessionList(
         size: 'small',
         ariaLabel: props.t('sessionList.copyId'),
         children: copyIconEl,
-        onClick: () => {
+        onClick: (e) => {
+          // 旧 SessionList.handleCopyId と同じく、コピーは行の onSelect へ伝播させない
+          // （ID コピーのつもりで意図せずセッション切替が起きるのを防ぐ）。
+          e.stopPropagation();
           if (destroyed) return;
           void navigator.clipboard.writeText(session.id).then(() => {
             if (destroyed) return;
