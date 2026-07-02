@@ -220,6 +220,54 @@ describe("createGifRecorderDialog", () => {
     handle.destroy();
   });
 
+  /**
+   * 指摘35: getDisplayMedia の catch がエラー種別を区別せず無音だった。
+   * ユーザーキャンセル相当（NotAllowedError/AbortError）は静かに継続し、
+   * それ以外（権限・デバイス起因の失敗）は console.error で原因追跡できることを固定する。
+   */
+  it("NotAllowedError（ユーザーキャンセル相当）では console.error を呼ばない", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    getDisplayMediaMock.mockRejectedValue(
+      new DOMException("Permission denied", "NotAllowedError"),
+    );
+    const { handle } = open();
+    findBtn(handle.el, "gifSelectScreen")!.click();
+    await flush();
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    handle.destroy();
+    errorSpy.mockRestore();
+  });
+
+  it("NotReadableError（デバイス起因の失敗）では console.error でログする", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    getDisplayMediaMock.mockRejectedValue(
+      new DOMException("Could not start video source", "NotReadableError"),
+    );
+    const { handle } = open();
+    findBtn(handle.el, "gifSelectScreen")!.click();
+    await flush();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("GifRecorderDialog: getDisplayMedia failed"),
+      expect.any(DOMException),
+    );
+    handle.destroy();
+    errorSpy.mockRestore();
+  });
+
+  /**
+   * 指摘36 残件: "Encoding GIF..." / alt "GIF preview" がハードコードのままだった。
+   * 既存の gifEncoding / 新規 gifPreviewAlt キーへ t() 経由で配線されることを固定する。
+   */
+  it("encoding ラベルと result img alt が i18n（t）経由になる", () => {
+    const { handle } = open();
+    expect(handle.el.textContent).toContain("gifEncoding");
+    const resultImg = handle.el.querySelector("img") as HTMLImageElement;
+    expect(resultImg.alt).toBe("gifPreviewAlt");
+    handle.destroy();
+  });
+
   it("矩形ドラッグで ready に遷移し Record / Reselect ボタンを出す", async () => {
     const track = makeTrack();
     const { handle } = open();

@@ -272,8 +272,17 @@ export function createScreenCaptureDialog(
       }
       phase = "previewing";
       renderPhase();
-    } catch {
-      // OS ダイアログをユーザーがキャンセル → 閉じる。
+    } catch (error) {
+      // ユーザーキャンセル（NotAllowedError/AbortError）以外（NotFoundError/NotReadableError
+      // 等の権限・デバイス起因の失敗）は原因調査できるよう console.error でログする
+      // （silent catch 禁止規約）。閉じる挙動自体はキャンセル/失敗いずれも同一（React 原版と同一）。
+      const name = error instanceof DOMException ? error.name : undefined;
+      if (name !== "NotAllowedError" && name !== "AbortError") {
+        console.error(
+          `[${new Date().toISOString()}] [ERROR] ScreenCaptureDialog: getDisplayMedia failed`,
+          error,
+        );
+      }
       onClose();
     }
   }

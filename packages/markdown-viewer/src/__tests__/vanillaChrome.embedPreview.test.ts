@@ -114,7 +114,7 @@ describe("createEmbedFetchController", () => {
     expect(last?.data).toBeNull();
   });
 
-  test("cancel() 後は subscriber が呼ばれない", async () => {
+  test("cancel() 後は loading 通知のみ届き、完了通知は届かない", async () => {
     const providers = makeProviders();
     const ctrl = createEmbedFetchController<OgpData>();
     const states: unknown[] = [];
@@ -124,8 +124,10 @@ describe("createEmbedFetchController", () => {
     ctrl.cancel();
     await flushPromises();
 
-    // cancel 前の loading 初期化だけが起こり、subscriber への通知はなし
-    expect(states).toHaveLength(0);
+    // fetch() 開始直後の loading 通知（指摘44）は cancel 前に同期発火する。
+    // cancel 後の完了 .then()/.catch() は cancelled ガードで notify() されない。
+    expect(states).toHaveLength(1);
+    expect((states[0] as { loading: boolean }).loading).toBe(true);
   });
 
   test("キャッシュ hit 時に fetcher を再呼び出ししない", async () => {
@@ -140,9 +142,31 @@ describe("createEmbedFetchController", () => {
     ctrl2.subscribe((s) => states.push(s));
     ctrl2.fetch("https://cached2.example", "ogp", providers.fetchOgp);
 
-    // キャッシュ hit は同期的に notify される
-    expect(states).toHaveLength(1);
+    // fetch() 開始直後の loading 通知（指摘44）+ キャッシュ hit の同期通知で 2 件。
+    expect(states).toHaveLength(2);
     expect(providers.fetchOgp).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 指摘44: fetch() はキャッシュ未ヒット時に loading:true をセットした直後に notify() を
+   * 呼ばず完了時のみ通知していたため、embedViews.ts の `if (state.loading)` スケルトン
+   * 描画分岐が呼び出し順序上、一度も到達しなかった回帰。loading 状態が同期的に届き、
+   * その後フェッチ完了状態が届くことを固定する。
+   */
+  test("非キャッシュ時は loading 通知 → 完了通知の順で 2 回 notify される", async () => {
+    const providers = makeProviders();
+    const ctrl = createEmbedFetchController<OgpData>();
+    const states: Array<{ loading: boolean }> = [];
+    ctrl.subscribe((s) => states.push(s));
+
+    ctrl.fetch("https://loading-notify.example", "ogp", providers.fetchOgp);
+    // フェッチ完了前でも loading 通知が同期的に届く。
+    expect(states).toHaveLength(1);
+    expect(states[0].loading).toBe(true);
+
+    await flushPromises();
+    expect(states.at(-1)?.loading).toBe(false);
+    expect(states).toHaveLength(2);
   });
 });
 

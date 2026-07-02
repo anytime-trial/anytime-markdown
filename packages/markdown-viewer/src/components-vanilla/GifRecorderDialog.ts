@@ -205,7 +205,7 @@ export function createGifRecorderDialog(
 
   // done プレビュー（生成済み GIF を img で表示）。
   const resultImg = document.createElement("img");
-  resultImg.alt = "GIF preview";
+  resultImg.alt = t("gifPreviewAlt");
   resultImg.style.cssText = "max-width:100%;max-height:100%;display:none;";
 
   // encoding プレースホルダ（進捗バー + パーセント）。
@@ -213,7 +213,7 @@ export function createGifRecorderDialog(
   encodingBox.style.cssText =
     "display:none;flex-direction:column;align-items:center;gap:16px;" +
     "color:var(--am-color-text-secondary);width:60%;";
-  const encodingLabel = createText({ variant: "body2", text: "Encoding GIF..." });
+  const encodingLabel = createText({ variant: "body2", text: t("gifEncoding") });
   const progressBar: ProgressBarHandle = createProgressBar({
     variant: "determinate",
     value: 0,
@@ -494,8 +494,17 @@ export function createGifRecorderDialog(
       }
       phase = "previewing";
       renderPhase();
-    } catch {
-      // OS ダイアログをユーザーがキャンセル → 何もしない（React 原版と同一・idle のまま）。
+    } catch (error) {
+      // ユーザーキャンセル（NotAllowedError/AbortError）は React 原版と同一・idle のまま
+      // 静かに継続する。それ以外（NotFoundError/NotReadableError 等の権限・デバイス起因の
+      // 失敗）は原因調査できるよう console.error でログする（silent catch 禁止規約）。
+      const name = error instanceof DOMException ? error.name : undefined;
+      if (name !== "NotAllowedError" && name !== "AbortError") {
+        console.error(
+          `[${new Date().toISOString()}] [ERROR] GifRecorderDialog: getDisplayMedia failed`,
+          error,
+        );
+      }
     }
   }
 

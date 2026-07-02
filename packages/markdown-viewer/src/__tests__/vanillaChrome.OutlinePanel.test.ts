@@ -169,6 +169,46 @@ describe("createOutlinePanel", () => {
       expect(labels(handle.el).map((l) => l.textContent)).toEqual(["X"]);
       handle.destroy();
     });
+
+    /**
+     * 指摘49: transaction は選択のみのトランザクション（カーソル移動等）でも高頻度に発火するが、
+     * refresh() は無条件に doc 全走査 → body.replaceChildren() の全行再構築を行っていたため、
+     * 不要な DOM churn を招いていた。見出し（level+text）が変化しない transaction では
+     * 再描画（要素の作り直し）をスキップすることを固定する。
+     */
+    it("見出しが変化しない transaction では再描画（DOM 作り直し）をスキップする", () => {
+      const m = makeEditor(HEADINGS);
+      const handle = createOutlinePanel(baseOpts({ editor: m.editor }));
+      const before = labels(handle.el)[0];
+
+      // ノード配列は同一内容のまま（level/text 不変）で transaction のみ発火
+      // （カーソル移動等の選択のみのトランザクションを模す）。
+      m.setNodes([...HEADINGS]);
+      m.emit("transaction");
+
+      const after = labels(handle.el)[0];
+      // 要素が作り直されていない（同一参照）ことで re-render をスキップしたと確認する。
+      expect(after).toBe(before);
+      handle.destroy();
+    });
+
+    it("見出しテキストが変化した transaction では再描画する", () => {
+      const m = makeEditor(HEADINGS);
+      const handle = createOutlinePanel(baseOpts({ editor: m.editor }));
+      const before = labels(handle.el)[0];
+
+      m.setNodes([{ typeName: "heading", level: 1, text: "Intro (edited)" }, ...HEADINGS.slice(1)]);
+      m.emit("transaction");
+
+      expect(labels(handle.el).map((l) => l.textContent)).toEqual([
+        "Intro (edited)",
+        "Background",
+        "Method",
+      ]);
+      const after = labels(handle.el)[0];
+      expect(after).not.toBe(before);
+      handle.destroy();
+    });
   });
 
   describe("ブロック表示トグル", () => {

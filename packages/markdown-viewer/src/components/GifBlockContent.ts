@@ -108,7 +108,13 @@ export function createGifBlockNodeView({
     let pos: number | null | undefined;
     try {
       pos = getPos?.();
-    } catch {
+    } catch (error) {
+      // getPos は detached ノードで TypeError を throw し得る（vendored tiptap の既知挙動、
+      // safeGetPos.ts と同じ判定基準）。既知パターン以外は想定外の例外のためログする
+      // （silent catch 禁止規約。installBlockOverlays.ts の console.warn 書式に揃える）。
+      if (!(error instanceof TypeError)) {
+        console.warn("[GifBlockContent] onPlaceholderClick: unexpected error", error);
+      }
       return;
     }
     if (pos == null) return;

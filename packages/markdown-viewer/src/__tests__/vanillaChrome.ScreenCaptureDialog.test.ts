@@ -190,6 +190,40 @@ describe("createScreenCaptureDialog", () => {
     handle.destroy();
   });
 
+  /**
+   * 指摘35: getDisplayMedia の catch がエラー種別を区別せず無音だった。
+   * onClose の呼び出し（React 原版と同一挙動）は維持しつつ、ユーザーキャンセル相当
+   * （NotAllowedError/AbortError）以外は console.error で原因追跡できることを固定する。
+   */
+  it("NotAllowedError（ユーザーキャンセル相当）では console.error を呼ばず onClose のみ呼ぶ", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    getDisplayMediaMock.mockRejectedValue(
+      new DOMException("Permission denied", "NotAllowedError"),
+    );
+    const { handle, onClose } = open();
+    await flush();
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+
+  it("NotReadableError（デバイス起因の失敗）では console.error でログしつつ onClose も呼ぶ", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    getDisplayMediaMock.mockRejectedValue(
+      new DOMException("Could not start video source", "NotReadableError"),
+    );
+    const { handle, onClose } = open();
+    await flush();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("ScreenCaptureDialog: getDisplayMedia failed"),
+      expect.any(DOMException),
+    );
+    expect(onClose).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+
   it("track ended（共有停止）で idle に戻る", async () => {
     const track = makeTrack();
     getDisplayMediaMock.mockResolvedValue(makeStream(track));

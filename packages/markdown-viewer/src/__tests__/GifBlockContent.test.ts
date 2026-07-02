@@ -108,4 +108,48 @@ describe("createGifBlockNodeView (native content NodeView)", () => {
 
     expect(spy).not.toHaveBeenCalled();
   });
+
+  /**
+   * 指摘34: detached ノード起因の catch がコンテキストログ無しで握りつぶしていた。
+   * 既知パターン（TypeError、vendored tiptap の detached 挙動）は静かに無視し、
+   * 想定外の例外だけ console.warn でログすることを固定する。
+   */
+  it("getPos が TypeError を throw した場合（既知の detached パターン）は console.warn を呼ばない", () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const editor = { isEditable: true } as any;
+    const node = { attrs: { src: null }, type: { name: "gifBlock" } } as any;
+    const view = createGifBlockNodeView({
+      node,
+      editor,
+      getPos: () => {
+        throw new TypeError("Cannot read properties of undefined (reading 'size')");
+      },
+    });
+    const placeholder = (view.dom as HTMLElement).querySelector("div") as HTMLElement;
+    placeholder.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("getPos が想定外の例外を throw した場合は console.warn でログする", () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const editor = { isEditable: true } as any;
+    const node = { attrs: { src: null }, type: { name: "gifBlock" } } as any;
+    const view = createGifBlockNodeView({
+      node,
+      editor,
+      getPos: () => {
+        throw new Error("boom");
+      },
+    });
+    const placeholder = (view.dom as HTMLElement).querySelector("div") as HTMLElement;
+    placeholder.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[GifBlockContent] onPlaceholderClick: unexpected error",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
+  });
 });

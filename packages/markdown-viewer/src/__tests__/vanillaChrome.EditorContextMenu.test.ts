@@ -527,4 +527,31 @@ describe("createEditorContextMenu", () => {
     expect(() => handle!.destroy()).not.toThrow();
     handle = undefined;
   });
+
+  /**
+   * 指摘45: clipboard.read() 失敗の catch がエラー内容をログしなかった。テキスト貼り付け
+   * フォールバック自体は維持しつつ、console.warn で原因を追跡できることを固定する。
+   */
+  it("paste で navigator.clipboard.read() が失敗すると console.warn しテキスト貼り付けへフォールバックする", async () => {
+    const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const readError = new Error("clipboard read denied");
+    Object.defineProperty(navigator, "clipboard", {
+      value: { read: jest.fn().mockRejectedValue(readError) },
+      configurable: true,
+    });
+
+    const m = createMockEditor();
+    document.body.appendChild(m.dom);
+    handle = createEditorContextMenu({ editor: m.editor, t, currentMode: "wysiwyg" });
+    fireContextMenu(m.dom);
+    clickItemByLabel("paste");
+    await flush();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[EditorContextMenu] clipboard.read() failed, falling back to text paste",
+      readError,
+    );
+    warnSpy.mockRestore();
+  });
 });

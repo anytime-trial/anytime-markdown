@@ -50,8 +50,13 @@ function measureRect(editor: Editor, pos: number): DOMRect | null {
   try {
     const dom = editor.view.nodeDOM(pos) as HTMLElement | null;
     return dom?.getBoundingClientRect?.() ?? null;
-  } catch {
-    // getPos/nodeDOM は detached ノードで throw し得る（vendored tiptap の既知挙動）。
+  } catch (error) {
+    // getPos/nodeDOM は detached ノードで TypeError を throw し得る（vendored tiptap の既知挙動、
+    // safeGetPos.ts と同じ判定基準）。既知パターン以外は想定外の例外のためログする
+    // （silent catch 禁止規約。installBlockOverlays.ts の console.warn 書式に揃える）。
+    if (!(error instanceof TypeError)) {
+      console.warn("[blockChrome] measureRect: unexpected error", error);
+    }
     return null;
   }
 }

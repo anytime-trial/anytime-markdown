@@ -37,7 +37,13 @@ export function createImageBlockNodeView({
     try {
       const p = getPos?.();
       return typeof p === "number" ? p : null;
-    } catch {
+    } catch (error) {
+      // getPos は detached ノードで TypeError を throw し得る（vendored tiptap の既知挙動、
+      // safeGetPos.ts と同じ判定基準）。既知パターン以外は想定外の例外のためログする
+      // （silent catch 禁止規約。installBlockOverlays.ts の console.warn 書式に揃える）。
+      if (!(error instanceof TypeError)) {
+        console.warn("[ImageBlockContent] posOrNull: unexpected error", error);
+      }
       return null;
     }
   };
@@ -155,8 +161,20 @@ export function createImageBlockNodeView({
     badge.style.display = "block";
     try {
       handle.setPointerCapture(e.pointerId);
-    } catch {
-      // 一部環境では未アクティブな pointerId で throw する。capture 失敗は致命的でない。
+    } catch (error) {
+      // 一部環境では未アクティブな pointerId で throw する（実ブラウザ: DOMException、
+      // jsdom は Pointer Capture 未実装のため TypeError "... is not a function"）。capture
+      // 失敗は致命的でないため握りつぶすが、既知パターン以外の想定外の例外はログする
+      // （silent catch 禁止規約）。
+      const isKnownCaptureFailure =
+        error instanceof DOMException ||
+        (error instanceof TypeError && /setPointerCapture/.test(String(error.message)));
+      if (!isKnownCaptureFailure) {
+        console.warn(
+          "[ImageBlockContent] onPointerDown: unexpected error while capturing pointer",
+          error,
+        );
+      }
     }
     handle.addEventListener("pointermove", onPointerMove);
   };

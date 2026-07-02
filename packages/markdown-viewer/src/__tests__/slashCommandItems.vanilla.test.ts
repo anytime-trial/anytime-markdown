@@ -179,4 +179,63 @@ describe("DEFAULT_SLASH_ITEMS", () => {
       args: ["codeBlock", { autoEditOpen: true }],
     });
   });
+
+  /**
+   * 指摘40: THINKING_DIAGRAM_SKELETON / CHART_SKELETON が日本語固定で resolveLocale() を
+   * 見ておらず、英語ロケール利用者でも本文に日本語コメントが挿入されていた回帰。
+   * builtinTemplate() と同じ NEXT_LOCALE cookie 判定で切り替わることを固定する。
+   */
+  describe("挿入スケルトンのロケール切替（指摘40）", () => {
+    const clearLocaleCookie = (): void => {
+      document.cookie = "NEXT_LOCALE=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/";
+    };
+
+    afterEach(() => {
+      clearLocaleCookie();
+    });
+
+    it("anytime-graph: NEXT_LOCALE=en では英語スケルトンを挿入する", () => {
+      document.cookie = "NEXT_LOCALE=en";
+      const item = DEFAULT_SLASH_ITEMS.find((i) => i.id === "anytime-graph");
+      const { editor, calls } = createChainEditor();
+      item?.action(editor);
+      const insertContentCall = calls.find((c) => c.method === "insertContent");
+      const text = (insertContentCall?.args[0] as { content: Array<{ text: string }> }).content[0]
+        .text;
+      expect(text).toContain("Thinking diagram");
+      expect(text).not.toMatch(/[぀-ヿ一-鿿]/); // 日本語文字を含まない
+    });
+
+    it("anytime-graph: NEXT_LOCALE 未設定（既定 ja）では日本語スケルトンを挿入する", () => {
+      const item = DEFAULT_SLASH_ITEMS.find((i) => i.id === "anytime-graph");
+      const { editor, calls } = createChainEditor();
+      item?.action(editor);
+      const insertContentCall = calls.find((c) => c.method === "insertContent");
+      const text = (insertContentCall?.args[0] as { content: Array<{ text: string }> }).content[0]
+        .text;
+      expect(text).toContain("思考法ダイアグラム");
+    });
+
+    it("anytime-chart: NEXT_LOCALE=en では英語スケルトンを挿入する", () => {
+      document.cookie = "NEXT_LOCALE=en";
+      const item = DEFAULT_SLASH_ITEMS.find((i) => i.id === "anytime-chart");
+      const { editor, calls } = createChainEditor();
+      item?.action(editor);
+      const insertContentCall = calls.find((c) => c.method === "insertContent");
+      const text = (insertContentCall?.args[0] as { content: Array<{ text: string }> }).content[0]
+        .text;
+      expect(text).toContain("Chart");
+      expect(text).not.toMatch(/[぀-ヿ一-鿿]/);
+    });
+
+    it("anytime-chart: NEXT_LOCALE 未設定（既定 ja）では日本語スケルトンを挿入する", () => {
+      const item = DEFAULT_SLASH_ITEMS.find((i) => i.id === "anytime-chart");
+      const { editor, calls } = createChainEditor();
+      item?.action(editor);
+      const insertContentCall = calls.find((c) => c.method === "insertContent");
+      const text = (insertContentCall?.args[0] as { content: Array<{ text: string }> }).content[0]
+        .text;
+      expect(text).toContain("チャート");
+    });
+  });
 });

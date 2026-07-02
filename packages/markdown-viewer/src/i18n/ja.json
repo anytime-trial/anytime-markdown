@@ -617,6 +617,7 @@
     "gifRecord": "録画",
     "gifRecording": "録画中...",
     "gifEncoding": "GIF 生成中...",
+    "gifPreviewAlt": "GIF プレビュー",
     "gifSelectArea": "領域を選択",
     "gifReselectArea": "領域を選び直す",
     "gifSelectScreen": "画面を選択",

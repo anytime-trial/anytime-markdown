@@ -617,6 +617,7 @@
     "gifRecord": "Record",
     "gifRecording": "Recording...",
     "gifEncoding": "Encoding GIF...",
+    "gifPreviewAlt": "GIF preview",
     "gifSelectArea": "Select area",
     "gifReselectArea": "Reselect Area",
     "gifSelectScreenHint": "Select a screen to start",

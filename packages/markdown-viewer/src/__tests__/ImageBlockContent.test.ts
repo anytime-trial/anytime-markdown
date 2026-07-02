@@ -128,4 +128,83 @@ describe("createImageBlockNodeView (native content NodeView)", () => {
     sink[0]({ tr });
     expect(tr.setNodeAttribute).toHaveBeenCalledWith(4, "width", expect.stringMatching(/px$/));
   });
+
+  /**
+   * 指摘34: detached ノード起因の catch がコンテキストログ無しで握りつぶしていた。
+   * 既知パターン（TypeError、vendored tiptap の detached 挙動）は静かに無視し、
+   * 想定外の例外だけ console.warn でログすることを固定する（posOrNull）。
+   */
+  it("resize commit 時に getPos が TypeError を throw した場合（既知の detached パターン）は console.warn を呼ばない", () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const chain = () => ({ command: () => ({ run: () => true }), run: () => true } as any);
+    const editor = { isEditable: true, chain } as any;
+    const node = { attrs: { src: "p.png", alt: "x" }, type: { name: "image" } } as any;
+    const view = createImageBlockNodeView({
+      node,
+      editor,
+      getPos: () => {
+        throw new TypeError("Cannot read properties of undefined (reading 'size')");
+      },
+    });
+    view.selectNode?.();
+    const handle = (view.dom as HTMLElement).querySelector(
+      "[data-am-resize-handle]",
+    ) as HTMLElement;
+    handle.dispatchEvent(new MouseEvent("pointerdown", { clientX: 100, bubbles: true }));
+    handle.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("resize commit 時に getPos が想定外の例外を throw した場合は console.warn でログする", () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const chain = () => ({ command: () => ({ run: () => true }), run: () => true } as any);
+    const editor = { isEditable: true, chain } as any;
+    const node = { attrs: { src: "p.png", alt: "x" }, type: { name: "image" } } as any;
+    const view = createImageBlockNodeView({
+      node,
+      editor,
+      getPos: () => {
+        throw new Error("boom");
+      },
+    });
+    view.selectNode?.();
+    const handle = (view.dom as HTMLElement).querySelector(
+      "[data-am-resize-handle]",
+    ) as HTMLElement;
+    handle.dispatchEvent(new MouseEvent("pointerdown", { clientX: 100, bubbles: true }));
+    handle.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[ImageBlockContent] posOrNull: unexpected error",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
+  });
+
+  /**
+   * 指摘34: setPointerCapture の catch も既知パターン（DOMException / jsdom 未実装の
+   * TypeError）以外は console.warn でログする。jsdom は Pointer Capture 未実装のため
+   * pointerdown 自体が既に「既知パターン」を踏む（"commits the new width..." 参照）。
+   * ここでは setPointerCapture 自体を想定外の型で throw させて検知されることを固定する。
+   */
+  it("setPointerCapture が想定外の例外を throw した場合は console.warn でログする", () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const view = makeView({ src: "p.png", alt: "x" }, { pos: 4 });
+    view.selectNode?.();
+    const handle = (view.dom as HTMLElement).querySelector(
+      "[data-am-resize-handle]",
+    ) as HTMLElement;
+    handle.setPointerCapture = () => {
+      throw new RangeError("boom");
+    };
+    handle.dispatchEvent(new MouseEvent("pointerdown", { clientX: 100, bubbles: true }));
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[ImageBlockContent] onPointerDown: unexpected error while capturing pointer",
+      expect.any(RangeError),
+    );
+    warnSpy.mockRestore();
+  });
 });
