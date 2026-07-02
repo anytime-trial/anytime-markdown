@@ -72,7 +72,11 @@ export async function scanRepository(root: string, log?: Log): Promise<NoteDocIn
       } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
         try {
           const content = await fsp.readFile(full, 'utf8');
-          const doc = extractNoteDoc(toPosixRel(root, full), content);
+          const doc = extractNoteDoc(
+            toPosixRel(root, full),
+            content,
+            (message) => log?.(`[${nowIso()}] [WARN] [noteGraph] ${message} (${full})`),
+          );
           if (doc) docs.push(doc);
         } catch (err) {
           log?.(`[${nowIso()}] [ERROR] [noteGraph] read failed: ${full} ${String(err)}`);

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { MarkdownLogger } from '../utils/MarkdownLogger';
 
 /** メモリファイルの TreeItem */
 export class AiMemoryItem extends vscode.TreeItem {
@@ -77,7 +78,7 @@ export class AiMemoryProvider implements vscode.TreeDataProvider<AiMemoryItem> {
 				content = fs.readFileSync(filePath, 'utf-8');
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
-				console.warn(`[AiMemoryProvider] skip unreadable memory file: ${filePath} (${msg})`);
+				MarkdownLogger.warn(`[AiMemoryProvider] skip unreadable memory file: ${filePath} (${msg})`);
 				continue;
 			}
 			const { name, type } = parseFrontmatter(content);
