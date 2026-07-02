@@ -82,6 +82,11 @@ export function createViewerToolbar(opts: ViewerToolbarOptions): ViewerToolbarHa
       themeBtn.el.replaceChildren(themeIconFor(mode));
     },
     destroy() {
+      // StatusBar / OutlinePanel / MergeEditorPanel と同様、子 IconButton の click listener を
+      // 解放してから DOM を除去する（指摘50: 旧実装は root.remove() のみで listener が残存し得た）。
+      fontDown.destroy();
+      fontUp.destroy();
+      themeBtn.destroy();
       root.remove();
     },
   };

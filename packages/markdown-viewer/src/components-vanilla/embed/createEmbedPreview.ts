@@ -65,6 +65,9 @@ function detectIsDark(el: Element): boolean {
   return getComputedStyle(el).getPropertyValue("--am-editor-dark").trim() === "1";
 }
 
+/** t 未指定時のフォールバック（キーをそのまま返す）。CodeBlockBlockContent と同パターン。 */
+const identityT = (key: string): string => key;
+
 // ===== 内部状態型 =====
 
 interface CurrentView {
@@ -80,9 +83,14 @@ interface CurrentView {
  * embed プレビューの vanilla DOM マウントハンドルを生成する。
  *
  * @param container - コンテンツを mount する親 HTMLElement。
+ * @param t - i18n。未指定時（未 configure）はキーをそのまま表示する identityT へフォールバックする。
  * @returns EmbedMountHandle — render() / destroy() の契約を満たす。
  */
-export function createEmbedPreview(container: HTMLElement): EmbedMountHandle {
+export function createEmbedPreview(
+  container: HTMLElement,
+  t?: ((key: string) => string) | null,
+): EmbedMountHandle {
+  const resolvedT = t ?? identityT;
   let currentView: CurrentView | null = null;
 
   function clearView(): void {
@@ -114,7 +122,7 @@ export function createEmbedPreview(container: HTMLElement): EmbedMountHandle {
       if (!url) {
         const key = `placeholder:no-url`;
         if (currentView?.key === key) return;
-        const el = createPlaceholderBox("有効な URL を入力してください");
+        const el = createPlaceholderBox(resolvedT("mdEmbedInvalidUrl"));
         mount(el, key, () => { /* static placeholder */ });
         return;
       }
@@ -123,7 +131,7 @@ export function createEmbedPreview(container: HTMLElement): EmbedMountHandle {
       if (!classified) {
         const key = `placeholder:unclassified:${url}`;
         if (currentView?.key === key) return;
-        const el = createPlaceholderBox("この URL は埋め込めません");
+        const el = createPlaceholderBox(resolvedT("mdEmbedUnclassifiedUrl"));
         mount(el, key, () => { /* static placeholder */ });
         return;
       }
@@ -168,7 +176,7 @@ export function createEmbedPreview(container: HTMLElement): EmbedMountHandle {
       if (!providers) {
         const key = `placeholder:no-providers:${url}`;
         if (currentView?.key === key) return;
-        const el = createPlaceholderBox("埋め込みプロバイダが未設定です");
+        const el = createPlaceholderBox(resolvedT("mdEmbedProvidersMissing"));
         mount(el, key, () => { /* static placeholder */ });
         return;
       }
@@ -193,6 +201,7 @@ export function createEmbedPreview(container: HTMLElement): EmbedMountHandle {
         baseline,
         onBaselineWrite,
         isDark,
+        resolvedT,
       );
       mount(el, key, destroy);
     },

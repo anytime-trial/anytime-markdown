@@ -136,17 +136,24 @@ function buildEvaluationForm(
         createdAt: new Date().toISOString(),
       };
       props.onSave(evaluation);
-      // Reset
+      // Reset score/comment のみ。評価者名は連続評価のため保持する（旧 handleSubmit と一致）。
       score = null;
       comment = '';
-      evaluator = '';
       ratingHandle.setValue(null);
-      evaluatorHandle.update({ value: '' });
       commentHandle.update({ value: '' });
       updateBtn({ disabled: true });
     },
   });
-  saveBtn.style.cssText = `background-color:${props.colors.amberGold};color:${props.colors.textOnLight};border-radius:${props.radius.md};`;
+  // Button の BASE_CSS/SIZE_CSS（padding/min-height/cursor/transition 等）を潰さないよう追記する
+  // （`=` 代入だと素のネイティブボタンに背景色だけ乗った崩れた見た目になる）。
+  saveBtn.style.cssText += `background-color:${props.colors.amberGold};color:${props.colors.textOnLight};border-radius:${props.radius.md};`;
+  // hover フィードバック（旧 '&:hover' 相当。amberGoldHover が未配線だった）。
+  saveBtn.addEventListener('mouseenter', () => {
+    if (!saveBtn.disabled) saveBtn.style.backgroundColor = props.colors.amberGoldHover;
+  });
+  saveBtn.addEventListener('mouseleave', () => {
+    saveBtn.style.backgroundColor = props.colors.amberGold;
+  });
   wrap.appendChild(saveBtn);
 
   parent.appendChild(wrap);

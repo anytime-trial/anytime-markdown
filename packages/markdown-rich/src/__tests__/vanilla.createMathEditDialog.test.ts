@@ -96,4 +96,29 @@ describe("createMathEditDialog", () => {
     handle.destroy();
     expect(document.body.contains(handle.el)).toBe(false);
   });
+
+  // 指摘2 回帰テスト: KaTeX ParseError の message はユーザー入力 LaTeX の一部を含み得る。
+  // innerHTML への未エスケープ挿入は HTML 注入を許容するため、textContent ベースで
+  // タグが解釈されないことを固定する。
+  it("KaTeX エラーメッセージを HTML として解釈せず textContent で表示する（XSS 対策）", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { renderKatexHtml } = require("../hooks/useKatexRender") as { renderKatexHtml: jest.Mock };
+    renderKatexHtml.mockResolvedValueOnce({ html: "", error: "<img src=x onerror=alert(1)>" });
+
+    const state = createCodeEditState({ editor: makeEditor(), pos: 0, node: makeNode("x^2"), onClose: jest.fn() });
+    const handle = createMathEditDialog({
+      label: "Math", isDark: false, editorBg: "#fff",
+      fontSize: 16, lineHeight: 1.5,
+      state, t, onClose: jest.fn(),
+    });
+    // renderMath() は dialog 生成時に非同期起動される（マイクロタスクを flush して待つ）
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const katexBox = handle.el.querySelector(".am-mted-katex-box")!;
+    expect(katexBox.querySelector("img")).toBeNull();
+    expect(katexBox.textContent).toContain("<img src=x onerror=alert(1)>");
+
+    handle.destroy();
+  });
 });

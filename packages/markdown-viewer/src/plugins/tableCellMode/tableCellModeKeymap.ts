@@ -2,6 +2,7 @@ import { TextSelection } from "@anytime-markdown/markdown-pm/state";
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 import { TableMap } from "@anytime-markdown/markdown-pm/tables";
 
+import { safeResolve } from "../../utils/safeResolve";
 import { isInlineTable } from "./tableCellModeMouse";
 import {
   exitTableMode,
@@ -82,52 +83,50 @@ export function getAdjacentCellPos(
   direction: "up" | "down" | "left" | "right",
 ): number | null {
   const { doc } = view.state;
-  try {
-    const $pos = doc.resolve(cellPos);
-    // テーブルノードを探す
-    let tableNode = null;
-    let tableStart = 0;
-    for (let depth = $pos.depth; depth >= 0; depth--) {
-      if ($pos.node(depth).type.name === "table") {
-        tableNode = $pos.node(depth);
-        tableStart = $pos.before(depth) + 1;
-        break;
-      }
+  const $pos = safeResolve(doc, cellPos, "getAdjacentCellPos");
+  if (!$pos) return null;
+
+  // テーブルノードを探す
+  let tableNode = null;
+  let tableStart = 0;
+  for (let depth = $pos.depth; depth >= 0; depth--) {
+    if ($pos.node(depth).type.name === "table") {
+      tableNode = $pos.node(depth);
+      tableStart = $pos.before(depth) + 1;
+      break;
     }
-    if (!tableNode) return null;
-
-    const map = TableMap.get(tableNode);
-    const cellOffset = cellPos - tableStart;
-    const cellIndex = map.map.indexOf(cellOffset);
-    if (cellIndex === -1) return null;
-
-    const col = cellIndex % map.width;
-    const row = Math.floor(cellIndex / map.width);
-
-    let targetRow = row;
-    let targetCol = col;
-    switch (direction) {
-      case "up":
-        targetRow--;
-        break;
-      case "down":
-        targetRow++;
-        break;
-      case "left":
-        targetCol--;
-        break;
-      case "right":
-        targetCol++;
-        break;
-    }
-
-    if (targetRow < 0 || targetRow >= map.height) return null;
-    if (targetCol < 0 || targetCol >= map.width) return null;
-
-    return tableStart + map.map[targetRow * map.width + targetCol];
-  } catch {
-    return null;
   }
+  if (!tableNode) return null;
+
+  const map = TableMap.get(tableNode);
+  const cellOffset = cellPos - tableStart;
+  const cellIndex = map.map.indexOf(cellOffset);
+  if (cellIndex === -1) return null;
+
+  const col = cellIndex % map.width;
+  const row = Math.floor(cellIndex / map.width);
+
+  let targetRow = row;
+  let targetCol = col;
+  switch (direction) {
+    case "up":
+      targetRow--;
+      break;
+    case "down":
+      targetRow++;
+      break;
+    case "left":
+      targetCol--;
+      break;
+    case "right":
+      targetCol++;
+      break;
+  }
+
+  if (targetRow < 0 || targetRow >= map.height) return null;
+  if (targetCol < 0 || targetCol >= map.width) return null;
+
+  return tableStart + map.map[targetRow * map.width + targetCol];
 }
 
 /** セル内容をクリアし、空の paragraph で置換する */

@@ -217,7 +217,7 @@ export function extractDiagramAltText(
     } catch {
       // JSON パース失敗時はフォールバック
     }
-    return "チャート";
+    return "Chart";
   }
 
   if (language === "math") {

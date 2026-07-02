@@ -87,6 +87,13 @@ describe("createImageBlockChrome", () => {
     expect(anchor.style.display).toBe("");
     expect(q("[data-block-toolbar]")?.getAttribute("aria-label")).toBe("image");
 
+    // ドラッグハンドルは HTML5 native drag-and-drop 専用（キーボード操作を提供しないため
+    // role="button"/tabIndex は付けない。指摘33）。
+    const dragHandle = q("[data-drag-handle]")!;
+    expect(dragHandle.getAttribute("role")).toBeNull();
+    expect(dragHandle.getAttribute("tabindex")).toBeNull();
+    expect(dragHandle.getAttribute("aria-label")).toBe("dragHandle");
+
     select(null, -1);
     expect(anchor.style.display).toBe("none");
     destroy();
@@ -110,10 +117,33 @@ describe("createImageBlockChrome", () => {
     const cb = callbacks();
     const destroy = createImageBlockChrome(editor, cb);
 
-    const annJson = JSON.stringify([{ id: "1", tool: "rect", points: [] }]);
+    const annJson = JSON.stringify([{ id: "1", type: "rect", x1: 0, y1: 0, x2: 10, y2: 10, color: "#ef4444" }]);
     select(imageNode({ src: "a.png", alt: "x", annotations: annJson }), 5);
     const annotateBtn = q('button[aria-label="annotate"]')!;
     expect(annotateBtn.style.color).toContain("primary-main");
+    destroy();
+  });
+
+  it("注釈の有無を色以外（aria-pressed + 件数バッジ）でも表現する", () => {
+    const { editor, select } = makeEditor();
+    const cb = callbacks();
+    const destroy = createImageBlockChrome(editor, cb);
+    const annotateBtn = q('button[aria-label="annotate"]')!;
+
+    select(imageNode({ src: "a.png", alt: "x", annotations: null }), 5);
+    expect(annotateBtn.getAttribute("aria-pressed")).toBe("false");
+    expect(q("[data-am-annotation-badge]")?.style.display).toBe("none");
+
+    const annJson = JSON.stringify([
+      { id: "1", type: "rect", x1: 0, y1: 0, x2: 10, y2: 10, color: "#ef4444" },
+      { id: "2", type: "circle", x1: 0, y1: 0, x2: 5, y2: 5, color: "#3b82f6" },
+    ]);
+    // トラッカーは pos 変化時のみ発火するため別 pos を使う（同一 pos の再 select では不発）。
+    select(imageNode({ src: "a.png", alt: "x", annotations: annJson }), 9);
+    expect(annotateBtn.getAttribute("aria-pressed")).toBe("true");
+    const badge = q("[data-am-annotation-badge]")!;
+    expect(badge.style.display).toBe("inline");
+    expect(badge.textContent).toBe("2");
     destroy();
   });
 

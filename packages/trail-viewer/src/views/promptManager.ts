@@ -156,7 +156,7 @@ export function mountPromptManagerSidebar(
         const tagsRow = document.createElement('div');
         tagsRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;';
         for (const tag of prompt.tags) {
-          const chipHandle = createChip({ label: tag, size: 'small' });
+          const chipHandle = createChip({ label: tag, size: 'small', variant: 'outlined' });
           chipHandle.el.style.cssText += `border-color:${props.colors.iceBlue};color:${props.colors.iceBlue};`;
           chipHandles.push(chipHandle);
           tagsRow.appendChild(chipHandle.el);

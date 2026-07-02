@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-07-02
+
+### Security
+
+- Added a workspace-trust guard and brought Disposable handling and logging into line with the project conventions.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Fixed vanilla-UI logic, editor-state subscription, and error-surfacing regressions; theme-tokenized diff colors.
+- Fixed the PlantUML encoder; sanitized KaTeX / print SVG; symmetrized web-import sanitization with origin validation.
+- Keyboard operation, aria, and i18n coverage for the vanilla UI.
+
 ## [1.9.0] - 2026-06-30
 
 ### Added

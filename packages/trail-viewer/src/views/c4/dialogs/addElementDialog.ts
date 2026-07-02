@@ -11,6 +11,7 @@ import {
   createTextField,
   createCheckbox,
   createSelect,
+  createInputLabel,
 } from '@anytime-markdown/ui-core';
 import { SERVICE_CATALOG, filterServices } from '@anytime-markdown/trail-core/c4/services';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
@@ -233,7 +234,11 @@ export function mountAddElementDialog(
         fullWidth: true,
         onChange: (v) => { parentId = v; },
       });
-      parentWrap.replaceChildren(parentSelect.el);
+      // 可視ラベル "Parent"（旧 TextField label）。ariaLabel だけだと用途が見えない。
+      parentWrap.replaceChildren(
+        createInputLabel({ shrink: true, children: 'Parent' }).el,
+        parentSelect.el,
+      );
       contentBox.appendChild(parentWrap);
     }
 

@@ -2,7 +2,7 @@
  * ChatPane の vanilla DOM 版。
  * チャット UI（メッセージ履歴 + 入力バー）を描画し、ChatBridge と接続する。
  */
-import { createIconButton, createTextField } from '@anytime-markdown/ui-core';
+import { createIconButton, createTextField, Send, Stop } from '@anytime-markdown/ui-core';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import type { ChatBridge } from '../../hooks/useChatBridge';
 import {
@@ -40,6 +40,8 @@ export function mountChatPane(
   let props = initial;
   let state: ChatState = { ...initialChatState };
   let unsubscribe: (() => void) | null = null;
+  // 描画中のメッセージバブル handle（再構築・破棄時に citation tooltip まで destroy する）。
+  const bubbleHandles: Array<ReturnType<typeof createMessageBubble>> = [];
 
   // --- Layout ---
   const root = document.createElement('div');
@@ -74,7 +76,7 @@ export function mountChatPane(
   const sendBtn = createIconButton({
     size: 'small',
     ariaLabel: props.t('memory.chat.send'),
-    children: '➤',
+    children: Send({ fontSize: 'small' }).el,
     onClick: handleSend,
   });
   sendBtn.el.setAttribute('disabled', 'disabled');
@@ -82,7 +84,7 @@ export function mountChatPane(
   const abortBtn = createIconButton({
     size: 'small',
     ariaLabel: props.t('memory.chat.abort'),
-    children: '⬛',
+    children: Stop({ fontSize: 'small' }).el,
     onClick: () => props.bridge.abort(),
   });
   abortBtn.el.style.display = 'none';
@@ -121,14 +123,19 @@ export function mountChatPane(
   }
 
   function renderMessages(): void {
+    // 再構築前に前回のバブル（citation tooltip を含む）を破棄する。
+    // replaceChildren だけだと document.body 直下の tooltip が孤児として残置する。
+    for (const b of bubbleHandles) b.destroy();
+    bubbleHandles.length = 0;
     scrollEl.replaceChildren();
     for (const msg of state.messages) {
-      const { el } = createMessageBubble({
+      const bubble = createMessageBubble({
         message: msg,
         sources: state.sources,
         onCitationClick: props.onCitationClick,
       });
-      scrollEl.appendChild(el);
+      bubbleHandles.push(bubble);
+      scrollEl.appendChild(bubble.el);
     }
     // Scroll to bottom
     if (typeof scrollEl.scrollTo === 'function') {
@@ -210,6 +217,8 @@ export function mountChatPane(
     destroy() {
       unsubscribe?.();
       unsubscribe = null;
+      for (const b of bubbleHandles) b.destroy();
+      bubbleHandles.length = 0;
       textField.destroy();
       sendBtn.destroy();
       abortBtn.destroy();

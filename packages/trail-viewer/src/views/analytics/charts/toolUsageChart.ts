@@ -23,13 +23,8 @@ export function mountToolUsageChart(
 ): VanillaViewHandle<ToolUsageChartProps> {
   let props = initial;
 
-  if (props.items.length === 0) {
-    return {
-      update(next) { props = next; },
-      destroy() {},
-    };
-  }
-
+  // 空データでも root は常に mount する。items が非同期到着したら update→render で描画する
+  // （mount 時 no-op スタブを返すと到着後も永久に空のまま固着する回帰の修正）。
   const root = document.createElement('div');
   container.appendChild(root);
 

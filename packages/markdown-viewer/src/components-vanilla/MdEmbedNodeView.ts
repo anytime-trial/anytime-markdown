@@ -105,6 +105,8 @@ export function createMdEmbedNodeView({
 
   const status = document.createElement("span");
   status.setAttribute("data-am-md-embed-status", "idle");
+  // saving/saved/dirty/error/conflict の非同期遷移をスクリーンリーダーへ通知する（指摘43）。
+  status.setAttribute("aria-live", "polite");
   status.style.cssText = "color:var(--am-color-text-secondary);white-space:nowrap;";
 
   const body = document.createElement("div");
@@ -113,6 +115,9 @@ export function createMdEmbedNodeView({
 
   const message = document.createElement("div");
   message.setAttribute("data-am-md-embed-message", "");
+  // エラー・競合メッセージ（保存失敗・fetch失敗・上書き失敗）はスクリーンリーダーへ即時通知する
+  // （role="alert" は暗黙的に aria-live="assertive" を持つ。指摘43）。
+  message.setAttribute("role", "alert");
   message.style.cssText = "display:none;padding:6px 8px;font-size:12px;color:var(--am-color-error-main);";
 
   header.append(collapseButton, title, spacer, openButton, status);

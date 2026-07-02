@@ -81,9 +81,60 @@ describe("createZoomPanState", () => {
       const detach = zp.attach(el);
 
       el.dispatchEvent(new PointerEvent("pointerdown", { clientX: 10, clientY: 20, bubbles: true }));
-      el.dispatchEvent(new PointerEvent("pointermove", { clientX: 30, clientY: 50, bubbles: true }));
+      el.dispatchEvent(new PointerEvent("pointermove", { clientX: 30, clientY: 50, buttons: 1, bubbles: true }));
 
       expect(zp.getState().pan).toEqual({ x: 20, y: 30 });
+      detach();
+    });
+
+    it("ボタン非押下の stale な pointermove では pending を破棄し capture もパンもしない", () => {
+      // el 外での pointerup 取りこぼしで pendingPan が残った後、hover 由来の
+      // ボタン非押下 move が来ても誤パン・setPointerCapture 例外を起こさない。
+      const zp = createZoomPanState();
+      const el = document.createElement("div");
+      el.setPointerCapture = jest.fn();
+      const detach = zp.attach(el);
+
+      el.dispatchEvent(new PointerEvent("pointerdown", { clientX: 0, clientY: 0, bubbles: true }));
+      // 閾値超だが buttons=0（ボタン離れている）→ パンしない。
+      el.dispatchEvent(new PointerEvent("pointermove", { clientX: 50, clientY: 50, buttons: 0, bubbles: true }));
+
+      expect(el.setPointerCapture).not.toHaveBeenCalled();
+      expect(zp.getState().pan).toEqual({ x: 0, y: 0 });
+      detach();
+    });
+
+    it("閾値未満の pointerdown→pointerup（クリック）では setPointerCapture もパンもしない", () => {
+      // 回帰ガード: pointerdown で即 setPointerCapture すると、内包 SVG ノード上の
+      // クリックが capture 先へリダイレクトされ、思考法ダイアグラムのラベル編集
+      // （<g> の click ハンドラ）が発火しなくなる。閾値未満のタップでは capture しないこと。
+      const zp = createZoomPanState();
+      const el = document.createElement("div");
+      el.setPointerCapture = jest.fn();
+      const detach = zp.attach(el);
+
+      el.dispatchEvent(new PointerEvent("pointerdown", { clientX: 10, clientY: 10, bubbles: true }));
+      // 数 px の微小移動（クリック時の手ぶれ相当）は閾値未満でパン扱いしない（ボタンは押下中）。
+      el.dispatchEvent(new PointerEvent("pointermove", { clientX: 12, clientY: 11, buttons: 1, bubbles: true }));
+      el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+
+      expect(el.setPointerCapture).not.toHaveBeenCalled();
+      expect(zp.getState().pan).toEqual({ x: 0, y: 0 });
+      detach();
+    });
+
+    it("閾値超のドラッグで初めてパン開始し setPointerCapture する", () => {
+      const zp = createZoomPanState();
+      const el = document.createElement("div");
+      el.setPointerCapture = jest.fn();
+      const detach = zp.attach(el);
+
+      el.dispatchEvent(new PointerEvent("pointerdown", { clientX: 0, clientY: 0, pointerId: 7, bubbles: true }));
+      el.dispatchEvent(new PointerEvent("pointermove", { clientX: 30, clientY: 50, buttons: 1, bubbles: true }));
+
+      expect(el.setPointerCapture).toHaveBeenCalledWith(7);
+      // pan は pointerdown 起点からの総移動量（閾値越えでジャンプせず追従）。
+      expect(zp.getState().pan).toEqual({ x: 30, y: 50 });
       detach();
     });
 

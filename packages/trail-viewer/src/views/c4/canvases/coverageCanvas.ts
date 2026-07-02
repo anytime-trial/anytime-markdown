@@ -133,6 +133,7 @@ export function mountCoverageCanvas(
   canvas.tabIndex = 0;
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-roledescription', 'coverage matrix');
+  canvas.setAttribute('aria-label', `Coverage matrix with ${grid.rows.length} rows`);
   canvas.style.cssText = 'width:100%;height:100%;display:block;cursor:grab;outline:none;';
   wrapper.appendChild(canvas);
 

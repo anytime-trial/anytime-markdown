@@ -4,11 +4,23 @@ import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import { createGifBlockNodeView } from "../components/GifBlockContent";
 import type { MdSerializerState } from "../types";
 
-export const GifBlock = Node.create({
+/** GifBlock の拡張オプション（i18n 用の t を追加。CodeBlockWithMermaid と同パターン）。 */
+export interface GifBlockOptions {
+  /** content-only NodeView（createGifBlockNodeView）の i18n 配線用。未 configure 時は null。 */
+  t: ((key: string) => string) | null;
+}
+
+export const GifBlock = Node.create<GifBlockOptions>({
   name: "gifBlock",
   group: "block",
   draggable: true,
   atom: true,
+
+  addOptions() {
+    return {
+      t: null,
+    };
+  },
 
   addStorage() {
     return {
@@ -77,6 +89,6 @@ export const GifBlock = Node.create({
   },
 
   addNodeView() {
-    return (props) => createGifBlockNodeView(props);
+    return (props) => createGifBlockNodeView({ ...props, t: this.options.t });
   },
 });

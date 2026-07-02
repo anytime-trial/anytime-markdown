@@ -280,3 +280,75 @@ describe('buildReturnContract', () => {
     if ('ok' in result) expect(result.ok.handoffVersion).toBe(HANDOFF_VERSION);
   });
 });
+
+// abstention 出口（proposal 20260702-agentic-abstention-adoption / plan 20260702）。
+// 不能時に「完了を装う」以外の正規の返却形態を契約に持たせる。
+describe('parseRunningState: taskStatus / abstainReason（abstention 出口）', () => {
+  it('taskStatus 省略時は completed に正規化する（後方互換）', () => {
+    const result = parseRunningState(withFence(validReturn()));
+    expect('ok' in result).toBe(true);
+    if ('ok' in result) {
+      expect(result.ok.taskStatus).toBe('completed');
+      expect(result.ok.abstainReason).toBeNull();
+    }
+  });
+
+  it('abstained ＋ 非空 abstainReason を受理する', () => {
+    const ret = { ...validReturn(), taskStatus: 'abstained', abstainReason: '前提ファイルが存在しない' };
+    const result = parseRunningState(withFence(ret));
+    expect('ok' in result).toBe(true);
+    if ('ok' in result) {
+      expect(result.ok.taskStatus).toBe('abstained');
+      expect(result.ok.abstainReason).toBe('前提ファイルが存在しない');
+    }
+  });
+
+  it.each<[string, string | null | undefined]>([
+    ['欠落', undefined],
+    ['null', null],
+    ['空文字', ''],
+    ['空白のみ', '   '],
+  ])('abstained なのに abstainReason が%sなら error', (_label, reason) => {
+    const ret = { ...validReturn(), taskStatus: 'abstained', abstainReason: reason };
+    expect('error' in parseRunningState(withFence(ret))).toBe(true);
+  });
+
+  it('taskStatus の不正値は error', () => {
+    const ret = { ...validReturn(), taskStatus: 'gave-up' };
+    expect('error' in parseRunningState(withFence(ret))).toBe(true);
+  });
+
+  it('abstainReason の型不正（数値）は error', () => {
+    const ret = { ...validReturn(), taskStatus: 'abstained', abstainReason: 42 };
+    expect('error' in parseRunningState(withFence(ret))).toBe(true);
+  });
+
+  it('completed で abstainReason に文字列が入っていても null に正規化する', () => {
+    const ret = { ...validReturn(), taskStatus: 'completed', abstainReason: '不要な理由' };
+    const result = parseRunningState(withFence(ret));
+    expect('ok' in result).toBe(true);
+    if ('ok' in result) expect(result.ok.abstainReason).toBeNull();
+  });
+
+  // A5 と同じ再上限を abstainReason にも適用（巨大文字列注入対策）
+  it('巨大な abstainReason を上限化して受理する', () => {
+    const huge = 'x'.repeat(10_000);
+    const ret = { ...validReturn(), taskStatus: 'abstained', abstainReason: huge };
+    const result = parseRunningState(withFence(ret));
+    expect('ok' in result).toBe(true);
+    if ('ok' in result) {
+      expect(result.ok.abstainReason).not.toBe(huge);
+      expect(result.ok.abstainReason?.endsWith('…')).toBe(true);
+    }
+  });
+});
+
+describe('buildReturnContract: abstention 出口', () => {
+  it.each(['taskStatus', 'abstainReason', 'abstained'])('契約に "%s" を含む', (key) => {
+    expect(buildReturnContract()).toContain(key);
+  });
+
+  it('中断指針（完了を装うことの禁止）を含む', () => {
+    expect(buildReturnContract()).toContain('完了を装');
+  });
+});

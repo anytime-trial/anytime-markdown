@@ -416,6 +416,14 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     };
     card.addEventListener("click", onCardClick);
     bodyHandles.push({ destroy: () => card.removeEventListener("click", onCardClick) });
+    // role="button" の div は Enter/Space で click を発火しないため、キーボード操作を明示的に配線する。
+    const onCardKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      onCardClick();
+    };
+    card.addEventListener("keydown", onCardKeyDown);
+    bodyHandles.push({ destroy: () => card.removeEventListener("keydown", onCardKeyDown) });
 
     // 対象テキスト / point ラベル。
     if (found && !found.isPoint && found.text) {
@@ -518,6 +526,14 @@ export function createCommentPanel(opts: CreateCommentPanelOptions): CommentPane
     const onCardClick = (): void => navigate(img.pos);
     cardBtn.addEventListener("click", onCardClick);
     bodyHandles.push({ destroy: () => cardBtn.removeEventListener("click", onCardClick) });
+    // role="button" の div は Enter/Space で click を発火しないため、キーボード操作を明示的に配線する。
+    const onCardKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      onCardClick();
+    };
+    cardBtn.addEventListener("keydown", onCardKeyDown);
+    bodyHandles.push({ destroy: () => cardBtn.removeEventListener("keydown", onCardKeyDown) });
 
     const labelRow = document.createElement("div");
     labelRow.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:2px;";

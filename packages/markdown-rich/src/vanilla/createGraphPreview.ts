@@ -120,6 +120,7 @@ function createGraph2DControls(
   width: number,
   height: number,
   isDark: boolean,
+  t: (key: string) => string,
 ): Graph2DHandle {
   const root = document.createElement("div");
   root.className = "am-graph-root";
@@ -143,13 +144,13 @@ function createGraph2DControls(
 
   const resetBtn = createIconButton({
     size: "small",
-    ariaLabel: "表示範囲をリセット",
+    ariaLabel: t("graphResetView"),
     children: svgIcon(ICON_HOME, 18),
   });
   resetBtn.el.style.color = textSecondary;
   const resetTooltip = createTooltip({
     reference: resetBtn.el,
-    title: "表示範囲をリセット",
+    title: t("graphResetView"),
   });
   toolbar.appendChild(resetBtn.el);
   root.appendChild(toolbar);
@@ -267,7 +268,7 @@ function createGraph2DControls(
         step: PARAM_STEP,
         value: paramValues[param] ?? 1,
         size: "small",
-        ariaLabel: `パラメータ ${param}`,
+        ariaLabel: `${t("graphParameter")} ${param}`,
         onChange: (v) => {
           paramValues[param] = v;
           valueText.textContent = v.toFixed(1);
@@ -283,26 +284,26 @@ function createGraph2DControls(
 
       const playBtn = createIconButton({
         size: "small",
-        ariaLabel: `${param} 再生`,
+        ariaLabel: `${param} ${t("graphPlay")}`,
         children: svgIcon(ICON_PLAY, 16),
       });
       playBtn.el.style.color = textSecondary;
 
       const playTooltip = createTooltip({
         reference: playBtn.el,
-        title: "再生",
+        title: t("graphPlay"),
       });
 
       const toggleAnim = () => {
         if (animating[param]) {
           if (animFrames[param]) { cancelAnimationFrame(animFrames[param]); delete animFrames[param]; }
           animating[param] = false;
-          playBtn.update({ ariaLabel: `${param} 再生`, children: svgIcon(ICON_PLAY, 16) });
-          playTooltip.update({ title: "再生" });
+          playBtn.update({ ariaLabel: `${param} ${t("graphPlay")}`, children: svgIcon(ICON_PLAY, 16) });
+          playTooltip.update({ title: t("graphPlay") });
         } else {
           animating[param] = true;
-          playBtn.update({ ariaLabel: `${param} 停止`, children: svgIcon(ICON_PAUSE, 16) });
-          playTooltip.update({ title: "停止" });
+          playBtn.update({ ariaLabel: `${param} ${t("graphPause")}`, children: svgIcon(ICON_PAUSE, 16) });
+          playTooltip.update({ title: t("graphPause") });
           const step = () => {
             const current = paramValues[param] ?? PARAM_DEFAULT_RANGE[0];
             let next = current + PARAM_STEP;
@@ -363,6 +364,7 @@ function createGraph3DControls(
   width: number,
   height: number,
   isDark: boolean,
+  t: (key: string) => string,
 ): Graph3DHandle {
   const root = document.createElement("div");
   root.className = "am-graph-root";
@@ -476,7 +478,7 @@ function createGraph3DControls(
         step: PARAM_STEP,
         value: paramValues[param] ?? 1,
         size: "small",
-        ariaLabel: `パラメータ ${param}`,
+        ariaLabel: `${t("graphParameter")} ${param}`,
         onChange: (v) => {
           paramValues[param] = v;
           valueText.textContent = v.toFixed(1);
@@ -487,26 +489,26 @@ function createGraph3DControls(
 
       const playBtn = createIconButton({
         size: "small",
-        ariaLabel: `${param} 再生`,
+        ariaLabel: `${param} ${t("graphPlay")}`,
         children: svgIcon(ICON_PLAY, 16),
       });
       playBtn.el.style.color = textSecondary;
 
       const playTooltip = createTooltip({
         reference: playBtn.el,
-        title: "再生",
+        title: t("graphPlay"),
       });
 
       const toggleAnim = () => {
         if (animating[param]) {
           if (animFrames[param]) { cancelAnimationFrame(animFrames[param]); delete animFrames[param]; }
           animating[param] = false;
-          playBtn.update({ ariaLabel: `${param} 再生`, children: svgIcon(ICON_PLAY, 16) });
-          playTooltip.update({ title: "再生" });
+          playBtn.update({ ariaLabel: `${param} ${t("graphPlay")}`, children: svgIcon(ICON_PLAY, 16) });
+          playTooltip.update({ title: t("graphPlay") });
         } else {
           animating[param] = true;
-          playBtn.update({ ariaLabel: `${param} 停止`, children: svgIcon(ICON_PAUSE, 16) });
-          playTooltip.update({ title: "停止" });
+          playBtn.update({ ariaLabel: `${param} ${t("graphPause")}`, children: svgIcon(ICON_PAUSE, 16) });
+          playTooltip.update({ title: t("graphPause") });
           const step = (ts: number) => {
             const last = animLastTs[param] ?? 0;
             if (ts - last >= ANIM_INTERVAL_MS) {
@@ -616,7 +618,7 @@ function buildParametric3dData(
  *
  * @returns GraphMountHandle — render(code, enabled, isDark) と destroy() を持つ。
  */
-export function createGraphPreview(container: HTMLElement): GraphMountHandle {
+export function createGraphPreview(container: HTMLElement, t: (key: string) => string): GraphMountHandle {
   ensureGraphStyles();
 
   const wrapper = document.createElement("div");
@@ -644,7 +646,7 @@ export function createGraphPreview(container: HTMLElement): GraphMountHandle {
     const label = document.createElement("span");
     label.style.color = getTextSecondary(isDark);
     label.style.fontSize = "0.875rem";
-    label.textContent = "グラフライブラリを読み込み中...";
+    label.textContent = t("graphLoading");
     row.appendChild(label);
     wrapper.appendChild(row);
   }
@@ -690,6 +692,7 @@ export function createGraphPreview(container: HTMLElement): GraphMountHandle {
         width,
         height,
         isDark,
+        t,
       );
       currentHandle = handle;
       wrapper.appendChild(handle.el);
@@ -704,6 +707,7 @@ export function createGraphPreview(container: HTMLElement): GraphMountHandle {
         width,
         height,
         isDark,
+        t,
       );
       currentHandle = handle;
       wrapper.appendChild(handle.el);

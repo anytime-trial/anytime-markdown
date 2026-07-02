@@ -7,6 +7,23 @@
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-07-02
+
+### 修正
+
+- vanilla UI: 脱React 化で生じたロジック・エディタ状態購読・エラー可視化の回帰を修正。
+- markdown-rich: PlantUML encoder を修正、KaTeX/印刷 SVG をサニタイズ、graph preview の i18n を完遂。
+- diff 色をテーマトークン駆動に変更し、位置解決の silent catch を解消。
+- 残存 i18n キーの補完、detached 判定の是正、dead code 削除の完遂（pre-merge review 指摘対応）。
+
+### セキュリティ
+
+- webImport のサニタイズを対称化し、origin 検証を追加、`vscodeApi` アクセス経路を統一。
+
+### アクセシビリティ
+
+- vanilla UI: キーボード操作・aria・i18n に対応。
+
 ## [1.9.0] - 2026-06-30
 
 ### 追加

@@ -29,6 +29,11 @@ export function convertWebPageToMarkdown(
   if (article === null) {
     console.warn(`[webImport] readability failed, fallback to body: ${sourceUrl}`);
 
+    // Turndown はデフォルト設定だと未知要素の「タグを外して子を変換」挙動のため、
+    // script/style/noscript のテキスト内容（JS/CSS ソース）が Markdown 本文へ混入する。
+    // innerHTML 取得前に除去する。
+    doc.querySelectorAll("script, style, noscript").forEach((el) => el.remove());
+
     return {
       title: doc.title,
       markdownBody: turndown.turndown(doc.body?.innerHTML ?? ""),

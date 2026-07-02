@@ -77,6 +77,17 @@ const BLOCK_ICON: Record<Exclude<OutlineKind, "heading">, string | readonly stri
   mermaid: MERMAID_PATHS,
 };
 
+/**
+ * 見出し（+ ブロック項目）一覧の軽量シグネチャ（level+text 連結）。
+ *
+ * 指摘49: transaction は選択のみのトランザクション（カーソル移動等）でも高頻度に発火するが、
+ * 見出し集計結果が実際には変わっていないケースが大半。このシグネチャで無変化を検知し、
+ * 不要な全行再構築（body.replaceChildren()）をスキップする（過剰再描画対策）。
+ */
+function headingSignature(headings: readonly HeadingItem[]): string {
+  return headings.map((h) => `${h.level}:${h.text}`).join("|");
+}
+
 /** Mermaid のロゴだけ viewBox が異なるため専用生成（svgIcon は 0 0 24 24 固定のため）。 */
 function mermaidSvg(size: number): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -643,6 +654,7 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
   // ---- editor 購読（見出し再集計 → render）----
   const refresh = (): void => {
     currentHeadings = extractHeadings(editor);
+    lastHeadingSignature = headingSignature(currentHeadings);
     // fold 集合から、もう存在しない headingIndex を掃除する（並べ替え/削除で index がズレるため）。
     const validIndices = new Set<number>();
     for (const h of currentHeadings) {
@@ -660,7 +672,18 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     render();
   };
   editor.on("update", refresh);
-  editor.on("transaction", refresh);
+  // 指摘49: transaction は選択のみのトランザクション（カーソル移動等）でも高頻度に発火するが、
+  // refresh() は毎回 doc 全走査 → body.replaceChildren() の全行再構築を行っていたため、不要な
+  // DOM churn・Tooltip 状態消失を招いていた。見出しシグネチャ（level+text 連結）が実際に変化した
+  // ときだけ refresh する変更ガードを設ける（update 購読は docChanged 時のみの発火で頻度が低いため
+  // ガード無しのまま維持する）。
+  let lastHeadingSignature = headingSignature(currentHeadings);
+  const refreshIfHeadingsChanged = (): void => {
+    const nextSignature = headingSignature(extractHeadings(editor));
+    if (nextSignature === lastHeadingSignature) return;
+    refresh();
+  };
+  editor.on("transaction", refreshIfHeadingsChanged);
   refresh();
 
   // ---- リサイズハンドル ----
@@ -715,7 +738,7 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
       if (destroyed) return;
       destroyed = true;
       editor.off("update", refresh);
-      editor.off("transaction", refresh);
+      editor.off("transaction", refreshIfHeadingsChanged);
       releaseList();
       for (const h of headerHandles) h.destroy();
       if (resizeHandle && onHandleMouseDown) {

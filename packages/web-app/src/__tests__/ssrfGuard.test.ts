@@ -1,4 +1,4 @@
-import { isPrivateAddress, assertSafeUrl } from "../../utils/ssrfGuard";
+import { assertSafeUrl, isPrivateAddress } from "../lib/ssrfGuard";
 
 jest.mock("node:dns/promises", () => ({
     lookup: jest.fn(),

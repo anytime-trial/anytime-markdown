@@ -285,6 +285,10 @@ export function createEditorDialogs(opts: CreateEditorDialogsOptions): EditorDia
         size: "small",
         fullWidth: true,
         helperTextId: "web-import-url-helper",
+        // helperEl は createTextField 内で opts.helperText !== undefined のときだけ生成される。
+        // 空文字で明示初期化し、後続の field.update({ helperText: ... }) が要素を見つけられるようにする
+        // （未指定だと helperEl 自体が存在せず update が no-op になる）。
+        helperText: "",
         style: { marginTop: "8px" },
         onChange: (e) => {
           value = (e.target as HTMLInputElement).value;
@@ -309,8 +313,15 @@ export function createEditorDialogs(opts: CreateEditorDialogsOptions): EditorDia
         try {
           await opts.onWebImportSubmit?.(value, mode);
           close();
-        } catch {
+        } catch (error) {
+          console.error(
+            `[${new Date().toISOString()}] [ERROR] EditorDialogs: web import failed url=${value} mode=${mode}`,
+            error,
+          );
           setLoading(false);
+          // webImportErrorFetch は host（vanillaMarkdownEditor.handleWebImportSubmit）の
+          // live-region 通知と同一文言。新規キーを増やさず既存キーを再利用して表記を揃える。
+          field.update({ error: true, helperText: t("webImportErrorFetch") });
         }
       };
       let revalidate = (): void => {};

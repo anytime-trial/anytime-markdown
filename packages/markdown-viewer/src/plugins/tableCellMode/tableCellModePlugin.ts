@@ -1,6 +1,7 @@
 import { Plugin, PluginKey, TextSelection, type Transaction } from "@anytime-markdown/markdown-pm/state";
 import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
 
+import { safeNodeAt, safeResolve } from "../../utils/safeResolve";
 import { handleCopy, handleCut, handlePaste } from "./tableCellModeClipboard";
 import { handleKeyDown } from "./tableCellModeKeymap";
 import { handleDoubleClick,handleMouseDown } from "./tableCellModeMouse";
@@ -30,14 +31,13 @@ export function setNavigationMode(tr: Transaction, cellPos: number): Transaction
     editingCellPos: null,
   } satisfies TableCellModeState);
   // セル内先頭に TextSelection を移動（caret-color: transparent で非表示になる）
-  try {
-    const cell = tr.doc.nodeAt(cellPos);
-    if (cell) {
-      const insidePos = cellPos + 1; // セルノード直下（paragraph の開始）
-      tr.setSelection(TextSelection.near(tr.doc.resolve(insidePos)));
+  const cell = safeNodeAt(tr.doc, cellPos, "setNavigationMode:cell");
+  if (cell) {
+    const insidePos = cellPos + 1; // セルノード直下（paragraph の開始）
+    const $insidePos = safeResolve(tr.doc, insidePos, "setNavigationMode:inside");
+    if ($insidePos) {
+      tr.setSelection(TextSelection.near($insidePos));
     }
-  } catch {
-    // 位置が無効な場合は無視
   }
   return tr;
 }
@@ -79,17 +79,13 @@ function buildDecorations(
     state.mode === "navigation" ? CELL_NAV_SELECTED : CELL_EDITING;
 
   // targetPos はセルノードの開始位置を指す
-  try {
-    const node = doc.nodeAt(targetPos);
-    if (node && (node.type.name === "tableCell" || node.type.name === "tableHeader")) {
-      decos.push(
-        Decoration.node(targetPos, targetPos + node.nodeSize, {
-          class: cssClass,
-        }),
-      );
-    }
-  } catch {
-    // 位置が無効な場合は無視
+  const node = safeNodeAt(doc, targetPos, "buildDecorations");
+  if (node && (node.type.name === "tableCell" || node.type.name === "tableHeader")) {
+    decos.push(
+      Decoration.node(targetPos, targetPos + node.nodeSize, {
+        class: cssClass,
+      }),
+    );
   }
 
   return DecorationSet.create(doc, decos);
@@ -193,13 +189,9 @@ function validateCellPos(
   doc: import("@anytime-markdown/markdown-pm/model").Node,
   pos: number,
 ): number | null {
-  try {
-    const node = doc.nodeAt(pos);
-    if (node && (node.type.name === "tableCell" || node.type.name === "tableHeader")) {
-      return pos;
-    }
-  } catch {
-    // 範囲外
+  const node = safeNodeAt(doc, pos, "validateCellPos");
+  if (node && (node.type.name === "tableCell" || node.type.name === "tableHeader")) {
+    return pos;
   }
   return null;
 }

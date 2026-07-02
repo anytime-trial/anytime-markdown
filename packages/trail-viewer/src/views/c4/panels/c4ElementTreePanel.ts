@@ -158,6 +158,8 @@ export function mountC4ElementTree(
     return ids;
   })();
   let prevCheckResetKey: number | undefined;
+  // communityTree の非同期到着でルートを再展開するための前回参照（旧 useEffect([communityTree])）。
+  let prevCommunityTree: readonly C4TreeNode[] | undefined = props.communityTree;
 
   const root = document.createElement('div');
   root.style.cssText = 'width:260px;display:flex;flex-direction:column;overflow-y:auto;';
@@ -239,6 +241,11 @@ export function mountC4ElementTree(
     const rowEl = document.createElement('div');
     const isSelected = selectedId === node.id;
     rowEl.style.cssText = `display:flex;align-items:center;min-height:28px;padding-left:${8 + depth * INDENT_PX}px;padding-right:4px;cursor:pointer;font-size:0.8rem;box-sizing:border-box;${node.deleted ? 'opacity:0.5;' : ''}background-color:${isSelected ? props.colors.selected : 'transparent'};`;
+    // 行 hover ハイライト（旧実装にあった colors.hover を復元。選択行には適用しない）。
+    if (!isSelected) {
+      rowEl.addEventListener('mouseenter', () => { rowEl.style.backgroundColor = props.colors.hover; });
+      rowEl.addEventListener('mouseleave', () => { rowEl.style.backgroundColor = 'transparent'; });
+    }
 
     const hasChildren = node.children.length > 0;
     const isOpen = useExpanded.has(node.id);
@@ -452,8 +459,18 @@ export function mountC4ElementTree(
     if (props.checkReset.expanded != null) expanded = new Set(props.checkReset.expanded);
   }
 
+  /** communityTree が変わったら（非同期ロード後など）ルートノードを再展開する。 */
+  function maybeReexpandCommunity(): void {
+    if (props.communityTree === prevCommunityTree) return;
+    prevCommunityTree = props.communityTree;
+    const ids = new Set<string>();
+    for (const n of props.communityTree ?? []) ids.add(n.id);
+    communityExpanded = ids;
+  }
+
   function render(): void {
     applyCheckReset();
+    maybeReexpandCommunity();
     renderSelectors();
     tabsHandle.update({
       value: String(activeTab),

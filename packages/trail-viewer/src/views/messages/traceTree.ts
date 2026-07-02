@@ -7,6 +7,7 @@
 import type { TrailTreeNode } from '../../domain/parser/types';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import { mountMessageNode } from './messageNode';
+import { applyThinScrollbar } from '../../theme/thinScrollbar';
 
 export interface TraceTreeProps {
   t: (key: string) => string;
@@ -34,6 +35,7 @@ export function mountTraceTree(
   const root = document.createElement('div');
   root.style.cssText =
     'display:flex;flex-direction:column;height:100%;overflow:auto;padding:8px;';
+  applyThinScrollbar(root);
 
   let handles: NodeHandle[] = [];
 

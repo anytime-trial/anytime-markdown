@@ -495,6 +495,11 @@ export function createC4DataStore(
     selectedRelease = release;
     notify();
     void runInitialFetch();
+    // 旧 useC4DataSource の file/function 解析 effect は deps に selectedRelease を含み、
+    // リリース切替で importance/deadCode/centrality/role マトリクスを再取得していた。
+    // setSelectedRepo と同様にリリース切替でも解析を再実行する（切替前リリースの残留を防ぐ）。
+    void runFileAnalysis();
+    void runFunctionAnalysis();
   }
 
   function setSelectedRepo(repo: string): void {

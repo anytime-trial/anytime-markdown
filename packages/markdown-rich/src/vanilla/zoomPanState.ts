@@ -7,6 +7,14 @@ export const ZOOM_BUTTON_STEP = 0.1;
 export const ZOOM_WHEEL_STEP = 0.05;
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 5;
+/**
+ * パン開始とみなすドラッグ距離のしきい値（px）。
+ * これ未満の移動はクリック（タップ）として扱い、pointerdown 直後には
+ * setPointerCapture しない。即時 capture すると内包 SVG ノード上のクリックが
+ * capture 先へリダイレクトされ、思考法ダイアグラムのラベル編集（<g> の click
+ * ハンドラ）が発火しなくなる回帰を招くため。
+ */
+export const PAN_START_THRESHOLD_PX = 4;
 
 export interface ZoomPanState {
   zoom: number;
@@ -69,21 +77,39 @@ export function createZoomPanState(): ZoomPanController {
       return () => { subscribers.delete(fn); };
     },
     attach(el) {
+      // pointerdown 時点では pending（パン候補）とし、閾値超のドラッグで初めて
+      // isPanning=true にして setPointerCapture する。こうすることで純粋クリックは
+      // capture されず内包ノードへ届き、ドラッグ時のみパンできる。
+      let pendingPan = false;
+      let capturePointerId = 0;
       const onPointerDown = (e: PointerEvent): void => {
-        isPanning = true;
+        pendingPan = true;
+        isPanning = false;
+        capturePointerId = e.pointerId;
         panStart = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
-        el.setPointerCapture(e.pointerId);
       };
       const onPointerMove = (e: PointerEvent): void => {
-        if (!isPanning) return;
-        pan = {
-          x: panStart.panX + (e.clientX - panStart.x),
-          y: panStart.panY + (e.clientY - panStart.y),
-        };
+        if (!pendingPan) return;
+        // 閾値超えまで setPointerCapture しないため、el 外での pointerup を取りこぼすと
+        // pendingPan が残る。ボタン非押下の stale な move では pending を解除する
+        // （ボタン非押下時の setPointerCapture は実ブラウザで例外になり得るため未然に防ぐ）。
+        if (e.buttons === 0) {
+          pendingPan = false;
+          isPanning = false;
+          return;
+        }
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        if (!isPanning) {
+          if (Math.hypot(dx, dy) < PAN_START_THRESHOLD_PX) return; // 閾値未満はクリック扱い
+          isPanning = true;
+          el.setPointerCapture(capturePointerId);
+        }
+        pan = { x: panStart.panX + dx, y: panStart.panY + dy };
         notify();
       };
-      const onPointerUp = (): void => { isPanning = false; };
-      const onPointerCancel = (): void => { isPanning = false; };
+      const onPointerUp = (): void => { pendingPan = false; isPanning = false; };
+      const onPointerCancel = (): void => { pendingPan = false; isPanning = false; };
       const onWheel = (e: WheelEvent): void => {
         if (!e.shiftKey) return;
         e.preventDefault();

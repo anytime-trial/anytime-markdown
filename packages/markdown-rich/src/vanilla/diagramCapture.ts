@@ -5,6 +5,7 @@
 
 import { CAPTURE_BG, FETCH_TIMEOUT, saveBlob, buildPlantUmlUrl } from "@anytime-markdown/markdown-viewer";
 import DOMPurify from "dompurify";
+import plantumlEncoder from "plantuml-encoder";
 
 import { enqueueRender } from "../hooks/useMermaidRender";
 import { buildPlantUmlImageUrl } from "../hooks/usePlantUmlRender";
@@ -112,15 +113,12 @@ async function renderMermaidLight(code: string): Promise<string> {
   });
 }
 
-function buildPlantUmlLightUrl(code: string): string {
+/** PlantUML ソースを encode してライトテーマ URL を構築する（usePlantUmlRender.ts と同パターン）。 */
+export function buildPlantUmlLightUrl(code: string): string {
   const startMatch = /@start(uml|mindmap|wbs|json|yaml)/.exec(code);
   const diagramType = startMatch ? startMatch[1] : null;
   const src = diagramType ? code : `@startuml\n${code}\n@enduml`;
-  // plantuml-encoder を plantumlHelpers 経由でアクセス
-  // buildPlantUmlUrl は @anytime-markdown/markdown-viewer から import 済み
-  const encoded = (globalThis as unknown as Record<string, unknown>)["plantumlEncoder"]
-    ? (globalThis as unknown as Record<string, { encode: (s: string) => string }>)["plantumlEncoder"].encode(src)
-    : src;
+  const encoded = plantumlEncoder.encode(src);
   return buildPlantUmlUrl(encoded);
 }
 

@@ -116,6 +116,7 @@ export function mountFilterBar(
       options,
       ariaLabel: p.t('filter.workspace'),
       fullWidth: false,
+      minWidth: 200, // 旧 sx.minWidth:200。選択値の文字数で幅がガタつくのを防ぐ。
       onChange: (val) => {
         if (destroyed) return;
         p.onChange({ ...p.filter, workspace: val || undefined });

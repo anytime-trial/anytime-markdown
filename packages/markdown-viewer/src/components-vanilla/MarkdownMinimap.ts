@@ -260,6 +260,24 @@ export function createMarkdownMinimap(
   };
 
   editor.on("update", refresh);
+
+  // vendored tiptap の `update` は docChanged 時にしか発火しないため、
+  // setChangeGutterBaseline / clearChangeGutter のような setMeta 専用トランザクション
+  // （Escape 押下・autoReload トグル時）を検知できない（指摘8）。`transaction` も併せて
+  // 購読して拾うが、transaction はカーソル移動等の選択のみの操作でも高頻度に発火するため、
+  // changedPositions（プラグイン状態の参照のみで DOM 計測を伴わない軽量な値）が実際に
+  // 変化したときだけ refresh する変更ガードを設ける（指摘49 で問題化した過剰再描画対策と
+  // 同じ方針）。
+  let lastChangedPositionsKey = getChangedPositions(editor.state).join(",");
+  const refreshOnTransaction = (): void => {
+    if (editor.isDestroyed) return;
+    const key = getChangedPositions(editor.state).join(",");
+    if (key === lastChangedPositionsKey) return;
+    lastChangedPositionsKey = key;
+    refresh();
+  };
+  editor.on("transaction", refreshOnTransaction);
+
   bindContainer(defaultContainer);
   refresh();
 
@@ -279,6 +297,7 @@ export function createMarkdownMinimap(
     },
     destroy: () => {
       editor.off("update", refresh);
+      editor.off("transaction", refreshOnTransaction);
       boundContainer?.removeEventListener("scroll", refresh);
       resizeObserver?.disconnect();
       prevBtn.destroy();

@@ -116,6 +116,12 @@ function makeNoopBridge(): ChatBridge {
 
 import type { TrailSession, TrailFilter } from '../domain/parser/types';
 
+// NEXT_PUBLIC_SHOW_UNLIMITED=1 で 7 日カットオフをバイパスする（旧 TrailViewerCore と同じ）。
+// 共有パッケージなので process 未定義環境（一部 webview バンドル）でも落ちないようガードする。
+// Next.js（web-app）ではビルド時にインライン展開される。
+const SHOW_UNLIMITED_SESSIONS =
+  typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SHOW_UNLIMITED === '1';
+
 function computeVisibleSessions(
   sessions: readonly TrailSession[],
   allSessions: readonly TrailSession[] | undefined,
@@ -123,7 +129,7 @@ function computeVisibleSessions(
 ): readonly TrailSession[] {
   let result: readonly TrailSession[] = allSessions ?? sessions;
   const q = filter.searchText?.trim().toLowerCase();
-  const skipCutoff = !!(q);
+  const skipCutoff = SHOW_UNLIMITED_SESSIONS || !!(q);
   if (!skipCutoff) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 7);
@@ -460,17 +466,14 @@ export function mountTrailViewer(
   }
 
   // ── Build messages content into a container ──
-  function buildMessagesContent(contentEl: HTMLElement): void {
-    const { tokens, t } = props;
-    const { colors } = tokens;
+  // 差分 update 用に traceTree 領域のコンテナを保持する（構造が変わる唯一の領域）。
+  let messagesTraceTreeContainer: HTMLDivElement | null = null;
 
-    // FilterBar
-    const filterBarContainer = document.createElement('div');
-    filterBarContainer.style.cssText = 'flex-shrink:0;';
-    contentEl.appendChild(filterBarContainer);
-
-    const filterBarProps: FilterBarProps = {
-      t,
+  // ── prop ビルダー（build と差分 update で共有し二重定義を避ける） ──
+  function filterBarPropsOf(): FilterBarProps {
+    const { colors } = props.tokens;
+    return {
+      t: props.t,
       filter: props.filter,
       sessions: props.allSessions ?? props.sessions,
       onChange: (f) => props.onFilterChange(f),
@@ -480,7 +483,71 @@ export function mountTrailViewer(
         textSecondary: colors.textSecondary,
       },
     };
-    filterBarHandle = mountFilterBar(filterBarContainer, filterBarProps);
+  }
+  function sessionListPropsOf(): SessionListProps {
+    const { colors } = props.tokens;
+    return {
+      t: props.t,
+      sessions: computeVisibleSessions(props.sessions, props.allSessions, props.filter),
+      selectedId: props.selectedSessionId,
+      onSelect: props.onSelectSession,
+      colors: { textSecondary: colors.textSecondary, iceBlue: colors.iceBlue },
+    };
+  }
+  function timelinePropsOf(messageTree: ReturnType<typeof buildMessageTree>, selectedSession: TrailSession | undefined): MessageTimelineViewProps {
+    return {
+      t: props.t,
+      nodes: messageTree,
+      session: selectedSession,
+      onSelectMessage: () => { /* scroll handled inside */ },
+    };
+  }
+  function statsPropsOf(selectedSession: TrailSession | undefined): StatsBarProps {
+    const { colors } = props.tokens;
+    return {
+      t: props.t,
+      session: selectedSession,
+      messages: props.messages,
+      colors: {
+        border: colors.border,
+        charcoal: colors.charcoal,
+        textSecondary: colors.textSecondary,
+        iceBlue: colors.iceBlue,
+        error: colors.error,
+        success: colors.success,
+      },
+    };
+  }
+
+  /** traceTree 領域（TraceTree ⇄ 空状態）を再構築する。構造が selectedSession/messages で変わるため。 */
+  function renderTraceTreeArea(messageTree: ReturnType<typeof buildMessageTree>): void {
+    const container = messagesTraceTreeContainer;
+    if (!container) return;
+    traceTreeHandle?.destroy();
+    traceTreeHandle = null;
+    container.replaceChildren();
+    const { colors } = props.tokens;
+    if (props.selectedSessionId && props.messages.length > 0) {
+      traceTreeHandle = mountTraceTree(container, { t: props.t, nodes: messageTree });
+    } else {
+      const emptyEl = document.createElement('div');
+      emptyEl.style.cssText = 'display:flex;align-items:center;justify-content:center;flex:1;height:100%;';
+      const emptyText = document.createElement('span');
+      emptyText.style.cssText = `font-size:0.875rem;color:${colors.textSecondary};`;
+      emptyText.textContent = props.selectedSessionId ? props.t('viewer.loading') : props.t('viewer.selectSession');
+      emptyEl.appendChild(emptyText);
+      container.appendChild(emptyEl);
+    }
+  }
+
+  function buildMessagesContent(contentEl: HTMLElement): void {
+    const { colors } = props.tokens;
+
+    // FilterBar
+    const filterBarContainer = document.createElement('div');
+    filterBarContainer.style.cssText = 'flex-shrink:0;';
+    contentEl.appendChild(filterBarContainer);
+    filterBarHandle = mountFilterBar(filterBarContainer, filterBarPropsOf());
 
     // Middle row: SessionList + MessageTimeline + TraceTree
     const middleRow = document.createElement('div');
@@ -495,18 +562,7 @@ export function mountTrailViewer(
       'overflow-y:auto;',
     ].join(';');
     middleRow.appendChild(sessionListPanel);
-
-    const sessionListProps: SessionListProps = {
-      t,
-      sessions: computeVisibleSessions(props.sessions, props.allSessions, props.filter),
-      selectedId: props.selectedSessionId,
-      onSelect: props.onSelectSession,
-      colors: {
-        textSecondary: colors.textSecondary,
-        iceBlue: colors.iceBlue,
-      },
-    };
-    sessionListHandle = mountSessionList(sessionListPanel, sessionListProps);
+    sessionListHandle = mountSessionList(sessionListPanel, sessionListPropsOf());
 
     // Right content: MessageTimeline + TraceTree
     const rightPanel = document.createElement('div');
@@ -518,51 +574,19 @@ export function mountTrailViewer(
 
     const timelineContainer = document.createElement('div');
     rightPanel.appendChild(timelineContainer);
-
-    const timelineProps: MessageTimelineViewProps = {
-      t,
-      nodes: messageTree,
-      session: selectedSession,
-      onSelectMessage: () => { /* scroll handled inside */ },
-    };
-    messageTimelineHandle = mountMessageTimeline(timelineContainer, timelineProps);
+    messageTimelineHandle = mountMessageTimeline(timelineContainer, timelinePropsOf(messageTree, selectedSession));
 
     // TraceTree or empty state
     const traceTreeContainer = document.createElement('div');
     traceTreeContainer.style.cssText = 'flex:1;overflow:auto;';
     rightPanel.appendChild(traceTreeContainer);
-
-    if (props.selectedSessionId && props.messages.length > 0) {
-      const traceProps: TraceTreeProps = { t, nodes: messageTree };
-      traceTreeHandle = mountTraceTree(traceTreeContainer, traceProps);
-    } else {
-      const emptyEl = document.createElement('div');
-      emptyEl.style.cssText = 'display:flex;align-items:center;justify-content:center;flex:1;height:100%;';
-      const emptyText = document.createElement('span');
-      emptyText.style.cssText = `font-size:0.875rem;color:${colors.textSecondary};`;
-      emptyText.textContent = props.selectedSessionId ? t('viewer.loading') : t('viewer.selectSession');
-      emptyEl.appendChild(emptyText);
-      traceTreeContainer.appendChild(emptyEl);
-    }
+    messagesTraceTreeContainer = traceTreeContainer;
+    renderTraceTreeArea(messageTree);
 
     // StatsBar
     const statsBarContainer = document.createElement('div');
     contentEl.appendChild(statsBarContainer);
-
-    const statsProps: StatsBarProps = {
-      t,
-      session: selectedSession,
-      messages: props.messages,
-      colors: {
-        border: colors.border,
-        charcoal: colors.charcoal,
-        textSecondary: colors.textSecondary,
-        iceBlue: colors.iceBlue,
-        error: colors.error,
-        success: colors.success,
-      },
-    };
-    statsBarHandle = mountStatsBar(statsBarContainer, statsProps);
+    statsBarHandle = mountStatsBar(statsBarContainer, statsPropsOf(selectedSession));
   }
 
   function destroyMessagesContent(): void {
@@ -576,6 +600,7 @@ export function mountTrailViewer(
     traceTreeHandle = null;
     statsBarHandle?.destroy();
     statsBarHandle = null;
+    messagesTraceTreeContainer = null;
     if (messagesContentHost) {
       messagesContentHost.replaceChildren();
     }
@@ -583,8 +608,19 @@ export function mountTrailViewer(
 
   function updateMessagesContent(): void {
     if (!messagesContentHost) return;
-    destroyMessagesContent();
-    buildMessagesContent(messagesContentHost);
+    // 未 mount なら初回構築。以降は差分 update（全破棄→再構築だと検索入力が毎キーで
+    // 消えフォーカスを失う回帰になるため、各 handle の update と traceTree 領域のみ再描画にする）。
+    if (!filterBarHandle) {
+      buildMessagesContent(messagesContentHost);
+      return;
+    }
+    const messageTree = buildMessageTree(props.messages);
+    const selectedSession = (props.allSessions ?? props.sessions).find((s) => s.id === props.selectedSessionId);
+    filterBarHandle.update(filterBarPropsOf());
+    sessionListHandle?.update(sessionListPropsOf());
+    messageTimelineHandle?.update(timelinePropsOf(messageTree, selectedSession));
+    renderTraceTreeArea(messageTree);
+    statsBarHandle?.update(statsPropsOf(selectedSession));
   }
 
   // ── Open/close popup helpers ──

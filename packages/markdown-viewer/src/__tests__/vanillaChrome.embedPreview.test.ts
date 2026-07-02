@@ -114,7 +114,7 @@ describe("createEmbedFetchController", () => {
     expect(last?.data).toBeNull();
   });
 
-  test("cancel() 後は subscriber が呼ばれない", async () => {
+  test("cancel() 後は loading 通知のみ届き、完了通知は届かない", async () => {
     const providers = makeProviders();
     const ctrl = createEmbedFetchController<OgpData>();
     const states: unknown[] = [];
@@ -124,8 +124,10 @@ describe("createEmbedFetchController", () => {
     ctrl.cancel();
     await flushPromises();
 
-    // cancel 前の loading 初期化だけが起こり、subscriber への通知はなし
-    expect(states).toHaveLength(0);
+    // fetch() 開始直後の loading 通知（指摘44）は cancel 前に同期発火する。
+    // cancel 後の完了 .then()/.catch() は cancelled ガードで notify() されない。
+    expect(states).toHaveLength(1);
+    expect((states[0] as { loading: boolean }).loading).toBe(true);
   });
 
   test("キャッシュ hit 時に fetcher を再呼び出ししない", async () => {
@@ -140,9 +142,31 @@ describe("createEmbedFetchController", () => {
     ctrl2.subscribe((s) => states.push(s));
     ctrl2.fetch("https://cached2.example", "ogp", providers.fetchOgp);
 
-    // キャッシュ hit は同期的に notify される
-    expect(states).toHaveLength(1);
+    // fetch() 開始直後の loading 通知（指摘44）+ キャッシュ hit の同期通知で 2 件。
+    expect(states).toHaveLength(2);
     expect(providers.fetchOgp).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 指摘44: fetch() はキャッシュ未ヒット時に loading:true をセットした直後に notify() を
+   * 呼ばず完了時のみ通知していたため、embedViews.ts の `if (state.loading)` スケルトン
+   * 描画分岐が呼び出し順序上、一度も到達しなかった回帰。loading 状態が同期的に届き、
+   * その後フェッチ完了状態が届くことを固定する。
+   */
+  test("非キャッシュ時は loading 通知 → 完了通知の順で 2 回 notify される", async () => {
+    const providers = makeProviders();
+    const ctrl = createEmbedFetchController<OgpData>();
+    const states: Array<{ loading: boolean }> = [];
+    ctrl.subscribe((s) => states.push(s));
+
+    ctrl.fetch("https://loading-notify.example", "ogp", providers.fetchOgp);
+    // フェッチ完了前でも loading 通知が同期的に届く。
+    expect(states).toHaveLength(1);
+    expect(states[0].loading).toBe(true);
+
+    await flushPromises();
+    expect(states.at(-1)?.loading).toBe(false);
+    expect(states).toHaveLength(2);
   });
 });
 
@@ -192,17 +216,18 @@ describe("createEmbedPreview — URL ディスパッチ", () => {
     setEmbedProviders(null);
   });
 
+  // t 未指定時は identityT フォールバックでキーがそのまま表示される（他 vanilla コンポーネントと同パターン）。
   test("body が空の場合はプレースホルダ表示", () => {
     const handle = createEmbedPreview(container);
     handle.render("embed card", "", undefined, jest.fn());
-    expect(container.textContent).toContain("有効な URL");
+    expect(container.textContent).toContain("mdEmbedInvalidUrl");
     handle.destroy();
   });
 
   test("分類不能 URL はプレースホルダ表示", () => {
     const handle = createEmbedPreview(container);
     handle.render("embed card", "not-a-url", undefined, jest.fn());
-    expect(container.textContent).toContain("埋め込めません");
+    expect(container.textContent).toContain("mdEmbedUnclassifiedUrl");
     handle.destroy();
   });
 
@@ -210,7 +235,7 @@ describe("createEmbedPreview — URL ディスパッチ", () => {
     setEmbedProviders(null);
     const handle = createEmbedPreview(container);
     handle.render("embed card", "https://twitter.com/u/status/12345", undefined, jest.fn());
-    expect(container.textContent).toContain("プロバイダ");
+    expect(container.textContent).toContain("mdEmbedProvidersMissing");
     handle.destroy();
   });
 
@@ -218,7 +243,20 @@ describe("createEmbedPreview — URL ディスパッチ", () => {
     setEmbedProviders(null);
     const handle = createEmbedPreview(container);
     handle.render("embed card", "https://example.com/article", undefined, jest.fn());
-    expect(container.textContent).toContain("プロバイダ");
+    expect(container.textContent).toContain("mdEmbedProvidersMissing");
+    handle.destroy();
+  });
+
+  test("i18n: t を渡すと URL 未入力・分類不能・プロバイダ未設定のメッセージが翻訳される", () => {
+    const t = (key: string): string =>
+      ({
+        mdEmbedInvalidUrl: "URLを入力してください",
+        mdEmbedUnclassifiedUrl: "埋め込み不可URL",
+        mdEmbedProvidersMissing: "プロバイダ未設定",
+      })[key] ?? key;
+    const handle = createEmbedPreview(container, t);
+    handle.render("embed card", "", undefined, jest.fn());
+    expect(container.textContent).toContain("URLを入力してください");
     handle.destroy();
   });
 

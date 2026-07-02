@@ -86,7 +86,7 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <LandingHeader />
       <Box
         component="nav"
@@ -139,15 +139,17 @@ export default function DocsViewBody({ docTitle }: Readonly<{ docTitle?: string 
           </Typography>
         </Breadcrumbs>
       </Box>
-      <Box sx={{ flex: 1, overflow: 'hidden', '& #main-content': { px: { xs: 0, md: 3 } } }}>
+      <Container maxWidth="lg" sx={{ flex: 1, px: { xs: 0, md: 3 }, '& #main-content': { px: { xs: 0, md: 3 } } }}>
         <MarkdownViewer
           docKey={resolved}
           docKeyByLocale={isGitHub ? undefined : localeMap}
           fallbackDocKey={isGitHub ? undefined : fallback}
           contentApiPath={isGitHub ? '/api/docs/github-content' : '/api/docs/content'}
-          minHeight="calc(100vh - 64px - 41px)"
+          noScroll
+          minimal
+          measure="wide"
         />
-      </Box>
+      </Container>
     </Box>
   );
 }

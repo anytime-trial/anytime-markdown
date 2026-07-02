@@ -14,10 +14,11 @@ import {
   type LinkedMdToken,
 } from '../utils/linkedMdFs';
 import { ClaudeLockTracker } from '../claude/ClaudeLockTracker';
+import { MarkdownLogger } from '../utils/MarkdownLogger';
 
 /** Claude editing=false 観測からロック解除を確定するまでの遅延 (ms)。 */
 const CLAUDE_UNLOCK_DELAY_MS = 3000;
-export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
+export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider, vscode.Disposable {
   public static readonly viewType = 'anytimeMarkdown';
 
   private static instance: MarkdownEditorProvider | null = null;
@@ -115,10 +116,13 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   ): vscode.Disposable {
     const provider = new MarkdownEditorProvider(context, logLine);
     MarkdownEditorProvider.instance = provider;
-    return vscode.window.registerCustomEditorProvider(
-      MarkdownEditorProvider.viewType,
+    return vscode.Disposable.from(
       provider,
-      { supportsMultipleEditorsPerDocument: false, webviewOptions: { retainContextWhenHidden: true } }
+      vscode.window.registerCustomEditorProvider(
+        MarkdownEditorProvider.viewType,
+        provider,
+        { supportsMultipleEditorsPerDocument: false, webviewOptions: { retainContextWhenHidden: true } }
+      ),
     );
   }
 
@@ -126,6 +130,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     private readonly context: vscode.ExtensionContext,
     private readonly logLine?: (line: string) => void,
   ) {}
+
+  /** 保留中の Claude 編集ロック解除タイマーを破棄する（register() の Disposable 経路から呼ばれる）。 */
+  public dispose(): void {
+    this.claudeLock.dispose();
+  }
 
   /** webview のエディタエラーバウンダリから転送された描画エラーを Output へ記録する */
   private handleEditorError(message: { [key: string]: unknown }): void {
@@ -304,8 +313,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         const diskContent = new TextDecoder().decode(bytes);
         if (diskContent === document.getText()) { return; }
         showExternalChangeNotification(diskContent);
-      } catch {
-        // ファイル読み取り失敗時は無視
+      } catch (err) {
+        MarkdownLogger.error(`checkDiskContent: failed to read ${document.uri.fsPath}`, err);
       }
     };
     fileWatcher.onDidChange(checkDiskContent);
@@ -327,8 +336,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         if (stat.mtime === lastMtime) { return; }
         lastMtime = stat.mtime;
         await checkDiskContent();
-      } catch {
-        // stat 失敗時は無視
+      } catch (err) {
+        MarkdownLogger.error(`pollInterval: failed to stat ${document.uri.fsPath}`, err);
       }
     }, 3000);
 
@@ -552,7 +561,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           ctx.webviewPanel.webview.postMessage({
             type: 'imageDownloaded', originalUrl: url, localPath: `images/${fileName}`,
           });
-        } catch { /* 保存失敗は無視 */ }
+        } catch (err) {
+          MarkdownLogger.error(`handleDownloadImage: failed to save data URL image for ${ctx.document.uri.fsPath}`, err);
+        }
         return;
       }
 
@@ -611,8 +622,10 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           originalUrl: url,
           localPath: relativePath,
         });
-      } catch {
-        // ダウンロード失敗は無視（元の URL のまま表示）
+      } catch (err) {
+        MarkdownLogger.error(`handleDownloadImage: failed to download ${url}`, err);
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Image download failed: ${msg}`);
       }
     };
 
@@ -1003,17 +1016,22 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         vscode.workspace.getConfiguration('anytimeMarkdown').get<string>('docsRoot', '') ?? '';
       return resolveRepositoryRoot(configPath, path.dirname(document.uri.fsPath));
     };
-    const ngLog = (line: string): void => this.logLine?.(line);
+    /** `[ISO8601] [LEVEL]` を自動付与して logLine へ委譲する（ログ書式規約: 全行に時刻+レベル）。 */
+    const ngLog = (level: 'INFO' | 'WARN' | 'ERROR', line: string): void => {
+      this.logLine?.(`[${new Date().toISOString()}] [${level}] ${line}`);
+    };
+    /** scanRepository は自前で `[ISO8601] [LEVEL]` を付与済みのため、素通しのシンクを渡す。 */
+    const rawNgLog = (line: string): void => this.logLine?.(line);
     const sendNoteGraphDocs = async (): Promise<void> => {
       const root = noteGraphRoot();
       if (!root) return;
       try {
-        const docs = await scanRepository(root, ngLog);
+        const docs = await scanRepository(root, rawNgLog);
         // 中心表示用に現在のドキュメントの root 相対パスを渡す
         const currentPath = path.relative(root, document.uri.fsPath).split(path.sep).join('/');
         webviewPanel.webview.postMessage({ type: 'setNoteGraphDocs', docs, currentPath });
       } catch (err) {
-        ngLog(`[${new Date().toISOString()}] [ERROR] [noteGraph] scan failed: ${String(err)}`);
+        ngLog('ERROR', `[noteGraph] scan failed: ${String(err)}`);
       }
     };
     const openNoteGraphDoc = async (relPath: string): Promise<void> => {
@@ -1023,15 +1041,15 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       try {
         uri = vscode.Uri.file(resolveDocPath(root, relPath));
       } catch (err) {
-        ngLog(`[noteGraph] openDoc rejected: ${relPath} ${String(err)}`);
+        ngLog('WARN', `[noteGraph] openDoc rejected: ${relPath} ${String(err)}`);
         return;
       }
       try {
         await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownEditorProvider.viewType);
       } catch (err) {
-        ngLog(`[noteGraph] openWith failed (falling back): ${relPath} ${String(err)}`);
+        ngLog('WARN', `[noteGraph] openWith failed (falling back): ${relPath} ${String(err)}`);
         await vscode.window.showTextDocument(uri).then(undefined, (e) =>
-          ngLog(`[noteGraph] openDoc failed: ${relPath} ${String(e)}`),
+          ngLog('ERROR', `[noteGraph] openDoc failed: ${relPath} ${String(e)}`),
         );
       }
     };
@@ -1039,7 +1057,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       if (from === to) return;
       // `to` は frontmatter に書き込むため、リポジトリ外/不正パス（YAML 破壊・traversal）を拒否
       if (!isSafeRelPath(to)) {
-        ngLog(`[noteGraph] connect rejected (invalid to): ${to}`);
+        ngLog('WARN', `[noteGraph] connect rejected (invalid to): ${to}`);
         return;
       }
       const root = noteGraphRoot();
@@ -1048,16 +1066,16 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       try {
         fromPath = resolveDocPath(root, from);
       } catch (err) {
-        ngLog(`[noteGraph] connect rejected: ${from} ${String(err)}`);
+        ngLog('WARN', `[noteGraph] connect rejected: ${from} ${String(err)}`);
         return;
       }
       try {
         const content = await fs.promises.readFile(fromPath, 'utf8');
-        const next = addRelatedEntry(content, to, relationType);
+        const next = addRelatedEntry(content, to, (message) => ngLog('WARN', `[noteGraph] ${message}`), relationType);
         if (next !== content) await fs.promises.writeFile(fromPath, next, 'utf8');
         await sendNoteGraphDocs();
       } catch (err) {
-        ngLog(`[noteGraph] connect failed: ${from} -> ${to} ${String(err)}`);
+        ngLog('ERROR', `[noteGraph] connect failed: ${from} -> ${to} ${String(err)}`);
         void vscode.window.showErrorMessage(`Note Graph: failed to link ${from}`);
       }
     };
@@ -1106,7 +1124,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         case 'noteGraphConnect':
           if (typeof message.from === 'string' && typeof message.to === 'string') {
             // relationType は webview 由来の未検証値。未知/欠落は references へフォールバック。
-            await connectNoteGraph(message.from, message.to, coerceRelationType(message.relationType));
+            await connectNoteGraph(
+              message.from,
+              message.to,
+              coerceRelationType(message.relationType, (msg) => ngLog('WARN', `[noteGraph] ${msg}`)),
+            );
           }
           break;
       }

@@ -12,6 +12,7 @@ module.exports = {
     '**/claude/__tests__/**/*.test.ts',
     '**/webview/__tests__/**/*.test.ts',
     '**/utils/__tests__/**/*.test.ts',
+    '**/docCore/__tests__/**/*.test.ts',
   ],
   transform: {
     '^.+\\.ts$': ['ts-jest', { isolatedModules: true }],

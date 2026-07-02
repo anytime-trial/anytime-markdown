@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-07-02
+
+### Trail Core (trail-viewer)
+
+- 脱React パリティ再監査: C4・シェル/パネル・logs/messages/memory・analytics ツールチップ・C4 ツールバー（i18n/a11y）・C4 canvas の動的 aria-label・codeGraph/evaluation/sessionList パネルの挙動/見た目回帰を復元、ローディング/空状態の表現を復元、指標カードの `?` ヘルプを円囲みアイコン化、可視ラベル・aria・variant を復元（Alert フォールバック色・Spinner aria）。
+
 ## [0.31.1] - 2026-06-30
 
 ### セキュリティ

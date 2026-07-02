@@ -453,4 +453,32 @@ describe('createC4DataStore', () => {
     expect(store.getState().c4Model).not.toBeNull();
     store.dispose();
   });
+
+  // Regression: setSelectedRelease は runInitialFetch だけでなく file/function 解析も再取得しないと、
+  // リリース切替後も importance/deadCode/centrality/role マトリクスが切替前リリースのまま残る。
+  it('setSelectedRelease で file/function 解析を新しいリリースの tag で再取得する', async () => {
+    setupFetch();
+    const store = createC4DataStore('http://localhost:3000', true /* no WS */, true);
+
+    // repo を確定させる（解析は enabled && selectedRepo が要る）。
+    store.getState().setSelectedRepo('my-repo');
+    await new Promise((r) => setTimeout(r, 20));
+
+    const analysisCallsFor = (kind: 'file-analysis' | 'function-analysis'): string[] =>
+      (globalThis.fetch as jest.Mock).mock.calls
+        .map(([u]) => String(u))
+        .filter((u) => u.includes(`/api/c4/${kind}`));
+
+    // ここまでの解析呼び出しをリセットして、release 切替のみの影響を見る。
+    (globalThis.fetch as jest.Mock).mockClear();
+
+    store.getState().setSelectedRelease('v1.0.0');
+    await new Promise((r) => setTimeout(r, 20));
+
+    const fileCalls = analysisCallsFor('file-analysis');
+    const funcCalls = analysisCallsFor('function-analysis');
+    expect(fileCalls.some((u) => u.includes('tag=v1.0.0'))).toBe(true);
+    expect(funcCalls.some((u) => u.includes('tag=v1.0.0'))).toBe(true);
+    store.dispose();
+  });
 });

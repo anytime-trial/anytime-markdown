@@ -5,6 +5,7 @@
 import {
   createSwitch,
   createSelect,
+  createInputLabel,
 } from '@anytime-markdown/ui-core';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 import type { DefectRiskControlsValue } from '../../../c4/components/overlays/DefectRiskControls';
@@ -105,7 +106,11 @@ export function mountDefectRiskControls(
   });
   windowSelect.el.style.cssText = 'min-width:88px;';
   if (!props.value.enabled) windowSelect.el.disabled = true;
-  root.appendChild(windowSelect.el);
+  const windowWrap = document.createElement('div');
+  windowWrap.style.cssText = 'display:flex;flex-direction:column;';
+  windowWrap.appendChild(createInputLabel({ shrink: true, children: props.labelWindow }).el);
+  windowWrap.appendChild(windowSelect.el);
+  root.appendChild(windowWrap);
 
   // --- HalfLife Select ---
   const halfLifeSelect = createSelect<string>({
@@ -118,7 +123,11 @@ export function mountDefectRiskControls(
   });
   halfLifeSelect.el.style.cssText = 'min-width:88px;';
   if (!props.value.enabled) halfLifeSelect.el.disabled = true;
-  root.appendChild(halfLifeSelect.el);
+  const halfLifeWrap = document.createElement('div');
+  halfLifeWrap.style.cssText = 'display:flex;flex-direction:column;';
+  halfLifeWrap.appendChild(createInputLabel({ shrink: true, children: props.labelHalfLife }).el);
+  halfLifeWrap.appendChild(halfLifeSelect.el);
+  root.appendChild(halfLifeWrap);
 
   // --- Status text ---
   const statusText = document.createElement('span');

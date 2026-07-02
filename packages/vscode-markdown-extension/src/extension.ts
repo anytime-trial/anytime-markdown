@@ -20,10 +20,12 @@ export function activate(context: vscode.ExtensionContext) {
 	// 同梱した mcp-markdown サーバーを VS Code ネイティブ MCP 探索へ登録し、
 	// `.mcp.json` 書き出しコマンドも提供する（trail 拡張と同等の配線）。
 	const extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
+	const mcpMarkdownServerProvider = new McpMarkdownServerProvider(extensionDistPath);
 	context.subscriptions.push(
+		mcpMarkdownServerProvider,
 		vscode.lm.registerMcpServerDefinitionProvider(
 			'anytime-markdown.mcp',
-			new McpMarkdownServerProvider(extensionDistPath),
+			mcpMarkdownServerProvider,
 		),
 	);
 	registerMcpRegistrationCommand(context, extensionDistPath);
@@ -54,32 +56,59 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// doc-core: markdown 拡張専用 doc-core.db を ingest（検索は mcp-markdown が読む）。
 	// docsRoot 未設定なら無効（既定オフ）。DB ドライバは node:sqlite（native 不要）。
+	// 未信頼ワークスペースでは起動しない: 悪意ある `.vscode/settings.json` が docsRoot/dbPath を
+	// 任意パスへ向けると、フォルダを開いただけでワークスペース外の再帰読取 + DB 書込が成立するため。
 	const docCfg = vscode.workspace.getConfiguration('anytimeMarkdown.docSearch');
 	const docsRoot = (vscode.workspace.getConfiguration('anytimeMarkdown').get<string>('docsRoot') ?? '').trim();
 	const docWsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-	if (docsRoot && docWsRoot) {
-		const dbPath = resolveDocDbPath(docWsRoot, docCfg.get<string>('dbPath'));
+	let docIngestRunner: DocIngestRunner | undefined;
+
+	const startDocIngest = (): void => {
+		if (docIngestRunner) return; // 既に起動済み（trust 付与での再評価による二重起動を防止）
+		if (!docsRoot || !docWsRoot) return;
+		const dbPath = resolveDocDbPath(docWsRoot, docCfg.get<string>('dbPath'), (msg) => MarkdownLogger.warn(msg));
 		const ingestScriptPath = path.join(extensionDistPath, 'doc-ingest.js');
-		const ingestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath);
-		context.subscriptions.push(ingestRunner);
-		void ingestRunner.runOnce();
+		docIngestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath);
+		context.subscriptions.push(docIngestRunner);
+		void docIngestRunner.runOnce();
 		const intervalMin = docCfg.get<number>('intervalMinutes') ?? 30;
 		if (intervalMin > 0) {
-			const docIngestInterval = setInterval(() => void ingestRunner.runOnce(), intervalMin * 60 * 1000);
+			const docIngestInterval = setInterval(() => void docIngestRunner?.runOnce(), intervalMin * 60 * 1000);
 			context.subscriptions.push({ dispose: () => clearInterval(docIngestInterval) });
 		}
-		context.subscriptions.push(
-			vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => { void ingestRunner.runOnce(); }),
-		);
-	} else {
-		context.subscriptions.push(
-			vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => {
+	};
+
+	if (vscode.workspace.isTrusted) {
+		startDocIngest();
+	} else if (docsRoot && docWsRoot) {
+		MarkdownLogger.info('doc-core ingest スキップ: ワークスペース未信頼（信頼付与後に再評価）');
+	}
+
+	// 信頼が後から付与された場合（例: 「常に信頼する」を選択）に ingest を開始する。
+	context.subscriptions.push(
+		vscode.workspace.onDidGrantWorkspaceTrust(() => {
+			startDocIngest();
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => {
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(
+					'Anytime Markdown: ワークスペースが信頼されていないため doc index を実行できません。',
+				);
+				return;
+			}
+			if (!docsRoot || !docWsRoot) {
 				vscode.window.showWarningMessage(
 					'Anytime Markdown: anytimeMarkdown.docsRoot が未設定です。設定後に再実行してください。',
 				);
-			}),
-		);
-	}
+				return;
+			}
+			startDocIngest();
+			void docIngestRunner?.runOnce();
+		}),
+	);
 
 	context.subscriptions.push(
 		MarkdownEditorProvider.register(context, (line) => timelineOutput.appendLine(line)),

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-07-02
+
+### Fixed
+
+- Vanilla UI: fixed logic, editor-state subscription, and error surfacing regressions from the de-React migration.
+- Markdown-rich: fixed the PlantUML encoder; sanitized KaTeX and print SVG output; completed graph-preview i18n.
+- Diff colors are now theme-token-driven; resolved a silent catch in diff position resolution.
+- Completed remaining i18n keys, corrected the detached-node check, and finished dead-code removal (pre-merge review follow-ups).
+
+### Security
+
+- Symmetrized web-import sanitization, added origin validation, and unified the `vscodeApi` access path.
+
+### Accessibility
+
+- Vanilla UI: added keyboard operation, aria attributes, and i18n coverage.
+
 ## [1.9.0] - 2026-06-30
 
 ### Added

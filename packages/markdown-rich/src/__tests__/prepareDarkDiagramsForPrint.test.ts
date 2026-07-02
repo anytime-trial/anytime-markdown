@@ -26,6 +26,15 @@ jest.mock(
   { virtual: true },
 );
 
+// 既定は「不正 DSL」として throw する（実ライブラリが mermaid コード等の非 DSL を
+// 拒否する挙動を模す）。anytime-graph 固有のテストのみ mockReturnValueOnce で上書きする。
+const mockRenderThinkingDiagramSvg = jest.fn((_code: string, _isDark: boolean): string => {
+  throw new Error("not a valid anytime-thinking-model DSL");
+});
+jest.mock("@anytime-markdown/graph-core", () => ({
+  renderThinkingDiagramSvg: (code: string, isDark: boolean) => mockRenderThinkingDiagramSvg(code, isDark),
+}));
+
 import { prepareDarkDiagramsForPrint } from "../pdf/prepareDarkDiagramsForPrint";
 
 /** img.src への代入で onload を非同期発火させ、replacePlantUmlLight の load 待ちを解消する */
@@ -58,6 +67,22 @@ function addMermaidWrapper(opts: { svg?: boolean; code?: string }): void {
   wrapper.appendChild(imgBox);
   if (opts.code !== undefined) {
     const code = document.createElement("code");
+    code.textContent = opts.code;
+    wrapper.appendChild(code);
+  }
+  document.body.appendChild(wrapper);
+}
+
+function addAnytimeGraphWrapper(opts: { code?: string }): void {
+  const wrapper = document.createElement("div");
+  wrapper.setAttribute("data-node-view-wrapper", "");
+  const imgBox = document.createElement("div");
+  imgBox.setAttribute("role", "img");
+  imgBox.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+  wrapper.appendChild(imgBox);
+  if (opts.code !== undefined) {
+    const code = document.createElement("code");
+    code.className = "language-anytime-thinking-model";
     code.textContent = opts.code;
     wrapper.appendChild(code);
   }
@@ -159,5 +184,29 @@ describe("prepareDarkDiagramsForPrint", () => {
     addPlantUmlWrapper({ code: undefined });
     await prepareDarkDiagramsForPrint();
     expect(mockEncode).not.toHaveBeenCalled();
+  });
+
+  // 指摘3 回帰テスト: applyBeforePrint() の innerHTML 差し替えは DOMPurify を経由しないため、
+  // レンダラが返す SVG に script 等の危険タグが混入すると印刷経路だけ防御が欠落する。
+  it("sanitizes mermaid light SVG before writing to DOM (XSS defense)", async () => {
+    mockMermaidRender.mockResolvedValueOnce({ svg: "<svg><script>alert(1)</script></svg>" });
+    addMermaidWrapper({ code: "graph TD; A-->B;" });
+    const { applyBeforePrint } = await prepareDarkDiagramsForPrint();
+
+    const imgBox = document.querySelector<HTMLElement>("[role='img']")!;
+    const innerDiv = imgBox.querySelector<HTMLElement>(":scope > div")!;
+    applyBeforePrint();
+    expect(innerDiv.innerHTML).not.toContain("<script");
+  });
+
+  it("sanitizes anytime-graph light SVG before writing to DOM (XSS defense)", async () => {
+    mockMermaidRender.mockRejectedValueOnce(new Error("not mermaid"));
+    mockRenderThinkingDiagramSvg.mockReturnValueOnce("<svg><script>alert(1)</script></svg>");
+    addAnytimeGraphWrapper({ code: "type: causal-loop" });
+    const { applyBeforePrint } = await prepareDarkDiagramsForPrint();
+
+    const imgBox = document.querySelector<HTMLElement>("[role='img']")!;
+    applyBeforePrint();
+    expect(imgBox.innerHTML).not.toContain("<script");
   });
 });

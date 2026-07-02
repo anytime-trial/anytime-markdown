@@ -40,6 +40,11 @@ export interface CreateSelectOptions<T extends string> {
   ariaLabel?: string;
   /** 既定 true（消費者は fullWidth で使用）。 */
   fullWidth?: boolean;
+  /**
+   * closed ボタンの min-width（MUI FormControl の sx.minWidth 相当）。数値は px、文字列はそのまま。
+   * 選択値の文字数で幅がガタつくのを防ぐ。省略時は未指定。
+   */
+  minWidth?: number | string;
   /** popup の append 先（既定 document.body・createPortal 相当）。 */
   portalTarget?: HTMLElement;
 }
@@ -101,6 +106,7 @@ export function createSelect<T extends string>(opts: CreateSelectOptions<T>): {
   let onChange = opts.onChange;
   let ariaLabel = opts.ariaLabel;
   let fullWidth = opts.fullWidth ?? true;
+  let minWidth = opts.minWidth;
   const portalTarget = opts.portalTarget ?? document.body;
 
   selectIdSeq += 1;
@@ -122,7 +128,11 @@ export function createSelect<T extends string>(opts: CreateSelectOptions<T>): {
   el.appendChild(icon);
 
   const applyButtonStyle = (): void => {
-    el.style.cssText = BUTTON_BASE_CSS + (fullWidth ? BUTTON_FULLWIDTH_CSS : "");
+    const minWidthCss =
+      minWidth === undefined
+        ? ""
+        : `min-width:${typeof minWidth === "number" ? `${minWidth}px` : minWidth};`;
+    el.style.cssText = BUTTON_BASE_CSS + (fullWidth ? BUTTON_FULLWIDTH_CSS : "") + minWidthCss;
   };
   const applyAriaLabel = (): void => {
     if (ariaLabel) el.setAttribute("aria-label", ariaLabel);
@@ -297,6 +307,10 @@ export function createSelect<T extends string>(opts: CreateSelectOptions<T>): {
       }
       if (next.fullWidth !== undefined) {
         fullWidth = next.fullWidth;
+        applyButtonStyle();
+      }
+      if (next.minWidth !== undefined) {
+        minWidth = next.minWidth;
         applyButtonStyle();
       }
       if (needsRender) {

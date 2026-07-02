@@ -92,7 +92,8 @@ function getRegex(storage: SearchReplaceStorage): RegExp | null {
       pattern = String.raw`\b${pattern}\b`;
     }
     return new RegExp(pattern, flags);
-  } catch {
+  } catch (error) {
+    console.warn("[searchReplaceExtension:getRegex] pattern のコンパイルに失敗しました", error);
     return null;
   }
 }
@@ -381,8 +382,8 @@ function scrollToMatch(editor: Editor) {
         ? domAtPos.node
         : domAtPos.node.parentElement;
     node?.scrollIntoView({ behavior: "smooth", block: "center" });
-  } catch {
-    // ignore scroll errors
+  } catch (error) {
+    console.warn(`[searchReplaceExtension:scrollToMatch] pos=${match.from} の domAtPos/scrollIntoView に失敗しました`, error);
   }
 }
 

@@ -11,7 +11,7 @@ import {
 } from '../../../c4/components/panels/buildHierarchyTreeData';
 import { flattenTree, type FlatRow } from '../../../c4/components/panels/flattenTree';
 import { computeVisibleRange } from '../../../c4/components/panels/computeVisibleRange';
-import { createSelect, createCheckbox, createTabs, createSpinner } from '@anytime-markdown/ui-core';
+import { createSelect, createCheckbox, createTabs, createSpinner, Link as LinkIcon } from '@anytime-markdown/ui-core';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 
 const ROW_HEIGHT = 24;
@@ -287,10 +287,13 @@ export function mountCallHierarchyPanel(
     rowDiv.style.cssText = `display:flex;align-items:center;height:${ROW_HEIGHT}px;padding-left:${8 + row.level * 16}px;padding-right:8px;cursor:pointer;font-size:0.78rem;box-sizing:border-box;overflow:hidden;`;
     if (item.revisited) rowDiv.title = revisitedTooltip;
 
-    // Toggle icon
+    // Toggle icon（子フェッチ中はスピナーを表示してクリックが無反応に見えるのを防ぐ）。
     const toggleEl = document.createElement('span');
     toggleEl.style.cssText = 'width:16px;height:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-right:4px;';
-    if (hasChildren) {
+    if (loadingChildren.has(item.id)) {
+      const { el: sp } = createSpinner({ size: 12 });
+      toggleEl.appendChild(sp);
+    } else if (hasChildren) {
       toggleEl.innerHTML = isOpen
         ? '<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>'
         : '<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>';
@@ -303,6 +306,16 @@ export function mountCallHierarchyPanel(
     labelEl.style.cssText = `flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${labelColor};`;
     labelEl.textContent = item.label;
     rowDiv.appendChild(labelEl);
+
+    // revisited ノードは常設の LinkIcon で示す（title ホバーだけだと視認性が低い回帰の修正）。
+    if (item.revisited) {
+      const { el: linkSvg } = LinkIcon({ fontSize: 14, color: props.colors.textSecondary });
+      const linkWrap = document.createElement('span');
+      linkWrap.style.cssText = 'flex-shrink:0;display:inline-flex;align-items:center;margin-left:4px;';
+      linkWrap.setAttribute('aria-label', revisitedTooltip);
+      linkWrap.appendChild(linkSvg);
+      rowDiv.appendChild(linkWrap);
+    }
 
     // File path
     const pathEl = document.createElement('span');

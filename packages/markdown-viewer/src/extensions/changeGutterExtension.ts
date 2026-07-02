@@ -219,13 +219,13 @@ function injectStyles() {
   style.id = "change-gutter-styles";
   style.textContent = `
     .change-gutter-mark {
-      border-left: 3px solid #2ea043 !important;
+      border-left: 3px solid var(--am-color-success-main, #2ea043) !important;
     }
     .change-gutter-deleted {
       display: block;
       height: 0;
       width: 12px;
-      border-bottom: 2px solid #f85149;
+      border-bottom: 2px solid var(--am-color-error-main, #f85149);
       pointer-events: none;
     }
   `;

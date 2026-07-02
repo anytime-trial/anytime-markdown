@@ -26,6 +26,11 @@ import {
   DARK_ERROR_BG, LIGHT_ERROR_BG, DARK_WARNING_BG, LIGHT_WARNING_BG,
   DARK_SUCCESS_BG, LIGHT_SUCCESS_BG, DARK_INFO_BG, LIGHT_INFO_BG,
   alpha,
+  getDiffAddedBlockBg, getDiffRemovedBlockBg, getDiffAddedCellBg, getDiffRemovedCellBg,
+  getDiffCollapseFg, getDiffCollapseBg, getDiffCollapseBorder,
+  DARK_DIFF_COLLAPSE_FG, LIGHT_DIFF_COLLAPSE_FG,
+  DARK_DIFF_COLLAPSE_BG, LIGHT_DIFF_COLLAPSE_BG,
+  DARK_DIFF_COLLAPSE_BORDER, LIGHT_DIFF_COLLAPSE_BORDER,
 } from "../constants/colors";
 
 describe("colors helper functions", () => {
@@ -205,6 +210,33 @@ describe("colors helper functions", () => {
   describe("getInfoBg", () => {
     it("dark", () => expect(getInfoBg(true)).toBe(DARK_INFO_BG));
     it("light", () => expect(getInfoBg(false)).toBe(LIGHT_INFO_BG));
+  });
+
+  describe("diff トークン（changeGutter/diffHighlight 用）", () => {
+    it("getDiffRemovedBlockBg は error-main の alpha 0.10", () => {
+      expect(getDiffRemovedBlockBg(true)).toBe(alpha(DARK_ERROR_MAIN, 0.1));
+      expect(getDiffRemovedBlockBg(false)).toBe(alpha(LIGHT_ERROR_MAIN, 0.1));
+    });
+    it("getDiffAddedBlockBg は success-main の alpha 0.10", () => {
+      expect(getDiffAddedBlockBg(true)).toBe(alpha(DARK_SUCCESS_MAIN, 0.1));
+      expect(getDiffAddedBlockBg(false)).toBe(alpha(LIGHT_SUCCESS_MAIN, 0.1));
+    });
+    it("getDiffRemovedCellBg は error-main の alpha 0.18", () => {
+      expect(getDiffRemovedCellBg(true)).toBe(alpha(DARK_ERROR_MAIN, 0.18));
+      expect(getDiffRemovedCellBg(false)).toBe(alpha(LIGHT_ERROR_MAIN, 0.18));
+    });
+    it("getDiffAddedCellBg は success-main の alpha 0.18", () => {
+      expect(getDiffAddedCellBg(true)).toBe(alpha(DARK_SUCCESS_MAIN, 0.18));
+      expect(getDiffAddedCellBg(false)).toBe(alpha(LIGHT_SUCCESS_MAIN, 0.18));
+    });
+    it("getDiffCollapseFg/Bg/Border はダーク/ライトで異なる中立グレーを返す", () => {
+      expect(getDiffCollapseFg(true)).toBe(DARK_DIFF_COLLAPSE_FG);
+      expect(getDiffCollapseFg(false)).toBe(LIGHT_DIFF_COLLAPSE_FG);
+      expect(getDiffCollapseBg(true)).toBe(DARK_DIFF_COLLAPSE_BG);
+      expect(getDiffCollapseBg(false)).toBe(LIGHT_DIFF_COLLAPSE_BG);
+      expect(getDiffCollapseBorder(true)).toBe(DARK_DIFF_COLLAPSE_BORDER);
+      expect(getDiffCollapseBorder(false)).toBe(LIGHT_DIFF_COLLAPSE_BORDER);
+    });
   });
 });
 

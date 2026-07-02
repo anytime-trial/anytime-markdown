@@ -241,13 +241,13 @@ describe("createGraphPreview", () => {
   });
 
   it("GraphMountHandle（render / destroy）を返す", () => {
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     expect(typeof preview.render).toBe("function");
     expect(typeof preview.destroy).toBe("function");
   });
 
   it("enabled=false で render → wrapper は空", () => {
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     const wrapper = (preview as any).wrapper ?? document.createElement("div");
     preview.render("y=x", false, false);
     // destroy 後もエラーが起きないことを確認
@@ -255,7 +255,7 @@ describe("createGraphPreview", () => {
   });
 
   it("destroy() を複数回呼んでもエラーにならない", () => {
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     expect(() => {
       preview.destroy();
       preview.destroy();
@@ -264,7 +264,7 @@ describe("createGraphPreview", () => {
 
   it("explicit2d: render → jsxGraph.initBoard が呼ばれる", async () => {
     mockParseLatex.mockReturnValue(makeExplicit2dExpr());
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     preview.render("y=2x", true, false);
     await new Promise((r) => setTimeout(r, 0));
     expect((require("jsxgraph").JSXGraph.initBoard as jest.Mock)).toHaveBeenCalled();
@@ -272,7 +272,7 @@ describe("createGraphPreview", () => {
 
   it("surface3d: render → plotly.react が呼ばれる", async () => {
     mockParseLatex.mockReturnValue(makeSurface3dExpr());
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     preview.render("z=x+y", true, false);
     await new Promise((r) => setTimeout(r, 0));
     expect(mockPlotly.react).toHaveBeenCalled();
@@ -280,7 +280,7 @@ describe("createGraphPreview", () => {
 
   it("dark mode: render → plotly に isDark が渡る", async () => {
     mockParseLatex.mockReturnValue(makeSurface3dExpr());
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     preview.render("z=x+y", true, true /* isDark */);
     await new Promise((r) => setTimeout(r, 0));
     // plotly.react の第3引数(layout) で dark bg が使われていることを確認
@@ -302,7 +302,7 @@ describe("createGraphPreview", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     // wrapper を container に追加してテストできるよう、render を呼ぶ
     preview.render("bad", true, false);
     await new Promise((r) => setTimeout(r, 0));
@@ -314,7 +314,7 @@ describe("createGraphPreview", () => {
 
   it("destroy() → jsxGraph.freeBoard が呼ばれる", async () => {
     mockParseLatex.mockReturnValue(makeExplicit2dExpr());
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     preview.render("y=x", true, false);
     await new Promise((r) => setTimeout(r, 0));
     preview.destroy();
@@ -323,7 +323,7 @@ describe("createGraphPreview", () => {
 
   it("destroy() → plotly.purge が呼ばれる", async () => {
     mockParseLatex.mockReturnValue(makeSurface3dExpr());
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     preview.render("z=x+y", true, false);
     await new Promise((r) => setTimeout(r, 0));
     preview.destroy();
@@ -332,7 +332,7 @@ describe("createGraphPreview", () => {
 
   it("再 render → 前回の jsxGraph ボードが解放される", async () => {
     mockParseLatex.mockReturnValue(makeExplicit2dExpr());
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     preview.render("y=x", true, false);
     await new Promise((r) => setTimeout(r, 0));
 
@@ -349,18 +349,20 @@ describe("createGraphPreview", () => {
 
   it("parameters あり: explicit2d で DOM にスライダーが存在する", async () => {
     mockParseLatex.mockReturnValue(makeParamExpr("a"));
-    const container = document.createElement("div");
-    document.body.appendChild(container);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
 
-    const preview = createGraphPreview(document.createElement("div"));
-    // wrapper を取得するには内部 DOM を直接検査できないため
-    // エラーなく実行されることを確認
+    const preview = createGraphPreview(host, (key: string) => key);
     preview.render("y=xa", true, false);
     await new Promise((r) => setTimeout(r, 0));
 
     expect((require("jsxgraph").JSXGraph.initBoard as jest.Mock)).toHaveBeenCalled();
+    // スライダーの aria-label は t() 経由（identity t のためキー名がそのまま入る）
+    const slider = host.querySelector('[aria-label="graphParameter a"]');
+    expect(slider).not.toBeNull();
+    expect(host.textContent).not.toContain("パラメータ");
     preview.destroy();
-    container.remove();
+    host.remove();
   });
 
   it("parameters あり: surface3d でスライダーが生成される", async () => {
@@ -371,7 +373,7 @@ describe("createGraphPreview", () => {
       variables: ["x", "y", "k"],
       latex: "z=xk",
     });
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     preview.render("z=xk", true, false);
     await new Promise((r) => setTimeout(r, 0));
     expect(mockPlotly.react).toHaveBeenCalled();
@@ -382,7 +384,7 @@ describe("createGraphPreview", () => {
   it("plotly.react が reject → エラーログのみでクラッシュしない", async () => {
     mockParseLatex.mockReturnValue(makeSurface3dExpr());
     mockPlotly.react.mockRejectedValueOnce(new Error("render failed"));
-    const preview = createGraphPreview(document.createElement("div"));
+    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
     // catch していてもテストでエラーにならないことを確認
     await expect(async () => {
       preview.render("z=x+y", true, false);

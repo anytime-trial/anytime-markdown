@@ -38,10 +38,10 @@ const EMPTY_STATE: DiffHighlightState = {
   expandLabel: "Show {count} unchanged blocks",
 };
 
-const LEFT_BLOCK_STYLE = "background-color: rgba(248, 81, 73, 0.10); border-radius: 4px;";
-const RIGHT_BLOCK_STYLE = "background-color: rgba(46, 160, 67, 0.10); border-radius: 4px;";
-const LEFT_CELL_STYLE = "background-color: rgba(248, 81, 73, 0.18);";
-const RIGHT_CELL_STYLE = "background-color: rgba(46, 160, 67, 0.18);";
+const LEFT_BLOCK_STYLE = "background-color: var(--am-color-diff-removed-block-bg, rgba(248, 81, 73, 0.10)); border-radius: 4px;";
+const RIGHT_BLOCK_STYLE = "background-color: var(--am-color-diff-added-block-bg, rgba(46, 160, 67, 0.10)); border-radius: 4px;";
+const LEFT_CELL_STYLE = "background-color: var(--am-color-diff-removed-cell-bg, rgba(248, 81, 73, 0.18));";
+const RIGHT_CELL_STYLE = "background-color: var(--am-color-diff-added-cell-bg, rgba(46, 160, 67, 0.18));";
 
 // --- meta（プラグインへの指示）の型 ---
 
@@ -128,8 +128,8 @@ function createExpanderWidget(view: EditorView, runId: number, count: number, la
   el.setAttribute("tabindex", "0");
   el.style.cssText =
     "cursor:pointer; text-align:center; font-size:13px; padding:2px 8px; margin:2px 0;" +
-    "color:rgba(128,128,128,0.9); background-color:rgba(128,128,128,0.08);" +
-    "border-top:1px dashed rgba(128,128,128,0.4); border-bottom:1px dashed rgba(128,128,128,0.4);" +
+    "color:var(--am-color-diff-collapse-fg, rgba(128,128,128,0.9)); background-color:var(--am-color-diff-collapse-bg, rgba(128,128,128,0.08));" +
+    "border-top:1px dashed var(--am-color-diff-collapse-border, rgba(128,128,128,0.4)); border-bottom:1px dashed var(--am-color-diff-collapse-border, rgba(128,128,128,0.4));" +
     "user-select:none;";
   const toggle = () => dispatchToggleRun(view, runId);
   el.addEventListener("click", toggle);

@@ -142,7 +142,10 @@ export function mountSessionMetricsPanel(
 
     const { usageCards, productivityCards, qualityCards } = buildCards(p);
 
+    // 旧 cardStyle: minWidth:160 / flex:'1 1 160px' / textAlign:center（3 枚を等幅に）。
+    const cardContainerCss = 'flex:1 1 160px;min-width:160px;text-align:center;';
     const usageEl = document.createElement('div');
+    usageEl.style.cssText = cardContainerCss;
     root.appendChild(usageEl);
     const cycleUsage = (): void => {
       usageIdx = (usageIdx + 1) % usageCards.length;
@@ -163,6 +166,7 @@ export function mountSessionMetricsPanel(
     });
 
     const productivityEl = document.createElement('div');
+    productivityEl.style.cssText = cardContainerCss;
     root.appendChild(productivityEl);
     const cycleProductivity = (): void => {
       productivityIdx = (productivityIdx + 1) % productivityCards.length;
@@ -183,6 +187,7 @@ export function mountSessionMetricsPanel(
     });
 
     const qualityEl = document.createElement('div');
+    qualityEl.style.cssText = cardContainerCss;
     root.appendChild(qualityEl);
     const cycleQuality = (): void => {
       qualityIdx = (qualityIdx + 1) % qualityCards.length;

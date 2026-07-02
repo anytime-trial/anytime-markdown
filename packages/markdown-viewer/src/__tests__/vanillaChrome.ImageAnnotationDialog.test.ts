@@ -226,6 +226,24 @@ describe("createImageAnnotationDialog", () => {
     handle.destroy();
   });
 
+  it("role=dialog + aria-modal を持ち Escape で onSave→onClose を呼ぶ（createDialog 経由）", () => {
+    const { handle, onSave, onClose } = open();
+    const dialogEl = handle.el.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialogEl).toBeTruthy();
+    expect(dialogEl.getAttribute("aria-modal")).toBe("true");
+    dialogEl.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+
+  it("ツールグループの aria-label は専用キー annotationToolGroup を使う（先頭ツール名の誤流用を修正）", () => {
+    const { handle } = open();
+    const group = handle.el.querySelector('[role="group"]') as HTMLElement;
+    expect(group.getAttribute("aria-label")).toBe("annotationToolGroup");
+    handle.destroy();
+  });
+
   it("close ボタンはツールバー左端（先頭の button）に配置される（他の編集画面と統一）", () => {
     const { handle } = open();
     // DOM 順で最初の button が close（左端）であること（旧: tool 切替が先頭だった）。

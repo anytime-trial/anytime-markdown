@@ -1,4 +1,12 @@
-import type { OgpData } from "../types/embedProvider";
+export interface OgpData {
+    url: string;
+    title: string | null;
+    description: string | null;
+    image: string | null;
+    siteName: string | null;
+    favicon: string | null;
+    rawHtml?: string | null;
+}
 
 const WHITESPACE = new Set([" ", "\t", "\n", "\r"]);
 const SKIP_BEFORE_NAME = new Set([" ", "\t", "\n", "\r", "/"]);

@@ -224,6 +224,29 @@ describe("createSlashCommandMenu", () => {
     expect(items[0].textContent).toContain("slashBulletList");
   });
 
+  it("項目ありのとき status（非表示 live region）に件数キーを反映する（指摘39）", () => {
+    build();
+    capturedCallback!(makeState({ active: true, query: "", from: 5 }));
+    const menuEl = handle!.getMenuEl()!;
+    const status = menuEl.querySelector('[role="status"]') as HTMLElement;
+    expect(status).toBeTruthy();
+    // t は identity のため vars 込みキー名がそのまま入る（i18n 配線の確認が目的）。
+    expect(status.textContent).toBe("slashCommandItemCount");
+  });
+
+  it("ArrowDown で選択変更すると status が選択ラベルで更新される（指摘42）", () => {
+    build();
+    capturedCallback!(makeState({ active: true, query: "", from: 5 }));
+    const menuEl = handle!.getMenuEl()!;
+    const status = menuEl.querySelector('[role="status"]') as HTMLElement;
+    // 初期描画直後は件数アナウンスのまま。
+    expect(status.textContent).toBe("slashCommandItemCount");
+
+    capturedCallback!(makeState({ active: true, query: "", navigationKey: "ArrowDown" }));
+    // 選択が動くと選択ラベルキーへ切り替わる。
+    expect(status.textContent).toBe("slashCommandSelected");
+  });
+
   it("マッチ無しのとき status に slashCommandNoResults を表示し項目は出さない", () => {
     build();
     capturedCallback!(makeState({ active: true, query: "zzzz", from: 5 }));

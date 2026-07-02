@@ -1,6 +1,7 @@
 import { parseRssLatest } from "@anytime-markdown/markdown-viewer/src/utils/rssParser";
-import { assertSafeUrl } from "@anytime-markdown/markdown-viewer/src/utils/ssrfGuard";
 import { NextResponse } from "next/server";
+
+import { assertSafeUrl } from "../../../lib/ssrfGuard";
 
 const TIMEOUT_MS = 10000;
 const MAX_BYTES = 2 * 1024 * 1024;

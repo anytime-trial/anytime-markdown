@@ -429,6 +429,12 @@ export function mountGraphCanvas(
   canvas.style.cssText = 'display:block;width:100%;height:100%;outline:none;';
   container.appendChild(canvas);
 
+  // ノード数を含む動的 aria-label（旧 `C4 architecture graph with N nodes`）。update でも更新する。
+  function updateAriaLabel(): void {
+    canvas.setAttribute('aria-label', `C4 architecture graph with ${getNodes().length} nodes`);
+  }
+  updateAriaLabel();
+
   // Expose canvas to parent
   props.onCanvasReady?.(canvas);
   if (props.canvasRef) props.canvasRef.current = canvas;
@@ -495,6 +501,15 @@ export function mountGraphCanvas(
     for (let i = nodes.length - 1; i >= 0; i--) {
       const n = nodes[i];
       if (n.type === 'frame') continue;
+      if (hitTestNode(n, world.x, world.y)) return n;
+    }
+    // 非 frame がヒットしなければ frame（Boundary 枠）もヒットテストする。
+    // 旧 useCanvasBase は skipFrames=false（C4 GraphCanvas）でこの第二ループを持ち、
+    // frame body ドラッグでのグループ一括移動・frame 選択・frame ダブルクリックを成立させていた。
+    // これが無いと handleMouseDown の frame 分岐（hit.type==='frame'）が到達不能になる。
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const n = nodes[i];
+      if (n.type !== 'frame') continue;
       if (hitTestNode(n, world.x, world.y)) return n;
     }
     return undefined;
@@ -943,6 +958,7 @@ export function mountGraphCanvas(
 
     applyCenterOnSelect(newProps, prevSelectedNodeId);
     updateCursorStyle();
+    updateAriaLabel();
   }
 
   function destroy(): void {

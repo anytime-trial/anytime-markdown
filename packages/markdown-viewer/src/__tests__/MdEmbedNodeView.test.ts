@@ -183,6 +183,24 @@ describe("createMdEmbedNodeView", () => {
     editor.destroy();
   });
 
+  it("status / message に aria-live / role=alert を付与する（指摘43: 非同期遷移の通知）", async () => {
+    const provider = makeProvider();
+    const { editor, node } = makeEditorAndNode();
+    setLinkedMdProvider(provider);
+    installFakeNestedEditorFactory();
+
+    const view = createMdEmbedNodeView({ node, editor, getPos: () => 0 });
+    await flushPromises();
+
+    const status = view.dom.querySelector("[data-am-md-embed-status]");
+    expect(status?.getAttribute("aria-live")).toBe("polite");
+    const message = view.dom.querySelector("[data-am-md-embed-message]");
+    expect(message?.getAttribute("role")).toBe("alert");
+
+    view.destroy?.();
+    editor.destroy();
+  });
+
   it("saves nested edits after the debounce with the base token", async () => {
     const provider = makeProvider();
     const { editor, node } = makeEditorAndNode();

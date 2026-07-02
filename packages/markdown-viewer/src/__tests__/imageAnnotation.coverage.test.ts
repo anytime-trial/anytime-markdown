@@ -39,7 +39,32 @@ describe("imageAnnotation coverage", () => {
   });
 
   it("parseAnnotations returns empty array for invalid JSON", () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     expect(parseAnnotations("not json")).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toEqual(expect.stringContaining("parseAnnotations"));
+    warnSpy.mockRestore();
+  });
+
+  it("parseAnnotations returns empty array when parsed JSON is not an array", () => {
+    expect(parseAnnotations(JSON.stringify({ id: "1" }))).toEqual([]);
+  });
+
+  it("parseAnnotations filters out elements with an invalid type", () => {
+    const valid = { id: "1", type: "rect", x1: 0, y1: 0, x2: 10, y2: 10, color: "#f00" };
+    const invalid = { id: "2", type: "triangle", x1: 0, y1: 0, x2: 10, y2: 10, color: "#f00" };
+    expect(parseAnnotations(JSON.stringify([valid, invalid]))).toEqual([valid]);
+  });
+
+  it("parseAnnotations filters out elements missing required numeric fields", () => {
+    const valid = { id: "1", type: "circle", x1: 0, y1: 0, x2: 10, y2: 10, color: "#f00" };
+    const missingField = { id: "2", type: "circle", x1: 0, y1: 0, x2: 10, color: "#f00" };
+    expect(parseAnnotations(JSON.stringify([valid, missingField]))).toEqual([valid]);
+  });
+
+  it("parseAnnotations filters out non-object elements", () => {
+    const valid = { id: "1", type: "line", x1: 0, y1: 0, x2: 10, y2: 10, color: "#f00" };
+    expect(parseAnnotations(JSON.stringify([valid, "not-an-object", null, 42]))).toEqual([valid]);
   });
 
   it("serializeAnnotations returns null for empty array", () => {

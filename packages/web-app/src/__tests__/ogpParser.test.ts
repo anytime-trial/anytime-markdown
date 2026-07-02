@@ -1,4 +1,4 @@
-import { parseOgpHtml } from "../../utils/ogpParser";
+import { parseOgpHtml } from "../lib/ogpParser";
 
 const baseUrl = "https://example.com/page";
 

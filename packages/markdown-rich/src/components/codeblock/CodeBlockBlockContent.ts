@@ -79,9 +79,15 @@ function getEditorFontSize(el: Element): number {
   return Number.isFinite(v) && v > 0 ? v : 16;
 }
 
+/** i18n 未配線時（extension 未 configure・テスト等）のフォールバック: キーをそのまま返す。 */
+const identityT = (key: string): string => key;
+
 export function createCodeBlockNodeView(
-  { node, editor, getPos }: Pick<NodeViewRendererProps, "node" | "editor" | "getPos">,
+  { node, editor, getPos, t }: Pick<NodeViewRendererProps, "node" | "editor" | "getPos"> & {
+    t?: ((key: string) => string) | null;
+  },
 ): NodeView {
+  const resolvedT = t ?? identityT;
   let currentNode = node;
   let kind = classifyCodeBlock(node.attrs.language);
   let previewCancel: () => void = () => {};
@@ -207,7 +213,7 @@ export function createCodeBlockNodeView(
 
     // vanilla graph プレビューを直接マウント（jsxgraph / plotly は内部で遅延 import）。
     if (!graphMount) {
-      graphMount = createGraphPreview(graphEl);
+      graphMount = createGraphPreview(graphEl, resolvedT);
     }
     graphMount.render(codeText, true, isEditorDark(dom));
     graphEl.style.display = "";
@@ -235,7 +241,7 @@ export function createCodeBlockNodeView(
     if (kind === "embed") {
       // vanilla embed プレビューを直接マウント（providers は setEmbedProviders で注入）。
       if (!embedMount) {
-        embedMount = createEmbedPreview(previewInner);
+        embedMount = createEmbedPreview(previewInner, resolvedT);
       }
       embedMount.render(lang, codeText, getEmbedStoredWidth(lang) ?? undefined, onBaselineWrite);
       return;

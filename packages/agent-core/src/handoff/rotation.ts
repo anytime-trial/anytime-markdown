@@ -92,6 +92,10 @@ export function buildReturnContract(): string {
     '作業結果を述べた後、**最後に必ず**次スキーマの fenced ```json ブロックを 1 つだけ出力せよ。',
     'JSON ブロックの後に文章を続けてはならない（最後の非空白文字は閉じフェンス ``` で終わること）:',
     '',
+    '中断（abstention）の指針: タスクが実行不能・前提欠落・指示と実コードの矛盾を観測したら、',
+    '作業を続行せず `taskStatus` を "abstained" とし、`abstainReason` に観測した事実を書いて返せ。',
+    '完了を装うこと・不能と判明した後に作業を続けることをいずれも禁ずる。通常完了は "completed"。',
+    '',
     '```json',
     '{',
     `  "handoffVersion": ${HANDOFF_VERSION},`,
@@ -105,7 +109,9 @@ export function buildReturnContract(): string {
     '    "branch": "現在ブランチ",',
     '    "lastCommit": "直近コミット hash"',
     '  },',
-    '  "narrative": null',
+    '  "narrative": null,',
+    '  "taskStatus": "completed",',
+    '  "abstainReason": null',
     '}',
     '```',
   ].join('\n');
@@ -130,6 +136,30 @@ function isStringArray(value: unknown): value is string[] {
 
 function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+/**
+ * タスク帰結（abstention 出口）を検証・正規化する。
+ * - `taskStatus` 省略は completed 扱い（旧形式の後方互換）。
+ * - abstained は非空 `abstainReason` 必須（理由なしの安易な投げ返しを弾く）。
+ * - completed の `abstainReason` は null に正規化、abstained の理由は capString で再上限（A5 同等）。
+ */
+function parseTaskOutcome(
+  obj: Record<string, unknown>,
+): { taskStatus: 'completed' | 'abstained'; abstainReason: string | null } | { error: string } {
+  const taskStatus = obj.taskStatus ?? 'completed';
+  if (taskStatus !== 'completed' && taskStatus !== 'abstained') {
+    return { error: `taskStatus invalid: ${String(obj.taskStatus)}` };
+  }
+  const reason = obj.abstainReason;
+  if (reason !== undefined && reason !== null && typeof reason !== 'string') {
+    return { error: 'abstainReason invalid' };
+  }
+  if (taskStatus === 'completed') return { taskStatus, abstainReason: null };
+  if (typeof reason !== 'string' || reason.trim() === '') {
+    return { error: 'abstained requires non-empty abstainReason' };
+  }
+  return { taskStatus, abstainReason: capString(reason) };
 }
 
 /**
@@ -174,6 +204,9 @@ export function parseRunningState(raw: string): { ok: HandoffState } | { error: 
   if (!isNonNegativeInteger(s.commandsTotal)) return { error: 'commandsTotal invalid' };
   if (obj.narrative !== null && typeof obj.narrative !== 'string') return { error: 'narrative invalid' };
 
+  const outcome = parseTaskOutcome(obj);
+  if ('error' in outcome) return outcome;
+
   const bounded = boundStructured({
     goal: s.goal,
     filesTouched: s.filesTouched,
@@ -185,5 +218,13 @@ export function parseRunningState(raw: string): { ok: HandoffState } | { error: 
     lastCommit: s.lastCommit,
   });
 
-  return { ok: { handoffVersion: HANDOFF_VERSION, structured: bounded, narrative: obj.narrative } };
+  return {
+    ok: {
+      handoffVersion: HANDOFF_VERSION,
+      structured: bounded,
+      narrative: obj.narrative,
+      taskStatus: outcome.taskStatus,
+      abstainReason: outcome.abstainReason,
+    },
+  };
 }
