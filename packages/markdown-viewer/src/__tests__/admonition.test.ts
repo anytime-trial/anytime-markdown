@@ -7,7 +7,6 @@ import { Editor } from "@anytime-markdown/markdown-core";
 import StarterKit from "@anytime-markdown/markdown-starter-kit";
 import { Markdown } from "@anytime-markdown/markdown-md";
 import { AdmonitionBlockquote } from "../extensions/admonitionExtension";
-import { preprocessAdmonition } from "../utils/admonitionHelpers";
 import { getMarkdownFromEditor, getMarkdownStorage } from "../types";
 import { applyMarkdownToEditor } from "../utils/editorContentLoader";
 
@@ -43,50 +42,6 @@ function createSaveLoadEditor(md = ""): Editor {
 function getMarkdown(editor: Editor): string {
   return getMarkdownStorage(editor).getMarkdown();
 }
-
-describe("preprocessAdmonition", () => {
-  test("[!NOTE] を data-admonition-type 属性に変換する", () => {
-    const input = "> [!NOTE]\n> Important info.";
-    const result = preprocessAdmonition(input);
-    expect(result).not.toContain("[!NOTE]");
-    expect(result).toContain("data-admonition-type");
-    expect(result).toContain("Important info.");
-  });
-
-  test.each(["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"])(
-    "[!%s] を変換する",
-    (type) => {
-      const input = `> [!${type}]\n> Content.`;
-      const result = preprocessAdmonition(input);
-      expect(result).toContain(`data-admonition-type="${type.toLowerCase()}"`);
-    },
-  );
-
-  test("通常の blockquote は変換しない", () => {
-    const input = "> Just a normal quote.";
-    const result = preprocessAdmonition(input);
-    expect(result).toBe(input);
-  });
-
-  test("コードブロック内の [!NOTE] はスキップする", () => {
-    const input = "```\n> [!NOTE]\n> content\n```";
-    const result = preprocessAdmonition(input);
-    expect(result).toBe(input);
-  });
-
-  test("大文字小文字を問わない", () => {
-    const input = "> [!Note]\n> Mixed case.";
-    const result = preprocessAdmonition(input);
-    expect(result).toContain('data-admonition-type="note"');
-  });
-
-  test("複数の admonition を変換する", () => {
-    const input = "> [!NOTE]\n> First.\n\n> [!WARNING]\n> Second.";
-    const result = preprocessAdmonition(input);
-    expect(result).toContain('data-admonition-type="note"');
-    expect(result).toContain('data-admonition-type="warning"');
-  });
-});
 
 describe("AdmonitionBlockquote", () => {
   describe("parseHTML: data-admonition-type 検出", () => {

@@ -635,6 +635,7 @@
     "gifFrames": "Frames",
     "mathFormula": "Formula",
     "graphResetView": "Reset view",
+    "graphParameter": "Parameter",
     "graphPlay": "Play",
     "graphPause": "Pause",
     "graphLoading": "Loading graph library...",

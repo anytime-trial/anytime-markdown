@@ -635,6 +635,7 @@
     "gifFrames": "フレーム数",
     "mathFormula": "数式",
     "graphResetView": "表示範囲をリセット",
+    "graphParameter": "パラメータ",
     "graphPlay": "再生",
     "graphPause": "停止",
     "graphLoading": "グラフライブラリを読み込み中...",

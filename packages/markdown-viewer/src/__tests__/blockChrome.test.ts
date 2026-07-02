@@ -126,6 +126,26 @@ describe("createSelectedBlockTracker", () => {
     editor.destroy();
   });
 
+  it("TypeError でも既知の detached メッセージ以外は console.warn でログする", () => {
+    const editor = makeEditor();
+    const cbPos = findCodeBlockPos(editor);
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    jest.spyOn(editor.view, "nodeDOM").mockImplementation(() => {
+      throw new TypeError("x is not a function");
+    });
+
+    const stop = createSelectedBlockTracker(editor, "codeBlock", () => {});
+    editor.commands.setTextSelection(cbPos + 1);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[blockChrome] measureRect: unexpected error",
+      expect.any(TypeError),
+    );
+    stop();
+    warnSpy.mockRestore();
+    editor.destroy();
+  });
+
   it("nodeDOM が想定外の例外を throw した場合は console.warn でログする", () => {
     const editor = makeEditor();
     const cbPos = findCodeBlockPos(editor);

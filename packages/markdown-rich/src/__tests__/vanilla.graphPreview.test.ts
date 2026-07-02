@@ -349,18 +349,20 @@ describe("createGraphPreview", () => {
 
   it("parameters あり: explicit2d で DOM にスライダーが存在する", async () => {
     mockParseLatex.mockReturnValue(makeParamExpr("a"));
-    const container = document.createElement("div");
-    document.body.appendChild(container);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
 
-    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
-    // wrapper を取得するには内部 DOM を直接検査できないため
-    // エラーなく実行されることを確認
+    const preview = createGraphPreview(host, (key: string) => key);
     preview.render("y=xa", true, false);
     await new Promise((r) => setTimeout(r, 0));
 
     expect((require("jsxgraph").JSXGraph.initBoard as jest.Mock)).toHaveBeenCalled();
+    // スライダーの aria-label は t() 経由（identity t のためキー名がそのまま入る）
+    const slider = host.querySelector('[aria-label="graphParameter a"]');
+    expect(slider).not.toBeNull();
+    expect(host.textContent).not.toContain("パラメータ");
     preview.destroy();
-    container.remove();
+    host.remove();
   });
 
   it("parameters あり: surface3d でスライダーが生成される", async () => {

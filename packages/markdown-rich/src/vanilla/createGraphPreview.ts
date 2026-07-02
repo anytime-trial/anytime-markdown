@@ -268,7 +268,7 @@ function createGraph2DControls(
         step: PARAM_STEP,
         value: paramValues[param] ?? 1,
         size: "small",
-        ariaLabel: `パラメータ ${param}`,
+        ariaLabel: `${t("graphParameter")} ${param}`,
         onChange: (v) => {
           paramValues[param] = v;
           valueText.textContent = v.toFixed(1);
@@ -478,7 +478,7 @@ function createGraph3DControls(
         step: PARAM_STEP,
         value: paramValues[param] ?? 1,
         size: "small",
-        ariaLabel: `パラメータ ${param}`,
+        ariaLabel: `${t("graphParameter")} ${param}`,
         onChange: (v) => {
           paramValues[param] = v;
           valueText.textContent = v.toFixed(1);

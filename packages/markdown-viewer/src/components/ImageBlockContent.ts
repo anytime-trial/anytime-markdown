@@ -38,10 +38,12 @@ export function createImageBlockNodeView({
       const p = getPos?.();
       return typeof p === "number" ? p : null;
     } catch (error) {
-      // getPos は detached ノードで TypeError を throw し得る（vendored tiptap の既知挙動、
-      // safeGetPos.ts と同じ判定基準）。既知パターン以外は想定外の例外のためログする
+      // getPos は detached ノードで posBeforeChild 由来の TypeError（reading 'size'）を
+      // throw し得る（vendored tiptap の既知挙動）。既知メッセージ以外は想定外の例外のためログする
       // （silent catch 禁止規約。installBlockOverlays.ts の console.warn 書式に揃える）。
-      if (!(error instanceof TypeError)) {
+      const isKnownDetachedError =
+        error instanceof TypeError && /reading 'size'|posBeforeChild/.test(String(error.message));
+      if (!isKnownDetachedError) {
         console.warn("[ImageBlockContent] posOrNull: unexpected error", error);
       }
       return null;
