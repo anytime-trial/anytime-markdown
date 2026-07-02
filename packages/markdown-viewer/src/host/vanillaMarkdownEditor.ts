@@ -480,6 +480,16 @@ function nextLinkedMdRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `linked-md-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/**
+ * `vscodeApi` オプションの解決規約（docstring 263-266 行）を統一する: 未指定（`undefined`）時は
+ * `window.__vscode`、`null` 明示時は web 経路（フォールバックしない）。
+ * `installBlockOverlays.ts` / `EditorContextMenu.ts` の既存 vscodeApi 解決パターンと同型。
+ */
+function resolveVscodeApi(vscodeApi: VsCodeApi | null | undefined): VsCodeApi | null {
+  if (vscodeApi !== undefined) return vscodeApi;
+  return typeof window !== "undefined" ? (window.__vscode ?? null) : null;
+}
+
 function installLinkedMdProviderBridge(vscodeApi: VsCodeApi | null | undefined): () => void {
   if (!vscodeApi) {
     setLinkedMdProvider(null);
@@ -516,9 +526,9 @@ function installLinkedMdProviderBridge(vscodeApi: VsCodeApi | null | undefined):
 
   const onMessage = (event: MessageEvent): void => {
     if (
-      event.origin &&
-      !event.origin.startsWith("vscode-webview://") &&
-      event.origin !== globalThis.location?.origin
+      !event.origin ||
+      (!event.origin.startsWith("vscode-webview://") &&
+        event.origin !== globalThis.location?.origin)
     ) {
       return;
     }
@@ -614,7 +624,7 @@ export function mountVanillaMarkdownEditor(
   const handleOpenLinkEvent = (event: Event): void => {
     if (!(event instanceof CustomEvent)) return;
     if (!isOpenLinkDetail(event.detail)) return;
-    current.vscodeApi?.postMessage({ type: "openLink", href: event.detail.href });
+    resolveVscodeApi(current.vscodeApi)?.postMessage({ type: "openLink", href: event.detail.href });
   };
   root.addEventListener("am-open-link", handleOpenLinkEvent);
 
@@ -794,7 +804,7 @@ export function mountVanillaMarkdownEditor(
             return;
           }
 
-          const markdown = composeNewDocument(result);
+          const markdown = sanitizeMarkdown(composeNewDocument(result));
           const onCreate = current.fileHandlers?.onWebImportCreate;
           if (onCreate) {
             await onCreate(markdown, result.title);
@@ -1546,7 +1556,7 @@ export function mountVanillaMarkdownEditor(
       disposers.push(() => autoReloadController.dispose());
 
       // === VS Code カスタムイベント連携 =========================================
-      disposers.push(installLinkedMdProviderBridge(current.vscodeApi));
+      disposers.push(installLinkedMdProviderBridge(resolveVscodeApi(current.vscodeApi)));
       disposers.push(installVSCodeEditorEvents(editor));
       disposers.push(
         installVSCodeModeEvents({
