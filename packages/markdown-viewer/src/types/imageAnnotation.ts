@@ -27,9 +27,32 @@ export function generateAnnotationId(): string {
   return Array.from(bytes, b => b.toString(36)).join("").slice(0, 6);
 }
 
+function isImageAnnotation(value: unknown): value is ImageAnnotation {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  const hasValidType =
+    candidate.type === "rect" || candidate.type === "circle" || candidate.type === "line";
+  return (
+    typeof candidate.id === "string" &&
+    hasValidType &&
+    typeof candidate.x1 === "number" &&
+    typeof candidate.y1 === "number" &&
+    typeof candidate.x2 === "number" &&
+    typeof candidate.y2 === "number" &&
+    typeof candidate.color === "string"
+  );
+}
+
 export function parseAnnotations(json: string | null): ImageAnnotation[] {
   if (!json) return [];
-  try { return JSON.parse(json); } catch { return []; }
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isImageAnnotation);
+  } catch (error) {
+    console.warn("[imageAnnotation] parseAnnotations: failed to parse annotation JSON", error);
+    return [];
+  }
 }
 
 export function serializeAnnotations(annotations: ImageAnnotation[]): string | null {
