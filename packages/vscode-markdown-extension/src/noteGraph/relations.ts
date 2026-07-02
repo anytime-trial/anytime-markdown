@@ -47,13 +47,15 @@ export function isRelationType(value: unknown): value is RelationType {
  * 任意入力を `RelationType` へ正規化する。
  * 未知の非空文字列は {@link DEFAULT_RELATION_TYPE} へフォールバックし警告する（silent 無視禁止）。
  * 空・未指定は既定として扱い、警告は出さない。
+ *
+ * 本モジュールは vscode 非依存の純粋関数のためログ出力先を直接持たない。`warn` は
+ * 呼び出し元（frontmatter.ts 経由 / MarkdownEditorProvider.ts）が実際のログシンク
+ * （MarkdownLogger 等）を注入する必須引数（no-op 既定値は禁止＝呼び出し側で必ず配線する）。
  */
-export function coerceRelationType(value: unknown): RelationType {
+export function coerceRelationType(value: unknown, warn: (message: string) => void): RelationType {
   if (isRelationType(value)) return value;
   if (value !== undefined && value !== null && value !== '') {
-    console.warn(
-      `[noteGraph] unknown relation type ${JSON.stringify(value)}; falling back to '${DEFAULT_RELATION_TYPE}'`,
-    );
+    warn(`[noteGraph] unknown relation type ${JSON.stringify(value)}; falling back to '${DEFAULT_RELATION_TYPE}'`);
   }
   return DEFAULT_RELATION_TYPE;
 }

@@ -152,8 +152,13 @@ function insertThinkingDiagram(editor: Editor, template: string): void {
 // 思考法ダイアグラムは総称1項目に集約する。図種のバリエーションは挿入後の編集
 // ダイアログ「サンプル」パネルから選択する（mermaid と同じ流儀）。
 // 挿入直後は型未指定スケルトンを置き、autoEditOpen で編集ダイアログが自動で開く。
-const THINKING_DIAGRAM_SKELETON =
-  "# 思考法ダイアグラム — 右のサンプルから図種を選んでください（例: type: fishbone）";
+// builtinTemplate() と同様、呼び出し時点の resolveLocale() でロケール別に切り替える
+// （指摘40: 旧固定文字列は英語ロケールでも日本語コメントが挿入されていた）。
+function thinkingDiagramSkeleton(): string {
+  return resolveLocale() === "ja"
+    ? "# 思考法ダイアグラム — 右のサンプルから図種を選んでください（例: type: fishbone）"
+    : "# Thinking diagram — pick a diagram type from the samples on the right (e.g. type: fishbone)";
+}
 
 /** anytime-chart フェンス（チャート）をスケルトンつきで挿入する。 */
 function insertChart(editor: Editor, template: string): void {
@@ -171,8 +176,12 @@ function insertChart(editor: Editor, template: string): void {
 // チャートも総称1項目に集約する。種別（line/bar/scatter）は挿入後の編集ダイアログ
 // 「サンプル」パネルから選択する（思考法ダイアグラム・mermaid と同じ流儀）。
 // 挿入直後はコメントのみのスケルトンを置き、autoEditOpen で編集ダイアログが自動で開く。
-const CHART_SKELETON =
-  "# チャート — 右のサンプルから種別を選んでください（例: line / bar / scatter）";
+// thinkingDiagramSkeleton() と同様にロケール別へ切り替える（指摘40）。
+function chartSkeleton(): string {
+  return resolveLocale() === "ja"
+    ? "# チャート — 右のサンプルから種別を選んでください（例: line / bar / scatter）"
+    : "# Chart — pick a chart type from the samples on the right (e.g. line / bar / scatter)";
+}
 
 const CHART_ITEMS: readonly VanillaSlashCommandItem[] = [
   {
@@ -194,7 +203,7 @@ const CHART_ITEMS: readonly VanillaSlashCommandItem[] = [
       "可視化",
     ],
     action: (editor) => {
-      insertChart(editor, CHART_SKELETON);
+      insertChart(editor, chartSkeleton());
     },
   },
 ];
@@ -237,7 +246,7 @@ const THINKING_DIAGRAM_ITEMS: readonly VanillaSlashCommandItem[] = [
       "構造化",
     ],
     action: (editor) => {
-      insertThinkingDiagram(editor, THINKING_DIAGRAM_SKELETON);
+      insertThinkingDiagram(editor, thinkingDiagramSkeleton());
     },
   },
 ];

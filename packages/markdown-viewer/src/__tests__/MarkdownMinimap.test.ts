@@ -146,13 +146,72 @@ describe("createMarkdownMinimap", () => {
       t,
     });
     expect(editor.on).toHaveBeenCalledWith("update", expect.any(Function));
+    expect(editor.on).toHaveBeenCalledWith("transaction", expect.any(Function));
 
     handle.destroy();
     expect(editor.off).toHaveBeenCalledWith("update", expect.any(Function));
+    expect(editor.off).toHaveBeenCalledWith("transaction", expect.any(Function));
     expect(removeSpy).toHaveBeenCalledWith("scroll", expect.any(Function));
     expect(disconnect).toHaveBeenCalledTimes(1);
 
     delete (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
+  });
+
+  /**
+   * 指摘8: vendored tiptap の `update` は docChanged 時にしか発火しないため、
+   * setChangeGutterBaseline / clearChangeGutter のような setMeta 専用トランザクション
+   * （Escape 押下・autoReload トグル）で changedPositions がリセットされてもミニマップの
+   * マーカーが古いまま残っていた回帰。`transaction` 購読でも拾えることを固定する。
+   */
+  it("changedPositions リセット（meta-only tx 相当）を transaction 購読で検知し再描画する", () => {
+    mockGetChangedPositions.mockReturnValue([5, 10]);
+    const editor = makeEditor();
+    const handle = createMarkdownMinimap({
+      editor: editor as never,
+      scrollContainer: makeScrollContainer(),
+      t,
+    });
+    expect(handle.el.querySelectorAll("[data-am-minimap-marker]")).toHaveLength(2);
+
+    // baseline リセット相当。update は発火しないため transaction ハンドラを直接呼ぶ。
+    mockGetChangedPositions.mockReturnValue([]);
+    const transactionHandler = editor.on.mock.calls.find(
+      ([evt]) => evt === "transaction",
+    )?.[1] as (() => void) | undefined;
+    expect(transactionHandler).toBeInstanceOf(Function);
+    transactionHandler?.();
+
+    expect(handle.el.querySelectorAll("[data-am-minimap-marker]")).toHaveLength(0);
+    handle.destroy();
+  });
+
+  /**
+   * 指摘49 と同方針の過剰再描画対策: changedPositions が変化しない transaction
+   * （カーソル移動等）では再描画（DOM churn）をスキップする。
+   */
+  it("changedPositions が変化しない transaction では再描画しない", () => {
+    mockGetChangedPositions.mockReturnValue([5, 10]);
+    const editor = makeEditor();
+    const handle = createMarkdownMinimap({
+      editor: editor as never,
+      scrollContainer: makeScrollContainer(),
+      t,
+    });
+    const bar = handle.el.querySelector<HTMLElement>("[data-am-minimap-bar]")!;
+    const markersBefore = [...bar.querySelectorAll("[data-am-minimap-marker]")];
+    expect(markersBefore).toHaveLength(2);
+
+    // changedPositions は不変のまま transaction のみ発火（選択移動等を想定）。
+    const transactionHandler = editor.on.mock.calls.find(
+      ([evt]) => evt === "transaction",
+    )?.[1] as (() => void) | undefined;
+    transactionHandler?.();
+
+    const markersAfter = [...bar.querySelectorAll("[data-am-minimap-marker]")];
+    // 要素が作り直されていない（同一参照）ことで re-render をスキップしたと確認する。
+    expect(markersAfter[0]).toBe(markersBefore[0]);
+    expect(markersAfter[1]).toBe(markersBefore[1]);
+    handle.destroy();
   });
 
   it("setDiffSource で差分マーカー表示へ切替え、null で既定へ戻る", () => {

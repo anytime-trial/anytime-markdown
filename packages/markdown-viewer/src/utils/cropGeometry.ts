@@ -10,6 +10,23 @@ export type ResizeHandle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 export type HitResult = { mode: DragMode; handle: ResizeHandle | null; cursor: string };
 
+export interface NearEdges {
+  top: boolean;
+  bottom: boolean;
+  left: boolean;
+  right: boolean;
+}
+
+export interface InRange {
+  x: boolean;
+  y: boolean;
+}
+
+export interface EdgeHitParams {
+  nearEdges: NearEdges;
+  inRange: InRange;
+}
+
 export const SCALE_PRESETS = [25, 50, 75, 100, 150, 200] as const;
 
 export const CORNER_CURSORS: Record<string, string> = {
@@ -26,32 +43,34 @@ export function computeHitTest(pos: { x: number; y: number }, cr: CropRect, t: n
   const inRangeX = pos.x >= cr.x - t && pos.x <= cr.x + cr.width + t;
   const inRangeY = pos.y >= cr.y - t && pos.y <= cr.y + cr.height + t;
 
+  const nearEdges: NearEdges = { top: nearTop, bottom: nearBottom, left: nearLeft, right: nearRight };
+
   // Corner handles
-  const corner = detectCorner(nearTop, nearBottom, nearLeft, nearRight, inRangeX, inRangeY);
+  const corner = detectCorner({ nearEdges, inRange: { x: inRangeX, y: inRangeY } });
   if (corner) return { mode: "resizing", handle: corner, cursor: CORNER_CURSORS[corner] };
 
   // Edge handles
-  const edge = detectEdge(nearTop, nearBottom, nearLeft, nearRight, inX, inY);
+  const edge = detectEdge({ nearEdges, inRange: { x: inX, y: inY } });
   if (edge) return edge;
 
   if (inX && inY) return { mode: "moving", handle: null, cursor: "move" };
   return { mode: "drawing", handle: null, cursor: "crosshair" };
 }
 
-export function detectCorner(nearTop: boolean, nearBottom: boolean, nearLeft: boolean, nearRight: boolean, inRangeX: boolean, inRangeY: boolean): ResizeHandle | null {
-  if (!inRangeX || !inRangeY) return null;
-  if (nearTop && nearLeft) return "nw";
-  if (nearTop && nearRight) return "ne";
-  if (nearBottom && nearLeft) return "sw";
-  if (nearBottom && nearRight) return "se";
+export function detectCorner({ nearEdges, inRange }: EdgeHitParams): ResizeHandle | null {
+  if (!inRange.x || !inRange.y) return null;
+  if (nearEdges.top && nearEdges.left) return "nw";
+  if (nearEdges.top && nearEdges.right) return "ne";
+  if (nearEdges.bottom && nearEdges.left) return "sw";
+  if (nearEdges.bottom && nearEdges.right) return "se";
   return null;
 }
 
-export function detectEdge(nearTop: boolean, nearBottom: boolean, nearLeft: boolean, nearRight: boolean, inX: boolean, inY: boolean): HitResult | null {
-  if (nearTop && inX) return { mode: "resizing", handle: "n", cursor: "ns-resize" };
-  if (nearBottom && inX) return { mode: "resizing", handle: "s", cursor: "ns-resize" };
-  if (nearLeft && inY) return { mode: "resizing", handle: "w", cursor: "ew-resize" };
-  if (nearRight && inY) return { mode: "resizing", handle: "e", cursor: "ew-resize" };
+export function detectEdge({ nearEdges, inRange }: EdgeHitParams): HitResult | null {
+  if (nearEdges.top && inRange.x) return { mode: "resizing", handle: "n", cursor: "ns-resize" };
+  if (nearEdges.bottom && inRange.x) return { mode: "resizing", handle: "s", cursor: "ns-resize" };
+  if (nearEdges.left && inRange.y) return { mode: "resizing", handle: "w", cursor: "ew-resize" };
+  if (nearEdges.right && inRange.y) return { mode: "resizing", handle: "e", cursor: "ew-resize" };
   return null;
 }
 

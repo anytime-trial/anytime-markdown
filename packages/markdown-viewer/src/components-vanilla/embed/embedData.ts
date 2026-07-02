@@ -75,6 +75,10 @@ export function createEmbedFetchController<T extends OgpData | OembedData>(): Em
     fetch(url, keyPrefix, fetcher) {
       cancelled = false;
       state = { loading: true, data: null, error: null };
+      // loading 通知を同期的に発火する（指摘44）。旧実装はここで notify() せず完了時のみ
+      // 通知していたため、embedViews.ts の `if (state.loading)` スケルトン描画分岐
+      // （更新チェック等を含む）が呼び出し順序上、一度も到達しなかった。
+      notify();
 
       const cached = cache.get(url);
       if (cached) {

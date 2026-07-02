@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { resolveDocDbPath } from '../docCore/docDbPath';
+import { MarkdownLogger } from '../utils/MarkdownLogger';
 
 /**
  * VS Code ネイティブの MCP 探索 (`vscode.lm.registerMcpServerDefinitionProvider`)
@@ -37,7 +38,11 @@ export class McpMarkdownServerProvider
       const configuredDbPath = vscode.workspace
         .getConfiguration('anytimeMarkdown.docSearch')
         .get<string>('dbPath');
-      env['ANYTIME_MARKDOWN_DOC_DB'] = resolveDocDbPath(workspacePath, configuredDbPath);
+      env['ANYTIME_MARKDOWN_DOC_DB'] = resolveDocDbPath(
+        workspacePath,
+        configuredDbPath,
+        (msg) => MarkdownLogger.warn(msg),
+      );
     }
     const definition = new vscode.McpStdioServerDefinition(
       'mcp-markdown',

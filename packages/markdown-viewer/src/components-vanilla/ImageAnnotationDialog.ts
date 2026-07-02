@@ -20,6 +20,7 @@
  */
 
 import {
+  createDialog,
   createIconButton,
   createTextField,
   createToggleButton,
@@ -111,11 +112,16 @@ export function createImageAnnotationDialog(
   // 破棄対象の子コントロール / tooltip を集約する。
   const childHandles: Array<{ destroy: () => void }> = [];
 
-  // --- overlay ルート（fixed・縦積み） --------------------------------------
-  const overlay = document.createElement("div");
-  overlay.style.cssText =
-    "position:fixed;inset:0;z-index:1300;display:flex;flex-direction:column;" +
-    "background-color:var(--am-color-bg-paper);color:var(--am-color-text-primary);";
+  // --- Dialog（fullScreen・role=dialog + aria-modal + Escape クローズ + フォーカストラップ） ---
+  // 兄弟ダイアログ（GifRecorderDialog 等）と同パターン。Escape も close ボタンと同じ
+  // handleClose（onSave → onClose）へ束ねる。
+  const dialog = createDialog({
+    onClose: () => handleClose(),
+    fullScreen: true,
+    ariaLabel: t("annotate"),
+  });
+  const overlay = dialog.paper;
+  overlay.style.padding = "0";
 
   // ==========================================================================
   // Toolbar
@@ -129,7 +135,7 @@ export function createImageAnnotationDialog(
   const toolGroup = createToggleButtonGroup({
     value: tool,
     size: "small",
-    ariaLabel: t("annotationRect"),
+    ariaLabel: t("annotationToolGroup"),
     onChange: (v) => {
       if (typeof v === "string") {
         tool = v as AnnotationTool;
@@ -580,13 +586,13 @@ export function createImageAnnotationDialog(
   svg.addEventListener("mousemove", onMouseMove);
   svg.addEventListener("mouseup", onMouseUp);
 
-  // --- 初期描画 + マウント --------------------------------------------------
+  // --- 初期描画 -------------------------------------------------------------
+  // マウントは createDialog が生成時に自前で行う（portalTarget 既定 document.body）。
   renderShapes();
   renderPanel();
-  document.body.appendChild(overlay);
 
   return {
-    el: overlay,
+    el: dialog.el,
     destroy() {
       if (destroyed) return;
       destroyed = true;
@@ -598,7 +604,7 @@ export function createImageAnnotationDialog(
       for (const h of panelItemButtonHandles) h.destroy();
       panelFieldHandles = [];
       panelItemButtonHandles = [];
-      overlay.remove();
+      dialog.destroy();
     },
   };
 }

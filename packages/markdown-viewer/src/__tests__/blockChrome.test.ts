@@ -103,6 +103,68 @@ describe("createSelectedBlockTracker", () => {
     removeSpy.mockRestore();
     editor.destroy();
   });
+
+  /**
+   * 指摘34: detached ノード起因の catch がコンテキストログ無しで握りつぶしていた。
+   * 既知パターン（TypeError、vendored tiptap の detached 挙動）は静かに無視し、
+   * 想定外の例外だけ console.warn でログすることを固定する。
+   */
+  it("nodeDOM が TypeError を throw した場合（既知の detached パターン）は console.warn を呼ばない", () => {
+    const editor = makeEditor();
+    const cbPos = findCodeBlockPos(editor);
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    jest.spyOn(editor.view, "nodeDOM").mockImplementation(() => {
+      throw new TypeError("Cannot read properties of undefined (reading 'size')");
+    });
+
+    const stop = createSelectedBlockTracker(editor, "codeBlock", () => {});
+    editor.commands.setTextSelection(cbPos + 1);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    stop();
+    warnSpy.mockRestore();
+    editor.destroy();
+  });
+
+  it("TypeError でも既知の detached メッセージ以外は console.warn でログする", () => {
+    const editor = makeEditor();
+    const cbPos = findCodeBlockPos(editor);
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    jest.spyOn(editor.view, "nodeDOM").mockImplementation(() => {
+      throw new TypeError("x is not a function");
+    });
+
+    const stop = createSelectedBlockTracker(editor, "codeBlock", () => {});
+    editor.commands.setTextSelection(cbPos + 1);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[blockChrome] measureRect: unexpected error",
+      expect.any(TypeError),
+    );
+    stop();
+    warnSpy.mockRestore();
+    editor.destroy();
+  });
+
+  it("nodeDOM が想定外の例外を throw した場合は console.warn でログする", () => {
+    const editor = makeEditor();
+    const cbPos = findCodeBlockPos(editor);
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    jest.spyOn(editor.view, "nodeDOM").mockImplementation(() => {
+      throw new Error("boom");
+    });
+
+    const stop = createSelectedBlockTracker(editor, "codeBlock", () => {});
+    editor.commands.setTextSelection(cbPos + 1);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[blockChrome] measureRect: unexpected error",
+      expect.any(Error),
+    );
+    stop();
+    warnSpy.mockRestore();
+    editor.destroy();
+  });
 });
 
 describe("createBlockChromeAnchor", () => {

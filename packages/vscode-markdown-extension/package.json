@@ -318,7 +318,10 @@
     "untrustedWorkspaces": {
       "supported": "limited",
       "description": "Git operations and file system access require workspace trust. Editor and preview features work in untrusted workspaces.",
-      "restrictedConfigurations": []
+      "restrictedConfigurations": [
+        "anytimeMarkdown.docsRoot",
+        "anytimeMarkdown.docSearch.dbPath"
+      ]
     }
   },
   "scripts": {

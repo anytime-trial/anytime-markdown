@@ -44,7 +44,9 @@ export function mountVanillaRichMarkdownEditor(
   const current: MountVanillaRichMarkdownEditorOptions = { ...options };
   const handle = mountVanillaMarkdownEditor(container, {
     ...options,
-    codeBlockExtension: options.codeBlockExtension ?? richCodeBlockExtension,
+    // t はマウント毎に異なり得るため、共有シングルトンをそのまま渡さず configure() で
+    // 都度新しいインスタンスへ反映する（MdEmbed.configure({t}) と同パターン）。
+    codeBlockExtension: options.codeBlockExtension ?? richCodeBlockExtension.configure({ t: options.t ?? null }),
     codeBlockOverlayInstaller: (editor) =>
       installCodeBlockOverlay(editor, {
         t: options.t,

@@ -22,8 +22,34 @@ jest.mock("../utils/diagramAltText", () => ({
   extractDiagramAltText: (_code: string, type: string) => `${type} diagram`,
 }));
 
-import { captureDiagramPng, exportDiagramSource } from "../vanilla/diagramCapture";
+const mockEncode = jest.fn((code: string) => `encoded(${code})`);
+jest.mock("plantuml-encoder", () => ({
+  __esModule: true,
+  default: { encode: mockEncode },
+}));
+
+import { captureDiagramPng, exportDiagramSource, buildPlantUmlLightUrl } from "../vanilla/diagramCapture";
 import { saveBlob } from "@anytime-markdown/markdown-viewer";
+
+describe("buildPlantUmlLightUrl", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // 指摘1 回帰テスト: globalThis["plantumlEncoder"] 参照は常に undefined になり、
+  // 未エンコードの生ソースが URL に埋め込まれていた。plantuml-encoder を直接 import して
+  // encode した結果が URL に使われることを固定する。
+  it("plantuml-encoder を直接 import して encode した結果を URL に使う", () => {
+    const url = buildPlantUmlLightUrl("@startuml\nAlice -> Bob\n@enduml");
+    expect(mockEncode).toHaveBeenCalledWith("@startuml\nAlice -> Bob\n@enduml");
+    expect(url).toBe("https://plantuml.example.com/svg/encoded(@startuml\nAlice -> Bob\n@enduml)");
+  });
+
+  it("@start 指定が無い場合は @startuml でラップしてから encode する", () => {
+    buildPlantUmlLightUrl("Alice -> Bob");
+    expect(mockEncode).toHaveBeenCalledWith("@startuml\nAlice -> Bob\n@enduml");
+  });
+});
 
 describe("exportDiagramSource", () => {
   beforeEach(() => {

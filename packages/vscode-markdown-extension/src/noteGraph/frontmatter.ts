@@ -39,8 +39,10 @@ export function isSafeRelPath(p: string): boolean {
  * - `{ to, type }` オブジェクト = 型を {@link coerceRelationType} で正規化（未知型は references フォールバック＋警告）
  * - スカラー文字列（`related: path` の非配列記法）= 単一 references として受ける
  * - `to` が安全でないパス（traversal / 絶対）のエントリは除外する
+ *
+ * @param warn 未知の関係種別を検出した際の警告シンク（呼び出し元から注入。no-op 既定値は禁止）
  */
-function normalizeRelatedData(raw: unknown): RelatedRef[] {
+function normalizeRelatedData(raw: unknown, warn: (message: string) => void): RelatedRef[] {
   // スカラー記法（`related: path`）は単一要素として扱う
   const list = typeof raw === 'string' ? [raw] : raw;
   if (!Array.isArray(list)) return [];
@@ -50,7 +52,7 @@ function normalizeRelatedData(raw: unknown): RelatedRef[] {
       if (isSafeRelPath(entry)) out.push({ to: entry, type: 'references' });
     } else if (entry && typeof entry === 'object' && typeof (entry as { to?: unknown }).to === 'string') {
       const to = (entry as { to: string }).to;
-      if (isSafeRelPath(to)) out.push({ to, type: coerceRelationType((entry as { type?: unknown }).type) });
+      if (isSafeRelPath(to)) out.push({ to, type: coerceRelationType((entry as { type?: unknown }).type, warn) });
     }
   }
   return out;
@@ -71,9 +73,14 @@ function toStrArray(v: unknown): string[] | undefined {
  *
  * @param relPath リポジトリルート相対の POSIX パス（ノード ID）
  * @param content ファイル本文
+ * @param warn 未知の関係種別を検出した際の警告シンク（呼び出し元から注入。no-op 既定値は禁止）
  * @returns 参加条件を満たさない場合 null（frontmatter なし / title なし / graph:false / YAML 構文エラー）
  */
-export function extractNoteDoc(relPath: string, content: string): NoteDocInput | null {
+export function extractNoteDoc(
+  relPath: string,
+  content: string,
+  warn: (message: string) => void,
+): NoteDocInput | null {
   let data: { [key: string]: unknown };
   try {
     data = matter(content).data as { [key: string]: unknown };
@@ -91,7 +98,7 @@ export function extractNoteDoc(relPath: string, content: string): NoteDocInput |
   if (data.graph !== undefined && GRAPH_FALSE_VALUES.has(String(data.graph).toLowerCase())) return null;
 
   // related はリポジトリ外を指しうる値（絶対パス・`..`）を除外しつつ型付きへ正規化する
-  const related = normalizeRelatedData(data.related);
+  const related = normalizeRelatedData(data.related, warn);
 
   // 本文の .md リンク（生 target。解決は scan 側で既知ノード集合を使って行う）
   const bodyLinks = extractBodyLinks(content);
@@ -124,9 +131,9 @@ function relatedEntryLines(ref: RelatedRef, indent: string): string[] {
 }
 
 /** content から正規化済みの既存 related を取り出す（gray-matter 解析）。 */
-function existingRelated(content: string): RelatedRef[] {
+function existingRelated(content: string, warn: (message: string) => void): RelatedRef[] {
   try {
-    return normalizeRelatedData(matter(content).data.related);
+    return normalizeRelatedData(matter(content).data.related, warn);
   } catch {
     return [];
   }
@@ -141,8 +148,16 @@ function existingRelated(content: string): RelatedRef[] {
  * - `references`（既定）は素の文字列で、型付きは `{ to, type }` オブジェクトで追記する。
  * - `related` キーが無ければ追加し、フロントマター自体が無ければ新規作成する。
  * - 本文・既存キー・行末（CRLF/LF）は保存する（full reserialize しない）。
+ *
+ * @param warn 既存 related 内の未知関係種別を検出した際の警告シンク（呼び出し元から注入。no-op 既定値は禁止）
+ * @param type 追記する関係種別（既定 references）
  */
-export function addRelatedEntry(content: string, target: string, type: RelationType = 'references'): string {
+export function addRelatedEntry(
+  content: string,
+  target: string,
+  warn: (message: string) => void,
+  type: RelationType = 'references',
+): string {
   if (!isSafeRelPath(target)) return content;
 
   const eol = content.includes('\r\n') ? '\r\n' : '\n';
@@ -156,7 +171,7 @@ export function addRelatedEntry(content: string, target: string, type: RelationT
   }
 
   // 冪等: 既存 related に同一 (to,type) があれば変更しない
-  if (existingRelated(content).some((r) => r.to === target && r.type === type)) {
+  if (existingRelated(content, warn).some((r) => r.to === target && r.type === type)) {
     return content;
   }
 
@@ -173,7 +188,7 @@ export function addRelatedEntry(content: string, target: string, type: RelationT
   } else if (inlineContent !== '') {
     // インライン配列 or スカラー値 → YAML リスト形式へ変換しつつ新エントリを追記する。
     // 二重 `related:` キー（duplicated mapping key で parse 不能）を避けるため既存行を置換する。
-    const allLines = existingRelated(content).flatMap((r) => relatedEntryLines(r, indent));
+    const allLines = existingRelated(content, warn).flatMap((r) => relatedEntryLines(r, indent));
     allLines.push(...newLines);
     blockLines.splice(relatedIdx, 1, 'related:', ...allLines);
     newBlock = blockLines.join(eol);

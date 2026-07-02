@@ -195,6 +195,37 @@ describe("createSearchReplaceBar", () => {
     handle.destroy();
   });
 
+  /**
+   * 指摘41: toggleStyle() が style.backgroundColor / style.color をインラインで上書きし、
+   * ui-core IconButton の共有 :hover ルールに常に勝っていた（アクティブなトグルをホバー
+   * しても hover 表現が出ない）。aria-pressed 属性セレクタ + 共有スタイルシートで表現し、
+   * インライン style を残さないことを固定する。
+   */
+  it("caseSensitive/wholeWord/regex トグルは aria-pressed のみで表現しインライン style を残さない", () => {
+    const { handle, storage } = mount();
+    fireOpen(storage);
+    const caseBtn = handle.el.querySelector<HTMLButtonElement>('button[aria-label="caseSensitive"]')!;
+
+    storage.caseSensitive = true;
+    storage.onSearchStateChange?.();
+
+    expect(caseBtn.getAttribute("aria-pressed")).toBe("true");
+    // IconButton 自体の既定インライン style（background:transparent;color:inherit）から
+    // 変化しない（旧 toggleStyle() はここを active 色で上書きしていた）。
+    expect(caseBtn.style.backgroundColor).toBe("transparent");
+    expect(caseBtn.style.color).toBe("inherit");
+    expect(caseBtn.classList.contains("am-search-toggle-btn")).toBe(true);
+
+    storage.caseSensitive = false;
+    storage.onSearchStateChange?.();
+    expect(caseBtn.getAttribute("aria-pressed")).toBe("false");
+
+    // 共有スタイルシートに [aria-pressed="true"] ルールが 1 度だけ注入される。
+    const style = document.getElementById("am-search-replace-toggle-styles");
+    expect(style?.textContent).toContain('.am-search-toggle-btn[aria-pressed="true"]');
+    handle.destroy();
+  });
+
   it("置換行のトグルで replace input が現れ replace / replaceAll を発火する", () => {
     const { handle, storage, calls } = mount();
     fireOpen(storage);

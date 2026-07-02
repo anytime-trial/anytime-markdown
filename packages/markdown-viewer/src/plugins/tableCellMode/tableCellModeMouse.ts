@@ -1,6 +1,7 @@
 import { TextSelection } from "@anytime-markdown/markdown-pm/state";
 import type { EditorView } from "@anytime-markdown/markdown-pm/view";
 
+import { safeResolve } from "../../utils/safeResolve";
 import {
   exitTableMode,
   setEditingMode,
@@ -12,24 +13,21 @@ import {
  * セル位置からテーブルの DOM 要素を取得し、インライン表（width: auto）かどうかを判定する。
  */
 export function isInlineTable(view: EditorView, cellPos: number): boolean {
-  try {
-    const $pos = view.state.doc.resolve(cellPos);
-    for (let depth = $pos.depth; depth >= 0; depth--) {
-      if ($pos.node(depth).type.name === "table") {
-        const tableStart = $pos.before(depth);
-        const dom = view.nodeDOM(tableStart);
-        if (dom instanceof HTMLElement) {
-          const table = dom.tagName === "TABLE" ? dom : dom.querySelector("table");
-          if (table) {
-            const w = table.style.width;
-            return !w || w === "auto";
-          }
+  const $pos = safeResolve(view.state.doc, cellPos, "isInlineTable");
+  if (!$pos) return false;
+  for (let depth = $pos.depth; depth >= 0; depth--) {
+    if ($pos.node(depth).type.name === "table") {
+      const tableStart = $pos.before(depth);
+      const dom = view.nodeDOM(tableStart);
+      if (dom instanceof HTMLElement) {
+        const table = dom.tagName === "TABLE" ? dom : dom.querySelector("table");
+        if (table) {
+          const w = table.style.width;
+          return !w || w === "auto";
         }
-        break;
       }
+      break;
     }
-  } catch {
-    // ignore
   }
   return false;
 }
@@ -47,8 +45,8 @@ export function findCellPosFromEvent(
 
   const pos = posInfo.inside >= 0 ? posInfo.inside : posInfo.pos;
 
-  try {
-    const $pos = view.state.doc.resolve(pos);
+  const $pos = safeResolve(view.state.doc, pos, "findCellPosFromEvent");
+  if ($pos) {
     for (let depth = $pos.depth; depth > 0; depth--) {
       const node = $pos.node(depth);
       if (
@@ -58,8 +56,6 @@ export function findCellPosFromEvent(
         return $pos.before(depth);
       }
     }
-  } catch {
-    // 位置が無効な場合は無視
   }
 
   return null;

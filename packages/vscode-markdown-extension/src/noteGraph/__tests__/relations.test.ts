@@ -15,15 +15,12 @@ describe('relations (host mirror)', () => {
   });
 
   it('coerces known/unknown types (unknown → references with warning)', () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    try {
-      expect(coerceRelationType('depends-on')).toBe('depends-on');
-      expect(coerceRelationType('mentions')).toBe('references');
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(coerceRelationType(undefined)).toBe('references');
-    } finally {
-      warn.mockRestore();
-    }
+    const warn = jest.fn();
+    expect(coerceRelationType('depends-on', warn)).toBe('depends-on');
+    expect(coerceRelationType('mentions', warn)).toBe('references');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(coerceRelationType(undefined, warn)).toBe('references');
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it('isRelationType guards the vocabulary', () => {

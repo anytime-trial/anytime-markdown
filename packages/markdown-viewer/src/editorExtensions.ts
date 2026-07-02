@@ -122,7 +122,7 @@ const ListTextCleanup = Extension.create({
 });
 
 /** 共通 Extension（メインエディタ / 比較エディタで共有） */
-export function getBaseExtensions(options?: { disableComments?: boolean; disableCheckboxToggle?: boolean; gridRows?: number; gridCols?: number; codeBlockExtension?: AnyExtension }): Extensions {
+export function getBaseExtensions(options?: { disableComments?: boolean; disableCheckboxToggle?: boolean; gridRows?: number; gridCols?: number; codeBlockExtension?: AnyExtension; t?: (key: string) => string }): Extensions {
   const extensions: Extensions = [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4, 5] },
@@ -293,7 +293,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
     Underline,
     LinkExtension.configure({ openOnClick: false, validate: () => true, isAllowedUri: () => true }),
     ImageRow,
-    CustomImage.configure({ inline: false, allowBase64: true }),
+    CustomImage.configure({ inline: false, allowBase64: true, t: options?.t ?? null }),
     ImagePasteExtension,
     ImageRowDropExtension,
     TaskList,
@@ -322,7 +322,7 @@ export function getBaseExtensions(options?: { disableComments?: boolean; disable
     CodeBlockNavigation,
     FootnoteRef,
     HeadingNumberExtension,
-    GifBlock,
+    GifBlock.configure({ t: options?.t ?? null }),
     BlockGapCursorExtension,
     DiagramAggregateExtension,
   ];

@@ -178,8 +178,10 @@ async function pasteFromClipboardAPI(
           return;
         }
       }
-    } catch {
-      // clipboard.read() が失敗した場合はテキスト貼り付けにフォールバック
+    } catch (error) {
+      // フォールバック挙動は維持しつつ、画像/HTML 貼り付け失敗の原因を追跡できるようログする
+      // （silent catch 禁止規約）。
+      console.warn("[EditorContextMenu] clipboard.read() failed, falling back to text paste", error);
     }
   }
 

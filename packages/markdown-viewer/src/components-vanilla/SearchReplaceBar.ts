@@ -40,6 +40,29 @@ const PATH = {
 /** 検索入力のデバウンス（旧 React 実装と同値）。 */
 const SEARCH_DEBOUNCE_MS = 200;
 
+/**
+ * トグルボタン（Aa/Ab|/.*）の押下状態を示す共有スタイルを document.head へ 1 度だけ注入する。
+ *
+ * 旧実装は `toggleStyle()` が `style.backgroundColor` / `style.color` をインラインで
+ * 上書きしており、ui-core IconButton が注入する共有 `:hover` 背景ルールに常に勝っていた
+ * （アクティブなトグルをホバーしても hover 表現が出ない）。vanilla-ui-conventions 規約
+ * （状態は data 属性・属性セレクタ + スタイルシートで表現し、位置以外の状態も inline
+ * style にしない）に合わせ、aria-pressed 属性セレクタで表現する（OutlinePanel の
+ * ensureOutlineStyles と同じパターン）。
+ */
+const SEARCH_TOGGLE_STYLE_ID = "am-search-replace-toggle-styles";
+function ensureSearchToggleStyles(): void {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(SEARCH_TOGGLE_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = SEARCH_TOGGLE_STYLE_ID;
+  style.textContent =
+    '.am-search-toggle-btn[aria-pressed="true"]{' +
+    "background-color:var(--am-color-primary-light);" +
+    "color:var(--am-color-primary-contrast);}";
+  document.head.appendChild(style);
+}
+
 /** {@link createSearchReplaceBar} のオプション。 */
 interface CreateSearchReplaceBarOptions {
   editor: Editor;
@@ -59,6 +82,7 @@ export function createSearchReplaceBar(
   opts: CreateSearchReplaceBarOptions,
 ): SearchReplaceBarHandle {
   const { editor, t } = opts;
+  ensureSearchToggleStyles();
   const storage = (editor.storage as { searchReplace?: SearchReplaceStorage }).searchReplace;
   if (!storage) {
     // SearchReplaceExtension 未搭載（最小構成 embed・テスト等）ではバーを無効化する。
@@ -165,6 +189,7 @@ export function createSearchReplaceBar(
     pressed: false,
     onClick: () => editor.commands.toggleCaseSensitive(),
   });
+  caseBtn.el.classList.add("am-search-toggle-btn");
   const wordBtn = mkBtn({
     ariaLabel: t("wholeWord"),
     tipTitle: t("wholeWord"),
@@ -172,6 +197,7 @@ export function createSearchReplaceBar(
     pressed: false,
     onClick: () => editor.commands.toggleWholeWord(),
   });
+  wordBtn.el.classList.add("am-search-toggle-btn");
   const regexBtn = mkBtn({
     ariaLabel: t("regex"),
     tipTitle: t("regex"),
@@ -179,6 +205,7 @@ export function createSearchReplaceBar(
     pressed: false,
     onClick: () => editor.commands.toggleUseRegex(),
   });
+  regexBtn.el.classList.add("am-search-toggle-btn");
 
   const prevBtn = mkBtn({
     ariaLabel: t("prevMatch"),
@@ -286,10 +313,10 @@ export function createSearchReplaceBar(
   replaceInput.addEventListener("keydown", onReplaceKeyDown);
 
   // --- storage 状態の反映 ---
+  // アクティブ表現は aria-pressed 属性セレクタ（ensureSearchToggleStyles）に委譲する。
+  // インライン style で上書きしないことで ui-core IconButton の共有 :hover ルールと共存する。
   const toggleStyle = (btn: IconButtonHandle, active: boolean): void => {
     btn.el.setAttribute("aria-pressed", String(active));
-    btn.el.style.backgroundColor = active ? "var(--am-color-primary-light)" : "transparent";
-    btn.el.style.color = active ? "var(--am-color-primary-contrast)" : "inherit";
   };
 
   /** 検索結果カウンタ・トグル状態・置換行の表示を storage と同期する。 */

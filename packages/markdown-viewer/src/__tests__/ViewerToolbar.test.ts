@@ -43,6 +43,34 @@ describe("createViewerToolbar", () => {
     expect(onToggleTheme).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * 指摘50: destroy() が root.remove() のみで fontDown/fontUp/themeBtn の destroy() を
+   * 呼ばず、click listener が残存し得た（StatusBar/OutlinePanel/MergeEditorPanel は
+   * ハンドルを一貫して破棄している）。destroy 後は各ボタンの click が無効化されることを固定する。
+   */
+  it("destroy で fontDown/fontUp/themeBtn の click listener を解放する", () => {
+    const onFontDelta = jest.fn();
+    const onToggleTheme = jest.fn();
+    const handle = createViewerToolbar({
+      t,
+      themeMode: "light",
+      onFontDelta,
+      onToggleTheme,
+    });
+    document.body.appendChild(handle.el);
+    const buttons = handle.el.querySelectorAll("button");
+    const [fontDownBtn, fontUpBtn, themeBtnEl] = Array.from(buttons) as HTMLButtonElement[];
+
+    handle.destroy();
+
+    fontDownBtn.click();
+    fontUpBtn.click();
+    themeBtnEl.click();
+
+    expect(onFontDelta).not.toHaveBeenCalled();
+    expect(onToggleTheme).not.toHaveBeenCalled();
+  });
+
   it("syncTheme でテーマアイコン（svg）を差し替える", () => {
     const handle = createViewerToolbar({
       t,

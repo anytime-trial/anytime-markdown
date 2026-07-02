@@ -9,8 +9,12 @@ import {
   type DarkDiagramPrintPreparer,
   MERMAID_RENDER_TIMEOUT,
 } from "@anytime-markdown/markdown-viewer";
+import DOMPurify from "dompurify";
 import plantumlEncoder from "plantuml-encoder";
 import { renderThinkingDiagramSvg } from "@anytime-markdown/graph-core";
+
+import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
+import { GRAPH_SVG_SANITIZE_CONFIG } from "../utils/graphSvgSanitize";
 
 interface MermaidReplacement {
   innerDiv: HTMLElement;
@@ -52,9 +56,11 @@ async function prerenderMermaidLight(): Promise<MermaidReplacement[]> {
         const innerDiv = imgBox.querySelector<HTMLElement>(":scope > div")
           || (imgBox.firstElementChild as HTMLElement | null);
         if (innerDiv) {
+          // 印刷経路も他の mermaid 消費箇所と同じ二重防御（foreignObject 経由 XSS）を適用する。
+          const sanitizedLightSvg = DOMPurify.sanitize(lightSvg, SVG_SANITIZE_CONFIG);
           replacements.push({
             innerDiv,
-            lightHtml: lightSvg,
+            lightHtml: sanitizedLightSvg,
             originalHTML: imgBox.innerHTML,
             imgBox,
           });
@@ -122,8 +128,10 @@ function prerenderAnytimeGraphLight(): MermaidReplacement[] {
         /(<svg\b[^>]*?)\swidth="[\d.]+"\sheight="[\d.]+"/,
         '$1 width="100%" style="max-width:100%;height:auto"',
       );
+      // 保存前に anytime-graph 専用設定でサニタイズする（他の anytime-graph 消費箇所と同じ防御層）。
+      const sanitizedLightSvg = DOMPurify.sanitize(lightSvg, GRAPH_SVG_SANITIZE_CONFIG);
       // imgBox 直下を丸ごと差し替える（innerDiv=imgBox）
-      replacements.push({ innerDiv: imgBox, lightHtml: lightSvg, originalHTML: imgBox.innerHTML, imgBox });
+      replacements.push({ innerDiv: imgBox, lightHtml: sanitizedLightSvg, originalHTML: imgBox.innerHTML, imgBox });
     } catch (err) {
       // anytime-graph 以外（mermaid 等）または不正な DSL はスキップする。
       // silent catch 禁止: 不正 DSL のデバッグ手がかりを残す（Web アプリの印刷経路のため console で許容）。

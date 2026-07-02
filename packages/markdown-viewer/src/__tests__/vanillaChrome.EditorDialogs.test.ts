@@ -169,3 +169,69 @@ describe("createEditorDialogs", () => {
     expect(dialogEl()).toBeNull();
   });
 });
+
+/** microtask/macrotask を 1 tick 進める（submit() の await 完了を待つ）。 */
+const flushPromises = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+/**
+ * 指摘7: web import 失敗時にダイアログを開いたまま何も表示しない silent catch のリグレッション。
+ * onWebImportSubmit が reject した場合、close() を呼ばずエラーを可視化することを固定する。
+ */
+describe("openWebImport（失敗時の可視化・指摘7）", () => {
+  afterEach(() => {
+    document.body.querySelectorAll('[role="dialog"]').forEach((d) => d.closest("div")?.remove());
+    jest.restoreAllMocks();
+  });
+
+  it("onWebImportSubmit が reject した場合、ダイアログは開いたままエラーを表示し console.error を出力する", async () => {
+    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const handle = createEditorDialogs({
+      t,
+      onCommentInsert: () => {},
+      onLinkInsert: () => {},
+      onImageInsert: () => {},
+      onWebImportSubmit: async () => {
+        throw new Error("network down");
+      },
+    });
+
+    handle.openWebImport("insert");
+    const urlInput = document.body.querySelector('[role="dialog"] input') as HTMLInputElement;
+    typeInto(urlInput, "https://example.com/page");
+    insertButton().click();
+    await flushPromises();
+
+    // ダイアログは閉じない（silent catch の旧挙動は close() されないまま何も表示しなかった）。
+    expect(dialogEl()).toBeTruthy();
+    // 入力欄がエラー状態になり helper text にエラーメッセージが表示される。
+    expect(urlInput.getAttribute("aria-invalid")).toBe("true");
+    const helper = document.getElementById("web-import-url-helper");
+    expect(helper?.textContent).toBe(t("webImportErrorFetch"));
+    // URL・mode 付きでログされる（silent catch 禁止規約）。
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("url=https://example.com/page mode=insert"),
+      expect.any(Error),
+    );
+
+    handle.destroy();
+  });
+
+  it("onWebImportSubmit が成功した場合はダイアログを閉じる", async () => {
+    const handle = createEditorDialogs({
+      t,
+      onCommentInsert: () => {},
+      onLinkInsert: () => {},
+      onImageInsert: () => {},
+      onWebImportSubmit: async () => {},
+    });
+
+    handle.openWebImport("insert");
+    const urlInput = document.body.querySelector('[role="dialog"] input') as HTMLInputElement;
+    typeInto(urlInput, "https://example.com/page");
+    insertButton().click();
+    await flushPromises();
+
+    expect(dialogEl()).toBeNull();
+    handle.destroy();
+  });
+});

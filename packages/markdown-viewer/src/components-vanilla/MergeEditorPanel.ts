@@ -76,6 +76,25 @@ function lineBgColor(type: DiffLine["type"] | undefined): string {
   }
 }
 
+/**
+ * diff 行種別 1 件に対応するガター記号（+ / - / 空）。
+ * mirror の背景色は `<textarea>` の下に隠れる（mirror 文字自体は color:transparent）ため
+ * LinePreviewPanel の text-decoration 併用パターンをそのまま流用できない。代わりに行番号
+ * ガター（常時可視）へ記号セルを追加し、色以外の手がかりで追加/削除/変更を区別する（指摘48）。
+ */
+function lineChangeSymbol(type: DiffLine["type"] | undefined): "+" | "-" | "" {
+  switch (type) {
+    case "added":
+    case "modified-new":
+      return "+";
+    case "removed":
+    case "modified-old":
+      return "-";
+    default:
+      return "";
+  }
+}
+
 /** {@link createMergeEditorPanel} のオプション（React `MergeEditorPanelProps` の vanilla 置換）。 */
 export interface CreateMergeEditorPanelOptions {
   /** i18n。 */
@@ -421,9 +440,25 @@ function createSourceSegment(opts: {
   for (let i = 0; i < lineNumbersArray.length; i++) {
     const num = lineNumbersArray[i];
     const lineEl = document.createElement("div");
+    lineEl.style.cssText = "display:flex;justify-content:flex-end;gap:2px;";
     const navBlockId = mergeButtonIndices.get(i);
     if (navBlockId !== undefined) lineEl.setAttribute("data-diff-block-id", String(navBlockId));
-    lineEl.textContent = num || " ";
+    // 追加/削除の記号セル（色以外の手がかり。空でも幅を確保して桁を揃える）。
+    const symbol = lineChangeSymbol(diffLines[i]?.type ?? "equal");
+    const symbolEl = document.createElement("span");
+    symbolEl.setAttribute("data-diff-gutter-symbol", "");
+    symbolEl.textContent = symbol || " ";
+    symbolEl.style.cssText =
+      "display:inline-block;min-width:0.8em;font-weight:700;text-align:center;" +
+      (symbol === "+"
+        ? "color:var(--am-color-success-main);"
+        : symbol === "-"
+          ? "color:var(--am-color-error-main);"
+          : "");
+    lineEl.appendChild(symbolEl);
+    const numEl = document.createElement("span");
+    numEl.textContent = num || " ";
+    lineEl.appendChild(numEl);
     gutter.appendChild(lineEl);
   }
   root.appendChild(gutter);

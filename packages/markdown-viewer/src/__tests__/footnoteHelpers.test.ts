@@ -1,4 +1,6 @@
-import { preprocessFootnoteRefs } from "../utils/footnoteHelpers";
+// preprocessFootnoteRefs の実体は markdown-engine（sanitizeMarkdown が本番使用）。
+// 旧 utils/footnoteHelpers.ts シムは dead code のため削除し、直接 import する。
+import { preprocessFootnoteRefs } from "@anytime-markdown/markdown-engine";
 
 /* ------------------------------------------------------------------ */
 /*  preprocessFootnoteRefs                                            */

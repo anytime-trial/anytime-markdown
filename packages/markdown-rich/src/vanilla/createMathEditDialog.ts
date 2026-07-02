@@ -144,9 +144,13 @@ export function createMathEditDialog(opts: CreateMathEditDialogOptions): MathEdi
     katexContainer.setAttribute("aria-label", `${t("mathFormula")}: ${code}`);
 
     const { html, error } = await renderKatexHtml(code);
-    // エラー
+    // エラー（KaTeX ParseError message はユーザー入力 LaTeX の一部を含み得るため
+    // innerHTML ではなく textContent で挿入する。codeBlockPreview.ts:55 と同パターン）
     if (error) {
-      katexContainer.innerHTML = `<span class="am-mted-katex-error">${error}</span>`;
+      const errorEl = document.createElement("span");
+      errorEl.className = "am-mted-katex-error";
+      errorEl.textContent = error;
+      katexContainer.replaceChildren(errorEl);
       return;
     }
     if (html) {
