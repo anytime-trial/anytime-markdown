@@ -68,48 +68,49 @@ export function mountReleasesLocChart(
   let props = initial;
 
   const card = document.createElement('div');
-  applyCardStyle(card, props.cardSx);
   container.appendChild(card);
 
-  const dataset = buildDataset(props.releases);
+  // 空⇄非空を render で切替える。mount 時に空でも、非同期到着したら空メッセージから
+  // チャートへ遷移する（旧: 空分岐の update がチャートへ遷移せず固着した回帰の修正）。
+  let chartHandle: ReturnType<typeof mountAnytimeChartView> | null = null;
+  let emptyMsg: HTMLElement | null = null;
 
-  if (dataset.length === 0) {
-    card.style.minHeight = '240px';
-    card.style.display = 'flex';
-    card.style.alignItems = 'center';
-    card.style.justifyContent = 'center';
-    const emptyMsg = document.createElement('span');
-    emptyMsg.style.cssText = `font-size:0.875rem;color:${props.colors.textSecondary};`;
-    emptyMsg.textContent = props.t('releases.noReleases');
-    card.appendChild(emptyMsg);
-
-    return {
-      update(next) {
-        props = next;
-        applyCardStyle(card, next.cardSx);
-        emptyMsg.style.color = next.colors.textSecondary;
-        emptyMsg.textContent = next.t('releases.noReleases');
-      },
-      destroy() {
-        card.remove();
-      },
-    };
+  function render(): void {
+    applyCardStyle(card, props.cardSx);
+    const dataset = buildDataset(props.releases);
+    if (dataset.length === 0) {
+      if (chartHandle) { chartHandle.destroy(); chartHandle = null; }
+      card.style.minHeight = '240px';
+      card.style.display = 'flex';
+      card.style.alignItems = 'center';
+      card.style.justifyContent = 'center';
+      if (!emptyMsg) { emptyMsg = document.createElement('span'); card.appendChild(emptyMsg); }
+      emptyMsg.style.cssText = `font-size:0.875rem;color:${props.colors.textSecondary};`;
+      emptyMsg.textContent = props.t('releases.noReleases');
+      return;
+    }
+    if (emptyMsg) { emptyMsg.remove(); emptyMsg = null; }
+    card.style.minHeight = '';
+    card.style.display = '';
+    card.style.alignItems = '';
+    card.style.justifyContent = '';
+    if (!chartHandle) {
+      chartHandle = mountAnytimeChartView(card, { spec: buildSpec(props), height: 300, isDark: props.isDark });
+    } else {
+      chartHandle.update({ spec: buildSpec(props), height: 300, isDark: props.isDark });
+    }
   }
 
-  const chartHandle = mountAnytimeChartView(card, {
-    spec: buildSpec(props),
-    height: 300,
-    isDark: props.isDark,
-  });
+  render();
 
   return {
     update(next) {
       props = next;
-      applyCardStyle(card, next.cardSx);
-      chartHandle.update({ spec: buildSpec(next), height: 300, isDark: next.isDark });
+      render();
     },
     destroy() {
-      chartHandle.destroy();
+      chartHandle?.destroy();
+      chartHandle = null;
       card.remove();
     },
   };

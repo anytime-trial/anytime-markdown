@@ -176,9 +176,17 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     await flush(4);
 
     // bug tab のサブビューが存在する（bug-history aria-label）
-    expect(c.querySelector('[aria-label="bug-history"]')).not.toBeNull();
-    // drift の empty メッセージは消えている
-    expect(c.textContent).not.toContain('memory.drift.empty');
+    const bugPanel = c.querySelector('[aria-label="bug-history"]');
+    expect(bugPanel).not.toBeNull();
+
+    // 状態保持: 旧 React 同様、切替後も drift サブパネルは破棄されず display:none で残る
+    // （下位のローカル UI 状態を保持するための仕様変更）。drift host は非表示・bug host は表示。
+    const bugHost = c.querySelector('[data-memory-tab-host="bug"]') as HTMLElement | null;
+    const driftHost = c.querySelector('[data-memory-tab-host="drift"]') as HTMLElement | null;
+    expect(bugHost?.style.display).toBe('flex');
+    expect(driftHost).not.toBeNull(); // 破棄されず残存
+    expect(driftHost?.style.display).toBe('none');
+    expect(c.textContent).toContain('memory.drift.empty'); // 保持された drift の内容も残る
   });
 
   it('review タブをクリックするとサブビューが切り替わる', async () => {

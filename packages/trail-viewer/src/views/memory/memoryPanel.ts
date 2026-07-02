@@ -136,104 +136,133 @@ export function mountMemoryPanel(
   const panelHost = document.createElement('div');
   panelHost.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;';
 
-  // --- Sub-view handles (only one mounted at a time) -------------------------
-  let subHandle: SubHandle = null;
+  // --- Sub-view handles ------------------------------------------------------
+  // 旧 MemoryPanel.tsx は 5 サブパネルを常時マウントし CSS display のみで切替えて
+  // 下位のローカル UI 状態（Chat 入力・展開行・スクロール位置）を保持していた。
+  // vanilla でも初回訪問で mount したパネルは保持し、切替は display で行う（毎回破棄しない）。
+  const subHosts = new Map<MemoryTabValue, HTMLElement>();
+  const subHandles = new Map<MemoryTabValue, SubHandle>();
   let mountedTab: MemoryTabValue | null = null;
 
-  function destroySub(): void {
-    if (subHandle) {
-      (subHandle as VanillaViewHandle<unknown>).destroy();
-      subHandle = null;
+  function buildSubForTab(tab: MemoryTabValue, host: HTMLElement): SubHandle {
+    const tStr = props.t;
+    if (tab === 'drift') {
+      return mountDriftPanel(host, {
+        t: tStr,
+        rows: driftRows,
+        onResolve: handleResolve,
+        onLoadDetail: (id) => reader.getDriftEventDetail(id),
+      }) as SubHandle;
     }
+    if (tab === 'bug') {
+      return mountBugHistoryPanel(host, {
+        t: tStr,
+        reader,
+        onOpenSessionMessages: props.onOpenSessionMessages,
+        onOpenPrecedingReviews: handleOpenPrecedingReviews,
+        onOpenSiblingBugs: handleOpenPrecedingBugs,
+        pendingBugFilter,
+      }) as SubHandle;
+    }
+    if (tab === 'review') {
+      return mountReviewPanel(host, {
+        t: tStr,
+        reader,
+        onOpenSessionMessages: props.onOpenSessionMessages,
+        onOpenPrecedingBugs: handleOpenPrecedingBugs,
+        pendingReviewFilter,
+      }) as SubHandle;
+    }
+    if (tab === 'runs') {
+      return mountPipelineRunsPanel(host, {
+        t: tStr,
+        reader,
+        isDark: props.isDark,
+      }) as SubHandle;
+    }
+    // chat
+    return mountChatPanel(host, {
+      t: tStr,
+      bridge: props.bridge,
+    }) as SubHandle;
+  }
+
+  function updateSubForTab(tab: MemoryTabValue): void {
+    const handle = subHandles.get(tab);
+    if (!handle) return;
+    const tStr = props.t;
+    if (tab === 'drift') {
+      (handle as VanillaViewHandle<Parameters<typeof mountDriftPanel>[1]>).update({
+        t: tStr,
+        rows: driftRows,
+        onResolve: handleResolve,
+        onLoadDetail: (id) => reader.getDriftEventDetail(id),
+      });
+    } else if (tab === 'bug') {
+      (handle as VanillaViewHandle<Parameters<typeof mountBugHistoryPanel>[1]>).update({
+        t: tStr,
+        reader,
+        onOpenSessionMessages: props.onOpenSessionMessages,
+        onOpenPrecedingReviews: handleOpenPrecedingReviews,
+        onOpenSiblingBugs: handleOpenPrecedingBugs,
+        pendingBugFilter,
+      });
+    } else if (tab === 'review') {
+      (handle as VanillaViewHandle<Parameters<typeof mountReviewPanel>[1]>).update({
+        t: tStr,
+        reader,
+        onOpenSessionMessages: props.onOpenSessionMessages,
+        onOpenPrecedingBugs: handleOpenPrecedingBugs,
+        pendingReviewFilter,
+      });
+    } else if (tab === 'runs') {
+      (handle as VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>).update({
+        t: tStr,
+        reader,
+        isDark: props.isDark,
+      });
+    } else {
+      (handle as VanillaViewHandle<Parameters<typeof mountChatPanel>[1]>).update({
+        t: tStr,
+        bridge: props.bridge,
+      });
+    }
+  }
+
+  function destroySub(): void {
+    for (const handle of subHandles.values()) {
+      if (handle) (handle as VanillaViewHandle<unknown>).destroy();
+    }
+    subHandles.clear();
+    subHosts.clear();
     mountedTab = null;
     panelHost.replaceChildren();
   }
 
+  /** 初回はマウント、以降は display 切替で表示する（状態保持）。 */
   function mountSubForTab(tab: MemoryTabValue): void {
-    if (mountedTab === tab) return;
-    destroySub();
-    mountedTab = tab;
-    const tStr = props.t;
-
-    if (tab === 'drift') {
-      subHandle = mountDriftPanel(panelHost, {
-        t: tStr,
-        rows: driftRows,
-        onResolve: handleResolve,
-        onLoadDetail: (id) => reader.getDriftEventDetail(id),
-      }) as SubHandle;
-    } else if (tab === 'bug') {
-      subHandle = mountBugHistoryPanel(panelHost, {
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingReviews: handleOpenPrecedingReviews,
-        onOpenSiblingBugs: handleOpenPrecedingBugs,
-        pendingBugFilter,
-      }) as SubHandle;
-    } else if (tab === 'review') {
-      subHandle = mountReviewPanel(panelHost, {
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingBugs: handleOpenPrecedingBugs,
-        pendingReviewFilter,
-      }) as SubHandle;
-    } else if (tab === 'runs') {
-      subHandle = mountPipelineRunsPanel(panelHost, {
-        t: tStr,
-        reader,
-        isDark: props.isDark,
-      }) as SubHandle;
-    } else {
-      // chat
-      subHandle = mountChatPanel(panelHost, {
-        t: tStr,
-        bridge: props.bridge,
-      }) as SubHandle;
+    let host = subHosts.get(tab);
+    const fresh = !host;
+    if (!host) {
+      host = document.createElement('div');
+      host.style.cssText = 'flex:1;overflow:hidden;flex-direction:column;';
+      host.setAttribute('data-memory-tab-host', tab);
+      panelHost.appendChild(host);
+      subHosts.set(tab, host);
+      subHandles.set(tab, buildSubForTab(tab, host));
     }
+    for (const [k, h] of subHosts) {
+      h.style.display = k === tab ? 'flex' : 'none';
+    }
+    mountedTab = tab;
+    // 既マウントのタブへ切替える場合は最新 props / pending filter（cross-tab 遷移）を反映する。
+    // 新規マウント時は build 時点で反映済みのため不要。
+    if (!fresh) updateSubForTab(tab);
   }
 
   function updateSub(): void {
-    if (!subHandle || mountedTab === null) return;
-    const tStr = props.t;
-
-    if (mountedTab === 'drift') {
-      (subHandle as VanillaViewHandle<Parameters<typeof mountDriftPanel>[1]>).update({
-        t: tStr,
-        rows: driftRows,
-        onResolve: handleResolve,
-        onLoadDetail: (id) => reader.getDriftEventDetail(id),
-      });
-    } else if (mountedTab === 'bug') {
-      (subHandle as VanillaViewHandle<Parameters<typeof mountBugHistoryPanel>[1]>).update({
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingReviews: handleOpenPrecedingReviews,
-        onOpenSiblingBugs: handleOpenPrecedingBugs,
-        pendingBugFilter,
-      });
-    } else if (mountedTab === 'review') {
-      (subHandle as VanillaViewHandle<Parameters<typeof mountReviewPanel>[1]>).update({
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingBugs: handleOpenPrecedingBugs,
-        pendingReviewFilter,
-      });
-    } else if (mountedTab === 'runs') {
-      (subHandle as VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>).update({
-        t: tStr,
-        reader,
-        isDark: props.isDark,
-      });
-    } else {
-      (subHandle as VanillaViewHandle<Parameters<typeof mountChatPanel>[1]>).update({
-        t: tStr,
-        bridge: props.bridge,
-      });
-    }
+    // マウント済みの全サブパネルを最新 props で更新する（旧: 全マウントで全 re-render）。
+    for (const tab of subHandles.keys()) updateSubForTab(tab);
   }
 
   // --- Tab switch ------------------------------------------------------------

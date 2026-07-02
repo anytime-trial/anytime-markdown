@@ -69,6 +69,7 @@ export function mountScatterPanel(
   let canvasDestroy: (() => void) | null = null;
   let canvasUpdate: (() => void) | null = null;
   let tourHandle: VanillaViewHandle<unknown> | null = null;
+  let emptyEl: HTMLElement | null = null;
 
   function buildToolbarProps(): FunctionScatterPlotPanelProps {
     return {
@@ -122,6 +123,26 @@ export function mountScatterPanel(
   }
 
   function renderCanvas(): void {
+    // 0 件時は空状態メッセージを表示（旧 c4.scatter.empty。空散布図だけになる回帰の修正）。
+    if (props.entries.length === 0) {
+      canvasDestroy?.();
+      canvasDestroy = null;
+      canvasUpdate = null;
+      mountedView = null;
+      if (!emptyEl) {
+        emptyEl = document.createElement('div');
+        emptyEl.style.cssText =
+          'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;';
+        const span = document.createElement('span');
+        span.style.cssText = `font-size:0.875rem;color:${props.colors.textSecondary};`;
+        emptyEl.appendChild(span);
+        canvasArea.appendChild(emptyEl);
+      }
+      (emptyEl.firstChild as HTMLElement).textContent = props.t('c4.scatter.empty');
+      emptyEl.style.display = 'flex';
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
     if (mountedView !== props.view) {
       canvasDestroy?.();
       mountCanvasFor(props.view);

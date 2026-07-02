@@ -4,7 +4,7 @@
  * Renders a repository-filter dropdown + sticky table of releases.
  * Mirrors the React `components/ReleasesPanel.tsx` without any React/MUI dependency.
  */
-import { createChip, createSelect, createTooltip } from '@anytime-markdown/ui-core';
+import { createChip, createSelect, createTooltip, createInputLabel } from '@anytime-markdown/ui-core';
 import { formatLocalDate } from '@anytime-markdown/trail-core/formatDate';
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
@@ -161,6 +161,10 @@ export function mountReleasesPanel(
     const selectWrap = document.createElement('div');
     selectWrap.style.cssText = 'min-width:200px;';
 
+    // 可視ラベル（旧 InputLabel "Repository"）。ariaLabel だけだと晴眼ユーザーに用途が見えない。
+    const repoLabel = createInputLabel({ shrink: true, children: props.t('releases.repository') });
+    selectWrap.appendChild(repoLabel.el);
+
     if (selectHandle) {
       selectHandle.destroy();
     }
@@ -234,7 +238,7 @@ export function mountReleasesPanel(
       versionSpan.textContent = release.tag;
       versionWrap.appendChild(versionSpan);
       for (const pt of release.packageTags) {
-        const { el } = createChip({ label: pt, size: 'small' });
+        const { el } = createChip({ label: pt, size: 'small', variant: 'outlined' });
         el.style.height = '18px';
         el.style.fontSize = '0.65rem';
         versionWrap.appendChild(el);

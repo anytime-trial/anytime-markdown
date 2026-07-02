@@ -342,6 +342,10 @@ export interface CreateRadioGroupOptions {
   className?: string;
   /** data-testid 属性（root に付与）。 */
   testId?: string;
+  /** グループ全体の aria-label（MUI RadioGroup の aria-label 相当）。 */
+  ariaLabel?: string;
+  /** グループ全体の aria-describedby（補足説明要素の id）。 */
+  ariaDescribedby?: string;
 }
 
 const RADIO_GROUP_BASE_CSS = "display:flex;";
@@ -371,6 +375,8 @@ export function createRadioGroup(opts: CreateRadioGroupOptions = {}): {
   el.setAttribute("role", "radiogroup");
   if (opts.className) el.className = opts.className;
   if (opts.testId) el.setAttribute("data-testid", opts.testId);
+  if (opts.ariaLabel) el.setAttribute("aria-label", opts.ariaLabel);
+  if (opts.ariaDescribedby) el.setAttribute("aria-describedby", opts.ariaDescribedby);
 
   const applyLayout = (row: boolean): void => {
     el.style.cssText = RADIO_GROUP_BASE_CSS + (row ? RADIO_GROUP_ROW_CSS : RADIO_GROUP_COLUMN_CSS);

@@ -67,7 +67,7 @@ export function mountLogsTable(
   root.setAttribute('aria-label', 'logs');
   const tail = document.createElement('div');
 
-  const render = (): void => {
+  const render = (shouldScroll: boolean): void => {
     root.replaceChildren();
     for (const log of props.logs) {
       const hasDetail = log.metadata != null || log.stack != null;
@@ -115,22 +115,27 @@ export function mountLogsTable(
       root.appendChild(row);
     }
     root.appendChild(tail);
+    // 末尾スクロールは「新規ログ追加」または「autoScroll トグル ON」時のみ（旧 useEffect
+    // deps=[logs.length, autoScroll] 相当）。行クリック・フィルタ変更でも毎回 render が走るため、
+    // 無条件スクロールだと過去ログの選択・精査が末尾へ引き戻される回帰になる。
     // jsdom 等 scrollIntoView 未実装環境ではスキップ。
-    if (props.autoScroll && typeof tail.scrollIntoView === 'function') {
+    if (shouldScroll && props.autoScroll && typeof tail.scrollIntoView === 'function') {
       tail.scrollIntoView({ block: 'end' });
     }
   };
-  render();
+  render(props.autoScroll);
   container.appendChild(root);
 
   let prevLen = props.logs.length;
+  let prevAutoScroll = props.autoScroll;
   return {
     update(next) {
       const lenChanged = next.logs.length !== prevLen;
+      const autoScrollTurnedOn = next.autoScroll && !prevAutoScroll;
       props = next;
-      render();
+      render(lenChanged || autoScrollTurnedOn);
       prevLen = next.logs.length;
-      void lenChanged;
+      prevAutoScroll = next.autoScroll;
     },
     destroy() {
       root.remove();

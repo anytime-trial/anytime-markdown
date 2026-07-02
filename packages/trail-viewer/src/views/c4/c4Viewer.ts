@@ -541,6 +541,8 @@ export function mountC4Viewer(
   let drillStack: readonly { element: C4Element; prevLevel: number; prevCheckedIds: ReadonlySet<string> | null }[] = [];
   let contextMenu: { x: number; y: number; c4Id: string } | null = null;
   let checkedPackageIds: ReadonlySet<string> | null = null;
+  // key 変化で C4ElementTree のチェック・展開状態を新ツリーに再構築させる（旧 checkReset state）。
+  let checkResetState: { key: number; ids: ReadonlySet<string> | null; expanded: ReadonlySet<string> | null } = { key: 0, ids: null, expanded: null };
   let soloFrameId: string | null = null;
   let centerOnSelect = false;
   let showCommunity = false;
@@ -560,6 +562,8 @@ export function mountC4Viewer(
   // ── Dialog state ──
   let addElementDialogOpen = false;
   let addElementDialogType: 'person' | 'system' | 'container' | 'component' = 'system';
+  // 非 null のとき AddElementDialog は編集モード（onUpdateElement を呼ぶ）。add 時は null。
+  let editElementId: string | null = null;
   let addRelationshipDialogOpen = false;
   let addRelationshipDialogFrom = '';
   let groupLabelDialogOpen = false;
@@ -817,6 +821,18 @@ export function mountC4Viewer(
   let overlayLegendHandle: ReturnType<typeof mountOverlayLegend> | null = null;
   let matrixPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
   let matrixInnerHandle: ReturnType<typeof mountMatrixPanel> | null = null;
+  // オブジェクト参照ごとに単調増加の版番号を割り当てる（Matrix のデータ世代署名用）。
+  // 非同期 fetch が新しいオブジェクトを代入すると版番号が変わり、matrixPanel が remount する。
+  const refVersion = (() => {
+    let seq = 0;
+    const map = new WeakMap<object, number>();
+    return (obj: unknown): number => {
+      if (obj == null || typeof obj !== 'object') return 0;
+      let v = map.get(obj as object);
+      if (v === undefined) { seq += 1; v = seq; map.set(obj as object, v); }
+      return v;
+    };
+  })();
   let scatterPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
   let scatterInnerHandle: ReturnType<typeof mountScatterPanel> | null = null;
   let graphPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
@@ -1253,6 +1269,7 @@ export function mountC4Viewer(
     currentLevel = level;
     drillStack = [];
     checkedPackageIds = null;
+    checkResetState = { key: checkResetState.key + 1, ids: null, expanded: null };
     dsmLevel = level <= 2 ? 'package' : 'component';
     if (level !== 5) { fnGraphState.data = null; fnGraphState.error = null; }
     scheduleRender();
@@ -1297,6 +1314,21 @@ export function mountC4Viewer(
       drillStack = [...drillStack, { element, prevLevel, prevCheckedIds: checkedPackageIds }];
       if (currentLevel < minLevel) currentLevel = minLevel;
       checkedPackageIds = null;
+      // 旧 handleDrillDown と同じく drill 起点+子孫の scope をチェック、祖先を展開する。
+      const elementById = new Map(c4Model.elements.map(e => [e.id, e]));
+      const inScope = new Set<string>();
+      if (DRILL_SCOPE_TYPES.has(element.type as 'system')) inScope.add(element.id);
+      for (const id of collectDescendantIds(c4Model.elements, element.id)) {
+        const el = elementById.get(id);
+        if (el && DRILL_SCOPE_TYPES.has(el.type as 'system')) inScope.add(id);
+      }
+      const expandIds = new Set<string>([element.id]);
+      let parentId = element.boundaryId;
+      while (parentId) {
+        expandIds.add(parentId);
+        parentId = elementById.get(parentId)?.boundaryId;
+      }
+      checkResetState = { key: checkResetState.key + 1, ids: inScope, expanded: expandIds };
     }
     selectedElementId = null;
     selectedElementIds = [];
@@ -1312,6 +1344,7 @@ export function mountC4Viewer(
     if (entry) { pendingCenterC4Id = entry.element.id; pendingFitCount = 5; }
     drillStack = drillStack.slice(0, -1);
     checkedPackageIds = null;
+    checkResetState = { key: checkResetState.key + 1, ids: entry?.prevCheckedIds ?? null, expanded: null };
     soloFrameId = null;
     contextMenu = null;
     scheduleRender();
@@ -1640,22 +1673,40 @@ export function mountC4Viewer(
     const btnStyle = (active: boolean, disabled = false) =>
       `padding:3px;border-radius:4px;cursor:${disabled ? 'default' : 'pointer'};display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;background:${active ? colors.focus : 'transparent'};color:${disabled ? colors.textMuted : colors.accent};`;
 
-    communityBtn.style.cssText = btnStyle(showCommunity && currentLevel >= 3, currentLevel < 3);
-    communityBtn.disabled = currentLevel < 3;
+    // Community: 無効条件は「C3 未満」または「有効なのにコードグラフ未取得」（旧と一致）。
+    // 状態別ツールチップ（レベル不足 / データ未取得 / 通常）と aria-pressed を i18n で復元。
+    const communityDisabled = currentLevel < 3 || (showCommunity && !codeGraphState.graph);
+    communityBtn.style.cssText = btnStyle(showCommunity && currentLevel >= 3, communityDisabled);
+    communityBtn.disabled = communityDisabled;
+    communityBtn.title = currentLevel < 3
+      ? t('c4.community.disabledLevel')
+      : (showCommunity && !codeGraphState.graph)
+        ? t('c4.community.disabledNoData')
+        : t('c4.community.toggle');
+    communityBtn.setAttribute('aria-label', t('c4.community.toggle'));
+    communityBtn.setAttribute('aria-pressed', String(showCommunity && currentLevel >= 3));
     ghostEdgeBtn.style.cssText = btnStyle(tcValue.enabled);
+    ghostEdgeBtn.setAttribute('aria-pressed', String(tcValue.enabled));
     trendBtn.style.cssText = btnStyle(showActivityTrend);
+    trendBtn.setAttribute('aria-pressed', String(showActivityTrend));
     upperLinesBtn.style.cssText = btnStyle(showAncestorEdges && currentLevel !== 1, currentLevel === 1);
     upperLinesBtn.disabled = currentLevel === 1;
+    upperLinesBtn.setAttribute('aria-pressed', String(showAncestorEdges && currentLevel !== 1));
     const hasClaudeActivity = !!(props.claudeActivity && (props.claudeActivity.activeElementIds.length > 0 || props.claudeActivity.touchedElementIds.length > 0 || props.claudeActivity.plannedElementIds.length > 0)) || !!(props.multiAgentActivity?.agents.length);
     clearHistoryBtn.disabled = !hasClaudeActivity;
     clearHistoryBtn.style.cssText = btnStyle(false, !hasClaudeActivity);
+    clearHistoryBtn.title = t('c4.claudeActivity.reset');
+    clearHistoryBtn.setAttribute('aria-label', t('c4.claudeActivity.reset'));
 
     graphPopupBtn.style.cssText = btnStyle(showGraphPopup);
     graphPopupBtn.setAttribute('aria-pressed', String(showGraphPopup));
+    graphPopupBtn.setAttribute('aria-label', t('c4.graph.title'));
     matrixPopupBtn.style.cssText = btnStyle(!!matrixPopup);
     matrixPopupBtn.setAttribute('aria-pressed', String(!!matrixPopup));
+    matrixPopupBtn.setAttribute('aria-label', t('c4.matrix.title'));
     scatterPopupBtn.style.cssText = btnStyle(!!scatterPopup);
     scatterPopupBtn.setAttribute('aria-pressed', String(!!scatterPopup));
+    scatterPopupBtn.setAttribute('aria-label', t('c4.scatter.title'));
 
     // Frame filter button
     if (soloFrameId !== null) {
@@ -1667,11 +1718,22 @@ export function mountC4Viewer(
       frameFilterBtn.style.display = 'none';
     }
 
-    // Multi-agent badge
+    // Multi-agent badge（エージェント数 + 衝突件数）。旧はエージェント数に加え conflicts>0 で
+    // 衝突件数を赤太字で併記していた。conflicts バッジ復元。
     if (props.multiAgentActivity && props.multiAgentActivity.agents.length > 1) {
       multiAgentBadge.style.display = 'block';
       multiAgentBadge.style.color = colors.textSecondary;
-      multiAgentBadge.textContent = `${props.multiAgentActivity.agents.length} ${t('c4.multiAgent.badge')}`;
+      const agentSpan = document.createElement('span');
+      agentSpan.textContent = `${props.multiAgentActivity.agents.length} ${t('c4.multiAgent.badge')}`;
+      const conflicts = props.multiAgentActivity.conflicts;
+      if (conflicts && conflicts.length > 0) {
+        const conflictSpan = document.createElement('span');
+        conflictSpan.style.cssText = `margin-left:6px;color:${colors.cycleBorder};font-weight:700;`;
+        conflictSpan.textContent = `${conflicts.length} ${t('c4.multiAgent.conflicts')}`;
+        multiAgentBadge.replaceChildren(agentSpan, conflictSpan);
+      } else {
+        multiAgentBadge.replaceChildren(agentSpan);
+      }
     } else {
       multiAgentBadge.style.display = 'none';
     }
@@ -1854,7 +1916,11 @@ export function mountC4Viewer(
           const elem = props.c4Model.elements.find(e => e.id === nodeId);
           const editableTypes: readonly string[] = ['person', 'system', 'container', 'component'];
           if (elem?.manual && editableTypes.includes(elem.type)) {
-            // Open edit dialog (simplified - just dispatch event for React shell to handle)
+            // 旧 C4ViewerCore の onNodeDoubleClick と同じく manual 要素を編集モードで開く。
+            editElementId = elem.id;
+            addElementDialogType = elem.type as 'person' | 'system' | 'container' | 'component';
+            addElementDialogOpen = true;
+            scheduleRender();
           }
         },
         onNodeContextMenu: (c4Id: string, x: number, y: number) => { contextMenu = { x, y, c4Id }; scheduleRender(); },
@@ -1931,6 +1997,7 @@ export function mountC4Viewer(
       currentLevel,
       selectedSystemId: selectedElementId,
       onAddElement: (type: 'person' | 'system' | 'container' | 'component') => {
+        editElementId = null;
         addElementDialogType = type;
         addElementDialogOpen = true;
         scheduleRender();
@@ -1943,6 +2010,7 @@ export function mountC4Viewer(
       onRemoveElement: props.onRemoveElement,
       onPurgeDeleted: props.onPurgeDeleted,
       isDark,
+      checkReset: checkResetState,
       communityTree: communityTree_,
       communityLoading: codeGraphState.loading,
       onCommunityTabOpen: () => { setShowCommunity(true); },
@@ -2204,6 +2272,18 @@ export function mountC4Viewer(
       matrixPopup?.filterElementId ?? null,
       showCommunity,
     );
+    // grid はデータを mount 時に固定するため、セル値・色に効くデータの世代を署名化して
+    // matrixPanel へ渡す（構造不変でもデータ確定時に remount させる）。
+    const matrixDataSig = JSON.stringify([
+      refVersion(props.coverageMatrix ?? null),
+      refVersion(props.complexityMatrix ?? null),
+      refVersion(hotspotState.data),
+      refVersion(codeGraphState.graph),
+      showCommunity,
+      selectedRepo,
+      matrixPopup?.filterElementId ?? null,
+      dsmLevel,
+    ]);
     const matrixPanelColors: MatrixPanelVanillaProps['colors'] = {
       bg: colors.bg,
       border: colors.border,
@@ -2232,6 +2312,7 @@ export function mountC4Viewer(
           mountContent: (c: HTMLElement) => {
             const mpProps: MatrixPanelVanillaProps = {
               gridOptions: matrixGridOptions,
+              dataSig: matrixDataSig,
               isDark,
               level: dsmLevel,
               onLevelChange: (lv: 'package' | 'component' | 'code') => { dsmLevel = lv; scheduleRender(); },
@@ -2263,6 +2344,7 @@ export function mountC4Viewer(
             // but kept for API compatibility.
             const mpProps: MatrixPanelVanillaProps = {
               gridOptions: matrixGridOptions,
+              dataSig: matrixDataSig,
               isDark,
               level: dsmLevel,
               onLevelChange: (lv: 'package' | 'component' | 'code') => { dsmLevel = lv; scheduleRender(); },
@@ -2277,6 +2359,7 @@ export function mountC4Viewer(
         // Update the inner matrix panel handle directly with current data
         matrixInnerHandle?.update({
           gridOptions: matrixGridOptions,
+          dataSig: matrixDataSig,
           isDark,
           level: dsmLevel,
           onLevelChange: (lv: 'package' | 'component' | 'code') => { dsmLevel = lv; scheduleRender(); },
@@ -2442,11 +2525,29 @@ export function mountC4Viewer(
           .filter(e => e.type === 'system' || e.type === 'container' || e.type === 'component')
           .map(e => ({ id: e.id, name: e.name }));
       })();
+      // 編集モード（editElementId 非 null）は対象要素の値を initial に流し込み、onUpdateElement へ配線する。
+      const editingElem = editElementId
+        ? props.c4Model?.elements.find(e => e.id === editElementId)
+        : null;
+      const aedInitial = editingElem
+        ? {
+            name: editingElem.name,
+            description: editingElem.description ?? '',
+            external: editingElem.external ?? false,
+          }
+        : null;
       const aedProps: AddElementDialogVanillaProps = {
         open: addElementDialogOpen,
         elementType: addElementDialogType,
-        onSubmit: (data) => { props.onAddElement?.(data); addElementDialogOpen = false; scheduleRender(); },
-        onClose: () => { addElementDialogOpen = false; scheduleRender(); },
+        initial: aedInitial,
+        onSubmit: (data) => {
+          if (editElementId) props.onUpdateElement?.(editElementId, data);
+          else props.onAddElement?.(data);
+          editElementId = null;
+          addElementDialogOpen = false;
+          scheduleRender();
+        },
+        onClose: () => { editElementId = null; addElementDialogOpen = false; scheduleRender(); },
         parentCandidates,
       };
       if (!addElementDialogHandle) {
@@ -2462,8 +2563,10 @@ export function mountC4Viewer(
       const relFromName = props.c4Model?.elements.find(e => e.id === relFrom)?.name ?? relFrom;
       const relCandidates = (() => {
         if (!props.c4Model) return [];
+        // 旧 AddRelationshipDialog は候補を person/system/container に限定していた（component は除外）。
+        const relatableTypes: readonly string[] = ['person', 'system', 'container'];
         return props.c4Model.elements
-          .filter(e => e.id !== relFrom)
+          .filter(e => e.id !== relFrom && relatableTypes.includes(e.type))
           .map(e => ({ id: e.id, name: e.name }));
       })();
       const ardProps: AddRelationshipDialogVanillaProps = {
@@ -2623,7 +2726,7 @@ export function mountC4Viewer(
       const relBtn = el('button', `display:flex;align-items:center;gap:8px;width:100%;padding:6px 16px;text-align:left;background:none;border:none;cursor:pointer;font-size:14px;color:${colors.contextMenuText};`, { type: 'button' });
       relBtn.appendChild(svgIcon(ICONS.link, 16));
       relBtn.appendChild(document.createTextNode('Rel'));
-      relBtn.addEventListener('click', () => { selectedElementId = c4Id; contextMenu = null; scheduleRender(); });
+      relBtn.addEventListener('click', () => { selectedElementId = c4Id; addRelationshipDialogOpen = true; contextMenu = null; scheduleRender(); });
       ctxMenuEl.appendChild(relBtn);
 
       const delBtn = el('button', `display:flex;align-items:center;gap:8px;width:100%;padding:6px 16px;text-align:left;background:none;border:none;cursor:pointer;font-size:14px;color:${colors.cycleBorder};`, { type: 'button' });

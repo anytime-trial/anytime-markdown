@@ -365,21 +365,11 @@ export function mountOverviewCards(
     root.innerHTML = '';
     doraContainers.length = 0;
 
-    // Usage cycling card container
-    const cardStyle = {
-      ...p.cardSx,
-      flex: '1 1 140px',
-      p: 2,
-      minWidth: 140,
-      textAlign: 'center' as const,
-      minHeight: '150px',
-    };
-
+    // Usage cycling card container はレイアウトのみを担う。カード装飾（背景・枠・角丸）は
+    // 内側の mountCyclingCard が cardSx で付与するため、外側にも付けると二重枠になる（DORA と非対称
+    // だった回帰の修正）。DORA と同じく外側コンテナは装飾せずレイアウトのみにする。
     const usageCardEl = document.createElement('div');
     usageCardEl.style.cssText = [
-      `background-color:${p.cardSx.bgcolor}`,
-      `border:${p.cardSx.border}`,
-      `border-radius:${p.cardSx.borderRadius}`,
       'flex:1 1 140px',
       'min-width:140px',
       'min-height:150px',
@@ -407,8 +397,6 @@ export function mountOverviewCards(
       onCycle: cycle,
       cardSx: p.cardSx,
     });
-
-    void cardStyle;
 
     // DORA cards
     const doraCards = buildDoraCards(p);

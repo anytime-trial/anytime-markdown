@@ -13,7 +13,7 @@
 
 import { appendContent, svgIcon, type VanillaContent } from "./dom";
 
-export type AlertSeverity = "success" | "error";
+export type AlertSeverity = "success" | "error" | "info";
 
 /** severity ごとの Material アイコン SVG path（ui/Alert.tsx の ICON_PATHS と同一）。 */
 const ICON_PATHS: Record<AlertSeverity, string> = {
@@ -21,6 +21,8 @@ const ICON_PATHS: Record<AlertSeverity, string> = {
     "M20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4C12.76,4 13.5,4.11 14.2,4.31L15.77,2.74C14.61,2.26 13.34,2 12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12M7.91,10.08L6.5,11.5L11,16L21,6L19.59,4.58L11,13.17L7.91,10.08Z",
   error:
     "M11,15H13V17H11V15M11,7H13V13H11V7M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z",
+  info:
+    "M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z",
 };
 
 /** Material の close（×）SVG path（ui/icons.tsx の CloseIcon と同一）。 */
@@ -31,6 +33,10 @@ const CLOSE_ICON_PATH =
 const SEVERITY_BG: Record<AlertSeverity, string> = {
   success: "var(--am-color-success-main)",
   error: "var(--am-color-error-main)",
+  // info の CSS 変数は trail 系ホスト（applyTrailThemeVars）でのみ注入されるため、
+  // 未注入ホスト（markdown-viewer 等）向けにフォールバック色を持たせる。白文字（ROOT_CSS）との
+  // コントラストが AA 近傍になる MUI light info.main（#0288d1）を使う。
+  info: "var(--am-color-info-main, #0288d1)",
 };
 
 /** root（.root）の基本スタイル（Alert.module.css と一致）。背景は severity 別に追加する。 */

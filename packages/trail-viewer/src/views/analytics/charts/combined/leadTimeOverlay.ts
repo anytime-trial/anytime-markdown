@@ -99,7 +99,6 @@ export function mountLeadTimeOverlay(
   let fullDates: string[] = [];
 
   const card = document.createElement('div');
-  applyCardStyle(card, props.cardSx);
   container.appendChild(card);
 
   const emptyEl = document.createElement('p');
@@ -119,10 +118,12 @@ export function mountLeadTimeOverlay(
     if (!result) {
       chartHandle?.destroy();
       chartHandle = null;
+      card.removeAttribute('style');
       card.replaceChildren(emptyEl);
       return;
     }
     fullDates = result.fullDates;
+    applyCardStyle(card, p.cardSx);
     if (emptyEl.isConnected) emptyEl.remove();
     if (!chartHandle) {
       chartHandle = mountAnytimeChartView(card, {
@@ -146,7 +147,6 @@ export function mountLeadTimeOverlay(
   return {
     update(next) {
       props = next;
-      applyCardStyle(card, next.cardSx);
       render(next);
     },
     destroy() {

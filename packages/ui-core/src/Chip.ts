@@ -13,6 +13,24 @@ import { appendContent, type VanillaContent } from "./dom";
 export type ChipSize = "small" | "medium";
 export type ChipVariant = "outlined" | "filled";
 
+/**
+ * clickable Chip の hover / focus-visible pseudo-class を document.head へ 1 度だけ注入する
+ * （inline style では擬似クラスを書けないため。IconButton.ts と同方式）。clickable な chip のみ
+ * `data-ui-chip-clickable` を持つので、非 clickable chip には適用されない。
+ */
+const SHARED_STYLE_ID = "am-ui-chip-styles";
+function ensureChipStyles(): void {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(SHARED_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = SHARED_STYLE_ID;
+  // filled variant は inline で background-color を持つため、hover を効かせるには !important が要る。
+  style.textContent =
+    "[data-ui-chip-clickable]:hover{background-color:var(--am-color-action-hover) !important;}" +
+    "[data-ui-chip-clickable]:focus-visible{outline:2px solid var(--am-color-primary-main);outline-offset:1px;}";
+  document.head.appendChild(style);
+}
+
 /** vanilla Chip のオプション。React `ChipProps` のうち vanilla で再現する範囲。 */
 export interface CreateChipOptions {
   /** ラベル。string は span、Node はそのまま、配列は順に追加する。 */
@@ -76,9 +94,12 @@ export function createChip(opts: CreateChipOptions = {}): {
     if (isClickable()) {
       el.setAttribute("role", "button");
       el.tabIndex = 0;
+      el.setAttribute("data-ui-chip-clickable", "");
+      ensureChipStyles();
     } else {
       el.removeAttribute("role");
       el.removeAttribute("tabindex");
+      el.removeAttribute("data-ui-chip-clickable");
     }
   };
 

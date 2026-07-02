@@ -55,3 +55,8 @@ export function normalizeTrailInitialTab(
 export function isC4RelatedTab(tab: number): boolean {
   return tab === 4 || tab === 5 || tab === 7;
 }
+
+/** Memory タブ（value 6）かどうか。ChatBridge の遅延生成トリガに使う。 */
+export function isMemoryTab(tab: number): boolean {
+  return tab === 6;
+}

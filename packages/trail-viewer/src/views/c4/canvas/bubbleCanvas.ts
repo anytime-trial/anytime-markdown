@@ -554,6 +554,13 @@ export function mountBubbleCanvas(
       return;
     }
 
+    // focusPoint 不変でも points（entries）が変わったら focused 参照を新配列に対して再解決する。
+    // draw() の `pt === focused` 参照比較が旧配列のオブジェクトと一致しなくなり、ツアー中の
+    // データ更新でフォーカスリングが次ステップまで消える回帰の修正（ズーム/パンは保持）。
+    if (newProps.points !== prevPoints && props.focusPoint) {
+      resolveFocusPoint();
+    }
+
     requestDraw();
   }
 

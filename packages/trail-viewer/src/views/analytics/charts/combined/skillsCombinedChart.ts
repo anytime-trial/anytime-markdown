@@ -51,7 +51,6 @@ export function mountSkillsCombinedChart(
   let props = initial;
 
   const card = document.createElement('div');
-  applyCardStyle(card, props.cardSx);
   container.appendChild(card);
 
   const emptyEl = document.createElement('p');
@@ -64,9 +63,11 @@ export function mountSkillsCombinedChart(
     if (p.axisInfo.skillRows.length === 0) {
       chartHandle?.destroy();
       chartHandle = null;
+      card.removeAttribute('style');
       card.replaceChildren(emptyEl);
       return;
     }
+    applyCardStyle(card, p.cardSx);
     if (emptyEl.isConnected) emptyEl.remove();
     if (!chartHandle) {
       chartHandle = mountAnytimeChartView(card, {
@@ -90,7 +91,6 @@ export function mountSkillsCombinedChart(
   return {
     update(next) {
       props = next;
-      applyCardStyle(card, next.cardSx);
       render(next);
     },
     destroy() {

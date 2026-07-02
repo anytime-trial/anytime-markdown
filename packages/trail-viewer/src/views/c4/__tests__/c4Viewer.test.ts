@@ -229,7 +229,8 @@ describe('mountC4Viewer', () => {
 
   it('Code Graph ボタンで code graph ポップアップを開閉する', async () => {
     const handle = mountC4Viewer(container, makeProps());
-    const btn = container.querySelector<HTMLButtonElement>('button[aria-label="Code Graph"]');
+    // aria-label は i18n 化された（t('c4.graph.title')）。テストの t は key をそのまま返す。
+    const btn = container.querySelector<HTMLButtonElement>('button[aria-label="c4.graph.title"]');
     expect(btn).toBeTruthy();
 
     // Open: showGraphPopup の配線で popup が mount される（旧デッドコードの回帰防止）。
