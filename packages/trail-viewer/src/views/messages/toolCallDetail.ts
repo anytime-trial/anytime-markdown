@@ -7,6 +7,7 @@
 import { createChip, Commit as CommitIcon } from '@anytime-markdown/ui-core';
 import type { TrailToolCall } from '../../domain/parser/types';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
+import { applyThinScrollbar } from '../../theme/thinScrollbar';
 
 export interface ToolCallDetailProps {
   t: (key: string) => string;
@@ -93,6 +94,7 @@ function buildDom(props: ToolCallDetailProps): HTMLDivElement {
 
   const inputPre = document.createElement('pre');
   inputPre.style.cssText = CODE_CSS;
+  applyThinScrollbar(inputPre);
   inputPre.tabIndex = 0;
   inputPre.setAttribute('aria-label', t('message.inputCode'));
   inputPre.addEventListener('focus', () => {
@@ -116,6 +118,7 @@ function buildDom(props: ToolCallDetailProps): HTMLDivElement {
 
     const resultPre = document.createElement('pre');
     resultPre.style.cssText = CODE_CSS;
+    applyThinScrollbar(resultPre);
     resultPre.tabIndex = 0;
     resultPre.setAttribute('aria-label', t('message.resultCode'));
     resultPre.addEventListener('focus', () => {

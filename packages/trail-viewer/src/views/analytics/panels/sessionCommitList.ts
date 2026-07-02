@@ -1,6 +1,7 @@
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 import type { TrailSessionCommit, TrailTokenUsage } from '../../../domain/parser/types';
 import { fmtNum, fmtTokens } from '../../../domain/analytics/formatters';
+import { applyThinScrollbar } from '../../../theme/thinScrollbar';
 
 export interface SessionCommitListProps {
   sessionId: string;
@@ -80,6 +81,7 @@ export function mountSessionCommitList(
     // Scrollable table wrapper
     const tableWrapper = document.createElement('div');
     tableWrapper.style.cssText = 'height:198px;overflow-y:auto;';
+    applyThinScrollbar(tableWrapper);
     root.appendChild(tableWrapper);
 
     const table = document.createElement('table');

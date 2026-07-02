@@ -43,11 +43,13 @@ function tokenizeContent(content: string): InlineToken[] {
  * メッセージ吹き出し要素を生成して返す（`el` プロパティ）。
  * 葉ノードなので更新は呼び出し側が新規生成して置換する。
  */
-export function createMessageBubble(props: MessageBubbleProps): { el: HTMLElement } {
+export function createMessageBubble(props: MessageBubbleProps): { el: HTMLElement; destroy: () => void } {
   const { message, sources, onCitationClick } = props;
   const isUser = message.role === 'user';
   const sourceByTag = new Map(sources.map((s) => [`${s.kind}:${s.id}`, s]));
   const tokens = tokenizeContent(message.content);
+  // citation chip の tooltip（document.body 直下）を破棄するため destroy を集約する。
+  const citationDestroys: Array<() => void> = [];
 
   const outer = document.createElement('div');
   outer.style.cssText = `display:flex;justify-content:${isUser ? 'flex-end' : 'flex-start'};margin:8px 0;`;
@@ -67,12 +69,13 @@ export function createMessageBubble(props: MessageBubbleProps): { el: HTMLElemen
     } else {
       const tag = tk.tag ?? tk.value;
       const sourceTitle = sourceByTag.get(tk.tag ?? '')?.title;
-      const { el: chipEl } = createCitationChip({
+      const chip = createCitationChip({
         tag,
         title: sourceTitle,
         onClick: onCitationClick,
       });
-      contentWrap.appendChild(chipEl);
+      citationDestroys.push(chip.destroy);
+      contentWrap.appendChild(chip.el);
     }
   }
 
@@ -81,7 +84,7 @@ export function createMessageBubble(props: MessageBubbleProps): { el: HTMLElemen
   if (message.error) {
     const errEl = document.createElement('span');
     errEl.style.cssText =
-      'display:block;margin-top:4px;font-size:0.75rem;color:var(--am-color-error-main);';
+      'display:block;margin-top:8px;font-size:0.75rem;color:var(--am-color-error-main);';
     errEl.textContent = message.error;
     paper.appendChild(errEl);
   }
@@ -89,11 +92,16 @@ export function createMessageBubble(props: MessageBubbleProps): { el: HTMLElemen
   if (message.interrupted) {
     const intEl = document.createElement('span');
     intEl.style.cssText =
-      'display:block;margin-top:4px;font-size:0.75rem;color:var(--am-color-text-secondary);';
+      'display:block;margin-top:8px;font-size:0.75rem;color:var(--am-color-text-secondary);';
     intEl.textContent = '(interrupted)';
     paper.appendChild(intEl);
   }
 
   outer.appendChild(paper);
-  return { el: outer };
+  return {
+    el: outer,
+    destroy: () => {
+      for (const d of citationDestroys) d();
+    },
+  };
 }

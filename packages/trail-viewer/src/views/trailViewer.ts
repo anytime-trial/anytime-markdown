@@ -116,6 +116,12 @@ function makeNoopBridge(): ChatBridge {
 
 import type { TrailSession, TrailFilter } from '../domain/parser/types';
 
+// NEXT_PUBLIC_SHOW_UNLIMITED=1 で 7 日カットオフをバイパスする（旧 TrailViewerCore と同じ）。
+// 共有パッケージなので process 未定義環境（一部 webview バンドル）でも落ちないようガードする。
+// Next.js（web-app）ではビルド時にインライン展開される。
+const SHOW_UNLIMITED_SESSIONS =
+  typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SHOW_UNLIMITED === '1';
+
 function computeVisibleSessions(
   sessions: readonly TrailSession[],
   allSessions: readonly TrailSession[] | undefined,
@@ -123,7 +129,7 @@ function computeVisibleSessions(
 ): readonly TrailSession[] {
   let result: readonly TrailSession[] = allSessions ?? sessions;
   const q = filter.searchText?.trim().toLowerCase();
-  const skipCutoff = !!(q);
+  const skipCutoff = SHOW_UNLIMITED_SESSIONS || !!(q);
   if (!skipCutoff) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 7);

@@ -8,6 +8,7 @@ import type {
 import { fmtNum, fmtTokens, fmtUsd } from '../../../domain/analytics/formatters';
 import { sessionCost } from '../../../domain/analytics/calculators';
 import { agentBrandColors } from '../../../theme/designTokens';
+import { applyThinScrollbar } from '../../../theme/thinScrollbar';
 import { buildDaySession } from '../../../components/analytics/helpers';
 import { formatLocalTime, toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
 import { mountSessionMetricsPanel } from './sessionMetricsPanel';
@@ -455,6 +456,7 @@ export function mountDailySessionList(
       'overflow-y:auto',
       daySessions.length > 0 || p.sessionsLoading ? 'max-height:726px' : 'max-height:726px',
     ].join(';');
+    applyThinScrollbar(leftBox);
     contentRow.appendChild(leftBox);
 
     if (p.sessionsLoading) {
