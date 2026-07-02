@@ -34,6 +34,20 @@ import {
   type CombinedChartsContentThemeProps,
 } from '../charts/combined/combinedChartsContent';
 import { mountDailySessionList } from './dailySessionList';
+import { createTooltip } from '@anytime-markdown/ui-core';
+
+// メトリクストグルの説明ツールチップ i18n キー（value → key。旧 CombinedChartsSection の
+// 各 ToggleButton を包んでいた Tooltip title を復元する。value 名とキー名は一部非対称）。
+const METRIC_DESCRIPTION_KEYS: Record<CombinedMetric, string> = {
+  tokens: 'chart.tokenUsage.description',
+  agents: 'analytics.combined.agent.description',
+  models: 'analytics.combined.model.description',
+  skills: 'analytics.combined.skill.description',
+  tools: 'analytics.combined.tool.description',
+  repos: 'analytics.combined.repository.description',
+  commits: 'analytics.combined.commitPrefix.description',
+  releases: 'analytics.combined.release.description',
+};
 
 export interface CombinedChartsSectionProps {
   dailyActivity: AnalyticsData['dailyActivity'];
@@ -161,6 +175,8 @@ export function mountCombinedChartsSection(
   let currentProps = props;
 
   const chartHandles: AnyHandle[] = [];
+  // ツールバートグルの tooltip handle（toolbar 再構築・destroy で残置を防ぐため追跡）。
+  const toolbarTooltips: Array<{ destroy: () => void }> = [];
 
   // 永続ホスト: ツールバー / チャート / セッションリストを分離して保持する。
   // drill-down（日付クリック）時はセッションリストのみ差し替え、チャートは破棄せず
@@ -190,16 +206,25 @@ export function mountCombinedChartsSection(
     const btn = document.createElement('button');
     btn.textContent = label;
     btn.dataset['value'] = value;
+    const active = value === currentVal;
+    // スクリーンリーダー向けに選択状態を伝える（旧 MUI ToggleButton が自動付与していた）。
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    const baseBg = active ? currentProps.colors.iceBlueBg : 'transparent';
     btn.style.cssText = [
       'padding:4px 10px',
       'font-size:0.8rem',
       'border:1px solid',
       'cursor:pointer',
-      'background:none',
-      value === currentVal
-        ? `border-color:${currentProps.colors.iceBlue};color:${currentProps.colors.iceBlue};background-color:${currentProps.colors.iceBlueBg};`
+      `background-color:${baseBg}`,
+      active
+        ? `border-color:${currentProps.colors.iceBlue};color:${currentProps.colors.iceBlue};`
         : `border-color:${currentProps.colors.border};color:${currentProps.colors.textSecondary};`,
     ].join(';');
+    // hover フィードバック（旧 toggleSx の '&:hover'）。非アクティブ時のみ背景を hover 色に。
+    if (!active) {
+      btn.addEventListener('mouseenter', () => { btn.style.backgroundColor = currentProps.colors.iceBlueBg; });
+      btn.addEventListener('mouseleave', () => { btn.style.backgroundColor = 'transparent'; });
+    }
     return btn;
   }
 
@@ -275,6 +300,11 @@ export function mountCombinedChartsSection(
     for (let i = 0; i < METRICS.length; i++) {
       const value = METRICS[i] ?? '';
       const btn = createToggleBtn(labels[i] ?? value, value, metric);
+      // 各メトリクスの説明ツールチップ（旧 ToggleButton を包む Tooltip title）を復元。
+      const descKey = METRIC_DESCRIPTION_KEYS[value as CombinedMetric];
+      if (descKey) {
+        toolbarTooltips.push(createTooltip({ reference: btn, title: p.t(descKey), multiline: true }));
+      }
       const spec = METRIC_POPUP_TRIGGERS[value as CombinedMetric];
       if (spec) {
         // ↗ をボタン内に並べるため inline レイアウトへ調整する。
@@ -516,6 +546,8 @@ export function mountCombinedChartsSection(
 
   function render(p: CombinedChartsSectionProps): void {
     destroyCharts();
+    for (const tt of toolbarTooltips) tt.destroy();
+    toolbarTooltips.length = 0;
     toolbarHost.replaceChildren(renderToolbar(p));
     chartArea.replaceChildren();
     renderChartArea(p, chartArea);
@@ -593,6 +625,8 @@ export function mountCombinedChartsSection(
       overlayFetchCancelled = true;
       destroyCharts();
       destroySessionList();
+      for (const tt of toolbarTooltips) tt.destroy();
+      toolbarTooltips.length = 0;
       root.remove();
     },
   };

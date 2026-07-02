@@ -60,7 +60,6 @@ export function mountModelsCombinedChart(
   let props = initial;
 
   const card = document.createElement('div');
-  applyCardStyle(card, props.cardSx);
   container.appendChild(card);
 
   // Empty state element
@@ -74,9 +73,11 @@ export function mountModelsCombinedChart(
     if (p.axisInfo.models.length === 0) {
       chartHandle?.destroy();
       chartHandle = null;
+      card.removeAttribute('style');
       card.replaceChildren(emptyEl);
       return;
     }
+    applyCardStyle(card, p.cardSx);
     if (emptyEl.isConnected) emptyEl.remove();
     if (!chartHandle) {
       chartHandle = mountAnytimeChartView(card, {
@@ -100,7 +101,6 @@ export function mountModelsCombinedChart(
   return {
     update(next) {
       props = next;
-      applyCardStyle(card, next.cardSx);
       render(next);
     },
     destroy() {

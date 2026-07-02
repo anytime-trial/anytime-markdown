@@ -52,7 +52,6 @@ export function mountReposCombinedChart(
   let props = initial;
 
   const card = document.createElement('div');
-  applyCardStyle(card, props.cardSx);
   container.appendChild(card);
 
   const emptyEl = document.createElement('p');
@@ -65,9 +64,11 @@ export function mountReposCombinedChart(
     if (p.axisInfo.repos.length === 0) {
       chartHandle?.destroy();
       chartHandle = null;
+      card.removeAttribute('style');
       card.replaceChildren(emptyEl);
       return;
     }
+    applyCardStyle(card, p.cardSx);
     if (emptyEl.isConnected) emptyEl.remove();
     if (!chartHandle) {
       chartHandle = mountAnytimeChartView(card, {
@@ -91,7 +92,6 @@ export function mountReposCombinedChart(
   return {
     update(next) {
       props = next;
-      applyCardStyle(card, next.cardSx);
       render(next);
     },
     destroy() {

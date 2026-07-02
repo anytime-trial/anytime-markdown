@@ -191,7 +191,6 @@ export function mountCommitsCombinedChart(
   let props = initial;
 
   const card = document.createElement('div');
-  applyCardStyle(card, props.cardSx);
   container.appendChild(card);
 
   const emptyEl = document.createElement('p');
@@ -210,11 +209,14 @@ export function mountCommitsCombinedChart(
 
   function render(p: CommitsCombinedChartProps): void {
     if (isEmpty(p)) {
+      // 空状態は旧 React 同様、カード枠なしの素テキスト（0）で表示する。
       chartHandle?.destroy();
       chartHandle = null;
+      card.removeAttribute('style');
       card.replaceChildren(emptyEl);
       return;
     }
+    applyCardStyle(card, p.cardSx);
     if (emptyEl.isConnected) emptyEl.remove();
     if (!chartHandle) {
       chartHandle = mountAnytimeChartView(card, {
@@ -238,7 +240,6 @@ export function mountCommitsCombinedChart(
   return {
     update(next) {
       props = next;
-      applyCardStyle(card, next.cardSx);
       render(next);
     },
     destroy() {

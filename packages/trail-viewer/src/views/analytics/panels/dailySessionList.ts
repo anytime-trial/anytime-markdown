@@ -7,6 +7,7 @@ import type {
 } from '../../../domain/parser/types';
 import { fmtNum, fmtTokens, fmtUsd } from '../../../domain/analytics/formatters';
 import { sessionCost } from '../../../domain/analytics/calculators';
+import { createTooltip } from '@anytime-markdown/ui-core';
 import { agentBrandColors } from '../../../theme/designTokens';
 import { applyThinScrollbar } from '../../../theme/thinScrollbar';
 import { buildDaySession } from '../../../components/analytics/helpers';
@@ -39,6 +40,24 @@ export interface DailySessionListProps {
 
 type AnyHandle = VanillaViewHandle<object>;
 
+// 旧 sx の flexDirection:{xs:'column', lg:'row'} / width:{lg:600} を media query で再現する
+// （vanilla では MUI ブレークポイントが使えないため <style> を 1 度だけ注入）。lg=1200px。
+const DSL_RESPONSIVE_STYLE_ID = 'am-dsl-responsive-styles';
+function ensureDslResponsiveStyle(): void {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(DSL_RESPONSIVE_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = DSL_RESPONSIVE_STYLE_ID;
+  style.textContent =
+    '.am-dsl-content-row{flex-direction:column;}' +
+    '.am-dsl-right-box{width:100%;}' +
+    '@media (min-width:1200px){' +
+    '.am-dsl-content-row{flex-direction:row;}' +
+    '.am-dsl-right-box{width:600px;}' +
+    '}';
+  document.head.appendChild(style);
+}
+
 function destroyAll(handles: AnyHandle[]): void {
   for (const h of handles) {
     h.destroy();
@@ -70,6 +89,8 @@ export function mountDailySessionList(
   let dayToolCancelled = false;
 
   const mountedHandles: AnyHandle[] = [];
+  // 行チップの tooltip handle（render 再構築・destroy で body 直下の残置を防ぐため追跡）。
+  const rowTooltips: Array<{ destroy: () => void }> = [];
 
   function renderHeader(p: DailySessionListProps, daySessions: readonly TrailSession[]): void {
     const sessionCountLabel =
@@ -143,14 +164,25 @@ export function mountDailySessionList(
     timeTd.textContent = `${formatLocalTime(s.startTime)}–${formatLocalTime(s.endTime)}`;
     if (s.interruption?.interrupted) {
       const chip = document.createElement('span');
-      const chipLabel =
+      const meaning =
+        s.interruption.reason === 'max_tokens'
+          ? p.t('sessionList.interruptedMaxTokens')
+          : p.t('sessionList.interruptedNoResponse');
+      chip.textContent =
         s.interruption.reason === 'max_tokens'
           ? p.t('sessionList.maxChip')
           : p.t('sessionList.nrChip');
-      chip.textContent = chipLabel;
+      chip.setAttribute('aria-label', meaning);
       chip.style.cssText =
         'margin-left:4px;border:1px solid #ff9800;color:#ff9800;font-size:0.65rem;padding:1px 4px;border-radius:4px;';
       timeTd.appendChild(chip);
+      // 旧: 中断理由 + コンテキストトークン数をツールチップで表示。
+      rowTooltips.push(
+        createTooltip({
+          reference: chip,
+          title: `${meaning} (${p.t('sessionList.contextLabel')} ${fmtTokens(s.interruption.contextTokens)})`,
+        }),
+      );
     }
     tr.appendChild(timeTd);
 
@@ -208,9 +240,13 @@ export function mountDailySessionList(
     if (s.compactCount != null && s.compactCount >= 2) {
       const chip = document.createElement('span');
       chip.textContent = `⚠ ×${s.compactCount}`;
+      chip.setAttribute('aria-label', p.t('analytics.compactLoopTooltip'));
       chip.style.cssText =
         'margin-left:4px;border:1px solid #ff9800;color:#ff9800;font-size:0.65rem;padding:1px 4px;border-radius:4px;';
       tokensTd.appendChild(chip);
+      rowTooltips.push(
+        createTooltip({ reference: chip, title: p.t('analytics.compactLoopTooltip'), multiline: true }),
+      );
     }
     if (s.initialContextTokens != null || s.peakContextTokens != null) {
       const ctxDiv = document.createElement('div');
@@ -436,6 +472,8 @@ export function mountDailySessionList(
 
   function render(p: DailySessionListProps): void {
     destroyAll(mountedHandles);
+    for (const tt of rowTooltips) tt.destroy();
+    rowTooltips.length = 0;
     root.innerHTML = '';
 
     const daySessions = p.sessions.filter(
@@ -444,8 +482,10 @@ export function mountDailySessionList(
 
     renderHeader(p, daySessions);
 
+    ensureDslResponsiveStyle();
     const contentRow = document.createElement('div');
-    contentRow.style.cssText = 'display:flex;gap:16px;flex-direction:row;';
+    contentRow.className = 'am-dsl-content-row';
+    contentRow.style.cssText = 'display:flex;gap:16px;';
     root.appendChild(contentRow);
 
     // Left: session table
@@ -516,7 +556,8 @@ export function mountDailySessionList(
     // Right: metrics + charts panel
     if (daySessions.length > 0) {
       const rightBox = document.createElement('div');
-      rightBox.style.cssText = 'flex-shrink:0;display:flex;flex-direction:column;gap:8px;width:600px;';
+      rightBox.className = 'am-dsl-right-box';
+      rightBox.style.cssText = 'flex-shrink:0;display:flex;flex-direction:column;gap:8px;';
       contentRow.appendChild(rightBox);
       mountRightPanel(p, daySessions, rightBox);
     }
@@ -602,6 +643,8 @@ export function mountDailySessionList(
       dayToolCancelled = true;
       latestRequestId = null;
       destroyAll(mountedHandles);
+      for (const tt of rowTooltips) tt.destroy();
+      rowTooltips.length = 0;
       root.remove();
     },
   };
