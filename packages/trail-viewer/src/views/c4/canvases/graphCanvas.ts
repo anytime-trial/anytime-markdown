@@ -429,6 +429,12 @@ export function mountGraphCanvas(
   canvas.style.cssText = 'display:block;width:100%;height:100%;outline:none;';
   container.appendChild(canvas);
 
+  // ノード数を含む動的 aria-label（旧 `C4 architecture graph with N nodes`）。update でも更新する。
+  function updateAriaLabel(): void {
+    canvas.setAttribute('aria-label', `C4 architecture graph with ${getNodes().length} nodes`);
+  }
+  updateAriaLabel();
+
   // Expose canvas to parent
   props.onCanvasReady?.(canvas);
   if (props.canvasRef) props.canvasRef.current = canvas;
@@ -952,6 +958,7 @@ export function mountGraphCanvas(
 
     applyCenterOnSelect(newProps, prevSelectedNodeId);
     updateCursorStyle();
+    updateAriaLabel();
   }
 
   function destroy(): void {

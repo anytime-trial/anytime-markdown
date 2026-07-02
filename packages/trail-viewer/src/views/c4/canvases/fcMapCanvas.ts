@@ -115,6 +115,7 @@ export function mountFcMapCanvas(
   canvas.tabIndex = 0;
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-roledescription', 'function-component map');
+  canvas.setAttribute('aria-label', `Function-component map with ${grid.rows.length} rows`);
   canvas.style.cssText = 'width:100%;height:100%;display:block;cursor:grab;outline:none;';
   wrapper.appendChild(canvas);
 

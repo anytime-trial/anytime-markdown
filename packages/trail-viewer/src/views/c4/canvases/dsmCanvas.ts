@@ -414,6 +414,7 @@ export function mountDsmCanvas(
   canvas.tabIndex = 0;
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-roledescription', 'dependency structure matrix');
+  canvas.setAttribute('aria-label', `Dependency structure matrix with ${props.matrix?.nodes.length ?? 0} nodes`);
   canvas.style.cssText = 'width:100%;height:100%;display:block;cursor:grab;outline:none;';
   wrapper.appendChild(canvas);
 
@@ -668,6 +669,13 @@ export function mountDsmCanvas(
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => { /* draw loop picks up new size */ });
     resizeObserver.observe(canvas);
+  }
+
+  // 初回マウント時に focusedNodeId が設定済みなら中央スクロールする（旧 useEffect はマウント時も
+  // 実行され、初期 props に focusedNodeId を持って DSM を開くと中央スクロールした）。レイアウト確定後に
+  // 実行するため rAF で 1 フレーム遅延させる。
+  if (props.focusedNodeId && typeof requestAnimationFrame !== 'undefined') {
+    requestAnimationFrame(() => { if (!destroyed) scrollToFocusedNode(); });
   }
 
   // ---------------------------------------------------------------------------
