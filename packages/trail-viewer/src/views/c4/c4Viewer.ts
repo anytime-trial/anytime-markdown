@@ -1673,22 +1673,40 @@ export function mountC4Viewer(
     const btnStyle = (active: boolean, disabled = false) =>
       `padding:3px;border-radius:4px;cursor:${disabled ? 'default' : 'pointer'};display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;background:${active ? colors.focus : 'transparent'};color:${disabled ? colors.textMuted : colors.accent};`;
 
-    communityBtn.style.cssText = btnStyle(showCommunity && currentLevel >= 3, currentLevel < 3);
-    communityBtn.disabled = currentLevel < 3;
+    // Community: 無効条件は「C3 未満」または「有効なのにコードグラフ未取得」（旧と一致）。
+    // 状態別ツールチップ（レベル不足 / データ未取得 / 通常）と aria-pressed を i18n で復元。
+    const communityDisabled = currentLevel < 3 || (showCommunity && !codeGraphState.graph);
+    communityBtn.style.cssText = btnStyle(showCommunity && currentLevel >= 3, communityDisabled);
+    communityBtn.disabled = communityDisabled;
+    communityBtn.title = currentLevel < 3
+      ? t('c4.community.disabledLevel')
+      : (showCommunity && !codeGraphState.graph)
+        ? t('c4.community.disabledNoData')
+        : t('c4.community.toggle');
+    communityBtn.setAttribute('aria-label', t('c4.community.toggle'));
+    communityBtn.setAttribute('aria-pressed', String(showCommunity && currentLevel >= 3));
     ghostEdgeBtn.style.cssText = btnStyle(tcValue.enabled);
+    ghostEdgeBtn.setAttribute('aria-pressed', String(tcValue.enabled));
     trendBtn.style.cssText = btnStyle(showActivityTrend);
+    trendBtn.setAttribute('aria-pressed', String(showActivityTrend));
     upperLinesBtn.style.cssText = btnStyle(showAncestorEdges && currentLevel !== 1, currentLevel === 1);
     upperLinesBtn.disabled = currentLevel === 1;
+    upperLinesBtn.setAttribute('aria-pressed', String(showAncestorEdges && currentLevel !== 1));
     const hasClaudeActivity = !!(props.claudeActivity && (props.claudeActivity.activeElementIds.length > 0 || props.claudeActivity.touchedElementIds.length > 0 || props.claudeActivity.plannedElementIds.length > 0)) || !!(props.multiAgentActivity?.agents.length);
     clearHistoryBtn.disabled = !hasClaudeActivity;
     clearHistoryBtn.style.cssText = btnStyle(false, !hasClaudeActivity);
+    clearHistoryBtn.title = t('c4.claudeActivity.reset');
+    clearHistoryBtn.setAttribute('aria-label', t('c4.claudeActivity.reset'));
 
     graphPopupBtn.style.cssText = btnStyle(showGraphPopup);
     graphPopupBtn.setAttribute('aria-pressed', String(showGraphPopup));
+    graphPopupBtn.setAttribute('aria-label', t('c4.graph.title'));
     matrixPopupBtn.style.cssText = btnStyle(!!matrixPopup);
     matrixPopupBtn.setAttribute('aria-pressed', String(!!matrixPopup));
+    matrixPopupBtn.setAttribute('aria-label', t('c4.matrix.title'));
     scatterPopupBtn.style.cssText = btnStyle(!!scatterPopup);
     scatterPopupBtn.setAttribute('aria-pressed', String(!!scatterPopup));
+    scatterPopupBtn.setAttribute('aria-label', t('c4.scatter.title'));
 
     // Frame filter button
     if (soloFrameId !== null) {
@@ -1700,11 +1718,22 @@ export function mountC4Viewer(
       frameFilterBtn.style.display = 'none';
     }
 
-    // Multi-agent badge
+    // Multi-agent badge（エージェント数 + 衝突件数）。旧はエージェント数に加え conflicts>0 で
+    // 衝突件数を赤太字で併記していた。conflicts バッジ復元。
     if (props.multiAgentActivity && props.multiAgentActivity.agents.length > 1) {
       multiAgentBadge.style.display = 'block';
       multiAgentBadge.style.color = colors.textSecondary;
-      multiAgentBadge.textContent = `${props.multiAgentActivity.agents.length} ${t('c4.multiAgent.badge')}`;
+      const agentSpan = document.createElement('span');
+      agentSpan.textContent = `${props.multiAgentActivity.agents.length} ${t('c4.multiAgent.badge')}`;
+      const conflicts = props.multiAgentActivity.conflicts;
+      if (conflicts && conflicts.length > 0) {
+        const conflictSpan = document.createElement('span');
+        conflictSpan.style.cssText = `margin-left:6px;color:${colors.cycleBorder};font-weight:700;`;
+        conflictSpan.textContent = `${conflicts.length} ${t('c4.multiAgent.conflicts')}`;
+        multiAgentBadge.replaceChildren(agentSpan, conflictSpan);
+      } else {
+        multiAgentBadge.replaceChildren(agentSpan);
+      }
     } else {
       multiAgentBadge.style.display = 'none';
     }
