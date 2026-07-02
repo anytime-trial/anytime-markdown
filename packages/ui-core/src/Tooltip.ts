@@ -23,12 +23,20 @@ function nextTooltipId(): string {
   return `am-tooltip-${tooltipIdSeq}`;
 }
 
-/** tooltip 本体の cssText（Tooltip.module.css .tooltip 相当）。z-index 13000。位置は createFloating が付与。 */
-const TOOLTIP_CSS =
-  "z-index:13000;max-width:320px;" +
-  "padding:var(--am-space-1) var(--am-space-2);border-radius:var(--am-radius-sm);" +
-  "background:var(--am-color-tooltip-bg);color:var(--am-color-tooltip-text);" +
-  "font-size:0.6875rem;line-height:1.4;pointer-events:none;white-space:nowrap;";
+/**
+ * tooltip 本体の cssText（Tooltip.module.css .tooltip 相当）。z-index 13000。位置は createFloating が付与。
+ *
+ * multiline=false（既定）は単一行（white-space:nowrap）。multiline=true は改行を保持し
+ * （white-space:pre-line）max-width を緩める。複数行の説明テキスト（`\n` 区切り）を渡す用途。
+ */
+function tooltipCss(multiline: boolean): string {
+  return (
+    `z-index:13000;max-width:${multiline ? "min(420px, 90vw)" : "320px"};` +
+    "padding:var(--am-space-1) var(--am-space-2);border-radius:var(--am-radius-sm);" +
+    "background:var(--am-color-tooltip-bg);color:var(--am-color-tooltip-text);" +
+    `font-size:0.6875rem;line-height:1.4;pointer-events:none;white-space:${multiline ? "pre-line" : "nowrap"};`
+  );
+}
 
 /** {@link createTooltip} のオプション。MUI Tooltip（ui/Tooltip.tsx）置換。 */
 export interface CreateTooltipOptions {
@@ -42,6 +50,11 @@ export interface CreateTooltipOptions {
   placement?: Placement;
   /** tooltip を append する portal ルート（既定 document.body）。 */
   portalRoot?: HTMLElement;
+  /**
+   * 複数行表示。true で `\n` を改行として保持し（white-space:pre-line）max-width を緩める。
+   * 既定 false（単一行 nowrap）。複数行の説明テキストを渡す場合に指定する。
+   */
+  multiline?: boolean;
 }
 
 /**
@@ -64,7 +77,7 @@ export function createTooltip(opts: CreateTooltipOptions): {
   close: () => void;
   destroy: () => void;
 } {
-  const { reference, placement = "bottom" } = opts;
+  const { reference, placement = "bottom", multiline = false } = opts;
   const portalRoot = opts.portalRoot ?? document.body;
   const id = nextTooltipId();
 
@@ -73,7 +86,7 @@ export function createTooltip(opts: CreateTooltipOptions): {
   el.id = id;
   el.setAttribute("role", "tooltip");
   el.setAttribute("data-am-tooltip", "");
-  el.style.cssText = TOOLTIP_CSS;
+  el.style.cssText = tooltipCss(multiline);
   appendContent(el, opts.title);
 
   let floating: { update: () => void; destroy: () => void } | null = null;
