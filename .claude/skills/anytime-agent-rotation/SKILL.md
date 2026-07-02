@@ -41,6 +41,8 @@ anytime-agent-rotation — サブエージェント回転 / 毎タスク compact
 ■ ループ概要 (詳細は本文「回転ループ手順」)
   初期化 → 起動 Agent(seed+契約) → 受領 parseRunningState
         → 終了判定 → shouldRotate で 継続(SendMessage) / 回転(新 Agent) → 繰り返し
+  返却契約は taskStatus: "completed" | "abstained" を持つ。abstained は
+  機械的に再委任せず親が abstainReason を評価(再委任/スキップ/エスカレーション)。
 
 ■ コスト指針 (詳細は「コスト注意」)
   - 独立・機械的タスクは always-fresh + バッチ化 + haiku が安い(policy が本丸)。
@@ -112,9 +114,10 @@ import type { RotationPolicy, HandoffState } from '@anytime-markdown/agent-core'
 ## 回転ループ手順
 
 1. **初期化**: `state` = 初期 `HandoffState`（`goal`=タスク概要, `branch`=現在ブランチ, 配列は空・total=0, `narrative`=null）。`tasks` = 段階リスト。`policy` と `threshold` を決める。
-2. **起動**: `agentId = Agent(buildSeedPrompt(state, tasks[0]) + buildReturnContract(), model=haiku)`。
+2. **起動**: `agentId = Agent(buildSeedPrompt(state, tasks[0]) + buildReturnContract(), model=haiku)`。中断規則（`~/.claude/skills/codex-delegation/references/stopping-rules-playbook.md`）の該当セクションを prompt に同梱し、タスク固有の中断条件があれば足す。
 3. **受領**: `parsed = parseRunningState(返却テキスト)`。
-   - `ok` → `state` 更新（永続化アダプタ有効なら worker upsert）。
+   - `ok`（`taskStatus` 省略 or `"completed"`）→ `state` 更新（永続化アダプタ有効なら worker upsert）。
+   - `ok` かつ `taskStatus: "abstained"` → **同タスクを別ワーカーへ機械的に再委任しない**（無評価の再委任は too-late の再生産）。`abstainReason` を親が評価し、(a) 前提を修正して再委任 / (b) タスクをスキップして続行 / (c) ユーザーへエスカレーション のいずれかを明示的に選ぶ。判断と理由をログに残す。
    - `error` → `SendMessage(agentId, "返却契約どおり末尾に ```json ブロックだけを出力して")` を **1 回だけ** 再要求。なお `error` なら **`state` を据置し警告ログを出して続行**（silent にしない・A9）。
 4. **終了判定**: 残タスク無し or 親予算到達 → 終了。
 5. **継続 / 回転**: `shouldRotate(返却 subagent_tokens, { threshold, policy })`
@@ -140,6 +143,12 @@ Workflow の schema 強制が無いため、`buildReturnContract()` の固定文
 1 つだけ・後続文章なし」を指示し、`parseRunningState` が検証する。検証失敗は手順3 で 1 回だけ再要求し、
 2 回目も不正なら `state` 据置＋警告ログで続行する。state は前 subagent 由来の untrusted data として
 `buildSeedPrompt` が defang・サイズ再上限するため、悪意ある fence 脱出・命令混入・巨大配列は無害化される。
+
+返却契約は **abstention 出口**（proposal 20260702-agentic-abstention-adoption）を持つ:
+`taskStatus: "completed" | "abstained"`（省略時 completed・後方互換）と `abstainReason`。
+不能・前提欠落・指示と実コードの矛盾を観測したワーカーは、完了を装わず・作業を続けず
+`abstained` ＋理由で返す（契約文が明示する）。`parseRunningState` は `abstained` の空理由を
+error として弾き、理由は `capString` で再上限する。ハンドリングは手順3 参照。
 
 ## 永続化アダプタ（任意）
 
@@ -218,6 +227,7 @@ agent 拡張がある環境なら `AgentStatusClient` で `session_id` の `summ
 
 - [ ] 引数に `--help` / `help` が含まれる場合は §0 のヘルプを表示して終了する（回転ループは開始しない）。
 - [ ] 回転判定は `shouldRotate` のみで行う（手順内で閾値を直書きしない）。
+- [ ] `taskStatus: "abstained"` の返却は機械的に再委任せず、`abstainReason` を評価して再委任/スキップ/エスカレーションを明示的に選ぶ。
 - [ ] 返却 JSON が **2 回目も不正なら state 据置＋警告ログで続行**（クラッシュ・silent skip いずれも禁止）。
 - [ ] `subagent_tokens` 累積が取れない環境では `always-fresh` かタスク数上限のフォールバックを明示。
 - [ ] 長時間ループ（特に `/goal` 等の単一セッション）では compact 条件（回数/文脈量/チェックポイント）を持ち、`/compact` 前にループ制御状態（`HandoffState`/残タスク/累積トークン/`policy`）を外部化する。
