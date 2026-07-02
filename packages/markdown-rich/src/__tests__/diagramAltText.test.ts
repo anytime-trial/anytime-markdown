@@ -156,6 +156,24 @@ describe("extractDiagramAltText", () => {
     });
   });
 
+  // 指摘23 回帰テスト: anytime-chart は title 欠落/パース失敗時のみ日本語固定
+  // ("チャート") を返し、他の全分岐（"Diagram"/"Thinking diagram"等）と一貫しない。
+  describe("anytime-chart", () => {
+    it("uses the JSON title when present", () => {
+      const code = JSON.stringify({ title: "Sales" });
+      expect(extractDiagramAltText(code, "anytime-chart")).toBe("Sales");
+    });
+
+    it("falls back to the English label 'Chart' when title is missing (locale-consistent with other branches)", () => {
+      const code = JSON.stringify({ type: "bar" });
+      expect(extractDiagramAltText(code, "anytime-chart")).toBe("Chart");
+    });
+
+    it("falls back to the English label 'Chart' on JSON parse failure", () => {
+      expect(extractDiagramAltText("not json", "anytime-chart")).toBe("Chart");
+    });
+  });
+
   describe("Mermaid flowchart - bare IDs fallback", () => {
     it("uses bare IDs when no labels and no arrows", () => {
       // nodeIds from extractFlowchartLabelsAndIds but no labels and no arrows

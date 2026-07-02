@@ -1,4 +1,5 @@
 import { CodeBlockLowlight } from "@anytime-markdown/markdown-extension-code-block-lowlight";
+import type { CodeBlockLowlightOptions } from "@anytime-markdown/markdown-extension-code-block-lowlight";
 import type { Node as ProseMirrorNode } from "@anytime-markdown/markdown-pm/model";
 
 import { createCodeBlockNodeView } from "./components/codeblock/CodeBlockBlockContent";
@@ -15,8 +16,22 @@ interface MarkdownSerializerState {
   closeBlock: (node: ProseMirrorNode) => void;
 }
 
-export const CodeBlockWithMermaid = CodeBlockLowlight.extend({
+/** CodeBlockLowlightOptions に i18n 用の t を追加した拡張オプション（MdEmbed と同パターン）。 */
+export interface CodeBlockWithMermaidOptions extends CodeBlockLowlightOptions {
+  /** content-only NodeView（createGraphPreview 等）の i18n 配線用。未 configure 時は null。 */
+  t: ((key: string) => string) | null;
+}
+
+export const CodeBlockWithMermaid = CodeBlockLowlight.extend<CodeBlockWithMermaidOptions>({
   draggable: true,
+
+  addOptions() {
+    const parent = (this.parent?.() ?? {}) as CodeBlockLowlightOptions;
+    return {
+      ...parent,
+      t: null,
+    };
+  },
 
   addAttributes() {
     const parent = (this.parent?.() ?? {}) as Record<string, unknown>;
@@ -58,7 +73,8 @@ export const CodeBlockWithMermaid = CodeBlockLowlight.extend({
     // 反転アーキテクチャ: content-only native NodeView（React 非依存）。
     // 編集 chrome は脱React の createCodeBlockChrome（ツールバー）と、RichMarkdownEditorPage
     // がマウントする CodeDialogHost（編集ダイアログ・React host）が供給する。
-    return (props) => createCodeBlockNodeView(props);
+    // t は options 経由（MdEmbed と同パターン）で content 内 i18n（createGraphPreview 等）へ配線する。
+    return (props) => createCodeBlockNodeView({ ...props, t: this.options.t });
   },
 
   addStorage() {
