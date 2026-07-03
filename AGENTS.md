@@ -1,6 +1,6 @@
 # AGENTS.md（anytime-markdown ツール中立規約）
 
-更新日: 2026-06-27
+更新日: 2026-07-02
 
 > このファイルは Claude Code・Codex など、どのエージェントも従うツール中立な規約の単一の正（source of truth）である。\
 > Claude 固有の補足（discovery 手順・Trail DB・並行セッション検知・スキル参照）は `CLAUDE.md` を、Codex 固有設定は各自のルールを参照する。
@@ -37,5 +37,5 @@
 - 永続ブランチ: `master`（本番）・`develop`（開発統合）。作業ブランチは `develop` から `feature/` `fix/` `refactor/` で作成し、完了後マージして削除する。
 - `master` / `main` では作業しない。プラン実行前に `git branch --show-current` で確認し、必要なら `develop` から作業ブランチを作る。
 - 広域 add 禁止（`git add .` / `-A` / `--all` / `commit -a` 禁止）。ファイル名を明示する。
-- コミットメッセージは Conventional Commits（`feat` / `fix` / `refactor` / `test` / `docs` / `perf` / `security` / `ci`）。
+- コミットメッセージは Conventional Commits（`feat` / `fix` / `refactor` / `test` / `docs` / `a11y` / `perf` / `security` / `ci`。global `~/.claude/CLAUDE.md` の規約と同期を保つ）。
 - リモート push・本番リリース・破壊的操作（`reset --hard` / `checkout`（作業ツリー上書き）/ `clean -f` / `branch -D` / `push --force` 系）はユーザーの明示指示があるまで行わない。
