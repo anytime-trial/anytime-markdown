@@ -303,8 +303,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       noUpdateDate: inventory.filter((s) => !s.updated).length,
       staleOver90: stale.length,
       staleSamples: stale.slice(0, 8),
-      unused30d: inventory.filter((s) => !used.has(s.name)).length,
-      usageTop: usage.slice(0, 10).map((u) => ({ skill: u.skill, n: u.n })),
+      // trail.db 不開時は usage が空になり「全スキル未使用」と誤読されるため測定不能 null にする(brokenRefs と同原則)
+      unused30d: error ? null : inventory.filter((s) => !used.has(s.name)).length,
+      usageTop: error ? null : usage.slice(0, 10).map((u) => ({ skill: u.skill, n: u.n })),
       brokenRefs,
     };
   } catch (e) {

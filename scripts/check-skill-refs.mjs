@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // check-skill-refs.mjs — SKILL.md の参照実在性 lint。
 // スキル本文が参照する (1) /Shared/anytime-markdown-docs 配下パス
-// (2) リポジトリ相対パス(scripts/ packages/) (3) `npm run <script>` の実在を検証する。
+// (2) リポジトリ相対パス(scripts/ packages/) (3) `npm run <script>` の実在を検証し、
+// (4) `/Shared/` プレフィクス欠落 typo(`/anytime-markdown-docs/...`)を検出する。
 // 参照先が先に移動・改名されるとスキルがサイレントに陳腐化するため CI でドリフトを検出する
 // (check-bundled-skills.mjs が同梱コピーの byte 一致を守るのと対になる本文側ゲート)。
 //
@@ -23,6 +24,12 @@ const PATH_RE = new RegExp(
   'g',
 );
 const PLACEHOLDER_CHARS = new Set(['<', '[', '{', '*']);
+// `/Shared/` プレフィクス欠落 typo: 実在しない絶対パス /anytime-markdown-docs/... を検出する
+// (lookbehind で正規の /Shared/anytime-markdown-docs/... 内の部分一致を除外)。
+const TYPO_DOC_RE = new RegExp(
+  String.raw`(?<!\/Shared)\/anytime-markdown-docs\/[^${PATH_STOP}]*`,
+  'g',
+);
 
 /** markdown からパス参照と npm script 参照を抽出する(純粋関数)。 */
 export function extractRefs(markdown) {
@@ -33,6 +40,9 @@ export function extractRefs(markdown) {
     const truncated = PLACEHOLDER_CHARS.has(next);
     const kind = value.startsWith('/Shared/') ? 'docPath' : 'repoPath';
     paths.push({ kind, value, truncated });
+  }
+  for (const m of markdown.matchAll(TYPO_DOC_RE)) {
+    paths.push({ kind: 'typoPath', value: m[0].replace(/[.,:：]+$/, ''), truncated: false });
   }
   const npmScripts = [];
   for (const line of markdown.split('\n')) {
@@ -64,6 +74,11 @@ export function lintSkillsDir(dir, rootScripts) {
     const { paths, npmScripts } = extractRefs(body);
     const missingRefs = [];
     for (const ref of paths) {
+      // /Shared 欠落 typo は実在しない絶対パスなので常に fail(実在確認は不要)
+      if (ref.kind === 'typoPath') {
+        missingRefs.push(`(typo? /Shared 欠落) ${ref.value}`);
+        continue;
+      }
       if (ref.kind === 'repoPath' && !isRepoLocal) continue;
       const target = verificationTarget(ref);
       const abs = ref.kind === 'docPath' ? target : join(repoRoot, target);
