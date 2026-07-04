@@ -6,6 +6,8 @@ trigger: /anytime-reverse-codegraph
 
 # /anytime-reverse-codegraph
 
+更新日: 2026-06-22
+
 VS Code 拡張機能 (Anytime Trail) で Trail DB に保存されたコードグラフ・コミュニティ群に対し、AI 後処理として以下を実施する。
 
 - 各コミュニティに `name`**（3 語以内）と** `summary`**（1 文・60 文字以内）** を Haiku サブエージェント並列で生成

@@ -6,6 +6,8 @@ trigger: /anytime-reverse-spec
 
 # /anytime-reverse-spec
 
+更新日: 2026-06-22
+
 `anytime-reverse-codegraph` でコミュニティに `name` / `summary` / `mappings_json` が付与済みであることを前提に、`{outputDir}` 配下に基本設計書 11 章（システム概要 / 機能一覧 / 機能詳細 / データモデル / 外部 I/F / 画面仕様 / データフロー / 用語集 / ビジネス概要 / コード構造 / コード品質評価）と `_meta.json` を生成する。任意のリポジトリに適用可能。
 
 章 9〜11 は AWS Labs [aidlc-workflows](https://github.com/awslabs/aidlc-workflows) reverse-engineering ステージの business-overview / code-structure / code-quality-assessment に相当し、`_meta.json` に aidlc 互換マッピングを記録する。
