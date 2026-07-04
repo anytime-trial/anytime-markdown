@@ -14,7 +14,9 @@
  */
 const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 function resolveDbDir() {
   // 解決順: 明示引数 → ワークスペース(cwd)相対。Trail は <workspace>/.anytime/trail/db に DB を置く。
@@ -243,6 +245,70 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     };
   } catch (e) {
     snapshot.errors.push(`techDebt scan failed: ${e.message}`);
+  }
+}
+
+// ── source+trail: スキル健全性(鮮度・利用実績・参照切れ) ─────────────────────
+{
+  try {
+    const WS_ROOT = process.cwd();
+    const skillsDirs = [
+      path.join(WS_ROOT, '.claude', 'skills'),
+      path.join(os.homedir(), '.claude', 'skills'),
+    ].filter((d) => fs.existsSync(d));
+    const inventory = [];
+    for (const dir of skillsDirs) {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!e.isDirectory()) continue;
+        const f = path.join(dir, e.name, 'SKILL.md');
+        if (!fs.existsSync(f)) continue;
+        const m = /^更新日: (\d{4}-\d{2}-\d{2})/m.exec(fs.readFileSync(f, 'utf-8'));
+        inventory.push({ name: e.name, updated: m ? m[1] : null });
+      }
+    }
+    const STALE_DAYS = 90;
+    const staleBefore = Date.now() - STALE_DAYS * 86400000;
+    const stale = inventory.filter((s) => s.updated && Date.parse(s.updated) < staleBefore).map((s) => s.name);
+
+    const { db, error } = open('trail.db');
+    if (error) snapshot.errors.push(error);
+    const usage = rows(
+      q(db, `SELECT skill, COUNT(*) n FROM messages
+             WHERE skill IS NOT NULL AND skill != '' AND timestamp >= datetime('now','-30 days')
+             GROUP BY skill ORDER BY n DESC`),
+    );
+    // messages.skill は 'superpowers:writing-plans' 等の名前空間付きで記録され得るため末尾名で突合する
+    const used = new Set(usage.map((u) => String(u.skill).split(':').pop()));
+    if (db) db.close();
+
+    const refs = spawnSync(
+      process.execPath,
+      [path.join(WS_ROOT, 'scripts', 'check-skill-refs.mjs'), '--json', ...skillsDirs],
+      { encoding: 'utf-8' },
+    );
+    let brokenRefs = null; // 測定不能は null(0 と区別し「改善」と誤読させない)
+    if (refs.stdout) {
+      try {
+        const parsed = JSON.parse(refs.stdout);
+        brokenRefs = parsed.reduce((s, r) => s + r.missingRefs.length + r.missingScripts.length, 0);
+      } catch (e) {
+        snapshot.errors.push(`skillHealth refs parse failed: ${e.message}`);
+      }
+    } else {
+      snapshot.errors.push(`skillHealth refs run failed: ${refs.error ? refs.error.message : refs.status}`);
+    }
+
+    snapshot.skillHealth = {
+      total: inventory.length,
+      noUpdateDate: inventory.filter((s) => !s.updated).length,
+      staleOver90: stale.length,
+      staleSamples: stale.slice(0, 8),
+      unused30d: inventory.filter((s) => !used.has(s.name)).length,
+      usageTop: usage.slice(0, 10).map((u) => ({ skill: u.skill, n: u.n })),
+      brokenRefs,
+    };
+  } catch (e) {
+    snapshot.errors.push(`skillHealth scan failed: ${e.message}`);
   }
 }
 
