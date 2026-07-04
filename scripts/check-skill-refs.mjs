@@ -11,7 +11,7 @@
 // 終了コード: 参照切れ検出時のみ 1。更新日欠落は warn(非 fail)。
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -53,7 +53,7 @@ export function verificationTarget(ref) {
 
 /** 1 つの skills ディレクトリを lint し、スキルごとの結果を返す。 */
 export function lintSkillsDir(dir, rootScripts) {
-  const isRepoLocal = dir.startsWith(repoRoot);
+  const isRepoLocal = resolve(dir).startsWith(repoRoot);
   const results = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
@@ -89,7 +89,23 @@ function main() {
   const dirs = args.filter((a) => !a.startsWith('--'));
   if (dirs.length === 0) dirs.push(join(repoRoot, '.claude', 'skills'));
 
-  const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf-8'));
+  for (const dir of dirs) {
+    if (!existsSync(dir)) {
+      console.error(`[check-skill-refs] skillsDir が存在しません: ${dir}`);
+      process.exit(1);
+    }
+  }
+
+  const pkgPath = join(repoRoot, 'package.json');
+  let pkg;
+  try {
+    pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+  } catch (err) {
+    console.error(
+      `[check-skill-refs] package.json の読み込みに失敗しました: ${pkgPath} (${err instanceof Error ? err.message : String(err)})`,
+    );
+    process.exit(1);
+  }
   const rootScripts = new Set(Object.keys(pkg.scripts ?? {}));
 
   const results = dirs.flatMap((d) => lintSkillsDir(d, rootScripts));
