@@ -1,19 +1,19 @@
 ---
 name: spec-lookup
 effort: low
-description: anytime-markdown の設計書（/Shared/anytime-markdown-docs/spec）を低トークンで辿るためのナビゲーション手順。索引(00-index.ja.md) → 対象 frontmatter → 型付き related を必要な深さだけ辿る progressive disclosure。設計書の調査・参照・関連ドキュメント探索・「どの spec を読むべきか」を判断する時に使用する。
+description: anytime-markdown の設計書（/Shared/anytime-markdown-docs/spec）を低トークンで辿るためのナビゲーション手順。索引(index.ja.md) → 対象 frontmatter → 型付き related を必要な深さだけ辿る progressive disclosure。設計書の調査・参照・関連ドキュメント探索・「どの spec を読むべきか」を判断する時に使用する。
 ---
 
 # 設計書ナビゲーション（spec-lookup）
 
-更新日: 2026-06-20
+更新日: 2026-07-04
 
-設計書（`/Shared/anytime-markdown-docs/spec`・約 170 ファイル / 58k 行）を**全 Read せず**、
+設計書（`/Shared/anytime-markdown-docs/spec`・約 170 ファイル / 42k 行）を**全 Read せず**、
 索引と frontmatter の型付き関係を使って必要箇所だけ辿る手順。文脈肥大（`cache_read` 加重）を避ける。
 
 ## 前提: 関係は frontmatter が単一ソース
 
-各 spec の frontmatter `related` が型付きの関係を持つ（語彙は `spec/54.graph-viewer/note-relations.ja.md`）。
+各 spec の frontmatter `related` が型付きの関係を持つ（語彙は `spec/33.graph/03.graph-viewer/note-relations.ja.md`）。
 
 ```yaml
 related:
@@ -27,7 +27,7 @@ related:
 
 ## 手順（progressive disclosure）
 
-1. **索引から入る**: まず `spec/00-index.ja.md` を Grep（タイトル・category・excerpt）で当たりを付ける。
+1. **索引から入る**: まず `spec/index.ja.md` を Grep（タイトル・category・excerpt）で当たりを付ける。
    全 Read しない。索引は `scripts/gen-spec-index.mjs` が frontmatter から自動生成する。
 2. **対象の frontmatter だけ読む**: 候補ファイルは `Read` の `limit` で**先頭 frontmatter（〜20 行）**のみ取得し、
    `title` / `excerpt` / `related` を確認する。本文が必要と判断してから本文を読む。
@@ -50,4 +50,4 @@ related:
 ## 索引の再生成
 
 frontmatter を変更したら `npm run spec:index`（`node scripts/gen-spec-index.mjs [specDir] [outFile]`）で
-`spec/00-index.ja.md` を再生成する。索引は生成物のため手で編集しない。
+`spec/index.ja.md` を再生成する。索引は生成物のため手で編集しない。
