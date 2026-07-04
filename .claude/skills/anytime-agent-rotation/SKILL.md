@@ -23,7 +23,7 @@ anytime-agent-rotation — サブエージェント回転 / 毎タスク compact
 
 ■ 起動
   /anytime-agent-rotation [policy=...] <タスク概要と段階リスト>
-  例) /anytime-agent-rotation packages/foo の脱 any を5ファイル、肥大したら切り替えて
+  例) /anytime-agent-rotation packages/<pkg> の脱 any を5ファイル、肥大したら切り替えて
       /anytime-agent-rotation policy=always-fresh 各章を独立に要約して
 
 ■ policy (省略時 = タスクの独立性で判断。独立なら always-fresh を推奨)

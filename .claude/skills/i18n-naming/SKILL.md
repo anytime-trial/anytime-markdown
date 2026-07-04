@@ -17,7 +17,7 @@ anytime-markdown の TypeScript ベース i18n (`packages/<viewer>/src/i18n/{ja,
 | trail-viewer | `packages/trail-viewer/src/i18n/{types,ja,en}.ts` |
 | graph-viewer | `packages/graph-viewer/src/i18n/` |
 | spreadsheet-viewer | `packages/spreadsheet-viewer/src/i18n/` |
-| markdown-core | `packages/markdown-core/src/i18n/` |
+| markdown-viewer | `packages/markdown-viewer/src/i18n/` |
 | web-app | `packages/web-app/src/i18n/` |
 | VS Code NLS | `packages/<ext>/package.nls{,.ja}.json` (基本原則のみ参考) |
 

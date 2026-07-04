@@ -41,7 +41,6 @@ git pull origin develop     # 最新化
 | **web-app 系** | （Marketplace 公開なし。master push で Netlify 自動デプロイ） | `packages/web-app` | タグなし。`markdown-*` / `graph-core` の変更を取り込む |
 | **cms 系** | （Marketplace 公開なし。CI test のみ） | `packages/cms-core`, `packages/mcp-cms` | — |
 | **cms-remote 系** | `deploy-mcp-cms-remote.yml`（Cloudflare Workers） | `packages/mcp-cms-remote` | `deploy-cms-remote` スキル参照 |
-| **mobile-app 系** | （未公開） | `packages/mobile-app` | Capacitor |
 
 > [!NOTE]
 > per-platform 系（trail / database）の VSIX（各 4 種）は CI（`ci.yml` の `build-trail` / `build-database` matrix → `publish-trail` / `publish-database`）が自動生成・自動公開する。旧 `build-anytime-database.yml` は `ci.yml` に統合済み。darwin ターゲットは現在ビルドしていない。
@@ -104,7 +103,7 @@ git diff --stat origin/master...HEAD -- packages/ | grep 'packages/' | sed 's|/.
 ```
 
 更新後、上記4ファイルのバージョンが統一されていることを確認。\
-`packages/markdown-core/src/version.ts` の `APP_VERSION` はルート package.json を動的参照するため手動更新不要。
+`packages/markdown-viewer/src/version.ts` の `APP_VERSION` はルート package.json を動的参照するため手動更新不要。
 
 **graph 系の更新:**
 ```bash
@@ -158,7 +157,6 @@ git diff --stat origin/master...HEAD -- packages/ | grep 'packages/' | sed 's|/.
 - **history 系**: `packages/vscode-history-extension/package.json`
 - **cms-remote 系**: `packages/mcp-cms-remote/package.json`
 - **web-app 系**: `packages/web-app/package.json`
-- **mobile-app 系**: `packages/mobile-app/package.json`
 - **extension pack 系**: `packages/vscode-extension-pack/package.json`
 
 **注意**: 各系統のバージョンは独立している。`npm run version:sync` は使用禁止。すべて手動更新する。
@@ -206,7 +204,6 @@ develop ブランチの最新コミットログを参照してエントリ内容
 | `packages/mcp-cms/CHANGELOG.md` | MCP CMS サーバー固有（MCP ツール定義、サーバー設定） | CMS コア詳細 |
 | `packages/mcp-cms-remote/CHANGELOG.md` | CMS Remote サーバー固有（Cloudflare Workers、リモート MCP） | CMS コア詳細 |
 | `packages/vscode-extension-pack/CHANGELOG.md` | パック構成の変更（含まれる拡張機能の追加/削除） | 個別拡張機能の詳細 |
-| `packages/mobile-app/CHANGELOG.md` | モバイルアプリ固有（Capacitor、ネイティブ機能） | エディタコア |
 
 **VS Code 拡張での core パッケージ要約の書き方:**
 
@@ -270,7 +267,7 @@ cd packages/mcp-cms-remote && npx jest --coverage --passWithNoTests --maxWorkers
 cd packages/web-app && npx jest --coverage --passWithNoTests --maxWorkers=1
 
 # 5-3: E2E・カバレッジ・ビルド
-cd packages/web-app && npm run e2e:coverage
+cd packages/web-app && E2E_COVERAGE=1 npx playwright test --project=chromium
 cd packages/web-app && npx next build
 cd packages/vscode-markdown-extension && npx webpack --mode production
 cd packages/vscode-graph-extension && npx webpack --mode production
@@ -595,6 +592,6 @@ Marketplace に公開済みで問題が発覚した場合:
 
 ## 備考
 
-- `packages/vscode-extension/.vscodeignore` でパッケージに含めないファイルを制御
+- `packages/vscode-markdown-extension/.vscodeignore` でパッケージに含めないファイルを制御
 - VSIX のみ作成してローカル配布する場合は Step 7 のタグ push をスキップ可
 - hotfix の場合は main ブランチから作業し、main と develop の両方にマージする
