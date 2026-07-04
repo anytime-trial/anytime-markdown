@@ -11,7 +11,7 @@
 // 終了コード: 参照切れ検出時のみ 1。更新日欠落は warn(非 fail)。
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -53,7 +53,8 @@ export function verificationTarget(ref) {
 
 /** 1 つの skills ディレクトリを lint し、スキルごとの結果を返す。 */
 export function lintSkillsDir(dir, rootScripts) {
-  const isRepoLocal = resolve(dir).startsWith(repoRoot);
+  const resolved = resolve(dir);
+  const isRepoLocal = resolved === repoRoot || resolved.startsWith(repoRoot + sep);
   const results = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
