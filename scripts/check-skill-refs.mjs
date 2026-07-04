@@ -84,11 +84,37 @@ export function lintSkillsDir(dir, rootScripts) {
   return results;
 }
 
+/** canonical(.claude/skills)に存在しないスキルの結果だけを残す(同梱のみスキルの CI カバレッジ用)。 */
+export function selectBundledOnly(results, canonicalNames) {
+  return results.filter((r) => !canonicalNames.has(r.skill));
+}
+
+/**
+ * packages/*\/skills ディレクトリのうち canonical(.claude/skills)に存在しない
+ * 同梱専用スキルの lint 結果を集める(既定モード限定の拡張。引数明示モードでは呼ばない)。
+ * canonical ありの同梱コピーは check-bundled-skills.mjs の byte 一致検証で守られるため、
+ * ここでは二重報告しない。
+ */
+function lintBundledOnlySkills(rootScripts, canonicalNames) {
+  const packagesDir = join(repoRoot, 'packages');
+  if (!existsSync(packagesDir)) return [];
+  const results = [];
+  for (const pkg of readdirSync(packagesDir, { withFileTypes: true })) {
+    if (!pkg.isDirectory()) continue;
+    const skillsDir = join(packagesDir, pkg.name, 'skills');
+    if (!existsSync(skillsDir)) continue;
+    const bundledResults = lintSkillsDir(skillsDir, rootScripts);
+    results.push(...selectBundledOnly(bundledResults, canonicalNames));
+  }
+  return results;
+}
+
 function main() {
   const args = process.argv.slice(2);
   const json = args.includes('--json');
   const dirs = args.filter((a) => !a.startsWith('--'));
-  if (dirs.length === 0) dirs.push(join(repoRoot, '.claude', 'skills'));
+  const isDefaultMode = dirs.length === 0;
+  if (isDefaultMode) dirs.push(join(repoRoot, '.claude', 'skills'));
 
   for (const dir of dirs) {
     if (!existsSync(dir)) {
@@ -110,6 +136,12 @@ function main() {
   const rootScripts = new Set(Object.keys(pkg.scripts ?? {}));
 
   const results = dirs.flatMap((d) => lintSkillsDir(d, rootScripts));
+  if (isDefaultMode) {
+    const canonicalNames = new Set(
+      readdirSync(dirs[0], { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name),
+    );
+    results.push(...lintBundledOnlySkills(rootScripts, canonicalNames));
+  }
   const broken = results.filter((r) => r.missingRefs.length > 0 || r.missingScripts.length > 0);
   const noDate = results.filter((r) => !r.hasUpdateDate);
 

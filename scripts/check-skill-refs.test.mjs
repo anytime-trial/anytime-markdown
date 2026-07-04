@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { extractRefs, lintSkillsDir, verificationTarget } from './check-skill-refs.mjs';
+import { extractRefs, lintSkillsDir, selectBundledOnly, verificationTarget } from './check-skill-refs.mjs';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -82,6 +82,42 @@ test('lintSkillsDir: リポ内実在 dir で結果スキーマ {dir, skill, miss
     assert.ok(Array.isArray(r.missingScripts));
     assert.equal(typeof r.hasUpdateDate, 'boolean');
   }
+});
+
+test('selectBundledOnly: canonical に無いスキルの結果だけを残す', () => {
+  const results = [
+    { skill: 'anytime-markdown-output', missingRefs: [] },
+    { skill: 'anytime-dev-health', missingRefs: [] },
+    { skill: 'anytime-mermaid', missingRefs: [] },
+  ];
+  const canonicalNames = new Set(['anytime-dev-health', 'i18n-naming']);
+  assert.deepEqual(
+    selectBundledOnly(results, canonicalNames).map((r) => r.skill),
+    ['anytime-markdown-output', 'anytime-mermaid'],
+  );
+});
+
+test('selectBundledOnly: canonicalNames が空なら全件を残す', () => {
+  const results = [{ skill: 'a', missingRefs: [] }, { skill: 'b', missingRefs: [] }];
+  assert.deepEqual(selectBundledOnly(results, new Set()).map((r) => r.skill), ['a', 'b']);
+});
+
+test('lintSkillsDir: packages/vscode-markdown-extension/skills の同梱 only スキルを検査する（canonical 無しの CI 相当）', () => {
+  const results = lintSkillsDir(
+    join(repoRoot, 'packages', 'vscode-markdown-extension', 'skills'),
+    new Set(),
+  );
+  assert.ok(results.length >= 1);
+  for (const r of results) {
+    assert.deepEqual(
+      Object.keys(r).sort(),
+      ['dir', 'hasUpdateDate', 'missingRefs', 'missingScripts', 'skill'],
+    );
+  }
+  const skillNames = results.map((r) => r.skill);
+  assert.ok(skillNames.includes('anytime-markdown-output'));
+  // SKILL.md.template のみで SKILL.md 本体を持たないスキルは対象外
+  assert.ok(!skillNames.includes('anytime-note'));
 });
 
 test('lintSkillsDir: 相対パス指定でも絶対パス指定と同一結果になる（isRepoLocal 偽陰性の回帰）', (t) => {
