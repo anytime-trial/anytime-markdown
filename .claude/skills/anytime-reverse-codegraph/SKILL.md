@@ -6,6 +6,8 @@ trigger: /anytime-reverse-codegraph
 
 # /anytime-reverse-codegraph
 
+更新日: 2026-07-04
+
 VS Code 拡張機能 (Anytime Trail) で Trail DB に保存されたコードグラフ・コミュニティ群に対し、AI 後処理として以下を実施する。
 
 - 各コミュニティに `name`**（3 語以内）と** `summary`**（1 文・60 文字以内）** を Haiku サブエージェント並列で生成
@@ -28,7 +30,7 @@ mcp-trail は VS Code 拡張内の TrailDataServer に HTTP 接続する。\
 VS Code の以下 2 設定を読み取り、後続 MCP 呼び出しの引数として保持する。
 
 - `anytimeTrail.viewer.port`（既定 `19841`）→ `serverUrl` の組み立てに使用
-- `anytimeTrail.workspace.path` → Step 1 の `workspacePath` 引数に**明示指定**する（MCP `analyze_current_code` は省略時に **mcp-trail サーバの cwd**（多くは VS Code 起動 cwd）を使うため、`anytimeTrail.workspace.path` の値は自動では反映されない）
+- `anytimeTrail.workspace.path` → Step 1 の `workspacePath` 引数に**明示指定**する（MCP `analyze_current_code` は省略時に**拡張のワークスペースルート**（daemon 起動時に確定した `gitRoot`。実装は `req.workspacePath ?? opts.gitRoot`）を使うため、`anytimeTrail.workspace.path` の値は自動では反映されない。複数 workspace / worktree 構成では起動時 `gitRoot` と現在の対象パスが乖離しうるため明示指定を推奨する）
 
 ```bash
 node -e "

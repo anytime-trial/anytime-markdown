@@ -31,7 +31,7 @@ title: "<タイトル>"
 date: "<YYYY-MM-DD>"
 reviewer: "<reviewer 名>"  # 任意。省略時は空文字
 target_refs:               # 任意。レビュー対象パス
-  - "packages/foo/src/bar.ts"
+  - "packages/<pkg>/src/<file>.ts"
 ---
 
 # <レビュータイトル>
@@ -46,7 +46,7 @@ target_refs:               # 任意。レビュー対象パス
 
 - **重大度**: error
 - **カテゴリ**: logic
-- **対象**: `packages/foo/src/bar.ts:42`
+- **対象**: `packages/<pkg>/src/<file>.ts:<line>`
 
 **問題:**
 
@@ -107,7 +107,7 @@ target_refs:               # 任意。レビュー対象パス
 
 - **重大度**: error
 - **カテゴリ**: logic
-- **対象**: `packages/trail-viewer/src/components/MemoryPanel.tsx:42`
+- **対象**: `packages/<pkg>/src/components/MemoryPanel.tsx:<line>`
 
 **問題:**
 
@@ -131,7 +131,7 @@ const name = reader.session.user.name;
 
 - **重大度**: warn
 - **カテゴリ**: naming
-- **対象**: `packages/trail-viewer/src/components/memory/ReviewPanel.tsx:120`
+- **対象**: `packages/<pkg>/src/components/memory/ReviewPanel.tsx:<line>`
 
 **問題:**
 
