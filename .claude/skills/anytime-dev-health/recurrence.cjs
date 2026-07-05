@@ -60,23 +60,36 @@ function findUncoveredBugFiles(topBugFiles, memories, threshold = 2) {
   return (topBugFiles ?? [])
     .filter((f) => (f.count ?? 0) >= threshold)
     .filter((f) => {
+      // SHORTCUT: 言及判定は basename 部分一致. ceiling: 同名ファイルが複数ディレクトリで
+      // top に載ると片方の言及だけで両方を教訓化済み扱いし得る(例: TrailDatabase.ts).
+      // upgrade: 実データで誤抑制を観測したらフルパス suffix(末尾2セグメント)一致へ.
       const base = path.basename(String(f.file));
       return !feedbackTexts.some((t) => t.includes(base));
     });
 }
 
-/** メモリディレクトリを read-only 走査する。索引 MEMORY.md は除外。dir 不在は available:false。 */
+/**
+ * メモリディレクトリを read-only 走査する。索引 MEMORY.md は除外。dir 不在は available:false。
+ * 1 ファイルの読み取り失敗で全体を落とさず errors に記録して継続する(techDebt 走査と同パターン)。
+ */
 function scanMemoryDir(dir) {
-  if (!fs.existsSync(dir)) return { available: false, memories: [] };
+  if (!fs.existsSync(dir)) return { available: false, memories: [], errors: [] };
   const memories = [];
+  const errors = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   for (const e of entries) {
     if (!e.isFile() || !e.name.endsWith('.md') || e.name === 'MEMORY.md') continue;
-    const text = fs.readFileSync(path.join(dir, e.name), 'utf-8');
+    let text;
+    try {
+      text = fs.readFileSync(path.join(dir, e.name), 'utf-8');
+    } catch (err) {
+      errors.push(`recurrence read failed ${path.join(dir, e.name)}: ${err.message}`);
+      continue;
+    }
     memories.push({ ...parseMemory(text), fileBase: e.name.replace(/\.md$/, ''), text });
   }
-  return { available: true, memories };
+  return { available: true, memories, errors };
 }
 
 module.exports = { encodeProjectDir, parseMemory, detectDanglingClusters, findUncoveredBugFiles, scanMemoryDir };

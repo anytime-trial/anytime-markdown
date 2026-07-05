@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -83,6 +83,24 @@ test('scanMemoryDir は MEMORY.md 索引を除外し、dir 不在は available:f
     assert.deepEqual(res.memories[0].links, ['two']);
     assert.equal(scanMemoryDir(join(dir, 'nope')).available, false);
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('scanMemoryDir は 1 ファイルの読み取り失敗で全体を落とさず errors に記録して継続する', { skip: process.getuid?.() === 0 }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'memory-'));
+  try {
+    writeFileSync(join(dir, 'ok.md'), memoryMd('ok', 'project', 'body'));
+    writeFileSync(join(dir, 'broken.md'), memoryMd('broken', 'project', 'body'));
+    chmodSync(join(dir, 'broken.md'), 0o000);
+    const res = scanMemoryDir(dir);
+    assert.equal(res.available, true);
+    assert.equal(res.memories.length, 1);
+    assert.equal(res.memories[0].fileBase, 'ok');
+    assert.equal(res.errors.length, 1);
+    assert.match(res.errors[0], /broken\.md/);
+  } finally {
+    chmodSync(join(dir, 'broken.md'), 0o600);
     rmSync(dir, { recursive: true, force: true });
   }
 });

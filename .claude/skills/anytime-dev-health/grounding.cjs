@@ -315,7 +315,8 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     const { encodeProjectDir, detectDanglingClusters, findUncoveredBugFiles, scanMemoryDir } = require('./recurrence.cjs');
     const memoryDir = process.env.ANYTIME_MEMORY_DIR
       || path.join(os.homedir(), '.claude', 'projects', encodeProjectDir(process.cwd()), 'memory');
-    const { available, memories } = scanMemoryDir(memoryDir);
+    const { available, memories, errors } = scanMemoryDir(memoryDir);
+    snapshot.errors.push(...(errors ?? []));
     // dir 不在は測定不能 null(0 と区別し「候補なし」と誤読させない。skillHealth の brokenRefs と同原則)
     snapshot.recurrence = available
       ? {
