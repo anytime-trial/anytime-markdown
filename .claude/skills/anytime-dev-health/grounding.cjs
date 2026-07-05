@@ -169,12 +169,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     '.next', 'coverage', '.worktrees', '.vscode-test',
   ]);
   const EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.cjs', '.mjs']);
-  // タグは分割構築(この grounding.cjs 自身が完全リテラルを含まず誤検出されないように)。
-  // コメント接頭辞付きのみ採用(コード中の文字列リテラルを拾わない)。
-  const TAG = 'SHORT' + 'CUT';
-  const NEEDLE = `${TAG}:`;
-  const MARKER_RE = new RegExp(String.raw`(?:\/\/|\/\*|\*|#)\s*${NEEDLE}`);
-  const UPGRADE_RE = /\bupgrade:/i;
+  // 判定は shortcutMarkers.cjs に一本化(CI ゲート scripts/check-shortcut-markers.mjs と同一実装。
+  // 折り返しコメント行を 1 ブロックとして ceiling/upgrade を判定する)。
+  const { collectShortcutMarkers, MARKER_NEEDLE } = require('./shortcutMarkers.cjs');
   const MAX_FILES = 20000;
   const markers = [];
   let scanned = 0;
@@ -189,13 +186,10 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       snapshot.errors.push(`techDebt read failed ${full}: ${e.message}`);
       return;
     }
-    if (!text.includes(NEEDLE)) return;
+    if (!text.includes(MARKER_NEEDLE)) return;
     const rel = path.relative(WS_ROOT, full);
-    const lines = text.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      if (MARKER_RE.test(lines[i])) {
-        markers.push({ file: rel, line: i + 1, noTrigger: !UPGRADE_RE.test(lines[i]) });
-      }
+    for (const m of collectShortcutMarkers(text)) {
+      markers.push({ file: rel, line: m.line, noTrigger: !m.hasUpgrade });
     }
   }
 
@@ -310,6 +304,31 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     };
   } catch (e) {
     snapshot.errors.push(`skillHealth scan failed: ${e.message}`);
+  }
+}
+
+// ── memory: 再発検知(「2 回再発で昇格」ルールの決定論走査) ─────────────────────
+// ~/.claude/CLAUDE.md メモリ運用の昇格判断(罠の再発→constraint 化)を記憶頼みにしないための候補提示。
+// 検出のみで自動書き込みはしない(メモリ領域は保護領域)。
+{
+  try {
+    const { encodeProjectDir, detectDanglingClusters, findUncoveredBugFiles, scanMemoryDir } = require('./recurrence.cjs');
+    const memoryDir = process.env.ANYTIME_MEMORY_DIR
+      || path.join(os.homedir(), '.claude', 'projects', encodeProjectDir(process.cwd()), 'memory');
+    const { available, memories, errors } = scanMemoryDir(memoryDir);
+    snapshot.errors.push(...(errors ?? []));
+    // dir 不在は測定不能 null(0 と区別し「候補なし」と誤読させない。skillHealth の brokenRefs と同原則)
+    snapshot.recurrence = available
+      ? {
+          memoryDir,
+          memoryCount: memories.length,
+          feedbackMemoryCount: memories.filter((m) => m.type === 'feedback').length,
+          danglingClusters: detectDanglingClusters(memories).slice(0, 8),
+          uncoveredBugFiles: findUncoveredBugFiles((snapshot.quality ?? {}).topBugFiles, memories).slice(0, 8),
+        }
+      : { memoryDir, memoryCount: null, feedbackMemoryCount: null, danglingClusters: null, uncoveredBugFiles: null };
+  } catch (e) {
+    snapshot.errors.push(`recurrence scan failed: ${e.message}`);
   }
 }
 
