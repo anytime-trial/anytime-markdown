@@ -69,6 +69,7 @@ export function runVerified(argv, { cwd = process.cwd() } = {}) {
     command = parsed.command.join(' ');
     const r = spawnSync(parsed.command[0], parsed.command.slice(1), { stdio: 'inherit', cwd });
     if (r.error) {
+      console.error(`[${new Date().toISOString()}] [ERROR] run-verified: spawn failed for "${command}": ${r.error.stack ?? r.error}`);
       status = 'error';
       exitCode = 1;
     } else {
