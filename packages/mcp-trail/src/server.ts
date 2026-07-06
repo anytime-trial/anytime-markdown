@@ -6,6 +6,7 @@ import { route } from './router.js';
 import type { RouteOpts } from './router.js';
 import { SearchMemoryInputSchema, handleSearchMemory } from './tools/searchMemory.js';
 import { SearchDocsInputSchema, handleSearchDocs } from './tools/searchDocs.js';
+import { GetVerificationStatusInputSchema, handleGetVerificationStatus } from './tools/verificationStatus.js';
 import { ListRecurringBugsInputSchema, handleListRecurringBugs } from './tools/listRecurringBugs.js';
 import { GetBugHistoryInputSchema, handleGetBugHistory } from './tools/getBugHistory.js';
 import { ListUnaddressedReviewFindingsInputSchema, handleListUnaddressedReviewFindings } from './tools/listUnaddressedReviewFindings.js';
@@ -616,6 +617,24 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = await handleSearchDocs(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_verification_status',
+    {
+      description:
+        'Check the verification ledger (verification.db): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
+      inputSchema: {
+        package: GetVerificationStatusInputSchema.shape.package,
+        kinds: GetVerificationStatusInputSchema.shape.kinds,
+        workspacePath: GetVerificationStatusInputSchema.shape.workspacePath,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => {
+      const result = await handleGetVerificationStatus(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
