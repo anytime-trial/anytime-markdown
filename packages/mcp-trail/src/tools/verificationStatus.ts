@@ -63,6 +63,8 @@ export async function handleGetVerificationStatus(
   }
 
   const db = new DatabaseSync(dbPath, { readOnly: true });
+  // run-verified.mjs (writer) の書込直後に読むと SQLITE_BUSY で即失敗し得るため待機を入れる（doc-core と同値）。
+  db.exec('PRAGMA busy_timeout = 5000');
   try {
     const rows = db
       .prepare(
@@ -77,7 +79,9 @@ export async function handleGetVerificationStatus(
     }
     return { commitHash, treeState, verified, needsRun: kinds.filter((k) => !(k in verified)) };
   } catch (err) {
-    if (err instanceof Error && err.message.includes('no such table')) {
+    // instanceof Error は jest の VM コンテキスト（別 realm）で node:sqlite ネイティブ例外に false を返すため message で判定する。
+    const message = (err as { message?: unknown } | null)?.message;
+    if (typeof message === 'string' && message.includes('no such table')) {
       return { commitHash, treeState, verified: {}, needsRun: kinds, reason: 'no-table' };
     }
     throw err;

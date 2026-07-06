@@ -93,11 +93,27 @@ describe('handleGetVerificationStatus', () => {
   });
 
   it('kinds 指定で対象を絞れる', async () => {
+    const head = git(['rev-parse', 'HEAD']);
+    seedDb([
+      { kind: 'unit', status: 'pass', codeStateHash: head },
+      { kind: 'build', status: 'pass', codeStateHash: head },
+    ]);
     const result = await handleGetVerificationStatus({
       package: 'demo-pkg',
       kinds: ['unit', 'e2e'],
       workspacePath: workDir,
     });
-    expect(result.needsRun).toEqual(['unit', 'e2e']);
+    // build は pass 記録があっても kinds 外なので verified/needsRun のどちらにも現れない
+    expect(Object.keys(result.verified)).toEqual(['unit']);
+    expect(result.needsRun).toEqual(['e2e']);
+  });
+
+  it('DB ファイルはあるがテーブルが無ければ needsRun (reason: no-table)', async () => {
+    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'verification.db');
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    new DatabaseSync(dbPath).close(); // テーブル未作成の空 DB
+    const result = await handleGetVerificationStatus({ package: 'demo-pkg', workspacePath: workDir });
+    expect(result.reason).toBe('no-table');
+    expect(result.needsRun).toContain('unit');
   });
 });
