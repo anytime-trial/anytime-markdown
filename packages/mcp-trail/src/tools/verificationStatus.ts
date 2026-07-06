@@ -1,0 +1,87 @@
+/**
+ * get_verification_status — verification.db（検証実施台帳）の読み取り。
+ * 台帳は「何が実施済みか」を答えるだけで実行を決めない。判定不能・記録なしは常に needsRun へ倒す。
+ * スキーマ正本は scripts/verification-db.mjs（本ファイルは SELECT のみでスキーマを作成しない）。
+ */
+
+import { execFile } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { promisify } from 'node:util';
+import { z } from 'zod';
+
+const execFileAsync = promisify(execFile);
+
+/** scripts/verification-db.mjs の VERIFICATION_KINDS のミラー（reader は .mjs を import できないため）。 */
+export const VERIFICATION_KINDS = ['unit', 'build', 'next-build', 'typecheck', 'lint', 'e2e', 'manual'] as const;
+export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
+
+export const GetVerificationStatusInputSchema = z.object({
+  package: z.string().describe('Target package name recorded by run-verified (e.g. markdown-viewer)'),
+  kinds: z.array(z.enum(VERIFICATION_KINDS)).optional().describe('Kinds to check (default: all 7)'),
+  workspacePath: z.string().optional().describe('Workspace root (default: cwd)'),
+});
+
+export type GetVerificationStatusInput = z.infer<typeof GetVerificationStatusInputSchema>;
+
+interface VerifiedEntry {
+  status: 'pass';
+  startedAt: string;
+  command: string;
+}
+
+export interface VerificationStatusResult {
+  commitHash: string | null;
+  treeState: 'clean' | 'dirty' | null;
+  verified: Record<string, VerifiedEntry>;
+  needsRun: string[];
+  reason?: 'no-db' | 'no-table' | 'dirty-tree';
+}
+
+function resolveDbPath(workspacePath: string): string {
+  const home = process.env.TRAIL_HOME ?? path.join(workspacePath, '.anytime', 'trail');
+  return path.join(home, 'db', 'verification.db');
+}
+
+export async function handleGetVerificationStatus(
+  input: GetVerificationStatusInput,
+): Promise<VerificationStatusResult> {
+  const ws = input.workspacePath ?? process.cwd();
+  const kinds: string[] = input.kinds ? [...input.kinds] : [...VERIFICATION_KINDS];
+  const dbPath = resolveDbPath(ws);
+  if (!fs.existsSync(dbPath)) {
+    return { commitHash: null, treeState: null, verified: {}, needsRun: kinds, reason: 'no-db' };
+  }
+
+  const { stdout: head } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: ws });
+  const { stdout: porcelain } = await execFileAsync('git', ['status', '--porcelain'], { cwd: ws });
+  const commitHash = head.trim();
+  const treeState: 'clean' | 'dirty' = porcelain.trim() === '' ? 'clean' : 'dirty';
+  if (treeState === 'dirty') {
+    return { commitHash, treeState, verified: {}, needsRun: kinds, reason: 'dirty-tree' };
+  }
+
+  const db = new DatabaseSync(dbPath, { readOnly: true });
+  try {
+    const rows = db
+      .prepare(
+        `SELECT kind, command, started_at FROM verification_runs
+         WHERE package = ? AND code_state_hash = ? AND status = 'pass' ORDER BY started_at`,
+      )
+      .all(input.package, commitHash) as Array<{ kind: string; command: string; started_at: string }>;
+    const verified: Record<string, VerifiedEntry> = {};
+    for (const row of rows) {
+      if (!kinds.includes(row.kind)) continue;
+      verified[row.kind] = { status: 'pass', startedAt: row.started_at, command: row.command }; // 昇順走査＝最後が最新
+    }
+    return { commitHash, treeState, verified, needsRun: kinds.filter((k) => !(k in verified)) };
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('no such table')) {
+      return { commitHash, treeState, verified: {}, needsRun: kinds, reason: 'no-table' };
+    }
+    throw err;
+  } finally {
+    db.close();
+  }
+}
