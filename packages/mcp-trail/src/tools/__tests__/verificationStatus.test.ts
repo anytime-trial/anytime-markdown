@@ -108,6 +108,15 @@ describe('handleGetVerificationStatus', () => {
     expect(result.needsRun).toEqual(['e2e']);
   });
 
+  it('TRAIL_HOME が保護領域 (.claude 配下) を指すと reject する', async () => {
+    // ガードは /\/\.claude\b/ のパターン一致なので、一時ディレクトリ配下でも .claude を含めば発火を検証できる
+    // （テストコードに実ホーム直下の保護領域パスを書かない規約: scripts/check-test-safety.sh）
+    process.env.TRAIL_HOME = path.join(workDir, '.claude', 'trail');
+    await expect(handleGetVerificationStatus({ package: 'demo-pkg', workspacePath: workDir })).rejects.toThrow(
+      /refusing protected path/,
+    );
+  });
+
   it('DB ファイルはあるがテーブルが無ければ needsRun (reason: no-table)', async () => {
     const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'verification.db');
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });

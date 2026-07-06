@@ -39,8 +39,19 @@ export interface VerificationStatusResult {
   reason?: 'no-db' | 'no-table' | 'dirty-tree';
 }
 
+/**
+ * scripts/verification-db.mjs の PROTECTED_ROOT_PATTERNS のミラー（reader は .mjs を import できないため）。
+ * node:sqlite は WAL モード DB を readOnly で開いても -wal/-shm を新規作成するため、読み取り専用ツールでも保護領域ガードが必要。
+ */
+const PROTECTED_ROOT_PATTERNS = [/\/vscode-server\//, /\/\.vscode\b/, /\/\.claude\b/];
+
 function resolveDbPath(workspacePath: string): string {
   const home = process.env.TRAIL_HOME ?? path.join(workspacePath, '.anytime', 'trail');
+  if (PROTECTED_ROOT_PATTERNS.some((p) => p.test(home))) {
+    throw new Error(
+      `[get_verification_status] refusing protected path "${home}". Set TRAIL_HOME to a workspace-local dir or pass workspacePath.`,
+    );
+  }
   return path.join(home, 'db', 'verification.db');
 }
 
