@@ -27,9 +27,19 @@ function formatJst(iso) {
   return `${parts} JST`;
 }
 
+/** UTC ISO 文字列を JST 日付（YYYY-MM-DD）へ変換する。frontmatter date 用（本文の formatJst と TZ を揃える）。 */
+function formatJstDate(iso) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso));
+}
+
 /** 台帳 rows からテスト結果書 Markdown を組み立てる（純関数）。 */
 export function buildReportMarkdown({ runs, targetLabel, generatedAtIso }) {
-  const dateOnly = generatedAtIso.slice(0, 10);
+  const dateOnly = formatJstDate(generatedAtIso);
   const byKind = new Map(VERIFICATION_KINDS.map((k) => [k, []]));
   for (const run of runs) byKind.get(run.kind)?.push(run);
 

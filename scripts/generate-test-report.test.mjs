@@ -47,6 +47,11 @@ test('失敗と対処: fail の後の pass を対処済みとして示す', () =
   assert.match(md, /対処済み/);
 });
 
+test('frontmatter の date は JST 日付になる（UTC 16:00 = JST 翌日）', () => {
+  const md = buildReportMarkdown({ runs: [passRun], targetLabel: 't', generatedAtIso: '2026-07-06T16:00:00.000Z' });
+  assert.match(md, /date: "2026-07-07"/);
+});
+
 test('日時は JST 表示に変換される', () => {
   const md = buildReportMarkdown({ runs: [passRun], targetLabel: 't', generatedAtIso: '2026-07-06T02:00:00.000Z' });
   assert.match(md, /10:00/); // 01:00Z = 10:00 JST
