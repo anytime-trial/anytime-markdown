@@ -54,6 +54,28 @@ function parseDriveHeadRevisionId(value: unknown): string | null {
   return typeof headRevisionId === 'string' ? headRevisionId : null;
 }
 
+interface GitHubCommitPayload {
+  sha: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+function parseGitHubCommitPayload(value: unknown): GitHubCommitPayload | null {
+  const record = asRecord(asRecord(value)?.commit ?? null);
+  if (!record) return null;
+  const { sha, message, author, date } = record;
+  if (typeof sha !== 'string' || typeof message !== 'string' || typeof author !== 'string' || typeof date !== 'string') {
+    return null;
+  }
+  return { sha, message, author, date };
+}
+
+function parseErrorMessage(value: unknown): string | undefined {
+  const error = asRecord(value)?.error;
+  return typeof error === 'string' ? error : undefined;
+}
+
 export interface EditorPageState {
   explorerOpen: boolean;
   externalContent: string | undefined;
@@ -252,8 +274,8 @@ export function useEditorPage({
       setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
       return;
     }
-    const err = await res.json().catch(() => ({}));
-    console.warn('Failed to save to Drive:', (err as { error?: string }).error);
+    const err = parseErrorMessage(await res.json().catch(() => null));
+    console.warn('Failed to save to Drive:', err);
     setSaveSnackbar({ message: t('driveSaveError'), severity: 'error' });
   }, [t, fetchFn]);
 
@@ -286,14 +308,14 @@ export function useEditorPage({
     if (res.ok) {
       originalContentRef.current = content;
       setIsDirty(false);
-      const data = await res.json().catch(() => ({}));
-      if (data.commit) {
-        setNewCommit(data.commit);
+      const commit = parseGitHubCommitPayload(await res.json().catch(() => null));
+      if (commit) {
+        setNewCommit(commit);
       }
       setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
     } else {
-      const err = await res.json().catch(() => ({}));
-      console.warn('Failed to save to GitHub:', (err as { error?: string }).error);
+      const err = parseErrorMessage(await res.json().catch(() => null));
+      console.warn('Failed to save to GitHub:', err);
       setSaveSnackbar({ message: t('saveError'), severity: 'error' });
     }
   }, [t, fetchFn]);
@@ -353,8 +375,7 @@ export function useEditorPage({
       setSaveSnackbar({ message: t('githubCommitSuccess'), severity: 'success' });
       return;
     }
-    const err = await res.json().catch(() => ({}));
-    const detail = typeof (err as { error?: unknown }).error === 'string' ? (err as { error: string }).error : res.statusText;
+    const detail = parseErrorMessage(await res.json().catch(() => null)) ?? res.statusText;
     console.warn(`Failed to commit to GitHub (status ${res.status}):`, detail);
     setSaveSnackbar({ message: `${t('githubCommitError')} (${res.status}): ${detail}`, severity: 'error' });
   }, [t, fetchFn]);
