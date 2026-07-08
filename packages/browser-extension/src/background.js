@@ -8,15 +8,21 @@
  * chrome.tabs.query({ url: EDITOR_URL }) で既存タブを探す実装に拡張する。
  * 既定ではパーミッションを最小化するため毎回新規タブを開く。
  *
- * 右クリックメニュー「anytime-markdown で編集」は、表示中のページへ
- * pageCapture.js（dist/pageCapture.js。src/pageCapture.ts のビルド成果物）を注入し、
- * Markdown 化した本文を chrome.storage.local の `pendingImport` へ一時保存したうえで
- * editor.html?import=1 を新規タブで開く。editor.ts 側が起動時にこのキーを読み取り、
- * 取り込み後に削除する（自動保存復元より優先）。
+ * 右クリックメニュー「anytime-markdown で編集」は、表示中のページの URL が
+ * Google Drive の md ファイルであれば pageCapture を行わず `pendingDriveFile`
+ * （fileId のみ）を chrome.storage.local へ置いて editor.html?driveImport=1 を開く
+ * （editor.ts が chrome.identity 経由のトークンで Drive から読み込む）。
+ * それ以外のページは従来どおり pageCapture.js（dist/pageCapture.js。
+ * src/pageCapture.ts のビルド成果物）を注入し、Markdown 化した本文を
+ * chrome.storage.local の `pendingImport` へ一時保存したうえで
+ * editor.html?import=1 を新規タブで開く。editor.ts 側が起動時にこれらのキーを
+ * 読み取り、取り込み後に削除する（自動保存復元より優先）。
  */
 /* global chrome */
+import { extractDriveFileId } from "@anytime-markdown/markdown-viewer/fs/drive-client";
 
 const EDITOR_IMPORT_URL = "editor.html?import=1";
+const EDITOR_DRIVE_IMPORT_URL = "editor.html?driveImport=1";
 const PAGE_CAPTURE_MENU_ID = "am-edit-page";
 
 chrome.action.onClicked.addListener(() => {
@@ -50,6 +56,21 @@ function storageSet(items) {
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== PAGE_CAPTURE_MENU_ID || !tab?.id) return;
+
+  const driveFileId = tab.url ? extractDriveFileId(tab.url) : null;
+  if (driveFileId) {
+    try {
+      await storageSet({ pendingDriveFile: { fileId: driveFileId } });
+    } catch (error) {
+      console.error(
+        `[${new Date().toISOString()}] [ERROR] pendingDriveFile 保存に失敗しました for tab ${tab.id}: ` +
+          (error instanceof Error ? (error.stack ?? error.message) : String(error)),
+      );
+      return;
+    }
+    chrome.tabs.create({ url: chrome.runtime.getURL(EDITOR_DRIVE_IMPORT_URL) });
+    return;
+  }
 
   let injectionResults;
   try {
