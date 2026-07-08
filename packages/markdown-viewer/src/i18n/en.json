@@ -789,7 +789,21 @@
     "driveSaveError": "Failed to save to Drive",
     "driveConflictTitle": "The Drive file was updated elsewhere",
     "driveConflictBody": "This file was changed somewhere else. Overwrite and save anyway?",
-    "driveConflictOverwrite": "Overwrite and save"
+    "driveConflictOverwrite": "Overwrite and save",
+    "commitMessageDialogTitle": "Enter a commit message",
+    "commitMessageLabel": "Commit message",
+    "commitMessageRememberLabel": "Use the same message for the rest of this session",
+    "commitMessageConfirm": "Commit",
+    "githubCommitButton": "Commit to GitHub",
+    "githubCommitButtonAria": "Commit the document being edited to GitHub",
+    "githubCommitDialogTitle": "Commit to GitHub",
+    "githubCommitRepoLabel": "Repository",
+    "githubCommitBranchLabel": "Branch",
+    "githubCommitPathLabel": "File path",
+    "githubCommitMessageLabel": "Commit message",
+    "githubCommitConfirm": "Commit",
+    "githubCommitSuccess": "Committed to GitHub",
+    "githubCommitError": "Failed to commit to GitHub"
   },
   "VsCode": {
     "metaTitle": "Visual Studio Code™ Extension - Anytime Markdown",

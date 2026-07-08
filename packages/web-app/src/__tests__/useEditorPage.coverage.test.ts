@@ -84,9 +84,12 @@ describe("useEditorPage - additional coverage", () => {
       await result.current.handleExplorerSelectFile("repo", "file.md", "main");
     });
 
-    // Then save
+    // Then save (GitHub 保存はコミットメッセージダイアログ確定を経由する)
     await act(async () => {
       await result.current.handleExternalSave("# Updated content");
+    });
+    await act(async () => {
+      await result.current.handleCommitMessageConfirm("update", false);
     });
     expect(result.current.isDirty).toBe(false);
     expect(result.current.newCommit).toBeTruthy();
@@ -110,6 +113,9 @@ describe("useEditorPage - additional coverage", () => {
 
     await act(async () => {
       await result.current.handleExternalSave("# Updated content");
+    });
+    await act(async () => {
+      await result.current.handleCommitMessageConfirm("update", false);
     });
     expect(result.current.saveSnackbar?.severity).toBe("error");
     consoleSpy.mockRestore();
@@ -257,6 +263,9 @@ describe("useEditorPage - additional coverage", () => {
     await act(async () => {
       await result.current.handleExternalSave("new content");
     });
+    await act(async () => {
+      await result.current.handleCommitMessageConfirm("update", false);
+    });
 
     expect(result.current.saveSnackbar).toEqual(
       expect.objectContaining({ severity: "success" })
@@ -279,6 +288,9 @@ describe("useEditorPage - additional coverage", () => {
 
     await act(async () => {
       await result.current.handleExternalSave("new content");
+    });
+    await act(async () => {
+      await result.current.handleCommitMessageConfirm("update", false);
     });
 
     expect(result.current.saveSnackbar).toEqual(

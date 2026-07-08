@@ -3,6 +3,7 @@
 import { STORAGE_KEY_CONTENT } from '@anytime-markdown/markdown-viewer/src/constants/storageKeys';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { CommitToGitHubValues } from '../../components/CommitToGitHubDialog';
 import { FallbackFileSystemProvider } from '../../lib/FallbackFileSystemProvider';
 import { fetchFileContent } from '../../lib/githubApi';
 import { pickDriveMarkdownFile } from '../../lib/googlePicker';
@@ -67,6 +68,10 @@ export interface EditorPageState {
   driveConflict: DriveConflict | null;
   /** 現在編集中のコンテンツが Google Drive から開かれたものか（onExternalSave の配線判定に使う）。 */
   hasDriveFile: boolean;
+  /** GitHub 保存時のコミットメッセージ入力ダイアログ。null は非表示。 */
+  commitMessageDialog: { open: boolean; defaultMessage: string } | null;
+  /** 任意ソースから GitHub へコミットするダイアログ。null は非表示。 */
+  commitToGitHubDialog: { open: boolean; defaultPath: string } | null;
 }
 
 export interface EditorPageActions {
@@ -83,6 +88,11 @@ export interface EditorPageActions {
   handleDriveOpen: () => Promise<void>;
   handleDriveConflictOverwrite: () => Promise<void>;
   handleDriveConflictCancel: () => void;
+  handleCommitMessageConfirm: (message: string, remember: boolean) => Promise<void>;
+  handleCommitMessageCancel: () => void;
+  handleOpenCommitToGitHub: (defaultPath: string) => void;
+  handleCloseCommitToGitHub: () => void;
+  handleCommitToGitHubConfirm: (values: CommitToGitHubValues) => Promise<void>;
 }
 
 interface UseEditorPageOptions {
@@ -121,6 +131,13 @@ export function useEditorPage({
   const [saveSnackbar, setSaveSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [driveConflict, setDriveConflict] = useState<DriveConflict | null>(null);
   const [hasDriveFile, setHasDriveFile] = useState(false);
+  /** 直近に handleContentChange へ渡された全文（保存元を問わず常に最新化）。GitHub 任意コミットの内容取得に使う。 */
+  const currentContentRef = useRef<string>('');
+  const [commitMessageDialog, setCommitMessageDialog] = useState<{ open: boolean; defaultMessage: string } | null>(null);
+  const pendingCommitContentRef = useRef<string>('');
+  /** 「次回から同じメッセージを使う」チェック時に保持するメッセージ（セッション内のみ）。 */
+  const rememberedCommitMessageRef = useRef<string | null>(null);
+  const [commitToGitHubDialog, setCommitToGitHubDialog] = useState<{ open: boolean; defaultPath: string } | null>(null);
 
   // エディタページでのみ body に editor-page クラスを付与し overflow: hidden を適用
   useEffect(() => {
@@ -146,6 +163,7 @@ export function useEditorPage({
   }, [isGitHubLoggedIn]);
 
   const handleContentChange = useCallback((content: string) => {
+    currentContentRef.current = content;
     if (originalContentRef.current != null) {
       setIsDirty(content !== originalContentRef.current);
     }
@@ -173,6 +191,9 @@ export function useEditorPage({
     setExternalFilePath(undefined);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
+    rememberedCommitMessageRef.current = null;
+    setCommitMessageDialog(null);
+    setCommitToGitHubDialog(null);
     if (isNowLoggedIn && !wasLoggedIn) {
       setSsoSnackbar(t('githubConnected'));
     } else if (!isNowLoggedIn && wasLoggedIn) {
@@ -247,11 +268,8 @@ export function useEditorPage({
     setDriveConflict(null);
   }, []);
 
-  const handleExternalSave = useCallback(async (content: string) => {
-    if (driveFileRef.current) {
-      await performDriveSave(content, driveFileRef.current.headRevisionId);
-      return;
-    }
+  /** GitHub Contents API への PUT を実行する（コミットメッセージ確定後）。 */
+  const performGitHubSave = useCallback(async (content: string, message: string) => {
     const sel = selectedFileRef.current;
     if (!sel) return;
     const res = await fetchFn('/api/github/content', {
@@ -262,6 +280,7 @@ export function useEditorPage({
         path: sel.filePath,
         content,
         branch: sel.branch,
+        message,
       }),
     });
     if (res.ok) {
@@ -277,7 +296,68 @@ export function useEditorPage({
       console.warn('Failed to save to GitHub:', (err as { error?: string }).error);
       setSaveSnackbar({ message: t('saveError'), severity: 'error' });
     }
-  }, [t, fetchFn, performDriveSave]);
+  }, [t, fetchFn]);
+
+  const handleExternalSave = useCallback(async (content: string) => {
+    if (driveFileRef.current) {
+      await performDriveSave(content, driveFileRef.current.headRevisionId);
+      return;
+    }
+    const sel = selectedFileRef.current;
+    if (!sel) return;
+    if (rememberedCommitMessageRef.current != null) {
+      await performGitHubSave(content, rememberedCommitMessageRef.current);
+      return;
+    }
+    pendingCommitContentRef.current = content;
+    setCommitMessageDialog({ open: true, defaultMessage: `Update ${sel.filePath}` });
+  }, [performDriveSave, performGitHubSave]);
+
+  /** コミットメッセージダイアログ確定: 保留中の保存を実行し、チェック時は以降のメッセージを記憶する。 */
+  const handleCommitMessageConfirm = useCallback(async (message: string, remember: boolean) => {
+    setCommitMessageDialog(null);
+    if (remember) {
+      rememberedCommitMessageRef.current = message;
+    }
+    await performGitHubSave(pendingCommitContentRef.current, message);
+  }, [performGitHubSave]);
+
+  /** コミットメッセージダイアログのキャンセル: 保存を中断し、成功通知は出さない。 */
+  const handleCommitMessageCancel = useCallback(() => {
+    setCommitMessageDialog(null);
+  }, []);
+
+  const handleOpenCommitToGitHub = useCallback((defaultPath: string) => {
+    setCommitToGitHubDialog({ open: true, defaultPath });
+  }, []);
+
+  const handleCloseCommitToGitHub = useCallback(() => {
+    setCommitToGitHubDialog(null);
+  }, []);
+
+  /** 任意ソース→GitHub コミット確定: 現在のエディタ本文（currentContentRef）を指定リポジトリへ PUT する。 */
+  const handleCommitToGitHubConfirm = useCallback(async (values: CommitToGitHubValues) => {
+    setCommitToGitHubDialog(null);
+    const res = await fetchFn('/api/github/content', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repo: values.repo,
+        path: values.path,
+        content: currentContentRef.current,
+        branch: values.branch,
+        message: values.message,
+      }),
+    });
+    if (res.ok) {
+      setSaveSnackbar({ message: t('githubCommitSuccess'), severity: 'success' });
+      return;
+    }
+    const err = await res.json().catch(() => ({}));
+    const detail = typeof (err as { error?: unknown }).error === 'string' ? (err as { error: string }).error : res.statusText;
+    console.warn(`Failed to commit to GitHub (status ${res.status}):`, detail);
+    setSaveSnackbar({ message: `${t('githubCommitError')} (${res.status}): ${detail}`, severity: 'error' });
+  }, [t, fetchFn]);
 
   /** Google Picker で Drive 上の Markdown ファイルを選択し、本文を読み込んでエディタへ反映する。 */
   const handleDriveOpen = useCallback(async () => {
@@ -371,6 +451,8 @@ export function useEditorPage({
     ssoSnackbar,
     driveConflict,
     hasDriveFile,
+    commitMessageDialog,
+    commitToGitHubDialog,
     handleToggleExplorer,
     handleExplorerSelectFile,
     handleExternalSave,
@@ -384,5 +466,10 @@ export function useEditorPage({
     handleDriveOpen,
     handleDriveConflictOverwrite,
     handleDriveConflictCancel,
+    handleCommitMessageConfirm,
+    handleCommitMessageCancel,
+    handleOpenCommitToGitHub,
+    handleCloseCommitToGitHub,
+    handleCommitToGitHubConfirm,
   };
 }
