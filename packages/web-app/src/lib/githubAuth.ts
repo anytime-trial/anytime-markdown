@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Spotify from "next-auth/providers/spotify";
+import { isGoogleTokenExpired, parseRefreshedToken } from "./googleToken";
 
 const result = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -28,28 +29,67 @@ const result = NextAuth({
       clientSecret: process.env.YOUTUBE_CLIENT_SECRET ?? "",
       authorization: {
         params: {
-          scope: "openid email profile https://www.googleapis.com/auth/youtube.force-ssl",
+          scope:
+            "openid email profile https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/drive.file",
+          access_type: "offline",
+          prompt: "consent",
         },
       },
     }),
   ],
   callbacks: {
-    jwt({ token, account }) {
+    async jwt({ token, account }) {
       if (account?.access_token) {
         if (account.provider === "spotify") {
           token.spotifyAccessToken = account.access_token;
         } else if (account.provider === "google") {
           token.youtubeAccessToken = account.access_token;
+          token.googleAccessToken = account.access_token;
+          token.googleRefreshToken = account.refresh_token;
+          token.googleTokenExpiresAt = account.expires_at
+            ? account.expires_at * 1000
+            : undefined;
         } else {
           token.accessToken = account.access_token;
         }
+        return token;
       }
+
+      if (
+        token.googleRefreshToken &&
+        isGoogleTokenExpired(token.googleTokenExpiresAt, Date.now())
+      ) {
+        const res = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: process.env.YOUTUBE_CLIENT_ID ?? "",
+            client_secret: process.env.YOUTUBE_CLIENT_SECRET ?? "",
+            grant_type: "refresh_token",
+            refresh_token: token.googleRefreshToken,
+          }),
+        });
+        if (res.ok) {
+          const payload = (await res.json()) as Record<string, unknown>;
+          const refreshed = parseRefreshedToken(payload, Date.now());
+          if (refreshed) {
+            token.googleAccessToken = refreshed.accessToken;
+            token.googleTokenExpiresAt = refreshed.expiresAt;
+          }
+        } else {
+          console.error(
+            `[${new Date().toISOString()}] [ERROR] Google token refresh failed: ${res.status} ${await res.text()}`,
+          );
+        }
+      }
+
       return token;
     },
     session({ session, token }) {
       session.accessToken = token.accessToken;
       session.spotifyAccessToken = token.spotifyAccessToken;
-      session.youtubeAccessToken = token.youtubeAccessToken;
+      session.googleAccessToken = token.googleAccessToken;
+      session.youtubeAccessToken = token.googleAccessToken ?? token.youtubeAccessToken;
       return session;
     },
   },
@@ -73,4 +113,10 @@ export async function getYouTubeToken(): Promise<string | null> {
   const session = await auth();
   if (!session) return null;
   return session.youtubeAccessToken ?? null;
+}
+
+export async function getGoogleToken(): Promise<string | null> {
+  const session = await auth();
+  if (!session) return null;
+  return session.googleAccessToken ?? null;
 }
