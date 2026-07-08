@@ -16,6 +16,7 @@
     "./view-element": "./src/view-element.ts",
     "./fs/web-file-system-provider": "./src/fs/webFileSystemProvider.ts",
     "./fs/drive-client": "./src/fs/driveClient.ts",
+    "./fs/drive-file-system-provider": "./src/fs/driveFileSystemProvider.ts",
     "./web-import/capture-page": "./src/webImport/capturePage.ts",
     "./src/*": "./src/*"
   },
