@@ -6,6 +6,7 @@ declare module "next-auth" {
     accessToken?: string;
     spotifyAccessToken?: string;
     youtubeAccessToken?: string;
+    googleAccessToken?: string;
   }
 }
 
@@ -14,5 +15,8 @@ declare module "next-auth/jwt" {
     accessToken?: string;
     spotifyAccessToken?: string;
     youtubeAccessToken?: string;
+    googleAccessToken?: string;
+    googleRefreshToken?: string;
+    googleTokenExpiresAt?: number;
   }
 }
