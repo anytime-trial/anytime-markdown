@@ -780,7 +780,16 @@
     "createFolder": "フォルダを作成",
     "filenamePlaceholder": "filename.md",
     "folderNamePlaceholder": "フォルダ名",
-    "defaultBranch": "デフォルト"
+    "defaultBranch": "デフォルト",
+    "driveOpen": "Google Drive から開く",
+    "driveOpenAria": "Google Drive から Markdown ファイルを開く",
+    "driveSignInRequired": "Google サインインが必要です",
+    "driveApiKeyMissing": "Google Drive 連携が未設定です",
+    "driveLoadError": "Drive ファイルの読み込みに失敗しました",
+    "driveSaveError": "Drive への保存に失敗しました",
+    "driveConflictTitle": "Drive 上のファイルが更新されています",
+    "driveConflictBody": "他の場所でこのファイルが変更されました。上書きして保存しますか?",
+    "driveConflictOverwrite": "上書きして保存"
   },
   "VsCode": {
     "metaTitle": "Visual Studio Code™ 拡張機能 - Anytime Markdown",

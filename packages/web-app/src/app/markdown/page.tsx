@@ -1,7 +1,10 @@
 'use client';
 
 import { COMMENT_PANEL_WIDTH, createMarkdownT, getDefaultContent } from '@anytime-markdown/markdown-viewer';
-import { Alert, Box, CircularProgress, Snackbar } from '@mui/material';
+import AddToDriveOutlinedIcon from '@mui/icons-material/AddToDriveOutlined';
+import {
+  Alert, Box, Button, CircularProgress, Snackbar,
+} from '@mui/material';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -11,6 +14,7 @@ import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
+import { DriveConflictDialog } from '../../components/DriveConflictDialog';
 import { downloadMarkdownBlob } from '../../lib/webImportProvider';
 import { useEditorPage } from './useEditorPage';
 
@@ -48,11 +52,14 @@ export default function Page() {
   const {
     externalContent, externalFileName,
     externalCompareContent, editorKey, isDirty, newCommit,
-    saveSnackbar, ssoSnackbar,
+    saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile,
     handleExplorerSelectFile, handleExternalSave,
     handleCompareModeChange, handleExplorerSelectCommit, handleSelectCurrent,
     handleContentChange, setSsoSnackbar, setSaveSnackbar, fileSystemProvider,
+    handleDriveOpen, handleDriveConflictOverwrite, handleDriveConflictCancel,
   } = useEditorPage({ isGitHubLoggedIn, session, t });
+  // 保存を外部（GitHub/Drive）へルーティングするか。Drive は enableGitHub フラグに依存しない独立経路のため OR で判定する。
+  const canExternalSave = isGitHubLoggedIn || hasDriveFile;
 
   const locale = useLocale();
   const vanillaT = useMemo(() => createMarkdownT('MarkdownEditor', locale), [locale]);
@@ -75,7 +82,35 @@ export default function Page() {
     <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <LandingHeader />
       <Box id="md-page-wrapper" sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
-      <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+      <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            px: 2,
+            py: 0.5,
+            borderBottom: 1,
+            borderColor: "divider",
+            flexShrink: 0,
+          }}
+        >
+          <Button
+            onClick={handleDriveOpen}
+            aria-label={t('driveOpenAria')}
+            size="small"
+            startIcon={<AddToDriveOutlinedIcon sx={{ fontSize: 18 }} />}
+            sx={{
+              textTransform: "none",
+              fontSize: "0.8rem",
+              color: "text.secondary",
+              "&:hover": { color: "text.primary" },
+            }}
+          >
+            {t('driveOpen')}
+          </Button>
+        </Box>
+        <Box sx={{ flex: 1, minHeight: 0 }}>
         <EmbedProvidersBoundary>
         <VanillaRichMarkdownEditor
           key={`${editorKey}-${locale}`}
@@ -92,7 +127,7 @@ export default function Page() {
           initialContent={externalContent ?? getDefaultContent(locale)}
           persistDraft={externalContent === undefined}
           fileName={externalFileName}
-          onExternalSave={isGitHubLoggedIn ? handleExternalSave : undefined}
+          onExternalSave={canExternalSave ? handleExternalSave : undefined}
           readOnly={externalContent !== undefined}
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar
@@ -104,6 +139,7 @@ export default function Page() {
           gridCols={process.env.NEXT_PUBLIC_GRID_COLS ? Number(process.env.NEXT_PUBLIC_GRID_COLS) : undefined}
         />
         </EmbedProvidersBoundary>
+        </Box>
       </Box>
       {enableGitHub && (
         <ExplorerPanel
@@ -148,6 +184,11 @@ export default function Page() {
           {saveSnackbar?.message}
         </Alert>
       </Snackbar>
+      <DriveConflictDialog
+        open={!!driveConflict}
+        onOverwrite={handleDriveConflictOverwrite}
+        onCancel={handleDriveConflictCancel}
+      />
       </Box>
     </Box>
   );

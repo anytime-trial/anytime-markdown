@@ -780,7 +780,16 @@
     "createFolder": "Create folder",
     "filenamePlaceholder": "filename.md",
     "folderNamePlaceholder": "folder name",
-    "defaultBranch": "default"
+    "defaultBranch": "default",
+    "driveOpen": "Open from Google Drive",
+    "driveOpenAria": "Open a Markdown file from Google Drive",
+    "driveSignInRequired": "Google sign-in required",
+    "driveApiKeyMissing": "Google Drive integration is not configured",
+    "driveLoadError": "Failed to load the Drive file",
+    "driveSaveError": "Failed to save to Drive",
+    "driveConflictTitle": "The Drive file was updated elsewhere",
+    "driveConflictBody": "This file was changed somewhere else. Overwrite and save anyway?",
+    "driveConflictOverwrite": "Overwrite and save"
   },
   "VsCode": {
     "metaTitle": "Visual Studio Code™ Extension - Anytime Markdown",

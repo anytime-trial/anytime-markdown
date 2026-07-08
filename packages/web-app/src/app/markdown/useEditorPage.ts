@@ -5,7 +5,53 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FallbackFileSystemProvider } from '../../lib/FallbackFileSystemProvider';
 import { fetchFileContent } from '../../lib/githubApi';
+import { pickDriveMarkdownFile } from '../../lib/googlePicker';
 import { WebFileSystemProvider } from '../../lib/WebFileSystemProvider';
+
+interface DriveFileRef {
+  fileId: string;
+  name: string;
+  headRevisionId: string;
+}
+
+export interface DriveConflict {
+  content: string;
+  latestHeadRevisionId: string;
+}
+
+/** unknown を Record<string, unknown> として安全に読むためのヘルパ（any 禁止のため）。 */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null) return null;
+  return value as Record<string, unknown>;
+}
+
+function parseGoogleTokenPayload(value: unknown): string | null {
+  const record = asRecord(value);
+  const accessToken = record?.accessToken;
+  return typeof accessToken === 'string' && accessToken.length > 0 ? accessToken : null;
+}
+
+interface DriveContentPayload {
+  name: string;
+  headRevisionId: string;
+  content: string;
+}
+
+function parseDriveContentPayload(value: unknown): DriveContentPayload | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const { name, headRevisionId, content } = record;
+  if (typeof name !== 'string' || typeof headRevisionId !== 'string' || typeof content !== 'string') {
+    return null;
+  }
+  return { name, headRevisionId, content };
+}
+
+function parseDriveHeadRevisionId(value: unknown): string | null {
+  const record = asRecord(value);
+  const headRevisionId = record?.headRevisionId;
+  return typeof headRevisionId === 'string' ? headRevisionId : null;
+}
 
 export interface EditorPageState {
   explorerOpen: boolean;
@@ -18,6 +64,9 @@ export interface EditorPageState {
   newCommit: { sha: string; message: string; author: string; date: string } | null;
   saveSnackbar: { message: string; severity: 'success' | 'error' } | null;
   ssoSnackbar: string | null;
+  driveConflict: DriveConflict | null;
+  /** 現在編集中のコンテンツが Google Drive から開かれたものか（onExternalSave の配線判定に使う）。 */
+  hasDriveFile: boolean;
 }
 
 export interface EditorPageActions {
@@ -31,6 +80,9 @@ export interface EditorPageActions {
   setSsoSnackbar: (v: string | null) => void;
   setSaveSnackbar: (v: { message: string; severity: 'success' | 'error' } | null) => void;
   fileSystemProvider: WebFileSystemProvider | FallbackFileSystemProvider | null;
+  handleDriveOpen: () => Promise<void>;
+  handleDriveConflictOverwrite: () => Promise<void>;
+  handleDriveConflictCancel: () => void;
 }
 
 interface UseEditorPageOptions {
@@ -61,11 +113,14 @@ export function useEditorPage({
   const [compareModeOpen, setCompareModeOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   const selectedFileRef = useRef<{ repo: string; filePath: string; branch: string } | null>(null);
+  const driveFileRef = useRef<DriveFileRef | null>(null);
   const selectedCommitContentRef = useRef<string | null>(null);
   const originalContentRef = useRef<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [newCommit, setNewCommit] = useState<{ sha: string; message: string; author: string; date: string } | null>(null);
   const [saveSnackbar, setSaveSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
+  const [driveConflict, setDriveConflict] = useState<DriveConflict | null>(null);
+  const [hasDriveFile, setHasDriveFile] = useState(false);
 
   // エディタページでのみ body に editor-page クラスを付与し overflow: hidden を適用
   useEffect(() => {
@@ -111,6 +166,8 @@ export function useEditorPage({
     const isNowLoggedIn = !!session;
     prevSessionRef.current = session;
     selectedFileRef.current = null;
+    driveFileRef.current = null;
+    setHasDriveFile(false);
     setExternalContent(undefined);
     setExternalFileName(undefined);
     setExternalFilePath(undefined);
@@ -135,6 +192,8 @@ export function useEditorPage({
     const prev = selectedFileRef.current;
     const isSameFile = prev?.repo === repo && prev?.filePath === filePath && prev?.branch === branch;
     selectedFileRef.current = { repo, filePath, branch };
+    driveFileRef.current = null;
+    setHasDriveFile(false);
     selectedCommitContentRef.current = null;
     if (isSameFile) return;
     setIsDirty(false);
@@ -148,7 +207,51 @@ export function useEditorPage({
     setEditorKey((k) => k + 1);
   }, [fetchFileFn]);
 
+  /** Drive への PUT を実行する。409（他所での更新）は driveConflict へ委譲し、成功/失敗は snackbar で通知する。 */
+  const performDriveSave = useCallback(async (content: string, headRevisionId: string) => {
+    const drive = driveFileRef.current;
+    if (!drive) return;
+    const res = await fetchFn('/api/drive/content', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId: drive.fileId, content, headRevisionId }),
+    });
+    if (res.status === 409) {
+      const data = await res.json().catch(() => null);
+      const latestHeadRevisionId = parseDriveHeadRevisionId(data) ?? headRevisionId;
+      setDriveConflict({ content, latestHeadRevisionId });
+      return;
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      const nextHeadRevisionId = parseDriveHeadRevisionId(data) ?? drive.headRevisionId;
+      driveFileRef.current = { ...drive, headRevisionId: nextHeadRevisionId };
+      originalContentRef.current = content;
+      setIsDirty(false);
+      setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
+      return;
+    }
+    const err = await res.json().catch(() => ({}));
+    console.warn('Failed to save to Drive:', (err as { error?: string }).error);
+    setSaveSnackbar({ message: t('driveSaveError'), severity: 'error' });
+  }, [t, fetchFn]);
+
+  const handleDriveConflictOverwrite = useCallback(async () => {
+    const conflict = driveConflict;
+    if (!conflict) return;
+    setDriveConflict(null);
+    await performDriveSave(conflict.content, conflict.latestHeadRevisionId);
+  }, [driveConflict, performDriveSave]);
+
+  const handleDriveConflictCancel = useCallback(() => {
+    setDriveConflict(null);
+  }, []);
+
   const handleExternalSave = useCallback(async (content: string) => {
+    if (driveFileRef.current) {
+      await performDriveSave(content, driveFileRef.current.headRevisionId);
+      return;
+    }
     const sel = selectedFileRef.current;
     if (!sel) return;
     const res = await fetchFn('/api/github/content', {
@@ -174,7 +277,52 @@ export function useEditorPage({
       console.warn('Failed to save to GitHub:', (err as { error?: string }).error);
       setSaveSnackbar({ message: t('saveError'), severity: 'error' });
     }
-  }, [t, fetchFn]);
+  }, [t, fetchFn, performDriveSave]);
+
+  /** Google Picker で Drive 上の Markdown ファイルを選択し、本文を読み込んでエディタへ反映する。 */
+  const handleDriveOpen = useCallback(async () => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY ?? '';
+    if (!apiKey) {
+      setSaveSnackbar({ message: t('driveApiKeyMissing'), severity: 'error' });
+      return;
+    }
+    const tokenRes = await fetchFn('/api/auth/google-token');
+    if (!tokenRes.ok) {
+      setSaveSnackbar({ message: t('driveSignInRequired'), severity: 'error' });
+      return;
+    }
+    const accessToken = parseGoogleTokenPayload(await tokenRes.json().catch(() => null));
+    if (!accessToken) {
+      setSaveSnackbar({ message: t('driveSignInRequired'), severity: 'error' });
+      return;
+    }
+
+    const picked = await pickDriveMarkdownFile(accessToken, apiKey);
+    if (!picked) return;
+
+    const contentRes = await fetchFn(`/api/drive/content?fileId=${encodeURIComponent(picked.fileId)}`);
+    if (!contentRes.ok) {
+      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
+      return;
+    }
+    const payload = parseDriveContentPayload(await contentRes.json().catch(() => null));
+    if (!payload) {
+      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
+      return;
+    }
+
+    driveFileRef.current = { fileId: picked.fileId, name: payload.name, headRevisionId: payload.headRevisionId };
+    selectedFileRef.current = null;
+    setHasDriveFile(true);
+    setIsDirty(false);
+    originalContentRef.current = payload.content;
+    localStorage.setItem(STORAGE_KEY_CONTENT, payload.content);
+    setExternalContent(undefined);
+    setExternalFileName(payload.name);
+    setExternalFilePath(payload.name);
+    setExternalCompareContent(null);
+    setEditorKey((k) => k + 1);
+  }, [fetchFn, t]);
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     setCompareModeOpen(active);
@@ -188,6 +336,8 @@ export function useEditorPage({
   }, []);
 
   const handleExplorerSelectCommit = useCallback(async (repo: string, filePath: string, sha: string) => {
+    driveFileRef.current = null;
+    setHasDriveFile(false);
     const content = await fetchFileFn(repo, filePath, sha);
     if (!content && content !== '') return;
     if (compareModeOpen) {
@@ -219,6 +369,8 @@ export function useEditorPage({
     newCommit,
     saveSnackbar,
     ssoSnackbar,
+    driveConflict,
+    hasDriveFile,
     handleToggleExplorer,
     handleExplorerSelectFile,
     handleExternalSave,
@@ -229,5 +381,8 @@ export function useEditorPage({
     setSsoSnackbar,
     setSaveSnackbar,
     fileSystemProvider,
+    handleDriveOpen,
+    handleDriveConflictOverwrite,
+    handleDriveConflictCancel,
   };
 }
