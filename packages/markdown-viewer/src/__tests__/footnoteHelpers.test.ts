@@ -67,6 +67,19 @@ describe("preprocessFootnoteRefs", () => {
     expect(preprocessFootnoteRefs(input)).toBe(input);
   });
 
+  test("コードスパンは行をまたいで閉じない（次行の [^1] は変換する）", () => {
+    const input = "open `code\nand [^1].";
+    const expected = 'open `code\nand <sup data-footnote-ref="1">1</sup>.';
+    expect(preprocessFootnoteRefs(input)).toBe(expected);
+  });
+
+  test("開始と異なる長さのバッククォート列では閉じない", () => {
+    const input = "``[^1]` tail";
+    expect(preprocessFootnoteRefs(input)).toBe(
+      '``<sup data-footnote-ref="1">1</sup>` tail',
+    );
+  });
+
   test("閉じないバッククォート列と長文の組み合わせでも線形時間で処理する", () => {
     // 旧実装の /(`+)(.*?)\1/ は開始バッククォート数 × 入力長に比例して膨らんだ
     const input = `x${"`".repeat(4001)}${"a".repeat(400_000)}`;
