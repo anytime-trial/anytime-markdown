@@ -6,7 +6,11 @@ const config = {
   testEnvironment: "jsdom",
   // viewer の setup（TextEncoder/Crypto polyfill）を共用（コピーせず drift を防ぐ）
   setupFiles: ["<rootDir>/../markdown-viewer/jest.setup.ts"],
-  transform: buildJestTransform(),
+  transform: {
+    ...buildJestTransform(),
+    // raw .md import はファイル実体の文字列へ（viewer の transformer を共用）
+    "^.+\\.md$": "<rootDir>/../markdown-viewer/__mocks__/mdTransformer.js",
+  },
   testMatch: ["<rootDir>/src/__tests__/**/*.test.ts", "<rootDir>/src/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json"],
   moduleNameMapper: {
