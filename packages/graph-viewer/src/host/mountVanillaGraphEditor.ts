@@ -50,8 +50,6 @@ import type { ShapeHoverBarHandle } from '../components-vanilla/ShapeHoverBar';
 import { createFilterPanel } from '../components-vanilla/FilterPanel';
 import { createDocEditorModal } from '../components-vanilla/DocEditorModal';
 import { createTextEditOverlay } from '../components-vanilla/TextEditOverlay';
-import { createContextMenu } from '../components-vanilla/ContextMenu';
-import type { ContextMenuHandle } from '../components-vanilla/ContextMenu';
 
 import { getLastDocumentId, loadDocument } from '../store/graphStorage';
 import { type AlignType, createDocument, createNode, ToolType, type Viewport } from '../types';
@@ -775,18 +773,6 @@ export function mountVanillaGraphEditor(
     confirmDialogEl = backdrop;
   }
 
-  // ── ContextMenu ───────────────────────────────────────────────────────────
-
-  let contextMenuHandle: ContextMenuHandle | null = null;
-
-  function closeContextMenu(): void {
-    if (contextMenuHandle) {
-      contextMenuHandle.close();
-      contextMenuHandle.el.remove();
-      contextMenuHandle = null;
-    }
-  }
-
   // ── ToolBar ────────────────────────────────────────────────────────────────
 
   const st1 = getState();
@@ -999,7 +985,6 @@ export function mountVanillaGraphEditor(
   // コンテキストメニュー（右クリック = 選択解除）
   function handleContextMenu(e: MouseEvent): void {
     e.preventDefault();
-    closeContextMenu();
     store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [] } });
     editingNodeId = null;
     docEditNodeId = null;
@@ -1343,7 +1328,6 @@ export function mountVanillaGraphEditor(
     if (filterPanelHandle) { filterPanelHandle.destroy(); filterPanelHandle = null; }
     if (settingsPanelHandle) { settingsPanelHandle.destroy(); settingsPanelHandle = null; }
     if (confirmDialogEl) { confirmDialogEl.remove(); confirmDialogEl = null; }
-    closeContextMenu();
 
     // rAF 解除（layoutRunning 中の loop）
     layoutRunning = false;

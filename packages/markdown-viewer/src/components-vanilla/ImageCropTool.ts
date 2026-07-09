@@ -90,7 +90,6 @@ export function createImageCropTool(
   opts: CreateImageCropToolOptions,
 ): ImageCropToolHandle {
   const { src, onCrop, t } = opts;
-  const handles: Array<{ destroy: () => void }> = [];
   let destroyed = false;
 
   // --- 状態（React useState 群の closure 置換） ---
@@ -676,7 +675,6 @@ export function createImageCropTool(
       document.removeEventListener("keydown", onKeyDown);
       for (const h of toolbarHandles) h.destroy();
       toolbarHandles = [];
-      for (const h of handles) h.destroy();
     },
   };
 }

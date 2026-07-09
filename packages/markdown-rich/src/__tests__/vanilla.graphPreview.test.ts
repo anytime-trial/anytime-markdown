@@ -247,11 +247,14 @@ describe("createGraphPreview", () => {
   });
 
   it("enabled=false で render → wrapper は空", () => {
-    const preview = createGraphPreview(document.createElement("div"), (key: string) => key);
-    const wrapper = (preview as any).wrapper ?? document.createElement("div");
+    const container = document.createElement("div");
+    const preview = createGraphPreview(container, (key: string) => key);
     preview.render("y=x", false, false);
-    // destroy 後もエラーが起きないことを確認
+    // createGraphPreview は container 直下に display:contents の wrapper を 1 つ作る
+    expect(container.childElementCount).toBe(1);
+    expect(container.firstElementChild?.innerHTML).toBe("");
     preview.destroy();
+    expect(container.innerHTML).toBe("");
   });
 
   it("destroy() を複数回呼んでもエラーにならない", () => {
