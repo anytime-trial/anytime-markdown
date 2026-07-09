@@ -14,7 +14,9 @@
  */
 const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 function resolveDbDir() {
   // 解決順: 明示引数 → ワークスペース(cwd)相対。Trail は <workspace>/.anytime/trail/db に DB を置く。
@@ -167,12 +169,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     '.next', 'coverage', '.worktrees', '.vscode-test',
   ]);
   const EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.cjs', '.mjs']);
-  // タグは分割構築(この grounding.cjs 自身が完全リテラルを含まず誤検出されないように)。
-  // コメント接頭辞付きのみ採用(コード中の文字列リテラルを拾わない)。
-  const TAG = 'SHORT' + 'CUT';
-  const NEEDLE = `${TAG}:`;
-  const MARKER_RE = new RegExp(String.raw`(?:\/\/|\/\*|\*|#)\s*${NEEDLE}`);
-  const UPGRADE_RE = /\bupgrade:/i;
+  // 判定は shortcutMarkers.cjs に一本化(CI ゲート scripts/check-shortcut-markers.mjs と同一実装。
+  // 折り返しコメント行を 1 ブロックとして ceiling/upgrade を判定する)。
+  const { collectShortcutMarkers, MARKER_NEEDLE } = require('./shortcutMarkers.cjs');
   const MAX_FILES = 20000;
   const markers = [];
   let scanned = 0;
@@ -187,13 +186,10 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       snapshot.errors.push(`techDebt read failed ${full}: ${e.message}`);
       return;
     }
-    if (!text.includes(NEEDLE)) return;
+    if (!text.includes(MARKER_NEEDLE)) return;
     const rel = path.relative(WS_ROOT, full);
-    const lines = text.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      if (MARKER_RE.test(lines[i])) {
-        markers.push({ file: rel, line: i + 1, noTrigger: !UPGRADE_RE.test(lines[i]) });
-      }
+    for (const m of collectShortcutMarkers(text)) {
+      markers.push({ file: rel, line: m.line, noTrigger: !m.hasUpgrade });
     }
   }
 
@@ -243,6 +239,96 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     };
   } catch (e) {
     snapshot.errors.push(`techDebt scan failed: ${e.message}`);
+  }
+}
+
+// ── source+trail: スキル健全性(鮮度・利用実績・参照切れ) ─────────────────────
+{
+  try {
+    const WS_ROOT = process.cwd();
+    const skillsDirs = [
+      path.join(WS_ROOT, '.claude', 'skills'),
+      path.join(os.homedir(), '.claude', 'skills'),
+    ].filter((d) => fs.existsSync(d));
+    const inventory = [];
+    for (const dir of skillsDirs) {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!e.isDirectory()) continue;
+        const f = path.join(dir, e.name, 'SKILL.md');
+        if (!fs.existsSync(f)) continue;
+        const m = /^更新日: (\d{4}-\d{2}-\d{2})/m.exec(fs.readFileSync(f, 'utf-8'));
+        inventory.push({ name: e.name, updated: m ? m[1] : null });
+      }
+    }
+    const STALE_DAYS = 90;
+    const staleBefore = Date.now() - STALE_DAYS * 86400000;
+    const stale = inventory.filter((s) => s.updated && Date.parse(s.updated) < staleBefore).map((s) => s.name);
+
+    const { db, error } = open('trail.db');
+    if (error) snapshot.errors.push(error);
+    const usage = rows(
+      q(db, `SELECT skill, COUNT(*) n FROM messages
+             WHERE skill IS NOT NULL AND skill != '' AND timestamp >= datetime('now','-30 days')
+             GROUP BY skill ORDER BY n DESC`),
+    );
+    // messages.skill は 'superpowers:writing-plans' 等の名前空間付きで記録され得るため末尾名で突合する
+    const used = new Set(usage.map((u) => String(u.skill).split(':').pop()));
+    if (db) db.close();
+
+    const refs = spawnSync(
+      process.execPath,
+      [path.join(WS_ROOT, 'scripts', 'check-skill-refs.mjs'), '--json', ...skillsDirs],
+      { encoding: 'utf-8' },
+    );
+    let brokenRefs = null; // 測定不能は null(0 と区別し「改善」と誤読させない)
+    if (refs.stdout) {
+      try {
+        const parsed = JSON.parse(refs.stdout);
+        brokenRefs = parsed.reduce((s, r) => s + r.missingRefs.length + r.missingScripts.length, 0);
+      } catch (e) {
+        snapshot.errors.push(`skillHealth refs parse failed: ${e.message}`);
+      }
+    } else {
+      snapshot.errors.push(`skillHealth refs run failed: ${refs.error ? refs.error.message : refs.status}`);
+    }
+
+    snapshot.skillHealth = {
+      total: inventory.length,
+      noUpdateDate: inventory.filter((s) => !s.updated).length,
+      staleOver90: stale.length,
+      staleSamples: stale.slice(0, 8),
+      // trail.db 不開時は usage が空になり「全スキル未使用」と誤読されるため測定不能 null にする(brokenRefs と同原則)
+      unused30d: error ? null : inventory.filter((s) => !used.has(s.name)).length,
+      usageTop: error ? null : usage.slice(0, 10).map((u) => ({ skill: u.skill, n: u.n })),
+      brokenRefs,
+    };
+  } catch (e) {
+    snapshot.errors.push(`skillHealth scan failed: ${e.message}`);
+  }
+}
+
+// ── memory: 再発検知(「2 回再発で昇格」ルールの決定論走査) ─────────────────────
+// ~/.claude/CLAUDE.md メモリ運用の昇格判断(罠の再発→constraint 化)を記憶頼みにしないための候補提示。
+// 検出のみで自動書き込みはしない(メモリ領域は保護領域)。
+{
+  try {
+    const { encodeProjectDir, detectDanglingClusters, findUncoveredBugFiles, scanMemoryDir } = require('./recurrence.cjs');
+    const memoryDir = process.env.ANYTIME_MEMORY_DIR
+      || path.join(os.homedir(), '.claude', 'projects', encodeProjectDir(process.cwd()), 'memory');
+    const { available, memories, errors } = scanMemoryDir(memoryDir);
+    snapshot.errors.push(...(errors ?? []));
+    // dir 不在は測定不能 null(0 と区別し「候補なし」と誤読させない。skillHealth の brokenRefs と同原則)
+    snapshot.recurrence = available
+      ? {
+          memoryDir,
+          memoryCount: memories.length,
+          feedbackMemoryCount: memories.filter((m) => m.type === 'feedback').length,
+          danglingClusters: detectDanglingClusters(memories).slice(0, 8),
+          uncoveredBugFiles: findUncoveredBugFiles((snapshot.quality ?? {}).topBugFiles, memories).slice(0, 8),
+        }
+      : { memoryDir, memoryCount: null, feedbackMemoryCount: null, danglingClusters: null, uncoveredBugFiles: null };
+  } catch (e) {
+    snapshot.errors.push(`recurrence scan failed: ${e.message}`);
   }
 }
 

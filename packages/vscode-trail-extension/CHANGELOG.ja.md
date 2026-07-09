@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-07-09
+
+### 追加
+
+- `get_verification_status` MCP ツール: 検証台帳 (`verification.db`) を読み取り、どの検証コマンドが実行されたかを返す。保護領域パスガードと `busy_timeout` 付き。
+
+### Trail Core (trail-core / trail-server / trail-viewer / agent-core)
+
+- `agent-core`: worker エントリで `argv` 由来の `workspaceRoot` を検証し、`chmod` 失敗を警告する。
+- `trail-viewer`: `flatMap` への単項コールバック直渡しを明示ラップへ変更 (CodeQL js/superfluous-trailing-arguments)。
+- `trail-server`: 非 Promise への不要な `await` を除去 (Sonar S4123)。
+
 ## [0.31.2] - 2026-07-02
 
 ### Trail Core (trail-viewer)

@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/markdown-viewer",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -15,6 +15,9 @@
     "./element": "./src/element.ts",
     "./view-element": "./src/view-element.ts",
     "./fs/web-file-system-provider": "./src/fs/webFileSystemProvider.ts",
+    "./fs/drive-client": "./src/fs/driveClient.ts",
+    "./fs/drive-file-system-provider": "./src/fs/driveFileSystemProvider.ts",
+    "./web-import/capture-page": "./src/webImport/capturePage.ts",
     "./src/*": "./src/*"
   },
   "scripts": {

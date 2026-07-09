@@ -500,7 +500,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     }
     const startedAt = Date.now();
     await analyzeAllRunner.runOnce('import');
-    const result = await analyzeAllRunner.getLastImportResult();
+    const result = analyzeAllRunner.getLastImportResult();
     if (!result) {
       throw new Error('importAll did not produce a result');
     }

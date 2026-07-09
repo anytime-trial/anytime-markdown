@@ -6,22 +6,25 @@ description: anytime-markdown の i18n キー（packages/<viewer>/src/i18n/{ja,e
 
 # i18n キー命名規則
 
-更新日: 2026-05-03
+更新日: 2026-07-04
 
-anytime-markdown の TypeScript ベース i18n (`packages/<viewer>/src/i18n/{ja,en}.ts` など) でキーを追加・変更する際の命名規則。VS Code 拡張の `package.nls*.json` (NLS) は別フォーマットだが基本原則は同じ。
+anytime-markdown の i18n でキーを追加・変更する際の命名規則。パッケージによって実装形式が異なり、本ルール（ドット区切り階層キー・`types.ts`・`ja.ts`/`en.ts`）は **trail-viewer にのみ全面適用される**。他パッケージはフラット `{en,ja}.json` 形式または web-app の next-intl 方式であり、階層キー原則は適用されない（詳細は下表・各節の注記を参照）。VS Code 拡張の `package.nls*.json` (NLS) は別フォーマットだが基本原則は参考にできる。
 
 ## 適用範囲
 
-| 対象 | パス |
-| --- | --- |
-| trail-viewer | `packages/trail-viewer/src/i18n/{types,ja,en}.ts` |
-| graph-viewer | `packages/graph-viewer/src/i18n/` |
-| spreadsheet-viewer | `packages/spreadsheet-viewer/src/i18n/` |
-| markdown-core | `packages/markdown-core/src/i18n/` |
-| web-app | `packages/web-app/src/i18n/` |
-| VS Code NLS | `packages/<ext>/package.nls{,.ja}.json` (基本原則のみ参考) |
+| 対象 | パス | 形式 |
+| --- | --- | --- |
+| trail-viewer | `packages/trail-viewer/src/i18n/{types,ja,en}.ts` | ドット区切り階層キー（本ルール全面適用）。`types.ts` でインタフェース定義 |
+| graph-viewer | `packages/graph-viewer/src/i18n/{en,ja}.json` | フラット単一 namespace（`createGraphT.ts` で参照）。`types.ts` なし・ドット階層不可 |
+| spreadsheet-viewer | `packages/spreadsheet-viewer/src/i18n/{en,ja}.json` | フラット単一 namespace（`createSpreadsheetT.ts` で参照）。`types.ts` なし・ドット階層不可 |
+| markdown-viewer | `packages/markdown-viewer/src/i18n/{en,ja}.json` | フラット単一 namespace・**camelCase キー必須**（`createMarkdownT.ts` で参照）。`types.ts` なし・ドット階層不可（[[markdown-viewer-i18n-flat-key-constraint]]） |
+| web-app | `packages/web-app/src/i18n/messages.ts` | next-intl 方式。`src/i18n/messages.ts` が `app/**/i18n/{en,ja}.json`（例: `app/press/i18n/`）を名前空間ごとに集約する単一の真実源。`en.ts`/`ja.ts` は存在しない |
+| VS Code NLS | `packages/<ext>/package.nls{,.ja}.json` (基本原則のみ参考) | table-driven（NLS 独自） |
 
-## 1. 階層構造
+> [!IMPORTANT]
+> 以下 1〜8 節のドット区切り階層・`.description` 等のサフィックス規則・チェックリストの `ja.ts`/`en.ts`/`types.ts` 項目は **trail-viewer 系のみ対象**。graph-viewer / spreadsheet-viewer / markdown-viewer のフラット `{en,ja}.json` にはドット階層原則は適用されない（単一 namespace 内のフラットキーで、markdown-viewer は camelCase 単語列のみ、例: `mdEmbedOpen`）。web-app は next-intl の namespace 構造（`messages.ts` 集約）に従う。
+
+## 1. 階層構造（trail-viewer 対象）
 
 ドット区切りの階層キーで、深さは **2〜4 段** に収める。
 
@@ -93,9 +96,9 @@ anytime-markdown の TypeScript ベース i18n (`packages/<viewer>/src/i18n/{ja,
 - **孤立キー** — types.ts に定義されているが consumer ゼロのキー (例: 過去の `trace.showSystemMessages`) は YAGNI で削除する
 - **`title` サフィックスをタブラベル用途で使う** — `releases.title` をタブラベルにしていた past pattern。`viewer.tab.releases` に移行済み
 
-## 7. 新規キー追加チェックリスト
+## 7. 新規キー追加チェックリスト（trail-viewer 対象）
 
-新しいキーを追加するときは以下を確認する:
+新しいキーを追加するときは以下を確認する（`ja.ts`/`en.ts`/`types.ts` の 3 項目は trail-viewer のみ。他パッケージは対応する `{en,ja}.json` の両方に追加したかを確認する）:
 
 - [ ] 該当する top namespace は既存にあるか? (新規導入は避ける)
 - [ ] 階層は 2〜4 段に収まっているか?

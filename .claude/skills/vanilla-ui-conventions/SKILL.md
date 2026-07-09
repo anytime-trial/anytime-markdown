@@ -14,7 +14,7 @@ description: packages/markdown-viewer（脱React の vanilla DOM エディタ）
 
 | 対象 | 例 |
 | --- | --- |
-| ui-vanilla コンポーネント | `packages/markdown-viewer/src/ui-vanilla/*`・`components-vanilla/*` |
+| ui-vanilla コンポーネント | `packages/markdown-viewer/src/components-vanilla/*` |
 | エディタ状態購読 | `editor.on(...)` を張る host / chrome / panel |
 | コメント状態の購読・変更・クリア | `CommentPanel` / `commentNotifications` / クリア経路 |
 

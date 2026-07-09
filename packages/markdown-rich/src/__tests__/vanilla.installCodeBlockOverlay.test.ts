@@ -74,7 +74,8 @@ describe("installCodeBlockOverlay", () => {
       getHideGraph: () => true,
       getStyle: () => ({ editorBg: "white", fontSize: 14, lineHeight: 1.5 }),
     });
-    dispose();
+    expect(typeof dispose).toBe("function");
+    expect(() => dispose()).not.toThrow();
     editor.destroy();
   });
 });

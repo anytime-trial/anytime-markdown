@@ -23,7 +23,11 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage"],
+  "permissions": ["storage", "contextMenus", "activeTab", "scripting", "identity"],
+  "oauth2": {
+    "client_id": "REPLACE_WITH_CHROME_EXTENSION_OAUTH_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/drive.file"]
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   }

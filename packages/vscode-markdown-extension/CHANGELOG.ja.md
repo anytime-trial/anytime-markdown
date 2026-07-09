@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-09
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Google Drive の Markdown を revision 突合の競合検出付きで開閉・保存する `DriveFileSystemProvider` を追加。
+- Google Drive API リクエストとページキャプチャの共有純粋関数を追加。
+- コードスパン保護の多項式 ReDoS を修正 (CodeQL js/polynomial-redos)。
+
 ## [1.9.1] - 2026-07-02
 
 ### セキュリティ

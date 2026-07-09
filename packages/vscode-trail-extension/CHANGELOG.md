@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-07-09
+
+### Added
+
+- `get_verification_status` MCP tool: reads the verification ledger (`verification.db`) and reports which verification commands ran, with a protected-path guard and a `busy_timeout`.
+
+### Trail Core (trail-core / trail-server / trail-viewer / agent-core)
+
+- `agent-core`: the worker entry point now validates the `workspaceRoot` taken from `argv` and warns when `chmod` fails.
+- `trail-viewer`: pass an explicit wrapper to `flatMap` instead of a bare unary callback (CodeQL js/superfluous-trailing-arguments).
+- `trail-server`: dropped an unnecessary `await` on a non-Promise value (Sonar S4123).
+
 ## [0.31.2] - 2026-07-02
 
 ### Trail Core (trail-viewer)

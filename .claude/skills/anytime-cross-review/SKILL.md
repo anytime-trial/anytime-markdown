@@ -6,6 +6,8 @@ description: develop マージ前に Claude(pr-review-toolkit:code-reviewer suba
 
 # anytime-cross-review — Claude × Codex 相互レビュー
 
+更新日: 2026-06-23
+
 develop マージ前の品質ゲートを Claude と Codex の**二者独立レビュー＋相互検証**へ拡張する。設計は `/Shared/anytime-markdown-docs/plan/20260623-codex-cross-review-design.ja.md`。
 
 - 対象: 作業ブランチ → develop の diff（`<base>..HEAD`・既定 base=develop）。

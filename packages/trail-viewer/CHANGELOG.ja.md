@@ -20,6 +20,7 @@
 
 ### 修正
 
+- `flatMap` への単項コールバック直渡しを明示ラップへ変更 (CodeQL js/superfluous-trailing-arguments)。
 - C4 選択要素 詳細パネルの欠落セクションを復元。
 - C4 の defectRisk / TC コントロールバー不可視を解消し leftPanel 列へ集約。
 - Ghost Edges / Hotspot オーバーレイ操作パネルが C4 左コントロールパネルと重なる問題を解消。

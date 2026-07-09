@@ -167,9 +167,27 @@ describe("useEditorPage", () => {
         await result.current.handleExternalSave("# Updated");
       });
 
+      // GitHub 保存はコミットメッセージダイアログを経由する（Task10）。
+      expect(result.current.commitMessageDialog).toEqual(
+        expect.objectContaining({ open: true, defaultMessage: "Update README.md" }),
+      );
+      expect(fetchFn).not.toHaveBeenCalledWith("/api/github/content", expect.anything());
+
+      await act(async () => {
+        await result.current.handleCommitMessageConfirm("update", false);
+      });
+
       expect(fetchFn).toHaveBeenCalledWith("/api/github/content", expect.objectContaining({
         method: "PUT",
+        body: JSON.stringify({
+          repo: "owner/repo",
+          path: "README.md",
+          content: "# Updated",
+          branch: "main",
+          message: "update",
+        }),
       }));
+      expect(result.current.commitMessageDialog).toBeNull();
       expect(result.current.isDirty).toBe(false);
       expect(result.current.newCommit).toEqual(
         expect.objectContaining({ sha: "abc" }),
@@ -196,7 +214,78 @@ describe("useEditorPage", () => {
         await result.current.handleExternalSave("# Updated");
       });
 
+      await act(async () => {
+        await result.current.handleCommitMessageConfirm("update", false);
+      });
+
       expect(result.current.saveSnackbar).toEqual({ message: "saveError", severity: "error" });
+    });
+
+    it("コミットメッセージダイアログをキャンセルすると保存しない", async () => {
+      const fetchFileFn = jest.fn().mockResolvedValue("# Original");
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      }) as unknown as typeof fetch;
+
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFileFn, fetchFn })),
+      );
+
+      await act(async () => {
+        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+      });
+      fetchFn.mockClear();
+
+      await act(async () => {
+        await result.current.handleExternalSave("# Updated");
+      });
+      act(() => result.current.handleCommitMessageCancel());
+
+      expect(result.current.commitMessageDialog).toBeNull();
+      expect(fetchFn).not.toHaveBeenCalledWith("/api/github/content", expect.anything());
+      expect(result.current.saveSnackbar).toBeNull();
+    });
+
+    it("「次回から同じメッセージを使う」を選ぶと以降の保存でダイアログをスキップする", async () => {
+      const fetchFileFn = jest.fn().mockResolvedValue("# Original");
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      }) as unknown as typeof fetch;
+
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFileFn, fetchFn })),
+      );
+
+      await act(async () => {
+        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+      });
+
+      await act(async () => {
+        await result.current.handleExternalSave("# Updated once");
+      });
+      await act(async () => {
+        await result.current.handleCommitMessageConfirm("remembered message", true);
+      });
+      fetchFn.mockClear();
+
+      await act(async () => {
+        await result.current.handleExternalSave("# Updated twice");
+      });
+
+      // 2回目は remember 済みのため、ダイアログを経由せず即座に PUT される。
+      expect(result.current.commitMessageDialog).toBeNull();
+      expect(fetchFn).toHaveBeenCalledWith("/api/github/content", expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          repo: "owner/repo",
+          path: "README.md",
+          content: "# Updated twice",
+          branch: "main",
+          message: "remembered message",
+        }),
+      }));
     });
 
     it("ファイル未選択時は保存しない", async () => {

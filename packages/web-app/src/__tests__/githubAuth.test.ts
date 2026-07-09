@@ -19,21 +19,21 @@ import { getGitHubToken } from "../lib/githubAuth";
 describe("auth config callbacks", () => {
   const config = nextAuthMock._getCapturedConfig();
 
-  it("callbacks.jwt が account の access_token をトークンに保存する", () => {
+  it("callbacks.jwt が account の access_token をトークンに保存する", async () => {
     const jwt = config.callbacks?.jwt;
     expect(jwt).toBeDefined();
 
-    const result = jwt!({
+    const result = await jwt!({
       token: { sub: "1" },
       account: { access_token: "ghp_abc", provider: "github", type: "oauth", providerAccountId: "1" },
     });
     expect(result).toEqual({ sub: "1", accessToken: "ghp_abc" });
   });
 
-  it("callbacks.jwt が account なしの場合はトークンをそのまま返す", () => {
+  it("callbacks.jwt が account なしの場合はトークンをそのまま返す", async () => {
     const jwt = config.callbacks?.jwt;
 
-    const result = jwt!({
+    const result = await jwt!({
       token: { sub: "1", accessToken: "existing" },
     });
     expect(result).toEqual({ sub: "1", accessToken: "existing" });

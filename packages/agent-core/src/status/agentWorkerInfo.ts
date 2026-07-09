@@ -44,8 +44,9 @@ export function writeWorkerInfo(jsonPath: string, info: AgentWorkerInfo): void {
   writeFileSync(tmp, JSON.stringify(info, null, 2));
   try {
     chmodSync(tmp, 0o600);
-  } catch {
-    // tmpfs may not support chmod
+  } catch (err) {
+    // tmpfs 等 chmod 非対応の FS では 0600 を付けられない。トークンを含むため警告する。
+    console.warn(`[agent-status] failed to chmod 0600 worker info ${tmp}: ${String(err)}`);
   }
   renameSync(tmp, jsonPath);
 }

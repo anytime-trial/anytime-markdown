@@ -79,6 +79,27 @@ await build({
   outfile: `${OUT_DIR}/background.js`,
 });
 
+// コンテキストメニュー「anytime-markdown で編集」用の注入スクリプト。
+// chrome.scripting.executeScript({ files }) は注入スクリプトの completion value を
+// InjectionResult.result として返す。IIFE 本体（無名関数でラップ）内の最終式は
+// ラップ関数のローカルな completion value に留まり注入結果には表れないため、
+// footer で IIFE の外側（ファイル末尾＝スクリプト全体の最終式）に
+// 「globalThis 退避値を読み出して削除し、その値自体を最終式として残す」処理を
+// 追記して completion value を成立させる。
+await build({
+  entryPoints: ["src/pageCapture.ts"],
+  bundle: true,
+  format: "iife",
+  target: "es2023",
+  platform: "browser",
+  sourcemap: false,
+  minify: true,
+  outfile: `${OUT_DIR}/pageCapture.js`,
+  footer: {
+    js: "var __amCaptureResult=globalThis.__amPageCaptureResult;delete globalThis.__amPageCaptureResult;__amCaptureResult;",
+  },
+});
+
 // 静的アセット（manifest / html / icons）をコピー。
 cpSync("public", OUT_DIR, { recursive: true });
 

@@ -47,6 +47,27 @@ export function createMenu(opts: MenuOptions): MenuHandle {
 
   let point: MenuPosition | null = null;
   let xform = DEFAULT_TRANSFORM_ORIGIN;
+  // 画面端との最小マージン（px）
+  const VIEWPORT_MARGIN = 8;
+
+  /**
+   * mount 済みの paper がビューポートからはみ出す場合、内側へ寄せる。
+   * anchorPosition（右クリック座標）は画面端で指定されうるため、そのまま配置すると
+   * 項目が画面外に出て押せなくなる。transform 適用後の実測矩形を基準に補正する。
+   */
+  function clampIntoViewport(el: HTMLElement, anchor: MenuPosition): void {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return; // jsdom 等、レイアウト非計算環境
+
+    const overflowRight = rect.right - (globalThis.innerWidth - VIEWPORT_MARGIN);
+    if (overflowRight > 0) {
+      el.style.left = `${Math.max(VIEWPORT_MARGIN, anchor.left - overflowRight)}px`;
+    }
+    const overflowBottom = rect.bottom - (globalThis.innerHeight - VIEWPORT_MARGIN);
+    if (overflowBottom > 0) {
+      el.style.top = `${Math.max(VIEWPORT_MARGIN, anchor.top - overflowBottom)}px`;
+    }
+  }
 
   if (anchorReference === 'anchorPosition' && anchorPosition) {
     point = anchorPosition;
@@ -94,6 +115,7 @@ export function createMenu(opts: MenuOptions): MenuHandle {
 
   document.body.appendChild(backdrop);
   document.body.appendChild(paper);
+  clampIntoViewport(paper, point);
   paper.focus();
 
   function close(): void {

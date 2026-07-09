@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-07-09
+
+### Added
+
+- Open and edit Markdown files stored on Google Drive through the Google Picker, with conflict detection on save.
+- `/api/drive/content` read/write proxy and a Google Picker loader.
+- Commit-message input when saving to GitHub, and GitHub commits from any document source.
+- `drive.file` scope on the Google provider, plus refresh-token renewal, with pure helpers for token-expiry checks and refresh-response parsing.
+
+### Changed
+
+- Narrowed the GitHub commit response with type guards instead of `as` assertions.
+
+### CI/CD
+
+- `verification.db` verification ledger: the `run-verified` wrapper records verification commands, and `generate-test-report` renders a submittable test report from it.
+- Skill-reference existence lint (`check-skill-refs.mjs`) wired into the `check-skills` job.
+- `SHORTCUT:` marker gate (`check-shortcut-markers.mjs`) for structured simplification markers.
+
 ## [0.34.1] - 2026-07-02
 
 ### Changed

@@ -1,6 +1,6 @@
 # CLAUDE.md（anytime-markdown プロジェクト固有）
 
-更新日: 2026-06-27
+更新日: 2026-07-02
 
 > 汎用の作業スタイル・Git 哲学・サブエージェント方針・応答ルールは `~/.claude/CLAUDE.md`（global）に従う。\
 > ツール中立な規約（リポジトリ構成・ドキュメント正本の位置づけ・出力先・モノレポ構造・Git 基本）は `AGENTS.md`（Claude / Codex 共通）に従う。\
@@ -27,7 +27,7 @@
 
   **注意**: Trail 拡張のインポートラグ（数十分〜VS Code リロード）のため直近データは未取込の場合あり。
 
-- **discovery 順序（mcp-trail discovery ツール優先）**: 構造・依存・所在の探索は `get_important_files`（どこから読むか）→ `get_code_dependencies`（影響範囲・filePath 可）/ `query_code_graph`（所在・検索専用）/ `find_code_path` / `get_cochange_partners` → Serena（本文）→ Read（編集箇所）の順。詳細は global `~/.claude/CLAUDE.md`「discovery の順序」。`current_code_graphs.graph_json` の丸読み（約43万トークン）と `list_relationships` の影響範囲用途は禁止（後者は手動 C4 専用）。TrailDataServer 稼働が前提（未起動時はエラー）。
+- **discovery 順序（mcp-trail discovery ツール優先）**: 構造・依存・所在の探索は (1) どこから読むか＝`get_important_files`（filter: central/dead/barrel/risky）→ (2) 影響範囲＝`get_code_dependencies`（filePath 可・incoming/outgoing）/ シンボル所在＝`query_code_graph`（検索専用・既定 summary）/ 接続経路＝`find_code_path` / 共変更＝`get_cochange_partners` → Serena（本文）→ Read（編集箇所）の順（原則は global `~/.claude/CLAUDE.md`「discovery の順序」）。`current_code_graphs.graph_json` の丸読み（約43万トークン）と `list_relationships` の影響範囲用途は禁止（後者は手動 C4 専用。影響範囲は `get_code_dependencies` を使う）。TrailDataServer 稼働が前提（未起動時はエラー）。
 
 ## 並行セッション検知
 
@@ -35,7 +35,7 @@
 
 ## プロジェクト固有ルール
 
-以下のスキルは `/anytime-markdown/.claude/skills/` に配置されており、description のトリガに応じて該当作業時に Claude が参照する（旧 `.claude/rules/` から移行し、常時 memory ロードを progressive disclosure 化）。
+下表は `/anytime-markdown/.claude/skills/` 配下のうち、旧 `.claude/rules/` から移行したルール系スキルの抜粋（同ディレクトリには他のタスク用スキルも多数あり、網羅列挙はしない）。いずれも description のトリガに応じて該当作業時に Claude が参照する（常時 memory ロードの progressive disclosure 化）。
 
 | スキル | 適用タイミング |
 | --- | --- |

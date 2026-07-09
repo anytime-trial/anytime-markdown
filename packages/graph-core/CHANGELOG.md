@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-09
+
+### Fixed
+
+- Removed a ternary expression that always evaluated to the same value (Sonar S3923).
+
 ## [0.9.0] - 2026-06-30
 
 ### Added

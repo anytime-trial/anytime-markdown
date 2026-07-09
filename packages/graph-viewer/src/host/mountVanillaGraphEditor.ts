@@ -21,6 +21,7 @@ import type { LayoutAlgorithm } from '@anytime-markdown/graph-core/engine';
 import {
   alignBottom, alignCenterH, alignCenterV, alignLeft, alignRight, alignTop,
   distributeH, distributeV, fitToContent,
+  hitTest, hitTestEdge,
   pan as panViewport,
   physics,
   screenToWorld,
@@ -51,7 +52,7 @@ import { createFilterPanel } from '../components-vanilla/FilterPanel';
 import { createDocEditorModal } from '../components-vanilla/DocEditorModal';
 import { createTextEditOverlay } from '../components-vanilla/TextEditOverlay';
 import { createContextMenu } from '../components-vanilla/ContextMenu';
-import type { ContextMenuHandle } from '../components-vanilla/ContextMenu';
+import type { ContextMenuAction, ContextMenuHandle, ContextTarget } from '../components-vanilla/ContextMenu';
 
 import { getLastDocumentId, loadDocument } from '../store/graphStorage';
 import { type AlignType, createDocument, createNode, ToolType, type Viewport } from '../types';
@@ -781,9 +782,105 @@ export function mountVanillaGraphEditor(
 
   function closeContextMenu(): void {
     if (contextMenuHandle) {
+      // createMenu の close() が backdrop / paper 双方を remove する
       contextMenuHandle.close();
-      contextMenuHandle.el.remove();
       contextMenuHandle = null;
+    }
+  }
+
+  /**
+   * 右クリック位置の対象を判定する。
+   * hitTest は resize-handle / connection-point 等も返すが、コンテキストメニューでは
+   * ノード本体・エッジ・空キャンバスの 3 種のみ区別する。
+   */
+  function resolveContextTarget(e: MouseEvent): { targetType: ContextTarget; id: string | null } {
+    const st = getState();
+    const rect = canvasEl.getBoundingClientRect();
+    const viewport = st.document.viewport;
+    const { x: wx, y: wy } = screenToWorld(viewport, e.clientX - rect.left, e.clientY - rect.top);
+
+    const hit = hitTest({
+      nodes: st.document.nodes,
+      edges: st.document.edges,
+      wx,
+      wy,
+      scale: viewport.scale,
+      selectedNodeIds: st.selection.nodeIds,
+      selectedEdgeIds: st.selection.edgeIds,
+    });
+
+    if (hit.type === 'node' && hit.id) return { targetType: 'node', id: hit.id };
+    // 'edge' はエッジ本体、'edge-segment' は直交コネクタの中間セグメント。
+    // どちらも hit.id はエッジ ID（hitTest.ts: hitTestClosestEdge 参照）。
+    if ((hit.type === 'edge' || hit.type === 'edge-segment') && hit.id) {
+      return { targetType: 'edge', id: hit.id };
+    }
+
+    // フォールバック: hitTest はエッジ端点ハンドルや waypoint 等の他ヒットを優先するため、
+    // それらの許容半径内では 'edge'/'edge-segment' を返さないことがある。素の距離判定で
+    // エッジ上クリックを取りこぼさないよう全件スキャンで救う。
+    const edge = st.document.edges.find((ed) => hitTestEdge(ed, wx, wy, viewport.scale));
+    if (edge) return { targetType: 'edge', id: edge.id };
+
+    return { targetType: 'canvas', id: null };
+  }
+
+  /**
+   * 右クリック対象を選択状態へ反映する。dispatch した場合のみ true を返す。
+   * dispatch は購読者経由で syncUI() を同期実行するため、呼び出し側は
+   * false のときだけ明示的に syncUI() する（二重描画・二重アナウンス防止）。
+   */
+  function applyContextSelection(targetType: ContextTarget, id: string | null): boolean {
+    const selection = getState().selection;
+
+    if (targetType === 'node' && id) {
+      if (selection.nodeIds.includes(id)) return false;
+      store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [id], edgeIds: [] } });
+      return true;
+    }
+    if (targetType === 'edge' && id) {
+      if (selection.edgeIds.includes(id)) return false;
+      store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [id] } });
+      return true;
+    }
+    if (selection.nodeIds.length === 0 && selection.edgeIds.length === 0) return false;
+    store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [] } });
+    return true;
+  }
+
+  // コピー/貼り付けは createCanvasInteraction 側の既存実装（clipboard closure・キーボード
+  // ショートカットと共通）へ委譲する。store.dispatch は store.subscribe（後述）が同期的に
+  // syncUI() を呼ぶため、ここでの明示 syncUI() 呼び出しは二重描画になり不要（詳細は完了報告）。
+  function handleContextAction(action: ContextMenuAction): void {
+    switch (action) {
+      case 'copy':
+        canvasInteraction.copySelected();
+        return;
+      case 'paste':
+        void canvasInteraction.pasteFromClipboard();
+        return;
+      case 'delete':
+        store.dispatch({ type: 'DELETE_SELECTED' });
+        return;
+      case 'bringToFront':
+        store.dispatch({ type: 'BRING_TO_FRONT', nodeIds: getState().selection.nodeIds });
+        return;
+      case 'sendToBack':
+        store.dispatch({ type: 'SEND_TO_BACK', nodeIds: getState().selection.nodeIds });
+        return;
+      case 'group':
+        store.dispatch({ type: 'GROUP_SELECTED', groupId: crypto.randomUUID() });
+        return;
+      case 'ungroup':
+        store.dispatch({ type: 'UNGROUP_SELECTED' });
+        return;
+      case 'selectAll':
+        store.dispatch({ type: 'SELECT_ALL' });
+        return;
+      default: {
+        const exhaustive: never = action;
+        throw new Error(`unhandled context menu action: ${String(exhaustive)}`);
+      }
     }
   }
 
@@ -989,6 +1086,10 @@ export function mountVanillaGraphEditor(
 
   // パスハイライト用 Ctrl+Alt+Click
   function handleGlobalClick(e: MouseEvent): void {
+    if (contextMenuHandle && e.target instanceof Node && !contextMenuHandle.el.contains(e.target)) {
+      closeContextMenu();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.altKey && getState().selection.nodeIds.length === 1) {
       const selectedId = getState().selection.nodeIds[0];
       const currentOrigin = pathHighlight.getState().originNodeId;
@@ -996,14 +1097,40 @@ export function mountVanillaGraphEditor(
     }
   }
 
-  // コンテキストメニュー（右クリック = 選択解除）
+  // コンテキストメニュー（右クリック）
   function handleContextMenu(e: MouseEvent): void {
     e.preventDefault();
     closeContextMenu();
-    store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [] } });
+
+    const { targetType, id } = resolveContextTarget(e);
+
+    // closure 変数は store 外なので dispatch に伴う syncUI() より前にクリアする。
     editingNodeId = null;
     docEditNodeId = null;
-    syncUI();
+
+    // 未選択のノード/エッジを右クリックしたら、それだけを選択してからメニューを出す。
+    // applyContextSelection が dispatch した場合は購読者経由で syncUI() 済み。
+    // dispatch されなかった場合（既に選択済み・空キャンバスで選択が既に空）だけ明示的に呼ぶ。
+    if (!applyContextSelection(targetType, id)) syncUI();
+
+    contextMenuHandle = createContextMenu({
+      anchorPosition: { top: e.clientY, left: e.clientX },
+      targetType,
+      // システムクリップボードは同期問い合わせできない。内部クリップボードだけで
+      // disabled を決めると、別ドキュメントでコピーした直後に Ctrl+V は貼れるのに
+      // メニューの Paste だけ押せない非対称が生じる。常に有効化し、貼れるものが
+      // 無ければ pasteFromClipboard() が no-op で終わるのに任せる。
+      hasClipboard: true,
+      locale,
+      onAction: handleContextAction,
+      onClose: () => {
+        // Menu 側は項目クリック時のみ close() 済みで onClose を呼ぶ（handleAction）。
+        // backdrop クリック / Escape は close() を呼ばず onClose のみを直接呼ぶため
+        // （ui-vanilla/Menu.ts 実装）、ここで closeContextMenu() を呼び close() を保証する。
+        // close() は backdrop.remove() / paper.remove() とも冪等なため二重呼び出しでも安全。
+        closeContextMenu();
+      },
+    });
   }
 
   canvasEl.addEventListener('contextmenu', handleContextMenu);

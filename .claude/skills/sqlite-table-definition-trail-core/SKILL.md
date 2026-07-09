@@ -24,7 +24,7 @@ STRICT・CHECK・FK ON DELETE・timestamp GLOB・インデックス命名・12-s
 
 ## trail-core 固有の運用メモ
 
-- **マイグレーションは `.mts` で書く**: `tables.ts` の DDL を `import` して drift を防ぐ。`.mjs` での DDL inline 複製は禁止。実行は `node --experimental-strip-types scripts/migrate-X.mts <db-path>`。
+- **マイグレーションは `.mts` で書く**: `tables.ts` の DDL を `import` して drift を防ぐ。`.mjs` での DDL inline 複製は禁止。実行は `node --experimental-strip-types scripts/migrate-<topic>.mts <db-path>`。
 - **本番 `trail.db` への適用**: 直接実行せず、`cp` でコピー → 動作確認（integrity_check / foreign_key_check / row counts）→ VACUUM → 原子的 swap（`*.before-X-YYYYMMDD` でバックアップ）の順。詳細手順は global スキル §9.6 を参照。
 - **既存データ保持が前提**: trail.db は既存データを保持するため `ALTER TABLE` / 12-step migration を使う（Supabase の洗い替え方式とは異なる。`code-quality.md` §21 参照）。
 - **`sql.js`（WASM SQLite）のクエリ設計**: trail-viewer 等の sql.js 経由クエリは CTE + window 関数 + 非等値 JOIN + GROUP BY の組み合わせで性能崩壊する。シンプル範囲スキャン + JS 側集計に分解する（`code-quality.md` §16 参照）。

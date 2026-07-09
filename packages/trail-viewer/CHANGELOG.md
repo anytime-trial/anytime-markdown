@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- Pass an explicit wrapper to `flatMap` instead of a bare unary callback (CodeQL js/superfluous-trailing-arguments).
 - Restored the missing sections of the C4 selected-element details panel.
 - Resolved the invisible C4 defectRisk / TC control bar by moving it into the left-panel column.
 - Fixed the Ghost Edges and Hotspot overlay panels overlapping the C4 left control panel.

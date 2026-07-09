@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-09
+
+### Added
+
+- Right-click context menu in the graph editor: cut / copy / paste / delete and selection actions are wired to the canvas, Paste is always enabled to match `Ctrl+V`, and the menu is clamped inside the viewport.
+
+### Fixed
+
+- The context menu body is now painted in front of its backdrop (a missing z-index made the items unclickable).
+- Removed an unwired `ContextMenu` handle (CodeQL js/property-access-on-non-object).
+
+### Graph Core (graph-core)
+
+- Removed a ternary expression that always evaluated to the same value (Sonar S3923).
+
 ## [0.9.0] - 2026-06-30
 
 ### Graph Core (graph-core)

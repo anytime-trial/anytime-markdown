@@ -109,7 +109,7 @@ export function buildWhyChain(spec: WhyChainSpec, isDark: boolean): GraphDocumen
   const nodes: GraphNode[] = items.map((label, i) => {
     const isProblem = i === 0;
     const color = isProblem ? pal.accent : categoryColor(0, isDark);
-    return mkNode(`step-${i}`, isProblem ? 'rect' : 'rect', rects[i], label, {
+    return mkNode(`step-${i}`, 'rect', rects[i], label, {
       fill: withAlpha(color, isDark ? 0.18 : 0.12),
       stroke: color,
       strokeWidth: isProblem ? 2.5 : 2,
