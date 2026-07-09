@@ -1086,7 +1086,7 @@ export function mountVanillaGraphEditor(
 
   // パスハイライト用 Ctrl+Alt+Click
   function handleGlobalClick(e: MouseEvent): void {
-    if (contextMenuHandle && !contextMenuHandle.el.contains(e.target as Node)) {
+    if (contextMenuHandle && e.target instanceof Node && !contextMenuHandle.el.contains(e.target)) {
       closeContextMenu();
       return;
     }
@@ -1116,7 +1116,11 @@ export function mountVanillaGraphEditor(
     contextMenuHandle = createContextMenu({
       anchorPosition: { top: e.clientY, left: e.clientX },
       targetType,
-      hasClipboard: canvasInteraction.clipboard !== null,
+      // システムクリップボードは同期問い合わせできない。内部クリップボードだけで
+      // disabled を決めると、別ドキュメントでコピーした直後に Ctrl+V は貼れるのに
+      // メニューの Paste だけ押せない非対称が生じる。常に有効化し、貼れるものが
+      // 無ければ pasteFromClipboard() が no-op で終わるのに任せる。
+      hasClipboard: true,
       locale,
       onAction: handleContextAction,
       onClose: () => {

@@ -108,16 +108,37 @@ function queryMenuItems(): Element[] {
 describe('右クリックコンテキストメニュー配線（canvas 対象）', () => {
   let container: HTMLElement;
   let handle: GraphEditorHandle | null = null;
+  let originalClipboardDescriptor: PropertyDescriptor | undefined;
 
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+
+    // jsdom には navigator.clipboard が無い。pasteFromClipboard() の readText 経路を
+    // 再現するため、読み取り拒否（rejected）と writeText no-op でスタブする。
+    // navigator.clipboard は getter-only のことがあるため defineProperty で置換し、
+    // 元の記述子を afterEach で復元する。
+    originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText: jest.fn().mockRejectedValue(new Error('denied')),
+        writeText: jest.fn(),
+      },
+    });
   });
 
   afterEach(() => {
     handle?.destroy();
     handle = null;
     document.body.innerHTML = '';
+
+    if (originalClipboardDescriptor) {
+      Object.defineProperty(navigator, 'clipboard', originalClipboardDescriptor);
+    } else {
+      // 元々未定義だった場合は削除して漏れを防ぐ。
+      delete (navigator as { clipboard?: unknown }).clipboard;
+    }
   });
 
   it('空キャンバス右クリックで document.body にメニューが mount される', () => {
@@ -144,15 +165,44 @@ describe('右クリックコンテキストメニュー配線（canvas 対象）
     expect(items).toHaveLength(2);
   });
 
-  it('クリップボードが空のとき Paste 項目が disabled になる', () => {
+  it('クリップボードが空でも Paste 項目は有効（システムクリップボード非対称の回避）', () => {
+    // hasClipboard: true 固定（c572b1d2e 以降）。内部クリップボードだけで disabled を
+    // 決めると、別ドキュメントでコピー→ Ctrl+V は貼れるのにメニュー Paste だけ押せない
+    // 非対称が生じるため、常に有効化し pasteFromClipboard() の no-op に委ねる仕様。
     handle = mountVanillaGraphEditor(container, { persistence: emptyPersistence() });
 
     rightClickEmptyCanvas(getCanvasEl(container));
 
     const pasteItem = queryMenuItems().find((el) => el.textContent?.includes('Paste'));
     expect(pasteItem).toBeDefined();
-    expect(pasteItem?.getAttribute('aria-disabled')).toBe('true');
-    expect(pasteItem?.className).toContain('gv-menu-item--disabled');
+    expect(pasteItem?.getAttribute('aria-disabled')).not.toBe('true');
+    expect(pasteItem?.className).not.toContain('gv-menu-item--disabled');
+  });
+
+  it('クリップボードが空のまま Paste をクリックしても例外なくノードが増えない', async () => {
+    handle = mountVanillaGraphEditor(container, { persistence: emptyPersistence() });
+    await flushInitialLoad();
+
+    const canvasEl = getCanvasEl(container);
+    rightClickEmptyCanvas(canvasEl);
+
+    const pasteItem = queryMenuItems().find((el) => el.textContent?.includes('Paste'));
+    expect(pasteItem).toBeDefined();
+
+    // pasteFromClipboard() は navigator.clipboard.readText() を試み、失敗時は内部
+    // クリップボード（空なら null → no-op）へフォールバックする。読み取り拒否を再現する。
+    expect(() => {
+      pasteItem?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    }).not.toThrow();
+
+    // pasteFromClipboard() は async。readText の rejected と後続マイクロタスクを流す。
+    await flushInitialLoad();
+
+    // メニューは閉じ、空キャンバスのまま（ノードが増えていない）。
+    expect(queryMenuPaper()).toBeNull();
+    const liveRegion = container.querySelector('[role="status"]');
+    // 空キャンバスのアナウンス（emptyOverlay 表示）。nodeAdded は発火していない。
+    expect(canvasEl.getAttribute('aria-label')).toContain('0 nodes');
   });
 
   it('handle.destroy() でメニューと backdrop が DOM から消える', () => {
