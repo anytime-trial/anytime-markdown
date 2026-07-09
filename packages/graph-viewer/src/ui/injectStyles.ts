@@ -97,6 +97,9 @@ const CSS = `
 .gv-menu-backdrop { position: fixed; inset: 0; z-index: 1300; }
 .gv-menu-paper {
   position: fixed;
+  /* backdrop より必ず前面に置く。z-index 未指定だと backdrop(1300) が上に来て
+     メニュー項目のクリックを全て奪う（jsdom は当たり判定をしないため検知できない）。 */
+  z-index: 1301;
   box-sizing: border-box;
   min-width: 112px;
   max-height: calc(100vh - 32px);
