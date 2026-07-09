@@ -21,6 +21,7 @@ import type { LayoutAlgorithm } from '@anytime-markdown/graph-core/engine';
 import {
   alignBottom, alignCenterH, alignCenterV, alignLeft, alignRight, alignTop,
   distributeH, distributeV, fitToContent,
+  hitTest, hitTestEdge,
   pan as panViewport,
   physics,
   screenToWorld,
@@ -50,6 +51,8 @@ import type { ShapeHoverBarHandle } from '../components-vanilla/ShapeHoverBar';
 import { createFilterPanel } from '../components-vanilla/FilterPanel';
 import { createDocEditorModal } from '../components-vanilla/DocEditorModal';
 import { createTextEditOverlay } from '../components-vanilla/TextEditOverlay';
+import { createContextMenu } from '../components-vanilla/ContextMenu';
+import type { ContextMenuAction, ContextMenuHandle, ContextTarget } from '../components-vanilla/ContextMenu';
 
 import { getLastDocumentId, loadDocument } from '../store/graphStorage';
 import { type AlignType, createDocument, createNode, ToolType, type Viewport } from '../types';
@@ -773,6 +776,84 @@ export function mountVanillaGraphEditor(
     confirmDialogEl = backdrop;
   }
 
+  // ── ContextMenu ───────────────────────────────────────────────────────────
+
+  let contextMenuHandle: ContextMenuHandle | null = null;
+
+  function closeContextMenu(): void {
+    if (contextMenuHandle) {
+      // createMenu の close() が backdrop / paper 双方を remove する
+      contextMenuHandle.close();
+      contextMenuHandle = null;
+    }
+  }
+
+  /**
+   * 右クリック位置の対象を判定する。
+   * hitTest は resize-handle / connection-point 等も返すが、コンテキストメニューでは
+   * ノード本体・エッジ・空キャンバスの 3 種のみ区別する。
+   */
+  function resolveContextTarget(e: MouseEvent): { targetType: ContextTarget; id: string | null } {
+    const st = getState();
+    const rect = canvasEl.getBoundingClientRect();
+    const viewport = st.document.viewport;
+    const { x: wx, y: wy } = screenToWorld(viewport, e.clientX - rect.left, e.clientY - rect.top);
+
+    const hit = hitTest({
+      nodes: st.document.nodes,
+      edges: st.document.edges,
+      wx,
+      wy,
+      scale: viewport.scale,
+      selectedNodeIds: st.selection.nodeIds,
+      selectedEdgeIds: st.selection.edgeIds,
+    });
+
+    if (hit.type === 'node' && hit.id) return { targetType: 'node', id: hit.id };
+    if (hit.type === 'edge' && hit.id) return { targetType: 'edge', id: hit.id };
+
+    const edge = st.document.edges.find((ed) => hitTestEdge(ed, wx, wy, viewport.scale));
+    if (edge) return { targetType: 'edge', id: edge.id };
+
+    return { targetType: 'canvas', id: null };
+  }
+
+  // コピー/貼り付けは createCanvasInteraction 側の既存実装（clipboard closure・キーボード
+  // ショートカットと共通）へ委譲する。store.dispatch は store.subscribe（後述）が同期的に
+  // syncUI() を呼ぶため、ここでの明示 syncUI() 呼び出しは二重描画になり不要（詳細は完了報告）。
+  function handleContextAction(action: ContextMenuAction): void {
+    switch (action) {
+      case 'copy':
+        canvasInteraction.copySelected();
+        return;
+      case 'paste':
+        void canvasInteraction.pasteFromClipboard();
+        return;
+      case 'delete':
+        store.dispatch({ type: 'DELETE_SELECTED' });
+        return;
+      case 'bringToFront':
+        store.dispatch({ type: 'BRING_TO_FRONT', nodeIds: getState().selection.nodeIds });
+        return;
+      case 'sendToBack':
+        store.dispatch({ type: 'SEND_TO_BACK', nodeIds: getState().selection.nodeIds });
+        return;
+      case 'group':
+        store.dispatch({ type: 'GROUP_SELECTED', groupId: crypto.randomUUID() });
+        return;
+      case 'ungroup':
+        store.dispatch({ type: 'UNGROUP_SELECTED' });
+        return;
+      case 'selectAll':
+        store.dispatch({ type: 'SELECT_ALL' });
+        return;
+      default: {
+        const exhaustive: never = action;
+        throw new Error(`unhandled context menu action: ${String(exhaustive)}`);
+      }
+    }
+  }
+
   // ── ToolBar ────────────────────────────────────────────────────────────────
 
   const st1 = getState();
@@ -975,6 +1056,10 @@ export function mountVanillaGraphEditor(
 
   // パスハイライト用 Ctrl+Alt+Click
   function handleGlobalClick(e: MouseEvent): void {
+    if (contextMenuHandle && !contextMenuHandle.el.contains(e.target as Node)) {
+      closeContextMenu();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.altKey && getState().selection.nodeIds.length === 1) {
       const selectedId = getState().selection.nodeIds[0];
       const currentOrigin = pathHighlight.getState().originNodeId;
@@ -982,13 +1067,44 @@ export function mountVanillaGraphEditor(
     }
   }
 
-  // コンテキストメニュー（右クリック = 選択解除）
+  // コンテキストメニュー（右クリック）
   function handleContextMenu(e: MouseEvent): void {
     e.preventDefault();
-    store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [] } });
+    closeContextMenu();
+
+    const { targetType, id } = resolveContextTarget(e);
+
+    if (targetType === 'node' && id) {
+      // 未選択のノードを右クリックしたら、それだけを選択してからメニューを出す
+      if (!getState().selection.nodeIds.includes(id)) {
+        store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [id], edgeIds: [] } });
+      }
+    } else if (targetType === 'edge' && id) {
+      if (!getState().selection.edgeIds.includes(id)) {
+        store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [id] } });
+      }
+    } else {
+      store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [] } });
+    }
+
     editingNodeId = null;
     docEditNodeId = null;
     syncUI();
+
+    contextMenuHandle = createContextMenu({
+      anchorPosition: { top: e.clientY, left: e.clientX },
+      targetType,
+      hasClipboard: canvasInteraction.clipboard !== null,
+      locale,
+      onAction: handleContextAction,
+      onClose: () => {
+        // Menu 側は項目クリック時のみ close() 済みで onClose を呼ぶ（handleAction）。
+        // backdrop クリック / Escape は close() を呼ばず onClose のみを直接呼ぶため
+        // （ui-vanilla/Menu.ts 実装）、ここで closeContextMenu() を呼び close() を保証する。
+        // close() は backdrop.remove() / paper.remove() とも冪等なため二重呼び出しでも安全。
+        closeContextMenu();
+      },
+    });
   }
 
   canvasEl.addEventListener('contextmenu', handleContextMenu);
@@ -1328,6 +1444,7 @@ export function mountVanillaGraphEditor(
     if (filterPanelHandle) { filterPanelHandle.destroy(); filterPanelHandle = null; }
     if (settingsPanelHandle) { settingsPanelHandle.destroy(); settingsPanelHandle = null; }
     if (confirmDialogEl) { confirmDialogEl.remove(); confirmDialogEl = null; }
+    closeContextMenu();
 
     // rAF 解除（layoutRunning 中の loop）
     layoutRunning = false;
