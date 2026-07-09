@@ -810,12 +810,42 @@ export function mountVanillaGraphEditor(
     });
 
     if (hit.type === 'node' && hit.id) return { targetType: 'node', id: hit.id };
-    if (hit.type === 'edge' && hit.id) return { targetType: 'edge', id: hit.id };
+    // 'edge' はエッジ本体、'edge-segment' は直交コネクタの中間セグメント。
+    // どちらも hit.id はエッジ ID（hitTest.ts: hitTestClosestEdge 参照）。
+    if ((hit.type === 'edge' || hit.type === 'edge-segment') && hit.id) {
+      return { targetType: 'edge', id: hit.id };
+    }
 
+    // フォールバック: hitTest はエッジ端点ハンドルや waypoint 等の他ヒットを優先するため、
+    // それらの許容半径内では 'edge'/'edge-segment' を返さないことがある。素の距離判定で
+    // エッジ上クリックを取りこぼさないよう全件スキャンで救う。
     const edge = st.document.edges.find((ed) => hitTestEdge(ed, wx, wy, viewport.scale));
     if (edge) return { targetType: 'edge', id: edge.id };
 
     return { targetType: 'canvas', id: null };
+  }
+
+  /**
+   * 右クリック対象を選択状態へ反映する。dispatch した場合のみ true を返す。
+   * dispatch は購読者経由で syncUI() を同期実行するため、呼び出し側は
+   * false のときだけ明示的に syncUI() する（二重描画・二重アナウンス防止）。
+   */
+  function applyContextSelection(targetType: ContextTarget, id: string | null): boolean {
+    const selection = getState().selection;
+
+    if (targetType === 'node' && id) {
+      if (selection.nodeIds.includes(id)) return false;
+      store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [id], edgeIds: [] } });
+      return true;
+    }
+    if (targetType === 'edge' && id) {
+      if (selection.edgeIds.includes(id)) return false;
+      store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [id] } });
+      return true;
+    }
+    if (selection.nodeIds.length === 0 && selection.edgeIds.length === 0) return false;
+    store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [] } });
+    return true;
   }
 
   // コピー/貼り付けは createCanvasInteraction 側の既存実装（clipboard closure・キーボード
@@ -1074,22 +1104,14 @@ export function mountVanillaGraphEditor(
 
     const { targetType, id } = resolveContextTarget(e);
 
-    if (targetType === 'node' && id) {
-      // 未選択のノードを右クリックしたら、それだけを選択してからメニューを出す
-      if (!getState().selection.nodeIds.includes(id)) {
-        store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [id], edgeIds: [] } });
-      }
-    } else if (targetType === 'edge' && id) {
-      if (!getState().selection.edgeIds.includes(id)) {
-        store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [id] } });
-      }
-    } else {
-      store.dispatch({ type: 'SET_SELECTION', selection: { nodeIds: [], edgeIds: [] } });
-    }
-
+    // closure 変数は store 外なので dispatch に伴う syncUI() より前にクリアする。
     editingNodeId = null;
     docEditNodeId = null;
-    syncUI();
+
+    // 未選択のノード/エッジを右クリックしたら、それだけを選択してからメニューを出す。
+    // applyContextSelection が dispatch した場合は購読者経由で syncUI() 済み。
+    // dispatch されなかった場合（既に選択済み・空キャンバスで選択が既に空）だけ明示的に呼ぶ。
+    if (!applyContextSelection(targetType, id)) syncUI();
 
     contextMenuHandle = createContextMenu({
       anchorPosition: { top: e.clientY, left: e.clientX },
