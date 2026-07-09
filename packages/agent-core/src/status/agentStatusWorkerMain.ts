@@ -11,6 +11,8 @@
 //   5. SIGINT/SIGTERM/exit で agent-worker.json を消し DB を閉じる
 
 import { randomBytes } from 'node:crypto';
+import { statSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { AgentStatusStore } from './AgentStatusStore';
 import { AgentStatusWorker } from './AgentStatusWorker';
 import {
@@ -34,7 +36,22 @@ function resolveRetentionDays(): number {
   return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_RETENTION_DAYS;
 }
 
+/**
+ * argv 由来の workspaceRoot を検証する。存在する絶対パスのディレクトリのみ許可し、
+ * 相対パス・NUL 混入・ファイル指定でのファイルシステム外への逸脱を入口で断つ。
+ * @throws 検証に失敗した場合
+ */
+export function assertValidWorkspaceRoot(workspaceRoot: string): void {
+  if (!isAbsolute(workspaceRoot) || workspaceRoot.includes('\0')) {
+    throw new Error(`workspaceRoot must be an absolute path without NUL: ${JSON.stringify(workspaceRoot)}`);
+  }
+  if (!statSync(workspaceRoot, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new Error(`workspaceRoot is not an existing directory: ${workspaceRoot}`);
+  }
+}
+
 export async function runWorker(workspaceRoot: string): Promise<void> {
+  assertValidWorkspaceRoot(workspaceRoot);
   const dbPath = agentStatusDbPath(workspaceRoot);
   const jsonPath = agentWorkerJsonPath(workspaceRoot);
 
