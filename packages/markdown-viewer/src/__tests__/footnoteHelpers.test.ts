@@ -66,4 +66,12 @@ describe("preprocessFootnoteRefs", () => {
     const input = "No footnotes here.";
     expect(preprocessFootnoteRefs(input)).toBe(input);
   });
+
+  test("閉じないバッククォート列と長文の組み合わせでも線形時間で処理する", () => {
+    // 旧実装の /(`+)(.*?)\1/ は開始バッククォート数 × 入力長に比例して膨らんだ
+    const input = `x${"`".repeat(4001)}${"a".repeat(400_000)}`;
+    const startedAt = performance.now();
+    expect(preprocessFootnoteRefs(input)).toBe(input);
+    expect(performance.now() - startedAt).toBeLessThan(300);
+  });
 });
