@@ -16,6 +16,9 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+// ドキュメント正本の置き場。リポジトリ外のため CI ランナーには存在しない。
+// 不在時は docPath の実在検証を行わない(検証不能であって参照切れではない)。typo 検出は継続する。
+export const DOCS_ROOT = '/Shared/anytime-markdown-docs';
 
 // パス参照の終端: 空白・バッククォート・引用符・括弧(全半角)・句読点・山括弧/角括弧/波括弧(プレースホルダ)・glob
 const PATH_STOP = String.raw`\s\`"'()（）、。<>\[\]{}|*`;
@@ -61,8 +64,12 @@ export function verificationTarget(ref) {
   return p.replace(/\/+$/, '') || '/';
 }
 
-/** 1 つの skills ディレクトリを lint し、スキルごとの結果を返す。 */
-export function lintSkillsDir(dir, rootScripts) {
+/**
+ * 1 つの skills ディレクトリを lint し、スキルごとの結果を返す。
+ * opts.docsRootAvailable を省略すると DOCS_ROOT の実在から判定する(テスト用の seam)。
+ */
+export function lintSkillsDir(dir, rootScripts, opts = {}) {
+  const docsRootAvailable = opts.docsRootAvailable ?? existsSync(DOCS_ROOT);
   const resolved = resolve(dir);
   const isRepoLocal = resolved === repoRoot || resolved.startsWith(repoRoot + sep);
   const results = [];
@@ -80,6 +87,8 @@ export function lintSkillsDir(dir, rootScripts) {
         continue;
       }
       if (ref.kind === 'repoPath' && !isRepoLocal) continue;
+      // docsRoot ごと存在しない環境(CI ランナー)では docPath を検証できない
+      if (ref.kind === 'docPath' && !docsRootAvailable) continue;
       const target = verificationTarget(ref);
       const abs = ref.kind === 'docPath' ? target : join(repoRoot, target);
       if (!existsSync(abs)) missingRefs.push(ref.value);
@@ -150,6 +159,10 @@ function main() {
   }
   const rootScripts = new Set(Object.keys(pkg.scripts ?? {}));
 
+  const docsRootAvailable = existsSync(DOCS_ROOT);
+  if (!docsRootAvailable && !json) {
+    console.log(`[check-skill-refs] ${DOCS_ROOT} が無いため docPath の実在検証をスキップします`);
+  }
   const results = dirs.flatMap((d) => lintSkillsDir(d, rootScripts));
   if (isDefaultMode) {
     const canonicalNames = new Set(

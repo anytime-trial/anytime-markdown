@@ -65,6 +65,47 @@ test('lintSkillsDir: リポ外 dir では repoPath/npm script チェックをス
   }
 });
 
+test('lintSkillsDir: docsRoot 不在(CI ランナー)では docPath 検証をスキップし typo は検出する', () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'check-skill-refs-'));
+  try {
+    mkdirSync(join(tmp, 'dummy-skill'));
+    writeFileSync(
+      join(tmp, 'dummy-skill', 'SKILL.md'),
+      [
+        '# dummy-skill',
+        '更新日: 2026-07-09',
+        '',
+        '正規参照 /Shared/anytime-markdown-docs/no-such-dir/x.md を読む。',
+        'typo 参照 /anytime-markdown-docs/spec/index.ja.md も書いてしまった。',
+      ].join('\n'),
+      'utf-8',
+    );
+    const results = lintSkillsDir(tmp, new Set(), { docsRootAvailable: false });
+    assert.equal(results.length, 1);
+    assert.deepEqual(results[0].missingRefs, [
+      '(typo? /Shared 欠落) /anytime-markdown-docs/spec/index.ja.md',
+    ]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('lintSkillsDir: docsRoot 実在時は docPath の参照切れを検出する', () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'check-skill-refs-'));
+  try {
+    mkdirSync(join(tmp, 'dummy-skill'));
+    writeFileSync(
+      join(tmp, 'dummy-skill', 'SKILL.md'),
+      ['# dummy-skill', '更新日: 2026-07-09', '', '/Shared/anytime-markdown-docs/no-such-dir/x.md'].join('\n'),
+      'utf-8',
+    );
+    const results = lintSkillsDir(tmp, new Set(), { docsRootAvailable: true });
+    assert.deepEqual(results[0].missingRefs, ['/Shared/anytime-markdown-docs/no-such-dir/x.md']);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('lintSkillsDir: リポ内実在 dir で結果スキーマ {dir, skill, missingRefs, missingScripts, hasUpdateDate} を返す', () => {
   const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf-8'));
   const rootScripts = new Set(Object.keys(pkg.scripts ?? {}));
