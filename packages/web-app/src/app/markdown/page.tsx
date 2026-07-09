@@ -121,6 +121,9 @@ export default function Page() {
             gap: 1,
             px: 2,
             py: 0.5,
+            // 小数高さ（ボタンの line-height 由来）だとツールバー以下が sub-pixel でずれるため整数に固定する
+            minHeight: "40px",
+            boxSizing: "border-box",
             borderBottom: 1,
             borderColor: "divider",
             flexShrink: 0,
