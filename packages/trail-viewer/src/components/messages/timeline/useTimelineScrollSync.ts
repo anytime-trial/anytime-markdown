@@ -12,9 +12,12 @@ export function useTimelineScrollSync(
   useEffect(() => {
     observerRef.current?.disconnect();
 
-    const uuids = new Set(nodes.flatMap(function collect(n: TrailTreeNode): string[] {
-      return [n.message.uuid, ...n.children.flatMap(collect)];
-    }));
+    // flatMap は (value, index, array) を渡すため、単項の collect は明示的にラップする
+    const collect = (n: TrailTreeNode): string[] => [
+      n.message.uuid,
+      ...n.children.flatMap((child) => collect(child)),
+    ];
+    const uuids = new Set(nodes.flatMap((n) => collect(n)));
 
     const observer = new IntersectionObserver(
       (entries) => {
