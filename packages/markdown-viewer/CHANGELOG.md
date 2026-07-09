@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-09
+
+### Added
+
+- `DriveFileSystemProvider`: open a Markdown file on Google Drive by id, detect concurrent edits via revision comparison, and confirm before overwriting through an injected `confirmOverwrite` callback.
+- Shared pure helpers for building Google Drive API requests and for capturing the current page as Markdown.
+
+### Changed
+
+- Removed an always-empty handle array and its destroy loop (Sonar S4158).
+
+### Security
+
+- Replaced the code-span protection regex with a linear scan to eliminate a polynomial ReDoS (CodeQL js/polynomial-redos).
+
 ## [1.9.1] - 2026-07-02
 
 ### Fixed

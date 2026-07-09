@@ -6,6 +6,25 @@
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-07-09
+
+### 追加
+
+- Google Picker から Google Drive 上の Markdown を開いて編集し、保存時に競合を検出する。
+- `/api/drive/content` 読み書きプロキシと Google Picker ローダ。
+- GitHub 保存時のコミットメッセージ入力、および任意のドキュメントソースからの GitHub コミット。
+- Google provider への `drive.file` スコープ追加とリフレッシュトークン更新。トークン期限判定・更新レスポンス解析の純粋ヘルパを含む。
+
+### 変更
+
+- GitHub コミットレスポンスを `as` アサーションではなく型ガードで絞り込むよう変更。
+
+### CI/CD
+
+- `verification.db` 検証台帳: `run-verified` ラッパーが検証コマンドを記録し、`generate-test-report` が提出用テスト結果書を生成する。
+- スキル参照実在性 lint (`check-skill-refs.mjs`) を `check-skills` ジョブへ連結。
+- 構造化簡略化マーカーの `SHORTCUT:` ゲート (`check-shortcut-markers.mjs`)。
+
 ## [0.34.1] - 2026-07-02
 
 ### 変更

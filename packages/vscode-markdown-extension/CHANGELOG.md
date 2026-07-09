@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-09
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Added `DriveFileSystemProvider` for opening and saving Google Drive Markdown files with revision-based conflict detection.
+- Added shared pure helpers for Google Drive API requests and page capture.
+- Fixed a polynomial ReDoS in code-span protection (CodeQL js/polynomial-redos).
+
 ## [1.9.1] - 2026-07-02
 
 ### Security

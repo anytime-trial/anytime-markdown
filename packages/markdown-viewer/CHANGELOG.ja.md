@@ -7,6 +7,21 @@
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-09
+
+### 追加
+
+- `DriveFileSystemProvider`: Google Drive 上の Markdown をファイル ID で開き、revision 突合で同時編集を検出し、注入された `confirmOverwrite` コールバックで上書き前に確認する。
+- Google Drive API リクエストの構築と、表示中ページの Markdown 化キャプチャを行う共有純粋関数。
+
+### 変更
+
+- 常に空だった handle 配列と、その destroy ループを削除 (Sonar S4158)。
+
+### セキュリティ
+
+- コードスパン保護の正規表現を線形走査へ置換し、多項式 ReDoS を解消 (CodeQL js/polynomial-redos)。
+
 ## [1.9.1] - 2026-07-02
 
 ### 修正

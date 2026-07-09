@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-09
+
+### 追加
+
+- グラフエディタの右クリックコンテキストメニュー: 切り取り / コピー / 貼り付け / 削除と選択操作をキャンバスへ配線。Paste は `Ctrl+V` と揃えて常時有効化し、メニューはビューポート内へクランプする。
+
+### 修正
+
+- メニュー本体を backdrop の前面へ描画（z-index 未指定で項目がクリックできなかった）。
+- 未配線の `ContextMenu` ハンドルを削除 (CodeQL js/property-access-on-non-object)。
+
+### Graph Core (graph-core)
+
+- 常に同じ値を返していた三項演算子を除去 (Sonar S3923)。
+
 ## [0.9.0] - 2026-06-30
 
 ### Graph Core (graph-core)
