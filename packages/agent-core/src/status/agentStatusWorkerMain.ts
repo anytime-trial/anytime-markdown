@@ -11,8 +11,8 @@
 //   5. SIGINT/SIGTERM/exit で agent-worker.json を消し DB を閉じる
 
 import { randomBytes } from 'node:crypto';
-import { statSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { realpathSync, statSync } from 'node:fs';
+import { isAbsolute, normalize, sep } from 'node:path';
 import { AgentStatusStore } from './AgentStatusStore';
 import { AgentStatusWorker } from './AgentStatusWorker';
 import {
@@ -37,23 +37,43 @@ function resolveRetentionDays(): number {
 }
 
 /**
- * argv 由来の workspaceRoot を検証する。存在する絶対パスのディレクトリのみ許可し、
- * 相対パス・NUL 混入・ファイル指定でのファイルシステム外への逸脱を入口で断つ。
+ * argv 由来の workspaceRoot を検証し、以降の I/O で使う正規化済みパスを返す。
+ *
+ * ファイルシステムへ触れる前に構文検証を終える（絶対パス・NUL 不在・親参照 `..` 不在・
+ * 正規化しても変化しないこと）。その後 realpath でシンボリックリンクを解決し、
+ * 実在するディレクトリであることを確認する。呼び出し側は必ず戻り値を使うこと
+ * （検証前の生文字列を後続のパス構築に使うと検証が無意味になる）。
+ *
+ * @returns 検証済みの正規化パス（realpath 解決済み）
  * @throws 検証に失敗した場合
  */
-export function assertValidWorkspaceRoot(workspaceRoot: string): void {
+export function assertValidWorkspaceRoot(workspaceRoot: string): string {
   if (!isAbsolute(workspaceRoot) || workspaceRoot.includes('\0')) {
     throw new Error(`workspaceRoot must be an absolute path without NUL: ${JSON.stringify(workspaceRoot)}`);
   }
-  if (!statSync(workspaceRoot, { throwIfNoEntry: false })?.isDirectory()) {
+  const normalized = normalize(workspaceRoot);
+  if (normalized !== workspaceRoot || workspaceRoot.split(sep).includes('..')) {
+    throw new Error(`workspaceRoot must be normalized without path traversal: ${JSON.stringify(workspaceRoot)}`);
+  }
+  let real: string;
+  try {
+    real = realpathSync(normalized);
+  } catch (err) {
+    throw new Error(
+      `workspaceRoot is not an existing directory: ${workspaceRoot} (${err instanceof Error ? err.message : String(err)})`,
+    );
+  }
+  if (!statSync(real, { throwIfNoEntry: false })?.isDirectory()) {
     throw new Error(`workspaceRoot is not an existing directory: ${workspaceRoot}`);
   }
+  return real;
 }
 
 export async function runWorker(workspaceRoot: string): Promise<void> {
-  assertValidWorkspaceRoot(workspaceRoot);
-  const dbPath = agentStatusDbPath(workspaceRoot);
-  const jsonPath = agentWorkerJsonPath(workspaceRoot);
+  // 以降のパス構築は検証済みの正規化パスのみを使う（生の argv 文字列は使わない）。
+  const validatedRoot = assertValidWorkspaceRoot(workspaceRoot);
+  const dbPath = agentStatusDbPath(validatedRoot);
+  const jsonPath = agentWorkerJsonPath(validatedRoot);
 
   // 書き込み系を保護する Bearer トークン。agent-worker.json（0600）にのみ書き、
   // それを読める同一ユーザーの hook/拡張だけが POST できる。
