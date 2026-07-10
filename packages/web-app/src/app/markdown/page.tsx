@@ -56,7 +56,7 @@ export default function Page() {
   const {
     externalContent, externalFileName,
     externalCompareContent, editorKey, isDirty, newCommit,
-    saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile,
+    saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile, handleSaveTargetChange,
     commitMessageDialog, commitToGitHubDialog,
     handleExplorerSelectFile, handleExternalSave,
     handleCompareModeChange, handleExplorerSelectCommit, handleSelectCurrent,
@@ -171,6 +171,7 @@ export default function Page() {
           persistDraft={externalContent === undefined}
           fileName={externalFileName}
           onExternalSave={canExternalSave ? handleExternalSave : undefined}
+          onSaveTargetChange={handleSaveTargetChange}
           readOnly={externalContent !== undefined}
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar

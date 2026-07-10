@@ -43,7 +43,7 @@ import { installCommentNotifications } from "../utils/commentNotifications";
 import { onCommentStateChange } from "../utils/commentStateSubscription";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 import type { FileSystemProvider } from "../types/fileSystem";
-import { createFileOpsController } from "./fileOpsController";
+import { createFileOpsController, type SaveTargetInfo } from "./fileOpsController";
 import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
@@ -197,6 +197,11 @@ export interface MountVanillaMarkdownEditorOptions {
    * `Promise<boolean>` で返す。false を返すと未保存ガードは新規作成 / 開くを中断する。
    */
   onExternalSave?: (content: string) => void | Promise<boolean>;
+  /**
+   * 保存先が変化したときの通知。ローカルへ「名前を付けて保存」すると `kind: "local"` が飛ぶ。
+   * ホストはこれを受けて外部保存の参照（Drive のファイル ID 等）を破棄する。
+   */
+  onSaveTargetChange?: (target: SaveTargetInfo | null) => void;
   /** ツールバーの表示制御。 */
   hide?: ToolbarVisibility;
   /** ツールバー全体を描画しない（VS Code の hideToolbar 相当）。 */
@@ -918,6 +923,7 @@ export function mountVanillaMarkdownEditor(
         getSourceMode: () => modeState.sourceMode === true,
         getSourceText: () => sourceController?.getSourceText() ?? "",
         setSourceText: (text) => sourceController?.setSourceText(text),
+        onSaveTargetChange: (target) => current.onSaveTargetChange?.(target),
         onFileStateChange: ({ fileName, isDirty }) => {
           // fileOps が文書ファイル名の単一の真実源。`current.fileName`（外部ソース由来）は
           // mount / update で fileOps へ取り込むため、ここでフォールバックしてはならない
