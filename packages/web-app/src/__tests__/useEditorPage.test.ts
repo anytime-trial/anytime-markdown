@@ -163,8 +163,9 @@ describe("useEditorPage", () => {
         await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
       });
 
+      // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
       await act(async () => {
-        await result.current.handleExternalSave("# Updated");
+        void result.current.handleExternalSave("# Updated");
       });
 
       // GitHub 保存はコミットメッセージダイアログを経由する（Task10）。
@@ -210,8 +211,9 @@ describe("useEditorPage", () => {
         await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
       });
 
+      // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
       await act(async () => {
-        await result.current.handleExternalSave("# Updated");
+        void result.current.handleExternalSave("# Updated");
       });
 
       await act(async () => {
@@ -237,8 +239,9 @@ describe("useEditorPage", () => {
       });
       fetchFn.mockClear();
 
+      // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
       await act(async () => {
-        await result.current.handleExternalSave("# Updated");
+        void result.current.handleExternalSave("# Updated");
       });
       act(() => result.current.handleCommitMessageCancel());
 
@@ -262,8 +265,9 @@ describe("useEditorPage", () => {
         await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
       });
 
+      // 初回はコミットメッセージ確定まで解決しないため await しない。
       await act(async () => {
-        await result.current.handleExternalSave("# Updated once");
+        void result.current.handleExternalSave("# Updated once");
       });
       await act(async () => {
         await result.current.handleCommitMessageConfirm("remembered message", true);
@@ -412,6 +416,114 @@ describe("useEditorPage", () => {
       expect(result.current.saveSnackbar).toEqual({ message: "saved", severity: "success" });
       act(() => result.current.setSaveSnackbar(null));
       expect(result.current.saveSnackbar).toBeNull();
+    });
+  });
+
+  describe("handleExternalSave の保存完了通知（未保存ガード連携）", () => {
+    const originalApiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+    const originalAppId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID;
+
+    afterEach(() => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = originalApiKey;
+      process.env.NEXT_PUBLIC_GOOGLE_APP_ID = originalAppId;
+    });
+
+    /** Drive で開いた状態にする（POST 経由で driveFileRef を持たせる）。 */
+    async function makeDriveFile(
+      current: () => { handleSaveToDriveConfirm: (name: string) => Promise<void> },
+      fetchFn: jest.Mock,
+    ): Promise<void> {
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "f1", name: "note.md", headRevisionId: "rev1" }),
+      });
+      await act(async () => { await current().handleSaveToDriveConfirm("note.md"); });
+      fetchFn.mockClear();
+    }
+
+    it("Drive 保存が成功したら true を返す", async () => {
+      const fetchFn = jest.fn();
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+      await makeDriveFile(() => result.current, fetchFn);
+
+      fetchFn.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ headRevisionId: "rev2" }) });
+      let saved: boolean | undefined;
+      await act(async () => { saved = await result.current.handleExternalSave("body"); });
+
+      expect(saved).toBe(true);
+    });
+
+    it("Drive 保存が 409 競合なら false を返す（本文を破棄させない）", async () => {
+      const fetchFn = jest.fn();
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+      await makeDriveFile(() => result.current, fetchFn);
+
+      fetchFn.mockResolvedValueOnce({ status: 409, ok: false, json: () => Promise.resolve({ headRevisionId: "rev9" }) });
+      let saved: boolean | undefined;
+      await act(async () => { saved = await result.current.handleExternalSave("body"); });
+
+      expect(saved).toBe(false);
+      expect(result.current.driveConflict).not.toBeNull();
+    });
+
+    it("Drive 保存が失敗したら false を返す", async () => {
+      const fetchFn = jest.fn();
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+      await makeDriveFile(() => result.current, fetchFn);
+
+      fetchFn.mockResolvedValueOnce({ ok: false, status: 500, json: () => Promise.resolve({ error: "boom" }) });
+      let saved: boolean | undefined;
+      await act(async () => { saved = await result.current.handleExternalSave("body"); });
+
+      expect(saved).toBe(false);
+    });
+
+    it("GitHub 経路はコミットメッセージ確定まで解決せず、確定で true を返す", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubLoggedIn: true })),
+      );
+      await act(async () => { await result.current.handleExplorerSelectFile("o/r", "a.md", "main"); });
+
+      let saved: boolean | undefined;
+      let settled = false;
+      await act(async () => {
+        void result.current.handleExternalSave("body").then((v) => { saved = v; settled = true; });
+      });
+      expect(settled).toBe(false);
+      expect(result.current.commitMessageDialog?.open).toBe(true);
+
+      await act(async () => { await result.current.handleCommitMessageConfirm("msg", false); });
+      expect(saved).toBe(true);
+    });
+
+    it("GitHub 経路でコミットメッセージをキャンセルしたら false を返す", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubLoggedIn: true })),
+      );
+      await act(async () => { await result.current.handleExplorerSelectFile("o/r", "a.md", "main"); });
+
+      let saved: boolean | undefined;
+      await act(async () => {
+        void result.current.handleExternalSave("body").then((v) => { saved = v; });
+      });
+      await act(async () => { result.current.handleCommitMessageCancel(); });
+
+      expect(saved).toBe(false);
+    });
+
+    it("保存先が無ければ false を返す", async () => {
+      const { result } = renderHook(() => useEditorPage(createHookOptions()));
+      let saved: boolean | undefined;
+      await act(async () => { saved = await result.current.handleExternalSave("body"); });
+      expect(saved).toBe(false);
     });
   });
 

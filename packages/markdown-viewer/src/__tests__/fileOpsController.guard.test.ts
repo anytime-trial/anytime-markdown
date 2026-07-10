@@ -144,7 +144,7 @@ describe("fileOpsController — 未保存ガード", () => {
     expect(ops.isDirty()).toBe(false);
   });
 
-  it("外部保存ホストでは save 選択で onExternalSave が呼ばれ続行する", async () => {
+  it("外部保存ホストが void を返す（同期ホスト）なら従来どおり続行する", async () => {
     const confirmSave = jest.fn(() => Promise.resolve("save" as const));
     const onExternalSave = jest.fn();
     const ops = createOps({ confirmSave, onExternalSave });
@@ -154,6 +154,58 @@ describe("fileOpsController — 未保存ガード", () => {
 
     expect(onExternalSave).toHaveBeenCalledTimes(1);
     expect(ops.isDirty()).toBe(false);
+  });
+
+  it("外部保存が true を解決したら続行する", async () => {
+    const confirmSave = jest.fn(() => Promise.resolve("save" as const));
+    const onExternalSave = jest.fn(() => Promise.resolve(true));
+    const ops = createOps({ confirmSave, onExternalSave });
+    ops.markDirty();
+
+    await ops.newFile();
+
+    expect(ops.isDirty()).toBe(false);
+  });
+
+  it("外部保存が false を解決したら（コミットメッセージのキャンセル・409 競合など）本文を破棄しない", async () => {
+    const { clearDocumentAndComments } = jest.requireMock("../utils/clearEditor");
+    clearDocumentAndComments.mockClear();
+    const confirmSave = jest.fn(() => Promise.resolve("save" as const));
+    const onExternalSave = jest.fn(() => Promise.resolve(false));
+    const ops = createOps({ confirmSave, onExternalSave });
+    ops.markDirty();
+
+    await ops.newFile();
+
+    expect(onExternalSave).toHaveBeenCalledTimes(1);
+    expect(ops.isDirty()).toBe(true);
+    expect(clearDocumentAndComments).not.toHaveBeenCalled();
+  });
+
+  it("外部保存が reject したら本文を破棄しない", async () => {
+    const { clearDocumentAndComments } = jest.requireMock("../utils/clearEditor");
+    clearDocumentAndComments.mockClear();
+    const confirmSave = jest.fn(() => Promise.resolve("save" as const));
+    const onExternalSave = jest.fn(() => Promise.reject(new Error("network")));
+    const ops = createOps({ confirmSave, onExternalSave });
+    ops.markDirty();
+
+    await ops.newFile();
+
+    expect(ops.isDirty()).toBe(true);
+    expect(clearDocumentAndComments).not.toHaveBeenCalled();
+  });
+
+  it("外部保存が false を解決したら openFile も中断する", async () => {
+    const confirmSave = jest.fn(() => Promise.resolve("save" as const));
+    const provider = createProvider();
+    const ops = createOps({ provider, confirmSave, onExternalSave: () => Promise.resolve(false) });
+    ops.markDirty();
+
+    await ops.openFile();
+
+    expect(provider.open).not.toHaveBeenCalled();
+    expect(ops.isDirty()).toBe(true);
   });
 });
 

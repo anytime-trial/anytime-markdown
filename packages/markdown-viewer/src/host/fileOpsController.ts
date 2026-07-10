@@ -28,8 +28,14 @@ interface CreateFileOpsControllerOptions {
   t: TranslationFn;
   /** ローカル FS provider（web の File System Access / fallback）。 */
   provider?: FileSystemProvider | null;
-  /** 外部保存（GitHub SSO 等）。指定時は save がこちらを優先する。 */
-  onExternalSave?: (content: string) => void;
+  /**
+   * 外部保存（GitHub SSO / Google Drive 等）。指定時は save がこちらを優先する。
+   *
+   * 保存完了まで待てるホストは `Promise<boolean>`（成功 true / キャンセル・失敗 false）を返す。
+   * `void` を返す同期ホストは常に成功とみなす（後方互換）。false を返した場合は dirty を
+   * 落とさないため、未保存ガードは新規作成 / 開くを中断する。
+   */
+  onExternalSave?: (content: string) => void | Promise<boolean>;
   /** 確認ダイアログ（未指定時は確認なしで続行）。 */
   confirm?: (message: string) => Promise<boolean>;
   /**
@@ -194,7 +200,10 @@ export function createFileOpsController(
   const saveFileImpl = async (): Promise<void> => {
     const md = withTrailingNewline(getFullMarkdown());
     if (options.onExternalSave) {
-      options.onExternalSave(md);
+      // Promise を返すホストは保存完了まで待つ。false（コミットメッセージのキャンセル・
+      // 409 競合・ネットワークエラー）なら dirty を保ち、ガードが本文を破棄しないようにする。
+      const result = await options.onExternalSave(md);
+      if (result === false) return;
       setDirty(false);
       options.notify?.("fileSaved");
       return;

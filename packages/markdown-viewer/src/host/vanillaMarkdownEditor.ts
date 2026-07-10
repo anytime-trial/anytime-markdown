@@ -192,7 +192,11 @@ export interface MountVanillaMarkdownEditorOptions {
   /** ローカル FS provider（React 経路の fileSystemProvider 相当・open/save/saveAs を既定配線）。 */
   fileSystemProvider?: FileSystemProvider | null;
   /** 外部保存（GitHub SSO 等）。指定時は保存がこちらを優先する。 */
-  onExternalSave?: (content: string) => void;
+  /**
+   * 外部保存（GitHub / Google Drive 等）。保存完了まで待てるホストは成功可否を
+   * `Promise<boolean>` で返す。false を返すと未保存ガードは新規作成 / 開くを中断する。
+   */
+  onExternalSave?: (content: string) => void | Promise<boolean>;
   /** ツールバーの表示制御。 */
   hide?: ToolbarVisibility;
   /** ツールバー全体を描画しない（VS Code の hideToolbar 相当）。 */
@@ -900,7 +904,8 @@ export function mountVanillaMarkdownEditor(
         t,
         provider: current.fileSystemProvider,
         onExternalSave: current.onExternalSave
-          ? (content) => current.onExternalSave?.(content)
+          ? // 保存完了可否（Promise<boolean>）を握り潰さずガードへ透過する。
+            (content) => current.onExternalSave?.(content)
           : undefined,
         confirm: current.confirm,
         // 未指定なら内蔵の 3 択ダイアログを使う（ホストが window.confirm を注入しなくても確認が出る）。

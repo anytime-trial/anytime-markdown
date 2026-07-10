@@ -116,7 +116,8 @@ export interface EditorPageState {
 export interface EditorPageActions {
   handleToggleExplorer: () => void;
   handleExplorerSelectFile: (repo: string, filePath: string, branch: string) => Promise<void>;
-  handleExternalSave: (content: string) => Promise<void>;
+  /** 保存完了可否を返す（false のとき未保存ガードは新規作成 / 開くを中断する）。 */
+  handleExternalSave: (content: string) => Promise<boolean>;
   handleCompareModeChange: (active: boolean) => void;
   handleExplorerSelectCommit: (repo: string, filePath: string, sha: string) => Promise<void>;
   handleSelectCurrent: () => void;
@@ -178,6 +179,8 @@ export function useEditorPage({
   const [hasDriveFile, setHasDriveFile] = useState(false);
   /** 直近に handleContentChange へ渡された全文（保存元を問わず常に最新化）。GitHub 任意コミットの内容取得に使う。 */
   const currentContentRef = useRef<string>('');
+  /** コミットメッセージ確定待ちの handleExternalSave を解決する resolver（保留中のみ非 null）。 */
+  const pendingCommitResolveRef = useRef<((saved: boolean) => void) | null>(null);
   const [commitMessageDialog, setCommitMessageDialog] = useState<{ open: boolean; defaultMessage: string } | null>(null);
   const pendingCommitContentRef = useRef<string>('');
   /** 「次回から同じメッセージを使う」チェック時に保持するメッセージ（セッション内のみ）。 */
@@ -274,10 +277,13 @@ export function useEditorPage({
     setEditorKey((k) => k + 1);
   }, [fetchFileFn]);
 
-  /** Drive への PUT を実行する。409（他所での更新）は driveConflict へ委譲し、成功/失敗は snackbar で通知する。 */
-  const performDriveSave = useCallback(async (content: string, headRevisionId: string) => {
+  /**
+   * Drive への PUT を実行する。409（他所での更新）は driveConflict へ委譲する。
+   * 戻り値は保存が完了したか（未保存ガードが本文を破棄してよいかの判定に使う）。
+   */
+  const performDriveSave = useCallback(async (content: string, headRevisionId: string): Promise<boolean> => {
     const drive = driveFileRef.current;
-    if (!drive) return;
+    if (!drive) return false;
     const res = await fetchFn('/api/drive/content', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -287,7 +293,7 @@ export function useEditorPage({
       const data = await res.json().catch(() => null);
       const latestHeadRevisionId = parseDriveHeadRevisionId(data) ?? headRevisionId;
       setDriveConflict({ content, latestHeadRevisionId });
-      return;
+      return false;
     }
     if (res.ok) {
       const data = await res.json().catch(() => null);
@@ -296,11 +302,12 @@ export function useEditorPage({
       originalContentRef.current = content;
       setIsDirty(false);
       setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
-      return;
+      return true;
     }
     const err = parseErrorMessage(await res.json().catch(() => null));
     console.warn('Failed to save to Drive:', err);
     setSaveSnackbar({ message: t('driveSaveError'), severity: 'error' });
+    return false;
   }, [t, fetchFn]);
 
   const handleDriveConflictOverwrite = useCallback(async () => {
@@ -314,10 +321,10 @@ export function useEditorPage({
     setDriveConflict(null);
   }, []);
 
-  /** GitHub Contents API への PUT を実行する（コミットメッセージ確定後）。 */
-  const performGitHubSave = useCallback(async (content: string, message: string) => {
+  /** GitHub Contents API への PUT を実行する（コミットメッセージ確定後）。戻り値は保存完了可否。 */
+  const performGitHubSave = useCallback(async (content: string, message: string): Promise<boolean> => {
     const sel = selectedFileRef.current;
-    if (!sel) return;
+    if (!sel) return false;
     const res = await fetchFn('/api/github/content', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -337,27 +344,40 @@ export function useEditorPage({
         setNewCommit(commit);
       }
       setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
-    } else {
-      const err = parseErrorMessage(await res.json().catch(() => null));
-      console.warn('Failed to save to GitHub:', err);
-      setSaveSnackbar({ message: t('saveError'), severity: 'error' });
+      return true;
     }
+    const err = parseErrorMessage(await res.json().catch(() => null));
+    console.warn('Failed to save to GitHub:', err);
+    setSaveSnackbar({ message: t('saveError'), severity: 'error' });
+    return false;
   }, [t, fetchFn]);
 
-  const handleExternalSave = useCallback(async (content: string) => {
+  /**
+   * エディタからの保存要求。保存が完了したかを返す（false なら未保存ガードは新規作成 / 開くを中断する）。
+   * GitHub 経路はコミットメッセージ確定まで解決を保留し、キャンセルで false を返す。
+   */
+  const handleExternalSave = useCallback(async (content: string): Promise<boolean> => {
     if (driveFileRef.current) {
-      await performDriveSave(content, driveFileRef.current.headRevisionId);
-      return;
+      return performDriveSave(content, driveFileRef.current.headRevisionId);
     }
     const sel = selectedFileRef.current;
-    if (!sel) return;
+    if (!sel) return false;
     if (rememberedCommitMessageRef.current != null) {
-      await performGitHubSave(content, rememberedCommitMessageRef.current);
-      return;
+      return performGitHubSave(content, rememberedCommitMessageRef.current);
     }
     pendingCommitContentRef.current = content;
     setCommitMessageDialog({ open: true, defaultMessage: `Update ${sel.filePath}` });
+    return new Promise<boolean>((resolve) => {
+      pendingCommitResolveRef.current = resolve;
+    });
   }, [performDriveSave, performGitHubSave]);
+
+  /** 保留中の handleExternalSave（コミットメッセージ待ち）を保存完了可否で解決する。 */
+  const settlePendingCommit = useCallback((saved: boolean) => {
+    const resolve = pendingCommitResolveRef.current;
+    pendingCommitResolveRef.current = null;
+    resolve?.(saved);
+  }, []);
 
   /** コミットメッセージダイアログ確定: 保留中の保存を実行し、チェック時は以降のメッセージを記憶する。 */
   const handleCommitMessageConfirm = useCallback(async (message: string, remember: boolean) => {
@@ -365,13 +385,15 @@ export function useEditorPage({
     if (remember) {
       rememberedCommitMessageRef.current = message;
     }
-    await performGitHubSave(pendingCommitContentRef.current, message);
-  }, [performGitHubSave]);
+    const saved = await performGitHubSave(pendingCommitContentRef.current, message);
+    settlePendingCommit(saved);
+  }, [performGitHubSave, settlePendingCommit]);
 
   /** コミットメッセージダイアログのキャンセル: 保存を中断し、成功通知は出さない。 */
   const handleCommitMessageCancel = useCallback(() => {
     setCommitMessageDialog(null);
-  }, []);
+    settlePendingCommit(false);
+  }, [settlePendingCommit]);
 
   const handleOpenCommitToGitHub = useCallback((defaultPath: string) => {
     setCommitToGitHubDialog({ open: true, defaultPath });
