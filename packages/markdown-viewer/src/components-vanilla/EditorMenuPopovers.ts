@@ -61,6 +61,9 @@ const PATH = {
     "M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V8h16z",
   addToDrive:
     "m12.01 1.485 4.99 8.645-2.807 4.865H8.653l-1.404-2.43zM7.192 3.63 2.2 12.275l2.807 4.865 4.99-8.645zM15.5 16.37H5.52l-2.81 4.865h9.98z",
+  save: "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3m3-10H5V5h10z",
+  saveAs:
+    "M21 12.4V7l-4-4H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h7.4zM15 15c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3M6 6h9v4H6zm13.99 10.25 1.77 1.77L16.77 23H15v-1.77zm3.26.26-.85.85-1.77-1.77.85-.85c.2-.2.51-.2.71 0l1.06 1.06c.2.2.2.52 0 .71",
   schema:
     "M14 9v2h-3V9H8.5V7H11V1H4v6h2.5v2H4v6h2.5v2H4v6h7v-6H8.5v-2H11v-2h3v2h7V9z",
   settings:
@@ -142,12 +145,26 @@ export interface OpenFileMenuHandlers {
   onOpenFromDrive: () => void | Promise<void>;
 }
 
+/** {@link EditorMenuPopoversHandle.openSaveMenu} が並べる選択肢。 */
+export interface SaveMenuHandlers {
+  /** 上書き保存。`overwriteDisabled` が true の場合は項目が無効化される。 */
+  onSaveFile: () => void | Promise<void>;
+  /** 名前を付けて保存（ローカル）。 */
+  onSaveAsFile: () => void | Promise<void>;
+  /** Google Drive へ新規保存（注入時のみ項目が並ぶ）。 */
+  onSaveToDrive?: () => void | Promise<void>;
+  /** 上書き保存の宛先が無い / 未編集 / readonly のとき true。 */
+  overwriteDisabled: boolean;
+}
+
 /** {@link createEditorMenuPopovers} の戻り値。 */
 export interface EditorMenuPopoversHandle {
   /** help popover を anchorEl にアンカーして開く（既存があれば開き直す）。 */
   openHelp: (anchorEl: HTMLElement) => void;
   /** 「開く」メニューを anchorEl にアンカーして開く。 */
   openFileMenu: (anchorEl: HTMLElement, handlers: OpenFileMenuHandlers) => void;
+  /** 「保存」メニューを anchorEl にアンカーして開く。 */
+  openSaveMenu: (anchorEl: HTMLElement, handlers: SaveMenuHandlers) => void;
   /** diagram 選択 popover を開く。 */
   openDiagram: (anchorEl: HTMLElement) => void;
   /** PlantUML サンプル選択 popover を開く。 */
@@ -232,11 +249,12 @@ export function createEditorMenuPopovers(
 
   // 各 popover の現在ハンドル（開いていなければ null）。MenuItem ハンドルも個別 popover ごとに収集する。
   const handles: Record<
-    "help" | "openFile" | "diagram" | "sample" | "template" | "heading",
+    "help" | "openFile" | "saveFile" | "diagram" | "sample" | "template" | "heading",
     PopoverHandle | null
   > = {
     help: null,
     openFile: null,
+    saveFile: null,
     diagram: null,
     sample: null,
     template: null,
@@ -246,6 +264,7 @@ export function createEditorMenuPopovers(
   const childCleanup: Record<string, Array<{ destroy: () => void }>> = {
     help: [],
     openFile: [],
+    saveFile: [],
     diagram: [],
     sample: [],
     template: [],
@@ -356,6 +375,49 @@ export function createEditorMenuPopovers(
       onClose: () => close("openFile"),
       paperRole: "menu",
       ariaLabel: t("openFileMenu"),
+      children: container,
+    });
+  }
+
+  // --- 「保存」メニュー popover ---
+  function openSaveMenu(anchorEl: HTMLElement, handlers: SaveMenuHandlers): void {
+    close("saveFile");
+    const container = document.createElement("div");
+    container.style.cssText = "padding-top:4px;padding-bottom:4px;min-width:200px;";
+    const cleanup = childCleanup.saveFile;
+
+    const addItem = (
+      iconPath: string,
+      label: string,
+      onSelect: () => void | Promise<void>,
+      o: { disabled?: boolean } = {},
+    ): void => {
+      const iconWrap = createListItemIcon({ children: svgIcon(iconPath, 20) });
+      const text = createListItemText({ children: label });
+      const item = createMenuItem({
+        children: [iconWrap.el, text.el],
+        disabled: o.disabled,
+        style: MENU_ITEM_STYLE,
+        onClick: () => {
+          close("saveFile");
+          void onSelect();
+        },
+      });
+      cleanup.push(item);
+      container.appendChild(item.el);
+    };
+
+    addItem(PATH.save, t("saveFile"), handlers.onSaveFile, { disabled: handlers.overwriteDisabled });
+    addItem(PATH.saveAs, t("saveAsFile"), handlers.onSaveAsFile);
+    if (handlers.onSaveToDrive) {
+      addItem(PATH.addToDrive, t("saveToDrive"), handlers.onSaveToDrive);
+    }
+
+    handles.saveFile = createPopover({
+      anchor: anchorEl,
+      onClose: () => close("saveFile"),
+      paperRole: "menu",
+      ariaLabel: t("saveFileMenu"),
       children: container,
     });
   }
@@ -605,6 +667,7 @@ export function createEditorMenuPopovers(
   function closeAll(): void {
     close("help");
     close("openFile");
+    close("saveFile");
     close("diagram");
     close("sample");
     close("template");
@@ -615,6 +678,7 @@ export function createEditorMenuPopovers(
   return {
     openHelp,
     openFileMenu,
+    openSaveMenu,
     openDiagram,
     openSample,
     openTemplate,

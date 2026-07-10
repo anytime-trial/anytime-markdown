@@ -10,9 +10,26 @@ const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
 
 export interface DriveRequest {
   url: string;
-  method: "GET" | "PATCH";
+  method: "GET" | "PATCH" | "POST";
   contentType?: string;
   body?: string;
+}
+
+/** multipart 境界の基点。本文に現れる場合は {@link resolveBoundary} が退避先を選ぶ。 */
+const CREATE_BOUNDARY_BASE = "anytimeMarkdownDriveBoundary";
+
+/**
+ * 本文に現れない境界文字列を選ぶ。
+ *
+ * 境界が本文に含まれると multipart パーサが本文を途中で打ち切るため、衝突する限り
+ * サフィックスを増やして退避する（純粋関数のまま決定論的に解決する）。
+ */
+function resolveBoundary(content: string): string {
+  let boundary = CREATE_BOUNDARY_BASE;
+  for (let suffix = 1; content.includes(`--${boundary}`); suffix += 1) {
+    boundary = `${CREATE_BOUNDARY_BASE}-${suffix}`;
+  }
+  return boundary;
 }
 
 export interface DriveFileMeta {
@@ -41,6 +58,42 @@ export function buildDriveUpdateRequest(fileId: string, content: string): DriveR
     method: "PATCH",
     contentType: "text/markdown",
     body: content,
+  };
+}
+
+/**
+ * Drive 上に新規ファイルを作成する multipart リクエストを組み立てる。
+ *
+ * `drive.file` スコープでは、アプリが作成したファイルは以後 Picker を経由せずアクセスできる。
+ * `parentId` 省略時はマイドライブ直下に作成される。
+ */
+export function buildDriveCreateRequest(
+  name: string,
+  content: string,
+  parentId?: string,
+): DriveRequest {
+  const metadata: { name: string; mimeType: string; parents?: string[] } = {
+    name,
+    mimeType: "text/markdown",
+  };
+  if (parentId) metadata.parents = [parentId];
+
+  const fields = encodeURIComponent("id,name,headRevisionId");
+  const boundary = resolveBoundary(content);
+  const body =
+    `--${boundary}\r\n` +
+    "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+    `${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\n` +
+    "Content-Type: text/markdown\r\n\r\n" +
+    `${content}\r\n` +
+    `--${boundary}--`;
+
+  return {
+    url: `${DRIVE_UPLOAD}?uploadType=multipart&fields=${fields}`,
+    method: "POST",
+    contentType: `multipart/related; boundary=${boundary}`,
+    body,
   };
 }
 

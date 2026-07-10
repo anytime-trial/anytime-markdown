@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CommitMessageDialog } from '../../components/CommitMessageDialog';
 import { CommitToGitHubDialog } from '../../components/CommitToGitHubDialog';
 import { DriveConflictDialog } from '../../components/DriveConflictDialog';
+import { DriveSaveAsDialog } from '../../components/DriveSaveAsDialog';
 import { downloadMarkdownBlob } from '../../lib/webImportProvider';
 import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
@@ -61,6 +62,7 @@ export default function Page() {
     handleCompareModeChange, handleExplorerSelectCommit, handleSelectCurrent,
     handleContentChange, setSsoSnackbar, setSaveSnackbar, fileSystemProvider,
     handleDriveOpen, handleDriveConflictOverwrite, handleDriveConflictCancel,
+    driveSaveAsDialog, handleSaveToDriveClick, handleSaveToDriveConfirm, handleSaveToDriveCancel,
     handleCommitMessageConfirm, handleCommitMessageCancel,
     handleOpenCommitToGitHub, handleCloseCommitToGitHub, handleCommitToGitHubConfirm,
   } = useEditorPage({ isGitHubLoggedIn, session, t });
@@ -105,8 +107,10 @@ export default function Page() {
       },
       // 注入するとツールバーの「開く」がメニュー化され、Drive が選択肢に並ぶ。
       onOpenFromDrive: handleDriveOpen,
+      // 注入すると保存メニューに「Google Drive に保存」が並ぶ。
+      onSaveToDrive: () => handleSaveToDriveClick(externalFileName ?? 'document.md'),
     }),
-    [handleDriveOpen],
+    [handleDriveOpen, handleSaveToDriveClick, externalFileName],
   );
 
   return (
@@ -223,6 +227,12 @@ export default function Page() {
           {saveSnackbar?.message}
         </Alert>
       </Snackbar>
+      <DriveSaveAsDialog
+        open={driveSaveAsDialog?.open ?? false}
+        defaultName={driveSaveAsDialog?.defaultName ?? 'document.md'}
+        onConfirm={handleSaveToDriveConfirm}
+        onCancel={handleSaveToDriveCancel}
+      />
       <DriveConflictDialog
         open={!!driveConflict}
         onOverwrite={handleDriveConflictOverwrite}

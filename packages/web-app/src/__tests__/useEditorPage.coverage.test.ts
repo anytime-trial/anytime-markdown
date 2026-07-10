@@ -85,8 +85,9 @@ describe("useEditorPage - additional coverage", () => {
     });
 
     // Then save (GitHub 保存はコミットメッセージダイアログ確定を経由する)
+    // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
     await act(async () => {
-      await result.current.handleExternalSave("# Updated content");
+      void result.current.handleExternalSave("# Updated content");
     });
     await act(async () => {
       await result.current.handleCommitMessageConfirm("update", false);
@@ -111,8 +112,9 @@ describe("useEditorPage - additional coverage", () => {
       await result.current.handleExplorerSelectFile("repo", "file.md", "main");
     });
 
+    // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
     await act(async () => {
-      await result.current.handleExternalSave("# Updated content");
+      void result.current.handleExternalSave("# Updated content");
     });
     await act(async () => {
       await result.current.handleCommitMessageConfirm("update", false);
@@ -260,8 +262,9 @@ describe("useEditorPage - additional coverage", () => {
       await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
     });
 
+    // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
     await act(async () => {
-      await result.current.handleExternalSave("new content");
+      void result.current.handleExternalSave("new content");
     });
     await act(async () => {
       await result.current.handleCommitMessageConfirm("update", false);
@@ -286,8 +289,9 @@ describe("useEditorPage - additional coverage", () => {
       await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
     });
 
+    // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
     await act(async () => {
-      await result.current.handleExternalSave("new content");
+      void result.current.handleExternalSave("new content");
     });
     await act(async () => {
       await result.current.handleCommitMessageConfirm("update", false);
