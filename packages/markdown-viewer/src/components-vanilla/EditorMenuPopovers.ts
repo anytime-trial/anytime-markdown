@@ -175,6 +175,8 @@ export interface OpenFileMenuHandlers {
 export interface SaveMenuHandlers {
   /** 上書き保存。`overwriteDisabled` が true の場合は項目が無効化される。 */
   onSaveFile: () => void | Promise<void>;
+  /** 上書き保存項目の表示名（未指定なら「上書き保存」）。保存先が GitHub のときコミット表記になる。 */
+  saveLabel?: string;
   /** 名前を付けて保存（ローカル）。 */
   onSaveAsFile: () => void | Promise<void>;
   /** Google Drive へ新規保存（注入時のみ項目が並ぶ）。 */
@@ -449,7 +451,7 @@ export function createEditorMenuPopovers(
       container.appendChild(item.el);
     };
 
-    addItem(PATH.save, t("saveFile"), handlers.onSaveFile, {
+    addItem(PATH.save, handlers.saveLabel ?? t("saveFile"), handlers.onSaveFile, {
       disabled: handlers.overwriteDisabled,
       shortcut: MENU_SHORTCUTS.saveFile,
     });

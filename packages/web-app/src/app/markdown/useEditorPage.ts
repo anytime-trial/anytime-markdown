@@ -5,7 +5,6 @@ import { clearDraft, writeDraft } from '@anytime-markdown/markdown-viewer/src/ut
 import { signIn } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { CommitToGitHubValues } from '../../components/CommitToGitHubDialog';
 import { FallbackFileSystemProvider } from '../../lib/FallbackFileSystemProvider';
 import { fetchFileContent } from '../../lib/githubApi';
 import { pickDriveMarkdownFile } from '../../lib/googlePicker';
@@ -88,10 +87,13 @@ export interface EditorPageState {
   driveConflict: DriveConflict | null;
   /** 現在編集中のコンテンツが Google Drive から開かれたものか（onExternalSave の配線判定に使う）。 */
   hasDriveFile: boolean;
+  /**
+   * 上書き保存の宛先種別。エディタのツールバー表示（GitHub なら「GitHub にコミット」）に使う。
+   * ローカルへ「名前を付けて保存」した後は markdown-viewer 側が自動で無効化する。
+   */
+  externalSaveKind: 'github' | 'drive' | undefined;
   /** GitHub 保存時のコミットメッセージ入力ダイアログ。null は非表示。 */
   commitMessageDialog: { open: boolean; defaultMessage: string } | null;
-  /** 任意ソースから GitHub へコミットするダイアログ。null は非表示。 */
-  commitToGitHubDialog: { open: boolean; defaultPath: string } | null;
   driveSaveAsDialog: { open: boolean; defaultName: string } | null;
 }
 
@@ -114,9 +116,6 @@ export interface EditorPageActions {
   handleDriveConflictCancel: () => void;
   handleCommitMessageConfirm: (message: string, remember: boolean) => Promise<void>;
   handleCommitMessageCancel: () => void;
-  handleOpenCommitToGitHub: (defaultPath: string) => void;
-  handleCloseCommitToGitHub: () => void;
-  handleCommitToGitHubConfirm: (values: CommitToGitHubValues) => Promise<void>;
 }
 
 interface UseEditorPageOptions {
@@ -160,7 +159,7 @@ export function useEditorPage({
     driveFileRef.current = ref;
     setHasDriveFile(ref != null);
   }, []);
-  /** 直近に handleContentChange へ渡された全文（保存元を問わず常に最新化）。GitHub 任意コミットの内容取得に使う。 */
+  /** 直近に handleContentChange へ渡された全文（保存元を問わず常に最新化）。Drive への新規保存の内容取得に使う。 */
   const currentContentRef = useRef<string>('');
   /** コミットメッセージ確定待ちの handleExternalSave を解決する resolver（保留中のみ非 null）。 */
   const pendingCommitResolveRef = useRef<((saved: boolean) => void) | null>(null);
@@ -168,7 +167,7 @@ export function useEditorPage({
   const pendingCommitContentRef = useRef<string>('');
   /** 「次回から同じメッセージを使う」チェック時に保持するメッセージ（セッション内のみ）。 */
   const rememberedCommitMessageRef = useRef<string | null>(null);
-  const [commitToGitHubDialog, setCommitToGitHubDialog] = useState<{ open: boolean; defaultPath: string } | null>(null);
+  const [externalSaveKind, setExternalSaveKind] = useState<'github' | 'drive' | undefined>(undefined);
   const [driveSaveAsDialog, setDriveSaveAsDialog] = useState<{ open: boolean; defaultName: string } | null>(null);
 
   // エディタページでのみ body に editor-page クラスを付与し overflow: hidden を適用
@@ -218,7 +217,7 @@ export function useEditorPage({
     setEditorKey((k) => k + 1);
     rememberedCommitMessageRef.current = null;
     setCommitMessageDialog(null);
-    setCommitToGitHubDialog(null);
+    setExternalSaveKind(undefined);
     if (isNowLoggedIn && !wasLoggedIn) {
       setSsoSnackbar(t('githubConnected'));
     } else if (!isNowLoggedIn && wasLoggedIn) {
@@ -231,6 +230,7 @@ export function useEditorPage({
     const isSameFile = prev?.repo === repo && prev?.filePath === filePath && prev?.branch === branch;
     selectedFileRef.current = { repo, filePath, branch };
     setDriveFile(null);
+    setExternalSaveKind('github');
     if (isSameFile) return;
     setIsDirty(false);
     const content = await fetchFileFn(repo, filePath, branch);
@@ -347,6 +347,7 @@ export function useEditorPage({
   const handleSaveTargetChange = useCallback((target: SaveTargetInfo | null) => {
     if (target?.kind !== 'local') return;
     setDriveFile(null);
+    setExternalSaveKind(undefined);
     selectedFileRef.current = null;
     // ファイル名の正本はエディタ（fileOpsController）側へ移る。prop で上書きしない。
     setExternalFileName(undefined);
@@ -374,37 +375,6 @@ export function useEditorPage({
     setCommitMessageDialog(null);
     settlePendingCommit(false);
   }, [settlePendingCommit]);
-
-  const handleOpenCommitToGitHub = useCallback((defaultPath: string) => {
-    setCommitToGitHubDialog({ open: true, defaultPath });
-  }, []);
-
-  const handleCloseCommitToGitHub = useCallback(() => {
-    setCommitToGitHubDialog(null);
-  }, []);
-
-  /** 任意ソース→GitHub コミット確定: 現在のエディタ本文（currentContentRef）を指定リポジトリへ PUT する。 */
-  const handleCommitToGitHubConfirm = useCallback(async (values: CommitToGitHubValues) => {
-    setCommitToGitHubDialog(null);
-    const res = await fetchFn('/api/github/content', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        repo: values.repo,
-        path: values.path,
-        content: currentContentRef.current,
-        branch: values.branch,
-        message: values.message,
-      }),
-    });
-    if (res.ok) {
-      setSaveSnackbar({ message: t('githubCommitSuccess'), severity: 'success' });
-      return;
-    }
-    const detail = parseErrorMessage(await res.json().catch(() => null)) ?? res.statusText;
-    console.warn(`Failed to commit to GitHub (status ${res.status}):`, detail);
-    setSaveSnackbar({ message: `${t('githubCommitError')} (${res.status}): ${detail}`, severity: 'error' });
-  }, [t, fetchFn]);
 
   /** Google の同意画面へ遷移する。起動自体に失敗した場合のみ snackbar で通知する。 */
   const startGoogleSignIn = useCallback(async () => {
@@ -459,6 +429,7 @@ export function useEditorPage({
       name: payload.name,
       headRevisionId: payload.headRevisionId ?? '',
     });
+    setExternalSaveKind('drive');
     selectedFileRef.current = null;
     originalContentRef.current = currentContentRef.current;
     setIsDirty(false);
@@ -504,6 +475,7 @@ export function useEditorPage({
     }
 
     setDriveFile({ fileId: picked.fileId, name: payload.name, headRevisionId: payload.headRevisionId });
+    setExternalSaveKind('drive');
     selectedFileRef.current = null;
     setIsDirty(false);
     originalContentRef.current = payload.content;
@@ -528,8 +500,8 @@ export function useEditorPage({
     ssoSnackbar,
     driveConflict,
     hasDriveFile,
+    externalSaveKind,
     commitMessageDialog,
-    commitToGitHubDialog,
     driveSaveAsDialog,
     handleGitHubOpenFile,
     handleExternalSave,
@@ -547,8 +519,5 @@ export function useEditorPage({
     handleDriveConflictCancel,
     handleCommitMessageConfirm,
     handleCommitMessageCancel,
-    handleOpenCommitToGitHub,
-    handleCloseCommitToGitHub,
-    handleCommitToGitHubConfirm,
   };
 }

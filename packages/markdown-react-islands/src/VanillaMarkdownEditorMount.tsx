@@ -140,6 +140,7 @@ export function VanillaMarkdownEditorMount({
       externalCompareContent: options.externalCompareContent,
       settings: options.settings,
       fileName: options.fileName,
+      externalSaveKind: options.externalSaveKind,
     });
   }, [
     options.readOnly,
@@ -149,6 +150,7 @@ export function VanillaMarkdownEditorMount({
     options.externalCompareContent,
     options.settings,
     options.fileName,
+    options.externalSaveKind,
   ]);
 
   if (mountError) {

@@ -50,6 +50,11 @@ export interface ToolbarFileCapabilities {
   supportsDirectAccess?: boolean;
   /** 外部保存のみ（GitHub SSO 等）: 新規作成・開く・名前を付けて保存を非表示 */
   externalSaveOnly?: boolean;
+  /**
+   * 上書き保存の宛先の種別。`"github"` のとき上書き保存は GitHub へのコミットになるため、
+   * ラベルを「GitHub にコミット」へ差し替える。ローカルへ保存先が移った時点で undefined に戻る。
+   */
+  externalSaveKind?: "github" | "drive";
 }
 
 /** エディタのモード状態 */

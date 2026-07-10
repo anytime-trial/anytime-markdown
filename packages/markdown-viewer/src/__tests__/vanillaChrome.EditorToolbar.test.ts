@@ -304,6 +304,58 @@ describe("createEditorToolbar — ファイル操作", () => {
     handle.destroy();
   });
 
+  it("externalSaveKind=github なら上書き保存の表示が「GitHub にコミット」になる", () => {
+    const onSetSaveAnchor = jest.fn();
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true, externalSaveKind: "github" },
+      fileHandlers: defaultFileHandlers(),
+      onSetSaveAnchor,
+      isDirty: true,
+    });
+    (handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement).click();
+    expect(onSetSaveAnchor.mock.calls[0][1].saveLabel).toBe("saveToGitHub");
+    handle.destroy();
+  });
+
+  it("externalSaveKind 未指定なら上書き保存の表示は「上書き保存」のまま", () => {
+    const onSetSaveAnchor = jest.fn();
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers: defaultFileHandlers(),
+      onSetSaveAnchor,
+      isDirty: true,
+    });
+    (handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement).click();
+    expect(onSetSaveAnchor.mock.calls[0][1].saveLabel).toBe("saveFile");
+    handle.destroy();
+  });
+
+  it("update で externalSaveKind が消えたら上書き保存の表示が戻る（ローカルへ名前を付けて保存した後）", () => {
+    const onSetSaveAnchor = jest.fn();
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true, externalSaveKind: "github" },
+      fileHandlers: defaultFileHandlers(),
+      onSetSaveAnchor,
+      isDirty: true,
+    });
+    handle.update({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true, externalSaveKind: undefined },
+    });
+    (handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement).click();
+    expect(onSetSaveAnchor.mock.calls[0][1].saveLabel).toBe("saveFile");
+    handle.destroy();
+  });
+
+  it("externalSaveOnly かつ externalSaveKind=github の save ボタンは GitHub コミットを名乗る", () => {
+    const { handle } = mount({
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: true, externalSaveKind: "github" },
+      fileHandlers: defaultFileHandlers(),
+      isDirty: true,
+    });
+    expect(handle.el.querySelector('button[aria-label="saveToGitHub"]')).toBeTruthy();
+    handle.destroy();
+  });
+
   it("メニュー化した save は未保存・ファイル未オープンでも押下できる（項目側で無効化する）", () => {
     const onSetSaveAnchor = jest.fn();
     const { handle } = mount({

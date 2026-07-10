@@ -57,6 +57,7 @@
     "unsavedDiscard": "保存しない",
     "saveFileMenu": "保存メニュー",
     "saveToDrive": "Google Drive に保存",
+    "saveToGitHub": "GitHub にコミット",
     "importConfirm": "現在の内容を破棄してファイルをインポートしますか？",
     "outline": "アウトライン",
     "noteGraph": "ノート網",
@@ -808,8 +809,6 @@
     "commitMessageLabel": "コミットメッセージ",
     "commitMessageRememberLabel": "このセッションでは次回から同じメッセージを使う",
     "commitMessageConfirm": "コミット",
-    "githubCommitButton": "GitHub にコミット",
-    "githubCommitButtonAria": "編集中のドキュメントを GitHub にコミット",
     "githubOpenDialogTitle": "GitHub から開く",
     "githubOpenSelectRepo": "リポジトリを選択",
     "githubOpenBranchLabel": "ブランチ",
@@ -818,15 +817,7 @@
     "githubOpenSignInRequired": "GitHub のサインインが必要です",
     "githubOpenSignInButton": "GitHub でサインイン",
     "githubOpenNoMarkdown": "Markdown ファイルがありません",
-    "githubOpenDefaultBranch": "既定ブランチ",
-    "githubCommitDialogTitle": "GitHub にコミット",
-    "githubCommitRepoLabel": "リポジトリ",
-    "githubCommitBranchLabel": "ブランチ",
-    "githubCommitPathLabel": "ファイルパス",
-    "githubCommitMessageLabel": "コミットメッセージ",
-    "githubCommitConfirm": "コミット",
-    "githubCommitSuccess": "GitHub にコミットしました",
-    "githubCommitError": "GitHub へのコミットに失敗しました"
+    "githubOpenDefaultBranch": "既定ブランチ"
   },
   "VsCode": {
     "metaTitle": "Visual Studio Code™ 拡張機能 - Anytime Markdown",
