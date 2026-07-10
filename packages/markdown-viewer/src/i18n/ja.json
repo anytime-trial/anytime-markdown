@@ -44,6 +44,7 @@
     "openFileMenu": "開くメニュー",
     "openFromLocal": "ファイルを開く",
     "openFromDrive": "Google Drive から開く",
+    "save": "保存",
     "saveFile": "上書き保存",
     "saveAsFile": "名前を付けて保存",
     "clear": "クリア",

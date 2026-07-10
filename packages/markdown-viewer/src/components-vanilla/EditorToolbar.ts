@@ -365,6 +365,9 @@ export function createEditorToolbar(
      * 「開く」ボタンを追加する。`onOpenFromDrive` が注入されている場合のみメニュー化し、
      * ボタン自身を anchor として上位（EditorMenuPopovers）へ渡す。未注入のホスト
      * （VS Code 拡張など）では `onOpenLocal` を直接呼ぶ従来の挙動を保つ。
+     *
+     * メニュー化時のボタンはメニューを開くだけなのでツールチップにショートカットを出さない
+     * （ショートカットは実際に動作するメニュー項目側に表示する）。
      */
     const addOpenBtn = (
       onOpenLocal: () => void | Promise<void>,
@@ -377,7 +380,7 @@ export function createEditorToolbar(
         value: "open",
         ariaLabel: t("openFile"),
         icon: PATH.folderOpen,
-        tipTitle,
+        tipTitle: asMenu ? t("openFile") : tipTitle,
         onClick: () => {
           if (asMenu && onOpenFromDrive) {
             opts.onSetOpenFileAnchor?.(btn.el, { onOpenLocal, onOpenFromDrive });
@@ -408,6 +411,9 @@ export function createEditorToolbar(
      * 「保存」ボタンを追加する。`onSaveAsFile` があり `onSetSaveAnchor` が渡されている場合のみ
      * メニュー化する。メニュー化時はボタン自体を readonly でのみ無効化し、「上書き保存」の可否は
      * `overwriteDisabled` として項目側へ渡す（無効なボタンはメニューを開けないため）。
+     *
+     * メニュー化時のボタンは総称の「保存」を名乗り、ツールチップにショートカットを出さない
+     * （ショートカットは実際に動作するメニュー項目側に表示する）。
      */
     const addSaveBtn = (tipTitle: string): ReturnType<typeof createToggleButton> => {
       const { onSaveFile, onSaveAsFile, onSaveToDrive } = fileHandlers;
@@ -415,9 +421,9 @@ export function createEditorToolbar(
       let btn: ReturnType<typeof createToggleButton>;
       btn = addBtn({
         value: "save",
-        ariaLabel: t("saveFile"),
+        ariaLabel: asMenu ? t("save") : t("saveFile"),
         icon: PATH.save,
-        tipTitle,
+        tipTitle: asMenu ? t("save") : tipTitle,
         disabled: asMenu ? readonlyMode : saveDisabled(),
         onClick: () => {
           if (asMenu && onSaveFile && onSaveAsFile) {

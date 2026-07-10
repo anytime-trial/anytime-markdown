@@ -288,7 +288,7 @@ describe("createEditorToolbar — ファイル操作", () => {
       onSetSaveAnchor,
       isDirty: true,
     });
-    const saveBtn = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
+    const saveBtn = handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement;
     expect(saveBtn.getAttribute("aria-haspopup")).toBe("menu");
     expect(handle.el.querySelector('button[aria-label="saveAsFile"]')).toBeNull();
 
@@ -312,7 +312,7 @@ describe("createEditorToolbar — ファイル操作", () => {
       onSetSaveAnchor,
       isDirty: false,
     });
-    const saveBtn = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
+    const saveBtn = handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement;
     expect(saveBtn.disabled).toBe(false);
     saveBtn.click();
     expect(onSetSaveAnchor).toHaveBeenCalledTimes(1);
@@ -329,7 +329,7 @@ describe("createEditorToolbar — ファイル操作", () => {
       modeState: { ...defaultModeState(), readonlyMode: true },
       isDirty: true,
     });
-    const saveBtn = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
+    const saveBtn = handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement;
     expect(saveBtn.disabled).toBe(true);
     handle.destroy();
   });
@@ -360,7 +360,7 @@ describe("createEditorToolbar — ファイル操作", () => {
       onSetSaveAnchor,
       isDirty: true,
     });
-    (handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement).click();
+    (handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement).click();
     onSetSaveAnchor.mock.calls[0][1].onSaveToDrive();
     expect(onSaveToDrive).toHaveBeenCalled();
     handle.destroy();
