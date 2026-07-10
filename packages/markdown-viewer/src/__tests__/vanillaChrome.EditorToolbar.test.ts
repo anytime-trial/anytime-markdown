@@ -226,7 +226,7 @@ describe("createEditorToolbar — 生成と属性", () => {
 describe("createEditorToolbar — ファイル操作", () => {
   it("supportsDirectAccess で open/save/saveAs を生成し、クリックでハンドラを呼ぶ", () => {
     const { handle, fileHandlers } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       isDirty: true,
     });
     (handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement).click();
@@ -242,7 +242,7 @@ describe("createEditorToolbar — ファイル操作", () => {
     const onNewFile = jest.fn();
     const fileHandlers = { ...defaultFileHandlers(), onNewFile };
     const { handle } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       fileHandlers,
     });
     const labels = Array.from(handle.el.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"));
@@ -261,7 +261,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("externalSaveOnly では createNew ボタンを出さない", () => {
     const { handle } = mount({
-      fileCapabilities: { externalSaveOnly: true, hasFileHandle: true },
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: true },
       fileHandlers: { ...defaultFileHandlers(), onNewFile: jest.fn() },
     });
     expect(handle.el.querySelector('button[aria-label="createNew"]')).toBeNull();
@@ -270,7 +270,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("readonlyMode では createNew ボタンが無効", () => {
     const { handle } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       fileHandlers: { ...defaultFileHandlers(), onNewFile: jest.fn() },
       modeState: { ...defaultModeState(), readonlyMode: true },
     });
@@ -283,7 +283,7 @@ describe("createEditorToolbar — ファイル操作", () => {
     const onSetSaveAnchor = jest.fn();
     const fileHandlers = defaultFileHandlers();
     const { handle } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       fileHandlers,
       onSetSaveAnchor,
       isDirty: true,
@@ -307,7 +307,7 @@ describe("createEditorToolbar — ファイル操作", () => {
   it("メニュー化した save は未保存・ファイル未オープンでも押下できる（項目側で無効化する）", () => {
     const onSetSaveAnchor = jest.fn();
     const { handle } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: false },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: false },
       fileHandlers: defaultFileHandlers(),
       onSetSaveAnchor,
       isDirty: false,
@@ -323,7 +323,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("readonlyMode ではメニュー化した save も無効", () => {
     const { handle } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       fileHandlers: defaultFileHandlers(),
       onSetSaveAnchor: jest.fn(),
       modeState: { ...defaultModeState(), readonlyMode: true },
@@ -338,7 +338,7 @@ describe("createEditorToolbar — ファイル操作", () => {
     const fileHandlers = defaultFileHandlers();
     const onSetSaveAnchor = jest.fn();
     const { handle } = mount({
-      fileCapabilities: { externalSaveOnly: true, hasFileHandle: true },
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: true },
       fileHandlers,
       onSetSaveAnchor,
       isDirty: true,
@@ -355,7 +355,7 @@ describe("createEditorToolbar — ファイル操作", () => {
     const onSetSaveAnchor = jest.fn();
     const onSaveToDrive = jest.fn();
     const { handle } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       fileHandlers: { ...defaultFileHandlers(), onSaveToDrive },
       onSetSaveAnchor,
       isDirty: true,
@@ -368,7 +368,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("onOpenFromDrive 未注入なら open は直接ハンドラを呼び aria-haspopup を持たない", () => {
     const { handle, fileHandlers } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       onSetOpenFileAnchor: jest.fn(),
     });
     const btn = handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement;
@@ -382,7 +382,7 @@ describe("createEditorToolbar — ファイル操作", () => {
     const onSetOpenFileAnchor = jest.fn();
     const fileHandlers = { ...defaultFileHandlers(), onOpenFromDrive: jest.fn() };
     const { handle } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       fileHandlers,
       onSetOpenFileAnchor,
     });
@@ -423,9 +423,9 @@ describe("createEditorToolbar — ファイル操作", () => {
     handle.destroy();
   });
 
-  it("externalSaveOnly では save のみ生成し hasFileHandle 無しで disabled", () => {
+  it("externalSaveOnly では save のみ生成し hasSaveTarget 無しで disabled", () => {
     const { handle } = mount({
-      fileCapabilities: { externalSaveOnly: true, hasFileHandle: false },
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: false },
     });
     expect(handle.el.querySelector('button[aria-label="openFile"]')).toBeNull();
     const save = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
@@ -436,7 +436,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("dirty ゲート: 未編集では save が disabled、編集ありで enabled、保存後に再び disabled", () => {
     const { handle, fileHandlers } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       isDirty: false,
     });
     const save = (): HTMLButtonElement =>
@@ -458,7 +458,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("dirty ゲート: externalSaveOnly でも dirty のときだけ save を有効化する", () => {
     const { handle } = mount({
-      fileCapabilities: { externalSaveOnly: true, hasFileHandle: true },
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: true },
       isDirty: false,
     });
     const save = (): HTMLButtonElement =>
@@ -471,7 +471,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("dirty ゲート: ハンドル無しなら dirty でも save は disabled のまま", () => {
     const { handle } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: false },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: false },
       isDirty: true,
     });
     const save = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;

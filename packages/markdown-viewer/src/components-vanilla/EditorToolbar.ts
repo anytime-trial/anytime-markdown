@@ -320,10 +320,11 @@ export function createEditorToolbar(
     root.appendChild(buildFileActions());
   }
 
-  // save ボタンの disabled 判定。readonly / ファイルハンドル無し / 未編集（dirty=false）のいずれかで無効。
+  // save ボタンの disabled 判定。readonly / 保存先無し / 未編集（dirty=false）のいずれかで無効。
+  // 保存先はローカルハンドルと外部保存（Drive / GitHub）の双方を含む（hasSaveTarget）。
   // 「保存が必要なときのみ有効」を満たすため dirty ゲートを最後に AND する。
   function saveDisabled(): boolean {
-    return Boolean(modeState.readonlyMode) || !fileCapabilities?.hasFileHandle || !isDirty;
+    return Boolean(modeState.readonlyMode) || !fileCapabilities?.hasSaveTarget || !isDirty;
   }
 
   function buildFileActions(): HTMLElement {
@@ -448,14 +449,14 @@ export function createEditorToolbar(
         value: "save",
         ariaLabel: t("saveFile"),
         icon: PATH.save,
-        tipTitle: fileCapabilities?.hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle"),
+        tipTitle: fileCapabilities?.hasSaveTarget ? tip(t, "saveFile") : t("saveFileNoHandle"),
         disabled: saveDisabled(),
         onClick: () => fileHandlers.onSaveFile?.(),
       });
     } else if (supportsDirectAccess) {
       addNewFileBtn();
       addOpenBtn(() => fileHandlers.onOpenFile?.(), tip(t, "openFile"));
-      const saveTip = fileCapabilities?.hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle");
+      const saveTip = fileCapabilities?.hasSaveTarget ? tip(t, "saveFile") : t("saveFileNoHandle");
       saveBtn = addSaveBtn(saveTip);
       // saveAs はメニュー化時に「名前を付けて保存」項目へ統合されるため単独ボタンを出さない。
       if (!(fileHandlers.onSaveFile && fileHandlers.onSaveAsFile && opts.onSetSaveAnchor)) {
@@ -824,7 +825,7 @@ export function createEditorToolbar(
       if (next.mergeUndoRedo !== undefined) mergeUndoRedo = next.mergeUndoRedo ?? null;
       if (next.isDirty !== undefined) isDirty = next.isDirty;
       // fileCapabilities の構造（externalSaveOnly / supportsDirectAccess）は構築時固定だが、
-      // hasFileHandle はファイルを開く/保存で変化するため最新値を保持し disabled 再評価に使う。
+      // hasSaveTarget はファイルを開く/保存で変化するため最新値を保持し disabled 再評価に使う。
       if (next.fileCapabilities !== undefined) fileCapabilities = next.fileCapabilities;
       // save ボタンの dirty / handle / readonly ゲートを再評価（編集→保存要、保存後→不要）。
       // メニュー化時はボタンを無効化するとメニュー自体を開けなくなるため readonly のみで判定する

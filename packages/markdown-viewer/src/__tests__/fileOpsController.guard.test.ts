@@ -56,7 +56,7 @@ describe("fileOpsController — 未保存ガード", () => {
     const ops = createOps({ provider: createProvider(), confirmSave });
     await ops.newFile();
     expect(confirmSave).not.toHaveBeenCalled();
-    expect(ops.hasFileHandle()).toBe(false);
+    expect(ops.hasSaveTarget()).toBe(false);
   });
 
   it("dirty かつ cancel なら中断し dirty を保つ", async () => {
@@ -94,7 +94,7 @@ describe("fileOpsController — 未保存ガード", () => {
 
     expect(provider.saveAs).toHaveBeenCalledTimes(1);
     expect(ops.isDirty()).toBe(false);
-    expect(ops.hasFileHandle()).toBe(false); // newFile 後は handle がリセットされる
+    expect(ops.hasSaveTarget()).toBe(false); // newFile 後は handle がリセットされる
   });
 
   it("save を選んだが保存がキャンセルされたら続行しない", async () => {
@@ -209,18 +209,30 @@ describe("fileOpsController — 未保存ガード", () => {
   });
 });
 
+describe("fileOpsController — hasSaveTarget", () => {
+  it("ローカルハンドルが無くても onExternalSave があれば保存先ありとみなす（Drive から開いた本文）", () => {
+    const ops = createOps({ provider: createProvider(), onExternalSave: jest.fn() });
+    expect(ops.hasSaveTarget()).toBe(true);
+  });
+
+  it("ローカルハンドルも onExternalSave も無ければ保存先なし", () => {
+    const ops = createOps({ provider: createProvider() });
+    expect(ops.hasSaveTarget()).toBe(false);
+  });
+});
+
 describe("fileOpsController — newFile", () => {
   it("本文・frontmatter・fileHandle をリセットし dirty を落とす", async () => {
     const { clearDocumentAndComments } = jest.requireMock("../utils/clearEditor");
     const provider = createProvider();
     const ops = createOps({ provider });
     await ops.openFile(); // handle を持たせる
-    expect(ops.hasFileHandle()).toBe(true);
+    expect(ops.hasSaveTarget()).toBe(true);
 
     await ops.newFile();
 
     expect(clearDocumentAndComments).toHaveBeenCalled();
-    expect(ops.hasFileHandle()).toBe(false);
+    expect(ops.hasSaveTarget()).toBe(false);
     expect(ops.getFileName()).toBeNull();
     expect(ops.isDirty()).toBe(false);
   });

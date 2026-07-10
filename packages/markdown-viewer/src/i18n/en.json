@@ -799,6 +799,7 @@
     "driveSaveAsLabel": "File name",
     "driveSaveAsConfirm": "Save",
     "driveCreateError": "Failed to create the file on Drive",
+    "saveNoTarget": "No file to overwrite. Use \"Save As\" instead",
     "driveConflictTitle": "The Drive file was updated elsewhere",
     "driveConflictBody": "This file was changed somewhere else. Overwrite and save anyway?",
     "driveConflictOverwrite": "Overwrite and save",

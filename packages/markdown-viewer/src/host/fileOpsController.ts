@@ -79,7 +79,13 @@ interface FileOpsController {
   markDirty(): void;
   getFileName(): string | null;
   isDirty(): boolean;
-  hasFileHandle(): boolean;
+  /**
+   * 上書き保存の宛先があるか。ローカルの FileHandle だけでなく、外部保存（Google Drive /
+   * GitHub 等）の注入も宛先とみなす。{@link saveFileImpl} が `onExternalSave` を最優先し
+   * `fileHandle` を参照しないため、両者を同じ「宛先あり」として扱わないと Drive から開いた
+   * 本文で上書き保存が無効化される。
+   */
+  hasSaveTarget(): boolean;
 }
 
 /** nativeHandle の書き込み権限を確認・要求し、拒否された場合 true を返す（React 版と同一）。 */
@@ -332,6 +338,6 @@ export function createFileOpsController(
     markDirty: () => setDirty(true),
     getFileName: () => fileHandle?.name ?? null,
     isDirty: () => dirty,
-    hasFileHandle: () => fileHandle != null,
+    hasSaveTarget: () => fileHandle != null || !!options.onExternalSave,
   };
 }

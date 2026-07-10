@@ -102,6 +102,53 @@ describe("mountVanillaMarkdownEditor regression（レビュー指摘 1/2/4）", 
     });
   });
 
+  describe("外部保存（Google Drive）で開いた本文の上書き保存", () => {
+    /** ローカルの FileHandle を持たないホストを再現する（Drive から開いた直後の状態）。 */
+    const driveLikeProvider = {
+      supportsDirectAccess: true,
+      open: jest.fn(),
+      save: jest.fn(),
+      saveAs: jest.fn(),
+    } as never;
+
+    beforeEach(() => localStorage.clear());
+
+    it("ローカルハンドルが無くても onExternalSave があれば上書き保存が有効になる", () => {
+      const handle = mountVanillaMarkdownEditor(container, {
+        t,
+        initialContent: "# a",
+        fileSystemProvider: driveLikeProvider,
+        onExternalSave: jest.fn(() => Promise.resolve(true)),
+      });
+      handle.editor.commands.insertContent("x"); // dirty 化
+
+      const saveBtn = container.querySelector('button[aria-label="save"]') as HTMLButtonElement;
+      saveBtn.click();
+      const items = document.querySelectorAll('[role="menu"] [role="menuitem"]');
+      // 1 番目が「上書き保存」。宛先が外部保存でも押下できること。
+      expect(items[0].getAttribute("aria-disabled")).not.toBe("true");
+
+      handle.destroy();
+    });
+
+    it("ローカルハンドルも onExternalSave も無ければ上書き保存は無効のまま", () => {
+      const handle = mountVanillaMarkdownEditor(container, {
+        t,
+        initialContent: "# a",
+        fileSystemProvider: driveLikeProvider,
+        fileHandlers: { onOpenFromDrive: jest.fn() },
+      });
+      handle.editor.commands.insertContent("x");
+
+      const saveBtn = container.querySelector('button[aria-label="save"]') as HTMLButtonElement;
+      saveBtn.click();
+      const items = document.querySelectorAll('[role="menu"] [role="menuitem"]');
+      expect(items[0].getAttribute("aria-disabled")).toBe("true");
+
+      handle.destroy();
+    });
+  });
+
   describe("storage.commentDialog.open の配線（指摘 2）", () => {
     it("mount 後に storage.commentDialog.open が関数として配線される", () => {
       const handle = mountVanillaMarkdownEditor(container, { t });

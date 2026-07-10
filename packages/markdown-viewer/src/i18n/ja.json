@@ -799,6 +799,7 @@
     "driveSaveAsLabel": "ファイル名",
     "driveSaveAsConfirm": "保存",
     "driveCreateError": "Drive への新規保存に失敗しました",
+    "saveNoTarget": "上書き保存先がありません。「名前を付けて保存」を使ってください",
     "driveConflictTitle": "Drive 上のファイルが更新されています",
     "driveConflictBody": "他の場所でこのファイルが変更されました。上書きして保存しますか?",
     "driveConflictOverwrite": "上書きして保存",

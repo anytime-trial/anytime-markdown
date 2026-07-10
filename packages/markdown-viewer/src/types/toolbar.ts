@@ -39,7 +39,12 @@ export interface ToolbarFileHandlers {
 
 /** ファイルシステム機能フラグ */
 export interface ToolbarFileCapabilities {
-  hasFileHandle?: boolean;
+  /**
+   * 上書き保存の宛先があるか。ローカルの FileHandle と外部保存（Google Drive / GitHub 等）の
+   * 双方を含む。ローカルハンドルの有無だけで判定すると Drive から開いた本文で上書き保存が
+   * 無効化されるため、宛先の種類を問わない名前にしている。
+   */
+  hasSaveTarget?: boolean;
   supportsDirectAccess?: boolean;
   /** 外部保存のみ（GitHub SSO 等）: 新規作成・開く・名前を付けて保存を非表示 */
   externalSaveOnly?: boolean;
