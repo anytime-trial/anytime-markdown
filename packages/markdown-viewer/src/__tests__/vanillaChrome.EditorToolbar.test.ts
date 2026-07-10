@@ -238,6 +238,54 @@ describe("createEditorToolbar — ファイル操作", () => {
     handle.destroy();
   });
 
+  it("onOpenFromDrive 未注入なら open は直接ハンドラを呼び aria-haspopup を持たない", () => {
+    const { handle, fileHandlers } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      onSetOpenFileAnchor: jest.fn(),
+    });
+    const btn = handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement;
+    expect(btn.getAttribute("aria-haspopup")).toBeNull();
+    btn.click();
+    expect(fileHandlers.onOpenFile).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("onOpenFromDrive 注入時は open がメニュー化され onSetOpenFileAnchor へ委譲する", () => {
+    const onSetOpenFileAnchor = jest.fn();
+    const fileHandlers = { ...defaultFileHandlers(), onOpenFromDrive: jest.fn() };
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileHandlers,
+      onSetOpenFileAnchor,
+    });
+    const btn = handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement;
+    expect(btn.getAttribute("aria-haspopup")).toBe("menu");
+    btn.click();
+    expect(fileHandlers.onOpenFile).not.toHaveBeenCalled();
+    expect(onSetOpenFileAnchor).toHaveBeenCalledTimes(1);
+    const [anchorEl, handlers] = onSetOpenFileAnchor.mock.calls[0];
+    expect(anchorEl).toBe(btn);
+    handlers.onOpenLocal();
+    expect(fileHandlers.onOpenFile).toHaveBeenCalled();
+    handlers.onOpenFromDrive();
+    expect(fileHandlers.onOpenFromDrive).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("非 direct access + onOpenFromDrive 注入でも open はメニュー化される", () => {
+    const onSetOpenFileAnchor = jest.fn();
+    const fileHandlers = { ...defaultFileHandlers(), onOpenFromDrive: jest.fn() };
+    const { handle } = mount({ fileHandlers, onSetOpenFileAnchor });
+    const btn = handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement;
+    btn.click();
+    expect(fileHandlers.onImport).not.toHaveBeenCalled();
+    expect(onSetOpenFileAnchor).toHaveBeenCalledTimes(1);
+    // メニュー側の onOpenLocal は非 direct access では onImport にフォールバックする。
+    onSetOpenFileAnchor.mock.calls[0][1].onOpenLocal();
+    expect(fileHandlers.onImport).toHaveBeenCalled();
+    handle.destroy();
+  });
+
   it("非 direct access では open=onImport / saveAs=onDownload にフォールバックする", () => {
     const { handle, fileHandlers } = mount();
     (handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement).click();

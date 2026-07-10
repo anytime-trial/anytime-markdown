@@ -146,6 +146,14 @@ export interface CreateEditorToolbarOptions {
   sideToolbar?: boolean;
   /** more メニュー（ヘルプ / ハンバーガー）クリックの intent。anchor 要素を渡す。 */
   onSetHelpAnchor?: (el: HTMLElement) => void;
+  /**
+   * 「開く」ボタンのメニュー表示要求。`fileHandlers.onOpenFromDrive` が注入されている
+   * ときのみ発火し、ボタン要素と選択肢のハンドラを渡す。
+   */
+  onSetOpenFileAnchor?: (
+    el: HTMLElement,
+    handlers: { onOpenLocal: () => void | Promise<void>; onOpenFromDrive: () => void | Promise<void> },
+  ) => void;
   /** モバイル more メニュー（ハンバーガー）クリックの intent（host 側 React Menu へ委譲）。 */
   onOpenMobileMenu?: (el: HTMLElement) => void;
   onHomeClick?: () => void;
@@ -336,6 +344,35 @@ export function createEditorToolbar(
       return btn;
     };
 
+    /**
+     * 「開く」ボタンを追加する。`onOpenFromDrive` が注入されている場合のみメニュー化し、
+     * ボタン自身を anchor として上位（EditorMenuPopovers）へ渡す。未注入のホスト
+     * （VS Code 拡張など）では `onOpenLocal` を直接呼ぶ従来の挙動を保つ。
+     */
+    const addOpenBtn = (
+      onOpenLocal: () => void | Promise<void>,
+      tipTitle: string,
+    ): ReturnType<typeof createToggleButton> => {
+      const onOpenFromDrive = fileHandlers.onOpenFromDrive;
+      const asMenu = Boolean(onOpenFromDrive && opts.onSetOpenFileAnchor);
+      let btn: ReturnType<typeof createToggleButton>;
+      btn = addBtn({
+        value: "open",
+        ariaLabel: t("openFile"),
+        icon: PATH.folderOpen,
+        tipTitle,
+        onClick: () => {
+          if (asMenu && onOpenFromDrive) {
+            opts.onSetOpenFileAnchor?.(btn.el, { onOpenLocal, onOpenFromDrive });
+            return;
+          }
+          void onOpenLocal();
+        },
+      });
+      if (asMenu) btn.el.setAttribute("aria-haspopup", "menu");
+      return btn;
+    };
+
     if (externalSaveOnly) {
       saveBtn = addBtn({
         value: "save",
@@ -346,13 +383,7 @@ export function createEditorToolbar(
         onClick: () => fileHandlers.onSaveFile?.(),
       });
     } else if (supportsDirectAccess) {
-      addBtn({
-        value: "open",
-        ariaLabel: t("openFile"),
-        icon: PATH.folderOpen,
-        tipTitle: tip(t, "openFile"),
-        onClick: () => fileHandlers.onOpenFile?.(),
-      });
+      addOpenBtn(() => fileHandlers.onOpenFile?.(), tip(t, "openFile"));
       saveBtn = addBtn({
         value: "save",
         ariaLabel: t("saveFile"),
@@ -370,13 +401,7 @@ export function createEditorToolbar(
         onClick: () => fileHandlers.onSaveAsFile?.(),
       });
     } else {
-      addBtn({
-        value: "open",
-        ariaLabel: t("openFile"),
-        icon: PATH.folderOpen,
-        tipTitle: t("openFile"),
-        onClick: () => fileHandlers.onImport(),
-      });
+      addOpenBtn(() => fileHandlers.onImport(), t("openFile"));
       addBtn({
         value: "saveAs",
         ariaLabel: t("saveAsFile"),

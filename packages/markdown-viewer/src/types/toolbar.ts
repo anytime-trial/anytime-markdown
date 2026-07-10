@@ -22,6 +22,8 @@ export interface ToolbarFileHandlers {
   onImport: () => void;
   onClear: () => void;
   onOpenFile?: () => void | Promise<void>;
+  /** 注入されている場合、ツールバーの「開く」はメニュー化され本ハンドラが選択肢に並ぶ。 */
+  onOpenFromDrive?: () => void | Promise<void>;
   onSaveFile?: () => void | Promise<void>;
   onSaveAsFile?: () => void | Promise<void>;
   onWebImport?: () => void | Promise<void>;

@@ -2,7 +2,6 @@
 
 import { COMMENT_PANEL_WIDTH, createMarkdownT, getDefaultContent } from '@anytime-markdown/markdown-viewer';
 import { STORAGE_KEY_CONTENT } from '@anytime-markdown/markdown-viewer/src/constants/storageKeys';
-import AddToDriveOutlinedIcon from '@mui/icons-material/AddToDriveOutlined';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import {
   Alert, Box, Button, CircularProgress, Snackbar,
@@ -104,8 +103,10 @@ export default function Page() {
       onWebImportCreate: (markdown: string, title: string) => {
         downloadMarkdownBlob(markdown, title);
       },
+      // 注入するとツールバーの「開く」がメニュー化され、Drive が選択肢に並ぶ。
+      onOpenFromDrive: handleDriveOpen,
     }),
-    [],
+    [handleDriveOpen],
   );
 
   return (
@@ -113,6 +114,9 @@ export default function Page() {
       <LandingHeader />
       <Box id="md-page-wrapper" sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        {/* Drive から開く導線はエディタツールバーの「開く」メニューへ統合済み。
+            残るのは GitHub コミットのみのため、無効時は帯ごと出さない。 */}
+        {enableGitHub && (
         <Box
           sx={{
             display: "flex",
@@ -130,10 +134,10 @@ export default function Page() {
           }}
         >
           <Button
-            onClick={handleDriveOpen}
-            aria-label={t('driveOpenAria')}
+            onClick={handleCommitToGitHubClick}
+            aria-label={t('githubCommitButtonAria')}
             size="small"
-            startIcon={<AddToDriveOutlinedIcon sx={{ fontSize: 18 }} />}
+            startIcon={<GitHubIcon sx={{ fontSize: 18 }} />}
             sx={{
               textTransform: "none",
               fontSize: "0.8rem",
@@ -141,25 +145,10 @@ export default function Page() {
               "&:hover": { color: "text.primary" },
             }}
           >
-            {t('driveOpen')}
+            {t('githubCommitButton')}
           </Button>
-          {enableGitHub && (
-            <Button
-              onClick={handleCommitToGitHubClick}
-              aria-label={t('githubCommitButtonAria')}
-              size="small"
-              startIcon={<GitHubIcon sx={{ fontSize: 18 }} />}
-              sx={{
-                textTransform: "none",
-                fontSize: "0.8rem",
-                color: "text.secondary",
-                "&:hover": { color: "text.primary" },
-              }}
-            >
-              {t('githubCommitButton')}
-            </Button>
-          )}
         </Box>
+        )}
         <Box sx={{ flex: 1, minHeight: 0 }}>
         <EmbedProvidersBoundary>
         <VanillaRichMarkdownEditor
