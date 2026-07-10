@@ -241,6 +241,12 @@ export function createEditorToolbar(
   let saveBtn: ReturnType<typeof createToggleButton> | null = null;
   /** 保存ボタンがメニュー化されているか（true なら disabled は readonly のみで再評価する）。 */
   let saveBtnIsMenu = false;
+  /**
+   * editingLocked() で無効化される編集系ボタン。update() で再評価するため参照を保持する
+   * （構築時の値で固定すると readonly へ入っても押せたままになる）。buildFileActions() より
+   * 前に宣言しないと TDZ で落ちる。
+   */
+  const lockGatedButtons: ReturnType<typeof createToggleButton>[] = [];
   const hide = opts.hide ?? {};
   // 旧 EditorToolbar.module.css parity: ビュー群/compare/More(desktop) は md 未満で非表示、
   // More(mobile) は md 以上で非表示。display は本スタイルが所有する（inline に置かない）。
@@ -326,11 +332,17 @@ export function createEditorToolbar(
     root.appendChild(buildFileActions());
   }
 
+  // 編集操作をロックすべきか。ホスト強制の readOnly と、ユーザーが選んだ readonly モードの論理和。
+  // 両者は独立に立つため（ToolbarModeState 参照）、編集系ボタンの可否は必ずこの関数で判定する。
+  function editingLocked(): boolean {
+    return Boolean(modeState.hostReadOnly) || Boolean(modeState.readonlyMode);
+  }
+
   // save ボタンの disabled 判定。readonly / 保存先無し / 未編集（dirty=false）のいずれかで無効。
   // 保存先はローカルハンドルと外部保存（Drive / GitHub）の双方を含む（hasSaveTarget）。
   // 「保存が必要なときのみ有効」を満たすため dirty ゲートを最後に AND する。
   function saveDisabled(): boolean {
-    return Boolean(modeState.readonlyMode) || !fileCapabilities?.hasSaveTarget || !isDirty;
+    return editingLocked() || !fileCapabilities?.hasSaveTarget || !isDirty;
   }
 
   // 上書き保存の表示名。保存先が GitHub のとき、この操作は GitHub へのコミットなので表示を合わせる。
@@ -348,7 +360,6 @@ export function createEditorToolbar(
     const wrap = document.createElement("div");
     wrap.style.cssText = "display:inline-flex;align-items:center;";
     const { supportsDirectAccess, externalSaveOnly } = fileCapabilities ?? {};
-    const readonlyMode = modeState.readonlyMode;
 
     const group = createToggleButtonGroup({ size: "small", ariaLabel: t("fileActions") });
     group.el.style.height = "30px";
@@ -415,14 +426,16 @@ export function createEditorToolbar(
      * 「新規作成」ボタンを追加する。open ボタンを出す分岐でのみ呼ぶ（open の直前に置く）。
      */
     const addNewFileBtn = (): void => {
-      addBtn({
-        value: "createNew",
-        ariaLabel: t("createNew"),
-        icon: PATH.noteAdd,
-        tipTitle: tip(t, "createNew"),
-        disabled: readonlyMode,
-        onClick: () => void fileHandlers.onNewFile?.(),
-      });
+      lockGatedButtons.push(
+        addBtn({
+          value: "createNew",
+          ariaLabel: t("createNew"),
+          icon: PATH.noteAdd,
+          tipTitle: tip(t, "createNew"),
+          disabled: editingLocked(),
+          onClick: () => void fileHandlers.onNewFile?.(),
+        }),
+      );
     };
 
     /**
@@ -442,7 +455,7 @@ export function createEditorToolbar(
         ariaLabel: asMenu ? t("save") : overwriteSaveLabel(),
         icon: PATH.save,
         tipTitle: asMenu ? t("save") : tipTitle,
-        disabled: asMenu ? readonlyMode : saveDisabled(),
+        disabled: asMenu ? editingLocked() : saveDisabled(),
         onClick: () => {
           if (asMenu && onSaveFile && onSaveAsFile) {
             opts.onSetSaveAnchor?.(btn.el, {
@@ -477,26 +490,30 @@ export function createEditorToolbar(
       saveBtn = addSaveBtn(overwriteSaveTip());
       // saveAs はメニュー化時に「名前を付けて保存」項目へ統合されるため単独ボタンを出さない。
       if (!(fileHandlers.onSaveFile && fileHandlers.onSaveAsFile && opts.onSetSaveAnchor)) {
-        addBtn({
-          value: "saveAs",
-          ariaLabel: t("saveAsFile"),
-          icon: PATH.saveAs,
-          tipTitle: tip(t, "saveAsFile"),
-          disabled: readonlyMode,
-          onClick: () => fileHandlers.onSaveAsFile?.(),
-        });
+        lockGatedButtons.push(
+          addBtn({
+            value: "saveAs",
+            ariaLabel: t("saveAsFile"),
+            icon: PATH.saveAs,
+            tipTitle: tip(t, "saveAsFile"),
+            disabled: editingLocked(),
+            onClick: () => fileHandlers.onSaveAsFile?.(),
+          }),
+        );
       }
     } else {
       addNewFileBtn();
       addOpenBtn(() => fileHandlers.onImport(), t("openFile"));
-      addBtn({
-        value: "saveAs",
-        ariaLabel: t("saveAsFile"),
-        icon: PATH.saveAs,
-        tipTitle: t("saveAsFile"),
-        disabled: readonlyMode,
-        onClick: () => fileHandlers.onDownload(),
-      });
+      lockGatedButtons.push(
+        addBtn({
+          value: "saveAs",
+          ariaLabel: t("saveAsFile"),
+          icon: PATH.saveAs,
+          tipTitle: t("saveAsFile"),
+          disabled: editingLocked(),
+          onClick: () => fileHandlers.onDownload(),
+        }),
+      );
     }
 
     if (fileHandlers.onExportPdf) {
@@ -510,14 +527,16 @@ export function createEditorToolbar(
       });
     }
     if (fileHandlers.onWebImport) {
-      addBtn({
-        value: "webImport",
-        ariaLabel: t("slashWebImport"),
-        icon: PATH.web,
-        tipTitle: t("slashWebImport"),
-        disabled: readonlyMode,
-        onClick: () => fileHandlers.onWebImport?.(),
-      });
+      lockGatedButtons.push(
+        addBtn({
+          value: "webImport",
+          ariaLabel: t("slashWebImport"),
+          icon: PATH.web,
+          tipTitle: t("slashWebImport"),
+          disabled: editingLocked(),
+          onClick: () => fileHandlers.onWebImport?.(),
+        }),
+      );
     }
     wrap.appendChild(group.el);
 
@@ -586,14 +605,14 @@ export function createEditorToolbar(
 
   function undoDisabled(): boolean {
     return (
-      !!modeState.readonlyMode ||
+      editingLocked() ||
       !!modeState.reviewMode ||
       (mergeUndoRedo ? !mergeUndoRedo.canUndo : !editorState.canUndo)
     );
   }
   function redoDisabled(): boolean {
     return (
-      !!modeState.readonlyMode ||
+      editingLocked() ||
       !!modeState.reviewMode ||
       (mergeUndoRedo ? !mergeUndoRedo.canRedo : !editorState.canRedo)
     );
@@ -661,6 +680,7 @@ export function createEditorToolbar(
 
   // --- モード切替（readonly / review / wysiwyg / source） ---
   let modeGroup: ReturnType<typeof createToggleButtonGroup> | null = null;
+  const modeButtons: ReturnType<typeof createToggleButton>[] = [];
   if (!hide.modeToggle) {
     modeGroup = createToggleButtonGroup({
       variant: "pill",
@@ -685,9 +705,13 @@ export function createEditorToolbar(
       const btn = createToggleButton({
         value,
         ariaLabel,
+        // ホストが readOnly を課している間はユーザーがモードを変えられない。押しても無反応に
+        // するのではなく、無効化して「切替不可」であることを示す。
+        disabled: Boolean(modeState.hostReadOnly),
         label: [iconEl, labelSpan],
         onClick,
       });
+      modeButtons.push(btn);
       modeGroup?.register(btn);
     };
 
@@ -708,8 +732,10 @@ export function createEditorToolbar(
     root.appendChild(modeGroup.el);
   }
 
+  // ホストが readOnly を課している間は、内部モードに関わらず「読み取り専用」を選択表示する
+  // （ボタン群は disabled なので、状態表示であって操作可能な選択ではない）。
   function currentMode(): string {
-    if (modeState.readonlyMode) return "readonly";
+    if (modeState.hostReadOnly || modeState.readonlyMode) return "readonly";
     if (modeState.reviewMode) return "review";
     if (modeState.sourceMode) return "source";
     return "wysiwyg";
@@ -733,13 +759,14 @@ export function createEditorToolbar(
     const editBtn = createToggleButton({
       value: "edit",
       ariaLabel: t("normalMode"),
-      disabled: modeState.readonlyMode,
+      disabled: editingLocked(),
       label: [svgIcon(PATH.editNote, 16), editLabel],
       onClick: () => {
         if (modeState.inlineMergeOpen) modeHandlers.onMerge();
       },
     });
     compareGroup.register(editBtn);
+    lockGatedButtons.push(editBtn);
 
     const compareLabel = document.createElement("span");
     compareLabel.textContent = t("compare");
@@ -748,13 +775,14 @@ export function createEditorToolbar(
     const compareBtn = createToggleButton({
       value: "compare",
       ariaLabel: t("compare"),
-      disabled: modeState.readonlyMode,
+      disabled: editingLocked(),
       label: [compareIcon, compareLabel],
       onClick: () => {
         if (!modeState.inlineMergeOpen) modeHandlers.onMerge();
       },
     });
     compareGroup.register(compareBtn);
+    lockGatedButtons.push(compareBtn);
 
     wrapper.appendChild(compareGroup.el);
     root.appendChild(wrapper);
@@ -847,7 +875,14 @@ export function createEditorToolbar(
       // save ボタンの dirty / handle / readonly ゲートを再評価（編集→保存要、保存後→不要）。
       // メニュー化時はボタンを無効化するとメニュー自体を開けなくなるため readonly のみで判定する
       // （「上書き保存」項目の可否は onSetSaveAnchor の overwriteDisabled で都度渡す）。
-      saveBtn?.update({ disabled: saveBtnIsMenu ? Boolean(modeState.readonlyMode) : saveDisabled() });
+      saveBtn?.update({ disabled: saveBtnIsMenu ? editingLocked() : saveDisabled() });
+
+      // readonly ゲートのかかる編集系ボタン（新規作成 / 名前を付けて保存 / web import /
+      // 通常 / 比較）を再評価する。構築時の値のままだと readonly へ入っても押せてしまう。
+      const locked = editingLocked();
+      for (const btn of lockGatedButtons) btn.update({ disabled: locked });
+      // ホスト強制ロック中はモード切替そのものを封じる。
+      for (const btn of modeButtons) btn.update({ disabled: Boolean(modeState.hostReadOnly) });
 
       // モード／compare の選択値を group へ反映。
       modeGroup?.setValue(currentMode());

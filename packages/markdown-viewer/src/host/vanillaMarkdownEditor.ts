@@ -704,7 +704,8 @@ export function mountVanillaMarkdownEditor(
       });
       const modeState: ToolbarModeState = {
         sourceMode: false,
-        readonlyMode: current.readOnly ?? false,
+        readonlyMode: false,
+        hostReadOnly: current.readOnly ?? false,
         reviewMode: false,
         outlineOpen: current.defaultOutlineOpen ?? false,
         inlineMergeOpen: false,
@@ -1220,7 +1221,9 @@ export function mountVanillaMarkdownEditor(
         onModeApplied: (mode: VanillaEditorMode) => {
           modeState.sourceMode = mode === "source";
           modeState.reviewMode = mode === "review";
-          modeState.readonlyMode = mode === "readonly" || (current.readOnly ?? false);
+          // ホスト強制の readOnly を OR しない。畳み込むと currentMode() が常に "readonly" を返し、
+          // かつ controller の内部 mode が "wysiwyg" のままなので「編集」への切替が no-op になる。
+          modeState.readonlyMode = mode === "readonly";
           editor.setEditable(!readonlyNow() && mode !== "review");
           // source モードは WYSIWYG 本文を隠すため、ミニマップも畳む（マーカーが上端に集中して
           // 表示されるグリッチを防ぐ）。WYSIWYG/review/readonly では本文が見えるので表示する。
@@ -1699,8 +1702,11 @@ export function mountVanillaMarkdownEditor(
           if (key === "s") {
             // 4 モード循環: Readonly → Review → Edit → Source → Readonly
             // （旧実装と同一。Review/Readonly 切替が未配線なら Wysiwyg へフォールバック）。
+            // ホストが readOnly を課している間はツールバー同様モード切替そのものを封じる。
             e.preventDefault();
-            if (modeState.readonlyMode) {
+            if (current.readOnly) {
+              // no-op（ロック中）
+            } else if (modeState.readonlyMode) {
               (modeHandlers.onSwitchToReview ?? modeHandlers.onSwitchToWysiwyg)();
             } else if (modeState.reviewMode) {
               modeHandlers.onSwitchToWysiwyg();
@@ -1709,8 +1715,8 @@ export function mountVanillaMarkdownEditor(
             } else {
               modeHandlers.onSwitchToSource();
             }
-          } else if (modeState.readonlyMode || modeState.reviewMode) {
-            // readonly / review では編集系（merge / clear）を無効化（旧実装と同一）。
+          } else if (readonlyNow() || modeState.reviewMode) {
+            // readonly（ホスト強制・ユーザー選択いずれも）/ review では編集系（merge / clear）を無効化。
           } else if (key === "m") {
             e.preventDefault();
             modeHandlers.onMerge();
@@ -1767,7 +1773,8 @@ export function mountVanillaMarkdownEditor(
       applyLivePatch = (patch) => {
         if (patch.readOnly !== undefined) {
           current.readOnly = patch.readOnly;
-          modeState.readonlyMode = patch.readOnly || sourceController?.getMode() === "readonly";
+          modeState.hostReadOnly = patch.readOnly;
+          modeState.readonlyMode = sourceController?.getMode() === "readonly";
           editor.setEditable(!readonlyNow() && sourceController?.getMode() !== "review");
           remakeBubble();
           refreshToolbarMode();

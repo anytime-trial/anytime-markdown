@@ -132,7 +132,10 @@ export default function Page() {
           onExternalSave={canExternalSave ? handleExternalSave : undefined}
           externalSaveKind={externalSaveKind}
           onSaveTargetChange={handleSaveTargetChange}
-          readOnly={externalContent !== undefined}
+          // readOnly はホストが課す編集ロック（VS Code の Claude 編集中など）を表す。web-app に
+          // ロック要件は無い。かつて `externalContent !== undefined` を渡していたが、GitHub 接続直後の
+          // 空文書リセット（useEditorPage の setExternalContent("")）まで読み取り専用にしてしまい、
+          // 本文が空のまま編集もモード切替もできなくなっていた。
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar
           // Explorer パネルは廃止済み。トグルを出すと開く先が無いため抑止する。
