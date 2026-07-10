@@ -30,13 +30,85 @@ export function enqueueRender<T>(fn: () => Promise<T>): Promise<T> {
   return task;
 }
 
-/** Mermaid SVG用のDOMPurify設定: foreignObject経由のXSSを防止 */
+/**
+ * Mermaid SVG用のDOMPurify設定: foreignObject経由のXSSを防止。
+ *
+ * mermaid はノードラベルを foreignObject 内の HTML として出力するため html プロファイルを
+ * 有効にする。ラベルに必要なのはインライン整形タグのみなので、フォーム（ラベルを装った
+ * フィッシング）とメディア要素は FORBID_TAGS で落とす。`<style>` は mermaid 自身が SVG 直下
+ * にテーマ CSS として出力するため一律禁止できず、foreignObject 配下のものだけ
+ * `sanitizeMermaidSvg` が除去する。
+ *
+ * DOMPurify は凍結されていない cfg 配列を in-place で小文字化するため、共有定数が実行時に
+ * 書き換わらないよう各配列を凍結する。
+ */
 export const SVG_SANITIZE_CONFIG = {
   USE_PROFILES: { svg: true, svgFilters: true, html: true },
-  ADD_TAGS: ["foreignObject"] as string[],
-  ADD_ATTR: ["xmlns", "style", "class", "requiredExtensions"] as string[],
-  FORBID_TAGS: ["script", "iframe", "object", "embed"] as string[],
+  ADD_TAGS: Object.freeze(["foreignObject"]) as string[],
+  ADD_ATTR: Object.freeze(["xmlns", "style", "class", "requiredExtensions"]) as string[],
+  FORBID_TAGS: Object.freeze([
+    "script", "iframe", "object", "embed",
+    "form", "input", "button", "select", "textarea",
+    "details", "summary", "marquee",
+    "audio", "video", "track", "source",
+  ]) as string[],
+  FORBID_ATTR: Object.freeze(["action", "formaction", "srcdoc"]) as string[],
+  // DOMPurify の既定 HTML integration point は annotation-xml のみ。foreignobject を
+  // 足さないと SVG→HTML の名前空間切替が不正扱いになり、mermaid のノードラベル
+  // （foreignObject 内の div/span/p）が全削除されて図から文字が消える。
+  HTML_INTEGRATION_POINTS: { "annotation-xml": true, foreignobject: true },
 };
+
+/** foreignObject の内側かどうか（ラベル HTML 領域の判定） */
+function isInsideForeignObject(node: Node): boolean {
+  for (let p = node.parentNode; p; p = p.parentNode) {
+    if (p.nodeName.toLowerCase() === "foreignobject") return true;
+  }
+  return false;
+}
+
+/**
+ * style 属性値から外部参照の url(...) を除去する。
+ * `url(#arrowhead)` のような同一文書内フラグメント参照（マーカー・グラデーション）は
+ * mermaid の描画に必須なので残す。
+ */
+function stripExternalUrlFunctions(styleValue: string): string {
+  return styleValue.replaceAll(/url\s*\(\s*(['"]?)(?!#)[^)]*\)/gi, "");
+}
+
+/**
+ * mermaid 出力 SVG をサニタイズする。
+ *
+ * DOMPurify のタグ・属性許可リストは「どこに現れたか」を区別できないため、位置に依存する
+ * 3 つの制約はサニタイズ後の DOM を走査して適用する（削除・属性の書き換えのみで、新たな
+ * 要素は追加しない）。uponSanitizeElement フック内での removeChild は DOMPurify 自身の
+ * 削除処理と衝突して例外になるため採らない。
+ *
+ * - `<style>`: SVG 直下（mermaid のテーマ CSS）は残し、foreignObject 配下は `@import` に
+ *   よる外部通信の経路になるため除去する
+ * - `style` 属性の外部 `url(...)`: `background:url(https://…)` は受動的な情報リークの経路に
+ *   なるため剥がす（`url(#arrowhead)` の内部参照は描画に必須なので残す）
+ *
+ * `<img>` は除去しない。mermaid はラベル内の img を公式にサポートしており、かつ本アプリは
+ * 通常の Markdown 画像で既に外部 URL を読み込むため、ラベル内 img は新たな能力を与えない。
+ *
+ * mermaid の flowchart はテーマ CSS とラベルを常に出力するため、この走査は通常経路で毎回
+ * 走る。結果は svgCache に載るのでレンダリング 1 回につき 1 度だけ。
+ */
+export function sanitizeMermaidSvg(svg: string): string {
+  const sanitized = DOMPurify.sanitize(svg, SVG_SANITIZE_CONFIG);
+  if (!/<foreignobject/i.test(sanitized)) return sanitized;
+
+  const doc = new DOMParser().parseFromString(sanitized, "text/html");
+  for (const el of doc.querySelectorAll("style")) {
+    if (isInsideForeignObject(el)) el.remove();
+  }
+  for (const el of doc.querySelectorAll("[style]")) {
+    const styleValue = el.getAttribute("style") ?? "";
+    if (styleValue.includes("url(")) el.setAttribute("style", stripExternalUrlFunctions(styleValue));
+  }
+  return doc.body.innerHTML;
+}
 
 /** Detect Mermaid diagram type from code content for aria-label */
 export function detectMermaidType(code: string): string {
@@ -158,7 +230,7 @@ export function requestMermaidRender(code: string, isDark: boolean, callback: (s
         try {
           const { svg: rendered } = await mermaid.render(id, code, container);
           // mermaid 出力 SVG を追加サニタイズ（foreignObject 経由 XSS の二重防御）
-          const sanitized = DOMPurify.sanitize(rendered, SVG_SANITIZE_CONFIG);
+          const sanitized = sanitizeMermaidSvg(rendered);
           // 実際に描画したプリセット(handDrawn)でキーを確定し、500ms デバウンス中の
           // プリセット変更による別キーへのキャッシュ汚染を防ぐ
           svgCache.set(cacheKey(code, isDark, handDrawn), sanitized);
