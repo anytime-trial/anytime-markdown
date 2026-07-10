@@ -180,6 +180,31 @@ describe("createEditorMenuPopovers", () => {
     expect(items[1].textContent).not.toContain("+");
   });
 
+  it("openFileMenu は onOpenFromGitHub 注入時に GitHub 項目を追加する", () => {
+    const m = createMockEditor();
+    const onOpenFromGitHub = jest.fn();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, {
+      onOpenLocal: () => {},
+      onOpenFromDrive: () => {},
+      onOpenFromGitHub,
+    });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items.length).toBe(3);
+    expect(items[2].textContent).toContain("openFromGitHub");
+    (items[2] as HTMLElement).click();
+    expect(onOpenFromGitHub).toHaveBeenCalled();
+  });
+
+  it("openFileMenu は onOpenFromDrive 未注入なら Drive 項目を出さない", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, { onOpenLocal: () => {}, onOpenFromGitHub: () => {} });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items.length).toBe(2);
+    expect(items[1].textContent).toContain("openFromGitHub");
+  });
+
   it("openSaveMenu は上書き保存 / 名前を付けて保存にのみショートカットを表示する（Drive には無い）", () => {
     const m = createMockEditor();
     handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });

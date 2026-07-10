@@ -1003,6 +1003,13 @@ export function mountVanillaMarkdownEditor(
               await current.fileHandlers?.onOpenFromDrive?.();
             }
           : undefined,
+        // GitHub から開く経路も同様に fileOps の外側で差し替えるため未保存ガードを掛ける。
+        onOpenFromGitHub: current.fileHandlers?.onOpenFromGitHub
+          ? async () => {
+              if (!(await fileOps.confirmContinue())) return;
+              await current.fileHandlers?.onOpenFromGitHub?.();
+            }
+          : undefined,
         onNewFile: current.fileHandlers?.onNewFile ?? (() => void fileOps.newFile()),
         onSaveToDrive: current.fileHandlers?.onSaveToDrive,
         onSaveFile:

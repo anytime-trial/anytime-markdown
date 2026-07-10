@@ -13,7 +13,7 @@ import {
 import { useTranslations } from "next-intl";
 import { type FC, type SyntheticEvent, useEffect, useState } from "react";
 
-import type { GitHubRepo } from "./explorer/types";
+import type { GitHubRepo } from "../lib/githubApi";
 
 /** 確定時に呼び出し側（useEditorPage）へ渡す入力値。実際の PUT は呼び出し側が行う。 */
 export interface CommitToGitHubValues {

@@ -5,6 +5,7 @@ import FolderIcon from "@mui/icons-material/Folder";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import LockIcon from "@mui/icons-material/Lock";
 import {
+  Autocomplete,
   Box,
   Button,
   CircularProgress,
@@ -16,16 +17,14 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  TextField,
   Typography,
 } from "@mui/material";
 import { signIn } from "next-auth/react";
-import { type FC, useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
 
-interface GitHubRepo {
-  fullName: string;
-  private: boolean;
-  defaultBranch: string;
-}
+import type { GitHubRepo } from "../lib/githubApi";
 
 interface TreeEntry {
   path: string;
@@ -36,22 +35,48 @@ interface TreeEntry {
 interface GitHubRepoBrowserProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (repo: string, filePath: string) => void;
+  /** 選択されたファイルの所在。branch は開いた後の上書き保存先にもなる。 */
+  onSelect: (repo: string, filePath: string, branch: string) => void;
 }
 
-export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
+/** ディレクトリ応答を Markdown とディレクトリのみに絞り、ディレクトリ優先で並べる。 */
+function toTreeEntries(data: unknown): TreeEntry[] {
+  if (!Array.isArray(data)) return [];
+  return (data as { path: string; type: string; name: string }[])
+    .map((item) => ({
+      path: item.path,
+      type: item.type === "dir" ? ("tree" as const) : ("blob" as const),
+      name: item.name,
+    }))
+    .filter((e) => e.type === "tree" || e.name.endsWith(".md") || e.name.endsWith(".markdown"))
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === "tree" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+export const GitHubRepoBrowser: FC<Readonly<GitHubRepoBrowserProps>> = ({
   open,
   onClose,
   onSelect,
 }) => {
+  const t = useTranslations("Common");
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+  const [branch, setBranch] = useState("");
+  const [branchOptions, setBranchOptions] = useState<string[]>([]);
   const [tree, setTree] = useState<TreeEntry[]>([]);
   const [currentPath, setCurrentPath] = useState("");
   const [loading, setLoading] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
+  /**
+   * 最新のツリー / ブランチ取得を識別する。リポジトリやブランチを続けて切り替えると
+   * 古いリクエストの応答が後着し、表示中の状態を上書きしてしまうため、発行順で弾く。
+   */
+  const requestIdRef = useRef(0);
+  /** ブランチ候補取得の識別子。ツリー取得とは無効化のタイミングが異なるため別に持つ。 */
+  const branchRequestIdRef = useRef(0);
 
-  // Fetch repos on open
   useEffect(() => {
     if (!open) return;
     setLoading(true);
@@ -66,114 +91,158 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
       .then((data) => {
         if (Array.isArray(data)) setRepos(data);
       })
-      .catch(() => setNeedsAuth(true))
+      .catch((e: unknown) => {
+        console.warn(
+          `[${new Date().toISOString()}] [WARN] Failed to fetch GitHub repos`,
+          e instanceof Error ? e.stack : e,
+        );
+        setNeedsAuth(true);
+      })
       .finally(() => setLoading(false));
   }, [open]);
 
-  // Fetch directory contents
   const fetchDirectory = useCallback(
-    async (repo: GitHubRepo, dirPath: string) => {
+    async (repo: GitHubRepo, ref: string, dirPath: string) => {
+      const requestId = ++requestIdRef.current;
       setLoading(true);
       try {
         const res = await fetch(
-          `/api/github/content?repo=${encodeURIComponent(repo.fullName)}&path=${encodeURIComponent(dirPath)}&ref=${encodeURIComponent(repo.defaultBranch)}`,
+          `/api/github/content?repo=${encodeURIComponent(repo.fullName)}&path=${encodeURIComponent(dirPath)}&ref=${encodeURIComponent(ref)}`,
         );
-        if (!res.ok) throw new Error("Failed to fetch tree");
-        const data: unknown = await res.json();
-        if (Array.isArray(data)) {
-          const entries: TreeEntry[] = (
-            data as { path: string; type: string; name: string }[]
-          )
-            .map((item) => ({
-              path: item.path,
-              type: item.type === "dir" ? "tree" as const : "blob" as const,
-              name: item.name,
-            }))
-            .filter(
-              (e) =>
-                e.type === "tree" ||
-                e.name.endsWith(".md") ||
-                e.name.endsWith(".markdown"),
-            )
-            .sort((a, b) => {
-              if (a.type !== b.type) return a.type === "tree" ? -1 : 1;
-              return a.name.localeCompare(b.name);
-            });
-          setTree(entries);
-        }
-      } catch {
+        if (!res.ok) throw new Error(`Failed to fetch tree: ${res.status}`);
+        const entries = toTreeEntries(await res.json());
+        if (requestId !== requestIdRef.current) return; // 後着した古い応答は捨てる
+        setTree(entries);
+      } catch (e: unknown) {
+        console.warn(
+          `[${new Date().toISOString()}] [WARN] Failed to fetch GitHub tree ${repo.fullName}@${ref}:${dirPath}`,
+          e instanceof Error ? e.stack : e,
+        );
+        if (requestId !== requestIdRef.current) return;
         setTree([]);
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) setLoading(false);
       }
     },
     [],
   );
 
+  /** ブランチ候補を取得する。失敗時は既定ブランチのみを候補にして続行する。 */
+  const fetchBranches = useCallback(async (repo: GitHubRepo) => {
+    const requestId = ++branchRequestIdRef.current;
+    try {
+      const res = await fetch(`/api/github/branches?repo=${encodeURIComponent(repo.fullName)}`);
+      if (!res.ok) throw new Error(`Failed to fetch branches: ${res.status}`);
+      const data: unknown = await res.json();
+      if (requestId !== branchRequestIdRef.current) return; // 別リポジトリへ切替済み
+      setBranchOptions(Array.isArray(data) && data.length > 0 ? data : [repo.defaultBranch]);
+    } catch (e: unknown) {
+      console.warn(
+        `[${new Date().toISOString()}] [WARN] Failed to fetch GitHub branches ${repo.fullName}`,
+        e instanceof Error ? e.stack : e,
+      );
+      if (requestId !== branchRequestIdRef.current) return;
+      setBranchOptions([repo.defaultBranch]);
+    }
+  }, []);
+
   const handleSelectRepo = useCallback(
     (repo: GitHubRepo) => {
       setSelectedRepo(repo);
+      setBranch(repo.defaultBranch);
+      setBranchOptions([repo.defaultBranch]);
       setCurrentPath("");
-      fetchDirectory(repo, "");
+      void fetchBranches(repo);
+      void fetchDirectory(repo, repo.defaultBranch, "");
     },
-    [fetchDirectory],
+    [fetchBranches, fetchDirectory],
+  );
+
+  /** ブランチ切替はツリーの前提を変えるため、ルートまで戻して読み直す。 */
+  const handleSelectBranch = useCallback(
+    (next: string | null) => {
+      if (!next || !selectedRepo || next === branch) return;
+      setBranch(next);
+      setCurrentPath("");
+      void fetchDirectory(selectedRepo, next, "");
+    },
+    [branch, selectedRepo, fetchDirectory],
   );
 
   const handleBack = useCallback(() => {
+    if (!selectedRepo) return;
     if (currentPath) {
       const parts = currentPath.split("/");
       parts.pop();
       const parentPath = parts.join("/");
       setCurrentPath(parentPath);
-      if (selectedRepo) fetchDirectory(selectedRepo, parentPath);
-    } else {
-      setSelectedRepo(null);
-      setTree([]);
+      void fetchDirectory(selectedRepo, branch, parentPath);
+      return;
     }
-  }, [currentPath, selectedRepo, fetchDirectory]);
+    setSelectedRepo(null);
+    setTree([]);
+    setBranchOptions([]);
+    setBranch("");
+  }, [currentPath, selectedRepo, branch, fetchDirectory]);
 
   const handleSelectEntry = useCallback(
     (entry: TreeEntry) => {
+      if (!selectedRepo) return;
       if (entry.type === "tree") {
         setCurrentPath(entry.path);
-        if (selectedRepo) fetchDirectory(selectedRepo, entry.path);
-      } else if (selectedRepo) {
-        onSelect(selectedRepo.fullName, entry.path);
-        onClose();
+        void fetchDirectory(selectedRepo, branch, entry.path);
+        return;
       }
+      onSelect(selectedRepo.fullName, entry.path, branch);
+      onClose();
     },
-    [selectedRepo, onSelect, onClose, fetchDirectory],
+    [selectedRepo, branch, onSelect, onClose, fetchDirectory],
   );
 
   const handleClose = useCallback(() => {
     setSelectedRepo(null);
     setTree([]);
     setCurrentPath("");
+    setBranch("");
+    setBranchOptions([]);
     onClose();
   }, [onClose]);
+
+  const title = selectedRepo
+    ? currentPath || selectedRepo.fullName
+    : t("githubOpenSelectRepo");
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         {selectedRepo && (
-          <IconButton size="small" onClick={handleBack} aria-label="Go back">
+          <IconButton size="small" onClick={handleBack} aria-label={t("githubOpenBack")}>
             <ArrowBackIcon />
           </IconButton>
         )}
-        {selectedRepo
-          ? currentPath || selectedRepo.fullName
-          : "Select Repository"}
+        {title}
       </DialogTitle>
       <DialogContent>
         {needsAuth && (
           <Box sx={{ textAlign: "center", py: 4 }}>
-            <Typography sx={{ mb: 2 }}>
-              GitHub authentication required
-            </Typography>
-            <Button variant="contained" onClick={() => signIn("github")}>
-              Sign in with GitHub
+            <Typography sx={{ mb: 2 }}>{t("githubOpenSignInRequired")}</Typography>
+            <Button variant="contained" onClick={() => void signIn("github")}>
+              {t("githubOpenSignInButton")}
             </Button>
           </Box>
+        )}
+        {!needsAuth && selectedRepo && (
+          <Autocomplete
+            size="small"
+            options={branchOptions}
+            value={branch}
+            onChange={(_, next) => handleSelectBranch(next)}
+            disableClearable
+            sx={{ mb: 1 }}
+            renderInput={(params) => (
+              <TextField {...params} label={t("githubOpenBranchLabel")} helperText="" />
+            )}
+          />
         )}
         {!needsAuth && loading && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
@@ -183,25 +252,16 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
         {!needsAuth && !loading && selectedRepo && (
           <List>
             {tree.map((entry) => (
-              <ListItemButton
-                key={entry.path}
-                onClick={() => handleSelectEntry(entry)}
-              >
+              <ListItemButton key={entry.path} onClick={() => handleSelectEntry(entry)}>
                 <ListItemIcon>
-                  {entry.type === "tree" ? (
-                    <FolderIcon />
-                  ) : (
-                    <InsertDriveFileIcon />
-                  )}
+                  {entry.type === "tree" ? <FolderIcon /> : <InsertDriveFileIcon />}
                 </ListItemIcon>
                 <ListItemText primary={entry.name} />
               </ListItemButton>
             ))}
             {tree.length === 0 && (
-              <Typography
-                sx={{ py: 2, textAlign: "center", color: "text.secondary" }}
-              >
-                No Markdown files found
+              <Typography sx={{ py: 2, textAlign: "center", color: "text.secondary" }}>
+                {t("githubOpenNoMarkdown")}
               </Typography>
             )}
           </List>
@@ -209,16 +269,11 @@ export const GitHubRepoBrowser: FC<GitHubRepoBrowserProps> = ({
         {!needsAuth && !loading && !selectedRepo && (
           <List>
             {repos.map((repo) => (
-              <ListItemButton
-                key={repo.fullName}
-                onClick={() => handleSelectRepo(repo)}
-              >
-                <ListItemIcon>
-                  {repo.private ? <LockIcon /> : <FolderIcon />}
-                </ListItemIcon>
+              <ListItemButton key={repo.fullName} onClick={() => handleSelectRepo(repo)}>
+                <ListItemIcon>{repo.private ? <LockIcon /> : <FolderIcon />}</ListItemIcon>
                 <ListItemText
                   primary={repo.fullName}
-                  secondary={`Default: ${repo.defaultBranch}`}
+                  secondary={`${t("githubOpenDefaultBranch")}: ${repo.defaultBranch}`}
                 />
               </ListItemButton>
             ))}

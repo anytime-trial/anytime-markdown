@@ -31,8 +31,8 @@ function EditorLoading() {
   );
 }
 
-const ExplorerPanel = dynamic(
-  () => import('../../components/ExplorerPanel').then((m) => ({ default: m.ExplorerPanel })),
+const GitHubRepoBrowser = dynamic(
+  () => import('../../components/GitHubRepoBrowser').then((m) => ({ default: m.GitHubRepoBrowser })),
   { ssr: false },
 );
 
@@ -54,11 +54,11 @@ export default function Page() {
 
   const {
     externalContent, externalFileName,
-    externalCompareContent, editorKey, isDirty, newCommit,
+    externalCompareContent, editorKey, isDirty,
     saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile, handleSaveTargetChange,
     commitMessageDialog, commitToGitHubDialog,
-    handleExplorerSelectFile, handleExternalSave,
-    handleCompareModeChange, handleExplorerSelectCommit, handleSelectCurrent,
+    handleGitHubOpenFile, handleExternalSave,
+    handleCompareModeChange,
     handleContentChange, setSsoSnackbar, setSaveSnackbar, fileSystemProvider,
     handleDriveOpen, handleDriveConflictOverwrite, handleDriveConflictCancel,
     driveSaveAsDialog, handleSaveToDriveClick, handleSaveToDriveConfirm, handleSaveToDriveCancel,
@@ -90,23 +90,27 @@ export default function Page() {
     }
     handleOpenCommitToGitHub(externalFileName ?? 'document.md');
   }, [isGitHubLoggedIn, externalFileName, handleOpenCommitToGitHub]);
-  // explorer 開閉は orchestrator の mode 状態（onModeChange）から同期する（脱React G4）。
-  const [explorerOpenV, setExplorerOpenV] = useState(false);
-  const handleVanillaModeChange = useCallback(
-    (state: { explorerOpen?: boolean }) => setExplorerOpenV(state.explorerOpen === true),
-    [],
-  );
+  // 「GitHub から開く」ダイアログ。未サインインならサインインへ誘導する。
+  const [gitHubPickerOpen, setGitHubPickerOpen] = useState(false);
+  const handleOpenFromGitHub = useCallback(() => {
+    if (!isGitHubLoggedIn) {
+      void signIn('github');
+      return;
+    }
+    setGitHubPickerOpen(true);
+  }, [isGitHubLoggedIn]);
   const fileHandlers = useMemo(
     () => ({
       onWebImportCreate: (markdown: string, title: string) => {
         downloadMarkdownBlob(markdown, title);
       },
-      // 注入するとツールバーの「開く」がメニュー化され、Drive が選択肢に並ぶ。
+      // 注入するとツールバーの「開く」がメニュー化され、Drive / GitHub が選択肢に並ぶ。
       onOpenFromDrive: handleDriveOpen,
+      onOpenFromGitHub: handleOpenFromGitHub,
       // 注入すると保存メニューに「Google Drive に保存」が並ぶ。
       onSaveToDrive: () => handleSaveToDriveClick(externalFileName ?? 'document.md'),
     }),
-    [handleDriveOpen, handleSaveToDriveClick, externalFileName],
+    [handleDriveOpen, handleOpenFromGitHub, handleSaveToDriveClick, externalFileName],
   );
 
   return (
@@ -169,8 +173,9 @@ export default function Page() {
           readOnly={externalContent !== undefined}
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar
+          // Explorer パネルは廃止済み。トグルを出すと開く先が無いため抑止する。
+          hide={{ explorer: true }}
           fileHandlers={fileHandlers}
-          onModeChange={handleVanillaModeChange}
           onContentChange={handleContentChange}
           gridRows={process.env.NEXT_PUBLIC_GRID_ROWS ? Number(process.env.NEXT_PUBLIC_GRID_ROWS) : undefined}
           gridCols={process.env.NEXT_PUBLIC_GRID_COLS ? Number(process.env.NEXT_PUBLIC_GRID_COLS) : undefined}
@@ -178,14 +183,10 @@ export default function Page() {
         </EmbedProvidersBoundary>
         </Box>
       </Box>
-      <ExplorerPanel
-        open={explorerOpenV}
-        width={COMMENT_PANEL_WIDTH}
-        onSelectFile={handleExplorerSelectFile}
-        onSelectCommit={handleExplorerSelectCommit}
-        onSelectCurrent={handleSelectCurrent}
-        isDirty={isDirty}
-        newCommit={newCommit}
+      <GitHubRepoBrowser
+        open={gitHubPickerOpen}
+        onClose={() => setGitHubPickerOpen(false)}
+        onSelect={(repo, filePath, branch) => void handleGitHubOpenFile(repo, filePath, branch)}
       />
       <Snackbar
         open={!!ssoSnackbar}

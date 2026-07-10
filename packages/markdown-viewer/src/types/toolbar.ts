@@ -24,6 +24,8 @@ export interface ToolbarFileHandlers {
   onOpenFile?: () => void | Promise<void>;
   /** 注入されている場合、ツールバーの「開く」はメニュー化され本ハンドラが選択肢に並ぶ。 */
   onOpenFromDrive?: () => void | Promise<void>;
+  /** 注入されている場合、「開く」メニューに「GitHub から開く」が並ぶ（Drive と独立）。 */
+  onOpenFromGitHub?: () => void | Promise<void>;
   /** 新規作成（未保存データがあれば保存確認を挟む）。 */
   onNewFile?: () => void | Promise<void>;
   /** 注入されている場合、保存メニューに「Google Drive に保存」が並ぶ。 */

@@ -149,12 +149,16 @@ export interface CreateEditorToolbarOptions {
   /** more メニュー（ヘルプ / ハンバーガー）クリックの intent。anchor 要素を渡す。 */
   onSetHelpAnchor?: (el: HTMLElement) => void;
   /**
-   * 「開く」ボタンのメニュー表示要求。`fileHandlers.onOpenFromDrive` が注入されている
-   * ときのみ発火し、ボタン要素と選択肢のハンドラを渡す。
+   * 「開く」ボタンのメニュー表示要求。`fileHandlers.onOpenFromDrive` か `onOpenFromGitHub` の
+   * いずれかが注入されているときのみ発火し、ボタン要素と選択肢のハンドラを渡す。
    */
   onSetOpenFileAnchor?: (
     el: HTMLElement,
-    handlers: { onOpenLocal: () => void | Promise<void>; onOpenFromDrive: () => void | Promise<void> },
+    handlers: {
+      onOpenLocal: () => void | Promise<void>;
+      onOpenFromDrive?: () => void | Promise<void>;
+      onOpenFromGitHub?: () => void | Promise<void>;
+    },
   ) => void;
   /**
    * 「保存」ボタンのメニュー表示要求。`fileHandlers.onSaveFile` と `onSaveAsFile` が
@@ -374,8 +378,8 @@ export function createEditorToolbar(
       onOpenLocal: () => void | Promise<void>,
       tipTitle: string,
     ): ReturnType<typeof createToggleButton> => {
-      const onOpenFromDrive = fileHandlers.onOpenFromDrive;
-      const asMenu = Boolean(onOpenFromDrive && opts.onSetOpenFileAnchor);
+      const { onOpenFromDrive, onOpenFromGitHub } = fileHandlers;
+      const asMenu = Boolean((onOpenFromDrive ?? onOpenFromGitHub) && opts.onSetOpenFileAnchor);
       let btn: ReturnType<typeof createToggleButton>;
       btn = addBtn({
         value: "open",
@@ -383,8 +387,8 @@ export function createEditorToolbar(
         icon: PATH.folderOpen,
         tipTitle: asMenu ? t("openFile") : tipTitle,
         onClick: () => {
-          if (asMenu && onOpenFromDrive) {
-            opts.onSetOpenFileAnchor?.(btn.el, { onOpenLocal, onOpenFromDrive });
+          if (asMenu) {
+            opts.onSetOpenFileAnchor?.(btn.el, { onOpenLocal, onOpenFromDrive, onOpenFromGitHub });
             return;
           }
           void onOpenLocal();
