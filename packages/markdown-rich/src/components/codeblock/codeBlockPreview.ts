@@ -172,7 +172,11 @@ export function renderCodeBlockPreview(
   ctx: PreviewRenderContext,
   requestRerender: () => void,
 ): () => void {
-  // 言語切替で innerEl は使い回されるため、markdown 用スタイルのフックを毎回付け外しする。
+  // innerEl は言語切替をまたいで使い回される。前の言語が付けた a11y 属性・スタイルフックが
+  // 残ると、図から切替えた markdown/html が role="img" のまま読み上げられる。毎回リセットし、
+  // 各 case が必要なものだけ再設定する。
+  innerEl.removeAttribute("role");
+  innerEl.removeAttribute("aria-label");
   innerEl.classList.toggle("rich-codeblock-markdown-preview", language === "markdown");
   if (!code.trim()) {
     innerEl.replaceChildren();

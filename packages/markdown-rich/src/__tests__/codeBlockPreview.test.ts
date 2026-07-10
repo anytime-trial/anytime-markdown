@@ -66,6 +66,31 @@ describe("renderCodeBlockPreview", () => {
     expect(el.classList.contains("rich-codeblock-markdown-preview")).toBe(false);
   });
 
+  // 図（role="img"）から構造化コンテンツへ切替えたとき role が残ると、スクリーンリーダーが
+  // 見出し・表を単一の画像として読み上げてしまう。
+  it("図から markdown へ切替えると role=img を外す", () => {
+    const el = inner();
+    renderCodeBlockPreview(el, "mermaid", "graph TD; A-->B", ctx, () => {});
+    expect(el.getAttribute("role")).toBe("img");
+    renderCodeBlockPreview(el, "markdown", "# 見出し", ctx, () => {});
+    expect(el.getAttribute("role")).toBeNull();
+  });
+
+  it("図から html へ切替えると role=img を外す", () => {
+    const el = inner();
+    renderCodeBlockPreview(el, "mermaid", "graph TD; A-->B", ctx, () => {});
+    renderCodeBlockPreview(el, "html", "<b>x</b>", ctx, () => {});
+    expect(el.getAttribute("role")).toBeNull();
+  });
+
+  it("図からプレビュー非対象の言語へ切替えると role と aria-label を外す", () => {
+    const el = inner();
+    renderCodeBlockPreview(el, "mermaid", "graph TD; A-->B", ctx, () => {});
+    renderCodeBlockPreview(el, "typescript", "const x = 1", ctx, () => {});
+    expect(el.getAttribute("role")).toBeNull();
+    expect(el.getAttribute("aria-label")).toBeNull();
+  });
+
   it("math は renderKatexHtml の結果を反映する", async () => {
     (renderKatexHtml as jest.Mock).mockResolvedValue({ html: "<span>M</span>", error: "" });
     const el = inner();
