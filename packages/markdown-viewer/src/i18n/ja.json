@@ -784,8 +784,6 @@
     "filenamePlaceholder": "filename.md",
     "folderNamePlaceholder": "フォルダ名",
     "defaultBranch": "デフォルト",
-    "driveOpen": "Google Drive から開く",
-    "driveOpenAria": "Google Drive から Markdown ファイルを開く",
     "driveSignInRequired": "Google サインインが必要です",
     "driveApiKeyMissing": "Google Drive 連携が未設定です",
     "driveLoadError": "Drive ファイルの読み込みに失敗しました",
