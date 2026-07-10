@@ -903,6 +903,9 @@ export function mountVanillaMarkdownEditor(
         editor,
         t,
         provider: current.fileSystemProvider,
+        // 外部ソース（Drive 等）由来のファイル名。localStorage から復元する古いローカル名より優先し、
+        // fileOps を文書ファイル名の単一の真実源にする。
+        initialFileName: current.fileName,
         onExternalSave: current.onExternalSave
           ? // 保存完了可否（Promise<boolean>）を握り潰さずガードへ透過する。
             (content) => current.onExternalSave?.(content)
@@ -916,7 +919,10 @@ export function mountVanillaMarkdownEditor(
         getSourceText: () => sourceController?.getSourceText() ?? "",
         setSourceText: (text) => sourceController?.setSourceText(text),
         onFileStateChange: ({ fileName, isDirty }) => {
-          statusBar?.update({ fileName: fileName ?? current.fileName, isDirty });
+          // fileOps が文書ファイル名の単一の真実源。`current.fileName`（外部ソース由来）は
+          // mount / update で fileOps へ取り込むため、ここでフォールバックしてはならない
+          // （フォールバックすると Drive で開いた本文が localStorage の古いローカル名へ戻る）。
+          statusBar?.update({ fileName, isDirty });
           // save ボタンの dirty ゲート（保存が必要なときのみ有効化）。ファイルを開く/保存で
           // hasSaveTarget も変わるため、最新の保存先状態と合わせてツールバーへ反映する。
           toolbar?.update({
@@ -1343,7 +1349,7 @@ export function mountVanillaMarkdownEditor(
       statusBar = createStatusBar({
         editor,
         t,
-        fileName: current.fileName ?? fileOps.getFileName(),
+        fileName: fileOps.getFileName(),
         onStatusChange: current.onStatusChange,
         hidden: current.hideStatusBar,
         getSourceTextarea: () => sourceController?.getTextarea() ?? null,
@@ -1738,7 +1744,8 @@ export function mountVanillaMarkdownEditor(
           viewerToolbar?.syncTheme(current.themeMode ?? "light");
         }
         if (patch.fileName !== undefined) {
-          statusBar?.update({ fileName: patch.fileName });
+          // fileOps 経由で採用する（notifyState → onFileStateChange が statusBar へ反映する）。
+          fileOps.adoptExternalFile(patch.fileName);
         }
         // externalCompareContent は遷移（値の変化）でのみ反映する。Mount ラッパは live patch の
         // たびに現値（null 含む）を相乗りさせるため、無変化の null で閉じたり同値を再適用しない。

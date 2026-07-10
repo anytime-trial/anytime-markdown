@@ -36,6 +36,11 @@ interface CreateFileOpsControllerOptions {
    * 落とさないため、未保存ガードは新規作成 / 開くを中断する。
    */
   onExternalSave?: (content: string) => void | Promise<boolean>;
+  /**
+   * 外部ソース（Google Drive 等）から開いた文書のファイル名。指定時は `localStorage` から復元する
+   * 過去のローカルファイル名より優先し、本コントローラを文書ファイル名の単一の真実源にする。
+   */
+  initialFileName?: string | null;
   /** 確認ダイアログ（未指定時は確認なしで続行）。 */
   confirm?: (message: string) => Promise<boolean>;
   /**
@@ -76,6 +81,12 @@ interface FileOpsController {
    * 本コントローラの外側で文書を差し替えるホスト（Drive から開く等）が使う。
    */
   confirmContinue(): Promise<boolean>;
+  /**
+   * 外部ソース（Google Drive 等）が本文を差し替えたときに、そのファイル名を採用する。
+   * 本コントローラを文書ファイル名の単一の真実源に保つための入口で、`localStorage` から
+   * 復元した古いローカルファイル名を置き換える。`null` で保存先なしに戻す。
+   */
+  adoptExternalFile(name: string | null): void;
   markDirty(): void;
   getFileName(): string | null;
   isDirty(): boolean;
@@ -117,7 +128,10 @@ export function createFileOpsController(
   options: CreateFileOpsControllerOptions,
 ): FileOpsController {
   const { editor, t, provider, confirm } = options;
-  let fileHandle: FileHandle | null = loadStoredFileName();
+  // 外部ソース由来の名前があればそれを採用する（復元した古いローカル名は捨てる）。
+  let fileHandle: FileHandle | null = options.initialFileName
+    ? { name: options.initialFileName }
+    : loadStoredFileName();
   let dirty = false;
 
   const notifyState = (): void =>
@@ -335,6 +349,7 @@ export function createFileOpsController(
       setDirty(false);
     },
     confirmContinue: guardDirty,
+    adoptExternalFile: (name: string | null) => setHandle(name ? { name } : null),
     markDirty: () => setDirty(true),
     getFileName: () => fileHandle?.name ?? null,
     isDirty: () => dirty,
