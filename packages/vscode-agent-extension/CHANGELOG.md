@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- Bundled the `anytime-cross-review` skill and install it into `.claude/skills/` automatically. Because the skill orchestrates a cross review between different agents (Claude / Codex), its distribution moved from the Anytime Trail extension to this extension.
+
 ## [1.0.1] - 2026-07-02
 
 ### Added

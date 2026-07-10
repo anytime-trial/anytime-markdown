@@ -111,6 +111,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } catch (err) {
         AgentLogger.warn(`[install-skills] anytime-agent-rotation unexpected failure: ${String(err)}`);
       }
+
+      // anytime-cross-review は SKILL.md + codex-review.cjs の複数ファイル構成。dir 丸ごと展開する。
+      try {
+        installStaticSkillDir({
+          claudeDir,
+          extensionPath: context.extensionUri.fsPath,
+          skillName: 'anytime-cross-review',
+          logger: {
+            info: (m) => AgentLogger.info(m),
+            warn: (m) => AgentLogger.warn(m),
+            error: (m) => AgentLogger.error(m),
+          },
+        });
+      } catch (err) {
+        AgentLogger.warn(`[install-skills] anytime-cross-review unexpected failure: ${String(err)}`);
+      }
     }
   }
 
