@@ -35,6 +35,7 @@ interface GapiPicker {
 interface GapiPickerBuilder {
   setOAuthToken(token: string): GapiPickerBuilder;
   setDeveloperKey(key: string): GapiPickerBuilder;
+  setAppId(appId: string): GapiPickerBuilder;
   addView(view: GapiDocsView): GapiPickerBuilder;
   setCallback(callback: (data: GapiPickerCallbackData) => void): GapiPickerBuilder;
   build(): GapiPicker;
@@ -127,10 +128,14 @@ function resolvePickerCallback(
 /**
  * Google Picker を表示し、選択された Drive 上の Markdown / テキストファイルを返す。
  * キャンセル時は null。ブラウザ実行前提（SSR からの呼び出しは例外を投げる）。
+ *
+ * `appId`（Cloud プロジェクト番号）は `drive.file` スコープでの動作に必須。これが無いと
+ * 選択したファイルがアプリへ許可されず、後続の Drive API が 404 (File not found) を返す。
  */
 export async function pickDriveMarkdownFile(
   oauthToken: string,
   apiKey: string,
+  appId: string,
 ): Promise<PickedDriveFile | null> {
   if (typeof window === "undefined") {
     throw new Error("pickDriveMarkdownFile: browser environment required");
@@ -150,6 +155,7 @@ export async function pickDriveMarkdownFile(
     const instance = new picker.PickerBuilder()
       .setOAuthToken(oauthToken)
       .setDeveloperKey(apiKey)
+      .setAppId(appId)
       .addView(view)
       .setCallback((data) => resolvePickerCallback(data, resolve))
       .build();

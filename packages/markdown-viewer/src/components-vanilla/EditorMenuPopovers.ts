@@ -57,6 +57,10 @@ const PATH = {
     "M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8",
   listAlt:
     "M19 5v14H5V5zm1.1-2H3.9c-.5 0-.9.4-.9.9v16.2c0 .4.4.9.9.9h16.2c.4 0 .9-.5.9-.9V3.9c0-.5-.5-.9-.9-.9M11 7h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6zM7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7z",
+  folderOpen:
+    "M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V8h16z",
+  addToDrive:
+    "m12.01 1.485 4.99 8.645-2.807 4.865H8.653l-1.404-2.43zM7.192 3.63 2.2 12.275l2.807 4.865 4.99-8.645zM15.5 16.37H5.52l-2.81 4.865h9.98z",
   schema:
     "M14 9v2h-3V9H8.5V7H11V1H4v6h2.5v2H4v6h2.5v2H4v6h7v-6H8.5v-2H11v-2h3v2h7V9z",
   settings:
@@ -130,10 +134,20 @@ interface CreateEditorMenuPopoversOptions {
   commentOpen?: boolean;
 }
 
+/** {@link EditorMenuPopoversHandle.openFileMenu} が並べる選択肢。 */
+export interface OpenFileMenuHandlers {
+  /** ローカルのファイル選択（File System Access API もしくは file input）。 */
+  onOpenLocal: () => void | Promise<void>;
+  /** Google Drive（Picker）からの読み込み。 */
+  onOpenFromDrive: () => void | Promise<void>;
+}
+
 /** {@link createEditorMenuPopovers} の戻り値。 */
 export interface EditorMenuPopoversHandle {
   /** help popover を anchorEl にアンカーして開く（既存があれば開き直す）。 */
   openHelp: (anchorEl: HTMLElement) => void;
+  /** 「開く」メニューを anchorEl にアンカーして開く。 */
+  openFileMenu: (anchorEl: HTMLElement, handlers: OpenFileMenuHandlers) => void;
   /** diagram 選択 popover を開く。 */
   openDiagram: (anchorEl: HTMLElement) => void;
   /** PlantUML サンプル選択 popover を開く。 */
@@ -217,8 +231,12 @@ export function createEditorMenuPopovers(
   let commentOpen = opts.commentOpen ?? false;
 
   // 各 popover の現在ハンドル（開いていなければ null）。MenuItem ハンドルも個別 popover ごとに収集する。
-  const handles: Record<"help" | "diagram" | "sample" | "template" | "heading", PopoverHandle | null> = {
+  const handles: Record<
+    "help" | "openFile" | "diagram" | "sample" | "template" | "heading",
+    PopoverHandle | null
+  > = {
     help: null,
+    openFile: null,
     diagram: null,
     sample: null,
     template: null,
@@ -227,6 +245,7 @@ export function createEditorMenuPopovers(
   // 各 popover が生成した MenuItem / Tooltip / IconButton ハンドルの cleanup。
   const childCleanup: Record<string, Array<{ destroy: () => void }>> = {
     help: [],
+    openFile: [],
     diagram: [],
     sample: [],
     template: [],
@@ -303,6 +322,40 @@ export function createEditorMenuPopovers(
       onClose: () => close("help"),
       paperRole: "menu",
       ariaLabel: t("helpMenu"),
+      children: container,
+    });
+  }
+
+  // --- 「開く」メニュー popover ---
+  function openFileMenu(anchorEl: HTMLElement, handlers: OpenFileMenuHandlers): void {
+    close("openFile");
+    const container = document.createElement("div");
+    container.style.cssText = "padding-top:4px;padding-bottom:4px;min-width:200px;";
+    const cleanup = childCleanup.openFile;
+
+    const addItem = (iconPath: string, label: string, onSelect: () => void | Promise<void>): void => {
+      const iconWrap = createListItemIcon({ children: svgIcon(iconPath, 20) });
+      const text = createListItemText({ children: label });
+      const item = createMenuItem({
+        children: [iconWrap.el, text.el],
+        style: MENU_ITEM_STYLE,
+        onClick: () => {
+          close("openFile");
+          void onSelect();
+        },
+      });
+      cleanup.push(item);
+      container.appendChild(item.el);
+    };
+
+    addItem(PATH.folderOpen, t("openFromLocal"), handlers.onOpenLocal);
+    addItem(PATH.addToDrive, t("openFromDrive"), handlers.onOpenFromDrive);
+
+    handles.openFile = createPopover({
+      anchor: anchorEl,
+      onClose: () => close("openFile"),
+      paperRole: "menu",
+      ariaLabel: t("openFileMenu"),
       children: container,
     });
   }
@@ -551,6 +604,7 @@ export function createEditorMenuPopovers(
 
   function closeAll(): void {
     close("help");
+    close("openFile");
     close("diagram");
     close("sample");
     close("template");
@@ -560,6 +614,7 @@ export function createEditorMenuPopovers(
   let destroyed = false;
   return {
     openHelp,
+    openFileMenu,
     openDiagram,
     openSample,
     openTemplate,

@@ -414,4 +414,105 @@ describe("useEditorPage", () => {
       expect(result.current.saveSnackbar).toBeNull();
     });
   });
+
+  describe("handleDriveOpen", () => {
+    const originalApiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+    const originalAppId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID;
+
+    beforeEach(() => {
+      process.env.NEXT_PUBLIC_GOOGLE_APP_ID = "319387139351";
+    });
+
+    afterEach(() => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = originalApiKey;
+      process.env.NEXT_PUBLIC_GOOGLE_APP_ID = originalAppId;
+    });
+
+    it("appId 未設定なら driveApiKeyMissing を通知しサインインへ進まない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      process.env.NEXT_PUBLIC_GOOGLE_APP_ID = "";
+      const signInFn = jest.fn();
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(signInFn).not.toHaveBeenCalled();
+      expect(result.current.saveSnackbar).toEqual({
+        message: "driveApiKeyMissing",
+        severity: "error",
+      });
+    });
+
+    it("API キー未設定なら driveApiKeyMissing を通知しサインインへ進まない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "";
+      const signInFn = jest.fn();
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(signInFn).not.toHaveBeenCalled();
+      expect(result.current.saveSnackbar).toEqual({
+        message: "driveApiKeyMissing",
+        severity: "error",
+      });
+    });
+
+    it("Google トークン未取得（401）なら google サインインへ遷移する", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const signInFn = jest.fn().mockResolvedValue(undefined);
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: "Not authenticated" }),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn, signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(signInFn).toHaveBeenCalledWith("google", { callbackUrl: window.location.href });
+      expect(result.current.saveSnackbar).toBeNull();
+    });
+
+    it("トークン応答に accessToken が無ければ google サインインへ遷移する", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const signInFn = jest.fn().mockResolvedValue(undefined);
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn, signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(signInFn).toHaveBeenCalledWith("google", { callbackUrl: window.location.href });
+    });
+
+    it("サインイン起動に失敗したら driveSignInRequired を通知する", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const signInFn = jest.fn().mockRejectedValue(new Error("popup blocked"));
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({}),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn, signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(result.current.saveSnackbar).toEqual({
+        message: "driveSignInRequired",
+        severity: "error",
+      });
+    });
+  });
 });

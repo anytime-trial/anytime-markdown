@@ -160,6 +160,57 @@ describe("createEditorMenuPopovers", () => {
     expect(paper!.querySelectorAll('[role="separator"]').length).toBe(1);
   });
 
+  // --- openFile popover ---
+  it("openFileMenu でローカル / Drive の 2 項目を持つ menu が開く", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, { onOpenLocal: () => {}, onOpenFromDrive: () => {} });
+    const paper = getPaper("openFileMenu");
+    expect(paper).toBeTruthy();
+    expect(paper!.getAttribute("role")).toBe("menu");
+    expect(paper!.querySelectorAll('[role="menuitem"]').length).toBe(2);
+  });
+
+  it("openFileMenu の 1 番目クリックで onOpenLocal が呼ばれ popover が閉じる", () => {
+    const m = createMockEditor();
+    let local = 0;
+    let drive = 0;
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, {
+      onOpenLocal: () => { local += 1; },
+      onOpenFromDrive: () => { drive += 1; },
+    });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    (items[0] as HTMLElement).click();
+    expect(local).toBe(1);
+    expect(drive).toBe(0);
+    expect(getPaper("openFileMenu")).toBeNull();
+  });
+
+  it("openFileMenu の 2 番目クリックで onOpenFromDrive が呼ばれ popover が閉じる", () => {
+    const m = createMockEditor();
+    let local = 0;
+    let drive = 0;
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, {
+      onOpenLocal: () => { local += 1; },
+      onOpenFromDrive: () => { drive += 1; },
+    });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    (items[1] as HTMLElement).click();
+    expect(drive).toBe(1);
+    expect(local).toBe(0);
+    expect(getPaper("openFileMenu")).toBeNull();
+  });
+
+  it("openFileMenu は closeAll で閉じる", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, { onOpenLocal: () => {}, onOpenFromDrive: () => {} });
+    handle.closeAll();
+    expect(getPaper("openFileMenu")).toBeNull();
+  });
+
   it("hideVersionInfo=true かつ全コールバック無しなら help は項目も divider も持たない", () => {
     const m = createMockEditor();
     handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja", hideVersionInfo: true });

@@ -25,8 +25,8 @@ const result = NextAuth({
       },
     }),
     Google({
-      clientId: process.env.YOUTUBE_CLIENT_ID ?? "",
-      clientSecret: process.env.YOUTUBE_CLIENT_SECRET ?? "",
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
       authorization: {
         params: {
           scope:
@@ -63,8 +63,8 @@ const result = NextAuth({
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
-            client_id: process.env.YOUTUBE_CLIENT_ID ?? "",
-            client_secret: process.env.YOUTUBE_CLIENT_SECRET ?? "",
+            client_id: process.env.GOOGLE_CLIENT_ID ?? "",
+            client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
             grant_type: "refresh_token",
             refresh_token: token.googleRefreshToken,
           }),
