@@ -1310,12 +1310,16 @@ export function mountVanillaMarkdownEditor(
           sourceMode: modeState.sourceMode,
           outlineOpen: modeState.outlineOpen,
           commentOpen: modeState.commentOpen,
+          explorerOpen: modeState.explorerOpen,
           noteGraphOpen: modeState.noteGraphOpen,
           onToggleOutline: modeHandlers.onToggleOutline,
           onToggleComment: (open) => {
             modeState.commentOpen = open;
             refreshToolbarMode();
           },
+          // 上部ツールバーの explorer ボタンは sideToolbar 併用時に side-coupled で ≥900px から
+          // 隠れる（EditorToolbar.ts）。受け皿のこちらへ配線しないと広い画面でトグルが消える。
+          onToggleExplorer: current.hide?.explorer ? undefined : modeHandlers.onToggleExplorer,
           // ノート網パネルが提供されている場合のみアイコンを出す
           onToggleNoteGraph: current.noteGraph ? modeHandlers.onToggleNoteGraph : undefined,
           onOpenSettings: current.hide?.settings ? undefined : openSettings,

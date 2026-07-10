@@ -355,7 +355,9 @@ function buildMountOptions() {
       onClose: () => noteGraphPanel?.resetInteraction(),
       isPinned: () => noteGraphPanel?.isPinned() ?? false,
     },
-    hide: { settings: true },
+    // explorer: VS Code 側のエクスプローラを使うため、webview 内に explorerOpen を消費する
+    // パネルは存在しない。トグルを出すと何も起きないボタンになるため抑止する。
+    hide: { settings: true, explorer: true },
     hideStatusBar: true,
     readOnly: state.claudeEditing,
     externalCompareContent: state.compareContent,

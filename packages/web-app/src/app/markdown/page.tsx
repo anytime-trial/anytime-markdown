@@ -48,10 +48,9 @@ export default function Page() {
   const { themeMode, setThemeMode } = useThemeMode();
   const { presetName, setPresetName } = usePreset();
   const { setLocale } = useLocaleSwitch();
-  const enableGitHub = process.env.NEXT_PUBLIC_ENABLE_GITHUB === '1';
   const showThemePreset = process.env.NEXT_PUBLIC_SHOW_THEME_PRESET === '1';
   const { data: session } = useSession();
-  const isGitHubLoggedIn = enableGitHub && !!session;
+  const isGitHubLoggedIn = !!session;
 
   const {
     externalContent, externalFileName,
@@ -66,7 +65,7 @@ export default function Page() {
     handleCommitMessageConfirm, handleCommitMessageCancel,
     handleOpenCommitToGitHub, handleCloseCommitToGitHub, handleCommitToGitHubConfirm,
   } = useEditorPage({ isGitHubLoggedIn, session, t });
-  // 保存を外部（GitHub/Drive）へルーティングするか。Drive は enableGitHub フラグに依存しない独立経路のため OR で判定する。
+  // 保存を外部（GitHub/Drive）へルーティングするか。Drive は GitHub サインインに依存しない独立経路のため OR で判定する。
   const canExternalSave = isGitHubLoggedIn || hasDriveFile;
 
   const locale = useLocale();
@@ -116,8 +115,7 @@ export default function Page() {
       <Box id="md-page-wrapper" sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {/* Drive から開く導線はエディタツールバーの「開く」メニューへ統合済み。
-            残るのは GitHub コミットのみのため、無効時は帯ごと出さない。 */}
-        {enableGitHub && (
+            残るのは GitHub コミットのみ。 */}
         <Box
           sx={{
             display: "flex",
@@ -149,7 +147,6 @@ export default function Page() {
             {t('githubCommitButton')}
           </Button>
         </Box>
-        )}
         <Box sx={{ flex: 1, minHeight: 0 }}>
         <EmbedProvidersBoundary>
         <VanillaRichMarkdownEditor
@@ -172,7 +169,6 @@ export default function Page() {
           readOnly={externalContent !== undefined}
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar
-          hide={{ explorer: !enableGitHub }}
           fileHandlers={fileHandlers}
           onModeChange={handleVanillaModeChange}
           onContentChange={handleContentChange}
@@ -182,17 +178,15 @@ export default function Page() {
         </EmbedProvidersBoundary>
         </Box>
       </Box>
-      {enableGitHub && (
-        <ExplorerPanel
-          open={explorerOpenV}
-          width={COMMENT_PANEL_WIDTH}
-          onSelectFile={handleExplorerSelectFile}
-          onSelectCommit={handleExplorerSelectCommit}
-          onSelectCurrent={handleSelectCurrent}
-          isDirty={isDirty}
-          newCommit={newCommit}
-        />
-      )}
+      <ExplorerPanel
+        open={explorerOpenV}
+        width={COMMENT_PANEL_WIDTH}
+        onSelectFile={handleExplorerSelectFile}
+        onSelectCommit={handleExplorerSelectCommit}
+        onSelectCurrent={handleSelectCurrent}
+        isDirty={isDirty}
+        newCommit={newCommit}
+      />
       <Snackbar
         open={!!ssoSnackbar}
         autoHideDuration={4000}
