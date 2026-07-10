@@ -298,12 +298,22 @@ function renderLanding(container: HTMLElement): void {
 
 // --- エディタ mount / 再 mount ---
 
-/** mode 文字列通知（vanilla の ToolbarModeState → React 期の mode 文字列へ変換）。 */
-function handleVanillaModeChange(modeState: { sourceMode?: boolean; reviewMode?: boolean; readonlyMode?: boolean }): void {
+/**
+ * mode 文字列通知（vanilla の ToolbarModeState → React 期の mode 文字列へ変換）。
+ *
+ * hostReadOnly（Claude 編集中の強制ロック）は readonlyMode とは独立に立つため、両者を見て
+ * "readonly" を報告する。優先順位は EditorToolbar の currentMode() と揃える。
+ */
+function handleVanillaModeChange(modeState: {
+  sourceMode?: boolean;
+  reviewMode?: boolean;
+  readonlyMode?: boolean;
+  hostReadOnly?: boolean;
+}): void {
   let mode = 'wysiwyg';
-  if (modeState.sourceMode) mode = 'source';
+  if (modeState.hostReadOnly || modeState.readonlyMode) mode = 'readonly';
   else if (modeState.reviewMode) mode = 'review';
-  else if (modeState.readonlyMode) mode = 'readonly';
+  else if (modeState.sourceMode) mode = 'source';
   vscode.postMessage({ type: 'modeChanged', mode });
 }
 

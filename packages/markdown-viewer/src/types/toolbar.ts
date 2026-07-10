@@ -60,7 +60,16 @@ export interface ToolbarFileCapabilities {
 /** エディタのモード状態 */
 export interface ToolbarModeState {
   sourceMode: boolean;
+  /**
+   * ユーザーがツールバーで選んだ "readonly" モード。ホストが課す {@link hostReadOnly} とは独立で、
+   * 常に sourceModeController の内部 mode と一致する（畳み込むとモード切替が固まる）。
+   */
   readonlyMode?: boolean;
+  /**
+   * ホストが `readOnly` prop で課した編集ロック。ユーザーはモード切替で解除できないため、
+   * モード切替グループごと無効化して「切替不可」を可視化する。
+   */
+  hostReadOnly?: boolean;
   reviewMode?: boolean;
   outlineOpen: boolean;
   inlineMergeOpen: boolean;
