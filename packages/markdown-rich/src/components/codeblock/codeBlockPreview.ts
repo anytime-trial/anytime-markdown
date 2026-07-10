@@ -11,6 +11,7 @@ import {
   ANYTIME_GRAPH_PLACEHOLDER_HINT_JA,
 } from "../../utils/anytimeGraphPlaceholder";
 import { mountAnytimeChartPreview } from "../../utils/anytimeChartPreview";
+import { ensureMarkdownPreviewStyle, renderMarkdownPreviewHtml } from "../../utils/markdownPreview";
 import { buildPlantUmlImageUrl, getPlantUmlConsent } from "../../hooks/usePlantUmlRender";
 import { PLANTUML_CONSENT_KEY } from "@anytime-markdown/markdown-viewer";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
@@ -171,6 +172,8 @@ export function renderCodeBlockPreview(
   ctx: PreviewRenderContext,
   requestRerender: () => void,
 ): () => void {
+  // 言語切替で innerEl は使い回されるため、markdown 用スタイルのフックを毎回付け外しする。
+  innerEl.classList.toggle("rich-codeblock-markdown-preview", language === "markdown");
   if (!code.trim()) {
     innerEl.replaceChildren();
     return () => {};
@@ -179,6 +182,11 @@ export function renderCodeBlockPreview(
     case "html":
       renderHtml(innerEl, code);
       innerEl.setAttribute("aria-label", "HTML preview");
+      return () => {};
+    case "markdown":
+      ensureMarkdownPreviewStyle();
+      innerEl.innerHTML = renderMarkdownPreviewHtml(code);
+      innerEl.setAttribute("aria-label", "Markdown preview");
       return () => {};
     case "math":
       innerEl.setAttribute("aria-label", `Math: ${code}`);

@@ -591,6 +591,7 @@
     "slashFrontmatter": "Frontmatter",
     "slashNoResults": "No matching commands",
     "htmlPreview": "HTML",
+    "markdownPreview": "Markdown",
     "tableLabel": "Table",
     "spreadsheetDiscardTitle": "Unsaved Changes",
     "spreadsheetDiscardMessage": "You have unapplied changes. Are you sure you want to close without applying?",

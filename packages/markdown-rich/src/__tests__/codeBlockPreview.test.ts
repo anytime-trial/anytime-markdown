@@ -50,6 +50,22 @@ describe("renderCodeBlockPreview", () => {
     expect(el.innerHTML).not.toContain("<script>");
   });
 
+  it("markdown はレンダリング済み HTML を反映する", () => {
+    const el = inner();
+    renderCodeBlockPreview(el, "markdown", "# 見出し\n\n- 項目", ctx, () => {});
+    expect(el.innerHTML).toContain("<h1>見出し</h1>");
+    expect(el.innerHTML).toContain("<li>項目</li>");
+    expect(el.getAttribute("aria-label")).toBe("Markdown preview");
+    expect(el.classList.contains("rich-codeblock-markdown-preview")).toBe(true);
+  });
+
+  it("markdown から他言語へ切替えるとスタイルフックのクラスを外す", () => {
+    const el = inner();
+    renderCodeBlockPreview(el, "markdown", "# x", ctx, () => {});
+    renderCodeBlockPreview(el, "html", "<b>x</b>", ctx, () => {});
+    expect(el.classList.contains("rich-codeblock-markdown-preview")).toBe(false);
+  });
+
   it("math は renderKatexHtml の結果を反映する", async () => {
     (renderKatexHtml as jest.Mock).mockResolvedValue({ html: "<span>M</span>", error: "" });
     const el = inner();
