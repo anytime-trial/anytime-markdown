@@ -47,7 +47,11 @@ import { createFileOpsController, type SaveTargetInfo } from "./fileOpsControlle
 import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
-import { type ExternalSaveKind, nextExternalSaveKind } from "../utils/externalSaveKind";
+import {
+  type ExternalSaveKind,
+  fileOriginFor,
+  nextExternalSaveKind,
+} from "../utils/externalSaveKind";
 import { EDITOR_CODE_VARS_CHANGED_EVENT } from "../utils/editorCodeCssVars";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
 import {
@@ -902,7 +906,10 @@ export function mountVanillaMarkdownEditor(
       //     + useEditorFileOps の plain 版） ========================================
       // 上書き保存の宛先種別（ラベル切替用）。保存先の遷移とホストの live prop の双方で変わる。
       let externalSaveKind = current.fileCapabilities?.externalSaveKind ?? current.externalSaveKind;
-      /** 宛先種別を反映してツールバーのラベルを更新する（値が変わったときのみ）。 */
+      /**
+       * 宛先種別を反映してツールバーのラベルとステータスバーの所在バッジを更新する
+       * （値が変わったときのみ）。
+       */
       const applyExternalSaveKind = (next: ExternalSaveKind | undefined): void => {
         if (externalSaveKind === next) return;
         externalSaveKind = next;
@@ -913,6 +920,7 @@ export function mountVanillaMarkdownEditor(
             externalSaveKind,
           },
         });
+        statusBar?.update({ fileOrigin: fileOriginFor(fileOps.getFileName(), externalSaveKind) });
       };
       const fileOps = createFileOpsController({
         editor,
@@ -943,7 +951,11 @@ export function mountVanillaMarkdownEditor(
           // fileOps が文書ファイル名の単一の真実源。`current.fileName`（外部ソース由来）は
           // mount / update で fileOps へ取り込むため、ここでフォールバックしてはならない
           // （フォールバックすると Drive で開いた本文が localStorage の古いローカル名へ戻る）。
-          statusBar?.update({ fileName, isDirty });
+          statusBar?.update({
+            fileName,
+            isDirty,
+            fileOrigin: fileOriginFor(fileName, externalSaveKind),
+          });
           // save ボタンの dirty ゲート（保存が必要なときのみ有効化）。ファイルを開く/保存で
           // hasSaveTarget も変わるため、最新の保存先状態と合わせてツールバーへ反映する。
           toolbar?.update({
@@ -1395,6 +1407,7 @@ export function mountVanillaMarkdownEditor(
         editor,
         t,
         fileName: fileOps.getFileName(),
+        fileOrigin: fileOriginFor(fileOps.getFileName(), externalSaveKind),
         onStatusChange: current.onStatusChange,
         hidden: current.hideStatusBar,
         getSourceTextarea: () => sourceController?.getTextarea() ?? null,

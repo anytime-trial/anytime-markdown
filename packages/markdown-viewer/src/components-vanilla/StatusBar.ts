@@ -26,13 +26,31 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 
 import { STATUSBAR_FONT_SIZE } from "../constants/dimensions";
 import type { EncodingLabel, TranslationFn } from "../types";
+import type { FileOrigin } from "../utils/externalSaveKind";
 import {
   createButton,
   createMenu,
   createMenuItem,
   createText,
   createTooltip,
+  svgIcon,
 } from "@anytime-markdown/ui-core";
+
+/** ファイル所在バッジのアイコン（Material / GitHub / Drive。他コンポーネントと同一パス）。 */
+const ORIGIN_ICON: Record<FileOrigin, string> = {
+  local: "M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V8h16z",
+  github:
+    "M12 1.27a11 11 0 00-3.48 21.46c.55.09.73-.28.73-.55v-1.84c-3.03.64-3.67-1.46-3.67-1.46-.55-1.29-1.28-1.65-1.28-1.65-.92-.65.1-.65.1-.65 1.1 0 1.73 1.1 1.73 1.1.92 1.65 2.57 1.2 3.21.92a2 2 0 01.64-1.47c-2.47-.27-5.04-1.19-5.04-5.5 0-1.1.46-2.1 1.2-2.84a3.76 3.76 0 010-2.93s.91-.28 3.11 1.1c1.8-.49 3.7-.49 5.5 0 2.1-1.38 3.02-1.1 3.02-1.1a3.76 3.76 0 010 2.93c.83.74 1.2 1.74 1.2 2.94 0 4.21-2.57 5.13-5.04 5.4.45.37.82.92.82 2.02v3.03c0 .27.1.64.73.55A11 11 0 0012 1.27",
+  drive:
+    "m12.01 1.485 4.99 8.645-2.807 4.865H8.653l-1.404-2.43zM7.192 3.63 2.2 12.275l2.807 4.865 4.99-8.645zM15.5 16.37H5.52l-2.81 4.865h9.98z",
+};
+
+/** ファイル所在バッジのラベル i18n キー。 */
+const ORIGIN_LABEL_KEY: Record<FileOrigin, string> = {
+  local: "fileOriginLocal",
+  github: "fileOriginGitHub",
+  drive: "fileOriginDrive",
+};
 
 /** ステータスバーが算出する派生値（React 原版 StatusInfo と同一）。 */
 export interface StatusInfo {
@@ -69,6 +87,11 @@ export interface CreateStatusBarOptions {
   t: TranslationFn;
   /** 表示ファイル名（null/undefined なら非表示）。 */
   fileName?: string | null;
+  /**
+   * ファイルの所在（ローカル / GitHub / Google Drive）。ファイル名の前にアイコン + ラベルで出す。
+   * null/undefined ならバッジを描画しない。
+   */
+  fileOrigin?: FileOrigin | null;
   /** 未保存変更あり（dirty ドット表示）。 */
   isDirty?: boolean;
   /** 行末切替コールバック（未指定なら行末はテキスト表示のみ）。 */
@@ -119,6 +142,7 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
   let sourceMode = opts.sourceMode ?? false;
   let sourceText = opts.sourceText ?? "";
   let fileName = opts.fileName ?? null;
+  let fileOrigin = opts.fileOrigin ?? null;
   let isDirty = opts.isDirty ?? false;
   let encoding: EncodingLabel = opts.encoding ?? "UTF-8";
   let onLineEndingChange = opts.onLineEndingChange;
@@ -296,6 +320,27 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
     return wrap;
   }
 
+  /**
+   * ファイル所在バッジ（アイコン + ラベル）を生成する。
+   *
+   * 色だけに情報を載せず、アイコンと文字の双方で所在を伝える（a11y: 色覚多様性）。
+   * アイコンは装飾なので aria-hidden、読み上げはラベル文字が担う。
+   */
+  function buildOriginBadge(origin: FileOrigin): HTMLSpanElement {
+    const badge = document.createElement("span");
+    badge.setAttribute("data-am-file-origin", origin);
+    badge.style.cssText =
+      "display:inline-flex;align-items:center;gap:4px;margin-left:8px;" +
+      "padding:1px 6px;border-radius:10px;flex-shrink:0;" +
+      "border:1px solid var(--am-color-divider);" +
+      `font-size:${STATUSBAR_FONT_SIZE};${SECONDARY_STYLE}`;
+    badge.appendChild(svgIcon(ORIGIN_ICON[origin], 12));
+    const label = document.createElement("span");
+    label.textContent = t(ORIGIN_LABEL_KEY[origin]);
+    badge.appendChild(label);
+    return badge;
+  }
+
   // --- root の構築 / 再構築（hidden / fileName / メニュー有無で配置が変わる） ---
   function render(): void {
     // 既存 dirty tooltip を破棄して作り直す（fileName 再構築のたびに掃除する）。
@@ -336,13 +381,21 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
     liveWrap.appendChild(lineText.el);
     el.appendChild(liveWrap);
 
-    // ファイル名 + dirty ドット。
+    // ファイル所在バッジ + ファイル名 + dirty ドット。
     if (fileName) {
+      if (fileOrigin) el.appendChild(buildOriginBadge(fileOrigin));
+      fileNameText.el.style.marginLeft = fileOrigin ? "6px" : "8px";
       fileNameText.el.textContent = "";
       fileNameText.el.appendChild(document.createTextNode(fileName));
+      // 読み上げは「所在 → ファイル名 →（未保存）」の順。バッジのラベルは視覚のみの重複ではなく、
+      // ファイル名要素の aria-label にも所在を織り込む（バッジ単体では文脈が伝わらないため）。
+      const originLabel = fileOrigin
+        ? t("fileOriginLabel", { origin: t(ORIGIN_LABEL_KEY[fileOrigin]) })
+        : null;
+      const named = originLabel ? `${originLabel} ${fileName}` : fileName;
       fileNameText.el.setAttribute(
         "aria-label",
-        isDirty ? `${fileName} (${t("unsavedChanges")})` : fileName,
+        isDirty ? `${named} (${t("unsavedChanges")})` : named,
       );
       if (isDirty) {
         const dot = buildDirtyDot();
@@ -448,6 +501,10 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
       if (next.onStatusChange !== undefined) onStatusChange = next.onStatusChange;
       if (next.fileName !== undefined) {
         fileName = next.fileName;
+        needsRender = true;
+      }
+      if (next.fileOrigin !== undefined) {
+        fileOrigin = next.fileOrigin;
         needsRender = true;
       }
       if (next.isDirty !== undefined) {
