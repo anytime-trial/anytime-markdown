@@ -170,6 +170,8 @@ export interface CreateEditorToolbarOptions {
       onSaveFile: () => void | Promise<void>;
       onSaveAsFile: () => void | Promise<void>;
       onSaveToDrive?: () => void | Promise<void>;
+      /** 上書き保存項目の表示名（保存先が GitHub なら「GitHub にコミット」）。 */
+      saveLabel: string;
       overwriteDisabled: boolean;
     },
   ) => void;
@@ -331,6 +333,17 @@ export function createEditorToolbar(
     return Boolean(modeState.readonlyMode) || !fileCapabilities?.hasSaveTarget || !isDirty;
   }
 
+  // 上書き保存の表示名。保存先が GitHub のとき、この操作は GitHub へのコミットなので表示を合わせる。
+  function overwriteSaveLabel(): string {
+    return fileCapabilities?.externalSaveKind === "github" ? t("saveToGitHub") : t("saveFile");
+  }
+
+  // 上書き保存のツールチップ（ショートカット付き）。宛先が無い場合は理由を示す文言に置き換える。
+  function overwriteSaveTip(): string {
+    if (!fileCapabilities?.hasSaveTarget) return t("saveFileNoHandle");
+    return `${overwriteSaveLabel()}  (${TOOLTIP_SHORTCUTS.saveFile})`;
+  }
+
   function buildFileActions(): HTMLElement {
     const wrap = document.createElement("div");
     wrap.style.cssText = "display:inline-flex;align-items:center;";
@@ -426,7 +439,7 @@ export function createEditorToolbar(
       let btn: ReturnType<typeof createToggleButton>;
       btn = addBtn({
         value: "save",
-        ariaLabel: asMenu ? t("save") : t("saveFile"),
+        ariaLabel: asMenu ? t("save") : overwriteSaveLabel(),
         icon: PATH.save,
         tipTitle: asMenu ? t("save") : tipTitle,
         disabled: asMenu ? readonlyMode : saveDisabled(),
@@ -436,6 +449,7 @@ export function createEditorToolbar(
               onSaveFile,
               onSaveAsFile,
               onSaveToDrive,
+              saveLabel: overwriteSaveLabel(),
               overwriteDisabled: saveDisabled(),
             });
             return;
@@ -451,17 +465,16 @@ export function createEditorToolbar(
     if (externalSaveOnly) {
       saveBtn = addBtn({
         value: "save",
-        ariaLabel: t("saveFile"),
+        ariaLabel: overwriteSaveLabel(),
         icon: PATH.save,
-        tipTitle: fileCapabilities?.hasSaveTarget ? tip(t, "saveFile") : t("saveFileNoHandle"),
+        tipTitle: overwriteSaveTip(),
         disabled: saveDisabled(),
         onClick: () => fileHandlers.onSaveFile?.(),
       });
     } else if (supportsDirectAccess) {
       addNewFileBtn();
       addOpenBtn(() => fileHandlers.onOpenFile?.(), tip(t, "openFile"));
-      const saveTip = fileCapabilities?.hasSaveTarget ? tip(t, "saveFile") : t("saveFileNoHandle");
-      saveBtn = addSaveBtn(saveTip);
+      saveBtn = addSaveBtn(overwriteSaveTip());
       // saveAs はメニュー化時に「名前を付けて保存」項目へ統合されるため単独ボタンを出さない。
       if (!(fileHandlers.onSaveFile && fileHandlers.onSaveAsFile && opts.onSetSaveAnchor)) {
         addBtn({

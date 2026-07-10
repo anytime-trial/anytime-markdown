@@ -57,6 +57,7 @@
     "unsavedDiscard": "Don't save",
     "saveFileMenu": "Save menu",
     "saveToDrive": "Save to Google Drive",
+    "saveToGitHub": "Commit to GitHub",
     "importConfirm": "Current content will be replaced. Import file?",
     "outline": "Outline",
     "noteGraph": "Note Graph",
@@ -808,8 +809,6 @@
     "commitMessageLabel": "Commit message",
     "commitMessageRememberLabel": "Use the same message for the rest of this session",
     "commitMessageConfirm": "Commit",
-    "githubCommitButton": "Commit to GitHub",
-    "githubCommitButtonAria": "Commit the document being edited to GitHub",
     "githubOpenDialogTitle": "Open from GitHub",
     "githubOpenSelectRepo": "Select repository",
     "githubOpenBranchLabel": "Branch",
@@ -818,15 +817,7 @@
     "githubOpenSignInRequired": "GitHub authentication required",
     "githubOpenSignInButton": "Sign in with GitHub",
     "githubOpenNoMarkdown": "No Markdown files found",
-    "githubOpenDefaultBranch": "Default branch",
-    "githubCommitDialogTitle": "Commit to GitHub",
-    "githubCommitRepoLabel": "Repository",
-    "githubCommitBranchLabel": "Branch",
-    "githubCommitPathLabel": "File path",
-    "githubCommitMessageLabel": "Commit message",
-    "githubCommitConfirm": "Commit",
-    "githubCommitSuccess": "Committed to GitHub",
-    "githubCommitError": "Failed to commit to GitHub"
+    "githubOpenDefaultBranch": "Default branch"
   },
   "VsCode": {
     "metaTitle": "Visual Studio Code™ Extension - Anytime Markdown",

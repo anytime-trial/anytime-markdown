@@ -266,6 +266,32 @@ describe("createEditorMenuPopovers", () => {
     expect(paper!.querySelectorAll('[role="menuitem"]').length).toBe(2);
   });
 
+  it("saveLabel を渡すと上書き保存の項目名がそれになる（GitHub へのコミット表記）", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      saveLabel: "saveToGitHub",
+      overwriteDisabled: false,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items[0].textContent).toContain("saveToGitHub");
+    expect(items[1].textContent).toContain("saveAsFile");
+  });
+
+  it("saveLabel 未指定なら上書き保存の項目名は saveFile", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      overwriteDisabled: false,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items[0].textContent).toContain("saveFile");
+  });
+
   it("onSaveToDrive があれば 3 項目になり、クリックで Drive 保存が呼ばれる", () => {
     const m = createMockEditor();
     let drive = 0;

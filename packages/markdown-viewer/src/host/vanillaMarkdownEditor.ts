@@ -47,6 +47,7 @@ import { createFileOpsController, type SaveTargetInfo } from "./fileOpsControlle
 import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
+import { type ExternalSaveKind, nextExternalSaveKind } from "../utils/externalSaveKind";
 import { EDITOR_CODE_VARS_CHANGED_EVENT } from "../utils/editorCodeCssVars";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
 import {
@@ -198,6 +199,11 @@ export interface MountVanillaMarkdownEditorOptions {
    */
   onExternalSave?: (content: string) => void | Promise<boolean>;
   /**
+   * `onExternalSave` の宛先種別。`"github"` を渡すと上書き保存の表示が「GitHub にコミット」になる。
+   * ローカルへ「名前を付けて保存」して宛先が移った時点で自動的に無効化される。
+   */
+  externalSaveKind?: ExternalSaveKind;
+  /**
    * 保存先が変化したときの通知。ローカルへ「名前を付けて保存」すると `kind: "local"` が飛ぶ。
    * ホストはこれを受けて外部保存の参照（Drive のファイル ID 等）を破棄する。
    */
@@ -295,6 +301,7 @@ export type VanillaMarkdownEditorUpdatePatch = Partial<
     | "externalCompareContent"
     | "themeMode"
     | "presetName"
+    | "externalSaveKind"
   >
 >;
 
@@ -892,6 +899,20 @@ export function mountVanillaMarkdownEditor(
 
       // === file ops（fileSystemProvider / onExternalSave / import / clear・React useFileSystem
       //     + useEditorFileOps の plain 版） ========================================
+      // 上書き保存の宛先種別（ラベル切替用）。保存先の遷移とホストの live prop の双方で変わる。
+      let externalSaveKind = current.fileCapabilities?.externalSaveKind ?? current.externalSaveKind;
+      /** 宛先種別を反映してツールバーのラベルを更新する（値が変わったときのみ）。 */
+      const applyExternalSaveKind = (next: ExternalSaveKind | undefined): void => {
+        if (externalSaveKind === next) return;
+        externalSaveKind = next;
+        toolbar?.update({
+          fileCapabilities: {
+            ...fileCapabilities,
+            hasSaveTarget: fileOps.hasSaveTarget(),
+            externalSaveKind,
+          },
+        });
+      };
       const fileOps = createFileOpsController({
         editor,
         t,
@@ -911,7 +932,12 @@ export function mountVanillaMarkdownEditor(
         getSourceMode: () => modeState.sourceMode === true,
         getSourceText: () => sourceController?.getSourceText() ?? "",
         setSourceText: (text) => sourceController?.setSourceText(text),
-        onSaveTargetChange: (target) => current.onSaveTargetChange?.(target),
+        onSaveTargetChange: (target) => {
+          // ローカルへ移れば種別は消え、外部保存のままならホストの最新値（GitHub → Drive 等）へ追従する。
+          // fileOps は onFileStateChange を先に発火させるため、ここで改めてツールバーへ反映する。
+          applyExternalSaveKind(nextExternalSaveKind(target?.kind ?? null, current.externalSaveKind));
+          current.onSaveTargetChange?.(target);
+        },
         onFileStateChange: ({ fileName, isDirty }) => {
           // fileOps が文書ファイル名の単一の真実源。`current.fileName`（外部ソース由来）は
           // mount / update で fileOps へ取り込むため、ここでフォールバックしてはならない
@@ -921,7 +947,11 @@ export function mountVanillaMarkdownEditor(
           // hasSaveTarget も変わるため、最新の保存先状態と合わせてツールバーへ反映する。
           toolbar?.update({
             isDirty,
-            fileCapabilities: { ...fileCapabilities, hasSaveTarget: fileOps.hasSaveTarget() },
+            fileCapabilities: {
+              ...fileCapabilities,
+              hasSaveTarget: fileOps.hasSaveTarget(),
+              externalSaveKind,
+            },
           });
         },
         notify: (key) => {
@@ -1025,10 +1055,13 @@ export function mountVanillaMarkdownEditor(
         onLoadRightFile: current.fileHandlers?.onLoadRightFile,
         onExportRightFile: current.fileHandlers?.onExportRightFile,
       };
-      const fileCapabilities: ToolbarFileCapabilities = current.fileCapabilities ?? {
-        hasSaveTarget: fileOps.hasSaveTarget(),
-        supportsDirectAccess: current.fileSystemProvider?.supportsDirectAccess ?? false,
-        externalSaveOnly: !current.fileSystemProvider && !!current.onExternalSave,
+      const fileCapabilities: ToolbarFileCapabilities = {
+        ...(current.fileCapabilities ?? {
+          hasSaveTarget: fileOps.hasSaveTarget(),
+          supportsDirectAccess: current.fileSystemProvider?.supportsDirectAccess ?? false,
+          externalSaveOnly: !current.fileSystemProvider && !!current.onExternalSave,
+        }),
+        externalSaveKind,
       };
 
       // === sidebar パネル（Outline / Comment）の toggle マウント ===============
@@ -1751,6 +1784,11 @@ export function mountVanillaMarkdownEditor(
         }
         if (patch.themeMode !== undefined) {
           viewerToolbar?.syncTheme(current.themeMode ?? "light");
+        }
+        // fileName の採用（adoptExternalFile）は onSaveTargetChange を発火させ、そこで宛先種別を
+        // 読み直す。ホストが Drive へ保存先を移した直後の patch を取りこぼさないよう先に反映する。
+        if ("externalSaveKind" in patch) {
+          applyExternalSaveKind(patch.externalSaveKind);
         }
         if (patch.fileName !== undefined) {
           // fileOps 経由で採用する（notifyState → onFileStateChange が statusBar へ反映する）。
