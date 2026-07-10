@@ -13,6 +13,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CommitMessageDialog } from '../../components/CommitMessageDialog';
 import { DriveConflictDialog } from '../../components/DriveConflictDialog';
 import { DriveSaveAsDialog } from '../../components/DriveSaveAsDialog';
+import { resolveConnectedProviders } from '../../lib/connectedProviders';
+import { consumeGitHubPickerIntent, markGitHubPickerIntent } from '../../lib/githubPickerIntent';
 import { downloadMarkdownBlob } from '../../lib/webImportProvider';
 import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
@@ -48,7 +50,9 @@ export default function Page() {
   const { setLocale } = useLocaleSwitch();
   const showThemePreset = process.env.NEXT_PUBLIC_SHOW_THEME_PRESET === '1';
   const { data: session } = useSession();
-  const isGitHubLoggedIn = !!session;
+  // GitHub / Google は同一 NextAuth セッションに同居する。`!!session` は「どれかにサインイン済み」
+  // でしかないため、GitHub 接続はトークンの有無で判定する。
+  const { github: isGitHubConnected } = useMemo(() => resolveConnectedProviders(session), [session]);
 
   const {
     externalContent, externalFileName,
@@ -61,9 +65,9 @@ export default function Page() {
     handleDriveOpen, handleDriveConflictOverwrite, handleDriveConflictCancel,
     driveSaveAsDialog, handleSaveToDriveClick, handleSaveToDriveConfirm, handleSaveToDriveCancel,
     handleCommitMessageConfirm, handleCommitMessageCancel,
-  } = useEditorPage({ isGitHubLoggedIn, session, t });
+  } = useEditorPage({ isGitHubConnected, t });
   // 保存を外部（GitHub/Drive）へルーティングするか。Drive は GitHub サインインに依存しない独立経路のため OR で判定する。
-  const canExternalSave = isGitHubLoggedIn || hasDriveFile;
+  const canExternalSave = isGitHubConnected || hasDriveFile;
 
   const locale = useLocale();
   const vanillaT = useMemo(() => createMarkdownT('MarkdownEditor', locale), [locale]);
@@ -80,15 +84,22 @@ export default function Page() {
     handleContentChange(resolvedInitialContent);
   }, [resolvedInitialContent, handleContentChange]);
 
-  // 「GitHub から開く」ダイアログ。未サインインならサインインへ誘導する。
+  // 「GitHub から開く」ダイアログ。GitHub 未接続ならこの時点で初めて OAuth へ誘導する。
   const [gitHubPickerOpen, setGitHubPickerOpen] = useState(false);
   const handleOpenFromGitHub = useCallback(() => {
-    if (!isGitHubLoggedIn) {
-      void signIn('github');
+    if (!isGitHubConnected) {
+      // 同意後にこのページへ戻った時点でピッカーを開く（2 度押させない）。
+      markGitHubPickerIntent();
+      void signIn('github', { callbackUrl: window.location.href });
       return;
     }
     setGitHubPickerOpen(true);
-  }, [isGitHubLoggedIn]);
+  }, [isGitHubConnected]);
+  // OAuth 往復から戻ってきた場合のみ、記録した意図を消費してピッカーを開く。
+  useEffect(() => {
+    if (!isGitHubConnected) return;
+    if (consumeGitHubPickerIntent()) setGitHubPickerOpen(true);
+  }, [isGitHubConnected]);
   const fileHandlers = useMemo(
     () => ({
       onWebImportCreate: (markdown: string, title: string) => {

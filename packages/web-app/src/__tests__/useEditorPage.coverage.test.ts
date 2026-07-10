@@ -25,8 +25,7 @@ import { useEditorPage } from "../app/markdown/useEditorPage";
 
 describe("useEditorPage - additional coverage", () => {
   const defaultOptions = {
-    isGitHubLoggedIn: false,
-    session: null,
+    isGitHubConnected: false,
     t: (key: string) => key,
     fetchFileFn: jest.fn().mockResolvedValue("# Test content"),
     fetchFn: jest.fn().mockResolvedValue({
@@ -137,30 +136,30 @@ describe("useEditorPage - additional coverage", () => {
     });
   });
 
-  it("handles session change - login", () => {
+  it("handles GitHub connection change - login", () => {
     const { result, rerender } = renderHook(
-      ({ session }) => useEditorPage({ ...defaultOptions, session }),
-      { initialProps: { session: null as any } }
+      ({ isGitHubConnected }) => useEditorPage({ ...defaultOptions, isGitHubConnected }),
+      { initialProps: { isGitHubConnected: false } }
     );
 
-    rerender({ session: { user: { name: "test" } } });
+    rerender({ isGitHubConnected: true });
     expect(result.current.ssoSnackbar).toBe("githubConnected");
   });
 
-  it("handles session change - logout", () => {
+  it("handles GitHub connection change - logout", () => {
     const { result, rerender } = renderHook(
-      ({ session }) => useEditorPage({ ...defaultOptions, session }),
-      { initialProps: { session: { user: { name: "test" } } as any } }
+      ({ isGitHubConnected }) => useEditorPage({ ...defaultOptions, isGitHubConnected }),
+      { initialProps: { isGitHubConnected: true } }
     );
 
-    rerender({ session: null });
+    rerender({ isGitHubConnected: false });
     expect(result.current.ssoSnackbar).toBe("githubDisconnected");
   });
 
   it("clears localStorage on first SSO login", () => {
     localStorage.setItem("anytime-markdown-content", "old content");
     renderHook(() =>
-      useEditorPage({ ...defaultOptions, isGitHubLoggedIn: true })
+      useEditorPage({ ...defaultOptions, isGitHubConnected: true })
     );
     expect(localStorage.getItem("anytime-markdown-content")).toBeNull();
   });
@@ -188,7 +187,7 @@ describe("useEditorPage - additional coverage", () => {
     sessionStorage.setItem("ssoContentCleared", "1");
     localStorage.setItem("anytime-markdown-content", "some content");
     renderHook(() =>
-      useEditorPage({ ...defaultOptions, isGitHubLoggedIn: true })
+      useEditorPage({ ...defaultOptions, isGitHubConnected: true })
     );
     expect(localStorage.getItem("anytime-markdown-content")).toBe("some content");
     sessionStorage.removeItem("ssoContentCleared");

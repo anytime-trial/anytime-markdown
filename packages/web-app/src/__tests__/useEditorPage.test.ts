@@ -25,8 +25,7 @@ const mockT = (key: string) => key;
 
 function createHookOptions(overrides: Partial<Parameters<typeof useEditorPage>[0]> = {}) {
   return {
-    isGitHubLoggedIn: false,
-    session: null,
+    isGitHubConnected: false,
     t: mockT,
     fetchFileFn: jest.fn().mockResolvedValue("# Mock content"),
     fetchFn: jest.fn().mockResolvedValue({
@@ -284,24 +283,38 @@ describe("useEditorPage", () => {
   });
 
   describe("SSO ログイン", () => {
-    it("セッション変更時に ssoSnackbar が表示される", () => {
+    it("GitHub 接続時に ssoSnackbar が表示される", () => {
       const { result, rerender } = renderHook(
         (props) => useEditorPage(props),
-        { initialProps: createHookOptions({ session: null }) },
+        { initialProps: createHookOptions({ isGitHubConnected: false }) },
       );
 
-      rerender(createHookOptions({ session: { user: { name: "test" } } }));
+      rerender(createHookOptions({ isGitHubConnected: true }));
       expect(result.current.ssoSnackbar).toBe("githubConnected");
     });
 
     it("ログアウト時に disconnected メッセージが表示される", () => {
       const { result, rerender } = renderHook(
         (props) => useEditorPage(props),
-        { initialProps: createHookOptions({ session: { user: { name: "test" } } }) },
+        { initialProps: createHookOptions({ isGitHubConnected: true }) },
       );
 
-      rerender(createHookOptions({ session: null }));
+      rerender(createHookOptions({ isGitHubConnected: false }));
       expect(result.current.ssoSnackbar).toBe("githubDisconnected");
+    });
+
+    it("GitHub 未接続のままなら本文クリアも snackbar も起きない（Google のみサインイン相当）", () => {
+      localStorage.setItem("anytime-markdown-content", "draft");
+      const { result, rerender } = renderHook(
+        (props) => useEditorPage(props),
+        { initialProps: createHookOptions({ isGitHubConnected: false }) },
+      );
+
+      // Google サインインで session は非 null になるが GitHub は未接続のまま。
+      rerender(createHookOptions({ isGitHubConnected: false }));
+      expect(result.current.ssoSnackbar).toBeNull();
+      expect(result.current.externalContent).toBeUndefined();
+      expect(localStorage.getItem("anytime-markdown-content")).toBe("draft");
     });
   });
 
@@ -391,7 +404,7 @@ describe("useEditorPage", () => {
     it("GitHub 経路はコミットメッセージ確定まで解決せず、確定で true を返す", async () => {
       const fetchFn = jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
       const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubLoggedIn: true })),
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubConnected: true })),
       );
       await act(async () => { await result.current.handleGitHubOpenFile("o/r", "a.md", "main"); });
 
@@ -410,7 +423,7 @@ describe("useEditorPage", () => {
     it("GitHub 経路でコミットメッセージをキャンセルしたら false を返す", async () => {
       const fetchFn = jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
       const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubLoggedIn: true })),
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubConnected: true })),
       );
       await act(async () => { await result.current.handleGitHubOpenFile("o/r", "a.md", "main"); });
 
