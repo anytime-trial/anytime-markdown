@@ -6,11 +6,13 @@ import {
   Alert, Box, CircularProgress, Snackbar,
 } from '@mui/material';
 import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useEffect, useMemo } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 
 import { CommitMessageDialog } from '../../components/CommitMessageDialog';
+import { DiscardDraftDialog } from '../../components/DiscardDraftDialog';
 import { DriveConflictDialog } from '../../components/DriveConflictDialog';
 import { DriveSaveAsDialog } from '../../components/DriveSaveAsDialog';
 import { resolveConnectedProviders } from '../../lib/connectedProviders';
@@ -19,6 +21,7 @@ import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
+import { useDiscardDraftConfirm } from './useDiscardDraftConfirm';
 import { useEditorPage } from './useEditorPage';
 import { useGitHubPicker } from './useGitHubPicker';
 
@@ -42,8 +45,28 @@ const VanillaRichMarkdownEditor = dynamic(
   { ssr: false, loading: () => <EditorLoading /> },
 );
 
+/**
+ * Drive UI の「アプリで開く」は `?state=` を付けてこのページへ遷移する。
+ * `useSearchParams` は Suspense 境界を要求するため、実体を内側のコンポーネントに置く。
+ */
 export default function Page() {
+  return (
+    <Suspense fallback={<EditorLoading />}>
+      <EditorPage />
+    </Suspense>
+  );
+}
+
+function EditorPage() {
   const t = useTranslations('Common');
+  const searchParams = useSearchParams();
+  const driveOpenState = searchParams.get('state');
+  const {
+    open: discardDraftOpen,
+    confirmDiscardDraft,
+    onDiscard: handleDiscardDraft,
+    onCancel: handleDiscardDraftCancel,
+  } = useDiscardDraftConfirm();
 
   const { themeMode, setThemeMode } = useThemeMode();
   const { presetName, setPresetName } = usePreset();
@@ -70,7 +93,7 @@ export default function Page() {
     handleDriveOpen, handleDriveConflictOverwrite, handleDriveConflictCancel,
     driveSaveAsDialog, handleSaveToDriveClick, handleSaveToDriveConfirm, handleSaveToDriveCancel,
     handleCommitMessageConfirm, handleCommitMessageCancel,
-  } = useEditorPage({ isGitHubConnected, t });
+  } = useEditorPage({ isGitHubConnected, t, driveOpenState, confirmDiscardDraft });
   // 保存を外部（GitHub/Drive）へルーティングするか。Drive は GitHub サインインに依存しない独立経路のため OR で判定する。
   const canExternalSave = isGitHubConnected || hasDriveFile;
 
@@ -201,6 +224,11 @@ export default function Page() {
         defaultMessage={commitMessageDialog?.defaultMessage ?? ''}
         onConfirm={handleCommitMessageConfirm}
         onCancel={handleCommitMessageCancel}
+      />
+      <DiscardDraftDialog
+        open={discardDraftOpen}
+        onDiscard={handleDiscardDraft}
+        onCancel={handleDiscardDraftCancel}
       />
       </Box>
     </Box>
