@@ -782,9 +782,9 @@ export function mountVanillaMarkdownEditor(
       disposers.push(() => {
         if (saveTimer) clearTimeout(saveTimer);
       });
-      const onEditorUpdate = (): void => saveContent(() => getMarkdownFromEditorSafe(editor));
-      editor.on("update", onEditorUpdate);
-      disposers.push(() => editor.off("update", onEditorUpdate));
+      // 本文の保存（下書き + onContentChange）は fileOps の dirty 追跡と同じ購読で発火させる
+      // （createFileOpsController の後段で配線する）。`editor.on("update")` は docChanged の
+      // ときだけ発火するため、コメントの resolve 等 meta のみの変更を取りこぼす。
 
       // === 変更オーバービュー（MarkdownMinimap・本文スクロールバー横） ============
       // スクロールコンテナ（contentEl）は overflow:auto。changeGutterExtension の
@@ -940,10 +940,14 @@ export function mountVanillaMarkdownEditor(
           layout.liveRegion.textContent = t(key);
         },
       });
-      // dirty 追跡（A1）。doc 変更だけでなくコメントの resolve / 本文編集（meta のみ・doc 非変更）も
-      // serialize 出力（コメントデータブロック）を変えるため dirty 化する必要がある。共有プリミティブで
-      // コメント状態または doc の変化を一括して拾う（`editor.on("update")` は meta のみを取りこぼす）。
-      const disposeDirty = onCommentStateChange(editor, () => fileOps.markDirty());
+      // dirty 追跡 + 本文保存（A1）。doc 変更だけでなくコメントの resolve / 本文編集（meta のみ・
+      // doc 非変更）も serialize 出力（コメントデータブロック）を変えるため、dirty 化と保存の双方が
+      // 必要になる。共有プリミティブでコメント状態または doc の変化を一括して拾う
+      // （`editor.on("update")` は meta のみを取りこぼし、下書きにコメント変更が残らない）。
+      const disposeDirty = onCommentStateChange(editor, () => {
+        fileOps.markDirty();
+        saveContent(() => getMarkdownFromEditorSafe(editor));
+      });
       disposers.push(disposeDirty);
 
       // === FrontmatterBlock（折りたたみ/編集/削除可能・React FrontmatterBlock 相当） =====

@@ -332,6 +332,29 @@ describe("useEditorPage", () => {
       expect(result.current.editorKey).toBeGreaterThan(initialKey);
     });
 
+    it("履歴コミットの表示は readOnly なので未保存扱いにしない", async () => {
+      // 過去コミットを表示すると page 側の effect が handleContentChange を呼ぶ。
+      // originalContentRef を更新しないと直前ファイルの内容と比較され isDirty が誤点灯する。
+      const fetchFileFn = jest
+        .fn()
+        .mockResolvedValueOnce("# original")   // ファイル選択
+        .mockResolvedValueOnce("# old commit"); // 履歴コミット選択
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFileFn })));
+
+      await act(async () => {
+        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+      });
+      await act(async () => {
+        await result.current.handleExplorerSelectCommit("owner/repo", "README.md", "sha123");
+      });
+      // page.tsx の useEffect 相当（resolvedInitialContent 変化で handleContentChange が走る）。
+      act(() => {
+        result.current.handleContentChange("# old commit");
+      });
+
+      expect(result.current.isDirty).toBe(false);
+    });
+
     it("fetchFileContent が空文字を返した場合でも表示する", async () => {
       const fetchFileFn = jest.fn().mockResolvedValue("");
       const { result } = renderHook(() =>

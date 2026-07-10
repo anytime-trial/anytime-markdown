@@ -582,6 +582,10 @@ export function useEditorPage({
       setExternalCompareContent(content);
     } else {
       selectedCommitContentRef.current = content;
+      // 履歴コミットの表示は readOnly。基準内容も差し替えないと、直前ファイルの内容と比較されて
+      // 「編集中」インジケータが誤点灯する（page.tsx の effect が handleContentChange を呼ぶため）。
+      originalContentRef.current = content;
+      setIsDirty(false);
       setExternalContent(content);
       setExternalFileName(filePath.split("/").pop() ?? filePath);
       setExternalFilePath(filePath);
