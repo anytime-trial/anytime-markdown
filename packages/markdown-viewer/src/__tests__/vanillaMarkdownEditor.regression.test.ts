@@ -149,6 +149,53 @@ describe("mountVanillaMarkdownEditor regression（レビュー指摘 1/2/4）", 
     });
   });
 
+  describe("外部ソース（Google Drive）で開いた本文のファイル名表示", () => {
+    // fileOpsController は生成時に localStorage の保存済みファイル名を復元する。
+    // Drive から開くとエディタは再マウントされるため、古いローカル名が残っていると
+    // 「開いた直後は Drive 名 → 最初の編集で古い名前へ戻る」という表示揺れが起きていた。
+    const STORED_FILENAME_KEY = "markdown-editor-filename";
+
+    beforeEach(() => localStorage.clear());
+
+    it("fileName prop が古い localStorage のローカル名より優先され、編集後も維持される", () => {
+      localStorage.setItem(STORED_FILENAME_KEY, "old-local.md");
+      const handle = mountVanillaMarkdownEditor(container, {
+        t,
+        initialContent: "# a",
+        fileName: "drive-picked.md",
+      });
+
+      expect(container.textContent).toContain("drive-picked.md");
+      handle.editor.commands.insertContent("x"); // dirty → onFileStateChange
+      expect(container.textContent).toContain("drive-picked.md");
+      expect(container.textContent).not.toContain("old-local.md");
+
+      handle.destroy();
+    });
+
+    it("fileName prop が無ければ従来どおり保存済みファイル名を表示する", () => {
+      localStorage.setItem(STORED_FILENAME_KEY, "restored.md");
+      const handle = mountVanillaMarkdownEditor(container, { t, initialContent: "# a" });
+
+      expect(container.textContent).toContain("restored.md");
+      handle.editor.commands.insertContent("x");
+      expect(container.textContent).toContain("restored.md");
+
+      handle.destroy();
+    });
+
+    it("update({ fileName }) で表示名が差し替わる", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t, initialContent: "# a" });
+      handle.update({ fileName: "renamed.md" });
+
+      expect(container.textContent).toContain("renamed.md");
+      handle.editor.commands.insertContent("x");
+      expect(container.textContent).toContain("renamed.md");
+
+      handle.destroy();
+    });
+  });
+
   describe("storage.commentDialog.open の配線（指摘 2）", () => {
     it("mount 後に storage.commentDialog.open が関数として配線される", () => {
       const handle = mountVanillaMarkdownEditor(container, { t });

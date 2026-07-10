@@ -36,6 +36,11 @@ interface CreateFileOpsControllerOptions {
    * 落とさないため、未保存ガードは新規作成 / 開くを中断する。
    */
   onExternalSave?: (content: string) => void | Promise<boolean>;
+  /**
+   * 外部ソース（Google Drive 等）から開いた文書のファイル名。指定時は `localStorage` から復元する
+   * 過去のローカルファイル名より優先し、本コントローラを文書ファイル名の単一の真実源にする。
+   */
+  initialFileName?: string | null;
   /** 確認ダイアログ（未指定時は確認なしで続行）。 */
   confirm?: (message: string) => Promise<boolean>;
   /**
@@ -76,6 +81,15 @@ interface FileOpsController {
    * 本コントローラの外側で文書を差し替えるホスト（Drive から開く等）が使う。
    */
   confirmContinue(): Promise<boolean>;
+  /**
+   * 外部ソース（Google Drive 等）が本文を差し替えたときに、そのファイル名を採用する。
+   * 本コントローラを文書ファイル名の単一の真実源に保つための入口。
+   *
+   * **永続化の副作用あり**: `localStorage`（保存済みファイル名）へ書き込み、`name` が `null` の
+   * ときは保存済みファイル名を削除したうえで IndexedDB のネイティブファイルハンドルも破棄する。
+   * 表示だけを更新したい用途には使えない。
+   */
+  adoptExternalFile(name: string | null): void;
   markDirty(): void;
   getFileName(): string | null;
   isDirty(): boolean;
@@ -117,7 +131,11 @@ export function createFileOpsController(
   options: CreateFileOpsControllerOptions,
 ): FileOpsController {
   const { editor, t, provider, confirm } = options;
-  let fileHandle: FileHandle | null = loadStoredFileName();
+  // 外部ソース由来の名前があればそれを採用する（復元した古いローカル名は捨てる）。
+  const isExternalFile = !!options.initialFileName;
+  let fileHandle: FileHandle | null = options.initialFileName
+    ? { name: options.initialFileName }
+    : loadStoredFileName();
   let dirty = false;
 
   const notifyState = (): void =>
@@ -157,7 +175,10 @@ export function createFileOpsController(
   };
 
   // リロード時に IndexedDB から nativeHandle を復元（React useFileSystem の初回 effect 相当）。
-  if (typeof window !== "undefined" && fileHandle?.name && !fileHandle.nativeHandle) {
+  // 外部ソース（Drive 等）由来の文書には復元しない。名前が一致するだけの無関係なローカルファイルの
+  // ハンドルを掴み、`onExternalSave` 未設定の consumer で `provider.save()` が意図しないローカル
+  // ファイルを上書きしてしまうため。
+  if (!isExternalFile && typeof window !== "undefined" && fileHandle?.name && !fileHandle.nativeHandle) {
     const name = fileHandle.name;
     loadNativeHandle()
       .then((native) => {
@@ -335,6 +356,7 @@ export function createFileOpsController(
       setDirty(false);
     },
     confirmContinue: guardDirty,
+    adoptExternalFile: (name: string | null) => setHandle(name ? { name } : null),
     markDirty: () => setDirty(true),
     getFileName: () => fileHandle?.name ?? null,
     isDirty: () => dirty,

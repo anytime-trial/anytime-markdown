@@ -22,6 +22,10 @@ import type { FileSystemProvider } from "../types/fileSystem";
 
 const t = (key: string) => key;
 
+// saveAs 等の setHandle は localStorage へファイル名を永続化する。テスト間で持ち越すと
+// 後続の createFileOpsController が復元してしまうため、毎テスト初期化する。
+beforeEach(() => localStorage.clear());
+
 /** provider の open/save/saveAs 呼び出しを記録する。saveAs は handle を返す（成功）。 */
 function createProvider(over: Partial<FileSystemProvider> = {}): FileSystemProvider {
   return {
@@ -206,6 +210,52 @@ describe("fileOpsController — 未保存ガード", () => {
 
     expect(provider.open).not.toHaveBeenCalled();
     expect(ops.isDirty()).toBe(true);
+  });
+});
+
+describe("fileOpsController — initialFileName（外部ソース由来のファイル名）", () => {
+  /** loadNativeHandle の then チェーンを解決させる。 */
+  const flush = () => Promise.resolve().then(() => undefined);
+
+  // 復元がスキップされる分岐では mockResolvedValueOnce が消費されず次のテストへ漏れるため、
+  // 各テストで明示的にリセットする。
+  beforeEach(() => {
+    const { loadNativeHandle } = jest.requireMock("../utils/fileHandleStore");
+    loadNativeHandle.mockReset();
+    loadNativeHandle.mockResolvedValue(null);
+  });
+
+  it("復元した localStorage のローカル名より initialFileName を優先する", () => {
+    const ops = createOps({ provider: createProvider(), initialFileName: "drive-picked.md" });
+    expect(ops.getFileName()).toBe("drive-picked.md");
+  });
+
+  it("initialFileName には IndexedDB の nativeHandle を復元しない（同名のローカルファイルを誤って掴まない）", async () => {
+    const { loadNativeHandle } = jest.requireMock("../utils/fileHandleStore");
+    // 過去に同名のローカルファイルを開いていた状況を再現する。
+    loadNativeHandle.mockResolvedValueOnce({ name: "same-name.md" });
+    const provider = createProvider();
+    const ops = createOps({ provider, initialFileName: "same-name.md" });
+    await flush();
+
+    await ops.saveFile();
+
+    // nativeHandle を掴んでいれば provider.save で無関係のローカルファイルへ上書きしてしまう。
+    expect(provider.save).not.toHaveBeenCalled();
+    expect(provider.saveAs).toHaveBeenCalled();
+  });
+
+  it("initialFileName が無ければ従来どおり nativeHandle を復元する", async () => {
+    const { loadNativeHandle } = jest.requireMock("../utils/fileHandleStore");
+    localStorage.setItem("markdown-editor-filename", "local.md");
+    loadNativeHandle.mockResolvedValueOnce({ name: "local.md" });
+    const provider = createProvider();
+    const ops = createOps({ provider });
+    await flush();
+
+    await ops.saveFile();
+
+    expect(provider.save).toHaveBeenCalled();
   });
 });
 
