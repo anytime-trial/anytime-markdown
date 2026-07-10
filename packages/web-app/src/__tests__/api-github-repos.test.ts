@@ -55,6 +55,37 @@ describe("GET /api/github/repos", () => {
     expect(res.headers["Cache-Control"]).toContain("max-age=300");
   });
 
+  describe("スコープ不足の検知（旧 public_repo トークンの残留）", () => {
+    /** `x-oauth-scopes` ヘッダを持つ GitHub 応答を作る。 */
+    function respondWithScopes(scopes: string | null) {
+      mockGetGitHubToken.mockResolvedValue("test-token");
+      mockFetchWithRetry.mockResolvedValue({
+        ok: true,
+        headers: { get: (name: string) => (name.toLowerCase() === "x-oauth-scopes" ? scopes : null) },
+        json: () => Promise.resolve([]),
+      });
+    }
+
+    it("repo スコープが無ければ 403 と insufficient_scope を返す", async () => {
+      respondWithScopes("public_repo, gist");
+      const res = (await callGET()) as unknown as { body: string; status: number };
+      expect(res.status).toBe(403);
+      expect(JSON.parse(res.body)).toEqual({ error: "insufficient_scope" });
+    });
+
+    it("repo スコープがあれば通常どおり 200 を返す", async () => {
+      respondWithScopes("repo, gist");
+      const res = (await callGET()) as unknown as { status: number };
+      expect(res.status).toBe(200);
+    });
+
+    it("スコープヘッダが無い応答は判定せず通す（後方互換）", async () => {
+      respondWithScopes(null);
+      const res = (await callGET()) as unknown as { status: number };
+      expect(res.status).toBe(200);
+    });
+  });
+
   it("未認証の場合は 401 を返す", async () => {
     mockGetGitHubToken.mockResolvedValue(null);
 

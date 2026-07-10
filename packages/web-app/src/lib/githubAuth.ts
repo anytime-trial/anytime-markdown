@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Spotify from "next-auth/providers/spotify";
+import { GITHUB_OAUTH_SCOPE } from "./githubOAuthScope";
 import { isGoogleTokenExpired, parseRefreshedToken } from "./googleToken";
 
 const result = NextAuth({
@@ -13,7 +14,7 @@ const result = NextAuth({
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID ?? "",
       clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
-      authorization: { params: { scope: "public_repo" } },
+      authorization: { params: { scope: GITHUB_OAUTH_SCOPE } },
     }),
     Spotify({
       clientId: process.env.SPOTIFY_CLIENT_ID ?? "",

@@ -69,6 +69,8 @@ export const GitHubRepoBrowser: FC<Readonly<GitHubRepoBrowserProps>> = ({
   const [currentPath, setCurrentPath] = useState("");
   const [loading, setLoading] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
+  /** 旧スコープ（public_repo）のトークンが残っており、再サインインが要る状態。 */
+  const [needsScopeUpgrade, setNeedsScopeUpgrade] = useState(false);
   /**
    * 最新のツリー / ブランチ取得を識別する。リポジトリやブランチを続けて切り替えると
    * 古いリクエストの応答が後着し、表示中の状態を上書きしてしまうため、発行順で弾く。
@@ -82,6 +84,12 @@ export const GitHubRepoBrowser: FC<Readonly<GitHubRepoBrowserProps>> = ({
     setLoading(true);
     fetch("/api/github/repos")
       .then((res) => {
+        // 403 は「サインイン済みだがスコープが古い」。401 と区別して案内文を変える。
+        if (res.status === 403) {
+          setNeedsScopeUpgrade(true);
+          setNeedsAuth(true);
+          return [];
+        }
         if (res.status === 401) {
           setNeedsAuth(true);
           return [];
@@ -205,6 +213,7 @@ export const GitHubRepoBrowser: FC<Readonly<GitHubRepoBrowserProps>> = ({
     setCurrentPath("");
     setBranch("");
     setBranchOptions([]);
+    setNeedsScopeUpgrade(false);
     onClose();
   }, [onClose]);
 
@@ -225,7 +234,9 @@ export const GitHubRepoBrowser: FC<Readonly<GitHubRepoBrowserProps>> = ({
       <DialogContent>
         {needsAuth && (
           <Box sx={{ textAlign: "center", py: 4 }}>
-            <Typography sx={{ mb: 2 }}>{t("githubOpenSignInRequired")}</Typography>
+            <Typography sx={{ mb: 2 }}>
+              {needsScopeUpgrade ? t("githubOpenScopeUpgrade") : t("githubOpenSignInRequired")}
+            </Typography>
             <Button variant="contained" onClick={() => void signIn("github")}>
               {t("githubOpenSignInButton")}
             </Button>
