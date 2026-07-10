@@ -839,6 +839,20 @@ describe("useEditorPage", () => {
       expect(sessionStorage.getItem("driveOpenIntent")).toBe(openState);
     });
 
+    it("URL の state から復帰したら退避 intent を残さない（無条件消費）", async () => {
+      // OAuth 往復で state 付き URL を保ったまま戻ったケース。intent が残ると後で誤発火する。
+      sessionStorage.setItem("driveOpenIntent", openState);
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+
+      await renderWithState(openState, fetchFn);
+
+      expect(sessionStorage.getItem("driveOpenIntent")).toBeNull();
+    });
+
     it("URL に state が無ければ退避した intent から復元する", async () => {
       sessionStorage.setItem("driveOpenIntent", openState);
       const fetchFn = createAuthedFetch();

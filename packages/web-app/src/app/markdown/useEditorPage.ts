@@ -497,6 +497,8 @@ export function useEditorPage({
 
     setDriveFile({ fileId, name: payload.name, headRevisionId: payload.headRevisionId });
     setExternalSaveKind('drive');
+    // 「新規」で立てた親フォルダを既存ファイルへ持ち越さない（以後の保存は fileId で行う）。
+    pendingParentIdRef.current = null;
     selectedFileRef.current = null;
     setIsDirty(false);
     originalContentRef.current = payload.content;
@@ -591,7 +593,9 @@ export function useEditorPage({
   // Drive UI からの起動を一度だけ処理する。URL の state が無ければ OAuth 往復前の intent を見る。
   useEffect(() => {
     if (driveBootstrapRef.current) return;
-    const rawState = driveOpenState ?? consumeDriveOpenIntent();
+    // OAuth 往復から URL の state を保ったまま復帰しても退避物が残らないよう、無条件に消費する。
+    const stored = consumeDriveOpenIntent();
+    const rawState = driveOpenState ?? stored;
     const intent = parseDriveOpenState(rawState);
     if (!intent || rawState === null) return;
 
