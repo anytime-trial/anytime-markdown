@@ -324,11 +324,13 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
    * ファイル所在バッジ（アイコン + ラベル）を生成する。
    *
    * 色だけに情報を載せず、アイコンと文字の双方で所在を伝える（a11y: 色覚多様性）。
-   * アイコンは装飾なので aria-hidden、読み上げはラベル文字が担う。
+   * バッジ全体は視覚専用（aria-hidden）で、読み上げはファイル名要素の aria-label に一本化する
+   * （両方を読ませると「GitHub」「GitHub doc.md」と所在が二重に読み上げられる）。
    */
   function buildOriginBadge(origin: FileOrigin): HTMLSpanElement {
     const badge = document.createElement("span");
     badge.setAttribute("data-am-file-origin", origin);
+    badge.setAttribute("aria-hidden", "true");
     badge.style.cssText =
       "display:inline-flex;align-items:center;gap:4px;margin-left:8px;" +
       "padding:1px 6px;border-radius:10px;flex-shrink:0;" +
@@ -387,8 +389,7 @@ export function createStatusBar(opts: CreateStatusBarOptions): StatusBarHandle {
       fileNameText.el.style.marginLeft = fileOrigin ? "6px" : "8px";
       fileNameText.el.textContent = "";
       fileNameText.el.appendChild(document.createTextNode(fileName));
-      // 読み上げは「所在 → ファイル名 →（未保存）」の順。バッジのラベルは視覚のみの重複ではなく、
-      // ファイル名要素の aria-label にも所在を織り込む（バッジ単体では文脈が伝わらないため）。
+      // 読み上げは「所在 → ファイル名 →（未保存）」の順にここへ集約する（バッジは aria-hidden）。
       const originLabel = fileOrigin
         ? t("fileOriginLabel", { origin: t(ORIGIN_LABEL_KEY[fileOrigin]) })
         : null;

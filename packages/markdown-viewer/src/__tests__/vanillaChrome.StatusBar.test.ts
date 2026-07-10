@@ -500,12 +500,13 @@ describe("components-vanilla/StatusBar", () => {
       expect(badge).toBeTruthy();
       // 色だけに依存しない: アイコン（装飾）とラベル文字の双方を出す。
       expect(badge.querySelector("svg")).toBeTruthy();
-      expect(badge.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
       expect(badge.textContent).toBe(labelKey);
+      // 読み上げはファイル名の aria-label へ一本化するため、バッジ自体は視覚専用。
+      expect(badge.getAttribute("aria-hidden")).toBe("true");
       destroy();
     });
 
-    it("所在はファイル名の aria-label にも織り込む（読み上げで文脈が伝わる）", () => {
+    it("所在の読み上げはファイル名の aria-label に一本化する（二重読み上げを避ける）", () => {
       const { el, destroy } = createStatusBar(
         baseOpts({ fileName: "doc.md", fileOrigin: "github", isDirty: true }),
       );
