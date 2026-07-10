@@ -46,40 +46,13 @@ describe("useEditorPage", () => {
   describe("初期状態", () => {
     it("デフォルトの初期値が正しい", () => {
       const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      expect(result.current.explorerOpen).toBe(false);
       expect(result.current.externalContent).toBeUndefined();
       expect(result.current.externalFileName).toBeUndefined();
       expect(result.current.externalCompareContent).toBeNull();
       expect(result.current.editorKey).toBe(0);
       expect(result.current.isDirty).toBe(false);
-      expect(result.current.newCommit).toBeNull();
       expect(result.current.saveSnackbar).toBeNull();
       expect(result.current.ssoSnackbar).toBeNull();
-    });
-
-    it("sessionStorage に explorerOpen=1 がある場合 true で初期化", () => {
-      sessionStorage.setItem("explorerOpen", "1");
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      expect(result.current.explorerOpen).toBe(true);
-    });
-  });
-
-  describe("handleToggleExplorer", () => {
-    it("エクスプローラの開閉を切り替える", () => {
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      expect(result.current.explorerOpen).toBe(false);
-      act(() => result.current.handleToggleExplorer());
-      expect(result.current.explorerOpen).toBe(true);
-      act(() => result.current.handleToggleExplorer());
-      expect(result.current.explorerOpen).toBe(false);
-    });
-
-    it("explorerOpen の変更が sessionStorage に反映される", () => {
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      act(() => result.current.handleToggleExplorer());
-      expect(sessionStorage.getItem("explorerOpen")).toBe("1");
-      act(() => result.current.handleToggleExplorer());
-      expect(sessionStorage.getItem("explorerOpen")).toBe("0");
     });
   });
 
@@ -91,7 +64,7 @@ describe("useEditorPage", () => {
     });
   });
 
-  describe("handleExplorerSelectFile", () => {
+  describe("handleGitHubOpenFile", () => {
     it("ファイル選択でコンテンツを取得しエディタをリセットする", async () => {
       const fetchFileFn = jest.fn().mockResolvedValue("# Hello");
       const { result } = renderHook(() =>
@@ -100,7 +73,7 @@ describe("useEditorPage", () => {
       const initialKey = result.current.editorKey;
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
       expect(fetchFileFn).toHaveBeenCalledWith("owner/repo", "README.md", "main");
@@ -116,13 +89,13 @@ describe("useEditorPage", () => {
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
       const keyAfterFirst = result.current.editorKey;
       fetchFileFn.mockClear();
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
       expect(fetchFileFn).not.toHaveBeenCalled();
@@ -136,7 +109,7 @@ describe("useEditorPage", () => {
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "docs/guide/intro.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "docs/guide/intro.md", "main");
       });
 
       expect(result.current.externalFileName).toBe("intro.md");
@@ -157,7 +130,7 @@ describe("useEditorPage", () => {
 
       // ファイルを選択してから保存
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
       // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
@@ -187,9 +160,6 @@ describe("useEditorPage", () => {
       }));
       expect(result.current.commitMessageDialog).toBeNull();
       expect(result.current.isDirty).toBe(false);
-      expect(result.current.newCommit).toEqual(
-        expect.objectContaining({ sha: "abc" }),
-      );
       expect(result.current.saveSnackbar).toEqual({ message: "fileSaved", severity: "success" });
     });
 
@@ -205,7 +175,7 @@ describe("useEditorPage", () => {
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
       // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
@@ -232,7 +202,7 @@ describe("useEditorPage", () => {
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
       fetchFn.mockClear();
 
@@ -259,7 +229,7 @@ describe("useEditorPage", () => {
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
       // 初回はコミットメッセージ確定まで解決しないため await しない。
@@ -304,102 +274,16 @@ describe("useEditorPage", () => {
   });
 
   describe("handleCompareModeChange", () => {
-    it("比較モードを有効にする", () => {
+    it("比較モードの切替は本文とエディタ再生成に影響しない", () => {
       const { result } = renderHook(() => useEditorPage(createHookOptions()));
       act(() => result.current.handleCompareModeChange(true));
-      // compareModeOpen は内部状態なので、handleSelectCurrent の挙動で確認
-    });
-  });
-
-  describe("handleExplorerSelectCommit", () => {
-    it("通常モードでコミット選択するとエディタにコンテンツを表示する", async () => {
-      const fetchFileFn = jest.fn().mockResolvedValue("# Commit content");
-      const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFileFn })),
-      );
-      const initialKey = result.current.editorKey;
-
-      await act(async () => {
-        await result.current.handleExplorerSelectCommit("owner/repo", "README.md", "sha123");
-      });
-
-      expect(fetchFileFn).toHaveBeenCalledWith("owner/repo", "README.md", "sha123");
-      expect(result.current.externalContent).toBe("# Commit content");
-      expect(result.current.externalFileName).toBe("README.md");
-      expect(result.current.editorKey).toBeGreaterThan(initialKey);
-    });
-
-    it("履歴コミットの表示は readOnly なので未保存扱いにしない", async () => {
-      // 過去コミットを表示すると page 側の effect が handleContentChange を呼ぶ。
-      // originalContentRef を更新しないと直前ファイルの内容と比較され isDirty が誤点灯する。
-      const fetchFileFn = jest
-        .fn()
-        .mockResolvedValueOnce("# original")   // ファイル選択
-        .mockResolvedValueOnce("# old commit"); // 履歴コミット選択
-      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFileFn })));
-
-      await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
-      });
-      await act(async () => {
-        await result.current.handleExplorerSelectCommit("owner/repo", "README.md", "sha123");
-      });
-      // page.tsx の useEffect 相当（resolvedInitialContent 変化で handleContentChange が走る）。
-      act(() => {
-        result.current.handleContentChange("# old commit");
-      });
-
-      expect(result.current.isDirty).toBe(false);
-    });
-
-    it("fetchFileContent が空文字を返した場合でも表示する", async () => {
-      const fetchFileFn = jest.fn().mockResolvedValue("");
-      const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFileFn })),
-      );
-
-      await act(async () => {
-        await result.current.handleExplorerSelectCommit("owner/repo", "empty.md", "sha456");
-      });
-
-      expect(result.current.externalContent).toBe("");
-    });
-  });
-
-  describe("handleSelectCurrent", () => {
-    it("通常モードで編集中データに戻す", () => {
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      const initialKey = result.current.editorKey;
-
-      act(() => result.current.handleSelectCurrent());
-
       expect(result.current.externalContent).toBeUndefined();
       expect(result.current.externalCompareContent).toBeNull();
-      expect(result.current.editorKey).toBeGreaterThan(initialKey);
-    });
-
-    it("比較モードでは右側を空にしてモード維持", () => {
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-
-      act(() => result.current.handleCompareModeChange(true));
-      act(() => result.current.handleSelectCurrent());
-
-      expect(result.current.externalCompareContent).toBe("");
+      expect(result.current.editorKey).toBe(0);
     });
   });
 
   describe("SSO ログイン", () => {
-    it("isGitHubLoggedIn が true になると explorerOpen が true になる", () => {
-      const { result, rerender } = renderHook(
-        (props) => useEditorPage(props),
-        { initialProps: createHookOptions({ isGitHubLoggedIn: false }) },
-      );
-      expect(result.current.explorerOpen).toBe(false);
-
-      rerender(createHookOptions({ isGitHubLoggedIn: true }));
-      expect(result.current.explorerOpen).toBe(true);
-    });
-
     it("セッション変更時に ssoSnackbar が表示される", () => {
       const { result, rerender } = renderHook(
         (props) => useEditorPage(props),
@@ -509,7 +393,7 @@ describe("useEditorPage", () => {
       const { result } = renderHook(() =>
         useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubLoggedIn: true })),
       );
-      await act(async () => { await result.current.handleExplorerSelectFile("o/r", "a.md", "main"); });
+      await act(async () => { await result.current.handleGitHubOpenFile("o/r", "a.md", "main"); });
 
       let saved: boolean | undefined;
       let settled = false;
@@ -528,7 +412,7 @@ describe("useEditorPage", () => {
       const { result } = renderHook(() =>
         useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubLoggedIn: true })),
       );
-      await act(async () => { await result.current.handleExplorerSelectFile("o/r", "a.md", "main"); });
+      await act(async () => { await result.current.handleGitHubOpenFile("o/r", "a.md", "main"); });
 
       let saved: boolean | undefined;
       await act(async () => {

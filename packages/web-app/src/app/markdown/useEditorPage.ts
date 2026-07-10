@@ -71,22 +71,6 @@ function parseDriveHeadRevisionId(value: unknown): string | null {
   return typeof headRevisionId === 'string' ? headRevisionId : null;
 }
 
-interface GitHubCommitPayload {
-  sha: string;
-  message: string;
-  author: string;
-  date: string;
-}
-
-function parseGitHubCommitPayload(value: unknown): GitHubCommitPayload | null {
-  const record = asRecord(asRecord(value)?.commit ?? null);
-  if (!record) return null;
-  const { sha, message, author, date } = record;
-  if (typeof sha !== 'string' || typeof message !== 'string' || typeof author !== 'string' || typeof date !== 'string') {
-    return null;
-  }
-  return { sha, message, author, date };
-}
 
 function parseErrorMessage(value: unknown): string | undefined {
   const error = asRecord(value)?.error;
@@ -94,13 +78,11 @@ function parseErrorMessage(value: unknown): string | undefined {
 }
 
 export interface EditorPageState {
-  explorerOpen: boolean;
   externalContent: string | undefined;
   externalFileName: string | undefined;
   externalCompareContent: string | null;
   editorKey: number;
   isDirty: boolean;
-  newCommit: { sha: string; message: string; author: string; date: string } | null;
   saveSnackbar: { message: string; severity: 'success' | 'error' } | null;
   ssoSnackbar: string | null;
   driveConflict: DriveConflict | null;
@@ -114,14 +96,12 @@ export interface EditorPageState {
 }
 
 export interface EditorPageActions {
-  handleToggleExplorer: () => void;
-  handleExplorerSelectFile: (repo: string, filePath: string, branch: string) => Promise<void>;
+  /** GitHub のファイルを開く。開いた後の上書き保存先も同時に確定する。 */
+  handleGitHubOpenFile: (repo: string, filePath: string, branch: string) => Promise<void>;
   /** 保存完了可否を返す（false のとき未保存ガードは新規作成 / 開くを中断する）。 */
   handleExternalSave: (content: string) => Promise<boolean>;
   handleSaveTargetChange: (target: SaveTargetInfo | null) => void;
   handleCompareModeChange: (active: boolean) => void;
-  handleExplorerSelectCommit: (repo: string, filePath: string, sha: string) => Promise<void>;
-  handleSelectCurrent: () => void;
   handleContentChange: (content: string) => void;
   setSsoSnackbar: (v: string | null) => void;
   setSaveSnackbar: (v: { message: string; severity: 'success' | 'error' } | null) => void;
@@ -159,21 +139,16 @@ export function useEditorPage({
   fetchFn = typeof window === 'undefined' ? (undefined as unknown as typeof fetch) : window.fetch.bind(window),
   signInFn = signIn,
 }: UseEditorPageOptions): EditorPageState & EditorPageActions {
-  const [explorerOpen, setExplorerOpen] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return sessionStorage.getItem('explorerOpen') === '1';
-  });
   const [externalContent, setExternalContent] = useState<string | undefined>(undefined);
   const [externalFileName, setExternalFileName] = useState<string | undefined>(undefined);
   const [externalCompareContent, setExternalCompareContent] = useState<string | null>(null);
-  const [compareModeOpen, setCompareModeOpen] = useState(false);
+  // 値は参照されない（比較モードの分岐は markdown-viewer 側が持つ）。setter のみ使う。
+  const [, setCompareModeOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   const selectedFileRef = useRef<{ repo: string; filePath: string; branch: string } | null>(null);
   const driveFileRef = useRef<DriveFileRef | null>(null);
-  const selectedCommitContentRef = useRef<string | null>(null);
   const originalContentRef = useRef<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
-  const [newCommit, setNewCommit] = useState<{ sha: string; message: string; author: string; date: string } | null>(null);
   const [saveSnackbar, setSaveSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [driveConflict, setDriveConflict] = useState<DriveConflict | null>(null);
   const [hasDriveFile, setHasDriveFile] = useState(false);
@@ -202,10 +177,9 @@ export function useEditorPage({
     return () => { document.body.classList.remove('editor-page'); };
   }, []);
 
-  // SSO ログイン状態で初回アクセス時に localStorage をクリアしパネルを開く
+  // SSO ログイン状態で初回アクセス時に localStorage の下書きをクリアする
   useEffect(() => {
     if (!isGitHubLoggedIn) return;
-    setExplorerOpen(true);
     if (!selectedFileRef.current) {
       setExternalContent("");
       setEditorKey((k) => k + 1);
@@ -252,20 +226,11 @@ export function useEditorPage({
     }
   }, [session, t, setDriveFile]);
 
-  useEffect(() => {
-    sessionStorage.setItem('explorerOpen', explorerOpen ? '1' : '0');
-  }, [explorerOpen]);
-
-  const handleToggleExplorer = useCallback(() => {
-    setExplorerOpen((prev) => !prev);
-  }, []);
-
-  const handleExplorerSelectFile = useCallback(async (repo: string, filePath: string, branch: string) => {
+  const handleGitHubOpenFile = useCallback(async (repo: string, filePath: string, branch: string) => {
     const prev = selectedFileRef.current;
     const isSameFile = prev?.repo === repo && prev?.filePath === filePath && prev?.branch === branch;
     selectedFileRef.current = { repo, filePath, branch };
     setDriveFile(null);
-    selectedCommitContentRef.current = null;
     if (isSameFile) return;
     setIsDirty(false);
     const content = await fetchFileFn(repo, filePath, branch);
@@ -339,10 +304,6 @@ export function useEditorPage({
     if (res.ok) {
       originalContentRef.current = content;
       setIsDirty(false);
-      const commit = parseGitHubCommitPayload(await res.json().catch(() => null));
-      if (commit) {
-        setNewCommit(commit);
-      }
       setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
       return true;
     }
@@ -555,48 +516,14 @@ export function useEditorPage({
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     setCompareModeOpen(active);
-    if (active && selectedCommitContentRef.current != null) {
-      const commit = selectedCommitContentRef.current;
-      selectedCommitContentRef.current = null;
-      setExternalContent(undefined);
-      setExternalCompareContent(commit);
-      setEditorKey((k) => k + 1);
-    }
   }, []);
 
-  const handleExplorerSelectCommit = useCallback(async (repo: string, filePath: string, sha: string) => {
-    setDriveFile(null);
-    const content = await fetchFileFn(repo, filePath, sha);
-    if (!content && content !== '') return;
-    if (compareModeOpen) {
-      setExternalCompareContent(content);
-    } else {
-      selectedCommitContentRef.current = content;
-      // 履歴コミットの表示は readOnly。基準内容も差し替えないと、直前ファイルの内容と比較されて
-      // 「編集中」インジケータが誤点灯する（page.tsx の effect が handleContentChange を呼ぶため）。
-      originalContentRef.current = content;
-      setIsDirty(false);
-      setExternalContent(content);
-      setExternalFileName(filePath.split("/").pop() ?? filePath);
-      setExternalCompareContent(null);
-      setEditorKey((k) => k + 1);
-    }
-  }, [compareModeOpen, fetchFileFn, setDriveFile]);
-
-  const handleSelectCurrent = useCallback(() => {
-    setExternalContent(undefined);
-    setExternalCompareContent(compareModeOpen ? "" : null);
-    setEditorKey((k) => k + 1);
-  }, [compareModeOpen]);
-
   return {
-    explorerOpen,
     externalContent,
     externalFileName,
     externalCompareContent,
     editorKey,
     isDirty,
-    newCommit,
     saveSnackbar,
     ssoSnackbar,
     driveConflict,
@@ -604,13 +531,10 @@ export function useEditorPage({
     commitMessageDialog,
     commitToGitHubDialog,
     driveSaveAsDialog,
-    handleToggleExplorer,
-    handleExplorerSelectFile,
+    handleGitHubOpenFile,
     handleExternalSave,
     handleSaveTargetChange,
     handleCompareModeChange,
-    handleExplorerSelectCommit,
-    handleSelectCurrent,
     handleContentChange,
     setSsoSnackbar,
     setSaveSnackbar,
