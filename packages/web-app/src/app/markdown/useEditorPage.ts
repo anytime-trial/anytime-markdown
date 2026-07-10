@@ -119,8 +119,12 @@ export interface EditorPageActions {
 }
 
 interface UseEditorPageOptions {
-  isGitHubLoggedIn: boolean;
-  session: unknown;
+  /**
+   * GitHub OAuth 済みか（`resolveConnectedProviders(session).github`）。
+   * `!!session` では Google/Spotify のサインインまで拾ってしまうため boolean で受け取る。
+   * `undefined` は「セッション未確定（useSession が loading）」。未接続とは区別する。
+   */
+  isGitHubConnected: boolean | undefined;
   t: (key: string) => string;
   /** Override fetchFileContent for testing */
   fetchFileFn?: typeof fetchFileContent;
@@ -131,8 +135,7 @@ interface UseEditorPageOptions {
 }
 
 export function useEditorPage({
-  isGitHubLoggedIn,
-  session,
+  isGitHubConnected,
   t,
   fetchFileFn = fetchFileContent,
   fetchFn = typeof window === 'undefined' ? (undefined as unknown as typeof fetch) : window.fetch.bind(window),
@@ -176,9 +179,9 @@ export function useEditorPage({
     return () => { document.body.classList.remove('editor-page'); };
   }, []);
 
-  // SSO ログイン状態で初回アクセス時に localStorage の下書きをクリアする
+  // GitHub 接続済みで初回アクセス時に localStorage の下書きをクリアする
   useEffect(() => {
-    if (!isGitHubLoggedIn) return;
+    if (!isGitHubConnected) return;
     if (!selectedFileRef.current) {
       setExternalContent("");
       setEditorKey((k) => k + 1);
@@ -186,7 +189,7 @@ export function useEditorPage({
     if (sessionStorage.getItem('ssoContentCleared') === '1') return;
     sessionStorage.setItem('ssoContentCleared', '1');
     clearDraft(); // 失敗時のログは draftStorage 側で出る
-  }, [isGitHubLoggedIn]);
+  }, [isGitHubConnected]);
 
   const handleContentChange = useCallback((content: string) => {
     currentContentRef.current = content;
@@ -201,14 +204,18 @@ export function useEditorPage({
     return web.supportsDirectAccess ? web : new FallbackFileSystemProvider();
   }, []);
 
-  // SSO ログイン/ログアウト時にエディタを空の初期状態にリセット
-  const prevSessionRef = useRef(session);
+  // GitHub の接続/切断時にエディタを空の初期状態にリセットする。
+  // Google（Drive）や Spotify のサインインでは発火させない（本文が消えるため）。
+  const prevGitHubConnectedRef = useRef<boolean | undefined>(isGitHubConnected);
   const [ssoSnackbar, setSsoSnackbar] = useState<string | null>(null);
   useEffect(() => {
-    if (prevSessionRef.current === session) return;
-    const wasLoggedIn = !!prevSessionRef.current;
-    const isNowLoggedIn = !!session;
-    prevSessionRef.current = session;
+    // セッション未確定の間は何も判断しない。確定した最初の値は「接続イベント」ではないので
+    // 記録するだけで通知もリセットもしない（リロードのたびに snackbar が出るのを防ぐ）。
+    if (isGitHubConnected === undefined) return;
+    const wasLoggedIn = prevGitHubConnectedRef.current;
+    prevGitHubConnectedRef.current = isGitHubConnected;
+    if (wasLoggedIn === undefined || wasLoggedIn === isGitHubConnected) return;
+    const isNowLoggedIn = isGitHubConnected;
     selectedFileRef.current = null;
     setDriveFile(null);
     setExternalContent(undefined);
@@ -223,7 +230,7 @@ export function useEditorPage({
     } else if (!isNowLoggedIn && wasLoggedIn) {
       setSsoSnackbar(t('githubDisconnected'));
     }
-  }, [session, t, setDriveFile]);
+  }, [isGitHubConnected, t, setDriveFile]);
 
   const handleGitHubOpenFile = useCallback(async (repo: string, filePath: string, branch: string) => {
     const prev = selectedFileRef.current;
