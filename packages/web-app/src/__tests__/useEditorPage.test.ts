@@ -20,6 +20,14 @@ jest.mock("../lib/FallbackFileSystemProvider", () => ({
 jest.mock("../lib/githubApi", () => ({
   fetchFileContent: jest.fn(),
 }));
+jest.mock("../lib/googlePicker", () => ({
+  pickDriveMarkdownFile: jest.fn(),
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { pickDriveMarkdownFile } = jest.requireMock("../lib/googlePicker") as {
+  pickDriveMarkdownFile: jest.Mock;
+};
 
 const mockT = (key: string) => key;
 
@@ -194,10 +202,10 @@ describe("useEditorPage", () => {
       const fetchFn = jest.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({}),
-      }) as unknown as typeof fetch;
+      });
 
       const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFileFn, fetchFn })),
+        useEditorPage(createHookOptions({ fetchFileFn, fetchFn: fetchFn as unknown as typeof fetch })),
       );
 
       await act(async () => {
@@ -221,10 +229,10 @@ describe("useEditorPage", () => {
       const fetchFn = jest.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({}),
-      }) as unknown as typeof fetch;
+      });
 
       const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFileFn, fetchFn })),
+        useEditorPage(createHookOptions({ fetchFileFn, fetchFn: fetchFn as unknown as typeof fetch })),
       );
 
       await act(async () => {
@@ -640,6 +648,104 @@ describe("useEditorPage", () => {
         message: "driveSignInRequired",
         severity: "error",
       });
+    });
+
+    /** トークン取得に成功する fetchFn を作る（以降の応答は呼び出し側が積む）。 */
+    function createAuthedFetch(): jest.Mock {
+      const fetchFn = jest.fn();
+      fetchFn.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ accessToken: "tok" }) });
+      return fetchFn;
+    }
+
+    it("選択したファイルの本文を読み込み保存先を Drive にする", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce({ fileId: "f1" });
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+      const keyBefore = result.current.editorKey;
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(fetchFn).toHaveBeenLastCalledWith("/api/drive/content?fileId=f1");
+      expect(result.current.externalFileName).toBe("note.md");
+      expect(result.current.externalSaveKind).toBe("drive");
+      expect(result.current.hasDriveFile).toBe(true);
+      expect(result.current.isDirty).toBe(false);
+      expect(result.current.editorKey).toBe(keyBefore + 1);
+      expect(result.current.saveSnackbar).toBeNull();
+    });
+
+    it("fileId を URL エンコードして問い合わせる", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce({ fileId: "a b/c" });
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "n.md", headRevisionId: "r", content: "" }),
+      });
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(fetchFn).toHaveBeenLastCalledWith("/api/drive/content?fileId=a%20b%2Fc");
+    });
+
+    it("Picker をキャンセルしたら本文を読みに行かない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce(null);
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(fetchFn).toHaveBeenCalledTimes(1); // トークン取得のみ
+      expect(result.current.hasDriveFile).toBe(false);
+      expect(result.current.externalSaveKind).toBeUndefined();
+    });
+
+    it("本文取得が失敗したら driveLoadError を通知し保存先を切り替えない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce({ fileId: "f1" });
+      fetchFn.mockResolvedValueOnce({ ok: false, status: 404, json: () => Promise.resolve({ error: "not found" }) });
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(result.current.saveSnackbar).toEqual({ message: "driveLoadError", severity: "error" });
+      expect(result.current.hasDriveFile).toBe(false);
+      expect(result.current.externalSaveKind).toBeUndefined();
+      warnSpy.mockRestore();
+    });
+
+    it("本文応答の形が想定外なら driveLoadError を通知し保存先を切り替えない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce({ fileId: "f1" });
+      fetchFn.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ name: "n.md" }) });
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(result.current.saveSnackbar).toEqual({ message: "driveLoadError", severity: "error" });
+      expect(result.current.hasDriveFile).toBe(false);
+      warnSpy.mockRestore();
     });
   });
 });

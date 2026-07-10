@@ -444,6 +444,39 @@ export function useEditorPage({
     setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
   }, [fetchFn, t, startGoogleSignIn, setDriveFile]);
 
+  /**
+   * Drive の fileId から本文を読み込み、エディタと以後の上書き保存先を Drive へ切り替える。
+   * Picker 経由と Drive UI の「アプリで開く」経由の共通経路。読み込めたとき true を返す。
+   * 保存先種別（`externalSaveKind`）の設定をここに閉じ込め、呼び出し側での設定漏れを防ぐ。
+   */
+  const loadDriveFileIntoEditor = useCallback(async (fileId: string): Promise<boolean> => {
+    const contentRes = await fetchFn(`/api/drive/content?fileId=${encodeURIComponent(fileId)}`);
+    if (!contentRes.ok) {
+      const detail = parseErrorMessage(await contentRes.json().catch(() => null));
+      console.warn(`Failed to load Drive file (${contentRes.status}):`, detail);
+      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
+      return false;
+    }
+    const payload = parseDriveContentPayload(await contentRes.json().catch(() => null));
+    if (!payload) {
+      console.warn('Failed to load Drive file: unexpected payload shape');
+      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
+      return false;
+    }
+
+    setDriveFile({ fileId, name: payload.name, headRevisionId: payload.headRevisionId });
+    setExternalSaveKind('drive');
+    selectedFileRef.current = null;
+    setIsDirty(false);
+    originalContentRef.current = payload.content;
+    writeDraft(payload.content);
+    setExternalContent(undefined);
+    setExternalFileName(payload.name);
+    setExternalCompareContent(null);
+    setEditorKey((k) => k + 1);
+    return true;
+  }, [fetchFn, t, setDriveFile]);
+
   /** Google Picker で Drive 上の Markdown ファイルを選択し、本文を読み込んでエディタへ反映する。 */
   const handleDriveOpen = useCallback(async () => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? '';
@@ -467,31 +500,8 @@ export function useEditorPage({
     const picked = await pickDriveMarkdownFile(accessToken, apiKey, appId);
     if (!picked) return;
 
-    const contentRes = await fetchFn(`/api/drive/content?fileId=${encodeURIComponent(picked.fileId)}`);
-    if (!contentRes.ok) {
-      const detail = parseErrorMessage(await contentRes.json().catch(() => null));
-      console.warn(`Failed to load Drive file (${contentRes.status}):`, detail);
-      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
-      return;
-    }
-    const payload = parseDriveContentPayload(await contentRes.json().catch(() => null));
-    if (!payload) {
-      console.warn('Failed to load Drive file: unexpected payload shape');
-      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
-      return;
-    }
-
-    setDriveFile({ fileId: picked.fileId, name: payload.name, headRevisionId: payload.headRevisionId });
-    setExternalSaveKind('drive');
-    selectedFileRef.current = null;
-    setIsDirty(false);
-    originalContentRef.current = payload.content;
-    writeDraft(payload.content);
-    setExternalContent(undefined);
-    setExternalFileName(payload.name);
-    setExternalCompareContent(null);
-    setEditorKey((k) => k + 1);
-  }, [fetchFn, t, startGoogleSignIn, setDriveFile]);
+    await loadDriveFileIntoEditor(picked.fileId);
+  }, [fetchFn, t, startGoogleSignIn, loadDriveFileIntoEditor]);
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     setCompareModeOpen(active);
