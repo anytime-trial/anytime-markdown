@@ -60,6 +60,9 @@ const PATH = {
     "M19 5v14H5V5zm1.1-2H3.9c-.5 0-.9.4-.9.9v16.2c0 .4.4.9.9.9h16.2c.4 0 .9-.5.9-.9V3.9c0-.5-.5-.9-.9-.9M11 7h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6zM7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7z",
   folderOpen:
     "M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V8h16z",
+  // GitHubIcon（EditorSideToolbar.ts の ICON.gitHub と同一パス）
+  gitHub:
+    "M12 1.27a11 11 0 00-3.48 21.46c.55.09.73-.28.73-.55v-1.84c-3.03.64-3.67-1.46-3.67-1.46-.55-1.29-1.28-1.65-1.28-1.65-.92-.65.1-.65.1-.65 1.1 0 1.73 1.1 1.73 1.1.92 1.65 2.57 1.2 3.21.92a2 2 0 01.64-1.47c-2.47-.27-5.04-1.19-5.04-5.5 0-1.1.46-2.1 1.2-2.84a3.76 3.76 0 010-2.93s.91-.28 3.11 1.1c1.8-.49 3.7-.49 5.5 0 2.1-1.38 3.02-1.1 3.02-1.1a3.76 3.76 0 010 2.93c.83.74 1.2 1.74 1.2 2.94 0 4.21-2.57 5.13-5.04 5.4.45.37.82.92.82 2.02v3.03c0 .27.1.64.73.55A11 11 0 0012 1.27",
   addToDrive:
     "m12.01 1.485 4.99 8.645-2.807 4.865H8.653l-1.404-2.43zM7.192 3.63 2.2 12.275l2.807 4.865 4.99-8.645zM15.5 16.37H5.52l-2.81 4.865h9.98z",
   save: "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3m3-10H5V5h10z",
@@ -162,8 +165,10 @@ interface CreateEditorMenuPopoversOptions {
 export interface OpenFileMenuHandlers {
   /** ローカルのファイル選択（File System Access API もしくは file input）。 */
   onOpenLocal: () => void | Promise<void>;
-  /** Google Drive（Picker）からの読み込み。 */
-  onOpenFromDrive: () => void | Promise<void>;
+  /** Google Drive（Picker）からの読み込み（注入時のみ項目が並ぶ）。 */
+  onOpenFromDrive?: () => void | Promise<void>;
+  /** GitHub リポジトリからの読み込み（注入時のみ項目が並ぶ）。 */
+  onOpenFromGitHub?: () => void | Promise<void>;
 }
 
 /** {@link EditorMenuPopoversHandle.openSaveMenu} が並べる選択肢。 */
@@ -398,7 +403,12 @@ export function createEditorMenuPopovers(
     addItem(PATH.folderOpen, t("openFromLocal"), handlers.onOpenLocal, {
       shortcut: MENU_SHORTCUTS.openFromLocal,
     });
-    addItem(PATH.addToDrive, t("openFromDrive"), handlers.onOpenFromDrive);
+    if (handlers.onOpenFromDrive) {
+      addItem(PATH.addToDrive, t("openFromDrive"), handlers.onOpenFromDrive);
+    }
+    if (handlers.onOpenFromGitHub) {
+      addItem(PATH.gitHub, t("openFromGitHub"), handlers.onOpenFromGitHub);
+    }
 
     handles.openFile = createPopover({
       anchor: anchorEl,

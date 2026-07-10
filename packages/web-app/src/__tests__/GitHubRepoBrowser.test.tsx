@@ -7,228 +7,227 @@ jest.mock("next-auth/react", () => ({
   useSession: () => ({ data: null, status: "unauthenticated" }),
 }));
 
+// next-intl は他の web-app テストと同様にキーをそのまま返すモックにする。
+jest.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 import { GitHubRepoBrowser } from "../components/GitHubRepoBrowser";
 
-describe("GitHubRepoBrowser", () => {
-  beforeEach(() => {
-    (global.fetch as jest.Mock) = jest.fn();
-  });
+const REPOS = [{ fullName: "user/repo1", private: false, defaultBranch: "main" }];
 
+/** URL でディスパッチする fetch モック。呼び出し順に依存しない。 */
+function mockFetch(options: {
+  repos?: unknown;
+  branches?: unknown;
+  entriesByRef?: Record<string, unknown>;
+  reposStatus?: number;
+  branchesOk?: boolean;
+}): jest.Mock {
+  const fn = jest.fn((input: string) => {
+    const url = String(input);
+    if (url.startsWith("/api/github/repos")) {
+      const status = options.reposStatus ?? 200;
+      return Promise.resolve({
+        status,
+        ok: status === 200,
+        json: () => Promise.resolve(options.repos ?? REPOS),
+      });
+    }
+    if (url.startsWith("/api/github/branches")) {
+      const ok = options.branchesOk ?? true;
+      return Promise.resolve({
+        status: ok ? 200 : 500,
+        ok,
+        json: () => Promise.resolve(options.branches ?? ["main", "develop"]),
+      });
+    }
+    if (url.startsWith("/api/github/content")) {
+      const ref = new URLSearchParams(url.split("?")[1]).get("ref") ?? "";
+      const entries = options.entriesByRef?.[ref] ?? [];
+      return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve(entries) });
+    }
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+  (global.fetch as unknown) = fn;
+  return fn;
+}
+
+/** リポジトリ一覧を待ってから repo1 を選択する。 */
+async function selectRepo(): Promise<void> {
+  await waitFor(() => expect(screen.getByText("user/repo1")).toBeTruthy());
+  fireEvent.click(screen.getByText("user/repo1"));
+}
+
+describe("GitHubRepoBrowser", () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  it("renders dialog with title when open", () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
-      status: 200,
-      ok: true,
-      json: () => Promise.resolve([]),
-    });
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    expect(screen.getByText("Select Repository")).toBeTruthy();
+  it("open のときダイアログのタイトルを表示する", () => {
+    mockFetch({ repos: [] });
+    render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+    expect(screen.getByText("githubOpenSelectRepo")).toBeTruthy();
   });
 
-  it("does not render when closed", () => {
-    const { container } = render(<GitHubRepoBrowser open={false} onClose={jest.fn()} onSelect={jest.fn()} />);
-    // Dialog should not show content when closed (MUI renders but hidden)
-    expect(screen.queryByText("Select Repository")).toBeFalsy();
+  it("closed のとき内容を描画しない", () => {
+    mockFetch({});
+    render(<GitHubRepoBrowser open={false} onClose={jest.fn()} onSelect={jest.fn()} />);
+    expect(screen.queryByText("githubOpenSelectRepo")).toBeFalsy();
   });
 
-  it("shows auth button on 401", async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
-      status: 401,
-      ok: false,
-      json: () => Promise.resolve([]),
-    });
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    await waitFor(() => {
-      expect(screen.getByText("Sign in with GitHub")).toBeTruthy();
-    });
+  it("401 ならサインインボタンを表示する", async () => {
+    mockFetch({ reposStatus: 401 });
+    render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+    await waitFor(() => expect(screen.getByText("githubOpenSignInButton")).toBeTruthy());
   });
 
-  it("renders repo list after fetch", async () => {
-    const repos = [
-      { fullName: "user/repo1", private: false, defaultBranch: "main" },
-    ];
-    (global.fetch as jest.Mock).mockResolvedValue({
-      status: 200,
-      ok: true,
-      json: () => Promise.resolve(repos),
-    });
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    await waitFor(() => {
-      expect(screen.getByText("user/repo1")).toBeTruthy();
-    });
+  it("fetch 失敗も認証要求として扱う", async () => {
+    (global.fetch as unknown) = jest.fn(() => Promise.reject(new Error("network error")));
+    render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+    await waitFor(() => expect(screen.getByText("githubOpenSignInRequired")).toBeTruthy());
   });
 
-  it("navigates into repo and shows directory contents", async () => {
-    const repos = [
-      { fullName: "user/repo1", private: false, defaultBranch: "main" },
-    ];
-    const dirEntries = [
-      { path: "docs", type: "dir", name: "docs" },
-      { path: "readme.md", type: "file", name: "readme.md" },
-    ];
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(repos) })
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(dirEntries) });
-
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
+  it("リポジトリ一覧を描画する", async () => {
+    mockFetch({});
+    render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
     await waitFor(() => expect(screen.getByText("user/repo1")).toBeTruthy());
-    fireEvent.click(screen.getByText("user/repo1"));
+  });
+
+  it("リポジトリ選択でディレクトリ内容を既定ブランチで取得する", async () => {
+    const fetchMock = mockFetch({
+      entriesByRef: {
+        main: [
+          { path: "docs", type: "dir", name: "docs" },
+          { path: "readme.md", type: "file", name: "readme.md" },
+        ],
+      },
+    });
+    render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+    await selectRepo();
     await waitFor(() => {
       expect(screen.getByText("docs")).toBeTruthy();
       expect(screen.getByText("readme.md")).toBeTruthy();
     });
+    const contentCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).startsWith("/api/github/content"),
+    );
+    expect(String(contentCall?.[0])).toContain("ref=main");
   });
 
-  it("filters out non-markdown files", async () => {
-    const repos = [
-      { fullName: "user/repo1", private: false, defaultBranch: "main" },
-    ];
-    const dirEntries = [
-      { path: "README.md", type: "file", name: "README.md" },
-      { path: "index.js", type: "file", name: "index.js" },
-      { path: "notes.markdown", type: "file", name: "notes.markdown" },
-    ];
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(repos) })
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(dirEntries) });
-
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    await waitFor(() => expect(screen.getByText("user/repo1")).toBeTruthy());
-    fireEvent.click(screen.getByText("user/repo1"));
-    await waitFor(() => {
-      expect(screen.getByText("README.md")).toBeTruthy();
-      expect(screen.getByText("notes.markdown")).toBeTruthy();
+  it("markdown 以外のファイルを除外する", async () => {
+    mockFetch({
+      entriesByRef: {
+        main: [
+          { path: "README.md", type: "file", name: "README.md" },
+          { path: "index.js", type: "file", name: "index.js" },
+          { path: "notes.markdown", type: "file", name: "notes.markdown" },
+        ],
+      },
     });
+    render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+    await selectRepo();
+    await waitFor(() => expect(screen.getByText("README.md")).toBeTruthy());
+    expect(screen.getByText("notes.markdown")).toBeTruthy();
     expect(screen.queryByText("index.js")).toBeNull();
   });
 
-  it("calls onSelect when a file is clicked", async () => {
-    const repos = [
-      { fullName: "user/repo1", private: false, defaultBranch: "main" },
-    ];
-    const dirEntries = [
-      { path: "README.md", type: "file", name: "README.md" },
-    ];
+  it("ファイルクリックで onSelect に repo / path / branch を渡し閉じる", async () => {
     const onSelect = jest.fn();
     const onClose = jest.fn();
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(repos) })
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(dirEntries) });
-
-    render(<GitHubRepoBrowser open={true} onClose={onClose} onSelect={onSelect} />);
-    await waitFor(() => expect(screen.getByText("user/repo1")).toBeTruthy());
-    fireEvent.click(screen.getByText("user/repo1"));
+    mockFetch({ entriesByRef: { main: [{ path: "README.md", type: "file", name: "README.md" }] } });
+    render(<GitHubRepoBrowser open onClose={onClose} onSelect={onSelect} />);
+    await selectRepo();
     await waitFor(() => expect(screen.getByText("README.md")).toBeTruthy());
     fireEvent.click(screen.getByText("README.md"));
-    expect(onSelect).toHaveBeenCalledWith("user/repo1", "README.md");
+    expect(onSelect).toHaveBeenCalledWith("user/repo1", "README.md", "main");
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("goes back to repo list from directory view", async () => {
-    const repos = [
-      { fullName: "user/repo1", private: false, defaultBranch: "main" },
-    ];
-    const dirEntries = [
-      { path: "README.md", type: "file", name: "README.md" },
-    ];
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(repos) })
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(dirEntries) });
-
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    await waitFor(() => expect(screen.getByText("user/repo1")).toBeTruthy());
-    fireEvent.click(screen.getByText("user/repo1"));
+  it("ディレクトリ表示から戻るとリポジトリ一覧へ戻る", async () => {
+    mockFetch({ entriesByRef: { main: [{ path: "README.md", type: "file", name: "README.md" }] } });
+    render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+    await selectRepo();
     await waitFor(() => expect(screen.getByText("README.md")).toBeTruthy());
+    fireEvent.click(screen.getByLabelText("githubOpenBack"));
+    await waitFor(() => expect(screen.getByText("githubOpenSelectRepo")).toBeTruthy());
+  });
 
-    const backButton = screen.getByLabelText("Go back");
-    fireEvent.click(backButton);
+  it("markdown が無いディレクトリでは空メッセージを出す", async () => {
+    mockFetch({ entriesByRef: { main: [] } });
+    render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+    await selectRepo();
+    await waitFor(() => expect(screen.getByText("githubOpenNoMarkdown")).toBeTruthy());
+  });
 
-    await waitFor(() => {
-      expect(screen.getByText("Select Repository")).toBeTruthy();
+  describe("ブランチ選択", () => {
+    it("リポジトリ選択後にブランチ候補を取得して表示する", async () => {
+      mockFetch({ branches: ["main", "develop"], entriesByRef: { main: [] } });
+      render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+      await selectRepo();
+      await waitFor(() => {
+        const input = screen.getByLabelText("githubOpenBranchLabel") as HTMLInputElement;
+        expect(input.value).toBe("main");
+      });
     });
-  });
 
-  it("shows empty message when no markdown files in directory", async () => {
-    const repos = [
-      { fullName: "user/repo1", private: false, defaultBranch: "main" },
-    ];
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(repos) })
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve([]) });
+    it("ブランチを切り替えるとそのブランチでツリーを再取得する", async () => {
+      const fetchMock = mockFetch({
+        branches: ["main", "develop"],
+        entriesByRef: {
+          main: [{ path: "main.md", type: "file", name: "main.md" }],
+          develop: [{ path: "dev.md", type: "file", name: "dev.md" }],
+        },
+      });
+      render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+      await selectRepo();
+      await waitFor(() => expect(screen.getByText("main.md")).toBeTruthy());
 
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    await waitFor(() => expect(screen.getByText("user/repo1")).toBeTruthy());
-    fireEvent.click(screen.getByText("user/repo1"));
-    await waitFor(() => {
-      expect(screen.getByText("No Markdown files found")).toBeTruthy();
+      const input = screen.getByLabelText("githubOpenBranchLabel");
+      fireEvent.mouseDown(input);
+      await waitFor(() => expect(screen.getByText("develop")).toBeTruthy());
+      fireEvent.click(screen.getByText("develop"));
+
+      await waitFor(() => expect(screen.getByText("dev.md")).toBeTruthy());
+      expect(screen.queryByText("main.md")).toBeNull();
+      const refs = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.startsWith("/api/github/content"));
+      expect(refs.at(-1)).toContain("ref=develop");
     });
-  });
 
-  it("shows fetch error as auth required", async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error("network error"));
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    await waitFor(() => {
-      expect(screen.getByText("GitHub authentication required")).toBeTruthy();
+    it("切り替えたブランチが onSelect の第 3 引数に渡る", async () => {
+      const onSelect = jest.fn();
+      mockFetch({
+        branches: ["main", "develop"],
+        entriesByRef: {
+          main: [],
+          develop: [{ path: "dev.md", type: "file", name: "dev.md" }],
+        },
+      });
+      render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={onSelect} />);
+      await selectRepo();
+      await waitFor(() => expect(screen.getByText("githubOpenNoMarkdown")).toBeTruthy());
+
+      fireEvent.mouseDown(screen.getByLabelText("githubOpenBranchLabel"));
+      await waitFor(() => expect(screen.getByText("develop")).toBeTruthy());
+      fireEvent.click(screen.getByText("develop"));
+
+      await waitFor(() => expect(screen.getByText("dev.md")).toBeTruthy());
+      fireEvent.click(screen.getByText("dev.md"));
+      expect(onSelect).toHaveBeenCalledWith("user/repo1", "dev.md", "develop");
     });
-  });
 
-  it("navigates into subdirectory then back to parent", async () => {
-    const repos = [
-      { fullName: "user/repo1", private: false, defaultBranch: "main" },
-    ];
-    const rootEntries = [
-      { path: "docs", type: "dir", name: "docs" },
-    ];
-    const subEntries = [
-      { path: "docs/guide.md", type: "file", name: "guide.md" },
-    ];
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(repos) })
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(rootEntries) })
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(subEntries) })
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(rootEntries) });
-
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    await waitFor(() => expect(screen.getByText("user/repo1")).toBeTruthy());
-    fireEvent.click(screen.getByText("user/repo1"));
-    await waitFor(() => expect(screen.getByText("docs")).toBeTruthy());
-    fireEvent.click(screen.getByText("docs"));
-    await waitFor(() => expect(screen.getByText("guide.md")).toBeTruthy());
-
-    // 戻るで親ディレクトリに
-    const backButton = screen.getByLabelText("Go back");
-    fireEvent.click(backButton);
-    await waitFor(() => expect(screen.getByText("docs")).toBeTruthy());
-  });
-
-  it("shows private repos with default branch info", async () => {
-    const repos = [
-      { fullName: "user/private-repo", private: true, defaultBranch: "main" },
-    ];
-    (global.fetch as jest.Mock).mockResolvedValue({
-      status: 200, ok: true, json: () => Promise.resolve(repos),
-    });
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    await waitFor(() => expect(screen.getByText("user/private-repo")).toBeTruthy());
-    expect(screen.getByText("Default: main")).toBeTruthy();
-  });
-
-  it("handles directory fetch error gracefully", async () => {
-    const repos = [
-      { fullName: "user/repo1", private: false, defaultBranch: "main" },
-    ];
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({ status: 200, ok: true, json: () => Promise.resolve(repos) })
-      .mockResolvedValueOnce({ ok: false, json: () => Promise.reject(new Error("fail")) });
-
-    render(<GitHubRepoBrowser open={true} onClose={jest.fn()} onSelect={jest.fn()} />);
-    await waitFor(() => expect(screen.getByText("user/repo1")).toBeTruthy());
-    fireEvent.click(screen.getByText("user/repo1"));
-    await waitFor(() => {
-      expect(screen.getByText("No Markdown files found")).toBeTruthy();
+    it("ブランチ取得に失敗しても既定ブランチで続行する", async () => {
+      mockFetch({
+        branchesOk: false,
+        entriesByRef: { main: [{ path: "README.md", type: "file", name: "README.md" }] },
+      });
+      render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+      await selectRepo();
+      await waitFor(() => expect(screen.getByText("README.md")).toBeTruthy());
+      const input = screen.getByLabelText("githubOpenBranchLabel") as HTMLInputElement;
+      expect(input.value).toBe("main");
     });
   });
 });

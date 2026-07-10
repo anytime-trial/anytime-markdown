@@ -400,6 +400,46 @@ describe("createEditorToolbar — ファイル操作", () => {
     handle.destroy();
   });
 
+  it("onOpenFromGitHub のみ注入でも open がメニュー化され GitHub ハンドラを委譲する", () => {
+    const onSetOpenFileAnchor = jest.fn();
+    const fileHandlers = { ...defaultFileHandlers(), onOpenFromGitHub: jest.fn() };
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers,
+      onSetOpenFileAnchor,
+    });
+    const btn = handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement;
+    expect(btn.getAttribute("aria-haspopup")).toBe("menu");
+    btn.click();
+    expect(fileHandlers.onOpenFile).not.toHaveBeenCalled();
+    const [, handlers] = onSetOpenFileAnchor.mock.calls[0];
+    expect(handlers.onOpenFromDrive).toBeUndefined();
+    handlers.onOpenFromGitHub();
+    expect(fileHandlers.onOpenFromGitHub).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("Drive / GitHub 双方の注入で両ハンドラが onSetOpenFileAnchor へ渡る", () => {
+    const onSetOpenFileAnchor = jest.fn();
+    const fileHandlers = {
+      ...defaultFileHandlers(),
+      onOpenFromDrive: jest.fn(),
+      onOpenFromGitHub: jest.fn(),
+    };
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers,
+      onSetOpenFileAnchor,
+    });
+    (handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement).click();
+    const [, handlers] = onSetOpenFileAnchor.mock.calls[0];
+    handlers.onOpenFromDrive();
+    handlers.onOpenFromGitHub();
+    expect(fileHandlers.onOpenFromDrive).toHaveBeenCalled();
+    expect(fileHandlers.onOpenFromGitHub).toHaveBeenCalled();
+    handle.destroy();
+  });
+
   it("非 direct access + onOpenFromDrive 注入でも open はメニュー化される", () => {
     const onSetOpenFileAnchor = jest.fn();
     const fileHandlers = { ...defaultFileHandlers(), onOpenFromDrive: jest.fn() };
