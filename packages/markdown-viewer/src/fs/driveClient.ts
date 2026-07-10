@@ -15,8 +15,22 @@ export interface DriveRequest {
   body?: string;
 }
 
-/** multipart 境界。本文に現れない固定値（Drive のサンプルと同種の英数字列）。 */
-const CREATE_BOUNDARY = "anytimeMarkdownDriveBoundary";
+/** multipart 境界の基点。本文に現れる場合は {@link resolveBoundary} が退避先を選ぶ。 */
+const CREATE_BOUNDARY_BASE = "anytimeMarkdownDriveBoundary";
+
+/**
+ * 本文に現れない境界文字列を選ぶ。
+ *
+ * 境界が本文に含まれると multipart パーサが本文を途中で打ち切るため、衝突する限り
+ * サフィックスを増やして退避する（純粋関数のまま決定論的に解決する）。
+ */
+function resolveBoundary(content: string): string {
+  let boundary = CREATE_BOUNDARY_BASE;
+  for (let suffix = 1; content.includes(`--${boundary}`); suffix += 1) {
+    boundary = `${CREATE_BOUNDARY_BASE}-${suffix}`;
+  }
+  return boundary;
+}
 
 export interface DriveFileMeta {
   name: string;
@@ -65,19 +79,20 @@ export function buildDriveCreateRequest(
   if (parentId) metadata.parents = [parentId];
 
   const fields = encodeURIComponent("id,name,headRevisionId");
+  const boundary = resolveBoundary(content);
   const body =
-    `--${CREATE_BOUNDARY}\r\n` +
+    `--${boundary}\r\n` +
     "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
     `${JSON.stringify(metadata)}\r\n` +
-    `--${CREATE_BOUNDARY}\r\n` +
+    `--${boundary}\r\n` +
     "Content-Type: text/markdown\r\n\r\n" +
     `${content}\r\n` +
-    `--${CREATE_BOUNDARY}--`;
+    `--${boundary}--`;
 
   return {
     url: `${DRIVE_UPLOAD}?uploadType=multipart&fields=${fields}`,
     method: "POST",
-    contentType: `multipart/related; boundary=${CREATE_BOUNDARY}`,
+    contentType: `multipart/related; boundary=${boundary}`,
     body,
   };
 }

@@ -77,3 +77,27 @@ describe("buildDriveCreateRequest", () => {
     expect(req.body).toContain('"name":"a\\"b\\nc.md"');
   });
 });
+
+describe("buildDriveCreateRequest — 境界文字列の衝突", () => {
+  it("本文が既定の境界を含む場合は別の境界へ退避する", () => {
+    const plain = buildDriveCreateRequest("a.md", "x");
+    const boundary = /boundary=(.+)$/.exec(plain.contentType!)![1];
+
+    const req = buildDriveCreateRequest("a.md", `--${boundary}\nmalicious`);
+    const used = /boundary=(.+)$/.exec(req.contentType!)![1];
+
+    expect(used).not.toBe(boundary);
+    // 実際に使う境界は本文に現れない。
+    expect(req.body!.split(`--${used}`).length - 1).toBe(3); // 開始 2 + 終端 1
+  });
+
+  it("退避先の境界も本文に含まれる場合はさらに退避する", () => {
+    const b0 = /boundary=(.+)$/.exec(buildDriveCreateRequest("a.md", "x").contentType!)![1];
+    const content = `--${b0}\n--${b0}-1\n--${b0}-2`;
+
+    const req = buildDriveCreateRequest("a.md", content);
+    const used = /boundary=(.+)$/.exec(req.contentType!)![1];
+
+    expect(content.includes(`--${used}`)).toBe(false);
+  });
+});
