@@ -182,6 +182,10 @@ export interface MountVanillaMarkdownEditorOptions {
   onSettingsReset?: () => void;
   /** リセット確認（SettingsPanel）。未指定時は確認なし。 */
   confirm?: (message: string) => Promise<boolean>;
+  /**
+   * 未保存データがある状態での新規作成 / 開くの 3 択確認。未指定時は内蔵ダイアログを使う。
+   */
+  confirmSave?: (message: string) => Promise<"save" | "discard" | "cancel">;
   /** ファイル操作（部分指定。未指定分は fileSystemProvider / editor / blob ベースの既定実装）。 */
   fileHandlers?: Partial<ToolbarFileHandlers>;
   fileCapabilities?: ToolbarFileCapabilities;
@@ -899,6 +903,8 @@ export function mountVanillaMarkdownEditor(
           ? (content) => current.onExternalSave?.(content)
           : undefined,
         confirm: current.confirm,
+        // 未指定なら内蔵の 3 択ダイアログを使う（ホストが window.confirm を注入しなくても確認が出る）。
+        confirmSave: current.confirmSave ?? ((message) => dialogs.openUnsavedConfirm(message)),
         getFrontmatter: () => frontmatter,
         setFrontmatter,
         getSourceMode: () => modeState.sourceMode === true,
@@ -981,7 +987,15 @@ export function mountVanillaMarkdownEditor(
         onOpenFile:
           current.fileHandlers?.onOpenFile ??
           (current.fileSystemProvider ? () => void fileOps.openFile() : undefined),
-        onOpenFromDrive: current.fileHandlers?.onOpenFromDrive,
+        // Drive から開く経路は fileOps の外側で文書を差し替えるため、ここで未保存ガードを掛ける。
+        onOpenFromDrive: current.fileHandlers?.onOpenFromDrive
+          ? async () => {
+              if (!(await fileOps.confirmContinue())) return;
+              await current.fileHandlers?.onOpenFromDrive?.();
+            }
+          : undefined,
+        onNewFile: current.fileHandlers?.onNewFile ?? (() => void fileOps.newFile()),
+        onSaveToDrive: current.fileHandlers?.onSaveToDrive,
         onSaveFile:
           current.fileHandlers?.onSaveFile ??
           (current.fileSystemProvider || current.onExternalSave
@@ -1270,6 +1284,7 @@ export function mountVanillaMarkdownEditor(
           // menuPopovers は後段で生成されるが、クリック時には初期化済み（TDZ は実行順で解消）。
           onSetHelpAnchor: (el) => menuPopovers.openHelp(el),
           onSetOpenFileAnchor: (el, handlers) => menuPopovers.openFileMenu(el, handlers),
+          onSetSaveAnchor: (el, handlers) => menuPopovers.openSaveMenu(el, handlers),
           // モバイルハンバーガー（<900px・サイドバー非表示時）も同じ help メニューを開く。
           // 脱React 時に未配線（partial 移植）で死にボタンになっていた回帰の修正。
           onOpenMobileMenu: (el) => menuPopovers.openHelp(el),
@@ -1648,7 +1663,7 @@ export function mountVanillaMarkdownEditor(
             modeHandlers.onMerge();
           } else if (key === "n") {
             e.preventDefault();
-            fileHandlers.onClear();
+            void fileHandlers.onNewFile?.();
           }
           return;
         }

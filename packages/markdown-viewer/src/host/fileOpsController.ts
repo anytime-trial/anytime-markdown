@@ -32,6 +32,11 @@ interface CreateFileOpsControllerOptions {
   onExternalSave?: (content: string) => void;
   /** 確認ダイアログ（未指定時は確認なしで続行）。 */
   confirm?: (message: string) => Promise<boolean>;
+  /**
+   * 未保存データがある状態で新規作成 / 開くを行う際の 3 択確認。
+   * 未注入のホストは {@link CreateFileOpsControllerOptions.confirm} の 2 択へフォールバックする。
+   */
+  confirmSave?: (message: string) => Promise<"save" | "discard" | "cancel">;
   /** フロントマター（エディタ外保持）の読み書き。 */
   getFrontmatter: () => string | null;
   setFrontmatter: (fm: string | null) => void;
@@ -58,6 +63,13 @@ interface FileOpsController {
   selectFile(file: File, nativeHandle?: FileSystemFileHandle): Promise<void>;
   /** 全消去（確認 + frontmatter / fileHandle リセット）。 */
   clearAll(): Promise<void>;
+  /** 新規作成（未保存ガード + frontmatter / fileHandle リセット）。 */
+  newFile(): Promise<void>;
+  /**
+   * 未保存データがあれば保存確認を出し、続行してよければ true を返す。
+   * 本コントローラの外側で文書を差し替えるホスト（Drive から開く等）が使う。
+   */
+  confirmContinue(): Promise<boolean>;
   markDirty(): void;
   getFileName(): string | null;
   isDirty(): boolean;
@@ -178,6 +190,81 @@ export function createFileOpsController(
     }
   };
 
+  /** 上書き保存の実体（保存先が無ければ saveAs へフォールバックする）。 */
+  const saveFileImpl = async (): Promise<void> => {
+    const md = withTrailingNewline(getFullMarkdown());
+    if (options.onExternalSave) {
+      options.onExternalSave(md);
+      setDirty(false);
+      options.notify?.("fileSaved");
+      return;
+    }
+    if (!provider) return;
+    if (fileHandle?.nativeHandle) {
+      const denied = await hasWritePermissionDenied(fileHandle.nativeHandle as FileSystemFileHandle);
+      if (denied) {
+        const newHandle = await provider.saveAs(md);
+        if (!newHandle) return;
+        setHandle(newHandle);
+      } else {
+        await provider.save(fileHandle, md);
+      }
+    } else {
+      const newHandle = await provider.saveAs(md);
+      if (!newHandle) return;
+      setHandle(newHandle);
+    }
+    setDirty(false);
+    options.notify?.("fileSaved");
+  };
+
+  /** 名前を付けて保存の実体。 */
+  const saveAsFileImpl = async (): Promise<void> => {
+    if (!provider) return;
+    const md = withTrailingNewline(getFullMarkdown());
+    const newHandle = await provider.saveAs(md);
+    if (!newHandle) return;
+    setHandle(newHandle);
+    setDirty(false);
+    options.notify?.("fileSaved");
+  };
+
+  /**
+   * 未保存データがあるとき、保存するか確認する。続行してよければ true。
+   *
+   * `confirmSave`（3 択）が注入されていればそれを使い、「保存」ではファイルを開いていれば上書き保存、
+   * 未オープンなら名前を付けて保存へフォールバックする。保存が完了しなかった場合（ダイアログの
+   * キャンセル・権限拒否・例外）は続行しない。未注入なら既存 `confirm` の 2 択へフォールバックする。
+   */
+  const guardDirty = async (): Promise<boolean> => {
+    if (!dirty) return true;
+    const message = t("unsavedConfirm");
+    const confirmSave = options.confirmSave;
+    if (!confirmSave) return confirmOrTrue(message);
+
+    let choice: "save" | "discard" | "cancel";
+    try {
+      choice = await confirmSave(message);
+    } catch (error) {
+      console.warn("[fileOpsController] confirmSave rejected", error);
+      return false;
+    }
+    if (choice === "cancel") return false;
+    if (choice === "discard") return true;
+
+    try {
+      await (hasWritableTarget() ? saveFileImpl() : saveAsFileImpl());
+    } catch (error) {
+      console.warn("[fileOpsController] save before continue failed", error);
+      return false;
+    }
+    // 保存が完了していれば dirty は落ちている。落ちていなければ中断（保存ダイアログのキャンセル等）。
+    return !dirty;
+  };
+
+  /** 上書き保存の宛先を既に持っているか（外部保存ホストは常に持つ）。 */
+  const hasWritableTarget = (): boolean => Boolean(options.onExternalSave) || fileHandle != null;
+
   const importFile = async (file: File, nativeHandle?: FileSystemFileHandle): Promise<void> => {
     if (!file.name.endsWith(".md") && !file.type.startsWith("text/")) return;
     try {
@@ -198,7 +285,7 @@ export function createFileOpsController(
     },
     async openFile(): Promise<void> {
       if (!provider) return;
-      if (hasContent() && !(await confirmOrTrue(t("importConfirm")))) return;
+      if (!(await guardDirty())) return;
       const result = await provider.open();
       if (!result) return;
       setHandle(result.handle);
@@ -207,41 +294,18 @@ export function createFileOpsController(
       applyMarkdownContent(result.content);
       setDirty(false);
     },
-    async saveFile(): Promise<void> {
-      const md = withTrailingNewline(getFullMarkdown());
-      if (options.onExternalSave) {
-        options.onExternalSave(md);
-        options.notify?.("fileSaved");
-        return;
-      }
-      if (!provider) return;
-      if (fileHandle?.nativeHandle) {
-        const denied = await hasWritePermissionDenied(
-          fileHandle.nativeHandle as FileSystemFileHandle,
-        );
-        if (denied) {
-          const newHandle = await provider.saveAs(md);
-          if (!newHandle) return;
-          setHandle(newHandle);
-        } else {
-          await provider.save(fileHandle, md);
-        }
+    saveFile: saveFileImpl,
+    saveAsFile: saveAsFileImpl,
+    async newFile(): Promise<void> {
+      if (!(await guardDirty())) return;
+      if (options.getSourceMode()) {
+        options.setSourceText("");
       } else {
-        const newHandle = await provider.saveAs(md);
-        if (!newHandle) return;
-        setHandle(newHandle);
+        clearDocumentAndComments(editor);
       }
+      options.setFrontmatter(null);
+      setHandle(null);
       setDirty(false);
-      options.notify?.("fileSaved");
-    },
-    async saveAsFile(): Promise<void> {
-      if (!provider) return;
-      const md = withTrailingNewline(getFullMarkdown());
-      const newHandle = await provider.saveAs(md);
-      if (!newHandle) return;
-      setHandle(newHandle);
-      setDirty(false);
-      options.notify?.("fileSaved");
     },
     async clearAll(): Promise<void> {
       if (!(await confirmOrTrue(t("clearConfirm")))) return;
@@ -255,6 +319,7 @@ export function createFileOpsController(
       setHandle(null);
       setDirty(false);
     },
+    confirmContinue: guardDirty,
     markDirty: () => setDirty(true),
     getFileName: () => fileHandle?.name ?? null,
     isDirty: () => dirty,

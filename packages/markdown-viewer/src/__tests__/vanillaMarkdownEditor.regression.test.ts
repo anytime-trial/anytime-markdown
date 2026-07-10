@@ -165,23 +165,27 @@ describe("mountVanillaMarkdownEditor regression（レビュー指摘 1/2/4）", 
       handle.destroy();
     });
 
-    it("Ctrl+Alt+N で onClear が呼ばれる", () => {
-      const onClear = jest.fn();
-      const handle = mountVanillaMarkdownEditor(container, { t, fileHandlers: { onClear } });
+    it("Ctrl+Alt+N で onNewFile が呼ばれる（未保存ガード付きの新規作成）", () => {
+      const onNewFile = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, { t, fileHandlers: { onClear: jest.fn(), onNewFile } });
       document.dispatchEvent(
         new KeyboardEvent("keydown", { key: "n", ctrlKey: true, altKey: true, bubbles: true, cancelable: true }),
       );
-      expect(onClear).toHaveBeenCalled();
+      expect(onNewFile).toHaveBeenCalled();
       handle.destroy();
     });
 
     it("readOnly では Ctrl+Alt+N（編集系）が無効化される", () => {
-      const onClear = jest.fn();
-      const handle = mountVanillaMarkdownEditor(container, { t, readOnly: true, fileHandlers: { onClear } });
+      const onNewFile = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, {
+        t,
+        readOnly: true,
+        fileHandlers: { onClear: jest.fn(), onNewFile },
+      });
       document.dispatchEvent(
         new KeyboardEvent("keydown", { key: "n", ctrlKey: true, altKey: true, bubbles: true, cancelable: true }),
       );
-      expect(onClear).not.toHaveBeenCalled();
+      expect(onNewFile).not.toHaveBeenCalled();
       handle.destroy();
     });
 

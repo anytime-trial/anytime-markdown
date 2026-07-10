@@ -64,6 +64,11 @@ export interface EditorDialogsHandle {
   openImage: (initialUrl?: string, initialAlt?: string) => void;
   openShortcuts: () => void;
   openVersion: () => void;
+  /**
+   * 未保存データの 3 択確認。破棄済みハンドルでは開かず "cancel" を返す
+   * （呼び出し側は続行しない）。
+   */
+  openUnsavedConfirm: (message: string) => Promise<"save" | "discard" | "cancel">;
   /** 開いているダイアログを閉じる。 */
   closeAll: () => void;
   /** 開いているダイアログを破棄し以降の open を無効化する。 */
@@ -87,9 +92,21 @@ export function createEditorDialogs(opts: CreateEditorDialogsOptions): EditorDia
   // 現在開いているダイアログ（dialog + 子ハンドルをまとめて破棄するクロージャ）。同時に 1 つ。
   let current: { destroy: () => void } | null = null;
 
+  // openUnsavedConfirm の未解決 Promise。backdrop クリックや destroy で閉じられた場合も
+  // 呼び出し側を待たせ続けないよう "cancel" で解決する。
+  let unsavedResolve: ((choice: "save" | "discard" | "cancel") => void) | null = null;
+
+  const settleUnsaved = (choice: "save" | "discard" | "cancel"): void => {
+    if (!unsavedResolve) return;
+    const resolve = unsavedResolve;
+    unsavedResolve = null;
+    resolve(choice);
+  };
+
   const close = (): void => {
     current?.destroy();
     current = null;
+    settleUnsaved("cancel");
   };
 
   /**
@@ -444,6 +461,43 @@ export function createEditorDialogs(opts: CreateEditorDialogsOptions): EditorDia
         titleChildren: titleRow(ICON_HELP_CENTER, t("shortcuts")),
         content,
         childHandles: [],
+      });
+    },
+
+    openUnsavedConfirm(message: string) {
+      if (destroyed) return Promise.resolve<"cancel">("cancel");
+      return new Promise<"save" | "discard" | "cancel">((resolve) => {
+        const titleId = nextDialogTitleId();
+        const content = createDialogContent({
+          children: createText({ variant: "body2", text: message }).el,
+        }).el;
+
+        // 決定してから閉じる（close は未解決なら cancel で解決するため、順序が逆だと cancel になる）。
+        const choose = (choice: "save" | "discard" | "cancel"): void => {
+          settleUnsaved(choice);
+          close();
+        };
+        const cancelBtn = createButton({ children: t("cancel"), onClick: () => choose("cancel") });
+        const discardBtn = createButton({ children: t("unsavedDiscard"), onClick: () => choose("discard") });
+        const saveBtn = createButton({
+          children: t("unsavedSave"),
+          variant: "contained",
+          onClick: () => choose("save"),
+        });
+        const actions = createDialogActions({
+          children: [cancelBtn.el, discardBtn.el, saveBtn.el],
+        }).el;
+
+        // openShell は内部で close() を呼ぶ（既存ダイアログを閉じる）。resolver はその後に登録する。
+        openShell({
+          titleId,
+          titleChildren: t("unsavedConfirmTitle"),
+          content,
+          actions,
+          maxWidth: "xs",
+          childHandles: [cancelBtn, discardBtn, saveBtn],
+        });
+        unsavedResolve = resolve;
       });
     },
 
