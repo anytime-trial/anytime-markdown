@@ -797,6 +797,7 @@
     "driveSignInRequired": "Google sign-in required",
     "driveApiKeyMissing": "Google Drive integration is not configured",
     "driveLoadError": "Failed to load the Drive file",
+    "driveOpenDraftBlocked": "Cannot open the Drive file because there are unsaved changes. Save or discard them and try again.",
     "driveSaveError": "Failed to save to Drive",
     "driveSaveAsTitle": "Save to Google Drive",
     "driveSaveAsLabel": "File name",

@@ -2,6 +2,7 @@
  * useEditorPage hook のユニットテスト
  */
 
+import { writeDraft } from "@anytime-markdown/markdown-viewer/src/utils/draftStorage";
 import { renderHook, act } from "@testing-library/react";
 
 import { useEditorPage } from "../app/markdown/useEditorPage";
@@ -746,6 +747,192 @@ describe("useEditorPage", () => {
       expect(result.current.saveSnackbar).toEqual({ message: "driveLoadError", severity: "error" });
       expect(result.current.hasDriveFile).toBe(false);
       warnSpy.mockRestore();
+    });
+  });
+
+  describe("Drive UI からの起動（?state=）", () => {
+    const openState = JSON.stringify({ ids: ["f1"], action: "open", userId: "u1" });
+    const createState = JSON.stringify({ action: "create", folderId: "fold1", userId: "u1" });
+
+    /** トークン取得に成功する fetchFn を作る。 */
+    function createAuthedFetch(): jest.Mock {
+      const fetchFn = jest.fn();
+      fetchFn.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ accessToken: "tok" }) });
+      return fetchFn;
+    }
+
+    async function renderWithState(
+      driveOpenState: string | null,
+      fetchFn: jest.Mock,
+      overrides: Partial<Parameters<typeof useEditorPage>[0]> = {},
+    ) {
+      const hook = renderHook(() =>
+        useEditorPage(
+          createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, driveOpenState, ...overrides }),
+        ),
+      );
+      // ブートストラップは effect 内の非同期処理なので、解決まで待つ。
+      await act(async () => { await Promise.resolve(); });
+      return hook;
+    }
+
+    it("action: open なら本文を読み込み保存先を Drive にする", async () => {
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+
+      const { result } = await renderWithState(openState, fetchFn);
+
+      expect(fetchFn).toHaveBeenLastCalledWith("/api/drive/content?fileId=f1");
+      expect(result.current.externalFileName).toBe("note.md");
+      expect(result.current.externalSaveKind).toBe("drive");
+      expect(result.current.hasDriveFile).toBe(true);
+    });
+
+    it("action: create なら空文書で起動し、初回保存で parentId を送る", async () => {
+      const fetchFn = createAuthedFetch();
+      const { result } = await renderWithState(createState, fetchFn);
+
+      expect(result.current.externalContent).toBe("");
+      expect(result.current.hasDriveFile).toBe(false);
+      expect(result.current.externalSaveKind).toBeUndefined();
+
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "new1", name: "n.md", headRevisionId: "r1" }),
+      });
+      await act(async () => { await result.current.handleSaveToDriveConfirm("n.md"); });
+
+      const [, init] = fetchFn.mock.calls.at(-1) as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toMatchObject({ name: "n.md", parentId: "fold1" });
+    });
+
+    it("2 度目の保存では parentId を送らない（新規作成の一度きり）", async () => {
+      const fetchFn = createAuthedFetch();
+      const { result } = await renderWithState(createState, fetchFn);
+
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "new1", name: "n.md", headRevisionId: "r1" }),
+      });
+      await act(async () => { await result.current.handleSaveToDriveConfirm("n.md"); });
+
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "new2", name: "n2.md", headRevisionId: "r1" }),
+      });
+      await act(async () => { await result.current.handleSaveToDriveConfirm("n2.md"); });
+
+      const [, init] = fetchFn.mock.calls.at(-1) as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).not.toHaveProperty("parentId");
+    });
+
+    it("未サインインなら state を退避してサインインへ送る", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({ ok: false, status: 401, json: () => Promise.resolve({}) });
+      const signInFn = jest.fn().mockResolvedValue(undefined);
+
+      await renderWithState(openState, fetchFn, { signInFn });
+
+      expect(signInFn).toHaveBeenCalledWith("google", { callbackUrl: window.location.href });
+      expect(sessionStorage.getItem("driveOpenIntent")).toBe(openState);
+    });
+
+    it("URL に state が無ければ退避した intent から復元する", async () => {
+      sessionStorage.setItem("driveOpenIntent", openState);
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+
+      const { result } = await renderWithState(null, fetchFn);
+
+      expect(result.current.hasDriveFile).toBe(true);
+      expect(sessionStorage.getItem("driveOpenIntent")).toBeNull(); // 消費済み
+    });
+
+    it("state が無く intent も無ければ何もしない", async () => {
+      const fetchFn = jest.fn();
+      const { result } = await renderWithState(null, fetchFn);
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(result.current.hasDriveFile).toBe(false);
+    });
+
+    it("state が不正なら何もしない", async () => {
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+      const fetchFn = jest.fn();
+
+      const { result } = await renderWithState("{ not json", fetchFn);
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(result.current.hasDriveFile).toBe(false);
+      warnSpy.mockRestore();
+    });
+
+    it("未保存の下書きがあり確認手段が無ければ本文を破棄せず中断する", async () => {
+      writeDraft("# 未保存の作業");
+      const fetchFn = jest.fn();
+
+      const { result } = await renderWithState(openState, fetchFn);
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(result.current.saveSnackbar).toEqual({ message: "driveOpenDraftBlocked", severity: "error" });
+      expect(result.current.hasDriveFile).toBe(false);
+    });
+
+    it("未保存の下書きがあっても破棄が承認されれば読み込む", async () => {
+      writeDraft("# 未保存の作業");
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+      const confirmDiscardDraft = jest.fn().mockResolvedValue(true);
+
+      const { result } = await renderWithState(openState, fetchFn, { confirmDiscardDraft });
+
+      expect(confirmDiscardDraft).toHaveBeenCalled();
+      expect(result.current.hasDriveFile).toBe(true);
+    });
+
+    it("破棄が拒否されたら読み込まない", async () => {
+      writeDraft("# 未保存の作業");
+      const fetchFn = jest.fn();
+      const confirmDiscardDraft = jest.fn().mockResolvedValue(false);
+
+      const { result } = await renderWithState(openState, fetchFn, { confirmDiscardDraft });
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(result.current.hasDriveFile).toBe(false);
+    });
+
+    it("後から GitHub セッションが解決しても読み込んだ本文を空へ戻さない", async () => {
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+      const { result, rerender } = renderHook(
+        ({ isGitHubConnected }) =>
+          useEditorPage(
+            createHookOptions({
+              fetchFn: fetchFn as unknown as typeof fetch,
+              driveOpenState: openState,
+              isGitHubConnected,
+            }),
+          ),
+        { initialProps: { isGitHubConnected: undefined as boolean | undefined } },
+      );
+      await act(async () => { await Promise.resolve(); });
+      expect(result.current.hasDriveFile).toBe(true);
+
+      await act(async () => { rerender({ isGitHubConnected: true }); });
+
+      expect(result.current.externalFileName).toBe("note.md");
+      expect(result.current.externalContent).not.toBe("");
     });
   });
 });

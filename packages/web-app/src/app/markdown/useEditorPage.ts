@@ -1,10 +1,12 @@
 'use client';
 
 import type { SaveTargetInfo } from '@anytime-markdown/markdown-viewer/src/host/fileOpsController';
-import { clearDraft, writeDraft } from '@anytime-markdown/markdown-viewer/src/utils/draftStorage';
+import { clearDraft, readDraft, writeDraft } from '@anytime-markdown/markdown-viewer/src/utils/draftStorage';
 import { signIn } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { consumeDriveOpenIntent, markDriveOpenIntent } from '../../lib/driveOpenIntent';
+import { type DriveOpenIntent, parseDriveOpenState } from '../../lib/driveOpenState';
 import { FallbackFileSystemProvider } from '../../lib/FallbackFileSystemProvider';
 import { fetchFileContent } from '../../lib/githubApi';
 import { pickDriveMarkdownFile } from '../../lib/googlePicker';
@@ -126,6 +128,16 @@ interface UseEditorPageOptions {
    */
   isGitHubConnected: boolean | undefined;
   t: (key: string) => string;
+  /**
+   * Drive UI の「アプリで開く」「新規」が付与する `?state=` の生値（`useSearchParams` 由来）。
+   * null なら OAuth 往復で失われた可能性があるため sessionStorage の intent を見に行く。
+   */
+  driveOpenState?: string | null;
+  /**
+   * 未保存の下書きを破棄してよいかの確認。Drive から開く操作は既存の下書きを上書きするため、
+   * 破棄の可否を呼び出し側（ダイアログ）に委ねる。未注入なら破棄せず中断する（データ損失を避ける）。
+   */
+  confirmDiscardDraft?: () => Promise<boolean>;
   /** Override fetchFileContent for testing */
   fetchFileFn?: typeof fetchFileContent;
   /** Override fetch for testing */
@@ -137,6 +149,8 @@ interface UseEditorPageOptions {
 export function useEditorPage({
   isGitHubConnected,
   t,
+  driveOpenState = null,
+  confirmDiscardDraft,
   fetchFileFn = fetchFileContent,
   fetchFn = typeof window === 'undefined' ? (undefined as unknown as typeof fetch) : window.fetch.bind(window),
   signInFn = signIn,
@@ -172,6 +186,13 @@ export function useEditorPage({
   const rememberedCommitMessageRef = useRef<string | null>(null);
   const [externalSaveKind, setExternalSaveKind] = useState<'github' | 'drive' | undefined>(undefined);
   const [driveSaveAsDialog, setDriveSaveAsDialog] = useState<{ open: boolean; defaultName: string } | null>(null);
+  /**
+   * Drive UI からのブートストラップを開始済みか。二重起動を防ぐほか、
+   * 後から解決する GitHub セッションが読み込み済みの本文を空へ戻すのも防ぐ。
+   */
+  const driveBootstrapRef = useRef(false);
+  /** Drive の「新規」経由で開いたときの親フォルダ。初回保存時に parentId として送る。 */
+  const pendingParentIdRef = useRef<string | null>(null);
 
   // エディタページでのみ body に editor-page クラスを付与し overflow: hidden を適用
   useEffect(() => {
@@ -182,6 +203,8 @@ export function useEditorPage({
   // GitHub 接続済みで初回アクセス時に localStorage の下書きをクリアする
   useEffect(() => {
     if (!isGitHubConnected) return;
+    // Drive から開いた本文を、後から解決した GitHub セッションが空へ戻さないようにする。
+    if (driveBootstrapRef.current) return;
     if (!selectedFileRef.current) {
       setExternalContent("");
       setEditorKey((k) => k + 1);
@@ -408,10 +431,16 @@ export function useEditorPage({
    */
   const handleSaveToDriveConfirm = useCallback(async (name: string) => {
     setDriveSaveAsDialog(null);
+    const parentId = pendingParentIdRef.current;
     const res = await fetchFn('/api/drive/content', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, content: currentContentRef.current }),
+      body: JSON.stringify({
+        name,
+        content: currentContentRef.current,
+        // Drive の「新規」から起動したときだけ、指定フォルダ配下に作る。
+        ...(parentId ? { parentId } : {}),
+      }),
     });
     if (res.status === 401) {
       // 未サインイン。開く経路と同じく同意画面へ誘導する。
@@ -437,6 +466,8 @@ export function useEditorPage({
       headRevisionId: payload.headRevisionId ?? '',
     });
     setExternalSaveKind('drive');
+    // 親フォルダ指定は新規作成の一度きり。以後の上書き保存は fileId で行う。
+    pendingParentIdRef.current = null;
     selectedFileRef.current = null;
     originalContentRef.current = currentContentRef.current;
     setIsDirty(false);
@@ -502,6 +533,71 @@ export function useEditorPage({
 
     await loadDriveFileIntoEditor(picked.fileId);
   }, [fetchFn, t, startGoogleSignIn, loadDriveFileIntoEditor]);
+
+  /** Drive の「新規」から起動したときの空文書。保存先は初回保存まで確定しない。 */
+  const startNewDriveDocument = useCallback((folderId: string | null) => {
+    pendingParentIdRef.current = folderId;
+    setDriveFile(null);
+    setExternalSaveKind(undefined);
+    selectedFileRef.current = null;
+    originalContentRef.current = '';
+    currentContentRef.current = '';
+    setIsDirty(false);
+    writeDraft('');
+    setExternalContent('');
+    setExternalFileName(undefined);
+    setExternalCompareContent(null);
+    setEditorKey((k) => k + 1);
+  }, [setDriveFile]);
+
+  /**
+   * 未保存の下書きがあるかを返す。Drive からの起動は既存の下書きを上書きするため、
+   * 破棄してよいかを呼び出し側に確認する。確認手段が無ければ破棄しない。
+   */
+  const mayDiscardDraft = useCallback(async (): Promise<boolean> => {
+    if (readDraft('').length === 0) return true;
+    if (!confirmDiscardDraft) return false;
+    return confirmDiscardDraft();
+  }, [confirmDiscardDraft]);
+
+  /**
+   * Drive UI の `?state=` からエディタを起動する。
+   * 未サインインなら state を sessionStorage へ退避してから同意画面へ送る。
+   * `callbackUrl` に state 付き URL を渡してはいるが、OAuth 往復で欠落しても復元できるようにする。
+   */
+  const bootstrapFromDrive = useCallback(async (intent: DriveOpenIntent, rawState: string) => {
+    if (!(await mayDiscardDraft())) {
+      setSaveSnackbar({ message: t('driveOpenDraftBlocked'), severity: 'error' });
+      return;
+    }
+
+    const tokenRes = await fetchFn('/api/auth/google-token');
+    const accessToken = tokenRes.ok
+      ? parseGoogleTokenPayload(await tokenRes.json().catch(() => null))
+      : null;
+    if (!accessToken) {
+      markDriveOpenIntent(rawState);
+      await startGoogleSignIn();
+      return;
+    }
+
+    if (intent.action === 'create') {
+      startNewDriveDocument(intent.folderId);
+      return;
+    }
+    await loadDriveFileIntoEditor(intent.fileId);
+  }, [mayDiscardDraft, fetchFn, t, startGoogleSignIn, startNewDriveDocument, loadDriveFileIntoEditor]);
+
+  // Drive UI からの起動を一度だけ処理する。URL の state が無ければ OAuth 往復前の intent を見る。
+  useEffect(() => {
+    if (driveBootstrapRef.current) return;
+    const rawState = driveOpenState ?? consumeDriveOpenIntent();
+    const intent = parseDriveOpenState(rawState);
+    if (!intent || rawState === null) return;
+
+    driveBootstrapRef.current = true;
+    void bootstrapFromDrive(intent, rawState);
+  }, [driveOpenState, bootstrapFromDrive]);
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     setCompareModeOpen(active);
