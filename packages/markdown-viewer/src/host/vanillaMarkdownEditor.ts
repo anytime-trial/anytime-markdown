@@ -23,7 +23,6 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
 
 import { buildEditorExtensions } from "../buildEditorExtensions";
-import { STORAGE_KEY_CONTENT } from "../constants/storageKeys";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
 import { tryImportDroppedMdFile } from "../utils/editorImageHandlers";
@@ -41,6 +40,7 @@ import type {
 import type { CommentInfo } from "../utils/commentNotifications";
 import { installCommentNotifications } from "../utils/commentNotifications";
 import { onCommentStateChange } from "../utils/commentStateSubscription";
+import { readDraft, writeDraft } from "../utils/draftStorage";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 import type { FileSystemProvider } from "../types/fileSystem";
 import { createFileOpsController, type SaveTargetInfo } from "./fileOpsController";
@@ -460,13 +460,7 @@ function applyEditorSettings(
 
 /** persistDraft 時の下書き読込（失敗時は initialContent へフォールバック）。 */
 function loadDraft(initialContent: string): string {
-  if (typeof localStorage === "undefined") return initialContent;
-  try {
-    return localStorage.getItem(STORAGE_KEY_CONTENT) ?? initialContent;
-  } catch (error) {
-    console.warn("[vanillaMarkdownEditor] localStorage read failed", error);
-    return initialContent;
-  }
+  return readDraft(initialContent);
 }
 
 type LinkedMdPending =
@@ -769,13 +763,7 @@ export function mountVanillaMarkdownEditor(
           const resolved = produce();
           if (resolved == null) return;
           const toSave = withFrontmatter ? prependFrontmatter(resolved, frontmatter) : resolved;
-          if (current.persistDraft && typeof localStorage !== "undefined") {
-            try {
-              localStorage.setItem(STORAGE_KEY_CONTENT, toSave);
-            } catch (error) {
-              console.warn("[vanillaMarkdownEditor] localStorage write failed", error);
-            }
-          }
+          if (current.persistDraft) writeDraft(toSave);
           current.onContentChange?.(toSave);
         }, SAVE_DEBOUNCE_MS);
       };

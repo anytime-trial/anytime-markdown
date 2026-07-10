@@ -159,6 +159,7 @@ export {
 STORAGE_KEY_CONTENT, STORAGE_KEY_EDITOR_MODE,
 STORAGE_KEY_READONLY_MODE, STORAGE_KEY_REVIEW_MODE,
 STORAGE_KEY_SETTINGS, STORAGE_KEY_SOURCE_MODE, } from './constants/storageKeys';
+export { clearDraft, readDraft, writeDraft } from './utils/draftStorage';
 export type { MarkdownTemplate } from './constants/templates';
 export { BUILTIN_TEMPLATES } from './constants/templates';
 export type { ThemePreset, ThemePresetName } from './constants/themePresets';

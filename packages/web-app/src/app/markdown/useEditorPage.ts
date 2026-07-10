@@ -1,7 +1,7 @@
 'use client';
 
-import { STORAGE_KEY_CONTENT } from '@anytime-markdown/markdown-viewer/src/constants/storageKeys';
 import type { SaveTargetInfo } from '@anytime-markdown/markdown-viewer/src/host/fileOpsController';
+import { clearDraft, writeDraft } from '@anytime-markdown/markdown-viewer/src/utils/draftStorage';
 import { signIn } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -97,7 +97,6 @@ export interface EditorPageState {
   explorerOpen: boolean;
   externalContent: string | undefined;
   externalFileName: string | undefined;
-  externalFilePath: string | undefined;
   externalCompareContent: string | null;
   editorKey: number;
   isDirty: boolean;
@@ -166,7 +165,6 @@ export function useEditorPage({
   });
   const [externalContent, setExternalContent] = useState<string | undefined>(undefined);
   const [externalFileName, setExternalFileName] = useState<string | undefined>(undefined);
-  const [externalFilePath, setExternalFilePath] = useState<string | undefined>(undefined);
   const [externalCompareContent, setExternalCompareContent] = useState<string | null>(null);
   const [compareModeOpen, setCompareModeOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
@@ -214,11 +212,7 @@ export function useEditorPage({
     }
     if (sessionStorage.getItem('ssoContentCleared') === '1') return;
     sessionStorage.setItem('ssoContentCleared', '1');
-    try {
-      localStorage.removeItem(STORAGE_KEY_CONTENT);
-    } catch (e) {
-      console.warn('Failed to clear localStorage:', e);
-    }
+    clearDraft(); // 失敗時のログは draftStorage 側で出る
   }, [isGitHubLoggedIn]);
 
   const handleContentChange = useCallback((content: string) => {
@@ -246,7 +240,6 @@ export function useEditorPage({
     setDriveFile(null);
     setExternalContent(undefined);
     setExternalFileName(undefined);
-    setExternalFilePath(undefined);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
     rememberedCommitMessageRef.current = null;
@@ -277,10 +270,9 @@ export function useEditorPage({
     setIsDirty(false);
     const content = await fetchFileFn(repo, filePath, branch);
     originalContentRef.current = content;
-    localStorage.setItem(STORAGE_KEY_CONTENT, content);
+    writeDraft(content);
     setExternalContent(undefined);
     setExternalFileName(filePath.split("/").pop() ?? filePath);
-    setExternalFilePath(filePath);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
   }, [fetchFileFn, setDriveFile]);
@@ -510,7 +502,6 @@ export function useEditorPage({
     originalContentRef.current = currentContentRef.current;
     setIsDirty(false);
     setExternalFileName(payload.name);
-    setExternalFilePath(payload.name);
     setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
   }, [fetchFn, t, startGoogleSignIn, setDriveFile]);
 
@@ -555,10 +546,9 @@ export function useEditorPage({
     selectedFileRef.current = null;
     setIsDirty(false);
     originalContentRef.current = payload.content;
-    localStorage.setItem(STORAGE_KEY_CONTENT, payload.content);
+    writeDraft(payload.content);
     setExternalContent(undefined);
     setExternalFileName(payload.name);
-    setExternalFilePath(payload.name);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
   }, [fetchFn, t, startGoogleSignIn, setDriveFile]);
@@ -588,7 +578,6 @@ export function useEditorPage({
       setIsDirty(false);
       setExternalContent(content);
       setExternalFileName(filePath.split("/").pop() ?? filePath);
-      setExternalFilePath(filePath);
       setExternalCompareContent(null);
       setEditorKey((k) => k + 1);
     }
@@ -604,7 +593,6 @@ export function useEditorPage({
     explorerOpen,
     externalContent,
     externalFileName,
-    externalFilePath,
     externalCompareContent,
     editorKey,
     isDirty,

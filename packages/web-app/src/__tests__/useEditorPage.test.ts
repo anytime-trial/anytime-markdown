@@ -49,7 +49,6 @@ describe("useEditorPage", () => {
       expect(result.current.explorerOpen).toBe(false);
       expect(result.current.externalContent).toBeUndefined();
       expect(result.current.externalFileName).toBeUndefined();
-      expect(result.current.externalFilePath).toBeUndefined();
       expect(result.current.externalCompareContent).toBeNull();
       expect(result.current.editorKey).toBe(0);
       expect(result.current.isDirty).toBe(false);
@@ -106,7 +105,6 @@ describe("useEditorPage", () => {
 
       expect(fetchFileFn).toHaveBeenCalledWith("owner/repo", "README.md", "main");
       expect(result.current.externalFileName).toBe("README.md");
-      expect(result.current.externalFilePath).toBe("README.md");
       expect(result.current.isDirty).toBe(false);
       expect(result.current.editorKey).toBeGreaterThan(initialKey);
     });
@@ -142,7 +140,6 @@ describe("useEditorPage", () => {
       });
 
       expect(result.current.externalFileName).toBe("intro.md");
-      expect(result.current.externalFilePath).toBe("docs/guide/intro.md");
     });
   });
 
