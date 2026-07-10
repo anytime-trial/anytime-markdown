@@ -24,6 +24,7 @@ function driveFetch(token: string, req: DriveRequest): Promise<Response> {
 /** Drive API のエラーレスポンスをそのまま NextResponse へ透過する。 */
 async function driveErrorResponse(res: Response): Promise<NextResponse> {
   const body = await res.text();
+  console.warn(`Drive API error (${res.status} ${res.url}):`, body);
   return NextResponse.json({ error: body }, { status: res.status });
 }
 

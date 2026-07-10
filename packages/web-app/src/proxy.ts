@@ -26,14 +26,16 @@ export function proxy(request: NextRequest) {
   })();
   const cspHeader = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com https://platform.twitter.com`,
+    // apis.google.com: Google Picker（Drive から開く）のローダ script
+    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com https://platform.twitter.com https://apis.google.com`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     // Markdown エディタでユーザーが任意の HTTPS 画像を埋め込めるよう広めに許可する
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    `connect-src 'self' https://www.plantuml.com https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://platform.twitter.com${process.env.NEXT_PUBLIC_SUPABASE_URL ? " " + process.env.NEXT_PUBLIC_SUPABASE_URL : ""}${webImportConnectSrc}`,
+    `connect-src 'self' https://www.plantuml.com https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://platform.twitter.com https://apis.google.com https://www.googleapis.com${process.env.NEXT_PUBLIC_SUPABASE_URL ? " " + process.env.NEXT_PUBLIC_SUPABASE_URL : ""}${webImportConnectSrc}`,
     "worker-src 'self' blob:",
-    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://youtube.com https://www.figma.com https://embed.figma.com https://open.spotify.com https://platform.twitter.com https://viewer.diagrams.net https://app.diagrams.net",
+    // docs.google.com: Google Picker のファイル選択 UI は iframe で描画される
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://youtube.com https://www.figma.com https://embed.figma.com https://open.spotify.com https://platform.twitter.com https://viewer.diagrams.net https://app.diagrams.net https://docs.google.com https://drive.google.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

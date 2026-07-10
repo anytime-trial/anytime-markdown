@@ -1,6 +1,7 @@
 'use client';
 
 import { STORAGE_KEY_CONTENT } from '@anytime-markdown/markdown-viewer/src/constants/storageKeys';
+import { signIn } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { CommitToGitHubValues } from '../../components/CommitToGitHubDialog';
@@ -125,6 +126,8 @@ interface UseEditorPageOptions {
   fetchFileFn?: typeof fetchFileContent;
   /** Override fetch for testing */
   fetchFn?: typeof fetch;
+  /** Override next-auth signIn for testing */
+  signInFn?: (provider: string, options?: { callbackUrl?: string }) => Promise<unknown>;
 }
 
 export function useEditorPage({
@@ -133,6 +136,7 @@ export function useEditorPage({
   t,
   fetchFileFn = fetchFileContent,
   fetchFn = typeof window === 'undefined' ? (undefined as unknown as typeof fetch) : window.fetch.bind(window),
+  signInFn = signIn,
 }: UseEditorPageOptions): EditorPageState & EditorPageActions {
   const [explorerOpen, setExplorerOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -380,34 +384,49 @@ export function useEditorPage({
     setSaveSnackbar({ message: `${t('githubCommitError')} (${res.status}): ${detail}`, severity: 'error' });
   }, [t, fetchFn]);
 
+  /** Google の同意画面へ遷移する。起動自体に失敗した場合のみ snackbar で通知する。 */
+  const startGoogleSignIn = useCallback(async () => {
+    try {
+      await signInFn('google', { callbackUrl: window.location.href });
+    } catch (err) {
+      console.warn('Failed to start Google sign-in:', err);
+      setSaveSnackbar({ message: t('driveSignInRequired'), severity: 'error' });
+    }
+  }, [signInFn, t]);
+
   /** Google Picker で Drive 上の Markdown ファイルを選択し、本文を読み込んでエディタへ反映する。 */
   const handleDriveOpen = useCallback(async () => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY ?? '';
-    if (!apiKey) {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? '';
+    // appId（Cloud プロジェクト番号）は drive.file スコープでの許可付与に必須。
+    const appId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID ?? '';
+    if (!apiKey || !appId) {
       setSaveSnackbar({ message: t('driveApiKeyMissing'), severity: 'error' });
       return;
     }
     const tokenRes = await fetchFn('/api/auth/google-token');
-    if (!tokenRes.ok) {
-      setSaveSnackbar({ message: t('driveSignInRequired'), severity: 'error' });
-      return;
-    }
-    const accessToken = parseGoogleTokenPayload(await tokenRes.json().catch(() => null));
+    const accessToken = tokenRes.ok
+      ? parseGoogleTokenPayload(await tokenRes.json().catch(() => null))
+      : null;
     if (!accessToken) {
-      setSaveSnackbar({ message: t('driveSignInRequired'), severity: 'error' });
+      // 未サインイン（401）またはトークン欠落。エラー表示ではなく Google の同意画面へ誘導する。
+      // callbackUrl で編集中のページへ戻す（本文は localStorage に退避済み）。
+      await startGoogleSignIn();
       return;
     }
 
-    const picked = await pickDriveMarkdownFile(accessToken, apiKey);
+    const picked = await pickDriveMarkdownFile(accessToken, apiKey, appId);
     if (!picked) return;
 
     const contentRes = await fetchFn(`/api/drive/content?fileId=${encodeURIComponent(picked.fileId)}`);
     if (!contentRes.ok) {
+      const detail = parseErrorMessage(await contentRes.json().catch(() => null));
+      console.warn(`Failed to load Drive file (${contentRes.status}):`, detail);
       setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
       return;
     }
     const payload = parseDriveContentPayload(await contentRes.json().catch(() => null));
     if (!payload) {
+      console.warn('Failed to load Drive file: unexpected payload shape');
       setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
       return;
     }
@@ -423,7 +442,7 @@ export function useEditorPage({
     setExternalFilePath(payload.name);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
-  }, [fetchFn, t]);
+  }, [fetchFn, t, startGoogleSignIn]);
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     setCompareModeOpen(active);
