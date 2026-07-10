@@ -36,6 +36,10 @@ export const SVG_SANITIZE_CONFIG = {
   ADD_TAGS: ["foreignObject"] as string[],
   ADD_ATTR: ["xmlns", "style", "class", "requiredExtensions"] as string[],
   FORBID_TAGS: ["script", "iframe", "object", "embed"] as string[],
+  // DOMPurify の既定 HTML integration point は annotation-xml のみ。foreignobject を
+  // 足さないと SVG→HTML の名前空間切替が不正扱いになり、mermaid のノードラベル
+  // （foreignObject 内の div/span/p）が全削除されて図から文字が消える。
+  HTML_INTEGRATION_POINTS: { "annotation-xml": true, foreignobject: true },
 };
 
 /** Detect Mermaid diagram type from code content for aria-label */
