@@ -15,9 +15,15 @@
 
 import { STORAGE_KEY_CONTENT } from "../constants/storageKeys";
 
-/** localStorage が使えるか（SSR / 無効化ブラウザ）。 */
+/**
+ * localStorage が使えるか。
+ *
+ * ブラウザ API アクセス前のガードは `typeof window !== "undefined"` を使う（`globalThis` は
+ * Node.js（SSR）でも定義されるためブラウザ判定にならない）。実際の getItem / setItem は
+ * プライベートブラウジング等で throw しうるため、呼び元で個別に try/catch する。
+ */
 function available(): boolean {
-  return typeof localStorage !== "undefined";
+  return typeof window !== "undefined";
 }
 
 /** 下書きを読む。未保存・読み取り失敗時は `fallback` を返す。 */
