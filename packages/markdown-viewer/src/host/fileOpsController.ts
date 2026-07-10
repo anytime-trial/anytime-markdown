@@ -83,8 +83,11 @@ interface FileOpsController {
   confirmContinue(): Promise<boolean>;
   /**
    * 外部ソース（Google Drive 等）が本文を差し替えたときに、そのファイル名を採用する。
-   * 本コントローラを文書ファイル名の単一の真実源に保つための入口で、`localStorage` から
-   * 復元した古いローカルファイル名を置き換える。`null` で保存先なしに戻す。
+   * 本コントローラを文書ファイル名の単一の真実源に保つための入口。
+   *
+   * **永続化の副作用あり**: `localStorage`（保存済みファイル名）へ書き込み、`name` が `null` の
+   * ときは保存済みファイル名を削除したうえで IndexedDB のネイティブファイルハンドルも破棄する。
+   * 表示だけを更新したい用途には使えない。
    */
   adoptExternalFile(name: string | null): void;
   markDirty(): void;
@@ -129,6 +132,7 @@ export function createFileOpsController(
 ): FileOpsController {
   const { editor, t, provider, confirm } = options;
   // 外部ソース由来の名前があればそれを採用する（復元した古いローカル名は捨てる）。
+  const isExternalFile = !!options.initialFileName;
   let fileHandle: FileHandle | null = options.initialFileName
     ? { name: options.initialFileName }
     : loadStoredFileName();
@@ -171,7 +175,10 @@ export function createFileOpsController(
   };
 
   // リロード時に IndexedDB から nativeHandle を復元（React useFileSystem の初回 effect 相当）。
-  if (typeof window !== "undefined" && fileHandle?.name && !fileHandle.nativeHandle) {
+  // 外部ソース（Drive 等）由来の文書には復元しない。名前が一致するだけの無関係なローカルファイルの
+  // ハンドルを掴み、`onExternalSave` 未設定の consumer で `provider.save()` が意図しないローカル
+  // ファイルを上書きしてしまうため。
+  if (!isExternalFile && typeof window !== "undefined" && fileHandle?.name && !fileHandle.nativeHandle) {
     const name = fileHandle.name;
     loadNativeHandle()
       .then((native) => {

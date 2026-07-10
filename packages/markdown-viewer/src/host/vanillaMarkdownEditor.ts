@@ -1745,6 +1745,8 @@ export function mountVanillaMarkdownEditor(
         }
         if (patch.fileName !== undefined) {
           // fileOps 経由で採用する（notifyState → onFileStateChange が statusBar へ反映する）。
+          // 表示更新だけでなく永続化の副作用を伴う: localStorage の保存済みファイル名を上書きし、
+          // null のときはネイティブファイルハンドル（IndexedDB）も破棄する。
           fileOps.adoptExternalFile(patch.fileName);
         }
         // externalCompareContent は遷移（値の変化）でのみ反映する。Mount ラッパは live patch の
