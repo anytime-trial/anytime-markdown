@@ -30,8 +30,9 @@ const result = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
       authorization: {
         params: {
+          // drive.install: Drive の「アプリで開く」「新規」への登録に必要（制限付きスコープ）。
           scope:
-            "openid email profile https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/drive.file",
+            "openid email profile https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.install",
           access_type: "offline",
           prompt: "consent",
         },
