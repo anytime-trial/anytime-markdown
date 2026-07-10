@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- Stopped bundling the `anytime-cross-review` skill; it is now distributed by the Anytime Agent extension. An already installed `.claude/skills/anytime-cross-review/` is left untouched, but you need the Anytime Agent extension to receive further updates.
+
 ## [0.32.0] - 2026-07-09
 
 ### Added
