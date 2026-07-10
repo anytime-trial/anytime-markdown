@@ -1,6 +1,7 @@
 'use client';
 
-import { STORAGE_KEY_CONTENT } from '@anytime-markdown/markdown-viewer/src/constants/storageKeys';
+import type { SaveTargetInfo } from '@anytime-markdown/markdown-viewer/src/host/fileOpsController';
+import { clearDraft, writeDraft } from '@anytime-markdown/markdown-viewer/src/utils/draftStorage';
 import { signIn } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -96,7 +97,6 @@ export interface EditorPageState {
   explorerOpen: boolean;
   externalContent: string | undefined;
   externalFileName: string | undefined;
-  externalFilePath: string | undefined;
   externalCompareContent: string | null;
   editorKey: number;
   isDirty: boolean;
@@ -118,6 +118,7 @@ export interface EditorPageActions {
   handleExplorerSelectFile: (repo: string, filePath: string, branch: string) => Promise<void>;
   /** 保存完了可否を返す（false のとき未保存ガードは新規作成 / 開くを中断する）。 */
   handleExternalSave: (content: string) => Promise<boolean>;
+  handleSaveTargetChange: (target: SaveTargetInfo | null) => void;
   handleCompareModeChange: (active: boolean) => void;
   handleExplorerSelectCommit: (repo: string, filePath: string, sha: string) => Promise<void>;
   handleSelectCurrent: () => void;
@@ -164,7 +165,6 @@ export function useEditorPage({
   });
   const [externalContent, setExternalContent] = useState<string | undefined>(undefined);
   const [externalFileName, setExternalFileName] = useState<string | undefined>(undefined);
-  const [externalFilePath, setExternalFilePath] = useState<string | undefined>(undefined);
   const [externalCompareContent, setExternalCompareContent] = useState<string | null>(null);
   const [compareModeOpen, setCompareModeOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
@@ -177,6 +177,14 @@ export function useEditorPage({
   const [saveSnackbar, setSaveSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [driveConflict, setDriveConflict] = useState<DriveConflict | null>(null);
   const [hasDriveFile, setHasDriveFile] = useState(false);
+  /**
+   * Drive ファイル参照の唯一の更新経路。`hasDriveFile` は `driveFileRef.current != null` の
+   * 派生値であり、片方だけを代入できると必ず乖離する。単独代入を禁じるため常にこれを使う。
+   */
+  const setDriveFile = useCallback((ref: DriveFileRef | null) => {
+    driveFileRef.current = ref;
+    setHasDriveFile(ref != null);
+  }, []);
   /** 直近に handleContentChange へ渡された全文（保存元を問わず常に最新化）。GitHub 任意コミットの内容取得に使う。 */
   const currentContentRef = useRef<string>('');
   /** コミットメッセージ確定待ちの handleExternalSave を解決する resolver（保留中のみ非 null）。 */
@@ -204,11 +212,7 @@ export function useEditorPage({
     }
     if (sessionStorage.getItem('ssoContentCleared') === '1') return;
     sessionStorage.setItem('ssoContentCleared', '1');
-    try {
-      localStorage.removeItem(STORAGE_KEY_CONTENT);
-    } catch (e) {
-      console.warn('Failed to clear localStorage:', e);
-    }
+    clearDraft(); // 失敗時のログは draftStorage 側で出る
   }, [isGitHubLoggedIn]);
 
   const handleContentChange = useCallback((content: string) => {
@@ -233,11 +237,9 @@ export function useEditorPage({
     const isNowLoggedIn = !!session;
     prevSessionRef.current = session;
     selectedFileRef.current = null;
-    driveFileRef.current = null;
-    setHasDriveFile(false);
+    setDriveFile(null);
     setExternalContent(undefined);
     setExternalFileName(undefined);
-    setExternalFilePath(undefined);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
     rememberedCommitMessageRef.current = null;
@@ -248,7 +250,7 @@ export function useEditorPage({
     } else if (!isNowLoggedIn && wasLoggedIn) {
       setSsoSnackbar(t('githubDisconnected'));
     }
-  }, [session, t]);
+  }, [session, t, setDriveFile]);
 
   useEffect(() => {
     sessionStorage.setItem('explorerOpen', explorerOpen ? '1' : '0');
@@ -262,20 +264,18 @@ export function useEditorPage({
     const prev = selectedFileRef.current;
     const isSameFile = prev?.repo === repo && prev?.filePath === filePath && prev?.branch === branch;
     selectedFileRef.current = { repo, filePath, branch };
-    driveFileRef.current = null;
-    setHasDriveFile(false);
+    setDriveFile(null);
     selectedCommitContentRef.current = null;
     if (isSameFile) return;
     setIsDirty(false);
     const content = await fetchFileFn(repo, filePath, branch);
     originalContentRef.current = content;
-    localStorage.setItem(STORAGE_KEY_CONTENT, content);
+    writeDraft(content);
     setExternalContent(undefined);
     setExternalFileName(filePath.split("/").pop() ?? filePath);
-    setExternalFilePath(filePath);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
-  }, [fetchFileFn]);
+  }, [fetchFileFn, setDriveFile]);
 
   /**
    * Drive への PUT を実行する。409（他所での更新）は driveConflict へ委譲する。
@@ -298,7 +298,7 @@ export function useEditorPage({
     if (res.ok) {
       const data = await res.json().catch(() => null);
       const nextHeadRevisionId = parseDriveHeadRevisionId(data) ?? drive.headRevisionId;
-      driveFileRef.current = { ...drive, headRevisionId: nextHeadRevisionId };
+      setDriveFile({ ...drive, headRevisionId: nextHeadRevisionId });
       originalContentRef.current = content;
       setIsDirty(false);
       setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
@@ -308,7 +308,7 @@ export function useEditorPage({
     console.warn('Failed to save to Drive:', err);
     setSaveSnackbar({ message: t('driveSaveError'), severity: 'error' });
     return false;
-  }, [t, fetchFn]);
+  }, [t, fetchFn, setDriveFile]);
 
   const handleDriveConflictOverwrite = useCallback(async () => {
     const conflict = driveConflict;
@@ -377,6 +377,19 @@ export function useEditorPage({
       pendingCommitResolveRef.current = resolve;
     });
   }, [performDriveSave, performGitHubSave, t]);
+
+  /**
+   * エディタの保存先が変化したときの追従。ローカルへ「名前を付けて保存」すると以後の上書き保存は
+   * ローカルへ行くため、外部保存の参照（Drive のファイル・GitHub の選択ファイル）を破棄する。
+   * 破棄しないと `handleExternalSave` が古い宛先へ書き戻してしまう。
+   */
+  const handleSaveTargetChange = useCallback((target: SaveTargetInfo | null) => {
+    if (target?.kind !== 'local') return;
+    setDriveFile(null);
+    selectedFileRef.current = null;
+    // ファイル名の正本はエディタ（fileOpsController）側へ移る。prop で上書きしない。
+    setExternalFileName(undefined);
+  }, [setDriveFile]);
 
   /** 保留中の handleExternalSave（コミットメッセージ待ち）を保存完了可否で解決する。 */
   const settlePendingCommit = useCallback((saved: boolean) => {
@@ -480,19 +493,17 @@ export function useEditorPage({
       return;
     }
 
-    driveFileRef.current = {
+    setDriveFile({
       fileId: payload.fileId,
       name: payload.name,
       headRevisionId: payload.headRevisionId ?? '',
-    };
+    });
     selectedFileRef.current = null;
-    setHasDriveFile(true);
     originalContentRef.current = currentContentRef.current;
     setIsDirty(false);
     setExternalFileName(payload.name);
-    setExternalFilePath(payload.name);
     setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
-  }, [fetchFn, t, startGoogleSignIn]);
+  }, [fetchFn, t, startGoogleSignIn, setDriveFile]);
 
   /** Google Picker で Drive 上の Markdown ファイルを選択し、本文を読み込んでエディタへ反映する。 */
   const handleDriveOpen = useCallback(async () => {
@@ -531,18 +542,16 @@ export function useEditorPage({
       return;
     }
 
-    driveFileRef.current = { fileId: picked.fileId, name: payload.name, headRevisionId: payload.headRevisionId };
+    setDriveFile({ fileId: picked.fileId, name: payload.name, headRevisionId: payload.headRevisionId });
     selectedFileRef.current = null;
-    setHasDriveFile(true);
     setIsDirty(false);
     originalContentRef.current = payload.content;
-    localStorage.setItem(STORAGE_KEY_CONTENT, payload.content);
+    writeDraft(payload.content);
     setExternalContent(undefined);
     setExternalFileName(payload.name);
-    setExternalFilePath(payload.name);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
-  }, [fetchFn, t, startGoogleSignIn]);
+  }, [fetchFn, t, startGoogleSignIn, setDriveFile]);
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     setCompareModeOpen(active);
@@ -556,21 +565,23 @@ export function useEditorPage({
   }, []);
 
   const handleExplorerSelectCommit = useCallback(async (repo: string, filePath: string, sha: string) => {
-    driveFileRef.current = null;
-    setHasDriveFile(false);
+    setDriveFile(null);
     const content = await fetchFileFn(repo, filePath, sha);
     if (!content && content !== '') return;
     if (compareModeOpen) {
       setExternalCompareContent(content);
     } else {
       selectedCommitContentRef.current = content;
+      // 履歴コミットの表示は readOnly。基準内容も差し替えないと、直前ファイルの内容と比較されて
+      // 「編集中」インジケータが誤点灯する（page.tsx の effect が handleContentChange を呼ぶため）。
+      originalContentRef.current = content;
+      setIsDirty(false);
       setExternalContent(content);
       setExternalFileName(filePath.split("/").pop() ?? filePath);
-      setExternalFilePath(filePath);
       setExternalCompareContent(null);
       setEditorKey((k) => k + 1);
     }
-  }, [compareModeOpen, fetchFileFn]);
+  }, [compareModeOpen, fetchFileFn, setDriveFile]);
 
   const handleSelectCurrent = useCallback(() => {
     setExternalContent(undefined);
@@ -582,7 +593,6 @@ export function useEditorPage({
     explorerOpen,
     externalContent,
     externalFileName,
-    externalFilePath,
     externalCompareContent,
     editorKey,
     isDirty,
@@ -597,6 +607,7 @@ export function useEditorPage({
     handleToggleExplorer,
     handleExplorerSelectFile,
     handleExternalSave,
+    handleSaveTargetChange,
     handleCompareModeChange,
     handleExplorerSelectCommit,
     handleSelectCurrent,

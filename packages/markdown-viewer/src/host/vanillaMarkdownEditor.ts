@@ -23,7 +23,6 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
 
 import { buildEditorExtensions } from "../buildEditorExtensions";
-import { STORAGE_KEY_CONTENT } from "../constants/storageKeys";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
 import { tryImportDroppedMdFile } from "../utils/editorImageHandlers";
@@ -41,9 +40,10 @@ import type {
 import type { CommentInfo } from "../utils/commentNotifications";
 import { installCommentNotifications } from "../utils/commentNotifications";
 import { onCommentStateChange } from "../utils/commentStateSubscription";
+import { readDraft, writeDraft } from "../utils/draftStorage";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 import type { FileSystemProvider } from "../types/fileSystem";
-import { createFileOpsController } from "./fileOpsController";
+import { createFileOpsController, type SaveTargetInfo } from "./fileOpsController";
 import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
@@ -197,6 +197,11 @@ export interface MountVanillaMarkdownEditorOptions {
    * `Promise<boolean>` で返す。false を返すと未保存ガードは新規作成 / 開くを中断する。
    */
   onExternalSave?: (content: string) => void | Promise<boolean>;
+  /**
+   * 保存先が変化したときの通知。ローカルへ「名前を付けて保存」すると `kind: "local"` が飛ぶ。
+   * ホストはこれを受けて外部保存の参照（Drive のファイル ID 等）を破棄する。
+   */
+  onSaveTargetChange?: (target: SaveTargetInfo | null) => void;
   /** ツールバーの表示制御。 */
   hide?: ToolbarVisibility;
   /** ツールバー全体を描画しない（VS Code の hideToolbar 相当）。 */
@@ -455,13 +460,7 @@ function applyEditorSettings(
 
 /** persistDraft 時の下書き読込（失敗時は initialContent へフォールバック）。 */
 function loadDraft(initialContent: string): string {
-  if (typeof localStorage === "undefined") return initialContent;
-  try {
-    return localStorage.getItem(STORAGE_KEY_CONTENT) ?? initialContent;
-  } catch (error) {
-    console.warn("[vanillaMarkdownEditor] localStorage read failed", error);
-    return initialContent;
-  }
+  return readDraft(initialContent);
 }
 
 type LinkedMdPending =
@@ -764,22 +763,16 @@ export function mountVanillaMarkdownEditor(
           const resolved = produce();
           if (resolved == null) return;
           const toSave = withFrontmatter ? prependFrontmatter(resolved, frontmatter) : resolved;
-          if (current.persistDraft && typeof localStorage !== "undefined") {
-            try {
-              localStorage.setItem(STORAGE_KEY_CONTENT, toSave);
-            } catch (error) {
-              console.warn("[vanillaMarkdownEditor] localStorage write failed", error);
-            }
-          }
+          if (current.persistDraft) writeDraft(toSave);
           current.onContentChange?.(toSave);
         }, SAVE_DEBOUNCE_MS);
       };
       disposers.push(() => {
         if (saveTimer) clearTimeout(saveTimer);
       });
-      const onEditorUpdate = (): void => saveContent(() => getMarkdownFromEditorSafe(editor));
-      editor.on("update", onEditorUpdate);
-      disposers.push(() => editor.off("update", onEditorUpdate));
+      // 本文の保存（下書き + onContentChange）は fileOps の dirty 追跡と同じ購読で発火させる
+      // （createFileOpsController の後段で配線する）。`editor.on("update")` は docChanged の
+      // ときだけ発火するため、コメントの resolve 等 meta のみの変更を取りこぼす。
 
       // === 変更オーバービュー（MarkdownMinimap・本文スクロールバー横） ============
       // スクロールコンテナ（contentEl）は overflow:auto。changeGutterExtension の
@@ -918,6 +911,7 @@ export function mountVanillaMarkdownEditor(
         getSourceMode: () => modeState.sourceMode === true,
         getSourceText: () => sourceController?.getSourceText() ?? "",
         setSourceText: (text) => sourceController?.setSourceText(text),
+        onSaveTargetChange: (target) => current.onSaveTargetChange?.(target),
         onFileStateChange: ({ fileName, isDirty }) => {
           // fileOps が文書ファイル名の単一の真実源。`current.fileName`（外部ソース由来）は
           // mount / update で fileOps へ取り込むため、ここでフォールバックしてはならない
@@ -934,10 +928,14 @@ export function mountVanillaMarkdownEditor(
           layout.liveRegion.textContent = t(key);
         },
       });
-      // dirty 追跡（A1）。doc 変更だけでなくコメントの resolve / 本文編集（meta のみ・doc 非変更）も
-      // serialize 出力（コメントデータブロック）を変えるため dirty 化する必要がある。共有プリミティブで
-      // コメント状態または doc の変化を一括して拾う（`editor.on("update")` は meta のみを取りこぼす）。
-      const disposeDirty = onCommentStateChange(editor, () => fileOps.markDirty());
+      // dirty 追跡 + 本文保存（A1）。doc 変更だけでなくコメントの resolve / 本文編集（meta のみ・
+      // doc 非変更）も serialize 出力（コメントデータブロック）を変えるため、dirty 化と保存の双方が
+      // 必要になる。共有プリミティブでコメント状態または doc の変化を一括して拾う
+      // （`editor.on("update")` は meta のみを取りこぼし、下書きにコメント変更が残らない）。
+      const disposeDirty = onCommentStateChange(editor, () => {
+        fileOps.markDirty();
+        saveContent(() => getMarkdownFromEditorSafe(editor));
+      });
       disposers.push(disposeDirty);
 
       // === FrontmatterBlock（折りたたみ/編集/削除可能・React FrontmatterBlock 相当） =====

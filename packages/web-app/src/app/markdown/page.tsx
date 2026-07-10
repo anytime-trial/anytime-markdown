@@ -1,7 +1,7 @@
 'use client';
 
 import { COMMENT_PANEL_WIDTH, createMarkdownT, getDefaultContent } from '@anytime-markdown/markdown-viewer';
-import { STORAGE_KEY_CONTENT } from '@anytime-markdown/markdown-viewer/src/constants/storageKeys';
+import { readDraft } from '@anytime-markdown/markdown-viewer/src/utils/draftStorage';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import {
   Alert, Box, Button, CircularProgress, Snackbar,
@@ -56,7 +56,7 @@ export default function Page() {
   const {
     externalContent, externalFileName,
     externalCompareContent, editorKey, isDirty, newCommit,
-    saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile,
+    saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile, handleSaveTargetChange,
     commitMessageDialog, commitToGitHubDialog,
     handleExplorerSelectFile, handleExternalSave,
     handleCompareModeChange, handleExplorerSelectCommit, handleSelectCurrent,
@@ -75,10 +75,7 @@ export default function Page() {
   // handleContentChange 経由で currentContentRef へ同期し、無編集のまま「GitHub にコミット」しても最新本文を取得できるようにする。
   const resolvedInitialContent = useMemo(() => {
     if (externalContent !== undefined) return externalContent;
-    if (typeof window !== 'undefined') {
-      const draft = localStorage.getItem(STORAGE_KEY_CONTENT);
-      if (draft != null) return draft;
-    }
+    if (typeof window !== 'undefined') return readDraft(getDefaultContent(locale));
     return getDefaultContent(locale);
     // editorKey は本文自体には現れないが「新しいソースがマウントされた」トリガとして必須の依存。
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,6 +168,7 @@ export default function Page() {
           persistDraft={externalContent === undefined}
           fileName={externalFileName}
           onExternalSave={canExternalSave ? handleExternalSave : undefined}
+          onSaveTargetChange={handleSaveTargetChange}
           readOnly={externalContent !== undefined}
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar

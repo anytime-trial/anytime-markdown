@@ -259,6 +259,66 @@ describe("fileOpsController — initialFileName（外部ソース由来のファ
   });
 });
 
+describe("fileOpsController — 保存先の遷移（ローカル / 外部）", () => {
+  it("外部ソースで開いた本文の上書き保存は外部保存へ行く", async () => {
+    const provider = createProvider();
+    const onExternalSave = jest.fn(() => Promise.resolve(true));
+    const ops = createOps({ provider, onExternalSave, initialFileName: "drive-doc.md" });
+
+    await ops.saveFile();
+
+    expect(onExternalSave).toHaveBeenCalledTimes(1);
+    expect(provider.save).not.toHaveBeenCalled();
+  });
+
+  it("ローカルへ Save As した後の上書き保存はローカルへ行く（外部保存を呼ばない）", async () => {
+    // provider.saveAs は nativeHandle 付きのローカルハンドルを返す（実ブラウザ相当）。
+    const provider = createProvider({
+      saveAs: jest.fn(() => Promise.resolve({ name: "local-copy.md", nativeHandle: {} })),
+    });
+    const onExternalSave = jest.fn(() => Promise.resolve(true));
+    const ops = createOps({ provider, onExternalSave, initialFileName: "drive-doc.md" });
+
+    await ops.saveAsFile(); // ローカルへ「名前を付けて保存」
+    expect(ops.getFileName()).toBe("local-copy.md");
+
+    ops.markDirty();
+    await ops.saveFile(); // 上書き保存
+
+    expect(provider.save).toHaveBeenCalledTimes(1);
+    expect(onExternalSave).not.toHaveBeenCalled();
+  });
+
+  it("保存先がローカルへ切り替わったことをホストへ通知する", async () => {
+    const onSaveTargetChange = jest.fn();
+    const provider = createProvider({
+      saveAs: jest.fn(() => Promise.resolve({ name: "local-copy.md", nativeHandle: {} })),
+    });
+    const ops = createOps({
+      provider,
+      onExternalSave: jest.fn(() => Promise.resolve(true)),
+      initialFileName: "drive-doc.md",
+      onSaveTargetChange,
+    });
+
+    await ops.saveAsFile();
+
+    expect(onSaveTargetChange).toHaveBeenLastCalledWith({ kind: "local", name: "local-copy.md" });
+  });
+
+  it("adoptExternalFile は保存先を外部へ戻す", async () => {
+    const provider = createProvider();
+    const onExternalSave = jest.fn(() => Promise.resolve(true));
+    const ops = createOps({ provider, onExternalSave });
+
+    ops.adoptExternalFile("drive-new.md");
+    await ops.saveFile();
+
+    expect(onExternalSave).toHaveBeenCalledTimes(1);
+    expect(provider.saveAs).not.toHaveBeenCalled();
+  });
+});
+
 describe("fileOpsController — hasSaveTarget", () => {
   it("ローカルハンドルが無くても onExternalSave があれば保存先ありとみなす（Drive から開いた本文）", () => {
     const ops = createOps({ provider: createProvider(), onExternalSave: jest.fn() });

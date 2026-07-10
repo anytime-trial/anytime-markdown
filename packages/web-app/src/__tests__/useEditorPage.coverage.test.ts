@@ -59,7 +59,6 @@ describe("useEditorPage - additional coverage", () => {
 
     expect(defaultOptions.fetchFileFn).toHaveBeenCalledWith("repo", "file.md", "main");
     expect(result.current.externalFileName).toBe("file.md");
-    expect(result.current.externalFilePath).toBe("file.md");
   });
 
   it("skips re-fetch for same file", async () => {
