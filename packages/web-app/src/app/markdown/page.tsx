@@ -6,21 +6,21 @@ import {
   Alert, Box, CircularProgress, Snackbar,
 } from '@mui/material';
 import dynamic from 'next/dynamic';
-import { signIn, useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { CommitMessageDialog } from '../../components/CommitMessageDialog';
 import { DriveConflictDialog } from '../../components/DriveConflictDialog';
 import { DriveSaveAsDialog } from '../../components/DriveSaveAsDialog';
 import { resolveConnectedProviders } from '../../lib/connectedProviders';
-import { consumeGitHubPickerIntent, markGitHubPickerIntent } from '../../lib/githubPickerIntent';
 import { downloadMarkdownBlob } from '../../lib/webImportProvider';
 import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
 import { useEditorPage } from './useEditorPage';
+import { useGitHubPicker } from './useGitHubPicker';
 
 function EditorLoading() {
   const t = useTranslations('Common');
@@ -49,10 +49,15 @@ export default function Page() {
   const { presetName, setPresetName } = usePreset();
   const { setLocale } = useLocaleSwitch();
   const showThemePreset = process.env.NEXT_PUBLIC_SHOW_THEME_PRESET === '1';
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   // GitHub / Google は同一 NextAuth セッションに同居する。`!!session` は「どれかにサインイン済み」
   // でしかないため、GitHub 接続はトークンの有無で判定する。
-  const { github: isGitHubConnected } = useMemo(() => resolveConnectedProviders(session), [session]);
+  // 読み込み中は undefined（未確定）。未接続と区別しないと、セッション解決が「今接続された」
+  // 遷移と誤認され、リロードのたびに接続通知と本文リセットが走る。
+  const isGitHubConnected = useMemo(
+    () => (status === 'loading' ? undefined : resolveConnectedProviders(session).github),
+    [session, status],
+  );
 
   const {
     externalContent, externalFileName,
@@ -85,21 +90,7 @@ export default function Page() {
   }, [resolvedInitialContent, handleContentChange]);
 
   // 「GitHub から開く」ダイアログ。GitHub 未接続ならこの時点で初めて OAuth へ誘導する。
-  const [gitHubPickerOpen, setGitHubPickerOpen] = useState(false);
-  const handleOpenFromGitHub = useCallback(() => {
-    if (!isGitHubConnected) {
-      // 同意後にこのページへ戻った時点でピッカーを開く（2 度押させない）。
-      markGitHubPickerIntent();
-      void signIn('github', { callbackUrl: window.location.href });
-      return;
-    }
-    setGitHubPickerOpen(true);
-  }, [isGitHubConnected]);
-  // OAuth 往復から戻ってきた場合のみ、記録した意図を消費してピッカーを開く。
-  useEffect(() => {
-    if (!isGitHubConnected) return;
-    if (consumeGitHubPickerIntent()) setGitHubPickerOpen(true);
-  }, [isGitHubConnected]);
+  const { gitHubPickerOpen, handleOpenFromGitHub, closeGitHubPicker } = useGitHubPicker({ isGitHubConnected });
   const fileHandlers = useMemo(
     () => ({
       onWebImportCreate: (markdown: string, title: string) => {
@@ -156,7 +147,7 @@ export default function Page() {
       </Box>
       <GitHubRepoBrowser
         open={gitHubPickerOpen}
-        onClose={() => setGitHubPickerOpen(false)}
+        onClose={closeGitHubPicker}
         onSelect={(repo, filePath, branch) => void handleGitHubOpenFile(repo, filePath, branch)}
       />
       <Snackbar

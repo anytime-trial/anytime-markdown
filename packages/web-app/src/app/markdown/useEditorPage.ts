@@ -122,8 +122,9 @@ interface UseEditorPageOptions {
   /**
    * GitHub OAuth 済みか（`resolveConnectedProviders(session).github`）。
    * `!!session` では Google/Spotify のサインインまで拾ってしまうため boolean で受け取る。
+   * `undefined` は「セッション未確定（useSession が loading）」。未接続とは区別する。
    */
-  isGitHubConnected: boolean;
+  isGitHubConnected: boolean | undefined;
   t: (key: string) => string;
   /** Override fetchFileContent for testing */
   fetchFileFn?: typeof fetchFileContent;
@@ -205,13 +206,16 @@ export function useEditorPage({
 
   // GitHub の接続/切断時にエディタを空の初期状態にリセットする。
   // Google（Drive）や Spotify のサインインでは発火させない（本文が消えるため）。
-  const prevGitHubConnectedRef = useRef(isGitHubConnected);
+  const prevGitHubConnectedRef = useRef<boolean | undefined>(isGitHubConnected);
   const [ssoSnackbar, setSsoSnackbar] = useState<string | null>(null);
   useEffect(() => {
+    // セッション未確定の間は何も判断しない。確定した最初の値は「接続イベント」ではないので
+    // 記録するだけで通知もリセットもしない（リロードのたびに snackbar が出るのを防ぐ）。
+    if (isGitHubConnected === undefined) return;
     const wasLoggedIn = prevGitHubConnectedRef.current;
-    const isNowLoggedIn = isGitHubConnected;
-    if (wasLoggedIn === isNowLoggedIn) return;
     prevGitHubConnectedRef.current = isGitHubConnected;
+    if (wasLoggedIn === undefined || wasLoggedIn === isGitHubConnected) return;
+    const isNowLoggedIn = isGitHubConnected;
     selectedFileRef.current = null;
     setDriveFile(null);
     setExternalContent(undefined);

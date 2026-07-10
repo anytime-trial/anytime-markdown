@@ -303,6 +303,30 @@ describe("useEditorPage", () => {
       expect(result.current.ssoSnackbar).toBe("githubDisconnected");
     });
 
+    it("セッション読込中から接続済みへ確定しただけでは snackbar を出さない（リロード時の誤通知）", () => {
+      const { result, rerender } = renderHook(
+        (props) => useEditorPage(props),
+        { initialProps: createHookOptions({ isGitHubConnected: undefined }) },
+      );
+
+      // useSession は最初 status:'loading'（未確定）を返し、その後 GitHub 接続済みが判明する。
+      rerender(createHookOptions({ isGitHubConnected: true }));
+      expect(result.current.ssoSnackbar).toBeNull();
+    });
+
+    it("未確定→未接続→接続の遷移では接続時のみ snackbar を出す", () => {
+      const { result, rerender } = renderHook(
+        (props) => useEditorPage(props),
+        { initialProps: createHookOptions({ isGitHubConnected: undefined }) },
+      );
+
+      rerender(createHookOptions({ isGitHubConnected: false }));
+      expect(result.current.ssoSnackbar).toBeNull();
+
+      rerender(createHookOptions({ isGitHubConnected: true }));
+      expect(result.current.ssoSnackbar).toBe("githubConnected");
+    });
+
     it("GitHub 未接続のままなら本文クリアも snackbar も起きない（Google のみサインイン相当）", () => {
       localStorage.setItem("anytime-markdown-content", "draft");
       const { result, rerender } = renderHook(
