@@ -59,6 +59,7 @@ describe("classifyCodeBlock", () => {
   it("language から種別を判定する", () => {
     expect(classifyCodeBlock("math")).toBe("math");
     expect(classifyCodeBlock("html")).toBe("html");
+    expect(classifyCodeBlock("markdown")).toBe("markdown");
     expect(classifyCodeBlock("mermaid")).toBe("diagram");
     expect(classifyCodeBlock("plantuml")).toBe("diagram");
     expect(classifyCodeBlock("embed")).toBe("embed");

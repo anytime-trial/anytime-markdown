@@ -10,6 +10,7 @@ describe("codeBlockToolbarLabel", () => {
   it("種別ごとのラベルを返す", () => {
     expect(codeBlockToolbarLabel("math", "math", t)).toBe("Math");
     expect(codeBlockToolbarLabel("html", "html", t)).toBe("htmlPreview");
+    expect(codeBlockToolbarLabel("markdown", "markdown", t)).toBe("markdownPreview");
     expect(codeBlockToolbarLabel("diagram", "mermaid", t)).toBe("mermaid");
     expect(codeBlockToolbarLabel("diagram", "plantuml", t)).toBe("plantuml");
     expect(codeBlockToolbarLabel("embed", "embed card", t)).toBe("Embed");

@@ -591,6 +591,7 @@
     "slashFrontmatter": "フロントマター",
     "slashNoResults": "一致するコマンドがありません",
     "htmlPreview": "HTML",
+    "markdownPreview": "Markdown",
     "tableLabel": "テーブル",
     "spreadsheetDiscardTitle": "未適用の変更",
     "spreadsheetDiscardMessage": "適用されていない変更があります。適用せずに閉じますか？",
