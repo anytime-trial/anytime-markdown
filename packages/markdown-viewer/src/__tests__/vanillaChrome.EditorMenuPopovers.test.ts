@@ -203,6 +203,67 @@ describe("createEditorMenuPopovers", () => {
     expect(getPaper("openFileMenu")).toBeNull();
   });
 
+  // --- saveFile popover ---
+  it("openSaveMenu は上書き保存 / 名前を付けて保存の 2 項目を出す", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      overwriteDisabled: false,
+    });
+    const paper = getPaper("saveFileMenu");
+    expect(paper).toBeTruthy();
+    expect(paper!.querySelectorAll('[role="menuitem"]').length).toBe(2);
+  });
+
+  it("onSaveToDrive があれば 3 項目になり、クリックで Drive 保存が呼ばれる", () => {
+    const m = createMockEditor();
+    let drive = 0;
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      onSaveToDrive: () => { drive += 1; },
+      overwriteDisabled: false,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items.length).toBe(3);
+    (items[2] as HTMLElement).click();
+    expect(drive).toBe(1);
+    expect(getPaper("saveFileMenu")).toBeNull();
+  });
+
+  it("overwriteDisabled=true なら上書き保存の項目が無効で、名前を付けて保存は選べる", () => {
+    const m = createMockEditor();
+    let saved = 0;
+    let savedAs = 0;
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => { saved += 1; },
+      onSaveAsFile: () => { savedAs += 1; },
+      overwriteDisabled: true,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect((items[0] as HTMLElement).getAttribute("aria-disabled")).toBe("true");
+    (items[0] as HTMLElement).click();
+    expect(saved).toBe(0);
+    (items[1] as HTMLElement).click();
+    expect(savedAs).toBe(1);
+  });
+
+  it("openSaveMenu は closeAll で閉じる", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      overwriteDisabled: false,
+    });
+    handle.closeAll();
+    expect(getPaper("saveFileMenu")).toBeNull();
+  });
+
   it("openFileMenu は closeAll で閉じる", () => {
     const m = createMockEditor();
     handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });

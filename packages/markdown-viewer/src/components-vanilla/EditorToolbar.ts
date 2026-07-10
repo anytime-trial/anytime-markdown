@@ -70,6 +70,8 @@ const PATH = {
   menu: "M3 18h18v-2H3zm0-5h18v-2H3zm0-7v2h18V6z",
   folderOpen:
     "M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V8h16z",
+  noteAdd:
+    "M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8zm2 14h-3v3h-2v-3H8v-2h3v-3h2v3h3zm-3-7V3.5L18.5 9z",
   save: "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3m3-10H5V5h10z",
   saveAs:
     "M21 12.4V7l-4-4H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h7.4zM15 15c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3M6 6h9v4H6zm13.99 10.25 1.77 1.77L16.77 23H15v-1.77zm3.26.26-.85.85-1.77-1.77.85-.85c.2-.2.51-.2.71 0l1.06 1.06c.2.2.2.52 0 .71",
@@ -154,6 +156,19 @@ export interface CreateEditorToolbarOptions {
     el: HTMLElement,
     handlers: { onOpenLocal: () => void | Promise<void>; onOpenFromDrive: () => void | Promise<void> },
   ) => void;
+  /**
+   * 「保存」ボタンのメニュー表示要求。`fileHandlers.onSaveFile` と `onSaveAsFile` が
+   * 揃っているときのみ発火する。`overwriteDisabled` は「上書き保存」項目の可否。
+   */
+  onSetSaveAnchor?: (
+    el: HTMLElement,
+    handlers: {
+      onSaveFile: () => void | Promise<void>;
+      onSaveAsFile: () => void | Promise<void>;
+      onSaveToDrive?: () => void | Promise<void>;
+      overwriteDisabled: boolean;
+    },
+  ) => void;
   /** モバイル more メニュー（ハンバーガー）クリックの intent（host 側 React Menu へ委譲）。 */
   onOpenMobileMenu?: (el: HTMLElement) => void;
   onHomeClick?: () => void;
@@ -218,6 +233,8 @@ export function createEditorToolbar(
   let isDirty = opts.isDirty ?? false;
   // save ボタンの toggle ハンドル（dirty / fileCapabilities 変化で disabled を再評価するため保持）。
   let saveBtn: ReturnType<typeof createToggleButton> | null = null;
+  /** 保存ボタンがメニュー化されているか（true なら disabled は readonly のみで再評価する）。 */
+  let saveBtnIsMenu = false;
   const hide = opts.hide ?? {};
   // 旧 EditorToolbar.module.css parity: ビュー群/compare/More(desktop) は md 未満で非表示、
   // More(mobile) は md 以上で非表示。display は本スタイルが所有する（inline に置かない）。
@@ -373,6 +390,53 @@ export function createEditorToolbar(
       return btn;
     };
 
+    /**
+     * 「新規作成」ボタンを追加する。open ボタンを出す分岐でのみ呼ぶ（open の直前に置く）。
+     */
+    const addNewFileBtn = (): void => {
+      addBtn({
+        value: "createNew",
+        ariaLabel: t("createNew"),
+        icon: PATH.noteAdd,
+        tipTitle: tip(t, "createNew"),
+        disabled: readonlyMode,
+        onClick: () => void fileHandlers.onNewFile?.(),
+      });
+    };
+
+    /**
+     * 「保存」ボタンを追加する。`onSaveAsFile` があり `onSetSaveAnchor` が渡されている場合のみ
+     * メニュー化する。メニュー化時はボタン自体を readonly でのみ無効化し、「上書き保存」の可否は
+     * `overwriteDisabled` として項目側へ渡す（無効なボタンはメニューを開けないため）。
+     */
+    const addSaveBtn = (tipTitle: string): ReturnType<typeof createToggleButton> => {
+      const { onSaveFile, onSaveAsFile, onSaveToDrive } = fileHandlers;
+      const asMenu = Boolean(onSaveFile && onSaveAsFile && opts.onSetSaveAnchor);
+      let btn: ReturnType<typeof createToggleButton>;
+      btn = addBtn({
+        value: "save",
+        ariaLabel: t("saveFile"),
+        icon: PATH.save,
+        tipTitle,
+        disabled: asMenu ? readonlyMode : saveDisabled(),
+        onClick: () => {
+          if (asMenu && onSaveFile && onSaveAsFile) {
+            opts.onSetSaveAnchor?.(btn.el, {
+              onSaveFile,
+              onSaveAsFile,
+              onSaveToDrive,
+              overwriteDisabled: saveDisabled(),
+            });
+            return;
+          }
+          void onSaveFile?.();
+        },
+      });
+      saveBtnIsMenu = asMenu;
+      if (asMenu) btn.el.setAttribute("aria-haspopup", "menu");
+      return btn;
+    };
+
     if (externalSaveOnly) {
       saveBtn = addBtn({
         value: "save",
@@ -383,24 +447,23 @@ export function createEditorToolbar(
         onClick: () => fileHandlers.onSaveFile?.(),
       });
     } else if (supportsDirectAccess) {
+      addNewFileBtn();
       addOpenBtn(() => fileHandlers.onOpenFile?.(), tip(t, "openFile"));
-      saveBtn = addBtn({
-        value: "save",
-        ariaLabel: t("saveFile"),
-        icon: PATH.save,
-        tipTitle: fileCapabilities?.hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle"),
-        disabled: saveDisabled(),
-        onClick: () => fileHandlers.onSaveFile?.(),
-      });
-      addBtn({
-        value: "saveAs",
-        ariaLabel: t("saveAsFile"),
-        icon: PATH.saveAs,
-        tipTitle: tip(t, "saveAsFile"),
-        disabled: readonlyMode,
-        onClick: () => fileHandlers.onSaveAsFile?.(),
-      });
+      const saveTip = fileCapabilities?.hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle");
+      saveBtn = addSaveBtn(saveTip);
+      // saveAs はメニュー化時に「名前を付けて保存」項目へ統合されるため単独ボタンを出さない。
+      if (!(fileHandlers.onSaveFile && fileHandlers.onSaveAsFile && opts.onSetSaveAnchor)) {
+        addBtn({
+          value: "saveAs",
+          ariaLabel: t("saveAsFile"),
+          icon: PATH.saveAs,
+          tipTitle: tip(t, "saveAsFile"),
+          disabled: readonlyMode,
+          onClick: () => fileHandlers.onSaveAsFile?.(),
+        });
+      }
     } else {
+      addNewFileBtn();
       addOpenBtn(() => fileHandlers.onImport(), t("openFile"));
       addBtn({
         value: "saveAs",
@@ -758,7 +821,9 @@ export function createEditorToolbar(
       // hasFileHandle はファイルを開く/保存で変化するため最新値を保持し disabled 再評価に使う。
       if (next.fileCapabilities !== undefined) fileCapabilities = next.fileCapabilities;
       // save ボタンの dirty / handle / readonly ゲートを再評価（編集→保存要、保存後→不要）。
-      saveBtn?.update({ disabled: saveDisabled() });
+      // メニュー化時はボタンを無効化するとメニュー自体を開けなくなるため readonly のみで判定する
+      // （「上書き保存」項目の可否は onSetSaveAnchor の overwriteDisabled で都度渡す）。
+      saveBtn?.update({ disabled: saveBtnIsMenu ? Boolean(modeState.readonlyMode) : saveDisabled() });
 
       // モード／compare の選択値を group へ反映。
       modeGroup?.setValue(currentMode());
