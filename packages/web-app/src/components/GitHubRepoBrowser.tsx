@@ -22,7 +22,7 @@ import {
 } from "@mui/material";
 import { signIn } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import { type FC, useCallback, useEffect, useState } from "react";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
 
 import type { GitHubRepo } from "../lib/githubApi";
 
@@ -69,6 +69,13 @@ export const GitHubRepoBrowser: FC<Readonly<GitHubRepoBrowserProps>> = ({
   const [currentPath, setCurrentPath] = useState("");
   const [loading, setLoading] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
+  /**
+   * 最新のツリー / ブランチ取得を識別する。リポジトリやブランチを続けて切り替えると
+   * 古いリクエストの応答が後着し、表示中の状態を上書きしてしまうため、発行順で弾く。
+   */
+  const requestIdRef = useRef(0);
+  /** ブランチ候補取得の識別子。ツリー取得とは無効化のタイミングが異なるため別に持つ。 */
+  const branchRequestIdRef = useRef(0);
 
   useEffect(() => {
     if (!open) return;
@@ -96,21 +103,25 @@ export const GitHubRepoBrowser: FC<Readonly<GitHubRepoBrowserProps>> = ({
 
   const fetchDirectory = useCallback(
     async (repo: GitHubRepo, ref: string, dirPath: string) => {
+      const requestId = ++requestIdRef.current;
       setLoading(true);
       try {
         const res = await fetch(
           `/api/github/content?repo=${encodeURIComponent(repo.fullName)}&path=${encodeURIComponent(dirPath)}&ref=${encodeURIComponent(ref)}`,
         );
         if (!res.ok) throw new Error(`Failed to fetch tree: ${res.status}`);
-        setTree(toTreeEntries(await res.json()));
+        const entries = toTreeEntries(await res.json());
+        if (requestId !== requestIdRef.current) return; // 後着した古い応答は捨てる
+        setTree(entries);
       } catch (e: unknown) {
         console.warn(
           `[${new Date().toISOString()}] [WARN] Failed to fetch GitHub tree ${repo.fullName}@${ref}:${dirPath}`,
           e instanceof Error ? e.stack : e,
         );
+        if (requestId !== requestIdRef.current) return;
         setTree([]);
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) setLoading(false);
       }
     },
     [],
@@ -118,16 +129,19 @@ export const GitHubRepoBrowser: FC<Readonly<GitHubRepoBrowserProps>> = ({
 
   /** ブランチ候補を取得する。失敗時は既定ブランチのみを候補にして続行する。 */
   const fetchBranches = useCallback(async (repo: GitHubRepo) => {
+    const requestId = ++branchRequestIdRef.current;
     try {
       const res = await fetch(`/api/github/branches?repo=${encodeURIComponent(repo.fullName)}`);
       if (!res.ok) throw new Error(`Failed to fetch branches: ${res.status}`);
       const data: unknown = await res.json();
+      if (requestId !== branchRequestIdRef.current) return; // 別リポジトリへ切替済み
       setBranchOptions(Array.isArray(data) && data.length > 0 ? data : [repo.defaultBranch]);
     } catch (e: unknown) {
       console.warn(
         `[${new Date().toISOString()}] [WARN] Failed to fetch GitHub branches ${repo.fullName}`,
         e instanceof Error ? e.stack : e,
       );
+      if (requestId !== branchRequestIdRef.current) return;
       setBranchOptions([repo.defaultBranch]);
     }
   }, []);

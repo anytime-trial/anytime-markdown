@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
 jest.mock("next-auth/react", () => ({
@@ -216,6 +216,50 @@ describe("GitHubRepoBrowser", () => {
       await waitFor(() => expect(screen.getByText("dev.md")).toBeTruthy());
       fireEvent.click(screen.getByText("dev.md"));
       expect(onSelect).toHaveBeenCalledWith("user/repo1", "dev.md", "develop");
+    });
+
+    it("ブランチ連続切替で古い応答が後着しても新しいツリーを上書きしない", async () => {
+      // develop の応答を main より遅らせ、後着させる。
+      const resolvers: Array<() => void> = [];
+      (global.fetch as unknown) = jest.fn((input: string) => {
+        const url = String(input);
+        if (url.startsWith("/api/github/repos")) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve(REPOS) });
+        }
+        if (url.startsWith("/api/github/branches")) {
+          return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve(["main", "develop"]) });
+        }
+        const ref = new URLSearchParams(url.split("?")[1]).get("ref") ?? "";
+        const entries =
+          ref === "main"
+            ? [{ path: "main.md", type: "file", name: "main.md" }]
+            : [{ path: "dev.md", type: "file", name: "dev.md" }];
+        if (ref === "main") {
+          // main の応答を保留し、develop 選択後に解決させる。
+          return new Promise((resolve) => {
+            resolvers.push(() =>
+              resolve({ status: 200, ok: true, json: () => Promise.resolve(entries) }),
+            );
+          });
+        }
+        return Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve(entries) });
+      });
+
+      render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+      await selectRepo(); // main のツリー取得は保留される
+
+      fireEvent.mouseDown(screen.getByLabelText("githubOpenBranchLabel"));
+      await waitFor(() => expect(screen.getByText("develop")).toBeTruthy());
+      fireEvent.click(screen.getByText("develop"));
+      await waitFor(() => expect(screen.getByText("dev.md")).toBeTruthy());
+
+      // ここで main（古いリクエスト）の応答が後着する
+      await act(async () => {
+        resolvers.forEach((r) => r());
+      });
+
+      expect(screen.getByText("dev.md")).toBeTruthy();
+      expect(screen.queryByText("main.md")).toBeNull();
     });
 
     it("ブランチ取得に失敗しても既定ブランチで続行する", async () => {
