@@ -814,6 +814,7 @@
     "githubOpenSelectRepo": "リポジトリを選択",
     "githubOpenBranchLabel": "ブランチ",
     "githubOpenBack": "戻る",
+    "githubOpenScopeUpgrade": "GitHub の権限を更新する必要があります。private リポジトリを表示するには、サインインし直して許可してください。",
     "githubOpenSignInRequired": "GitHub のサインインが必要です",
     "githubOpenSignInButton": "GitHub でサインイン",
     "githubOpenNoMarkdown": "Markdown ファイルがありません",

@@ -82,6 +82,19 @@ describe("GitHubRepoBrowser", () => {
     await waitFor(() => expect(screen.getByText("githubOpenSignInButton")).toBeTruthy());
   });
 
+  it("403（スコープ不足）なら再サインインを促す", async () => {
+    (global.fetch as unknown) = jest.fn(() =>
+      Promise.resolve({
+        status: 403,
+        ok: false,
+        json: () => Promise.resolve({ error: "insufficient_scope" }),
+      }),
+    );
+    render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);
+    await waitFor(() => expect(screen.getByText("githubOpenScopeUpgrade")).toBeTruthy());
+    expect(screen.getByText("githubOpenSignInButton")).toBeTruthy();
+  });
+
   it("fetch 失敗も認証要求として扱う", async () => {
     (global.fetch as unknown) = jest.fn(() => Promise.reject(new Error("network error")));
     render(<GitHubRepoBrowser open onClose={jest.fn()} onSelect={jest.fn()} />);

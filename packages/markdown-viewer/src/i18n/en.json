@@ -814,6 +814,7 @@
     "githubOpenSelectRepo": "Select repository",
     "githubOpenBranchLabel": "Branch",
     "githubOpenBack": "Go back",
+    "githubOpenScopeUpgrade": "GitHub permissions need updating. Sign in again and grant access to list private repositories.",
     "githubOpenSignInRequired": "GitHub authentication required",
     "githubOpenSignInButton": "Sign in with GitHub",
     "githubOpenNoMarkdown": "No Markdown files found",
