@@ -918,10 +918,10 @@ export function mountVanillaMarkdownEditor(
         onFileStateChange: ({ fileName, isDirty }) => {
           statusBar?.update({ fileName: fileName ?? current.fileName, isDirty });
           // save ボタンの dirty ゲート（保存が必要なときのみ有効化）。ファイルを開く/保存で
-          // hasFileHandle も変わるため、最新ハンドル状態と合わせてツールバーへ反映する。
+          // hasSaveTarget も変わるため、最新の保存先状態と合わせてツールバーへ反映する。
           toolbar?.update({
             isDirty,
-            fileCapabilities: { ...fileCapabilities, hasFileHandle: fileOps.hasFileHandle() },
+            fileCapabilities: { ...fileCapabilities, hasSaveTarget: fileOps.hasSaveTarget() },
           });
         },
         notify: (key) => {
@@ -1015,7 +1015,7 @@ export function mountVanillaMarkdownEditor(
         onExportRightFile: current.fileHandlers?.onExportRightFile,
       };
       const fileCapabilities: ToolbarFileCapabilities = current.fileCapabilities ?? {
-        hasFileHandle: fileOps.hasFileHandle(),
+        hasSaveTarget: fileOps.hasSaveTarget(),
         supportsDirectAccess: current.fileSystemProvider?.supportsDirectAccess ?? false,
         externalSaveOnly: !current.fileSystemProvider && !!current.onExternalSave,
       };

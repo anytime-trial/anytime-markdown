@@ -361,7 +361,13 @@ export function useEditorPage({
       return performDriveSave(content, driveFileRef.current.headRevisionId);
     }
     const sel = selectedFileRef.current;
-    if (!sel) return false;
+    if (!sel) {
+      // 上書き先が無い（GitHub にサインイン済みだがファイル未選択・Drive 未保存）。黙って false を
+      // 返すと「保存したつもり」で dirty だけが残るため、次に取るべき操作を案内する。
+      console.warn('External save requested with no target (no Drive file, no GitHub file selected)');
+      setSaveSnackbar({ message: t('saveNoTarget'), severity: 'error' });
+      return false;
+    }
     if (rememberedCommitMessageRef.current != null) {
       return performGitHubSave(content, rememberedCommitMessageRef.current);
     }
@@ -370,7 +376,7 @@ export function useEditorPage({
     return new Promise<boolean>((resolve) => {
       pendingCommitResolveRef.current = resolve;
     });
-  }, [performDriveSave, performGitHubSave]);
+  }, [performDriveSave, performGitHubSave, t]);
 
   /** 保留中の handleExternalSave（コミットメッセージ待ち）を保存完了可否で解決する。 */
   const settlePendingCommit = useCallback((saved: boolean) => {

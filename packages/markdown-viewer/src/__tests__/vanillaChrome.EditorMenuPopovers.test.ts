@@ -171,6 +171,30 @@ describe("createEditorMenuPopovers", () => {
     expect(paper!.querySelectorAll('[role="menuitem"]').length).toBe(2);
   });
 
+  it("openFileMenu はローカル項目のみにショートカットを表示する（Drive には無い）", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, { onOpenLocal: () => {}, onOpenFromDrive: () => {} });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items[0].textContent).toContain("+O");
+    expect(items[1].textContent).not.toContain("+");
+  });
+
+  it("openSaveMenu は上書き保存 / 名前を付けて保存にのみショートカットを表示する（Drive には無い）", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      onSaveToDrive: () => {},
+      overwriteDisabled: false,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items[0].textContent).toMatch(/\+S$/);
+    expect(items[1].textContent).toMatch(/\+Shift\+S$/);
+    expect(items[2].textContent).not.toContain("+");
+  });
+
   it("openFileMenu の 1 番目クリックで onOpenLocal が呼ばれ popover が閉じる", () => {
     const m = createMockEditor();
     let local = 0;

@@ -29,6 +29,7 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 
 import { MENU_ITEM_FONT_SIZE } from "../constants/dimensions";
 import { PLANTUML_SAMPLES } from "../constants/samples";
+import { modKey } from "../constants/shortcuts";
 import { getBuiltinTemplates, type MarkdownTemplate } from "../constants/templates";
 import type { TranslationFn } from "../types";
 import {
@@ -81,6 +82,26 @@ const MENU_ITEM_STYLE: Partial<CSSStyleDeclaration> = {
   fontSize: MENU_ITEM_FONT_SIZE,
   minHeight: "36px",
 };
+
+/**
+ * 「開く」/「保存」メニュー項目に表示するショートカット。
+ * ショートカットは実際にその動作を起こすキー操作のみを載せる（メニューを開くだけの
+ * ツールバーボタン側には出さない）。Google Drive の項目は対応するキー操作が無いため持たない。
+ */
+const MENU_SHORTCUTS = {
+  openFromLocal: `${modKey}+O`,
+  saveFile: `${modKey}+S`,
+  saveAsFile: `${modKey}+Shift+S`,
+} as const;
+
+/** メニュー項目の右端に置くショートカット表示（ラベルとは別枠で薄く表示する）。 */
+function shortcutHint(keys: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.textContent = keys;
+  span.style.cssText =
+    "margin-left:16px;flex:0 0 auto;white-space:nowrap;opacity:0.6;font-size:0.85em;";
+  return span;
+}
 
 /** Mermaid ロゴ専用 SVG（独自 viewBox のため svgIcon を使わず手組みする）。currentColor で塗る。 */
 function mermaidSvg(size = 18): SVGSVGElement {
@@ -352,11 +373,18 @@ export function createEditorMenuPopovers(
     container.style.cssText = "padding-top:4px;padding-bottom:4px;min-width:200px;";
     const cleanup = childCleanup.openFile;
 
-    const addItem = (iconPath: string, label: string, onSelect: () => void | Promise<void>): void => {
+    const addItem = (
+      iconPath: string,
+      label: string,
+      onSelect: () => void | Promise<void>,
+      o: { shortcut?: string } = {},
+    ): void => {
       const iconWrap = createListItemIcon({ children: svgIcon(iconPath, 20) });
       const text = createListItemText({ children: label });
+      const children = [iconWrap.el, text.el];
+      if (o.shortcut) children.push(shortcutHint(o.shortcut));
       const item = createMenuItem({
-        children: [iconWrap.el, text.el],
+        children,
         style: MENU_ITEM_STYLE,
         onClick: () => {
           close("openFile");
@@ -367,7 +395,9 @@ export function createEditorMenuPopovers(
       container.appendChild(item.el);
     };
 
-    addItem(PATH.folderOpen, t("openFromLocal"), handlers.onOpenLocal);
+    addItem(PATH.folderOpen, t("openFromLocal"), handlers.onOpenLocal, {
+      shortcut: MENU_SHORTCUTS.openFromLocal,
+    });
     addItem(PATH.addToDrive, t("openFromDrive"), handlers.onOpenFromDrive);
 
     handles.openFile = createPopover({
@@ -390,12 +420,14 @@ export function createEditorMenuPopovers(
       iconPath: string,
       label: string,
       onSelect: () => void | Promise<void>,
-      o: { disabled?: boolean } = {},
+      o: { disabled?: boolean; shortcut?: string } = {},
     ): void => {
       const iconWrap = createListItemIcon({ children: svgIcon(iconPath, 20) });
       const text = createListItemText({ children: label });
+      const children = [iconWrap.el, text.el];
+      if (o.shortcut) children.push(shortcutHint(o.shortcut));
       const item = createMenuItem({
-        children: [iconWrap.el, text.el],
+        children,
         disabled: o.disabled,
         style: MENU_ITEM_STYLE,
         onClick: () => {
@@ -407,8 +439,13 @@ export function createEditorMenuPopovers(
       container.appendChild(item.el);
     };
 
-    addItem(PATH.save, t("saveFile"), handlers.onSaveFile, { disabled: handlers.overwriteDisabled });
-    addItem(PATH.saveAs, t("saveAsFile"), handlers.onSaveAsFile);
+    addItem(PATH.save, t("saveFile"), handlers.onSaveFile, {
+      disabled: handlers.overwriteDisabled,
+      shortcut: MENU_SHORTCUTS.saveFile,
+    });
+    addItem(PATH.saveAs, t("saveAsFile"), handlers.onSaveAsFile, {
+      shortcut: MENU_SHORTCUTS.saveAsFile,
+    });
     if (handlers.onSaveToDrive) {
       addItem(PATH.addToDrive, t("saveToDrive"), handlers.onSaveToDrive);
     }
