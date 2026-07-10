@@ -49,6 +49,21 @@ function parseDriveContentPayload(value: unknown): DriveContentPayload | null {
   return { name, headRevisionId, content };
 }
 
+interface DriveCreatePayload {
+  fileId: string;
+  name: string;
+  headRevisionId: string | null;
+}
+
+/** POST /api/drive/content の応答（headRevisionId は作成直後 null のことがある）。 */
+function parseDriveCreatePayload(value: unknown): DriveCreatePayload | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const { fileId, name, headRevisionId } = record;
+  if (typeof fileId !== 'string' || typeof name !== 'string') return null;
+  return { fileId, name, headRevisionId: typeof headRevisionId === 'string' ? headRevisionId : null };
+}
+
 function parseDriveHeadRevisionId(value: unknown): string | null {
   const record = asRecord(value);
   const headRevisionId = record?.headRevisionId;
@@ -95,6 +110,7 @@ export interface EditorPageState {
   commitMessageDialog: { open: boolean; defaultMessage: string } | null;
   /** 任意ソースから GitHub へコミットするダイアログ。null は非表示。 */
   commitToGitHubDialog: { open: boolean; defaultPath: string } | null;
+  driveSaveAsDialog: { open: boolean; defaultName: string } | null;
 }
 
 export interface EditorPageActions {
@@ -109,6 +125,9 @@ export interface EditorPageActions {
   setSaveSnackbar: (v: { message: string; severity: 'success' | 'error' } | null) => void;
   fileSystemProvider: WebFileSystemProvider | FallbackFileSystemProvider | null;
   handleDriveOpen: () => Promise<void>;
+  handleSaveToDriveClick: (defaultName: string) => void;
+  handleSaveToDriveConfirm: (name: string) => Promise<void>;
+  handleSaveToDriveCancel: () => void;
   handleDriveConflictOverwrite: () => Promise<void>;
   handleDriveConflictCancel: () => void;
   handleCommitMessageConfirm: (message: string, remember: boolean) => Promise<void>;
@@ -164,6 +183,7 @@ export function useEditorPage({
   /** 「次回から同じメッセージを使う」チェック時に保持するメッセージ（セッション内のみ）。 */
   const rememberedCommitMessageRef = useRef<string | null>(null);
   const [commitToGitHubDialog, setCommitToGitHubDialog] = useState<{ open: boolean; defaultPath: string } | null>(null);
+  const [driveSaveAsDialog, setDriveSaveAsDialog] = useState<{ open: boolean; defaultName: string } | null>(null);
 
   // エディタページでのみ body に editor-page クラスを付与し overflow: hidden を適用
   useEffect(() => {
@@ -394,6 +414,58 @@ export function useEditorPage({
     }
   }, [signInFn, t]);
 
+  /** 保存メニューの「Google Drive に保存」: ファイル名入力ダイアログを開く。 */
+  const handleSaveToDriveClick = useCallback((defaultName: string) => {
+    setDriveSaveAsDialog({ open: true, defaultName });
+  }, []);
+
+  const handleSaveToDriveCancel = useCallback(() => {
+    setDriveSaveAsDialog(null);
+  }, []);
+
+  /**
+   * Drive 上に新規ファイルを作成し、以後の上書き保存先を新ファイルへ切り替える。
+   * `drive.file` スコープではアプリが作成したファイルは Picker を経由せず操作できる。
+   */
+  const handleSaveToDriveConfirm = useCallback(async (name: string) => {
+    setDriveSaveAsDialog(null);
+    const res = await fetchFn('/api/drive/content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, content: currentContentRef.current }),
+    });
+    if (res.status === 401) {
+      // 未サインイン。開く経路と同じく同意画面へ誘導する。
+      await startGoogleSignIn();
+      return;
+    }
+    if (!res.ok) {
+      const detail = parseErrorMessage(await res.json().catch(() => null));
+      console.warn(`Failed to create Drive file (${res.status}):`, detail);
+      setSaveSnackbar({ message: t('driveCreateError'), severity: 'error' });
+      return;
+    }
+    const payload = parseDriveCreatePayload(await res.json().catch(() => null));
+    if (!payload) {
+      console.warn('Failed to create Drive file: unexpected payload shape');
+      setSaveSnackbar({ message: t('driveCreateError'), severity: 'error' });
+      return;
+    }
+
+    driveFileRef.current = {
+      fileId: payload.fileId,
+      name: payload.name,
+      headRevisionId: payload.headRevisionId ?? '',
+    };
+    selectedFileRef.current = null;
+    setHasDriveFile(true);
+    originalContentRef.current = currentContentRef.current;
+    setIsDirty(false);
+    setExternalFileName(payload.name);
+    setExternalFilePath(payload.name);
+    setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
+  }, [fetchFn, t, startGoogleSignIn]);
+
   /** Google Picker で Drive 上の Markdown ファイルを選択し、本文を読み込んでエディタへ反映する。 */
   const handleDriveOpen = useCallback(async () => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? '';
@@ -493,6 +565,7 @@ export function useEditorPage({
     hasDriveFile,
     commitMessageDialog,
     commitToGitHubDialog,
+    driveSaveAsDialog,
     handleToggleExplorer,
     handleExplorerSelectFile,
     handleExternalSave,
@@ -504,6 +577,9 @@ export function useEditorPage({
     setSaveSnackbar,
     fileSystemProvider,
     handleDriveOpen,
+    handleSaveToDriveClick,
+    handleSaveToDriveConfirm,
+    handleSaveToDriveCancel,
     handleDriveConflictOverwrite,
     handleDriveConflictCancel,
     handleCommitMessageConfirm,

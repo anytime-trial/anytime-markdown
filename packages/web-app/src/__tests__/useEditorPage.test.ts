@@ -415,6 +415,80 @@ describe("useEditorPage", () => {
     });
   });
 
+  describe("Drive への新規保存", () => {
+    it("handleSaveToDriveClick でファイル名ダイアログが開く（既定名は現在のファイル名）", () => {
+      const { result } = renderHook(() => useEditorPage(createHookOptions()));
+      act(() => result.current.handleSaveToDriveClick("note.md"));
+      expect(result.current.driveSaveAsDialog).toEqual({ open: true, defaultName: "note.md" });
+    });
+
+    it("確定すると POST /api/drive/content を呼び、以後の保存先が新ファイルになる", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "new-1", name: "note.md", headRevisionId: "rev1" }),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn })));
+
+      act(() => result.current.handleSaveToDriveClick("note.md"));
+      await act(async () => {
+        await result.current.handleSaveToDriveConfirm("note.md");
+      });
+
+      const [url, init] = (fetchFn as jest.Mock).mock.calls[0];
+      expect(url).toBe("/api/drive/content");
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(init.body)).toEqual({ name: "note.md", content: "" });
+      expect(result.current.driveSaveAsDialog).toBeNull();
+      expect(result.current.hasDriveFile).toBe(true);
+      expect(result.current.saveSnackbar).toEqual({ message: "fileSaved", severity: "success" });
+    });
+
+    it("失敗時は driveCreateError を通知し保存先を切り替えない", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: () => Promise.resolve({ error: "forbidden" }),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn })));
+
+      await act(async () => {
+        await result.current.handleSaveToDriveConfirm("note.md");
+      });
+
+      expect(result.current.hasDriveFile).toBe(false);
+      expect(result.current.saveSnackbar).toEqual({
+        message: "driveCreateError",
+        severity: "error",
+      });
+    });
+
+    it("未サインイン（401）なら google サインインへ遷移する", async () => {
+      const signInFn = jest.fn().mockResolvedValue(undefined);
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: "Not authenticated" }),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn, signInFn })));
+
+      await act(async () => {
+        await result.current.handleSaveToDriveConfirm("note.md");
+      });
+
+      expect(signInFn).toHaveBeenCalledWith("google", { callbackUrl: window.location.href });
+      expect(result.current.saveSnackbar).toBeNull();
+    });
+
+    it("キャンセルでダイアログが閉じ、fetch を呼ばない", () => {
+      const fetchFn = jest.fn() as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn })));
+      act(() => result.current.handleSaveToDriveClick("note.md"));
+      act(() => result.current.handleSaveToDriveCancel());
+      expect(result.current.driveSaveAsDialog).toBeNull();
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+  });
+
   describe("handleDriveOpen", () => {
     const originalApiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
     const originalAppId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID;
