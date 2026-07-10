@@ -289,7 +289,7 @@ export function createFileOpsController(
     if (choice === "discard") return true;
 
     try {
-      await (hasWritableTarget() ? saveFileImpl() : saveAsFileImpl());
+      await (hasSaveTarget() ? saveFileImpl() : saveAsFileImpl());
     } catch (error) {
       console.warn("[fileOpsController] save before continue failed", error);
       return false;
@@ -298,8 +298,16 @@ export function createFileOpsController(
     return !dirty;
   };
 
-  /** 上書き保存の宛先を既に持っているか（外部保存ホストは常に持つ）。 */
-  const hasWritableTarget = (): boolean => Boolean(options.onExternalSave) || fileHandle != null;
+  /**
+   * 上書き保存の宛先を既に持っているか。ローカルの FileHandle と外部保存（Google Drive /
+   * GitHub 等）の双方を含む。`saveFileImpl` が `onExternalSave` を最優先し `fileHandle` を
+   * 参照しないため、両者を同じ「宛先あり」として扱う。
+   *
+   * 未保存ガード（{@link guardDirty}）の保存経路選択と、ツールバーの上書き保存ボタンの
+   * 有効判定（`FileOpsController.hasSaveTarget`）は同一の述語でなければならない。片方だけを
+   * 拡張すると「保存は動くのにボタンだけ無効」といった不整合になる。
+   */
+  const hasSaveTarget = (): boolean => fileHandle != null || !!options.onExternalSave;
 
   const importFile = async (file: File, nativeHandle?: FileSystemFileHandle): Promise<void> => {
     if (!file.name.endsWith(".md") && !file.type.startsWith("text/")) return;
@@ -360,6 +368,6 @@ export function createFileOpsController(
     markDirty: () => setDirty(true),
     getFileName: () => fileHandle?.name ?? null,
     isDirty: () => dirty,
-    hasSaveTarget: () => fileHandle != null || !!options.onExternalSave,
+    hasSaveTarget,
   };
 }
