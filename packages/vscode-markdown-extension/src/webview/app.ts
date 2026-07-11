@@ -43,7 +43,7 @@ import { buildWebviewFileHandlers } from './fileHandlers';
 import { isInternalLink } from './linkClick';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
 import { createWebImportBridgeProvider } from './webImportBridge';
-import { createNoteGraphPanel, type NoteGraphPanelHandle } from './noteGraph/panel';
+import { createNoteGraphPanel, type NoteGraphPanelHandle } from '@anytime-markdown/graph-core';
 
 const vscode = getVsCodeApi();
 // markdown-core の EditorContextMenu 等から VS Code API にアクセスするため公開

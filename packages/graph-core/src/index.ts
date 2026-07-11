@@ -8,6 +8,9 @@ export * as presets from './presets/index';
 // vanilla canvas ビューア（webview 等の埋め込み用）
 export { GraphView } from './viewer/index';
 export type { GraphViewOptions } from './viewer/index';
+// ノート網パネル（VS Code 拡張 / web-app 共有の vanilla DOM 部品）
+export { createNoteGraphPanel } from './viewer/index';
+export type { NoteGraphPanelOptions, NoteGraphPanelHandle } from './viewer/index';
 export {
   buildThinkingDiagram,
   THINKING_DIAGRAM_TYPES,
