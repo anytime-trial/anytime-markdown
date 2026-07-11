@@ -404,8 +404,7 @@ export function createEditorToolbar(
     ): ReturnType<typeof createToggleButton> => {
       const { onOpenFromDrive, onOpenFromGitHub } = fileHandlers;
       const asMenu = Boolean((onOpenFromDrive ?? onOpenFromGitHub) && opts.onSetOpenFileAnchor);
-      let btn: ReturnType<typeof createToggleButton>;
-      btn = addBtn({
+      const btn = addBtn({
         value: "open",
         ariaLabel: t("openFile"),
         icon: PATH.folderOpen,
@@ -449,8 +448,7 @@ export function createEditorToolbar(
     const addSaveBtn = (tipTitle: string): ReturnType<typeof createToggleButton> => {
       const { onSaveFile, onSaveAsFile, onSaveToDrive } = fileHandlers;
       const asMenu = Boolean(onSaveFile && onSaveAsFile && opts.onSetSaveAnchor);
-      let btn: ReturnType<typeof createToggleButton>;
-      btn = addBtn({
+      const btn = addBtn({
         value: "save",
         ariaLabel: asMenu ? t("save") : overwriteSaveLabel(),
         icon: PATH.save,

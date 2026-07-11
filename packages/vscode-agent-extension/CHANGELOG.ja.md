@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-11
+
 ### 追加
 
 - `anytime-cross-review` スキルを同梱し、`.claude/skills/` へ自動配置するようにしました。異なるエージェント（Claude / Codex）による相互レビューを目的とするスキルのため、配布元を Anytime Trail 拡張から本拡張へ移行しました。

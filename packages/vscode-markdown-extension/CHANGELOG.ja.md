@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-07-11
+
+### 変更
+
+- アイコン資産を `camel_markdown-<size>` 命名へ統一。
+
+### 修正
+
+- editorMode 通知に hostReadOnly を反映。
+
+### エディタコア (markdown-core)
+
+- ツールバーの「開く」を Google Drive・「GitHub から開く」を含むメニュー化。「新規」ボタン・「保存」メニュー・未保存変更ガードを追加。
+- ステータスバーに保存先バッジ（ローカル / GitHub / Drive）を表示。GitHub の上書き保存を「GitHub にコミット」に改名。
+- フェンス付き markdown のレンダリングプレビュー、DOMPurify による Mermaid ラベル削除の修正、readOnly prop とユーザー readonly モードの分離。
+
 ## [1.10.0] - 2026-07-09
 
 ### Editor Core (markdown-viewer / markdown-rich)

@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-07-11
+
 ### 変更
 
 - `anytime-cross-review` スキルの同梱を終了しました。配布元は Anytime Agent 拡張へ移行しています。既にワークスペースへ配置済みの `.claude/skills/anytime-cross-review/` は削除されませんが、以後の更新を受け取るには Anytime Agent 拡張をインストールしてください。
