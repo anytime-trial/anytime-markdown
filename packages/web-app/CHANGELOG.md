@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-07-11
+
+### Added
+
+- Show the note graph (read-only) only when a document is opened from GitHub.
+
+### Fixed
+
+- Surfaced note graph fetch failures and handled slash-containing branch names when resolving the git tree (pre-merge review fixes).
+
 ## [0.36.0] - 2026-07-11
 
 ### Added
