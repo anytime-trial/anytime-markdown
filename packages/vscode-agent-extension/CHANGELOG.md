@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-07-11
+
+### Fixed
+
+- agent-status hooks now resolve the workspace by walking up from the hook's working directory instead of absolute paths baked into `settings.json`, fixing status routing when multiple workspaces are open; the reported branch is now based on the hook's cwd (worktree-aware).
+
+### Changed
+
+- Updated the bundled `anytime-cross-review` skill to reference the renamed `anytime-review` finding format.
+
 ## [1.1.0] - 2026-07-11
 
 ### Added

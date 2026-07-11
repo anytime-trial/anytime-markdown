@@ -1,6 +1,8 @@
 {
   "anytime-markdown-check": 1,
-  "anytime-markdown-output": 1,
-  "anytime-markdown-mcp-tactics": 2,
-  "anytime-mermaid": 1
+  "anytime-markdown-output": 2,
+  "anytime-mermaid": 1,
+  "anytime-doc-authoring": 3,
+  "anytime-markdown-usage": 2,
+  "anytime-spec-lookup": 1
 }

@@ -5,7 +5,7 @@ import { LinkValidationProvider } from './providers/LinkValidationProvider';
 import { ClaudeStatusWatcher, TimelineProvider, TimelineItem } from '@anytime-markdown/vscode-common';
 import { WorkerStatusSource } from './claude/WorkerStatusSource';
 import { McpMarkdownServerProvider } from './providers/McpMarkdownServerProvider';
-import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
+import { registerMcpRegistrationCommand, autoRegisterMcpServerIfMissing } from './commands/mcpRegistrationCommand';
 import { MarkdownLogger } from './utils/MarkdownLogger';
 import { DocIngestRunner } from './docCore/DocIngestRunner';
 import { resolveDocDbPath } from './docCore/docDbPath';
@@ -29,6 +29,9 @@ export function activate(context: vscode.ExtensionContext) {
 		),
 	);
 	registerMcpRegistrationCommand(context, extensionDistPath);
+	// Claude Code 向け .mcp.json への登録も activate 時に自動実施する（エントリ不在時のみ追加。
+	// 既存エントリ・パース不能ファイルには触れない。スキル自動配置と同じ「インストールで完結」方針）。
+	autoRegisterMcpServerIfMissing(extensionDistPath);
 
 	// 同梱した Claude Code スキル（anytime-markdown-*・anytime-mermaid）を
 	// ワークスペースの .claude/skills/ へ配置する（manifest のバージョン差分で上書き）。

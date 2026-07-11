@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const cr = require('./codex-review.cjs');
 
-test('buildReviewPrompt は review-finding-format とセンチネルと read-only 制約と diff 指示を含む', () => {
+test('buildReviewPrompt は anytime-review とセンチネルと read-only 制約と diff 指示を含む', () => {
   const p = cr.buildReviewPrompt('develop');
   assert.match(p, /git diff develop\.\.\.HEAD/);
   assert.match(p, /### N\. タイトル/);

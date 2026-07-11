@@ -750,7 +750,7 @@ describe('parseReviewSessions', () => {
     trailDb.close();
   }, 30000);
 
-  // 回帰テスト(根本原因A): review-finding-format の `- 重大度: warn` 明示マーカーを解析する。
+  // 回帰テスト(根本原因A): anytime-review の `- 重大度: warn` 明示マーカーを解析する。
   // 旧実装は本文キーワード/見出し推論のみで、warn キーワードを含まない warn 指摘を
   // 既定の info に誤判定していた。
   test('honors explicit `重大度:` severity marker over keyword inference', async () => {

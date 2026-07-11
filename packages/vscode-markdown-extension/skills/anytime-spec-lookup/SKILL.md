@@ -1,12 +1,12 @@
 ---
-name: spec-lookup
+name: anytime-spec-lookup
 effort: low
 description: anytime-markdown の設計書（/Shared/anytime-markdown-docs/spec）を低トークンで辿るためのナビゲーション手順。索引(index.ja.md) → 対象 frontmatter → 型付き related を必要な深さだけ辿る progressive disclosure。設計書の調査・参照・関連ドキュメント探索・「どの spec を読むべきか」を判断する時に使用する。
 ---
 
-# 設計書ナビゲーション（spec-lookup）
+# 設計書ナビゲーション（anytime-spec-lookup）
 
-更新日: 2026-07-04
+更新日: 2026-07-11
 
 設計書（`/Shared/anytime-markdown-docs/spec`・約 170 ファイル / 42k 行）を**全 Read せず**、
 索引と frontmatter の型付き関係を使って必要箇所だけ辿る手順。文脈肥大（`cache_read` 加重）を避ける。
@@ -49,5 +49,5 @@ related:
 
 ## 索引の再生成
 
-frontmatter を変更したら `npm run spec:index`（`node scripts/gen-spec-index.mjs [specDir] [outFile]`）で
-`spec/index.ja.md` を再生成する。索引は生成物のため手で編集しない。
+索引は生成物のため手で編集しない。再生成コマンド・運用（type 別 `npm run spec:index` 等・再生成必須の条件）は
+`anytime-doc-authoring` スキル §1.2 に集約した（書き手側の運用のため。本スキルは読み手側ナビに徹する）。

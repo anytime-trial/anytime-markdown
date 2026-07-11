@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-07-11
+
+### 追加
+
+- activate 時に同梱の mcp-markdown サーバーをワークスペースの `.mcp.json` へ自動登録（既存エントリとマージし、アトミック書き込みで反映）。
+
+### 変更
+
+- 同梱スキルを更新: `anytime-doc-authoring` スキル（type 別の記載内容規約）と `anytime-spec-lookup`（設計書ナビゲーション。`spec-lookup` から改名）を新規同梱。`anytime-markdown-mcp-tactics` を `anytime-markdown-usage` へリネーム。`anytime-markdown-output` を更新。
+
 ## [1.12.0] - 2026-07-11
 
 ### 追加
