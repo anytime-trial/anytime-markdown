@@ -2,6 +2,7 @@
  * useEditorPage hook のユニットテスト
  */
 
+import { writeDraft } from "@anytime-markdown/markdown-viewer/src/utils/draftStorage";
 import { renderHook, act } from "@testing-library/react";
 
 import { useEditorPage } from "../app/markdown/useEditorPage";
@@ -20,13 +21,20 @@ jest.mock("../lib/FallbackFileSystemProvider", () => ({
 jest.mock("../lib/githubApi", () => ({
   fetchFileContent: jest.fn(),
 }));
+jest.mock("../lib/googlePicker", () => ({
+  pickDriveMarkdownFile: jest.fn(),
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { pickDriveMarkdownFile } = jest.requireMock("../lib/googlePicker") as {
+  pickDriveMarkdownFile: jest.Mock;
+};
 
 const mockT = (key: string) => key;
 
 function createHookOptions(overrides: Partial<Parameters<typeof useEditorPage>[0]> = {}) {
   return {
-    isGitHubLoggedIn: false,
-    session: null,
+    isGitHubConnected: false,
     t: mockT,
     fetchFileFn: jest.fn().mockResolvedValue("# Mock content"),
     fetchFn: jest.fn().mockResolvedValue({
@@ -46,41 +54,13 @@ describe("useEditorPage", () => {
   describe("初期状態", () => {
     it("デフォルトの初期値が正しい", () => {
       const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      expect(result.current.explorerOpen).toBe(false);
       expect(result.current.externalContent).toBeUndefined();
       expect(result.current.externalFileName).toBeUndefined();
-      expect(result.current.externalFilePath).toBeUndefined();
       expect(result.current.externalCompareContent).toBeNull();
       expect(result.current.editorKey).toBe(0);
       expect(result.current.isDirty).toBe(false);
-      expect(result.current.newCommit).toBeNull();
       expect(result.current.saveSnackbar).toBeNull();
       expect(result.current.ssoSnackbar).toBeNull();
-    });
-
-    it("sessionStorage に explorerOpen=1 がある場合 true で初期化", () => {
-      sessionStorage.setItem("explorerOpen", "1");
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      expect(result.current.explorerOpen).toBe(true);
-    });
-  });
-
-  describe("handleToggleExplorer", () => {
-    it("エクスプローラの開閉を切り替える", () => {
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      expect(result.current.explorerOpen).toBe(false);
-      act(() => result.current.handleToggleExplorer());
-      expect(result.current.explorerOpen).toBe(true);
-      act(() => result.current.handleToggleExplorer());
-      expect(result.current.explorerOpen).toBe(false);
-    });
-
-    it("explorerOpen の変更が sessionStorage に反映される", () => {
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      act(() => result.current.handleToggleExplorer());
-      expect(sessionStorage.getItem("explorerOpen")).toBe("1");
-      act(() => result.current.handleToggleExplorer());
-      expect(sessionStorage.getItem("explorerOpen")).toBe("0");
     });
   });
 
@@ -92,7 +72,7 @@ describe("useEditorPage", () => {
     });
   });
 
-  describe("handleExplorerSelectFile", () => {
+  describe("handleGitHubOpenFile", () => {
     it("ファイル選択でコンテンツを取得しエディタをリセットする", async () => {
       const fetchFileFn = jest.fn().mockResolvedValue("# Hello");
       const { result } = renderHook(() =>
@@ -101,12 +81,11 @@ describe("useEditorPage", () => {
       const initialKey = result.current.editorKey;
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
       expect(fetchFileFn).toHaveBeenCalledWith("owner/repo", "README.md", "main");
       expect(result.current.externalFileName).toBe("README.md");
-      expect(result.current.externalFilePath).toBe("README.md");
       expect(result.current.isDirty).toBe(false);
       expect(result.current.editorKey).toBeGreaterThan(initialKey);
     });
@@ -118,13 +97,13 @@ describe("useEditorPage", () => {
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
       const keyAfterFirst = result.current.editorKey;
       fetchFileFn.mockClear();
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
       expect(fetchFileFn).not.toHaveBeenCalled();
@@ -138,11 +117,10 @@ describe("useEditorPage", () => {
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "docs/guide/intro.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "docs/guide/intro.md", "main");
       });
 
       expect(result.current.externalFileName).toBe("intro.md");
-      expect(result.current.externalFilePath).toBe("docs/guide/intro.md");
     });
   });
 
@@ -160,11 +138,12 @@ describe("useEditorPage", () => {
 
       // ファイルを選択してから保存
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
+      // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
       await act(async () => {
-        await result.current.handleExternalSave("# Updated");
+        void result.current.handleExternalSave("# Updated");
       });
 
       // GitHub 保存はコミットメッセージダイアログを経由する（Task10）。
@@ -189,9 +168,6 @@ describe("useEditorPage", () => {
       }));
       expect(result.current.commitMessageDialog).toBeNull();
       expect(result.current.isDirty).toBe(false);
-      expect(result.current.newCommit).toEqual(
-        expect.objectContaining({ sha: "abc" }),
-      );
       expect(result.current.saveSnackbar).toEqual({ message: "fileSaved", severity: "success" });
     });
 
@@ -207,11 +183,12 @@ describe("useEditorPage", () => {
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
+      // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
       await act(async () => {
-        await result.current.handleExternalSave("# Updated");
+        void result.current.handleExternalSave("# Updated");
       });
 
       await act(async () => {
@@ -226,19 +203,20 @@ describe("useEditorPage", () => {
       const fetchFn = jest.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({}),
-      }) as unknown as typeof fetch;
+      });
 
       const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFileFn, fetchFn })),
+        useEditorPage(createHookOptions({ fetchFileFn, fetchFn: fetchFn as unknown as typeof fetch })),
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
       fetchFn.mockClear();
 
+      // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
       await act(async () => {
-        await result.current.handleExternalSave("# Updated");
+        void result.current.handleExternalSave("# Updated");
       });
       act(() => result.current.handleCommitMessageCancel());
 
@@ -252,18 +230,19 @@ describe("useEditorPage", () => {
       const fetchFn = jest.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({}),
-      }) as unknown as typeof fetch;
+      });
 
       const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFileFn, fetchFn })),
+        useEditorPage(createHookOptions({ fetchFileFn, fetchFn: fetchFn as unknown as typeof fetch })),
       );
 
       await act(async () => {
-        await result.current.handleExplorerSelectFile("owner/repo", "README.md", "main");
+        await result.current.handleGitHubOpenFile("owner/repo", "README.md", "main");
       });
 
+      // 初回はコミットメッセージ確定まで解決しないため await しない。
       await act(async () => {
-        await result.current.handleExternalSave("# Updated once");
+        void result.current.handleExternalSave("# Updated once");
       });
       await act(async () => {
         await result.current.handleCommitMessageConfirm("remembered message", true);
@@ -303,97 +282,72 @@ describe("useEditorPage", () => {
   });
 
   describe("handleCompareModeChange", () => {
-    it("比較モードを有効にする", () => {
+    it("比較モードの切替は本文とエディタ再生成に影響しない", () => {
       const { result } = renderHook(() => useEditorPage(createHookOptions()));
       act(() => result.current.handleCompareModeChange(true));
-      // compareModeOpen は内部状態なので、handleSelectCurrent の挙動で確認
-    });
-  });
-
-  describe("handleExplorerSelectCommit", () => {
-    it("通常モードでコミット選択するとエディタにコンテンツを表示する", async () => {
-      const fetchFileFn = jest.fn().mockResolvedValue("# Commit content");
-      const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFileFn })),
-      );
-      const initialKey = result.current.editorKey;
-
-      await act(async () => {
-        await result.current.handleExplorerSelectCommit("owner/repo", "README.md", "sha123");
-      });
-
-      expect(fetchFileFn).toHaveBeenCalledWith("owner/repo", "README.md", "sha123");
-      expect(result.current.externalContent).toBe("# Commit content");
-      expect(result.current.externalFileName).toBe("README.md");
-      expect(result.current.editorKey).toBeGreaterThan(initialKey);
-    });
-
-    it("fetchFileContent が空文字を返した場合でも表示する", async () => {
-      const fetchFileFn = jest.fn().mockResolvedValue("");
-      const { result } = renderHook(() =>
-        useEditorPage(createHookOptions({ fetchFileFn })),
-      );
-
-      await act(async () => {
-        await result.current.handleExplorerSelectCommit("owner/repo", "empty.md", "sha456");
-      });
-
-      expect(result.current.externalContent).toBe("");
-    });
-  });
-
-  describe("handleSelectCurrent", () => {
-    it("通常モードで編集中データに戻す", () => {
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-      const initialKey = result.current.editorKey;
-
-      act(() => result.current.handleSelectCurrent());
-
       expect(result.current.externalContent).toBeUndefined();
       expect(result.current.externalCompareContent).toBeNull();
-      expect(result.current.editorKey).toBeGreaterThan(initialKey);
-    });
-
-    it("比較モードでは右側を空にしてモード維持", () => {
-      const { result } = renderHook(() => useEditorPage(createHookOptions()));
-
-      act(() => result.current.handleCompareModeChange(true));
-      act(() => result.current.handleSelectCurrent());
-
-      expect(result.current.externalCompareContent).toBe("");
+      expect(result.current.editorKey).toBe(0);
     });
   });
 
   describe("SSO ログイン", () => {
-    it("isGitHubLoggedIn が true になると explorerOpen が true になる", () => {
+    it("GitHub 接続時に ssoSnackbar が表示される", () => {
       const { result, rerender } = renderHook(
         (props) => useEditorPage(props),
-        { initialProps: createHookOptions({ isGitHubLoggedIn: false }) },
-      );
-      expect(result.current.explorerOpen).toBe(false);
-
-      rerender(createHookOptions({ isGitHubLoggedIn: true }));
-      expect(result.current.explorerOpen).toBe(true);
-    });
-
-    it("セッション変更時に ssoSnackbar が表示される", () => {
-      const { result, rerender } = renderHook(
-        (props) => useEditorPage(props),
-        { initialProps: createHookOptions({ session: null }) },
+        { initialProps: createHookOptions({ isGitHubConnected: false }) },
       );
 
-      rerender(createHookOptions({ session: { user: { name: "test" } } }));
+      rerender(createHookOptions({ isGitHubConnected: true }));
       expect(result.current.ssoSnackbar).toBe("githubConnected");
     });
 
     it("ログアウト時に disconnected メッセージが表示される", () => {
       const { result, rerender } = renderHook(
         (props) => useEditorPage(props),
-        { initialProps: createHookOptions({ session: { user: { name: "test" } } }) },
+        { initialProps: createHookOptions({ isGitHubConnected: true }) },
       );
 
-      rerender(createHookOptions({ session: null }));
+      rerender(createHookOptions({ isGitHubConnected: false }));
       expect(result.current.ssoSnackbar).toBe("githubDisconnected");
+    });
+
+    it("セッション読込中から接続済みへ確定しただけでは snackbar を出さない（リロード時の誤通知）", () => {
+      const { result, rerender } = renderHook(
+        (props) => useEditorPage(props),
+        { initialProps: createHookOptions({ isGitHubConnected: undefined }) },
+      );
+
+      // useSession は最初 status:'loading'（未確定）を返し、その後 GitHub 接続済みが判明する。
+      rerender(createHookOptions({ isGitHubConnected: true }));
+      expect(result.current.ssoSnackbar).toBeNull();
+    });
+
+    it("未確定→未接続→接続の遷移では接続時のみ snackbar を出す", () => {
+      const { result, rerender } = renderHook(
+        (props) => useEditorPage(props),
+        { initialProps: createHookOptions({ isGitHubConnected: undefined }) },
+      );
+
+      rerender(createHookOptions({ isGitHubConnected: false }));
+      expect(result.current.ssoSnackbar).toBeNull();
+
+      rerender(createHookOptions({ isGitHubConnected: true }));
+      expect(result.current.ssoSnackbar).toBe("githubConnected");
+    });
+
+    it("GitHub 未接続のままなら本文クリアも snackbar も起きない（Google のみサインイン相当）", () => {
+      localStorage.setItem("anytime-markdown-content", "draft");
+      const { result, rerender } = renderHook(
+        (props) => useEditorPage(props),
+        { initialProps: createHookOptions({ isGitHubConnected: false }) },
+      );
+
+      // Google サインインで session は非 null になるが GitHub は未接続のまま。
+      rerender(createHookOptions({ isGitHubConnected: false }));
+      expect(result.current.ssoSnackbar).toBeNull();
+      expect(result.current.externalContent).toBeUndefined();
+      expect(localStorage.getItem("anytime-markdown-content")).toBe("draft");
     });
   });
 
@@ -412,6 +366,587 @@ describe("useEditorPage", () => {
       expect(result.current.saveSnackbar).toEqual({ message: "saved", severity: "success" });
       act(() => result.current.setSaveSnackbar(null));
       expect(result.current.saveSnackbar).toBeNull();
+    });
+  });
+
+  describe("handleExternalSave の保存完了通知（未保存ガード連携）", () => {
+    const originalApiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+    const originalAppId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID;
+
+    afterEach(() => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = originalApiKey;
+      process.env.NEXT_PUBLIC_GOOGLE_APP_ID = originalAppId;
+    });
+
+    /** Drive で開いた状態にする（POST 経由で driveFileRef を持たせる）。 */
+    async function makeDriveFile(
+      current: () => { handleSaveToDriveConfirm: (name: string) => Promise<void> },
+      fetchFn: jest.Mock,
+    ): Promise<void> {
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "f1", name: "note.md", headRevisionId: "rev1" }),
+      });
+      await act(async () => { await current().handleSaveToDriveConfirm("note.md"); });
+      fetchFn.mockClear();
+    }
+
+    it("Drive 保存が成功したら true を返す", async () => {
+      const fetchFn = jest.fn();
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+      await makeDriveFile(() => result.current, fetchFn);
+
+      fetchFn.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ headRevisionId: "rev2" }) });
+      let saved: boolean | undefined;
+      await act(async () => { saved = await result.current.handleExternalSave("body"); });
+
+      expect(saved).toBe(true);
+    });
+
+    it("Drive 保存が 409 競合なら false を返す（本文を破棄させない）", async () => {
+      const fetchFn = jest.fn();
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+      await makeDriveFile(() => result.current, fetchFn);
+
+      fetchFn.mockResolvedValueOnce({ status: 409, ok: false, json: () => Promise.resolve({ headRevisionId: "rev9" }) });
+      let saved: boolean | undefined;
+      await act(async () => { saved = await result.current.handleExternalSave("body"); });
+
+      expect(saved).toBe(false);
+      expect(result.current.driveConflict).not.toBeNull();
+    });
+
+    it("Drive 保存が失敗したら false を返す", async () => {
+      const fetchFn = jest.fn();
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+      await makeDriveFile(() => result.current, fetchFn);
+
+      fetchFn.mockResolvedValueOnce({ ok: false, status: 500, json: () => Promise.resolve({ error: "boom" }) });
+      let saved: boolean | undefined;
+      await act(async () => { saved = await result.current.handleExternalSave("body"); });
+
+      expect(saved).toBe(false);
+    });
+
+    it("GitHub 経路はコミットメッセージ確定まで解決せず、確定で true を返す", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubConnected: true })),
+      );
+      await act(async () => { await result.current.handleGitHubOpenFile("o/r", "a.md", "main"); });
+
+      let saved: boolean | undefined;
+      let settled = false;
+      await act(async () => {
+        void result.current.handleExternalSave("body").then((v) => { saved = v; settled = true; });
+      });
+      expect(settled).toBe(false);
+      expect(result.current.commitMessageDialog?.open).toBe(true);
+
+      await act(async () => { await result.current.handleCommitMessageConfirm("msg", false); });
+      expect(saved).toBe(true);
+    });
+
+    it("GitHub 経路でコミットメッセージをキャンセルしたら false を返す", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, isGitHubConnected: true })),
+      );
+      await act(async () => { await result.current.handleGitHubOpenFile("o/r", "a.md", "main"); });
+
+      let saved: boolean | undefined;
+      await act(async () => {
+        void result.current.handleExternalSave("body").then((v) => { saved = v; });
+      });
+      await act(async () => { result.current.handleCommitMessageCancel(); });
+
+      expect(saved).toBe(false);
+    });
+
+    it("保存先が無ければ false を返す", async () => {
+      const { result } = renderHook(() => useEditorPage(createHookOptions()));
+      let saved: boolean | undefined;
+      await act(async () => { saved = await result.current.handleExternalSave("body"); });
+      expect(saved).toBe(false);
+    });
+  });
+
+  describe("Drive への新規保存", () => {
+    it("handleSaveToDriveClick でファイル名ダイアログが開く（既定名は現在のファイル名）", () => {
+      const { result } = renderHook(() => useEditorPage(createHookOptions()));
+      act(() => result.current.handleSaveToDriveClick("note.md"));
+      expect(result.current.driveSaveAsDialog).toEqual({ open: true, defaultName: "note.md" });
+    });
+
+    it("確定すると POST /api/drive/content を呼び、以後の保存先が新ファイルになる", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "new-1", name: "note.md", headRevisionId: "rev1" }),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn })));
+
+      act(() => result.current.handleSaveToDriveClick("note.md"));
+      await act(async () => {
+        await result.current.handleSaveToDriveConfirm("note.md");
+      });
+
+      const [url, init] = (fetchFn as jest.Mock).mock.calls[0];
+      expect(url).toBe("/api/drive/content");
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(init.body)).toEqual({ name: "note.md", content: "" });
+      expect(result.current.driveSaveAsDialog).toBeNull();
+      expect(result.current.hasDriveFile).toBe(true);
+      expect(result.current.saveSnackbar).toEqual({ message: "fileSaved", severity: "success" });
+    });
+
+    it("失敗時は driveCreateError を通知し保存先を切り替えない", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: () => Promise.resolve({ error: "forbidden" }),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn })));
+
+      await act(async () => {
+        await result.current.handleSaveToDriveConfirm("note.md");
+      });
+
+      expect(result.current.hasDriveFile).toBe(false);
+      expect(result.current.saveSnackbar).toEqual({
+        message: "driveCreateError",
+        severity: "error",
+      });
+    });
+
+    it("未サインイン（401）なら google サインインへ遷移する", async () => {
+      const signInFn = jest.fn().mockResolvedValue(undefined);
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: "Not authenticated" }),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn, signInFn })));
+
+      await act(async () => {
+        await result.current.handleSaveToDriveConfirm("note.md");
+      });
+
+      expect(signInFn).toHaveBeenCalledWith("google", { callbackUrl: window.location.href });
+      expect(result.current.saveSnackbar).toBeNull();
+    });
+
+    it("キャンセルでダイアログが閉じ、fetch を呼ばない", () => {
+      const fetchFn = jest.fn() as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn })));
+      act(() => result.current.handleSaveToDriveClick("note.md"));
+      act(() => result.current.handleSaveToDriveCancel());
+      expect(result.current.driveSaveAsDialog).toBeNull();
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("handleDriveOpen", () => {
+    const originalApiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+    const originalAppId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID;
+
+    beforeEach(() => {
+      process.env.NEXT_PUBLIC_GOOGLE_APP_ID = "319387139351";
+    });
+
+    afterEach(() => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = originalApiKey;
+      process.env.NEXT_PUBLIC_GOOGLE_APP_ID = originalAppId;
+    });
+
+    it("appId 未設定なら driveApiKeyMissing を通知しサインインへ進まない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      process.env.NEXT_PUBLIC_GOOGLE_APP_ID = "";
+      const signInFn = jest.fn();
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(signInFn).not.toHaveBeenCalled();
+      expect(result.current.saveSnackbar).toEqual({
+        message: "driveApiKeyMissing",
+        severity: "error",
+      });
+    });
+
+    it("API キー未設定なら driveApiKeyMissing を通知しサインインへ進まない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "";
+      const signInFn = jest.fn();
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(signInFn).not.toHaveBeenCalled();
+      expect(result.current.saveSnackbar).toEqual({
+        message: "driveApiKeyMissing",
+        severity: "error",
+      });
+    });
+
+    it("Google トークン未取得（401）なら google サインインへ遷移する", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const signInFn = jest.fn().mockResolvedValue(undefined);
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: "Not authenticated" }),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn, signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(signInFn).toHaveBeenCalledWith("google", { callbackUrl: window.location.href });
+      expect(result.current.saveSnackbar).toBeNull();
+    });
+
+    it("トークン応答に accessToken が無ければ google サインインへ遷移する", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const signInFn = jest.fn().mockResolvedValue(undefined);
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn, signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(signInFn).toHaveBeenCalledWith("google", { callbackUrl: window.location.href });
+    });
+
+    it("サインイン起動に失敗したら driveSignInRequired を通知する", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const signInFn = jest.fn().mockRejectedValue(new Error("popup blocked"));
+      const fetchFn = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({}),
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useEditorPage(createHookOptions({ fetchFn, signInFn })));
+
+      await act(async () => {
+        await result.current.handleDriveOpen();
+      });
+
+      expect(result.current.saveSnackbar).toEqual({
+        message: "driveSignInRequired",
+        severity: "error",
+      });
+    });
+
+    /** トークン取得に成功する fetchFn を作る（以降の応答は呼び出し側が積む）。 */
+    function createAuthedFetch(): jest.Mock {
+      const fetchFn = jest.fn();
+      fetchFn.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ accessToken: "tok" }) });
+      return fetchFn;
+    }
+
+    it("選択したファイルの本文を読み込み保存先を Drive にする", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce({ fileId: "f1" });
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+      const keyBefore = result.current.editorKey;
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(fetchFn).toHaveBeenLastCalledWith("/api/drive/content?fileId=f1");
+      expect(result.current.externalFileName).toBe("note.md");
+      expect(result.current.externalSaveKind).toBe("drive");
+      expect(result.current.hasDriveFile).toBe(true);
+      expect(result.current.isDirty).toBe(false);
+      expect(result.current.editorKey).toBe(keyBefore + 1);
+      expect(result.current.saveSnackbar).toBeNull();
+    });
+
+    it("fileId を URL エンコードして問い合わせる", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce({ fileId: "a b/c" });
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "n.md", headRevisionId: "r", content: "" }),
+      });
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(fetchFn).toHaveBeenLastCalledWith("/api/drive/content?fileId=a%20b%2Fc");
+    });
+
+    it("Picker をキャンセルしたら本文を読みに行かない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce(null);
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(fetchFn).toHaveBeenCalledTimes(1); // トークン取得のみ
+      expect(result.current.hasDriveFile).toBe(false);
+      expect(result.current.externalSaveKind).toBeUndefined();
+    });
+
+    it("本文取得が失敗したら driveLoadError を通知し保存先を切り替えない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce({ fileId: "f1" });
+      fetchFn.mockResolvedValueOnce({ ok: false, status: 404, json: () => Promise.resolve({ error: "not found" }) });
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(result.current.saveSnackbar).toEqual({ message: "driveLoadError", severity: "error" });
+      expect(result.current.hasDriveFile).toBe(false);
+      expect(result.current.externalSaveKind).toBeUndefined();
+      warnSpy.mockRestore();
+    });
+
+    it("本文応答の形が想定外なら driveLoadError を通知し保存先を切り替えない", async () => {
+      process.env.NEXT_PUBLIC_GOOGLE_API_KEY = "test-api-key";
+      const fetchFn = createAuthedFetch();
+      pickDriveMarkdownFile.mockResolvedValueOnce({ fileId: "f1" });
+      fetchFn.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ name: "n.md" }) });
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch })),
+      );
+
+      await act(async () => { await result.current.handleDriveOpen(); });
+
+      expect(result.current.saveSnackbar).toEqual({ message: "driveLoadError", severity: "error" });
+      expect(result.current.hasDriveFile).toBe(false);
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe("Drive UI からの起動（?state=）", () => {
+    const openState = JSON.stringify({ ids: ["f1"], action: "open", userId: "u1" });
+    const createState = JSON.stringify({ action: "create", folderId: "fold1", userId: "u1" });
+
+    /** トークン取得に成功する fetchFn を作る。 */
+    function createAuthedFetch(): jest.Mock {
+      const fetchFn = jest.fn();
+      fetchFn.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ accessToken: "tok" }) });
+      return fetchFn;
+    }
+
+    async function renderWithState(
+      driveOpenState: string | null,
+      fetchFn: jest.Mock,
+      overrides: Partial<Parameters<typeof useEditorPage>[0]> = {},
+    ) {
+      const hook = renderHook(() =>
+        useEditorPage(
+          createHookOptions({ fetchFn: fetchFn as unknown as typeof fetch, driveOpenState, ...overrides }),
+        ),
+      );
+      // ブートストラップは effect 内の非同期処理なので、解決まで待つ。
+      await act(async () => { await Promise.resolve(); });
+      return hook;
+    }
+
+    it("action: open なら本文を読み込み保存先を Drive にする", async () => {
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+
+      const { result } = await renderWithState(openState, fetchFn);
+
+      expect(fetchFn).toHaveBeenLastCalledWith("/api/drive/content?fileId=f1");
+      expect(result.current.externalFileName).toBe("note.md");
+      expect(result.current.externalSaveKind).toBe("drive");
+      expect(result.current.hasDriveFile).toBe(true);
+    });
+
+    it("action: create なら空文書で起動し、初回保存で parentId を送る", async () => {
+      const fetchFn = createAuthedFetch();
+      const { result } = await renderWithState(createState, fetchFn);
+
+      expect(result.current.externalContent).toBe("");
+      expect(result.current.hasDriveFile).toBe(false);
+      expect(result.current.externalSaveKind).toBeUndefined();
+
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "new1", name: "n.md", headRevisionId: "r1" }),
+      });
+      await act(async () => { await result.current.handleSaveToDriveConfirm("n.md"); });
+
+      const [, init] = fetchFn.mock.calls.at(-1) as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toMatchObject({ name: "n.md", parentId: "fold1" });
+    });
+
+    it("2 度目の保存では parentId を送らない（新規作成の一度きり）", async () => {
+      const fetchFn = createAuthedFetch();
+      const { result } = await renderWithState(createState, fetchFn);
+
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "new1", name: "n.md", headRevisionId: "r1" }),
+      });
+      await act(async () => { await result.current.handleSaveToDriveConfirm("n.md"); });
+
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ fileId: "new2", name: "n2.md", headRevisionId: "r1" }),
+      });
+      await act(async () => { await result.current.handleSaveToDriveConfirm("n2.md"); });
+
+      const [, init] = fetchFn.mock.calls.at(-1) as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).not.toHaveProperty("parentId");
+    });
+
+    it("未サインインなら state を退避してサインインへ送る", async () => {
+      const fetchFn = jest.fn().mockResolvedValue({ ok: false, status: 401, json: () => Promise.resolve({}) });
+      const signInFn = jest.fn().mockResolvedValue(undefined);
+
+      await renderWithState(openState, fetchFn, { signInFn });
+
+      expect(signInFn).toHaveBeenCalledWith("google", { callbackUrl: window.location.href });
+      expect(sessionStorage.getItem("driveOpenIntent")).toBe(openState);
+    });
+
+    it("URL の state から復帰したら退避 intent を残さない（無条件消費）", async () => {
+      // OAuth 往復で state 付き URL を保ったまま戻ったケース。intent が残ると後で誤発火する。
+      sessionStorage.setItem("driveOpenIntent", openState);
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+
+      await renderWithState(openState, fetchFn);
+
+      expect(sessionStorage.getItem("driveOpenIntent")).toBeNull();
+    });
+
+    it("URL に state が無ければ退避した intent から復元する", async () => {
+      sessionStorage.setItem("driveOpenIntent", openState);
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+
+      const { result } = await renderWithState(null, fetchFn);
+
+      expect(result.current.hasDriveFile).toBe(true);
+      expect(sessionStorage.getItem("driveOpenIntent")).toBeNull(); // 消費済み
+    });
+
+    it("state が無く intent も無ければ何もしない", async () => {
+      const fetchFn = jest.fn();
+      const { result } = await renderWithState(null, fetchFn);
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(result.current.hasDriveFile).toBe(false);
+    });
+
+    it("state が不正なら何もしない", async () => {
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+      const fetchFn = jest.fn();
+
+      const { result } = await renderWithState("{ not json", fetchFn);
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(result.current.hasDriveFile).toBe(false);
+      warnSpy.mockRestore();
+    });
+
+    it("未保存の下書きがあり確認手段が無ければ本文を破棄せず中断する", async () => {
+      writeDraft("# 未保存の作業");
+      const fetchFn = jest.fn();
+
+      const { result } = await renderWithState(openState, fetchFn);
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(result.current.saveSnackbar).toEqual({ message: "driveOpenDraftBlocked", severity: "error" });
+      expect(result.current.hasDriveFile).toBe(false);
+    });
+
+    it("未保存の下書きがあっても破棄が承認されれば読み込む", async () => {
+      writeDraft("# 未保存の作業");
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+      const confirmDiscardDraft = jest.fn().mockResolvedValue(true);
+
+      const { result } = await renderWithState(openState, fetchFn, { confirmDiscardDraft });
+
+      expect(confirmDiscardDraft).toHaveBeenCalled();
+      expect(result.current.hasDriveFile).toBe(true);
+    });
+
+    it("破棄が拒否されたら読み込まない", async () => {
+      writeDraft("# 未保存の作業");
+      const fetchFn = jest.fn();
+      const confirmDiscardDraft = jest.fn().mockResolvedValue(false);
+
+      const { result } = await renderWithState(openState, fetchFn, { confirmDiscardDraft });
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(result.current.hasDriveFile).toBe(false);
+    });
+
+    it("後から GitHub セッションが解決しても読み込んだ本文を空へ戻さない", async () => {
+      const fetchFn = createAuthedFetch();
+      fetchFn.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ name: "note.md", headRevisionId: "rev1", content: "# body" }),
+      });
+      const { result, rerender } = renderHook(
+        ({ isGitHubConnected }) =>
+          useEditorPage(
+            createHookOptions({
+              fetchFn: fetchFn as unknown as typeof fetch,
+              driveOpenState: openState,
+              isGitHubConnected,
+            }),
+          ),
+        { initialProps: { isGitHubConnected: undefined as boolean | undefined } },
+      );
+      await act(async () => { await Promise.resolve(); });
+      expect(result.current.hasDriveFile).toBe(true);
+
+      await act(async () => { rerender({ isGitHubConnected: true }); });
+
+      expect(result.current.externalFileName).toBe("note.md");
+      expect(result.current.externalContent).not.toBe("");
     });
   });
 });

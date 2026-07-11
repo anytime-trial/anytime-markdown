@@ -1,26 +1,29 @@
 'use client';
 
 import { COMMENT_PANEL_WIDTH, createMarkdownT, getDefaultContent } from '@anytime-markdown/markdown-viewer';
-import { STORAGE_KEY_CONTENT } from '@anytime-markdown/markdown-viewer/src/constants/storageKeys';
-import AddToDriveOutlinedIcon from '@mui/icons-material/AddToDriveOutlined';
-import GitHubIcon from '@mui/icons-material/GitHub';
+import { readDraft } from '@anytime-markdown/markdown-viewer/src/utils/draftStorage';
 import {
-  Alert, Box, Button, CircularProgress, Snackbar,
+  Alert, Box, CircularProgress, Snackbar,
 } from '@mui/material';
 import dynamic from 'next/dynamic';
-import { signIn, useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 
 import { CommitMessageDialog } from '../../components/CommitMessageDialog';
-import { CommitToGitHubDialog } from '../../components/CommitToGitHubDialog';
+import { DiscardDraftDialog } from '../../components/DiscardDraftDialog';
 import { DriveConflictDialog } from '../../components/DriveConflictDialog';
+import { DriveSaveAsDialog } from '../../components/DriveSaveAsDialog';
+import { resolveConnectedProviders } from '../../lib/connectedProviders';
 import { downloadMarkdownBlob } from '../../lib/webImportProvider';
 import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { usePreset, useThemeMode } from '../providers';
 import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
+import { useDiscardDraftConfirm } from './useDiscardDraftConfirm';
 import { useEditorPage } from './useEditorPage';
+import { useGitHubPicker } from './useGitHubPicker';
 
 function EditorLoading() {
   const t = useTranslations('Common');
@@ -31,8 +34,8 @@ function EditorLoading() {
   );
 }
 
-const ExplorerPanel = dynamic(
-  () => import('../../components/ExplorerPanel').then((m) => ({ default: m.ExplorerPanel })),
+const GitHubRepoBrowser = dynamic(
+  () => import('../../components/GitHubRepoBrowser').then((m) => ({ default: m.GitHubRepoBrowser })),
   { ssr: false },
 );
 
@@ -42,42 +45,65 @@ const VanillaRichMarkdownEditor = dynamic(
   { ssr: false, loading: () => <EditorLoading /> },
 );
 
+/**
+ * Drive UI の「アプリで開く」は `?state=` を付けてこのページへ遷移する。
+ * `useSearchParams` は Suspense 境界を要求するため、実体を内側のコンポーネントに置く。
+ */
 export default function Page() {
+  return (
+    <Suspense fallback={<EditorLoading />}>
+      <EditorPage />
+    </Suspense>
+  );
+}
+
+function EditorPage() {
   const t = useTranslations('Common');
+  const searchParams = useSearchParams();
+  const driveOpenState = searchParams.get('state');
+  const {
+    open: discardDraftOpen,
+    confirmDiscardDraft,
+    onDiscard: handleDiscardDraft,
+    onCancel: handleDiscardDraftCancel,
+  } = useDiscardDraftConfirm();
 
   const { themeMode, setThemeMode } = useThemeMode();
   const { presetName, setPresetName } = usePreset();
   const { setLocale } = useLocaleSwitch();
-  const enableGitHub = process.env.NEXT_PUBLIC_ENABLE_GITHUB === '1';
   const showThemePreset = process.env.NEXT_PUBLIC_SHOW_THEME_PRESET === '1';
-  const { data: session } = useSession();
-  const isGitHubLoggedIn = enableGitHub && !!session;
+  const { data: session, status } = useSession();
+  // GitHub / Google は同一 NextAuth セッションに同居する。`!!session` は「どれかにサインイン済み」
+  // でしかないため、GitHub 接続はトークンの有無で判定する。
+  // 読み込み中は undefined（未確定）。未接続と区別しないと、セッション解決が「今接続された」
+  // 遷移と誤認され、リロードのたびに接続通知と本文リセットが走る。
+  const isGitHubConnected = useMemo(
+    () => (status === 'loading' ? undefined : resolveConnectedProviders(session).github),
+    [session, status],
+  );
 
   const {
     externalContent, externalFileName,
-    externalCompareContent, editorKey, isDirty, newCommit,
-    saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile,
-    commitMessageDialog, commitToGitHubDialog,
-    handleExplorerSelectFile, handleExternalSave,
-    handleCompareModeChange, handleExplorerSelectCommit, handleSelectCurrent,
+    externalCompareContent, editorKey, isDirty,
+    saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile, handleSaveTargetChange,
+    commitMessageDialog, externalSaveKind,
+    handleGitHubOpenFile, handleExternalSave,
+    handleCompareModeChange,
     handleContentChange, setSsoSnackbar, setSaveSnackbar, fileSystemProvider,
     handleDriveOpen, handleDriveConflictOverwrite, handleDriveConflictCancel,
+    driveSaveAsDialog, handleSaveToDriveClick, handleSaveToDriveConfirm, handleSaveToDriveCancel,
     handleCommitMessageConfirm, handleCommitMessageCancel,
-    handleOpenCommitToGitHub, handleCloseCommitToGitHub, handleCommitToGitHubConfirm,
-  } = useEditorPage({ isGitHubLoggedIn, session, t });
-  // 保存を外部（GitHub/Drive）へルーティングするか。Drive は enableGitHub フラグに依存しない独立経路のため OR で判定する。
-  const canExternalSave = isGitHubLoggedIn || hasDriveFile;
+  } = useEditorPage({ isGitHubConnected, t, driveOpenState, confirmDiscardDraft });
+  // 保存を外部（GitHub/Drive）へルーティングするか。Drive は GitHub サインインに依存しない独立経路のため OR で判定する。
+  const canExternalSave = isGitHubConnected || hasDriveFile;
 
   const locale = useLocale();
   const vanillaT = useMemo(() => createMarkdownT('MarkdownEditor', locale), [locale]);
   // エディタが現在マウントしている本文（persistDraft 時は localStorage 下書きが実体・useEditorPage.ts 452行目相当のフォールバック）。
-  // handleContentChange 経由で currentContentRef へ同期し、無編集のまま「GitHub にコミット」しても最新本文を取得できるようにする。
+  // handleContentChange 経由で currentContentRef へ同期し、無編集のまま Drive へ新規保存しても最新本文を取得できるようにする。
   const resolvedInitialContent = useMemo(() => {
     if (externalContent !== undefined) return externalContent;
-    if (typeof window !== 'undefined') {
-      const draft = localStorage.getItem(STORAGE_KEY_CONTENT);
-      if (draft != null) return draft;
-    }
+    if (typeof window !== 'undefined') return readDraft(getDefaultContent(locale));
     return getDefaultContent(locale);
     // editorKey は本文自体には現れないが「新しいソースがマウントされた」トリガとして必須の依存。
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -86,26 +112,20 @@ export default function Page() {
     handleContentChange(resolvedInitialContent);
   }, [resolvedInitialContent, handleContentChange]);
 
-  const handleCommitToGitHubClick = useCallback(() => {
-    if (!isGitHubLoggedIn) {
-      void signIn('github');
-      return;
-    }
-    handleOpenCommitToGitHub(externalFileName ?? 'document.md');
-  }, [isGitHubLoggedIn, externalFileName, handleOpenCommitToGitHub]);
-  // explorer 開閉は orchestrator の mode 状態（onModeChange）から同期する（脱React G4）。
-  const [explorerOpenV, setExplorerOpenV] = useState(false);
-  const handleVanillaModeChange = useCallback(
-    (state: { explorerOpen?: boolean }) => setExplorerOpenV(state.explorerOpen === true),
-    [],
-  );
+  // 「GitHub から開く」ダイアログ。GitHub 未接続ならこの時点で初めて OAuth へ誘導する。
+  const { gitHubPickerOpen, handleOpenFromGitHub, closeGitHubPicker } = useGitHubPicker({ isGitHubConnected });
   const fileHandlers = useMemo(
     () => ({
       onWebImportCreate: (markdown: string, title: string) => {
         downloadMarkdownBlob(markdown, title);
       },
+      // 注入するとツールバーの「開く」がメニュー化され、Drive / GitHub が選択肢に並ぶ。
+      onOpenFromDrive: handleDriveOpen,
+      onOpenFromGitHub: handleOpenFromGitHub,
+      // 注入すると保存メニューに「Google Drive に保存」が並ぶ。
+      onSaveToDrive: () => handleSaveToDriveClick(externalFileName ?? 'document.md'),
     }),
-    [],
+    [handleDriveOpen, handleOpenFromGitHub, handleSaveToDriveClick, externalFileName],
   );
 
   return (
@@ -113,53 +133,8 @@ export default function Page() {
       <LandingHeader />
       <Box id="md-page-wrapper" sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
       <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            gap: 1,
-            px: 2,
-            py: 0.5,
-            // 小数高さ（ボタンの line-height 由来）だとツールバー以下が sub-pixel でずれるため整数に固定する
-            minHeight: "40px",
-            boxSizing: "border-box",
-            borderBottom: 1,
-            borderColor: "divider",
-            flexShrink: 0,
-          }}
-        >
-          <Button
-            onClick={handleDriveOpen}
-            aria-label={t('driveOpenAria')}
-            size="small"
-            startIcon={<AddToDriveOutlinedIcon sx={{ fontSize: 18 }} />}
-            sx={{
-              textTransform: "none",
-              fontSize: "0.8rem",
-              color: "text.secondary",
-              "&:hover": { color: "text.primary" },
-            }}
-          >
-            {t('driveOpen')}
-          </Button>
-          {enableGitHub && (
-            <Button
-              onClick={handleCommitToGitHubClick}
-              aria-label={t('githubCommitButtonAria')}
-              size="small"
-              startIcon={<GitHubIcon sx={{ fontSize: 18 }} />}
-              sx={{
-                textTransform: "none",
-                fontSize: "0.8rem",
-                color: "text.secondary",
-                "&:hover": { color: "text.primary" },
-              }}
-            >
-              {t('githubCommitButton')}
-            </Button>
-          )}
-        </Box>
+        {/* Drive / GitHub の開く・保存はすべてエディタツールバーのメニューへ統合済み。
+            GitHub から開いたファイルの上書き保存がそのままコミットになる。 */}
         <Box sx={{ flex: 1, minHeight: 0 }}>
         <EmbedProvidersBoundary>
         <VanillaRichMarkdownEditor
@@ -178,12 +153,17 @@ export default function Page() {
           persistDraft={externalContent === undefined}
           fileName={externalFileName}
           onExternalSave={canExternalSave ? handleExternalSave : undefined}
-          readOnly={externalContent !== undefined}
+          externalSaveKind={externalSaveKind}
+          onSaveTargetChange={handleSaveTargetChange}
+          // readOnly はホストが課す編集ロック（VS Code の Claude 編集中など）を表す。web-app に
+          // ロック要件は無い。かつて `externalContent !== undefined` を渡していたが、GitHub 接続直後の
+          // 空文書リセット（useEditorPage の setExternalContent("")）まで読み取り専用にしてしまい、
+          // 本文が空のまま編集もモード切替もできなくなっていた。
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
           sideToolbar
-          hide={{ explorer: !enableGitHub }}
+          // Explorer パネルは廃止済み。トグルを出すと開く先が無いため抑止する。
+          hide={{ explorer: true }}
           fileHandlers={fileHandlers}
-          onModeChange={handleVanillaModeChange}
           onContentChange={handleContentChange}
           gridRows={process.env.NEXT_PUBLIC_GRID_ROWS ? Number(process.env.NEXT_PUBLIC_GRID_ROWS) : undefined}
           gridCols={process.env.NEXT_PUBLIC_GRID_COLS ? Number(process.env.NEXT_PUBLIC_GRID_COLS) : undefined}
@@ -191,17 +171,11 @@ export default function Page() {
         </EmbedProvidersBoundary>
         </Box>
       </Box>
-      {enableGitHub && (
-        <ExplorerPanel
-          open={explorerOpenV}
-          width={COMMENT_PANEL_WIDTH}
-          onSelectFile={handleExplorerSelectFile}
-          onSelectCommit={handleExplorerSelectCommit}
-          onSelectCurrent={handleSelectCurrent}
-          isDirty={isDirty}
-          newCommit={newCommit}
-        />
-      )}
+      <GitHubRepoBrowser
+        open={gitHubPickerOpen}
+        onClose={closeGitHubPicker}
+        onSelect={(repo, filePath, branch) => void handleGitHubOpenFile(repo, filePath, branch)}
+      />
       <Snackbar
         open={!!ssoSnackbar}
         autoHideDuration={4000}
@@ -234,6 +208,12 @@ export default function Page() {
           {saveSnackbar?.message}
         </Alert>
       </Snackbar>
+      <DriveSaveAsDialog
+        open={driveSaveAsDialog?.open ?? false}
+        defaultName={driveSaveAsDialog?.defaultName ?? 'document.md'}
+        onConfirm={handleSaveToDriveConfirm}
+        onCancel={handleSaveToDriveCancel}
+      />
       <DriveConflictDialog
         open={!!driveConflict}
         onOverwrite={handleDriveConflictOverwrite}
@@ -245,11 +225,10 @@ export default function Page() {
         onConfirm={handleCommitMessageConfirm}
         onCancel={handleCommitMessageCancel}
       />
-      <CommitToGitHubDialog
-        open={!!commitToGitHubDialog}
-        defaultPath={commitToGitHubDialog?.defaultPath ?? 'document.md'}
-        onConfirm={handleCommitToGitHubConfirm}
-        onCancel={handleCloseCommitToGitHub}
+      <DiscardDraftDialog
+        open={discardDraftOpen}
+        onDiscard={handleDiscardDraft}
+        onCancel={handleDiscardDraftCancel}
       />
       </Box>
     </Box>

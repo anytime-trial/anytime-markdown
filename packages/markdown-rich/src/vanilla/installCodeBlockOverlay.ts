@@ -456,16 +456,16 @@ export function installCodeBlockOverlay(
       activeDialog = handle;
       return;
     }
-    // regular / html / その他 unknown kind はコード編集ダイアログ。
+    // regular / html / markdown / その他 unknown kind はコード編集ダイアログ。
     const isHtml = kind === "html";
     const handle = createCodeBlockEditDialog({
       ...common,
-      label: isHtml ? t("htmlPreview") : codeBlockToolbarLabel(kind, language, t),
-      language: isHtml ? "html" : language || "plaintext",
+      label: codeBlockToolbarLabel(kind, language, t),
+      language: language || "plaintext",
       renderPreview: true,
-      // html は右ペインに sanitize 済み HTML の実プレビューを描画する（本文 NodeView と同じ
-      // renderCodeBlockPreview）。regular コードは従来どおり構文ハイライト（ソース表示）。
-      renderLanguagePreview: isHtml,
+      // html / markdown は右ペインに sanitize 済みの実プレビューを描画する（本文 NodeView と
+      // 同じ renderCodeBlockPreview）。regular コードは従来どおり構文ハイライト（ソース表示）。
+      renderLanguagePreview: isHtml || kind === "markdown",
       customSamples: isHtml
         ? (htmlSamples as Array<{ enabled: boolean } & Record<string, unknown>>)
             .filter((s) => s.enabled)

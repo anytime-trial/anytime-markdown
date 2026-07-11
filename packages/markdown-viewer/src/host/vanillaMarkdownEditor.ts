@@ -23,7 +23,6 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
 
 import { buildEditorExtensions } from "../buildEditorExtensions";
-import { STORAGE_KEY_CONTENT } from "../constants/storageKeys";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
 import { tryImportDroppedMdFile } from "../utils/editorImageHandlers";
@@ -41,12 +40,18 @@ import type {
 import type { CommentInfo } from "../utils/commentNotifications";
 import { installCommentNotifications } from "../utils/commentNotifications";
 import { onCommentStateChange } from "../utils/commentStateSubscription";
+import { readDraft, writeDraft } from "../utils/draftStorage";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 import type { FileSystemProvider } from "../types/fileSystem";
-import { createFileOpsController } from "./fileOpsController";
+import { createFileOpsController, type SaveTargetInfo } from "./fileOpsController";
 import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
+import {
+  type ExternalSaveKind,
+  fileOriginFor,
+  nextExternalSaveKind,
+} from "../utils/externalSaveKind";
 import { EDITOR_CODE_VARS_CHANGED_EVENT } from "../utils/editorCodeCssVars";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
 import {
@@ -182,13 +187,31 @@ export interface MountVanillaMarkdownEditorOptions {
   onSettingsReset?: () => void;
   /** リセット確認（SettingsPanel）。未指定時は確認なし。 */
   confirm?: (message: string) => Promise<boolean>;
+  /**
+   * 未保存データがある状態での新規作成 / 開くの 3 択確認。未指定時は内蔵ダイアログを使う。
+   */
+  confirmSave?: (message: string) => Promise<"save" | "discard" | "cancel">;
   /** ファイル操作（部分指定。未指定分は fileSystemProvider / editor / blob ベースの既定実装）。 */
   fileHandlers?: Partial<ToolbarFileHandlers>;
   fileCapabilities?: ToolbarFileCapabilities;
   /** ローカル FS provider（React 経路の fileSystemProvider 相当・open/save/saveAs を既定配線）。 */
   fileSystemProvider?: FileSystemProvider | null;
   /** 外部保存（GitHub SSO 等）。指定時は保存がこちらを優先する。 */
-  onExternalSave?: (content: string) => void;
+  /**
+   * 外部保存（GitHub / Google Drive 等）。保存完了まで待てるホストは成功可否を
+   * `Promise<boolean>` で返す。false を返すと未保存ガードは新規作成 / 開くを中断する。
+   */
+  onExternalSave?: (content: string) => void | Promise<boolean>;
+  /**
+   * `onExternalSave` の宛先種別。`"github"` を渡すと上書き保存の表示が「GitHub にコミット」になる。
+   * ローカルへ「名前を付けて保存」して宛先が移った時点で自動的に無効化される。
+   */
+  externalSaveKind?: ExternalSaveKind;
+  /**
+   * 保存先が変化したときの通知。ローカルへ「名前を付けて保存」すると `kind: "local"` が飛ぶ。
+   * ホストはこれを受けて外部保存の参照（Drive のファイル ID 等）を破棄する。
+   */
+  onSaveTargetChange?: (target: SaveTargetInfo | null) => void;
   /** ツールバーの表示制御。 */
   hide?: ToolbarVisibility;
   /** ツールバー全体を描画しない（VS Code の hideToolbar 相当）。 */
@@ -282,6 +305,7 @@ export type VanillaMarkdownEditorUpdatePatch = Partial<
     | "externalCompareContent"
     | "themeMode"
     | "presetName"
+    | "externalSaveKind"
   >
 >;
 
@@ -447,13 +471,7 @@ function applyEditorSettings(
 
 /** persistDraft 時の下書き読込（失敗時は initialContent へフォールバック）。 */
 function loadDraft(initialContent: string): string {
-  if (typeof localStorage === "undefined") return initialContent;
-  try {
-    return localStorage.getItem(STORAGE_KEY_CONTENT) ?? initialContent;
-  } catch (error) {
-    console.warn("[vanillaMarkdownEditor] localStorage read failed", error);
-    return initialContent;
-  }
+  return readDraft(initialContent);
 }
 
 type LinkedMdPending =
@@ -690,7 +708,8 @@ export function mountVanillaMarkdownEditor(
       });
       const modeState: ToolbarModeState = {
         sourceMode: false,
-        readonlyMode: current.readOnly ?? false,
+        readonlyMode: false,
+        hostReadOnly: current.readOnly ?? false,
         reviewMode: false,
         outlineOpen: current.defaultOutlineOpen ?? false,
         inlineMergeOpen: false,
@@ -756,22 +775,16 @@ export function mountVanillaMarkdownEditor(
           const resolved = produce();
           if (resolved == null) return;
           const toSave = withFrontmatter ? prependFrontmatter(resolved, frontmatter) : resolved;
-          if (current.persistDraft && typeof localStorage !== "undefined") {
-            try {
-              localStorage.setItem(STORAGE_KEY_CONTENT, toSave);
-            } catch (error) {
-              console.warn("[vanillaMarkdownEditor] localStorage write failed", error);
-            }
-          }
+          if (current.persistDraft) writeDraft(toSave);
           current.onContentChange?.(toSave);
         }, SAVE_DEBOUNCE_MS);
       };
       disposers.push(() => {
         if (saveTimer) clearTimeout(saveTimer);
       });
-      const onEditorUpdate = (): void => saveContent(() => getMarkdownFromEditorSafe(editor));
-      editor.on("update", onEditorUpdate);
-      disposers.push(() => editor.off("update", onEditorUpdate));
+      // 本文の保存（下書き + onContentChange）は fileOps の dirty 追跡と同じ購読で発火させる
+      // （createFileOpsController の後段で配線する）。`editor.on("update")` は docChanged の
+      // ときだけ発火するため、コメントの resolve 等 meta のみの変更を取りこぼす。
 
       // === 変更オーバービュー（MarkdownMinimap・本文スクロールバー横） ============
       // スクロールコンテナ（contentEl）は overflow:auto。changeGutterExtension の
@@ -891,36 +904,81 @@ export function mountVanillaMarkdownEditor(
 
       // === file ops（fileSystemProvider / onExternalSave / import / clear・React useFileSystem
       //     + useEditorFileOps の plain 版） ========================================
+      // 上書き保存の宛先種別（ラベル切替用）。保存先の遷移とホストの live prop の双方で変わる。
+      let externalSaveKind = current.fileCapabilities?.externalSaveKind ?? current.externalSaveKind;
+      /**
+       * 宛先種別を反映してツールバーのラベルとステータスバーの所在バッジを更新する
+       * （値が変わったときのみ）。
+       */
+      const applyExternalSaveKind = (next: ExternalSaveKind | undefined): void => {
+        if (externalSaveKind === next) return;
+        externalSaveKind = next;
+        toolbar?.update({
+          fileCapabilities: {
+            ...fileCapabilities,
+            hasSaveTarget: fileOps.hasSaveTarget(),
+            externalSaveKind,
+          },
+        });
+        statusBar?.update({ fileOrigin: fileOriginFor(fileOps.getFileName(), externalSaveKind) });
+      };
       const fileOps = createFileOpsController({
         editor,
         t,
         provider: current.fileSystemProvider,
+        // 外部ソース（Drive 等）由来のファイル名。localStorage から復元する古いローカル名より優先し、
+        // fileOps を文書ファイル名の単一の真実源にする。
+        initialFileName: current.fileName,
         onExternalSave: current.onExternalSave
-          ? (content) => current.onExternalSave?.(content)
+          ? // 保存完了可否（Promise<boolean>）を握り潰さずガードへ透過する。
+            (content) => current.onExternalSave?.(content)
           : undefined,
         confirm: current.confirm,
+        // 未指定なら内蔵の 3 択ダイアログを使う（ホストが window.confirm を注入しなくても確認が出る）。
+        confirmSave: current.confirmSave ?? ((message) => dialogs.openUnsavedConfirm(message)),
         getFrontmatter: () => frontmatter,
         setFrontmatter,
         getSourceMode: () => modeState.sourceMode === true,
         getSourceText: () => sourceController?.getSourceText() ?? "",
         setSourceText: (text) => sourceController?.setSourceText(text),
+        onSaveTargetChange: (target) => {
+          // ローカルへ移れば種別は消え、外部保存のままならホストの最新値（GitHub → Drive 等）へ追従する。
+          // fileOps は onFileStateChange を先に発火させるため、ここで改めてツールバーへ反映する。
+          applyExternalSaveKind(nextExternalSaveKind(target?.kind ?? null, current.externalSaveKind));
+          current.onSaveTargetChange?.(target);
+        },
         onFileStateChange: ({ fileName, isDirty }) => {
-          statusBar?.update({ fileName: fileName ?? current.fileName, isDirty });
+          // fileOps が文書ファイル名の単一の真実源。`current.fileName`（外部ソース由来）は
+          // mount / update で fileOps へ取り込むため、ここでフォールバックしてはならない
+          // （フォールバックすると Drive で開いた本文が localStorage の古いローカル名へ戻る）。
+          statusBar?.update({
+            fileName,
+            isDirty,
+            fileOrigin: fileOriginFor(fileName, externalSaveKind),
+          });
           // save ボタンの dirty ゲート（保存が必要なときのみ有効化）。ファイルを開く/保存で
-          // hasFileHandle も変わるため、最新ハンドル状態と合わせてツールバーへ反映する。
+          // hasSaveTarget も変わるため、最新の保存先状態と合わせてツールバーへ反映する。
           toolbar?.update({
             isDirty,
-            fileCapabilities: { ...fileCapabilities, hasFileHandle: fileOps.hasFileHandle() },
+            fileCapabilities: {
+              ...fileCapabilities,
+              hasSaveTarget: fileOps.hasSaveTarget(),
+              externalSaveKind,
+            },
           });
         },
         notify: (key) => {
           layout.liveRegion.textContent = t(key);
         },
       });
-      // dirty 追跡（A1）。doc 変更だけでなくコメントの resolve / 本文編集（meta のみ・doc 非変更）も
-      // serialize 出力（コメントデータブロック）を変えるため dirty 化する必要がある。共有プリミティブで
-      // コメント状態または doc の変化を一括して拾う（`editor.on("update")` は meta のみを取りこぼす）。
-      const disposeDirty = onCommentStateChange(editor, () => fileOps.markDirty());
+      // dirty 追跡 + 本文保存（A1）。doc 変更だけでなくコメントの resolve / 本文編集（meta のみ・
+      // doc 非変更）も serialize 出力（コメントデータブロック）を変えるため、dirty 化と保存の双方が
+      // 必要になる。共有プリミティブでコメント状態または doc の変化を一括して拾う
+      // （`editor.on("update")` は meta のみを取りこぼし、下書きにコメント変更が残らない）。
+      const disposeDirty = onCommentStateChange(editor, () => {
+        fileOps.markDirty();
+        saveContent(() => getMarkdownFromEditorSafe(editor));
+      });
       disposers.push(disposeDirty);
 
       // === FrontmatterBlock（折りたたみ/編集/削除可能・React FrontmatterBlock 相当） =====
@@ -981,6 +1039,22 @@ export function mountVanillaMarkdownEditor(
         onOpenFile:
           current.fileHandlers?.onOpenFile ??
           (current.fileSystemProvider ? () => void fileOps.openFile() : undefined),
+        // Drive から開く経路は fileOps の外側で文書を差し替えるため、ここで未保存ガードを掛ける。
+        onOpenFromDrive: current.fileHandlers?.onOpenFromDrive
+          ? async () => {
+              if (!(await fileOps.confirmContinue())) return;
+              await current.fileHandlers?.onOpenFromDrive?.();
+            }
+          : undefined,
+        // GitHub から開く経路も同様に fileOps の外側で差し替えるため未保存ガードを掛ける。
+        onOpenFromGitHub: current.fileHandlers?.onOpenFromGitHub
+          ? async () => {
+              if (!(await fileOps.confirmContinue())) return;
+              await current.fileHandlers?.onOpenFromGitHub?.();
+            }
+          : undefined,
+        onNewFile: current.fileHandlers?.onNewFile ?? (() => void fileOps.newFile()),
+        onSaveToDrive: current.fileHandlers?.onSaveToDrive,
         onSaveFile:
           current.fileHandlers?.onSaveFile ??
           (current.fileSystemProvider || current.onExternalSave
@@ -994,10 +1068,13 @@ export function mountVanillaMarkdownEditor(
         onLoadRightFile: current.fileHandlers?.onLoadRightFile,
         onExportRightFile: current.fileHandlers?.onExportRightFile,
       };
-      const fileCapabilities: ToolbarFileCapabilities = current.fileCapabilities ?? {
-        hasFileHandle: fileOps.hasFileHandle(),
-        supportsDirectAccess: current.fileSystemProvider?.supportsDirectAccess ?? false,
-        externalSaveOnly: !current.fileSystemProvider && !!current.onExternalSave,
+      const fileCapabilities: ToolbarFileCapabilities = {
+        ...(current.fileCapabilities ?? {
+          hasSaveTarget: fileOps.hasSaveTarget(),
+          supportsDirectAccess: current.fileSystemProvider?.supportsDirectAccess ?? false,
+          externalSaveOnly: !current.fileSystemProvider && !!current.onExternalSave,
+        }),
+        externalSaveKind,
       };
 
       // === sidebar パネル（Outline / Comment）の toggle マウント ===============
@@ -1156,7 +1233,9 @@ export function mountVanillaMarkdownEditor(
         onModeApplied: (mode: VanillaEditorMode) => {
           modeState.sourceMode = mode === "source";
           modeState.reviewMode = mode === "review";
-          modeState.readonlyMode = mode === "readonly" || (current.readOnly ?? false);
+          // ホスト強制の readOnly を OR しない。畳み込むと currentMode() が常に "readonly" を返し、
+          // かつ controller の内部 mode が "wysiwyg" のままなので「編集」への切替が no-op になる。
+          modeState.readonlyMode = mode === "readonly";
           editor.setEditable(!readonlyNow() && mode !== "review");
           // source モードは WYSIWYG 本文を隠すため、ミニマップも畳む（マーカーが上端に集中して
           // 表示されるグリッチを防ぐ）。WYSIWYG/review/readonly では本文が見えるので表示する。
@@ -1268,6 +1347,8 @@ export function mountVanillaMarkdownEditor(
           // help ボタンはヘルプポップオーバー（outline/comment/settings/version メニュー）を開く。
           // menuPopovers は後段で生成されるが、クリック時には初期化済み（TDZ は実行順で解消）。
           onSetHelpAnchor: (el) => menuPopovers.openHelp(el),
+          onSetOpenFileAnchor: (el, handlers) => menuPopovers.openFileMenu(el, handlers),
+          onSetSaveAnchor: (el, handlers) => menuPopovers.openSaveMenu(el, handlers),
           // モバイルハンバーガー（<900px・サイドバー非表示時）も同じ help メニューを開く。
           // 脱React 時に未配線（partial 移植）で死にボタンになっていた回帰の修正。
           onOpenMobileMenu: (el) => menuPopovers.openHelp(el),
@@ -1284,12 +1365,16 @@ export function mountVanillaMarkdownEditor(
           sourceMode: modeState.sourceMode,
           outlineOpen: modeState.outlineOpen,
           commentOpen: modeState.commentOpen,
+          explorerOpen: modeState.explorerOpen,
           noteGraphOpen: modeState.noteGraphOpen,
           onToggleOutline: modeHandlers.onToggleOutline,
           onToggleComment: (open) => {
             modeState.commentOpen = open;
             refreshToolbarMode();
           },
+          // 上部ツールバーの explorer ボタンは sideToolbar 併用時に side-coupled で ≥900px から
+          // 隠れる（EditorToolbar.ts）。受け皿のこちらへ配線しないと広い画面でトグルが消える。
+          onToggleExplorer: current.hide?.explorer ? undefined : modeHandlers.onToggleExplorer,
           // ノート網パネルが提供されている場合のみアイコンを出す
           onToggleNoteGraph: current.noteGraph ? modeHandlers.onToggleNoteGraph : undefined,
           onOpenSettings: current.hide?.settings ? undefined : openSettings,
@@ -1321,7 +1406,8 @@ export function mountVanillaMarkdownEditor(
       statusBar = createStatusBar({
         editor,
         t,
-        fileName: current.fileName ?? fileOps.getFileName(),
+        fileName: fileOps.getFileName(),
+        fileOrigin: fileOriginFor(fileOps.getFileName(), externalSaveKind),
         onStatusChange: current.onStatusChange,
         hidden: current.hideStatusBar,
         getSourceTextarea: () => sourceController?.getTextarea() ?? null,
@@ -1629,8 +1715,11 @@ export function mountVanillaMarkdownEditor(
           if (key === "s") {
             // 4 モード循環: Readonly → Review → Edit → Source → Readonly
             // （旧実装と同一。Review/Readonly 切替が未配線なら Wysiwyg へフォールバック）。
+            // ホストが readOnly を課している間はツールバー同様モード切替そのものを封じる。
             e.preventDefault();
-            if (modeState.readonlyMode) {
+            if (current.readOnly) {
+              // no-op（ロック中）
+            } else if (modeState.readonlyMode) {
               (modeHandlers.onSwitchToReview ?? modeHandlers.onSwitchToWysiwyg)();
             } else if (modeState.reviewMode) {
               modeHandlers.onSwitchToWysiwyg();
@@ -1639,14 +1728,14 @@ export function mountVanillaMarkdownEditor(
             } else {
               modeHandlers.onSwitchToSource();
             }
-          } else if (modeState.readonlyMode || modeState.reviewMode) {
-            // readonly / review では編集系（merge / clear）を無効化（旧実装と同一）。
+          } else if (readonlyNow() || modeState.reviewMode) {
+            // readonly（ホスト強制・ユーザー選択いずれも）/ review では編集系（merge / clear）を無効化。
           } else if (key === "m") {
             e.preventDefault();
             modeHandlers.onMerge();
           } else if (key === "n") {
             e.preventDefault();
-            fileHandlers.onClear();
+            void fileHandlers.onNewFile?.();
           }
           return;
         }
@@ -1697,7 +1786,8 @@ export function mountVanillaMarkdownEditor(
       applyLivePatch = (patch) => {
         if (patch.readOnly !== undefined) {
           current.readOnly = patch.readOnly;
-          modeState.readonlyMode = patch.readOnly || sourceController?.getMode() === "readonly";
+          modeState.hostReadOnly = patch.readOnly;
+          modeState.readonlyMode = sourceController?.getMode() === "readonly";
           editor.setEditable(!readonlyNow() && sourceController?.getMode() !== "review");
           remakeBubble();
           refreshToolbarMode();
@@ -1715,8 +1805,16 @@ export function mountVanillaMarkdownEditor(
         if (patch.themeMode !== undefined) {
           viewerToolbar?.syncTheme(current.themeMode ?? "light");
         }
+        // fileName の採用（adoptExternalFile）は onSaveTargetChange を発火させ、そこで宛先種別を
+        // 読み直す。ホストが Drive へ保存先を移した直後の patch を取りこぼさないよう先に反映する。
+        if ("externalSaveKind" in patch) {
+          applyExternalSaveKind(patch.externalSaveKind);
+        }
         if (patch.fileName !== undefined) {
-          statusBar?.update({ fileName: patch.fileName });
+          // fileOps 経由で採用する（notifyState → onFileStateChange が statusBar へ反映する）。
+          // 表示更新だけでなく永続化の副作用を伴う: localStorage の保存済みファイル名を上書きし、
+          // null のときはネイティブファイルハンドル（IndexedDB）も破棄する。
+          fileOps.adoptExternalFile(patch.fileName);
         }
         // externalCompareContent は遷移（値の変化）でのみ反映する。Mount ラッパは live patch の
         // たびに現値（null 含む）を相乗りさせるため、無変化の null で閉じたり同値を再適用しない。

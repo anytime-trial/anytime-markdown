@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-07-11
+
+### Added
+
+- Turned the toolbar "Open" button into a menu and integrated Google Drive as an option.
+- Added a "New" button and a "Save" menu to the toolbar, with an unsaved-changes guard on new-document.
+- Added an "Open from GitHub" entry to the "Open" menu.
+- Show a save-target badge (Local / GitHub / Drive) next to the file name in the status bar.
+- Render fenced `markdown` code blocks as a rendered preview (markdown-rich).
+
+### Changed
+
+- Renamed overwrite-save for a GitHub-backed document to "Commit to GitHub" and removed the standalone top-right commit button.
+- Consolidated ownership of the body draft into draftStorage and removed externalFilePath.
+- Unified save-target predicates into hasSaveTarget.
+
+### Fixed
+
+- Fixed the multipart boundary for a new Drive save colliding with the document body.
+- Fixed the body being discarded without awaiting completion of an external save.
+- Separated the readOnly prop from the user-selected readonly mode, resolving a stuck mode switch.
+- Fixed Mermaid labels being stripped by DOMPurify.
+- Propagated comment-only changes to draft storage and onContentChange.
+- Made the save target a discriminated union so overwrite-save after "Save As" no longer writes to local.
+- Stop associating a same-named local file's native handle with a document that came from an external source.
+- Fixed a Drive-opened file name reverting to a stale local name in the status bar.
+- Fixed overwrite-save being disabled for a body opened from Drive.
+- Moved the save keyboard-shortcut hint onto the menu item that actually triggers it.
+- Wired the explorer toggle into the side toolbar.
+
+### Security
+
+- Removed forms and inline style from the Mermaid label region and froze the configuration constants.
+
+### Accessibility
+
+- Made the location badge aria-hidden and consolidated location announcement into a single aria-label.
+- Stop leaving role/aria-label residue when toggling the preview (markdown-rich).
+
 ## [1.10.0] - 2026-07-09
 
 ### Added

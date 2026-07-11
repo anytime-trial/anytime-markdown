@@ -70,6 +70,8 @@ const PATH = {
   menu: "M3 18h18v-2H3zm0-5h18v-2H3zm0-7v2h18V6z",
   folderOpen:
     "M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V8h16z",
+  noteAdd:
+    "M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8zm2 14h-3v3h-2v-3H8v-2h3v-3h2v3h3zm-3-7V3.5L18.5 9z",
   save: "M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3m3-10H5V5h10z",
   saveAs:
     "M21 12.4V7l-4-4H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h7.4zM15 15c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3M6 6h9v4H6zm13.99 10.25 1.77 1.77L16.77 23H15v-1.77zm3.26.26-.85.85-1.77-1.77.85-.85c.2-.2.51-.2.71 0l1.06 1.06c.2.2.2.52 0 .71",
@@ -146,6 +148,33 @@ export interface CreateEditorToolbarOptions {
   sideToolbar?: boolean;
   /** more メニュー（ヘルプ / ハンバーガー）クリックの intent。anchor 要素を渡す。 */
   onSetHelpAnchor?: (el: HTMLElement) => void;
+  /**
+   * 「開く」ボタンのメニュー表示要求。`fileHandlers.onOpenFromDrive` か `onOpenFromGitHub` の
+   * いずれかが注入されているときのみ発火し、ボタン要素と選択肢のハンドラを渡す。
+   */
+  onSetOpenFileAnchor?: (
+    el: HTMLElement,
+    handlers: {
+      onOpenLocal: () => void | Promise<void>;
+      onOpenFromDrive?: () => void | Promise<void>;
+      onOpenFromGitHub?: () => void | Promise<void>;
+    },
+  ) => void;
+  /**
+   * 「保存」ボタンのメニュー表示要求。`fileHandlers.onSaveFile` と `onSaveAsFile` が
+   * 揃っているときのみ発火する。`overwriteDisabled` は「上書き保存」項目の可否。
+   */
+  onSetSaveAnchor?: (
+    el: HTMLElement,
+    handlers: {
+      onSaveFile: () => void | Promise<void>;
+      onSaveAsFile: () => void | Promise<void>;
+      onSaveToDrive?: () => void | Promise<void>;
+      /** 上書き保存項目の表示名（保存先が GitHub なら「GitHub にコミット」）。 */
+      saveLabel: string;
+      overwriteDisabled: boolean;
+    },
+  ) => void;
   /** モバイル more メニュー（ハンバーガー）クリックの intent（host 側 React Menu へ委譲）。 */
   onOpenMobileMenu?: (el: HTMLElement) => void;
   onHomeClick?: () => void;
@@ -210,6 +239,14 @@ export function createEditorToolbar(
   let isDirty = opts.isDirty ?? false;
   // save ボタンの toggle ハンドル（dirty / fileCapabilities 変化で disabled を再評価するため保持）。
   let saveBtn: ReturnType<typeof createToggleButton> | null = null;
+  /** 保存ボタンがメニュー化されているか（true なら disabled は readonly のみで再評価する）。 */
+  let saveBtnIsMenu = false;
+  /**
+   * editingLocked() で無効化される編集系ボタン。update() で再評価するため参照を保持する
+   * （構築時の値で固定すると readonly へ入っても押せたままになる）。buildFileActions() より
+   * 前に宣言しないと TDZ で落ちる。
+   */
+  const lockGatedButtons: ReturnType<typeof createToggleButton>[] = [];
   const hide = opts.hide ?? {};
   // 旧 EditorToolbar.module.css parity: ビュー群/compare/More(desktop) は md 未満で非表示、
   // More(mobile) は md 以上で非表示。display は本スタイルが所有する（inline に置かない）。
@@ -295,17 +332,34 @@ export function createEditorToolbar(
     root.appendChild(buildFileActions());
   }
 
-  // save ボタンの disabled 判定。readonly / ファイルハンドル無し / 未編集（dirty=false）のいずれかで無効。
+  // 編集操作をロックすべきか。ホスト強制の readOnly と、ユーザーが選んだ readonly モードの論理和。
+  // 両者は独立に立つため（ToolbarModeState 参照）、編集系ボタンの可否は必ずこの関数で判定する。
+  function editingLocked(): boolean {
+    return Boolean(modeState.hostReadOnly) || Boolean(modeState.readonlyMode);
+  }
+
+  // save ボタンの disabled 判定。readonly / 保存先無し / 未編集（dirty=false）のいずれかで無効。
+  // 保存先はローカルハンドルと外部保存（Drive / GitHub）の双方を含む（hasSaveTarget）。
   // 「保存が必要なときのみ有効」を満たすため dirty ゲートを最後に AND する。
   function saveDisabled(): boolean {
-    return Boolean(modeState.readonlyMode) || !fileCapabilities?.hasFileHandle || !isDirty;
+    return editingLocked() || !fileCapabilities?.hasSaveTarget || !isDirty;
+  }
+
+  // 上書き保存の表示名。保存先が GitHub のとき、この操作は GitHub へのコミットなので表示を合わせる。
+  function overwriteSaveLabel(): string {
+    return fileCapabilities?.externalSaveKind === "github" ? t("saveToGitHub") : t("saveFile");
+  }
+
+  // 上書き保存のツールチップ（ショートカット付き）。宛先が無い場合は理由を示す文言に置き換える。
+  function overwriteSaveTip(): string {
+    if (!fileCapabilities?.hasSaveTarget) return t("saveFileNoHandle");
+    return `${overwriteSaveLabel()}  (${TOOLTIP_SHORTCUTS.saveFile})`;
   }
 
   function buildFileActions(): HTMLElement {
     const wrap = document.createElement("div");
     wrap.style.cssText = "display:inline-flex;align-items:center;";
     const { supportsDirectAccess, externalSaveOnly } = fileCapabilities ?? {};
-    const readonlyMode = modeState.readonlyMode;
 
     const group = createToggleButtonGroup({ size: "small", ariaLabel: t("fileActions") });
     group.el.style.height = "30px";
@@ -336,55 +390,128 @@ export function createEditorToolbar(
       return btn;
     };
 
+    /**
+     * 「開く」ボタンを追加する。`onOpenFromDrive` が注入されている場合のみメニュー化し、
+     * ボタン自身を anchor として上位（EditorMenuPopovers）へ渡す。未注入のホスト
+     * （VS Code 拡張など）では `onOpenLocal` を直接呼ぶ従来の挙動を保つ。
+     *
+     * メニュー化時のボタンはメニューを開くだけなのでツールチップにショートカットを出さない
+     * （ショートカットは実際に動作するメニュー項目側に表示する）。
+     */
+    const addOpenBtn = (
+      onOpenLocal: () => void | Promise<void>,
+      tipTitle: string,
+    ): ReturnType<typeof createToggleButton> => {
+      const { onOpenFromDrive, onOpenFromGitHub } = fileHandlers;
+      const asMenu = Boolean((onOpenFromDrive ?? onOpenFromGitHub) && opts.onSetOpenFileAnchor);
+      const btn = addBtn({
+        value: "open",
+        ariaLabel: t("openFile"),
+        icon: PATH.folderOpen,
+        tipTitle: asMenu ? t("openFile") : tipTitle,
+        onClick: () => {
+          if (asMenu) {
+            opts.onSetOpenFileAnchor?.(btn.el, { onOpenLocal, onOpenFromDrive, onOpenFromGitHub });
+            return;
+          }
+          void onOpenLocal();
+        },
+      });
+      if (asMenu) btn.el.setAttribute("aria-haspopup", "menu");
+      return btn;
+    };
+
+    /**
+     * 「新規作成」ボタンを追加する。open ボタンを出す分岐でのみ呼ぶ（open の直前に置く）。
+     */
+    const addNewFileBtn = (): void => {
+      lockGatedButtons.push(
+        addBtn({
+          value: "createNew",
+          ariaLabel: t("createNew"),
+          icon: PATH.noteAdd,
+          tipTitle: tip(t, "createNew"),
+          disabled: editingLocked(),
+          onClick: () => void fileHandlers.onNewFile?.(),
+        }),
+      );
+    };
+
+    /**
+     * 「保存」ボタンを追加する。`onSaveAsFile` があり `onSetSaveAnchor` が渡されている場合のみ
+     * メニュー化する。メニュー化時はボタン自体を readonly でのみ無効化し、「上書き保存」の可否は
+     * `overwriteDisabled` として項目側へ渡す（無効なボタンはメニューを開けないため）。
+     *
+     * メニュー化時のボタンは総称の「保存」を名乗り、ツールチップにショートカットを出さない
+     * （ショートカットは実際に動作するメニュー項目側に表示する）。
+     */
+    const addSaveBtn = (tipTitle: string): ReturnType<typeof createToggleButton> => {
+      const { onSaveFile, onSaveAsFile, onSaveToDrive } = fileHandlers;
+      const asMenu = Boolean(onSaveFile && onSaveAsFile && opts.onSetSaveAnchor);
+      const btn = addBtn({
+        value: "save",
+        ariaLabel: asMenu ? t("save") : overwriteSaveLabel(),
+        icon: PATH.save,
+        tipTitle: asMenu ? t("save") : tipTitle,
+        disabled: asMenu ? editingLocked() : saveDisabled(),
+        onClick: () => {
+          if (asMenu && onSaveFile && onSaveAsFile) {
+            opts.onSetSaveAnchor?.(btn.el, {
+              onSaveFile,
+              onSaveAsFile,
+              onSaveToDrive,
+              saveLabel: overwriteSaveLabel(),
+              overwriteDisabled: saveDisabled(),
+            });
+            return;
+          }
+          void onSaveFile?.();
+        },
+      });
+      saveBtnIsMenu = asMenu;
+      if (asMenu) btn.el.setAttribute("aria-haspopup", "menu");
+      return btn;
+    };
+
     if (externalSaveOnly) {
       saveBtn = addBtn({
         value: "save",
-        ariaLabel: t("saveFile"),
+        ariaLabel: overwriteSaveLabel(),
         icon: PATH.save,
-        tipTitle: fileCapabilities?.hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle"),
+        tipTitle: overwriteSaveTip(),
         disabled: saveDisabled(),
         onClick: () => fileHandlers.onSaveFile?.(),
       });
     } else if (supportsDirectAccess) {
-      addBtn({
-        value: "open",
-        ariaLabel: t("openFile"),
-        icon: PATH.folderOpen,
-        tipTitle: tip(t, "openFile"),
-        onClick: () => fileHandlers.onOpenFile?.(),
-      });
-      saveBtn = addBtn({
-        value: "save",
-        ariaLabel: t("saveFile"),
-        icon: PATH.save,
-        tipTitle: fileCapabilities?.hasFileHandle ? tip(t, "saveFile") : t("saveFileNoHandle"),
-        disabled: saveDisabled(),
-        onClick: () => fileHandlers.onSaveFile?.(),
-      });
-      addBtn({
-        value: "saveAs",
-        ariaLabel: t("saveAsFile"),
-        icon: PATH.saveAs,
-        tipTitle: tip(t, "saveAsFile"),
-        disabled: readonlyMode,
-        onClick: () => fileHandlers.onSaveAsFile?.(),
-      });
+      addNewFileBtn();
+      addOpenBtn(() => fileHandlers.onOpenFile?.(), tip(t, "openFile"));
+      saveBtn = addSaveBtn(overwriteSaveTip());
+      // saveAs はメニュー化時に「名前を付けて保存」項目へ統合されるため単独ボタンを出さない。
+      if (!(fileHandlers.onSaveFile && fileHandlers.onSaveAsFile && opts.onSetSaveAnchor)) {
+        lockGatedButtons.push(
+          addBtn({
+            value: "saveAs",
+            ariaLabel: t("saveAsFile"),
+            icon: PATH.saveAs,
+            tipTitle: tip(t, "saveAsFile"),
+            disabled: editingLocked(),
+            onClick: () => fileHandlers.onSaveAsFile?.(),
+          }),
+        );
+      }
     } else {
-      addBtn({
-        value: "open",
-        ariaLabel: t("openFile"),
-        icon: PATH.folderOpen,
-        tipTitle: t("openFile"),
-        onClick: () => fileHandlers.onImport(),
-      });
-      addBtn({
-        value: "saveAs",
-        ariaLabel: t("saveAsFile"),
-        icon: PATH.saveAs,
-        tipTitle: t("saveAsFile"),
-        disabled: readonlyMode,
-        onClick: () => fileHandlers.onDownload(),
-      });
+      addNewFileBtn();
+      addOpenBtn(() => fileHandlers.onImport(), t("openFile"));
+      lockGatedButtons.push(
+        addBtn({
+          value: "saveAs",
+          ariaLabel: t("saveAsFile"),
+          icon: PATH.saveAs,
+          tipTitle: t("saveAsFile"),
+          disabled: editingLocked(),
+          onClick: () => fileHandlers.onDownload(),
+        }),
+      );
     }
 
     if (fileHandlers.onExportPdf) {
@@ -398,14 +525,16 @@ export function createEditorToolbar(
       });
     }
     if (fileHandlers.onWebImport) {
-      addBtn({
-        value: "webImport",
-        ariaLabel: t("slashWebImport"),
-        icon: PATH.web,
-        tipTitle: t("slashWebImport"),
-        disabled: readonlyMode,
-        onClick: () => fileHandlers.onWebImport?.(),
-      });
+      lockGatedButtons.push(
+        addBtn({
+          value: "webImport",
+          ariaLabel: t("slashWebImport"),
+          icon: PATH.web,
+          tipTitle: t("slashWebImport"),
+          disabled: editingLocked(),
+          onClick: () => fileHandlers.onWebImport?.(),
+        }),
+      );
     }
     wrap.appendChild(group.el);
 
@@ -474,14 +603,14 @@ export function createEditorToolbar(
 
   function undoDisabled(): boolean {
     return (
-      !!modeState.readonlyMode ||
+      editingLocked() ||
       !!modeState.reviewMode ||
       (mergeUndoRedo ? !mergeUndoRedo.canUndo : !editorState.canUndo)
     );
   }
   function redoDisabled(): boolean {
     return (
-      !!modeState.readonlyMode ||
+      editingLocked() ||
       !!modeState.reviewMode ||
       (mergeUndoRedo ? !mergeUndoRedo.canRedo : !editorState.canRedo)
     );
@@ -549,6 +678,7 @@ export function createEditorToolbar(
 
   // --- モード切替（readonly / review / wysiwyg / source） ---
   let modeGroup: ReturnType<typeof createToggleButtonGroup> | null = null;
+  const modeButtons: ReturnType<typeof createToggleButton>[] = [];
   if (!hide.modeToggle) {
     modeGroup = createToggleButtonGroup({
       variant: "pill",
@@ -573,9 +703,13 @@ export function createEditorToolbar(
       const btn = createToggleButton({
         value,
         ariaLabel,
+        // ホストが readOnly を課している間はユーザーがモードを変えられない。押しても無反応に
+        // するのではなく、無効化して「切替不可」であることを示す。
+        disabled: Boolean(modeState.hostReadOnly),
         label: [iconEl, labelSpan],
         onClick,
       });
+      modeButtons.push(btn);
       modeGroup?.register(btn);
     };
 
@@ -596,8 +730,10 @@ export function createEditorToolbar(
     root.appendChild(modeGroup.el);
   }
 
+  // ホストが readOnly を課している間は、内部モードに関わらず「読み取り専用」を選択表示する
+  // （ボタン群は disabled なので、状態表示であって操作可能な選択ではない）。
   function currentMode(): string {
-    if (modeState.readonlyMode) return "readonly";
+    if (modeState.hostReadOnly || modeState.readonlyMode) return "readonly";
     if (modeState.reviewMode) return "review";
     if (modeState.sourceMode) return "source";
     return "wysiwyg";
@@ -621,13 +757,14 @@ export function createEditorToolbar(
     const editBtn = createToggleButton({
       value: "edit",
       ariaLabel: t("normalMode"),
-      disabled: modeState.readonlyMode,
+      disabled: editingLocked(),
       label: [svgIcon(PATH.editNote, 16), editLabel],
       onClick: () => {
         if (modeState.inlineMergeOpen) modeHandlers.onMerge();
       },
     });
     compareGroup.register(editBtn);
+    lockGatedButtons.push(editBtn);
 
     const compareLabel = document.createElement("span");
     compareLabel.textContent = t("compare");
@@ -636,13 +773,14 @@ export function createEditorToolbar(
     const compareBtn = createToggleButton({
       value: "compare",
       ariaLabel: t("compare"),
-      disabled: modeState.readonlyMode,
+      disabled: editingLocked(),
       label: [compareIcon, compareLabel],
       onClick: () => {
         if (!modeState.inlineMergeOpen) modeHandlers.onMerge();
       },
     });
     compareGroup.register(compareBtn);
+    lockGatedButtons.push(compareBtn);
 
     wrapper.appendChild(compareGroup.el);
     root.appendChild(wrapper);
@@ -730,10 +868,19 @@ export function createEditorToolbar(
       if (next.mergeUndoRedo !== undefined) mergeUndoRedo = next.mergeUndoRedo ?? null;
       if (next.isDirty !== undefined) isDirty = next.isDirty;
       // fileCapabilities の構造（externalSaveOnly / supportsDirectAccess）は構築時固定だが、
-      // hasFileHandle はファイルを開く/保存で変化するため最新値を保持し disabled 再評価に使う。
+      // hasSaveTarget はファイルを開く/保存で変化するため最新値を保持し disabled 再評価に使う。
       if (next.fileCapabilities !== undefined) fileCapabilities = next.fileCapabilities;
       // save ボタンの dirty / handle / readonly ゲートを再評価（編集→保存要、保存後→不要）。
-      saveBtn?.update({ disabled: saveDisabled() });
+      // メニュー化時はボタンを無効化するとメニュー自体を開けなくなるため readonly のみで判定する
+      // （「上書き保存」項目の可否は onSetSaveAnchor の overwriteDisabled で都度渡す）。
+      saveBtn?.update({ disabled: saveBtnIsMenu ? editingLocked() : saveDisabled() });
+
+      // readonly ゲートのかかる編集系ボタン（新規作成 / 名前を付けて保存 / web import /
+      // 通常 / 比較）を再評価する。構築時の値のままだと readonly へ入っても押せてしまう。
+      const locked = editingLocked();
+      for (const btn of lockGatedButtons) btn.update({ disabled: locked });
+      // ホスト強制ロック中はモード切替そのものを封じる。
+      for (const btn of modeButtons) btn.update({ disabled: Boolean(modeState.hostReadOnly) });
 
       // モード／compare の選択値を group へ反映。
       modeGroup?.setValue(currentMode());

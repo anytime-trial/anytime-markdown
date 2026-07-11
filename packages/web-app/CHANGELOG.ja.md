@@ -6,6 +6,30 @@
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-07-11
+
+### 追加
+
+- Google Drive の `?state=` ディープリンクからエディタを起動し、破棄確認ダイアログを追加。
+- Google Drive への新規保存を追加。
+- OAuth スコープを `repo` に拡大し、プライベートリポジトリを選択可能に。
+- Google スコープに `drive.install` を追加。
+- 「開く」メニューに「GitHub から開く」項目を追加。
+
+### 変更
+
+- Explorer パネルを廃止し、GitHub 導線をダイアログへ集約。
+- NEXT_PUBLIC_ENABLE_GITHUB を廃止し、GitHub 連携を常時有効化。
+- Drive の本文読み込みを loadDriveFileIntoEditor へ抽出。
+
+### 修正
+
+- GitHubRepoBrowser の遅延応答が新しいツリーを上書きする不具合を防止。
+- 「GitHub に接続しました」がエディタ表示のたびに出る不具合を修正。
+- GitHub ログイン検出が Google サインインを誤検知する不具合を修正。
+- 旧スコープの残存トークンを検出し再サインインを促すよう修正。
+- Drive の開く導線における3件の不具合を修正。
+
 ## [0.35.0] - 2026-07-09
 
 ### 追加

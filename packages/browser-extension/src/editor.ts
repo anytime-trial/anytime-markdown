@@ -179,8 +179,7 @@ function createEditor(
   el.setAttribute("locale", "ja");
   // web-app と同様に右端の縦サイドツールバー（アウトライン / コメント / 設定）を表示する。
   // hide.explorer は上部ツールバーの explorer トグル（fileSystemProvider 未配線で無意味）を
-  // 抑止する（web-app の `hide={{ explorer: !enableGitHub }}` 相当）。サイドツールバー側の
-  // explorer ボタンは onToggleExplorer 未配線のため元々描画されない。
+  // 抑止する。サイドツールバー側の explorer ボタンは onToggleExplorer 未配線のため元々描画されない。
   // File System Access API で .md を開く / 上書き保存 / 名前を付けて保存を有効化する
   // （拡張ページは secure context のため showOpenFilePicker / createWritable が使える）。
   // これにより toolbar の 開く / 保存 / 別名保存 アイコンが有効になる。

@@ -226,7 +226,7 @@ describe("createEditorToolbar — 生成と属性", () => {
 describe("createEditorToolbar — ファイル操作", () => {
   it("supportsDirectAccess で open/save/saveAs を生成し、クリックでハンドラを呼ぶ", () => {
     const { handle, fileHandlers } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       isDirty: true,
     });
     (handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement).click();
@@ -235,6 +235,274 @@ describe("createEditorToolbar — ファイル操作", () => {
     expect(fileHandlers.onOpenFile).toHaveBeenCalled();
     expect(fileHandlers.onSaveFile).toHaveBeenCalled();
     expect(fileHandlers.onSaveAsFile).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("createNew ボタンが open の直前に置かれ、クリックで onNewFile を呼ぶ", () => {
+    const onNewFile = jest.fn();
+    const fileHandlers = { ...defaultFileHandlers(), onNewFile };
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers,
+    });
+    const labels = Array.from(handle.el.querySelectorAll("button")).map((b) => b.getAttribute("aria-label"));
+    expect(labels.indexOf("createNew")).toBeGreaterThanOrEqual(0);
+    expect(labels.indexOf("createNew")).toBe(labels.indexOf("openFile") - 1);
+    (handle.el.querySelector('button[aria-label="createNew"]') as HTMLButtonElement).click();
+    expect(onNewFile).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("非 direct access でも createNew ボタンを出す", () => {
+    const { handle } = mount({ fileHandlers: { ...defaultFileHandlers(), onNewFile: jest.fn() } });
+    expect(handle.el.querySelector('button[aria-label="createNew"]')).toBeTruthy();
+    handle.destroy();
+  });
+
+  it("externalSaveOnly では createNew ボタンを出さない", () => {
+    const { handle } = mount({
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: true },
+      fileHandlers: { ...defaultFileHandlers(), onNewFile: jest.fn() },
+    });
+    expect(handle.el.querySelector('button[aria-label="createNew"]')).toBeNull();
+    handle.destroy();
+  });
+
+  it("readonlyMode では createNew ボタンが無効", () => {
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers: { ...defaultFileHandlers(), onNewFile: jest.fn() },
+      modeState: { ...defaultModeState(), readonlyMode: true },
+    });
+    const btn = handle.el.querySelector('button[aria-label="createNew"]') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    handle.destroy();
+  });
+
+  it("onSetSaveAnchor 注入時は save がメニュー化され saveAs 単独ボタンが消える", () => {
+    const onSetSaveAnchor = jest.fn();
+    const fileHandlers = defaultFileHandlers();
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers,
+      onSetSaveAnchor,
+      isDirty: true,
+    });
+    const saveBtn = handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement;
+    expect(saveBtn.getAttribute("aria-haspopup")).toBe("menu");
+    expect(handle.el.querySelector('button[aria-label="saveAsFile"]')).toBeNull();
+
+    saveBtn.click();
+    expect(fileHandlers.onSaveFile).not.toHaveBeenCalled();
+    expect(onSetSaveAnchor).toHaveBeenCalledTimes(1);
+    const [anchorEl, handlers] = onSetSaveAnchor.mock.calls[0];
+    expect(anchorEl).toBe(saveBtn);
+    handlers.onSaveFile();
+    expect(fileHandlers.onSaveFile).toHaveBeenCalled();
+    handlers.onSaveAsFile();
+    expect(fileHandlers.onSaveAsFile).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("externalSaveKind=github なら上書き保存の表示が「GitHub にコミット」になる", () => {
+    const onSetSaveAnchor = jest.fn();
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true, externalSaveKind: "github" },
+      fileHandlers: defaultFileHandlers(),
+      onSetSaveAnchor,
+      isDirty: true,
+    });
+    (handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement).click();
+    expect(onSetSaveAnchor.mock.calls[0][1].saveLabel).toBe("saveToGitHub");
+    handle.destroy();
+  });
+
+  it("externalSaveKind 未指定なら上書き保存の表示は「上書き保存」のまま", () => {
+    const onSetSaveAnchor = jest.fn();
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers: defaultFileHandlers(),
+      onSetSaveAnchor,
+      isDirty: true,
+    });
+    (handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement).click();
+    expect(onSetSaveAnchor.mock.calls[0][1].saveLabel).toBe("saveFile");
+    handle.destroy();
+  });
+
+  it("update で externalSaveKind が消えたら上書き保存の表示が戻る（ローカルへ名前を付けて保存した後）", () => {
+    const onSetSaveAnchor = jest.fn();
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true, externalSaveKind: "github" },
+      fileHandlers: defaultFileHandlers(),
+      onSetSaveAnchor,
+      isDirty: true,
+    });
+    handle.update({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true, externalSaveKind: undefined },
+    });
+    (handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement).click();
+    expect(onSetSaveAnchor.mock.calls[0][1].saveLabel).toBe("saveFile");
+    handle.destroy();
+  });
+
+  it("externalSaveOnly かつ externalSaveKind=github の save ボタンは GitHub コミットを名乗る", () => {
+    const { handle } = mount({
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: true, externalSaveKind: "github" },
+      fileHandlers: defaultFileHandlers(),
+      isDirty: true,
+    });
+    expect(handle.el.querySelector('button[aria-label="saveToGitHub"]')).toBeTruthy();
+    handle.destroy();
+  });
+
+  it("メニュー化した save は未保存・ファイル未オープンでも押下できる（項目側で無効化する）", () => {
+    const onSetSaveAnchor = jest.fn();
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: false },
+      fileHandlers: defaultFileHandlers(),
+      onSetSaveAnchor,
+      isDirty: false,
+    });
+    const saveBtn = handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement;
+    expect(saveBtn.disabled).toBe(false);
+    saveBtn.click();
+    expect(onSetSaveAnchor).toHaveBeenCalledTimes(1);
+    // 上書き保存の可否は項目側へ渡す。
+    expect(onSetSaveAnchor.mock.calls[0][1].overwriteDisabled).toBe(true);
+    handle.destroy();
+  });
+
+  it("readonlyMode ではメニュー化した save も無効", () => {
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers: defaultFileHandlers(),
+      onSetSaveAnchor: jest.fn(),
+      modeState: { ...defaultModeState(), readonlyMode: true },
+      isDirty: true,
+    });
+    const saveBtn = handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement;
+    expect(saveBtn.disabled).toBe(true);
+    handle.destroy();
+  });
+
+  it("externalSaveOnly では save をメニュー化せず直接保存する", () => {
+    const fileHandlers = defaultFileHandlers();
+    const onSetSaveAnchor = jest.fn();
+    const { handle } = mount({
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: true },
+      fileHandlers,
+      onSetSaveAnchor,
+      isDirty: true,
+    });
+    const saveBtn = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
+    expect(saveBtn.getAttribute("aria-haspopup")).toBeNull();
+    saveBtn.click();
+    expect(fileHandlers.onSaveFile).toHaveBeenCalled();
+    expect(onSetSaveAnchor).not.toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("onSaveToDrive 注入時はメニューハンドラに onSaveToDrive が含まれる", () => {
+    const onSetSaveAnchor = jest.fn();
+    const onSaveToDrive = jest.fn();
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers: { ...defaultFileHandlers(), onSaveToDrive },
+      onSetSaveAnchor,
+      isDirty: true,
+    });
+    (handle.el.querySelector('button[aria-label="save"]') as HTMLButtonElement).click();
+    onSetSaveAnchor.mock.calls[0][1].onSaveToDrive();
+    expect(onSaveToDrive).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("onOpenFromDrive 未注入なら open は直接ハンドラを呼び aria-haspopup を持たない", () => {
+    const { handle, fileHandlers } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      onSetOpenFileAnchor: jest.fn(),
+    });
+    const btn = handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement;
+    expect(btn.getAttribute("aria-haspopup")).toBeNull();
+    btn.click();
+    expect(fileHandlers.onOpenFile).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("onOpenFromDrive 注入時は open がメニュー化され onSetOpenFileAnchor へ委譲する", () => {
+    const onSetOpenFileAnchor = jest.fn();
+    const fileHandlers = { ...defaultFileHandlers(), onOpenFromDrive: jest.fn() };
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers,
+      onSetOpenFileAnchor,
+    });
+    const btn = handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement;
+    expect(btn.getAttribute("aria-haspopup")).toBe("menu");
+    btn.click();
+    expect(fileHandlers.onOpenFile).not.toHaveBeenCalled();
+    expect(onSetOpenFileAnchor).toHaveBeenCalledTimes(1);
+    const [anchorEl, handlers] = onSetOpenFileAnchor.mock.calls[0];
+    expect(anchorEl).toBe(btn);
+    handlers.onOpenLocal();
+    expect(fileHandlers.onOpenFile).toHaveBeenCalled();
+    handlers.onOpenFromDrive();
+    expect(fileHandlers.onOpenFromDrive).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("onOpenFromGitHub のみ注入でも open がメニュー化され GitHub ハンドラを委譲する", () => {
+    const onSetOpenFileAnchor = jest.fn();
+    const fileHandlers = { ...defaultFileHandlers(), onOpenFromGitHub: jest.fn() };
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers,
+      onSetOpenFileAnchor,
+    });
+    const btn = handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement;
+    expect(btn.getAttribute("aria-haspopup")).toBe("menu");
+    btn.click();
+    expect(fileHandlers.onOpenFile).not.toHaveBeenCalled();
+    const [, handlers] = onSetOpenFileAnchor.mock.calls[0];
+    expect(handlers.onOpenFromDrive).toBeUndefined();
+    handlers.onOpenFromGitHub();
+    expect(fileHandlers.onOpenFromGitHub).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("Drive / GitHub 双方の注入で両ハンドラが onSetOpenFileAnchor へ渡る", () => {
+    const onSetOpenFileAnchor = jest.fn();
+    const fileHandlers = {
+      ...defaultFileHandlers(),
+      onOpenFromDrive: jest.fn(),
+      onOpenFromGitHub: jest.fn(),
+    };
+    const { handle } = mount({
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
+      fileHandlers,
+      onSetOpenFileAnchor,
+    });
+    (handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement).click();
+    const [, handlers] = onSetOpenFileAnchor.mock.calls[0];
+    handlers.onOpenFromDrive();
+    handlers.onOpenFromGitHub();
+    expect(fileHandlers.onOpenFromDrive).toHaveBeenCalled();
+    expect(fileHandlers.onOpenFromGitHub).toHaveBeenCalled();
+    handle.destroy();
+  });
+
+  it("非 direct access + onOpenFromDrive 注入でも open はメニュー化される", () => {
+    const onSetOpenFileAnchor = jest.fn();
+    const fileHandlers = { ...defaultFileHandlers(), onOpenFromDrive: jest.fn() };
+    const { handle } = mount({ fileHandlers, onSetOpenFileAnchor });
+    const btn = handle.el.querySelector('button[aria-label="openFile"]') as HTMLButtonElement;
+    btn.click();
+    expect(fileHandlers.onImport).not.toHaveBeenCalled();
+    expect(onSetOpenFileAnchor).toHaveBeenCalledTimes(1);
+    // メニュー側の onOpenLocal は非 direct access では onImport にフォールバックする。
+    onSetOpenFileAnchor.mock.calls[0][1].onOpenLocal();
+    expect(fileHandlers.onImport).toHaveBeenCalled();
     handle.destroy();
   });
 
@@ -247,9 +515,9 @@ describe("createEditorToolbar — ファイル操作", () => {
     handle.destroy();
   });
 
-  it("externalSaveOnly では save のみ生成し hasFileHandle 無しで disabled", () => {
+  it("externalSaveOnly では save のみ生成し hasSaveTarget 無しで disabled", () => {
     const { handle } = mount({
-      fileCapabilities: { externalSaveOnly: true, hasFileHandle: false },
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: false },
     });
     expect(handle.el.querySelector('button[aria-label="openFile"]')).toBeNull();
     const save = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;
@@ -260,7 +528,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("dirty ゲート: 未編集では save が disabled、編集ありで enabled、保存後に再び disabled", () => {
     const { handle, fileHandlers } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: true },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: true },
       isDirty: false,
     });
     const save = (): HTMLButtonElement =>
@@ -282,7 +550,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("dirty ゲート: externalSaveOnly でも dirty のときだけ save を有効化する", () => {
     const { handle } = mount({
-      fileCapabilities: { externalSaveOnly: true, hasFileHandle: true },
+      fileCapabilities: { externalSaveOnly: true, hasSaveTarget: true },
       isDirty: false,
     });
     const save = (): HTMLButtonElement =>
@@ -295,7 +563,7 @@ describe("createEditorToolbar — ファイル操作", () => {
 
   it("dirty ゲート: ハンドル無しなら dirty でも save は disabled のまま", () => {
     const { handle } = mount({
-      fileCapabilities: { supportsDirectAccess: true, hasFileHandle: false },
+      fileCapabilities: { supportsDirectAccess: true, hasSaveTarget: false },
       isDirty: true,
     });
     const save = handle.el.querySelector('button[aria-label="saveFile"]') as HTMLButtonElement;

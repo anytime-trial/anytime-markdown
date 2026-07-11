@@ -25,8 +25,7 @@ import { useEditorPage } from "../app/markdown/useEditorPage";
 
 describe("useEditorPage - additional coverage", () => {
   const defaultOptions = {
-    isGitHubLoggedIn: false,
-    session: null,
+    isGitHubConnected: false,
     t: (key: string) => key,
     fetchFileFn: jest.fn().mockResolvedValue("# Test content"),
     fetchFn: jest.fn().mockResolvedValue({
@@ -40,38 +39,27 @@ describe("useEditorPage - additional coverage", () => {
     sessionStorage.clear();
   });
 
-  it("toggles explorer", () => {
-    const { result } = renderHook(() => useEditorPage(defaultOptions));
-    expect(result.current.explorerOpen).toBe(false);
-
-    act(() => {
-      result.current.handleToggleExplorer();
-    });
-    expect(result.current.explorerOpen).toBe(true);
-  });
-
   it("handles file selection", async () => {
     const { result } = renderHook(() => useEditorPage(defaultOptions));
 
     await act(async () => {
-      await result.current.handleExplorerSelectFile("repo", "file.md", "main");
+      await result.current.handleGitHubOpenFile("repo", "file.md", "main");
     });
 
     expect(defaultOptions.fetchFileFn).toHaveBeenCalledWith("repo", "file.md", "main");
     expect(result.current.externalFileName).toBe("file.md");
-    expect(result.current.externalFilePath).toBe("file.md");
   });
 
   it("skips re-fetch for same file", async () => {
     const { result } = renderHook(() => useEditorPage(defaultOptions));
 
     await act(async () => {
-      await result.current.handleExplorerSelectFile("repo", "file.md", "main");
+      await result.current.handleGitHubOpenFile("repo", "file.md", "main");
     });
 
     defaultOptions.fetchFileFn.mockClear();
     await act(async () => {
-      await result.current.handleExplorerSelectFile("repo", "file.md", "main");
+      await result.current.handleGitHubOpenFile("repo", "file.md", "main");
     });
     expect(defaultOptions.fetchFileFn).not.toHaveBeenCalled();
   });
@@ -81,18 +69,18 @@ describe("useEditorPage - additional coverage", () => {
 
     // First select a file
     await act(async () => {
-      await result.current.handleExplorerSelectFile("repo", "file.md", "main");
+      await result.current.handleGitHubOpenFile("repo", "file.md", "main");
     });
 
     // Then save (GitHub 保存はコミットメッセージダイアログ確定を経由する)
+    // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
     await act(async () => {
-      await result.current.handleExternalSave("# Updated content");
+      void result.current.handleExternalSave("# Updated content");
     });
     await act(async () => {
       await result.current.handleCommitMessageConfirm("update", false);
     });
     expect(result.current.isDirty).toBe(false);
-    expect(result.current.newCommit).toBeTruthy();
     expect(result.current.saveSnackbar?.severity).toBe("success");
   });
 
@@ -108,11 +96,12 @@ describe("useEditorPage - additional coverage", () => {
     );
 
     await act(async () => {
-      await result.current.handleExplorerSelectFile("repo", "file.md", "main");
+      await result.current.handleGitHubOpenFile("repo", "file.md", "main");
     });
 
+    // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
     await act(async () => {
-      await result.current.handleExternalSave("# Updated content");
+      void result.current.handleExternalSave("# Updated content");
     });
     await act(async () => {
       await result.current.handleCommitMessageConfirm("update", false);
@@ -125,7 +114,7 @@ describe("useEditorPage - additional coverage", () => {
     const { result } = renderHook(() => useEditorPage(defaultOptions));
 
     await act(async () => {
-      await result.current.handleExplorerSelectFile("repo", "file.md", "main");
+      await result.current.handleGitHubOpenFile("repo", "file.md", "main");
     });
 
     act(() => {
@@ -147,67 +136,30 @@ describe("useEditorPage - additional coverage", () => {
     });
   });
 
-  it("handles commit selection in compare mode", async () => {
-    const { result } = renderHook(() => useEditorPage(defaultOptions));
-
-    // Enable compare mode first
-    act(() => {
-      result.current.handleCompareModeChange(true);
-    });
-
-    await act(async () => {
-      await result.current.handleExplorerSelectCommit("repo", "file.md", "abc123");
-    });
-  });
-
-  it("handles commit selection outside compare mode", async () => {
-    const { result } = renderHook(() => useEditorPage(defaultOptions));
-
-    await act(async () => {
-      await result.current.handleExplorerSelectCommit("repo", "file.md", "abc123");
-    });
-    expect(result.current.externalFileName).toBe("file.md");
-  });
-
-  it("handles selectCurrent", () => {
-    const { result } = renderHook(() => useEditorPage(defaultOptions));
-
-    act(() => {
-      result.current.handleSelectCurrent();
-    });
-  });
-
-  it("handles session change - login", () => {
+  it("handles GitHub connection change - login", () => {
     const { result, rerender } = renderHook(
-      ({ session }) => useEditorPage({ ...defaultOptions, session }),
-      { initialProps: { session: null as any } }
+      ({ isGitHubConnected }) => useEditorPage({ ...defaultOptions, isGitHubConnected }),
+      { initialProps: { isGitHubConnected: false } }
     );
 
-    rerender({ session: { user: { name: "test" } } });
+    rerender({ isGitHubConnected: true });
     expect(result.current.ssoSnackbar).toBe("githubConnected");
   });
 
-  it("handles session change - logout", () => {
+  it("handles GitHub connection change - logout", () => {
     const { result, rerender } = renderHook(
-      ({ session }) => useEditorPage({ ...defaultOptions, session }),
-      { initialProps: { session: { user: { name: "test" } } as any } }
+      ({ isGitHubConnected }) => useEditorPage({ ...defaultOptions, isGitHubConnected }),
+      { initialProps: { isGitHubConnected: true } }
     );
 
-    rerender({ session: null });
+    rerender({ isGitHubConnected: false });
     expect(result.current.ssoSnackbar).toBe("githubDisconnected");
-  });
-
-  it("opens explorer when GitHub logged in", () => {
-    const { result } = renderHook(() =>
-      useEditorPage({ ...defaultOptions, isGitHubLoggedIn: true })
-    );
-    expect(result.current.explorerOpen).toBe(true);
   });
 
   it("clears localStorage on first SSO login", () => {
     localStorage.setItem("anytime-markdown-content", "old content");
     renderHook(() =>
-      useEditorPage({ ...defaultOptions, isGitHubLoggedIn: true })
+      useEditorPage({ ...defaultOptions, isGitHubConnected: true })
     );
     expect(localStorage.getItem("anytime-markdown-content")).toBeNull();
   });
@@ -231,23 +183,17 @@ describe("useEditorPage - additional coverage", () => {
     expect(result.current.saveSnackbar).toEqual({ message: "Saved!", severity: "success" });
   });
 
-  it("restores explorerOpen from sessionStorage", () => {
-    sessionStorage.setItem("explorerOpen", "1");
-    const { result } = renderHook(() => useEditorPage(defaultOptions));
-    expect(result.current.explorerOpen).toBe(true);
-  });
-
   it("skips ssoContentCleared when already cleared", () => {
     sessionStorage.setItem("ssoContentCleared", "1");
     localStorage.setItem("anytime-markdown-content", "some content");
     renderHook(() =>
-      useEditorPage({ ...defaultOptions, isGitHubLoggedIn: true })
+      useEditorPage({ ...defaultOptions, isGitHubConnected: true })
     );
     expect(localStorage.getItem("anytime-markdown-content")).toBe("some content");
     sessionStorage.removeItem("ssoContentCleared");
   });
 
-  it("handleExternalSave with successful response and commit data", async () => {
+  it("handleExternalSave with successful response", async () => {
     const mockFetch = jest.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ commit: { sha: "abc", message: "saved", author: "user", date: "2025-01-01" } }),
@@ -257,11 +203,12 @@ describe("useEditorPage - additional coverage", () => {
     );
 
     await act(async () => {
-      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+      await result.current.handleGitHubOpenFile("user/repo", "test.md", "main");
     });
 
+    // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
     await act(async () => {
-      await result.current.handleExternalSave("new content");
+      void result.current.handleExternalSave("new content");
     });
     await act(async () => {
       await result.current.handleCommitMessageConfirm("update", false);
@@ -270,7 +217,6 @@ describe("useEditorPage - additional coverage", () => {
     expect(result.current.saveSnackbar).toEqual(
       expect.objectContaining({ severity: "success" })
     );
-    expect(result.current.newCommit).toBeTruthy();
   });
 
   it("handleExternalSave with failed response", async () => {
@@ -283,11 +229,12 @@ describe("useEditorPage - additional coverage", () => {
     );
 
     await act(async () => {
-      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+      await result.current.handleGitHubOpenFile("user/repo", "test.md", "main");
     });
 
+    // GitHub 経路の handleExternalSave はコミットメッセージ確定まで解決しないため await しない。
     await act(async () => {
-      await result.current.handleExternalSave("new content");
+      void result.current.handleExternalSave("new content");
     });
     await act(async () => {
       await result.current.handleCommitMessageConfirm("update", false);
@@ -298,51 +245,11 @@ describe("useEditorPage - additional coverage", () => {
     );
   });
 
-  it("handleCompareModeChange with stored commit content", async () => {
-    const { result } = renderHook(() => useEditorPage(defaultOptions));
-
-    await act(async () => {
-      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
-    });
-
-    await act(async () => {
-      await result.current.handleExplorerSelectCommit("user/repo", "test.md", "sha123");
-    });
-
-    act(() => {
-      result.current.handleCompareModeChange(true);
-    });
-  });
-
-  it("handleExplorerSelectCommit in compare mode", async () => {
-    const { result } = renderHook(() => useEditorPage(defaultOptions));
-
-    act(() => {
-      result.current.handleCompareModeChange(true);
-    });
-
-    await act(async () => {
-      await result.current.handleExplorerSelectCommit("user/repo", "test.md", "sha456");
-    });
-  });
-
-  it("handleSelectCurrent in compare mode", () => {
-    const { result } = renderHook(() => useEditorPage(defaultOptions));
-
-    act(() => {
-      result.current.handleCompareModeChange(true);
-    });
-
-    act(() => {
-      result.current.handleSelectCurrent();
-    });
-  });
-
   it("handleContentChange tracks dirty state", async () => {
     const { result } = renderHook(() => useEditorPage(defaultOptions));
 
     await act(async () => {
-      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+      await result.current.handleGitHubOpenFile("user/repo", "test.md", "main");
     });
 
     act(() => {
@@ -351,15 +258,15 @@ describe("useEditorPage - additional coverage", () => {
     expect(result.current.isDirty).toBe(true);
   });
 
-  it("handleExplorerSelectFile same file twice does nothing", async () => {
+  it("handleGitHubOpenFile same file twice does nothing", async () => {
     const { result } = renderHook(() => useEditorPage(defaultOptions));
 
     await act(async () => {
-      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+      await result.current.handleGitHubOpenFile("user/repo", "test.md", "main");
     });
 
     await act(async () => {
-      await result.current.handleExplorerSelectFile("user/repo", "test.md", "main");
+      await result.current.handleGitHubOpenFile("user/repo", "test.md", "main");
     });
   });
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { fetchWithRetry } from "../../../../lib/fetchWithRetry";
 import { getGitHubToken } from "../../../../lib/githubAuth";
+import { hasRepoScope } from "../../../../lib/githubOAuthScope";
 
 export async function GET(): Promise<NextResponse> {
   const token = await getGitHubToken();
@@ -22,6 +23,10 @@ export async function GET(): Promise<NextResponse> {
       { error: "GitHub API error" },
       { status: res.status },
     );
+  }
+  // スコープ拡大前に発行されたトークンは private を黙って除外する。空一覧として見せず明示する。
+  if (!hasRepoScope(res.headers?.get("x-oauth-scopes"))) {
+    return NextResponse.json({ error: "insufficient_scope" }, { status: 403 });
   }
   const repos = await res.json();
   return NextResponse.json(

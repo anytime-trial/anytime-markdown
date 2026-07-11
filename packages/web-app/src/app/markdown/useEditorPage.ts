@@ -1,9 +1,12 @@
 'use client';
 
-import { STORAGE_KEY_CONTENT } from '@anytime-markdown/markdown-viewer/src/constants/storageKeys';
+import type { SaveTargetInfo } from '@anytime-markdown/markdown-viewer/src/host/fileOpsController';
+import { clearDraft, readDraft, writeDraft } from '@anytime-markdown/markdown-viewer/src/utils/draftStorage';
+import { signIn } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { CommitToGitHubValues } from '../../components/CommitToGitHubDialog';
+import { consumeDriveOpenIntent, markDriveOpenIntent } from '../../lib/driveOpenIntent';
+import { type DriveOpenIntent, parseDriveOpenState } from '../../lib/driveOpenState';
 import { FallbackFileSystemProvider } from '../../lib/FallbackFileSystemProvider';
 import { fetchFileContent } from '../../lib/githubApi';
 import { pickDriveMarkdownFile } from '../../lib/googlePicker';
@@ -48,28 +51,27 @@ function parseDriveContentPayload(value: unknown): DriveContentPayload | null {
   return { name, headRevisionId, content };
 }
 
+interface DriveCreatePayload {
+  fileId: string;
+  name: string;
+  headRevisionId: string | null;
+}
+
+/** POST /api/drive/content の応答（headRevisionId は作成直後 null のことがある）。 */
+function parseDriveCreatePayload(value: unknown): DriveCreatePayload | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const { fileId, name, headRevisionId } = record;
+  if (typeof fileId !== 'string' || typeof name !== 'string') return null;
+  return { fileId, name, headRevisionId: typeof headRevisionId === 'string' ? headRevisionId : null };
+}
+
 function parseDriveHeadRevisionId(value: unknown): string | null {
   const record = asRecord(value);
   const headRevisionId = record?.headRevisionId;
   return typeof headRevisionId === 'string' ? headRevisionId : null;
 }
 
-interface GitHubCommitPayload {
-  sha: string;
-  message: string;
-  author: string;
-  date: string;
-}
-
-function parseGitHubCommitPayload(value: unknown): GitHubCommitPayload | null {
-  const record = asRecord(asRecord(value)?.commit ?? null);
-  if (!record) return null;
-  const { sha, message, author, date } = record;
-  if (typeof sha !== 'string' || typeof message !== 'string' || typeof author !== 'string' || typeof date !== 'string') {
-    return null;
-  }
-  return { sha, message, author, date };
-}
 
 function parseErrorMessage(value: unknown): string | undefined {
   const error = asRecord(value)?.error;
@@ -77,89 +79,120 @@ function parseErrorMessage(value: unknown): string | undefined {
 }
 
 export interface EditorPageState {
-  explorerOpen: boolean;
   externalContent: string | undefined;
   externalFileName: string | undefined;
-  externalFilePath: string | undefined;
   externalCompareContent: string | null;
   editorKey: number;
   isDirty: boolean;
-  newCommit: { sha: string; message: string; author: string; date: string } | null;
   saveSnackbar: { message: string; severity: 'success' | 'error' } | null;
   ssoSnackbar: string | null;
   driveConflict: DriveConflict | null;
   /** 現在編集中のコンテンツが Google Drive から開かれたものか（onExternalSave の配線判定に使う）。 */
   hasDriveFile: boolean;
+  /**
+   * 上書き保存の宛先種別。エディタのツールバー表示（GitHub なら「GitHub にコミット」）に使う。
+   * ローカルへ「名前を付けて保存」した後は markdown-viewer 側が自動で無効化する。
+   */
+  externalSaveKind: 'github' | 'drive' | undefined;
   /** GitHub 保存時のコミットメッセージ入力ダイアログ。null は非表示。 */
   commitMessageDialog: { open: boolean; defaultMessage: string } | null;
-  /** 任意ソースから GitHub へコミットするダイアログ。null は非表示。 */
-  commitToGitHubDialog: { open: boolean; defaultPath: string } | null;
+  driveSaveAsDialog: { open: boolean; defaultName: string } | null;
 }
 
 export interface EditorPageActions {
-  handleToggleExplorer: () => void;
-  handleExplorerSelectFile: (repo: string, filePath: string, branch: string) => Promise<void>;
-  handleExternalSave: (content: string) => Promise<void>;
+  /** GitHub のファイルを開く。開いた後の上書き保存先も同時に確定する。 */
+  handleGitHubOpenFile: (repo: string, filePath: string, branch: string) => Promise<void>;
+  /** 保存完了可否を返す（false のとき未保存ガードは新規作成 / 開くを中断する）。 */
+  handleExternalSave: (content: string) => Promise<boolean>;
+  handleSaveTargetChange: (target: SaveTargetInfo | null) => void;
   handleCompareModeChange: (active: boolean) => void;
-  handleExplorerSelectCommit: (repo: string, filePath: string, sha: string) => Promise<void>;
-  handleSelectCurrent: () => void;
   handleContentChange: (content: string) => void;
   setSsoSnackbar: (v: string | null) => void;
   setSaveSnackbar: (v: { message: string; severity: 'success' | 'error' } | null) => void;
   fileSystemProvider: WebFileSystemProvider | FallbackFileSystemProvider | null;
   handleDriveOpen: () => Promise<void>;
+  handleSaveToDriveClick: (defaultName: string) => void;
+  handleSaveToDriveConfirm: (name: string) => Promise<void>;
+  handleSaveToDriveCancel: () => void;
   handleDriveConflictOverwrite: () => Promise<void>;
   handleDriveConflictCancel: () => void;
   handleCommitMessageConfirm: (message: string, remember: boolean) => Promise<void>;
   handleCommitMessageCancel: () => void;
-  handleOpenCommitToGitHub: (defaultPath: string) => void;
-  handleCloseCommitToGitHub: () => void;
-  handleCommitToGitHubConfirm: (values: CommitToGitHubValues) => Promise<void>;
 }
 
 interface UseEditorPageOptions {
-  isGitHubLoggedIn: boolean;
-  session: unknown;
+  /**
+   * GitHub OAuth 済みか（`resolveConnectedProviders(session).github`）。
+   * `!!session` では Google/Spotify のサインインまで拾ってしまうため boolean で受け取る。
+   * `undefined` は「セッション未確定（useSession が loading）」。未接続とは区別する。
+   */
+  isGitHubConnected: boolean | undefined;
   t: (key: string) => string;
+  /**
+   * Drive UI の「アプリで開く」「新規」が付与する `?state=` の生値（`useSearchParams` 由来）。
+   * null なら OAuth 往復で失われた可能性があるため sessionStorage の intent を見に行く。
+   */
+  driveOpenState?: string | null;
+  /**
+   * 未保存の下書きを破棄してよいかの確認。Drive から開く操作は既存の下書きを上書きするため、
+   * 破棄の可否を呼び出し側（ダイアログ）に委ねる。未注入なら破棄せず中断する（データ損失を避ける）。
+   */
+  confirmDiscardDraft?: () => Promise<boolean>;
   /** Override fetchFileContent for testing */
   fetchFileFn?: typeof fetchFileContent;
   /** Override fetch for testing */
   fetchFn?: typeof fetch;
+  /** Override next-auth signIn for testing */
+  signInFn?: (provider: string, options?: { callbackUrl?: string }) => Promise<unknown>;
 }
 
 export function useEditorPage({
-  isGitHubLoggedIn,
-  session,
+  isGitHubConnected,
   t,
+  driveOpenState = null,
+  confirmDiscardDraft,
   fetchFileFn = fetchFileContent,
   fetchFn = typeof window === 'undefined' ? (undefined as unknown as typeof fetch) : window.fetch.bind(window),
+  signInFn = signIn,
 }: UseEditorPageOptions): EditorPageState & EditorPageActions {
-  const [explorerOpen, setExplorerOpen] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return sessionStorage.getItem('explorerOpen') === '1';
-  });
   const [externalContent, setExternalContent] = useState<string | undefined>(undefined);
   const [externalFileName, setExternalFileName] = useState<string | undefined>(undefined);
-  const [externalFilePath, setExternalFilePath] = useState<string | undefined>(undefined);
   const [externalCompareContent, setExternalCompareContent] = useState<string | null>(null);
-  const [compareModeOpen, setCompareModeOpen] = useState(false);
+  // 値は参照されない（比較モードの分岐は markdown-viewer 側が持つ）。setter のみ使う。
+  const [, setCompareModeOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   const selectedFileRef = useRef<{ repo: string; filePath: string; branch: string } | null>(null);
   const driveFileRef = useRef<DriveFileRef | null>(null);
-  const selectedCommitContentRef = useRef<string | null>(null);
   const originalContentRef = useRef<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
-  const [newCommit, setNewCommit] = useState<{ sha: string; message: string; author: string; date: string } | null>(null);
   const [saveSnackbar, setSaveSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [driveConflict, setDriveConflict] = useState<DriveConflict | null>(null);
   const [hasDriveFile, setHasDriveFile] = useState(false);
-  /** 直近に handleContentChange へ渡された全文（保存元を問わず常に最新化）。GitHub 任意コミットの内容取得に使う。 */
+  /**
+   * Drive ファイル参照の唯一の更新経路。`hasDriveFile` は `driveFileRef.current != null` の
+   * 派生値であり、片方だけを代入できると必ず乖離する。単独代入を禁じるため常にこれを使う。
+   */
+  const setDriveFile = useCallback((ref: DriveFileRef | null) => {
+    driveFileRef.current = ref;
+    setHasDriveFile(ref != null);
+  }, []);
+  /** 直近に handleContentChange へ渡された全文（保存元を問わず常に最新化）。Drive への新規保存の内容取得に使う。 */
   const currentContentRef = useRef<string>('');
+  /** コミットメッセージ確定待ちの handleExternalSave を解決する resolver（保留中のみ非 null）。 */
+  const pendingCommitResolveRef = useRef<((saved: boolean) => void) | null>(null);
   const [commitMessageDialog, setCommitMessageDialog] = useState<{ open: boolean; defaultMessage: string } | null>(null);
   const pendingCommitContentRef = useRef<string>('');
   /** 「次回から同じメッセージを使う」チェック時に保持するメッセージ（セッション内のみ）。 */
   const rememberedCommitMessageRef = useRef<string | null>(null);
-  const [commitToGitHubDialog, setCommitToGitHubDialog] = useState<{ open: boolean; defaultPath: string } | null>(null);
+  const [externalSaveKind, setExternalSaveKind] = useState<'github' | 'drive' | undefined>(undefined);
+  const [driveSaveAsDialog, setDriveSaveAsDialog] = useState<{ open: boolean; defaultName: string } | null>(null);
+  /**
+   * Drive UI からのブートストラップを開始済みか。二重起動を防ぐほか、
+   * 後から解決する GitHub セッションが読み込み済みの本文を空へ戻すのも防ぐ。
+   */
+  const driveBootstrapRef = useRef(false);
+  /** Drive の「新規」経由で開いたときの親フォルダ。初回保存時に parentId として送る。 */
+  const pendingParentIdRef = useRef<string | null>(null);
 
   // エディタページでのみ body に editor-page クラスを付与し overflow: hidden を適用
   useEffect(() => {
@@ -167,22 +200,19 @@ export function useEditorPage({
     return () => { document.body.classList.remove('editor-page'); };
   }, []);
 
-  // SSO ログイン状態で初回アクセス時に localStorage をクリアしパネルを開く
+  // GitHub 接続済みで初回アクセス時に localStorage の下書きをクリアする
   useEffect(() => {
-    if (!isGitHubLoggedIn) return;
-    setExplorerOpen(true);
+    if (!isGitHubConnected) return;
+    // Drive から開いた本文を、後から解決した GitHub セッションが空へ戻さないようにする。
+    if (driveBootstrapRef.current) return;
     if (!selectedFileRef.current) {
       setExternalContent("");
       setEditorKey((k) => k + 1);
     }
     if (sessionStorage.getItem('ssoContentCleared') === '1') return;
     sessionStorage.setItem('ssoContentCleared', '1');
-    try {
-      localStorage.removeItem(STORAGE_KEY_CONTENT);
-    } catch (e) {
-      console.warn('Failed to clear localStorage:', e);
-    }
-  }, [isGitHubLoggedIn]);
+    clearDraft(); // 失敗時のログは draftStorage 側で出る
+  }, [isGitHubConnected]);
 
   const handleContentChange = useCallback((content: string) => {
     currentContentRef.current = content;
@@ -197,63 +227,58 @@ export function useEditorPage({
     return web.supportsDirectAccess ? web : new FallbackFileSystemProvider();
   }, []);
 
-  // SSO ログイン/ログアウト時にエディタを空の初期状態にリセット
-  const prevSessionRef = useRef(session);
+  // GitHub の接続/切断時にエディタを空の初期状態にリセットする。
+  // Google（Drive）や Spotify のサインインでは発火させない（本文が消えるため）。
+  const prevGitHubConnectedRef = useRef<boolean | undefined>(isGitHubConnected);
   const [ssoSnackbar, setSsoSnackbar] = useState<string | null>(null);
   useEffect(() => {
-    if (prevSessionRef.current === session) return;
-    const wasLoggedIn = !!prevSessionRef.current;
-    const isNowLoggedIn = !!session;
-    prevSessionRef.current = session;
+    // セッション未確定の間は何も判断しない。確定した最初の値は「接続イベント」ではないので
+    // 記録するだけで通知もリセットもしない（リロードのたびに snackbar が出るのを防ぐ）。
+    if (isGitHubConnected === undefined) return;
+    const wasLoggedIn = prevGitHubConnectedRef.current;
+    prevGitHubConnectedRef.current = isGitHubConnected;
+    if (wasLoggedIn === undefined || wasLoggedIn === isGitHubConnected) return;
+    const isNowLoggedIn = isGitHubConnected;
     selectedFileRef.current = null;
-    driveFileRef.current = null;
-    setHasDriveFile(false);
+    setDriveFile(null);
     setExternalContent(undefined);
     setExternalFileName(undefined);
-    setExternalFilePath(undefined);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
     rememberedCommitMessageRef.current = null;
     setCommitMessageDialog(null);
-    setCommitToGitHubDialog(null);
+    setExternalSaveKind(undefined);
     if (isNowLoggedIn && !wasLoggedIn) {
       setSsoSnackbar(t('githubConnected'));
     } else if (!isNowLoggedIn && wasLoggedIn) {
       setSsoSnackbar(t('githubDisconnected'));
     }
-  }, [session, t]);
+  }, [isGitHubConnected, t, setDriveFile]);
 
-  useEffect(() => {
-    sessionStorage.setItem('explorerOpen', explorerOpen ? '1' : '0');
-  }, [explorerOpen]);
-
-  const handleToggleExplorer = useCallback(() => {
-    setExplorerOpen((prev) => !prev);
-  }, []);
-
-  const handleExplorerSelectFile = useCallback(async (repo: string, filePath: string, branch: string) => {
+  const handleGitHubOpenFile = useCallback(async (repo: string, filePath: string, branch: string) => {
     const prev = selectedFileRef.current;
     const isSameFile = prev?.repo === repo && prev?.filePath === filePath && prev?.branch === branch;
     selectedFileRef.current = { repo, filePath, branch };
-    driveFileRef.current = null;
-    setHasDriveFile(false);
-    selectedCommitContentRef.current = null;
+    setDriveFile(null);
+    setExternalSaveKind('github');
     if (isSameFile) return;
     setIsDirty(false);
     const content = await fetchFileFn(repo, filePath, branch);
     originalContentRef.current = content;
-    localStorage.setItem(STORAGE_KEY_CONTENT, content);
+    writeDraft(content);
     setExternalContent(undefined);
     setExternalFileName(filePath.split("/").pop() ?? filePath);
-    setExternalFilePath(filePath);
     setExternalCompareContent(null);
     setEditorKey((k) => k + 1);
-  }, [fetchFileFn]);
+  }, [fetchFileFn, setDriveFile]);
 
-  /** Drive への PUT を実行する。409（他所での更新）は driveConflict へ委譲し、成功/失敗は snackbar で通知する。 */
-  const performDriveSave = useCallback(async (content: string, headRevisionId: string) => {
+  /**
+   * Drive への PUT を実行する。409（他所での更新）は driveConflict へ委譲する。
+   * 戻り値は保存が完了したか（未保存ガードが本文を破棄してよいかの判定に使う）。
+   */
+  const performDriveSave = useCallback(async (content: string, headRevisionId: string): Promise<boolean> => {
     const drive = driveFileRef.current;
-    if (!drive) return;
+    if (!drive) return false;
     const res = await fetchFn('/api/drive/content', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -263,21 +288,22 @@ export function useEditorPage({
       const data = await res.json().catch(() => null);
       const latestHeadRevisionId = parseDriveHeadRevisionId(data) ?? headRevisionId;
       setDriveConflict({ content, latestHeadRevisionId });
-      return;
+      return false;
     }
     if (res.ok) {
       const data = await res.json().catch(() => null);
       const nextHeadRevisionId = parseDriveHeadRevisionId(data) ?? drive.headRevisionId;
-      driveFileRef.current = { ...drive, headRevisionId: nextHeadRevisionId };
+      setDriveFile({ ...drive, headRevisionId: nextHeadRevisionId });
       originalContentRef.current = content;
       setIsDirty(false);
       setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
-      return;
+      return true;
     }
     const err = parseErrorMessage(await res.json().catch(() => null));
     console.warn('Failed to save to Drive:', err);
     setSaveSnackbar({ message: t('driveSaveError'), severity: 'error' });
-  }, [t, fetchFn]);
+    return false;
+  }, [t, fetchFn, setDriveFile]);
 
   const handleDriveConflictOverwrite = useCallback(async () => {
     const conflict = driveConflict;
@@ -290,10 +316,10 @@ export function useEditorPage({
     setDriveConflict(null);
   }, []);
 
-  /** GitHub Contents API への PUT を実行する（コミットメッセージ確定後）。 */
-  const performGitHubSave = useCallback(async (content: string, message: string) => {
+  /** GitHub Contents API への PUT を実行する（コミットメッセージ確定後）。戻り値は保存完了可否。 */
+  const performGitHubSave = useCallback(async (content: string, message: string): Promise<boolean> => {
     const sel = selectedFileRef.current;
-    if (!sel) return;
+    if (!sel) return false;
     const res = await fetchFn('/api/github/content', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -308,32 +334,61 @@ export function useEditorPage({
     if (res.ok) {
       originalContentRef.current = content;
       setIsDirty(false);
-      const commit = parseGitHubCommitPayload(await res.json().catch(() => null));
-      if (commit) {
-        setNewCommit(commit);
-      }
       setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
-    } else {
-      const err = parseErrorMessage(await res.json().catch(() => null));
-      console.warn('Failed to save to GitHub:', err);
-      setSaveSnackbar({ message: t('saveError'), severity: 'error' });
+      return true;
     }
+    const err = parseErrorMessage(await res.json().catch(() => null));
+    console.warn('Failed to save to GitHub:', err);
+    setSaveSnackbar({ message: t('saveError'), severity: 'error' });
+    return false;
   }, [t, fetchFn]);
 
-  const handleExternalSave = useCallback(async (content: string) => {
+  /**
+   * エディタからの保存要求。保存が完了したかを返す（false なら未保存ガードは新規作成 / 開くを中断する）。
+   * GitHub 経路はコミットメッセージ確定まで解決を保留し、キャンセルで false を返す。
+   */
+  const handleExternalSave = useCallback(async (content: string): Promise<boolean> => {
     if (driveFileRef.current) {
-      await performDriveSave(content, driveFileRef.current.headRevisionId);
-      return;
+      return performDriveSave(content, driveFileRef.current.headRevisionId);
     }
     const sel = selectedFileRef.current;
-    if (!sel) return;
+    if (!sel) {
+      // 上書き先が無い（GitHub にサインイン済みだがファイル未選択・Drive 未保存）。黙って false を
+      // 返すと「保存したつもり」で dirty だけが残るため、次に取るべき操作を案内する。
+      console.warn('External save requested with no target (no Drive file, no GitHub file selected)');
+      setSaveSnackbar({ message: t('saveNoTarget'), severity: 'error' });
+      return false;
+    }
     if (rememberedCommitMessageRef.current != null) {
-      await performGitHubSave(content, rememberedCommitMessageRef.current);
-      return;
+      return performGitHubSave(content, rememberedCommitMessageRef.current);
     }
     pendingCommitContentRef.current = content;
     setCommitMessageDialog({ open: true, defaultMessage: `Update ${sel.filePath}` });
-  }, [performDriveSave, performGitHubSave]);
+    return new Promise<boolean>((resolve) => {
+      pendingCommitResolveRef.current = resolve;
+    });
+  }, [performDriveSave, performGitHubSave, t]);
+
+  /**
+   * エディタの保存先が変化したときの追従。ローカルへ「名前を付けて保存」すると以後の上書き保存は
+   * ローカルへ行くため、外部保存の参照（Drive のファイル・GitHub の選択ファイル）を破棄する。
+   * 破棄しないと `handleExternalSave` が古い宛先へ書き戻してしまう。
+   */
+  const handleSaveTargetChange = useCallback((target: SaveTargetInfo | null) => {
+    if (target?.kind !== 'local') return;
+    setDriveFile(null);
+    setExternalSaveKind(undefined);
+    selectedFileRef.current = null;
+    // ファイル名の正本はエディタ（fileOpsController）側へ移る。prop で上書きしない。
+    setExternalFileName(undefined);
+  }, [setDriveFile]);
+
+  /** 保留中の handleExternalSave（コミットメッセージ待ち）を保存完了可否で解決する。 */
+  const settlePendingCommit = useCallback((saved: boolean) => {
+    const resolve = pendingCommitResolveRef.current;
+    pendingCommitResolveRef.current = null;
+    resolve?.(saved);
+  }, []);
 
   /** コミットメッセージダイアログ確定: 保留中の保存を実行し、チェック時は以降のメッセージを記憶する。 */
   const handleCommitMessageConfirm = useCallback(async (message: string, remember: boolean) => {
@@ -341,156 +396,245 @@ export function useEditorPage({
     if (remember) {
       rememberedCommitMessageRef.current = message;
     }
-    await performGitHubSave(pendingCommitContentRef.current, message);
-  }, [performGitHubSave]);
+    const saved = await performGitHubSave(pendingCommitContentRef.current, message);
+    settlePendingCommit(saved);
+  }, [performGitHubSave, settlePendingCommit]);
 
   /** コミットメッセージダイアログのキャンセル: 保存を中断し、成功通知は出さない。 */
   const handleCommitMessageCancel = useCallback(() => {
     setCommitMessageDialog(null);
+    settlePendingCommit(false);
+  }, [settlePendingCommit]);
+
+  /** Google の同意画面へ遷移する。起動自体に失敗した場合のみ snackbar で通知する。 */
+  const startGoogleSignIn = useCallback(async () => {
+    try {
+      await signInFn('google', { callbackUrl: window.location.href });
+    } catch (err) {
+      console.warn('Failed to start Google sign-in:', err);
+      setSaveSnackbar({ message: t('driveSignInRequired'), severity: 'error' });
+    }
+  }, [signInFn, t]);
+
+  /** 保存メニューの「Google Drive に保存」: ファイル名入力ダイアログを開く。 */
+  const handleSaveToDriveClick = useCallback((defaultName: string) => {
+    setDriveSaveAsDialog({ open: true, defaultName });
   }, []);
 
-  const handleOpenCommitToGitHub = useCallback((defaultPath: string) => {
-    setCommitToGitHubDialog({ open: true, defaultPath });
+  const handleSaveToDriveCancel = useCallback(() => {
+    setDriveSaveAsDialog(null);
   }, []);
 
-  const handleCloseCommitToGitHub = useCallback(() => {
-    setCommitToGitHubDialog(null);
-  }, []);
-
-  /** 任意ソース→GitHub コミット確定: 現在のエディタ本文（currentContentRef）を指定リポジトリへ PUT する。 */
-  const handleCommitToGitHubConfirm = useCallback(async (values: CommitToGitHubValues) => {
-    setCommitToGitHubDialog(null);
-    const res = await fetchFn('/api/github/content', {
-      method: 'PUT',
+  /**
+   * Drive 上に新規ファイルを作成し、以後の上書き保存先を新ファイルへ切り替える。
+   * `drive.file` スコープではアプリが作成したファイルは Picker を経由せず操作できる。
+   */
+  const handleSaveToDriveConfirm = useCallback(async (name: string) => {
+    setDriveSaveAsDialog(null);
+    const parentId = pendingParentIdRef.current;
+    const res = await fetchFn('/api/drive/content', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        repo: values.repo,
-        path: values.path,
+        name,
         content: currentContentRef.current,
-        branch: values.branch,
-        message: values.message,
+        // Drive の「新規」から起動したときだけ、指定フォルダ配下に作る。
+        ...(parentId ? { parentId } : {}),
       }),
     });
-    if (res.ok) {
-      setSaveSnackbar({ message: t('githubCommitSuccess'), severity: 'success' });
+    if (res.status === 401) {
+      // 未サインイン。開く経路と同じく同意画面へ誘導する。
+      await startGoogleSignIn();
       return;
     }
-    const detail = parseErrorMessage(await res.json().catch(() => null)) ?? res.statusText;
-    console.warn(`Failed to commit to GitHub (status ${res.status}):`, detail);
-    setSaveSnackbar({ message: `${t('githubCommitError')} (${res.status}): ${detail}`, severity: 'error' });
-  }, [t, fetchFn]);
+    if (!res.ok) {
+      const detail = parseErrorMessage(await res.json().catch(() => null));
+      console.warn(`Failed to create Drive file (${res.status}):`, detail);
+      setSaveSnackbar({ message: t('driveCreateError'), severity: 'error' });
+      return;
+    }
+    const payload = parseDriveCreatePayload(await res.json().catch(() => null));
+    if (!payload) {
+      console.warn('Failed to create Drive file: unexpected payload shape');
+      setSaveSnackbar({ message: t('driveCreateError'), severity: 'error' });
+      return;
+    }
+
+    setDriveFile({
+      fileId: payload.fileId,
+      name: payload.name,
+      headRevisionId: payload.headRevisionId ?? '',
+    });
+    setExternalSaveKind('drive');
+    // 親フォルダ指定は新規作成の一度きり。以後の上書き保存は fileId で行う。
+    pendingParentIdRef.current = null;
+    selectedFileRef.current = null;
+    originalContentRef.current = currentContentRef.current;
+    setIsDirty(false);
+    setExternalFileName(payload.name);
+    setSaveSnackbar({ message: t('fileSaved'), severity: 'success' });
+  }, [fetchFn, t, startGoogleSignIn, setDriveFile]);
+
+  /**
+   * Drive の fileId から本文を読み込み、エディタと以後の上書き保存先を Drive へ切り替える。
+   * Picker 経由と Drive UI の「アプリで開く」経由の共通経路。読み込めたとき true を返す。
+   * 保存先種別（`externalSaveKind`）の設定をここに閉じ込め、呼び出し側での設定漏れを防ぐ。
+   */
+  const loadDriveFileIntoEditor = useCallback(async (fileId: string): Promise<boolean> => {
+    const contentRes = await fetchFn(`/api/drive/content?fileId=${encodeURIComponent(fileId)}`);
+    if (!contentRes.ok) {
+      const detail = parseErrorMessage(await contentRes.json().catch(() => null));
+      console.warn(`Failed to load Drive file (${contentRes.status}):`, detail);
+      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
+      return false;
+    }
+    const payload = parseDriveContentPayload(await contentRes.json().catch(() => null));
+    if (!payload) {
+      console.warn('Failed to load Drive file: unexpected payload shape');
+      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
+      return false;
+    }
+
+    setDriveFile({ fileId, name: payload.name, headRevisionId: payload.headRevisionId });
+    setExternalSaveKind('drive');
+    // 「新規」で立てた親フォルダを既存ファイルへ持ち越さない（以後の保存は fileId で行う）。
+    pendingParentIdRef.current = null;
+    selectedFileRef.current = null;
+    setIsDirty(false);
+    originalContentRef.current = payload.content;
+    writeDraft(payload.content);
+    setExternalContent(undefined);
+    setExternalFileName(payload.name);
+    setExternalCompareContent(null);
+    setEditorKey((k) => k + 1);
+    return true;
+  }, [fetchFn, t, setDriveFile]);
 
   /** Google Picker で Drive 上の Markdown ファイルを選択し、本文を読み込んでエディタへ反映する。 */
   const handleDriveOpen = useCallback(async () => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY ?? '';
-    if (!apiKey) {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY ?? '';
+    // appId（Cloud プロジェクト番号）は drive.file スコープでの許可付与に必須。
+    const appId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID ?? '';
+    if (!apiKey || !appId) {
       setSaveSnackbar({ message: t('driveApiKeyMissing'), severity: 'error' });
       return;
     }
     const tokenRes = await fetchFn('/api/auth/google-token');
-    if (!tokenRes.ok) {
-      setSaveSnackbar({ message: t('driveSignInRequired'), severity: 'error' });
-      return;
-    }
-    const accessToken = parseGoogleTokenPayload(await tokenRes.json().catch(() => null));
+    const accessToken = tokenRes.ok
+      ? parseGoogleTokenPayload(await tokenRes.json().catch(() => null))
+      : null;
     if (!accessToken) {
-      setSaveSnackbar({ message: t('driveSignInRequired'), severity: 'error' });
+      // 未サインイン（401）またはトークン欠落。エラー表示ではなく Google の同意画面へ誘導する。
+      // callbackUrl で編集中のページへ戻す（本文は localStorage に退避済み）。
+      await startGoogleSignIn();
       return;
     }
 
-    const picked = await pickDriveMarkdownFile(accessToken, apiKey);
+    const picked = await pickDriveMarkdownFile(accessToken, apiKey, appId);
     if (!picked) return;
 
-    const contentRes = await fetchFn(`/api/drive/content?fileId=${encodeURIComponent(picked.fileId)}`);
-    if (!contentRes.ok) {
-      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
-      return;
-    }
-    const payload = parseDriveContentPayload(await contentRes.json().catch(() => null));
-    if (!payload) {
-      setSaveSnackbar({ message: t('driveLoadError'), severity: 'error' });
+    await loadDriveFileIntoEditor(picked.fileId);
+  }, [fetchFn, t, startGoogleSignIn, loadDriveFileIntoEditor]);
+
+  /** Drive の「新規」から起動したときの空文書。保存先は初回保存まで確定しない。 */
+  const startNewDriveDocument = useCallback((folderId: string | null) => {
+    pendingParentIdRef.current = folderId;
+    setDriveFile(null);
+    setExternalSaveKind(undefined);
+    selectedFileRef.current = null;
+    originalContentRef.current = '';
+    currentContentRef.current = '';
+    setIsDirty(false);
+    writeDraft('');
+    setExternalContent('');
+    setExternalFileName(undefined);
+    setExternalCompareContent(null);
+    setEditorKey((k) => k + 1);
+  }, [setDriveFile]);
+
+  /**
+   * 未保存の下書きがあるかを返す。Drive からの起動は既存の下書きを上書きするため、
+   * 破棄してよいかを呼び出し側に確認する。確認手段が無ければ破棄しない。
+   */
+  const mayDiscardDraft = useCallback(async (): Promise<boolean> => {
+    if (readDraft('').length === 0) return true;
+    if (!confirmDiscardDraft) return false;
+    return confirmDiscardDraft();
+  }, [confirmDiscardDraft]);
+
+  /**
+   * Drive UI の `?state=` からエディタを起動する。
+   * 未サインインなら state を sessionStorage へ退避してから同意画面へ送る。
+   * `callbackUrl` に state 付き URL を渡してはいるが、OAuth 往復で欠落しても復元できるようにする。
+   */
+  const bootstrapFromDrive = useCallback(async (intent: DriveOpenIntent, rawState: string) => {
+    if (!(await mayDiscardDraft())) {
+      setSaveSnackbar({ message: t('driveOpenDraftBlocked'), severity: 'error' });
       return;
     }
 
-    driveFileRef.current = { fileId: picked.fileId, name: payload.name, headRevisionId: payload.headRevisionId };
-    selectedFileRef.current = null;
-    setHasDriveFile(true);
-    setIsDirty(false);
-    originalContentRef.current = payload.content;
-    localStorage.setItem(STORAGE_KEY_CONTENT, payload.content);
-    setExternalContent(undefined);
-    setExternalFileName(payload.name);
-    setExternalFilePath(payload.name);
-    setExternalCompareContent(null);
-    setEditorKey((k) => k + 1);
-  }, [fetchFn, t]);
+    const tokenRes = await fetchFn('/api/auth/google-token');
+    const accessToken = tokenRes.ok
+      ? parseGoogleTokenPayload(await tokenRes.json().catch(() => null))
+      : null;
+    if (!accessToken) {
+      markDriveOpenIntent(rawState);
+      await startGoogleSignIn();
+      return;
+    }
+
+    if (intent.action === 'create') {
+      startNewDriveDocument(intent.folderId);
+      return;
+    }
+    await loadDriveFileIntoEditor(intent.fileId);
+  }, [mayDiscardDraft, fetchFn, t, startGoogleSignIn, startNewDriveDocument, loadDriveFileIntoEditor]);
+
+  // Drive UI からの起動を一度だけ処理する。URL の state が無ければ OAuth 往復前の intent を見る。
+  useEffect(() => {
+    if (driveBootstrapRef.current) return;
+    // OAuth 往復から URL の state を保ったまま復帰しても退避物が残らないよう、無条件に消費する。
+    const stored = consumeDriveOpenIntent();
+    const rawState = driveOpenState ?? stored;
+    const intent = parseDriveOpenState(rawState);
+    if (!intent || rawState === null) return;
+
+    driveBootstrapRef.current = true;
+    void bootstrapFromDrive(intent, rawState);
+  }, [driveOpenState, bootstrapFromDrive]);
 
   const handleCompareModeChange = useCallback((active: boolean) => {
     setCompareModeOpen(active);
-    if (active && selectedCommitContentRef.current != null) {
-      const commit = selectedCommitContentRef.current;
-      selectedCommitContentRef.current = null;
-      setExternalContent(undefined);
-      setExternalCompareContent(commit);
-      setEditorKey((k) => k + 1);
-    }
   }, []);
 
-  const handleExplorerSelectCommit = useCallback(async (repo: string, filePath: string, sha: string) => {
-    driveFileRef.current = null;
-    setHasDriveFile(false);
-    const content = await fetchFileFn(repo, filePath, sha);
-    if (!content && content !== '') return;
-    if (compareModeOpen) {
-      setExternalCompareContent(content);
-    } else {
-      selectedCommitContentRef.current = content;
-      setExternalContent(content);
-      setExternalFileName(filePath.split("/").pop() ?? filePath);
-      setExternalFilePath(filePath);
-      setExternalCompareContent(null);
-      setEditorKey((k) => k + 1);
-    }
-  }, [compareModeOpen, fetchFileFn]);
-
-  const handleSelectCurrent = useCallback(() => {
-    setExternalContent(undefined);
-    setExternalCompareContent(compareModeOpen ? "" : null);
-    setEditorKey((k) => k + 1);
-  }, [compareModeOpen]);
-
   return {
-    explorerOpen,
     externalContent,
     externalFileName,
-    externalFilePath,
     externalCompareContent,
     editorKey,
     isDirty,
-    newCommit,
     saveSnackbar,
     ssoSnackbar,
     driveConflict,
     hasDriveFile,
+    externalSaveKind,
     commitMessageDialog,
-    commitToGitHubDialog,
-    handleToggleExplorer,
-    handleExplorerSelectFile,
+    driveSaveAsDialog,
+    handleGitHubOpenFile,
     handleExternalSave,
+    handleSaveTargetChange,
     handleCompareModeChange,
-    handleExplorerSelectCommit,
-    handleSelectCurrent,
     handleContentChange,
     setSsoSnackbar,
     setSaveSnackbar,
     fileSystemProvider,
     handleDriveOpen,
+    handleSaveToDriveClick,
+    handleSaveToDriveConfirm,
+    handleSaveToDriveCancel,
     handleDriveConflictOverwrite,
     handleDriveConflictCancel,
     handleCommitMessageConfirm,
     handleCommitMessageCancel,
-    handleOpenCommitToGitHub,
-    handleCloseCommitToGitHub,
-    handleCommitToGitHubConfirm,
   };
 }

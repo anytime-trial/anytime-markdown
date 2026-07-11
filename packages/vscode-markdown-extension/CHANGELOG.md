@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-07-11
+
+### Changed
+
+- Unified icon assets to the `camel_markdown-<size>` naming.
+
+### Fixed
+
+- Reflected hostReadOnly in the editorMode notification.
+
+### Editor Core (markdown-core)
+
+- Toolbar "Open" is now a menu with Google Drive and "Open from GitHub"; added a "New" button, a "Save" menu and an unsaved-changes guard.
+- Save-target badge (Local / GitHub / Drive) in the status bar; GitHub overwrite-save relabeled "Commit to GitHub".
+- Rendered preview for fenced markdown; fixed Mermaid labels stripped by DOMPurify; separated readOnly prop from user readonly mode.
+
 ## [1.10.0] - 2026-07-09
 
 ### Editor Core (markdown-viewer / markdown-rich)

@@ -160,6 +160,193 @@ describe("createEditorMenuPopovers", () => {
     expect(paper!.querySelectorAll('[role="separator"]').length).toBe(1);
   });
 
+  // --- openFile popover ---
+  it("openFileMenu でローカル / Drive の 2 項目を持つ menu が開く", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, { onOpenLocal: () => {}, onOpenFromDrive: () => {} });
+    const paper = getPaper("openFileMenu");
+    expect(paper).toBeTruthy();
+    expect(paper!.getAttribute("role")).toBe("menu");
+    expect(paper!.querySelectorAll('[role="menuitem"]').length).toBe(2);
+  });
+
+  it("openFileMenu はローカル項目のみにショートカットを表示する（Drive には無い）", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, { onOpenLocal: () => {}, onOpenFromDrive: () => {} });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items[0].textContent).toContain("+O");
+    expect(items[1].textContent).not.toContain("+");
+  });
+
+  it("openFileMenu は onOpenFromGitHub 注入時に GitHub 項目を追加する", () => {
+    const m = createMockEditor();
+    const onOpenFromGitHub = jest.fn();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, {
+      onOpenLocal: () => {},
+      onOpenFromDrive: () => {},
+      onOpenFromGitHub,
+    });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items.length).toBe(3);
+    expect(items[2].textContent).toContain("openFromGitHub");
+    (items[2] as HTMLElement).click();
+    expect(onOpenFromGitHub).toHaveBeenCalled();
+  });
+
+  it("openFileMenu は onOpenFromDrive 未注入なら Drive 項目を出さない", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, { onOpenLocal: () => {}, onOpenFromGitHub: () => {} });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items.length).toBe(2);
+    expect(items[1].textContent).toContain("openFromGitHub");
+  });
+
+  it("openSaveMenu は上書き保存 / 名前を付けて保存にのみショートカットを表示する（Drive には無い）", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      onSaveToDrive: () => {},
+      overwriteDisabled: false,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items[0].textContent).toMatch(/\+S$/);
+    expect(items[1].textContent).toMatch(/\+Shift\+S$/);
+    expect(items[2].textContent).not.toContain("+");
+  });
+
+  it("openFileMenu の 1 番目クリックで onOpenLocal が呼ばれ popover が閉じる", () => {
+    const m = createMockEditor();
+    let local = 0;
+    let drive = 0;
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, {
+      onOpenLocal: () => { local += 1; },
+      onOpenFromDrive: () => { drive += 1; },
+    });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    (items[0] as HTMLElement).click();
+    expect(local).toBe(1);
+    expect(drive).toBe(0);
+    expect(getPaper("openFileMenu")).toBeNull();
+  });
+
+  it("openFileMenu の 2 番目クリックで onOpenFromDrive が呼ばれ popover が閉じる", () => {
+    const m = createMockEditor();
+    let local = 0;
+    let drive = 0;
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, {
+      onOpenLocal: () => { local += 1; },
+      onOpenFromDrive: () => { drive += 1; },
+    });
+    const items = getPaper("openFileMenu")!.querySelectorAll('[role="menuitem"]');
+    (items[1] as HTMLElement).click();
+    expect(drive).toBe(1);
+    expect(local).toBe(0);
+    expect(getPaper("openFileMenu")).toBeNull();
+  });
+
+  // --- saveFile popover ---
+  it("openSaveMenu は上書き保存 / 名前を付けて保存の 2 項目を出す", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      overwriteDisabled: false,
+    });
+    const paper = getPaper("saveFileMenu");
+    expect(paper).toBeTruthy();
+    expect(paper!.querySelectorAll('[role="menuitem"]').length).toBe(2);
+  });
+
+  it("saveLabel を渡すと上書き保存の項目名がそれになる（GitHub へのコミット表記）", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      saveLabel: "saveToGitHub",
+      overwriteDisabled: false,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items[0].textContent).toContain("saveToGitHub");
+    expect(items[1].textContent).toContain("saveAsFile");
+  });
+
+  it("saveLabel 未指定なら上書き保存の項目名は saveFile", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      overwriteDisabled: false,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items[0].textContent).toContain("saveFile");
+  });
+
+  it("onSaveToDrive があれば 3 項目になり、クリックで Drive 保存が呼ばれる", () => {
+    const m = createMockEditor();
+    let drive = 0;
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      onSaveToDrive: () => { drive += 1; },
+      overwriteDisabled: false,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect(items.length).toBe(3);
+    (items[2] as HTMLElement).click();
+    expect(drive).toBe(1);
+    expect(getPaper("saveFileMenu")).toBeNull();
+  });
+
+  it("overwriteDisabled=true なら上書き保存の項目が無効で、名前を付けて保存は選べる", () => {
+    const m = createMockEditor();
+    let saved = 0;
+    let savedAs = 0;
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => { saved += 1; },
+      onSaveAsFile: () => { savedAs += 1; },
+      overwriteDisabled: true,
+    });
+    const items = getPaper("saveFileMenu")!.querySelectorAll('[role="menuitem"]');
+    expect((items[0] as HTMLElement).getAttribute("aria-disabled")).toBe("true");
+    (items[0] as HTMLElement).click();
+    expect(saved).toBe(0);
+    (items[1] as HTMLElement).click();
+    expect(savedAs).toBe(1);
+  });
+
+  it("openSaveMenu は closeAll で閉じる", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openSaveMenu(anchor, {
+      onSaveFile: () => {},
+      onSaveAsFile: () => {},
+      overwriteDisabled: false,
+    });
+    handle.closeAll();
+    expect(getPaper("saveFileMenu")).toBeNull();
+  });
+
+  it("openFileMenu は closeAll で閉じる", () => {
+    const m = createMockEditor();
+    handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja" });
+    handle.openFileMenu(anchor, { onOpenLocal: () => {}, onOpenFromDrive: () => {} });
+    handle.closeAll();
+    expect(getPaper("openFileMenu")).toBeNull();
+  });
+
   it("hideVersionInfo=true かつ全コールバック無しなら help は項目も divider も持たない", () => {
     const m = createMockEditor();
     handle = createEditorMenuPopovers({ editor: m.editor, t, locale: "ja", hideVersionInfo: true });

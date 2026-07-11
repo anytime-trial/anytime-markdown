@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getGoogleToken } from "../../../../lib/githubAuth";
 import {
+  buildDriveCreateRequest,
   buildDriveMediaRequest,
   buildDriveMetaRequest,
   buildDriveUpdateRequest,
@@ -24,6 +25,7 @@ function driveFetch(token: string, req: DriveRequest): Promise<Response> {
 /** Drive API のエラーレスポンスをそのまま NextResponse へ透過する。 */
 async function driveErrorResponse(res: Response): Promise<NextResponse> {
   const body = await res.text();
+  console.warn(`Drive API error (${res.status} ${res.url}):`, body);
   return NextResponse.json({ error: body }, { status: res.status });
 }
 
@@ -109,4 +111,43 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   const metaRes = await driveFetch(token, buildDriveMetaRequest(fileId));
   const meta = metaRes.ok ? ((await metaRes.json()) as DriveFileMeta) : null;
   return NextResponse.json({ ok: true, headRevisionId: meta?.headRevisionId ?? null });
+}
+
+interface DrivePostBody {
+  name?: string;
+  content?: string;
+  parentId?: string;
+}
+
+function parseDrivePostBody(value: unknown): DrivePostBody {
+  if (typeof value !== "object" || value === null) return {};
+  const record = value as Record<string, unknown>;
+  return {
+    name: typeof record.name === "string" ? record.name : undefined,
+    content: typeof record.content === "string" ? record.content : undefined,
+    parentId: typeof record.parentId === "string" ? record.parentId : undefined,
+  };
+}
+
+/** POST /api/drive/content : Drive 上に新規ファイルを作成する。 */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const token = await getGoogleToken();
+  if (!token) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  const { name, content, parentId } = parseDrivePostBody(await request.json());
+  if (!name || content === undefined) {
+    return NextResponse.json({ error: "name and content required" }, { status: 400 });
+  }
+
+  const createRes = await driveFetch(token, buildDriveCreateRequest(name, content, parentId));
+  if (!createRes.ok) {
+    return driveErrorResponse(createRes);
+  }
+  const created = (await createRes.json()) as DriveFileMeta & { id: string };
+  return NextResponse.json({
+    fileId: created.id,
+    name: created.name,
+    headRevisionId: created.headRevisionId ?? null,
+  });
 }

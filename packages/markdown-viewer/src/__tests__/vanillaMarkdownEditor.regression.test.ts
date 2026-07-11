@@ -102,6 +102,100 @@ describe("mountVanillaMarkdownEditor regression（レビュー指摘 1/2/4）", 
     });
   });
 
+  describe("外部保存（Google Drive）で開いた本文の上書き保存", () => {
+    /** ローカルの FileHandle を持たないホストを再現する（Drive から開いた直後の状態）。 */
+    const driveLikeProvider = {
+      supportsDirectAccess: true,
+      open: jest.fn(),
+      save: jest.fn(),
+      saveAs: jest.fn(),
+    } as never;
+
+    beforeEach(() => localStorage.clear());
+
+    it("ローカルハンドルが無くても onExternalSave があれば上書き保存が有効になる", () => {
+      const handle = mountVanillaMarkdownEditor(container, {
+        t,
+        initialContent: "# a",
+        fileSystemProvider: driveLikeProvider,
+        onExternalSave: jest.fn(() => Promise.resolve(true)),
+      });
+      handle.editor.commands.insertContent("x"); // dirty 化
+
+      const saveBtn = container.querySelector('button[aria-label="save"]') as HTMLButtonElement;
+      saveBtn.click();
+      const items = document.querySelectorAll('[role="menu"] [role="menuitem"]');
+      // 1 番目が「上書き保存」。宛先が外部保存でも押下できること。
+      expect(items[0].getAttribute("aria-disabled")).not.toBe("true");
+
+      handle.destroy();
+    });
+
+    it("ローカルハンドルも onExternalSave も無ければ上書き保存は無効のまま", () => {
+      const handle = mountVanillaMarkdownEditor(container, {
+        t,
+        initialContent: "# a",
+        fileSystemProvider: driveLikeProvider,
+        fileHandlers: { onOpenFromDrive: jest.fn() },
+      });
+      handle.editor.commands.insertContent("x");
+
+      const saveBtn = container.querySelector('button[aria-label="save"]') as HTMLButtonElement;
+      saveBtn.click();
+      const items = document.querySelectorAll('[role="menu"] [role="menuitem"]');
+      expect(items[0].getAttribute("aria-disabled")).toBe("true");
+
+      handle.destroy();
+    });
+  });
+
+  describe("外部ソース（Google Drive）で開いた本文のファイル名表示", () => {
+    // fileOpsController は生成時に localStorage の保存済みファイル名を復元する。
+    // Drive から開くとエディタは再マウントされるため、古いローカル名が残っていると
+    // 「開いた直後は Drive 名 → 最初の編集で古い名前へ戻る」という表示揺れが起きていた。
+    const STORED_FILENAME_KEY = "markdown-editor-filename";
+
+    beforeEach(() => localStorage.clear());
+
+    it("fileName prop が古い localStorage のローカル名より優先され、編集後も維持される", () => {
+      localStorage.setItem(STORED_FILENAME_KEY, "old-local.md");
+      const handle = mountVanillaMarkdownEditor(container, {
+        t,
+        initialContent: "# a",
+        fileName: "drive-picked.md",
+      });
+
+      expect(container.textContent).toContain("drive-picked.md");
+      handle.editor.commands.insertContent("x"); // dirty → onFileStateChange
+      expect(container.textContent).toContain("drive-picked.md");
+      expect(container.textContent).not.toContain("old-local.md");
+
+      handle.destroy();
+    });
+
+    it("fileName prop が無ければ従来どおり保存済みファイル名を表示する", () => {
+      localStorage.setItem(STORED_FILENAME_KEY, "restored.md");
+      const handle = mountVanillaMarkdownEditor(container, { t, initialContent: "# a" });
+
+      expect(container.textContent).toContain("restored.md");
+      handle.editor.commands.insertContent("x");
+      expect(container.textContent).toContain("restored.md");
+
+      handle.destroy();
+    });
+
+    it("update({ fileName }) で表示名が差し替わる", () => {
+      const handle = mountVanillaMarkdownEditor(container, { t, initialContent: "# a" });
+      handle.update({ fileName: "renamed.md" });
+
+      expect(container.textContent).toContain("renamed.md");
+      handle.editor.commands.insertContent("x");
+      expect(container.textContent).toContain("renamed.md");
+
+      handle.destroy();
+    });
+  });
+
   describe("storage.commentDialog.open の配線（指摘 2）", () => {
     it("mount 後に storage.commentDialog.open が関数として配線される", () => {
       const handle = mountVanillaMarkdownEditor(container, { t });
@@ -165,23 +259,27 @@ describe("mountVanillaMarkdownEditor regression（レビュー指摘 1/2/4）", 
       handle.destroy();
     });
 
-    it("Ctrl+Alt+N で onClear が呼ばれる", () => {
-      const onClear = jest.fn();
-      const handle = mountVanillaMarkdownEditor(container, { t, fileHandlers: { onClear } });
+    it("Ctrl+Alt+N で onNewFile が呼ばれる（未保存ガード付きの新規作成）", () => {
+      const onNewFile = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, { t, fileHandlers: { onClear: jest.fn(), onNewFile } });
       document.dispatchEvent(
         new KeyboardEvent("keydown", { key: "n", ctrlKey: true, altKey: true, bubbles: true, cancelable: true }),
       );
-      expect(onClear).toHaveBeenCalled();
+      expect(onNewFile).toHaveBeenCalled();
       handle.destroy();
     });
 
     it("readOnly では Ctrl+Alt+N（編集系）が無効化される", () => {
-      const onClear = jest.fn();
-      const handle = mountVanillaMarkdownEditor(container, { t, readOnly: true, fileHandlers: { onClear } });
+      const onNewFile = jest.fn();
+      const handle = mountVanillaMarkdownEditor(container, {
+        t,
+        readOnly: true,
+        fileHandlers: { onClear: jest.fn(), onNewFile },
+      });
       document.dispatchEvent(
         new KeyboardEvent("keydown", { key: "n", ctrlKey: true, altKey: true, bubbles: true, cancelable: true }),
       );
-      expect(onClear).not.toHaveBeenCalled();
+      expect(onNewFile).not.toHaveBeenCalled();
       handle.destroy();
     });
 

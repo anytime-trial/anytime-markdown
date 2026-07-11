@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-07-11
+
+### Added
+
+- Launch the editor from a Google Drive `?state=` deep link and added a discard-confirmation dialog.
+- Added saving a new document to Google Drive.
+- Widened the OAuth scope to `repo` so private repositories can be selected.
+- Added the `drive.install` scope to the Google scopes.
+- Added an "Open from GitHub" entry to the "Open" menu.
+
+### Changed
+
+- Removed the Explorer panel and consolidated the GitHub entry points into a dialog.
+- Removed NEXT_PUBLIC_ENABLE_GITHUB and made GitHub integration always enabled.
+- Extracted Drive body loading into loadDriveFileIntoEditor.
+
+### Fixed
+
+- Prevented a late-arriving GitHubRepoBrowser response from overwriting a newer tree.
+- Fixed "Connected to GitHub" appearing every time the editor is shown.
+- Fixed GitHub login detection picking up a Google sign-in.
+- Detect residual tokens from an old scope and prompt re-sign-in.
+- Fixed three defects in the Drive open path.
+
 ## [0.35.0] - 2026-07-09
 
 ### Added

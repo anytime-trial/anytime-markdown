@@ -13,7 +13,7 @@ import DOMPurify from "dompurify";
 import plantumlEncoder from "plantuml-encoder";
 import { renderThinkingDiagramSvg } from "@anytime-markdown/graph-core";
 
-import { SVG_SANITIZE_CONFIG } from "../hooks/useMermaidRender";
+import { sanitizeMermaidSvg } from "../hooks/useMermaidRender";
 import { GRAPH_SVG_SANITIZE_CONFIG } from "../utils/graphSvgSanitize";
 
 interface MermaidReplacement {
@@ -57,7 +57,7 @@ async function prerenderMermaidLight(): Promise<MermaidReplacement[]> {
           || (imgBox.firstElementChild as HTMLElement | null);
         if (innerDiv) {
           // 印刷経路も他の mermaid 消費箇所と同じ二重防御（foreignObject 経由 XSS）を適用する。
-          const sanitizedLightSvg = DOMPurify.sanitize(lightSvg, SVG_SANITIZE_CONFIG);
+          const sanitizedLightSvg = sanitizeMermaidSvg(lightSvg);
           replacements.push({
             innerDiv,
             lightHtml: sanitizedLightSvg,

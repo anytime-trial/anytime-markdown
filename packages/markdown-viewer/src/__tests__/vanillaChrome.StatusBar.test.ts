@@ -487,6 +487,56 @@ describe("components-vanilla/StatusBar", () => {
     });
   });
 
+  describe("ファイル所在バッジ（ローカル / GitHub / Drive）", () => {
+    it.each([
+      ["local", "fileOriginLocal"],
+      ["github", "fileOriginGitHub"],
+      ["drive", "fileOriginDrive"],
+    ] as const)("fileOrigin=%s でアイコンとラベルを出す", (origin, labelKey) => {
+      const { el, destroy } = createStatusBar(
+        baseOpts({ fileName: "doc.md", fileOrigin: origin }),
+      );
+      const badge = el.querySelector(`[data-am-file-origin="${origin}"]`) as HTMLElement;
+      expect(badge).toBeTruthy();
+      // 色だけに依存しない: アイコン（装飾）とラベル文字の双方を出す。
+      expect(badge.querySelector("svg")).toBeTruthy();
+      expect(badge.textContent).toBe(labelKey);
+      // 読み上げはファイル名の aria-label へ一本化するため、バッジ自体は視覚専用。
+      expect(badge.getAttribute("aria-hidden")).toBe("true");
+      destroy();
+    });
+
+    it("所在の読み上げはファイル名の aria-label に一本化する（二重読み上げを避ける）", () => {
+      const { el, destroy } = createStatusBar(
+        baseOpts({ fileName: "doc.md", fileOrigin: "github", isDirty: true }),
+      );
+      // t スタブは vars を無視するため fileOriginLabel はキーのまま返る。
+      expect(
+        el.querySelector('[aria-label="fileOriginLabel doc.md (unsavedChanges)"]'),
+      ).toBeTruthy();
+      destroy();
+    });
+
+    it("fileName が無ければ所在バッジも描画しない", () => {
+      const { el, destroy } = createStatusBar(
+        baseOpts({ fileName: null, fileOrigin: "drive" }),
+      );
+      expect(el.querySelector("[data-am-file-origin]")).toBeNull();
+      destroy();
+    });
+
+    it("update で所在が切り替わる（ローカルへ名前を付けて保存 → GitHub は消える）", () => {
+      const bar = createStatusBar(baseOpts({ fileName: "doc.md", fileOrigin: "github" }));
+      bar.update({ fileName: "copy.md", fileOrigin: "local" });
+      expect(bar.el.querySelector('[data-am-file-origin="github"]')).toBeNull();
+      expect(bar.el.querySelector('[data-am-file-origin="local"]')).toBeTruthy();
+      expect(bar.el.textContent).toContain("copy.md");
+      bar.update({ fileOrigin: null });
+      expect(bar.el.querySelector("[data-am-file-origin]")).toBeNull();
+      bar.destroy();
+    });
+  });
+
   describe("hidden", () => {
     it("hidden 時は display:none で region 属性を外す", () => {
       const { el, destroy } = createStatusBar(baseOpts({ hidden: true }));

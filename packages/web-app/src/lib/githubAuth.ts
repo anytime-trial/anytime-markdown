@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Spotify from "next-auth/providers/spotify";
+import { GITHUB_OAUTH_SCOPE } from "./githubOAuthScope";
 import { isGoogleTokenExpired, parseRefreshedToken } from "./googleToken";
 
 const result = NextAuth({
@@ -13,7 +14,7 @@ const result = NextAuth({
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID ?? "",
       clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
-      authorization: { params: { scope: "public_repo" } },
+      authorization: { params: { scope: GITHUB_OAUTH_SCOPE } },
     }),
     Spotify({
       clientId: process.env.SPOTIFY_CLIENT_ID ?? "",
@@ -25,12 +26,13 @@ const result = NextAuth({
       },
     }),
     Google({
-      clientId: process.env.YOUTUBE_CLIENT_ID ?? "",
-      clientSecret: process.env.YOUTUBE_CLIENT_SECRET ?? "",
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
       authorization: {
         params: {
+          // drive.install: Drive の「アプリで開く」「新規」への登録に必要（制限付きスコープ）。
           scope:
-            "openid email profile https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/drive.file",
+            "openid email profile https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.install",
           access_type: "offline",
           prompt: "consent",
         },
@@ -63,8 +65,8 @@ const result = NextAuth({
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
-            client_id: process.env.YOUTUBE_CLIENT_ID ?? "",
-            client_secret: process.env.YOUTUBE_CLIENT_SECRET ?? "",
+            client_id: process.env.GOOGLE_CLIENT_ID ?? "",
+            client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
             grant_type: "refresh_token",
             refresh_token: token.googleRefreshToken,
           }),

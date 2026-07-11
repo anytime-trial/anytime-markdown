@@ -32,10 +32,11 @@ test.describe("File Operations", () => {
   });
 
   test("upload markdown file", async ({ page }) => {
-    // vanilla chrome は Open クリック時に file input を動的生成する（常設 hidden input は無い）ため、
-    // filechooser イベント経由でアップロードする
-    const fileChooserPromise = page.waitForEvent("filechooser");
+    // Drive / GitHub の導線があるため Open はメニュー化される。ローカルを開く "Open file" 項目を選ぶと
+    // file input が動的生成される（常設 hidden input は無い）ため、filechooser イベント経由でアップロードする
     await page.getByRole("button", { name: /^open$/i }).click();
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("menuitem", { name: /open file/i }).click();
     const fileChooser = await fileChooserPromise;
 
     // テスト用の .md ファイルをアップロード

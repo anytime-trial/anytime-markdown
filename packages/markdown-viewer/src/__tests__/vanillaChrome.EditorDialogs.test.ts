@@ -235,3 +235,54 @@ describe("openWebImport（失敗時の可視化・指摘7）", () => {
     handle.destroy();
   });
 });
+
+describe("createEditorDialogs — openUnsavedConfirm", () => {
+  let handle: EditorDialogsHandle;
+
+  beforeEach(() => {
+    handle = createEditorDialogs({
+      t,
+      onCommentInsert: () => {},
+      onLinkInsert: () => {},
+      onImageInsert: () => {},
+    });
+  });
+
+  afterEach(() => {
+    handle.destroy();
+    document.querySelectorAll("[data-am-dialog-backdrop]").forEach((n) => n.remove());
+  });
+
+  it("保存 / 保存しない / キャンセル の 3 ボタンを出す", async () => {
+    void handle.openUnsavedConfirm("unsavedConfirm");
+    expect(dialogEl()).toBeTruthy();
+    expect(buttons().length).toBe(3);
+  });
+
+  it("「保存」で save を返す", async () => {
+    const p = handle.openUnsavedConfirm("unsavedConfirm");
+    const bs = buttons();
+    bs[bs.length - 1].click();
+    await expect(p).resolves.toBe("save");
+    expect(dialogEl()).toBeNull();
+  });
+
+  it("「保存しない」で discard を返す", async () => {
+    const p = handle.openUnsavedConfirm("unsavedConfirm");
+    const bs = buttons();
+    bs[1].click();
+    await expect(p).resolves.toBe("discard");
+  });
+
+  it("「キャンセル」で cancel を返す", async () => {
+    const p = handle.openUnsavedConfirm("unsavedConfirm");
+    buttons()[0].click();
+    await expect(p).resolves.toBe("cancel");
+  });
+
+  it("destroy 済みなら開かず cancel を返す", async () => {
+    handle.destroy();
+    await expect(handle.openUnsavedConfirm("unsavedConfirm")).resolves.toBe("cancel");
+    expect(dialogEl()).toBeNull();
+  });
+});

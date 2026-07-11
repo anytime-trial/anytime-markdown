@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -29,7 +29,7 @@
     "onCommand:anytime-markdown.rebuildDocIndex",
     "onCommand:anytime-markdown.reinstallSkills"
   ],
-  "icon": "images/camel_markdown.png",
+  "icon": "images/camel_markdown-320.png",
   "main": "./dist/extension.js",
   "contributes": {
     "submenus": [

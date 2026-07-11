@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/markdown-rich",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -23,7 +23,8 @@
     "@anytime-markdown/chart-core": "*",
     "@anytime-markdown/spreadsheet-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
-    "lowlight": "3.3.0"
+    "lowlight": "3.3.0",
+    "markdown-it": "14.2.0"
   },
   "peerDependencies": {
     "dompurify": "^3.0.0",
@@ -39,6 +40,7 @@
     "@types/dompurify": "3.0.5",
     "@types/jest": "30.0.0",
     "@types/katex": "0.16.0",
+    "@types/markdown-it": "14.1.2",
     "@types/plantuml-encoder": "1.4.2",
     "esbuild": "0.27.3",
     "jest": "30.2.0",

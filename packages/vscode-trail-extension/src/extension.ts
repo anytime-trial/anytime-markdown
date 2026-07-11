@@ -195,24 +195,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	// anytime-cross-review は SKILL.md + codex-review.cjs の複数ファイル構成。dir 丸ごと展開する。
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installStaticSkillDir({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-cross-review',
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-cross-review: ${String(err)}`);
-		}
-	}
-
 	// anytime-token-budget は SKILL.md + grounding.cjs の複数ファイル構成。dir 丸ごと展開する。
 	if (hasClaudeDir && fs.existsSync(claudeDir)) {
 		try {
