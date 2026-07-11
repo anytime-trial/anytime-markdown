@@ -14,6 +14,7 @@ prebuilt-vscode
 .claude/skills/anytime-markdown-usage/
 .claude/skills/anytime-mermaid/
 .claude/skills/anytime-doc-authoring/
+.claude/skills/anytime-spec-lookup/
 .claude/skills/.anytime-skills.json
 .next
 .playwright-mcp
