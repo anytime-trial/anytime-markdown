@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-11
+
+### Graph Core (graph-core)
+
+- Extracted the note graph panel into graph-core with a read-only (viewing) option.
+
 ## [0.10.0] - 2026-07-09
 
 ### Added

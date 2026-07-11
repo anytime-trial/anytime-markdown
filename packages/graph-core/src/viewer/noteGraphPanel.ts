@@ -1,23 +1,25 @@
 /**
- * ノート網パネル（エディタ右サイドバーにスロット表示されるホスト所有 DOM）。
+ * ノート網パネル（ホスト所有 DOM）。
  *
- * graph-core の `buildNoteGraph` + `GraphView` でドキュメント関係グラフを描画する。
- * docs は拡張ホストが供給し（`setDocs`）、ノードクリック・接続は callback で通知する。
- * markdown-viewer は本要素を出し入れするだけで中身に関知しない。
+ * `buildNoteGraph` + `GraphView` でドキュメント関係グラフを描画する vanilla DOM 部品。
+ * docs はホストが供給し（`setDocs`）、ノードクリック・接続・再スキャンは callback で通知する。
+ * VS Code 拡張・web-app の双方から共有される（host 非依存: graph-core + DOM + callback のみ）。
  */
 
+import { GraphView } from './GraphView';
 import {
   buildNoteGraph,
   buildNoteNeighborhood,
-  GraphView,
   RELATION_TYPES,
   resolveRelationEdgeStyle,
-  type NoteGraphDocInput,
-  type NoteGraphEdgeLayers,
-  type RelationType,
-} from '@anytime-markdown/graph-core';
+} from '../presets/index';
+import type {
+  NoteGraphDocInput,
+  NoteGraphEdgeLayers,
+  RelationType,
+} from '../presets/index';
 
-/** 関係種別 → i18n キー（凡例・型ピッカーのラベル）。語彙は graph-core と一致。 */
+/** 関係種別 → i18n キー（凡例・型ピッカーのラベル）。語彙は presets と一致。 */
 const TYPE_LABEL_KEY: Record<RelationType, string> = {
   references: 'noteGraphTypeReferences',
   'depends-on': 'noteGraphTypeDependsOn',
@@ -35,6 +37,11 @@ export interface NoteGraphPanelOptions {
   onConnect: (from: string, to: string, type: RelationType) => void;
   /** 再スキャン要求（ホストへ）。 */
   onRefresh: () => void;
+  /**
+   * 接続 UI（関連付け追加）と再スキャンボタンを隠す。閲覧専用ホスト（web-app）用。
+   * 省略時は false（従来どおり接続・再スキャンを表示）。
+   */
+  readOnly?: boolean;
 }
 
 export interface NoteGraphPanelHandle {
@@ -114,6 +121,7 @@ function shortName(p: string): string {
 
 export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPanelHandle {
   injectStyles();
+  const readOnly = opts.readOnly ?? false;
 
   const root = el('div', { className: 'ng-panel' });
   // 左端のドラッグハンドル（パネルは右側に出るため左移動で広がる）
@@ -307,12 +315,6 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
     globalBtn.classList.toggle('active', state.mode === 'global');
     rebuild();
   });
-  const refreshBtn = button(opts.t('noteGraphRefresh'), () => opts.onRefresh());
-  const connectBtn = button(opts.t('noteGraphConnect'), () => {
-    state.connectMode = !state.connectMode;
-    connectBtn.classList.toggle('active', state.connectMode);
-    resetConnectSelection();
-  });
   const legendBtn = button(opts.t('noteGraphLegend'), () => {
     state.legendVisible = !state.legendVisible;
     legend.hidden = !state.legendVisible;
@@ -332,7 +334,27 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
   });
   pinBtn.classList.toggle('active', state.pinned);
 
-  toolbar.append(globalBtn, refreshBtn, connectBtn, legendBtn, bodyToggle, pinBtn);
+  // 閲覧専用では接続モードが無いため no-op。接続 UI を持つ場合のみ下で上書きする。
+  let resetInteractionImpl = (): void => {};
+
+  toolbar.append(globalBtn);
+  // 閲覧専用（web-app）では再スキャン・接続 UI を出さない。
+  if (!readOnly) {
+    const refreshBtn = button(opts.t('noteGraphRefresh'), () => opts.onRefresh());
+    const connectBtn = button(opts.t('noteGraphConnect'), () => {
+      state.connectMode = !state.connectMode;
+      connectBtn.classList.toggle('active', state.connectMode);
+      resetConnectSelection();
+    });
+    toolbar.append(refreshBtn, connectBtn);
+    // resetInteraction が connectBtn を参照するためクロージャで保持する。
+    resetInteractionImpl = (): void => {
+      state.connectMode = false;
+      connectBtn.classList.remove('active');
+      resetConnectSelection();
+    };
+  }
+  toolbar.append(legendBtn, bodyToggle, pinBtn);
 
   return {
     element: root,
@@ -353,9 +375,7 @@ export function createNoteGraphPanel(opts: NoteGraphPanelOptions): NoteGraphPane
       rebuild();
     },
     resetInteraction(): void {
-      state.connectMode = false;
-      connectBtn.classList.remove('active');
-      resetConnectSelection();
+      resetInteractionImpl();
     },
     isPinned(): boolean {
       return state.pinned;

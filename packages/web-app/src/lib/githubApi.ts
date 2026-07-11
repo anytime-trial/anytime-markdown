@@ -1,5 +1,7 @@
 /** GitHub API ユーティリティ — 重複する fetch パターンを集約 */
 
+import type { NoteGraphDocInput } from "@anytime-markdown/graph-core";
+
 /** `/api/github/repos` が返すリポジトリ。 */
 export interface GitHubRepo {
   fullName: string;
@@ -15,4 +17,17 @@ export async function fetchFileContent(repo: string, filePath: string, ref: stri
   if (!res.ok) return "";
   const data = await res.json();
   return data.content ?? "";
+}
+
+/** ノート網入力（GitHub リポジトリの `.md` frontmatter 由来）を取得。失敗時は空配列。 */
+export async function fetchNoteGraphDocs(
+  repo: string,
+  branch: string,
+): Promise<NoteGraphDocInput[]> {
+  const res = await fetch(
+    `/api/note-graph?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`,
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data.docs) ? (data.docs as NoteGraphDocInput[]) : [];
 }

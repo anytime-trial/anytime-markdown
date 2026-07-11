@@ -33,22 +33,47 @@ export async function getFrontmatter(
   return matter(content).data as Record<string, unknown>;
 }
 
+/** update_frontmatter の実施サマリ（何を set/削除したかを本文なしで検証できるようにする）。 */
+export interface UpdateFrontmatterSummary {
+  path: string;
+  /** set でマージしたキー。 */
+  setKeys: string[];
+  /** 実在して削除されたキーのみ（存在しなかった removeKeys は含めない）。 */
+  removedKeys: string[];
+  /** frontmatter が無く新規付与した場合 true。 */
+  createdFrontmatter: boolean;
+}
+
 /**
  * frontmatter を更新する（set をマージ・removeKeys を削除）。本文は非破壊。
  * frontmatter が無いファイルには新規付与する。
  */
-export async function updateFrontmatter(input: UpdateFrontmatterInput, rootDir: string): Promise<void> {
+export async function updateFrontmatter(
+  input: UpdateFrontmatterInput,
+  rootDir: string,
+): Promise<UpdateFrontmatterSummary> {
   validateFileExtension(input.path, ALLOWED_EXTENSIONS);
   const filePath = resolveSecurePath(rootDir, input.path);
   const content = await fs.readFile(filePath, 'utf-8');
   const parsed = matter(content);
+  const hadFrontmatter = matter.test(content);
   const data: Record<string, unknown> = { ...(parsed.data as Record<string, unknown>) };
 
+  const setKeys: string[] = [];
+  const removedKeys: string[] = [];
   if (input.set) {
-    for (const [k, v] of Object.entries(input.set)) data[k] = v;
+    for (const [k, v] of Object.entries(input.set)) {
+      data[k] = v;
+      setKeys.push(k);
+    }
   }
   if (input.removeKeys) {
-    for (const k of input.removeKeys) delete data[k];
+    for (const k of input.removeKeys) {
+      if (k in data) {
+        delete data[k];
+        removedKeys.push(k);
+      }
+    }
   }
 
   const next = matter.stringify(parsed.content, data);
@@ -57,4 +82,5 @@ export async function updateFrontmatter(input: UpdateFrontmatterInput, rootDir: 
   const tmp = `${filePath}.tmp-${randomUUID()}`;
   await fs.writeFile(tmp, next, 'utf-8');
   await fs.rename(tmp, filePath);
+  return { path: input.path, setKeys, removedKeys, createdFrontmatter: !hadFrontmatter };
 }

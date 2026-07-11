@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.32.2] - 2026-07-11
+
+### Changed
+
+- Version sync with the Anytime Trail extension release (no functional changes).
+
 ## [0.32.1] - 2026-07-11
 
 ### Changed

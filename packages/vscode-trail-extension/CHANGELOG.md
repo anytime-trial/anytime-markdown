@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.32.2] - 2026-07-11
+
+### Changed
+
+- Updated the bundled anytime-dev-health skill: the cost signal now uses a rolling 30-day window to correct false positives from cumulative metrics.
+
 ## [0.32.1] - 2026-07-11
 
 ### Changed

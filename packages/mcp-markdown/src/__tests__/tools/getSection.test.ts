@@ -65,6 +65,27 @@ describe('getSectionFromText', () => {
   });
 });
 
+describe('getSectionFromText duplicate headings', () => {
+  const dup = '# T\n\n## 例\n\nFirst.\n\n## Other\n\nO.\n\n## 例\n\nSecond.\n';
+
+  it('should throw for ambiguous duplicate headings without occurrence', () => {
+    expect(() => getSectionFromText(dup, '## 例')).toThrow(/Ambiguous heading/);
+  });
+
+  it('should select the nth match with occurrence (1-based)', () => {
+    expect(getSectionFromText(dup, '## 例', 1)).toBe('## 例\n\nFirst.\n');
+    expect(getSectionFromText(dup, '## 例', 2)).toBe('## 例\n\nSecond.\n');
+  });
+
+  it('should throw when occurrence is out of range', () => {
+    expect(() => getSectionFromText(dup, '## 例', 3)).toThrow(/out of range/);
+  });
+
+  it('should accept occurrence=1 for a unique heading', () => {
+    expect(getSectionFromText(dup, '## Other', 1)).toBe('## Other\n\nO.\n');
+  });
+});
+
 describe('getSection', () => {
   let tmpDir: string;
 
@@ -91,6 +112,12 @@ describe('getSection', () => {
     await fs.writeFile(path.join(tmpDir, 'test.md'), '# Title\n\n## A\n\nThis is a long section body for truncation.\n');
     const result = await getSection({ path: 'test.md', heading: '## A', maxChars: 10 }, tmpDir);
     expect(result).toBe('## A\n\nThis' + '\n…(truncated)');
+  });
+
+  it('should pass occurrence through to disambiguate duplicates', async () => {
+    await fs.writeFile(path.join(tmpDir, 'test.md'), '## A\n\nFirst\n\n## A\n\nSecond\n');
+    const result = await getSection({ path: 'test.md', heading: '## A', occurrence: 2 }, tmpDir);
+    expect(result).toBe('## A\n\nSecond\n');
   });
 
   it('should not truncate when under maxChars (B-3)', async () => {

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-07-11
+
+### Added
+
+- Added a note graph panel to the webview, shown only for GitHub-opened documents (viewing).
+
+### Changed
+
+- Bundled mcp-markdown now raises an ambiguous-heading error for duplicate headings and returns an operation summary from the update tools.
+- Synced the mcp-tactics skill with the implementation, documenting write-side pitfalls.
+
+### Editor Core (markdown-core)
+
+- Wired the note graph panel to the editor side toolbar; show frontmatter in edit and review modes.
+
 ## [1.11.0] - 2026-07-11
 
 ### Changed

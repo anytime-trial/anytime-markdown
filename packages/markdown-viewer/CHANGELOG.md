@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-07-11
+
+### Added
+
+- Wired the note graph panel to the editor side toolbar (viewing only).
+
+### Fixed
+
+- Show the editor frontmatter in edit and review modes.
+
 ## [1.11.0] - 2026-07-11
 
 ### Added
