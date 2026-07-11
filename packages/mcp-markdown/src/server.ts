@@ -78,34 +78,38 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
   );
 
   registerTool(server, 'get_section',
-    'Extract a section from a Markdown file by its heading (e.g. "## Section Name")',
+    'Extract a section from a Markdown file by its heading (e.g. "## Section Name"). Errors when the heading is ambiguous (same level+text appears more than once) — pass occurrence to pick one.',
     {
       path: z.string().describe('Relative path to the Markdown file'),
       heading: z.string().describe('Full heading line including # marks (e.g. "## Section Name")'),
       maxChars: z.number().optional().describe('Truncate the returned section to this many characters (token saving)'),
+      occurrence: z.number().optional().describe('1-based pick when the same heading appears multiple times (required in that case)'),
     },
     async (args) => {
       const path = args.path as string;
       const heading = args.heading as string;
       const maxChars = args.maxChars as number | undefined;
-      const section = await getSection({ path, heading, maxChars }, rootDir);
+      const occurrence = args.occurrence as number | undefined;
+      const section = await getSection({ path, heading, maxChars, occurrence }, rootDir);
       return { content: [{ type: 'text' as const, text: section }] };
     },
   );
 
   registerTool(server, 'update_section',
-    'Replace a section in a Markdown file identified by its heading',
+    'Replace a section in a Markdown file identified by its heading. Errors when the heading is ambiguous (same level+text appears more than once) — pass occurrence to pick one. Returns a diff summary (oldLines/newLines/bytesDelta/warnings) — never the full body — so the edit can be verified without a compute_diff round-trip. Warns when content does not start with the heading line (the heading would be removed).',
     {
       path: z.string().describe('Relative path to the Markdown file'),
       heading: z.string().describe('Full heading line including # marks (e.g. "## Section Name")'),
       content: z.string().describe('New content for the section (should include the heading line)'),
+      occurrence: z.number().optional().describe('1-based pick when the same heading appears multiple times (required in that case)'),
     },
     async (args) => {
       const path = args.path as string;
       const heading = args.heading as string;
       const content = args.content as string;
-      await updateSection({ path, heading, content }, rootDir);
-      return { content: [{ type: 'text' as const, text: `Updated section "${heading}" in ${path}` }] };
+      const occurrence = args.occurrence as number | undefined;
+      const summary = await updateSection({ path, heading, content, occurrence }, rootDir);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(summary, null, 2) }] };
     },
   );
 
@@ -237,14 +241,14 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
   );
 
   registerTool(server, 'update_frontmatter',
-    'Update a Markdown file frontmatter without rewriting the body: merge keys via "set" and/or delete keys via "removeKeys". Adds frontmatter if absent.',
+    'Update a Markdown file frontmatter without rewriting the body: merge keys via "set" and/or delete keys via "removeKeys". Adds frontmatter if absent. Returns a summary (setKeys/removedKeys/createdFrontmatter) for verification.',
     {
       path: z.string().describe('Relative path to the Markdown file'),
       set: z.record(z.string(), z.unknown()).optional().describe('Frontmatter keys to set/merge (values may be string/number/array/object)'),
       removeKeys: z.array(z.string()).optional().describe('Frontmatter keys to remove'),
     },
     async (args) => {
-      await updateFrontmatter(
+      const summary = await updateFrontmatter(
         {
           path: args.path as string,
           set: args.set as Record<string, unknown> | undefined,
@@ -252,7 +256,7 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
         },
         rootDir,
       );
-      return { content: [{ type: 'text' as const, text: `Updated frontmatter in ${args.path as string}` }] };
+      return { content: [{ type: 'text' as const, text: JSON.stringify(summary, null, 2) }] };
     },
   );
 
