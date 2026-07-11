@@ -30,7 +30,10 @@ THRESHOLD_TURNS=50
 read -r -d '' STDIN_DATA || true
 CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{process.stdout.write(process.cwd())}})" 2>/dev/null)
 [ -z "\$CWD" ] && CWD="\$PWD"
-AGENT_HOME="\${AGENT_HOME:-\${CWD}/.anytime/agent}"
+. ~/.claude/scripts/lib/agent-home.sh
+AGENT_HOME="\${AGENT_HOME:-}"
+if [ -z "\$AGENT_HOME" ]; then AGENT_HOME="$(resolve_agent_home "\$CWD" || true)"; fi
+[ -z "\$AGENT_HOME" ] && exit 0
 mkdir -p "\$AGENT_HOME" 2>/dev/null || true
 STATE_FILE="\${AGENT_HOME}/claude-session-guard.json"
 
@@ -97,8 +100,11 @@ SESSION_ID=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>
 CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||process.cwd())}catch{}})")
 [ -z "\$SESSION_ID" ] && exit 0
 
-# ワーカー接続情報を解決（未起動なら exit 0）
-AGENT_HOME="\${AGENT_HOME:-\${CWD}/.anytime/agent}"
+# ワーカー接続情報を cwd 相対 walk-up で解決（未起動/非 Trail なら exit 0）
+. ~/.claude/scripts/lib/agent-home.sh
+AGENT_HOME="\${AGENT_HOME:-}"
+if [ -z "\$AGENT_HOME" ]; then AGENT_HOME="$(resolve_agent_home "\$CWD" || true)"; fi
+[ -z "\$AGENT_HOME" ] && exit 0
 WORKER_JSON="\${AGENT_HOME}/agent-worker.json"
 [ -f "\$WORKER_JSON" ] || exit 0
 URL=$(node -e "try{process.stdout.write(JSON.parse(require('fs').readFileSync('\${WORKER_JSON}','utf8')).url||'')}catch{}")
@@ -145,7 +151,12 @@ CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);p
 [ -z "\$CWD" ] && CWD="\$PWD"
 SID=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).session_id||'')}catch{}})" 2>/dev/null)
 
-HANDOFF_DIR="\${AGENT_HOME:-\${CWD}/.anytime/agent}/handoff"
+# AGENT_HOME を cwd 相対 walk-up で解決（未起動/非 Trail なら exit 0）
+. ~/.claude/scripts/lib/agent-home.sh
+AGENT_HOME="\${AGENT_HOME:-}"
+if [ -z "\$AGENT_HOME" ]; then AGENT_HOME="$(resolve_agent_home "\$CWD" || true)"; fi
+[ -z "\$AGENT_HOME" ] && exit 0
+HANDOFF_DIR="\${AGENT_HOME}/handoff"
 [ -d "\$HANDOFF_DIR" ] || exit 0
 
 # GC: 14 日より古い handoff（*.md / *.consumed）を削除
@@ -169,6 +180,172 @@ mv "\$FILE" "\$CONSUMED" 2>/dev/null || exit 0
 
 node -e "const fs=require('fs');let c='';try{c=fs.readFileSync(process.argv[1],'utf8')}catch{process.exit(0)}process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'UserPromptSubmit',additionalContext:c}}))" "\$CONSUMED"
 exit 0
+`;
+}
+
+// lib/agent-home.sh — bash 用の walk-up リゾルバ。commit-tracker / session-guard / handoff-inject が source する。
+// resolve_agent_home <start_dir>: 最寄りの .anytime/agent を stdout に。見つからなければ非0（何も出力しない）。
+const AGENT_HOME_LIB = `# agent-home.sh — resolve nearest .anytime/agent by walking up from a start dir.
+# sourced by commit-tracker.sh / session-guard.sh / handoff-inject.sh
+# resolve_agent_home <start_dir> : prints "<dir>/.anytime/agent" to stdout, or returns non-zero.
+resolve_agent_home() {
+  local dir="\$1"
+  [ -z "\$dir" ] && dir="\$PWD"
+  local stop="\${HOME:-/}"
+  while [ -n "\$dir" ] && [ "\$dir" != "/" ]; do
+    if [ -f "\$dir/.anytime/agent/agent-worker.json" ]; then
+      printf '%s' "\$dir/.anytime/agent"; return 0
+    fi
+    [ "\$dir" = "\$stop" ] && break
+    dir="$(dirname "\$dir")"
+  done
+  return 1
+}
+`;
+
+// agent-status-report.mjs — 5 本の inline node hook を集約したレポータ。
+// settings.json からは絶対パス無しの `node ~/.claude/scripts/agent-status-report.mjs <mode>` で呼ばれ、
+// hook stdin の cwd を起点に walk-up で最寄りワーカーを解決して /api/agent-status/edit へ POST する。
+function agentStatusReportContent(): string {
+  return `#!/usr/bin/env node
+// agent-status-report.mjs — cwd 相対 walk-up で最寄りの agent-status ワーカーへ編集/実行状況を POST する。
+// mode: edit-start | edit-end | bash-start | bash-end | planned
+// ワーカーが見つからなければ no-op（exit 0）。失敗は握りつぶす（記録欠落許容）。
+import fs from 'node:fs';
+import path from 'node:path';
+import { execSync } from 'node:child_process';
+
+const PLAN_DIR_PREFIX = '/Shared/anytime-markdown-docs/plan/';
+const CHANGE_TARGET_HEADING = '## 変更対象ファイル';
+
+function readStdin() {
+  return new Promise((resolve) => {
+    let d = '';
+    process.stdin.resume();
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (c) => (d += c));
+    process.stdin.on('end', () => resolve(d));
+  });
+}
+
+// startDir から親方向へ walk-up し、最初に見つかった .anytime/agent/agent-worker.json を採用する。
+// \$HOME / FS ルートで打ち切る。見つからなければ null。
+function resolveWorker(startDir) {
+  let dir = startDir;
+  const stop = process.env.HOME || '/';
+  for (let i = 0; i < 64; i++) {
+    try {
+      const w = JSON.parse(
+        fs.readFileSync(path.join(dir, '.anytime/agent/agent-worker.json'), 'utf8'),
+      );
+      if (w && w.url) return { url: w.url, token: w.token || '', root: dir };
+    } catch {
+      // このディレクトリには無い。親を辿る。
+    }
+    if (dir === stop || dir === '/') break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+function safeBranch(cwd) {
+  try {
+    return execSync('git branch --show-current', {
+      cwd,
+      timeout: 3000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return '';
+  }
+}
+
+// mode ごとに /api/agent-status/edit へ送る body を組み立てる。対象外なら null。
+function buildBody(mode, input, cwd, root, branch) {
+  const sid = input.session_id || '';
+  const ts = new Date().toISOString();
+  if (mode === 'edit-start' || mode === 'edit-end') {
+    const fp = input.tool_input && input.tool_input.file_path;
+    if (!fp) return null;
+    return {
+      sessionId: sid,
+      editing: mode === 'edit-start',
+      file: fp,
+      branch,
+      appendEdit: { file: fp, timestamp: ts },
+    };
+  }
+  if (mode === 'bash-start' || mode === 'bash-end') {
+    return { sessionId: sid, editing: mode === 'bash-start', workspacePath: cwd, branch };
+  }
+  if (mode === 'planned') {
+    const fp = input.tool_input && input.tool_input.file_path;
+    if (!fp || !fp.startsWith(PLAN_DIR_PREFIX)) return null;
+    let content = '';
+    try {
+      content = fs.readFileSync(fp, 'utf8');
+    } catch {
+      return null;
+    }
+    const prefix = root.endsWith('/') ? root : root + '/';
+    const planned = [];
+    let inSection = false;
+    for (const line of content.split('\\n')) {
+      if (line.trimEnd() === CHANGE_TARGET_HEADING) {
+        inSection = true;
+        continue;
+      }
+      if (inSection && line.startsWith('## ')) break;
+      if (inSection && line.startsWith('- ')) {
+        const s = line.indexOf('\`');
+        const e = s >= 0 ? line.indexOf('\`', s + 1) : -1;
+        if (s >= 0 && e > s) planned.push(prefix + line.slice(s + 1, e));
+      }
+    }
+    return { sessionId: sid, plannedEdits: planned };
+  }
+  return null;
+}
+
+async function main() {
+  const mode = process.argv[2];
+  let input;
+  try {
+    input = JSON.parse(await readStdin());
+  } catch {
+    process.exit(0);
+  }
+  const cwd = (input && input.cwd) || process.cwd();
+  const wk = resolveWorker(cwd);
+  if (!wk) process.exit(0);
+
+  // branch の基点は常に hook の実行 cwd。resolveWorker は cwd から親方向へ walk-up するため
+  // wk.root は必ず cwd の祖先で、通常サブディレクトリでは wk.root と同一ブランチになる。
+  // git worktree/submodule では cwd 側が正しいブランチ（worktree の feature ブランチ）を返す（受け入れ基準#2）。
+  const branch = safeBranch(cwd);
+
+  const body = buildBody(mode, input, cwd, wk.root, branch);
+  if (!body) process.exit(0);
+
+  try {
+    await fetch(\`\${wk.url}/api/agent-status/edit\`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: \`Bearer \${wk.token}\`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    // ワーカー未応答は無視
+  }
+}
+
+main();
 `;
 }
 
@@ -197,8 +374,9 @@ function ensureAnytimeGitignored(workspaceRoot: string): void {
 }
 
 function writeScript(filename: string, content: string): void {
-  fs.mkdirSync(SCRIPTS_DIR, { recursive: true });
   const scriptPath = path.join(SCRIPTS_DIR, filename);
+  // filename に `lib/` 等のサブディレクトリを含む場合も掘る
+  fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
   fs.writeFileSync(scriptPath, content, { encoding: 'utf-8', mode: 0o755 });
 }
 
@@ -235,7 +413,10 @@ function removeHooksByMarker(entries: HookEntry[], marker: string): HookEntry[] 
 
 /**
  * agent-status 関連のステータス更新フックを除去する（idempotent 再登録用）。
- * 旧方式のファイル書き込み（claude-code-status）と新方式の POST（/api/agent-status/edit）の両方を対象にする。
+ * - 旧方式1: ファイル書き込み（claude-code-status）
+ * - 旧方式2: 絶対パス固定の inline node hook（POST /api/agent-status/edit を含む）
+ * - 新方式: cwd 相対 walk-up の agent-status-report.mjs
+ * のいずれも対象にし、次回生成で確実に置換する（重複積み上げ防止・旧世代マイグレーション）。
  */
 function removeStatusFileHooks(entries: HookEntry[]): HookEntry[] {
   return entries.filter(
@@ -243,7 +424,8 @@ function removeStatusFileHooks(entries: HookEntry[]): HookEntry[] {
       !m.hooks?.some(
         (h: HookHandler) =>
           h.command?.includes('claude-code-status') ||
-          h.command?.includes('/api/agent-status/edit'),
+          h.command?.includes('/api/agent-status/edit') ||
+          h.command?.includes('agent-status-report.mjs'),
       ),
   );
 }
@@ -267,6 +449,8 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
 
   // スクリプトファイルを作成/更新
   try {
+    writeScript('lib/agent-home.sh', AGENT_HOME_LIB); // bash walk-up リゾルバ（3 script が source）
+    writeScript('agent-status-report.mjs', agentStatusReportContent()); // inline node hook 5 本を集約
     writeScript('token-budget.sh', tokenBudgetScriptContent(trailPort));
     writeScript('session-guard.sh', SESSION_GUARD_SCRIPT);
     writeScript('commit-tracker.sh', commitTrackerScriptContent());
@@ -285,79 +469,48 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   settings.hooks.Stop ??= [];
   settings.hooks.UserPromptSubmit ??= [];
 
-  // workspaceRootForHook は (a) git branch --show-current の cwd、
-  // (b) plan-file hook で plannedEdits パスに前置する prefix、(c) agent-worker.json / session-guard の
-  // state ディレクトリ解決 の用途で使う。setup 時に確定する workspaceRoot を基点とした絶対パスにする
-  // （Bash ツールの cwd 相対だとサブパッケージ実行のたびに別ディレクトリを見てしまうため）。
-  // 末尾の `/` を全削除して `/` 1 つを付け直す。正規表現を使わず CodeQL `js/polynomial-redos` の対象を回避。
-  const rawRoot = workspaceRoot ?? os.homedir();
-  let rootEnd = rawRoot.length;
-  while (rootEnd > 0 && rawRoot.charCodeAt(rootEnd - 1) === 0x2f) rootEnd--;
-  const workspaceRootForHook = rawRoot.slice(0, rootEnd) + '/';
+  // hook は workspace 非依存にする。POST 先の解決は実行時の cwd 相対 walk-up
+  // （agent-status-report.mjs / lib/agent-home.sh）に委ね、settings.json には絶対パスを一切焼き込まない。
+  // これにより複数 workspace を同時に開いても、各セッションが自 workspace の worker へ正しく届く。
 
-  // agent 拡張が所有する state は `<workspace>/.anytime/agent/` 配下に集約する。
-  // - agent-status ワーカーの接続情報: agent-worker.json（commit-tracker.sh / inline node フックが参照）
-  // - session-guard.sh の警告デデュープ state: claude-session-guard.json（同フックが直接書く）
-  // commit-tracker.sh / session-guard.sh には AGENT_HOME としてこのパスを渡す。
-  const agentHome = workspaceRootForHook + '.anytime/agent';
-  const agentWorkerJson = agentHome + '/agent-worker.json';
+  // Edit|Write・Bash・plan-file の 5 本を単一 mjs（mode 引数で分岐）へ集約する。
+  const reportCommand = (mode: string): string =>
+    `node ~/.claude/scripts/agent-status-report.mjs ${mode}`;
 
-  // agent-status ワーカーへ JSON を POST する inline node コマンドを生成する。
-  // 1. stdin の hook payload を読む
-  // 2. agent-worker.json から url を解決（無ければ何もせず終了 = 記録欠落許容）
-  // 3. buildBody(input) で /edit へ送る body を組み立てる（null を返したらスキップ）
-  // 4. fetch で POST（node18+ の global fetch）。失敗は握りつぶす（exit 0 相当）
-  // git branch は execSync で取得し branch フィールドに入れる。timestamp は UTC ISO 8601。
-  const postEditCommand = (buildBody: string): string =>
-    `node -e "let d='';process.stdin.resume();process.stdin.setEncoding('utf8');process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const fs=require('fs');let url='',tok='';try{const w=JSON.parse(fs.readFileSync('${agentWorkerJson}','utf8'));url=w.url||'';tok=w.token||''}catch{}if(!url)return;const body=(${buildBody})(i);if(!body)return;fetch(url+'/api/agent-status/edit',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify(body)}).catch(()=>{})}catch{}})"`;
-
-  // Edit|Write フック: file と編集履歴(appendEdit)を更新する。file_path が無ければスキップ。
-  // branch は workspaceRoot を cwd として取得する。
-  const editBody = (editing: boolean): string =>
-    `(i)=>{const fp=i.tool_input&&i.tool_input.file_path;if(!fp)return null;const sid=i.session_id||'';const ts=new Date().toISOString();let br='';try{br=require('child_process').execSync('git branch --show-current',{cwd:'${workspaceRootForHook}',timeout:3000}).toString().trim()}catch{}return{sessionId:sid,editing:${editing},file:fp,branch:br,appendEdit:{file:fp,timestamp:ts}}}`;
-
-  // Bash フック: cwd を workspacePath として記録する。file/sessionEdits は触らない（部分更新）。
-  // branch は Bash ツールの実行 cwd を基準に取得する。
-  const bashBody = (editing: boolean): string =>
-    `(i)=>{const cwd=i.cwd||process.cwd();const sid=i.session_id||'';let br='';try{br=require('child_process').execSync('git branch --show-current',{cwd,timeout:3000}).toString().trim()}catch{}return{sessionId:sid,editing:${editing},workspacePath:cwd,branch:br}}`;
-
-  // プランファイル書き込み時に plannedEdits を抽出して全置換する。
-  // /Shared/anytime-markdown-docs/plan/ 配下の Write のみ対象。## 変更対象ファイル セクションを読む。
-  const planBody =
-    `(i)=>{const fp=i.tool_input&&i.tool_input.file_path;if(!fp||!fp.startsWith('/Shared/anytime-markdown-docs/plan/'))return null;const sid=i.session_id||'';const wr='${workspaceRootForHook}';let ct='';try{ct=require('fs').readFileSync(fp,'utf8')}catch{return null}const ls=ct.split('\\n');let ins=false;const ps=[];for(const l of ls){if(l.trimEnd()==='## \\u5909\\u66f4\\u5bfe\\u8c61\\u30d5\\u30a1\\u30a4\\u30eb'){ins=true;continue}if(ins&&l.startsWith('## ')){break}if(ins&&l.startsWith('- ')){const s=l.indexOf('\`');const e=s>=0?l.indexOf('\`',s+1):-1;if(s>=0&&e>s)ps.push(wr+l.slice(s+1,e))}}return{sessionId:sid,plannedEdits:ps}}`;
-
-  // 古い/破損したフックをすべて除去してから登録し直す（旧 claude-code-status ファイル書き込み + 新 agent-status POST）
+  // 古い/破損したフックをすべて除去してから登録し直す
+  // （旧 claude-code-status ファイル書き込み・旧絶対パス inline node hook・新 mjs のいずれも対象）。
   settings.hooks.PreToolUse = removeStatusFileHooks(settings.hooks.PreToolUse);
   settings.hooks.PostToolUse = removeStatusFileHooks(settings.hooks.PostToolUse);
 
   settings.hooks.PreToolUse.push({
     matcher: 'Edit|Write',
-    hooks: [{ type: 'command', command: postEditCommand(editBody(true)) }],
+    hooks: [{ type: 'command', command: reportCommand('edit-start') }],
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Edit|Write',
-    hooks: [{ type: 'command', command: postEditCommand(editBody(false)) }],
+    hooks: [{ type: 'command', command: reportCommand('edit-end') }],
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Write',
-    hooks: [{ type: 'command', command: postEditCommand(planBody) }],
+    hooks: [{ type: 'command', command: reportCommand('planned') }],
   });
 
   // Bash フック: cwd を workspacePath として記録し、テスト実行中も worktree を特定可能にする
   settings.hooks.PreToolUse.push({
     matcher: 'Bash',
-    hooks: [{ type: 'command', command: postEditCommand(bashBody(true)) }],
+    hooks: [{ type: 'command', command: reportCommand('bash-start') }],
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Bash',
-    hooks: [{ type: 'command', command: postEditCommand(bashBody(false)) }],
+    hooks: [{ type: 'command', command: reportCommand('bash-end') }],
   });
 
   // PostToolUse hook: commit-tracker.sh (agent-status ワーカーへコミット検出を通知)
+  // AGENT_HOME 注入は撤去し、script 内の walk-up（lib/agent-home.sh）に解決を委ねる。
   settings.hooks.PostToolUse = removeHooksByMarker(settings.hooks.PostToolUse, 'commit-tracker.sh');
   settings.hooks.PostToolUse.push({
     matcher: 'Bash',
-    hooks: [{ type: 'command', command: `AGENT_HOME='${agentHome}' bash ~/.claude/scripts/commit-tracker.sh`, timeout: 5 }],
+    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/commit-tracker.sh', timeout: 5 }],
   });
 
   // Stop hook: token-budget.sh
@@ -369,16 +522,16 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
     hooks: [{ type: 'command', command: '~/.claude/scripts/token-budget.sh', timeout: 10 }],
   });
 
-  // UserPromptSubmit hook: session-guard.sh
+  // UserPromptSubmit hook: session-guard.sh（AGENT_HOME 注入は撤去し walk-up に委ねる）
   settings.hooks.UserPromptSubmit = removeHooksByMarker(settings.hooks.UserPromptSubmit, 'session-guard.sh');
   settings.hooks.UserPromptSubmit.push({
-    hooks: [{ type: 'command', command: `AGENT_HOME='${agentHome}' bash ~/.claude/scripts/session-guard.sh`, timeout: 5 }],
+    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/session-guard.sh', timeout: 5 }],
   });
 
   // UserPromptSubmit hook: handoff-inject.sh（pending handoff を先頭で一度だけ注入し消費）
   settings.hooks.UserPromptSubmit = removeHooksByMarker(settings.hooks.UserPromptSubmit, 'handoff-inject.sh');
   settings.hooks.UserPromptSubmit.push({
-    hooks: [{ type: 'command', command: `AGENT_HOME='${agentHome}' bash ~/.claude/scripts/handoff-inject.sh`, timeout: 5 }],
+    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/handoff-inject.sh', timeout: 5 }],
   });
 
   // handoff doc・worker state が誤コミットされないよう .anytime/ を .gitignore へ
