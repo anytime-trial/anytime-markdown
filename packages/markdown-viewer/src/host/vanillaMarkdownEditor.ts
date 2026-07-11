@@ -660,9 +660,16 @@ export function mountVanillaMarkdownEditor(
   // 比較モード中はホストの単一バーを隠し、InlineMergeView 内蔵の frontmatter 比較行に委ねる
   // （二重表示の防止）。フラグは setInlineMergeOpen から更新する。
   let compareModeActive = false;
+  // readonly（ユーザートグル）/ source モードではブロックを隠す。readonly は「表示不要」、source は
+  // 生テキストに frontmatter を含める（getSourceText の prependFrontmatter）ため二重表示を防ぐ。
+  // 編集(wysiwyg)/review では表示する。modeState は installChrome 内スコープのため、内側の
+  // refreshToolbarMode がこのフラグを更新して syncFrontmatterView を呼ぶ（compareModeActive と同形）。
+  let frontmatterHiddenByMode = false;
   const syncFrontmatterView = (): void => {
     frontmatterEl.style.display =
-      current.showFrontmatter === true && !compareModeActive ? "" : "none";
+      current.showFrontmatter === true && !compareModeActive && !frontmatterHiddenByMode
+        ? ""
+        : "none";
   };
   const setFrontmatter = (value: string | null): void => {
     frontmatter = value;
@@ -1217,6 +1224,10 @@ export function mountVanillaMarkdownEditor(
           sourceText: sourceController?.getSourceText(),
         });
         frontmatterBlock?.setReadOnly(readonlyNow() || modeState.reviewMode === true);
+        // 表示条件: readonly / source モードでは隠し、編集(wysiwyg)/review では表示する。
+        frontmatterHiddenByMode =
+          modeState.readonlyMode === true || modeState.sourceMode === true;
+        syncFrontmatterView();
         syncOutlinePanel();
         syncCommentPanel();
         syncNoteGraphPanel();

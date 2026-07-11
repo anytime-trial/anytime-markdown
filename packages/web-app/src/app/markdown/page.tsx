@@ -160,6 +160,10 @@ function EditorPage() {
           // 空文書リセット（useEditorPage の setExternalContent("")）まで読み取り専用にしてしまい、
           // 本文が空のまま編集もモード切替もできなくなっていた。
           showReadonlyMode={process.env.NEXT_PUBLIC_SHOW_READONLY_MODE === "1"}
+          // 編集・レビューモードでフロントマターブロックを表示する（readonly / source では
+          // vanillaMarkdownEditor 側がモード連動で非表示にする）。フロントマター無し文書では
+          // ブロックが自己非表示になるため、常時 true で問題ない。
+          showFrontmatter
           sideToolbar
           // Explorer パネルは廃止済み。トグルを出すと開く先が無いため抑止する。
           hide={{ explorer: true }}
