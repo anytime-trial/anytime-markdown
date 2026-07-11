@@ -4,15 +4,12 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { MarkdownLogger } from '../utils/MarkdownLogger';
+import { writeFileAtomic } from './atomicWrite';
+import { mergeMcpServerEntryIfMissing } from './mcpJsonMerge';
+import type { McpServerEntry } from './mcpJsonMerge';
 
 const SERVER_NAME = 'mcp-markdown';
 const MCP_JSON_FILENAME = '.mcp.json';
-
-interface McpServerEntry {
-  command: string;
-  args: string[];
-  env?: Record<string, string>;
-}
 
 interface McpJsonShape {
   mcpServers?: Record<string, McpServerEntry>;
@@ -25,6 +22,42 @@ function buildMcpServerEntry(extensionDistPath: string, workspaceRoot: string): 
     args: [path.join(extensionDistPath, 'mcp-markdown-server.js')],
     env: { ANYTIME_MARKDOWN_ROOT: workspaceRoot },
   };
+}
+
+/**
+ * activate 時の自動登録: `<workspaceRoot>/.mcp.json` に `mcpServers.mcp-markdown` が
+ * 無い場合のみ追加する（Claude Code 向け。スキル自動配置と同じく拡張インストールで完結させる）。
+ *
+ * 手動コマンド {@link registerMcpServerToJson} との違い（自動経路の保守的ポリシー）:
+ * - 既存エントリは内容が異なっても上書きしない（ユーザーのカスタム構成を保護）
+ * - パース不能 JSON はバックアップ退避せずスキップ（無通知でファイルを動かさない）
+ * - UI 通知を出さない（ログのみ）。失敗しても activate を阻害しない
+ */
+export function autoRegisterMcpServerIfMissing(extensionDistPath: string): void {
+  try {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) return;
+    const mcpJsonPath = path.join(workspaceRoot, MCP_JSON_FILENAME);
+    let raw: string | null = null;
+    if (fs.existsSync(mcpJsonPath)) {
+      raw = fs.readFileSync(mcpJsonPath, 'utf-8');
+    }
+    const entry = buildMcpServerEntry(extensionDistPath, workspaceRoot);
+    const result = mergeMcpServerEntryIfMissing(raw, SERVER_NAME, entry);
+    if (result.action === 'skip') {
+      MarkdownLogger.info(`[mcp-register] auto: skip (${result.reason}) ${mcpJsonPath}`);
+      return;
+    }
+    // atomic 書き込み（失敗時は tmp 残骸を掃除。activate 毎に走る経路のため蓄積させない）
+    const written = writeFileAtomic(mcpJsonPath, result.nextJson, (m) =>
+      MarkdownLogger.warn(`[mcp-register] auto: ${m}`),
+    );
+    if (!written) return;
+    MarkdownLogger.info(`[mcp-register] auto: added ${SERVER_NAME} to ${mcpJsonPath}`);
+  } catch (err) {
+    // 自動経路は activate を阻害しない（登録は手動コマンドで再試行可能）
+    MarkdownLogger.error('[mcp-register] auto: failed', err);
+  }
 }
 
 export function registerMcpRegistrationCommand(
