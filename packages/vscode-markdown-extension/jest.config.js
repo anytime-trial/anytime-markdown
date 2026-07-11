@@ -13,6 +13,7 @@ module.exports = {
     '**/webview/__tests__/**/*.test.ts',
     '**/utils/__tests__/**/*.test.ts',
     '**/docCore/__tests__/**/*.test.ts',
+    '**/commands/__tests__/**/*.test.ts',
   ],
   transform: {
     '^.+\\.ts$': ['ts-jest', { isolatedModules: true }],
