@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-07-11
+
+### Added
+
+- Bundled the `anytime-review` skill (code-review finding format for memory-core ingest, renamed from `review-finding-format`) and install it into `.claude/skills/` automatically.
+
+### Trail Core (memory-core)
+
+- Updated review-ingest references to follow the skill rename (`review-finding-format` → `anytime-review`).
+
 ## [0.32.2] - 2026-07-11
 
 ### Changed

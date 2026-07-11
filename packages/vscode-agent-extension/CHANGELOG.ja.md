@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-07-11
+
+### 修正
+
+- agent-status hook を hook 実行時の cwd からの walk-up 解決に変更（`settings.json` への絶対パス焼き込みを撤廃）し、複数ワークスペース同時起動時のステータス誤配信を修正。報告するブランチも cwd 基準（worktree 対応）にしました。
+
+### 変更
+
+- 同梱の `anytime-cross-review` スキルを、改名された `anytime-review` 指摘書式の参照へ更新。
+
 ## [1.1.0] - 2026-07-11
 
 ### 追加

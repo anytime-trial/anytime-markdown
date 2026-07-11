@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-07-11
+
+### 追加
+
+- `anytime-review` スキル（memory-core ingest 対応のコードレビュー指摘書式。`review-finding-format` から改名）を同梱し、`.claude/skills/` へ自動配置するようにしました。
+
+### Trail Core (memory-core)
+
+- レビュー ingest のスキル参照を改名（`review-finding-format` → `anytime-review`）に追随。
+
 ## [0.32.2] - 2026-07-11
 
 ### 変更

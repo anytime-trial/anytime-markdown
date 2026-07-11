@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-07-11
+
+### Added
+
+- Auto-register the bundled mcp-markdown server into the workspace `.mcp.json` on activation, merging with any existing entries via an atomic write.
+
+### Changed
+
+- Bundled skills updated: added the new `anytime-doc-authoring` skill (per-type documentation authoring rules) and `anytime-spec-lookup` (spec navigation, renamed from `spec-lookup`); renamed `anytime-markdown-mcp-tactics` to `anytime-markdown-usage`; refreshed `anytime-markdown-output`.
+
 ## [1.12.0] - 2026-07-11
 
 ### Added
