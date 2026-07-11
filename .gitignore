@@ -13,6 +13,7 @@ prebuilt-vscode
 .claude/skills/anytime-markdown-output/
 .claude/skills/anytime-markdown-mcp-tactics/
 .claude/skills/anytime-mermaid/
+.claude/skills/anytime-doc-authoring/
 .claude/skills/.anytime-skills.json
 .next
 .playwright-mcp
