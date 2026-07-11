@@ -60,6 +60,26 @@ const num = (r, key, def = 0) => {
 };
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
 
+// コスト行(model / sessions / cost / cache_read / input)からシェア指標を導出する。
+// 全期間版と 30 日ウィンドウ版で同一ロジックを共有し、集計方法の差による比較不能を防ぐ。
+function summarizeCost(cost) {
+  const totalCost = cost.reduce((s, r) => s + (r.cost || 0), 0);
+  const opus = cost.find((r) => /opus/i.test(r.model || ''));
+  const totalCacheRead = cost.reduce((s, r) => s + (r.cache_read || 0), 0);
+  const totalInput = cost.reduce((s, r) => s + (r.input || 0), 0);
+  return {
+    byModel: cost.map((r) => ({ model: r.model, sessions: r.sessions, cost: r.cost })),
+    totalCost: Math.round(totalCost * 100) / 100,
+    opusCostSharePct: pct(opus ? opus.cost || 0 : 0, totalCost),
+    cacheReadSharePct: pct(totalCacheRead, totalCacheRead + totalInput),
+  };
+}
+
+// コストシグナルのウィンドウ幅(日)。windowDays メタ値と windowed SQL の窓を単一ソースで揃える
+// (散在リテラルだと表示窓と集計窓が乖離しうる)。変更時は出力キー costWindow30d の名称と
+// SKILL.md の参照(costWindow30d.*)も併せて更新すること。
+const WINDOW_DAYS = 30;
+
 const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors: [] };
 
 // ── trail.db: コスト・活動・hotspot ────────────────────────────────────────────
@@ -67,19 +87,35 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   const { db, error } = open('trail.db');
   if (error) snapshot.errors.push(error);
 
-  // コスト(モデル別)
+  // コスト(モデル別・全期間累積)
   const cost = rows(q(db, `SELECT model, COUNT(*) sessions, ROUND(SUM(estimated_cost_usd),2) cost,
        SUM(cache_read_tokens) cache_read, SUM(input_tokens) input
      FROM session_costs GROUP BY model ORDER BY cost DESC`));
-  const totalCost = cost.reduce((s, r) => s + (r.cost || 0), 0);
-  const opus = cost.find((r) => /opus/i.test(r.model || ''));
-  const totalCacheRead = cost.reduce((s, r) => s + (r.cache_read || 0), 0);
-  const totalInput = cost.reduce((s, r) => s + (r.input || 0), 0);
-  snapshot.cost = {
-    byModel: cost.map((r) => ({ model: r.model, sessions: r.sessions, cost: r.cost })),
-    totalCost: Math.round(totalCost * 100) / 100,
-    opusCostSharePct: pct(opus ? opus.cost || 0 : 0, totalCost),
-    cacheReadSharePct: pct(totalCacheRead, totalCacheRead + totalInput),
+  snapshot.cost = summarizeCost(cost);
+
+  // コスト(直近 30 日ウィンドウ)。opusCostSharePct/cacheReadSharePct/sessionsOver1000Msgs は
+  // 全期間累積では単調増加し「増加=悪化」判定が構造的に偽陽性を出すため、真のデルタは本ウィンドウ値で見る。
+  // session_costs に日時列は無いため sessions.start_time で窓を切る(start_time 空/NULL のセッションは窓外扱い)。
+  // WINDOW_DAYS は数値定数のためテンプレート埋め込みでも SQL インジェクション懸念なし
+  const costW = rows(q(db, `SELECT sc.model, COUNT(*) sessions, ROUND(SUM(sc.estimated_cost_usd),2) cost,
+       SUM(sc.cache_read_tokens) cache_read, SUM(sc.input_tokens) input
+     FROM session_costs sc JOIN sessions s ON s.id = sc.session_id
+     WHERE s.start_time >= datetime('now','-${WINDOW_DAYS} days')
+     GROUP BY sc.model ORDER BY cost DESC`));
+  const wCost = summarizeCost(costW);
+  snapshot.costWindow30d = {
+    windowDays: WINDOW_DAYS,
+    totalCost: wCost.totalCost,
+    opusCostSharePct: wCost.opusCostSharePct,
+    cacheReadSharePct: wCost.cacheReadSharePct,
+    // 累積 sessionsOver1000Msgs と同じ算定方法(messages GROUP BY)を窓内に限定して整合させる
+    sessionsOver1000Msgs: num(
+      q(db, `SELECT COUNT(*) c FROM (
+               SELECT m.session_id FROM messages m JOIN sessions s ON s.id = m.session_id
+               WHERE s.start_time >= datetime('now','-${WINDOW_DAYS} days')
+               GROUP BY m.session_id HAVING COUNT(*) > 1000)`),
+      'c',
+    ),
   };
 
   // 活動
