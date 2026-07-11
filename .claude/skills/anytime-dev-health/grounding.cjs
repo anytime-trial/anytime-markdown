@@ -75,6 +75,11 @@ function summarizeCost(cost) {
   };
 }
 
+// コストシグナルのウィンドウ幅(日)。windowDays メタ値と windowed SQL の窓を単一ソースで揃える
+// (散在リテラルだと表示窓と集計窓が乖離しうる)。変更時は出力キー costWindow30d の名称と
+// SKILL.md の参照(costWindow30d.*)も併せて更新すること。
+const WINDOW_DAYS = 30;
+
 const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors: [] };
 
 // ── trail.db: コスト・活動・hotspot ────────────────────────────────────────────
@@ -91,14 +96,15 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   // コスト(直近 30 日ウィンドウ)。opusCostSharePct/cacheReadSharePct/sessionsOver1000Msgs は
   // 全期間累積では単調増加し「増加=悪化」判定が構造的に偽陽性を出すため、真のデルタは本ウィンドウ値で見る。
   // session_costs に日時列は無いため sessions.start_time で窓を切る(start_time 空/NULL のセッションは窓外扱い)。
+  // WINDOW_DAYS は数値定数のためテンプレート埋め込みでも SQL インジェクション懸念なし
   const costW = rows(q(db, `SELECT sc.model, COUNT(*) sessions, ROUND(SUM(sc.estimated_cost_usd),2) cost,
        SUM(sc.cache_read_tokens) cache_read, SUM(sc.input_tokens) input
      FROM session_costs sc JOIN sessions s ON s.id = sc.session_id
-     WHERE s.start_time >= datetime('now','-30 days')
+     WHERE s.start_time >= datetime('now','-${WINDOW_DAYS} days')
      GROUP BY sc.model ORDER BY cost DESC`));
   const wCost = summarizeCost(costW);
   snapshot.costWindow30d = {
-    windowDays: 30,
+    windowDays: WINDOW_DAYS,
     totalCost: wCost.totalCost,
     opusCostSharePct: wCost.opusCostSharePct,
     cacheReadSharePct: wCost.cacheReadSharePct,
@@ -106,7 +112,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     sessionsOver1000Msgs: num(
       q(db, `SELECT COUNT(*) c FROM (
                SELECT m.session_id FROM messages m JOIN sessions s ON s.id = m.session_id
-               WHERE s.start_time >= datetime('now','-30 days')
+               WHERE s.start_time >= datetime('now','-${WINDOW_DAYS} days')
                GROUP BY m.session_id HAVING COUNT(*) > 1000)`),
       'c',
     ),
