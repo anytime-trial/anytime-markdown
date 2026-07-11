@@ -39,6 +39,7 @@
 
 | スキル | 適用タイミング |
 | --- | --- |
+| `anytime-doc-authoring` | ドキュメント新規作成・執筆時（type 別の記載内容・component spec・索引 index.[lang].md 運用） |
 | `i18n-naming` | i18n キーの追加・変更時 |
 | `screen-design` | UI / 画面コンポーネントの実装・修正時 |
 | `sqlite-table-definition-trail-core` | SQLite テーブル定義の新規作成・変更・マイグレーション時（trail-core 固有補足。汎用ルールは global スキル `sqlite-table-definition`） |
