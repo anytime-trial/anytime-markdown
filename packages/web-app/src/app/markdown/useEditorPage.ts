@@ -94,6 +94,11 @@ export interface EditorPageState {
    * ローカルへ「名前を付けて保存」した後は markdown-viewer 側が自動で無効化する。
    */
   externalSaveKind: 'github' | 'drive' | undefined;
+  /**
+   * 直近に GitHub から開いたファイルの座標（repo / branch / path）。ノート網の取得元に使う。
+   * `externalSaveKind === 'github'` のときだけ意味を持つ（他種別へ切替時は stale だが参照側で無視する）。
+   */
+  githubDoc: { repo: string; branch: string; path: string } | undefined;
   /** GitHub 保存時のコミットメッセージ入力ダイアログ。null は非表示。 */
   commitMessageDialog: { open: boolean; defaultMessage: string } | null;
   driveSaveAsDialog: { open: boolean; defaultName: string } | null;
@@ -157,6 +162,7 @@ export function useEditorPage({
 }: UseEditorPageOptions): EditorPageState & EditorPageActions {
   const [externalContent, setExternalContent] = useState<string | undefined>(undefined);
   const [externalFileName, setExternalFileName] = useState<string | undefined>(undefined);
+  const [githubDoc, setGithubDoc] = useState<{ repo: string; branch: string; path: string } | undefined>(undefined);
   const [externalCompareContent, setExternalCompareContent] = useState<string | null>(null);
   // 値は参照されない（比較モードの分岐は markdown-viewer 側が持つ）。setter のみ使う。
   const [, setCompareModeOpen] = useState(false);
@@ -259,6 +265,7 @@ export function useEditorPage({
     const prev = selectedFileRef.current;
     const isSameFile = prev?.repo === repo && prev?.filePath === filePath && prev?.branch === branch;
     selectedFileRef.current = { repo, filePath, branch };
+    setGithubDoc({ repo, branch, path: filePath });
     setDriveFile(null);
     setExternalSaveKind('github');
     if (isSameFile) return;
@@ -618,6 +625,7 @@ export function useEditorPage({
     driveConflict,
     hasDriveFile,
     externalSaveKind,
+    githubDoc,
     commitMessageDialog,
     driveSaveAsDialog,
     handleGitHubOpenFile,

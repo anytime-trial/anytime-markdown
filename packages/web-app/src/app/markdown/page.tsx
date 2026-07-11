@@ -24,6 +24,7 @@ import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
 import { useDiscardDraftConfirm } from './useDiscardDraftConfirm';
 import { useEditorPage } from './useEditorPage';
 import { useGitHubPicker } from './useGitHubPicker';
+import { useNoteGraphSlot } from './useNoteGraphSlot';
 
 function EditorLoading() {
   const t = useTranslations('Common');
@@ -86,7 +87,7 @@ function EditorPage() {
     externalContent, externalFileName,
     externalCompareContent, editorKey, isDirty,
     saveSnackbar, ssoSnackbar, driveConflict, hasDriveFile, handleSaveTargetChange,
-    commitMessageDialog, externalSaveKind,
+    commitMessageDialog, externalSaveKind, githubDoc,
     handleGitHubOpenFile, handleExternalSave,
     handleCompareModeChange,
     handleContentChange, setSsoSnackbar, setSaveSnackbar, fileSystemProvider,
@@ -99,6 +100,18 @@ function EditorPage() {
 
   const locale = useLocale();
   const vanillaT = useMemo(() => createMarkdownT('MarkdownEditor', locale), [locale]);
+  // GitHub から開いたときだけノート網スロットを供給する（それ以外は undefined＝ボタン非表示）。
+  const noteGraphSlot = useNoteGraphSlot({
+    enabled: externalSaveKind === 'github',
+    repo: githubDoc?.repo,
+    branch: githubDoc?.branch,
+    currentPath: githubDoc?.path,
+    themeMode,
+    t: vanillaT,
+    onOpenDoc: (path) => {
+      if (githubDoc) void handleGitHubOpenFile(githubDoc.repo, path, githubDoc.branch);
+    },
+  });
   // エディタが現在マウントしている本文（persistDraft 時は localStorage 下書きが実体・useEditorPage.ts 452行目相当のフォールバック）。
   // handleContentChange 経由で currentContentRef へ同期し、無編集のまま Drive へ新規保存しても最新本文を取得できるようにする。
   const resolvedInitialContent = useMemo(() => {
@@ -155,6 +168,7 @@ function EditorPage() {
           onExternalSave={canExternalSave ? handleExternalSave : undefined}
           externalSaveKind={externalSaveKind}
           onSaveTargetChange={handleSaveTargetChange}
+          noteGraph={noteGraphSlot}
           // readOnly はホストが課す編集ロック（VS Code の Claude 編集中など）を表す。web-app に
           // ロック要件は無い。かつて `externalContent !== undefined` を渡していたが、GitHub 接続直後の
           // 空文書リセット（useEditorPage の setExternalContent("")）まで読み取り専用にしてしまい、
