@@ -11,9 +11,10 @@ prebuilt-vscode
 # markdown 拡張が activate 時に配置する生成物（ソースは packages/vscode-markdown-extension/skills/）
 .claude/skills/anytime-markdown-check/
 .claude/skills/anytime-markdown-output/
-.claude/skills/anytime-markdown-mcp-tactics/
+.claude/skills/anytime-markdown-usage/
 .claude/skills/anytime-mermaid/
 .claude/skills/anytime-doc-authoring/
+.claude/skills/anytime-spec-lookup/
 .claude/skills/.anytime-skills.json
 .next
 .playwright-mcp

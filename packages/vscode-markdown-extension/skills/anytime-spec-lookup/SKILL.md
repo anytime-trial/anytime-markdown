@@ -1,10 +1,10 @@
 ---
-name: spec-lookup
+name: anytime-spec-lookup
 effort: low
 description: anytime-markdown の設計書（/Shared/anytime-markdown-docs/spec）を低トークンで辿るためのナビゲーション手順。索引(index.ja.md) → 対象 frontmatter → 型付き related を必要な深さだけ辿る progressive disclosure。設計書の調査・参照・関連ドキュメント探索・「どの spec を読むべきか」を判断する時に使用する。
 ---
 
-# 設計書ナビゲーション（spec-lookup）
+# 設計書ナビゲーション（anytime-spec-lookup）
 
 更新日: 2026-07-11
 

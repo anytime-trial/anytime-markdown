@@ -12,7 +12,7 @@ path: "**/*.md"
 
 更新日: 2026-07-11
 
-> type 別の記載内容（何を書くか）・索引 `index.[lang].md` 運用は `anytime-doc-authoring` スキル、既存設計書の読み方は `spec-lookup` スキルを参照。本スキルは構文・フロントマター・整形（どう書くか）を扱う。
+> type 別の記載内容（何を書くか）・索引 `index.[lang].md` 運用は `anytime-doc-authoring` スキル、既存設計書の読み方は `anytime-spec-lookup` スキルを参照。本スキルは構文・フロントマター・整形（どう書くか）を扱う。
 
 ## 1. ファイル命名規則
 
