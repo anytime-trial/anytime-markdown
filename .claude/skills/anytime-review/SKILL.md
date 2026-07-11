@@ -1,5 +1,5 @@
 ---
-name: review-finding-format
+name: anytime-review
 effort: low
 description: コードレビュー結果を出力する際の Markdown 書式（memory-core ingest パーサ対応）。### N. タイトル＋重大度/カテゴリ/対象の3メタデータ＋行頭の問題:/提案: マーカーで指摘を構造化する。レビュードキュメント・code-reviewer subagent 出力・requesting-code-review/security-review の指摘を書く時に使用する。
 ---

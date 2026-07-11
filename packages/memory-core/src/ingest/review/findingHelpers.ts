@@ -323,7 +323,7 @@ export function inferSeverityFromHeading(heading: string): ParsedFinding['severi
 }
 
 /**
- * review-finding-format スキルが定める明示メタ行 `- 重大度: <level>` / `severity: <level>`
+ * anytime-review スキルが定める明示メタ行 `- 重大度: <level>` / `severity: <level>`
  * を解析する。行頭（bullet `- `/`* `/`+ ` と bold `**...**` を許容）に現れた最初のマーカーを
  * 採用する。明示マーカーが無ければ null を返し、呼び出し側はキーワード/見出し推論へ
  * フォールバックする。

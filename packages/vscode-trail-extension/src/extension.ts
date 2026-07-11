@@ -213,6 +213,26 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// anytime-review はレビュー指摘書式（memory-core ingest パーサとの機械契約。旧名 review-finding-format）。
+	// 契約とパーサ実装を同じ trail リリース単位に置くため trail 拡張が配布する。
+	if (hasClaudeDir && fs.existsSync(claudeDir)) {
+		try {
+			installStaticSkillDir({
+				claudeDir,
+				extensionPath: context.extensionUri.fsPath,
+				skillName: 'anytime-review',
+				oldSkillNames: ['review-finding-format'],
+				logger: {
+					info: (m) => TrailLogger.info(m),
+					warn: (m) => TrailLogger.warn(m),
+					error: (m) => TrailLogger.error(m),
+				},
+			});
+		} catch (err) {
+			TrailLogger.warn(`[install-skills] unexpected failure for anytime-review: ${String(err)}`);
+		}
+	}
+
 	const reinstallSkills = vscode.commands.registerCommand(
 		'anytime-trail.reinstallSkills',
 		async () => {
