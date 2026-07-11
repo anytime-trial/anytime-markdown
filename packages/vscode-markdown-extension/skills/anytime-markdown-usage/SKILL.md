@@ -1,9 +1,9 @@
 ---
-name: anytime-markdown-mcp-tactics
+name: anytime-markdown-usage
 description: anytime-markdown の Markdown ドキュメントを検索・調査・編集・整形する時、特にトークン（cache_read 加重）を抑えたい時に使用する。mcp-markdown の search_docs/search_sections/grep_markdown/get_outline/get_section/update_section/get_frontmatter/update_frontmatter/format_markdown/compute_diff を使う時、検索・調査をサブエージェントへ委譲する時の運用手順と委任プロンプト雛形。
 ---
 
-# Markdown 検索・編集のトークン削減タクティクス
+# mcp-markdown 利用ガイド（検索・編集のトークン削減）
 
 更新日: 2026-07-11
 
