@@ -55,6 +55,28 @@ describe('setupClaudeHooks', () => {
     return require('../claude/claudeHookSetup');
   }
 
+  // 保護領域リテラル（チルダ home 配下の設定ディレクトリ）を避けるため path.join で組み立てる。
+  // 実行値は home 配下の scripts/<name>（settings.json の hook command と一致）。
+  const scriptsTilde = path.join('~', '.claude', 'scripts');
+  const reportCmd = (mode: string): string =>
+    `node ${path.join(scriptsTilde, 'agent-status-report.mjs')} ${mode}`;
+  const bashCmd = (name: string): string => `bash ${path.join(scriptsTilde, name)}`;
+
+  function readSettings(): {
+    hooks: {
+      PreToolUse: Array<{ matcher?: string; hooks: Array<{ command: string }> }>;
+      PostToolUse: Array<{ matcher?: string; hooks: Array<{ command: string }> }>;
+      UserPromptSubmit: Array<{ hooks: Array<{ command: string }> }>;
+      Stop: Array<{ hooks: Array<{ command: string }> }>;
+    };
+  } {
+    return JSON.parse(fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'));
+  }
+
+  function readScript(name: string): string {
+    return fs.readFileSync(path.join(tmpHome, '.claude', 'scripts', name), 'utf-8');
+  }
+
   test('registers hooks without creating any status file/dir', () => {
     const { setupClaudeHooks } = loadModule();
 
@@ -63,117 +85,138 @@ describe('setupClaudeHooks', () => {
     expect(registered).toBe(true);
     // 新方式ではフックはファイルを書かず agent-status ワーカーへ POST するため、
     // ディレクトリ作成は行わない。
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
-    );
+    const settings = readSettings();
     expect(Array.isArray(settings.hooks.PreToolUse)).toBe(true);
   });
 
-  test('Edit|Write hook posts to agent-status worker resolved from workspaceRoot', () => {
+  test('Edit|Write hooks invoke agent-status-report.mjs with no absolute path (workspace 非依存)', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
 
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
-    );
-    const editPre = settings.hooks.PreToolUse.find(
-      (e: { matcher?: string }) => e.matcher === 'Edit|Write',
-    );
-    const cmd: string = editPre.hooks[0].command;
+    const settings = readSettings();
+    const editPre = settings.hooks.PreToolUse.find((e) => e.matcher === 'Edit|Write');
+    const editPost = settings.hooks.PostToolUse.find((e) => e.matcher === 'Edit|Write');
 
-    // agent-worker.json は workspaceRoot 基点で解決される
-    expect(cmd).toContain(`${tmpWorkspace}/.anytime/agent/agent-worker.json`);
-    // /edit エンドポイントへ POST する
-    expect(cmd).toContain('/api/agent-status/edit');
-    // worker の token を読み Bearer 認証ヘッダを付与する
-    expect(cmd).toContain('w.token');
-    expect(cmd).toContain("'Authorization':'Bearer '+tok");
-    // git branch は workspaceRoot を cwd にして取得する
-    expect(cmd).toContain(`cwd:'${tmpWorkspace}/'`);
-    // 旧方式のファイル書き込み痕跡が無いこと
-    expect(cmd).not.toContain('claude-code-status');
+    expect(editPre?.hooks[0].command).toBe(
+      reportCmd('edit-start'),
+    );
+    expect(editPost?.hooks[0].command).toBe(
+      reportCmd('edit-end'),
+    );
+    // POST 先の解決は実行時 walk-up に委ねるため、command に workspace 絶対パスを焼き込まない
+    expect(editPre?.hooks[0].command).not.toContain(tmpWorkspace);
+    expect(editPre?.hooks[0].command).not.toContain('.anytime/agent');
+    // 旧方式のファイル書き込み・inline node の痕跡が無いこと
+    expect(editPre?.hooks[0].command).not.toContain('claude-code-status');
+    expect(editPre?.hooks[0].command).not.toContain('/api/agent-status/edit');
   });
 
-  test('plan-file hook embeds workspaceRoot for plannedEdits path prefixing', () => {
+  test('Bash hooks invoke agent-status-report.mjs (bash-start / bash-end)', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
 
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
+    const settings = readSettings();
+    const bashPre = settings.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
+    const bashPost = settings.hooks.PostToolUse.filter((e) => e.matcher === 'Bash');
+
+    expect(bashPre?.hooks[0].command).toBe(
+      reportCmd('bash-start'),
     );
-    const writePost = settings.hooks.PostToolUse.filter(
-      (e: { matcher?: string }) => e.matcher === 'Write',
-    );
-    const planEntry = writePost.find((e: { hooks: Array<{ command: string }> }) =>
-      e.hooks[0].command.includes('plannedEdits'),
-    );
+    expect(bashPost.some((e) => e.hooks[0].command.endsWith('bash-end'))).toBe(true);
+  });
+
+  test('plan-file hook invokes agent-status-report.mjs planned mode', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = readSettings();
+    const writePost = settings.hooks.PostToolUse.filter((e) => e.matcher === 'Write');
+    const planEntry = writePost.find((e) => e.hooks[0].command.endsWith('planned'));
 
     expect(planEntry).toBeDefined();
-    const planCmd: string = planEntry.hooks[0].command;
-    expect(planCmd).toContain(`wr='${tmpWorkspace}/'`);
-    const wrongWr = path.join(tmpWorkspace, '.anytime', 'trail') + '/';
-    expect(planCmd).not.toContain(`wr='${wrongWr}'`);
+    expect(planEntry?.hooks[0].command).toBe(
+      reportCmd('planned'),
+    );
+    // plannedEdits 抽出ロジックは mjs 側に移譲され、command は workspace 絶対パスを持たない
+    expect(planEntry?.hooks[0].command).not.toContain(tmpWorkspace);
   });
 
-  test('commit-tracker and session-guard both anchor AGENT_HOME at workspaceRoot', () => {
+  test('writes lib/agent-home.sh and agent-status-report.mjs with cwd walk-up resolvers', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
 
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
-    );
+    const lib = readScript(path.join('lib', 'agent-home.sh'));
+    expect(lib).toContain('resolve_agent_home');
+    expect(lib).toContain('.anytime/agent/agent-worker.json');
 
-    const commitTracker = settings.hooks.PostToolUse.find(
-      (e: { hooks: Array<{ command: string }> }) =>
-        e.hooks?.[0]?.command?.includes('commit-tracker.sh'),
-    );
-    expect(commitTracker).toBeDefined();
-    expect(commitTracker.hooks[0].command).toContain(
-      `AGENT_HOME='${tmpWorkspace}/.anytime/agent'`,
-    );
-    expect(commitTracker.hooks[0].command).not.toContain('${CWD}');
-    // 旧 trail サーバ /api/message-commits への通知が消えていること
-    expect(commitTracker.hooks[0].command).not.toContain('message-commits');
-
-    const sessionGuard = settings.hooks.UserPromptSubmit.find(
-      (e: { hooks: Array<{ command: string }> }) =>
-        e.hooks?.[0]?.command?.includes('session-guard.sh'),
-    );
-    expect(sessionGuard).toBeDefined();
-    expect(sessionGuard.hooks[0].command).toContain(
-      `AGENT_HOME='${tmpWorkspace}/.anytime/agent'`,
-    );
-    expect(sessionGuard.hooks[0].command).not.toContain('${CWD}');
+    const mjs = readScript('agent-status-report.mjs');
+    // walk-up リゾルバと POST 先エンドポイント
+    expect(mjs).toContain('resolveWorker');
+    expect(mjs).toContain('agent-worker.json');
+    expect(mjs).toContain('/api/agent-status/edit');
+    // plan-file の plannedEdits 抽出ロジックが mjs に集約されている
+    expect(mjs).toContain('/Shared/anytime-markdown-docs/plan/');
+    expect(mjs).toContain('plannedEdits');
+    expect(mjs).toContain('変更対象ファイル');
+    // branch は常に hook の実行 cwd から取得する（worktree ブランチを正しく報告する・受け入れ基準#2）。
+    // wk.root（解決済み親）基準にすると worktree で親ブランチを誤報告するため回帰を防ぐ。
+    expect(mjs).toContain('safeBranch(cwd)');
+    expect(mjs).not.toContain('safeBranch(wk.root)');
   });
 
-  test('commit-tracker.sh script targets agent-status worker, not trail message-commits', () => {
+  test('commit-tracker / session-guard / handoff-inject hooks are bare bash (AGENT_HOME 注入なし)', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
 
-    const script = fs.readFileSync(
-      path.join(tmpHome, '.claude', 'scripts', 'commit-tracker.sh'),
-      'utf-8',
+    const settings = readSettings();
+
+    const commitTracker = settings.hooks.PostToolUse.find((e) =>
+      e.hooks?.[0]?.command?.includes('commit-tracker.sh'),
     );
+    expect(commitTracker?.hooks[0].command).toBe(bashCmd('commit-tracker.sh'));
+    expect(commitTracker?.hooks[0].command).not.toContain('AGENT_HOME=');
+    expect(commitTracker?.hooks[0].command).not.toContain(tmpWorkspace);
+
+    const sessionGuard = settings.hooks.UserPromptSubmit.find((e) =>
+      e.hooks?.[0]?.command?.includes('session-guard.sh'),
+    );
+    expect(sessionGuard?.hooks[0].command).toBe(bashCmd('session-guard.sh'));
+    expect(sessionGuard?.hooks[0].command).not.toContain('AGENT_HOME=');
+
+    const handoff = settings.hooks.UserPromptSubmit.find((e) =>
+      e.hooks?.[0]?.command?.includes('handoff-inject.sh'),
+    );
+    expect(handoff?.hooks[0].command).toBe(bashCmd('handoff-inject.sh'));
+    expect(handoff?.hooks[0].command).not.toContain('AGENT_HOME=');
+  });
+
+  test('commit-tracker.sh sources the walk-up lib and targets agent-status worker', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const script = readScript('commit-tracker.sh');
+    // cwd 相対 walk-up（lib/agent-home.sh を source）で AGENT_HOME を解決する
+    expect(script).toContain('lib/agent-home.sh');
+    expect(script).toContain('resolve_agent_home');
+    // 旧 ${CWD}/.anytime/agent 固定フォールバックが撤去されている
+    expect(script).not.toContain('${CWD}/.anytime/agent');
+    // agent-status ワーカーへ通知する（旧 trail /api/message-commits・git-state ファイルは廃止）
     expect(script).toContain('/api/agent-status/commit');
     expect(script).toContain('agent-worker.json');
     expect(script).not.toContain('/api/message-commits');
-    // git-state ファイルへの書き込みが廃止されていること
     expect(script).not.toContain('git-state');
   });
 
-  test('session-guard.sh writes its state file under AGENT_HOME (.anytime/agent)', () => {
+  test('session-guard.sh resolves AGENT_HOME via walk-up and writes state under .anytime/agent', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
 
-    const script = fs.readFileSync(
-      path.join(tmpHome, '.claude', 'scripts', 'session-guard.sh'),
-      'utf-8',
-    );
-    // state ファイルは .anytime/agent 配下（AGENT_HOME）に書く
-    expect(script).toContain('AGENT_HOME');
-    expect(script).toContain('.anytime/agent');
+    const script = readScript('session-guard.sh');
+    expect(script).toContain('lib/agent-home.sh');
+    expect(script).toContain('resolve_agent_home');
     expect(script).toContain('${AGENT_HOME}/claude-session-guard.json');
-    // 旧 .anytime/trail/state 配下への書き込みが廃止されていること
+    // 旧 ${CWD}/.anytime/agent 固定フォールバック・旧 trail state 配下への書き込みが廃止されている
+    expect(script).not.toContain('${CWD}/.anytime/agent');
     expect(script).not.toContain('TRAIL_HOME');
     expect(script).not.toContain('.anytime/trail/state');
   });
@@ -182,27 +225,31 @@ describe('setupClaudeHooks', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
 
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
-    );
-    const inject = settings.hooks.UserPromptSubmit.find(
-      (e: { hooks: Array<{ command: string }> }) =>
-        e.hooks?.[0]?.command?.includes('handoff-inject.sh'),
-    );
-    expect(inject).toBeDefined();
-    expect(inject.hooks[0].command).toContain(`AGENT_HOME='${tmpWorkspace}/.anytime/agent'`);
-
-    const script = fs.readFileSync(
-      path.join(tmpHome, '.claude', 'scripts', 'handoff-inject.sh'),
-      'utf-8',
-    );
-    // additionalContext として JSON 出力し、source==現セッションは除外、rename で消費
+    const script = readScript('handoff-inject.sh');
+    // walk-up で AGENT_HOME を解決し、additionalContext として JSON 出力、rename で消費
+    expect(script).toContain('lib/agent-home.sh');
     expect(script).toContain('additionalContext');
     expect(script).toContain('UserPromptSubmit');
     expect(script).toContain('.consumed');
 
     const gi = fs.readFileSync(path.join(tmpWorkspace, '.gitignore'), 'utf-8');
     expect(gi).toContain('.anytime/');
+  });
+
+  test('settings.json は workspace 非依存（異なる workspaceRoot でも内容が同一・churn ゼロ）', () => {
+    const { setupClaudeHooks } = loadModule();
+    const wsA = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-hook-wsA-'));
+    const wsB = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-hook-wsB-'));
+    try {
+      setupClaudeHooks(wsA);
+      const afterA = fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8');
+      setupClaudeHooks(wsB);
+      const afterB = fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8');
+      expect(afterB).toBe(afterA);
+    } finally {
+      fs.rmSync(wsA, { recursive: true, force: true });
+      fs.rmSync(wsB, { recursive: true, force: true });
+    }
   });
 
   test('ensureAnytimeGitignored は冪等（既存 .anytime/ を重複追加しない）', () => {
@@ -218,29 +265,85 @@ describe('setupClaudeHooks', () => {
     setupClaudeHooks(tmpWorkspace);
     setupClaudeHooks(tmpWorkspace);
 
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
-    );
-    const editPreCount = settings.hooks.PreToolUse.filter(
-      (e: { matcher?: string }) => e.matcher === 'Edit|Write',
-    ).length;
+    const settings = readSettings();
+    const editPreCount = settings.hooks.PreToolUse.filter((e) => e.matcher === 'Edit|Write').length;
     expect(editPreCount).toBe(1);
+    const commitTrackerCount = settings.hooks.PostToolUse.filter((e) =>
+      e.hooks?.[0]?.command?.includes('commit-tracker.sh'),
+    ).length;
+    expect(commitTrackerCount).toBe(1);
+  });
+
+  test('migrates legacy absolute-path inline node hooks to mjs invocation', () => {
+    // 旧世代: 絶対パス固定の inline node hook（/api/agent-status/edit を含む）を事前登録
+    const legacyInline =
+      `node -e "...JSON.parse(require('fs').readFileSync('${tmpWorkspace}/.anytime/agent/agent-worker.json','utf8'))...fetch(url+'/api/agent-status/edit',{})"`;
+    fs.writeFileSync(
+      path.join(tmpHome, '.claude', 'settings.json'),
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [{ matcher: 'Edit|Write', hooks: [{ type: 'command', command: legacyInline }] }],
+        },
+      }),
+    );
+
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = readSettings();
+    const editPre = settings.hooks.PreToolUse.filter((e) => e.matcher === 'Edit|Write');
+    // 旧 inline hook は除去され、新 mjs 呼び出しが 1 つだけ残る
+    expect(editPre.length).toBe(1);
+    expect(editPre[0].hooks[0].command).toBe(
+      reportCmd('edit-start'),
+    );
+    const preCmds = settings.hooks.PreToolUse.map((e) => e.hooks[0].command);
+    expect(preCmds.some((c) => c.includes('/api/agent-status/edit'))).toBe(false);
+  });
+
+  test('migrates legacy AGENT_HOME-injected script hooks to bare bash', () => {
+    // 旧世代: AGENT_HOME='<abs>' を注入した commit-tracker フックを事前登録
+    fs.writeFileSync(
+      path.join(tmpHome, '.claude', 'settings.json'),
+      JSON.stringify({
+        hooks: {
+          PostToolUse: [
+            {
+              matcher: 'Bash',
+              hooks: [
+                {
+                  type: 'command',
+                  command: `AGENT_HOME='${tmpWorkspace}/.anytime/agent' ${bashCmd('commit-tracker.sh')}`,
+                  timeout: 5,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = readSettings();
+    const commitHooks = settings.hooks.PostToolUse.filter((e) =>
+      e.hooks?.[0]?.command?.includes('commit-tracker.sh'),
+    );
+    expect(commitHooks.length).toBe(1);
+    expect(commitHooks[0].hooks[0].command).toBe(bashCmd('commit-tracker.sh'));
+    expect(commitHooks[0].hooks[0].command).not.toContain('AGENT_HOME=');
   });
 
   test('Stop hook uses token-budget.sh and writes the script', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
 
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
-    );
-    const stop = settings.hooks.Stop.find(
-      (e: { hooks: Array<{ command: string }> }) =>
-        e.hooks?.[0]?.command?.includes('token-budget.sh'),
-    );
+    const settings = readSettings();
+    const stop = settings.hooks.Stop.find((e) => e.hooks?.[0]?.command?.includes('token-budget.sh'));
     expect(stop).toBeDefined();
     // 保護領域リテラルを避けるため path.join で組み立てる（実行値は home 配下の scripts/token-budget.sh）。
-    expect(stop.hooks[0].command).toBe(path.join('~', '.claude', 'scripts', 'token-budget.sh'));
+    expect(stop?.hooks[0].command).toBe(path.join('~', '.claude', 'scripts', 'token-budget.sh'));
     expect(fs.existsSync(path.join(tmpHome, '.claude', 'scripts', 'token-budget.sh'))).toBe(true);
   });
 
@@ -262,12 +365,8 @@ describe('setupClaudeHooks', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
 
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
-    );
-    const stopCmds: string[] = settings.hooks.Stop.map(
-      (e: { hooks: Array<{ command: string }> }) => e.hooks?.[0]?.command ?? '',
-    );
+    const settings = readSettings();
+    const stopCmds: string[] = settings.hooks.Stop.map((e) => e.hooks?.[0]?.command ?? '');
     // 旧名を指す stale エントリは残らず、新名エントリが 1 つだけ存在する
     expect(stopCmds.some((c) => c.includes('trail-token-budget.sh'))).toBe(false);
     expect(stopCmds.filter((c) => c.endsWith('/token-budget.sh')).length).toBe(1);
@@ -283,11 +382,7 @@ describe('setupClaudeHooks', () => {
   });
 
   test('returns false when settings.json contains invalid JSON', () => {
-    fs.writeFileSync(
-      path.join(tmpHome, '.claude', 'settings.json'),
-      'not valid json {',
-      'utf-8',
-    );
+    fs.writeFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'not valid json {', 'utf-8');
     const { setupClaudeHooks } = loadModule();
     const result = setupClaudeHooks(tmpWorkspace);
     expect(result).toBe(false);
@@ -298,27 +393,8 @@ describe('setupClaudeHooks', () => {
     const { setupClaudeHooks } = loadModule();
     const result = setupClaudeHooks(tmpWorkspace);
     expect(result).toBe(true);
-    const settingsPath = path.join(tmpHome, '.claude', 'settings.json');
-    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+    const settings = readSettings();
     expect(settings.hooks).toBeDefined();
     expect(Array.isArray(settings.hooks.PreToolUse)).toBe(true);
-  });
-
-  test('workspaceRoot に末尾スラッシュが複数あっても正規化される', () => {
-    const { setupClaudeHooks } = loadModule();
-    const rootWithSlashes = tmpWorkspace.replace(/\/*$/, '//');
-    const result = setupClaudeHooks(rootWithSlashes);
-    expect(result).toBe(true);
-
-    const settings = JSON.parse(
-      fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'),
-    );
-    const editPre = settings.hooks.PreToolUse.find(
-      (e: { matcher?: string }) => e.matcher === 'Edit|Write',
-    );
-    const cmd: string = editPre.hooks[0].command;
-    // 末尾スラッシュが1つに正規化されている
-    expect(cmd).toContain(`cwd:'${tmpWorkspace}/'`);
-    expect(cmd).not.toContain(`//`);
   });
 });
