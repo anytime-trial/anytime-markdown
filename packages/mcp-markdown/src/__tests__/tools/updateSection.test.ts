@@ -51,6 +51,25 @@ describe('updateSectionInText', () => {
   });
 });
 
+describe('updateSectionInText duplicate headings', () => {
+  const dup = '## 例\n\nFirst.\n\n## Other\n\nO.\n\n## 例\n\nSecond.\n';
+
+  it('should throw for ambiguous duplicate headings without occurrence', () => {
+    expect(() => updateSectionInText(dup, '## 例', '## 例\n\nX.\n')).toThrow(/Ambiguous heading/);
+  });
+
+  it('should replace the nth occurrence (1-based)', () => {
+    const result = updateSectionInText(dup, '## 例', '## 例\n\nReplaced.\n', 2);
+    expect(result).toContain('First.');
+    expect(result).toContain('Replaced.');
+    expect(result).not.toContain('Second.');
+  });
+
+  it('should throw when occurrence is out of range', () => {
+    expect(() => updateSectionInText(dup, '## 例', 'x', 3)).toThrow(/out of range/);
+  });
+});
+
 describe('updateSection', () => {
   let tmpDir: string;
 
@@ -69,5 +88,47 @@ describe('updateSection', () => {
     expect(content).toContain('New');
     expect(content).not.toContain('Old');
     expect(content).toContain('Keep');
+  });
+
+  it('should return a diff summary (oldLines/newLines/bytesDelta/warnings)', async () => {
+    const filePath = path.join(tmpDir, 'test.md');
+    await fs.writeFile(filePath, '# T\n\n## A\n\nOld\n\n## B\n\nKeep\n');
+    const bytesBefore = Buffer.byteLength(await fs.readFile(filePath, 'utf-8'));
+    const summary = await updateSection(
+      { path: 'test.md', heading: '## A', content: '## A\n\nNew longer body\n\n' },
+      tmpDir,
+    );
+    const bytesAfter = Buffer.byteLength(await fs.readFile(filePath, 'utf-8'));
+    // 旧セクション '## A\n\nOld\n' = 4 行 / 新 content = 5 行
+    expect(summary.oldLines).toBe(4);
+    expect(summary.newLines).toBe(5);
+    // bytesDelta はファイル全体の実バイト増減（セクション差とは区切り改行分ずれ得る）
+    expect(summary.bytesDelta).toBe(bytesAfter - bytesBefore);
+    expect(summary.warnings).toEqual([]);
+  });
+
+  it('should warn when content does not start with a heading line', async () => {
+    await fs.writeFile(path.join(tmpDir, 'test.md'), '# T\n\n## A\n\nOld\n');
+    const summary = await updateSection({ path: 'test.md', heading: '## A', content: 'Body only.\n' }, tmpDir);
+    expect(summary.warnings.some((w) => w.includes('heading'))).toBe(true);
+  });
+
+  it('should warn when content starts with a different heading (rename)', async () => {
+    await fs.writeFile(path.join(tmpDir, 'test.md'), '# T\n\n## A\n\nOld\n');
+    const summary = await updateSection({ path: 'test.md', heading: '## A', content: '## Renamed\n\nOld\n' }, tmpDir);
+    expect(summary.warnings.some((w) => w.includes('Renamed'))).toBe(true);
+  });
+
+  it('should update the nth occurrence in file and echo occurrence in summary', async () => {
+    await fs.writeFile(path.join(tmpDir, 'test.md'), '## A\n\nFirst\n\n## A\n\nSecond\n');
+    const summary = await updateSection(
+      { path: 'test.md', heading: '## A', content: '## A\n\nReplaced\n', occurrence: 2 },
+      tmpDir,
+    );
+    expect(summary.occurrence).toBe(2);
+    const content = await fs.readFile(path.join(tmpDir, 'test.md'), 'utf-8');
+    expect(content).toContain('First');
+    expect(content).toContain('Replaced');
+    expect(content).not.toContain('Second');
   });
 });
