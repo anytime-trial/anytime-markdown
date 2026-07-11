@@ -26,10 +26,6 @@ function indentOf(line: string): number {
   return n;
 }
 
-function shortName(path: string): string {
-  return path.split("/").at(-1) ?? path;
-}
-
 /** frontmatter（`---` 区切り）の中身の行配列を返す。frontmatter が無ければ null。 */
 function frontmatterLines(raw: string): string[] | null {
   const lines = raw.replaceAll("\r\n", "\n").split("\n");
@@ -137,5 +133,3 @@ export function parseNoteGraphDoc(raw: string, path: string): NoteGraphDocInput 
   const related = parseRelated(fm);
   return { path, title, type, related };
 }
-
-export { shortName as noteGraphShortName };

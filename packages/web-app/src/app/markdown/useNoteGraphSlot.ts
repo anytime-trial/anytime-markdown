@@ -44,6 +44,7 @@ export function useNoteGraphSlot(params: UseNoteGraphSlotParams): NoteGraphSlot 
   const handleRef = useRef<NoteGraphPanelHandle | null>(null);
   const openedRef = useRef(false);
   const docsLoadedRef = useRef(false);
+  const inFlightRef = useRef(false);
 
   // repo/branch が定まる GitHub ファイルごとに 1 スロット。ラッパは同期生成し、
   // editor が mount 時にこの element を読む（後から async で中身を注入する）。
@@ -64,16 +65,26 @@ export function useNoteGraphSlot(params: UseNoteGraphSlotParams): NoteGraphSlot 
     // repo/branch 変化で新スロット。currentPath 等は ref 経由で最新を読むため deps 外。
   }, [enabled, repo, branch]);
 
-  // 一度だけ docs を取得してパネルへ反映する（パネル未生成なら生成完了後に呼ばれる）。
+  // docs を取得してパネルへ反映する。成功時のみ docsLoaded を立て、失敗時は
+  // ログを出して再試行を許す（パネル未生成なら生成完了後に改めて呼ばれる）。
+  // 中心（currentPath）は初回取得時のもので、同一 repo/branch 内で別ファイルを開いても
+  // 追随しない（パネル内クリックで再センタリング可能なため許容）。
   async function loadDocs(r: string, b: string): Promise<void> {
-    if (docsLoadedRef.current || !handleRef.current) return;
-    docsLoadedRef.current = true;
-    const docs = await fetchNoteGraphDocs(r, b);
-    handleRef.current?.setDocs({
-      docs,
-      isDark: resolveIsDark(cbRef.current.themeMode),
-      currentPath: cbRef.current.currentPath,
-    });
+    if (docsLoadedRef.current || inFlightRef.current || !handleRef.current) return;
+    inFlightRef.current = true;
+    try {
+      const docs = await fetchNoteGraphDocs(r, b);
+      docsLoadedRef.current = true;
+      handleRef.current?.setDocs({
+        docs,
+        isDark: resolveIsDark(cbRef.current.themeMode),
+        currentPath: cbRef.current.currentPath,
+      });
+    } catch (err) {
+      console.warn(`[noteGraph] docs 取得に失敗 (repo=${r} branch=${b})`, err);
+    } finally {
+      inFlightRef.current = false;
+    }
   }
 
   // パネル本体（graph-core）を動的 import して slot.element に注入する。
