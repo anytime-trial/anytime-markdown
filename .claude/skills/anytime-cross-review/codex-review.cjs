@@ -10,7 +10,7 @@ const START = '<<<CROSS-REVIEW-START>>>';
 const END = '<<<CROSS-REVIEW-END>>>';
 
 /**
- * Codex に渡すレビュー指示。review-finding-format を強制し read-only を明示する。
+ * Codex に渡すレビュー指示。anytime-review を強制し read-only を明示する。
  * `codex exec review --base` は [PROMPT] と併用不可のため、`codex exec`(汎用)に
  * diff の取得方法を指示する形にする(プロンプト全制御のため)。
  */
@@ -22,7 +22,7 @@ function buildReviewPrompt(base) {
     '指摘を以下の形式で厳密に出力してください。',
     '',
     '出力は必ず ' + START + ' と ' + END + ' で挟むこと。両マーカーの外には何も書かない。',
-    '各指摘は次の review-finding-format に従う（マーカーの bold ** は必須。ingest パーサが要求する）:',
+    '各指摘は次の anytime-review に従う（マーカーの bold ** は必須。ingest パーサが要求する）:',
     '',
     '### N. タイトル',
     '- **重大度**: error | warn | info',
@@ -46,7 +46,7 @@ function extractReviewSection(stdout) {
   return s.slice(i + START.length, j).trim();
 }
 
-/** review-finding-format のセクションから {index, severity} 配列を抽出する。 */
+/** anytime-review のセクションから {index, severity} 配列を抽出する。 */
 function parseFindings(section) {
   const text = String(section);
   const lines = text.split('\n');
