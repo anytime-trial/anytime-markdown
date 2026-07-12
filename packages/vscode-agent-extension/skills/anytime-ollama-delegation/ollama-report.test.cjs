@@ -117,4 +117,64 @@ describe('diffEligibility', () => {
     expect(diff.demoted).toEqual([]);
     expect(diff.isFirstRun).toBe(true);
   });
+
+  it('モデルが違えば同じ taskId でも別エントリとして比較する', () => {
+    // 全モデルの eligibility を平坦化して taskId だけで突き合わせると、モデル A の
+    // 判定をモデル B の前回値と比較してしまい、ありもしない昇格/降格が量産される。
+    const prev = [
+      { modelName: 'qwen2.5:7b', taskId: 'summarize-short', verdict: 'allow' },
+      { modelName: 'bge-m3:latest', taskId: 'summarize-short', verdict: 'deny' },
+    ];
+    const curr = [
+      { modelName: 'qwen2.5:7b', taskId: 'summarize-short', verdict: 'allow' },
+      { modelName: 'bge-m3:latest', taskId: 'summarize-short', verdict: 'deny' },
+    ];
+
+    const diff = diffEligibility(prev, curr);
+
+    expect(diff.promoted).toEqual([]);
+    expect(diff.demoted).toEqual([]);
+  });
+
+  it('変化したモデルだけを、モデル名付きで報告する', () => {
+    const prev = [
+      { modelName: 'qwen2.5:7b', taskId: 'toolcall-single', verdict: 'conditional' },
+      { modelName: 'qwen3:8b', taskId: 'toolcall-single', verdict: 'conditional' },
+    ];
+    const curr = [
+      { modelName: 'qwen2.5:7b', taskId: 'toolcall-single', verdict: 'conditional' },
+      { modelName: 'qwen3:8b', taskId: 'toolcall-single', verdict: 'allow' },
+    ];
+
+    const diff = diffEligibility(prev, curr);
+
+    expect(diff.promoted).toEqual([
+      { modelName: 'qwen3:8b', taskId: 'toolcall-single', from: 'conditional', to: 'allow' },
+    ]);
+  });
+});
+
+describe('renderReport のデルタ表示', () => {
+  it('同じタスクをモデルごとに 1 回だけ報告する（重複させない）', () => {
+    const prev = {
+      ...profile,
+      models: [
+        { ...profile.models[0], eligibility: [{ taskId: 'embedding', label: '埋め込み生成', verdict: 'deny', reason: 'x' }] },
+        { name: 'bge-m3:latest', capabilities: ['embedding'], eligibility: [{ taskId: 'embedding', label: '埋め込み生成', verdict: 'deny', reason: 'x' }] },
+      ],
+    };
+    const curr = {
+      ...profile,
+      models: [
+        { ...profile.models[0], eligibility: [{ taskId: 'embedding', label: '埋め込み生成', verdict: 'deny', reason: 'x' }] },
+        { name: 'bge-m3:latest', capabilities: ['embedding'], eligibility: [{ taskId: 'embedding', label: '埋め込み生成', verdict: 'allow', reason: 'y' }] },
+      ],
+    };
+
+    const md = renderReport(curr, prev);
+    const promotionLines = md.split('\n').filter((l) => l.includes('昇格'));
+
+    expect(promotionLines).toHaveLength(1);
+    expect(promotionLines[0]).toContain('bge-m3:latest');
+  });
 });
