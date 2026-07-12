@@ -1,25 +1,26 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import * as vscode from 'vscode';
+
+import { AgentStatusClient } from '@anytime-markdown/agent-core';
 import {
   ClaudeStatusWatcher,
   CodexSessionScanner,
-  installStaticSkillDir,
-  installTemplatedSkill,
   setupClaudeHooks,
 } from '@anytime-markdown/vscode-common';
-import { AgentStatusClient } from '@anytime-markdown/agent-core';
+import * as vscode from 'vscode';
+
+import { registerHandoffSessionCommand } from './commands/handoffSession';
+import { SessionTreeItem } from './providers/AgentMappingItem';
+import { AgentMappingProvider } from './providers/AgentMappingProvider';
+import { AiNoteItem, AiNoteProvider } from './providers/AiNoteProvider';
+import { OllamaProvider } from './providers/OllamaProvider';
+import { installWorkspaceSkills } from './skills/installWorkspaceSkills';
+import { AgentLogger } from './utils/AgentLogger';
 import {
   AgentStatusWorkerHost,
   resolveWorkerScriptPath,
 } from './worker/AgentStatusWorkerHost';
-import { registerHandoffSessionCommand } from './commands/handoffSession';
-import { AgentMappingProvider } from './providers/AgentMappingProvider';
-import { SessionTreeItem } from './providers/AgentMappingItem';
-import { AiNoteItem, AiNoteProvider } from './providers/AiNoteProvider';
-import { OllamaProvider } from './providers/OllamaProvider';
-import { AgentLogger } from './utils/AgentLogger';
 
 let ollamaProvider: OllamaProvider | undefined;
 let agentStatusWorkerHost: AgentStatusWorkerHost | undefined;
@@ -64,90 +65,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   }
 
-  // .claude/skills/anytime-note/SKILL.md のテンプレート展開
+  // ワークスペースの .claude/skills/ へ同梱スキルを配置する
   if (workspaceRootForNotes) {
-    const claudeDir = path.join(workspaceRootForNotes, '.claude');
-    if (!fs.existsSync(claudeDir)) {
-      try {
-        fs.mkdirSync(claudeDir, { recursive: true });
-      } catch (err) {
-        AgentLogger.warn(`[install-skills] mkdir ${claudeDir} failed: ${String(err)}`);
-      }
-    }
-    if (fs.existsSync(claudeDir)) {
-      try {
-        installTemplatedSkill({
-          claudeDir,
-          extensionPath: context.extensionUri.fsPath,
-          skillName: 'anytime-note',
-          placeholders: {
-            __NOTE_DIR__: noteStorageDir,
-            __IMAGES_DIR__: path.join(noteStorageDir, 'images'),
-          },
-          logger: {
-            info: (m) => AgentLogger.info(m),
-            warn: (m) => AgentLogger.warn(m),
-            error: (m) => AgentLogger.error(m),
-          },
-        });
-      } catch (err) {
-        AgentLogger.warn(`[install-skills] anytime-note unexpected failure: ${String(err)}`);
-      }
-
-      // .claude/skills/anytime-agent-rotation/SKILL.md（静的スキル）を配置。
-      // 旧名 subagent-rotation からのリネームに伴い oldSkillNames で旧 dir を掃除する。
-      try {
-        installStaticSkillDir({
-          claudeDir,
-          extensionPath: context.extensionUri.fsPath,
-          skillName: 'anytime-agent-rotation',
-          oldSkillNames: ['subagent-rotation'],
-          logger: {
-            info: (m) => AgentLogger.info(m),
-            warn: (m) => AgentLogger.warn(m),
-            error: (m) => AgentLogger.error(m),
-          },
-        });
-      } catch (err) {
-        AgentLogger.warn(`[install-skills] anytime-agent-rotation unexpected failure: ${String(err)}`);
-      }
-
-      // anytime-cross-review は SKILL.md + codex-review.cjs の複数ファイル構成。dir 丸ごと展開する。
-      try {
-        installStaticSkillDir({
-          claudeDir,
-          extensionPath: context.extensionUri.fsPath,
-          skillName: 'anytime-cross-review',
-          logger: {
-            info: (m) => AgentLogger.info(m),
-            warn: (m) => AgentLogger.warn(m),
-            error: (m) => AgentLogger.error(m),
-          },
-        });
-      } catch (err) {
-        AgentLogger.warn(`[install-skills] anytime-cross-review unexpected failure: ${String(err)}`);
-      }
-
-      // anytime-ollama-delegation は SKILL.md + 4 本の .cjs + benchmarks.json +
-      // references/ の構成。スクリプトはユーザーのワークスペースで node 単体実行される
-      // ため、拡張本体にバンドルせず素のまま展開する。
-      try {
-        installStaticSkillDir({
-          claudeDir,
-          extensionPath: context.extensionUri.fsPath,
-          skillName: 'anytime-ollama-delegation',
-          logger: {
-            info: (m) => AgentLogger.info(m),
-            warn: (m) => AgentLogger.warn(m),
-            error: (m) => AgentLogger.error(m),
-          },
-        });
-      } catch (err) {
-        AgentLogger.warn(
-          `[install-skills] anytime-ollama-delegation unexpected failure: ${String(err)}`,
-        );
-      }
-    }
+    installWorkspaceSkills({
+      workspaceRoot: workspaceRootForNotes,
+      extensionPath: context.extensionUri.fsPath,
+      noteStorageDir,
+    });
   }
 
   const openAiNote = vscode.commands.registerCommand(
