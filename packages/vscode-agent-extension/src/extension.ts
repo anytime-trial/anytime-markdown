@@ -127,6 +127,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } catch (err) {
         AgentLogger.warn(`[install-skills] anytime-cross-review unexpected failure: ${String(err)}`);
       }
+
+      // anytime-ollama-delegation は SKILL.md + 4 本の .cjs + benchmarks.json +
+      // references/ の構成。スクリプトはユーザーのワークスペースで node 単体実行される
+      // ため、拡張本体にバンドルせず素のまま展開する。
+      try {
+        installStaticSkillDir({
+          claudeDir,
+          extensionPath: context.extensionUri.fsPath,
+          skillName: 'anytime-ollama-delegation',
+          logger: {
+            info: (m) => AgentLogger.info(m),
+            warn: (m) => AgentLogger.warn(m),
+            error: (m) => AgentLogger.error(m),
+          },
+        });
+      } catch (err) {
+        AgentLogger.warn(
+          `[install-skills] anytime-ollama-delegation unexpected failure: ${String(err)}`,
+        );
+      }
     }
   }
 
