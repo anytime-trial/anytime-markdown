@@ -3,10 +3,12 @@
  */
 
 const mockAssertSafeUrl = jest.fn();
+const mockSafeFetch = jest.fn();
 const mockParseOgpHtml = jest.fn();
 
 jest.mock('../lib/ssrfGuard', () => ({
   assertSafeUrl: mockAssertSafeUrl,
+  safeFetch: mockSafeFetch,
 }));
 
 jest.mock('../lib/ogpParser', () => ({
@@ -42,6 +44,7 @@ function makeRequest(url: string): Request {
 beforeEach(() => {
   jest.clearAllMocks();
   mockAssertSafeUrl.mockResolvedValue(undefined); // safe by default
+  mockSafeFetch.mockImplementation((url: string, init?: RequestInit) => global.fetch(url, init));
   mockParseOgpHtml.mockReturnValue({ title: 'Test Page', description: 'A page' });
 });
 
