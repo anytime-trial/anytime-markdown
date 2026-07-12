@@ -1,0 +1,67 @@
+{
+  "_comment": "公称ベンチ台帳。判定の floors と突き合わせる。見つからなかった指標は null（0 と区別する）。新しいモデルを pull したら Claude が Web から取得して追記する。toolF1 は BFCL 公式値ではなく ollama 実行・量子化込みの第三者実測を使う（BFCL 公式は二次資料間で不一致のため）。",
+  "qwen2.5:7b": {
+    "ifeval": 71.2,
+    "mmluPro": 56.3,
+    "humaneval": 84.8,
+    "livecodebench": 28.7,
+    "jmmlu": 61.88,
+    "toolF1": 0.753,
+    "sources": [
+      "https://qwenlm.github.io/blog/qwen2.5-llm/",
+      "https://www.docker.com/blog/local-llm-tool-calling-a-practical-evaluation/"
+    ],
+    "notes": "toolF1 は Docker Blog の実測（qwen2.5:7b-Q4_K_M）。BFCL 公式値は二次資料間で 44.7〜66.5 と不一致のため採用しない。",
+    "fetchedAt": "2026-07-12"
+  },
+  "qwen3:8b": {
+    "ifeval": 83.0,
+    "livecodebench": 22.8,
+    "mmluPro": null,
+    "humaneval": null,
+    "jmmlu": null,
+    "toolF1": 0.933,
+    "sources": [
+      "https://arxiv.org/abs/2505.09388",
+      "https://huggingface.co/Qwen/Qwen3-8B",
+      "https://www.docker.com/blog/local-llm-tool-calling-a-practical-evaluation/"
+    ],
+    "notes": "ifeval / livecodebench は Qwen3 Technical Report の non-thinking mode 値（thinking では IFEval 85.0 / LiveCodeBench v5 57.5）。MMLU-Pro と HumanEval は公式が 8B 向けに公表しておらず null（二次情報の数値は一次出典を特定できず不採用）。JMMLU も直接値なし。toolF1 は Docker Blog の qwen3:8b-F16 実測で、当環境の Q4_K_M とは量子化が異なる点に注意。",
+    "fetchedAt": "2026-07-12"
+  },
+  "bge-m3": {
+    "miraclJa": 72.8,
+    "sources": ["https://arxiv.org/html/2402.03216v5"],
+    "notes": "MIRACL 日本語 nDCG@10（dense）。hybrid では 75.2。MKQA ja Recall@100 は 67.0。",
+    "fetchedAt": "2026-07-12"
+  },
+  "llama3.1:8b": {
+    "ifeval": 80.4,
+    "humaneval": 72.6,
+    "jmmlu": 53.26,
+    "toolF1": 0.835,
+    "sources": [
+      "https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/MODEL_CARD.md",
+      "https://qwenlm.github.io/blog/qwen2.5-llm/",
+      "https://www.docker.com/blog/local-llm-tool-calling-a-practical-evaluation/"
+    ],
+    "fetchedAt": "2026-07-12"
+  },
+  "qwen3:14b": {
+    "toolF1": 0.971,
+    "ifeval": null,
+    "mmluPro": null,
+    "humaneval": null,
+    "livecodebench": null,
+    "jmmlu": null,
+    "sources": ["https://www.docker.com/blog/local-llm-tool-calling-a-practical-evaluation/"],
+    "notes": "toolF1 は参照した第三者実測で最高。他指標は未取得（このマシンの 8GB VRAM には載らないため優先度低）。",
+    "fetchedAt": "2026-07-12"
+  },
+  "llama3.3:70b": {
+    "toolF1": 0.607,
+    "sources": ["https://www.docker.com/blog/local-llm-tool-calling-a-practical-evaluation/"],
+    "notes": "パラメータ数に反して tool F1 が 8B クラスより低い。サイズで選ばない根拠。",
+    "fetchedAt": "2026-07-12"
+  }
+}

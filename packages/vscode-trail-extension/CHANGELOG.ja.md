@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-07-12
+
+### 変更
+
+- 同梱スキル `anytime-review` を `anytime-trail-review` へ改名しました（trail の memory-core ingest 契約であることを名前で示すため）。旧 `.claude/skills/anytime-review/` は拡張の activate 時に自動削除されます。
+
 ## [0.33.0] - 2026-07-11
 
 ### 追加

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-07-12
+
+### Changed
+
+- Renamed the bundled `anytime-review` skill to `anytime-trail-review` so the name reflects that it is trail's memory-core ingest contract. The old `.claude/skills/anytime-review/` directory is removed automatically on extension activation.
+
 ## [0.33.0] - 2026-07-11
 
 ### Added
