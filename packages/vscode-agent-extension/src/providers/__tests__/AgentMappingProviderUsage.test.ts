@@ -1,6 +1,8 @@
+import * as cp from 'node:child_process';
 import * as vscode from 'vscode';
-import type { ClaudeStatusWatcher, ClaudeUsageResult } from '@anytime-markdown/vscode-common';
+import type { AgentInfo, ClaudeStatusWatcher, ClaudeUsageResult, CodexSessionScanner } from '@anytime-markdown/vscode-common';
 import { AgentMappingProvider } from '../AgentMappingProvider';
+import { SourceGroupItem, TodaySummaryItem, UsageGroupItem, WorkspaceGroupItem } from '../AgentMappingItem';
 import { AgentLogger } from '../../utils/AgentLogger';
 
 interface UsageClientStub {
@@ -123,6 +125,68 @@ describe('AgentMappingProvider usage warnings', () => {
     await jest.advanceTimersByTimeAsync(REFRESH_MS);
 
     expect(warnSpy).not.toHaveBeenCalled();
+
+    provider.dispose();
+  });
+
+  it('adds Codex Usage then Today before workspace groups', () => {
+    const repoRoot = cp.execSync('git rev-parse --show-toplevel', {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+    }).trim();
+    const codexAgent: AgentInfo = {
+      sessionId: 'codex-session-1',
+      source: 'codex',
+      editing: false,
+      file: '',
+      timestamp: '2026-07-12T13:16:08.224Z',
+      branch: '',
+      sessionEdits: [],
+      plannedEdits: [],
+      workspacePath: repoRoot,
+      contextTokens: 100,
+    };
+    const codexScanner = {
+      scan: jest.fn<readonly AgentInfo[], [readonly string[]]>().mockReturnValue([codexAgent]),
+      getUsageSnapshot: jest.fn().mockReturnValue({
+        observedAt: '2026-07-12T13:16:08.224Z',
+        rows: [
+          {
+            key: 'session',
+            label: 'Session (5h)',
+            percent: 11,
+            severity: 'normal',
+            resetsAt: '2026-07-12T18:08:57.000Z',
+          },
+          {
+            key: 'weekly_all',
+            label: 'Weekly (7d)',
+            percent: 8,
+            severity: 'normal',
+            resetsAt: '2026-07-18T22:47:10.000Z',
+          },
+        ],
+      }),
+      getTodayStats: jest.fn().mockReturnValue({ sessionCount: 1, totalTokens: 1818337 }),
+    } as unknown as CodexSessionScanner;
+    const provider = new AgentMappingProvider(
+      stubWatcher(),
+      repoRoot,
+      codexScanner,
+      undefined,
+      usageClientReturning({ kind: 'ok', rows: [], unknownKinds: [] }) as unknown as ConstructorParameters<typeof AgentMappingProvider>[4],
+    );
+
+    const root = provider.getChildren();
+    const codexGroup = root.find((item): item is SourceGroupItem =>
+      item instanceof SourceGroupItem && item.source === 'codex');
+    expect(codexGroup).toBeDefined();
+    const children = codexGroup?.children ?? [];
+
+    expect(children[0]).toBeInstanceOf(UsageGroupItem);
+    expect(children[1]).toBeInstanceOf(TodaySummaryItem);
+    expect(children[2]).toBeInstanceOf(WorkspaceGroupItem);
+    expect(codexGroup?.description).toBe('1');
 
     provider.dispose();
   });

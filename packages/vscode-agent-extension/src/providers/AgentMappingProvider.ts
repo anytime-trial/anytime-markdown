@@ -1,7 +1,7 @@
 import * as cp from 'node:child_process';
 import * as vscode from 'vscode';
 import { ClaudeStatusWatcher, ClaudeUsageClient, jstDateString } from '@anytime-markdown/vscode-common';
-import type { AgentInfo, ClaudeUsageResult, CodexSessionScanner, UsageLimitRow } from '@anytime-markdown/vscode-common';
+import type { AgentInfo, ClaudeUsageResult, CodexRateLimitSnapshot, CodexSessionScanner, UsageLimitRow } from '@anytime-markdown/vscode-common';
 import { buildAgentMapping, groupByWorkspace, parseWorktreeList, resolveSessionWorkspacePath } from '@anytime-markdown/agent-core';
 import type { WorktreeEntry, SessionMapping, AgentSource } from '@anytime-markdown/agent-core';
 import { SessionTreeItem, SourceGroupItem, TodaySummaryItem, UsageGroupItem, UsageLimitItem, WorkspaceGroupItem } from './AgentMappingItem';
@@ -148,12 +148,12 @@ export class AgentMappingProvider
 
     const todayStats = this.watcher.getTodayStats();
     const commitCount = this._getTodayCommitCountCached();
-    const today = new TodaySummaryItem(todayStats, commitCount);
+    const today = new TodaySummaryItem(todayStats, { commitCount });
     const root: AgentMappingItem[] = [];
 
     const claudeGroup = this._buildGroup('claude', entries, [this._buildUsageGroup(), today].filter((item): item is UsageGroupItem | TodaySummaryItem => item !== null));
     if (claudeGroup) root.push(claudeGroup);
-    const codexGroup = this._buildGroup('codex', entries);
+    const codexGroup = this._buildGroup('codex', entries, this._buildCodexLeadingChildren());
     if (codexGroup) root.push(codexGroup);
     return root;
   }
@@ -188,7 +188,7 @@ export class AgentMappingProvider
     leadingChildren: readonly (UsageGroupItem | TodaySummaryItem)[] = [],
   ): SourceGroupItem | null {
     const ofSource = entries.filter(e => e.session.source === source);
-    if (source === 'codex' && ofSource.length === 0) {
+    if (source === 'codex' && ofSource.length === 0 && leadingChildren.length === 0) {
       return null;
     }
     const workspaces = groupByWorkspace(
@@ -204,6 +204,29 @@ export class AgentMappingProvider
       })),
     ));
     return new SourceGroupItem(source, [...leadingChildren, ...workspaces], this.iconBaseUri);
+  }
+
+  private _buildCodexLeadingChildren(): readonly (UsageGroupItem | TodaySummaryItem)[] {
+    if (!this.codexScanner || !this._showCodexSessions()) {
+      return [];
+    }
+    const usage = this._showUsage()
+      ? this._buildCodexUsageGroup(this.codexScanner.getUsageSnapshot())
+      : null;
+    const today = new TodaySummaryItem(this.codexScanner.getTodayStats(), {
+      tokenNote: 'Codex は日次のトークン内訳を記録しないため、当日アクティビティのあったセッションの累計値を合算した近似値です（日をまたいだセッションは前日分を含みます）。',
+    });
+    return [usage, today].filter((item): item is UsageGroupItem | TodaySummaryItem => item !== null);
+  }
+
+  private _buildCodexUsageGroup(snapshot: CodexRateLimitSnapshot | null): UsageGroupItem | null {
+    if (snapshot === null) {
+      return null;
+    }
+    return new UsageGroupItem(
+      snapshot.rows.map(row => new UsageLimitItem(row, false, { observedAt: snapshot.observedAt })),
+      snapshot.rows,
+    );
   }
 
   private _buildUsageGroup(): UsageGroupItem | null {
