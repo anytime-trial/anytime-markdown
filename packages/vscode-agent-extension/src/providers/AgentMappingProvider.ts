@@ -39,6 +39,7 @@ export class AgentMappingProvider
   private _usageRows: readonly UsageLimitRow[] | null = null;
   private _usageStatus: 'hidden' | 'fresh' | 'stale' | 'expired' = 'hidden';
   private readonly _configListener: vscode.Disposable;
+  private readonly _warnedUsageKinds = new Set<string>();
 
   constructor(
     private readonly watcher: ClaudeStatusWatcher,
@@ -245,6 +246,7 @@ export class AgentMappingProvider
     if (result.kind === 'ok') {
       this._usageRows = result.rows;
       this._usageStatus = 'fresh';
+      this._warnUnknownUsageKinds(result.unknownKinds);
       return;
     }
     if (result.kind === 'unauthenticated') {
@@ -262,6 +264,23 @@ export class AgentMappingProvider
       return;
     }
     AgentLogger.error('[AgentMapping] Claude usage request failed', new Error(result.message));
+  }
+
+  /**
+   * 未知の枠種別（/api/oauth/usage への新種追加）を知らせる。取得は既定 120 秒周期のため、
+   * 同じ kind を出し続けないよう種別ごとに 1 回だけ warn する。
+   */
+  private _warnUnknownUsageKinds(unknownKinds: readonly string[]): void {
+    for (const kind of unknownKinds) {
+      if (this._warnedUsageKinds.has(kind)) {
+        continue;
+      }
+      this._warnedUsageKinds.add(kind);
+      AgentLogger.warn(
+        `[AgentMapping] Claude usage returned an unknown limit kind "${kind}" (not displayed). ` +
+        'The usage API may have added a new limit type.',
+      );
+    }
   }
 
   private _markUsageStale(): void {

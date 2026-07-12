@@ -1,4 +1,4 @@
-import { parseClaudeUsage } from '../parseClaudeUsage';
+import { collectUnknownLimitKinds, parseClaudeUsage } from '../parseClaudeUsage';
 
 describe('parseClaudeUsage', () => {
   it('parses known limits and labels scoped weekly rows', () => {
@@ -152,6 +152,29 @@ describe('parseClaudeUsage', () => {
 
     expect(rows?.map(row => row.label)).toEqual(['Session (5h)', 'Weekly (all)']);
     expect(rows?.map(row => row.percent)).toEqual([33, 12]);
+  });
+
+  // 未知 kind は表示から落とすが、黙って捨てると新しい枠の追加に気づけない。
+  // 呼び出し側がログに出せるよう、落とした kind をデータとして返す。
+  it('collects unknown limit kinds so the caller can surface them', () => {
+    const unknown = collectUnknownLimitKinds({
+      limits: [
+        { kind: 'session', percent: 10 },
+        { kind: 'monthly', percent: 40 },
+        { kind: 'weekly_scoped', percent: 5, scope: { model: { display_name: 'Fable' } } },
+        { kind: 'monthly', percent: 41 },
+      ],
+    });
+
+    expect(unknown).toEqual(['monthly']);
+  });
+
+  it('returns no unknown kinds for a fully recognized or absent limits array', () => {
+    expect(collectUnknownLimitKinds({
+      limits: [{ kind: 'session', percent: 10 }, { kind: 'weekly_all', percent: 20 }],
+    })).toEqual([]);
+    expect(collectUnknownLimitKinds({ five_hour: { utilization: 33 } })).toEqual([]);
+    expect(collectUnknownLimitKinds(null)).toEqual([]);
   });
 
   it('sets resetsAt to null for invalid timestamps', () => {

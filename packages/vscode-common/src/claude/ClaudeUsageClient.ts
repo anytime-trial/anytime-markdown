@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { parseClaudeUsage, type UsageLimitRow } from './parseClaudeUsage';
+import { collectUnknownLimitKinds, parseClaudeUsage, type UsageLimitRow } from './parseClaudeUsage';
 
 export type ClaudeUsageFetch = (
   input: string,
@@ -9,7 +9,12 @@ export type ClaudeUsageFetch = (
 ) => Promise<Response>;
 
 export type ClaudeUsageResult =
-  | { readonly kind: 'ok'; readonly rows: readonly UsageLimitRow[] }
+  | {
+      readonly kind: 'ok';
+      readonly rows: readonly UsageLimitRow[];
+      /** 表示から落とした未知の枠種別。呼び出し側が warn ログに出す。 */
+      readonly unknownKinds: readonly string[];
+    }
   | { readonly kind: 'unauthenticated' }
   | { readonly kind: 'expired' }
   | { readonly kind: 'rateLimited' }
@@ -129,11 +134,12 @@ export class ClaudeUsageClient {
     }
 
     try {
-      const rows = parseClaudeUsage(await res.json());
+      const body: unknown = await res.json();
+      const rows = parseClaudeUsage(body);
       if (rows === null) {
         return { kind: 'error', message: 'Claude usage response was not recognized' };
       }
-      return { kind: 'ok', rows };
+      return { kind: 'ok', rows, unknownKinds: collectUnknownLimitKinds(body) };
     } catch (err) {
       return { kind: 'error', message: sanitizeErrorMessage(err) };
     }

@@ -76,12 +76,33 @@ function scopedModelName(limit: Record<string, unknown>): string | null {
   return typeof displayName === 'string' && displayName.trim() ? displayName.trim() : null;
 }
 
+function isKnownKind(kind: unknown): kind is KnownLimitKind {
+  return kind === 'session' || kind === 'weekly_all' || kind === 'weekly_scoped';
+}
+
+/**
+ * 表示から落とした未知の kind を返す。/api/oauth/usage は非公開 API で枠の種類が増え得るため、
+ * パーサは黙って捨てず呼び出し側へ渡し、ログ出力（副作用）は呼び出し側の責務にする。
+ */
+export function collectUnknownLimitKinds(input: unknown): readonly string[] {
+  if (!isRecord(input) || !Array.isArray(input.limits)) {
+    return [];
+  }
+  const unknown = new Set<string>();
+  for (const limit of input.limits) {
+    if (isRecord(limit) && typeof limit.kind === 'string' && !isKnownKind(limit.kind)) {
+      unknown.add(limit.kind);
+    }
+  }
+  return [...unknown];
+}
+
 function parseLimit(limit: unknown): UsageLimitRow | null {
   if (!isRecord(limit)) {
     return null;
   }
   const kind = limit.kind;
-  if (kind !== 'session' && kind !== 'weekly_all' && kind !== 'weekly_scoped') {
+  if (!isKnownKind(kind)) {
     return null;
   }
   const percent = clampPercent(limit.percent);
