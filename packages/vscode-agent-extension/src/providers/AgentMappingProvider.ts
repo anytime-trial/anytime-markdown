@@ -2,12 +2,12 @@ import * as cp from 'node:child_process';
 import * as vscode from 'vscode';
 import { ClaudeStatusWatcher, jstDateString } from '@anytime-markdown/vscode-common';
 import type { AgentInfo, CodexSessionScanner } from '@anytime-markdown/vscode-common';
-import { buildAgentMapping, parseWorktreeList } from '@anytime-markdown/agent-core';
+import { buildAgentMapping, parseWorktreeList, resolveSessionWorkspacePath } from '@anytime-markdown/agent-core';
 import type { WorktreeEntry, SessionMapping, AgentSource } from '@anytime-markdown/agent-core';
-import { SessionTreeItem, SourceGroupItem, TodaySummaryItem } from './AgentMappingItem';
+import { SessionTreeItem, SourceGroupItem, TodaySummaryItem, WorkspaceGroupItem } from './AgentMappingItem';
 import { AgentLogger } from '../utils/AgentLogger';
 
-type AgentMappingItem = SessionTreeItem | SourceGroupItem | TodaySummaryItem;
+type AgentMappingItem = SessionTreeItem | SourceGroupItem | WorkspaceGroupItem | TodaySummaryItem;
 
 const WORKTREE_CACHE_TTL_MS = 30_000;
 /** Codex は getChildren 時読みのため、Claude 無活動でも定期 refresh で更新する（scanner TTL 相当）。 */
@@ -17,6 +17,8 @@ interface SessionEntry {
   readonly session: SessionMapping;
   readonly branch: string;
   readonly worktreeName: string;
+  /** そのセッションが動作しているワークスペースのパス（グルーピングキー）。 */
+  readonly workspacePath: string;
 }
 
 export class AgentMappingProvider
@@ -69,8 +71,8 @@ export class AgentMappingProvider
   }
 
   getChildren(element?: AgentMappingItem): AgentMappingItem[] {
-    // 子レベル: ソース見出しノードの配下はそのソースのセッション群。
-    if (element instanceof SourceGroupItem) {
+    // 階層: ソース見出し → ワークスペース見出し → セッション。
+    if (element instanceof SourceGroupItem || element instanceof WorkspaceGroupItem) {
       return [...element.children];
     }
     if (element !== undefined) {
@@ -106,9 +108,14 @@ export class AgentMappingProvider
     return this.codexScanner.scan(worktrees.map(w => w.path));
   }
 
-  private _toEntries(mappings: readonly { branch: string; worktreeName: string; sessions: readonly SessionMapping[] }[]): SessionEntry[] {
+  private _toEntries(mappings: readonly { worktreePath: string; branch: string; worktreeName: string; sessions: readonly SessionMapping[] }[]): SessionEntry[] {
     const entries = mappings.flatMap(m =>
-      m.sessions.map(session => ({ session, branch: m.branch, worktreeName: m.worktreeName })),
+      m.sessions.map(session => ({
+        session,
+        branch: m.branch,
+        worktreeName: m.worktreeName,
+        workspacePath: resolveSessionWorkspacePath(m.worktreePath, session.workspacePath),
+      })),
     );
     const visible = this._showStale
       ? entries
@@ -117,11 +124,33 @@ export class AgentMappingProvider
     return visible.sort((a, b) => a.session.ageSeconds - b.session.ageSeconds);
   }
 
+  /** ソース見出し配下をワークスペース単位でまとめる。セッション 0 件のソースは見出しごと出さない。 */
   private _buildGroup(source: AgentSource, entries: readonly SessionEntry[]): SourceGroupItem | null {
-    const items = entries
-      .filter(e => e.session.source === source)
-      .map(e => new SessionTreeItem(e.session, { branch: e.branch, worktreeName: e.worktreeName }));
-    return items.length > 0 ? new SourceGroupItem(source, items, this.iconBaseUri) : null;
+    const ofSource = entries.filter(e => e.session.source === source);
+    if (ofSource.length === 0) {
+      return null;
+    }
+    const byWorkspace = new Map<string, SessionEntry[]>();
+    for (const e of ofSource) {
+      const bucket = byWorkspace.get(e.workspacePath);
+      if (bucket === undefined) {
+        byWorkspace.set(e.workspacePath, [e]);
+      } else {
+        bucket.push(e);
+      }
+    }
+    // entries は age 昇順のため各バケット内も age 昇順。ワークスペースも最新アクティビティ順に並べる。
+    const workspaces = [...byWorkspace.entries()]
+      .map(([workspacePath, es]) => ({
+        item: new WorkspaceGroupItem(
+          workspacePath,
+          es.map(e => new SessionTreeItem(e.session, { branch: e.branch, worktreeName: e.worktreeName })),
+        ),
+        minAge: es[0].session.ageSeconds,
+      }))
+      .sort((a, b) => a.minAge - b.minAge)
+      .map(w => w.item);
+    return new SourceGroupItem(source, workspaces, this.iconBaseUri);
   }
 
   dispose(): void {

@@ -1,5 +1,30 @@
-import { classifySession, resolveWorktree, buildAgentMapping } from '../../src/mapping/agentMapping';
+import {
+  classifySession,
+  resolveWorktree,
+  buildAgentMapping,
+  resolveSessionWorkspacePath,
+  ORPHAN_WORKTREE_PATH,
+} from '../../src/mapping/agentMapping';
 import type { WorktreeEntry } from '../../src/mapping/types';
+
+describe('resolveSessionWorkspacePath', () => {
+  it('prefers the resolved worktree path', () => {
+    expect(resolveSessionWorkspacePath('/repo', '/repo')).toBe('/repo');
+  });
+
+  it('normalizes a sub-directory workspacePath (Codex cwd) up to the worktree root', () => {
+    expect(resolveSessionWorkspacePath('/repo', '/repo/packages/foo')).toBe('/repo');
+  });
+
+  it('falls back to the session workspacePath for orphan sessions (other workspaces)', () => {
+    expect(resolveSessionWorkspacePath(ORPHAN_WORKTREE_PATH, '/other/repo')).toBe('/other/repo');
+  });
+
+  it('returns an empty string when neither is available', () => {
+    expect(resolveSessionWorkspacePath(ORPHAN_WORKTREE_PATH, undefined)).toBe('');
+    expect(resolveSessionWorkspacePath('', '')).toBe('');
+  });
+});
 
 // ---------------------------------------------------------------------------
 // helpers

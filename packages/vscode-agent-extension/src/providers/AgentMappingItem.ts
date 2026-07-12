@@ -30,6 +30,17 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
+/**
+ * workspacePath から表示用のワークスペース名（末尾ディレクトリ名）を取り出す。
+ * 区切りは `/`・`\` の両対応。末尾区切りは無視し、名前が取れない場合は undefined を返す。
+ */
+export function formatWorkspaceName(workspacePath: string | undefined): string | undefined {
+  if (!workspacePath) return undefined;
+  const trimmed = workspacePath.replace(/[/\\]+$/, '');
+  const name = trimmed.split(/[/\\]/).at(-1);
+  return name ? name : undefined;
+}
+
 export class TodaySummaryItem extends vscode.TreeItem {
   constructor(stats: TodayStats, commitCount: number) {
     // 集計は Claude 専用（agent-status DB 由来）。Codex は worker 非対象のため含まない。
@@ -96,15 +107,45 @@ const SOURCE_CODICONS: Record<AgentSource, string> = {
   codex: 'terminal',
 };
 
-/** ソース見出しノード（「Claude Code」/「Codex」）。配下にセッションを持つ。 */
+/** workspacePath が記録されていないセッションを束ねる見出し。 */
+const UNKNOWN_WORKSPACE_LABEL = '(ワークスペース不明)';
+
+/**
+ * ワークスペース見出しノード（ソース見出しの配下）。同一ワークスペースで動くセッションをまとめる。
+ * ラベルは末尾ディレクトリ名のみのため、同名 worktree の識別用に tooltip でフルパスを見せる。
+ */
+export class WorkspaceGroupItem extends vscode.TreeItem {
+  constructor(
+    public readonly workspacePath: string,
+    public readonly children: readonly SessionTreeItem[],
+  ) {
+    super(
+      formatWorkspaceName(workspacePath) ?? UNKNOWN_WORKSPACE_LABEL,
+      vscode.TreeItemCollapsibleState.Expanded,
+    );
+    this.description = `${children.length}`;
+    this.contextValue = 'workspaceGroup';
+    this.iconPath = new vscode.ThemeIcon('folder');
+    const pathInfo = workspacePath
+      ? `**パス:** \`${workspacePath}\``
+      : `**パス:** 不明（workspacePath 未記録）`;
+    this.tooltip = new vscode.MarkdownString(
+      `${pathInfo}\n\n**セッション:** ${children.length}`,
+    );
+  }
+}
+
+/** ソース見出しノード（「Claude Code」/「Codex」）。配下にワークスペース見出しを持つ。 */
 export class SourceGroupItem extends vscode.TreeItem {
   constructor(
     public readonly source: AgentSource,
-    public readonly children: readonly SessionTreeItem[],
+    public readonly children: readonly WorkspaceGroupItem[],
     iconBaseUri?: vscode.Uri,
   ) {
     super(SOURCE_LABELS[source], vscode.TreeItemCollapsibleState.Expanded);
-    this.description = `${children.length}`;
+    // 子はワークスペースだが、description は従来どおり配下のセッション総数を示す。
+    const sessionCount = children.reduce((n, ws) => n + ws.children.length, 0);
+    this.description = `${sessionCount}`;
     this.contextValue = `sourceGroup.${source}`;
     this.iconPath = SourceGroupItem._icon(source, iconBaseUri);
   }
@@ -145,8 +186,12 @@ export class SessionTreeItem extends vscode.TreeItem {
     const sourceInfo = isCodex
       ? `**Source:** Codex（読み取り専用 — 編集中ロック / コミット / 引き継ぎは非対応）\n\n`
       : '';
+    // セッションが動作しているワークスペース名（workspacePath の末尾ディレクトリ名）を hover に表示する。
+    const wsName = formatWorkspaceName(session.workspacePath);
+    const wsInfo = wsName ? `**ワークスペース:** \`${wsName}\`\n\n` : '';
     this.tooltip = new vscode.MarkdownString(
       `**Session:** \`${session.sessionId}\`\n\n` +
+      wsInfo +
       sourceInfo +
       labelInfo +
       wtInfo +

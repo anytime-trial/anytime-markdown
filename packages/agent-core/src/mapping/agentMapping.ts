@@ -131,6 +131,22 @@ function aggregateState(states: readonly MappingState[]): MappingState {
   );
 }
 
+/** どの worktree にも解決できなかったセッション（＝別ワークスペースのセッション）を束ねる仮想 worktree のパス。 */
+export const ORPHAN_WORKTREE_PATH = '(orphan)';
+
+/**
+ * セッションが動作しているワークスペースのパスを決める。
+ * 解決済み worktree を優先する（Codex の cwd は worktree のサブディレクトリであり得るため worktree ルートへ正規化される）。
+ * orphan（現リポジトリのどの worktree にも属さない＝別ワークスペースのセッション）はセッション自身の workspacePath を使う。
+ * どちらも得られない場合は空文字を返す。
+ */
+export function resolveSessionWorkspacePath(worktreePath: string, workspacePath?: string): string {
+  if (worktreePath && worktreePath !== ORPHAN_WORKTREE_PATH) {
+    return worktreePath;
+  }
+  return workspacePath ?? '';
+}
+
 function worktreeName(wt: WorktreeEntry): string {
   if (wt.isMain) {
     return '(main)';
@@ -215,10 +231,10 @@ export function buildAgentMapping(
   if (orphanSessions.length > 0) {
     const states = orphanSessions.map((s) => s.state);
     result.push({
-      worktreePath: '(orphan)',
-      worktreeName: '(orphan)',
+      worktreePath: ORPHAN_WORKTREE_PATH,
+      worktreeName: ORPHAN_WORKTREE_PATH,
       isMain: false,
-      branch: '(orphan)',
+      branch: ORPHAN_WORKTREE_PATH,
       sessions: orphanSessions,
       aggregatedState: aggregateState(states),
       activeCount: orphanSessions.filter((s) => s.state === 'active').length,

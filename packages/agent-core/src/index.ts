@@ -20,6 +20,8 @@ export {
   classifySession,
   resolveWorktree,
   buildAgentMapping,
+  resolveSessionWorkspacePath,
+  ORPHAN_WORKTREE_PATH,
 } from './mapping/agentMapping';
 export { parseWorktreeList } from './mapping/parseWorktreeList';
 export type {
