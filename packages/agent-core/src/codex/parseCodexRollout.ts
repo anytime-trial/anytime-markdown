@@ -11,6 +11,29 @@ export interface CodexSessionMeta {
   readonly startedAt: string;
 }
 
+export type CodexUsageSeverity = 'normal' | 'warn' | 'critical';
+
+export interface CodexRateLimitRow {
+  readonly key: string;
+  readonly label: string;
+  readonly percent: number;
+  readonly severity: CodexUsageSeverity;
+  readonly resetsAt: string | null;
+}
+
+export interface CodexRateLimitSnapshot {
+  readonly observedAt: string;
+  readonly rows: readonly CodexRateLimitRow[];
+}
+
+const WARN_PERCENT = 80;
+const CRITICAL_PERCENT = 95;
+const MIN_PERCENT = 0;
+const MAX_PERCENT = 100;
+const MINUTES_PER_HOUR = 60;
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
+const SECONDS_TO_MS = 1000;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -78,6 +101,101 @@ function extractInputTokens(parsed: unknown): number | null {
   return typeof input === 'number' ? input : null;
 }
 
+function clampPercent(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  return Math.max(MIN_PERCENT, Math.min(MAX_PERCENT, Math.round(value)));
+}
+
+function severityFromPercent(percent: number): CodexUsageSeverity {
+  if (percent >= CRITICAL_PERCENT) return 'critical';
+  if (percent >= WARN_PERCENT) return 'warn';
+  return 'normal';
+}
+
+function normalizeEpochSeconds(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  const date = new Date(value * SECONDS_TO_MS);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function formatWindowDuration(minutes: number): string {
+  if (minutes > 0 && minutes % MINUTES_PER_DAY === 0) {
+    return `${minutes / MINUTES_PER_DAY}d`;
+  }
+  if (minutes > 0 && minutes % MINUTES_PER_HOUR === 0) {
+    return `${minutes / MINUTES_PER_HOUR}h`;
+  }
+  return `${minutes}min`;
+}
+
+function normalizeWindowMinutes(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.round(value);
+}
+
+function parseRateLimitRow(source: unknown, key: string, labelPrefix: string): CodexRateLimitRow | null {
+  if (!isRecord(source)) {
+    return null;
+  }
+  const percent = clampPercent(source.used_percent);
+  const windowMinutes = normalizeWindowMinutes(source.window_minutes);
+  if (percent === null || windowMinutes === null) {
+    return null;
+  }
+  return {
+    key,
+    label: `${labelPrefix} (${formatWindowDuration(windowMinutes)})`,
+    percent,
+    severity: severityFromPercent(percent),
+    resetsAt: normalizeEpochSeconds(source.resets_at),
+  };
+}
+
+function extractRateLimits(parsed: unknown): CodexRateLimitSnapshot | null {
+  if (!isRecord(parsed) || parsed.type !== 'event_msg' || typeof parsed.timestamp !== 'string') {
+    return null;
+  }
+  const payload = parsed.payload;
+  if (!isRecord(payload) || payload.type !== 'token_count') {
+    return null;
+  }
+  const rateLimits = payload.rate_limits;
+  if (!isRecord(rateLimits)) {
+    return null;
+  }
+  const rows = [
+    parseRateLimitRow(rateLimits.primary, 'session', 'Session'),
+    parseRateLimitRow(rateLimits.secondary, 'weekly_all', 'Weekly'),
+  ].filter((row): row is CodexRateLimitRow => row !== null);
+  return rows.length > 0 ? { observedAt: parsed.timestamp, rows } : null;
+}
+
+function extractTotalTokens(parsed: unknown): number | null {
+  if (!isRecord(parsed) || parsed.type !== 'event_msg') {
+    return null;
+  }
+  const payload = parsed.payload;
+  if (!isRecord(payload) || payload.type !== 'token_count') {
+    return null;
+  }
+  const info = payload.info;
+  if (!isRecord(info)) {
+    return null;
+  }
+  const total = info.total_token_usage;
+  if (!isRecord(total)) {
+    return null;
+  }
+  const tokens = total.total_tokens;
+  return typeof tokens === 'number' && Number.isFinite(tokens) ? tokens : null;
+}
+
 /**
  * tail テキストを行走査し、**最後に現れる** `token_count` イベントの
  * `info.last_token_usage.input_tokens` を返す。見つからなければ `null`
@@ -87,6 +205,28 @@ export function extractCodexContextTokens(tailText: string): number | null {
   const lines = tailText.split('\n');
   for (let i = lines.length - 1; i >= 0; i--) {
     const tokens = extractInputTokens(safeParseLine(lines[i]));
+    if (tokens !== null) {
+      return tokens;
+    }
+  }
+  return null;
+}
+
+export function extractCodexRateLimits(tailText: string): CodexRateLimitSnapshot | null {
+  const lines = tailText.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const snapshot = extractRateLimits(safeParseLine(lines[i]));
+    if (snapshot !== null) {
+      return snapshot;
+    }
+  }
+  return null;
+}
+
+export function extractCodexTotalTokens(tailText: string): number | null {
+  const lines = tailText.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const tokens = extractTotalTokens(safeParseLine(lines[i]));
     if (tokens !== null) {
       return tokens;
     }

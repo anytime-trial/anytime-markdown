@@ -175,7 +175,7 @@ describe('SourceGroupItem', () => {
         resetsAt: '2026-07-12T14:19:59.000Z',
       },
     ]);
-    const today = new TodaySummaryItem({ sessionCount: 3, totalTokens: 1000 }, 2);
+    const today = new TodaySummaryItem({ sessionCount: 3, totalTokens: 1000 }, { commitCount: 2 });
     const group = new SourceGroupItem('claude', [usage, today, wsGroup('/repo', 2)]);
 
     expect(group.children).toHaveLength(3);
@@ -204,9 +204,23 @@ describe('SourceGroupItem', () => {
 });
 
 describe('TodaySummaryItem', () => {
-  it('is labeled Today (Claude) to disambiguate from Codex', () => {
-    const item = new TodaySummaryItem({ sessionCount: 2, totalTokens: 0 }, 0);
-    expect(item.label).toBe('Today (Claude)');
+  it('is labeled Today because the parent source group disambiguates it', () => {
+    const item = new TodaySummaryItem({ sessionCount: 2, totalTokens: 0 }, { commitCount: 0 });
+    expect(item.label).toBe('Today');
+  });
+
+  it('omits commit count when the source does not provide one', () => {
+    const item = new TodaySummaryItem({ sessionCount: 2, totalTokens: 1000 });
+    expect(String(item.description)).toBe('2 sessions  1K tokens');
+    expect((item.tooltip as { value: string }).value).not.toContain('コミット数');
+  });
+
+  it('can include a source-specific token note', () => {
+    const item = new TodaySummaryItem(
+      { sessionCount: 1, totalTokens: 100 },
+      { tokenNote: 'Snapshot note.' },
+    );
+    expect((item.tooltip as { value: string }).value).toContain('Snapshot note.');
   });
 });
 
@@ -248,8 +262,8 @@ describe('UsageGroupItem', () => {
     expect(stale.description).toBe('Session 29% (stale)');
 
     const expired = new UsageGroupItem([UsageLimitItem.expired()], [], { expired: true });
-    expect(expired.description).toBe('Expired');
-    expect(expired.children[0]?.label).toBe('Authentication expired');
+    expect(expired.description).toBe('認証切れ');
+    expect(expired.children[0]?.label).toBe('認証切れ');
   });
 
   it('uses warning and critical icons for elevated severities', () => {
@@ -267,5 +281,18 @@ describe('UsageGroupItem', () => {
       severity: 'critical',
       resetsAt: null,
     }))).toBe('warning');
+  });
+
+  it('shows Codex observation time when provided', () => {
+    const item = new UsageLimitItem({
+      key: 'session',
+      label: 'Session (5h)',
+      percent: 29,
+      severity: 'normal',
+      resetsAt: '2026-07-12T14:19:59.000Z',
+    }, false, { observedAt: '2026-07-12T13:16:08.224Z' });
+
+    expect((item.tooltip as { value: string }).value).toContain('観測時刻');
+    expect((item.tooltip as { value: string }).value).toContain('スナップショット');
   });
 });

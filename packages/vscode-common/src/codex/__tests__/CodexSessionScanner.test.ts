@@ -14,6 +14,13 @@ interface RolloutSpec {
   readonly startedAt: string;
   readonly lastActivity: string;
   readonly inputTokens?: number;
+  readonly totalTokens?: number;
+  readonly rateLimits?: {
+    readonly primaryPercent: number;
+    readonly primaryReset: number;
+    readonly secondaryPercent: number;
+    readonly secondaryReset: number;
+  };
   /** base_instructions.text のサイズ（22KB 級先頭行の再現）。 */
   readonly bigMetaBytes?: number;
   /** 末尾 token_count から最終行までに挟むノイズ行数（段階読みの検証）。 */
@@ -46,10 +53,28 @@ function writeRollout(root: string, spec: RolloutSpec): string {
         payload: {
           type: 'token_count',
           info: {
-            total_token_usage: { input_tokens: 999999 },
+            total_token_usage: spec.totalTokens !== undefined
+              ? { total_tokens: spec.totalTokens }
+              : { input_tokens: 999999 },
             last_token_usage: { input_tokens: spec.inputTokens, cached_input_tokens: 1 },
             model_context_window: 272000,
           },
+          ...(spec.rateLimits ? {
+            rate_limits: {
+              limit_id: 'codex',
+              primary: {
+                used_percent: spec.rateLimits.primaryPercent,
+                window_minutes: 300,
+                resets_at: spec.rateLimits.primaryReset,
+              },
+              secondary: {
+                used_percent: spec.rateLimits.secondaryPercent,
+                window_minutes: 10080,
+                resets_at: spec.rateLimits.secondaryReset,
+              },
+              plan_type: 'plus',
+            },
+          } : {}),
         },
       })
     );
@@ -215,6 +240,114 @@ describe('CodexSessionScanner', () => {
     const { scanner, logs } = makeScanner(root, { maxFiles: 2 });
     scanner.scan(['/repo']);
     expect(logs.some((l) => l.includes('maxFiles'))).toBe(true);
+  });
+
+  it('keeps the newest account-wide Codex usage snapshot and hides expired windows', () => {
+    writeRollout(root, {
+      date: '2026/06/26',
+      sessionId: 'workspace-session',
+      cwd: '/repo',
+      startedAt: '2026-06-26T03:00:00.000Z',
+      lastActivity: '2026-06-26T03:10:00.000Z',
+      inputTokens: 1,
+      rateLimits: {
+        primaryPercent: 99,
+        primaryReset: Math.floor(new Date('2026-06-26T11:00:00.000Z').getTime() / 1000),
+        secondaryPercent: 8,
+        secondaryReset: Math.floor(new Date('2026-07-01T00:00:00.000Z').getTime() / 1000),
+      },
+    });
+    writeRollout(root, {
+      date: '2026/06/26',
+      sessionId: 'account-latest',
+      cwd: '/other',
+      startedAt: '2026-06-26T04:00:00.000Z',
+      lastActivity: '2026-06-26T04:10:00.000Z',
+      inputTokens: 1,
+      rateLimits: {
+        primaryPercent: 11,
+        primaryReset: Math.floor(new Date('2026-06-26T13:00:00.000Z').getTime() / 1000),
+        secondaryPercent: 17,
+        secondaryReset: Math.floor(new Date('2026-07-01T00:00:00.000Z').getTime() / 1000),
+      },
+    });
+    const { scanner } = makeScanner(root);
+    scanner.scan(['/repo']);
+
+    expect(scanner.getUsageSnapshot()).toEqual({
+      observedAt: '2026-06-26T04:10:00.000Z',
+      rows: [
+        {
+          key: 'session',
+          label: 'Session (5h)',
+          percent: 11,
+          severity: 'normal',
+          resetsAt: '2026-06-26T13:00:00.000Z',
+        },
+        {
+          key: 'weekly_all',
+          label: 'Weekly (7d)',
+          percent: 17,
+          severity: 'normal',
+          resetsAt: '2026-07-01T00:00:00.000Z',
+        },
+      ],
+    });
+  });
+
+  it('returns no Codex usage snapshot when every observed window has reset', () => {
+    writeRollout(root, {
+      date: '2026/06/26',
+      sessionId: 'expired',
+      cwd: '/repo',
+      startedAt: '2026-06-26T03:00:00.000Z',
+      lastActivity: '2026-06-26T03:10:00.000Z',
+      inputTokens: 1,
+      rateLimits: {
+        primaryPercent: 11,
+        primaryReset: Math.floor(new Date('2026-06-26T11:00:00.000Z').getTime() / 1000),
+        secondaryPercent: 17,
+        secondaryReset: Math.floor(new Date('2026-06-26T11:30:00.000Z').getTime() / 1000),
+      },
+    });
+    const { scanner } = makeScanner(root);
+    scanner.scan(['/repo']);
+
+    expect(scanner.getUsageSnapshot()).toBeNull();
+  });
+
+  it('summarizes Codex today stats by JST last activity using session cumulative tokens', () => {
+    writeRollout(root, {
+      date: '2026/06/25',
+      sessionId: 'today-a',
+      cwd: '/repo',
+      startedAt: '2026-06-25T23:00:00.000Z',
+      lastActivity: '2026-06-26T01:00:00.000Z',
+      inputTokens: 1,
+      totalTokens: 100,
+    });
+    writeRollout(root, {
+      date: '2026/06/25',
+      sessionId: 'yesterday-jst',
+      cwd: '/repo',
+      startedAt: '2026-06-25T01:00:00.000Z',
+      lastActivity: '2026-06-25T14:00:00.000Z',
+      inputTokens: 1,
+      totalTokens: 900,
+    });
+    writeRollout(root, {
+      date: '2026/06/26',
+      sessionId: 'outside-worktree',
+      cwd: '/other',
+      startedAt: '2026-06-26T02:00:00.000Z',
+      lastActivity: '2026-06-26T02:30:00.000Z',
+      inputTokens: 1,
+      totalTokens: 500,
+    });
+    const { scanner } = makeScanner(root);
+    scanner.scan(['/repo']);
+
+    expect(scanner.getTodayStats()).toEqual({ sessionCount: 1, totalTokens: 100 });
   });
 
   it('does not throw on a malformed first line (skips the file)', () => {
