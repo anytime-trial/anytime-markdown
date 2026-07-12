@@ -108,9 +108,11 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     }
   }
 
-  async upsertMessages(rows: readonly MessageRow[]): Promise<void> {
-    if (rows.length === 0) return;
+  /** リモートに入った uuid を返す（IRemoteTrailStore の参照整合ゲート契約）。 */
+  async upsertMessages(rows: readonly MessageRow[]): Promise<readonly string[]> {
+    if (rows.length === 0) return [];
     const pool = this.ensurePool();
+    const persisted: string[] = [];
     const CHUNK = 500;
     for (let i = 0; i < rows.length; i += CHUNK) {
       const chunk = rows.slice(i, i + CHUNK);
@@ -173,8 +175,10 @@ export class PostgresTrailStore implements IRemoteTrailStore {
             r.system_command ?? null, r.duration_ms ?? null, r.tool_result_size ?? null,
           ],
         );
+        persisted.push(r.uuid);
       }
     }
+    return persisted;
   }
 
   async upsertCommits(rows: readonly SessionCommitRow[]): Promise<void> {

@@ -19,7 +19,14 @@ export interface IRemoteTrailStore {
   /** [DESTRUCTIVE] trail_repos を sentinel(repo_id=0) を残して全削除する（洗い替え同期用）。 */
   unsafeClearRepos(): Promise<void>;
   upsertSessions(rows: readonly SessionRow[]): Promise<void>;
-  upsertMessages(rows: readonly MessageRow[]): Promise<void>;
+  /**
+   * メッセージを upsert し、**リモートに実際に入った uuid** を返す。
+   *
+   * 戻り値は message_tool_calls の FK 親集合として使う (SyncService の参照整合ゲート)。
+   * 部分失敗 (一部チャンクのみ成功) の場合は成功分だけを返し、失敗は logger.error に記録する。
+   * 呼び出し元は `戻り値.length < rows.length` で部分失敗を検知できる。
+   */
+  upsertMessages(rows: readonly MessageRow[]): Promise<readonly string[]>;
   upsertCommits(rows: readonly SessionCommitRow[]): Promise<void>;
   upsertCommitFiles(rows: readonly { repo_id: number; commit_hash: string; file_path: string }[]): Promise<void>;
   upsertReleases(rows: readonly ReleaseRow[]): Promise<void>;
