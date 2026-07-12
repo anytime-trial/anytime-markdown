@@ -151,8 +151,11 @@ export function parseClaudeUsage(input: unknown): UsageLimitRow[] | null {
   if (!isRecord(input)) {
     return null;
   }
-  if (Array.isArray(input.limits) && input.limits.length > 0) {
-    return parseLimits(input.limits);
+  const rows = parseLimits(input.limits);
+  if (rows !== null) {
+    return rows;
   }
+  // kind の改名・新種追加で limits を 1 行も解釈できなくなっても、five_hour / seven_day が
+  // 残っていれば劣化表示で持ちこたえる（枠が丸ごと消えるより、粒度が粗くても出るほうが有用）。
   return parseFallback(input);
 }

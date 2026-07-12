@@ -115,11 +115,43 @@ describe('parseClaudeUsage', () => {
     expect(parseClaudeUsage({ limits: [{ kind: 'mystery' }] })).toBeNull();
   });
 
-  it('does not fall back when a non-empty limits array is present but unrecognized', () => {
-    expect(parseClaudeUsage({
+  // モデル名はレスポンスの scope.model.display_name 由来であり、ラベルに焼き込まない。
+  // 既定モデルが変われば次回取得でラベルも追随する。
+  it('derives the scoped label from the response model name, whatever it is', () => {
+    const rows = parseClaudeUsage({
+      limits: [
+        {
+          kind: 'weekly_scoped',
+          percent: 12,
+          severity: 'normal',
+          resets_at: '2026-07-18T09:59:59Z',
+          scope: { model: { display_name: 'Opus 4.8' } },
+        },
+        {
+          kind: 'weekly_scoped',
+          percent: 3,
+          severity: 'normal',
+          resets_at: '2026-07-18T09:59:59Z',
+          scope: { model: { display_name: 'Haiku 4.5' } },
+        },
+      ],
+    });
+
+    expect(rows?.map(row => row.label)).toEqual(['Weekly (Opus 4.8)', 'Weekly (Haiku 4.5)']);
+    expect(rows?.map(row => row.key)).toEqual(['weekly_scoped:Opus 4.8', 'weekly_scoped:Haiku 4.5']);
+  });
+
+  // kind が改名・新種追加された将来を想定する。limits を 1 行も解釈できなくても、
+  // five_hour / seven_day が生きているなら Usage を消さずに劣化表示で残す。
+  it('falls back to five_hour / seven_day when no limits entry is recognized', () => {
+    const rows = parseClaudeUsage({
       limits: [{ kind: 'mystery' }],
       five_hour: { utilization: 33, resets_at: '2026-07-12T14:19:59Z' },
-    })).toBeNull();
+      seven_day: { utilization: 12, resets_at: '2026-07-18T09:59:59Z' },
+    });
+
+    expect(rows?.map(row => row.label)).toEqual(['Session (5h)', 'Weekly (all)']);
+    expect(rows?.map(row => row.percent)).toEqual([33, 12]);
   });
 
   it('sets resetsAt to null for invalid timestamps', () => {
