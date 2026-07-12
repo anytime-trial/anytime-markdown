@@ -53,7 +53,7 @@ digraph route {
 | 1 | 提案書（Why/What） | `anytime-proposal` → `/Shared/anytime-markdown-docs/proposal/<date>-<topic>.ja.md` | 提案書ファイルが存在し、ユーザーが `ok`/承認 |
 | 2 | 機能仕様書【明示指示時のみ】 | `anytime-spec-lookup`＋`anytime-markdown-output` → 該当 component spec 配下の `.ja.md` | 仕様書ファイルが存在し、ユーザーが `ok`/承認 |
 | 3 | 実装計画（How） | `superpowers:writing-plans` → `/Shared/anytime-markdown-docs/plan/<date>-<topic>.ja.md` | 計画ファイルが存在し、ユーザーが `ok`/承認 |
-| 4 | 実装 | `subagent-driven-development`＋`anytime-agent-rotation`／`executing-plans`／`codex-delegation` | 実装後テストを**出口から導出**（`anytime-impl-test-design`）・ユニット＋`tsc --noEmit`＋必要なら統合通過・web-app の user flow を触ったら e2e（`npm run e2e -w packages/web-app`）通過・`npm run build -w <対象パッケージ>` 成功 |
+| 4 | 実装 | `subagent-driven-development`＋`anytime-agent-rotation`／`executing-plans`／`anytime-delegation` | 実装後テストを**出口から導出**（`anytime-impl-test-design`）・ユニット＋`tsc --noEmit`＋必要なら統合通過・web-app の user flow を触ったら e2e（`npm run e2e -w packages/web-app`）通過・`npm run build -w <対象パッケージ>` 成功 |
 | 5 | 設計書更新（必須） | 段2の仕様書／該当 component spec を確定仕様へ更新 | 振る舞い変更が spec に反映済み**かつコミット済み**（混在ファイルの申し送りを除く） |
 | 6 | マージ前レビュー | `superpowers:requesting-code-review` または `anytime-cross-review` | error/warn 解消・テスト/ビルド再確認 |
 | 7 | マージ | develop へローカルマージ | push/リリースは別の明示指示時のみ |
@@ -88,7 +88,7 @@ digraph route {
 > 出力先は**観測した未追跡 dir で推測しない**。`/anytime-markdown/plan/` 等が git status に `??` で見えても、それは誤配置の可能性がある。正本パスは AGENTS.md（L11「`/anytime-markdown/` 内には出力しない」・L18-20）で確認し、`superpowers:writing-plans` の既定 `docs/superpowers/plans/` も上書きして docs リポへ出力する。Write は docs リポの絶対パスで行う。
 
 ### 段 4: 実装
-計画のタスク順に実施。サブエージェントへ委譲する複数ステップ実装では `anytime-agent-rotation` のポリシーでトークンを抑える（下記「トークン効率」）。機械的・定型実装は `codex-delegation`。純粋関数の新規は TDD（実装前にユニットテスト）。各論理単位でコミット（コミット前 3 点確認・広域 add 禁止）。
+計画のタスク順に実施。サブエージェントへ委譲する複数ステップ実装では `anytime-agent-rotation` のポリシーでトークンを抑える（下記「トークン効率」）。機械的・定型実装は `anytime-delegation`（Codex 委任）。純粋関数の新規は TDD（実装前にユニットテスト）。各論理単位でコミット（コミット前 3 点確認・広域 add 禁止）。
 
 **実装後テストは出口から導出する（必須）**: 純粋ロジックのユニットだけでは配線/mount/型/i18n の回帰を止められず、過去に**ユニット green のまま出口だけ消える移行漏れ**が繰り返し出荷された（minimap・Ctrl+S 配線・ポップアップ・選択パネル・i18n 生キー）。`anytime-impl-test-design` で**変更の出口を列挙 → 各出口にテスト手段を割り当て**る。host 配線は純粋ヘルパ抽出で testMatch、mount は実 element の統合テスト、i18n/型は `tsc --noEmit` 別途。**書き換え/移行（脱React vanilla 化等）は機能パリティ照合**（旧ベース commit の出口インベントリをリテラル grep で配線まで照合・symbol 追跡に頼らない）を実施する。
 
@@ -167,7 +167,7 @@ develop へ**ローカルマージのみ**。「develop にマージ」指示は
 | 1 | `anytime-proposal` |
 | 2 | `anytime-spec-lookup`・`anytime-markdown-output`・`anytime-markdown-check`・`anytime-doc-authoring` |
 | 3 | `superpowers:writing-plans` |
-| 4 | `superpowers:subagent-driven-development`・`anytime-agent-rotation`・`superpowers:executing-plans`・`codex-delegation`・`anytime-impl-test-design` |
+| 4 | `superpowers:subagent-driven-development`・`anytime-agent-rotation`・`superpowers:executing-plans`・`anytime-delegation`・`anytime-impl-test-design` |
 | 5 | `anytime-markdown-output`・`anytime-markdown-check`・`anytime-doc-authoring` |
 | 6 | `superpowers:requesting-code-review`・`anytime-cross-review`・`superpowers:verification-before-completion`・`anytime-impl-test-design` |
 | 7 | `production-release` |

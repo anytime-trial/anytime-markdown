@@ -116,7 +116,7 @@ import type { RotationPolicy, HandoffState } from '@anytime-markdown/agent-core'
 ## 回転ループ手順
 
 1. **初期化**: `state` = 初期 `HandoffState`（`goal`=タスク概要, `branch`=現在ブランチ, 配列は空・total=0, `narrative`=null）。`tasks` = 段階リスト。`policy` と `threshold` を決める。
-2. **起動**: `agentId = Agent(buildSeedPrompt(state, tasks[0]) + buildReturnContract(), model=haiku)`。中断規則（`~/.claude/skills/codex-delegation/references/stopping-rules-playbook.md`）の該当セクションを prompt に同梱し、タスク固有の中断条件があれば足す。
+2. **起動**: `agentId = Agent(buildSeedPrompt(state, tasks[0]) + buildReturnContract(), model=haiku)`。中断規則（`.claude/skills/anytime-delegation/references/stopping-rules-playbook.md`。委譲先を問わない共通資産）の該当セクションを prompt に同梱し、タスク固有の中断条件があれば足す。
 3. **受領**: `parsed = parseRunningState(返却テキスト)`。
    - `ok`（`taskStatus` 省略 or `"completed"`）→ `state` 更新（永続化アダプタ有効なら worker upsert）。
    - `ok` かつ `taskStatus: "abstained"` → **同タスクを別ワーカーへ機械的に再委任しない**（無評価の再委任は too-late の再生産）。`abstainReason` を親が評価し、(a) 前提を修正して再委任 / (b) タスクをスキップして続行 / (c) ユーザーへエスカレーション のいずれかを明示的に選ぶ。判断と理由をログに残す。

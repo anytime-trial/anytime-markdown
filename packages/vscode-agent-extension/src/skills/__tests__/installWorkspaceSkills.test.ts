@@ -43,13 +43,33 @@ describe('installWorkspaceSkills', () => {
     expect(content).not.toContain('__NOTE_DIR__');
   });
 
+  it('統合・改名で消えた旧スキル dir を掃除する', () => {
+    const noteStorageDir = path.join(workspaceRoot, '.anytime', 'notes');
+    const oldNames = BUNDLED_STATIC_SKILLS.flatMap((s) => s.oldNames ?? []);
+    expect(oldNames).toContain('codex-delegation');
+    expect(oldNames).toContain('anytime-ollama-delegation');
+
+    for (const oldName of oldNames) {
+      const oldSkill = path.join(workspaceRoot, '.claude', 'skills', oldName, 'SKILL.md');
+      fs.mkdirSync(path.dirname(oldSkill), { recursive: true });
+      fs.writeFileSync(oldSkill, '旧スキル', 'utf-8');
+    }
+
+    installWorkspaceSkills({ workspaceRoot, extensionPath, noteStorageDir });
+
+    for (const oldName of oldNames) {
+      const oldDir = path.join(workspaceRoot, '.claude', 'skills', oldName);
+      expect(fs.existsSync(oldDir)).toBe(false);
+    }
+  });
+
   it('ユーザーが編集したスキルは上書きしない', () => {
     const noteStorageDir = path.join(workspaceRoot, '.anytime', 'notes');
     const target = path.join(
       workspaceRoot,
       '.claude',
       'skills',
-      'codex-delegation',
+      'anytime-delegation',
       'SKILL.md',
     );
     fs.mkdirSync(path.dirname(target), { recursive: true });
