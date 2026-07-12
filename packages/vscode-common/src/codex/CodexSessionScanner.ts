@@ -122,30 +122,32 @@ interface TailResult {
   readonly totalTokens: number | null;
 }
 
-/** token_count を検出するまで末尾を段階的に読み増す。上限まで無ければ contextTokens=null。 */
-function readTail(fd: number, fileSize: number): TailResult {
-  let text = '';
-  for (const stage of TAIL_STAGE_BYTES) {
-    text = readLastBytes(fd, fileSize, stage);
-    const tokens = extractCodexContextTokens(text);
-    const rateLimitSnapshot = extractCodexRateLimits(text);
-    const totalTokens = extractCodexTotalTokens(text);
-    if (tokens !== null && rateLimitSnapshot !== null && totalTokens !== null) {
-      return {
-        contextTokens: tokens,
-        lastActivity: extractCodexLastActivity(text),
-        rateLimitSnapshot,
-        totalTokens,
-      };
-    }
-    if (stage >= fileSize) break; // ファイル全体を読み切った
-  }
+function extractTail(text: string): TailResult {
   return {
     contextTokens: extractCodexContextTokens(text),
     lastActivity: extractCodexLastActivity(text),
     rateLimitSnapshot: extractCodexRateLimits(text),
     totalTokens: extractCodexTotalTokens(text),
   };
+}
+
+/**
+ * token_count を検出するまで末尾を段階的に読み増す。上限まで無ければ contextTokens=null。
+ *
+ * 打ち切りは contextTokens のみで判定する。rate_limits / total_token_usage は同じ token_count
+ * イベントに載るため、token_count を見つけた後に読み増しても新しい情報は増えない。3 値すべてが
+ * 揃うまで読み増すと、rate_limits を持たない旧形式の rollout で毎回 1MB まで読み上げてしまう。
+ */
+function readTail(fd: number, fileSize: number): TailResult {
+  let result: TailResult = { contextTokens: null, lastActivity: '', rateLimitSnapshot: null, totalTokens: null };
+  for (const stage of TAIL_STAGE_BYTES) {
+    result = extractTail(readLastBytes(fd, fileSize, stage));
+    if (result.contextTokens !== null) {
+      return result;
+    }
+    if (stage >= fileSize) break; // ファイル全体を読み切った
+  }
+  return result;
 }
 
 interface RolloutReadResult {

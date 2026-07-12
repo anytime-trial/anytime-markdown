@@ -350,6 +350,47 @@ describe('CodexSessionScanner', () => {
     expect(scanner.getTodayStats()).toEqual({ sessionCount: 1, totalTokens: 100 });
   });
 
+  // rate_limits を持たない旧形式の rollout でも、token_count が見つかれば読み増しを打ち切る。
+  // 3 値すべてが揃うまで読み増す実装だと、こうしたファイルを毎回 1MB まで読み上げてしまう
+  // （rate_limits は token_count と同じイベントに載るため、読み増しても増えない）。
+  it('stops escalating the tail read once token_count is found, even without rate_limits', () => {
+    const file = writeRollout(root, {
+      date: '2026/06/26',
+      sessionId: 'sid-legacy',
+      cwd: '/repo',
+      startedAt: '2026-06-26T00:00:00.000Z',
+      lastActivity: '2026-06-26T09:00:00.000Z',
+      inputTokens: 1234,
+      // 先頭行の上限(256KB)未満に収めつつ、最初の段(16KB)より十分大きくして読み増しを観測可能にする。
+      bigMetaBytes: 100 * 1024,
+    });
+    const fileSize = fs.statSync(file).size;
+    const { scanner } = makeScanner(root);
+    // tail 読みはファイル末尾アンカー（position === fileSize - length）で識別する。
+    // 先頭行読みも 64KB チャンクで readSync するため、回数やサイズだけでは区別できない。
+    const tailReads: number[] = [];
+    const realReadSync = fs.readSync;
+    const readSpy = jest.spyOn(fs, 'readSync').mockImplementation(((
+      fd: number,
+      buffer: NodeJS.ArrayBufferView,
+      offset: number,
+      length: number,
+      position: number | null,
+    ) => {
+      if (position !== null && position === fileSize - length) {
+        tailReads.push(length);
+      }
+      return realReadSync(fd, buffer, offset, length, position);
+    }) as unknown as typeof fs.readSync);
+
+    const agents = scanner.scan(['/repo']);
+
+    expect(agents[0]?.contextTokens).toBe(1234);
+    // 打ち切りが効いていれば 16KB を 1 回読むだけ。3 値が揃うまで読み増す実装だと 64KB・256KB へ膨らむ。
+    expect(tailReads).toEqual([16 * 1024]);
+    readSpy.mockRestore();
+  });
+
   it('does not throw on a malformed first line (skips the file)', () => {
     const dir = path.join(root, '2026/06/26');
     fs.mkdirSync(dir, { recursive: true });
