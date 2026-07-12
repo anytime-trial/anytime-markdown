@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-07-12
+
+### 変更
+
+- 同梱スキル `anytime-doc-authoring` の委譲タスク記載ルールの参照先を `anytime-delegation` へ更新（参照していた `codex-delegation` スキルが統合されたため）。
+
 ## [1.13.0] - 2026-07-11
 
 ### 追加

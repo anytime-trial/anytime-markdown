@@ -4,6 +4,8 @@ import {
   SessionTreeItem,
   SourceGroupItem,
   TodaySummaryItem,
+  UsageGroupItem,
+  UsageLimitItem,
   WorkspaceGroupItem,
   formatWorkspaceName,
 } from '../AgentMappingItem';
@@ -155,6 +157,31 @@ describe('SourceGroupItem', () => {
     expect(group.description).toBe('5');
   });
 
+  it('does not count Usage or Today children as sessions', () => {
+    const usage = new UsageGroupItem([
+      new UsageLimitItem({
+        key: 'session',
+        label: 'Session (5h)',
+        percent: 29,
+        severity: 'normal',
+        resetsAt: '2026-07-12T14:19:59.000Z',
+      }),
+    ], [
+      {
+        key: 'session',
+        label: 'Session (5h)',
+        percent: 29,
+        severity: 'normal',
+        resetsAt: '2026-07-12T14:19:59.000Z',
+      },
+    ]);
+    const today = new TodaySummaryItem({ sessionCount: 3, totalTokens: 1000 }, { commitCount: 2 });
+    const group = new SourceGroupItem('claude', [usage, today, wsGroup('/repo', 2)]);
+
+    expect(group.children).toHaveLength(3);
+    expect(group.description).toBe('2');
+  });
+
   it('labels Claude group', () => {
     const group = new SourceGroupItem('claude', []);
     expect(group.label).toBe('Claude Code');
@@ -177,8 +204,95 @@ describe('SourceGroupItem', () => {
 });
 
 describe('TodaySummaryItem', () => {
-  it('is labeled Today (Claude) to disambiguate from Codex', () => {
-    const item = new TodaySummaryItem({ sessionCount: 2, totalTokens: 0 }, 0);
-    expect(item.label).toBe('Today (Claude)');
+  it('is labeled Today because the parent source group disambiguates it', () => {
+    const item = new TodaySummaryItem({ sessionCount: 2, totalTokens: 0 }, { commitCount: 0 });
+    expect(item.label).toBe('Today');
+  });
+
+  it('omits commit count when the source does not provide one', () => {
+    const item = new TodaySummaryItem({ sessionCount: 2, totalTokens: 1000 });
+    expect(String(item.description)).toBe('2 sessions  1K tokens');
+    expect((item.tooltip as { value: string }).value).not.toContain('コミット数');
+  });
+
+  it('can include a source-specific token note', () => {
+    const item = new TodaySummaryItem(
+      { sessionCount: 1, totalTokens: 100 },
+      { tokenNote: 'Snapshot note.' },
+    );
+    expect((item.tooltip as { value: string }).value).toContain('Snapshot note.');
+  });
+});
+
+describe('UsageGroupItem', () => {
+  it('summarizes session and weekly usage in the description', () => {
+    const rows = [
+      {
+        key: 'session',
+        label: 'Session (5h)',
+        percent: 29,
+        severity: 'normal' as const,
+        resetsAt: '2026-07-12T14:19:59.000Z',
+      },
+      {
+        key: 'weekly_all',
+        label: 'Weekly (all)',
+        percent: 17,
+        severity: 'normal' as const,
+        resetsAt: '2026-07-18T09:59:59.000Z',
+      },
+    ];
+    const group = new UsageGroupItem(rows.map(row => new UsageLimitItem(row)), rows);
+
+    expect(group.label).toBe('Usage');
+    expect(group.description).toBe('Session 29% · Weekly 17%');
+    expect(group.children).toHaveLength(2);
+  });
+
+  it('marks stale summaries and creates an expired child row', () => {
+    const stale = new UsageGroupItem([], [
+      {
+        key: 'session',
+        label: 'Session (5h)',
+        percent: 29,
+        severity: 'normal',
+        resetsAt: null,
+      },
+    ], { stale: true });
+    expect(stale.description).toBe('Session 29% (stale)');
+
+    const expired = new UsageGroupItem([UsageLimitItem.expired()], [], { expired: true });
+    expect(expired.description).toBe('認証切れ');
+    expect(expired.children[0]?.label).toBe('認証切れ');
+  });
+
+  it('uses warning and critical icons for elevated severities', () => {
+    expect(iconId(new UsageLimitItem({
+      key: 'weekly_all',
+      label: 'Weekly (all)',
+      percent: 80,
+      severity: 'warn',
+      resetsAt: null,
+    }))).toBe('warning');
+    expect(iconId(new UsageLimitItem({
+      key: 'session',
+      label: 'Session (5h)',
+      percent: 95,
+      severity: 'critical',
+      resetsAt: null,
+    }))).toBe('warning');
+  });
+
+  it('shows Codex observation time when provided', () => {
+    const item = new UsageLimitItem({
+      key: 'session',
+      label: 'Session (5h)',
+      percent: 29,
+      severity: 'normal',
+      resetsAt: '2026-07-12T14:19:59.000Z',
+    }, false, { observedAt: '2026-07-12T13:16:08.224Z' });
+
+    expect((item.tooltip as { value: string }).value).toContain('観測時刻');
+    expect((item.tooltip as { value: string }).value).toContain('スナップショット');
   });
 });

@@ -17,6 +17,9 @@ prebuilt-vscode
 .claude/skills/anytime-spec-lookup/
 .claude/skills/.anytime-skills.json
 .next
+# Next が dev/build のたびに再生成する（参照先が .next/dev/types と .next/types で入れ替わる）。
+# next build が型チェック前に必ず再生成するため、追跡しても CI の結論は変わらない。
+next-env.d.ts
 .playwright-mcp
 .serena
 .vscode

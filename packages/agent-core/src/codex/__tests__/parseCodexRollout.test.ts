@@ -2,6 +2,8 @@ import {
   parseCodexSessionMeta,
   extractCodexContextTokens,
   extractCodexLastActivity,
+  extractCodexRateLimits,
+  extractCodexTotalTokens,
 } from '../parseCodexRollout';
 
 // Real rollout shape (verified against ~/.codex/sessions/.../rollout-*.jsonl):
@@ -113,6 +115,99 @@ describe('extractCodexContextTokens', () => {
 
   it('returns null for empty input', () => {
     expect(extractCodexContextTokens('')).toBeNull();
+  });
+});
+
+describe('extractCodexRateLimits', () => {
+  function rateLimitLine(overrides: { primaryPercent?: unknown; secondaryPercent?: unknown; timestamp?: string } = {}): string {
+    return JSON.stringify({
+      timestamp: overrides.timestamp ?? '2026-07-12T13:16:08.224Z',
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          total_token_usage: { total_tokens: 1818337 },
+          last_token_usage: { input_tokens: 67223 },
+        },
+        rate_limits: {
+          limit_id: 'codex',
+          primary: { used_percent: overrides.primaryPercent ?? 11.2, window_minutes: 300, resets_at: 1783879737 },
+          secondary: { used_percent: overrides.secondaryPercent ?? 8.4, window_minutes: 10080, resets_at: 1784414830 },
+          plan_type: 'plus',
+        },
+      },
+    });
+  }
+
+  it('returns the last token_count rate_limits snapshot with epoch-second reset times normalized', () => {
+    const tail = [
+      rateLimitLine({ primaryPercent: 1, timestamp: '2026-07-12T13:00:00.000Z' }),
+      rateLimitLine({ primaryPercent: 11.2, timestamp: '2026-07-12T13:16:08.224Z' }),
+    ].join('\n');
+    expect(extractCodexRateLimits(tail)).toEqual({
+      observedAt: '2026-07-12T13:16:08.224Z',
+      rows: [
+        {
+          key: 'session',
+          label: 'Session (5h)',
+          percent: 11,
+          severity: 'normal',
+          resetsAt: '2026-07-12T18:08:57.000Z',
+        },
+        {
+          key: 'weekly_all',
+          label: 'Weekly (7d)',
+          percent: 8,
+          severity: 'normal',
+          resetsAt: '2026-07-18T22:47:10.000Z',
+        },
+      ],
+    });
+  });
+
+  it('clamps percent and derives severity from thresholds', () => {
+    const snapshot = extractCodexRateLimits(rateLimitLine({ primaryPercent: 101, secondaryPercent: 80 }));
+    expect(snapshot?.rows.map(row => ({ percent: row.percent, severity: row.severity }))).toEqual([
+      { percent: 100, severity: 'critical' },
+      { percent: 80, severity: 'warn' },
+    ]);
+  });
+
+  it('drops invalid limit rows and returns null when no usable row exists', () => {
+    const oneRow = extractCodexRateLimits(rateLimitLine({ primaryPercent: 'bad' }));
+    expect(oneRow?.rows).toHaveLength(1);
+    expect(oneRow?.rows[0]?.key).toBe('weekly_all');
+
+    expect(extractCodexRateLimits(rateLimitLine({ primaryPercent: 'bad', secondaryPercent: 'bad' }))).toBeNull();
+  });
+
+  it('returns null when no rate_limits event is present', () => {
+    expect(extractCodexRateLimits(JSON.stringify({ type: 'event_msg', payload: { type: 'token_count' } }))).toBeNull();
+  });
+});
+
+describe('extractCodexTotalTokens', () => {
+  function totalLine(totalTokens: unknown): string {
+    return JSON.stringify({
+      timestamp: '2026-07-12T13:16:08.224Z',
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          total_token_usage: { total_tokens: totalTokens },
+          last_token_usage: { input_tokens: 100 },
+        },
+      },
+    });
+  }
+
+  it('returns total_token_usage.total_tokens from the last token_count event', () => {
+    expect(extractCodexTotalTokens([totalLine(10), totalLine(1818337)].join('\n'))).toBe(1818337);
+  });
+
+  it('returns null when total_tokens is absent or invalid', () => {
+    expect(extractCodexTotalTokens(totalLine('1818337'))).toBeNull();
+    expect(extractCodexTotalTokens('')).toBeNull();
   });
 });
 

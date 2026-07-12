@@ -20,5 +20,7 @@
   "command.openAiNotePage": "AI ノートページを開く",
   "command.clearAiNote": "AI ノートをクリア",
   "command.copyAiNotePath": "AI ノートのパスをコピー",
-  "command.mapping.handoffSession": "新セッションへ引き継ぎ"
+  "command.mapping.handoffSession": "新セッションへ引き継ぎ",
+  "configuration.showUsage.markdownDescription": "Agent マッピングの Claude Code グループに Claude Code のサブスク使用量を表示する。",
+  "configuration.usageRefreshSeconds.markdownDescription": "Claude Code 使用量の再取得間隔（秒）。30 秒未満は 30 秒に丸められる。"
 }

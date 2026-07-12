@@ -20,5 +20,7 @@
   "command.openAiNotePage": "Open AI Note Page",
   "command.clearAiNote": "Clear AI Note",
   "command.copyAiNotePath": "Copy AI Note Path",
-  "command.mapping.handoffSession": "Hand Off to New Session"
+  "command.mapping.handoffSession": "Hand Off to New Session",
+  "configuration.showUsage.markdownDescription": "Show Claude Code subscription usage in the Agent Mapping Claude Code group.",
+  "configuration.usageRefreshSeconds.markdownDescription": "Refresh interval in seconds for Claude Code usage. Values below 30 seconds are clamped to 30."
 }
