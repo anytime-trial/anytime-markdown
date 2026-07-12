@@ -93,6 +93,7 @@ describe('ClaudeUsageClient', () => {
           resetsAt: '2026-07-12T14:19:59.000Z',
         },
       ],
+      unknownKinds: [],
     });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://api.anthropic.com/api/oauth/usage',
@@ -103,6 +104,29 @@ describe('ClaudeUsageClient', () => {
         },
       },
     );
+  });
+
+  // 新種の枠が API に増えても表示は壊さない（落とす）が、気づけるよう呼び出し側へ渡す。
+  it('surfaces unknown limit kinds alongside the parsed rows', async () => {
+    const credentialsPath = makeCredentialsPath();
+    writeCredentials(credentialsPath, {
+      claudeAiOauth: { accessToken: 'secret-token', expiresAt: Date.now() + 60_000 },
+    });
+    const fetchMock: ClaudeUsageFetch = jest.fn(async () => response(200, {
+      limits: [
+        { kind: 'session', percent: 29, severity: 'normal', resets_at: '2026-07-12T14:19:59Z' },
+        { kind: 'monthly', percent: 40, severity: 'normal', resets_at: '2026-08-01T00:00:00Z' },
+      ],
+    }));
+
+    const result = await new ClaudeUsageClient({ credentialsPath, fetch: fetchMock }).fetchUsage();
+
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') {
+      throw new Error(`Expected ok result, got ${result.kind}`);
+    }
+    expect(result.rows.map(row => row.key)).toEqual(['session']);
+    expect(result.unknownKinds).toEqual(['monthly']);
   });
 
   it('classifies HTTP and network failures without exposing the token', async () => {
