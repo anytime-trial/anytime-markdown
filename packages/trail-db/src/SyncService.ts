@@ -60,13 +60,19 @@ export class SyncService {
     // token チャートの 30D/90D 表示は現状この制約の範囲内となる。
     const messageCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    let synced = 0;
-    let errors = 0;
-
-    ({ synced, errors } = await this.syncSessions(localSessions, messageCutoff, onProgress));
+    // 参照整合ゲート: 子テーブル (session_costs / message_tool_calls) は「リモートに親が
+    // 実際に入った行」だけを送る。セッション/メッセージの upsert は一過性の HTTP エラーで
+    // 個別に失敗しうる (per-session catch) ため、ローカル DB 全件を無条件に push すると
+    // 落ちた親を参照する子行が FK 違反を起こし、子テーブル同期が丸ごと巻き添えで死ぬ。
+    const { synced, errors: sessionErrors, syncedSessionIds, syncedMessageUuids } =
+      await this.syncSessions(localSessions, messageCutoff, onProgress);
+    let errors = sessionErrors;
 
     errors += await this.syncStep('Syncing session costs...', onProgress, async () => {
-      await this.store.upsertAllSessionCosts(this.trailDb.getAllSessionCosts());
+      const rows = this.trailDb.getAllSessionCosts();
+      const eligible = rows.filter((r) => syncedSessionIds.has(r.session_id));
+      this.logDroppedByGate('session_costs', rows.length, eligible.length);
+      await this.store.upsertAllSessionCosts(eligible);
     }, 'Failed to sync session costs');
 
     errors += await this.syncStep('Syncing daily counts...', onProgress, async () => {
@@ -76,25 +82,30 @@ export class SyncService {
     errors += await this.syncStep('Syncing message tool calls...', onProgress, async () => {
       await this.store.unsafeClearMessageToolCalls();
       const toolCallRows = this.trailDb.getAllMessageToolCalls(messageCutoff);
-      if (toolCallRows.length > 0) await this.store.upsertMessageToolCalls(toolCallRows);
+      // message_uuid / session_id 双方が FK 親のため両方の到達を確認する。
+      const eligible = toolCallRows.filter(
+        (r) => syncedMessageUuids.has(r.message_uuid) && syncedSessionIds.has(r.session_id),
+      );
+      this.logDroppedByGate('message_tool_calls', toolCallRows.length, eligible.length);
+      if (eligible.length > 0) await this.store.upsertMessageToolCalls(eligible);
     }, 'Failed to sync message_tool_calls');
 
     errors += await this.syncStep('Syncing releases...', onProgress, async () => {
       const releases = this.trailDb.getReleases();
       if (releases.length > 0) await this.store.upsertReleases(releases);
-      for (const release of releases) {
+      await this.forEachIsolated('release_files', releases, (r) => `release ${r.tag}`, async (release) => {
         const files = this.trailDb.getReleaseFiles(release.tag);
         if (files.length > 0) await this.store.upsertReleaseFiles(files);
-      }
+      });
     }, 'Failed to sync releases');
 
     errors += await this.syncStep(null, onProgress, async () => {
       const currents = this.trailDb.listCurrentGraphs();
       onProgress?.({ message: `Syncing ${currents.length} current TrailGraphs (wash-away)...` });
       await this.store.unsafeClearCurrentGraphs();
-      for (const row of currents) {
+      await this.forEachIsolated('current TrailGraphs', currents, (r) => `repo ${r.repoId}`, async (row) => {
         await this.store.upsertCurrentGraph(row.repoId, JSON.stringify(row.graph), row.commitId);
-      }
+      });
     }, 'Failed to sync current TrailGraphs');
 
     errors += await this.syncStep(null, onProgress, async () => {
@@ -103,21 +114,24 @@ export class SyncService {
       const releases = this.trailDb.getReleases();
       onProgress?.({ message: `Syncing ${releases.length} release TrailGraphs (wash-away)...` });
       await this.store.unsafeClearReleaseGraphs();
-      for (const rel of releases) {
-        if (rel.release_id == null) continue;
+      await this.forEachIsolated('release TrailGraphs', releases, (r) => `release ${r.tag}`, async (rel) => {
+        if (rel.release_id == null) return;
         const graph = this.trailDb.getTrailGraph(rel.tag);
-        if (!graph) continue;
+        if (!graph) return;
         await this.store.upsertReleaseGraph(rel.release_id, JSON.stringify(graph));
-      }
+      });
     }, 'Failed to sync release TrailGraphs');
 
     errors += await this.syncStep(null, onProgress, async () => {
       // manual C4 は store 側 repo_id・local 側 repo_name で扱うため両方を渡す。
       const repos = new Map<number, string>();
       for (const r of this.trailDb.listCurrentGraphs()) repos.set(r.repoId, r.repoName);
-      for (const [repoId, repoName] of repos) {
-        await this.syncManualElements(repoId, repoName);
-      }
+      await this.forEachIsolated(
+        'manual C4 elements',
+        [...repos],
+        ([repoId]) => `repo ${repoId}`,
+        ([repoId, repoName]) => this.syncManualElements(repoId, repoName),
+      );
     }, 'Failed to sync manual C4 elements');
 
     errors += await this.syncStep('Syncing current coverage...', onProgress, async () => {
@@ -198,43 +212,120 @@ export class SyncService {
     }
   }
 
+  /**
+   * 逐次同期（1 件 = 1 リクエスト）をアイテム単位で隔離する。
+   *
+   * 旧実装は for ループ内の throw がステップ全体を中断していたため、release graph 1 件が
+   * ゲートウェイの 5xx で落ちただけで残り全件が未同期のまま残った（87 件中 9 件）。
+   * ここでは全件を試行し、失敗があればまとめて throw して syncStep 側の errors に計上する。
+   */
+  private async forEachIsolated<T>(
+    label: string,
+    items: readonly T[],
+    describe: (item: T) => string,
+    fn: (item: T) => Promise<void>,
+  ): Promise<void> {
+    let failed = 0;
+    for (const item of items) {
+      try {
+        await fn(item);
+      } catch (e) {
+        this.logger.error(`${label}: failed for ${describe(item)}`, e);
+        failed++;
+      }
+    }
+    if (failed > 0) {
+      throw new Error(`${label} failed for ${failed}/${items.length} items (see log for details)`);
+    }
+  }
+
+  /** 参照整合ゲートで落とした子行を必ず可視化する（silent truncation を作らない）。 */
+  private logDroppedByGate(table: string, total: number, eligible: number): void {
+    const dropped = total - eligible;
+    if (dropped > 0) {
+      this.logger.warn(
+        `${table}: skipped ${dropped}/${total} rows whose parent row did not reach the remote (FK guard). ` +
+        'These rows will be synced on the next successful run.',
+      );
+    }
+  }
+
+  /** セッションのコミットとコミットファイルをリモートへ送る。 */
+  private async syncSessionCommits(sessionId: string): Promise<void> {
+    const commits = this.trailDb.getSessionCommits(sessionId);
+    await this.store.upsertCommits(commits);
+    if (commits.length === 0) return;
+    const commitFiles = this.trailDb.getCommitFiles(commits.map((c) => c.commit_hash));
+    if (commitFiles.length > 0) await this.store.upsertCommitFiles(commitFiles);
+  }
+
+  /**
+   * セッションのメッセージをリモートへ送り、実際に届いた uuid を `syncedMessageUuids` へ積む。
+   * 部分失敗（一部チャンクのみ到達）は store が握るため、ここでは件数差で検知して報告する。
+   * 戻り値は部分失敗があったか（呼び出し元の errors カウント用）。
+   */
+  private async syncSessionMessages(
+    sessionId: string,
+    label: string,
+    messageCutoff: string,
+    syncedMessageUuids: Set<string>,
+  ): Promise<boolean> {
+    // カットオフを SQL 側に押し込み、古いメッセージを DB から取得しない。
+    const messages = this.trailDb.getMessages(sessionId, { since: messageCutoff });
+    if (messages.length === 0) return false;
+
+    const persisted = await this.store.upsertMessages(messages);
+    for (const uuid of persisted) syncedMessageUuids.add(uuid);
+    if (persisted.length === messages.length) return false;
+
+    this.logger.warn(
+      `Session ${label}: ${messages.length - persisted.length}/${messages.length} messages failed to sync`,
+    );
+    return true;
+  }
+
   private async syncSessions(
     localSessions: ReturnType<TrailDatabase['getSessions']>,
     messageCutoff: string,
     onProgress?: (progress: SyncProgress) => void,
-  ): Promise<{ synced: number; errors: number }> {
+  ): Promise<{
+    synced: number;
+    errors: number;
+    syncedSessionIds: ReadonlySet<string>;
+    syncedMessageUuids: ReadonlySet<string>;
+  }> {
     let synced = 0;
     let errors = 0;
-    if (localSessions.length === 0) return { synced, errors };
+    // リモートに実在する親のみを集める。子テーブル同期のフィルタに使う。
+    const syncedSessionIds = new Set<string>();
+    const syncedMessageUuids = new Set<string>();
+    if (localSessions.length === 0) {
+      return { synced, errors, syncedSessionIds, syncedMessageUuids };
+    }
 
     const increment = 100 / localSessions.length;
     for (const session of localSessions) {
+      const label = session.slug || session.id.slice(0, 8);
       try {
-        onProgress?.({
-          message: `Syncing ${session.slug || session.id.slice(0, 8)}...`,
-          increment,
-        });
+        onProgress?.({ message: `Syncing ${label}...`, increment });
+
         await this.store.upsertSessions([session]);
+        // ここを通過した時点でセッション行はリモートに存在する（session_costs の FK 親）。
+        syncedSessionIds.add(session.id);
 
-        const commits = this.trailDb.getSessionCommits(session.id);
-        await this.store.upsertCommits(commits);
-        if (commits.length > 0) {
-          const commitFiles = this.trailDb.getCommitFiles(commits.map((c) => c.commit_hash));
-          if (commitFiles.length > 0) await this.store.upsertCommitFiles(commitFiles);
-        }
-
-        // カットオフを SQL 側に押し込み、古いメッセージを DB から取得しない。
-        const messages = this.trailDb.getMessages(session.id, { since: messageCutoff });
-        if (messages.length > 0) await this.store.upsertMessages(messages);
+        await this.syncSessionCommits(session.id);
+        const partialMessages = await this.syncSessionMessages(
+          session.id, label, messageCutoff, syncedMessageUuids,
+        );
+        if (partialMessages) errors++;
 
         synced++;
       } catch (e) {
-        const id = session.slug || session.id.slice(0, 8);
-        this.logger.error(`Failed to sync session ${id}`, e);
+        this.logger.error(`Failed to sync session ${label}`, e);
         errors++;
       }
     }
-    return { synced, errors };
+    return { synced, errors, syncedSessionIds, syncedMessageUuids };
   }
 
   // store 側は repo_id キー (正規化済 Supabase)、local 側は repo_name キー (内部で repo_id 解決) で扱う。
