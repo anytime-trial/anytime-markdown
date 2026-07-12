@@ -232,7 +232,10 @@ export class AgentMappingProvider
       this._applyUsageResult(await this.usageClient.fetchUsage());
     } catch (err) {
       this._markUsageStale();
-      AgentLogger.error('[AgentMapping] Claude usage refresh failed', err);
+      // fetchUsage は全経路を結果型へ正規化するためここは到達しない想定だが、将来 throw する
+      // 実装に変わってもトークンが Output Channel へ出ないよう、種別だけに落として記録する。
+      const kind = err instanceof Error && err.name ? err.name : 'Error';
+      AgentLogger.error('[AgentMapping] Claude usage refresh failed', new Error(`Unexpected ${kind}`));
     } finally {
       this.refresh();
     }
