@@ -71,6 +71,18 @@ describe('SessionTreeItem', () => {
     const item = new SessionTreeItem(makeSession({ workspacePath: undefined }));
     expect((item.tooltip as { value: string }).value).not.toContain('ワークスペース:');
   });
+
+  it('tooltip shows the resolved workspace, not the raw session cwd (Codex cwd is a sub-directory)', () => {
+    // Codex の session.workspacePath は rollout の cwd（worktree のサブディレクトリであり得る）。
+    // hover はワークスペース見出しと同じ名前（解決済み context.workspacePath）を出さねばならない。
+    const item = new SessionTreeItem(
+      makeSession({ source: 'codex', workspacePath: '/repo/packages/foo' }),
+      { branch: 'main', worktreeName: '(main)', workspacePath: '/repo' },
+    );
+    const tooltip = (item.tooltip as { value: string }).value;
+    expect(tooltip).toContain('**ワークスペース:** `repo`');
+    expect(tooltip).not.toContain('`foo`');
+  });
 });
 
 describe('formatWorkspaceName', () => {

@@ -139,12 +139,55 @@ export const ORPHAN_WORKTREE_PATH = '(orphan)';
  * 解決済み worktree を優先する（Codex の cwd は worktree のサブディレクトリであり得るため worktree ルートへ正規化される）。
  * orphan（現リポジトリのどの worktree にも属さない＝別ワークスペースのセッション）はセッション自身の workspacePath を使う。
  * どちらも得られない場合は空文字を返す。
+ *
+ * SHORTCUT: orphan は workspacePath（Codex は起動時 cwd）をそのままキーにする.
+ * ceiling: 現リポジトリの worktree 一覧しか持たないため外部リポジトリのルートを判定できず、
+ * 同一の外部リポジトリでもサブディレクトリから起動したセッションは別ワークスペースとして分かれる.
+ * upgrade: 外部リポジトリのルートを解決する手段（cwd から上位の .git 探索など）を入れたらそこへ丸める.
  */
 export function resolveSessionWorkspacePath(worktreePath: string, workspacePath?: string): string {
   if (worktreePath && worktreePath !== ORPHAN_WORKTREE_PATH) {
     return worktreePath;
   }
   return workspacePath ?? '';
+}
+
+/** ワークスペース単位にまとめた 1 群。 */
+export interface WorkspaceGroup<T> {
+  readonly workspacePath: string;
+  readonly items: readonly T[];
+}
+
+/**
+ * セッションをワークスペース単位にまとめる。
+ * キーはフルパス（basename ではない）。同名の worktree（例: 別リポジトリ配下の同名ブランチ）を
+ * 1 つの群に潰さないため。
+ * 群の並びは各群の最小 age（＝最新アクティビティ）昇順。群内は入力順を保つ。
+ */
+export function groupByWorkspace<T>(
+  items: readonly T[],
+  workspacePathOf: (item: T) => string,
+  ageSecondsOf: (item: T) => number
+): readonly WorkspaceGroup<T>[] {
+  const buckets = new Map<string, T[]>();
+  for (const item of items) {
+    const key = workspacePathOf(item);
+    const bucket = buckets.get(key);
+    if (bucket === undefined) {
+      buckets.set(key, [item]);
+    } else {
+      bucket.push(item);
+    }
+  }
+
+  return [...buckets.entries()]
+    .map(([workspacePath, groupItems]) => ({
+      workspacePath,
+      items: groupItems,
+      minAge: groupItems.reduce((min, i) => Math.min(min, ageSecondsOf(i)), Infinity),
+    }))
+    .sort((a, b) => a.minAge - b.minAge)
+    .map(({ workspacePath, items: groupItems }) => ({ workspacePath, items: groupItems }));
 }
 
 function worktreeName(wt: WorktreeEntry): string {

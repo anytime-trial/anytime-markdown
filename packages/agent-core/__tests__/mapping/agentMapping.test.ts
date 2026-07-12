@@ -3,9 +3,64 @@ import {
   resolveWorktree,
   buildAgentMapping,
   resolveSessionWorkspacePath,
+  groupByWorkspace,
   ORPHAN_WORKTREE_PATH,
 } from '../../src/mapping/agentMapping';
 import type { WorktreeEntry } from '../../src/mapping/types';
+
+describe('groupByWorkspace', () => {
+  interface Item {
+    readonly id: string;
+    readonly workspacePath: string;
+    readonly ageSeconds: number;
+  }
+
+  function group(items: readonly Item[]) {
+    return groupByWorkspace(items, i => i.workspacePath, i => i.ageSeconds);
+  }
+
+  it('keeps same-named workspaces in different locations apart (keys on the full path, not the basename)', () => {
+    const groups = group([
+      { id: 'a', workspacePath: '/repo-a/.worktrees/feat', ageSeconds: 10 },
+      { id: 'b', workspacePath: '/repo-b/.worktrees/feat', ageSeconds: 20 },
+    ]);
+    expect(groups.map(g => g.workspacePath)).toEqual([
+      '/repo-a/.worktrees/feat',
+      '/repo-b/.worktrees/feat',
+    ]);
+  });
+
+  it('orders groups by their most recent session (smallest ageSeconds first)', () => {
+    const groups = group([
+      { id: 'old', workspacePath: '/slow', ageSeconds: 900 },
+      { id: 'new', workspacePath: '/fast', ageSeconds: 5 },
+      { id: 'mid', workspacePath: '/slow', ageSeconds: 30 },
+    ]);
+    // /slow の最小 age は 30 → /fast(5) が先。入力順ではなく群の最新アクティビティで決まる。
+    expect(groups.map(g => g.workspacePath)).toEqual(['/fast', '/slow']);
+  });
+
+  it('preserves the input order of items within a group', () => {
+    const groups = group([
+      { id: 'first', workspacePath: '/repo', ageSeconds: 10 },
+      { id: 'second', workspacePath: '/repo', ageSeconds: 20 },
+    ]);
+    expect(groups[0].items.map(i => i.id)).toEqual(['first', 'second']);
+  });
+
+  it('collects sessions with no workspace path into their own group', () => {
+    const groups = group([
+      { id: 'known', workspacePath: '/repo', ageSeconds: 50 },
+      { id: 'unknown', workspacePath: '', ageSeconds: 10 },
+    ]);
+    expect(groups.map(g => g.workspacePath)).toEqual(['', '/repo']);
+    expect(groups[0].items.map(i => i.id)).toEqual(['unknown']);
+  });
+
+  it('returns an empty array for no items', () => {
+    expect(group([])).toEqual([]);
+  });
+});
 
 describe('resolveSessionWorkspacePath', () => {
   it('prefers the resolved worktree path', () => {

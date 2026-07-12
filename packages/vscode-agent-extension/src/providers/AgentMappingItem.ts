@@ -92,10 +92,16 @@ function contextWarnTokens(): number {
   return typeof v === 'number' && v > 0 ? v : 160000;
 }
 
-/** セッションが最後に利用したブランチ / worktree（hover 表示用）。 */
-export interface SessionWorktreeContext {
+/** セッションの所属情報（hover 表示用）。 */
+export interface SessionTreeContext {
   readonly branch: string;
   readonly worktreeName: string;
+  /**
+   * 解決済みのワークスペースパス（resolveSessionWorkspacePath の結果）。
+   * ワークスペース見出しのグルーピングキーと同一ソースにするために渡す。
+   * session.workspacePath（Codex は生の cwd）を直接使うと、見出しと hover で別の名前が出てしまう。
+   */
+  readonly workspacePath: string;
 }
 
 /**
@@ -162,7 +168,7 @@ export class SourceGroupItem extends vscode.TreeItem {
 export class SessionTreeItem extends vscode.TreeItem {
   constructor(
     public readonly session: SessionMapping,
-    context?: SessionWorktreeContext,
+    context?: SessionTreeContext,
   ) {
     super(session.sessionId.slice(0, 8));
     const isCodex = session.source === 'codex';
@@ -186,8 +192,10 @@ export class SessionTreeItem extends vscode.TreeItem {
     const sourceInfo = isCodex
       ? `**Source:** Codex（読み取り専用 — 編集中ロック / コミット / 引き継ぎは非対応）\n\n`
       : '';
-    // セッションが動作しているワークスペース名（workspacePath の末尾ディレクトリ名）を hover に表示する。
-    const wsName = formatWorkspaceName(session.workspacePath);
+    // セッションが動作しているワークスペース名を hover に表示する。
+    // 解決済みの context.workspacePath を優先する（ワークスペース見出しと同じ名前を出すため）。
+    // context 無しで構築された場合のみ、生の session.workspacePath にフォールバックする。
+    const wsName = formatWorkspaceName(context?.workspacePath ?? session.workspacePath);
     const wsInfo = wsName ? `**ワークスペース:** \`${wsName}\`\n\n` : '';
     this.tooltip = new vscode.MarkdownString(
       `**Session:** \`${session.sessionId}\`\n\n` +

@@ -2,7 +2,7 @@ import * as cp from 'node:child_process';
 import * as vscode from 'vscode';
 import { ClaudeStatusWatcher, jstDateString } from '@anytime-markdown/vscode-common';
 import type { AgentInfo, CodexSessionScanner } from '@anytime-markdown/vscode-common';
-import { buildAgentMapping, parseWorktreeList, resolveSessionWorkspacePath } from '@anytime-markdown/agent-core';
+import { buildAgentMapping, groupByWorkspace, parseWorktreeList, resolveSessionWorkspacePath } from '@anytime-markdown/agent-core';
 import type { WorktreeEntry, SessionMapping, AgentSource } from '@anytime-markdown/agent-core';
 import { SessionTreeItem, SourceGroupItem, TodaySummaryItem, WorkspaceGroupItem } from './AgentMappingItem';
 import { AgentLogger } from '../utils/AgentLogger';
@@ -130,26 +130,18 @@ export class AgentMappingProvider
     if (ofSource.length === 0) {
       return null;
     }
-    const byWorkspace = new Map<string, SessionEntry[]>();
-    for (const e of ofSource) {
-      const bucket = byWorkspace.get(e.workspacePath);
-      if (bucket === undefined) {
-        byWorkspace.set(e.workspacePath, [e]);
-      } else {
-        bucket.push(e);
-      }
-    }
-    // entries は age 昇順のため各バケット内も age 昇順。ワークスペースも最新アクティビティ順に並べる。
-    const workspaces = [...byWorkspace.entries()]
-      .map(([workspacePath, es]) => ({
-        item: new WorkspaceGroupItem(
-          workspacePath,
-          es.map(e => new SessionTreeItem(e.session, { branch: e.branch, worktreeName: e.worktreeName })),
-        ),
-        minAge: es[0].session.ageSeconds,
-      }))
-      .sort((a, b) => a.minAge - b.minAge)
-      .map(w => w.item);
+    const workspaces = groupByWorkspace(
+      ofSource,
+      e => e.workspacePath,
+      e => e.session.ageSeconds,
+    ).map(g => new WorkspaceGroupItem(
+      g.workspacePath,
+      g.items.map(e => new SessionTreeItem(e.session, {
+        branch: e.branch,
+        worktreeName: e.worktreeName,
+        workspacePath: g.workspacePath,
+      })),
+    ));
     return new SourceGroupItem(source, workspaces, this.iconBaseUri);
   }
 
