@@ -1,6 +1,6 @@
 'use strict';
 
-const { test } = require('node:test');
+// test はランナー(jest)のグローバルを使う。node:test から import すると jest 配下で suite ごと落ちる。
 const assert = require('node:assert');
 const cr = require('./codex-review.cjs');
 
