@@ -75,7 +75,7 @@ export const workspace = {
     update: jest.fn(),
   })),
   workspaceFolders: [],
-  onDidChangeConfiguration: jest.fn(),
+  onDidChangeConfiguration: jest.fn(() => ({ dispose: jest.fn() })),
   fs: {
     readFile: jest.fn(),
     writeFile: jest.fn(),

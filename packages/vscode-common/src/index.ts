@@ -1,4 +1,8 @@
 export { ClaudeStatusWatcher, jstDateString } from './claude/ClaudeStatusWatcher';
+export { ClaudeUsageClient } from './claude/ClaudeUsageClient';
+export type { ClaudeUsageClientOptions, ClaudeUsageFetch, ClaudeUsageResult } from './claude/ClaudeUsageClient';
+export { parseClaudeUsage } from './claude/parseClaudeUsage';
+export type { UsageLimitRow, UsageSeverity } from './claude/parseClaudeUsage';
 export { setupClaudeHooks } from './claude/claudeHookSetup';
 export type { Disposable, ClaudeStatus, SessionEdit, StatusChangeCallback, AgentInfo, AgentSource, AgentLastCommit, AgentStatusRow, AgentStatusSource, MultiStatusChangeCallback, TodayStats } from './claude/types';
 export { CodexSessionScanner } from './codex/CodexSessionScanner';
