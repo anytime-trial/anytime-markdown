@@ -146,6 +146,12 @@ describe('parseGraphDsl', () => {
     it('causal-loop の自己参照は明示エラー', () => {
       expect(() => parseGraphDsl('type: causal-loop\n在庫 -> 在庫: +')).toThrow(/自己参照/);
     });
+    it('causal-loop の不正リンク行が "->" 多重出現で二次爆発しない（ReDoS 回帰）', () => {
+      const evil = 'a->'.repeat(20_000) + 'x'; // 極性を欠く行
+      const started = performance.now();
+      expect(() => parseGraphDsl(`type: causal-loop\n${evil}`)).toThrow(/リンク/);
+      expect(performance.now() - started).toBeLessThan(200);
+    });
     it('structure-map で whole 欠落', () => {
       expect(() => parseGraphDsl('type: structure-map\n- A: x')).toThrow(/whole/);
     });
