@@ -55,6 +55,16 @@ export function classifyCodeBlock(language: unknown): CodeBlockKind {
 const MIN_RESIZE_WIDTH = 50;
 
 /**
+ * 手動リサイズ幅（`width` 属性）が無いときのプレビュー枠の既定幅。
+ *
+ * markdown は本文と同じ文章のため、エディタ設定の本文幅（`--am-editor-measure`）いっぱいまで
+ * 伸ばす。図（mermaid 等）や math は描画結果に合わせて縮める方が自然なので `fit-content`。
+ */
+export function defaultPreviewWidth(kind: CodeBlockKind): string {
+  return kind === "markdown" ? "100%" : "fit-content";
+}
+
+/**
  * getPos を安全に解決する（detached ノードでは throw するため共有 safeGetPos でラップ）。
  * NodeViewRendererProps の getPos は boolean を取り得るため関数ガードを足した薄いアダプタ。
  */
@@ -262,7 +272,7 @@ export function createCodeBlockNodeView(
       ? getEmbedStoredWidth(String(currentNode.attrs.language ?? "")) ?? ""
       : (currentNode.attrs.width as string | null) || "";
     const w = draftWidth != null ? `${draftWidth}px` : stored;
-    previewEl.style.width = w || "fit-content";
+    previewEl.style.width = w || defaultPreviewWidth(kind);
   };
 
   const applyChrome = (): void => {
