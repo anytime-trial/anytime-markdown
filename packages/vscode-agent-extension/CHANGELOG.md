@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-12
+
+### Added
+
+- The AGENT mapping view now shows the Claude Code usage rate (%) per account, sourced from the `/api/oauth/usage` endpoint (the rate is not available in local files). Unknown limit kinds are logged as warnings instead of being silently dropped.
+- The Codex group now shows Usage (%) and Today alongside the Claude group.
+- Bundled four more skills: `anytime-delegation` (delegating work to Codex CLI / local ollama), `anytime-dev-cycle`, `anytime-impl-test-design`, and `anytime-proposal`. They are installed into `.claude/skills/` automatically, so they are no longer global-only.
+
+### Changed
+
+- Merged `codex-delegation` and `anytime-ollama-delegation` into a single `anytime-delegation` skill, which now covers picking the delegation target, the six-point delegation contract, and the abstain path.
+
+### Fixed
+
+- The usage display no longer disappears entirely when the `limits` payload cannot be interpreted; it now falls back instead of failing closed.
+- Codex rollout files without `rate_limits` no longer re-read up to 1 MB of tail on every scan.
+
+### Security
+
+- Sanitize tokens in the outer catch of the usage fetch as well, so a failure path cannot leak them into logs.
+
 ## [1.2.0] - 2026-07-12
 
 ### Added

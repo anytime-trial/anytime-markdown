@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-07-12
+
+### Changed
+
+- Bundled skill `anytime-doc-authoring` now points at the `anytime-delegation` skill (the `codex-delegation` skill it referenced was merged into it).
+
 ## [1.13.0] - 2026-07-11
 
 ### Added

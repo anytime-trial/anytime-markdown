@@ -6,6 +6,27 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-12
+
+### 追加
+
+- AGENT マッピングにアカウントごとの Claude Code 使用量（%）を表示するようにしました。消費率はローカルファイルに存在しないため `/api/oauth/usage` から取得します。未知の使用量枠種別は黙って捨てず warn ログに出します。
+- Codex グループにも Claude グループと同様に Usage（%）と Today を表示するようにしました。
+- 同梱スキルを 4 本追加しました（`anytime-delegation`: Codex CLI / ローカル ollama への委譲、`anytime-dev-cycle`、`anytime-impl-test-design`、`anytime-proposal`）。`.claude/skills/` へ自動配置されるため、グローバル環境がなくても利用できます。
+
+### 変更
+
+- `codex-delegation` と `anytime-ollama-delegation` を `anytime-delegation` へ統合しました。委譲先の選択・委譲契約 6 点・中断（abstain）の出口を 1 スキルで扱います。
+
+### 修正
+
+- `limits` を解釈できない時に使用量表示ごと消えてしまう問題を修正しました（フォールバック表示に切り替わります）。
+- `rate_limits` を持たない Codex rollout ファイルで、スキャンのたびに tail を 1MB まで読み上げていた性能問題を修正しました。
+
+### セキュリティ
+
+- 使用量取得の外側 catch でもトークンをサニタイズし、失敗経路からログへ漏れないようにしました。
+
 ## [1.2.0] - 2026-07-12
 
 ### 追加
