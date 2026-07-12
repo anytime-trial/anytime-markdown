@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { SessionMapping, MappingState, AgentSource } from '@anytime-markdown/agent-core';
-import type { TodayStats } from '@anytime-markdown/vscode-common';
+import type { TodayStats, UsageLimitRow, UsageSeverity } from '@anytime-markdown/vscode-common';
 
 const STATE_ICONS: Record<MappingState, vscode.ThemeIcon> = {
   active: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.green')),
@@ -30,6 +30,41 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
+function usageIcon(severity: UsageSeverity): vscode.ThemeIcon {
+  if (severity === 'critical') {
+    return new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.red'));
+  }
+  if (severity === 'warn') {
+    return new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.yellow'));
+  }
+  return new vscode.ThemeIcon('pulse');
+}
+
+function formatResetTime(resetsAt: string | null): string {
+  if (resetsAt === null) {
+    return 'reset unknown';
+  }
+  const date = new Date(resetsAt);
+  if (Number.isNaN(date.getTime())) {
+    return 'reset unknown';
+  }
+  return `resets ${new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date)}`;
+}
+
+function usageSummary(rows: readonly UsageLimitRow[]): string {
+  const session = rows.find(row => row.key === 'session');
+  const weekly = rows.find(row => row.key === 'weekly_all')
+    ?? rows.find(row => row.key.startsWith('weekly_scoped:'));
+  const parts = [
+    session ? `Session ${session.percent}%` : undefined,
+    weekly ? `Weekly ${weekly.percent}%` : undefined,
+  ].filter((part): part is string => part !== undefined);
+  return parts.join(' · ');
+}
+
 /**
  * workspacePath から表示用のワークスペース名（末尾ディレクトリ名）を取り出す。
  * 区切りは `/`・`\` の両対応。末尾区切りは無視し、名前が取れない場合は undefined を返す。
@@ -56,6 +91,54 @@ export class TodaySummaryItem extends vscode.TreeItem {
       `- コミット数: ${commitCount}\n` +
       (stats.totalTokens > 0 ? `- トークン合計: ${formatTokens(stats.totalTokens)}` : ''),
     );
+  }
+}
+
+export class UsageLimitItem extends vscode.TreeItem {
+  static expired(): UsageLimitItem {
+    return new UsageLimitItem({
+      key: 'expired',
+      label: 'Authentication expired',
+      percent: 0,
+      severity: 'warn',
+      resetsAt: null,
+    }, true);
+  }
+
+  constructor(
+    public readonly row: UsageLimitRow,
+    expired = false,
+  ) {
+    super(row.label);
+    this.description = expired ? undefined : `${row.percent}% · ${formatResetTime(row.resetsAt)}`;
+    this.collapsibleState = vscode.TreeItemCollapsibleState.None;
+    this.contextValue = expired ? 'usageLimit.expired' : 'usageLimit';
+    this.iconPath = usageIcon(row.severity);
+    this.tooltip = expired
+      ? new vscode.MarkdownString('Claude Code authentication has expired.\n\nRun `claude` to refresh your login.')
+      : new vscode.MarkdownString(`**${row.label}:** ${row.percent}%\n\n${formatResetTime(row.resetsAt)}`);
+  }
+}
+
+export class UsageGroupItem extends vscode.TreeItem {
+  constructor(
+    public readonly children: readonly UsageLimitItem[],
+    rows: readonly UsageLimitRow[],
+    options: { readonly stale?: boolean; readonly expired?: boolean } = {},
+  ) {
+    super('Usage', vscode.TreeItemCollapsibleState.Collapsed);
+    const summary = options.expired ? 'Expired' : usageSummary(rows);
+    this.description = `${summary}${options.stale && summary ? ' (stale)' : ''}`;
+    this.contextValue = 'usageGroup';
+    this.iconPath = new vscode.ThemeIcon(
+      options.expired ? 'warning' : 'graph',
+      options.expired ? new vscode.ThemeColor('charts.yellow') : undefined,
+    );
+    this.tooltip = options.expired
+      ? new vscode.MarkdownString('Claude Code authentication has expired.\n\nRun `claude` to refresh your login.')
+      : new vscode.MarkdownString(
+          `${summary || 'Claude Code usage'}${options.stale ? ' (stale)' : ''}`,
+        );
   }
 }
 
@@ -142,15 +225,18 @@ export class WorkspaceGroupItem extends vscode.TreeItem {
 }
 
 /** ソース見出しノード（「Claude Code」/「Codex」）。配下にワークスペース見出しを持つ。 */
+export type SourceGroupChildItem = UsageGroupItem | TodaySummaryItem | WorkspaceGroupItem;
+
 export class SourceGroupItem extends vscode.TreeItem {
   constructor(
     public readonly source: AgentSource,
-    public readonly children: readonly WorkspaceGroupItem[],
+    public readonly children: readonly SourceGroupChildItem[],
     iconBaseUri?: vscode.Uri,
   ) {
     super(SOURCE_LABELS[source], vscode.TreeItemCollapsibleState.Expanded);
     // 子はワークスペースだが、description は従来どおり配下のセッション総数を示す。
-    const sessionCount = children.reduce((n, ws) => n + ws.children.length, 0);
+    const sessionCount = children.reduce((n, child) =>
+      child instanceof WorkspaceGroupItem ? n + child.children.length : n, 0);
     this.description = `${sessionCount}`;
     this.contextValue = `sourceGroup.${source}`;
     this.iconPath = SourceGroupItem._icon(source, iconBaseUri);

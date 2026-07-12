@@ -1,17 +1,20 @@
 import * as cp from 'node:child_process';
 import * as vscode from 'vscode';
-import { ClaudeStatusWatcher, jstDateString } from '@anytime-markdown/vscode-common';
-import type { AgentInfo, CodexSessionScanner } from '@anytime-markdown/vscode-common';
+import { ClaudeStatusWatcher, ClaudeUsageClient, jstDateString } from '@anytime-markdown/vscode-common';
+import type { AgentInfo, ClaudeUsageResult, CodexSessionScanner, UsageLimitRow } from '@anytime-markdown/vscode-common';
 import { buildAgentMapping, groupByWorkspace, parseWorktreeList, resolveSessionWorkspacePath } from '@anytime-markdown/agent-core';
 import type { WorktreeEntry, SessionMapping, AgentSource } from '@anytime-markdown/agent-core';
-import { SessionTreeItem, SourceGroupItem, TodaySummaryItem, WorkspaceGroupItem } from './AgentMappingItem';
+import { SessionTreeItem, SourceGroupItem, TodaySummaryItem, UsageGroupItem, UsageLimitItem, WorkspaceGroupItem } from './AgentMappingItem';
 import { AgentLogger } from '../utils/AgentLogger';
 
-type AgentMappingItem = SessionTreeItem | SourceGroupItem | WorkspaceGroupItem | TodaySummaryItem;
+type AgentMappingItem = SessionTreeItem | SourceGroupItem | WorkspaceGroupItem | TodaySummaryItem | UsageGroupItem | UsageLimitItem;
 
 const WORKTREE_CACHE_TTL_MS = 30_000;
 /** Codex は getChildren 時読みのため、Claude 無活動でも定期 refresh で更新する（scanner TTL 相当）。 */
 const CODEX_REFRESH_INTERVAL_MS = 15_000;
+const DEFAULT_USAGE_REFRESH_SECONDS = 120;
+const MIN_USAGE_REFRESH_SECONDS = 30;
+const SECONDS_TO_MS = 1000;
 
 interface SessionEntry {
   readonly session: SessionMapping;
@@ -32,12 +35,17 @@ export class AgentMappingProvider
   private _worktreeCacheExpiry = 0;
   private _commitCountCache: { count: number; expiry: number } | null = null;
   private _codexTimer: ReturnType<typeof setInterval> | null = null;
+  private _usageTimer: ReturnType<typeof setInterval> | null = null;
+  private _usageRows: readonly UsageLimitRow[] | null = null;
+  private _usageStatus: 'hidden' | 'fresh' | 'stale' | 'expired' = 'hidden';
+  private readonly _configListener: vscode.Disposable;
 
   constructor(
     private readonly watcher: ClaudeStatusWatcher,
     private readonly gitRoot: string,
     private readonly codexScanner?: CodexSessionScanner,
     private readonly iconBaseUri?: vscode.Uri,
+    private readonly usageClient = new ClaudeUsageClient(),
   ) {
     watcher.onMultiStatusChange(() => this.refresh());
     if (this.codexScanner) {
@@ -47,12 +55,59 @@ export class AgentMappingProvider
         }
       }, CODEX_REFRESH_INTERVAL_MS);
     }
+    this._startUsageRefresh();
+    // 設定は起動時にしか読まないため、on にしてもリロードするまで取得が始まらない。変更を購読して張り直す。
+    this._configListener = vscode.workspace.onDidChangeConfiguration(e => {
+      if (
+        e.affectsConfiguration('anytimeAgent.showUsage') ||
+        e.affectsConfiguration('anytimeAgent.usageRefreshSeconds')
+      ) {
+        this._restartUsageRefresh();
+      }
+    });
+  }
+
+  private _restartUsageRefresh(): void {
+    if (this._usageTimer !== null) {
+      clearInterval(this._usageTimer);
+      this._usageTimer = null;
+    }
+    this._usageRows = null;
+    this._usageStatus = 'hidden';
+    this._startUsageRefresh();
+    this.refresh();
   }
 
   private _showCodexSessions(): boolean {
     return vscode.workspace
       .getConfiguration('anytimeAgent')
       .get<boolean>('showCodexSessions', true);
+  }
+
+  private _showUsage(): boolean {
+    return vscode.workspace
+      .getConfiguration('anytimeAgent')
+      .get<boolean>('showUsage', true);
+  }
+
+  private _usageRefreshMs(): number {
+    const seconds = vscode.workspace
+      .getConfiguration('anytimeAgent')
+      .get<number>('usageRefreshSeconds', DEFAULT_USAGE_REFRESH_SECONDS);
+    const clamped = typeof seconds === 'number' && Number.isFinite(seconds)
+      ? Math.max(MIN_USAGE_REFRESH_SECONDS, seconds)
+      : DEFAULT_USAGE_REFRESH_SECONDS;
+    return clamped * SECONDS_TO_MS;
+  }
+
+  private _startUsageRefresh(): void {
+    if (!this._showUsage()) {
+      return;
+    }
+    void this._refreshUsage();
+    this._usageTimer = setInterval(() => {
+      void this._refreshUsage();
+    }, this._usageRefreshMs());
   }
 
   get showStale(): boolean { return this._showStale; }
@@ -72,7 +127,7 @@ export class AgentMappingProvider
 
   getChildren(element?: AgentMappingItem): AgentMappingItem[] {
     // 階層: ソース見出し → ワークスペース見出し → セッション。
-    if (element instanceof SourceGroupItem || element instanceof WorkspaceGroupItem) {
+    if (element instanceof SourceGroupItem || element instanceof WorkspaceGroupItem || element instanceof UsageGroupItem) {
       return [...element.children];
     }
     if (element !== undefined) {
@@ -81,7 +136,7 @@ export class AgentMappingProvider
     return this._buildRoot();
   }
 
-  /** ルート: [Today (Claude), Claude グループ, Codex グループ]。空グループは出さない。 */
+  /** ルート: [Claude グループ, Codex グループ]。Claude グループは Today / Usage の受け皿として空でも出す。 */
   private _buildRoot(): AgentMappingItem[] {
     const worktrees = this._getWorktreesCached();
     const claudeAgents = [...this.watcher.getAllAgents().values()];
@@ -92,9 +147,10 @@ export class AgentMappingProvider
 
     const todayStats = this.watcher.getTodayStats();
     const commitCount = this._getTodayCommitCountCached();
-    const root: AgentMappingItem[] = [new TodaySummaryItem(todayStats, commitCount)];
+    const today = new TodaySummaryItem(todayStats, commitCount);
+    const root: AgentMappingItem[] = [];
 
-    const claudeGroup = this._buildGroup('claude', entries);
+    const claudeGroup = this._buildGroup('claude', entries, [this._buildUsageGroup(), today].filter((item): item is UsageGroupItem | TodaySummaryItem => item !== null));
     if (claudeGroup) root.push(claudeGroup);
     const codexGroup = this._buildGroup('codex', entries);
     if (codexGroup) root.push(codexGroup);
@@ -124,10 +180,14 @@ export class AgentMappingProvider
     return visible.sort((a, b) => a.session.ageSeconds - b.session.ageSeconds);
   }
 
-  /** ソース見出し配下をワークスペース単位でまとめる。セッション 0 件のソースは見出しごと出さない。 */
-  private _buildGroup(source: AgentSource, entries: readonly SessionEntry[]): SourceGroupItem | null {
+  /** ソース見出し配下をワークスペース単位でまとめる。Codex のみセッション 0 件なら見出しごと出さない。 */
+  private _buildGroup(
+    source: AgentSource,
+    entries: readonly SessionEntry[],
+    leadingChildren: readonly (UsageGroupItem | TodaySummaryItem)[] = [],
+  ): SourceGroupItem | null {
     const ofSource = entries.filter(e => e.session.source === source);
-    if (ofSource.length === 0) {
+    if (source === 'codex' && ofSource.length === 0) {
       return null;
     }
     const workspaces = groupByWorkspace(
@@ -142,7 +202,67 @@ export class AgentMappingProvider
         workspacePath: g.workspacePath,
       })),
     ));
-    return new SourceGroupItem(source, workspaces, this.iconBaseUri);
+    return new SourceGroupItem(source, [...leadingChildren, ...workspaces], this.iconBaseUri);
+  }
+
+  private _buildUsageGroup(): UsageGroupItem | null {
+    if (!this._showUsage() || this._usageStatus === 'hidden') {
+      return null;
+    }
+    if (this._usageStatus === 'expired') {
+      return new UsageGroupItem([UsageLimitItem.expired()], [], { expired: true });
+    }
+    if (this._usageRows === null) {
+      return null;
+    }
+    return new UsageGroupItem(
+      this._usageRows.map(row => new UsageLimitItem(row)),
+      this._usageRows,
+      { stale: this._usageStatus === 'stale' },
+    );
+  }
+
+  private async _refreshUsage(): Promise<void> {
+    if (!this._showUsage()) {
+      this._usageRows = null;
+      this._usageStatus = 'hidden';
+      return;
+    }
+    try {
+      this._applyUsageResult(await this.usageClient.fetchUsage());
+    } catch (err) {
+      this._markUsageStale();
+      AgentLogger.error('[AgentMapping] Claude usage refresh failed', err);
+    } finally {
+      this.refresh();
+    }
+  }
+
+  private _applyUsageResult(result: ClaudeUsageResult): void {
+    if (result.kind === 'ok') {
+      this._usageRows = result.rows;
+      this._usageStatus = 'fresh';
+      return;
+    }
+    if (result.kind === 'unauthenticated') {
+      this._usageRows = null;
+      this._usageStatus = 'hidden';
+      return;
+    }
+    if (result.kind === 'expired') {
+      this._usageStatus = 'expired';
+      return;
+    }
+    this._markUsageStale();
+    if (result.kind === 'rateLimited') {
+      AgentLogger.warn('[AgentMapping] Claude usage request was rate limited');
+      return;
+    }
+    AgentLogger.error('[AgentMapping] Claude usage request failed', new Error(result.message));
+  }
+
+  private _markUsageStale(): void {
+    this._usageStatus = this._usageRows === null ? 'hidden' : 'stale';
   }
 
   dispose(): void {
@@ -150,6 +270,11 @@ export class AgentMappingProvider
       clearInterval(this._codexTimer);
       this._codexTimer = null;
     }
+    if (this._usageTimer !== null) {
+      clearInterval(this._usageTimer);
+      this._usageTimer = null;
+    }
+    this._configListener.dispose();
     this._onDidChangeTreeData.dispose();
   }
 
