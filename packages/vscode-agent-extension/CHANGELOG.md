@@ -6,8 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-12
+
 ### Added
 
+- The AGENT mapping view now groups sessions into a workspace hierarchy, so sessions from multiple workspaces no longer appear in a single flat list. Hover tooltips show the same resolved workspace path as the group heading.
 - Bundled the `anytime-ollama-delegation` skill for delegating tasks to a local ollama. It measures the machine's usable VRAM and each model's capabilities, then decides what may be delegated based on the pass/fail of empirical smoke tests. Swapping models automatically re-derives the verdicts, and results are written out as a report.
 
 ### Changed

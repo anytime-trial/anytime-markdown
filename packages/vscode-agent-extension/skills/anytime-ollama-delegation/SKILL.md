@@ -90,7 +90,7 @@ node ollama-delegate.cjs --task embedding --input doc.md
 **スキル実施後は必ずレポートを出力する。**
 
 ```bash
-node ollama-probe.cjs --verify --report /Shared/anytime-markdown-docs/report/YYYYMMDD-ollama-delegation.ja.md
+node ollama-probe.cjs --verify --report /Shared/anytime-markdown-docs/report/<YYYYMMDD>-ollama-delegation.ja.md
 ```
 
 レポートには実効 VRAM・モデルごとの実証テスト結果・委譲可否表・**前回比の昇格/降格デルタ**が入る（`type: "report"` のフロントマター付き。出力先の規約は AGENTS.md）。
