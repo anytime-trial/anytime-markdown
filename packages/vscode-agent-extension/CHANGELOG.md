@@ -6,9 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- Bundled the `anytime-ollama-delegation` skill for delegating tasks to a local ollama. It measures the machine's usable VRAM and each model's capabilities, then decides what may be delegated based on the pass/fail of empirical smoke tests. Swapping models automatically re-derives the verdicts, and results are written out as a report.
+
 ### Changed
 
 - Updated the bundled `anytime-cross-review` skill to reference the renamed `anytime-trail-review` finding format.
+- Bundled-skill `.cjs` tests are now covered by jest (previously `roots` only included `src`, so `codex-review.test.cjs` never ran).
 
 ## [1.1.1] - 2026-07-11
 

@@ -6,9 +6,14 @@
 
 ## [Unreleased]
 
+### 追加
+
+- ローカル ollama へのタスク委譲スキル `anytime-ollama-delegation` を同梱しました。PC の実効 VRAM とモデルの capability を実測し、実証テスト（スモークベンチ）の合否で委譲可否を判定します。モデルを入れ替えると判定が自動的に更新され、結果はレポートとして出力されます。
+
 ### 変更
 
 - 同梱の `anytime-cross-review` スキルの参照を、改名後の指摘書式 `anytime-trail-review` へ更新しました。
+- 同梱スキルの `.cjs` テストを jest のゲート対象に含めました（従来 `roots` が `src` のみだったため、`codex-review.test.cjs` は実行されていませんでした）。
 
 ## [1.1.1] - 2026-07-11
 
