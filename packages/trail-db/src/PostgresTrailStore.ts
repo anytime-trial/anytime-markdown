@@ -1,11 +1,15 @@
 import { Pool } from 'pg';
 import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseRow } from './TrailDatabase';
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
+import { type DbLogger, noopDbLogger } from './DbLogger';
 
 export class PostgresTrailStore implements IRemoteTrailStore {
   private pool: Pool | null = null;
+  private readonly logger: DbLogger;
 
-  constructor(private readonly connectionString: string) {}
+  constructor(private readonly connectionString: string, logger?: DbLogger) {
+    this.logger = logger ?? noopDbLogger;
+  }
 
   async connect(): Promise<void> {
     this.pool = new Pool({ connectionString: this.connectionString });
@@ -108,7 +112,10 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     }
   }
 
-  /** リモートに入った uuid を返す（IRemoteTrailStore の参照整合ゲート契約）。 */
+  /**
+   * リモートに入った uuid を返す（IRemoteTrailStore の参照整合ゲート契約）。
+   * 行単位でエラーを隔離し、1 行の失敗で残り全行を捨てない。失敗行はログに残す。
+   */
   async upsertMessages(rows: readonly MessageRow[]): Promise<readonly string[]> {
     if (rows.length === 0) return [];
     const pool = this.ensurePool();
@@ -117,7 +124,8 @@ export class PostgresTrailStore implements IRemoteTrailStore {
     for (let i = 0; i < rows.length; i += CHUNK) {
       const chunk = rows.slice(i, i + CHUNK);
       for (const r of chunk) {
-        await pool.query(
+        try {
+          await pool.query(
           `INSERT INTO trail_messages (
             uuid, session_id, parent_uuid, type, subtype,
             text_content, user_content, tool_calls, tool_use_result,
@@ -175,7 +183,13 @@ export class PostgresTrailStore implements IRemoteTrailStore {
             r.system_command ?? null, r.duration_ms ?? null, r.tool_result_size ?? null,
           ],
         );
-        persisted.push(r.uuid);
+          persisted.push(r.uuid);
+        } catch (e) {
+          this.logger.error(
+            `PostgresTrailStore.upsertMessages failed (uuid=${r.uuid}, session_id=${r.session_id})`,
+            e,
+          );
+        }
       }
     }
     return persisted;

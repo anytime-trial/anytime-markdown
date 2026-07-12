@@ -82,8 +82,8 @@ export class FakeRemoteStore implements IRemoteTrailStore {
   async upsertDailyCounts(): Promise<void> {}
   async unsafeClearCurrentGraphs(): Promise<void> {}
   async unsafeClearReleaseGraphs(): Promise<void> {}
-  async upsertCurrentGraph(): Promise<void> {}
-  async upsertReleaseGraph(): Promise<void> {}
+  async upsertCurrentGraph(_repoId: number, _graphJson: string, _commitId: string): Promise<void> {}
+  async upsertReleaseGraph(_releaseId: number, _graphJson: string): Promise<void> {}
   async unsafeClearMessageToolCalls(): Promise<void> { this.toolCallRows = []; }
 
   async upsertMessageToolCalls(rows: readonly ToolCallRow[]): Promise<void> {

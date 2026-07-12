@@ -87,6 +87,33 @@ describe('SyncService 参照整合ゲート', () => {
     localDb.close();
   });
 
+  it('TrailGraph の 1 件が失敗しても残りの repo を送り切る（ループのエラー隔離）', async () => {
+    const localDb = await createTestTrailDatabase();
+    const repoA = (localDb as unknown as { repoIdForName(n: string): number }).repoIdForName('repo-a');
+    const repoB = (localDb as unknown as { repoIdForName(n: string): number }).repoIdForName('repo-b');
+    const graph = {
+      elements: [], relationships: [], groups: [],
+      metadata: { projectRoot: '/repo', analyzedAt: '2026-07-12T00:00:00.000Z' },
+    } as never;
+    localDb.saveCurrentGraph(graph, 'tsconfig.json', 'commit-a', 'repo-a');
+    localDb.saveCurrentGraph(graph, 'tsconfig.json', 'commit-b', 'repo-b');
+
+    const store = new FakeRemoteStore();
+    const synced: number[] = [];
+    store.upsertCurrentGraph = async (repoId: number) => {
+      // repo-a だけがゲートウェイ 5xx 相当で恒久的に失敗する状況を再現する。
+      if (repoId === repoA) throw new Error('gateway error');
+      synced.push(repoId);
+    };
+
+    const result = await new SyncService(localDb, store).sync();
+
+    // 1 件目の失敗でループを中断せず、2 件目を送り切る。失敗は errors に計上される。
+    expect(synced).toEqual([repoB]);
+    expect(result.errors).toBeGreaterThan(0);
+    localDb.close();
+  });
+
   it('全て成功したときは costs / tool_calls を取りこぼさない', async () => {
     const localDb = await createTestTrailDatabase();
     const inner = (localDb as unknown as { ensureDb(): InnerDb }).ensureDb();

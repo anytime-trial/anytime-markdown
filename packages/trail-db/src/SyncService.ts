@@ -93,19 +93,19 @@ export class SyncService {
     errors += await this.syncStep('Syncing releases...', onProgress, async () => {
       const releases = this.trailDb.getReleases();
       if (releases.length > 0) await this.store.upsertReleases(releases);
-      for (const release of releases) {
+      await this.forEachIsolated('release_files', releases, (r) => `release ${r.tag}`, async (release) => {
         const files = this.trailDb.getReleaseFiles(release.tag);
         if (files.length > 0) await this.store.upsertReleaseFiles(files);
-      }
+      });
     }, 'Failed to sync releases');
 
     errors += await this.syncStep(null, onProgress, async () => {
       const currents = this.trailDb.listCurrentGraphs();
       onProgress?.({ message: `Syncing ${currents.length} current TrailGraphs (wash-away)...` });
       await this.store.unsafeClearCurrentGraphs();
-      for (const row of currents) {
+      await this.forEachIsolated('current TrailGraphs', currents, (r) => `repo ${r.repoId}`, async (row) => {
         await this.store.upsertCurrentGraph(row.repoId, JSON.stringify(row.graph), row.commitId);
-      }
+      });
     }, 'Failed to sync current TrailGraphs');
 
     errors += await this.syncStep(null, onProgress, async () => {
@@ -114,21 +114,24 @@ export class SyncService {
       const releases = this.trailDb.getReleases();
       onProgress?.({ message: `Syncing ${releases.length} release TrailGraphs (wash-away)...` });
       await this.store.unsafeClearReleaseGraphs();
-      for (const rel of releases) {
-        if (rel.release_id == null) continue;
+      await this.forEachIsolated('release TrailGraphs', releases, (r) => `release ${r.tag}`, async (rel) => {
+        if (rel.release_id == null) return;
         const graph = this.trailDb.getTrailGraph(rel.tag);
-        if (!graph) continue;
+        if (!graph) return;
         await this.store.upsertReleaseGraph(rel.release_id, JSON.stringify(graph));
-      }
+      });
     }, 'Failed to sync release TrailGraphs');
 
     errors += await this.syncStep(null, onProgress, async () => {
       // manual C4 は store 側 repo_id・local 側 repo_name で扱うため両方を渡す。
       const repos = new Map<number, string>();
       for (const r of this.trailDb.listCurrentGraphs()) repos.set(r.repoId, r.repoName);
-      for (const [repoId, repoName] of repos) {
-        await this.syncManualElements(repoId, repoName);
-      }
+      await this.forEachIsolated(
+        'manual C4 elements',
+        [...repos],
+        ([repoId]) => `repo ${repoId}`,
+        ([repoId, repoName]) => this.syncManualElements(repoId, repoName),
+      );
     }, 'Failed to sync manual C4 elements');
 
     errors += await this.syncStep('Syncing current coverage...', onProgress, async () => {
@@ -206,6 +209,33 @@ export class SyncService {
     } catch (e) {
       this.logger.error(errorLabel, e);
       return 1;
+    }
+  }
+
+  /**
+   * 逐次同期（1 件 = 1 リクエスト）をアイテム単位で隔離する。
+   *
+   * 旧実装は for ループ内の throw がステップ全体を中断していたため、release graph 1 件が
+   * ゲートウェイの 5xx で落ちただけで残り全件が未同期のまま残った（87 件中 9 件）。
+   * ここでは全件を試行し、失敗があればまとめて throw して syncStep 側の errors に計上する。
+   */
+  private async forEachIsolated<T>(
+    label: string,
+    items: readonly T[],
+    describe: (item: T) => string,
+    fn: (item: T) => Promise<void>,
+  ): Promise<void> {
+    let failed = 0;
+    for (const item of items) {
+      try {
+        await fn(item);
+      } catch (e) {
+        this.logger.error(`${label}: failed for ${describe(item)}`, e);
+        failed++;
+      }
+    }
+    if (failed > 0) {
+      throw new Error(`${label} failed for ${failed}/${items.length} items (see log for details)`);
     }
   }
 
