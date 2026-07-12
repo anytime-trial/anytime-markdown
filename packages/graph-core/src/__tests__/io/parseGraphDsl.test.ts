@@ -163,6 +163,41 @@ describe('parseGraphDsl', () => {
         parseGraphDsl(['type: structure-map', 'whole: W', '- A: x', '- A -> Z'].join('\n')),
       ).toThrow(/存在しません/);
     });
+    it.each([
+      ['structure-map の関係行に終点が無い', ['type: structure-map', 'whole: W', '- A: x', '- A ->'].join('\n')],
+      ['structure-map の関係行に始点が無い', ['type: structure-map', 'whole: W', '- A: x', '- -> A'].join('\n')],
+    ])('%s と解釈できないと明示エラー', (_name, dsl) => {
+      expect(() => parseGraphDsl(dsl)).toThrow(/関係行/);
+    });
+    it.each([
+      ['pyramid', 'type: pyramid\ntitle: t'],
+      ['mindmap', 'type: mindmap\nroot: r'],
+      ['logic-tree', 'type: logic-tree\nroot: r'],
+      ['why-chain', 'type: why-chain\nproblem: p'],
+      ['morph-box', 'type: morph-box\ntitle: t'],
+      ['affinity', 'type: affinity\ntitle: t'],
+      ['causal-loop', 'type: causal-loop\ntitle: t'],
+    ])('%s は要素が空だとエラー', (_type, dsl) => {
+      expect(() => parseGraphDsl(dsl)).toThrow(GraphDslError);
+    });
+  });
+
+  it('半角コロンと全角コロンが混在するヘッダ行は先に現れた方で区切る', () => {
+    const spec = parseGraphDsl('type: pyramid\ntitle: 理念：ビジョン\n- 理念');
+    expect(spec.type).toBe('pyramid');
+    if (spec.type === 'pyramid') expect(spec.title).toBe('理念：ビジョン');
+  });
+
+  it('morph-box のパラメータと選択肢を解析する', () => {
+    const spec = parseGraphDsl(['type: morph-box', 'title: 新製品', '- 素材: 樹脂, 金属', '- 形状: 円筒'].join('\n'));
+    expect(spec.type).toBe('morph-box');
+    if (spec.type === 'morph-box') {
+      expect(spec.title).toBe('新製品');
+      expect(spec.parameters).toEqual([
+        { label: '素材', options: ['樹脂', '金属'] },
+        { label: '形状', options: ['円筒'] },
+      ]);
+    }
   });
 
   it('図種名のスペース表記も解決する（causal loop / mind map）', () => {
