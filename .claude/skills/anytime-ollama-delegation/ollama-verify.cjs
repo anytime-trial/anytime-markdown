@@ -101,7 +101,7 @@ function extractJson(text) {
   return JSON.parse(candidate);
 }
 
-async function chat(base, model, messages, options = {}, tools) {
+async function chat({ base, model, messages, options = {}, tools }) {
   const body = {
     model,
     messages,
@@ -124,14 +124,18 @@ async function testJsonStrict(base, model) {
   const errors = [];
 
   for (let i = 0; i < attempts; i++) {
-    const resp = await chat(base, model, [
-      {
-        role: 'user',
-        content:
-          'タイトル「型ガード入門」、著者「山田」、タグ2つ（typescript, 型）の書誌情報を ' +
-          'JSON だけで返せ。キーは title(string), author(string), tags(string[])。説明文は禁止。',
-      },
-    ]);
+    const resp = await chat({
+      base,
+      model,
+      messages: [
+        {
+          role: 'user',
+          content:
+            'タイトル「型ガード入門」、著者「山田」、タグ2つ（typescript, 型）の書誌情報を ' +
+            'JSON だけで返せ。キーは title(string), author(string), tags(string[])。説明文は禁止。',
+        },
+      ],
+    });
     try {
       const parsed = extractJson(resp.message?.content ?? '');
       if (
@@ -158,12 +162,16 @@ async function testJsonStrict(base, model) {
 async function testClassify(base, model) {
   let correct = 0;
   for (const c of CLASSIFY_CASES) {
-    const resp = await chat(base, model, [
-      {
-        role: 'user',
-        content: `次の issue を bug / feature / docs のいずれか 1 語だけで分類せよ。語のみ返せ。\n\n${c.text}`,
-      },
-    ]);
+    const resp = await chat({
+      base,
+      model,
+      messages: [
+        {
+          role: 'user',
+          content: `次の issue を bug / feature / docs のいずれか 1 語だけで分類せよ。語のみ返せ。\n\n${c.text}`,
+        },
+      ],
+    });
     const answer = stripThinking(resp.message?.content ?? '')
       .toLowerCase()
       .replace(/[^a-z]/g, '');
@@ -179,9 +187,13 @@ async function testSummarizeJa(base, model) {
   let lastDetail = '';
 
   for (let i = 0; i < attempts; i++) {
-    const resp = await chat(base, model, [
-      { role: 'user', content: `次の文章を50字以内の日本語1文で要約せよ。要約文のみ返せ。\n\n${JA_ARTICLE}` },
-    ]);
+    const resp = await chat({
+      base,
+      model,
+      messages: [
+        { role: 'user', content: `次の文章を50字以内の日本語1文で要約せよ。要約文のみ返せ。\n\n${JA_ARTICLE}` },
+      ],
+    });
     const summary = stripThinking(resp.message?.content ?? '').replace(/\s/g, '');
     const withinLimit = summary.length > 0 && summary.length <= 60; // 50字指示に 20% の許容
     const keepsTerms = KEY_TERMS.some((t) => summary.includes(t));
@@ -206,12 +218,14 @@ async function testLongCtx(base, model) {
   const attempts = 3;
   let ok = 0;
   for (let i = 0; i < attempts; i++) {
-    const resp = await chat(
+    const resp = await chat({
       base,
       model,
-      [{ role: 'user', content: `${haystack}\n\n上の文章に書かれている合言葉をそのまま返せ。合言葉のみ。` }],
-      { num_ctx: 16384 },
-    );
+      messages: [
+        { role: 'user', content: `${haystack}\n\n上の文章に書かれている合言葉をそのまま返せ。合言葉のみ。` },
+      ],
+      options: { num_ctx: 16384 },
+    });
     if (stripThinking(resp.message?.content ?? '').includes(needle)) ok++;
   }
 
@@ -223,13 +237,12 @@ async function testToolcallSingle(base, model) {
   const attempts = 3;
   let ok = 0;
   for (let i = 0; i < attempts; i++) {
-    const resp = await chat(
+    const resp = await chat({
       base,
       model,
-      [{ role: 'user', content: '東京の天気を調べて。' }],
-      {},
-      [WEATHER_TOOL],
-    );
+      messages: [{ role: 'user', content: '東京の天気を調べて。' }],
+      tools: [WEATHER_TOOL],
+    });
     const call = resp.message?.tool_calls?.[0];
     const city = String(call?.function?.arguments?.city ?? '').toLowerCase();
     if (call?.function?.name === 'get_weather' && city.includes('tokyo')) ok++;
@@ -251,14 +264,14 @@ async function testToolcallMulti(base, model) {
     const messages = [
       { role: 'user', content: '東京の気温を調べて、それを華氏に変換して。' },
     ];
-    const first = await chat(base, model, messages, {}, [WEATHER_TOOL, CONVERT_TOOL]);
+    const first = await chat({ base, model, messages, tools: [WEATHER_TOOL, CONVERT_TOOL] });
     const call1 = first.message?.tool_calls?.[0];
     if (call1?.function?.name !== 'get_weather') continue;
 
     messages.push(first.message);
     messages.push({ role: 'tool', content: JSON.stringify({ city: 'Tokyo', celsius: 25 }) });
 
-    const second = await chat(base, model, messages, {}, [WEATHER_TOOL, CONVERT_TOOL]);
+    const second = await chat({ base, model, messages, tools: [WEATHER_TOOL, CONVERT_TOOL] });
     const call2 = second.message?.tool_calls?.[0];
     if (call2?.function?.name === 'celsius_to_fahrenheit' && Number(call2.function.arguments?.celsius) === 25) {
       ok++;
@@ -322,22 +335,22 @@ async function runVerifyTests(base, model) {
 
   if (caps.includes('completion')) {
     for (const [id, fn] of chatTests) {
-      results[id] = await runOne(id, fn, base, model.name);
+      results[id] = await runOne({ id, fn, base, modelName: model.name });
     }
   }
   if (caps.includes('tools')) {
     for (const [id, fn] of toolTests) {
-      results[id] = await runOne(id, fn, base, model.name);
+      results[id] = await runOne({ id, fn, base, modelName: model.name });
     }
   }
   if (caps.includes('embedding')) {
-    results.embed = await runOne('embed', testEmbed, base, model.name);
+    results.embed = await runOne({ id: 'embed', fn: testEmbed, base, modelName: model.name });
   }
 
   return results;
 }
 
-async function runOne(id, fn, base, modelName) {
+async function runOne({ id, fn, base, modelName }) {
   const t0 = Date.now();
   try {
     const result = await fn(base, modelName);

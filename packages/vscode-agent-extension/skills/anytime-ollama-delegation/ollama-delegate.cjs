@@ -24,8 +24,11 @@ const { selectModelForTask } = require('./ollama-probe.cjs');
 
 // ollama 既定の num_ctx。指定しないとこの値でロードされ、超過分は黙って切り詰められる。
 const OLLAMA_DEFAULT_CTX = 4096;
-// 1 トークンあたりの文字数（日本語混在の保守的な見積もり）。入力長の事前チェックに使う。
-const CHARS_PER_TOKEN = 2.2;
+// BPE では ASCII 約 4 文字で 1 トークン、日本語は 1 文字で 1 トークン強になる。
+// 見積もりを誤る方向は「少なく数える」＝切り詰めを見逃す側なので、非 ASCII は
+// 1 文字 1 トークンとして多めに数える（安全側に倒す）。
+const ASCII_CHARS_PER_TOKEN = 4;
+const CTX_RESERVE_TOKENS = 512; // 出力と system 分の余白
 const REQUEST_TIMEOUT_MS = 300000;
 
 function parseArgs(argv) {
@@ -72,7 +75,7 @@ function loadProfile(profilePath) {
  * タスクとモデルの組が委譲可能かを、プロファイルの判定に照らして検査する。
  * ここを通らない限り ollama へは 1 バイトも送らない。
  */
-function authorize(profile, taskId, explicitModel, allowConditional) {
+function authorize({ profile, taskId, explicitModel, allowConditional }) {
   const model = explicitModel
     ? profile.models.find((m) => m.name === explicitModel)
     : selectModelForTask(taskId, profile);
@@ -101,14 +104,27 @@ function authorize(profile, taskId, explicitModel, allowConditional) {
 }
 
 /**
+ * トークン数を安全側に見積もる。
+ *
+ * 正確なトークン化には実トークナイザが要るが、ollama はそれを公開していない。
+ * 誤る方向が問題で、少なく数えると切り詰めを見逃す。よって非 ASCII（日本語など）は
+ * 1 文字 1 トークンとして多めに数える。
+ */
+function estimateTokens(text) {
+  const asciiCount = (text.match(/[\x00-\x7F]/g) ?? []).length;
+  const nonAsciiCount = text.length - asciiCount;
+  return Math.ceil(asciiCount / ASCII_CHARS_PER_TOKEN + nonAsciiCount);
+}
+
+/**
  * 入力がコンテキストに収まるかを検査する。
  *
  * ollama は超過分を例外にせず黙って切り捨てる。委譲した長文が実は半分しか読まれて
  * いなかった、という事故はここでしか止められない。
  */
 function assertFitsContext(text, numCtx) {
-  const estimatedTokens = Math.ceil(text.length / CHARS_PER_TOKEN);
-  const budget = numCtx - 512; // 出力と system 分を残す
+  const estimatedTokens = estimateTokens(text);
+  const budget = numCtx - CTX_RESERVE_TOKENS;
   if (estimatedTokens > budget) {
     throw new Error(
       `入力が num_ctx に収まりません（推定 ${estimatedTokens} tok > 上限 ${budget} tok / num_ctx=${numCtx}）。\n` +
@@ -128,36 +144,47 @@ function extractJson(text) {
   return JSON.parse(fenced ? fenced[1] : cleaned);
 }
 
-async function callChat(endpoint, model, prompt, numCtx) {
+/** タイムアウト付きで ollama を叩く。応答が返らないまま無期限に待たない。 */
+async function postWithTimeout(url, body) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const resp = await fetch(`${endpoint}/api/chat`, {
+    const resp = await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        stream: false,
-        options: { temperature: 0, num_ctx: numCtx },
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    return stripThinking(data.message?.content ?? '');
+    return await resp.json();
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function callEmbed(endpoint, model, input) {
-  const resp = await fetch(`${endpoint}/api/embed`, {
-    method: 'POST',
-    body: JSON.stringify({ model, input }),
+async function callChat({ endpoint, model, prompt, numCtx }) {
+  const data = await postWithTimeout(`${endpoint}/api/chat`, {
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    stream: false,
+    options: { temperature: 0, num_ctx: numCtx },
   });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const data = await resp.json();
+  return stripThinking(data.message?.content ?? '');
+}
+
+async function callEmbed({ endpoint, model, input, numCtx }) {
+  // num_ctx を渡さないと既定 4096 でロードされ、長い文書は黙って切り詰められた
+  // まま埋め込まれる（切り詰めは例外にならないので気づけない）。
+  const data = await postWithTimeout(`${endpoint}/api/embed`, {
+    model,
+    input,
+    options: { num_ctx: numCtx },
+  });
   return data.embeddings;
+}
+
+/** num_ctx の決定順: 明示指定 > プロファイルの実測上限 > ollama 既定。 */
+function resolveNumCtx(args, model) {
+  return Number(args['num-ctx'] ?? model.maxUsableCtx ?? OLLAMA_DEFAULT_CTX);
 }
 
 const PROMPTS = {
@@ -188,14 +215,26 @@ async function main() {
 
   const profilePath = args.profile ?? path.join(process.cwd(), '.anytime', 'ollama-profile.json');
   const profile = loadProfile(profilePath);
-  const { model, entry } = authorize(profile, taskId, args.model, args.flags.has('allow-conditional'));
+  const { model, entry } = authorize({
+    profile,
+    taskId,
+    explicitModel: args.model,
+    allowConditional: args.flags.has('allow-conditional'),
+  });
 
   const input = readInput(args.input);
   const endpoint = profile.endpoint;
+  const numCtx = resolveNumCtx(args, model);
 
   if (taskId === 'embedding') {
-    const embeddings = await callEmbed(endpoint, model.name, input);
-    process.stdout.write(`${JSON.stringify({ model: model.name, dimensions: embeddings[0]?.length, embeddings })}\n`);
+    // チャット系と同じく、送信前に入力長を検査する。ここを飛ばすと埋め込みだけが
+    // ガードなしになり、切り詰められた文書の埋め込みが静かに下流へ流れる。
+    assertFitsContext(input, numCtx);
+    const embeddings = await callEmbed({ endpoint, model: model.name, input, numCtx });
+    process.stdout.write(
+      `${JSON.stringify({ model: model.name, dimensions: embeddings[0]?.length, embeddings })}\n`,
+    );
+    console.error(`[ollama-delegate] ${model.name} / num_ctx=${numCtx} / embedding`);
     return;
   }
 
@@ -204,9 +243,6 @@ async function main() {
     throw new Error(`タスク '${taskId}' に対応する委譲プロンプトが未定義です（対応: ${Object.keys(PROMPTS).join(', ')}, embedding）`);
   }
 
-  // num_ctx の決定順: 明示指定 > プロファイルの実測上限 > ollama 既定。
-  // 実測上限を使うのは、100% GPU オフロードを維持できる範囲に収めるため。
-  const numCtx = Number(args['num-ctx'] ?? model.maxUsableCtx ?? OLLAMA_DEFAULT_CTX);
   const prompt = buildPrompt(input, args);
   assertFitsContext(prompt, numCtx);
 
@@ -216,7 +252,7 @@ async function main() {
   }
 
   const t0 = Date.now();
-  const output = await callChat(endpoint, model.name, prompt, numCtx);
+  const output = await callChat({ endpoint, model: model.name, prompt, numCtx });
   const secs = ((Date.now() - t0) / 1000).toFixed(1);
 
   if (taskId === 'structured-extraction') {
@@ -237,4 +273,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { authorize, assertFitsContext, loadProfile, PROMPTS };
+module.exports = { authorize, assertFitsContext, loadProfile, resolveNumCtx, PROMPTS };
