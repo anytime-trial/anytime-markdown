@@ -374,7 +374,7 @@ describe('inferSeverity (keyword expansion)', () => {
 });
 
 describe('parseSeverityMarker', () => {
-  // anytime-review スキルが定める `- 重大度: warn` メタ行を明示的に解析する。
+  // anytime-trail-review スキルが定める `- 重大度: warn` メタ行を明示的に解析する。
   // 旧実装は本文キーワード/見出し推論のみで、明示マーカーを無視し既定 info に落としていた。
   test('bullet + bold marker `- **重大度**: warn` → warn', () => {
     expect(parseSeverityMarker('- **重大度**: warn\n- **カテゴリ**: logic')).toBe('warn');

@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 変更
+
+- 同梱の `anytime-cross-review` スキルの参照を、改名後の指摘書式 `anytime-trail-review` へ更新しました。
+
 ## [1.1.1] - 2026-07-11
 
 ### 修正
