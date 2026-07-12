@@ -121,7 +121,8 @@ export function parse(transcriptPath: string): TranscriptEvent[] {
   try {
     return parseLines(readFileSync(transcriptPath, 'utf-8').split('\n'));
   } catch (err) {
-    console.error(`[handoff] failed to read transcript: ${transcriptPath}`, err);
+    const safePath = transcriptPath.replaceAll(/[\r\n]/g, '↵');
+    console.error('[handoff] failed to read transcript: %s', safePath, err);
     return [];
   }
 }

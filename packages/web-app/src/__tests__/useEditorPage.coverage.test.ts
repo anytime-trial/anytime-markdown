@@ -259,6 +259,7 @@ describe("useEditorPage - additional coverage", () => {
   });
 
   it("handleGitHubOpenFile same file twice does nothing", async () => {
+    defaultOptions.fetchFileFn.mockClear();
     const { result } = renderHook(() => useEditorPage(defaultOptions));
 
     await act(async () => {
@@ -268,5 +269,8 @@ describe("useEditorPage - additional coverage", () => {
     await act(async () => {
       await result.current.handleGitHubOpenFile("user/repo", "test.md", "main");
     });
+
+    expect(defaultOptions.fetchFileFn).toHaveBeenCalledTimes(1);
+    expect(result.current.externalFileName).toBe("test.md");
   });
 });

@@ -142,6 +142,30 @@ function normalizeType(rawType: string): ThinkingDiagramType {
   return direct;
 }
 
+const POLARITY_MAP: Record<string, '+' | '-'> = { '+': '+', '＋': '+', '-': '-', '－': '-' };
+
+/**
+ * causal-loop のリンク行 `<from> -> <to>[:] <極性>` を解析する。解釈できなければ undefined。
+ *
+ * 正規表現 1 本（`^(.+?)->(.+?)(?::|：)?\s*([+\-＋－])\s*$`）で書くと、`->` を多数含み極性を欠く行に
+ * 対して遅延量指定子どうしが二重にバックトラックし O(n^2) になる（CodeQL js/polynomial-redos #941）。
+ * 分割位置と極性は端から決まるため、文字列操作で線形に解く。
+ */
+export function parseCausalLink(line: string): { from: string; to: string; polarity: '+' | '-' } | undefined {
+  const arrow = line.indexOf('->');
+  if (arrow < 0) return undefined;
+
+  const from = line.slice(0, arrow).trim();
+  const tail = line.slice(arrow + 2).trimEnd();
+  const polarity = POLARITY_MAP[tail.at(-1) ?? ''];
+  if (!from || !polarity) return undefined;
+
+  const to = tail.slice(0, -1).trimEnd().replace(/[:：]$/, '').trim();
+  if (!to) return undefined;
+
+  return { from, to, polarity };
+}
+
 function requireValue(value: string | undefined, field: string, type: string): string {
   if (value === undefined || value === '') {
     throw new GraphDslError(`${type} には "${field}:" が必要です`);
@@ -177,20 +201,17 @@ export function parseGraphDsl(text: string): ThinkingDiagramSpec {
     case 'causal-loop': {
       const title = headerValue(lines, 'title');
       const links = [];
-      const polarityMap: Record<string, '+' | '-'> = { '+': '+', '＋': '+', '-': '-', '－': '-' };
       for (const raw of lines) {
         const t = raw.trim();
         if (!t.includes('->')) continue;
-        const m = /^(.+?)->(.+?)(?::|：)?\s*([+\-＋－])\s*$/.exec(t);
-        if (!m) {
+        const link = parseCausalLink(t);
+        if (!link) {
           throw new GraphDslError(`リンク行を解釈できません: "${t}"（例: "在庫 -> 出荷: +"）`);
         }
-        const from = m[1].trim();
-        const to = m[2].trim();
-        if (from === to) {
+        if (link.from === link.to) {
           throw new GraphDslError(`自己参照リンクは未対応です: "${t}"（異なる変数を指定してください）`);
         }
-        links.push({ from, to, polarity: polarityMap[m[3]] });
+        links.push(link);
       }
       if (links.length === 0) {
         throw new GraphDslError('causal-loop には "A -> B: +" 形式のリンクを1つ以上記述してください');

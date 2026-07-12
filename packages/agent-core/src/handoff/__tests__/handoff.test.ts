@@ -91,6 +91,17 @@ describe('redact', () => {
   it('空文字はそのまま返す', () => {
     expect(redact('')).toBe('');
   });
+
+  it('秘密名を含まない env 行は伏字化しない', () => {
+    expect(redact('export NODE_ENV=production')).toBe('export NODE_ENV=production');
+  });
+
+  it('"=" を持たない長い大文字行で二次爆発しない（ReDoS 回帰）', () => {
+    const evil = 'TOKEN'.repeat(16_000); // 80,000 文字・代入なし
+    const started = performance.now();
+    expect(redact(evil)).toBe(evil);
+    expect(performance.now() - started).toBeLessThan(100);
+  });
 });
 
 describe('buildHandoffState', () => {

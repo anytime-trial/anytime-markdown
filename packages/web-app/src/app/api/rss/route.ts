@@ -1,7 +1,7 @@
 import { parseRssLatest } from "@anytime-markdown/markdown-viewer/src/utils/rssParser";
 import { NextResponse } from "next/server";
 
-import { assertSafeUrl } from "../../../lib/ssrfGuard";
+import { assertSafeUrl, safeFetch } from "../../../lib/ssrfGuard";
 
 const TIMEOUT_MS = 10000;
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -19,10 +19,9 @@ export async function GET(req: Request): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-        const res = await fetch(url, {
+        const res = await safeFetch(url, {
             signal: controller.signal,
             headers: { "User-Agent": "anytime-markdown-rss/1.0" },
-            redirect: "follow",
         });
         if (!res.ok) return new NextResponse(`upstream-${res.status}`, { status: 502 });
 
