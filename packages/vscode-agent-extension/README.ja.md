@@ -74,11 +74,10 @@ Codex には agent-status のライフサイクルフックが無いため、Cod
 | `anytime-note` | AI が AI ノートのページ（画像・表・メモ）を読み取って作業する |
 | `anytime-agent-rotation` | 長い多段作業をサブエージェントに任せるときのコストを抑える |
 | `anytime-cross-review` | Claude と Codex が同一 diff を独立レビューし、指摘を相互検証する |
-| `anytime-ollama-delegation` | ローカル ollama へ委譲できるタスクかを実測ベンチで判定する |
+| `anytime-delegation` | Codex・ローカル ollama への委譲ルール（委譲先の選択・委譲契約 6 点・中断の出口） |
 | `anytime-dev-cycle` | 提案 → 仕様 → 計画 → 実装 → レビュー → マージを一気通貫で回す |
 | `anytime-impl-test-design` | 実装後にどのテストを書くかを決める（配線・mount・i18n の検知ギャップ対策） |
 | `anytime-proposal` | 提案書（RFC / ADR / 軽量提案）を思考法ガイド付きで生成する |
-| `codex-delegation` | Codex（`codex exec`）へ作業を委任する際の委任契約ルール |
 
 
 ## 7. 設定

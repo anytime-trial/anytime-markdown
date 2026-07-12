@@ -15,9 +15,9 @@ export interface BundledSkill {
 export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   { name: 'anytime-agent-rotation', oldNames: ['subagent-rotation'] },
   { name: 'anytime-cross-review' },
+  // Codex 委任と ollama 委譲は同型の委譲契約を二重定義していたため統合した。
+  { name: 'anytime-delegation', oldNames: ['codex-delegation', 'anytime-ollama-delegation'] },
   { name: 'anytime-dev-cycle' },
   { name: 'anytime-impl-test-design' },
-  { name: 'anytime-ollama-delegation' },
   { name: 'anytime-proposal' },
-  { name: 'codex-delegation' },
 ];
