@@ -1,12 +1,12 @@
 ---
 name: anytime-dev-health
 effort: medium
-description: Trail の 3DB(memory-core/doc-core/trail)を横断分析し、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案を生成する。「/anytime-dev-health」「定期分析」「開発健全性」「dev health」「健全性レポート」の指示、または週次スケジュールからの起動で使用する。
+description: Trail の 3DB(memory-core/doc-core/trail)を横断分析し、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案を生成する。「/anytime-dev-health」「定期分析」「開発健全性」「dev health」「健全性レポート」の指示、または週次スケジュールからの起動で使用する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「Claude Code 設定の診断」の指示では references/setup-audit.md のセットアップ監査モードを使用する。
 ---
 
 # anytime-dev-health — 開発健全性の定期分析
 
-更新日: 2026-07-11
+更新日: 2026-07-13
 
 Trail が蓄積する 3 つのローカル DB を横断分析し、**前回からの変化（デルタ）に基づく**健全性レポートを出力する。変化が閾値を超えたシグナルだけ改善提案に昇格させる（毎回同じ指摘を繰り返さないのが本スキルの肝）。
 
@@ -98,6 +98,14 @@ node .claude/skills/anytime-dev-health/grounding.cjs > /Shared/anytime-markdown-
 - grounding が `errors` を返したら silent に 0 を採用しない（測定不能として明示）。
 - 健全性レポートは毎回出すが、**proposal は閾値超のみ**（ノイズ抑制）。
 - DB の値は ingest ラグ（数十分〜Reload Window）を含む。直近の修正反映は遅延し得る旨をレポートに注記。
+
+## セットアップ監査モード（環境・設定の健全性）
+
+「セットアップ監査」「環境監査」「環境診断」「setup audit」の指示では、Trail DB のデルタ分析ではなく **PC 環境と Claude Code 設定の read-only 診断**を行う。手順・診断対象チェックリスト・並列サブエージェント構造・裏取り原則・出力形式は `references/setup-audit.md` に従う。要点:
+
+- 診断フェーズは read-only（読み取り系コマンドのみ・変更はプラン承認後の是正フェーズ）。開始前にスキャンルートと出力形式を確認する。
+- サブエージェント報告は一次証拠（`git check-ignore` / `ls-files` / `log --all -S` 等）で裏取りしてから所見にする。
+- 出力は現状マップ・影響度×工数マトリクス・理想構成案・段階的実行プラン。前回監査レポートがあれば指摘の解消/残存/新規デルタを含める。
 
 ## スケジューラ連携（本スキルの範囲外）
 
