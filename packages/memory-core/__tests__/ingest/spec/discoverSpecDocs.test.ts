@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -59,6 +59,10 @@ describe('discoverChangedSpecs', () => {
 
   beforeEach(() => {
     specRoot = mkdtempSync(join(tmpdir(), 'discover-spec-'));
+  });
+
+  afterEach(() => {
+    rmSync(specRoot, { recursive: true, force: true });
   });
 
   test('new file (no DB row) → is_new=true', async () => {

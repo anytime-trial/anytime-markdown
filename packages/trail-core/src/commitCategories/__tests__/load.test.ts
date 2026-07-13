@@ -4,8 +4,12 @@ import path from 'node:path';
 import { loadCommitCategories, loadCommitCategoryLabels } from '../load';
 import { DEFAULT_COMMIT_CATEGORIES, DEFAULT_COMMIT_CATEGORY_LABELS } from '../defaults';
 
+const tempDirs: string[] = [];
+
 function makeTempDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'trail-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trail-test-'));
+  tempDirs.push(dir);
+  return dir;
 }
 
 function writeJson(dir: string, obj: unknown): void {
@@ -18,6 +22,12 @@ function writeJson(dir: string, obj: unknown): void {
 }
 
 describe('loadCommitCategories', () => {
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('ファイル不在時はデフォルトを返す', () => {
     const dir = makeTempDir();
     const result = loadCommitCategories(dir);
@@ -99,6 +109,12 @@ describe('loadCommitCategories', () => {
 });
 
 describe('loadCommitCategoryLabels', () => {
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('categories からラベルマップを読み込む', () => {
     const dir = makeTempDir();
     writeJson(dir, {

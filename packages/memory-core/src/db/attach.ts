@@ -4,6 +4,18 @@ import * as fs from 'node:fs';
 import { BetterSqlite3MemoryDb } from './connection/BetterSqlite3MemoryDb';
 import type { MemoryDbConnection } from './connection/types';
 
+export interface AttachTrailDbFromHandleResult {
+  readonly tempDir: string;
+  readonly tempPath: string;
+  cleanup(): void;
+}
+
+const attachedTempDirs = new WeakMap<
+  BetterSqlite3MemoryDb,
+  Array<{ alias: string; cleanup: () => void }>
+>();
+const patchedDbs = new WeakSet<BetterSqlite3MemoryDb>();
+
 /**
  * Attach trail.db to an existing memory-core db in read-only mode.
  *
@@ -36,7 +48,7 @@ export async function attachTrailDbReadOnly(
 export function attachTrailDbFromHandle(
   db: MemoryDbConnection,
   trailHandle: MemoryDbConnection,
-): void {
+): AttachTrailDbFromHandleResult {
   if (!(db instanceof BetterSqlite3MemoryDb)) {
     throw new TypeError(
       '[anytime-memory] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for main db',
@@ -53,4 +65,62 @@ export function attachTrailDbFromHandle(
   const tempPath = path.join(tempDir, 'trail.db');
   fs.writeFileSync(tempPath, trailHandle.serialize(), { mode: 0o600 });
   db.attach(tempPath, 'trail', true);
+  const cleanup = (): void => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  };
+  registerAttachCleanup(db, 'trail', cleanup);
+  cleanup();
+  return { tempDir, tempPath, cleanup };
+}
+
+function registerAttachCleanup(
+  db: BetterSqlite3MemoryDb,
+  alias: string,
+  cleanup: () => void,
+): void {
+  const cleanups = attachedTempDirs.get(db) ?? [];
+  cleanups.push({ alias, cleanup });
+  attachedTempDirs.set(db, cleanups);
+  patchDbCleanup(db);
+}
+
+function runAttachCleanups(db: BetterSqlite3MemoryDb, alias?: string): void {
+  const cleanups = attachedTempDirs.get(db);
+  if (!cleanups) return;
+  const remaining: Array<{ alias: string; cleanup: () => void }> = [];
+  for (const entry of cleanups) {
+    if (alias === undefined || entry.alias === alias) {
+      entry.cleanup();
+    } else {
+      remaining.push(entry);
+    }
+  }
+  if (remaining.length === 0) {
+    attachedTempDirs.delete(db);
+  } else {
+    attachedTempDirs.set(db, remaining);
+  }
+}
+
+function patchDbCleanup(db: BetterSqlite3MemoryDb): void {
+  if (patchedDbs.has(db)) return;
+  patchedDbs.add(db);
+  const originalDetach = db.detach.bind(db);
+  const originalClose = db.close.bind(db);
+
+  db.detach = (alias: string): void => {
+    try {
+      originalDetach(alias);
+    } finally {
+      runAttachCleanups(db, alias);
+    }
+  };
+
+  db.close = (): void => {
+    try {
+      originalClose();
+    } finally {
+      runAttachCleanups(db);
+    }
+  };
 }
