@@ -5,7 +5,7 @@
 委任先（サブエージェント / Codex）が「作業を止めて報告（abstain）すべき」観測条件の正本。
 proposal `20260702-agentic-abstention-adoption`（CONVOLVE 風 playbook・段階 1 ＝手動運用）に基づく。
 委任プロンプト組成時に本ファイルの内容（または該当セクション）を同梱する。
-`references/agent-rotation.md` の返却契約（`buildReturnContract` の `taskStatus: "abstained"`）と対になる。
+同ディレクトリの `agent-rotation.md` の返却契約（`buildReturnContract` の `taskStatus: "abstained"`）と対になる。
 
 ## 運用ルール
 
