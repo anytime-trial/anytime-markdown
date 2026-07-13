@@ -3,8 +3,12 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { ClaudeUsageClient, type ClaudeUsageFetch } from '../ClaudeUsageClient';
 
+const tempDirs: string[] = [];
+
 function makeCredentialsPath(): string {
-  return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-client-')), 'credentials.json');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-client-'));
+  tempDirs.push(dir);
+  return path.join(dir, 'credentials.json');
 }
 
 function writeCredentials(filePath: string, value: unknown): void {
@@ -20,6 +24,12 @@ function response(status: number, body: unknown): Response {
 }
 
 describe('ClaudeUsageClient', () => {
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('returns unauthenticated when the credentials file is missing', async () => {
     const missingPath = makeCredentialsPath();
     fs.rmSync(missingPath, { force: true });

@@ -4,6 +4,12 @@ import * as fs from 'node:fs';
 import { BetterSqlite3MemoryDb } from './connection/BetterSqlite3MemoryDb';
 import type { MemoryDbConnection } from './connection/types';
 
+export interface AttachTrailDbFromHandleResult {
+  readonly tempDir: string;
+  readonly tempPath: string;
+  cleanup(): void;
+}
+
 /**
  * Attach trail.db to an existing memory-core db in read-only mode.
  *
@@ -28,15 +34,16 @@ export async function attachTrailDbReadOnly(
  * Attach an already-open BetterSqlite3MemoryDb (in-memory or file) as `trail`.
  *
  * テスト便宜のため `:memory:` で構築した trail handle をそのまま attach できるよう
- * `serialize()` で一時ファイルに書き出してから attachTrailDbReadOnly() を呼ぶ。
- * 残された一時ファイルは OS の tmpdir 掃除に任せる (テスト時のみの利用想定)。
+ * `serialize()` で一時ファイルに書き出してから attach する (テスト時のみの利用想定)。
+ * 一時ディレクトリは attach 直後に削除する — POSIX では open 済み fd が unlink 後も
+ * 有効なため読み取りは壊れない (Windows 非対応だが本関数はテスト専用)。
  *
  * @deprecated 新規コードは `attachTrailDbReadOnly(db, trailDbPath)` を直接使うこと。
  */
 export function attachTrailDbFromHandle(
   db: MemoryDbConnection,
   trailHandle: MemoryDbConnection,
-): void {
+): AttachTrailDbFromHandleResult {
   if (!(db instanceof BetterSqlite3MemoryDb)) {
     throw new TypeError(
       '[anytime-memory] attachTrailDbFromHandle: only BetterSqlite3MemoryDb is supported for main db',
@@ -51,6 +58,16 @@ export function attachTrailDbFromHandle(
   // CodeQL `js/insecure-temporary-file` の対象 (Math.random / Date.now / pid 組合せ) を回避する。
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-core-trail-attach-'));
   const tempPath = path.join(tempDir, 'trail.db');
-  fs.writeFileSync(tempPath, trailHandle.serialize(), { mode: 0o600 });
-  db.attach(tempPath, 'trail', true);
+  const cleanup = (): void => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  };
+  try {
+    fs.writeFileSync(tempPath, trailHandle.serialize(), { mode: 0o600 });
+    db.attach(tempPath, 'trail', true);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+  cleanup();
+  return { tempDir, tempPath, cleanup };
 }
