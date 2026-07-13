@@ -208,15 +208,28 @@ resolve_agent_home() {
 // hook stdin の cwd を起点に walk-up で最寄りワーカーを解決して /api/agent-status/edit へ POST する。
 function agentStatusReportContent(): string {
   return `#!/usr/bin/env node
-// agent-status-report.mjs — cwd 相対 walk-up で最寄りの agent-status ワーカーへ編集/実行状況を POST する。
-// mode: edit-start | edit-end | bash-start | bash-end | planned
-// ワーカーが見つからなければ no-op（exit 0）。失敗は握りつぶす（記録欠落許容）。
+// agent-status-report.mjs — 2 つの役割を持つ。
+//   1) airspace ゲート: 並行セッションの衝突を判定し、stdout に判定 JSON を出す。
+//      判定ロジックは <git-common-dir>/anytime/airspace.cjs（agent 拡張が配置）に置く。
+//      **ワーカーにも DB にも VS Code にも依存しない**ため、VS Code 停止中でも動く。
+//   2) agent-status ワーカーへの編集/実行状況の POST（Agent マッピング UI 用。従来どおり）。
+// mode: edit-start | edit-end | bash-start | bash-end | planned | session-start
+//
+// **stdout は判定 JSON 専用**。ログは必ず stderr へ出す（stdout を汚すと Claude Code の
+// JSON パースが壊れ、フックが機能しなくなる）。
+// 失敗は常に fail-open（判定を出さずツール実行を通す）。事故防止機構が作業を止める方が有害。
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
 
 const PLAN_DIR_PREFIX = '/Shared/anytime-markdown-docs/plan/';
 const CHANGE_TARGET_HEADING = '## 変更対象ファイル';
+const WORKER_TIMEOUT_MS = 1500;
+
+function warn(message) {
+  process.stderr.write(\`[airspace] \${message}\\n\`);
+}
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -229,7 +242,7 @@ function readStdin() {
 }
 
 // startDir から親方向へ walk-up し、最初に見つかった .anytime/agent/agent-worker.json を採用する。
-// \$HOME / FS ルートで打ち切る。見つからなければ null。
+// \\$HOME / FS ルートで打ち切る。見つからなければ null。
 function resolveWorker(startDir) {
   let dir = startDir;
   const stop = process.env.HOME || '/';
@@ -250,18 +263,127 @@ function resolveWorker(startDir) {
   return null;
 }
 
-function safeBranch(cwd) {
+function gitOut(args, cwd) {
   try {
-    return execSync('git branch --show-current', {
+    return execSync(\`git \${args}\`, {
       cwd,
       timeout: 3000,
       stdio: ['ignore', 'pipe', 'ignore'],
     })
       .toString()
       .trim();
-  } catch {
+  } catch (err) {
+    // 非 Git ディレクトリ・detached HEAD 等。ゲートを無効化する（fail-open）。
+    warn(\`git \${args} failed in \${cwd}: \${err.message}\`);
     return '';
   }
+}
+
+function safeBranch(cwd) {
+  return gitOut('branch --show-current', cwd);
+}
+
+// 判定ロジックは git の common dir 配下に置く。common dir は全 worktree から共有され、
+// git の管理対象外なので、worktree ごとに分裂せず、コミットもされない。
+function loadAirspace(cwd) {
+  const common = gitOut('rev-parse --git-common-dir', cwd);
+  if (!common) return null;
+  const abs = path.isAbsolute(common) ? common : path.resolve(cwd, common);
+  const dir = path.join(abs, 'anytime');
+  const modulePath = path.join(dir, 'airspace.cjs');
+  if (!fs.existsSync(modulePath)) return null; // 拡張が未配置 → ゲート無効（fail-open）
+  try {
+    const req = createRequire(import.meta.url);
+    return { api: req(modulePath), dir };
+  } catch (err) {
+    warn(\`failed to load \${modulePath}: \${err.message}\`);
+    return null;
+  }
+}
+
+function toPreToolUse(verdict) {
+  if (verdict.kind === 'deny') {
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: verdict.reason,
+      },
+    };
+  }
+  if (verdict.kind === 'warn') {
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'allow',
+        additionalContext: verdict.reason,
+      },
+    };
+  }
+  return null;
+}
+
+// クレームを更新し、衝突判定を返す。判定不能なら null（fail-open）。
+function airspaceVerdict(mode, input, cwd) {
+  if (process.env.ANYTIME_AIRSPACE === 'off') return null;
+
+  const loaded = loadAirspace(cwd);
+  if (loaded === null) return null;
+  const { api, dir } = loaded;
+
+  const claudePid = api.findClaudePid(process.pid);
+  if (claudePid === null) {
+    warn('claude process not found in /proc ancestry; gate disabled');
+    return null;
+  }
+  const starttime = api.readProcessStartTime(claudePid);
+  if (starttime === null) return null;
+
+  const worktree = gitOut('rev-parse --show-toplevel', cwd);
+  if (!worktree) return null;
+
+  const sessionId = input.session_id || '';
+  // file は「今まさに編集中」のみを表す。編集履歴を残すと、過去に触ったファイルで誤警告が出続ける。
+  const editing = mode === 'edit-start';
+  const file = (editing && input.tool_input && input.tool_input.file_path) || '';
+
+  try {
+    api.writeClaim(dir, {
+      sessionId,
+      pid: claudePid,
+      starttime,
+      worktree,
+      branch: safeBranch(cwd),
+      file,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    warn(\`writeClaim failed: \${err.message}\`);
+    return null;
+  }
+
+  // 自分自身（同一セッション・同一プロセス）は必ず除外する。単独作業では発火してはならない。
+  const live = api.listLiveClaims(dir, sessionId, claudePid);
+  if (live.length === 0) return null;
+
+  if (mode === 'bash-start') {
+    const command = (input.tool_input && input.tool_input.command) || '';
+    return toPreToolUse(api.evaluateBashGate(command, live, worktree));
+  }
+  if (mode === 'edit-start') {
+    return toPreToolUse(api.evaluateEditGate(file, live));
+  }
+  if (mode === 'session-start') {
+    const verdict = api.evaluateSessionStartGate(live, worktree);
+    if (verdict.kind !== 'advise') return null;
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'SessionStart',
+        additionalContext: verdict.reason,
+      },
+    };
+  }
+  return null;
 }
 
 // mode ごとに /api/agent-status/edit へ送る body を組み立てる。対象外なら null。
@@ -276,6 +398,7 @@ function buildBody(mode, input, cwd, root, branch) {
       editing: mode === 'edit-start',
       file: fp,
       branch,
+      workspacePath: cwd,
       appendEdit: { file: fp, timestamp: ts },
     };
   }
@@ -301,8 +424,8 @@ function buildBody(mode, input, cwd, root, branch) {
       }
       if (inSection && line.startsWith('## ')) break;
       if (inSection && line.startsWith('- ')) {
-        const s = line.indexOf('\`');
-        const e = s >= 0 ? line.indexOf('\`', s + 1) : -1;
+        const s = line.indexOf('\\\`');
+        const e = s >= 0 ? line.indexOf('\\\`', s + 1) : -1;
         if (s >= 0 && e > s) planned.push(prefix + line.slice(s + 1, e));
       }
     }
@@ -320,28 +443,49 @@ async function main() {
     process.exit(0);
   }
   const cwd = (input && input.cwd) || process.cwd();
+
+  // 1) airspace ゲート（ワーカー非依存）
+  try {
+    const verdict = airspaceVerdict(mode, input, cwd);
+    if (verdict !== null) process.stdout.write(JSON.stringify(verdict));
+  } catch (err) {
+    // ゲートの失敗でツール実行を止めない（fail-open）。
+    warn(\`gate failed: \${err.message}\`);
+  }
+
+  // SessionStart はワーカーへ送る状態を持たない。
+  if (mode === 'session-start') process.exit(0);
+
+  // 2) agent-status ワーカーへの POST（Agent マッピング UI 用）
   const wk = resolveWorker(cwd);
   if (!wk) process.exit(0);
 
-  // branch の基点は常に hook の実行 cwd。resolveWorker は cwd から親方向へ walk-up するため
-  // wk.root は必ず cwd の祖先で、通常サブディレクトリでは wk.root と同一ブランチになる。
-  // git worktree/submodule では cwd 側が正しいブランチ（worktree の feature ブランチ）を返す（受け入れ基準#2）。
+  // branch の基点は常に hook の実行 cwd。git worktree/submodule では cwd 側が正しいブランチを返す。
   const branch = safeBranch(cwd);
 
   const body = buildBody(mode, input, cwd, wk.root, branch);
   if (!body) process.exit(0);
 
   try {
-    await fetch(\`\${wk.url}/api/agent-status/edit\`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: \`Bearer \${wk.token}\`,
-      },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    // ワーカー未応答は無視
+    // タイムアウト必須。TCP 接続を受けるが応答しないワーカーに対し、素の fetch は
+    // 15 秒経っても resolve しないことを実測済み（フックがそのまま待たされる）。
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS);
+    try {
+      await fetch(\`\${wk.url}/api/agent-status/edit\`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: \`Bearer \${wk.token}\`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (err) {
+    warn(\`worker post failed: \${err.message}\`);
   }
 }
 
@@ -402,6 +546,7 @@ interface ClaudeSettings {
     PostToolUse?: HookEntry[];
     Stop?: HookEntry[];
     UserPromptSubmit?: HookEntry[];
+    SessionStart?: HookEntry[];
   };
   [key: string]: unknown;
 }
@@ -468,6 +613,7 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   settings.hooks.PostToolUse ??= [];
   settings.hooks.Stop ??= [];
   settings.hooks.UserPromptSubmit ??= [];
+  settings.hooks.SessionStart ??= [];
 
   // hook は workspace 非依存にする。POST 先の解決は実行時の cwd 相対 walk-up
   // （agent-status-report.mjs / lib/agent-home.sh）に委ね、settings.json には絶対パスを一切焼き込まない。
@@ -482,27 +628,43 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   settings.hooks.PreToolUse = removeStatusFileHooks(settings.hooks.PreToolUse);
   settings.hooks.PostToolUse = removeStatusFileHooks(settings.hooks.PostToolUse);
 
+  // timeout を明示する。未指定時の既定は 600 秒で、フックが詰まるとツール実行がその間待たされる。
+  // 他のフック（commit-tracker.sh 等）に倣い 5 秒で切る。
+  const REPORT_TIMEOUT_SEC = 5;
+
   settings.hooks.PreToolUse.push({
     matcher: 'Edit|Write',
-    hooks: [{ type: 'command', command: reportCommand('edit-start') }],
+    hooks: [{ type: 'command', command: reportCommand('edit-start'), timeout: REPORT_TIMEOUT_SEC }],
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Edit|Write',
-    hooks: [{ type: 'command', command: reportCommand('edit-end') }],
+    hooks: [{ type: 'command', command: reportCommand('edit-end'), timeout: REPORT_TIMEOUT_SEC }],
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Write',
-    hooks: [{ type: 'command', command: reportCommand('planned') }],
+    hooks: [{ type: 'command', command: reportCommand('planned'), timeout: REPORT_TIMEOUT_SEC }],
   });
 
   // Bash フック: cwd を workspacePath として記録し、テスト実行中も worktree を特定可能にする
   settings.hooks.PreToolUse.push({
     matcher: 'Bash',
-    hooks: [{ type: 'command', command: reportCommand('bash-start') }],
+    hooks: [{ type: 'command', command: reportCommand('bash-start'), timeout: REPORT_TIMEOUT_SEC }],
   });
   settings.hooks.PostToolUse.push({
     matcher: 'Bash',
-    hooks: [{ type: 'command', command: reportCommand('bash-end') }],
+    hooks: [{ type: 'command', command: reportCommand('bash-end'), timeout: REPORT_TIMEOUT_SEC }],
+  });
+
+  // SessionStart フック: 同じ作業ツリーに他の生存セッションがいれば worktree 分離を助言する。
+  // 衝突を「起こしてから迎撃する」のではなく「そもそも同じ空域に 2 機を入れない」ための入口ゲート。
+  settings.hooks.SessionStart = removeHooksByMarker(
+    settings.hooks.SessionStart,
+    'agent-status-report.mjs',
+  );
+  settings.hooks.SessionStart.push({
+    hooks: [
+      { type: 'command', command: reportCommand('session-start'), timeout: REPORT_TIMEOUT_SEC },
+    ],
   });
 
   // PostToolUse hook: commit-tracker.sh (agent-status ワーカーへコミット検出を通知)

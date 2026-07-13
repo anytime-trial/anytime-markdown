@@ -64,10 +64,11 @@ describe('setupClaudeHooks', () => {
 
   function readSettings(): {
     hooks: {
-      PreToolUse: Array<{ matcher?: string; hooks: Array<{ command: string }> }>;
-      PostToolUse: Array<{ matcher?: string; hooks: Array<{ command: string }> }>;
+      PreToolUse: Array<{ matcher?: string; hooks: Array<{ command: string; timeout?: number }> }>;
+      PostToolUse: Array<{ matcher?: string; hooks: Array<{ command: string; timeout?: number }> }>;
       UserPromptSubmit: Array<{ hooks: Array<{ command: string }> }>;
       Stop: Array<{ hooks: Array<{ command: string }> }>;
+      SessionStart: Array<{ hooks: Array<{ command: string; timeout?: number }> }>;
     };
   } {
     return JSON.parse(fs.readFileSync(path.join(tmpHome, '.claude', 'settings.json'), 'utf-8'));
@@ -396,5 +397,80 @@ describe('setupClaudeHooks', () => {
     const settings = readSettings();
     expect(settings.hooks).toBeDefined();
     expect(Array.isArray(settings.hooks.PreToolUse)).toBe(true);
+  });
+
+  describe('airspace ゲート（並行セッション衝突防止）', () => {
+    test('SessionStart フックが session-start モードで登録される（入口ゲート）', () => {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+
+      const settings = readSettings();
+      const entry = settings.hooks.SessionStart.find((e) =>
+        e.hooks[0].command.includes('agent-status-report.mjs'),
+      );
+      expect(entry?.hooks[0].command).toBe(reportCmd('session-start'));
+    });
+
+    test('SessionStart フックが重複登録されない（再実行しても 1 本）', () => {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+      setupClaudeHooks(tmpWorkspace);
+
+      const settings = readSettings();
+      const matching = settings.hooks.SessionStart.filter((e) =>
+        e.hooks[0].command.includes('agent-status-report.mjs'),
+      );
+      expect(matching).toHaveLength(1);
+    });
+
+    test('report 系フックに timeout が明示される（未指定の既定 600 秒を避ける）', () => {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+
+      const settings = readSettings();
+      const reportHooks = [...settings.hooks.PreToolUse, ...settings.hooks.PostToolUse]
+        .flatMap((e) => e.hooks)
+        .filter((h) => h.command.includes('agent-status-report.mjs'));
+
+      expect(reportHooks.length).toBeGreaterThan(0);
+      for (const hook of reportHooks) {
+        expect(hook.timeout).toBe(5);
+      }
+    });
+
+    test('フックスクリプトが stdout をログで汚さない（判定 JSON 専用）', () => {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+
+      const script = readScript('agent-status-report.mjs');
+      // stdout への書き込みは判定 JSON のみ。console.log / process.stdout.write(その他) が
+      // 混ざると Claude Code の JSON パースが壊れ、フックが機能しなくなる。
+      expect(script).not.toMatch(/console\.log/);
+      expect(script).toContain('process.stdout.write(JSON.stringify(verdict))');
+      expect(script).toContain('process.stderr.write');
+    });
+
+    test('ワーカーへの fetch にタイムアウトが付く（無応答で 15 秒ハングするため）', () => {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+
+      const script = readScript('agent-status-report.mjs');
+      expect(script).toContain('AbortController');
+      expect(script).toContain('controller.abort()');
+      expect(script).toContain('signal: controller.signal');
+    });
+
+    test('判定ロジックは git common dir から読み、未配置なら fail-open', () => {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+
+      const script = readScript('agent-status-report.mjs');
+      expect(script).toContain('rev-parse --git-common-dir');
+      expect(script).toContain('airspace.cjs');
+      // バンドル未配置ならゲートを張らずに素通しする
+      expect(script).toContain('if (!fs.existsSync(modulePath)) return null;');
+      // 脱出口
+      expect(script).toContain("process.env.ANYTIME_AIRSPACE === 'off'");
+    });
   });
 });
