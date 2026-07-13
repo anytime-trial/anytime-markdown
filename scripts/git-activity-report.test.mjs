@@ -7,6 +7,7 @@ import {
   classifyOp,
   isDestructive,
   isDuplicateDelete,
+  parsePrePushLine,
   resolveAttribution,
 } from './git-activity-report.mjs';
 
@@ -126,4 +127,40 @@ test('spool が無ければ抑止しない', () => {
   const ws = mkdtempSync(join(tmpdir(), 'git-activity-ws-'));
   assert.equal(isDuplicateDelete(del(), ws), false);
   rmSync(ws, { recursive: true, force: true });
+});
+
+// --- force push の検知（pre-push フック。reference-transaction では原理的に取れない） ---
+
+test('リモートの SHA がローカルの祖先でなければ force push と判定する', () => {
+  // 非早送り = リモートにあるコミットが失われる = force
+  assert.equal(
+    parsePrePushLine('refs/heads/develop aaa refs/heads/develop bbb', () => false).forced,
+    true,
+  );
+});
+
+test('早送り（リモートの SHA がローカルの祖先）は force push としない', () => {
+  assert.equal(
+    parsePrePushLine('refs/heads/develop aaa refs/heads/develop bbb', () => true).forced,
+    false,
+  );
+});
+
+test('新規ブランチの push（リモート側が全ゼロ）は force push としない', () => {
+  const zero = '0'.repeat(40);
+  const r = parsePrePushLine(`refs/heads/new aaa refs/heads/new ${zero}`, () => false);
+  assert.equal(r.forced, false);
+  assert.equal(r.beforeSha, null);
+});
+
+test('リモートブランチの削除（ローカル側が全ゼロ）は push として記録し、破壊的とする', () => {
+  const zero = '0'.repeat(40);
+  const r = parsePrePushLine(`(delete) ${zero} refs/heads/gone bbb`, () => false);
+  assert.equal(r.forced, true);
+  assert.equal(r.afterSha, null);
+});
+
+test('force push は破壊的、通常 push は破壊的でない', () => {
+  assert.equal(isDestructive('push', { forced: true }), true);
+  assert.equal(isDestructive('push', { forced: false }), false);
 });

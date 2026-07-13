@@ -73,8 +73,51 @@ export function isDestructive(opType, ctx = {}) {
 
 const ZERO_SHA = '0'.repeat(40);
 
+/**
+ * pre-push フックの stdin 1 行（`<local_ref> <local_sha> <remote_ref> <remote_sha>`）を解析する。
+ *
+ * push は remote の ref を動かすため、ローカルの refs/heads/* を見る reference-transaction では
+ * 原理的に捕捉できない（実測でイベントゼロ）。force push はリモートのコミットを消す最も破壊的な
+ * 操作なので、pre-push で別途捕捉する。
+ *
+ * git は `--force` の有無を直接教えないため、**非早送り（リモートの SHA がローカルの祖先でない）**
+ * を force とみなす。これは「リモートにあるコミットが失われる」という実害と一致する定義である。
+ *
+ * @param {string} line stdin の 1 行
+ * @param {(remoteSha: string, localSha: string) => boolean} isAncestorFn 祖先判定（テストで差し替える）
+ */
+export function parsePrePushLine(line, isAncestorFn) {
+  const [, localSha, remoteRef, remoteSha] = line.trim().split(/\s+/);
+
+  const deletingRemote = localSha === ZERO_SHA;
+  const creatingRemote = remoteSha === ZERO_SHA;
+
+  let forced;
+  if (deletingRemote) {
+    forced = true; // リモートブランチの削除は常に破壊的
+  } else if (creatingRemote) {
+    forced = false; // 新規ブランチの push は何も失わない
+  } else {
+    forced = !isAncestorFn(remoteSha, localSha);
+  }
+
+  return {
+    refName: remoteRef,
+    beforeSha: creatingRemote ? null : remoteSha,
+    afterSha: deletingRemote ? null : localSha,
+    forced,
+  };
+}
+
 function git(args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim();
+}
+
+/** git dir は同一プロセス内で変わらないためメモ化する（フックは 1 操作ごとに起動されるので十分） */
+let cachedGitDir = null;
+function gitDir() {
+  cachedGitDir ??= git(['rev-parse', '--absolute-git-dir']);
+  return cachedGitDir;
 }
 
 /**
@@ -126,9 +169,6 @@ function spoolFilePath(workspacePath) {
  * @param {string} stdin `<old> <new> <ref>` の行
  */
 function handleReferenceTransaction(state, stdin) {
-  const gitDir = git(['rev-parse', '--absolute-git-dir']);
-  const pending = pendingPath(gitDir);
-
   const lines = stdin
     .split('\n')
     .map((l) => l.trim())
@@ -139,24 +179,35 @@ function handleReferenceTransaction(state, stdin) {
     })
     .filter((r) => r.ref.startsWith('refs/heads/'));
 
+  // 対象 ref が無ければ git を 1 回も呼ばずに帰る。reference-transaction は ORIG_HEAD・HEAD・
+  // タグ・remote-tracking ref の更新でも発火するため、この早期リターンがフックの実行コストを
+  // 大きく下げる（fetch や rebase の多 ref トランザクションで効く）。
+  if (lines.length === 0) return;
+
+  const deletions = lines.filter((r) => r.next === ZERO_SHA);
+
   if (state === 'aborted') {
-    rmSync(pending, { force: true });
+    if (deletions.length > 0) {
+      rmSync(pendingPath(gitDir()), { force: true });
+    }
     return;
   }
 
   if (state === 'prepared') {
-    const deleted = {};
-    for (const r of lines) {
-      if (r.next !== ZERO_SHA) continue;
+    // 削除が無ければ退避するものが無い。git 呼び出しごと省く。
+    if (deletions.length === 0) return;
+
+    const resolved = {};
+    for (const r of deletions) {
       try {
-        deleted[r.ref] = git(['rev-parse', '--verify', r.ref]);
+        resolved[r.ref] = git(['rev-parse', '--verify', r.ref]);
       } catch (err) {
         const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
         process.stderr.write(`[git-activity] 削除対象 ${r.ref} の SHA を解決できなかった: ${reason}\n`);
       }
     }
-    if (Object.keys(deleted).length > 0) {
-      writeFileSync(pending, JSON.stringify(deleted));
+    if (Object.keys(resolved).length > 0) {
+      writeFileSync(pendingPath(gitDir()), JSON.stringify(resolved));
     }
     return;
   }
@@ -164,14 +215,17 @@ function handleReferenceTransaction(state, stdin) {
   if (state !== 'committed') return;
 
   let deleted = {};
-  if (existsSync(pending)) {
-    try {
-      deleted = JSON.parse(readFileSync(pending, 'utf8'));
-    } catch (err) {
-      const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
-      process.stderr.write(`[git-activity] pending ファイル ${pending} を読めなかった: ${reason}\n`);
-    } finally {
-      rmSync(pending, { force: true });
+  if (deletions.length > 0) {
+    const pending = pendingPath(gitDir());
+    if (existsSync(pending)) {
+      try {
+        deleted = JSON.parse(readFileSync(pending, 'utf8'));
+      } catch (err) {
+        const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+        process.stderr.write(`[git-activity] pending ファイル ${pending} を読めなかった: ${reason}\n`);
+      } finally {
+        rmSync(pending, { force: true });
+      }
     }
   }
 
@@ -260,6 +314,43 @@ function handlePostCheckout(prevHead, newHead, branchFlag) {
   );
 }
 
+/**
+ * pre-push フック本体。stdin に push 対象の ref が 1 行ずつ渡る。
+ *
+ * force push（非早送り）とリモートブランチ削除を破壊的として記録する。CLAUDE.md は Claude からの
+ * push を禁じているが、本フックが捕まえるのは人間・他ツールによる push である（それが目的）。
+ */
+function handlePrePush(stdin) {
+  const lines = stdin
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+  if (lines.length === 0) return;
+
+  const workspacePath = git(['rev-parse', '--show-toplevel']);
+  const who = resolveAttribution(process.env);
+  const occurredAt = new Date().toISOString();
+
+  for (const line of lines) {
+    const r = parsePrePushLine(line, isAncestor);
+    spool(
+      {
+        workspacePath,
+        opType: 'push',
+        destructive: isDestructive('push', { forced: r.forced }),
+        refName: r.refName,
+        beforeSha: r.beforeSha,
+        afterSha: r.afterSha,
+        attribution: who.attribution,
+        agentKind: who.agentKind,
+        sessionId: who.sessionId,
+        occurredAt,
+      },
+      workspacePath,
+    );
+  }
+}
+
 function main() {
   const mode = process.argv[2];
   try {
@@ -269,6 +360,8 @@ function main() {
       handleReferenceTransaction(state, stdin);
     } else if (mode === 'post-checkout') {
       handlePostCheckout(process.argv[3], process.argv[4], process.argv[5]);
+    } else if (mode === 'pre-push') {
+      handlePrePush(readFileSync(0, 'utf8'));
     }
   } catch (err) {
     const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);

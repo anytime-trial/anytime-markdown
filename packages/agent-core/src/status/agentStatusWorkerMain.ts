@@ -29,6 +29,14 @@ const DEFAULT_GIT_ACTIVITY_RETENTION_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * spool を DB へ取り込む間隔。
+ *
+ * 拡張側の git-activity ポーリング（3 秒）と同オーダーに揃える。これより遅いと、破壊的操作の
+ * 警告が出るまでの遅延がユーザーに知覚される。
+ */
+const SPOOL_DRAIN_INTERVAL_MS = 3000;
+
+/**
  * 未使用セッションの保持日数を env から解決する。
  * 不在・非数値・1 未満は既定 7 日へフォールバックする。
  */
@@ -89,18 +97,40 @@ export async function runWorker(workspaceRoot: string): Promise<void> {
 
   const store = new AgentStatusStore(dbPath);
   const spool = spoolPath(validatedRoot);
-  const spooled = drainSpool(spool, (msg) => console.error(msg));
-  for (const row of spooled) {
+
+  /**
+   * フックが書いた spool を DB へ取り込む。
+   *
+   * 起動時 1 回だけでは足りない。フックは同期 HTTP を打たない（git 操作にレイテンシを乗せない）
+   * ため、稼働中に起きた破壊的操作は spool にしか存在せず、定期的に drain しないと
+   * 「VS Code を開いたまま reset --hard しても、再起動するまで警告が出ない」ことになる。
+   * 警告が最も要る瞬間は操作直後である。
+   */
+  const drainSpoolIntoDb = (): void => {
     try {
-      store.insertGitActivity(row);
+      const rows = drainSpool(spool, (msg) => console.error(msg));
+      let ingested = 0;
+      for (const row of rows) {
+        try {
+          store.insertGitActivity(row);
+          ingested += 1;
+        } catch (err) {
+          const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+          console.error(`[git-activity] spool 行の取り込みに失敗: ${reason}`);
+        }
+      }
+      if (ingested > 0) {
+        console.error(`[git-activity] spool から ${ingested} 件を取り込んだ`);
+      }
     } catch (err) {
       const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
-      console.error(`[git-activity] spool 行の取り込みに失敗: ${reason}`);
+      console.error(`[git-activity] spool の drain に失敗: ${reason}`);
     }
-  }
-  if (spooled.length > 0) {
-    console.error(`[git-activity] spool から ${spooled.length} 件を取り込んだ`);
-  }
+  };
+
+  drainSpoolIntoDb();
+  const spoolTimer = setInterval(drainSpoolIntoDb, SPOOL_DRAIN_INTERVAL_MS);
+  spoolTimer.unref();
 
   const gitActivityRetentionDays = resolveGitActivityRetentionDays();
   const gitActivityCutoff = new Date(Date.now() - gitActivityRetentionDays * DAY_MS).toISOString();
@@ -149,6 +179,9 @@ export async function runWorker(workspaceRoot: string): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     clearInterval(pruneTimer);
+    clearInterval(spoolTimer);
+    // 終了前に最後の drain をかけ、フックが書いた直近の記録を取りこぼさない
+    drainSpoolIntoDb();
     removeWorkerInfo(jsonPath);
     void worker.stop().finally(() => {
       store.close();

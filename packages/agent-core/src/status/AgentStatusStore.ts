@@ -135,8 +135,6 @@ export class AgentStatusStore {
     // 新規 DB はこの CREATE で最新スキーマになる。既存の旧スキーマ DB は no-op のため、
     // handoff_at 列の有無で旧スキーマを検出し 12-step 移行を走らせる。
     this.db.exec(CREATE_AGENT_SESSIONS);
-    // FK を有効化しないと git_activity.session_id の ON DELETE SET NULL が働かない。
-    this.db.exec('PRAGMA foreign_keys = ON');
     this.db.exec(CREATE_GIT_ACTIVITY);
     for (const sql of CREATE_GIT_ACTIVITY_INDEXES) {
       this.db.exec(sql);

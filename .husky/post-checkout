@@ -1,3 +1,4 @@
 set -eu
 
-node "$(git rev-parse --show-toplevel)/scripts/git-activity-report.mjs" post-checkout "$1" "$2" "$3" || true
+# ${1:-} 形式は必須。理由は .husky/reference-transaction のコメントを参照。
+node "$(git rev-parse --show-toplevel)/scripts/git-activity-report.mjs" post-checkout "${1:-}" "${2:-}" "${3:-}" || true
