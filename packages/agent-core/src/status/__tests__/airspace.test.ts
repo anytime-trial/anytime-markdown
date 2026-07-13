@@ -16,9 +16,13 @@ import {
   classifyGitCommand,
   evaluateBashGate,
   evaluateEditGate,
+  evaluateSessionStartGate,
+  findClaudePid,
   isClaimLive,
   listLiveClaims,
+  parseWorktreeRemoveTarget,
   readProcessStartTime,
+  resolveAirspaceDir,
   writeClaim,
 } from '../airspace';
 
@@ -48,6 +52,87 @@ function startClaudeNamedProcess(dir: string, subdir = 'bin'): ChildProcessWitho
   symlinkSync('/bin/sleep', executable);
   return spawn(executable, ['30']);
 }
+
+describe('レビュー指摘の回帰: worktree remove は削除対象と突合する', () => {
+  const MY = '/repo/main';
+  const VICTIM = '/repo/.worktrees/feature';
+
+  function victimClaim(): AirspaceClaim {
+    return claim({ sessionId: 'victim-1', worktree: VICTIM, branch: 'feature/x' });
+  }
+
+  it('parseWorktreeRemoveTarget は --force 付きの削除対象パスだけを返す', () => {
+    expect(parseWorktreeRemoveTarget('git worktree remove --force ../wt')).toBe('../wt');
+    expect(parseWorktreeRemoveTarget('git worktree remove -f ../wt')).toBe('../wt');
+    // --force が無ければ git 自身が dirty な worktree の削除を拒否するのでゲート不要
+    expect(parseWorktreeRemoveTarget('git worktree remove ../wt')).toBeNull();
+    expect(parseWorktreeRemoveTarget('git worktree list')).toBeNull();
+  });
+
+  it('他 worktree で作業中のセッションを remove --force しようとすると deny', () => {
+    // 自分は /repo/main にいる。従来は「自分の worktree に生存クレームがあるか」しか見ておらず、
+    // 削除対象（別 worktree）のクレームと突合していなかったため素通りしていた。
+    const verdict = evaluateBashGate(
+      `git worktree remove --force ${VICTIM}`,
+      [victimClaim()],
+      MY,
+      MY,
+    );
+    expect(verdict.kind).toBe('deny');
+  });
+
+  it('誰もいない worktree の remove --force は通す', () => {
+    const verdict = evaluateBashGate('git worktree remove --force /repo/.worktrees/empty', [victimClaim()], MY, MY);
+    expect(verdict).toEqual({ kind: 'pass' });
+  });
+
+  it('相対パス指定でも cwd 基準で解決して突合する', () => {
+    const verdict = evaluateBashGate(
+      'git worktree remove --force ../.worktrees/feature',
+      [victimClaim()],
+      MY,
+      '/repo/main',
+    );
+    expect(verdict.kind).toBe('deny');
+  });
+});
+
+describe('findClaudePid / evaluateSessionStartGate / resolveAirspaceDir', () => {
+  let dir = '';
+  let child: ChildProcessWithoutNullStreams | null = null;
+
+  afterEach(() => {
+    if (child !== null && child.pid !== undefined) child.kill('SIGKILL');
+    child = null;
+    if (dir !== '' && existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('findClaudePid は祖先を辿って claude プロセスを見つける', () => {
+    // このテストプロセス（jest）の祖先に claude は居ない想定。存在しない pid からは null。
+    expect(findClaudePid(999_999_999)).toBeNull();
+  });
+
+  it('findClaudePid は自分自身が claude なら自分を返す', () => {
+    dir = tempDir();
+    child = startClaudeNamedProcess(dir);
+    const pid = child.pid ?? 0;
+    expect(findClaudePid(pid)).toBe(pid);
+  });
+
+  it('evaluateSessionStartGate は同一 worktree の生存セッションを検出して advise', () => {
+    const occupied = claim({ sessionId: 'other-1', worktree: '/repo', branch: 'feature/x' });
+    expect(evaluateSessionStartGate([occupied], '/repo').kind).toBe('advise');
+    // 別 worktree なら助言しない
+    expect(evaluateSessionStartGate([occupied], '/other')).toEqual({ kind: 'pass' });
+    // 単独なら助言しない
+    expect(evaluateSessionStartGate([], '/repo')).toEqual({ kind: 'pass' });
+  });
+
+  it('resolveAirspaceDir は非 git ディレクトリで null を返す', () => {
+    dir = tempDir();
+    expect(resolveAirspaceDir(dir)).toBeNull();
+  });
+});
 
 describe('同一プロセスの旧セッション（/clear 後）を他人と誤認しない', () => {
   let dir: string;

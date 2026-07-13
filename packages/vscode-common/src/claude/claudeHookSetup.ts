@@ -368,7 +368,8 @@ function airspaceVerdict(mode, input, cwd) {
 
   if (mode === 'bash-start') {
     const command = (input.tool_input && input.tool_input.command) || '';
-    return toPreToolUse(api.evaluateBashGate(command, live, worktree));
+    // cwd を渡す。git worktree remove ../wt のような相対パス指定は cwd 基準で解決する必要がある。
+    return toPreToolUse(api.evaluateBashGate(command, live, worktree, cwd));
   }
   if (mode === 'edit-start') {
     return toPreToolUse(api.evaluateEditGate(file, live));

@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -52,11 +53,22 @@ export function resolveAirspaceDir(cwd: string): string | null {
   }
 }
 
+/**
+ * `/proc/<pid>/comm` が Claude Code 本体のものか判定する。
+ *
+ * 完全一致にしない。WSL の Windows 相互運用経由では `claude.exe` になり得るためで、
+ * 取りこぼすと**衝突防止機構が無言で無効化される**（fail-open で誰にも気づかれない）。
+ * findClaudePid はフックの**祖先**しか辿らないため、無関係なプロセスへ誤マッチする経路は無い。
+ */
+function isClaudeComm(comm: string | null): boolean {
+  return comm !== null && comm.startsWith('claude');
+}
+
 export function findClaudePid(startPid: number): number | null {
   let current: number | null = startPid;
   for (let depth = 0; depth < 8; depth += 1) {
     if (current === null || current <= 0) return null;
-    if (readComm(current) === 'claude') return current;
+    if (isClaudeComm(readComm(current))) return current;
     current = readProcessStat(current)?.ppid ?? null;
   }
   return null;
@@ -68,7 +80,7 @@ export function readProcessStartTime(pid: number): string | null {
 
 export function isClaimLive(claim: AirspaceClaim): boolean {
   if (!existsSync(`/proc/${claim.pid}`)) return false;
-  if (readComm(claim.pid) !== 'claude') return false;
+  if (!isClaudeComm(readComm(claim.pid))) return false;
   return readProcessStartTime(claim.pid) === claim.starttime;
 }
 
@@ -158,11 +170,56 @@ export function classifyGitCommand(
   return 'none';
 }
 
+/**
+ * Bash コマンドの衝突判定。
+ *
+ * `git worktree remove --force <path>` だけは突合先が違う。このコマンドは**自分がいる作業ツリー
+ * ではなく、引数で指定した別の作業ツリー**を消す。自分の worktree と生存クレームを突合しても
+ * 一致せず素通りしてしまうため、削除対象パスとクレームを突合する。
+ *
+ * `cwd` は相対パス引数（`../wt` 等）の解決基点。省略時は myWorktree を使う。
+ */
+/**
+ * `git worktree remove --force <path>` の削除対象パスを返す。該当しなければ null。
+ *
+ * `--force` が無い場合は返さない。git 自身が未コミット変更のある worktree の削除を拒否するため、
+ * ゲートを張る必要が無い（過剰な deny を避ける）。
+ */
+export function parseWorktreeRemoveTarget(command: string): string | null {
+  const tokens = tokenize(command);
+  if (tokens.length < 4) return null;
+  if (tokens[0] !== 'git' || tokens[1] !== 'worktree' || tokens[2] !== 'remove') return null;
+  const args = tokens.slice(3);
+  if (!args.some((arg) => arg === '--force' || arg === '-f')) return null;
+  return args.find((arg) => !arg.startsWith('-')) ?? null;
+}
+
+// シンボリックリンク経由のパスでも突合できるよう実体パスへ寄せる。
+function canonicalize(path: string): string {
+  // 未作成・削除済みのパスは実体解決できない（正常系）。元の値で突合する。
+  if (!existsSync(path)) return path;
+  try {
+    return realpathSync(path);
+  } catch (error: unknown) {
+    warnFailure(`canonicalize:${path}`, error);
+    return path;
+  }
+}
+
 export function evaluateBashGate(
   command: string,
   liveClaims: readonly AirspaceClaim[],
   myWorktree: string,
+  cwd: string = myWorktree,
 ): GateVerdict {
+  const removeTarget = parseWorktreeRemoveTarget(command);
+  if (removeTarget !== null) {
+    const targetPath = canonicalize(resolve(cwd, removeTarget));
+    const victim = liveClaims.find((claim) => canonicalize(claim.worktree) === targetPath);
+    if (victim === undefined) return { kind: 'pass' };
+    return { kind: 'deny', reason: buildReason('deny', victim) };
+  }
+
   const kind = classifyGitCommand(command, {
     fileExists: (target) => existsSync(resolve(myWorktree, target)),
   });
