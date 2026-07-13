@@ -146,6 +146,7 @@ export {
   createWorkSnapshot,
   listWorkSnapshots,
   pruneWorkSnapshots,
+  resolveRepoRoot,
   restoreCommand,
   worktreeSlug,
 } from './status/workSnapshot';

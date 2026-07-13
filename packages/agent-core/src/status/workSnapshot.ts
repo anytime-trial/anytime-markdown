@@ -171,6 +171,19 @@ export function pruneWorkSnapshots(repoRoot: string, cutoffIso: string): number 
 }
 
 /**
+ * 任意のディレクトリから git リポジトリのルートを解決する。git リポジトリでなければ null。
+ * git の呼び出しを本モジュールへ閉じるため、拡張ホスト側から直接 git を叩かせない。
+ */
+export function resolveRepoRoot(cwd: string): string | null {
+  try {
+    return git(cwd, ['rev-parse', '--show-toplevel']);
+  } catch {
+    // git リポジトリでない場合、git は非ゼロ終了する。呼び出し側は機能を無効化すればよい。
+    return null;
+  }
+}
+
+/**
  * 復元コマンドを組み立てる。**実行はしない。**
  * 復元は作業ツリーを上書きする破壊的操作であり、「消えたと思ったが意図的に消していた」場合に
  * 二次被害を生む。提示までに留め、実行はユーザーに委ねる。

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -7,6 +7,7 @@ import {
   createWorkSnapshot,
   listWorkSnapshots,
   pruneWorkSnapshots,
+  resolveRepoRoot,
   restoreCommand,
   SNAPSHOT_REF_ROOT,
 } from '../workSnapshot';
@@ -170,5 +171,32 @@ describe('listWorkSnapshots / pruneWorkSnapshots', () => {
       fileCount: 3,
     });
     expect(cmd).toBe('git restore --source=abc1234 --worktree -- .');
+  });
+});
+
+describe('resolveRepoRoot', () => {
+  let repo: string;
+  afterEach(() => {
+    if (repo && existsSync(repo)) rmSync(repo, { recursive: true, force: true });
+  });
+
+  it('サブディレクトリからリポジトリルートを解決する', () => {
+    repo = makeRepo();
+    mkdirSync(join(repo, 'nested', 'deep'), { recursive: true });
+
+    const resolved = resolveRepoRoot(join(repo, 'nested', 'deep'));
+
+    // macOS の /var → /private/var 等のシンボリックリンク差を吸収するため realpath 比較
+    expect(resolved).not.toBeNull();
+    expect(realpathSync(resolved!)).toBe(realpathSync(repo));
+  });
+
+  it('git リポジトリでなければ null を返す', () => {
+    const notRepo = mkdtempSync(join(tmpdir(), 'anytime-notrepo-'));
+    try {
+      expect(resolveRepoRoot(notRepo)).toBeNull();
+    } finally {
+      rmSync(notRepo, { recursive: true, force: true });
+    }
   });
 });
