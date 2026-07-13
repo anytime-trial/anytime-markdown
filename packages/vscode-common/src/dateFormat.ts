@@ -8,6 +8,8 @@
  * trail-core に依存しない（拡張のバンドルサイズを増やさない）ため独立に持つ。
  */
 export function resolveLocalTimeZone(): string {
+  // 規約の既定は `typeof window !== 'undefined'` だが、本パッケージの tsconfig は
+  // DOM lib を含まず `window` が未宣言のため型エラーになる。ここは in 演算子で判定する。
   if ('window' in globalThis) {
     return new Intl.DateTimeFormat().resolvedOptions().timeZone;
   }
