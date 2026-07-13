@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { UsageLimitRow, UsageSeverity } from './parseClaudeUsage';
@@ -118,12 +119,14 @@ export class ClaudeUsageCache {
     return { kind: 'hit', snapshot };
   }
 
+  /**
+   * 一時ファイル + rename でアトミックに置き換える。一時ファイル名は毎回一意でなければならない
+   * （pid + 時刻だけだと、同一プロセスの同一ミリ秒に重なった 2 本の write が同じ一時ファイルを
+   * 奪い合い、後発の rename が ENOENT で落ちる）。
+   */
   async write(snapshot: ClaudeUsageSnapshot): Promise<void> {
     await fs.mkdir(path.dirname(this.cachePath), { recursive: true });
-    const tmpPath = path.join(
-      path.dirname(this.cachePath),
-      `${path.basename(this.cachePath)}.${process.pid}.${Date.now()}.tmp`,
-    );
+    const tmpPath = `${this.cachePath}.${process.pid}.${randomUUID()}.tmp`;
     await fs.writeFile(tmpPath, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf-8');
     await fs.rename(tmpPath, this.cachePath);
   }

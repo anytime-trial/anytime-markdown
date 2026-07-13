@@ -56,6 +56,12 @@ function cacheWarning(readResult: ClaudeUsageCacheReadResult): string | undefine
     : undefined;
 }
 
+/** 読み込み側と書き込み側の警告は原因が別なので、どちらかで上書きせず両方残す。 */
+function mergeWarnings(...warnings: readonly (string | undefined)[]): string | undefined {
+  const present = warnings.filter((w): w is string => w !== undefined && w.length > 0);
+  return present.length > 0 ? present.join(' / ') : undefined;
+}
+
 function toIso(ms: number): string {
   return new Date(ms).toISOString();
 }
@@ -109,6 +115,20 @@ export class ClaudeUsageCoordinator {
     return this.applyFetchResult(result, cached, warning, nowMs);
   }
 
+  /**
+   * キャッシュ書き込みの失敗で取得済みの値を捨てない（他ウィンドウとの共有に失敗しても、
+   * この呼び出しの結果は表示できる）。失敗理由は警告として呼び出し側へ返し、ログに出させる。
+   */
+  private async writeCacheOrWarn(snapshot: ClaudeUsageSnapshot): Promise<string | undefined> {
+    try {
+      await this.cache.write(snapshot);
+      return undefined;
+    } catch (err) {
+      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      return `Failed to persist the Claude usage cache: ${detail}`;
+    }
+  }
+
   private async applyFetchResult(
     result: ClaudeUsageResult,
     cached: ClaudeUsageSnapshot | null,
@@ -123,7 +143,7 @@ export class ClaudeUsageCoordinator {
         backoffUntil: null,
         failureCount: 0,
       };
-      await this.cache.write(snapshot);
+      const writeWarning = await this.writeCacheOrWarn(snapshot);
       return {
         kind: 'fresh',
         rows: snapshot.rows,
@@ -131,12 +151,18 @@ export class ClaudeUsageCoordinator {
         backoffUntil: null,
         failureCount: 0,
         unknownKinds: result.unknownKinds,
-        cacheWarning: warning,
+        cacheWarning: mergeWarnings(warning, writeWarning),
       };
     }
     if (result.kind === 'unauthenticated') {
-      await this.cache.remove();
-      return { kind: 'hidden', cacheWarning: warning };
+      let removeWarning: string | undefined;
+      try {
+        await this.cache.remove();
+      } catch (err) {
+        const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        removeWarning = `Failed to remove the Claude usage cache: ${detail}`;
+      }
+      return { kind: 'hidden', cacheWarning: mergeWarnings(warning, removeWarning) };
     }
     if (result.kind === 'expired') {
       return { kind: 'expired', rows: cached?.rows ?? [], cacheWarning: warning };
@@ -151,14 +177,14 @@ export class ClaudeUsageCoordinator {
         backoffUntil,
         failureCount,
       };
-      await this.cache.write(snapshot);
+      const writeWarning = await this.writeCacheOrWarn(snapshot);
       return {
         kind: 'rateLimited',
         rows: snapshot.rows,
         fetchedAt: snapshot.rows.length > 0 ? snapshot.fetchedAt : null,
         backoffUntil,
         failureCount,
-        cacheWarning: warning,
+        cacheWarning: mergeWarnings(warning, writeWarning),
       };
     }
 

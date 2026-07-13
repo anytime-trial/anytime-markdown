@@ -233,6 +233,31 @@ describe('AgentMappingProvider usage warnings', () => {
     provider.dispose();
   });
 
+  // 設定変更の張り直しとタイマーが重なっても、同じウィンドウから同時に 2 本叩かない（自らレート制限を悪化させない）。
+  it('does not run overlapping usage fetches', async () => {
+    let release: (() => void) | undefined;
+    const usageClient: UsageClientStub = {
+      fetchUsage: jest.fn<Promise<ClaudeUsageResult>, []>().mockImplementation(
+        () => new Promise(resolve => {
+          release = () => resolve({ kind: 'ok', rows: [USAGE_ROW], unknownKinds: [] });
+        }),
+      ),
+    };
+    const provider = createProvider(usageClient);
+
+    // 初回取得が未解決のまま設定変更で張り直す。
+    registeredConfigListener()({
+      affectsConfiguration: (section: string) => section === 'anytimeAgent.usageRefreshSeconds',
+    } as vscode.ConfigurationChangeEvent);
+    await jest.advanceTimersByTimeAsync(REFRESH_MS);
+
+    expect(usageClient.fetchUsage).toHaveBeenCalledTimes(1);
+
+    release?.();
+    await provider.whenUsageSettled();
+    provider.dispose();
+  });
+
   it('hides the Usage node only when Claude usage is unauthenticated', async () => {
     const usageClient = usageClientReturning({ kind: 'unauthenticated' });
     const provider = createProvider(usageClient);

@@ -29,6 +29,23 @@ const snapshot: ClaudeUsageSnapshot = {
 };
 
 describe('ClaudeUsageCache', () => {
+  // 一時ファイル名が pid + 時刻だけだと、同一ミリ秒に重なった write 同士が同じ一時ファイルを
+  // 奪い合い、後発の rename が ENOENT で落ちる（フェイクタイマー下の並行 refresh で実際に発生した）。
+  it('survives concurrent writes at the same timestamp', async () => {
+    const cachePath = await makeCachePath();
+    const cache = new ClaudeUsageCache(cachePath);
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-07-12T13:00:00.000Z'));
+
+    try {
+      await Promise.all([cache.write(snapshot), cache.write(snapshot), cache.write(snapshot)]);
+    } finally {
+      nowSpy.mockRestore();
+    }
+
+    const read = await cache.read();
+    expect(read.kind).toBe('hit');
+  });
+
   afterEach(async () => {
     await Promise.all(tempDirs.splice(0).map(dir => fs.rm(dir, { recursive: true, force: true })));
   });

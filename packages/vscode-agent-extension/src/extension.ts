@@ -244,8 +244,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     retentionDays: sessionRetentionDays,
     logger: (m) => AgentLogger.warn(m),
   });
-  // 使用量 API は共有トークンバケットで厳しくレート制限される。globalStorage のキャッシュを介して
-  // 全ウィンドウ（拡張ホスト）の取得を 1 本化し、429 を指数バックオフで受け止める。
+  // 使用量 API は共有トークンバケットで厳しくレート制限される。globalStorage の共有キャッシュ・TTL・
+  // 指数バックオフで再取得の頻度を抑える（排他ロックは持たないため、複数ウィンドウが同時に TTL 切れを
+  // 踏めば同時に fetch し得る。既知の上限は ClaudeUsageCoordinator の SHORTCUT を参照）。
   const usageCoordinator = new ClaudeUsageCoordinator({
     cachePath: vscode.Uri.joinPath(context.globalStorageUri, 'claude-usage-cache.json').fsPath,
     client: new ClaudeUsageClient(),

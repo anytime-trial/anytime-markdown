@@ -47,6 +47,7 @@ export class AgentMappingProvider
   private readonly _warnedUsageKinds = new Set<string>();
   /** 進行中の使用量取得（共有キャッシュ読み込みを含む）。テストが反映完了を待つための seam。 */
   private _pendingUsageRefresh: Promise<void> = Promise.resolve();
+  private _usageRefreshInFlight = false;
 
   constructor(
     private readonly watcher: ClaudeStatusWatcher,
@@ -281,6 +282,11 @@ export class AgentMappingProvider
   }
 
   private async _refreshUsage(): Promise<void> {
+    // 取得の多重起動を防ぐ（タイマーと設定変更の張り直しが重なると、同じウィンドウから
+    // 同時に 2 本叩いてレート制限を自ら悪化させる）。
+    if (this._usageRefreshInFlight) {
+      return;
+    }
     if (!this._showUsage()) {
       this._usageRows = null;
       this._usageStatus = 'hidden';
@@ -299,15 +305,17 @@ export class AgentMappingProvider
       this.refresh();
       return;
     }
+    this._usageRefreshInFlight = true;
     try {
       this._applyUsageResult(await coordinator.refresh());
     } catch (err) {
       this._markUsageError('Unexpected Claude usage refresh failure');
-      // fetchUsage は全経路を結果型へ正規化するためここは到達しない想定だが、将来 throw する
+      // coordinator.refresh() は全経路を結果型へ正規化するためここは到達しない想定だが、将来 throw する
       // 実装に変わってもトークンが Output Channel へ出ないよう、種別だけに落として記録する。
       const kind = err instanceof Error && err.name ? err.name : 'Error';
       AgentLogger.error('[AgentMapping] Claude usage refresh failed', new Error(`Unexpected ${kind}`));
     } finally {
+      this._usageRefreshInFlight = false;
       this.refresh();
     }
   }

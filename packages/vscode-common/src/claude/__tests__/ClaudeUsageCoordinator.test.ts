@@ -34,6 +34,22 @@ describe('ClaudeUsageCoordinator', () => {
     await Promise.all(tempDirs.splice(0).map(dir => fs.rm(dir, { recursive: true, force: true })));
   });
 
+  // キャッシュ書き込みに失敗しても、取得できた値は捨てない（共有に失敗しただけで表示は可能）。
+  it('returns the fetched rows with a warning when the cache cannot be written', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'usage-coordinator-'));
+    tempDirs.push(dir);
+    // ディレクトリを cachePath として渡すと write() の rename が失敗する（EISDIR）。
+    const coordinator = new ClaudeUsageCoordinator({
+      cachePath: dir,
+      client: clientReturning({ kind: 'ok', rows: [row], unknownKinds: [] }),
+    });
+
+    const result = await coordinator.refresh();
+
+    expect(result).toMatchObject({ kind: 'fresh', rows: [row] });
+    expect(result.cacheWarning).toContain('Failed to persist the Claude usage cache');
+  });
+
   it('does not fetch within the cache TTL', async () => {
     let now = Date.parse('2026-07-12T13:00:00.000Z');
     const client = clientReturning({ kind: 'ok', rows: [row], unknownKinds: [] });
