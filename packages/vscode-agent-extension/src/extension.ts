@@ -25,6 +25,9 @@ import { registerHandoffSessionCommand } from './commands/handoffSession';
 import { SessionTreeItem } from './providers/AgentMappingItem';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { AiNoteItem, AiNoteProvider } from './providers/AiNoteProvider';
+import { GitActivityItem } from './providers/GitActivityItem';
+import { GitActivityProvider } from './providers/GitActivityProvider';
+import { recoveryCommand } from './providers/gitActivityModel';
 import { OllamaProvider } from './providers/OllamaProvider';
 import { installClaudeMdGuidance } from './skills/claudeMdGuidance';
 import { installWorkspaceSkills } from './skills/installWorkspaceSkills';
@@ -41,16 +44,39 @@ let agentStatusWorkerHost: AgentStatusWorkerHost | undefined;
 const SEEN_GIT_ACTIVITY_KEY = 'anytimeAgent.lastWarnedGitActivityId';
 const GIT_ACTIVITY_POLL_INTERVAL_MS = 3000;
 
+/**
+ * ポーリングの多重実行ガード。
+ *
+ * warnOnDestructiveGitOps は「HTTP 取得 → 通知 → workspaceState へ通知済み ID を書く」の順で、
+ * ID の更新が最後にある。HTTP がタイムアウト近くまで遅れると、次のティックが古い ID を読んで
+ * 同じ行を再通知し、その true 返却が TreeView の再構築（同期 git 起動）まで巻き込む。
+ */
+let gitActivityPollInFlight = false;
+
+/** TreeView の行から復元／救出コマンドを引く。**実行はしない。** 出せない行では null。 */
+function commandForItem(item: GitActivityItem | undefined): string | null {
+  if (item === undefined) return null;
+  switch (item.payload.kind) {
+    case 'snapshot':
+      return restoreCommand(item.payload.snapshot);
+    case 'git':
+      return recoveryCommand(item.payload.row);
+    case 'date':
+    case 'error':
+      return null;
+  }
+}
+
 async function warnOnDestructiveGitOps(
   client: AgentStatusClient,
   context: vscode.ExtensionContext,
   logger: Pick<typeof AgentLogger, 'warn'>,
   snapshotRepoRoot: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const rows = await client.getGitActivity();
   const lastWarned = context.workspaceState.get<number>(SEEN_GIT_ACTIVITY_KEY) ?? 0;
   const fresh = rows.filter((r) => r.destructive && r.id > lastWarned);
-  if (fresh.length === 0) return;
+  if (fresh.length === 0) return false;
 
   // 添え書きはループ不変。ループ内で引くと、未通知の破壊的操作が N 件あるたびに同期の
   // git for-each-ref が N 回走り、拡張ホストをその分ブロックする。
@@ -87,6 +113,7 @@ async function warnOnDestructiveGitOps(
 
   const maxId = Math.max(...fresh.map((r) => r.id), lastWarned);
   await context.workspaceState.update(SEEN_GIT_ACTIVITY_KEY, maxId);
+  return true;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -308,12 +335,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // 宣言する。workspacePath はサブディレクトリの可能性があるため、実際の git リポジトリルートを解決する。
   const snapshotRepoRoot = resolveRepoRoot(workspacePath);
 
+  const gitActivityProvider = new GitActivityProvider(agentStatusClient, snapshotRepoRoot);
+  const gitActivityTreeView = vscode.window.createTreeView('anytimeAgent.gitActivity', {
+    treeDataProvider: gitActivityProvider,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(gitActivityTreeView);
+
   const gitActivityTimer = setInterval(() => {
-    void warnOnDestructiveGitOps(agentStatusClient, context, AgentLogger, snapshotRepoRoot).catch(
-      (err) => {
-        AgentLogger.warn(`[git-activity] destructive operation polling failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
-      },
-    );
+    // 前回のティックが終わる前に次を走らせない（通知済み ID の更新が最後にあるため、重なると
+    // 同じ行を二重通知し、TreeView の再構築まで二重に走る）。
+    if (gitActivityPollInFlight) return;
+    gitActivityPollInFlight = true;
+
+    void warnOnDestructiveGitOps(agentStatusClient, context, AgentLogger, snapshotRepoRoot)
+      .then((notified) => {
+        if (notified) gitActivityProvider.refresh();
+      })
+      .catch((err) => {
+        AgentLogger.warn(
+          `[git-activity] destructive operation polling failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+        );
+      })
+      .finally(() => {
+        gitActivityPollInFlight = false;
+      });
   }, GIT_ACTIVITY_POLL_INTERVAL_MS);
   gitActivityTimer.unref?.();
   context.subscriptions.push({ dispose: () => clearInterval(gitActivityTimer) });
@@ -413,6 +459,58 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
   );
   context.subscriptions.push(showWorkSnapshots);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('anytime-agent.gitActivity.refresh', () => {
+      gitActivityProvider.refresh();
+    }),
+    // フィルタのミューテータは provider 側で refresh するため、ここでは呼ばない（二重発火の回避）。
+    vscode.commands.registerCommand('anytime-agent.gitActivity.toggleDestructiveOnly', () => {
+      gitActivityProvider.toggleDestructiveOnly();
+    }),
+    vscode.commands.registerCommand('anytime-agent.gitActivity.setAttribution', async () => {
+      const picked = await vscode.window.showQuickPick(
+        [
+          { label: 'すべて', attribution: 'all' as const },
+          { label: 'claude', attribution: 'claude' as const },
+          { label: 'agent', attribution: 'agent' as const },
+          { label: 'human', attribution: 'human' as const },
+        ],
+        {
+          title: 'Git Activity の実行者フィルター',
+          placeHolder: '表示する実行者を選択',
+        },
+      );
+      if (picked === undefined) return;
+      gitActivityProvider.setAttribution(picked.attribution);
+    }),
+    vscode.commands.registerCommand('anytime-agent.gitActivity.setDays', async () => {
+      const picked = await vscode.window.showQuickPick(
+        [
+          { label: '7 日', days: 7 },
+          { label: '30 日', days: 30 },
+          { label: 'すべて', days: null },
+        ],
+        {
+          title: 'Git Activity の期間フィルター',
+          placeHolder: '表示する期間を選択',
+        },
+      );
+      if (picked === undefined) return;
+      gitActivityProvider.setDays(picked.days);
+    }),
+    vscode.commands.registerCommand('anytime-agent.gitActivity.copyCommand', async (item: GitActivityItem | undefined) => {
+      const cmd = commandForItem(item);
+      if (cmd === null) {
+        void vscode.window.showWarningMessage('この行から復元できるコマンドはありません。');
+        return;
+      }
+      await vscode.env.clipboard.writeText(cmd);
+      void vscode.window.showInformationMessage(
+        `コマンドをコピーしました（実行はしていません）: ${cmd}`,
+      );
+    }),
+  );
 
   const watcher = new ClaudeStatusWatcher(agentStatusClient);
   // Codex セッションは rollout .jsonl の読み取り専用スキャン（worker DB 非対象）。保持期間は Claude と共有。
