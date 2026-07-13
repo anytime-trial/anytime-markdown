@@ -16,6 +16,7 @@ import {
   ClaudeUsageClient,
   ClaudeUsageCoordinator,
   CodexSessionScanner,
+  formatLocalDateTime,
   setupClaudeHooks,
 } from '@anytime-markdown/vscode-common';
 import * as vscode from 'vscode';
@@ -51,6 +52,24 @@ async function warnOnDestructiveGitOps(
   const fresh = rows.filter((r) => r.destructive && r.id > lastWarned);
   if (fresh.length === 0) return;
 
+  // 添え書きはループ不変。ループ内で引くと、未通知の破壊的操作が N 件あるたびに同期の
+  // git for-each-ref が N 回走り、拡張ホストをその分ブロックする。
+  let hint = '';
+  if (snapshotRepoRoot !== null) {
+    try {
+      const latest = listWorkSnapshots(snapshotRepoRoot)[0];
+      hint =
+        latest === undefined
+          ? ''
+          : `（直近スナップショット: ${formatLocalDateTime(latest.createdAt)} / ${latest.fileCount} files）`;
+    } catch (err) {
+      // スナップショットの引き当て失敗で警告そのものを落とさない（警告こそが本来の目的）
+      logger.warn(
+        `[work-snapshot] hint lookup failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+      );
+    }
+  }
+
   for (const r of fresh) {
     const who =
       r.attribution === 'claude'
@@ -63,22 +82,6 @@ async function warnOnDestructiveGitOps(
     const verb = r.opType === 'push' ? '試行' : '検知';
     const msg = `破壊的な git 操作を${verb}: ${r.opType} - ${r.refName}（実行者: ${who}）`;
     logger.warn(`[git-activity] ${msg} before=${r.beforeSha ?? '-'} after=${r.afterSha ?? '-'}`);
-
-    let hint = '';
-    if (snapshotRepoRoot !== null) {
-      try {
-        const latest = listWorkSnapshots(snapshotRepoRoot)[0];
-        hint =
-          latest === undefined
-            ? ''
-            : `（直近スナップショット: ${latest.createdAt} / ${latest.fileCount} files）`;
-      } catch (err) {
-        // スナップショットの引き当て失敗で警告そのものを落とさない（警告こそが本来の目的）
-        logger.warn(
-          `[work-snapshot] hint lookup failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
-        );
-      }
-    }
     void vscode.window.showWarningMessage(`${msg}${hint}`);
   }
 
@@ -387,7 +390,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
       const picked = await vscode.window.showQuickPick(
         snapshots.map((s) => ({
-          label: s.createdAt,
+          // 保存・比較は UTC ISO のまま。表示のみローカル TZ へ変換する（拡張ホストは TZ=UTC のため
+          // 素朴な変換は効かず、vscode-common の解決順序に従う必要がある）。
+          label: formatLocalDateTime(s.createdAt),
           description: `${s.fileCount} files`,
           detail: s.sha.slice(0, 12),
           snapshot: s,

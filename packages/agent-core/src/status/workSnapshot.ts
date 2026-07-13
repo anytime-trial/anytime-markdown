@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, rmSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 /** ref 名前空間。git の既定 push refspec（refs/heads/*）に含まれないため、意図せず共有されない。 */
@@ -25,8 +25,19 @@ export interface CreateWorkSnapshotResult {
   readonly skipped: 'clean' | 'unchanged' | null;
 }
 
+/**
+ * `--no-optional-locks` を必ず前置する。
+ *
+ * 素の `git status` は stat キャッシュ更新のために `.git/index.lock` を取り、**本物の index を書き換える**
+ * （実測: status 実行前後で `.git/index` の mtime が変化する）。内容は変わらないが、
+ * (1) 「本物の index に書き込まない」という本モジュールの不変条件を実行パスで破り、
+ * (2) 15 分ごとにバックグラウンドで index.lock を奪うため、ユーザーやエージェントが同時に
+ *     `git add` / `git commit` していると相手側を `Unable to create '.git/index.lock'` で失敗させ得る。
+ * VS Code 組み込みの git 拡張が読み取り系に一律で本オプションを付けているのも同じ理由による。
+ * `add`（一時 index 側）・`write-tree`・`commit-tree`・`update-ref` は必須ロックを使うため影響を受けない。
+ */
 function git(repoRoot: string, args: readonly string[], env?: NodeJS.ProcessEnv): string {
-  return execFileSync('git', args, {
+  return execFileSync('git', ['--no-optional-locks', ...args], {
     cwd: repoRoot,
     encoding: 'utf8',
     env: env ? { ...process.env, ...env } : process.env,
@@ -51,19 +62,32 @@ export function toRefTimestamp(iso: string): string {
   return iso.replace(/[:-]/g, '').replace(/\.\d+Z$/, 'Z');
 }
 
-/** ref 名の圧縮 timestamp → UTC ISO 8601。 */
-export function fromRefTimestamp(stamp: string): string {
+/**
+ * ref 名の圧縮 timestamp → UTC ISO 8601。形式に合わなければ null。
+ *
+ * 素通しで返してはならない。`20260713T050000Z` のまま `createdAt` に入ると、prune の文字列比較
+ * （`createdAt < '2026-07-06T...'`）で `-`(0x2D) < `0`(0x30) となり **常に「新しい」と判定されて
+ * 永久に prune されなくなる**。
+ */
+export function parseRefTimestamp(stamp: string): string | null {
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(stamp);
-  if (!m) return stamp;
+  if (!m) return null;
   return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}.000Z`;
 }
 
 function headSha(repoRoot: string): string | null {
   try {
     return git(repoRoot, ['rev-parse', '--verify', 'HEAD']);
-  } catch {
-    // 初コミット前のリポジトリでは HEAD が解決できない。親なし commit を作るため null を返す。
-    return null;
+  } catch (err) {
+    // 「初コミット前（unborn HEAD）」だけを親なし commit として許容する。リポジトリ破損・git 不在等の
+    // 別種の失敗まで畳み込むと、親リンクを失った孤児スナップショットが黙って生まれる。
+    // unborn HEAD は「HEAD は在るが指す先の commit が無い」状態なので、symbolic-ref は成功する。
+    try {
+      git(repoRoot, ['symbolic-ref', '--quiet', 'HEAD']);
+      return null;
+    } catch {
+      throw err;
+    }
   }
 }
 
@@ -86,21 +110,36 @@ function latestTree(repoRoot: string): string | null {
  * 破ると「事故防止機構が事故そのものになる」。
  */
 export function createWorkSnapshot(repoRoot: string, nowIso: string): CreateWorkSnapshotResult {
-  const status = git(repoRoot, ['status', '--porcelain']);
+  // -uall にする理由: 既定の -unormal は untracked ディレクトリを `?? sub/` の 1 行に折り畳むが、
+  // `git add -A` は配下の全ファイルを取り込む。揃えないと fileCount が実件数より小さく出て
+  // （50 ファイルの作業が「3 files」と表示される）、ユーザーの復元判断を誤らせる。
+  const status = git(repoRoot, ['status', '--porcelain', '-uall']);
   if (status === '') return { snapshot: null, skipped: 'clean' };
   const fileCount = status.split('\n').filter((l) => l !== '').length;
 
   const gitDir = git(repoRoot, ['rev-parse', '--absolute-git-dir']);
-  const tmpIndex = join(gitDir, 'anytime-work-snapshot-index');
+  // 一時 index はプロセス固有にする。固定パスだと、同じリポジトリを開いた 2 つ目の VS Code が
+  // こちらの使用中の一時 index を消し得る。その状態の write-tree は **例外を投げず空 tree を返す**
+  // （実測: exit 0 で 4b825dc6...）ため、fail-open では捕捉できず「N files」と表示されるのに
+  // 中身が空のスナップショットが最新として残る。復元を試みて初めて空だと分かる最悪の壊れ方になる。
+  const tmpIndex = join(gitDir, `anytime-work-snapshot-index-${process.pid}-${randomUUID()}`);
   const realIndex = join(gitDir, 'index');
 
   try {
-    rmSync(tmpIndex, { force: true });
     // 本物の index を出発点にすることで staged 状態を保つ。存在しなければ空 index から始める。
     if (existsSync(realIndex)) copyFileSync(realIndex, tmpIndex);
 
     const indexEnv = { GIT_INDEX_FILE: tmpIndex };
     git(repoRoot, ['add', '-A'], indexEnv);
+
+    // write-tree の直前で一時 index の実在を確認する（多重防御）。消えていると git は空 tree を
+    // exit 0 で返すため、ここで落とさないと空のスナップショットが黙って作られる。
+    if (!existsSync(tmpIndex)) {
+      throw new Error(
+        `一時 index が消失したためスナップショットを中止した: ${tmpIndex} (repo=${repoRoot})`,
+      );
+    }
+
     const tree = git(repoRoot, ['write-tree'], indexEnv);
 
     if (tree === latestTree(repoRoot)) return { snapshot: null, skipped: 'unchanged' };
@@ -140,21 +179,24 @@ export function listWorkSnapshots(repoRoot: string): readonly WorkSnapshot[] {
   ]);
   if (out === '') return [];
 
-  return out
-    .split('\n')
-    .filter((line) => line !== '')
-    .map((line) => {
-      const [ref, sha, tree, subject = ''] = line.split('\t');
-      const stamp = ref.slice(prefix.length);
-      const countMatch = /\((\d+) files\)$/.exec(subject);
-      return {
-        ref,
-        sha,
-        tree,
-        createdAt: fromRefTimestamp(stamp),
-        fileCount: countMatch ? Number.parseInt(countMatch[1], 10) : 0,
-      };
+  const snapshots: WorkSnapshot[] = [];
+  for (const line of out.split('\n')) {
+    if (line === '') continue;
+    const [ref, sha, tree, subject = ''] = line.split('\t');
+    const createdAt = parseRefTimestamp(ref.slice(prefix.length));
+    // 本モジュールが作った ref なら必ずパースできる。できないものは手作り・破損の類なので
+    // 一覧から外す。prune の対象にもならない（自分が作っていない ref を消すのは破壊的すぎる）。
+    if (createdAt === null) continue;
+    const countMatch = /\((\d+) files\)$/.exec(subject);
+    snapshots.push({
+      ref,
+      sha,
+      tree,
+      createdAt,
+      fileCount: countMatch ? Number.parseInt(countMatch[1], 10) : 0,
     });
+  }
+  return snapshots;
 }
 
 /**
@@ -189,5 +231,7 @@ export function resolveRepoRoot(cwd: string): string | null {
  * 二次被害を生む。提示までに留め、実行はユーザーに委ねる。
  */
 export function restoreCommand(snapshot: WorkSnapshot): string {
-  return `git restore --source=${snapshot.sha} --worktree -- .`;
+  // パススペックは `.`（cwd 相対）ではなく `:/`（リポジトリルート相対）にする。サブディレクトリの
+  // ターミナルに貼られると `.` はそのサブツリーだけを復元し、部分復元に気づきにくい。
+  return `git restore --source=${snapshot.sha} --worktree -- :/`;
 }

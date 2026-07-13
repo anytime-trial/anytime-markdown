@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync, realpathSync } from 'node:fs';
+import {
+  mkdtempSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  existsSync,
+  realpathSync,
+  statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -170,7 +178,81 @@ describe('listWorkSnapshots / pruneWorkSnapshots', () => {
       createdAt: '2026-07-13T05:00:00.000Z',
       fileCount: 3,
     });
-    expect(cmd).toBe('git restore --source=abc1234 --worktree -- .');
+    // `.`（cwd 相対）ではなく `:/`（リポジトリルート相対）。サブディレクトリで貼られたときに
+    // 部分復元にならないようにする。
+    expect(cmd).toBe('git restore --source=abc1234 --worktree -- :/');
+  });
+});
+
+describe('レビュー指摘の回帰テスト', () => {
+  let repo: string;
+  afterEach(() => {
+    if (repo && existsSync(repo)) rmSync(repo, { recursive: true, force: true });
+  });
+
+  // 一時 index が固定パスだった頃、2 プロセスが同じリポジトリでスナップショットを取ると
+  // 相手の一時 index を消し合い、write-tree が例外を投げずに空 tree（4b825dc6...）を返した。
+  // 結果「N files」と表示されるのに中身が空のスナップショットが黙って残った。
+  it('同一リポジトリで連続実行しても、空 tree のスナップショットを作らない', () => {
+    repo = makeRepo();
+    const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+    writeFileSync(join(repo, 'a.txt'), 'a\n');
+    const first = createWorkSnapshot(repo, '2026-07-13T05:00:00.000Z');
+    writeFileSync(join(repo, 'b.txt'), 'b\n');
+    const second = createWorkSnapshot(repo, '2026-07-13T05:05:00.000Z');
+
+    expect(first.snapshot!.tree).not.toBe(EMPTY_TREE);
+    expect(second.snapshot!.tree).not.toBe(EMPTY_TREE);
+    // 中身が実在すること（空 tree なら ls-tree は空になる）
+    expect(git(repo, ['ls-tree', '-r', '--name-only', second.snapshot!.sha])).toContain('b.txt');
+  });
+
+  // git status は既定（-unormal）で untracked ディレクトリを `?? sub/` の 1 行に折り畳むが、
+  // git add -A は配下の全ファイルを取り込む。揃えないと fileCount が実件数より小さく出る。
+  it('untracked ディレクトリ配下のファイルを fileCount に数える', () => {
+    repo = makeRepo();
+    mkdirSync(join(repo, 'sub'), { recursive: true });
+    writeFileSync(join(repo, 'sub', 'a.txt'), 'a\n');
+    writeFileSync(join(repo, 'sub', 'b.txt'), 'b\n');
+    writeFileSync(join(repo, 'top.txt'), 'top\n');
+
+    const result = createWorkSnapshot(repo, '2026-07-13T05:00:00.000Z');
+
+    // sub/a.txt + sub/b.txt + top.txt = 3。折り畳まれると 2 になる。
+    expect(result.snapshot!.fileCount).toBe(3);
+    expect(listWorkSnapshots(repo)[0].fileCount).toBe(3);
+  });
+
+  // ref 名の timestamp をパースできない ref を createdAt にそのまま入れると、prune の文字列比較で
+  // 常に「新しい」と判定され永久に消えなくなる。一覧から除外して prune の対象外にする。
+  it('形式外の ref 名を一覧に混ぜない（prune の文字列比較を壊さないため）', () => {
+    repo = makeRepo();
+    writeFileSync(join(repo, 'a.txt'), 'a\n');
+    createWorkSnapshot(repo, '2026-07-13T05:00:00.000Z');
+
+    const slug = listWorkSnapshots(repo)[0].ref.split('/').at(-2);
+    const bogusRef = `${SNAPSHOT_REF_ROOT}/${slug}/not-a-timestamp`;
+    git(repo, ['update-ref', bogusRef, git(repo, ['rev-parse', 'HEAD'])]);
+
+    const list = listWorkSnapshots(repo);
+
+    expect(list).toHaveLength(1);
+    expect(list[0].createdAt).toBe('2026-07-13T05:00:00.000Z');
+  });
+
+  // git status は stat キャッシュ更新のため本物の index を書き換える（index.lock を奪う）。
+  // --no-optional-locks で抑止する。これは「本物の index に一切書き込まない」不変条件の一部。
+  it('本物の .git/index を書き換えない（--no-optional-locks）', () => {
+    repo = makeRepo();
+    writeFileSync(join(repo, 'tracked.txt'), 'base\nmodified\n');
+
+    const indexPath = join(repo, '.git', 'index');
+    const before = statSync(indexPath).mtimeMs;
+
+    createWorkSnapshot(repo, '2026-07-13T05:00:00.000Z');
+
+    expect(statSync(indexPath).mtimeMs).toBe(before);
   });
 });
 
