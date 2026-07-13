@@ -15,6 +15,7 @@ import { SessionTreeItem } from './providers/AgentMappingItem';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { AiNoteItem, AiNoteProvider } from './providers/AiNoteProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
+import { installClaudeMdGuidance } from './skills/claudeMdGuidance';
 import { installWorkspaceSkills } from './skills/installWorkspaceSkills';
 import { AgentLogger } from './utils/AgentLogger';
 import {
@@ -72,6 +73,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       extensionPath: context.extensionUri.fsPath,
       noteStorageDir,
     });
+    // 開発指示の基本スキルを anytime-dev-cycle にする管理ブロックを CLAUDE.md へ upsert する
+    const claudeMdGuidance = vscode.workspace
+      .getConfiguration('anytimeAgent')
+      .get<boolean>('claudeMdGuidance', true);
+    if (claudeMdGuidance) {
+      installClaudeMdGuidance({ workspaceRoot: workspaceRootForNotes });
+    }
   }
 
   const openAiNote = vscode.commands.registerCommand(

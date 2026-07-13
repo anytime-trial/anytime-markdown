@@ -252,6 +252,11 @@
           "minimum": 1000,
           "markdownDescription": "セッションのコンテキストトークンがこの値を超えるとツリーに引き継ぎ推奨バッジ（⚠️）を表示する。"
         },
+        "anytimeAgent.claudeMdGuidance": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.claudeMdGuidance.markdownDescription%"
+        },
         "anytimeAgent.showUsage": {
           "type": "boolean",
           "default": true,
