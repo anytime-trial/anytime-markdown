@@ -7,9 +7,10 @@
 ## 起動形
 
 ```bash
-codex exec --dangerously-bypass-approvals-and-sandbox "<プロンプト>"
+codex exec --dangerously-bypass-approvals-and-sandbox "<プロンプト>" < /dev/null
 ```
 
+- **`< /dev/null` で stdin を閉じる（必須）**。閉じないと `codex exec` は `Reading additional input from stdin...` で**永久にブロックする**。Claude Code の Bash ツールは stdin をパイプで開いたまま渡すため EOF が来ない。前景実行では 10 分のタイムアウトで、バックグラウンド実行では無限に、いずれも**ファイルを 1 つも書かずに沈黙する**（2026-07-13 実測。「Codex が遅い」に見えるが実際は入力待ち）
 - **サブコマンドは `exec`**（非対話・headless）。対話モードは Claude からは使わない
 - **`--dangerously-bypass-approvals-and-sandbox` は必須**。この環境は bwrap（bubblewrap）が使えず、Codex 既定のサンドボックス起動が失敗するため。フラグ名のとおり承認とサンドボックスを外すので、**渡すプロンプトの側で対象と変更禁止範囲を縛る**（委譲契約 6 点）
 - Codex は AGENTS.md と `~/.codex/rules/*.md`（CLAUDE.md ルールのシンボリックリンク）を読む。一方 **Claude の現セッション文脈は継承しない**ため、前提はプロンプトに明示する
@@ -23,6 +24,7 @@ codex exec --dangerously-bypass-approvals-and-sandbox "<プロンプト>"
 
 | 症状 | 原因 | 対処 |
 | --- | --- | --- |
+| 何も出力せず延々と待つ（ログ末尾が `Reading additional input from stdin...`） | stdin が開いたままで EOF が来ず、追加入力を待ち続けている | `< /dev/null` を付ける。**「Codex が遅い」と誤診しやすい**（タイムアウトを延ばしても直らない） |
 | サンドボックス起動に失敗して即終了 | bwrap 不可の環境で既定サンドボックスを使おうとした | `--dangerously-bypass-approvals-and-sandbox` を付ける |
 | 承認待ちで止まる | 対話モード（`exec` 以外）で起動した | `codex exec` を使う |
 | 前提を取り違えた変更が返る | セッション文脈が継承されていない | 委譲契約 6 点（対象・変更禁止範囲・完了条件・検証・中断条件・プロンプト）を明示する |
