@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { SessionMapping, MappingState, AgentSource } from '@anytime-markdown/agent-core';
+import { formatLocalDateTime, formatLocalTime } from '@anytime-markdown/vscode-common';
 import type { TodayStats, UsageLimitRow, UsageSeverity } from '@anytime-markdown/vscode-common';
 
 const STATE_ICONS: Record<MappingState, vscode.ThemeIcon> = {
@@ -44,25 +45,12 @@ function formatResetTime(resetsAt: string | null): string {
   if (resetsAt === null) {
     return 'reset unknown';
   }
-  const date = new Date(resetsAt);
-  if (Number.isNaN(date.getTime())) {
-    return 'reset unknown';
-  }
-  return `resets ${new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(date)}`;
+  const formatted = formatLocalDateTime(resetsAt);
+  return formatted === null ? 'reset unknown' : `resets ${formatted}`;
 }
 
 function formatObservedTime(observedAt: string): string {
-  const date = new Date(observedAt);
-  if (Number.isNaN(date.getTime())) {
-    return observedAt;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(date);
+  return formatLocalDateTime(observedAt) ?? observedAt;
 }
 
 function usageSummary(rows: readonly UsageLimitRow[]): string {
@@ -169,11 +157,8 @@ export class UsageGroupItem extends vscode.TreeItem {
 /** "abc1234 (HH:mm)" 形式で最新コミットを整形する（時刻はローカル TZ 表示） */
 function formatLastCommit(lastCommit: { hash: string; timestamp: string }): string {
   const shortHash = lastCommit.hash.slice(0, 7);
-  let timeStr = '';
-  const t = new Date(lastCommit.timestamp);
-  if (!Number.isNaN(t.getTime())) {
-    timeStr = ` (${new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(t)})`;
-  }
+  const time = formatLocalTime(lastCommit.timestamp);
+  const timeStr = time === null ? '' : ` (${time})`;
   return `\`${shortHash}\`${timeStr}`;
 }
 
