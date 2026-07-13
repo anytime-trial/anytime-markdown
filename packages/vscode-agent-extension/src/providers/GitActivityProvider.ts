@@ -1,12 +1,14 @@
-import * as vscode from 'vscode';
 import {
-  listWorkSnapshots,
   type AgentStatusClient,
   type GitActivityRow,
   type GitAttribution,
+  listWorkSnapshots,
   type WorkSnapshot,
 } from '@anytime-markdown/agent-core';
 import { resolveLocalTimeZone } from '@anytime-markdown/vscode-common';
+import * as vscode from 'vscode';
+
+import { AgentLogger } from '../utils/AgentLogger';
 import { GitActivityItem } from './GitActivityItem';
 import {
   applyFilters,
@@ -15,7 +17,6 @@ import {
   type TimelineEntry,
   type TimelineFilters,
 } from './gitActivityModel';
-import { AgentLogger } from '../utils/AgentLogger';
 
 function errorDetail(err: unknown): string {
   return err instanceof Error ? (err.stack ?? err.message) : String(err);
@@ -74,8 +75,9 @@ export class GitActivityProvider implements vscode.TreeDataProvider<GitActivityI
 
   getChildren(element?: GitActivityItem): vscode.ProviderResult<GitActivityItem[]> {
     if (element !== undefined) {
-      if (element.kind === 'date' && element.group !== undefined) {
-        return element.group.entries.map((entry) => this._entryItem(entry));
+      // 子は _buildRoot で構築済みのグループから返す。展開のたびに git / HTTP を叩かない。
+      if (element.payload.kind === 'date') {
+        return element.payload.group.entries.map((entry) => this._entryItem(entry));
       }
       return [];
     }
@@ -84,26 +86,44 @@ export class GitActivityProvider implements vscode.TreeDataProvider<GitActivityI
   }
 
   private async _buildRoot(): Promise<GitActivityItem[]> {
-    const [rows, snapshots] = await Promise.all([
-      this._loadGitActivity(),
-      Promise.resolve(this._loadWorkSnapshots()),
-    ]);
+    // listWorkSnapshots は execFileSync（git for-each-ref）で同期に走る。Promise.all で包むと
+    // 並行に見えるが実際は包む前に完走しており、拡張ホストをその間ブロックする。誤読を招くので
+    // 同期であることを見た目でも保つ。
+    const snapshots = this._loadWorkSnapshots();
+    const activity = await this._loadGitActivity();
+
     const entries = applyFilters(
-      buildTimeline(rows, snapshots),
+      buildTimeline(activity.rows, snapshots),
       this._filters,
       new Date().toISOString(),
     );
-    return groupByLocalDate(entries, resolveLocalTimeZone()).map(
+    const groups = groupByLocalDate(entries, resolveLocalTimeZone()).map(
       (group) => new GitActivityItem({ kind: 'date', group }),
     );
+
+    // 取得失敗を空表示で隠さない。ワーカーが死んでいるだけなのに「破壊的操作は記録されていない」と
+    // 読ませるのは、事故調査 UI にとって最悪の失敗様式である。
+    if (activity.failed) {
+      return [new GitActivityItem({ kind: 'error' }), ...groups];
+    }
+    return groups;
   }
 
-  private async _loadGitActivity(): Promise<readonly GitActivityRow[]> {
+  private async _loadGitActivity(): Promise<{
+    readonly rows: readonly GitActivityRow[];
+    readonly failed: boolean;
+  }> {
     try {
-      return await this.client.getGitActivity();
+      const result = await this.client.getGitActivityResult();
+      if (result.failed) {
+        AgentLogger.warn(
+          '[git-activity] 履歴を取得できません（agent-status ワーカーが未起動・接続失敗の可能性）',
+        );
+      }
+      return result;
     } catch (err) {
-      AgentLogger.warn(`Git activity の取得に失敗しました: ${errorDetail(err)}`);
-      return [];
+      AgentLogger.warn(`[git-activity] 履歴の取得に失敗しました: ${errorDetail(err)}`);
+      return { rows: [], failed: true };
     }
   }
 

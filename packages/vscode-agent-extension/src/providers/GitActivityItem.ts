@@ -1,21 +1,33 @@
-import * as vscode from 'vscode';
 import type { GitActivityRow, WorkSnapshot } from '@anytime-markdown/agent-core';
 import { formatLocalTime } from '@anytime-markdown/vscode-common';
+import * as vscode from 'vscode';
+
 import type { TimelineDateGroup } from './gitActivityModel';
 
-type GitActivityItemInput =
+/**
+ * TreeView の 1 行。判別可能ユニオンのまま保持する。
+ *
+ * kind ごとに optional フィールド（group? / row? / snapshot?）へ分解すると、kind が確定していても
+ * 型は `T | undefined` のままになり、呼び出し側が不要な undefined チェックとネストした三項演算子を
+ * 書かされる。不変条件（kind === 'git' ⇔ row が在る）を型に持たせる。
+ */
+export type GitActivityItemInput =
   | { readonly kind: 'date'; readonly group: TimelineDateGroup }
   | { readonly kind: 'git'; readonly row: GitActivityRow }
-  | { readonly kind: 'snapshot'; readonly snapshot: WorkSnapshot };
+  | { readonly kind: 'snapshot'; readonly snapshot: WorkSnapshot }
+  | { readonly kind: 'error' };
 
 function labelFor(input: GitActivityItemInput): string {
-  if (input.kind === 'date') {
-    return input.group.dateKey;
+  switch (input.kind) {
+    case 'date':
+      return input.group.dateKey;
+    case 'git':
+      return `${formatLocalTime(input.row.occurredAt) ?? '時刻不明'}  ${input.row.opType}`;
+    case 'snapshot':
+      return `${formatLocalTime(input.snapshot.createdAt) ?? '時刻不明'}  スナップショット`;
+    case 'error':
+      return 'git 操作の履歴を取得できません';
   }
-  if (input.kind === 'git') {
-    return `${formatLocalTime(input.row.occurredAt) ?? '時刻不明'}  ${input.row.opType}`;
-  }
-  return `${formatLocalTime(input.snapshot.createdAt) ?? '時刻不明'}  スナップショット`;
 }
 
 function collapsibleStateFor(input: GitActivityItemInput): vscode.TreeItemCollapsibleState {
@@ -43,38 +55,45 @@ function gitTooltip(row: GitActivityRow): string {
 }
 
 export class GitActivityItem extends vscode.TreeItem {
-  readonly kind: GitActivityItemInput['kind'];
-  readonly group?: TimelineDateGroup;
-  readonly row?: GitActivityRow;
-  readonly snapshot?: WorkSnapshot;
+  readonly payload: GitActivityItemInput;
 
   constructor(input: GitActivityItemInput) {
     super(labelFor(input), collapsibleStateFor(input));
-    this.kind = input.kind;
+    this.payload = input;
 
-    if (input.kind === 'date') {
-      this.group = input.group;
-      this.description = `${input.group.entries.length} entries`;
-      this.contextValue = 'gitActivityDate';
-      return;
+    switch (input.kind) {
+      case 'date':
+        this.description = `${input.group.entries.length} 件`;
+        this.contextValue = 'gitActivityDate';
+        return;
+
+      case 'git':
+        this.description = input.row.refName;
+        this.tooltip = gitTooltip(input.row);
+        // 色だけに依存しない。破壊的かどうかはアイコンの形でも区別される。
+        this.iconPath = input.row.destructive
+          ? new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.red'))
+          : new vscode.ThemeIcon('git-commit');
+        // 救出コマンドを出せるのは「戻る先（beforeSha）がある破壊的操作」だけ。
+        this.contextValue =
+          input.row.destructive && input.row.beforeSha !== null
+            ? 'gitActivityDestructive'
+            : 'gitActivityOp';
+        return;
+
+      case 'snapshot':
+        this.description = `${input.snapshot.fileCount} ファイル`;
+        this.iconPath = new vscode.ThemeIcon('device-camera');
+        this.contextValue = 'gitActivitySnapshot';
+        return;
+
+      case 'error':
+        this.description = 'ワーカー未起動の可能性';
+        this.tooltip =
+          'agent-status ワーカーに接続できないため、git 操作の履歴を表示できません。\n表示が空なのは「操作が無かった」ためではありません。詳細は出力パネル（Anytime Agent）を参照してください。';
+        this.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.red'));
+        this.contextValue = 'gitActivityError';
+        return;
     }
-
-    if (input.kind === 'git') {
-      this.row = input.row;
-      this.description = input.row.refName;
-      this.tooltip = gitTooltip(input.row);
-      this.iconPath = input.row.destructive
-        ? new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.red'))
-        : new vscode.ThemeIcon('git-commit');
-      this.contextValue = input.row.destructive && input.row.beforeSha !== null
-        ? 'gitActivityDestructive'
-        : 'gitActivityOp';
-      return;
-    }
-
-    this.snapshot = input.snapshot;
-    this.description = `${input.snapshot.fileCount} files`;
-    this.iconPath = new vscode.ThemeIcon('device-camera');
-    this.contextValue = 'gitActivitySnapshot';
   }
 }

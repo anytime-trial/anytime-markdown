@@ -1,5 +1,11 @@
 import type { GitActivityRow, GitAttribution, WorkSnapshot } from '@anytime-markdown/agent-core';
-import { applyFilters, buildTimeline, groupByLocalDate, recoveryCommand } from '../gitActivityModel';
+import {
+  applyFilters,
+  buildTimeline,
+  groupByLocalDate,
+  recoveryCommand,
+  UNKNOWN_DATE_KEY,
+} from '../gitActivityModel';
 
 function gitRow(overrides: Partial<GitActivityRow>): GitActivityRow {
   return {
@@ -156,5 +162,61 @@ describe('TimelineFilters attribution type', () => {
   it('accepts all concrete attribution values through the imported GitAttribution type', () => {
     const values: readonly GitAttribution[] = ['claude', 'agent', 'human'];
     expect(values).toHaveLength(3);
+  });
+});
+
+describe('レビュー指摘の回帰テスト', () => {
+  // Intl.DateTimeFormat は Invalid Date を渡されると RangeError を投げる（実測）。無検査で format
+  // すると、壊れた 1 行が getChildren の例外になり、ツリーが丸ごと描画されなくなる。
+  // 事故調査 UI が事故のときに沈黙する方向の失敗なので、1 行の破損で全体を巻き込まないことを固定する。
+  it('日時が壊れた行があってもタイムライン全体が描画できる', () => {
+    const broken = gitRow({ id: 99, occurredAt: 'こわれた日時' });
+    const sound = gitRow({ id: 1, occurredAt: '2026-07-13T15:30:00.000Z' });
+
+    const entries = applyFilters(
+      buildTimeline([broken, sound], []),
+      { destructiveOnly: false, attribution: 'all', days: 7 },
+      '2026-07-13T16:00:00.000Z',
+    );
+
+    // throw しないこと自体が主眼
+    const groups = groupByLocalDate(entries, 'Asia/Tokyo');
+
+    const keys = groups.map((g) => g.dateKey);
+    expect(keys).toContain('2026-07-14'); // JST 境界（UTC 15:30 は翌日）
+    expect(keys).toContain(UNKNOWN_DATE_KEY);
+    // 壊れた行を黙って捨てない。その行こそが事故の証跡でありうる。
+    const unknown = groups.find((g) => g.dateKey === UNKNOWN_DATE_KEY);
+    expect(unknown?.entries).toHaveLength(1);
+  });
+
+  it('日時が壊れた行を期間フィルタで取りこぼさない（NaN 比較で素通りさせない）', () => {
+    const broken = gitRow({ id: 99, occurredAt: 'こわれた日時' });
+
+    const entries = applyFilters(
+      buildTimeline([broken], []),
+      { destructiveOnly: false, attribution: 'all', days: 7 },
+      '2026-07-13T16:00:00.000Z',
+    );
+
+    expect(entries).toHaveLength(1);
+  });
+
+  it('日時不明グループは降順ソートで末尾に来る', () => {
+    const entries = applyFilters(
+      buildTimeline(
+        [
+          gitRow({ id: 1, occurredAt: 'こわれた日時' }),
+          gitRow({ id: 2, occurredAt: '2026-07-13T01:00:00.000Z' }),
+        ],
+        [],
+      ),
+      { destructiveOnly: false, attribution: 'all', days: null },
+      '2026-07-13T16:00:00.000Z',
+    );
+
+    const keys = groupByLocalDate(entries, 'Asia/Tokyo').map((g) => g.dateKey);
+
+    expect(keys.at(-1)).toBe(UNKNOWN_DATE_KEY);
   });
 });

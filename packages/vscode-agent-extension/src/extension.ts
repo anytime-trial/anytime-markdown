@@ -44,6 +44,29 @@ let agentStatusWorkerHost: AgentStatusWorkerHost | undefined;
 const SEEN_GIT_ACTIVITY_KEY = 'anytimeAgent.lastWarnedGitActivityId';
 const GIT_ACTIVITY_POLL_INTERVAL_MS = 3000;
 
+/**
+ * ポーリングの多重実行ガード。
+ *
+ * warnOnDestructiveGitOps は「HTTP 取得 → 通知 → workspaceState へ通知済み ID を書く」の順で、
+ * ID の更新が最後にある。HTTP がタイムアウト近くまで遅れると、次のティックが古い ID を読んで
+ * 同じ行を再通知し、その true 返却が TreeView の再構築（同期 git 起動）まで巻き込む。
+ */
+let gitActivityPollInFlight = false;
+
+/** TreeView の行から復元／救出コマンドを引く。**実行はしない。** 出せない行では null。 */
+function commandForItem(item: GitActivityItem | undefined): string | null {
+  if (item === undefined) return null;
+  switch (item.payload.kind) {
+    case 'snapshot':
+      return restoreCommand(item.payload.snapshot);
+    case 'git':
+      return recoveryCommand(item.payload.row);
+    case 'date':
+    case 'error':
+      return null;
+  }
+}
+
 async function warnOnDestructiveGitOps(
   client: AgentStatusClient,
   context: vscode.ExtensionContext,
@@ -320,6 +343,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(gitActivityTreeView);
 
   const gitActivityTimer = setInterval(() => {
+    // 前回のティックが終わる前に次を走らせない（通知済み ID の更新が最後にあるため、重なると
+    // 同じ行を二重通知し、TreeView の再構築まで二重に走る）。
+    if (gitActivityPollInFlight) return;
+    gitActivityPollInFlight = true;
+
     void warnOnDestructiveGitOps(agentStatusClient, context, AgentLogger, snapshotRepoRoot)
       .then((notified) => {
         if (notified) gitActivityProvider.refresh();
@@ -328,6 +356,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         AgentLogger.warn(
           `[git-activity] destructive operation polling failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
         );
+      })
+      .finally(() => {
+        gitActivityPollInFlight = false;
       });
   }, GIT_ACTIVITY_POLL_INTERVAL_MS);
   gitActivityTimer.unref?.();
@@ -433,9 +464,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('anytime-agent.gitActivity.refresh', () => {
       gitActivityProvider.refresh();
     }),
+    // フィルタのミューテータは provider 側で refresh するため、ここでは呼ばない（二重発火の回避）。
     vscode.commands.registerCommand('anytime-agent.gitActivity.toggleDestructiveOnly', () => {
       gitActivityProvider.toggleDestructiveOnly();
-      gitActivityProvider.refresh();
     }),
     vscode.commands.registerCommand('anytime-agent.gitActivity.setAttribution', async () => {
       const picked = await vscode.window.showQuickPick(
@@ -452,7 +483,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       if (picked === undefined) return;
       gitActivityProvider.setAttribution(picked.attribution);
-      gitActivityProvider.refresh();
     }),
     vscode.commands.registerCommand('anytime-agent.gitActivity.setDays', async () => {
       const picked = await vscode.window.showQuickPick(
@@ -468,15 +498,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       if (picked === undefined) return;
       gitActivityProvider.setDays(picked.days);
-      gitActivityProvider.refresh();
     }),
     vscode.commands.registerCommand('anytime-agent.gitActivity.copyCommand', async (item: GitActivityItem | undefined) => {
-      const cmd =
-        item?.kind === 'snapshot' && item.snapshot !== undefined
-          ? restoreCommand(item.snapshot)
-          : item?.kind === 'git' && item.row !== undefined
-            ? recoveryCommand(item.row)
-            : null;
+      const cmd = commandForItem(item);
       if (cmd === null) {
         void vscode.window.showWarningMessage('この行から復元できるコマンドはありません。');
         return;

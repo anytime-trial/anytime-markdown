@@ -3,7 +3,7 @@
   "description": "Claude Code セッションと Ollama バックエンドのステータスパネルを提供する VS Code 拡張。",
   "viewsContainer.title": "Anytime Agent",
   "view.mapping": "Agent マッピング",
-  "view.gitActivity": "Git Activity",
+  "view.gitActivity": "Git 活動",
   "view.ollama": "Ollama",
   "viewsWelcome.mapping": "Claude Code セッションが検出されませんでした。\n\nステータスファイルは anytime-trail Claude Code フックによって書き込まれます。\nフックがインストールされているか確認してください。",
   "command.mapping.refresh": "Agent マッピングを更新",

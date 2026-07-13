@@ -137,11 +137,28 @@ export class AgentStatusClient {
 
   /** 新しい順の git 操作履歴。ワーカー未起動なら空配列 */
   async getGitActivity(): Promise<readonly GitActivityRow[]> {
-    const res = await this.request<GitActivityListEnvelope>(
+    return (await this.getGitActivityResult()).rows;
+  }
+
+  /**
+   * git 操作履歴を「取得できなかった」と「0 件だった」を区別できる形で返す。
+   *
+   * `request()` はワーカー未起動・接続失敗・タイムアウト・非 2xx をすべて fallback に畳むため、
+   * 呼び出し側からは**障害と空データが同じ顔をする**。事故調査 UI にとってこれは最悪の失敗様式で、
+   * ワーカーが死んでいるだけなのに「破壊的操作は記録されていない」と誤読させる。
+   * 障害を観測できるよう failed を返し、UI 側で明示する。
+   */
+  async getGitActivityResult(): Promise<{
+    readonly rows: readonly GitActivityRow[];
+    readonly failed: boolean;
+  }> {
+    const res = await this.request<GitActivityListEnvelope | null>(
       '/api/agent-status/git-activity',
       undefined,
-      { version: 0, data: [] },
+      null,
     );
-    return res.data;
+    if (res === null) return { rows: [], failed: true };
+    // ワーカーが 200 で data 欠落を返しても undefined を下流へ流さない。
+    return { rows: res.data ?? [], failed: false };
   }
 }
