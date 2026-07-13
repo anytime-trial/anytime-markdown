@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.33.2] - 2026-07-13
+
+### Trail Core (trail-core / trail-db)
+
+- Fixed Supabase sync FK violations: referential-integrity gate, retry on transient HTTP failures, and per-chunk error isolation.
+
 ## [0.33.1] - 2026-07-12
 
 ### Changed

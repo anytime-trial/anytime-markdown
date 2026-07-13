@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-07-13
+
+### Security
+
+- The SSRF guard is now applied to every redirect hop, not just the initial URL (CodeQL critical). A redirect chain can no longer be used to reach a blocked host from `/api/ogp`, `/api/rss`, or `/api/trace/file`.
+
+### Changed
+
+- Added missing assertions to tests that previously ran without verifying anything.
+
 ## [0.37.0] - 2026-07-11
 
 ### Added

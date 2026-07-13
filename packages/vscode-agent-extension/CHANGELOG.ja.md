@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-13
+
 ### 追加
 
 - ワークスペース `CLAUDE.md` への `anytime-dev-cycle` 誘導ブロックを追加しました。activate 時に管理マーカー内のみを冪等 upsert し、開発指示の基本スキルを同スキルにします。`anytimeAgent.claudeMdGuidance` で無効化できます。
@@ -14,6 +16,12 @@
 ### 変更
 
 - 旧 `anytime-agent-rotation` と `anytime-delegation` スキルを `anytime-dev-cycle` へ統合しました。旧スキル名は同梱スキルの移行 alias で掃除されます。
+- サブエージェントの用途別モデル表（haiku / sonnet / opus / fable）をグローバル `CLAUDE.md` から `anytime-dev-cycle` §3.1 へ移管しました。モデル・effort の階層化がスキルと一緒に配布されます。
+
+### セキュリティ
+
+- `agent-core` のトランスクリプト env 行伏字化に含まれる ReDoS を解消しました（CodeQL 指摘）。
+- `agent-core` でユーザー入力をログのフォーマット文字列として渡さないようにしました。
 
 ## [1.3.0] - 2026-07-12
 

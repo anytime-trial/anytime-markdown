@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-07-13
+
+### Graph Core (graph-core)
+
+- Fixed a ReDoS in the causal-loop link parser of `parseGraphDsl`.
+
 ## [0.11.0] - 2026-07-11
 
 ### Graph Core (graph-core)

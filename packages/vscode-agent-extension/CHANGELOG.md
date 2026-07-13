@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-13
+
 ### Added
 
 - `anytime-dev-cycle` guidance in workspace `CLAUDE.md`: on activation the extension upserts a managed marker block that makes the skill the default for development instructions (idempotent; only the marked block is rewritten). Opt out with `anytimeAgent.claudeMdGuidance`.
@@ -14,6 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 
 - Folded the former `anytime-agent-rotation` and `anytime-delegation` skills into `anytime-dev-cycle`; old skill names are cleaned up through the bundled-skill migration aliases.
+- Moved the per-purpose subagent model table (haiku / sonnet / opus / fable) out of the global `CLAUDE.md` and into `anytime-dev-cycle` §3.1, so model and effort tiering travels with the skill.
+
+### Security
+
+- Fixed a ReDoS in the transcript env-line redaction of `agent-core` (CodeQL).
+- Stopped passing user-controlled input as a log format string in `agent-core`.
 
 ## [1.3.0] - 2026-07-12
 

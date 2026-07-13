@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-07-13
+
+### 変更
+
+- 同梱スキル `anytime-doc-authoring` の委譲参照を `anytime-dev-cycle` へ更新しました（skill manifest を bump したため activate 時に再配置されます）。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- コードフェンス内の markdown プレビューが本文幅設定に追従しない不具合を修正しました。
+
 ## [1.13.1] - 2026-07-12
 
 ### 変更
