@@ -6,5 +6,5 @@
 # husky は sh(dash) で実行するため pipefail は使えない（本フックにパイプはない）
 set -eu
 
-bash "$(git rev-parse --show-toplevel)/scripts/check-test-safety.sh"
+bash "$(git rev-parse --show-toplevel)/scripts/check-test-safety.sh" --staged
 npx lint-staged

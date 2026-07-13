@@ -21,6 +21,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # データ損失防止ゲート。pre-commit は --no-verify で迂回できるため、
+      # 迂回して入った違反を CI でツリー全体（--all）から捕捉する。
+      # 他ステップと違い条件を付けない（push / PR / base ref を問わず常に実行する）。
+      - name: Check test safety (protected-area writes)
+        run: bash scripts/check-test-safety.sh --all
+
       - uses: actions/setup-node@v6
         with:
           node-version-file: '.node-version'
