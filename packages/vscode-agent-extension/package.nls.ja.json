@@ -24,5 +24,8 @@
   "configuration.showUsage.markdownDescription": "Agent マッピングの Claude Code グループに Claude Code のサブスク使用量を表示する。",
   "configuration.usageRefreshSeconds.markdownDescription": "Claude Code 使用量の再取得間隔（秒）。300 秒未満は 300 秒に丸められる。API レート制限を避けるため、使用量レスポンスは 10 分間の globalStorage 共有キャッシュで使い回されます。",
   "configuration.claudeMdGuidance.markdownDescription": "activate 時にワークスペースの CLAUDE.md へ管理ブロックを upsert し、開発指示の基本スキルを `anytime-dev-cycle` にします。書き換えはマーカー内のみで、ユーザーの本文には触れません。",
-  "config.gitActivityRetentionDays.description": "git activity 記録を agent-status DB に保持する日数。この日数を超えた記録は worker 起動時に削除されます。"
+  "config.gitActivityRetentionDays.description": "git activity 記録を agent-status DB に保持する日数。この日数を超えた記録は worker 起動時に削除されます。",
+  "config.workSnapshotIntervalMinutes.description": "未コミット作業（untracked ファイルを含む）を `refs/anytime/snapshots/` へ非破壊スナップショットする間隔（分）。0 で無効。1〜4 は 5 として扱う。",
+  "config.workSnapshotRetentionDays.description": "スナップショットの ref を保持する日数。これを過ぎた ref は削除する。",
+  "command.showWorkSnapshots": "作業スナップショットを表示"
 }

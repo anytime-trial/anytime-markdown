@@ -140,3 +140,13 @@ export {
   DEFAULT_ROTATION_THRESHOLD,
 } from './handoff/rotation';
 export type { RotationPolicy } from './handoff/rotation';
+
+export {
+  SNAPSHOT_REF_ROOT,
+  createWorkSnapshot,
+  listWorkSnapshots,
+  pruneWorkSnapshots,
+  restoreCommand,
+  worktreeSlug,
+} from './status/workSnapshot';
+export type { WorkSnapshot, CreateWorkSnapshotResult } from './status/workSnapshot';
