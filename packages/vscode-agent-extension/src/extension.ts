@@ -2,7 +2,15 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { AgentStatusClient } from '@anytime-markdown/agent-core';
+import {
+  AgentStatusClient,
+  createWorkSnapshot,
+  listWorkSnapshots,
+  pruneWorkSnapshots,
+  resolveRepoRoot,
+  restoreCommand,
+} from '@anytime-markdown/agent-core';
+import type { WorkSnapshot } from '@anytime-markdown/agent-core';
 import {
   ClaudeStatusWatcher,
   ClaudeUsageClient,
@@ -20,6 +28,7 @@ import { OllamaProvider } from './providers/OllamaProvider';
 import { installClaudeMdGuidance } from './skills/claudeMdGuidance';
 import { installWorkspaceSkills } from './skills/installWorkspaceSkills';
 import { AgentLogger } from './utils/AgentLogger';
+import { normalizeSnapshotIntervalMs, retentionCutoffIso } from './workSnapshotSchedule';
 import {
   AgentStatusWorkerHost,
   resolveWorkerScriptPath,
@@ -35,6 +44,7 @@ async function warnOnDestructiveGitOps(
   client: AgentStatusClient,
   context: vscode.ExtensionContext,
   logger: Pick<typeof AgentLogger, 'warn'>,
+  snapshotRepoRoot: string | null,
 ): Promise<void> {
   const rows = await client.getGitActivity();
   const lastWarned = context.workspaceState.get<number>(SEEN_GIT_ACTIVITY_KEY) ?? 0;
@@ -53,7 +63,23 @@ async function warnOnDestructiveGitOps(
     const verb = r.opType === 'push' ? '試行' : '検知';
     const msg = `破壊的な git 操作を${verb}: ${r.opType} - ${r.refName}（実行者: ${who}）`;
     logger.warn(`[git-activity] ${msg} before=${r.beforeSha ?? '-'} after=${r.afterSha ?? '-'}`);
-    void vscode.window.showWarningMessage(msg);
+
+    let hint = '';
+    if (snapshotRepoRoot !== null) {
+      try {
+        const latest = listWorkSnapshots(snapshotRepoRoot)[0];
+        hint =
+          latest === undefined
+            ? ''
+            : `（直近スナップショット: ${latest.createdAt} / ${latest.fileCount} files）`;
+      } catch (err) {
+        // スナップショットの引き当て失敗で警告そのものを落とさない（警告こそが本来の目的）
+        logger.warn(
+          `[work-snapshot] hint lookup failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+        );
+      }
+    }
+    void vscode.window.showWarningMessage(`${msg}${hint}`);
   }
 
   const maxId = Math.max(...fresh.map((r) => r.id), lastWarned);
@@ -274,13 +300,114 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Agent Mapping view
   // watcher のデータ源は agent-status ワーカーの HTTP（agent-status.db）。旧 claude-code-status.json は廃止。
   const agentStatusClient = new AgentStatusClient({ workspaceRoot: workspacePath });
+
+  // snapshotRepoRoot は warnOnDestructiveGitOps 呼び出し（下記 gitActivityTimer 内）より前に
+  // 宣言する。workspacePath はサブディレクトリの可能性があるため、実際の git リポジトリルートを解決する。
+  const snapshotRepoRoot = resolveRepoRoot(workspacePath);
+
   const gitActivityTimer = setInterval(() => {
-    void warnOnDestructiveGitOps(agentStatusClient, context, AgentLogger).catch((err) => {
-      AgentLogger.warn(`[git-activity] destructive operation polling failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
-    });
+    void warnOnDestructiveGitOps(agentStatusClient, context, AgentLogger, snapshotRepoRoot).catch(
+      (err) => {
+        AgentLogger.warn(`[git-activity] destructive operation polling failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+      },
+    );
   }, GIT_ACTIVITY_POLL_INTERVAL_MS);
   gitActivityTimer.unref?.();
   context.subscriptions.push({ dispose: () => clearInterval(gitActivityTimer) });
+
+  // === 未コミット作業の非破壊スナップショット === //
+  // 作業ツリーにも index にも書き込まない（agent-core の createWorkSnapshot が保証する）。
+  // Fail-open: git の失敗はログのみで、拡張の動作は止めない。
+  const snapshotIntervalMs = normalizeSnapshotIntervalMs(
+    vscode.workspace
+      .getConfiguration('anytimeAgent')
+      .get<number>('workSnapshotIntervalMinutes', 15),
+  );
+
+  const takeWorkSnapshot = (): void => {
+    if (snapshotRepoRoot === null) return;
+    try {
+      const nowIso = new Date().toISOString();
+      const result = createWorkSnapshot(snapshotRepoRoot, nowIso);
+      if (result.snapshot !== null) {
+        AgentLogger.info(
+          `[work-snapshot] created ${result.snapshot.ref} (${result.snapshot.fileCount} files)`,
+        );
+      }
+      const retentionDays = vscode.workspace
+        .getConfiguration('anytimeAgent')
+        .get<number>('workSnapshotRetentionDays', 7);
+      const removed = pruneWorkSnapshots(
+        snapshotRepoRoot,
+        retentionCutoffIso(nowIso, retentionDays),
+      );
+      if (removed > 0) AgentLogger.info(`[work-snapshot] pruned ${removed} snapshot(s)`);
+    } catch (err) {
+      AgentLogger.warn(
+        `[work-snapshot] snapshot failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+      );
+    }
+  };
+
+  if (snapshotRepoRoot === null) {
+    AgentLogger.info('[work-snapshot] disabled (not a git repository)');
+  } else if (snapshotIntervalMs === null) {
+    AgentLogger.info('[work-snapshot] disabled by configuration');
+  } else {
+    takeWorkSnapshot();
+    const snapshotTimer = setInterval(takeWorkSnapshot, snapshotIntervalMs);
+    snapshotTimer.unref?.();
+    context.subscriptions.push({ dispose: () => clearInterval(snapshotTimer) });
+    AgentLogger.info(`[work-snapshot] enabled (interval=${snapshotIntervalMs / 60000}min)`);
+  }
+
+  const showWorkSnapshots = vscode.commands.registerCommand(
+    'anytime-agent.showWorkSnapshots',
+    async () => {
+      if (snapshotRepoRoot === null) {
+        void vscode.window.showWarningMessage('Git リポジトリが開かれていません。');
+        return;
+      }
+      let snapshots: readonly WorkSnapshot[];
+      try {
+        snapshots = listWorkSnapshots(snapshotRepoRoot);
+      } catch (err) {
+        AgentLogger.warn(
+          `[work-snapshot] list failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+        );
+        void vscode.window.showErrorMessage(
+          '作業スナップショットの一覧取得に失敗しました。詳細は出力パネルを参照してください。',
+        );
+        return;
+      }
+      if (snapshots.length === 0) {
+        void vscode.window.showInformationMessage('作業スナップショットはまだありません。');
+        return;
+      }
+
+      const picked = await vscode.window.showQuickPick(
+        snapshots.map((s) => ({
+          label: s.createdAt,
+          description: `${s.fileCount} files`,
+          detail: s.sha.slice(0, 12),
+          snapshot: s,
+        })),
+        {
+          title: '作業スナップショット（復元コマンドをコピーします）',
+          placeHolder: '復元したい時点を選択',
+        },
+      );
+      if (picked === undefined) return;
+
+      // 復元は作業ツリーを上書きする破壊的操作のため、ここでは実行しない。コマンドを渡すだけに留める。
+      const cmd = restoreCommand(picked.snapshot);
+      await vscode.env.clipboard.writeText(cmd);
+      void vscode.window.showInformationMessage(
+        `復元コマンドをコピーしました（実行はしていません）: ${cmd}`,
+      );
+    },
+  );
+  context.subscriptions.push(showWorkSnapshots);
 
   const watcher = new ClaudeStatusWatcher(agentStatusClient);
   // Codex セッションは rollout .jsonl の読み取り専用スキャン（worker DB 非対象）。保持期間は Claude と共有。
