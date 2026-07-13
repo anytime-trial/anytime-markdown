@@ -528,16 +528,33 @@ describe('installStaticSkillDir: 版数ゲート', () => {
     }
   });
 
-  it('全ファイルが既に正本と同一なら、書き込み 0 でも版数を記録する', () => {
-    const env = setupEnv({
-      existingFiles: {
-        'SKILL.md': SKILL_MD,
-        'templates/a.md': TEMPLATE_A,
-        'templates/b.md': TEMPLATE_B,
-      },
-    });
+  it('一部のファイルだけ書き込みに失敗したら版数を記録しない（失敗ファイルが恒久 stale 化しない）', () => {
+    const env = setupEnv({ existingFiles: { 'templates/a.md': '# stale a\n' } });
     try {
-      const result = installStaticSkillDir({
+      // templates/ だけ書き込み不可にする。SKILL.md は書けるが templates/a.md は失敗する。
+      const templatesDir = path.join(env.claudeDir, 'skills', SKILL_NAME, 'templates');
+      fs.chmodSync(templatesDir, 0o555);
+      try {
+        const first = installStaticSkillDir({
+          claudeDir: env.claudeDir,
+          extensionPath: env.extensionPath,
+          skillName: SKILL_NAME,
+          version: 2,
+          markerFile: MARKER,
+          logger: { info: () => undefined, warn: () => undefined, error: () => undefined },
+        });
+
+        expect(first.installed).toBeGreaterThan(0); // SKILL.md は書けている
+        expect(first.failed).toBeGreaterThan(0); // templates/a.md は失敗している
+        // 記録すると次回 recorded >= version で upgrade 判定が立たず、
+        // 失敗した a.md が「ローカル編集」として preserve され永久に stale になる。
+        expect(readMarker(env.claudeDir)[SKILL_NAME]).toBeUndefined();
+      } finally {
+        fs.chmodSync(templatesDir, 0o755);
+      }
+
+      // 権限が戻れば次回 activate で再配布され、失敗ファイルも正本へ収束する。
+      const second = installStaticSkillDir({
         claudeDir: env.claudeDir,
         extensionPath: env.extensionPath,
         skillName: SKILL_NAME,
@@ -545,8 +562,11 @@ describe('installStaticSkillDir: 版数ゲート', () => {
         markerFile: MARKER,
       });
 
-      // upgrade 判定で上書きするが内容が同一。installed は数えられるので記録してよい。
-      expect(result.preserved).toBe(0);
+      expect(second.failed).toBe(0);
+      expect(second.preserved).toBe(0);
+      expect(
+        fs.readFileSync(path.join(env.claudeDir, 'skills', SKILL_NAME, 'templates', 'a.md'), 'utf-8'),
+      ).toBe(TEMPLATE_A);
       expect(readMarker(env.claudeDir)[SKILL_NAME]).toBe(2);
     } finally {
       env.cleanup();

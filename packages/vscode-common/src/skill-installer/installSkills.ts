@@ -134,6 +134,8 @@ export interface InstallStaticSkillDirResult {
   readonly upToDate: number;
   /** 既存と差分があり保持したファイル数 */
   readonly preserved: number;
+  /** 書き込みに失敗したファイル数。1 件でもあれば版数は記録されず、次回 activate で再配布される。 */
+  readonly failed: number;
   /** bundle / claudeDir が見つからず何もしなかった場合 true */
   readonly sourceMissing: boolean;
   /** 削除した旧スキル dir 名（順序保持）。 */
@@ -238,7 +240,7 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
   const force = opts.force === true;
 
   if (!fs.existsSync(opts.claudeDir)) {
-    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true, removedOld: [], upgraded: false };
+    return { installed: 0, upToDate: 0, preserved: 0, failed: 0, sourceMissing: true, removedOld: [], upgraded: false };
   }
 
   const removedOld: string[] = [];
@@ -257,7 +259,7 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
   const sourceDir = path.join(opts.extensionPath, 'skills', opts.skillName);
   if (!fs.existsSync(sourceDir)) {
     logger.warn(`[install-skills] bundled skill dir not found: ${sourceDir}`);
-    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true, removedOld, upgraded: false };
+    return { installed: 0, upToDate: 0, preserved: 0, failed: 0, sourceMissing: true, removedOld, upgraded: false };
   }
 
   // 版数ゲート: 同梱版数が marker の記録版数を上回るなら preserve を破って上書きする。
@@ -279,6 +281,7 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
   let installed = 0;
   let upToDate = 0;
   let preserved = 0;
+  let failed = 0;
 
   for (const rel of files) {
     const src = path.join(sourceDir, rel);
@@ -310,23 +313,29 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
       fs.writeFileSync(dst, srcContent, { encoding: 'utf-8' });
       installed++;
     } catch (err) {
+      failed++;
       logger.error(
         `[install-skills] failed to install ${opts.skillName}/${rel}: ${String(err)}\n${err instanceof Error ? err.stack ?? '' : ''}`,
       );
     }
   }
 
-  if (installed > 0 || preserved > 0) {
+  if (installed > 0 || preserved > 0 || failed > 0) {
     logger.info(
-      `[install-skills] ${opts.skillName}: installed=${installed} preserved=${preserved} upToDate=${upToDate}${upgraded ? ` (upgraded to v${String(opts.version)})` : ''}`,
+      `[install-skills] ${opts.skillName}: installed=${installed} preserved=${preserved} upToDate=${upToDate} failed=${failed}${upgraded ? ` (upgraded to v${String(opts.version)})` : ''}`,
     );
   }
 
-  // 版数は「実際に配置できた」ときだけ記録する。書き込みが全滅（EACCES 等）したのに記録すると、
-  // 次回 activate で recorded >= version となり「配布済み」と誤判定して二度と再配布しない
-  // ＝この関数が直したはずの恒久 stale が、書き込み失敗経路で再発する。
-  // 全ファイルが upToDate（配置済みが既に正本と同一）なら書き込み 0 でも配布は成立しているので記録する。
-  const deployed = installed > 0 || (files.length > 0 && upToDate === files.length);
+  // 版数は「全ファイルを配置できた」ときだけ記録する。
+  //
+  // 1 件でも書き込みに失敗したまま記録すると、次回 activate では recorded >= version となり
+  // upgrade 判定が立たず、失敗したファイルは「差分ありのローカル編集」として preserve され続ける
+  // ＝この関数が直したはずの恒久 stale が、書き込み失敗経路で再発する（全滅・部分失敗の両方）。
+  // 記録しなければ次回も upgrade 判定が立ち、失敗ファイルは正本へ収束する。
+  //
+  // 記録に値する経路では overwrite が必ず true になる（未記録 or 版数上昇 → upgraded=true）ため、
+  // upToDate は 0 のままになる。よって「書き込み 0 件でも配置済み」という分岐は存在しない。
+  const deployed = failed === 0;
   if (markerPath !== null && opts.version !== undefined && deployed) {
     const recorded = readSkillVersionMarker(markerPath, logger)[opts.skillName];
     if (recorded === undefined || recorded < opts.version) {
@@ -334,5 +343,5 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
     }
   }
 
-  return { installed, upToDate, preserved, sourceMissing: false, removedOld, upgraded };
+  return { installed, upToDate, preserved, failed, sourceMissing: false, removedOld, upgraded };
 }
