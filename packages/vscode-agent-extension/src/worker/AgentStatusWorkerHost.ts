@@ -25,6 +25,7 @@ export class AgentStatusWorkerHost {
     private readonly workerScriptPath: string,
     private readonly logger: Logger,
     private readonly sessionRetentionDays: number = 7,
+    private readonly gitActivityRetentionDays: number = 90,
   ) {
     this.jsonPath = agentWorkerJsonPath(workspaceRoot);
   }
@@ -53,6 +54,7 @@ export class AgentStatusWorkerHost {
         env: {
           ...process.env,
           ANYTIME_AGENT_SESSION_RETENTION_DAYS: String(this.sessionRetentionDays),
+          ANYTIME_GIT_ACTIVITY_RETENTION_DAYS: String(this.gitActivityRetentionDays),
         },
       },
     );

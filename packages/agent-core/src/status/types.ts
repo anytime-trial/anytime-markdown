@@ -132,3 +132,55 @@ export interface AgentWorkerInfo {
    *  旧 v1 の agent-worker.json には存在しないため optional（consumer は `token ?? ''` で扱う）。 */
   readonly token?: string;
 }
+
+/** git 操作の種別 */
+export type GitOpType =
+  | 'commit'
+  | 'merge'
+  | 'rebase'
+  | 'reset'
+  | 'checkout'
+  | 'branch-create'
+  | 'branch-delete'
+  | 'push'
+  | 'fetch'
+  | 'stash'
+  | 'cherry-pick'
+  | 'revert'
+  | 'other';
+
+/**
+ * 操作の実行者。推測値を持たない。
+ * - claude: CLAUDE_CODE_SESSION_ID が観測できた
+ * - agent : AI_AGENT はあるが Claude ではない（Codex 等）
+ * - human : いずれも無い（ターミナル・GUI クライアント・別 IDE）
+ */
+export type GitAttribution = 'claude' | 'agent' | 'human';
+
+/** git_activity への 1 件の記録 */
+export interface GitActivityInput {
+  readonly workspacePath: string;
+  readonly opType: GitOpType;
+  readonly destructive: boolean;
+  readonly refName: string;
+  readonly beforeSha: string | null;
+  readonly afterSha: string | null;
+  readonly attribution: GitAttribution;
+  /** エージェント種別（AI_AGENT の値）。human なら null */
+  readonly agentKind: string | null;
+  /** Claude セッション ID。claude 以外なら null */
+  readonly sessionId: string | null;
+  /** UTC ISO 8601 */
+  readonly occurredAt: string;
+}
+
+/** git_activity の 1 行（id つき） */
+export interface GitActivityRow extends GitActivityInput {
+  readonly id: number;
+}
+
+/** GET /api/agent-status/git-activity のエンベロープ */
+export interface GitActivityListEnvelope {
+  readonly version: number;
+  readonly data: readonly GitActivityRow[];
+}

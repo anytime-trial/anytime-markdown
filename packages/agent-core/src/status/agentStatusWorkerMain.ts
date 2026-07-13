@@ -15,6 +15,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { isAbsolute, normalize, sep } from 'node:path';
 import { AgentStatusStore } from './AgentStatusStore';
 import { AgentStatusWorker } from './AgentStatusWorker';
+import { drainSpool, spoolPath } from './gitActivitySpool';
 import {
   AGENT_WORKER_SCHEMA_VERSION,
   agentStatusDbPath,
@@ -24,6 +25,7 @@ import {
 } from './agentWorkerInfo';
 
 const DEFAULT_RETENTION_DAYS = 7;
+const DEFAULT_GIT_ACTIVITY_RETENTION_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -34,6 +36,12 @@ function resolveRetentionDays(): number {
   const raw = process.env.ANYTIME_AGENT_SESSION_RETENTION_DAYS;
   const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
   return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_RETENTION_DAYS;
+}
+
+function resolveGitActivityRetentionDays(): number {
+  const raw = process.env.ANYTIME_GIT_ACTIVITY_RETENTION_DAYS;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_GIT_ACTIVITY_RETENTION_DAYS;
 }
 
 /**
@@ -80,6 +88,27 @@ export async function runWorker(workspaceRoot: string): Promise<void> {
   const token = randomBytes(32).toString('hex');
 
   const store = new AgentStatusStore(dbPath);
+  const spool = spoolPath(validatedRoot);
+  const spooled = drainSpool(spool, (msg) => console.error(msg));
+  for (const row of spooled) {
+    try {
+      store.insertGitActivity(row);
+    } catch (err) {
+      const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+      console.error(`[git-activity] spool 行の取り込みに失敗: ${reason}`);
+    }
+  }
+  if (spooled.length > 0) {
+    console.error(`[git-activity] spool から ${spooled.length} 件を取り込んだ`);
+  }
+
+  const gitActivityRetentionDays = resolveGitActivityRetentionDays();
+  const gitActivityCutoff = new Date(Date.now() - gitActivityRetentionDays * DAY_MS).toISOString();
+  const prunedGitActivity = store.pruneGitActivityOlderThan(gitActivityCutoff);
+  if (prunedGitActivity > 0) {
+    console.error(`[git-activity] 保持期間（${gitActivityRetentionDays} 日）を超えた ${prunedGitActivity} 件を削除した`);
+  }
+
   const worker = new AgentStatusWorker(store, token);
   await worker.start(0);
 

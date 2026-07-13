@@ -1,0 +1,3 @@
+set -eu
+
+node "$(git rev-parse --show-toplevel)/scripts/git-activity-report.mjs" reference-transaction "$1" || true

@@ -274,6 +274,13 @@
           "minimum": 1,
           "markdownDescription": "未使用セッションを agent-status DB から自動削除するまでの保持日数。最終アクティビティからこの日数を超えたセッションを worker 起動時および 1 日ごとに削除する。Codex セッションのツリー表示もこの日数で絞り込む。"
         },
+        "anytimeAgent.gitActivityRetentionDays": {
+          "type": "number",
+          "default": 90,
+          "minimum": 7,
+          "maximum": 365,
+          "description": "%config.gitActivityRetentionDays.description%"
+        },
         "anytimeAgent.showCodexSessions": {
           "type": "boolean",
           "default": true,
