@@ -7,7 +7,9 @@
 //   POST   /api/agent-status/edit       — 編集系 UPSERT       (要 Bearer)
 //   POST   /api/agent-status/commit     — commit 系 UPSERT    (要 Bearer)
 //   POST   /api/agent-status/summary    — handoff payload 保存 (要 Bearer)
+//   POST   /api/agent-status/git-activity — git 操作記録   (要 Bearer)
 //   GET    /api/agent-status            — 全行 { version, data: [...] }
+//   GET    /api/agent-status/git-activity — git 操作履歴 { version, data: [...] }
 //   GET    /api/agent-status/:sessionId — 単一  { version, data }
 //   DELETE /api/agent-status/:sessionId — 行削除             (要 Bearer)
 //
@@ -22,11 +24,29 @@ import {
   AGENT_STATUS_API_VERSION,
   type CommitUpsertInput,
   type EditUpsertInput,
+  type GitActivityInput,
   type SummaryUpsertInput,
 } from './types';
 
 const BIND_HOST = '127.0.0.1';
 const MAX_BODY_BYTES = 1_000_000;
+const GIT_ACTIVITY_PAGE_SIZE = 200;
+
+const GIT_OP_TYPES: readonly string[] = [
+  'commit',
+  'merge',
+  'rebase',
+  'reset',
+  'checkout',
+  'branch-create',
+  'branch-delete',
+  'push',
+  'fetch',
+  'cherry-pick',
+  'revert',
+  'other',
+];
+const GIT_ATTRIBUTIONS: readonly string[] = ['claude', 'agent', 'human'];
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
@@ -50,6 +70,29 @@ function readBody(req: http.IncomingMessage): Promise<string> {
     req.on('end', () => resolve(data));
     req.on('error', reject);
   });
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isValidGitActivity(input: unknown): input is GitActivityInput {
+  if (typeof input !== 'object' || input === null) return false;
+  const v = input as Record<string, unknown>;
+  return (
+    typeof v.workspacePath === 'string' &&
+    typeof v.opType === 'string' &&
+    GIT_OP_TYPES.includes(v.opType) &&
+    typeof v.destructive === 'boolean' &&
+    typeof v.refName === 'string' &&
+    isNullableString(v.beforeSha) &&
+    isNullableString(v.afterSha) &&
+    typeof v.attribution === 'string' &&
+    GIT_ATTRIBUTIONS.includes(v.attribution) &&
+    isNullableString(v.agentKind) &&
+    isNullableString(v.sessionId) &&
+    typeof v.occurredAt === 'string'
+  );
 }
 
 export class AgentStatusWorker {
@@ -173,6 +216,25 @@ export class AgentStatusWorker {
         return;
       }
       sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
+
+    if (method === 'POST' && pathname === '/api/agent-status/git-activity') {
+      const input = JSON.parse(await readBody(req)) as unknown;
+      if (!isValidGitActivity(input)) {
+        sendJson(res, 400, { error: 'invalid git-activity payload' });
+        return;
+      }
+      this.store.insertGitActivity(input);
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (method === 'GET' && pathname === '/api/agent-status/git-activity') {
+      sendJson(res, 200, {
+        version: AGENT_STATUS_API_VERSION,
+        data: this.store.queryGitActivity(GIT_ACTIVITY_PAGE_SIZE),
+      });
       return;
     }
 

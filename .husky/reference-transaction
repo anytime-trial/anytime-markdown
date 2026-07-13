@@ -1,0 +1,22 @@
+set -eu
+
+# ${1:-} と書くこと。set -u 下で未定義の $1 を展開すると「単語展開」段階でシェルが即死し、
+# || true では捕捉できない（fail-open が破れ、記録の失敗が git 操作そのものを失敗させる）。
+STATE="${1:-}"
+ROOT="$(git rev-parse --show-toplevel)"
+
+# prepared 段階が必要なのは「削除される ref の SHA を、消える前に退避する」場合だけである。
+# それ以外（commit / reset / merge 等）で node を起動すると、1 操作あたり node 起動 1 回分
+# （実測 ~50ms）を丸ごと無駄にする。削除行（new が全ゼロ）を含むときだけ node を起動する。
+if [ "$STATE" = "prepared" ]; then
+  INPUT="$(cat)"
+  case "$INPUT" in
+    *" 0000000000000000000000000000000000000000 refs/heads/"*)
+      printf '%s\n' "$INPUT" | node "$ROOT/scripts/git-activity-report.mjs" reference-transaction prepared || true
+      ;;
+    *) : ;;
+  esac
+  exit 0
+fi
+
+node "$ROOT/scripts/git-activity-report.mjs" reference-transaction "$STATE" || true

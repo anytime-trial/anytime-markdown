@@ -15,7 +15,7 @@
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
     "lint": "eslint packages/markdown-viewer/src packages/web-app/src",
     "lint:fix": "eslint --fix packages/markdown-viewer/src packages/web-app/src",
-    "prepare": "husky"
+    "prepare": "husky && node scripts/install-extra-hooks.mjs"
   },
   "workspaces": [
     "packages/markdown-viewer",

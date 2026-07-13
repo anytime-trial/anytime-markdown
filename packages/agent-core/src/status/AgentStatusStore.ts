@@ -11,12 +11,18 @@ import { mkdirSync, copyFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import {
   CREATE_AGENT_SESSIONS,
+  CREATE_GIT_ACTIVITY,
+  CREATE_GIT_ACTIVITY_INDEXES,
   agentSessionsDDL,
 } from './agentStatusSchema';
 import type {
   AgentSessionRow,
   CommitUpsertInput,
   EditUpsertInput,
+  GitActivityInput,
+  GitActivityRow,
+  GitAttribution,
+  GitOpType,
   SummaryUpsertInput,
 } from './types';
 
@@ -36,6 +42,20 @@ interface RawRow {
   summary_at: string | null;
   handoff_at: string | null;
   updated_at: string;
+}
+
+interface RawGitActivityRow {
+  id: number;
+  workspace_path: string;
+  op_type: string;
+  destructive: number;
+  ref_name: string;
+  before_sha: string | null;
+  after_sha: string | null;
+  attribution: string;
+  agent_kind: string | null;
+  session_id: string | null;
+  occurred_at: string;
 }
 
 function nowIso(): string {
@@ -76,6 +96,22 @@ function toRow(r: RawRow): AgentSessionRow {
   };
 }
 
+function toGitActivityRow(r: RawGitActivityRow): GitActivityRow {
+  return {
+    id: Number(r.id),
+    workspacePath: r.workspace_path,
+    opType: r.op_type as GitOpType,
+    destructive: r.destructive === 1,
+    refName: r.ref_name,
+    beforeSha: r.before_sha,
+    afterSha: r.after_sha,
+    attribution: r.attribution as GitAttribution,
+    agentKind: r.agent_kind,
+    sessionId: r.session_id,
+    occurredAt: r.occurred_at,
+  };
+}
+
 export class AgentStatusStore {
   private readonly db: DatabaseSync;
   private readonly dbPath: string;
@@ -99,6 +135,10 @@ export class AgentStatusStore {
     // 新規 DB はこの CREATE で最新スキーマになる。既存の旧スキーマ DB は no-op のため、
     // handoff_at 列の有無で旧スキーマを検出し 12-step 移行を走らせる。
     this.db.exec(CREATE_AGENT_SESSIONS);
+    this.db.exec(CREATE_GIT_ACTIVITY);
+    for (const sql of CREATE_GIT_ACTIVITY_INDEXES) {
+      this.db.exec(sql);
+    }
     if (!this.hasColumn('agent_sessions', 'handoff_at')) {
       this.migrateToHandoffSchema();
     }
@@ -292,6 +332,58 @@ export class AgentStatusStore {
     const stmt = this.db.prepare('SELECT * FROM agent_sessions ORDER BY updated_at DESC');
     const rows = stmt.all() as unknown as RawRow[];
     return rows.map(toRow);
+  }
+
+  /**
+   * git 操作を 1 件記録する（git_activity への追記のみ。他テーブルには一切書かない）。
+   *
+   * session_id は FK ではないため、対応する agent_sessions 行が無くても記録できる。
+   * 親行を捏造しないこと（Agent マッピングに幽霊エージェントが出る）。理由は
+   * agentStatusSchema.ts の gitActivityDDL コメントを参照。
+   */
+  insertGitActivity(input: GitActivityInput): void {
+    this.db
+      .prepare(
+        `INSERT INTO git_activity (
+           workspace_path, op_type, destructive, ref_name, before_sha, after_sha,
+           attribution, agent_kind, session_id, occurred_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.workspacePath,
+        input.opType,
+        input.destructive ? 1 : 0,
+        input.refName,
+        input.beforeSha,
+        input.afterSha,
+        input.attribution,
+        input.agentKind,
+        input.sessionId,
+        input.occurredAt,
+      );
+  }
+
+  /** 新しい順に最大 limit 件返す */
+  queryGitActivity(limit: number): GitActivityRow[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, workspace_path, op_type, destructive, ref_name, before_sha, after_sha,
+                attribution, agent_kind, session_id, occurred_at
+           FROM git_activity
+          ORDER BY occurred_at DESC, id DESC
+          LIMIT ?`,
+      )
+      .all(limit) as unknown as RawGitActivityRow[];
+
+    return rows.map(toGitActivityRow);
+  }
+
+  /** cutoff より古い記録を削除し、削除件数を返す */
+  pruneGitActivityOlderThan(cutoffIso: string): number {
+    const result = this.db
+      .prepare('DELETE FROM git_activity WHERE occurred_at < ?')
+      .run(cutoffIso);
+    return Number(result.changes);
   }
 
   close(): void {

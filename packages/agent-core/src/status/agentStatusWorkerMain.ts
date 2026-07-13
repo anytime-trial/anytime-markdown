@@ -15,6 +15,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { isAbsolute, normalize, sep } from 'node:path';
 import { AgentStatusStore } from './AgentStatusStore';
 import { AgentStatusWorker } from './AgentStatusWorker';
+import { drainSpool, spoolPath } from './gitActivitySpool';
 import {
   AGENT_WORKER_SCHEMA_VERSION,
   agentStatusDbPath,
@@ -24,7 +25,16 @@ import {
 } from './agentWorkerInfo';
 
 const DEFAULT_RETENTION_DAYS = 7;
+const DEFAULT_GIT_ACTIVITY_RETENTION_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * spool を DB へ取り込む間隔。
+ *
+ * 拡張側の git-activity ポーリング（3 秒）と同オーダーに揃える。これより遅いと、破壊的操作の
+ * 警告が出るまでの遅延がユーザーに知覚される。
+ */
+const SPOOL_DRAIN_INTERVAL_MS = 3000;
 
 /**
  * 未使用セッションの保持日数を env から解決する。
@@ -34,6 +44,12 @@ function resolveRetentionDays(): number {
   const raw = process.env.ANYTIME_AGENT_SESSION_RETENTION_DAYS;
   const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
   return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_RETENTION_DAYS;
+}
+
+function resolveGitActivityRetentionDays(): number {
+  const raw = process.env.ANYTIME_GIT_ACTIVITY_RETENTION_DAYS;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_GIT_ACTIVITY_RETENTION_DAYS;
 }
 
 /**
@@ -80,6 +96,49 @@ export async function runWorker(workspaceRoot: string): Promise<void> {
   const token = randomBytes(32).toString('hex');
 
   const store = new AgentStatusStore(dbPath);
+  const spool = spoolPath(validatedRoot);
+
+  /**
+   * フックが書いた spool を DB へ取り込む。
+   *
+   * 起動時 1 回だけでは足りない。フックは同期 HTTP を打たない（git 操作にレイテンシを乗せない）
+   * ため、稼働中に起きた破壊的操作は spool にしか存在せず、定期的に drain しないと
+   * 「VS Code を開いたまま reset --hard しても、再起動するまで警告が出ない」ことになる。
+   * 警告が最も要る瞬間は操作直後である。
+   */
+  const drainSpoolIntoDb = (): void => {
+    try {
+      const rows = drainSpool(spool, (msg) => console.error(msg));
+      let ingested = 0;
+      for (const row of rows) {
+        try {
+          store.insertGitActivity(row);
+          ingested += 1;
+        } catch (err) {
+          const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+          console.error(`[git-activity] spool 行の取り込みに失敗: ${reason}`);
+        }
+      }
+      if (ingested > 0) {
+        console.error(`[git-activity] spool から ${ingested} 件を取り込んだ`);
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+      console.error(`[git-activity] spool の drain に失敗: ${reason}`);
+    }
+  };
+
+  drainSpoolIntoDb();
+  const spoolTimer = setInterval(drainSpoolIntoDb, SPOOL_DRAIN_INTERVAL_MS);
+  spoolTimer.unref();
+
+  const gitActivityRetentionDays = resolveGitActivityRetentionDays();
+  const gitActivityCutoff = new Date(Date.now() - gitActivityRetentionDays * DAY_MS).toISOString();
+  const prunedGitActivity = store.pruneGitActivityOlderThan(gitActivityCutoff);
+  if (prunedGitActivity > 0) {
+    console.error(`[git-activity] 保持期間（${gitActivityRetentionDays} 日）を超えた ${prunedGitActivity} 件を削除した`);
+  }
+
   const worker = new AgentStatusWorker(store, token);
   await worker.start(0);
 
@@ -120,6 +179,9 @@ export async function runWorker(workspaceRoot: string): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     clearInterval(pruneTimer);
+    clearInterval(spoolTimer);
+    // 終了前に最後の drain をかけ、フックが書いた直近の記録を取りこぼさない
+    drainSpoolIntoDb();
     removeWorkerInfo(jsonPath);
     void worker.stop().finally(() => {
       store.close();

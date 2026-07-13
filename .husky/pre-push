@@ -1,0 +1,6 @@
+set -eu
+
+# force push（非早送り）とリモートブランチ削除を記録する。push は remote の ref を動かすため、
+# ローカルの refs/heads/* を見る reference-transaction では原理的に捕捉できない（実測）。
+# 記録専用であり push を止めない（|| true で fail-open）。
+node "$(git rev-parse --show-toplevel)/scripts/git-activity-report.mjs" pre-push || true

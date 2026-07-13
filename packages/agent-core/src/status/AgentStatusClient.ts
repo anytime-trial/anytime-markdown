@@ -6,8 +6,12 @@
 import { agentWorkerJsonPath, readWorkerInfo } from './agentWorkerInfo';
 import type {
   AgentSessionRow,
+  AgentWorkerInfo,
   CommitUpsertInput,
   EditUpsertInput,
+  GitActivityInput,
+  GitActivityListEnvelope,
+  GitActivityRow,
 } from './types';
 
 export interface AgentStatusClientOptions {
@@ -28,9 +32,9 @@ export class AgentStatusClient {
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  /** ワーカー URL を解決する。未起動なら undefined */
-  private resolveUrl(): string | undefined {
-    return readWorkerInfo(this.jsonPath)?.url;
+  /** ワーカー接続情報を解決する。未起動なら undefined */
+  private resolveWorkerInfo(): AgentWorkerInfo | undefined {
+    return readWorkerInfo(this.jsonPath) ?? undefined;
   }
 
   private async request<T>(
@@ -38,12 +42,16 @@ export class AgentStatusClient {
     init: RequestInit | undefined,
     fallback: T,
   ): Promise<T> {
-    const base = this.resolveUrl();
-    if (!base) return fallback;
+    const info = this.resolveWorkerInfo();
+    if (!info) return fallback;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const res = await fetch(`${base}${path}`, { ...init, signal: controller.signal });
+      const headers = new Headers(init?.headers);
+      if (info.token && (init?.method === 'POST' || init?.method === 'DELETE')) {
+        headers.set('Authorization', `Bearer ${info.token}`);
+      }
+      const res = await fetch(`${info.url}${path}`, { ...init, headers, signal: controller.signal });
       if (!res.ok) return fallback;
       return (await res.json()) as T;
     } catch (err) {
@@ -111,5 +119,29 @@ export class AgentStatusClient {
       { ok: false },
     );
     return res.ok === true;
+  }
+
+  /** git 操作を 1 件記録する。ワーカー未起動なら false を返す */
+  async postGitActivity(input: GitActivityInput): Promise<boolean> {
+    const res = await this.request<{ ok?: boolean }>(
+      '/api/agent-status/git-activity',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+      { ok: false },
+    );
+    return res.ok === true;
+  }
+
+  /** 新しい順の git 操作履歴。ワーカー未起動なら空配列 */
+  async getGitActivity(): Promise<readonly GitActivityRow[]> {
+    const res = await this.request<GitActivityListEnvelope>(
+      '/api/agent-status/git-activity',
+      undefined,
+      { version: 0, data: [] },
+    );
+    return res.data;
   }
 }

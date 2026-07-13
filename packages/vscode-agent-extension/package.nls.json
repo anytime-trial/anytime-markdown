@@ -23,5 +23,6 @@
   "command.mapping.handoffSession": "Hand Off to New Session",
   "configuration.showUsage.markdownDescription": "Show Claude Code subscription usage in the Agent Mapping Claude Code group.",
   "configuration.usageRefreshSeconds.markdownDescription": "Refresh interval in seconds for Claude Code usage. Values below 300 seconds are clamped to 300. Usage responses are shared through a 10-minute global storage cache to avoid API rate limits.",
-  "configuration.claudeMdGuidance.markdownDescription": "On activation, upsert a managed block into the workspace CLAUDE.md that makes the `anytime-dev-cycle` skill the default for development instructions. Only the marked block is ever rewritten; user content is never touched."
+  "configuration.claudeMdGuidance.markdownDescription": "On activation, upsert a managed block into the workspace CLAUDE.md that makes the `anytime-dev-cycle` skill the default for development instructions. Only the marked block is ever rewritten; user content is never touched.",
+  "config.gitActivityRetentionDays.description": "Number of days to keep git activity records in the agent-status DB. Records older than this are pruned when the worker starts."
 }

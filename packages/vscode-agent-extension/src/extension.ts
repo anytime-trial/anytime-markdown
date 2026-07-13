@@ -28,6 +28,38 @@ import {
 let ollamaProvider: OllamaProvider | undefined;
 let agentStatusWorkerHost: AgentStatusWorkerHost | undefined;
 
+const SEEN_GIT_ACTIVITY_KEY = 'anytimeAgent.lastWarnedGitActivityId';
+const GIT_ACTIVITY_POLL_INTERVAL_MS = 3000;
+
+async function warnOnDestructiveGitOps(
+  client: AgentStatusClient,
+  context: vscode.ExtensionContext,
+  logger: Pick<typeof AgentLogger, 'warn'>,
+): Promise<void> {
+  const rows = await client.getGitActivity();
+  const lastWarned = context.workspaceState.get<number>(SEEN_GIT_ACTIVITY_KEY) ?? 0;
+  const fresh = rows.filter((r) => r.destructive && r.id > lastWarned);
+  if (fresh.length === 0) return;
+
+  for (const r of fresh) {
+    const who =
+      r.attribution === 'claude'
+        ? `Claude セッション ${r.sessionId ?? '(不明)'}`
+        : r.attribution === 'agent'
+          ? `エージェント ${r.agentKind ?? '(不明)'}`
+          : '人間（ターミナル / 別 IDE）';
+    // push は pre-push フックで記録するため「成否が確定する前」の観測になる（--dry-run や
+    // リモート拒否で実際には起きないことがある）。断定せず「試行」と表現する。
+    const verb = r.opType === 'push' ? '試行' : '検知';
+    const msg = `破壊的な git 操作を${verb}: ${r.opType} - ${r.refName}（実行者: ${who}）`;
+    logger.warn(`[git-activity] ${msg} before=${r.beforeSha ?? '-'} after=${r.afterSha ?? '-'}`);
+    void vscode.window.showWarningMessage(msg);
+  }
+
+  const maxId = Math.max(...fresh.map((r) => r.id), lastWarned);
+  await context.workspaceState.update(SEEN_GIT_ACTIVITY_KEY, maxId);
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   AgentLogger.info('Anytime Agent: activate');
 
@@ -222,6 +254,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const sessionRetentionDays = vscode.workspace
     .getConfiguration('anytimeAgent')
     .get<number>('sessionRetentionDays', 7);
+  const gitActivityRetentionDays = vscode.workspace
+    .getConfiguration('anytimeAgent')
+    .get<number>('gitActivityRetentionDays', 90);
 
   // agent-status ワーカーを起動（owner は agent 拡張のみ）。既存ワーカーがいれば接続のみ。
   // SQLite を import するのはこのワーカーバンドルだけ。拡張ホストは HTTP クライアント経由で読む。
@@ -231,6 +266,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       resolveWorkerScriptPath(context.extensionPath),
       AgentLogger,
       sessionRetentionDays,
+      gitActivityRetentionDays,
     );
     agentStatusWorkerHost.start();
   }
@@ -238,6 +274,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Agent Mapping view
   // watcher のデータ源は agent-status ワーカーの HTTP（agent-status.db）。旧 claude-code-status.json は廃止。
   const agentStatusClient = new AgentStatusClient({ workspaceRoot: workspacePath });
+  const gitActivityTimer = setInterval(() => {
+    void warnOnDestructiveGitOps(agentStatusClient, context, AgentLogger).catch((err) => {
+      AgentLogger.warn(`[git-activity] destructive operation polling failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+    });
+  }, GIT_ACTIVITY_POLL_INTERVAL_MS);
+  gitActivityTimer.unref?.();
+  context.subscriptions.push({ dispose: () => clearInterval(gitActivityTimer) });
+
   const watcher = new ClaudeStatusWatcher(agentStatusClient);
   // Codex セッションは rollout .jsonl の読み取り専用スキャン（worker DB 非対象）。保持期間は Claude と共有。
   const codexScanner = new CodexSessionScanner({
