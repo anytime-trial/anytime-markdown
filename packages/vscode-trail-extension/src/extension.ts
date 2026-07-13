@@ -6,9 +6,10 @@ import * as vscode from 'vscode';
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
 import {
-	installBundledSkills,
 	installStaticSkillDir,
+	readBundledSkillManifest,
 } from '@anytime-markdown/vscode-common';
+import { TRAIL_BUNDLED_SKILLS, TRAIL_SKILL_MARKER } from './skills/bundledSkills';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
 import { PipelineProvider } from './providers/PipelineProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
@@ -141,97 +142,46 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	// 同梱スキルを <workspace>/.claude/skills/ に展開（初回 activate 時 / 旧 build-code-graph cleanup）
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installBundledSkills({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure: ${String(err)}`);
+	// 同梱スキルを <workspace>/.claude/skills/ に展開する。
+	// 版数ゲート: 同梱 manifest.json の版数が配置済み版数を上回るときだけ、差分があっても上書きする。
+	// これが無いと配置済みコピーは preserve され続け、スキル更新がユーザーへ二度と届かない。
+	const installTrailSkills = (force: boolean): number => {
+		const logger = {
+			info: (m: string) => TrailLogger.info(m),
+			warn: (m: string) => TrailLogger.warn(m),
+			error: (m: string) => TrailLogger.error(m),
+		};
+		const extensionPath = context.extensionUri.fsPath;
+		const manifest = readBundledSkillManifest(extensionPath, logger);
+		if (Object.keys(manifest).length === 0) {
+			TrailLogger.warn(
+				'[install-skills] skills/manifest.json を読めません。版数ゲートなしで配置します（既存コピーは更新されません）',
+			);
 		}
-	}
 
-	// anytime-reverse-spec は静的リファレンス。activate 時に同梱 dir を展開する。
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installStaticSkillDir({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-reverse-spec',
-				oldSkillNames: ['anytime-basic-design'],
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-reverse-spec: ${String(err)}`);
+		let installedFiles = 0;
+		for (const skill of TRAIL_BUNDLED_SKILLS) {
+			try {
+				const result = installStaticSkillDir({
+					claudeDir,
+					extensionPath,
+					skillName: skill.name,
+					oldSkillNames: skill.oldNames ? [...skill.oldNames] : undefined,
+					version: manifest[skill.name],
+					markerFile: TRAIL_SKILL_MARKER,
+					force,
+					logger,
+				});
+				installedFiles += result.installed;
+			} catch (err) {
+				TrailLogger.warn(`[install-skills] ${skill.name} unexpected failure: ${String(err)}`);
+			}
 		}
-	}
+		return installedFiles;
+	};
 
-	// anytime-dev-health は SKILL.md + grounding.cjs の複数ファイル構成。dir 丸ごと展開する。
 	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installStaticSkillDir({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-dev-health',
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-dev-health: ${String(err)}`);
-		}
-	}
-
-	// anytime-token-budget は SKILL.md + grounding.cjs の複数ファイル構成。dir 丸ごと展開する。
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installStaticSkillDir({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-token-budget',
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-token-budget: ${String(err)}`);
-		}
-	}
-
-	// anytime-trail-review はレビュー指摘書式（memory-core ingest パーサとの機械契約。
-	// 旧名 review-finding-format → anytime-review）。
-	// 契約とパーサ実装を同じ trail リリース単位に置くため trail 拡張が配布する。
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installStaticSkillDir({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-trail-review',
-				oldSkillNames: ['anytime-review', 'review-finding-format'],
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-trail-review: ${String(err)}`);
-		}
+		installTrailSkills(false);
 	}
 
 	const reinstallSkills = vscode.commands.registerCommand(
@@ -241,18 +191,11 @@ export async function activate(context: vscode.ExtensionContext) {
 				vscode.window.showWarningMessage('ワークスペースが開かれていないためスキルの再インストールができません。');
 				return;
 			}
-			const result = installBundledSkills({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				force: true,
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-			if (result.installed) {
-				vscode.window.showInformationMessage('Anytime Trail のスキルを再インストールしました。');
+			const installedFiles = installTrailSkills(true);
+			if (installedFiles > 0) {
+				vscode.window.showInformationMessage(
+					`Anytime Trail のスキルを再インストールしました（${String(installedFiles)} ファイル）。`,
+				);
 			} else {
 				vscode.window.showWarningMessage('スキルの再インストールに失敗しました。Output パネルでログを確認してください。');
 			}

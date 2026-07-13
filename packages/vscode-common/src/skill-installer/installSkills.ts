@@ -7,34 +7,6 @@ export interface InstallSkillLogger {
   readonly error: (message: string) => void;
 }
 
-export interface InstallBundledSkillsOptions {
-  /** `~/.claude` 相当のディレクトリ。テストでは tmp dir を渡す。本番では os.homedir() 経由で組み立てる。 */
-  readonly claudeDir: string;
-  /** 拡張機能のインストール先（context.extensionPath）。同梱 `skills/trail-design/SKILL.md` の探索ベース。 */
-  readonly extensionPath: string;
-  /** true 指定時は既存ファイルが bundle と異なっていても上書きする。 */
-  readonly force?: boolean;
-  /** ログ出力。テストでは jest.fn() でキャプチャする。 */
-  readonly logger?: InstallSkillLogger;
-}
-
-export interface InstallBundledSkillsResult {
-  /** SKILL.md を新規 / force で書き出したか */
-  readonly installed: boolean;
-  /** 既存と一致 or claudeDir 不在で何もしなかったか */
-  readonly skipped: boolean;
-  /** 既存ファイルがあり差分のため上書きを保留したか */
-  readonly preserved: boolean;
-  /** 旧 build-code-graph ディレクトリを削除したか */
-  readonly removedOld: boolean;
-}
-
-const SKILL_NAME = 'anytime-reverse-codegraph';
-const OLD_SKILL_NAMES: readonly string[] = [
-  'build-code-graph',
-  'trail-design',
-  'anytime-reverse-engineer',
-];
 const SKILL_FILE = 'SKILL.md';
 
 const NOOP_LOGGER: InstallSkillLogger = {
@@ -42,68 +14,6 @@ const NOOP_LOGGER: InstallSkillLogger = {
   warn: () => undefined,
   error: () => undefined,
 };
-
-export function installBundledSkills(opts: InstallBundledSkillsOptions): InstallBundledSkillsResult {
-  const logger = opts.logger ?? NOOP_LOGGER;
-  const force = opts.force === true;
-
-  if (!fs.existsSync(opts.claudeDir)) {
-    return { installed: false, skipped: true, preserved: false, removedOld: false };
-  }
-
-  const skillsRoot = path.join(opts.claudeDir, 'skills');
-
-  // 1. 旧ディレクトリ cleanup（リテラル名のホワイトリストで限定）
-  let removedOld = false;
-  for (const oldName of OLD_SKILL_NAMES) {
-    const oldDir = path.join(skillsRoot, oldName);
-    if (!fs.existsSync(oldDir)) continue;
-    try {
-      fs.rmSync(oldDir, { recursive: true, force: true });
-      logger.info(`[install-skills] removed old skill dir: ${oldDir}`);
-      removedOld = true;
-    } catch (err) {
-      logger.warn(`[install-skills] failed to remove ${oldDir}: ${String(err)}`);
-    }
-  }
-
-  // 2. 同梱 SKILL.md 確認
-  const bundledPath = path.join(opts.extensionPath, 'skills', SKILL_NAME, SKILL_FILE);
-  if (!fs.existsSync(bundledPath)) {
-    logger.warn(`[install-skills] bundled skill not found: ${bundledPath}`);
-    return { installed: false, skipped: true, preserved: false, removedOld };
-  }
-
-  const targetDir = path.join(skillsRoot, SKILL_NAME);
-  const targetPath = path.join(targetDir, SKILL_FILE);
-
-  // 3. 既存ファイル評価
-  if (fs.existsSync(targetPath) && !force) {
-    const targetContent = fs.readFileSync(targetPath, 'utf-8');
-    const bundledContent = fs.readFileSync(bundledPath, 'utf-8');
-    if (targetContent === bundledContent) {
-      logger.info(`[install-skills] ${SKILL_NAME} SKILL.md up-to-date`);
-      return { installed: false, skipped: true, preserved: false, removedOld };
-    }
-    logger.info(
-      `[install-skills] ${SKILL_NAME} SKILL.md exists with local edits, preserving (run "Anytime Trail: スキル再インストール" to overwrite)`,
-    );
-    return { installed: false, skipped: false, preserved: true, removedOld };
-  }
-
-  // 4. 書き出し（新規 or force）
-  try {
-    fs.mkdirSync(targetDir, { recursive: true });
-    fs.copyFileSync(bundledPath, targetPath);
-    logger.info(`[install-skills] installed ${SKILL_NAME} SKILL.md → ${targetPath}`);
-    return { installed: true, skipped: false, preserved: false, removedOld };
-  } catch (err) {
-    logger.error(
-      `[install-skills] failed to install ${SKILL_NAME}: ${String(err)}\n${err instanceof Error ? err.stack ?? '' : ''}`,
-    );
-    return { installed: false, skipped: true, preserved: false, removedOld };
-  }
-}
 
 const TEMPLATE_FILE = 'SKILL.md.template';
 
@@ -205,6 +115,15 @@ export interface InstallStaticSkillDirOptions {
   readonly oldSkillNames?: readonly string[];
   /** true 指定時は差分があっても全ファイル上書き。 */
   readonly force?: boolean;
+  /**
+   * 同梱スキルの版数（`skills/manifest.json` 由来）。
+   *
+   * marker に記録された版数より大きければ、差分があっても上書きする（＝スキル更新をユーザーへ届ける）。
+   * 未指定なら版数ゲートは働かず、差分ありファイルは preserve される（後方互換）。
+   */
+  readonly version?: number;
+  /** 版数の記録先ファイル名（`<claudeDir>/skills/<markerFile>`）。`version` 指定時のみ使う。 */
+  readonly markerFile?: string;
   readonly logger?: InstallSkillLogger;
 }
 
@@ -215,10 +134,86 @@ export interface InstallStaticSkillDirResult {
   readonly upToDate: number;
   /** 既存と差分があり保持したファイル数 */
   readonly preserved: number;
+  /** 書き込みに失敗したファイル数。1 件でもあれば版数は記録されず、次回 activate で再配布される。 */
+  readonly failed: number;
   /** bundle / claudeDir が見つからず何もしなかった場合 true */
   readonly sourceMissing: boolean;
   /** 削除した旧スキル dir 名（順序保持）。 */
   readonly removedOld: readonly string[];
+  /** 版数ゲートが上書きを発動したか（version 指定時のみ true になり得る）。 */
+  readonly upgraded: boolean;
+}
+
+/** スキル名 → 配置済み版数。 */
+export type SkillVersionManifest = Record<string, number>;
+
+/**
+ * marker から配置済み版数を読む。存在しない・壊れている場合は空として扱う。
+ *
+ * 壊れた marker で例外を投げると activate 全体が落ちるため、warn ログを出して
+ * 「未記録」に倒す（未記録は上書き側に倒れるので、正本が確実に配布される）。
+ */
+export function readSkillVersionMarker(
+  markerPath: string,
+  logger: InstallSkillLogger = NOOP_LOGGER,
+): SkillVersionManifest {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(markerPath, 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.warn(`[install-skills] failed to read ${markerPath}: ${String(err)}`);
+    }
+    return {};
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      logger.warn(`[install-skills] ${markerPath} is not a JSON object; treating as unrecorded`);
+      return {};
+    }
+    const out: SkillVersionManifest = {};
+    for (const [name, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === 'number' && Number.isFinite(value)) out[name] = value;
+    }
+    return out;
+  } catch (err) {
+    logger.warn(`[install-skills] failed to parse ${markerPath}: ${String(err)}; treating as unrecorded`);
+    return {};
+  }
+}
+
+/**
+ * 拡張同梱の `skills/manifest.json`（スキル名 → 版数）を読む。
+ *
+ * 不在・壊れている場合は空を返す。空なら版数ゲートは働かず preserve 挙動に落ちるため、
+ * 「更新が届かない」に戻る。呼び出し側は空を warn として扱うこと。
+ */
+export function readBundledSkillManifest(
+  extensionPath: string,
+  logger: InstallSkillLogger = NOOP_LOGGER,
+): SkillVersionManifest {
+  return readSkillVersionMarker(path.join(extensionPath, 'skills', 'manifest.json'), logger);
+}
+
+/** marker の 1 スキル分だけを更新する（他拡張・他スキルの記録を消さない）。 */
+function recordSkillVersion(
+  markerPath: string,
+  skillName: string,
+  version: number,
+  logger: InstallSkillLogger,
+): void {
+  const current = readSkillVersionMarker(markerPath, logger);
+  const next: SkillVersionManifest = { ...current, [skillName]: version };
+  try {
+    fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+    fs.writeFileSync(markerPath, `${JSON.stringify(next, null, 2)}\n`, { encoding: 'utf-8' });
+  } catch (err) {
+    logger.error(
+      `[install-skills] failed to record version for ${skillName} in ${markerPath}: ${String(err)}\n${err instanceof Error ? (err.stack ?? '') : ''}`,
+    );
+  }
 }
 
 function walkRelativeFiles(rootDir: string): string[] {
@@ -245,7 +240,7 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
   const force = opts.force === true;
 
   if (!fs.existsSync(opts.claudeDir)) {
-    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true, removedOld: [] };
+    return { installed: 0, upToDate: 0, preserved: 0, failed: 0, sourceMissing: true, removedOld: [], upgraded: false };
   }
 
   const removedOld: string[] = [];
@@ -264,8 +259,21 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
   const sourceDir = path.join(opts.extensionPath, 'skills', opts.skillName);
   if (!fs.existsSync(sourceDir)) {
     logger.warn(`[install-skills] bundled skill dir not found: ${sourceDir}`);
-    return { installed: 0, upToDate: 0, preserved: 0, sourceMissing: true, removedOld };
+    return { installed: 0, upToDate: 0, preserved: 0, failed: 0, sourceMissing: true, removedOld, upgraded: false };
   }
+
+  // 版数ゲート: 同梱版数が marker の記録版数を上回るなら preserve を破って上書きする。
+  // これが無いと、配布済みコピーに差分がある限り更新が永久に届かない（恒久 stale）。
+  const markerPath =
+    opts.version !== undefined && opts.markerFile !== undefined
+      ? path.join(opts.claudeDir, 'skills', opts.markerFile)
+      : null;
+  let upgraded = false;
+  if (markerPath !== null && opts.version !== undefined) {
+    const recorded = readSkillVersionMarker(markerPath, logger)[opts.skillName];
+    upgraded = recorded === undefined || recorded < opts.version;
+  }
+  const overwrite = force || upgraded;
 
   const targetDir = path.join(opts.claudeDir, 'skills', opts.skillName);
   const files = walkRelativeFiles(sourceDir);
@@ -273,6 +281,7 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
   let installed = 0;
   let upToDate = 0;
   let preserved = 0;
+  let failed = 0;
 
   for (const rel of files) {
     const src = path.join(sourceDir, rel);
@@ -280,7 +289,7 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
     const srcContent = fs.readFileSync(src, 'utf-8');
 
     // existsSync → readFileSync の TOCTOU 回避 (CodeQL `js/file-system-race`).
-    if (!force) {
+    if (!overwrite) {
       let dstContent: string | null = null;
       try {
         dstContent = fs.readFileSync(dst, 'utf-8');
@@ -304,17 +313,35 @@ export function installStaticSkillDir(opts: InstallStaticSkillDirOptions): Insta
       fs.writeFileSync(dst, srcContent, { encoding: 'utf-8' });
       installed++;
     } catch (err) {
+      failed++;
       logger.error(
         `[install-skills] failed to install ${opts.skillName}/${rel}: ${String(err)}\n${err instanceof Error ? err.stack ?? '' : ''}`,
       );
     }
   }
 
-  if (installed > 0 || preserved > 0) {
+  if (installed > 0 || preserved > 0 || failed > 0) {
     logger.info(
-      `[install-skills] ${opts.skillName}: installed=${installed} preserved=${preserved} upToDate=${upToDate}`,
+      `[install-skills] ${opts.skillName}: installed=${installed} preserved=${preserved} upToDate=${upToDate} failed=${failed}${upgraded ? ` (upgraded to v${String(opts.version)})` : ''}`,
     );
   }
 
-  return { installed, upToDate, preserved, sourceMissing: false, removedOld };
+  // 版数は「全ファイルを配置できた」ときだけ記録する。
+  //
+  // 1 件でも書き込みに失敗したまま記録すると、次回 activate では recorded >= version となり
+  // upgrade 判定が立たず、失敗したファイルは「差分ありのローカル編集」として preserve され続ける
+  // ＝この関数が直したはずの恒久 stale が、書き込み失敗経路で再発する（全滅・部分失敗の両方）。
+  // 記録しなければ次回も upgrade 判定が立ち、失敗ファイルは正本へ収束する。
+  //
+  // 記録に値する経路では overwrite が必ず true になる（未記録 or 版数上昇 → upgraded=true）ため、
+  // upToDate は 0 のままになる。よって「書き込み 0 件でも配置済み」という分岐は存在しない。
+  const deployed = failed === 0;
+  if (markerPath !== null && opts.version !== undefined && deployed) {
+    const recorded = readSkillVersionMarker(markerPath, logger)[opts.skillName];
+    if (recorded === undefined || recorded < opts.version) {
+      recordSkillVersion(markerPath, opts.skillName, opts.version, logger);
+    }
+  }
+
+  return { installed, upToDate, preserved, failed, sourceMissing: false, removedOld, upgraded };
 }

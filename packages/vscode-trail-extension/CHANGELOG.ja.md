@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+### 削除
+
+- `vscode-common` から `installBundledSkills` を削除しました。`anytime-reverse-codegraph` の `SKILL.md` だけを配置し、差分があれば preserve し続ける旧経路（本リリースで直した恒久 stale の原因）だったためです。同スキルは他と同じ版数ゲート経路へ統一しました。
+
+### 修正
+
+- 同梱スキルの更新がユーザーへ届くようにしました。配置を `skills/manifest.json` の版数（記録先 `.claude/skills/.anytime-trail-skills.json`）でゲートし、`SKILL.md` を変更しても既存ワークスペースで preserve され続ける問題を解消しました。`anytime-reverse-codegraph` も他の同梱スキルと同じ配置経路に統一しました。
+
 ## [0.33.2] - 2026-07-13
 
 ### Trail Core (trail-core / trail-db)

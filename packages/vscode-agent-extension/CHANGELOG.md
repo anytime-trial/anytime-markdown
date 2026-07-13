@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Bundled skills now actually update. `installStaticSkillDir` used to preserve any deployed file whose content differed from the bundle, so a changed `SKILL.md` never reached a workspace that already had the skill (`anytime-cross-review` shipped pointing at a `references/` path that no longer existed). Deployment is now gated on `skills/manifest.json` versions recorded in `.claude/skills/.anytime-agent-skills.json`: a higher bundled version overwrites, an unchanged version still preserves local edits, and a workspace with no recorded version is healed once.
+
 ## [1.4.0] - 2026-07-13
 
 ### Added
