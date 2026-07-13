@@ -8,6 +8,7 @@
 
 ### 追加
 
+- ワークスペース `CLAUDE.md` への `anytime-dev-cycle` 誘導ブロックを追加しました。activate 時に管理マーカー内のみを冪等 upsert し、開発指示の基本スキルを同スキルにします。`anytimeAgent.claudeMdGuidance` で無効化できます。
 - `anytime-dev-cycle` プリフライト（`preflight.cjs`）を追加しました。必須前提（git/develop・docs リポ・スキル完全性）と任意の委譲ランタイム（codex CLI・ollama プロファイル・agent-core）、事前調査（未完了プラン・git 概況）を検査します。マーカー `.anytime/dev-cycle-preflight.json` による初回必須実行とスキル更新時の再実行を持ち、`--check` で診断のみ実行できます。
 
 ### 変更

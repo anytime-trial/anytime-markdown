@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `anytime-dev-cycle` guidance in workspace `CLAUDE.md`: on activation the extension upserts a managed marker block that makes the skill the default for development instructions (idempotent; only the marked block is rewritten). Opt out with `anytimeAgent.claudeMdGuidance`.
 - `anytime-dev-cycle` preflight (`preflight.cjs`): checks required prerequisites (git/develop, docs repo, skill integrity) and optional delegation runtimes (codex CLI, ollama profile, agent-core), plus pre-work scan (incomplete plans, git status). Runs mandatorily on first use via a `.anytime/dev-cycle-preflight.json` marker and on skill updates; `--check` runs the diagnosis alone.
 
 ### Changed
