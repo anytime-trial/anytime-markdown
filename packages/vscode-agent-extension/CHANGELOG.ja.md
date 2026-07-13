@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 追加
+
+- `anytime-dev-cycle` プリフライト（`preflight.cjs`）を追加しました。必須前提（git/develop・docs リポ・スキル完全性）と任意の委譲ランタイム（codex CLI・ollama プロファイル・agent-core）、事前調査（未完了プラン・git 概況）を検査します。マーカー `.anytime/dev-cycle-preflight.json` による初回必須実行とスキル更新時の再実行を持ち、`--check` で診断のみ実行できます。
+
 ### 変更
 
 - 旧 `anytime-agent-rotation` と `anytime-delegation` スキルを `anytime-dev-cycle` へ統合しました。旧スキル名は同梱スキルの移行 alias で掃除されます。

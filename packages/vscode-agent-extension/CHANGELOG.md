@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- `anytime-dev-cycle` preflight (`preflight.cjs`): checks required prerequisites (git/develop, docs repo, skill integrity) and optional delegation runtimes (codex CLI, ollama profile, agent-core), plus pre-work scan (incomplete plans, git status). Runs mandatorily on first use via a `.anytime/dev-cycle-preflight.json` marker and on skill updates; `--check` runs the diagnosis alone.
+
 ### Changed
 
 - Folded the former `anytime-agent-rotation` and `anytime-delegation` skills into `anytime-dev-cycle`; old skill names are cleaned up through the bundled-skill migration aliases.
