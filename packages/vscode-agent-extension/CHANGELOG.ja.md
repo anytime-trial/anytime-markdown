@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 修正
+
+- 同梱スキルの更新がユーザーへ届くようにしました。`installStaticSkillDir` は配置済みファイルの内容が同梱と異なると常に preserve していたため、`SKILL.md` を変更しても既にスキルが配置されたワークスペースへ二度と反映されませんでした（`anytime-cross-review` が実在しない `references/` パスを指したまま出荷されていました）。配置を `skills/manifest.json` の版数（記録先 `.claude/skills/.anytime-agent-skills.json`）でゲートし、同梱版数が上回るときだけ上書き・据置ならローカル編集を保持・版数未記録のワークスペースは一度だけ修復するようにしました。
+
 ## [1.4.0] - 2026-07-13
 
 ### 追加

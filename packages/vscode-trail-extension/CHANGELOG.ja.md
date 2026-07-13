@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 修正
+
+- 同梱スキルの更新がユーザーへ届くようにしました。配置を `skills/manifest.json` の版数（記録先 `.claude/skills/.anytime-trail-skills.json`）でゲートし、`SKILL.md` を変更しても既存ワークスペースで preserve され続ける問題を解消しました。`anytime-reverse-codegraph` も他の同梱スキルと同じ配置経路に統一しました。
+
 ## [0.33.2] - 2026-07-13
 
 ### Trail Core (trail-core / trail-db)

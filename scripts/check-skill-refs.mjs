@@ -23,7 +23,7 @@ export const DOCS_ROOT = '/Shared/anytime-markdown-docs';
 // パス参照の終端: 空白・バッククォート・引用符・括弧(全半角)・句読点・山括弧/角括弧/波括弧(プレースホルダ)・glob
 const PATH_STOP = String.raw`\s\`"'()（）、。<>\[\]{}|*`;
 const PATH_RE = new RegExp(
-  String.raw`(\/Shared\/anytime-markdown-docs(?:\/[^${PATH_STOP}]*)?|(?<![\w/.@-])(?:scripts|packages)\/[^${PATH_STOP}]+)`,
+  String.raw`(\/Shared\/anytime-markdown-docs(?:\/[^${PATH_STOP}]*)?|(?<![\w/.@-])(?:\.claude\/skills|scripts|packages)\/[^${PATH_STOP}]+)`,
   'g',
 );
 const PLACEHOLDER_CHARS = new Set(['<', '[', '{', '*']);
@@ -34,6 +34,34 @@ const TYPO_DOC_RE = new RegExp(
   'g',
 );
 
+/** パス文字列を参照 kind に分類する(純粋関数)。 */
+export function classifyPathKind(value) {
+  if (value.startsWith('/Shared/')) return 'docPath';
+  if (value.startsWith('.claude/skills/')) return 'skillRef';
+  return 'repoPath';
+}
+
+/**
+ * スキル間参照(`.claude/skills/<name>/<rest>`)の解決候補を返す(純粋関数)。
+ *
+ * canonical(`.claude/skills/`)は同梱スキルの場合 .gitignore された実行時コピーで、CI には存在しない。
+ * よって git 正本である `packages/<ext>/skills/<name>/<rest>` でも解決できなければならない。
+ * どちらか一方に実在すれば参照は生きている。
+ */
+export function skillRefCandidates(value, packageNames) {
+  const rest = value.slice('.claude/skills/'.length);
+  return [value, ...packageNames.map((pkg) => join('packages', pkg, 'skills', rest))];
+}
+
+/** packages/ 配下で skills/ を持つ拡張パッケージ名を列挙する。 */
+function listSkillPackages() {
+  const packagesDir = join(repoRoot, 'packages');
+  if (!existsSync(packagesDir)) return [];
+  return readdirSync(packagesDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(join(packagesDir, e.name, 'skills')))
+    .map((e) => e.name);
+}
+
 /** markdown からパス参照と npm script 参照を抽出する(純粋関数)。 */
 export function extractRefs(markdown) {
   const paths = [];
@@ -41,8 +69,7 @@ export function extractRefs(markdown) {
     const value = m[1].replace(/[.,:：]+$/, '');
     const next = markdown[m.index + m[1].length];
     const truncated = PLACEHOLDER_CHARS.has(next);
-    const kind = value.startsWith('/Shared/') ? 'docPath' : 'repoPath';
-    paths.push({ kind, value, truncated });
+    paths.push({ kind: classifyPathKind(value), value, truncated });
   }
   for (const m of markdown.matchAll(TYPO_DOC_RE)) {
     paths.push({ kind: 'typoPath', value: m[0].replace(/[.,:：]+$/, ''), truncated: false });
@@ -70,6 +97,7 @@ export function verificationTarget(ref) {
  */
 export function lintSkillsDir(dir, rootScripts, opts = {}) {
   const docsRootAvailable = opts.docsRootAvailable ?? existsSync(DOCS_ROOT);
+  const skillPackages = opts.skillPackages ?? listSkillPackages();
   const resolved = resolve(dir);
   const isRepoLocal = resolved === repoRoot || resolved.startsWith(repoRoot + sep);
   const results = [];
@@ -90,6 +118,15 @@ export function lintSkillsDir(dir, rootScripts, opts = {}) {
       // docsRoot ごと存在しない環境(CI ランナー)では docPath を検証できない
       if (ref.kind === 'docPath' && !docsRootAvailable) continue;
       const target = verificationTarget(ref);
+
+      // スキル間参照は canonical(実行時コピー)か packages 正本のどちらかに実在すればよい。
+      // 同梱スキルの canonical は .gitignore 済みで CI に無いため、正本側で解決する。
+      if (ref.kind === 'skillRef') {
+        const candidates = skillRefCandidates(target, skillPackages);
+        if (!candidates.some((c) => existsSync(join(repoRoot, c)))) missingRefs.push(ref.value);
+        continue;
+      }
+
       const abs = ref.kind === 'docPath' ? target : join(repoRoot, target);
       if (!existsSync(abs)) missingRefs.push(ref.value);
     }

@@ -2,6 +2,8 @@ export {
   installBundledSkills,
   installTemplatedSkill,
   installStaticSkillDir,
+  readSkillVersionMarker,
+  readBundledSkillManifest,
 } from './installSkills';
 export type {
   InstallSkillLogger,
@@ -11,4 +13,5 @@ export type {
   InstallTemplatedSkillResult,
   InstallStaticSkillDirOptions,
   InstallStaticSkillDirResult,
+  SkillVersionManifest,
 } from './installSkills';

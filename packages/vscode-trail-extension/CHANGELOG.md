@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Bundled skills now actually update. Skill deployment is gated on `skills/manifest.json` versions recorded in `.claude/skills/.anytime-trail-skills.json`, so a changed `SKILL.md` reaches workspaces that already have the skill instead of being preserved forever. `anytime-reverse-codegraph` moved onto the same path as the other bundled skills.
+
 ## [0.33.2] - 2026-07-13
 
 ### Trail Core (trail-core / trail-db)
