@@ -296,3 +296,64 @@ describe('UsageGroupItem', () => {
     expect((item.tooltip as { value: string }).value).toContain('スナップショット');
   });
 });
+
+describe('UsageLimitItem time rendering', () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = 'Asia/Tokyo';
+  });
+
+  afterEach(() => {
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
+  });
+
+  it('renders the reset time in the local time zone as yyyy/M/d HH:mm', () => {
+    const item = new UsageLimitItem({
+      key: 'session',
+      label: 'Session (5h)',
+      percent: 29,
+      severity: 'normal',
+      resetsAt: '2026-07-12T18:08:57.000Z',
+    });
+
+    expect(String(item.description)).toBe('29% · resets 2026/7/13 03:08');
+    expect((item.tooltip as { value: string }).value).toContain('resets 2026/7/13 03:08');
+  });
+
+  it('renders the Codex observation time in the local time zone as yyyy/M/d HH:mm', () => {
+    const item = new UsageLimitItem({
+      key: 'session',
+      label: 'Session (5h)',
+      percent: 29,
+      severity: 'normal',
+      resetsAt: null,
+    }, false, { observedAt: '2026-07-12T13:16:08.224Z' });
+
+    expect((item.tooltip as { value: string }).value).toContain('**観測時刻:** 2026/7/12 22:16');
+  });
+
+  it('falls back to "reset unknown" when resetsAt is missing or unparsable', () => {
+    const missing = new UsageLimitItem({
+      key: 'session',
+      label: 'Session (5h)',
+      percent: 29,
+      severity: 'normal',
+      resetsAt: null,
+    });
+    const broken = new UsageLimitItem({
+      key: 'session',
+      label: 'Session (5h)',
+      percent: 29,
+      severity: 'normal',
+      resetsAt: 'not-a-date',
+    });
+
+    expect(String(missing.description)).toBe('29% · reset unknown');
+    expect(String(broken.description)).toBe('29% · reset unknown');
+  });
+});

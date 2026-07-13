@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { formatLocalDateTimeHyphen } from '../dateFormat';
 
 const execFileAsync = promisify(execFile);
 
@@ -47,13 +48,12 @@ export class TimelineItem extends vscode.TreeItem {
 	}
 }
 
+/**
+ * `YYYY-MM-DD HH:mm` 形式。Date のローカル getter は WSL 上の Extension Host
+ * (system TZ = UTC) で UTC 値を返すため、TZ を明示解決する formatLocalDateTimeHyphen を使う。
+ */
 function formatDate(date: Date): string {
-	const y = date.getFullYear();
-	const m = String(date.getMonth() + 1).padStart(2, '0');
-	const d = String(date.getDate()).padStart(2, '0');
-	const h = String(date.getHours()).padStart(2, '0');
-	const min = String(date.getMinutes()).padStart(2, '0');
-	return `${y}-${m}-${d} ${h}:${min}`;
+	return formatLocalDateTimeHyphen(date) ?? '';
 }
 
 export class TimelineProvider implements vscode.TreeDataProvider<TimelineItem> {

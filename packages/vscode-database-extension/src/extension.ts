@@ -6,6 +6,7 @@ import {
   SyncService,
 } from "@anytime-markdown/trail-db";
 import { FileBackupManager } from "@anytime-markdown/database-core/FileBackupManager";
+import { formatLocalDateTime } from "@anytime-markdown/trail-core/formatDate";
 import { AnytimeDatabaseEditorProvider } from "./providers/AnytimeDatabaseEditorProvider";
 import { DatabaseProvider, BackupTreeItem, type DbFile } from "./providers/DatabaseProvider";
 import {
@@ -244,7 +245,7 @@ export function activate(context: vscode.ExtensionContext): void {
         if (generation === undefined) {
           const items = entries.map((e) => ({
             label: `$(history) ${vscode.l10n.t("Generation {0}", e.generation)}`,
-            description: e.mtime.toLocaleString(),
+            description: formatLocalDateTime(e.mtime.toISOString()),
             detail: `${(e.compressedSize / 1024 / 1024).toFixed(2)} MB (gzip) · ${e.path}`,
             generation: e.generation,
           }));
