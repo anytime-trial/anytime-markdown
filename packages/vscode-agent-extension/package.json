@@ -145,6 +145,11 @@
         "title": "%command.copyAiNotePath%",
         "category": "Anytime Agent",
         "icon": "$(clippy)"
+      },
+      {
+        "command": "anytime-agent.showWorkSnapshots",
+        "title": "%command.showWorkSnapshots%",
+        "category": "Anytime Agent"
       }
     ],
     "menus": {
@@ -280,6 +285,20 @@
           "minimum": 7,
           "maximum": 365,
           "description": "%config.gitActivityRetentionDays.description%"
+        },
+        "anytimeAgent.workSnapshotIntervalMinutes": {
+          "type": "number",
+          "default": 15,
+          "minimum": 0,
+          "maximum": 60,
+          "markdownDescription": "%config.workSnapshotIntervalMinutes.description%"
+        },
+        "anytimeAgent.workSnapshotRetentionDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "maximum": 90,
+          "markdownDescription": "%config.workSnapshotRetentionDays.description%"
         },
         "anytimeAgent.showCodexSessions": {
           "type": "boolean",
