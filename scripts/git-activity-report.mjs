@@ -62,11 +62,20 @@ export function resolveAttribution(env) {
 
 /**
  * 破壊的（作業を失い得る）操作か。
+ *
+ * ブランチ削除は、削除された SHA が他の ref から到達可能なら**破壊的ではない**。到達可能とは
+ * 「どこかにマージ済み」であり、コミットは 1 つも失われていない（`git branch -d` の安全削除）。
+ * ここで警告を出すと、通常のマージ運用のたびに鳴り、警告が無視されるようになる。狼少年化した
+ * 警告は、本当に危険な `git branch -D`（未マージの強制削除）を見逃させる。
+ *
+ * 判定できなかった場合（`reachable` 未指定）は安全側＝破壊的に倒す。
+ *
  * @param {string} opType
- * @param {{rewinds?: boolean, forced?: boolean}} ctx rewinds: ref が祖先方向へ戻る / forced: force push
+ * @param {{rewinds?: boolean, forced?: boolean, reachable?: boolean}} ctx
+ *   rewinds: ref が祖先方向へ戻る / forced: force push / reachable: 削除された SHA が他 ref から到達可能
  */
 export function isDestructive(opType, ctx = {}) {
-  if (opType === 'branch-delete') return true;
+  if (opType === 'branch-delete') return ctx.reachable !== true;
   if (opType === 'reset') return ctx.rewinds === true;
   if (opType === 'push') return ctx.forced === true;
   return false;
@@ -283,11 +292,16 @@ function handleReferenceTransaction(state, stdin) {
         ? isAncestor(afterSha, beforeSha)
         : false;
 
+    // 削除されたコミットが他の ref（ブランチ・タグ）から到達できるなら、どこかにマージ済みで
+    // 何も失われていない（`git branch -d` の安全削除）。到達不能なら失われる（`git branch -D`）。
+    const reachable =
+      isDeleted && beforeSha !== null ? isReachableFromAnyRef(beforeSha, r.ref) : false;
+
     spool(
       {
         workspacePath,
         opType,
-        destructive: isDestructive(opType, { rewinds }),
+        destructive: isDestructive(opType, { rewinds, reachable }),
         refName: r.ref,
         beforeSha,
         afterSha,
@@ -298,6 +312,35 @@ function handleReferenceTransaction(state, stdin) {
       },
     );
   }
+}
+
+/**
+ * 削除される SHA が、**削除対象以外の** ref から到達可能か。
+ *
+ * 到達可能＝どこかにマージ済み＝コミットは 1 つも失われない（`git branch -d` の安全削除）。
+ *
+ * `excludeRef` の除外が必須である。git はブランチ削除で ref トランザクションを 2 回発行し、
+ * 1 回目の `committed` 時点では**削除対象の ref がまだ見えている**。除外しないと必ず
+ * 「自分自身から到達可能」となり、未マージの強制削除（`branch -D`）まで安全と誤判定する（実測）。
+ *
+ * @param {string} sha 削除されるコミット
+ * @param {string} excludeRef 削除対象の ref 名（例: refs/heads/feature/x）
+ */
+function isReachableFromAnyRef(sha, excludeRef) {
+  const result = spawnSync(
+    'git',
+    ['for-each-ref', '--contains', sha, '--format=%(refname)'],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    // 判定不能。安全側（到達不能＝破壊的）に倒す。
+    process.stderr.write(`[git-activity] ${sha.slice(0, 7)} の到達可能性を判定できなかった\n`);
+    return false;
+  }
+  return result.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .some((ref) => ref !== '' && ref !== excludeRef);
 }
 
 function nullIfZero(sha) {
