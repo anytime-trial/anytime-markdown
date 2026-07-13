@@ -72,16 +72,43 @@ export function isClaimLive(claim: AirspaceClaim): boolean {
   return readProcessStartTime(claim.pid) === claim.starttime;
 }
 
+/**
+ * クレームを原子的に書く。
+ *
+ * 同一 pid・別 sessionId のクレームは削除する。1 つの Claude Code プロセスが `/clear` で
+ * 新しいセッションを始めると sessionId だけが変わるため、古いクレームを残すと「生存している
+ * 自分自身」を別セッションとして誤検知し、単独作業でも deny が出続ける。
+ */
 export function writeClaim(dir: string, claim: AirspaceClaim): void {
   const claimsDir = join(dir, 'claims');
   mkdirSync(claimsDir, { recursive: true });
+
+  for (const name of readdirSync(claimsDir)) {
+    if (!name.endsWith('.json')) continue;
+    const filePath = join(claimsDir, name);
+    const existing = readClaimFile(filePath);
+    if (existing !== null && existing.pid === claim.pid && existing.sessionId !== claim.sessionId) {
+      removeClaimFile(filePath, `superseded:${existing.sessionId}`);
+    }
+  }
+
   const target = join(claimsDir, `${claim.sessionId}.json`);
   const temp = join(claimsDir, `${claim.sessionId}.${process.pid}.${Date.now()}.tmp`);
   writeFileSync(temp, `${JSON.stringify(claim, null, 2)}\n`, 'utf8');
   renameSync(temp, target);
 }
 
-export function listLiveClaims(dir: string, excludeSessionId: string): AirspaceClaim[] {
+/**
+ * 生存しているクレームを返す。死んだクレーム・壊れたクレームはファイルごと削除する。
+ *
+ * `excludePid` は自分自身の Claude Code プロセスを除外するために使う。sessionId だけの除外では、
+ * `/clear` 後に残った同一プロセスの旧セッションのクレームを他人と誤認する。
+ */
+export function listLiveClaims(
+  dir: string,
+  excludeSessionId: string,
+  excludePid = 0,
+): AirspaceClaim[] {
   const claimsDir = join(dir, 'claims');
   if (!existsSync(claimsDir)) return [];
 
@@ -98,7 +125,9 @@ export function listLiveClaims(dir: string, excludeSessionId: string): AirspaceC
       removeClaimFile(filePath, claim.sessionId);
       continue;
     }
-    if (claim.sessionId !== excludeSessionId) claims.push(claim);
+    if (claim.sessionId === excludeSessionId) continue;
+    if (excludePid !== 0 && claim.pid === excludePid) continue;
+    claims.push(claim);
   }
   return claims;
 }

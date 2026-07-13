@@ -1,6 +1,7 @@
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -38,11 +39,62 @@ function claim(overrides: Partial<AirspaceClaim> = {}): AirspaceClaim {
   };
 }
 
-function startClaudeNamedProcess(dir: string): ChildProcessWithoutNullStreams {
-  const executable = join(dir, 'claude');
+// isClaimLive は /proc/<pid>/comm === 'claude' を要求するため、実行ファイル名は必ず 'claude' にする。
+// 複数プロセスを立てる場合は subdir を分ける（同じディレクトリに 2 つ目の 'claude' は作れない）。
+function startClaudeNamedProcess(dir: string, subdir = 'bin'): ChildProcessWithoutNullStreams {
+  const binDir = join(dir, subdir);
+  mkdirSync(binDir, { recursive: true });
+  const executable = join(binDir, 'claude');
   symlinkSync('/bin/sleep', executable);
   return spawn(executable, ['30']);
 }
+
+describe('同一プロセスの旧セッション（/clear 後）を他人と誤認しない', () => {
+  let dir: string;
+  let child: ChildProcessWithoutNullStreams | undefined;
+
+  beforeEach(() => {
+    dir = tempDir();
+  });
+
+  afterEach(() => {
+    child?.kill('SIGKILL');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('writeClaim は同一 pid・別 sessionId のクレームを削除する', () => {
+    child = startClaudeNamedProcess(dir);
+    const pid = child.pid ?? 0;
+    const starttime = readProcessStartTime(pid) ?? '';
+
+    // /clear 前のセッション
+    writeClaim(dir, claim({ sessionId: 'old-session', pid, starttime }));
+    expect(existsSync(join(dir, 'claims', 'old-session.json'))).toBe(true);
+
+    // /clear 後: 同じプロセスが新しい sessionId で走る
+    writeClaim(dir, claim({ sessionId: 'new-session', pid, starttime }));
+
+    expect(existsSync(join(dir, 'claims', 'old-session.json'))).toBe(false);
+    expect(existsSync(join(dir, 'claims', 'new-session.json'))).toBe(true);
+  });
+
+  it('listLiveClaims は excludePid で自分自身のプロセスを除外する', () => {
+    child = startClaudeNamedProcess(dir);
+    const pid = child.pid ?? 0;
+    const starttime = readProcessStartTime(pid) ?? '';
+
+    writeClaim(dir, claim({ sessionId: 'stale-same-process', pid, starttime }));
+
+    // sessionId だけで除外すると「生存している自分自身」を他人として拾ってしまう
+    expect(listLiveClaims(dir, 'current-session')).toHaveLength(1);
+    // pid でも除外すれば 0 件（＝単独作業ではゲートが発火しない）
+    expect(listLiveClaims(dir, 'current-session', pid)).toHaveLength(0);
+  });
+
+  it('単独セッションでは破棄コマンドでもゲートが発火しない', () => {
+    expect(evaluateBashGate('git reset --hard', [], '/repo')).toEqual({ kind: 'pass' });
+  });
+});
 
 describe('classifyGitCommand — レビューで見つかった誤分類の回帰', () => {
   // `--` なしのパス指定は未コミット変更を破棄する。ブランチ指定と文字列では区別できないため、
@@ -107,10 +159,13 @@ describe('process liveness', () => {
 describe('listLiveClaims', () => {
   let dir = '';
   let child: ChildProcessWithoutNullStreams | null = null;
+  let other: ChildProcessWithoutNullStreams | null = null;
 
   afterEach(() => {
     if (child !== null && child.pid !== undefined) child.kill();
+    if (other !== null && other.pid !== undefined) other.kill();
     child = null;
+    other = null;
     if (dir !== '' && existsSync(dir)) rmSync(dir, { recursive: true, force: true });
   });
 
@@ -130,10 +185,19 @@ describe('listLiveClaims', () => {
     const selfPath = join(claimsDir, 'self.json');
     const otherPath = join(claimsDir, 'other.json');
 
+    // 他セッションは別プロセスでなければならない。1 プロセスが 2 つの生存セッションを
+    // 同時に持つことはなく（/clear は sessionId だけを変える）、同一 pid の旧クレームは
+    // writeClaim が supersede して削除する。
+    other = startClaudeNamedProcess(dir, 'bin-other');
+    const otherPid = other.pid;
+    if (otherPid === undefined) throw new Error('other pid is unavailable');
+    const otherStart = readProcessStartTime(otherPid);
+    if (otherStart === null) throw new Error('other starttime is unavailable');
+
     writeClaim(dir, claim({ sessionId: 'dead', pid: 999_999_999 }));
     writeFileSync(brokenPath, '{broken json');
     writeClaim(dir, claim({ sessionId: 'self', pid: childPid, starttime: childStart }));
-    writeClaim(dir, claim({ sessionId: 'other', pid: childPid, starttime: childStart }));
+    writeClaim(dir, claim({ sessionId: 'other', pid: otherPid, starttime: otherStart }));
 
     const live = listLiveClaims(dir, 'self');
 
