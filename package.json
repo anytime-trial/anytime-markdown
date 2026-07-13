@@ -94,9 +94,14 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-sonarjs": "4.1.0",
     "husky": "9.1.7",
+    "lint-staged": "17.0.8",
     "raw-loader": "4.0.2",
     "typescript": "6.0.3",
     "typescript-eslint": "8.61.0"
+  },
+  "lint-staged": {
+    "packages/markdown-viewer/src/**/*.{ts,tsx}": "eslint",
+    "packages/web-app/src/**/*.{ts,tsx}": "eslint"
   },
   "dependencies": {
     "@auth/core": "0.41.1",
