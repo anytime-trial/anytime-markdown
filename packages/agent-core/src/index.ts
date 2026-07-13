@@ -99,6 +99,19 @@ export { AgentStatusStore } from './status/AgentStatusStore';
 export { AgentStatusWorker } from './status/AgentStatusWorker';
 export { runWorker } from './status/agentStatusWorkerMain';
 export { AGENT_STATUS_API_VERSION } from './status/types';
+export {
+  resolveAirspaceDir,
+  findClaudePid,
+  readProcessStartTime,
+  isClaimLive,
+  writeClaim,
+  listLiveClaims,
+  classifyGitCommand,
+  evaluateBashGate,
+  evaluateEditGate,
+  evaluateSessionStartGate,
+} from './status/airspace';
+export type { AirspaceClaim, GitCommandKind, GateVerdict } from './status/airspace';
 export type {
   AgentSessionRow,
   AgentSessionEdit,

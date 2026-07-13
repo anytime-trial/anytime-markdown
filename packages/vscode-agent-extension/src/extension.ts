@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import type { WorkSnapshot } from '@anytime-markdown/agent-core';
 import {
   AgentStatusClient,
   createWorkSnapshot,
@@ -10,7 +11,6 @@ import {
   resolveRepoRoot,
   restoreCommand,
 } from '@anytime-markdown/agent-core';
-import type { WorkSnapshot } from '@anytime-markdown/agent-core';
 import {
   ClaudeStatusWatcher,
   ClaudeUsageClient,
@@ -21,22 +21,27 @@ import {
 } from '@anytime-markdown/vscode-common';
 import * as vscode from 'vscode';
 
+import { installAirspaceBundle } from './airspace/installAirspaceBundle';
 import { registerHandoffSessionCommand } from './commands/handoffSession';
 import { SessionTreeItem } from './providers/AgentMappingItem';
 import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { AiNoteItem, AiNoteProvider } from './providers/AiNoteProvider';
 import { GitActivityItem } from './providers/GitActivityItem';
-import { GitActivityProvider } from './providers/GitActivityProvider';
 import { recoveryCommand } from './providers/gitActivityModel';
+import { GitActivityProvider } from './providers/GitActivityProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
+import {
+  WorktreeOwnershipItem,
+  WorktreeOwnershipProvider,
+} from './providers/WorktreeOwnershipProvider';
 import { installClaudeMdGuidance } from './skills/claudeMdGuidance';
 import { installWorkspaceSkills } from './skills/installWorkspaceSkills';
 import { AgentLogger } from './utils/AgentLogger';
-import { normalizeSnapshotIntervalMs, retentionCutoffIso } from './workSnapshotSchedule';
 import {
   AgentStatusWorkerHost,
   resolveWorkerScriptPath,
 } from './worker/AgentStatusWorkerHost';
+import { normalizeSnapshotIntervalMs, retentionCutoffIso } from './workSnapshotSchedule';
 
 let ollamaProvider: OllamaProvider | undefined;
 let agentStatusWorkerHost: AgentStatusWorkerHost | undefined;
@@ -65,6 +70,10 @@ function commandForItem(item: GitActivityItem | undefined): string | null {
     case 'error':
       return null;
   }
+}
+
+function commandForOwnershipItem(item: WorktreeOwnershipItem | undefined): string | null {
+  return item?.worktreeCommand ?? null;
 }
 
 async function warnOnDestructiveGitOps(
@@ -304,6 +313,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     AgentLogger.info(
       `Claude hooks setup: ${registered ? 'registered' : 'skipped (already registered or .claude not found)'}`,
     );
+    installAirspaceBundle(workspacePath, context.extensionPath, (message) => AgentLogger.info(message));
   }
 
   // セッション保持期間（Claude worker prune と Codex スキャンの recency 絞り込みで共有）。
@@ -341,6 +351,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     showCollapseAll: true,
   });
   context.subscriptions.push(gitActivityTreeView);
+
+  const worktreeOwnershipProvider = new WorktreeOwnershipProvider(snapshotRepoRoot);
+  const worktreeOwnershipTreeView = vscode.window.createTreeView('anytimeAgent.worktreeOwnership', {
+    treeDataProvider: worktreeOwnershipProvider,
+  });
+  context.subscriptions.push(worktreeOwnershipTreeView);
 
   const gitActivityTimer = setInterval(() => {
     // 前回のティックが終わる前に次を走らせない（通知済み ID の更新が最後にあるため、重なると
@@ -510,6 +526,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         `コマンドをコピーしました（実行はしていません）: ${cmd}`,
       );
     }),
+    vscode.commands.registerCommand('anytime-agent.worktreeOwnership.refresh', () => {
+      worktreeOwnershipProvider.refresh();
+    }),
+    vscode.commands.registerCommand(
+      'anytime-agent.worktreeOwnership.copyCommand',
+      async (item: WorktreeOwnershipItem | undefined) => {
+        const cmd = commandForOwnershipItem(item);
+        if (cmd === null) {
+          void vscode.window.showWarningMessage('この行からコピーできる worktree コマンドはありません。');
+          return;
+        }
+        await vscode.env.clipboard.writeText(cmd);
+        void vscode.window.showInformationMessage(
+          `worktree コマンドをコピーしました（実行はしていません）: ${cmd}`,
+        );
+      },
+    ),
   );
 
   const watcher = new ClaudeStatusWatcher(agentStatusClient);
@@ -576,9 +609,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     ollamaProvider,
     ollamaTreeView,
-    vscode.commands.registerCommand('anytime-agent.startOllama', () =>
-      ollamaProvider!.startOllama(),
-    ),
+    vscode.commands.registerCommand('anytime-agent.startOllama', () => {
+      ollamaProvider?.startOllama();
+    }),
   );
 
   void path.resolve;

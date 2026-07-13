@@ -14,6 +14,7 @@ const extensionConfig = {
     extension: './src/extension.ts',
     // agent 拡張が spawn する常駐ワーカー。node:sqlite を import するのはこのバンドルのみ。
     'agent-status-worker': './src/worker/agentStatusWorkerEntry.ts',
+    airspace: './src/airspace/airspaceEntry.ts',
   },
   output: {
     path: path.resolve(__dirname, 'dist'),

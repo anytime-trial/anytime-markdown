@@ -26,6 +26,7 @@
     "onStartupFinished",
     "onView:anytimeAgent.aiNote",
     "onView:anytimeAgent.mapping",
+    "onView:anytimeAgent.worktreeOwnership",
     "onView:anytimeAgent.ollama"
   ],
   "main": "./dist/extension.js",
@@ -52,6 +53,10 @@
         {
           "id": "anytimeAgent.gitActivity",
           "name": "%view.gitActivity%"
+        },
+        {
+          "id": "anytimeAgent.worktreeOwnership",
+          "name": "%view.worktreeOwnership%"
         },
         {
           "id": "anytimeAgent.ollama",
@@ -130,6 +135,18 @@
       {
         "command": "anytime-agent.gitActivity.copyCommand",
         "title": "%command.gitActivity.copyCommand%",
+        "icon": "$(clippy)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.worktreeOwnership.refresh",
+        "title": "%command.worktreeOwnership.refresh%",
+        "icon": "$(refresh)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.worktreeOwnership.copyCommand",
+        "title": "%command.worktreeOwnership.copyCommand%",
         "icon": "$(clippy)",
         "category": "Anytime Agent"
       },
@@ -231,6 +248,11 @@
           "group": "navigation@4"
         },
         {
+          "command": "anytime-agent.worktreeOwnership.refresh",
+          "when": "view == anytimeAgent.worktreeOwnership",
+          "group": "navigation@1"
+        },
+        {
           "command": "anytime-agent.startOllama",
           "when": "view == anytimeAgent.ollama && !anytime-agent.ollamaRunning",
           "group": "navigation"
@@ -275,6 +297,11 @@
         {
           "command": "anytime-agent.gitActivity.copyCommand",
           "when": "view == anytimeAgent.gitActivity && (viewItem == gitActivitySnapshot || viewItem == gitActivityDestructive)",
+          "group": "2_copy@1"
+        },
+        {
+          "command": "anytime-agent.worktreeOwnership.copyCommand",
+          "when": "view == anytimeAgent.worktreeOwnership && viewItem == worktreeOwnershipRow",
           "group": "2_copy@1"
         },
         {
