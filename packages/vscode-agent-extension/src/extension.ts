@@ -5,6 +5,8 @@ import * as path from 'node:path';
 import { AgentStatusClient } from '@anytime-markdown/agent-core';
 import {
   ClaudeStatusWatcher,
+  ClaudeUsageClient,
+  ClaudeUsageCoordinator,
   CodexSessionScanner,
   setupClaudeHooks,
 } from '@anytime-markdown/vscode-common';
@@ -242,7 +244,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     retentionDays: sessionRetentionDays,
     logger: (m) => AgentLogger.warn(m),
   });
-  const mappingProvider = new AgentMappingProvider(watcher, workspacePath, codexScanner, context.extensionUri);
+  // 使用量 API は共有トークンバケットで厳しくレート制限される。globalStorage のキャッシュを介して
+  // 全ウィンドウ（拡張ホスト）の取得を 1 本化し、429 を指数バックオフで受け止める。
+  const usageCoordinator = new ClaudeUsageCoordinator({
+    cachePath: vscode.Uri.joinPath(context.globalStorageUri, 'claude-usage-cache.json').fsPath,
+    client: new ClaudeUsageClient(),
+  });
+  const mappingProvider = new AgentMappingProvider(
+    watcher,
+    workspacePath,
+    codexScanner,
+    context.extensionUri,
+    usageCoordinator,
+  );
   const mappingTreeView = vscode.window.createTreeView('anytimeAgent.mapping', {
     treeDataProvider: mappingProvider,
     showCollapseAll: true,
