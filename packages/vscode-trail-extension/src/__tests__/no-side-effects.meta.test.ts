@@ -6,8 +6,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 const WATCHED_FILES = [
-  path.join(os.homedir(), '.claude', 'trail', 'trail.db'),
-  path.join(os.homedir(), '.claude', 'trail', 'trail.db_bak'),
+  path.join(os.homedir(), '.claude', 'trail', 'trail.db'), // test-safety-allow: 保護領域の副作用を監視するメタテスト
+  path.join(os.homedir(), '.claude', 'trail', 'trail.db_bak'), // test-safety-allow: 同上
 ];
 
 interface Snapshot {
