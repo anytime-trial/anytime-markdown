@@ -12,7 +12,6 @@ export type { CodexRateLimitRow, CodexRateLimitSnapshot, CodexUsageSeverity } fr
 export { resolveLocale } from './locale';
 export { TimelineProvider, TimelineItem } from './git/TimelineProvider';
 export {
-  installBundledSkills,
   installTemplatedSkill,
   installStaticSkillDir,
   readSkillVersionMarker,
@@ -21,8 +20,6 @@ export {
 export type {
   SkillVersionManifest,
   InstallSkillLogger,
-  InstallBundledSkillsOptions,
-  InstallBundledSkillsResult,
   InstallTemplatedSkillOptions,
   InstallTemplatedSkillResult,
   InstallStaticSkillDirOptions,

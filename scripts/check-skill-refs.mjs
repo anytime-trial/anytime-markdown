@@ -48,9 +48,12 @@ export function classifyPathKind(value) {
  * よって git 正本である `packages/<ext>/skills/<name>/<rest>` でも解決できなければならない。
  * どちらか一方に実在すれば参照は生きている。
  */
-export function skillRefCandidates(value, packageNames) {
+export function skillRefCandidates(value, packageNames, canonicalAvailable = true) {
   const rest = value.slice('.claude/skills/'.length);
-  return [value, ...packageNames.map((pkg) => join('packages', pkg, 'skills', rest))];
+  const packagesCandidates = packageNames.map((pkg) => join('packages', pkg, 'skills', rest));
+  // canonicalAvailable=false は CI(同梱スキルの .claude/skills が .gitignore で不在)の再現。
+  // packages 正本だけで解決できることを検証するための seam。
+  return canonicalAvailable ? [value, ...packagesCandidates] : packagesCandidates;
 }
 
 /** packages/ 配下で skills/ を持つ拡張パッケージ名を列挙する。 */
@@ -98,6 +101,8 @@ export function verificationTarget(ref) {
 export function lintSkillsDir(dir, rootScripts, opts = {}) {
   const docsRootAvailable = opts.docsRootAvailable ?? existsSync(DOCS_ROOT);
   const skillPackages = opts.skillPackages ?? listSkillPackages();
+  // 既定は canonical(.claude/skills)も解決候補に含める。テストで CI 環境(canonical 不在)を再現する seam。
+  const canonicalAvailable = opts.canonicalAvailable ?? true;
   const resolved = resolve(dir);
   const isRepoLocal = resolved === repoRoot || resolved.startsWith(repoRoot + sep);
   const results = [];
@@ -122,7 +127,7 @@ export function lintSkillsDir(dir, rootScripts, opts = {}) {
       // スキル間参照は canonical(実行時コピー)か packages 正本のどちらかに実在すればよい。
       // 同梱スキルの canonical は .gitignore 済みで CI に無いため、正本側で解決する。
       if (ref.kind === 'skillRef') {
-        const candidates = skillRefCandidates(target, skillPackages);
+        const candidates = skillRefCandidates(target, skillPackages, canonicalAvailable);
         if (!candidates.some((c) => existsSync(join(repoRoot, c)))) missingRefs.push(ref.value);
         continue;
       }

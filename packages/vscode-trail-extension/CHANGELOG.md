@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Removed
+
+- Removed `installBundledSkills` from `vscode-common`. It only ever deployed `anytime-reverse-codegraph`'s `SKILL.md` and preserved any deployed file that differed, which is the preserve-forever bug this release fixes; the skill now goes through the same version-gated path as the others.
+
 ### Fixed
 
 - Bundled skills now actually update. Skill deployment is gated on `skills/manifest.json` versions recorded in `.claude/skills/.anytime-trail-skills.json`, so a changed `SKILL.md` reaches workspaces that already have the skill instead of being preserved forever. `anytime-reverse-codegraph` moved onto the same path as the other bundled skills.
