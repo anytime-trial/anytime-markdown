@@ -10,12 +10,6 @@ export interface AttachTrailDbFromHandleResult {
   cleanup(): void;
 }
 
-const attachedTempDirs = new WeakMap<
-  BetterSqlite3MemoryDb,
-  Array<{ alias: string; cleanup: () => void }>
->();
-const patchedDbs = new WeakSet<BetterSqlite3MemoryDb>();
-
 /**
  * Attach trail.db to an existing memory-core db in read-only mode.
  *
@@ -40,8 +34,9 @@ export async function attachTrailDbReadOnly(
  * Attach an already-open BetterSqlite3MemoryDb (in-memory or file) as `trail`.
  *
  * テスト便宜のため `:memory:` で構築した trail handle をそのまま attach できるよう
- * `serialize()` で一時ファイルに書き出してから attachTrailDbReadOnly() を呼ぶ。
- * 残された一時ファイルは OS の tmpdir 掃除に任せる (テスト時のみの利用想定)。
+ * `serialize()` で一時ファイルに書き出してから attach する (テスト時のみの利用想定)。
+ * 一時ディレクトリは attach 直後に削除する — POSIX では open 済み fd が unlink 後も
+ * 有効なため読み取りは壊れない (Windows 非対応だが本関数はテスト専用)。
  *
  * @deprecated 新規コードは `attachTrailDbReadOnly(db, trailDbPath)` を直接使うこと。
  */
@@ -63,64 +58,16 @@ export function attachTrailDbFromHandle(
   // CodeQL `js/insecure-temporary-file` の対象 (Math.random / Date.now / pid 組合せ) を回避する。
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-core-trail-attach-'));
   const tempPath = path.join(tempDir, 'trail.db');
-  fs.writeFileSync(tempPath, trailHandle.serialize(), { mode: 0o600 });
-  db.attach(tempPath, 'trail', true);
   const cleanup = (): void => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   };
-  registerAttachCleanup(db, 'trail', cleanup);
+  try {
+    fs.writeFileSync(tempPath, trailHandle.serialize(), { mode: 0o600 });
+    db.attach(tempPath, 'trail', true);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
   cleanup();
   return { tempDir, tempPath, cleanup };
-}
-
-function registerAttachCleanup(
-  db: BetterSqlite3MemoryDb,
-  alias: string,
-  cleanup: () => void,
-): void {
-  const cleanups = attachedTempDirs.get(db) ?? [];
-  cleanups.push({ alias, cleanup });
-  attachedTempDirs.set(db, cleanups);
-  patchDbCleanup(db);
-}
-
-function runAttachCleanups(db: BetterSqlite3MemoryDb, alias?: string): void {
-  const cleanups = attachedTempDirs.get(db);
-  if (!cleanups) return;
-  const remaining: Array<{ alias: string; cleanup: () => void }> = [];
-  for (const entry of cleanups) {
-    if (alias === undefined || entry.alias === alias) {
-      entry.cleanup();
-    } else {
-      remaining.push(entry);
-    }
-  }
-  if (remaining.length === 0) {
-    attachedTempDirs.delete(db);
-  } else {
-    attachedTempDirs.set(db, remaining);
-  }
-}
-
-function patchDbCleanup(db: BetterSqlite3MemoryDb): void {
-  if (patchedDbs.has(db)) return;
-  patchedDbs.add(db);
-  const originalDetach = db.detach.bind(db);
-  const originalClose = db.close.bind(db);
-
-  db.detach = (alias: string): void => {
-    try {
-      originalDetach(alias);
-    } finally {
-      runAttachCleanups(db, alias);
-    }
-  };
-
-  db.close = (): void => {
-    try {
-      originalClose();
-    } finally {
-      runAttachCleanups(db);
-    }
-  };
 }

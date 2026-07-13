@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # anytime-markdown pre-commit hook
 # テストファイル変更時に保護領域への書き込みリスクを静的検査する
+# set -e 必須: 無いと check-test-safety.sh の exit 1 が最終行の exit code に上書きされ、
+# データ損失防止ゲートが素通りする（2026-07-13 マージ前レビュー Critical 指摘）。
+# husky は sh(dash) で実行するため pipefail は使えない（本フックにパイプはない）
+set -eu
 
 bash "$(git rev-parse --show-toplevel)/scripts/check-test-safety.sh"
 npx lint-staged
