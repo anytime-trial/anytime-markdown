@@ -1,32 +1,27 @@
----
-name: anytime-agent-rotation
-effort: medium
-description: 長い段階タスクをサブエージェントへ委譲して回す際に、肥大したワーカーを fresh エージェントへ「回転」させ文脈を圧縮ステートで引き継ぐ運用。用途(b)サブエージェント回転（肥大したら fresh へ）と用途(c)毎タスク compact-seed（毎回 fresh）を 1 スキル＋policy 引数で扱う。「サブエージェント回転」「subagent rotation」「毎タスク compact」「ワーカーを使い回す/回転」「圧縮ステートで引き継ぐ」「肥大したサブエージェントを切り替え」の指示で使用する。`--help` / `help` で利用方法を表示する。
----
+# サブエージェント回転 / 毎タスク compact-seed（anytime-dev-cycle reference）
 
-# anytime-agent-rotation — サブエージェント回転 / 毎タスク compact-seed
-
-更新日: 2026-07-04
+更新日: 2026-07-13（旧 `anytime-agent-rotation` スキル本文を統合）
 
 複数の段階タスクをサブエージェントに委譲して進めるとき、同一ワーカーを使い続けると文脈が肥大し
-コストが二乗的に膨らむ。本スキルは **肥大を検知したら fresh エージェントへ回転**し、圧縮ステート
+コストが二乗的に膨らむ。本 reference は **肥大を検知したら fresh エージェントへ回転**し、圧縮ステート
 （`HandoffState`）で文脈を引き継ぐ運用手順を定める。判断ロジックは agent-core の純粋ヘルパに集約済み。
+入口は `anytime-dev-cycle` の単発回転モード、または開発サイクル段4（実行手段の選択）である。
 
 ## 0. ヘルプ（`--help` / `help`）
 
-引数に `--help` または `help` が含まれる場合は、**回転ループを開始せず以下のヘルプをそのまま表示して終了する**。
+指示に `--help` または `help` が含まれる場合は、**回転ループを開始せず以下のヘルプをそのまま表示して終了する**。
 
 ```text
-anytime-agent-rotation — サブエージェント回転 / 毎タスク compact-seed
+サブエージェント回転 / 毎タスク compact-seed (anytime-dev-cycle)
 
 ■ 何をするか
   順序のある多段タスクをサブエージェントへ委譲して回す。肥大したワーカーを
   fresh へ「回転」させ、圧縮ステート(HandoffState)だけで文脈を引き継ぐ。
 
 ■ 起動
-  /anytime-agent-rotation [policy=...] <タスク概要と段階リスト>
-  例) /anytime-agent-rotation packages/<pkg> の脱 any を5ファイル、肥大したら切り替えて
-      /anytime-agent-rotation policy=always-fresh 各章を独立に要約して
+  anytime-dev-cycle の単発回転モード（「サブエージェント回転で」等の指示）で本 reference を読み込む
+  例) サブエージェント回転で packages/<pkg> の脱 any を5ファイル、肥大したら切り替えて
+      policy=always-fresh で各章を独立に要約して
 
 ■ policy (省略時 = タスクの独立性で判断。独立なら always-fresh を推奨)
   continue-while-cheap  (b) 肥大検知で回転。閾値未満は同一ワーカー継続(文脈保持)。
@@ -69,7 +64,7 @@ anytime-agent-rotation — サブエージェント回転 / 毎タスク compact
 | 層 | 実体 | runtime 依存 |
 | --- | --- | --- |
 | 頭脳（判断ロジック） | `@anytime-markdown/agent-core` の `handoff/rotation.ts` 純粋関数 | **非依存**（Claude / Codex / 別ランタイム共用の恒久資産） |
-| オーケストレーション入口 | 本スキル本文・`Agent` / `SendMessage` / `model=haiku` | **Claude 前提の参照実装**。Codex では別入口で同一ヘルパ・同一返却契約を使う |
+| オーケストレーション入口 | 本 reference 本文・`Agent` / `SendMessage` / `model=haiku` | **Claude 前提の参照実装**。Codex では別入口で同一ヘルパ・同一返却契約を使う |
 | 永続化 | 既存 worker `POST /api/agent-status/summary`（任意アダプタ） | 文脈依存（拡張/Claude のみ。Codex/単体では省略可） |
 
 「移植可能」なのは純粋ヘルパと返却契約スキーマだけ。スキル本文の手順は Claude 用であり、これ自体が
@@ -116,7 +111,7 @@ import type { RotationPolicy, HandoffState } from '@anytime-markdown/agent-core'
 ## 回転ループ手順
 
 1. **初期化**: `state` = 初期 `HandoffState`（`goal`=タスク概要, `branch`=現在ブランチ, 配列は空・total=0, `narrative`=null）。`tasks` = 段階リスト。`policy` と `threshold` を決める。
-2. **起動**: `agentId = Agent(buildSeedPrompt(state, tasks[0]) + buildReturnContract(), model=haiku)`。中断規則（`.claude/skills/anytime-delegation/references/stopping-rules-playbook.md`。委譲先を問わない共通資産）の該当セクションを prompt に同梱し、タスク固有の中断条件があれば足す。
+2. **起動**: `agentId = Agent(buildSeedPrompt(state, tasks[0]) + buildReturnContract(), model=haiku)`。中断規則（`.claude/skills/anytime-dev-cycle/references/stopping-rules-playbook.md`。委譲先を問わない共通資産）の該当セクションを prompt に同梱し、タスク固有の中断条件があれば足す。
 3. **受領**: `parsed = parseRunningState(返却テキスト)`。
    - `ok`（`taskStatus` 省略 or `"completed"`）→ `state` 更新（永続化アダプタ有効なら worker upsert）。
    - `ok` かつ `taskStatus: "abstained"` → **同タスクを別ワーカーへ機械的に再委任しない**（無評価の再委任は too-late の再生産）。`abstainReason` を親が評価し、(a) 前提を修正して再委任 / (b) タスクをスキップして続行 / (c) ユーザーへエスカレーション のいずれかを明示的に選ぶ。判断と理由をログに残す。

@@ -46,6 +46,8 @@ describe('installWorkspaceSkills', () => {
   it('統合・改名で消えた旧スキル dir を掃除する', () => {
     const noteStorageDir = path.join(workspaceRoot, '.anytime', 'notes');
     const oldNames = BUNDLED_STATIC_SKILLS.flatMap((s) => s.oldNames ?? []);
+    expect(oldNames).toContain('anytime-agent-rotation');
+    expect(oldNames).toContain('anytime-delegation');
     expect(oldNames).toContain('codex-delegation');
     expect(oldNames).toContain('anytime-ollama-delegation');
 
@@ -69,7 +71,7 @@ describe('installWorkspaceSkills', () => {
       workspaceRoot,
       '.claude',
       'skills',
-      'anytime-delegation',
+      'anytime-dev-cycle',
       'SKILL.md',
     );
     fs.mkdirSync(path.dirname(target), { recursive: true });

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- Folded the former `anytime-agent-rotation` and `anytime-delegation` skills into `anytime-dev-cycle`; old skill names are cleaned up through the bundled-skill migration aliases.
+
 ## [1.3.0] - 2026-07-12
 
 ### Added

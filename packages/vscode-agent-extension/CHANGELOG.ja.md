@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 変更
+
+- 旧 `anytime-agent-rotation` と `anytime-delegation` スキルを `anytime-dev-cycle` へ統合しました。旧スキル名は同梱スキルの移行 alias で掃除されます。
+
 ## [1.3.0] - 2026-07-12
 
 ### 追加
