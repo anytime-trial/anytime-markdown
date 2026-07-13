@@ -93,3 +93,59 @@ describe('findIncompletePlans', () => {
     expect(findIncompletePlans(entries)).toEqual([]);
   });
 });
+
+describe('collectChecks: skill-integrity（統合・tmp dir）', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { collectChecks } = require('./preflight.cjs');
+
+  function makeFixture() {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-test-'));
+    const docsRoot = path.join(root, 'docs');
+    for (const d of ['proposal', 'plan', 'spec', 'review']) {
+      fs.mkdirSync(path.join(docsRoot, d), { recursive: true });
+    }
+    const skillDir = path.join(root, 'skill');
+    fs.mkdirSync(path.join(skillDir, 'references'), { recursive: true });
+    for (const f of [
+      'agent-rotation.md',
+      'delegation.md',
+      'codex-cli.md',
+      'stopping-rules-playbook.md',
+      'task-criteria.md',
+    ]) {
+      fs.writeFileSync(path.join(skillDir, 'references', f), '# stub\n');
+    }
+    for (const f of [
+      'criteria.cjs',
+      'benchmarks.json',
+      'ollama-benchmarks.cjs',
+      'ollama-delegate.cjs',
+      'ollama-probe.cjs',
+      'ollama-report.cjs',
+      'ollama-verify.cjs',
+    ]) {
+      fs.writeFileSync(path.join(skillDir, f), '// stub\n');
+    }
+    return { root, docsRoot, skillDir };
+  }
+
+  it('references と委譲スクリプトが揃っていれば passed=true', () => {
+    const { root, docsRoot, skillDir } = makeFixture();
+    const { checks } = collectChecks({ workspaceRoot: root, docsRoot, skillDir });
+    const integrity = checks.find((c) => c.id === 'skill-integrity');
+    expect(integrity.passed).toBe(true);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('委譲スクリプト（ollama-verify.cjs 等）が欠落したら passed=false で欠落名を報告する', () => {
+    const { root, docsRoot, skillDir } = makeFixture();
+    fs.rmSync(path.join(skillDir, 'ollama-verify.cjs'));
+    const { checks } = collectChecks({ workspaceRoot: root, docsRoot, skillDir });
+    const integrity = checks.find((c) => c.id === 'skill-integrity');
+    expect(integrity.passed).toBe(false);
+    expect(integrity.detail).toContain('ollama-verify.cjs');
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+});

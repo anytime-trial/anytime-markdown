@@ -24,7 +24,15 @@ const REFERENCE_FILES = [
   'stopping-rules-playbook.md',
   'task-criteria.md',
 ];
-const DELEGATION_SCRIPTS = ['ollama-probe.cjs', 'ollama-delegate.cjs', 'criteria.cjs'];
+const DELEGATION_SCRIPTS = [
+  'criteria.cjs',
+  'benchmarks.json',
+  'ollama-benchmarks.cjs',
+  'ollama-delegate.cjs',
+  'ollama-probe.cjs',
+  'ollama-report.cjs',
+  'ollama-verify.cjs',
+];
 
 /** SKILL.md 本文から「更新日: YYYY-MM-DD」を取り出す（無ければ null）。 */
 function extractSkillUpdated(markdown) {
@@ -75,7 +83,16 @@ function findIncompletePlans(entries) {
 function tryExec(cmd, args, options = {}) {
   try {
     return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options }).trim();
-  } catch {
+  } catch (err) {
+    // 非ゼロ終了(err.status)とコマンド不在(ENOENT)は「期待される否定結果」なので黙って null。
+    // それ以外(EACCES・spawn 失敗等)は異常系として 1 行ログを残す(silent catch 禁止)。
+    if (err?.status === null || err?.status === undefined) {
+      if (err?.code !== 'ENOENT') {
+        console.error(
+          `[${new Date().toISOString()}] [WARN] preflight tryExec failed: ${cmd} ${args.join(' ')} — ${err?.message ?? err}`,
+        );
+      }
+    }
     return null;
   }
 }
@@ -112,7 +129,10 @@ function collectChecks({ workspaceRoot, docsRoot, skillDir }) {
     id: 'skill-integrity',
     kind: 'required',
     passed: missing.length === 0,
-    detail: missing.length === 0 ? 'references 5 本＋委譲スクリプトあり' : `欠落: ${missing.join(', ')}`,
+    detail:
+      missing.length === 0
+        ? `references ${REFERENCE_FILES.length} 本＋委譲スクリプト ${DELEGATION_SCRIPTS.length} 本あり`
+        : `欠落: ${missing.join(', ')}`,
   });
 
   const codexPath = tryExec(process.platform === 'win32' ? 'where' : 'which', ['codex']);
