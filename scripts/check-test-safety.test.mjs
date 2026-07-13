@@ -158,6 +158,28 @@ test('文字列中の // はコメント開始として扱わない', () => {
   rmSync(root, { recursive: true, force: true });
 });
 
+test('正規表現リテラル中のエスケープされたスラッシュで行が切れない', () => {
+  const root = createRepo({
+    'src/__tests__/regex.test.ts': `const r = s.replace(/\\//g, '_'); const p = ${HOMEDIR_CALL};\n`,
+  });
+  const r = run(root, ['--all']);
+  assert.equal(r.status, 1);
+  assert.match(r.out, /regex\.test\.ts/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('リポジトリルート以外から実行しても allowlist が効く', () => {
+  const root = createRepo({
+    [ALLOWED_FILE]: `const p = ${HOMEDIR_CALL}; // test-safety-allow: ガードの検証に要る\n`,
+  });
+  const r = spawnSync('bash', [SCRIPT, '--all'], {
+    cwd: join(root, 'packages/trail-db'),
+    encoding: 'utf8',
+  });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  rmSync(root, { recursive: true, force: true });
+});
+
 // --- writeFileSync の許可条件（tmpdir 利用）はコメントでは満たせないこと ---
 
 test('コメントで os.tmpdir / mkdtempSync に言及しただけでは writeFileSync を許可しない', () => {

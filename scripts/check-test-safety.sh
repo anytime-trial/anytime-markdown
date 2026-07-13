@@ -27,6 +27,10 @@
 
 set -euo pipefail
 
+# git のパス出力は cwd 相対。MARKER_ALLOWED_FILES は repo ルート相対で持つため、
+# サブディレクトリから呼ばれても表記が揃うようルートへ移動する。
+cd "$(git rev-parse --show-toplevel)"
+
 # マーカーによる例外を許可するファイル（ガード自体・副作用メタテスト）。
 MARKER_ALLOWED_FILES=(
   "packages/trail-db/src/__tests__/TrailDatabase.guard.test.ts"
@@ -65,9 +69,11 @@ is_marker_allowed() {
 
 # コメントを除去し、コード部分だけを出力する。
 # 文字列リテラル中の // や /* はコメント開始として扱わない（'http://x' で行が切れないため）。
-# SHORTCUT: 行単位の字句解析で状態を持つのはブロックコメントのみ. ceiling: 複数行テンプレート
-# リテラル内の // 以降は検査対象外. upgrade: テンプレート内に検査対象パターンを書くテストが
-# 現れたら TS パーサ（ts-morph 等）へ移行する.
+# バックスラッシュは文字列の内外を問わず次の 1 文字をエスケープ扱いにする。正規表現リテラル
+# （`s.replace(/\//g, '_')` 等）の `\/` を // と誤読して行を切り捨てないため。
+# SHORTCUT: 正規表現リテラルを状態として追跡しない字句解析. ceiling: 文字クラス内に素の //
+# を含む正規表現（`/[a//b]/` 等）は行コメント扱いになり、同一行の後続コードを検査できない.
+# upgrade: 当該パターンを含むテストが現れたら TS パーサ（ts-morph 等）へ移行する.
 strip_comments() {
   awk '
     BEGIN { inblock = 0 }
@@ -79,9 +85,9 @@ strip_comments() {
           if (c2 == "*/") { inblock = 0; i += 2 } else { i++ }
           continue
         }
+        if (ch == "\\") { out = out c2; i += 2; continue }
         if (q != "") {
           out = out ch
-          if (ch == "\\") { out = out substr(line, i + 1, 1); i += 2; continue }
           if (ch == q) { q = "" }
           i++
           continue
