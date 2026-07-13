@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  checkoutRefName,
   classifyOp,
   isDestructive,
   isDuplicateDelete,
@@ -163,4 +164,16 @@ test('リモートブランチの削除（ローカル側が全ゼロ）は push
 test('force push は破壊的、通常 push は破壊的でない', () => {
   assert.equal(isDestructive('push', { forced: true }), true);
   assert.equal(isDestructive('push', { forced: false }), false);
+});
+
+// --- detached HEAD の ref 名（実在しない refs/heads/HEAD を作らない） ---
+
+test('通常のブランチは refs/heads/<name> になる', () => {
+  assert.equal(checkoutRefName('feature/x'), 'refs/heads/feature/x');
+});
+
+test('detached HEAD は refs/heads/HEAD にせず HEAD (detached) と記録する', () => {
+  // git rev-parse --abbrev-ref HEAD は detached 時に文字列 "HEAD" を返す。
+  // そのまま前置すると実在しない ref 名が DB に入る。
+  assert.equal(checkoutRefName('HEAD'), 'HEAD (detached)');
 });

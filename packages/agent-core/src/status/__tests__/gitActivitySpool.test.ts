@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { drainSpool, spoolPath } from '../gitActivitySpool';
@@ -43,5 +43,49 @@ describe('gitActivitySpool', () => {
     expect(rows.map((r) => r.opType)).toEqual(['commit', 'reset']);
     expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('NOT-JSON');
+  });
+});
+
+describe('drainSpool のレース安全性', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'spool-race-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('drain の read 完了後・削除前にフックが追記した行を失わない', () => {
+    const p = join(dir, 'spool.jsonl');
+    appendFileSync(p, `${JSON.stringify({ opType: 'commit' })}\n`);
+
+    // 「読み終わったが、まだ後始末していない」窓を決定的に踏む。
+    // 素朴な read → rmSync 実装ではこの追記行がファイルごと消える（記録の完全消失）。
+    const realParse = JSON.parse;
+    const parseSpy = jest.spyOn(JSON, 'parse').mockImplementationOnce((text: string) => {
+      appendFileSync(p, `${JSON.stringify({ opType: 'reset' })}\n`);
+      return realParse(text);
+    });
+
+    const first = drainSpool(p);
+    parseSpy.mockRestore();
+
+    const second = drainSpool(p);
+
+    expect(first.map((r) => r.opType)).toEqual(['commit']);
+    expect(second.map((r) => r.opType)).toEqual(['reset']);
+  });
+
+  it('drain 後に元ファイルを残さない（作業用ファイルも掃除する）', () => {
+    const p = join(dir, 'spool.jsonl');
+    appendFileSync(p, `${JSON.stringify({ opType: 'commit' })}\n`);
+
+    drainSpool(p);
+
+    expect(existsSync(p)).toBe(false);
+    // .draining-* のような作業ファイルを残さない
+    expect(readdirSync(dir)).toEqual([]);
   });
 });

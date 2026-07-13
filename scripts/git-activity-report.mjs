@@ -21,8 +21,9 @@ const OP_PREFIXES = [
   ['revert', 'revert'],
   ['branch', 'branch-create'],
   ['checkout', 'checkout'],
+  // pull は refs/heads を早送りするため到達する。素の fetch（refs/remotes のみ）と
+  // stash（refs/stash）は refs/heads を動かさず、本フックの対象外。
   ['pull', 'fetch'],
-  ['fetch', 'fetch'],
   ['push', 'push'],
   ['clone', 'other'],
 ];
@@ -109,6 +110,19 @@ export function parsePrePushLine(line, isAncestorFn) {
   };
 }
 
+/**
+ * checkout の記録に使う ref 名。
+ *
+ * `git rev-parse --abbrev-ref HEAD` は detached HEAD のとき文字列 `HEAD` を返す。そのまま
+ * `refs/heads/` を前置すると、実在しない ref 名（`refs/heads/HEAD`）がテーブルに入り、
+ * 後段の集計・表示で誤解を招く。
+ *
+ * @param {string} abbrevRef `git rev-parse --abbrev-ref HEAD` の値
+ */
+export function checkoutRefName(abbrevRef) {
+  return abbrevRef === 'HEAD' ? 'HEAD (detached)' : `refs/heads/${abbrevRef}`;
+}
+
 function git(args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim();
 }
@@ -118,6 +132,20 @@ let cachedGitDir = null;
 function gitDir() {
   cachedGitDir ??= git(['rev-parse', '--absolute-git-dir']);
   return cachedGitDir;
+}
+
+/**
+ * spool を置くメインリポジトリの root。
+ *
+ * linked worktree 内では `--show-toplevel` が worktree のパスを返すため、そこへ spool を書くと
+ * ワーカー（メインの workspaceRoot で起動する）が永久に取り込まない。本プロジェクトは worktree 運用が
+ * 主流であり、危険な操作こそ worktree 側で起きるため、spool は常にメイン側へ集約する。
+ * 操作がどの worktree で起きたかは row.workspacePath に残す。
+ */
+let cachedMainRoot = null;
+function mainRepoRoot() {
+  cachedMainRoot ??= dirname(git(['rev-parse', '--path-format=absolute', '--git-common-dir']));
+  return cachedMainRoot;
 }
 
 /**
@@ -201,9 +229,10 @@ function handleReferenceTransaction(state, stdin) {
     for (const r of deletions) {
       try {
         resolved[r.ref] = git(['rev-parse', '--verify', r.ref]);
-      } catch (err) {
-        const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
-        process.stderr.write(`[git-activity] 削除対象 ${r.ref} の SHA を解決できなかった: ${reason}\n`);
+      } catch {
+        // 2 回目のトランザクション（packed-refs 側）では ref が既に消えている。これは正常系であり、
+        // 1 回目の退避から SHA を復元できる。ユーザーの git 出力にスタックトレースを混ぜない。
+        process.stderr.write(`[git-activity] ${r.ref} は解決時点で既に削除済み（1 回目の退避を使う）\n`);
       }
     }
     if (Object.keys(resolved).length > 0) {
@@ -243,7 +272,7 @@ function handleReferenceTransaction(state, stdin) {
       try {
         subject = git(['reflog', '-1', '--format=%gs', r.ref]);
       } catch (err) {
-        const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+        const reason = err instanceof Error ? err.message : String(err);
         process.stderr.write(`[git-activity] reflog subject を読めなかった ref=${r.ref}: ${reason}\n`);
       }
     }
@@ -267,7 +296,6 @@ function handleReferenceTransaction(state, stdin) {
         sessionId: who.sessionId,
         occurredAt,
       },
-      workspacePath,
     );
   }
 }
@@ -285,9 +313,10 @@ function isAncestor(a, b) {
   return result.status === 0;
 }
 
-function spool(row, workspacePath) {
-  if (isDuplicateDelete(row, workspacePath)) return;
-  const p = spoolFilePath(workspacePath);
+function spool(row) {
+  const target = mainRepoRoot();
+  if (isDuplicateDelete(row, target)) return;
+  const p = spoolFilePath(target);
   mkdirSync(dirname(p), { recursive: true });
   appendFileSync(p, `${JSON.stringify(row)}\n`);
 }
@@ -302,7 +331,7 @@ function handlePostCheckout(prevHead, newHead, branchFlag) {
       workspacePath,
       opType: 'checkout',
       destructive: false,
-      refName: `refs/heads/${git(['rev-parse', '--abbrev-ref', 'HEAD'])}`,
+      refName: checkoutRefName(git(['rev-parse', '--abbrev-ref', 'HEAD'])),
       beforeSha: nullIfZero(prevHead),
       afterSha: nullIfZero(newHead),
       attribution: who.attribution,
@@ -310,7 +339,6 @@ function handlePostCheckout(prevHead, newHead, branchFlag) {
       sessionId: who.sessionId,
       occurredAt: new Date().toISOString(),
     },
-    workspacePath,
   );
 }
 
@@ -319,6 +347,12 @@ function handlePostCheckout(prevHead, newHead, branchFlag) {
  *
  * force push（非早送り）とリモートブランチ削除を破壊的として記録する。CLAUDE.md は Claude からの
  * push を禁じているが、本フックが捕まえるのは人間・他ツールによる push である（それが目的）。
+ *
+ * SHORTCUT: pre-push は push の成否が確定する前に走るため、`--dry-run`・リモート拒否・保護ブランチ・
+ * ネットワーク障害で「実際には起きなかった破壊」も記録する. ceiling: git は dry-run をフックへ伝えず、
+ * push 完了フックも存在しないため、フック単独では確定できない. upgrade: 誤検知が実害になったら、
+ * push 成功時に更新される remote-tracking ref（`refs/remotes/<remote>/<branch>`）の
+ * reference-transaction で確定させる二段構えにする.
  */
 function handlePrePush(stdin) {
   const lines = stdin
@@ -346,7 +380,6 @@ function handlePrePush(stdin) {
         sessionId: who.sessionId,
         occurredAt,
       },
-      workspacePath,
     );
   }
 }

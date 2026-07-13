@@ -58,7 +58,7 @@ export function gitActivityDDL(table = 'git_activity'): string {
   workspace_path TEXT NOT NULL,
   op_type        TEXT NOT NULL CHECK (op_type IN (
                    'commit','merge','rebase','reset','checkout','branch-create',
-                   'branch-delete','push','fetch','stash','cherry-pick','revert','other')),
+                   'branch-delete','push','fetch','cherry-pick','revert','other')),
   destructive    INTEGER NOT NULL DEFAULT 0 CHECK (destructive IN (0, 1)),
   ref_name       TEXT NOT NULL,
   before_sha     TEXT,

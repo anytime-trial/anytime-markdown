@@ -42,7 +42,6 @@ const GIT_OP_TYPES: readonly string[] = [
   'branch-delete',
   'push',
   'fetch',
-  'stash',
   'cherry-pick',
   'revert',
   'other',

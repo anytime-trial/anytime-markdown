@@ -144,7 +144,6 @@ export type GitOpType =
   | 'branch-delete'
   | 'push'
   | 'fetch'
-  | 'stash'
   | 'cherry-pick'
   | 'revert'
   | 'other';

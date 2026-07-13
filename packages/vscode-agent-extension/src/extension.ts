@@ -48,7 +48,10 @@ async function warnOnDestructiveGitOps(
         : r.attribution === 'agent'
           ? `エージェント ${r.agentKind ?? '(不明)'}`
           : '人間（ターミナル / 別 IDE）';
-    const msg = `破壊的な git 操作を検知: ${r.opType} - ${r.refName}（実行者: ${who}）`;
+    // push は pre-push フックで記録するため「成否が確定する前」の観測になる（--dry-run や
+    // リモート拒否で実際には起きないことがある）。断定せず「試行」と表現する。
+    const verb = r.opType === 'push' ? '試行' : '検知';
+    const msg = `破壊的な git 操作を${verb}: ${r.opType} - ${r.refName}（実行者: ${who}）`;
     logger.warn(`[git-activity] ${msg} before=${r.beforeSha ?? '-'} after=${r.afterSha ?? '-'}`);
     void vscode.window.showWarningMessage(msg);
   }
