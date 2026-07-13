@@ -28,6 +28,7 @@ import { AgentMappingProvider } from './providers/AgentMappingProvider';
 import { AiNoteItem, AiNoteProvider } from './providers/AiNoteProvider';
 import { GitActivityItem } from './providers/GitActivityItem';
 import { recoveryCommand } from './providers/gitActivityModel';
+import { buildSnapshotPickItems } from './providers/workSnapshotPickModel';
 import { GitActivityProvider } from './providers/GitActivityProvider';
 import { OllamaProvider } from './providers/OllamaProvider';
 import {
@@ -96,7 +97,7 @@ async function warnOnDestructiveGitOps(
       hint =
         latest === undefined
           ? ''
-          : `（直近スナップショット: ${formatLocalDateTime(latest.createdAt)} / ${latest.fileCount} files）`;
+          : `（直近スナップショット: ${formatLocalDateTime(latest.createdAt) ?? '時刻不明'} / ${latest.fileCount} files）`;
     } catch (err) {
       // スナップショットの引き当て失敗で警告そのものを落とさない（警告こそが本来の目的）
       logger.warn(
@@ -450,20 +451,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
 
-      const picked = await vscode.window.showQuickPick(
-        snapshots.map((s) => ({
-          // 保存・比較は UTC ISO のまま。表示のみローカル TZ へ変換する（拡張ホストは TZ=UTC のため
-          // 素朴な変換は効かず、vscode-common の解決順序に従う必要がある）。
-          label: formatLocalDateTime(s.createdAt),
-          description: `${s.fileCount} files`,
-          detail: s.sha.slice(0, 12),
-          snapshot: s,
-        })),
-        {
-          title: '作業スナップショット（復元コマンドをコピーします）',
-          placeHolder: '復元したい時点を選択',
-        },
-      );
+      const picked = await vscode.window.showQuickPick(buildSnapshotPickItems(snapshots), {
+        title: '作業スナップショット（復元コマンドをコピーします）',
+        placeHolder: '復元したい時点を選択',
+      });
       if (picked === undefined) return;
 
       // 復元は作業ツリーを上書きする破壊的操作のため、ここでは実行しない。コマンドを渡すだけに留める。
