@@ -72,10 +72,8 @@ The extension installs Claude Code skills into your workspace `.claude/skills/` 
 | Skill | Purpose |
 | --- | --- |
 | `anytime-note` | Lets the AI read AI Note pages (images / tables / notes) and act on them |
-| `anytime-agent-rotation` | Keeps long, multi-step subagent work cheap |
 | `anytime-cross-review` | Claude and Codex review the same diff independently and cross-check each other's findings |
-| `anytime-delegation` | Delegation rules for Codex and local ollama (choosing the target, the 6-point contract, the abstain exit) |
-| `anytime-dev-cycle` | Runs the full loop: proposal → spec → plan → implementation → review → merge |
+| `anytime-dev-cycle` | Base development skill that combines the full development flow with subagent rotation and Codex / ollama delegation |
 | `anytime-impl-test-design` | Decides which tests to write after implementing (wiring / mount / i18n coverage gaps) |
 | `anytime-proposal` | Generates proposals (RFC / ADR / lightweight) with a thinking-method guide |
 

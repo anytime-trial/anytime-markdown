@@ -43,7 +43,7 @@ class FakeRemoteStore implements IRemoteTrailStore {
   async upsertSessions(rows: readonly unknown[]): Promise<void> {
     this.upsertedSessions.push(...rows);
   }
-  async upsertMessages(): Promise<void> {}
+  async upsertMessages(rows: readonly { uuid: string }[]): Promise<readonly string[]> { return rows.map((r) => r.uuid); }
   async upsertCommits(): Promise<void> {}
   async upsertCommitFiles(): Promise<void> {}
   async upsertReleases(): Promise<void> {}

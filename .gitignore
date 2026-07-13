@@ -15,6 +15,22 @@ prebuilt-vscode
 .claude/skills/anytime-mermaid/
 .claude/skills/anytime-doc-authoring/
 .claude/skills/anytime-spec-lookup/
+# agent 拡張が activate 時に配置する生成物（ソースは packages/vscode-agent-extension/skills/）
+.claude/skills/anytime-agent-rotation/
+.claude/skills/anytime-cross-review/
+.claude/skills/anytime-delegation/
+.claude/skills/anytime-dev-cycle/
+.claude/skills/anytime-impl-test-design/
+.claude/skills/anytime-note/
+.claude/skills/anytime-proposal/
+# trail 拡張が activate 時に配置する生成物（ソースは packages/vscode-trail-extension/skills/）
+.claude/skills/anytime-dev-health/
+.claude/skills/anytime-reverse-codegraph/
+.claude/skills/anytime-reverse-spec/
+.claude/skills/anytime-token-budget/
+.claude/skills/anytime-trail-review/
+# 旧名で配置され得る生成物（改名前の同梱スキル。installer が oldSkillNames で除去するまで残る）
+.claude/skills/anytime-review/
 .claude/skills/.anytime-skills.json
 .next
 # Next が dev/build のたびに再生成する（参照先が .next/dev/types と .next/types で入れ替わる）。

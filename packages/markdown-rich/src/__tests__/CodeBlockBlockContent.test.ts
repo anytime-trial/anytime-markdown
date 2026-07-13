@@ -29,6 +29,7 @@ jest.mock("../vanilla/createGraphPreview", () => ({
 import {
   classifyCodeBlock,
   createCodeBlockNodeView,
+  defaultPreviewWidth,
   CODE_BLOCK_EDIT_INTENT_EVENT,
 } from "../components/codeblock/CodeBlockBlockContent";
 
@@ -69,6 +70,22 @@ describe("classifyCodeBlock", () => {
   });
 });
 
+describe("defaultPreviewWidth", () => {
+  // markdown は本文と同じ文章なので、本文幅（--am-editor-measure）いっぱいまで伸ばす。
+  // fit-content だと本文幅を「全て」にしてもプレビューだけ内容幅で止まってしまう。
+  it("markdown は本文幅いっぱいに広げる", () => {
+    expect(defaultPreviewWidth("markdown")).toBe("100%");
+  });
+
+  it("markdown 以外は内容幅に縮める", () => {
+    expect(defaultPreviewWidth("diagram")).toBe("fit-content");
+    expect(defaultPreviewWidth("math")).toBe("fit-content");
+    expect(defaultPreviewWidth("html")).toBe("fit-content");
+    expect(defaultPreviewWidth("embed")).toBe("fit-content");
+    expect(defaultPreviewWidth("regular")).toBe("fit-content");
+  });
+});
+
 describe("createCodeBlockNodeView (native content NodeView)", () => {
   it("dom と contentDOM(code) を構築する", () => {
     const view = makeView({ language: "typescript" });
@@ -94,6 +111,24 @@ describe("createCodeBlockNodeView (native content NodeView)", () => {
     expect(preWrap.style.display).toBe(""); // collapsed でも regular は表示
     expect(preview.style.display).toBe("none");
     expect((dom.querySelector("pre") as HTMLElement).style.maxHeight).toBe("400px");
+  });
+
+  it("markdown はプレビュー枠を本文幅いっぱいに広げる", () => {
+    const view = makeView({ language: "markdown", text: "# 見出し" });
+    const preview = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview") as HTMLElement;
+    expect(preview.style.width).toBe("100%");
+  });
+
+  it("markdown でも手動リサイズ幅があればそちらを優先する", () => {
+    const view = makeView({ language: "markdown", text: "# 見出し", width: "320px" });
+    const preview = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview") as HTMLElement;
+    expect(preview.style.width).toBe("320px");
+  });
+
+  it("図のプレビュー枠は内容幅のままにする", () => {
+    const view = makeView({ language: "mermaid", text: "graph TD; A-->B" });
+    const preview = (view.dom as HTMLElement).querySelector(".rich-codeblock-preview") as HTMLElement;
+    expect(preview.style.width).toBe("fit-content");
   });
 
   it("preview 種別 collapsed=true でコードを隠しプレビューを出す・枠線なし", () => {

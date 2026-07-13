@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-07-13
+
+### Fixed
+
+- The markdown preview inside a fenced code block now follows the editor body-width setting instead of staying at its own fixed width.
+
 ## [1.12.0] - 2026-07-11
 
 ### Added

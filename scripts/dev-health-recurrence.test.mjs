@@ -12,7 +12,8 @@ const {
   detectDanglingClusters,
   findUncoveredBugFiles,
   scanMemoryDir,
-} = require('../.claude/skills/anytime-dev-health/recurrence.cjs');
+// git 正本(packages 側)から読む。.claude/skills/ は .gitignore された実行時コピーで CI には存在しない。
+} = require('../packages/vscode-trail-extension/skills/anytime-dev-health/recurrence.cjs');
 
 const memoryMd = (name, type, body) =>
   `---\nname: ${name}\ndescription: d\nmetadata:\n  type: ${type}\n---\n\n${body}\n`;

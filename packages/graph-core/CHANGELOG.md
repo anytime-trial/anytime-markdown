@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-07-13
+
+### Security
+
+- Removed a ReDoS-prone regular expression from the causal-loop link parser in `parseGraphDsl` (CodeQL). Malformed link lines no longer cause catastrophic backtracking.
+
+### Changed
+
+- Raised `parseGraphDsl` test coverage above 90%.
+
 ## [0.11.0] - 2026-07-11
 
 ### Added

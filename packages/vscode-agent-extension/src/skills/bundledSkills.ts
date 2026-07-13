@@ -13,11 +13,18 @@ export interface BundledSkill {
  * installTemplatedSkill で個別に扱う。
  */
 export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
-  { name: 'anytime-agent-rotation', oldNames: ['subagent-rotation'] },
   { name: 'anytime-cross-review' },
-  // Codex 委任と ollama 委譲は同型の委譲契約を二重定義していたため統合した。
-  { name: 'anytime-delegation', oldNames: ['codex-delegation', 'anytime-ollama-delegation'] },
-  { name: 'anytime-dev-cycle' },
+  // rotation / delegation は anytime-dev-cycle の references へ統合した。
+  {
+    name: 'anytime-dev-cycle',
+    oldNames: [
+      'anytime-agent-rotation',
+      'subagent-rotation',
+      'anytime-delegation',
+      'codex-delegation',
+      'anytime-ollama-delegation',
+    ],
+  },
   { name: 'anytime-impl-test-design' },
   { name: 'anytime-proposal' },
 ];

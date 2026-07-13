@@ -3,10 +3,26 @@ import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseR
 import type { IRemoteTrailStore } from './IRemoteTrailStore';
 import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
 import { type DbLogger, noopDbLogger } from './DbLogger';
+import { isRetryableRemoteError, summarizeRemoteError, type RemoteErrorLike } from './remoteRetry';
+
+/** 一過性エラー時の再試行間隔（指数バックオフ）。この回数を使い切ったら throw する。 */
+const DEFAULT_RETRY_DELAYS_MS: readonly number[] = [500, 1500, 4000];
+const DEFAULT_CHUNK_SIZE = 500;
+
+/** Supabase のクエリビルダ（thenable）が解決する形。data は使わないので error のみ見る。 */
+type RemoteWriteResponse = { error: RemoteErrorLike | null };
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+export interface SupabaseTrailStoreOptions {
+  /** 再試行間隔（テストでは [0,0,0] 等に短縮する）。 */
+  readonly retryDelaysMs?: readonly number[];
+}
 
 export class SupabaseTrailStore implements IRemoteTrailStore {
   private client: SupabaseClient | null = null;
   private readonly logger: DbLogger;
+  private readonly retryDelaysMs: readonly number[];
 
   constructor(
     private readonly url: string,
@@ -14,8 +30,81 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     // anon キーは RLS により読み取り専用なので、このストアでは使えない。
     private readonly serviceRoleKey: string,
     logger?: DbLogger,
+    options?: SupabaseTrailStoreOptions,
   ) {
     this.logger = logger ?? noopDbLogger;
+    this.retryDelaysMs = options?.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
+  }
+
+  /**
+   * 書き込み 1 回を実行し、一過性エラー（ネットワーク断・ゲートウェイ 5xx/HTML・接続過多・
+   * statement timeout）なら指数バックオフで再試行する。制約違反等の恒久エラーは即 throw する。
+   */
+  private async runWithRetry(
+    label: string,
+    op: () => PromiseLike<RemoteWriteResponse>,
+  ): Promise<void> {
+    for (let attempt = 0; ; attempt++) {
+      let error: RemoteErrorLike | null;
+      try {
+        ({ error } = await op());
+      } catch (e) {
+        // fetch 層の例外（接続断・タイムアウト）は PostgrestError にならず throw される。
+        error = { message: e instanceof Error ? e.message : String(e) };
+      }
+      if (!error) return;
+
+      const summary = summarizeRemoteError(error);
+      if (!isRetryableRemoteError(error) || attempt >= this.retryDelaysMs.length) {
+        throw new Error(`Supabase ${label} failed: ${summary}`);
+      }
+      const delayMs = this.retryDelaysMs[attempt];
+      this.logger.warn(
+        `Supabase ${label} failed (attempt ${attempt + 1}/${this.retryDelaysMs.length + 1}), retrying in ${delayMs}ms: ${summary}`,
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  /**
+   * 行をチャンク分割して upsert する。**チャンク単位でエラーを隔離**し、失敗したチャンクが
+   * あっても残りのチャンクは送り切る（旧実装は最初の失敗で throw していたため、1 チャンクの
+   * 失敗でテーブル全体が未同期のまま残った）。成功/失敗した行を返す。
+   */
+  private async upsertChunked<T>(
+    label: string,
+    table: string,
+    rows: readonly T[],
+    toPayload: (row: T) => Record<string, unknown>,
+    options: { onConflict: string; ignoreDuplicates?: boolean; chunkSize?: number },
+  ): Promise<{ succeeded: readonly T[]; failed: readonly T[] }> {
+    const chunkSize = options.chunkSize ?? DEFAULT_CHUNK_SIZE;
+    const succeeded: T[] = [];
+    const failed: T[] = [];
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const payload = chunk.map(toPayload);
+      try {
+        await this.runWithRetry(`upsert ${table} (rows ${i}-${i + chunk.length - 1})`, () =>
+          this.ensureClient().from(table).upsert(payload, {
+            onConflict: options.onConflict,
+            ignoreDuplicates: options.ignoreDuplicates,
+          }),
+        );
+        succeeded.push(...chunk);
+      } catch (e) {
+        this.logger.error(`${label}: chunk failed (rows ${i}-${i + chunk.length - 1})`, e);
+        failed.push(...chunk);
+      }
+    }
+    return { succeeded, failed };
+  }
+
+  /** チャンク隔離後に失敗行が残っていれば、呼び出し元（SyncService.syncStep）へ集約して報告する。 */
+  private static throwIfAnyFailed(label: string, failed: readonly unknown[], total: number): void {
+    if (failed.length > 0) {
+      throw new Error(`Supabase upsert ${label} failed for ${failed.length}/${total} rows (see log for chunk errors)`);
+    }
   }
 
   async connect(): Promise<void> {
@@ -88,13 +177,14 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
 
   async upsertRepos(rows: readonly { repo_id: number; repo_name: string; created_at: string | null }[]): Promise<void> {
     if (rows.length === 0) return;
-    const { error } = await this.ensureClient()
-      .from('trail_repos')
-      .upsert(
-        rows.map((r) => ({ repo_id: r.repo_id, repo_name: r.repo_name, created_at: r.created_at })),
-        { onConflict: 'repo_id' },
-      );
-    if (error) throw new Error(`Supabase upsert trail_repos failed: ${error.message}`);
+    await this.runWithRetry('upsert trail_repos', () =>
+      this.ensureClient()
+        .from('trail_repos')
+        .upsert(
+          rows.map((r) => ({ repo_id: r.repo_id, repo_name: r.repo_name, created_at: r.created_at })),
+          { onConflict: 'repo_id' },
+        ),
+    );
   }
 
   async unsafeClearRepos(): Promise<void> {
@@ -124,10 +214,11 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       source: r.source ?? 'claude_code',
       synced_at: new Date().toISOString(),
     }));
-    const { error } = await this.ensureClient()
-      .from('trail_sessions')
-      .upsert(mapped, { onConflict: 'id' });
-    if (error) throw new Error(`Supabase upsert sessions failed: ${error.message}`);
+    // セッション行は session_costs / messages / message_tool_calls の FK 親。ここを一過性エラーで
+    // 取りこぼすと子テーブルが丸ごと同期不能になるため、必ずリトライを通す。
+    await this.runWithRetry('upsert sessions', () =>
+      this.ensureClient().from('trail_sessions').upsert(mapped, { onConflict: 'id' }),
+    );
   }
 
   async upsertSessionCosts(sessionId: string, costs: readonly {
@@ -148,10 +239,11 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       cache_creation_tokens: c.cache_creation_tokens,
       estimated_cost_usd: c.estimated_cost_usd,
     }));
-    const { error } = await this.ensureClient()
-      .from('trail_session_costs')
-      .upsert(mapped, { onConflict: 'session_id,model' });
-    if (error) throw new Error(`Supabase upsert session_costs failed: ${error.message}`);
+    await this.runWithRetry('upsert session_costs', () =>
+      this.ensureClient()
+        .from('trail_session_costs')
+        .upsert(mapped, { onConflict: 'session_id,model' }),
+    );
   }
 
   async upsertAllSessionCosts(rows: readonly {
@@ -164,13 +256,14 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     estimated_cost_usd: number;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const { error } = await this.ensureClient()
-        .from('trail_session_costs')
-        .upsert(rows.slice(i, i + CHUNK), { onConflict: 'session_id,model' });
-      if (error) throw new Error(`Supabase upsert all session_costs failed: ${error.message}`);
-    }
+    const { failed } = await this.upsertChunked(
+      'upsert all session_costs',
+      'trail_session_costs',
+      rows,
+      (r) => ({ ...r }),
+      { onConflict: 'session_id,model' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('all session_costs', failed, rows.length);
   }
 
   async upsertDailyCounts(rows: readonly {
@@ -187,20 +280,25 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     estimated_cost_usd: number;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const { error } = await this.ensureClient()
-        .from('trail_daily_counts')
-        .upsert(rows.slice(i, i + CHUNK), { onConflict: 'date,kind,key' });
-      if (error) throw new Error(`Supabase upsert trail_daily_counts failed: ${error.message}`);
-    }
+    const { failed } = await this.upsertChunked(
+      'upsert trail_daily_counts',
+      'trail_daily_counts',
+      rows,
+      (r) => ({ ...r }),
+      { onConflict: 'date,kind,key' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('trail_daily_counts', failed, rows.length);
   }
 
-  async upsertMessages(rows: readonly MessageRow[]): Promise<void> {
-    if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK).map((r) => ({
+  async upsertMessages(rows: readonly MessageRow[]): Promise<readonly string[]> {
+    if (rows.length === 0) return [];
+    // 部分失敗しても throw せず「リモートに入った uuid」を返す。呼び出し元 (SyncService) は
+    // これを message_tool_calls の FK 親集合として使い、届かなかったメッセージの子行を送らない。
+    const { succeeded } = await this.upsertChunked(
+      'upsert messages',
+      'trail_messages',
+      rows,
+      (r) => ({
         uuid: r.uuid, session_id: r.session_id,
         parent_uuid: r.parent_uuid, type: r.type, subtype: r.subtype,
         text_content: r.text_content, user_content: r.user_content,
@@ -224,12 +322,10 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
         system_command: r.system_command ?? null,
         duration_ms: r.duration_ms ?? null,
         tool_result_size: r.tool_result_size ?? null,
-      }));
-      const { error } = await this.ensureClient()
-        .from('trail_messages')
-        .upsert(chunk, { onConflict: 'uuid' });
-      if (error) throw new Error(`Supabase upsert messages failed: ${error.message}`);
-    }
+      }),
+      { onConflict: 'uuid' },
+    );
+    return succeeded.map((r) => r.uuid);
   }
 
   async upsertCommits(rows: readonly SessionCommitRow[]): Promise<void> {
@@ -242,21 +338,25 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       files_changed: r.files_changed,
       lines_added: r.lines_added, lines_deleted: r.lines_deleted,
     }));
-    const { error } = await this.ensureClient()
-      .from('trail_session_commits')
-      .upsert(mapped, { onConflict: 'session_id,repo_id,commit_hash' });
-    if (error) throw new Error(`Supabase upsert commits failed: ${error.message}`);
+    await this.runWithRetry('upsert commits', () =>
+      this.ensureClient()
+        .from('trail_session_commits')
+        .upsert(mapped, { onConflict: 'session_id,repo_id,commit_hash' }),
+    );
   }
 
   async upsertCommitFiles(rows: readonly { repo_id: number; commit_hash: string; file_path: string }[]): Promise<void> {
     if (rows.length === 0) return;
     // commit_files はコミットが不変なので IGNORE（既存行を上書きしない）。
     // 受領 row には additive な repo_name 等が含まれ得るため repo_id/commit_hash/file_path のみ送る。
-    const mapped = rows.map((r) => ({ repo_id: r.repo_id, commit_hash: r.commit_hash, file_path: r.file_path }));
-    const { error } = await this.ensureClient()
-      .from('trail_commit_files')
-      .upsert(mapped, { onConflict: 'repo_id,commit_hash,file_path', ignoreDuplicates: true });
-    if (error) throw new Error(`Supabase upsert trail_commit_files failed: ${error.message}`);
+    const { failed } = await this.upsertChunked(
+      'upsert trail_commit_files',
+      'trail_commit_files',
+      rows,
+      (r) => ({ repo_id: r.repo_id, commit_hash: r.commit_hash, file_path: r.file_path }),
+      { onConflict: 'repo_id,commit_hash,file_path', ignoreDuplicates: true },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('trail_commit_files', failed, rows.length);
   }
 
   async upsertReleases(rows: readonly ReleaseRow[]): Promise<void> {
@@ -274,24 +374,27 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       release_time_min: r.release_time_min ?? null,
       synced_at: new Date().toISOString(),
     }));
-    const { error } = await this.ensureClient()
-      .from('trail_releases')
-      .upsert(mapped, { onConflict: 'release_id' });
-    if (error) throw new Error(`Supabase upsert trail_releases failed: ${error.message}`);
+    await this.runWithRetry('upsert trail_releases', () =>
+      this.ensureClient().from('trail_releases').upsert(mapped, { onConflict: 'release_id' }),
+    );
   }
 
   async upsertReleaseFiles(rows: readonly ReleaseFileRow[]): Promise<void> {
     if (rows.length === 0) return;
-    const { error } = await this.ensureClient()
-      .from('trail_release_files')
-      .upsert(rows.map((r) => ({
+    const { failed } = await this.upsertChunked(
+      'upsert release_files',
+      'trail_release_files',
+      rows,
+      (r) => ({
         release_id: r.release_id ?? 0,
         file_path: r.file_path,
         lines_added: r.lines_added,
         lines_deleted: r.lines_deleted,
         change_type: r.change_type,
-      })), { onConflict: 'release_id,file_path' });
-    if (error) throw new Error(`Supabase upsert release_files failed: ${error.message}`);
+      }),
+      { onConflict: 'release_id,file_path' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('release_files', failed, rows.length);
   }
 
   /**
@@ -321,31 +424,35 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
    * 拡張機能のローカル current_graphs と対応する。
    */
   async upsertCurrentGraph(repoId: number, graphJson: string, commitId: string): Promise<void> {
-    const { error } = await this.ensureClient()
-      .from('trail_current_graphs')
-      .upsert({
-        repo_id: repoId,
-        commit_id: commitId,
-        graph_json: graphJson,
-        updated_at: new Date().toISOString(),
-        synced_at: new Date().toISOString(),
-      }, { onConflict: 'repo_id' });
-    if (error) throw new Error(`Supabase upsert current graph failed: ${error.message}`);
+    await this.runWithRetry(`upsert current graph (repo ${repoId})`, () =>
+      this.ensureClient()
+        .from('trail_current_graphs')
+        .upsert({
+          repo_id: repoId,
+          commit_id: commitId,
+          graph_json: graphJson,
+          updated_at: new Date().toISOString(),
+          synced_at: new Date().toISOString(),
+        }, { onConflict: 'repo_id' }),
+    );
   }
 
   /**
    * リリース別の TrailGraph を trail_release_graphs に保存する。
+   * graph_json は数 MB になるため、ゲートウェイの 5xx (HTML エラーページ) を踏みやすい。
+   * runWithRetry がそれを一過性として再試行する。
    */
   async upsertReleaseGraph(releaseId: number, graphJson: string): Promise<void> {
-    const { error } = await this.ensureClient()
-      .from('trail_release_graphs')
-      .upsert({
-        release_id: releaseId,
-        graph_json: graphJson,
-        updated_at: new Date().toISOString(),
-        synced_at: new Date().toISOString(),
-      }, { onConflict: 'release_id' });
-    if (error) throw new Error(`Supabase upsert release graph failed: ${error.message}`);
+    await this.runWithRetry(`upsert release graph (release ${releaseId}, ${graphJson.length} bytes)`, () =>
+      this.ensureClient()
+        .from('trail_release_graphs')
+        .upsert({
+          release_id: releaseId,
+          graph_json: graphJson,
+          updated_at: new Date().toISOString(),
+          synced_at: new Date().toISOString(),
+        }, { onConflict: 'release_id' }),
+    );
   }
 
   async unsafeClearMessageToolCalls(): Promise<void> {
@@ -371,13 +478,14 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     timestamp: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const { error } = await this.ensureClient()
-        .from('trail_message_tool_calls')
-        .upsert(rows.slice(i, i + CHUNK), { onConflict: 'session_id,message_uuid,call_index' });
-      if (error) throw new Error(`Supabase upsert trail_message_tool_calls failed: ${error.message}`);
-    }
+    const { failed } = await this.upsertChunked(
+      'upsert trail_message_tool_calls',
+      'trail_message_tool_calls',
+      rows,
+      (r) => ({ ...r }),
+      { onConflict: 'session_id,message_uuid,call_index' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('trail_message_tool_calls', failed, rows.length);
   }
 
   async unsafeClearCurrentCoverage(): Promise<void> {
@@ -393,15 +501,18 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
+    const { failed } = await this.upsertChunked(
+      'upsert current_coverage',
+      'trail_current_coverage',
+      rows,
       // additive な repo_name を Supabase に送らないよう除外し repo_id を送る。
-      const { error } = await this.ensureClient()
-        .from('trail_current_coverage')
-        .upsert(chunk.map(({ repo_name: _omit, repo_id, ...rest }: Record<string, unknown>) => ({ repo_id: repo_id ?? 0, ...rest })), { onConflict: 'repo_id,package,file_path' });
-      if (error) throw new Error(`Supabase upsert current_coverage failed: ${error.message}`);
-    }
+      (row) => {
+        const { repo_name: _omit, repo_id, ...rest } = row as Record<string, unknown>;
+        return { repo_id: repo_id ?? 0, ...rest };
+      },
+      { onConflict: 'repo_id,package,file_path' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('current_coverage', failed, rows.length);
   }
 
   async unsafeClearReleaseCoverage(): Promise<void> {
@@ -416,14 +527,17 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     branches_total: number; branches_covered: number; branches_pct: number;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
-      const { error } = await this.ensureClient()
-        .from('trail_release_coverage')
-        .upsert(chunk.map(({ release_tag: _t, release_id, ...rest }: Record<string, unknown>) => ({ release_id: release_id ?? 0, ...rest })), { onConflict: 'release_id,package,file_path' });
-      if (error) throw new Error(`Supabase upsert release_coverage failed: ${error.message}`);
-    }
+    const { failed } = await this.upsertChunked(
+      'upsert release_coverage',
+      'trail_release_coverage',
+      rows,
+      (row) => {
+        const { release_tag: _t, release_id, ...rest } = row as Record<string, unknown>;
+        return { release_id: release_id ?? 0, ...rest };
+      },
+      { onConflict: 'release_id,package,file_path' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('release_coverage', failed, rows.length);
   }
 
   async unsafeClearCurrentFileAnalysis(): Promise<void> {
@@ -443,15 +557,18 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     category: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
+    const { failed } = await this.upsertChunked(
+      'upsert trail_current_file_analysis',
+      'trail_current_file_analysis',
+      rows,
       // additive な repo_name を除外して repo_id を送る (型に repo_name は無いが実体に含まれ得る)。
-      const { error } = await this.ensureClient()
-        .from('trail_current_file_analysis')
-        .upsert(chunk.map(({ repo_name: _omit, ...rest }: Record<string, unknown>) => rest), { onConflict: 'repo_id,file_path' });
-      if (error) throw new Error(`Supabase upsert trail_current_file_analysis failed: ${error.message}`);
-    }
+      (row) => {
+        const { repo_name: _omit, ...rest } = row as Record<string, unknown>;
+        return rest;
+      },
+      { onConflict: 'repo_id,file_path' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('trail_current_file_analysis', failed, rows.length);
   }
 
   async unsafeClearReleaseFileAnalysis(): Promise<void> {
@@ -471,15 +588,18 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     category: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
+    const { failed } = await this.upsertChunked(
+      'upsert trail_release_file_analysis',
+      'trail_release_file_analysis',
+      rows,
       // additive な release_tag / repo_name を除外して release_id を送る。
-      const { error } = await this.ensureClient()
-        .from('trail_release_file_analysis')
-        .upsert(chunk.map(({ release_tag: _t, repo_name: _r, ...rest }: Record<string, unknown>) => rest), { onConflict: 'release_id,file_path' });
-      if (error) throw new Error(`Supabase upsert trail_release_file_analysis failed: ${error.message}`);
-    }
+      (row) => {
+        const { release_tag: _t, repo_name: _r, ...rest } = row as Record<string, unknown>;
+        return rest;
+      },
+      { onConflict: 'release_id,file_path' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('trail_release_file_analysis', failed, rows.length);
   }
 
   async unsafeClearCurrentFunctionAnalysis(): Promise<void> {
@@ -496,14 +616,17 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     fan_out: number; distinct_callees: number; function_role: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
-      const { error } = await this.ensureClient()
-        .from('trail_current_function_analysis')
-        .upsert(chunk.map(({ repo_name: _omit, ...rest }: Record<string, unknown>) => rest), { onConflict: 'repo_id,file_path,function_name,start_line' });
-      if (error) throw new Error(`Supabase upsert trail_current_function_analysis failed: ${error.message}`);
-    }
+    const { failed } = await this.upsertChunked(
+      'upsert trail_current_function_analysis',
+      'trail_current_function_analysis',
+      rows,
+      (row) => {
+        const { repo_name: _omit, ...rest } = row as Record<string, unknown>;
+        return rest;
+      },
+      { onConflict: 'repo_id,file_path,function_name,start_line' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('trail_current_function_analysis', failed, rows.length);
   }
 
   async unsafeClearReleaseFunctionAnalysis(): Promise<void> {
@@ -520,14 +643,17 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     fan_out: number; distinct_callees: number; function_role: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
-      const { error } = await this.ensureClient()
-        .from('trail_release_function_analysis')
-        .upsert(chunk.map(({ release_tag: _t, repo_name: _r, ...rest }: Record<string, unknown>) => rest), { onConflict: 'release_id,file_path,function_name,start_line' });
-      if (error) throw new Error(`Supabase upsert trail_release_function_analysis failed: ${error.message}`);
-    }
+    const { failed } = await this.upsertChunked(
+      'upsert trail_release_function_analysis',
+      'trail_release_function_analysis',
+      rows,
+      (row) => {
+        const { release_tag: _t, repo_name: _r, ...rest } = row as Record<string, unknown>;
+        return rest;
+      },
+      { onConflict: 'release_id,file_path,function_name,start_line' },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('trail_release_function_analysis', failed, rows.length);
   }
 
   async unsafeClearCurrentCodeGraphs(): Promise<void> {
@@ -539,10 +665,11 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     repo_id: number; graph_json: string; generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const { error } = await this.ensureClient()
-      .from('trail_current_code_graphs')
-      .upsert(rows.map(({ repo_name: _omit, ...rest }: Record<string, unknown>) => rest), { onConflict: 'repo_id' });
-    if (error) throw new Error(`Supabase upsert current_code_graphs failed: ${error.message}`);
+    await this.runWithRetry('upsert current_code_graphs', () =>
+      this.ensureClient()
+        .from('trail_current_code_graphs')
+        .upsert(rows.map(({ repo_name: _omit, ...rest }: Record<string, unknown>) => rest), { onConflict: 'repo_id' }),
+    );
   }
 
   async upsertCurrentCodeGraphCommunities(rows: readonly {
@@ -552,14 +679,17 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 200;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
-      const { error } = await this.ensureClient()
-        .from('trail_current_code_graph_communities')
-        .upsert(chunk.map(({ repo_name: _omit, ...rest }: Record<string, unknown>) => rest), { onConflict: 'repo_id,community_id' });
-      if (error) throw new Error(`Supabase upsert current_code_graph_communities failed: ${error.message}`);
-    }
+    const { failed } = await this.upsertChunked(
+      'upsert current_code_graph_communities',
+      'trail_current_code_graph_communities',
+      rows,
+      (row) => {
+        const { repo_name: _omit, ...rest } = row as Record<string, unknown>;
+        return rest;
+      },
+      { onConflict: 'repo_id,community_id', chunkSize: 200 },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('current_code_graph_communities', failed, rows.length);
   }
 
   async unsafeClearReleaseCodeGraphs(): Promise<void> {
@@ -571,10 +701,11 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     release_id: number; graph_json: string; generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const { error } = await this.ensureClient()
-      .from('trail_release_code_graphs')
-      .upsert(rows.map(({ release_tag: _t, ...rest }: Record<string, unknown>) => rest), { onConflict: 'release_id' });
-    if (error) throw new Error(`Supabase upsert release_code_graphs failed: ${error.message}`);
+    await this.runWithRetry('upsert release_code_graphs', () =>
+      this.ensureClient()
+        .from('trail_release_code_graphs')
+        .upsert(rows.map(({ release_tag: _t, ...rest }: Record<string, unknown>) => rest), { onConflict: 'release_id' }),
+    );
   }
 
   async upsertReleaseCodeGraphCommunities(rows: readonly {
@@ -584,14 +715,17 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     generated_at: string; updated_at: string;
   }[]): Promise<void> {
     if (rows.length === 0) return;
-    const CHUNK = 200;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
-      const { error } = await this.ensureClient()
-        .from('trail_release_code_graph_communities')
-        .upsert(chunk.map(({ release_tag: _t, ...rest }: Record<string, unknown>) => rest), { onConflict: 'release_id,community_id' });
-      if (error) throw new Error(`Supabase upsert release_code_graph_communities failed: ${error.message}`);
-    }
+    const { failed } = await this.upsertChunked(
+      'upsert release_code_graph_communities',
+      'trail_release_code_graph_communities',
+      rows,
+      (row) => {
+        const { release_tag: _t, ...rest } = row as Record<string, unknown>;
+        return rest;
+      },
+      { onConflict: 'release_id,community_id', chunkSize: 200 },
+    );
+    SupabaseTrailStore.throwIfAnyFailed('release_code_graph_communities', failed, rows.length);
   }
 
   async listManualElements(repoId: number): Promise<readonly ManualElement[]> {

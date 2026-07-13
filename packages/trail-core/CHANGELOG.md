@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.33.2] - 2026-07-13
+
+### Fixed
+
+- Supabase sync (`trail-db`) now runs a referential-integrity gate before upserting child rows, retries transient HTTP failures, and isolates failures per chunk so a single bad chunk no longer empties whole tables (e.g. `session_costs` dropping to zero rows).
+- The sequential sync loop isolates errors per item as well, matching the chunked path.
+
 ## [0.33.1] - 2026-07-12
 
 ### Changed

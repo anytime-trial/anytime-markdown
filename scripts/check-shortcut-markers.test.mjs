@@ -1,13 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { findViolations, scanShortcutDir } from './check-shortcut-markers.mjs';
 
 const require = createRequire(import.meta.url);
-const { collectShortcutMarkers } = require('../.claude/skills/anytime-dev-health/shortcutMarkers.cjs');
+// git 正本(packages 側)から読む。.claude/skills/ は .gitignore された実行時コピーで CI には存在しない。
+const CANONICAL_CJS = '../packages/vscode-trail-extension/skills/anytime-dev-health/shortcutMarkers.cjs';
+const { collectShortcutMarkers } = require(CANONICAL_CJS);
 
 // フィクスチャ内のタグは分割構築する(このテストファイル自身が検査対象拡張子のためリテラルを含むと自己検出される)
 const TAG = 'SHORT' + 'CUT';
@@ -74,5 +77,36 @@ test('ディレクトリ走査が node_modules/dist を除外し violation を f
     assert.deepEqual(res.violations[0].missing, ['upgrade']);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// リグレッションテスト: CI は git 追跡ファイルしかチェックアウトしないため、ゲートが
+// .gitignore された `.claude/skills/` の実行時コピーへ依存していると CI だけ MODULE_NOT_FOUND で落ちる
+// (2026-07-13 の release CI で実発生)。ゲートとそのテストが参照する .cjs は git 追跡下にあること。
+test('ゲートが参照する shortcutMarkers.cjs は新規チェックアウトに存在する(CI で解決できる)', (t) => {
+  const repoRoot = join(import.meta.dirname, '..');
+  const rel = 'packages/vscode-trail-extension/skills/anytime-dev-health/shortcutMarkers.cjs';
+
+  // 主検証: 実体があること。CI は git 追跡ファイルのみ展開するため、ここが正本側を指していれば解決できる。
+  assert.equal(existsSync(join(repoRoot, rel)), true, `${rel} が無い。ゲートの require が解決できない`);
+
+  // 補助検証: git work tree 上でのみ「追跡下か」を確かめる(未追跡だとローカルだけ通り CI で落ちるため)。
+  let tracked;
+  try {
+    tracked = execFileSync('git', ['ls-files', '--', rel], { cwd: repoRoot, encoding: 'utf8' }).trim();
+  } catch (err) {
+    t.diagnostic(`git 追跡の確認をスキップ(git work tree ではない): ${err.message}`);
+    return;
+  }
+  assert.equal(tracked, rel, `${rel} が git 追跡外。CI ではチェックアウトされず require が失敗する`);
+});
+
+test('ゲート本体とテストが .claude/skills/ の実行時コピーを require しない', () => {
+  const repoRoot = join(import.meta.dirname, '..');
+  for (const file of ['check-shortcut-markers.mjs', 'check-shortcut-markers.test.mjs']) {
+    const src = readFileSync(join(repoRoot, 'scripts', file), 'utf8');
+    const requiresRuntimeCopy = /require\([^)]*\.claude[/'"\s,]/s.test(src)
+      || /join\(\s*repoRoot,\s*'\.claude'/.test(src);
+    assert.equal(requiresRuntimeCopy, false, `${file} が .claude/skills/ の実行時コピーを require している`);
   }
 });

@@ -3,7 +3,9 @@
 // 規約(~/.claude/rules/code-quality.md 2.1)の 3 要素(<内容>. ceiling: ... upgrade: ...)を検査し、
 // ceiling / upgrade 欠落(no-trigger 含む)を検出したら exit 1 でブロックする。
 // dev-health grounding の台帳(観測・デルタ追跡)と対になるゲート側。判定ロジックは
-// .claude/skills/anytime-dev-health/shortcutMarkers.cjs に一本化し意味ズレを防ぐ。
+// anytime-dev-health スキルの shortcutMarkers.cjs に一本化し意味ズレを防ぐ。
+// 参照するのは git 正本(packages/vscode-trail-extension/skills/)であって
+// .claude/skills/ の実行時コピーではない。後者は .gitignore 済みで CI に存在しない。
 //
 // 使い方: node scripts/check-shortcut-markers.mjs [rootDir]
 //   rootDir 省略時はリポジトリルート。終了コード: 欠落検出時のみ 1。
@@ -15,7 +17,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const require = createRequire(import.meta.url);
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { collectShortcutMarkers, MARKER_NEEDLE } = require(
-  join(repoRoot, '.claude', 'skills', 'anytime-dev-health', 'shortcutMarkers.cjs'),
+  join(
+    repoRoot,
+    'packages',
+    'vscode-trail-extension',
+    'skills',
+    'anytime-dev-health',
+    'shortcutMarkers.cjs',
+  ),
 );
 
 // 走査対象・除外は grounding.cjs の techDebt 走査と同一基準(台帳とゲートの母集団を揃える)。

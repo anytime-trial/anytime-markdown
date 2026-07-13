@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { parseOgpHtml } from "../../../lib/ogpParser";
-import { assertSafeUrl } from "../../../lib/ssrfGuard";
+import { assertSafeUrl, safeFetch } from "../../../lib/ssrfGuard";
 
 const TIMEOUT_MS = 5000;
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -19,7 +19,7 @@ export async function GET(req: Request): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-        const res = await fetch(url, {
+        const res = await safeFetch(url, {
             signal: controller.signal,
             headers: { "User-Agent": "anytime-markdown-ogp/1.0" },
         });

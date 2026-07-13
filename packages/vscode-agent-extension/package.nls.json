@@ -22,5 +22,6 @@
   "command.copyAiNotePath": "Copy AI Note Path",
   "command.mapping.handoffSession": "Hand Off to New Session",
   "configuration.showUsage.markdownDescription": "Show Claude Code subscription usage in the Agent Mapping Claude Code group.",
-  "configuration.usageRefreshSeconds.markdownDescription": "Refresh interval in seconds for Claude Code usage. Values below 30 seconds are clamped to 30."
+  "configuration.usageRefreshSeconds.markdownDescription": "Refresh interval in seconds for Claude Code usage. Values below 30 seconds are clamped to 30.",
+  "configuration.claudeMdGuidance.markdownDescription": "On activation, upsert a managed block into the workspace CLAUDE.md that makes the `anytime-dev-cycle` skill the default for development instructions. Only the marked block is ever rewritten; user content is never touched."
 }

@@ -2,7 +2,7 @@
   "name": "anytime-agent",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -251,6 +251,11 @@
           "default": 160000,
           "minimum": 1000,
           "markdownDescription": "セッションのコンテキストトークンがこの値を超えるとツリーに引き継ぎ推奨バッジ（⚠️）を表示する。"
+        },
+        "anytimeAgent.claudeMdGuidance": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.claudeMdGuidance.markdownDescription%"
         },
         "anytimeAgent.showUsage": {
           "type": "boolean",

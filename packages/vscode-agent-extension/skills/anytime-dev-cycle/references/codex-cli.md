@@ -2,7 +2,7 @@
 
 更新日: 2026-07-12
 
-`codex exec` を Claude Code から起動するときの環境制約とコマンド形。委譲（`anytime-delegation` §3）とレビュー（`anytime-cross-review`）が共通で参照する。
+`codex exec` を Claude Code から起動するときの環境制約とコマンド形。委譲（同ディレクトリの `delegation.md` §3）とレビュー（`anytime-cross-review`）が共通で参照する。
 
 ## 起動形
 

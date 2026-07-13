@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-07-13
+
+### Graph Core (graph-core)
+
+- `parseGraphDsl` の causal-loop リンク行パーサの ReDoS を解消しました。
+
 ## [0.11.0] - 2026-07-11
 
 ### Graph Core (graph-core)

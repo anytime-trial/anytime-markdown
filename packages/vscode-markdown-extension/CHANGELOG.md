@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-07-13
+
+### Changed
+
+- Updated the bundled `anytime-doc-authoring` skill so its delegation reference points at `anytime-dev-cycle` (skill manifest bumped, so the skill is re-deployed on activation).
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Fixed the markdown preview in fenced code blocks not following the editor body-width setting.
+
 ## [1.13.1] - 2026-07-12
 
 ### Changed

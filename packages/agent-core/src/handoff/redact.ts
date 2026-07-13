@@ -15,9 +15,12 @@ const PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, R],
 ];
 
-// SECRET/TOKEN/PASSWORD/API_KEY 等を含む env 行の値を伏字化する。
-const ENV_LINE =
-  /^([ \t]*(?:export[ \t]+)?[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY)[A-Z0-9_]*)[ \t]*=[ \t]*.+$/gim;
+// env 行（`NAME=値`）の構造抽出。名前の中身は問わない。
+// 名前とキーワードの照合を 1 本の正規表現に畳み込む（`[A-Z0-9_]*(?:SECRET|...)[A-Z0-9_]*`）と、
+// `=` を持たない長い大文字行に対して量指定子が二重にバックトラックし O(n^2) になる
+// （CodeQL js/polynomial-redos #948）。構造抽出と秘密名判定を二段に分ける。
+const ENV_ASSIGN = /^([ \t]*(?:export[ \t]+)?[A-Z0-9_]+)[ \t]*=[ \t]*.+$/gim;
+const SECRET_NAME = /SECRET|TOKEN|PASSWORD|PASSWD|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY/i;
 
 /** 与えられたテキストから秘密情報を伏字化する。空文字はそのまま返す。
  *  注: PATTERNS は `g` フラグ付きで静的格納するが、`String.replace` は呼び出し毎に lastIndex を
@@ -26,5 +29,5 @@ export function redact(text: string): string {
   if (!text) return text;
   let out = text;
   for (const [re, repl] of PATTERNS) out = out.replace(re, repl);
-  return out.replace(ENV_LINE, `$1=${R}`);
+  return out.replace(ENV_ASSIGN, (line, name: string) => (SECRET_NAME.test(name) ? `${name}=${R}` : line));
 }
