@@ -50,6 +50,10 @@
           "name": "%view.mapping%"
         },
         {
+          "id": "anytimeAgent.gitActivity",
+          "name": "%view.gitActivity%"
+        },
+        {
           "id": "anytimeAgent.ollama",
           "name": "%view.ollama%"
         }
@@ -97,6 +101,36 @@
       {
         "command": "anytime-agent.mapping.deleteStatusFile",
         "title": "%command.mapping.deleteStatusFile%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.gitActivity.refresh",
+        "title": "%command.gitActivity.refresh%",
+        "icon": "$(refresh)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.gitActivity.toggleDestructiveOnly",
+        "title": "%command.gitActivity.toggleDestructiveOnly%",
+        "icon": "$(filter)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.gitActivity.setAttribution",
+        "title": "%command.gitActivity.setAttribution%",
+        "icon": "$(account)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.gitActivity.setDays",
+        "title": "%command.gitActivity.setDays%",
+        "icon": "$(calendar)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.gitActivity.copyCommand",
+        "title": "%command.gitActivity.copyCommand%",
+        "icon": "$(clippy)",
         "category": "Anytime Agent"
       },
       {
@@ -177,6 +211,26 @@
           "icon": "$(filter-filled)"
         },
         {
+          "command": "anytime-agent.gitActivity.refresh",
+          "when": "view == anytimeAgent.gitActivity",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-agent.gitActivity.toggleDestructiveOnly",
+          "when": "view == anytimeAgent.gitActivity",
+          "group": "navigation@2"
+        },
+        {
+          "command": "anytime-agent.gitActivity.setAttribution",
+          "when": "view == anytimeAgent.gitActivity",
+          "group": "navigation@3"
+        },
+        {
+          "command": "anytime-agent.gitActivity.setDays",
+          "when": "view == anytimeAgent.gitActivity",
+          "group": "navigation@4"
+        },
+        {
           "command": "anytime-agent.startOllama",
           "when": "view == anytimeAgent.ollama && !anytime-agent.ollamaRunning",
           "group": "navigation"
@@ -217,6 +271,11 @@
           "command": "anytime-agent.mapping.deleteStatusFile",
           "when": "view == anytimeAgent.mapping && viewItem == session.stale",
           "group": "3_modify@1"
+        },
+        {
+          "command": "anytime-agent.gitActivity.copyCommand",
+          "when": "view == anytimeAgent.gitActivity && (viewItem == gitActivitySnapshot || viewItem == gitActivityDestructive)",
+          "group": "2_copy@1"
         },
         {
           "command": "anytime-agent.deleteAiNotePage",
