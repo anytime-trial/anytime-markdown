@@ -264,8 +264,8 @@
         },
         "anytimeAgent.usageRefreshSeconds": {
           "type": "number",
-          "default": 120,
-          "minimum": 30,
+          "default": 600,
+          "minimum": 300,
           "markdownDescription": "%configuration.usageRefreshSeconds.markdownDescription%"
         },
         "anytimeAgent.sessionRetentionDays": {

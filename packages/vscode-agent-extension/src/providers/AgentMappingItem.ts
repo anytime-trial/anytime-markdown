@@ -102,7 +102,73 @@ export class TodaySummaryItem extends vscode.TreeItem {
   }
 }
 
+interface UsageLimitOptions {
+  readonly observedAt?: string;
+  readonly rateLimited?: boolean;
+  readonly backoffUntil?: string;
+  readonly errorMessage?: string;
+}
+
+const EXPIRED_MESSAGE = 'Claude Code の認証が切れています。\n\n`claude` を起動してログインを更新してください。';
+
+function limitDescription(row: UsageLimitRow, expired: boolean, options: UsageLimitOptions): string | undefined {
+  if (expired) {
+    return undefined;
+  }
+  if (options.rateLimited) {
+    const until = options.backoffUntil
+      ? ` · ${formatLocalTime(options.backoffUntil) ?? options.backoffUntil} まで`
+      : '';
+    return `再試行待機${until}`;
+  }
+  if (options.errorMessage) {
+    return 'Output Channel を確認';
+  }
+  return `${row.percent}% · ${formatResetTime(row.resetsAt)}`;
+}
+
+function limitTooltip(row: UsageLimitRow, expired: boolean, options: UsageLimitOptions): vscode.MarkdownString {
+  if (expired) {
+    return new vscode.MarkdownString(EXPIRED_MESSAGE);
+  }
+  if (options.rateLimited) {
+    return new vscode.MarkdownString(
+      'Claude Code usage API がレート制限中です。前回成功した値が無いため、次の再試行までは使用量を表示できません。',
+    );
+  }
+  if (options.errorMessage) {
+    return new vscode.MarkdownString(`Claude Code usage の取得に失敗しました。\n\n${options.errorMessage}`);
+  }
+  const observed = options.observedAt
+    ? `\n\n**観測時刻:** ${formatObservedTime(options.observedAt)}\n\nCodex の使用量は最後に Codex が API を叩いた時点のスナップショットです（ライブ値ではありません）。`
+    : '';
+  return new vscode.MarkdownString(
+    `**${row.label}:** ${row.percent}%\n\n${formatResetTime(row.resetsAt)}${observed}`,
+  );
+}
+
 export class UsageLimitItem extends vscode.TreeItem {
+  /** 前回成功値が無い状態でレート制限に当たったときのプレースホルダ（Usage ノードを消さないため）。 */
+  static rateLimited(backoffUntil?: string): UsageLimitItem {
+    return new UsageLimitItem({
+      key: 'rate-limited',
+      label: 'レート制限中',
+      percent: 0,
+      severity: 'warn',
+      resetsAt: null,
+    }, false, { rateLimited: true, backoffUntil });
+  }
+
+  static error(message: string): UsageLimitItem {
+    return new UsageLimitItem({
+      key: 'error',
+      label: '取得エラー',
+      percent: 0,
+      severity: 'warn',
+      resetsAt: null,
+    }, false, { errorMessage: message });
+  }
+
   static expired(): UsageLimitItem {
     return new UsageLimitItem({
       key: 'expired',
@@ -116,41 +182,86 @@ export class UsageLimitItem extends vscode.TreeItem {
   constructor(
     public readonly row: UsageLimitRow,
     expired = false,
-    private readonly options: { readonly observedAt?: string } = {},
+    options: UsageLimitOptions = {},
   ) {
     super(row.label);
-    this.description = expired ? undefined : `${row.percent}% · ${formatResetTime(row.resetsAt)}`;
+    this.description = limitDescription(row, expired, options);
     this.collapsibleState = vscode.TreeItemCollapsibleState.None;
     this.contextValue = expired ? 'usageLimit.expired' : 'usageLimit';
     this.iconPath = usageIcon(row.severity);
-    const observed = this.options.observedAt
-      ? `\n\n**観測時刻:** ${formatObservedTime(this.options.observedAt)}\n\nCodex の使用量は最後に Codex が API を叩いた時点のスナップショットです（ライブ値ではありません）。`
-      : '';
-    this.tooltip = expired
-      ? new vscode.MarkdownString('Claude Code の認証が切れています。\n\n`claude` を起動してログインを更新してください。')
-      : new vscode.MarkdownString(`**${row.label}:** ${row.percent}%\n\n${formatResetTime(row.resetsAt)}${observed}`);
+    this.tooltip = limitTooltip(row, expired, options);
   }
+}
+
+interface UsageGroupOptions {
+  readonly stale?: boolean;
+  readonly expired?: boolean;
+  readonly rateLimited?: boolean;
+  readonly error?: boolean;
+  readonly backoffUntil?: string;
+}
+
+/** 値が無いときは状態そのものを要約に出す（無言で空欄にしない）。値があるときは値を出し、状態は注記へ回す。 */
+function groupSummary(rows: readonly UsageLimitRow[], options: UsageGroupOptions): string {
+  if (options.expired) {
+    return '認証切れ';
+  }
+  if (rows.length === 0 && options.rateLimited) {
+    return 'レート制限中';
+  }
+  if (rows.length === 0 && options.error) {
+    return '取得エラー';
+  }
+  return usageSummary(rows);
+}
+
+function groupNotes(rows: readonly UsageLimitRow[], options: UsageGroupOptions, summary: string): readonly string[] {
+  const notes: string[] = [];
+  if (options.stale && summary) {
+    notes.push('stale');
+  }
+  if (rows.length > 0 && options.rateLimited) {
+    notes.push('レート制限中');
+  }
+  if (rows.length > 0 && options.error) {
+    notes.push('取得エラー');
+  }
+  return notes;
+}
+
+function groupTooltip(options: UsageGroupOptions, summary: string, notes: readonly string[]): vscode.MarkdownString {
+  if (options.expired) {
+    return new vscode.MarkdownString(EXPIRED_MESSAGE);
+  }
+  const suffix = notes.length > 0 ? ` (${notes.join(', ')})` : '';
+  if (options.rateLimited) {
+    const retry = options.backoffUntil
+      ? `\n\n次の再試行の目安: ${formatObservedTime(options.backoffUntil)}`
+      : '';
+    return new vscode.MarkdownString(
+      `Claude Code usage API がレート制限中です。${summary ? `\n\n最後に取得できた値: ${summary}${suffix}` : ''}${retry}`,
+    );
+  }
+  return new vscode.MarkdownString(`${summary || 'Claude Code usage'}${suffix}`);
 }
 
 export class UsageGroupItem extends vscode.TreeItem {
   constructor(
     public readonly children: readonly UsageLimitItem[],
     rows: readonly UsageLimitRow[],
-    options: { readonly stale?: boolean; readonly expired?: boolean } = {},
+    options: UsageGroupOptions = {},
   ) {
     super('Usage', vscode.TreeItemCollapsibleState.Collapsed);
-    const summary = options.expired ? '認証切れ' : usageSummary(rows);
-    this.description = `${summary}${options.stale && summary ? ' (stale)' : ''}`;
+    const summary = groupSummary(rows, options);
+    const notes = groupNotes(rows, options, summary);
+    const degraded = options.expired === true || options.rateLimited === true || options.error === true;
+    this.description = `${summary}${notes.length > 0 ? ` (${notes.join(', ')})` : ''}`;
     this.contextValue = 'usageGroup';
     this.iconPath = new vscode.ThemeIcon(
-      options.expired ? 'warning' : 'graph',
-      options.expired ? new vscode.ThemeColor('charts.yellow') : undefined,
+      degraded ? 'warning' : 'graph',
+      degraded ? new vscode.ThemeColor('charts.yellow') : undefined,
     );
-    this.tooltip = options.expired
-      ? new vscode.MarkdownString('Claude Code の認証が切れています。\n\n`claude` を起動してログインを更新してください。')
-      : new vscode.MarkdownString(
-          `${summary || 'Claude Code usage'}${options.stale ? ' (stale)' : ''}`,
-        );
+    this.tooltip = groupTooltip(options, summary, notes);
   }
 }
 
