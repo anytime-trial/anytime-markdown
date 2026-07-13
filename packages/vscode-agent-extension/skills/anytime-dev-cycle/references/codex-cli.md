@@ -1,6 +1,6 @@
 # Codex CLI の起動作法
 
-更新日: 2026-07-12
+更新日: 2026-07-13
 
 `codex exec` を Claude Code から起動するときの環境制約とコマンド形。委譲（同ディレクトリの `delegation.md` §3）とレビュー（`anytime-cross-review`）が共通で参照する。
 
@@ -13,6 +13,7 @@ codex exec --dangerously-bypass-approvals-and-sandbox "<プロンプト>"
 - **サブコマンドは `exec`**（非対話・headless）。対話モードは Claude からは使わない
 - **`--dangerously-bypass-approvals-and-sandbox` は必須**。この環境は bwrap（bubblewrap）が使えず、Codex 既定のサンドボックス起動が失敗するため。フラグ名のとおり承認とサンドボックスを外すので、**渡すプロンプトの側で対象と変更禁止範囲を縛る**（委譲契約 6 点）
 - Codex は AGENTS.md と `~/.codex/rules/*.md`（CLAUDE.md ルールのシンボリックリンク）を読む。一方 **Claude の現セッション文脈は継承しない**ため、前提はプロンプトに明示する
+- **husky 導入リポジトリでは「husky コマンドの実行禁止」を委任プロンプトに明記する**。Codex が検証目的で `husky --version` を実行すると、husky v9 が「--version」を init ディレクトリ引数と解釈して `core.hooksPath` を `--version/_` に書き換え、リポジトリ直下に `--version/` を生成し、以後の commit が `sh: 0: Illegal option --` で失敗する（2026-07-13 実例）。復旧は `git config core.hooksPath '.husky/_'` と残骸ディレクトリの削除
 
 ## 実装例
 
