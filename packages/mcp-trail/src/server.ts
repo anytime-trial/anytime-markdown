@@ -1,39 +1,40 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+
 import { analyzeCurrentCodeWithProgress } from './client.js';
 import { probeServerAlive } from './probe.js';
-import { route } from './router.js';
 import type { RouteOpts } from './router.js';
-import { SearchMemoryInputSchema, handleSearchMemory } from './tools/searchMemory.js';
-import { SearchDocsInputSchema, handleSearchDocs } from './tools/searchDocs.js';
-import { GetVerificationStatusInputSchema, handleGetVerificationStatus } from './tools/verificationStatus.js';
-import { ListRecurringBugsInputSchema, handleListRecurringBugs } from './tools/listRecurringBugs.js';
-import { GetBugHistoryInputSchema, handleGetBugHistory } from './tools/getBugHistory.js';
-import { ListUnaddressedReviewFindingsInputSchema, handleListUnaddressedReviewFindings } from './tools/listUnaddressedReviewFindings.js';
-import { GetReviewHistoryInputSchema, handleGetReviewHistory } from './tools/getReviewHistory.js';
-import { LinkReviewToCommitInputSchema, handleLinkReviewToCommit } from './tools/linkReviewToCommit.js';
-import { RunReviewAgentInputSchema, handleRunReviewAgent } from './tools/runReviewAgent.js';
-import { GetReviewRunStatusInputSchema, handleGetReviewRunStatus } from './tools/getReviewRunStatus.js';
-import { ListReviewRunsInputSchema, handleListReviewRuns } from './tools/listReviewRuns.js';
-import { ListReviewTargetHintsInputSchema, handleListReviewTargetHints } from './tools/listReviewTargetHints.js';
+import { route } from './router.js';
 import { DetectDriftInputSchema, handleDetectDrift } from './tools/detectDrift.js';
-import { ExplainDriftInputSchema, handleExplainDrift } from './tools/explainDrift.js';
-import { ResolveDriftInputSchema, handleResolveDrift } from './tools/resolveDrift.js';
-import {
-  EvaluateReverseSpecInputSchema,
-  handleEvaluateReverseSpec,
-} from './tools/evaluateReverseSpec.js';
-import { selectImportantFiles, type FileAnalysisEntry, type ImportantFilesFilter } from './tools/importantFiles.js';
-import { toCodeGraphNodeId } from './tools/nodeId.js';
 import {
   capDependencies,
   capQueryResult,
   filterCochangePartners,
   filterCommunityNodes,
   projectCommunities,
-  toSummaryRows,
   type RawCommunity,
+  toSummaryRows,
 } from './tools/discoveryShaping.js';
+import {
+  EvaluateReverseSpecInputSchema,
+  handleEvaluateReverseSpec,
+} from './tools/evaluateReverseSpec.js';
+import { ExplainDriftInputSchema, handleExplainDrift } from './tools/explainDrift.js';
+import { GetBugHistoryInputSchema, handleGetBugHistory } from './tools/getBugHistory.js';
+import { GetReviewHistoryInputSchema, handleGetReviewHistory } from './tools/getReviewHistory.js';
+import { GetReviewRunStatusInputSchema, handleGetReviewRunStatus } from './tools/getReviewRunStatus.js';
+import { type FileAnalysisEntry, type ImportantFilesFilter,selectImportantFiles } from './tools/importantFiles.js';
+import { handleLinkReviewToCommit,LinkReviewToCommitInputSchema } from './tools/linkReviewToCommit.js';
+import { handleListRecurringBugs,ListRecurringBugsInputSchema } from './tools/listRecurringBugs.js';
+import { handleListReviewRuns,ListReviewRunsInputSchema } from './tools/listReviewRuns.js';
+import { handleListReviewTargetHints,ListReviewTargetHintsInputSchema } from './tools/listReviewTargetHints.js';
+import { handleListUnaddressedReviewFindings,ListUnaddressedReviewFindingsInputSchema } from './tools/listUnaddressedReviewFindings.js';
+import { toCodeGraphNodeId } from './tools/nodeId.js';
+import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift.js';
+import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
+import { handleSearchDocs,SearchDocsInputSchema } from './tools/searchDocs.js';
+import { handleSearchMemory,SearchMemoryInputSchema } from './tools/searchMemory.js';
+import { GetVerificationStatusInputSchema, handleGetVerificationStatus } from './tools/verificationStatus.js';
 
 export interface McpTrailOptions {
   serverUrl?: string;
@@ -696,6 +697,60 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       });
       const out = detail === 'summary' ? toSummaryRows(rows) : rows;
       return { content: [{ type: 'text' as const, text: JSON.stringify(out, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'check_alignment',
+    {
+      description:
+        'Check whether spec documents kept up with code changes (Architectural Alignment). Maps changed files to C4 elements, reverse-looks-up the spec documents that declare those elements in c4Scope, and reports whether those specs were updated in the same change unit. Returns { scope, checkedFiles, skippedMinor, findings[] } where each finding is { status: stale|ok|undocumented, elementId, specPath, changedFiles, reason }. stale = code changed but its spec did not. undocumented = no spec declares that element. scope: worktree (default; uncommitted changes) | session (sessionId required) | range (fromRef/toRef required). docsRepoRoot is the spec repository root (defaults to env ANYTIME_DOCS_ROOT).',
+      inputSchema: {
+        scope: z
+          .enum(['worktree', 'session', 'range'])
+          .default('worktree')
+          .describe('Comparison basis (default: worktree = uncommitted changes)'),
+        docsRepoRoot: z
+          .string()
+          .optional()
+          .describe('Spec repository root (default: env ANYTIME_DOCS_ROOT)'),
+        gitRepoRoot: z.string().optional().describe('Code repository root (default: server gitRoot)'),
+        sessionId: z.string().optional().describe('Required when scope=session'),
+        fromRef: z.string().optional().describe('Required when scope=range'),
+        toRef: z.string().optional().describe('Required when scope=range'),
+        minAddedLines: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe('Minimum added lines for a change to count as substantial (default 20)'),
+        ...commonParams,
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ scope, docsRepoRoot, gitRepoRoot, sessionId, fromRef, toRef, minAddedLines, repoName, serverUrl }) => {
+      const opts = buildRouteOpts({ repoName, serverUrl }, options);
+      const resolvedDocsRoot = docsRepoRoot ?? process.env['ANYTIME_DOCS_ROOT'];
+      if (!resolvedDocsRoot) {
+        throw new Error(
+          'docsRepoRoot is required: pass it explicitly or set the ANYTIME_DOCS_ROOT environment variable.',
+        );
+      }
+
+      const report = await route(
+        'check_alignment',
+        {
+          scope,
+          docsRepoRoot: resolvedDocsRoot,
+          ...(gitRepoRoot ? { gitRepoRoot } : {}),
+          ...(sessionId ? { sessionId } : {}),
+          ...(fromRef ? { fromRef } : {}),
+          ...(toRef ? { toRef } : {}),
+          ...(minAddedLines === undefined ? {} : { minAddedLines }),
+        },
+        opts,
+      );
+      return { content: [{ type: 'text' as const, text: JSON.stringify(report, null, 2) }] };
     },
   );
 
