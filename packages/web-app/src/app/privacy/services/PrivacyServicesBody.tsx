@@ -46,6 +46,15 @@ const richIssueLink = (chunks: React.ReactNode) => (
   </Link>
 );
 
+/** 4. 外部サービスの項目。取得元が固定のもの → ユーザーが URL を指定するもの、の順に並べる。 */
+const SECTION4_ITEMS = [
+  'section4ExternalData',
+  'section4Embeds',
+  'section4Plantuml',
+  'section4UrlFetch',
+  'section4WebImport',
+] as const;
+
 export default function PrivacyServicesBody() {
   const t = useTranslations('PrivacyServices');
 
@@ -71,6 +80,18 @@ export default function PrivacyServicesBody() {
           <P>{t('section2Body')}</P>
         </Section>
 
+        <Section title={t('section2GoogleTitle')}>
+          <P>{t('section2GoogleBody')}</P>
+        </Section>
+
+        <Section title={t('section2SpotifyTitle')}>
+          <P>{t('section2SpotifyBody')}</P>
+        </Section>
+
+        <Section title={t('section2TokensTitle')}>
+          <P>{t('section2TokensBody')}</P>
+        </Section>
+
         <Section title={t('section3Title')}>
           <P>{t('section3Body')}</P>
         </Section>
@@ -78,15 +99,11 @@ export default function PrivacyServicesBody() {
         <Section title={t('section4Title')}>
           <P>{t('section4Intro')}</P>
           <Box component="ul" sx={{ pl: 3 }}>
-            <li>
-              <P>{t.rich('section4ExternalData', { strong: richStrong })}</P>
-            </li>
-            <li>
-              <P>{t.rich('section4Embeds', { strong: richStrong })}</P>
-            </li>
-            <li>
-              <P>{t.rich('section4Plantuml', { strong: richStrong })}</P>
-            </li>
+            {SECTION4_ITEMS.map((key) => (
+              <li key={key}>
+                <P>{t.rich(key, { strong: richStrong })}</P>
+              </li>
+            ))}
           </Box>
         </Section>
 
