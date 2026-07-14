@@ -355,7 +355,7 @@ export class TrailDataServer {
     this.alignmentApi = new AlignmentApiHandler(
       this.trailDb,
       this.logger.child('AlignmentApiHandler'),
-      { defaultGitRepoRoot: this.gitRoot },
+      { gitRepoRoot: this.gitRoot },
     );
     this.docsApi = new DocsApiHandler(
       {

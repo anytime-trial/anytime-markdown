@@ -704,17 +704,12 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'check_alignment',
     {
       description:
-        'Check whether spec documents kept up with code changes (Architectural Alignment). Maps changed files to C4 elements, reverse-looks-up the spec documents that declare those elements in c4Scope, and reports whether those specs were updated in the same change unit. Returns { scope, checkedFiles, skippedMinor, findings[] } where each finding is { status: stale|ok|undocumented, elementId, specPath, changedFiles, reason }. stale = code changed but its spec did not. undocumented = no spec declares that element. scope: worktree (default; uncommitted changes) | session (sessionId required) | range (fromRef/toRef required). docsRepoRoot is the spec repository root (defaults to env ANYTIME_DOCS_ROOT).',
+        'Check whether spec documents kept up with code changes (Architectural Alignment). Maps changed files to C4 elements, reverse-looks-up the spec documents that declare those elements in c4Scope, and reports whether those specs were updated in the same change unit. Returns { scope, checkedFiles, skippedMinor, findings[] } where each finding is { status: stale|ok|undocumented, elementId, specPath, changedFiles, reason }. stale = code changed but its spec did not. undocumented = no spec declares that element. scope: worktree (default; uncommitted changes) | session (sessionId required) | range (fromRef/toRef required). Repository paths come from the server (gitRoot and lep.json sources.docs.root) and cannot be passed in.',
       inputSchema: {
         scope: z
           .enum(['worktree', 'session', 'range'])
           .default('worktree')
           .describe('Comparison basis (default: worktree = uncommitted changes)'),
-        docsRepoRoot: z
-          .string()
-          .optional()
-          .describe('Spec repository root (default: env ANYTIME_DOCS_ROOT)'),
-        gitRepoRoot: z.string().optional().describe('Code repository root (default: server gitRoot)'),
         sessionId: z.string().optional().describe('Required when scope=session'),
         fromRef: z.string().optional().describe('Required when scope=range'),
         toRef: z.string().optional().describe('Required when scope=range'),
@@ -728,21 +723,12 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ scope, docsRepoRoot, gitRepoRoot, sessionId, fromRef, toRef, minAddedLines, repoName, serverUrl }) => {
+    async ({ scope, sessionId, fromRef, toRef, minAddedLines, repoName, serverUrl }) => {
       const opts = buildRouteOpts({ repoName, serverUrl }, options);
-      const resolvedDocsRoot = docsRepoRoot ?? process.env['ANYTIME_DOCS_ROOT'];
-      if (!resolvedDocsRoot) {
-        throw new Error(
-          'docsRepoRoot is required: pass it explicitly or set the ANYTIME_DOCS_ROOT environment variable.',
-        );
-      }
-
       const report = await route(
         'check_alignment',
         {
           scope,
-          docsRepoRoot: resolvedDocsRoot,
-          ...(gitRepoRoot ? { gitRepoRoot } : {}),
           ...(sessionId ? { sessionId } : {}),
           ...(fromRef ? { fromRef } : {}),
           ...(toRef ? { toRef } : {}),

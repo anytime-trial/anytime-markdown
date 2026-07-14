@@ -94,6 +94,40 @@ describe('FileChangeResolver (worktree scope)', () => {
     expect(await resolveWorktree()).toEqual([]);
   });
 
+  it('reports staged files in a repository that has no commit yet (no HEAD)', async () => {
+    const fresh = fs.mkdtempSync(path.join(os.tmpdir(), 'trail-worktree-nohead-'));
+    runGit(['init'], fresh);
+    runGit(['config', 'user.email', 'dev@example.com'], fresh);
+    runGit(['config', 'user.name', 'Dev'], fresh);
+    fs.mkdirSync(path.join(fresh, 'packages', 'trail-core', 'src'), { recursive: true });
+    fs.writeFileSync(
+      path.join(fresh, 'packages', 'trail-core', 'src', 'api.ts'),
+      'export const alpha = 1;\nexport const beta = 2;\n',
+    );
+    runGit(['add', '.'], fresh);
+
+    const changed = await new FileChangeResolver({ db, gitRepoRoot: fresh }).resolve({ scope: 'worktree' });
+    fs.rmSync(fresh, { recursive: true, force: true });
+
+    expect(changed).toEqual([
+      {
+        filePath: 'packages/trail-core/src/api.ts',
+        linesAdded: 2,
+        linesDeleted: 0,
+        addedExportLines: 2,
+        removedExportLines: 0,
+      },
+    ]);
+  });
+
+  it('skips untracked symlinks instead of reading through them', async () => {
+    fs.symlinkSync('/etc/hostname', path.join(root, 'linked.ts'));
+
+    const changed = await resolveWorktree();
+
+    expect(changed).toEqual([]);
+  });
+
   it('does not touch the database (no repos row required)', async () => {
     fs.writeFileSync(path.join(root, 'packages', 'trail-core', 'src', 'api.ts'), 'export const a = 9;\n');
 

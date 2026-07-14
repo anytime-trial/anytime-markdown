@@ -1,6 +1,6 @@
 import type * as http from 'node:http';
 
-import { type AlignmentInput,checkArchitecturalAlignment } from '@anytime-markdown/trail-core';
+import { type AlignmentInput, checkArchitecturalAlignment } from '@anytime-markdown/trail-core';
 import {
   FileChangeResolver,
   SpecDocIndex,
@@ -8,6 +8,7 @@ import {
   WorkspaceC4ElementProvider,
 } from '@anytime-markdown/trail-db';
 
+import { loadLepConfig } from '../runtime/LepConfig';
 import type { Logger } from '../runtime/Logger';
 import { sendServerError } from './errorResponse';
 
@@ -24,8 +25,10 @@ function sendError(res: http.ServerResponse, status: number, message: string): v
 }
 
 export interface AlignmentApiOptions {
-  /** 既定のコードリポジトリルート（クエリの gitRepoRoot が優先） */
-  readonly defaultGitRepoRoot?: string;
+  /** コードリポジトリルート。server 起動時に固定される値（`TrailDataServer` の `gitRoot`） */
+  readonly gitRepoRoot?: string;
+  /** 設計書リポジトリルートの解決。省略時は lep.json の `sources.docs.root` を読む */
+  readonly resolveDocsRepoRoot?: (gitRepoRoot: string) => string;
 }
 
 /**
@@ -33,8 +36,15 @@ export interface AlignmentApiOptions {
  *
  * `mcp-trail` は `trail-db` に依存していないため、MCP ツール `check_alignment` は
  * discovery 系ツールと同様にこのエンドポイント経由で結果を取得する。
+ *
+ * リポジトリのパスは **クエリから受け取らない**。git の実行 cwd と設計書の走査ルートに
+ * なるため、任意パスを許すと localhost へ到達できる任意プロセス・任意 Web ページからの
+ * リクエストで、リポジトリ外のディレクトリを走査させられる。他エンドポイントと同じく
+ * server 起動時に固定された値（`gitRoot` / lep.json）だけを使う。
  */
 export class AlignmentApiHandler {
+  private docsRepoRoot: string | null = null;
+
   constructor(
     private readonly trailDb: TrailDatabase,
     private readonly logger: Logger,
@@ -42,15 +52,19 @@ export class AlignmentApiHandler {
   ) {}
 
   async handle(res: http.ServerResponse, params: URLSearchParams): Promise<void> {
-    const gitRepoRoot = params.get('gitRepoRoot') ?? this.options.defaultGitRepoRoot ?? '';
+    const gitRepoRoot = this.options.gitRepoRoot ?? '';
     if (!gitRepoRoot) {
-      sendError(res, 400, 'gitRepoRoot is required (no server default is configured)');
+      sendError(res, 409, 'gitRoot is not configured on this server');
       return;
     }
 
-    const docsRepoRoot = params.get('docsRepoRoot') ?? '';
+    const docsRepoRoot = this.resolveDocsRepoRoot(gitRepoRoot);
     if (!docsRepoRoot) {
-      sendError(res, 400, 'docsRepoRoot is required (path to the spec document repository)');
+      sendError(
+        res,
+        409,
+        'Spec repository is not configured. Set sources.docs.root in lep.json.',
+      );
       return;
     }
 
@@ -83,6 +97,28 @@ export class AlignmentApiHandler {
       this.logger.error(`/api/alignment failed: ${error.message}\n${error.stack ?? ''}`);
       sendServerError(res);
     }
+  }
+
+  private resolveDocsRepoRoot(gitRepoRoot: string): string {
+    if (this.docsRepoRoot !== null) return this.docsRepoRoot;
+
+    if (this.options.resolveDocsRepoRoot) {
+      this.docsRepoRoot = this.options.resolveDocsRepoRoot(gitRepoRoot).trim();
+      return this.docsRepoRoot;
+    }
+
+    try {
+      const loaded = loadLepConfig({ workspaceRoot: gitRepoRoot });
+      this.docsRepoRoot = loaded.config.sources.docs.root.trim();
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.logger.warn(
+        `/api/alignment: failed to read sources.docs.root from lep.json (workspaceRoot=${gitRepoRoot}): ${error.message}`,
+      );
+      this.docsRepoRoot = '';
+    }
+
+    return this.docsRepoRoot;
   }
 }
 

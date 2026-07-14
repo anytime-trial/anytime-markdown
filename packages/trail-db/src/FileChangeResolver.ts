@@ -170,13 +170,35 @@ export class FileChangeResolver implements IFileChangeResolver {
    */
   private resolveWorktree(): readonly ChangedFile[] {
     const aggregate = new Map<string, MutableChangedFile>();
-    const numstat = this.runGit(['diff', 'HEAD', '--numstat', '--no-renames']) ?? '';
-    const patch = this.runGit(['diff', 'HEAD', '--unified=0', '--no-renames']) ?? '';
+    // 初回コミット前のリポジトリには HEAD が無く `git diff HEAD` は fatal で落ちる。
+    // その場合 staged 済みファイルは untracked にも出ないため、--cached で拾わないと
+    // 変更が丸ごと消える（偽陰性）。
+    const diffBase = this.hasHead() ? ['diff', 'HEAD'] : ['diff', '--cached'];
+    const numstat = this.runGit([...diffBase, '--numstat', '--no-renames']) ?? '';
+    const patch = this.runGit([...diffBase, '--unified=0', '--no-renames']) ?? '';
 
     this.applyGitOutputs(aggregate, numstat, patch);
     this.applyUntrackedFiles(aggregate);
 
     return toChangedFiles(aggregate);
+  }
+
+  private hasHead(): boolean {
+    try {
+      execFileSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], {
+        cwd: this.gitRepoRoot,
+        encoding: 'utf-8',
+        timeout: 30_000,
+        stdio: 'pipe',
+      });
+      return true;
+    } catch (error) {
+      // HEAD 不在は「初回コミット前」という正常状態。runGit と違い warn にはしない。
+      this.logger.info(
+        `No HEAD in ${this.gitRepoRoot} (pre-first-commit); comparing against the index instead: ${formatError(error)}`,
+      );
+      return false;
+    }
   }
 
   private applyUntrackedFiles(aggregate: Map<string, MutableChangedFile>): void {
@@ -187,9 +209,17 @@ export class FileChangeResolver implements IFileChangeResolver {
       if (line.trim().length === 0) continue;
 
       const filePath = unquoteGitPath(line.trim());
+      const absolutePath = path.join(this.gitRepoRoot, filePath);
       let content: string;
       try {
-        content = fs.readFileSync(path.join(this.gitRepoRoot, filePath), 'utf-8');
+        // シンボリックリンクはリンク先（リポジトリ外を指しうる）を読まずに飛ばす。
+        // 未追跡のリンク自体は変更の実体ではない。
+        if (fs.lstatSync(absolutePath).isSymbolicLink()) {
+          this.logger.info(`Skipped untracked symlink: ${filePath}`);
+          continue;
+        }
+
+        content = fs.readFileSync(absolutePath, 'utf-8');
       } catch (error) {
         this.logger.warn(`Failed to read untracked file: ${filePath}: ${formatError(error)}`);
         continue;

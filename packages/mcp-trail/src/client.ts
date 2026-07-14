@@ -294,18 +294,20 @@ export async function getFileAnalysis(
 
 export interface AlignmentQuery {
   readonly scope: 'worktree' | 'session' | 'range';
-  readonly docsRepoRoot: string;
-  readonly gitRepoRoot?: string;
   readonly sessionId?: string;
   readonly fromRef?: string;
   readonly toRef?: string;
   readonly minAddedLines?: number;
 }
 
-/** 設計書追随チェック（CheckArchitecturalAlignment）。TrailDataServer /api/alignment を叩く。 */
+/**
+ * 設計書追随チェック（CheckArchitecturalAlignment）。TrailDataServer /api/alignment を叩く。
+ *
+ * リポジトリのパスは送らない。git の実行 cwd と設計書の走査ルートになるため、
+ * server 側が起動時に固定した値（gitRoot / lep.json の sources.docs.root）だけを使う。
+ */
 export async function getAlignmentReport(serverUrl: string, query: AlignmentQuery): Promise<unknown> {
-  const params = new URLSearchParams({ scope: query.scope, docsRepoRoot: query.docsRepoRoot });
-  if (query.gitRepoRoot) params.set('gitRepoRoot', query.gitRepoRoot);
+  const params = new URLSearchParams({ scope: query.scope });
   if (query.sessionId) params.set('sessionId', query.sessionId);
   if (query.fromRef) params.set('fromRef', query.fromRef);
   if (query.toRef) params.set('toRef', query.toRef);
