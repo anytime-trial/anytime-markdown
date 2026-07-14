@@ -70,11 +70,16 @@ export function ProcessFlow() {
               <span className={styles.processLoopScale}>{t(loop.scaleKey)}</span>
             </header>
             <ol className={styles.processSteps}>
-              {loop.steps.map((step) => (
+              {loop.steps.map((step, idx) => (
                 <li
                   key={step.key}
                   className={step.human ? `${styles.processNode} ${styles.processNodeHuman}` : styles.processNode}
                 >
+                  {idx > 0 ? (
+                    <span className={styles.processStepArrow} aria-hidden="true">
+                      ▼
+                    </span>
+                  ) : null}
                   {t(step.key)}
                 </li>
               ))}

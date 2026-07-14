@@ -964,8 +964,7 @@
     margin-top: 24px;
 }
 
-.processSteps li + li::before {
-    content: '▼';
+.processStepArrow {
     position: absolute;
     top: -19px;
     left: 50%;
