@@ -166,21 +166,28 @@ export function BriefingAgent({ embed, embedActions, subtitle }: Readonly<Briefi
   );
 }
 
-interface BriefingRoadmapProps {
-  subtitle?: string;
-  trailKeys: readonly (typeof TRAIL_KEYS[number])[];
-  verdict?: string;
+/** 実装状況。i18n キー `press.briefing.<status>` と対応する */
+export type RoadmapStatus = 'shipped' | 'partial' | 'planned';
+
+export interface RoadmapEntry {
+  key: typeof TRAIL_KEYS[number];
+  status: RoadmapStatus;
 }
 
-export function BriefingRoadmap({ subtitle, trailKeys, verdict }: Readonly<BriefingRoadmapProps>) {
+interface BriefingRoadmapProps {
+  subtitle?: string;
+  entries: readonly RoadmapEntry[];
+}
+
+export function BriefingRoadmap({ subtitle, entries }: Readonly<BriefingRoadmapProps>) {
   const t = useTranslations('VsCode');
   const tBriefing = useTranslations('press.briefing');
-  const verdictText = verdict ?? tBriefing('shipped');
-  const items: BriefingItem[] = trailKeys.map((key, idx) => ({
+  const items = entries.map((entry, idx) => ({
     num: String(idx + 1).padStart(2, '0'),
-    head: t(`${key}Title`),
-    body: t(`${key}Body`),
-    verdict: verdictText,
+    head: t(`${entry.key}Title`),
+    body: t(`${entry.key}Body`),
+    verdict: tBriefing(entry.status),
+    status: entry.status,
   }));
   return (
     <section className={styles.briefingRoadmapSection} id="trail-roadmap">
@@ -197,7 +204,9 @@ export function BriefingRoadmap({ subtitle, trailKeys, verdict }: Readonly<Brief
               {item.head}
               <p>{item.body}</p>
             </div>
-            <span className={styles.briefingVerdict}>{item.verdict}</span>
+            <span className={styles.briefingVerdict} data-status={item.status}>
+              {item.verdict}
+            </span>
           </li>
         ))}
       </ul>

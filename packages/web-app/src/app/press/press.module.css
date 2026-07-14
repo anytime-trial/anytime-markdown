@@ -719,6 +719,16 @@
     white-space: nowrap;
 }
 
+/* 実装済み・部分実装はラベル文言に加えて色でも差を付ける（色のみに依存させない） */
+.briefingVerdict[data-status='shipped'] {
+    color: var(--vermilion);
+    font-weight: 600;
+}
+
+.briefingVerdict[data-status='partial'] {
+    color: var(--ink);
+}
+
 /* ── Briefing (Trail Viewer 埋め込み版) ────────────── */
 .briefingWithEmbed {
     padding: 36px var(--gutter);
