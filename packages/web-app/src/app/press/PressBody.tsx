@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 
 import { useThemeMode } from '../providers';
+import type { RoadmapEntry } from './components/Briefing';
 import {
   BriefingAgent,
   BriefingPrimary,
@@ -46,6 +47,28 @@ const MarkdownViewerEmbed = dynamic(
 );
 
 const MARKDOWN_PREVIEW_HEIGHT = 'clamp(300px, 42vh, 520px)';
+
+/**
+ * ロードマップ項目の実装状況。実装が進んだら status を更新する（最終突合: 2026-07-14）。
+ * partial は「説明文の主要機能の一部のみ稼働」を指す。
+ * - trail16: 衝突検知は稼働。事前申告制の飛行計画は未実装
+ * - trail18: 5 層防御のうち pre-commit フックと CI ゲートのみ稼働
+ */
+const ROADMAP_ENTRIES: readonly RoadmapEntry[] = [
+  { key: 'trail14', status: 'planned' },
+  { key: 'trail15', status: 'shipped' },
+  { key: 'trail16', status: 'partial' },
+  { key: 'trail17', status: 'planned' },
+  { key: 'trail18', status: 'partial' },
+  { key: 'trail19', status: 'planned' },
+  { key: 'trail20', status: 'planned' },
+  { key: 'trail21', status: 'planned' },
+  { key: 'trail22', status: 'shipped' },
+  { key: 'trail23', status: 'shipped' },
+  { key: 'trail24', status: 'shipped' },
+  { key: 'trail25', status: 'planned' },
+  { key: 'trail26', status: 'planned' },
+];
 
 export function PressBody() {
   const { themeMode } = useThemeMode();
@@ -114,25 +137,7 @@ export function PressBody() {
           />
         }
       />
-      <BriefingRoadmap
-        subtitle="- 将来対応"
-        trailKeys={[
-          'trail14',
-          'trail15',
-          'trail16',
-          'trail17',
-          'trail18',
-          'trail19',
-          'trail20',
-          'trail21',
-          'trail22',
-          'trail23',
-          'trail24',
-          'trail25',
-          'trail26',
-        ]}
-        verdict="— planned"
-      />
+      <BriefingRoadmap subtitle="- 将来対応" entries={ROADMAP_ENTRIES} />
       <BriefingSecondary
         embed={
           <div style={{ height: MARKDOWN_PREVIEW_HEIGHT, overflow: 'hidden' }}>

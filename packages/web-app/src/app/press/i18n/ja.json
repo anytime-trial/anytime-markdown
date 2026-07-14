@@ -77,6 +77,8 @@
     "markdownEmbedTitle": "anytime-markdown — markdown editor",
     "agentEmbedTitle": "anytime-agent — agent panel",
     "shipped": "— shipped",
+    "partial": "— partial",
+    "planned": "— planned",
     "trailHeader": "Anytime",
     "trailHeaderEm": "Trail.",
     "markdownHeader": "Anytime",
