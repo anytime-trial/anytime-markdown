@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * anytime-dev-health: 決定論的 grounding。
+ * anytime-dev-retro: 決定論的 grounding。
  *
  * Trail の 3DB(memory-core / doc-core / trail)を read-only で集計し、開発健全性の
  * signals snapshot を JSON で **stdout に出力** する。LLM 非依存・MCP 非依存(node:sqlite)

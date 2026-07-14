@@ -18,7 +18,7 @@ test('docPath を全角括弧・読点の手前で切り出す', () => {
 });
 
 test('プレースホルダで切れた参照は truncated=true でディレクトリ検証に落ちる', () => {
-  const { paths } = extractRefs('出力: /Shared/anytime-markdown-docs/report/<YYYYMMDD>-dev-health.ja.md');
+  const { paths } = extractRefs('出力: /Shared/anytime-markdown-docs/report/<YYYYMMDD>-dev-retro.ja.md');
   assert.equal(paths[0].truncated, true);
   assert.equal(verificationTarget(paths[0]), '/Shared/anytime-markdown-docs/report');
 });
@@ -128,10 +128,10 @@ test('lintSkillsDir: リポ内実在 dir で結果スキーマ {dir, skill, miss
 test('selectBundledOnly: canonical に無いスキルの結果だけを残す', () => {
   const results = [
     { skill: 'anytime-markdown-output', missingRefs: [] },
-    { skill: 'anytime-dev-health', missingRefs: [] },
+    { skill: 'anytime-dev-retro', missingRefs: [] },
     { skill: 'anytime-mermaid', missingRefs: [] },
   ];
-  const canonicalNames = new Set(['anytime-dev-health', 'i18n-naming']);
+  const canonicalNames = new Set(['anytime-dev-retro', 'i18n-naming']);
   assert.deepEqual(
     selectBundledOnly(results, canonicalNames).map((r) => r.skill),
     ['anytime-markdown-output', 'anytime-mermaid'],

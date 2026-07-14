@@ -22,7 +22,8 @@ prebuilt-vscode
 .claude/skills/anytime-note/
 .claude/skills/anytime-proposal/
 # trail 拡張が activate 時に配置する生成物（ソースは packages/vscode-trail-extension/skills/）
-.claude/skills/anytime-dev-health/
+.claude/skills/anytime-dev-retro/
+.claude/skills/anytime-dev-audit/
 .claude/skills/anytime-reverse-codegraph/
 .claude/skills/anytime-reverse-spec/
 .claude/skills/anytime-token-budget/
