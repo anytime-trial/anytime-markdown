@@ -160,26 +160,6 @@ interface CommandPrefix {
   readonly tokens: readonly string[];
 }
 
-/**
- * コマンド先頭の環境変数代入と `env` コマンドを剥がす。
- *
- * これをしないと `FOO=1 git reset --hard` の先頭トークンが `git` でなくなり、**無害な代入
- * ひとつでゲートが丸ごと無効化される**（実機で発覚。単体テストでも E2E でも見えなかった）。
- *
- * 脱出口の `ANYTIME_AIRSPACE=off` もここで読む。フックは Claude Code が spawn する別プロセスで、
- * コマンド行の代入を環境変数として受け取らないため、`process.env` だけを見ていると
- * deny の理由文が案内する手順（`ANYTIME_AIRSPACE=off <cmd>` で再実行）が効かない。
- */
-/**
- * コマンド先頭の環境変数代入と `env` コマンド（オプション込み）を剥がす。
- *
- * これをしないと `FOO=1 git reset --hard` の先頭トークンが `git` でなくなり、**無害な代入
- * ひとつでゲートが丸ごと無効化される**（実機で発覚。単体テストでも E2E でも見えなかった）。
- *
- * 脱出口の `ANYTIME_AIRSPACE=off` もここで読む。フックは Claude Code が spawn する別プロセスで、
- * コマンド行の代入を環境変数として受け取らないため、`process.env` だけを見ていると
- * deny の理由文が案内する手順（`ANYTIME_AIRSPACE=off <cmd>` で再実行）が効かない。
- */
 /** `NAME=VALUE` 形式の代入なら分解する。フラグやパスは代入ではない。 */
 function parseAssignment(token: string): { name: string; value: string } | null {
   const eq = token.indexOf('=');
@@ -251,6 +231,16 @@ function parseGitCommand(command: string): ParsedGitCommand {
   };
 }
 
+/**
+ * コマンド先頭の環境変数代入と `env` コマンド（オプション込み）を剥がす。
+ *
+ * これをしないと `FOO=1 git reset --hard` の先頭トークンが `git` でなくなり、**無害な代入
+ * ひとつでゲートが丸ごと無効化される**（実機で発覚。単体テストでも E2E でも見えなかった）。
+ *
+ * 脱出口の `ANYTIME_AIRSPACE=off` もここで読む。フックは Claude Code が spawn する別プロセスで、
+ * コマンド行の代入を環境変数として受け取らないため、`process.env` だけを見ていると
+ * deny の理由文が案内する手順（`ANYTIME_AIRSPACE=off <cmd>` で再実行）が効かない。
+ */
 function stripCommandPrefix(tokens: readonly string[]): CommandPrefix {
   const env = new Map<string, string>();
   let index = 0;
@@ -298,15 +288,6 @@ export function classifyGitCommand(
 }
 
 /**
- * Bash コマンドの衝突判定。
- *
- * `git worktree remove --force <path>` だけは突合先が違う。このコマンドは**自分がいる作業ツリー
- * ではなく、引数で指定した別の作業ツリー**を消す。自分の worktree と生存クレームを突合しても
- * 一致せず素通りしてしまうため、削除対象パスとクレームを突合する。
- *
- * `cwd` は相対パス引数（`../wt` 等）の解決基点。省略時は myWorktree を使う。
- */
-/**
  * `git worktree remove --force <path>` の削除対象パスを返す。該当しなければ null。
  *
  * `--force` が無い場合は返さない。git 自身が未コミット変更のある worktree の削除を拒否するため、
@@ -334,27 +315,6 @@ function canonicalize(path: string): string {
   }
 }
 
-/**
- * Bash コマンドの衝突判定。
- *
- * `git worktree remove --force <path>` だけは突合先が違う。このコマンドは**自分がいる作業ツリー
- * ではなく、引数で指定した別の作業ツリー**を消す。自分の worktree と生存クレームを突合しても
- * 一致せず素通りしてしまうため、削除対象パスとクレームを突合する。
- *
- * `cwd` は相対パス引数（`../wt` 等）の解決基点。省略時は myWorktree を使う。
- */
-/**
- * Bash コマンドの衝突判定。
- *
- * 突合先（どの作業ツリーが被害を受けるか）はコマンドによって変わる:
- * - `git worktree remove --force <path>` は**引数で指定した別の作業ツリー**を消す
- * - `git -C <path> reset --hard` は**指定先の作業ツリー**を壊す
- * - それ以外は自分がいる作業ツリー
- *
- * 自分の worktree としか突合しないと、上 2 つは一致せず素通りする（どちらも実測で確認）。
- *
- * `cwd` は相対パス引数の解決基点。省略時は myWorktree を使う。
- */
 /** 指定した作業ツリーで生存しているセッションを探し、居れば判定を返す。居なければ pass。 */
 function victimVerdict(
   liveClaims: readonly AirspaceClaim[],
@@ -367,6 +327,20 @@ function victimVerdict(
   return { kind, reason: buildReason(kind, victim) };
 }
 
+/**
+ * Bash コマンドの衝突判定。
+ *
+ * 突合先（どの作業ツリーが被害を受けるか）はコマンドによって変わる:
+ * - `git worktree remove --force <path>` は**引数で指定した別の作業ツリー**を消す
+ * - `git -C <path> reset --hard` は**指定先の作業ツリー**を壊す
+ * - それ以外は自分がいる作業ツリー
+ *
+ * 自分の worktree としか突合しないと、上 2 つは一致せず素通りする（どちらも実測で確認）。
+ * `-C` と相対パスの併用（`git -C <dir> worktree remove --force ../victim`）では、実 git が
+ * `<dir>` 基点で解決するため、こちらも同じ基点で解決しないと削除対象を取り違える。
+ *
+ * `cwd` は相対パス引数の解決基点。省略時は myWorktree を使う。
+ */
 export function evaluateBashGate(
   command: string,
   liveClaims: readonly AirspaceClaim[],
@@ -376,14 +350,16 @@ export function evaluateBashGate(
   // 脱出口はコマンド行から読む（フックの process.env には届かないため）。
   if (isAirspaceDisabledByCommand(command)) return { kind: 'pass' };
 
+  const { dirOverride } = parseGitCommand(command);
+  // `-C <dir>` は git の実行ディレクトリを変える。以降の相対パスはすべてここが基点になる。
+  const baseDir = dirOverride === null ? cwd : resolve(cwd, dirOverride);
+
   const removeTarget = parseWorktreeRemoveTarget(command);
   if (removeTarget !== null) {
-    return victimVerdict(liveClaims, resolve(cwd, removeTarget), 'deny');
+    return victimVerdict(liveClaims, resolve(baseDir, removeTarget), 'deny');
   }
 
-  const { dirOverride } = parseGitCommand(command);
-  const targetDir = dirOverride === null ? myWorktree : resolve(cwd, dirOverride);
-
+  const targetDir = dirOverride === null ? myWorktree : baseDir;
   const kind = classifyGitCommand(command, {
     fileExists: (target) => existsSync(resolve(targetDir, target)),
   });
