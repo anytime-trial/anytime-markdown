@@ -719,7 +719,10 @@
     white-space: nowrap;
 }
 
-/* 実装済み・部分実装はラベル文言に加えて色でも差を付ける（色のみに依存させない） */
+/*
+ * ラベル文言に加えた視覚差（色のみに依存させない補助）。
+ * ダークでは --ink と --ink-faded が同値のため、partial は色ではなく太さで planned と分ける。
+ */
 .briefingVerdict[data-status='shipped'] {
     color: var(--vermilion);
     font-weight: 600;
@@ -727,6 +730,7 @@
 
 .briefingVerdict[data-status='partial'] {
     color: var(--ink);
+    font-weight: 600;
 }
 
 /* ── Briefing (Trail Viewer 埋め込み版) ────────────── */
