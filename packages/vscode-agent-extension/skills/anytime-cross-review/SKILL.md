@@ -6,14 +6,15 @@ description: develop マージ前に Claude(pr-review-toolkit:code-reviewer suba
 
 # anytime-cross-review — Claude × Codex 相互レビュー
 
-更新日: 2026-06-23
+更新日: 2026-07-14
 
 develop マージ前の品質ゲートを Claude と Codex の**二者独立レビュー＋相互検証**へ拡張する。設計は `/Shared/anytime-markdown-docs/plan/20260623-codex-cross-review-design.ja.md`。
 
+- **適用範囲**: 高重大度の変更（定義は `anytime-dev-cycle` SKILL.md 冒頭）。実装と同一基盤モデルだけで検証すると欠陥を共有し、AI レビュアー自身が騙され得る（cognitive monoculture / verification subversion）ため、実装とは別系統モデル（Codex）による独立検証を行う。`anytime-dev-cycle` 段6 は高重大度のとき本スキルを選択する。それ以外の変更は `superpowers:requesting-code-review` でよい。
 - 対象: 作業ブランチ → develop の diff（`<base>..HEAD`・既定 base=develop）。
 - 同梱ラッパ: `.claude/skills/anytime-cross-review/codex-review.cjs`（Codex review を headless 起動・read-only ガード付き）。
 - Codex CLI の起動作法・環境制約（bwrap 不可のため `--dangerously-bypass-approvals-and-sandbox` 必須）は `.claude/skills/anytime-dev-cycle/references/codex-cli.md` を参照する（委譲系と共通）。
-- 起動: `/anytime-cross-review [base]`。global `~/.claude/rules/pre-merge-review.md` への統合は本スキル対象外（明示指示時のみ）。
+- 起動: `/anytime-cross-review [base]`、または `anytime-dev-cycle` 段6 が高重大度と判定したときの選択。global `~/.claude/rules/pre-merge-review.md`（全マージへの一律適用）への統合は本スキル対象外。
 
 ## 手順
 
