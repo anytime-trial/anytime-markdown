@@ -44,6 +44,7 @@ import * as vscode from 'vscode';
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
 import { AlignmentDiagnosticsProvider } from './providers/AlignmentDiagnosticsProvider';
+import { AlignmentTreeProvider } from './providers/AlignmentTreeProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
 import { PipelineProvider } from './providers/PipelineProvider';
 import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
@@ -134,19 +135,22 @@ const alignmentDbLogger = {
  */
 async function runCheckAlignmentCommand(
 	diagnostics: AlignmentDiagnosticsProvider,
+	tree: AlignmentTreeProvider,
 	workspaceRoot: string | undefined,
 	docsRepoRootSetting: string,
 ): Promise<void> {
 	if (!workspaceRoot) {
-		vscode.window.showWarningMessage('設計書追随チェック: ワークスペースフォルダが開かれていません。');
+		const message = 'ワークスペースフォルダが開かれていません';
+		tree.showMessage(message);
+		vscode.window.showWarningMessage(`設計書追随チェック: ${message}。`);
 		return;
 	}
 
 	const docsRepoRoot = docsRepoRootSetting.trim();
 	if (!docsRepoRoot) {
-		vscode.window.showWarningMessage(
-			'設計書追随チェック: 設計書リポジトリが未設定です。lep.json の sources.docs.root を設定してください。',
-		);
+		const message = '設計書リポジトリが未設定です（lep.json の sources.docs.root）';
+		tree.showMessage(message);
+		vscode.window.showWarningMessage(`設計書追随チェック: ${message}。`);
 		return;
 	}
 
@@ -161,6 +165,7 @@ async function runCheckAlignmentCommand(
 		);
 
 		const summary = diagnostics.render(report);
+		tree.update(report);
 		TrailLogger.info(
 			`[alignment] checkedFiles=${summary.checkedFiles} staleSpecs=${summary.staleSpecs} ` +
 				`staleElements=${summary.staleElements} undocumentedElements=${summary.undocumentedElements}`,
@@ -172,6 +177,7 @@ async function runCheckAlignmentCommand(
 	} catch (err) {
 		TrailLogger.error('[alignment] check failed', err);
 		diagnostics.clear();
+		tree.showMessage(`チェックに失敗しました: ${err instanceof Error ? err.message : String(err)}`);
 		vscode.window.showWarningMessage(
 			`設計書追随チェックに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
 		);
@@ -545,11 +551,23 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// 設計書追随チェック (作業ツリー基準)。git だけで完結するため trail.db の取込状態に依存しない。
+	// 結果は Problems パネル (診断) と サイドバーの「設計書追随」ツリーの両方へ出す。
 	const alignmentDiagnostics = new AlignmentDiagnosticsProvider(wsRootForDb ?? '');
+	const alignmentTree = new AlignmentTreeProvider(wsRootForDb ?? '', lepConfig.sources.docs.root.trim());
+	const alignmentTreeView = vscode.window.createTreeView('anytimeTrail.alignment', {
+		treeDataProvider: alignmentTree,
+	});
 	context.subscriptions.push(
 		alignmentDiagnostics,
+		alignmentTree,
+		alignmentTreeView,
 		vscode.commands.registerCommand('anytime-trail.checkAlignment', async () => {
-			await runCheckAlignmentCommand(alignmentDiagnostics, wsRootForDb, lepConfig.sources.docs.root);
+			await runCheckAlignmentCommand(
+				alignmentDiagnostics,
+				alignmentTree,
+				wsRootForDb,
+				lepConfig.sources.docs.root,
+			);
 		}),
 	);
 

@@ -18,5 +18,7 @@
   "command.runWithTrace": "Run with Trace",
   "command.reinstallSkills": "Reinstall Skills",
   "command.registerMcpServer": "Register MCP Server (write .mcp.json)",
-  "command.killExtensionHost": "Kill Extension Host"
+  "command.killExtensionHost": "Kill Extension Host",
+  "view.alignment": "Spec Alignment",
+  "viewsWelcome.alignment": "[$(refresh) Check spec alignment (working tree)](command:anytime-trail.checkAlignment)"
 }

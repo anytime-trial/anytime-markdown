@@ -46,6 +46,10 @@
           "id": "anytimeTrail.pipelines",
           "name": "%view.pipelines%",
           "when": "anytimeTrail.analyzeAllEnabled"
+        },
+        {
+          "id": "anytimeTrail.alignment",
+          "name": "%view.alignment%"
         }
       ]
     },
@@ -53,6 +57,10 @@
       {
         "view": "anytimeTrail.dashboard",
         "contents": "%viewsWelcome.dashboard%"
+      },
+      {
+        "view": "anytimeTrail.alignment",
+        "contents": "%viewsWelcome.alignment%"
       }
     ],
     "commands": [
@@ -92,7 +100,8 @@
       {
         "command": "anytime-trail.checkAlignment",
         "title": "%command.checkAlignment%",
-        "category": "Anytime Trail"
+        "category": "Anytime Trail",
+        "icon": "$(refresh)"
       },
       {
         "command": "anytime-trail.runWithTrace",
@@ -153,6 +162,11 @@
           "command": "anytime-trail.killExtensionHost",
           "when": "view == anytimeTrail.dashboard",
           "group": "navigation"
+        },
+        {
+          "command": "anytime-trail.checkAlignment",
+          "when": "view == anytimeTrail.alignment",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": []
