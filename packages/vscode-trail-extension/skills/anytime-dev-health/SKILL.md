@@ -1,7 +1,7 @@
 ---
 name: anytime-dev-health
 effort: medium
-description: Trail の 3DB(memory-core/doc-core/trail)を横断分析し、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案を生成する。「/anytime-dev-health」「定期分析」「開発健全性」「dev health」「健全性レポート」の指示、または週次スケジュールからの起動で使用する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「Claude Code 設定の診断」の指示では references/setup-audit.md のセットアップ監査モードを使用する。
+description: Trail の 3DB(memory-core/doc-core/trail)を横断分析し、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案を生成する。「/anytime-dev-health」「定期分析」「開発健全性」「dev health」「健全性レポート」の指示、または週次スケジュールからの起動で使用する。「インシデント分析」「ポストモーテム」「事故分析」「再発防止策をまとめて」の指示、または本番リリース後の障害発生時はインシデントモード（事故の要件化）を使用する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「Claude Code 設定の診断」の指示では references/setup-audit.md のセットアップ監査モードを使用する。
 ---
 
 # anytime-dev-health — 開発健全性の定期分析
@@ -99,6 +99,16 @@ node .claude/skills/anytime-dev-health/grounding.cjs > /Shared/anytime-markdown-
 - 健全性レポートは毎回出すが、**proposal は閾値超のみ**（ノイズ抑制）。
 - DB の値は ingest ラグ（数十分〜Reload Window）を含む。直近の修正反映は遅延し得る旨をレポートに注記。
 - 設計書ドリフト（spec_vs_code）の検知・昇格は 2026-07-14 に `anytime-dev-cycle` 段5（タスク単位の `check_alignment` / `detect_drift` ゲート）へ移管した。grounding.cjs は drift を集計し続けるが、本スキルは spec_vs_code をデルタ判定・提案昇格に使わない（レポートの現状値表示のみ）。
+- 提案の採否はユーザーが行う。採択された提案の要件書・設計書への反映は本スキルでは行わず、`anytime-dev-cycle` 段2（要件書・機能仕様書の作成・改訂 → What 承認）へ引き継ぐ（本スキルの出口は提案生成まで）。
+
+## インシデントモード（事故発生時の要件化）
+
+「インシデント分析」「ポストモーテム」「事故分析」「再発防止策」の指示、または本番リリース後の障害発生時は、定期デルタ分析ではなく単発のインシデント要件化を行う（管制塔要件 L4.3「インシデントからの要件化」の実行手順）。
+
+1. **事実収集（read-only）**: 事故の時系列・影響範囲を Trail の記録（`messages` / `session_commits` / git 活動記録・フォレンジックログ）と実測で裏取りする。推測で埋めず、確認できない箇所は「※要確認」と明記する。
+2. **重大度・復旧方針の決定は人（管制官）**: AI は判断材料（影響範囲・復旧選択肢）の提示まで。復旧作業そのものは本モードの範囲外（該当タスクとして別途実施）。
+3. **why-why-why 分析（3 段以上）と再発防止提案書の起草**: `anytime-proposal`（既定 lightweight）で `proposal/<YYYYMMDD>-<topic>.ja.md` へ出力する。global CLAUDE.md「バグ修正時」のリリース後不具合ルールと同一プロセスであり、分析様式を二重定義しない。
+4. **提案の採否は人**。採択された提案は `anytime-dev-cycle` 段2（要件書・設計書の改訂 → What 承認）へ引き継ぎ、必要ならロードマップ（`spec/00.requirements/trail-roadmap.ja.md`）の更新も同時に提案する。
 
 ## セットアップ監査モード（環境・設定の健全性）
 
