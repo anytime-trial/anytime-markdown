@@ -18,5 +18,7 @@
   "command.runWithTrace": "トレース付きで実行",
   "command.reinstallSkills": "スキル再インストール",
   "command.registerMcpServer": "MCP サーバーを登録 (.mcp.json を更新)",
-  "command.killExtensionHost": "Extension Host を Kill"
+  "command.killExtensionHost": "Extension Host を Kill",
+  "view.alignment": "設計書追随",
+  "viewsWelcome.alignment": "[$(refresh) 設計書追随チェックを実行 (作業ツリー)](command:anytime-trail.checkAlignment)"
 }
