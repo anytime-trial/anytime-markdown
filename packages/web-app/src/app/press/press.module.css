@@ -861,6 +861,147 @@
     align-items: start;
 }
 
+/* ── Process flow (開発プロセスの簡略フロー図) ────────── */
+.processFlow {
+    margin: 0;
+    padding: 20px 18px 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.processNode {
+    border: var(--rule-thin) solid var(--ink);
+    background: var(--paper);
+    padding: 10px 14px;
+    font-family: var(--font-body);
+    font-size: var(--fs-caption);
+    line-height: 1.5;
+    color: var(--ink);
+    text-align: center;
+}
+
+.processNodeHuman {
+    background: var(--vermilion-wash);
+    border-color: var(--vermilion);
+    font-weight: 600;
+}
+
+.processLoopBlock {
+    display: flex;
+    flex-direction: column;
+}
+
+.processArrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 10px 0;
+}
+
+.processArrowGlyph {
+    font-size: 12px;
+    line-height: 1;
+    color: var(--ink-light);
+}
+
+.processArrowLabel {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    letter-spacing: 0.04em;
+    text-align: center;
+}
+
+.processLoop {
+    border: var(--rule-thin) solid var(--ink);
+    background: var(--paper-fold);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.processLoopHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: var(--rule-thin) solid var(--ink-light);
+    padding-bottom: 8px;
+}
+
+.processLoopTitle {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 1.1;
+    color: var(--ink);
+}
+
+.processLoopScale {
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    color: var(--ink-faded);
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+
+.processSteps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.processSteps li {
+    position: relative;
+}
+
+.processSteps li + li {
+    margin-top: 24px;
+}
+
+.processSteps li + li::before {
+    content: '▼';
+    position: absolute;
+    top: -19px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    line-height: 1;
+    color: var(--ink-light);
+}
+
+.processReturn {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: var(--rule-hair) dashed var(--ink-light);
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    line-height: 1.6;
+    color: var(--ink-faded);
+}
+
+.processReturnGlyph {
+    color: var(--vermilion);
+    font-size: 13px;
+    line-height: 1;
+}
+
+.processCaption {
+    margin: 16px 0 0;
+    font-family: var(--font-mono);
+    font-size: var(--fs-footnote);
+    line-height: 1.6;
+    color: var(--ink-light);
+}
+
 /* ── PullQuote ─────────────────────────────────────── */
 .pullQuote {
     padding: 56px var(--gutter);
