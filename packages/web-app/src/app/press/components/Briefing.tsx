@@ -2,6 +2,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 import styles from '../press.module.css';
+import { ProcessFlow } from './ProcessFlow';
 
 interface BriefingItem {
   num: string;
@@ -14,7 +15,8 @@ interface BriefingWithEmbedProps {
   id?: string;
   items: BriefingItem[];
   embed: ReactNode;
-  embedTitle: string;
+  /** 未指定ならウィンドウ枠（トラフィックライト）を出さず、埋め込みを素の枠内に置く */
+  embedTitle?: string;
   embedActions?: ReactNode;
   title: ReactNode;
 }
@@ -30,6 +32,7 @@ const TRAFFIC_LIGHT_COLORS = ['#FF5F57', '#FFBD2E', '#28C840'] as const;
 const TRAIL_KEYS = ['trail1', 'trail2', 'trail3', 'trail4', 'trail5', 'trail6', 'trail7', 'trail8', 'trail9', 'trail10', 'trail11', 'trail12', 'trail13', 'trail14', 'trail15', 'trail16', 'trail17', 'trail18', 'trail19', 'trail20', 'trail21', 'trail22', 'trail23', 'trail24', 'trail25', 'trail26'] as const;
 const MARKDOWN_KEYS = ['md3', 'md1', 'md2'] as const;
 const AGENT_KEYS = ['agent1', 'agent2', 'agent3'] as const;
+const PROCESS_EXT_KEYS = ['ext1', 'ext2', 'ext3'] as const;
 const ROMAN = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'] as const;
 
 function BriefingWithEmbed({
@@ -47,17 +50,19 @@ function BriefingWithEmbed({
       </header>
       <div className={styles.briefingLeftStack}>
         <div className={styles.briefingEmbed}>
-          <div className={styles.trailFrameBar}>
-            {TRAFFIC_LIGHT_COLORS.map((color) => (
-              <span
-                key={color}
-                className={styles.trailFrameDot}
-                style={{ background: color }}
-                aria-hidden="true"
-              />
-            ))}
-            <span className={styles.trailFrameTitle}>{embedTitle}</span>
-          </div>
+          {embedTitle ? (
+            <div className={styles.trailFrameBar}>
+              {TRAFFIC_LIGHT_COLORS.map((color) => (
+                <span
+                  key={color}
+                  className={styles.trailFrameDot}
+                  style={{ background: color }}
+                  aria-hidden="true"
+                />
+              ))}
+              <span className={styles.trailFrameTitle}>{embedTitle}</span>
+            </div>
+          ) : null}
           <div className={styles.trailFrameBody}>{embed}</div>
         </div>
         {embedActions ? (
@@ -79,6 +84,29 @@ function BriefingWithEmbed({
         </ul>
       </div>
     </section>
+  );
+}
+
+export function BriefingProcess() {
+  const t = useTranslations('press.process');
+  const tBriefing = useTranslations('press.briefing');
+  const items: BriefingItem[] = PROCESS_EXT_KEYS.map((key, idx) => ({
+    num: ROMAN[idx],
+    head: t(`${key}Title`),
+    body: t(`${key}Body`),
+    verdict: tBriefing('shipped'),
+  }));
+  return (
+    <BriefingWithEmbed
+      id="process"
+      items={items}
+      embed={<ProcessFlow />}
+      title={
+        <>
+          {t('header')} <em>{t('headerEm')}</em> {t('subtitle')}
+        </>
+      }
+    />
   );
 }
 

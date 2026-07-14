@@ -4,7 +4,13 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 
 import { useThemeMode } from '../providers';
-import { BriefingAgent, BriefingPrimary, BriefingRoadmap, BriefingSecondary } from './components/Briefing';
+import {
+  BriefingAgent,
+  BriefingPrimary,
+  BriefingProcess,
+  BriefingRoadmap,
+  BriefingSecondary,
+} from './components/Briefing';
 import { Caravan } from './components/Caravan';
 import { Colophon } from './components/Colophon';
 import { CtaActions } from './components/CtaStrip';
@@ -52,6 +58,7 @@ export function PressBody() {
       <Headline />
       <Caravan />
       <Dispatch />
+      <BriefingProcess />
       <BriefingAgent
         subtitle="- セッション"
         embed={
