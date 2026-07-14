@@ -1,52 +1,59 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import * as vscode from 'vscode';
-
-import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
-import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
+import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
+import { getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/memory-core';
+import { checkArchitecturalAlignment } from '@anytime-markdown/trail-core';
+import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 import {
-	installStaticSkillDir,
-	readBundledSkillManifest,
-} from '@anytime-markdown/vscode-common';
-import { TRAIL_BUNDLED_SKILLS, TRAIL_SKILL_MARKER } from './skills/bundledSkills';
-import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
-import { PipelineProvider } from './providers/PipelineProvider';
-import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
-import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
+	FileChangeResolver,
+	SpecDocIndex,
+	TrailDatabase,
+	WorkspaceC4ElementProvider,
+} from '@anytime-markdown/trail-db';
+import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { findTsconfigCandidates, hasPythonFiles } from '@anytime-markdown/trail-server/analyze-utils';
-import { checkLlmAvailability } from '@anytime-markdown/trail-server/llm';
-import { createFetchGitHubReviewClient } from '@anytime-markdown/trail-server/github';
 import {
-	loadLepConfig,
-	migrateConfigJsonIntoLepJson,
-	ensureLepConfigFile,
 	DEFAULT_LEP_CONFIG,
 	disabledAnalyzerIds,
-	resolveGitHubSource,
+	ensureLepConfigFile,
+	loadLepConfig,
+	migrateConfigJsonIntoLepJson,
 	resolveExcludeRoot,
+	resolveGitHubSource,
 	resolveWorkspaceConfigPath,
 } from '@anytime-markdown/trail-server/config';
-import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
-import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
-import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
-import { getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/memory-core';
-import { DaemonClient } from './trail/DaemonClient';
-import { TrailPanel } from './trail/TrailPanel';
-import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
-import { TrailLogger } from './utils/TrailLogger';
-import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
 // AnalyzeAllRunner / MemoryCoreService / TrailDataServer / CodeGraphService は
 // trail-daemon child process が hosting する。
 // extension は各 IPC client (IPC proxy) 経由で操作し、typescript を引かない。
 import {
 	AnalyzeAllRunnerClient,
-	TrailDaemonHost,
-	TrailDaemonHttpClient,
 	AnalyzeCommandClient,
 	type SerializableAnalyzeAllConfig,
+	TrailDaemonHost,
+	TrailDaemonHttpClient,
 } from '@anytime-markdown/trail-server/daemon';
+import { createFetchGitHubReviewClient } from '@anytime-markdown/trail-server/github';
+import { checkLlmAvailability } from '@anytime-markdown/trail-server/llm';
+import {
+	installStaticSkillDir,
+	readBundledSkillManifest,
+} from '@anytime-markdown/vscode-common';
+import * as vscode from 'vscode';
+
+import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
+import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
+import { AlignmentDiagnosticsProvider } from './providers/AlignmentDiagnosticsProvider';
+import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
+import { PipelineProvider } from './providers/PipelineProvider';
+import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
+import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
+import { TRAIL_BUNDLED_SKILLS, TRAIL_SKILL_MARKER } from './skills/bundledSkills';
+import { DaemonClient } from './trail/DaemonClient';
+import { TrailPanel } from './trail/TrailPanel';
+import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
+import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
+import { TrailLogger } from './utils/TrailLogger';
 
 let httpClient: TrailDaemonHttpClient | undefined;
 let analyzeCmdClient: AnalyzeCommandClient | undefined;
@@ -111,6 +118,65 @@ function wireDaemonLogSink(
 
 // setupServerCallbacks は削除 — openDocLink / openFile は TrailDaemonHttpClient
 // の IPC イベントリスナーとして activate 内で直接 wire する。
+
+const alignmentDbLogger = {
+	info: (msg: string) => TrailLogger.info(`[alignment] ${msg}`),
+	warn: (msg: string) => TrailLogger.warn(`[alignment] ${msg}`),
+	error: (msg: string, err?: unknown) => TrailLogger.error(`[alignment] ${msg}`, err),
+	debugSql: () => {},
+};
+
+/**
+ * 設計書追随チェックを作業ツリー基準で走らせ、違反を Problems パネルへ出す。
+ *
+ * trail.db を開かないのは worktree スコープが git だけで完結するため（取込前・未解析でも動く）。
+ * Fail-open: 失敗しても拡張を止めず、診断をクリアして警告を出すだけにする。
+ */
+async function runCheckAlignmentCommand(
+	diagnostics: AlignmentDiagnosticsProvider,
+	workspaceRoot: string | undefined,
+	docsRepoRootSetting: string,
+): Promise<void> {
+	if (!workspaceRoot) {
+		vscode.window.showWarningMessage('設計書追随チェック: ワークスペースフォルダが開かれていません。');
+		return;
+	}
+
+	const docsRepoRoot = docsRepoRootSetting.trim();
+	if (!docsRepoRoot) {
+		vscode.window.showWarningMessage(
+			'設計書追随チェック: 設計書リポジトリが未設定です。lep.json の sources.docs.root を設定してください。',
+		);
+		return;
+	}
+
+	try {
+		const report = await checkArchitecturalAlignment(
+			{
+				changes: new FileChangeResolver({ gitRepoRoot: workspaceRoot, logger: alignmentDbLogger }),
+				specs: new SpecDocIndex({ docsRepoRoot, gitRepoRoot: workspaceRoot, logger: alignmentDbLogger }),
+				c4Elements: new WorkspaceC4ElementProvider({ workspaceRoot, logger: alignmentDbLogger }).listElements(),
+			},
+			{ scope: 'worktree' },
+		);
+
+		const summary = diagnostics.render(report);
+		TrailLogger.info(
+			`[alignment] checkedFiles=${summary.checkedFiles} staleSpecs=${summary.staleSpecs} ` +
+				`staleElements=${summary.staleElements} undocumentedElements=${summary.undocumentedElements}`,
+		);
+		vscode.window.showInformationMessage(
+			`設計書追随チェック: 変更 ${summary.checkedFiles} ファイル / 未追随の設計書 ${summary.staleSpecs} 本` +
+				`（${summary.staleElements} 要素）/ 設計書なし ${summary.undocumentedElements} 要素`,
+		);
+	} catch (err) {
+		TrailLogger.error('[alignment] check failed', err);
+		diagnostics.clear();
+		vscode.window.showWarningMessage(
+			`設計書追随チェックに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+}
 
 export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
@@ -476,6 +542,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCode', () => runAnalyzeCurrentCommand({ pickTsconfig: false })),
 		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCodePickTsconfig', () => runAnalyzeCurrentCommand({ pickTsconfig: true })),
+	);
+
+	// 設計書追随チェック (作業ツリー基準)。git だけで完結するため trail.db の取込状態に依存しない。
+	const alignmentDiagnostics = new AlignmentDiagnosticsProvider(wsRootForDb ?? '');
+	context.subscriptions.push(
+		alignmentDiagnostics,
+		vscode.commands.registerCommand('anytime-trail.checkAlignment', async () => {
+			await runCheckAlignmentCommand(alignmentDiagnostics, wsRootForDb, lepConfig.sources.docs.root);
+		}),
 	);
 
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);

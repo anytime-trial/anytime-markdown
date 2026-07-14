@@ -9,6 +9,7 @@
   "command.analyzeAll.status": "AnalyzeAll の状態を表示",
   "command.analyzeCurrentCode": "コード解析",
   "command.analyzeCurrentCodePickTsconfig": "コード解析 (tsconfig を選択)",
+  "command.checkAlignment": "設計書追随チェック (作業ツリー)",
   "command.analyzeAll": "全データ解析",
   "command.openTrailViewer": "Trail ビューアを開く",
   "view.dashboard": "ダッシュボード",

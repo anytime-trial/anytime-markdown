@@ -90,6 +90,11 @@
         "category": "Anytime Trail"
       },
       {
+        "command": "anytime-trail.checkAlignment",
+        "title": "%command.checkAlignment%",
+        "category": "Anytime Trail"
+      },
+      {
         "command": "anytime-trail.runWithTrace",
         "title": "%command.runWithTrace%",
         "category": "Anytime Trail",
