@@ -2,6 +2,14 @@ export type { TrailGraph } from './model/types';
 export { trailToC4 } from './transform/toC4';
 export { codeGraphToC4 } from './c4/codeGraphToC4';
 export { formatLocalDate, formatLocalTime, formatLocalDateTime, toLocalDateKey } from './formatDate';
+export type {
+  AlignmentInput,
+  AlignmentOptions,
+  AlignmentScope,
+  ChangedFile,
+  IFileChangeResolver,
+} from './domain/port/IFileChangeResolver';
+export type { ISpecDocIndex, SpecDocRef } from './domain/port/ISpecDocIndex';
 
 // Domain layer
 export * from './domain';
@@ -40,4 +48,3 @@ export {
   type DefectRiskEntry,
   type ComputeDefectRiskOptions,
 } from './defectRisk';
-
