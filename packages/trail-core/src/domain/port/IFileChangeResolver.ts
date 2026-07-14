@@ -1,4 +1,4 @@
-export type AlignmentScope = 'session' | 'range';
+export type AlignmentScope = 'session' | 'range' | 'worktree';
 
 export interface AlignmentOptions {
   /** 実質的変更とみなす追加行数の下限。既定 20 */
@@ -7,7 +7,9 @@ export interface AlignmentOptions {
 
 export type AlignmentInput =
   | { readonly scope: 'session'; readonly sessionId: string; readonly options?: AlignmentOptions }
-  | { readonly scope: 'range'; readonly fromRef: string; readonly toRef: string; readonly options?: AlignmentOptions };
+  | { readonly scope: 'range'; readonly fromRef: string; readonly toRef: string; readonly options?: AlignmentOptions }
+  /** 作業ツリー基準（未コミット変更）。手動コマンドのトリガーで使う */
+  | { readonly scope: 'worktree'; readonly options?: AlignmentOptions };
 
 export interface ChangedFile {
   /** リポジトリ相対パス。例: packages/trail-core/src/foo.ts */
