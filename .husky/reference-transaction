@@ -9,6 +9,8 @@ STATE="${1:-}"
 # --show-toplevel はその空の worktree を指すのでスクリプトを必ず外し、記録が失われたうえ
 # Cannot find module が stderr に漏れる（実測）。common dir の親＝メインの作業ツリーは
 # どの worktree から起動されても常にスクリプトを持っている。
+# --path-format は git 2.31+。それ未満では rev-parse が失敗し、下のガードで黙って no-op になる
+# （記録は失われるが git 操作は壊れない＝既存の fail-open 方針どおり）。
 SCRIPT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/scripts/git-activity-report.mjs"
 [ -f "$SCRIPT" ] || exit 0
 
