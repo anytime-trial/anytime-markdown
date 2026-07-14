@@ -35,6 +35,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # scripts/*.test.mjs はリポジトリ運用ツール（git フック・スキル同梱ゲート等）のテスト。
+      # 従来どこからも実行されておらず、書いても回帰を防げない孤児テストだった。
+      # 0.5 秒で終わるため条件を付けず常に実行する。
+      - name: Test repo scripts
+        run: node --test scripts/*.test.mjs
+
       # develop push: 型チェック・lint のみ（高速フィードバック）
       # develop PR: 型チェック・lint のみ
       # master PR: 全項目実行（品質ゲート）
