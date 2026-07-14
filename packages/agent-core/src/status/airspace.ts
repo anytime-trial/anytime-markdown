@@ -170,19 +170,104 @@ interface CommandPrefix {
  * コマンド行の代入を環境変数として受け取らないため、`process.env` だけを見ていると
  * deny の理由文が案内する手順（`ANYTIME_AIRSPACE=off <cmd>` で再実行）が効かない。
  */
+/**
+ * コマンド先頭の環境変数代入と `env` コマンド（オプション込み）を剥がす。
+ *
+ * これをしないと `FOO=1 git reset --hard` の先頭トークンが `git` でなくなり、**無害な代入
+ * ひとつでゲートが丸ごと無効化される**（実機で発覚。単体テストでも E2E でも見えなかった）。
+ *
+ * 脱出口の `ANYTIME_AIRSPACE=off` もここで読む。フックは Claude Code が spawn する別プロセスで、
+ * コマンド行の代入を環境変数として受け取らないため、`process.env` だけを見ていると
+ * deny の理由文が案内する手順（`ANYTIME_AIRSPACE=off <cmd>` で再実行）が効かない。
+ */
+/** `NAME=VALUE` 形式の代入なら分解する。フラグやパスは代入ではない。 */
+function parseAssignment(token: string): { name: string; value: string } | null {
+  const eq = token.indexOf('=');
+  if (eq <= 0 || token.startsWith('-') || token.slice(0, eq).includes('/')) return null;
+  return { name: token.slice(0, eq), value: token.slice(eq + 1) };
+}
+
+/** `env` のオプション（`-i` / `-u NAME` / `-C dir` 等）を読み飛ばした位置を返す。 */
+function skipEnvOptions(tokens: readonly string[], start: number): number {
+  const TAKES_VALUE = new Set(['-u', '--unset', '-C', '--chdir', '-S', '--split-string']);
+  let index = start;
+
+  while (index < tokens.length && tokens[index].startsWith('-')) {
+    const flag = tokens[index];
+    index += 1;
+    // `-u NAME` のように値を伴うフラグは、値も併せて読み飛ばす（`--unset=NAME` は 1 トークン）。
+    if (TAKES_VALUE.has(flag) && index < tokens.length) index += 1;
+  }
+  return index;
+}
+
+/**
+ * `git` のグローバルオプションを読み飛ばし、サブコマンドの位置を返す。
+ *
+ * `git -C <path> reset --hard` は**別の作業ツリーを直接壊せる**最も危険な形。読み飛ばさないと
+ * `tokens[1]` が `-C` になってサブコマンドに到達できず、分類が none に落ちる（レビューで発覚）。
+ * `-C` の値は「どの作業ツリーが被害を受けるか」を決めるので呼び出し側へ返す。
+ */
+function skipGitGlobalOptions(args: readonly string[]): { index: number; dirOverride: string | null } {
+  const TAKES_VALUE = new Set(['-C', '-c', '--namespace', '--exec-path', '--git-dir', '--work-tree']);
+  let index = 0;
+  let dirOverride: string | null = null;
+
+  while (index < args.length && args[index].startsWith('-')) {
+    const flag = args[index];
+    index += 1;
+    if (TAKES_VALUE.has(flag) && index < args.length) {
+      if (flag === '-C') dirOverride = args[index];
+      index += 1;
+    }
+  }
+  return { index, dirOverride };
+}
+
+/** 解析済みの git コマンド。分類・削除対象の解決・衝突判定が共通で使う。 */
+interface ParsedGitCommand {
+  readonly env: ReadonlyMap<string, string>;
+  readonly isGit: boolean;
+  /** `-C <path>` の値。指定が無ければ null。 */
+  readonly dirOverride: string | null;
+  readonly subcommand: string | null;
+  readonly args: readonly string[];
+}
+
+function parseGitCommand(command: string): ParsedGitCommand {
+  const { env, tokens } = stripCommandPrefix(tokenize(command));
+  if (tokens[0] !== 'git') {
+    return { env, isGit: false, dirOverride: null, subcommand: null, args: [] };
+  }
+
+  const rest = tokens.slice(1);
+  const { index, dirOverride } = skipGitGlobalOptions(rest);
+  return {
+    env,
+    isGit: true,
+    dirOverride,
+    subcommand: rest[index] ?? null,
+    args: rest.slice(index + 1),
+  };
+}
+
 function stripCommandPrefix(tokens: readonly string[]): CommandPrefix {
   const env = new Map<string, string>();
   let index = 0;
 
-  // `env FOO=1 git ...` のように env コマンドを挟む形も剥がす。
-  if (tokens[index] === 'env') index += 1;
-
   while (index < tokens.length) {
     const token = tokens[index];
-    const eq = token.indexOf('=');
-    // 代入は `NAME=VALUE` 形式。先頭が - のものやパス（/ を含む）は代入ではない。
-    if (eq <= 0 || token.startsWith('-') || token.slice(0, eq).includes('/')) break;
-    env.set(token.slice(0, eq), token.slice(eq + 1));
+
+    // `env` / `env -i` / `env -u NAME` / `FOO=1 env BAR=2 git ...` のいずれも剥がす。
+    if (token === 'env') {
+      index += 1;
+      index = skipEnvOptions(tokens, index);
+      continue;
+    }
+
+    const assignment = parseAssignment(token);
+    if (assignment === null) break;
+    env.set(assignment.name, assignment.value);
     index += 1;
   }
 
@@ -198,10 +283,8 @@ export function classifyGitCommand(
   command: string,
   context: GitCommandContext = {},
 ): GitCommandKind {
-  const tokens = stripCommandPrefix(tokenize(command)).tokens;
-  if (tokens.length < 2 || tokens[0] !== 'git') return 'none';
-  const subcommand = tokens[1];
-  const args = tokens.slice(2);
+  const { isGit, subcommand, args } = parseGitCommand(command);
+  if (!isGit || subcommand === null) return 'none';
 
   if (subcommand === 'reset') return args.includes('--hard') ? 'discard' : 'none';
   if (subcommand === 'clean') return classifyClean(args);
@@ -230,12 +313,13 @@ export function classifyGitCommand(
  * ゲートを張る必要が無い（過剰な deny を避ける）。
  */
 export function parseWorktreeRemoveTarget(command: string): string | null {
-  const tokens = stripCommandPrefix(tokenize(command)).tokens;
-  if (tokens.length < 4) return null;
-  if (tokens[0] !== 'git' || tokens[1] !== 'worktree' || tokens[2] !== 'remove') return null;
-  const args = tokens.slice(3);
-  if (!args.some((arg) => arg === '--force' || arg === '-f')) return null;
-  return args.find((arg) => !arg.startsWith('-')) ?? null;
+  const { isGit, subcommand, args } = parseGitCommand(command);
+  if (!isGit || subcommand !== 'worktree') return null;
+  if (args[0] !== 'remove') return null;
+
+  const rest = args.slice(1);
+  if (!rest.some((arg) => arg === '--force' || arg === '-f')) return null;
+  return rest.find((arg) => !arg.startsWith('-')) ?? null;
 }
 
 // シンボリックリンク経由のパスでも突合できるよう実体パスへ寄せる。
@@ -259,6 +343,30 @@ function canonicalize(path: string): string {
  *
  * `cwd` は相対パス引数（`../wt` 等）の解決基点。省略時は myWorktree を使う。
  */
+/**
+ * Bash コマンドの衝突判定。
+ *
+ * 突合先（どの作業ツリーが被害を受けるか）はコマンドによって変わる:
+ * - `git worktree remove --force <path>` は**引数で指定した別の作業ツリー**を消す
+ * - `git -C <path> reset --hard` は**指定先の作業ツリー**を壊す
+ * - それ以外は自分がいる作業ツリー
+ *
+ * 自分の worktree としか突合しないと、上 2 つは一致せず素通りする（どちらも実測で確認）。
+ *
+ * `cwd` は相対パス引数の解決基点。省略時は myWorktree を使う。
+ */
+/** 指定した作業ツリーで生存しているセッションを探し、居れば判定を返す。居なければ pass。 */
+function victimVerdict(
+  liveClaims: readonly AirspaceClaim[],
+  targetWorktree: string,
+  kind: 'deny' | 'warn',
+): GateVerdict {
+  const target = canonicalize(targetWorktree);
+  const victim = liveClaims.find((claim) => canonicalize(claim.worktree) === target);
+  if (victim === undefined) return { kind: 'pass' };
+  return { kind, reason: buildReason(kind, victim) };
+}
+
 export function evaluateBashGate(
   command: string,
   liveClaims: readonly AirspaceClaim[],
@@ -270,20 +378,17 @@ export function evaluateBashGate(
 
   const removeTarget = parseWorktreeRemoveTarget(command);
   if (removeTarget !== null) {
-    const targetPath = canonicalize(resolve(cwd, removeTarget));
-    const victim = liveClaims.find((claim) => canonicalize(claim.worktree) === targetPath);
-    if (victim === undefined) return { kind: 'pass' };
-    return { kind: 'deny', reason: buildReason('deny', victim) };
+    return victimVerdict(liveClaims, resolve(cwd, removeTarget), 'deny');
   }
 
+  const { dirOverride } = parseGitCommand(command);
+  const targetDir = dirOverride === null ? myWorktree : resolve(cwd, dirOverride);
+
   const kind = classifyGitCommand(command, {
-    fileExists: (target) => existsSync(resolve(myWorktree, target)),
+    fileExists: (target) => existsSync(resolve(targetDir, target)),
   });
   if (kind === 'none') return { kind: 'pass' };
-  const conflict = liveClaims.find((claim) => claim.worktree === myWorktree);
-  if (conflict === undefined) return { kind: 'pass' };
-  if (kind === 'discard') return { kind: 'deny', reason: buildReason('deny', conflict) };
-  return { kind: 'warn', reason: buildReason('warn', conflict) };
+  return victimVerdict(liveClaims, targetDir, kind === 'discard' ? 'deny' : 'warn');
 }
 
 export function evaluateEditGate(
@@ -357,9 +462,32 @@ function classifyWorktree(args: readonly string[]): GitCommandKind {
   return args.some((arg) => arg === '--force' || arg === '-f') ? 'discard' : 'none';
 }
 
+/**
+ * コマンド文字列を空白区切りのトークンへ分解する。
+ *
+ * クォートは剥がすが、**空白を挟まずに隣接した断片は 1 トークンへ結合する**。
+ * これをしないと `TZ="UTC"` が `["TZ=", "UTC"]` に割れ、代入として認識できずゲートが素通りする
+ * （レビューで発覚。値のクォートはシェルで最も一般的な書き方であり、難読化ではない）。
+ */
 function tokenize(command: string): string[] {
-  const matches = command.match(/[^\s"']+|"([^"]*)"|'([^']*)'/g) ?? [];
-  return matches.map((token) => token.replace(/^['"]|['"]$/g, ''));
+  const tokens: string[] = [];
+  let previousEnd = -1;
+
+  for (const match of command.matchAll(/[^\s"']+|"([^"]*)"|'([^']*)'/g)) {
+    const raw = match[0];
+    const start = match.index;
+    const unquoted = raw.replace(/^['"]|['"]$/g, '');
+    const previous = tokens.at(-1);
+
+    if (start === previousEnd && previous !== undefined) {
+      tokens[tokens.length - 1] = previous + unquoted;
+    } else {
+      tokens.push(unquoted);
+    }
+    previousEnd = start + raw.length;
+  }
+
+  return tokens;
 }
 
 function readClaimFile(filePath: string): AirspaceClaim | null {
