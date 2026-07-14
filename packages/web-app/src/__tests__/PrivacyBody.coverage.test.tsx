@@ -54,8 +54,19 @@ describe("PrivacyBody - Section and P coverage", () => {
   it("renders section4 list items", () => {
     render(<PrivacyBody />);
     expect(screen.getByText("section4Intro")).toBeTruthy();
-    expect(screen.getByText("section4Plantuml")).toBeTruthy();
-    expect(screen.getByText("section4Mermaid")).toBeTruthy();
+    // 外部送信を伴う連携は開示義務があるため、項目の欠落を回帰として検出する。
+    for (const key of [
+      "section4Mermaid",
+      "section4Plantuml",
+      "section4Login",
+      "section4Drive",
+      "section4Github",
+      "section4Embed",
+      "section4WebImport",
+      "section4Images",
+    ]) {
+      expect(screen.getByText(key)).toBeTruthy();
+    }
   });
 
   it("renders rich text with strong and link callbacks", () => {

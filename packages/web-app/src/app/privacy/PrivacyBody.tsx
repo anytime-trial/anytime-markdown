@@ -46,6 +46,18 @@ const richServicesLink = (chunks: React.ReactNode) => (
   </Link>
 );
 
+/** 4. 外部サービスの項目。ローカル完結 → 明示操作で送信 → ブラウザが直接取得、の順に並べる。 */
+const SECTION4_ITEMS = [
+  'section4Mermaid',
+  'section4Plantuml',
+  'section4Login',
+  'section4Drive',
+  'section4Github',
+  'section4Embed',
+  'section4WebImport',
+  'section4Images',
+] as const;
+
 export default function PrivacyBody() {
   const t = useTranslations('Privacy');
   const tServices = useTranslations('PrivacyServices');
@@ -79,12 +91,11 @@ export default function PrivacyBody() {
         <Section title={t('section4Title')}>
           <P>{t('section4Intro')}</P>
           <Box component="ul" sx={{ pl: 3 }}>
-            <li>
-              <P>{t.rich('section4Plantuml', { strong: richStrong })}</P>
-            </li>
-            <li>
-              <P>{t.rich('section4Mermaid', { strong: richStrong })}</P>
-            </li>
+            {SECTION4_ITEMS.map((key) => (
+              <li key={key}>
+                <P>{t.rich(key, { strong: richStrong })}</P>
+              </li>
+            ))}
           </Box>
         </Section>
 
