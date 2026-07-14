@@ -2,14 +2,49 @@ import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import Spotify from "next-auth/providers/spotify";
+import { validateAuthEnv } from "./authEnv";
 import { GITHUB_OAUTH_SCOPE } from "./githubOAuthScope";
 import { isGoogleTokenExpired, parseRefreshedToken } from "./googleToken";
+
+const authEnvStatus = validateAuthEnv(process.env);
+
+function logAuthEnv(level: "ERROR" | "WARN", message: string): void {
+  const line = `[${new Date().toISOString()}] [${level}] [auth-env] ${message}`;
+  if (level === "ERROR") {
+    console.error(line);
+    return;
+  }
+  console.warn(line);
+}
+
+if (!authEnvStatus.isHealthy) {
+  if (authEnvStatus.missingRequired.length > 0) {
+    logAuthEnv(
+      "ERROR",
+      `必須の環境変数が不足しています: ${authEnvStatus.missingRequired.join(", ")}`,
+    );
+  }
+  for (const item of authEnvStatus.invalid) {
+    logAuthEnv(
+      "ERROR",
+      `環境変数の値が不正です: ${item.name} (${item.reason})`,
+    );
+  }
+}
+
+if (authEnvStatus.missingProviderVars.length > 0) {
+  logAuthEnv(
+    "WARN",
+    `OAuth provider の環境変数が不足しています: ${authEnvStatus.missingProviderVars.join(", ")}`,
+  );
+}
 
 const result = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   // Netlify は VERCEL/CF_PAGES 環境変数がないため @auth/core の自動検知が効かない。
   // AUTH_TRUST_HOST か AUTH_URL がない場合でも信頼する（reverse proxy 後段で動作）。
   trustHost: true,
+  pages: { error: "/auth/error" },
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID ?? "",
