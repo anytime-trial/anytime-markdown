@@ -4,7 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-import { SpecDocIndex } from '../SpecDocIndex';
+import { SpecDocIndex, extractC4ScopeFromFrontmatter } from '../SpecDocIndex';
+import { unquoteGitPath } from '../gitPath';
 
 function runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
   return execFileSync('git', args, {
@@ -36,6 +37,61 @@ function createDb(): Database.Database {
   db.prepare('INSERT INTO repos(repo_id, repo_name) VALUES (?, ?)').run(9, 'anytime-markdown-docs');
   return db;
 }
+
+const quotedJapaneseSpecPath = '"spec/40.trail-viewer/Graphify\\346\\251\\237\\350\\203\\275\\343\\201\\250\\347\\253\\266\\345\\220\\210\\346\\257\\224\\350\\274\\203\\350\\252\\277\\346\\237\\273.md"';
+const plainJapaneseSpecPath = 'spec/40.trail-viewer/Graphify機能と競合比較調査.md';
+
+describe('unquoteGitPath', () => {
+  it('returns plain paths unchanged', () => {
+    expect(unquoteGitPath('spec/a.md')).toBe('spec/a.md');
+  });
+
+  it('decodes octal escaped UTF-8 paths', () => {
+    expect(unquoteGitPath(quotedJapaneseSpecPath)).toBe(plainJapaneseSpecPath);
+  });
+
+  it('decodes standard backslash and quote escapes', () => {
+    expect(unquoteGitPath('"src/a\\\\b/\\"quoted\\".ts"')).toBe('src/a\\b/"quoted".ts');
+  });
+});
+
+describe('extractC4ScopeFromFrontmatter', () => {
+  it('parses flow-style c4Scope arrays', () => {
+    const content = [
+      '---',
+      'title: "A"',
+      'c4Scope: ["pkg_a", "pkg_b"]',
+      '---',
+      '# A',
+    ].join('\n');
+
+    expect(extractC4ScopeFromFrontmatter(content)).toEqual(['pkg_a', 'pkg_b']);
+  });
+
+  it('parses block-style c4Scope arrays', () => {
+    const content = [
+      '---',
+      'c4Scope:',
+      '  - "pkg_a"',
+      "  - 'pkg_b'",
+      '---',
+      '# A',
+    ].join('\n');
+
+    expect(extractC4ScopeFromFrontmatter(content)).toEqual(['pkg_a', 'pkg_b']);
+  });
+
+  it('accepts empty flow-style c4Scope arrays', () => {
+    const content = [
+      '---',
+      'c4Scope: []',
+      '---',
+      '# A',
+    ].join('\n');
+
+    expect(extractC4ScopeFromFrontmatter(content)).toEqual([]);
+  });
+});
 
 describe('SpecDocIndex.findByC4Element', () => {
   let docsRoot: string;
@@ -119,6 +175,24 @@ describe('SpecDocIndex.wasUpdatedIn', () => {
       .resolves.toBe(false);
   });
 
+  it('detects session updates when commit_files stores a quoted non-ASCII git path', async () => {
+    db.prepare(`
+      INSERT INTO session_commits(
+        session_id, commit_hash, commit_message, author, committed_at,
+        is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id
+      ) VALUES (?, ?, '', '', ?, 0, 0, 0, 0, ?)
+    `).run('session-1', 'docs-commit-1', '2026-07-14T00:00:00.000Z', 9);
+    db.prepare('INSERT INTO commit_files(commit_hash, file_path, repo_id) VALUES (?, ?, ?)')
+      .run('docs-commit-1', quotedJapaneseSpecPath, 9);
+
+    const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
+
+    await expect(index.wasUpdatedIn(plainJapaneseSpecPath, {
+      scope: 'session',
+      sessionId: 'session-1',
+    })).resolves.toBe(true);
+  });
+
   it('detects spec updates between code refs by normalized commit time', async () => {
     runGit(['init'], codeRoot);
     runGit(['config', 'user.email', 'codex@example.com'], codeRoot);
@@ -153,5 +227,29 @@ describe('SpecDocIndex.wasUpdatedIn', () => {
       .resolves.toBe(true);
     await expect(index.wasUpdatedIn('spec/b.md', { scope: 'range', fromRef, toRef }))
       .resolves.toBe(false);
+  });
+
+  it('does not throw when a range ref cannot be resolved', async () => {
+    const warnings: string[] = [];
+    const index = new SpecDocIndex({
+      db,
+      docsRepoRoot: docsRoot,
+      gitRepoRoot: codeRoot,
+      logger: {
+        info: () => {},
+        warn: (message: string) => {
+          warnings.push(message);
+        },
+        error: () => {},
+        debugSql: () => {},
+      },
+    });
+
+    await expect(index.wasUpdatedIn('spec/a.md', {
+      scope: 'range',
+      fromRef: 'missing-from',
+      toRef: 'missing-to',
+    })).resolves.toBe(false);
+    expect(warnings.some((message) => message.includes('missing-from'))).toBe(true);
   });
 });

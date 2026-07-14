@@ -1,4 +1,3 @@
-import type Database from 'better-sqlite3';
 import { execFileSync } from 'node:child_process';
 
 import type {
@@ -6,11 +5,16 @@ import type {
   ChangedFile,
   IFileChangeResolver,
 } from '@anytime-markdown/trail-core';
+import type Database from 'better-sqlite3';
+
+import { type DbLogger, noopDbLogger } from './DbLogger';
+import { unquoteGitPath } from './gitPath';
 
 export interface FileChangeResolverOptions {
   readonly db: Database.Database;
   readonly gitRepoRoot: string;
   readonly codeRepoName?: string;
+  readonly logger?: DbLogger;
 }
 
 interface NumstatEntry {
@@ -52,7 +56,7 @@ export function parseNumstat(stdout: string): readonly NumstatEntry[] {
     if (parts.length < 3) continue;
 
     const [added, deleted] = parts;
-    const filePath = parts.slice(2).join('\t');
+    const filePath = unquoteGitPath(parts.slice(2).join('\t'));
     entries.push({
       filePath,
       linesAdded: parseStatNumber(added),
@@ -95,12 +99,14 @@ export class FileChangeResolver implements IFileChangeResolver {
   private readonly db: Database.Database;
   private readonly gitRepoRoot: string;
   private readonly codeRepoName: string;
+  private readonly logger: DbLogger;
   private codeRepoId: number | null = null;
 
   constructor(options: FileChangeResolverOptions) {
     this.db = options.db;
     this.gitRepoRoot = options.gitRepoRoot;
     this.codeRepoName = options.codeRepoName ?? DEFAULT_CODE_REPO_NAME;
+    this.logger = options.logger ?? noopDbLogger;
   }
 
   async resolve(input: AlignmentInput): Promise<readonly ChangedFile[]> {
@@ -121,10 +127,14 @@ export class FileChangeResolver implements IFileChangeResolver {
 
     const aggregate = new Map<string, MutableChangedFile>();
     for (const row of rows) {
+      const numstat = this.runGit(['show', '--numstat', '--format=', '--no-renames', row.commit_hash]);
+      const patch = this.runGit(['show', '--unified=0', '--format=', '--no-renames', row.commit_hash]);
+      if (numstat === null || patch === null) continue;
+
       this.applyGitOutputs(
         aggregate,
-        this.runGit(['show', '--numstat', '--format=', '--no-renames', row.commit_hash]),
-        this.runGit(['show', '--unified=0', '--format=', '--no-renames', row.commit_hash]),
+        numstat,
+        patch,
       );
     }
 
@@ -133,10 +143,14 @@ export class FileChangeResolver implements IFileChangeResolver {
 
   private resolveRange(fromRef: string, toRef: string): readonly ChangedFile[] {
     const aggregate = new Map<string, MutableChangedFile>();
+    const numstat = this.runGit(['diff', '--numstat', '--no-renames', `${fromRef}..${toRef}`]);
+    const patch = this.runGit(['diff', '--unified=0', '--no-renames', `${fromRef}..${toRef}`]);
+    if (numstat === null || patch === null) return [];
+
     this.applyGitOutputs(
       aggregate,
-      this.runGit(['diff', '--numstat', '--no-renames', `${fromRef}..${toRef}`]),
-      this.runGit(['diff', '--unified=0', '--no-renames', `${fromRef}..${toRef}`]),
+      numstat,
+      patch,
     );
     return toChangedFiles(aggregate);
   }
@@ -172,13 +186,18 @@ export class FileChangeResolver implements IFileChangeResolver {
     return row.repo_id;
   }
 
-  private runGit(args: readonly string[]): string {
-    return execFileSync('git', [...args], {
-      cwd: this.gitRepoRoot,
-      encoding: 'utf-8',
-      timeout: 30_000,
-      stdio: 'pipe',
-    });
+  private runGit(args: readonly string[]): string | null {
+    try {
+      return execFileSync('git', [...args], {
+        cwd: this.gitRepoRoot,
+        encoding: 'utf-8',
+        timeout: 30_000,
+        stdio: 'pipe',
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to run git ${args.join(' ')}: ${formatError(error)}`);
+      return null;
+    }
   }
 }
 
@@ -188,9 +207,13 @@ function parseStatNumber(value: string): number {
 }
 
 function parsePatchPath(value: string, prefix: 'a/' | 'b/'): string | null {
-  const path = value.trim();
+  const path = unquoteGitPath(value.trim());
   if (path === '/dev/null') return null;
   return path.startsWith(prefix) ? path.slice(prefix.length) : path;
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function incrementExportCount(

@@ -27,6 +27,14 @@ describe('parseNumstat', () => {
       { filePath: 'src/b.ts', linesAdded: 3, linesDeleted: 0 },
     ]);
   });
+
+  it('unquotes git-escaped UTF-8 paths', () => {
+    const quotedPath = '"src/Graphify\\346\\251\\237\\350\\203\\275.ts"';
+
+    expect(parseNumstat(`1\t0\t${quotedPath}\n`)).toEqual([
+      { filePath: 'src/Graphify機能.ts', linesAdded: 1, linesDeleted: 0 },
+    ]);
+  });
 });
 
 describe('countExportLinesByFile', () => {
@@ -50,6 +58,21 @@ describe('countExportLinesByFile', () => {
     expect([...countExportLinesByFile(patch).entries()]).toEqual([
       ['src/a.ts', { added: 1, removed: 1 }],
       ['src/b.ts', { added: 1, removed: 1 }],
+    ]);
+  });
+
+  it('unquotes git-escaped patch paths', () => {
+    const patch = [
+      'diff --git "a/src/Graphify\\346\\251\\237\\350\\203\\275.ts" "b/src/Graphify\\346\\251\\237\\350\\203\\275.ts"',
+      '--- "a/src/Graphify\\346\\251\\237\\350\\203\\275.ts"',
+      '+++ "b/src/Graphify\\346\\251\\237\\350\\203\\275.ts"',
+      '@@ -1 +1 @@',
+      '-export const oldValue = 1;',
+      '+export const newValue = 2;',
+    ].join('\n');
+
+    expect([...countExportLinesByFile(patch).entries()]).toEqual([
+      ['src/Graphify機能.ts', { added: 1, removed: 1 }],
     ]);
   });
 });
@@ -119,5 +142,47 @@ describe('FileChangeResolver', () => {
         removedExportLines: 1,
       },
     ]);
+  });
+
+  it('skips unresolved session commits and returns other commit results', async () => {
+    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'src', 'api.ts'), 'export const alpha = 1;\n');
+    runGit(['add', 'src/api.ts'], root);
+    runGit(['commit', '-m', 'feat: add api'], root);
+    const validHash = runGit(['rev-parse', 'HEAD'], root).trim();
+
+    const insertCommit = db.prepare(`
+      INSERT INTO session_commits(
+        session_id, commit_hash, commit_message, author, committed_at,
+        is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id
+      ) VALUES (?, ?, '', '', '', 0, 0, 0, 0, ?)
+    `);
+    insertCommit.run('session-1', 'missing-commit', 1);
+    insertCommit.run('session-1', validHash, 1);
+
+    const warnings: string[] = [];
+    const resolver = new FileChangeResolver({
+      db,
+      gitRepoRoot: root,
+      logger: {
+        info: () => {},
+        warn: (message: string) => {
+          warnings.push(message);
+        },
+        error: () => {},
+        debugSql: () => {},
+      },
+    });
+
+    await expect(resolver.resolve({ scope: 'session', sessionId: 'session-1' })).resolves.toEqual([
+      {
+        filePath: 'src/api.ts',
+        linesAdded: 1,
+        linesDeleted: 0,
+        addedExportLines: 1,
+        removedExportLines: 0,
+      },
+    ]);
+    expect(warnings.some((message) => message.includes('missing-commit'))).toBe(true);
   });
 });

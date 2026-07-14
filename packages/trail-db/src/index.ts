@@ -57,5 +57,6 @@ export {
   parseNumstat,
 } from './FileChangeResolver';
 export type { FileChangeResolverOptions } from './FileChangeResolver';
+export { unquoteGitPath } from './gitPath';
 export { SpecDocIndex, extractC4ScopeFromFrontmatter } from './SpecDocIndex';
 export type { SpecDocIndexOptions } from './SpecDocIndex';
