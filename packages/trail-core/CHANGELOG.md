@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-07-14
+
+### Added
+
+- `CheckArchitecturalAlignment` use case: given the commits that changed a file, it reports code that moved without the design documents describing it being touched. Scoped to the current worktree through the `IFileChangeResolver` / `ISpecDocIndex` ports, with a workspace C4 element provider supplying the elements to check.
+
+### Fixed
+
+- `formatDate` resolves the timezone explicitly instead of relying on `Date`'s local getters, which return UTC on hosts running with `TZ=UTC` (WSL Extension Host).
+
 ## [0.33.2] - 2026-07-13
 
 ### Fixed

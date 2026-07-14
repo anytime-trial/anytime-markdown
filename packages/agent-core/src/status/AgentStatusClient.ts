@@ -6,8 +6,12 @@
 import { agentWorkerJsonPath, readWorkerInfo } from './agentWorkerInfo';
 import type {
   AgentSessionRow,
+  AgentWorkerInfo,
   CommitUpsertInput,
   EditUpsertInput,
+  GitActivityInput,
+  GitActivityListEnvelope,
+  GitActivityRow,
 } from './types';
 
 export interface AgentStatusClientOptions {
@@ -28,9 +32,9 @@ export class AgentStatusClient {
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  /** ワーカー URL を解決する。未起動なら undefined */
-  private resolveUrl(): string | undefined {
-    return readWorkerInfo(this.jsonPath)?.url;
+  /** ワーカー接続情報を解決する。未起動なら undefined */
+  private resolveWorkerInfo(): AgentWorkerInfo | undefined {
+    return readWorkerInfo(this.jsonPath) ?? undefined;
   }
 
   private async request<T>(
@@ -38,12 +42,16 @@ export class AgentStatusClient {
     init: RequestInit | undefined,
     fallback: T,
   ): Promise<T> {
-    const base = this.resolveUrl();
-    if (!base) return fallback;
+    const info = this.resolveWorkerInfo();
+    if (!info) return fallback;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const res = await fetch(`${base}${path}`, { ...init, signal: controller.signal });
+      const headers = new Headers(init?.headers);
+      if (info.token && (init?.method === 'POST' || init?.method === 'DELETE')) {
+        headers.set('Authorization', `Bearer ${info.token}`);
+      }
+      const res = await fetch(`${info.url}${path}`, { ...init, headers, signal: controller.signal });
       if (!res.ok) return fallback;
       return (await res.json()) as T;
     } catch (err) {
@@ -111,5 +119,46 @@ export class AgentStatusClient {
       { ok: false },
     );
     return res.ok === true;
+  }
+
+  /** git 操作を 1 件記録する。ワーカー未起動なら false を返す */
+  async postGitActivity(input: GitActivityInput): Promise<boolean> {
+    const res = await this.request<{ ok?: boolean }>(
+      '/api/agent-status/git-activity',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      },
+      { ok: false },
+    );
+    return res.ok === true;
+  }
+
+  /** 新しい順の git 操作履歴。ワーカー未起動なら空配列 */
+  async getGitActivity(): Promise<readonly GitActivityRow[]> {
+    return (await this.getGitActivityResult()).rows;
+  }
+
+  /**
+   * git 操作履歴を「取得できなかった」と「0 件だった」を区別できる形で返す。
+   *
+   * `request()` はワーカー未起動・接続失敗・タイムアウト・非 2xx をすべて fallback に畳むため、
+   * 呼び出し側からは**障害と空データが同じ顔をする**。事故調査 UI にとってこれは最悪の失敗様式で、
+   * ワーカーが死んでいるだけなのに「破壊的操作は記録されていない」と誤読させる。
+   * 障害を観測できるよう failed を返し、UI 側で明示する。
+   */
+  async getGitActivityResult(): Promise<{
+    readonly rows: readonly GitActivityRow[];
+    readonly failed: boolean;
+  }> {
+    const res = await this.request<GitActivityListEnvelope | null>(
+      '/api/agent-status/git-activity',
+      undefined,
+      null,
+    );
+    if (res === null) return { rows: [], failed: true };
+    // ワーカーが 200 で data 欠落を返しても undefined を下流へ流さない。
+    return { rows: res.data ?? [], failed: false };
   }
 }

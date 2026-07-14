@@ -56,6 +56,29 @@ describe('attachTrailDbFromHandle', () => {
     trailHandle.close();
   });
 
+  it('一時ディレクトリは attach 直後に削除され /tmp に残留しない', () => {
+    const db = BetterSqlite3MemoryDb.openInMemory();
+    const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+    trailHandle.execMany(`
+      CREATE TABLE trail_sessions (id TEXT PRIMARY KEY) STRICT;
+      INSERT INTO trail_sessions VALUES ('s1');
+    `);
+
+    const result = attachTrailDbFromHandle(db, trailHandle);
+
+    // 即時 cleanup 済み: tempDir は既に存在しない (unlink 後も open fd 経由で読める)
+    expect(result.tempDir.startsWith(path.join(os.tmpdir(), 'memory-core-trail-attach-'))).toBe(true);
+    expect(fs.existsSync(result.tempDir)).toBe(false);
+    // 削除後も attach 済み DB への読み取りは壊れない
+    const rows = db.exec('SELECT id FROM trail.trail_sessions');
+    expect(rows[0].values[0][0]).toBe('s1');
+    // cleanup は冪等 (二重呼び出しで例外にならない)
+    expect(() => result.cleanup()).not.toThrow();
+
+    db.close();
+    trailHandle.close();
+  });
+
   it('attach 後に trail.* への書き込みは拒否される', () => {
     const db = BetterSqlite3MemoryDb.openInMemory();
     const trailHandle = BetterSqlite3MemoryDb.openInMemory();

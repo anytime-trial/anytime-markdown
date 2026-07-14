@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.3] - 2026-07-14
+
+### Fixed
+
+- The git timeline view renders commit timestamps in the local timezone. The Extension Host runs with `TZ=UTC` on WSL, so `Date`'s local getters were returning UTC values.
+
 ## [1.13.2] - 2026-07-13
 
 ### Changed

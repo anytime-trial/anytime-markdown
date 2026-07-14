@@ -6,6 +6,29 @@
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-07-14
+
+### 追加
+
+- 設計書追随チェックを追加しました。コードを変更したのに、それを記述している設計書に触れずにコミットされた箇所を検知し、Trail サイドバーの新しい「設計書追随」パネルに違反を表示します。コマンドで Problems パネルへ診断として送ることもできます（1 つの C4 要素が多数の設計書から記述されうるため、診断はファイル × 要素で束ねます）。
+- チェックを `TrailDataServer` 経由の MCP ツール `check_alignment` として公開しました。エージェントから直接問い合わせできます。
+- 同梱スキル `anytime-dev-health` にセットアップ監査モード（`references/setup-audit.md`）を追加しました。フックの配線・設定・同梱スキルの完全性など Claude Code 環境を診断します。
+
+### 修正
+
+- Trail 各ビューの日時をローカルタイムゾーンで表示するようにしました。WSL の Extension Host は `TZ=UTC` で動くため、`Date` のローカル getter が UTC 値を返していました。
+- 同梱スキルの更新がユーザーへ届くようにしました。配置を `skills/manifest.json` の版数（記録先 `.claude/skills/.anytime-trail-skills.json`）でゲートし、`SKILL.md` を変更しても既存ワークスペースで preserve され続ける問題を解消しました。`anytime-reverse-codegraph` も他の同梱スキルと同じ配置経路に統一しました。
+
+### 削除
+
+- `vscode-common` から `installBundledSkills` を削除しました。`anytime-reverse-codegraph` の `SKILL.md` だけを配置し、差分があれば preserve し続ける旧経路（本リリースで直した恒久 stale の原因）だったためです。同スキルは他と同じ版数ゲート経路へ統一しました。
+
+### Trail Core (trail-core / trail-db / trail-server / mcp-trail)
+
+- 現在の作業ツリーにスコープした `CheckArchitecturalAlignment` ユースケースを追加し、ワークスペース C4 要素プロバイダと `SpecDocIndex` / `FileChangeResolver` による実データ配線を行いました。
+- コミットのパスを git のクォート表記から復号してから比較するようにしました。非 ASCII パスが永久に不一致になる問題を解消します。
+- `AlignmentApiHandler` を追加し、`TrailDataServer` 経由でチェックを提供します。
+
 ## [0.33.2] - 2026-07-13
 
 ### Trail Core (trail-core / trail-db)

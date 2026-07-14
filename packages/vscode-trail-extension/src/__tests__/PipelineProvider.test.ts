@@ -24,6 +24,20 @@ import {
   WAVE4_DERIVED_IDS,
 } from '../providers/PipelineProvider';
 
+// バックアップ mtime はローカル TZ で表示する。WSL の system TZ は UTC のため、
+// 期待値を固定するにはテスト側で TZ を明示する（未指定だと Asia/Tokyo へフォールバック）。
+const ORIGINAL_TZ = process.env.TZ;
+beforeAll(() => {
+  process.env.TZ = 'Asia/Tokyo';
+});
+afterAll(() => {
+  if (ORIGINAL_TZ === undefined) {
+    delete process.env.TZ;
+  } else {
+    process.env.TZ = ORIGINAL_TZ;
+  }
+});
+
 /** Wave グループ (親) を label で取得する。 */
 async function getGroup(provider: PipelineProvider, label: string): Promise<PipelineItem | undefined> {
   const groups = await provider.getChildren();
@@ -250,8 +264,7 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
     const wave2 = await getGroupChildren(provider, WAVE2_GROUP_LABEL);
 
     expect(wave2[0].label).toBe('trail.db backup');
-    expect(wave2[0].description).toContain('12.3 MB');
-    expect(wave2[0].description).toContain(fakeMtime.toLocaleString());
+    expect(wave2[0].description).toBe('12.3 MB · 2026/5/16 19:23');
   });
 
   it('表示順: Wave 1 → Wave 2[trail.db backup + 8 phases] → Wave 3 → Wave 4', async () => {
@@ -305,8 +318,7 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
 
     const memBackup = wave3.find((c) => c.label === 'memory backup');
     expect(memBackup).toBeDefined();
-    expect(memBackup?.description).toContain('0.5 MB');
-    expect(memBackup?.description).toContain(fakeMtime.toLocaleString());
+    expect(memBackup?.description).toBe('0.5 MB · 2026/5/17 12:00');
   });
 
   it('Wave 3 内の順: memory backup → memory pipelines', async () => {

@@ -1,0 +1,31 @@
+set -eu
+
+# ${1:-} と書くこと。set -u 下で未定義の $1 を展開すると「単語展開」段階でシェルが即死し、
+# || true では捕捉できない（fail-open が破れ、記録の失敗が git 操作そのものを失敗させる）。
+STATE="${1:-}"
+
+# スクリプトの基点に --show-toplevel を使ってはいけない。`git worktree add` は ref を動かした
+# **後に**ファイルをチェックアウトするため、本フックが走る時点で新しい worktree は空である。
+# --show-toplevel はその空の worktree を指すのでスクリプトを必ず外し、記録が失われたうえ
+# Cannot find module が stderr に漏れる（実測）。common dir の親＝メインの作業ツリーは
+# どの worktree から起動されても常にスクリプトを持っている。
+# --path-format は git 2.31+。それ未満では rev-parse が失敗し、下のガードで黙って no-op になる
+# （記録は失われるが git 操作は壊れない＝既存の fail-open 方針どおり）。
+SCRIPT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/scripts/git-activity-report.mjs"
+[ -f "$SCRIPT" ] || exit 0
+
+# prepared 段階が必要なのは「削除される ref の SHA を、消える前に退避する」場合だけである。
+# それ以外（commit / reset / merge 等）で node を起動すると、1 操作あたり node 起動 1 回分
+# （実測 ~50ms）を丸ごと無駄にする。削除行（new が全ゼロ）を含むときだけ node を起動する。
+if [ "$STATE" = "prepared" ]; then
+  INPUT="$(cat)"
+  case "$INPUT" in
+    *" 0000000000000000000000000000000000000000 refs/heads/"*)
+      printf '%s\n' "$INPUT" | node "$SCRIPT" reference-transaction prepared || true
+      ;;
+    *) : ;;
+  esac
+  exit 0
+fi
+
+node "$SCRIPT" reference-transaction "$STATE" || true

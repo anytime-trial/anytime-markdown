@@ -120,9 +120,49 @@ export class CodeLens {
   ) {}
 }
 
+export enum DiagnosticSeverity {
+  Error = 0,
+  Warning = 1,
+  Information = 2,
+  Hint = 3,
+}
+
+export class Diagnostic {
+  source?: string;
+  code?: string;
+
+  constructor(
+    public readonly range: Range,
+    public readonly message: string,
+    public readonly severity: DiagnosticSeverity = DiagnosticSeverity.Error,
+  ) {}
+}
+
+export interface FakeDiagnosticCollection {
+  set: jest.Mock;
+  clear: jest.Mock;
+  delete: jest.Mock;
+  dispose: jest.Mock;
+  entries: () => [string, Diagnostic[]][];
+}
+
+export function createFakeDiagnosticCollection(): FakeDiagnosticCollection {
+  const store = new Map<string, Diagnostic[]>();
+
+  return {
+    set: jest.fn((uri: { fsPath: string }, diagnostics: Diagnostic[]) => {
+      store.set(uri.fsPath, diagnostics);
+    }),
+    clear: jest.fn(() => store.clear()),
+    delete: jest.fn((uri: { fsPath: string }) => store.delete(uri.fsPath)),
+    dispose: jest.fn(() => store.clear()),
+    entries: () => [...store.entries()],
+  };
+}
+
 export const languages = {
   registerCodeLensProvider: jest.fn(),
-  createDiagnosticCollection: jest.fn(),
+  createDiagnosticCollection: jest.fn(() => createFakeDiagnosticCollection()),
 };
 
 export const RelativePattern = class {

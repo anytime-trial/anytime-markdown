@@ -60,6 +60,43 @@ describe('formatLocalDateTime', () => {
   });
 });
 
+describe('time zone resolution', () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
+  });
+
+  // formatter をモジュールロード時に固定すると、TZ を差し替えるテストが黙って固着する。
+  it('resolves the time zone per call, not once at module load', () => {
+    const iso = '2026-04-10T15:30:45.000Z';
+
+    process.env.TZ = 'Asia/Tokyo';
+    const tokyo = formatLocalDateTime(iso);
+
+    process.env.TZ = 'America/New_York';
+    const newYork = formatLocalDateTime(iso);
+
+    expect(tokyo).toContain('00:30:45');
+    expect(newYork).toContain('11:30:45');
+    expect(tokyo).not.toBe(newYork);
+  });
+
+  it('applies the switched time zone to date keys as well', () => {
+    const iso = '2026-04-10T15:30:45.000Z';
+
+    process.env.TZ = 'Asia/Tokyo';
+    expect(toLocalDateKey(iso)).toBe('2026-04-11');
+
+    process.env.TZ = 'America/New_York';
+    expect(toLocalDateKey(iso)).toBe('2026-04-10');
+  });
+});
+
 describe('toLocalDateKey', () => {
   it('returns local date in YYYY-MM-DD format', () => {
     const iso = '2026-04-10T15:00:00.000Z';

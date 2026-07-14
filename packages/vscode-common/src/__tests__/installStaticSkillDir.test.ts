@@ -357,3 +357,242 @@ describe('installStaticSkillDir', () => {
     }
   });
 });
+
+/**
+ * 版数ゲート。
+ *
+ * リグレッション: 版数が無かった頃、配布済みコピーの内容が同梱と異なると常に preserve され、
+ * SKILL.md の変更がユーザーへ二度と届かなかった（anytime-cross-review が旧 references パスを
+ * 指したまま恒久 stale 化し、参照切れを起こした）。同梱版数が記録版数を上回るときだけ
+ * preserve を破って上書きする。
+ */
+describe('installStaticSkillDir: 版数ゲート', () => {
+  const MARKER = '.anytime-test-skills.json';
+
+  const readMarker = (claudeDir: string): Record<string, number> => {
+    const p = path.join(claudeDir, 'skills', MARKER);
+    return fs.existsSync(p) ? (JSON.parse(fs.readFileSync(p, 'utf-8')) as Record<string, number>) : {};
+  };
+
+  const writeMarker = (claudeDir: string, manifest: Record<string, number>): void => {
+    fs.writeFileSync(path.join(claudeDir, 'skills', MARKER), JSON.stringify(manifest));
+  };
+
+  const skillMd = (claudeDir: string): string =>
+    fs.readFileSync(path.join(claudeDir, 'skills', SKILL_NAME, 'SKILL.md'), 'utf-8');
+
+  it('同梱版数が記録版数より大きければ、差分ありでも上書きする', () => {
+    const env = setupEnv({ existingFiles: { 'SKILL.md': '# stale\n' } });
+    try {
+      writeMarker(env.claudeDir, { [SKILL_NAME]: 1 });
+
+      const result = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        version: 2,
+        markerFile: MARKER,
+      });
+
+      expect(result.preserved).toBe(0);
+      expect(skillMd(env.claudeDir)).toBe(SKILL_MD);
+      expect(readMarker(env.claudeDir)[SKILL_NAME]).toBe(2);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('同梱版数が記録版数と同じなら、差分は preserve したままにする（ローカル編集を守る）', () => {
+    const env = setupEnv({ existingFiles: { 'SKILL.md': '# locally edited\n' } });
+    try {
+      writeMarker(env.claudeDir, { [SKILL_NAME]: 2 });
+
+      const result = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        version: 2,
+        markerFile: MARKER,
+      });
+
+      expect(result.preserved).toBe(1);
+      expect(skillMd(env.claudeDir)).toBe('# locally edited\n');
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('記録版数が同梱版数より新しい場合はダウングレードしない', () => {
+    const env = setupEnv({ existingFiles: { 'SKILL.md': '# newer\n' } });
+    try {
+      writeMarker(env.claudeDir, { [SKILL_NAME]: 5 });
+
+      const result = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        version: 3,
+        markerFile: MARKER,
+      });
+
+      expect(result.preserved).toBe(1);
+      expect(skillMd(env.claudeDir)).toBe('# newer\n');
+      expect(readMarker(env.claudeDir)[SKILL_NAME]).toBe(5);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('marker 未記録（初回配布）なら上書きし、版数を記録する', () => {
+    const env = setupEnv({ existingFiles: { 'SKILL.md': '# stale from older extension\n' } });
+    try {
+      const result = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        version: 1,
+        markerFile: MARKER,
+      });
+
+      expect(result.preserved).toBe(0);
+      expect(skillMd(env.claudeDir)).toBe(SKILL_MD);
+      expect(readMarker(env.claudeDir)[SKILL_NAME]).toBe(1);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('marker は他スキルの記録を保持したままマージ更新する', () => {
+    const env = setupEnv();
+    try {
+      writeMarker(env.claudeDir, { 'other-skill': 7 });
+
+      installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        version: 3,
+        markerFile: MARKER,
+      });
+
+      const marker = readMarker(env.claudeDir);
+      expect(marker['other-skill']).toBe(7);
+      expect(marker[SKILL_NAME]).toBe(3);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('version 未指定なら従来どおり preserve する（後方互換）', () => {
+    const env = setupEnv({ existingFiles: { 'SKILL.md': '# locally edited\n' } });
+    try {
+      const result = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+      });
+
+      expect(result.preserved).toBe(1);
+      expect(skillMd(env.claudeDir)).toBe('# locally edited\n');
+      expect(fs.existsSync(path.join(env.claudeDir, 'skills', MARKER))).toBe(false);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('書き込みが全滅したら版数を記録しない（次回 activate で再配布できる）', () => {
+    const env = setupEnv();
+    try {
+      const targetDir = path.join(env.claudeDir, 'skills', SKILL_NAME);
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.chmodSync(targetDir, 0o555); // 書き込み不可にして全ファイルの install を失敗させる
+      try {
+        const result = installStaticSkillDir({
+          claudeDir: env.claudeDir,
+          extensionPath: env.extensionPath,
+          skillName: SKILL_NAME,
+          version: 2,
+          markerFile: MARKER,
+          logger: { info: () => undefined, warn: () => undefined, error: () => undefined },
+        });
+
+        expect(result.installed).toBe(0);
+        // 版数を刻むと次回は recorded >= version で「配布済み」と誤判定し、二度と再配布しない。
+        // 本 PR が直した「恒久 stale」が書き込み失敗経路で再発する。
+        expect(readMarker(env.claudeDir)[SKILL_NAME]).toBeUndefined();
+      } finally {
+        fs.chmodSync(targetDir, 0o755);
+      }
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('一部のファイルだけ書き込みに失敗したら版数を記録しない（失敗ファイルが恒久 stale 化しない）', () => {
+    const env = setupEnv({ existingFiles: { 'templates/a.md': '# stale a\n' } });
+    try {
+      // templates/ だけ書き込み不可にする。SKILL.md は書けるが templates/a.md は失敗する。
+      const templatesDir = path.join(env.claudeDir, 'skills', SKILL_NAME, 'templates');
+      fs.chmodSync(templatesDir, 0o555);
+      try {
+        const first = installStaticSkillDir({
+          claudeDir: env.claudeDir,
+          extensionPath: env.extensionPath,
+          skillName: SKILL_NAME,
+          version: 2,
+          markerFile: MARKER,
+          logger: { info: () => undefined, warn: () => undefined, error: () => undefined },
+        });
+
+        expect(first.installed).toBeGreaterThan(0); // SKILL.md は書けている
+        expect(first.failed).toBeGreaterThan(0); // templates/a.md は失敗している
+        // 記録すると次回 recorded >= version で upgrade 判定が立たず、
+        // 失敗した a.md が「ローカル編集」として preserve され永久に stale になる。
+        expect(readMarker(env.claudeDir)[SKILL_NAME]).toBeUndefined();
+      } finally {
+        fs.chmodSync(templatesDir, 0o755);
+      }
+
+      // 権限が戻れば次回 activate で再配布され、失敗ファイルも正本へ収束する。
+      const second = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        version: 2,
+        markerFile: MARKER,
+      });
+
+      expect(second.failed).toBe(0);
+      expect(second.preserved).toBe(0);
+      expect(
+        fs.readFileSync(path.join(env.claudeDir, 'skills', SKILL_NAME, 'templates', 'a.md'), 'utf-8'),
+      ).toBe(TEMPLATE_A);
+      expect(readMarker(env.claudeDir)[SKILL_NAME]).toBe(2);
+    } finally {
+      env.cleanup();
+    }
+  });
+
+  it('marker が壊れた JSON でも例外にせず、未記録として扱い上書きする', () => {
+    const env = setupEnv({ existingFiles: { 'SKILL.md': '# stale\n' } });
+    try {
+      fs.writeFileSync(path.join(env.claudeDir, 'skills', MARKER), '{ broken');
+
+      const warns: string[] = [];
+      const result = installStaticSkillDir({
+        claudeDir: env.claudeDir,
+        extensionPath: env.extensionPath,
+        skillName: SKILL_NAME,
+        version: 1,
+        markerFile: MARKER,
+        logger: { info: () => undefined, warn: (m) => warns.push(m), error: () => undefined },
+      });
+
+      expect(result.preserved).toBe(0);
+      expect(skillMd(env.claudeDir)).toBe(SKILL_MD);
+      expect(warns.some((m) => m.includes(MARKER))).toBe(true);
+    } finally {
+      env.cleanup();
+    }
+  });
+});

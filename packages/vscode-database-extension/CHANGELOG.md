@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-14
+
+### Fixed
+
+- Timestamps shown by the extension are rendered in the local timezone. The Extension Host runs with `TZ=UTC` on WSL, so `Date`'s local getters were returning UTC values.
+
 ## [0.3.1] - 2026-06-13
 
 ### Changed

@@ -9,6 +9,7 @@
   "command.analyzeAll.status": "AnalyzeAll の状態を表示",
   "command.analyzeCurrentCode": "コード解析",
   "command.analyzeCurrentCodePickTsconfig": "コード解析 (tsconfig を選択)",
+  "command.checkAlignment": "設計書追随チェック (作業ツリー)",
   "command.analyzeAll": "全データ解析",
   "command.openTrailViewer": "Trail ビューアを開く",
   "view.dashboard": "ダッシュボード",
@@ -17,5 +18,7 @@
   "command.runWithTrace": "トレース付きで実行",
   "command.reinstallSkills": "スキル再インストール",
   "command.registerMcpServer": "MCP サーバーを登録 (.mcp.json を更新)",
-  "command.killExtensionHost": "Extension Host を Kill"
+  "command.killExtensionHost": "Extension Host を Kill",
+  "view.alignment": "設計書追随",
+  "viewsWelcome.alignment": "[$(refresh) 設計書追随チェックを実行 (作業ツリー)](command:anytime-trail.checkAlignment)"
 }

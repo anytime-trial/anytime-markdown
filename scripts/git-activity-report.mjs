@@ -1,0 +1,451 @@
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
+
+//
+// git の reference-transaction / post-checkout フックから起動され、ref 操作を
+// agent-status ワーカーへ記録する。ワーカー停止時は spool へ退避する。
+//
+// 設計の要点:
+// - op_type は GIT_REFLOG_ACTION では判定できない。reflog subject を読む。
+// - 帰属は環境変数の観測であって推測ではない。
+// - branch 削除は old/new とも全ゼロ SHA で渡るため、失われた SHA は prepared 段階で退避する。
+// - 常に exit 0（Fail-open）。記録の失敗が git 操作を止めてはならない。
+
+const OP_PREFIXES = [
+  ['commit', 'commit'],
+  ['reset', 'reset'],
+  ['merge', 'merge'],
+  ['rebase', 'rebase'],
+  ['cherry-pick', 'cherry-pick'],
+  ['revert', 'revert'],
+  ['branch', 'branch-create'],
+  ['checkout', 'checkout'],
+  // pull は refs/heads を早送りするため到達する。素の fetch（refs/remotes のみ）と
+  // stash（refs/stash）は refs/heads を動かさず、本フックの対象外。
+  ['pull', 'fetch'],
+  ['push', 'push'],
+  ['clone', 'other'],
+];
+
+/**
+ * reflog subject から操作種別を判定する。
+ * @param {string} subject `git reflog -1 --format=%gs` の値
+ * @param {{deleted?: boolean}} [opts] ref 削除なら deleted: true
+ */
+export function classifyOp(subject, opts = {}) {
+  if (opts.deleted) return 'branch-delete';
+  const s = String(subject ?? '').trim();
+  for (const [prefix, op] of OP_PREFIXES) {
+    if (s === prefix || s.startsWith(`${prefix}:`) || s.startsWith(`${prefix} `) || s.startsWith(`${prefix} (`)) {
+      return op;
+    }
+  }
+  return 'other';
+}
+
+/**
+ * 実行者を環境変数から観測する。推測はしない。
+ * @param {Record<string, string | undefined>} env
+ */
+export function resolveAttribution(env) {
+  const sessionId = env.CLAUDE_CODE_SESSION_ID?.trim();
+  if (sessionId) {
+    return { attribution: 'claude', sessionId, agentKind: 'claude-code' };
+  }
+  const agent = env.AI_AGENT?.trim();
+  if (agent) {
+    return { attribution: 'agent', sessionId: null, agentKind: agent };
+  }
+  return { attribution: 'human', sessionId: null, agentKind: null };
+}
+
+/**
+ * 破壊的（作業を失い得る）操作か。
+ *
+ * ブランチ削除は、削除された SHA が他の ref から到達可能なら**破壊的ではない**。到達可能とは
+ * 「どこかにマージ済み」であり、コミットは 1 つも失われていない（`git branch -d` の安全削除）。
+ * ここで警告を出すと、通常のマージ運用のたびに鳴り、警告が無視されるようになる。狼少年化した
+ * 警告は、本当に危険な `git branch -D`（未マージの強制削除）を見逃させる。
+ *
+ * 判定できなかった場合（`reachable` 未指定）は安全側＝破壊的に倒す。
+ *
+ * @param {string} opType
+ * @param {{rewinds?: boolean, forced?: boolean, reachable?: boolean}} ctx
+ *   rewinds: ref が祖先方向へ戻る / forced: force push / reachable: 削除された SHA が他 ref から到達可能
+ */
+export function isDestructive(opType, ctx = {}) {
+  if (opType === 'branch-delete') return ctx.reachable !== true;
+  if (opType === 'reset') return ctx.rewinds === true;
+  if (opType === 'push') return ctx.forced === true;
+  return false;
+}
+
+const ZERO_SHA = '0'.repeat(40);
+
+/**
+ * pre-push フックの stdin 1 行（`<local_ref> <local_sha> <remote_ref> <remote_sha>`）を解析する。
+ *
+ * push は remote の ref を動かすため、ローカルの refs/heads/* を見る reference-transaction では
+ * 原理的に捕捉できない（実測でイベントゼロ）。force push はリモートのコミットを消す最も破壊的な
+ * 操作なので、pre-push で別途捕捉する。
+ *
+ * git は `--force` の有無を直接教えないため、**非早送り（リモートの SHA がローカルの祖先でない）**
+ * を force とみなす。これは「リモートにあるコミットが失われる」という実害と一致する定義である。
+ *
+ * @param {string} line stdin の 1 行
+ * @param {(remoteSha: string, localSha: string) => boolean} isAncestorFn 祖先判定（テストで差し替える）
+ */
+export function parsePrePushLine(line, isAncestorFn) {
+  const [, localSha, remoteRef, remoteSha] = line.trim().split(/\s+/);
+
+  const deletingRemote = localSha === ZERO_SHA;
+  const creatingRemote = remoteSha === ZERO_SHA;
+
+  let forced;
+  if (deletingRemote) {
+    forced = true; // リモートブランチの削除は常に破壊的
+  } else if (creatingRemote) {
+    forced = false; // 新規ブランチの push は何も失わない
+  } else {
+    forced = !isAncestorFn(remoteSha, localSha);
+  }
+
+  return {
+    refName: remoteRef,
+    beforeSha: creatingRemote ? null : remoteSha,
+    afterSha: deletingRemote ? null : localSha,
+    forced,
+  };
+}
+
+/**
+ * checkout の記録に使う ref 名。
+ *
+ * `git rev-parse --abbrev-ref HEAD` は detached HEAD のとき文字列 `HEAD` を返す。そのまま
+ * `refs/heads/` を前置すると、実在しない ref 名（`refs/heads/HEAD`）がテーブルに入り、
+ * 後段の集計・表示で誤解を招く。
+ *
+ * @param {string} abbrevRef `git rev-parse --abbrev-ref HEAD` の値
+ */
+export function checkoutRefName(abbrevRef) {
+  return abbrevRef === 'HEAD' ? 'HEAD (detached)' : `refs/heads/${abbrevRef}`;
+}
+
+function git(args) {
+  return execFileSync('git', args, { encoding: 'utf8' }).trim();
+}
+
+/** git dir は同一プロセス内で変わらないためメモ化する（フックは 1 操作ごとに起動されるので十分） */
+let cachedGitDir = null;
+function gitDir() {
+  cachedGitDir ??= git(['rev-parse', '--absolute-git-dir']);
+  return cachedGitDir;
+}
+
+/**
+ * spool を置くメインリポジトリの root。
+ *
+ * linked worktree 内では `--show-toplevel` が worktree のパスを返すため、そこへ spool を書くと
+ * ワーカー（メインの workspaceRoot で起動する）が永久に取り込まない。本プロジェクトは worktree 運用が
+ * 主流であり、危険な操作こそ worktree 側で起きるため、spool は常にメイン側へ集約する。
+ * 操作がどの worktree で起きたかは row.workspacePath に残す。
+ */
+let cachedMainRoot = null;
+function mainRepoRoot() {
+  cachedMainRoot ??= dirname(git(['rev-parse', '--path-format=absolute', '--git-common-dir']));
+  return cachedMainRoot;
+}
+
+/**
+ * prepared → committed 間で削除予定 ref の SHA を渡す退避ファイル。
+ *
+ * PID でキーを分けてはいけない: prepared と committed は git から**別プロセスとして**起動されるため
+ * process.ppid が一致せず、退避を読み出せない（実測で before_sha が失われた）。
+ * git は ref トランザクション中 ref ロックを保持するため、リポジトリ単位の単一ファイルで足りる。
+ */
+function pendingPath(gitDir) {
+  return join(gitDir, 'anytime-git-activity-pending.json');
+}
+
+/**
+ * 直前の spool 行が同一 ref の branch-delete で、かつ windowMs 以内なら重複とみなす。
+ *
+ * git はブランチ削除時に ref トランザクションを 2 回発行する（loose ref と packed-refs）。
+ * 1 回目は prepared で SHA を解決できるが、2 回目は ref が既に無く SHA を持たない。
+ * 削除に限定して抑止する（commit 等で抑止すると、5 秒以内の連続コミットを取りこぼす）。
+ */
+export function isDuplicateDelete(row, workspacePath, windowMs = 5000) {
+  if (row.opType !== 'branch-delete') return false;
+  const p = spoolFilePath(workspacePath);
+  if (!existsSync(p)) return false;
+
+  const lines = readFileSync(p, 'utf8').trim().split('\n');
+  const last = lines.at(-1);
+  if (!last) return false;
+
+  try {
+    const prev = JSON.parse(last);
+    if (prev.opType !== 'branch-delete' || prev.refName !== row.refName) return false;
+    const deltaMs = Date.parse(row.occurredAt) - Date.parse(prev.occurredAt);
+    return Number.isFinite(deltaMs) && deltaMs >= 0 && deltaMs <= windowMs;
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[git-activity] spool 末尾行の解析に失敗した (${reason})\n`);
+    return false;
+  }
+}
+
+function spoolFilePath(workspacePath) {
+  return join(workspacePath, '.anytime', 'agent', 'git-activity-spool.jsonl');
+}
+
+/**
+ * reference-transaction フックの本体。
+ * @param {'prepared'|'committed'|'aborted'} state
+ * @param {string} stdin `<old> <new> <ref>` の行
+ */
+function handleReferenceTransaction(state, stdin) {
+  const lines = stdin
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '')
+    .map((l) => {
+      const [old, next, ...rest] = l.split(/\s+/);
+      return { old, next, ref: rest.join(' ') };
+    })
+    .filter((r) => r.ref.startsWith('refs/heads/'));
+
+  // 対象 ref が無ければ git を 1 回も呼ばずに帰る。reference-transaction は ORIG_HEAD・HEAD・
+  // タグ・remote-tracking ref の更新でも発火するため、この早期リターンがフックの実行コストを
+  // 大きく下げる（fetch や rebase の多 ref トランザクションで効く）。
+  if (lines.length === 0) return;
+
+  const deletions = lines.filter((r) => r.next === ZERO_SHA);
+
+  if (state === 'aborted') {
+    if (deletions.length > 0) {
+      rmSync(pendingPath(gitDir()), { force: true });
+    }
+    return;
+  }
+
+  if (state === 'prepared') {
+    // 削除が無ければ退避するものが無い。git 呼び出しごと省く。
+    if (deletions.length === 0) return;
+
+    const resolved = {};
+    for (const r of deletions) {
+      try {
+        resolved[r.ref] = git(['rev-parse', '--verify', r.ref]);
+      } catch {
+        // 2 回目のトランザクション（packed-refs 側）では ref が既に消えている。これは正常系であり、
+        // 1 回目の退避から SHA を復元できる。ユーザーの git 出力にスタックトレースを混ぜない。
+        process.stderr.write(`[git-activity] ${r.ref} は解決時点で既に削除済み（1 回目の退避を使う）\n`);
+      }
+    }
+    if (Object.keys(resolved).length > 0) {
+      writeFileSync(pendingPath(gitDir()), JSON.stringify(resolved));
+    }
+    return;
+  }
+
+  if (state !== 'committed') return;
+
+  let deleted = {};
+  if (deletions.length > 0) {
+    const pending = pendingPath(gitDir());
+    if (existsSync(pending)) {
+      try {
+        deleted = JSON.parse(readFileSync(pending, 'utf8'));
+      } catch (err) {
+        const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+        process.stderr.write(`[git-activity] pending ファイル ${pending} を読めなかった: ${reason}\n`);
+      } finally {
+        rmSync(pending, { force: true });
+      }
+    }
+  }
+
+  const workspacePath = git(['rev-parse', '--show-toplevel']);
+  const who = resolveAttribution(process.env);
+  const occurredAt = new Date().toISOString();
+
+  for (const r of lines) {
+    const isDeleted = r.next === ZERO_SHA;
+    const beforeSha = isDeleted ? (deleted[r.ref] ?? null) : nullIfZero(r.old);
+    const afterSha = isDeleted ? null : nullIfZero(r.next);
+
+    let subject = '';
+    if (!isDeleted) {
+      try {
+        subject = git(['reflog', '-1', '--format=%gs', r.ref]);
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`[git-activity] reflog subject を読めなかった ref=${r.ref}: ${reason}\n`);
+      }
+    }
+
+    const opType = classifyOp(subject, { deleted: isDeleted });
+    const rewinds =
+      opType === 'reset' && beforeSha !== null && afterSha !== null
+        ? isAncestor(afterSha, beforeSha)
+        : false;
+
+    // 削除されたコミットが他の ref（ブランチ・タグ）から到達できるなら、どこかにマージ済みで
+    // 何も失われていない（`git branch -d` の安全削除）。到達不能なら失われる（`git branch -D`）。
+    const reachable =
+      isDeleted && beforeSha !== null ? isReachableFromAnyRef(beforeSha, r.ref) : false;
+
+    spool(
+      {
+        workspacePath,
+        opType,
+        destructive: isDestructive(opType, { rewinds, reachable }),
+        refName: r.ref,
+        beforeSha,
+        afterSha,
+        attribution: who.attribution,
+        agentKind: who.agentKind,
+        sessionId: who.sessionId,
+        occurredAt,
+      },
+    );
+  }
+}
+
+/**
+ * 削除される SHA が、**削除対象以外の** ref から到達可能か。
+ *
+ * 到達可能＝どこかにマージ済み＝コミットは 1 つも失われない（`git branch -d` の安全削除）。
+ *
+ * `excludeRef` の除外が必須である。git はブランチ削除で ref トランザクションを 2 回発行し、
+ * 1 回目の `committed` 時点では**削除対象の ref がまだ見えている**。除外しないと必ず
+ * 「自分自身から到達可能」となり、未マージの強制削除（`branch -D`）まで安全と誤判定する（実測）。
+ *
+ * @param {string} sha 削除されるコミット
+ * @param {string} excludeRef 削除対象の ref 名（例: refs/heads/feature/x）
+ */
+function isReachableFromAnyRef(sha, excludeRef) {
+  const result = spawnSync(
+    'git',
+    ['for-each-ref', '--contains', sha, '--format=%(refname)'],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    // 判定不能。安全側（到達不能＝破壊的）に倒す。
+    process.stderr.write(`[git-activity] ${sha.slice(0, 7)} の到達可能性を判定できなかった\n`);
+    return false;
+  }
+  return result.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .some((ref) => ref !== '' && ref !== excludeRef);
+}
+
+function nullIfZero(sha) {
+  return !sha || sha === ZERO_SHA ? null : sha;
+}
+
+function isAncestor(a, b) {
+  const result = spawnSync('git', ['merge-base', '--is-ancestor', a, b], { stdio: 'ignore' });
+  if (result.error) {
+    const reason = result.error.stack ?? result.error.message;
+    process.stderr.write(`[git-activity] ancestor 判定に失敗 a=${a} b=${b}: ${reason}\n`);
+  }
+  return result.status === 0;
+}
+
+function spool(row) {
+  const target = mainRepoRoot();
+  if (isDuplicateDelete(row, target)) return;
+  const p = spoolFilePath(target);
+  mkdirSync(dirname(p), { recursive: true });
+  appendFileSync(p, `${JSON.stringify(row)}\n`);
+}
+
+function handlePostCheckout(prevHead, newHead, branchFlag) {
+  if (branchFlag !== '1') return;
+  if (prevHead === newHead) return;
+  const workspacePath = git(['rev-parse', '--show-toplevel']);
+  const who = resolveAttribution(process.env);
+  spool(
+    {
+      workspacePath,
+      opType: 'checkout',
+      destructive: false,
+      refName: checkoutRefName(git(['rev-parse', '--abbrev-ref', 'HEAD'])),
+      beforeSha: nullIfZero(prevHead),
+      afterSha: nullIfZero(newHead),
+      attribution: who.attribution,
+      agentKind: who.agentKind,
+      sessionId: who.sessionId,
+      occurredAt: new Date().toISOString(),
+    },
+  );
+}
+
+/**
+ * pre-push フック本体。stdin に push 対象の ref が 1 行ずつ渡る。
+ *
+ * force push（非早送り）とリモートブランチ削除を破壊的として記録する。CLAUDE.md は Claude からの
+ * push を禁じているが、本フックが捕まえるのは人間・他ツールによる push である（それが目的）。
+ *
+ * SHORTCUT: pre-push は push の成否が確定する前に走るため、`--dry-run`・リモート拒否・保護ブランチ・
+ * ネットワーク障害で「実際には起きなかった破壊」も記録する. ceiling: git は dry-run をフックへ伝えず、
+ * push 完了フックも存在しないため、フック単独では確定できない. upgrade: 誤検知が実害になったら、
+ * push 成功時に更新される remote-tracking ref（`refs/remotes/<remote>/<branch>`）の
+ * reference-transaction で確定させる二段構えにする.
+ */
+function handlePrePush(stdin) {
+  const lines = stdin
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+  if (lines.length === 0) return;
+
+  const workspacePath = git(['rev-parse', '--show-toplevel']);
+  const who = resolveAttribution(process.env);
+  const occurredAt = new Date().toISOString();
+
+  for (const line of lines) {
+    const r = parsePrePushLine(line, isAncestor);
+    spool(
+      {
+        workspacePath,
+        opType: 'push',
+        destructive: isDestructive('push', { forced: r.forced }),
+        refName: r.refName,
+        beforeSha: r.beforeSha,
+        afterSha: r.afterSha,
+        attribution: who.attribution,
+        agentKind: who.agentKind,
+        sessionId: who.sessionId,
+        occurredAt,
+      },
+    );
+  }
+}
+
+function main() {
+  const mode = process.argv[2];
+  try {
+    if (mode === 'reference-transaction') {
+      const state = process.argv[3];
+      const stdin = readFileSync(0, 'utf8');
+      handleReferenceTransaction(state, stdin);
+    } else if (mode === 'post-checkout') {
+      handlePostCheckout(process.argv[3], process.argv[4], process.argv[5]);
+    } else if (mode === 'pre-push') {
+      handlePrePush(readFileSync(0, 'utf8'));
+    }
+  } catch (err) {
+    const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    process.stderr.write(`[git-activity] 記録に失敗した: ${reason}\n`);
+  }
+  process.exit(0);
+}
+
+if (process.argv[1]?.endsWith('git-activity-report.mjs')) {
+  main();
+}

@@ -1,51 +1,60 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import * as vscode from 'vscode';
-
-import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
-import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
+import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
+import { getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/memory-core';
+import { checkArchitecturalAlignment } from '@anytime-markdown/trail-core';
+import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 import {
-	installBundledSkills,
-	installStaticSkillDir,
-} from '@anytime-markdown/vscode-common';
-import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
-import { PipelineProvider } from './providers/PipelineProvider';
-import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
-import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
+	FileChangeResolver,
+	SpecDocIndex,
+	TrailDatabase,
+	WorkspaceC4ElementProvider,
+} from '@anytime-markdown/trail-db';
+import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
 import { findTsconfigCandidates, hasPythonFiles } from '@anytime-markdown/trail-server/analyze-utils';
-import { checkLlmAvailability } from '@anytime-markdown/trail-server/llm';
-import { createFetchGitHubReviewClient } from '@anytime-markdown/trail-server/github';
 import {
-	loadLepConfig,
-	migrateConfigJsonIntoLepJson,
-	ensureLepConfigFile,
 	DEFAULT_LEP_CONFIG,
 	disabledAnalyzerIds,
-	resolveGitHubSource,
+	ensureLepConfigFile,
+	loadLepConfig,
+	migrateConfigJsonIntoLepJson,
 	resolveExcludeRoot,
+	resolveGitHubSource,
 	resolveWorkspaceConfigPath,
 } from '@anytime-markdown/trail-server/config';
-import type { AnalyzeAllPipelineResult, AnalyzeAllRunnerOptions, LepConfig, LepLogLevel } from '@anytime-markdown/trail-server';
-import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
-import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
-import { getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/memory-core';
-import { DaemonClient } from './trail/DaemonClient';
-import { TrailPanel } from './trail/TrailPanel';
-import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
-import { TrailLogger } from './utils/TrailLogger';
-import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
 // AnalyzeAllRunner / MemoryCoreService / TrailDataServer / CodeGraphService は
 // trail-daemon child process が hosting する。
 // extension は各 IPC client (IPC proxy) 経由で操作し、typescript を引かない。
 import {
 	AnalyzeAllRunnerClient,
-	TrailDaemonHost,
-	TrailDaemonHttpClient,
 	AnalyzeCommandClient,
 	type SerializableAnalyzeAllConfig,
+	TrailDaemonHost,
+	TrailDaemonHttpClient,
 } from '@anytime-markdown/trail-server/daemon';
+import { createFetchGitHubReviewClient } from '@anytime-markdown/trail-server/github';
+import { checkLlmAvailability } from '@anytime-markdown/trail-server/llm';
+import {
+	installStaticSkillDir,
+	readBundledSkillManifest,
+} from '@anytime-markdown/vscode-common';
+import * as vscode from 'vscode';
+
+import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
+import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
+import { AlignmentDiagnosticsProvider } from './providers/AlignmentDiagnosticsProvider';
+import { AlignmentTreeProvider } from './providers/AlignmentTreeProvider';
+import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
+import { PipelineProvider } from './providers/PipelineProvider';
+import { TraceCodeLensProvider } from './providers/TraceCodeLensProvider';
+import { TraceScriptLensProvider } from './providers/TraceScriptLensProvider';
+import { TRAIL_BUNDLED_SKILLS, TRAIL_SKILL_MARKER } from './skills/bundledSkills';
+import { DaemonClient } from './trail/DaemonClient';
+import { TrailPanel } from './trail/TrailPanel';
+import { DaemonSinkLogger } from './utils/DaemonSinkLogger';
+import { resolveWatchedRepos } from './utils/resolveWatchedRepos';
+import { TrailLogger } from './utils/TrailLogger';
 
 let httpClient: TrailDaemonHttpClient | undefined;
 let analyzeCmdClient: AnalyzeCommandClient | undefined;
@@ -111,6 +120,70 @@ function wireDaemonLogSink(
 // setupServerCallbacks は削除 — openDocLink / openFile は TrailDaemonHttpClient
 // の IPC イベントリスナーとして activate 内で直接 wire する。
 
+const alignmentDbLogger = {
+	info: (msg: string) => TrailLogger.info(`[alignment] ${msg}`),
+	warn: (msg: string) => TrailLogger.warn(`[alignment] ${msg}`),
+	error: (msg: string, err?: unknown) => TrailLogger.error(`[alignment] ${msg}`, err),
+	debugSql: () => {},
+};
+
+/**
+ * 設計書追随チェックを作業ツリー基準で走らせ、違反を Problems パネルへ出す。
+ *
+ * trail.db を開かないのは worktree スコープが git だけで完結するため（取込前・未解析でも動く）。
+ * Fail-open: 失敗しても拡張を止めず、診断をクリアして警告を出すだけにする。
+ */
+async function runCheckAlignmentCommand(
+	diagnostics: AlignmentDiagnosticsProvider,
+	tree: AlignmentTreeProvider,
+	workspaceRoot: string | undefined,
+	docsRepoRootSetting: string,
+): Promise<void> {
+	if (!workspaceRoot) {
+		const message = 'ワークスペースフォルダが開かれていません';
+		tree.showMessage(message);
+		vscode.window.showWarningMessage(`設計書追随チェック: ${message}。`);
+		return;
+	}
+
+	const docsRepoRoot = docsRepoRootSetting.trim();
+	if (!docsRepoRoot) {
+		const message = '設計書リポジトリが未設定です（lep.json の sources.docs.root）';
+		tree.showMessage(message);
+		vscode.window.showWarningMessage(`設計書追随チェック: ${message}。`);
+		return;
+	}
+
+	try {
+		const report = await checkArchitecturalAlignment(
+			{
+				changes: new FileChangeResolver({ gitRepoRoot: workspaceRoot, logger: alignmentDbLogger }),
+				specs: new SpecDocIndex({ docsRepoRoot, gitRepoRoot: workspaceRoot, logger: alignmentDbLogger }),
+				c4Elements: new WorkspaceC4ElementProvider({ workspaceRoot, logger: alignmentDbLogger }).listElements(),
+			},
+			{ scope: 'worktree' },
+		);
+
+		const summary = diagnostics.render(report);
+		tree.update(report);
+		TrailLogger.info(
+			`[alignment] checkedFiles=${summary.checkedFiles} staleSpecs=${summary.staleSpecs} ` +
+				`staleElements=${summary.staleElements} undocumentedElements=${summary.undocumentedElements}`,
+		);
+		vscode.window.showInformationMessage(
+			`設計書追随チェック: 変更 ${summary.checkedFiles} ファイル / 未追随の設計書 ${summary.staleSpecs} 本` +
+				`（${summary.staleElements} 要素）/ 設計書なし ${summary.undocumentedElements} 要素`,
+		);
+	} catch (err) {
+		TrailLogger.error('[alignment] check failed', err);
+		diagnostics.clear();
+		tree.showMessage(`チェックに失敗しました: ${err instanceof Error ? err.message : String(err)}`);
+		vscode.window.showWarningMessage(
+			`設計書追随チェックに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+}
+
 export async function activate(context: vscode.ExtensionContext) {
 	extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
 
@@ -141,97 +214,46 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	// 同梱スキルを <workspace>/.claude/skills/ に展開（初回 activate 時 / 旧 build-code-graph cleanup）
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installBundledSkills({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure: ${String(err)}`);
+	// 同梱スキルを <workspace>/.claude/skills/ に展開する。
+	// 版数ゲート: 同梱 manifest.json の版数が配置済み版数を上回るときだけ、差分があっても上書きする。
+	// これが無いと配置済みコピーは preserve され続け、スキル更新がユーザーへ二度と届かない。
+	const installTrailSkills = (force: boolean): number => {
+		const logger = {
+			info: (m: string) => TrailLogger.info(m),
+			warn: (m: string) => TrailLogger.warn(m),
+			error: (m: string) => TrailLogger.error(m),
+		};
+		const extensionPath = context.extensionUri.fsPath;
+		const manifest = readBundledSkillManifest(extensionPath, logger);
+		if (Object.keys(manifest).length === 0) {
+			TrailLogger.warn(
+				'[install-skills] skills/manifest.json を読めません。版数ゲートなしで配置します（既存コピーは更新されません）',
+			);
 		}
-	}
 
-	// anytime-reverse-spec は静的リファレンス。activate 時に同梱 dir を展開する。
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installStaticSkillDir({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-reverse-spec',
-				oldSkillNames: ['anytime-basic-design'],
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-reverse-spec: ${String(err)}`);
+		let installedFiles = 0;
+		for (const skill of TRAIL_BUNDLED_SKILLS) {
+			try {
+				const result = installStaticSkillDir({
+					claudeDir,
+					extensionPath,
+					skillName: skill.name,
+					oldSkillNames: skill.oldNames ? [...skill.oldNames] : undefined,
+					version: manifest[skill.name],
+					markerFile: TRAIL_SKILL_MARKER,
+					force,
+					logger,
+				});
+				installedFiles += result.installed;
+			} catch (err) {
+				TrailLogger.warn(`[install-skills] ${skill.name} unexpected failure: ${String(err)}`);
+			}
 		}
-	}
+		return installedFiles;
+	};
 
-	// anytime-dev-health は SKILL.md + grounding.cjs の複数ファイル構成。dir 丸ごと展開する。
 	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installStaticSkillDir({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-dev-health',
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-dev-health: ${String(err)}`);
-		}
-	}
-
-	// anytime-token-budget は SKILL.md + grounding.cjs の複数ファイル構成。dir 丸ごと展開する。
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installStaticSkillDir({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-token-budget',
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-token-budget: ${String(err)}`);
-		}
-	}
-
-	// anytime-trail-review はレビュー指摘書式（memory-core ingest パーサとの機械契約。
-	// 旧名 review-finding-format → anytime-review）。
-	// 契約とパーサ実装を同じ trail リリース単位に置くため trail 拡張が配布する。
-	if (hasClaudeDir && fs.existsSync(claudeDir)) {
-		try {
-			installStaticSkillDir({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				skillName: 'anytime-trail-review',
-				oldSkillNames: ['anytime-review', 'review-finding-format'],
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-		} catch (err) {
-			TrailLogger.warn(`[install-skills] unexpected failure for anytime-trail-review: ${String(err)}`);
-		}
+		installTrailSkills(false);
 	}
 
 	const reinstallSkills = vscode.commands.registerCommand(
@@ -241,18 +263,11 @@ export async function activate(context: vscode.ExtensionContext) {
 				vscode.window.showWarningMessage('ワークスペースが開かれていないためスキルの再インストールができません。');
 				return;
 			}
-			const result = installBundledSkills({
-				claudeDir,
-				extensionPath: context.extensionUri.fsPath,
-				force: true,
-				logger: {
-					info: (m) => TrailLogger.info(m),
-					warn: (m) => TrailLogger.warn(m),
-					error: (m) => TrailLogger.error(m),
-				},
-			});
-			if (result.installed) {
-				vscode.window.showInformationMessage('Anytime Trail のスキルを再インストールしました。');
+			const installedFiles = installTrailSkills(true);
+			if (installedFiles > 0) {
+				vscode.window.showInformationMessage(
+					`Anytime Trail のスキルを再インストールしました（${String(installedFiles)} ファイル）。`,
+				);
 			} else {
 				vscode.window.showWarningMessage('スキルの再インストールに失敗しました。Output パネルでログを確認してください。');
 			}
@@ -533,6 +548,27 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCode', () => runAnalyzeCurrentCommand({ pickTsconfig: false })),
 		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCodePickTsconfig', () => runAnalyzeCurrentCommand({ pickTsconfig: true })),
+	);
+
+	// 設計書追随チェック (作業ツリー基準)。git だけで完結するため trail.db の取込状態に依存しない。
+	// 結果は Problems パネル (診断) と サイドバーの「設計書追随」ツリーの両方へ出す。
+	const alignmentDiagnostics = new AlignmentDiagnosticsProvider(wsRootForDb ?? '');
+	const alignmentTree = new AlignmentTreeProvider(wsRootForDb ?? '', lepConfig.sources.docs.root.trim());
+	const alignmentTreeView = vscode.window.createTreeView('anytimeTrail.alignment', {
+		treeDataProvider: alignmentTree,
+	});
+	context.subscriptions.push(
+		alignmentDiagnostics,
+		alignmentTree,
+		alignmentTreeView,
+		vscode.commands.registerCommand('anytime-trail.checkAlignment', async () => {
+			await runCheckAlignmentCommand(
+				alignmentDiagnostics,
+				alignmentTree,
+				wsRootForDb,
+				lepConfig.sources.docs.root,
+			);
+		}),
 	);
 
 	const trailPort = vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841);

@@ -1,82 +1,86 @@
-import { SqlJsCompatDatabase } from './internal/SqlJsCompatDatabase';
-import { SqlJsCompatStatement } from './internal/SqlJsCompatStatement';
-import { loadBetterSqlite3 } from './internal/loadBetterSqlite3';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+
+import type { Database as BetterSqlite3Database } from 'better-sqlite3';
+
+import { loadBetterSqlite3 } from './internal/loadBetterSqlite3';
+import { SqlJsCompatDatabase } from './internal/SqlJsCompatDatabase';
+import { SqlJsCompatStatement } from './internal/SqlJsCompatStatement';
 
 // Backward compatibility: 既存 call site 互換のため、shim 型を旧名で再 export する。
 type Database = SqlJsCompatDatabase;
 type SqlJsStatement = SqlJsCompatStatement;
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
-import ignore from 'ignore';
-import { toUTC, getSqliteTzOffset } from './dateUtils';
+import path from 'node:path';
+
 import {
-  CREATE_REPOS,
-  CREATE_SESSIONS,
-  CREATE_SESSION_COSTS,
-  CREATE_DAILY_COUNTS,
-  CREATE_MESSAGES,
-  CREATE_SESSION_COMMITS,
-  CREATE_CURRENT_GRAPHS,
-  CREATE_RELEASE_GRAPHS,
-  CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE,
-  CREATE_SKILL_MODELS_RESOLVED_VIEW,
-  CREATE_INDEXES,
-  CREATE_RELEASES,
-  CREATE_RELEASE_FILES,
-  CREATE_RELEASE_COVERAGE,
-  CREATE_RELEASE_INDEXES,
-  CREATE_CURRENT_COVERAGE,
-  CREATE_CURRENT_COVERAGE_INDEXES,
-  CREATE_CURRENT_CODE_GRAPHS,
-  CREATE_RELEASE_CODE_GRAPHS,
-  CREATE_CODE_DECISION_COMMENTS,
-  CREATE_CURRENT_CODE_GRAPH_COMMUNITIES,
-  CREATE_RELEASE_CODE_GRAPH_COMMUNITIES,
-  CREATE_CURRENT_FILE_ANALYSIS,
-  CREATE_RELEASE_FILE_ANALYSIS,
-  CREATE_CURRENT_FUNCTION_ANALYSIS,
-  CREATE_RELEASE_FUNCTION_ANALYSIS,
-  CREATE_FILE_ANALYSIS_INDEXES,
-  CREATE_MESSAGE_TOOL_CALLS,
-  CREATE_MESSAGE_TOOL_CALLS_INDEXES,
-  CREATE_MESSAGE_COMMITS,
-  CREATE_COMMIT_FILES,
-  CREATE_SESSION_COMMIT_RESOLUTIONS,
-  CREATE_C4_MANUAL_ELEMENTS,
-  CREATE_C4_MANUAL_RELATIONSHIPS,
-  CREATE_C4_MANUAL_GROUPS,
-  CREATE_C4_MANUAL_INDEXES,
-  CREATE_DORA_METRICS,
-  CREATE_PR_REVIEWS,
-  CREATE_PR_REVIEW_COMMENTS,
-  CREATE_PR_REVIEW_INDEXES,
-  CREATE_PR_REVIEW_FINDINGS,
-  CREATE_PR_REVIEW_FINDINGS_INDEXES,
-  CREATE_CROSS_SOURCE_CORRELATIONS,
-  CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES,
-  DEFAULT_SKILL_MODELS,
-  extractSkillName,
-  buildReleaseFromGitData,
-  trailToC4,
-  isCodeFile,
-  isAiFirstTryFailureCommit,
   AI_FIRST_TRY_FIX_WINDOW_MS,
+  buildReleaseFromGitData,
   calculateCost,
-  computeTemporalCoupling,
-  computeSessionCoupling,
-  computeSubagentTypeCoupling,
   computeConfidenceCoupling,
   computeSessionConfidenceCoupling,
+  computeSessionCoupling,
   computeSubagentTypeConfidenceCoupling,
+  computeSubagentTypeCoupling,
+  computeTemporalCoupling,
+  CREATE_C4_MANUAL_ELEMENTS,
+  CREATE_C4_MANUAL_GROUPS,
+  CREATE_C4_MANUAL_INDEXES,
+  CREATE_C4_MANUAL_RELATIONSHIPS,
+  CREATE_CODE_DECISION_COMMENTS,
+  CREATE_COMMIT_FILES,
+  CREATE_CROSS_SOURCE_CORRELATIONS,
+  CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES,
+  CREATE_CURRENT_CODE_GRAPH_COMMUNITIES,
+  CREATE_CURRENT_CODE_GRAPHS,
+  CREATE_CURRENT_COVERAGE,
+  CREATE_CURRENT_COVERAGE_INDEXES,
+  CREATE_CURRENT_FILE_ANALYSIS,
+  CREATE_CURRENT_FUNCTION_ANALYSIS,
+  CREATE_CURRENT_GRAPHS,
+  CREATE_DAILY_COUNTS,
+  CREATE_DORA_METRICS,
+  CREATE_FILE_ANALYSIS_INDEXES,
+  CREATE_INDEXES,
+  CREATE_MESSAGE_COMMITS,
+  CREATE_MESSAGE_TOOL_CALLS,
+  CREATE_MESSAGE_TOOL_CALLS_INDEXES,
+  CREATE_MESSAGES,
+  CREATE_PR_REVIEW_COMMENTS,
+  CREATE_PR_REVIEW_FINDINGS,
+  CREATE_PR_REVIEW_FINDINGS_INDEXES,
+  CREATE_PR_REVIEW_INDEXES,
+  CREATE_PR_REVIEWS,
+  CREATE_RELEASE_CODE_GRAPH_COMMUNITIES,
+  CREATE_RELEASE_CODE_GRAPHS,
+  CREATE_RELEASE_COVERAGE,
+  CREATE_RELEASE_FILE_ANALYSIS,
+  CREATE_RELEASE_FILES,
+  CREATE_RELEASE_FUNCTION_ANALYSIS,
+  CREATE_RELEASE_GRAPHS,
+  CREATE_RELEASE_INDEXES,
+  CREATE_RELEASES,
+  CREATE_REPOS,
+  CREATE_SESSION_COMMIT_RESOLUTIONS,
+  CREATE_SESSION_COMMITS,
+  CREATE_SESSION_COSTS,
+  CREATE_SESSIONS,
+  CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE,
+  CREATE_SKILL_MODELS_RESOLVED_VIEW,
+  DEFAULT_SKILL_MODELS,
+  extractSkillName,
+  isAiFirstTryFailureCommit,
+  isCodeFile,
   resolvePricingModelName,
+  trailToC4,
 } from '@anytime-markdown/trail-core';
-import { matchCommitsToMessages, computeDefectRisk, type CommitRiskRow, type DefectRiskEntry, type TrailGraph, type IC4ModelStore, type C4ModelEntry, type C4ModelResult, type TrailMessageCommit, type MessageCommitInput, type ManualElement, type ManualRelationship, type ManualGroup, type CommitFileRow, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type ConfidenceCouplingEdge, type PricingSource, type CurrentCoverageRow, type ReleaseFileRow, type ReleaseCoverageRow, type ReleaseRow } from '@anytime-markdown/trail-core';
+import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type IC4ModelStore, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow,type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
+import ignore from 'ignore';
 
-import { aggregateQualityRates, aggregateCommitPrefixStats, aggregateCommitPrefixBaseline, type CommitBaselineSummary } from './combinedDataAggregators';
+import { aggregateCommitPrefixBaseline, aggregateCommitPrefixStats, aggregateQualityRates, type CommitBaselineSummary } from './combinedDataAggregators';
+import { getSqliteTzOffset,toUTC } from './dateUtils';
 // daemon は analyze-child へ fork する非同期実装を注入するため、同期 (in-process
 // `analyze`: CLI / テスト) と非同期 (child fork) の両方を許容する union とする。
 // 呼び出し側 (analyzeReleases) は常に `await` するため両者を透過的に扱える。
@@ -154,30 +158,31 @@ export interface ImportAllLepOptions {
     currentCoverageImported?: number;
   };
 }
-import { splitCodeGraph, composeCodeGraph, type CodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
 import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import { buildFeatureMatrixFromCommunities } from '@anytime-markdown/trail-core/c4';
+import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
 import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
-import { JsonlSessionReader } from './JsonlSessionReader';
-import { ExecFileGitService } from './ExecFileGitService';
-import { type DbLogger, noopDbLogger } from './DbLogger';
+
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
-export type { ReleaseFileRow, ReleaseCoverageRow, ReleaseRow } from '@anytime-markdown/trail-core';
+import { type DbLogger, noopDbLogger } from './DbLogger';
+import { ExecFileGitService } from './ExecFileGitService';
+import { JsonlSessionReader } from './JsonlSessionReader';
+export type { ReleaseCoverageRow, ReleaseFileRow, ReleaseRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
 
 const DEFAULT_DB_DIR = path.join(process.cwd(), '.anytime', 'trail');
 
 export { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
-import { ITrailStorage, FileTrailStorage } from './ITrailStorage';
-import { resolveCarryOver, type OldCommunity, type NewCommunity } from './communityCarryOver';
+import { type NewCommunity,type OldCommunity, resolveCarryOver } from './communityCarryOver';
 import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
+import { FileTrailStorage,ITrailStorage } from './ITrailStorage';
 import { extractRepoNameFromJsonl } from './sessionMeta';
-export type { ITrailStorage } from './ITrailStorage';
-export { FileTrailStorage, InMemoryTrailStorage } from './ITrailStorage';
-export type { BackupEntry } from './ITrailStorage';
-export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
+export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
+export type { ITrailStorage } from './ITrailStorage';
+export type { BackupEntry } from './ITrailStorage';
+export { FileTrailStorage, InMemoryTrailStorage } from './ITrailStorage';
 
 /**
  * 指定 community_id に属するノード ID の集合を CodeGraph.nodes から取り出す。
@@ -5499,6 +5504,17 @@ export class TrailDatabase {
   close(): void {
     this.db?.close();
     this.db = null;
+  }
+
+  /**
+   * better-sqlite3 の生ハンドルを返す（未オープンなら null）。
+   *
+   * `SpecDocIndex` / `FileChangeResolver` のように better-sqlite3 の API を直接使う
+   * 読み取り専用コンポーネントへ渡すための出口。書き込みには使わないこと
+   * （書き込みは TrailDatabase のメソッド経由で行い、integrity monitor と save を通す）。
+   */
+  getRawSqliteHandle(): BetterSqlite3Database | null {
+    return this.db?.raw ?? null;
   }
 
   // -------------------------------------------------------------------------

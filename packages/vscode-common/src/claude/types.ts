@@ -97,3 +97,13 @@ export interface AgentStatusSource {
   queryAll(): Promise<readonly AgentStatusRow[]>;
   deleteSession(sessionId: string): Promise<boolean>;
 }
+
+export interface ClaudeUsageSnapshot {
+  readonly version: 1;
+  readonly rows: readonly import('./parseClaudeUsage').UsageLimitRow[];
+  /** UTC ISO 8601 */
+  readonly fetchedAt: string;
+  /** UTC ISO 8601 */
+  readonly backoffUntil: string | null;
+  readonly failureCount: number;
+}

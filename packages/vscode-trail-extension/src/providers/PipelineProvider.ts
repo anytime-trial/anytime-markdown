@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { PipelineStatusFile, PipelineStatusEntry, PipelineState } from '@anytime-markdown/memory-core';
 import type { ImportAllPhase } from '@anytime-markdown/trail-db';
 import { readImportAllPhaseStatus } from '@anytime-markdown/trail-server/jobs';
+import { formatLocalDateTime } from '@anytime-markdown/vscode-common';
 
 const POLL_STATUS_FILE_MS = 2_000;
 
@@ -204,10 +205,11 @@ export function buildBackupDisplay(dbFilePath: string): BackupDisplay {
     }
     const stat = fs.statSync(bakPath);
     const mb = (stat.size / 1024 / 1024).toFixed(1);
+    const mtime = formatLocalDateTime(stat.mtime.toISOString());
     return {
       scope: 'backup',
       state: 'success',
-      description: `${mb} MB · ${stat.mtime.toLocaleString()}`,
+      description: mtime === null ? `${mb} MB` : `${mb} MB · ${mtime}`,
     };
   } catch (err) {
     return {

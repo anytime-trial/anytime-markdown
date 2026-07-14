@@ -2,7 +2,7 @@
   "name": "anytime-agent",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -26,6 +26,7 @@
     "onStartupFinished",
     "onView:anytimeAgent.aiNote",
     "onView:anytimeAgent.mapping",
+    "onView:anytimeAgent.worktreeOwnership",
     "onView:anytimeAgent.ollama"
   ],
   "main": "./dist/extension.js",
@@ -48,6 +49,14 @@
         {
           "id": "anytimeAgent.mapping",
           "name": "%view.mapping%"
+        },
+        {
+          "id": "anytimeAgent.gitActivity",
+          "name": "%view.gitActivity%"
+        },
+        {
+          "id": "anytimeAgent.worktreeOwnership",
+          "name": "%view.worktreeOwnership%"
         },
         {
           "id": "anytimeAgent.ollama",
@@ -100,6 +109,48 @@
         "category": "Anytime Agent"
       },
       {
+        "command": "anytime-agent.gitActivity.refresh",
+        "title": "%command.gitActivity.refresh%",
+        "icon": "$(refresh)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.gitActivity.toggleDestructiveOnly",
+        "title": "%command.gitActivity.toggleDestructiveOnly%",
+        "icon": "$(filter)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.gitActivity.setAttribution",
+        "title": "%command.gitActivity.setAttribution%",
+        "icon": "$(account)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.gitActivity.setDays",
+        "title": "%command.gitActivity.setDays%",
+        "icon": "$(calendar)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.gitActivity.copyCommand",
+        "title": "%command.gitActivity.copyCommand%",
+        "icon": "$(clippy)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.worktreeOwnership.refresh",
+        "title": "%command.worktreeOwnership.refresh%",
+        "icon": "$(refresh)",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.worktreeOwnership.copyCommand",
+        "title": "%command.worktreeOwnership.copyCommand%",
+        "icon": "$(clippy)",
+        "category": "Anytime Agent"
+      },
+      {
         "command": "anytime-agent.startOllama",
         "title": "%command.startOllama%",
         "category": "Anytime Agent",
@@ -145,6 +196,11 @@
         "title": "%command.copyAiNotePath%",
         "category": "Anytime Agent",
         "icon": "$(clippy)"
+      },
+      {
+        "command": "anytime-agent.showWorkSnapshots",
+        "title": "%command.showWorkSnapshots%",
+        "category": "Anytime Agent"
       }
     ],
     "menus": {
@@ -170,6 +226,31 @@
           "when": "view == anytimeAgent.mapping && anytimeAgent.mapping.filterActive",
           "group": "navigation",
           "icon": "$(filter-filled)"
+        },
+        {
+          "command": "anytime-agent.gitActivity.refresh",
+          "when": "view == anytimeAgent.gitActivity",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-agent.gitActivity.toggleDestructiveOnly",
+          "when": "view == anytimeAgent.gitActivity",
+          "group": "navigation@2"
+        },
+        {
+          "command": "anytime-agent.gitActivity.setAttribution",
+          "when": "view == anytimeAgent.gitActivity",
+          "group": "navigation@3"
+        },
+        {
+          "command": "anytime-agent.gitActivity.setDays",
+          "when": "view == anytimeAgent.gitActivity",
+          "group": "navigation@4"
+        },
+        {
+          "command": "anytime-agent.worktreeOwnership.refresh",
+          "when": "view == anytimeAgent.worktreeOwnership",
+          "group": "navigation@1"
         },
         {
           "command": "anytime-agent.startOllama",
@@ -212,6 +293,16 @@
           "command": "anytime-agent.mapping.deleteStatusFile",
           "when": "view == anytimeAgent.mapping && viewItem == session.stale",
           "group": "3_modify@1"
+        },
+        {
+          "command": "anytime-agent.gitActivity.copyCommand",
+          "when": "view == anytimeAgent.gitActivity && (viewItem == gitActivitySnapshot || viewItem == gitActivityDestructive)",
+          "group": "2_copy@1"
+        },
+        {
+          "command": "anytime-agent.worktreeOwnership.copyCommand",
+          "when": "view == anytimeAgent.worktreeOwnership && viewItem == worktreeOwnershipRow",
+          "group": "2_copy@1"
         },
         {
           "command": "anytime-agent.deleteAiNotePage",
@@ -264,8 +355,8 @@
         },
         "anytimeAgent.usageRefreshSeconds": {
           "type": "number",
-          "default": 120,
-          "minimum": 30,
+          "default": 600,
+          "minimum": 300,
           "markdownDescription": "%configuration.usageRefreshSeconds.markdownDescription%"
         },
         "anytimeAgent.sessionRetentionDays": {
@@ -273,6 +364,27 @@
           "default": 7,
           "minimum": 1,
           "markdownDescription": "未使用セッションを agent-status DB から自動削除するまでの保持日数。最終アクティビティからこの日数を超えたセッションを worker 起動時および 1 日ごとに削除する。Codex セッションのツリー表示もこの日数で絞り込む。"
+        },
+        "anytimeAgent.gitActivityRetentionDays": {
+          "type": "number",
+          "default": 90,
+          "minimum": 7,
+          "maximum": 365,
+          "description": "%config.gitActivityRetentionDays.description%"
+        },
+        "anytimeAgent.workSnapshotIntervalMinutes": {
+          "type": "number",
+          "default": 15,
+          "minimum": 0,
+          "maximum": 60,
+          "markdownDescription": "%config.workSnapshotIntervalMinutes.description%"
+        },
+        "anytimeAgent.workSnapshotRetentionDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "maximum": 90,
+          "markdownDescription": "%config.workSnapshotRetentionDays.description%"
         },
         "anytimeAgent.showCodexSessions": {
           "type": "boolean",

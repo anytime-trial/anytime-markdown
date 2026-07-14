@@ -119,9 +119,12 @@ export class BackupTreeItem extends vscode.TreeItem {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.contextValue = generation === 1 ? 'backupEntryLatest' : 'backupEntryOlder';
     this.iconPath = new vscode.ThemeIcon('history');
-    this.description = mtime.toLocaleString();
+    // toLocaleString() は TZ 未指定のため Extension Host (WSL, system TZ=UTC) で UTC 表示になる。
+    // 同パネルの Last imported / Last synced と同じ formatLocalDateTime を使う。
+    const mtimeStr = formatLocalDateTime(mtime.toISOString());
+    this.description = mtimeStr;
     const mb = (compressedBytes / 1024 / 1024).toFixed(2);
-    this.tooltip = `${label}\n${mtime.toLocaleString()}\n${mb} MB (gzip)`;
+    this.tooltip = `${label}\n${mtimeStr}\n${mb} MB (gzip)`;
     this.command = {
       command: 'anytimeDatabase.restoreBackup',
       title: 'Restore from this backup',

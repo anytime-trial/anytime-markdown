@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-07-14
+
+### 追加
+
+- `CheckArchitecturalAlignment` ユースケースを追加しました。ファイルを変更したコミット群を入力に、それを記述している設計書に触れないまま動いたコードを報告します。`IFileChangeResolver` / `ISpecDocIndex` ポート経由で現在の作業ツリーにスコープし、検査対象の要素はワークスペース C4 要素プロバイダが供給します。
+
+### 修正
+
+- `formatDate` がタイムゾーンを明示解決するようにしました。`TZ=UTC` で動くホスト（WSL の Extension Host）では `Date` のローカル getter が UTC 値を返すためです。
+
 ## [0.33.2] - 2026-07-13
 
 ### 修正

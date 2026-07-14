@@ -93,10 +93,25 @@ export {
   isWorkerAlive,
   AGENT_WORKER_SCHEMA_VERSION,
 } from './status/agentWorkerInfo';
+export { gitActivityDDL } from './status/agentStatusSchema';
+export { spoolPath, drainSpool } from './status/gitActivitySpool';
 export { AgentStatusStore } from './status/AgentStatusStore';
 export { AgentStatusWorker } from './status/AgentStatusWorker';
 export { runWorker } from './status/agentStatusWorkerMain';
 export { AGENT_STATUS_API_VERSION } from './status/types';
+export {
+  resolveAirspaceDir,
+  findClaudePid,
+  readProcessStartTime,
+  isClaimLive,
+  writeClaim,
+  listLiveClaims,
+  classifyGitCommand,
+  evaluateBashGate,
+  evaluateEditGate,
+  evaluateSessionStartGate,
+} from './status/airspace';
+export type { AirspaceClaim, GitCommandKind, GateVerdict } from './status/airspace';
 export type {
   AgentSessionRow,
   AgentSessionEdit,
@@ -107,6 +122,11 @@ export type {
   SummaryUpsertInput,
   AgentStatusEnvelope,
   AgentStatusListEnvelope,
+  GitOpType,
+  GitAttribution,
+  GitActivityInput,
+  GitActivityRow,
+  GitActivityListEnvelope,
 } from './status/types';
 
 // handoff（セッション引き継ぎ）: transcript の決定論抽出 → 圧縮ステート → レンダリング
@@ -133,3 +153,14 @@ export {
   DEFAULT_ROTATION_THRESHOLD,
 } from './handoff/rotation';
 export type { RotationPolicy } from './handoff/rotation';
+
+export {
+  SNAPSHOT_REF_ROOT,
+  createWorkSnapshot,
+  listWorkSnapshots,
+  pruneWorkSnapshots,
+  resolveRepoRoot,
+  restoreCommand,
+  worktreeSlug,
+} from './status/workSnapshot';
+export type { WorkSnapshot, CreateWorkSnapshotResult } from './status/workSnapshot';

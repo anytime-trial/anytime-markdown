@@ -4,10 +4,11 @@ import * as path from 'node:path';
 import {
   installStaticSkillDir,
   installTemplatedSkill,
+  readBundledSkillManifest,
 } from '@anytime-markdown/vscode-common';
 
 import { AgentLogger } from '../utils/AgentLogger';
-import { BUNDLED_STATIC_SKILLS } from './bundledSkills';
+import { AGENT_SKILL_MARKER, BUNDLED_STATIC_SKILLS } from './bundledSkills';
 
 export interface InstallWorkspaceSkillsOptions {
   /** 配置先ワークスペースのルート（この直下の .claude/skills/ へ展開する）。 */
@@ -55,6 +56,15 @@ export function installWorkspaceSkills(opts: InstallWorkspaceSkillsOptions): voi
     AgentLogger.warn(`[install-skills] anytime-note unexpected failure: ${String(err)}`);
   }
 
+  // 版数ゲートの根拠。manifest が読めないと配布済みコピーの差分が preserve され、
+  // スキル更新がユーザーへ届かなくなる（恒久 stale）。無言で劣化させず warn を出す。
+  const manifest = readBundledSkillManifest(opts.extensionPath, logger);
+  if (Object.keys(manifest).length === 0) {
+    AgentLogger.warn(
+      '[install-skills] skills/manifest.json を読めません。版数ゲートなしで配置します（既存コピーは更新されません）',
+    );
+  }
+
   for (const skill of BUNDLED_STATIC_SKILLS) {
     try {
       installStaticSkillDir({
@@ -62,6 +72,8 @@ export function installWorkspaceSkills(opts: InstallWorkspaceSkillsOptions): voi
         extensionPath: opts.extensionPath,
         skillName: skill.name,
         oldSkillNames: skill.oldNames ? [...skill.oldNames] : undefined,
+        version: manifest[skill.name],
+        markerFile: AGENT_SKILL_MARKER,
         logger,
       });
     } catch (err) {
