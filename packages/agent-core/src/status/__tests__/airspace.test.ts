@@ -18,6 +18,7 @@ import {
   evaluateEditGate,
   evaluateSessionStartGate,
   findClaudePid,
+  isAirspaceDisabledByCommand,
   isClaimLive,
   listLiveClaims,
   parseWorktreeRemoveTarget,
@@ -52,6 +53,113 @@ function startClaudeNamedProcess(dir: string, subdir = 'bin'): ChildProcessWitho
   symlinkSync('/bin/sleep', executable);
   return spawn(executable, ['30']);
 }
+
+describe('実機検証の回帰: 環境変数プレフィックスでゲートがすり抜けない', () => {
+  const MY = '/repo';
+
+  function other(): AirspaceClaim {
+    return claim({ sessionId: 'other-1', worktree: MY, branch: 'feature/other' });
+  }
+
+  // 先頭トークンが git でないと none を返していたため、無害な環境変数の代入 1 つで
+  // ゲートが丸ごと無効化されていた（実機で発覚）。
+  it('環境変数の代入プレフィックスがあっても分類できる', () => {
+    expect(classifyGitCommand('FOO=1 git reset --hard')).toBe('discard');
+    expect(classifyGitCommand('TZ=UTC git clean -fd')).toBe('discard');
+    expect(classifyGitCommand('A=1 B=2 git stash')).toBe('discard');
+    expect(classifyGitCommand('FOO=1 git switch develop')).toBe('branch-change');
+    expect(classifyGitCommand('FOO=1 git status')).toBe('none');
+  });
+
+  it('env コマンド経由でも分類できる', () => {
+    expect(classifyGitCommand('env FOO=1 git reset --hard')).toBe('discard');
+    expect(classifyGitCommand('env git clean -fd')).toBe('discard');
+  });
+
+  it('プレフィックス付きでも deny する', () => {
+    expect(evaluateBashGate('FOO=1 git reset --hard', [other()], MY).kind).toBe('deny');
+    expect(evaluateBashGate('TZ=UTC git clean -fd', [other()], MY).kind).toBe('deny');
+  });
+
+  it('worktree remove もプレフィックスを剥がして削除対象を解決する', () => {
+    expect(parseWorktreeRemoveTarget('FOO=1 git worktree remove --force ../wt')).toBe('../wt');
+  });
+
+  // レビューで発覚: tokenize がクォート境界でトークンを割るため、KEY="value" が
+  // ["KEY=", "value"] になり、代入の消費が途中で止まって素通りしていた。
+  // 値のクォートはシェルで最も一般的な書き方であり、意図的な難読化ではない。
+  it('値をクォートした代入でもすり抜けない', () => {
+    expect(classifyGitCommand('TZ="UTC" git clean -fd')).toBe('discard');
+    expect(classifyGitCommand("TZ='UTC' git clean -fd")).toBe('discard');
+    expect(classifyGitCommand('A="1" B=\'2\' git reset --hard')).toBe('discard');
+  });
+
+  it('クォートした脱出口も正しく効く', () => {
+    expect(isAirspaceDisabledByCommand('ANYTIME_AIRSPACE="off" git reset --hard')).toBe(true);
+    expect(isAirspaceDisabledByCommand("ANYTIME_AIRSPACE='off' git reset --hard")).toBe(true);
+    expect(isAirspaceDisabledByCommand('ANYTIME_AIRSPACE="on" git reset --hard')).toBe(false);
+  });
+
+  it('env のオプション付き・代入との混在でもすり抜けない', () => {
+    expect(classifyGitCommand('env -i git reset --hard')).toBe('discard');
+    expect(classifyGitCommand('env -u FOO git reset --hard')).toBe('discard');
+    expect(classifyGitCommand('FOO=1 env BAR=2 git reset --hard')).toBe('discard');
+  });
+
+  // git -C <path> は「別の作業ツリー」を直接壊せる最も危険な形。グローバルオプションを
+  // 読み飛ばさないとサブコマンドに到達できず、分類が none に落ちていた。
+  it('git のグローバルオプションを読み飛ばして分類する', () => {
+    expect(classifyGitCommand('git -C /other reset --hard')).toBe('discard');
+    expect(classifyGitCommand('git -c user.name=x reset --hard')).toBe('discard');
+    expect(classifyGitCommand('git --no-pager clean -fd')).toBe('discard');
+    expect(classifyGitCommand('git -C /other status')).toBe('none');
+  });
+
+  // 再レビューで発覚: 実 git は worktree remove の相対パスを -C の指定先基点で解決するのに、
+  // 実装は cwd 基点で解決していた。パスが食い違い、被害セッションと突合できず素通りする。
+  it('git -C <dir> worktree remove --force <相対パス> は -C 基点で解決する', () => {
+    const victim = claim({
+      sessionId: 'victim-rel',
+      worktree: '/repo/group/victim',
+      branch: 'feature/rel',
+    });
+    // 自分は /repo/my-wt にいる。-C /repo/group/self から ../victim を消しに行く。
+    // 実 git の削除対象は /repo/group/victim（cwd 基点なら /repo/victim になり取り違える）。
+    const verdict = evaluateBashGate(
+      'git -C /repo/group/self worktree remove --force ../victim',
+      [victim],
+      '/repo/my-wt',
+      '/repo/my-wt',
+    );
+    expect(verdict.kind).toBe('deny');
+  });
+
+  it('git -C <path> は指定先の作業ツリーのセッションと突合する', () => {
+    const victim = claim({ sessionId: 'victim-c', worktree: '/repo/other', branch: 'feature/c' });
+    // 自分は /repo にいるが、-C で /repo/other を壊しに行く
+    expect(evaluateBashGate('git -C /repo/other reset --hard', [victim], MY, MY).kind).toBe('deny');
+    // 誰も居ない場所なら通す
+    expect(evaluateBashGate('git -C /repo/empty reset --hard', [victim], MY, MY)).toEqual({
+      kind: 'pass',
+    });
+  });
+
+  // 脱出口は「フックの process.env」ではなくコマンド行から読む必要がある。
+  // ユーザーが `ANYTIME_AIRSPACE=off <cmd>` と打っても、フックは別プロセスなので
+  // その代入を環境変数としては受け取らない（deny の理由文が案内している手順が効かなくなる）。
+  it('ANYTIME_AIRSPACE=off をコマンド行に付けると脱出できる', () => {
+    expect(evaluateBashGate('ANYTIME_AIRSPACE=off git reset --hard', [other()], MY)).toEqual({
+      kind: 'pass',
+    });
+    expect(evaluateBashGate('env ANYTIME_AIRSPACE=off git clean -fd', [other()], MY)).toEqual({
+      kind: 'pass',
+    });
+    // off 以外の値では脱出しない
+    expect(evaluateBashGate('ANYTIME_AIRSPACE=on git reset --hard', [other()], MY).kind).toBe(
+      'deny',
+    );
+  });
+});
 
 describe('レビュー指摘の回帰: worktree remove は削除対象と突合する', () => {
   const MY = '/repo/main';
