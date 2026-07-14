@@ -554,10 +554,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 結果は Problems パネル (診断) と サイドバーの「設計書追随」ツリーの両方へ出す。
 	const alignmentDiagnostics = new AlignmentDiagnosticsProvider(wsRootForDb ?? '');
 	const alignmentTree = new AlignmentTreeProvider(wsRootForDb ?? '', lepConfig.sources.docs.root.trim());
-	vscode.window.createTreeView('anytimeTrail.alignment', { treeDataProvider: alignmentTree });
+	const alignmentTreeView = vscode.window.createTreeView('anytimeTrail.alignment', {
+		treeDataProvider: alignmentTree,
+	});
 	context.subscriptions.push(
 		alignmentDiagnostics,
 		alignmentTree,
+		alignmentTreeView,
 		vscode.commands.registerCommand('anytime-trail.checkAlignment', async () => {
 			await runCheckAlignmentCommand(
 				alignmentDiagnostics,
