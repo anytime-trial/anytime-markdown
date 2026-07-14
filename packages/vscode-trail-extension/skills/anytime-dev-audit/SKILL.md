@@ -1,8 +1,14 @@
-# セットアップ監査（Claude Code 環境の read-only 診断）
+---
+name: anytime-dev-audit
+effort: medium
+description: PC 環境（ディレクトリ構造）と Claude Code 設定（CLAUDE.md / rules / skills / hooks / settings / MCP / メモリ）の全レイヤーを read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。「セットアップ監査」「環境監査」「環境診断」「setup audit」「Claude Code 設定の診断」「/anytime-dev-audit」の指示で使用する。開発活動の健全性（Trail DB のデルタ分析・ふりかえり）は anytime-dev-retro を使う。
+---
 
-更新日: 2026-07-13
+# anytime-dev-audit — セットアップ監査（Claude Code 環境の read-only 診断）
 
-PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）を read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。Trail DB のデルタ分析（SKILL.md 本編）が「開発活動の健全性」を見るのに対し、本監査は「環境・設定の健全性」を見る。初回実施と是正の実例は [20260713 監査レポート](/Shared/anytime-markdown-docs/report/20260713-claude-code-setup-audit.ja.md) / 是正プラン `plan/20260713-setup-audit-remediation.ja.md` を参照。
+更新日: 2026-07-14
+
+PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）を read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。`anytime-dev-retro`（Trail DB のデルタ分析・インシデント要件化）が「**開発活動**の健全性」を見るのに対し、本スキルは「**環境・設定**の健全性」を見る（2026-07-14 に `anytime-dev-health` の references から独立スキルへ分離）。初回実施と是正の実例は [20260713 監査レポート](/Shared/anytime-markdown-docs/report/20260713-claude-code-setup-audit.ja.md) / 是正プラン `plan/20260713-setup-audit-remediation.ja.md` を参照。
 
 ## 0. 大原則
 
