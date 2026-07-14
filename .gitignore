@@ -29,6 +29,8 @@ prebuilt-vscode
 .claude/skills/anytime-token-budget/
 .claude/skills/anytime-trail-review/
 .claude/skills/.anytime-skills.json
+.claude/skills/.anytime-agent-skills.json
+.claude/skills/.anytime-trail-skills.json
 .next
 # Next が dev/build のたびに再生成する（参照先が .next/dev/types と .next/types で入れ替わる）。
 # next build が型チェック前に必ず再生成するため、追跡しても CI の結論は変わらない。
