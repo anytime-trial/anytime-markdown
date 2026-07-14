@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-07-14
+
+### Fixed
+
+- The timeline view renders commit timestamps in the local timezone. The Extension Host runs with `TZ=UTC` on WSL, so `Date`'s local getters were returning UTC values.
+
 ## [0.2.6] - 2026-06-13
 
 ### Changed

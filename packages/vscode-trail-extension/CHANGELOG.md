@@ -6,13 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-07-14
+
+### Added
+
+- Architectural alignment check. Detects code that was committed without touching the design documents describing it, and surfaces the violations in a new "Alignment" panel in the Trail sidebar. A command sends them to the Problems panel as diagnostics, grouped by file × C4 element (one element can be described by many documents, so a per-document diagnostic would flood the panel).
+- The check is exposed as the MCP tool `check_alignment` through `TrailDataServer`, so agents can query alignment directly.
+- The bundled `anytime-dev-health` skill gained a setup-audit mode (`references/setup-audit.md`) that diagnoses the Claude Code environment: hook wiring, settings, and bundled-skill integrity.
+
+### Fixed
+
+- Timestamps in trail views are rendered in the local timezone. The Extension Host runs with `TZ=UTC` on WSL, so `Date`'s local getters were returning UTC values.
+- Bundled skills now actually update. Skill deployment is gated on `skills/manifest.json` versions recorded in `.claude/skills/.anytime-trail-skills.json`, so a changed `SKILL.md` reaches workspaces that already have the skill instead of being preserved forever. `anytime-reverse-codegraph` moved onto the same path as the other bundled skills.
+
 ### Removed
 
 - Removed `installBundledSkills` from `vscode-common`. It only ever deployed `anytime-reverse-codegraph`'s `SKILL.md` and preserved any deployed file that differed, which is the preserve-forever bug this release fixes; the skill now goes through the same version-gated path as the others.
 
-### Fixed
+### Trail Core (trail-core / trail-db / trail-server / mcp-trail)
 
-- Bundled skills now actually update. Skill deployment is gated on `skills/manifest.json` versions recorded in `.claude/skills/.anytime-trail-skills.json`, so a changed `SKILL.md` reaches workspaces that already have the skill instead of being preserved forever. `anytime-reverse-codegraph` moved onto the same path as the other bundled skills.
+- `CheckArchitecturalAlignment` use case, scoped to the current worktree, with a workspace C4 element provider and real-data wiring through `SpecDocIndex` / `FileChangeResolver`.
+- Commit paths are decoded from git's quoted form before comparison, so non-ASCII paths no longer mismatch forever.
+- `AlignmentApiHandler` serves the check over `TrailDataServer`.
 
 ## [0.33.2] - 2026-07-13
 

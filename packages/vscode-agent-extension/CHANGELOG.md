@@ -6,8 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-14
+
+### Added
+
+- Concurrent-session collision guard (airspace). A session claims the worktree and branch it works on, and a Claude Code hook denies edits coming from a second live session on the same branch. Claims live under `.git/anytime/` (shared across worktrees, no daemon or DB), liveness is observed from `/proc`, and `ANYTIME_AIRSPACE=off` is the documented escape hatch for deliberate concurrent work.
+- Worktree ownership view. Shows which session owns which worktree and branch, so a second session can move to an isolated worktree instead of colliding.
+- Git activity timeline view. Git operations (commit, merge, rebase, branch create/delete, reset, force push) are recorded with the session that caused them via a `reference-transaction` hook and shown as a TreeView grouped by session.
+- Non-destructive snapshots of uncommitted work. A timer records the working tree (tracked and untracked) into a git ref namespace without touching the index or the user's edits, plus a command to restore a snapshot. Configurable through `anytimeAgent.workSnapshot.*`.
+
 ### Fixed
 
+- Claude usage percentage no longer disappears silently when `/api/oauth/usage` answers 429. The value is cached and shared across extension hosts, with backoff and a degraded display instead of a blank.
+- Timestamps in the git timeline are rendered in the local timezone. The Extension Host runs with `TZ=UTC` on WSL, so `Date`'s local getters were returning UTC values.
 - Bundled skills now actually update. `installStaticSkillDir` used to preserve any deployed file whose content differed from the bundle, so a changed `SKILL.md` never reached a workspace that already had the skill (`anytime-cross-review` shipped pointing at a `references/` path that no longer existed). Deployment is now gated on `skills/manifest.json` versions recorded in `.claude/skills/.anytime-agent-skills.json`: a higher bundled version overwrites, an unchanged version still preserves local edits, and a workspace with no recorded version is healed once.
 
 ## [1.4.0] - 2026-07-13
