@@ -9,6 +9,7 @@
   "command.analyzeAll.status": "Show AnalyzeAll Status",
   "command.analyzeCurrentCode": "Analyze Code",
   "command.analyzeCurrentCodePickTsconfig": "Analyze Code (Pick Tsconfig)",
+  "command.checkAlignment": "Check Spec Alignment (Working Tree)",
   "command.analyzeAll": "Analyze All Data",
   "command.openTrailViewer": "Open Trail Viewer",
   "view.dashboard": "Dashboard",

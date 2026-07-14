@@ -60,3 +60,5 @@ export type { FileChangeResolverOptions } from './FileChangeResolver';
 export { unquoteGitPath } from './gitPath';
 export { SpecDocIndex, extractC4ScopeFromFrontmatter } from './SpecDocIndex';
 export type { SpecDocIndexOptions } from './SpecDocIndex';
+export { WorkspaceC4ElementProvider } from './WorkspaceC4ElementProvider';
+export type { WorkspaceC4ElementProviderOptions } from './WorkspaceC4ElementProvider';

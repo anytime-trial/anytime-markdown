@@ -1,10 +1,10 @@
+import * as httpClient from './client';
 import { resolveDbPath } from './dbPath';
-import { resolveRepoName } from './repoName';
 import { probeServerAlive } from './probe';
+import { resolveRepoName } from './repoName';
 import { openTrailDb } from './sqlite/openDb';
 import * as readDirect from './sqlite/read';
 import * as writeDirect from './sqlite/write';
-import * as httpClient from './client';
 
 export interface RouteOpts {
   serverUrl: string;
@@ -48,6 +48,7 @@ const DISCOVERY_TOOLS = new Set([
   'query_code_graph',
   'find_code_path',
   'get_cochange_partners',
+  'check_alignment',
 ]);
 
 const HTTP_ONLY_TOOLS = new Set([...ANALYZE_TOOLS, ...DISCOVERY_TOOLS]);
@@ -325,6 +326,8 @@ async function invokeHttp(
         repoName,
         (args as { opts?: { windowDays?: number; topK?: number; granularity?: string } }).opts ?? {},
       );
+    case 'check_alignment':
+      return httpClient.getAlignmentReport(serverUrl, args as unknown as httpClient.AlignmentQuery);
     default:
       throw new Error(`Unhandled HTTP tool: ${toolName}`);
   }

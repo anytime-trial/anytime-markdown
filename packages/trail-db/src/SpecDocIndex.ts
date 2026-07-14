@@ -13,7 +13,8 @@ import { type DbLogger, noopDbLogger } from './DbLogger';
 import { unquoteGitPath } from './gitPath';
 
 export interface SpecDocIndexOptions {
-  readonly db: Database.Database;
+  /** `session` / `range` スコープでのみ必要。`worktree` スコープは git だけで完結する */
+  readonly db?: Database.Database;
   readonly docsRepoRoot: string;
   readonly gitRepoRoot: string;
   readonly docsRepoName?: string;
@@ -33,7 +34,7 @@ const DEFAULT_DOCS_REPO_NAME = 'anytime-markdown-docs';
 const DEFAULT_SPEC_SUB_DIR = 'spec';
 
 export class SpecDocIndex implements ISpecDocIndex {
-  private readonly db: Database.Database;
+  private readonly db: Database.Database | undefined;
   private readonly docsRepoRoot: string;
   private readonly gitRepoRoot: string;
   private readonly docsRepoName: string;
@@ -41,6 +42,7 @@ export class SpecDocIndex implements ISpecDocIndex {
   private readonly logger: DbLogger;
   private docsRepoId: number | null = null;
   private indexByElementId: Map<string, SpecDocRef[]> | null = null;
+  private worktreeChanges: ReadonlySet<string> | null = null;
   private readonly gitCommitTimeByRef = new Map<string, string | null>();
 
   constructor(options: SpecDocIndexOptions) {
@@ -65,11 +67,53 @@ export class SpecDocIndex implements ISpecDocIndex {
       return this.wasUpdatedInSession(specPath, input.sessionId);
     }
 
+    if (input.scope === 'worktree') {
+      return this.listWorktreeChanges().has(specPath);
+    }
+
     return this.wasUpdatedInRange(specPath, input.fromRef, input.toRef);
   }
 
+  /**
+   * 設計書リポジトリ（コードとは別リポジトリ）の未コミット変更を集める。DB は参照しない。
+   * 新規設計書は untracked として現れるため、`diff HEAD` だけでは取りこぼす。
+   */
+  private listWorktreeChanges(): ReadonlySet<string> {
+    if (this.worktreeChanges) return this.worktreeChanges;
+
+    const changes = new Set<string>();
+    const outputs = [
+      this.runGitInDocs(['diff', 'HEAD', '--name-only', '--no-renames']),
+      this.runGitInDocs(['ls-files', '--others', '--exclude-standard']),
+    ];
+
+    for (const output of outputs) {
+      for (const line of (output ?? '').split('\n')) {
+        if (line.trim().length === 0) continue;
+        changes.add(unquoteGitPath(line.trim()));
+      }
+    }
+
+    this.worktreeChanges = changes;
+    return changes;
+  }
+
+  private runGitInDocs(args: readonly string[]): string | null {
+    try {
+      return execFileSync('git', [...args], {
+        cwd: this.docsRepoRoot,
+        encoding: 'utf-8',
+        timeout: 30_000,
+        stdio: 'pipe',
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to run git ${args.join(' ')} in docs repository: ${formatError(error)}`);
+      return null;
+    }
+  }
+
   private wasUpdatedInSession(specPath: string, sessionId: string): boolean {
-    const rows = this.db.prepare(`
+    const rows = this.requireDb('session').prepare(`
       SELECT cf.file_path FROM commit_files cf
       JOIN session_commits sc
         ON sc.commit_hash = cf.commit_hash AND sc.repo_id = cf.repo_id
@@ -86,7 +130,7 @@ export class SpecDocIndex implements ISpecDocIndex {
 
     const [startTime, endTime] = fromTime <= toTime ? [fromTime, toTime] : [toTime, fromTime];
 
-    const rows = this.db.prepare(`
+    const rows = this.requireDb('range').prepare(`
       SELECT cf.file_path FROM commit_files cf
       JOIN session_commits sc
         ON sc.commit_hash = cf.commit_hash AND sc.repo_id = cf.repo_id
@@ -131,10 +175,18 @@ export class SpecDocIndex implements ISpecDocIndex {
     return index;
   }
 
+  private requireDb(scope: string): Database.Database {
+    if (!this.db) {
+      throw new Error(`SpecDocIndex requires a trail.db handle for ${scope} scope`);
+    }
+
+    return this.db;
+  }
+
   private getDocsRepoId(): number {
     if (this.docsRepoId !== null) return this.docsRepoId;
 
-    const row = this.db.prepare('SELECT repo_id FROM repos WHERE repo_name = ?')
+    const row = this.requireDb('session').prepare('SELECT repo_id FROM repos WHERE repo_name = ?')
       .get(this.docsRepoName) as RepoRow | undefined;
     if (!row) {
       throw new Error(`Repository not found in repos table: ${this.docsRepoName}`);

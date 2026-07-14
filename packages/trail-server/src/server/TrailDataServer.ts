@@ -3,6 +3,8 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
+import type { CurrentCoverageRow,ReleaseCoverageRow, TrailGraph } from '@anytime-markdown/trail-core';
+import type { C4Model, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
   aggregateHeatmapColumnsToC4,
@@ -16,20 +18,26 @@ import {
   fetchC4ModelEntries,
   filterTreeByLevel,
 } from '@anytime-markdown/trail-core/c4';
-// typescript を引く `analyze` は DI（analyzeReleaseFn）に置換済みのため import しない。
-import type { AnalyzeFunction } from '@anytime-markdown/trail-db';
+import type {
+  CallHierarchyDirection,
+  CallHierarchyIndex,
+  CallHierarchyScope,
+} from '@anytime-markdown/trail-core/c4/callHierarchy';
+import {
+  buildCallHierarchyNodeFilter,
+  buildIndex as buildCallHierarchyIndex,
+  traverse as traverseCallHierarchy,
+} from '@anytime-markdown/trail-core/c4/callHierarchy';
+import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
+import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
 import {
   loadCommitCategories,
   loadCommitCategoriesFromFile,
   loadCommitCategoryLabels,
   loadCommitCategoryLabelsFromFile,
 } from '@anytime-markdown/trail-core/commitCategories';
-import {
-  loadToolCategories,
-  loadToolCategoriesFromFile,
-  loadToolCategoryLabels,
-  loadToolCategoryLabelsFromFile,
-} from '@anytime-markdown/trail-core/toolCategories';
+import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
+import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-core/domain/metrics';
 import {
   loadSkillCategories,
   loadSkillCategoriesFromFile,
@@ -37,41 +45,34 @@ import {
   loadSkillCategoryLabelsFromFile,
 } from '@anytime-markdown/trail-core/skillCategories';
 import {
-  buildIndex as buildCallHierarchyIndex,
-  buildCallHierarchyNodeFilter,
-  traverse as traverseCallHierarchy,
-} from '@anytime-markdown/trail-core/c4/callHierarchy';
-import type {
-  CallHierarchyDirection,
-  CallHierarchyIndex,
-  CallHierarchyScope,
-} from '@anytime-markdown/trail-core/c4/callHierarchy';
-import type { MessageInput, C4Model, DsmMatrix, FeatureMatrix } from '@anytime-markdown/trail-core/c4';
-import type { TrailGraph, ReleaseCoverageRow, CurrentCoverageRow } from '@anytime-markdown/trail-core';
-import { WebSocketServer, type WebSocket } from 'ws';
-
-import type { ClientMessage, ServerMessage } from './types';
-import type { TrailDatabase, SessionRow, MessageRow, SessionCommitRow, AnalyticsData, CostOptimizationData } from '@anytime-markdown/trail-db';
+  loadToolCategories,
+  loadToolCategoriesFromFile,
+  loadToolCategoryLabels,
+  loadToolCategoryLabelsFromFile,
+} from '@anytime-markdown/trail-core/toolCategories';
+// typescript を引く `analyze` は DI（analyzeReleaseFn）に置換済みのため import しない。
+import type { AnalyzeFunction } from '@anytime-markdown/trail-db';
+import type { AnalyticsData, CostOptimizationData,MessageRow, SessionCommitRow, SessionRow, TrailDatabase } from '@anytime-markdown/trail-db';
 import { MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
-import { computeDeploymentFrequency, computeQualityMetrics, computeReleaseQualityTimeSeries } from '@anytime-markdown/trail-core/domain/metrics';
-import { aggregateScoresToC4 } from '@anytime-markdown/trail-core/deadCode';
-import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
-import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
-import type { Logger, LogLevel } from '../runtime/Logger';
-import type { CodeGraphService } from '../analyze/CodeGraphService';
-import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
-import { runC4SourceAnalyze } from '../analyze/runC4SourceAnalyze';
+import { type WebSocket,WebSocketServer } from 'ws';
+
 import type { C4SourceFileInput } from '../analyze/analyzeChildProtocol';
+import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
+import type { CodeGraphService } from '../analyze/CodeGraphService';
+import { runC4SourceAnalyze } from '../analyze/runC4SourceAnalyze';
 import type { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
-import { MemoryApiHandler } from './MemoryApiHandler';
-import { PromptsApiHandler } from './PromptsApiHandler';
+import type { Logger, LogLevel } from '../runtime/Logger';
+import type { LogService, PersistedLogEntry } from '../services/LogService';
+import { combineLoggers,LogSink } from '../services/LogSink';
+import { AlignmentApiHandler } from './AlignmentApiHandler';
 import { C4ManualApiHandler } from './C4ManualApiHandler';
 import { CodeGraphApiHandler } from './CodeGraphApiHandler';
 import { DocsApiHandler } from './DocsApiHandler';
-import type { LogService, PersistedLogEntry } from '../services/LogService';
-import { LogSink, combineLoggers } from '../services/LogSink';
-import { handleGetLogs, handlePostLogs } from './logsApi';
 import { sendServerError } from './errorResponse';
+import { handleGetLogs, handlePostLogs } from './logsApi';
+import { MemoryApiHandler } from './MemoryApiHandler';
+import { PromptsApiHandler } from './PromptsApiHandler';
+import type { ClientMessage, ServerMessage } from './types';
 
 const LOG_CLEANUP_INTERVAL_MS = 24 * 3600 * 1000;
 
@@ -292,6 +293,7 @@ export class TrailDataServer {
   private readonly c4ManualApi: C4ManualApiHandler;
   private readonly codeGraphApi: CodeGraphApiHandler;
   private readonly docsApi: DocsApiHandler;
+  private readonly alignmentApi: AlignmentApiHandler;
 
   constructor(
     private readonly distPath: string,
@@ -350,6 +352,11 @@ export class TrailDataServer {
       this.logger.child('C4ManualApiHandler'),
     );
     this.codeGraphApi = new CodeGraphApiHandler(this.trailDb, this.logger.child('CodeGraphApiHandler'));
+    this.alignmentApi = new AlignmentApiHandler(
+      this.trailDb,
+      this.logger.child('AlignmentApiHandler'),
+      { gitRepoRoot: this.gitRoot },
+    );
     this.docsApi = new DocsApiHandler(
       {
         broadcastDocLinks: (docLinks) => {
@@ -981,6 +988,11 @@ export class TrailDataServer {
       this.handleHotspot(res, parsed.searchParams);
       return;
     }
+    if (pathname === '/api/alignment' && method === 'GET') {
+      void this.alignmentApi.handle(res, parsed.searchParams);
+      return;
+    }
+
     if (pathname === '/api/activity-heatmap' && method === 'GET') {
       this.handleActivityHeatmap(res, parsed.searchParams);
       return;
