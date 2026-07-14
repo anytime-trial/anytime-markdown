@@ -150,11 +150,55 @@ export interface GitCommandContext {
   readonly fileExists?: (path: string) => boolean;
 }
 
+/** 脱出口。コマンド行に `ANYTIME_AIRSPACE=off` を付けるとゲートを外す。 */
+const AIRSPACE_ENV = 'ANYTIME_AIRSPACE';
+
+interface CommandPrefix {
+  /** 先頭の環境変数代入（`FOO=1 git ...` の FOO=1）。 */
+  readonly env: ReadonlyMap<string, string>;
+  /** 代入と `env` コマンドを剥がした残りのトークン。 */
+  readonly tokens: readonly string[];
+}
+
+/**
+ * コマンド先頭の環境変数代入と `env` コマンドを剥がす。
+ *
+ * これをしないと `FOO=1 git reset --hard` の先頭トークンが `git` でなくなり、**無害な代入
+ * ひとつでゲートが丸ごと無効化される**（実機で発覚。単体テストでも E2E でも見えなかった）。
+ *
+ * 脱出口の `ANYTIME_AIRSPACE=off` もここで読む。フックは Claude Code が spawn する別プロセスで、
+ * コマンド行の代入を環境変数として受け取らないため、`process.env` だけを見ていると
+ * deny の理由文が案内する手順（`ANYTIME_AIRSPACE=off <cmd>` で再実行）が効かない。
+ */
+function stripCommandPrefix(tokens: readonly string[]): CommandPrefix {
+  const env = new Map<string, string>();
+  let index = 0;
+
+  // `env FOO=1 git ...` のように env コマンドを挟む形も剥がす。
+  if (tokens[index] === 'env') index += 1;
+
+  while (index < tokens.length) {
+    const token = tokens[index];
+    const eq = token.indexOf('=');
+    // 代入は `NAME=VALUE` 形式。先頭が - のものやパス（/ を含む）は代入ではない。
+    if (eq <= 0 || token.startsWith('-') || token.slice(0, eq).includes('/')) break;
+    env.set(token.slice(0, eq), token.slice(eq + 1));
+    index += 1;
+  }
+
+  return { env, tokens: tokens.slice(index) };
+}
+
+/** コマンド行で airspace ゲートが無効化されているか。 */
+export function isAirspaceDisabledByCommand(command: string): boolean {
+  return stripCommandPrefix(tokenize(command)).env.get(AIRSPACE_ENV) === 'off';
+}
+
 export function classifyGitCommand(
   command: string,
   context: GitCommandContext = {},
 ): GitCommandKind {
-  const tokens = tokenize(command);
+  const tokens = stripCommandPrefix(tokenize(command)).tokens;
   if (tokens.length < 2 || tokens[0] !== 'git') return 'none';
   const subcommand = tokens[1];
   const args = tokens.slice(2);
@@ -186,7 +230,7 @@ export function classifyGitCommand(
  * ゲートを張る必要が無い（過剰な deny を避ける）。
  */
 export function parseWorktreeRemoveTarget(command: string): string | null {
-  const tokens = tokenize(command);
+  const tokens = stripCommandPrefix(tokenize(command)).tokens;
   if (tokens.length < 4) return null;
   if (tokens[0] !== 'git' || tokens[1] !== 'worktree' || tokens[2] !== 'remove') return null;
   const args = tokens.slice(3);
@@ -206,12 +250,24 @@ function canonicalize(path: string): string {
   }
 }
 
+/**
+ * Bash コマンドの衝突判定。
+ *
+ * `git worktree remove --force <path>` だけは突合先が違う。このコマンドは**自分がいる作業ツリー
+ * ではなく、引数で指定した別の作業ツリー**を消す。自分の worktree と生存クレームを突合しても
+ * 一致せず素通りしてしまうため、削除対象パスとクレームを突合する。
+ *
+ * `cwd` は相対パス引数（`../wt` 等）の解決基点。省略時は myWorktree を使う。
+ */
 export function evaluateBashGate(
   command: string,
   liveClaims: readonly AirspaceClaim[],
   myWorktree: string,
   cwd: string = myWorktree,
 ): GateVerdict {
+  // 脱出口はコマンド行から読む（フックの process.env には届かないため）。
+  if (isAirspaceDisabledByCommand(command)) return { kind: 'pass' };
+
   const removeTarget = parseWorktreeRemoveTarget(command);
   if (removeTarget !== null) {
     const targetPath = canonicalize(resolve(cwd, removeTarget));

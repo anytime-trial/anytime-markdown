@@ -53,6 +53,54 @@ function startClaudeNamedProcess(dir: string, subdir = 'bin'): ChildProcessWitho
   return spawn(executable, ['30']);
 }
 
+describe('実機検証の回帰: 環境変数プレフィックスでゲートがすり抜けない', () => {
+  const MY = '/repo';
+
+  function other(): AirspaceClaim {
+    return claim({ sessionId: 'other-1', worktree: MY, branch: 'feature/other' });
+  }
+
+  // 先頭トークンが git でないと none を返していたため、無害な環境変数の代入 1 つで
+  // ゲートが丸ごと無効化されていた（実機で発覚）。
+  it('環境変数の代入プレフィックスがあっても分類できる', () => {
+    expect(classifyGitCommand('FOO=1 git reset --hard')).toBe('discard');
+    expect(classifyGitCommand('TZ=UTC git clean -fd')).toBe('discard');
+    expect(classifyGitCommand('A=1 B=2 git stash')).toBe('discard');
+    expect(classifyGitCommand('FOO=1 git switch develop')).toBe('branch-change');
+    expect(classifyGitCommand('FOO=1 git status')).toBe('none');
+  });
+
+  it('env コマンド経由でも分類できる', () => {
+    expect(classifyGitCommand('env FOO=1 git reset --hard')).toBe('discard');
+    expect(classifyGitCommand('env git clean -fd')).toBe('discard');
+  });
+
+  it('プレフィックス付きでも deny する', () => {
+    expect(evaluateBashGate('FOO=1 git reset --hard', [other()], MY).kind).toBe('deny');
+    expect(evaluateBashGate('TZ=UTC git clean -fd', [other()], MY).kind).toBe('deny');
+  });
+
+  it('worktree remove もプレフィックスを剥がして削除対象を解決する', () => {
+    expect(parseWorktreeRemoveTarget('FOO=1 git worktree remove --force ../wt')).toBe('../wt');
+  });
+
+  // 脱出口は「フックの process.env」ではなくコマンド行から読む必要がある。
+  // ユーザーが `ANYTIME_AIRSPACE=off <cmd>` と打っても、フックは別プロセスなので
+  // その代入を環境変数としては受け取らない（deny の理由文が案内している手順が効かなくなる）。
+  it('ANYTIME_AIRSPACE=off をコマンド行に付けると脱出できる', () => {
+    expect(evaluateBashGate('ANYTIME_AIRSPACE=off git reset --hard', [other()], MY)).toEqual({
+      kind: 'pass',
+    });
+    expect(evaluateBashGate('env ANYTIME_AIRSPACE=off git clean -fd', [other()], MY)).toEqual({
+      kind: 'pass',
+    });
+    // off 以外の値では脱出しない
+    expect(evaluateBashGate('ANYTIME_AIRSPACE=on git reset --hard', [other()], MY).kind).toBe(
+      'deny',
+    );
+  });
+});
+
 describe('レビュー指摘の回帰: worktree remove は削除対象と突合する', () => {
   const MY = '/repo/main';
   const VICTIM = '/repo/.worktrees/feature';
