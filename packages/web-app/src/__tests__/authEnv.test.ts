@@ -36,13 +36,36 @@ describe('validateAuthEnv', () => {
     ]);
   });
 
-  it('rejects AUTH_URL values with a path', () => {
+  // next-auth はパスを basePath として採用するが、本アプリのルートハンドラは
+  // src/app/api/auth/[...nextauth]/route.ts に固定されており basePath は /api/auth 前提。
+  // パス付き URL は Auth.js の生成 URL と実在ルートをずらして認証を壊すため不正とする。
+  it('rejects AUTH_URL values with a path (basePath would no longer match /api/auth)', () => {
     const status = validateAuthEnv({
       AUTH_SECRET: 'auth-secret',
       AUTH_URL: 'https://example.com/app',
     });
 
     expect(status.invalid).toEqual([{ name: 'AUTH_URL', reason: 'hasPath' }]);
+  });
+
+  it('accepts a trailing-slash-only URL as valid', () => {
+    const status = validateAuthEnv({
+      AUTH_SECRET: 'auth-secret',
+      AUTH_URL: 'https://www.anytime-trial.com/',
+    });
+
+    expect(status.isHealthy).toBe(true);
+    expect(status.invalid).toEqual([]);
+  });
+
+  it('reports the missing provider var when only GITHUB_CLIENT_SECRET is set', () => {
+    const status = validateAuthEnv({
+      AUTH_SECRET: 'auth-secret',
+      GITHUB_CLIENT_SECRET: 'github-client-secret',
+    });
+
+    expect(status.providers.github).toBe(false);
+    expect(status.missingProviderVars).toEqual(['GITHUB_CLIENT_ID']);
   });
 
   it('prefers AUTH_URL over NEXTAUTH_URL when both are present', () => {

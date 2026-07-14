@@ -58,6 +58,9 @@ function validateAuthUrl(
     return { name, reason: 'notAbsoluteUrl' };
   }
 
+  // next-auth 自体はパスをエラーにせず basePath として採用する（setEnvDefaults）。だが本アプリの
+  // ルートハンドラは src/app/api/auth/[...nextauth]/route.ts に固定＝basePath は /api/auth 前提であり、
+  // パス付き URL を置くと Auth.js の生成 URL と実在ルートがずれて認証が壊れる。ゆえに不正として扱う。
   if (parsed.pathname !== '/') {
     return { name, reason: 'hasPath' };
   }
