@@ -51,3 +51,11 @@ export { toUTC } from './dateUtils';
 export { MetricsThresholdsLoader } from './MetricsThresholdsLoader';
 export type { DbLogger } from './DbLogger';
 export { noopDbLogger } from './DbLogger';
+export {
+  FileChangeResolver,
+  countExportLinesByFile,
+  parseNumstat,
+} from './FileChangeResolver';
+export type { FileChangeResolverOptions } from './FileChangeResolver';
+export { SpecDocIndex, extractC4ScopeFromFrontmatter } from './SpecDocIndex';
+export type { SpecDocIndexOptions } from './SpecDocIndex';
