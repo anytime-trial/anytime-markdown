@@ -56,11 +56,16 @@ export default function TicketsRepoDialog({ open, onClose, onSelect }: Readonly<
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      const list = (await res.json()) as { full_name?: string; fullName?: string; default_branch?: string }[];
+      const list = (await res.json()) as {
+        full_name?: string;
+        fullName?: string;
+        default_branch?: string;
+        defaultBranch?: string;
+      }[];
       setRepos(
         list.map((item) => ({
-          fullName: item.full_name ?? item.fullName ?? '',
-          defaultBranch: item.default_branch,
+          fullName: item.fullName ?? item.full_name ?? '',
+          defaultBranch: item.defaultBranch ?? item.default_branch,
         })),
       );
     } catch (err) {

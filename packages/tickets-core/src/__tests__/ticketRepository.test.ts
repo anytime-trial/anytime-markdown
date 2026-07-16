@@ -273,4 +273,112 @@ describe('archiveTicket', () => {
       archiveTicket({ ...CFG_BASE, fetchFn, input: { path: '.tickets/archive/T-1-first.md', sha: 's1' } }),
     ).rejects.toBeInstanceOf(TicketApiError);
   });
+
+  it('表示時点の sha と最新 sha が異なる場合は移動せず競合エラーにする', async () => {
+    const { fetchFn, calls } = makeFetch({
+      '/repos/owner/repo/contents/.tickets%2FT-1-first.md?ref=main': [
+        { method: 'GET', status: 200, json: { content: b64(T1_TEXT), sha: 'newer-sha' } },
+      ],
+    });
+    await expect(
+      archiveTicket({ ...CFG_BASE, fetchFn, input: { path: '.tickets/T-1-first.md', sha: 'stale-sha' } }),
+    ).rejects.toBeInstanceOf(TicketConflictError);
+    expect(calls.filter((c) => c.method !== 'GET')).toHaveLength(0);
+  });
+
+  it('旧パス削除に失敗したら archive 側の複製を巻き戻す', async () => {
+    const { fetchFn, calls } = makeFetch({
+      '/repos/owner/repo/contents/.tickets%2FT-1-first.md?ref=main': [
+        { method: 'GET', status: 200, json: { content: b64(T1_TEXT), sha: 's1' } },
+      ],
+      '/repos/owner/repo/contents/.tickets%2Farchive%2FT-1-first.md': [
+        {
+          method: 'PUT',
+          status: 201,
+          json: { content: { path: '.tickets/archive/T-1-first.md', sha: 'a1' }, commit: { sha: 'c3' } },
+        },
+        { method: 'DELETE', status: 200, json: { commit: { sha: 'c5' } } },
+      ],
+      '/repos/owner/repo/contents/.tickets%2FT-1-first.md': [
+        { method: 'DELETE', status: 500, json: { message: 'boom' } },
+      ],
+    });
+    await expect(
+      archiveTicket({ ...CFG_BASE, fetchFn, input: { path: '.tickets/T-1-first.md', sha: 's1' } }),
+    ).rejects.toMatchObject({ status: 500 });
+    const rollback = calls.find(
+      (c) => c.method === 'DELETE' && c.url.includes('archive%2FT-1-first.md'),
+    );
+    expect(rollback?.body?.sha).toBe('a1');
+  });
+});
+
+describe('createTicket の競合・検証ガード', () => {
+  it('採番と PUT の間に同一 id が作成されたら自分の作成分を巻き戻して競合にする', async () => {
+    let putDone = false;
+    const calls: { method: string; url: string; body?: Record<string, unknown> }[] = [];
+    const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
+      calls.push({ method, url, body });
+      const key = new URL(url).pathname;
+      if (method === 'GET' && key === '/repos/owner/repo/contents/.tickets') {
+        const entries = putDone
+          ? [
+              { name: 'T-10-new-ticket.md', path: '.tickets/T-10-new-ticket.md', sha: 'n1', type: 'file' },
+              { name: 'T-10-other.md', path: '.tickets/T-10-other.md', sha: 'o1', type: 'file' },
+              { name: 'T-9-old.md', path: '.tickets/T-9-old.md', sha: 's9', type: 'file' },
+            ]
+          : [{ name: 'T-9-old.md', path: '.tickets/T-9-old.md', sha: 's9', type: 'file' }];
+        return new Response(JSON.stringify(entries), { status: 200 });
+      }
+      if (method === 'GET' && key === '/repos/owner/repo/contents/.tickets%2Farchive') {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (method === 'PUT') {
+        putDone = true;
+        return new Response(
+          JSON.stringify({ content: { path: '.tickets/T-10-new-ticket.md', sha: 'n1' }, commit: { sha: 'c1' } }),
+          { status: 201 },
+        );
+      }
+      if (method === 'DELETE') {
+        return new Response(JSON.stringify({ commit: { sha: 'c2' } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+    }) as typeof fetch;
+
+    await expect(
+      createTicket({
+        ...CFG_BASE,
+        fetchFn,
+        input: { title: 'New Ticket', status: 'backlog', priority: 'medium', now: '2026-07-16T04:00:00.000Z' },
+      }),
+    ).rejects.toBeInstanceOf(TicketConflictError);
+    const rollback = calls.find((c) => c.method === 'DELETE');
+    expect(rollback?.url).toContain('T-10-new-ticket.md');
+    expect(rollback?.body?.sha).toBe('n1');
+  });
+
+  it('不正な入力（estimate 負数）は PUT せず 400 で拒否する', async () => {
+    const { fetchFn, calls } = makeFetch({
+      '/repos/owner/repo/contents/.tickets?ref=main': [{ method: 'GET', status: 200, json: [] }],
+      '/repos/owner/repo/contents/.tickets%2Farchive?ref=main': [{ method: 'GET', status: 200, json: [] }],
+    });
+    await expect(
+      createTicket({
+        ...CFG_BASE,
+        fetchFn,
+        input: {
+          title: 'bad',
+          status: 'backlog',
+          priority: 'low',
+          estimate: -1,
+          now: '2026-07-16T04:00:00.000Z',
+        },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(calls.find((c) => c.method === 'PUT')).toBeUndefined();
+  });
 });

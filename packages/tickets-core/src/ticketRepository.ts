@@ -260,6 +260,20 @@ async function putFile(
   return (await res.json()) as PutResponse;
 }
 
+async function deleteFile(
+  ctx: GitHubContext,
+  input: { path: string; sha: string; message: string },
+): Promise<void> {
+  const res = await ctx.fetchFn(contentsUrl(ctx, input.path, false), {
+    method: "DELETE",
+    headers: { ...baseHeaders(ctx), "Content-Type": "application/json" },
+    body: JSON.stringify({ message: input.message, sha: input.sha, branch: ctx.branch }),
+  });
+  if (!res.ok) {
+    return throwApiError(res);
+  }
+}
+
 export interface CreateTicketInput {
   title: string;
   status: TicketStatus;
@@ -310,6 +324,10 @@ export async function createTicket(
   if (input.labels !== undefined) frontmatter.labels = input.labels;
   if (input.dependencies !== undefined) frontmatter.dependencies = input.dependencies;
   if (input.estimate !== undefined) frontmatter.estimate = input.estimate;
+  const validated = validateTicketFrontmatter(frontmatter as unknown as Record<string, unknown>);
+  if (!validated.ok) {
+    throw new TicketApiError(400, `入力が不正です: ${validated.errors.join(' / ')}`);
+  }
   const body = buildTicketBody(input.description ?? '');
   const path = `${TICKETS_DIR}/${ticketFileName(id, input.title)}`;
   assertTicketPath(path);
@@ -318,7 +336,40 @@ export async function createTicket(
     text: serializeTicket(frontmatter, body),
     message: input.message ?? `ticket: create ${id} ${input.title}`,
   });
+  await guardDuplicateId(ctx, id, res.content.path, res.content.sha);
   return { path: res.content.path, sha: res.content.sha, frontmatter, extras: {}, body, archived: false };
+}
+
+/**
+ * 採番→PUT の間に他者が同じ id で作成した競合（slug が違うとパス衝突しない）を事後検出する。
+ * 重複を見つけたら自分の作成分を巻き戻して TicketConflictError を投げる（双方が巻き戻しても
+ * 重複が残るよりよい。利用者は再試行すれば次の採番で成功する）。
+ */
+async function guardDuplicateId(
+  ctx: GitHubContext,
+  id: string,
+  createdPath: string,
+  createdSha: string,
+): Promise<void> {
+  const [active, archived] = await Promise.all([
+    listDir(ctx, TICKETS_DIR),
+    listDir(ctx, TICKETS_ARCHIVE_DIR),
+  ]);
+  const duplicates = [...active, ...archived].filter(
+    (entry) => entry.name.startsWith(`${id}-`) && entry.path !== createdPath,
+  );
+  if (duplicates.length === 0) {
+    return;
+  }
+  await deleteFile(ctx, {
+    path: createdPath,
+    sha: createdSha,
+    message: `ticket: rollback duplicate ${id}`,
+  });
+  throw new TicketConflictError(
+    409,
+    `同時作成により id ${id} が重複したため巻き戻しました。再試行してください`,
+  );
 }
 
 export interface UpdateTicketInput {
@@ -362,18 +413,35 @@ export async function archiveTicket(
   }
   const ctx = toContext(config);
   const current = await fetchFile(ctx, path);
+  if (current.sha !== config.input.sha) {
+    throw new TicketConflictError(
+      409,
+      `他の更新が先行しました: ${path} は表示時点から変更されています。再読込してください`,
+    );
+  }
   const fileName = path.slice(path.lastIndexOf('/') + 1);
   const newPath = `${TICKETS_ARCHIVE_DIR}/${fileName}`;
   assertTicketPath(newPath);
   const message = config.input.message ?? `ticket: archive ${fileName}`;
-  await putFile(ctx, { path: newPath, text: current.text, message });
-  const res = await ctx.fetchFn(contentsUrl(ctx, path, false), {
-    method: 'DELETE',
-    headers: { ...baseHeaders(ctx), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, sha: current.sha, branch: ctx.branch }),
-  });
-  if (!res.ok) {
-    return throwApiError(res);
+  const created = await putFile(ctx, { path: newPath, text: current.text, message });
+  try {
+    await deleteFile(ctx, { path, sha: current.sha, message });
+  } catch (error) {
+    // 旧パス削除に失敗すると active/archive 両方に同一チケットが残るため、複製を巻き戻す
+    try {
+      await deleteFile(ctx, {
+        path: newPath,
+        sha: created.content.sha,
+        message: `ticket: rollback archive ${fileName}`,
+      });
+    } catch (rollbackError) {
+      throw new TicketApiError(
+        500,
+        `アーカイブの削除と巻き戻しの両方に失敗しました（${path} と ${newPath} が重複しています）: ` +
+          `${String(error)} / ${String(rollbackError)}`,
+      );
+    }
+    throw error;
   }
   return { newPath };
 }
