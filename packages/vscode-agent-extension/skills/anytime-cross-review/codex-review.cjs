@@ -104,7 +104,13 @@ function detectMutation(beforeFingerprint, afterFingerprint) {
  */
 async function runReview(o) {
   const { base, runCodex, gitStatus, logger } = o;
-  const prompt = o.prompt || buildReviewPrompt(base);
+  // 空文字列 prompt(stdin 空等)を既定プロンプトへフォールバックさせない。
+  // Round 2 検証のつもりが Round 1 レビューとして silent に実行される事故を防ぐ。
+  if (o.prompt !== undefined && !String(o.prompt).trim()) {
+    logger.error('[cross-review] 空のプロンプトが指定されました(stdin が空の可能性)。既定プロンプトへはフォールバックしません');
+    return { ok: false, error: 'empty prompt', mutated: false, added: [], findingCount: 0, maxSeverity: 'info', section: null };
+  }
+  const prompt = o.prompt !== undefined ? o.prompt : buildReviewPrompt(base);
   const before = gitStatus();
   let res;
   try {

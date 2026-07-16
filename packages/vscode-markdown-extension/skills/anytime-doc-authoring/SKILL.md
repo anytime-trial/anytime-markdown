@@ -41,6 +41,7 @@ type フォルダおよびその全サブフォルダの直下に索引 `index.[
   | tech | `npm run tech:index` |
   | proposal | `npm run proposal:index` |
   | review | `npm run review:index` |
+  | report | `npm run report:index` |
 
 ### 1.3. 共通の書き方原則
 

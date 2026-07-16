@@ -112,3 +112,17 @@ test('runReview は codex 非ゼロ終了で ok=false・error を返す', async 
   assert.strictEqual(r.ok, false);
   assert.match(r.error, /boom|exit 1/);
 });
+
+test('runReview は空文字列 prompt を既定プロンプトへフォールバックせず ok=false にする(stdin 空の silent degrade 防止)', async () => {
+  const calls = [];
+  const r = await cr.runReview({
+    base: 'develop',
+    prompt: '',
+    runCodex: async (a) => { calls.push(a); return { code: 0, stdout: '', stderr: '' }; },
+    gitStatus: () => '',
+    logger: { info() {}, error() {} },
+  });
+  assert.strictEqual(r.ok, false);
+  assert.match(r.error, /empty prompt/);
+  assert.strictEqual(calls.length, 0);
+});

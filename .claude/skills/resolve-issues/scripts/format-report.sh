@@ -31,10 +31,15 @@ for f in "$RESOLVED" "$UNRESOLVED" "$SKIPPED"; do
   sq_count=$((sq_count + $(count_by_source "$f" "sonarcloud")))
 done
 
+# frontmatter は web-app packages/web-app/src/types/report.ts の reportFrontmatterSchema と
+# 同期を保つ（title/date は必須。欠けると /report 一覧から silent に除外される）
 cat <<HEADER
 ---
-created: $DATE
-author: Claude Code
+title: "Issue 解決レポート — $DATE"
+date: "$DATE"
+author: "Claude Code"
+category: "resolve-issues"
+excerpt: "課題 ${total} 件の解決レポート（解決 ${resolved_count} / 未解決 ${unresolved_count} / スキップ ${skipped_count}）。"
 lang: ja
 ---
 
