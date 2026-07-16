@@ -456,6 +456,7 @@ function loopCheck(input, cwd) {
   const detailJson = JSON.stringify({
     kind: 'loop_detected',
     tool: toolName,
+    signature: verdict.signature, // 要件書 §12.4。同一 tool の異なる引数のループを事後に区別する
     count: verdict.count,
     pattern: verdict.pattern,
   });

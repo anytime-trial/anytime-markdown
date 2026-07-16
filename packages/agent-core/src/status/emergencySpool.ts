@@ -4,9 +4,17 @@
 // へ追記だけ行う。trail 拡張が定期 drain して S1 既存の `/api/trail/emergency-log` 経路で
 // emergency_log へ記録する（要件書 §12.4）。rename 先行 drain は gitActivitySpool と同方式
 // （read → rm の間に追記された行を失わない）。
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+} from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 const SPOOL_FILENAME = 'emergency-spool.jsonl';
 
@@ -68,16 +76,76 @@ export function appendEmergencySpool(
 }
 
 /**
+ * 退避ファイル 1 本を読み出し、成功時のみ削除する。
+ * 読取自体の失敗（EIO・権限等）ではファイルを**残置**して null を返す（次回 drain で再試行。
+ * 読めていないイベントを削除すると検知記録が消失する — cross-review 指摘の是正）。
+ */
+function readDrainingFile(
+  file: string,
+  onError: (message: string) => void,
+): EmergencySpoolEvent[] | null {
+  let raw: string;
+  try {
+    raw = readFileSync(file, 'utf8');
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    onError(`退避 spool の読取に失敗した (${reason})。残置して次回再試行する: ${file}`);
+    return null;
+  }
+  const rows: EmergencySpoolEvent[] = [];
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (isSpoolEvent(parsed)) {
+        rows.push(parsed);
+      } else {
+        onError(`spool の行を破棄した (型不一致): ${trimmed.slice(0, 200)}`);
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      onError(`spool の行を破棄した (${reason}): ${trimmed.slice(0, 200)}`);
+    }
+  }
+  try {
+    rmSync(file, { force: true });
+  } catch (err) {
+    // 削除失敗は次回 drain で同内容が再回収され得る（at-least-once。取込側の冪等 INSERT が吸収）。
+    const reason = err instanceof Error ? err.message : String(err);
+    onError(`退避 spool の削除に失敗した (${reason}): ${file}`);
+  }
+  return rows;
+}
+
+/**
  * spool を読み出して削除する。**読む前に rename する**（gitActivitySpool と同じ理由:
  * read → rm の間の追記を失わない。rename は同一ディレクトリ内で原子的）。
+ * 過去の drain が読取失敗・クラッシュで残した `.draining-*` 残骸も先に回収する。
  * 壊れた行・型不一致の行は捨てるが `onError` へ渡して黙って消さない。
  */
 export function drainEmergencySpool(
   path: string,
   onError: (message: string) => void = () => {},
 ): EmergencySpoolEvent[] {
-  if (!existsSync(path)) return [];
+  const rows: EmergencySpoolEvent[] = [];
 
+  // 1) 孤児の退避ファイル（前回 drain の読取失敗・プロセス中断の残骸）を先に回収する。
+  const prefix = `${basename(path)}.draining-`;
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(dirname(path));
+  } catch {
+    entries = []; // ディレクトリ不在 = spool 未作成の通常運転
+  }
+  for (const entry of entries) {
+    if (!entry.startsWith(prefix)) continue;
+    const recovered = readDrainingFile(join(dirname(path), entry), onError);
+    if (recovered !== null) rows.push(...recovered);
+  }
+
+  // 2) 現行 spool を rename → 読取。
+  if (!existsSync(path)) return rows;
   const draining = `${path}.draining-${randomUUID()}`;
   try {
     renameSync(path, draining);
@@ -85,29 +153,9 @@ export function drainEmergencySpool(
     // 他の drain が先に rename した等。取りこぼしではないので次回に回す。
     const reason = err instanceof Error ? err.message : String(err);
     onError(`spool の rename に失敗した (${reason}): ${path}`);
-    return [];
+    return rows;
   }
-
-  const rows: EmergencySpoolEvent[] = [];
-  try {
-    for (const line of readFileSync(draining, 'utf8').split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed === '') continue;
-      try {
-        const parsed: unknown = JSON.parse(trimmed);
-        if (isSpoolEvent(parsed)) {
-          rows.push(parsed);
-        } else {
-          onError(`spool の行を破棄した (型不一致): ${trimmed.slice(0, 200)}`);
-        }
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        onError(`spool の行を破棄した (${reason}): ${trimmed.slice(0, 200)}`);
-      }
-    }
-  } finally {
-    rmSync(draining, { force: true });
-  }
-
+  const current = readDrainingFile(draining, onError);
+  if (current !== null) rows.push(...current);
   return rows;
 }

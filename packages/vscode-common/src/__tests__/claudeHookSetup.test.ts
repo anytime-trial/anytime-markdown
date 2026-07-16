@@ -446,6 +446,8 @@ describe('setupClaudeHooks', () => {
     expect(report).toContain('api.writeEmergencyState');
     expect(report).toContain("event: 'kill_switch_on'");
     expect(report).toContain("event: 'anomaly_detected'");
+    // detail_json は要件書 §12.4 のスキーマ（signature を含む。同一 tool の別引数ループを事後区別）
+    expect(report).toContain('signature: verdict.signature');
     expect(report).toContain('triggeredBy: \'loop-detector\'');
   });
 

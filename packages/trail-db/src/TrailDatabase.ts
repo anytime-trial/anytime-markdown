@@ -8526,22 +8526,33 @@ export class TrailDatabase {
     }));
   }
 
-  /** 副作用: emergency_log へ INSERT。永続化は呼び出し側の save() 契約に従う。 */
+  /**
+   * 副作用: emergency_log へ INSERT。永続化は呼び出し側の save() 契約に従う。
+   * 全列一致の既存行があれば挿入しない（内容キーで冪等）。emergency spool の drain は
+   * at-least-once（POST 成功をクライアントのタイムアウトが失敗扱いにし再送し得る）のため、
+   * 再送をここで吸収する（cross-review 指摘の是正）。
+   */
   recordEmergencyEvent(input: EmergencyEventInput): void {
     const db = this.ensureDb();
     const stmt = db.prepare(
       `INSERT INTO emergency_log (occurred_at, event, reason, actor, session_id, detail_json)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       SELECT ?, ?, ?, ?, ?, ?
+       WHERE NOT EXISTS (
+         SELECT 1 FROM emergency_log
+         WHERE occurred_at = ? AND event = ? AND reason = ? AND actor = ?
+           AND session_id IS ? AND detail_json IS ?
+       )`,
     );
+    const values = [
+      input.occurredAt,
+      input.event,
+      input.reason,
+      input.actor,
+      input.sessionId,
+      input.detailJson,
+    ];
     try {
-      stmt.run([
-        input.occurredAt,
-        input.event,
-        input.reason,
-        input.actor,
-        input.sessionId,
-        input.detailJson,
-      ]);
+      stmt.run([...values, ...values]);
     } finally {
       stmt.free();
     }

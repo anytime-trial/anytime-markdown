@@ -1,4 +1,12 @@
-import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -81,6 +89,28 @@ describe('emergency spool', () => {
     appendEmergencySpool(dir, { ...event('kill'), event: 'kill_switch_on' });
     const drained = drainEmergencySpool(emergencySpoolPath(dir));
     expect(drained[0]?.event).toBe('kill_switch_on');
+  });
+
+  it('recovers orphaned .draining-* files left by a crashed or failed drain', () => {
+    const spool = emergencySpoolPath(dir);
+    writeFileSync(`${spool}.draining-orphan1`, `${JSON.stringify(event('orphan'))}\n`, 'utf8');
+    appendEmergencySpool(dir, event('current'));
+    const drained = drainEmergencySpool(spool);
+    expect(drained.map((e) => e.reason).sort()).toEqual(['current', 'orphan']);
+    expect(existsSync(`${spool}.draining-orphan1`)).toBe(false);
+  });
+
+  it('keeps the draining file when it cannot be read (no event loss, retried next cycle)', () => {
+    const spool = emergencySpoolPath(dir);
+    // ディレクトリは readFileSync が EISDIR で失敗する = 読取失敗の再現（chmod 不要で root でも成立）
+    const unreadable = `${spool}.draining-broken`;
+    mkdirSync(unreadable, { recursive: true });
+    appendEmergencySpool(dir, event('alive'));
+    const errors: string[] = [];
+    const drained = drainEmergencySpool(spool, (m) => errors.push(m));
+    expect(drained.map((e) => e.reason)).toEqual(['alive']); // 読める分は取り込む
+    expect(existsSync(unreadable)).toBe(true); // 読めないファイルは残置（削除しない）
+    expect(errors.some((m) => m.includes('残置'))).toBe(true);
   });
 
   it('preserves the raw file content as one JSON object per line', () => {

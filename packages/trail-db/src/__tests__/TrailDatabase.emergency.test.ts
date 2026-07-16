@@ -94,6 +94,30 @@ describe('TrailDatabase emergency (safe_points / emergency_log)', () => {
     expect(events[1]?.detailJson).toBe('{"trigger":"manual"}');
   });
 
+  it('is idempotent for identical events (at-least-once drain resend is absorbed)', () => {
+    const input = {
+      occurredAt: TS,
+      event: 'anomaly_detected',
+      reason: 'ループ検知: Read が同一引数で 5 回連続実行されています',
+      actor: 'agent',
+      sessionId: 'sess-loop',
+      detailJson: '{"kind":"loop_detected","signature":"abc"}',
+    } as const;
+    db.recordEmergencyEvent(input);
+    db.recordEmergencyEvent(input); // 再送（drain の POST タイムアウト後の再試行を模擬）
+    expect(db.listEmergencyEvents().filter((e) => e.sessionId === 'sess-loop')).toHaveLength(1);
+
+    // sessionId が null でも冪等（IS 比較で NULL 同士が一致すること。detailJson は非 null 型）
+    const nullInput = { ...input, sessionId: null, reason: 'null-key' };
+    db.recordEmergencyEvent(nullInput);
+    db.recordEmergencyEvent(nullInput);
+    expect(db.listEmergencyEvents().filter((e) => e.reason === 'null-key')).toHaveLength(1);
+
+    // 内容が 1 列でも異なれば別イベントとして記録される
+    db.recordEmergencyEvent({ ...input, occurredAt: '2026-07-16T12:00:00.000Z' });
+    expect(db.listEmergencyEvents().filter((e) => e.sessionId === 'sess-loop')).toHaveLength(2);
+  });
+
   it('rejects an invalid emergency event kind via CHECK constraint', () => {
     expect(() =>
       db.recordEmergencyEvent({
