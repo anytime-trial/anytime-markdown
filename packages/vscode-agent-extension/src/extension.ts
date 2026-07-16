@@ -35,6 +35,7 @@ import {
   WorktreeOwnershipItem,
   WorktreeOwnershipProvider,
 } from './providers/WorktreeOwnershipProvider';
+import { buildNotePageContent } from './notes/noteTemplate';
 import { installClaudeMdGuidance } from './skills/claudeMdGuidance';
 import { installWorkspaceSkills } from './skills/installWorkspaceSkills';
 import { AgentLogger } from './utils/AgentLogger';
@@ -43,6 +44,17 @@ import {
   resolveWorkerScriptPath,
 } from './worker/AgentStatusWorkerHost';
 import { normalizeSnapshotIntervalMs, retentionCutoffIso } from './workSnapshotSchedule';
+
+/**
+ * anytime-agent.addAiNotePage のコマンド引数。
+ * trail-viewer の「Agent Note に出力」（add-note-page 連携）が指定する。
+ * 省略時（サイドバーの「ページ追加」）は空ページを作成する。
+ */
+export interface AddAiNotePageArgs {
+  readonly title?: string;
+  readonly contextMarkdown?: string;
+  readonly imageDataUrl?: string;
+}
 
 let ollamaProvider: OllamaProvider | undefined;
 let agentStatusWorkerHost: AgentStatusWorkerHost | undefined;
@@ -247,7 +259,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const addAiNotePage = vscode.commands.registerCommand(
     'anytime-agent.addAiNotePage',
-    async () => {
+    async (args?: AddAiNotePageArgs) => {
       if (!fs.existsSync(noteStorageDir)) {
         fs.mkdirSync(noteStorageDir, { recursive: true });
       }
@@ -259,7 +271,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
       const fileName = `anytime-note-${nextNum}.md`;
       const filePath = path.join(noteStorageDir, fileName);
-      fs.writeFileSync(filePath, '', { encoding: 'utf-8' });
+
+      // 引数なし（サイドバーの「ページ追加」）は従来どおり空ページを作成する
+      let content = '';
+      if (args && (args.title !== undefined || args.contextMarkdown !== undefined || args.imageDataUrl !== undefined)) {
+        let imageRelPath: string | undefined;
+        if (args.imageDataUrl) {
+          try {
+            const matched = /^data:image\/png;base64,(.+)$/.exec(args.imageDataUrl);
+            if (matched) {
+              const imagesDir = path.join(noteStorageDir, 'images');
+              fs.mkdirSync(imagesDir, { recursive: true });
+              fs.writeFileSync(path.join(imagesDir, `note-${nextNum}-graph.png`), Buffer.from(matched[1], 'base64'));
+              imageRelPath = `images/note-${nextNum}-graph.png`;
+            }
+          } catch (err) {
+            // 画像保存失敗はテキストのみのページ作成に縮退する（note-page-export 仕様 §3.4 Fail-open）
+            AgentLogger.error(`[addAiNotePage] image save failed: ${String(err)}`);
+          }
+        }
+        content = buildNotePageContent({
+          title: args.title ?? fileName,
+          contextMarkdown: args.contextMarkdown ?? '',
+          imageRelPath,
+          imageAlt: args.title,
+          dateIso: new Date().toISOString().slice(0, 10),
+        });
+      }
+      fs.writeFileSync(filePath, content, { encoding: 'utf-8' });
       aiNoteProvider.refresh();
       await openNoteFile(filePath);
     },
