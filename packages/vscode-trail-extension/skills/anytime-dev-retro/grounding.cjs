@@ -118,6 +118,70 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     ),
   };
 
+  // モデル別挙動プロファイル(直近 30 日ウィンドウ・記述的)。役割分担見直しの材料として
+  // モデルごとの冗長性・ツール失敗率・実行時間を可視化する。
+  // 注意: タスク割当が非ランダム(機械作業は haiku 等、性質でモデルを選んでいる)ため、
+  //   モデル間の差は「性格」でなく割当タスクの性質を含む交絡を持つ。因果主張はしない。
+  // キーは両クエリとも本体 model(フル ID)で統一する。agent_model は短縮別名
+  //   (sonnet/haiku/opus)で粒度が異なり、mtc.model(=msg.model のフル ID)と突合すると
+  //   同一モデルが 2 エントリに分裂するため使わない(実測: agent_model のみで model 空の
+  //   assistant 行は 0 件のため統一による損失なし。レビュー warn 対処 2026-07-16)。
+  const verbosity = rows(
+    q(
+      db,
+      `SELECT NULLIF(m.model,'') model,
+              COUNT(*) assistantMsgs, ROUND(AVG(m.output_tokens)) avgOutputTokens
+       FROM messages m JOIN sessions s ON s.id = m.session_id
+       WHERE m.type = 'assistant' AND m.model IS NOT NULL AND m.model != ''
+         AND s.start_time >= datetime('now','-${WINDOW_DAYS} days')
+       GROUP BY 1`,
+    ),
+  );
+  // has_thinking は ingest 側で常に 0 固定(ClaudeCodeBehaviorAnalyzer)のため熟考率は出さない。
+  // ingest が thinking ブロック検出に対応したら列を復活させる。
+  const toolBehavior = rows(
+    q(
+      db,
+      `SELECT NULLIF(mtc.model,'') model, COUNT(*) toolCalls,
+              ROUND(100.0*SUM(mtc.is_error)/COUNT(*),1) toolErrorRatePct,
+              ROUND(AVG(mtc.turn_exec_ms)) avgTurnExecMs
+       FROM message_tool_calls mtc JOIN sessions s ON s.id = mtc.session_id
+       WHERE mtc.model IS NOT NULL AND mtc.model != ''
+         AND s.start_time >= datetime('now','-${WINDOW_DAYS} days')
+       GROUP BY 1`,
+    ),
+  );
+  const behaviorByModel = new Map();
+  for (const r of verbosity) {
+    behaviorByModel.set(r.model, {
+      model: r.model,
+      assistantMsgs: r.assistantMsgs,
+      avgOutputTokens: r.avgOutputTokens,
+      toolCalls: null,
+      toolErrorRatePct: null,
+      avgTurnExecMs: null,
+    });
+  }
+  for (const r of toolBehavior) {
+    const entry = behaviorByModel.get(r.model) ?? {
+      model: r.model,
+      assistantMsgs: null,
+      avgOutputTokens: null,
+    };
+    entry.toolCalls = r.toolCalls;
+    entry.toolErrorRatePct = r.toolErrorRatePct;
+    entry.avgTurnExecMs = r.avgTurnExecMs;
+    behaviorByModel.set(r.model, entry);
+  }
+  snapshot.modelBehavior = {
+    windowDays: WINDOW_DAYS,
+    // 標本 5 件未満のモデルは判定しない(委任成績と同じ少数標本抑制)。データは残しレポートで明示。
+    minSampleForJudgment: 5,
+    byModel: [...behaviorByModel.values()].sort(
+      (a, b) => (b.assistantMsgs ?? 0) - (a.assistantMsgs ?? 0),
+    ),
+  };
+
   // 活動
   snapshot.activity = {
     sessions: num(q(db, 'SELECT COUNT(*) c FROM sessions'), 'c'),
@@ -390,9 +454,13 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     const planDir = docsRoot ? path.join(docsRoot, 'plan') : null;
     if (planDir && fs.existsSync(planDir)) {
       // 末尾は \b でなく先読み: JS の \b は \w=[A-Za-z0-9_] 基準で日本語直後に成立せず
-      // 「採用」「差し戻し」が永久に不一致になる(レビュー検出 2026-07-16)
-      const OUTCOME_RE = /^- 委譲結果: 雛形v(\d+) (採用|差し戻し|abstain)(?=\s|$)/;
+      // 「採用」「差し戻し」が永久に不一致になる(レビュー検出 2026-07-16)。
+      // 版数の直後に任意の [model] タグを許す(後方互換: 省略時は旧書式で (unspecified))。
+      // m[1]=版数, m[2]=モデル(任意), m[3]=結果。
+      const OUTCOME_RE = /^- 委譲結果: 雛形v(\d+)(?: \[([^\]]+)\])? (採用|差し戻し|abstain)(?=\s|$)/;
+      const emptyTally = () => ({ 採用: 0, 差し戻し: 0, abstain: 0 });
       const byVersion = {};
+      const byModel = {};
       let recorded = 0;
       for (const f of fs.readdirSync(planDir)) {
         if (!f.endsWith('.md')) continue;
@@ -401,14 +469,18 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
           if (!m) continue;
           recorded += 1;
           const v = `v${m[1]}`;
-          byVersion[v] = byVersion[v] ?? { 採用: 0, 差し戻し: 0, abstain: 0 };
-          byVersion[v][m[2]] += 1;
+          const model = m[2] || '(unspecified)';
+          const outcome = m[3];
+          byVersion[v] = byVersion[v] ?? emptyTally();
+          byVersion[v][outcome] += 1;
+          byModel[model] = byModel[model] ?? emptyTally();
+          byModel[model][outcome] += 1;
         }
       }
-      snapshot.delegation = { docsRoot, recorded, byVersion };
+      snapshot.delegation = { docsRoot, recorded, byVersion, byModel };
     } else {
       // docs root 未解決・plan 不在は測定不能 null(0 件と区別し「記録ゼロ」と誤読させない)
-      snapshot.delegation = { docsRoot, recorded: null, byVersion: null };
+      snapshot.delegation = { docsRoot, recorded: null, byVersion: null, byModel: null };
     }
   } catch (e) {
     snapshot.errors.push(`delegation scan failed: ${e.message}`);
