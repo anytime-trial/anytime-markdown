@@ -44,16 +44,36 @@ export async function resolveRepoParams(
   return { token, repo, branch };
 }
 
-/** クライアント由来の未知キーを FrontmatterValue に絞り込む（型不明値の混入防止） */
+// frontmatter は 1 行 1 スカラーの自前フォーマットのため、キー / 値に制御文字（改行等）が入ると
+// 別キー・別行を注入できる。パーサのキー規則に合わないキー・制御文字を含む値はここで落とす。
+const SAFE_EXTRA_KEY_RE = /^[A-Za-z_][\w-]*$/;
+const CONTROL_CHARS_RE = new RegExp("[\\u0000-\\u001f]");
+
+function hasControlChars(value: string | string[]): boolean {
+  return Array.isArray(value)
+    ? value.some((item) => CONTROL_CHARS_RE.test(item))
+    : CONTROL_CHARS_RE.test(value);
+}
+
+/** クライアント由来の未知キーを FrontmatterValue に絞り込む（型不明値・frontmatter 注入の混入防止） */
 export function sanitizeExtras(raw: unknown): Record<string, FrontmatterValue> {
   const extras: Record<string, FrontmatterValue> = {};
   if (typeof raw !== "object" || raw === null) {
     return extras;
   }
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof value === "string" || typeof value === "number") {
+    if (!SAFE_EXTRA_KEY_RE.test(key)) {
+      continue;
+    }
+    if (typeof value === "number") {
       extras[key] = value;
-    } else if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
+    } else if (typeof value === "string" && !hasControlChars(value)) {
+      extras[key] = value;
+    } else if (
+      Array.isArray(value) &&
+      value.every((item) => typeof item === "string") &&
+      !hasControlChars(value as string[])
+    ) {
       extras[key] = value as string[];
     }
   }

@@ -148,6 +148,12 @@ describe('validateTicketFrontmatter', () => {
     expect(validateTicketFrontmatter({ ...VALID_FM, labels: 'auth' }).ok).toBe(false);
     expect(validateTicketFrontmatter({ ...VALID_FM, dependencies: [1] }).ok).toBe(false);
   });
+
+  it('文字列フィールドの制御文字（改行等）を拒否する', () => {
+    expect(validateTicketFrontmatter({ ...VALID_FM, title: 'x\nassignee: attacker' }).ok).toBe(false);
+    expect(validateTicketFrontmatter({ ...VALID_FM, assignee: 'a\r\nstatus: completed' }).ok).toBe(false);
+    expect(validateTicketFrontmatter({ ...VALID_FM, labels: ['ok', 'bad\ninjected'] }).ok).toBe(false);
+  });
 });
 
 describe('serializeTicket', () => {
@@ -177,6 +183,23 @@ describe('serializeTicket', () => {
     expect(text).not.toContain('assignee');
     expect(text).not.toContain('labels');
     expect(text).not.toContain('estimate');
+  });
+
+  it('title の改行で別キーを注入できない（frontmatter injection 防御）', () => {
+    const fm: TicketFrontmatter = { ...VALID_FM, title: 'x\nassignee: attacker' };
+    expect(() => serializeTicket(fm, '')).toThrow();
+  });
+
+  it('extras キーの改行で別行を注入できない', () => {
+    expect(() =>
+      serializeTicket(VALID_FM, '', { 'foo\nupdated_at': 'poison' }),
+    ).toThrow();
+  });
+
+  it('extras 値の改行で別行を注入できない', () => {
+    expect(() =>
+      serializeTicket(VALID_FM, '', { note: 'a\nstatus: completed' }),
+    ).toThrow();
   });
 });
 

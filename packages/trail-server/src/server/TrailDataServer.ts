@@ -2666,7 +2666,26 @@ export class TrailDataServer {
   //  API: /api/trail/safe-points, /api/trail/emergency-log (Phase 5 S1)
   // -------------------------------------------------------------------------
 
+  /**
+   * 状態変更 POST の CSRF 対策。Content-Type: application/json を必須にすることで、
+   * クロスサイトの「simple request」（text/plain 等・preflight 不要）を弾く。
+   * application/json はブラウザに preflight を強制させ、CORS の origin 許可リストで遮断される。
+   * 正規クライアント（フック curl・拡張の fetch）はいずれも application/json を送るため影響しない。
+   */
+  private requireJsonContentType(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+    const mediaType = (req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+    if (mediaType !== 'application/json') {
+      res.writeHead(415, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+      return false;
+    }
+    return true;
+  }
+
   private handleRecordSafePoint(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
     let body = '';
     req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
     req.on('end', () => {
@@ -2730,6 +2749,9 @@ export class TrailDataServer {
   private static readonly EMERGENCY_ACTORS = new Set(['human', 'claude', 'agent']);
 
   private handleRecordEmergencyEvent(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
     let body = '';
     req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
     req.on('end', () => {
