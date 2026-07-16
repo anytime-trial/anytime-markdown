@@ -1,0 +1,39 @@
+"""FastAPI dependencies: JWT validation for <project-name>.
+
+Q3 = 無し のケースでは本ファイルは Phase 4.4 で生成されない。
+Q3 = メールパスワード / Google OAuth のケースでのみ配置される。
+"""
+from __future__ import annotations
+
+import os
+from typing import Any
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
+
+bearer_scheme = HTTPBearer(auto_error=True)
+
+
+def _get_auth_secret() -> str:
+    secret = os.environ.get("AUTH_SECRET")
+    if not secret:
+        raise RuntimeError(
+            "AUTH_SECRET is not set. Share the secret with Auth.js via backend/.env."
+        )
+    return secret
+
+
+def get_current_user(
+    creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> dict[str, Any]:
+    """Decode the HS256 JWT issued by Auth.js and return its claims."""
+    try:
+        payload = jwt.decode(creds.credentials, _get_auth_secret(), algorithms=["HS256"])
+    except JWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    return payload
