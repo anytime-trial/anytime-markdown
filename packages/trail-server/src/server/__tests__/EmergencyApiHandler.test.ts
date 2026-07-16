@@ -83,11 +83,13 @@ describe('EmergencyApiHandler', () => {
   let recorded: Record<string, unknown>[];
   let handler: EmergencyApiHandler;
 
-  function fakeTrailDb(): TrailDatabase {
+  /** 既定では HEAD だけがセーフポイントとして記録済み。 */
+  function fakeTrailDb(points?: { commitHash: string }[]): TrailDatabase {
     return {
       recordEmergencyEvent: (input: Record<string, unknown>) => {
         recorded.push(input);
       },
+      listSafePoints: () => points ?? [{ commitHash: headCommit }],
     } as unknown as TrailDatabase;
   }
 
@@ -304,17 +306,100 @@ describe('EmergencyApiHandler', () => {
       expect(recorded).toHaveLength(0);
     });
 
-    it('存在しない commit は 404（何も変更しない）', async () => {
+    it('記録済みでも git から消えた commit（GC 済み）は 404（何も変更しない）', async () => {
       const gone = 'a'.repeat(40);
+      // safe_points には残るが git には存在しない、という pre-mortem のシナリオ
+      const staleDb = new EmergencyApiHandler(fakeTrailDb([{ commitHash: gone }]), silentLogger, {
+        gitRepoRoot: repoRoot,
+      });
       const before = runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot);
 
       const captured: CapturedResponse = { status: 0, body: undefined };
-      await handler.handleRollback(createPostRequest({ commitHash: gone }), createResponse(captured));
+      await staleDb.handleRollback(createPostRequest({ commitHash: gone }), createResponse(captured));
       await settle();
 
       expect(captured.status).toBe(404);
       expect(runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot)).toBe(before);
       expect(recorded).toHaveLength(0);
+    });
+  });
+
+  describe('セーフポイント境界（cross-review 合意指摘）', () => {
+    it('記録済みセーフポイント以外の commit へは switch しない', async () => {
+      // 別コミットを作る（git 上は実在するが safe_points には無い）
+      fs.writeFileSync(path.join(repoRoot, 'b.txt'), 'other\n');
+      runGit(['add', '.'], repoRoot);
+      runGit(['commit', '-m', 'other'], repoRoot);
+      const unrecorded = runGit(['rev-parse', 'HEAD'], repoRoot);
+      const before = runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot);
+
+      const captured: CapturedResponse = { status: 0, body: undefined };
+      await handler.handleRollback(createPostRequest({ commitHash: unrecorded }), createResponse(captured));
+      await settle();
+
+      // 「セーフポイント復旧」という操作境界は UI だけでなくサーバー側で強制する
+      expect(captured.status).toBe(403);
+      expect(runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot)).toBe(before);
+      expect(recorded).toHaveLength(0);
+    });
+
+    it('短縮 hash でも記録済みセーフポイントとして照合できる', async () => {
+      const captured: CapturedResponse = { status: 0, body: undefined };
+      await handler.handleRollback(
+        createPostRequest({ commitHash: headCommit.slice(0, 10) }),
+        createResponse(captured),
+      );
+      await settle();
+
+      expect(captured.status).toBe(200);
+    });
+
+    it('trail.db 未オープンなら 409（照合できないまま switch しない）', async () => {
+      const noDb = new EmergencyApiHandler(
+        {
+          recordEmergencyEvent: () => undefined,
+          listSafePoints: () => {
+            throw new Error('TrailDatabase not initialized. Call init() first.');
+          },
+        } as unknown as TrailDatabase,
+        silentLogger,
+        { gitRepoRoot: repoRoot },
+      );
+      const before = runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot);
+
+      const captured: CapturedResponse = { status: 0, body: undefined };
+      await noDb.handleRollback(createPostRequest({ commitHash: headCommit }), createResponse(captured));
+      await settle();
+
+      expect(captured.status).toBe(409);
+      expect(runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot)).toBe(before);
+    });
+  });
+
+  describe('body サイズ上限（cross-review 合意指摘）', () => {
+    it('content-length が上限超過なら読まずに 413', async () => {
+      const captured: CapturedResponse = { status: 0, body: undefined };
+      await handler.handleKillSwitch(
+        createPostRequest({ reason: 'x' }, { 'content-length': String(1024 * 1024) }),
+        createResponse(captured),
+      );
+      await settle();
+
+      expect(captured.status).toBe(413);
+      expect(readEmergencyState(airspaceDir)).toBeNull();
+    });
+
+    it('content-length を偽ってもストリーム累積で 413 に落ちる', async () => {
+      const captured: CapturedResponse = { status: 0, body: undefined };
+      // content-length を申告しない chunked 送信を模す
+      await handler.handleKillSwitch(
+        createPostRequest(JSON.stringify({ reason: 'a'.repeat(100_000) })),
+        createResponse(captured),
+      );
+      await settle();
+
+      expect(captured.status).toBe(413);
+      expect(readEmergencyState(airspaceDir)).toBeNull();
     });
   });
 

@@ -270,6 +270,57 @@ describe('emergencyPanel', () => {
     });
   });
 
+  describe('キーボード操作（cross-review 合意指摘）', () => {
+    function press(el: Element, key: string): void {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    }
+
+    it('パネルを開くと内部の要素へフォーカスが移る', async () => {
+      const handle = mountEmergencyPanel(container, baseProps());
+      (q(container, '[data-am-emergency-fab]') as HTMLElement).click();
+      await settle();
+
+      const panel = q(container, '[data-am-emergency-panel]') as HTMLElement;
+      expect(panel.contains(document.activeElement)).toBe(true);
+      handle.destroy();
+    });
+
+    it('Escape でパネルを閉じられる', async () => {
+      const handle = mountEmergencyPanel(container, baseProps());
+      (q(container, '[data-am-emergency-fab]') as HTMLElement).click();
+      await settle();
+
+      press(q(container, '[data-am-emergency-panel]') as HTMLElement, 'Escape');
+      await settle();
+
+      expect(q(container, '[data-am-emergency-panel]')).toBeNull();
+      handle.destroy();
+    });
+
+    it('確認モーダルの Escape は発動せず、キャンセルを明示する（FR-S5-5）', async () => {
+      const onActivate = jest.fn(async () => ({ ok: true }));
+      const handle = mountEmergencyPanel(container, baseProps({ onActivate }));
+
+      (q(container, '[data-am-emergency-fab]') as HTMLElement).click();
+      await settle();
+      const input = q(container, '[data-am-emergency-reason]') as HTMLInputElement;
+      input.value = 'x';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      (q(container, '[data-am-emergency-activate]') as HTMLElement).click();
+      await settle();
+
+      press(q(container, '[data-am-emergency-confirm-box]') as HTMLElement, 'Escape');
+      await settle();
+
+      // Escape を無言キャンセルにしない。S1 §16 の事故はまさにこれで起きた
+      expect(onActivate).not.toHaveBeenCalled();
+      expect(q(container, '[data-am-emergency-confirm]')).toBeNull();
+      const feedback = q(container, '[data-am-emergency-feedback]');
+      expect(feedback?.dataset['kind']).toBe('cancelled');
+      handle.destroy();
+    });
+  });
+
   describe('unknown 状態の案内', () => {
     it('サーバー不明時は VS Code コマンドという代替経路を案内する', async () => {
       const handle = mountEmergencyPanel(container, baseProps({ state: { status: 'unknown' } }));

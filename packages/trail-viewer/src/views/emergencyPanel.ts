@@ -9,6 +9,8 @@
  *   - 状態スタイルは data-status 属性 + 注入スタイルシートで表現し、色はテーマトークンから
  *     取る（ダーク / ライト両対応）。
  */
+import { createFocusTrap } from '@anytime-markdown/ui-core';
+
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import type { EmergencyActionResult, EmergencyViewState, SafePointDto } from '../data/emergencyStore';
 import type { TrailThemeTokens } from '../theme/designTokens';
@@ -145,6 +147,10 @@ export function mountEmergencyPanel(
   let pending: PendingAction | null = null;
   let safePoints: readonly SafePointDto[] = [];
   let safePointsLoaded = false;
+
+  // 再 render のたびに DOM を作り直すため、trap も張り直す。release を保持して二重付与を防ぐ。
+  let releasePanelTrap: (() => void) | null = null;
+  let releaseConfirmTrap: (() => void) | null = null;
 
   const doc = container.ownerDocument;
   ensureStyle(doc, props.tokens);
@@ -444,10 +450,34 @@ export function mountEmergencyPanel(
 
   function render(): void {
     if (destroyed) return;
+    // 旧 DOM の trap を先に解除する（背景 aria-hidden / スクロールロックを残さない）
+    releasePanelTrap?.();
+    releasePanelTrap = null;
+    releaseConfirmTrap?.();
+    releaseConfirmTrap = null;
+
     root.replaceChildren();
     root.appendChild(renderFab());
-    if (panelOpen) root.appendChild(renderPanel());
-    if (pending !== null) root.appendChild(renderConfirm(pending));
+
+    if (panelOpen) {
+      const panel = renderPanel();
+      root.appendChild(panel);
+      const paper = panel.querySelector<HTMLElement>('[data-am-emergency-panel]');
+      if (paper) {
+        releasePanelTrap = createFocusTrap({ container: paper, onClose: closePanel }).release;
+      }
+    }
+
+    if (pending !== null) {
+      const confirm = renderConfirm(pending);
+      root.appendChild(confirm);
+      const box = confirm.querySelector<HTMLElement>('[data-am-emergency-confirm-box]');
+      if (box) {
+        // Escape は cancelPending へ繋ぐ。単に閉じるだけだと「無言キャンセル」になり、
+        // S1 §16 で実際に起きた「発動したつもり」の事故を再現してしまう（FR-S5-5）。
+        releaseConfirmTrap = createFocusTrap({ container: box, onClose: cancelPending }).release;
+      }
+    }
   }
 
   render();
@@ -461,6 +491,8 @@ export function mountEmergencyPanel(
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      releasePanelTrap?.();
+      releaseConfirmTrap?.();
       root.remove();
       doc.getElementById(STYLE_ID)?.remove();
     },

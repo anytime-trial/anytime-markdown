@@ -38,6 +38,20 @@ const COMMIT_HASH = /^[0-9a-f]{7,40}$/i;
 /** viewer 経由であることを emergency_log の detail に残す（VS Code 経由と区別する）。 */
 const VIA = 'trail-viewer';
 
+/**
+ * 変更系 body の上限。この API の body は理由文字列か commit hash だけで、
+ * 数百バイトを超える正当な用途がない。グローバル rate limit は 1 リクエスト内の
+ * 巨大 body を抑止できないため、パース前にストリームを打ち切る（cross-review 合意指摘）。
+ */
+const MAX_BODY_BYTES = 64 * 1024;
+
+/**
+ * セーフポイント照合時の取得件数。`safe_points` の保持上限（500）を上回る値にして、
+ * 「一覧の後ろにある古いセーフポイントだけ復旧できない」取りこぼしを防ぐ。
+ * UI 表示の 50 件とは別（UI は新しい順の表示都合、こちらは境界検査）。
+ */
+const SAFE_POINT_LOOKUP_LIMIT = 1000;
+
 function sendJson(res: http.ServerResponse, payload: unknown): void {
   res.writeHead(200, JSON_HEADERS);
   res.end(JSON.stringify(payload));
@@ -206,6 +220,19 @@ export class EmergencyApiHandler {
       return;
     }
 
+    // 「セーフポイント復旧」という操作境界はサーバー側で強制する。UI が一覧から選ばせていても、
+    // HTTP API として任意の既存コミットへ switch できてはこの endpoint の意味が崩れる
+    // （cross-review 合意指摘）。
+    const recordedCheck = this.isRecordedSafePoint(commitHash);
+    if (recordedCheck === 'unavailable') {
+      sendError(res, 409, 'trail.db is not open; safe points cannot be verified');
+      return;
+    }
+    if (recordedCheck === 'no') {
+      sendError(res, 403, 'commitHash is not a recorded safe point');
+      return;
+    }
+
     // GC 済み・DB にだけ残った sha を切り出そうとして失敗する前に実在検証する（何も変更しない）
     try {
       await this.git(['cat-file', '-e', `${commitHash}^{commit}`], gitRepoRoot);
@@ -232,6 +259,25 @@ export class EmergencyApiHandler {
       recoverBranch,
     });
     sendJson(res, { ok: true, recoverBranch });
+  }
+
+  /**
+   * commitHash が記録済みセーフポイントか判定する。
+   *
+   * クライアントは短縮 hash を送り得るため前方一致で照合する（記録側は完全 hash）。
+   * DB 未オープンは 'unavailable'。「照合できない」を「照合できた」に倒さない
+   * （fail-open にすると境界チェックが素通りする）。
+   */
+  private isRecordedSafePoint(commitHash: string): 'yes' | 'no' | 'unavailable' {
+    let points: readonly { commitHash: string }[];
+    try {
+      points = this.trailDb.listSafePoints(SAFE_POINT_LOOKUP_LIMIT);
+    } catch (err) {
+      this.logError('rollback: failed to list safe points', err);
+      return 'unavailable';
+    }
+    const target = commitHash.toLowerCase();
+    return points.some((p) => p.commitHash.toLowerCase().startsWith(target)) ? 'yes' : 'no';
   }
 
   private airspaceDir(): string | null {
@@ -276,13 +322,36 @@ export class EmergencyApiHandler {
       return null;
     }
 
-    const raw = await new Promise<string>((resolve) => {
+    // content-length を申告しているなら読み始める前に弾く
+    const declared = Number.parseInt(req.headers['content-length'] ?? '', 10);
+    if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+      sendError(res, 413, 'Payload too large');
+      return null;
+    }
+
+    const raw = await new Promise<string | null>((resolve) => {
       let acc = '';
+      let size = 0;
+      let aborted = false;
       req.on('data', (chunk: Buffer) => {
+        if (aborted) return;
+        size += chunk.length;
+        // content-length は偽れるので累積も検査し、超えた時点で蓄積をやめる
+        if (size > MAX_BODY_BYTES) {
+          aborted = true;
+          resolve(null);
+          return;
+        }
         acc += chunk.toString();
       });
-      req.on('end', () => resolve(acc));
+      req.on('end', () => {
+        if (!aborted) resolve(acc);
+      });
     });
+    if (raw === null) {
+      sendError(res, 413, 'Payload too large');
+      return null;
+    }
 
     try {
       const parsed: unknown = JSON.parse(raw);
