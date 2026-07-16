@@ -6,7 +6,7 @@ description: anytime-markdown の i18n キー（packages/<viewer>/src/i18n/{ja,e
 
 # i18n キー命名規則
 
-更新日: 2026-07-04
+更新日: 2026-07-16
 
 anytime-markdown の i18n でキーを追加・変更する際の命名規則。パッケージによって実装形式が異なり、本ルール（ドット区切り階層キー・`types.ts`・`ja.ts`/`en.ts`）は **trail-viewer にのみ全面適用される**。他パッケージはフラット `{en,ja}.json` 形式または web-app の next-intl 方式であり、階層キー原則は適用されない（詳細は下表・各節の注記を参照）。VS Code 拡張の `package.nls*.json` (NLS) は別フォーマットだが基本原則は参考にできる。
 
@@ -122,7 +122,7 @@ anytime-markdown の i18n でキーを追加・変更する際の命名規則。
 1. `types.ts` のキー定義
 2. `ja.ts` / `en.ts` のキー
 3. consumer (コード上の `t('<key>')` 呼び出し全箇所)
-4. 仕様書の言及箇所 (`/Shared/anytime-markdown-docs/spec/` 配下)
+4. 仕様書の言及箇所 (`<docsRoot>/spec/` 配下)
 
 ## 9. VS Code NLS との関係
 

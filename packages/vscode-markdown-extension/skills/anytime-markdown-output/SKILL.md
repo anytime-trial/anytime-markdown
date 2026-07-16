@@ -1,7 +1,7 @@
 ---
 name: anytime-markdown-output
 effort: low
-description: Markdown ドキュメント（spec/tech/test/manual/proposal/plan/review/report）を出力・編集する際の構文・フロントマター・整形規約。/Shared/anytime-markdown-docs/ 配下に .md を作成/更新する時、見出し・テーブル・コードブロック・脚注・アドモニション・図表・フロントマター(type/c4Scope 等)を書く時、Markdown 出力仕様を確認する時に使用する。
+description: Markdown ドキュメント（spec/tech/test/manual/proposal/plan/review/report）を出力・編集する際の構文・フロントマター・整形規約。<docsRoot>/ 配下に .md を作成/更新する時、見出し・テーブル・コードブロック・脚注・アドモニション・図表・フロントマター(type/c4Scope 等)を書く時、Markdown 出力仕様を確認する時に使用する。
 ---
 
 ---
@@ -10,7 +10,7 @@ path: "**/*.md"
 
 # Claude Code Markdown 出力仕様
 
-更新日: 2026-07-11
+更新日: 2026-07-16
 
 > type 別の記載内容（何を書くか）・索引 `index.[lang].md` 運用は `anytime-doc-authoring` スキル、既存設計書の読み方は `anytime-spec-lookup` スキルを参照。本スキルは構文・フロントマター・整形（どう書くか）を扱う。
 
@@ -24,7 +24,7 @@ path: "**/*.md"
 
 ## 2. フロントマター仕様
 
-`/Shared/anytime-markdown-docs/` 配下に出力するすべての Markdown ファイルには、フロントマターを必ず付与する。
+`<docsRoot>/` 配下に出力するすべての Markdown ファイルには、フロントマターを必ず付与する。
 
 ```markdown
 ---
@@ -81,7 +81,7 @@ excerpt: "ドキュメントの要約。200文字以内。"
 | `test` | `/test/` | テスト項目書。ユニットテスト・E2E テストのケース一覧 |
 | `manual` | `/manual/` | マニュアル・手順書。ユーザー向け操作ガイド・セットアップ手順等 |
 | `proposal` | `/proposal/` | 提案。改善提案・新機能提案・技術選定の提案等 |
-| `plan` | `/Shared/anytime-markdown-docs/plan/` | 実装計画。タスク分解・スケジュール・依存関係の定義 |
+| `plan` | `<docsRoot>/plan/` | 実装計画。タスク分解・スケジュール・依存関係の定義 |
 | `review` | `/review/` | レビュー。コードレビュー結果・設計レビュー記録 |
 | `report` | `/report/` | レポート。日次調査・週次調査・Issue 解決レポート等。Web アプリの `/report` ページに一覧表示される |
 

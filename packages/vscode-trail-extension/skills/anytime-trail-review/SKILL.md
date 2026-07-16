@@ -6,7 +6,7 @@ description: コードレビュー結果を出力する際の Markdown 書式（
 
 # レビュー指摘の書式
 
-更新日: 2026-05-16
+更新日: 2026-07-16
 
 コードレビュー結果を出力する際の Markdown 書式。`memory-core/src/ingest/review` パーサ（Route A: review .md doc / Route B: session 抽出 / Route C: agent review）がこの書式を前提に finding を抽出するため、**指摘を確実に Memory に蓄積したい場合は本書式に従う**こと。
 
@@ -14,7 +14,7 @@ description: コードレビュー結果を出力する際の Markdown 書式（
 
 | 対象 | パス・トリガー |
 | --- | --- |
-| レビュードキュメント | `/Shared/anytime-markdown-docs/review/<date>-<topic>.<lang>.md` |
+| レビュードキュメント | `<docsRoot>/review/<date>-<topic>.<lang>.md` |
 | code-reviewer subagent 出力 | `subagent_type = 'code-reviewer'` または `subagent_type LIKE '%:code-reviewer'`（`pr-review-toolkit:code-reviewer` 等のプラグイン名前空間付きを含む）のメッセージ全文 |
 | requesting-code-review skill 出力 | `skill='superpowers:requesting-code-review'` の subagent 呼び出し結果 |
 | security-review / code-review-checklist | `skill IN ('security-review', 'code-review-checklist')` |

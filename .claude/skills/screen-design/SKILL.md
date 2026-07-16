@@ -1,11 +1,11 @@
 ---
 name: screen-design
-description: anytime-markdown の UI / 画面コンポーネントを新規実装・修正する際のデザインシステム指針。design.md（/Shared/anytime-markdown-docs/spec/10.web-app/design.md）参照義務・トークン駆動・ダーク/ライト両モード対応・アクセシビリティを定義。新規ページ/コンポーネント作成・スタイル変更・レイアウト変更・アニメーション追加・a11y 対応の時に使用する。
+description: anytime-markdown の UI / 画面コンポーネントを新規実装・修正する際のデザインシステム指針。design.md（<docsRoot>/spec/10.web-app/design.md）参照義務・トークン駆動・ダーク/ライト両モード対応・アクセシビリティを定義。新規ページ/コンポーネント作成・スタイル変更・レイアウト変更・アニメーション追加・a11y 対応の時に使用する。
 ---
 
 # 画面デザイン指針
 
-更新日: 2026-04-18
+更新日: 2026-07-16
 
 UI / 画面コンポーネントの新規実装・修正時は、プロジェクトのデザインシステム仕様書を**必ず参照**して実装する。
 
@@ -23,7 +23,7 @@ UI / 画面コンポーネントの新規実装・修正時は、プロジェク
 
 | プロジェクト | デザインシステム仕様書 |
 | --- | --- |
-| anytime-markdown | `/Shared/anytime-markdown-docs/spec/10.web-app/design.md` |
+| anytime-markdown | `<docsRoot>/spec/10.web-app/design.md` |
 
 > プロジェクトに対応する仕様書がない場合、または上記表に未掲載のプロジェクトでは、まずプロジェクトの `CLAUDE.md` を確認する。\
 > それでも仕様書が見つからない場合は、ユーザーにデザイン指針を確認する。

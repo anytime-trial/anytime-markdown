@@ -1,6 +1,6 @@
 # CLAUDE.md（anytime-markdown プロジェクト固有）
 
-更新日: 2026-07-02
+更新日: 2026-07-16
 
 > 汎用の作業スタイル・Git 哲学・サブエージェント方針・応答ルールは `~/.claude/CLAUDE.md`（global）に従う。\
 > ツール中立な規約（リポジトリ構成・ドキュメント正本の位置づけ・出力先・モノレポ構造・Git 基本）は `AGENTS.md`（Claude / Codex 共通）に従う。\
@@ -10,10 +10,17 @@
 
 - リポジトリ構成・ドキュメント正本の位置づけ（OKF 形式優先）・出力先・モノレポ構造・検証コマンド実在確認・Git 基本ルールは `AGENTS.md`（ツール中立規約の単一の正。Claude / Codex 双方が従う）に集約した。重複時は `AGENTS.md` を優先する。本ファイルは Claude 固有の補足のみを定義する。
 
+## ドキュメント保存先（docsRoot）
+
+- docsRoot: /Shared/anytime-markdown-docs
+- 設計書（spec）・提案（proposal）・プラン（plan）・レビュー（review）・レポート（report）等のドキュメントは docsRoot 配下へ出力する（コード repo 内に置かない）。
+- スキル・ドキュメント内の `<docsRoot>` プレースホルダは本節の値に読み替える。スキル本文へ docs リポジトリの絶対パスを直接記載しない（保存先は本節が単一の正）。
+- `anytime-dev-cycle` の preflight.cjs は本節の `- docsRoot:` 行を自動解決する（`--docs-root` 指定時はそちらを優先）。
+
 ## Claude 固有のドキュメント参照
 
-- UI / 画面コンポーネントの実装・修正時は `/Shared/anytime-markdown-docs/spec/10.web-app/design.md` を必ず Read してから着手する（指針は `screen-design` スキル）。
-- worktree とブランチ切替の詳細判断: `/Shared/anytime-markdown-docs/tech/branch/worktree-vs-branch.ja.md`。
+- UI / 画面コンポーネントの実装・修正時は `<docsRoot>/spec/10.web-app/design.md` を必ず Read してから着手する（指針は `screen-design` スキル）。
+- worktree とブランチ切替の詳細判断: `<docsRoot>/tech/branch/worktree-vs-branch.ja.md`。
 
 ## Trail DB
 
