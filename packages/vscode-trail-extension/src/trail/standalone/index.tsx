@@ -33,7 +33,9 @@ if (container) {
   const locale = detectLocale();
   const serverUrl = globalThis.location.origin;
 
-  const buildProps = () => ({ serverUrl, isDark, editable: true, locale, initialTab });
+  // emergencyEnabled: standalone は TrailDataServer と同居し、同一オリジンで emergency API へ
+  // 到達できる唯一の viewer なので、ここだけ Kill Switch UI を有効にする（web-app では出さない）。
+  const buildProps = () => ({ serverUrl, isDark, editable: true, locale, initialTab, emergencyEnabled: true });
 
   applyTrailThemeVars(isDark);
   const handle = mountTrailViewerApp(container, buildProps());

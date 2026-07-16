@@ -29,9 +29,9 @@ import { mountTrailViewer } from './trailViewer';
 import type { TrailViewerViewProps } from './trailViewer';
 import { isC4RelatedTab, isMemoryTab } from '../components/trailTabs';
 import { createChatBridge, type ChatBridgeStore } from '../hooks/createChatBridge';
-import { en } from '../i18n/en';
-import { ja } from '../i18n/ja';
-import type { TrailI18n } from '../i18n/types';
+import { createTrailI18n } from '../i18n/createTrailI18n';
+import { createEmergencyStore, type EmergencyStore } from '../data/emergencyStore';
+import { mountEmergencyPanel, type EmergencyPanelProps } from './emergencyPanel';
 
 // ---------------------------------------------------------------------------
 // Public props contract
@@ -47,15 +47,14 @@ export interface TrailViewerAppViewProps {
   readonly initialTab?: number;
   readonly initialC4Level?: number;
   readonly disableWebSocket?: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// i18n factory
-// ---------------------------------------------------------------------------
-
-function createTrailI18n(locale?: TrailLocale): (k: string) => string {
-  const dict: TrailI18n = locale === 'ja' ? ja : en;
-  return (k: string) => (dict as unknown as Record<string, string>)[k] ?? k;
+  /**
+   * Phase 5 S5: フローティング Kill Switch（EmergencyPanel）を出すか。既定 false。
+   *
+   * この viewer は web-app（公開デプロイ）にも埋め込まれる。Kill Switch はローカル機の
+   * `.git/anytime/emergency.json` と git を操作するため、standalone（TrailDataServer 同居）
+   * でのみ有効にする。`disableWebSocket` を代理条件に使わない（WS の有無と緊急 UI の可否は別軸）。
+   */
+  readonly emergencyEnabled?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -377,6 +376,46 @@ export function mountTrailViewerApp(
   // ── Initial inner mount ──
   let innerHandle = mountTrailViewer(container, buildViewerProps());
 
+  // ── Emergency (Phase 5 S5) ──
+  // FAB は position:fixed なので DOM 上の位置に依存しない。inner viewer の外へ並べて
+  // マウントし、TrailViewerViewProps へ緊急系の props を通さずに済ませる。
+  const emergencyStore: EmergencyStore | null = props.emergencyEnabled
+    ? createEmergencyStore(props.serverUrl, { enabled: true })
+    : null;
+  let emergencyHandle: VanillaViewHandle<EmergencyPanelProps> | null = null;
+  let unsubEmergency: (() => void) | null = null;
+
+  function buildEmergencyProps(store: EmergencyStore): EmergencyPanelProps {
+    const isDark = props.isDark ?? true;
+    return {
+      isDark,
+      tokens: getTokens(isDark),
+      t: createTrailI18n(props.locale),
+      state: store.getState(),
+      // 操作後は即座に状態を取り直す（10 秒ポーリングを待たせない）
+      onActivate: async (reason: string) => {
+        const result = await store.activate(reason);
+        await store.refresh();
+        return result;
+      },
+      onRelease: async (reason: string) => {
+        const result = await store.release(reason);
+        await store.refresh();
+        return result;
+      },
+      onRollback: (commitHash: string) => store.rollback(commitHash),
+      fetchSafePoints: () => store.fetchSafePoints(),
+    };
+  }
+
+  if (emergencyStore !== null) {
+    emergencyHandle = mountEmergencyPanel(container, buildEmergencyProps(emergencyStore));
+    unsubEmergency = emergencyStore.subscribe(() => {
+      if (destroyed) return;
+      emergencyHandle?.update(buildEmergencyProps(emergencyStore));
+    });
+  }
+
   /** Memory タブ初回訪問で ChatBridge を生成する（一度だけ。WS 接続 + 再描画）。 */
   function ensureChatBridge(): void {
     if (chatBridgeStore || destroyed) return;
@@ -399,6 +438,8 @@ export function mountTrailViewerApp(
     if (destroyed) return;
     maybeAutoSelectFirstSession();
     innerHandle.update(buildViewerProps());
+    // テーマ・ロケール変更を FAB へも波及させる（store の状態変化は subscribe 側で拾う）
+    if (emergencyStore !== null) emergencyHandle?.update(buildEmergencyProps(emergencyStore));
   }
 
   return {
@@ -419,6 +460,9 @@ export function mountTrailViewerApp(
       c4Store.dispose();
       traceStore.dispose();
       chatBridgeStore?.dispose();
+      unsubEmergency?.();
+      emergencyHandle?.destroy();
+      emergencyStore?.dispose();
       innerHandle.destroy();
     },
   };

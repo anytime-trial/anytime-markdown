@@ -38,6 +38,11 @@ export interface TrailViewerAppProps {
    * デフォルト false（拡張機能モード）。
    */
   readonly disableWebSocket?: boolean;
+  /**
+   * Phase 5 S5: フローティング Kill Switch（EmergencyPanel）を出すか。既定 false。
+   * ローカル機の緊急停止を操作するため、standalone（TrailDataServer 同居）でのみ true にする。
+   */
+  readonly emergencyEnabled?: boolean;
 }
 
 export function TrailViewerApp(props: Readonly<TrailViewerAppProps>) {
