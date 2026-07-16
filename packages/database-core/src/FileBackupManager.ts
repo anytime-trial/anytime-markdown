@@ -16,15 +16,33 @@ export interface BackupEntry {
 }
 
 /**
+ * FileBackupManager の追加オプション。
+ */
+export interface FileBackupManagerOptions {
+  /**
+   * バックアップファイルのサフィックス（既定 `.bak`）。
+   * 用途別に独立した世代系列を持たせる（例: KB Pre-write Snapshot は `.kb`）。
+   */
+  readonly suffix?: string;
+  /**
+   * false にするとインスタンス内 1 回制限（ラッチ）を外し、呼び出しごとに
+   * interval（最新世代の mtime）判定へ委ねる（既定 true = 従来挙動）。
+   * 書込のたびに発火し得る Pre-write Snapshot 用途で使う。
+   */
+  readonly latchPerInstance?: boolean;
+}
+
+/**
  * SQLite DB ファイルの世代管理バックアップ。
  *
  * 任意の DB ファイルに対して `.bak.1.gz` → `.bak.N.gz` の gzip 圧縮ローテーション
  * を行う。SQLite ファイルは冗長性が高く、gzip level 1 でも 30〜50% 程度まで
  * 縮むためディスク使用量を大幅に抑えられる。
  *
- * このインスタンスの生存期間内で最初の `maybeRotate()` 呼び出し時にだけ
- * 既存 DB を圧縮ローテーションし、それ以降は no-op。複数回 maybeRotate を
- * 呼んでも 1 セッションで 1 回までしか作成しない設計。
+ * 既定ではこのインスタンスの生存期間内で最初の `maybeRotate()` 呼び出し時にだけ
+ * 既存 DB を圧縮ローテーションし、それ以降は no-op（1 セッション 1 回）。
+ * `latchPerInstance: false` を指定すると呼び出しごとに interval 判定で
+ * ローテーションする（デバウンスは `backupIntervalDays` の小数指定で分単位にできる）。
  */
 export class FileBackupManager {
   /** デフォルトのバックアップ世代数。利用側で上書き可能。 */
@@ -32,31 +50,38 @@ export class FileBackupManager {
   /** gzip 圧縮レベル。起動時のブロッキング時間を短縮するため level 1 を採用。 */
   private static readonly GZIP_LEVEL = 1;
   private backupDone = false;
+  private readonly suffix: string;
+  private readonly latchPerInstance: boolean;
 
   /**
    * @param dbPath              対象 DB ファイルの絶対パス
    * @param backupGenerations   保持する世代数（0 以下はバックアップ無効）
-   * @param backupIntervalDays  バックアップ間隔（日）。0 = セッション毎、1 以上 = `.bak.1.gz` が N 日以上古い場合のみ作成
+   * @param backupIntervalDays  バックアップ間隔（日）。0 = 常に作成、正の値 = 最新世代が N 日以上古い場合のみ作成。小数可（例: 10 分 = 10 / (24 * 60)）
    * @param preWriteGuard       書き込み直前に呼ばれる任意のガード。テスト環境で保護領域への書き込みを止める用途。throw すれば操作は中断される。
+   * @param options             サフィックス・ラッチ挙動の上書き（{@link FileBackupManagerOptions}）
    */
   constructor(
     private readonly dbPath: string,
     private readonly backupGenerations: number = FileBackupManager.DEFAULT_BACKUP_GENERATIONS,
     private readonly backupIntervalDays: number = 1,
     private readonly preWriteGuard?: (targetPath: string) => void,
-  ) {}
+    options?: FileBackupManagerOptions,
+  ) {
+    this.suffix = options?.suffix ?? '.bak';
+    this.latchPerInstance = options?.latchPerInstance ?? true;
+  }
 
   /**
    * 必要であればバックアップをローテートする。
    *
-   * - 既に同一インスタンスで実行済み (`backupDone=true`) なら no-op
+   * - ラッチ有効（既定）で既に実行済み (`backupDone=true`) なら no-op
    * - `shouldBackup()` が false なら no-op
    * - それ以外は `rotateBackups()` を実行
    *
    * @returns 実際にバックアップを作成した場合 true
    */
   maybeRotate(): boolean {
-    if (this.backupDone) return false;
+    if (this.latchPerInstance && this.backupDone) return false;
     if (!this.shouldBackup()) {
       this.backupDone = true;
       return false;
@@ -71,7 +96,7 @@ export class FileBackupManager {
    * バックアップを作成すべきか判定する。
    * - `backupGenerations <= 0`: 常に false
    * - `backupIntervalDays === 0`: 常に true
-   * - `backupIntervalDays >= 1`: `.bak.1.gz` が存在しない、または mtime が N 日以上前の場合のみ true
+   * - `backupIntervalDays > 0`: 最新世代が存在しない、または mtime が N 日以上前の場合のみ true
    */
   private shouldBackup(): boolean {
     if (this.backupGenerations <= 0) return false;
@@ -108,7 +133,7 @@ export class FileBackupManager {
 
   /** 世代番号からバックアップファイルの絶対パスを導出。 */
   private backupPath(generation: number): string {
-    return `${this.dbPath}.bak.${generation}.gz`;
+    return `${this.dbPath}${this.suffix}.${generation}.gz`;
   }
 
   /**
