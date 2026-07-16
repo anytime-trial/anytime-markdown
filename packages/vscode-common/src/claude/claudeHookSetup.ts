@@ -237,7 +237,7 @@ function agentStatusReportContent(): string {
 //      判定ロジックは <git-common-dir>/anytime/airspace.cjs（agent 拡張が配置）に置く。
 //      **ワーカーにも DB にも VS Code にも依存しない**ため、VS Code 停止中でも動く。
 //   2) agent-status ワーカーへの編集/実行状況の POST（Agent マッピング UI 用。従来どおり）。
-// mode: edit-start | edit-end | bash-start | bash-end | planned | session-start
+// mode: edit-start | edit-end | bash-start | bash-end | planned | session-start | gate | loop-check
 //
 // **stdout は判定 JSON 専用**。ログは必ず stderr へ出す（stdout を汚すと Claude Code の
 // JSON パースが壊れ、フックが機能しなくなる）。
@@ -426,6 +426,78 @@ function airspaceVerdict(mode, input, cwd) {
   return null;
 }
 
+// Phase 5 S2: ループ検知（PostToolUse・全ツール）。exit code を返す（0=通常 / 2=Mayday 警告）。
+// 判定・状態・spool の実装は airspace.cjs バンドル側（agent-core）。ここでは配線のみ行う。
+function loopCheck(input, cwd) {
+  const loaded = loadAirspace(cwd);
+  if (loaded === null) return 0;
+  const { api, dir } = loaded;
+  // 旧バンドル（関数未搭載）は skip（fail-open・後方互換）。
+  if (
+    typeof api.toolSignature !== 'function' ||
+    typeof api.readLoopState !== 'function' ||
+    typeof api.evaluateLoop !== 'function' ||
+    typeof api.writeLoopState !== 'function' ||
+    typeof api.appendEmergencySpool !== 'function' ||
+    typeof api.writeEmergencyState !== 'function'
+  ) {
+    return 0;
+  }
+  const toolName = input.tool_name || '';
+  if (!toolName) return 0;
+  const sessionId = input.session_id || 'unknown';
+  const signature = api.toolSignature(toolName, input.tool_input ?? null);
+  const result = api.evaluateLoop(api.readLoopState(dir, sessionId), signature);
+  api.writeLoopState(dir, sessionId, result.state);
+  const verdict = result.verdict;
+  if (verdict.kind !== 'warn' && verdict.kind !== 'kill') return 0;
+
+  const now = new Date().toISOString();
+  const detailJson = JSON.stringify({
+    kind: 'loop_detected',
+    tool: toolName,
+    count: verdict.count,
+    pattern: verdict.pattern,
+  });
+
+  if (verdict.kind === 'kill') {
+    const reason = \`ループ検知: \${toolName} が同一引数で \${verdict.count} 回連続実行されました\`;
+    api.writeEmergencyState(dir, {
+      active: true,
+      reason,
+      triggeredBy: 'loop-detector',
+      triggeredAt: now,
+    });
+    api.appendEmergencySpool(
+      dir,
+      { occurredAt: now, event: 'kill_switch_on', reason, actor: 'agent', sessionId, detailJson },
+      warn,
+    );
+    process.stderr.write(
+      \`[Mayday] \${reason}。Kill Switch を自動発動しました。以後のツール実行は遮断されます。\` +
+        \`解除は VS Code コマンド「Anytime Trail: Kill Switch 解除」または台帳 \` +
+        \`\${path.join(dir, 'emergency.json')} の削除です。\\n\`,
+    );
+    return 2;
+  }
+
+  const reason =
+    verdict.pattern === 'oscillation'
+      ? \`ループ検知: 直近 \${verdict.count} 回のツール呼出が 2 種類の操作の往復になっています\`
+      : \`ループ検知: \${toolName} が同一引数で \${verdict.count} 回連続実行されています\`;
+  api.appendEmergencySpool(
+    dir,
+    { occurredAt: now, event: 'anomaly_detected', reason, actor: 'agent', sessionId, detailJson },
+    warn,
+  );
+  const killAt = typeof api.KILL_CONSECUTIVE === 'number' ? api.KILL_CONSECUTIVE : 10;
+  process.stderr.write(
+    \`[Mayday] \${reason}。方針を再評価してください（同一呼出が \${killAt} 回連続に達すると \` +
+      \`Kill Switch が自動発動します）。\\n\`,
+  );
+  return 2;
+}
+
 // claude CLI プロセスと親シェル（ターミナル）の PID を /proc の祖先から解決する。
 // airspace.cjs の findClaudePid と同じ判定（comm が 'claude' で始まる。WSL 相互運用では claude.exe になり得る）。
 // 非 Linux（/proc なし）・プロセス消滅時は null（PID なしで続行。ゲートと同じ fail-open）。
@@ -521,6 +593,43 @@ async function main() {
     process.exit(0);
   }
   const cwd = (input && input.cwd) || process.cwd();
+
+  // Phase 5 S2: 全ツール対象の軽量モード。クレーム更新・ワーカー POST は行わず即 exit する。
+  // - gate: PreToolUse（matcher なし）。Kill Switch 台帳だけを見る。S1 の edit-start/bash-start
+  //   内評価は Bash/Edit|Write にしか登録されないため、Read 等を含む「全ツール deny」
+  //   （要件書 §12.3）はこのモードが成立させる。Bash/Edit の二重評価は無害（同じ台帳を読むだけ）。
+  // - loop-check: PostToolUse（matcher なし）。ループ検知 → warn は exit 2 の Mayday 警告、
+  //   kill は台帳書込（次のツール呼出から gate が遮断）+ spool 記録。失敗は fail-open。
+  if (mode === 'gate') {
+    try {
+      const loaded = loadAirspace(cwd);
+      if (
+        loaded !== null &&
+        typeof loaded.api.readEmergencyState === 'function' &&
+        typeof loaded.api.evaluateEmergencyGate === 'function'
+      ) {
+        const emergency = loaded.api.evaluateEmergencyGate(
+          loaded.api.readEmergencyState(loaded.dir),
+          loaded.dir,
+        );
+        if (emergency.kind === 'deny') {
+          process.stdout.write(JSON.stringify(toPreToolUse(emergency)));
+        }
+      }
+    } catch (err) {
+      warn(\`gate mode failed: \${err.message}\`);
+    }
+    process.exit(0);
+  }
+  if (mode === 'loop-check') {
+    let exitCode = 0;
+    try {
+      exitCode = loopCheck(input, cwd);
+    } catch (err) {
+      warn(\`loop-check failed: \${err.message}\`);
+    }
+    process.exit(exitCode);
+  }
 
   // 1) airspace ゲート（ワーカー非依存）
   try {
@@ -732,6 +841,16 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   settings.hooks.PostToolUse.push({
     matcher: 'Bash',
     hooks: [{ type: 'command', command: reportCommand('bash-end'), timeout: REPORT_TIMEOUT_SEC }],
+  });
+
+  // Phase 5 S2: 全ツール対象の 2 モード（matcher なし = all tools）。
+  // gate は Kill Switch 台帳のみ参照する軽量 PreToolUse（Read 等も遮断対象にする。要件書 §12.3）。
+  // loop-check はループ検知の PostToolUse（warn = Mayday 警告 / kill = Kill Switch 自動発動）。
+  settings.hooks.PreToolUse.push({
+    hooks: [{ type: 'command', command: reportCommand('gate'), timeout: REPORT_TIMEOUT_SEC }],
+  });
+  settings.hooks.PostToolUse.push({
+    hooks: [{ type: 'command', command: reportCommand('loop-check'), timeout: REPORT_TIMEOUT_SEC }],
   });
 
   // SessionStart フック: 同じ作業ツリーに他の生存セッションがいれば worktree 分離を助言する。

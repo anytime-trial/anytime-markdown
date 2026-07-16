@@ -1,4 +1,6 @@
 export {
+  KILL_CONSECUTIVE,
+  WARN_CONSECUTIVE,
   appendEmergencySpool,
   clearEmergencyState,
   drainEmergencySpool,
