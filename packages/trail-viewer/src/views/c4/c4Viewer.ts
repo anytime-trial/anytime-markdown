@@ -2679,6 +2679,7 @@ export function mountC4Viewer(
       c4Id: contextMenu.c4Id,
       drillStack,
       hasShowSequenceHandler: props.onShowSequence !== undefined,
+      hasExportToNoteHandler: props.onExportToNote !== undefined,
       canShowManualContextActions,
       levelTargetType: getLevelTargetType() as import('@anytime-markdown/trail-core/c4').C4ElementType,
     });
@@ -2722,6 +2723,29 @@ export function mountC4Viewer(
       contextMenu = null; scheduleRender();
     });
     addBtn(t('c4.contextMenu.openScatter'), () => { scatterPopup = { filterElementId: c4Id }; showGraphPopup = false; matrixPopup = null; contextMenu = null; scheduleRender(); });
+    if (caps.canExportToNote) addBtn(t('c4.contextMenu.exportToNote'), () => {
+      const elem = props.c4Model?.elements.find((e) => e.id === c4Id);
+      if (!elem) { contextMenu = null; scheduleRender(); return; }
+      const cell = (v: string) => v.replaceAll('|', '\\|').replaceAll(/\r?\n/g, ' ');
+      const rows = [
+        '| 項目 | 値 |',
+        '| --- | --- |',
+        `| 要素 ID | \`${c4Id}\` |`,
+        `| 名前 | ${cell(elem.name)} |`,
+        `| 種別 | ${elem.type} |`,
+      ];
+      if (elem.description) rows.push(`| 説明 | ${cell(elem.description)} |`);
+      const repo = getSelectedRepo();
+      if (repo) rows.push(`| リポジトリ | ${cell(repo)} |`);
+      let imageDataUrl: string | undefined;
+      try {
+        imageDataUrl = canvasRef.current?.toDataURL('image/png');
+      } catch {
+        imageDataUrl = undefined; // 画像化失敗はテキストのみに縮退（note-page-export 仕様 §3.4）
+      }
+      props.onExportToNote?.({ title: elem.name, contextMarkdown: rows.join('\n'), imageDataUrl });
+      contextMenu = null; scheduleRender();
+    });
     if (caps.canShowManualActions) {
       const relBtn = el('button', `display:flex;align-items:center;gap:8px;width:100%;padding:6px 16px;text-align:left;background:none;border:none;cursor:pointer;font-size:14px;color:${colors.contextMenuText};`, { type: 'button' });
       relBtn.appendChild(svgIcon(ICONS.link, 16));
