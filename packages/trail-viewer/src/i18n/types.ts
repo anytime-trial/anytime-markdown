@@ -312,6 +312,7 @@ export interface TrailI18n {
   'c4.clearFrameFilter': string;
   'c4.copyPath': string;
   'c4.contextMenu.openScatter': string;
+  'c4.contextMenu.exportToNote': string;
   'c4.scatter.title': string;
   'c4.scatter.empty': string;
   'c4.scatter.tooltipFanIn': string;

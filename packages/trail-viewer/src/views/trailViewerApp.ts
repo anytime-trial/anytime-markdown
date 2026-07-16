@@ -293,7 +293,7 @@ export function mountTrailViewerApp(
       // Web 単体モード（WebSocket 無効）では未配線にしてメニュー項目を出さない
       onExportToNote: props.disableWebSocket
         ? undefined
-        : (payload) => { c4.sendCommand('add-note-page', payload); },
+        : (payload: { title: string; contextMarkdown: string; imageDataUrl?: string }) => { c4.sendCommand('add-note-page', payload); },
       serverUrl: props.serverUrl,
       claudeActivity: c4.claudeActivity,
       multiAgentActivity: c4.multiAgentActivity,
