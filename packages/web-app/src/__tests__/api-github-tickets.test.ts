@@ -9,6 +9,7 @@ const mockListTickets = jest.fn();
 const mockCreateTicket = jest.fn();
 const mockUpdateTicketContent = jest.fn();
 const mockArchiveTicket = jest.fn();
+const mockDeleteTicket = jest.fn();
 
 jest.mock("../lib/githubAuth", () => ({
   getGitHubToken: mockGetGitHubToken,
@@ -22,6 +23,7 @@ jest.mock("@anytime-markdown/tickets-core", () => {
     createTicket: mockCreateTicket,
     updateTicketContent: mockUpdateTicketContent,
     archiveTicket: mockArchiveTicket,
+    deleteTicket: mockDeleteTicket,
   };
 });
 
@@ -44,7 +46,7 @@ jest.mock("next/server", () => ({
 }));
 
 import { TicketApiError, TicketConflictError } from "@anytime-markdown/tickets-core";
-import { GET, POST, PUT } from "../app/api/github/tickets/route";
+import { DELETE, GET, POST, PUT } from "../app/api/github/tickets/route";
 import { POST as ARCHIVE_POST } from "../app/api/github/tickets/archive/route";
 
 type MockResp = { _body: Record<string, unknown>; _status: number };
@@ -157,6 +159,35 @@ describe("PUT /api/github/tickets", () => {
   it("競合（TicketConflictError）は 409 + conflict:true", async () => {
     mockUpdateTicketContent.mockRejectedValue(new TicketConflictError(409, "conflict"));
     const res = (await PUT(bodyRequest(putBody))) as unknown as MockResp;
+    expect(res._status).toBe(409);
+    expect(res._body.conflict).toBe(true);
+  });
+});
+
+describe("DELETE /api/github/tickets", () => {
+  it("sha 欠落は 400 で deleteTicket を呼ばない", async () => {
+    const res = (await DELETE(
+      bodyRequest({ repo: "o/r", branch: "main", path: ".tickets/T-1-a.md" }),
+    )) as unknown as MockResp;
+    expect(res._status).toBe(400);
+    expect(mockDeleteTicket).not.toHaveBeenCalled();
+  });
+
+  it("成功時は deleted を返す", async () => {
+    mockDeleteTicket.mockResolvedValue(undefined);
+    const res = (await DELETE(
+      bodyRequest({ repo: "o/r", branch: "main", path: ".tickets/T-1-a.md", sha: "s1" }),
+    )) as unknown as MockResp;
+    expect(res._status).toBe(200);
+    expect(res._body.deleted).toBe(".tickets/T-1-a.md");
+    expect(mockDeleteTicket.mock.calls[0][0].input.sha).toBe("s1");
+  });
+
+  it("競合は 409 + conflict:true", async () => {
+    mockDeleteTicket.mockRejectedValue(new TicketConflictError(409, "conflict"));
+    const res = (await DELETE(
+      bodyRequest({ repo: "o/r", branch: "main", path: ".tickets/T-1-a.md", sha: "old" }),
+    )) as unknown as MockResp;
     expect(res._status).toBe(409);
     expect(res._body.conflict).toBe(true);
   });

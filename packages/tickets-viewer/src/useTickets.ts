@@ -6,6 +6,7 @@ import { appendComment, type TicketStatus } from "@anytime-markdown/tickets-core
 import {
   archiveTicketRemote,
   createTicketRemote,
+  deleteTicketRemote,
   fetchTickets,
   saveTicket,
   TicketsClientError,
@@ -28,6 +29,7 @@ export interface UseTicketsResult {
   create: (input: CreateTicketClientInput) => Promise<boolean>;
   comment: (ticket: TicketItem, author: string, text: string) => Promise<boolean>;
   archive: (ticket: TicketItem) => Promise<boolean>;
+  remove: (ticket: TicketItem) => Promise<boolean>;
 }
 
 function replaceTicket(data: TicketsData, path: string, next: TicketItem): TicketsData {
@@ -176,10 +178,31 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
     [config, runMutation, reload],
   );
 
+  const remove = useCallback(
+    async (ticket: TicketItem): Promise<boolean> => {
+      if (!config) {
+        return false;
+      }
+      return runMutation(async () => {
+        await deleteTicketRemote(config, {
+          path: ticket.path,
+          sha: ticket.sha,
+          message: `ticket: delete ${ticket.frontmatter.id} ${ticket.frontmatter.title}`,
+        });
+        setData((current) =>
+          current
+            ? { ...current, tickets: current.tickets.filter((t) => t.path !== ticket.path) }
+            : current,
+        );
+      });
+    },
+    [config, runMutation],
+  );
+
   const clearError = useCallback(() => setError(null), []);
 
   return useMemo(
-    () => ({ data, loading, error, clearError, reload, moveStatus, save, create, comment, archive }),
-    [data, loading, error, clearError, reload, moveStatus, save, create, comment, archive],
+    () => ({ data, loading, error, clearError, reload, moveStatus, save, create, comment, archive, remove }),
+    [data, loading, error, clearError, reload, moveStatus, save, create, comment, archive, remove],
   );
 }

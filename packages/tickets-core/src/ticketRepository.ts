@@ -396,6 +396,27 @@ export async function updateTicketContent(
   return { path: res.content.path, sha: res.content.sha, commitSha: res.commit.sha };
 }
 
+export interface DeleteTicketInput {
+  path: string;
+  /** 楽観ロック用の既知 sha（必須）。他の更新が先行していれば TicketConflictError */
+  sha: string;
+  message?: string;
+}
+
+/** チケットファイルを削除する（git 履歴には残るため復元可能）。 */
+export async function deleteTicket(
+  config: TicketRepositoryConfig & { input: DeleteTicketInput },
+): Promise<void> {
+  assertTicketPath(config.input.path);
+  const ctx = toContext(config);
+  const fileName = config.input.path.slice(config.input.path.lastIndexOf('/') + 1);
+  await deleteFile(ctx, {
+    path: config.input.path,
+    sha: config.input.sha,
+    message: config.input.message ?? `ticket: delete ${fileName}`,
+  });
+}
+
 export interface ArchiveTicketInput {
   path: string;
   sha: string;

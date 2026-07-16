@@ -244,6 +244,13 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
             }
             return ok;
           }}
+          onDelete={async (ticket) => {
+            const ok = await tickets.remove(ticket);
+            if (ok) {
+              setSelectedPath(null);
+            }
+            return ok;
+          }}
           onOpenTicket={(ticket) => setSelectedPath(ticket.path)}
           renderBody={renderBody}
         />

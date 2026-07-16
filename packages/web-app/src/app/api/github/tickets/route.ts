@@ -4,6 +4,7 @@ import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   createTicket,
+  deleteTicket,
   listTickets,
   serializeTicket,
   updateTicketContent,
@@ -108,6 +109,37 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       },
     });
     return NextResponse.json({ ...result, updated_at: validated.value.updated_at });
+  } catch (error) {
+    return ticketErrorResponse(error);
+  }
+}
+
+/** チケット削除（sha 楽観ロック。git 履歴には残る） */
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
+  const body = (await request.json()) as Record<string, unknown>;
+  const params = await resolveRepoParams(
+    typeof body.repo === "string" ? body.repo : null,
+    typeof body.branch === "string" ? body.branch : null,
+  );
+  if (params instanceof NextResponse) {
+    return params;
+  }
+  const path = typeof body.path === "string" ? body.path : "";
+  const sha = typeof body.sha === "string" ? body.sha : "";
+  if (path === "" || sha === "") {
+    return NextResponse.json({ error: "path / sha が不正です" }, { status: 400 });
+  }
+  try {
+    await deleteTicket({
+      ...params,
+      fetchFn: fetchWithRetry,
+      input: {
+        path,
+        sha,
+        message: typeof body.message === "string" && body.message !== "" ? body.message : undefined,
+      },
+    });
+    return NextResponse.json({ deleted: path });
   } catch (error) {
     return ticketErrorResponse(error);
   }

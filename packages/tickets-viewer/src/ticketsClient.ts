@@ -125,6 +125,21 @@ export async function createTicketRemote(
   return (await res.json()) as TicketItem;
 }
 
+export async function deleteTicketRemote(
+  config: TicketsClientConfig,
+  input: { path: string; sha: string; message?: string },
+): Promise<void> {
+  const base = config.basePath ?? DEFAULT_BASE_PATH;
+  const res = await fetch(base, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ repo: config.repo, branch: config.branch, ...input }),
+  });
+  if (!res.ok) {
+    throw await toClientError(res);
+  }
+}
+
 export async function archiveTicketRemote(
   config: TicketsClientConfig,
   input: { path: string; sha: string },
