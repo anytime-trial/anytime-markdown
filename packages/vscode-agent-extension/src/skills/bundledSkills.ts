@@ -22,6 +22,9 @@ export interface BundledSkill {
  */
 export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   { name: 'anytime-cross-review' },
+  // 環境・設定の read-only 診断。trail の DB・MCP に依存しないため、2026-07-16 に
+  // trail 拡張同梱から移動した（配置済みコピーは agent marker 未記録 → 初回 activate で上書き）。
+  { name: 'anytime-dev-audit' },
   // rotation / delegation は anytime-dev-cycle の references へ統合した。
   {
     name: 'anytime-dev-cycle',
