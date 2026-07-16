@@ -54,11 +54,30 @@ describe('grounding.cjs delegation 集計', () => {
     expect(delegation.byVersion.v3).toEqual({ 採用: 0, 差し戻し: 0, abstain: 1 });
   });
 
+  test('モデルタグ [model] を版数別とモデル別の双方に数える（後方互換）', () => {
+    const delegation = runGrounding((ws) =>
+      writeDocs(ws, [
+        '- 委譲結果: 雛形v2 [codex] 採用 — 所感',
+        '- 委譲結果: 雛形v2 [codex] 差し戻し — 乖離',
+        '- 委譲結果: 雛形v2 [qwen3:8b] 採用 — 所感',
+        '- 委譲結果: 雛形v2 採用 — モデルタグなし旧書式',
+        '- 委譲結果: 雛形v2 [codex] 採用形 これは誤マッチさせない',
+      ]),
+    );
+    // 版数別は従来どおり（タグ有無に依らず数える）
+    expect(delegation.byVersion.v2).toEqual({ 採用: 3, 差し戻し: 1, abstain: 0 });
+    // モデル別: タグ付きはモデル名で、タグなしは (unspecified) で集計
+    expect(delegation.byModel.codex).toEqual({ 採用: 1, 差し戻し: 1, abstain: 0 });
+    expect(delegation.byModel['qwen3:8b']).toEqual({ 採用: 1, 差し戻し: 0, abstain: 0 });
+    expect(delegation.byModel['(unspecified)']).toEqual({ 採用: 1, 差し戻し: 0, abstain: 0 });
+  });
+
   test('docs root 未解決は測定不能 null（0 件と区別する）', () => {
     const delegation = runGrounding(() => {
       /* lep.json なし */
     });
     expect(delegation.recorded).toBeNull();
     expect(delegation.byVersion).toBeNull();
+    expect(delegation.byModel).toBeNull();
   });
 });
