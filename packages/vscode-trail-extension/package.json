@@ -144,6 +144,11 @@
         "command": "anytime-trail.rollbackToSafePoint",
         "title": "%command.rollbackToSafePoint%",
         "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.restoreKnowledgeBaseSnapshot",
+        "title": "%command.restoreKnowledgeBaseSnapshot%",
+        "category": "Anytime Trail"
       }
     ],
     "mcpServerDefinitionProviders": [

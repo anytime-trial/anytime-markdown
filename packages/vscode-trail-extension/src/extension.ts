@@ -44,6 +44,7 @@ import * as vscode from 'vscode';
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
 import { registerEmergencyCommands } from './commands/emergencyCommands';
+import { notifyKbShrink, registerKbSnapshotCommands } from './commands/kbSnapshotCommands';
 import { AlignmentDiagnosticsProvider } from './providers/AlignmentDiagnosticsProvider';
 import { AlignmentTreeProvider } from './providers/AlignmentTreeProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
@@ -382,6 +383,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	const backupGenerations = backupConfig.get<number>('generations', 1);
 	const backupIntervalDays = backupConfig.get<number>('intervalDays', 1);
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
+	// Phase 5 S3 (KB Persistence): Shrink Audit の警告を通知 + 復元導線へ配線
+	trailDb.setKbShrinkAlertHandler(notifyKbShrink);
 
 	// Anytime Memory output channel + native binding paths are needed by:
 	//   - MemoryCoreService (ingest pipeline ホスト)
@@ -1011,6 +1014,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		getPort: () =>
 			vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841),
 	});
+
+	// KB Persistence commands (Phase 5 S3): snapshot restore
+	registerKbSnapshotCommands(context, { getTrailDb: () => trailDb });
 
 	// .vscode/trace/ watcher: notify when a new trace file is created
 	if (wsRootForDb) {

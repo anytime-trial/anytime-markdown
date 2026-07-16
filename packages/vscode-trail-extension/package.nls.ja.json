@@ -24,5 +24,6 @@
   "command.killSwitch": "Kill Switch（Claude ツール実行を遮断）",
   "command.releaseKillSwitch": "Kill Switch 解除",
   "command.recordSafePoint": "セーフポイントを記録",
-  "command.rollbackToSafePoint": "セーフポイントへロールバック（recover ブランチ作成）"
+  "command.rollbackToSafePoint": "セーフポイントへロールバック（recover ブランチ作成）",
+  "command.restoreKnowledgeBaseSnapshot": "知識ベーススナップショットを復元（trail.db 全体）"
 }
