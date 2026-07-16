@@ -1,0 +1,122 @@
+import { createTestTrailDatabase } from './support/createTestDb';
+import type { TrailDatabase } from '../TrailDatabase';
+
+const TS = '2026-07-16T10:00:00.000Z';
+
+function safePoint(overrides: Partial<Parameters<TrailDatabase['recordSafePoint']>[0]> = {}) {
+  return {
+    createdAt: TS,
+    commitHash: 'a'.repeat(40),
+    branch: 'develop',
+    worktree: '/ws',
+    label: '',
+    source: 'stop_hook' as const,
+    sessionId: null,
+    ...overrides,
+  };
+}
+
+describe('TrailDatabase emergency (safe_points / emergency_log)', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  it('records and lists safe points in created_at descending order', () => {
+    db.recordSafePoint(safePoint({ createdAt: '2026-07-16T10:00:00.000Z', label: 'old' }));
+    db.recordSafePoint(safePoint({ createdAt: '2026-07-16T11:00:00.000Z', label: 'new' }));
+
+    const points = db.listSafePoints();
+    expect(points).toHaveLength(2);
+    expect(points[0]?.label).toBe('new');
+    expect(points[1]?.label).toBe('old');
+    expect(points[0]?.commitHash).toBe('a'.repeat(40));
+    expect(points[0]?.source).toBe('stop_hook');
+    expect(points[0]?.sessionId).toBeNull();
+  });
+
+  it('respects the list limit', () => {
+    for (let i = 0; i < 5; i += 1) {
+      db.recordSafePoint(safePoint({ createdAt: `2026-07-16T10:0${i}:00.000Z` }));
+    }
+    expect(db.listSafePoints(2)).toHaveLength(2);
+  });
+
+  it('prunes safe points beyond the retention cap (500)', () => {
+    for (let i = 0; i < 502; i += 1) {
+      const minutes = String(i % 60).padStart(2, '0');
+      const hours = String(Math.floor(i / 60)).padStart(2, '0');
+      db.recordSafePoint(safePoint({ createdAt: `2026-07-16T${hours}:${minutes}:00.000Z`, label: `p${i}` }));
+    }
+    const points = db.listSafePoints(1000);
+    expect(points).toHaveLength(500);
+    // 最古の 2 件（p0, p1）が削除されている
+    expect(points.some((p) => p.label === 'p0')).toBe(false);
+    expect(points.some((p) => p.label === 'p1')).toBe(false);
+    expect(points.some((p) => p.label === 'p501')).toBe(true);
+  });
+
+  it('rejects an invalid safe point source via CHECK constraint', () => {
+    expect(() =>
+      db.recordSafePoint(safePoint({ source: 'invalid' as never })),
+    ).toThrow();
+  });
+
+  it('records and lists emergency events with session and detail', () => {
+    db.recordEmergencyEvent({
+      occurredAt: TS,
+      event: 'kill_switch_on',
+      reason: 'runaway loop',
+      actor: 'human',
+      sessionId: 'sess-1',
+      detailJson: '{"trigger":"manual"}',
+    });
+    db.recordEmergencyEvent({
+      occurredAt: '2026-07-16T11:00:00.000Z',
+      event: 'kill_switch_off',
+      reason: '',
+      actor: 'human',
+      sessionId: null,
+      detailJson: '{}',
+    });
+
+    const events = db.listEmergencyEvents();
+    expect(events).toHaveLength(2);
+    expect(events[0]?.event).toBe('kill_switch_off');
+    expect(events[1]?.event).toBe('kill_switch_on');
+    expect(events[1]?.reason).toBe('runaway loop');
+    expect(events[1]?.sessionId).toBe('sess-1');
+    expect(events[1]?.detailJson).toBe('{"trigger":"manual"}');
+  });
+
+  it('rejects an invalid emergency event kind via CHECK constraint', () => {
+    expect(() =>
+      db.recordEmergencyEvent({
+        occurredAt: TS,
+        event: 'not_an_event' as never,
+        reason: '',
+        actor: 'human',
+        sessionId: null,
+        detailJson: '{}',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects invalid detail_json via json_valid CHECK', () => {
+    expect(() =>
+      db.recordEmergencyEvent({
+        occurredAt: TS,
+        event: 'kill_switch_on',
+        reason: '',
+        actor: 'human',
+        sessionId: null,
+        detailJson: '{broken',
+      }),
+    ).toThrow();
+  });
+});

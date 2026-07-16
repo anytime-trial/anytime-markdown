@@ -32,6 +32,8 @@ import {
   CREATE_COMMIT_FILES,
   CREATE_CROSS_SOURCE_CORRELATIONS,
   CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES,
+  CREATE_EMERGENCY_INDEXES,
+  CREATE_EMERGENCY_LOG,
   CREATE_CURRENT_CODE_GRAPH_COMMUNITIES,
   CREATE_CURRENT_CODE_GRAPHS,
   CREATE_CURRENT_COVERAGE,
@@ -62,6 +64,7 @@ import {
   CREATE_RELEASE_INDEXES,
   CREATE_RELEASES,
   CREATE_REPOS,
+  CREATE_SAFE_POINTS,
   CREATE_SESSION_COMMIT_RESOLUTIONS,
   CREATE_SESSION_COMMITS,
   CREATE_SESSION_COSTS,
@@ -75,7 +78,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type IC4ModelStore, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow,type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
+import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type IC4ModelStore, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
 
@@ -3751,6 +3754,12 @@ export class TrailDatabase {
     // cross-source 相関 (Step 4d)。新規テーブルのみ。
     db.run(CREATE_CROSS_SOURCE_CORRELATIONS);
     for (const idx of CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES) {
+      db.run(idx);
+    }
+    // Phase 5 S1 (Emergency Protocol)。新規テーブルのみ。
+    db.run(CREATE_SAFE_POINTS);
+    db.run(CREATE_EMERGENCY_LOG);
+    for (const idx of CREATE_EMERGENCY_INDEXES) {
       db.run(idx);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
@@ -8284,6 +8293,102 @@ export class TrailDatabase {
     } finally {
       stmt.free();
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Phase 5 S1: Emergency Protocol (safe_points / emergency_log)
+  // ---------------------------------------------------------------------------
+
+  /** セーフポイント保持上限。超過分は record 時に古い順で削除する（肥大化防止）。 */
+  private static readonly SAFE_POINT_RETENTION = 500;
+
+  /** 副作用: safe_points へ INSERT（+ 保持上限超過分の DELETE）。永続化は呼び出し側の save() 契約に従う。 */
+  recordSafePoint(input: SafePointInput): void {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      `INSERT INTO safe_points (created_at, commit_hash, branch, worktree, label, source, session_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    try {
+      stmt.run([
+        input.createdAt,
+        input.commitHash,
+        input.branch,
+        input.worktree,
+        input.label,
+        input.source,
+        input.sessionId,
+      ]);
+    } finally {
+      stmt.free();
+    }
+    db.run(
+      `DELETE FROM safe_points WHERE id NOT IN (
+         SELECT id FROM safe_points ORDER BY created_at DESC, id DESC LIMIT ${TrailDatabase.SAFE_POINT_RETENTION}
+       )`,
+    );
+  }
+
+  /** created_at 降順。 */
+  listSafePoints(limit = 100): SafePoint[] {
+    const db = this.ensureDb();
+    const res = db.exec(
+      `SELECT id, created_at, commit_hash, branch, worktree, label, source, session_id
+       FROM safe_points ORDER BY created_at DESC, id DESC LIMIT ?`,
+      [limit],
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      id: row[0] as number,
+      createdAt: row[1] as string,
+      commitHash: row[2] as string,
+      branch: row[3] as string,
+      worktree: row[4] as string,
+      label: row[5] as string,
+      source: row[6] as SafePoint['source'],
+      sessionId: (row[7] as string | null) ?? null,
+    }));
+  }
+
+  /** 副作用: emergency_log へ INSERT。永続化は呼び出し側の save() 契約に従う。 */
+  recordEmergencyEvent(input: EmergencyEventInput): void {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      `INSERT INTO emergency_log (occurred_at, event, reason, actor, session_id, detail_json)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    try {
+      stmt.run([
+        input.occurredAt,
+        input.event,
+        input.reason,
+        input.actor,
+        input.sessionId,
+        input.detailJson,
+      ]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /** occurred_at 降順。 */
+  listEmergencyEvents(limit = 100): EmergencyEvent[] {
+    const db = this.ensureDb();
+    const res = db.exec(
+      `SELECT id, occurred_at, event, reason, actor, session_id, detail_json
+       FROM emergency_log ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+      [limit],
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      id: row[0] as number,
+      occurredAt: row[1] as string,
+      event: row[2] as EmergencyEvent['event'],
+      reason: row[3] as string,
+      actor: row[4] as EmergencyEvent['actor'],
+      sessionId: (row[5] as string | null) ?? null,
+      detailJson: row[6] as string,
+    }));
   }
 
   markMessageCommitsResolved(sessionId: string, resolvedAt: string): void {
