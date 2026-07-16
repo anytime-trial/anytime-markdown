@@ -119,27 +119,31 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   };
 
   // モデル別挙動プロファイル(直近 30 日ウィンドウ・記述的)。役割分担見直しの材料として
-  // モデルごとの冗長性・ツール失敗率・熟考率・実行時間を可視化する。
+  // モデルごとの冗長性・ツール失敗率・実行時間を可視化する。
   // 注意: タスク割当が非ランダム(機械作業は haiku 等、性質でモデルを選んでいる)ため、
   //   モデル間の差は「性格」でなく割当タスクの性質を含む交絡を持つ。因果主張はしない。
-  // キーは subagent の agent_model を優先し、無ければ本体 model(COALESCE で束ねる)。
+  // キーは両クエリとも本体 model(フル ID)で統一する。agent_model は短縮別名
+  //   (sonnet/haiku/opus)で粒度が異なり、mtc.model(=msg.model のフル ID)と突合すると
+  //   同一モデルが 2 エントリに分裂するため使わない(実測: agent_model のみで model 空の
+  //   assistant 行は 0 件のため統一による損失なし。レビュー warn 対処 2026-07-16)。
   const verbosity = rows(
     q(
       db,
-      `SELECT COALESCE(NULLIF(m.agent_model,''), NULLIF(m.model,'')) model,
+      `SELECT NULLIF(m.model,'') model,
               COUNT(*) assistantMsgs, ROUND(AVG(m.output_tokens)) avgOutputTokens
        FROM messages m JOIN sessions s ON s.id = m.session_id
-       WHERE m.type = 'assistant' AND s.start_time >= datetime('now','-${WINDOW_DAYS} days')
-         AND COALESCE(NULLIF(m.agent_model,''), NULLIF(m.model,'')) IS NOT NULL
+       WHERE m.type = 'assistant' AND m.model IS NOT NULL AND m.model != ''
+         AND s.start_time >= datetime('now','-${WINDOW_DAYS} days')
        GROUP BY 1`,
     ),
   );
+  // has_thinking は ingest 側で常に 0 固定(ClaudeCodeBehaviorAnalyzer)のため熟考率は出さない。
+  // ingest が thinking ブロック検出に対応したら列を復活させる。
   const toolBehavior = rows(
     q(
       db,
       `SELECT NULLIF(mtc.model,'') model, COUNT(*) toolCalls,
               ROUND(100.0*SUM(mtc.is_error)/COUNT(*),1) toolErrorRatePct,
-              ROUND(100.0*SUM(mtc.has_thinking)/COUNT(*),1) thinkingRatePct,
               ROUND(AVG(mtc.turn_exec_ms)) avgTurnExecMs
        FROM message_tool_calls mtc JOIN sessions s ON s.id = mtc.session_id
        WHERE mtc.model IS NOT NULL AND mtc.model != ''
@@ -155,7 +159,6 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       avgOutputTokens: r.avgOutputTokens,
       toolCalls: null,
       toolErrorRatePct: null,
-      thinkingRatePct: null,
       avgTurnExecMs: null,
     });
   }
@@ -167,7 +170,6 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     };
     entry.toolCalls = r.toolCalls;
     entry.toolErrorRatePct = r.toolErrorRatePct;
-    entry.thinkingRatePct = r.thinkingRatePct;
     entry.avgTurnExecMs = r.avgTurnExecMs;
     behaviorByModel.set(r.model, entry);
   }

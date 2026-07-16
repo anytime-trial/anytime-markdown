@@ -74,7 +74,7 @@ node .claude/skills/anytime-dev-retro/grounding.cjs > /Shared/anytime-markdown-d
 - **サマリ**: 前回比で悪化/改善した上位シグナルを 3〜5 行。
 - **デルタ表**: メトリクス / 前回 / 今回 / 変化（↑↓→・新規）。**変化があった行を上に**。
 - **現在の主要シグナル**: hotspot top・drift 種別内訳・コスト内訳・SHORTCUT 技術負債（総数 / no-trigger 内訳・top ファイル）・スキル健全性（総数 / 参照切れ / 90 日超 stale / 30 日未使用・利用 top）など現状値。
-- **モデル別挙動プロファイル**（`modelBehavior.byModel`・30 日窓・記述的）: モデル/実行系ごとの冗長性（`avgOutputTokens`）・ツール失敗率（`toolErrorRatePct`）・熟考率（`thinkingRatePct`）・平均実行時間（`avgTurnExecMs`）を現状値として表示する。委譲先の役割分担（`anytime-dev-cycle` §1・§3.1 モデル表）の見直し材料。**因果主張はしない**: タスク割当が非ランダム（性質でモデルを選んでいる）ため、モデル間差は「性格」でなく割当タスクの性質を含む交絡を持つ。`assistantMsgs` が `minSampleForJudgment`（5）未満のモデルは「標本不足・判定しない」と明記する。
+- **モデル別挙動プロファイル**（`modelBehavior.byModel`・30 日窓・記述的）: モデル（フル ID）ごとの冗長性（`avgOutputTokens`）・ツール失敗率（`toolErrorRatePct`）・平均実行時間（`avgTurnExecMs`）を現状値として表示する。委譲先の役割分担（`anytime-dev-cycle` §1・§3.1 モデル表）の見直し材料。**因果主張はしない**: タスク割当が非ランダム（性質でモデルを選んでいる）ため、モデル間差は「性格」でなく割当タスクの性質を含む交絡を持つ。`assistantMsgs` が `minSampleForJudgment`（5）未満のモデルは「標本不足・判定しない」と明記する。
 - **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 を確認し件数を記す）、(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
 - **grounding errors**（あれば）: 測定不能だったシグナル。
 - 末尾に「次アクション候補」を箇条書き（提案に昇格したものは proposal へのリンク）。
