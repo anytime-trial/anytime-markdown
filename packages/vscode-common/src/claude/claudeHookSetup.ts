@@ -349,15 +349,15 @@ function toPreToolUse(verdict) {
 
 // クレームを更新し、衝突判定を返す。判定不能なら null（fail-open）。
 function airspaceVerdict(mode, input, cwd) {
-  if (process.env.ANYTIME_AIRSPACE === 'off') return null;
-
   const loaded = loadAirspace(cwd);
   if (loaded === null) return null;
   const { api, dir } = loaded;
 
   // Kill Switch（Phase 5 S1）: 発動中は airspace 判定より先に全変更系ツールを遮断する。
-  // 台帳の有無だけで判定するため、コマンド行の脱出口（ANYTIME_AIRSPACE=off の行内指定）では
-  // 迂回できない。旧バンドル（関数未搭載）は skip（fail-open・後方互換）。
+  // ANYTIME_AIRSPACE=off（airspace 衝突ゲートの脱出口）より前に評価する。緊急停止が
+  // 環境変数 1 つで無効化されては Kill Switch の意味がないため、解除経路は
+  // VS Code コマンドまたは台帳削除のみに限定する（cross-review 指摘の是正）。
+  // 旧バンドル（関数未搭載）は skip（fail-open・後方互換）。
   if (
     (mode === 'edit-start' || mode === 'bash-start') &&
     typeof api.readEmergencyState === 'function' &&
@@ -366,6 +366,9 @@ function airspaceVerdict(mode, input, cwd) {
     const emergency = api.evaluateEmergencyGate(api.readEmergencyState(dir), dir);
     if (emergency.kind === 'deny') return toPreToolUse(emergency);
   }
+
+  // airspace（並行セッション衝突）ゲートのみの無効化スイッチ。Kill Switch には効かない。
+  if (process.env.ANYTIME_AIRSPACE === 'off') return null;
 
   const claudePid = api.findClaudePid(process.pid);
   if (claudePid === null) {
