@@ -168,6 +168,14 @@ export interface ProviderRecheckCommand {
   readonly type: 'provider.recheck';
 }
 
+/** グラフ要素を Agent Note の新規ページへ出力する（trail-viewer 右クリック → agent 拡張連携） */
+export interface AddNotePageCommand {
+  readonly type: 'add-note-page';
+  readonly title: string;
+  readonly contextMarkdown: string;
+  readonly imageDataUrl?: string;
+}
+
 export type ClientMessage =
   | SetLevelCommand
   | ClusterCommand
@@ -179,4 +187,5 @@ export type ClientMessage =
   | PerfReportCommand
   | ChatSendCommand
   | ChatAbortCommand
-  | ProviderRecheckCommand;
+  | ProviderRecheckCommand
+  | AddNotePageCommand;

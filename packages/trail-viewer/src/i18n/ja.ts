@@ -224,6 +224,7 @@ export const ja: TrailI18n = {
   'c4.clearFrameFilter': 'フィルタ解除',
   'c4.copyPath': 'パスをコピー',
   'c4.contextMenu.openScatter': 'この要素の散布図を開く',
+  'c4.contextMenu.exportToNote': 'Agent Note に出力',
   'c4.scatter.title': '関数役割散布図 (fan_in × fan_out)',
   'c4.scatter.empty': '対象関数がありません',
   'c4.scatter.tooltipFanIn': 'fan_in (呼ばれた回数)',

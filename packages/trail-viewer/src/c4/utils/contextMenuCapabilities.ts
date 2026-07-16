@@ -13,6 +13,7 @@ export interface ContextMenuCapabilities {
   readonly canShowSequence: boolean;
   readonly canCopyPath: boolean;
   readonly canOpenFile: boolean;
+  readonly canExportToNote: boolean;
   readonly canShowManualActions: boolean;
   readonly showContextMenu: boolean;
 }
@@ -22,6 +23,8 @@ export interface ComputeContextMenuCapabilitiesArgs {
   readonly c4Id: string | null;
   readonly drillStack: ReadonlyArray<DrillFrame>;
   readonly hasShowSequenceHandler: boolean;
+  /** 「Agent Note に出力」ハンドラの有無（VS Code 連携時のみ true。Web 単体モードでは項目非表示） */
+  readonly hasExportToNoteHandler?: boolean;
   readonly canShowManualContextActions: (model: C4Model | null, c4Id: string | null) => boolean;
   /**
    * 現在表示レベルの leaf タイプ (system / container / component / code)。
@@ -38,6 +41,7 @@ const EMPTY_CAPABILITIES: ContextMenuCapabilities = {
   canShowSequence: false,
   canCopyPath: false,
   canOpenFile: false,
+  canExportToNote: false,
   canShowManualActions: false,
   showContextMenu: false,
 };
@@ -69,6 +73,7 @@ export function computeContextMenuCapabilities(
   const canShowSequence = target?.type === 'component' && hasShowSequenceHandler;
   const canCopyPath = c4Id.startsWith('pkg_') || c4Id.startsWith('file::');
   const canOpenFile = c4Id.startsWith('file::');
+  const canExportToNote = target !== null && (args.hasExportToNoteHandler ?? false);
   const canShowManualActionsResult = canShowManualContextActions(c4Model, c4Id);
 
   const showContextMenu = (
@@ -78,6 +83,7 @@ export function computeContextMenuCapabilities(
     || canOpenFile
     || canCopyPath
     || canShowSequence
+    || canExportToNote
     || canShowManualActionsResult
   );
 
@@ -88,6 +94,7 @@ export function computeContextMenuCapabilities(
     canShowSequence,
     canCopyPath,
     canOpenFile,
+    canExportToNote,
     canShowManualActions: canShowManualActionsResult,
     showContextMenu,
   };

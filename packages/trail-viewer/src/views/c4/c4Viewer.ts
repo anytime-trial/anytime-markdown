@@ -72,6 +72,7 @@ import { communityColor } from '../../components/communityColors';
 import { COMMUNITY_ROLE_LABELS, getCommunityRoleBgColors } from '../../c4/communityRoleColors';
 import { buildFunctionGraphDocument } from '../../c4/components/buildFunctionGraphDocument';
 import { computeContextMenuCapabilities } from '../../c4/utils/contextMenuCapabilities';
+import { buildElementContextMarkdown } from '../../c4/utils/noteExportContext';
 import {
   computeBounds,
   fitToContent,
@@ -2679,6 +2680,7 @@ export function mountC4Viewer(
       c4Id: contextMenu.c4Id,
       drillStack,
       hasShowSequenceHandler: props.onShowSequence !== undefined,
+      hasExportToNoteHandler: props.onExportToNote !== undefined,
       canShowManualContextActions,
       levelTargetType: getLevelTargetType() as import('@anytime-markdown/trail-core/c4').C4ElementType,
     });
@@ -2722,6 +2724,19 @@ export function mountC4Viewer(
       contextMenu = null; scheduleRender();
     });
     addBtn(t('c4.contextMenu.openScatter'), () => { scatterPopup = { filterElementId: c4Id }; showGraphPopup = false; matrixPopup = null; contextMenu = null; scheduleRender(); });
+    if (caps.canExportToNote) addBtn(t('c4.contextMenu.exportToNote'), () => {
+      const elem = props.c4Model?.elements.find((e) => e.id === c4Id);
+      if (!elem) { contextMenu = null; scheduleRender(); return; }
+      const contextMarkdown = buildElementContextMarkdown(elem, c4Id, getSelectedRepo() || null);
+      let imageDataUrl: string | undefined;
+      try {
+        imageDataUrl = canvasRef.current?.toDataURL('image/png');
+      } catch {
+        imageDataUrl = undefined; // 画像化失敗はテキストのみに縮退（note-page-export 仕様 §3.4）
+      }
+      props.onExportToNote?.({ title: elem.name, contextMarkdown, imageDataUrl });
+      contextMenu = null; scheduleRender();
+    });
     if (caps.canShowManualActions) {
       const relBtn = el('button', `display:flex;align-items:center;gap:8px;width:100%;padding:6px 16px;text-align:left;background:none;border:none;cursor:pointer;font-size:14px;color:${colors.contextMenuText};`, { type: 'button' });
       relBtn.appendChild(svgIcon(ICONS.link, 16));

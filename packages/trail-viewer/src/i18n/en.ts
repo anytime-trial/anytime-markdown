@@ -224,6 +224,7 @@ export const en: TrailI18n = {
   'c4.clearFrameFilter': 'Clear Frame Filter',
   'c4.copyPath': 'Copy Path',
   'c4.contextMenu.openScatter': 'Open scatter plot for this element',
+  'c4.contextMenu.exportToNote': 'Export to Agent Note',
   'c4.scatter.title': 'Function Roles Scatter (fan_in × fan_out)',
   'c4.scatter.empty': 'No functions to display',
   'c4.scatter.tooltipFanIn': 'fan_in (called count)',
