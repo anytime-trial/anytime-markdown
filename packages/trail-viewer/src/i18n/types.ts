@@ -532,6 +532,10 @@ export interface TrailI18n {
   'metrics.aiFirstTrySuccessRate.description': string;
   'metrics.changeFailureRate.name': string;
   'metrics.changeFailureRate.description': string;
+  'metrics.meanTimeToRecovery.name': string;
+  'metrics.meanTimeToRecovery.description': string;
+  'metrics.taskCompletionRate.name': string;
+  'metrics.taskCompletionRate.description': string;
   'metrics.empty': string;
   // c4 call hierarchy
   'c4.callHierarchy.empty': string;
