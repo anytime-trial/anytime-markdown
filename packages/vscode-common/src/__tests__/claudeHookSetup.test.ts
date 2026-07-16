@@ -165,6 +165,19 @@ describe('setupClaudeHooks', () => {
     expect(mjs).not.toContain('safeBranch(wk.root)');
   });
 
+  test('agent-status-report.mjs は /proc 祖先から claude / ターミナル PID を解決し body に載せる', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const mjs = readScript('agent-status-report.mjs');
+    // /proc 祖先 walk（airspace の findClaudePid と同じ comm 前方一致判定）
+    expect(mjs).toContain('function resolvePids()');
+    expect(mjs).toContain("comm.startsWith('claude')");
+    // edit 系 / bash 系の POST body に pid / terminalPid を含める
+    expect(mjs).toContain('pid: pids ? pids.pid : undefined');
+    expect(mjs).toContain('terminalPid: pids ? pids.terminalPid : undefined');
+  });
+
   test('commit-tracker / session-guard / handoff-inject hooks are bare bash (AGENT_HOME 注入なし)', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);

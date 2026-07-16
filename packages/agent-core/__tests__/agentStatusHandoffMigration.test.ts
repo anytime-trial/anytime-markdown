@@ -138,4 +138,69 @@ describe('agent-status handoff スキーマ移行', () => {
       store.close();
     }
   });
+
+  it('pid 列を持たない handoff 済み DB を開くと pid / terminal_pid 列が追加され既存行は null を保つ', () => {
+    // handoff スキーマまで移行済みだが pid 列導入前の DB を再現する。
+    const HANDOFF_DDL_NO_PID = `CREATE TABLE IF NOT EXISTS agent_sessions (
+      session_id       TEXT PRIMARY KEY,
+      editing          INTEGER NOT NULL DEFAULT 0 CHECK (editing IN (0, 1)),
+      file             TEXT NOT NULL DEFAULT '',
+      branch           TEXT NOT NULL DEFAULT '',
+      workspace_path   TEXT NOT NULL DEFAULT '',
+      session_edits    TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(session_edits)),
+      planned_edits    TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(planned_edits)),
+      last_head        TEXT,
+      committed_count  INTEGER NOT NULL DEFAULT 0 CHECK (committed_count >= 0),
+      last_commit_hash TEXT,
+      last_commit_at   TEXT,
+      summary          TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(summary)),
+      summary_at       TEXT,
+      handoff_at       TEXT,
+      updated_at       TEXT NOT NULL
+    ) STRICT`;
+    const old = new DatabaseSync(dbPath);
+    old.exec(HANDOFF_DDL_NO_PID);
+    old.prepare(`INSERT INTO agent_sessions (session_id, updated_at) VALUES (?, ?)`).run(
+      's1',
+      '2026-07-16T00:00:00.000Z',
+    );
+    old.close();
+    expect(hasColumn(dbPath, 'pid')).toBe(false);
+
+    const store = new AgentStatusStore(dbPath);
+    try {
+      expect(hasColumn(dbPath, 'pid')).toBe(true);
+      expect(hasColumn(dbPath, 'terminal_pid')).toBe(true);
+      const row = store.queryOne('s1');
+      expect(row?.pid).toBeNull();
+      expect(row?.terminalPid).toBeNull();
+
+      // 追加後は upsertEditing で書き込める。
+      store.upsertEditing({ sessionId: 's1', pid: 4321, terminalPid: 4300 });
+      expect(store.queryOne('s1')?.pid).toBe(4321);
+      expect(store.queryOne('s1')?.terminalPid).toBe(4300);
+    } finally {
+      store.close();
+    }
+  });
+
+  it('pid だけ追加済みで中断した DB を開くと terminal_pid が補完される（部分適用からの復旧）', () => {
+    // 1 本目の ALTER 成功直後にプロセスが落ちた状態を再現する（cross-review Codex 指摘の回帰テスト）。
+    const store1 = new AgentStatusStore(dbPath);
+    store1.close();
+    const half = new DatabaseSync(dbPath);
+    half.exec('ALTER TABLE agent_sessions DROP COLUMN terminal_pid');
+    half.close();
+    expect(hasColumn(dbPath, 'pid')).toBe(true);
+    expect(hasColumn(dbPath, 'terminal_pid')).toBe(false);
+
+    const store2 = new AgentStatusStore(dbPath);
+    try {
+      expect(hasColumn(dbPath, 'terminal_pid')).toBe(true);
+      store2.upsertEditing({ sessionId: 's1', pid: 111, terminalPid: 100 });
+      expect(store2.queryOne('s1')?.terminalPid).toBe(100);
+    } finally {
+      store2.close();
+    }
+  });
 });

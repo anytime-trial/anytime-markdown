@@ -403,9 +403,16 @@ export class SessionTreeItem extends vscode.TreeItem {
     // context 無しで構築された場合のみ、生の session.workspacePath にフォールバックする。
     const wsName = formatWorkspaceName(context?.workspacePath ?? session.workspacePath);
     const wsInfo = wsName ? `**ワークスペース:** \`${wsName}\`\n\n` : '';
+    // ターミナル PID は VS Code のターミナルタブ hover に出るシェル PID と一致する（対応付け用）。
+    // 記録時点のスナップショットであり、プロセスの生存は保証しない。未取得（Codex 等）は行ごと省略。
+    const terminalPidStr = session.terminalPid
+      ? `  •  **ターミナル PID:** \`${session.terminalPid}\``
+      : '';
+    const pidInfo = session.pid ? `**PID:** \`${session.pid}\`${terminalPidStr}\n\n` : '';
     this.tooltip = new vscode.MarkdownString(
       `**Session:** \`${session.sessionId}\`\n\n` +
       wsInfo +
+      pidInfo +
       sourceInfo +
       labelInfo +
       wtInfo +

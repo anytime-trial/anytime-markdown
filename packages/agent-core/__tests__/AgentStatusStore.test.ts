@@ -258,6 +258,25 @@ describe('AgentStatusStore', () => {
     ).not.toThrow();
   });
 
+  it('upsertEditing は pid / terminalPid を保存し、省略時は既存値を保持する', () => {
+    store.upsertEditing({ sessionId: 'sp', editing: true, pid: 1234, terminalPid: 1200 });
+    expect(store.queryOne('sp')?.pid).toBe(1234);
+    expect(store.queryOne('sp')?.terminalPid).toBe(1200);
+
+    // pid を省略した更新でも既存値が消えない（部分更新セマンティクス）。
+    store.upsertEditing({ sessionId: 'sp', editing: false });
+    const row = store.queryOne('sp');
+    expect(row?.pid).toBe(1234);
+    expect(row?.terminalPid).toBe(1200);
+  });
+
+  it('pid 未指定の新規行は pid / terminalPid が null', () => {
+    store.upsertEditing({ sessionId: 'sn', editing: false });
+    const row = store.queryOne('sn');
+    expect(row?.pid).toBeNull();
+    expect(row?.terminalPid).toBeNull();
+  });
+
   describe('pruneSessionsOlderThan', () => {
     it('cutoff より古い updated_at の行のみ削除し、削除件数を返す', () => {
       store.upsertEditing({ sessionId: 'ancient', editing: false, updatedAt: '2026-05-01T00:00:00.000Z' });

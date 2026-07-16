@@ -85,6 +85,25 @@ describe('SessionTreeItem', () => {
     expect(tooltip).toContain('**ワークスペース:** `repo`');
     expect(tooltip).not.toContain('`foo`');
   });
+
+  it('tooltip shows claude PID and terminal PID when both are present', () => {
+    const item = new SessionTreeItem(makeSession({ pid: 1234, terminalPid: 1200 }));
+    const tooltip = (item.tooltip as { value: string }).value;
+    expect(tooltip).toContain('**PID:** `1234`');
+    expect(tooltip).toContain('**ターミナル PID:** `1200`');
+  });
+
+  it('tooltip shows claude PID alone when terminal PID is absent', () => {
+    const item = new SessionTreeItem(makeSession({ pid: 1234, terminalPid: undefined }));
+    const tooltip = (item.tooltip as { value: string }).value;
+    expect(tooltip).toContain('**PID:** `1234`');
+    expect(tooltip).not.toContain('ターミナル PID:');
+  });
+
+  it('tooltip omits the PID line when pid is absent (Codex 等)', () => {
+    const item = new SessionTreeItem(makeSession({ pid: undefined, terminalPid: undefined }));
+    expect((item.tooltip as { value: string }).value).not.toContain('PID:');
+  });
 });
 
 describe('formatWorkspaceName', () => {
