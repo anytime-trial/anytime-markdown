@@ -1,12 +1,14 @@
 ---
 name: anytime-build-webapp
 description: 要求から T3 Stack フルスタック Web アプリの MVP を WSL + Dev Container 上に生成する汎用スキル。/anytime-build-webapp で起動し、5 問インタビュー → 要件書生成 → writing-plans → executing-plans を順に呼ぶオーケストレータ。画面デザインは参考 URL または DESIGN.md ファイル指定で適用可能。
+# 本文の npm script・リポ相対パスは生成先リポジトリの文脈(check-skill-refs.mjs が照合を除外)
+externalRepoRefs: true
 ---
 
 
 # anytime-build-webapp スキル
 
-更新日: 2026-05-23
+更新日: 2026-07-16
 
 
 `/anytime-build-webapp` 起動時に本ファイルがロードされる。以下の Phase 1〜6 を順に実行する。
