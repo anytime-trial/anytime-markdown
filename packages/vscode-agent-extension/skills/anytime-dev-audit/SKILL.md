@@ -8,7 +8,7 @@ description: PC 環境（ディレクトリ構造）と Claude Code 設定（CLA
 
 更新日: 2026-07-16
 
-PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）を read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。`anytime-dev-retro`（Trail DB のデルタ分析・インシデント要件化）が「**開発活動**の健全性」を見るのに対し、本スキルは「**環境・設定**の健全性」を見る（2026-07-14 に `anytime-dev-health` の references から独立スキルへ分離）。Claude Code 標準の `/doctor`（v2.1.205+。旧 `/checkup`）とは役割分担する: インストール健全性・未使用 skill/MCP のコスト対比・CLAUDE.md トリム提案は `/doctor` の実行を推奨事項として提示し、本スキルで再実装しない（本スキルはディレクトリ構造・プロジェクト固有運用まで含む広域監査を担う）。初回実施と是正の実例は [20260713 監査レポート](<docsRoot>/report/20260713-claude-code-setup-audit.ja.md) / 是正プラン `plan/20260713-setup-audit-remediation.ja.md`、診断観点の設計と出典は設計書 `spec/90.skill/anytime-dev-audit.ja.md` を参照。
+PC 環境（ディレクトリ構造＋Claude Code 設定の全レイヤー）を read-only で診断し、影響度×工数マトリクスと段階的最適化プランを提示する。`anytime-dev-retro`（Trail DB のデルタ分析・インシデント要件化）が「**開発活動**の健全性」を見るのに対し、本スキルは「**環境・設定**の健全性」を見る（2026-07-14 に `anytime-dev-health` の references から独立スキルへ分離）。Claude Code 標準の `/doctor`（v2.1.205+。旧 `/checkup`）とは役割分担する: インストール健全性・未使用 skill/MCP のコスト対比・CLAUDE.md トリム提案は `/doctor` の実行を推奨事項として提示し、本スキルで再実装しない（本スキルはディレクトリ構造・プロジェクト固有運用まで含む広域監査を担う）。初回実施と是正の実例は 20260713 監査レポート（`<docsRoot>/report/20260713-claude-code-setup-audit.ja.md`） / 是正プラン `plan/20260713-setup-audit-remediation.ja.md`、診断観点の設計と出典は設計書 `spec/90.skill/anytime-dev-audit.ja.md` を参照。
 
 ## 0. 大原則
 
