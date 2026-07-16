@@ -24,6 +24,7 @@ const config = {
     "^@anytime-markdown/graph-viewer$": "<rootDir>/../graph-viewer/src/index.ts",
     "^@anytime-markdown/tickets-core$": "<rootDir>/../tickets-core/src/index.ts",
     "^@anytime-markdown/tickets-viewer$": "<rootDir>/../tickets-viewer/src/index.ts",
+    "^@anytime-markdown/tickets-viewer/i18n/(.*)$": "<rootDir>/../tickets-viewer/src/i18n/$1",
     "^next-auth/providers/(.*)$": "<rootDir>/src/__mocks__/next-auth-provider.js",
     "^next-auth(.*)$": "<rootDir>/src/__mocks__/next-auth.js",
   },
