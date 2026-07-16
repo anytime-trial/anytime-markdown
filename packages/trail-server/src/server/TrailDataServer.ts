@@ -713,6 +713,26 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/trail/safe-points' && method === 'POST') {
+      this.handleRecordSafePoint(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/safe-points' && method === 'GET') {
+      this.handleListSafePoints(res, parsed.searchParams);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency-log' && method === 'POST') {
+      this.handleRecordEmergencyEvent(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency-log' && method === 'GET') {
+      this.handleListEmergencyEvents(res, parsed.searchParams);
+      return;
+    }
+
     if (pathname === '/api/message-commits' && method === 'POST') {
       this.handleInsertMessageCommit(req, res);
       return;
@@ -2640,6 +2660,129 @@ export class TrailDataServer {
         sendServerError(res, 'upsertMessageCommit failed');
       }
     });
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: /api/trail/safe-points, /api/trail/emergency-log (Phase 5 S1)
+  // -------------------------------------------------------------------------
+
+  private handleRecordSafePoint(req: http.IncomingMessage, res: http.ServerResponse): void {
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const source = parsed['source'];
+        if (
+          typeof parsed['createdAt'] !== 'string' ||
+          typeof parsed['commitHash'] !== 'string' ||
+          parsed['commitHash'] === '' ||
+          (source !== 'stop_hook' && source !== 'manual')
+        ) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'createdAt, commitHash, source(stop_hook|manual) required' }));
+          return;
+        }
+        this.trailDb.recordSafePoint({
+          createdAt: parsed['createdAt'],
+          commitHash: parsed['commitHash'],
+          branch: typeof parsed['branch'] === 'string' ? parsed['branch'] : '',
+          worktree: typeof parsed['worktree'] === 'string' ? parsed['worktree'] : '',
+          label: typeof parsed['label'] === 'string' ? parsed['label'] : '',
+          source,
+          sessionId: typeof parsed['sessionId'] === 'string' && parsed['sessionId'] !== '' ? parsed['sessionId'] : null,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleRecordSafePoint failed', e);
+        sendServerError(res, 'Failed to record safe point');
+      }
+    });
+  }
+
+  private handleListSafePoints(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const safePoints = this.trailDb.listSafePoints(Number.isNaN(limit) ? 100 : limit);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ safePoints }));
+    } catch (e) {
+      this.logger.error('handleListSafePoints failed', e);
+      sendServerError(res, 'Failed to list safe points');
+    }
+  }
+
+  private static readonly EMERGENCY_EVENT_KINDS = new Set([
+    'kill_switch_on',
+    'kill_switch_off',
+    'rollback_executed',
+    'anomaly_detected',
+  ]);
+
+  private static readonly EMERGENCY_ACTORS = new Set(['human', 'claude', 'agent']);
+
+  private handleRecordEmergencyEvent(req: http.IncomingMessage, res: http.ServerResponse): void {
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const event = parsed['event'];
+        const actor = parsed['actor'] ?? 'human';
+        if (
+          typeof parsed['occurredAt'] !== 'string' ||
+          typeof event !== 'string' ||
+          !TrailDataServer.EMERGENCY_EVENT_KINDS.has(event) ||
+          typeof actor !== 'string' ||
+          !TrailDataServer.EMERGENCY_ACTORS.has(actor)
+        ) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'occurredAt, event(kind), actor(human|claude|agent) required' }));
+          return;
+        }
+        const detailJson = typeof parsed['detailJson'] === 'string' ? parsed['detailJson'] : '{}';
+        this.trailDb.recordEmergencyEvent({
+          occurredAt: parsed['occurredAt'],
+          event: event as import('@anytime-markdown/trail-core').EmergencyEventKind,
+          reason: typeof parsed['reason'] === 'string' ? parsed['reason'] : '',
+          actor: actor as import('@anytime-markdown/trail-core').EmergencyActor,
+          sessionId: typeof parsed['sessionId'] === 'string' && parsed['sessionId'] !== '' ? parsed['sessionId'] : null,
+          detailJson,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleRecordEmergencyEvent failed', e);
+        sendServerError(res, 'Failed to record emergency event');
+      }
+    });
+  }
+
+  private handleListEmergencyEvents(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const events = this.trailDb.listEmergencyEvents(Number.isNaN(limit) ? 100 : limit);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ events }));
+    } catch (e) {
+      this.logger.error('handleListEmergencyEvents failed', e);
+      sendServerError(res, 'Failed to list emergency events');
+    }
   }
 
   // -------------------------------------------------------------------------

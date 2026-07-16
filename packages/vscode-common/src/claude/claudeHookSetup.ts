@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as os from 'node:os';
+import * as path from 'node:path';
 
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const SETTINGS_PATH = path.join(CLAUDE_DIR, 'settings.json');
@@ -18,6 +18,30 @@ if [ -z "$SESSION_ID" ]; then exit 0; fi
 curl -s -X POST "http://127.0.0.1:\${PORT}/api/trail/token-budget" \\
   -H "Content-Type: application/json" \\
   -d "{\\"sessionId\\":\\"$\{SESSION_ID\}\\"}" > /dev/null 2>&1 || true
+exit 0
+`;
+}
+
+// safe-point.sh — Stop フック（セッション終了）で HEAD をセーフポイントとして trail サーバへ記録する。
+// Phase 5 S1 (Emergency Protocol)。git repo 外・detached HEAD・サーバ未起動は silent skip（常に exit 0）。
+function safePointScriptContent(port: number): string {
+  return `#!/bin/bash
+PORT="\${ANYTIME_TRAIL_PORT:-${port}}"
+read -r -d '' STDIN_DATA || true
+SESSION_ID=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).session_id||'')}catch{}})" 2>/dev/null)
+CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||'')}catch{}})" 2>/dev/null)
+[ -z "\$CWD" ] && CWD="\$PWD"
+HEAD_SHA=$(git -C "\$CWD" rev-parse HEAD 2>/dev/null)
+[ -z "\$HEAD_SHA" ] && exit 0
+BRANCH=$(git -C "\$CWD" rev-parse --abbrev-ref HEAD 2>/dev/null)
+# detached HEAD はロールバック起点として不安定なため記録しない
+[ "\$BRANCH" = "HEAD" ] && exit 0
+WORKTREE=$(git -C "\$CWD" rev-parse --show-toplevel 2>/dev/null)
+CREATED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+PAYLOAD=$(node -e "process.stdout.write(JSON.stringify({createdAt:process.argv[1],commitHash:process.argv[2],branch:process.argv[3]||'',worktree:process.argv[4]||'',label:'',source:'stop_hook',sessionId:process.argv[5]||null}))" "\$CREATED_AT" "\$HEAD_SHA" "\$BRANCH" "\$WORKTREE" "\$SESSION_ID")
+curl -m 3 -s -X POST "http://127.0.0.1:\${PORT}/api/trail/safe-points" \\
+  -H "Content-Type: application/json" \\
+  -d "\$PAYLOAD" > /dev/null 2>&1 || true
 exit 0
 `;
 }
@@ -325,11 +349,26 @@ function toPreToolUse(verdict) {
 
 // クレームを更新し、衝突判定を返す。判定不能なら null（fail-open）。
 function airspaceVerdict(mode, input, cwd) {
-  if (process.env.ANYTIME_AIRSPACE === 'off') return null;
-
   const loaded = loadAirspace(cwd);
   if (loaded === null) return null;
   const { api, dir } = loaded;
+
+  // Kill Switch（Phase 5 S1）: 発動中は airspace 判定より先に全変更系ツールを遮断する。
+  // ANYTIME_AIRSPACE=off（airspace 衝突ゲートの脱出口）より前に評価する。緊急停止が
+  // 環境変数 1 つで無効化されては Kill Switch の意味がないため、解除経路は
+  // VS Code コマンドまたは台帳削除のみに限定する（cross-review 指摘の是正）。
+  // 旧バンドル（関数未搭載）は skip（fail-open・後方互換）。
+  if (
+    (mode === 'edit-start' || mode === 'bash-start') &&
+    typeof api.readEmergencyState === 'function' &&
+    typeof api.evaluateEmergencyGate === 'function'
+  ) {
+    const emergency = api.evaluateEmergencyGate(api.readEmergencyState(dir), dir);
+    if (emergency.kind === 'deny') return toPreToolUse(emergency);
+  }
+
+  // airspace（並行セッション衝突）ゲートのみの無効化スイッチ。Kill Switch には効かない。
+  if (process.env.ANYTIME_AIRSPACE === 'off') return null;
 
   const claudePid = api.findClaudePid(process.pid);
   if (claudePid === null) {
@@ -636,6 +675,7 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
     writeScript('lib/agent-home.sh', AGENT_HOME_LIB); // bash walk-up リゾルバ（3 script が source）
     writeScript('agent-status-report.mjs', agentStatusReportContent()); // inline node hook 5 本を集約
     writeScript('token-budget.sh', tokenBudgetScriptContent(trailPort));
+    writeScript('safe-point.sh', safePointScriptContent(trailPort));
     writeScript('session-guard.sh', SESSION_GUARD_SCRIPT);
     writeScript('commit-tracker.sh', commitTrackerScriptContent());
     writeScript('handoff-inject.sh', handoffInjectScriptContent());
@@ -721,6 +761,12 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   settings.hooks.Stop = removeHooksByMarker(settings.hooks.Stop, 'token-budget.sh');
   settings.hooks.Stop.push({
     hooks: [{ type: 'command', command: '~/.claude/scripts/token-budget.sh', timeout: 10 }],
+  });
+
+  // Stop hook: safe-point.sh（Phase 5 S1: セッション終了時にセーフポイントを自動記録）
+  settings.hooks.Stop = removeHooksByMarker(settings.hooks.Stop, 'safe-point.sh');
+  settings.hooks.Stop.push({
+    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/safe-point.sh', timeout: 10 }],
   });
 
   // UserPromptSubmit hook: session-guard.sh（AGENT_HOME 注入は撤去し walk-up に委ねる）

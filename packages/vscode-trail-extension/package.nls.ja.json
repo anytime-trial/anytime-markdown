@@ -20,5 +20,9 @@
   "command.registerMcpServer": "MCP サーバーを登録 (.mcp.json を更新)",
   "command.killExtensionHost": "Extension Host を Kill",
   "view.alignment": "設計書追随",
-  "viewsWelcome.alignment": "[$(refresh) 設計書追随チェックを実行 (作業ツリー)](command:anytime-trail.checkAlignment)"
+  "viewsWelcome.alignment": "[$(refresh) 設計書追随チェックを実行 (作業ツリー)](command:anytime-trail.checkAlignment)",
+  "command.killSwitch": "Kill Switch（Claude ツール実行を遮断）",
+  "command.releaseKillSwitch": "Kill Switch 解除",
+  "command.recordSafePoint": "セーフポイントを記録",
+  "command.rollbackToSafePoint": "セーフポイントへロールバック（recover ブランチ作成）"
 }

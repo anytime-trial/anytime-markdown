@@ -112,6 +112,14 @@ export {
   evaluateSessionStartGate,
 } from './status/airspace';
 export type { AirspaceClaim, GitCommandKind, GateVerdict } from './status/airspace';
+export {
+  clearEmergencyState,
+  emergencyLedgerPath,
+  evaluateEmergencyGate,
+  readEmergencyState,
+  writeEmergencyState,
+} from './status/emergency';
+export type { EmergencyState } from './status/emergency';
 export type {
   AgentSessionRow,
   AgentSessionEdit,
