@@ -726,7 +726,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					}
 					await vscode.commands.executeCommand('anytime-agent.addAiNotePage', payload);
 				})().catch((err) => {
-					TrailLogger.error(`[add-note-page] failed: ${String(err)}`);
+					TrailLogger.error('[add-note-page] failed', err);
 					void vscode.window.showWarningMessage('Agent Note への出力に失敗しました。');
 				});
 			});

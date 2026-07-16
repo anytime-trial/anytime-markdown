@@ -72,6 +72,7 @@ import { communityColor } from '../../components/communityColors';
 import { COMMUNITY_ROLE_LABELS, getCommunityRoleBgColors } from '../../c4/communityRoleColors';
 import { buildFunctionGraphDocument } from '../../c4/components/buildFunctionGraphDocument';
 import { computeContextMenuCapabilities } from '../../c4/utils/contextMenuCapabilities';
+import { buildElementContextMarkdown } from '../../c4/utils/noteExportContext';
 import {
   computeBounds,
   fitToContent,
@@ -2726,24 +2727,14 @@ export function mountC4Viewer(
     if (caps.canExportToNote) addBtn(t('c4.contextMenu.exportToNote'), () => {
       const elem = props.c4Model?.elements.find((e) => e.id === c4Id);
       if (!elem) { contextMenu = null; scheduleRender(); return; }
-      const cell = (v: string) => v.replaceAll('|', '\\|').replaceAll(/\r?\n/g, ' ');
-      const rows = [
-        '| 項目 | 値 |',
-        '| --- | --- |',
-        `| 要素 ID | \`${c4Id}\` |`,
-        `| 名前 | ${cell(elem.name)} |`,
-        `| 種別 | ${elem.type} |`,
-      ];
-      if (elem.description) rows.push(`| 説明 | ${cell(elem.description)} |`);
-      const repo = getSelectedRepo();
-      if (repo) rows.push(`| リポジトリ | ${cell(repo)} |`);
+      const contextMarkdown = buildElementContextMarkdown(elem, c4Id, getSelectedRepo() || null);
       let imageDataUrl: string | undefined;
       try {
         imageDataUrl = canvasRef.current?.toDataURL('image/png');
       } catch {
         imageDataUrl = undefined; // 画像化失敗はテキストのみに縮退（note-page-export 仕様 §3.4）
       }
-      props.onExportToNote?.({ title: elem.name, contextMarkdown: rows.join('\n'), imageDataUrl });
+      props.onExportToNote?.({ title: elem.name, contextMarkdown, imageDataUrl });
       contextMenu = null; scheduleRender();
     });
     if (caps.canShowManualActions) {

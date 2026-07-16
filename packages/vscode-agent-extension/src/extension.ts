@@ -287,7 +287,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
           } catch (err) {
             // 画像保存失敗はテキストのみのページ作成に縮退する（note-page-export 仕様 §3.4 Fail-open）
-            AgentLogger.error(`[addAiNotePage] image save failed: ${String(err)}`);
+            AgentLogger.error('[addAiNotePage] image save failed', err);
           }
         }
         content = buildNotePageContent({
