@@ -45,6 +45,7 @@ export type { IRemoteTrailStore } from './IRemoteTrailStore';
 export type { ITrailStorage } from './ITrailStorage';
 export { SqliteSessionRepository } from './SqliteSessionRepository';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
+export { FileKnowledgeBaseSnapshotter, KB_SNAPSHOT_DEBOUNCE_MINUTES, KB_SNAPSHOT_GENERATIONS } from './KnowledgeBaseSnapshotter';
 export { ExecFileGitService } from './ExecFileGitService';
 export { extractRepoNameFromJsonl } from './sessionMeta';
 export { toUTC } from './dateUtils';
