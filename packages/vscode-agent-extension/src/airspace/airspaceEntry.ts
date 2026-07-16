@@ -1,6 +1,13 @@
 export {
+  appendEmergencySpool,
   clearEmergencyState,
+  drainEmergencySpool,
+  emergencySpoolPath,
   evaluateBashGate,
+  evaluateLoop,
+  readLoopState,
+  toolSignature,
+  writeLoopState,
   evaluateEditGate,
   evaluateEmergencyGate,
   evaluateSessionStartGate,
