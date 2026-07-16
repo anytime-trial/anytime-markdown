@@ -9,6 +9,9 @@
 // 使い方: node scripts/check-skill-refs.mjs [--json] [skillsDir ...]
 //   skillsDir 省略時は <repoRoot>/.claude/skills。リポジトリ外の dir(例: ~/.claude/skills)を
 //   渡した場合、リポジトリ相対パス参照と npm script 参照の検証はスキップする(別リポの文脈のため)。
+//   別リポジトリを生成するスキル(例: anytime-build-webapp)は本文の npm script・リポ相対パスが
+//   生成先リポを指すため、SKILL.md frontmatter の `externalRepoRefs: true` で同じスキップを
+//   スキル単位に宣言できる(docPath・スキル間参照・/Shared 欠落 typo の検査は継続する)。
 // 終了コード: 参照切れ検出時のみ 1。更新日欠落は warn(非 fail)。
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -65,6 +68,18 @@ function listSkillPackages() {
     .map((e) => e.name);
 }
 
+/**
+ * SKILL.md frontmatter の `externalRepoRefs: true` 宣言を判定する(純粋関数)。
+ *
+ * 本文中の同名文字列で誤発動しないよう、先頭の frontmatter ブロック(--- ... ---)内のみを見る。
+ */
+export function hasExternalRepoRefs(markdown) {
+  if (!markdown.startsWith('---\n')) return false;
+  const end = markdown.indexOf('\n---', 4);
+  if (end === -1) return false;
+  return /^externalRepoRefs:\s*true\s*$/m.test(markdown.slice(4, end));
+}
+
 /** markdown からパス参照と npm script 参照を抽出する(純粋関数)。 */
 export function extractRefs(markdown) {
   const paths = [];
@@ -104,7 +119,8 @@ export function lintSkillsDir(dir, rootScripts, opts = {}) {
   // 既定は canonical(.claude/skills)も解決候補に含める。テストで CI 環境(canonical 不在)を再現する seam。
   const canonicalAvailable = opts.canonicalAvailable ?? true;
   const resolved = resolve(dir);
-  const isRepoLocal = resolved === repoRoot || resolved.startsWith(repoRoot + sep);
+  // opts.repoLocal はテスト用 seam(tmp dir はリポ外扱いになり repo 文脈の分岐を検証できないため)。
+  const isRepoLocal = opts.repoLocal ?? (resolved === repoRoot || resolved.startsWith(repoRoot + sep));
   const results = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
@@ -112,6 +128,8 @@ export function lintSkillsDir(dir, rootScripts, opts = {}) {
     if (!existsSync(skillFile)) continue;
     const body = readFileSync(skillFile, 'utf-8');
     const { paths, npmScripts } = extractRefs(body);
+    // 別リポ生成型スキルは repoPath / npm script が生成先リポの文脈(リポ外 dir と同じ扱い)。
+    const repoContext = isRepoLocal && !hasExternalRepoRefs(body);
     const missingRefs = [];
     for (const ref of paths) {
       // /Shared 欠落 typo は実在しない絶対パスなので常に fail(実在確認は不要)
@@ -119,7 +137,7 @@ export function lintSkillsDir(dir, rootScripts, opts = {}) {
         missingRefs.push(`(typo? /Shared 欠落) ${ref.value}`);
         continue;
       }
-      if (ref.kind === 'repoPath' && !isRepoLocal) continue;
+      if (ref.kind === 'repoPath' && !repoContext) continue;
       // docsRoot ごと存在しない環境(CI ランナー)では docPath を検証できない
       if (ref.kind === 'docPath' && !docsRootAvailable) continue;
       const target = verificationTarget(ref);
@@ -135,7 +153,7 @@ export function lintSkillsDir(dir, rootScripts, opts = {}) {
       const abs = ref.kind === 'docPath' ? target : join(repoRoot, target);
       if (!existsSync(abs)) missingRefs.push(ref.value);
     }
-    const missingScripts = isRepoLocal
+    const missingScripts = repoContext
       ? [...new Set(npmScripts)].filter((s) => !rootScripts.has(s))
       : [];
     const hasUpdateDate = /^更新日: \d{4}-\d{2}-\d{2}/m.test(body);
