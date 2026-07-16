@@ -361,6 +361,39 @@ describe('setupClaudeHooks', () => {
     expect(fs.existsSync(path.join(tmpHome, '.claude', 'scripts', 'token-budget.sh'))).toBe(true);
   });
 
+  test('Stop hook registers safe-point.sh and writes the script (Phase 5 S1)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = readSettings();
+    const stop = settings.hooks.Stop.find((e) => e.hooks?.[0]?.command?.includes('safe-point.sh'));
+    expect(stop).toBeDefined();
+    expect(stop?.hooks[0].command).toBe(bashCmd('safe-point.sh'));
+
+    const script = readScript('safe-point.sh');
+    expect(script).toContain('/api/trail/safe-points');
+    expect(script).toContain('rev-parse HEAD');
+    // detached HEAD は記録しない（ロールバック起点として不安定）
+    expect(script).toContain('[ "$BRANCH" = "HEAD" ] && exit 0');
+    // 再実行で重複登録しない
+    setupClaudeHooks(tmpWorkspace);
+    const again = readSettings().hooks.Stop.filter((e) =>
+      e.hooks?.[0]?.command?.includes('safe-point.sh'),
+    );
+    expect(again).toHaveLength(1);
+  });
+
+  test('agent-status-report.mjs gates edit/bash on the emergency kill switch before airspace (Phase 5 S1)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const report = readScript('agent-status-report.mjs');
+    expect(report).toContain('readEmergencyState');
+    expect(report).toContain('evaluateEmergencyGate');
+    // 旧バンドル（関数未搭載）で落ちない後方互換ガード
+    expect(report).toContain("typeof api.readEmergencyState === 'function'");
+  });
+
   test('migrates legacy trail-token-budget.sh: stale hook entry and orphan script removed', () => {
     // 旧名のスクリプトと Stop フックを事前に用意（旧バージョンが登録した状態を再現）
     const scriptsDir = path.join(tmpHome, '.claude', 'scripts');
