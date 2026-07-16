@@ -307,9 +307,39 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
              WHERE skill IS NOT NULL AND skill != '' AND timestamp >= datetime('now','-30 days')
              GROUP BY skill ORDER BY n DESC`),
     );
+    // 前 30 日窓(60〜30 日前)。版数バンプ(改訂)後に発火が減ったかを 2 窓比較で判定する材料
+    // (proposal/20260716-prompt-feedback-loops)。判定自体は SKILL.md §2 のデルタ比較が行う。
+    const usagePrev = rows(
+      q(db, `SELECT skill, COUNT(*) n FROM messages
+             WHERE skill IS NOT NULL AND skill != ''
+               AND timestamp >= datetime('now','-60 days') AND timestamp < datetime('now','-30 days')
+             GROUP BY skill`),
+    );
     // messages.skill は 'superpowers:writing-plans' 等の名前空間付きで記録され得るため末尾名で突合する
     const used = new Set(usage.map((u) => String(u.skill).split(':').pop()));
     if (db) db.close();
+    const prevMap = new Map(usagePrev.map((u) => [u.skill, u.n]));
+    const windowNames = new Set([...usage.map((u) => u.skill), ...usagePrev.map((u) => u.skill)]);
+    const usageWindows = [...windowNames]
+      .map((s) => ({ skill: s, n30: usage.find((u) => u.skill === s)?.n ?? 0, prev30: prevMap.get(s) ?? 0 }))
+      .sort((a, b) => b.n30 - a.n30);
+
+    // 同梱スキルの版数(プロンプトアーカイブの版)。発火変化と紐付けて「改訂が効いたか」を測る。
+    // 非モノレポ環境では manifest が無いため null(0 件と区別し「版数ゼロ」と誤読させない)
+    let manifestVersions = null;
+    try {
+      const pkgsDir = path.join(WS_ROOT, 'packages');
+      if (fs.existsSync(pkgsDir)) {
+        for (const e of fs.readdirSync(pkgsDir, { withFileTypes: true })) {
+          if (!e.isDirectory()) continue;
+          const mf = path.join(pkgsDir, e.name, 'skills', 'manifest.json');
+          if (!fs.existsSync(mf)) continue;
+          manifestVersions = Object.assign(manifestVersions ?? {}, JSON.parse(fs.readFileSync(mf, 'utf-8')));
+        }
+      }
+    } catch (e) {
+      snapshot.errors.push(`skillHealth manifest scan failed: ${e.message}`);
+    }
 
     const refs = spawnSync(
       process.execPath,
@@ -335,11 +365,53 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       staleSamples: stale.slice(0, 8),
       // trail.db 不開時は usage が空になり「全スキル未使用」と誤読されるため測定不能 null にする(brokenRefs と同原則)
       unused30d: error ? null : inventory.filter((s) => !used.has(s.name)).length,
+      unusedSamples: error ? null : inventory.filter((s) => !used.has(s.name)).map((s) => s.name).slice(0, 8),
       usageTop: error ? null : usage.slice(0, 10).map((u) => ({ skill: u.skill, n: u.n })),
+      usageWindows: error ? null : usageWindows,
+      manifestVersions,
       brokenRefs,
     };
   } catch (e) {
     snapshot.errors.push(`skillHealth scan failed: ${e.message}`);
+  }
+}
+
+// ── docs: 委任成績(委譲契約テンプレの版数×結果) ─────────────────────────────
+// plan ファイルの「- 委譲結果: 雛形vN <採用|差し戻し|abstain>」行を集計し、委任テンプレ改訂の
+// 効果測定材料にする(proposal/20260716-prompt-feedback-loops)。記録書式は
+// anytime-dev-cycle references/delegation.md が定義する(書式変更時は本正規表現も追随)。
+{
+  try {
+    let docsRoot = null;
+    const lep = path.join(process.cwd(), '.anytime', 'trail', 'lep.json');
+    if (fs.existsSync(lep)) {
+      docsRoot = JSON.parse(fs.readFileSync(lep, 'utf-8'))?.sources?.docs?.root || null;
+    }
+    const planDir = docsRoot ? path.join(docsRoot, 'plan') : null;
+    if (planDir && fs.existsSync(planDir)) {
+      // 末尾は \b でなく先読み: JS の \b は \w=[A-Za-z0-9_] 基準で日本語直後に成立せず
+      // 「採用」「差し戻し」が永久に不一致になる(レビュー検出 2026-07-16)
+      const OUTCOME_RE = /^- 委譲結果: 雛形v(\d+) (採用|差し戻し|abstain)(?=\s|$)/;
+      const byVersion = {};
+      let recorded = 0;
+      for (const f of fs.readdirSync(planDir)) {
+        if (!f.endsWith('.md')) continue;
+        for (const line of fs.readFileSync(path.join(planDir, f), 'utf-8').split('\n')) {
+          const m = OUTCOME_RE.exec(line);
+          if (!m) continue;
+          recorded += 1;
+          const v = `v${m[1]}`;
+          byVersion[v] = byVersion[v] ?? { 採用: 0, 差し戻し: 0, abstain: 0 };
+          byVersion[v][m[2]] += 1;
+        }
+      }
+      snapshot.delegation = { docsRoot, recorded, byVersion };
+    } else {
+      // docs root 未解決・plan 不在は測定不能 null(0 件と区別し「記録ゼロ」と誤読させない)
+      snapshot.delegation = { docsRoot, recorded: null, byVersion: null };
+    }
+  } catch (e) {
+    snapshot.errors.push(`delegation scan failed: ${e.message}`);
   }
 }
 

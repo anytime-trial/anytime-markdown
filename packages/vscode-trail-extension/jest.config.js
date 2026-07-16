@@ -4,8 +4,8 @@ module.exports = {
   ...base,
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
-  testMatch: ['**/__tests__/**/*.test.ts', '**/*.meta.test.ts'],
+  roots: ['<rootDir>/src', '<rootDir>/skills'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/*.meta.test.ts', '**/skills/**/*.test.cjs'],
   moduleNameMapper: {
     '^vscode$': '<rootDir>/src/__mocks__/vscode.ts',
     '^@anytime-markdown/memory-core$': '<rootDir>/../memory-core/src/index.ts',
