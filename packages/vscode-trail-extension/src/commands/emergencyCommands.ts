@@ -8,13 +8,15 @@
 //   daemon 未起動時は主効果（台帳・ブランチ操作）を優先し、記録失敗は警告のみ。
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import * as vscode from 'vscode';
+
 import {
   clearEmergencyState,
   readEmergencyState,
   resolveAirspaceDir,
   writeEmergencyState,
 } from '@anytime-markdown/agent-core';
+import * as vscode from 'vscode';
+
 import { TrailLogger } from '../utils/TrailLogger';
 
 const execFileAsync = promisify(execFile);
@@ -119,12 +121,20 @@ async function killSwitchCommand(deps: EmergencyCommandDeps): Promise<void> {
   });
   if (reason === undefined) return;
 
-  writeEmergencyState(dir, {
-    active: true,
-    reason,
-    triggeredBy: 'human',
-    triggeredAt: new Date().toISOString(),
-  });
+  try {
+    writeEmergencyState(dir, {
+      active: true,
+      reason,
+      triggeredBy: 'human',
+      triggeredAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    TrailLogger.error('killSwitch: failed to write ledger', err);
+    void vscode.window.showErrorMessage(
+      `Failed to activate Kill Switch: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return;
+  }
   TrailLogger.info(`[emergency] kill switch ON: ${reason}`);
   await recordEmergencyEvent(deps.getPort(), 'kill_switch_on', reason);
   void vscode.window.showInformationMessage(
@@ -148,7 +158,15 @@ async function releaseKillSwitchCommand(deps: EmergencyCommandDeps): Promise<voi
   );
   if (confirm !== RELEASE_LABEL) return;
 
-  clearEmergencyState(dir);
+  try {
+    clearEmergencyState(dir);
+  } catch (err) {
+    TrailLogger.error('releaseKillSwitch: failed to clear ledger', err);
+    void vscode.window.showErrorMessage(
+      `Failed to release Kill Switch: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return;
+  }
   TrailLogger.info('[emergency] kill switch OFF');
   await recordEmergencyEvent(deps.getPort(), 'kill_switch_off', state.reason);
   void vscode.window.showInformationMessage('Kill Switch released.');

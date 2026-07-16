@@ -11,6 +11,13 @@ import type { GateVerdict } from './airspace';
 
 const LEDGER_FILENAME = 'emergency.json';
 
+// airspace.ts の warnFailure と同方針（private のため複製）。fail-open は維持しつつ、
+// 異常（権限エラー・破損 JSON・型不一致）を無言にしない（silent catch 禁止規約）。
+function warnFailure(context: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`[anytime-emergency] ${context}: ${message}`);
+}
+
 export interface EmergencyState {
   active: boolean;
   reason: string;
@@ -29,12 +36,19 @@ export function readEmergencyState(airspaceDir: string): EmergencyState | null {
   let raw: string;
   try {
     raw = readFileSync(ledger, 'utf8');
-  } catch {
-    return null; // 不在 = Kill Switch 未発動（通常運転）
+  } catch (error: unknown) {
+    // 不在（ENOENT）= Kill Switch 未発動の通常運転。毎ツール実行で呼ばれるためログしない。
+    // それ以外（権限エラー等）は fail-open のまま警告を残す（無言で効かなくなる事故の可視化）。
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') warnFailure(`readEmergencyState:read:${ledger}`, error);
+    return null;
   }
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return null;
+    if (typeof parsed !== 'object' || parsed === null) {
+      warnFailure(`readEmergencyState:shape:${ledger}`, new Error('ledger is not an object'));
+      return null;
+    }
     const candidate = parsed as Record<string, unknown>;
     if (
       typeof candidate['active'] !== 'boolean' ||
@@ -42,6 +56,7 @@ export function readEmergencyState(airspaceDir: string): EmergencyState | null {
       typeof candidate['triggeredBy'] !== 'string' ||
       typeof candidate['triggeredAt'] !== 'string'
     ) {
+      warnFailure(`readEmergencyState:shape:${ledger}`, new Error('required fields missing or mistyped'));
       return null;
     }
     return {
@@ -50,8 +65,9 @@ export function readEmergencyState(airspaceDir: string): EmergencyState | null {
       triggeredBy: candidate['triggeredBy'],
       triggeredAt: candidate['triggeredAt'],
     };
-  } catch {
-    return null; // 破損 JSON も fail-open
+  } catch (error: unknown) {
+    warnFailure(`readEmergencyState:parse:${ledger}`, error); // 破損 JSON も fail-open（警告付き）
+    return null;
   }
 }
 
