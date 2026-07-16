@@ -8,6 +8,8 @@ import {
 import { computeTokensPerLoc, computeTokensAndCostPerLocTimeSeries } from './tokensPerLoc';
 import { computeAiFirstTrySuccessRate } from './aiFirstTrySuccessRate';
 import { computeChangeFailureRate } from './changeFailureRate';
+import { computeMeanTimeToRecovery } from './meanTimeToRecovery';
+import { computeTaskCompletionRate } from './taskCompletionRate';
 import { DEFAULT_THRESHOLDS } from './thresholds';
 import type { ThresholdsConfig } from './thresholds';
 import type { DateRange, QualityMetrics, UnmeasuredMetric } from './types';
@@ -73,11 +75,11 @@ export interface QualityMetricsInputs {
     lines_added?: number;
     lines_deleted?: number;
   }>;
+  /** `.tickets/` フロントマター由来（供給は trail-server）。全量配列を渡し範囲フィルタは compute 側で行う。 */
+  tickets?: Array<{ assignee?: string; status: string; updated_at: string }>;
 }
 
 const UNMEASURED: UnmeasuredMetric[] = [
-  { id: 'meanTimeToRecovery', phase: 'Phase 5', reason: 'Requires flight_reviews table' },
-  { id: 'taskCompletionRate', phase: 'Phase 6', reason: 'Requires task completion tracking' },
   { id: 'aiQualityEfficiencyScore', phase: 'Phase 7', reason: 'Requires quality scoring system' },
   { id: 'recoveryRate', phase: 'Phase 5+7', reason: 'Requires emergency_log and operational_metrics' },
   { id: 'autonomyIndex', phase: 'Phase 7', reason: 'Requires autonomy measurement framework' },
@@ -172,6 +174,25 @@ export function computeQualityMetrics(
     thresholds,
   );
 
+  const meanTimeToRecovery = computeMeanTimeToRecovery(
+    { commits: inputs.commits },
+    range,
+    previousRange,
+    bucket,
+    hasPrevious ? { commits: inputs.previousCommits ?? [] } : undefined,
+    thresholds,
+  );
+
+  const ticketInputs = { tickets: inputs.tickets ?? [] };
+  const taskCompletionRate = computeTaskCompletionRate(
+    ticketInputs,
+    range,
+    previousRange,
+    bucket,
+    hasPrevious ? ticketInputs : undefined,
+    thresholds,
+  );
+
   const { cost: costPerLocTimeSeries } = computeTokensAndCostPerLocTimeSeries(
     productivityInputs,
     range,
@@ -206,6 +227,8 @@ export function computeQualityMetrics(
       tokensPerLoc,
       aiFirstTrySuccessRate,
       changeFailureRate,
+      meanTimeToRecovery,
+      taskCompletionRate,
     },
     unmeasured: UNMEASURED,
     costPerLocTimeSeries,
