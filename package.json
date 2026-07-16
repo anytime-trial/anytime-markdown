@@ -54,6 +54,8 @@
     "packages/code-analysis-python",
     "packages/trail-core",
     "packages/trail-db",
+    "packages/tickets-core",
+    "packages/tickets-viewer",
     "packages/trail-viewer",
     "packages/graph-viewer",
     "packages/mindmap-viewer",

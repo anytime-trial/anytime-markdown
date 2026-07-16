@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "paths": {
+      "@anytime-markdown/tickets-core": ["../tickets-core/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}

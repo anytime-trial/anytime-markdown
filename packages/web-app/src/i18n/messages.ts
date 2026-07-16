@@ -1,5 +1,7 @@
 import markdownCoreEnMessages from '@anytime-markdown/markdown-viewer/src/i18n/en.json';
 import markdownCoreJaMessages from '@anytime-markdown/markdown-viewer/src/i18n/ja.json';
+import { ticketsMessagesEn } from '@anytime-markdown/tickets-viewer/i18n/en';
+import { ticketsMessagesJa } from '@anytime-markdown/tickets-viewer/i18n/ja';
 
 import authErrorEnMessages from '../app/auth/error/i18n/en.json';
 import authErrorJaMessages from '../app/auth/error/i18n/ja.json';
@@ -25,12 +27,14 @@ const mergedJa = {
   AuthError: authErrorJaMessages,
   press: pressJaMessages,
   PrivacyServices: privacyServicesJaMessages,
+  tickets: ticketsMessagesJa,
 };
 const mergedEn = {
   ...markdownCoreEnMessages,
   AuthError: authErrorEnMessages,
   press: pressEnMessages,
   PrivacyServices: privacyServicesEnMessages,
+  tickets: ticketsMessagesEn,
 };
 
 export const messagesByLocale: Record<Locale, typeof mergedJa> = {

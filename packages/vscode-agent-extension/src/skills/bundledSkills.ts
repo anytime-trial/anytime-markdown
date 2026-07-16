@@ -38,4 +38,6 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   },
   { name: 'anytime-impl-test-design' },
   { name: 'anytime-proposal' },
+  // チケット駆動自動実行（/loop 連携）。web-app /tickets とフォーマット正本を共有する。
+  { name: 'anytime-ticket-loop' },
 ];
