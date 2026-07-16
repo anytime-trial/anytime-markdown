@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json.schemastore.org/anytime-build-webapp-rename-map.json",
   "description": "Python BE (FastAPI) 経路の rename map。anytime-lab クローン後の置換に加え、backend/ 配下のテンプレファイルから .tmpl を外して配置する。",
   "replacements": [
     { "find": "anytime-lab", "replace": "<project-name>" },
@@ -24,7 +23,7 @@
   "validations": [
     {
       "file": "package.json",
-      "jsonpath": "$.name",
+      "jq": ".name",
       "expected": "<project-name>"
     },
     {

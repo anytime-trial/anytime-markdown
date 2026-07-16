@@ -64,7 +64,7 @@ Phase 4 で以下のディレクトリ構造を作成する。
 
 ## 3. SQLAlchemy モデルの動的生成 (Q2 エンティティ)
 
-Phase 4.5 で `q2_entities` から `backend/app/models/<entity>.py` を生成する。
+Phase 4（SKILL.md 第 4.4.b 章の手順 5）で `q2_entities` から `backend/app/models/<entity>.py` を生成する。
 
 例: Q2 = `Stock, Price, Indicator` の場合、`backend/app/models/stock.py`:
 
@@ -105,7 +105,7 @@ from app.models.indicator import Indicator as Indicator
 
 ## 4. 初期 Alembic revision の生成
 
-Phase 4.5 の最後で以下を実行。
+Phase 4（SKILL.md 第 4.4.b 章の手順 11）の最後で以下を実行。
 
 ```bash
 cd backend

@@ -170,7 +170,7 @@ flowchart TD
     P6["4.7 frontend/.env.local + backend/.env 生成<br/>AUTH_SECRET を共有（openssl rand）<br/>NEXT_PUBLIC_API_BASE_URL / DATABASE_URL 等"] --> P7
     P7["4.8 OpenAPI 初回 fetch<br/>backend 一時起動 → /openapi.json<br/>→ frontend/src/api/ 生成"] --> P8
     P8["4.9 初期 git commit<br/>'chore: initial scaffold<br/>(Next.js + FastAPI)'"] --> End
-    End(["Phase 4.5 (Apply Design Tokens) へ"])
+    End(["Phase 4D (Apply Design Tokens) へ"])
 ```
 
 
