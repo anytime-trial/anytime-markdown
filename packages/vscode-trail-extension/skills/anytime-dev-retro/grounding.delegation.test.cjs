@@ -114,6 +114,65 @@ describe('grounding.cjs delegation 集計', () => {
   });
 });
 
+describe('grounding.cjs delegation 見積り─実測突合(estimates)', () => {
+  test('見積り・実測を直前未ペア(同一モデル)でペアリングし referenceClass を中央値集計する', () => {
+    const delegation = runGrounding((ws) =>
+      writeDocs(ws, [
+        '- 委譲見積: [sonnet] out≈8k / wall≈15m / カテゴリ=定型実装 — 根拠: 類似3件の中央値',
+        '- 委譲結果: 雛形v3 [sonnet] 採用 — 所感',
+        '- 委譲実測: [sonnet] out≈12k / wall≈30m',
+        '- 委譲見積: [sonnet] out≈4k / wall≈10m / カテゴリ=定型実装',
+        '- 委譲実測: [sonnet] out≈2k / wall≈5m',
+        '- 委譲見積: [codex] out≈10k / wall≈20m / カテゴリ=バグ調査',
+        '- 委譲実測: [codex] out≈10k / wall≈20m',
+        '- 委譲見積: 不正書式(モデルタグなし)は数えない',
+        '  - 委譲見積: [sonnet] out≈1k / wall≈1m / カテゴリ=x 行頭固定なのでネストは数えない',
+      ]),
+    );
+    const est = delegation.estimates;
+    expect(est.recorded).toBe(3);
+    expect(est.actuals).toBe(3);
+    expect(est.paired).toBe(3);
+    expect(est.unpairedEstimates).toBe(0);
+    expect(est.unpairedActuals).toBe(0);
+    const key = (c, m) => est.referenceClass.find((r) => r.category === c && r.model === m);
+    // sonnet×定型実装: 実測中央値 out=(12+2)/2=7k wall=(30+5)/2=17.5m、誤差比中央値 out=(1.5+0.5)/2=1 wall=(2+0.5)/2=1.25
+    expect(key('定型実装', 'sonnet')).toEqual({
+      category: '定型実装',
+      model: 'sonnet',
+      n: 2,
+      medianActualOutK: 7,
+      medianActualWallM: 17.5,
+      medianErrorOut: 1,
+      medianErrorWall: 1.25,
+    });
+    expect(key('バグ調査', 'codex')).toMatchObject({ n: 1, medianErrorOut: 1, medianErrorWall: 1 });
+  });
+
+  test('モデル不一致・対応なしの実測は unpaired に計上し referenceClass へ入れない', () => {
+    const delegation = runGrounding((ws) =>
+      writeDocs(ws, [
+        '- 委譲見積: [sonnet] out≈8k / wall≈15m / カテゴリ=定型実装',
+        '- 委譲実測: [codex] out≈9k / wall≈9m',
+      ]),
+    );
+    const est = delegation.estimates;
+    expect(est.recorded).toBe(1);
+    expect(est.actuals).toBe(1);
+    expect(est.paired).toBe(0);
+    expect(est.unpairedEstimates).toBe(1);
+    expect(est.unpairedActuals).toBe(1);
+    expect(est.referenceClass).toEqual([]);
+  });
+
+  test('docs root 未解決は estimates も測定不能 null', () => {
+    const delegation = runGrounding(() => {
+      /* lep.json なし */
+    });
+    expect(delegation.estimates).toBeNull();
+  });
+});
+
 describe('grounding.cjs modelBehavior 集計', () => {
   function byModelOf(setup) {
     const mb = runGroundingRaw(setup).modelBehavior;

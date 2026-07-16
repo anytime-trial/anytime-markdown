@@ -56,6 +56,7 @@ node .claude/skills/anytime-dev-retro/grounding.cjs > /Shared/anytime-markdown-d
 | スキル発火変化 `skillHealth.usageWindows`（2 窓比較）× `skillHealth.manifestVersions` | source+trail | 版数バンプ（改訂）後に n30 が prev30 比で半減・ゼロ化 |
 | 委任成績 `delegation.byVersion`（雛形版数別の 採用/差し戻し/abstain） | docs(plan) | 差し戻し率の上昇 |
 | 委任成績(モデル別) `delegation.byModel`（実行系/モデル別の 採用/差し戻し/abstain） | docs(plan) | 特定モデルの差し戻し率の上昇 |
+| 見積り予実 `delegation.estimates.referenceClass`（カテゴリ×モデル別の 実測中央値・誤差比中央値） | docs(plan) | n≥5 の組で誤差比中央値が 2.0 超 or 0.5 未満（系統的な過小/過大見積り） |
 | 再発シグナル `recurrence.danglingClusters` / `recurrence.uncoveredBugFiles` | memory dir + memory | 新規クラスタ出現 / 増加 |
 
 - **再発の「2 回」判定**: `recurrence.danglingClusters` の同一 target、または `skillHealth.brokenRefs` 対象の同一スキルが**前回スナップショットにも存在**していたら「2 回目」とみなし、R023（constraint メモリ昇格）/ R024（スキル本文反映）の発火候補として §4 の提案へ昇格する。grounding はステートレスに現在値のみ出力し、連続判定は本デルタ比較で行う。
@@ -96,7 +97,8 @@ node .claude/skills/anytime-dev-retro/grounding.cjs > /Shared/anytime-markdown-d
 - `skillHealth.brokenRefs` が 1 以上（参照切れの放置）、または `staleOver90` が前回比増かつ `unused30d` が総数の過半（棚卸し要否の判断材料）。
 - **スキル改訂が効いていない**: 前回スナップショットと比べ `manifestVersions` の版数が上がったスキルの発火（`usageWindows.n30`）が prev30 比で半減以下、または同梱スキルが 30 日発火ゼロのまま → description / 本文の改訂候補として提案（発火記録は `messages.skill` の名前空間付き・旧名記録を含むため、末尾名で突合して誤判定を避ける）。
 - **委任テンプレの成績悪化**: `delegation.byVersion` の現行版数の差し戻し率が前回比 +20pt 以上または 50% 超 → `references/delegation.md`（anytime-dev-cycle）の契約書式改訂候補として提案。記録件数が 5 件未満の版は判定しない（少数標本の偽シグナル抑制）。
-- **委譲先の成績悪化（モデル別）**: `delegation.byModel` の特定モデル／実行系の差し戻し率が 50% 超（記録 5 件以上）→ そのモデルへの委譲を減らす／`anytime-dev-cycle` §1 委譲先選択・§3.1 モデル表の見直しを提案する。`modelBehavior` は記述的シグナルであり**それ単独では提案昇格の閾値にしない**（交絡があり因果を主張できないため、あくまで役割分担議論の材料）。
+- **委譲先の成績悪化（モデル別）**: `delegation.byModel` の特定モデル／実行系の差し戻し率が 50% 超（記録 5 件以上）→ そのモデルへの委譲を減らす／`anytime-dev-cycle` §1 委譲先選択・§3.1 モデル表の見直しを提案する。
+- **較正表の乖離（見積り予実）**: `delegation.estimates.referenceClass` のあるカテゴリ × モデルで **n≥5 かつ誤差比中央値（`medianErrorOut` または `medianErrorWall`）が 2.0 超 or 0.5 未満** → `references/delegation.md` §2.3 較正表の当該セルの改訂（実測中央値へ置換）を提案する。n<5 の組は判定しない。改訂が 2 回連続で誤差を縮めない場合は表の値でなく機構側（カテゴリ語彙の切り方・ペアリング規則）の改訂を提案する（メタ機構の健全性点検と同原則）。誤差評価は同一実行系内で閉じる（Claude 系とCodex のコスト単位は非互換のためモデル間比較しない）。`modelBehavior` は記述的シグナルであり**それ単独では提案昇格の閾値にしない**（交絡があり因果を主張できないため、あくまで役割分担議論の材料）。
 - `recurrence.danglingClusters` に前回スナップショットと同一の target が残存（2 回目の観測 = constraint メモリ昇格を提案）、または `recurrence.uncoveredBugFiles` に新規ファイルが出現（教訓化されていない再発バグ領域）。提案には対象 target / referrers / ファイルを明記し、メモリ作成自体はユーザー承認後に行う。
 - **改善機構の空回り（メタ還流）**: 「スキル改訂が効いていない」または「委任テンプレの成績悪化」が**同一対象で 2 回連続のレトロ**にわたり発火した場合、対象本文の再改訂ではなく**機構側の改訂**（還流ルール＝global CLAUDE.md「メモリ運用」・本スキルの昇格閾値・委譲契約テンプレの書式）を提案対象にする。改訂を繰り返しても効かないのは直し方でなく直す仕組みの欠陥を示唆するため、改善手続き自体を改訂対象に含める（Hyperagents arXiv:2603.19461 の知見。固定されたメタ機構が改善の頭打ちを作る）。標本 5 件未満の版は判定しない規則はここでも維持する。
 

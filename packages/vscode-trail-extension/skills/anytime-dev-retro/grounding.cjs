@@ -458,29 +458,89 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       // 版数の直後に任意の [model] タグを許す(後方互換: 省略時は旧書式で (unspecified))。
       // m[1]=版数, m[2]=モデル(任意), m[3]=結果。
       const OUTCOME_RE = /^- 委譲結果: 雛形v(\d+)(?: \[([^\]]+)\])? (採用|差し戻し|abstain)(?=\s|$)/;
+      // 見積り・実測行(delegation.md §2.2 v3)。行頭固定・単位は out=k トークン / wall=分。
+      // ペアリングは同一ファイル内で「直前の未ペア見積(同一モデル)」(LIFO)。
+      const ESTIMATE_RE = /^- 委譲見積: \[([^\]]+)\] out≈(\d+(?:\.\d+)?)k \/ wall≈(\d+(?:\.\d+)?)m \/ カテゴリ=(\S+)/;
+      const ACTUAL_RE = /^- 委譲実測: \[([^\]]+)\] out≈(\d+(?:\.\d+)?)k \/ wall≈(\d+(?:\.\d+)?)m(?=\s|$)/;
       const emptyTally = () => ({ 採用: 0, 差し戻し: 0, abstain: 0 });
       const byVersion = {};
       const byModel = {};
       let recorded = 0;
+      let estRecorded = 0;
+      let actRecorded = 0;
+      const pairs = []; // { category, model, estOutK, estWallM, actOutK, actWallM }
       for (const f of fs.readdirSync(planDir)) {
         if (!f.endsWith('.md')) continue;
+        const pendingByModel = {}; // model -> 未ペア見積のスタック(ファイル内で閉じる)
         for (const line of fs.readFileSync(path.join(planDir, f), 'utf-8').split('\n')) {
           const m = OUTCOME_RE.exec(line);
-          if (!m) continue;
-          recorded += 1;
-          const v = `v${m[1]}`;
-          const model = m[2] || '(unspecified)';
-          const outcome = m[3];
-          byVersion[v] = byVersion[v] ?? emptyTally();
-          byVersion[v][outcome] += 1;
-          byModel[model] = byModel[model] ?? emptyTally();
-          byModel[model][outcome] += 1;
+          if (m) {
+            recorded += 1;
+            const v = `v${m[1]}`;
+            const model = m[2] || '(unspecified)';
+            const outcome = m[3];
+            byVersion[v] = byVersion[v] ?? emptyTally();
+            byVersion[v][outcome] += 1;
+            byModel[model] = byModel[model] ?? emptyTally();
+            byModel[model][outcome] += 1;
+            continue;
+          }
+          const est = ESTIMATE_RE.exec(line);
+          if (est) {
+            estRecorded += 1;
+            (pendingByModel[est[1]] = pendingByModel[est[1]] ?? []).push({
+              model: est[1], estOutK: Number(est[2]), estWallM: Number(est[3]), category: est[4],
+            });
+            continue;
+          }
+          const act = ACTUAL_RE.exec(line);
+          if (act) {
+            actRecorded += 1;
+            const stack = pendingByModel[act[1]];
+            const e = stack && stack.length ? stack.pop() : null;
+            if (e) {
+              pairs.push({ ...e, actOutK: Number(act[2]), actWallM: Number(act[3]) });
+            }
+          }
         }
       }
-      snapshot.delegation = { docsRoot, recorded, byVersion, byModel };
+      // referenceClass: カテゴリ×モデル別の実測・誤差比(actual/estimate)の中央値。
+      // 判定(n>=5 等)は SKILL.md 側。ここは記述値のみ出力する。
+      const median = (arr) => {
+        const s = [...arr].sort((a, b) => a - b);
+        const mid = s.length >> 1;
+        return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+      };
+      const round2 = (x) => Math.round(x * 100) / 100;
+      const groups = {};
+      for (const p of pairs) {
+        const k = `${p.category} ${p.model}`;
+        (groups[k] = groups[k] ?? []).push(p);
+      }
+      const referenceClass = Object.values(groups)
+        .map((g) => ({
+          category: g[0].category,
+          model: g[0].model,
+          n: g.length,
+          medianActualOutK: round2(median(g.map((p) => p.actOutK))),
+          medianActualWallM: round2(median(g.map((p) => p.actWallM))),
+          // 見積り 0 は書式上あり得るため除外せず Infinity を許さない: 0 見積りは誤差比 null
+          medianErrorOut: g.some((p) => p.estOutK === 0) ? null : round2(median(g.map((p) => p.actOutK / p.estOutK))),
+          medianErrorWall: g.some((p) => p.estWallM === 0) ? null : round2(median(g.map((p) => p.actWallM / p.estWallM))),
+        }))
+        .sort((a, b) => b.n - a.n);
+      const estimates = {
+        recorded: estRecorded,
+        actuals: actRecorded,
+        paired: pairs.length,
+        unpairedEstimates: estRecorded - pairs.length,
+        unpairedActuals: actRecorded - pairs.length,
+        referenceClass,
+      };
+      snapshot.delegation = { docsRoot, recorded, byVersion, byModel, estimates };
     } else {
       // docs root 未解決・plan 不在は測定不能 null(0 件と区別し「記録ゼロ」と誤読させない)
-      snapshot.delegation = { docsRoot, recorded: null, byVersion: null, byModel: null };
+      snapshot.delegation = { docsRoot, recorded: null, byVersion: null, byModel: null, estimates: null };
     }
   } catch (e) {
     snapshot.errors.push(`delegation scan failed: ${e.message}`);
