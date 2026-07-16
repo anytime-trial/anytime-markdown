@@ -1,6 +1,6 @@
 # AGENTS.md（anytime-markdown ツール中立規約）
 
-更新日: 2026-07-02
+更新日: 2026-07-16
 
 > このファイルは Claude Code・Codex など、どのエージェントも従うツール中立な規約の単一の正（source of truth）である。\
 > Claude 固有の補足（discovery 手順・Trail DB・並行セッション検知・スキル参照）は `CLAUDE.md` を、Codex 固有設定は各自のルールを参照する。
@@ -8,16 +8,16 @@
 ## リポジトリ構成
 
 - プライマリリポジトリ: 本リポジトリ（`/anytime-markdown/`）。VS Code ワークスペースのメイン。
-- `/Shared/anytime-markdown-docs/` — ドキュメント出力先（`/anytime-markdown/` 内には出力しない）。独立 Git リポジトリのため完了時に `git status` で確認。Git ルールは両リポジトリに適用。
+- docs リポジトリ（`<docsRoot>`）— ドキュメント出力先（`/anytime-markdown/` 内には出力しない）。実パスは `CLAUDE.md` の「ドキュメント保存先（docsRoot）」節（`- docsRoot: <path>` 行）が単一の正で、本ファイル・各スキル内の `<docsRoot>` はその値に読み替える。独立 Git リポジトリのため完了時に `git status` で確認。Git ルールは両リポジトリに適用。
 
 > [!NOTE]
-> 知識の正本（source of truth）は `/Shared/anytime-markdown-docs/` 配下の Markdown（ベンダー中立な可搬形式）である。Trail DB（`trail.db` / `memory-core.db` / `doc-core.db`）・各種 memory は、その正本から導出される検索インデックスと位置づける（Open Knowledge Format の「プラットフォームでなく形式」原則）。知識をチャットや DB に閉じ込めず、可搬な Markdown へ外部化することを優先する。
+> 知識の正本（source of truth）は `<docsRoot>/` 配下の Markdown（ベンダー中立な可搬形式）である。Trail DB（`trail.db` / `memory-core.db` / `doc-core.db`）・各種 memory は、その正本から導出される検索インデックスと位置づける（Open Knowledge Format の「プラットフォームでなく形式」原則）。知識をチャットや DB に閉じ込めず、可搬な Markdown へ外部化することを優先する。
 
 ## ドキュメント出力先
 
-- プランファイル: `/Shared/anytime-markdown-docs/plan/*.md`（3 ファイル以上変更する機能で作成し、承認後に実装）。
-- レビュー: `/Shared/anytime-markdown-docs/review/`。
-- 提案: `/Shared/anytime-markdown-docs/proposal/`。
+- プランファイル: `<docsRoot>/plan/*.md`（3 ファイル以上変更する機能で作成し、承認後に実装）。
+- レビュー: `<docsRoot>/review/`。
+- 提案: `<docsRoot>/proposal/`。
 - ドキュメントの構文・フロントマター・整形は `anytime-markdown-output` 規約（`packages/vscode-markdown-extension/skills/anytime-markdown-output/SKILL.md`）に従う。
 - type（spec/tech/test/manual/proposal/plan/review/report）ごとの記載内容（何を書くか）・component spec の記載ルールは `anytime-doc-authoring` 規約（`packages/vscode-markdown-extension/skills/anytime-doc-authoring/SKILL.md`）に従う。
 - 各フォルダ（type フォルダ＋全サブフォルダ）に予約索引 `index.[lang].md` を置く（OKF 段階開示・フォルダ別 index）。`scripts/gen-spec-index.mjs` で frontmatter から自動生成する（手書き禁止）。運用詳細（再生成必須の条件・type 別コマンド）は `anytime-doc-authoring` 規約 §1.2。
