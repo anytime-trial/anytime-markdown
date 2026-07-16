@@ -4,10 +4,6 @@ effort: low
 description: Mermaid 図（flowchart/block-beta/stateDiagram-v2 等）を作成・修正する際の可読性ガイドライン（strict モードの HTML タグ制約・900px 幅・図種の使い分け・block-beta の height 禁止・配色）。設計書やドキュメントで Mermaid 図を書く・図解する時に使用する。
 ---
 
----
-path: "**/*.md"
----
-
 # Mermaid 図解 可読性向上ガイドライン
 
 更新日: 2026-04-20
@@ -36,7 +32,7 @@ path: "**/*.md"
 | 条件分岐・ビジネスロジック | Markdown テーブル（**Mermaid ではなく**） | diff 種別表示色、パラメータ仕様 |
 
 > [!IMPORTANT]
-> 画面設計書（\`type: "spec"\` の画面レイアウト仕様）では \`block-beta\` を使用し、\`flowchart\` で代替しないこと。
+> 画面設計書（`type: "spec"` の画面レイアウト仕様）では `block-beta` を使用し、`flowchart` で代替しないこと。
 
 
 ## 3. 共通ルール（すべての図種で適用）
@@ -203,7 +199,8 @@ block-beta
 ### 5.2 `style ... height:Npx` は使わない（**禁止**）
 
 > [!IMPORTANT]
-> \`block-beta\` では \`style ブロック名 height:Npx\` を \*\*使用してはいけない\*\*。\\ ラベル文字列が箱の外にはみ出して表示される描画バグを誘発し、レイアウトが崩壊する。
+> `block-beta` では `style ブロック名 height:Npx` を **使用してはいけない**。\
+> ラベル文字列が箱の外にはみ出して表示される描画バグを誘発し、レイアウトが崩壊する。
 
 
 ### 5.3 高さ表現の 3 手段

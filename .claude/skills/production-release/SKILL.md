@@ -71,7 +71,8 @@ git pull origin develop     # 最新化
 
 ```bash
 # master との差分でパッケージごとの変更ファイル数を表示
-git diff --stat origin/master...HEAD -- packages/ | grep 'packages/' | sed 's|/.*||' | sort | uniq -c | sort -rn
+# --stat は長いパスを ... で省略し grep を取りこぼすため --name-only を使う
+git diff --name-only origin/master...HEAD -- packages/ | cut -d/ -f2 | sort | uniq -c | sort -rn
 ```
 
 変更が検出された系統のみをリリース対象とする。変更がない系統はスキップする。

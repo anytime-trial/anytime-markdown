@@ -127,8 +127,13 @@ console.log(wsPath);
 
 ```bash
 # インストール済み拡張機能から mcp-trail-server.js を検出してプロジェクトスコープで登録
-SERVER_PATH=$(ls -t /home/node/.vscode-server/extensions/anytime-trial.anytime-trail-*/dist/mcp-trail-server.js 2>/dev/null | head -1)
-claude mcp add --scope project mcp-trail -- node "$SERVER_PATH"
+# （$HOME 基準で検出。見つからないまま空パスを登録しないよう必ずガードする）
+SERVER_PATH=$(ls -t "$HOME"/.vscode-server/extensions/anytime-trial.anytime-trail-*/dist/mcp-trail-server.js 2>/dev/null | head -1)
+if [ -z "$SERVER_PATH" ]; then
+  echo "mcp-trail-server.js が見つかりません（Anytime Trail 拡張 v0.16.0 以上が必要）" >&2
+else
+  claude mcp add --scope project mcp-trail -- node "$SERVER_PATH"
+fi
 ```
 
 登録後はセッションを `/clear` で再起動してから再実行する必要がある。
@@ -866,7 +871,8 @@ Phase 0-4 「テスト / Lint / CI 検出」「技術的負債検出」「静的
 ### 5-3: validate-markdown.sh 実行
 
 ```bash
-for f in {outputDir}/**/*.ja.md; do
+# bash 既定（globstar 無効）の ** は 1 階層しか展開されないため find で全階層を列挙する
+find {outputDir} -name '*.ja.md' -not -path '*/_eval/*' -print0 | while IFS= read -r -d '' f; do
     bash ~/.claude/scripts/validate-markdown.sh "$f" 2>&1 | tee -a /tmp/basic-design-validate.log
 done
 grep -c "^NG:" /tmp/basic-design-validate.log
