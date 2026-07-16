@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.4] - 2026-07-16
+
+### Changed
+
+- Rewrote the privacy policy strings (rendered by the web app's privacy pages) to describe current features: per-feature external services (Google Drive, GitHub, sign-in, link previews, web page import, images) and actual browser storage usage.
+
 ## [1.13.2] - 2026-07-13
 
 ### Fixed

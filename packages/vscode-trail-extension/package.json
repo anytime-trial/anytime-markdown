@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.34.0",
+  "version": "0.35.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -221,8 +221,8 @@
   "dependencies": {
     "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/graph-core": "*",
-    "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/mcp-trail": "*",
+    "@anytime-markdown/memory-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
     "@anytime-markdown/trail-server": "*",

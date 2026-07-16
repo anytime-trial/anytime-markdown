@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-07-16
+
+### Added
+
+- Landing page section that shows the development process as a simplified flow diagram (arrows between steps are decorative and hidden from assistive technology).
+- The landing roadmap section now shows the implementation status of each item.
+- Runtime validation of authentication environment variables and a dedicated auth error page, so a misconfigured deployment fails with a readable message instead of a generic "Server error".
+
+### Changed
+
+- Privacy policy and terms of service pages rewritten to match the editor's current features: external services (Google Drive, GitHub, sign-in, link previews, web page import, PlantUML) and actual browser storage usage are now enumerated per feature.
+- Updated the Agent mapping screenshot on the landing page.
+
+### Fixed
+
+- The "partial" roadmap status label is now distinguishable in dark mode too.
+
 ## [0.37.1] - 2026-07-13
 
 ### Security

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-07-16
+
+### Changed
+
+- Renamed the bundled `anytime-dev-health` skill to `anytime-dev-retro`, now focused on retrospectives. The environment/setup audit was split into `anytime-dev-audit`, which ships with the Anytime Agent extension instead.
+- `anytime-dev-retro` gained an incident mode (turning production incidents into requirements), prompt feedback loops (two-window comparison of skill firing and delegation performance aggregation), per-model behavior profiles with model tags on delegation records, a meta-mechanism health check, and meta-loop promotion (when repeated revisions of a target don't stick, propose revising the feedback machinery itself).
+- Updated the bundled `anytime-token-budget` skill text (manifest bumped so the update deploys).
+- Skill scripts' `.test.cjs` tests are now part of the package jest run (they were previously not wired in).
+
+### Fixed
+
+- Delegation performance aggregation missed adopt/return markers written directly after Japanese text (JS `\b` does not match there), and no longer splits model stats between the short model alias and the full model ID.
+
 ## [0.34.0] - 2026-07-14
 
 ### Added

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.4] - 2026-07-16
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Updated the privacy policy strings consumed by the web app. No functional change to the extension itself.
+
 ## [1.13.3] - 2026-07-14
 
 ### Fixed

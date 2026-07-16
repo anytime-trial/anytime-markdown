@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-16
+
+### Added
+
+- Bundled `anytime-dev-audit` skill (moved from the Anytime Trail extension): a read-only diagnosis of the PC environment and Claude Code configuration, updated with 2026-07 operational best-practice checks.
+
+### Changed
+
+- `anytime-dev-cycle`: delegation contract v3 with a mandatory estimate → actual reconciliation loop (reference-class aggregation of past delegations), inner-loop harness design (loop engineering), delegation/supervision safety design, approval gates redesigned to approve the What (requirements/design documents and acceptance tests) instead of per-plan approval, and design-doc drift detection moved into the stage-5 gate.
+- `anytime-cross-review`: reflects the shared delegation/supervision safety design.
+
 ## [1.5.0] - 2026-07-14
 
 ### Added
