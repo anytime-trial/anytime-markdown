@@ -4,7 +4,7 @@
 // へ追記だけ行う。trail 拡張が定期 drain して S1 既存の `/api/trail/emergency-log` 経路で
 // emergency_log へ記録する（要件書 §12.4）。rename 先行 drain は gitActivitySpool と同方式
 // （read → rm の間に追記された行を失わない）。
-import { appendFileSync, existsSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
@@ -52,6 +52,7 @@ export function appendEmergencySpool(
 ): void {
   const path = emergencySpoolPath(airspaceDir);
   try {
+    mkdirSync(airspaceDir, { recursive: true }); // 拡張未配置の環境でも spool だけは書ける
     if (existsSync(path)) {
       const lines = readFileSync(path, 'utf8').split('\n').filter((l) => l.trim() !== '');
       if (lines.length >= EMERGENCY_SPOOL_MAX) {
