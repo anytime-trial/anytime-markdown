@@ -389,7 +389,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     }
     const planDir = docsRoot ? path.join(docsRoot, 'plan') : null;
     if (planDir && fs.existsSync(planDir)) {
-      const OUTCOME_RE = /^- 委譲結果: 雛形v(\d+) (採用|差し戻し|abstain)\b/;
+      // 末尾は \b でなく先読み: JS の \b は \w=[A-Za-z0-9_] 基準で日本語直後に成立せず
+      // 「採用」「差し戻し」が永久に不一致になる(レビュー検出 2026-07-16)
+      const OUTCOME_RE = /^- 委譲結果: 雛形v(\d+) (採用|差し戻し|abstain)(?=\s|$)/;
       const byVersion = {};
       let recorded = 0;
       for (const f of fs.readdirSync(planDir)) {
