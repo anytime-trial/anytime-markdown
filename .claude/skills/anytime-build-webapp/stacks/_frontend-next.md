@@ -1,6 +1,13 @@
 # フロントエンド共通スタック（Next.js + Tailwind + Auth.js）
 
+更新日: 2026-07-16
+
 `stacks/t3-default.md` と `stacks/python-be.md` の両方から参照される共通パーツ。
+
+> [!NOTE]
+> 本ファイルおよび `t3-default.md` のパッケージバージョン指定（`next@^15` / `tailwindcss@^3` 等）は\
+> 上記更新日時点で検証済みの組合せ。scaffold の鮮度維持のため意図的に caret 指定とする。\
+> 生成が失敗する場合はまずバージョンの鮮度を疑い、更新時は本ファイル第 1 章へ集約して個別章に散らさない。
 
 > [!IMPORTANT]
 > 本ファイルは **単独適用不可・参照専用**。\
@@ -85,7 +92,7 @@ const config: Config = {
   darkMode: "class",
   theme: {
     extend: {
-      // Phase 4.5 でデザイントークンが反映される
+      // Phase 4D (Apply Design Tokens) でデザイントークンが反映される
     },
   },
   plugins: [],

@@ -1,6 +1,5 @@
 {
-  "$schema": "https://json.schemastore.org/anytime-build-webapp-rename-map.json",
-  "description": "anytime-lab クローン後の文字列置換マップ。<project-name> は Phase 4 で実プロジェクト名に置換される。in-place モードでは inPlaceExcludes のファイルを targets から除外する。",
+  "description": "anytime-lab クローン後の文字列置換マップ。<project-name> は Phase 4 で実プロジェクト名に置換される。in-place モードでは inPlaceExcludes のファイルを targets から除外する。validations の jq は jq 式、regex は 1 行完結の PCRE（GNU grep -P は複数行に一致しない）。",
   "replacements": [
     { "find": "anytime-lab", "replace": "<project-name>" }
   ],
@@ -16,12 +15,12 @@
   "validations": [
     {
       "file": "package.json",
-      "jsonpath": "$.name",
+      "jq": ".name",
       "expected": "<project-name>"
     },
     {
       "file": "docker-compose.yml",
-      "regex": "services:\\s*\\n\\s*<project-name>:",
+      "regex": "^\\s+<project-name>:",
       "expected": "match"
     }
   ]
