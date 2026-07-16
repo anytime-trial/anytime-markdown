@@ -8,6 +8,7 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.test.ts', '**/*.meta.test.ts', '**/skills/**/*.test.cjs'],
   moduleNameMapper: {
     '^vscode$': '<rootDir>/src/__mocks__/vscode.ts',
+    '^@anytime-markdown/agent-core$': '<rootDir>/../agent-core/src/index.ts',
     '^@anytime-markdown/memory-core$': '<rootDir>/../memory-core/src/index.ts',
     '^@anytime-markdown/memory-core/pipeline$': '<rootDir>/../memory-core/src/pipeline-exports.ts',
   },

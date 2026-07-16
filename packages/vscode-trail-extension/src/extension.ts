@@ -44,6 +44,7 @@ import * as vscode from 'vscode';
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
 import { registerEmergencyCommands } from './commands/emergencyCommands';
+import { startEmergencySpoolDrain } from './emergency/emergencySpoolDrain';
 import { notifyKbShrink, registerKbSnapshotCommands } from './commands/kbSnapshotCommands';
 import { AlignmentDiagnosticsProvider } from './providers/AlignmentDiagnosticsProvider';
 import { AlignmentTreeProvider } from './providers/AlignmentTreeProvider';
@@ -1014,6 +1015,16 @@ export async function activate(context: vscode.ExtensionContext) {
 		getPort: () =>
 			vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841),
 	});
+
+	// Emergency spool drain (Phase 5 S2): フック検知イベント（ループ検知・自動 Kill Switch）を
+	// spool から emergency_log へ定期取込する
+	context.subscriptions.push(
+		startEmergencySpoolDrain({
+			getWorkspacePath: getEffectiveWorkspacePath,
+			getPort: () =>
+				vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841),
+		}),
+	);
 
 	// KB Persistence commands (Phase 5 S3): snapshot restore
 	registerKbSnapshotCommands(context, {

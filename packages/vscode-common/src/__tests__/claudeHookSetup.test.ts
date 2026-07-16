@@ -401,6 +401,56 @@ describe('setupClaudeHooks', () => {
     expect(emergencyIdx).toBeLessThan(escapeIdx);
   });
 
+  test('registers matcher-less gate (PreToolUse) and loop-check (PostToolUse) hooks (Phase 5 S2)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = readSettings();
+    const gate = settings.hooks.PreToolUse.filter(
+      (e) => e.matcher === undefined && e.hooks[0].command === reportCmd('gate'),
+    );
+    const loopCheck = settings.hooks.PostToolUse.filter(
+      (e) => e.matcher === undefined && e.hooks[0].command === reportCmd('loop-check'),
+    );
+    expect(gate.length).toBe(1);
+    expect(loopCheck.length).toBe(1);
+    expect(gate[0].hooks[0].timeout).toBe(5);
+    expect(loopCheck[0].hooks[0].timeout).toBe(5);
+
+    // 再実行しても重複登録されない（removeStatusFileHooks の掃除 → 再登録の冪等性）
+    setupClaudeHooks(tmpWorkspace);
+    const again = readSettings();
+    expect(
+      again.hooks.PreToolUse.filter((e) => e.hooks[0].command === reportCmd('gate')).length,
+    ).toBe(1);
+    expect(
+      again.hooks.PostToolUse.filter((e) => e.hooks[0].command === reportCmd('loop-check')).length,
+    ).toBe(1);
+  });
+
+  test('agent-status-report.mjs implements gate / loop-check modes (Phase 5 S2)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const report = readScript('agent-status-report.mjs');
+    expect(report).toContain("mode === 'gate'");
+    expect(report).toContain("mode === 'loop-check'");
+    // 判定は airspace.cjs バンドル側 API を呼ぶだけ（配線のみ）
+    expect(report).toContain('api.toolSignature');
+    expect(report).toContain('api.evaluateLoop');
+    expect(report).toContain('api.readLoopState');
+    expect(report).toContain('api.writeLoopState');
+    // 旧バンドル（関数未搭載）で落ちない後方互換ガード
+    expect(report).toContain("typeof api.evaluateLoop !== 'function'");
+    // kill 段は S1 台帳への書込に集約（新たな deny 経路を作らない）+ spool 記録
+    expect(report).toContain('api.writeEmergencyState');
+    expect(report).toContain("event: 'kill_switch_on'");
+    expect(report).toContain("event: 'anomaly_detected'");
+    // detail_json は要件書 §12.4 のスキーマ（signature を含む。同一 tool の別引数ループを事後区別）
+    expect(report).toContain('signature: verdict.signature');
+    expect(report).toContain('triggeredBy: \'loop-detector\'');
+  });
+
   test('migrates legacy trail-token-budget.sh: stale hook entry and orphan script removed', () => {
     // 旧名のスクリプトと Stop フックを事前に用意（旧バージョンが登録した状態を再現）
     const scriptsDir = path.join(tmpHome, '.claude', 'scripts');
