@@ -27,6 +27,8 @@
     "@anytime-markdown/markdown-rich": "*",
     "@anytime-markdown/markdown-react-islands": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
+    "@anytime-markdown/tickets-core": "*",
+    "@anytime-markdown/tickets-viewer": "*",
     "@anytime-markdown/trace-core": "*",
     "@anytime-markdown/trace-viewer": "*",
     "@anytime-markdown/trail-viewer": "*",
