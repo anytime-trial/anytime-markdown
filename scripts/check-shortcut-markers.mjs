@@ -2,8 +2,8 @@
 // check-shortcut-markers.mjs — SHORTCUT 意図的簡略化マーカーの CI ゲート。
 // 規約(~/.claude/rules/code-quality.md 2.1)の 3 要素(<内容>. ceiling: ... upgrade: ...)を検査し、
 // ceiling / upgrade 欠落(no-trigger 含む)を検出したら exit 1 でブロックする。
-// dev-health grounding の台帳(観測・デルタ追跡)と対になるゲート側。判定ロジックは
-// anytime-dev-health スキルの shortcutMarkers.cjs に一本化し意味ズレを防ぐ。
+// dev-retro grounding の台帳(観測・デルタ追跡)と対になるゲート側。判定ロジックは
+// anytime-dev-retro スキルの shortcutMarkers.cjs に一本化し意味ズレを防ぐ。
 // 参照するのは git 正本(packages/vscode-trail-extension/skills/)であって
 // .claude/skills/ の実行時コピーではない。後者は .gitignore 済みで CI に存在しない。
 //
@@ -22,7 +22,7 @@ const { collectShortcutMarkers, MARKER_NEEDLE } = require(
     'packages',
     'vscode-trail-extension',
     'skills',
-    'anytime-dev-health',
+    'anytime-dev-retro',
     'shortcutMarkers.cjs',
   ),
 );

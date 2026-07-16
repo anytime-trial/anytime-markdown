@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/markdown-viewer",
-  "version": "1.13.3",
+  "version": "1.13.4",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -25,8 +25,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/markdown-core": "*",
+    "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/ui-core": "*",
     "@mozilla/readability": "0.6.0",
     "@xmldom/xmldom": "0.9.10",

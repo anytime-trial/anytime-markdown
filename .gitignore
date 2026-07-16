@@ -22,12 +22,15 @@ prebuilt-vscode
 .claude/skills/anytime-note/
 .claude/skills/anytime-proposal/
 # trail 拡張が activate 時に配置する生成物（ソースは packages/vscode-trail-extension/skills/）
-.claude/skills/anytime-dev-health/
+.claude/skills/anytime-dev-retro/
+.claude/skills/anytime-dev-audit/
 .claude/skills/anytime-reverse-codegraph/
 .claude/skills/anytime-reverse-spec/
 .claude/skills/anytime-token-budget/
 .claude/skills/anytime-trail-review/
 .claude/skills/.anytime-skills.json
+.claude/skills/.anytime-agent-skills.json
+.claude/skills/.anytime-trail-skills.json
 .next
 # Next が dev/build のたびに再生成する（参照先が .next/dev/types と .next/types で入れ替わる）。
 # next build が型チェック前に必ず再生成するため、追跡しても CI の結論は変わらない。

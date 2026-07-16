@@ -1,0 +1,11 @@
+{
+  "configTitle": "Server configuration error",
+  "configDescription": "A required server environment variable for authentication is missing or invalid. Administrators should check the server logs and environment settings.",
+  "missingVarsLabel": "Environment variables to check",
+  "expiredTitle": "This sign-in may have expired",
+  "expiredDescription": "If the authorization screen stays open for more than 15 minutes, the PKCE verification data expires. Please try signing in again.",
+  "genericTitle": "Authentication could not be completed",
+  "genericDescription": "The response from the authentication provider could not be processed. Please wait a moment and try again.",
+  "retryEditor": "Back to Markdown editor",
+  "retryHome": "Back to home"
+}

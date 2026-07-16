@@ -34,7 +34,7 @@ export function resolveVerificationDbPath(workspaceRoot) {
   return path.join(home, 'db', 'verification.db');
 }
 
-// SHORTCUT: 保持期間 prune 未実装. ceiling: 1 検証=1 行の追記のみで増加は緩やか. upgrade: フェーズ2 の dev-health 連携導入時に保持方針を決めて prune を実装.
+// SHORTCUT: 保持期間 prune 未実装. ceiling: 1 検証=1 行の追記のみで増加は緩やか. upgrade: フェーズ2 の dev-retro 連携導入時に保持方針を決めて prune を実装.
 const MIGRATIONS = [
   {
     version: 1,

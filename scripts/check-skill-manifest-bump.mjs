@@ -37,14 +37,22 @@ export function collectChangedSkills(changedPaths) {
   return byPackage;
 }
 
-/** 版数が上がっていないスキルを列挙する(純粋関数)。manifest に載っていないスキルも違反として返す。 */
-export function findMissingBumps(changedByPackage, manifests) {
+/**
+ * 版数が上がっていないスキルを列挙する(純粋関数)。manifest に載っていないスキルも違反として返す。
+ *
+ * `skillExists(pkg, skill)` は HEAD の作業ツリーにそのスキル dir が在るかを返す。改名・削除された
+ * スキルは旧 dir の全ファイルが削除差分として `changedByPackage` に載るが、消えたスキルに manifest
+ * 登録を求めるのは誤り(登録すべきは新名だけ)なので対象外にする。
+ */
+export function findMissingBumps(changedByPackage, manifests, skillExists = () => true) {
   const violations = [];
   for (const [pkg, skills] of changedByPackage) {
     const manifest = manifests.get(pkg);
     // manifest を持たない拡張(版数ゲート未導入)は対象外。導入済みの拡張だけを守る。
     if (!manifest) continue;
     for (const skill of [...skills].sort()) {
+      // 削除・改名で HEAD に存在しないスキルは検査対象外。
+      if (!skillExists(pkg, skill)) continue;
       const base = manifest.base[skill];
       const head = manifest.head[skill];
       if (head === undefined) {
@@ -109,7 +117,8 @@ function main() {
     manifests.set(pkg, { base: readManifestAt(base, pkg) ?? {}, head });
   }
 
-  const violations = findMissingBumps(changedByPackage, manifests);
+  const skillExists = (pkg, skill) => existsSync(join(repoRoot, 'packages', pkg, 'skills', skill));
+  const violations = findMissingBumps(changedByPackage, manifests, skillExists);
   const checked = [...changedByPackage].map(([pkg, s]) => `${pkg}(${s.size})`).join(', ');
   console.log(`[check-skill-manifest-bump] base=${base} / 変更のあった同梱スキル: ${checked}`);
 

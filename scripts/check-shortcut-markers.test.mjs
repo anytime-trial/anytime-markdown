@@ -9,7 +9,7 @@ import { findViolations, scanShortcutDir } from './check-shortcut-markers.mjs';
 
 const require = createRequire(import.meta.url);
 // git 正本(packages 側)から読む。.claude/skills/ は .gitignore された実行時コピーで CI には存在しない。
-const CANONICAL_CJS = '../packages/vscode-trail-extension/skills/anytime-dev-health/shortcutMarkers.cjs';
+const CANONICAL_CJS = '../packages/vscode-trail-extension/skills/anytime-dev-retro/shortcutMarkers.cjs';
 const { collectShortcutMarkers } = require(CANONICAL_CJS);
 
 // フィクスチャ内のタグは分割構築する(このテストファイル自身が検査対象拡張子のためリテラルを含むと自己検出される)
@@ -85,7 +85,7 @@ test('ディレクトリ走査が node_modules/dist を除外し violation を f
 // (2026-07-13 の release CI で実発生)。ゲートとそのテストが参照する .cjs は git 追跡下にあること。
 test('ゲートが参照する shortcutMarkers.cjs は新規チェックアウトに存在する(CI で解決できる)', (t) => {
   const repoRoot = join(import.meta.dirname, '..');
-  const rel = 'packages/vscode-trail-extension/skills/anytime-dev-health/shortcutMarkers.cjs';
+  const rel = 'packages/vscode-trail-extension/skills/anytime-dev-retro/shortcutMarkers.cjs';
 
   // 主検証: 実体があること。CI は git 追跡ファイルのみ展開するため、ここが正本側を指していれば解決できる。
   assert.equal(existsSync(join(repoRoot, rel)), true, `${rel} が無い。ゲートの require が解決できない`);

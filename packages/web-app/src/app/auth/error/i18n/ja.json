@@ -1,0 +1,11 @@
+{
+  "configTitle": "サーバー設定エラー",
+  "configDescription": "認証に必要なサーバー環境変数が不足しているか、不正な値です。管理者はサーバーログと環境変数の設定を確認してください。",
+  "missingVarsLabel": "確認が必要な環境変数",
+  "expiredTitle": "時間切れの可能性があります",
+  "expiredDescription": "認可画面を開いたまま 15 分以上経過すると、PKCE の検証情報が失効します。もう一度認証をお試しください。",
+  "genericTitle": "認証を完了できませんでした",
+  "genericDescription": "認証プロバイダーからの応答を処理できませんでした。時間をおいて、もう一度お試しください。",
+  "retryEditor": "Markdown エディタへ戻る",
+  "retryHome": "トップへ戻る"
+}
