@@ -57,6 +57,11 @@ async function postJson(url: string, body: unknown): Promise<boolean> {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
+      if (!res.ok) {
+        // 非 200 は例外にならないため catch に落ちない。ここで残さないとトーストが消えた後に
+        // 何も追えなくなる（要件書 §16 の所見 → FR-S5-6）。
+        TrailLogger.warn(`postJson rejected: ${url} (HTTP ${res.status})`);
+      }
       return res.ok;
     } finally {
       clearTimeout(timer);
@@ -65,6 +70,18 @@ async function postJson(url: string, body: unknown): Promise<boolean> {
     TrailLogger.error(`postJson failed: ${url}`, err);
     return false;
   }
+}
+
+/**
+ * キャンセルされたことを明示する。
+ *
+ * S1 の実機受け入れ（要件書 §16）で、理由入力を Esc で閉じると通知もログも台帳も残らず
+ * 「発動したつもり」の空振りが実際に起きた。緊急停止は「効いていないのに効いたと思う」のが
+ * 最悪の失敗なので、キャンセル経路は必ず可視化する（FR-S5-5）。
+ */
+function notifyCancelled(operation: string): void {
+  TrailLogger.info(`[emergency] ${operation} cancelled by user`);
+  void vscode.window.showInformationMessage(`${operation} cancelled. Nothing was changed.`);
 }
 
 async function recordEmergencyEvent(
@@ -113,13 +130,19 @@ async function killSwitchCommand(deps: EmergencyCommandDeps): Promise<void> {
     { modal: true },
     ACTIVATE_LABEL,
   );
-  if (confirm !== ACTIVATE_LABEL) return;
+  if (confirm !== ACTIVATE_LABEL) {
+    notifyCancelled('Kill Switch activation');
+    return;
+  }
 
   const reason = await vscode.window.showInputBox({
     prompt: 'Reason for activating the Kill Switch',
     placeHolder: 'e.g. runaway loop, destructive operation in progress',
   });
-  if (reason === undefined) return;
+  if (reason === undefined) {
+    notifyCancelled('Kill Switch activation');
+    return;
+  }
 
   try {
     writeEmergencyState(dir, {
@@ -156,7 +179,10 @@ async function releaseKillSwitchCommand(deps: EmergencyCommandDeps): Promise<voi
     { modal: true },
     RELEASE_LABEL,
   );
-  if (confirm !== RELEASE_LABEL) return;
+  if (confirm !== RELEASE_LABEL) {
+    notifyCancelled('Kill Switch release');
+    return;
+  }
 
   try {
     clearEmergencyState(dir);
@@ -182,7 +208,10 @@ async function recordSafePointCommand(deps: EmergencyCommandDeps): Promise<void>
     prompt: 'Label for this safe point',
     placeHolder: 'e.g. before risky migration',
   });
-  if (label === undefined) return;
+  if (label === undefined) {
+    notifyCancelled('Safe point recording');
+    return;
+  }
 
   let commitHash: string;
   let branch: string;
@@ -247,7 +276,10 @@ async function rollbackToSafePointCommand(deps: EmergencyCommandDeps): Promise<v
     })),
     { placeHolder: 'Select a safe point to recover from' },
   );
-  if (picked === undefined) return;
+  if (picked === undefined) {
+    notifyCancelled('Rollback');
+    return;
+  }
 
   const shortSha = picked.point.commitHash.slice(0, 8);
   const recoverBranch = `recover-${shortSha}`;
@@ -256,7 +288,10 @@ async function rollbackToSafePointCommand(deps: EmergencyCommandDeps): Promise<v
     { modal: true },
     CREATE_LABEL,
   );
-  if (confirm !== CREATE_LABEL) return;
+  if (confirm !== CREATE_LABEL) {
+    notifyCancelled('Rollback');
+    return;
+  }
 
   try {
     // GC 済み・DB にだけ残った sha を切り出そうとして失敗する前に実在検証する（何も変更しない）
