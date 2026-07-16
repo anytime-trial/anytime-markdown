@@ -575,4 +575,35 @@ export interface TrailI18n {
   'logs.filter.search': string;
   'logs.empty': string;
   'logs.paused': string;
+  // emergency (Phase 5 S5: Kill Switch / EmergencyPanel)
+  'emergency.fab.label': string;
+  'emergency.status.active': string;
+  'emergency.status.inactive': string;
+  'emergency.status.unknown': string;
+  'emergency.panel.title': string;
+  'emergency.panel.close': string;
+  'emergency.activeSince': string;
+  'emergency.triggeredBy': string;
+  'emergency.reason.label': string;
+  'emergency.reason.placeholder': string;
+  'emergency.reason.required': string;
+  'emergency.action.activate': string;
+  'emergency.action.release': string;
+  'emergency.confirm.activateTitle': string;
+  'emergency.confirm.activateBody': string;
+  'emergency.confirm.releaseTitle': string;
+  'emergency.confirm.releaseBody': string;
+  'emergency.confirm.rollbackTitle': string;
+  'emergency.confirm.rollbackBody': string;
+  'emergency.confirm.ok': string;
+  'emergency.confirm.cancel': string;
+  'emergency.feedback.cancelled': string;
+  'emergency.feedback.activated': string;
+  'emergency.feedback.released': string;
+  'emergency.feedback.rolledBack': string;
+  'emergency.feedback.failed': string;
+  'emergency.safePoints.title': string;
+  'emergency.safePoints.empty': string;
+  'emergency.safePoints.autoLabel': string;
+  'emergency.unknown.notice': string;
 }

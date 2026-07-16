@@ -65,6 +65,7 @@ import type { Logger, LogLevel } from '../runtime/Logger';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
 import { combineLoggers,LogSink } from '../services/LogSink';
 import { AlignmentApiHandler } from './AlignmentApiHandler';
+import { EmergencyApiHandler } from './EmergencyApiHandler';
 import { C4ManualApiHandler } from './C4ManualApiHandler';
 import { CodeGraphApiHandler } from './CodeGraphApiHandler';
 import { DocsApiHandler } from './DocsApiHandler';
@@ -296,6 +297,7 @@ export class TrailDataServer {
   private readonly codeGraphApi: CodeGraphApiHandler;
   private readonly docsApi: DocsApiHandler;
   private readonly alignmentApi: AlignmentApiHandler;
+  private readonly emergencyApi: EmergencyApiHandler;
 
   constructor(
     private readonly distPath: string,
@@ -357,6 +359,11 @@ export class TrailDataServer {
     this.alignmentApi = new AlignmentApiHandler(
       this.trailDb,
       this.logger.child('AlignmentApiHandler'),
+      { gitRepoRoot: this.gitRoot },
+    );
+    this.emergencyApi = new EmergencyApiHandler(
+      this.trailDb,
+      this.logger.child('EmergencyApiHandler'),
       { gitRepoRoot: this.gitRoot },
     );
     this.docsApi = new DocsApiHandler(
@@ -730,6 +737,29 @@ export class TrailDataServer {
 
     if (pathname === '/api/trail/emergency-log' && method === 'GET') {
       this.handleListEmergencyEvents(res, parsed.searchParams);
+      return;
+    }
+
+    // Phase 5 S5: trail-viewer の EmergencyPanel 経路。変更系は EmergencyApiHandler 側で
+    // Origin allowlist + カスタムヘッダ + Content-Type を検証する（localhost バインドは
+    // クロスオリジン送信そのものを防げないため、CSRF 対策をハンドラ内に閉じて持つ）。
+    if (pathname === '/api/trail/emergency-state' && method === 'GET') {
+      this.emergencyApi.handleGetState(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency/kill-switch' && method === 'POST') {
+      void this.emergencyApi.handleKillSwitch(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency/release' && method === 'POST') {
+      void this.emergencyApi.handleRelease(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency/rollback' && method === 'POST') {
+      void this.emergencyApi.handleRollback(req, res);
       return;
     }
 
