@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/anytime-build-webapp-rename-map.json",
+  "description": "Python BE (FastAPI) 経路の rename map。anytime-lab クローン後の置換に加え、backend/ 配下のテンプレファイルから .tmpl を外して配置する。",
+  "replacements": [
+    { "find": "anytime-lab", "replace": "<project-name>" },
+    { "find": "<project-name>", "replace": "<project-name>" }
+  ],
+  "targets": [
+    "package.json",
+    "docker-compose.yml",
+    ".devcontainer/devcontainer.json",
+    "README.md",
+    "backend/pyproject.toml",
+    "backend/alembic.ini",
+    "backend/alembic/env.py",
+    "backend/app/__init__.py",
+    "backend/app/db.py",
+    "backend/app/deps.py",
+    "backend/app/main.py"
+  ],
+  "inPlaceExcludes": [
+    ".devcontainer/devcontainer.json"
+  ],
+  "validations": [
+    {
+      "file": "package.json",
+      "jsonpath": "$.name",
+      "expected": "<project-name>"
+    },
+    {
+      "file": "backend/pyproject.toml",
+      "regex": "name = \"<project-name>-backend\"",
+      "expected": "match"
+    },
+    {
+      "file": "backend/app/main.py",
+      "regex": "title=\"<project-name> API\"",
+      "expected": "match"
+    }
+  ]
+}
