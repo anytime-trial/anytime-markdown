@@ -166,6 +166,35 @@ describe("TicketsPanel", () => {
     expect([...(select?.options ?? [])].map((o) => o.value)).toEqual(["", "agent", "user"]);
   });
 
+  it("詳細の削除は 2 段階確認で DELETE を発行しボードから消える", async () => {
+    const fn = mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    const card = [...container.querySelectorAll<HTMLButtonElement>(".tk-card")].find((c) =>
+      c.textContent?.includes("T-1"),
+    );
+    await act(async () => {
+      card?.click();
+    });
+    const findDelete = () =>
+      [...document.querySelectorAll<HTMLButtonElement>(".tk-dialog button")].find((b) =>
+        b.textContent === "削除" || b.textContent === "削除を確定",
+      );
+    const first = findDelete();
+    expect(first?.textContent).toBe("削除");
+    await act(async () => {
+      first?.click();
+    });
+    expect(fn.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "DELETE")).toBe(false);
+    const second = findDelete();
+    expect(second?.textContent).toBe("削除を確定");
+    await act(async () => {
+      second?.click();
+    });
+    expect(fn.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "DELETE")).toBe(true);
+    expect(document.querySelector(".tk-dialog")).toBeNull();
+    expect(container.textContent).not.toContain("最初のチケット");
+  });
+
   it("一覧取得失敗時はエラーと再読込導線を表示する", async () => {
     const fn = jest
       .fn()

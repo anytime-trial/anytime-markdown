@@ -4,6 +4,7 @@ import {
   createTicket,
   updateTicketContent,
   archiveTicket,
+  deleteTicket,
   TicketApiError,
   TicketConflictError,
   type TicketRepositoryConfig,
@@ -310,6 +311,38 @@ describe('archiveTicket', () => {
       (c) => c.method === 'DELETE' && c.url.includes('archive%2FT-1-first.md'),
     );
     expect(rollback?.body?.sha).toBe('a1');
+  });
+});
+
+describe('deleteTicket', () => {
+  it('sha 付きで DELETE を発行する', async () => {
+    const { fetchFn, calls } = makeFetch({
+      '/repos/owner/repo/contents/.tickets%2FT-1-first.md': [
+        { method: 'DELETE', status: 200, json: { commit: { sha: 'c9' } } },
+      ],
+    });
+    await deleteTicket({ ...CFG_BASE, fetchFn, input: { path: '.tickets/T-1-first.md', sha: 's1' } });
+    expect(calls[0].method).toBe('DELETE');
+    expect(calls[0].body?.sha).toBe('s1');
+  });
+
+  it('sha 競合（409）は TicketConflictError にする', async () => {
+    const { fetchFn } = makeFetch({
+      '/repos/owner/repo/contents/.tickets%2FT-1-first.md': [
+        { method: 'DELETE', status: 409, json: { message: 'conflict' } },
+      ],
+    });
+    await expect(
+      deleteTicket({ ...CFG_BASE, fetchFn, input: { path: '.tickets/T-1-first.md', sha: 'old' } }),
+    ).rejects.toBeInstanceOf(TicketConflictError);
+  });
+
+  it('.tickets/ 外のパスは拒否する', async () => {
+    const { fetchFn, calls } = makeFetch({});
+    await expect(
+      deleteTicket({ ...CFG_BASE, fetchFn, input: { path: 'docs/a.md', sha: 's' } }),
+    ).rejects.toBeInstanceOf(TicketApiError);
+    expect(calls).toHaveLength(0);
   });
 });
 

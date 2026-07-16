@@ -67,6 +67,8 @@ export const ticketsMessagesJa = {
     cancel: "キャンセル",
     close: "閉じる",
     archive: "アーカイブ",
+    delete: "削除",
+    deleteConfirm: "削除を確定",
     archivedNotice: "アーカイブ済みのため閲覧のみ可能です",
     dependencyMissing: "({id} は見つかりません)",
     commentHeading: "コメント",

@@ -67,6 +67,8 @@ export const ticketsMessagesEn = {
     cancel: "Cancel",
     close: "Close",
     archive: "Archive",
+    delete: "Delete",
+    deleteConfirm: "Confirm delete",
     archivedNotice: "Archived tickets are read-only",
     dependencyMissing: "({id} not found)",
     commentHeading: "Comments",

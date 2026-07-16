@@ -70,6 +70,10 @@ async function openTicketsPage(page: Page, options?: { putStatus?: number }) {
       });
       return;
     }
+    if (method === "DELETE") {
+      await route.fulfill({ json: { deleted: ".tickets/T-2-second.md" } });
+      return;
+    }
     if (method === "POST") {
       await route.fulfill({
         status: 201,
@@ -159,6 +163,18 @@ test.describe("tickets board", () => {
     const payload = request.postDataJSON() as { body: string };
     expect(payload.body).toContain("looks good");
     expect(payload.body).toContain("## 概要 (Description)");
+  });
+
+  test("詳細から 2 段階確認で削除でき、カードが消える", async ({ page }) => {
+    await openTicketsPage(page);
+    await page.locator(".tk-card", { hasText: "T-2" }).click();
+    const deleteRequest = page.waitForRequest(
+      (req) => req.method() === "DELETE" && req.url().includes("/api/github/tickets"),
+    );
+    await page.getByRole("button", { name: /^削除$|^Delete$/ }).click();
+    await page.getByRole("button", { name: /削除を確定|Confirm delete/ }).click();
+    await deleteRequest;
+    await expect(page.locator(".tk-card", { hasText: "T-2" })).toHaveCount(0);
   });
 
   test("新規作成はタイトル必須で、空のままでは POST されない", async ({ page }) => {

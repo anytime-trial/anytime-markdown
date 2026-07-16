@@ -22,6 +22,7 @@ export interface TicketDetailDialogProps {
   onSave: (input: SaveTicketInput) => Promise<boolean>;
   onComment: (ticket: TicketItem, author: string, text: string) => Promise<boolean>;
   onArchive: (ticket: TicketItem) => Promise<boolean>;
+  onDelete: (ticket: TicketItem) => Promise<boolean>;
   onOpenTicket: (ticket: TicketItem) => void;
   /** サニタイズ済みリッチ表示のレンダラ（web-app から注入。未指定時はソース表示） */
   renderBody?: (markdown: string) => ReactNode;
@@ -44,7 +45,7 @@ function parseOptionalNumber(value: string): number | undefined {
 }
 
 export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
-  const { ticket, allTickets, currentUser, onClose, onSave, onComment, onArchive, onOpenTicket, renderBody } = props;
+  const { ticket, allTickets, currentUser, onClose, onSave, onComment, onArchive, onDelete, onOpenTicket, renderBody } = props;
   const t = useTranslations("tickets");
   const locale = useLocale();
   const [title, setTitle] = useState("");
@@ -60,6 +61,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   const [message, setMessage] = useState("");
   const [commentText, setCommentText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const resetKey = ticket ? `${ticket.path}:${ticket.sha}` : "";
   useEffect(() => {
@@ -79,6 +81,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
     setEditingBody(false);
     setMessage("");
     setCommentText("");
+    setConfirmingDelete(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
 
@@ -137,6 +140,25 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   };
 
   const dependencyIds = ticket.frontmatter.dependencies ?? [];
+
+  const deleteButton = (
+    <button
+      type="button"
+      className="tk-btn tk-btn--danger"
+      disabled={busy}
+      aria-label={confirmingDelete ? t("detail.deleteConfirm") : t("detail.delete")}
+      onClick={() => {
+        if (confirmingDelete) {
+          setBusy(true);
+          void onDelete(ticket).finally(() => setBusy(false));
+        } else {
+          setConfirmingDelete(true);
+        }
+      }}
+    >
+      {confirmingDelete ? t("detail.deleteConfirm") : t("detail.delete")}
+    </button>
+  );
 
   return (
     <ModalShell open onClose={onClose} labelId="tk-detail-title">
@@ -323,6 +345,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
             />
           </div>
           <div className="tk-dialog-actions">
+            {deleteButton}
             {ticket.frontmatter.status === "completed" && (
               <button
                 type="button"
@@ -367,6 +390,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
       )}
       {readOnly && (
         <div className="tk-dialog-actions">
+          {deleteButton}
           <button type="button" className="tk-btn" onClick={onClose}>
             {t("detail.close")}
           </button>
