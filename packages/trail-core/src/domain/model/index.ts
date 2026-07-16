@@ -7,3 +7,4 @@ export * from './release';
 export * from './budget';
 export * from './commitPrefix';
 export * from './emergency';
+export * from './knowledgeBase';
