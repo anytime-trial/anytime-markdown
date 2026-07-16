@@ -44,6 +44,11 @@ export type TicketAssignee = (typeof TICKET_ASSIGNEES)[number];
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
 const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const NUMBER_RE = /^-?\d+(?:\.\d+)?$/;
+// frontmatter は 1 行 1 スカラーの自前フォーマットのため、値・キーに制御文字（改行等）が入ると
+// 別キー・別行を注入できる。パーサは `\n` を復元しない（往復不能）ので、エスケープではなく拒否する。
+const CONTROL_CHARS_RE = new RegExp('[\\u0000-\\u001f]');
+// パーサのキー規則（parseTicketMarkdown の `^([A-Za-z_][\w-]*):`）と一致させる。
+const SAFE_KEY_RE = /^[A-Za-z_][\w-]*$/;
 const KNOWN_KEYS = new Set([
   'id',
   'title',
@@ -160,6 +165,17 @@ function checkOptionalNumber(
   }
 }
 
+/** 文字列 / 文字列配列フィールドに制御文字（改行等）が含まれる場合にエラーを積む。 */
+function checkNoControlChars(raw: Record<string, unknown>, key: string, errors: string[]): void {
+  const value = raw[key];
+  const hasControl =
+    (typeof value === 'string' && CONTROL_CHARS_RE.test(value)) ||
+    (isStringArray(value) && value.some((item) => CONTROL_CHARS_RE.test(item)));
+  if (hasControl) {
+    errors.push(`${key} に制御文字（改行等）は使用できません`);
+  }
+}
+
 /** frontmatter を検証し、型付きの値と未知キー（extras）に分離する。 */
 export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketValidationResult {
   const errors: string[] = [];
@@ -186,6 +202,9 @@ export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketV
   checkOptionalNumber(raw, 'estimate', { min: 0, max: Number.MAX_SAFE_INTEGER }, errors);
   checkOptionalNumber(raw, 'progress', { min: 0, max: 100 }, errors);
   checkOptionalNumber(raw, 'ai_confidence', { min: 0, max: 1 }, errors);
+  for (const key of ['id', 'title', 'assignee', 'creator', 'labels', 'dependencies']) {
+    checkNoControlChars(raw, key, errors);
+  }
   if (errors.length > 0) {
     return { ok: false, errors };
   }
@@ -217,6 +236,10 @@ function serializeScalar(value: string | number): string {
   if (typeof value === 'number') {
     return String(value);
   }
+  // 制御文字は行を分断して別キー注入を許すため、シリアライズ段階で必ず弾く（最終防衛線）。
+  if (CONTROL_CHARS_RE.test(value)) {
+    throw new Error('frontmatter のスカラー値に制御文字（改行等）は使用できません');
+  }
   if (value === '' || /[:#[\]{}"']/.test(value) || NUMBER_RE.test(value) || value.trim() !== value) {
     return `"${value.replaceAll('"', String.raw`\"`)}"`;
   }
@@ -224,6 +247,10 @@ function serializeScalar(value: string | number): string {
 }
 
 function serializeValue(key: string, value: FrontmatterValue): string {
+  // キーは引用符なしで出力されるため、パーサのキー規則に反するキーは行注入の温床になる。
+  if (!SAFE_KEY_RE.test(key)) {
+    throw new Error(`frontmatter キーとして不正です: ${JSON.stringify(key)}`);
+  }
   if (Array.isArray(value)) {
     return `${key}: [${value.map((item) => serializeScalar(item)).join(', ')}]`;
   }

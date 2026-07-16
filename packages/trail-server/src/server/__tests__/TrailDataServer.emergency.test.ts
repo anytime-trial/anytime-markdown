@@ -102,4 +102,38 @@ describe('/api/trail/safe-points and /api/trail/emergency-log', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  // CSRF 対策: クロスサイトの simple request（text/plain 等）は Content-Type ガードで拒否し、
+  // ローカル分析 DB への書き込みを防ぐ。正規クライアント（フック curl / 拡張）は application/json を送る。
+  it('POST safe-points rejects non-JSON Content-Type with 415 and does not write', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/safe-points`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(SAFE_POINT),
+    });
+    expect(res.status).toBe(415);
+    const list = await fetch(`http://127.0.0.1:${port}/api/trail/safe-points`);
+    const body = (await list.json()) as { safePoints: unknown[] };
+    expect(body.safePoints).toHaveLength(0);
+  });
+
+  it('POST emergency-log rejects a request with no Content-Type with 415', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/emergency-log`, {
+      method: 'POST',
+      body: JSON.stringify(EVENT),
+    });
+    expect(res.status).toBe(415);
+    const list = await fetch(`http://127.0.0.1:${port}/api/trail/emergency-log`);
+    const body = (await list.json()) as { events: unknown[] };
+    expect(body.events).toHaveLength(0);
+  });
+
+  it('POST safe-points accepts application/json with charset parameter', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/safe-points`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify(SAFE_POINT),
+    });
+    expect(res.status).toBe(200);
+  });
 });
