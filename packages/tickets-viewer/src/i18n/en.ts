@@ -30,6 +30,11 @@ export const ticketsMessagesEn = {
     high: "High",
     urgent: "Urgent",
   },
+  assignee: {
+    none: "Unset",
+    agent: "AI agent (agent)",
+    user: "User (user)",
+  },
   field: {
     title: "Title",
     status: "Status",

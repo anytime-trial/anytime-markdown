@@ -152,6 +152,20 @@ describe("TicketsPanel", () => {
     expect(dialog?.textContent).toContain("GitHub にコミット");
   });
 
+  it("新規作成の担当は agent / user の選択式になっている", async () => {
+    mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    const newButton = [...container.querySelectorAll("button")].find(
+      (b) => b.textContent === "新規チケット",
+    );
+    await act(async () => {
+      newButton?.click();
+    });
+    const select = document.querySelector<HTMLSelectElement>("#tk-create-assignee");
+    expect(select).not.toBeNull();
+    expect([...(select?.options ?? [])].map((o) => o.value)).toEqual(["", "agent", "user"]);
+  });
+
   it("一覧取得失敗時はエラーと再読込導線を表示する", async () => {
     const fn = jest
       .fn()

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import {
+  TICKET_ASSIGNEES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   type TicketPriority,
@@ -130,12 +131,19 @@ export function TicketCreateDialog({
             <label className="tk-label" htmlFor="tk-create-assignee">
               {t("field.assignee")}
             </label>
-            <input
+            <select
               id="tk-create-assignee"
-              className="tk-input"
+              className="tk-select"
               value={assignee}
               onChange={(event) => setAssignee(event.target.value)}
-            />
+            >
+              <option value="">{t("assignee.none")}</option>
+              {TICKET_ASSIGNEES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`assignee.${value}`)}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="tk-fieldset">
             <label className="tk-label" htmlFor="tk-create-labels">

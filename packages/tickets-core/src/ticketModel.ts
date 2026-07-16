@@ -34,6 +34,13 @@ export type TicketValidationResult =
 /** AI が人の回答を待っていることを表すラベル（要件 AL-5） */
 export const QUESTION_LABEL = 'question';
 
+/**
+ * 新規作成 UI の担当（assignee）選択肢。`agent` は AI エージェント（実行ループの選定対象）、
+ * `user` は人間。フロントマター上の assignee は引き続き任意文字列を許容する（FR-2）。
+ */
+export const TICKET_ASSIGNEES = ['agent', 'user'] as const;
+export type TicketAssignee = (typeof TICKET_ASSIGNEES)[number];
+
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
 const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const NUMBER_RE = /^-?\d+(?:\.\d+)?$/;

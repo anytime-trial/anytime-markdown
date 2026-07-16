@@ -30,6 +30,11 @@ export const ticketsMessagesJa = {
     high: "高",
     urgent: "緊急",
   },
+  assignee: {
+    none: "未設定",
+    agent: "AI エージェント (agent)",
+    user: "ユーザー (user)",
+  },
   field: {
     title: "タイトル",
     status: "ステータス",
