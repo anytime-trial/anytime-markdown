@@ -714,6 +714,23 @@ export async function activate(context: vscode.ExtensionContext) {
 				);
 			});
 
+			// IPC イベント: addNotePage → agent 拡張の Agent Note 新規ページ作成コマンドへ委譲
+			httpClient.onAddNotePage((payload) => {
+				void (async () => {
+					const commands = await vscode.commands.getCommands(true);
+					if (!commands.includes('anytime-agent.addAiNotePage')) {
+						void vscode.window.showWarningMessage(
+							'Anytime Agent 拡張が見つからないため、Agent Note に出力できません。',
+						);
+						return;
+					}
+					await vscode.commands.executeCommand('anytime-agent.addAiNotePage', payload);
+				})().catch((err) => {
+					TrailLogger.error(`[add-note-page] failed: ${String(err)}`);
+					void vscode.window.showWarningMessage('Agent Note への出力に失敗しました。');
+				});
+			});
+
 			// IPC イベント: tokenBudgetExceeded → VS Code 警告通知
 			httpClient.onTokenBudgetExceeded((status) => {
 				const sessionLabel = status.sessionId.slice(0, 8);
