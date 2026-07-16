@@ -34,6 +34,7 @@
     "@anytime-markdown/code-analysis-typescript": "*",
     "@anytime-markdown/doc-core": "*",
     "@anytime-markdown/memory-core": "*",
+    "@anytime-markdown/tickets-core": "*",
     "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trail-db": "*",
     "@modelcontextprotocol/sdk": "1.27.1",

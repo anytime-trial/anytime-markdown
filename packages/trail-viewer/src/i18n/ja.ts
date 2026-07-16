@@ -340,6 +340,10 @@ export const ja: TrailI18n = {
   'metrics.aiFirstTrySuccessRate.description': 'AI 生成コミットのうち、168 時間以内に fix / revert / hotfix で後追い修正されなかった割合',
   'metrics.changeFailureRate.name': '変更失敗率',
   'metrics.changeFailureRate.description': 'リリース後 168 時間以内に同一ファイルへ fix / revert / hotfix が入ったリリースの割合',
+  'metrics.meanTimeToRecovery.name': '平均復旧時間',
+  'metrics.meanTimeToRecovery.description': 'fix / revert / hotfix から遡って 168 時間以内にファイル重複する直近コミットまでの平均時間',
+  'metrics.taskCompletionRate.name': 'タスク完了率',
+  'metrics.taskCompletionRate.description': 'agent 担当チケットの実行到達分（in_progress / in_review / completed）のうち completed の割合',
   'metrics.empty': 'データなし',
 
   'c4.overlay.groupHotspot': 'Hotspot',

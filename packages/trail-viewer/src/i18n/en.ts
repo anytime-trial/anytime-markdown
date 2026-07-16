@@ -340,6 +340,10 @@ export const en: TrailI18n = {
   'metrics.aiFirstTrySuccessRate.description': 'AI-generated commits not followed by a fix / revert / hotfix within 168 hours',
   'metrics.changeFailureRate.name': 'Change Failure Rate',
   'metrics.changeFailureRate.description': 'Releases followed by a fix / revert / hotfix on the same files within 168 hours',
+  'metrics.meanTimeToRecovery.name': 'Mean Time to Recovery',
+  'metrics.meanTimeToRecovery.description': 'Average time from the nearest overlapping commit within 168 hours to its fix / revert / hotfix',
+  'metrics.taskCompletionRate.name': 'Task Completion Rate',
+  'metrics.taskCompletionRate.description': 'Share of completed tickets among agent-assigned tickets that reached execution (in_progress / in_review / completed)',
   'metrics.empty': 'No data',
 
   'c4.overlay.groupHotspot': 'Hotspot',

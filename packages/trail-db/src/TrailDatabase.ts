@@ -11604,10 +11604,13 @@ export class TrailDatabase {
       }));
     };
 
-    // AI First-Try Success Rate は fix コミットを 168h 先まで見る必要があるため、
-    // commits の取得範囲を fix 検出ウィンドウぶん拡張する。
+    // AI First-Try Success Rate は fix コミットを 168h 先まで、MTTR は障害混入コミットを
+    // 168h 前まで見る必要があるため、commits の取得範囲を fix 検出ウィンドウぶん両側へ拡張する。
+    // 範囲内フィルタは各 compute 関数側で行うため、既存指標には影響しない。
     const FIX_WINDOW_MS = 168 * 60 * 60 * 1000;
+    const extendedFrom = new Date(new Date(from).getTime() - FIX_WINDOW_MS).toISOString();
     const extendedTo = new Date(new Date(to).getTime() + FIX_WINDOW_MS).toISOString();
+    const extendedPrevFrom = new Date(new Date(prevFrom).getTime() - FIX_WINDOW_MS).toISOString();
     const extendedPrevTo = new Date(new Date(prevTo).getTime() + FIX_WINDOW_MS).toISOString();
 
     const queryCommits = (f: string, t: string) => {
@@ -11658,11 +11661,11 @@ export class TrailDatabase {
       releases: queryReleases(from, to),
       messages: queryMessages(from, to),
       messageCommits: queryMessageCommits(from, to),
-      commits: queryCommits(from, extendedTo),
+      commits: queryCommits(extendedFrom, extendedTo),
       previousReleases: queryReleases(prevFrom, prevTo),
       previousMessages: queryMessages(prevFrom, prevTo),
       previousMessageCommits: queryMessageCommits(prevFrom, prevTo),
-      previousCommits: queryCommits(prevFrom, extendedPrevTo),
+      previousCommits: queryCommits(extendedPrevFrom, extendedPrevTo),
     };
   }
 

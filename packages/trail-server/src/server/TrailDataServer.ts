@@ -73,6 +73,7 @@ import { handleGetLogs, handlePostLogs } from './logsApi';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
 import type { ClientMessage, ServerMessage } from './types';
+import { readWorkspaceTickets } from './workspaceTickets';
 
 const LOG_CLEANUP_INTERVAL_MS = 24 * 3600 * 1000;
 
@@ -2346,7 +2347,8 @@ export class TrailDataServer {
       const prevFrom = new Date(fromMs - 1 - duration).toISOString();
 
       const raw = this.trailDb.getQualityMetricsInputs(from, to, prevFrom, prevTo);
-      const metrics = computeQualityMetrics(raw, { from, to }, thresholds);
+      const tickets = readWorkspaceTickets(this.gitRoot ?? process.cwd(), (m) => this.logger.info(m));
+      const metrics = computeQualityMetrics({ ...raw, tickets }, { from, to }, thresholds);
 
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(metrics));

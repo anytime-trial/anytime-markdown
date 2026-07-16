@@ -33,6 +33,8 @@ const DORA_ID_KEYS: Record<string, string> = {
   tokensPerLoc: 'metrics.tokensPerLoc.name',
   aiFirstTrySuccessRate: 'metrics.aiFirstTrySuccessRate.name',
   changeFailureRate: 'metrics.changeFailureRate.name',
+  meanTimeToRecovery: 'metrics.meanTimeToRecovery.name',
+  taskCompletionRate: 'metrics.taskCompletionRate.name',
 };
 
 const DORA_DESCRIPTION_KEYS: Record<string, string> = {
@@ -41,6 +43,8 @@ const DORA_DESCRIPTION_KEYS: Record<string, string> = {
   tokensPerLoc: 'metrics.tokensPerLoc.description',
   aiFirstTrySuccessRate: 'metrics.aiFirstTrySuccessRate.description',
   changeFailureRate: 'metrics.changeFailureRate.description',
+  meanTimeToRecovery: 'metrics.meanTimeToRecovery.description',
+  taskCompletionRate: 'metrics.taskCompletionRate.description',
 };
 
 const LEVEL_LABELS: Record<string, string> = {

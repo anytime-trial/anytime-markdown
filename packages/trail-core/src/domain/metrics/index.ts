@@ -10,6 +10,9 @@ export {
   AI_FIRST_TRY_FIX_WINDOW_MS,
 } from './aiFirstTrySuccessRate';
 export { computeChangeFailureRate } from './changeFailureRate';
+export { computeMeanTimeToRecovery } from './meanTimeToRecovery';
+export { computeTaskCompletionRate } from './taskCompletionRate';
+export type { TicketInput } from './taskCompletionRate';
 export { computeReleaseQualityTimeSeries } from './releaseQuality';
 export type { ReleaseQualityBucket } from './releaseQuality';
 export { classifyDoraLevel, mergeThresholds, DEFAULT_THRESHOLDS } from './thresholds';

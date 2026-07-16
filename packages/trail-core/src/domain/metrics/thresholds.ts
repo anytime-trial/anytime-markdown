@@ -12,6 +12,8 @@ export interface ThresholdsConfig {
   tokensPerLoc: ThresholdLevels;
   changeFailureRate: ThresholdLevels;
   aiFirstTrySuccessRate: ThresholdLevels;
+  meanTimeToRecovery: ThresholdLevels;
+  taskCompletionRate: ThresholdLevels;
 }
 
 export const DEFAULT_THRESHOLDS: ThresholdsConfig = {
@@ -20,6 +22,8 @@ export const DEFAULT_THRESHOLDS: ThresholdsConfig = {
   tokensPerLoc: { elite: 5_000, high: 20_000, medium: 100_000 }, // tokens/LOC (4-type sum incl. cache_read), smaller is better
   changeFailureRate: { elite: 15, high: 30, medium: 45 },
   aiFirstTrySuccessRate: { elite: 80, high: 60, medium: 40 },
+  meanTimeToRecovery: { elite: 1, high: 24, medium: 168 },   // hours, smaller is better (DORA: 1h / 1day / 1week)
+  taskCompletionRate: { elite: 90, high: 75, medium: 50 },
 };
 
 /** Classify value where higher is better (value >= threshold). */
@@ -62,6 +66,10 @@ export function classifyDoraLevel(
       return classifyLowerIsBetterInclusive(value, thresholds.changeFailureRate);
     case 'aiFirstTrySuccessRate':
       return classifyHigherIsBetter(value, thresholds.aiFirstTrySuccessRate);
+    case 'meanTimeToRecovery':
+      return classifyLowerIsBetterStrict(value, thresholds.meanTimeToRecovery);
+    case 'taskCompletionRate':
+      return classifyHigherIsBetter(value, thresholds.taskCompletionRate);
     default:
       return undefined;
   }
@@ -95,5 +103,7 @@ export function mergeThresholds(
     tokensPerLoc: mergeLevel(user.tokensPerLoc, defaults.tokensPerLoc),
     changeFailureRate: mergeLevel(user.changeFailureRate, defaults.changeFailureRate),
     aiFirstTrySuccessRate: mergeLevel(user.aiFirstTrySuccessRate, defaults.aiFirstTrySuccessRate),
+    meanTimeToRecovery: mergeLevel(user.meanTimeToRecovery, defaults.meanTimeToRecovery),
+    taskCompletionRate: mergeLevel(user.taskCompletionRate, defaults.taskCompletionRate),
   };
 }
