@@ -124,6 +124,26 @@
         "title": "%command.killExtensionHost%",
         "category": "Anytime Trail",
         "icon": "$(debug-stop)"
+      },
+      {
+        "command": "anytime-trail.killSwitch",
+        "title": "%command.killSwitch%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.releaseKillSwitch",
+        "title": "%command.releaseKillSwitch%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.recordSafePoint",
+        "title": "%command.recordSafePoint%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.rollbackToSafePoint",
+        "title": "%command.rollbackToSafePoint%",
+        "category": "Anytime Trail"
       }
     ],
     "mcpServerDefinitionProviders": [

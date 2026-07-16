@@ -43,6 +43,7 @@ import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
+import { registerEmergencyCommands } from './commands/emergencyCommands';
 import { AlignmentDiagnosticsProvider } from './providers/AlignmentDiagnosticsProvider';
 import { AlignmentTreeProvider } from './providers/AlignmentTreeProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
@@ -1003,6 +1004,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Trace run command
 	registerTraceCommands(context);
+
+	// Emergency Protocol commands (Phase 5 S1): Kill Switch / safe points / rollback
+	registerEmergencyCommands(context, {
+		getWorkspacePath: getEffectiveWorkspacePath,
+		getPort: () =>
+			vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841),
+	});
 
 	// .vscode/trace/ watcher: notify when a new trace file is created
 	if (wsRootForDb) {
