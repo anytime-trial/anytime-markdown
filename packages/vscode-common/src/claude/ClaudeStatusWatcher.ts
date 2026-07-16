@@ -230,6 +230,8 @@ export class ClaudeStatusWatcher implements Disposable {
         contextTokens: this._readContextTokens(row.sessionId),
         committedCount: row.committedCount,
         lastCommit: row.lastCommit ?? undefined,
+        pid: row.pid ?? undefined,
+        terminalPid: row.terminalPid ?? undefined,
       });
     }
     return agents;

@@ -39,6 +39,10 @@ export interface AgentSessionRow {
   readonly committedCount: number;
   /** 最新コミット。未コミットなら null */
   readonly lastCommit: AgentLastCommit | null;
+  /** セッションを実行する claude CLI プロセスの PID（フックが /proc 祖先から解決）。未取得なら null */
+  readonly pid: number | null;
+  /** claude の親シェル（ターミナル）の PID。未取得なら null */
+  readonly terminalPid: number | null;
   /** handoff payload（圧縮ステート JSON 文字列）。未生成なら '{}' */
   readonly summary: string;
   /** 将来のナラティブ要約生成時刻 UTC ISO 8601（予約） */
@@ -66,6 +70,10 @@ export interface EditUpsertInput {
   readonly branch?: string;
   /** Bash ツールの cwd。省略時は既存値を保持 */
   readonly workspacePath?: string;
+  /** claude CLI プロセスの PID。省略時は既存値を保持 */
+  readonly pid?: number;
+  /** claude の親シェル（ターミナル）の PID。省略時は既存値を保持 */
+  readonly terminalPid?: number;
   /** session_edits に追記マージする 1 件（同 file は timestamp 更新、無ければ push） */
   readonly appendEdit?: AgentSessionEdit;
   /** planned_edits をまるごと置換する（plan hook 用）。省略時は既存値を保持 */

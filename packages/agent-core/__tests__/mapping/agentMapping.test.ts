@@ -340,6 +340,43 @@ describe('buildAgentMapping', () => {
     expect(featWt?.sessions).toHaveLength(1);
   });
 
+  test('pid / terminalPid は SessionMapping へ透過する（未指定は undefined）', () => {
+    const agents = [
+      {
+        sessionId: 'p1',
+        source: 'claude' as const,
+        editing: false,
+        file: '/somewhere/src/foo.ts',
+        timestamp: makeTimestamp(100, now),
+        branch: 'main',
+        sessionEdits: [],
+        plannedEdits: [],
+        pid: 1234,
+        terminalPid: 1200,
+      },
+      {
+        sessionId: 'p2',
+        source: 'claude' as const,
+        editing: false,
+        file: '/somewhere/src/bar.ts',
+        timestamp: makeTimestamp(100, now),
+        branch: 'main',
+        sessionEdits: [],
+        plannedEdits: [],
+      },
+    ];
+
+    const result = buildAgentMapping(agents, [], { now });
+
+    const sessions = result.flatMap((w) => w.sessions);
+    const p1 = sessions.find((s) => s.sessionId === 'p1');
+    const p2 = sessions.find((s) => s.sessionId === 'p2');
+    expect(p1?.pid).toBe(1234);
+    expect(p1?.terminalPid).toBe(1200);
+    expect(p2?.pid).toBeUndefined();
+    expect(p2?.terminalPid).toBeUndefined();
+  });
+
   test('orphan agent が出るケース（worktreesが空）', () => {
     const agents = [
       {

@@ -18,6 +18,8 @@ function row(partial: Partial<AgentStatusRow> & { sessionId: string }): AgentSta
     plannedEdits: partial.plannedEdits ?? [],
     committedCount: partial.committedCount ?? 0,
     lastCommit: partial.lastCommit ?? null,
+    pid: partial.pid ?? null,
+    terminalPid: partial.terminalPid ?? null,
     updatedAt: partial.updatedAt ?? new Date().toISOString(),
   };
 }
@@ -84,6 +86,22 @@ describe('ClaudeStatusWatcher', () => {
     const a = watcher.getAllAgents().get('s1');
     expect(a?.committedCount).toBe(3);
     expect(a?.lastCommit).toEqual({ hash: 'abc1234', timestamp: '2026-05-31T01:00:00.000Z' });
+  });
+
+  it('pid / terminalPid を AgentInfo に載せる（null は undefined に変換）', async () => {
+    source.rows = [
+      row({ sessionId: 'with-pid', pid: 1234, terminalPid: 1200 }),
+      row({ sessionId: 'no-pid' }),
+    ];
+    watcher = new ClaudeStatusWatcher(source);
+    await tick();
+
+    const withPid = watcher.getAllAgents().get('with-pid');
+    expect(withPid?.pid).toBe(1234);
+    expect(withPid?.terminalPid).toBe(1200);
+    const noPid = watcher.getAllAgents().get('no-pid');
+    expect(noPid?.pid).toBeUndefined();
+    expect(noPid?.terminalPid).toBeUndefined();
   });
 
   it('getAgents は stale を除外し getAllAgents は含む', async () => {

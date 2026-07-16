@@ -387,6 +387,33 @@ function airspaceVerdict(mode, input, cwd) {
   return null;
 }
 
+// claude CLI プロセスと親シェル（ターミナル）の PID を /proc の祖先から解決する。
+// airspace.cjs の findClaudePid と同じ判定（comm が 'claude' で始まる。WSL 相互運用では claude.exe になり得る）。
+// 非 Linux（/proc なし）・プロセス消滅時は null（PID なしで続行。ゲートと同じ fail-open）。
+function resolvePids() {
+  let current = process.pid;
+  for (let depth = 0; depth < 8; depth += 1) {
+    let comm = '';
+    let ppid = 0;
+    try {
+      comm = fs.readFileSync('/proc/' + current + '/comm', 'utf8').trim();
+      const stat = fs.readFileSync('/proc/' + current + '/stat', 'utf8');
+      // stat は "pid (comm) state ppid ..."。comm 自体に空白・括弧が含まれ得るため右端の ')' から読む。
+      ppid = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+    } catch (err) {
+      warn('resolvePids failed at pid ' + current + ': ' + err.message);
+      return null;
+    }
+    if (comm.startsWith('claude')) {
+      // ppid <= 1 は親が init（ターミナル情報なし）。claude PID だけ返す。
+      return { pid: current, terminalPid: Number.isFinite(ppid) && ppid > 1 ? ppid : undefined };
+    }
+    if (!Number.isFinite(ppid) || ppid <= 1) return null;
+    current = ppid;
+  }
+  return null;
+}
+
 // mode ごとに /api/agent-status/edit へ送る body を組み立てる。対象外なら null。
 function buildBody(mode, input, cwd, root, branch) {
   const sid = input.session_id || '';
@@ -394,6 +421,7 @@ function buildBody(mode, input, cwd, root, branch) {
   if (mode === 'edit-start' || mode === 'edit-end') {
     const fp = input.tool_input && input.tool_input.file_path;
     if (!fp) return null;
+    const pids = resolvePids();
     return {
       sessionId: sid,
       editing: mode === 'edit-start',
@@ -401,10 +429,20 @@ function buildBody(mode, input, cwd, root, branch) {
       branch,
       workspacePath: cwd,
       appendEdit: { file: fp, timestamp: ts },
+      pid: pids ? pids.pid : undefined,
+      terminalPid: pids ? pids.terminalPid : undefined,
     };
   }
   if (mode === 'bash-start' || mode === 'bash-end') {
-    return { sessionId: sid, editing: mode === 'bash-start', workspacePath: cwd, branch };
+    const pids = resolvePids();
+    return {
+      sessionId: sid,
+      editing: mode === 'bash-start',
+      workspacePath: cwd,
+      branch,
+      pid: pids ? pids.pid : undefined,
+      terminalPid: pids ? pids.terminalPid : undefined,
+    };
   }
   if (mode === 'planned') {
     const fp = input.tool_input && input.tool_input.file_path;

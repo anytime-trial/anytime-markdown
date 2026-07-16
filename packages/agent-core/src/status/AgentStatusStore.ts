@@ -38,6 +38,8 @@ interface RawRow {
   committed_count: number;
   last_commit_hash: string | null;
   last_commit_at: string | null;
+  pid: number | null;
+  terminal_pid: number | null;
   summary: string;
   summary_at: string | null;
   handoff_at: string | null;
@@ -89,6 +91,8 @@ function toRow(r: RawRow): AgentSessionRow {
       r.last_commit_hash && r.last_commit_at
         ? { hash: r.last_commit_hash, timestamp: r.last_commit_at }
         : null,
+    pid: r.pid,
+    terminalPid: r.terminal_pid,
     summary: r.summary,
     summaryAt: r.summary_at,
     handoffAt: r.handoff_at,
@@ -141,6 +145,14 @@ export class AgentStatusStore {
     }
     if (!this.hasColumn('agent_sessions', 'handoff_at')) {
       this.migrateToHandoffSchema();
+    }
+    // handoff スキーマ済みだが pid 列を持たない DB への軽量移行。nullable 列の追加のみ
+    // なので 12-step 再作成は不要（既存行は NULL のまま CHECK を満たす）。
+    if (!this.hasColumn('agent_sessions', 'pid')) {
+      this.db.exec('ALTER TABLE agent_sessions ADD COLUMN pid INTEGER CHECK (pid IS NULL OR pid > 0)');
+      this.db.exec(
+        'ALTER TABLE agent_sessions ADD COLUMN terminal_pid INTEGER CHECK (terminal_pid IS NULL OR terminal_pid > 0)',
+      );
     }
   }
 
@@ -200,6 +212,8 @@ export class AgentStatusStore {
     const file = input.file ?? prev?.file ?? '';
     const branch = input.branch ?? prev?.branch ?? '';
     const workspacePath = input.workspacePath ?? prev?.workspacePath ?? '';
+    const pid = input.pid ?? prev?.pid ?? null;
+    const terminalPid = input.terminalPid ?? prev?.terminalPid ?? null;
 
     let sessionEdits: AgentSessionRow['sessionEdits'] = input.clearEdits
       ? []
@@ -218,14 +232,17 @@ export class AgentStatusStore {
 
     const stmt = this.db.prepare(`
       INSERT INTO agent_sessions
-        (session_id, editing, file, branch, workspace_path, session_edits, planned_edits, updated_at)
+        (session_id, editing, file, branch, workspace_path, pid, terminal_pid,
+         session_edits, planned_edits, updated_at)
       VALUES
-        ($sid, $editing, $file, $branch, $ws, $sedits, $pedits, $updatedAt)
+        ($sid, $editing, $file, $branch, $ws, $pid, $terminalPid, $sedits, $pedits, $updatedAt)
       ON CONFLICT(session_id) DO UPDATE SET
         editing = excluded.editing,
         file = excluded.file,
         branch = excluded.branch,
         workspace_path = excluded.workspace_path,
+        pid = excluded.pid,
+        terminal_pid = excluded.terminal_pid,
         session_edits = excluded.session_edits,
         planned_edits = excluded.planned_edits,
         updated_at = excluded.updated_at
@@ -236,6 +253,8 @@ export class AgentStatusStore {
       $file: file,
       $branch: branch,
       $ws: workspacePath,
+      $pid: pid,
+      $terminalPid: terminalPid,
       $sedits: JSON.stringify(sessionEdits),
       $pedits: JSON.stringify(plannedEdits),
       $updatedAt: updatedAt,
