@@ -520,6 +520,29 @@ describe('TrailDataServer — handleWsMessage: provider 不要のコマンド', 
     await closeWs(ws);
   });
 
+  it('add-note-page は onAddNotePage コールバックを呼ぶ', async () => {
+    const onAddNotePage = jest.fn();
+    server.onAddNotePage = onAddNotePage;
+
+    const ws = await connectWs(port);
+    await new Promise((r) => setTimeout(r, 50));
+
+    ws.send(JSON.stringify({
+      type: 'add-note-page',
+      title: 'trail-viewer',
+      contextMarkdown: '| 要素 ID | `pkg_trail-viewer` |',
+      imageDataUrl: 'data:image/png;base64,AAAA',
+    }));
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(onAddNotePage).toHaveBeenCalledWith({
+      title: 'trail-viewer',
+      contextMarkdown: '| 要素 ID | `pkg_trail-viewer` |',
+      imageDataUrl: 'data:image/png;base64,AAAA',
+    });
+    await closeWs(ws);
+  });
+
   it('generate-code-graph は codeGraphService.generate を呼ぶ', async () => {
     const fakeCodeGraphService = {
       generate: jest.fn().mockResolvedValue({ nodes: [], edges: [] }),
@@ -757,6 +780,7 @@ describe('TrailDataServer — isClientMessage 型ガード', () => {
     expect(isClientMessage({ type: 'chat.abort' })).toBe(true);
     expect(isClientMessage({ type: 'provider.recheck' })).toBe(true);
     expect(isClientMessage({ type: 'reset-claude-activity' })).toBe(true);
+    expect(isClientMessage({ type: 'add-note-page', title: 't', contextMarkdown: 'c' })).toBe(true);
   });
 
   it('type が無効な値は拒否する', () => {

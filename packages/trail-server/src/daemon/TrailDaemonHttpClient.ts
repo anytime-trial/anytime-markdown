@@ -71,6 +71,16 @@ export class TrailDaemonHttpClient {
   }
 
   /**
+   * `addNotePage` イベントを購読する。
+   * daemon 内の TrailDataServer.onAddNotePage が呼ばれると発火する。
+   * extension 側で anytime-agent.addAiNotePage コマンドを実行する。
+   * @returns unsubscribe 関数。
+   */
+  onAddNotePage(cb: (payload: { title: string; contextMarkdown: string; imageDataUrl?: string }) => void): () => void {
+    return this.host.on('addNotePage', cb);
+  }
+
+  /**
    * `tokenBudgetExceeded` イベントを購読する。
    * daemon 内の TrailDataServer.onTokenBudgetExceeded が呼ばれると発火する。
    * extension 側で VS Code 通知 (vscode.window.showWarningMessage 等) を表示する。

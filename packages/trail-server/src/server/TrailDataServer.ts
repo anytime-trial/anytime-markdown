@@ -259,6 +259,7 @@ export class TrailDataServer {
   private callHierarchyIndexRepo: string | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
   onOpenFile: ((filePath: string) => void) | undefined;
+  onAddNotePage: ((payload: { title: string; contextMarkdown: string; imageDataUrl?: string }) => void) | undefined;
   onTokenBudgetExceeded: ((status: import('./types').TokenBudgetUpdatedMessage) => void) | undefined;
 
   /** POST /api/analyze/current ハンドラ。extension.ts で登録される */
@@ -2705,6 +2706,9 @@ export class TrailDataServer {
       case 'open-file':
         this.onOpenFile?.(parsed.filePath);
         return;
+      case 'add-note-page':
+        this.onAddNotePage?.({ title: parsed.title, contextMarkdown: parsed.contextMarkdown, imageDataUrl: parsed.imageDataUrl });
+        return;
       case 'perf-report':
         // TRAIL_DEBUG_PERF=1 の時のみ OutputChannel に出力（既定で常時 silent）
         this.logger.debug('[perf-report]', { metric: String(parsed.metric), ms: Number(parsed.ms) });
@@ -3438,6 +3442,7 @@ export function isClientMessage(data: unknown): data is ClientMessage {
     'reset-claude-activity',
     'generate-code-graph',
     'open-file',
+    'add-note-page',
     'perf-report',
     'chat.send',
     'chat.abort',

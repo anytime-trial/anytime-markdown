@@ -345,6 +345,11 @@ export type DaemonEvent =
       readonly type: 'event';
       readonly channel: 'tokenBudgetExceeded';
       readonly payload: SerializableTokenBudgetExceededPayload;
+    }
+  | {
+      readonly type: 'event';
+      readonly channel: 'addNotePage';
+      readonly payload: { readonly title: string; readonly contextMarkdown: string; readonly imageDataUrl?: string };
     };
 
 export type HostMessage = HostRequest;

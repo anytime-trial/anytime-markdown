@@ -432,6 +432,9 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   server.onOpenFile = (filePath: string) => {
     sendEvent('openFile', { filePath });
   };
+  server.onAddNotePage = (payload) => {
+    sendEvent('addNotePage', payload);
+  };
 
   // onTokenBudgetExceeded: シリアライズ可能なフィールドのみ IPC イベントとして返す。
   server.onTokenBudgetExceeded = (status) => {
