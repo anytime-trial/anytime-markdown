@@ -348,6 +348,12 @@
           "default": true,
           "markdownDescription": "%configuration.claudeMdGuidance.markdownDescription%"
         },
+        "anytimeAgent.tickets.directory": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "%configuration.tickets.directory.markdownDescription%"
+        },
         "anytimeAgent.showUsage": {
           "type": "boolean",
           "default": true,
