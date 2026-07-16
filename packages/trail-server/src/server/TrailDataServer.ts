@@ -734,6 +734,9 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/message-commits' && method === 'POST') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       this.handleInsertMessageCommit(req, res);
       return;
     }
@@ -819,10 +822,16 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/c4/communities/upsert-summaries' && method === 'POST') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       void this.c4ManualApi.upsertCommunitySummaries(req, res, parsed);
       return;
     }
     if (pathname === '/api/c4/communities/upsert-mappings' && method === 'POST') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       void this.c4ManualApi.upsertCommunityMappings(req, res, parsed);
       return;
     }
@@ -925,6 +934,9 @@ export class TrailDataServer {
     }
 
     if (method === 'POST' && pathname === '/api/c4/manual-elements') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       void this.c4ManualApi.createElement(req, res, parsed);
       return;
     }
@@ -1097,6 +1109,9 @@ export class TrailDataServer {
     }
 
     if (pathname.startsWith('/api/memory/drift/events/') && method === 'POST') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       const eventId = decodePathParam(pathname, '/api/memory/drift/events/', '/resolve');
       void this.readJsonBody(req).then(async (body) => {
         const note = typeof (body as Record<string, unknown>)['resolutionNote'] === 'string'

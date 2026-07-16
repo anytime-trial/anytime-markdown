@@ -372,6 +372,21 @@ describe('POST /api/message-commits', () => {
     const body = await res.json() as { ok: boolean };
     expect(body.ok).toBe(true);
   });
+
+  // CSRF 対策: 永続書込 POST はクロスサイトの simple request（text/plain）を Content-Type ガードで拒否する。
+  it('rejects a non-JSON Content-Type with 415', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/message-commits`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        messageUuid: 'msg-uuid-002',
+        sessionId: 'sess-002',
+        commitHash: 'deadbeef',
+        matchConfidence: 'realtime',
+      }),
+    });
+    expect(res.status).toBe(415);
+  });
 });
 
 describe('HTTP rate limiting', () => {
