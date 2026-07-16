@@ -1016,7 +1016,17 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	// KB Persistence commands (Phase 5 S3): snapshot restore
-	registerKbSnapshotCommands(context, { getTrailDb: () => trailDb });
+	registerKbSnapshotCommands(context, {
+		getTrailDb: () => trailDb,
+		// 復元前に管理下 daemon を停止して復元結果の上書きを防ぐ（外部 daemon モードでは no-op）。
+		// 再起動はウィンドウリロードに委ねる。
+		stopDaemon: async () => {
+			if (trailDaemonHost) {
+				await trailDaemonHost.dispose();
+				trailDaemonHost = null;
+			}
+		},
+	});
 
 	// .vscode/trace/ watcher: notify when a new trace file is created
 	if (wsRootForDb) {

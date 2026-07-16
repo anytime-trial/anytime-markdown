@@ -83,8 +83,9 @@ describe('FileBackupManager', () => {
     it('returns false and creates no backup when DB file does not exist', () => {
       const mgr = new FileBackupManager(dbPath);
       // shouldBackup returns true (no bak.1 exists) but rotateBackups early-returns
-      // when dbPath itself does not exist. Result: no backup file written.
-      expect(mgr.maybeRotate()).toBe(true);
+      // when dbPath itself does not exist. No backup file is written, so the
+      // return value must not report "created" (Phase 5 S3 cross-review fix).
+      expect(mgr.maybeRotate()).toBe(false);
       expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(false);
     });
 
@@ -323,6 +324,12 @@ describe('FileBackupManager', () => {
       fs.writeFileSync(dbPath, Buffer.from('B'));
       expect(mgr.maybeRotate()).toBe(false);
       expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(true);
+    });
+
+    it('returns false when the DB file does not exist (no false "created" report)', () => {
+      const mgr = new FileBackupManager(dbPath, 2, 0, undefined, { suffix: '.kb', latchPerInstance: false });
+      expect(mgr.maybeRotate()).toBe(false);
+      expect(fs.existsSync(`${dbPath}.kb.1.gz`)).toBe(false);
     });
 
     it('listBackups and restoreFromBackup honor the custom suffix', () => {

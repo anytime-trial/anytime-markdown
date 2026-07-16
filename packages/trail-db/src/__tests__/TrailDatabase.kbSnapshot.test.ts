@@ -68,13 +68,15 @@ describe('TrailDatabase KB persistence (Pre-write Snapshot + Shrink Audit)', () 
   });
 
   describe('Pre-write Snapshot の発火', () => {
-    it('破壊的書込 5 経路それぞれで snapshotBeforeDestructiveWrite が呼ばれる', () => {
+    it('破壊的書込 7 経路それぞれで snapshotBeforeDestructiveWrite が呼ばれる', () => {
       const { calls, snap } = makeFakeSnapshotter();
       db.setKnowledgeBaseSnapshotter(snap);
 
       db.saveCurrentGraph(makeTrailGraph(1), '/tsconfig.json', 'c'.repeat(40), 'repo1');
       db.saveCurrentCodeGraph('repo1', makeCodeGraph(1));
       db.upsertCurrentCodeGraphCommunities('repo1', [{ community_id: 0, name: 'A', summary: 's' }]);
+      db.saveReleaseGraph(makeTrailGraph(1), '/tsconfig.json', 'v0.0.0-missing');
+      db.saveReleaseCodeGraph('v0.0.0-missing', makeCodeGraph(1));
       db.deleteCurrentCodeGraphs();
       db.deleteReleaseCodeGraphs();
 
@@ -82,6 +84,8 @@ describe('TrailDatabase KB persistence (Pre-write Snapshot + Shrink Audit)', () 
         'current_graphs',
         'current_code_graphs',
         'current_code_graph_communities',
+        'release_graphs',
+        'release_code_graphs',
         'current_code_graphs',
         'release_code_graphs',
       ]);
@@ -180,8 +184,8 @@ describe('TrailDatabase KB persistence (Pre-write Snapshot + Shrink Audit)', () 
   });
 
   describe('復元 API', () => {
-    it('snapshotter 未解決（in-memory）の restoreKnowledgeBaseSnapshot は throw する', () => {
-      expect(() => db.restoreKnowledgeBaseSnapshot(1)).toThrow(/snapshot/i);
+    it('snapshotter 未解決（in-memory）の restoreKnowledgeBaseSnapshot は reject する', async () => {
+      await expect(db.restoreKnowledgeBaseSnapshot(1)).rejects.toThrow(/snapshot/i);
     });
   });
 });

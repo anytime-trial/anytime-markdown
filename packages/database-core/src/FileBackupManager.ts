@@ -87,9 +87,9 @@ export class FileBackupManager {
       return false;
     }
     this.preWriteGuard?.(this.dbPath);
-    this.rotateBackups();
+    const created = this.rotateBackups();
     this.backupDone = true;
-    return true;
+    return created;
   }
 
   /**
@@ -111,10 +111,12 @@ export class FileBackupManager {
   /**
    * 既存 DB ファイルを `.bak.1.gz` へ、`.bak.1.gz` → `.bak.2.gz` → … と
    * シフトする。最古世代は上書きで破棄される。DB ファイルが存在しないケース
-   * （新規作成中）は通常動作として無視する。
+   * （新規作成中）は通常動作として無視し false を返す（「作成済み」の誤報防止）。
+   *
+   * @returns 実際に世代ファイルを作成した場合 true
    */
-  private rotateBackups(): void {
-    if (!fs.existsSync(this.dbPath)) return;
+  private rotateBackups(): boolean {
+    if (!fs.existsSync(this.dbPath)) return false;
     const oldest = this.backupPath(this.backupGenerations);
     if (fs.existsSync(oldest)) {
       fs.unlinkSync(oldest);
@@ -129,6 +131,7 @@ export class FileBackupManager {
     const dbBuffer = fs.readFileSync(this.dbPath);
     const gz = zlib.gzipSync(dbBuffer, { level: FileBackupManager.GZIP_LEVEL });
     fs.writeFileSync(this.backupPath(1), gz);
+    return true;
   }
 
   /** 世代番号からバックアップファイルの絶対パスを導出。 */

@@ -72,13 +72,23 @@ describe('TrailDatabase KB persistence integration (real file lifecycle)', () =>
     expect(shrinks).toHaveLength(1);
     expect(db.listKnowledgeBaseSnapshots().length).toBeGreaterThanOrEqual(2);
 
-    // (3) 最新世代（100 ノード時点の状態）から復元 → 開き直すと縮小前の総数が読める
-    db.restoreKnowledgeBaseSnapshot(1);
+    // (3) 最新世代（100 ノード時点の状態）から復元 → close → ファイル復元 → 再 init が
+    //     一体で行われ、同じインスタンスから縮小前の総数が読める
+    await db.restoreKnowledgeBaseSnapshot(1);
+    const restored = db.getCurrentCodeGraph('repo1');
+    expect(restored?.nodes).toHaveLength(100);
+
+    // (4) 復元の監査記録が復元後のアクティブ DB に残る
+    const restores = db
+      .listEmergencyEvents()
+      .filter((e) => e.event === 'rollback_executed' && (JSON.parse(e.detailJson) as { kind?: string }).kind === 'kb_restore');
+    expect(restores).toHaveLength(1);
+
+    // (5) 復元結果はファイルにも永続化されている（開き直しても同じ）
     db.close();
     const reopened = await createFileBackedTestDb(dir);
     try {
-      const restored = reopened.getCurrentCodeGraph('repo1');
-      expect(restored?.nodes).toHaveLength(100);
+      expect(reopened.getCurrentCodeGraph('repo1')?.nodes).toHaveLength(100);
     } finally {
       reopened.close();
     }

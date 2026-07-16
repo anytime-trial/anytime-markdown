@@ -65,9 +65,11 @@ describe('FileKnowledgeBaseSnapshotter', () => {
     expect(entries[0].compressedSize).toBeGreaterThan(0);
   });
 
-  it('DB ファイル不在でも throw しない（fail-open）', () => {
-    const s = new FileKnowledgeBaseSnapshotter(path.join(dir, 'missing.db'), noopDbLogger);
-    expect(() => s.snapshotBeforeDestructiveWrite('current_graphs')).not.toThrow();
+  it('DB ファイル不在でも throw せず、created=false を返す（誤報しない）', () => {
+    const missingPath = path.join(dir, 'missing.db');
+    const s = new FileKnowledgeBaseSnapshotter(missingPath, noopDbLogger);
+    expect(s.snapshotBeforeDestructiveWrite('current_graphs').created).toBe(false);
+    expect(fs.existsSync(`${missingPath}.kb.1.gz`)).toBe(false);
   });
 
   it('存在しない世代の restoreSnapshot は throw する', () => {

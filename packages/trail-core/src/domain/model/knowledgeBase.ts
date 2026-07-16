@@ -6,6 +6,7 @@ export type KnowledgeBaseWriteTrigger =
   | 'current_graphs'
   | 'current_code_graphs'
   | 'current_code_graph_communities'
+  | 'release_graphs'
   | 'release_code_graphs';
 
 export interface KnowledgeBaseSnapshotResult {

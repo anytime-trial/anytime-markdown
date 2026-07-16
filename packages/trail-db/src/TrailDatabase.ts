@@ -1219,16 +1219,41 @@ export class TrailDatabase {
   }
 
   /**
-   * KB スナップショットから trail.db 全体を復元する。復元後はメモリ上の DB が
-   * 古い状態のままになるため、呼び出し側で再オープン（ウィンドウリロード）が必要。
+   * KB スナップショットから trail.db 全体を復元する。
+   *
+   * メモリ上の古い DB が復元結果を上書きしないよう close → ファイル復元 → 再 init の
+   * 順で行い、復元後の DB に `rollback_executed`（kind:'kb_restore'）を記録して save する
+   * （復元前に記録すると whole-file 復元でアクティブ DB から監査記録が消えるため）。
+   * 復元失敗時も DB は開き直す。同じファイルを開く別プロセス（daemon 等）は
+   * 呼び出し側が事前に停止すること。
    * @throws snapshotter が無い（in-memory）/ 指定世代が存在しない場合
    */
-  restoreKnowledgeBaseSnapshot(generation: number): { restoredFrom: string; safetyCopy: string | null } {
+  async restoreKnowledgeBaseSnapshot(
+    generation: number,
+    actor: EmergencyEventInput['actor'] = 'human',
+  ): Promise<{ restoredFrom: string; safetyCopy: string | null }> {
     const snapshotter = this.resolveKbSnapshotter();
     if (!snapshotter) {
       throw new Error('Knowledge base snapshot is unavailable for in-memory storage');
     }
-    return snapshotter.restoreSnapshot(generation);
+    this.close();
+    let result: { restoredFrom: string; safetyCopy: string | null };
+    try {
+      result = snapshotter.restoreSnapshot(generation);
+    } finally {
+      // 復元の成否によらず DB を開き直す（close したまま放置しない）
+      await this.init();
+    }
+    this.recordEmergencyEvent({
+      occurredAt: new Date().toISOString(),
+      event: 'rollback_executed',
+      reason: `KB snapshot restore (generation ${generation})`,
+      actor,
+      sessionId: null,
+      detailJson: JSON.stringify({ kind: 'kb_restore', generation }),
+    });
+    this.save();
+    return result;
   }
 
   /** snapshotter を解決する（file-backed なら初回に自動生成）。 */
@@ -6966,6 +6991,8 @@ export class TrailDatabase {
 
   saveReleaseGraph(graph: TrailGraph, tsconfigPath: string, tag: string): void {
     const db = this.ensureDb();
+    // release 側の上書き保存も保護対象（current 側との非対称防止）。デバウンスで過剰退避にはならない。
+    this.maybeSnapshotKb('release_graphs');
     // flip 後 release_graphs は release_id PK。tag を解決してから保存する。
     const releaseId = this.releaseIdForTag(db, tag);
     if (releaseId == null) {
@@ -7506,6 +7533,8 @@ export class TrailDatabase {
 
   saveReleaseCodeGraph(tag: string, graph: CodeGraph): void {
     const db = this.ensureDb();
+    // release 側の上書き保存も保護対象（current 側との非対称防止）。デバウンスで過剰退避にはならない。
+    this.maybeSnapshotKb('release_code_graphs');
     ensureCommunityStableKeyColumn(db, 'release_code_graph_communities');
     // flip 後は release_id FK。tag を解決してから保存する。
     const releaseId = this.releaseIdForTag(db, tag);
