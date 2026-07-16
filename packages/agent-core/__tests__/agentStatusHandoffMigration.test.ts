@@ -183,4 +183,24 @@ describe('agent-status handoff スキーマ移行', () => {
       store.close();
     }
   });
+
+  it('pid だけ追加済みで中断した DB を開くと terminal_pid が補完される（部分適用からの復旧）', () => {
+    // 1 本目の ALTER 成功直後にプロセスが落ちた状態を再現する（cross-review Codex 指摘の回帰テスト）。
+    const store1 = new AgentStatusStore(dbPath);
+    store1.close();
+    const half = new DatabaseSync(dbPath);
+    half.exec('ALTER TABLE agent_sessions DROP COLUMN terminal_pid');
+    half.close();
+    expect(hasColumn(dbPath, 'pid')).toBe(true);
+    expect(hasColumn(dbPath, 'terminal_pid')).toBe(false);
+
+    const store2 = new AgentStatusStore(dbPath);
+    try {
+      expect(hasColumn(dbPath, 'terminal_pid')).toBe(true);
+      store2.upsertEditing({ sessionId: 's1', pid: 111, terminalPid: 100 });
+      expect(store2.queryOne('s1')?.terminalPid).toBe(100);
+    } finally {
+      store2.close();
+    }
+  });
 });

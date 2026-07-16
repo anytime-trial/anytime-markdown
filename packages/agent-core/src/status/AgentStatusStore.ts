@@ -148,8 +148,12 @@ export class AgentStatusStore {
     }
     // handoff スキーマ済みだが pid 列を持たない DB への軽量移行。nullable 列の追加のみ
     // なので 12-step 再作成は不要（既存行は NULL のまま CHECK を満たす）。
+    // 列ごとに独立判定する: 1 本目の ALTER 後に中断すると片方だけ残り、
+    // まとめ判定では二度と復旧できない（terminal_pid 欠落のまま upsert が失敗し続ける）。
     if (!this.hasColumn('agent_sessions', 'pid')) {
       this.db.exec('ALTER TABLE agent_sessions ADD COLUMN pid INTEGER CHECK (pid IS NULL OR pid > 0)');
+    }
+    if (!this.hasColumn('agent_sessions', 'terminal_pid')) {
       this.db.exec(
         'ALTER TABLE agent_sessions ADD COLUMN terminal_pid INTEGER CHECK (terminal_pid IS NULL OR terminal_pid > 0)',
       );
