@@ -1,6 +1,6 @@
 # 委譲ルール（Codex / ollama）
 
-更新日: 2026-07-16\
+更新日: 2026-07-16
 委譲契約テンプレ版数: **v3**（§2 の契約 6 点＋§2.2 の見積り・結果・実測記録を含む現行書式。契約の意味的変更時に +1 し、結果記録の `雛形vN` に使う。v3: 見積り行・実測行を追加＝コスト予実突合ループ `proposal/20260716-model-evaluation-method.ja.md`）
 
 Claude のセッションの外にある実行系へ作業を渡すときの共通ルール。対象は **Codex（`codex exec` CLI）** と **ローカル ollama** の 2 系統である。
@@ -236,7 +236,7 @@ node ollama-delegate.cjs --task embedding --input doc.md
 **ollama 委譲を実施したら必ずレポートを出力する。**
 
 ```bash
-node ollama-probe.cjs --verify --report /Shared/anytime-markdown-docs/report/<YYYYMMDD>-ollama-delegation.ja.md
+node ollama-probe.cjs --verify --report <docsRoot>/report/<YYYYMMDD>-ollama-delegation.ja.md
 ```
 
 レポートには実効 VRAM・モデルごとの実証テスト結果・委譲可否表・**前回比の昇格/降格デルタ**が入る（`type: "report"` のフロントマター付き。出力先の規約は AGENTS.md）。
