@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/anytime-build-webapp-rename-map.json",
+  "description": "anytime-lab クローン後の文字列置換マップ。<project-name> は Phase 4 で実プロジェクト名に置換される。in-place モードでは inPlaceExcludes のファイルを targets から除外する。",
+  "replacements": [
+    { "find": "anytime-lab", "replace": "<project-name>" }
+  ],
+  "targets": [
+    "package.json",
+    "docker-compose.yml",
+    ".devcontainer/devcontainer.json",
+    "README.md"
+  ],
+  "inPlaceExcludes": [
+    ".devcontainer/devcontainer.json"
+  ],
+  "validations": [
+    {
+      "file": "package.json",
+      "jsonpath": "$.name",
+      "expected": "<project-name>"
+    },
+    {
+      "file": "docker-compose.yml",
+      "regex": "services:\\s*\\n\\s*<project-name>:",
+      "expected": "match"
+    }
+  ]
+}
