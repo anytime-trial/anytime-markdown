@@ -76,6 +76,10 @@ function parseScalar(raw: string): string {
       // 引用符付きだが JSON として不正 → 生値へフォールバック（下で return）
     }
   }
+  // js-yaml（gray-matter の update_frontmatter 等）が再直列化した単引用符スカラも受理する
+  if (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2) {
+    return trimmed.slice(1, -1).replaceAll("''", "'");
+  }
   return trimmed;
 }
 

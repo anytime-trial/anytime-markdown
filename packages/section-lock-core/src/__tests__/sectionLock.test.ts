@@ -122,6 +122,26 @@ describe('upsertLockedSection / parseLockedSections / removeLockedSection', () =
     expect(text).toContain('title: "既存"');
   });
 
+  it('js-yaml が再直列化した形式（2 スペースインデント・単引用符）も同一エントリとして読める', () => {
+    // gray-matter（update_frontmatter 等）が frontmatter 全体を再直列化すると
+    // 引用符・インデントが変わる。値が同じならエントリは同一とみなせること。
+    const entry = makeEntry(DOC, 'タイトル > 設計');
+    const reserialized = [
+      '---',
+      'lockedSections:',
+      `  - path: ${entry.path}`,
+      `    occurrence: ${entry.occurrence}`,
+      `    hash: ${entry.hash}`,
+      `    lockedAt: '${entry.lockedAt}'`,
+      `    lockedBy: ${entry.lockedBy}`,
+      `    reason: ${entry.reason}`,
+      '---',
+      '',
+      DOC,
+    ].join('\n');
+    expect(parseLockedSections(reserialized)).toEqual([entry]);
+  });
+
   it('lockedSections だけの frontmatter は全削除で frontmatter ごと消える', () => {
     const entry = makeEntry(DOC, 'タイトル > 設計');
     const locked = upsertLockedSection(DOC, entry);

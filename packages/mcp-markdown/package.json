@@ -20,7 +20,8 @@
     "@modelcontextprotocol/sdk": "1.27.1",
     "gray-matter": "4.0.3",
     "jsdom": "26.1.0",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "@anytime-markdown/section-lock-core": "*"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

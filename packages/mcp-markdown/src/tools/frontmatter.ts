@@ -7,6 +7,7 @@ import fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import matter from 'gray-matter';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
+import { assertNoLockViolation } from '../utils/sectionLockGuard';
 
 const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
 
@@ -77,6 +78,7 @@ export async function updateFrontmatter(
   }
 
   const next = matter.stringify(parsed.content, data);
+  assertNoLockViolation(content, next, input.path);
   // atomic write: 同一ディレクトリの tmp に書いて rename（部分書込みでの破損を防ぐ）。
   // tmp 名は UUID で一意化（単一プロセス内の同一ファイル並行更新でも衝突しない）。
   const tmp = `${filePath}.tmp-${randomUUID()}`;
