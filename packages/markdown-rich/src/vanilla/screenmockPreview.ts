@@ -122,8 +122,9 @@ export function sanitizeScreenmockHtml(html: string): string {
   const styleTags = Array.from(sourceTemplate.content.querySelectorAll("style")).map((style) => style.textContent ?? "");
   sourceTemplate.content.querySelectorAll("style").forEach((style) => style.remove());
 
+  // style タグはサニタイズ前に抽出・除去済み（下で </style を無害化して再付与）なので、
+  // DOMPurify に style を許可する必要はない（S8479: ADD_TAGS に style を残さない）。
   const sanitized = DOMPurify.sanitize(sourceTemplate.innerHTML, {
-    ADD_TAGS: ["style"],
     ADD_ATTR: ["class", "style"],
     FORBID_TAGS: ["script", "iframe", "object", "embed"],
     FORBID_ATTR: ["action"],
