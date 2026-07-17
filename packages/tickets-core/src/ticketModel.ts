@@ -9,14 +9,20 @@ export interface TicketFrontmatter {
   title: string;
   status: TicketStatus;
   priority: TicketPriority;
+  /**
+   * 担当。UI は TICKET_ASSIGNEES の選択式だが、旧仕様の任意識別名（`claude-code` 等）を持つ
+   * 既存チケットを一斉に「要修復」へ落とさないため、型・検証は文字列のまま維持する（FR-2）。
+   */
   assignee?: string;
+  workspace?: TicketWorkspace;
   creator?: string;
   created_at: string;
   updated_at: string;
-  labels?: string[];
   dependencies?: string[];
+  /** 予定工数（分） */
   estimate?: number;
-  progress?: number;
+  /** 実施工数（分）。累積値。実行ループが手を離すたびに加算する（AL-4） */
+  actual?: number;
   ai_confidence?: number;
 }
 
@@ -31,15 +37,20 @@ export type TicketValidationResult =
   | { ok: true; value: TicketFrontmatter; extras: Record<string, FrontmatterValue> }
   | { ok: false; errors: string[] };
 
-/** AI が人の回答を待っていることを表すラベル（要件 AL-5） */
-export const QUESTION_LABEL = 'question';
-
 /**
- * 新規作成 UI の担当（assignee）選択肢。`agent` は AI エージェント（実行ループの選定対象）、
- * `user` は人間。フロントマター上の assignee は引き続き任意文字列を許容する（FR-2）。
+ * 担当（assignee）の選択肢。`agent` は AI エージェント（実行ループの選定対象）、`user` は人間。
+ * 人の回答待ちは `user` への返却で表現する（要件 AL-5。旧 `question` ラベルは 2026-07-17 に廃止）。
+ * フロントマター上の assignee は既存チケットとの互換のため任意文字列を許容する（FR-2）。
  */
 export const TICKET_ASSIGNEES = ['agent', 'user'] as const;
 export type TicketAssignee = (typeof TICKET_ASSIGNEES)[number];
+
+/**
+ * ワークスペース（workspace）の選択肢。実行ループは自ワークスペースと一致するチケットのみを
+ * 対象とする（要件 AL-2）。新規属性で旧値が存在し得ないため enum を厳密検証する。
+ */
+export const TICKET_WORKSPACES = ['anytime-markdown', 'anytime-trade', 'other'] as const;
+export type TicketWorkspace = (typeof TICKET_WORKSPACES)[number];
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
 const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
@@ -49,19 +60,21 @@ const NUMBER_RE = /^-?\d+(?:\.\d+)?$/;
 const CONTROL_CHARS_RE = new RegExp('[\\u0000-\\u001f]');
 // パーサのキー規則（parseTicketMarkdown の `^([A-Za-z_][\w-]*):`）と一致させる。
 const SAFE_KEY_RE = /^[A-Za-z_][\w-]*$/;
+// 2026-07-17 に廃止した `labels` / `progress` は意図的に含めない。未知キーとして extras へ落ち、
+// 既存チケットの当該行が往復保存される（破棄しない。FR-2）。
 const KNOWN_KEYS = new Set([
   'id',
   'title',
   'status',
   'priority',
   'assignee',
+  'workspace',
   'creator',
   'created_at',
   'updated_at',
-  'labels',
   'dependencies',
   'estimate',
-  'progress',
+  'actual',
   'ai_confidence',
 ]);
 
@@ -189,20 +202,23 @@ export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketV
   if (!TICKET_PRIORITIES.includes(raw.priority as TicketPriority)) {
     errors.push(`priority は ${TICKET_PRIORITIES.join(' / ')} のいずれかが必須です`);
   }
+  // workspace は新規属性のため enum を厳密検証する。assignee は旧識別名を持つ既存チケットを
+  // 要修復へ落とさないため文字列としてのみ検証する（FR-2）。
+  if (raw.workspace !== undefined && !TICKET_WORKSPACES.includes(raw.workspace as TicketWorkspace)) {
+    errors.push(`workspace は ${TICKET_WORKSPACES.join(' / ')} のいずれかのみ許可されます`);
+  }
   for (const key of ['assignee', 'creator']) {
     if (raw[key] !== undefined && typeof raw[key] !== 'string') {
       errors.push(`${key} は文字列のみ許可されます`);
     }
   }
-  for (const key of ['labels', 'dependencies']) {
-    if (raw[key] !== undefined && !isStringArray(raw[key])) {
-      errors.push(`${key} は文字列配列のみ許可されます`);
-    }
+  if (raw.dependencies !== undefined && !isStringArray(raw.dependencies)) {
+    errors.push('dependencies は文字列配列のみ許可されます');
   }
   checkOptionalNumber(raw, 'estimate', { min: 0, max: Number.MAX_SAFE_INTEGER }, errors);
-  checkOptionalNumber(raw, 'progress', { min: 0, max: 100 }, errors);
+  checkOptionalNumber(raw, 'actual', { min: 0, max: Number.MAX_SAFE_INTEGER }, errors);
   checkOptionalNumber(raw, 'ai_confidence', { min: 0, max: 1 }, errors);
-  for (const key of ['id', 'title', 'assignee', 'creator', 'labels', 'dependencies']) {
+  for (const key of ['id', 'title', 'assignee', 'creator', 'dependencies']) {
     checkNoControlChars(raw, key, errors);
   }
   if (errors.length > 0) {
@@ -223,11 +239,11 @@ export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketV
     updated_at: raw.updated_at as string,
   };
   if (raw.assignee !== undefined) value.assignee = raw.assignee as string;
+  if (raw.workspace !== undefined) value.workspace = raw.workspace as TicketWorkspace;
   if (raw.creator !== undefined) value.creator = raw.creator as string;
-  if (raw.labels !== undefined) value.labels = raw.labels as string[];
   if (raw.dependencies !== undefined) value.dependencies = raw.dependencies as string[];
   if (raw.estimate !== undefined) value.estimate = raw.estimate as number;
-  if (raw.progress !== undefined) value.progress = raw.progress as number;
+  if (raw.actual !== undefined) value.actual = raw.actual as number;
   if (raw.ai_confidence !== undefined) value.ai_confidence = raw.ai_confidence as number;
   return { ok: true, value, extras };
 }
@@ -270,13 +286,13 @@ export function serializeTicket(
     ['status', frontmatter.status],
     ['priority', frontmatter.priority],
     ['assignee', frontmatter.assignee],
+    ['workspace', frontmatter.workspace],
     ['creator', frontmatter.creator],
     ['created_at', frontmatter.created_at],
     ['updated_at', frontmatter.updated_at],
-    ['labels', frontmatter.labels],
     ['dependencies', frontmatter.dependencies],
     ['estimate', frontmatter.estimate],
-    ['progress', frontmatter.progress],
+    ['actual', frontmatter.actual],
     ['ai_confidence', frontmatter.ai_confidence],
   ];
   for (const [key, value] of ordered) {
@@ -403,13 +419,4 @@ export function countSubtasks(body: string): { done: number; total: number } {
     }
   }
   return { done, total };
-}
-
-/** 残工数 = estimate × (100 − progress) / 100（小数第 1 位丸め）。estimate 未設定は null。 */
-export function remainingHours(estimate?: number, progress?: number): number | null {
-  if (typeof estimate !== 'number' || Number.isNaN(estimate)) {
-    return null;
-  }
-  const appliedProgress = typeof progress === 'number' && !Number.isNaN(progress) ? progress : 0;
-  return Math.round(estimate * (100 - appliedProgress) * 0.1) / 10;
 }
