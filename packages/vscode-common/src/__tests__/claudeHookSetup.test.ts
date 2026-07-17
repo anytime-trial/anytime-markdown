@@ -383,6 +383,32 @@ describe('setupClaudeHooks', () => {
     expect(again).toHaveLength(1);
   });
 
+  test('Stop hook registers flight-review.sh and writes the script (Phase 6 S1)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = readSettings();
+    const stop = settings.hooks.Stop.find((e) => e.hooks?.[0]?.command?.includes('flight-review.sh'));
+    expect(stop).toBeDefined();
+    expect(stop?.hooks[0].command).toBe(bashCmd('flight-review.sh'));
+
+    const script = readScript('flight-review.sh');
+    expect(script).toContain('/api/trail/flight-reviews');
+    // transcript の集計はサーバー側。フックは transcript_path を渡すだけの薄い配線
+    expect(script).toContain('transcript_path');
+    // session_id が取れない場合は記録しない
+    expect(script).toContain('[ -z "$SESSION_ID" ] && exit 0');
+    // サーバ未起動でもセッション終了を妨げない（fail-open）
+    expect(script).toContain('|| true');
+    expect(script.trimEnd().endsWith('exit 0')).toBe(true);
+    // 再実行で重複登録しない
+    setupClaudeHooks(tmpWorkspace);
+    const again = readSettings().hooks.Stop.filter((e) =>
+      e.hooks?.[0]?.command?.includes('flight-review.sh'),
+    );
+    expect(again).toHaveLength(1);
+  });
+
   test('agent-status-report.mjs gates edit/bash on the emergency kill switch before airspace (Phase 5 S1)', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);

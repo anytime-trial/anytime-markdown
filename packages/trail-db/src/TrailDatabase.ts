@@ -44,6 +44,8 @@ import {
   CREATE_EMERGENCY_INDEXES,
   CREATE_EMERGENCY_LOG,
   CREATE_FILE_ANALYSIS_INDEXES,
+  CREATE_FLIGHT_REVIEW_INDEXES,
+  CREATE_FLIGHT_REVIEWS,
   CREATE_INDEXES,
   CREATE_MESSAGE_COMMITS,
   CREATE_MESSAGE_TOOL_CALLS,
@@ -78,7 +80,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type IC4ModelStore, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
+import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FlightReviewMachineInput, type IC4ModelStore, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
 
@@ -3937,6 +3939,11 @@ export class TrailDatabase {
     db.run(CREATE_SAFE_POINTS);
     db.run(CREATE_EMERGENCY_LOG);
     for (const idx of CREATE_EMERGENCY_INDEXES) {
+      db.run(idx);
+    }
+    // Phase 6 S1 (Flight Review)。新規テーブルのみ。
+    db.run(CREATE_FLIGHT_REVIEWS);
+    for (const idx of CREATE_FLIGHT_REVIEW_INDEXES) {
       db.run(idx);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
@@ -8637,6 +8644,99 @@ export class TrailDatabase {
       actor: row[4] as EmergencyEvent['actor'],
       sessionId: (row[5] as string | null) ?? null,
       detailJson: row[6] as string,
+    }));
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Phase 6 S1: Flight Review (flight_reviews)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 副作用: flight_reviews へ UPSERT。永続化は呼び出し側の save() 契約に従う。
+   * session_id キーで冪等。既存行がある場合は機械集計列のみ更新し、
+   * outcome / outcome_source / tags / notes / unresolved_items は変更しない
+   * （Stop フックの再送・多重発火が S2 の自己評価・S3 の手動訂正を上書きしないため）。
+   */
+  upsertFlightReviewFromMachine(input: FlightReviewMachineInput): void {
+    const db = this.ensureDb();
+    const now = new Date().toISOString();
+    const stmt = db.prepare(
+      `INSERT INTO flight_reviews (
+         session_id, workspace_path, started_at, ended_at, duration_seconds,
+         tool_call_count, tool_failure_count, rework_count, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(session_id) DO UPDATE SET
+         workspace_path = excluded.workspace_path,
+         started_at = excluded.started_at,
+         ended_at = excluded.ended_at,
+         duration_seconds = excluded.duration_seconds,
+         tool_call_count = excluded.tool_call_count,
+         tool_failure_count = excluded.tool_failure_count,
+         rework_count = excluded.rework_count,
+         updated_at = excluded.updated_at`,
+    );
+    try {
+      stmt.run([
+        input.sessionId,
+        input.workspacePath,
+        input.startedAt,
+        input.endedAt,
+        input.durationSeconds,
+        input.toolCallCount,
+        input.toolFailureCount,
+        input.reworkCount,
+        now,
+        now,
+      ]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /** ended_at 降順。filter 未指定は直近 100 件。 */
+  listFlightReviews(filter: FlightReviewFilter = {}): FlightReview[] {
+    const db = this.ensureDb();
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    if (filter.sessionId !== undefined) {
+      conditions.push('session_id = ?');
+      params.push(filter.sessionId);
+    }
+    if (filter.since !== undefined) {
+      conditions.push('ended_at >= ?');
+      params.push(filter.since);
+    }
+    if (filter.until !== undefined) {
+      conditions.push('ended_at <= ?');
+      params.push(filter.until);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(filter.limit ?? 100);
+    const res = db.exec(
+      `SELECT id, session_id, workspace_path, started_at, ended_at, duration_seconds,
+              outcome, outcome_source, tool_call_count, tool_failure_count, rework_count,
+              unresolved_items, tags, notes, created_at, updated_at
+       FROM flight_reviews ${where} ORDER BY ended_at DESC, id DESC LIMIT ?`,
+      params,
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      id: row[0] as number,
+      sessionId: row[1] as string,
+      workspacePath: row[2] as string,
+      startedAt: (row[3] as string | null) ?? null,
+      endedAt: row[4] as string,
+      durationSeconds: (row[5] as number | null) ?? null,
+      outcome: row[6] as FlightReview['outcome'],
+      outcomeSource: row[7] as FlightReview['outcomeSource'],
+      toolCallCount: row[8] as number,
+      toolFailureCount: row[9] as number,
+      reworkCount: row[10] as number,
+      unresolvedItems: row[11] as string,
+      tags: row[12] as string,
+      notes: row[13] as string,
+      createdAt: row[14] as string,
+      updatedAt: row[15] as string,
     }));
   }
 
