@@ -22,6 +22,10 @@ export interface FlightReview {
   reworkCount: number;
   /** JSON 配列文字列 */
   unresolvedItems: string;
+  /** JSON 配列文字列（Phase 6 S2: 次回の懸念点） */
+  nextConcerns: string;
+  /** JSON 配列文字列（Phase 6 S2: 学習候補 LessonCandidate[]） */
+  lessonCandidates: string;
   /** JSON 配列文字列 */
   tags: string;
   notes: string;
@@ -44,6 +48,39 @@ export interface FlightReviewMachineInput {
   toolCallCount: number;
   toolFailureCount: number;
   reworkCount: number;
+}
+
+/** 機体の構造化自己評価（transcript の debrief ブロック由来。Phase 6 S2） */
+export interface SelfAssessment {
+  outcome: Exclude<FlightOutcome, 'unknown'>;
+  unresolvedItems: string[];
+  nextConcerns: string[];
+}
+
+/** 学習候補（採否判断は人間。Phase 6 S2） */
+export interface LessonCandidate {
+  kind: 'tool_failure_chain' | 'user_correction';
+  summary: string;
+  evidence: string;
+}
+
+/** ユーザーの事後修正指示の記録（user_feedback_entries。Phase 6 S2） */
+export interface UserFeedbackEntry {
+  id: number;
+  sessionId: string;
+  /** UTC ISO 8601 */
+  occurredAt: string;
+  promptExcerpt: string;
+  matchedPattern: string;
+  /** UTC ISO 8601 */
+  createdAt: string;
+}
+
+export type UserFeedbackInput = Omit<UserFeedbackEntry, 'id' | 'createdAt'>;
+
+export interface UserFeedbackFilter {
+  sessionId?: string;
+  limit?: number;
 }
 
 export interface FlightReviewFilter {

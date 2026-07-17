@@ -107,3 +107,85 @@ describe('TrailDatabase flight reviews (flight_reviews)', () => {
     expect(limited[0]?.sessionId).toBe('s3');
   });
 });
+
+describe('TrailDatabase flight reviews S2 (self assessment / lesson candidates / user feedback)', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  const assessment = {
+    outcome: 'achieved' as const,
+    unresolvedItems: ['S3 の UI'],
+    nextConcerns: ['フック発火率'],
+  };
+
+  it('自己評価を反映すると outcome_source=self になり unresolved/nextConcerns が入る（FR-6）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    db.applySelfAssessmentToFlightReview('sess-1', assessment);
+
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcome).toBe('achieved');
+    expect(review?.outcomeSource).toBe('self');
+    expect(review?.unresolvedItems).toBe('["S3 の UI"]');
+    expect(review?.nextConcerns).toBe('["フック発火率"]');
+  });
+
+  it('outcome_source=manual の行は self が上書きしない（FR-8）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    rawRun(
+      db,
+      `UPDATE flight_reviews SET outcome = 'unachieved', outcome_source = 'manual' WHERE session_id = 'sess-1'`,
+    );
+    db.applySelfAssessmentToFlightReview('sess-1', assessment);
+
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcome).toBe('unachieved');
+    expect(review?.outcomeSource).toBe('manual');
+  });
+
+  it('機械集計の再送は self 反映済みの outcome を上書きしない（S1 セマンティクスの回帰確認）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    db.applySelfAssessmentToFlightReview('sess-1', assessment);
+    db.upsertFlightReviewFromMachine(machineInput({ toolCallCount: 99 }));
+
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcome).toBe('achieved');
+    expect(review?.outcomeSource).toBe('self');
+    expect(review?.toolCallCount).toBe(99);
+  });
+
+  it('学習候補を保存し listFlightReviews で読める（FR-11）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    db.saveFlightReviewLessonCandidates('sess-1', [
+      { kind: 'tool_failure_chain', summary: 'ツール失敗が 2 回連続した', evidence: 'Bash' },
+    ]);
+
+    const review = db.listFlightReviews()[0];
+    const candidates = JSON.parse(review?.lessonCandidates ?? '[]') as Array<{ kind: string }>;
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.kind).toBe('tool_failure_chain');
+  });
+
+  it('user feedback は内容キーで冪等（再送で重複しない。FR-9）', () => {
+    const input = {
+      sessionId: 'sess-1',
+      occurredAt: '2026-07-17T10:00:00.000Z',
+      promptExcerpt: 'A ではなく B で実装して',
+      matchedPattern: 'ではなく',
+    };
+    db.recordUserFeedbackEntry(input);
+    db.recordUserFeedbackEntry(input);
+    db.recordUserFeedbackEntry({ ...input, occurredAt: '2026-07-17T11:00:00.000Z' });
+
+    const entries = db.listUserFeedbackEntries({ sessionId: 'sess-1' });
+    expect(entries).toHaveLength(2);
+    // occurred_at 降順
+    expect(entries[0]?.occurredAt).toBe('2026-07-17T11:00:00.000Z');
+  });
+});

@@ -68,6 +68,24 @@ exit 0
 `;
 }
 
+// user-feedback.sh — UserPromptSubmit フック。「前の出力を修正する指示」をプレフィルタで検知した
+// 場合のみ trail サーバへ POST する（毎プロンプト送信はしない）。Phase 6 S2 (User Feedback Logging)。
+// 判定の正本は trail-core の detectUserFeedback（サーバ側で再判定・不一致は破棄）。
+// ここのプレフィルタ正規表現はその軽量複製で、パターン変更時は両方を更新する。
+// サーバ未起動・タイムアウトは silent skip（常に exit 0・fail-open）。
+function userFeedbackScriptContent(port: number): string {
+  return `#!/bin/bash
+PORT="\${ANYTIME_TRAIL_PORT:-${port}}"
+read -r -d '' STDIN_DATA || true
+PAYLOAD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);const p=String(o.prompt||'');const sid=String(o.session_id||'');if(!sid||!p)return;const jp=/やり直|やりなおし|違う|違います|ではなく|戻して|間違/;const latin=/\\brevert\\b/i;if(!jp.test(p)&&!latin.test(p))return;process.stdout.write(JSON.stringify({sessionId:sid,occurredAt:new Date().toISOString(),prompt:p.slice(0,1000)}))}catch{}})" 2>/dev/null)
+[ -z "\$PAYLOAD" ] && exit 0
+curl -m 3 -s -X POST "http://127.0.0.1:\${PORT}/api/trail/user-feedback" \\
+  -H "Content-Type: application/json" \\
+  -d "\$PAYLOAD" > /dev/null 2>&1 || true
+exit 0
+`;
+}
+
 const SESSION_GUARD_SCRIPT = `#!/bin/bash
 # session-guard.sh — Check session duration and turn count, warn if thresholds exceeded
 THRESHOLD_MINUTES=60
@@ -850,6 +868,7 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
     writeScript('token-budget.sh', tokenBudgetScriptContent(trailPort));
     writeScript('safe-point.sh', safePointScriptContent(trailPort));
     writeScript('flight-review.sh', flightReviewScriptContent(trailPort));
+    writeScript('user-feedback.sh', userFeedbackScriptContent(trailPort));
     writeScript('session-guard.sh', SESSION_GUARD_SCRIPT);
     writeScript('commit-tracker.sh', commitTrackerScriptContent());
     writeScript('handoff-inject.sh', handoffInjectScriptContent());
@@ -969,6 +988,12 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   settings.hooks.UserPromptSubmit = removeHooksByMarker(settings.hooks.UserPromptSubmit, 'handoff-inject.sh');
   settings.hooks.UserPromptSubmit.push({
     hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/handoff-inject.sh', timeout: 5 }],
+  });
+
+  // UserPromptSubmit hook: user-feedback.sh（Phase 6 S2: 事後修正指示の検知・記録）
+  settings.hooks.UserPromptSubmit = removeHooksByMarker(settings.hooks.UserPromptSubmit, 'user-feedback.sh');
+  settings.hooks.UserPromptSubmit.push({
+    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/user-feedback.sh', timeout: 5 }],
   });
 
   // handoff doc・worker state が誤コミットされないよう .anytime/ を .gitignore へ
