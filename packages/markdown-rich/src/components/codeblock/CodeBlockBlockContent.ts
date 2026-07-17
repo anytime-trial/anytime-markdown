@@ -62,7 +62,8 @@ const MIN_RESIZE_WIDTH = 50;
  * 伸ばす。図（mermaid 等）や math は描画結果に合わせて縮める方が自然なので `fit-content`。
  */
 export function defaultPreviewWidth(kind: CodeBlockKind): string {
-  return kind === "markdown" ? "100%" : "fit-content";
+  // screenmock は幅 100% 前提の iframe を持つため fit-content だと intrinsic 幅に潰れる
+  return kind === "markdown" || kind === "screenmock" ? "100%" : "fit-content";
 }
 
 /**

@@ -140,6 +140,11 @@ export function sanitizeScreenmockHtml(html: string): string {
     const src = img.getAttribute("src") ?? "";
     if (!src.startsWith("https:") && !src.startsWith("data:")) img.removeAttribute("src");
   });
+  // srcset は候補 URL ごとの検査が要り src 制限（https:/data: のみ）の迂回路になるため属性ごと落とす
+  template.content.querySelectorAll("img[srcset], source[srcset]").forEach((el) => {
+    el.removeAttribute("srcset");
+    el.removeAttribute("sizes");
+  });
   template.content.querySelectorAll("form[action]").forEach((form) => {
     form.removeAttribute("action");
   });
@@ -315,5 +320,27 @@ export function createScreenmockPreview(
 
   root.appendChild(iframe);
   render();
+  scheduleConnectedRerender(root, render);
   return root;
+}
+
+/**
+ * 切断状態の要素への getComputedStyle は祖先由来の --am-color-* を解決できず、
+ * 初回 render のテーマ変数が空になる。DOM 接続を待って一度だけ再描画する。
+ */
+function scheduleConnectedRerender(root: HTMLElement, render: () => void): void {
+  const schedule =
+    typeof requestAnimationFrame === "function"
+      ? requestAnimationFrame
+      : (cb: FrameRequestCallback): number => globalThis.setTimeout(() => cb(0), 0) as unknown as number;
+  let attempts = 0;
+  const tick = (): void => {
+    if (root.isConnected) {
+      render();
+      return;
+    }
+    attempts += 1;
+    if (attempts < 30) schedule(tick);
+  };
+  schedule(tick);
 }

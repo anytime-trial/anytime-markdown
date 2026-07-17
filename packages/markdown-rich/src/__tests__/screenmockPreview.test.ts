@@ -4,6 +4,7 @@ import {
   parseScreenmock,
   sanitizeScreenmockHtml,
 } from "../vanilla/screenmockPreview";
+import { defaultPreviewWidth } from "../components/codeblock/CodeBlockBlockContent";
 
 describe("screenmockPreview", () => {
   it("parses multiple frontmatter screens", () => {
@@ -151,5 +152,19 @@ title: Home
     (tabs[1] as HTMLButtonElement).click();
     expect(tabs[1].getAttribute("aria-selected")).toBe("true");
     expect(iframe?.getAttribute("srcdoc")).toContain("body:not(:has(.sm-screen:target)) #home{display:block;}");
+  });
+
+  it("strips srcset/sizes so the img src scheme restriction cannot be bypassed", () => {
+    const out = sanitizeScreenmockHtml(
+      '<img src="https://ok.example/a.png" srcset="http://evil.example/x.png 1x" sizes="100vw" />' +
+        '<picture><source srcset="http://evil.example/y.png" /><img src="https://ok.example/b.png" /></picture>',
+    );
+    expect(out).not.toContain("srcset");
+    expect(out).not.toContain("sizes");
+    expect(out).toContain('src="https://ok.example/a.png"');
+  });
+
+  it("renders screenmock preview at full width in the block node view", () => {
+    expect(defaultPreviewWidth("screenmock")).toBe("100%");
   });
 });
