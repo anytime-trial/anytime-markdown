@@ -388,9 +388,9 @@ npx vsce package
 ```
 `anytime-extension-pack-<version>.vsix` が生成されることを確認する。
 
-### Step 7: ローカルテスト
+### Step 7: ローカルインストール
 
-リリース対象の VSIX を自動インストールしてから、ユーザーに動作確認を依頼する。
+リリース対象の VSIX を自動インストールする。**ユーザーへの動作確認依頼は不要**（依頼せずそのまま Step 8 へ進む）。機能の実機受入は開発フェーズ（develop マージ前）で完了済みであり、リリース時の品質は Step 5 の自動検証と master PR の CI が担保する（2026-07-17 ユーザー指示）。
 
 ```bash
 # リリース対象の拡張機能を自動インストール（対象系統のみ実行）
@@ -571,7 +571,7 @@ Marketplace に公開済みで問題が発覚した場合:
 [ ] next build 通過（packages/web-app）
 [ ] webpack ビルド通過（拡張機能 6 本）
 [ ] VSIX 生成済み（リリース対象の拡張機能・extension pack。trail 系・database 系は ci.yml の build-trail / build-database で各 4 VSIX を CI 生成）
-[ ] ローカルテスト完了
+[ ] ローカルインストール完了（動作確認依頼は不要）
 [ ] コミット・push 済み
 [ ] CI 検証ゲート通過（GitHub Actions の ci ジョブが全通過）
 [ ] develop → master PR マージ済み
