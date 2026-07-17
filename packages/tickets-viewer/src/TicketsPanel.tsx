@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
+  TICKET_ASSIGNEES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   TICKET_WORKSPACES,
+  type TicketAssignee,
   type TicketPriority,
   type TicketStatus,
   type TicketWorkspace,
@@ -32,7 +34,7 @@ export interface TicketsPanelProps {
 interface Filters {
   status: TicketStatus | "";
   priority: TicketPriority | "";
-  assignee: string;
+  assignee: TicketAssignee | "";
   workspace: TicketWorkspace | "";
 }
 
@@ -76,10 +78,6 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
   const visible = useMemo(
     () => applyFilters(allTickets, filters, showArchive),
     [allTickets, filters, showArchive],
-  );
-  const assignees = useMemo(
-    () => [...new Set(allTickets.map((item) => item.frontmatter.assignee).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b)),
-    [allTickets],
   );
   const selected = selectedPath ? (allTickets.find((item) => item.path === selectedPath) ?? null) : null;
 
@@ -179,8 +177,8 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
             "tk-filter-assignee",
             t("filters.assignee"),
             filters.assignee,
-            assignees.map((value) => ({ value, label: value })),
-            (value) => setFilters({ ...filters, assignee: value }),
+            TICKET_ASSIGNEES.map((value) => ({ value, label: t(`assignee.${value}`) })),
+            (value) => setFilters({ ...filters, assignee: value as Filters["assignee"] }),
           )}
           {filterSelect(
             "tk-filter-workspace",

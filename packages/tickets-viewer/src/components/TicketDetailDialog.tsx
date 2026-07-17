@@ -7,6 +7,7 @@ import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   TICKET_WORKSPACES,
+  type TicketAssignee,
   type TicketFrontmatter,
   type TicketPriority,
   type TicketStatus,
@@ -39,15 +40,6 @@ function splitList(value: string): string[] | undefined {
   return items.length > 0 ? items : undefined;
 }
 
-/**
- * 担当プルダウンの選択肢。旧仕様の任意識別名（`claude-code` 等）を持つ既存チケットは
- * 現在値を選択肢に加えて保持する（選択式化で既存値を黙って捨てないため。FR-2）。
- */
-function assigneeOptions(current: string): readonly string[] {
-  const known: readonly string[] = TICKET_ASSIGNEES;
-  return current !== "" && !known.includes(current) ? [current, ...known] : known;
-}
-
 function parseOptionalNumber(value: string): number | undefined {
   if (value.trim() === "") {
     return undefined;
@@ -63,7 +55,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<TicketStatus>("backlog");
   const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [assignee, setAssignee] = useState("");
+  const [assignee, setAssignee] = useState<TicketAssignee | "">("");
   const [workspace, setWorkspace] = useState<TicketWorkspace | "">("");
   const [dependencies, setDependencies] = useState("");
   const [estimate, setEstimate] = useState("");
@@ -117,7 +109,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
       status,
       priority,
     };
-    fm.assignee = assignee.trim() === "" ? undefined : assignee.trim();
+    fm.assignee = assignee === "" ? undefined : assignee;
     fm.workspace = workspace === "" ? undefined : workspace;
     fm.dependencies = splitList(dependencies);
     fm.estimate = parseOptionalNumber(estimate);
@@ -252,14 +244,12 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
               id="tk-detail-assignee"
               className="tk-select"
               value={assignee}
-              onChange={(event) => setAssignee(event.target.value)}
+              onChange={(event) => setAssignee(event.target.value as TicketAssignee | "")}
             >
               <option value="">{t("assignee.none")}</option>
-              {assigneeOptions(assignee).map((value) => (
+              {TICKET_ASSIGNEES.map((value) => (
                 <option key={value} value={value}>
-                  {TICKET_ASSIGNEES.includes(value as (typeof TICKET_ASSIGNEES)[number])
-                    ? t(`assignee.${value}`)
-                    : value}
+                  {t(`assignee.${value}`)}
                 </option>
               ))}
             </select>

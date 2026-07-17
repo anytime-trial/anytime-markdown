@@ -9,11 +9,7 @@ export interface TicketFrontmatter {
   title: string;
   status: TicketStatus;
   priority: TicketPriority;
-  /**
-   * 担当。UI は TICKET_ASSIGNEES の選択式だが、旧仕様の任意識別名（`claude-code` 等）を持つ
-   * 既存チケットを一斉に「要修復」へ落とさないため、型・検証は文字列のまま維持する（FR-2）。
-   */
-  assignee?: string;
+  assignee?: TicketAssignee;
   workspace?: TicketWorkspace;
   creator?: string;
   created_at: string;
@@ -38,9 +34,8 @@ export type TicketValidationResult =
   | { ok: false; errors: string[] };
 
 /**
- * 担当（assignee）の選択肢。`agent` は AI エージェント（実行ループの選定対象）、`user` は人間。
+ * 担当（assignee）。`agent` は AI エージェント（実行ループの選定対象）、`user` は人間。未設定も可。
  * 人の回答待ちは `user` への返却で表現する（要件 AL-5。旧 `question` ラベルは 2026-07-17 に廃止）。
- * フロントマター上の assignee は既存チケットとの互換のため任意文字列を許容する（FR-2）。
  */
 export const TICKET_ASSIGNEES = ['agent', 'user'] as const;
 export type TicketAssignee = (typeof TICKET_ASSIGNEES)[number];
@@ -202,15 +197,15 @@ export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketV
   if (!TICKET_PRIORITIES.includes(raw.priority as TicketPriority)) {
     errors.push(`priority は ${TICKET_PRIORITIES.join(' / ')} のいずれかが必須です`);
   }
-  // workspace は新規属性のため enum を厳密検証する。assignee は旧識別名を持つ既存チケットを
-  // 要修復へ落とさないため文字列としてのみ検証する（FR-2）。
+  // assignee / workspace は UI が選択式のため enum を厳密検証する（未設定は可）。
+  if (raw.assignee !== undefined && !TICKET_ASSIGNEES.includes(raw.assignee as TicketAssignee)) {
+    errors.push(`assignee は ${TICKET_ASSIGNEES.join(' / ')} のいずれかのみ許可されます`);
+  }
   if (raw.workspace !== undefined && !TICKET_WORKSPACES.includes(raw.workspace as TicketWorkspace)) {
     errors.push(`workspace は ${TICKET_WORKSPACES.join(' / ')} のいずれかのみ許可されます`);
   }
-  for (const key of ['assignee', 'creator']) {
-    if (raw[key] !== undefined && typeof raw[key] !== 'string') {
-      errors.push(`${key} は文字列のみ許可されます`);
-    }
+  if (raw.creator !== undefined && typeof raw.creator !== 'string') {
+    errors.push('creator は文字列のみ許可されます');
   }
   if (raw.dependencies !== undefined && !isStringArray(raw.dependencies)) {
     errors.push('dependencies は文字列配列のみ許可されます');
@@ -238,7 +233,7 @@ export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketV
     created_at: raw.created_at as string,
     updated_at: raw.updated_at as string,
   };
-  if (raw.assignee !== undefined) value.assignee = raw.assignee as string;
+  if (raw.assignee !== undefined) value.assignee = raw.assignee as TicketAssignee;
   if (raw.workspace !== undefined) value.workspace = raw.workspace as TicketWorkspace;
   if (raw.creator !== undefined) value.creator = raw.creator as string;
   if (raw.dependencies !== undefined) value.dependencies = raw.dependencies as string[];

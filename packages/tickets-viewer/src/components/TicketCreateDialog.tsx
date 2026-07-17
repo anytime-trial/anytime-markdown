@@ -7,6 +7,7 @@ import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   TICKET_WORKSPACES,
+  type TicketAssignee,
   type TicketPriority,
   type TicketStatus,
   type TicketWorkspace,
@@ -32,7 +33,7 @@ export function TicketCreateDialog({
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<TicketStatus>("backlog");
   const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [assignee, setAssignee] = useState("");
+  const [assignee, setAssignee] = useState<TicketAssignee | "">("");
   const [workspace, setWorkspace] = useState<TicketWorkspace | "">("");
   const [description, setDescription] = useState("");
   const [titleError, setTitleError] = useState(false);
@@ -49,7 +50,7 @@ export function TicketCreateDialog({
       title: title.trim(),
       status,
       priority,
-      assignee: assignee.trim() === "" ? undefined : assignee.trim(),
+      assignee: assignee === "" ? undefined : assignee,
       workspace: workspace === "" ? undefined : workspace,
       creator: currentUser,
       description: description.trim() === "" ? undefined : description.trim(),
@@ -133,7 +134,7 @@ export function TicketCreateDialog({
               id="tk-create-assignee"
               className="tk-select"
               value={assignee}
-              onChange={(event) => setAssignee(event.target.value)}
+              onChange={(event) => setAssignee(event.target.value as TicketAssignee | "")}
             >
               <option value="">{t("assignee.none")}</option>
               {TICKET_ASSIGNEES.map((value) => (

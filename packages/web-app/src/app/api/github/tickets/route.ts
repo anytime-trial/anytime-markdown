@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import {
+  TICKET_ASSIGNEES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   TICKET_WORKSPACES,
@@ -10,6 +11,7 @@ import {
   serializeTicket,
   updateTicketContent,
   validateTicketFrontmatter,
+  type TicketAssignee,
   type TicketPriority,
   type TicketStatus,
   type TicketWorkspace,
@@ -53,7 +55,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (title === "" || !TICKET_STATUSES.includes(status) || !TICKET_PRIORITIES.includes(priority)) {
     return NextResponse.json({ error: "title / status / priority が不正です" }, { status: 400 });
   }
-  // workspace は任意だが、指定されたら enum を厳密検証する（黙って捨てず 400 で拒否する）。
+  // assignee / workspace は任意だが、指定されたら enum を厳密検証する（黙って捨てず 400 で拒否する）。
+  const assignee = body.assignee === undefined || body.assignee === "" ? undefined : (body.assignee as TicketAssignee);
+  if (assignee !== undefined && !TICKET_ASSIGNEES.includes(assignee)) {
+    return NextResponse.json({ error: "assignee が不正です" }, { status: 400 });
+  }
   const workspace = body.workspace === undefined || body.workspace === "" ? undefined : (body.workspace as TicketWorkspace);
   if (workspace !== undefined && !TICKET_WORKSPACES.includes(workspace)) {
     return NextResponse.json({ error: "workspace が不正です" }, { status: 400 });
@@ -66,7 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         title,
         status,
         priority,
-        assignee: typeof body.assignee === "string" && body.assignee !== "" ? body.assignee : undefined,
+        assignee,
         workspace,
         creator: typeof body.creator === "string" && body.creator !== "" ? body.creator : undefined,
         estimate: typeof body.estimate === "number" ? body.estimate : undefined,
