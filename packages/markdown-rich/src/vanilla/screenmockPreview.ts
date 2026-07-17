@@ -184,8 +184,7 @@ export function collectScreenmockThemeVars(host: Element | null): Record<string,
   return vars;
 }
 
-export const SCREENMOCK_STYLE = `
-:root{
+export const SCREENMOCK_VARS = `
   --sm-gap:12px;
   --sm-radius:8px;
   --sm-border:1px solid var(--am-color-divider,#d0d7de);
@@ -196,7 +195,10 @@ export const SCREENMOCK_STYLE = `
   --sm-primary:var(--am-color-primary-main,#0969da);
   --sm-on-primary:var(--am-color-primary-contrast,#fff);
   color-scheme:light dark;
-}
+`;
+
+export const SCREENMOCK_STYLE = `
+:root{${SCREENMOCK_VARS}}
 *{box-sizing:border-box;}
 html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--sm-text);background:var(--sm-bg);}
 body{padding:var(--sm-gap);}
@@ -328,7 +330,7 @@ export function createScreenmockPreview(
  * 切断状態の要素への getComputedStyle は祖先由来の --am-color-* を解決できず、
  * 初回 render のテーマ変数が空になる。DOM 接続を待って一度だけ再描画する。
  */
-function scheduleConnectedRerender(root: HTMLElement, render: () => void): void {
+export function scheduleConnectedRerender(root: HTMLElement, render: () => void): void {
   const schedule =
     typeof requestAnimationFrame === "function"
       ? requestAnimationFrame

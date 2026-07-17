@@ -83,4 +83,80 @@ title: Home
     expect(shadow!.querySelector(".am-smdm-selection")).not.toBeNull();
     expect(shadow!.querySelectorAll(".am-smdm-handle").length).toBe(3);
   });
+
+  it("defines screenmock variables on :host without relying on :root in design mode styles", () => {
+    const root = createScreenmockDesignModePreview({
+      source: '<div class="sm-card">OK</div>',
+      getSource: () => '<div class="sm-card">OK</div>',
+      setSource: jest.fn(),
+    });
+
+    const firstStyle = root.shadowRoot!.querySelector("style")!.textContent ?? "";
+
+    expect(firstStyle).toContain(":host{");
+    expect(firstStyle).toContain("--sm-gap:12px");
+    expect(firstStyle).not.toContain(":root");
+  });
+
+  it("uses fallback values for design mode stage, selection, and handle screenmock vars", () => {
+    const root = createScreenmockDesignModePreview({
+      source: '<div class="sm-card">OK</div>',
+      getSource: () => '<div class="sm-card">OK</div>',
+      setSource: jest.fn(),
+    });
+
+    const styles = Array.from(root.shadowRoot!.querySelectorAll("style"))
+      .map((style) => style.textContent ?? "")
+      .join("\n");
+
+    expect(styles).toContain("background:var(--sm-bg,#f6f8fa)");
+    expect(styles).toContain("border:2px solid var(--sm-primary,#0969da) !important");
+    expect(styles).toContain("background:var(--sm-on-primary,#fff) !important");
+  });
+
+  it("restores an initial selected path with selection handles", () => {
+    const root = createScreenmockDesignModePreview({
+      source: '<div class="sm-card"><button>OK</button></div>',
+      getSource: () => '<div class="sm-card"><button>OK</button></div>',
+      setSource: jest.fn(),
+      initialSelectedPath: "0/0",
+    });
+
+    expect(root.shadowRoot!.querySelector(".am-smdm-selection")).not.toBeNull();
+    expect(root.shadowRoot!.querySelectorAll(".am-smdm-handle").length).toBe(3);
+  });
+
+  it("notifies selection changes and clears", () => {
+    const changes: Array<string | null> = [];
+    const root = createScreenmockDesignModePreview({
+      source: '<div class="sm-card"><button>OK</button></div>',
+      getSource: () => '<div class="sm-card"><button>OK</button></div>',
+      setSource: jest.fn(),
+      onSelectionChange: (path) => changes.push(path),
+    });
+
+    const button = root.shadowRoot!.querySelector(".sm-card button") as HTMLButtonElement;
+    button.click();
+    const screen = root.shadowRoot!.querySelector(".sm-screen") as HTMLElement;
+    screen.click();
+
+    expect(changes).toEqual(["0/0", null]);
+  });
+
+  it("injects protection styles after user styles as the last shadow style", () => {
+    const root = createScreenmockDesignModePreview({
+      source: '<style>.am-smdm-handle{display:none}</style><div class="sm-card">OK</div>',
+      getSource: () => '<style>.am-smdm-handle{display:none}</style><div class="sm-card">OK</div>',
+      setSource: jest.fn(),
+    });
+
+    const styles = Array.from(root.shadowRoot!.querySelectorAll("style"));
+    const userStyleIndex = styles.findIndex((style) => style.textContent?.includes("display:none"));
+    const lastStyle = styles[styles.length - 1];
+
+    expect(userStyleIndex).toBeGreaterThan(-1);
+    expect(styles.indexOf(lastStyle!)).toBeGreaterThan(userStyleIndex);
+    expect(lastStyle?.textContent).toContain(".am-smdm-handle");
+    expect(lastStyle?.textContent).toContain("!important");
+  });
 });

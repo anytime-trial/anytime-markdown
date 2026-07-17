@@ -460,6 +460,7 @@ export function installCodeBlockOverlay(
     }
     if (kind === "screenmock") {
       let designMode = false;
+      let lastSelectedPath: string | null = null;
       const designToggleLabel = document.createElement("label");
       designToggleLabel.style.cssText =
         "display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--am-color-divider,#d0d7de);font:inherit;font-size:0.8125rem;cursor:pointer;user-select:none;";
@@ -481,6 +482,7 @@ export function installCodeBlockOverlay(
         previewToolbar: designToggleLabel,
         onPreviewRendered: (previewEl) => {
           previewEl.replaceChildren();
+          previewEl.setAttribute("aria-label", "Screenmock preview");
           previewEl.style.fontFamily = "inherit";
           previewEl.style.whiteSpace = "normal";
           const preview = designMode
@@ -490,6 +492,10 @@ export function installCodeBlockOverlay(
                 setSource: (source) => editState.onFsTextChange(source),
                 emptyHint: t("screenmockEmptyHint"),
                 tabListLabel: t("screenmockTabsLabel"),
+                initialSelectedPath: lastSelectedPath ?? undefined,
+                onSelectionChange: (path) => {
+                  lastSelectedPath = path;
+                },
               })
             : createScreenmockPreview(editState.getFsCode(), {
                 emptyHint: t("screenmockEmptyHint"),
