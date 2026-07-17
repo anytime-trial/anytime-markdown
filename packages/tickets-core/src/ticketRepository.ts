@@ -7,6 +7,7 @@ import {
   validateTicketFrontmatter,
   type FrontmatterValue,
   type TicketFrontmatter,
+  type TicketAssignee,
   type TicketPriority,
   type TicketStatus,
   type TicketWorkspace,
@@ -279,7 +280,7 @@ export interface CreateTicketInput {
   title: string;
   status: TicketStatus;
   priority: TicketPriority;
-  assignee?: string;
+  assignee?: TicketAssignee;
   workspace?: TicketWorkspace;
   creator?: string;
   dependencies?: string[];

@@ -1,5 +1,6 @@
 import type {
   FrontmatterValue,
+  TicketAssignee,
   InvalidTicketFile,
   TicketFrontmatter,
   TicketPriority,
@@ -103,7 +104,7 @@ export interface CreateTicketClientInput {
   title: string;
   status: TicketStatus;
   priority: TicketPriority;
-  assignee?: string;
+  assignee?: TicketAssignee;
   workspace?: TicketWorkspace;
   creator?: string;
   /** 予定工数（分） */

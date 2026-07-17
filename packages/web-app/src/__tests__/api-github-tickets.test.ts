@@ -145,6 +145,14 @@ describe("POST /api/github/tickets", () => {
     expect(input.assignee).toBe("agent");
   });
 
+  it("enum 外の assignee は 400（黙って捨てない）", async () => {
+    const res = (await POST(
+      bodyRequest({ repo: "o/r", branch: "main", title: "t", status: "backlog", priority: "low", assignee: "claude-code" }),
+    )) as unknown as MockResp;
+    expect(res._status).toBe(400);
+    expect(mockCreateTicket).not.toHaveBeenCalled();
+  });
+
   it("enum 外の workspace は 400（黙って捨てない）", async () => {
     const res = (await POST(
       bodyRequest({ repo: "o/r", branch: "main", title: "t", status: "backlog", priority: "low", workspace: "bogus" }),

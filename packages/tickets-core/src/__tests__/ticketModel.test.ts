@@ -1,4 +1,5 @@
 import {
+  TICKET_ASSIGNEES,
   TICKET_STATUSES,
   TICKET_PRIORITIES,
   TICKET_WORKSPACES,
@@ -53,13 +54,13 @@ const VALID_FM: TicketFrontmatter = {
   ai_confidence: 0.8,
 };
 
-/** 2026-07-17 に廃止した labels / progress と、旧仕様の任意識別名 assignee を持つ既存チケット。 */
+/** 2026-07-17 に廃止した labels / progress が残るチケット（未知キーとして往復保存される）。 */
 const LEGACY_DOC = `---
 id: T-9
-title: "旧仕様のチケット"
+title: "廃止属性が残るチケット"
 status: in_progress
 priority: medium
-assignee: claude-code
+assignee: user
 created_at: 2026-07-15T01:00:00.000Z
 updated_at: 2026-07-16T02:00:00.000Z
 labels: [auth, question]
@@ -158,10 +159,14 @@ describe('validateTicketFrontmatter', () => {
     expect(validateTicketFrontmatter(withoutWorkspace).ok).toBe(true);
   });
 
-  it('旧仕様の任意識別名 assignee を拒否しない（既存チケットを要修復へ落とさない）', () => {
-    expect(validateTicketFrontmatter({ ...VALID_FM, assignee: 'claude-code' }).ok).toBe(true);
-    const parsed = parseTicketMarkdown(LEGACY_DOC);
-    expect(validateTicketFrontmatter(parsed?.frontmatter ?? {}).ok).toBe(true);
+  it('enum 外の assignee を拒否する', () => {
+    expect(validateTicketFrontmatter({ ...VALID_FM, assignee: 'claude-code' }).ok).toBe(false);
+    expect(validateTicketFrontmatter({ ...VALID_FM, assignee: '' }).ok).toBe(false);
+    for (const assignee of TICKET_ASSIGNEES) {
+      expect(validateTicketFrontmatter({ ...VALID_FM, assignee }).ok).toBe(true);
+    }
+    const { assignee: _omitted, ...withoutAssignee } = VALID_FM;
+    expect(validateTicketFrontmatter(withoutAssignee).ok).toBe(true);
   });
 
   it('estimate / actual は 0 以上の数値のみ許可する（単位は分）', () => {
