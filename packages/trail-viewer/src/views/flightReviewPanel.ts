@@ -3,17 +3,17 @@
  *
  * 設計の要点（要件書 §14.3 / §14.5）:
  *   - store を購読して一覧・詳細を再描画する。フィルタバーは静的 DOM として一度だけ構築し、
- *     再描画で入力中の値を消さない（値の書き戻しはフォーカス外のときのみ）。
+ *     再描画で入力中の値を消さない（ラベル文言のみ render() で props.t から毎回更新する —
+ *     t の関数識別子は update ごとに変わり得るため識別子比較に依存しない）。
+ *   - props.t / props.store は常に最新 props から参照する（mount 時の閉じ込め禁止）。
+ *     update() で store が差し替わったら購読を張り替える（serverUrl 変更時の再生成に追従）。
  *   - サーバー不達（loadFailed）は空一覧と別の顔で表示する（障害を「0 件」に見せない）。
  *   - outcome は色 + テキストの冗長表示（色のみで情報を伝えない）。
  *   - 色はテーマトークンから取り、要素側へインラインで置かない（ダーク / ライト両対応）。
  */
 import { escapeHtml } from '../shared/escapeHtml';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
-import {
-  type FlightReviewOutcome,
-  type FlightReviewStore,
-} from '../data/flightReviewStore';
+import type { FlightReviewOutcome, FlightReviewStore } from '../data/flightReviewStore';
 import { buildFlightReviewCsv, downloadCsv } from '../data/flightReviewCsv';
 import { formatDurationSeconds, mountRetrospectiveView, type RetrospectiveViewProps } from './retrospectiveView';
 import type { TrailThemeTokens } from '../theme/designTokens';
@@ -151,28 +151,26 @@ export function mountFlightReviewPanel(
   root.dataset['amFlightRoot'] = '';
   container.appendChild(root);
 
-  const { t, store } = props;
-
-  // ── フィルタバー（静的 DOM。再描画しない） ──
+  // ── フィルタバー（静的 DOM。値・リスナーは維持し、文言のみ render() で更新） ──
   const toolbar = document.createElement('div');
   toolbar.dataset['amFlightToolbar'] = '';
   toolbar.innerHTML = `
-    <label>${escapeHtml(t('flightReview.filter.outcome'))}
-      <select data-am-flight-filter-outcome aria-label="${escapeHtml(t('flightReview.filter.outcome'))}">
-        <option value="">${escapeHtml(t('flightReview.filter.outcomeAll'))}</option>
-        ${OUTCOME_VALUES.map((o) => `<option value="${o}">${escapeHtml(t(`flightReview.outcome.${o}`))}</option>`).join('')}
+    <label><span data-am-flight-label="filter.outcome"></span>
+      <select data-am-flight-filter-outcome>
+        <option value=""></option>
+        ${OUTCOME_VALUES.map((o) => `<option value="${o}"></option>`).join('')}
       </select>
     </label>
-    <label>${escapeHtml(t('flightReview.filter.since'))}
-      <input type="date" data-am-flight-filter-since aria-label="${escapeHtml(t('flightReview.filter.since'))}" />
+    <label><span data-am-flight-label="filter.since"></span>
+      <input type="date" data-am-flight-filter-since />
     </label>
-    <label>${escapeHtml(t('flightReview.filter.until'))}
-      <input type="date" data-am-flight-filter-until aria-label="${escapeHtml(t('flightReview.filter.until'))}" />
+    <label><span data-am-flight-label="filter.until"></span>
+      <input type="date" data-am-flight-filter-until />
     </label>
-    <label>${escapeHtml(t('flightReview.filter.tag'))}
-      <input type="text" data-am-flight-filter-tag aria-label="${escapeHtml(t('flightReview.filter.tag'))}" />
+    <label><span data-am-flight-label="filter.tag"></span>
+      <input type="text" data-am-flight-filter-tag />
     </label>
-    <button type="button" data-am-flight-export>${escapeHtml(t('flightReview.exportCsv'))}</button>
+    <button type="button" data-am-flight-export></button>
   `;
   root.appendChild(toolbar);
 
@@ -192,10 +190,30 @@ export function mountFlightReviewPanel(
   const untilInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-until]');
   const tagInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-tag]');
 
+  /** ラベル・option・aria-label を最新の props.t で更新する（入力値・リスナーは維持）。 */
+  function updateToolbarLabels(): void {
+    const { t } = props;
+    for (const span of toolbar.querySelectorAll<HTMLElement>('[data-am-flight-label]')) {
+      span.textContent = t(`flightReview.${span.dataset['amFlightLabel'] ?? ''}`);
+    }
+    if (outcomeSelect) {
+      outcomeSelect.setAttribute('aria-label', t('flightReview.filter.outcome'));
+      for (const option of outcomeSelect.options) {
+        option.textContent =
+          option.value === '' ? t('flightReview.filter.outcomeAll') : t(`flightReview.outcome.${option.value}`);
+      }
+    }
+    sinceInput?.setAttribute('aria-label', t('flightReview.filter.since'));
+    untilInput?.setAttribute('aria-label', t('flightReview.filter.until'));
+    tagInput?.setAttribute('aria-label', t('flightReview.filter.tag'));
+    const exportButton = toolbar.querySelector<HTMLButtonElement>('[data-am-flight-export]');
+    if (exportButton) exportButton.textContent = t('flightReview.exportCsv');
+  }
+
   function applyFilter(): void {
     const outcome = (outcomeSelect?.value ?? '') as FlightReviewOutcome | '';
     const tag = (tagInput?.value ?? '').trim();
-    store.setFilter({
+    props.store.setFilter({
       ...(outcome === '' ? {} : { outcome }),
       since: dateInputToIso(sinceInput?.value ?? '', false),
       until: dateInputToIso(untilInput?.value ?? '', true),
@@ -208,17 +226,18 @@ export function mountFlightReviewPanel(
   untilInput?.addEventListener('change', applyFilter);
   tagInput?.addEventListener('change', applyFilter);
   toolbar.querySelector<HTMLButtonElement>('[data-am-flight-export]')?.addEventListener('click', () => {
-    const reviews = store.getState().reviews;
+    const reviews = props.store.getState().reviews;
     const stamp = new Date().toISOString().slice(0, 10);
     downloadCsv(container.ownerDocument, `flight-reviews-${stamp}.csv`, buildFlightReviewCsv(reviews));
   });
 
   function selectRow(sessionId: string): void {
-    void store.select(sessionId);
+    void props.store.select(sessionId);
   }
 
   function renderList(): void {
-    const state = store.getState();
+    const { t } = props;
+    const state = props.store.getState();
     if (state.loadFailed) {
       listRegion.innerHTML = `<p data-am-flight-load-failed role="status">${escapeHtml(t('flightReview.loadFailed'))}</p>`;
       return;
@@ -277,7 +296,7 @@ export function mountFlightReviewPanel(
   }
 
   function renderDetail(): void {
-    const state = store.getState();
+    const state = props.store.getState();
     const selected = state.reviews.find((r) => r.sessionId === state.selectedSessionId) ?? null;
     if (selected === null) {
       detailHandle?.destroy();
@@ -289,13 +308,13 @@ export function mountFlightReviewPanel(
     detailRegion.hidden = false;
     const detailProps: RetrospectiveViewProps = {
       tokens: props.tokens,
-      t,
+      t: props.t,
       review: selected,
       feedback: state.selectedFeedback,
       saving: state.saving,
-      onSave: (patch) => store.saveManual(selected.sessionId, patch),
-      onEditingChange: (editing) => store.setEditing(editing),
-      onClose: () => void store.select(null),
+      onSave: (patch) => props.store.saveManual(selected.sessionId, patch),
+      onEditingChange: (editing) => props.store.setEditing(editing),
+      onClose: () => void props.store.select(null),
     };
     if (detailHandle === null || detailSessionId !== selected.sessionId) {
       detailHandle?.destroy();
@@ -308,18 +327,26 @@ export function mountFlightReviewPanel(
 
   function render(): void {
     if (destroyed) return;
+    updateToolbarLabels();
     renderList();
     renderDetail();
   }
 
-  const unsubscribe = store.subscribe(render);
+  let unsubscribe = props.store.subscribe(render);
   render();
-  void store.refresh();
+  void props.store.refresh();
 
   return {
     update(next) {
+      const prevStore = props.store;
       props = next;
       ensureStyle(container.ownerDocument, next.tokens);
+      if (next.store !== prevStore) {
+        // serverUrl 変更などで store が再生成された場合は購読を張り替えて取り直す
+        unsubscribe();
+        unsubscribe = next.store.subscribe(render);
+        void next.store.refresh();
+      }
       render();
     },
     destroy() {

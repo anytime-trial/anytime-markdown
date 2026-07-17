@@ -226,7 +226,8 @@ export function createFlightReviewStore(
         setState({ selectedSessionId: null, selectedFeedback: [], editing: false });
         return;
       }
-      setState({ selectedSessionId: sessionId, selectedFeedback: [] });
+      // 行切替は編集の離脱（editing ラッチを解消しポーリングを再開する）
+      setState({ selectedSessionId: sessionId, selectedFeedback: [], editing: false });
       const feedback = await fetchFeedback(sessionId);
       if (disposed || state.selectedSessionId !== sessionId) return;
       setState({ selectedFeedback: feedback });

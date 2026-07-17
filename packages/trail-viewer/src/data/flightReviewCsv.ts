@@ -28,8 +28,14 @@ function escapeCsvField(value: string): string {
   return value;
 }
 
+/** 表計算ソフトの式評価（CSV formula injection）を防ぐ。数値・enum 由来は対象外。 */
+function sanitizeFormulaPrefix(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 function toField(value: string | number | null): string {
   if (value === null) return '';
+  if (typeof value === 'string') return escapeCsvField(sanitizeFormulaPrefix(value));
   return escapeCsvField(String(value));
 }
 

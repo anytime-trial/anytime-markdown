@@ -262,6 +262,52 @@ describe('flightReviewPanel', () => {
     handle.destroy();
   });
 
+  it('update で t が変わるとツールバー文言が更新され入力値は維持される（cross-review 指摘対応）', async () => {
+    stubFetch(() => jsonResponse({ flightReviews: [] }));
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await settle();
+
+    const tagInput = container.querySelector<HTMLInputElement>('[data-am-flight-filter-tag]');
+    if (tagInput) tagInput.value = 'release';
+
+    handle.update({ isDark: true, tokens: getTokens(true), t: createTrailI18n('en'), store });
+    await settle();
+
+    const label = container.querySelector<HTMLElement>('[data-am-flight-label="filter.outcome"]');
+    expect(label?.textContent).toBe('Outcome');
+    expect(container.querySelector<HTMLInputElement>('[data-am-flight-filter-tag]')?.value).toBe('release');
+    handle.destroy();
+  });
+
+  it('update で store が差し替わると新 store を購読・操作する（cross-review 指摘対応）', async () => {
+    const { calls } = stubFetch(() => jsonResponse({ flightReviews: [] }));
+    store = createFlightReviewStore('http://old');
+    const handle = mountWithStore(store);
+    await settle();
+
+    const store2 = createFlightReviewStore('http://new');
+    handle.update({ isDark: true, tokens: getTokens(true), t: createTrailI18n('ja'), store: store2 });
+    await settle();
+
+    // 差し替え直後に新 store で再取得される
+    expect(calls.some((c) => c.url.startsWith('http://new/api/trail/flight-reviews'))).toBe(true);
+
+    // 以後のフィルタ操作も新 store（新 serverUrl）に向かう
+    const select = container.querySelector<HTMLSelectElement>('[data-am-flight-filter-outcome]');
+    if (select) {
+      select.value = 'achieved';
+      select.dispatchEvent(new Event('change'));
+    }
+    await settle();
+    const last = calls.at(-1);
+    expect(last?.url).toContain('http://new/');
+    expect(last?.url).toContain('outcome=achieved');
+
+    store2.dispose();
+    handle.destroy();
+  });
+
   it('CSV ボタンでフィルタ結果の CSV がダウンロードされる（FR-19）', async () => {
     stubFetch(() => jsonResponse({ flightReviews: [review()] }));
     const createObjectURL = jest.fn(() => 'blob:x');

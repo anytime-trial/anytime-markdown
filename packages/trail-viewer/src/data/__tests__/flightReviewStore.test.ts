@@ -149,6 +149,27 @@ describe('flightReviewStore', () => {
     store.dispose();
   });
 
+  it('編集中に別の行を選択すると editing が解除されポーリングが再開する（cross-review 指摘 1）', async () => {
+    let payload: FlightReviewDto[] = [review()];
+    stubFetch((url) =>
+      url.includes('user-feedback') ? jsonResponse({ userFeedback: [] }) : jsonResponse({ flightReviews: payload }),
+    );
+    const store = createFlightReviewStore('http://x');
+    await store.refresh();
+
+    await store.select('sess-1');
+    store.setEditing(true);
+
+    // 行切替 = 編集の離脱。editing ラッチが解けて以後の refresh が反映される
+    await store.select('sess-2');
+    expect(store.getState().editing).toBe(false);
+
+    payload = [review(), review({ id: 2, sessionId: 'sess-2' })];
+    await store.refresh();
+    expect(store.getState().reviews).toHaveLength(2);
+    store.dispose();
+  });
+
   it('saveManual は PATCH を送り、失敗時はサーバーの理由を返す（FR-17）', async () => {
     const { calls } = stubFetch((url, init) => {
       if (init?.method === 'PATCH') {

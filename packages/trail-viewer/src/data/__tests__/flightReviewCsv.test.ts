@@ -52,6 +52,14 @@ describe('buildFlightReviewCsv', () => {
     expect(lines[1]).toBe('sess-1,,2026-07-17T10:00:00.000Z,,achieved,manual,10,1,2,"[""release""]",ok');
   });
 
+  it('= + - @ で始まる文字列フィールドは式評価を無効化する（formula injection 対策）', () => {
+    const csv = buildFlightReviewCsv([review({ notes: '=SUM(A1:A9)', tags: '[]' })]);
+    const lines = csv.split('\r\n');
+    expect(lines[1]).toContain("'=SUM(A1:A9)");
+    // 数値フィールドは対象外（プレフィクスが付かない）
+    expect(lines[1]).toContain(',3600,');
+  });
+
   it('0 件でもヘッダ行のみの CSV を返す', () => {
     const csv = buildFlightReviewCsv([]);
     expect(csv.split('\r\n')).toHaveLength(1);

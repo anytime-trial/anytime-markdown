@@ -228,6 +228,7 @@ export function mountTrailViewer(
   let logsHandle: ReturnType<typeof mountLogsTab> | null = null;
   let flightReviewHandle: ReturnType<typeof mountFlightReviewPanel> | null = null;
   let flightReviewStore: FlightReviewStore | null = null;
+  let flightReviewStoreUrl: string | null = null;
   let callHierarchyHandle: ReturnType<typeof mountCallHierarchyPanel> | null = null;
 
   // ── React island handles ──
@@ -440,8 +441,16 @@ export function mountTrailViewer(
 
   // ── Derive FlightReviewPanel props（Phase 6 S3） ──
   function buildFlightReviewProps(): FlightReviewPanelProps {
-    // store はタブ初回マウント時に一度だけ作り、destroy まで使い回す
-    flightReviewStore ??= createFlightReviewStore(props.serverUrl ?? '', { enabled: true });
+    const serverUrl = props.serverUrl ?? '';
+    // serverUrl が変わったら旧接続先の store を破棄して作り直す（panel 側が購読を張り替える）
+    if (flightReviewStore !== null && flightReviewStoreUrl !== serverUrl) {
+      flightReviewStore.dispose();
+      flightReviewStore = null;
+    }
+    if (flightReviewStore === null) {
+      flightReviewStore = createFlightReviewStore(serverUrl, { enabled: true });
+      flightReviewStoreUrl = serverUrl;
+    }
     return {
       isDark: props.isDark ?? true,
       tokens: props.tokens,
