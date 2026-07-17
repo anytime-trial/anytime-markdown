@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-07-17
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Screenmock fenced blocks: an interactive screen mockup fence with navigation, transitions and a component vocabulary, plus a design edit mode (mouse resize + write-back to source) and a slash-command insertion item. Includes cross-review fixes (9 items).
+
 ## [1.14.0] - 2026-07-17
 
 ### Added

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-07-17
+
+### Changed
+
+- Ticket creation API now accepts a `workspace` field and dropped `labels`; `assignee` is validated strictly as an enum (aligned with `tickets-core`).
+- Landing page (press) navigation: replaced the "Today's News" anchor with a link to the `/tickets` page.
+
 ## [0.39.0] - 2026-07-17
 
 ### Added

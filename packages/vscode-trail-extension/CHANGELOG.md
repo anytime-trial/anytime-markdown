@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-07-17
+
+### Added
+
+- Phase 6 Flight Review UI: a flight-review list / detail view with manual correction and CSV export in the viewer.
+- Rationale Audit UI: audit status and a rationale reference view.
+
+### Trail Core (trail-core / trail-server / trail-viewer)
+
+- Flight Review foundation: `flight_reviews` schema, a Stop-hook debrief that mechanically aggregates the transcript server-side, and User Feedback Logging (post-hoc "revert" detection).
+- Tickets: assignee and workspace became selectable fields, effort is tracked in minutes, and `labels` / `progress` were dropped (`assignee` strictly validated as an enum).
+- Cross-review fixes across trail-server / trail-viewer / trail-core (editing latch, store encapsulation, serverUrl follow, CSV formula injection, 415 guard, CHECK-constraint fail-open).
+
 ## [0.36.0] - 2026-07-17
 
 ### Added

@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-07-17
+
+### 追加
+
+- Phase 6 Flight Review UI: ビューアに機体レビューの一覧・詳細表示、手動訂正、CSV エクスポートを追加しました。
+- Rationale Audit UI: 監査ステータスと rationale 参照ビューを追加しました。
+
+### Trail Core (trail-core / trail-server / trail-viewer)
+
+- Flight Review 基盤: `flight_reviews` スキーマ、transcript をサーバー側で機械集計する Stop フックデブリーフ、User Feedback Logging（事後の「やり直し」検知）。
+- チケット: 担当・ワークスペースを選択式フィールド化し、工数を分単位で記録、`labels` / `progress` を廃止（`assignee` を enum として厳密検証）。
+- trail-server / trail-viewer / trail-core をまたぐ cross-review 修正（editing ラッチ・store 閉じ込め・serverUrl 追従・CSV 式注入・415 ガード・CHECK 制約の fail-open）。
+
 ## [0.36.0] - 2026-07-17
 
 ### 追加

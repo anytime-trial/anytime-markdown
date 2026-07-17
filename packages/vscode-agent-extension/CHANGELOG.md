@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-17
+
+### Added
+
+- Generated hooks: a Stop hook (`flight-review.sh`) that requests a session-end debrief from the trail server, and a UserPromptSubmit hook (`user-feedback.sh`) that reports post-hoc correction prompts (both fail-open / silent-skip when the server is unreachable).
+- Bundled skills: the ticket loop now self-schedules via cron inside the skill, split into `anytime-loop-start` / `anytime-loop-stop` (new stop skill). Ticket selection now keys on assignee × workspace, with a hand-off procedure that returns the assignee to `user`.
+
+### Changed
+
+- `anytime-ticket-loop` was renamed to `anytime-loop-start` / `anytime-loop-stop`.
+
+### Fixed
+
+- Loop skill: fixed a zombie process being mistaken for a live session, insufficient delegation permissions, and two missing `push` steps for ticket changes plus a progress-observation gap while a delegated child session runs.
+
 ## [1.7.0] - 2026-07-17
 
 ### Added

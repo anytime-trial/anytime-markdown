@@ -6,7 +6,18 @@
 
 ## [Unreleased]
 
-## [0.36.0] - 2026-07-17
+## [0.37.0] - 2026-07-17
+
+### 追加
+
+- Phase 6 Flight Review: `flight_reviews` の DDL・ドメイン型と、セッション終了デブリーフのための `computeFlightOutcome`（transcript の機械集計）、および User Feedback Logging（`detectUserFeedback` が「直前の出力をやり直す」系プロンプトを分類）を追加しました。
+- Rationale Audit: 監査ステータス・rationale 参照 API と関連ドメイン型を追加しました。
+- チケット: `workspace`・`actual`（分単位の工数）フィールドを追加し、`labels` / `progress` / `QUESTION_LABEL` を廃止、`assignee` を enum として厳密検証するようにしました。
+
+### 修正
+
+- 不正な `timestamp` が CHECK 制約違反で `flight_reviews` の最小行記録を壊すのを修正しました（fail-open でも最小行を記録します）。
+- cross-review 指摘を修正しました（`createdAt` 契約・監査メッセージ・属性エスケープ・editing ラッチ分離）。
 
 ### 追加
 

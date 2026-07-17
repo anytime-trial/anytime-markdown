@@ -257,7 +257,8 @@ const SCREENMOCK_DESIGN_PROTECTION_STYLE = `
 export function createScreenmockDesignModePreview(
   options: CreateScreenmockDesignModePreviewOptions,
 ): ScreenmockDesignModePreviewElement {
-  const host = document.createElement("div") as ScreenmockDesignModePreviewElement;
+  // host は下で destroy を後付けして拡張型にする。HTMLDivElement とは直接重ならないため unknown を経由する。
+  const host = document.createElement("div") as unknown as ScreenmockDesignModePreviewElement;
   host.className = "am-screenmock-design-preview";
   host.style.cssText = "display:block;width:100%;max-width:100%;height:100%;min-height:360px;";
   const shadow = host.attachShadow({ mode: "open" });

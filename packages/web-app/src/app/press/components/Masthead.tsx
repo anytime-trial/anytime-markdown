@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
@@ -112,9 +113,9 @@ export function Masthead() {
         {t('titlePrefix')} <em>{t('titleEm')}</em>
       </div>
       <nav className={styles.mastNav}>
-        <a href="#news">{t('navNews')}</a>
         <a href="#markdown">{t('navMarkdown')}</a>
         <a href="#trail">{t('navTrail')}</a>
+        <Link href="/tickets">{t('navTickets')}</Link>
         <button
           type="button"
           onClick={toggleLocale}
