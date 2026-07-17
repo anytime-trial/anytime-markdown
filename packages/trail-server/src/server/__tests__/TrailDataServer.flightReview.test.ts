@@ -292,6 +292,15 @@ describe('/api/trail/flight-reviews', () => {
     );
   });
 
+  it('user-feedback POST も非 JSON Content-Type を 415 で拒否する（CSRF ガード）', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/user-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ sessionId: 'x', occurredAt: '2026-07-17T00:00:00.000Z', prompt: 'やり直し' }),
+    });
+    expect(res.status).toBe(415);
+  });
+
   it('POST は非 JSON Content-Type を 415 で拒否する（CSRF ガード）', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews`, {
       method: 'POST',
