@@ -173,7 +173,7 @@ function buildRootStyle(themeVars: Record<string, string> | undefined): string {
     .join("");
 }
 
-function collectThemeVars(host: Element | null): Record<string, string> {
+export function collectScreenmockThemeVars(host: Element | null): Record<string, string> {
   if (!host || typeof getComputedStyle === "undefined") return {};
   const style = getComputedStyle(host);
   const vars: Record<string, string> = {};
@@ -184,8 +184,7 @@ function collectThemeVars(host: Element | null): Record<string, string> {
   return vars;
 }
 
-const SCREENMOCK_STYLE = `
-:root{
+export const SCREENMOCK_VARS = `
   --sm-gap:12px;
   --sm-radius:8px;
   --sm-border:1px solid var(--am-color-divider,#d0d7de);
@@ -196,7 +195,10 @@ const SCREENMOCK_STYLE = `
   --sm-primary:var(--am-color-primary-main,#0969da);
   --sm-on-primary:var(--am-color-primary-contrast,#fff);
   color-scheme:light dark;
-}
+`;
+
+export const SCREENMOCK_STYLE = `
+:root{${SCREENMOCK_VARS}}
 *{box-sizing:border-box;}
 html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--sm-text);background:var(--sm-bg);}
 body{padding:var(--sm-gap);}
@@ -290,7 +292,7 @@ export function createScreenmockPreview(
     iframe.srcdoc = buildScreenmockSrcdoc(screens, {
       ...options,
       initialScreenId: activeId,
-      themeVars: options.themeVars ?? collectThemeVars(root),
+      themeVars: options.themeVars ?? collectScreenmockThemeVars(root),
     });
     if (activeId) setActiveTab(tabs, activeId);
   };
@@ -328,7 +330,7 @@ export function createScreenmockPreview(
  * 切断状態の要素への getComputedStyle は祖先由来の --am-color-* を解決できず、
  * 初回 render のテーマ変数が空になる。DOM 接続を待って一度だけ再描画する。
  */
-function scheduleConnectedRerender(root: HTMLElement, render: () => void): void {
+export function scheduleConnectedRerender(root: HTMLElement, render: () => void): void {
   const schedule =
     typeof requestAnimationFrame === "function"
       ? requestAnimationFrame

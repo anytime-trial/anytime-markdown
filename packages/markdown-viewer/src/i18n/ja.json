@@ -30,6 +30,7 @@
     "split": "分割",
     "preview": "プレビュー",
     "screenmock": "画面モック",
+    "screenmockDesignMode": "デザイン編集",
     "screenmockEmptyHint": "frontmatter と HTML で画面を追加してください。",
     "screenmockTabsLabel": "画面",
     "source": "ソース",
