@@ -37,5 +37,5 @@
   "config.workSnapshotIntervalMinutes.description": "未コミット作業（untracked ファイルを含む）を `refs/anytime/snapshots/` へ非破壊スナップショットする間隔（分）。0 で無効。1〜4 は 5 として扱う。",
   "config.workSnapshotRetentionDays.description": "スナップショットの ref を保持する日数。これを過ぎた ref は削除する。",
   "command.showWorkSnapshots": "作業スナップショットを表示",
-  "configuration.tickets.directory.markdownDescription": "anytime-ticket-loop スキルが使うチケットリポジトリの場所（ローカルクローンのルート、または .tickets/ ディレクトリ。絶対パスまたはワークスペース相対）。未設定時はワークスペース直下の .tickets/ → 環境変数 ANYTIME_TICKETS_DIR の順で解決します。"
+  "configuration.tickets.directory.markdownDescription": "anytime-loop-start スキルが使うチケットリポジトリの場所（ローカルクローンのルート、または .tickets/ ディレクトリ。絶対パスまたはワークスペース相対）。未設定時はワークスペース直下の .tickets/ → 環境変数 ANYTIME_TICKETS_DIR の順で解決します。"
 }

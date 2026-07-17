@@ -1,30 +1,30 @@
 ---
-name: anytime-ticket-loop-stop
-description: anytime-ticket-loop が自己確保したチケットループ（cron ジョブ）を停止する。「/anytime-ticket-loop-stop」「チケットループを止めて」「ticket loop stop」「ループ停止」「tick を止めて」の指示で使用する。cron を削除するだけで、実行中の子セッション（委譲済みチケット作業）は既定では止めない。
+name: anytime-loop-stop
+description: anytime-loop-start が自己確保したチケットループ（cron ジョブ）を停止する。「/anytime-loop-stop」「チケットループを止めて」「ticket loop stop」「ループ停止」「tick を止めて」の指示で使用する。cron を削除するだけで、実行中の子セッション（委譲済みチケット作業）は既定では止めない。
 ---
 
-# anytime-ticket-loop-stop — チケットループの停止
+# anytime-loop-stop — チケットループの停止
 
 更新日: 2026-07-17
 
-`anytime-ticket-loop` は tick 自身が cron を自己確保する（同スキル §0 手順 5）ため、放置すると 20 分ごとに発火し続ける。
+`anytime-loop-start` は tick 自身が cron を自己確保する（同スキル §0 手順 5）ため、放置すると 20 分ごとに発火し続ける。
 本スキルはその cron を止める。**ループの停止とチケット作業の中断は別物**であり、既定では前者だけを行う。
 
 ## 1. 手順
 
-1. **停止対象の列挙**: `CronList` で `prompt` が `/anytime-ticket-loop` の recurring ジョブを全て拾う。
+1. **停止対象の列挙**: `CronList` で `prompt` が `/anytime-loop-start` の recurring ジョブを全て拾う。
    - **複数見つかったら全て削除する**（`/loop` 併用等でループが多重化した状態。1 本だけ消すと tick が走り続け「止めたのに動く」に見える）。
    - 0 件なら「ループ未確保（停止対象なし）」と報告する。手順 2 の在庫確認は 0 件でも実施する（cron が消えても子セッションは生き残るため）。
-2. **実行中の委譲の在庫確認**: チケットリポジトリの `.git/ticket-delegations/*.json` を確認し、`pid` が生存中（`kill -0 <pid>`）のマーカーを列挙する。チケットリポジトリの解決は `anytime-ticket-loop` §0 手順 1 と同じ（VS Code 設定 `anytimeAgent.tickets.directory` → ワークスペース `.tickets/` → 環境変数 `ANYTIME_TICKETS_DIR`）。
+2. **実行中の委譲の在庫確認**: チケットリポジトリの `.git/ticket-delegations/*.json` を確認し、`pid` が生存中（`kill -0 <pid>`）のマーカーを列挙する。チケットリポジトリの解決は `anytime-loop-start` §0 手順 1 と同じ（VS Code 設定 `anytimeAgent.tickets.directory` → ワークスペース `.tickets/` → 環境変数 `ANYTIME_TICKETS_DIR`）。
 3. **cron の削除**: 手順 1 の各 job を `CronDelete` する。
-4. **報告**（1〜3 行）: 削除した job id（または「停止対象なし」）/ 実行中の子セッション（チケット id・pid）の有無 / 再開方法（`/anytime-ticket-loop` を 1 回起動すれば自己確保で再開する）。
+4. **報告**（1〜3 行）: 削除した job id（または「停止対象なし」）/ 実行中の子セッション（チケット id・pid）の有無 / 再開方法（`/anytime-loop-start` を 1 回起動すれば自己確保で再開する）。
 
 ## 2. 実行中の子セッションを止めない理由（既定の振る舞い）
 
 委譲済みの子セッションは `setsid` で切り離されており、cron を消しても走り続ける。既定でこれを kill しないのは:
 
 - 子はチケット作業の途中であり、強制終了すると `## 引継ぎサマリー (Handoff Notes)` を残せないまま `status: in_progress` で宙吊りになる（次にループを張っても、何が済んだか分からないチケットが残る）。
-- 子の結果は失われない。次にループを張った tick が `anytime-ticket-loop` §1 手順 1（死んだマーカーの検知）→ 手順 8（委譲検証）で実測から回収する。
+- 子の結果は失われない。次にループを張った tick が `anytime-loop-start` §1 手順 1（死んだマーカーの検知）→ 手順 8（委譲検証）で実測から回収する。
 
 したがって手順 4 では「ループは止めたが子セッションは走っている」ことを明示的に報告する。ユーザーがそれを許容できない場合のみ §3 へ進む。
 
@@ -40,5 +40,5 @@ description: anytime-ticket-loop が自己確保したチケットループ（cr
 ## 4. 安全境界
 
 - cron 削除（`CronDelete`）以外の状態変更をしない。チケットファイルの編集・コミット・push はしない（ループ停止はチケットの状態遷移ではない）。
-- `CronDelete` の対象は `prompt` が `/anytime-ticket-loop` のジョブのみ。同一セッションで動く無関係な cron ジョブ（他スキルの loop 等）を巻き込まない。
+- `CronDelete` の対象は `prompt` が `/anytime-loop-start` のジョブのみ。同一セッションで動く無関係な cron ジョブ（他スキルの loop 等）を巻き込まない。
 - 子セッションの kill は §3 の明示指示 + 承認が揃った場合のみ。
