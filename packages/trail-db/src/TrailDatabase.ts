@@ -5629,12 +5629,26 @@ export class TrailDatabase {
     return Math.round(rawTokens * factor);
   }
 
+  /**
+   * 副作用: 整合性監視の記録と、in-memory ストレージへの書き出し。
+   *
+   * **file-backed のときは書き出しを行わない**。better-sqlite3 は実行時点で既にファイルへ
+   * 永続化しており、`export()`（file-backed では `fs.readFileSync(dbPath)`）→
+   * `storage.save()`（同じパスへ `writeFileSync`）は同内容を読んで書き戻すだけの往復だった。
+   * これは sql.js（in-memory のため save で書き出す必要があった）時代の名残。
+   *
+   * 2026-07-17 の事故: trail.db が 2 GiB を 1.2MB 超えた時点で `readFileSync` が
+   * `RangeError: File size ... is greater than 2 GiB` を投げ、`init()` → `createTables()` →
+   * `save()` の経路で拡張が起動不能になった。サイズ依存の崖を作らないため往復自体を断つ。
+   * in-memory 経路は読み出しでしか外へ出せないため従来どおり export → save する。
+   */
   save(): void {
     const db = this.ensureDb();
     const alerts = this.integrityMonitor.recordAndDetect(db);
     if (alerts.length > 0 && this.onIntegrityAlert) {
       this.onIntegrityAlert(alerts);
     }
+    if (this.storage.getFilePath() !== null) return;
     const data = db.export();
     this.storage.save(data);
   }
