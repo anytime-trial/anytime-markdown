@@ -80,6 +80,18 @@ describe('computeFlightOutcome', () => {
     expect(result.reworkCount).toBe(3);
   });
 
+  it('不正な timestamp は無視し、オフセット付きは UTC ISO 8601 Z へ正規化する（CHECK 制約違反の回帰防止）', () => {
+    const result = computeFlightOutcome([
+      line({ timestamp: 'garbage', content: [toolUse('Bash', { command: 'ls' })] }),
+      line({ timestamp: '2026-07-17T09:00:00.000+09:00' }),
+    ]);
+    // 不正値は startedAt/endedAt に採用しない。オフセット付きは Z 形式へ正規化する
+    expect(result.startedAt).toBe('2026-07-17T00:00:00.000Z');
+    expect(result.endedAt).toBe('2026-07-17T00:00:00.000Z');
+    // timestamp が不正でも行自体の tool_use は集計する
+    expect(result.toolCallCount).toBe(1);
+  });
+
   it('サブエージェント行（isSidechain）と不正 JSON 行は集計から除外する', () => {
     const result = computeFlightOutcome([
       'not-json{{{',

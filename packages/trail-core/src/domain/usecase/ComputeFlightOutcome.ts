@@ -64,9 +64,10 @@ export function computeFlightOutcome(lines: Iterable<string>): FlightOutcomeAggr
     // サブエージェント（sidechain）の行はメインセッションの集計に含めない
     if (entry.isSidechain === true) continue;
 
-    if (typeof entry.timestamp === 'string' && entry.timestamp !== '') {
-      startedAt ??= entry.timestamp;
-      endedAt = entry.timestamp;
+    const timestamp = normalizeTimestamp(entry.timestamp);
+    if (timestamp !== null) {
+      startedAt ??= timestamp;
+      endedAt = timestamp;
     }
 
     for (const block of contentBlocks(entry)) {
@@ -103,6 +104,16 @@ function countRework(block: ContentBlock, editCountByFile: Map<string, number>):
     if (typeof command === 'string' && REVERT_COMMAND_PATTERN.test(command)) return 1;
   }
   return 0;
+}
+
+// flight_reviews の started_at / ended_at は UTC ISO 8601 の CHECK 制約を持つ。
+// 不正な timestamp をそのまま流すと UPSERT が制約違反になり最小行の記録まで失敗するため、
+// 解釈可能な値のみ Z 形式へ正規化し、不正値は集計対象外にする（cross-review 指摘の是正）。
+function normalizeTimestamp(value: unknown): string | null {
+  if (typeof value !== 'string' || value === '') return null;
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms).toISOString();
 }
 
 function computeDurationSeconds(startedAt: string | null, endedAt: string | null): number | null {
