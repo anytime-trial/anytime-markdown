@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import { computeFlightOutcome, type CurrentCoverageRow, type FlightOutcomeAggregate, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
+import { computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Model, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
@@ -747,6 +747,16 @@ export class TrailDataServer {
 
     if (pathname === '/api/trail/flight-reviews' && method === 'GET') {
       this.handleListFlightReviews(res, parsed.searchParams);
+      return;
+    }
+
+    if (pathname === '/api/trail/user-feedback' && method === 'POST') {
+      this.handleRecordUserFeedback(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/user-feedback' && method === 'GET') {
+      this.handleListUserFeedback(res, parsed.searchParams);
       return;
     }
 
@@ -2896,7 +2906,8 @@ export class TrailDataServer {
         }
         const transcriptPath = typeof parsed['transcriptPath'] === 'string' ? parsed['transcriptPath'] : '';
         const workspacePath = typeof parsed['cwd'] === 'string' ? parsed['cwd'] : '';
-        const aggregate = this.aggregateFlightTranscript(transcriptPath);
+        const lines = this.readFlightTranscriptLines(transcriptPath);
+        const aggregate = computeFlightOutcome(lines);
         this.trailDb.upsertFlightReviewFromMachine({
           sessionId,
           workspacePath,
@@ -2907,6 +2918,21 @@ export class TrailDataServer {
           toolFailureCount: aggregate.toolFailureCount,
           reworkCount: aggregate.reworkCount,
         });
+        // Phase 6 S2: 自己評価と学習候補は付加情報。失敗しても機械集計行（主効果）は
+        // 既に成立しているため、記録全体を失敗にしない（warn ログのみ）。
+        try {
+          const assessment = extractSelfAssessment(lines);
+          if (assessment !== null) {
+            this.trailDb.applySelfAssessmentToFlightReview(sessionId, assessment);
+          }
+          const feedbackEntries = this.trailDb.listUserFeedbackEntries({ sessionId });
+          const candidates = extractLessonCandidates({ lines, feedbackEntries });
+          if (candidates.length > 0) {
+            this.trailDb.saveFlightReviewLessonCandidates(sessionId, candidates);
+          }
+        } catch (e) {
+          this.logger.warn(`[handleRecordFlightReview] debrief enrichment failed for ${sessionId}: ${e instanceof Error ? e.message : String(e)}`);
+        }
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ ok: true }));
       } catch (e) {
@@ -2917,31 +2943,91 @@ export class TrailDataServer {
   }
 
   /**
-   * transcript JSONL を読み computeFlightOutcome へ渡す。
-   * 読取不能・巨大ファイルは集計 0 の空集計に縮退する（最小行の記録は落とさない。FR-4）。
+   * transcript JSONL を行配列として読む（機械集計・自己評価抽出・学習候補抽出で共用）。
+   * 読取不能・巨大ファイルは空配列に縮退する（最小行の記録は落とさない。FR-4）。
    */
-  private aggregateFlightTranscript(transcriptPath: string): FlightOutcomeAggregate {
-    const empty: FlightOutcomeAggregate = {
-      startedAt: null,
-      endedAt: null,
-      durationSeconds: null,
-      toolCallCount: 0,
-      toolFailureCount: 0,
-      reworkCount: 0,
-    };
+  private readFlightTranscriptLines(transcriptPath: string): string[] {
     if (transcriptPath === '') {
-      return empty;
+      return [];
     }
     try {
       const stat = fs.statSync(transcriptPath);
       if (!stat.isFile() || stat.size > TrailDataServer.FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES) {
         this.logger.warn(`[handleRecordFlightReview] transcript skipped (size=${stat.size}): ${transcriptPath}`);
-        return empty;
+        return [];
       }
-      return computeFlightOutcome(fs.readFileSync(transcriptPath, 'utf8').split('\n'));
+      return fs.readFileSync(transcriptPath, 'utf8').split('\n');
     } catch (e) {
       this.logger.warn(`[handleRecordFlightReview] transcript read failed: ${transcriptPath}: ${e instanceof Error ? e.message : String(e)}`);
-      return empty;
+      return [];
+    }
+  }
+
+  private handleRecordUserFeedback(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const sessionId = parsed['sessionId'];
+        const occurredAt = parsed['occurredAt'];
+        const prompt = parsed['prompt'];
+        if (
+          typeof sessionId !== 'string' || sessionId === '' ||
+          typeof occurredAt !== 'string' || occurredAt === '' ||
+          typeof prompt !== 'string'
+        ) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'sessionId, occurredAt, prompt required' }));
+          return;
+        }
+        // 判定の正はサーバー側 detectUserFeedback。フックのプレフィルタと不一致なら破棄する
+        const match = detectUserFeedback(prompt);
+        if (match === null) {
+          res.writeHead(200, JSON_HEADERS);
+          res.end(JSON.stringify({ ok: true, recorded: false }));
+          return;
+        }
+        this.trailDb.recordUserFeedbackEntry({
+          sessionId,
+          occurredAt,
+          promptExcerpt: prompt.slice(0, TrailDataServer.USER_FEEDBACK_EXCERPT_MAX_CHARS),
+          matchedPattern: match.matchedPattern,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true, recorded: true }));
+      } catch (e) {
+        this.logger.error('handleRecordUserFeedback failed', e);
+        sendServerError(res, 'Failed to record user feedback');
+      }
+    });
+  }
+
+  /** prompt_excerpt の保存上限（提示用の抜粋。全文は保存しない）。 */
+  private static readonly USER_FEEDBACK_EXCERPT_MAX_CHARS = 500;
+
+  private handleListUserFeedback(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const userFeedback = this.trailDb.listUserFeedbackEntries({
+        sessionId: params.get('sessionId') ?? undefined,
+        limit: Number.isNaN(limit) ? 100 : limit,
+      });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ userFeedback }));
+    } catch (e) {
+      this.logger.error('handleListUserFeedback failed', e);
+      sendServerError(res, 'Failed to list user feedback');
     }
   }
 

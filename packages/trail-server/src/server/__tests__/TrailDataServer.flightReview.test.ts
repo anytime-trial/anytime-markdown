@@ -147,6 +147,160 @@ describe('/api/trail/flight-reviews', () => {
     expect(limitedBody.flightReviews[0]?.['sessionId']).toBe('s3');
   });
 
+  it('debrief ブロック付き transcript は self 自己評価が反映される（FR-6）', async () => {
+    const transcriptPath = path.join(tmpDir, 'debrief.jsonl');
+    const debrief =
+      '完了しました。\n\n```debrief\n{"outcome":"partial","unresolvedItems":["残タスク A"],"nextConcerns":["懸念 B"]}\n```';
+    fs.writeFileSync(
+      transcriptPath,
+      [
+        transcriptLine({ type: 'user', timestamp: '2026-07-17T00:00:00.000Z' }),
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2026-07-17T00:01:00.000Z',
+          message: { content: [{ type: 'text', text: debrief }] },
+        }),
+      ].join('\n'),
+    );
+
+    const post = await postReview({
+      sessionId: 'sess-self',
+      transcriptPath,
+      cwd: '/ws',
+      endedAt: '2026-07-17T00:02:00.000Z',
+    });
+    expect(post.status).toBe(200);
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews?sessionId=sess-self`);
+    const body = (await res.json()) as { flightReviews: Array<Record<string, unknown>> };
+    const review = body.flightReviews[0];
+    expect(review?.['outcome']).toBe('partial');
+    expect(review?.['outcomeSource']).toBe('self');
+    expect(review?.['unresolvedItems']).toBe('["残タスク A"]');
+    expect(review?.['nextConcerns']).toBe('["懸念 B"]');
+  });
+
+  it('破損 debrief は無視され機械集計のみで記録される（FR-7）', async () => {
+    const transcriptPath = path.join(tmpDir, 'broken-debrief.jsonl');
+    fs.writeFileSync(
+      transcriptPath,
+      JSON.stringify({
+        type: 'assistant',
+        timestamp: '2026-07-17T00:01:00.000Z',
+        message: { content: [{ type: 'text', text: '```debrief\n{broken\n```' }] },
+      }),
+    );
+    const post = await postReview({
+      sessionId: 'sess-broken',
+      transcriptPath,
+      cwd: '/ws',
+      endedAt: '2026-07-17T00:02:00.000Z',
+    });
+    expect(post.status).toBe(200);
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews?sessionId=sess-broken`);
+    const body = (await res.json()) as { flightReviews: Array<Record<string, unknown>> };
+    expect(body.flightReviews[0]?.['outcome']).toBe('unknown');
+    expect(body.flightReviews[0]?.['outcomeSource']).toBe('machine');
+  });
+
+  it('user-feedback POST は該当プロンプトのみ記録し、再送で重複しない（FR-9 / FR-10）', async () => {
+    const payload = {
+      sessionId: 'sess-fb',
+      occurredAt: '2026-07-17T00:00:00.000Z',
+      prompt: 'A ではなく B で実装して',
+    };
+    const post1 = await fetch(`http://127.0.0.1:${port}/api/trail/user-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    expect(post1.status).toBe(200);
+    expect(((await post1.json()) as { recorded: boolean }).recorded).toBe(true);
+
+    // 再送
+    await fetch(`http://127.0.0.1:${port}/api/trail/user-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    // 非該当プロンプト（プレフィルタ誤送信の想定）はサーバー再判定で破棄
+    const post3 = await fetch(`http://127.0.0.1:${port}/api/trail/user-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, prompt: '新しいページを追加して' }),
+    });
+    expect(((await post3.json()) as { recorded: boolean }).recorded).toBe(false);
+
+    const list = await fetch(`http://127.0.0.1:${port}/api/trail/user-feedback?sessionId=sess-fb`);
+    const body = (await list.json()) as { userFeedback: Array<Record<string, unknown>> };
+    expect(body.userFeedback).toHaveLength(1);
+    expect(body.userFeedback[0]?.['matchedPattern']).toBe('ではなく');
+  });
+
+  it('ユーザー訂正 + 失敗連鎖が lesson_candidates に入る（FR-11）', async () => {
+    await fetch(`http://127.0.0.1:${port}/api/trail/user-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'sess-lesson',
+        occurredAt: '2026-07-17T00:00:00.000Z',
+        prompt: 'やり直してください',
+      }),
+    });
+    const transcriptPath = path.join(tmpDir, 'lesson.jsonl');
+    fs.writeFileSync(
+      transcriptPath,
+      [
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2026-07-17T00:00:10.000Z',
+          message: {
+            content: [
+              { type: 'tool_use', id: 't1', name: 'Bash', input: {} },
+              { type: 'tool_use', id: 't2', name: 'Bash', input: {} },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: 'user',
+          timestamp: '2026-07-17T00:00:20.000Z',
+          message: {
+            content: [
+              { type: 'tool_result', tool_use_id: 't1', is_error: true },
+              { type: 'tool_result', tool_use_id: 't2', is_error: true },
+            ],
+          },
+        }),
+      ].join('\n'),
+    );
+    const post = await postReview({
+      sessionId: 'sess-lesson',
+      transcriptPath,
+      cwd: '/ws',
+      endedAt: '2026-07-17T00:02:00.000Z',
+    });
+    expect(post.status).toBe(200);
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews?sessionId=sess-lesson`);
+    const body = (await res.json()) as { flightReviews: Array<Record<string, unknown>> };
+    const candidates = JSON.parse((body.flightReviews[0]?.['lessonCandidates'] as string) ?? '[]') as Array<{
+      kind: string;
+    }>;
+    expect(candidates.map((c) => c.kind)).toEqual(
+      expect.arrayContaining(['tool_failure_chain', 'user_correction']),
+    );
+  });
+
+  it('user-feedback POST も非 JSON Content-Type を 415 で拒否する（CSRF ガード）', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/user-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ sessionId: 'x', occurredAt: '2026-07-17T00:00:00.000Z', prompt: 'やり直し' }),
+    });
+    expect(res.status).toBe(415);
+  });
+
   it('POST は非 JSON Content-Type を 415 で拒否する（CSRF ガード）', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews`, {
       method: 'POST',

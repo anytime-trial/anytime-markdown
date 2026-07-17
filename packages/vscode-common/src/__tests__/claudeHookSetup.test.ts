@@ -409,6 +409,33 @@ describe('setupClaudeHooks', () => {
     expect(again).toHaveLength(1);
   });
 
+  test('UserPromptSubmit hook registers user-feedback.sh and writes the script (Phase 6 S2)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = readSettings();
+    const entry = settings.hooks.UserPromptSubmit.find((e) =>
+      e.hooks?.[0]?.command?.includes('user-feedback.sh'),
+    );
+    expect(entry).toBeDefined();
+    expect(entry?.hooks[0].command).toBe(bashCmd('user-feedback.sh'));
+
+    const script = readScript('user-feedback.sh');
+    expect(script).toContain('/api/trail/user-feedback');
+    // プレフィルタ該当時のみ POST（非該当は PAYLOAD 空で exit 0）
+    expect(script).toContain('ではなく');
+    expect(script).toContain('[ -z "$PAYLOAD" ] && exit 0');
+    // サーバ不達でもプロンプト送信を妨げない（fail-open）
+    expect(script).toContain('|| true');
+    expect(script.trimEnd().endsWith('exit 0')).toBe(true);
+    // 再実行で重複登録しない
+    setupClaudeHooks(tmpWorkspace);
+    const again = readSettings().hooks.UserPromptSubmit.filter((e) =>
+      e.hooks?.[0]?.command?.includes('user-feedback.sh'),
+    );
+    expect(again).toHaveLength(1);
+  });
+
   test('agent-status-report.mjs gates edit/bash on the emergency kill switch before airspace (Phase 5 S1)', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);

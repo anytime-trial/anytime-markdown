@@ -47,6 +47,8 @@ import {
   CREATE_FLIGHT_REVIEW_INDEXES,
   CREATE_FLIGHT_REVIEWS,
   CREATE_INDEXES,
+  CREATE_USER_FEEDBACK_ENTRIES,
+  CREATE_USER_FEEDBACK_INDEXES,
   CREATE_MESSAGE_COMMITS,
   CREATE_MESSAGE_TOOL_CALLS,
   CREATE_MESSAGE_TOOL_CALLS_INDEXES,
@@ -80,7 +82,8 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FlightReviewMachineInput, type IC4ModelStore, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
+import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FlightReviewMachineInput, type IC4ModelStore,
+  type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
 
@@ -3945,6 +3948,18 @@ export class TrailDatabase {
     db.run(CREATE_FLIGHT_REVIEWS);
     for (const idx of CREATE_FLIGHT_REVIEW_INDEXES) {
       db.run(idx);
+    }
+    // Phase 6 S2 (Debrief / User Feedback)。新規テーブル + flight_reviews への列追加。
+    // 列追加は列ごと独立に columnExists 判定する（まとめ判定は部分適用から復旧できない）。
+    db.run(CREATE_USER_FEEDBACK_ENTRIES);
+    for (const idx of CREATE_USER_FEEDBACK_INDEXES) {
+      db.run(idx);
+    }
+    if (!columnExists(db, 'flight_reviews', 'next_concerns')) {
+      db.run(`ALTER TABLE flight_reviews ADD COLUMN next_concerns TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(next_concerns))`);
+    }
+    if (!columnExists(db, 'flight_reviews', 'lesson_candidates')) {
+      db.run(`ALTER TABLE flight_reviews ADD COLUMN lesson_candidates TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(lesson_candidates))`);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
     this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
@@ -8715,7 +8730,7 @@ export class TrailDatabase {
     const res = db.exec(
       `SELECT id, session_id, workspace_path, started_at, ended_at, duration_seconds,
               outcome, outcome_source, tool_call_count, tool_failure_count, rework_count,
-              unresolved_items, tags, notes, created_at, updated_at
+              unresolved_items, next_concerns, lesson_candidates, tags, notes, created_at, updated_at
        FROM flight_reviews ${where} ORDER BY ended_at DESC, id DESC LIMIT ?`,
       params,
     );
@@ -8733,10 +8748,99 @@ export class TrailDatabase {
       toolFailureCount: row[9] as number,
       reworkCount: row[10] as number,
       unresolvedItems: row[11] as string,
-      tags: row[12] as string,
-      notes: row[13] as string,
-      createdAt: row[14] as string,
-      updatedAt: row[15] as string,
+      nextConcerns: row[12] as string,
+      lessonCandidates: row[13] as string,
+      tags: row[14] as string,
+      notes: row[15] as string,
+      createdAt: row[16] as string,
+      updatedAt: row[17] as string,
+    }));
+  }
+
+  /**
+   * 副作用: flight_reviews の outcome 系列を自己評価で更新。永続化は呼び出し側の save() 契約に従う。
+   * 優先順位 manual > self > machine を SQL 条件で強制する
+   * （outcome_source='manual' の行は WHERE で除外され、人間の訂正を self が上書きしない）。
+   */
+  applySelfAssessmentToFlightReview(sessionId: string, assessment: SelfAssessment): void {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      `UPDATE flight_reviews
+       SET outcome = ?, outcome_source = 'self', unresolved_items = ?, next_concerns = ?, updated_at = ?
+       WHERE session_id = ? AND outcome_source != 'manual'`,
+    );
+    try {
+      stmt.run([
+        assessment.outcome,
+        JSON.stringify(assessment.unresolvedItems),
+        JSON.stringify(assessment.nextConcerns),
+        new Date().toISOString(),
+        sessionId,
+      ]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /** 副作用: flight_reviews.lesson_candidates を更新。永続化は呼び出し側の save() 契約に従う。 */
+  saveFlightReviewLessonCandidates(sessionId: string, candidates: LessonCandidate[]): void {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      `UPDATE flight_reviews SET lesson_candidates = ?, updated_at = ? WHERE session_id = ?`,
+    );
+    try {
+      stmt.run([JSON.stringify(candidates), new Date().toISOString(), sessionId]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /**
+   * 副作用: user_feedback_entries へ INSERT。永続化は呼び出し側の save() 契約に従う。
+   * 全列一致の既存行があれば挿入しない（内容キーで冪等。UserPromptSubmit フックの再送を吸収）。
+   */
+  recordUserFeedbackEntry(input: UserFeedbackInput): void {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      `INSERT INTO user_feedback_entries (session_id, occurred_at, prompt_excerpt, matched_pattern, created_at)
+       SELECT ?, ?, ?, ?, ?
+       WHERE NOT EXISTS (
+         SELECT 1 FROM user_feedback_entries
+         WHERE session_id = ? AND occurred_at = ? AND prompt_excerpt = ? AND matched_pattern = ?
+       )`,
+    );
+    const values = [input.sessionId, input.occurredAt, input.promptExcerpt, input.matchedPattern];
+    try {
+      stmt.run([...values, new Date().toISOString(), ...values]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /** occurred_at 降順。filter 未指定は直近 100 件。 */
+  listUserFeedbackEntries(filter: UserFeedbackFilter = {}): UserFeedbackEntry[] {
+    const db = this.ensureDb();
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    if (filter.sessionId !== undefined) {
+      conditions.push('session_id = ?');
+      params.push(filter.sessionId);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(filter.limit ?? 100);
+    const res = db.exec(
+      `SELECT id, session_id, occurred_at, prompt_excerpt, matched_pattern, created_at
+       FROM user_feedback_entries ${where} ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+      params,
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      id: row[0] as number,
+      sessionId: row[1] as string,
+      occurredAt: row[2] as string,
+      promptExcerpt: row[3] as string,
+      matchedPattern: row[4] as string,
+      createdAt: row[5] as string,
     }));
   }
 
