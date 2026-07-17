@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-07-17
+
+### 追加
+
+- Phase 5 緊急プロトコル（Kill Switch・セーフポイント・非破壊ロールバック）向けの `safe_points` / `emergency_log` の DDL とドメイン型を追加しました（保持上限つき CRUD を含む）。
+- ナレッジベース永続性の型と `IKnowledgeBaseSnapshotter` ポートを追加しました（グラフ系破壊的書込の Pre-write Snapshot と Shrink Audit）。
+- 品質メトリクス: MTTR（コミットベース近似）と TCR（チケットベース）を計測し `computeQualityMetrics` へ配線、`UNMEASURED` から除去しました。
+- `emergency_log` に `section_lock` 系イベントを追加しました（12-step テーブル移行）。
+
 ## [0.34.0] - 2026-07-14
 
 ### 追加

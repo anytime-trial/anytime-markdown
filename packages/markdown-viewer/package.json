@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/markdown-viewer",
-  "version": "1.13.4",
+  "version": "1.14.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@anytime-markdown/markdown-core": "*",
+    "@anytime-markdown/section-lock-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/ui-core": "*",
     "@mozilla/readability": "0.6.0",
@@ -34,8 +35,7 @@
     "lowlight": "3.3.0",
     "stylis": "4.2.0",
     "turndown": "7.2.4",
-    "turndown-plugin-gfm": "1.0.2",
-    "@anytime-markdown/section-lock-core": "*"
+    "turndown-plugin-gfm": "1.0.2"
   },
   "peerDependencies": {
     "diff": "^8.0.3",

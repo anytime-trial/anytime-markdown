@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-17
+
+### 追加
+
+- `/tickets` ページ: GitHub Contents API 経由で Git チケットリポジトリを操作するチケット管理 UI を追加しました。一覧・作成（担当を agent / user から選択）と、2 段階確認 + sha 楽観ロックによる削除に対応します。
+- quality-metrics API が MTTR と TCR（チケットベース）の入力を供給するようになりました。
+
+### 変更
+
+- `transpilePackages` に `section-lock-core` を追加しました（埋め込みエディタのセクションロック対応）。
+
+### 修正
+
+- quality-metrics ルートの `emptyMetrics` に MTTR / TCR を追随させました（メトリクス追加後のリグレッション）。
+
 ## [0.38.0] - 2026-07-16
 
 ### 追加

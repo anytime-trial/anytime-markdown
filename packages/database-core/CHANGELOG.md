@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-17
+
+### Added
+
+- `FileBackupManager`: options for a custom backup suffix and for disabling the failure latch.
+
+### Fixed
+
+- Backups of files 2 GiB or larger no longer fail: copies avoid loading the whole file into memory (Node buffer limit), removing the startup cliff for huge databases.
+- Uncompressed backup generations are treated as part of the generation series (retention / pruning correctness).
+
 ## [0.3.1] - 2026-06-13
 
 ### Changed

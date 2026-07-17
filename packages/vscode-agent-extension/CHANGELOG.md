@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-07-17
+
+### Added
+
+- Kill Switch integration: an emergency state ledger (`emergency.json`) with hook-gate evaluation (evaluated before `ANYTIME_AIRSPACE=off`), and safe-point wiring in the generated hooks.
+- PreToolUse gate: Section Lock checks (edits to locked markdown sections are rejected) and tool-call loop detection, with an emergency spool (JSONL, rename-first drain) for events written while the trail server is unreachable.
+- Ticket management: `anytimeAgent.tickets.directory` setting for the ticket repository. Agent Note page creation accepts context arguments and generates page templates.
+- Bundled skills: `anytime-ticket-loop` (ticket-driven execution; ticket work is delegated to child sessions while the parent runs on a low-cost model) and `anytime-build-webapp` (web-app MVP scaffolding).
+- Agent mapping: session hover now shows the PID.
+
+### Fixed
+
+- PID column migration is judged per column, so a partially applied migration can recover.
+- Ledger write failures are surfaced instead of being silently swallowed.
+
 ## [1.6.0] - 2026-07-16
 
 ### Added

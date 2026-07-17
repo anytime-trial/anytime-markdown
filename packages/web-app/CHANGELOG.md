@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-17
+
+### Added
+
+- `/tickets` page: ticket management UI backed by a Git ticket repository via the GitHub Contents API — list and create tickets (assignee selectable between agent and user) and delete them with a two-step confirmation and sha-based optimistic locking.
+- The quality-metrics API now supplies MTTR and TCR (ticket-based) inputs.
+
+### Changed
+
+- Added `section-lock-core` to `transpilePackages` (Section Lock support in the embedded editor).
+
+### Fixed
+
+- `emptyMetrics` of the quality-metrics route now includes MTTR / TCR (regression after adding the metrics).
+
 ## [0.38.0] - 2026-07-16
 
 ### Added

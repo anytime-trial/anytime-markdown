@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-07-17
+
+### Added
+
+- `safe_points` / `emergency_log` DDL and domain types for the Phase 5 emergency protocol (Kill Switch, safe points, non-destructive rollback), including CRUD with retention limits.
+- Knowledge-base persistence types and the `IKnowledgeBaseSnapshotter` port (pre-write snapshots and shrink audit for graph-destructive writes).
+- Quality metrics: MTTR (commit-based approximation) and TCR (ticket-based) are now computed and wired into `computeQualityMetrics`, removing them from `UNMEASURED`.
+- `section_lock` events in `emergency_log` (12-step table migration).
+
 ## [0.34.0] - 2026-07-14
 
 ### Added

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-17
+
+### Added
+
+- Section Lock: heading sections can be locked as "final" (FR-8.3). Locked sections reject edits inside the editor, the outline panel gets per-heading lock/unlock buttons, and lock state is persisted in the document frontmatter. A new shared `section-lock-core` package supplies the lock model so the editor, the MCP server and agent hooks enforce the same rules.
+
+### Fixed
+
+- Outline panel lock buttons were not shown, or not updated, in some documents (2 bugs).
+- Frontmatter no longer auto-expands when the document contains a section lock.
+- Documents containing locks failed to mount due to a status-bar initialization-order bug.
+- Hardened lock enforcement across the section-lock stack following cross-review (8 agreed findings).
+
 ## [1.13.4] - 2026-07-16
 
 ### Changed
