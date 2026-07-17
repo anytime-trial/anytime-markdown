@@ -6,6 +6,7 @@ import type {
   FlightReviewFilter,
   FlightReviewMachineInput,
   FlightReviewManualPatch,
+  RationaleAuditStatus,
   LessonCandidate,
   SelfAssessment,
   UserFeedbackEntry,
@@ -35,6 +36,12 @@ export interface IFlightReviewRepository {
    * 空 patch は書き込まず存在有無のみ返す。
    */
   updateFlightReviewManual(sessionId: string, patch: FlightReviewManualPatch): boolean;
+  /**
+   * Rationale Audit の監査ステータスを記録（trail.db へ書き込む副作用を持つ。Phase 6 S4）。
+   * outcome_source には触れない — 監査は成否訂正（manual 化）と独立で、相乗りすると
+   * 監査しただけで self 自己評価が以後ブロックされる。対象行が無ければ false。
+   */
+  markRationaleAudit(sessionId: string, status: RationaleAuditStatus): boolean;
 }
 
 /** user_feedback_entries の永続化ポート（Phase 6 S2）。実装は trail-db の TrailDatabase。 */

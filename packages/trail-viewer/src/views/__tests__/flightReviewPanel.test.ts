@@ -26,6 +26,7 @@ function review(overrides: Partial<FlightReviewDto> = {}): FlightReviewDto {
     lessonCandidates: '[]',
     tags: '[]',
     notes: '',
+    rationaleAuditStatus: 'unaudited',
     createdAt: '2026-07-17T10:00:01.000Z',
     updatedAt: '2026-07-17T10:00:01.000Z',
     ...overrides,
@@ -183,8 +184,8 @@ describe('flightReviewPanel', () => {
     await settle();
 
     const empties = container.querySelectorAll('[data-am-retro-empty]');
-    // 未解決・次回の懸念・学習候補・user feedback の 4 セクションすべて空状態
-    expect(empties.length).toBe(4);
+    // 未解決・次回の懸念・学習候補・user feedback・rationale（S4）の 5 セクションすべて空状態
+    expect(empties.length).toBe(5);
     handle.destroy();
   });
 
@@ -321,6 +322,164 @@ describe('flightReviewPanel', () => {
 
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+});
+
+describe('flightReviewPanel rationale audit (Phase 6 S4)', () => {
+  const originalFetch = globalThis.fetch;
+  let container: HTMLElement;
+  let store: FlightReviewStore | null = null;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    store?.dispose();
+    store = null;
+    container.remove();
+    globalThis.fetch = originalFetch;
+  });
+
+  function mountWithStore(s: FlightReviewStore): ReturnType<typeof mountFlightReviewPanel> {
+    return mountFlightReviewPanel(container, {
+      isDark: true,
+      tokens: getTokens(true),
+      t: createTrailI18n('ja'),
+      store: s,
+    });
+  }
+
+  function rationaleFetch(nodes: unknown[]): void {
+    stubFetch((url) => {
+      if (url.includes('/api/memory/rationale')) return jsonResponse({ rationale: nodes });
+      if (url.includes('user-feedback')) return jsonResponse({ userFeedback: [] });
+      return jsonResponse({ flightReviews: [review()] });
+    });
+  }
+
+  it('一覧に監査ステータスバッジ列が表示される（FR-24）', async () => {
+    stubFetch(() => jsonResponse({ flightReviews: [review({ rationaleAuditStatus: 'valid' })] }));
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await settle();
+
+    const badge = container.querySelector<HTMLElement>('tbody [data-am-audit-badge]');
+    expect(badge?.dataset['audit']).toBe('valid');
+    expect(badge?.textContent).toBe('妥当');
+    handle.destroy();
+  });
+
+  it('Rationale セクションにノードが表示され confidence フィルタが効く（FR-24）', async () => {
+    rationaleFetch([
+      { commitHash: 'abc123def456', summary: '単純さを優先', confidenceLabel: 'EXTRACTED', createdAt: '2026-07-17T09:00:00.000Z' },
+      { commitHash: 'ffff00001111', summary: '推定された根拠', confidenceLabel: 'INFERRED', createdAt: '2026-07-17T09:10:00.000Z' },
+    ]);
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await settle();
+    container.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    await settle();
+
+    expect(container.querySelectorAll('[data-am-rationale-list] li')).toHaveLength(2);
+
+    const filter = container.querySelector<HTMLSelectElement>('[data-am-rationale-filter]');
+    if (filter) {
+      filter.value = 'INFERRED';
+      filter.dispatchEvent(new Event('change'));
+    }
+    const items = container.querySelectorAll('[data-am-rationale-list] li');
+    expect(items).toHaveLength(1);
+    expect(items[0]?.textContent).toContain('推定された根拠');
+    handle.destroy();
+  });
+
+  it('監査ステータスの保存で PATCH に rationaleAuditStatus のみが載る（FR-24）', async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    globalThis.fetch = ((url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (init?.method === 'PATCH') return Promise.resolve(jsonResponse({ ok: true }));
+      if (String(url).includes('/api/memory/rationale')) return Promise.resolve(jsonResponse({ rationale: [] }));
+      if (String(url).includes('user-feedback')) return Promise.resolve(jsonResponse({ userFeedback: [] }));
+      return Promise.resolve(jsonResponse({ flightReviews: [review()] }));
+    }) as typeof fetch;
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await settle();
+    container.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    await settle();
+
+    const auditSelect = container.querySelector<HTMLSelectElement>('[data-am-audit-status]');
+    if (auditSelect) {
+      auditSelect.value = 'needs_fix';
+      auditSelect.dispatchEvent(new Event('change'));
+    }
+    container.querySelector<HTMLButtonElement>('[data-am-audit-save]')?.click();
+    await settle();
+
+    const patchCall = calls.find((c) => c.init?.method === 'PATCH');
+    expect(JSON.parse(String(patchCall?.init?.body))).toEqual({ rationaleAuditStatus: 'needs_fix' });
+    expect(container.querySelector('[data-am-retro-rationale] [data-am-retro-feedback]')?.getAttribute('data-kind')).toBe('success');
+    handle.destroy();
+  });
+
+  it('手動編集中の監査保存はポーリング保留を解除しない（cross-review 指摘対応）', async () => {
+    rationaleFetch([]);
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await settle();
+    container.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    await settle();
+
+    // 手動フォーム（notes）を編集 → editing 保留
+    const notes = container.querySelector<HTMLTextAreaElement>('[data-am-retro-notes]');
+    if (notes) {
+      notes.value = '未保存の編集';
+      notes.dispatchEvent(new Event('input'));
+    }
+    expect(store.getState().editing).toBe(true);
+
+    // 監査だけ保存 → 手動編集の保留は維持される
+    container.querySelector<HTMLButtonElement>('[data-am-audit-save]')?.click();
+    await settle();
+    expect(store.getState().editing).toBe(true);
+    handle.destroy();
+  });
+
+  it('監査のみの変更は監査保存で保留が解除される', async () => {
+    rationaleFetch([]);
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await settle();
+    container.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    await settle();
+
+    const auditSelect = container.querySelector<HTMLSelectElement>('[data-am-audit-status]');
+    if (auditSelect) {
+      auditSelect.value = 'valid';
+      auditSelect.dispatchEvent(new Event('change'));
+    }
+    expect(store.getState().editing).toBe(true);
+
+    container.querySelector<HTMLButtonElement>('[data-am-audit-save]')?.click();
+    await settle();
+    expect(store.getState().editing).toBe(false);
+    handle.destroy();
+  });
+
+  it('rationale 0 件は空状態で成立する（FR-25）', async () => {
+    rationaleFetch([]);
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await settle();
+    container.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    await settle();
+
+    expect(container.querySelector('[data-am-retro-rationale] [data-am-retro-empty]')?.textContent).toContain(
+      '決定根拠ノードはありません',
+    );
     handle.destroy();
   });
 });

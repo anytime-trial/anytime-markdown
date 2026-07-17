@@ -312,3 +312,70 @@ describe('TrailDatabase flight reviews S3 (manual update / filter extension)', (
     expect(filtered[0]?.sessionId).toBe('s2');
   });
 });
+
+describe('TrailDatabase flight reviews S4 (rationale audit)', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  it('既定の rationale_audit_status は unaudited で一覧に含まれる（FR-20）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    expect(db.listFlightReviews()[0]?.rationaleAuditStatus).toBe('unaudited');
+  });
+
+  it('markRationaleAudit でステータスが更新される（FR-21）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    expect(db.markRationaleAudit('sess-1', 'valid')).toBe(true);
+    expect(db.listFlightReviews()[0]?.rationaleAuditStatus).toBe('valid');
+    expect(db.markRationaleAudit('sess-1', 'needs_fix')).toBe(true);
+    expect(db.listFlightReviews()[0]?.rationaleAuditStatus).toBe('needs_fix');
+  });
+
+  it('対象行が無ければ false を返し行を作らない（FR-22 の 404 根拠）', () => {
+    expect(db.markRationaleAudit('nope', 'valid')).toBe(false);
+    expect(db.listFlightReviews()).toHaveLength(0);
+  });
+
+  it('markRationaleAudit は outcome_source を変えず self 反映をブロックしない（FR-21）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    db.markRationaleAudit('sess-1', 'valid');
+
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcomeSource).toBe('machine');
+
+    // 監査後も self 自己評価は通常どおり反映される（manual 化していない）
+    db.applySelfAssessmentToFlightReview('sess-1', {
+      outcome: 'achieved',
+      unresolvedItems: [],
+      nextConcerns: [],
+    });
+    const after = db.listFlightReviews()[0];
+    expect(after?.outcome).toBe('achieved');
+    expect(after?.outcomeSource).toBe('self');
+    expect(after?.rationaleAuditStatus).toBe('valid');
+  });
+
+  it('不正なステータス値は CHECK 制約で拒否される', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    expect(() =>
+      rawRun(db, `UPDATE flight_reviews SET rationale_audit_status = 'great' WHERE session_id = 'sess-1'`),
+    ).toThrow();
+  });
+
+  it('manual 訂正と監査ステータスは互いを壊さない', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    db.updateFlightReviewManual('sess-1', { outcome: 'achieved' });
+    db.markRationaleAudit('sess-1', 'rejected');
+
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcome).toBe('achieved');
+    expect(review?.outcomeSource).toBe('manual');
+    expect(review?.rationaleAuditStatus).toBe('rejected');
+  });
+});

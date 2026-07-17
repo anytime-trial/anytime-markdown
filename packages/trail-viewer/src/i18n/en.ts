@@ -642,4 +642,18 @@ export const en: TrailI18n = {
   'flightReview.edit.saving': 'Saving…',
   'flightReview.edit.saveSuccess': 'Saved (marked as manual)',
   'flightReview.edit.saveError': 'Failed to save',
+  // flightReview rationale audit (Phase 6 S4)
+  'flightReview.column.audit': 'Audit',
+  'flightReview.audit.label': 'Rationale audit',
+  'flightReview.audit.save': 'Save audit',
+  'flightReview.audit.unaudited': 'Unaudited',
+  'flightReview.audit.valid': 'Valid',
+  'flightReview.audit.needsFix': 'Needs fix',
+  'flightReview.audit.rejected': 'Rejected',
+  'flightReview.rationale.title': 'Rationale',
+  'flightReview.rationale.confidenceFilter': 'Confidence',
+  'flightReview.rationale.filterAll': 'All',
+  'flightReview.rationale.empty': 'No rationale nodes for the commits in this session',
+  'flightReview.audit.saveSuccess': 'Audit saved',
+  'flightReview.audit.saveError': 'Failed to save audit',
 };

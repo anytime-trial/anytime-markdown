@@ -439,3 +439,76 @@ describe('/api/trail/flight-reviews/:sessionId PATCH (Phase 6 S3 manual)', () =>
     expect(res.status).toBe(400);
   });
 });
+
+describe('/api/trail/flight-reviews/:sessionId PATCH rationaleAuditStatus (Phase 6 S4)', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+  });
+
+  function seed(sessionId: string): void {
+    db.upsertFlightReviewFromMachine({
+      sessionId,
+      workspacePath: '/ws',
+      startedAt: null,
+      endedAt: '2026-07-17T10:00:00.000Z',
+      durationSeconds: null,
+      toolCallCount: 0,
+      toolFailureCount: 0,
+      reworkCount: 0,
+    });
+  }
+
+  function patchReview(sessionId: string, payload: unknown): Promise<Response> {
+    return fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async function getReview(sessionId: string): Promise<Record<string, unknown> | undefined> {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews?sessionId=${sessionId}`);
+    return ((await res.json()) as { flightReviews: Array<Record<string, unknown>> }).flightReviews[0];
+  }
+
+  it('rationaleAuditStatus 単独更新で outcome_source は変化しない（FR-21 / FR-22）', async () => {
+    seed('sess-r1');
+    const res = await patchReview('sess-r1', { rationaleAuditStatus: 'valid' });
+    expect(res.status).toBe(200);
+
+    const review = await getReview('sess-r1');
+    expect(review?.['rationaleAuditStatus']).toBe('valid');
+    expect(review?.['outcomeSource']).toBe('machine');
+  });
+
+  it('enum 外の rationaleAuditStatus は 400・不存在は 404（FR-22）', async () => {
+    seed('sess-r2');
+    expect((await patchReview('sess-r2', { rationaleAuditStatus: 'great' })).status).toBe(400);
+    expect((await patchReview('missing', { rationaleAuditStatus: 'valid' })).status).toBe(404);
+    const review = await getReview('sess-r2');
+    expect(review?.['rationaleAuditStatus']).toBe('unaudited');
+  });
+
+  it('outcome 系と併送すると両方適用される（FR-22）', async () => {
+    seed('sess-r3');
+    const res = await patchReview('sess-r3', { outcome: 'achieved', rationaleAuditStatus: 'needs_fix' });
+    expect(res.status).toBe(200);
+
+    const review = await getReview('sess-r3');
+    expect(review?.['outcome']).toBe('achieved');
+    expect(review?.['outcomeSource']).toBe('manual');
+    expect(review?.['rationaleAuditStatus']).toBe('needs_fix');
+  });
+});

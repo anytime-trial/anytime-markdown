@@ -6,6 +6,9 @@ export type FlightOutcome = 'achieved' | 'partial' | 'unachieved' | 'unknown';
 
 export type FlightOutcomeSource = 'machine' | 'self' | 'manual';
 
+/** Rationale Audit の監査ステータス（Phase 6 S4。日本語対応は要件書 §20.1 が正）。 */
+export type RationaleAuditStatus = 'unaudited' | 'valid' | 'needs_fix' | 'rejected';
+
 export interface FlightReview {
   id: number;
   sessionId: string;
@@ -29,6 +32,8 @@ export interface FlightReview {
   /** JSON 配列文字列 */
   tags: string;
   notes: string;
+  /** Rationale Audit の監査ステータス（Phase 6 S4） */
+  rationaleAuditStatus: RationaleAuditStatus;
   /** UTC ISO 8601 */
   createdAt: string;
   /** UTC ISO 8601 */
@@ -105,4 +110,16 @@ export interface FlightReviewManualPatch {
   outcome?: Exclude<FlightOutcome, 'unknown'>;
   tags?: string[];
   notes?: string;
+}
+
+/**
+ * コミットに紐付く決定根拠ノード（Phase 6 S4。memory.db の rationale_for エッジ由来・読み取り専用）。
+ * confidenceLabel は memory_edges の CHECK 3 値をそのまま通す（現運用の rationale は EXTRACTED 固定）。
+ */
+export interface RationaleNode {
+  commitHash: string;
+  summary: string;
+  confidenceLabel: 'EXTRACTED' | 'INFERRED' | 'AMBIGUOUS';
+  /** UTC ISO 8601（memory_edges.recorded_at 由来。API 契約は要件 §20.3 の createdAt） */
+  createdAt: string;
 }

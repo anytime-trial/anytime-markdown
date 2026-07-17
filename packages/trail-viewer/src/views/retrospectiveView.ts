@@ -14,6 +14,8 @@ import type {
   FlightReviewDto,
   FlightReviewManualPatchDto,
   FlightReviewSaveResult,
+  RationaleAuditStatusDto,
+  RationaleNodeDto,
   UserFeedbackDto,
 } from '../data/flightReviewStore';
 import type { TrailThemeTokens } from '../theme/designTokens';
@@ -23,6 +25,8 @@ export interface RetrospectiveViewProps {
   readonly t: (key: string) => string;
   readonly review: FlightReviewDto;
   readonly feedback: readonly UserFeedbackDto[];
+  /** コミット紐付き Rationale ノード（S4。memory.db 不在・0 件は空配列）。 */
+  readonly rationale: readonly RationaleNodeDto[];
   readonly saving: boolean;
   readonly onSave: (patch: FlightReviewManualPatchDto) => Promise<FlightReviewSaveResult>;
   /** 訂正フォームに触れたら true を親へ伝える（ポーリング反映の保留）。 */
@@ -33,6 +37,15 @@ export interface RetrospectiveViewProps {
 type ManualOutcome = Exclude<FlightReviewDto['outcome'], 'unknown'>;
 
 const MANUAL_OUTCOMES: readonly ManualOutcome[] = ['achieved', 'partial', 'unachieved'];
+
+const AUDIT_STATUSES: readonly RationaleAuditStatusDto[] = ['unaudited', 'valid', 'needs_fix', 'rejected'];
+
+const CONFIDENCE_LABELS: readonly RationaleNodeDto['confidenceLabel'][] = ['EXTRACTED', 'INFERRED', 'AMBIGUOUS'];
+
+/** i18n キーは camelCase 規約のため enum 値 needs_fix をキー用に変換する。 */
+function auditStatusKey(status: RationaleAuditStatusDto): string {
+  return status === 'needs_fix' ? 'needsFix' : status;
+}
 
 interface LessonCandidateDto {
   readonly kind: string;
@@ -86,16 +99,28 @@ export function mountRetrospectiveView(
   let formOutcome: ManualOutcome | '' = props.review.outcome === 'unknown' ? '' : props.review.outcome;
   let formTags = parseJsonArray<string>(props.review.tags, 'tags').join(', ');
   let formNotes = props.review.notes;
+  let formAuditStatus: RationaleAuditStatusDto = props.review.rationaleAuditStatus;
+  let rationaleFilter: RationaleNodeDto['confidenceLabel'] | '' = '';
   let feedbackMessage: { kind: 'success' | 'error'; text: string } | null = null;
-  let touched = false;
+  let auditMessage: { kind: 'success' | 'error'; text: string } | null = null;
+  // 編集保留ラッチは手動訂正フォームと監査で分離する — 片方の保存がもう片方の
+  // 未保存編集のポーリング保留を解除しないため（cross-review 指摘）
+  let manualTouched = false;
+  let auditTouched = false;
 
   const root = document.createElement('div');
   root.dataset['amRetroRoot'] = '';
   container.appendChild(root);
 
-  function markTouched(): void {
-    if (touched) return;
-    touched = true;
+  function markManualTouched(): void {
+    if (manualTouched) return;
+    manualTouched = true;
+    props.onEditingChange(true);
+  }
+
+  function markAuditTouched(): void {
+    if (auditTouched) return;
+    auditTouched = true;
     props.onEditingChange(true);
   }
 
@@ -107,11 +132,71 @@ export function mountRetrospectiveView(
     };
     const result = await props.onSave(patch);
     if (destroyed) return;
-    touched = false;
+    manualTouched = false;
+    // 監査 select に未保存の変更が残っていれば保留を張り直す（saveManual 成功は editing を解除するため）
+    if (result.ok && auditTouched) props.onEditingChange(true);
     feedbackMessage = result.ok
       ? { kind: 'success', text: props.t('flightReview.edit.saveSuccess') }
       : { kind: 'error', text: `${props.t('flightReview.edit.saveError')}: ${result.error ?? ''}` };
     render();
+  }
+
+  async function handleAuditSave(): Promise<void> {
+    const result = await props.onSave({ rationaleAuditStatus: formAuditStatus });
+    if (destroyed) return;
+    auditTouched = false;
+    // 手動訂正フォームに未保存の編集が残っていれば保留を張り直す
+    if (result.ok && manualTouched) props.onEditingChange(true);
+    auditMessage = result.ok
+      ? { kind: 'success', text: props.t('flightReview.audit.saveSuccess') }
+      : { kind: 'error', text: `${props.t('flightReview.audit.saveError')}: ${result.error ?? ''}` };
+    render();
+  }
+
+  function renderRationaleSection(): string {
+    const { t, rationale } = props;
+    const filtered = rationaleFilter === '' ? rationale : rationale.filter((n) => n.confidenceLabel === rationaleFilter);
+    const list =
+      filtered.length === 0
+        ? `<p data-am-retro-empty>${escapeHtml(rationale.length === 0 ? t('flightReview.rationale.empty') : t('flightReview.detail.none'))}</p>`
+        : `<ul data-am-rationale-list>${filtered
+            .map(
+              (n) => `<li>
+                <code>${escapeHtml(n.commitHash.slice(0, 8))}</code>
+                <span data-am-confidence-badge data-confidence="${escapeHtml(n.confidenceLabel)}">${escapeHtml(n.confidenceLabel)}</span>
+                ${escapeHtml(n.summary)}
+              </li>`,
+            )
+            .join('')}</ul>`;
+    return `
+      <section data-am-retro-rationale>
+        <h4>${escapeHtml(t('flightReview.rationale.title'))}</h4>
+        <div data-am-rationale-controls>
+          <label>${escapeHtml(t('flightReview.rationale.confidenceFilter'))}
+            <select data-am-rationale-filter>
+              <option value="">${escapeHtml(t('flightReview.rationale.filterAll'))}</option>
+              ${CONFIDENCE_LABELS.map(
+                (label) => `<option value="${label}"${rationaleFilter === label ? ' selected' : ''}>${label}</option>`,
+              ).join('')}
+            </select>
+          </label>
+          <label>${escapeHtml(t('flightReview.audit.label'))}
+            <select data-am-audit-status>
+              ${AUDIT_STATUSES.map(
+                (status) =>
+                  `<option value="${status}"${formAuditStatus === status ? ' selected' : ''}>${escapeHtml(t(`flightReview.audit.${auditStatusKey(status)}`))}</option>`,
+              ).join('')}
+            </select>
+          </label>
+          <button type="button" data-am-audit-save ${props.saving ? 'disabled' : ''}>${escapeHtml(t('flightReview.audit.save'))}</button>
+        </div>
+        ${
+          auditMessage
+            ? `<p data-am-retro-feedback data-kind="${auditMessage.kind}" role="status">${escapeHtml(auditMessage.text)}</p>`
+            : ''
+        }
+        ${list}
+      </section>`;
   }
 
   function renderListSection(title: string, items: readonly string[]): string {
@@ -138,6 +223,7 @@ export function mountRetrospectiveView(
       <div data-am-retro-outcome>
         <span data-am-outcome-badge data-outcome="${review.outcome}">${escapeHtml(t(`flightReview.outcome.${review.outcome}`))}</span>
         <span data-am-source-badge data-source="${review.outcomeSource}">${escapeHtml(t(`flightReview.source.${review.outcomeSource}`))}</span>
+        <span data-am-audit-badge data-audit="${review.rationaleAuditStatus}">${escapeHtml(t(`flightReview.audit.${auditStatusKey(review.rationaleAuditStatus)}`))}</span>
       </div>
       <section>
         <h4>${escapeHtml(t('flightReview.detail.keyEvents'))}</h4>
@@ -159,6 +245,7 @@ export function mountRetrospectiveView(
         t('flightReview.detail.userFeedback'),
         feedback.map((f) => `${formatDateTime(f.occurredAt)} — ${f.promptExcerpt}`),
       )}
+      ${renderRationaleSection()}
       <section data-am-retro-edit>
         <h4>${escapeHtml(t('flightReview.edit.title'))}</h4>
         <label>
@@ -200,23 +287,34 @@ export function mountRetrospectiveView(
       outcomeSelect.value = formOutcome;
       outcomeSelect.addEventListener('change', () => {
         formOutcome = (outcomeSelect.value as ManualOutcome | '') ?? '';
-        markTouched();
+        markManualTouched();
       });
     }
     if (tagsInput) {
       tagsInput.value = formTags;
       tagsInput.addEventListener('input', () => {
         formTags = tagsInput.value;
-        markTouched();
+        markManualTouched();
       });
     }
     if (notesInput) {
       notesInput.value = formNotes;
       notesInput.addEventListener('input', () => {
         formNotes = notesInput.value;
-        markTouched();
+        markManualTouched();
       });
     }
+    const rationaleFilterSelect = root.querySelector<HTMLSelectElement>('[data-am-rationale-filter]');
+    rationaleFilterSelect?.addEventListener('change', () => {
+      rationaleFilter = (rationaleFilterSelect.value as RationaleNodeDto['confidenceLabel'] | '') ?? '';
+      render();
+    });
+    const auditSelect = root.querySelector<HTMLSelectElement>('[data-am-audit-status]');
+    auditSelect?.addEventListener('change', () => {
+      formAuditStatus = (auditSelect.value as RationaleAuditStatusDto) ?? 'unaudited';
+      markAuditTouched();
+    });
+    root.querySelector<HTMLButtonElement>('[data-am-audit-save]')?.addEventListener('click', () => void handleAuditSave());
     root.querySelector<HTMLButtonElement>('[data-am-retro-save]')?.addEventListener('click', () => void handleSave());
     root.querySelector<HTMLButtonElement>('[data-am-retro-close]')?.addEventListener('click', () => props.onClose());
   }
@@ -232,8 +330,12 @@ export function mountRetrospectiveView(
         formOutcome = next.review.outcome === 'unknown' ? '' : next.review.outcome;
         formTags = parseJsonArray<string>(next.review.tags, 'tags').join(', ');
         formNotes = next.review.notes;
+        formAuditStatus = next.review.rationaleAuditStatus;
+        rationaleFilter = '';
         feedbackMessage = null;
-        touched = false;
+        auditMessage = null;
+        manualTouched = false;
+        auditTouched = false;
       }
       render();
     },

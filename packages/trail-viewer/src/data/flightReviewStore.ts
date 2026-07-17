@@ -17,6 +17,17 @@ export type FlightReviewOutcome = 'achieved' | 'partial' | 'unachieved' | 'unkno
 
 export type FlightReviewOutcomeSource = 'machine' | 'self' | 'manual';
 
+/** Rationale Audit の監査ステータス（Phase 6 S4）。 */
+export type RationaleAuditStatusDto = 'unaudited' | 'valid' | 'needs_fix' | 'rejected';
+
+/** GET /api/memory/rationale の 1 行（コミット紐付き決定根拠ノード・読み取り専用）。 */
+export interface RationaleNodeDto {
+  readonly commitHash: string;
+  readonly summary: string;
+  readonly confidenceLabel: 'EXTRACTED' | 'INFERRED' | 'AMBIGUOUS';
+  readonly createdAt: string;
+}
+
 /** GET /api/trail/flight-reviews の 1 行（trail-core FlightReview のワイヤ形）。 */
 export interface FlightReviewDto {
   readonly id: number;
@@ -39,6 +50,7 @@ export interface FlightReviewDto {
   /** JSON 配列文字列 */
   readonly tags: string;
   readonly notes: string;
+  readonly rationaleAuditStatus: RationaleAuditStatusDto;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -64,6 +76,8 @@ export interface FlightReviewManualPatchDto {
   readonly outcome?: Exclude<FlightReviewOutcome, 'unknown'>;
   readonly tags?: readonly string[];
   readonly notes?: string;
+  /** Rationale Audit（S4）。サーバー側で outcome 系と分離適用され outcome_source を変えない。 */
+  readonly rationaleAuditStatus?: RationaleAuditStatusDto;
 }
 
 export interface FlightReviewSaveResult {
@@ -80,6 +94,8 @@ export interface FlightReviewViewState {
   readonly selectedSessionId: string | null;
   /** 選択セッションの user_feedback_entries（S2 データ。未取得・0 件は空配列）。 */
   readonly selectedFeedback: readonly UserFeedbackDto[];
+  /** 選択セッションのコミットに紐付く Rationale ノード（S4。未取得・0 件は空配列）。 */
+  readonly selectedRationale: readonly RationaleNodeDto[];
   readonly saving: boolean;
   /** 訂正フォーム編集中（ポーリング反映を保留する）。 */
   readonly editing: boolean;
@@ -129,6 +145,7 @@ export function createFlightReviewStore(
     filter: {},
     selectedSessionId: null,
     selectedFeedback: [],
+    selectedRationale: [],
     saving: false,
     editing: false,
   };
@@ -205,6 +222,19 @@ export function createFlightReviewStore(
     }
   }
 
+  async function fetchRationale(sessionId: string): Promise<readonly RationaleNodeDto[]> {
+    try {
+      const res = await request(`/api/memory/rationale?sessionId=${encodeURIComponent(sessionId)}`);
+      if (!res.ok) return [];
+      const json = (await res.json()) as { rationale?: RationaleNodeDto[] };
+      return json.rationale ?? [];
+    } catch (err) {
+      // memory.db 不在環境（web-app 埋め込み等）では日常的に失敗し得る。rationale のみ縮退
+      console.warn(`[flightReview] failed to list rationale for ${sessionId}: ${errorMessage(err)}`);
+      return [];
+    }
+  }
+
   if (enabled) {
     void refresh();
     pollTimer = setInterval(() => void refresh(), pollIntervalMs);
@@ -223,14 +253,14 @@ export function createFlightReviewStore(
     },
     async select(sessionId) {
       if (sessionId === null) {
-        setState({ selectedSessionId: null, selectedFeedback: [], editing: false });
+        setState({ selectedSessionId: null, selectedFeedback: [], selectedRationale: [], editing: false });
         return;
       }
       // 行切替は編集の離脱（editing ラッチを解消しポーリングを再開する）
-      setState({ selectedSessionId: sessionId, selectedFeedback: [], editing: false });
-      const feedback = await fetchFeedback(sessionId);
+      setState({ selectedSessionId: sessionId, selectedFeedback: [], selectedRationale: [], editing: false });
+      const [feedback, rationale] = await Promise.all([fetchFeedback(sessionId), fetchRationale(sessionId)]);
       if (disposed || state.selectedSessionId !== sessionId) return;
-      setState({ selectedFeedback: feedback });
+      setState({ selectedFeedback: feedback, selectedRationale: rationale });
     },
     setEditing(editing) {
       setState({ editing });

@@ -106,6 +106,26 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
 [data-am-retro-feedback] { margin: 8px 0 0; font-size: 12px; padding: 6px 8px; border-radius: 4px; }
 [data-am-retro-feedback][data-kind="success"] { background: ${c.successBg}; color: ${c.success}; }
 [data-am-retro-feedback][data-kind="error"] { background: ${c.errorBg}; color: ${c.error}; }
+[data-am-audit-badge], [data-am-confidence-badge] {
+  display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; border: 1px solid ${c.border};
+}
+[data-am-audit-badge][data-audit="unaudited"] { color: ${c.textSecondary}; background: ${c.sectionBg}; }
+[data-am-audit-badge][data-audit="valid"] { color: ${c.success}; background: ${c.successBg}; border-color: ${c.success}; }
+[data-am-audit-badge][data-audit="needs_fix"] { color: ${c.warning}; background: ${c.warningBg}; border-color: ${c.warning}; }
+[data-am-audit-badge][data-audit="rejected"] { color: ${c.error}; background: ${c.errorBg}; border-color: ${c.error}; }
+[data-am-confidence-badge] { color: ${c.textSecondary}; margin: 0 4px; }
+[data-am-rationale-controls] { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-bottom: 8px; }
+[data-am-rationale-controls] label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: ${c.textSecondary}; }
+[data-am-rationale-controls] select {
+  padding: 6px 8px; font-size: 13px; background: ${c.charcoal}; color: ${c.textPrimary};
+  border: 1px solid ${c.border}; border-radius: 4px;
+}
+[data-am-rationale-controls] button {
+  padding: 7px 14px; border-radius: 4px; font-size: 13px; cursor: pointer;
+  border: 1px solid ${c.border}; background: ${c.sectionBg}; color: ${c.textPrimary};
+}
+[data-am-rationale-list] { margin: 0; padding-left: 18px; font-size: 12px; }
+[data-am-rationale-list] code { font-family: ui-monospace, monospace; font-size: 11px; }
 `;
   doc.head.appendChild(style);
 }
@@ -261,6 +281,7 @@ export function mountFlightReviewPanel(
           <td><span data-am-source-badge data-source="${r.outcomeSource}">${escapeHtml(t(`flightReview.source.${r.outcomeSource}`))}</span></td>
           <td>${r.reworkCount}</td>
           <td>${r.toolFailureCount}</td>
+          <td><span data-am-audit-badge data-audit="${r.rationaleAuditStatus}">${escapeHtml(t(`flightReview.audit.${r.rationaleAuditStatus === 'needs_fix' ? 'needsFix' : r.rationaleAuditStatus}`))}</span></td>
           <td>${tags}</td>
         </tr>`;
       })
@@ -276,6 +297,7 @@ export function mountFlightReviewPanel(
             <th>${escapeHtml(t('flightReview.column.source'))}</th>
             <th>${escapeHtml(t('flightReview.column.rework'))}</th>
             <th>${escapeHtml(t('flightReview.column.toolFailures'))}</th>
+            <th>${escapeHtml(t('flightReview.column.audit'))}</th>
             <th>${escapeHtml(t('flightReview.column.tags'))}</th>
           </tr>
         </thead>
@@ -311,6 +333,7 @@ export function mountFlightReviewPanel(
       t: props.t,
       review: selected,
       feedback: state.selectedFeedback,
+      rationale: state.selectedRationale,
       saving: state.saving,
       onSave: (patch) => props.store.saveManual(selected.sessionId, patch),
       onEditingChange: (editing) => props.store.setEditing(editing),

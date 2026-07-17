@@ -650,4 +650,18 @@ export interface TrailI18n {
   'flightReview.edit.saving': string;
   'flightReview.edit.saveSuccess': string;
   'flightReview.edit.saveError': string;
+  // flightReview rationale audit (Phase 6 S4)
+  'flightReview.column.audit': string;
+  'flightReview.audit.label': string;
+  'flightReview.audit.save': string;
+  'flightReview.audit.unaudited': string;
+  'flightReview.audit.valid': string;
+  'flightReview.audit.needsFix': string;
+  'flightReview.audit.rejected': string;
+  'flightReview.rationale.title': string;
+  'flightReview.rationale.confidenceFilter': string;
+  'flightReview.rationale.filterAll': string;
+  'flightReview.rationale.empty': string;
+  'flightReview.audit.saveSuccess': string;
+  'flightReview.audit.saveError': string;
 }
