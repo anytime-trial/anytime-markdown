@@ -615,6 +615,42 @@ async function main() {
         );
         if (emergency.kind === 'deny') {
           process.stdout.write(JSON.stringify(toPreToolUse(emergency)));
+          process.exit(0);
+        }
+      }
+      // Phase 5 S4: Section Lock 検査（変更系ツールのみ・判定不能は fail-open で pass）。
+      // deny/warn イベントは emergency spool 経由で emergency_log へ届く（S2 と同機構）。
+      if (loaded !== null && typeof loaded.api.evaluateSectionLockGate === 'function') {
+        const verdict = loaded.api.evaluateSectionLockGate(
+          input && input.tool_name,
+          input && input.tool_input,
+          cwd,
+        );
+        if (
+          verdict &&
+          Array.isArray(verdict.spoolEvents) &&
+          verdict.spoolEvents.length > 0 &&
+          typeof loaded.api.appendEmergencySpool === 'function'
+        ) {
+          for (const ev of verdict.spoolEvents) {
+            loaded.api.appendEmergencySpool(
+              loaded.dir,
+              {
+                occurredAt: new Date().toISOString(),
+                event: ev.event,
+                reason: ev.reason,
+                actor: 'agent',
+                sessionId: (input && input.session_id) || null,
+                detailJson: ev.detailJson ?? null,
+              },
+              (msg) => warn(msg),
+            );
+          }
+        }
+        if (verdict && (verdict.kind === 'deny' || verdict.kind === 'warn')) {
+          process.stdout.write(
+            JSON.stringify(toPreToolUse({ kind: verdict.kind, reason: verdict.reason })),
+          );
         }
       }
     } catch (err) {
