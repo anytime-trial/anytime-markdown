@@ -70,6 +70,61 @@ describe('FileBackupManager — 巨大 DB と失敗時の世代保護', () => {
     expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(true);
   });
 
+  it('非圧縮世代でも interval 判定が効く（毎起動 2GB 再コピーしない）', () => {
+    const manager = new FileBackupManager(dbPath, 1, 1);
+    (manager as unknown as { maxGzipBytes: number }).maxGzipBytes = 1;
+    expect(manager.maybeRotate()).toBe(true);
+    const first = fs.statSync(`${dbPath}.bak.1`).mtimeMs;
+
+    // shouldBackup が .gz しか見ないと、非圧縮世代は「無い」扱いになり毎回作り直してしまう
+    const next = new FileBackupManager(dbPath, 1, 1);
+    (next as unknown as { maxGzipBytes: number }).maxGzipBytes = 1;
+    expect(next.maybeRotate()).toBe(false);
+    expect(fs.statSync(`${dbPath}.bak.1`).mtimeMs).toBe(first);
+  });
+
+  it('generations=2 で非圧縮世代が世代シフトされ、保持上限も守られる', () => {
+    const make = () => {
+      const m = new FileBackupManager(dbPath, 2, 0);
+      (m as unknown as { maxGzipBytes: number }).maxGzipBytes = 1;
+      return m;
+    };
+    fs.writeFileSync(dbPath, 'GEN-A');
+    make().maybeRotate();
+    fs.writeFileSync(dbPath, 'GEN-B');
+    make().maybeRotate();
+
+    // .gz しかシフトしないと GEN-A が世代 2 へ移らず握り潰される
+    expect(fs.readFileSync(`${dbPath}.bak.1`, 'utf8')).toBe('GEN-B');
+    expect(fs.readFileSync(`${dbPath}.bak.2`, 'utf8')).toBe('GEN-A');
+
+    fs.writeFileSync(dbPath, 'GEN-C');
+    make().maybeRotate();
+
+    expect(fs.readFileSync(`${dbPath}.bak.1`, 'utf8')).toBe('GEN-C');
+    expect(fs.readFileSync(`${dbPath}.bak.2`, 'utf8')).toBe('GEN-B');
+    // 保持上限を超えた世代が残り続けない（disk leak 防止）
+    expect(fs.existsSync(`${dbPath}.bak.3`)).toBe(false);
+  });
+
+  it('gzip 世代と非圧縮世代が混在しても同一系列としてシフトする', () => {
+    fs.writeFileSync(dbPath, 'SMALL-GEN');
+    const gzip = new FileBackupManager(dbPath, 2, 0);
+    gzip.maybeRotate();
+    expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(true);
+
+    fs.writeFileSync(dbPath, 'HUGE-GEN');
+    const huge = new FileBackupManager(dbPath, 2, 0);
+    (huge as unknown as { maxGzipBytes: number }).maxGzipBytes = 1;
+    huge.maybeRotate();
+
+    // 直前の gz 世代は形式を保ったまま世代 2 へ退避される
+    expect(fs.existsSync(`${dbPath}.bak.2.gz`)).toBe(true);
+    expect(fs.readFileSync(`${dbPath}.bak.1`, 'utf8')).toBe('HUGE-GEN');
+    // 同一世代に 2 形式が同居しない（どちらが最新か判別不能になるため）
+    expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(false);
+  });
+
   it('非圧縮世代も listBackups に現れ、復元できる（見えない世代を作らない）', () => {
     const manager = new FileBackupManager(dbPath, 1, 0);
     (manager as unknown as { maxGzipBytes: number }).maxGzipBytes = 1;

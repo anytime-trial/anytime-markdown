@@ -108,8 +108,10 @@ export class FileBackupManager {
   private shouldBackup(): boolean {
     if (this.backupGenerations <= 0) return false;
     if (this.backupIntervalDays === 0) return true;
-    const bak1 = this.backupPath(1);
-    if (!fs.existsSync(bak1)) return true;
+    // gzip 世代（.bak.1.gz）だけを見ると、2 GiB 超で作られた非圧縮世代（.bak.1）が
+    // 「無い」扱いになり、巨大 DB ほど起動のたびに再コピーしてしまう（cross-review 合意指摘）。
+    const bak1 = this.existingBackupPath(1);
+    if (bak1 === null) return true;
     const { mtime } = fs.statSync(bak1);
     const daysSince = (Date.now() - mtime.getTime()) / (1000 * 60 * 60 * 24);
     return daysSince >= this.backupIntervalDays;
@@ -137,18 +139,13 @@ export class FileBackupManager {
       throw err;
     }
 
-    const oldest = this.backupPath(this.backupGenerations);
-    if (fs.existsSync(oldest)) {
-      fs.unlinkSync(oldest);
-    }
+    // 削除・シフトは gzip / 非圧縮の**両形式を同じ世代系列**として扱う。片方だけを見ると、
+    // 巨大 DB の非圧縮世代がシフトから漏れて内容が固着し、保持上限外にも残る（cross-review 合意指摘）。
+    this.removeGeneration(this.backupGenerations);
     for (let gen = this.backupGenerations - 1; gen >= 1; gen -= 1) {
-      const src = this.backupPath(gen);
-      const dst = this.backupPath(gen + 1);
-      if (fs.existsSync(src)) {
-        fs.renameSync(src, dst);
-      }
+      this.shiftGeneration(gen, gen + 1);
     }
-    // 非圧縮フォールバック時は .gz を名乗らせない（復元側が中身で判別できるように）
+    // 非圧縮フォールバック時は .gz を名乗らせない（復元側が形式を取り違えないように）
     const dest = produced === 'gzip' ? this.backupPath(1) : this.uncompressedBackupPath(1);
     fs.renameSync(tmp, dest);
     return true;
@@ -243,6 +240,25 @@ export class FileBackupManager {
     // 非圧縮世代は Buffer を経由せずコピーで戻す（2 GiB 超でも復元できる）
     fs.copyFileSync(plainPath, this.dbPath);
     return { restoredFrom: plainPath, safetyCopy };
+  }
+
+  /** 指定世代を形式によらず削除する（保持上限を超えた世代の残留を防ぐ）。 */
+  private removeGeneration(generation: number): void {
+    for (const p of [this.backupPath(generation), this.uncompressedBackupPath(generation)]) {
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    }
+  }
+
+  /**
+   * 世代 `from` を `to` へ移動する。形式（gzip / 非圧縮）は保ったまま移す。
+   * 移動先に別形式が残っていると「どちらが世代 to か」判別できなくなるため先に消す。
+   */
+  private shiftGeneration(from: number, to: number): void {
+    const src = this.existingBackupPath(from);
+    if (src === null) return;
+    this.removeGeneration(to);
+    const dst = src.endsWith('.gz') ? this.backupPath(to) : this.uncompressedBackupPath(to);
+    fs.renameSync(src, dst);
   }
 
   /** 実在する世代ファイル（gzip 優先、無ければ非圧縮）。どちらも無ければ null。 */
