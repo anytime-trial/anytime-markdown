@@ -77,6 +77,12 @@ jobs:
           printf '%s' "${{ secrets.S3_DOCS_BUCKET }}" | npx wrangler secret put S3_DOCS_BUCKET 2>/dev/null
           printf '%s' "${{ secrets.OPENALEX_MAILTO }}" | npx wrangler secret put OPENALEX_MAILTO 2>/dev/null
           printf '%s' "${{ vars.WEB_IMPORT_ALLOW_ORIGIN }}" | npx wrangler secret put WEB_IMPORT_ALLOW_ORIGIN 2>/dev/null
+          # create_ticket 用（未設定ならスキップ = ツール未登録のままデプロイ成功。server 側は空文字も未設定扱い）
+          if [ -n "${{ secrets.TICKETS_GITHUB_TOKEN }}" ] && [ -n "${{ vars.TICKETS_REPO }}" ]; then
+            printf '%s' "${{ secrets.TICKETS_GITHUB_TOKEN }}" | npx wrangler secret put TICKETS_GITHUB_TOKEN 2>/dev/null
+            printf '%s' "${{ vars.TICKETS_REPO }}" | npx wrangler secret put TICKETS_REPO 2>/dev/null
+            printf '%s' "${{ vars.TICKETS_BRANCH || 'main' }}" | npx wrangler secret put TICKETS_BRANCH 2>/dev/null
+          fi
 
       - name: Deploy to Cloudflare Workers
         run: npx wrangler deploy

@@ -84,7 +84,8 @@ app.post('/mcp', async (c) => {
     ? {
         token: c.env.TICKETS_GITHUB_TOKEN,
         repo: c.env.TICKETS_REPO,
-        branch: c.env.TICKETS_BRANCH ?? 'main',
+        // 空文字 secret（CI の変数未設定など）も既定 main へ倒すため ?? でなく || を使う
+        branch: c.env.TICKETS_BRANCH || 'main',
       }
     : undefined;
   const server = createRemoteMcpServer(s3Client, config, rankingsConfig, ticketsConfig);
