@@ -5,8 +5,10 @@ import { useTranslations } from "next-intl";
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
+  TICKET_WORKSPACES,
   type TicketPriority,
   type TicketStatus,
+  type TicketWorkspace,
 } from "@anytime-markdown/tickets-core";
 
 import { injectTicketsStyles } from "./injectStyles";
@@ -31,10 +33,10 @@ interface Filters {
   status: TicketStatus | "";
   priority: TicketPriority | "";
   assignee: string;
-  label: string;
+  workspace: TicketWorkspace | "";
 }
 
-const EMPTY_FILTERS: Filters = { status: "", priority: "", assignee: "", label: "" };
+const EMPTY_FILTERS: Filters = { status: "", priority: "", assignee: "", workspace: "" };
 
 function applyFilters(tickets: TicketItem[], filters: Filters, showArchive: boolean): TicketItem[] {
   return tickets.filter((ticket) => {
@@ -50,7 +52,7 @@ function applyFilters(tickets: TicketItem[], filters: Filters, showArchive: bool
     if (filters.assignee !== "" && ticket.frontmatter.assignee !== filters.assignee) {
       return false;
     }
-    if (filters.label !== "" && !(ticket.frontmatter.labels ?? []).includes(filters.label)) {
+    if (filters.workspace !== "" && ticket.frontmatter.workspace !== filters.workspace) {
       return false;
     }
     return true;
@@ -77,10 +79,6 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
   );
   const assignees = useMemo(
     () => [...new Set(allTickets.map((item) => item.frontmatter.assignee).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b)),
-    [allTickets],
-  );
-  const labels = useMemo(
-    () => [...new Set(allTickets.flatMap((item) => item.frontmatter.labels ?? []))].sort((a, b) => a.localeCompare(b)),
     [allTickets],
   );
   const selected = selectedPath ? (allTickets.find((item) => item.path === selectedPath) ?? null) : null;
@@ -185,11 +183,11 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
             (value) => setFilters({ ...filters, assignee: value }),
           )}
           {filterSelect(
-            "tk-filter-label",
-            t("filters.label"),
-            filters.label,
-            labels.map((value) => ({ value, label: value })),
-            (value) => setFilters({ ...filters, label: value }),
+            "tk-filter-workspace",
+            t("filters.workspace"),
+            filters.workspace,
+            TICKET_WORKSPACES.map((value) => ({ value, label: t(`workspace.${value}`) })),
+            (value) => setFilters({ ...filters, workspace: value as Filters["workspace"] }),
           )}
         </div>
       )}

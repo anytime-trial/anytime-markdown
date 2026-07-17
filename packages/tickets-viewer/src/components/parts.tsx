@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { QUESTION_LABEL, countSubtasks, remainingHours } from "@anytime-markdown/tickets-core";
+import { countSubtasks } from "@anytime-markdown/tickets-core";
 import type { TicketPriority } from "@anytime-markdown/tickets-core";
 
 import type { TicketItem } from "../ticketsClient";
@@ -11,42 +11,36 @@ export function PriorityBadge({ priority }: Readonly<{ priority: TicketPriority 
   return <span className={`tk-badge tk-badge--${priority}`}>{t(`priority.${priority}`)}</span>;
 }
 
-export function LabelChips({ labels }: Readonly<{ labels?: string[] }>) {
-  if (!labels || labels.length === 0) {
+export function WorkspaceChip({ ticket }: Readonly<{ ticket: TicketItem }>) {
+  const t = useTranslations("tickets");
+  const { workspace } = ticket.frontmatter;
+  if (workspace === undefined) {
     return null;
   }
   return (
-    <>
-      {labels.map((label) => (
-        <span key={label} className={label === QUESTION_LABEL ? "tk-chip tk-chip--question" : "tk-chip"}>
-          {label}
-        </span>
-      ))}
-    </>
+    <span className="tk-chip" aria-label={t("field.workspace")}>
+      {t(`workspace.${workspace}`)}
+    </span>
   );
 }
 
-export function TicketProgress({ ticket }: Readonly<{ ticket: TicketItem }>) {
+/** 工数（実施/予定・分）とサブタスク完了数。いずれも未設定なら何も描画しない。 */
+export function TicketEffort({ ticket }: Readonly<{ ticket: TicketItem }>) {
   const t = useTranslations("tickets");
   const subtasks = countSubtasks(ticket.body);
-  const progress = ticket.frontmatter.progress ?? 0;
-  const remaining = remainingHours(ticket.frontmatter.estimate, ticket.frontmatter.progress);
+  const { estimate, actual } = ticket.frontmatter;
+  const hasEffort = estimate !== undefined || actual !== undefined;
+  const effortLabel = estimate === undefined
+    ? t("common.minutes", { minutes: actual ?? 0 })
+    : t("common.effortValue", { actual: actual ?? 0, estimate });
   return (
-    <span className="tk-progress">
-      {ticket.frontmatter.progress !== undefined && (
-        <>
-          <span className="tk-progress-track" aria-hidden="true">
-            <span className="tk-progress-fill" style={{ width: `${progress}%` }} />
-          </span>
-          <span>{progress}%</span>
-        </>
-      )}
+    <span className="tk-effort">
+      {hasEffort && <span aria-label={t("field.effort")}>{effortLabel}</span>}
       {subtasks.total > 0 && (
         <span aria-label={t("field.subtasks")}>
           {subtasks.done}/{subtasks.total}
         </span>
       )}
-      {remaining !== null && <span>{t("common.hours", { hours: remaining })}</span>}
     </span>
   );
 }
