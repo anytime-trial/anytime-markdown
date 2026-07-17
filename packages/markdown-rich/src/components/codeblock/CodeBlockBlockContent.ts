@@ -42,12 +42,13 @@ import type { EmbedBaseline } from "@anytime-markdown/markdown-viewer";
 export const CODE_BLOCK_EDIT_INTENT_EVENT = "md-codeblock-edit-intent";
 
 /** codeBlock の language 属性からブロック種別を判定する（MermaidNodeView と同一ロジック）。 */
-export type CodeBlockKind = "math" | "html" | "markdown" | "diagram" | "embed" | "regular";
+export type CodeBlockKind = "math" | "html" | "markdown" | "diagram" | "screenmock" | "embed" | "regular";
 export function classifyCodeBlock(language: unknown): CodeBlockKind {
   if (language === "math") return "math";
   if (language === "html") return "html";
   if (language === "markdown") return "markdown";
   if (language === "mermaid" || language === "plantuml" || language === "anytime-thinking-model" || language === "anytime-chart") return "diagram";
+  if (language === "screenmock") return "screenmock";
   if (language === "embed" || (typeof language === "string" && language.startsWith("embed "))) return "embed";
   return "regular";
 }
@@ -261,7 +262,7 @@ export function createCodeBlockNodeView(
     disposeEmbed();
     previewCancel = renderCodeBlockPreview(
       previewInner, lang, codeText,
-      { isDark, fontSize },
+      { isDark, fontSize, t: resolvedT },
       requestRerender,
     );
   }
