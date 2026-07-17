@@ -75,7 +75,7 @@ title: Home
 
     const shadow = root.shadowRoot;
     expect(shadow).not.toBeNull();
-    expect(shadow!.querySelector(".sm-screen")).not.toBeNull();
+    expect(shadow!.querySelector(".am-sm-wrap")).not.toBeNull();
 
     const button = shadow!.querySelector("button") as HTMLButtonElement;
     button.click();
@@ -137,7 +137,7 @@ title: Home
 
     const button = root.shadowRoot!.querySelector(".sm-card button") as HTMLButtonElement;
     button.click();
-    const screen = root.shadowRoot!.querySelector(".sm-screen") as HTMLElement;
+    const screen = root.shadowRoot!.querySelector(".am-sm-wrap") as HTMLElement;
     screen.click();
 
     expect(changes).toEqual(["0/0", null]);

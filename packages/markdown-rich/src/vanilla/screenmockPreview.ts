@@ -202,8 +202,9 @@ export const SCREENMOCK_STYLE = `
 *{box-sizing:border-box;}
 html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--sm-text);background:var(--sm-bg);}
 body{padding:var(--sm-gap);}
-.sm-screen{display:none;min-height:320px;background:var(--sm-paper);border:var(--sm-border);border-radius:var(--sm-radius);overflow:hidden;}
-.sm-screen:target{display:block;}
+.am-sm-wrap{display:none;min-height:320px;background:var(--sm-paper);border:var(--sm-border);border-radius:var(--sm-radius);overflow:hidden;}
+.am-sm-wrap:target{display:block;}
+.am-sm-wrap .sm-screen{border:0;border-radius:0;}
 .sm-header,.sm-footer{padding:12px 16px;border-color:var(--am-color-divider,#d0d7de);background:color-mix(in srgb,var(--sm-bg) 72%,var(--sm-paper));}
 .sm-header{border-bottom:var(--sm-border);font-weight:600;}
 .sm-footer{border-top:var(--sm-border);color:var(--sm-muted);font-size:0.875rem;}
@@ -237,11 +238,11 @@ export function buildScreenmockSrcdoc(
     ? options.initialScreenId
     : screens[0]?.id;
   const initialSelector = initialId
-    ? `body:not(:has(.sm-screen:target)) #${escapeCssIdentifier(initialId)}{display:block;}`
+    ? `body:not(:has(.am-sm-wrap:target)) #${escapeCssIdentifier(initialId)}{display:block;}`
     : "";
   const body = screens.length
     ? screens
-        .map((screen) => `<section class="sm-screen" id="${escapeHtml(screen.id)}">${sanitizeScreenmockHtml(screen.html)}</section>`)
+        .map((screen) => `<section class="am-sm-wrap" id="${escapeHtml(screen.id)}">${sanitizeScreenmockHtml(screen.html)}</section>`)
         .join("\n")
     : `<div class="sm-empty">${escapeHtml(options.emptyHint ?? "Add screenmock HTML here.")}</div>`;
 
