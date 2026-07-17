@@ -30,6 +30,7 @@
     "split": "Split",
     "preview": "Preview",
     "screenmock": "Screen Mock",
+    "screenmockDesignMode": "Design edit",
     "screenmockEmptyHint": "Add screens with frontmatter and HTML.",
     "screenmockTabsLabel": "Screens",
     "source": "Source",

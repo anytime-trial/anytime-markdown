@@ -173,7 +173,7 @@ function buildRootStyle(themeVars: Record<string, string> | undefined): string {
     .join("");
 }
 
-function collectThemeVars(host: Element | null): Record<string, string> {
+export function collectScreenmockThemeVars(host: Element | null): Record<string, string> {
   if (!host || typeof getComputedStyle === "undefined") return {};
   const style = getComputedStyle(host);
   const vars: Record<string, string> = {};
@@ -184,7 +184,7 @@ function collectThemeVars(host: Element | null): Record<string, string> {
   return vars;
 }
 
-const SCREENMOCK_STYLE = `
+export const SCREENMOCK_STYLE = `
 :root{
   --sm-gap:12px;
   --sm-radius:8px;
@@ -290,7 +290,7 @@ export function createScreenmockPreview(
     iframe.srcdoc = buildScreenmockSrcdoc(screens, {
       ...options,
       initialScreenId: activeId,
-      themeVars: options.themeVars ?? collectThemeVars(root),
+      themeVars: options.themeVars ?? collectScreenmockThemeVars(root),
     });
     if (activeId) setActiveTab(tabs, activeId);
   };
