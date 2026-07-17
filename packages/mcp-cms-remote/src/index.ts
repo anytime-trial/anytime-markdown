@@ -33,6 +33,10 @@ interface Env {
   PAPER_S3_BUCKET?: string;
   OPENALEX_MAILTO: string;
   WEB_IMPORT_ALLOW_ORIGIN?: string;
+  // Ticket registration (create_ticket は 3 点が揃った場合のみ登録。TICKETS_BRANCH 省略時 main)
+  TICKETS_GITHUB_TOKEN?: string;
+  TICKETS_REPO?: string;
+  TICKETS_BRANCH?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -76,7 +80,14 @@ app.post('/mcp', async (c) => {
     patentsPrefix: paperConfig.rankingS3Prefix,
     mailto: c.env.OPENALEX_MAILTO,
   };
-  const server = createRemoteMcpServer(s3Client, config, rankingsConfig);
+  const ticketsConfig = c.env.TICKETS_GITHUB_TOKEN && c.env.TICKETS_REPO
+    ? {
+        token: c.env.TICKETS_GITHUB_TOKEN,
+        repo: c.env.TICKETS_REPO,
+        branch: c.env.TICKETS_BRANCH ?? 'main',
+      }
+    : undefined;
+  const server = createRemoteMcpServer(s3Client, config, rankingsConfig, ticketsConfig);
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
