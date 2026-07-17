@@ -571,6 +571,7 @@
     "embedPreviewEmpty": "Enter a URL to see a preview.",
     "slashMermaid": "Mermaid Diagram",
     "slashPlantUml": "PlantUML Diagram",
+    "slashScreenmock": "Screen Mock",
     "slashThinkFishbone": "Fishbone (Cause & Effect)",
     "slashThinkCausalLoop": "Causal Loop Diagram",
     "slashThinkPyramid": "Abstraction Pyramid",

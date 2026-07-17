@@ -571,6 +571,7 @@
     "embedPreviewEmpty": "URL を入力するとプレビューが表示されます。",
     "slashMermaid": "Mermaid 図",
     "slashPlantUml": "PlantUML 図",
+    "slashScreenmock": "画面モック",
     "slashThinkFishbone": "特性要因図（フィッシュボーン）",
     "slashThinkCausalLoop": "因果ループ図（CLD）",
     "slashThinkPyramid": "抽象度ピラミッド",
