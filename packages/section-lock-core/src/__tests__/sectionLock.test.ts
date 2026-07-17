@@ -205,4 +205,30 @@ describe('evaluateLockChange', () => {
     expect(result.violations).toEqual([]);
     expect(result.tampers).toEqual([entry]);
   });
+
+  it('tamper 状態でもロックエントリの削除・改変は violation（自己保護は無条件）', () => {
+    // cross-review 合意 #3: 逸脱済み文書でロック情報を消せる抜け道を塞ぐ
+    const tampered = lockedDoc.replace('設計本文。', 'ロック外経路の改変。');
+    const removed = removeLockedSection(tampered, entry.path, entry.occurrence);
+    expect(evaluateLockChange(tampered, removed).violations).toEqual([
+      { kind: 'lock_entry_removed', entry },
+    ]);
+    const altered = tampered.replace(entry.hash, 'fnv1a64:0000000000000000');
+    expect(evaluateLockChange(tampered, altered).violations).toEqual([
+      { kind: 'lock_entry_altered', entry },
+    ]);
+  });
+});
+
+describe('空見出しの列挙（cross-review 合意 #6）', () => {
+  it('"##" のみの空見出しも listSections に含まれ、後続のインデックスがずれない', () => {
+    const doc = '# T\n\n##\n\n## 設計\n\n本文。\n';
+    const sections = listSections(doc);
+    expect(sections.map((s) => `${s.path}#${s.occurrence}`)).toEqual([
+      'T#1',
+      'T > #1',
+      'T > 設計#1',
+    ]);
+    expect(sections[2]?.headingLine).toBe(4);
+  });
 });

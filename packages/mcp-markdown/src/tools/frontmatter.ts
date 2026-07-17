@@ -54,6 +54,17 @@ export async function updateFrontmatter(
   rootDir: string,
 ): Promise<UpdateFrontmatterSummary> {
   validateFileExtension(input.path, ALLOWED_EXTENSIONS);
+  // lockedSections は人間（エディタ）だけが管理する。削除・改変は assertNoLockViolation でも
+  // 検出されるが、ロックが無いファイルへの偽造追加はエントリ走査では捕まらないため、
+  // キー単位で一律拒否する（cross-review 補足指摘の採用。PreToolUse ゲートと同じ方針）。
+  if (
+    Object.hasOwn(input.set ?? {}, 'lockedSections') ||
+    (input.removeKeys ?? []).includes('lockedSections')
+  ) {
+    throw new Error(
+      `Section lock violation in ${input.path}: the lockedSections frontmatter is managed by humans via the Anytime Markdown editor and cannot be changed through update_frontmatter.`,
+    );
+  }
   const filePath = resolveSecurePath(rootDir, input.path);
   const content = await fs.readFile(filePath, 'utf-8');
   const parsed = matter(content);

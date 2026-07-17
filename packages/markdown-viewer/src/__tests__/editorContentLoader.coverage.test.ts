@@ -20,11 +20,21 @@ jest.mock("../utils/frontmatterHelpers", () => ({
 
 function createMockEditor(overrides?: Record<string, unknown>) {
   const nodes: Array<{ type: string; attrs: Record<string, unknown>; nodeSize: number; pos: number }> = [];
+  // setContentBypassingSectionLock は chain().setMeta().setContent().run() を使う。
+  // 既存アサーション（mockSetContent）を保つため chain 経路を同じスパイへルーティングする。
+  const chainApi: Record<string, unknown> = {};
+  chainApi.setMeta = jest.fn(() => chainApi);
+  chainApi.setContent = jest.fn((...args: unknown[]) => {
+    mockSetContent(...args.filter((a) => a !== undefined));
+    return chainApi;
+  });
+  chainApi.run = jest.fn(() => true);
   return {
     commands: {
       setContent: mockSetContent,
       initComments: mockInitComments,
     },
+    chain: jest.fn(() => chainApi),
     state: {
       doc: {
         descendants: jest.fn((cb: (node: unknown, pos: number) => void) => {

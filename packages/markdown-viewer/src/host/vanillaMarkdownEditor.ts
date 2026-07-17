@@ -56,6 +56,7 @@ import {
   computeSectionLockState,
   createSectionLockPlugin,
   ensureSectionLockStyles,
+  setContentBypassingSectionLock,
   type SectionLockUiEntry,
 } from "../extensions/sectionLockPlugin";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
@@ -146,9 +147,10 @@ function insertMarkdownAtCursor(editor: Editor, markdown: string): void {
   const processed = preserveBlankLines(sanitizeMarkdown(markdown));
   const savedDoc = editor.state.doc.toJSON();
   const savedFrom = editor.state.selection.from;
-  editor.commands.setContent(processed);
+  // パース退避 / 復元はロック検査の対象外（meta 付き。cross-review 合意 #1）
+  setContentBypassingSectionLock(editor, processed);
   const parsedFragment = editor.state.doc.content;
-  editor.commands.setContent(savedDoc);
+  setContentBypassingSectionLock(editor, savedDoc);
   const insertPos = Math.min(savedFrom, editor.state.doc.content.size);
   const { tr } = editor.state;
   tr.insert(insertPos, parsedFragment);

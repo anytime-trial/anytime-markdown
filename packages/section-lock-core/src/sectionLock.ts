@@ -243,9 +243,11 @@ export function listSections(text: string): SectionInfo[] {
       }
     }
     if (fence) continue;
-    const headingMatch = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
+    // 空見出し（"##" のみ）も列挙する。doc 側（ProseMirror heading ノード連番）との
+    // インデックス空間を一致させるため（cross-review 合意 #6）。
+    const headingMatch = /^(#{1,6})(?:\s+(.*?))?\s*$/.exec(line);
     if (!headingMatch) continue;
-    const text2 = headingMatch[2].replace(/\s+#+$/, '');
+    const text2 = (headingMatch[2] ?? '').replace(/\s+#+$/, '');
     headings.push({ level: headingMatch[1].length, text: text2, line: i });
   }
 
@@ -329,11 +331,8 @@ export function evaluateLockChange(beforeText: string, afterText: string): LockE
   const tampers: LockedSectionEntry[] = [];
   for (const entry of beforeEntries) {
     const key = sectionKey(entry.path, entry.occurrence);
-    const beforeSection = beforeSections.get(key);
-    if (!beforeSection || computeSectionHash(beforeText, beforeSection) !== entry.hash) {
-      tampers.push(entry);
-      continue;
-    }
+    // エントリの自己保護（削除・改変の deny）は tamper 状態に関係なく無条件で検査する。
+    // tamper 判定を先にすると「逸脱済み文書ならロック情報を消せる」抜け道になる（cross-review 合意 #3）。
     const afterEntry = afterEntries.find(
       (e) => e.path === entry.path && e.occurrence === entry.occurrence,
     );
@@ -343,6 +342,11 @@ export function evaluateLockChange(beforeText: string, afterText: string): LockE
     }
     if (!sameEntry(afterEntry, entry)) {
       violations.push({ kind: 'lock_entry_altered', entry });
+      continue;
+    }
+    const beforeSection = beforeSections.get(key);
+    if (!beforeSection || computeSectionHash(beforeText, beforeSection) !== entry.hash) {
+      tampers.push(entry); // 既にロック外経路で逸脱済み → 本文変更は warn 扱い（deny しない）
       continue;
     }
     const afterSection = afterSections.get(key);

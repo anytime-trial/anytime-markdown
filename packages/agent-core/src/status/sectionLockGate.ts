@@ -150,9 +150,26 @@ function simulateEdit(before: string, input: Record<string, unknown>): string | 
   const newString = asString(input['new_string']);
   if (oldString === null || newString === null || oldString === '') return null;
   if (!before.includes(oldString)) return null; // ツール自体が失敗する → pass
+  // 置換関数形式でリテラル置換にする。文字列を直接渡すと $$ / $1 等の特殊置換が
+  // 解釈され、実 Edit ツール（リテラル）とシミュレート結果が乖離する（cross-review 合意 #5）。
   return input['replace_all'] === true
-    ? before.replaceAll(oldString, newString)
-    : before.replace(oldString, newString);
+    ? before.replaceAll(oldString, () => newString)
+    : before.replace(oldString, () => newString);
+}
+
+/** MultiEdit の edits 配列を順次適用して after を合成する（cross-review 合意 #2）。 */
+function simulateMultiEdit(before: string, input: Record<string, unknown>): string | null {
+  const edits = input['edits'];
+  if (!Array.isArray(edits) || edits.length === 0) return null;
+  let text = before;
+  for (const edit of edits) {
+    const record = asRecord(edit);
+    if (!record) return null;
+    const next = simulateEdit(text, record);
+    if (next === null) return null; // 適用不能 = ツール自体が失敗する → pass
+    text = next;
+  }
+  return text;
 }
 
 /** mcp-markdown update_section の after を合成する（正確な最終判定は第 2 層が担う） */
@@ -221,7 +238,8 @@ export function evaluateSectionLockGate(
 
     const rawPath =
       asString(input['file_path']) ?? asString(input['path']) ?? asString(input['relative_path']);
-    if (rawPath === null || !rawPath.endsWith('.md')) return PASS;
+    // mcp-markdown の許可拡張子（.md / .markdown）と揃える（cross-review 合意 #4）
+    if (rawPath === null || !/\.(md|markdown)$/i.test(rawPath)) return PASS;
     const filePath = resolveTargetPath(rawPath, cwd);
     const before = readBefore(filePath);
     if (before === null || !hasLockedSections(before)) return PASS;
@@ -251,6 +269,8 @@ export function evaluateSectionLockGate(
     let after: string | null = null;
     if (toolName === 'Edit') {
       after = simulateEdit(before, input);
+    } else if (toolName === 'MultiEdit') {
+      after = simulateMultiEdit(before, input);
     } else if (toolName === 'Write' || toolName === 'mcp__mcp-markdown__write_markdown') {
       after = asString(input['content']);
     } else if (toolName === 'mcp__mcp-markdown__update_section') {

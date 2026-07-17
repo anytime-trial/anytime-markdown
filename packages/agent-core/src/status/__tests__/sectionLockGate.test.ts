@@ -169,4 +169,47 @@ describe('evaluateSectionLockGate', () => {
     expect(evaluateSectionLockGate('Bash', { command: 'ls' }, dir).kind).toBe('pass');
     expect(evaluateSectionLockGate('Edit', null, dir).kind).toBe('pass');
   });
+
+  it('MultiEdit の edits がロック節に触れると deny・非ロック節のみは pass（合意 #2）', () => {
+    const deny = evaluateSectionLockGate(
+      'MultiEdit',
+      {
+        file_path: mdPath,
+        edits: [
+          { old_string: '運用本文。', new_string: '編集 1。' },
+          { old_string: '設計本文。', new_string: '改変。' },
+        ],
+      },
+      dir,
+    );
+    expect(deny.kind).toBe('deny');
+    const pass = evaluateSectionLockGate(
+      'MultiEdit',
+      { file_path: mdPath, edits: [{ old_string: '運用本文。', new_string: '編集 1。' }] },
+      dir,
+    );
+    expect(pass.kind).toBe('pass');
+  });
+
+  it('.markdown 拡張子も保護対象（合意 #4）', () => {
+    const markdownPath = join(dir, 'doc2.markdown');
+    writeFileSync(markdownPath, lockedDoc, 'utf8');
+    const verdict = evaluateSectionLockGate(
+      'Edit',
+      { file_path: markdownPath, old_string: '設計本文。', new_string: '改変。' },
+      dir,
+    );
+    expect(verdict.kind).toBe('deny');
+  });
+
+  it('new_string の $ 特殊置換パターンをリテラルに扱う（合意 #5）', () => {
+    // 非ロック節へ $$（数式デリミタ）を挿入 → リテラル置換なら violation なしで pass。
+    // String.replace の特殊置換が解釈されると after が実 Edit と乖離する。
+    const verdict = evaluateSectionLockGate(
+      'Edit',
+      { file_path: mdPath, old_string: '運用本文。', new_string: "$$E=mc^2$$ と $& と $' を含む。" },
+      dir,
+    );
+    expect(verdict.kind).toBe('pass');
+  });
 });

@@ -81,6 +81,13 @@ describe('変更系ツールのロック検査（第 2 層統合）', () => {
     ).resolves.toBeDefined();
   });
 
+  it('update_frontmatter はロックの無いファイルへの lockedSections 偽造追加も拒否する', async () => {
+    await fs.writeFile(path.join(rootDir, 'plain.md'), DOC, 'utf-8');
+    await expect(
+      updateFrontmatter({ path: 'plain.md', set: { lockedSections: [{ path: '偽造' }] } }, rootDir),
+    ).rejects.toThrow(/[Ss]ection lock/);
+  });
+
   it('write_markdown はロック節を壊す全文置換を拒否し、保持する置換と新規作成は許可する', async () => {
     await expect(writeMarkdown({ path: 'doc.md', content: DOC }, rootDir)).rejects.toThrow(
       /[Ss]ection lock/,

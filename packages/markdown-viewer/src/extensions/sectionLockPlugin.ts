@@ -12,6 +12,7 @@
  *   （locked / tampered）。見た目は注入スタイルシート側（inline style 禁止）。
  */
 
+import type { Editor } from "@anytime-markdown/markdown-core";
 import { Plugin, PluginKey } from "@anytime-markdown/markdown-pm/state";
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import { Decoration, DecorationSet } from "@anytime-markdown/markdown-pm/view";
@@ -27,6 +28,15 @@ export const sectionLockKey = new PluginKey("sectionLock");
 
 /** 状態更新（frontmatter 変更）後に装飾を再計算させる transaction meta。 */
 export const SECTION_LOCK_REFRESH_META = "sectionLock:refresh";
+
+/**
+ * ホスト起点のコンテンツ差し替え（VS Code 外部変更反映・Undo/Redo・Git revert・
+ * インポート / スニペットのパース退避と復元）を編集ブロックの対象外にする meta。
+ * これらは doc 全域 ReplaceStep のためロック範囲に常に交差し、meta 無しでは
+ * 黙って破棄されて表示と実ファイルが乖離する（cross-review 合意 #1）。
+ * ロック外経路の実変更は tamper 検知（不整合表示 + section_lock_tamper 記録）が受け持つ。
+ */
+export const SECTION_LOCK_ALLOW_META = "sectionLock:allowContentReplace";
 
 /** ロックエントリを doc の見出し出現順インデックスへ対応づけた UI 状態。 */
 export interface SectionLockUiEntry {
@@ -131,6 +141,7 @@ export function createSectionLockPlugin(getUiState: () => SectionLockUiEntry[]):
   return new Plugin({
     key: sectionLockKey,
     filterTransaction(tr, state) {
+      if (tr.getMeta(SECTION_LOCK_ALLOW_META) === true) return true;
       const ranges = resolveLockedRanges(state.doc, getUiState());
       return !touchesLockedRange(tr as never, ranges);
     },
@@ -151,6 +162,19 @@ export function createSectionLockPlugin(getUiState: () => SectionLockUiEntry[]):
       },
     },
   });
+}
+
+/**
+ * ホスト起点のコンテンツ差し替えをロック対象外 meta 付きで実行する共通ヘルパー。
+ * `editor.commands.setContent` の直接呼び出しはロック存在時に黙って破棄されるため、
+ * 外部変更反映・パース退避 / 復元の経路は必ずこちらを使う。
+ */
+export function setContentBypassingSectionLock(
+  editor: Editor,
+  content: Parameters<Editor["commands"]["setContent"]>[0],
+  options?: Parameters<Editor["commands"]["setContent"]>[1],
+): void {
+  editor.chain().setMeta(SECTION_LOCK_ALLOW_META, true).setContent(content, options).run();
 }
 
 const STYLE_ID = "am-section-lock-styles";

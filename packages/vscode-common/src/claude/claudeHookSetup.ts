@@ -647,10 +647,15 @@ async function main() {
             );
           }
         }
-        if (verdict && (verdict.kind === 'deny' || verdict.kind === 'warn')) {
+        if (verdict && verdict.kind === 'deny') {
           process.stdout.write(
-            JSON.stringify(toPreToolUse({ kind: verdict.kind, reason: verdict.reason })),
+            JSON.stringify(toPreToolUse({ kind: 'deny', reason: verdict.reason })),
           );
+        } else if (verdict && verdict.kind === 'warn') {
+          // warn（tamper）を toPreToolUse で返すと permissionDecision:'allow' が
+          // ツールを自動承認してしまう（cross-review 合意 #7）。stderr 通知 + spool 記録に留め、
+          // 権限判定は Claude Code の既定に委ねる。
+          warn(verdict.reason || 'section lock tamper detected');
         }
       }
     } catch (err) {

@@ -9,6 +9,7 @@ import {
   SECTION_LOCK_REFRESH_META,
   computeSectionLockState,
   createSectionLockPlugin,
+  setContentBypassingSectionLock,
   type SectionLockUiEntry,
 } from "../extensions/sectionLockPlugin";
 
@@ -112,6 +113,17 @@ describe("createSectionLockPlugin (実 Editor)", () => {
     const { editor } = buildEditor([{ ...LOCK_DESIGN[0], tampered: true }]);
     const tamperedEls = editor.view.dom.querySelectorAll('[data-am-section-lock="tampered"]');
     expect(tamperedEls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("ホスト起点の全文差し替え（allow-meta）はロック存在時も適用される（合意 #1）", () => {
+    const { editor } = buildEditor(LOCK_DESIGN);
+    // meta 無しの全文置換はブロックされる
+    editor.commands.setContent("<h1>差し替え</h1><p>新本文。</p>");
+    expect(textOf(editor)).toContain("設計");
+    // ヘルパー（meta 付き）は適用される（VS Code 外部変更反映・パース退避 / 復元の経路）
+    setContentBypassingSectionLock(editor, "<h1>差し替え</h1><p>新本文。</p>");
+    expect(textOf(editor)).toContain("新本文。");
+    expect(textOf(editor)).not.toContain("設計");
   });
 });
 

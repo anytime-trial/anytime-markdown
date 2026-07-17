@@ -13,6 +13,7 @@
 import type { Editor } from "@anytime-markdown/markdown-core";
 
 import { DEBOUNCE_MEDIUM } from "../constants/timing";
+import { setContentBypassingSectionLock } from "../extensions/sectionLockPlugin";
 import { extractHeadings, getEditorStorage, type HeadingItem } from "../types";
 import { parseFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
@@ -215,7 +216,11 @@ export function installVSCodeContentSync(
     handlers.setFrontmatter(frontmatter);
     const currentMd = getMarkdownFromEditorSafe(editor);
     if (body === currentMd) return;
-    editor.commands.setContent(preserveBlankLines(sanitizeMarkdown(body)), { emitUpdate: false });
+    // ホスト起点の外部変更反映はロック検査の対象外（meta 付き）。ロック外経路の実変更は
+    // tamper 検知（不整合表示 + 記録）が受け持つ（cross-review 合意 #1）。
+    setContentBypassingSectionLock(editor, preserveBlankLines(sanitizeMarkdown(body)), {
+      emitUpdate: false,
+    });
     handlers.onEditorApplied?.();
   };
   globalThis.addEventListener("vscode-set-content", handler);
