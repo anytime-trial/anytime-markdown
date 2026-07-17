@@ -54,12 +54,13 @@ function createChainEditor() {
 }
 
 describe("DEFAULT_SLASH_ITEMS", () => {
-  it("全コマンド分（38 件）が定義されている", () => {
+  it("全コマンド分（39 件）が定義されている", () => {
     expect(Array.isArray(DEFAULT_SLASH_ITEMS)).toBe(true);
     // 思考法ダイアグラムは6図種→総称1項目に集約したため 40→35。
     // チャート（anytime-chart）総称1項目を追加して 36。
     // Web 取り込みを追加して 38。
-    expect(DEFAULT_SLASH_ITEMS.length).toBe(38);
+    // 画面モック（screenmock）を追加して 39。
+    expect(DEFAULT_SLASH_ITEMS.length).toBe(39);
   });
 
   it("必須プロパティが揃い id が一意である", () => {
