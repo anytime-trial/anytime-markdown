@@ -678,3 +678,37 @@ export const CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES = [
   // Phase F flip: repo フィルタ索引を repo_name → repo_id へ移行する。
   `CREATE INDEX IF NOT EXISTS idx_cross_source_correlations_repo_id ON cross_source_correlations(repo_id)`,
 ];
+
+// Phase 5 S1 (Emergency Protocol): セーフポイント。Stop フック（セッション終了）と
+// 手動コマンドが記録し、Emergency Rollback（recover ブランチ作成）の起点候補になる。
+// session_id へ FK を張らない: Stop フック経由の記録は sessions 行の取込（インポートラグ
+// 数十分〜）より先に届くのが通常で、FK を張ると正当な記録が恒常的に拒否される。
+export const CREATE_SAFE_POINTS = `CREATE TABLE IF NOT EXISTS safe_points (
+  id INTEGER PRIMARY KEY,
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  commit_hash TEXT NOT NULL,
+  branch TEXT NOT NULL DEFAULT '',
+  worktree TEXT NOT NULL DEFAULT '',
+  label TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'stop_hook' CHECK (source IN ('stop_hook', 'manual')),
+  session_id TEXT
+) STRICT`;
+
+// Phase 5 S1: Kill Switch / Rollback / 異常検知の監査ログ。
+// anomaly_detected は S2（自動検知）で書き込みが始まる（値域は先行定義しておく）。
+export const CREATE_EMERGENCY_LOG = `CREATE TABLE IF NOT EXISTS emergency_log (
+  id INTEGER PRIMARY KEY,
+  occurred_at TEXT NOT NULL CHECK (occurred_at GLOB ${TS_GLOB_MS} OR occurred_at GLOB ${TS_GLOB_NO_MS}),
+  event TEXT NOT NULL
+    CHECK (event IN ('kill_switch_on', 'kill_switch_off', 'rollback_executed', 'anomaly_detected',
+                     'section_lock_denied', 'section_lock_tamper')),
+  reason TEXT NOT NULL DEFAULT '',
+  actor TEXT NOT NULL DEFAULT 'human' CHECK (actor IN ('human', 'claude', 'agent')),
+  session_id TEXT,
+  detail_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(detail_json))
+) STRICT`;
+
+export const CREATE_EMERGENCY_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_safe_points_created_at ON safe_points(created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_emergency_log_occurred_at ON emergency_log(occurred_at)`,
+];

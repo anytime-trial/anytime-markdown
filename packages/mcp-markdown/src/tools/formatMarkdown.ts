@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import { formatMarkdown as engineFormat, type FormatWarning } from '@anytime-markdown/markdown-engine';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
+import { assertNoLockViolation } from '../utils/sectionLockGuard';
 
 const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
 
@@ -37,6 +38,7 @@ export async function formatMarkdownTool(
   const wouldChange = result !== original;
 
   if (mode === 'fix' && wouldChange) {
+    assertNoLockViolation(original, result, input.path);
     await fs.writeFile(filePath, result, 'utf-8');
   }
 

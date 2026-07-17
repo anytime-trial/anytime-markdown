@@ -3,7 +3,32 @@ const {
   needsPreflight,
   classifyOutcome,
   findIncompletePlans,
+  parseDocsRoot,
 } = require('./preflight.cjs');
+
+describe('parseDocsRoot', () => {
+  it('CLAUDE.md の「- docsRoot: <path>」行からパスを取り出す', () => {
+    const md = '## ドキュメント保存先（docsRoot）\n\n- docsRoot: /data/docs-repo\n- 補足行';
+    expect(parseDocsRoot(md)).toBe('/data/docs-repo');
+  });
+
+  it('箇条書きが * でも取り出せる', () => {
+    expect(parseDocsRoot('* docsRoot: /data/docs-repo')).toBe('/data/docs-repo');
+  });
+
+  it('末尾の空白は無視する', () => {
+    expect(parseDocsRoot('- docsRoot: /data/docs-repo  \n')).toBe('/data/docs-repo');
+  });
+
+  it('定義行が無ければ null', () => {
+    expect(parseDocsRoot('# CLAUDE.md\n\n- 出力先: 各所参照')).toBeNull();
+  });
+
+  it('null / undefined 入力は null', () => {
+    expect(parseDocsRoot(undefined)).toBeNull();
+    expect(parseDocsRoot(null)).toBeNull();
+  });
+});
 
 describe('extractSkillUpdated', () => {
   it('SKILL.md の「更新日:」行から日付を取り出す', () => {

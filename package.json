@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.13.4",
+  "version": "1.14.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -54,6 +54,8 @@
     "packages/code-analysis-python",
     "packages/trail-core",
     "packages/trail-db",
+    "packages/tickets-core",
+    "packages/tickets-viewer",
     "packages/trail-viewer",
     "packages/graph-viewer",
     "packages/mindmap-viewer",
@@ -67,7 +69,8 @@
     "packages/ollama-core",
     "packages/agent-core",
     "packages/review-agent",
-    "packages/markdown-eval-core"
+    "packages/markdown-eval-core",
+    "packages/section-lock-core"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",

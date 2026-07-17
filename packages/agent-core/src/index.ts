@@ -112,6 +112,36 @@ export {
   evaluateSessionStartGate,
 } from './status/airspace';
 export type { AirspaceClaim, GitCommandKind, GateVerdict } from './status/airspace';
+export {
+  clearEmergencyState,
+  emergencyLedgerPath,
+  evaluateEmergencyGate,
+  readEmergencyState,
+  writeEmergencyState,
+} from './status/emergency';
+export type { EmergencyState } from './status/emergency';
+export { evaluateSectionLockGate } from './status/sectionLockGate';
+export type { SectionLockSpoolEvent, SectionLockVerdict } from './status/sectionLockGate';
+export {
+  KILL_CONSECUTIVE,
+  LOOP_WINDOW,
+  OSCILLATION_WINDOW,
+  WARN_CONSECUTIVE,
+  emptyLoopState,
+  evaluateLoop,
+  loopStatePath,
+  readLoopState,
+  toolSignature,
+  writeLoopState,
+} from './status/loopDetector';
+export type { LoopState, LoopVerdict } from './status/loopDetector';
+export {
+  EMERGENCY_SPOOL_MAX,
+  appendEmergencySpool,
+  drainEmergencySpool,
+  emergencySpoolPath,
+} from './status/emergencySpool';
+export type { EmergencySpoolEvent } from './status/emergencySpool';
 export type {
   AgentSessionRow,
   AgentSessionEdit,

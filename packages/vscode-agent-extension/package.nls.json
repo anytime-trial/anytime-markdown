@@ -36,5 +36,6 @@
   "config.gitActivityRetentionDays.description": "Number of days to keep git activity records in the agent-status DB. Records older than this are pruned when the worker starts.",
   "config.workSnapshotIntervalMinutes.description": "Interval in minutes for taking a non-destructive snapshot of uncommitted work (including untracked files) into `refs/anytime/snapshots/`. Set to 0 to disable. Values between 1 and 4 are treated as 5.",
   "config.workSnapshotRetentionDays.description": "Number of days to keep work snapshot refs before pruning them.",
-  "command.showWorkSnapshots": "Show Work Snapshots"
+  "command.showWorkSnapshots": "Show Work Snapshots",
+  "configuration.tickets.directory.markdownDescription": "Location of the ticket repository used by the anytime-ticket-loop skill (root of a local clone, or the .tickets/ directory; absolute or workspace-relative). When unset, resolution falls back to .tickets/ at the workspace root, then the ANYTIME_TICKETS_DIR environment variable."
 }

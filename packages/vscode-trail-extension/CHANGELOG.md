@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-07-17
+
+### Added
+
+- Phase 5 emergency protocol: Kill Switch, safe-point and non-destructive rollback commands; a floating Kill Switch button and EmergencyPanel in the viewer; HTTP APIs for emergency state, trigger, release and rollback.
+- Knowledge-base persistence: pre-write snapshots and shrink audit for graph-destructive writes, with a shrink warning notification and a restore command.
+- Periodic drain of the emergency spool written by agent hooks while the server is unreachable.
+- Quality metrics: MTTR / TCR cards in the viewer.
+- "Export to Agent Note" on the node context menu, delegated to the Anytime Agent extension via a new WS command / IPC event.
+
+### Fixed
+
+- Kill Switch: cancelling the reason input no longer aborts silently without a record (FR-S5-5 / FR-S5-6).
+- Removed the startup cliff when `trail.db` exceeds 2 GiB (backup and save paths no longer load the whole file into memory).
+- Cross-review fixes across trail-server / trail-viewer / trail-db.
+
+### Security
+
+- Extended the CSRF Content-Type guard to every persistent-write POST endpoint of the local trail server.
+
 ## [0.35.0] - 2026-07-16
 
 ### Changed

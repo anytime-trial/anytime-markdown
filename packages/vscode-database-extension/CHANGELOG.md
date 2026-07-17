@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-17
+
+### Database Core (database-core / database-viewer)
+
+- `FileBackupManager` handles files of 2 GiB or larger without loading them wholly into memory, and treats uncompressed generations as part of the generation series. New options for the backup suffix and for disabling the failure latch.
+
 ## [0.3.2] - 2026-07-14
 
 ### Fixed

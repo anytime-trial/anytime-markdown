@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/database-core",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -26,8 +26,12 @@
     "sql.js": "^1.12.0"
   },
   "peerDependenciesMeta": {
-    "better-sqlite3": { "optional": true },
-    "sql.js": { "optional": true }
+    "better-sqlite3": {
+      "optional": true
+    },
+    "sql.js": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/better-sqlite3": "7.6.13",

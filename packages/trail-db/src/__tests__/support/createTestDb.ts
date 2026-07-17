@@ -29,6 +29,18 @@ export function createUninitializedTestDb(): TrailDatabase {
 }
 
 /**
+ * storage インスタンスを注入する未初期化インスタンス。storage の save/export 挙動そのものを
+ * 検証する用途（init/save/close はテスト側が駆動する）。FileTrailStorage を渡す場合は
+ * 呼び出し側が用意した一時ディレクトリ（os.tmpdir 配下）のパスを使うこと（本番パス禁止）。
+ */
+export function createStorageBackedTestDb(
+  storage: ConstructorParameters<typeof TrailDatabase>[1],
+  logger?: DbLogger,
+): TrailDatabase {
+  return new TrailDatabase('/tmp', storage, undefined, logger);
+}
+
+/**
  * 文字列 storageDir を渡す FileTrailStorage 分岐をテストする用途。storageDir は呼び出し側が
  * 用意した一時ディレクトリ（os.tmpdir 配下）を渡すこと（本番パス禁止）。
  */

@@ -2,7 +2,7 @@
   "name": "anytime-agent",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -347,6 +347,12 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%configuration.claudeMdGuidance.markdownDescription%"
+        },
+        "anytimeAgent.tickets.directory": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "%configuration.tickets.directory.markdownDescription%"
         },
         "anytimeAgent.showUsage": {
           "type": "boolean",

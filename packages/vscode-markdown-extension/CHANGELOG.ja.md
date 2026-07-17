@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-17
+
+### 追加
+
+- 同梱の MCP サーバー（`mcp-markdown`）の変更系ツールがセクションロックを検査するようになりました。ロックされた見出しセクションに触れる編集は第 2 の防御層として拒否されます。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- セクションロック: 見出しセクションを「確定」としてロック可能に（アウトラインのロック/解除ボタン・frontmatter 永続化。FR-8.3）。アウトラインボタンの表示不具合・frontmatter 自動展開・ロック付き文書のマウント失敗の修正を含みます。
+
 ## [1.13.4] - 2026-07-16
 
 ### Editor Core (markdown-viewer / markdown-rich)

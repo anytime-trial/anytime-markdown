@@ -2,14 +2,26 @@
   "name": "anytime-database",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "license": "MIT",
   "publisher": "anytime-trial",
-  "repository": { "type": "git", "url": "https://github.com/anytime-trial/anytime-markdown.git" },
-  "engines": { "vscode": "^1.109.0" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anytime-trial/anytime-markdown.git"
+  },
+  "engines": {
+    "vscode": "^1.109.0"
+  },
   "icon": "images/anytime-database-128.png",
-  "categories": ["Visualization"],
-  "keywords": ["sqlite", "database", "viewer", "sql"],
+  "categories": [
+    "Visualization"
+  ],
+  "keywords": [
+    "sqlite",
+    "database",
+    "viewer",
+    "sql"
+  ],
   "activationEvents": [
     "onView:anytimeDatabase.database"
   ],
@@ -86,10 +98,18 @@
         "viewType": "anytimeDatabase.sqlite",
         "displayName": "%customEditor.displayName%",
         "selector": [
-          { "filenamePattern": "*.db" },
-          { "filenamePattern": "*.sqlite" },
-          { "filenamePattern": "*.sqlite3" },
-          { "filenamePattern": "*.db3" }
+          {
+            "filenamePattern": "*.db"
+          },
+          {
+            "filenamePattern": "*.sqlite"
+          },
+          {
+            "filenamePattern": "*.sqlite3"
+          },
+          {
+            "filenamePattern": "*.db3"
+          }
         ],
         "priority": "default"
       }
@@ -104,7 +124,10 @@
         },
         "anytimeDatabase.openMode": {
           "type": "string",
-          "enum": ["readwrite", "readonly"],
+          "enum": [
+            "readwrite",
+            "readonly"
+          ],
           "default": "readwrite",
           "description": "%config.openMode.description%"
         },
@@ -161,7 +184,11 @@
         },
         "anytimeTrail.remote.provider": {
           "type": "string",
-          "enum": ["none", "supabase", "postgres"],
+          "enum": [
+            "none",
+            "supabase",
+            "postgres"
+          ],
           "default": "none",
           "markdownDescription": "Remote sync provider for the trail database. `supabase` syncs the local `trail.db` to a Supabase project."
         },

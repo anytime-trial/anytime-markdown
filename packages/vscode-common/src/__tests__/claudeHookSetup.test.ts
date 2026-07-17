@@ -165,6 +165,19 @@ describe('setupClaudeHooks', () => {
     expect(mjs).not.toContain('safeBranch(wk.root)');
   });
 
+  test('agent-status-report.mjs は /proc 祖先から claude / ターミナル PID を解決し body に載せる', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const mjs = readScript('agent-status-report.mjs');
+    // /proc 祖先 walk（airspace の findClaudePid と同じ comm 前方一致判定）
+    expect(mjs).toContain('function resolvePids()');
+    expect(mjs).toContain("comm.startsWith('claude')");
+    // edit 系 / bash 系の POST body に pid / terminalPid を含める
+    expect(mjs).toContain('pid: pids ? pids.pid : undefined');
+    expect(mjs).toContain('terminalPid: pids ? pids.terminalPid : undefined');
+  });
+
   test('commit-tracker / session-guard / handoff-inject hooks are bare bash (AGENT_HOME 注入なし)', () => {
     const { setupClaudeHooks } = loadModule();
     setupClaudeHooks(tmpWorkspace);
@@ -346,6 +359,96 @@ describe('setupClaudeHooks', () => {
     // 保護領域リテラルを避けるため path.join で組み立てる（実行値は home 配下の scripts/token-budget.sh）。
     expect(stop?.hooks[0].command).toBe(path.join('~', '.claude', 'scripts', 'token-budget.sh'));
     expect(fs.existsSync(path.join(tmpHome, '.claude', 'scripts', 'token-budget.sh'))).toBe(true);
+  });
+
+  test('Stop hook registers safe-point.sh and writes the script (Phase 5 S1)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = readSettings();
+    const stop = settings.hooks.Stop.find((e) => e.hooks?.[0]?.command?.includes('safe-point.sh'));
+    expect(stop).toBeDefined();
+    expect(stop?.hooks[0].command).toBe(bashCmd('safe-point.sh'));
+
+    const script = readScript('safe-point.sh');
+    expect(script).toContain('/api/trail/safe-points');
+    expect(script).toContain('rev-parse HEAD');
+    // detached HEAD は記録しない（ロールバック起点として不安定）
+    expect(script).toContain('[ "$BRANCH" = "HEAD" ] && exit 0');
+    // 再実行で重複登録しない
+    setupClaudeHooks(tmpWorkspace);
+    const again = readSettings().hooks.Stop.filter((e) =>
+      e.hooks?.[0]?.command?.includes('safe-point.sh'),
+    );
+    expect(again).toHaveLength(1);
+  });
+
+  test('agent-status-report.mjs gates edit/bash on the emergency kill switch before airspace (Phase 5 S1)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const report = readScript('agent-status-report.mjs');
+    expect(report).toContain('readEmergencyState');
+    expect(report).toContain('evaluateEmergencyGate');
+    // 旧バンドル（関数未搭載）で落ちない後方互換ガード
+    expect(report).toContain("typeof api.readEmergencyState === 'function'");
+    // Kill Switch は ANYTIME_AIRSPACE=off（airspace 脱出口）より前に評価する。
+    // 順序が逆だと環境変数 1 つで緊急停止が無効化される（cross-review 指摘の回帰固定）。
+    const emergencyIdx = report.indexOf('evaluateEmergencyGate');
+    const escapeIdx = report.indexOf("process.env.ANYTIME_AIRSPACE === 'off'");
+    expect(escapeIdx).toBeGreaterThan(-1);
+    expect(emergencyIdx).toBeGreaterThan(-1);
+    expect(emergencyIdx).toBeLessThan(escapeIdx);
+  });
+
+  test('registers matcher-less gate (PreToolUse) and loop-check (PostToolUse) hooks (Phase 5 S2)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const settings = readSettings();
+    const gate = settings.hooks.PreToolUse.filter(
+      (e) => e.matcher === undefined && e.hooks[0].command === reportCmd('gate'),
+    );
+    const loopCheck = settings.hooks.PostToolUse.filter(
+      (e) => e.matcher === undefined && e.hooks[0].command === reportCmd('loop-check'),
+    );
+    expect(gate.length).toBe(1);
+    expect(loopCheck.length).toBe(1);
+    expect(gate[0].hooks[0].timeout).toBe(5);
+    expect(loopCheck[0].hooks[0].timeout).toBe(5);
+
+    // 再実行しても重複登録されない（removeStatusFileHooks の掃除 → 再登録の冪等性）
+    setupClaudeHooks(tmpWorkspace);
+    const again = readSettings();
+    expect(
+      again.hooks.PreToolUse.filter((e) => e.hooks[0].command === reportCmd('gate')).length,
+    ).toBe(1);
+    expect(
+      again.hooks.PostToolUse.filter((e) => e.hooks[0].command === reportCmd('loop-check')).length,
+    ).toBe(1);
+  });
+
+  test('agent-status-report.mjs implements gate / loop-check modes (Phase 5 S2)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+
+    const report = readScript('agent-status-report.mjs');
+    expect(report).toContain("mode === 'gate'");
+    expect(report).toContain("mode === 'loop-check'");
+    // 判定は airspace.cjs バンドル側 API を呼ぶだけ（配線のみ）
+    expect(report).toContain('api.toolSignature');
+    expect(report).toContain('api.evaluateLoop');
+    expect(report).toContain('api.readLoopState');
+    expect(report).toContain('api.writeLoopState');
+    // 旧バンドル（関数未搭載）で落ちない後方互換ガード
+    expect(report).toContain("typeof api.evaluateLoop !== 'function'");
+    // kill 段は S1 台帳への書込に集約（新たな deny 経路を作らない）+ spool 記録
+    expect(report).toContain('api.writeEmergencyState');
+    expect(report).toContain("event: 'kill_switch_on'");
+    expect(report).toContain("event: 'anomaly_detected'");
+    // detail_json は要件書 §12.4 のスキーマ（signature を含む。同一 tool の別引数ループを事後区別）
+    expect(report).toContain('signature: verdict.signature');
+    expect(report).toContain('triggeredBy: \'loop-detector\'');
   });
 
   test('migrates legacy trail-token-budget.sh: stale hook entry and orphan script removed', () => {

@@ -2,7 +2,7 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -124,6 +124,31 @@
         "title": "%command.killExtensionHost%",
         "category": "Anytime Trail",
         "icon": "$(debug-stop)"
+      },
+      {
+        "command": "anytime-trail.killSwitch",
+        "title": "%command.killSwitch%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.releaseKillSwitch",
+        "title": "%command.releaseKillSwitch%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.recordSafePoint",
+        "title": "%command.recordSafePoint%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.rollbackToSafePoint",
+        "title": "%command.rollbackToSafePoint%",
+        "category": "Anytime Trail"
+      },
+      {
+        "command": "anytime-trail.restoreKnowledgeBaseSnapshot",
+        "title": "%command.restoreKnowledgeBaseSnapshot%",
+        "category": "Anytime Trail"
       }
     ],
     "mcpServerDefinitionProviders": [

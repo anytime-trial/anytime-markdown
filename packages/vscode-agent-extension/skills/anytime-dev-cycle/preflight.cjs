@@ -9,6 +9,9 @@
 // 使い方（ワークスペースルートで実行）:
 //   node .claude/skills/anytime-dev-cycle/preflight.cjs [--json] [--workspace <dir>] [--docs-root <dir>]
 //
+// docs リポジトリのルートは --docs-root > <workspace>/CLAUDE.md の「- docsRoot: <path>」定義
+// の順で解決する（絶対パスを本スクリプトへハードコードしない）。
+//
 // 終了コード: 0 = 必須すべて pass（任意 NG は縮退として続行可）/ 1 = 必須 NG（サイクル開始不可）
 
 const fs = require('node:fs');
@@ -16,7 +19,6 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const MARKER_RELPATH = path.join('.anytime', 'dev-cycle-preflight.json');
-const DEFAULT_DOCS_ROOT = '/Shared/anytime-markdown-docs';
 const REFERENCE_FILES = [
   'agent-rotation.md',
   'delegation.md',
@@ -33,6 +35,19 @@ const DELEGATION_SCRIPTS = [
   'ollama-report.cjs',
   'ollama-verify.cjs',
 ];
+
+/** CLAUDE.md 本文から「- docsRoot: <path>」定義を取り出す（無ければ null）。 */
+function parseDocsRoot(markdown) {
+  const m = /^[-*]\s*docsRoot:\s*(\S+)\s*$/m.exec(markdown ?? '');
+  return m ? m[1] : null;
+}
+
+/** <workspace>/CLAUDE.md から docsRoot 定義を読む（ファイル・定義が無ければ null）。 */
+function readWorkspaceDocsRoot(workspaceRoot) {
+  const claudeMdPath = path.join(workspaceRoot, 'CLAUDE.md');
+  if (!fs.existsSync(claudeMdPath)) return null;
+  return parseDocsRoot(fs.readFileSync(claudeMdPath, 'utf8'));
+}
 
 /** SKILL.md 本文から「更新日: YYYY-MM-DD」を取り出す（無ければ null）。 */
 function extractSkillUpdated(markdown) {
@@ -112,12 +127,20 @@ function collectChecks({ workspaceRoot, docsRoot, skillDir }) {
   });
 
   const docsDirs = ['proposal', 'plan', 'spec', 'review'];
-  const missingDocs = docsDirs.filter((d) => !fs.existsSync(path.join(docsRoot, d)));
+  const missingDocs = docsRoot ? docsDirs.filter((d) => !fs.existsSync(path.join(docsRoot, d))) : docsDirs;
+  let docsRootDetail;
+  if (!docsRoot) {
+    docsRootDetail = 'docsRoot 未解決（CLAUDE.md の「- docsRoot: <path>」定義か --docs-root 指定が必要）';
+  } else if (missingDocs.length === 0) {
+    docsRootDetail = `${docsRoot} 配下 4 dir あり`;
+  } else {
+    docsRootDetail = `欠落: ${missingDocs.join(', ')}`;
+  }
   checks.push({
     id: 'docs-root',
     kind: 'required',
-    passed: missingDocs.length === 0,
-    detail: missingDocs.length === 0 ? `${docsRoot} 配下 4 dir あり` : `欠落: ${missingDocs.join(', ')}`,
+    passed: docsRoot !== null && missingDocs.length === 0,
+    detail: docsRootDetail,
   });
 
   const missingRefs = REFERENCE_FILES.filter(
@@ -177,11 +200,11 @@ function collectChecks({ workspaceRoot, docsRoot, skillDir }) {
         : `status ファイル ${statusFiles.length} 件`,
   });
 
-  const planDir = path.join(docsRoot, 'plan');
+  const planDir = docsRoot ? path.join(docsRoot, 'plan') : null;
   const PLAN_LIST_CAP = 20;
   let incompletePlans = [];
   let incompletePlanTotal = 0;
-  if (fs.existsSync(planDir)) {
+  if (planDir !== null && fs.existsSync(planDir)) {
     const entries = fs
       .readdirSync(planDir)
       .filter((f) => f.endsWith('.md') && !f.startsWith('index.'))
@@ -242,7 +265,7 @@ function main(argv) {
     return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
   };
   const workspaceRoot = path.resolve(readOpt('--workspace', process.cwd()));
-  const docsRoot = readOpt('--docs-root', DEFAULT_DOCS_ROOT);
+  const docsRoot = readOpt('--docs-root', null) ?? readWorkspaceDocsRoot(workspaceRoot);
   const asJson = args.includes('--json');
 
   const { marker, markerPath } = runPreflight({ workspaceRoot, docsRoot });
@@ -272,6 +295,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  parseDocsRoot,
+  readWorkspaceDocsRoot,
   extractSkillUpdated,
   needsPreflight,
   classifyOutcome,

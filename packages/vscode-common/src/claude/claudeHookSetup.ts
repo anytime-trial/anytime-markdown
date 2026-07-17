@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as os from 'node:os';
+import * as path from 'node:path';
 
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const SETTINGS_PATH = path.join(CLAUDE_DIR, 'settings.json');
@@ -18,6 +18,30 @@ if [ -z "$SESSION_ID" ]; then exit 0; fi
 curl -s -X POST "http://127.0.0.1:\${PORT}/api/trail/token-budget" \\
   -H "Content-Type: application/json" \\
   -d "{\\"sessionId\\":\\"$\{SESSION_ID\}\\"}" > /dev/null 2>&1 || true
+exit 0
+`;
+}
+
+// safe-point.sh — Stop フック（セッション終了）で HEAD をセーフポイントとして trail サーバへ記録する。
+// Phase 5 S1 (Emergency Protocol)。git repo 外・detached HEAD・サーバ未起動は silent skip（常に exit 0）。
+function safePointScriptContent(port: number): string {
+  return `#!/bin/bash
+PORT="\${ANYTIME_TRAIL_PORT:-${port}}"
+read -r -d '' STDIN_DATA || true
+SESSION_ID=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).session_id||'')}catch{}})" 2>/dev/null)
+CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||'')}catch{}})" 2>/dev/null)
+[ -z "\$CWD" ] && CWD="\$PWD"
+HEAD_SHA=$(git -C "\$CWD" rev-parse HEAD 2>/dev/null)
+[ -z "\$HEAD_SHA" ] && exit 0
+BRANCH=$(git -C "\$CWD" rev-parse --abbrev-ref HEAD 2>/dev/null)
+# detached HEAD はロールバック起点として不安定なため記録しない
+[ "\$BRANCH" = "HEAD" ] && exit 0
+WORKTREE=$(git -C "\$CWD" rev-parse --show-toplevel 2>/dev/null)
+CREATED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+PAYLOAD=$(node -e "process.stdout.write(JSON.stringify({createdAt:process.argv[1],commitHash:process.argv[2],branch:process.argv[3]||'',worktree:process.argv[4]||'',label:'',source:'stop_hook',sessionId:process.argv[5]||null}))" "\$CREATED_AT" "\$HEAD_SHA" "\$BRANCH" "\$WORKTREE" "\$SESSION_ID")
+curl -m 3 -s -X POST "http://127.0.0.1:\${PORT}/api/trail/safe-points" \\
+  -H "Content-Type: application/json" \\
+  -d "\$PAYLOAD" > /dev/null 2>&1 || true
 exit 0
 `;
 }
@@ -213,7 +237,7 @@ function agentStatusReportContent(): string {
 //      判定ロジックは <git-common-dir>/anytime/airspace.cjs（agent 拡張が配置）に置く。
 //      **ワーカーにも DB にも VS Code にも依存しない**ため、VS Code 停止中でも動く。
 //   2) agent-status ワーカーへの編集/実行状況の POST（Agent マッピング UI 用。従来どおり）。
-// mode: edit-start | edit-end | bash-start | bash-end | planned | session-start
+// mode: edit-start | edit-end | bash-start | bash-end | planned | session-start | gate | loop-check
 //
 // **stdout は判定 JSON 専用**。ログは必ず stderr へ出す（stdout を汚すと Claude Code の
 // JSON パースが壊れ、フックが機能しなくなる）。
@@ -325,11 +349,26 @@ function toPreToolUse(verdict) {
 
 // クレームを更新し、衝突判定を返す。判定不能なら null（fail-open）。
 function airspaceVerdict(mode, input, cwd) {
-  if (process.env.ANYTIME_AIRSPACE === 'off') return null;
-
   const loaded = loadAirspace(cwd);
   if (loaded === null) return null;
   const { api, dir } = loaded;
+
+  // Kill Switch（Phase 5 S1）: 発動中は airspace 判定より先に全変更系ツールを遮断する。
+  // ANYTIME_AIRSPACE=off（airspace 衝突ゲートの脱出口）より前に評価する。緊急停止が
+  // 環境変数 1 つで無効化されては Kill Switch の意味がないため、解除経路は
+  // VS Code コマンドまたは台帳削除のみに限定する（cross-review 指摘の是正）。
+  // 旧バンドル（関数未搭載）は skip（fail-open・後方互換）。
+  if (
+    (mode === 'edit-start' || mode === 'bash-start') &&
+    typeof api.readEmergencyState === 'function' &&
+    typeof api.evaluateEmergencyGate === 'function'
+  ) {
+    const emergency = api.evaluateEmergencyGate(api.readEmergencyState(dir), dir);
+    if (emergency.kind === 'deny') return toPreToolUse(emergency);
+  }
+
+  // airspace（並行セッション衝突）ゲートのみの無効化スイッチ。Kill Switch には効かない。
+  if (process.env.ANYTIME_AIRSPACE === 'off') return null;
 
   const claudePid = api.findClaudePid(process.pid);
   if (claudePid === null) {
@@ -387,6 +426,106 @@ function airspaceVerdict(mode, input, cwd) {
   return null;
 }
 
+// Phase 5 S2: ループ検知（PostToolUse・全ツール）。exit code を返す（0=通常 / 2=Mayday 警告）。
+// 判定・状態・spool の実装は airspace.cjs バンドル側（agent-core）。ここでは配線のみ行う。
+function loopCheck(input, cwd) {
+  const loaded = loadAirspace(cwd);
+  if (loaded === null) return 0;
+  const { api, dir } = loaded;
+  // 旧バンドル（関数未搭載）は skip（fail-open・後方互換）。
+  if (
+    typeof api.toolSignature !== 'function' ||
+    typeof api.readLoopState !== 'function' ||
+    typeof api.evaluateLoop !== 'function' ||
+    typeof api.writeLoopState !== 'function' ||
+    typeof api.appendEmergencySpool !== 'function' ||
+    typeof api.writeEmergencyState !== 'function'
+  ) {
+    return 0;
+  }
+  const toolName = input.tool_name || '';
+  if (!toolName) return 0;
+  const sessionId = input.session_id || 'unknown';
+  const signature = api.toolSignature(toolName, input.tool_input ?? null);
+  const result = api.evaluateLoop(api.readLoopState(dir, sessionId), signature);
+  api.writeLoopState(dir, sessionId, result.state);
+  const verdict = result.verdict;
+  if (verdict.kind !== 'warn' && verdict.kind !== 'kill') return 0;
+
+  const now = new Date().toISOString();
+  const detailJson = JSON.stringify({
+    kind: 'loop_detected',
+    tool: toolName,
+    signature: verdict.signature, // 要件書 §12.4。同一 tool の異なる引数のループを事後に区別する
+    count: verdict.count,
+    pattern: verdict.pattern,
+  });
+
+  if (verdict.kind === 'kill') {
+    const reason = \`ループ検知: \${toolName} が同一引数で \${verdict.count} 回連続実行されました\`;
+    api.writeEmergencyState(dir, {
+      active: true,
+      reason,
+      triggeredBy: 'loop-detector',
+      triggeredAt: now,
+    });
+    api.appendEmergencySpool(
+      dir,
+      { occurredAt: now, event: 'kill_switch_on', reason, actor: 'agent', sessionId, detailJson },
+      warn,
+    );
+    process.stderr.write(
+      \`[Mayday] \${reason}。Kill Switch を自動発動しました。以後のツール実行は遮断されます。\` +
+        \`解除は VS Code コマンド「Anytime Trail: Kill Switch 解除」または台帳 \` +
+        \`\${path.join(dir, 'emergency.json')} の削除です。\\n\`,
+    );
+    return 2;
+  }
+
+  const reason =
+    verdict.pattern === 'oscillation'
+      ? \`ループ検知: 直近 \${verdict.count} 回のツール呼出が 2 種類の操作の往復になっています\`
+      : \`ループ検知: \${toolName} が同一引数で \${verdict.count} 回連続実行されています\`;
+  api.appendEmergencySpool(
+    dir,
+    { occurredAt: now, event: 'anomaly_detected', reason, actor: 'agent', sessionId, detailJson },
+    warn,
+  );
+  const killAt = typeof api.KILL_CONSECUTIVE === 'number' ? api.KILL_CONSECUTIVE : 10;
+  process.stderr.write(
+    \`[Mayday] \${reason}。方針を再評価してください（同一呼出が \${killAt} 回連続に達すると \` +
+      \`Kill Switch が自動発動します）。\\n\`,
+  );
+  return 2;
+}
+
+// claude CLI プロセスと親シェル（ターミナル）の PID を /proc の祖先から解決する。
+// airspace.cjs の findClaudePid と同じ判定（comm が 'claude' で始まる。WSL 相互運用では claude.exe になり得る）。
+// 非 Linux（/proc なし）・プロセス消滅時は null（PID なしで続行。ゲートと同じ fail-open）。
+function resolvePids() {
+  let current = process.pid;
+  for (let depth = 0; depth < 8; depth += 1) {
+    let comm = '';
+    let ppid = 0;
+    try {
+      comm = fs.readFileSync('/proc/' + current + '/comm', 'utf8').trim();
+      const stat = fs.readFileSync('/proc/' + current + '/stat', 'utf8');
+      // stat は "pid (comm) state ppid ..."。comm 自体に空白・括弧が含まれ得るため右端の ')' から読む。
+      ppid = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+    } catch (err) {
+      warn('resolvePids failed at pid ' + current + ': ' + err.message);
+      return null;
+    }
+    if (comm.startsWith('claude')) {
+      // ppid <= 1 は親が init（ターミナル情報なし）。claude PID だけ返す。
+      return { pid: current, terminalPid: Number.isFinite(ppid) && ppid > 1 ? ppid : undefined };
+    }
+    if (!Number.isFinite(ppid) || ppid <= 1) return null;
+    current = ppid;
+  }
+  return null;
+}
+
 // mode ごとに /api/agent-status/edit へ送る body を組み立てる。対象外なら null。
 function buildBody(mode, input, cwd, root, branch) {
   const sid = input.session_id || '';
@@ -394,6 +533,7 @@ function buildBody(mode, input, cwd, root, branch) {
   if (mode === 'edit-start' || mode === 'edit-end') {
     const fp = input.tool_input && input.tool_input.file_path;
     if (!fp) return null;
+    const pids = resolvePids();
     return {
       sessionId: sid,
       editing: mode === 'edit-start',
@@ -401,10 +541,20 @@ function buildBody(mode, input, cwd, root, branch) {
       branch,
       workspacePath: cwd,
       appendEdit: { file: fp, timestamp: ts },
+      pid: pids ? pids.pid : undefined,
+      terminalPid: pids ? pids.terminalPid : undefined,
     };
   }
   if (mode === 'bash-start' || mode === 'bash-end') {
-    return { sessionId: sid, editing: mode === 'bash-start', workspacePath: cwd, branch };
+    const pids = resolvePids();
+    return {
+      sessionId: sid,
+      editing: mode === 'bash-start',
+      workspacePath: cwd,
+      branch,
+      pid: pids ? pids.pid : undefined,
+      terminalPid: pids ? pids.terminalPid : undefined,
+    };
   }
   if (mode === 'planned') {
     const fp = input.tool_input && input.tool_input.file_path;
@@ -444,6 +594,84 @@ async function main() {
     process.exit(0);
   }
   const cwd = (input && input.cwd) || process.cwd();
+
+  // Phase 5 S2: 全ツール対象の軽量モード。クレーム更新・ワーカー POST は行わず即 exit する。
+  // - gate: PreToolUse（matcher なし）。Kill Switch 台帳だけを見る。S1 の edit-start/bash-start
+  //   内評価は Bash/Edit|Write にしか登録されないため、Read 等を含む「全ツール deny」
+  //   （要件書 §12.3）はこのモードが成立させる。Bash/Edit の二重評価は無害（同じ台帳を読むだけ）。
+  // - loop-check: PostToolUse（matcher なし）。ループ検知 → warn は exit 2 の Mayday 警告、
+  //   kill は台帳書込（次のツール呼出から gate が遮断）+ spool 記録。失敗は fail-open。
+  if (mode === 'gate') {
+    try {
+      const loaded = loadAirspace(cwd);
+      if (
+        loaded !== null &&
+        typeof loaded.api.readEmergencyState === 'function' &&
+        typeof loaded.api.evaluateEmergencyGate === 'function'
+      ) {
+        const emergency = loaded.api.evaluateEmergencyGate(
+          loaded.api.readEmergencyState(loaded.dir),
+          loaded.dir,
+        );
+        if (emergency.kind === 'deny') {
+          process.stdout.write(JSON.stringify(toPreToolUse(emergency)));
+          process.exit(0);
+        }
+      }
+      // Phase 5 S4: Section Lock 検査（変更系ツールのみ・判定不能は fail-open で pass）。
+      // deny/warn イベントは emergency spool 経由で emergency_log へ届く（S2 と同機構）。
+      if (loaded !== null && typeof loaded.api.evaluateSectionLockGate === 'function') {
+        const verdict = loaded.api.evaluateSectionLockGate(
+          input && input.tool_name,
+          input && input.tool_input,
+          cwd,
+        );
+        if (
+          verdict &&
+          Array.isArray(verdict.spoolEvents) &&
+          verdict.spoolEvents.length > 0 &&
+          typeof loaded.api.appendEmergencySpool === 'function'
+        ) {
+          for (const ev of verdict.spoolEvents) {
+            loaded.api.appendEmergencySpool(
+              loaded.dir,
+              {
+                occurredAt: new Date().toISOString(),
+                event: ev.event,
+                reason: ev.reason,
+                actor: 'agent',
+                sessionId: (input && input.session_id) || null,
+                detailJson: ev.detailJson ?? null,
+              },
+              (msg) => warn(msg),
+            );
+          }
+        }
+        if (verdict && verdict.kind === 'deny') {
+          process.stdout.write(
+            JSON.stringify(toPreToolUse({ kind: 'deny', reason: verdict.reason })),
+          );
+        } else if (verdict && verdict.kind === 'warn') {
+          // warn（tamper）を toPreToolUse で返すと permissionDecision:'allow' が
+          // ツールを自動承認してしまう（cross-review 合意 #7）。stderr 通知 + spool 記録に留め、
+          // 権限判定は Claude Code の既定に委ねる。
+          warn(verdict.reason || 'section lock tamper detected');
+        }
+      }
+    } catch (err) {
+      warn(\`gate mode failed: \${err.message}\`);
+    }
+    process.exit(0);
+  }
+  if (mode === 'loop-check') {
+    let exitCode = 0;
+    try {
+      exitCode = loopCheck(input, cwd);
+    } catch (err) {
+      warn(\`loop-check failed: \${err.message}\`);
+    }
+    process.exit(exitCode);
+  }
 
   // 1) airspace ゲート（ワーカー非依存）
   try {
@@ -598,6 +826,7 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
     writeScript('lib/agent-home.sh', AGENT_HOME_LIB); // bash walk-up リゾルバ（3 script が source）
     writeScript('agent-status-report.mjs', agentStatusReportContent()); // inline node hook 5 本を集約
     writeScript('token-budget.sh', tokenBudgetScriptContent(trailPort));
+    writeScript('safe-point.sh', safePointScriptContent(trailPort));
     writeScript('session-guard.sh', SESSION_GUARD_SCRIPT);
     writeScript('commit-tracker.sh', commitTrackerScriptContent());
     writeScript('handoff-inject.sh', handoffInjectScriptContent());
@@ -656,6 +885,16 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
     hooks: [{ type: 'command', command: reportCommand('bash-end'), timeout: REPORT_TIMEOUT_SEC }],
   });
 
+  // Phase 5 S2: 全ツール対象の 2 モード（matcher なし = all tools）。
+  // gate は Kill Switch 台帳のみ参照する軽量 PreToolUse（Read 等も遮断対象にする。要件書 §12.3）。
+  // loop-check はループ検知の PostToolUse（warn = Mayday 警告 / kill = Kill Switch 自動発動）。
+  settings.hooks.PreToolUse.push({
+    hooks: [{ type: 'command', command: reportCommand('gate'), timeout: REPORT_TIMEOUT_SEC }],
+  });
+  settings.hooks.PostToolUse.push({
+    hooks: [{ type: 'command', command: reportCommand('loop-check'), timeout: REPORT_TIMEOUT_SEC }],
+  });
+
   // SessionStart フック: 同じ作業ツリーに他の生存セッションがいれば worktree 分離を助言する。
   // 衝突を「起こしてから迎撃する」のではなく「そもそも同じ空域に 2 機を入れない」ための入口ゲート。
   settings.hooks.SessionStart = removeHooksByMarker(
@@ -683,6 +922,12 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   settings.hooks.Stop = removeHooksByMarker(settings.hooks.Stop, 'token-budget.sh');
   settings.hooks.Stop.push({
     hooks: [{ type: 'command', command: '~/.claude/scripts/token-budget.sh', timeout: 10 }],
+  });
+
+  // Stop hook: safe-point.sh（Phase 5 S1: セッション終了時にセーフポイントを自動記録）
+  settings.hooks.Stop = removeHooksByMarker(settings.hooks.Stop, 'safe-point.sh');
+  settings.hooks.Stop.push({
+    hooks: [{ type: 'command', command: 'bash ~/.claude/scripts/safe-point.sh', timeout: 10 }],
   });
 
   // UserPromptSubmit hook: session-guard.sh（AGENT_HOME 注入は撤去し walk-up に委ねる）

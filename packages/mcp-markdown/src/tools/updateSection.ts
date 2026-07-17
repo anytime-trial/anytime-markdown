@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
+import { assertNoLockViolation } from '../utils/sectionLockGuard';
 import { selectHeadingTarget } from '../utils/headingTarget';
 import { extractHeadingsFromText } from './getOutline';
 import { getSectionFromText } from './getSection';
@@ -103,6 +104,7 @@ export async function updateSection(
   const content = await fs.readFile(filePath, 'utf-8');
   const oldSection = getSectionFromText(content, input.heading, input.occurrence);
   const updated = updateSectionInText(content, input.heading, input.content, input.occurrence);
+  assertNoLockViolation(content, updated, input.path);
   await fs.writeFile(filePath, updated, 'utf-8');
   return {
     path: input.path,

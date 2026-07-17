@@ -65,6 +65,10 @@ export interface AgentInfo {
   readonly committedCount?: number;
   /** 最新コミットのハッシュ・時刻（agent-status DB 由来） */
   readonly lastCommit?: AgentLastCommit;
+  /** セッションを実行する claude CLI プロセスの PID（agent-status DB 由来） */
+  readonly pid?: number;
+  /** claude の親シェル（ターミナル）の PID（agent-status DB 由来） */
+  readonly terminalPid?: number;
 }
 
 export interface TodayStats {
@@ -86,6 +90,8 @@ export interface AgentStatusRow {
   readonly plannedEdits: readonly string[];
   readonly committedCount: number;
   readonly lastCommit: AgentLastCommit | null;
+  readonly pid: number | null;
+  readonly terminalPid: number | null;
   readonly updatedAt: string;
 }
 

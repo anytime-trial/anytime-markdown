@@ -5,7 +5,9 @@ export type MetricId =
   | 'leadTimePerLoc'
   | 'tokensPerLoc'
   | 'aiFirstTrySuccessRate'
-  | 'changeFailureRate';
+  | 'changeFailureRate'
+  | 'meanTimeToRecovery'
+  | 'taskCompletionRate';
 
 export interface MetricValue {
   id: MetricId;
@@ -41,6 +43,8 @@ export interface QualityMetrics {
     tokensPerLoc: MetricValue;
     aiFirstTrySuccessRate: MetricValue;
     changeFailureRate: MetricValue;
+    meanTimeToRecovery: MetricValue;
+    taskCompletionRate: MetricValue;
   };
   unmeasured: UnmeasuredMetric[];
   costPerLocTimeSeries?: ReadonlyArray<{ bucketStart: string; value: number }>;

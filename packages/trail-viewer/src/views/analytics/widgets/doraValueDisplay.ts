@@ -22,6 +22,11 @@ export function formatDoraValue(m: { value: number; unit: string }): {
     const num = m.value >= 1000 ? `${(m.value / 1000).toFixed(1)}k` : m.value.toFixed(0);
     return { primary: num, unit: 'tok/LOC' };
   }
+  if (m.unit === 'hours') {
+    if (m.value < 1) return { primary: (m.value * 60).toFixed(0), unit: 'min' };
+    if (m.value < 48) return { primary: m.value.toFixed(1), unit: 'h' };
+    return { primary: (m.value / 24).toFixed(1), unit: 'days' };
+  }
   return { primary: m.value.toFixed(1), suffix: '%' };
 }
 

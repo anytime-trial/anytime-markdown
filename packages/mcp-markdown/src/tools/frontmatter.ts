@@ -7,6 +7,7 @@ import fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import matter from 'gray-matter';
 import { resolveSecurePath, validateFileExtension } from '../utils/securePath';
+import { assertNoLockViolation } from '../utils/sectionLockGuard';
 
 const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
 
@@ -53,6 +54,17 @@ export async function updateFrontmatter(
   rootDir: string,
 ): Promise<UpdateFrontmatterSummary> {
   validateFileExtension(input.path, ALLOWED_EXTENSIONS);
+  // lockedSections は人間（エディタ）だけが管理する。削除・改変は assertNoLockViolation でも
+  // 検出されるが、ロックが無いファイルへの偽造追加はエントリ走査では捕まらないため、
+  // キー単位で一律拒否する（cross-review 補足指摘の採用。PreToolUse ゲートと同じ方針）。
+  if (
+    Object.hasOwn(input.set ?? {}, 'lockedSections') ||
+    (input.removeKeys ?? []).includes('lockedSections')
+  ) {
+    throw new Error(
+      `Section lock violation in ${input.path}: the lockedSections frontmatter is managed by humans via the Anytime Markdown editor and cannot be changed through update_frontmatter.`,
+    );
+  }
   const filePath = resolveSecurePath(rootDir, input.path);
   const content = await fs.readFile(filePath, 'utf-8');
   const parsed = matter(content);
@@ -77,6 +89,7 @@ export async function updateFrontmatter(
   }
 
   const next = matter.stringify(parsed.content, data);
+  assertNoLockViolation(content, next, input.path);
   // atomic write: 同一ディレクトリの tmp に書いて rename（部分書込みでの破損を防ぐ）。
   // tmp 名は UUID で一意化（単一プロセス内の同一ファイル並行更新でも衝突しない）。
   const tmp = `${filePath}.tmp-${randomUUID()}`;

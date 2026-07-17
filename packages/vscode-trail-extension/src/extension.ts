@@ -43,6 +43,9 @@ import * as vscode from 'vscode';
 
 import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
 import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
+import { registerEmergencyCommands } from './commands/emergencyCommands';
+import { startEmergencySpoolDrain } from './emergency/emergencySpoolDrain';
+import { notifyKbShrink, registerKbSnapshotCommands } from './commands/kbSnapshotCommands';
 import { AlignmentDiagnosticsProvider } from './providers/AlignmentDiagnosticsProvider';
 import { AlignmentTreeProvider } from './providers/AlignmentTreeProvider';
 import { McpTrailServerProvider } from './providers/McpTrailServerProvider';
@@ -381,6 +384,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	const backupGenerations = backupConfig.get<number>('generations', 1);
 	const backupIntervalDays = backupConfig.get<number>('intervalDays', 1);
 	trailDb = new TrailDatabase(extensionDistPath, dbStorageDir, backupGenerations, TrailLogger, backupIntervalDays);
+	// Phase 5 S3 (KB Persistence): Shrink Audit の警告を通知 + 復元導線へ配線
+	trailDb.setKbShrinkAlertHandler(notifyKbShrink);
 
 	// Anytime Memory output channel + native binding paths are needed by:
 	//   - MemoryCoreService (ingest pipeline ホスト)
@@ -714,6 +719,23 @@ export async function activate(context: vscode.ExtensionContext) {
 				);
 			});
 
+			// IPC イベント: addNotePage → agent 拡張の Agent Note 新規ページ作成コマンドへ委譲
+			httpClient.onAddNotePage((payload) => {
+				void (async () => {
+					const commands = await vscode.commands.getCommands(true);
+					if (!commands.includes('anytime-agent.addAiNotePage')) {
+						void vscode.window.showWarningMessage(
+							'Anytime Agent 拡張が見つからないため、Agent Note に出力できません。',
+						);
+						return;
+					}
+					await vscode.commands.executeCommand('anytime-agent.addAiNotePage', payload);
+				})().catch((err) => {
+					TrailLogger.error('[add-note-page] failed', err);
+					void vscode.window.showWarningMessage('Agent Note への出力に失敗しました。');
+				});
+			});
+
 			// IPC イベント: tokenBudgetExceeded → VS Code 警告通知
 			httpClient.onTokenBudgetExceeded((status) => {
 				const sessionLabel = status.sessionId.slice(0, 8);
@@ -986,6 +1008,36 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Trace run command
 	registerTraceCommands(context);
+
+	// Emergency Protocol commands (Phase 5 S1): Kill Switch / safe points / rollback
+	registerEmergencyCommands(context, {
+		getWorkspacePath: getEffectiveWorkspacePath,
+		getPort: () =>
+			vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841),
+	});
+
+	// Emergency spool drain (Phase 5 S2): フック検知イベント（ループ検知・自動 Kill Switch）を
+	// spool から emergency_log へ定期取込する
+	context.subscriptions.push(
+		startEmergencySpoolDrain({
+			getWorkspacePath: getEffectiveWorkspacePath,
+			getPort: () =>
+				vscode.workspace.getConfiguration('anytimeTrail.viewer').get<number>('port', 19841),
+		}),
+	);
+
+	// KB Persistence commands (Phase 5 S3): snapshot restore
+	registerKbSnapshotCommands(context, {
+		getTrailDb: () => trailDb,
+		// 復元前に管理下 daemon を停止して復元結果の上書きを防ぐ（外部 daemon モードでは no-op）。
+		// 再起動はウィンドウリロードに委ねる。
+		stopDaemon: async () => {
+			if (trailDaemonHost) {
+				await trailDaemonHost.dispose();
+				trailDaemonHost = null;
+			}
+		},
+	});
 
 	// .vscode/trace/ watcher: notify when a new trace file is created
 	if (wsRootForDb) {

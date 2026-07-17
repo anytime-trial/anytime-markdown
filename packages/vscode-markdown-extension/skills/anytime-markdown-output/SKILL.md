@@ -1,16 +1,12 @@
 ---
 name: anytime-markdown-output
 effort: low
-description: Markdown ドキュメント（spec/tech/test/manual/proposal/plan/review/report）を出力・編集する際の構文・フロントマター・整形規約。/Shared/anytime-markdown-docs/ 配下に .md を作成/更新する時、見出し・テーブル・コードブロック・脚注・アドモニション・図表・フロントマター(type/c4Scope 等)を書く時、Markdown 出力仕様を確認する時に使用する。
----
-
----
-path: "**/*.md"
+description: Markdown ドキュメント（spec/tech/test/manual/proposal/plan/review/report）を出力・編集する際の構文・フロントマター・整形規約。<docsRoot>/ 配下に .md を作成/更新する時、見出し・テーブル・コードブロック・脚注・アドモニション・図表・フロントマター(type/c4Scope 等)を書く時、Markdown 出力仕様を確認する時に使用する。
 ---
 
 # Claude Code Markdown 出力仕様
 
-更新日: 2026-07-11
+更新日: 2026-07-16
 
 > type 別の記載内容（何を書くか）・索引 `index.[lang].md` 運用は `anytime-doc-authoring` スキル、既存設計書の読み方は `anytime-spec-lookup` スキルを参照。本スキルは構文・フロントマター・整形（どう書くか）を扱う。
 
@@ -24,7 +20,7 @@ path: "**/*.md"
 
 ## 2. フロントマター仕様
 
-`/Shared/anytime-markdown-docs/` 配下に出力するすべての Markdown ファイルには、フロントマターを必ず付与する。
+`<docsRoot>/` 配下に出力するすべての Markdown ファイルには、フロントマターを必ず付与する。
 
 ```markdown
 ---
@@ -56,7 +52,8 @@ excerpt: "ドキュメントの要約。200文字以内。"
 | `schemaVersion` | No | 10 | フロントマター仕様の版。破壊的変更時に上げ、後方互換で進化させる（OKF のバージョン管理原則）。未指定時は最新仕様とみなす |
 
 > [!IMPORTANT]
-> \\\\\\\`author\\\\\\\` が AI の場合、\\\\\\\`Claude Code v2.1.85\\\\\\\` のように CLI バージョンを含めること。\\\\\\\\ バージョンは \\\\\\\`claude --version\\\\\\\` で取得する。
+> `author` が AI の場合、`Claude Code v2.1.85` のように CLI バージョンを含めること。\
+> バージョンは `claude --version` で取得する。
 
 
 ### 2.1.1. フロントマターの消費者（機械契約）
@@ -81,7 +78,7 @@ excerpt: "ドキュメントの要約。200文字以内。"
 | `test` | `/test/` | テスト項目書。ユニットテスト・E2E テストのケース一覧 |
 | `manual` | `/manual/` | マニュアル・手順書。ユーザー向け操作ガイド・セットアップ手順等 |
 | `proposal` | `/proposal/` | 提案。改善提案・新機能提案・技術選定の提案等 |
-| `plan` | `/Shared/anytime-markdown-docs/plan/` | 実装計画。タスク分解・スケジュール・依存関係の定義 |
+| `plan` | `<docsRoot>/plan/` | 実装計画。タスク分解・スケジュール・依存関係の定義 |
 | `review` | `/review/` | レビュー。コードレビュー結果・設計レビュー記録 |
 | `report` | `/report/` | レポート。日次調査・週次調査・Issue 解決レポート等。Web アプリの `/report` ページに一覧表示される |
 
@@ -112,7 +109,7 @@ c4Scope:
 | コンポーネント | `pkg_graph-core/engine` | パッケージ内モジュールの設計書 |
 
 > [!NOTE]
-> 要素を選択すると、完全一致に加え子パス前方一致（\`pkg_graph-core\` 選択時に \`pkg_graph-core/engine\` も表示）でドキュメントが検索される。
+> 要素を選択すると、完全一致に加え子パス前方一致（`pkg_graph-core` 選択時に `pkg_graph-core/engine` も表示）でドキュメントが検索される。
 
 
 ## 3. 構文仕様
@@ -518,7 +515,9 @@ bar` → foo bar
 - **意味判断**（固有名称のコードスパン化／補足の引用ブロック化／複雑ロジックの Mermaid 図化／「。」直後の改行／箇条書き3階層超の子見出し再設計）: `anytime-markdown-check` スキルのチェックリストに従う。
 
 
-#### 3.17.4 ファイル粒度と部分読み最適化（AI エージェント可読性）
+#### 3.17.2 ファイル粒度と部分読み最適化（AI エージェント可読性）
+
+<!-- 旧 3.17.4。3.17.2〜3.17.3 の anytime-markdown-check 移管（§3.17.1 参照）に伴い再採番 -->
 
 AI エージェント（Claude Code 等）は設計書をファイル全体ではなく、検索 → 該当セクションのみ部分読み（offset/limit）で参照する。\
 文脈サイズを抑え、関連箇所だけを正確に拾わせるため以下を適用する。

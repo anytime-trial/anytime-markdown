@@ -141,6 +141,15 @@ describe("createFrontmatterBlock", () => {
     block.destroy();
   });
 
+  it("setValue(null→値, autoExpand: false) は折りたたみを保つ（セクションロック等のプログラム更新）", () => {
+    const block = createFrontmatterBlock({ initial: null, t, onChange: () => {} });
+    block.setValue("lockedSections:\n    - path: \"T > A\"", { autoExpand: false });
+    // ブロック自体は表示されるが、body（textarea）は折りたたみのまま
+    expect(block.el.style.display).not.toBe("none");
+    expect(textarea(block)).toBeNull();
+    block.destroy();
+  });
+
   it("expandAndFocus: 折りたたみ状態から展開する", () => {
     const block = createFrontmatterBlock({ initial: "title: A", t, onChange: () => {} });
     expect(textarea(block)).toBeNull();

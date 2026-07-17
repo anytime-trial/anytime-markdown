@@ -41,6 +41,8 @@ import {
   CREATE_CURRENT_GRAPHS,
   CREATE_DAILY_COUNTS,
   CREATE_DORA_METRICS,
+  CREATE_EMERGENCY_INDEXES,
+  CREATE_EMERGENCY_LOG,
   CREATE_FILE_ANALYSIS_INDEXES,
   CREATE_INDEXES,
   CREATE_MESSAGE_COMMITS,
@@ -62,6 +64,7 @@ import {
   CREATE_RELEASE_INDEXES,
   CREATE_RELEASES,
   CREATE_REPOS,
+  CREATE_SAFE_POINTS,
   CREATE_SESSION_COMMIT_RESOLUTIONS,
   CREATE_SESSION_COMMITS,
   CREATE_SESSION_COSTS,
@@ -75,7 +78,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type IC4ModelStore, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow,type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
+import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type IC4ModelStore, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
 
@@ -176,6 +179,7 @@ const DEFAULT_DB_DIR = path.join(process.cwd(), '.anytime', 'trail');
 export { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';
 import { type NewCommunity,type OldCommunity, resolveCarryOver } from './communityCarryOver';
 import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
+import { FileKnowledgeBaseSnapshotter } from './KnowledgeBaseSnapshotter';
 import { FileTrailStorage,ITrailStorage } from './ITrailStorage';
 import { extractRepoNameFromJsonl } from './sessionMeta';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
@@ -1151,12 +1155,23 @@ export interface CrossSourceCorrelationRow {
 //  TrailDatabase
 // ---------------------------------------------------------------------------
 
+// Phase 5 S3 (KB Persistence) Shrink Audit の閾値。
+// DatabaseIntegrityMonitor の既定（10% / 50 行）より高めに置く: グラフは正当な
+// リファクタ・パッケージ削除でも縮むため、誤警報で警告が無視される方が保証の実効性を損なう。
+const KB_SHRINK_LOSS_RATE = 0.5;
+const KB_SHRINK_MIN_BEFORE = 20;
+
 export class TrailDatabase {
   private db: Database | null = null;
   private readonly dbPath: string;
   private readonly storage: ITrailStorage;
   private readonly integrityMonitor = new DatabaseIntegrityMonitor();
   private onIntegrityAlert: ((alerts: readonly IntegrityAlert[]) => void) | null = null;
+  // Phase 5 S3 (KB Persistence): グラフ系破壊的書込の Pre-write Snapshot と Shrink Audit。
+  // snapshotter は file-backed ストレージのとき初回書込で lazy 自動配線する（呼び出し側の配線漏れ防止）。
+  private kbSnapshotter: IKnowledgeBaseSnapshotter | null = null;
+  private kbSnapshotterResolved = false;
+  private onKbShrinkAlert: ((alert: KbShrinkAlert) => void) | null = null;
 
   /**
    * @param distPath sql-wasm.js / sql-wasm.wasm の配置ディレクトリ
@@ -1185,6 +1200,123 @@ export class TrailDatabase {
   /** IntegrityMonitor が異常を検知したときに呼ばれるハンドラを登録。 */
   setIntegrityAlertHandler(handler: (alerts: readonly IntegrityAlert[]) => void): void {
     this.onIntegrityAlert = handler;
+  }
+
+  /** KB Pre-write Snapshot の提供者を注入する（テスト用。省略時は file-backed なら lazy 自動配線）。 */
+  setKnowledgeBaseSnapshotter(snapshotter: IKnowledgeBaseSnapshotter | null): void {
+    this.kbSnapshotter = snapshotter;
+    this.kbSnapshotterResolved = snapshotter !== null;
+  }
+
+  /** Shrink Audit（グラフ総数の大幅減少）検知時に呼ばれるハンドラを登録。 */
+  setKbShrinkAlertHandler(handler: (alert: KbShrinkAlert) => void): void {
+    this.onKbShrinkAlert = handler;
+  }
+
+  /** 現存する KB スナップショット世代を返す（in-memory ストレージでは空配列）。 */
+  listKnowledgeBaseSnapshots(): readonly KnowledgeBaseSnapshotEntry[] {
+    return this.resolveKbSnapshotter()?.listSnapshots() ?? [];
+  }
+
+  /**
+   * KB スナップショットから trail.db 全体を復元する。
+   *
+   * メモリ上の古い DB が復元結果を上書きしないよう close → ファイル復元 → 再 init の
+   * 順で行い、復元後の DB に `rollback_executed`（kind:'kb_restore'）を記録して save する
+   * （復元前に記録すると whole-file 復元でアクティブ DB から監査記録が消えるため）。
+   * 復元失敗時も DB は開き直す。同じファイルを開く別プロセス（daemon 等）は
+   * 呼び出し側が事前に停止すること。
+   * @throws snapshotter が無い（in-memory）/ 指定世代が存在しない場合
+   */
+  async restoreKnowledgeBaseSnapshot(
+    generation: number,
+    actor: EmergencyEventInput['actor'] = 'human',
+  ): Promise<{ restoredFrom: string; safetyCopy: string | null }> {
+    const snapshotter = this.resolveKbSnapshotter();
+    if (!snapshotter) {
+      throw new Error('Knowledge base snapshot is unavailable for in-memory storage');
+    }
+    this.close();
+    let result: { restoredFrom: string; safetyCopy: string | null };
+    try {
+      result = snapshotter.restoreSnapshot(generation);
+    } finally {
+      // 復元の成否によらず DB を開き直す（close したまま放置しない）
+      await this.init();
+    }
+    this.recordEmergencyEvent({
+      occurredAt: new Date().toISOString(),
+      event: 'rollback_executed',
+      reason: `KB snapshot restore (generation ${generation})`,
+      actor,
+      sessionId: null,
+      detailJson: JSON.stringify({ kind: 'kb_restore', generation }),
+    });
+    this.save();
+    return result;
+  }
+
+  /** snapshotter を解決する（file-backed なら初回に自動生成）。 */
+  private resolveKbSnapshotter(): IKnowledgeBaseSnapshotter | null {
+    if (!this.kbSnapshotterResolved) {
+      this.kbSnapshotterResolved = true;
+      const filePath = this.storage.getFilePath();
+      if (filePath) {
+        this.kbSnapshotter = new FileKnowledgeBaseSnapshotter(filePath, this.logger);
+      }
+    }
+    return this.kbSnapshotter;
+  }
+
+  /**
+   * グラフ系テーブルの破壊的書込直前に呼ぶ。オンディスク（直近 save() 結果）の
+   * 書込前状態を世代退避する。失敗しても書込は止めない（fail-open）。
+   */
+  private maybeSnapshotKb(trigger: KnowledgeBaseWriteTrigger): void {
+    try {
+      this.resolveKbSnapshotter()?.snapshotBeforeDestructiveWrite(trigger);
+    } catch (err) {
+      // snapshotter 側も fail-open 契約だが、契約違反の throw でも書込を巻き込まない
+      this.logger.warn(
+        `[kb-snapshot] unexpected failure (fail-open, trigger=${trigger}): ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+      );
+    }
+  }
+
+  /** graph_json 内のノード + エッジ総数を読む（行なし・parse 失敗は null = 監査 skip）。 */
+  private readKbGraphTotals(db: Database, table: 'current_graphs' | 'current_code_graphs', repoId: number): number | null {
+    const result = db.exec(`SELECT graph_json FROM ${table} WHERE repo_id = ?`, [repoId]);
+    const json = result[0]?.values?.[0]?.[0];
+    if (typeof json !== 'string') return null;
+    try {
+      const graph = JSON.parse(json) as { nodes?: readonly unknown[]; edges?: readonly unknown[] };
+      return (graph.nodes?.length ?? 0) + (graph.edges?.length ?? 0);
+    } catch (err) {
+      this.logger.warn(`[kb-audit] graph_json parse failed (${table}, repo_id=${repoId}): ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Shrink Audit: 書込後の総数が閾値（50% 以上減少かつ書込前 20 以上）を超えて
+   * 縮小していたら emergency_log へ記録し、ハンドラへ通知する。
+   * delete 系（意図的全消去）では呼ばない — 常に誤警報になるため。
+   */
+  private auditKbShrink(alert: Omit<KbShrinkAlert, 'lossRate'>): void {
+    const { before, after } = alert;
+    if (before < KB_SHRINK_MIN_BEFORE) return;
+    const lossRate = (before - after) / before;
+    if (lossRate < KB_SHRINK_LOSS_RATE) return;
+    const full: KbShrinkAlert = { ...alert, lossRate };
+    this.recordEmergencyEvent({
+      occurredAt: new Date().toISOString(),
+      event: 'anomaly_detected',
+      reason: `KB shrink detected: ${alert.table} (${alert.repoName}) ${before} -> ${after}`,
+      actor: 'agent',
+      sessionId: null,
+      detailJson: JSON.stringify({ kind: 'kb_shrink', ...full }),
+    });
+    this.onKbShrinkAlert?.(full);
   }
 
   /**
@@ -1908,6 +2040,54 @@ export class TrailDatabase {
     this.backfillReleaseRepoIds(initDb);
     this.backfillReleaseIds(initDb);
     this.migrateReleaseChildrenReleaseId(initDb);
+    // Phase 5 S4: emergency_log.event へ section_lock 系を追加（CHECK 変更 = 12-step 再構築）。
+    this.migrateEmergencyLogEventKinds(initDb);
+  }
+
+  /**
+   * emergency_log の event CHECK に section_lock_denied / section_lock_tamper を含まない
+   * 既存 DB を新スキーマへ 12-step 再構築する（列は同一・行を id ごと保持）。冪等。
+   */
+  private migrateEmergencyLogEventKinds(db: Database): void {
+    const row = db.exec(
+      `SELECT sql FROM sqlite_master WHERE type='table' AND name='emergency_log'`,
+    )[0]?.values?.[0]?.[0];
+    const currentSql = asText(row ?? '');
+    if (currentSql === '' || currentSql.includes('section_lock_denied')) return;
+    try {
+      db.run('BEGIN');
+      try {
+        db.run('DROP TABLE IF EXISTS emergency_log__new');
+        db.run(
+          CREATE_EMERGENCY_LOG.replace(
+            'CREATE TABLE IF NOT EXISTS emergency_log',
+            'CREATE TABLE emergency_log__new',
+          ),
+        );
+        db.run(
+          `INSERT INTO emergency_log__new (id, occurred_at, event, reason, actor, session_id, detail_json)
+           SELECT id, occurred_at, event, reason, actor, session_id, detail_json FROM emergency_log`,
+        );
+        db.run('DROP TABLE emergency_log');
+        db.run('ALTER TABLE emergency_log__new RENAME TO emergency_log');
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+      // テーブル DROP でインデックスも消えるため再作成（IF NOT EXISTS で冪等）。
+      for (const idx of CREATE_EMERGENCY_INDEXES) {
+        db.run(idx);
+      }
+      this.save();
+      this.logger.info('[TrailDatabase] migrated emergency_log event kinds (Phase 5 S4)');
+    } catch (e) {
+      this.logger.error(
+        'migrateEmergencyLogEventKinds failed',
+        e instanceof Error ? e : new Error(String(e)),
+      );
+      throw e;
+    }
   }
 
   private ensureDb(): Database {
@@ -3753,6 +3933,12 @@ export class TrailDatabase {
     for (const idx of CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES) {
       db.run(idx);
     }
+    // Phase 5 S1 (Emergency Protocol)。新規テーブルのみ。
+    db.run(CREATE_SAFE_POINTS);
+    db.run(CREATE_EMERGENCY_LOG);
+    for (const idx of CREATE_EMERGENCY_INDEXES) {
+      db.run(idx);
+    }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
     this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
 
@@ -5491,12 +5677,26 @@ export class TrailDatabase {
     return Math.round(rawTokens * factor);
   }
 
+  /**
+   * 副作用: 整合性監視の記録と、in-memory ストレージへの書き出し。
+   *
+   * **file-backed のときは書き出しを行わない**。better-sqlite3 は実行時点で既にファイルへ
+   * 永続化しており、`export()`（file-backed では `fs.readFileSync(dbPath)`）→
+   * `storage.save()`（同じパスへ `writeFileSync`）は同内容を読んで書き戻すだけの往復だった。
+   * これは sql.js（in-memory のため save で書き出す必要があった）時代の名残。
+   *
+   * 2026-07-17 の事故: trail.db が 2 GiB を 1.2MB 超えた時点で `readFileSync` が
+   * `RangeError: File size ... is greater than 2 GiB` を投げ、`init()` → `createTables()` →
+   * `save()` の経路で拡張が起動不能になった。サイズ依存の崖を作らないため往復自体を断つ。
+   * in-memory 経路は読み出しでしか外へ出せないため従来どおり export → save する。
+   */
   save(): void {
     const db = this.ensureDb();
     const alerts = this.integrityMonitor.recordAndDetect(db);
     if (alerts.length > 0 && this.onIntegrityAlert) {
       this.onIntegrityAlert(alerts);
     }
+    if (this.storage.getFilePath() !== null) return;
     const data = db.export();
     this.storage.save(data);
   }
@@ -6796,8 +6996,10 @@ export class TrailDatabase {
 
   saveCurrentGraph(graph: TrailGraph, tsconfigPath: string, commitId: string, repoName: string): void {
     const db = this.ensureDb();
+    this.maybeSnapshotKb('current_graphs');
     // Phase C-2 flip: current_graphs は repo_id PK。Phase H-3: repo_name 列は撤去済。
     const repoId = this.repoIdForName(repoName);
+    const kbTotalsBefore = this.readKbGraphTotals(db, 'current_graphs', repoId);
     db.run(
       `INSERT OR REPLACE INTO current_graphs
          (repo_id, commit_id, graph_json, tsconfig_path, project_root, analyzed_at, updated_at)
@@ -6811,6 +7013,14 @@ export class TrailDatabase {
         graph.metadata.analyzedAt,
       ],
     );
+    if (kbTotalsBefore !== null) {
+      this.auditKbShrink({
+        table: 'current_graphs',
+        repoName,
+        before: kbTotalsBefore,
+        after: graph.nodes.length + graph.edges.length,
+      });
+    }
     this.save();
   }
 
@@ -6843,6 +7053,8 @@ export class TrailDatabase {
 
   saveReleaseGraph(graph: TrailGraph, tsconfigPath: string, tag: string): void {
     const db = this.ensureDb();
+    // release 側の上書き保存も保護対象（current 側との非対称防止）。デバウンスで過剰退避にはならない。
+    this.maybeSnapshotKb('release_graphs');
     // flip 後 release_graphs は release_id PK。tag を解決してから保存する。
     const releaseId = this.releaseIdForTag(db, tag);
     if (releaseId == null) {
@@ -6933,11 +7145,14 @@ export class TrailDatabase {
 
   saveCurrentCodeGraph(repoName: string, graph: CodeGraph): void {
     const db = this.ensureDb();
+    this.maybeSnapshotKb('current_code_graphs');
     ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
     ensureCommunityMappingsJsonColumn(db, 'current_code_graph_communities');
     // Phase C-2 flip: current_code_graphs / current_code_graph_communities は repo_id PK。
     // Phase H-3: repo_name 列は撤去済 (repo フィルタは repo_id = ? で行う)。
     const repoId = this.repoIdForName(repoName);
+    const kbTotalsBefore = this.readKbGraphTotals(db, 'current_code_graphs', repoId);
+    const kbCommunityRowsBefore = this.countCommunityRows(db, repoId);
     const { stored, communities } = splitCodeGraph(graph);
 
     // ジャッカード引き継ぎ: DELETE/INSERT で community_id が再採番される前に、
@@ -6990,7 +7205,30 @@ export class TrailDatabase {
       stmt.run([repoId, c.id, c.label, effectiveName, effectiveSummary, c.stableKey, effectiveMappingsJson]);
     }
     stmt.free();
+    if (kbTotalsBefore !== null) {
+      this.auditKbShrink({
+        table: 'current_code_graphs',
+        repoName,
+        before: kbTotalsBefore,
+        after: stored.nodes.length + stored.edges.length,
+      });
+    }
+    if (kbCommunityRowsBefore !== null) {
+      this.auditKbShrink({
+        table: 'current_code_graph_communities',
+        repoName,
+        before: kbCommunityRowsBefore,
+        after: communities.length,
+      });
+    }
     this.save();
+  }
+
+  /** current_code_graph_communities の repo 内行数（Shrink Audit の書込前カウント用。行なしは null）。 */
+  private countCommunityRows(db: Database, repoId: number): number | null {
+    const result = db.exec('SELECT COUNT(*) FROM current_code_graph_communities WHERE repo_id = ?', [repoId]);
+    const count = Number(result[0]?.values?.[0]?.[0] ?? 0);
+    return count > 0 ? count : null;
   }
 
   /**
@@ -7196,6 +7434,9 @@ export class TrailDatabase {
     communities: ReadonlyArray<{ community_id: number; label?: string; name: string; summary: string; stable_key?: string }>,
   ): void {
     const db = this.ensureDb();
+    // 行単位 REPLACE で行数は減らないため Shrink Audit は不要だが、
+    // AI 生成の name / summary を上書きする前の状態を snapshot が保護する。
+    this.maybeSnapshotKb('current_code_graph_communities');
     ensureCommunityStableKeyColumn(db, 'current_code_graph_communities');
     ensureCommunityMappingsJsonColumn(db, 'current_code_graph_communities');
     // Phase C-2 flip: PK は (repo_id, community_id)。Phase H-3: repo_name 列は撤去済。
@@ -7354,6 +7595,8 @@ export class TrailDatabase {
 
   saveReleaseCodeGraph(tag: string, graph: CodeGraph): void {
     const db = this.ensureDb();
+    // release 側の上書き保存も保護対象（current 側との非対称防止）。デバウンスで過剰退避にはならない。
+    this.maybeSnapshotKb('release_code_graphs');
     ensureCommunityStableKeyColumn(db, 'release_code_graph_communities');
     // flip 後は release_id FK。tag を解決してから保存する。
     const releaseId = this.releaseIdForTag(db, tag);
@@ -7409,6 +7652,8 @@ export class TrailDatabase {
 
   deleteCurrentCodeGraphs(): void {
     const db = this.ensureDb();
+    // 意図的な全消去のため Shrink Audit は掛けない（常に誤警報になる）。snapshot のみ。
+    this.maybeSnapshotKb('current_code_graphs');
     db.run('DELETE FROM current_code_graph_communities');
     db.run('DELETE FROM current_code_graphs');
     this.save();
@@ -7416,6 +7661,8 @@ export class TrailDatabase {
 
   deleteReleaseCodeGraphs(): void {
     const db = this.ensureDb();
+    // 意図的な全消去のため Shrink Audit は掛けない（常に誤警報になる）。snapshot のみ。
+    this.maybeSnapshotKb('release_code_graphs');
     db.run('DELETE FROM release_code_graph_communities');
     db.run('DELETE FROM release_code_graphs');
     this.save();
@@ -8284,6 +8531,113 @@ export class TrailDatabase {
     } finally {
       stmt.free();
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Phase 5 S1: Emergency Protocol (safe_points / emergency_log)
+  // ---------------------------------------------------------------------------
+
+  /** セーフポイント保持上限。超過分は record 時に古い順で削除する（肥大化防止）。 */
+  private static readonly SAFE_POINT_RETENTION = 500;
+
+  /** 副作用: safe_points へ INSERT（+ 保持上限超過分の DELETE）。永続化は呼び出し側の save() 契約に従う。 */
+  recordSafePoint(input: SafePointInput): void {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      `INSERT INTO safe_points (created_at, commit_hash, branch, worktree, label, source, session_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    try {
+      stmt.run([
+        input.createdAt,
+        input.commitHash,
+        input.branch,
+        input.worktree,
+        input.label,
+        input.source,
+        input.sessionId,
+      ]);
+    } finally {
+      stmt.free();
+    }
+    db.run(
+      `DELETE FROM safe_points WHERE id NOT IN (
+         SELECT id FROM safe_points ORDER BY created_at DESC, id DESC LIMIT ${TrailDatabase.SAFE_POINT_RETENTION}
+       )`,
+    );
+  }
+
+  /** created_at 降順。 */
+  listSafePoints(limit = 100): SafePoint[] {
+    const db = this.ensureDb();
+    const res = db.exec(
+      `SELECT id, created_at, commit_hash, branch, worktree, label, source, session_id
+       FROM safe_points ORDER BY created_at DESC, id DESC LIMIT ?`,
+      [limit],
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      id: row[0] as number,
+      createdAt: row[1] as string,
+      commitHash: row[2] as string,
+      branch: row[3] as string,
+      worktree: row[4] as string,
+      label: row[5] as string,
+      source: row[6] as SafePoint['source'],
+      sessionId: (row[7] as string | null) ?? null,
+    }));
+  }
+
+  /**
+   * 副作用: emergency_log へ INSERT。永続化は呼び出し側の save() 契約に従う。
+   * 全列一致の既存行があれば挿入しない（内容キーで冪等）。emergency spool の drain は
+   * at-least-once（POST 成功をクライアントのタイムアウトが失敗扱いにし再送し得る）のため、
+   * 再送をここで吸収する（cross-review 指摘の是正）。
+   */
+  recordEmergencyEvent(input: EmergencyEventInput): void {
+    const db = this.ensureDb();
+    const stmt = db.prepare(
+      `INSERT INTO emergency_log (occurred_at, event, reason, actor, session_id, detail_json)
+       SELECT ?, ?, ?, ?, ?, ?
+       WHERE NOT EXISTS (
+         SELECT 1 FROM emergency_log
+         WHERE occurred_at = ? AND event = ? AND reason = ? AND actor = ?
+           AND session_id IS ? AND detail_json IS ?
+       )`,
+    );
+    const values = [
+      input.occurredAt,
+      input.event,
+      input.reason,
+      input.actor,
+      input.sessionId,
+      input.detailJson,
+    ];
+    try {
+      stmt.run([...values, ...values]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /** occurred_at 降順。 */
+  listEmergencyEvents(limit = 100): EmergencyEvent[] {
+    const db = this.ensureDb();
+    const res = db.exec(
+      `SELECT id, occurred_at, event, reason, actor, session_id, detail_json
+       FROM emergency_log ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+      [limit],
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      id: row[0] as number,
+      occurredAt: row[1] as string,
+      event: row[2] as EmergencyEvent['event'],
+      reason: row[3] as string,
+      actor: row[4] as EmergencyEvent['actor'],
+      sessionId: (row[5] as string | null) ?? null,
+      detailJson: row[6] as string,
+    }));
   }
 
   markMessageCommitsResolved(sessionId: string, resolvedAt: string): void {
@@ -11604,10 +11958,13 @@ export class TrailDatabase {
       }));
     };
 
-    // AI First-Try Success Rate は fix コミットを 168h 先まで見る必要があるため、
-    // commits の取得範囲を fix 検出ウィンドウぶん拡張する。
+    // AI First-Try Success Rate は fix コミットを 168h 先まで、MTTR は障害混入コミットを
+    // 168h 前まで見る必要があるため、commits の取得範囲を fix 検出ウィンドウぶん両側へ拡張する。
+    // 範囲内フィルタは各 compute 関数側で行うため、既存指標には影響しない。
     const FIX_WINDOW_MS = 168 * 60 * 60 * 1000;
+    const extendedFrom = new Date(new Date(from).getTime() - FIX_WINDOW_MS).toISOString();
     const extendedTo = new Date(new Date(to).getTime() + FIX_WINDOW_MS).toISOString();
+    const extendedPrevFrom = new Date(new Date(prevFrom).getTime() - FIX_WINDOW_MS).toISOString();
     const extendedPrevTo = new Date(new Date(prevTo).getTime() + FIX_WINDOW_MS).toISOString();
 
     const queryCommits = (f: string, t: string) => {
@@ -11658,11 +12015,11 @@ export class TrailDatabase {
       releases: queryReleases(from, to),
       messages: queryMessages(from, to),
       messageCommits: queryMessageCommits(from, to),
-      commits: queryCommits(from, extendedTo),
+      commits: queryCommits(extendedFrom, extendedTo),
       previousReleases: queryReleases(prevFrom, prevTo),
       previousMessages: queryMessages(prevFrom, prevTo),
       previousMessageCommits: queryMessageCommits(prevFrom, prevTo),
-      previousCommits: queryCommits(prevFrom, extendedPrevTo),
+      previousCommits: queryCommits(extendedPrevFrom, extendedPrevTo),
     };
   }
 

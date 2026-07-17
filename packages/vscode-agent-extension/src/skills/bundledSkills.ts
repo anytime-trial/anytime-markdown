@@ -21,6 +21,9 @@ export interface BundledSkill {
  * installTemplatedSkill で個別に扱う。
  */
 export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
+  // 要求から T3 Stack Web アプリ MVP を生成する汎用スキル。グローバル配布から
+  // 2026-07-16 に canonical（.claude/skills/）へ移設した（811fb7ce5）ものを同梱化。
+  { name: 'anytime-build-webapp' },
   { name: 'anytime-cross-review' },
   // 環境・設定の read-only 診断。trail の DB・MCP に依存しないため、2026-07-16 に
   // trail 拡張同梱から移動した（配置済みコピーは agent marker 未記録 → 初回 activate で上書き）。
@@ -38,4 +41,6 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   },
   { name: 'anytime-impl-test-design' },
   { name: 'anytime-proposal' },
+  // チケット駆動自動実行（/loop 連携）。web-app /tickets とフォーマット正本を共有する。
+  { name: 'anytime-ticket-loop' },
 ];

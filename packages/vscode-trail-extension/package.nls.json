@@ -20,5 +20,10 @@
   "command.registerMcpServer": "Register MCP Server (write .mcp.json)",
   "command.killExtensionHost": "Kill Extension Host",
   "view.alignment": "Spec Alignment",
-  "viewsWelcome.alignment": "[$(refresh) Check spec alignment (working tree)](command:anytime-trail.checkAlignment)"
+  "viewsWelcome.alignment": "[$(refresh) Check spec alignment (working tree)](command:anytime-trail.checkAlignment)",
+  "command.killSwitch": "Kill Switch (Block Claude Tool Execution)",
+  "command.releaseKillSwitch": "Release Kill Switch",
+  "command.recordSafePoint": "Record Safe Point",
+  "command.rollbackToSafePoint": "Rollback to Safe Point (Create Recovery Branch)",
+  "command.restoreKnowledgeBaseSnapshot": "Restore Knowledge Base Snapshot (Whole trail.db)"
 }

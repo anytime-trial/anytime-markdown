@@ -102,6 +102,8 @@ describe('classifyDoraLevel', () => {
         tokensPerLoc: { elite: 1_000, high: 8_000, medium: 40_000 },
         changeFailureRate: { elite: 10, high: 20, medium: 30 },
         aiFirstTrySuccessRate: { elite: 95, high: 80, medium: 65 },
+        meanTimeToRecovery: { elite: 0.5, high: 12, medium: 96 },
+        taskCompletionRate: { elite: 95, high: 80, medium: 60 },
       };
       expect(classifyDoraLevel('deploymentFrequency', 1.5, custom)).toBe('high');
       expect(classifyDoraLevel('deploymentFrequency', 2, custom)).toBe('elite');

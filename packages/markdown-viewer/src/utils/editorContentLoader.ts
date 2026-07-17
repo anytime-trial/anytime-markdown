@@ -1,5 +1,6 @@
 import type { Editor } from "@anytime-markdown/markdown-core";
 
+import { setContentBypassingSectionLock } from "../extensions/sectionLockPlugin";
 import { getEditorStorage } from "../types";
 import type { InlineComment } from "./commentHelpers";
 import { preprocessMarkdown } from "./frontmatterHelpers";
@@ -31,7 +32,7 @@ export function applyMarkdownToEditor(editor: Editor, text: string): ApplyResult
   // 元テキストの末尾改行を記録（getMarkdownFromEditor で復元するため）
   setTrailingNewline(editor, text.endsWith("\n"));
   const { frontmatter, comments, body, imageAnnotations, gifSettings } = preprocessMarkdown(text);
-  editor.commands.setContent(body);
+  setContentBypassingSectionLock(editor, body);
   if (typeof editor.commands.initComments === "function") {
     editor.commands.initComments(comments);
   }

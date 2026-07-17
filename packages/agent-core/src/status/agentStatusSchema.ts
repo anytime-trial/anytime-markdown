@@ -25,6 +25,8 @@ export function agentSessionsDDL(table = 'agent_sessions'): string {
   committed_count  INTEGER NOT NULL DEFAULT 0 CHECK (committed_count >= 0),
   last_commit_hash TEXT,
   last_commit_at   TEXT CHECK (last_commit_at IS NULL OR last_commit_at GLOB ${TS_GLOB_MS} OR last_commit_at GLOB ${TS_GLOB_NO_MS}),
+  pid              INTEGER CHECK (pid IS NULL OR pid > 0),
+  terminal_pid     INTEGER CHECK (terminal_pid IS NULL OR terminal_pid > 0),
   summary          TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(summary)),
   summary_at       TEXT CHECK (summary_at IS NULL OR summary_at GLOB ${TS_GLOB_MS} OR summary_at GLOB ${TS_GLOB_NO_MS}),
   handoff_at       TEXT CHECK (handoff_at IS NULL OR handoff_at GLOB ${TS_GLOB_MS} OR handoff_at GLOB ${TS_GLOB_NO_MS}),

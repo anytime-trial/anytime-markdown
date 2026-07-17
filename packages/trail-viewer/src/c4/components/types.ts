@@ -44,6 +44,11 @@ export interface C4ViewerCoreProps {
   readonly onPurgeDeleted?: () => void;
   readonly onDocLinkClick?: (doc: DocLink) => void;
   readonly onOpenFile?: (filePath: string) => void;
+  /**
+   * 右クリックの「Agent Note に出力」を選択したときのコールバック。
+   * VS Code 連携時のみ配線する（未配線ならメニュー項目を表示しない）。
+   */
+  readonly onExportToNote?: (payload: { title: string; contextMarkdown: string; imageDataUrl?: string }) => void;
   /** L3 component 右クリックの「シーケンス表示」を選択したときのコールバック。 */
   readonly onShowSequence?: (elementId: string) => void;
   /** L3 component popup の関数一覧から「関数ツリー表示」を選択したときのコールバック。 */

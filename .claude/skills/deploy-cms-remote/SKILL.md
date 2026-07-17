@@ -196,7 +196,9 @@ curl -s -X POST https://mcp-cms-remote.kiyotaka-ueda.workers.dev/mcp \
   -H "Accept: application/json, text/event-stream" \
   -H "Authorization: Bearer $MCP_API_KEY" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-# Expected: 5ツール（upload_report, list_reports, upload_doc, list_docs, delete_doc）
+# Expected: 9 ツール = CMS 6（upload_report, list_reports, get_report, upload_doc, list_docs, delete_doc）
+#           + paper 3（get_unwritten_papers, mark_paper_written, list_paper_rankings）
+# ツール追加・削除時は packages/mcp-cms-remote/src/server.ts の registerTool 一覧と本行を同期する
 
 # 8-5: S3 接続テスト（list_reports）
 curl -s -X POST https://mcp-cms-remote.kiyotaka-ueda.workers.dev/mcp \

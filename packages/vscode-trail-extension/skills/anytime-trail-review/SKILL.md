@@ -6,7 +6,7 @@ description: コードレビュー結果を出力する際の Markdown 書式（
 
 # レビュー指摘の書式
 
-更新日: 2026-05-16
+更新日: 2026-07-16
 
 コードレビュー結果を出力する際の Markdown 書式。`memory-core/src/ingest/review` パーサ（Route A: review .md doc / Route B: session 抽出 / Route C: agent review）がこの書式を前提に finding を抽出するため、**指摘を確実に Memory に蓄積したい場合は本書式に従う**こと。
 
@@ -14,7 +14,7 @@ description: コードレビュー結果を出力する際の Markdown 書式（
 
 | 対象 | パス・トリガー |
 | --- | --- |
-| レビュードキュメント | `/Shared/anytime-markdown-docs/review/<date>-<topic>.<lang>.md` |
+| レビュードキュメント | `<docsRoot>/review/<date>-<topic>.<lang>.md` |
 | code-reviewer subagent 出力 | `subagent_type = 'code-reviewer'` または `subagent_type LIKE '%:code-reviewer'`（`pr-review-toolkit:code-reviewer` 等のプラグイン名前空間付きを含む）のメッセージ全文 |
 | requesting-code-review skill 出力 | `skill='superpowers:requesting-code-review'` の subagent 呼び出し結果 |
 | security-review / code-review-checklist | `skill IN ('security-review', 'code-review-checklist')` |
@@ -144,9 +144,9 @@ const name = reader.session.user.name;
 `i18n-naming` スキルを参照。
 ```
 
-## 4. 悪い例（パーサで取りこぼされる）
+## 4. 注意が要る形式（フォールバック挙動と取りこぼし）
 
-### 4.1 マーカーなしの自由形式
+### 4.1 マーカーなしの自由形式（フォールバックで認識される）
 
 ```markdown
 ### 検出 1: 重複コードの整理
@@ -156,9 +156,10 @@ const name = reader.session.user.name;
 - **推奨修正**: `Logger.ts` から export して import する
 ```
 
-→ `**問題:**` `**提案:**` がないため finding として認識されない。
+→ 現行パーサは bullet 接頭辞付き `**内容**:` / `**推奨修正**:` もフォールバックで問題/提案ペアとして抽出する（認識はされる）。\
+ただし `### N.` 見出し＋3 メタデータが無いと severity/カテゴリは既定推定になるため、§1 の正式書式を推奨。
 
-### 4.2 絵文字 + 番号での識別
+### 4.2 絵文字 + 番号での識別（正式サポート）
 
 ```markdown
 🟡 **1. ollama-core を runtime dependencies に追加 (不要)**
@@ -168,7 +169,8 @@ const name = reader.session.user.name;
 修正: package.json から移動する。
 ```
 
-→ `### N.` heading なし、マーカーなしで取りこぼし。
+→ 現行パーサは `🟡 **N. タイトル**` 境界と `修正:` インラインマーカーを正式にサポートしており抽出される。\
+`## レビュー指摘事項` 見出しの配下に置くこと（見出し外は章分割で漏れる）。
 
 ### 4.3 表形式のみ
 
@@ -189,7 +191,8 @@ const name = reader.session.user.name;
 代替テキストを追加すること。
 ```
 
-→ 現状パーサは `**推奨:**` を認識しない。`**提案:**` に置き換える。
+→ `**推奨:**` 自体はマーカー語彙にあるが、`【A11y】` のような接頭辞が `**` とマーカーの間に割り込むと認識されない。\
+接頭辞を外すか、`**提案:**` 等の素のマーカーに置き換える。
 
 ## 5. 補助セクション（任意）
 

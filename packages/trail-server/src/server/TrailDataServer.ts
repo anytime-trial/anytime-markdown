@@ -65,6 +65,7 @@ import type { Logger, LogLevel } from '../runtime/Logger';
 import type { LogService, PersistedLogEntry } from '../services/LogService';
 import { combineLoggers,LogSink } from '../services/LogSink';
 import { AlignmentApiHandler } from './AlignmentApiHandler';
+import { EmergencyApiHandler } from './EmergencyApiHandler';
 import { C4ManualApiHandler } from './C4ManualApiHandler';
 import { CodeGraphApiHandler } from './CodeGraphApiHandler';
 import { DocsApiHandler } from './DocsApiHandler';
@@ -73,6 +74,7 @@ import { handleGetLogs, handlePostLogs } from './logsApi';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
 import type { ClientMessage, ServerMessage } from './types';
+import { readWorkspaceTickets } from './workspaceTickets';
 
 const LOG_CLEANUP_INTERVAL_MS = 24 * 3600 * 1000;
 
@@ -259,6 +261,7 @@ export class TrailDataServer {
   private callHierarchyIndexRepo: string | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
   onOpenFile: ((filePath: string) => void) | undefined;
+  onAddNotePage: ((payload: { title: string; contextMarkdown: string; imageDataUrl?: string }) => void) | undefined;
   onTokenBudgetExceeded: ((status: import('./types').TokenBudgetUpdatedMessage) => void) | undefined;
 
   /** POST /api/analyze/current ハンドラ。extension.ts で登録される */
@@ -294,6 +297,7 @@ export class TrailDataServer {
   private readonly codeGraphApi: CodeGraphApiHandler;
   private readonly docsApi: DocsApiHandler;
   private readonly alignmentApi: AlignmentApiHandler;
+  private readonly emergencyApi: EmergencyApiHandler;
 
   constructor(
     private readonly distPath: string,
@@ -355,6 +359,11 @@ export class TrailDataServer {
     this.alignmentApi = new AlignmentApiHandler(
       this.trailDb,
       this.logger.child('AlignmentApiHandler'),
+      { gitRepoRoot: this.gitRoot },
+    );
+    this.emergencyApi = new EmergencyApiHandler(
+      this.trailDb,
+      this.logger.child('EmergencyApiHandler'),
       { gitRepoRoot: this.gitRoot },
     );
     this.docsApi = new DocsApiHandler(
@@ -711,7 +720,53 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/trail/safe-points' && method === 'POST') {
+      this.handleRecordSafePoint(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/safe-points' && method === 'GET') {
+      this.handleListSafePoints(res, parsed.searchParams);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency-log' && method === 'POST') {
+      this.handleRecordEmergencyEvent(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency-log' && method === 'GET') {
+      this.handleListEmergencyEvents(res, parsed.searchParams);
+      return;
+    }
+
+    // Phase 5 S5: trail-viewer の EmergencyPanel 経路。変更系は EmergencyApiHandler 側で
+    // Origin allowlist + カスタムヘッダ + Content-Type を検証する（localhost バインドは
+    // クロスオリジン送信そのものを防げないため、CSRF 対策をハンドラ内に閉じて持つ）。
+    if (pathname === '/api/trail/emergency-state' && method === 'GET') {
+      this.emergencyApi.handleGetState(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency/kill-switch' && method === 'POST') {
+      void this.emergencyApi.handleKillSwitch(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency/release' && method === 'POST') {
+      void this.emergencyApi.handleRelease(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/emergency/rollback' && method === 'POST') {
+      void this.emergencyApi.handleRollback(req, res);
+      return;
+    }
+
     if (pathname === '/api/message-commits' && method === 'POST') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       this.handleInsertMessageCommit(req, res);
       return;
     }
@@ -797,10 +852,16 @@ export class TrailDataServer {
       return;
     }
     if (pathname === '/api/c4/communities/upsert-summaries' && method === 'POST') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       void this.c4ManualApi.upsertCommunitySummaries(req, res, parsed);
       return;
     }
     if (pathname === '/api/c4/communities/upsert-mappings' && method === 'POST') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       void this.c4ManualApi.upsertCommunityMappings(req, res, parsed);
       return;
     }
@@ -903,6 +964,9 @@ export class TrailDataServer {
     }
 
     if (method === 'POST' && pathname === '/api/c4/manual-elements') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       void this.c4ManualApi.createElement(req, res, parsed);
       return;
     }
@@ -1075,6 +1139,9 @@ export class TrailDataServer {
     }
 
     if (pathname.startsWith('/api/memory/drift/events/') && method === 'POST') {
+      if (!this.requireJsonContentType(req, res)) {
+        return;
+      }
       const eventId = decodePathParam(pathname, '/api/memory/drift/events/', '/resolve');
       void this.readJsonBody(req).then(async (body) => {
         const note = typeof (body as Record<string, unknown>)['resolutionNote'] === 'string'
@@ -2345,7 +2412,8 @@ export class TrailDataServer {
       const prevFrom = new Date(fromMs - 1 - duration).toISOString();
 
       const raw = this.trailDb.getQualityMetricsInputs(from, to, prevFrom, prevTo);
-      const metrics = computeQualityMetrics(raw, { from, to }, thresholds);
+      const tickets = readWorkspaceTickets(this.gitRoot ?? process.cwd(), (m) => this.logger.info(m));
+      const metrics = computeQualityMetrics({ ...raw, tickets }, { from, to }, thresholds);
 
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(metrics));
@@ -2640,6 +2708,153 @@ export class TrailDataServer {
   }
 
   // -------------------------------------------------------------------------
+  //  API: /api/trail/safe-points, /api/trail/emergency-log (Phase 5 S1)
+  // -------------------------------------------------------------------------
+
+  /**
+   * 状態変更 POST の CSRF 対策。Content-Type: application/json を必須にすることで、
+   * クロスサイトの「simple request」（text/plain 等・preflight 不要）を弾く。
+   * application/json はブラウザに preflight を強制させ、CORS の origin 許可リストで遮断される。
+   * 正規クライアント（フック curl・拡張の fetch）はいずれも application/json を送るため影響しない。
+   */
+  private requireJsonContentType(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+    const mediaType = (req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+    if (mediaType !== 'application/json') {
+      res.writeHead(415, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+      return false;
+    }
+    return true;
+  }
+
+  private handleRecordSafePoint(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const source = parsed['source'];
+        if (
+          typeof parsed['createdAt'] !== 'string' ||
+          typeof parsed['commitHash'] !== 'string' ||
+          parsed['commitHash'] === '' ||
+          (source !== 'stop_hook' && source !== 'manual')
+        ) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'createdAt, commitHash, source(stop_hook|manual) required' }));
+          return;
+        }
+        this.trailDb.recordSafePoint({
+          createdAt: parsed['createdAt'],
+          commitHash: parsed['commitHash'],
+          branch: typeof parsed['branch'] === 'string' ? parsed['branch'] : '',
+          worktree: typeof parsed['worktree'] === 'string' ? parsed['worktree'] : '',
+          label: typeof parsed['label'] === 'string' ? parsed['label'] : '',
+          source,
+          sessionId: typeof parsed['sessionId'] === 'string' && parsed['sessionId'] !== '' ? parsed['sessionId'] : null,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleRecordSafePoint failed', e);
+        sendServerError(res, 'Failed to record safe point');
+      }
+    });
+  }
+
+  private handleListSafePoints(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const safePoints = this.trailDb.listSafePoints(Number.isNaN(limit) ? 100 : limit);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ safePoints }));
+    } catch (e) {
+      this.logger.error('handleListSafePoints failed', e);
+      sendServerError(res, 'Failed to list safe points');
+    }
+  }
+
+  private static readonly EMERGENCY_EVENT_KINDS = new Set([
+    'kill_switch_on',
+    'kill_switch_off',
+    'rollback_executed',
+    'anomaly_detected',
+    'section_lock_denied',
+    'section_lock_tamper',
+  ]);
+
+  private static readonly EMERGENCY_ACTORS = new Set(['human', 'claude', 'agent']);
+
+  private handleRecordEmergencyEvent(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const event = parsed['event'];
+        const actor = parsed['actor'] ?? 'human';
+        if (
+          typeof parsed['occurredAt'] !== 'string' ||
+          typeof event !== 'string' ||
+          !TrailDataServer.EMERGENCY_EVENT_KINDS.has(event) ||
+          typeof actor !== 'string' ||
+          !TrailDataServer.EMERGENCY_ACTORS.has(actor)
+        ) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'occurredAt, event(kind), actor(human|claude|agent) required' }));
+          return;
+        }
+        const detailJson = typeof parsed['detailJson'] === 'string' ? parsed['detailJson'] : '{}';
+        this.trailDb.recordEmergencyEvent({
+          occurredAt: parsed['occurredAt'],
+          event: event as import('@anytime-markdown/trail-core').EmergencyEventKind,
+          reason: typeof parsed['reason'] === 'string' ? parsed['reason'] : '',
+          actor: actor as import('@anytime-markdown/trail-core').EmergencyActor,
+          sessionId: typeof parsed['sessionId'] === 'string' && parsed['sessionId'] !== '' ? parsed['sessionId'] : null,
+          detailJson,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleRecordEmergencyEvent failed', e);
+        sendServerError(res, 'Failed to record emergency event');
+      }
+    });
+  }
+
+  private handleListEmergencyEvents(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const events = this.trailDb.listEmergencyEvents(Number.isNaN(limit) ? 100 : limit);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ events }));
+    } catch (e) {
+      this.logger.error('handleListEmergencyEvents failed', e);
+      sendServerError(res, 'Failed to list emergency events');
+    }
+  }
+
+  // -------------------------------------------------------------------------
   //  C4 WebSocket handling
   // -------------------------------------------------------------------------
 
@@ -2704,6 +2919,9 @@ export class TrailDataServer {
         return;
       case 'open-file':
         this.onOpenFile?.(parsed.filePath);
+        return;
+      case 'add-note-page':
+        this.onAddNotePage?.({ title: parsed.title, contextMarkdown: parsed.contextMarkdown, imageDataUrl: parsed.imageDataUrl });
         return;
       case 'perf-report':
         // TRAIL_DEBUG_PERF=1 の時のみ OutputChannel に出力（既定で常時 silent）
@@ -3438,6 +3656,7 @@ export function isClientMessage(data: unknown): data is ClientMessage {
     'reset-claude-activity',
     'generate-code-graph',
     'open-file',
+    'add-note-page',
     'perf-report',
     'chat.send',
     'chat.abort',

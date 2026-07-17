@@ -17,15 +17,15 @@ describe('computeQualityMetrics', () => {
     expect(result.metrics.changeFailureRate.sampleSize).toBe(0);
   });
 
-  it('returns 5 unmeasured metrics', () => {
+  it('returns 3 unmeasured metrics (MTTR and TCR are now measured)', () => {
     const result = computeQualityMetrics(emptyInputs(), range);
-    expect(result.unmeasured.length).toBe(5);
+    expect(result.unmeasured.length).toBe(3);
     const ids = result.unmeasured.map((u) => u.id);
-    expect(ids).toContain('meanTimeToRecovery');
-    expect(ids).toContain('taskCompletionRate');
     expect(ids).toContain('aiQualityEfficiencyScore');
     expect(ids).toContain('recoveryRate');
     expect(ids).toContain('autonomyIndex');
+    expect(result.metrics.meanTimeToRecovery.id).toBe('meanTimeToRecovery');
+    expect(result.metrics.taskCompletionRate.id).toBe('taskCompletionRate');
   });
 
   it('previousRange is same length as range, just before', () => {

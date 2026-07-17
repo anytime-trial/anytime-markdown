@@ -21,11 +21,14 @@ const isCapacitorBuild = !isCloudflare && process.env.CAPACITOR_BUILD === 'true'
 const nextConfig: NextConfig = {
   devIndicators: false,
   transpilePackages: [
+    '@anytime-markdown/tickets-core',
+    '@anytime-markdown/tickets-viewer',
     '@anytime-markdown/markdown-core',
     '@anytime-markdown/database-core',
     '@anytime-markdown/database-viewer',
     '@anytime-markdown/markdown-viewer',
     '@anytime-markdown/markdown-react-islands',
+    '@anytime-markdown/section-lock-core',
     '@anytime-markdown/markdown-engine',
     '@anytime-markdown/spreadsheet-core',
     '@anytime-markdown/spreadsheet-viewer',

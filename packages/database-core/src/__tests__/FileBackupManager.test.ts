@@ -83,8 +83,9 @@ describe('FileBackupManager', () => {
     it('returns false and creates no backup when DB file does not exist', () => {
       const mgr = new FileBackupManager(dbPath);
       // shouldBackup returns true (no bak.1 exists) but rotateBackups early-returns
-      // when dbPath itself does not exist. Result: no backup file written.
-      expect(mgr.maybeRotate()).toBe(true);
+      // when dbPath itself does not exist. No backup file is written, so the
+      // return value must not report "created" (Phase 5 S3 cross-review fix).
+      expect(mgr.maybeRotate()).toBe(false);
       expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(false);
     });
 
@@ -279,6 +280,71 @@ describe('FileBackupManager', () => {
       const guard = jest.fn<void, [string]>();
       new FileBackupManager(dbPath, 1, 0, guard).restoreFromBackup(1);
       expect(guard).toHaveBeenCalledWith(dbPath);
+    });
+  });
+
+  describe('options (suffix / latchPerInstance)', () => {
+    it('custom suffix produces an independent backup series', () => {
+      fs.writeFileSync(dbPath, Buffer.from('kb-original'));
+      const mgr = new FileBackupManager(dbPath, 2, 0, undefined, { suffix: '.kb' });
+      expect(mgr.maybeRotate()).toBe(true);
+
+      expect(fs.existsSync(`${dbPath}.kb.1.gz`)).toBe(true);
+      expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(false);
+      const restored = zlib.gunzipSync(fs.readFileSync(`${dbPath}.kb.1.gz`)).toString();
+      expect(restored).toBe('kb-original');
+    });
+
+    it('latchPerInstance=false rotates again on the same instance when interval allows', () => {
+      fs.writeFileSync(dbPath, Buffer.from('A'));
+      const mgr = new FileBackupManager(dbPath, 2, 0, undefined, { suffix: '.kb', latchPerInstance: false });
+      expect(mgr.maybeRotate()).toBe(true);
+      fs.writeFileSync(dbPath, Buffer.from('B'));
+      expect(mgr.maybeRotate()).toBe(true);
+
+      expect(fs.existsSync(`${dbPath}.kb.2.gz`)).toBe(true);
+      expect(zlib.gunzipSync(fs.readFileSync(`${dbPath}.kb.1.gz`)).toString()).toBe('B');
+      expect(zlib.gunzipSync(fs.readFileSync(`${dbPath}.kb.2.gz`)).toString()).toBe('A');
+    });
+
+    it('latchPerInstance=false still skips while the latest backup is younger than the interval', () => {
+      fs.writeFileSync(dbPath, Buffer.from('A'));
+      const tenMinutesInDays = 10 / (24 * 60);
+      const mgr = new FileBackupManager(dbPath, 2, tenMinutesInDays, undefined, { suffix: '.kb', latchPerInstance: false });
+      expect(mgr.maybeRotate()).toBe(true);
+      fs.writeFileSync(dbPath, Buffer.from('B'));
+      expect(mgr.maybeRotate()).toBe(false);
+      expect(fs.existsSync(`${dbPath}.kb.2.gz`)).toBe(false);
+    });
+
+    it('defaults keep the legacy behavior (.bak suffix, once per instance)', () => {
+      fs.writeFileSync(dbPath, Buffer.from('A'));
+      const mgr = new FileBackupManager(dbPath, 2, 0);
+      expect(mgr.maybeRotate()).toBe(true);
+      fs.writeFileSync(dbPath, Buffer.from('B'));
+      expect(mgr.maybeRotate()).toBe(false);
+      expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(true);
+    });
+
+    it('returns false when the DB file does not exist (no false "created" report)', () => {
+      const mgr = new FileBackupManager(dbPath, 2, 0, undefined, { suffix: '.kb', latchPerInstance: false });
+      expect(mgr.maybeRotate()).toBe(false);
+      expect(fs.existsSync(`${dbPath}.kb.1.gz`)).toBe(false);
+    });
+
+    it('listBackups and restoreFromBackup honor the custom suffix', () => {
+      fs.writeFileSync(dbPath, Buffer.from('kb-v1'));
+      const mgr = new FileBackupManager(dbPath, 2, 0, undefined, { suffix: '.kb', latchPerInstance: false });
+      mgr.maybeRotate();
+      fs.writeFileSync(dbPath, Buffer.from('kb-v2'));
+
+      const backups = mgr.listBackups();
+      expect(backups).toHaveLength(1);
+      expect(backups[0].path).toBe(`${dbPath}.kb.1.gz`);
+
+      const result = mgr.restoreFromBackup(1);
+      expect(result.restoredFrom).toBe(`${dbPath}.kb.1.gz`);
+      expect(fs.readFileSync(dbPath).toString()).toBe('kb-v1');
     });
   });
 });

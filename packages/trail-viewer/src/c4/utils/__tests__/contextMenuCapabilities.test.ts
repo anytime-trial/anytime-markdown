@@ -177,4 +177,40 @@ describe('computeContextMenuCapabilities', () => {
     expect(r.canDrillUp).toBe(true);
     expect(r.showContextMenu).toBe(true);
   });
+
+  it('ハンドラありで要素が解決できる → canExportToNote: true', () => {
+    const r = computeContextMenuCapabilities({
+      c4Model: baseModel,
+      c4Id: 'fn_foo',
+      drillStack: [],
+      hasShowSequenceHandler: false,
+      hasExportToNoteHandler: true,
+      canShowManualContextActions: noManualActions,
+    });
+    expect(r.canExportToNote).toBe(true);
+    expect(r.showContextMenu).toBe(true);
+  });
+
+  it('ハンドラなし（Web 単体モード）→ canExportToNote: false', () => {
+    const r = computeContextMenuCapabilities({
+      c4Model: baseModel,
+      c4Id: 'fn_foo',
+      drillStack: [],
+      hasShowSequenceHandler: false,
+      canShowManualContextActions: noManualActions,
+    });
+    expect(r.canExportToNote).toBe(false);
+  });
+
+  it('要素がモデルに見つからない → canExportToNote: false', () => {
+    const r = computeContextMenuCapabilities({
+      c4Model: baseModel,
+      c4Id: 'fn_missing',
+      drillStack: [],
+      hasShowSequenceHandler: false,
+      hasExportToNoteHandler: true,
+      canShowManualContextActions: noManualActions,
+    });
+    expect(r.canExportToNote).toBe(false);
+  });
 });

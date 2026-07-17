@@ -31,6 +31,10 @@ export interface SessionMapping {
   readonly committedCount?: number;
   /** 最新コミットのハッシュ・時刻（agent-status DB 由来） */
   readonly lastCommit?: SessionLastCommit;
+  /** セッションを実行する claude CLI プロセスの PID（agent-status DB 由来。未取得なら undefined） */
+  readonly pid?: number;
+  /** claude の親シェル（ターミナル）の PID（agent-status DB 由来。未取得なら undefined） */
+  readonly terminalPid?: number;
 }
 
 export interface WorktreeMapping {

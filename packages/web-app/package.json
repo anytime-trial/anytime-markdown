@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.38.0",
+  "version": "0.39.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -27,6 +27,8 @@
     "@anytime-markdown/markdown-viewer": "*",
     "@anytime-markdown/mindmap-viewer": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
+    "@anytime-markdown/tickets-core": "*",
+    "@anytime-markdown/tickets-viewer": "*",
     "@anytime-markdown/trace-core": "*",
     "@anytime-markdown/trace-viewer": "*",
     "@anytime-markdown/trail-viewer": "*",

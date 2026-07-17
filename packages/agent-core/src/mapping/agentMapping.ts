@@ -19,6 +19,8 @@ interface AgentInfoLike {
   readonly contextTokens?: number;
   readonly committedCount?: number;
   readonly lastCommit?: { hash: string; timestamp: string };
+  readonly pid?: number;
+  readonly terminalPid?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +237,8 @@ export function buildAgentMapping(
       contextTokens: agent.contextTokens,
       committedCount: agent.committedCount,
       lastCommit: agent.lastCommit,
+      pid: agent.pid,
+      terminalPid: agent.terminalPid,
     };
 
     const resolved = resolveWorktree(

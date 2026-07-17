@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-17
+
+### Added
+
+- The bundled MCP server (`mcp-markdown`) enforces Section Lock on its write tools: edits touching a locked heading section are rejected as a second enforcement layer.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Section Lock: heading sections can be locked as "final", with outline lock/unlock buttons and frontmatter persistence (FR-8.3). Includes fixes for outline button display, frontmatter auto-expansion and a mount failure on locked documents.
+
 ## [1.13.4] - 2026-07-16
 
 ### Editor Core (markdown-viewer / markdown-rich)

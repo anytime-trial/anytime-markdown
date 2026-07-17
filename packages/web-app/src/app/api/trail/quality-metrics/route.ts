@@ -11,7 +11,7 @@ function emptyMetrics(from: string, to: string): QualityMetrics {
   const duration = toMs - fromMs;
   const prevTo = new Date(fromMs - 1).toISOString();
   const prevFrom = new Date(fromMs - 1 - duration).toISOString();
-  const emptyMetric = (id: 'deploymentFrequency' | 'leadTimePerLoc' | 'tokensPerLoc' | 'aiFirstTrySuccessRate' | 'changeFailureRate', unit: 'perDay' | 'minPerLoc' | 'tokensPerLoc' | 'percent') => ({
+  const emptyMetric = (id: 'deploymentFrequency' | 'leadTimePerLoc' | 'tokensPerLoc' | 'aiFirstTrySuccessRate' | 'changeFailureRate' | 'meanTimeToRecovery' | 'taskCompletionRate', unit: 'perDay' | 'minPerLoc' | 'tokensPerLoc' | 'percent' | 'hours') => ({
     id, value: 0, unit, sampleSize: 0, timeSeries: [],
   });
   return {
@@ -24,6 +24,8 @@ function emptyMetrics(from: string, to: string): QualityMetrics {
       tokensPerLoc: emptyMetric('tokensPerLoc', 'tokensPerLoc'),
       aiFirstTrySuccessRate: emptyMetric('aiFirstTrySuccessRate', 'percent'),
       changeFailureRate: emptyMetric('changeFailureRate', 'percent'),
+      meanTimeToRecovery: emptyMetric('meanTimeToRecovery', 'hours'),
+      taskCompletionRate: emptyMetric('taskCompletionRate', 'percent'),
     },
     unmeasured: [],
   };
