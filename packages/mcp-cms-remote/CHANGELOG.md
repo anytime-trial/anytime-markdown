@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-18
+
+### Added
+
+- `create_ticket` tool: registers a ticket into the ticket management system (`.tickets/` in the GitHub ticket repository) via `@anytime-markdown/tickets-core` (GitHub Contents API, `sha` optimistic locking, auto-numbered IDs, frontmatter validation). The tool is registered only when `TICKETS_GITHUB_TOKEN` / `TICKETS_REPO` (and optional `TICKETS_BRANCH`, default `main`) are configured.
+- Deploy workflow now provisions the `TICKETS_*` Workers secrets from GitHub Secrets/Variables, and deletes stale Workers secrets when they are unset so the GitHub side stays the single source of truth.
+
+### Fixed
+
+- `create_ticket` failed with `Illegal invocation` on Cloudflare Workers: `tickets-core` stored a bare `fetch` reference as the default `fetchFn` and invoked it through an object property, tripping workerd's `this` brand check. Default and injected fetch functions are now always wrapped.
+
 ## [0.1.0] - 2026-06-27
 
 ### Added
