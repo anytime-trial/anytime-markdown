@@ -2040,6 +2040,54 @@ export class TrailDatabase {
     this.backfillReleaseRepoIds(initDb);
     this.backfillReleaseIds(initDb);
     this.migrateReleaseChildrenReleaseId(initDb);
+    // Phase 5 S4: emergency_log.event へ section_lock 系を追加（CHECK 変更 = 12-step 再構築）。
+    this.migrateEmergencyLogEventKinds(initDb);
+  }
+
+  /**
+   * emergency_log の event CHECK に section_lock_denied / section_lock_tamper を含まない
+   * 既存 DB を新スキーマへ 12-step 再構築する（列は同一・行を id ごと保持）。冪等。
+   */
+  private migrateEmergencyLogEventKinds(db: Database): void {
+    const row = db.exec(
+      `SELECT sql FROM sqlite_master WHERE type='table' AND name='emergency_log'`,
+    )[0]?.values?.[0]?.[0];
+    const currentSql = asText(row ?? '');
+    if (currentSql === '' || currentSql.includes('section_lock_denied')) return;
+    try {
+      db.run('BEGIN');
+      try {
+        db.run('DROP TABLE IF EXISTS emergency_log__new');
+        db.run(
+          CREATE_EMERGENCY_LOG.replace(
+            'CREATE TABLE IF NOT EXISTS emergency_log',
+            'CREATE TABLE emergency_log__new',
+          ),
+        );
+        db.run(
+          `INSERT INTO emergency_log__new (id, occurred_at, event, reason, actor, session_id, detail_json)
+           SELECT id, occurred_at, event, reason, actor, session_id, detail_json FROM emergency_log`,
+        );
+        db.run('DROP TABLE emergency_log');
+        db.run('ALTER TABLE emergency_log__new RENAME TO emergency_log');
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+      // テーブル DROP でインデックスも消えるため再作成（IF NOT EXISTS で冪等）。
+      for (const idx of CREATE_EMERGENCY_INDEXES) {
+        db.run(idx);
+      }
+      this.save();
+      this.logger.info('[TrailDatabase] migrated emergency_log event kinds (Phase 5 S4)');
+    } catch (e) {
+      this.logger.error(
+        'migrateEmergencyLogEventKinds failed',
+        e instanceof Error ? e : new Error(String(e)),
+      );
+      throw e;
+    }
   }
 
   private ensureDb(): Database {

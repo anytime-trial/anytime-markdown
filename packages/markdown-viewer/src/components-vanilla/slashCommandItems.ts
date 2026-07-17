@@ -3,6 +3,7 @@ import type { Editor } from "@anytime-markdown/markdown-core";
 import { getDefaultContent } from "../constants/defaultContent";
 import { getBuiltinTemplates } from "../constants/templates";
 import { insertImagesFromFiles } from "../extensions/slashCommandImageInsert";
+import { setContentBypassingSectionLock } from "../extensions/sectionLockPlugin";
 import { extractHeadings, getEditorStorage } from "../types";
 import { preprocessMarkdown } from "../utils/frontmatterHelpers";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
@@ -98,11 +99,13 @@ function insertTemplate(editor: Editor, md: string): void {
   // 現在のドキュメントとカーソル位置を退避
   const savedDoc = editor.state.doc.toJSON();
   const savedFrom = editor.state.selection.from;
-  // 一時的に setContent でパース（Markdown 拡張 + Admonition が正しく動作する）
-  editor.commands.setContent(processed);
+  // 一時的に setContent でパース（Markdown 拡張 + Admonition が正しく動作する）。
+  // パース退避 / 復元はロック検査の対象外（meta 付き）。素の setContent はロック存在時に
+  // 黙って破棄され、復元失敗 → フラグメント誤挿入につながる（cross-review 合意 #1）。
+  setContentBypassingSectionLock(editor, processed);
   const parsedFragment = editor.state.doc.content;
   // 退避したドキュメントを復元
-  editor.commands.setContent(savedDoc);
+  setContentBypassingSectionLock(editor, savedDoc);
   // ProseMirror トランザクションでフラグメントを直接挿入（ノード構造を保持）
   const insertPos = Math.min(savedFrom, editor.state.doc.content.size);
   const { tr } = editor.state;

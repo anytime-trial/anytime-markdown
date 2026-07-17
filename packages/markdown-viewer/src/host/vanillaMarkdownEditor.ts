@@ -44,7 +44,21 @@ import { readDraft, writeDraft } from "../utils/draftStorage";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 import type { FileSystemProvider } from "../types/fileSystem";
 import { createFileOpsController, type SaveTargetInfo } from "./fileOpsController";
-import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
+import { parseFrontmatter, prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
+import {
+  computeSectionHash,
+  listSections,
+  removeLockedSection,
+  upsertLockedSection,
+} from "@anytime-markdown/section-lock-core";
+import {
+  SECTION_LOCK_REFRESH_META,
+  computeSectionLockState,
+  createSectionLockPlugin,
+  ensureSectionLockStyles,
+  setContentBypassingSectionLock,
+  type SectionLockUiEntry,
+} from "../extensions/sectionLockPlugin";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
 import {
@@ -133,9 +147,10 @@ function insertMarkdownAtCursor(editor: Editor, markdown: string): void {
   const processed = preserveBlankLines(sanitizeMarkdown(markdown));
   const savedDoc = editor.state.doc.toJSON();
   const savedFrom = editor.state.selection.from;
-  editor.commands.setContent(processed);
+  // パース退避 / 復元はロック検査の対象外（meta 付き。cross-review 合意 #1）
+  setContentBypassingSectionLock(editor, processed);
   const parsedFragment = editor.state.doc.content;
-  editor.commands.setContent(savedDoc);
+  setContentBypassingSectionLock(editor, savedDoc);
   const insertPos = Math.min(savedFrom, editor.state.doc.content.size);
   const { tr } = editor.state;
   tr.insert(insertPos, parsedFragment);
@@ -1084,6 +1099,79 @@ export function mountVanillaMarkdownEditor(
         externalSaveKind,
       };
 
+      // === 確定セクションロック（Phase 5 S4・FR-S4-2） =========================
+      // 正本は frontmatter lockedSections。serialize 済み markdown から見出し
+      // インデックスへ対応づけ、Plugin（編集ブロック + 装飾）と OutlinePanel
+      // （ロック / 解除操作）が getter で都度参照する。
+      ensureSectionLockStyles(document);
+      let sectionLockUi: SectionLockUiEntry[] = [];
+      const currentFullMarkdown = (): string | null => {
+        const body = getMarkdownFromEditorSafe(editor);
+        if (body == null) return null;
+        return prependFrontmatter(body, frontmatter);
+      };
+      const refreshSectionLocks = (): void => {
+        if (frontmatter === null || !frontmatter.includes("lockedSections")) {
+          if (sectionLockUi.length === 0) return;
+          sectionLockUi = [];
+        } else {
+          const full = currentFullMarkdown();
+          if (full == null) return;
+          sectionLockUi = computeSectionLockState(full).ui;
+        }
+        // 装飾の再計算を促す（doc 不変のため meta で通知）
+        editor.view.dispatch(editor.state.tr.setMeta(SECTION_LOCK_REFRESH_META, true));
+      };
+      editor.registerPlugin(createSectionLockPlugin(() => sectionLockUi));
+      refreshSectionLocks();
+      // 見出しの増減・並び替えで headingIndex 対応が変わったときだけ再計算する
+      // （ロック節自体は Plugin が編集をブロックするため、通常の本文編集では不変）。
+      let headingSignature = "";
+      const computeHeadingSignature = (): string => {
+        const parts: string[] = [];
+        editor.state.doc.forEach((node) => {
+          if (node.type.name === "heading") {
+            parts.push(`${node.attrs.level as number}:${node.textContent}`);
+          }
+        });
+        return parts.join("\n");
+      };
+      headingSignature = computeHeadingSignature();
+      const onSectionLockTransaction = ({ transaction }: { transaction: { docChanged: boolean } }): void => {
+        if (!transaction.docChanged || sectionLockUi.length === 0) return;
+        const next = computeHeadingSignature();
+        if (next !== headingSignature) {
+          headingSignature = next;
+          refreshSectionLocks();
+        }
+      };
+      editor.on("transaction", onSectionLockTransaction);
+      disposers.push(() => editor.off("transaction", onSectionLockTransaction));
+      /** heading-only index のセクションをロック / 解除する（人間の明示操作）。 */
+      const toggleSectionLock = (headingIndex: number): void => {
+        const full = currentFullMarkdown();
+        if (full == null) return;
+        const sections = listSections(full);
+        const target = sections[headingIndex];
+        if (!target) return;
+        const existing = computeSectionLockState(full).ui.find(
+          (l) => l.headingIndex === headingIndex,
+        );
+        const nextFull = existing
+          ? removeLockedSection(full, existing.path, existing.occurrence)
+          : upsertLockedSection(full, {
+              path: target.path,
+              occurrence: target.occurrence,
+              hash: computeSectionHash(full, target),
+              lockedAt: new Date().toISOString(),
+              lockedBy: "human",
+            });
+        setFrontmatter(parseFrontmatter(nextFull).frontmatter);
+        fileOps.markDirty();
+        saveContent(() => getMarkdownFromEditorSafe(editor));
+        refreshSectionLocks();
+      };
+
       // === sidebar パネル（Outline / Comment）の toggle マウント ===============
       const OUTLINE_WIDTH = 240;
       let outlinePanel: { el: HTMLElement; destroy: () => void } | null = null;
@@ -1097,6 +1185,9 @@ export function mountVanillaMarkdownEditor(
             editorHeight: contentEl.clientHeight || 600,
             onOutlineClick: (pos) => editor.chain().focus().setTextSelection(pos).run(),
             hideResize: true,
+            getSectionLocks: () => sectionLockUi,
+            onToggleSectionLock: toggleSectionLock,
+            canToggleSectionLock: () => !readonlyNow() && modeState.reviewMode !== true,
           });
           sidebarSlot.appendChild(outlinePanel.el);
         } else if (!modeState.outlineOpen && outlinePanel) {

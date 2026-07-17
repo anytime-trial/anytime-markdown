@@ -32,11 +32,22 @@ function createMockEditor(overrides: Record<string, any> = {}) {
   const storage: Record<string, any> = {};
   (getEditorStorage as jest.Mock).mockReturnValue(storage);
 
+  // setContentBypassingSectionLock は chain().setMeta().setContent().run() を使う。
+  // 既存アサーション（commands.setContent）を保つため chain 経路を同じスパイへルーティングする。
+  const commands = {
+    setContent: jest.fn(),
+    initComments: jest.fn(),
+  };
+  const chainApi: Record<string, any> = {};
+  chainApi.setMeta = jest.fn(() => chainApi);
+  chainApi.setContent = jest.fn((...args: any[]) => {
+    commands.setContent(...args.filter((a) => a !== undefined));
+    return chainApi;
+  });
+  chainApi.run = jest.fn(() => true);
   return {
-    commands: {
-      setContent: jest.fn(),
-      initComments: jest.fn(),
-    },
+    commands,
+    chain: jest.fn(() => chainApi),
     state: {
       doc: {
         descendants: jest.fn(),

@@ -31,7 +31,7 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](agent-core|llm-core|ollama-core|vscode-common))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](agent-core|llm-core|ollama-core|vscode-common|section-lock-core))/,
         use: [
           {
             loader: 'ts-loader',

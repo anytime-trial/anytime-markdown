@@ -2789,6 +2789,8 @@ export class TrailDataServer {
     'kill_switch_off',
     'rollback_executed',
     'anomaly_detected',
+    'section_lock_denied',
+    'section_lock_tamper',
   ]);
 
   private static readonly EMERGENCY_ACTORS = new Set(['human', 'claude', 'agent']);

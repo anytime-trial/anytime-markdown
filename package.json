@@ -69,7 +69,8 @@
     "packages/ollama-core",
     "packages/agent-core",
     "packages/review-agent",
-    "packages/markdown-eval-core"
+    "packages/markdown-eval-core",
+    "packages/section-lock-core"
   ],
   "overrides": {
     "serialize-javascript": "7.0.5",

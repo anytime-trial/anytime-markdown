@@ -12,6 +12,7 @@ export {
   writeLoopState,
   evaluateEditGate,
   evaluateEmergencyGate,
+  evaluateSectionLockGate,
   evaluateSessionStartGate,
   findClaudePid,
   listLiveClaims,

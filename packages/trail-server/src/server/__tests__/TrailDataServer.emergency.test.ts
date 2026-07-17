@@ -103,6 +103,22 @@ describe('/api/trail/safe-points and /api/trail/emergency-log', () => {
     expect(res.status).toBe(400);
   });
 
+  it('POST emergency-log accepts section_lock kinds (Phase 5 S4)', async () => {
+    for (const kind of ['section_lock_denied', 'section_lock_tamper']) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/trail/emergency-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...EVENT, event: kind, actor: 'agent' }),
+      });
+      expect(res.status).toBe(200);
+    }
+    const list = await fetch(`http://127.0.0.1:${port}/api/trail/emergency-log`);
+    const body = (await list.json()) as { events: Array<Record<string, unknown>> };
+    expect(body.events.map((e) => e['event'])).toEqual(
+      expect.arrayContaining(['section_lock_denied', 'section_lock_tamper']),
+    );
+  });
+
   // CSRF 対策: クロスサイトの simple request（text/plain 等）は Content-Type ガードで拒否し、
   // ローカル分析 DB への書き込みを防ぐ。正規クライアント（フック curl / 拡張）は application/json を送る。
   it('POST safe-points rejects non-JSON Content-Type with 415 and does not write', async () => {

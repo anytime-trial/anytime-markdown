@@ -21,7 +21,9 @@ export type EmergencyEventKind =
   | 'kill_switch_on'
   | 'kill_switch_off'
   | 'rollback_executed'
-  | 'anomaly_detected';
+  | 'anomaly_detected'
+  | 'section_lock_denied'
+  | 'section_lock_tamper';
 
 export type EmergencyActor = 'human' | 'claude' | 'agent';
 

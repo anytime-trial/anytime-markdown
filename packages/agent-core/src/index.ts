@@ -120,6 +120,8 @@ export {
   writeEmergencyState,
 } from './status/emergency';
 export type { EmergencyState } from './status/emergency';
+export { evaluateSectionLockGate } from './status/sectionLockGate';
+export type { SectionLockSpoolEvent, SectionLockVerdict } from './status/sectionLockGate';
 export {
   KILL_CONSECUTIVE,
   LOOP_WINDOW,

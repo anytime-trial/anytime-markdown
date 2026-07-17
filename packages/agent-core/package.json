@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@anytime-markdown/llm-core": "*",
-    "@anytime-markdown/ollama-core": "*"
+    "@anytime-markdown/ollama-core": "*",
+    "@anytime-markdown/section-lock-core": "*"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

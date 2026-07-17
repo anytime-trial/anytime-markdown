@@ -700,7 +700,8 @@ export const CREATE_EMERGENCY_LOG = `CREATE TABLE IF NOT EXISTS emergency_log (
   id INTEGER PRIMARY KEY,
   occurred_at TEXT NOT NULL CHECK (occurred_at GLOB ${TS_GLOB_MS} OR occurred_at GLOB ${TS_GLOB_NO_MS}),
   event TEXT NOT NULL
-    CHECK (event IN ('kill_switch_on', 'kill_switch_off', 'rollback_executed', 'anomaly_detected')),
+    CHECK (event IN ('kill_switch_on', 'kill_switch_off', 'rollback_executed', 'anomaly_detected',
+                     'section_lock_denied', 'section_lock_tamper')),
   reason TEXT NOT NULL DEFAULT '',
   actor TEXT NOT NULL DEFAULT 'human' CHECK (actor IN ('human', 'claude', 'agent')),
   session_id TEXT,
