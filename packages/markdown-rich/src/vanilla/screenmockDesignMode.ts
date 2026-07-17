@@ -240,7 +240,8 @@ const SCREENMOCK_DESIGN_BASE_STYLE = `
 .am-smdm-tabs button{flex:0 0 auto;min-height:28px;padding:3px 10px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;cursor:pointer;font:inherit;background:transparent;color:var(--am-color-text-secondary,#656d76);}
 .am-smdm-tabs button[aria-selected="true"]{background:var(--am-color-action-selected,rgba(9,105,218,.12));color:var(--am-color-primary-main,#0969da);}
 .am-smdm-stage{position:relative;flex:1 1 auto;min-height:320px;overflow:auto;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;background:var(--sm-bg,#f6f8fa);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--sm-text,#1f2328);padding:var(--sm-gap,12px);}
-.am-smdm-stage .sm-screen{display:block;position:relative;min-height:100%;background:var(--sm-paper,#fff);border:0;border-radius:0;overflow:hidden;}
+.am-smdm-stage .am-sm-wrap{display:block;position:relative;min-height:100%;background:var(--sm-paper,#fff);border:0;border-radius:0;overflow:hidden;}
+.am-smdm-stage .sm-screen{border:0;border-radius:0;}
 `;
 
 const SCREENMOCK_DESIGN_PROTECTION_STYLE = `
@@ -285,7 +286,7 @@ export function createScreenmockDesignModePreview(
     selectionEl?.remove();
     selectionEl = null;
     if (!selectedEl) return;
-    const screen = shadow.querySelector(".sm-screen") as HTMLElement | null;
+    const screen = shadow.querySelector(".am-sm-wrap") as HTMLElement | null;
     if (!screen) return;
     const screenRect = screen.getBoundingClientRect();
     const rect = selectedEl.getBoundingClientRect();
@@ -329,7 +330,7 @@ export function createScreenmockDesignModePreview(
   };
 
   const selectElement = (el: HTMLElement): void => {
-    if (el.classList.contains("sm-screen")) return;
+    if (el.classList.contains("sm-screen") || el.classList.contains("am-sm-wrap")) return;
     selectedPath = el.dataset.smPath ?? null;
     selectedEl = selectedPath ? el : null;
     options.onSelectionChange?.(selectedPath);
@@ -362,7 +363,7 @@ export function createScreenmockDesignModePreview(
       )
       .join("");
     const body = activeScreen
-      ? `<section class="sm-screen" id="${escapeHtml(activeScreen.id)}">${sanitizeScreenmockHtml(
+      ? `<section class="am-sm-wrap" id="${escapeHtml(activeScreen.id)}">${sanitizeScreenmockHtml(
           annotateScreenmockHtmlPaths(activeScreen.html),
         )}</section>`
       : `<div class="sm-empty">${escapeHtml(options.emptyHint ?? "Add screenmock HTML here.")}</div>`;
@@ -388,7 +389,7 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
         render();
       });
     }
-    shadow.querySelector(".sm-screen")?.addEventListener("click", (event) => {
+    shadow.querySelector(".am-sm-wrap")?.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       const target = event.target as HTMLElement | null;

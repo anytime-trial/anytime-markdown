@@ -114,10 +114,21 @@ id: ok
     expect(srcdoc).toContain(':root{--am-color-text-primary:#111;--am-color-bg-paper:#fff;}');
     expect(srcdoc).toContain('id="login"');
     expect(srcdoc).toContain('id="home"');
-    expect(srcdoc).toContain(".sm-screen{display:none;");
-    expect(srcdoc).toContain("body:not(:has(.sm-screen:target)) #home{display:block;}");
+    expect(srcdoc).toContain(".am-sm-wrap{display:none;");
+    expect(srcdoc).toContain("body:not(:has(.am-sm-wrap:target)) #home{display:block;}");
     expect(srcdoc).toContain('<a href="#home">go</a>');
     expect(srcdoc).not.toContain("<script");
+  });
+
+  it("keeps a user-authored sm-screen root visible (visibility is owned by the internal wrapper)", () => {
+    const srcdoc = buildScreenmockSrcdoc([
+      { id: "login", title: "Login", html: '<div class="sm-screen"><div class="sm-header">App</div></div>' },
+    ]);
+    expect(srcdoc).toContain('class="am-sm-wrap"');
+    expect(srcdoc).toContain(".am-sm-wrap{display:none;");
+    expect(srcdoc).toContain("body:not(:has(.am-sm-wrap:target)) #login{display:block;}");
+    // 部品語彙 .sm-screen が非表示ルールを持つと、ユーザー記述の画面ルートが丸ごと消える（実機で再現した回帰）
+    expect(/\.sm-screen[^{]*\{[^}]*display:none/.test(srcdoc)).toBe(false);
   });
 
   it("builds an empty placeholder srcdoc", () => {
@@ -151,7 +162,7 @@ title: Home
 
     (tabs[1] as HTMLButtonElement).click();
     expect(tabs[1].getAttribute("aria-selected")).toBe("true");
-    expect(iframe?.getAttribute("srcdoc")).toContain("body:not(:has(.sm-screen:target)) #home{display:block;}");
+    expect(iframe?.getAttribute("srcdoc")).toContain("body:not(:has(.am-sm-wrap:target)) #home{display:block;}");
   });
 
   it("strips srcset/sizes so the img src scheme restriction cannot be bypassed", () => {
