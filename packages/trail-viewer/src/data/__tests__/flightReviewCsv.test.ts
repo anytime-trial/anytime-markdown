@@ -19,6 +19,7 @@ function review(overrides: Partial<FlightReviewDto> = {}): FlightReviewDto {
     lessonCandidates: '[]',
     tags: '["release"]',
     notes: 'ok',
+    rationaleAuditStatus: 'unaudited',
     createdAt: '2026-07-17T10:00:01.000Z',
     updatedAt: '2026-07-17T10:00:01.000Z',
     ...overrides,

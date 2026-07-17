@@ -718,7 +718,7 @@ export const CREATE_EMERGENCY_INDEXES = [
 // session_id へ FK を張らない: safe_points と同じく Stop フック経由の記録は
 // sessions 行の取込（インポートラグ数十分〜）より先に届くため。
 // outcome は S1 では 'unknown' 固定（機械集計で成否を断定しない）。self は S2、manual は S3 で使用開始。
-// rationale_audit_status 列は S4 のマイグレーションで追加する（列ごと独立 hasColumn 方針）。
+// rationale_audit_status は S4 で追加（既存 DB へは列ごと独立 columnExists の ALTER。Rationale Audit の記録粒度はセッション単位）。
 export const CREATE_FLIGHT_REVIEWS = `CREATE TABLE IF NOT EXISTS flight_reviews (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL UNIQUE,
@@ -736,6 +736,7 @@ export const CREATE_FLIGHT_REVIEWS = `CREATE TABLE IF NOT EXISTS flight_reviews 
   lesson_candidates TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(lesson_candidates)),
   tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tags)),
   notes TEXT NOT NULL DEFAULT '',
+  rationale_audit_status TEXT NOT NULL DEFAULT 'unaudited' CHECK (rationale_audit_status IN ('unaudited', 'valid', 'needs_fix', 'rejected')),
   created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
   updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;

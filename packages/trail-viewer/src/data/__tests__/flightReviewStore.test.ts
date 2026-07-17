@@ -18,6 +18,7 @@ function review(overrides: Partial<FlightReviewDto> = {}): FlightReviewDto {
     lessonCandidates: '[]',
     tags: '[]',
     notes: '',
+    rationaleAuditStatus: 'unaudited',
     createdAt: '2026-07-17T10:00:01.000Z',
     updatedAt: '2026-07-17T10:00:01.000Z',
     ...overrides,
@@ -200,6 +201,43 @@ describe('flightReviewStore', () => {
     expect(store.getState().editing).toBe(false);
     expect(store.getState().saving).toBe(false);
     expect(calls.some((c) => c.url.includes('/api/trail/flight-reviews?') && c.init?.method === undefined)).toBe(true);
+    store.dispose();
+  });
+
+  it('select で当該セッションの rationale ノードも取得する（FR-24）', async () => {
+    const { calls } = stubFetch((url) => {
+      if (url.includes('/api/memory/rationale')) {
+        return jsonResponse({
+          rationale: [
+            { commitHash: 'abc123def456', summary: '単純さを優先', confidenceLabel: 'EXTRACTED', recordedAt: '2026-07-17T09:00:00.000Z' },
+          ],
+        });
+      }
+      if (url.includes('user-feedback')) return jsonResponse({ userFeedback: [] });
+      return jsonResponse({ flightReviews: [] });
+    });
+    const store = createFlightReviewStore('http://x');
+    await store.select('sess-1');
+
+    expect(calls.some((c) => c.url.includes('/api/memory/rationale?sessionId=sess-1'))).toBe(true);
+    expect(store.getState().selectedRationale).toHaveLength(1);
+
+    await store.select(null);
+    expect(store.getState().selectedRationale).toHaveLength(0);
+    store.dispose();
+  });
+
+  it('rationale API 失敗は rationale のみ空で縮退する（FR-25）', async () => {
+    stubFetch((url) => {
+      if (url.includes('/api/memory/rationale')) throw new Error('memory.db missing');
+      if (url.includes('user-feedback')) return jsonResponse({ userFeedback: [] });
+      return jsonResponse({ flightReviews: [] });
+    });
+    const store = createFlightReviewStore('http://x');
+    await store.select('sess-1');
+
+    expect(store.getState().selectedSessionId).toBe('sess-1');
+    expect(store.getState().selectedRationale).toHaveLength(0);
     store.dispose();
   });
 

@@ -82,7 +82,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FlightReviewMachineInput, type FlightReviewManualPatch, type IC4ModelStore,
+import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FlightReviewMachineInput, type FlightReviewManualPatch, type RationaleAuditStatus, type IC4ModelStore,
   type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -3960,6 +3960,10 @@ export class TrailDatabase {
     }
     if (!columnExists(db, 'flight_reviews', 'lesson_candidates')) {
       db.run(`ALTER TABLE flight_reviews ADD COLUMN lesson_candidates TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(lesson_candidates))`);
+    }
+    // Phase 6 S4 (Rationale Audit)。列ごと独立 columnExists（S2 と同方針）。
+    if (!columnExists(db, 'flight_reviews', 'rationale_audit_status')) {
+      db.run(`ALTER TABLE flight_reviews ADD COLUMN rationale_audit_status TEXT NOT NULL DEFAULT 'unaudited' CHECK (rationale_audit_status IN ('unaudited', 'valid', 'needs_fix', 'rejected'))`);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
     this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
@@ -8739,7 +8743,8 @@ export class TrailDatabase {
     const res = db.exec(
       `SELECT id, session_id, workspace_path, started_at, ended_at, duration_seconds,
               outcome, outcome_source, tool_call_count, tool_failure_count, rework_count,
-              unresolved_items, next_concerns, lesson_candidates, tags, notes, created_at, updated_at
+              unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status,
+              created_at, updated_at
        FROM flight_reviews ${where} ORDER BY ended_at DESC, id DESC LIMIT ?`,
       params,
     );
@@ -8761,8 +8766,9 @@ export class TrailDatabase {
       lessonCandidates: row[13] as string,
       tags: row[14] as string,
       notes: row[15] as string,
-      createdAt: row[16] as string,
-      updatedAt: row[17] as string,
+      rationaleAuditStatus: row[16] as FlightReview['rationaleAuditStatus'],
+      createdAt: row[17] as string,
+      updatedAt: row[18] as string,
     }));
   }
 
@@ -8825,6 +8831,26 @@ export class TrailDatabase {
     );
     try {
       stmt.run(params);
+    } finally {
+      stmt.free();
+    }
+    return true;
+  }
+
+  /**
+   * 副作用: flight_reviews.rationale_audit_status を更新。永続化は呼び出し側の save() 契約に従う。
+   * outcome_source には触れない（監査は成否訂正と独立。相乗りすると self 反映が以後ブロックされる）。
+   * 対象行が無ければ false（行の新規作成はしない）。
+   */
+  markRationaleAudit(sessionId: string, status: RationaleAuditStatus): boolean {
+    const db = this.ensureDb();
+    const exists = db.exec(`SELECT 1 FROM flight_reviews WHERE session_id = ? LIMIT 1`, [sessionId]);
+    if (exists[0]?.values[0] === undefined) return false;
+    const stmt = db.prepare(
+      `UPDATE flight_reviews SET rationale_audit_status = ?, updated_at = ? WHERE session_id = ?`,
+    );
+    try {
+      stmt.run([status, new Date().toISOString(), sessionId]);
     } finally {
       stmt.free();
     }

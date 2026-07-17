@@ -642,4 +642,16 @@ export const ja: TrailI18n = {
   'flightReview.edit.saving': '保存中…',
   'flightReview.edit.saveSuccess': '保存しました（manual として記録）',
   'flightReview.edit.saveError': '保存に失敗しました',
+  // flightReview rationale audit (Phase 6 S4)
+  'flightReview.column.audit': '監査',
+  'flightReview.audit.label': '決定根拠の監査',
+  'flightReview.audit.save': '監査を保存',
+  'flightReview.audit.unaudited': '未実施',
+  'flightReview.audit.valid': '妥当',
+  'flightReview.audit.needsFix': '要修正',
+  'flightReview.audit.rejected': '棄却',
+  'flightReview.rationale.title': '決定根拠（Rationale）',
+  'flightReview.rationale.confidenceFilter': '信頼度',
+  'flightReview.rationale.filterAll': 'すべて',
+  'flightReview.rationale.empty': 'このセッションのコミットに紐付く決定根拠ノードはありません',
 };

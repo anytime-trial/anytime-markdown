@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import { computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
+import { computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Model, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
@@ -340,10 +340,12 @@ export class TrailDataServer {
       'Release',
       'better_sqlite3.node',
     );
+    // バンドル済み .node が distPath 配下に無い環境（テスト・ソース実行）では
+    // better-sqlite3 の既定解決へフォールバックする（実在しないパスを渡すと open が常に失敗する）。
     this.memoryApi = new MemoryApiHandler(
       this.logger.child('MemoryApiHandler'),
       memoryDbPath,
-      nativeBinding,
+      fs.existsSync(nativeBinding) ? nativeBinding : undefined,
     );
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
     this.c4ManualApi = new C4ManualApiHandler(
@@ -1122,6 +1124,20 @@ export class TrailDataServer {
     // -------------------------------------------------------------------------
     //  Memory API endpoints
     // -------------------------------------------------------------------------
+    if (pathname === '/api/memory/rationale' && method === 'GET') {
+      const sessionId = parsed.searchParams.get('sessionId');
+      if (!sessionId) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'sessionId required' }));
+        return;
+      }
+      void this.memoryApi.listRationaleNodes({ sessionId }).then((rationale) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ rationale }));
+      });
+      return;
+    }
+
     if (pathname === '/api/memory/status' && method === 'GET') {
       void this.memoryApi.handleStatus().then((data) => {
         res.writeHead(200, JSON_HEADERS);
@@ -3073,6 +3089,9 @@ export class TrailDataServer {
   /** 手動訂正（PATCH）で受け付ける outcome。unknown へ戻す操作は提供しない（FlightReviewManualPatch と同期）。 */
   private static readonly FLIGHT_REVIEW_MANUAL_OUTCOMES: string[] = ['achieved', 'partial', 'unachieved'];
 
+  /** Rationale Audit（S4）で受け付ける監査ステータス（RationaleAuditStatus と同期）。 */
+  private static readonly FLIGHT_REVIEW_AUDIT_STATUSES: string[] = ['unaudited', 'valid', 'needs_fix', 'rejected'];
+
   private static readonly FLIGHT_REVIEW_NOTES_MAX_CHARS = 2000;
 
   private static readonly FLIGHT_REVIEW_TAGS_MAX_COUNT = 50;
@@ -3137,13 +3156,24 @@ export class TrailDataServer {
           }
           patch.notes = notes;
         }
-        if (patch.outcome === undefined && patch.tags === undefined && patch.notes === undefined) {
+        // Rationale Audit（S4）: outcome 系とは別経路で適用する（outcome_source を manual 化しない）
+        const auditStatus = parsed['rationaleAuditStatus'];
+        if (auditStatus !== undefined && (typeof auditStatus !== 'string' || !TrailDataServer.FLIGHT_REVIEW_AUDIT_STATUSES.includes(auditStatus))) {
           res.writeHead(400, JSON_HEADERS);
-          res.end(JSON.stringify({ error: 'no updatable field (outcome / tags / notes)' }));
+          res.end(JSON.stringify({ error: 'invalid rationaleAuditStatus' }));
           return;
         }
-        const updated = this.trailDb.updateFlightReviewManual(sessionId, patch);
-        if (!updated) {
+        const hasManualField = patch.outcome !== undefined || patch.tags !== undefined || patch.notes !== undefined;
+        if (!hasManualField && auditStatus === undefined) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'no updatable field (outcome / tags / notes / rationaleAuditStatus)' }));
+          return;
+        }
+        const manualOk = hasManualField ? this.trailDb.updateFlightReviewManual(sessionId, patch) : true;
+        const auditOk = auditStatus !== undefined
+          ? this.trailDb.markRationaleAudit(sessionId, auditStatus as RationaleAuditStatus)
+          : true;
+        if (!manualOk || !auditOk) {
           res.writeHead(404, JSON_HEADERS);
           res.end(JSON.stringify({ error: 'flight review not found' }));
           return;
