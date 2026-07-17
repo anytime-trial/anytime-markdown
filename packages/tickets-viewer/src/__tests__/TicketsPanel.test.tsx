@@ -129,6 +129,17 @@ describe("TicketsPanel", () => {
     expect(card?.textContent).toContain("30/120 分");
   });
 
+  it("工数もサブタスクも無いチケットでは工数要素を描画しない（空要素の余白を残さない）", async () => {
+    mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    // T-2 は estimate / actual / サブタスクをいずれも持たない
+    const backlog = container.querySelector('[data-status="backlog"]');
+    expect(backlog?.textContent).toContain("2件目");
+    expect(backlog?.querySelector(".tk-effort")).toBeNull();
+    // T-1 は工数を持つので描画される
+    expect(container.querySelector('[data-status="up_next"]')?.querySelector(".tk-effort")).not.toBeNull();
+  });
+
   it("廃止した進捗バー・ラベルチップを描画しない", async () => {
     mockFetchOnce(DATA);
     await renderPanel({ repo: "o/r", branch: "main" });

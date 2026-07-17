@@ -30,6 +30,9 @@ export function TicketEffort({ ticket }: Readonly<{ ticket: TicketItem }>) {
   const subtasks = countSubtasks(ticket.body);
   const { estimate, actual } = ticket.frontmatter;
   const hasEffort = estimate !== undefined || actual !== undefined;
+  if (!hasEffort && subtasks.total === 0) {
+    return null;
+  }
   const effortLabel = estimate === undefined
     ? t("common.minutes", { minutes: actual ?? 0 })
     : t("common.effortValue", { actual: actual ?? 0, estimate });
