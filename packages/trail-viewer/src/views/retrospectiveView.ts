@@ -103,15 +103,24 @@ export function mountRetrospectiveView(
   let rationaleFilter: RationaleNodeDto['confidenceLabel'] | '' = '';
   let feedbackMessage: { kind: 'success' | 'error'; text: string } | null = null;
   let auditMessage: { kind: 'success' | 'error'; text: string } | null = null;
-  let touched = false;
+  // 編集保留ラッチは手動訂正フォームと監査で分離する — 片方の保存がもう片方の
+  // 未保存編集のポーリング保留を解除しないため（cross-review 指摘）
+  let manualTouched = false;
+  let auditTouched = false;
 
   const root = document.createElement('div');
   root.dataset['amRetroRoot'] = '';
   container.appendChild(root);
 
-  function markTouched(): void {
-    if (touched) return;
-    touched = true;
+  function markManualTouched(): void {
+    if (manualTouched) return;
+    manualTouched = true;
+    props.onEditingChange(true);
+  }
+
+  function markAuditTouched(): void {
+    if (auditTouched) return;
+    auditTouched = true;
     props.onEditingChange(true);
   }
 
@@ -123,7 +132,9 @@ export function mountRetrospectiveView(
     };
     const result = await props.onSave(patch);
     if (destroyed) return;
-    touched = false;
+    manualTouched = false;
+    // 監査 select に未保存の変更が残っていれば保留を張り直す（saveManual 成功は editing を解除するため）
+    if (result.ok && auditTouched) props.onEditingChange(true);
     feedbackMessage = result.ok
       ? { kind: 'success', text: props.t('flightReview.edit.saveSuccess') }
       : { kind: 'error', text: `${props.t('flightReview.edit.saveError')}: ${result.error ?? ''}` };
@@ -133,10 +144,12 @@ export function mountRetrospectiveView(
   async function handleAuditSave(): Promise<void> {
     const result = await props.onSave({ rationaleAuditStatus: formAuditStatus });
     if (destroyed) return;
-    touched = false;
+    auditTouched = false;
+    // 手動訂正フォームに未保存の編集が残っていれば保留を張り直す
+    if (result.ok && manualTouched) props.onEditingChange(true);
     auditMessage = result.ok
-      ? { kind: 'success', text: props.t('flightReview.edit.saveSuccess') }
-      : { kind: 'error', text: `${props.t('flightReview.edit.saveError')}: ${result.error ?? ''}` };
+      ? { kind: 'success', text: props.t('flightReview.audit.saveSuccess') }
+      : { kind: 'error', text: `${props.t('flightReview.audit.saveError')}: ${result.error ?? ''}` };
     render();
   }
 
@@ -150,7 +163,7 @@ export function mountRetrospectiveView(
             .map(
               (n) => `<li>
                 <code>${escapeHtml(n.commitHash.slice(0, 8))}</code>
-                <span data-am-confidence-badge data-confidence="${n.confidenceLabel}">${escapeHtml(n.confidenceLabel)}</span>
+                <span data-am-confidence-badge data-confidence="${escapeHtml(n.confidenceLabel)}">${escapeHtml(n.confidenceLabel)}</span>
                 ${escapeHtml(n.summary)}
               </li>`,
             )
@@ -274,21 +287,21 @@ export function mountRetrospectiveView(
       outcomeSelect.value = formOutcome;
       outcomeSelect.addEventListener('change', () => {
         formOutcome = (outcomeSelect.value as ManualOutcome | '') ?? '';
-        markTouched();
+        markManualTouched();
       });
     }
     if (tagsInput) {
       tagsInput.value = formTags;
       tagsInput.addEventListener('input', () => {
         formTags = tagsInput.value;
-        markTouched();
+        markManualTouched();
       });
     }
     if (notesInput) {
       notesInput.value = formNotes;
       notesInput.addEventListener('input', () => {
         formNotes = notesInput.value;
-        markTouched();
+        markManualTouched();
       });
     }
     const rationaleFilterSelect = root.querySelector<HTMLSelectElement>('[data-am-rationale-filter]');
@@ -299,7 +312,7 @@ export function mountRetrospectiveView(
     const auditSelect = root.querySelector<HTMLSelectElement>('[data-am-audit-status]');
     auditSelect?.addEventListener('change', () => {
       formAuditStatus = (auditSelect.value as RationaleAuditStatusDto) ?? 'unaudited';
-      markTouched();
+      markAuditTouched();
     });
     root.querySelector<HTMLButtonElement>('[data-am-audit-save]')?.addEventListener('click', () => void handleAuditSave());
     root.querySelector<HTMLButtonElement>('[data-am-retro-save]')?.addEventListener('click', () => void handleSave());
@@ -321,7 +334,8 @@ export function mountRetrospectiveView(
         rationaleFilter = '';
         feedbackMessage = null;
         auditMessage = null;
-        touched = false;
+        manualTouched = false;
+        auditTouched = false;
       }
       render();
     },

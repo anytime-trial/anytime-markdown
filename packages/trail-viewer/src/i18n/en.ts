@@ -654,4 +654,6 @@ export const en: TrailI18n = {
   'flightReview.rationale.confidenceFilter': 'Confidence',
   'flightReview.rationale.filterAll': 'All',
   'flightReview.rationale.empty': 'No rationale nodes for the commits in this session',
+  'flightReview.audit.saveSuccess': 'Audit saved',
+  'flightReview.audit.saveError': 'Failed to save audit',
 };

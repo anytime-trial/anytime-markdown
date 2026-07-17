@@ -25,7 +25,7 @@ export interface RationaleNodeDto {
   readonly commitHash: string;
   readonly summary: string;
   readonly confidenceLabel: 'EXTRACTED' | 'INFERRED' | 'AMBIGUOUS';
-  readonly recordedAt: string;
+  readonly createdAt: string;
 }
 
 /** GET /api/trail/flight-reviews の 1 行（trail-core FlightReview のワイヤ形）。 */

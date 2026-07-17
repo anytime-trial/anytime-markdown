@@ -957,7 +957,7 @@ export class MemoryApiHandler {
     }
     try {
       const result = db.exec(
-        `SELECT c.canonical_name AS commit_hash, d.summary, e.confidence_label, e.recorded_at
+        `SELECT c.canonical_name AS commit_hash, d.summary, e.confidence_label, e.recorded_at AS created_at
          FROM memory_edges e
          JOIN memory_entities d ON d.id = e.subject_entity_id AND d.type = 'Decision'
          JOIN memory_entities c ON c.id = e.object_entity_id AND c.type = 'Commit'
@@ -975,7 +975,7 @@ export class MemoryApiHandler {
           commitHash: toStr(r['commit_hash']),
           summary: toStr(r['summary']),
           confidenceLabel: toStr(r['confidence_label']) as RationaleNode['confidenceLabel'],
-          recordedAt: toStr(r['recorded_at']),
+          createdAt: toStr(r['created_at']),
         };
       });
     } catch (err) {

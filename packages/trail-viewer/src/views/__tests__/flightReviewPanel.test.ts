@@ -374,8 +374,8 @@ describe('flightReviewPanel rationale audit (Phase 6 S4)', () => {
 
   it('Rationale セクションにノードが表示され confidence フィルタが効く（FR-24）', async () => {
     rationaleFetch([
-      { commitHash: 'abc123def456', summary: '単純さを優先', confidenceLabel: 'EXTRACTED', recordedAt: '2026-07-17T09:00:00.000Z' },
-      { commitHash: 'ffff00001111', summary: '推定された根拠', confidenceLabel: 'INFERRED', recordedAt: '2026-07-17T09:10:00.000Z' },
+      { commitHash: 'abc123def456', summary: '単純さを優先', confidenceLabel: 'EXTRACTED', createdAt: '2026-07-17T09:00:00.000Z' },
+      { commitHash: 'ffff00001111', summary: '推定された根拠', confidenceLabel: 'INFERRED', createdAt: '2026-07-17T09:10:00.000Z' },
     ]);
     store = createFlightReviewStore('http://x');
     const handle = mountWithStore(store);
@@ -422,6 +422,50 @@ describe('flightReviewPanel rationale audit (Phase 6 S4)', () => {
     const patchCall = calls.find((c) => c.init?.method === 'PATCH');
     expect(JSON.parse(String(patchCall?.init?.body))).toEqual({ rationaleAuditStatus: 'needs_fix' });
     expect(container.querySelector('[data-am-retro-rationale] [data-am-retro-feedback]')?.getAttribute('data-kind')).toBe('success');
+    handle.destroy();
+  });
+
+  it('手動編集中の監査保存はポーリング保留を解除しない（cross-review 指摘対応）', async () => {
+    rationaleFetch([]);
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await settle();
+    container.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    await settle();
+
+    // 手動フォーム（notes）を編集 → editing 保留
+    const notes = container.querySelector<HTMLTextAreaElement>('[data-am-retro-notes]');
+    if (notes) {
+      notes.value = '未保存の編集';
+      notes.dispatchEvent(new Event('input'));
+    }
+    expect(store.getState().editing).toBe(true);
+
+    // 監査だけ保存 → 手動編集の保留は維持される
+    container.querySelector<HTMLButtonElement>('[data-am-audit-save]')?.click();
+    await settle();
+    expect(store.getState().editing).toBe(true);
+    handle.destroy();
+  });
+
+  it('監査のみの変更は監査保存で保留が解除される', async () => {
+    rationaleFetch([]);
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await settle();
+    container.querySelector<HTMLTableRowElement>('tbody tr')?.click();
+    await settle();
+
+    const auditSelect = container.querySelector<HTMLSelectElement>('[data-am-audit-status]');
+    if (auditSelect) {
+      auditSelect.value = 'valid';
+      auditSelect.dispatchEvent(new Event('change'));
+    }
+    expect(store.getState().editing).toBe(true);
+
+    container.querySelector<HTMLButtonElement>('[data-am-audit-save]')?.click();
+    await settle();
+    expect(store.getState().editing).toBe(false);
     handle.destroy();
   });
 

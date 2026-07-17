@@ -662,4 +662,6 @@ export interface TrailI18n {
   'flightReview.rationale.confidenceFilter': string;
   'flightReview.rationale.filterAll': string;
   'flightReview.rationale.empty': string;
+  'flightReview.audit.saveSuccess': string;
+  'flightReview.audit.saveError': string;
 }

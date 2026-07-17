@@ -654,4 +654,6 @@ export const ja: TrailI18n = {
   'flightReview.rationale.confidenceFilter': '信頼度',
   'flightReview.rationale.filterAll': 'すべて',
   'flightReview.rationale.empty': 'このセッションのコミットに紐付く決定根拠ノードはありません',
+  'flightReview.audit.saveSuccess': '監査を保存しました',
+  'flightReview.audit.saveError': '監査の保存に失敗しました',
 };

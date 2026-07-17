@@ -209,7 +209,7 @@ describe('flightReviewStore', () => {
       if (url.includes('/api/memory/rationale')) {
         return jsonResponse({
           rationale: [
-            { commitHash: 'abc123def456', summary: '単純さを優先', confidenceLabel: 'EXTRACTED', recordedAt: '2026-07-17T09:00:00.000Z' },
+            { commitHash: 'abc123def456', summary: '単純さを優先', confidenceLabel: 'EXTRACTED', createdAt: '2026-07-17T09:00:00.000Z' },
           ],
         });
       }

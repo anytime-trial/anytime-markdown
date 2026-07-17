@@ -120,6 +120,6 @@ export interface RationaleNode {
   commitHash: string;
   summary: string;
   confidenceLabel: 'EXTRACTED' | 'INFERRED' | 'AMBIGUOUS';
-  /** UTC ISO 8601 */
-  recordedAt: string;
+  /** UTC ISO 8601（memory_edges.recorded_at 由来。API 契約は要件 §20.3 の createdAt） */
+  createdAt: string;
 }
