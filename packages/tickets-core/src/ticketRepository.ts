@@ -95,7 +95,8 @@ function toContext(config: TicketRepositoryConfig): GitHubContext {
     token: config.token,
     repo: config.repo,
     branch: config.branch,
-    fetchFn: config.fetchFn ?? fetch,
+    // 素の fetch 参照は Workers(workerd)で ctx 経由呼び出し時に this ブランドチェックへ落ちるためラッパで包む
+    fetchFn: config.fetchFn ?? ((...args: Parameters<typeof fetch>) => fetch(...args)),
     apiBaseUrl: config.apiBaseUrl ?? DEFAULT_API_BASE,
   };
 }
