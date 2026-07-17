@@ -7,6 +7,7 @@ module.exports = {
   roots: ['<rootDir>/src'],
   moduleNameMapper: {
     '^@anytime-markdown/cms-core$': '<rootDir>/../cms-core/src/index.ts',
+    '^@anytime-markdown/tickets-core$': '<rootDir>/../tickets-core/src/index.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   globals: {

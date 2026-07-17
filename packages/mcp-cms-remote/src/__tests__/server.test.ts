@@ -23,6 +23,13 @@ jest.mock('@anytime-markdown/cms-core', () => ({
   listPatentFiles: (...args: unknown[]) => mockListPatentFiles(...args),
 }));
 
+// tickets-core のモック（enum 定数・型は実物を使い、GitHub API を叩く createTicket のみ差し替える）
+const mockCreateTicket = jest.fn();
+jest.mock('@anytime-markdown/tickets-core', () => ({
+  ...jest.requireActual('@anytime-markdown/tickets-core'),
+  createTicket: (...args: unknown[]) => mockCreateTicket(...args),
+}));
+
 jest.mock('../paperRankingCollector.js', () => ({
   fetchRankingFromOpenAlex: jest.fn().mockResolvedValue([]),
   formatRankingToTsv: jest.fn().mockReturnValue('rank\ttitle'),
@@ -41,6 +48,11 @@ const mockRankingsConfig = {
   bucket: 'test-bucket',
   patentsPrefix: 'patents/',
   mailto: 'test@example.com',
+};
+const mockTicketsConfig = {
+  token: 'github_pat_test',
+  repo: 'anytime-trial/anytime-ticket',
+  branch: 'main',
 };
 
 /** McpServer の tool ハンドラを呼び出すヘルパー */
@@ -284,6 +296,103 @@ describe('createRemoteMcpServer', () => {
       await callTool(server, 'mark_paper_written', { arxivId: '2603.12345v1' });
 
       expect(addToWrittenList).toHaveBeenCalledWith(existingTsv, '2603.12345v1', expect.any(String));
+    });
+  });
+
+  describe('create_ticket tool (with ticketsConfig)', () => {
+    const createdTicket = {
+      path: '.tickets/T-3-new-feature.md',
+      sha: 'abc123',
+      frontmatter: {
+        id: 'T-3',
+        title: 'new feature',
+        status: 'backlog',
+        priority: 'medium',
+        created_at: '2026-07-17T00:00:00.000Z',
+        updated_at: '2026-07-17T00:00:00.000Z',
+      },
+      extras: {},
+      body: '',
+      archived: false,
+    };
+
+    it('is not registered without ticketsConfig', async () => {
+      const server = createRemoteMcpServer(mockS3Client, mockConfig, mockRankingsConfig);
+      await expect(callTool(server, 'create_ticket', { title: 't' })).rejects.toThrow('Tool not found');
+    });
+
+    it('creates a ticket with defaults (backlog / medium / creator mcp-cms-remote)', async () => {
+      mockCreateTicket.mockResolvedValueOnce(createdTicket);
+      const server = createRemoteMcpServer(mockS3Client, mockConfig, undefined, mockTicketsConfig);
+      const result = await callTool(server, 'create_ticket', { title: 'new feature' }) as {
+        content: Array<{ type: string; text: string }>;
+      };
+
+      expect(mockCreateTicket).toHaveBeenCalledWith({
+        token: 'github_pat_test',
+        repo: 'anytime-trial/anytime-ticket',
+        branch: 'main',
+        input: expect.objectContaining({
+          title: 'new feature',
+          status: 'backlog',
+          priority: 'medium',
+          creator: 'mcp-cms-remote',
+          now: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        }),
+      });
+      // 既定で埋めない任意項目は input へ渡さない（tickets-core 側で未設定のまま保存される）
+      const input = mockCreateTicket.mock.calls[0][0].input;
+      expect(input).not.toHaveProperty('assignee');
+      expect(input).not.toHaveProperty('workspace');
+      expect(input).not.toHaveProperty('dependencies');
+      expect(input).not.toHaveProperty('estimate');
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        id: 'T-3',
+        path: '.tickets/T-3-new-feature.md',
+        status: 'backlog',
+      });
+    });
+
+    it('passes explicit params through to createTicket', async () => {
+      mockCreateTicket.mockResolvedValueOnce({
+        ...createdTicket,
+        frontmatter: { ...createdTicket.frontmatter, status: 'up_next', priority: 'high' },
+      });
+      const server = createRemoteMcpServer(mockS3Client, mockConfig, undefined, mockTicketsConfig);
+      await callTool(server, 'create_ticket', {
+        title: 'wired ticket',
+        description: 'body text',
+        status: 'up_next',
+        priority: 'high',
+        assignee: 'agent',
+        workspace: 'anytime-markdown',
+        dependencies: ['T-1'],
+        estimate: 90,
+        creator: 'kiyotaka',
+      });
+
+      expect(mockCreateTicket).toHaveBeenCalledWith({
+        token: 'github_pat_test',
+        repo: 'anytime-trial/anytime-ticket',
+        branch: 'main',
+        input: expect.objectContaining({
+          title: 'wired ticket',
+          description: 'body text',
+          status: 'up_next',
+          priority: 'high',
+          assignee: 'agent',
+          workspace: 'anytime-markdown',
+          dependencies: ['T-1'],
+          estimate: 90,
+          creator: 'kiyotaka',
+        }),
+      });
+    });
+
+    it('propagates createTicket errors (validation / GitHub conflict)', async () => {
+      mockCreateTicket.mockRejectedValueOnce(new Error('入力が不正です: title は必須です'));
+      const server = createRemoteMcpServer(mockS3Client, mockConfig, undefined, mockTicketsConfig);
+      await expect(callTool(server, 'create_ticket', { title: '' })).rejects.toThrow('入力が不正です');
     });
   });
 });
