@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
+  TICKET_WORKSPACES,
   createTicket,
   deleteTicket,
   listTickets,
@@ -11,6 +12,7 @@ import {
   validateTicketFrontmatter,
   type TicketPriority,
   type TicketStatus,
+  type TicketWorkspace,
 } from "@anytime-markdown/tickets-core";
 
 import { fetchWithRetry } from "../../../../lib/fetchWithRetry";
@@ -51,6 +53,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (title === "" || !TICKET_STATUSES.includes(status) || !TICKET_PRIORITIES.includes(priority)) {
     return NextResponse.json({ error: "title / status / priority が不正です" }, { status: 400 });
   }
+  // workspace は任意だが、指定されたら enum を厳密検証する（黙って捨てず 400 で拒否する）。
+  const workspace = body.workspace === undefined || body.workspace === "" ? undefined : (body.workspace as TicketWorkspace);
+  if (workspace !== undefined && !TICKET_WORKSPACES.includes(workspace)) {
+    return NextResponse.json({ error: "workspace が不正です" }, { status: 400 });
+  }
   try {
     const created = await createTicket({
       ...params,
@@ -60,8 +67,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         status,
         priority,
         assignee: typeof body.assignee === "string" && body.assignee !== "" ? body.assignee : undefined,
+        workspace,
         creator: typeof body.creator === "string" && body.creator !== "" ? body.creator : undefined,
-        labels: Array.isArray(body.labels) ? (body.labels as string[]) : undefined,
         estimate: typeof body.estimate === "number" ? body.estimate : undefined,
         description: typeof body.description === "string" ? body.description : undefined,
         now: new Date().toISOString(),
