@@ -310,3 +310,132 @@ describe('/api/trail/flight-reviews', () => {
     expect(res.status).toBe(415);
   });
 });
+
+describe('/api/trail/flight-reviews/:sessionId PATCH (Phase 6 S3 manual)', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+  });
+
+  function seed(sessionId: string, endedAt = '2026-07-17T10:00:00.000Z'): void {
+    db.upsertFlightReviewFromMachine({
+      sessionId,
+      workspacePath: '/ws',
+      startedAt: null,
+      endedAt,
+      durationSeconds: null,
+      toolCallCount: 0,
+      toolFailureCount: 0,
+      reworkCount: 0,
+    });
+  }
+
+  function patchReview(
+    sessionId: string,
+    payload: unknown,
+    contentType = 'application/json',
+  ): Promise<Response> {
+    return fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': contentType },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async function getReviews(query = ''): Promise<Array<Record<string, unknown>>> {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews${query}`);
+    return ((await res.json()) as { flightReviews: Array<Record<string, unknown>> }).flightReviews;
+  }
+
+  it('outcome / tags / notes を更新し outcome_source=manual になる（FR-13）', async () => {
+    seed('sess-m1');
+    const res = await patchReview('sess-m1', {
+      outcome: 'achieved',
+      tags: ['release'],
+      notes: '確認済み',
+    });
+    expect(res.status).toBe(200);
+
+    const reviews = await getReviews('?sessionId=sess-m1');
+    expect(reviews[0]?.['outcome']).toBe('achieved');
+    expect(reviews[0]?.['outcomeSource']).toBe('manual');
+    expect(reviews[0]?.['tags']).toBe('["release"]');
+    expect(reviews[0]?.['notes']).toBe('確認済み');
+  });
+
+  it('存在しない sessionId は 404（FR-14）', async () => {
+    const res = await patchReview('missing', { outcome: 'partial' });
+    expect(res.status).toBe(404);
+  });
+
+  it('enum 外 outcome / unknown への訂正 / 非配列 tags / 非文字列 tags 要素 / 上限超 notes は 400（FR-14）', async () => {
+    seed('sess-m2');
+    expect((await patchReview('sess-m2', { outcome: 'great' })).status).toBe(400);
+    expect((await patchReview('sess-m2', { outcome: 'unknown' })).status).toBe(400);
+    expect((await patchReview('sess-m2', { tags: 'release' })).status).toBe(400);
+    expect((await patchReview('sess-m2', { tags: [1, 2] })).status).toBe(400);
+    expect((await patchReview('sess-m2', { notes: 'x'.repeat(2001) })).status).toBe(400);
+    // 拒否された patch は永続化されない
+    const reviews = await getReviews('?sessionId=sess-m2');
+    expect(reviews[0]?.['outcomeSource']).toBe('machine');
+  });
+
+  it('更新対象フィールドが 1 つも無い body は 400', async () => {
+    seed('sess-m3');
+    expect((await patchReview('sess-m3', {})).status).toBe(400);
+    expect((await patchReview('sess-m3', { unknownField: 1 })).status).toBe(400);
+  });
+
+  it('非 JSON Content-Type は 415 で拒否する（CSRF ガード）', async () => {
+    seed('sess-m4');
+    expect((await patchReview('sess-m4', { outcome: 'partial' }, 'text/plain')).status).toBe(415);
+  });
+
+  it('PATCH 後の機械再送 POST が手動訂正を上書きしない（FR-13 回帰）', async () => {
+    seed('sess-m5');
+    expect((await patchReview('sess-m5', { outcome: 'achieved', tags: ['t'] })).status).toBe(200);
+
+    const resend = await fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'sess-m5', cwd: '/ws', endedAt: '2026-07-17T12:00:00.000Z' }),
+    });
+    expect(resend.status).toBe(200);
+
+    const reviews = await getReviews('?sessionId=sess-m5');
+    expect(reviews[0]?.['outcome']).toBe('achieved');
+    expect(reviews[0]?.['outcomeSource']).toBe('manual');
+    expect(reviews[0]?.['tags']).toBe('["t"]');
+  });
+
+  it('GET は outcome / tag でフィルタできる（FR-15）', async () => {
+    seed('sess-f1', '2026-07-17T09:00:00.000Z');
+    seed('sess-f2', '2026-07-17T10:00:00.000Z');
+    expect((await patchReview('sess-f2', { outcome: 'achieved', tags: ['release'] })).status).toBe(200);
+
+    const achieved = await getReviews('?outcome=achieved');
+    expect(achieved).toHaveLength(1);
+    expect(achieved[0]?.['sessionId']).toBe('sess-f2');
+    expect(await getReviews('?outcome=unknown')).toHaveLength(1);
+    const tagged = await getReviews('?tag=release');
+    expect(tagged).toHaveLength(1);
+    expect(tagged[0]?.['sessionId']).toBe('sess-f2');
+    expect(await getReviews('?tag=rel')).toHaveLength(0);
+  });
+
+  it('GET の enum 外 outcome は 400', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/flight-reviews?outcome=bogus`);
+    expect(res.status).toBe(400);
+  });
+});

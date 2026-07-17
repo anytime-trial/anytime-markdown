@@ -5,6 +5,7 @@ import type {
   FlightReview,
   FlightReviewFilter,
   FlightReviewMachineInput,
+  FlightReviewManualPatch,
   LessonCandidate,
   SelfAssessment,
   UserFeedbackEntry,
@@ -27,6 +28,13 @@ export interface IFlightReviewRepository {
   /** 学習候補を保存（trail.db へ書き込む副作用を持つ。Phase 6 S2）。 */
   saveFlightReviewLessonCandidates(sessionId: string, candidates: LessonCandidate[]): void;
   listFlightReviews(filter?: FlightReviewFilter): FlightReview[];
+  /**
+   * 手動訂正の部分更新（trail.db へ書き込む副作用を持つ。Phase 6 S3）。
+   * 更新時は outcome_source='manual' を設定し、以後の self / machine が outcome 系を上書きしない。
+   * 対象行が存在しなければ false を返す（行の新規作成はしない）。
+   * 空 patch は書き込まず存在有無のみ返す。
+   */
+  updateFlightReviewManual(sessionId: string, patch: FlightReviewManualPatch): boolean;
 }
 
 /** user_feedback_entries の永続化ポート（Phase 6 S2）。実装は trail-db の TrailDatabase。 */

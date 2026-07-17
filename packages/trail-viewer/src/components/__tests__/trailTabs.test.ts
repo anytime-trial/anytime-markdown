@@ -4,7 +4,7 @@ describe('trail viewer tab definitions', () => {
   it('does not include the legacy Releases / Prompts / Messages tabs in top-level tabs', () => {
     const tabs = getTrailViewerTabDefs({ hasC4: true, hasTrace: true });
 
-    expect(tabs.map((tab) => tab.value)).toEqual([0, 4, 5, 7, 6, 8]);
+    expect(tabs.map((tab) => tab.value)).toEqual([0, 4, 5, 7, 6, 9, 8]);
     expect(tabs.some((tab) => tab.i18nKey === 'viewer.tab.releases')).toBe(false);
     expect(tabs.some((tab) => tab.i18nKey === 'viewer.tab.prompts')).toBe(false);
     expect(tabs.some((tab) => tab.i18nKey === 'viewer.tab.messages')).toBe(false);
@@ -24,9 +24,10 @@ describe('isC4RelatedTab', () => {
     expect(isC4RelatedTab(7)).toBe(true);
   });
 
-  it('returns false for non-C4 tabs so C4 fetch stays deferred (analytics=0 / memory=6 / logs=8)', () => {
+  it('returns false for non-C4 tabs so C4 fetch stays deferred (analytics=0 / memory=6 / logs=8 / flightReview=9)', () => {
     expect(isC4RelatedTab(0)).toBe(false);
     expect(isC4RelatedTab(6)).toBe(false);
     expect(isC4RelatedTab(8)).toBe(false);
+    expect(isC4RelatedTab(9)).toBe(false);
   });
 });

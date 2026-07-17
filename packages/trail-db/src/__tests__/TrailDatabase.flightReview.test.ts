@@ -189,3 +189,126 @@ describe('TrailDatabase flight reviews S2 (self assessment / lesson candidates /
     expect(entries[0]?.occurredAt).toBe('2026-07-17T11:00:00.000Z');
   });
 });
+
+describe('TrailDatabase flight reviews S3 (manual update / filter extension)', () => {
+  let db: TrailDatabase;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  it('手動訂正で outcome / tags / notes が更新され outcome_source=manual になる（FR-13）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+
+    const updated = db.updateFlightReviewManual('sess-1', {
+      outcome: 'achieved',
+      tags: ['release'],
+      notes: '手動確認済み',
+    });
+
+    expect(updated).toBe(true);
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcome).toBe('achieved');
+    expect(review?.outcomeSource).toBe('manual');
+    expect(review?.tags).toBe('["release"]');
+    expect(review?.notes).toBe('手動確認済み');
+  });
+
+  it('部分更新: outcome のみ指定で tags / notes は変わらない', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    db.updateFlightReviewManual('sess-1', { tags: ['keep'], notes: 'keep-note' });
+
+    db.updateFlightReviewManual('sess-1', { outcome: 'partial' });
+
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcome).toBe('partial');
+    expect(review?.tags).toBe('["keep"]');
+    expect(review?.notes).toBe('keep-note');
+  });
+
+  it('対象行が無ければ false を返し行を作らない（FR-14 の 404 根拠）', () => {
+    expect(db.updateFlightReviewManual('nope', { outcome: 'partial' })).toBe(false);
+    expect(db.listFlightReviews()).toHaveLength(0);
+  });
+
+  it('空 patch は書き込まず存在有無のみ返す（manual 化しない）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+
+    expect(db.updateFlightReviewManual('sess-1', {})).toBe(true);
+    expect(db.updateFlightReviewManual('nope', {})).toBe(false);
+
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcomeSource).toBe('machine');
+  });
+
+  it('manual 化以降は self が上書きしない（FR-13 回帰）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    db.updateFlightReviewManual('sess-1', { outcome: 'unachieved' });
+
+    db.applySelfAssessmentToFlightReview('sess-1', {
+      outcome: 'achieved',
+      unresolvedItems: ['x'],
+      nextConcerns: [],
+    });
+
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcome).toBe('unachieved');
+    expect(review?.outcomeSource).toBe('manual');
+  });
+
+  it('manual 化以降も機械集計の再送は集計列のみ更新する（FR-13 回帰）', () => {
+    db.upsertFlightReviewFromMachine(machineInput());
+    db.updateFlightReviewManual('sess-1', { outcome: 'achieved', tags: ['t'] });
+
+    db.upsertFlightReviewFromMachine(machineInput({ toolCallCount: 42 }));
+
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcome).toBe('achieved');
+    expect(review?.outcomeSource).toBe('manual');
+    expect(review?.tags).toBe('["t"]');
+    expect(review?.toolCallCount).toBe(42);
+  });
+
+  it('outcome フィルタが効く（FR-15）', () => {
+    db.upsertFlightReviewFromMachine(machineInput({ sessionId: 's1' }));
+    db.upsertFlightReviewFromMachine(machineInput({ sessionId: 's2' }));
+    db.updateFlightReviewManual('s2', { outcome: 'achieved' });
+
+    const achieved = db.listFlightReviews({ outcome: 'achieved' });
+    expect(achieved).toHaveLength(1);
+    expect(achieved[0]?.sessionId).toBe('s2');
+    expect(db.listFlightReviews({ outcome: 'unknown' })).toHaveLength(1);
+  });
+
+  it('tag フィルタが配列内の等値一致で効く（部分一致しない。FR-15）', () => {
+    db.upsertFlightReviewFromMachine(machineInput({ sessionId: 's1' }));
+    db.upsertFlightReviewFromMachine(machineInput({ sessionId: 's2' }));
+    db.updateFlightReviewManual('s1', { tags: ['release', 'ui'] });
+    db.updateFlightReviewManual('s2', { tags: ['rel'] });
+
+    const byRelease = db.listFlightReviews({ tag: 'release' });
+    expect(byRelease).toHaveLength(1);
+    expect(byRelease[0]?.sessionId).toBe('s1');
+    expect(db.listFlightReviews({ tag: 'rel' })).toHaveLength(1);
+    expect(db.listFlightReviews({ tag: 'ui' })[0]?.sessionId).toBe('s1');
+  });
+
+  it('outcome / tag / 期間フィルタが併用できる（FR-15）', () => {
+    db.upsertFlightReviewFromMachine(machineInput({ sessionId: 's1', endedAt: '2026-07-17T09:00:00.000Z' }));
+    db.upsertFlightReviewFromMachine(machineInput({ sessionId: 's2', endedAt: '2026-07-17T11:00:00.000Z' }));
+    db.updateFlightReviewManual('s1', { outcome: 'achieved', tags: ['release'] });
+    db.updateFlightReviewManual('s2', { outcome: 'achieved', tags: ['release'] });
+
+    const filtered = db.listFlightReviews({
+      outcome: 'achieved',
+      tag: 'release',
+      since: '2026-07-17T10:00:00.000Z',
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.sessionId).toBe('s2');
+  });
+});

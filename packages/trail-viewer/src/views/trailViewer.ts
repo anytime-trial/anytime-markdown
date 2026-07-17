@@ -30,6 +30,8 @@ import type { C4ViewerViewProps } from './c4/c4Viewer';
 import { mountMemoryPanel } from './memory/memoryPanel';
 import type { MemoryPanelViewProps } from './memory/memoryPanel';
 import { mountLogsTab } from './logs/logsTab';
+import { mountFlightReviewPanel, type FlightReviewPanelProps } from './flightReviewPanel';
+import { createFlightReviewStore, type FlightReviewStore } from '../data/flightReviewStore';
 import type { LogsTabProps } from './logs/logsTab';
 import { mountFilterBar } from './filterBar';
 import type { FilterBarProps } from './filterBar';
@@ -224,6 +226,9 @@ export function mountTrailViewer(
   let c4Handle: ReturnType<typeof mountC4Viewer> | null = null;
   let memoryHandle: ReturnType<typeof mountMemoryPanel> | null = null;
   let logsHandle: ReturnType<typeof mountLogsTab> | null = null;
+  let flightReviewHandle: ReturnType<typeof mountFlightReviewPanel> | null = null;
+  let flightReviewStore: FlightReviewStore | null = null;
+  let flightReviewStoreUrl: string | null = null;
   let callHierarchyHandle: ReturnType<typeof mountCallHierarchyPanel> | null = null;
 
   // ── React island handles ──
@@ -431,6 +436,26 @@ export function mountTrailViewer(
         props.onSelectSession(sessionId);
         openMessagesPopup();
       },
+    };
+  }
+
+  // ── Derive FlightReviewPanel props（Phase 6 S3） ──
+  function buildFlightReviewProps(): FlightReviewPanelProps {
+    const serverUrl = props.serverUrl ?? '';
+    // serverUrl が変わったら旧接続先の store を破棄して作り直す（panel 側が購読を張り替える）
+    if (flightReviewStore !== null && flightReviewStoreUrl !== serverUrl) {
+      flightReviewStore.dispose();
+      flightReviewStore = null;
+    }
+    if (flightReviewStore === null) {
+      flightReviewStore = createFlightReviewStore(serverUrl, { enabled: true });
+      flightReviewStoreUrl = serverUrl;
+    }
+    return {
+      isDark: props.isDark ?? true,
+      tokens: props.tokens,
+      t: props.t,
+      store: flightReviewStore,
     };
   }
 
@@ -819,6 +844,12 @@ export function mountTrailViewer(
         }
         break;
       }
+      case 9: {
+        if (!flightReviewHandle && props.serverUrl) {
+          flightReviewHandle = mountFlightReviewPanel(panelEl, buildFlightReviewProps());
+        }
+        break;
+      }
     }
   }
 
@@ -877,6 +908,9 @@ export function mountTrailViewer(
     if (logsHandle) {
       logsHandle.update(buildLogsProps());
     }
+    if (flightReviewHandle) {
+      flightReviewHandle.update(buildFlightReviewProps());
+    }
     if (callHierarchyHandle) {
       callHierarchyHandle.update(buildCallHierarchyProps());
     }
@@ -909,6 +943,10 @@ export function mountTrailViewer(
     c4Handle?.destroy();
     memoryHandle?.destroy();
     logsHandle?.destroy();
+    flightReviewHandle?.destroy();
+    flightReviewHandle = null;
+    flightReviewStore?.dispose();
+    flightReviewStore = null;
     callHierarchyHandle?.destroy();
     traceIsland?.destroy();
     traceIsland = null;
