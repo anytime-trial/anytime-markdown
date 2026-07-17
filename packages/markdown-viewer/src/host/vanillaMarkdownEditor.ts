@@ -1110,20 +1110,26 @@ export function mountVanillaMarkdownEditor(
         if (body == null) return null;
         return prependFrontmatter(body, frontmatter);
       };
+      const computeSectionLockUi = (): SectionLockUiEntry[] => {
+        if (frontmatter === null || !frontmatter.includes("lockedSections")) return [];
+        const full = currentFullMarkdown();
+        if (full == null) return sectionLockUi;
+        return computeSectionLockState(full).ui;
+      };
       const refreshSectionLocks = (): void => {
-        if (frontmatter === null || !frontmatter.includes("lockedSections")) {
-          if (sectionLockUi.length === 0) return;
-          sectionLockUi = [];
-        } else {
-          const full = currentFullMarkdown();
-          if (full == null) return;
-          sectionLockUi = computeSectionLockState(full).ui;
-        }
+        const next = computeSectionLockUi();
+        if (next.length === 0 && sectionLockUi.length === 0) return;
+        sectionLockUi = next;
         // 装飾の再計算を促す（doc 不変のため meta で通知）
         editor.view.dispatch(editor.state.tr.setMeta(SECTION_LOCK_REFRESH_META, true));
       };
+      // 初期状態は dispatch せずに反映する。installChrome 実行中の dispatch は
+      // 'transaction' 購読（コメント dirty 追跡等）を初期化前の chrome（statusBar 等・TDZ）へ
+      // カスケードさせ、ロック付き文書を開いた瞬間に ReferenceError で mount が壊れる。
+      // registerPlugin の state.init が現在の sectionLockUi から装飾を構築するため
+      // 初期表示に dispatch は不要（S4 受入で顕在化した web-app の実障害）。
+      sectionLockUi = computeSectionLockUi();
       editor.registerPlugin(createSectionLockPlugin(() => sectionLockUi));
-      refreshSectionLocks();
       // 見出しの増減・並び替えで headingIndex 対応が変わったときだけ再計算する
       // （ロック節自体は Plugin が編集をブロックするため、通常の本文編集では不変）。
       let headingSignature = "";
