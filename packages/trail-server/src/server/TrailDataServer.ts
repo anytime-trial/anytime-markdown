@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { CurrentCoverageRow,ReleaseCoverageRow, TrailGraph } from '@anytime-markdown/trail-core';
+import { computeFlightOutcome, type CurrentCoverageRow, type FlightOutcomeAggregate, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Model, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
@@ -737,6 +737,16 @@ export class TrailDataServer {
 
     if (pathname === '/api/trail/emergency-log' && method === 'GET') {
       this.handleListEmergencyEvents(res, parsed.searchParams);
+      return;
+    }
+
+    if (pathname === '/api/trail/flight-reviews' && method === 'POST') {
+      this.handleRecordFlightReview(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/flight-reviews' && method === 'GET') {
+      this.handleListFlightReviews(res, parsed.searchParams);
       return;
     }
 
@@ -2851,6 +2861,104 @@ export class TrailDataServer {
     } catch (e) {
       this.logger.error('handleListEmergencyEvents failed', e);
       sendServerError(res, 'Failed to list emergency events');
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: /api/trail/flight-reviews (Phase 6 S1)
+  // -------------------------------------------------------------------------
+
+  /** transcript 読取の上限。超過時は集計せず最小行に縮退する（Stop フックの fail-open を保つ）。 */
+  private static readonly FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES = 50 * 1024 * 1024;
+
+  private handleRecordFlightReview(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const sessionId = parsed['sessionId'];
+        const endedAt = parsed['endedAt'];
+        if (typeof sessionId !== 'string' || sessionId === '' || typeof endedAt !== 'string' || endedAt === '') {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'sessionId, endedAt required' }));
+          return;
+        }
+        const transcriptPath = typeof parsed['transcriptPath'] === 'string' ? parsed['transcriptPath'] : '';
+        const workspacePath = typeof parsed['cwd'] === 'string' ? parsed['cwd'] : '';
+        const aggregate = this.aggregateFlightTranscript(transcriptPath);
+        this.trailDb.upsertFlightReviewFromMachine({
+          sessionId,
+          workspacePath,
+          startedAt: aggregate.startedAt,
+          endedAt: aggregate.endedAt ?? endedAt,
+          durationSeconds: aggregate.durationSeconds,
+          toolCallCount: aggregate.toolCallCount,
+          toolFailureCount: aggregate.toolFailureCount,
+          reworkCount: aggregate.reworkCount,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleRecordFlightReview failed', e);
+        sendServerError(res, 'Failed to record flight review');
+      }
+    });
+  }
+
+  /**
+   * transcript JSONL を読み computeFlightOutcome へ渡す。
+   * 読取不能・巨大ファイルは集計 0 の空集計に縮退する（最小行の記録は落とさない。FR-4）。
+   */
+  private aggregateFlightTranscript(transcriptPath: string): FlightOutcomeAggregate {
+    const empty: FlightOutcomeAggregate = {
+      startedAt: null,
+      endedAt: null,
+      durationSeconds: null,
+      toolCallCount: 0,
+      toolFailureCount: 0,
+      reworkCount: 0,
+    };
+    if (transcriptPath === '') {
+      return empty;
+    }
+    try {
+      const stat = fs.statSync(transcriptPath);
+      if (!stat.isFile() || stat.size > TrailDataServer.FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES) {
+        this.logger.warn(`[handleRecordFlightReview] transcript skipped (size=${stat.size}): ${transcriptPath}`);
+        return empty;
+      }
+      return computeFlightOutcome(fs.readFileSync(transcriptPath, 'utf8').split('\n'));
+    } catch (e) {
+      this.logger.warn(`[handleRecordFlightReview] transcript read failed: ${transcriptPath}: ${e instanceof Error ? e.message : String(e)}`);
+      return empty;
+    }
+  }
+
+  private handleListFlightReviews(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const flightReviews = this.trailDb.listFlightReviews({
+        sessionId: params.get('sessionId') ?? undefined,
+        since: params.get('since') ?? undefined,
+        until: params.get('until') ?? undefined,
+        limit: Number.isNaN(limit) ? 100 : limit,
+      });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ flightReviews }));
+    } catch (e) {
+      this.logger.error('handleListFlightReviews failed', e);
+      sendServerError(res, 'Failed to list flight reviews');
     }
   }
 
