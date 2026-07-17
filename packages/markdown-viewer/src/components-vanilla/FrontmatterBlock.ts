@@ -43,8 +43,8 @@ interface CreateFrontmatterBlockOptions {
 export interface FrontmatterBlockHandle {
   /** root 要素（frontmatter が null のときは display:none）。 */
   el: HTMLElement;
-  /** 値を更新する（外部 setFrontmatter / スラッシュコマンドからの set 経由）。 */
-  setValue: (value: string | null) => void;
+  /** 値を更新する（外部 setFrontmatter / スラッシュコマンドからの set 経由）。autoExpand: false で null → 値 遷移時も折りたたみを保つ。 */
+  setValue: (value: string | null, options?: { autoExpand?: boolean }) => void;
   /** readOnly を切り替える（モード変更時）。 */
   setReadOnly: (readOnly: boolean) => void;
   /** 折りたたまれていれば展開し、textarea にフォーカスする（スラッシュコマンド用）。 */
@@ -196,11 +196,13 @@ export function createFrontmatterBlock(
 
   return {
     el: root,
-    setValue(next: string | null): void {
+    setValue(next: string | null, options?: { autoExpand?: boolean }): void {
       const wasNull = value == null;
       value = next;
       // null → 値 への遷移（新規作成・スラッシュコマンド）は展開して即編集可能にする。
-      if (wasNull && next != null) collapsed = false;
+      // ユーザーの編集意図を伴わないプログラム更新（セクションロックの lockedSections
+      // 新規作成等）は autoExpand: false で折りたたみ状態を保つ（Phase 5 S4）。
+      if (wasNull && next != null && options?.autoExpand !== false) collapsed = false;
       render();
     },
     setReadOnly(next: boolean): void {

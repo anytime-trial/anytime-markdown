@@ -686,9 +686,9 @@ export function mountVanillaMarkdownEditor(
         ? ""
         : "none";
   };
-  const setFrontmatter = (value: string | null): void => {
+  const setFrontmatter = (value: string | null, options?: { autoExpand?: boolean }): void => {
     frontmatter = value;
-    frontmatterBlock?.setValue(value);
+    frontmatterBlock?.setValue(value, options);
   };
   syncFrontmatterView();
 
@@ -1166,7 +1166,9 @@ export function mountVanillaMarkdownEditor(
               lockedAt: new Date().toISOString(),
               lockedBy: "human",
             });
-        setFrontmatter(parseFrontmatter(nextFull).frontmatter);
+        // ロック操作はユーザーの編集意図を伴わない frontmatter 更新のため、
+        // null → 値 遷移（lockedSections の新規作成）でもブロックを自動展開しない。
+        setFrontmatter(parseFrontmatter(nextFull).frontmatter, { autoExpand: false });
         fileOps.markDirty();
         saveContent(() => getMarkdownFromEditorSafe(editor));
         refreshSectionLocks();
