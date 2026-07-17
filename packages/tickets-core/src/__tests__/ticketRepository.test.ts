@@ -476,3 +476,18 @@ describe('fetchFn 省略時の既定 fetch', () => {
     expect(result.tickets).toEqual([]);
   });
 });
+
+describe('fetchFn 明示注入時の this 非依存', () => {
+  it('素の fetch 相当(this 検査付き)を fetchFn に注入しても呼び出せる', async () => {
+    const brandChecked = function (this: unknown, ...args: Parameters<typeof fetch>) {
+      if (this !== undefined && this !== globalThis) {
+        throw new TypeError('Illegal invocation: function called with incorrect `this` reference');
+      }
+      void args;
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    } as typeof fetch;
+
+    const result = await listTickets({ ...CFG_BASE, fetchFn: brandChecked });
+    expect(result.tickets).toEqual([]);
+  });
+});
