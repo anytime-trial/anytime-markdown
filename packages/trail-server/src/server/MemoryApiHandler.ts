@@ -3,6 +3,7 @@ import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import type { RationaleNode } from '@anytime-markdown/trail-core';
 import type { Logger } from '../runtime/Logger';
 
 // ---------------------------------------------------------------------------
@@ -936,6 +937,49 @@ export class MemoryApiHandler {
       });
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.listTopEntities] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  /**
+   * Phase 6 S4 (Rationale Audit): セッションのコミットに紐付く決定根拠ノードを返す。
+   * memory.db の rationale_for エッジ（Decision → Commit）を、attach 済み trail.session_commits で
+   * セッション絞り込みして辿る（読み取り専用）。memory.db 不在・attach 失敗・0 件は空配列。
+   */
+  async listRationaleNodes(params: { sessionId: string }): Promise<RationaleNode[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    if (!this.trailDbAttached) {
+      this.logger.warn('[MemoryApiHandler.listRationaleNodes] trail.db not attached; returning empty');
+      return [];
+    }
+    try {
+      const result = db.exec(
+        `SELECT c.canonical_name AS commit_hash, d.summary, e.confidence_label, e.recorded_at AS created_at
+         FROM memory_edges e
+         JOIN memory_entities d ON d.id = e.subject_entity_id AND d.type = 'Decision'
+         JOIN memory_entities c ON c.id = e.object_entity_id AND c.type = 'Commit'
+         WHERE e.predicate = 'rationale_for'
+           AND c.canonical_name IN (SELECT commit_hash FROM trail.session_commits WHERE session_id = ?)
+         ORDER BY e.recorded_at DESC
+         LIMIT 200`,
+        toBindParams([params.sessionId]),
+      );
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return {
+          commitHash: toStr(r['commit_hash']),
+          summary: toStr(r['summary']),
+          confidenceLabel: toStr(r['confidence_label']) as RationaleNode['confidenceLabel'],
+          createdAt: toStr(r['created_at']),
+        };
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.listRationaleNodes] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       this.close(db);

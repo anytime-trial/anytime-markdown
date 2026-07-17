@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.14.0] - 2026-07-17
+## [1.15.0] - 2026-07-17
+
+### Added
+
+- Screenmock fenced blocks (markdown-rich): a `screenmock` code fence renders an interactive screen mockup with screen navigation, transitions and a component vocabulary. A design edit mode supports mouse resizing of parts and writes the edited layout back to the source.
+- Slash command: a "screenmock" insertion item was added to the vanilla editor slash menu.
+
+### Fixed
+
+- Cross-review fixes across the screenmock feature (9 items): `:host` CSS-variable resolution, redraw after DOM reconnection, selection preservation across regeneration, `aria-label`s, edit-UI protection, `srcset` image-source bypass, theme application and preview width.
 
 ### Added
 

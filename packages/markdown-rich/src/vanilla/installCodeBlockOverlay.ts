@@ -67,6 +67,8 @@ import { createFullscreenDiffDialog } from "./createFullscreenDiffDialog";
 import { createMathEditDialog } from "./createMathEditDialog";
 import { createMermaidEditDialog } from "./createMermaidEditDialog";
 import { createPlantUmlEditDialog } from "./createPlantUmlEditDialog";
+import { createScreenmockDesignModePreview } from "./screenmockDesignMode";
+import { createScreenmockPreview } from "./screenmockPreview";
 
 /** ダイアログ外観（live 取得用）。 */
 interface CodeOverlayStyle {
@@ -452,6 +454,63 @@ export function installCodeBlockOverlay(
         customSamples: ANYTIME_CHART_SAMPLES,
         // 左ペインで「スクリプト ⇄ 表」を切替し、表（spreadsheet グリッド）でも編集可能にする。
         leftAuxTab: { labelKey: "tableTab", mount: createChartTableEditor },
+      });
+      activeDialog = handle;
+      return;
+    }
+    if (kind === "screenmock") {
+      let designMode = false;
+      let lastSelectedPath: string | null = null;
+      const designToggleLabel = document.createElement("label");
+      designToggleLabel.style.cssText =
+        "display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--am-color-divider,#d0d7de);font:inherit;font-size:0.8125rem;cursor:pointer;user-select:none;";
+      const designToggle = document.createElement("input");
+      designToggle.type = "checkbox";
+      designToggle.setAttribute("aria-label", t("screenmockDesignMode"));
+      designToggleLabel.appendChild(designToggle);
+      designToggleLabel.appendChild(document.createTextNode(t("screenmockDesignMode")));
+      designToggle.addEventListener("change", () => {
+        designMode = designToggle.checked;
+        editState.onFsTextChange(editState.getFsCode());
+      });
+      const handle = createCodeBlockEditDialog({
+        ...common,
+        label: t("screenmock"),
+        language: "screenmock",
+        renderPreview: true,
+        renderPreviewHtml: () => "",
+        previewToolbar: designToggleLabel,
+        onPreviewRendered: (previewEl) => {
+          previewEl.replaceChildren();
+          previewEl.setAttribute("aria-label", "Screenmock preview");
+          previewEl.style.fontFamily = "inherit";
+          previewEl.style.whiteSpace = "normal";
+          const preview = designMode
+            ? createScreenmockDesignModePreview({
+                source: editState.getFsCode(),
+                getSource: () => editState.getFsCode(),
+                setSource: (source) => editState.onFsTextChange(source),
+                emptyHint: t("screenmockEmptyHint"),
+                tabListLabel: t("screenmockTabsLabel"),
+                initialSelectedPath: lastSelectedPath ?? undefined,
+                onSelectionChange: (path) => {
+                  lastSelectedPath = path;
+                },
+              })
+            : createScreenmockPreview(editState.getFsCode(), {
+                emptyHint: t("screenmockEmptyHint"),
+                tabListLabel: t("screenmockTabsLabel"),
+              });
+          previewEl.appendChild(preview);
+          return () => {
+            const maybeDisposable = preview as HTMLElement & { destroy?: () => void };
+            if (typeof maybeDisposable.destroy === "function") {
+              maybeDisposable.destroy();
+            } else {
+              preview.remove();
+            }
+          };
+        },
       });
       activeDialog = handle;
       return;

@@ -110,12 +110,9 @@ const CSS = `
   background: var(--tk-selected);
   color: var(--tk-text-2);
 }
-.tk-chip--question { background: rgba(232, 160, 18, 0.18); color: var(--tk-accent-hover); font-weight: 600; }
 
-/* ---- progress ---- */
-.tk-progress { display: inline-flex; align-items: center; gap: 6px; }
-.tk-progress-track { width: 56px; height: 4px; border-radius: 2px; background: var(--tk-selected); overflow: hidden; }
-.tk-progress-fill { height: 100%; background: var(--tk-accent); }
+/* ---- effort（実施/予定・分）とサブタスク完了数 ---- */
+.tk-effort { display: inline-flex; align-items: center; gap: 6px; color: var(--tk-text-2); font-variant-numeric: tabular-nums; }
 
 /* ---- buttons / inputs ---- */
 .tk-btn {

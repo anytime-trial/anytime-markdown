@@ -70,6 +70,7 @@ describe("mountVanillaMarkdownEditor slash items 既定供給", () => {
     expect(ids).toContain("blockquote");
     expect(ids).toContain("heading2");
     expect(ids).toContain("template-welcome");
+    expect(ids).toContain("screenmock");
     handle.destroy();
   });
 

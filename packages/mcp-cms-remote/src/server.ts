@@ -16,6 +16,19 @@ import {
 } from '@anytime-markdown/cms-core';
 
 import {
+  TICKET_ASSIGNEES,
+  TICKET_PRIORITIES,
+  TICKET_STATUSES,
+  TICKET_WORKSPACES,
+  createTicket,
+  type CreateTicketInput,
+  type TicketAssignee,
+  type TicketPriority,
+  type TicketStatus,
+  type TicketWorkspace,
+} from '@anytime-markdown/tickets-core';
+
+import {
   fetchRankingFromOpenAlex,
   formatRankingToTsv,
   parseWrittenList,
@@ -27,6 +40,14 @@ interface PapersConfig {
   bucket: string;
   patentsPrefix: string;
   mailto: string;
+}
+
+/** チケットリポジトリ（GitHub）への登録設定。全項目が揃った場合のみ create_ticket を登録する */
+export interface TicketsConfig {
+  token: string;
+  /** `owner/repo` 形式 */
+  repo: string;
+  branch: string;
 }
 
 type ToolArgs = Record<string, unknown>;
@@ -76,10 +97,23 @@ const markPaperWrittenParams: Record<string, z.ZodType> = {
   arxivId: z.string().describe('arXiv ID of the paper to mark as written'),
 };
 
+const createTicketParams: Record<string, z.ZodType> = {
+  title: z.string().min(1).describe('Ticket title'),
+  description: z.string().optional().describe('Body of the "概要 (Description)" section'),
+  status: z.enum(TICKET_STATUSES).optional().describe('Ticket status (default: backlog)'),
+  priority: z.enum(TICKET_PRIORITIES).optional().describe('Ticket priority (default: medium)'),
+  assignee: z.enum(TICKET_ASSIGNEES).optional().describe('Assignee: agent (AI) or user (human)'),
+  workspace: z.enum(TICKET_WORKSPACES).optional().describe('Target workspace'),
+  dependencies: z.array(z.string()).optional().describe('Preceding ticket IDs (e.g. ["T-12"])'),
+  estimate: z.number().optional().describe('Estimated effort in minutes'),
+  creator: z.string().optional().describe('Creator name (default: mcp-cms-remote)'),
+};
+
 export function createRemoteMcpServer(
   client: S3Client,
   config: CmsConfig,
   rankingsConfig?: PapersConfig,
+  ticketsConfig?: TicketsConfig,
 ): McpServer {
   const server = new McpServer({
     name: 'anytime-markdown-cms-remote',
@@ -209,6 +243,36 @@ export function createRemoteMcpServer(
       {}, async () => {
         const entries = await listPatentFiles(client, rankingsConfig);
         return { content: [{ type: 'text', text: JSON.stringify(entries, null, 2) }] };
+      });
+  }
+
+  if (ticketsConfig) {
+    registerTool(server, 'create_ticket',
+      'Register a new ticket into the ticket management system (.tickets/ in the GitHub ticket repository). ID is auto-numbered.',
+      createTicketParams, async (args) => {
+        const input: CreateTicketInput = {
+          title: args.title as string,
+          status: (args.status as TicketStatus | undefined) ?? 'backlog',
+          priority: (args.priority as TicketPriority | undefined) ?? 'medium',
+          creator: (args.creator as string | undefined) ?? 'mcp-cms-remote',
+          now: new Date().toISOString(),
+        };
+        if (args.description !== undefined) input.description = args.description as string;
+        if (args.assignee !== undefined) input.assignee = args.assignee as TicketAssignee;
+        if (args.workspace !== undefined) input.workspace = args.workspace as TicketWorkspace;
+        if (args.dependencies !== undefined) input.dependencies = args.dependencies as string[];
+        if (args.estimate !== undefined) input.estimate = args.estimate as number;
+        const created = await createTicket({ ...ticketsConfig, input });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              id: created.frontmatter.id,
+              path: created.path,
+              status: created.frontmatter.status,
+            }),
+          }],
+        };
       });
   }
 

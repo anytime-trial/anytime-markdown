@@ -2,7 +2,7 @@
   "name": "anytime-agent",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -353,6 +353,18 @@
           "default": "",
           "scope": "resource",
           "markdownDescription": "%configuration.tickets.directory.markdownDescription%"
+        },
+        "anytimeAgent.tickets.workspace": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "",
+            "anytime-markdown",
+            "anytime-trade",
+            "other"
+          ],
+          "scope": "resource",
+          "markdownDescription": "%configuration.tickets.workspace.markdownDescription%"
         },
         "anytimeAgent.showUsage": {
           "type": "boolean",

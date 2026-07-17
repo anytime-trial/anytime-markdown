@@ -1,9 +1,11 @@
 import type {
   FrontmatterValue,
+  TicketAssignee,
   InvalidTicketFile,
   TicketFrontmatter,
   TicketPriority,
   TicketStatus,
+  TicketWorkspace,
 } from "@anytime-markdown/tickets-core";
 
 /** web-app の /api/github/tickets 系ルートを呼ぶクライアント（トークンはサーバー側のみが扱う）。 */
@@ -102,9 +104,10 @@ export interface CreateTicketClientInput {
   title: string;
   status: TicketStatus;
   priority: TicketPriority;
-  assignee?: string;
+  assignee?: TicketAssignee;
+  workspace?: TicketWorkspace;
   creator?: string;
-  labels?: string[];
+  /** 予定工数（分） */
   estimate?: number;
   description?: string;
 }

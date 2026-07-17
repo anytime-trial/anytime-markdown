@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.36.0] - 2026-07-17
+## [0.37.0] - 2026-07-17
+
+### Added
+
+- Phase 6 Flight Review: `flight_reviews` DDL and domain types plus `computeFlightOutcome` for the session-end debrief (mechanical aggregation of the transcript), and User Feedback Logging (`detectUserFeedback` classifies "revert my last output" style prompts).
+- Rationale Audit: audit status, a rationale reference API and the supporting domain types.
+- Tickets: `workspace` and `actual` (minute-granularity effort) fields; `labels` / `progress` / `QUESTION_LABEL` were removed and `assignee` is now validated strictly as an enum.
+
+### Fixed
+
+- An invalid `timestamp` no longer breaks the minimal-row record of `flight_reviews` via a CHECK-constraint violation (fail-open now still writes the minimal row).
+- Cross-review fixes: `createdAt` contract, audit messages, attribute escaping and editing-latch separation.
 
 ### Added
 

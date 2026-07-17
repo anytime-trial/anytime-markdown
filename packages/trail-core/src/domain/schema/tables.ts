@@ -712,3 +712,53 @@ export const CREATE_EMERGENCY_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_safe_points_created_at ON safe_points(created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_emergency_log_occurred_at ON emergency_log(occurred_at)`,
 ];
+
+// Phase 6 S1 (Flight Review): フライト（セッション）単位の運航後レビュー。
+// Stop フック（機械集計）が 1 セッション 1 行を UPSERT する。
+// session_id へ FK を張らない: safe_points と同じく Stop フック経由の記録は
+// sessions 行の取込（インポートラグ数十分〜）より先に届くため。
+// outcome は S1 では 'unknown' 固定（機械集計で成否を断定しない）。self は S2、manual は S3 で使用開始。
+// rationale_audit_status は S4 で追加（既存 DB へは列ごと独立 columnExists の ALTER。Rationale Audit の記録粒度はセッション単位）。
+export const CREATE_FLIGHT_REVIEWS = `CREATE TABLE IF NOT EXISTS flight_reviews (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL UNIQUE,
+  workspace_path TEXT NOT NULL DEFAULT '',
+  started_at TEXT CHECK (started_at IS NULL OR started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
+  ended_at TEXT NOT NULL CHECK (ended_at GLOB ${TS_GLOB_MS} OR ended_at GLOB ${TS_GLOB_NO_MS}),
+  duration_seconds INTEGER,
+  outcome TEXT NOT NULL DEFAULT 'unknown' CHECK (outcome IN ('achieved', 'partial', 'unachieved', 'unknown')),
+  outcome_source TEXT NOT NULL DEFAULT 'machine' CHECK (outcome_source IN ('machine', 'self', 'manual')),
+  tool_call_count INTEGER NOT NULL DEFAULT 0,
+  tool_failure_count INTEGER NOT NULL DEFAULT 0,
+  rework_count INTEGER NOT NULL DEFAULT 0,
+  unresolved_items TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(unresolved_items)),
+  next_concerns TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(next_concerns)),
+  lesson_candidates TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(lesson_candidates)),
+  tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tags)),
+  notes TEXT NOT NULL DEFAULT '',
+  rationale_audit_status TEXT NOT NULL DEFAULT 'unaudited' CHECK (rationale_audit_status IN ('unaudited', 'valid', 'needs_fix', 'rejected')),
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_FLIGHT_REVIEW_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_flight_reviews_ended_at ON flight_reviews(ended_at)`,
+];
+
+// Phase 6 S2 (User Feedback Logging): ユーザーの事後修正指示の記録。
+// UserPromptSubmit フック（プレフィルタ）→ /api/trail/user-feedback → detectUserFeedback 再判定を
+// 経て記録される。session_id へ FK を張らない: フック記録が sessions 取込より先に届くため。
+// 再送（at-least-once）は内容キー冪等 INSERT で吸収する（emergency_log と同型）。
+export const CREATE_USER_FEEDBACK_ENTRIES = `CREATE TABLE IF NOT EXISTS user_feedback_entries (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  occurred_at TEXT NOT NULL CHECK (occurred_at GLOB ${TS_GLOB_MS} OR occurred_at GLOB ${TS_GLOB_NO_MS}),
+  prompt_excerpt TEXT NOT NULL,
+  matched_pattern TEXT NOT NULL,
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_USER_FEEDBACK_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_user_feedback_entries_session_id ON user_feedback_entries(session_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_user_feedback_entries_occurred_at ON user_feedback_entries(occurred_at)`,
+];

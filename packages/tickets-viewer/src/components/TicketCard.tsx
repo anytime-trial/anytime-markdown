@@ -5,7 +5,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useTranslations } from "next-intl";
 
 import type { TicketItem } from "../ticketsClient";
-import { LabelChips, PriorityBadge, TicketProgress } from "./parts";
+import { PriorityBadge, TicketEffort, WorkspaceChip } from "./parts";
 
 export interface TicketCardProps {
   ticket: TicketItem;
@@ -22,8 +22,8 @@ function CardContent({ ticket }: Readonly<{ ticket: TicketItem }>) {
       <div className="tk-card-meta">
         <PriorityBadge priority={ticket.frontmatter.priority} />
         {ticket.frontmatter.assignee && <span>{ticket.frontmatter.assignee}</span>}
-        <LabelChips labels={ticket.frontmatter.labels} />
-        <TicketProgress ticket={ticket} />
+        <WorkspaceChip ticket={ticket} />
+        <TicketEffort ticket={ticket} />
       </div>
     </>
   );

@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { CurrentCoverageRow,ReleaseCoverageRow, TrailGraph } from '@anytime-markdown/trail-core';
+import { computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Model, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
@@ -340,10 +340,12 @@ export class TrailDataServer {
       'Release',
       'better_sqlite3.node',
     );
+    // バンドル済み .node が distPath 配下に無い環境（テスト・ソース実行）では
+    // better-sqlite3 の既定解決へフォールバックする（実在しないパスを渡すと open が常に失敗する）。
     this.memoryApi = new MemoryApiHandler(
       this.logger.child('MemoryApiHandler'),
       memoryDbPath,
-      nativeBinding,
+      fs.existsSync(nativeBinding) ? nativeBinding : undefined,
     );
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
     this.c4ManualApi = new C4ManualApiHandler(
@@ -740,6 +742,32 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/trail/flight-reviews' && method === 'POST') {
+      this.handleRecordFlightReview(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/flight-reviews' && method === 'GET') {
+      this.handleListFlightReviews(res, parsed.searchParams);
+      return;
+    }
+
+    const flightReviewPatchMatch = /^\/api\/trail\/flight-reviews\/([^/]+)$/.exec(pathname);
+    if (flightReviewPatchMatch && method === 'PATCH') {
+      this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(flightReviewPatchMatch[1] ?? ''));
+      return;
+    }
+
+    if (pathname === '/api/trail/user-feedback' && method === 'POST') {
+      this.handleRecordUserFeedback(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/user-feedback' && method === 'GET') {
+      this.handleListUserFeedback(res, parsed.searchParams);
+      return;
+    }
+
     // Phase 5 S5: trail-viewer の EmergencyPanel 経路。変更系は EmergencyApiHandler 側で
     // Origin allowlist + カスタムヘッダ + Content-Type を検証する（localhost バインドは
     // クロスオリジン送信そのものを防げないため、CSRF 対策をハンドラ内に閉じて持つ）。
@@ -1096,6 +1124,20 @@ export class TrailDataServer {
     // -------------------------------------------------------------------------
     //  Memory API endpoints
     // -------------------------------------------------------------------------
+    if (pathname === '/api/memory/rationale' && method === 'GET') {
+      const sessionId = parsed.searchParams.get('sessionId');
+      if (!sessionId) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'sessionId required' }));
+        return;
+      }
+      void this.memoryApi.listRationaleNodes({ sessionId }).then((rationale) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ rationale }));
+      });
+      return;
+    }
+
     if (pathname === '/api/memory/status' && method === 'GET') {
       void this.memoryApi.handleStatus().then((data) => {
         res.writeHead(200, JSON_HEADERS);
@@ -2852,6 +2894,297 @@ export class TrailDataServer {
       this.logger.error('handleListEmergencyEvents failed', e);
       sendServerError(res, 'Failed to list emergency events');
     }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: /api/trail/flight-reviews (Phase 6 S1)
+  // -------------------------------------------------------------------------
+
+  /** transcript 読取の上限。超過時は集計せず最小行に縮退する（Stop フックの fail-open を保つ）。 */
+  private static readonly FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES = 50 * 1024 * 1024;
+
+  private handleRecordFlightReview(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const sessionId = parsed['sessionId'];
+        const endedAt = parsed['endedAt'];
+        if (typeof sessionId !== 'string' || sessionId === '' || typeof endedAt !== 'string' || endedAt === '') {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'sessionId, endedAt required' }));
+          return;
+        }
+        const transcriptPath = typeof parsed['transcriptPath'] === 'string' ? parsed['transcriptPath'] : '';
+        const workspacePath = typeof parsed['cwd'] === 'string' ? parsed['cwd'] : '';
+        const lines = this.readFlightTranscriptLines(transcriptPath);
+        const aggregate = computeFlightOutcome(lines);
+        this.trailDb.upsertFlightReviewFromMachine({
+          sessionId,
+          workspacePath,
+          startedAt: aggregate.startedAt,
+          endedAt: aggregate.endedAt ?? endedAt,
+          durationSeconds: aggregate.durationSeconds,
+          toolCallCount: aggregate.toolCallCount,
+          toolFailureCount: aggregate.toolFailureCount,
+          reworkCount: aggregate.reworkCount,
+        });
+        // Phase 6 S2: 自己評価と学習候補は付加情報。失敗しても機械集計行（主効果）は
+        // 既に成立しているため、記録全体を失敗にしない（warn ログのみ）。
+        try {
+          const assessment = extractSelfAssessment(lines);
+          if (assessment !== null) {
+            this.trailDb.applySelfAssessmentToFlightReview(sessionId, assessment);
+          }
+          const feedbackEntries = this.trailDb.listUserFeedbackEntries({ sessionId });
+          const candidates = extractLessonCandidates({ lines, feedbackEntries });
+          if (candidates.length > 0) {
+            this.trailDb.saveFlightReviewLessonCandidates(sessionId, candidates);
+          }
+        } catch (e) {
+          this.logger.warn(`[handleRecordFlightReview] debrief enrichment failed for ${sessionId}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleRecordFlightReview failed', e);
+        sendServerError(res, 'Failed to record flight review');
+      }
+    });
+  }
+
+  /**
+   * transcript JSONL を行配列として読む（機械集計・自己評価抽出・学習候補抽出で共用）。
+   * 読取不能・巨大ファイルは空配列に縮退する（最小行の記録は落とさない。FR-4）。
+   */
+  private readFlightTranscriptLines(transcriptPath: string): string[] {
+    if (transcriptPath === '') {
+      return [];
+    }
+    try {
+      const stat = fs.statSync(transcriptPath);
+      if (!stat.isFile() || stat.size > TrailDataServer.FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES) {
+        this.logger.warn(`[handleRecordFlightReview] transcript skipped (size=${stat.size}): ${transcriptPath}`);
+        return [];
+      }
+      return fs.readFileSync(transcriptPath, 'utf8').split('\n');
+    } catch (e) {
+      this.logger.warn(`[handleRecordFlightReview] transcript read failed: ${transcriptPath}: ${e instanceof Error ? e.message : String(e)}`);
+      return [];
+    }
+  }
+
+  private handleRecordUserFeedback(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const sessionId = parsed['sessionId'];
+        const occurredAt = parsed['occurredAt'];
+        const prompt = parsed['prompt'];
+        if (
+          typeof sessionId !== 'string' || sessionId === '' ||
+          typeof occurredAt !== 'string' || occurredAt === '' ||
+          typeof prompt !== 'string'
+        ) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'sessionId, occurredAt, prompt required' }));
+          return;
+        }
+        // 判定の正はサーバー側 detectUserFeedback。フックのプレフィルタと不一致なら破棄する
+        const match = detectUserFeedback(prompt);
+        if (match === null) {
+          res.writeHead(200, JSON_HEADERS);
+          res.end(JSON.stringify({ ok: true, recorded: false }));
+          return;
+        }
+        this.trailDb.recordUserFeedbackEntry({
+          sessionId,
+          occurredAt,
+          promptExcerpt: prompt.slice(0, TrailDataServer.USER_FEEDBACK_EXCERPT_MAX_CHARS),
+          matchedPattern: match.matchedPattern,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true, recorded: true }));
+      } catch (e) {
+        this.logger.error('handleRecordUserFeedback failed', e);
+        sendServerError(res, 'Failed to record user feedback');
+      }
+    });
+  }
+
+  /** prompt_excerpt の保存上限（提示用の抜粋。全文は保存しない）。 */
+  private static readonly USER_FEEDBACK_EXCERPT_MAX_CHARS = 500;
+
+  private handleListUserFeedback(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const userFeedback = this.trailDb.listUserFeedbackEntries({
+        sessionId: params.get('sessionId') ?? undefined,
+        limit: Number.isNaN(limit) ? 100 : limit,
+      });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ userFeedback }));
+    } catch (e) {
+      this.logger.error('handleListUserFeedback failed', e);
+      sendServerError(res, 'Failed to list user feedback');
+    }
+  }
+
+  private handleListFlightReviews(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const outcomeParam = params.get('outcome');
+      if (outcomeParam !== null && !TrailDataServer.FLIGHT_REVIEW_FILTER_OUTCOMES.includes(outcomeParam)) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'invalid outcome' }));
+        return;
+      }
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const flightReviews = this.trailDb.listFlightReviews({
+        sessionId: params.get('sessionId') ?? undefined,
+        since: params.get('since') ?? undefined,
+        until: params.get('until') ?? undefined,
+        outcome: (outcomeParam as FlightOutcome | null) ?? undefined,
+        tag: params.get('tag') ?? undefined,
+        limit: Number.isNaN(limit) ? 100 : limit,
+      });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ flightReviews }));
+    } catch (e) {
+      this.logger.error('handleListFlightReviews failed', e);
+      sendServerError(res, 'Failed to list flight reviews');
+    }
+  }
+
+  /** GET フィルタで受け付ける outcome（unknown を含む全 enum。手動訂正の入力とは別物）。 */
+  private static readonly FLIGHT_REVIEW_FILTER_OUTCOMES: string[] = [
+    'achieved',
+    'partial',
+    'unachieved',
+    'unknown',
+  ];
+
+  /** 手動訂正（PATCH）で受け付ける outcome。unknown へ戻す操作は提供しない（FlightReviewManualPatch と同期）。 */
+  private static readonly FLIGHT_REVIEW_MANUAL_OUTCOMES: string[] = ['achieved', 'partial', 'unachieved'];
+
+  /** Rationale Audit（S4）で受け付ける監査ステータス（RationaleAuditStatus と同期）。 */
+  private static readonly FLIGHT_REVIEW_AUDIT_STATUSES: string[] = ['unaudited', 'valid', 'needs_fix', 'rejected'];
+
+  private static readonly FLIGHT_REVIEW_NOTES_MAX_CHARS = 2000;
+
+  private static readonly FLIGHT_REVIEW_TAGS_MAX_COUNT = 50;
+
+  private static readonly FLIGHT_REVIEW_TAG_MAX_CHARS = 200;
+
+  /**
+   * Phase 6 S3: 手動訂正（Manual Outcome Tagging）。
+   * 検証はサーバー側が正 — UI の select 制約を境界と見なさない（localhost バインドは根拠にならない）。
+   */
+  private handleUpdateFlightReviewManual(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    sessionId: string,
+  ): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const patch: FlightReviewManualPatch = {};
+        const outcome = parsed['outcome'];
+        if (outcome !== undefined) {
+          if (typeof outcome !== 'string' || !TrailDataServer.FLIGHT_REVIEW_MANUAL_OUTCOMES.includes(outcome)) {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'invalid outcome' }));
+            return;
+          }
+          patch.outcome = outcome as FlightReviewManualPatch['outcome'];
+        }
+        const tags = parsed['tags'];
+        if (tags !== undefined) {
+          const valid =
+            Array.isArray(tags) &&
+            tags.length <= TrailDataServer.FLIGHT_REVIEW_TAGS_MAX_COUNT &&
+            tags.every(
+              (t) => typeof t === 'string' && t.length > 0 && t.length <= TrailDataServer.FLIGHT_REVIEW_TAG_MAX_CHARS,
+            );
+          if (!valid) {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'invalid tags' }));
+            return;
+          }
+          patch.tags = tags as string[];
+        }
+        const notes = parsed['notes'];
+        if (notes !== undefined) {
+          if (typeof notes !== 'string' || notes.length > TrailDataServer.FLIGHT_REVIEW_NOTES_MAX_CHARS) {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'invalid notes' }));
+            return;
+          }
+          patch.notes = notes;
+        }
+        // Rationale Audit（S4）: outcome 系とは別経路で適用する（outcome_source を manual 化しない）
+        const auditStatus = parsed['rationaleAuditStatus'];
+        if (auditStatus !== undefined && (typeof auditStatus !== 'string' || !TrailDataServer.FLIGHT_REVIEW_AUDIT_STATUSES.includes(auditStatus))) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid rationaleAuditStatus' }));
+          return;
+        }
+        const hasManualField = patch.outcome !== undefined || patch.tags !== undefined || patch.notes !== undefined;
+        if (!hasManualField && auditStatus === undefined) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'no updatable field (outcome / tags / notes / rationaleAuditStatus)' }));
+          return;
+        }
+        const manualOk = hasManualField ? this.trailDb.updateFlightReviewManual(sessionId, patch) : true;
+        const auditOk = auditStatus !== undefined
+          ? this.trailDb.markRationaleAudit(sessionId, auditStatus as RationaleAuditStatus)
+          : true;
+        if (!manualOk || !auditOk) {
+          res.writeHead(404, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'flight review not found' }));
+          return;
+        }
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleUpdateFlightReviewManual failed', e);
+        sendServerError(res, 'Failed to update flight review');
+      }
+    });
   }
 
   // -------------------------------------------------------------------------

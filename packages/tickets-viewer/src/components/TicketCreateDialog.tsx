@@ -6,8 +6,11 @@ import {
   TICKET_ASSIGNEES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
+  TICKET_WORKSPACES,
+  type TicketAssignee,
   type TicketPriority,
   type TicketStatus,
+  type TicketWorkspace,
 } from "@anytime-markdown/tickets-core";
 
 import type { CreateTicketClientInput } from "../ticketsClient";
@@ -30,8 +33,8 @@ export function TicketCreateDialog({
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<TicketStatus>("backlog");
   const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [assignee, setAssignee] = useState("");
-  const [labels, setLabels] = useState("");
+  const [assignee, setAssignee] = useState<TicketAssignee | "">("");
+  const [workspace, setWorkspace] = useState<TicketWorkspace | "">("");
   const [description, setDescription] = useState("");
   const [titleError, setTitleError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -43,24 +46,20 @@ export function TicketCreateDialog({
       return;
     }
     setSubmitting(true);
-    const labelList = labels
-      .split(",")
-      .map((label) => label.trim())
-      .filter((label) => label !== "");
     const ok = await onCreate({
       title: title.trim(),
       status,
       priority,
-      assignee: assignee.trim() === "" ? undefined : assignee.trim(),
+      assignee: assignee === "" ? undefined : assignee,
+      workspace: workspace === "" ? undefined : workspace,
       creator: currentUser,
-      labels: labelList.length > 0 ? labelList : undefined,
       description: description.trim() === "" ? undefined : description.trim(),
     });
     setSubmitting(false);
     if (ok) {
       setTitle("");
       setAssignee("");
-      setLabels("");
+      setWorkspace("");
       setDescription("");
       onClose();
     }
@@ -135,7 +134,7 @@ export function TicketCreateDialog({
               id="tk-create-assignee"
               className="tk-select"
               value={assignee}
-              onChange={(event) => setAssignee(event.target.value)}
+              onChange={(event) => setAssignee(event.target.value as TicketAssignee | "")}
             >
               <option value="">{t("assignee.none")}</option>
               {TICKET_ASSIGNEES.map((value) => (
@@ -146,16 +145,22 @@ export function TicketCreateDialog({
             </select>
           </div>
           <div className="tk-fieldset">
-            <label className="tk-label" htmlFor="tk-create-labels">
-              {t("field.labels")}
+            <label className="tk-label" htmlFor="tk-create-workspace">
+              {t("field.workspace")}
             </label>
-            <input
-              id="tk-create-labels"
-              className="tk-input"
-              value={labels}
-              onChange={(event) => setLabels(event.target.value)}
-              placeholder="label1, label2"
-            />
+            <select
+              id="tk-create-workspace"
+              className="tk-select"
+              value={workspace}
+              onChange={(event) => setWorkspace(event.target.value as TicketWorkspace | "")}
+            >
+              <option value="">{t("workspace.none")}</option>
+              {TICKET_WORKSPACES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`workspace.${value}`)}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="tk-fieldset">

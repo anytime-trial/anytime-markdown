@@ -3,10 +3,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
+  TICKET_ASSIGNEES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
+  TICKET_WORKSPACES,
+  type TicketAssignee,
   type TicketPriority,
   type TicketStatus,
+  type TicketWorkspace,
 } from "@anytime-markdown/tickets-core";
 
 import { injectTicketsStyles } from "./injectStyles";
@@ -30,11 +34,11 @@ export interface TicketsPanelProps {
 interface Filters {
   status: TicketStatus | "";
   priority: TicketPriority | "";
-  assignee: string;
-  label: string;
+  assignee: TicketAssignee | "";
+  workspace: TicketWorkspace | "";
 }
 
-const EMPTY_FILTERS: Filters = { status: "", priority: "", assignee: "", label: "" };
+const EMPTY_FILTERS: Filters = { status: "", priority: "", assignee: "", workspace: "" };
 
 function applyFilters(tickets: TicketItem[], filters: Filters, showArchive: boolean): TicketItem[] {
   return tickets.filter((ticket) => {
@@ -50,7 +54,7 @@ function applyFilters(tickets: TicketItem[], filters: Filters, showArchive: bool
     if (filters.assignee !== "" && ticket.frontmatter.assignee !== filters.assignee) {
       return false;
     }
-    if (filters.label !== "" && !(ticket.frontmatter.labels ?? []).includes(filters.label)) {
+    if (filters.workspace !== "" && ticket.frontmatter.workspace !== filters.workspace) {
       return false;
     }
     return true;
@@ -74,14 +78,6 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
   const visible = useMemo(
     () => applyFilters(allTickets, filters, showArchive),
     [allTickets, filters, showArchive],
-  );
-  const assignees = useMemo(
-    () => [...new Set(allTickets.map((item) => item.frontmatter.assignee).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b)),
-    [allTickets],
-  );
-  const labels = useMemo(
-    () => [...new Set(allTickets.flatMap((item) => item.frontmatter.labels ?? []))].sort((a, b) => a.localeCompare(b)),
-    [allTickets],
   );
   const selected = selectedPath ? (allTickets.find((item) => item.path === selectedPath) ?? null) : null;
 
@@ -181,15 +177,15 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
             "tk-filter-assignee",
             t("filters.assignee"),
             filters.assignee,
-            assignees.map((value) => ({ value, label: value })),
-            (value) => setFilters({ ...filters, assignee: value }),
+            TICKET_ASSIGNEES.map((value) => ({ value, label: t(`assignee.${value}`) })),
+            (value) => setFilters({ ...filters, assignee: value as Filters["assignee"] }),
           )}
           {filterSelect(
-            "tk-filter-label",
-            t("filters.label"),
-            filters.label,
-            labels.map((value) => ({ value, label: value })),
-            (value) => setFilters({ ...filters, label: value }),
+            "tk-filter-workspace",
+            t("filters.workspace"),
+            filters.workspace,
+            TICKET_WORKSPACES.map((value) => ({ value, label: t(`workspace.${value}`) })),
+            (value) => setFilters({ ...filters, workspace: value as Filters["workspace"] }),
           )}
         </div>
       )}

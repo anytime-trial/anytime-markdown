@@ -5,9 +5,9 @@
     "title": "Anytime Trial",
     "titleEm": "Trial",
     "titlePrefix": "Anytime",
-    "navNews": "Today's News",
     "navMarkdown": "Markdown",
     "navTrail": "Trail",
+    "navTickets": "Ticket",
     "localeAria": "Switch to English",
     "themeAria": "Toggle theme mode",
     "themeTitle": "Toggle mode"

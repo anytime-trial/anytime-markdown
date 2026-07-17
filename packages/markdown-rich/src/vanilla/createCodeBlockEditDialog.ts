@@ -60,6 +60,11 @@ export interface CreateCodeBlockEditDialogOptions {
    */
   onPreviewRendered?: (previewEl: HTMLElement, isDark: boolean) => (() => void) | void;
   /**
+   * renderPreview = true 時、右ペインの ZoomToolbar 下に追加する小さな操作領域。
+   * 言語別プレビュー固有のトグルなど、本文プレビュー外の UI に使う。
+   */
+  previewToolbar?: HTMLElement;
+  /**
    * 指定時、左ペイン上部に「スクリプト ⇄ 補助エディタ」タブを表示する。
    * `mount` は補助タブ活性化のたびに呼ばれ（前回 cleanup 後）、戻り値の cleanup は
    * タブ切替・dialog 破棄時に呼ばれる。`getCode`/`setCode` は CodeEditState に橋渡しされる。
@@ -243,6 +248,9 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   if (renderPreview) {
     const zt = createZoomToolbar({ zp, isDark, t });
     split.right.appendChild(zt.el);
+    if (opts.previewToolbar) {
+      split.right.appendChild(opts.previewToolbar);
+    }
 
     const zv = createZoomablePreview({ zp, isDark });
     split.right.appendChild(zv.el);
@@ -283,7 +291,7 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
       } else if (opts.renderLanguagePreview) {
         // 言語別の実プレビュー（html 等）を本文と同じ共通レンダラで描画する。
         previewEl.classList.add("am-cbed-preview--rendered");
-        const cancel = renderCodeBlockPreview(previewEl, language, code, { isDark, fontSize }, render);
+        const cancel = renderCodeBlockPreview(previewEl, language, code, { isDark, fontSize, t }, render);
         const extra = opts.onPreviewRendered?.(previewEl, isDark);
         previewCleanup = () => {
           cancel();

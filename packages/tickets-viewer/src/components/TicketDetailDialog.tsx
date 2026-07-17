@@ -3,16 +3,20 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
+  TICKET_ASSIGNEES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
+  TICKET_WORKSPACES,
+  type TicketAssignee,
   type TicketFrontmatter,
   type TicketPriority,
   type TicketStatus,
+  type TicketWorkspace,
 } from "@anytime-markdown/tickets-core";
 
 import type { SaveTicketInput, TicketItem } from "../ticketsClient";
 import { ModalShell } from "./ModalShell";
-import { LabelChips, PriorityBadge, formatLocalDate } from "./parts";
+import { PriorityBadge, formatLocalDate } from "./parts";
 
 export interface TicketDetailDialogProps {
   ticket: TicketItem | null;
@@ -51,11 +55,11 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<TicketStatus>("backlog");
   const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [assignee, setAssignee] = useState("");
-  const [labels, setLabels] = useState("");
+  const [assignee, setAssignee] = useState<TicketAssignee | "">("");
+  const [workspace, setWorkspace] = useState<TicketWorkspace | "">("");
   const [dependencies, setDependencies] = useState("");
   const [estimate, setEstimate] = useState("");
-  const [progress, setProgress] = useState("");
+  const [actual, setActual] = useState("");
   const [body, setBody] = useState("");
   const [editingBody, setEditingBody] = useState(false);
   const [message, setMessage] = useState("");
@@ -73,10 +77,10 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
     setStatus(fm.status);
     setPriority(fm.priority);
     setAssignee(fm.assignee ?? "");
-    setLabels((fm.labels ?? []).join(", "));
+    setWorkspace(fm.workspace ?? "");
     setDependencies((fm.dependencies ?? []).join(", "));
     setEstimate(fm.estimate === undefined ? "" : String(fm.estimate));
-    setProgress(fm.progress === undefined ? "" : String(fm.progress));
+    setActual(fm.actual === undefined ? "" : String(fm.actual));
     setBody(ticket.body);
     setEditingBody(false);
     setMessage("");
@@ -105,11 +109,11 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
       status,
       priority,
     };
-    fm.assignee = assignee.trim() === "" ? undefined : assignee.trim();
-    fm.labels = splitList(labels);
+    fm.assignee = assignee === "" ? undefined : assignee;
+    fm.workspace = workspace === "" ? undefined : workspace;
     fm.dependencies = splitList(dependencies);
     fm.estimate = parseOptionalNumber(estimate);
-    fm.progress = parseOptionalNumber(progress);
+    fm.actual = parseOptionalNumber(actual);
     return fm;
   };
 
@@ -195,7 +199,6 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
             {t("field.aiConfidence")}: {ticket.frontmatter.ai_confidence}
           </span>
         )}
-        <LabelChips labels={ticket.frontmatter.labels} />
       </div>
       {!readOnly && (
         <div className="tk-form-grid">
@@ -237,23 +240,37 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
             <label className="tk-label" htmlFor="tk-detail-assignee">
               {t("field.assignee")}
             </label>
-            <input
+            <select
               id="tk-detail-assignee"
-              className="tk-input"
+              className="tk-select"
               value={assignee}
-              onChange={(event) => setAssignee(event.target.value)}
-            />
+              onChange={(event) => setAssignee(event.target.value as TicketAssignee | "")}
+            >
+              <option value="">{t("assignee.none")}</option>
+              {TICKET_ASSIGNEES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`assignee.${value}`)}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="tk-fieldset">
-            <label className="tk-label" htmlFor="tk-detail-labels">
-              {t("field.labels")}
+            <label className="tk-label" htmlFor="tk-detail-workspace">
+              {t("field.workspace")}
             </label>
-            <input
-              id="tk-detail-labels"
-              className="tk-input"
-              value={labels}
-              onChange={(event) => setLabels(event.target.value)}
-            />
+            <select
+              id="tk-detail-workspace"
+              className="tk-select"
+              value={workspace}
+              onChange={(event) => setWorkspace(event.target.value as TicketWorkspace | "")}
+            >
+              <option value="">{t("workspace.none")}</option>
+              {TICKET_WORKSPACES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`workspace.${value}`)}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="tk-fieldset">
             <label className="tk-label" htmlFor="tk-detail-deps">
@@ -280,15 +297,15 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
             />
           </div>
           <div className="tk-fieldset">
-            <label className="tk-label" htmlFor="tk-detail-progress">
-              {t("field.progress")}
+            <label className="tk-label" htmlFor="tk-detail-actual">
+              {t("field.actual")}
             </label>
             <input
-              id="tk-detail-progress"
+              id="tk-detail-actual"
               className="tk-input"
               inputMode="numeric"
-              value={progress}
-              onChange={(event) => setProgress(event.target.value)}
+              value={actual}
+              onChange={(event) => setActual(event.target.value)}
             />
           </div>
         </div>

@@ -38,14 +38,15 @@ const DATA: TicketsData = {
         title: "最初のチケット",
         status: "up_next",
         priority: "high",
-        assignee: "claude-code",
-        labels: ["question"],
+        assignee: "agent",
+        workspace: "anytime-markdown",
         created_at: "2026-07-15T00:00:00.000Z",
         updated_at: "2026-07-16T00:00:00.000Z",
-        estimate: 10,
-        progress: 40,
+        estimate: 120,
+        actual: 30,
       },
-      extras: {},
+      // 廃止済み属性を持つ既存チケット（未知キーとして往復保存される）
+      extras: { labels: ["question"], progress: 40 },
       body: "## 作業タスクリスト (Subtasks)\n\n- [x] a\n- [ ] b\n",
       archived: false,
     },
@@ -118,6 +119,56 @@ describe("TicketsPanel", () => {
     expect(container.textContent).toContain(".tickets/broken.md");
     const upNext = container.querySelector('[data-status="up_next"]');
     expect(upNext?.textContent).toContain("T-1");
+  });
+
+  it("カードにワークスペースと工数（実施/予定・分）を表示する", async () => {
+    mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    const card = container.querySelector('[data-status="up_next"]');
+    expect(card?.textContent).toContain("anytime-markdown");
+    expect(card?.textContent).toContain("30/120 分");
+  });
+
+  it("工数もサブタスクも無いチケットでは工数要素を描画しない（空要素の余白を残さない）", async () => {
+    mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    // T-2 は estimate / actual / サブタスクをいずれも持たない
+    const backlog = container.querySelector('[data-status="backlog"]');
+    expect(backlog?.textContent).toContain("2件目");
+    expect(backlog?.querySelector(".tk-effort")).toBeNull();
+    // T-1 は工数を持つので描画される
+    expect(container.querySelector('[data-status="up_next"]')?.querySelector(".tk-effort")).not.toBeNull();
+  });
+
+  it("廃止した進捗バー・ラベルチップを描画しない", async () => {
+    mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    expect(container.querySelector(".tk-progress-track")).toBeNull();
+    expect(container.querySelector(".tk-chip--question")).toBeNull();
+    // extras に残る廃止属性が UI へ漏れていないこと
+    expect(container.textContent).not.toContain("40%");
+    expect(container.querySelector("#tk-filter-label")).toBeNull();
+  });
+
+  it("ワークスペースでフィルタできる", async () => {
+    mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    const listButton = [...container.querySelectorAll("button")].find((b) => b.textContent === "リスト");
+    await act(async () => {
+      listButton?.click();
+    });
+    expect(container.querySelectorAll(".tk-table tbody tr")).toHaveLength(2);
+    const workspaceSelect = container.querySelector<HTMLSelectElement>("#tk-filter-workspace");
+    expect(workspaceSelect).not.toBeNull();
+    await act(async () => {
+      if (workspaceSelect) {
+        workspaceSelect.value = "anytime-markdown";
+        workspaceSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    const rows = container.querySelectorAll(".tk-table tbody tr");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain("T-1");
   });
 
   it("リスト表示へ切り替えて priority でフィルタできる", async () => {

@@ -7,8 +7,10 @@ import {
   validateTicketFrontmatter,
   type FrontmatterValue,
   type TicketFrontmatter,
+  type TicketAssignee,
   type TicketPriority,
   type TicketStatus,
+  type TicketWorkspace,
 } from './ticketModel';
 
 /**
@@ -278,10 +280,11 @@ export interface CreateTicketInput {
   title: string;
   status: TicketStatus;
   priority: TicketPriority;
-  assignee?: string;
+  assignee?: TicketAssignee;
+  workspace?: TicketWorkspace;
   creator?: string;
-  labels?: string[];
   dependencies?: string[];
+  /** 予定工数（分） */
   estimate?: number;
   description?: string;
   /** ISO 8601 UTC。created_at / updated_at に設定する */
@@ -321,7 +324,7 @@ export async function createTicket(
   };
   if (input.assignee !== undefined) frontmatter.assignee = input.assignee;
   if (input.creator !== undefined) frontmatter.creator = input.creator;
-  if (input.labels !== undefined) frontmatter.labels = input.labels;
+  if (input.workspace !== undefined) frontmatter.workspace = input.workspace;
   if (input.dependencies !== undefined) frontmatter.dependencies = input.dependencies;
   if (input.estimate !== undefined) frontmatter.estimate = input.estimate;
   const validated = validateTicketFrontmatter(frontmatter as unknown as Record<string, unknown>);

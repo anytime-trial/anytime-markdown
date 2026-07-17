@@ -17,6 +17,7 @@ export function codeBlockToolbarLabel(
     case "math": return "Math";
     case "html": return t("htmlPreview");
     case "markdown": return t("markdownPreview");
+    case "screenmock": return t("screenmock");
     case "diagram":
       if (language === "mermaid") return t("mermaid");
       if (language === "anytime-thinking-model") return t("anytimeGraph");

@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { TICKET_PRIORITIES } from "@anytime-markdown/tickets-core";
 
 import type { TicketItem } from "../ticketsClient";
-import { LabelChips, PriorityBadge, TicketProgress, formatLocalDate } from "./parts";
+import { PriorityBadge, TicketEffort, WorkspaceChip, formatLocalDate } from "./parts";
 
 export interface TicketListProps {
   tickets: TicketItem[];
@@ -56,8 +56,8 @@ export function TicketList({ tickets, onOpen }: Readonly<TicketListProps>) {
             <th scope="col">{t("field.status")}</th>
             {header("priority", t("field.priority"))}
             <th scope="col">{t("field.assignee")}</th>
-            <th scope="col">{t("field.labels")}</th>
-            <th scope="col">{t("field.progress")}</th>
+            <th scope="col">{t("field.workspace")}</th>
+            <th scope="col">{t("field.effort")}</th>
             {header("updatedAt", t("field.updatedAt"))}
           </tr>
         </thead>
@@ -72,10 +72,10 @@ export function TicketList({ tickets, onOpen }: Readonly<TicketListProps>) {
               </td>
               <td>{ticket.frontmatter.assignee ?? ""}</td>
               <td>
-                <LabelChips labels={ticket.frontmatter.labels} />
+                <WorkspaceChip ticket={ticket} />
               </td>
               <td>
-                <TicketProgress ticket={ticket} />
+                <TicketEffort ticket={ticket} />
               </td>
               <td>{formatLocalDate(ticket.frontmatter.updated_at, locale)}</td>
             </tr>

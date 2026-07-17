@@ -416,6 +416,15 @@ export const DEFAULT_SLASH_ITEMS: readonly VanillaSlashCommandItem[] = [
       editor.chain().focus().setCodeBlock({ language: "plantuml" }).updateAttributes("codeBlock", { autoEditOpen: true }).run();
     },
   },
+  {
+    id: "screenmock",
+    labelKey: "slashScreenmock",
+    iconPath: PATH.screenshotMonitor,
+    keywords: ["screenmock", "mock", "screen", "ui", "wireframe", "画面", "モック", "がめん"],
+    action: (editor) => {
+      editor.chain().focus().setCodeBlock({ language: "screenmock" }).updateAttributes("codeBlock", { autoEditOpen: true }).run();
+    },
+  },
   ...THINKING_DIAGRAM_ITEMS,
   ...CHART_ITEMS,
   {

@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-17
+
+### 追加
+
+- 生成フック: セッション終了デブリーフを trail サーバーへ依頼する Stop フック（`flight-review.sh`）と、事後の修正指示を報告する UserPromptSubmit フック（`user-feedback.sh`）を追加しました（いずれもサーバー未達時は fail-open / silent skip）。
+- 同梱スキル: チケットループがスキル内で cron 自己確保するようになり、`anytime-loop-start` / `anytime-loop-stop`（停止スキル新設）へ分割しました。チケット選定を担当 × ワークスペースで行い、担当を `user` へ返却する手離し手順を追加しました。
+
+### 変更
+
+- `anytime-ticket-loop` を `anytime-loop-start` / `anytime-loop-stop` へリネームしました。
+
+### 修正
+
+- ループスキル: ゾンビプロセスを生存セッションと誤認する判定、委譲の権限不足、チケット変更の `push` 漏れ 2 箇所と委譲子セッション実行中の進捗観測欠落を修正しました。
+
 ## [1.7.0] - 2026-07-17
 
 ### 追加

@@ -125,6 +125,47 @@ describe("POST /api/github/tickets", () => {
     expect(input.creator).toBe("kiyotaka");
     expect(input.now).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
   });
+
+  it("workspace を createTicket へ渡す", async () => {
+    mockCreateTicket.mockResolvedValue({ path: ".tickets/T-1-t.md", sha: "s" });
+    const res = (await POST(
+      bodyRequest({
+        repo: "o/r",
+        branch: "main",
+        title: "t",
+        status: "up_next",
+        priority: "low",
+        assignee: "agent",
+        workspace: "anytime-trade",
+      }),
+    )) as unknown as MockResp;
+    expect(res._status).toBe(201);
+    const input = mockCreateTicket.mock.calls[0][0].input;
+    expect(input.workspace).toBe("anytime-trade");
+    expect(input.assignee).toBe("agent");
+  });
+
+  it("enum 外の assignee は 400（黙って捨てない）", async () => {
+    const res = (await POST(
+      bodyRequest({ repo: "o/r", branch: "main", title: "t", status: "backlog", priority: "low", assignee: "claude-code" }),
+    )) as unknown as MockResp;
+    expect(res._status).toBe(400);
+    expect(mockCreateTicket).not.toHaveBeenCalled();
+  });
+
+  it("enum 外の workspace は 400（黙って捨てない）", async () => {
+    const res = (await POST(
+      bodyRequest({ repo: "o/r", branch: "main", title: "t", status: "backlog", priority: "low", workspace: "bogus" }),
+    )) as unknown as MockResp;
+    expect(res._status).toBe(400);
+    expect(mockCreateTicket).not.toHaveBeenCalled();
+  });
+
+  it("workspace 未指定は undefined として渡す", async () => {
+    mockCreateTicket.mockResolvedValue({ path: ".tickets/T-1-t.md", sha: "s" });
+    await POST(bodyRequest({ repo: "o/r", branch: "main", title: "t", status: "backlog", priority: "low" }));
+    expect(mockCreateTicket.mock.calls[0][0].input.workspace).toBeUndefined();
+  });
 });
 
 describe("PUT /api/github/tickets", () => {
