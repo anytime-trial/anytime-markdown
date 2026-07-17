@@ -38,6 +38,7 @@ import {
   svgIcon,
 } from "@anytime-markdown/ui-core";
 import { OUTLINE_FONT_SIZE, PANEL_HEADER_MIN_HEIGHT } from "../constants/dimensions";
+import { SECTION_LOCK_REFRESH_META } from "../extensions/sectionLockPlugin";
 import type { HeadingItem, OutlineKind, TranslationFn } from "../types";
 import { extractHeadings } from "../types";
 
@@ -562,7 +563,10 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     // 右端: 削除ボタン（hover/focus-within で表示・CSS 注入で制御）。
     const moveBtns = document.createElement("div");
     moveBtns.className = "am-outline-move-btns";
-    moveBtns.style.cssText = "display:flex;flex-shrink:0;transition:opacity 0.15s;opacity:0;";
+    // opacity（hover 反転する状態スタイル）はインラインに置かない。インライン宣言は
+    // 注入シートの `:hover { opacity:1 }` を常に上書きし、reveal が永久に効かなくなる
+    // （vanilla-ui-conventions §3。S4 受入で顕在化した既存の潜在バグ）。
+    moveBtns.style.cssText = "display:flex;flex-shrink:0;";
     // 確定セクションロック（Phase 5 S4）: ロック中は常時表示、未ロックは hover 群に置く。
     if (isHeading && opts.getSectionLocks && opts.onToggleSectionLock) {
       const onToggleSectionLock = opts.onToggleSectionLock;
@@ -721,7 +725,16 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
   // ときだけ refresh する変更ガードを設ける（update 購読は docChanged 時のみの発火で頻度が低いため
   // ガード無しのまま維持する）。
   let lastHeadingSignature = headingSignature(currentHeadings);
-  const refreshIfHeadingsChanged = (): void => {
+  const refreshIfHeadingsChanged = (payload?: {
+    transaction?: { getMeta?: (key: string) => unknown };
+  }): void => {
+    // 確定セクションロックの切替（frontmatter 変更）は見出しを変えないため、
+    // シグネチャガードを素通りしてロックボタンの表示が古いまま固着する。
+    // refresh meta を明示トリガとして扱う（Phase 5 S4）。
+    if (payload?.transaction?.getMeta?.(SECTION_LOCK_REFRESH_META) === true) {
+      refresh();
+      return;
+    }
     const nextSignature = headingSignature(extractHeadings(editor));
     if (nextSignature === lastHeadingSignature) return;
     refresh();
@@ -803,6 +816,7 @@ function ensureOutlineStyles(): void {
   style.id = OUTLINE_STYLE_ID;
   style.textContent =
     ".am-outline-item:hover{background-color:var(--am-color-action-hover);}" +
+    ".am-outline-move-btns{opacity:0;transition:opacity 0.15s;}" +
     ".am-outline-item:hover .am-outline-move-btns," +
     ".am-outline-item .am-outline-move-btns:focus-within{opacity:1;}" +
     ".am-outline-resize-handle:hover{background-color:var(--am-color-action-hover);}" +
