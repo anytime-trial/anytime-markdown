@@ -2,6 +2,7 @@
   "anytime-build-webapp": 2,
   "anytime-cross-review": 5,
   "anytime-ticket-loop": 5,
+  "anytime-ticket-loop-stop": 1,
   "anytime-dev-audit": 3,
   "anytime-dev-cycle": 13,
   "anytime-impl-test-design": 1,

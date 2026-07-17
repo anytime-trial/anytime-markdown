@@ -41,6 +41,8 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   },
   { name: 'anytime-impl-test-design' },
   { name: 'anytime-proposal' },
-  // チケット駆動自動実行（/loop 連携）。web-app /tickets とフォーマット正本を共有する。
+  // チケット駆動自動実行（tick 自身が cron を自己確保する）。web-app /tickets とフォーマット正本を共有する。
   { name: 'anytime-ticket-loop' },
+  // 上記が確保した cron の停止。停止と「実行中チケット作業の中断」は別物のため別スキルに分けてある。
+  { name: 'anytime-ticket-loop-stop' },
 ];
