@@ -82,7 +82,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FlightReviewMachineInput, type IC4ModelStore,
+import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FlightReviewMachineInput, type FlightReviewManualPatch, type IC4ModelStore,
   type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -8725,6 +8725,15 @@ export class TrailDatabase {
       conditions.push('ended_at <= ?');
       params.push(filter.until);
     }
+    if (filter.outcome !== undefined) {
+      conditions.push('outcome = ?');
+      params.push(filter.outcome);
+    }
+    if (filter.tag !== undefined) {
+      // tags は JSON 文字列配列。json_each で配列要素との等値一致（部分一致させない）
+      conditions.push('EXISTS (SELECT 1 FROM json_each(flight_reviews.tags) WHERE json_each.value = ?)');
+      params.push(filter.tag);
+    }
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     params.push(filter.limit ?? 100);
     const res = db.exec(
@@ -8780,6 +8789,46 @@ export class TrailDatabase {
     } finally {
       stmt.free();
     }
+  }
+
+  /**
+   * 副作用: flight_reviews を手動訂正で部分更新。永続化は呼び出し側の save() 契約に従う。
+   * 更新時は outcome_source='manual' を設定し、以後は applySelfAssessmentToFlightReview の
+   * WHERE 条件（outcome_source != 'manual'）と機械 UPSERT の列限定により上書きされない。
+   * 対象行が存在しなければ false（行の新規作成はしない）。空 patch は書き込まず存在有無のみ返す。
+   */
+  updateFlightReviewManual(sessionId: string, patch: FlightReviewManualPatch): boolean {
+    const db = this.ensureDb();
+    const exists = db.exec(`SELECT 1 FROM flight_reviews WHERE session_id = ? LIMIT 1`, [sessionId]);
+    if (exists[0]?.values[0] === undefined) return false;
+
+    const sets: string[] = [];
+    const params: string[] = [];
+    if (patch.outcome !== undefined) {
+      sets.push('outcome = ?');
+      params.push(patch.outcome);
+    }
+    if (patch.tags !== undefined) {
+      sets.push('tags = ?');
+      params.push(JSON.stringify(patch.tags));
+    }
+    if (patch.notes !== undefined) {
+      sets.push('notes = ?');
+      params.push(patch.notes);
+    }
+    if (sets.length === 0) return true;
+
+    sets.push(`outcome_source = 'manual'`, 'updated_at = ?');
+    params.push(new Date().toISOString(), sessionId);
+    const stmt = db.prepare(
+      `UPDATE flight_reviews SET ${sets.join(', ')} WHERE session_id = ?`,
+    );
+    try {
+      stmt.run(params);
+    } finally {
+      stmt.free();
+    }
+    return true;
   }
 
   /** 副作用: flight_reviews.lesson_candidates を更新。永続化は呼び出し側の save() 契約に従う。 */

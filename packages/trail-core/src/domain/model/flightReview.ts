@@ -89,5 +89,20 @@ export interface FlightReviewFilter {
   since?: string;
   /** ended_at <= until（UTC ISO 8601） */
   until?: string;
+  /** outcome 等値（Phase 6 S3） */
+  outcome?: FlightOutcome;
+  /** tags 配列内の等値一致（Phase 6 S3） */
+  tag?: string;
   limit?: number;
+}
+
+/**
+ * 手動訂正の部分更新入力（Phase 6 S3）。
+ * outcome に 'unknown' は指定できない — 手動訂正は人間の判断の記録であり、
+ * 「不明に戻す」操作は提供しない（unknown は機械集計の初期値専用）。
+ */
+export interface FlightReviewManualPatch {
+  outcome?: Exclude<FlightOutcome, 'unknown'>;
+  tags?: string[];
+  notes?: string;
 }

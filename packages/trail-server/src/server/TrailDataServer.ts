@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import { computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
+import { computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Model, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
@@ -747,6 +747,12 @@ export class TrailDataServer {
 
     if (pathname === '/api/trail/flight-reviews' && method === 'GET') {
       this.handleListFlightReviews(res, parsed.searchParams);
+      return;
+    }
+
+    const flightReviewPatchMatch = /^\/api\/trail\/flight-reviews\/([^/]+)$/.exec(pathname);
+    if (flightReviewPatchMatch && method === 'PATCH') {
+      this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(flightReviewPatchMatch[1] ?? ''));
       return;
     }
 
@@ -3033,11 +3039,19 @@ export class TrailDataServer {
 
   private handleListFlightReviews(res: http.ServerResponse, params: URLSearchParams): void {
     try {
+      const outcomeParam = params.get('outcome');
+      if (outcomeParam !== null && !TrailDataServer.FLIGHT_REVIEW_FILTER_OUTCOMES.includes(outcomeParam)) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'invalid outcome' }));
+        return;
+      }
       const limit = Number.parseInt(params.get('limit') ?? '100', 10);
       const flightReviews = this.trailDb.listFlightReviews({
         sessionId: params.get('sessionId') ?? undefined,
         since: params.get('since') ?? undefined,
         until: params.get('until') ?? undefined,
+        outcome: (outcomeParam as FlightOutcome | null) ?? undefined,
+        tag: params.get('tag') ?? undefined,
         limit: Number.isNaN(limit) ? 100 : limit,
       });
       res.writeHead(200, JSON_HEADERS);
@@ -3046,6 +3060,101 @@ export class TrailDataServer {
       this.logger.error('handleListFlightReviews failed', e);
       sendServerError(res, 'Failed to list flight reviews');
     }
+  }
+
+  /** GET フィルタで受け付ける outcome（unknown を含む全 enum。手動訂正の入力とは別物）。 */
+  private static readonly FLIGHT_REVIEW_FILTER_OUTCOMES: string[] = [
+    'achieved',
+    'partial',
+    'unachieved',
+    'unknown',
+  ];
+
+  /** 手動訂正（PATCH）で受け付ける outcome。unknown へ戻す操作は提供しない（FlightReviewManualPatch と同期）。 */
+  private static readonly FLIGHT_REVIEW_MANUAL_OUTCOMES: string[] = ['achieved', 'partial', 'unachieved'];
+
+  private static readonly FLIGHT_REVIEW_NOTES_MAX_CHARS = 2000;
+
+  private static readonly FLIGHT_REVIEW_TAGS_MAX_COUNT = 50;
+
+  private static readonly FLIGHT_REVIEW_TAG_MAX_CHARS = 200;
+
+  /**
+   * Phase 6 S3: 手動訂正（Manual Outcome Tagging）。
+   * 検証はサーバー側が正 — UI の select 制約を境界と見なさない（localhost バインドは根拠にならない）。
+   */
+  private handleUpdateFlightReviewManual(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    sessionId: string,
+  ): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const patch: FlightReviewManualPatch = {};
+        const outcome = parsed['outcome'];
+        if (outcome !== undefined) {
+          if (typeof outcome !== 'string' || !TrailDataServer.FLIGHT_REVIEW_MANUAL_OUTCOMES.includes(outcome)) {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'invalid outcome' }));
+            return;
+          }
+          patch.outcome = outcome as FlightReviewManualPatch['outcome'];
+        }
+        const tags = parsed['tags'];
+        if (tags !== undefined) {
+          const valid =
+            Array.isArray(tags) &&
+            tags.length <= TrailDataServer.FLIGHT_REVIEW_TAGS_MAX_COUNT &&
+            tags.every(
+              (t) => typeof t === 'string' && t.length > 0 && t.length <= TrailDataServer.FLIGHT_REVIEW_TAG_MAX_CHARS,
+            );
+          if (!valid) {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'invalid tags' }));
+            return;
+          }
+          patch.tags = tags as string[];
+        }
+        const notes = parsed['notes'];
+        if (notes !== undefined) {
+          if (typeof notes !== 'string' || notes.length > TrailDataServer.FLIGHT_REVIEW_NOTES_MAX_CHARS) {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'invalid notes' }));
+            return;
+          }
+          patch.notes = notes;
+        }
+        if (patch.outcome === undefined && patch.tags === undefined && patch.notes === undefined) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'no updatable field (outcome / tags / notes)' }));
+          return;
+        }
+        const updated = this.trailDb.updateFlightReviewManual(sessionId, patch);
+        if (!updated) {
+          res.writeHead(404, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'flight review not found' }));
+          return;
+        }
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleUpdateFlightReviewManual failed', e);
+        sendServerError(res, 'Failed to update flight review');
+      }
+    });
   }
 
   // -------------------------------------------------------------------------
