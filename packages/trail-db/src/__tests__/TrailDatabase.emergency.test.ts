@@ -1,4 +1,4 @@
-import { createTestTrailDatabase } from './support/createTestDb';
+import { createFileBackedTestDb, createTestTrailDatabase } from './support/createTestDb';
 import type { TrailDatabase } from '../TrailDatabase';
 
 const TS = '2026-07-16T10:00:00.000Z';
@@ -142,5 +142,80 @@ describe('TrailDatabase emergency (safe_points / emergency_log)', () => {
         detailJson: '{broken',
       }),
     ).toThrow();
+  });
+
+  it('records section_lock events (Phase 5 S4)', () => {
+    db.recordEmergencyEvent({
+      occurredAt: TS,
+      event: 'section_lock_denied',
+      reason: 'ロック節への変更を拒否',
+      actor: 'agent',
+      sessionId: 'sess-1',
+      detailJson: '{"path":"設計","kind":"section_modified"}',
+    });
+    db.recordEmergencyEvent({
+      occurredAt: '2026-07-16T11:00:00.000Z',
+      event: 'section_lock_tamper',
+      reason: 'ロック外経路の変更を検知',
+      actor: 'agent',
+      sessionId: null,
+      detailJson: '{}',
+    });
+
+    const events = db.listEmergencyEvents();
+    expect(events.map((e) => e.event)).toEqual(['section_lock_tamper', 'section_lock_denied']);
+  });
+});
+
+describe('emergency_log event kind migration (Phase 5 S4)', () => {
+  // S4 以前の CHECK 制約（section_lock 系を含まない）を持つ既存 DB のレガシー fixture。
+  const LEGACY_EMERGENCY_LOG = `CREATE TABLE emergency_log (
+    id INTEGER PRIMARY KEY,
+    occurred_at TEXT NOT NULL CHECK (occurred_at GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9].[0-9][0-9][0-9]Z' OR occurred_at GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z'),
+    event TEXT NOT NULL
+      CHECK (event IN ('kill_switch_on', 'kill_switch_off', 'rollback_executed', 'anomaly_detected')),
+    reason TEXT NOT NULL DEFAULT '',
+    actor TEXT NOT NULL DEFAULT 'human' CHECK (actor IN ('human', 'claude', 'agent')),
+    session_id TEXT,
+    detail_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(detail_json))
+  ) STRICT`;
+
+  it('rebuilds an existing table with the old CHECK so new kinds are accepted (rows preserved)', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const nodePath = await import('node:path');
+    const { default: BetterSqlite3 } = await import('better-sqlite3');
+
+    const dir = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'trail-s4-migration-'));
+    try {
+      const legacy = new BetterSqlite3(nodePath.join(dir, 'trail.db'));
+      legacy.exec(LEGACY_EMERGENCY_LOG);
+      legacy
+        .prepare(
+          `INSERT INTO emergency_log (occurred_at, event, reason, actor, session_id, detail_json)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(TS, 'kill_switch_on', 'legacy row', 'human', null, '{}');
+      legacy.close();
+
+      const migrated = await createFileBackedTestDb(dir);
+      try {
+        migrated.recordEmergencyEvent({
+          occurredAt: '2026-07-17T00:00:00.000Z',
+          event: 'section_lock_denied',
+          reason: 'after migration',
+          actor: 'agent',
+          sessionId: null,
+          detailJson: '{}',
+        });
+        const events = migrated.listEmergencyEvents();
+        expect(events.map((e) => e.event)).toEqual(['section_lock_denied', 'kill_switch_on']);
+        expect(events[1]?.reason).toBe('legacy row');
+      } finally {
+        migrated.close();
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

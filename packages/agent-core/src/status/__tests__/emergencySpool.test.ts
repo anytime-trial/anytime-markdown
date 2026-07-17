@@ -91,6 +91,13 @@ describe('emergency spool', () => {
     expect(drained[0]?.event).toBe('kill_switch_on');
   });
 
+  it('accepts section_lock events (Phase 5 S4)', () => {
+    appendEmergencySpool(dir, { ...event('deny'), event: 'section_lock_denied' });
+    appendEmergencySpool(dir, { ...event('tamper'), event: 'section_lock_tamper' });
+    const drained = drainEmergencySpool(emergencySpoolPath(dir));
+    expect(drained.map((e) => e.event)).toEqual(['section_lock_denied', 'section_lock_tamper']);
+  });
+
   it('recovers orphaned .draining-* files left by a crashed or failed drain', () => {
     const spool = emergencySpoolPath(dir);
     writeFileSync(`${spool}.draining-orphan1`, `${JSON.stringify(event('orphan'))}\n`, 'utf8');

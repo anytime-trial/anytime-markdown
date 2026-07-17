@@ -21,10 +21,17 @@ const SPOOL_FILENAME = 'emergency-spool.jsonl';
 /** 滞留上限。拡張が長期間 drain しないときの無制限肥大を防ぐ。 */
 export const EMERGENCY_SPOOL_MAX = 200;
 
+const SPOOL_EVENT_KINDS = [
+  'anomaly_detected',
+  'kill_switch_on',
+  'section_lock_denied',
+  'section_lock_tamper',
+] as const;
+
 export interface EmergencySpoolEvent {
   /** UTC ISO 8601 */
   occurredAt: string;
-  event: 'anomaly_detected' | 'kill_switch_on';
+  event: (typeof SPOOL_EVENT_KINDS)[number];
   reason: string;
   actor: 'agent';
   sessionId: string | null;
@@ -40,7 +47,7 @@ function isSpoolEvent(value: unknown): value is EmergencySpoolEvent {
   const c = value as Record<string, unknown>;
   return (
     typeof c['occurredAt'] === 'string' &&
-    (c['event'] === 'anomaly_detected' || c['event'] === 'kill_switch_on') &&
+    SPOOL_EVENT_KINDS.includes(c['event'] as (typeof SPOOL_EVENT_KINDS)[number]) &&
     typeof c['reason'] === 'string' &&
     c['actor'] === 'agent' &&
     (typeof c['sessionId'] === 'string' || c['sessionId'] === null) &&
