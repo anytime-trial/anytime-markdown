@@ -185,6 +185,43 @@ describe('createTicket', () => {
     expect(content).toContain('id: T-10');
     expect(content).toContain('## 作業タスクリスト (Subtasks)');
   });
+
+  it('workspace / assignee / estimate を frontmatter へ書く', async () => {
+    const { fetchFn, calls } = makeFetch({
+      '/repos/owner/repo/contents/.tickets?ref=main': [{ method: 'GET', status: 200, json: [] }],
+      '/repos/owner/repo/contents/.tickets%2Farchive?ref=main': [
+        { method: 'GET', status: 404, json: { message: 'Not Found' } },
+      ],
+      '/repos/owner/repo/contents/.tickets%2FT-1-new-ticket.md': [
+        {
+          method: 'PUT',
+          status: 201,
+          json: { content: { path: '.tickets/T-1-new-ticket.md', sha: 'n1' }, commit: { sha: 'c1' } },
+        },
+      ],
+    });
+    const created = await createTicket({
+      ...CFG_BASE,
+      fetchFn,
+      input: {
+        title: 'New Ticket',
+        status: 'up_next',
+        priority: 'medium',
+        assignee: 'agent',
+        workspace: 'anytime-markdown',
+        estimate: 120,
+        now: '2026-07-16T04:00:00.000Z',
+      },
+    });
+    expect(created.frontmatter.workspace).toBe('anytime-markdown');
+    const put = calls.find((c) => c.method === 'PUT');
+    const content = Buffer.from(String(put?.body?.content), 'base64').toString('utf8');
+    expect(content).toContain('assignee: agent');
+    expect(content).toContain('workspace: anytime-markdown');
+    expect(content).toContain('estimate: 120');
+    expect(content).not.toContain('labels');
+    expect(content).not.toContain('progress');
+  });
 });
 
 describe('updateTicketContent', () => {

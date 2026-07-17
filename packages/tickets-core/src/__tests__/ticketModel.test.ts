@@ -1,6 +1,7 @@
 import {
   TICKET_STATUSES,
   TICKET_PRIORITIES,
+  TICKET_WORKSPACES,
   parseTicketMarkdown,
   validateTicketFrontmatter,
   serializeTicket,
@@ -10,7 +11,6 @@ import {
   buildTicketBody,
   appendComment,
   countSubtasks,
-  remainingHours,
   type TicketFrontmatter,
 } from '../ticketModel';
 
@@ -19,16 +19,16 @@ id: T-3
 title: "OAuth トークン検証"
 status: up_next
 priority: high
-assignee: claude-code
+assignee: agent
+workspace: anytime-markdown
 creator: kiyotaka
 created_at: 2026-07-15T01:00:00.000Z
 updated_at: 2026-07-16T02:00:00.000Z
-labels: [auth, security]
 dependencies:
   - T-1
   - T-2
-estimate: 10
-progress: 40
+estimate: 120
+actual: 30
 ai_confidence: 0.8
 ---
 
@@ -42,29 +42,54 @@ const VALID_FM: TicketFrontmatter = {
   title: 'OAuth トークン検証',
   status: 'up_next',
   priority: 'high',
-  assignee: 'claude-code',
+  assignee: 'agent',
+  workspace: 'anytime-markdown',
   creator: 'kiyotaka',
   created_at: '2026-07-15T01:00:00.000Z',
   updated_at: '2026-07-16T02:00:00.000Z',
-  labels: ['auth', 'security'],
   dependencies: ['T-1', 'T-2'],
-  estimate: 10,
-  progress: 40,
+  estimate: 120,
+  actual: 30,
   ai_confidence: 0.8,
 };
 
+/** 2026-07-17 に廃止した labels / progress と、旧仕様の任意識別名 assignee を持つ既存チケット。 */
+const LEGACY_DOC = `---
+id: T-9
+title: "旧仕様のチケット"
+status: in_progress
+priority: medium
+assignee: claude-code
+created_at: 2026-07-15T01:00:00.000Z
+updated_at: 2026-07-16T02:00:00.000Z
+labels: [auth, question]
+estimate: 10
+progress: 40
+---
+
+## 概要 (Description)
+
+本文です。
+`;
+
 describe('parseTicketMarkdown', () => {
-  it('スカラー・インライン配列・ブロック配列を解析し本文を分離する', () => {
+  it('スカラー・ブロック配列を解析し本文を分離する', () => {
     const parsed = parseTicketMarkdown(VALID_DOC);
     expect(parsed).not.toBeNull();
     expect(parsed?.frontmatter.id).toBe('T-3');
     expect(parsed?.frontmatter.title).toBe('OAuth トークン検証');
-    expect(parsed?.frontmatter.labels).toEqual(['auth', 'security']);
     expect(parsed?.frontmatter.dependencies).toEqual(['T-1', 'T-2']);
-    expect(parsed?.frontmatter.estimate).toBe(10);
+    expect(parsed?.frontmatter.estimate).toBe(120);
+    expect(parsed?.frontmatter.actual).toBe(30);
     expect(parsed?.frontmatter.ai_confidence).toBe(0.8);
     expect(parsed?.body).toContain('## 概要 (Description)');
     expect(parsed?.body).not.toContain('---\nid:');
+  });
+
+  // パーサはキー非依存のため、インライン配列は廃止属性 labels を持つ既存チケットで検証する。
+  it('インライン配列を解析する', () => {
+    const parsed = parseTicketMarkdown(LEGACY_DOC);
+    expect(parsed?.frontmatter.labels).toEqual(['auth', 'question']);
   });
 
   it('CRLF 改行でも解析できる', () => {
@@ -124,11 +149,37 @@ describe('validateTicketFrontmatter', () => {
     }
   });
 
-  it('progress の境界値（0/100 は可、-1/101 は不可）', () => {
-    expect(validateTicketFrontmatter({ ...VALID_FM, progress: 0 }).ok).toBe(true);
-    expect(validateTicketFrontmatter({ ...VALID_FM, progress: 100 }).ok).toBe(true);
-    expect(validateTicketFrontmatter({ ...VALID_FM, progress: -1 }).ok).toBe(false);
-    expect(validateTicketFrontmatter({ ...VALID_FM, progress: 101 }).ok).toBe(false);
+  it('enum 外の workspace を拒否する（新規属性は旧値が無いため厳密検証）', () => {
+    expect(validateTicketFrontmatter({ ...VALID_FM, workspace: 'bogus' }).ok).toBe(false);
+    for (const workspace of TICKET_WORKSPACES) {
+      expect(validateTicketFrontmatter({ ...VALID_FM, workspace }).ok).toBe(true);
+    }
+    const { workspace: _omitted, ...withoutWorkspace } = VALID_FM;
+    expect(validateTicketFrontmatter(withoutWorkspace).ok).toBe(true);
+  });
+
+  it('旧仕様の任意識別名 assignee を拒否しない（既存チケットを要修復へ落とさない）', () => {
+    expect(validateTicketFrontmatter({ ...VALID_FM, assignee: 'claude-code' }).ok).toBe(true);
+    const parsed = parseTicketMarkdown(LEGACY_DOC);
+    expect(validateTicketFrontmatter(parsed?.frontmatter ?? {}).ok).toBe(true);
+  });
+
+  it('estimate / actual は 0 以上の数値のみ許可する（単位は分）', () => {
+    expect(validateTicketFrontmatter({ ...VALID_FM, estimate: 0, actual: 0 }).ok).toBe(true);
+    expect(validateTicketFrontmatter({ ...VALID_FM, estimate: 1 }).ok).toBe(true);
+    expect(validateTicketFrontmatter({ ...VALID_FM, estimate: -1 }).ok).toBe(false);
+    expect(validateTicketFrontmatter({ ...VALID_FM, actual: -1 }).ok).toBe(false);
+  });
+
+  it('廃止済みの labels / progress は未知キーとして extras へ落ちる', () => {
+    const parsed = parseTicketMarkdown(LEGACY_DOC);
+    const result = validateTicketFrontmatter(parsed?.frontmatter ?? {});
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.extras).toEqual({ labels: ['auth', 'question'], progress: 40 });
+      expect(result.value).not.toHaveProperty('labels');
+      expect(result.value).not.toHaveProperty('progress');
+    }
   });
 
   it('ai_confidence は 0.0〜1.0 のみ許可する', () => {
@@ -144,15 +195,15 @@ describe('validateTicketFrontmatter', () => {
     ).toBe(false);
   });
 
-  it('labels / dependencies は文字列配列のみ許可する', () => {
-    expect(validateTicketFrontmatter({ ...VALID_FM, labels: 'auth' }).ok).toBe(false);
+  it('dependencies は文字列配列のみ許可する', () => {
     expect(validateTicketFrontmatter({ ...VALID_FM, dependencies: [1] }).ok).toBe(false);
+    expect(validateTicketFrontmatter({ ...VALID_FM, dependencies: 'T-1' }).ok).toBe(false);
   });
 
   it('文字列フィールドの制御文字（改行等）を拒否する', () => {
     expect(validateTicketFrontmatter({ ...VALID_FM, title: 'x\nassignee: attacker' }).ok).toBe(false);
     expect(validateTicketFrontmatter({ ...VALID_FM, assignee: 'a\r\nstatus: completed' }).ok).toBe(false);
-    expect(validateTicketFrontmatter({ ...VALID_FM, labels: ['ok', 'bad\ninjected'] }).ok).toBe(false);
+    expect(validateTicketFrontmatter({ ...VALID_FM, dependencies: ['ok', 'bad\ninjected'] }).ok).toBe(false);
   });
 });
 
@@ -181,8 +232,26 @@ describe('serializeTicket', () => {
     };
     const text = serializeTicket(fm, '');
     expect(text).not.toContain('assignee');
-    expect(text).not.toContain('labels');
+    expect(text).not.toContain('workspace');
     expect(text).not.toContain('estimate');
+    expect(text).not.toContain('actual');
+  });
+
+  it('廃止属性を extras として渡すと往復で保存される（既存チケットを壊さない）', () => {
+    const parsed = parseTicketMarkdown(LEGACY_DOC);
+    const result = validateTicketFrontmatter(parsed?.frontmatter ?? {});
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    const text = serializeTicket(result.value, parsed?.body ?? '', result.extras);
+    expect(text).toContain('labels: [auth, question]');
+    expect(text).toContain('progress: 40');
+    const reparsed = validateTicketFrontmatter(parseTicketMarkdown(text)?.frontmatter ?? {});
+    expect(reparsed.ok).toBe(true);
+    if (reparsed.ok) {
+      expect(reparsed.extras).toEqual(result.extras);
+    }
   });
 
   it('title の改行で別キーを注入できない（frontmatter injection 防御）', () => {
@@ -292,22 +361,5 @@ describe('countSubtasks', () => {
 
   it('セクションが無ければ 0/0', () => {
     expect(countSubtasks('本文のみ')).toEqual({ done: 0, total: 0 });
-  });
-});
-
-describe('remainingHours', () => {
-  it('estimate × (100 − progress) / 100 を返す', () => {
-    expect(remainingHours(10, 0)).toBe(10);
-    expect(remainingHours(10, 50)).toBe(5);
-    expect(remainingHours(10, 100)).toBe(0);
-  });
-
-  it('progress 未設定は 0 として扱い、estimate 未設定は null', () => {
-    expect(remainingHours(10, undefined)).toBe(10);
-    expect(remainingHours(undefined, 50)).toBeNull();
-  });
-
-  it('小数第 1 位へ丸める', () => {
-    expect(remainingHours(10, 33)).toBe(6.7);
   });
 });
