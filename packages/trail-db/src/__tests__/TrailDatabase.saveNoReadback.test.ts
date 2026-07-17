@@ -13,7 +13,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { TrailDatabase, FileTrailStorage, InMemoryTrailStorage } from '../TrailDatabase';
+import { FileTrailStorage, InMemoryTrailStorage } from '../TrailDatabase';
+import { createStorageBackedTestDb } from './support/createTestDb';
 
 const silentLogger = {
   info: () => undefined,
@@ -41,7 +42,7 @@ describe('TrailDatabase.save() — file-backed では読み戻さない', () => 
     // readFileSync が redefine 不可で spy できない）。
     const storage = new FileTrailStorage(dbPath, 0);
     const saveSpy = jest.spyOn(storage, 'save');
-    const db = new TrailDatabase('/tmp', storage, undefined, silentLogger);
+    const db = createStorageBackedTestDb(storage, silentLogger);
     db.init();
 
     try {
@@ -56,7 +57,7 @@ describe('TrailDatabase.save() — file-backed では読み戻さない', () => 
   });
 
   it('save() が DB ファイルを書き戻さない（mtime が動かない）', async () => {
-    const db = new TrailDatabase('/tmp', new FileTrailStorage(dbPath, 0), undefined, silentLogger);
+    const db = createStorageBackedTestDb(new FileTrailStorage(dbPath, 0), silentLogger);
     db.init();
 
     try {
@@ -70,7 +71,7 @@ describe('TrailDatabase.save() — file-backed では読み戻さない', () => 
   });
 
   it('save() 後もデータは永続化されている（better-sqlite3 が書込済み）', () => {
-    const db = new TrailDatabase('/tmp', new FileTrailStorage(dbPath, 0), undefined, silentLogger);
+    const db = createStorageBackedTestDb(new FileTrailStorage(dbPath, 0), silentLogger);
     db.init();
     db.recordSafePoint({
       createdAt: '2026-07-17T00:00:00.000Z',
@@ -85,7 +86,7 @@ describe('TrailDatabase.save() — file-backed では読み戻さない', () => 
     db.close();
 
     // 別インスタンスで開き直して読めることが「永続化されている」の実証
-    const reopened = new TrailDatabase('/tmp', new FileTrailStorage(dbPath, 0), undefined, silentLogger);
+    const reopened = createStorageBackedTestDb(new FileTrailStorage(dbPath, 0), silentLogger);
     reopened.init();
     try {
       const points = reopened.listSafePoints(10);
@@ -99,7 +100,7 @@ describe('TrailDatabase.save() — file-backed では読み戻さない', () => 
     // sql.js 互換の in-memory 経路は読み戻しでしか外へ出せないため挙動を変えない
     const storage = new InMemoryTrailStorage();
     const saveSpy = jest.spyOn(storage, 'save');
-    const db = new TrailDatabase('/tmp', storage, undefined, silentLogger);
+    const db = createStorageBackedTestDb(storage, silentLogger);
     db.init();
     try {
       db.save();
