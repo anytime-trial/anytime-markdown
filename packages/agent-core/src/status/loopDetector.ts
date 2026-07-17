@@ -47,12 +47,19 @@ export function emptyLoopState(): LoopState {
 }
 
 /** JSON 値のキーを再帰ソートして安定化する（配列順は意味を持つため保持）。 */
+/** ロケール非依存のコード単位比較。正準キーは環境が変わっても同一順序でなければならない。 */
+function compareByCodeUnit(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (typeof value === 'object' && value !== null) {
     const src = value as Record<string, unknown>;
     const out: Record<string, unknown> = {};
-    for (const key of Object.keys(src).sort()) {
+    for (const key of Object.keys(src).sort(compareByCodeUnit)) {
       out[key] = canonicalize(src[key]);
     }
     return out;
@@ -101,7 +108,7 @@ export function evaluateLoop(
     verdict = { kind: 'warn', pattern: 'consecutive', signature, count: run };
   } else if (signatures.length >= OSCILLATION_WINDOW) {
     const window = signatures.slice(-OSCILLATION_WINDOW);
-    const unique = [...new Set(window)].sort();
+    const unique = [...new Set(window)].sort(compareByCodeUnit);
     if (unique.length === 2) {
       alarmKey = `osc:${unique.join(',')}`;
       verdict = { kind: 'warn', pattern: 'oscillation', signature, count: OSCILLATION_WINDOW };
