@@ -452,3 +452,42 @@ describe('createTicket の競合・検証ガード', () => {
     expect(calls.find((c) => c.method === 'PUT')).toBeUndefined();
   });
 });
+
+describe('fetchFn 省略時の既定 fetch', () => {
+  // Cloudflare Workers(workerd)の fetch は this のブランドチェックを持ち、
+  // ctx.fetchFn(...) のようなオブジェクト経由呼び出しで Illegal invocation を投げる。
+  // Node の fetch はチェックしないため、同じ検査を行う模擬 fetch で実機挙動を再現する。
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('this を検査するランタイム(Workers 相当)でも既定 fetch で呼び出せる', async () => {
+    globalThis.fetch = function (this: unknown, ...args: Parameters<typeof fetch>) {
+      if (this !== undefined && this !== globalThis) {
+        throw new TypeError('Illegal invocation: function called with incorrect `this` reference');
+      }
+      void args;
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    } as typeof fetch;
+
+    const result = await listTickets({ ...CFG_BASE });
+    expect(result.tickets).toEqual([]);
+  });
+});
+
+describe('fetchFn 明示注入時の this 非依存', () => {
+  it('素の fetch 相当(this 検査付き)を fetchFn に注入しても呼び出せる', async () => {
+    const brandChecked = function (this: unknown, ...args: Parameters<typeof fetch>) {
+      if (this !== undefined && this !== globalThis) {
+        throw new TypeError('Illegal invocation: function called with incorrect `this` reference');
+      }
+      void args;
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    } as typeof fetch;
+
+    const result = await listTickets({ ...CFG_BASE, fetchFn: brandChecked });
+    expect(result.tickets).toEqual([]);
+  });
+});

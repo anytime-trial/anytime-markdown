@@ -91,11 +91,14 @@ function toContext(config: TicketRepositoryConfig): GitHubContext {
   if (!REPO_RE.test(config.repo)) {
     throw new TicketApiError(400, `リポジトリ名として不正です: ${config.repo}`);
   }
+  // Workers(workerd)の fetch は this ブランドチェックを持ち、ctx.fetchFn(...) の
+  // オブジェクト経由呼び出しで落ちる。既定・注入のどちらでも常にラッパで包み this 非依存にする
+  const rawFetch = config.fetchFn ?? fetch;
   return {
     token: config.token,
     repo: config.repo,
     branch: config.branch,
-    fetchFn: config.fetchFn ?? fetch,
+    fetchFn: (...args: Parameters<typeof fetch>) => rawFetch(...args),
     apiBaseUrl: config.apiBaseUrl ?? DEFAULT_API_BASE,
   };
 }
