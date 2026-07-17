@@ -354,6 +354,18 @@
           "scope": "resource",
           "markdownDescription": "%configuration.tickets.directory.markdownDescription%"
         },
+        "anytimeAgent.tickets.workspace": {
+          "type": "string",
+          "default": "",
+          "enum": [
+            "",
+            "anytime-markdown",
+            "anytime-trade",
+            "other"
+          ],
+          "scope": "resource",
+          "markdownDescription": "%configuration.tickets.workspace.markdownDescription%"
+        },
         "anytimeAgent.showUsage": {
           "type": "boolean",
           "default": true,
