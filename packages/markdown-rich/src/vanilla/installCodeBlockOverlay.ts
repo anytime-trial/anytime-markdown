@@ -456,6 +456,17 @@ export function installCodeBlockOverlay(
       activeDialog = handle;
       return;
     }
+    if (kind === "screenmock") {
+      const handle = createCodeBlockEditDialog({
+        ...common,
+        label: t("screenmock"),
+        language: "screenmock",
+        renderPreview: true,
+        renderLanguagePreview: true,
+      });
+      activeDialog = handle;
+      return;
+    }
     // regular / html / markdown / その他 unknown kind はコード編集ダイアログ。
     const isHtml = kind === "html";
     const handle = createCodeBlockEditDialog({

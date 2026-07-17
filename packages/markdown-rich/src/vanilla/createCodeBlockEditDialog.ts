@@ -283,7 +283,7 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
       } else if (opts.renderLanguagePreview) {
         // 言語別の実プレビュー（html 等）を本文と同じ共通レンダラで描画する。
         previewEl.classList.add("am-cbed-preview--rendered");
-        const cancel = renderCodeBlockPreview(previewEl, language, code, { isDark, fontSize }, render);
+        const cancel = renderCodeBlockPreview(previewEl, language, code, { isDark, fontSize, t }, render);
         const extra = opts.onPreviewRendered?.(previewEl, isDark);
         previewCleanup = () => {
           cancel();

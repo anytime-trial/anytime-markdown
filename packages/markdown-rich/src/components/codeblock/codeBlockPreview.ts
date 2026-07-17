@@ -15,6 +15,7 @@ import { ensureMarkdownPreviewStyle, renderMarkdownPreviewHtml } from "../../uti
 import { buildPlantUmlImageUrl, getPlantUmlConsent } from "../../hooks/usePlantUmlRender";
 import { PLANTUML_CONSENT_KEY } from "@anytime-markdown/markdown-viewer";
 import { extractDiagramAltText } from "../../utils/diagramAltText";
+import { createScreenmockPreview } from "../../vanilla/screenmockPreview";
 
 /**
  * codeblock の content-only native NodeView（反転）が language 別プレビューを
@@ -31,6 +32,8 @@ interface PreviewRenderContext {
   isDark: boolean;
   /** SVG フォントスケール用のエディタフォントサイズ(px)。 */
   fontSize: number;
+  /** i18n。未指定時は key をそのまま使う。 */
+  t?: (key: string) => string;
 }
 
 /** SVG width を editor フォントサイズに応じてスケールする（DiagramBlock から移植）。 */
@@ -178,7 +181,7 @@ export function renderCodeBlockPreview(
   innerEl.removeAttribute("role");
   innerEl.removeAttribute("aria-label");
   innerEl.classList.toggle("rich-codeblock-markdown-preview", language === "markdown");
-  if (!code.trim()) {
+  if (!code.trim() && language !== "screenmock") {
     innerEl.replaceChildren();
     return () => {};
   }
@@ -212,6 +215,13 @@ export function renderCodeBlockPreview(
       innerEl.setAttribute("role", "img");
       innerEl.setAttribute("aria-label", extractDiagramAltText(code, "anytime-chart"));
       return mountAnytimeChartPreview(innerEl, code, ctx.isDark);
+    case "screenmock":
+      innerEl.setAttribute("aria-label", "Screenmock preview");
+      innerEl.replaceChildren(createScreenmockPreview(code, {
+        emptyHint: ctx.t?.("screenmockEmptyHint") ?? "screenmockEmptyHint",
+        tabListLabel: ctx.t?.("screenmockTabsLabel") ?? "screenmockTabsLabel",
+      }));
+      return () => {};
     default:
       innerEl.replaceChildren();
       return () => {};
