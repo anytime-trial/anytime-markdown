@@ -34,7 +34,8 @@
     "lowlight": "3.3.0",
     "stylis": "4.2.0",
     "turndown": "7.2.4",
-    "turndown-plugin-gfm": "1.0.2"
+    "turndown-plugin-gfm": "1.0.2",
+    "@anytime-markdown/section-lock-core": "*"
   },
   "peerDependencies": {
     "diff": "^8.0.3",

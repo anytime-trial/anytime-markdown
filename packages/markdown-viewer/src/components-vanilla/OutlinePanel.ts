@@ -43,6 +43,10 @@ import { extractHeadings } from "../types";
 
 // ui/icons.tsx と同一の Material SVG path。
 const ICON_KEYBOARD_ARROW_DOWN = "M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z";
+const ICON_LOCK =
+  "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2M9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9zm9 14H6V10h12zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2";
+const ICON_LOCK_OPEN =
+  "M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2m0 12H6V10h12z";
 const ICON_CODE = "M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6z";
 const ICON_GRID_ON =
   "M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2M8 20H4v-4h4zm0-6H4v-4h4zm0-6H4V4h4zm6 12h-4v-4h4zm0-6h-4v-4h4zm0-6h-4V4h4zm6 12h-4v-4h4zm0-6h-4v-4h4zm0-6h-4V4h4z";
@@ -146,6 +150,15 @@ export interface CreateOutlinePanelOptions {
   onInsertSectionNumbers?: () => void;
   /** 章番号除去。 */
   onRemoveSectionNumbers?: () => void;
+  /**
+   * 確定セクションロックの UI 状態（Phase 5 S4）。都度評価の getter で受ける
+   * （frontmatter 変更に追従。静的キャプチャ禁止の規約と同じ原則）。
+   */
+  getSectionLocks?: () => ReadonlyArray<{ headingIndex: number; tampered: boolean }>;
+  /** heading-only index のロック / 解除トグル。 */
+  onToggleSectionLock?: (headingIndex: number) => void;
+  /** ロック操作可否（readonly / hostReadOnly 中は false）。都度評価。 */
+  canToggleSectionLock?: () => boolean;
   /** 幅の下限/上限（既定 150 / 500）。React のキーボード clamp と同値。 */
   widthMin?: number;
   widthMax?: number;
@@ -550,6 +563,36 @@ export function createOutlinePanel(opts: CreateOutlinePanelOptions): OutlinePane
     const moveBtns = document.createElement("div");
     moveBtns.className = "am-outline-move-btns";
     moveBtns.style.cssText = "display:flex;flex-shrink:0;transition:opacity 0.15s;opacity:0;";
+    // 確定セクションロック（Phase 5 S4）: ロック中は常時表示、未ロックは hover 群に置く。
+    if (isHeading && opts.getSectionLocks && opts.onToggleSectionLock) {
+      const onToggleSectionLock = opts.onToggleSectionLock;
+      const headingIndex = h.headingIndex ?? -1;
+      const lock = opts.getSectionLocks().find((l) => l.headingIndex === headingIndex);
+      const lockLabel = lock
+        ? lock.tampered
+          ? t("sectionLockTampered")
+          : t("sectionUnlock")
+        : t("sectionLock");
+      const lockBtn = createIconButton({
+        size: "compact",
+        ariaLabel: `${lockLabel} ${h.text || "(empty)"}`,
+        children: svgIcon(lock ? ICON_LOCK : ICON_LOCK_OPEN, 14),
+        onClick: (e) => {
+          e.stopPropagation();
+          if (opts.canToggleSectionLock && !opts.canToggleSectionLock()) return;
+          onToggleSectionLock(headingIndex);
+        },
+      });
+      lockBtn.el.setAttribute("data-am-outline-lock", lock ? (lock.tampered ? "tampered" : "locked") : "unlocked");
+      const lockTip = createTooltip({ reference: lockBtn.el, title: lockLabel, placement: "top" });
+      listHandles.push(lockBtn, lockTip);
+      if (lock) {
+        lockBtn.el.style.flexShrink = "0";
+        row.appendChild(lockBtn.el);
+      } else {
+        moveBtns.appendChild(lockBtn.el);
+      }
+    }
     if (opts.onOutlineDelete) {
       const onOutlineDelete = opts.onOutlineDelete;
       const delBtn = createIconButton({
@@ -766,6 +809,10 @@ function ensureOutlineStyles(): void {
     ".am-outline-resize-handle:focus-visible{outline:2px solid var(--am-color-primary-main);}" +
     ".am-outline-resize-handle::after{content:'';width:2px;height:32px;border-radius:4px;" +
     "background-color:var(--am-color-divider);}" +
+    // 確定セクションロック（Phase 5 S4）: 状態は data 属性 + シート側で表現（inline style 禁止）
+    "[data-am-outline-lock='locked']{color:#E8A012;}" +
+    "[data-am-outline-lock='tampered']{color:#DA3633;outline:1px dashed #DA3633;}" +
+    "[data-am-outline-lock='unlocked']{color:var(--am-color-text-secondary);}" +
     "@media (prefers-reduced-motion: reduce){" +
     ".am-outline-move-btns{transition:none;}}";
   document.head.appendChild(style);
