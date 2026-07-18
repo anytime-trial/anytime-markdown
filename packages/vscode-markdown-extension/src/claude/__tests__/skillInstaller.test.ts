@@ -56,6 +56,28 @@ describe('installSkills', () => {
     }
   });
 
+  it('copies reference subfiles (references/) alongside SKILL.md', () => {
+    const ext = fs.mkdtempSync(path.join(os.tmpdir(), 'ext-'));
+    const skillsDir = path.join(ext, 'skills');
+    fs.mkdirSync(path.join(skillsDir, 'anytime-doc-authoring', 'references'), { recursive: true });
+    fs.writeFileSync(path.join(skillsDir, 'manifest.json'), JSON.stringify({ 'anytime-doc-authoring': 1 }));
+    fs.writeFileSync(path.join(skillsDir, 'anytime-doc-authoring', 'SKILL.md'), '# doc-authoring\n');
+    fs.writeFileSync(
+      path.join(skillsDir, 'anytime-doc-authoring', 'references', 'writing-standards.ja.md'),
+      '# 文章規範\n',
+    );
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-'));
+    try {
+      installSkills({ extensionFsPath: ext, workspaceFsPath: ws, log: () => {} });
+      const ref = path.join(ws, '.claude', 'skills', 'anytime-doc-authoring', 'references', 'writing-standards.ja.md');
+      expect(fs.existsSync(ref)).toBe(true);
+      expect(fs.readFileSync(ref, 'utf8')).toContain('文章規範');
+    } finally {
+      fs.rmSync(ext, { recursive: true });
+      fs.rmSync(ws, { recursive: true });
+    }
+  });
+
   it('is a no-op on the second run (idempotent by version)', () => {
     const ext = setupExtension({ 'anytime-mermaid': 1 });
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-'));
