@@ -1,31 +1,15 @@
-import { computeBusFactor } from '@anytime-markdown/trail-core';
-import type { BusFactorEntry, FileAuthorCommitRow } from '@anytime-markdown/trail-core';
-import { buildC4ElementById, mapFileToC4Elements } from '@anytime-markdown/trail-core/c4';
-import type { C4Model } from '@anytime-markdown/trail-core/c4';
+import type { BusFactorEntry } from '@anytime-markdown/trail-core';
 
 /**
- * ファイル×著者×コミットの生行を C4 要素単位の属人度へ集約する（Phase 6 S5-B）。
+ * C4 要素単位の属人度エントリを ID 索引にする（Phase 6 S5-B）。
  *
- * defect-risk のような「子の値を親へ最大値伝播」はしない。属人度は合算前後で意味が変わるため、
- * 要素へ写した生行を合算してから score を再計算する（1 コミットが同一要素内の複数ファイルを
- * 触っても 1 コミットとして数えるため、ファイル単位の結果を足し合わせる方式は使えない）。
+ * 集約そのものはサーバー側（`/api/bus-factor?unit=c4`）が行う。生行をクライアントへ送って
+ * 再集計する方式は、大規模リポジトリで転送量が上限に当たり、切り詰めた行から算出した属人度が
+ * 誤値になるため廃止した。
  */
-export function buildBusFactorElementMap(
-  rows: readonly FileAuthorCommitRow[],
-  c4Model: C4Model,
-  minCommits: number,
-  /**
-   * サーバー側で生行が上限で切り詰められたか。切り詰められた行から再集計すると
-   * 著者比率もコミット数も誤るため、集計せず null を返す（誤った値を出さない）。
-   */
-  rowsTruncated = false,
-): ReadonlyMap<string, BusFactorEntry> | null {
-  if (rowsTruncated) return null;
-  const elementById = buildC4ElementById(c4Model.elements);
-  const entries = computeBusFactor(rows, {
-    minCommits,
-    unitsOf: (filePath) => mapFileToC4Elements(filePath, elementById).map((m) => m.elementId),
-  });
+export function busFactorEntryMap(
+  entries: readonly BusFactorEntry[],
+): ReadonlyMap<string, BusFactorEntry> {
   return new Map(entries.map((e) => [e.unitId, e] as const));
 }
 

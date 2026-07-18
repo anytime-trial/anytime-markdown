@@ -52,8 +52,8 @@ export interface SelectedElementInfo {
   readonly defectRisk: number | null;
   /** Phase 6 S5-B: 属人度。score は minCommits 未満なら null */
   readonly busFactor: BusFactorEntry | null;
-  /** Phase 6 S5-B: 生行が上限で切り詰められ属人度を集計できなかったか */
-  readonly busFactorTruncated: boolean;
+  /** Phase 6 S5-B: C4 モデルが解決できずサーバー側で属人度を集約できなかったか */
+  readonly busFactorUnavailable: boolean;
   readonly hotspot: HotspotEntry | null;
   readonly community: CommunityOverlayEntry | null;
   readonly sizeMetrics: SelectedElementSizeMetrics;
@@ -95,7 +95,7 @@ export interface BuildSelectedElementInfoArgs {
   readonly importanceMatrix: ImportanceMatrix | null;
   readonly defectRiskMap: ReadonlyMap<string, number> | null;
   readonly busFactorMap: ReadonlyMap<string, BusFactorEntry> | null;
-  readonly busFactorTruncated?: boolean;
+  readonly busFactorUnavailable?: boolean;
   readonly hotspotMap: HotspotMap | null;
   readonly sizeMatrix: SizeMatrix | null;
   readonly layerMatrix: LayerMatrix | null;
@@ -118,7 +118,7 @@ export function buildSelectedElementInfo(args: BuildSelectedElementInfoArgs): Se
     importanceMatrix,
     defectRiskMap,
     busFactorMap,
-    busFactorTruncated,
+    busFactorUnavailable,
     hotspotMap,
     sizeMatrix,
     layerMatrix,
@@ -142,7 +142,7 @@ export function buildSelectedElementInfo(args: BuildSelectedElementInfoArgs): Se
     importance: importanceMatrix?.[element.id] ?? null,
     defectRisk: defectRiskMap?.get(element.id) ?? null,
     busFactor: busFactorMap?.get(element.id) ?? null,
-    busFactorTruncated: busFactorTruncated ?? false,
+    busFactorUnavailable: busFactorUnavailable ?? false,
     hotspot: hotspotMap?.get(element.id) ?? null,
     community: resolveSelectedElementCommunity({
       element,

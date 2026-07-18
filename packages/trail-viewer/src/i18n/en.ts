@@ -433,7 +433,7 @@ export const en: TrailI18n = {
   'c4.busFactor.commits': 'Commits',
   'c4.busFactor.insufficient': 'Not scored (too few commits)',
   'c4.busFactor.calculating': 'Calculating…',
-  'c4.busFactor.truncated': 'Partially aggregated (row cap)',
+  'c4.busFactor.modelUnavailable': 'Not aggregated (C4 model unavailable)',
   'c4.defectRisk.window': 'Window',
   'c4.defectRisk.halfLife': 'Half-life',
   'c4.defectRisk.calculating': 'Calculating…',

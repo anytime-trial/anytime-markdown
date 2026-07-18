@@ -34,7 +34,7 @@ function makeInfo(overrides: Partial<SelectedElementInfo> = {}): SelectedElement
     importance: 88,
     defectRisk: 55,
     busFactor: null,
-    busFactorTruncated: false,
+    busFactorUnavailable: false,
     hotspot: { elementId: 'pkg_foo/comp', churn: 42, churnNorm: 0.5, complexity: 3, complexityNorm: 0.3, risk: 0.7 },
     community: {
       elementId: 'pkg_foo/comp',
