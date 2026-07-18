@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 修正
+
+- 同梱スキル `anytime-dev-audit` の `/usage` 裏取り参照を、統合済みの `anytime-dev-retro`（コスト詳細分析。旧 `anytime-token-budget`）へ更新しました。
+
 ## [1.8.0] - 2026-07-17
 
 ### 追加
