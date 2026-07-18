@@ -486,7 +486,16 @@ export function setScreenmockElementOffset(
 
     const hasLeftDeclaration = readDeclaration(style, "left") !== null;
     const hasTopDeclaration = readDeclaration(style, "top") !== null;
-    if (!hasLeftDeclaration && !hasTopDeclaration) style = removeDeclarations(style, ["position"]);
+    if (!hasLeftDeclaration && !hasTopDeclaration) {
+      // 取り除くのは自動付与された relative だけ。ユーザー指定の absolute 等や
+      // right / bottom 基準の配置は尊重する（仕様 §4.1.2）。
+      const position = readDeclaration(style, "position");
+      const anchored =
+        readDeclaration(style, "right") !== null || readDeclaration(style, "bottom") !== null;
+      if (position !== null && position.toLowerCase() === "relative" && !anchored) {
+        style = removeDeclarations(style, ["position"]);
+      }
+    }
     setStyleAttribute(target, style ?? "");
     return true;
   });
@@ -667,12 +676,26 @@ export interface RenameScreenmockScreenOptions {
 }
 
 export function appendScreenmockScreen(source: string, screen: ScreenmockScreenInput): string {
-  const normalized = source.replace(/\r\n?/g, "\n");
+  let normalized = source.replace(/\r\n?/g, "\n");
   const frontmatter = serializeFrontmatter(screen);
   if (!normalized.trim()) {
     return frontmatter.length ? [...frontmatter, screen.html].join("\n") : screen.html;
   }
+  normalized = ensureLeadingFrontmatterBlock(normalized, screen.id);
   return [normalized.replace(/\n*$/, ""), ...frontmatterForSeparatedBlock(screen), screen.html].join("\n");
+}
+
+/**
+ * frontmatter なしの単一画面ソースは、後続へ `---` ブロックを足しても 1 画面の本文として
+ * 飲み込まれる（parseScreenBlocks の bare 分岐が EOF まで取るため）。複数画面化する前に
+ * 既存本文を明示 frontmatter ブロックへ変換する。
+ */
+function ensureLeadingFrontmatterBlock(normalized: string, reservedId?: string): string {
+  const blocks = parseScreenBlocks(normalized);
+  if (blocks.length !== 1 || blocks[0].frontmatterStart !== null) return normalized;
+  const bareId =
+    reservedId === "screen-1" ? uniqueScreenId("screen-1", new Set([reservedId]), "1") : "screen-1";
+  return renameScreenmockScreen(normalized, 0, { id: bareId });
 }
 
 export function duplicateScreenmockScreen(source: string, screenIndex: number): string {
@@ -681,18 +704,18 @@ export function duplicateScreenmockScreen(source: string, screenIndex: number): 
   const blocks = parseScreenBlocks(normalized);
   const block = blocks[screenIndex];
   if (!block) return normalized;
+  if (block.frontmatterStart === null) {
+    // 複製側だけ frontmatter 化しても、bare のままの元画面が後続ブロックを本文として
+    // 飲み込む（appendScreenmockScreen と同根）。先に元画面を frontmatter 化して再帰する。
+    return duplicateScreenmockScreen(ensureLeadingFrontmatterBlock(normalized), screenIndex);
+  }
 
   const metadata = parseFrontmatter(block.frontmatter) ?? {};
   const nextId = uniqueScreenId(screenIdFor(metadata, screenIndex), collectScreenIds(blocks), `${screenIndex + 2}`);
   const duplicateLines = lines.slice(block.blockStart, block.blockEnd);
-  if (block.frontmatterStart !== null) {
-    const localStart = block.frontmatterStart - block.blockStart;
-    const localEnd = block.frontmatterEnd === null ? localStart : block.frontmatterEnd - block.blockStart;
-    duplicateLines.splice(localStart, localEnd - localStart, ...upsertFrontmatterLines(block.frontmatter, { id: nextId }));
-  } else {
-    const html = lines.slice(block.bodyStart, block.bodyEnd).join("\n");
-    duplicateLines.splice(0, duplicateLines.length, ...frontmatterForSeparatedBlock({ id: nextId }), html);
-  }
+  const localStart = block.frontmatterStart - block.blockStart;
+  const localEnd = block.frontmatterEnd === null ? localStart : block.frontmatterEnd - block.blockStart;
+  duplicateLines.splice(localStart, localEnd - localStart, ...upsertFrontmatterLines(block.frontmatter, { id: nextId }));
 
   return [...lines.slice(0, block.blockEnd), ...duplicateLines, ...lines.slice(block.blockEnd)].join("\n");
 }

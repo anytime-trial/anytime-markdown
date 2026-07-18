@@ -341,6 +341,28 @@ title: B
     expect(getSource()).not.toContain('href="#b"');
   });
 
+  it("rejects renaming a screen id to one used by another screen", async () => {
+    const source = `---
+id: a
+title: A
+---
+<div>A</div>
+---
+id: b
+title: B
+---
+<div>B</div>`;
+    const { panel, getSource, setActiveScreenIndex } = setup(source);
+    setActiveScreenIndex(1);
+    clickByText(panel.el, "Screens");
+
+    const idInput = panel.el.querySelector("input") as HTMLInputElement;
+    change(idInput, "a");
+    await flushPromises();
+
+    expect(getSource()).toBe(source);
+  });
+
   it("does not delete the current screen when deletion is canceled", async () => {
     const source = `---
 id: a

@@ -481,6 +481,16 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     const current = parseScreenmock(source)[screenIndex];
     const previousId = metadata?.id;
     if (!current || previousId === id) return;
+    // 既存画面と重複する id は書き戻さない。表示上の自動サフィックス（§1.2）は raw の
+    // 重複を隠すだけで、後の参照追従が別画面の href を巻き込む。
+    const otherIds = new Set<string>();
+    parseScreenmock(source).forEach((screen, index) => {
+      if (index !== screenIndex) otherIds.add(screen.id);
+    });
+    readScreenMetadata(source).forEach((meta, index) => {
+      if (index !== screenIndex && meta.id) otherIds.add(meta.id);
+    });
+    if (otherIds.has(id)) return;
     const updateRefs = previousId && hasHrefReference(source, previousId)
       ? await (options.confirm?.(text("screenmockPanelUpdateRefsConfirm", options)) ??
         window.confirm(text("screenmockPanelUpdateRefsConfirm", options)))

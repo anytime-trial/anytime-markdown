@@ -207,6 +207,33 @@ describe("screenmock panel source mutations", () => {
     );
   });
 
+  it("frontmatter なしの単一画面へ画面追加すると 2 画面として認識される", () => {
+    const out = appendScreenmockScreen('<div class="sm-card">A</div>', {
+      id: "b",
+      html: '<div class="sm-screen">B</div>',
+    });
+
+    expect(parseScreenRanges(out)).toHaveLength(2);
+    expect(out).toContain("id: screen-1");
+    expect(out).toContain("id: b");
+  });
+
+  it("frontmatter なしの単一画面を複製すると 2 画面として認識される", () => {
+    const out = duplicateScreenmockScreen('<div class="sm-card">A</div>', 0);
+
+    expect(parseScreenRanges(out)).toHaveLength(2);
+  });
+
+  it("オフセットを 0 に戻してもユーザー指定の position: absolute と right は残る", () => {
+    const source = '<div><span style="position: absolute; right: 0px; top: 8px;">x</span></div>';
+
+    const out = setScreenmockElementOffset(source, 0, "0/0", { topPx: 0 });
+
+    expect(out).toContain("position: absolute;");
+    expect(out).toContain("right: 0px;");
+    expect(out).not.toContain("top:");
+  });
+
   it("sm-screen ラッパの無いモックでトップレベル要素を複製できる", () => {
     const bare = '<div class="sm-card">Card</div>';
 
