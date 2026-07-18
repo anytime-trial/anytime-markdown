@@ -785,6 +785,57 @@ describe('parseReviewSessions', () => {
     expect(results).toHaveLength(1);
     expect(results[0].findings).toHaveLength(1);
     expect(results[0].findings[0].severity).toBe('warn');
+    // 観点マーカー未記載 → null（未記録）
+    expect(results[0].findings[0].checklist_ref).toBeNull();
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  // P1 (観点キー): anytime-trail-review のメタデータ 4 行目 `- **観点**: §N / none` を解析する。
+  test('parses explicit `観点:` checklist marker into checklist_ref', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    const reviewText = `### 1. 非同期処理の競合
+
+- **重大度**: warn
+- **カテゴリ**: logic
+- **観点**: §9
+
+**問題:** 複数の非同期処理が同じ状態を更新している。
+**提案:** AbortController でキャンセルを入れる。
+
+### 2. チェックリスト外の指摘
+
+- **重大度**: info
+- **カテゴリ**: other
+- **観点**: none
+
+**問題:** チェックリストのどの章にも該当しない構造上の懸念。
+**提案:** 観点昇格の検討対象とする。`;
+
+    insertMsg(trailDb, {
+      uuid: 'checklist-marker-1',
+      session_id: 'sess-checklist-marker',
+      type: 'assistant',
+      timestamp: '2026-05-11T11:00:00.000Z',
+      text_content: reviewText,
+      subagent_type: 'pr-review-toolkit:code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].findings).toHaveLength(2);
+    expect(results[0].findings[0].checklist_ref).toBe('§9');
+    expect(results[0].findings[1].checklist_ref).toBe('none');
 
     mainDb.close();
     trailDb.close();

@@ -72,8 +72,8 @@ export function upsertReviewFinding(
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, target_line_start, target_line_end,
           category, severity, finding_text, suggestion_text,
-          recorded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          checklist_ref, recorded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         findingId,
         reviewEntityId,
@@ -87,6 +87,7 @@ export function upsertReviewFinding(
         finding.severity,
         finding.finding_text,
         finding.suggestion_text,
+        finding.checklist_ref ?? null,
         recordedAt,
       ],
     );
