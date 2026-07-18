@@ -135,6 +135,28 @@ function appendQualityRow(host: HTMLElement, info: SelectedElementInfo, opts: Se
     metricCell(c, t('c4.popup.metric.churn'), info.hotspot?.churn != null ? String(info.hotspot.churn) : '-'),
   );
   block.appendChild(riskGrid);
+  // Phase 6 S5-B: 生行が切り詰められた場合は数値を出さず、その旨だけ示す
+  if (info.busFactorTruncated) {
+    const note = el('div', `margin-top:6px;font-size:0.6rem;color:${c.textSecondary};`);
+    note.textContent = t('c4.busFactor.truncated');
+    block.appendChild(note);
+  }
+  // Phase 6 S5-B: 属人度（score は minCommits 未満なら未判定）
+  if (info.busFactor) {
+    const bf = info.busFactor;
+    const bfGrid = el('div', 'display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;');
+    bfGrid.append(
+      metricCell(
+        c,
+        t('c4.popup.metric.busFactor'),
+        bf.score != null ? bf.score.toFixed(2) : t('c4.busFactor.insufficient'),
+      ),
+      metricCell(c, t('c4.busFactor.topAuthor'), bf.topAuthor || '-'),
+      metricCell(c, t('c4.busFactor.effectiveAuthors'), bf.effectiveAuthors.toFixed(1)),
+      metricCell(c, t('c4.busFactor.commits'), String(bf.totalCommits)),
+    );
+    block.appendChild(bfGrid);
+  }
   host.appendChild(block);
 }
 

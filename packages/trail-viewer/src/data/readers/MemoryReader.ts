@@ -1,3 +1,4 @@
+import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
 import type {
   MemoryBugCausalInfo,
   MemoryBugHistoryRow,
@@ -40,6 +41,22 @@ export class MemoryReader {
     if (params.since) q.set('since', params.since);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryDriftEventRow[]>(`/api/memory/drift/events?${q}`);
+  }
+
+  /** Phase 6 S5-C: ドリフト件数の日次推移（JST 境界・0 埋め済み） */
+  async getDriftHistoryByDay(params: {
+    since?: string;
+    until?: string;
+    driftType?: string;
+    severity?: string;
+  } = {}): Promise<readonly DriftHistoryPoint[]> {
+    const q = new URLSearchParams();
+    if (params.since) q.set('since', params.since);
+    if (params.until) q.set('until', params.until);
+    if (params.driftType) q.set('driftType', params.driftType);
+    if (params.severity) q.set('severity', params.severity);
+    const body = await this.fetchJson<{ points: DriftHistoryPoint[] }>(`/api/memory/drift/by-day?${q}`);
+    return body?.points ?? [];
   }
 
   async getDriftEventDetail(eventId: string): Promise<MemoryDriftEventDetail | null> {

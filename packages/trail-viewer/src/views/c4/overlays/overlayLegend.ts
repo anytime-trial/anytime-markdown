@@ -212,6 +212,9 @@ function buildMetricItems(
       return makeSegmentBar(ASCENDING_BAD, textColor, ['40', '70'], '0', '100');
     case 'defect-risk':
       return makeSegmentBar(ASCENDING_BAD, textColor, ['0.35', '0.7'], '0', '1');
+    // 属人度は 0.8（主著者が 8 割）以上を危険域とする。閾値は computeColorMap と対
+    case 'bus-factor':
+      return makeSegmentBar(ASCENDING_BAD, textColor, ['0.6', '0.8'], '0', '1');
     case 'hotspot-frequency':
       return makeGradientBar(HOTSPOT_FREQ_GRADIENT, 'low', 'high', textColor);
     case 'hotspot-risk':
@@ -290,6 +293,7 @@ function buildHelpHeader(
     'importance': { titleKey: 'c4.overlayHelp.importance', descKey: 'c4.overlayHelp.importance.description' },
     'centrality': { titleKey: 'c4.overlayHelp.centrality', descKey: 'c4.overlayHelp.centrality.description' },
     'defect-risk': { titleKey: 'c4.overlayHelp.defectRisk', descKey: 'c4.overlayHelp.defectRisk.description' },
+    'bus-factor': { titleKey: 'c4.overlayHelp.busFactor', descKey: 'c4.overlayHelp.busFactor.description' },
     'hotspot-frequency': { titleKey: 'c4.overlayHelp.hotspot', descKey: 'c4.overlayHelp.hotspot.description' },
     'hotspot-risk': { titleKey: 'c4.overlayHelp.hotspot', descKey: 'c4.overlayHelp.hotspot.description' },
     'dead-code-score': { titleKey: 'c4.overlayHelp.deadCode', descKey: 'c4.overlayHelp.deadCode.description' },

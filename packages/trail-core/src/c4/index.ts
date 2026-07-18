@@ -1,3 +1,4 @@
+export { buildAncestorChain, rollupMaxToAncestors } from './rollup';
 export type {
   C4ElementType,
   C4Level,

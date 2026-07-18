@@ -60,6 +60,7 @@ import {
   sortDsmMatrixByName,
 } from '@anytime-markdown/trail-core/c4';
 import type { ArchitectureFileEntry, ArchitectureMatrix, LayerMatrix, RoleMatrix, SizeMatrix } from '@anytime-markdown/trail-core/c4';
+import type { BusFactorEntry, FileAuthorCommitRow } from '@anytime-markdown/trail-core';
 import type { ArchitectureLayer, CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { ConfidenceCouplingEdge, DefectRiskEntry, TemporalCouplingEdge } from '@anytime-markdown/trail-core';
 
@@ -108,6 +109,8 @@ import type { C4ElementTreeVanillaProps } from './panels/c4ElementTreePanel';
 import { mountHotspotControls } from './overlays/hotspotControls';
 import type { HotspotControlsVanillaProps } from './overlays/hotspotControls';
 import { mountDefectRiskControls } from './overlays/defectRiskControls';
+import { buildDefectRiskElementMap } from './overlays/defectRiskMap';
+import { buildBusFactorElementMap, busFactorScoreMap } from './overlays/busFactorMap';
 import type { DefectRiskControlsVanillaProps, DefectRiskControlsValue } from './overlays/defectRiskControls';
 import { mountTemporalCouplingControls } from './overlays/temporalCouplingControls';
 import type { TemporalCouplingControlsVanillaProps } from './overlays/temporalCouplingControls';
@@ -160,6 +163,7 @@ import type { ElementFormData, RelationshipFormData } from '../../c4/components/
 // fetch APIs (used by inline hook ports)
 import { fetchHotspotApi } from '../../c4/hooks/fetchHotspotApi';
 import { fetchDefectRiskApi } from '../../c4/hooks/fetchDefectRiskApi';
+import { fetchBusFactorApi } from '../../c4/hooks/fetchBusFactorApi';
 import { fetchTemporalCouplingApi } from '../../c4/hooks/fetchTemporalCouplingApi';
 import { fetchElementFunctionsApi } from '../../c4/hooks/fetchElementFunctionsApi';
 import { fetchFunctionGraph } from '../../c4/hooks/fetchFunctionGraphApi';
@@ -468,6 +472,15 @@ interface DefectRiskState {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
+/** Phase 6 S5-B: 属人度。C4 要素単位の再集計に生行を使う */
+interface BusFactorState {
+  rows: FileAuthorCommitRow[];
+  rowsTruncated: boolean;
+  loading: boolean;
+  controller: AbortController | null;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
 interface TCState {
   edges: TemporalCouplingEdge[] | ConfidenceCouplingEdge[];
   granularity: 'commit' | 'session' | 'subagentType';
@@ -535,6 +548,8 @@ export function mountC4Viewer(
   let metricOverlay: MetricOverlay = 'none';
   let overlayCategory: OverlayCategory = 'none';
   let drWindowDays = 90;
+  let bfWindowDays = 365;
+  let bfMinCommits = 5;
   let tcValue: TemporalCouplingControlsValue = DEFAULT_TC_VALUE;
   let hotspotValue: HotspotControlsValue = { period: '30d', granularity: 'commit' };
   let selectedElementId: string | null = null;
@@ -555,6 +570,7 @@ export function mountC4Viewer(
   // ── Data states ──
   const hotspotState: HotspotState = { data: null, loading: false, controller: null, timer: null };
   const defectRiskState: DefectRiskState = { entries: [], loading: false, controller: null, timer: null };
+  const busFactorState: BusFactorState = { rows: [], rowsTruncated: false, loading: false, controller: null, timer: null };
   const tcState: TCState = { edges: [], granularity: 'commit', loading: false, controller: null, timer: null };
   const elemFnsState: ElementFunctionsState = { data: null, loading: false, controller: null };
   const fnGraphState: FunctionGraphState = { data: null, loading: false, error: null, controller: null };
@@ -756,6 +772,8 @@ export function mountC4Viewer(
     metricOverlay = overlaySubSelect.value as MetricOverlay;
     // layer overlay は code graph のノード layer を集約するため、未取得なら取得を起動する。
     if (metricOverlay === 'architecture-layer') fetchCodeGraph();
+    // 属人度は生行（コミット×ファイル）を取るため、選択されたときだけ取得する。
+    if (metricOverlay === 'bus-factor' && !busFactorState.rows.length) fetchBusFactor();
     scheduleRender();
   });
 
@@ -1005,6 +1023,39 @@ export function mountC4Viewer(
           const err = e instanceof Error ? e : new Error(String(e));
           if (err.name === 'AbortError') return;
           defectRiskState.loading = false;
+          scheduleRender();
+        });
+    }, 300);
+  }
+
+  // ── Data fetch: BusFactor（Phase 6 S5-B） ──
+  function fetchBusFactor(): void {
+    if (destroyed) return;
+    const { serverUrl } = props;
+    if (!serverUrl) { busFactorState.rows = []; scheduleRender(); return; }
+    if (busFactorState.timer !== null) clearTimeout(busFactorState.timer);
+    busFactorState.controller?.abort();
+    const ctrl = new AbortController();
+    busFactorState.controller = ctrl;
+    busFactorState.timer = setTimeout(() => {
+      busFactorState.loading = true;
+      fetchBusFactorApi(
+        serverUrl,
+        { windowDays: bfWindowDays, minCommits: bfMinCommits, repo: getSelectedRepo() || undefined, includeRows: true },
+        ctrl.signal,
+      )
+        .then((res) => {
+          if (ctrl.signal.aborted || destroyed) return;
+          busFactorState.rows = res.rows ?? [];
+          busFactorState.rowsTruncated = res.rowsTruncated ?? false;
+          busFactorState.loading = false;
+          scheduleRender();
+        })
+        .catch((e: unknown) => {
+          if (ctrl.signal.aborted || destroyed) return;
+          const err = e instanceof Error ? e : new Error(String(e));
+          if (err.name === 'AbortError') return;
+          busFactorState.loading = false;
           scheduleRender();
         });
     }, 300);
@@ -1371,6 +1422,22 @@ export function mountC4Viewer(
   // 入力（props 行列・state データ）が不変な viewport 変更（pan/zoom）では再計算しない。
   const hotspotMapMemo = createRefMemo<HotspotMap | null>();
   const sizeMatrixMemo = createRefMemo<SizeMatrix | null>();
+  const busFactorMapMemo = createRefMemo<ReadonlyMap<string, BusFactorEntry> | null>();
+  function computeBusFactorMapData(): ReadonlyMap<string, BusFactorEntry> | null {
+    const { c4Model } = props;
+    return busFactorMapMemo([c4Model, busFactorState.rows, bfMinCommits, busFactorState.rowsTruncated], () => {
+      if (!busFactorState.rows.length || !c4Model) return null;
+      // 要素へ写してから合算し score を再計算する（最大値伝播はしない。Phase 6 S5-B）
+      // 生行が切り詰められている場合は再集計せず null（誤った属人度を出さない）
+      return buildBusFactorElementMap(
+        busFactorState.rows,
+        c4Model,
+        bfMinCommits,
+        busFactorState.rowsTruncated,
+      );
+    });
+  }
+
   const defectRiskMapMemo = createRefMemo<ReadonlyMap<string, number> | null>();
 
   function computeHotspotMapData(): HotspotMap | null {
@@ -1398,14 +1465,8 @@ export function mountC4Viewer(
     const { c4Model } = props;
     return defectRiskMapMemo([c4Model, defectRiskState.entries], () => {
       if (!defectRiskState.entries.length || !c4Model) return null;
-      const elementById = buildC4ElementById(c4Model.elements);
-      const map = new Map<string, number>();
-      for (const entry of defectRiskState.entries) {
-        for (const m of mapFileToC4Elements(entry.filePath, elementById)) {
-          map.set(m.elementId, Math.max(map.get(m.elementId) ?? 0, entry.score));
-        }
-      }
-      return map;
+      // ファイル → 直接対応要素は最大値、祖先 boundary へは共有 rollup で伝播（Phase 6 S5-A）
+      return buildDefectRiskElementMap(defectRiskState.entries, c4Model);
     });
   }
 
@@ -1492,6 +1553,19 @@ export function mountC4Viewer(
       return filtered;
     })();
 
+    // bus factor map（Phase 6 S5-B）
+    const busFactorMap = computeBusFactorMapData();
+
+    const filteredBusFactor = (() => {
+      if (!busFactorMap) return null;
+      const scores = busFactorScoreMap(busFactorMap);
+      const filtered = new Map<string, number>();
+      for (const [id, score] of scores) {
+        if (elementTypeById.get(id) === levelTargetType) filtered.set(id, score);
+      }
+      return filtered;
+    })();
+
     // hotspot map
     const hotspotMap = computeHotspotMapData();
 
@@ -1562,6 +1636,7 @@ export function mountC4Viewer(
       filteredRole,
       filteredLayer,
       getC4Colors(props.isDark ?? false).layerColors,
+      filteredBusFactor,
     );
     return map.size > 0 ? map : null;
   }
@@ -1796,6 +1871,8 @@ export function mountC4Viewer(
         complexityMatrix: props.complexityMatrix ?? null,
         importanceMatrix: props.importanceMatrix ?? null,
         defectRiskMap: computeDefectRiskMapData(),
+        busFactorMap: computeBusFactorMapData(),
+        busFactorTruncated: busFactorState.rowsTruncated,
         hotspotMap: computeHotspotMapData(),
         sizeMatrix: computeSizeMatrixData(),
         layerMatrix: computeLayerMatrixData(),
@@ -1991,7 +2068,7 @@ export function mountC4Viewer(
       },
       repoOptions: repoOptions_,
       selectedRepo: getSelectedRepo() || undefined,
-      onRepoChange: (repo: string) => { selectedRepoInternal = repo; props.onRepoSelect?.(repo); scheduleRender(); fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph(); fetchActivityTrend(); },
+      onRepoChange: (repo: string) => { selectedRepoInternal = repo; props.onRepoSelect?.(repo); scheduleRender(); fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph(); fetchActivityTrend(); busFactorState.rows = []; if (metricOverlay === 'bus-factor') fetchBusFactor(); },
       releaseOptions: props.releases ?? [],
       selectedRelease: props.selectedRelease,
       onReleaseChange: props.onReleaseSelect,
@@ -2646,7 +2723,7 @@ export function mountC4Viewer(
     if (overlayCategory === 'coverage') subOpts.push({ value: 'coverage-lines', label: t('c4.overlay.coverageLines') }, { value: 'coverage-branches', label: t('c4.overlay.coverageBranches') }, { value: 'coverage-functions', label: t('c4.overlay.coverageFunctions') });
     else if (overlayCategory === 'dsm') subOpts.push({ value: 'dsm-cyclic', label: t('c4.overlay.dsmCyclic') }, { value: 'dsm-out', label: t('c4.overlay.dsmOut') }, { value: 'dsm-in', label: t('c4.overlay.dsmIn') });
     else if (overlayCategory === 'edit-complexity') subOpts.push({ value: 'edit-complexity-most', label: t('c4.overlay.editComplexityMost') }, { value: 'edit-complexity-highest', label: t('c4.overlay.editComplexityHighest') });
-    else if (overlayCategory === 'importance') subOpts.push({ value: 'importance', label: t('c4.overlay.importance') }, { value: 'defect-risk', label: t('c4.overlay.defectRisk') });
+    else if (overlayCategory === 'importance') subOpts.push({ value: 'importance', label: t('c4.overlay.importance') }, { value: 'defect-risk', label: t('c4.overlay.defectRisk') }, { value: 'bus-factor', label: t('c4.overlay.busFactor') });
     else if (overlayCategory === 'structure') subOpts.push({ value: 'centrality', label: t('c4.overlay.centrality') }, { value: 'function-roles', label: t('c4.overlay.functionRoles') });
     else if (overlayCategory === 'hotspot') subOpts.push({ value: 'hotspot-frequency', label: t('c4.overlay.hotspotFrequency') }, { value: 'hotspot-risk', label: t('c4.overlay.hotspotRisk') });
     else if (overlayCategory === 'dead-code') subOpts.push({ value: 'dead-code-score', label: t('c4.overlay.deadCodeScore') });
@@ -3009,7 +3086,11 @@ export function mountC4Viewer(
     if (newRepo !== prevRepo) { overlayCategory = 'none'; metricOverlay = 'none'; }
 
     const needsRefetch = props.serverUrl !== prevServerUrl || newRepo !== prevRepo || props.selectedRelease !== prevRelease;
-    if (needsRefetch) { fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph(); }
+    if (needsRefetch) {
+      busFactorState.rows = [];
+      fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph();
+      if (metricOverlay === 'bus-factor') fetchBusFactor();
+    }
 
     if ((props.initialLevel ?? 1) !== (prevLevel) && props.initialLevel !== undefined && props.initialLevel !== currentLevel) {
       currentLevel = props.initialLevel;
@@ -3027,12 +3108,14 @@ export function mountC4Viewer(
     // Abort all pending fetches
     hotspotState.controller?.abort();
     defectRiskState.controller?.abort();
+    busFactorState.controller?.abort();
     tcState.controller?.abort();
     elemFnsState.controller?.abort();
     fnGraphState.controller?.abort();
     codeGraphState.controller?.abort();
     if (hotspotState.timer !== null) clearTimeout(hotspotState.timer);
     if (defectRiskState.timer !== null) clearTimeout(defectRiskState.timer);
+    if (busFactorState.timer !== null) clearTimeout(busFactorState.timer);
     if (tcState.timer !== null) clearTimeout(tcState.timer);
 
     // Close WS

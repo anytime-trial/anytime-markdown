@@ -24,6 +24,7 @@ const row = (filePath: string, score: number, ignored = false): FileAnalysisRow 
   isBarrel: false,
   centralityScore: 0,
   category: 'logic',
+  newlyActive: false,
   analyzedAt: '2026-05-05T00:00:00Z',
 });
 

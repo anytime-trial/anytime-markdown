@@ -20,6 +20,8 @@ type MockTrailDb = {
   getCurrentCoverage: jest.Mock;
   getCommitFilesChurnSince: jest.Mock;
   getCommitFilesEverChurned: jest.Mock;
+  getCommitFilesChurnBefore: jest.Mock;
+  getEarliestCommitAt: jest.Mock;
   clearCurrentFileAnalysis: jest.Mock;
   upsertCurrentFileAnalysis: jest.Mock;
   clearCurrentFunctionAnalysis: jest.Mock;
@@ -48,6 +50,8 @@ function makeMockDb(overrides: Partial<MockTrailDb> = {}): MockTrailDb {
     getCurrentCoverage: jest.fn().mockReturnValue([]),
     getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
     getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set()),
+    getCommitFilesChurnBefore: jest.fn().mockReturnValue(new Map()),
+    getEarliestCommitAt: jest.fn().mockReturnValue(null),
     clearCurrentFileAnalysis: jest.fn(),
     upsertCurrentFileAnalysis: jest.fn(),
     clearCurrentFunctionAnalysis: jest.fn(),
@@ -293,6 +297,8 @@ describe('computeAndPersistFileAnalysis', () => {
     const db = makeMockDb({
       getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
       getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set(['packages/core/src/old.ts'])),
+      getCommitFilesChurnBefore: jest.fn().mockReturnValue(new Map()),
+      getEarliestCommitAt: jest.fn().mockReturnValue(null),
     });
 
     let capturedFileRows: FileAnalysisRow[] = [];
@@ -422,6 +428,8 @@ describe('computeAndPersistFileAnalysis', () => {
       getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
       // 全期間履歴には登場する
       getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set([relPath])),
+      getCommitFilesChurnBefore: jest.fn().mockReturnValue(new Map()),
+      getEarliestCommitAt: jest.fn().mockReturnValue(null),
     });
 
     let captured: FileAnalysisRow[] = [];
@@ -457,6 +465,8 @@ describe('computeAndPersistFileAnalysis', () => {
     const db = makeMockDb({
       getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
       getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set()),
+      getCommitFilesChurnBefore: jest.fn().mockReturnValue(new Map()),
+      getEarliestCommitAt: jest.fn().mockReturnValue(null),
     });
 
     let captured: FileAnalysisRow[] = [];

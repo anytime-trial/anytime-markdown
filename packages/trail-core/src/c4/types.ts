@@ -182,6 +182,7 @@ export type MetricOverlay =
   | 'centrality'
   | 'function-roles'
   | 'defect-risk'
+  | 'bus-factor'
   | 'hotspot-frequency'
   | 'hotspot-risk'
   | 'fcmap'

@@ -82,7 +82,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FlightReviewMachineInput, type FlightReviewManualPatch, type RationaleAuditStatus, type IC4ModelStore,
+import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type RationaleAuditStatus, type IC4ModelStore,
   type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -3868,6 +3868,9 @@ export class TrailDatabase {
       // 型安全を trail-core の TS 型で担保する (centrality 列と同方針)。
       "ALTER TABLE current_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
       "ALTER TABLE release_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
+      // Phase 6 S5-D: Newly Active Code Detection のシグナル列（列ごとに独立した ALTER）
+      'ALTER TABLE current_file_analysis ADD COLUMN newly_active INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN newly_active INTEGER NOT NULL DEFAULT 0',
     ]);
     for (const idx of CREATE_FILE_ANALYSIS_INDEXES) {
       db.run(idx);
@@ -8095,6 +8098,46 @@ export class TrailDatabase {
   }
 
   /**
+   * Phase 6 S5-B: ファイル×著者×コミットの生行を返す（Bus Factor 算出の入力）。
+   * session_commits の主キーは session_id を含み同一コミットが複数行になり得るが、
+   * 一意化は computeBusFactor 側（コミット集合）で行うためここでは重複を許して返す。
+   */
+  fetchFileAuthorCommits(options: { repo?: string; sinceIso?: string }): FileAuthorCommitRow[] {
+    const db = this.ensureDb();
+    const { repo, sinceIso } = options;
+    const conditions: string[] = ["sc.author <> ''"];
+    const args: (string | number)[] = [];
+    if (sinceIso) {
+      conditions.push('sc.committed_at >= ?');
+      args.push(sinceIso);
+    }
+    // Phase H-4: sessions.repo_name 列は撤去済。repo フィルタは s.repo_id = ? で行う。
+    // 純粋 read のため repoIdForNameReadonly で解決 (未登録は -1 → 空結果)。
+    const join = repo ? 'INNER JOIN sessions s ON s.id = sc.session_id' : '';
+    if (repo) {
+      conditions.push('s.repo_id = ?');
+      args.push(this.repoIdForNameReadonly(repo));
+    }
+    const result = db.exec(
+      `SELECT cf.file_path, sc.author, sc.commit_hash
+       FROM session_commits sc
+       JOIN commit_files cf ON cf.commit_hash = sc.commit_hash
+       ${join}
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY sc.committed_at DESC`,
+      args,
+    );
+    const values = result[0]?.values ?? [];
+    return values
+      .map((r) => ({
+        filePath: asText(r[0] ?? ''),
+        author: asText(r[1] ?? ''),
+        commitHash: asText(r[2] ?? ''),
+      }))
+      .filter((r) => r.filePath && r.author && r.commitHash);
+  }
+
+  /**
    * current_graphs.graph_json の import エッジから、ファイル間の静的依存ペアを抽出する。
    * 同一ファイル内のシンボル参照は除外する。
    */
@@ -10921,7 +10964,7 @@ export class TrailDatabase {
       r.signals.isolatedCommunity ? 1 : 0,
       r.isIgnored ? 1 : 0, r.ignoreReason,
       r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
-      r.category, r.analyzedAt,
+      r.category, r.newlyActive ? 1 : 0, r.analyzedAt,
     ];
   }
 
@@ -10942,9 +10985,9 @@ export class TrailDatabase {
           signal_zero_coverage, signal_isolated_community,
           is_ignored, ignore_reason,
           cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
-          category,
+          category, newly_active,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [repoId, ...this.fileAnalysisRowParams(r).slice(1)],
       );
     }
@@ -10965,7 +11008,7 @@ export class TrailDatabase {
               fa.signal_zero_coverage, fa.signal_isolated_community,
               fa.is_ignored, fa.ignore_reason,
               fa.cross_pkg_in_count, fa.external_consumer_pkgs, fa.total_in_count, fa.is_barrel, fa.centrality_score,
-              fa.category,
+              fa.category, fa.newly_active,
               fa.analyzed_at
        FROM current_file_analysis fa LEFT JOIN repos rp ON rp.repo_id = fa.repo_id WHERE fa.repo_id = ?`,
       [repoId],
@@ -10996,7 +11039,8 @@ export class TrailDatabase {
       isBarrel: Number(r[19] ?? 0) === 1,
       centralityScore: Number(r[20] ?? 0),
       category: parseCategory(r[21]),
-      analyzedAt: asText(r[22] ?? ''),
+      newlyActive: Number(r[22] ?? 0) === 1,
+      analyzedAt: asText(r[23] ?? ''),
     }));
   }
 
@@ -11031,9 +11075,9 @@ export class TrailDatabase {
           signal_zero_coverage, signal_isolated_community,
           is_ignored, ignore_reason,
           cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
-          category,
+          category, newly_active,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [releaseId, ...this.fileAnalysisRowParams(r).slice(1)],
       );
     }
@@ -11055,7 +11099,7 @@ export class TrailDatabase {
               rfa.signal_zero_coverage, rfa.signal_isolated_community,
               rfa.is_ignored, rfa.ignore_reason,
               rfa.cross_pkg_in_count, rfa.external_consumer_pkgs, rfa.total_in_count, rfa.is_barrel, rfa.centrality_score,
-              rfa.category,
+              rfa.category, rfa.newly_active,
               rfa.analyzed_at
        FROM release_file_analysis rfa
        JOIN releases rel ON rel.release_id = rfa.release_id
@@ -11089,7 +11133,8 @@ export class TrailDatabase {
       isBarrel: Number(r[19] ?? 0) === 1,
       centralityScore: Number(r[20] ?? 0),
       category: parseCategory(r[21]),
-      analyzedAt: asText(r[22] ?? ''),
+      newlyActive: Number(r[22] ?? 0) === 1,
+      analyzedAt: asText(r[23] ?? ''),
     }));
   }
 
@@ -11640,6 +11685,46 @@ export class TrailDatabase {
       out.set(asText(r[0] ?? ''), Number(r[1] ?? 0));
     }
     return out;
+  }
+
+  /**
+   * Phase 6 S5-D: 指定時刻より前の churn（コミット数）を file_path 単位で返す。
+   * getCommitFilesChurnSince の対で、「以前は動いていなかった」の判定に使う。
+   */
+  getCommitFilesChurnBefore(repoName: string, beforeIso: string): Map<string, number> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT cf.file_path, COUNT(DISTINCT cf.commit_hash) AS cnt
+       FROM commit_files cf
+       JOIN session_commits sc ON sc.commit_hash = cf.commit_hash
+       JOIN sessions s ON s.id = sc.session_id
+       WHERE sc.committed_at < ? AND s.repo_id = ?
+       GROUP BY cf.file_path`,
+      [beforeIso, this.repoIdForNameReadonly(repoName)],
+    );
+    const out = new Map<string, number>();
+    for (const r of result[0]?.values ?? []) {
+      out.set(asText(r[0] ?? ''), Number(r[1] ?? 0));
+    }
+    return out;
+  }
+
+  /**
+   * Phase 6 S5-D: 取込済みコミット履歴の最古 committed_at（UTC ISO）。
+   * 履歴が浅いリポジトリで Newly Active を誤検知させないためのガードに使う。
+   */
+  getEarliestCommitAt(repoName: string): string | null {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT MIN(sc.committed_at)
+       FROM session_commits sc
+       JOIN sessions s ON s.id = sc.session_id
+       WHERE s.repo_id = ? AND sc.committed_at <> ''`,
+      [this.repoIdForNameReadonly(repoName)],
+    );
+    const value = result[0]?.values?.[0]?.[0];
+    const iso = value == null ? '' : asText(value);
+    return iso || null;
   }
 
   /**

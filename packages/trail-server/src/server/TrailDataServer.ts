@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import { computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
+import { computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Model, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
@@ -126,6 +126,9 @@ export interface AnalyzeAllPipelineResult {
   messageCommitsBackfilled: number;
   durationMs: number;
 }
+
+/** Phase 6 S5-B: includeRows=1 で返す生行の上限（超過分は rowsTruncated=true で明示） */
+const BUS_FACTOR_MAX_ROWS = 50_000;
 
 const HOTSPOT_PERIODS = ['7d', '30d', '90d', 'all'] as const;
 type HotspotPeriod = typeof HOTSPOT_PERIODS[number];
@@ -1076,6 +1079,11 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/bus-factor' && method === 'GET') {
+      this.handleBusFactor(res, parsed.searchParams);
+      return;
+    }
+
     if (pathname === '/api/hotspot' && method === 'GET') {
       this.handleHotspot(res, parsed.searchParams);
       return;
@@ -1145,6 +1153,24 @@ export class TrailDataServer {
       }).catch((err: unknown) => {
         this.logger.error(`[/api/memory/status] ${String(err)}`);
         res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/drift/by-day' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listDriftHistoryByDay({
+        since: p.get('since') ?? undefined,
+        until: p.get('until') ?? undefined,
+        driftType: p.get('driftType') ?? undefined,
+        severity: p.get('severity') ?? undefined,
+      }).then((points) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ points }));
+      }).catch((err: unknown) => {
+        this.logger.error(`[/api/memory/drift/by-day] ${String(err)}`);
+        res.writeHead(500, JSON_HEADERS);
+        res.end(JSON.stringify({ error: String(err) }));
       });
       return;
     }
@@ -1662,6 +1688,51 @@ export class TrailDataServer {
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       this.logger.error(`/api/defect-risk failed: ${err.message}\n${err.stack ?? ''}`);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  /**
+   * Phase 6 S5-B: ファイル単位の属人度（Bus Factor）を返す。
+   * C4 要素単位の集約はクライアント側で「著者×コミットを合算してから再計算」する
+   * （ファイル → C4 要素のマッピングが viewer 側にしかないため）。
+   */
+  private handleBusFactor(res: http.ServerResponse, params: URLSearchParams): void {
+    const windowDays = clampInt(params.get('windowDays'), 365, 1, 3650);
+    const minCommits = clampInt(params.get('minCommits'), 5, 1, 1000);
+    const repo = params.get('repo') ?? undefined;
+
+    // 生行は C4 要素単位の再集計に使う。ファイル単位の結果を足し合わせると、
+    // 1 コミットが同一要素内の複数ファイルを触ったときに二重計上になるため。
+    const includeRows = params.get('includeRows') === '1';
+
+    try {
+      const sinceIso = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+      const rows = this.trailDb.fetchFileAuthorCommits({ repo, sinceIso });
+      const entries = computeBusFactor(rows, { minCommits });
+      const truncated = includeRows && rows.length > BUS_FACTOR_MAX_ROWS;
+      if (truncated) {
+        this.logger.warn(
+          `/api/bus-factor: rows truncated ${rows.length} -> ${BUS_FACTOR_MAX_ROWS} (windowDays=${windowDays})`,
+        );
+      }
+      res.writeHead(200, JSON_HEADERS);
+      res.end(
+        JSON.stringify({
+          entries,
+          computedAt: new Date().toISOString(),
+          windowDays,
+          minCommits,
+          totalUnits: entries.length,
+          ...(includeRows
+            ? { rows: truncated ? rows.slice(0, BUS_FACTOR_MAX_ROWS) : rows, rowsTruncated: truncated }
+            : {}),
+        }),
+      );
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      this.logger.error(`/api/bus-factor failed: ${err.message}\n${err.stack ?? ''}`);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err.message }));
     }
@@ -2245,6 +2316,7 @@ export class TrailDataServer {
         externalConsumerPkgs: r.externalConsumerPkgs,
         isBarrel: r.isBarrel,
         category: r.category,
+        newlyActive: r.newlyActive,
       }));
 
       res.writeHead(200, JSON_HEADERS);

@@ -15,6 +15,8 @@ import {
 } from '@anytime-markdown/ui-core';
 import type { SelectOption } from '@anytime-markdown/ui-core';
 import type { MemoryDriftEventRow } from '../../data/types';
+import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
+import { mountDriftHistoryChart } from './driftHistoryChart';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import { computeFixTarget, filterDriftRows } from '../../components/memory/driftFilter';
 import type { FixTarget } from '../../components/memory/driftFilter';
@@ -57,6 +59,9 @@ const DRIFT_TYPE_HELP_ROWS: ReadonlyArray<readonly [string, string]> = [
 export interface DriftPanelProps {
   readonly t: (key: string) => string;
   readonly rows: readonly MemoryDriftEventRow[];
+  /** Phase 6 S5-C: 日次推移。未取得・0 件なら空配列（チャートは空状態表示へ縮退） */
+  readonly historyPoints?: readonly DriftHistoryPoint[];
+  readonly isDark?: boolean;
   readonly onResolve: (id: string, note: string) => Promise<void>;
   readonly onLoadDetail: (id: string) => Promise<unknown>;
 }
@@ -374,7 +379,16 @@ export function mountDriftPanel(
     });
   }
 
-  root.append(toolbar, bodyHost);
+  // Phase 6 S5-C: 推移グラフはツールバーと一覧の間（全体 → 詳細の順）
+  const historyHost = document.createElement('div');
+  historyHost.style.cssText = 'flex:0 0 auto;border-bottom:1px solid var(--am-color-divider);';
+  const historyChart = mountDriftHistoryChart(historyHost, {
+    t: props.t,
+    points: props.historyPoints ?? [],
+    isDark: props.isDark,
+  });
+
+  root.append(toolbar, historyHost, bodyHost);
   container.appendChild(root);
 
   renderBody();
@@ -389,6 +403,11 @@ export function mountDriftPanel(
       switchLabelText.textContent = props.t('memory.drift.unresolvedOnly');
       switchHandle.update({ ariaLabel: props.t('memory.drift.unresolvedOnly') });
       helpTooltip.update({ title: buildTypeHelpTooltip() });
+      historyChart.update({
+        t: props.t,
+        points: props.historyPoints ?? [],
+        isDark: props.isDark,
+      });
       renderBody();
       // Propagate t to open dialog if props changed
       if (dialogHandle && detailId) {
@@ -413,6 +432,7 @@ export function mountDriftPanel(
       typeSelect.destroy();
       fixTargetSelect.destroy();
       helpTooltip.destroy();
+      historyChart.destroy();
       if (dialogHandle) {
         dialogHandle.destroy();
         dialogHandle = null;
