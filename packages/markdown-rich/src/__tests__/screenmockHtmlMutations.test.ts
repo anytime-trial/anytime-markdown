@@ -1,5 +1,13 @@
 import {
+  annotateScreenmockHtmlPaths,
   applyElementOffset,
+  insertScreenmockElement,
+  removeScreenmockElement,
+  duplicateScreenmockElement,
+  setScreenmockElementText,
+  setScreenmockElementHref,
+  removeScreenmockElementWidth,
+  removeScreenmockElementHeight,
   moveScreenmockElement,
 } from "../vanilla/screenmockHtmlMutations";
 
@@ -110,5 +118,127 @@ describe("applyElementOffset", () => {
     const source = "<div><span>a</span></div>";
 
     expect(applyElementOffset(source, "3/3", { leftPx: 1, topPx: 1 })).toBe(source);
+  });
+});
+
+describe("screenmock panel source mutations", () => {
+  const source = [
+    "---",
+    "id: login",
+    "title: Login",
+    "---",
+    '<div class="sm-screen">',
+    '  <div class="sm-card" style="width: 80.0%; height: 240px; color: red;">',
+    "    <p>Welcome</p>",
+    '    <input class="sm-input" placeholder="Email" />',
+    '    <a class="sm-btn" href="#home">Go</a>',
+    "  </div>",
+    "</div>",
+    "---",
+    "id: home",
+    "title: Home",
+    "---",
+    '<div class="sm-screen">',
+    "  <p>Home</p>",
+    "</div>",
+  ].join("\n");
+
+  function firstScreenHtml(nextSource: string): string {
+    return nextSource.split("---\nid: home")[0].split("---\nid: login\ntitle: Login\n---\n")[1].trimEnd();
+  }
+
+  it("コンテナ末尾へ要素を挿入し、既存ノードとインデントを保つ", () => {
+    const out = insertScreenmockElement(source, 0, "0/0", '<button class="sm-btn">Cancel</button>');
+
+    expect(out).toContain(
+      [
+        '  <div class="sm-card" style="width: 80.0%; height: 240px; color: red;">',
+        "    <p>Welcome</p>",
+        '    <input class="sm-input" placeholder="Email">',
+        '    <a class="sm-btn" href="#home">Go</a>',
+        '    <button class="sm-btn">Cancel</button>',
+        "  </div>",
+      ].join("\n"),
+    );
+    expect(annotateScreenmockHtmlPaths(firstScreenHtml(out))).toContain(
+      '<button class="sm-btn" data-sm-path="0/0/3">Cancel</button>',
+    );
+  });
+
+  it("指定位置へ要素を挿入し、後続要素のパスだけをずらす", () => {
+    const out = insertScreenmockElement(source, 0, "0/0", '<span class="sm-badge">New</span>', 1);
+
+    expect(out).toContain(
+      [
+        "    <p>Welcome</p>",
+        '    <span class="sm-badge">New</span>',
+        '    <input class="sm-input" placeholder="Email">',
+        '    <a class="sm-btn" href="#home">Go</a>',
+      ].join("\n"),
+    );
+    expect(annotateScreenmockHtmlPaths(firstScreenHtml(out))).toContain(
+      '<a class="sm-btn" href="#home" data-sm-path="0/0/3">Go</a>',
+    );
+  });
+
+  it("要素を子孫ごと削除する", () => {
+    const out = removeScreenmockElement(source, 0, "0/0");
+
+    expect(out).toContain(['<div class="sm-screen">', "</div>"].join("\n"));
+    expect(out).not.toContain("Welcome");
+    expect(out).toContain('<div class="sm-screen">\n  <p>Home</p>\n</div>');
+  });
+
+  it("要素を直後に複製し、複製先パスを返す", () => {
+    const out = duplicateScreenmockElement(source, 0, "0/0/0");
+
+    expect(out.newPath).toBe("0/0/1");
+    expect(out.source).toContain(["    <p>Welcome</p>", "    <p>Welcome</p>"].join("\n"));
+    expect(annotateScreenmockHtmlPaths(firstScreenHtml(out.source))).toContain(
+      '<input class="sm-input" placeholder="Email" data-sm-path="0/0/2">',
+    );
+  });
+
+  it("sm-screen ラッパの無いモックでトップレベル要素を複製できる", () => {
+    const bare = '<div class="sm-card">Card</div>';
+
+    const out = duplicateScreenmockElement(bare, 0, "0");
+
+    expect(out.newPath).toBe("1");
+    expect(out.source).toContain('<div class="sm-card">Card</div><div class="sm-card">Card</div>');
+  });
+
+  it("要素直下のテキストを HTML エスケープして置換する", () => {
+    const out = setScreenmockElementText(source, 0, "0/0/0", "<Next & Back>");
+
+    expect(out).toContain("<p>&lt;Next &amp; Back&gt;</p>");
+    expect(out).not.toContain("<p><Next & Back></p>");
+  });
+
+  it("void 要素では placeholder 属性を置換する", () => {
+    const out = setScreenmockElementText(source, 0, "0/0/1", 'Name "required" & email');
+
+    expect(out).toContain('<input class="sm-input" placeholder="Name &quot;required&quot; &amp; email">');
+  });
+
+  it("a 要素の href を画面 id へ設定し null で除去する", () => {
+    const linked = setScreenmockElementHref(source, 0, "0/0/2", "home");
+    const unlinked = setScreenmockElementHref(linked, 0, "0/0/2", null);
+
+    expect(linked).toContain('<a class="sm-btn" href="#home">Go</a>');
+    expect(unlinked).toContain('<a class="sm-btn">Go</a>');
+  });
+
+  it("不正な画面 id は href を変更しない", () => {
+    expect(setScreenmockElementHref(source, 0, "0/0/2", "")).toBe(source);
+    expect(setScreenmockElementHref(source, 0, "0/0/2", "bad#id")).toBe(source);
+  });
+
+  it("style から width と height を個別に取り除く", () => {
+    const withoutWidth = removeScreenmockElementWidth(source, 0, "0/0");
+    const withoutHeight = removeScreenmockElementHeight(source, 0, "0/0");
+
+    expect(withoutWidth).toContain('<div class="sm-card" style="height: 240px; color: red;">');
+    expect(withoutHeight).toContain('<div class="sm-card" style="width: 80.0%; color: red;">');
   });
 });

@@ -23,6 +23,8 @@ export interface CreateScreenmockDesignModePreviewOptions {
   setSource: (source: string) => void;
   emptyHint?: string;
   tabListLabel?: string;
+  initialActiveScreenIndex?: number;
+  onActiveScreenChange?: (index: number) => void;
   initialSelectedPath?: string;
   onSelectionChange?: (path: string | null) => void;
   /** 自由配置ドラッグ中に表示するバッジの文言。 */
@@ -188,7 +190,7 @@ export function createScreenmockDesignModePreview(
   host.style.cssText = "display:block;width:100%;max-width:100%;height:100%;min-height:360px;";
   const shadow = host.attachShadow({ mode: "open" });
 
-  let activeIndex = 0;
+  let activeIndex = Math.max(0, options.initialActiveScreenIndex ?? 0);
   let selectedPath: string | null = options.initialSelectedPath ?? null;
   let selectedEl: HTMLElement | null = null;
   let selectionEl: HTMLElement | null = null;
@@ -271,9 +273,15 @@ export function createScreenmockDesignModePreview(
       const selectedScreenIndex = screenHasPath(screens[activeIndex]?.html ?? "", selectedPath)
         ? activeIndex
         : screens.findIndex((screen) => screenHasPath(screen.html, selectedPath ?? ""));
-      if (selectedScreenIndex >= 0) activeIndex = selectedScreenIndex;
+      if (selectedScreenIndex >= 0 && selectedScreenIndex !== activeIndex) {
+        activeIndex = selectedScreenIndex;
+        options.onActiveScreenChange?.(activeIndex);
+      }
     }
-    if (activeIndex >= screens.length) activeIndex = Math.max(0, screens.length - 1);
+    if (activeIndex >= screens.length) {
+      activeIndex = Math.max(0, screens.length - 1);
+      options.onActiveScreenChange?.(activeIndex);
+    }
     const activeScreen = screens[activeIndex];
     const themeVars = collectScreenmockThemeVars(host);
     const rootStyle = buildRootStyle(themeVars);
@@ -306,6 +314,7 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
     for (const tab of tabButtons) {
       tab.addEventListener("click", () => {
         activeIndex = Number(tab.dataset.index ?? 0);
+        options.onActiveScreenChange?.(activeIndex);
         clearSelection();
         render();
       });
