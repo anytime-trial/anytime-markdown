@@ -285,6 +285,8 @@
     "sectionLockTampered": "ロック外で変更されています（解除して確認）",
     "draggableHeading": "ドラッグ可能な見出し、Alt+矢印キーで並び替え",
     "codeTab": "コード",
+    "collapseCodePane": "コードペインを折りたたむ",
+    "expandCodePane": "コードペインを展開する",
     "scriptTab": "スクリプト",
     "tableTab": "表",
     "configTab": "コンフィグ",

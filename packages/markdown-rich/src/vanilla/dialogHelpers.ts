@@ -465,6 +465,8 @@ interface SplitLayoutHandle {
   el: HTMLElement;
   left: HTMLElement;
   right: HTMLElement;
+  /** 左ペインの折りたたみ。divider を含む表示の書き込み主体を updateLayout に一元化する。 */
+  setLeftCollapsed: (collapsed: boolean) => void;
   destroy: () => void;
 }
 
@@ -552,12 +554,16 @@ export function createDraggableSplitLayout(opts: {
     }
   });
 
-  // mobile: 600px 未満では縦積みに切り替え
+  // mobile: 900px 未満では縦積みに切り替え。左ペインの折りたたみも同じ updateLayout で裁く
+  // （divider の表示を複数の MediaQuery リスナーが別々に書くと発火順依存になるため、
+  // 書き込み主体をここへ一元化する）。
+  let leftCollapsed = false;
   function updateLayout(): void {
     const mobile = globalThis.innerWidth < 900;
     container.className = `am-split-container ${mobile ? "col" : "row"}`;
-    leftPanel.style.width = mobile ? "" : `${splitPx}px`;
-    divider.style.display = mobile ? "none" : "";
+    leftPanel.style.display = leftCollapsed ? "none" : "";
+    leftPanel.style.width = mobile || leftCollapsed ? "" : `${splitPx}px`;
+    divider.style.display = mobile || leftCollapsed ? "none" : "";
   }
   updateLayout();
   const mq = createMediaQuery("(max-width:899.95px)");
@@ -567,6 +573,10 @@ export function createDraggableSplitLayout(opts: {
     el: container,
     left: leftPanel,
     right: rightPanel,
+    setLeftCollapsed(collapsed: boolean) {
+      leftCollapsed = collapsed;
+      updateLayout();
+    },
     destroy() {
       mq.destroy();
     },
