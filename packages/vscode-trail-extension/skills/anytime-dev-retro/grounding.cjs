@@ -245,8 +245,23 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
                    HAVING c >= 2
                    ORDER BY c DESC LIMIT 12`),
           ).map((r) => ({ category: r.category, package: r.pkg, count: r.c })),
+          // 観点キー (P4): 章別・30 日窓の指摘件数。条文化した章の効果測定
+          // （デルタで減らない章は書き方の見直し対象）に使う。累積でなく窓値。
+          checklistByRef30d: rows(
+            q(db, `SELECT checklist_ref, COUNT(*) c
+                   FROM memory_review_findings
+                   WHERE checklist_ref IS NOT NULL AND checklist_ref != 'none'
+                     AND recorded_at >= datetime('now', '-30 days')
+                   GROUP BY checklist_ref
+                   ORDER BY c DESC LIMIT 20`),
+          ).map((r) => ({ checklist_ref: r.checklist_ref, count: r.c })),
         }
-      : { checklistNone: null, checklistRefRecorded: null, checklistNoneClusters: null }),
+      : {
+          checklistNone: null,
+          checklistRefRecorded: null,
+          checklistNoneClusters: null,
+          checklistByRef30d: null,
+        }),
   };
 
   snapshot.drift = {

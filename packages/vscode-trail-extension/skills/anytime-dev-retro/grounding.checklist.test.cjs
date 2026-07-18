@@ -42,17 +42,19 @@ function writeMemoryDb(ws, { withColumn, rows }) {
     category TEXT,
     severity TEXT,
     target_file_path TEXT,
-    addressed_commit_sha TEXT${withColumn ? ',\n    checklist_ref TEXT' : ''}
+    addressed_commit_sha TEXT,
+    recorded_at TEXT${withColumn ? ',\n    checklist_ref TEXT' : ''}
   )`);
   let i = 0;
   for (const row of rows) {
+    const recordedAt = row.recorded_at ?? new Date().toISOString();
     if (withColumn) {
-      db.prepare('INSERT INTO memory_review_findings VALUES (?,?,?,?,NULL,?)').run(
-        `f${i++}`, row.category, 'info', row.file ?? null, row.checklist_ref ?? null,
+      db.prepare('INSERT INTO memory_review_findings VALUES (?,?,?,?,NULL,?,?)').run(
+        `f${i++}`, row.category, 'info', row.file ?? null, recordedAt, row.checklist_ref ?? null,
       );
     } else {
-      db.prepare('INSERT INTO memory_review_findings VALUES (?,?,?,?,NULL)').run(
-        `f${i++}`, row.category, 'info', row.file ?? null,
+      db.prepare('INSERT INTO memory_review_findings VALUES (?,?,?,?,NULL,?)').run(
+        `f${i++}`, row.category, 'info', row.file ?? null, recordedAt,
       );
     }
   }
@@ -72,13 +74,27 @@ describe('grounding.cjs 観点キー集計', () => {
           // 'none' 以外（章あり・未記録）は集計対象外
           { category: 'logic', file: 'packages/memory-core/src/d.ts', checklist_ref: '§14' },
           { category: 'logic', file: 'packages/memory-core/src/e.ts', checklist_ref: null },
+          // P4: 章別 30 日窓 — 窓内の章あり指摘が checklistByRef30d に入り、窓外は除外
+          { category: 'perf', file: 'packages/web-app/src/f.ts', checklist_ref: '§14' },
+          {
+            category: 'perf',
+            file: 'packages/web-app/src/g.ts',
+            checklist_ref: '§14',
+            recorded_at: new Date(Date.now() - 40 * 86400000).toISOString(),
+          },
+          { category: 'a11y', file: 'packages/web-app/src/h.ts', checklist_ref: '§12' },
         ],
       }),
     );
     expect(quality.checklistNone).toBe(3);
-    expect(quality.checklistRefRecorded).toBe(4);
+    expect(quality.checklistRefRecorded).toBe(7);
     expect(quality.checklistNoneClusters).toEqual([
       { category: 'logic', package: 'memory-core', count: 2 },
+    ]);
+    // 窓内: §14 は d.ts + f.ts の 2 件（g.ts は 40 日前で窓外）、§12 は 1 件
+    expect(quality.checklistByRef30d).toEqual([
+      { checklist_ref: '§14', count: 2 },
+      { checklist_ref: '§12', count: 1 },
     ]);
   });
 
@@ -107,5 +123,6 @@ describe('grounding.cjs 観点キー集計', () => {
     expect(quality.checklistNone).toBeNull();
     expect(quality.checklistRefRecorded).toBeNull();
     expect(quality.checklistNoneClusters).toBeNull();
+    expect(quality.checklistByRef30d).toBeNull();
   });
 });
