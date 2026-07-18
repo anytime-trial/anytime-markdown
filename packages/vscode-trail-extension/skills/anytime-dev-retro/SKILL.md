@@ -53,6 +53,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 未対処 finding `quality.unaddressedFindings` | memory | 上昇 |
 | reviewer 空 `quality.reviewerEmpty` | memory | 上昇 |
 | bug:review 比 `quality.bugToReviewRatio` | memory | 上昇 |
+| 観点の穴 `quality.checklistNone` / クラスタ `quality.checklistNoneClusters`（checklist_ref='none' のカテゴリ×パッケージ束・2 件以上） | memory | 新規クラスタ出現 / 増加（null は列未マイグレーション＝測定不能） |
 | 未解決 drift（`drift.byType` から spec_vs_code を除いて算出。設計書ドリフトは dev-cycle 段5 へ移管） | memory | 上昇 / 新種別出現 |
 | embedding 充足率 `docCore.embeddingCoveragePct` | doc-core | 低下 |
 | 孤立 doc `docCore.orphanDocs` | doc-core | 上昇 |
@@ -95,6 +96,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **サマリ**: 前回比で悪化/改善した上位シグナルを 3〜5 行。
 - **デルタ表**: メトリクス / 前回 / 今回 / 変化（↑↓→・新規）。**変化があった行を上に**。
 - **現在の主要シグナル**: hotspot top・drift 種別内訳・コスト内訳・SHORTCUT 技術負債（総数 / no-trigger 内訳・top ファイル）・スキル健全性（総数 / 参照切れ / 90 日超 stale / 30 日未使用・利用 top）など現状値。
+- **観点昇格候補**（`quality.checklistNoneClusters`）: checklist_ref='none'（global スキル `code-review-checklist` のどの章にも該当しない指摘）のカテゴリ×パッケージ束で 2 件以上のクラスタを**毎回列挙**する（2 回再発ルールの機械化。global CLAUDE.md「メモリ運用」の横断制約昇格と同じ閾値）。各クラスタは「チェックリストへの観点追加候補」であり、条文化はユーザーの What 承認を経て手動で行う（自動編集しない）。クラスタゼロ・列未マイグレーション（null）もその旨を明記する（沈黙させない）。
 - **コスト詳細**（`grounding.token-budget.cjs` 出力。集計レベルの cost glance を超える深掘り）: モデル別コスト内訳 `byModel`（model / sessions / cost / cacheRead。Opus 比率を強調）・コスト上位セッション `topSessions`（session / cost / messageCount / peakContextTokens / compactCount / gitBranch / hygieneFlag）・セッション衛生 `hygiene`（expensiveNoCompact 等）・週次トレンド `trend.weekly`。狙いは RC2（Opus メインの超長大セッションが `/clear`・`/compact` なしで継続し `cache_read` が「文脈サイズ×ターン数」で二乗膨張する）の継続監視。
 - **モデル別挙動プロファイル**（`modelBehavior.byModel`・30 日窓・記述的）: モデル（フル ID）ごとの冗長性（`avgOutputTokens`）・ツール失敗率（`toolErrorRatePct`）・平均実行時間（`avgTurnExecMs`）を現状値として表示する。委譲先の役割分担（`anytime-dev-cycle` §1・§3.1 モデル表）の見直し材料。**因果主張はしない**: タスク割当が非ランダム（性質でモデルを選んでいる）ため、モデル間差は「性格」でなく割当タスクの性質を含む交絡を持つ。`assistantMsgs` が `minSampleForJudgment`（5）未満のモデルは「標本不足・判定しない」と明記する。
 - **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 を確認し件数を記す）、(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。

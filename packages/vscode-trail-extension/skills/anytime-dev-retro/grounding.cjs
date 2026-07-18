@@ -226,6 +226,27 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       q(db, `SELECT json_each.value file, COUNT(*) c FROM memory_bug_fixes, json_each(affected_file_paths_json)
              GROUP BY 1 ORDER BY c DESC LIMIT 8`),
     ).map((r) => ({ file: r.file, count: r.c })),
+    // 観点キー (P2): checklist_ref='none' はチェックリスト該当章なし＝観点の穴の候補。
+    // カテゴリ×パッケージで束ね 2 件以上を昇格候補クラスタとして掲載する。
+    // 列は memory-core migration 015 で追加。未マイグレーション DB では null（測定不能）。
+    ...(num(q(db, "SELECT COUNT(*) c FROM pragma_table_info('memory_review_findings') WHERE name = 'checklist_ref'"), 'c') > 0
+      ? {
+          checklistNone: num(q(db, "SELECT COUNT(*) c FROM memory_review_findings WHERE checklist_ref = 'none'"), 'c'),
+          checklistRefRecorded: num(q(db, 'SELECT COUNT(*) c FROM memory_review_findings WHERE checklist_ref IS NOT NULL'), 'c'),
+          checklistNoneClusters: rows(
+            q(db, `SELECT category,
+                     CASE WHEN target_file_path GLOB 'packages/*/*'
+                          THEN substr(target_file_path, 10, instr(substr(target_file_path, 10), '/') - 1)
+                          ELSE '(unknown)' END pkg,
+                     COUNT(*) c
+                   FROM memory_review_findings
+                   WHERE checklist_ref = 'none'
+                   GROUP BY category, pkg
+                   HAVING c >= 2
+                   ORDER BY c DESC LIMIT 12`),
+          ).map((r) => ({ category: r.category, package: r.pkg, count: r.c })),
+        }
+      : { checklistNone: null, checklistRefRecorded: null, checklistNoneClusters: null }),
   };
 
   snapshot.drift = {
