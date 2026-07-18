@@ -102,6 +102,14 @@ interface ScreenRange {
   bodyEnd: number;
 }
 
+interface ScreenBlock extends ScreenRange {
+  blockStart: number;
+  blockEnd: number;
+  frontmatterStart: number | null;
+  frontmatterEnd: number | null;
+  frontmatter: string[];
+}
+
 function isDelimiter(line: string): boolean {
   return line.trim() === "---";
 }
@@ -119,22 +127,45 @@ function parseFrontmatter(lines: string[]): { id?: string; title?: string } | nu
 }
 
 export function parseScreenRanges(source: string): ScreenRange[] {
+  return parseScreenBlocks(source).map(({ bodyStart, bodyEnd }) => ({ bodyStart, bodyEnd }));
+}
+
+function parseScreenBlocks(source: string): ScreenBlock[] {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const firstContentIndex = lines.findIndex((line) => line.trim() !== "");
   if (firstContentIndex < 0) return [];
   if (!isDelimiter(lines[firstContentIndex])) {
-    return [{ bodyStart: 0, bodyEnd: lines.length }];
+    return [
+      {
+        blockStart: 0,
+        blockEnd: lines.length,
+        frontmatterStart: null,
+        frontmatterEnd: null,
+        frontmatter: [],
+        bodyStart: 0,
+        bodyEnd: lines.length,
+      },
+    ];
   }
 
-  const ranges: ScreenRange[] = [];
+  const ranges: ScreenBlock[] = [];
   let cursor = firstContentIndex;
   while (cursor < lines.length) {
     while (cursor < lines.length && lines[cursor].trim() === "") cursor += 1;
     if (cursor >= lines.length) break;
     if (!isDelimiter(lines[cursor])) {
-      ranges.push({ bodyStart: cursor, bodyEnd: lines.length });
+      ranges.push({
+        blockStart: cursor,
+        blockEnd: lines.length,
+        frontmatterStart: null,
+        frontmatterEnd: null,
+        frontmatter: [],
+        bodyStart: cursor,
+        bodyEnd: lines.length,
+      });
       break;
     }
+    const blockStart = cursor;
     cursor += 1;
     const fmStart = cursor;
     while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
@@ -144,7 +175,15 @@ export function parseScreenRanges(source: string): ScreenRange[] {
     const bodyStart = cursor;
     while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
     if (parseFrontmatter(frontmatter)) {
-      ranges.push({ bodyStart, bodyEnd: cursor });
+      ranges.push({
+        blockStart,
+        blockEnd: cursor,
+        frontmatterStart: fmStart,
+        frontmatterEnd: fmStart + frontmatter.length,
+        frontmatter,
+        bodyStart,
+        bodyEnd: cursor,
+      });
     }
   }
   return ranges;
@@ -358,6 +397,101 @@ export function removeScreenmockElementHeight(source: string, screenIndex: numbe
   return removeScreenmockElementDeclarations(source, screenIndex, path, ["height"]);
 }
 
+export function toggleScreenmockElementClass(
+  source: string,
+  screenIndex: number,
+  path: string,
+  className: string,
+  enabled: boolean,
+): string {
+  const normalizedClassName = className.trim();
+  if (!normalizedClassName || /\s/.test(normalizedClassName)) return source.replace(/\r\n?/g, "\n");
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+    const classes = (target.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
+    const existing = classes.includes(normalizedClassName);
+    if (enabled && existing) return false;
+    if (!enabled && !existing) return false;
+    const nextClasses = enabled
+      ? [...classes, normalizedClassName]
+      : classes.filter((value) => value !== normalizedClassName);
+    if (nextClasses.length) target.setAttribute("class", nextClasses.join(" "));
+    else target.removeAttribute("class");
+    return true;
+  });
+}
+
+export function setScreenmockElementStyleDeclaration(
+  source: string,
+  screenIndex: number,
+  path: string,
+  name: string,
+  value: string | null,
+): string {
+  const normalizedName = name.trim();
+  if (!normalizedName) return source.replace(/\r\n?/g, "\n");
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+    if (value === null) {
+      setStyleAttribute(target, removeDeclarations(target.getAttribute("style"), [normalizedName.toLowerCase()]));
+    } else {
+      target.setAttribute(
+        "style",
+        mergeStyleAttribute(target.getAttribute("style"), { [normalizedName]: value.trim() }),
+      );
+    }
+    return true;
+  });
+}
+
+export interface ScreenmockElementAbsoluteOffset {
+  leftPx?: number;
+  topPx?: number;
+}
+
+export function setScreenmockElementOffset(
+  source: string,
+  screenIndex: number,
+  path: string,
+  offset: ScreenmockElementAbsoluteOffset,
+): string {
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+
+    let style = target.getAttribute("style");
+    const next: Record<string, string> = {};
+    const hasLeft = Object.prototype.hasOwnProperty.call(offset, "leftPx");
+    const hasTop = Object.prototype.hasOwnProperty.call(offset, "topPx");
+    if (!hasLeft && !hasTop) return false;
+
+    if (hasLeft) {
+      const left = Math.round(offset.leftPx ?? 0);
+      if (left === 0) style = removeDeclarations(style, ["left"]);
+      else next.left = `${left}px`;
+    }
+    if (hasTop) {
+      const top = Math.round(offset.topPx ?? 0);
+      if (top === 0) style = removeDeclarations(style, ["top"]);
+      else next.top = `${top}px`;
+    }
+
+    if (Object.keys(next).length > 0) {
+      const declared = readDeclaration(style, "position");
+      const position = !declared || declared.toLowerCase() === "static" ? "relative" : declared;
+      style = mergeStyleAttribute(style, { position, ...next });
+    }
+
+    const hasLeftDeclaration = readDeclaration(style, "left") !== null;
+    const hasTopDeclaration = readDeclaration(style, "top") !== null;
+    if (!hasLeftDeclaration && !hasTopDeclaration) style = removeDeclarations(style, ["position"]);
+    setStyleAttribute(target, style ?? "");
+    return true;
+  });
+}
+
 /**
  * 幅だけを書き戻す（% 小数 1 桁）。パネルの数値入力は片側ずつの独立編集のため、
  * 両値契約の {@link applyElementSizeToScreenHtml}（リサイズハンドル用）とは分ける。
@@ -517,6 +651,94 @@ export function applyElementOffset(
   return template.innerHTML;
 }
 
+export interface ScreenmockScreenInput {
+  id?: string;
+  title?: string;
+  html: string;
+}
+
+export interface ScreenmockScreenMetadata {
+  id?: string;
+  title?: string;
+}
+
+export interface RenameScreenmockScreenOptions {
+  updateRefs?: boolean;
+}
+
+export function appendScreenmockScreen(source: string, screen: ScreenmockScreenInput): string {
+  const normalized = source.replace(/\r\n?/g, "\n");
+  const frontmatter = serializeFrontmatter(screen);
+  if (!normalized.trim()) {
+    return frontmatter.length ? [...frontmatter, screen.html].join("\n") : screen.html;
+  }
+  return [normalized.replace(/\n*$/, ""), ...frontmatterForSeparatedBlock(screen), screen.html].join("\n");
+}
+
+export function duplicateScreenmockScreen(source: string, screenIndex: number): string {
+  const normalized = source.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+  const blocks = parseScreenBlocks(normalized);
+  const block = blocks[screenIndex];
+  if (!block) return normalized;
+
+  const metadata = parseFrontmatter(block.frontmatter) ?? {};
+  const nextId = uniqueScreenId(screenIdFor(metadata, screenIndex), collectScreenIds(blocks), `${screenIndex + 2}`);
+  const duplicateLines = lines.slice(block.blockStart, block.blockEnd);
+  if (block.frontmatterStart !== null) {
+    const localStart = block.frontmatterStart - block.blockStart;
+    const localEnd = block.frontmatterEnd === null ? localStart : block.frontmatterEnd - block.blockStart;
+    duplicateLines.splice(localStart, localEnd - localStart, ...upsertFrontmatterLines(block.frontmatter, { id: nextId }));
+  } else {
+    const html = lines.slice(block.bodyStart, block.bodyEnd).join("\n");
+    duplicateLines.splice(0, duplicateLines.length, ...frontmatterForSeparatedBlock({ id: nextId }), html);
+  }
+
+  return [...lines.slice(0, block.blockEnd), ...duplicateLines, ...lines.slice(block.blockEnd)].join("\n");
+}
+
+export function removeScreenmockScreen(source: string, screenIndex: number): string {
+  const normalized = source.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+  const blocks = parseScreenBlocks(normalized);
+  const block = blocks[screenIndex];
+  if (!block) return normalized;
+  if (blocks.length === 1) return "";
+  return [...lines.slice(0, block.blockStart), ...lines.slice(block.blockEnd)].join("\n").replace(/^\n+|\n+$/g, "");
+}
+
+export function renameScreenmockScreen(
+  source: string,
+  screenIndex: number,
+  metadata: ScreenmockScreenMetadata,
+  opts: RenameScreenmockScreenOptions = {},
+): string {
+  let normalized = source.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+  const blocks = parseScreenBlocks(normalized);
+  const block = blocks[screenIndex];
+  if (!block) return normalized;
+
+  const previousMetadata = parseFrontmatter(block.frontmatter) ?? {};
+  const previousId = previousMetadata.id;
+  let nextLines: string[];
+  if (block.frontmatterStart !== null && block.frontmatterEnd !== null) {
+    nextLines = [
+      ...lines.slice(0, block.frontmatterStart),
+      ...upsertFrontmatterLines(block.frontmatter, metadata),
+      ...lines.slice(block.frontmatterEnd),
+    ];
+  } else {
+    nextLines = [...serializeFrontmatter(metadata), ...lines.slice(block.bodyStart, block.bodyEnd)];
+  }
+  normalized = nextLines.join("\n");
+
+  if (opts.updateRefs && previousId && metadata.id && previousId !== metadata.id) {
+    normalized = replaceHrefScreenRefs(normalized, previousId, metadata.id);
+  }
+  return normalized;
+}
+
 function setStyleAttribute(target: Element, style: string): void {
   if (style.trim()) target.setAttribute("style", style);
   else target.removeAttribute("style");
@@ -532,4 +754,55 @@ function removeDeclarations(style: string | null, names: string[]): string {
     })
     .map((part) => `${part.trim()};`)
     .join(" ");
+}
+
+function serializeFrontmatter(metadata: ScreenmockScreenMetadata): string[] {
+  const lines: string[] = ["---"];
+  if (metadata.id !== undefined) lines.push(`id: ${metadata.id}`);
+  if (metadata.title !== undefined) lines.push(`title: ${metadata.title}`);
+  lines.push("---");
+  return lines;
+}
+
+function frontmatterForSeparatedBlock(metadata: ScreenmockScreenMetadata): string[] {
+  return serializeFrontmatter(metadata);
+}
+
+function upsertFrontmatterLines(lines: string[], metadata: ScreenmockScreenMetadata): string[] {
+  const next = [...lines];
+  for (const key of ["id", "title"] as const) {
+    const value = metadata[key];
+    if (value === undefined) continue;
+    const index = next.findIndex((line) => new RegExp(`^${key}\\s*:`).test(line));
+    if (index >= 0) next[index] = `${key}: ${value}`;
+    else next.push(`${key}: ${value}`);
+  }
+  return next;
+}
+
+function screenIdFor(metadata: ScreenmockScreenMetadata, index: number): string {
+  return metadata.id || `screen-${index + 1}`;
+}
+
+function collectScreenIds(blocks: ScreenBlock[]): Set<string> {
+  return new Set(blocks.map((block, index) => screenIdFor(parseFrontmatter(block.frontmatter) ?? {}, index)));
+}
+
+function uniqueScreenId(base: string, used: Set<string>, fallback: string): string {
+  const normalizedBase = base.trim() || `screen-${fallback}`;
+  for (let index = 1; ; index += 1) {
+    const candidate = index === 1 ? `${normalizedBase}-copy` : `${normalizedBase}-copy-${index}`;
+    if (!used.has(candidate)) return candidate;
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function replaceHrefScreenRefs(source: string, fromId: string, toId: string): string {
+  return source.replace(
+    new RegExp(`href=(["'])#${escapeRegExp(fromId)}\\1`, "g"),
+    (_match, quote: string) => `href=${quote}#${toId}${quote}`,
+  );
 }

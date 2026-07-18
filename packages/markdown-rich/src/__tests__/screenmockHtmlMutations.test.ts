@@ -1,11 +1,19 @@
 import {
   annotateScreenmockHtmlPaths,
   applyElementOffset,
+  appendScreenmockScreen,
   insertScreenmockElement,
   removeScreenmockElement,
   duplicateScreenmockElement,
+  duplicateScreenmockScreen,
+  parseScreenRanges,
+  removeScreenmockScreen,
+  renameScreenmockScreen,
   setScreenmockElementText,
   setScreenmockElementHref,
+  setScreenmockElementOffset,
+  setScreenmockElementStyleDeclaration,
+  toggleScreenmockElementClass,
   removeScreenmockElementWidth,
   removeScreenmockElementHeight,
   moveScreenmockElement,
@@ -240,5 +248,96 @@ describe("screenmock panel source mutations", () => {
 
     expect(withoutWidth).toContain('<div class="sm-card" style="height: 240px; color: red;">');
     expect(withoutHeight).toContain('<div class="sm-card" style="width: 80.0%; color: red;">');
+  });
+
+  it("class を順序維持で付与・除去し、no-op では本文を変えない", () => {
+    const enabled = toggleScreenmockElementClass(source, 0, "0/0/2", "sm-btn-primary", true);
+    const enabledAgain = toggleScreenmockElementClass(enabled, 0, "0/0/2", "sm-btn-primary", true);
+    const disabled = toggleScreenmockElementClass(enabled, 0, "0/0/2", "sm-btn-primary", false);
+    const disabledAgain = toggleScreenmockElementClass(source, 0, "0/0/2", "sm-btn-primary", false);
+
+    expect(enabled).toContain('<a class="sm-btn sm-btn-primary" href="#home">Go</a>');
+    expect(enabledAgain).toBe(enabled);
+    expect(disabled).toContain('<a class="sm-btn" href="#home">Go</a>');
+    expect(disabled).toContain('<div class="sm-screen">\n  <p>Home</p>\n</div>');
+    expect(disabledAgain).toBe(source);
+  });
+
+  it("style の任意宣言を設定・除去し、空なら style 属性も除去する", () => {
+    const colored = setScreenmockElementStyleDeclaration(source, 0, "0/0", "background", "var(--sm-surface)");
+    const clearedColor = setScreenmockElementStyleDeclaration(colored, 0, "0/0", "color", null);
+    const singleStyle = '<div class="sm-screen"><button style="color: red;">OK</button></div>';
+    const emptyStyle = setScreenmockElementStyleDeclaration(singleStyle, 0, "0/0", "color", null);
+
+    expect(colored).toContain(
+      'style="width: 80.0%; height: 240px; color: red; background: var(--sm-surface);"',
+    );
+    expect(clearedColor).toContain(
+      'style="width: 80.0%; height: 240px; background: var(--sm-surface);"',
+    );
+    expect(emptyStyle).toBe('<div class="sm-screen"><button>OK</button></div>');
+  });
+
+  it("オフセットを絶対値で片側ずつ設定し、0 で宣言を取り除く", () => {
+    const positioned = setScreenmockElementOffset(source, 0, "0/0", { leftPx: 12 });
+    const movedTop = setScreenmockElementOffset(positioned, 0, "0/0", { topPx: -4.4 });
+    const clearedLeft = setScreenmockElementOffset(movedTop, 0, "0/0", { leftPx: 0 });
+    const clearedBoth = setScreenmockElementOffset(clearedLeft, 0, "0/0", { topPx: 0 });
+
+    expect(positioned).toContain(
+      'style="width: 80.0%; height: 240px; color: red; position: relative; left: 12px;"',
+    );
+    expect(movedTop).toContain(
+      'style="width: 80.0%; height: 240px; color: red; position: relative; left: 12px; top: -4px;"',
+    );
+    expect(clearedLeft).toContain(
+      'style="width: 80.0%; height: 240px; color: red; position: relative; top: -4px;"',
+    );
+    expect(clearedBoth).toContain('style="width: 80.0%; height: 240px; color: red;"');
+  });
+
+  it("既存の absolute 配置は維持して座標だけを更新する", () => {
+    const absolute = [
+      '<div class="sm-screen">',
+      '  <button style="position: absolute; left: 1px; color: red;">OK</button>',
+      "</div>",
+    ].join("\n");
+
+    const out = setScreenmockElementOffset(absolute, 0, "0/0", { topPx: 9, leftPx: 2 });
+
+    expect(out).toContain('style="position: absolute; left: 2px; color: red; top: 9px;"');
+  });
+
+  it("画面を追加・複製・削除し、対象外画面本文を保つ", () => {
+    const appended = appendScreenmockScreen(source, {
+      id: "settings",
+      title: "Settings",
+      html: '<div class="sm-screen"><p>Settings</p></div>',
+    });
+    const duplicated = duplicateScreenmockScreen(appended, 0);
+    const removed = removeScreenmockScreen(duplicated, 1);
+
+    expect(parseScreenRanges(appended)).toHaveLength(3);
+    expect(appended).toContain("id: settings\ntitle: Settings\n---\n<div");
+    expect(duplicated).toContain("id: login-copy");
+    expect(removed).toContain('<div class="sm-screen">\n  <p>Home</p>\n</div>');
+    expect(parseScreenRanges(removed)).toHaveLength(3);
+    expect(removeScreenmockScreen('<div class="sm-screen"></div>', 0)).toBe("");
+  });
+
+  it("画面 id/title を frontmatter に書き戻し、必要なら href 参照も更新する", () => {
+    const renamed = renameScreenmockScreen(source, 1, { id: "dashboard", title: "Dashboard" }, { updateRefs: true });
+    const bare = renameScreenmockScreen('<div class="sm-screen"><a href="#next">Next</a></div>', 0, {
+      id: "first",
+      title: "First",
+    });
+
+    expect(renamed).toContain("id: dashboard\ntitle: Dashboard\n---\n<div");
+    expect(renamed).toContain('<a class="sm-btn" href="#dashboard">Go</a>');
+    expect(renamed).toContain('<div class="sm-screen">\n  <p>Home</p>\n</div>');
+    expect(bare).toBe(
+      ['---', 'id: first', 'title: First', '---', '<div class="sm-screen"><a href="#next">Next</a></div>'].join("\n"),
+    );
+    expect(parseScreenRanges(bare)).toHaveLength(1);
   });
 });
