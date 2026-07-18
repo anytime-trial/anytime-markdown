@@ -118,7 +118,7 @@ function parseFrontmatter(lines: string[]): { id?: string; title?: string } | nu
   return result;
 }
 
-function parseScreenRanges(source: string): ScreenRange[] {
+export function parseScreenRanges(source: string): ScreenRange[] {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const firstContentIndex = lines.findIndex((line) => line.trim() !== "");
   if (firstContentIndex < 0) return [];
@@ -158,6 +158,200 @@ export function replaceScreenmockScreenHtml(source: string, screenIndex: number,
   if (range.bodyStart === 0 && range.bodyEnd === lines.length) return nextScreenHtml;
   const nextLines = nextScreenHtml.split("\n");
   return [...lines.slice(0, range.bodyStart), ...nextLines, ...lines.slice(range.bodyEnd)].join("\n");
+}
+
+function readScreenmockScreenHtml(source: string, screenIndex: number): string | null {
+  const normalized = source.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+  const range = parseScreenRanges(normalized)[screenIndex];
+  if (!range) return null;
+  return lines.slice(range.bodyStart, range.bodyEnd).join("\n");
+}
+
+function mutateScreenmockScreenHtml(
+  source: string,
+  screenIndex: number,
+  mutate: (template: HTMLTemplateElement) => boolean,
+): string {
+  const screenHtml = readScreenmockScreenHtml(source, screenIndex);
+  if (screenHtml === null) return source.replace(/\r\n?/g, "\n");
+  const template = document.createElement("template");
+  template.innerHTML = screenHtml;
+  if (!mutate(template)) return source.replace(/\r\n?/g, "\n");
+  removePathAttributes(template.content);
+  return replaceScreenmockScreenHtml(source, screenIndex, template.innerHTML);
+}
+
+function firstElementFromHtml(html: string): Element | null {
+  const template = document.createElement("template");
+  template.innerHTML = html.trim();
+  return template.content.firstElementChild;
+}
+
+function childIndentFor(parent: DocumentFragment | Element, before: Node | null): string | null {
+  const destination = before?.previousSibling;
+  if (isWhitespaceText(destination)) return destination.data;
+  const firstChild = parent.firstElementChild;
+  const firstIndent = firstChild?.previousSibling;
+  if (isWhitespaceText(firstIndent)) return firstIndent.data;
+  const closingIndent = parent.lastChild;
+  if (isWhitespaceText(closingIndent) && closingIndent.data.includes("\n")) {
+    const match = /\n([ \t]*)$/.exec(closingIndent.data);
+    if (match) return `\n${match[1]}  `;
+  }
+  return null;
+}
+
+function insertElementNode(parent: DocumentFragment | Element, element: Element, index?: number): string | null {
+  const children = Array.from(parent.children);
+  const insertIndex = index === undefined ? children.length : Math.max(0, Math.min(index, children.length));
+  let before: Node | null = children[insertIndex] ?? null;
+  if (!before && isWhitespaceText(parent.lastChild)) before = parent.lastChild;
+
+  const indent = childIndentFor(parent, before);
+  if (isWhitespaceText(before)) {
+    if (indent !== null) parent.insertBefore(parent.ownerDocument.createTextNode(indent), before);
+    parent.insertBefore(element, before);
+  } else {
+    parent.insertBefore(element, before);
+    if (indent !== null) parent.insertBefore(parent.ownerDocument.createTextNode(indent), before);
+  }
+
+  const parentPath = element.parentElement ? pathOfElement(element.parentElement) : "";
+  const newIndex = Array.from(parent.children).indexOf(element);
+  return parentPath ? `${parentPath}/${newIndex}` : String(newIndex);
+}
+
+function pathOfElement(element: Element): string {
+  const parts: number[] = [];
+  let current: Element | null = element;
+  while (current.parentElement) {
+    parts.unshift(Array.from(current.parentElement.children).indexOf(current));
+    current = current.parentElement;
+  }
+  const rootParent = current.parentNode;
+  if (current && rootParent instanceof DocumentFragment) {
+    parts.unshift(Array.from(rootParent.children).indexOf(current));
+  }
+  return parts.join("/");
+}
+
+export function insertScreenmockElement(
+  source: string,
+  screenIndex: number,
+  containerPath: string,
+  html: string,
+  index?: number,
+): string {
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const parent =
+      containerPath === "" ? template.content : findElementByPath(template.content, containerPath);
+    const element = firstElementFromHtml(html);
+    if (!parent || !element) return false;
+    insertElementNode(parent, element, index);
+    return true;
+  });
+}
+
+export function removeScreenmockElement(source: string, screenIndex: number, path: string): string {
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+    const leadingWhitespace = target.previousSibling;
+    if (isWhitespaceText(leadingWhitespace)) leadingWhitespace.remove();
+    target.remove();
+    return true;
+  });
+}
+
+export interface DuplicateScreenmockElementResult {
+  source: string;
+  newPath: string | null;
+}
+
+export function duplicateScreenmockElement(
+  source: string,
+  screenIndex: number,
+  path: string,
+): DuplicateScreenmockElementResult {
+  let newPath: string | null = null;
+  const nextSource = mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    const parent = target?.parentElement ?? null;
+    if (!target || !parent) return false;
+    const clone = target.cloneNode(true) as Element;
+    const index = Array.from(parent.children).indexOf(target) + 1;
+    newPath = insertElementNode(parent, clone, index);
+    return true;
+  });
+  return { source: nextSource, newPath };
+}
+
+function isVoidTextElement(element: Element): boolean {
+  return ["input", "textarea"].includes(element.tagName.toLowerCase());
+}
+
+export function setScreenmockElementText(
+  source: string,
+  screenIndex: number,
+  path: string,
+  text: string,
+): string {
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+    if (isVoidTextElement(target)) {
+      target.setAttribute("placeholder", text);
+      return true;
+    }
+    Array.from(target.childNodes)
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .forEach((node) => node.remove());
+    target.insertBefore(template.ownerDocument.createTextNode(text), target.firstChild);
+    return true;
+  });
+}
+
+function isValidScreenId(screenId: string): boolean {
+  return screenId.length > 0 && !screenId.includes("#");
+}
+
+export function setScreenmockElementHref(
+  source: string,
+  screenIndex: number,
+  path: string,
+  screenId: string | null,
+): string {
+  if (screenId !== null && !isValidScreenId(screenId)) return source.replace(/\r\n?/g, "\n");
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target || target.tagName.toLowerCase() !== "a") return false;
+    if (screenId === null) target.removeAttribute("href");
+    else target.setAttribute("href", `#${screenId}`);
+    return true;
+  });
+}
+
+function removeScreenmockElementDeclarations(
+  source: string,
+  screenIndex: number,
+  path: string,
+  names: string[],
+): string {
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+    setStyleAttribute(target, removeDeclarations(target.getAttribute("style"), names));
+    return true;
+  });
+}
+
+export function removeScreenmockElementWidth(source: string, screenIndex: number, path: string): string {
+  return removeScreenmockElementDeclarations(source, screenIndex, path, ["width"]);
+}
+
+export function removeScreenmockElementHeight(source: string, screenIndex: number, path: string): string {
+  return removeScreenmockElementDeclarations(source, screenIndex, path, ["height"]);
 }
 
 /**
@@ -296,4 +490,3 @@ function removeDeclarations(style: string | null, names: string[]): string {
     .map((part) => `${part.trim()};`)
     .join(" ");
 }
-
