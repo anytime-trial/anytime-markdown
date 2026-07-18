@@ -296,6 +296,11 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
       // リンク・画像はブラウザ既定のネイティブドラッグが走り、以降 pointerup が届かず
       // ドロップを取りこぼす（jsdom では再現しない）。既定動作を止めてから掴む。
       pointerEvent.preventDefault();
+      // プレビューペインの ZoomPan は祖先で pointerdown を拾ってパンを始める。伝播を止めないと
+      // 要素の移動とプレビュー全体のパンが同時に走り、「部品でなく画面全体が動く」ように見える
+      // （リサイズハンドルが同じ理由で stopPropagation している）。要素を掴まない場合は
+      // 伝播させ、背景ドラッグでのパンは従来どおり効かせる。
+      pointerEvent.stopPropagation();
       drag = {
         kind: "element",
         pointerId: pointerEvent.pointerId,

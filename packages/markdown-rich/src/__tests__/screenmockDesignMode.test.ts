@@ -204,6 +204,9 @@ describe("screenmockDesignMode ドラッグ操作", () => {
     return new (globalThis.PointerEvent ?? MouseEvent)(type, {
       bubbles: true,
       cancelable: true,
+      // 実ブラウザの PointerEvent は composed。false のままだと shadow 境界を越えず、
+      // 「祖先へ伝播しない」検証が素通りしてしまう。
+      composed: true,
       pointerId: 1,
       ...init,
     } as PointerEventInit) as PointerEvent;
@@ -350,5 +353,41 @@ describe("screenmockDesignMode ドラッグ操作", () => {
     expect(getSource()).toBe(initial);
     restore();
     host.destroy();
+  });
+
+  it("要素を掴むドラッグは祖先へ伝播させない（プレビューのパンと二重に走らせない）", () => {
+    const { host } = mountDesignPreview('<div class="sm-col"><button>b</button></div>');
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    container.appendChild(host);
+    const seen: string[] = [];
+    container.addEventListener("pointerdown", () => seen.push("ancestor"));
+
+    const shadow = host.shadowRoot as ShadowRoot;
+    (shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement).dispatchEvent(
+      pointer("pointerdown", { clientX: 10, clientY: 10 }),
+    );
+
+    expect(seen).toEqual([]);
+    host.destroy();
+    container.remove();
+  });
+
+  it("背景（画面ルート）のドラッグは祖先へ伝播させパンを妨げない", () => {
+    const { host } = mountDesignPreview('<div class="sm-screen"><span>a</span></div>');
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    container.appendChild(host);
+    const seen: string[] = [];
+    container.addEventListener("pointerdown", () => seen.push("ancestor"));
+
+    const shadow = host.shadowRoot as ShadowRoot;
+    (shadow.querySelector('[data-sm-path="0"]') as HTMLElement).dispatchEvent(
+      pointer("pointerdown", { clientX: 10, clientY: 10 }),
+    );
+
+    expect(seen).toEqual(["ancestor"]);
+    host.destroy();
+    container.remove();
   });
 });
