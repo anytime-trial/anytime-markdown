@@ -1368,6 +1368,47 @@ export function mountVanillaMarkdownEditor(
       });
       disposers.push(() => sourceController?.destroy());
 
+      // === Ctrl/Cmd + ホイールで全体ズーム（本文テキスト + 図を一括拡縮） ==========
+      // 文字だけを変える settings.fontSize と直交する「ブラウザズーム」。wysiwyg/review は
+      // editor.view.dom（.tiptap）へ CSS zoom を掛け本文・画像・mermaid を一律スケールし、source は
+      // コントローラの zoom レイヤへ委譲する。step / bounds は VS Code のエディタズームに倣う。
+      // jsdom は zoom を computed へ反映しないため、観測用に root[data-am-zoom] も併記する。
+      const ZOOM_MIN = 0.5;
+      const ZOOM_MAX = 3;
+      const ZOOM_STEP = 0.1;
+      let zoomFactor = 1;
+      // 浮動小数の累積誤差（1.0999999…）を防ぐため小数第 2 位で丸める。
+      const round2 = (n: number): number => Math.round(n * 100) / 100;
+      const applyZoom = (): void => {
+        const rounded = round2(zoomFactor);
+        root.dataset.amZoom = String(rounded);
+        // wysiwyg/review 実体（source 中は display:none だが値は保持され復帰時に効く）。
+        editor.view.dom.style.zoom = rounded === 1 ? "" : String(rounded);
+        // source 実体（gutter + textarea を包む zoom レイヤ）。
+        sourceController?.setZoom(rounded);
+      };
+      const nudgeZoom = (delta: number): void => {
+        const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, round2(zoomFactor + delta)));
+        if (next === zoomFactor) return;
+        zoomFactor = next;
+        applyZoom();
+      };
+      const onWheelZoom = (event: WheelEvent): void => {
+        // 修飾なしは通常スクロール。Ctrl（win/linux）/ Cmd（mac）併用時のみズーム。
+        if (!(event.ctrlKey || event.metaKey)) return;
+        // 水平ホイール（deltaY===0）は else 側へ落ちてズームアウトするため対象外。
+        if (event.deltaY === 0) return;
+        // 比較（merge）モードは片ペインしかスケールできず中途半端になるため対象外
+        // （通常スクロールへ委ねる。zoomFactor は保持され比較終了後に効く）。
+        if (modeState.inlineMergeOpen) return;
+        event.preventDefault(); // ブラウザ既定のページズームを抑止し本文のみズームする
+        nudgeZoom(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
+      };
+      // contentEl は全モードで安定なスクロールコンテナ（source は配下に sourceWrap を append）。
+      contentEl.addEventListener("wheel", onWheelZoom, { passive: false });
+      disposers.push(() => contentEl.removeEventListener("wheel", onWheelZoom));
+      applyZoom(); // 初期倍率（1）を data 属性へ反映
+
       const noteGraphPinned = (): boolean => current.noteGraph?.isPinned?.() ?? false;
 
       const modeHandlers: ToolbarModeHandlers = {

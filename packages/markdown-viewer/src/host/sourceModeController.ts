@@ -59,6 +59,8 @@ export interface SourceModeController {
   switchTo(mode: VanillaEditorMode): void;
   /** source モード中のみ非 null。 */
   getTextarea(): HTMLTextAreaElement | null;
+  /** 全体ズーム（Ctrl/Cmd+ホイール）の倍率を source ビューへ適用する。 */
+  setZoom(factor: number): void;
   /** コメント操作用: 一時的にレビューフィルタを解除してコマンドを実行する。 */
   executeInReviewMode(fn: () => void): void;
   /** 比較 enter 用: standalone source UI を撤去する（mode/text は保持）。 */
@@ -118,8 +120,13 @@ const MIRROR_CSS =
 // textarea とミラーを重ねるコンテナ（折り返し幅の基準・min-width:0 で flex 縮小を許可）。
 const TEXT_CONTAINER_CSS = "flex:1 1 auto;min-width:0;position:relative;";
 
-// textarea + 左端行番号ガターを横並びにする wrapper（wrapper 自身が縦スクローラ）。
-const SOURCE_WRAP_CSS = "display:flex;width:100%;height:100%;overflow:auto;";
+// gutter + textarea を縦スクロールする wrapper（wrapper 自身が縦スクローラ）。
+const SOURCE_WRAP_CSS = "width:100%;height:100%;overflow:auto;";
+
+// gutter + textContainer を横並びにし、全体ズーム（Ctrl/Cmd+ホイール）の zoom を掛ける内側
+// レイヤ。ズーム対象をスクローラ（sourceWrap）でなくこの内側に置くことで、拡大時に sourceWrap が
+// スクロールバーを出す（wrapper 自身へ zoom を掛けると overflow:hidden の contentEl に切られる）。
+const SOURCE_INNER_CSS = "display:flex;min-height:100%;box-sizing:border-box;";
 
 // 左端の行番号ガター。論理行ごとに 1 つの div を並べ、各 div の高さはミラー計測値へ
 // 同期する（折り返した論理行でも行番号が先頭に揃う）。padding-top は textarea と一致させ
@@ -139,8 +146,12 @@ export function createSourceModeController(
   const { editor, contentEl, t, persistMode = true } = options;
   let mode: VanillaEditorMode = "wysiwyg";
   let sourceText = "";
+  // 全体ズーム倍率（host が Ctrl/Cmd+ホイールで更新）。source 再表示のたびに再適用する。
+  let sourceZoom = 1;
   let textarea: HTMLTextAreaElement | null = null;
   let sourceWrap: HTMLElement | null = null;
+  // gutter + textarea を包むズーム対象レイヤ（source 表示中のみ非 null）。
+  let sourceInner: HTMLElement | null = null;
   let gutter: HTMLElement | null = null;
   // textarea 背面のミラー（折り返し後の各行の実高さ計測用）。
   let mirror: HTMLElement | null = null;
@@ -235,6 +246,11 @@ export function createSourceModeController(
     delete editor.view.dom.dataset.readonlyMode;
   };
 
+  // 全体ズームを内側レイヤへ適用（source 表示中のみ効く。1 のときはリセット）。
+  const applySourceZoom = (): void => {
+    if (sourceInner) sourceInner.style.zoom = sourceZoom === 1 ? "" : String(sourceZoom);
+  };
+
   const doShowTextarea = (): void => {
     if (textarea) return;
     sourceWrap = document.createElement("div");
@@ -271,7 +287,12 @@ export function createSourceModeController(
     });
 
     textContainer.append(mirror, textarea);
-    sourceWrap.append(gutter, textContainer);
+    sourceInner = document.createElement("div");
+    sourceInner.setAttribute("data-am-source-inner", "");
+    sourceInner.style.cssText = SOURCE_INNER_CSS;
+    sourceInner.append(gutter, textContainer);
+    sourceWrap.append(sourceInner);
+    applySourceZoom();
     editor.view.dom.style.display = "none";
     // textarea を内容高さへ伸長し（overflow:hidden）、sourceWrap（overflow:auto）を唯一の
     // スクローラにする。source 中は contentEl の overflow を hidden にしてスクロールバーの
@@ -297,6 +318,7 @@ export function createSourceModeController(
     syncScheduled = false;
     sourceWrap?.remove();
     sourceWrap = null;
+    sourceInner = null;
     gutter = null;
     mirror = null;
     textarea = null;
@@ -385,6 +407,10 @@ export function createSourceModeController(
     },
     switchTo: applyMode,
     getTextarea: () => textarea,
+    setZoom(factor: number): void {
+      sourceZoom = factor;
+      applySourceZoom();
+    },
     detachStandaloneUi(): void {
       // 比較 enter: standalone source UI を撤去（mode/text は保持）。外部管理ガードに
       // 関わらず DOM を片付けるため do* を直接呼ぶ。

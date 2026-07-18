@@ -283,4 +283,79 @@ describe("mountVanillaMarkdownEditor (G3-1 draft)", () => {
     expect(editor.isDestroyed).toBe(true);
     expect(container.querySelector("[data-am-editor-root]")).toBeNull();
   });
+
+  // Ctrl/Cmd + ホイールで本文テキスト・図を一括拡縮する（ブラウザズーム相当）。
+  // jsdom は CSS zoom を computed へ反映しないため、観測は root[data-am-zoom] で行う。
+  describe("Ctrl/Cmd + ホイールで全体ズーム", () => {
+    const wheel = (el: HTMLElement, init: WheelEventInit): void => {
+      el.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, ...init }));
+    };
+    const mount = (): { root: HTMLElement; content: HTMLElement; destroy: () => void } => {
+      const handle = mountVanillaMarkdownEditor(container, { t, initialContent: "# Hi" });
+      const root = container.querySelector("[data-am-editor-root]") as HTMLElement;
+      const content = root.querySelector("[data-am-content]") as HTMLElement;
+      return { root, content, destroy: handle.destroy };
+    };
+
+    it("初期ズーム倍率は 1", () => {
+      const { root, destroy } = mount();
+      expect(root.dataset.amZoom).toBe("1");
+      destroy();
+    });
+
+    it("Ctrl+ホイール上でズームイン、下でズームアウトする", () => {
+      const { root, content, destroy } = mount();
+      wheel(content, { deltaY: -100, ctrlKey: true });
+      expect(root.dataset.amZoom).toBe("1.1");
+      wheel(content, { deltaY: 100, ctrlKey: true });
+      expect(root.dataset.amZoom).toBe("1");
+      destroy();
+    });
+
+    it("metaKey（mac Cmd）でもズームする", () => {
+      const { root, content, destroy } = mount();
+      wheel(content, { deltaY: -100, metaKey: true });
+      expect(root.dataset.amZoom).toBe("1.1");
+      destroy();
+    });
+
+    it("修飾キーなしのホイールはズームしない（通常スクロール）", () => {
+      const { root, content, destroy } = mount();
+      wheel(content, { deltaY: -100 });
+      expect(root.dataset.amZoom).toBe("1");
+      destroy();
+    });
+
+    it("水平ホイール（deltaY=0）は Ctrl 併用でもズームしない", () => {
+      const { root, content, destroy } = mount();
+      wheel(content, { deltaX: -100, deltaY: 0, ctrlKey: true });
+      expect(root.dataset.amZoom).toBe("1");
+      destroy();
+    });
+
+    it("ズーム倍率を [0.5, 3] にクランプする", () => {
+      const { root, content, destroy } = mount();
+      for (let i = 0; i < 40; i++) wheel(content, { deltaY: -100, ctrlKey: true });
+      expect(root.dataset.amZoom).toBe("3");
+      for (let i = 0; i < 60; i++) wheel(content, { deltaY: 100, ctrlKey: true });
+      expect(root.dataset.amZoom).toBe("0.5");
+      destroy();
+    });
+
+    it("source モードでは内側レイヤ（gutter + textarea）へ zoom を適用する", () => {
+      const handle = mountVanillaMarkdownEditor(container, {
+        t,
+        initialContent: "# Hi",
+        defaultSourceMode: true,
+      });
+      const root = container.querySelector("[data-am-editor-root]") as HTMLElement;
+      const content = root.querySelector("[data-am-content]") as HTMLElement;
+      const inner = root.querySelector("[data-am-source-inner]") as HTMLElement;
+      expect(inner).toBeTruthy();
+      wheel(content, { deltaY: -100, ctrlKey: true });
+      expect(root.dataset.amZoom).toBe("1.1");
+      expect(inner.style.zoom).toBe("1.1");
+      handle.destroy();
+    });
+  });
 });
