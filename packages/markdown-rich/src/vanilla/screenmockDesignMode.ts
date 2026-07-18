@@ -7,7 +7,7 @@ import {
 } from "./screenmockPreview";
 import {
   annotateScreenmockHtmlPaths,
-  applyElementAbsolutePosition,
+  applyElementOffset,
   applyElementSizeToScreenHtml,
   findElementByPath,
   moveScreenmockElement,
@@ -348,19 +348,26 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
     return { parentPath, index, direction };
   };
 
-  /** 自由配置のドロップ座標を、対象要素の親要素基準の px へ変換する。 */
-  const dropPositionOf = (
+  /**
+   * 自由配置のオフセット。既存のオフセットへドラッグ量を積む。
+   *
+   * relative オフセットは「本来の位置からのずれ」なので、要素の現在位置ではなく
+   * 既存の left / top へ差分を足す（現在位置を使うと本来位置との差だけ二重に乗る）。
+   */
+  const dragOffsetOf = (
     event: PointerEvent,
     state: { path: string; startX: number; startY: number },
   ): { leftPx: number; topPx: number } => {
     const el = findRenderedElementByPath(shadow, state.path);
-    const parent = el?.parentElement;
-    if (!el || !parent) return { leftPx: 0, topPx: 0 };
-    const elRect = el.getBoundingClientRect();
-    const parentRect = parent.getBoundingClientRect();
+    const computed = el ? globalThis.getComputedStyle(el) : null;
+    const base = (value: string | undefined): number => {
+      const parsed = Number.parseFloat(value ?? "");
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const isOffsetPositioned = computed?.position === "relative" || computed?.position === "absolute";
     return {
-      leftPx: elRect.left - parentRect.left + (event.clientX - state.startX),
-      topPx: elRect.top - parentRect.top + (event.clientY - state.startY),
+      leftPx: (isOffsetPositioned ? base(computed?.left) : 0) + (event.clientX - state.startX),
+      topPx: (isOffsetPositioned ? base(computed?.top) : 0) + (event.clientY - state.startY),
     };
   };
 
@@ -448,7 +455,7 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
       if (!current.moved) return;
       const drop = current.altKey ? null : resolveDropContext(event, current.path);
       const nextScreenHtml = current.altKey
-        ? applyElementAbsolutePosition(screenHtml, current.path, dropPositionOf(event, current))
+        ? applyElementOffset(screenHtml, current.path, dragOffsetOf(event, current))
         : drop
           ? moveScreenmockElement(screenHtml, current.path, drop.parentPath, drop.index)
           : screenHtml;

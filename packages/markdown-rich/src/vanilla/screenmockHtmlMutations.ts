@@ -225,49 +225,75 @@ function indentTextFor(target: Element, before: Node | null): string | null {
   return isWhitespaceText(origin) ? origin.data : null;
 }
 
-export interface ScreenmockElementPosition {
+export interface ScreenmockElementOffset {
   leftPx: number;
   topPx: number;
 }
 
-/** `position: static` は包含ブロックにならないため「配置済み」とみなさない。 */
-function hasPositionDeclaration(style: string | null): boolean {
-  return (style ?? "").split(";").some((part) => {
-    const declaration = part.trim().toLowerCase();
-    return declaration.startsWith("position:") && declaration.slice("position:".length).trim() !== "static";
-  });
+/** style 属性から指定プロパティの値を取り出す（無ければ null）。 */
+function readDeclaration(style: string | null, name: string): string | null {
+  for (const part of (style ?? "").split(";")) {
+    const colon = part.indexOf(":");
+    if (colon < 0) continue;
+    if (part.slice(0, colon).trim().toLowerCase() !== name) continue;
+    return part.slice(colon + 1).trim();
+  }
+  return null;
 }
 
 /**
- * 対象要素を親要素基準の座標で固定する（自由配置）。
+ * 対象要素をフローに残したままオフセット移動する（自由配置）。
  *
- * 親が静的配置のままだと left/top の基準がさらに外側の祖先になるため、親へ
- * `position: relative` を補う（既に配置指定があるなら触らない）。
+ * `position: absolute` にすると要素がフローから外れて周囲が詰まり、flex アイテムの伸長も
+ * 失われて幅が潰れる。`position: relative` + `left` / `top` なら本来の場所を占有したまま
+ * 見た目だけずれるため、周囲のレイアウトを壊さない。既に absolute 等が指定されている
+ * 要素はその指定を尊重し、座標だけ更新する。オフセットが 0 なら宣言ごと取り除く。
  */
-export function applyElementAbsolutePosition(
+export function applyElementOffset(
   screenHtml: string,
   path: string,
-  position: ScreenmockElementPosition,
+  offset: ScreenmockElementOffset,
 ): string {
   const template = document.createElement("template");
   template.innerHTML = screenHtml;
   const target = findElementByPath(template.content, path);
   if (!target) return screenHtml;
 
-  target.setAttribute(
-    "style",
-    mergeStyleAttribute(target.getAttribute("style"), {
-      position: "absolute",
-      left: `${Math.round(position.leftPx)}px`,
-      top: `${Math.round(position.topPx)}px`,
-    }),
-  );
+  const style = target.getAttribute("style");
+  const left = Math.round(offset.leftPx);
+  const top = Math.round(offset.topPx);
 
-  const parent = target.parentElement;
-  if (parent && !hasPositionDeclaration(parent.getAttribute("style"))) {
-    parent.setAttribute("style", mergeStyleAttribute(parent.getAttribute("style"), { position: "relative" }));
+  if (left === 0 && top === 0) {
+    const cleared = removeDeclarations(style, ["position", "left", "top"]);
+    setStyleAttribute(target, cleared);
+  } else {
+    // static は配置指定として機能しない（left/top が効かない）ため relative へ読み替える。
+    const declared = readDeclaration(style, "position");
+    const position = !declared || declared.toLowerCase() === "static" ? "relative" : declared;
+    setStyleAttribute(
+      target,
+      mergeStyleAttribute(style, { position, left: `${left}px`, top: `${top}px` }),
+    );
   }
 
   removePathAttributes(template.content);
   return template.innerHTML;
 }
+
+function setStyleAttribute(target: Element, style: string): void {
+  if (style.trim()) target.setAttribute("style", style);
+  else target.removeAttribute("style");
+}
+
+function removeDeclarations(style: string | null, names: string[]): string {
+  return (style ?? "")
+    .split(";")
+    .filter((part) => {
+      const colon = part.indexOf(":");
+      if (colon < 0) return part.trim() !== "";
+      return !names.includes(part.slice(0, colon).trim().toLowerCase());
+    })
+    .map((part) => `${part.trim()};`)
+    .join(" ");
+}
+

@@ -1,5 +1,5 @@
 import {
-  applyElementAbsolutePosition,
+  applyElementOffset,
   moveScreenmockElement,
 } from "../vanilla/screenmockHtmlMutations";
 
@@ -64,44 +64,51 @@ describe("moveScreenmockElement", () => {
   });
 });
 
-describe("applyElementAbsolutePosition", () => {
-  it("対象へ absolute と left/top を書き、親へ relative を付ける", () => {
+describe("applyElementOffset", () => {
+  it("フローを保つ相対オフセットを書き、親には触れない", () => {
     const source = '<div class="root"><button style="color: red;">OK</button></div>';
 
-    const out = applyElementAbsolutePosition(source, "0/0", { leftPx: 12.4, topPx: 30.6 });
+    const out = applyElementOffset(source, "0/0", { leftPx: 12.4, topPx: 30.6 });
 
-    expect(out).toContain('<div class="root" style="position: relative;">');
-    expect(out).toContain('<button style="color: red; position: absolute; left: 12px; top: 31px;">OK</button>');
-  });
-
-  it("親が既に配置済みなら親の style を変えない", () => {
-    const source = '<div class="root" style="position: relative;"><span>x</span></div>';
-
-    const out = applyElementAbsolutePosition(source, "0/0", { leftPx: 5, topPx: 5 });
-
-    expect(out).toContain('<div class="root" style="position: relative;">');
-    expect((out.match(/position: relative/g) ?? []).length).toBe(1);
-  });
-
-  it("親が position: static のときは relative を補う", () => {
-    const source = '<div class="root" style="position: static;"><span>x</span></div>';
-
-    const out = applyElementAbsolutePosition(source, "0/0", { leftPx: 5, topPx: 5 });
-
-    expect(out).toContain('<div class="root" style="position: relative;">');
+    expect(out).toContain('<div class="root">');
+    expect(out).toContain('<button style="color: red; position: relative; left: 12px; top: 31px;">OK</button>');
   });
 
   it("既存の left/top を上書きする", () => {
-    const source = '<div><span style="position: absolute; left: 1px; top: 2px;">x</span></div>';
+    const source = '<div><span style="position: relative; left: 1px; top: 2px;">x</span></div>';
 
-    const out = applyElementAbsolutePosition(source, "0/0", { leftPx: 40, topPx: 50 });
+    const out = applyElementOffset(source, "0/0", { leftPx: 40, topPx: 50 });
 
-    expect(out).toContain('style="position: absolute; left: 40px; top: 50px;"');
+    expect(out).toContain('style="position: relative; left: 40px; top: 50px;"');
+  });
+
+  it("オフセットが 0 なら position / left / top を残さない", () => {
+    const source = '<div><span style="position: relative; left: 10px; top: 10px; color: red;">x</span></div>';
+
+    const out = applyElementOffset(source, "0/0", { leftPx: 0, topPx: 0 });
+
+    expect(out).toContain('<span style="color: red;">x</span>');
+  });
+
+  it("position: static は relative へ読み替える", () => {
+    const source = '<div><span style="position: static;">x</span></div>';
+
+    const out = applyElementOffset(source, "0/0", { leftPx: 5, topPx: 6 });
+
+    expect(out).toContain('style="position: relative; left: 5px; top: 6px;"');
+  });
+
+  it("既に absolute 指定の要素では position を上書きしない", () => {
+    const source = '<div><span style="position: absolute; left: 1px;">x</span></div>';
+
+    const out = applyElementOffset(source, "0/0", { leftPx: 5, topPx: 6 });
+
+    expect(out).toContain('style="position: absolute; left: 5px; top: 6px;"');
   });
 
   it("存在しないパスでは元の HTML を返す", () => {
     const source = "<div><span>a</span></div>";
 
-    expect(applyElementAbsolutePosition(source, "3/3", { leftPx: 1, topPx: 1 })).toBe(source);
+    expect(applyElementOffset(source, "3/3", { leftPx: 1, topPx: 1 })).toBe(source);
   });
 });
