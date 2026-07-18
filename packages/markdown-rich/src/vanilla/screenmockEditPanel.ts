@@ -9,10 +9,13 @@ import {
   removeScreenmockElement,
   removeScreenmockElementHeight,
   removeScreenmockElementWidth,
+  setScreenmockElementOffset,
+  setScreenmockElementStyleDeclaration,
   setScreenmockElementHeight,
   setScreenmockElementHref,
   setScreenmockElementText,
   setScreenmockElementWidth,
+  toggleScreenmockElementClass,
 } from "./screenmockHtmlMutations";
 
 export interface CreateScreenmockEditPanelOptions {
@@ -42,6 +45,8 @@ interface PartItem {
   html: string;
 }
 
+export const SCREENMOCK_PALETTE_DRAG_EVENT = "am-screenmock-palette-drag-start";
+
 const STYLE_ID = "am-screenmock-edit-panel";
 
 const LAYOUT_PARTS: PartItem[] = [
@@ -66,6 +71,30 @@ const COMPONENT_PARTS: PartItem[] = [
   { className: "sm-img", html: '<div class="sm-img"></div>' },
 ];
 
+const COLOR_TOKENS = [
+  "--sm-primary",
+  "--sm-paper",
+  "--sm-bg",
+  "--sm-text",
+  "--sm-muted",
+  "--sm-on-primary",
+  "--am-color-error-main",
+  "--am-color-success-main",
+  "--am-color-warning-main",
+];
+
+const COLOR_TOKEN_FALLBACKS: Record<string, string> = {
+  "--sm-primary": "#0969da",
+  "--sm-paper": "#ffffff",
+  "--sm-bg": "#f6f8fa",
+  "--sm-text": "#1f2328",
+  "--sm-muted": "#656d76",
+  "--sm-on-primary": "#ffffff",
+  "--am-color-error-main": "#d1242f",
+  "--am-color-success-main": "#1a7f37",
+  "--am-color-warning-main": "#9a6700",
+};
+
 function ensurePanelStyle(): void {
   ensureStyle(STYLE_ID, `
 .am-smep{display:flex;flex-direction:column;min-height:100%;font:13px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--am-color-text-primary,#1f2328);}
@@ -85,6 +114,10 @@ function ensurePanelStyle(): void {
 .am-smep-field{display:flex;flex-direction:column;gap:4px;}
 .am-smep-field label{font-size:12px;color:var(--am-color-text-secondary,#656d76);}
 .am-smep-field input,.am-smep-field select{width:100%;min-height:30px;padding:4px 7px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;background:var(--am-color-bg-paper,#fff);color:inherit;font:inherit;box-sizing:border-box;}
+.am-smep-palette{display:grid;grid-template-columns:1fr;gap:4px;}
+.am-smep-token{display:flex;align-items:center;gap:7px;min-height:28px;padding:4px 7px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;background:var(--am-color-bg-paper,#fff);color:inherit;font:inherit;text-align:left;cursor:pointer;}
+.am-smep-token[aria-pressed="true"]{border-color:var(--am-color-primary-main,#0969da);background:var(--am-color-action-selected,rgba(9,105,218,.12));}
+.am-smep-swatch{flex:0 0 auto;width:14px;height:14px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:3px;background:var(--am-smep-swatch,#fff);}
 .am-smep-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .am-smep-muted{color:var(--am-color-text-secondary,#656d76);font-size:12px;}
 .am-smep-chip{display:inline-flex;width:max-content;max-width:100%;padding:2px 7px;border-radius:999px;background:var(--am-color-action-selected,rgba(9,105,218,.12));color:var(--am-color-primary-main,#0969da);font-size:12px;font-weight:600;}
@@ -131,6 +164,13 @@ function readStyleDeclaration(style: string | null, name: string): string {
     }
   }
   return "";
+}
+
+function readPxDeclaration(style: string | null, name: string): string {
+  const value = readStyleDeclaration(style, name).replace(/px$/i, "").trim();
+  if (!value) return "";
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? String(parsed) : "";
 }
 
 function readDirectText(el: Element | null): string {
@@ -279,6 +319,33 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     commitSource(setScreenmockElementHref(source, screenIndex, path, value || null));
   };
 
+  const applyVariant = (className: string, enabled: boolean): void => {
+    const { source, screenIndex, path } = currentSelection();
+    if (!path || !designMode) return;
+    commitSource(toggleScreenmockElementClass(source, screenIndex, path, className, enabled));
+  };
+
+  const applyColor = (property: "background" | "color", value: string): void => {
+    const { source, screenIndex, path } = currentSelection();
+    if (!path || !designMode) return;
+    commitSource(setScreenmockElementStyleDeclaration(source, screenIndex, path, property, value || null));
+  };
+
+  const applyOffset = (property: "left" | "top", value: string): void => {
+    const { source, screenIndex, path } = currentSelection();
+    if (!path || !designMode) return;
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) return;
+    commitSource(
+      setScreenmockElementOffset(
+        source,
+        screenIndex,
+        path,
+        property === "left" ? { leftPx: parsed } : { topPx: parsed },
+      ),
+    );
+  };
+
   const removeSelected = (): void => {
     const { source, screenIndex, path } = currentSelection();
     if (!path || !designMode) return;
@@ -307,6 +374,21 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
       for (const part of parts) {
         const button = makeButton(part.className, "am-smep-part");
         button.addEventListener("click", () => insertPart(part));
+        button.addEventListener("pointerdown", (event) => {
+          if (!designMode) return;
+          event.preventDefault();
+          button.setPointerCapture?.(event.pointerId);
+          document.dispatchEvent(
+            new CustomEvent(SCREENMOCK_PALETTE_DRAG_EVENT, {
+              detail: {
+                html: part.html,
+                pointerId: event.pointerId,
+                clientX: event.clientX,
+                clientY: event.clientY,
+              },
+            }),
+          );
+        });
         grid.appendChild(button);
       }
     };
@@ -354,6 +436,52 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     heightInput.value = readStyleDeclaration(el.getAttribute("style"), "height").replace(/px$/, "");
     heightInput.addEventListener("change", () => applySize("height", heightInput.value));
 
+    const colors = append(content, "section", "am-smep-section");
+    append(colors, "div", "am-smep-heading").textContent = text("screenmockPanelColors", options);
+    const renderColorField = (property: "background" | "color", labelKey: string): void => {
+      const field = append(colors, "div", "am-smep-field");
+      append(field, "label").textContent = text(labelKey, options);
+      const palette = append(field, "div", "am-smep-palette");
+      const current = readStyleDeclaration(el.getAttribute("style"), property);
+      const defaultButton = makeButton(text("screenmockPanelDefault", options), "am-smep-token");
+      defaultButton.setAttribute("aria-pressed", String(!current));
+      defaultButton.addEventListener("click", () => applyColor(property, ""));
+      const defaultSwatch = append(defaultButton, "span", "am-smep-swatch");
+      defaultSwatch.style.background = "transparent";
+      palette.appendChild(defaultButton);
+      for (const token of COLOR_TOKENS) {
+        const value = `var(${token})`;
+        const button = makeButton(token, "am-smep-token");
+        button.setAttribute("aria-pressed", String(current === value));
+        button.style.setProperty("--am-smep-swatch", `var(${token},${COLOR_TOKEN_FALLBACKS[token]})`);
+        const swatch = document.createElement("span");
+        swatch.className = "am-smep-swatch";
+        button.prepend(swatch);
+        button.addEventListener("click", () => applyColor(property, value));
+        palette.appendChild(button);
+      }
+    };
+    renderColorField("background", "screenmockPanelBackgroundColor");
+    renderColorField("color", "screenmockPanelTextColor");
+
+    const offset = append(content, "section", "am-smep-section");
+    append(offset, "div", "am-smep-heading").textContent = text("screenmockPanelOffset", options);
+    const offsetRow = append(offset, "div", "am-smep-row");
+    const leftField = append(offsetRow, "div", "am-smep-field");
+    append(leftField, "label").textContent = text("screenmockPanelOffsetLeft", options);
+    const leftInput = append(leftField, "input");
+    leftInput.type = "number";
+    leftInput.step = "1";
+    leftInput.value = readPxDeclaration(el.getAttribute("style"), "left");
+    leftInput.addEventListener("change", () => applyOffset("left", leftInput.value));
+    const topField = append(offsetRow, "div", "am-smep-field");
+    append(topField, "label").textContent = text("screenmockPanelOffsetTop", options);
+    const topInput = append(topField, "input");
+    topInput.type = "number";
+    topInput.step = "1";
+    topInput.value = readPxDeclaration(el.getAttribute("style"), "top");
+    topInput.addEventListener("change", () => applyOffset("top", topInput.value));
+
     const textField = append(content, "div", "am-smep-field");
     append(textField, "label").textContent = ["input", "textarea"].includes(el.tagName.toLowerCase())
       ? text("screenmockPanelPlaceholder", options)
@@ -378,6 +506,35 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
       }
       select.value = (el.getAttribute("href") ?? "").startsWith("#") ? (el.getAttribute("href") ?? "").slice(1) : "";
       select.addEventListener("change", () => applyHref(select.value));
+    }
+
+    if (el.classList.contains("sm-btn") || el.classList.contains("sm-sidebar")) {
+      const variantField = append(content, "div", "am-smep-field");
+      append(variantField, "label").textContent = text("screenmockPanelVariant", options);
+      const variant = append(variantField, "select");
+      if (el.classList.contains("sm-btn")) {
+        const standard = document.createElement("option");
+        standard.value = "standard";
+        standard.textContent = text("screenmockPanelVariantStandard", options);
+        variant.appendChild(standard);
+        const primary = document.createElement("option");
+        primary.value = "primary";
+        primary.textContent = text("screenmockPanelVariantPrimary", options);
+        variant.appendChild(primary);
+        variant.value = el.classList.contains("sm-btn-primary") ? "primary" : "standard";
+        variant.addEventListener("change", () => applyVariant("sm-btn-primary", variant.value === "primary"));
+      } else {
+        const left = document.createElement("option");
+        left.value = "left";
+        left.textContent = text("screenmockPanelVariantLeft", options);
+        variant.appendChild(left);
+        const right = document.createElement("option");
+        right.value = "right";
+        right.textContent = text("screenmockPanelVariantRight", options);
+        variant.appendChild(right);
+        variant.value = el.classList.contains("sm-sidebar-right") ? "right" : "left";
+        variant.addEventListener("change", () => applyVariant("sm-sidebar-right", variant.value === "right"));
+      }
     }
 
     renderActions(content);

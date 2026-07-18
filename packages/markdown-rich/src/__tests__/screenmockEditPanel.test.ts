@@ -10,9 +10,21 @@ const labels: Record<string, string> = {
   screenmockPanelCategoryComponents: "Components",
   screenmockPanelNoSelection: "No selection",
   screenmockPanelElementType: "Type",
+  screenmockPanelVariant: "Variant",
+  screenmockPanelVariantStandard: "Standard",
+  screenmockPanelVariantPrimary: "Primary",
+  screenmockPanelVariantLeft: "Left",
+  screenmockPanelVariantRight: "Right",
   screenmockPanelSize: "Size",
   screenmockPanelWidth: "Width",
   screenmockPanelHeight: "Height",
+  screenmockPanelColors: "Colors",
+  screenmockPanelBackgroundColor: "Background color",
+  screenmockPanelTextColor: "Text color",
+  screenmockPanelDefault: "Default",
+  screenmockPanelOffset: "Offset",
+  screenmockPanelOffsetLeft: "Left (px)",
+  screenmockPanelOffsetTop: "Top (px)",
   screenmockPanelText: "Text",
   screenmockPanelPlaceholder: "Placeholder",
   screenmockPanelHref: "Link target",
@@ -162,6 +174,68 @@ title: B
     const selectAfterRender = panel.el.querySelector("select") as HTMLSelectElement;
     change(selectAfterRender, "");
     expect(getSource()).toContain('<a class="sm-btn">Go</a>');
+  });
+
+  it("switches supported variants by rewriting classes", () => {
+    const { panel, getSource, setSelection } = setup(`<button class="sm-btn">OK</button><aside class="sm-sidebar">Nav</aside>`);
+    setSelection("0");
+    const buttonVariant = panel.el.querySelector("select") as HTMLSelectElement;
+
+    change(buttonVariant, "primary");
+    expect(getSource()).toContain('<button class="sm-btn sm-btn-primary">OK</button>');
+
+    const buttonVariantAfterRender = panel.el.querySelector("select") as HTMLSelectElement;
+    change(buttonVariantAfterRender, "standard");
+    expect(getSource()).toContain('<button class="sm-btn">OK</button>');
+
+    setSelection("1");
+    const sidebarVariant = panel.el.querySelector("select") as HTMLSelectElement;
+    change(sidebarVariant, "right");
+    expect(getSource()).toContain('<aside class="sm-sidebar sm-sidebar-right">Nav</aside>');
+  });
+
+  it("writes color token declarations and clears them with the default option", () => {
+    const { panel, getSource, setSelection } = setup(`<div class="sm-card">Card</div>`);
+    setSelection("0");
+
+    clickByText(panel.el, "--sm-primary");
+    expect(getSource()).toContain('style="background: var(--sm-primary);"');
+
+    clickByText(panel.el, "Default");
+    expect(getSource()).not.toContain("background:");
+
+    const colorToken = Array.from(panel.el.querySelectorAll("button")).filter((button) =>
+      button.textContent?.includes("--sm-on-primary"),
+    )[1];
+    if (!colorToken) throw new Error("Text color token not found");
+    colorToken.click();
+    expect(getSource()).toContain('style="color: var(--sm-on-primary);"');
+  });
+
+  it("writes integer offsets and removes declarations when set to zero", () => {
+    const { panel, getSource, setSelection } = setup(
+      `<button class="sm-btn" style="position: relative; left: 12px; top: 4px;">OK</button>`,
+    );
+    setSelection("0");
+    const numbers = panel.el.querySelectorAll("input[type='number']");
+    const left = numbers[2] as HTMLInputElement;
+    const top = numbers[3] as HTMLInputElement;
+
+    expect(left.value).toBe("12");
+    expect(top.value).toBe("4");
+
+    change(left, "8");
+    expect(getSource()).toContain("left: 8px;");
+
+    const leftAfterRender = panel.el.querySelectorAll("input[type='number']")[2] as HTMLInputElement;
+    change(leftAfterRender, "0");
+    expect(getSource()).not.toContain("left:");
+    expect(getSource()).toContain("top: 4px;");
+
+    const topAfterRender = panel.el.querySelectorAll("input[type='number']")[3] as HTMLInputElement;
+    change(topAfterRender, "0");
+    expect(getSource()).not.toContain("position:");
+    expect(getSource()).not.toContain("top:");
   });
 
   it("deletes and duplicates the selected element", () => {

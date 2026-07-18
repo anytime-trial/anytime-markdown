@@ -3,6 +3,7 @@ import {
   percentBasisWidth,
   previewScale,
 } from "../vanilla/screenmockDesignMode";
+import { SCREENMOCK_PALETTE_DRAG_EVENT } from "../vanilla/screenmockEditPanel";
 import {
   annotateScreenmockHtmlPaths,
   applyElementSizeToScreenHtml,
@@ -250,6 +251,32 @@ describe("screenmockDesignMode ドラッグ操作", () => {
     document.dispatchEvent(pointer("pointerup", { clientX: 50, clientY: 4 }));
 
     expect(getSource()).toBe('<div class="sm-col"><button>b</button><span>a</span></div>');
+    restore();
+    host.destroy();
+  });
+
+  it("パレットからのドラッグ挿入で挿入線を出し、指定位置へ挿入する", () => {
+    const { host, getSource } = mountDesignPreview('<div class="sm-col"><span>a</span><span>b</span></div>');
+    const restore = stubGeometry(host, stackedBoxes);
+    const shadow = host.shadowRoot as ShadowRoot;
+
+    document.dispatchEvent(
+      new CustomEvent(SCREENMOCK_PALETTE_DRAG_EVENT, {
+        detail: {
+          html: '<button class="sm-btn">Button</button>',
+          pointerId: 1,
+          clientX: 50,
+          clientY: 60,
+        },
+      }),
+    );
+    document.dispatchEvent(pointer("pointermove", { clientX: 50, clientY: 15 }));
+
+    expect(shadow.querySelector(".am-smdm-insertline")).not.toBeNull();
+
+    document.dispatchEvent(pointer("pointerup", { clientX: 50, clientY: 15 }));
+
+    expect(getSource()).toBe('<div class="sm-col"><span>a</span><button class="sm-btn">Button</button><span>b</span></div>');
     restore();
     host.destroy();
   });

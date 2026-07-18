@@ -10,10 +10,12 @@ import {
   applyElementOffset,
   applyElementSizeToScreenHtml,
   findElementByPath,
+  insertScreenmockElement,
   moveScreenmockElement,
   replaceScreenmockScreenHtml,
 } from "./screenmockHtmlMutations";
 import { resolveDropTarget, type DropCandidate, type DropDirection } from "./screenmockDropTarget";
+import { SCREENMOCK_PALETTE_DRAG_EVENT } from "./screenmockEditPanel";
 
 export type { ScreenmockElementSize } from "./screenmockHtmlMutations";
 
@@ -179,6 +181,15 @@ type DragState =
       startY: number;
       moved: boolean;
       altKey: boolean;
+    }
+  | {
+      kind: "palette";
+      pointerId: number;
+      html: string;
+      screenIndex: number;
+      startX: number;
+      startY: number;
+      moved: boolean;
     };
 
 export function createScreenmockDesignModePreview(
@@ -373,7 +384,7 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
    */
   const resolveDropContext = (
     event: PointerEvent,
-    fromPath: string,
+    fromPath: string | null,
   ): { parentPath: string; index: number; direction: DropDirection } | null => {
     const stage = shadow.querySelector(".am-sm-wrap") as HTMLElement | null;
     if (!stage) return null;
@@ -388,7 +399,7 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
       container = hasElementChildren ? hovered : (hovered.parentElement ?? stage);
     }
     const parentPath = container === stage ? "" : (container.dataset.smPath ?? "");
-    if (parentPath === fromPath || parentPath.startsWith(`${fromPath}/`)) return null;
+    if (fromPath && (parentPath === fromPath || parentPath.startsWith(`${fromPath}/`))) return null;
     const computed = globalThis.getComputedStyle(container);
     const direction: DropDirection =
       computed.display.includes("flex") && computed.flexDirection.startsWith("row") ? "horizontal" : "vertical";
@@ -474,20 +485,20 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
   /** 挿入位置の線（並べ替え）またはモードバッジ（自由配置）をステージ上へ描く。 */
   const renderDragFeedback = (event: PointerEvent): void => {
     clearDragFeedback();
-    if (drag?.kind !== "element") return;
+    if (drag?.kind !== "element" && drag?.kind !== "palette") return;
     const stage = shadow.querySelector(".am-sm-wrap") as HTMLElement | null;
     if (!stage) return;
     const stageRect = stage.getBoundingClientRect();
     const scale = currentScale();
     const marker = document.createElement("div");
 
-    if (drag.altKey) {
+    if (drag.kind === "element" && drag.altKey) {
       marker.className = "am-smdm-dragbadge";
       marker.textContent = options.freePositionLabel ?? "";
       marker.style.left = `${(event.clientX - stageRect.left) / scale + 12}px`;
       marker.style.top = `${(event.clientY - stageRect.top) / scale + 12}px`;
     } else {
-      const drop = resolveDropContext(event, drag.path);
+      const drop = resolveDropContext(event, drag.kind === "element" ? drag.path : null);
       if (!drop) return;
       const container =
         drop.parentPath === "" ? stage : (findRenderedElementByPath(shadow, drop.parentPath) ?? stage);
@@ -516,7 +527,15 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
   };
 
   const onPointerMove = (event: PointerEvent): void => {
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    const eventPointerId = (event as PointerEvent & { pointerId?: number }).pointerId;
+    if (!drag || (typeof eventPointerId === "number" && eventPointerId !== drag.pointerId)) return;
+    if (drag.kind === "palette") {
+      drag.moved ||=
+        Math.abs(event.clientX - drag.startX) > DRAG_THRESHOLD_PX ||
+        Math.abs(event.clientY - drag.startY) > DRAG_THRESHOLD_PX;
+      if (drag.moved) renderDragFeedback(event);
+      return;
+    }
     if (drag.kind === "element") {
       drag.moved ||=
         Math.abs(event.clientX - drag.startX) > DRAG_THRESHOLD_PX ||
@@ -542,7 +561,8 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
   };
 
   const onPointerUp = (event: PointerEvent): void => {
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    const eventPointerId = (event as PointerEvent & { pointerId?: number }).pointerId;
+    if (!drag || (typeof eventPointerId === "number" && eventPointerId !== drag.pointerId)) return;
     const current = drag;
     drag = null;
     clearDragFeedback();
@@ -568,6 +588,19 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
       return;
     }
 
+    if (current.kind === "palette") {
+      if (!current.moved) return;
+      const drop = resolveDropContext(event, null);
+      if (!drop) return;
+      const next = insertScreenmockElement(sourceText, current.screenIndex, drop.parentPath, current.html, drop.index);
+      if (next === sourceText) return;
+      const newPath = drop.parentPath ? `${drop.parentPath}/${drop.index}` : String(drop.index);
+      selectedPath = newPath;
+      options.onSelectionChange?.(newPath);
+      options.setSource(next);
+      return;
+    }
+
     const nextScreenHtml = applyElementSizeToScreenHtml(screenHtml, current.path, {
       widthPercent: (current.width / current.parentWidth) * 100,
       heightPx: current.height,
@@ -580,20 +613,46 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
    * 状態だけ落とす。これが無いと挿入線やバッジが消えずに残る。
    */
   const onPointerCancel = (event: PointerEvent): void => {
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    const eventPointerId = (event as PointerEvent & { pointerId?: number }).pointerId;
+    if (!drag || (typeof eventPointerId === "number" && eventPointerId !== drag.pointerId)) return;
     const cancelled = drag;
     drag = null;
     clearDragFeedback();
     if (cancelled.kind === "element") clearDragGhost(cancelled.path);
   };
 
+  const onPaletteDragStart = (event: Event): void => {
+    const detail = (event as CustomEvent<{
+      html?: unknown;
+      pointerId?: unknown;
+      clientX?: unknown;
+      clientY?: unknown;
+    }>).detail;
+    if (!host.isConnected) return;
+    if (drag || typeof detail?.html !== "string") return;
+    const pointerId = typeof detail.pointerId === "number" ? detail.pointerId : 1;
+    const startX = typeof detail.clientX === "number" ? detail.clientX : 0;
+    const startY = typeof detail.clientY === "number" ? detail.clientY : 0;
+    drag = {
+      kind: "palette",
+      pointerId,
+      html: detail.html,
+      screenIndex: activeIndex,
+      startX,
+      startY,
+      moved: false,
+    };
+  };
+
   document.addEventListener("pointermove", onPointerMove);
   document.addEventListener("pointerup", onPointerUp);
   document.addEventListener("pointercancel", onPointerCancel);
+  document.addEventListener(SCREENMOCK_PALETTE_DRAG_EVENT, onPaletteDragStart);
   host.destroy = () => {
     document.removeEventListener("pointermove", onPointerMove);
     document.removeEventListener("pointerup", onPointerUp);
     document.removeEventListener("pointercancel", onPointerCancel);
+    document.removeEventListener(SCREENMOCK_PALETTE_DRAG_EVENT, onPaletteDragStart);
     clearDragFeedback();
     host.remove();
   };
