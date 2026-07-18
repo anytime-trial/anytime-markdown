@@ -126,13 +126,6 @@ const DRAG_THRESHOLD_PX = 4;
 const DRAG_GHOST_OPACITY = "0.75";
 
 /**
- * プレビューの拡大率（画面 px / レイアウト px）。
- *
- * 右ペインはズーム可能なため、ポインタの移動量（画面 px）をそのままモックの座標
- * （レイアウト px）に使うとズーム時にカーソルとずれる。実寸と描画幅の比から換算する。
- * どちらかが 0（未レイアウト・jsdom）なら 1 として扱う。
- */
-/**
  * `width: X%` の基準になる親のコンテンツ幅（レイアウト px）。
  *
  * パーセント指定は親のコンテンツボックスに対して解決されるため、境界ボックス幅を基準に
@@ -147,6 +140,13 @@ export function percentBasisWidth(parent: Element, fallbackWidth: number): numbe
   return content > 0 ? content : Math.max(fallbackWidth, 1);
 }
 
+/**
+ * プレビューの拡大率（画面 px / レイアウト px）。
+ *
+ * 右ペインはズーム可能なため、ポインタの移動量（画面 px）をそのままモックの座標
+ * （レイアウト px）に使うとズーム時にカーソルとずれる。実寸と描画幅の比から換算する。
+ * どちらかが 0（未レイアウト・jsdom）なら 1 として扱う。
+ */
 export function previewScale(renderedWidth: number, layoutWidth: number): number {
   if (!Number.isFinite(renderedWidth) || !Number.isFinite(layoutWidth)) return 1;
   if (renderedWidth <= 0 || layoutWidth <= 0) return 1;
