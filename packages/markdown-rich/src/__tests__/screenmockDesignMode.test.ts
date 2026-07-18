@@ -302,4 +302,18 @@ describe("screenmockDesignMode ドラッグ操作", () => {
     restore();
     host.destroy();
   });
+  it("ヒント文言を指定するとステージ上部に表示する", () => {
+    const source = '<div class="sm-col"><span>a</span></div>';
+    const host = createScreenmockDesignModePreview({
+      source,
+      getSource: () => source,
+      setSource: () => {},
+      hintLabel: "クリックで選択 / ドラッグで並べ替え",
+    });
+    document.body.appendChild(host);
+
+    const hint = host.shadowRoot?.querySelector(".am-smdm-hint");
+    expect(hint?.textContent).toBe("クリックで選択 / ドラッグで並べ替え");
+    host.destroy();
+  });
 });

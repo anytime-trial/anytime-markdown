@@ -100,6 +100,7 @@ const SCREENMOCK_DESIGN_BASE_STYLE = `
 .am-smdm-root{display:flex;flex-direction:column;gap:6px;min-height:360px;height:100%;}
 .am-smdm-tabs{display:flex;gap:4px;overflow:auto;padding:2px 0;}
 .am-smdm-tabs button{flex:0 0 auto;min-height:28px;padding:3px 10px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;cursor:pointer;font:inherit;background:transparent;color:var(--am-color-text-secondary,#656d76);}
+.am-smdm-hint{flex:0 0 auto;padding:2px 0 6px;color:var(--am-color-text-secondary,#656d76);font-size:0.75rem;}
 .am-smdm-tabs button[aria-selected="true"]{background:var(--am-color-action-selected,rgba(9,105,218,.12));color:var(--am-color-primary-main,#0969da);}
 .am-smdm-stage{position:relative;flex:1 1 auto;min-height:320px;overflow:auto;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;background:var(--sm-bg,#f6f8fa);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--sm-text,#1f2328);padding:var(--sm-gap,12px);}
 .am-smdm-stage .am-sm-wrap{display:block;position:relative;min-height:100%;background:var(--sm-paper,#fff);border:0;border-radius:0;overflow:hidden;}
@@ -255,6 +256,7 @@ export function createScreenmockDesignModePreview(
 ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
 <div class="am-smdm-root">
   ${screens.length > 1 ? `<div class="am-smdm-tabs" role="tablist" aria-label="${escapeHtml(options.tabListLabel ?? "Screens")}">${tabs}</div>` : ""}
+  ${options.hintLabel ? `<div class="am-smdm-hint">${escapeHtml(options.hintLabel)}</div>` : ""}
   <div class="am-smdm-stage">${body}</div>
 </div>
 <style>${SCREENMOCK_DESIGN_PROTECTION_STYLE}</style>`;

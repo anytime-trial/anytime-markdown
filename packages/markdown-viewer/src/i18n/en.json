@@ -33,6 +33,8 @@
     "screenmockDesignMode": "Design edit",
     "screenmockEmptyHint": "Add screens with frontmatter and HTML.",
     "screenmockTabsLabel": "Screens",
+    "screenmockDesignHint": "Click to select / drag to reorder / Alt+drag to position freely / drag handles to resize",
+    "screenmockDragFreePosition": "Free position",
     "source": "Source",
     "wysiwyg": "Edit",
     "fileActions": "File",

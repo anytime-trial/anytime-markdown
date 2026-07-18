@@ -496,6 +496,8 @@ export function installCodeBlockOverlay(
                 setSource: (source) => editState.onFsTextChange(source),
                 emptyHint: t("screenmockEmptyHint"),
                 tabListLabel: t("screenmockTabsLabel"),
+                hintLabel: t("screenmockDesignHint"),
+                freePositionLabel: t("screenmockDragFreePosition"),
                 initialSelectedPath: lastSelectedPath ?? undefined,
                 onSelectionChange: (path) => {
                   lastSelectedPath = path;
