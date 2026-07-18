@@ -475,8 +475,12 @@ interface DefectRiskState {
 /** Phase 6 S5-B: 属人度。C4 要素単位まで集約済みのエントリをサーバーから受け取る */
 interface BusFactorState {
   entries: BusFactorEntry[];
-  /** C4 モデルが解決できず集約されなかった場合 false（データ無しと区別する） */
-  c4ModelAvailable: boolean;
+  /**
+   * C4 モデルが解決できず集約されなかった場合 false（データ無しと区別する）。
+   * null は未確認（repo / release 切替直後など）。前回の判定を新しい対象へ持ち越すと、
+   * 集約できていないのに注記が出ない／できているのに出る、のどちらも起き得るため区別する。
+   */
+  c4ModelAvailable: boolean | null;
   loading: boolean;
   controller: AbortController | null;
   timer: ReturnType<typeof setTimeout> | null;
@@ -571,7 +575,7 @@ export function mountC4Viewer(
   // ── Data states ──
   const hotspotState: HotspotState = { data: null, loading: false, controller: null, timer: null };
   const defectRiskState: DefectRiskState = { entries: [], loading: false, controller: null, timer: null };
-  const busFactorState: BusFactorState = { entries: [], c4ModelAvailable: true, loading: false, controller: null, timer: null };
+  const busFactorState: BusFactorState = { entries: [], c4ModelAvailable: null, loading: false, controller: null, timer: null };
   const tcState: TCState = { edges: [], granularity: 'commit', loading: false, controller: null, timer: null };
   const elemFnsState: ElementFunctionsState = { data: null, loading: false, controller: null };
   const fnGraphState: FunctionGraphState = { data: null, loading: false, error: null, controller: null };
@@ -1030,10 +1034,20 @@ export function mountC4Viewer(
   }
 
   // ── Data fetch: BusFactor（Phase 6 S5-B） ──
+  /**
+   * 対象（repo / release / serverUrl）が変わったら集約結果と C4 モデル解決可否を同時に捨てる。
+   * 可否だけ残すと、bus-factor overlay 非表示中の切替では再取得が走らないため、
+   * 前の対象の判定が次の対象の注記として表示されてしまう。
+   */
+  function resetBusFactorState(): void {
+    busFactorState.entries = [];
+    busFactorState.c4ModelAvailable = null;
+  }
+
   function fetchBusFactor(): void {
     if (destroyed) return;
     const { serverUrl } = props;
-    if (!serverUrl) { busFactorState.entries = []; scheduleRender(); return; }
+    if (!serverUrl) { resetBusFactorState(); scheduleRender(); return; }
     if (busFactorState.timer !== null) clearTimeout(busFactorState.timer);
     busFactorState.controller?.abort();
     const ctrl = new AbortController();
@@ -1056,6 +1070,7 @@ export function mountC4Viewer(
           if (ctrl.signal.aborted || destroyed) return;
           busFactorState.entries = res.entries;
           busFactorState.c4ModelAvailable = res.c4ModelAvailable ?? true;
+          // 上の ?? true は unit='file' 応答の互換。unit='c4' では常にサーバーが値を返す
           busFactorState.loading = false;
           scheduleRender();
         })
@@ -1874,7 +1889,8 @@ export function mountC4Viewer(
         importanceMatrix: props.importanceMatrix ?? null,
         defectRiskMap: computeDefectRiskMapData(),
         busFactorMap: computeBusFactorMapData(),
-        busFactorUnavailable: !busFactorState.c4ModelAvailable,
+        // 未確認（null）では注記を出さない。「集約できなかった」と確定した時だけ示す
+        busFactorUnavailable: busFactorState.c4ModelAvailable === false,
         hotspotMap: computeHotspotMapData(),
         sizeMatrix: computeSizeMatrixData(),
         layerMatrix: computeLayerMatrixData(),
@@ -2070,7 +2086,7 @@ export function mountC4Viewer(
       },
       repoOptions: repoOptions_,
       selectedRepo: getSelectedRepo() || undefined,
-      onRepoChange: (repo: string) => { selectedRepoInternal = repo; props.onRepoSelect?.(repo); scheduleRender(); fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph(); fetchActivityTrend(); busFactorState.entries = []; if (metricOverlay === 'bus-factor') fetchBusFactor(); },
+      onRepoChange: (repo: string) => { selectedRepoInternal = repo; props.onRepoSelect?.(repo); scheduleRender(); fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph(); fetchActivityTrend(); resetBusFactorState(); if (metricOverlay === 'bus-factor') fetchBusFactor(); },
       releaseOptions: props.releases ?? [],
       selectedRelease: props.selectedRelease,
       onReleaseChange: props.onReleaseSelect,
@@ -3089,7 +3105,7 @@ export function mountC4Viewer(
 
     const needsRefetch = props.serverUrl !== prevServerUrl || newRepo !== prevRepo || props.selectedRelease !== prevRelease;
     if (needsRefetch) {
-      busFactorState.entries = [];
+      resetBusFactorState();
       fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph();
       if (metricOverlay === 'bus-factor') fetchBusFactor();
     }
