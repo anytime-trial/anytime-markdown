@@ -15,6 +15,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 }
 
 import { mountDailyActivityChart } from '../dailyActivityChart';
+import { mountDayCommitPrefixChart } from '../dayCommitPrefixChart';
 import { mountReleasesBarChart } from '../releasesBarChart';
 import { mountSessionErrorChart } from '../sessionErrorChart';
 import { mountToolUsageChart } from '../toolUsageChart';
@@ -171,6 +172,28 @@ describe('mountSessionErrorChart', () => {
     expect(container.innerHTML).toBe('');
   });
 
+  it('データ 0 件でも「0」テキストではなく固定サイズのチャートを mount する', () => {
+    const container = document.createElement('div');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toolMetrics: any = { errorsByTool: [], toolUsage: [], skillUsage: [] };
+    const handle = mountSessionErrorChart(container, {
+      toolMetrics,
+      colors,
+      cardSx,
+      isDark: true,
+      t,
+    });
+    const zeroSpans = [...container.querySelectorAll('span')].filter(
+      (s) => s.textContent === '0',
+    );
+    expect(zeroSpans).toHaveLength(0);
+    const chartHost = [...container.querySelectorAll('div')].find(
+      (d) => d.style.height === '130px' && d.style.width === '100%',
+    );
+    expect(chartHost).toBeTruthy();
+    handle.destroy();
+  });
+
   it('renders with errorsByTool data', () => {
     const container = document.createElement('div');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -193,6 +216,36 @@ describe('mountSessionErrorChart', () => {
       handle.update({ toolMetrics, colors, cardSx, isDark: false, t }),
     ).not.toThrow();
     expect(() => handle.destroy()).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+//  mountDayCommitPrefixChart
+// ---------------------------------------------------------------------------
+
+describe('mountDayCommitPrefixChart', () => {
+  it('コミット 0 件でも「0」テキストではなく固定サイズのチャートを mount する', async () => {
+    const container = document.createElement('div');
+    const handle = mountDayCommitPrefixChart(container, {
+      sessionIds: ['s1'],
+      fetchSessionCommits: async () => [],
+      colors,
+      cardSx,
+      isDark: true,
+      t,
+    });
+    // fetch 完了（空配列）まで待つ
+    await Promise.resolve();
+    await Promise.resolve();
+    const zeroSpans = [...container.querySelectorAll('span')].filter(
+      (s) => s.textContent === '0',
+    );
+    expect(zeroSpans).toHaveLength(0);
+    const chartHost = [...container.querySelectorAll('div')].find(
+      (d) => d.style.height === '130px' && d.style.width === '100%',
+    );
+    expect(chartHost).toBeTruthy();
+    handle.destroy();
   });
 });
 

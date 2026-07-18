@@ -55,16 +55,8 @@ export function mountSessionCommitPrefixChart(
 
   let chartHandle: ReturnType<typeof mountAnytimeChartView> | null = null;
 
-  function renderEmpty(): void {
-    chartHandle?.destroy();
-    chartHandle = null;
-    contentEl.innerHTML = '';
-    const zero = document.createElement('span');
-    zero.style.cssText = `font-size:1.5rem;color:${props.colors.textSecondary};`;
-    zero.textContent = '0';
-    contentEl.appendChild(zero);
-  }
-
+  // 0 件でもチャートを mount する（空 spec は chart-core がプレースホルダーリング＋中央 0 を描き、
+  // 他カードとグラフサイズが揃う）。ロード中・エラー時も同じ空チャートで表現する。
   function renderChart(commits: readonly TrailSessionCommit[]): void {
     chartHandle?.destroy();
     chartHandle = null;
@@ -87,17 +79,13 @@ export function mountSessionCommitPrefixChart(
     try {
       const commits = await props.fetchSessionCommits(sessionId);
       if (cancelled || lastSessionId !== sessionId) return;
-      if (commits.length === 0) {
-        renderEmpty();
-      } else {
-        renderChart(commits);
-      }
+      renderChart(commits);
     } catch {
-      if (!cancelled && lastSessionId === sessionId) renderEmpty();
+      if (!cancelled && lastSessionId === sessionId) renderChart([]);
     }
   }
 
-  renderEmpty();
+  renderChart([]);
   void fetchAndRender(props.sessionId);
 
   return {
@@ -110,7 +98,7 @@ export function mountSessionCommitPrefixChart(
       });
       if (next.sessionId !== lastSessionId) {
         lastSessionId = next.sessionId;
-        renderEmpty();
+        renderChart([]);
         void fetchAndRender(next.sessionId);
       }
     },

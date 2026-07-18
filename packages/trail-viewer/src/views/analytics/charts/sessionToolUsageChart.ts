@@ -56,15 +56,9 @@ export function mountSessionToolUsageChart(
     chartHandle = null;
     contentEl.innerHTML = '';
 
-    const usage = props.toolMetrics?.toolUsage;
-    if (!usage || usage.length === 0) {
-      const zero = document.createElement('span');
-      zero.style.cssText = `font-size:1.5rem;color:${props.colors.textSecondary};`;
-      zero.textContent = '0';
-      contentEl.appendChild(zero);
-      return;
-    }
-
+    // 0 件でもチャートを mount する（空 spec は chart-core がプレースホルダーリング＋中央 0 を描き、
+    // 他カードとグラフサイズが揃う）。
+    const usage = props.toolMetrics?.toolUsage ?? [];
     const sorted = [...usage].sort((a, b) => b.count - a.count);
     const spec = buildPieSpec(sorted.map((e) => ({ label: `${e.tool} (${e.count})`, value: e.count })));
     chartHandle = mountAnytimeChartView(contentEl, { spec, height: 130, isDark: props.isDark });
