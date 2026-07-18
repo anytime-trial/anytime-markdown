@@ -159,3 +159,43 @@ export function replaceScreenmockScreenHtml(source: string, screenIndex: number,
   const nextLines = nextScreenHtml.split("\n");
   return [...lines.slice(0, range.bodyStart), ...nextLines, ...lines.slice(range.bodyEnd)].join("\n");
 }
+
+/**
+ * 挿入位置を「移動元を取り除いたあとの並び」における添字へ読み替える。
+ * toIndex は移動元を取り除く前のコンテナにおける位置で受け取る契約のため、
+ * 同一コンテナ内で後方へ動かすときだけ 1 つ手前へずれる。
+ */
+function resolveInsertIndex(toIndex: number, children: Element[], target: Element): number {
+  const currentIndex = children.indexOf(target);
+  const removedBefore = currentIndex >= 0 && currentIndex < toIndex ? 1 : 0;
+  return Math.max(0, toIndex - removedBefore);
+}
+
+/**
+ * 画面 HTML 内の要素を別の位置へ移動する（並べ替え）。
+ *
+ * `toParentPath` が空文字のときは画面直下（フラグメント直下）を指す。移動先が移動元自身
+ * またはその子孫の場合、いずれかのパスが解決できない場合は入力をそのまま返す（不正操作で
+ * 画面を壊さない）。
+ */
+export function moveScreenmockElement(
+  screenHtml: string,
+  fromPath: string,
+  toParentPath: string,
+  toIndex: number,
+): string {
+  const template = document.createElement("template");
+  template.innerHTML = screenHtml;
+  const target = findElementByPath(template.content, fromPath);
+  const parent: DocumentFragment | Element | null =
+    toParentPath === "" ? template.content : findElementByPath(template.content, toParentPath);
+  if (!target || !parent) return screenHtml;
+  if (target === parent || target.contains(parent)) return screenHtml;
+
+  const children = Array.from(parent.children);
+  const remaining = children.filter((child) => child !== target);
+  const before = remaining[resolveInsertIndex(toIndex, children, target)] ?? null;
+  parent.insertBefore(target, before);
+  removePathAttributes(template.content);
+  return template.innerHTML;
+}
