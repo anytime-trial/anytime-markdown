@@ -33,4 +33,4 @@ STRICT・CHECK・FK ON DELETE・timestamp GLOB・インデックス命名・12-s
 
 - global `sqlite-table-definition` — 汎用 SQLite テーブル定義ルール（本スキルの前提）。§11 に sql.js クエリ設計
 - `supabase-schema-sync` — Supabase 側のスキーマ運用・洗い替え同期（本スキルとは方針が異なる）
-- global `~/.claude/rules/code-quality.md` §14 — 日時データの UTC 統一
+- global スキル `code-review-checklist` `references/datetime.md`（§14）— 日時データの UTC 統一
