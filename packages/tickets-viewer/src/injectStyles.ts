@@ -17,6 +17,10 @@ const CSS = `
   --tk-divider: rgba(31, 30, 28, 0.12);
   --tk-hover: rgba(31, 30, 28, 0.04);
   --tk-selected: rgba(31, 30, 28, 0.08);
+  /* 列（recessed）とカード（raised）の面。ライトはカードが一段白く浮く既存関係を維持 */
+  --tk-column-bg: var(--tk-hover);
+  --tk-card-bg: var(--tk-paper);
+  --tk-card-border: var(--tk-divider);
   --tk-primary: #3D4A52;
   --tk-primary-contrast: #FBF9F3;
   --tk-success: #4B5A3E;
@@ -39,6 +43,10 @@ const CSS = `
   --tk-divider: rgba(255, 255, 255, 0.12);
   --tk-hover: rgba(255, 255, 255, 0.08);
   --tk-selected: rgba(255, 255, 255, 0.16);
+  /* ダークは昇格を反転させない: 列を沈め（recessed）カードを一段明るく（raised）浮かせて可読に */
+  --tk-column-bg: rgba(255, 255, 255, 0.03);
+  --tk-card-bg: #1A202C;
+  --tk-card-border: rgba(255, 255, 255, 0.16);
   --tk-primary: #90CAF9;
   --tk-primary-contrast: #0D1117;
   --tk-success: #66BB6A;
@@ -54,7 +62,7 @@ const CSS = `
 .tk-column {
   flex: 0 0 272px;
   min-width: 272px;
-  background: var(--tk-hover);
+  background: var(--tk-column-bg);
   border: 1px solid var(--tk-divider);
   border-radius: var(--tk-radius-card);
   padding: 8px;
@@ -66,8 +74,8 @@ const CSS = `
 
 /* ---- card ---- */
 .tk-card {
-  background: var(--tk-paper);
-  border: 1px solid var(--tk-divider);
+  background: var(--tk-card-bg);
+  border: 1px solid var(--tk-card-border);
   border-radius: var(--tk-radius-card);
   padding: 10px 12px;
   cursor: pointer;
@@ -223,8 +231,15 @@ const CSS = `
 .tk-body-view pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-family: "Cascadia Code", "Fira Code", Menlo, monospace; font-size: 0.85rem; line-height: 1.6; }
 
 @media (max-width: 600px) {
-  .tk-column { flex-basis: 240px; min-width: 240px; }
+  /* ツールバー: スペーサを畳み、リポジトリ位置は 1 行占有で折返し可読に */
+  .tk-toolbar { gap: 6px; padding: 6px 0 12px; }
+  .tk-toolbar-spacer { display: none; }
+  .tk-toolbar > .tk-card-meta { flex: 1 1 100%; overflow-wrap: anywhere; }
+  /* ボード: ステータス列を縦積みにして全幅表示（横スクロール廃止・上から順に読ませる） */
+  .tk-board { flex-direction: column; align-items: stretch; gap: 12px; overflow-x: visible; }
+  .tk-column { flex: 1 1 auto; min-width: 0; width: 100%; }
   .tk-dialog { padding: 14px; }
+  .tk-table th, .tk-table td { padding: 8px 10px; }
 }
 @media (pointer: coarse) {
   .tk-btn, .tk-input, .tk-select { min-height: 44px; }
