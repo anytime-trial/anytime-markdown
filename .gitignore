@@ -17,6 +17,7 @@ prebuilt-vscode
 .claude/skills/anytime-spec-lookup/
 # agent 拡張が activate 時に配置する生成物（ソースは packages/vscode-agent-extension/skills/）
 .claude/skills/anytime-cross-review/
+.claude/skills/anytime-debrief/
 .claude/skills/anytime-dev-cycle/
 .claude/skills/anytime-impl-test-design/
 .claude/skills/anytime-note/
