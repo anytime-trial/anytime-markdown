@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 変更
+
+- 同梱スキル `anytime-token-budget` を `anytime-dev-retro` に統合しました。コストのセッション粒度分析（Opus 占有率・cache_read 二乗膨張・「高コスト×compact 未使用」のセッション衛生・週次トレンド）は dev-retro のコスト詳細として提供します。ふりかえりが改善提案へ昇格したシグナルは、提案書に加えてチケットを自動起票するようになりました（manifest bump で配布に反映。旧 `anytime-token-budget` の配置済みコピーは `oldNames` で掃除されます）。リアルタイムのトークン予算監視（Stop フック `token-budget.sh` → タブバー表示）は別機構のため変更ありません。
+
 ## [0.37.0] - 2026-07-17
 
 ### 追加
