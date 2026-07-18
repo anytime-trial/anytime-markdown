@@ -199,3 +199,48 @@ export function moveScreenmockElement(
   removePathAttributes(template.content);
   return template.innerHTML;
 }
+
+export interface ScreenmockElementPosition {
+  leftPx: number;
+  topPx: number;
+}
+
+function hasPositionDeclaration(style: string | null): boolean {
+  return (style ?? "")
+    .split(";")
+    .some((part) => part.trim().toLowerCase().startsWith("position:"));
+}
+
+/**
+ * 対象要素を親要素基準の座標で固定する（自由配置）。
+ *
+ * 親が静的配置のままだと left/top の基準がさらに外側の祖先になるため、親へ
+ * `position: relative` を補う（既に配置指定があるなら触らない）。
+ */
+export function applyElementAbsolutePosition(
+  screenHtml: string,
+  path: string,
+  position: ScreenmockElementPosition,
+): string {
+  const template = document.createElement("template");
+  template.innerHTML = screenHtml;
+  const target = findElementByPath(template.content, path);
+  if (!target) return screenHtml;
+
+  target.setAttribute(
+    "style",
+    mergeStyleAttribute(target.getAttribute("style"), {
+      position: "absolute",
+      left: `${Math.round(position.leftPx)}px`,
+      top: `${Math.round(position.topPx)}px`,
+    }),
+  );
+
+  const parent = target.parentElement;
+  if (parent && !hasPositionDeclaration(parent.getAttribute("style"))) {
+    parent.setAttribute("style", mergeStyleAttribute(parent.getAttribute("style"), { position: "relative" }));
+  }
+
+  removePathAttributes(template.content);
+  return template.innerHTML;
+}

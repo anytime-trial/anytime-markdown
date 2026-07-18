@@ -1,4 +1,7 @@
-import { moveScreenmockElement } from "../vanilla/screenmockHtmlMutations";
+import {
+  applyElementAbsolutePosition,
+  moveScreenmockElement,
+} from "../vanilla/screenmockHtmlMutations";
 
 describe("moveScreenmockElement", () => {
   it("同じ親の中で要素を前へ移動する", () => {
@@ -42,5 +45,39 @@ describe("moveScreenmockElement", () => {
 
     expect(moveScreenmockElement(source, "9/9", "0", 0)).toBe(source);
     expect(moveScreenmockElement(source, "0/0", "9", 0)).toBe(source);
+  });
+});
+
+describe("applyElementAbsolutePosition", () => {
+  it("対象へ absolute と left/top を書き、親へ relative を付ける", () => {
+    const source = '<div class="root"><button style="color: red;">OK</button></div>';
+
+    const out = applyElementAbsolutePosition(source, "0/0", { leftPx: 12.4, topPx: 30.6 });
+
+    expect(out).toContain('<div class="root" style="position: relative;">');
+    expect(out).toContain('<button style="color: red; position: absolute; left: 12px; top: 31px;">OK</button>');
+  });
+
+  it("親が既に配置済みなら親の style を変えない", () => {
+    const source = '<div class="root" style="position: relative;"><span>x</span></div>';
+
+    const out = applyElementAbsolutePosition(source, "0/0", { leftPx: 5, topPx: 5 });
+
+    expect(out).toContain('<div class="root" style="position: relative;">');
+    expect((out.match(/position: relative/g) ?? []).length).toBe(1);
+  });
+
+  it("既存の left/top を上書きする", () => {
+    const source = '<div><span style="position: absolute; left: 1px; top: 2px;">x</span></div>';
+
+    const out = applyElementAbsolutePosition(source, "0/0", { leftPx: 40, topPx: 50 });
+
+    expect(out).toContain('style="position: absolute; left: 40px; top: 50px;"');
+  });
+
+  it("存在しないパスでは元の HTML を返す", () => {
+    const source = "<div><span>a</span></div>";
+
+    expect(applyElementAbsolutePosition(source, "3/3", { leftPx: 1, topPx: 1 })).toBe(source);
   });
 });
