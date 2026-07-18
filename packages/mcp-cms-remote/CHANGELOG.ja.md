@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-18
+
+### 追加
+
+- `create_ticket` ツール: チケット管理システム（GitHub チケットリポジトリの `.tickets/`）へチケットを登録する。`@anytime-markdown/tickets-core` を再利用（GitHub Contents API・`sha` 楽観ロック・ID 自動採番・フロントマター検証）。`TICKETS_GITHUB_TOKEN` / `TICKETS_REPO`（任意で `TICKETS_BRANCH`、既定 `main`）が設定された場合のみツールを登録する。
+- デプロイワークフローが GitHub Secrets/Variables から `TICKETS_*` の Workers secret を登録し、未設定時は残留 secret を削除する（GitHub 側を単一ソース化）。
+
+### 修正
+
+- Cloudflare Workers 上で `create_ticket` が `Illegal invocation` で失敗する問題: `tickets-core` が素の `fetch` 参照を既定 `fetchFn` として保存しオブジェクト経由で呼んでいたため、workerd の `this` ブランドチェックに落ちていた。既定・注入のどちらの fetch も常にラッパで包むよう修正。
+
 ## [0.1.0] - 2026-06-27
 
 ### 追加
