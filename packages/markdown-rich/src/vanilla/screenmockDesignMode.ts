@@ -122,6 +122,22 @@ const SCREENMOCK_DESIGN_PROTECTION_STYLE = `
 /** クリック（選択）とドラッグ（移動）を分ける移動量のしきい値。 */
 const DRAG_THRESHOLD_PX = 4;
 
+/** ドラッグ中の要素の不透明度（掴んでいることを示す）。 */
+const DRAG_GHOST_OPACITY = "0.75";
+
+/**
+ * プレビューの拡大率（画面 px / レイアウト px）。
+ *
+ * 右ペインはズーム可能なため、ポインタの移動量（画面 px）をそのままモックの座標
+ * （レイアウト px）に使うとズーム時にカーソルとずれる。実寸と描画幅の比から換算する。
+ * どちらかが 0（未レイアウト・jsdom）なら 1 として扱う。
+ */
+export function previewScale(renderedWidth: number, layoutWidth: number): number {
+  if (!Number.isFinite(renderedWidth) || !Number.isFinite(layoutWidth)) return 1;
+  if (renderedWidth <= 0 || layoutWidth <= 0) return 1;
+  return renderedWidth / layoutWidth;
+}
+
 type DragState =
   | {
       kind: "resize";
@@ -359,6 +375,25 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
    * relative オフセットは「本来の位置からのずれ」なので、要素の現在位置ではなく
    * 既存の left / top へ差分を足す（現在位置を使うと本来位置との差だけ二重に乗る）。
    */
+  /** 現在のプレビュー拡大率。ステージ（画面ラッパ）の実寸とレイアウト幅から求める。 */
+  const currentScale = (): number => {
+    const stage = shadow.querySelector(".am-sm-wrap") as HTMLElement | null;
+    if (!stage) return 1;
+    return previewScale(stage.getBoundingClientRect().width, stage.offsetWidth);
+  };
+
+  /** ポインタの移動量（画面 px）をモックの座標（レイアウト px）へ換算する。 */
+  const dragDeltaOf = (
+    event: PointerEvent,
+    state: { startX: number; startY: number },
+  ): { dx: number; dy: number } => {
+    const scale = currentScale();
+    return {
+      dx: (event.clientX - state.startX) / scale,
+      dy: (event.clientY - state.startY) / scale,
+    };
+  };
+
   const dragOffsetOf = (
     event: PointerEvent,
     state: { path: string; startX: number; startY: number },
@@ -370,10 +405,35 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
       return Number.isFinite(parsed) ? parsed : 0;
     };
     const isOffsetPositioned = computed?.position === "relative" || computed?.position === "absolute";
+    const { dx, dy } = dragDeltaOf(event, state);
     return {
-      leftPx: (isOffsetPositioned ? base(computed?.left) : 0) + (event.clientX - state.startX),
-      topPx: (isOffsetPositioned ? base(computed?.top) : 0) + (event.clientY - state.startY),
+      leftPx: (isOffsetPositioned ? base(computed?.left) : 0) + dx,
+      topPx: (isOffsetPositioned ? base(computed?.top) : 0) + dy,
     };
+  };
+
+  /**
+   * ドラッグ中、掴んでいる要素をカーソルへ追従させる（見た目のみ）。
+   *
+   * `transform` はレイアウトに影響しないため、周囲を動かさずに着地位置を予告できる。
+   * ヒットテスト（ドロップ先の解決）で自分自身を拾わないよう pointer-events も落とす。
+   */
+  const applyDragGhost = (event: PointerEvent, state: { path: string; startX: number; startY: number }): void => {
+    const el = findRenderedElementByPath(shadow, state.path);
+    if (!el) return;
+    const { dx, dy } = dragDeltaOf(event, state);
+    el.style.transform = `translate(${dx}px, ${dy}px)`;
+    el.style.pointerEvents = "none";
+    el.style.opacity = DRAG_GHOST_OPACITY;
+  };
+
+  /** 追従表示を戻す（書き戻しで再描画される場合も、しない場合も確実に戻す）。 */
+  const clearDragGhost = (path: string): void => {
+    const el = findRenderedElementByPath(shadow, path);
+    if (!el) return;
+    el.style.removeProperty("transform");
+    el.style.removeProperty("pointer-events");
+    el.style.removeProperty("opacity");
   };
 
   const clearDragFeedback = (): void => {
@@ -431,7 +491,10 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
         Math.abs(event.clientX - drag.startX) > DRAG_THRESHOLD_PX ||
         Math.abs(event.clientY - drag.startY) > DRAG_THRESHOLD_PX;
       drag.altKey = event.altKey;
-      if (drag.moved) renderDragFeedback(event);
+      if (drag.moved) {
+        applyDragGhost(event, drag);
+        renderDragFeedback(event);
+      }
       return;
     }
     if (!selectedEl) return;
@@ -457,8 +520,14 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
     const screenHtml = parseScreenmock(sourceText)[current.screenIndex]?.html ?? "";
 
     if (current.kind === "element") {
-      if (!current.moved) return;
+      if (!current.moved) {
+        clearDragGhost(current.path);
+        return;
+      }
+      // ドロップ先の解決は追従表示（pointer-events: none）を外す前に行う。先に外すと
+      // ヒットテストが掴んでいる要素自身を拾い、挿入位置がドラッグ中の表示とずれる。
       const drop = current.altKey ? null : resolveDropContext(event, current.path);
+      clearDragGhost(current.path);
       const nextScreenHtml = current.altKey
         ? applyElementOffset(screenHtml, current.path, dragOffsetOf(event, current))
         : drop
@@ -482,8 +551,10 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
    */
   const onPointerCancel = (event: PointerEvent): void => {
     if (!drag || event.pointerId !== drag.pointerId) return;
+    const cancelled = drag;
     drag = null;
     clearDragFeedback();
+    if (cancelled.kind === "element") clearDragGhost(cancelled.path);
   };
 
   document.addEventListener("pointermove", onPointerMove);

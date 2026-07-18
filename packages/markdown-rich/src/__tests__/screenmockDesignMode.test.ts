@@ -1,4 +1,4 @@
-import { createScreenmockDesignModePreview } from "../vanilla/screenmockDesignMode";
+import { createScreenmockDesignModePreview, previewScale } from "../vanilla/screenmockDesignMode";
 import {
   annotateScreenmockHtmlPaths,
   applyElementSizeToScreenHtml,
@@ -389,5 +389,63 @@ describe("screenmockDesignMode ドラッグ操作", () => {
     expect(seen).toEqual(["ancestor"]);
     host.destroy();
     container.remove();
+  });
+
+  it("ドラッグ中は掴んだ要素をカーソルへ追従させ、離すと戻す", () => {
+    const { host } = mountDesignPreview('<div class="sm-col"><button>b</button></div>');
+    const restore = stubGeometry(host, {
+      wrap: { left: 0, top: 0, width: 200, height: 100 },
+      "0": { left: 0, top: 0, width: 200, height: 100 },
+      "0/0": { left: 10, top: 10, width: 50, height: 20 },
+    });
+    const shadow = host.shadowRoot as ShadowRoot;
+    const target = shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement;
+
+    target.dispatchEvent(pointer("pointerdown", { clientX: 10, clientY: 10, altKey: true }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 40, clientY: 30, altKey: true }));
+
+    expect(target.style.transform).toBe("translate(30px, 20px)");
+    // ヒットテストで自分自身を拾わないよう pointer-events を落とす。
+    expect(target.style.pointerEvents).toBe("none");
+
+    document.dispatchEvent(pointer("pointerup", { clientX: 40, clientY: 30, altKey: true }));
+
+    const after = shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement;
+    expect(after.style.transform).toBe("");
+    expect(after.style.pointerEvents).toBe("");
+    restore();
+    host.destroy();
+  });
+
+  it("pointercancel でも追従表示を戻す", () => {
+    const { host } = mountDesignPreview('<div class="sm-col"><button>b</button></div>');
+    const restore = stubGeometry(host, {
+      wrap: { left: 0, top: 0, width: 200, height: 100 },
+      "0": { left: 0, top: 0, width: 200, height: 100 },
+      "0/0": { left: 10, top: 10, width: 50, height: 20 },
+    });
+    const shadow = host.shadowRoot as ShadowRoot;
+    const target = shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement;
+
+    target.dispatchEvent(pointer("pointerdown", { clientX: 10, clientY: 10, altKey: true }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 40, clientY: 30, altKey: true }));
+    document.dispatchEvent(pointer("pointercancel", { clientX: 40, clientY: 30, altKey: true }));
+
+    expect(target.style.transform).toBe("");
+    expect(target.style.opacity).toBe("");
+    restore();
+    host.destroy();
+  });
+});
+
+describe("previewScale", () => {
+  it("実寸 / レイアウト幅の比を返す", () => {
+    expect(previewScale(300, 200)).toBeCloseTo(1.5);
+  });
+
+  it("未レイアウト（0）や不正値では 1 を返す", () => {
+    expect(previewScale(0, 200)).toBe(1);
+    expect(previewScale(300, 0)).toBe(1);
+    expect(previewScale(Number.NaN, 200)).toBe(1);
   });
 });
