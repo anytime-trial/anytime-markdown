@@ -1157,6 +1157,24 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/memory/drift/by-day' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listDriftHistoryByDay({
+        since: p.get('since') ?? undefined,
+        until: p.get('until') ?? undefined,
+        driftType: p.get('driftType') ?? undefined,
+        severity: p.get('severity') ?? undefined,
+      }).then((points) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ points }));
+      }).catch((err: unknown) => {
+        this.logger.error(`[/api/memory/drift/by-day] ${String(err)}`);
+        res.writeHead(500, JSON_HEADERS);
+        res.end(JSON.stringify({ error: String(err) }));
+      });
+      return;
+    }
+
     if (pathname === '/api/memory/drift/events' && method === 'GET') {
       const p = parsed.searchParams;
       void this.memoryApi.listDriftEvents({

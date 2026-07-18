@@ -443,6 +443,12 @@ export interface TrailI18n {
   'memory.runs.tab': string;
   // drift sub-tab
   'memory.drift.empty': string;
+  'memory.drift.history.title': string;
+  'memory.drift.history.detected': string;
+  'memory.drift.history.resolved': string;
+  'memory.drift.history.unresolved': string;
+  'memory.drift.history.count': string;
+  'memory.drift.history.empty': string;
   'memory.drift.severity.info': string;
   'memory.drift.severity.warn': string;
   'memory.drift.severity.error': string;

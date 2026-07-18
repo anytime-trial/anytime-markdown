@@ -3,7 +3,8 @@ import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import type { RationaleNode } from '@anytime-markdown/trail-core';
+import { aggregateDriftByDay } from '@anytime-markdown/trail-core';
+import type { DriftHistoryPoint, RationaleNode } from '@anytime-markdown/trail-core';
 import type { Logger } from '../runtime/Logger';
 
 // ---------------------------------------------------------------------------
@@ -846,6 +847,71 @@ export class MemoryApiHandler {
       });
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.listPipelineRunStatsByDay] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  /**
+   * Phase 6 S5-C: ドリフト件数の日次推移を返す。
+   * SQL は単純な範囲スキャンに留め、日次バケット化（JST 境界・0 埋め・未解決累計）は
+   * trail-core の純粋関数で行う（sql.js は CTE + window の組み合わせで性能が崩れるため）。
+   */
+  async listDriftHistoryByDay(params: {
+    since?: string;
+    until?: string;
+    driftType?: string;
+    severity?: string;
+    timeZone?: string;
+  }): Promise<DriftHistoryPoint[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      const conditions: string[] = [];
+      const bindValues: unknown[] = [];
+      if (params.since) {
+        // 範囲内で解決された「範囲前に検知された」イベントも解決として数えるため、
+        // detected_at ではなく「検知または解決のどちらかが範囲内」で絞る。
+        conditions.push('(detected_at >= ? OR resolved_at >= ?)');
+        bindValues.push(params.since, params.since);
+      }
+      if (params.until) {
+        conditions.push('detected_at <= ?');
+        bindValues.push(params.until);
+      }
+      if (params.driftType) {
+        conditions.push('drift_type = ?');
+        bindValues.push(params.driftType);
+      }
+      if (params.severity) {
+        conditions.push('severity = ?');
+        bindValues.push(params.severity);
+      }
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const result = db.exec(
+        `SELECT detected_at, resolved_at FROM memory_drift_events ${where}`,
+        toBindParams(bindValues),
+      );
+      if (!result[0]) {
+        return aggregateDriftByDay([], {
+          sinceIso: params.since,
+          untilIso: params.until,
+          timeZone: params.timeZone,
+        });
+      }
+      const { columns, values } = result[0];
+      const events = values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return { detectedAt: toStr(r['detected_at']), resolvedAt: toNullStr(r['resolved_at']) };
+      });
+      return aggregateDriftByDay(events, {
+        sinceIso: params.since,
+        untilIso: params.until,
+        timeZone: params.timeZone,
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.listDriftHistoryByDay] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       this.close(db);
