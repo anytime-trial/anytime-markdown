@@ -9,7 +9,7 @@ import {
   toFridayWeekKey,
   type ChartEntry,
 } from '../../../domain/analytics/calculators';
-import type { DailyViewMode, PeriodDays } from '../../../components/analytics/types';
+import type { BucketUnit, DailyViewMode, PeriodDays } from '../../../components/analytics/types';
 import type { ThemeChartColors } from '../../../theme/designTokens';
 import { buildDailyActivitySpec } from '../../../components/analytics/charts/specs/buildDailyActivitySpec';
 import { mountAnytimeChartView } from '../anytimeChartView';
@@ -18,6 +18,8 @@ import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 export interface DailyActivityChartProps {
   items: AnalyticsData['dailyActivity'];
   period: PeriodDays;
+  /** 棒グラフの集計単位。'week' で金曜締めの週集計へ切り替える。 */
+  bucket: BucketUnit;
   mode: DailyViewMode;
   onDateClick?: (fullDate: string) => void;
   costOptimization?: CostOptimizationData | null;
@@ -57,8 +59,9 @@ function computeOverlayByDate(
   return map;
 }
 
-function computeDataset(props: DailyActivityChartProps): ChartEntry[] {
-  const { items, period, mode, costOptimization, overlay } = props;
+/** 表示期間で絞り込み、集計単位に応じて日次 / 週次のデータセットを組み立てる（テスト公開）。 */
+export function computeDailyActivityDataset(props: DailyActivityChartProps): ChartEntry[] {
+  const { items, period, bucket, mode, costOptimization, overlay } = props;
   const costByDate = computeCostByDate(costOptimization);
   const overlayByDate = computeOverlayByDate(overlay, mode);
   const overlayBucket = overlay?.bucket;
@@ -95,7 +98,7 @@ function computeDataset(props: DailyActivityChartProps): ChartEntry[] {
     };
   });
 
-  return period === 90 ? groupByWeek(dailyDataset) : dailyDataset;
+  return bucket === 'week' ? groupByWeek(dailyDataset) : dailyDataset;
 }
 
 function applyCardStyle(
@@ -123,7 +126,7 @@ export function mountDailyActivityChart(
   let dataset: ChartEntry[] = [];
 
   function buildSpec(p: DailyActivityChartProps) {
-    const dataset = computeDataset(p);
+    const dataset = computeDailyActivityDataset(p);
     const isTokens = p.mode === 'tokens';
     const hasOverlay = isTokens || p.overlay != null;
     const overlayLabel = isTokens ? p.t('chart.tokensPerLoc') : p.t('chart.costPerLoc');
@@ -146,7 +149,7 @@ export function mountDailyActivityChart(
     };
   }
 
-  // dataset を通じて現在値を読む click ハンドラ（period 90 は週次集計のため無効）。
+  // dataset を通じて現在値を読む click ハンドラ（週集計時はバケットが単日でないため無効）。
   const onCategoryClick = (idx: number): void => {
     if (idx >= 0 && idx < dataset.length) props.onDateClick?.(dataset[idx].fullDate);
   };
@@ -163,7 +166,7 @@ export function mountDailyActivityChart(
     applyCardStyle(card, props.cardSx);
     const { spec, dataset: newDataset } = buildSpec(props);
     dataset = newDataset;
-    const cb = props.period === 90 ? undefined : onCategoryClick;
+    const cb = props.bucket === 'week' ? undefined : onCategoryClick;
     if (!chartHandle) {
       chartHandle = mountAnytimeChartView(card, { spec, height: 240, isDark: props.isDark, onCategoryClick: cb });
     } else {

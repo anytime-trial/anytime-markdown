@@ -158,7 +158,8 @@ export interface CombinedData {
 }
 
 export type CombinedPeriodMode = 'day' | 'week';
-export type CombinedRangeDays = 30 | 90;
+/** combined データの取得日数。cutoff の乗数としてのみ使うため任意日数を許す（旧: 30 | 90）。 */
+export type CombinedRangeDays = number;
 
 // --- Domain types (re-exported from trail-core) ---
 

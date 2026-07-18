@@ -64,7 +64,10 @@ export interface ErrorMarkerData {
 }
 
 export type DailyViewMode = 'tokens' | 'cost';
-export type PeriodDays = 7 | 30 | 90;
+/** 表示期間の日数。数値入力で任意日数を受けるため union ではなく number（有効範囲は periodSelection.ts）。 */
+export type PeriodDays = number;
+/** 棒グラフの集計単位。期間日数から暗黙に決めず、ユーザーのトグルが単一の決定要因になる。 */
+export type BucketUnit = 'day' | 'week';
 export type SessionToolMetric = 'count' | 'tokens' | 'duration';
 export type ChartMetric = 'count' | 'tokens';
 export type ToolChartMetric = 'count' | 'tokens' | 'error';

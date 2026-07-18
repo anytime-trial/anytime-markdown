@@ -424,6 +424,11 @@ export interface TrailI18n {
   'analytics.combined.loc.description': string;
   'analytics.combined.leadTime': string;
   'analytics.combined.leadTime.description': string;
+  'analytics.combined.periodDays': string;
+  'analytics.combined.periodDays.description': string;
+  'analytics.combined.bucketDay': string;
+  'analytics.combined.bucketWeek': string;
+  'analytics.combined.bucketUnit.description': string;
   'analytics.commitPrefixChartTitle': string;
   'analytics.commitPrefixChartTitle.description': string;
   'analytics.combined.skill': string;
