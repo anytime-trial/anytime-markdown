@@ -24,6 +24,7 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 12, file: '012_function_entity_lifecycle.sql' },
   { version: 13, file: '013_rag_fts.sql', requiresFts5: true },
   { version: 14, file: '014_spec_doc_reference_type.sql' },
+  { version: 15, file: '015_checklist_ref.sql' },
 ];
 
 let cachedFts5: WeakMap<MemoryDbConnection, boolean> | null = null;

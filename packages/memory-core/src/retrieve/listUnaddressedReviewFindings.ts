@@ -10,6 +10,7 @@ export type UnaddressedReviewFinding = {
   suggestion_text: string;
   target_file_path: string | null;
   target_symbol: string | null;
+  checklist_ref: string | null;
   recorded_at: string;
 };
 
@@ -19,6 +20,7 @@ export function listUnaddressedReviewFindings(input: {
   daysSinceMin?: number;
   target_file_path?: string;
   category?: string;
+  checklist_ref?: string;
   limit?: number;
   logger: MemoryLogger;
 }): UnaddressedReviewFinding[] {
@@ -43,6 +45,10 @@ export function listUnaddressedReviewFindings(input: {
     conditions.push('rf.category = ?');
     params.push(input.category);
   }
+  if (input.checklist_ref != null) {
+    conditions.push('rf.checklist_ref = ?');
+    params.push(input.checklist_ref);
+  }
   params.push(limit);
 
   const where = conditions.join(' AND ');
@@ -51,7 +57,7 @@ export function listUnaddressedReviewFindings(input: {
     rows = db.exec(
       `SELECT rf.id, rf.review_id, rf.category, rf.severity,
               rf.finding_text, rf.suggestion_text,
-              rf.target_file_path, rf.target_symbol, rf.recorded_at
+              rf.target_file_path, rf.target_symbol, rf.checklist_ref, rf.recorded_at
        FROM memory_review_findings rf
        WHERE ${where}
        ORDER BY rf.recorded_at ASC
@@ -74,6 +80,7 @@ export function listUnaddressedReviewFindings(input: {
     suggestion_text: row[5] as string,
     target_file_path: row[6] as string | null,
     target_symbol: row[7] as string | null,
-    recorded_at: row[8] as string,
+    checklist_ref: row[8] as string | null,
+    recorded_at: row[9] as string,
   }));
 }

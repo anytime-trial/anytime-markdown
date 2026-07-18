@@ -530,6 +530,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       daysSinceMin: ListUnaddressedReviewFindingsInputSchema.shape.daysSinceMin,
       target_file_path: ListUnaddressedReviewFindingsInputSchema.shape.target_file_path,
       category: ListUnaddressedReviewFindingsInputSchema.shape.category,
+      checklist_ref: ListUnaddressedReviewFindingsInputSchema.shape.checklist_ref,
       limit: ListUnaddressedReviewFindingsInputSchema.shape.limit,
     }, },
     async (args) => {
