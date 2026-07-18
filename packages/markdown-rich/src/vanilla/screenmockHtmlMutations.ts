@@ -194,10 +194,35 @@ export function moveScreenmockElement(
 
   const children = Array.from(parent.children);
   const remaining = children.filter((child) => child !== target);
-  const before = remaining[resolveInsertIndex(toIndex, children, target)] ?? null;
+  let before: Node | null = remaining[resolveInsertIndex(toIndex, children, target)] ?? null;
+  // 末尾へ入れるときは閉じタグ手前の空白（インデント）より前に置く。
+  if (!before && isWhitespaceText(parent.lastChild)) before = parent.lastChild;
+
+  const indent = indentTextFor(target, before);
+  const leadingWhitespace = target.previousSibling;
+  if (isWhitespaceText(leadingWhitespace)) leadingWhitespace.remove();
+
   parent.insertBefore(target, before);
+  // 移動先でも要素が行頭に来るよう、直後へ元と同じインデントを補う。
+  if (indent !== null) parent.insertBefore(template.ownerDocument.createTextNode(indent), before);
+
   removePathAttributes(template.content);
   return template.innerHTML;
+}
+
+function isWhitespaceText(node: Node | null | undefined): node is Text {
+  return node?.nodeType === Node.TEXT_NODE && (node.textContent ?? "").trim() === "";
+}
+
+/**
+ * 移動後に補うインデント文字列。移動先の直前の空白、無ければ移動元の直前の空白を使う。
+ * どちらも無い（空白を持たない詰めた HTML）ときは整形しない。
+ */
+function indentTextFor(target: Element, before: Node | null): string | null {
+  const destination = before?.previousSibling;
+  if (isWhitespaceText(destination)) return destination.data;
+  const origin = target.previousSibling;
+  return isWhitespaceText(origin) ? origin.data : null;
 }
 
 export interface ScreenmockElementPosition {

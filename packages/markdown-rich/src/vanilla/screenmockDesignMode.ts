@@ -284,11 +284,18 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
         clearSelection();
       }
     });
+    shadow.querySelector(".am-sm-wrap")?.addEventListener("dragstart", (event) => {
+      // pointerdown の preventDefault を取りこぼした経路（画像のドラッグ等）の保険。
+      event.preventDefault();
+    });
     shadow.querySelector(".am-sm-wrap")?.addEventListener("pointerdown", (event) => {
       const pointerEvent = event as PointerEvent;
       const el = (pointerEvent.target as HTMLElement | null)?.closest<HTMLElement>("[data-sm-path]");
       // 画面ルート（sm-screen）は移動対象外。ドロップ先コンテナとしてのみ使う。
       if (!el?.dataset.smPath || el.classList.contains("sm-screen")) return;
+      // リンク・画像はブラウザ既定のネイティブドラッグが走り、以降 pointerup が届かず
+      // ドロップを取りこぼす（jsdom では再現しない）。既定動作を止めてから掴む。
+      pointerEvent.preventDefault();
       drag = {
         kind: "element",
         pointerId: pointerEvent.pointerId,

@@ -28,6 +28,22 @@ describe("moveScreenmockElement", () => {
     expect(out).toBe('<div class="root"><div class="a"></div><div class="b"><button>go</button></div></div>');
   });
 
+  it("インデントされた HTML では移動後も 1 要素 1 行を保つ", () => {
+    const source = [
+      '<div class="card">',
+      "  <p>head</p>",
+      "  <input />",
+      '  <a href="#x">go</a>',
+      "</div>",
+    ].join("\n");
+
+    const out = moveScreenmockElement(source, "0/2", "0", 0);
+
+    expect(out).toBe(
+      ['<div class="card">', '  <a href="#x">go</a>', "  <p>head</p>", "  <input>", "</div>"].join("\n"),
+    );
+  });
+
   it("data-sm-path 属性を出力に残さない", () => {
     const source = "<div><span>a</span><span>b</span></div>";
 

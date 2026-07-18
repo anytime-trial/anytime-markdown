@@ -316,4 +316,17 @@ describe("screenmockDesignMode ドラッグ操作", () => {
     expect(hint?.textContent).toBe("クリックで選択 / ドラッグで並べ替え");
     host.destroy();
   });
+
+  it("リンクのドラッグ開始でネイティブドラッグを抑止する", () => {
+    // ネイティブドラッグが走ると pointerup が届かずドロップを取りこぼす（実ブラウザのみで再現）。
+    const { host } = mountDesignPreview('<div class="sm-col"><a href="#next">go</a></div>');
+    const shadow = host.shadowRoot as ShadowRoot;
+    const anchor = shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement;
+
+    const down = pointer("pointerdown", { clientX: 10, clientY: 10 });
+    anchor.dispatchEvent(down);
+
+    expect(down.defaultPrevented).toBe(true);
+    host.destroy();
+  });
 });
