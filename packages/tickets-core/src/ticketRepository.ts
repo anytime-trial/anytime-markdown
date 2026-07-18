@@ -112,6 +112,8 @@ function baseHeaders(ctx: GitHubContext): Record<string, string> {
   return {
     Authorization: `Bearer ${ctx.token}`,
     Accept: 'application/vnd.github+json',
+    // GitHub API は User-Agent 必須。Node の fetch は自動付与するが Workers(workerd)は付与せず 403 になる
+    'User-Agent': 'anytime-markdown-tickets-core',
   };
 }
 
