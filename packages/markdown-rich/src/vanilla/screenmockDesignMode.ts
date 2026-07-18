@@ -516,13 +516,18 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
     const current = drag;
     drag = null;
     clearDragFeedback();
-    if (current.kind === "element") clearDragGhost(current.path);
     const sourceText = options.getSource();
     const screenHtml = parseScreenmock(sourceText)[current.screenIndex]?.html ?? "";
 
     if (current.kind === "element") {
-      if (!current.moved) return;
+      if (!current.moved) {
+        clearDragGhost(current.path);
+        return;
+      }
+      // ドロップ先の解決は追従表示（pointer-events: none）を外す前に行う。先に外すと
+      // ヒットテストが掴んでいる要素自身を拾い、挿入位置がドラッグ中の表示とずれる。
       const drop = current.altKey ? null : resolveDropContext(event, current.path);
+      clearDragGhost(current.path);
       const nextScreenHtml = current.altKey
         ? applyElementOffset(screenHtml, current.path, dragOffsetOf(event, current))
         : drop
