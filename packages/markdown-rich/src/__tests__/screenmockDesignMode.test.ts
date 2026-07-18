@@ -1,4 +1,8 @@
-import { createScreenmockDesignModePreview, previewScale } from "../vanilla/screenmockDesignMode";
+import {
+  createScreenmockDesignModePreview,
+  percentBasisWidth,
+  previewScale,
+} from "../vanilla/screenmockDesignMode";
 import {
   annotateScreenmockHtmlPaths,
   applyElementSizeToScreenHtml,
@@ -436,6 +440,31 @@ describe("screenmockDesignMode ドラッグ操作", () => {
     restore();
     host.destroy();
   });
+
+  it("拡大表示中はリサイズもポインタ移動量を倍率で換算する", () => {
+    const { host, getSource } = mountDesignPreview('<div class="sm-col"><button>b</button></div>');
+    const restore = stubGeometry(host, {
+      wrap: { left: 0, top: 0, width: 400, height: 200 },
+      "0": { left: 0, top: 0, width: 400, height: 200 },
+      "0/0": { left: 0, top: 0, width: 200, height: 40 },
+    });
+    const shadow = host.shadowRoot as ShadowRoot;
+    // 実寸 400 / レイアウト 200 = 2 倍で表示している状態。
+    const wrap = shadow.querySelector(".am-sm-wrap") as HTMLElement;
+    Object.defineProperty(wrap, "offsetWidth", { configurable: true, value: 200 });
+
+    (shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement).click();
+    const handle = shadow.querySelector(".am-smdm-handle-se") as HTMLElement;
+    handle.dispatchEvent(pointer("pointerdown", { clientX: 100, clientY: 100 }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 200, clientY: 180 }));
+    document.dispatchEvent(pointer("pointerup", { clientX: 200, clientY: 180 }));
+
+    // 画面 +100,+80 → レイアウト +50,+40。幅 100+50=150 は親 200 の 75.0%、高さ 20+40=60px。
+    expect(getSource()).toContain("width: 75.0%");
+    expect(getSource()).toContain("height: 60px");
+    restore();
+    host.destroy();
+  });
 });
 
 describe("previewScale", () => {
@@ -447,5 +476,26 @@ describe("previewScale", () => {
     expect(previewScale(0, 200)).toBe(1);
     expect(previewScale(300, 0)).toBe(1);
     expect(previewScale(Number.NaN, 200)).toBe(1);
+  });
+});
+
+describe("percentBasisWidth", () => {
+  it("親のコンテンツ幅（clientWidth - 左右 padding）を基準にする", () => {
+    const parent = document.createElement("div");
+    parent.style.padding = "10px";
+    document.body.appendChild(parent);
+    Object.defineProperty(parent, "clientWidth", { configurable: true, value: 220 });
+
+    expect(percentBasisWidth(parent, 999)).toBe(200);
+    parent.remove();
+  });
+
+  it("測れない環境ではフォールバック幅を使う", () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+
+    expect(percentBasisWidth(parent, 150)).toBe(150);
+    expect(percentBasisWidth(parent, 0)).toBe(1);
+    parent.remove();
   });
 });

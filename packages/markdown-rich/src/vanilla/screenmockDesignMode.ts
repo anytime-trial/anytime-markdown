@@ -132,6 +132,21 @@ const DRAG_GHOST_OPACITY = "0.75";
  * （レイアウト px）に使うとズーム時にカーソルとずれる。実寸と描画幅の比から換算する。
  * どちらかが 0（未レイアウト・jsdom）なら 1 として扱う。
  */
+/**
+ * `width: X%` の基準になる親のコンテンツ幅（レイアウト px）。
+ *
+ * パーセント指定は親のコンテンツボックスに対して解決されるため、境界ボックス幅を基準に
+ * すると padding / border の分だけ小さく着地する（確定時に一段縮んで見える）。測れない
+ * 環境（未レイアウト・jsdom）では呼び出し元が渡す実寸ベースの値へ退避する。
+ */
+export function percentBasisWidth(parent: Element, fallbackWidth: number): number {
+  const style = globalThis.getComputedStyle(parent);
+  const padding =
+    (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+  const content = parent.clientWidth - padding;
+  return content > 0 ? content : Math.max(fallbackWidth, 1);
+}
+
 export function previewScale(renderedWidth: number, layoutWidth: number): number {
   if (!Number.isFinite(renderedWidth) || !Number.isFinite(layoutWidth)) return 1;
   if (renderedWidth <= 0 || layoutWidth <= 0) return 1;
@@ -188,12 +203,15 @@ export function createScreenmockDesignModePreview(
     if (!screen) return;
     const screenRect = screen.getBoundingClientRect();
     const rect = selectedEl.getBoundingClientRect();
+    // オーバーレイは拡大済みコンテナの内側に置くため、画面 px のままではズーム倍率だけ
+    // 二重に効いて選択枠とハンドルが要素からずれる。レイアウト px へ換算して配置する。
+    const scale = currentScale();
     const overlay = document.createElement("div");
     overlay.className = "am-smdm-selection";
-    overlay.style.left = `${rect.left - screenRect.left}px`;
-    overlay.style.top = `${rect.top - screenRect.top}px`;
-    overlay.style.width = `${rect.width}px`;
-    overlay.style.height = `${rect.height}px`;
+    overlay.style.left = `${(rect.left - screenRect.left) / scale}px`;
+    overlay.style.top = `${(rect.top - screenRect.top) / scale}px`;
+    overlay.style.width = `${rect.width / scale}px`;
+    overlay.style.height = `${rect.height / scale}px`;
     for (const handle of ["e", "s", "se"] as const) {
       const button = document.createElement("button");
       button.type = "button";
@@ -207,19 +225,22 @@ export function createScreenmockDesignModePreview(
         button.setPointerCapture?.(event.pointerId);
         const selectedRect = selectedEl.getBoundingClientRect();
         const parentRect = (selectedEl.parentElement ?? screen).getBoundingClientRect();
+        // 実寸（画面 px）はズーム倍率を含む。style へ書くのはモックの座標（レイアウト px）
+        // なので、開始寸法もポインタ移動量も倍率で割ってから扱う。
+        const scale = currentScale();
         drag = {
           kind: "resize",
+          parentWidth: percentBasisWidth(selectedEl.parentElement ?? screen, parentRect.width / scale),
           pointerId: event.pointerId,
           handle,
           path: selectedPath,
           screenIndex: activeIndex,
           startX: event.clientX,
           startY: event.clientY,
-          startWidth: selectedRect.width,
-          startHeight: selectedRect.height,
-          parentWidth: Math.max(parentRect.width, 1),
-          width: selectedRect.width,
-          height: selectedRect.height,
+          startWidth: selectedRect.width / scale,
+          startHeight: selectedRect.height / scale,
+          width: selectedRect.width / scale,
+          height: selectedRect.height / scale,
         };
       });
       overlay.appendChild(button);
@@ -448,13 +469,14 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
     const stage = shadow.querySelector(".am-sm-wrap") as HTMLElement | null;
     if (!stage) return;
     const stageRect = stage.getBoundingClientRect();
+    const scale = currentScale();
     const marker = document.createElement("div");
 
     if (drag.altKey) {
       marker.className = "am-smdm-dragbadge";
       marker.textContent = options.freePositionLabel ?? "";
-      marker.style.left = `${event.clientX - stageRect.left + 12}px`;
-      marker.style.top = `${event.clientY - stageRect.top + 12}px`;
+      marker.style.left = `${(event.clientX - stageRect.left) / scale + 12}px`;
+      marker.style.top = `${(event.clientY - stageRect.top) / scale + 12}px`;
     } else {
       const drop = resolveDropContext(event, drag.path);
       if (!drop) return;
@@ -468,14 +490,14 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
       const atEnd = !sibling;
       marker.className = "am-smdm-insertline";
       if (drop.direction === "horizontal") {
-        marker.style.left = `${(atEnd ? rect.right : rect.left) - stageRect.left}px`;
-        marker.style.top = `${rect.top - stageRect.top}px`;
+        marker.style.left = `${((atEnd ? rect.right : rect.left) - stageRect.left) / scale}px`;
+        marker.style.top = `${(rect.top - stageRect.top) / scale}px`;
         marker.style.width = "2px";
-        marker.style.height = `${rect.height}px`;
+        marker.style.height = `${rect.height / scale}px`;
       } else {
-        marker.style.left = `${rect.left - stageRect.left}px`;
-        marker.style.top = `${(atEnd ? rect.bottom : rect.top) - stageRect.top}px`;
-        marker.style.width = `${rect.width}px`;
+        marker.style.left = `${(rect.left - stageRect.left) / scale}px`;
+        marker.style.top = `${((atEnd ? rect.bottom : rect.top) - stageRect.top) / scale}px`;
+        marker.style.width = `${rect.width / scale}px`;
         marker.style.height = "2px";
       }
     }
@@ -498,8 +520,7 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
       return;
     }
     if (!selectedEl) return;
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
+    const { dx, dy } = dragDeltaOf(event, drag);
     if (drag.handle === "e" || drag.handle === "se") {
       drag.width = Math.max(1, drag.startWidth + dx);
       selectedEl.style.width = `${drag.width}px`;
