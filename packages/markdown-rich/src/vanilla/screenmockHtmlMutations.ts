@@ -442,7 +442,8 @@ function removeLeadingWhitespace(node: Node): void {
 export function unwrapScreenmockElement(source: string, screenIndex: number, path: string): string {
   return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
     const target = findElementByPath(template.content, path);
-    if (!target) return false;
+    // sm-screen ルートの解除は画面構造を壊すため wrap 側のガードと対称に no-op にする。
+    if (!target || isScreenmockScreenElement(target)) return false;
     const parent = parentContainerOf(target);
     if (!parent) return false;
     const indent = childIndentForUnwrap(target, parent);

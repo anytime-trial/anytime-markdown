@@ -485,7 +485,7 @@ title: A
   });
 
   it("writes text lines and rejects invalid image src values", () => {
-    const { panel, getSource, setSelection } = setup(`<span class="sm-text"></span><div class="sm-img"></div>`);
+    const { panel, getSource, setSelection } = setup(`<span class="sm-text"></span><img class="sm-img">`);
     setSelection("0");
     const lines = Array.from(panel.el.querySelectorAll("input")).at(-1) as HTMLInputElement;
 
@@ -504,6 +504,25 @@ title: A
     const srcAfterRender = Array.from(panel.el.querySelectorAll("input")).at(-1) as HTMLInputElement;
     change(srcAfterRender, "https://example.com/a.png");
     expect(getSource()).toContain('src="https://example.com/a.png"');
+  });
+
+  it("does not offer a src field for the div-based sm-img placeholder", () => {
+    const { panel, setSelection } = setup(`<div class="sm-img"></div>`);
+    setSelection("0");
+
+    const labelTexts = Array.from(panel.el.querySelectorAll("label")).map((el) => el.textContent);
+    expect(labelTexts).not.toContain("Image src");
+  });
+
+  it("shows the custom preset option for a non-preset padding value", () => {
+    const { panel, setSelection } = setup(`<div class="sm-card" style="padding: 10px;">Card</div>`);
+    setSelection("0");
+
+    const paddingSelect = Array.from(panel.el.querySelectorAll("select")).find((el) =>
+      Array.from(el.options).some((option) => option.value === "custom"),
+    ) as HTMLSelectElement;
+    expect(paddingSelect).toBeDefined();
+    expect(paddingSelect.value).toBe("custom");
   });
 
   it("wraps and unwraps the selected element", () => {

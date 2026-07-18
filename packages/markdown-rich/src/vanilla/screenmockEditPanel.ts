@@ -853,14 +853,15 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
           option.textContent = text(labelKeyForOption, options);
           select.appendChild(option);
         }
-        select.value = presetValueOf(el.getAttribute("style"), property);
-        if (select.value === "custom") {
+        // custom option を追加してから value を設定する（未登録の値の代入は空選択になる）。
+        const currentPreset = presetValueOf(el.getAttribute("style"), property);
+        if (currentPreset === "custom") {
           const option = document.createElement("option");
           option.value = "custom";
           option.textContent = text("screenmockPanelPresetCustom", options);
           select.appendChild(option);
-          select.value = "custom";
         }
+        select.value = currentPreset;
         select.addEventListener("change", () => applyStylePreset(property, select.value));
       };
       renderPresetField("padding", "screenmockPanelPadding");
@@ -954,7 +955,9 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
       input.addEventListener("change", () => applyElementAttribute("data-lines", input.value));
     }
 
-    if (el.classList.contains("sm-img")) {
+    // src を編集できるのは実 <img> のみ。div.sm-img（プレースホルダ）へ付けても
+    // 描画に反映されず、無効な属性書き込みになる。
+    if (el.tagName.toLowerCase() === "img") {
       const srcField = append(content, "div", "am-smep-field");
       append(srcField, "label").textContent = text("screenmockPanelSrc", options);
       const input = append(srcField, "input");
@@ -1036,6 +1039,12 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
       });
       button.addEventListener("pointerdown", () => {
         draggedPath = path;
+      });
+      // OS 側の中断（タッチスクロール遷移・Esc 等）では pointerup / dragend が来ないため、
+      // pointercancel でドラッグ状態を破棄する（残留するとドロップ候補表示が誤って付く）。
+      button.addEventListener("pointercancel", () => {
+        draggedPath = null;
+        clearDropTarget();
       });
       button.addEventListener("pointerover", () => markDropTarget(button, path));
       button.addEventListener("pointerup", (event) => {

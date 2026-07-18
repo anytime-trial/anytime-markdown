@@ -465,6 +465,12 @@ describe("screenmock panel source mutations", () => {
     expect(unwrapScreenmockElement(empty, 0, "0")).toBe("<p>After</p>");
   });
 
+  it("sm-screen ルートの包み解除は no-op（画面構造を壊さない）", () => {
+    const screen = '<div class="sm-screen"><button class="sm-btn">OK</button></div>';
+
+    expect(unwrapScreenmockElement(screen, 0, "0")).toBe(screen);
+  });
+
   it("data-lines を正の整数文字列だけ設定し null で除去する", () => {
     const textSource = '<div class="sm-screen"><p class="sm-text">Body</p><p>Other</p></div>';
     const set = setScreenmockElementAttribute(textSource, 0, "0/0", "data-lines", "3");
