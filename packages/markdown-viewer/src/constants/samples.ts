@@ -3,6 +3,7 @@ import mermaidSamplesJson from "./mermaidSamples.json";
 import plantumlSamplesJson from "./plantumlSamples.json";
 import anytimeGraphSamplesJson from "./anytimeGraphSamples.json";
 import anytimeChartSamplesJson from "./anytimeChartSamples.json";
+import screenmockSamplesJson from "./screenmockSamples.json";
 
 export type DiagramSample = { label: string; i18nKey: string; icon: string; code: string; enabled: boolean };
 
@@ -11,3 +12,4 @@ export const PLANTUML_SAMPLES: DiagramSample[] = plantumlSamplesJson;
 export const MATH_SAMPLES: DiagramSample[] = mathSamplesJson;
 export const ANYTIME_GRAPH_SAMPLES: DiagramSample[] = anytimeGraphSamplesJson;
 export const ANYTIME_CHART_SAMPLES: DiagramSample[] = anytimeChartSamplesJson;
+export const SCREENMOCK_SAMPLES: DiagramSample[] = screenmockSamplesJson;
