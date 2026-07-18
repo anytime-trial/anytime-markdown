@@ -261,8 +261,9 @@ describe("screenmockDesignMode ドラッグ操作", () => {
     document.dispatchEvent(pointer("pointermove", { clientX: 40, clientY: 30, altKey: true }));
     document.dispatchEvent(pointer("pointerup", { clientX: 40, clientY: 30, altKey: true }));
 
-    expect(getSource()).toContain("position: absolute; left: 40px; top: 30px;");
-    expect(getSource()).toContain('<div class="sm-col" style="position: relative;">');
+    // フローを保つオフセット（ドラッグ量そのもの）。親には触れない。
+    expect(getSource()).toContain("position: relative; left: 30px; top: 20px;");
+    expect(getSource()).toContain('<div class="sm-col">');
     restore();
     host.destroy();
   });
