@@ -1,9 +1,9 @@
+import { createScreenmockDesignModePreview } from "../vanilla/screenmockDesignMode";
 import {
   annotateScreenmockHtmlPaths,
   applyElementSizeToScreenHtml,
-  createScreenmockDesignModePreview,
   replaceScreenmockScreenHtml,
-} from "../vanilla/screenmockDesignMode";
+} from "../vanilla/screenmockHtmlMutations";
 import { sanitizeScreenmockHtml } from "../vanilla/screenmockPreview";
 
 describe("screenmockDesignMode", () => {
