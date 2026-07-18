@@ -221,6 +221,42 @@ describe("createCodeBlockEditDialog", () => {
     handle.destroy();
   });
 
+  it("previewSidePanel はプレビュー本体の右側カラムに配置される（横並び・パネルが後）", () => {
+    const editor = makeEditor();
+    const node = makeNode("---\nid: a\n---\n<div class=\"sm-screen\"></div>");
+    const state = createCodeEditState({ editor, pos: 0, node, onClose: jest.fn() });
+
+    const mount = jest.fn((container: HTMLElement) => {
+      container.appendChild(document.createElement("div"));
+      return () => {};
+    });
+    const handle = createCodeBlockEditDialog({
+      label: "Edit",
+      language: "screenmock",
+      isDark: false,
+      editorBg: "#fff",
+      fontSize: 16,
+      lineHeight: 1.5,
+      renderPreview: true,
+      renderPreviewHtml: () => "",
+      previewSidePanel: { mount },
+      state,
+      t,
+      onClose: jest.fn(),
+    });
+
+    expect(mount).toHaveBeenCalledTimes(1);
+    const right = handle.el.querySelector(".am-cbed-preview-with-panel");
+    expect(right).not.toBeNull();
+    const children = Array.from(right?.children ?? []).map((c) => c.className);
+    // DOM 順: プレビュー本体 → サイドパネル（横並びで右側に来る前提の並び）
+    expect(children.indexOf("am-cbed-preview-main")).toBeLessThan(children.indexOf("am-cbed-preview-side-panel"));
+    // .am-split-right の flex-direction:column（split 側 style が後注入で同特異度なら勝つ）を
+    // 打ち消さないと縦積み（パネルが下・左寄り）になる。実際のカスケード結果で検証する。
+    expect(getComputedStyle(right as Element).flexDirection).toBe("row");
+    handle.destroy();
+  });
+
   it("destroy で dialog が DOM から削除される", () => {
     const editor = makeEditor();
     const node = makeNode("abc");

@@ -9,6 +9,7 @@ import {
   FS_PANEL_HEADER_FONT_SIZE,
 } from "@anytime-markdown/markdown-viewer";
 import { createDialog } from "@anytime-markdown/ui-core/Dialog";
+import { createMediaQuery } from "@anytime-markdown/ui-core/mediaQuery";
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
 import { renderCodeBlockPreview } from "../components/codeblock/codeBlockPreview";
 
@@ -311,14 +312,27 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
 
     if (opts.previewSidePanel) {
       split.right.classList.add("am-cbed-preview-with-panel");
+      // .am-split-right の flex-direction:column と同特異度でスタイル注入順に勝敗が依存するため、
+      // インラインで横並び（パネルはプレビュー本体の右側）を確定させる。
+      // 狭幅では split 本体の縦積み切替（dialogHelpers の 900px 境界）に合わせてパネルも下積みへ戻す。
+      const panelMq = createMediaQuery("(max-width:899.95px)");
+      const applyPanelDirection = (narrow: boolean): void => {
+        split.right.style.flexDirection = narrow ? "column" : "row";
+      };
+      applyPanelDirection(panelMq.matches);
+      panelMq.subscribe(applyPanelDirection);
       const sidePanel = document.createElement("aside");
       sidePanel.className = "am-cbed-preview-side-panel";
       split.right.appendChild(sidePanel);
-      sidePanelCleanup = opts.previewSidePanel.mount(sidePanel, {
+      const mountCleanup = opts.previewSidePanel.mount(sidePanel, {
         getCode: () => state.getFsCode(),
         setCode: (s) => state.onFsTextChange(s),
         isDark,
       });
+      sidePanelCleanup = () => {
+        panelMq.destroy();
+        mountCleanup();
+      };
     }
   }
 
