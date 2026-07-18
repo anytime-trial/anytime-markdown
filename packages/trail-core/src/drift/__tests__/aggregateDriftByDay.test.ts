@@ -88,6 +88,38 @@ describe('aggregateDriftByDay', () => {
     expect(points.every((p) => p.unresolvedCumulative >= 0)).toBe(true);
   });
 
+  test('範囲開始前から未解決のドリフトを累計の初期値として繰り越す（cross-review 指摘）', () => {
+    const points = aggregateDriftByDay(
+      [
+        // 範囲前に検知され未解決のまま（繰り越し対象）
+        { detectedAt: '2026-06-20T03:00:00.000Z', resolvedAt: null },
+        { detectedAt: '2026-06-21T03:00:00.000Z', resolvedAt: null },
+        // 範囲前に検知され範囲前に解決済み（繰り越さない）
+        { detectedAt: '2026-06-22T03:00:00.000Z', resolvedAt: '2026-06-25T03:00:00.000Z' },
+        // 範囲内で検知
+        { detectedAt: '2026-07-02T03:00:00.000Z', resolvedAt: null },
+      ],
+      { sinceIso: '2026-07-01T00:00:00.000Z', untilIso: '2026-07-02T00:00:00.000Z' },
+    );
+    expect(points[0].unresolvedCumulative).toBe(2);
+    expect(points[1].unresolvedCumulative).toBe(3);
+  });
+
+  test('範囲前に検知され範囲内で解決されたものは繰り越したうえで解決として減る', () => {
+    const points = aggregateDriftByDay(
+      [{ detectedAt: '2026-06-01T03:00:00.000Z', resolvedAt: '2026-07-02T03:00:00.000Z' }],
+      { sinceIso: '2026-07-01T00:00:00.000Z', untilIso: '2026-07-03T00:00:00.000Z' },
+    );
+    expect(points.map((p) => p.unresolvedCumulative)).toEqual([1, 0, 0]);
+  });
+
+  test('since 未指定なら繰り越しは行わない（全期間が対象のため）', () => {
+    const points = aggregateDriftByDay([
+      { detectedAt: '2026-07-01T03:00:00.000Z', resolvedAt: null },
+    ]);
+    expect(points[0].unresolvedCumulative).toBe(1);
+  });
+
   test('イベントが無ければ空配列（範囲指定なし）', () => {
     expect(aggregateDriftByDay([])).toEqual([]);
   });

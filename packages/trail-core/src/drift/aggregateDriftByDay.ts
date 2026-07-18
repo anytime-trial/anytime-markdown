@@ -56,17 +56,32 @@ export function aggregateDriftByDay(
   const detectedByDate = new Map<string, number>();
   const resolvedByDate = new Map<string, number>();
   const allDates: string[] = [];
+  const startBoundary = options.sinceIso ? toLocalDateString(options.sinceIso, timeZone) : null;
+  // 範囲開始時点で既に未解決だった件数。これを累計の初期値にしないと、開始日より前から
+  // 残っているバックログが 0 件として描画される（範囲内の増減しか見えない）。
+  let carriedUnresolved = 0;
 
   for (const ev of events) {
-    if (ev.detectedAt) {
-      const d = toLocalDateString(ev.detectedAt, timeZone);
-      detectedByDate.set(d, (detectedByDate.get(d) ?? 0) + 1);
-      allDates.push(d);
+    const detectedDate = ev.detectedAt ? toLocalDateString(ev.detectedAt, timeZone) : null;
+    const resolvedDate = ev.resolvedAt ? toLocalDateString(ev.resolvedAt, timeZone) : null;
+
+    // 範囲開始前に検知され、開始時点でまだ解決していないものを繰り越す
+    if (
+      startBoundary !== null &&
+      detectedDate !== null &&
+      detectedDate < startBoundary &&
+      (resolvedDate === null || resolvedDate >= startBoundary)
+    ) {
+      carriedUnresolved += 1;
     }
-    if (ev.resolvedAt) {
-      const d = toLocalDateString(ev.resolvedAt, timeZone);
-      resolvedByDate.set(d, (resolvedByDate.get(d) ?? 0) + 1);
-      allDates.push(d);
+
+    if (detectedDate !== null) {
+      detectedByDate.set(detectedDate, (detectedByDate.get(detectedDate) ?? 0) + 1);
+      allDates.push(detectedDate);
+    }
+    if (resolvedDate !== null) {
+      resolvedByDate.set(resolvedDate, (resolvedByDate.get(resolvedDate) ?? 0) + 1);
+      allDates.push(resolvedDate);
     }
   }
 
@@ -82,7 +97,7 @@ export function aggregateDriftByDay(
       : null;
   if (!startDate || !endDate || startDate > endDate) return [];
 
-  let cumulative = 0;
+  let cumulative = carriedUnresolved;
   return enumerateDates(startDate, endDate).map((date) => {
     const detectedCount = detectedByDate.get(date) ?? 0;
     const resolvedCount = resolvedByDate.get(date) ?? 0;

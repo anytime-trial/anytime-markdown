@@ -8123,7 +8123,8 @@ export class TrailDatabase {
        FROM session_commits sc
        JOIN commit_files cf ON cf.commit_hash = sc.commit_hash
        ${join}
-       WHERE ${conditions.join(' AND ')}`,
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY sc.committed_at DESC`,
       args,
     );
     const values = result[0]?.values ?? [];

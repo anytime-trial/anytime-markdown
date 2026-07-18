@@ -14,7 +14,13 @@ export function buildBusFactorElementMap(
   rows: readonly FileAuthorCommitRow[],
   c4Model: C4Model,
   minCommits: number,
-): ReadonlyMap<string, BusFactorEntry> {
+  /**
+   * サーバー側で生行が上限で切り詰められたか。切り詰められた行から再集計すると
+   * 著者比率もコミット数も誤るため、集計せず null を返す（誤った値を出さない）。
+   */
+  rowsTruncated = false,
+): ReadonlyMap<string, BusFactorEntry> | null {
+  if (rowsTruncated) return null;
   const elementById = buildC4ElementById(c4Model.elements);
   const entries = computeBusFactor(rows, {
     minCommits,

@@ -871,9 +871,11 @@ export class MemoryApiHandler {
       const conditions: string[] = [];
       const bindValues: unknown[] = [];
       if (params.since) {
-        // 範囲内で解決された「範囲前に検知された」イベントも解決として数えるため、
-        // detected_at ではなく「検知または解決のどちらかが範囲内」で絞る。
-        conditions.push('(detected_at >= ? OR resolved_at >= ?)');
+        // 3 種類を取る必要がある:
+        //   1) 範囲内で検知されたもの
+        //   2) 範囲前に検知され範囲内で解決されたもの（解決として数える）
+        //   3) 範囲前に検知され今も未解決のもの（累計の初期値になる。落とすとバックログが 0 から始まる）
+        conditions.push('(detected_at >= ? OR resolved_at >= ? OR resolved_at IS NULL)');
         bindValues.push(params.since, params.since);
       }
       if (params.until) {

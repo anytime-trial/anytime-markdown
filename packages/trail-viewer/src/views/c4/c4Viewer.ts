@@ -1425,10 +1425,16 @@ export function mountC4Viewer(
   const busFactorMapMemo = createRefMemo<ReadonlyMap<string, BusFactorEntry> | null>();
   function computeBusFactorMapData(): ReadonlyMap<string, BusFactorEntry> | null {
     const { c4Model } = props;
-    return busFactorMapMemo([c4Model, busFactorState.rows, bfMinCommits], () => {
+    return busFactorMapMemo([c4Model, busFactorState.rows, bfMinCommits, busFactorState.rowsTruncated], () => {
       if (!busFactorState.rows.length || !c4Model) return null;
       // 要素へ写してから合算し score を再計算する（最大値伝播はしない。Phase 6 S5-B）
-      return buildBusFactorElementMap(busFactorState.rows, c4Model, bfMinCommits);
+      // 生行が切り詰められている場合は再集計せず null（誤った属人度を出さない）
+      return buildBusFactorElementMap(
+        busFactorState.rows,
+        c4Model,
+        bfMinCommits,
+        busFactorState.rowsTruncated,
+      );
     });
   }
 
@@ -1866,6 +1872,7 @@ export function mountC4Viewer(
         importanceMatrix: props.importanceMatrix ?? null,
         defectRiskMap: computeDefectRiskMapData(),
         busFactorMap: computeBusFactorMapData(),
+        busFactorTruncated: busFactorState.rowsTruncated,
         hotspotMap: computeHotspotMapData(),
         sizeMatrix: computeSizeMatrixData(),
         layerMatrix: computeLayerMatrixData(),

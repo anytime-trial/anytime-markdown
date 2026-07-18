@@ -111,12 +111,21 @@ describe('GET /api/memory/drift/by-day (Phase 6 S5-C)', () => {
     expect(points.reduce((sum, p) => sum + p.detectedCount, 0)).toBe(1);
   });
 
-  it('since / until で範囲を固定でき、範囲内に検知が無くても 0 の系列を返す', async () => {
+  it('since / until で範囲を固定でき、範囲内に検知が無くても系列を返す', async () => {
     const points = await getPoints(
       '?since=2026-08-01T00:00:00.000Z&until=2026-08-03T00:00:00.000Z',
     );
     expect(points.map((p) => p.date)).toEqual(['2026-08-01', '2026-08-02', '2026-08-03']);
-    expect(points.every((p) => p.detectedCount === 0 && p.unresolvedCumulative === 0)).toBe(true);
+    expect(points.every((p) => p.detectedCount === 0 && p.resolvedCount === 0)).toBe(true);
+    // fixture の d2 / d3 は範囲開始前に検知され未解決のまま。バックログとして繰り越す
+    // （0 から始めると「未解決が無い」と誤読させる。cross-review 指摘の是正）
+    expect(points.every((p) => p.unresolvedCumulative === 2)).toBe(true);
+  });
+
+  it('範囲開始前から未解決のドリフトが累計の初期値に繰り越される（cross-review 指摘）', async () => {
+    // d1 は 07-03 に解決済みのため繰り越さず、d2 / d3 の 2 件だけが残る
+    const points = await getPoints('?since=2026-07-10T00:00:00.000Z&until=2026-07-11T00:00:00.000Z');
+    expect(points[0].unresolvedCumulative).toBe(2);
   });
 
   it('memory.db 不在でも 200 で空配列に縮退する', async () => {
