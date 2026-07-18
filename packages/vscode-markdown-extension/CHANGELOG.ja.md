@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 追加
+
+- 同梱スキル `anytime-doc-authoring` に全 type 共通の文章規範（`references/writing-standards.ja.md`）を追加しました。文体・段落構成・論証の厳密さ・LLM 口調の排除・冗長排除・見出し・読者への誠実さを定め、推敲時のチェックリストを備えます（manifest バンプで配布に反映）。
+
 ## [1.15.0] - 2026-07-17
 
 ### Editor Core (markdown-viewer / markdown-rich)
