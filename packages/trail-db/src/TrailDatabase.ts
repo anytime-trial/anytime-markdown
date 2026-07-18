@@ -27,6 +27,8 @@ import {
   CREATE_C4_MANUAL_ELEMENTS,
   CREATE_C4_MANUAL_GROUPS,
   CREATE_C4_MANUAL_INDEXES,
+  CREATE_ACCEPTANCE_INDEXES,
+  CREATE_ACCEPTANCE_RECORDS,
   CREATE_C4_MANUAL_RELATIONSHIPS,
   CREATE_CODE_DECISION_COMMENTS,
   CREATE_COMMIT_FILES,
@@ -82,7 +84,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type RationaleAuditStatus, type IC4ModelStore,
+import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type RationaleAuditStatus, type IC4ModelStore,
   type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -3967,6 +3969,11 @@ export class TrailDatabase {
     // Phase 6 S4 (Rationale Audit)。列ごと独立 columnExists（S2 と同方針）。
     if (!columnExists(db, 'flight_reviews', 'rationale_audit_status')) {
       db.run(`ALTER TABLE flight_reviews ADD COLUMN rationale_audit_status TEXT NOT NULL DEFAULT 'unaudited' CHECK (rationale_audit_status IN ('unaudited', 'valid', 'needs_fix', 'rejected'))`);
+    }
+    // 自律受入基盤 S5 (受入台帳)。新規テーブルのみ。
+    db.run(CREATE_ACCEPTANCE_RECORDS);
+    for (const idx of CREATE_ACCEPTANCE_INDEXES) {
+      db.run(idx);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
     this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
@@ -10945,6 +10952,200 @@ export class TrailDatabase {
       updated_at: asText(r[15] ?? ''),
       repo_id: Number(r[16] ?? 0),
     }));
+  }
+
+  // ---------------------------------------------------------------------------
+  //  自律受入基盤 S5: 受入台帳 (acceptance_records)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 副作用: acceptance_records へ UPSERT。永続化は呼び出し側の save() 契約に従う。
+   * (commit_sha, route) キーで冪等（farm の再実行・多重記録を吸収する）。
+   */
+  upsertAcceptanceRecord(input: AcceptanceRecordInput): void {
+    const db = this.ensureDb();
+    const now = new Date().toISOString();
+    const stmt = db.prepare(
+      `INSERT INTO acceptance_records (
+         commit_sha, route, repo_name, verdict, decided_by, decided_at,
+         farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(commit_sha, route) DO UPDATE SET
+         repo_name = excluded.repo_name,
+         verdict = excluded.verdict,
+         decided_by = excluded.decided_by,
+         decided_at = excluded.decided_at,
+         farm_run_ref = excluded.farm_run_ref,
+         failed_tests = excluded.failed_tests,
+         vrt_diff = excluded.vrt_diff,
+         quarantined_count = excluded.quarantined_count,
+         notes = excluded.notes,
+         updated_at = excluded.updated_at`,
+    );
+    try {
+      stmt.run([
+        input.commitSha,
+        input.route,
+        input.repoName ?? '',
+        input.verdict,
+        input.decidedBy,
+        input.decidedAt ?? null,
+        input.farmRunRef ?? '',
+        JSON.stringify(input.failedTests ?? []),
+        input.vrtDiff ? 1 : 0,
+        input.quarantinedCount ?? 0,
+        input.notes ?? '',
+        now,
+        now,
+      ]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /** decided_at 降順（NULL は末尾）。filter 未指定は直近 100 件。 */
+  listAcceptanceRecords(filter: AcceptanceRecordFilter = {}): AcceptanceRecord[] {
+    const db = this.ensureDb();
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    if (filter.commitSha !== undefined) {
+      conditions.push('commit_sha = ?');
+      params.push(filter.commitSha);
+    }
+    if (filter.route !== undefined) {
+      conditions.push('route = ?');
+      params.push(filter.route);
+    }
+    if (filter.since !== undefined) {
+      conditions.push('decided_at >= ?');
+      params.push(filter.since);
+    }
+    if (filter.until !== undefined) {
+      conditions.push('decided_at <= ?');
+      params.push(filter.until);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(filter.limit ?? 100);
+    const res = db.exec(
+      `SELECT commit_sha, route, repo_name, verdict, decided_by, decided_at,
+              farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at
+       FROM acceptance_records ${where} ORDER BY decided_at DESC, updated_at DESC LIMIT ?`,
+      params,
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      commitSha: row[0] as string,
+      route: row[1] as AcceptanceRecord['route'],
+      repoName: row[2] as string,
+      verdict: row[3] as AcceptanceRecord['verdict'],
+      decidedBy: row[4] as AcceptanceRecord['decidedBy'],
+      decidedAt: (row[5] as string | null) ?? null,
+      farmRunRef: row[6] as string,
+      failedTests: row[7] as string,
+      vrtDiff: (row[8] as number) === 1,
+      quarantinedCount: row[9] as number,
+      notes: row[10] as string,
+      createdAt: row[11] as string,
+      updatedAt: row[12] as string,
+    }));
+  }
+
+  /**
+   * 経路別見逃し率の算出（読み取りのみ・近似指標）。
+   * 「合格コミットの変更ファイルと同じファイルに、合格後 windowDays 日以内の fix 系コミット
+   * （commit_message が 'fix' 始まり・別 SHA）が触れた」件数を missed と数える。厳密な因果は問わない。
+   * sql.js のオプティマイザが弱いため、SQL はシンプルスキャンに留め集約は TS 側で行う。
+   */
+  computeAcceptanceMissRate(windowDays = 14): AcceptanceMissRate[] {
+    const db = this.ensureDb();
+    const routes: AcceptanceRoute[] = ['auto', 'machine', 'human'];
+    const passRes = db.exec(
+      `SELECT commit_sha, route, decided_at FROM acceptance_records
+       WHERE verdict = 'pass' AND decided_at IS NOT NULL`,
+    );
+    const passRows = (passRes[0]?.values ?? []).map((r) => ({
+      commitSha: r[0] as string,
+      route: r[1] as AcceptanceRoute,
+      decidedAt: r[2] as string,
+    }));
+    if (passRows.length === 0) {
+      return routes.map((route) => ({ route, acceptedCount: 0, missedCount: 0, missRate: null, windowDays }));
+    }
+
+    const filesByCommit = this.commitFilesByHashes(db, passRows.map((r) => r.commitSha));
+
+    const minDecidedAt = passRows.reduce((min, r) => (r.decidedAt < min ? r.decidedAt : min), passRows[0].decidedAt);
+    const fixRes = db.exec(
+      `SELECT DISTINCT commit_hash, committed_at FROM session_commits
+       WHERE commit_message GLOB 'fix*' AND committed_at IS NOT NULL AND committed_at >= ?`,
+      [minDecidedAt],
+    );
+    const fixCommits = (fixRes[0]?.values ?? []).map((r) => ({
+      commitHash: r[0] as string,
+      committedAt: r[1] as string,
+    }));
+    const fixFilesByCommit = this.commitFilesByHashes(db, fixCommits.map((f) => f.commitHash));
+
+    const windowMs = windowDays * 24 * 60 * 60 * 1000;
+    const missedByRoute = new Map<AcceptanceRoute, number>();
+    const acceptedByRoute = new Map<AcceptanceRoute, number>();
+    for (const pass of passRows) {
+      acceptedByRoute.set(pass.route, (acceptedByRoute.get(pass.route) ?? 0) + 1);
+      const passFiles = filesByCommit.get(pass.commitSha);
+      if (!passFiles || passFiles.size === 0) continue;
+      const decidedMs = Date.parse(pass.decidedAt);
+      const missed = fixCommits.some((fix) => {
+        if (fix.commitHash === pass.commitSha) return false;
+        const fixMs = Date.parse(fix.committedAt);
+        if (Number.isNaN(fixMs) || fixMs <= decidedMs || fixMs > decidedMs + windowMs) return false;
+        const fixFiles = fixFilesByCommit.get(fix.commitHash);
+        if (!fixFiles) return false;
+        for (const f of fixFiles) {
+          if (passFiles.has(f)) return true;
+        }
+        return false;
+      });
+      if (missed) {
+        missedByRoute.set(pass.route, (missedByRoute.get(pass.route) ?? 0) + 1);
+      }
+    }
+    return routes.map((route) => {
+      const acceptedCount = acceptedByRoute.get(route) ?? 0;
+      const missedCount = missedByRoute.get(route) ?? 0;
+      return {
+        route,
+        acceptedCount,
+        missedCount,
+        missRate: acceptedCount === 0 ? null : missedCount / acceptedCount,
+        windowDays,
+      };
+    });
+  }
+
+  /** commit_files をハッシュ集合で引き、hash → file_path 集合の Map にする（IN 句はチャンク分割）。 */
+  private commitFilesByHashes(db: Database, hashes: string[]): Map<string, Set<string>> {
+    const result = new Map<string, Set<string>>();
+    const unique = [...new Set(hashes)];
+    const CHUNK = 400;
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const chunk = unique.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(', ');
+      const res = db.exec(
+        `SELECT commit_hash, file_path FROM commit_files WHERE commit_hash IN (${placeholders})`,
+        chunk,
+      );
+      for (const row of res[0]?.values ?? []) {
+        const hash = row[0] as string;
+        const file = row[1] as string;
+        let set = result.get(hash);
+        if (!set) {
+          set = new Set();
+          result.set(hash, set);
+        }
+        set.add(file);
+      }
+    }
+    return result;
   }
 
   // ---------------------------------------------------------------------------
