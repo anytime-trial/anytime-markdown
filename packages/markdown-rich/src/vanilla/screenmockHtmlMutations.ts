@@ -230,10 +230,12 @@ export interface ScreenmockElementPosition {
   topPx: number;
 }
 
+/** `position: static` は包含ブロックにならないため「配置済み」とみなさない。 */
 function hasPositionDeclaration(style: string | null): boolean {
-  return (style ?? "")
-    .split(";")
-    .some((part) => part.trim().toLowerCase().startsWith("position:"));
+  return (style ?? "").split(";").some((part) => {
+    const declaration = part.trim().toLowerCase();
+    return declaration.startsWith("position:") && declaration.slice("position:".length).trim() !== "static";
+  });
 }
 
 /**

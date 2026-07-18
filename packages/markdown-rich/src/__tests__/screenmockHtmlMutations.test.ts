@@ -83,6 +83,14 @@ describe("applyElementAbsolutePosition", () => {
     expect((out.match(/position: relative/g) ?? []).length).toBe(1);
   });
 
+  it("親が position: static のときは relative を補う", () => {
+    const source = '<div class="root" style="position: static;"><span>x</span></div>';
+
+    const out = applyElementAbsolutePosition(source, "0/0", { leftPx: 5, topPx: 5 });
+
+    expect(out).toContain('<div class="root" style="position: relative;">');
+  });
+
   it("既存の left/top を上書きする", () => {
     const source = '<div><span style="position: absolute; left: 1px; top: 2px;">x</span></div>';
 

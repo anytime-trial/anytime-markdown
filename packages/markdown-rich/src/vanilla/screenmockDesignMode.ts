@@ -464,11 +464,24 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
     options.setSource(replaceScreenmockScreenHtml(sourceText, current.screenIndex, nextScreenHtml));
   };
 
+  /**
+   * ポインタがキャンセルされた場合（タッチのスクロール判定・フォーカス喪失等）は書き戻さず
+   * 状態だけ落とす。これが無いと挿入線やバッジが消えずに残る。
+   */
+  const onPointerCancel = (event: PointerEvent): void => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    drag = null;
+    clearDragFeedback();
+  };
+
   document.addEventListener("pointermove", onPointerMove);
   document.addEventListener("pointerup", onPointerUp);
+  document.addEventListener("pointercancel", onPointerCancel);
   host.destroy = () => {
     document.removeEventListener("pointermove", onPointerMove);
     document.removeEventListener("pointerup", onPointerUp);
+    document.removeEventListener("pointercancel", onPointerCancel);
+    clearDragFeedback();
     host.remove();
   };
   render();

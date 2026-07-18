@@ -329,4 +329,25 @@ describe("screenmockDesignMode ドラッグ操作", () => {
     expect(down.defaultPrevented).toBe(true);
     host.destroy();
   });
+
+  it("pointercancel でドラッグ状態とフィードバック表示を落とす", () => {
+    const initial = '<div class="sm-col"><span>a</span><button>b</button></div>';
+    const { host, getSource } = mountDesignPreview(initial);
+    const restore = stubGeometry(host, stackedBoxes);
+    const shadow = host.shadowRoot as ShadowRoot;
+    const target = shadow.querySelector('[data-sm-path="0/1"]') as HTMLElement;
+
+    target.dispatchEvent(pointer("pointerdown", { clientX: 50, clientY: 30 }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 50, clientY: 4 }));
+    expect(shadow.querySelector(".am-smdm-insertline")).not.toBeNull();
+
+    document.dispatchEvent(pointer("pointercancel", { clientX: 50, clientY: 4 }));
+
+    expect(shadow.querySelector(".am-smdm-insertline")).toBeNull();
+    // キャンセル後の pointerup では書き戻さない。
+    document.dispatchEvent(pointer("pointerup", { clientX: 50, clientY: 4 }));
+    expect(getSource()).toBe(initial);
+    restore();
+    host.destroy();
+  });
 });
