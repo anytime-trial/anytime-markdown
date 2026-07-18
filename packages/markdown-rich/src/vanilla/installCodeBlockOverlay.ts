@@ -503,6 +503,11 @@ export function installCodeBlockOverlay(
                 lastSelectedPath = path;
               },
               getActiveScreenIndex: () => activeScreenIndex,
+              setActiveScreenIndex: (index) => {
+                activeScreenIndex = index;
+                editState.onFsTextChange(editState.getFsCode());
+              },
+              confirm,
               isDark: ctx.isDark,
             });
             container.appendChild(panel.el);

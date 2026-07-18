@@ -2,13 +2,18 @@ import { getDivider, getTextDisabled, getTextSecondary } from "@anytime-markdown
 import { ensureStyle } from "./dialogHelpers";
 import { parseScreenmock } from "./screenmockPreview";
 import {
+  appendScreenmockScreen,
+  annotateScreenmockHtmlPaths,
   duplicateScreenmockElement,
+  duplicateScreenmockScreen,
   findElementByPath,
   insertScreenmockElement,
   parseScreenRanges,
   removeScreenmockElement,
   removeScreenmockElementHeight,
+  removeScreenmockScreen,
   removeScreenmockElementWidth,
+  renameScreenmockScreen,
   setScreenmockElementOffset,
   setScreenmockElementStyleDeclaration,
   setScreenmockElementHeight,
@@ -26,6 +31,8 @@ export interface CreateScreenmockEditPanelOptions {
   getSelectedPath: () => string | null;
   setSelectedPath: (path: string | null) => void;
   getActiveScreenIndex: () => number;
+  setActiveScreenIndex?: (index: number) => void;
+  confirm?: (message: string) => Promise<boolean> | boolean;
   isDark: boolean;
 }
 
@@ -43,6 +50,11 @@ type PanelTab = "parts" | "attributes" | "structure" | "screens";
 interface PartItem {
   className: string;
   html: string;
+}
+
+interface ScreenMetadata {
+  id?: string;
+  title?: string;
 }
 
 export const SCREENMOCK_PALETTE_DRAG_EVENT = "am-screenmock-palette-drag-start";
@@ -122,7 +134,9 @@ function ensurePanelStyle(): void {
 .am-smep-muted{color:var(--am-color-text-secondary,#656d76);font-size:12px;}
 .am-smep-chip{display:inline-flex;width:max-content;max-width:100%;padding:2px 7px;border-radius:999px;background:var(--am-color-action-selected,rgba(9,105,218,.12));color:var(--am-color-primary-main,#0969da);font-size:12px;font-weight:600;}
 .am-smep-screen-list{display:flex;flex-direction:column;gap:6px;}
-.am-smep-screen{padding:6px 8px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;background:var(--am-color-action-hover,rgba(0,0,0,.04));}
+.am-smep-screen,.am-smep-tree-node{width:100%;min-height:30px;padding:5px 8px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;background:var(--am-color-bg-paper,#fff);color:inherit;font:inherit;text-align:left;box-sizing:border-box;cursor:pointer;}
+.am-smep-screen[aria-current="true"],.am-smep-tree-node[aria-selected="true"]{border-color:var(--am-color-primary-main,#0969da);background:var(--am-color-action-selected,rgba(9,105,218,.12));color:var(--am-color-primary-main,#0969da);font-weight:600;}
+.am-smep-tree{display:flex;flex-direction:column;gap:4px;}
 `);
 }
 
@@ -197,6 +211,51 @@ function pathExists(source: string, screenIndex: number, path: string | null): b
   return Boolean(findElementByPath(template.content, path));
 }
 
+function hasHrefReference(source: string, id: string): boolean {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`href=(["'])#${escaped}\\1`).test(source);
+}
+
+function nextScreenId(source: string): string {
+  const used = new Set(parseScreenmock(source).map((screen) => screen.id));
+  for (let index = 1; ; index += 1) {
+    const candidate = `screen-${index}`;
+    if (!used.has(candidate)) return candidate;
+  }
+}
+
+function readScreenMetadata(source: string): ScreenMetadata[] {
+  if (!source.trim()) return [];
+  const lines = source.replace(/\r\n?/g, "\n").split("\n");
+  const firstContentIndex = lines.findIndex((line) => line.trim() !== "");
+  if (firstContentIndex < 0) return [];
+  if (lines[firstContentIndex].trim() !== "---") return [{}];
+
+  const result: ScreenMetadata[] = [];
+  let cursor = firstContentIndex;
+  while (cursor < lines.length) {
+    while (cursor < lines.length && !lines[cursor].trim()) cursor += 1;
+    if (cursor >= lines.length) break;
+    if (lines[cursor].trim() !== "---") {
+      result.push({});
+      break;
+    }
+    cursor += 1;
+    const meta: ScreenMetadata = {};
+    while (cursor < lines.length && lines[cursor].trim() !== "---") {
+      const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(lines[cursor]);
+      if (match?.[1] === "id") meta.id = match[2].trim();
+      if (match?.[1] === "title") meta.title = match[2].trim();
+      cursor += 1;
+    }
+    if (cursor >= lines.length) break;
+    result.push(meta);
+    cursor += 1;
+    while (cursor < lines.length && lines[cursor].trim() !== "---") cursor += 1;
+  }
+  return result;
+}
+
 function append<K extends keyof HTMLElementTagNameMap>(
   parent: HTMLElement,
   tag: K,
@@ -269,10 +328,10 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     return { source, screenIndex, path, el: readElement(source, screenIndex, path) };
   };
 
-  const selectPath = (path: string | null): void => {
+  const selectPath = (path: string | null, switchTab = true): void => {
     selectedPath = path;
     options.setSelectedPath(path);
-    activeTab = path ? "attributes" : "parts";
+    if (switchTab) activeTab = path ? "attributes" : "parts";
   };
 
   const insertPart = (part: PartItem): void => {
@@ -359,6 +418,81 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     const result = duplicateScreenmockElement(source, screenIndex, path);
     selectPath(result.newPath);
     commitSource(result.source);
+  };
+
+  const switchScreen = (index: number): void => {
+    activeScreenIndex = normalizeActiveScreenIndex(options.getSource(), index);
+    selectedPath = null;
+    options.setSelectedPath(null);
+    options.setActiveScreenIndex?.(activeScreenIndex);
+    render();
+  };
+
+  const addScreen = (): void => {
+    if (!designMode) return;
+    const source = options.getSource();
+    const screens = parseScreenmock(source);
+    const next = appendScreenmockScreen(source, {
+      id: nextScreenId(source),
+      html: '<div class="sm-screen">\n</div>',
+    });
+    activeScreenIndex = screens.length;
+    selectedPath = null;
+    options.setSelectedPath(null);
+    options.setActiveScreenIndex?.(activeScreenIndex);
+    commitSource(next);
+  };
+
+  const duplicateScreen = (): void => {
+    if (!designMode) return;
+    const source = options.getSource();
+    if (!parseScreenmock(source).length) return;
+    const screenIndex = normalizeActiveScreenIndex(source, activeScreenIndex);
+    const next = duplicateScreenmockScreen(source, screenIndex);
+    activeScreenIndex = screenIndex + 1;
+    selectedPath = null;
+    options.setSelectedPath(null);
+    options.setActiveScreenIndex?.(activeScreenIndex);
+    commitSource(next);
+  };
+
+  const deleteScreen = async (): Promise<void> => {
+    if (!designMode) return;
+    const source = options.getSource();
+    if (!parseScreenmock(source).length) return;
+    const screenIndex = normalizeActiveScreenIndex(source, activeScreenIndex);
+    const accepted = await (options.confirm?.(text("screenmockPanelDeleteScreenConfirm", options)) ??
+      window.confirm(text("screenmockPanelDeleteScreenConfirm", options)));
+    if (!accepted) return;
+    const next = removeScreenmockScreen(source, screenIndex);
+    activeScreenIndex = normalizeActiveScreenIndex(next, screenIndex);
+    selectedPath = null;
+    options.setSelectedPath(null);
+    options.setActiveScreenIndex?.(activeScreenIndex);
+    commitSource(next);
+  };
+
+  const renameActiveScreenId = async (id: string): Promise<void> => {
+    if (!designMode) return;
+    if (!id) return;
+    const source = options.getSource();
+    const screenIndex = normalizeActiveScreenIndex(source, activeScreenIndex);
+    const metadata = readScreenMetadata(source)[screenIndex];
+    const current = parseScreenmock(source)[screenIndex];
+    const previousId = metadata?.id;
+    if (!current || previousId === id) return;
+    const updateRefs = previousId && hasHrefReference(source, previousId)
+      ? await (options.confirm?.(text("screenmockPanelUpdateRefsConfirm", options)) ??
+        window.confirm(text("screenmockPanelUpdateRefsConfirm", options)))
+      : undefined;
+    commitSource(renameScreenmockScreen(source, screenIndex, { id }, updateRefs ? { updateRefs: true } : undefined));
+  };
+
+  const renameActiveScreenTitle = (title: string): void => {
+    if (!designMode) return;
+    const source = options.getSource();
+    const screenIndex = normalizeActiveScreenIndex(source, activeScreenIndex);
+    commitSource(renameScreenmockScreen(source, screenIndex, { title }));
   };
 
   const renderParts = (): void => {
@@ -541,21 +675,82 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
   };
 
   const renderStructure = (): void => {
+    const { source, screenIndex } = currentSelection();
     const content = append(bodyEl, "div", designMode ? "" : "am-smep-disabled");
     renderActions(content);
-    const placeholder = append(content, "div", "am-smep-disabled-note");
-    placeholder.textContent = text("screenmockPanelTreePlaceholder", options);
+    const section = append(content, "section", "am-smep-section");
+    append(section, "div", "am-smep-heading").textContent = text("screenmockPanelStructureTree", options);
+    const tree = append(section, "div", "am-smep-tree");
+    const template = document.createElement("template");
+    template.innerHTML = annotateScreenmockHtmlPaths(screenHtmlAt(source, screenIndex));
+    const renderNode = (el: Element, depth: number): void => {
+      const path = el.getAttribute("data-sm-path");
+      if (!path) return;
+      const button = makeButton(classOrTag(el), "am-smep-tree-node");
+      button.style.paddingLeft = `${8 + depth * 14}px`;
+      button.setAttribute("aria-selected", String(path === selectedPath));
+      button.addEventListener("click", () => {
+        selectPath(path, false);
+        options.setActiveScreenIndex?.(activeScreenIndex);
+        render();
+      });
+      tree.appendChild(button);
+      Array.from(el.children).forEach((child) => renderNode(child, depth + 1));
+    };
+    Array.from(template.content.children).forEach((child) => renderNode(child, 0));
+    if (!tree.childElementCount) {
+      append(section, "div", "am-smep-muted").textContent = text("screenmockPanelTreeEmpty", options);
+    }
   };
 
   const renderScreens = (): void => {
     const content = append(bodyEl, "div", designMode ? "" : "am-smep-disabled");
+    const source = options.getSource();
+    const screens = parseScreenmock(source);
+    const metadata = readScreenMetadata(source);
     const list = append(content, "div", "am-smep-screen-list");
-    for (const screen of parseScreenmock(options.getSource())) {
-      const item = append(list, "div", "am-smep-screen");
-      item.textContent = `${screen.id} ${screen.title}`;
+    screens.forEach((screen, index) => {
+      const meta = metadata[index] ?? {};
+      const item = makeButton(meta.title || meta.id || `${text("screenmockPanelUntitledScreen", options)} ${index + 1}`, "am-smep-screen");
+      item.setAttribute("aria-current", String(index === activeScreenIndex));
+      item.addEventListener("click", () => switchScreen(index));
+      list.appendChild(item);
+    });
+    if (!screens.length) {
+      append(list, "div", "am-smep-muted").textContent = text("screenmockPanelNoScreens", options);
     }
-    const placeholder = append(content, "div", "am-smep-disabled-note");
-    placeholder.textContent = text("screenmockPanelScreensPlaceholder", options);
+
+    const actionRow = append(content, "div", "am-smep-row");
+    const addButton = makeButton(text("screenmockPanelAddScreen", options));
+    addButton.addEventListener("click", addScreen);
+    actionRow.appendChild(addButton);
+    const duplicateButton = makeButton(text("screenmockPanelDuplicate", options));
+    duplicateButton.addEventListener("click", duplicateScreen);
+    actionRow.appendChild(duplicateButton);
+    const deleteButton = makeButton(text("screenmockPanelDelete", options), "am-smep-action am-smep-action-danger");
+    deleteButton.addEventListener("click", () => {
+      void deleteScreen();
+    });
+    content.appendChild(deleteButton);
+
+    const current = screens[activeScreenIndex];
+    const currentMetadata = metadata[activeScreenIndex] ?? {};
+    if (current) {
+      const meta = append(content, "section", "am-smep-section");
+      append(meta, "div", "am-smep-heading").textContent = text("screenmockPanelScreenMetadata", options);
+      const idField = append(meta, "div", "am-smep-field");
+      append(idField, "label").textContent = text("screenmockPanelScreenId", options);
+      const idInput = append(idField, "input");
+      idInput.value = currentMetadata.id ?? "";
+      idInput.addEventListener("change", () => {
+        void renameActiveScreenId(idInput.value.trim());
+      });
+      const titleField = append(meta, "div", "am-smep-field");
+      append(titleField, "label").textContent = text("screenmockPanelScreenTitle", options);
+      const titleInput = append(titleField, "input");
+      titleInput.value = currentMetadata.title ?? "";
+      titleInput.addEventListener("change", () => renameActiveScreenTitle(titleInput.value.trim()));
+    }
   };
 
   function render(): void {
@@ -587,7 +782,7 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     },
     setSelection: (path) => {
       selectedPath = path;
-      activeTab = path ? "attributes" : "parts";
+      if (activeTab !== "structure") activeTab = path ? "attributes" : "parts";
       render();
     },
     setActiveScreenIndex: (index) => {

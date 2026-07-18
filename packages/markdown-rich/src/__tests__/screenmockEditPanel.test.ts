@@ -33,6 +33,16 @@ const labels: Record<string, string> = {
   screenmockPanelDuplicate: "Duplicate",
   screenmockPanelTreePlaceholder: "Tree placeholder",
   screenmockPanelScreensPlaceholder: "Screens placeholder",
+  screenmockPanelStructureTree: "Hierarchy tree",
+  screenmockPanelTreeEmpty: "No elements",
+  screenmockPanelAddScreen: "Add screen",
+  screenmockPanelDeleteScreenConfirm: "Delete screen?",
+  screenmockPanelUpdateRefsConfirm: "Update refs?",
+  screenmockPanelScreenMetadata: "Screen details",
+  screenmockPanelScreenId: "id",
+  screenmockPanelScreenTitle: "title",
+  screenmockPanelUntitledScreen: "Screen",
+  screenmockPanelNoScreens: "No screens",
 };
 
 function change(el: HTMLInputElement | HTMLSelectElement, value: string): void {
@@ -46,7 +56,15 @@ function clickByText(root: HTMLElement, text: string): void {
   button.click();
 }
 
-function setup(initial: string, enabled = true) {
+function screenBlockCount(source: string): number {
+  return (source.match(/^---$/gm) ?? []).length / 2;
+}
+
+async function flushPromises(): Promise<void> {
+  await Promise.resolve();
+}
+
+function setup(initial: string, enabled = true, confirm?: (message: string) => Promise<boolean> | boolean) {
   let source = initial;
   let designMode = enabled;
   let selectedPath: string | null = null;
@@ -67,6 +85,10 @@ function setup(initial: string, enabled = true) {
       selectedPath = path;
     },
     getActiveScreenIndex: () => activeScreenIndex,
+    setActiveScreenIndex: (index) => {
+      activeScreenIndex = index;
+    },
+    confirm,
     isDark: false,
   });
   panelRef = panel;
@@ -79,6 +101,7 @@ function setup(initial: string, enabled = true) {
       panel.setDesignMode(next);
     },
     getSelectedPath: () => selectedPath,
+    getActiveScreenIndex: () => activeScreenIndex,
     setSelection: (path: string | null) => {
       selectedPath = path;
       panel.setSelection(path);
@@ -249,6 +272,95 @@ title: B
     clickByText(panel.el, "Delete");
     expect(getSource()).toContain("<div><button>One</button></div><span>Two</span>");
     expect(getSelectedPath()).toBeNull();
+  });
+
+  it("shows a nested hierarchy tree and syncs selection from node clicks", () => {
+    const { panel, getSelectedPath, setSelection } = setup(
+      `<div class="sm-card"><button class="sm-btn">One</button><span>Two</span></div>`,
+    );
+
+    clickByText(panel.el, "Structure");
+    clickByText(panel.el, "sm-btn");
+
+    expect(getSelectedPath()).toBe("0/0");
+    expect(panel.el.querySelector(".am-smep-tree-node[aria-selected='true']")?.textContent).toBe("sm-btn");
+
+    setSelection("0");
+    expect(panel.el.querySelector(".am-smep-tree-node[aria-selected='true']")?.textContent).toBe("sm-card");
+    expect(panel.el.querySelector("[aria-selected='true']")?.textContent).toBe("Structure");
+  });
+
+  it("adds, duplicates, and deletes screens by changing source screen block count", async () => {
+    const source = `---
+id: a
+title: A
+---
+<div>A</div>
+---
+id: b
+title: B
+---
+<div>B</div>`;
+    const { panel, getSource } = setup(source, true, () => true);
+
+    clickByText(panel.el, "Screens");
+    clickByText(panel.el, "Add screen");
+    expect(screenBlockCount(getSource())).toBe(3);
+
+    clickByText(panel.el, "Duplicate");
+    expect(screenBlockCount(getSource())).toBe(4);
+
+    clickByText(panel.el, "Delete");
+    await flushPromises();
+    expect(screenBlockCount(getSource())).toBe(3);
+  });
+
+  it("renames a screen id and updates href references when confirmed", async () => {
+    const source = `---
+id: a
+title: A
+---
+<a class="sm-btn" href="#b">Go</a>
+---
+id: b
+title: B
+---
+<div>B</div>`;
+    const confirm = jest.fn(() => true);
+    const { panel, getSource, setActiveScreenIndex } = setup(source, true, confirm);
+    setActiveScreenIndex(1);
+    clickByText(panel.el, "Screens");
+
+    const idInput = panel.el.querySelector("input") as HTMLInputElement;
+    change(idInput, "c");
+    await flushPromises();
+
+    expect(confirm).toHaveBeenCalledWith("Update refs?");
+    expect(getSource()).toContain("id: c");
+    expect(getSource()).toContain('href="#c"');
+    expect(getSource()).not.toContain('href="#b"');
+  });
+
+  it("does not delete the current screen when deletion is canceled", async () => {
+    const source = `---
+id: a
+title: A
+---
+<div>A</div>
+---
+id: b
+title: B
+---
+<div>B</div>`;
+    const confirm = jest.fn(() => false);
+    const { panel, getSource } = setup(source, true, confirm);
+
+    clickByText(panel.el, "Screens");
+    clickByText(panel.el, "Delete");
+    await flushPromises();
+
+    expect(confirm).toHaveBeenCalledWith("Delete screen?");
+    expect(getSource()).toBe(source);
   });
 
   it("switches to attributes on selection and back to parts on clear", () => {
