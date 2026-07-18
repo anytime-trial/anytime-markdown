@@ -20,6 +20,7 @@ import type {
   LayerMatrix,
   SizeMatrix,
 } from '@anytime-markdown/trail-core/c4';
+import type { BusFactorEntry } from '@anytime-markdown/trail-core';
 import type { ArchitectureLayer } from '@anytime-markdown/trail-core/codeGraph';
 import {
   aggregateDsmToC4ComponentLevel,
@@ -49,6 +50,8 @@ export interface SelectedElementInfo {
   readonly complexity: ComplexityEntry | null;
   readonly importance: number | null;
   readonly defectRisk: number | null;
+  /** Phase 6 S5-B: 属人度。score は minCommits 未満なら null */
+  readonly busFactor: BusFactorEntry | null;
   readonly hotspot: HotspotEntry | null;
   readonly community: CommunityOverlayEntry | null;
   readonly sizeMetrics: SelectedElementSizeMetrics;
@@ -89,6 +92,7 @@ export interface BuildSelectedElementInfoArgs {
   readonly complexityMatrix: ComplexityMatrix | null;
   readonly importanceMatrix: ImportanceMatrix | null;
   readonly defectRiskMap: ReadonlyMap<string, number> | null;
+  readonly busFactorMap: ReadonlyMap<string, BusFactorEntry> | null;
   readonly hotspotMap: HotspotMap | null;
   readonly sizeMatrix: SizeMatrix | null;
   readonly layerMatrix: LayerMatrix | null;
@@ -110,6 +114,7 @@ export function buildSelectedElementInfo(args: BuildSelectedElementInfoArgs): Se
     complexityMatrix,
     importanceMatrix,
     defectRiskMap,
+    busFactorMap,
     hotspotMap,
     sizeMatrix,
     layerMatrix,
@@ -132,6 +137,7 @@ export function buildSelectedElementInfo(args: BuildSelectedElementInfoArgs): Se
     complexity: complexityMatrix?.entries.find((e) => e.elementId === element.id) ?? null,
     importance: importanceMatrix?.[element.id] ?? null,
     defectRisk: defectRiskMap?.get(element.id) ?? null,
+    busFactor: busFactorMap?.get(element.id) ?? null,
     hotspot: hotspotMap?.get(element.id) ?? null,
     community: resolveSelectedElementCommunity({
       element,

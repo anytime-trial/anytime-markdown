@@ -48,3 +48,11 @@ export {
   type DefectRiskEntry,
   type ComputeDefectRiskOptions,
 } from './defectRisk';
+
+export {
+  computeBusFactor,
+  normalizeAuthor,
+  type BusFactorEntry,
+  type ComputeBusFactorOptions,
+  type FileAuthorCommitRow,
+} from './busFactor';

@@ -63,6 +63,16 @@ function defectRiskHeatColor(score: number): string {
   return '#2e7d32';
 }
 
+/**
+ * 属人度（0-1）で 緑(分散)→黄→赤(属人化) を返す。
+ * 閾値は defect risk と揃えず、0.8 以上（主著者が 8 割）を危険域とする。
+ */
+function busFactorHeatColor(score: number): string {
+  if (score >= 0.8) return '#c62828';
+  if (score >= 0.6) return '#f9a825';
+  return '#2e7d32';
+}
+
 /** 0〜100 のデッドコードスコアで 緑(low)→黄(mid)→赤(high) を返す */
 function deadCodeColor(score: number): string {
   if (score >= 70) return '#f44336';   // 赤
@@ -220,6 +230,8 @@ export function computeColorMap(
   roleMatrix: RoleMatrix | null = null,
   layerMatrix: LayerMatrix | null = null,
   layerColors: Readonly<Record<ArchitectureLayer, string>> | null = null,
+  /** Phase 6 S5-B: 属人度スコア（0-1）。score 未判定の要素は含まれない */
+  busFactorMap: ReadonlyMap<string, number> | null = null,
 ): Map<string, string> {
   if (overlay === 'none') return new Map();
 
@@ -285,6 +297,16 @@ export function computeColorMap(
     const map = new Map<string, string>();
     for (const [elementId, score] of defectRiskMap) {
       map.set(elementId, defectRiskHeatColor(score));
+    }
+    return map;
+  }
+
+  // ── Bus Factor（属人度。高いほど「その人しか触っていない」） ──
+  if (overlay === 'bus-factor') {
+    if (!busFactorMap) return new Map();
+    const map = new Map<string, string>();
+    for (const [elementId, score] of busFactorMap) {
+      map.set(elementId, busFactorHeatColor(score));
     }
     return map;
   }

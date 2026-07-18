@@ -229,6 +229,7 @@ export interface TrailI18n {
   'c4.overlay.importance': string;
   'c4.overlay.centrality': string;
   'c4.overlay.defectRisk': string;
+  'c4.overlay.busFactor': string;
   'c4.overlay.groupHotspot': string;
   'c4.overlay.hotspotFrequency': string;
   'c4.overlay.hotspotRisk': string;
@@ -253,6 +254,8 @@ export interface TrailI18n {
   'c4.overlayHelp.centrality': string;
   'c4.overlayHelp.centrality.description': string;
   'c4.overlayHelp.defectRisk': string;
+  'c4.overlayHelp.busFactor': string;
+  'c4.overlayHelp.busFactor.description': string;
   'c4.overlayHelp.defectRisk.description': string;
   'c4.overlayHelp.hotspot': string;
   'c4.overlayHelp.hotspot.description': string;
@@ -289,6 +292,14 @@ export interface TrailI18n {
   'c4.hotspot.controls.granularity': string;
   'c4.hotspot.controls.granularityCommit': string;
   'c4.hotspot.controls.granularitySession': string;
+  'c4.busFactor.window': string;
+  'c4.busFactor.minCommits': string;
+  'c4.busFactor.topAuthor': string;
+  'c4.busFactor.effectiveAuthors': string;
+  'c4.busFactor.commits': string;
+  'c4.busFactor.insufficient': string;
+  'c4.busFactor.calculating': string;
+  'c4.busFactor.truncated': string;
   'c4.defectRisk.window': string;
   'c4.defectRisk.halfLife': string;
   'c4.defectRisk.calculating': string;
@@ -345,6 +356,7 @@ export interface TrailI18n {
   'c4.popup.metric.complexity': string;
   'c4.popup.metric.importance': string;
   'c4.popup.metric.defectRisk': string;
+  'c4.popup.metric.busFactor': string;
   'c4.popup.metric.churn': string;
   'c4.popup.metric.loc': string;
   'c4.popup.metric.files': string;

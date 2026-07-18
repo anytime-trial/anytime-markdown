@@ -82,7 +82,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FlightReviewMachineInput, type FlightReviewManualPatch, type RationaleAuditStatus, type IC4ModelStore,
+import { type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type RationaleAuditStatus, type IC4ModelStore,
   type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -8092,6 +8092,45 @@ export class TrailDatabase {
     })).filter((r) => r.filePath && r.commitHash);
 
     return computeDefectRisk(rows, { halfLifeDays });
+  }
+
+  /**
+   * Phase 6 S5-B: ファイル×著者×コミットの生行を返す（Bus Factor 算出の入力）。
+   * session_commits の主キーは session_id を含み同一コミットが複数行になり得るが、
+   * 一意化は computeBusFactor 側（コミット集合）で行うためここでは重複を許して返す。
+   */
+  fetchFileAuthorCommits(options: { repo?: string; sinceIso?: string }): FileAuthorCommitRow[] {
+    const db = this.ensureDb();
+    const { repo, sinceIso } = options;
+    const conditions: string[] = ["sc.author <> ''"];
+    const args: (string | number)[] = [];
+    if (sinceIso) {
+      conditions.push('sc.committed_at >= ?');
+      args.push(sinceIso);
+    }
+    // Phase H-4: sessions.repo_name 列は撤去済。repo フィルタは s.repo_id = ? で行う。
+    // 純粋 read のため repoIdForNameReadonly で解決 (未登録は -1 → 空結果)。
+    const join = repo ? 'INNER JOIN sessions s ON s.id = sc.session_id' : '';
+    if (repo) {
+      conditions.push('s.repo_id = ?');
+      args.push(this.repoIdForNameReadonly(repo));
+    }
+    const result = db.exec(
+      `SELECT cf.file_path, sc.author, sc.commit_hash
+       FROM session_commits sc
+       JOIN commit_files cf ON cf.commit_hash = sc.commit_hash
+       ${join}
+       WHERE ${conditions.join(' AND ')}`,
+      args,
+    );
+    const values = result[0]?.values ?? [];
+    return values
+      .map((r) => ({
+        filePath: asText(r[0] ?? ''),
+        author: asText(r[1] ?? ''),
+        commitHash: asText(r[2] ?? ''),
+      }))
+      .filter((r) => r.filePath && r.author && r.commitHash);
   }
 
   /**
