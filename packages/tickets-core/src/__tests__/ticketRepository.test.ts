@@ -491,3 +491,19 @@ describe('fetchFn 明示注入時の this 非依存', () => {
     expect(result.tickets).toEqual([]);
   });
 });
+
+describe('GitHub API リクエストヘッダ', () => {
+  it('全リクエストに User-Agent を付与する(GitHub API 必須・Workers の fetch は自動付与しない)', async () => {
+    const seenHeaders: Record<string, string>[] = [];
+    const fetchFn = (async (...args: Parameters<typeof fetch>) => {
+      seenHeaders.push({ ...(args[1]?.headers as Record<string, string>) });
+      return new Response(JSON.stringify([]), { status: 200 });
+    }) as typeof fetch;
+
+    await listTickets({ ...CFG_BASE, fetchFn });
+    expect(seenHeaders.length).toBeGreaterThan(0);
+    for (const headers of seenHeaders) {
+      expect(headers['User-Agent']).toMatch(/anytime/i);
+    }
+  });
+});
