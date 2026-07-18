@@ -72,7 +72,11 @@ export function createCodeEditState(opts: CodeEditStateOptions): CodeEditState {
 
     onApply() {
       if (!editor || pos < 0 || !node) return;
-      applyCodeBlockText(editor, pos, node.content.size, fsCode);
+      // 置換範囲は「今の文書のノード長」で測る。前回適用後のスナップショットを使うと
+      // 長さがずれて本文の一部を取り残す・削りすぎる。
+      const currentNode = editor.state?.doc?.nodeAt(pos) ?? node;
+      applyCodeBlockText(editor, pos, currentNode.content.size, fsCode);
+      node = editor.state?.doc?.nodeAt(pos) ?? currentNode;
       originalCode = fsCode;
       fsDirty = false;
       notify();

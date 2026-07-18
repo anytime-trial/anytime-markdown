@@ -328,6 +328,9 @@ export function installCodeBlockOverlay(
   const openEdit = (): void => {
     if (!node || pos < 0) return;
     closeDialog();
+    // chrome の選択トラッカーは pos 不変の本文差し替え（Apply）では onSelect を再発火しない。
+    // node スナップショットは古くなり得るため、開くたびに文書から解決し直す。
+    node = editor.state.doc.nodeAt(pos) ?? node;
     const language = languageOf();
     const kind: CodeBlockKind = classifyCodeBlock(language);
     if (tryOpenCompareEdit(codeBlockToolbarLabel(kind, language, t))) return;
