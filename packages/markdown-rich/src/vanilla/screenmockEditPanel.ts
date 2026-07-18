@@ -2,7 +2,6 @@ import { getDivider, getTextDisabled, getTextSecondary } from "@anytime-markdown
 import { ensureStyle } from "./dialogHelpers";
 import { parseScreenmock } from "./screenmockPreview";
 import {
-  applyElementSizeToScreenHtml,
   duplicateScreenmockElement,
   findElementByPath,
   insertScreenmockElement,
@@ -10,9 +9,10 @@ import {
   removeScreenmockElement,
   removeScreenmockElementHeight,
   removeScreenmockElementWidth,
-  replaceScreenmockScreenHtml,
+  setScreenmockElementHeight,
   setScreenmockElementHref,
   setScreenmockElementText,
+  setScreenmockElementWidth,
 } from "./screenmockHtmlMutations";
 
 export interface CreateScreenmockEditPanelOptions {
@@ -216,9 +216,10 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     tabButtons.set(tab.value, button);
   }
 
-  const setSourceAndRender = (source: string): void => {
+  // 書き戻し後の再描画はホスト側の source 購読（editState.subscribe → render()）が担う。
+  // ここで render() を呼ぶと全パネル操作が二重描画になる。
+  const commitSource = (source: string): void => {
     options.setSource(source);
-    render();
   };
 
   const currentSelection = (): { source: string; screenIndex: number; path: string | null; el: HTMLElement | null } => {
@@ -243,47 +244,46 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     const next = insertScreenmockElement(source, screenIndex, containerPath, part.html);
     const newPath = containerPath ? `${containerPath}/${index}` : String(index);
     selectPath(newPath);
-    setSourceAndRender(next);
+    commitSource(next);
   };
 
+  // 幅・高さは片側ずつの独立編集。未変更側の宣言を追加しない（両値契約の
+  // applyElementSizeToScreenHtml はリサイズハンドル専用でここでは使わない）。
   const applySize = (property: "width" | "height", value: string): void => {
-    const { source, screenIndex, path, el } = currentSelection();
-    if (!path || !el || !designMode) return;
+    const { source, screenIndex, path } = currentSelection();
+    if (!path || !designMode) return;
     if (!value.trim()) {
       const next = property === "width"
         ? removeScreenmockElementWidth(source, screenIndex, path)
         : removeScreenmockElementHeight(source, screenIndex, path);
-      setSourceAndRender(next);
+      commitSource(next);
       return;
     }
-    const widthRaw =
-      property === "width" ? Number.parseFloat(value) : Number.parseFloat(readStyleDeclaration(el.getAttribute("style"), "width"));
-    const heightRaw =
-      property === "height" ? Number.parseFloat(value) : Number.parseFloat(readStyleDeclaration(el.getAttribute("style"), "height"));
-    const widthPercent = Number.isFinite(widthRaw) ? widthRaw : 100;
-    const heightPx = Number.isFinite(heightRaw) ? heightRaw : Math.max(el.getBoundingClientRect().height || 0, 1);
-    const screenHtml = screenHtmlAt(source, screenIndex);
-    const nextHtml = applyElementSizeToScreenHtml(screenHtml, path, { widthPercent, heightPx });
-    setSourceAndRender(replaceScreenmockScreenHtml(source, screenIndex, nextHtml));
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) return;
+    const next = property === "width"
+      ? setScreenmockElementWidth(source, screenIndex, path, parsed)
+      : setScreenmockElementHeight(source, screenIndex, path, parsed);
+    commitSource(next);
   };
 
   const applyText = (value: string): void => {
     const { source, screenIndex, path } = currentSelection();
     if (!path || !designMode) return;
-    setSourceAndRender(setScreenmockElementText(source, screenIndex, path, value));
+    commitSource(setScreenmockElementText(source, screenIndex, path, value));
   };
 
   const applyHref = (value: string): void => {
     const { source, screenIndex, path } = currentSelection();
     if (!path || !designMode) return;
-    setSourceAndRender(setScreenmockElementHref(source, screenIndex, path, value || null));
+    commitSource(setScreenmockElementHref(source, screenIndex, path, value || null));
   };
 
   const removeSelected = (): void => {
     const { source, screenIndex, path } = currentSelection();
     if (!path || !designMode) return;
     selectPath(null);
-    setSourceAndRender(removeScreenmockElement(source, screenIndex, path));
+    commitSource(removeScreenmockElement(source, screenIndex, path));
   };
 
   const duplicateSelected = (): void => {
@@ -291,7 +291,7 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     if (!path || !designMode) return;
     const result = duplicateScreenmockElement(source, screenIndex, path);
     selectPath(result.newPath);
-    setSourceAndRender(result.source);
+    commitSource(result.source);
   };
 
   const renderParts = (): void => {

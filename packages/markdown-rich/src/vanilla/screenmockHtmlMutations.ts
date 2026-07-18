@@ -277,7 +277,11 @@ export function duplicateScreenmockElement(
   let newPath: string | null = null;
   const nextSource = mutateScreenmockScreenHtml(source, screenIndex, (template) => {
     const target = findElementByPath(template.content, path);
-    const parent = target?.parentElement ?? null;
+    // sm-screen ラッパを持たないモックではトップレベル要素の親がフラグメントになるため、
+    // parentElement（Element 限定）ではなく親ノードを Element | DocumentFragment で受ける。
+    const parentNode = target?.parentNode ?? null;
+    const parent =
+      parentNode instanceof Element || parentNode instanceof DocumentFragment ? parentNode : null;
     if (!target || !parent) return false;
     const clone = target.cloneNode(true) as Element;
     const index = Array.from(parent.children).indexOf(target) + 1;
@@ -352,6 +356,45 @@ export function removeScreenmockElementWidth(source: string, screenIndex: number
 
 export function removeScreenmockElementHeight(source: string, screenIndex: number, path: string): string {
   return removeScreenmockElementDeclarations(source, screenIndex, path, ["height"]);
+}
+
+/**
+ * 幅だけを書き戻す（% 小数 1 桁）。パネルの数値入力は片側ずつの独立編集のため、
+ * 両値契約の {@link applyElementSizeToScreenHtml}（リサイズハンドル用）とは分ける。
+ */
+export function setScreenmockElementWidth(
+  source: string,
+  screenIndex: number,
+  path: string,
+  widthPercent: number,
+): string {
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+    target.setAttribute(
+      "style",
+      mergeStyleAttribute(target.getAttribute("style"), { width: `${widthPercent.toFixed(1)}%` }),
+    );
+    return true;
+  });
+}
+
+/** 高さだけを書き戻す（px 整数）。分離の理由は {@link setScreenmockElementWidth} と同じ。 */
+export function setScreenmockElementHeight(
+  source: string,
+  screenIndex: number,
+  path: string,
+  heightPx: number,
+): string {
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+    target.setAttribute(
+      "style",
+      mergeStyleAttribute(target.getAttribute("style"), { height: `${Math.round(heightPx)}px` }),
+    );
+    return true;
+  });
 }
 
 /**

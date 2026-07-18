@@ -199,6 +199,15 @@ describe("screenmock panel source mutations", () => {
     );
   });
 
+  it("sm-screen ラッパの無いモックでトップレベル要素を複製できる", () => {
+    const bare = '<div class="sm-card">Card</div>';
+
+    const out = duplicateScreenmockElement(bare, 0, "0");
+
+    expect(out.newPath).toBe("1");
+    expect(out.source).toContain('<div class="sm-card">Card</div><div class="sm-card">Card</div>');
+  });
+
   it("要素直下のテキストを HTML エスケープして置換する", () => {
     const out = setScreenmockElementText(source, 0, "0/0/0", "<Next & Back>");
 

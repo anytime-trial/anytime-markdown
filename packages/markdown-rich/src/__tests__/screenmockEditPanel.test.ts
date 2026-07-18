@@ -39,10 +39,14 @@ function setup(initial: string, enabled = true) {
   let designMode = enabled;
   let selectedPath: string | null = null;
   let activeScreenIndex = 0;
+  // 実ホスト（installCodeBlockOverlay）は setSource 後に source 購読経由で render() を
+  // 呼ぶため、ハーネスでも同じ契約を模す（パネル自身は書き戻し時に再描画しない）。
+  let panelRef: ReturnType<typeof createScreenmockEditPanel> | null = null;
   const panel = createScreenmockEditPanel({
     getSource: () => source,
     setSource: (next) => {
       source = next;
+      panelRef?.render();
     },
     t: (key) => labels[key] ?? key,
     getDesignMode: () => designMode,
@@ -53,6 +57,7 @@ function setup(initial: string, enabled = true) {
     getActiveScreenIndex: () => activeScreenIndex,
     isDark: false,
   });
+  panelRef = panel;
   document.body.appendChild(panel.el);
   return {
     panel,
@@ -104,12 +109,22 @@ describe("screenmockEditPanel", () => {
     const width = panel.el.querySelector("input[type='number']") as HTMLInputElement;
 
     change(width, "50");
-    expect(getSource()).toContain('style="width: 50.0%; height: 1px;"');
+    expect(getSource()).toContain('style="width: 50.0%;"');
+    expect(getSource()).not.toContain("height:");
 
     const widthAfterRender = panel.el.querySelector("input[type='number']") as HTMLInputElement;
     change(widthAfterRender, "");
     expect(getSource()).not.toContain("width:");
-    expect(getSource()).toContain("height: 1px;");
+  });
+
+  it("writes height independently without adding a width declaration", () => {
+    const { panel, getSource, setSelection } = setup(`<div class="sm-card">Card</div>`);
+    setSelection("0");
+    const height = panel.el.querySelectorAll("input[type='number']")[1] as HTMLInputElement;
+
+    change(height, "120");
+    expect(getSource()).toContain('style="height: 120px;"');
+    expect(getSource()).not.toContain("width:");
   });
 
   it("edits direct text and input placeholder text", () => {
