@@ -259,6 +259,9 @@ export const en: TrailI18n = {
   'c4.popup.metric.importance': 'Importance',
   'c4.popup.metric.defectRisk': 'Defect',
   'c4.popup.metric.busFactor': 'Bus factor',
+  'c4.popup.newlyActive': 'Newly active code',
+  'c4.popup.newlyActive.description':
+    'Files changed in the last 30 days with no changes before that. Uses git churn as a proxy; runtime calls are not tracked. Useful for documentation priority (not added to the dead-code score).',
   'c4.popup.metric.churn': 'Churn',
   'c4.popup.metric.loc': 'LOC',
   'c4.popup.metric.files': 'Files',

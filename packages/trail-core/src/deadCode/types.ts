@@ -28,6 +28,11 @@ export interface FileAnalysisRow {
   readonly isBarrel: boolean;
   readonly centralityScore: number;
   /**
+   * Phase 6 S5-D: 最近になって動き始めたコードか（git churn の初出時期を代理指標とする）。
+   * dead code スコアには加算しない（ドキュメント整備の優先度提示のみに使う）。
+   */
+  readonly newlyActive: boolean;
+  /**
    * UI / Logic 分類。C4 architecture overlay の集計に使う。
    * classifyFile() の戻り値と一致 ('ui' | 'logic' | 'excluded')。
    */

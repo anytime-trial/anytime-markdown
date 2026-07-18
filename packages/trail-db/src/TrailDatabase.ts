@@ -3868,6 +3868,9 @@ export class TrailDatabase {
       // 型安全を trail-core の TS 型で担保する (centrality 列と同方針)。
       "ALTER TABLE current_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
       "ALTER TABLE release_file_analysis ADD COLUMN category TEXT NOT NULL DEFAULT 'logic'",
+      // Phase 6 S5-D: Newly Active Code Detection のシグナル列（列ごとに独立した ALTER）
+      'ALTER TABLE current_file_analysis ADD COLUMN newly_active INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE release_file_analysis ADD COLUMN newly_active INTEGER NOT NULL DEFAULT 0',
     ]);
     for (const idx of CREATE_FILE_ANALYSIS_INDEXES) {
       db.run(idx);
@@ -10960,7 +10963,7 @@ export class TrailDatabase {
       r.signals.isolatedCommunity ? 1 : 0,
       r.isIgnored ? 1 : 0, r.ignoreReason,
       r.crossPkgInCount, r.externalConsumerPkgs, r.totalInCount, r.isBarrel ? 1 : 0, r.centralityScore,
-      r.category, r.analyzedAt,
+      r.category, r.newlyActive ? 1 : 0, r.analyzedAt,
     ];
   }
 
@@ -10981,9 +10984,9 @@ export class TrailDatabase {
           signal_zero_coverage, signal_isolated_community,
           is_ignored, ignore_reason,
           cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
-          category,
+          category, newly_active,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [repoId, ...this.fileAnalysisRowParams(r).slice(1)],
       );
     }
@@ -11004,7 +11007,7 @@ export class TrailDatabase {
               fa.signal_zero_coverage, fa.signal_isolated_community,
               fa.is_ignored, fa.ignore_reason,
               fa.cross_pkg_in_count, fa.external_consumer_pkgs, fa.total_in_count, fa.is_barrel, fa.centrality_score,
-              fa.category,
+              fa.category, fa.newly_active,
               fa.analyzed_at
        FROM current_file_analysis fa LEFT JOIN repos rp ON rp.repo_id = fa.repo_id WHERE fa.repo_id = ?`,
       [repoId],
@@ -11035,7 +11038,8 @@ export class TrailDatabase {
       isBarrel: Number(r[19] ?? 0) === 1,
       centralityScore: Number(r[20] ?? 0),
       category: parseCategory(r[21]),
-      analyzedAt: asText(r[22] ?? ''),
+      newlyActive: Number(r[22] ?? 0) === 1,
+      analyzedAt: asText(r[23] ?? ''),
     }));
   }
 
@@ -11070,9 +11074,9 @@ export class TrailDatabase {
           signal_zero_coverage, signal_isolated_community,
           is_ignored, ignore_reason,
           cross_pkg_in_count, external_consumer_pkgs, total_in_count, is_barrel, centrality_score,
-          category,
+          category, newly_active,
           analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [releaseId, ...this.fileAnalysisRowParams(r).slice(1)],
       );
     }
@@ -11094,7 +11098,7 @@ export class TrailDatabase {
               rfa.signal_zero_coverage, rfa.signal_isolated_community,
               rfa.is_ignored, rfa.ignore_reason,
               rfa.cross_pkg_in_count, rfa.external_consumer_pkgs, rfa.total_in_count, rfa.is_barrel, rfa.centrality_score,
-              rfa.category,
+              rfa.category, rfa.newly_active,
               rfa.analyzed_at
        FROM release_file_analysis rfa
        JOIN releases rel ON rel.release_id = rfa.release_id
@@ -11128,7 +11132,8 @@ export class TrailDatabase {
       isBarrel: Number(r[19] ?? 0) === 1,
       centralityScore: Number(r[20] ?? 0),
       category: parseCategory(r[21]),
-      analyzedAt: asText(r[22] ?? ''),
+      newlyActive: Number(r[22] ?? 0) === 1,
+      analyzedAt: asText(r[23] ?? ''),
     }));
   }
 
@@ -11679,6 +11684,46 @@ export class TrailDatabase {
       out.set(asText(r[0] ?? ''), Number(r[1] ?? 0));
     }
     return out;
+  }
+
+  /**
+   * Phase 6 S5-D: 指定時刻より前の churn（コミット数）を file_path 単位で返す。
+   * getCommitFilesChurnSince の対で、「以前は動いていなかった」の判定に使う。
+   */
+  getCommitFilesChurnBefore(repoName: string, beforeIso: string): Map<string, number> {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT cf.file_path, COUNT(DISTINCT cf.commit_hash) AS cnt
+       FROM commit_files cf
+       JOIN session_commits sc ON sc.commit_hash = cf.commit_hash
+       JOIN sessions s ON s.id = sc.session_id
+       WHERE sc.committed_at < ? AND s.repo_id = ?
+       GROUP BY cf.file_path`,
+      [beforeIso, this.repoIdForNameReadonly(repoName)],
+    );
+    const out = new Map<string, number>();
+    for (const r of result[0]?.values ?? []) {
+      out.set(asText(r[0] ?? ''), Number(r[1] ?? 0));
+    }
+    return out;
+  }
+
+  /**
+   * Phase 6 S5-D: 取込済みコミット履歴の最古 committed_at（UTC ISO）。
+   * 履歴が浅いリポジトリで Newly Active を誤検知させないためのガードに使う。
+   */
+  getEarliestCommitAt(repoName: string): string | null {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT MIN(sc.committed_at)
+       FROM session_commits sc
+       JOIN sessions s ON s.id = sc.session_id
+       WHERE s.repo_id = ? AND sc.committed_at <> ''`,
+      [this.repoIdForNameReadonly(repoName)],
+    );
+    const value = result[0]?.values?.[0]?.[0];
+    const iso = value == null ? '' : asText(value);
+    return iso || null;
   }
 
   /**

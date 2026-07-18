@@ -36,6 +36,7 @@ const sampleRow = (filePath: string, importanceScore: number, deadCodeScore: num
   isBarrel: false,
   centralityScore: 0,
   category: 'logic',
+  newlyActive: false,
   analyzedAt: new Date().toISOString(),
 });
 

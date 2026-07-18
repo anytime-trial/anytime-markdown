@@ -2316,6 +2316,7 @@ export class TrailDataServer {
         externalConsumerPkgs: r.externalConsumerPkgs,
         isBarrel: r.isBarrel,
         category: r.category,
+        newlyActive: r.newlyActive,
       }));
 
       res.writeHead(200, JSON_HEADERS);

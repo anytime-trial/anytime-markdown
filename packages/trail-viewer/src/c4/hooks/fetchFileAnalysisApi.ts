@@ -26,6 +26,8 @@ export interface FileAnalysisApiEntry {
   /** UI / Logic 分類。サーバー旧版が返さない場合に備え、消費側で 'logic' へ
    *  フォールバックすること */
   readonly category?: 'ui' | 'logic' | 'excluded';
+  /** Phase 6 S5-D: 最近になって動き始めたコードか。旧サーバーは返さないため optional */
+  readonly newlyActive?: boolean;
 }
 
 export interface FileAnalysisApiResponse {

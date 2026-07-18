@@ -1,3 +1,9 @@
+export { computeNewlyActive } from './computeNewlyActive';
+export type {
+  ComputeNewlyActiveOptions,
+  NewlyActiveEntry,
+  NewlyActiveInput,
+} from './computeNewlyActive';
 export * from './types';
 export * from './computeDeadCodeScore';
 export * from './parseDeadCodeIgnore';

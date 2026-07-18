@@ -259,6 +259,9 @@ export const ja: TrailI18n = {
   'c4.popup.metric.importance': '重要度',
   'c4.popup.metric.defectRisk': '欠陥リスク',
   'c4.popup.metric.busFactor': '属人度',
+  'c4.popup.newlyActive': '最近動き始めたコード',
+  'c4.popup.newlyActive.description':
+    '直近 30 日に変更があり、それ以前は変更が無かったファイル。git の churn を代理指標としており、実行時の呼び出しは見ていない。ドキュメント整備の優先度判断に使う（デッドコードのスコアには加算しない）。',
   'c4.popup.metric.churn': 'Churn',
   'c4.popup.metric.loc': 'LOC',
   'c4.popup.metric.files': 'ファイル',

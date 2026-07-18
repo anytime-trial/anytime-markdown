@@ -455,6 +455,7 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
   is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
   centrality_score       REAL    NOT NULL DEFAULT 0,
   category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
+  newly_active               INTEGER NOT NULL DEFAULT 0 CHECK (newly_active IN (0, 1)),
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_id, file_path)
 ) STRICT`;
@@ -485,6 +486,7 @@ export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_
   is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
   centrality_score       REAL    NOT NULL DEFAULT 0,
   category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
+  newly_active               INTEGER NOT NULL DEFAULT 0 CHECK (newly_active IN (0, 1)),
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (release_id, file_path)
 ) STRICT`;
