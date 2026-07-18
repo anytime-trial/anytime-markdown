@@ -8,6 +8,16 @@ const labels: Record<string, string> = {
   screenmockPanelDesignOff: "Design off",
   screenmockPanelCategoryLayout: "Layout",
   screenmockPanelCategoryComponents: "Components",
+  screenmockPanelCategorySnippets: "Snippets",
+  screenmockPanelCategoryScreenTemplates: "Screen templates",
+  screenmockPanelSnippetForm: "Form",
+  screenmockPanelSnippetHeader: "Header set",
+  screenmockPanelTemplateLogin: "Login",
+  screenmockPanelTemplateList: "List",
+  screenmockPanelTemplateDetail: "Detail",
+  screenmockPanelTemplateLoginTitle: "Login",
+  screenmockPanelTemplateListTitle: "List",
+  screenmockPanelTemplateDetailTitle: "Detail",
   screenmockPanelNoSelection: "No selection",
   screenmockPanelElementType: "Type",
   screenmockPanelVariant: "Variant",
@@ -22,6 +32,15 @@ const labels: Record<string, string> = {
   screenmockPanelBackgroundColor: "Background color",
   screenmockPanelTextColor: "Text color",
   screenmockPanelDefault: "Default",
+  screenmockPanelSpacing: "Spacing",
+  screenmockPanelPadding: "Padding",
+  screenmockPanelGap: "Gap",
+  screenmockPanelBorderRadius: "Corner radius",
+  screenmockPanelPresetNone: "None",
+  screenmockPanelPresetSmall: "Small",
+  screenmockPanelPresetMedium: "Medium",
+  screenmockPanelPresetLarge: "Large",
+  screenmockPanelPresetCustom: "Custom",
   screenmockPanelOffset: "Offset",
   screenmockPanelOffsetLeft: "Left (px)",
   screenmockPanelOffsetTop: "Top (px)",
@@ -29,6 +48,16 @@ const labels: Record<string, string> = {
   screenmockPanelPlaceholder: "Placeholder",
   screenmockPanelHref: "Link target",
   screenmockPanelHrefNone: "None",
+  screenmockPanelDataLines: "Lines",
+  screenmockPanelSrc: "Image src",
+  screenmockPanelAlignment: "Alignment",
+  screenmockPanelJustifyContent: "Main axis",
+  screenmockPanelAlignItems: "Cross axis",
+  screenmockPanelAlignDefault: "Default",
+  screenmockPanelAlignStart: "Start",
+  screenmockPanelAlignCenter: "Center",
+  screenmockPanelAlignEnd: "End",
+  screenmockPanelAlignStretch: "Stretch",
   screenmockPanelDelete: "Delete",
   screenmockPanelDuplicate: "Duplicate",
   screenmockPanelTreePlaceholder: "Tree placeholder",
@@ -36,6 +65,8 @@ const labels: Record<string, string> = {
   screenmockPanelStructureTree: "Hierarchy tree",
   screenmockPanelTreeEmpty: "No elements",
   screenmockPanelAddScreen: "Add screen",
+  screenmockPanelMoveScreenUp: "Move up",
+  screenmockPanelMoveScreenDown: "Move down",
   screenmockPanelDeleteScreenConfirm: "Delete screen?",
   screenmockPanelUpdateRefsConfirm: "Update refs?",
   screenmockPanelScreenMetadata: "Screen details",
@@ -43,7 +74,15 @@ const labels: Record<string, string> = {
   screenmockPanelScreenTitle: "title",
   screenmockPanelUntitledScreen: "Screen",
   screenmockPanelNoScreens: "No screens",
+  screenmockPanelWrap: "Wrap",
+  screenmockPanelWrapRow: "Wrap row",
+  screenmockPanelWrapCol: "Wrap column",
+  screenmockPanelUnwrap: "Unwrap",
 };
+
+if (typeof PointerEvent === "undefined") {
+  (globalThis as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = MouseEvent;
+}
 
 function change(el: HTMLInputElement | HTMLSelectElement, value: string): void {
   el.value = value;
@@ -54,6 +93,10 @@ function clickByText(root: HTMLElement, text: string): void {
   const button = Array.from(root.querySelectorAll("button")).find((el) => el.textContent === text);
   if (!button) throw new Error(`Button not found: ${text}`);
   button.click();
+}
+
+function pointer(type: string): PointerEvent {
+  return new PointerEvent(type, { bubbles: true, composed: true } as PointerEventInit);
 }
 
 function screenBlockCount(source: string): number {
@@ -393,6 +436,170 @@ title: B
 
     setSelection(null);
     expect(panel.el.querySelector("[aria-selected='true']")?.textContent).toBe("Parts");
+  });
+
+  it("inserts a multi-element snippet and selects the first inserted element", () => {
+    const { panel, getSource, getSelectedPath } = setup(`<div class="sm-screen"></div>`);
+
+    clickByText(panel.el, "Form");
+
+    expect(getSource()).toContain('<input class="sm-input" placeholder="Email"><button class="sm-btn sm-btn-primary">Submit</button>');
+    expect(getSelectedPath()).toBe("0/0");
+  });
+
+  it("adds a screen template and switches to the appended screen", () => {
+    const source = `---
+id: a
+title: A
+---
+<div class="sm-screen"></div>`;
+    const { panel, getSource, getActiveScreenIndex } = setup(source);
+
+    clickByText(panel.el, "Login");
+
+    expect(screenBlockCount(getSource())).toBe(2);
+    expect(getSource()).toContain("title: Login");
+    expect(getSource()).toContain('<button class="sm-btn sm-btn-primary">Sign in</button>');
+    expect(getActiveScreenIndex()).toBe(1);
+  });
+
+  it("writes and clears spacing presets", () => {
+    const { panel, getSource, setSelection } = setup(`<div class="sm-card">Card</div>`);
+    setSelection("0");
+    const selects = panel.el.querySelectorAll("select");
+    const padding = selects[0] as HTMLSelectElement;
+    const gap = selects[1] as HTMLSelectElement;
+
+    change(padding, "md");
+    expect(getSource()).toContain('style="padding: 16px;"');
+
+    const gapAfterRender = panel.el.querySelectorAll("select")[1] as HTMLSelectElement;
+    change(gapAfterRender, "sm");
+    expect(getSource()).toContain("gap: 8px;");
+
+    const paddingAfterRender = panel.el.querySelectorAll("select")[0] as HTMLSelectElement;
+    change(paddingAfterRender, "none");
+    expect(getSource()).not.toContain("padding:");
+    expect(getSource()).toContain("gap: 8px;");
+    expect(gap.value).toBe("none");
+  });
+
+  it("writes text lines and rejects invalid image src values", () => {
+    const { panel, getSource, setSelection } = setup(`<span class="sm-text"></span><img class="sm-img">`);
+    setSelection("0");
+    const lines = Array.from(panel.el.querySelectorAll("input")).at(-1) as HTMLInputElement;
+
+    change(lines, "4");
+    expect(getSource()).toContain('data-lines="4"');
+
+    const linesAfterRender = Array.from(panel.el.querySelectorAll("input")).at(-1) as HTMLInputElement;
+    change(linesAfterRender, "0");
+    expect(getSource()).toContain('data-lines="4"');
+
+    setSelection("1");
+    const src = Array.from(panel.el.querySelectorAll("input")).at(-1) as HTMLInputElement;
+    change(src, "javascript:alert(1)");
+    expect(getSource()).not.toContain("javascript:");
+
+    const srcAfterRender = Array.from(panel.el.querySelectorAll("input")).at(-1) as HTMLInputElement;
+    change(srcAfterRender, "https://example.com/a.png");
+    expect(getSource()).toContain('src="https://example.com/a.png"');
+  });
+
+  it("does not offer a src field for the div-based sm-img placeholder", () => {
+    const { panel, setSelection } = setup(`<div class="sm-img"></div>`);
+    setSelection("0");
+
+    const labelTexts = Array.from(panel.el.querySelectorAll("label")).map((el) => el.textContent);
+    expect(labelTexts).not.toContain("Image src");
+  });
+
+  it("shows the custom preset option for a non-preset padding value", () => {
+    const { panel, setSelection } = setup(`<div class="sm-card" style="padding: 10px;">Card</div>`);
+    setSelection("0");
+
+    const paddingSelect = Array.from(panel.el.querySelectorAll("select")).find((el) =>
+      Array.from(el.options).some((option) => option.value === "custom"),
+    ) as HTMLSelectElement;
+    expect(paddingSelect).toBeDefined();
+    expect(paddingSelect.value).toBe("custom");
+  });
+
+  it("wraps and unwraps the selected element", () => {
+    const { panel, getSource, getSelectedPath, setSelection } = setup(`<div class="sm-screen"><button class="sm-btn">OK</button></div>`);
+    setSelection("0/0");
+    clickByText(panel.el, "Structure");
+
+    clickByText(panel.el, "Wrap row");
+    expect(getSource()).toContain('<div class="sm-row">');
+    expect(getSelectedPath()).toBe("0/0/0");
+
+    setSelection("0/0");
+    clickByText(panel.el, "Structure");
+    clickByText(panel.el, "Unwrap");
+    expect(getSource()).not.toContain("sm-row");
+  });
+
+  it("moves screens up and down", () => {
+    const source = `---
+id: a
+title: A
+---
+<div>A</div>
+---
+id: b
+title: B
+---
+<div>B</div>
+---
+id: c
+title: C
+---
+<div>C</div>`;
+    const { panel, getSource, setActiveScreenIndex, getActiveScreenIndex } = setup(source);
+    setActiveScreenIndex(2);
+    clickByText(panel.el, "Screens");
+
+    clickByText(panel.el, "Move up");
+    expect(getSource().indexOf("id: c")).toBeLessThan(getSource().indexOf("id: b"));
+    expect(getActiveScreenIndex()).toBe(1);
+
+    clickByText(panel.el, "Move down");
+    expect(getSource().indexOf("id: c")).toBeGreaterThan(getSource().indexOf("id: b"));
+    expect(getActiveScreenIndex()).toBe(2);
+  });
+
+  it("writes and clears flex alignment controls", () => {
+    const { panel, getSource, setSelection } = setup(`<div class="sm-row"><button>A</button><button>B</button></div>`);
+    setSelection("0");
+
+    const centerButtons = Array.from(panel.el.querySelectorAll("button")).filter((button) => button.textContent === "Center");
+    centerButtons[0]?.click();
+    expect(getSource()).toContain("justify-content: center;");
+
+    const stretchButton = Array.from(panel.el.querySelectorAll("button")).find((button) => button.textContent === "Stretch");
+    stretchButton?.click();
+    expect(getSource()).toContain("align-items: stretch;");
+
+    const defaultButtons = Array.from(panel.el.querySelectorAll("button")).filter((button) => button.textContent === "Default");
+    defaultButtons.at(-2)?.click();
+    expect(getSource()).not.toContain("justify-content:");
+    expect(getSource()).toContain("align-items: stretch;");
+  });
+
+  it("moves a tree node with pointer drag events", () => {
+    const { panel, getSource } = setup(`<div class="sm-screen"><button class="sm-btn">A</button><span class="sm-badge">B</span></div>`);
+    clickByText(panel.el, "Structure");
+    const nodes = Array.from(panel.el.querySelectorAll(".am-smep-tree-node")) as HTMLButtonElement[];
+    const buttonNode = nodes.find((node) => node.textContent === "sm-btn");
+    const badgeNode = nodes.find((node) => node.textContent === "sm-badge");
+    if (!buttonNode || !badgeNode) throw new Error("tree nodes not found");
+
+    badgeNode.dispatchEvent(pointer("pointerdown"));
+    buttonNode.dispatchEvent(pointer("pointerover"));
+    buttonNode.dispatchEvent(pointer("pointerup"));
+
+    expect(getSource().indexOf("sm-badge")).toBeLessThan(getSource().indexOf("sm-btn"));
   });
 
   it("does not perform operations while design edit is off", () => {

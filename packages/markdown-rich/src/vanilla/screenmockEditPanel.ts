@@ -8,12 +8,17 @@ import {
   duplicateScreenmockScreen,
   findElementByPath,
   insertScreenmockElement,
+  insertScreenmockFragment,
+  moveScreenmockElement,
+  moveScreenmockScreen,
   parseScreenRanges,
   removeScreenmockElement,
   removeScreenmockElementHeight,
   removeScreenmockScreen,
   removeScreenmockElementWidth,
   renameScreenmockScreen,
+  replaceScreenmockScreenHtml,
+  setScreenmockElementAttribute,
   setScreenmockElementOffset,
   setScreenmockElementStyleDeclaration,
   setScreenmockElementHeight,
@@ -21,6 +26,8 @@ import {
   setScreenmockElementText,
   setScreenmockElementWidth,
   toggleScreenmockElementClass,
+  unwrapScreenmockElement,
+  wrapScreenmockElement,
 } from "./screenmockHtmlMutations";
 
 export interface CreateScreenmockEditPanelOptions {
@@ -49,6 +56,18 @@ type PanelTab = "parts" | "attributes" | "structure" | "screens";
 
 interface PartItem {
   className: string;
+  html: string;
+}
+
+interface SnippetItem {
+  labelKey: string;
+  html: string;
+}
+
+interface ScreenTemplateItem {
+  labelKey: string;
+  idPrefix: string;
+  titleKey: string;
   html: string;
 }
 
@@ -81,6 +100,58 @@ const COMPONENT_PARTS: PartItem[] = [
   { className: "sm-heading", html: '<h2 class="sm-heading">Heading</h2>' },
   { className: "sm-text", html: '<span class="sm-text" data-lines="3"></span>' },
   { className: "sm-img", html: '<div class="sm-img"></div>' },
+];
+
+const SNIPPETS: SnippetItem[] = [
+  {
+    labelKey: "screenmockPanelSnippetForm",
+    html: '<input class="sm-input" placeholder="Email"><button class="sm-btn sm-btn-primary">Submit</button>',
+  },
+  {
+    labelKey: "screenmockPanelSnippetHeader",
+    html: '<div class="sm-header"><h1 class="sm-heading">Title</h1></div>',
+  },
+];
+
+const SCREEN_TEMPLATES: ScreenTemplateItem[] = [
+  {
+    labelKey: "screenmockPanelTemplateLogin",
+    idPrefix: "login",
+    titleKey: "screenmockPanelTemplateLoginTitle",
+    html: '<div class="sm-screen">\n  <div class="sm-main">\n    <div class="sm-card">\n      <h1 class="sm-heading">Login</h1>\n      <input class="sm-input" placeholder="Email">\n      <input class="sm-input" placeholder="Password">\n      <button class="sm-btn sm-btn-primary">Sign in</button>\n    </div>\n  </div>\n</div>',
+  },
+  {
+    labelKey: "screenmockPanelTemplateList",
+    idPrefix: "list",
+    titleKey: "screenmockPanelTemplateListTitle",
+    html: '<div class="sm-screen">\n  <div class="sm-header"><h1 class="sm-heading">Items</h1></div>\n  <main class="sm-main">\n    <div class="sm-row">\n      <button class="sm-btn sm-btn-primary">New</button>\n      <input class="sm-input" placeholder="Search">\n    </div>\n    <table class="sm-table"><tbody><tr><td>Name</td><td>Status</td></tr><tr><td>Sample</td><td><span class="sm-badge">Open</span></td></tr></tbody></table>\n  </main>\n</div>',
+  },
+  {
+    labelKey: "screenmockPanelTemplateDetail",
+    idPrefix: "detail",
+    titleKey: "screenmockPanelTemplateDetailTitle",
+    html: '<div class="sm-screen">\n  <div class="sm-header"><h1 class="sm-heading">Detail</h1></div>\n  <main class="sm-main">\n    <div class="sm-card">\n      <div class="sm-img"></div>\n      <span class="sm-text" data-lines="4"></span>\n      <div class="sm-row"><button class="sm-btn">Cancel</button><button class="sm-btn sm-btn-primary">Save</button></div>\n    </div>\n  </main>\n</div>',
+  },
+];
+
+const STYLE_PRESETS: Record<string, Record<"none" | "sm" | "md" | "lg", string | null>> = {
+  padding: { none: null, sm: "8px", md: "16px", lg: "24px" },
+  gap: { none: null, sm: "8px", md: "12px", lg: "20px" },
+  "border-radius": { none: null, sm: "4px", md: "8px", lg: "12px" },
+};
+
+const JUSTIFY_OPTIONS: Array<{ value: string; labelKey: string }> = [
+  { value: "", labelKey: "screenmockPanelAlignDefault" },
+  { value: "flex-start", labelKey: "screenmockPanelAlignStart" },
+  { value: "center", labelKey: "screenmockPanelAlignCenter" },
+  { value: "flex-end", labelKey: "screenmockPanelAlignEnd" },
+];
+
+const ALIGN_OPTIONS: Array<{ value: string; labelKey: string }> = [
+  { value: "", labelKey: "screenmockPanelAlignDefault" },
+  { value: "flex-start", labelKey: "screenmockPanelAlignStart" },
+  { value: "center", labelKey: "screenmockPanelAlignCenter" },
+  { value: "stretch", labelKey: "screenmockPanelAlignStretch" },
 ];
 
 const COLOR_TOKENS = [
@@ -131,12 +202,18 @@ function ensurePanelStyle(): void {
 .am-smep-token[aria-pressed="true"]{border-color:var(--am-color-primary-main,#0969da);background:var(--am-color-action-selected,rgba(9,105,218,.12));}
 .am-smep-swatch{flex:0 0 auto;width:14px;height:14px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:3px;background:var(--am-smep-swatch,#fff);}
 .am-smep-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.am-smep-row-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
 .am-smep-muted{color:var(--am-color-text-secondary,#656d76);font-size:12px;}
 .am-smep-chip{display:inline-flex;width:max-content;max-width:100%;padding:2px 7px;border-radius:999px;background:var(--am-color-action-selected,rgba(9,105,218,.12));color:var(--am-color-primary-main,#0969da);font-size:12px;font-weight:600;}
 .am-smep-screen-list{display:flex;flex-direction:column;gap:6px;}
 .am-smep-screen,.am-smep-tree-node{width:100%;min-height:30px;padding:5px 8px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;background:var(--am-color-bg-paper,#fff);color:inherit;font:inherit;text-align:left;box-sizing:border-box;cursor:pointer;}
 .am-smep-screen[aria-current="true"],.am-smep-tree-node[aria-selected="true"]{border-color:var(--am-color-primary-main,#0969da);background:var(--am-color-action-selected,rgba(9,105,218,.12));color:var(--am-color-primary-main,#0969da);font-weight:600;}
 .am-smep-tree{display:flex;flex-direction:column;gap:4px;}
+.am-smep-tree-node{position:relative;}
+.am-smep-tree-node[aria-dropeffect="move"]{outline:2px solid var(--am-color-primary-main,#0969da);outline-offset:1px;}
+.am-smep-segment{display:flex;gap:4px;flex-wrap:wrap;}
+.am-smep-segment .am-smep-action{flex:1 1 auto;text-align:center;}
+.am-smep-segment .am-smep-action[aria-pressed="true"]{border-color:var(--am-color-primary-main,#0969da);background:var(--am-color-action-selected,rgba(9,105,218,.12));color:var(--am-color-primary-main,#0969da);font-weight:600;}
 `);
 }
 
@@ -224,6 +301,15 @@ function nextScreenId(source: string): string {
   }
 }
 
+function uniqueScreenIdFromPrefix(source: string, prefix: string): string {
+  const used = new Set(parseScreenmock(source).map((screen) => screen.id));
+  if (!used.has(prefix)) return prefix;
+  for (let index = 2; ; index += 1) {
+    const candidate = `${prefix}-${index}`;
+    if (!used.has(candidate)) return candidate;
+  }
+}
+
 function readScreenMetadata(source: string): ScreenMetadata[] {
   if (!source.trim()) return [];
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
@@ -254,6 +340,34 @@ function readScreenMetadata(source: string): ScreenMetadata[] {
     while (cursor < lines.length && lines[cursor].trim() !== "---") cursor += 1;
   }
   return result;
+}
+
+function presetValueOf(style: string | null, property: keyof typeof STYLE_PRESETS): string {
+  const current = readStyleDeclaration(style, property);
+  const preset = STYLE_PRESETS[property];
+  const found = Object.entries(preset).find(([, value]) => value === current);
+  return found?.[0] ?? (current ? "custom" : "none");
+}
+
+function isFlexContainer(el: Element | null): boolean {
+  return Boolean(el?.classList.contains("sm-row") || el?.classList.contains("sm-col"));
+}
+
+function directContainerPath(path: string): string {
+  const index = path.lastIndexOf("/");
+  return index < 0 ? "" : path.slice(0, index);
+}
+
+function directIndex(path: string): number {
+  const value = Number(path.split("/").at(-1));
+  return Number.isInteger(value) && value >= 0 ? value : 0;
+}
+
+function defaultContainerPath(source: string, screenIndex: number): string {
+  const template = document.createElement("template");
+  template.innerHTML = screenHtmlAt(source, screenIndex);
+  const first = template.content.firstElementChild;
+  return first?.classList.contains("sm-screen") ? "0" : "";
 }
 
 function append<K extends keyof HTMLElementTagNameMap>(
@@ -338,11 +452,42 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     if (!designMode) return;
     const source = options.getSource();
     const screenIndex = normalizeActiveScreenIndex(source, activeScreenIndex);
-    const containerPath = pathExists(source, screenIndex, selectedPath) ? selectedPath ?? "" : "";
+    const containerPath = pathExists(source, screenIndex, selectedPath)
+      ? selectedPath ?? ""
+      : defaultContainerPath(source, screenIndex);
     const index = childCount(source, screenIndex, containerPath);
     const next = insertScreenmockElement(source, screenIndex, containerPath, part.html);
     const newPath = containerPath ? `${containerPath}/${index}` : String(index);
     selectPath(newPath);
+    commitSource(next);
+  };
+
+  const insertSnippet = (snippet: SnippetItem): void => {
+    if (!designMode) return;
+    const source = options.getSource();
+    const screenIndex = normalizeActiveScreenIndex(source, activeScreenIndex);
+    const containerPath = pathExists(source, screenIndex, selectedPath)
+      ? selectedPath ?? ""
+      : defaultContainerPath(source, screenIndex);
+    const result = insertScreenmockFragment(source, screenIndex, containerPath, snippet.html);
+    if (!result.newPaths.length) return;
+    selectPath(result.newPaths[0]);
+    commitSource(result.source);
+  };
+
+  const addScreenTemplate = (template: ScreenTemplateItem): void => {
+    if (!designMode) return;
+    const source = options.getSource();
+    const screens = parseScreenmock(source);
+    const next = appendScreenmockScreen(source, {
+      id: uniqueScreenIdFromPrefix(source, template.idPrefix),
+      title: text(template.titleKey, options),
+      html: template.html,
+    });
+    activeScreenIndex = screens.length;
+    selectedPath = null;
+    options.setSelectedPath(null);
+    options.setActiveScreenIndex?.(activeScreenIndex);
     commitSource(next);
   };
 
@@ -390,6 +535,26 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     commitSource(setScreenmockElementStyleDeclaration(source, screenIndex, path, property, value || null));
   };
 
+  const applyStylePreset = (property: keyof typeof STYLE_PRESETS, preset: string): void => {
+    const { source, screenIndex, path } = currentSelection();
+    if (!path || !designMode) return;
+    const value = STYLE_PRESETS[property][preset as keyof typeof STYLE_PRESETS[typeof property]];
+    if (value === undefined) return;
+    commitSource(setScreenmockElementStyleDeclaration(source, screenIndex, path, property, value));
+  };
+
+  const applyElementAttribute = (name: "data-lines" | "src", value: string): void => {
+    const { source, screenIndex, path } = currentSelection();
+    if (!path || !designMode) return;
+    commitSource(setScreenmockElementAttribute(source, screenIndex, path, name, value.trim() || null));
+  };
+
+  const applyAlignment = (property: "justify-content" | "align-items", value: string): void => {
+    const { source, screenIndex, path, el } = currentSelection();
+    if (!path || !designMode || !isFlexContainer(el)) return;
+    commitSource(setScreenmockElementStyleDeclaration(source, screenIndex, path, property, value || null));
+  };
+
   const applyOffset = (property: "left" | "top", value: string): void => {
     const { source, screenIndex, path } = currentSelection();
     if (!path || !designMode) return;
@@ -418,6 +583,36 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     const result = duplicateScreenmockElement(source, screenIndex, path);
     selectPath(result.newPath);
     commitSource(result.source);
+  };
+
+  const wrapSelected = (wrapperClassName: "sm-row" | "sm-col"): void => {
+    const { source, screenIndex, path } = currentSelection();
+    if (!path || !designMode) return;
+    const result = wrapScreenmockElement(source, screenIndex, path, wrapperClassName);
+    if (result.source === source) return;
+    selectPath(result.newPath, false);
+    commitSource(result.source);
+  };
+
+  const unwrapSelected = (): void => {
+    const { source, screenIndex, path } = currentSelection();
+    if (!path || !designMode) return;
+    const next = unwrapScreenmockElement(source, screenIndex, path);
+    if (next === source) return;
+    selectPath(directContainerPath(path) || null, false);
+    commitSource(next);
+  };
+
+  const moveSelectedTreeNode = (fromPath: string, toPath: string): void => {
+    if (!designMode || fromPath === toPath || toPath.startsWith(`${fromPath}/`)) return;
+    const source = options.getSource();
+    const screenIndex = normalizeActiveScreenIndex(source, activeScreenIndex);
+    const screenHtml = screenHtmlAt(source, screenIndex);
+    const toParentPath = directContainerPath(toPath);
+    const nextScreenHtml = moveScreenmockElement(screenHtml, fromPath, toParentPath, directIndex(toPath));
+    if (nextScreenHtml === screenHtml) return;
+    selectPath(toPath, false);
+    commitSource(replaceScreenmockScreenHtml(source, screenIndex, nextScreenHtml));
   };
 
   const switchScreen = (index: number): void => {
@@ -466,6 +661,20 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     if (!accepted) return;
     const next = removeScreenmockScreen(source, screenIndex);
     activeScreenIndex = normalizeActiveScreenIndex(next, screenIndex);
+    selectedPath = null;
+    options.setSelectedPath(null);
+    options.setActiveScreenIndex?.(activeScreenIndex);
+    commitSource(next);
+  };
+
+  const moveActiveScreen = (delta: -1 | 1): void => {
+    if (!designMode) return;
+    const source = options.getSource();
+    const screenIndex = normalizeActiveScreenIndex(source, activeScreenIndex);
+    const nextIndex = screenIndex + delta;
+    const next = moveScreenmockScreen(source, screenIndex, nextIndex);
+    if (next === source) return;
+    activeScreenIndex = normalizeActiveScreenIndex(next, nextIndex);
     selectedPath = null;
     options.setSelectedPath(null);
     options.setActiveScreenIndex?.(activeScreenIndex);
@@ -538,6 +747,24 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     };
     addGroup(text("screenmockPanelCategoryLayout", options), LAYOUT_PARTS);
     addGroup(text("screenmockPanelCategoryComponents", options), COMPONENT_PARTS);
+
+    const snippets = append(content, "section", "am-smep-section");
+    append(snippets, "div", "am-smep-heading").textContent = text("screenmockPanelCategorySnippets", options);
+    const snippetGrid = append(snippets, "div", "am-smep-grid");
+    for (const snippet of SNIPPETS) {
+      const button = makeButton(text(snippet.labelKey, options), "am-smep-part");
+      button.addEventListener("click", () => insertSnippet(snippet));
+      snippetGrid.appendChild(button);
+    }
+
+    const templates = append(content, "section", "am-smep-section");
+    append(templates, "div", "am-smep-heading").textContent = text("screenmockPanelCategoryScreenTemplates", options);
+    const templateGrid = append(templates, "div", "am-smep-grid");
+    for (const template of SCREEN_TEMPLATES) {
+      const button = makeButton(text(template.labelKey, options), "am-smep-part");
+      button.addEventListener("click", () => addScreenTemplate(template));
+      templateGrid.appendChild(button);
+    }
   };
 
   const renderActions = (parent: HTMLElement): void => {
@@ -607,6 +834,40 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     };
     renderColorField("background", "screenmockPanelBackgroundColor");
     renderColorField("color", "screenmockPanelTextColor");
+
+    const renderSpacingPresets = (): void => {
+      const spacing = append(content, "section", "am-smep-section");
+      append(spacing, "div", "am-smep-heading").textContent = text("screenmockPanelSpacing", options);
+      const renderPresetField = (property: keyof typeof STYLE_PRESETS, labelKey: string): void => {
+        const field = append(spacing, "div", "am-smep-field");
+        append(field, "label").textContent = text(labelKey, options);
+        const select = append(field, "select");
+        for (const [value, labelKeyForOption] of [
+          ["none", "screenmockPanelPresetNone"],
+          ["sm", "screenmockPanelPresetSmall"],
+          ["md", "screenmockPanelPresetMedium"],
+          ["lg", "screenmockPanelPresetLarge"],
+        ] as const) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = text(labelKeyForOption, options);
+          select.appendChild(option);
+        }
+        // custom option を追加してから value を設定する（未登録の値の代入は空選択になる）。
+        const currentPreset = presetValueOf(el.getAttribute("style"), property);
+        if (currentPreset === "custom") {
+          const option = document.createElement("option");
+          option.value = "custom";
+          option.textContent = text("screenmockPanelPresetCustom", options);
+          select.appendChild(option);
+        }
+        select.value = currentPreset;
+        select.addEventListener("change", () => applyStylePreset(property, select.value));
+      };
+      renderPresetField("padding", "screenmockPanelPadding");
+      renderPresetField("gap", "screenmockPanelGap");
+      renderPresetField("border-radius", "screenmockPanelBorderRadius");
+    };
 
     const offset = append(content, "section", "am-smep-section");
     append(offset, "div", "am-smep-heading").textContent = text("screenmockPanelOffset", options);
@@ -681,6 +942,53 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
       }
     }
 
+    renderSpacingPresets();
+
+    if (el.classList.contains("sm-text")) {
+      const linesField = append(content, "div", "am-smep-field");
+      append(linesField, "label").textContent = text("screenmockPanelDataLines", options);
+      const input = append(linesField, "input");
+      input.type = "number";
+      input.step = "1";
+      input.min = "1";
+      input.value = el.getAttribute("data-lines") ?? "";
+      input.addEventListener("change", () => applyElementAttribute("data-lines", input.value));
+    }
+
+    // src を編集できるのは実 <img> のみ。div.sm-img（プレースホルダ）へ付けても
+    // 描画に反映されず、無効な属性書き込みになる。
+    if (el.tagName.toLowerCase() === "img") {
+      const srcField = append(content, "div", "am-smep-field");
+      append(srcField, "label").textContent = text("screenmockPanelSrc", options);
+      const input = append(srcField, "input");
+      input.type = "url";
+      input.value = el.getAttribute("src") ?? "";
+      input.addEventListener("change", () => applyElementAttribute("src", input.value));
+    }
+
+    if (isFlexContainer(el)) {
+      const alignment = append(content, "section", "am-smep-section");
+      append(alignment, "div", "am-smep-heading").textContent = text("screenmockPanelAlignment", options);
+      const renderAlignmentButtons = (
+        property: "justify-content" | "align-items",
+        labelKey: string,
+        values: Array<{ value: string; labelKey: string }>,
+      ): void => {
+        const field = append(alignment, "div", "am-smep-field");
+        append(field, "label").textContent = text(labelKey, options);
+        const segment = append(field, "div", "am-smep-segment");
+        const current = readStyleDeclaration(el.getAttribute("style"), property);
+        for (const option of values) {
+          const button = makeButton(text(option.labelKey, options));
+          button.setAttribute("aria-pressed", String(current === option.value || (!current && !option.value)));
+          button.addEventListener("click", () => applyAlignment(property, option.value));
+          segment.appendChild(button);
+        }
+      };
+      renderAlignmentButtons("justify-content", "screenmockPanelJustifyContent", JUSTIFY_OPTIONS);
+      renderAlignmentButtons("align-items", "screenmockPanelAlignItems", ALIGN_OPTIONS);
+    }
+
     renderActions(content);
   };
 
@@ -688,21 +996,88 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     const { source, screenIndex } = currentSelection();
     const content = append(bodyEl, "div", designMode ? "" : "am-smep-disabled");
     renderActions(content);
+    const wrap = append(content, "section", "am-smep-section");
+    append(wrap, "div", "am-smep-heading").textContent = text("screenmockPanelWrap", options);
+    const wrapRow = append(wrap, "div", "am-smep-row-3");
+    const rowButton = makeButton(text("screenmockPanelWrapRow", options));
+    rowButton.addEventListener("click", () => wrapSelected("sm-row"));
+    wrapRow.appendChild(rowButton);
+    const colButton = makeButton(text("screenmockPanelWrapCol", options));
+    colButton.addEventListener("click", () => wrapSelected("sm-col"));
+    wrapRow.appendChild(colButton);
+    const unwrapButton = makeButton(text("screenmockPanelUnwrap", options));
+    unwrapButton.addEventListener("click", unwrapSelected);
+    wrapRow.appendChild(unwrapButton);
     const section = append(content, "section", "am-smep-section");
     append(section, "div", "am-smep-heading").textContent = text("screenmockPanelStructureTree", options);
     const tree = append(section, "div", "am-smep-tree");
     const template = document.createElement("template");
     template.innerHTML = annotateScreenmockHtmlPaths(screenHtmlAt(source, screenIndex));
+    let draggedPath: string | null = null;
+    let dropButton: HTMLButtonElement | null = null;
+    const markDropTarget = (button: HTMLButtonElement, path: string): void => {
+      if (!draggedPath || draggedPath === path || path.startsWith(`${draggedPath}/`)) return;
+      dropButton?.removeAttribute("aria-dropeffect");
+      dropButton = button;
+      button.setAttribute("aria-dropeffect", "move");
+    };
+    const clearDropTarget = (): void => {
+      dropButton?.removeAttribute("aria-dropeffect");
+      dropButton = null;
+    };
     const renderNode = (el: Element, depth: number): void => {
       const path = el.getAttribute("data-sm-path");
       if (!path) return;
       const button = makeButton(classOrTag(el), "am-smep-tree-node");
       button.style.paddingLeft = `${8 + depth * 14}px`;
       button.setAttribute("aria-selected", String(path === selectedPath));
+      button.draggable = designMode;
       button.addEventListener("click", () => {
         selectPath(path, false);
         options.setActiveScreenIndex?.(activeScreenIndex);
         render();
+      });
+      button.addEventListener("pointerdown", () => {
+        draggedPath = path;
+      });
+      // OS 側の中断（タッチスクロール遷移・Esc 等）では pointerup / dragend が来ないため、
+      // pointercancel でドラッグ状態を破棄する（残留するとドロップ候補表示が誤って付く）。
+      button.addEventListener("pointercancel", () => {
+        draggedPath = null;
+        clearDropTarget();
+      });
+      button.addEventListener("pointerover", () => markDropTarget(button, path));
+      button.addEventListener("pointerup", (event) => {
+        if (!draggedPath) return;
+        event.preventDefault();
+        const fromPath = draggedPath;
+        draggedPath = null;
+        clearDropTarget();
+        moveSelectedTreeNode(fromPath, path);
+      });
+      button.addEventListener("dragstart", (event) => {
+        draggedPath = path;
+        event.dataTransfer?.setData("text/plain", path);
+        event.dataTransfer?.setDragImage(button, 0, 0);
+      });
+      button.addEventListener("dragover", (event) => {
+        if (!draggedPath || draggedPath === path || path.startsWith(`${draggedPath}/`)) return;
+        event.preventDefault();
+        markDropTarget(button, path);
+      });
+      button.addEventListener("dragleave", () => {
+        if (dropButton === button) clearDropTarget();
+      });
+      button.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const fromPath = event.dataTransfer?.getData("text/plain") || draggedPath;
+        draggedPath = null;
+        clearDropTarget();
+        if (fromPath) moveSelectedTreeNode(fromPath, path);
+      });
+      button.addEventListener("dragend", () => {
+        draggedPath = null;
+        clearDropTarget();
       });
       tree.appendChild(button);
       Array.from(el.children).forEach((child) => renderNode(child, depth + 1));
@@ -737,6 +1112,15 @@ export function createScreenmockEditPanel(options: CreateScreenmockEditPanelOpti
     const duplicateButton = makeButton(text("screenmockPanelDuplicate", options));
     duplicateButton.addEventListener("click", duplicateScreen);
     actionRow.appendChild(duplicateButton);
+    const moveRow = append(content, "div", "am-smep-row");
+    const upButton = makeButton(text("screenmockPanelMoveScreenUp", options));
+    upButton.disabled = activeScreenIndex <= 0;
+    upButton.addEventListener("click", () => moveActiveScreen(-1));
+    moveRow.appendChild(upButton);
+    const downButton = makeButton(text("screenmockPanelMoveScreenDown", options));
+    downButton.disabled = activeScreenIndex >= screens.length - 1;
+    downButton.addEventListener("click", () => moveActiveScreen(1));
+    moveRow.appendChild(downButton);
     const deleteButton = makeButton(text("screenmockPanelDelete", options), "am-smep-action am-smep-action-danger");
     deleteButton.addEventListener("click", () => {
       void deleteScreen();

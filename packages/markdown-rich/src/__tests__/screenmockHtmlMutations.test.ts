@@ -17,6 +17,11 @@ import {
   removeScreenmockElementWidth,
   removeScreenmockElementHeight,
   moveScreenmockElement,
+  moveScreenmockScreen,
+  wrapScreenmockElement,
+  unwrapScreenmockElement,
+  setScreenmockElementAttribute,
+  insertScreenmockFragment,
 } from "../vanilla/screenmockHtmlMutations";
 
 describe("moveScreenmockElement", () => {
@@ -366,5 +371,161 @@ describe("screenmock panel source mutations", () => {
       ['---', 'id: first', 'title: First', '---', '<div class="sm-screen"><a href="#next">Next</a></div>'].join("\n"),
     );
     expect(parseScreenRanges(bare)).toHaveLength(1);
+  });
+
+  it("画面ブロックを並べ替え、各ブロック本文と frontmatter をそのまま保つ", () => {
+    const out = moveScreenmockScreen(source, 1, 0);
+
+    expect(out).toBe(
+      [
+        "---",
+        "id: home",
+        "title: Home",
+        "---",
+        '<div class="sm-screen">',
+        "  <p>Home</p>",
+        "</div>",
+        "---",
+        "id: login",
+        "title: Login",
+        "---",
+        '<div class="sm-screen">',
+        '  <div class="sm-card" style="width: 80.0%; height: 240px; color: red;">',
+        "    <p>Welcome</p>",
+        '    <input class="sm-input" placeholder="Email" />',
+        '    <a class="sm-btn" href="#home">Go</a>',
+        "  </div>",
+        "</div>",
+      ].join("\n"),
+    );
+  });
+
+  it("frontmatter なし単一画面の並べ替えは no-op にする", () => {
+    const bare = '<div class="sm-screen"><p>Only</p></div>';
+
+    expect(moveScreenmockScreen(bare, 0, 0)).toBe(bare);
+    expect(moveScreenmockScreen(bare, 0, 1)).toBe(bare);
+  });
+
+  it("要素を sm-row で包み、包んだ後の要素パスを返し、対象外画面を保つ", () => {
+    const out = wrapScreenmockElement(source, 0, "0/0/1", "sm-row");
+
+    expect(out.newPath).toBe("0/0/1/0");
+    expect(out.source).toContain(
+      [
+        "    <p>Welcome</p>",
+        '    <div class="sm-row">',
+        '      <input class="sm-input" placeholder="Email">',
+        "    </div>",
+        '    <a class="sm-btn" href="#home">Go</a>',
+      ].join("\n"),
+    );
+    expect(out.source).toContain('<div class="sm-screen">\n  <p>Home</p>\n</div>');
+    expect(out.source).not.toContain("data-sm-path");
+  });
+
+  it("sm-screen 自体や不正な wrapper class は包まず no-op にする", () => {
+    expect(wrapScreenmockElement(source, 0, "0", "sm-row").source).toBe(source);
+    expect(wrapScreenmockElement(source, 0, "0/0/1", "sm-card").source).toBe(source);
+  });
+
+  it("包み解除で子要素を親位置へ持ち上げ、対象外の整形を保つ", () => {
+    const wrapped = [
+      '<div class="sm-screen">',
+      '  <div class="sm-card">',
+      '    <div class="sm-row">',
+      "      <p>One</p>",
+      '      <button class="sm-btn">Two</button>',
+      "    </div>",
+      "    <p>After</p>",
+      "  </div>",
+      "</div>",
+    ].join("\n");
+
+    const out = unwrapScreenmockElement(wrapped, 0, "0/0/0");
+
+    expect(out).toBe(
+      [
+        '<div class="sm-screen">',
+        '  <div class="sm-card">',
+        "    <p>One</p>",
+        '    <button class="sm-btn">Two</button>',
+        "    <p>After</p>",
+        "  </div>",
+        "</div>",
+      ].join("\n"),
+    );
+  });
+
+  it("トップレベルの包み解除と空コンテナ削除ができる", () => {
+    const top = ['<div class="sm-row">', "  <p>A</p>", "  <p>B</p>", "</div>"].join("\n");
+    const empty = '<div class="sm-col"></div><p>After</p>';
+
+    expect(unwrapScreenmockElement(top, 0, "0")).toBe("<p>A</p><p>B</p>");
+    expect(unwrapScreenmockElement(empty, 0, "0")).toBe("<p>After</p>");
+  });
+
+  it("sm-screen ルートの包み解除は no-op（画面構造を壊さない）", () => {
+    const screen = '<div class="sm-screen"><button class="sm-btn">OK</button></div>';
+
+    expect(unwrapScreenmockElement(screen, 0, "0")).toBe(screen);
+  });
+
+  it("data-lines を正の整数文字列だけ設定し null で除去する", () => {
+    const textSource = '<div class="sm-screen"><p class="sm-text">Body</p><p>Other</p></div>';
+    const set = setScreenmockElementAttribute(textSource, 0, "0/0", "data-lines", "3");
+    const removed = setScreenmockElementAttribute(set, 0, "0/0", "data-lines", null);
+
+    expect(set).toBe('<div class="sm-screen"><p class="sm-text" data-lines="3">Body</p><p>Other</p></div>');
+    expect(removed).toBe(textSource);
+    expect(setScreenmockElementAttribute(textSource, 0, "0/0", "data-lines", "0")).toBe(textSource);
+    expect(setScreenmockElementAttribute(textSource, 0, "0/0", "data-lines", "1.5")).toBe(textSource);
+  });
+
+  it("src は data: と https: だけ受理し、大小文字や空白での迂回を拒否する", () => {
+    const imageSource = '<div class="sm-screen"><img class="sm-img" src="data:image/png;base64,old"></div>';
+    const https = setScreenmockElementAttribute(imageSource, 0, "0/0", "src", "https://example.com/a.png");
+    const data = setScreenmockElementAttribute(https, 0, "0/0", "src", "data:image/png;base64,next");
+    const removed = setScreenmockElementAttribute(data, 0, "0/0", "src", null);
+
+    expect(https).toBe('<div class="sm-screen"><img class="sm-img" src="https://example.com/a.png"></div>');
+    expect(data).toBe('<div class="sm-screen"><img class="sm-img" src="data:image/png;base64,next"></div>');
+    expect(removed).toBe('<div class="sm-screen"><img class="sm-img"></div>');
+    expect(setScreenmockElementAttribute(imageSource, 0, "0/0", "src", "javascript:alert(1)")).toBe(imageSource);
+    expect(setScreenmockElementAttribute(imageSource, 0, "0/0", "src", "JAVASCRIPT:alert(1)")).toBe(imageSource);
+    expect(setScreenmockElementAttribute(imageSource, 0, "0/0", "src", " https://example.com/a.png")).toBe(imageSource);
+  });
+
+  it("未許可属性名と存在しないパスでは source を変更しない", () => {
+    expect(setScreenmockElementAttribute(source, 0, "0/0/2", "href", "https://example.com")).toBe(source);
+    expect(setScreenmockElementAttribute(source, 0, "9/9", "src", "https://example.com/a.png")).toBe(source);
+  });
+
+  it("複数トップレベル要素の断片を指定位置へ挿入し、挿入後パス配列を返す", () => {
+    const out = insertScreenmockFragment(
+      source,
+      0,
+      "0/0",
+      '<input class="sm-input" placeholder="Password" /><button class="sm-btn">Login</button>',
+      1,
+    );
+
+    expect(out.newPaths).toEqual(["0/0/1", "0/0/2"]);
+    expect(out.source).toContain(
+      [
+        "    <p>Welcome</p>",
+        '    <input class="sm-input" placeholder="Password">',
+        '    <button class="sm-btn">Login</button>',
+        '    <input class="sm-input" placeholder="Email">',
+        '    <a class="sm-btn" href="#home">Go</a>',
+      ].join("\n"),
+    );
+    expect(out.source).toContain('<div class="sm-screen">\n  <p>Home</p>\n</div>');
+    expect(out.source).not.toContain("data-sm-path");
+  });
+
+  it("断片挿入は空断片や存在しないコンテナでは no-op にする", () => {
+    expect(insertScreenmockFragment(source, 0, "0/0", "text only").source).toBe(source);
+    expect(insertScreenmockFragment(source, 0, "9/9", "<p>Bad</p>").source).toBe(source);
   });
 });

@@ -287,6 +287,28 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
     zv.inner.appendChild(previewInner);
     previewEl = previewInner;
 
+    const fitButton = document.createElement("button");
+    fitButton.type = "button";
+    fitButton.className = "am-zt-btn";
+    fitButton.setAttribute("aria-label", t("zoomFit"));
+    fitButton.title = t("zoomFit");
+    fitButton.textContent = "□";
+    fitButton.addEventListener("click", () => {
+      const outerRect = zv.el.getBoundingClientRect();
+      const innerRect = previewInner.getBoundingClientRect();
+      const currentZoom = zp.getState().zoom || 1;
+      const contentWidth = innerRect.width / currentZoom;
+      const contentHeight = innerRect.height / currentZoom;
+      if (outerRect.width <= 0 || outerRect.height <= 0 || contentWidth <= 0 || contentHeight <= 0) {
+        zp.reset();
+        return;
+      }
+      const nextZoom = Math.min(1, (outerRect.width - 24) / contentWidth, (outerRect.height - 24) / contentHeight);
+      zp.reset();
+      zp.setZoom(nextZoom);
+    });
+    zt.el.appendChild(fitButton);
+
     if (opts.previewSidePanel) {
       split.right.classList.add("am-cbed-preview-with-panel");
       const sidePanel = document.createElement("aside");
