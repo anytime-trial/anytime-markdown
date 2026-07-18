@@ -3,7 +3,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import { computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
+import { type AcceptanceDecidedBy, type AcceptanceRoute, type AcceptanceVerdict, computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Model, C4ModelPayload, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
@@ -767,6 +767,22 @@ export class TrailDataServer {
 
     if (pathname === '/api/trail/user-feedback' && method === 'GET') {
       this.handleListUserFeedback(res, parsed.searchParams);
+      return;
+    }
+
+    // 自律受入基盤 S5: 受入台帳（farm と人手記録の書き込み・retro の参照経路）
+    if (pathname === '/api/trail/acceptance' && method === 'POST') {
+      this.handleUpsertAcceptanceRecord(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/acceptance' && method === 'GET') {
+      this.handleListAcceptanceRecords(res, parsed.searchParams);
+      return;
+    }
+
+    if (pathname === '/api/trail/acceptance/miss-rate' && method === 'GET') {
+      this.handleAcceptanceMissRate(res, parsed.searchParams);
       return;
     }
 
@@ -3144,6 +3160,121 @@ export class TrailDataServer {
     } catch (e) {
       this.logger.error('handleListUserFeedback failed', e);
       sendServerError(res, 'Failed to list user feedback');
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: /api/trail/acceptance (自律受入基盤 S5: 受入台帳)
+  // -------------------------------------------------------------------------
+
+  private static readonly ACCEPTANCE_ROUTES: string[] = ['auto', 'machine', 'human'];
+
+  private static readonly ACCEPTANCE_VERDICTS: string[] = ['pass', 'fail', 'pending', 'not_run'];
+
+  private static readonly ACCEPTANCE_DECIDED_BY: string[] = ['farm', 'human'];
+
+  private static readonly ACCEPTANCE_NOTES_MAX_CHARS = 2000;
+
+  /** 検証はサーバー側が正 — farm スクリプトの入力を境界と見なさない（flight-reviews と同方針）。 */
+  private handleUpsertAcceptanceRecord(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const commitSha = parsed['commitSha'];
+        const route = parsed['route'];
+        const verdict = parsed['verdict'];
+        const decidedBy = parsed['decidedBy'];
+        if (
+          typeof commitSha !== 'string' || commitSha === '' ||
+          typeof route !== 'string' || !TrailDataServer.ACCEPTANCE_ROUTES.includes(route) ||
+          typeof verdict !== 'string' || !TrailDataServer.ACCEPTANCE_VERDICTS.includes(verdict) ||
+          typeof decidedBy !== 'string' || !TrailDataServer.ACCEPTANCE_DECIDED_BY.includes(decidedBy)
+        ) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'commitSha, route(auto|machine|human), verdict(pass|fail|pending|not_run), decidedBy(farm|human) required' }));
+          return;
+        }
+        const failedTestsRaw = parsed['failedTests'];
+        if (failedTestsRaw !== undefined && (!Array.isArray(failedTestsRaw) || failedTestsRaw.some((t) => typeof t !== 'string'))) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'failedTests must be string[]' }));
+          return;
+        }
+        const notes = typeof parsed['notes'] === 'string' ? parsed['notes'].slice(0, TrailDataServer.ACCEPTANCE_NOTES_MAX_CHARS) : undefined;
+        const quarantinedCountRaw = parsed['quarantinedCount'];
+        this.trailDb.upsertAcceptanceRecord({
+          commitSha,
+          route: route as AcceptanceRoute,
+          verdict: verdict as AcceptanceVerdict,
+          decidedBy: decidedBy as AcceptanceDecidedBy,
+          decidedAt: typeof parsed['decidedAt'] === 'string' && parsed['decidedAt'] !== '' ? parsed['decidedAt'] : null,
+          repoName: typeof parsed['repoName'] === 'string' ? parsed['repoName'] : undefined,
+          farmRunRef: typeof parsed['farmRunRef'] === 'string' ? parsed['farmRunRef'] : undefined,
+          failedTests: failedTestsRaw as string[] | undefined,
+          vrtDiff: parsed['vrtDiff'] === true,
+          quarantinedCount: typeof quarantinedCountRaw === 'number' && Number.isFinite(quarantinedCountRaw) ? quarantinedCountRaw : undefined,
+          notes,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleUpsertAcceptanceRecord failed', e);
+        sendServerError(res, 'Failed to record acceptance');
+      }
+    });
+  }
+
+  private handleListAcceptanceRecords(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const routeParam = params.get('route');
+      if (routeParam !== null && !TrailDataServer.ACCEPTANCE_ROUTES.includes(routeParam)) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'invalid route' }));
+        return;
+      }
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const acceptanceRecords = this.trailDb.listAcceptanceRecords({
+        commitSha: params.get('commitSha') ?? undefined,
+        route: (routeParam as AcceptanceRoute | null) ?? undefined,
+        since: params.get('since') ?? undefined,
+        until: params.get('until') ?? undefined,
+        // windowDays（1..365）と同様に境界を持たせる（増分蓄積テーブルのため上限必須）
+        limit: Number.isNaN(limit) ? 100 : Math.min(Math.max(limit, 1), 1000),
+      });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ acceptanceRecords }));
+    } catch (e) {
+      this.logger.error('handleListAcceptanceRecords failed', e);
+      sendServerError(res, 'Failed to list acceptance records');
+    }
+  }
+
+  private handleAcceptanceMissRate(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const windowDays = Number.parseInt(params.get('windowDays') ?? '14', 10);
+      if (Number.isNaN(windowDays) || windowDays < 1 || windowDays > 365) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'windowDays must be 1..365' }));
+        return;
+      }
+      const missRates = this.trailDb.computeAcceptanceMissRate(windowDays);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ missRates }));
+    } catch (e) {
+      this.logger.error('handleAcceptanceMissRate failed', e);
+      sendServerError(res, 'Failed to compute acceptance miss rate');
     }
   }
 
