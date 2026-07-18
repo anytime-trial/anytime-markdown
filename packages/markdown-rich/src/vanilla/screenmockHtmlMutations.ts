@@ -292,6 +292,37 @@ export function insertScreenmockElement(
   });
 }
 
+function elementsFromHtml(html: string): Element[] {
+  const template = document.createElement("template");
+  template.innerHTML = html.trim();
+  return Array.from(template.content.children);
+}
+
+export function insertScreenmockFragment(
+  source: string,
+  screenIndex: number,
+  containerPath: string,
+  html: string,
+  index?: number,
+): InsertScreenmockFragmentResult {
+  const newPaths: string[] = [];
+  const nextSource = mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const parent =
+      containerPath === "" ? template.content : findElementByPath(template.content, containerPath);
+    const elements = elementsFromHtml(html);
+    if (!parent || elements.length === 0) return false;
+    const insertIndex =
+      index === undefined ? undefined : Math.max(0, Math.min(index, Array.from(parent.children).length));
+    elements.forEach((element, offset) => {
+      const nextIndex = insertIndex === undefined ? undefined : insertIndex + offset;
+      const newPath = insertElementNode(parent, element, nextIndex);
+      if (newPath !== null) newPaths.push(newPath);
+    });
+    return newPaths.length > 0;
+  });
+  return { source: nextSource, newPaths };
+}
+
 export function removeScreenmockElement(source: string, screenIndex: number, path: string): string {
   return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
     const target = findElementByPath(template.content, path);
@@ -306,6 +337,16 @@ export function removeScreenmockElement(source: string, screenIndex: number, pat
 export interface DuplicateScreenmockElementResult {
   source: string;
   newPath: string | null;
+}
+
+export interface WrapScreenmockElementResult {
+  source: string;
+  newPath: string | null;
+}
+
+export interface InsertScreenmockFragmentResult {
+  source: string;
+  newPaths: string[];
 }
 
 export function duplicateScreenmockElement(
@@ -330,6 +371,94 @@ export function duplicateScreenmockElement(
   return { source: nextSource, newPath };
 }
 
+function parentContainerOf(target: Element): DocumentFragment | Element | null {
+  const parentNode = target.parentNode;
+  return parentNode instanceof Element || parentNode instanceof DocumentFragment ? parentNode : null;
+}
+
+function whitespaceIndentPart(whitespace: string): string {
+  const match = /\n([ \t]*)$/.exec(whitespace);
+  return match ? match[1] : "";
+}
+
+function previousIndentOf(target: Element): string | null {
+  const leadingWhitespace = target.previousSibling;
+  return isWhitespaceText(leadingWhitespace) ? leadingWhitespace.data : null;
+}
+
+function normalizeElementLeadingWhitespace(element: Element, indent: string | null): void {
+  if (indent === null) return;
+  const document = element.ownerDocument;
+  const childIndent = `\n${whitespaceIndentPart(indent)}  `;
+  const closingIndent = indent;
+  if (element.firstChild) element.insertBefore(document.createTextNode(childIndent), element.firstChild);
+  else element.appendChild(document.createTextNode(childIndent));
+  element.appendChild(document.createTextNode(closingIndent));
+}
+
+function isScreenmockScreenElement(element: Element): boolean {
+  return (element.getAttribute("class") ?? "").split(/\s+/).includes("sm-screen");
+}
+
+export function wrapScreenmockElement(
+  source: string,
+  screenIndex: number,
+  path: string,
+  wrapperClassName: string,
+): WrapScreenmockElementResult {
+  let newPath: string | null = null;
+  if (wrapperClassName !== "sm-row" && wrapperClassName !== "sm-col") {
+    return { source: source.replace(/\r\n?/g, "\n"), newPath };
+  }
+  const nextSource = mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target || isScreenmockScreenElement(target)) return false;
+    const parent = parentContainerOf(target);
+    if (!parent) return false;
+
+    const wrapper = template.ownerDocument.createElement("div");
+    wrapper.setAttribute("class", wrapperClassName);
+    const indent = previousIndentOf(target);
+    parent.insertBefore(wrapper, target);
+    wrapper.appendChild(target);
+    normalizeElementLeadingWhitespace(wrapper, indent);
+    newPath = `${pathOfElement(wrapper)}/0`;
+    return true;
+  });
+  return { source: nextSource, newPath };
+}
+
+function childIndentForUnwrap(target: Element, parent: DocumentFragment | Element): string | null {
+  const targetIndent = previousIndentOf(target);
+  if (targetIndent !== null) return targetIndent;
+  return childIndentFor(parent, target);
+}
+
+function removeLeadingWhitespace(node: Node): void {
+  const leadingWhitespace = node.previousSibling;
+  if (isWhitespaceText(leadingWhitespace)) leadingWhitespace.remove();
+}
+
+export function unwrapScreenmockElement(source: string, screenIndex: number, path: string): string {
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+    const parent = parentContainerOf(target);
+    if (!parent) return false;
+    const indent = childIndentForUnwrap(target, parent);
+    const children = Array.from(target.children);
+
+    removeLeadingWhitespace(target);
+    for (const child of children) {
+      removeLeadingWhitespace(child);
+      if (indent !== null) parent.insertBefore(template.ownerDocument.createTextNode(indent), target);
+      parent.insertBefore(child, target);
+    }
+    target.remove();
+    return true;
+  });
+}
+
 function isVoidTextElement(element: Element): boolean {
   return ["input", "textarea"].includes(element.tagName.toLowerCase());
 }
@@ -351,6 +480,35 @@ export function setScreenmockElementText(
       .filter((node) => node.nodeType === Node.TEXT_NODE)
       .forEach((node) => node.remove());
     target.insertBefore(template.ownerDocument.createTextNode(text), target.firstChild);
+    return true;
+  });
+}
+
+function isValidSrcAttributeValue(value: string): boolean {
+  return value.startsWith("data:") || value.startsWith("https:");
+}
+
+function isPositiveIntegerString(value: string): boolean {
+  return /^[1-9][0-9]*$/.test(value);
+}
+
+export function setScreenmockElementAttribute(
+  source: string,
+  screenIndex: number,
+  path: string,
+  name: string,
+  value: string | null,
+): string {
+  if (name !== "data-lines" && name !== "src") return source.replace(/\r\n?/g, "\n");
+  if (value !== null) {
+    if (name === "data-lines" && !isPositiveIntegerString(value)) return source.replace(/\r\n?/g, "\n");
+    if (name === "src" && !isValidSrcAttributeValue(value)) return source.replace(/\r\n?/g, "\n");
+  }
+  return mutateScreenmockScreenHtml(source, screenIndex, (template) => {
+    const target = findElementByPath(template.content, path);
+    if (!target) return false;
+    if (value === null) target.removeAttribute(name);
+    else target.setAttribute(name, value);
     return true;
   });
 }
@@ -728,6 +886,22 @@ export function removeScreenmockScreen(source: string, screenIndex: number): str
   if (!block) return normalized;
   if (blocks.length === 1) return "";
   return [...lines.slice(0, block.blockStart), ...lines.slice(block.blockEnd)].join("\n").replace(/^\n+|\n+$/g, "");
+}
+
+export function moveScreenmockScreen(source: string, fromIndex: number, toIndex: number): string {
+  const normalized = source.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+  const blocks = parseScreenBlocks(normalized);
+  if (blocks.length <= 1) return normalized;
+  const fromBlock = blocks[fromIndex];
+  if (!fromBlock) return normalized;
+  const clampedToIndex = Math.max(0, Math.min(toIndex, blocks.length - 1));
+  if (fromIndex === clampedToIndex) return normalized;
+
+  const blockLineGroups = blocks.map((block) => lines.slice(block.blockStart, block.blockEnd));
+  const [moved] = blockLineGroups.splice(fromIndex, 1);
+  blockLineGroups.splice(clampedToIndex, 0, moved);
+  return blockLineGroups.flat().join("\n").replace(/^\n+|\n+$/g, "");
 }
 
 export function renameScreenmockScreen(
