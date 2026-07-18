@@ -185,9 +185,6 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
     isDark,
     t,
   });
-  const divider = split.el.querySelector<HTMLElement>(".am-split-divider");
-  let codePaneCollapsed = false;
-  let lastExpandedLeftWidth = split.left.style.width;
   const collapseLabel = t("collapseCodePane");
   const expandLabel = t("expandCodePane");
   const collapseBtn = document.createElement("button");
@@ -210,44 +207,20 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
   expandRail.appendChild(expandBtn);
   split.el.insertBefore(expandRail, split.right);
 
-  const paneMq = createMediaQuery("(max-width:899.95px)");
-  const isNarrowSplit = (): boolean => paneMq.matches || globalThis.innerWidth < 900;
   const notifyPreviewResize = (): void => {
     requestAnimationFrame(() => {
       window.dispatchEvent(new Event("resize"));
     });
   };
+  // 左ペイン・divider の表示は split.setLeftCollapsed（updateLayout）が単一の書き込み主体。
+  // 分割幅は helper 内部の splitPx が保持するため、展開時の幅復帰も updateLayout に任せる。
   const applyCodePaneCollapse = (collapsed: boolean): void => {
-    codePaneCollapsed = collapsed;
-    if (collapsed) {
-      lastExpandedLeftWidth = split.left.style.width || lastExpandedLeftWidth;
-      split.left.style.display = "none";
-      if (divider) divider.style.display = "none";
-      expandRail.style.display = "flex";
-      collapseBtn.setAttribute("aria-expanded", "false");
-      expandBtn.setAttribute("aria-expanded", "false");
-    } else {
-      split.left.style.display = "";
-      split.left.style.width = isNarrowSplit() ? "" : lastExpandedLeftWidth;
-      if (divider) divider.style.display = isNarrowSplit() ? "none" : "";
-      expandRail.style.display = "none";
-      collapseBtn.setAttribute("aria-expanded", "true");
-      expandBtn.setAttribute("aria-expanded", "true");
-    }
+    split.setLeftCollapsed(collapsed);
+    expandRail.style.display = collapsed ? "flex" : "none";
+    collapseBtn.setAttribute("aria-expanded", String(!collapsed));
+    expandBtn.setAttribute("aria-expanded", String(!collapsed));
     notifyPreviewResize();
   };
-  const paneMqUnsub = paneMq.subscribe(() => {
-    if (codePaneCollapsed) {
-      split.left.style.display = "none";
-      if (divider) divider.style.display = "none";
-      expandRail.style.display = "flex";
-    } else {
-      split.left.style.display = "";
-      split.left.style.width = isNarrowSplit() ? "" : lastExpandedLeftWidth;
-      if (divider) divider.style.display = isNarrowSplit() ? "none" : "";
-    }
-    notifyPreviewResize();
-  });
   collapseBtn.addEventListener("click", () => applyCodePaneCollapse(true));
   expandBtn.addEventListener("click", () => applyCodePaneCollapse(false));
 
@@ -476,8 +449,6 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
         sidePanelCleanup();
         sidePanelCleanup = undefined;
       }
-      paneMqUnsub();
-      paneMq.destroy();
       unsub();
       split.destroy();
       dlg.destroy();
