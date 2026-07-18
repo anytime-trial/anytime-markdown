@@ -76,6 +76,16 @@ export interface CreateCodeBlockEditDialogOptions {
       ctx: { getCode: () => string; setCode: (s: string) => void; isDark: boolean },
     ) => () => void;
   };
+  /**
+   * 指定時、プレビューペインの右側に固定幅の補助パネルを表示する。
+   * `mount` は dialog open 時に 1 回呼ばれ、cleanup は dialog 破棄時に呼ばれる。
+   */
+  previewSidePanel?: {
+    mount: (
+      container: HTMLElement,
+      ctx: { getCode: () => string; setCode: (s: string) => void; isDark: boolean },
+    ) => () => void;
+  };
   state: CodeEditState;
   t: (key: string) => string;
   onClose: () => void;
@@ -94,6 +104,9 @@ function ensureDialogStyle(): void {
   ensureStyle(STYLE_ID, `
 .am-cbed-content{display:flex;flex:1 1 auto;overflow:hidden;min-height:0;}
 .am-cbed-preview{flex:1;display:flex;flex-direction:column;overflow:auto;padding:12px;font-family:monospace;white-space:pre;}
+.am-cbed-preview-main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;}
+.am-cbed-preview-with-panel{display:flex;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;}
+.am-cbed-preview-side-panel{flex:0 0 240px;width:240px;min-height:0;overflow:auto;border-left:1px solid var(--am-color-divider,#d0d7de);background:var(--am-color-bg-paper,transparent);}
 /* 言語別の実プレビュー（html 等を renderCodeBlockPreview で描画）はコード表示用の
    monospace / white-space:pre を解除し、通常フローでレンダリングする。 */
 .am-cbed-preview.am-cbed-preview--rendered{display:block;font-family:inherit;white-space:normal;}
@@ -245,15 +258,22 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
 
   // ---- 右: ZoomToolbar + syntax preview ----
   let previewEl: HTMLElement | null = null;
+  let sidePanelCleanup: (() => void) | undefined;
   if (renderPreview) {
+    const rightTarget = opts.previewSidePanel ? document.createElement("div") : split.right;
+    if (opts.previewSidePanel && rightTarget !== split.right) {
+      rightTarget.className = "am-cbed-preview-main";
+      split.right.appendChild(rightTarget);
+    }
+
     const zt = createZoomToolbar({ zp, isDark, t });
-    split.right.appendChild(zt.el);
+    rightTarget.appendChild(zt.el);
     if (opts.previewToolbar) {
-      split.right.appendChild(opts.previewToolbar);
+      rightTarget.appendChild(opts.previewToolbar);
     }
 
     const zv = createZoomablePreview({ zp, isDark });
-    split.right.appendChild(zv.el);
+    rightTarget.appendChild(zv.el);
     zv.el.style.flex = "1 1 auto";
 
     const previewInner = document.createElement("div");
@@ -266,6 +286,18 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
     }
     zv.inner.appendChild(previewInner);
     previewEl = previewInner;
+
+    if (opts.previewSidePanel) {
+      split.right.classList.add("am-cbed-preview-with-panel");
+      const sidePanel = document.createElement("aside");
+      sidePanel.className = "am-cbed-preview-side-panel";
+      split.right.appendChild(sidePanel);
+      sidePanelCleanup = opts.previewSidePanel.mount(sidePanel, {
+        getCode: () => state.getFsCode(),
+        setCode: (s) => state.onFsTextChange(s),
+        isDark,
+      });
+    }
   }
 
   dlg.paper.appendChild(split.el);
@@ -321,6 +353,10 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
       if (previewCleanup) {
         previewCleanup();
         previewCleanup = undefined;
+      }
+      if (sidePanelCleanup) {
+        sidePanelCleanup();
+        sidePanelCleanup = undefined;
       }
       unsub();
       split.destroy();

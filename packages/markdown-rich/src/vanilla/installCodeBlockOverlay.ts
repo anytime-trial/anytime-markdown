@@ -68,6 +68,7 @@ import { createFullscreenDiffDialog } from "./createFullscreenDiffDialog";
 import { createMathEditDialog } from "./createMathEditDialog";
 import { createMermaidEditDialog } from "./createMermaidEditDialog";
 import { createPlantUmlEditDialog } from "./createPlantUmlEditDialog";
+import { createScreenmockEditPanel, type ScreenmockEditPanelHandle } from "./screenmockEditPanel";
 import { createScreenmockDesignModePreview } from "./screenmockDesignMode";
 import { createScreenmockPreview } from "./screenmockPreview";
 
@@ -465,6 +466,8 @@ export function installCodeBlockOverlay(
     if (kind === "screenmock") {
       let designMode = false;
       let lastSelectedPath: string | null = null;
+      let activeScreenIndex = 0;
+      let panel: ScreenmockEditPanelHandle | null = null;
       const designToggleLabel = document.createElement("label");
       designToggleLabel.style.cssText =
         "display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--am-color-divider,#d0d7de);font:inherit;font-size:0.8125rem;cursor:pointer;user-select:none;";
@@ -475,6 +478,7 @@ export function installCodeBlockOverlay(
       designToggleLabel.appendChild(document.createTextNode(t("screenmockDesignMode")));
       designToggle.addEventListener("change", () => {
         designMode = designToggle.checked;
+        panel?.setDesignMode(designMode);
         editState.onFsTextChange(editState.getFsCode());
       });
       const handle = createCodeBlockEditDialog({
@@ -487,6 +491,27 @@ export function installCodeBlockOverlay(
         // 未指定だと言語別 Hello World（CODE_HELLO_SAMPLES）にフォールバックしてしまうため、
         // screenmock 用の画面サンプル（sm- 部品語彙・画面遷移込み）を明示的に渡す。
         customSamples: SCREENMOCK_SAMPLES,
+        previewSidePanel: {
+          mount: (container, ctx) => {
+            panel = createScreenmockEditPanel({
+              getSource: ctx.getCode,
+              setSource: ctx.setCode,
+              t,
+              getDesignMode: () => designMode,
+              getSelectedPath: () => lastSelectedPath,
+              setSelectedPath: (path) => {
+                lastSelectedPath = path;
+              },
+              getActiveScreenIndex: () => activeScreenIndex,
+              isDark: ctx.isDark,
+            });
+            container.appendChild(panel.el);
+            return () => {
+              panel?.destroy();
+              panel = null;
+            };
+          },
+        },
         onPreviewRendered: (previewEl) => {
           previewEl.replaceChildren();
           previewEl.setAttribute("aria-label", "Screenmock preview");
@@ -501,9 +526,15 @@ export function installCodeBlockOverlay(
                 tabListLabel: t("screenmockTabsLabel"),
                 hintLabel: t("screenmockDesignHint"),
                 freePositionLabel: t("screenmockDragFreePosition"),
+                initialActiveScreenIndex: activeScreenIndex,
                 initialSelectedPath: lastSelectedPath ?? undefined,
+                onActiveScreenChange: (index) => {
+                  activeScreenIndex = index;
+                  panel?.setActiveScreenIndex(index);
+                },
                 onSelectionChange: (path) => {
                   lastSelectedPath = path;
+                  panel?.setSelection(path);
                 },
               })
             : createScreenmockPreview(editState.getFsCode(), {
@@ -522,6 +553,14 @@ export function installCodeBlockOverlay(
         },
       });
       activeDialog = handle;
+      const baseUnsub = unsubscribeState;
+      const panelUnsub = editState.subscribe(() => {
+        panel?.render();
+      });
+      unsubscribeState = () => {
+        baseUnsub?.();
+        panelUnsub();
+      };
       return;
     }
     // regular / html / markdown / その他 unknown kind はコード編集ダイアログ。
