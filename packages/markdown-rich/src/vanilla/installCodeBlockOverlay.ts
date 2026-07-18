@@ -32,6 +32,7 @@ import {
   setBlockAttrs,
   ANYTIME_GRAPH_SAMPLES,
   ANYTIME_CHART_SAMPLES,
+  SCREENMOCK_SAMPLES,
 } from "@anytime-markdown/markdown-viewer";
 import {
   findCodeBlockByIndex,
@@ -480,6 +481,9 @@ export function installCodeBlockOverlay(
         renderPreview: true,
         renderPreviewHtml: () => "",
         previewToolbar: designToggleLabel,
+        // 未指定だと言語別 Hello World（CODE_HELLO_SAMPLES）にフォールバックしてしまうため、
+        // screenmock 用の画面サンプル（sm- 部品語彙・画面遷移込み）を明示的に渡す。
+        customSamples: SCREENMOCK_SAMPLES,
         onPreviewRendered: (previewEl) => {
           previewEl.replaceChildren();
           previewEl.setAttribute("aria-label", "Screenmock preview");

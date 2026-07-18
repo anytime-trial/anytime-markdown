@@ -1,0 +1,44 @@
+[
+  {
+    "label": "Login → Home",
+    "i18nKey": "screenmockSampleLogin",
+    "icon": "login",
+    "enabled": true,
+    "code": "---\nid: login\ntitle: ログイン\n---\n<div class=\"sm-screen\">\n  <div class=\"sm-header\">Anytime App</div>\n  <div class=\"sm-main\">\n    <div class=\"sm-card sm-col\" style=\"max-width:360px;margin:0 auto;\">\n      <p class=\"sm-heading\">ログイン</p>\n      <input class=\"sm-input\" placeholder=\"メールアドレス\" />\n      <input class=\"sm-input\" placeholder=\"パスワード\" />\n      <a class=\"sm-btn sm-btn-primary\" href=\"#home\">ログイン</a>\n      <a class=\"sm-btn\" href=\"#home\">パスワードを忘れた方</a>\n    </div>\n  </div>\n  <div class=\"sm-footer\">&copy; Anytime</div>\n</div>\n---\nid: home\ntitle: ホーム\n---\n<div class=\"sm-screen\">\n  <div class=\"sm-header\">ホーム</div>\n  <div class=\"sm-main sm-col\">\n    <p class=\"sm-heading\">ようこそ</p>\n    <span class=\"sm-text\" data-lines=\"2\" style=\"margin-bottom:18px;\"></span>\n    <a class=\"sm-btn\" href=\"#login\">ログアウト</a>\n  </div>\n</div>"
+  },
+  {
+    "label": "Dashboard",
+    "i18nKey": "screenmockSampleDashboard",
+    "icon": "dash",
+    "enabled": true,
+    "code": "---\nid: dashboard\ntitle: ダッシュボード\n---\n<div class=\"sm-screen\">\n  <div class=\"sm-header\">ダッシュボード</div>\n  <div class=\"sm-row\">\n    <div class=\"sm-sidebar sm-col\">\n      <a class=\"sm-btn sm-btn-primary\" href=\"#dashboard\">概要</a>\n      <a class=\"sm-btn\" href=\"#dashboard\">レポート</a>\n      <a class=\"sm-btn\" href=\"#dashboard\">設定</a>\n    </div>\n    <div class=\"sm-main sm-col\">\n      <div class=\"sm-row\">\n        <div class=\"sm-card sm-col\" style=\"flex:1;\">\n          <span class=\"sm-badge\" style=\"align-self:flex-start;\">今日</span>\n          <p class=\"sm-heading\">1,284</p>\n          <span class=\"sm-text\" data-lines=\"1\"></span>\n        </div>\n        <div class=\"sm-card sm-col\" style=\"flex:1;\">\n          <span class=\"sm-badge\" style=\"align-self:flex-start;\">今週</span>\n          <p class=\"sm-heading\">8,930</p>\n          <span class=\"sm-text\" data-lines=\"1\"></span>\n        </div>\n        <div class=\"sm-card sm-col\" style=\"flex:1;\">\n          <span class=\"sm-badge\" style=\"align-self:flex-start;\">今月</span>\n          <p class=\"sm-heading\">35,102</p>\n          <span class=\"sm-text\" data-lines=\"1\"></span>\n        </div>\n      </div>\n      <div class=\"sm-card\">\n        <p class=\"sm-heading\">推移</p>\n        <div class=\"sm-img\" style=\"min-height:180px;\"></div>\n      </div>\n    </div>\n  </div>\n  <div class=\"sm-footer\">最終更新: 10:24</div>\n</div>"
+  },
+  {
+    "label": "List / Search",
+    "i18nKey": "screenmockSampleList",
+    "icon": "list",
+    "enabled": true,
+    "code": "---\nid: list\ntitle: 一覧\n---\n<div class=\"sm-screen\">\n  <div class=\"sm-header\">ユーザー一覧</div>\n  <div class=\"sm-main sm-col\">\n    <div class=\"sm-row\">\n      <input class=\"sm-input\" placeholder=\"キーワードで検索\" />\n      <a class=\"sm-btn sm-btn-primary\" href=\"#detail\" style=\"flex:0 0 auto;\">検索</a>\n    </div>\n    <table class=\"sm-table\">\n      <thead>\n        <tr><th>名前</th><th>役割</th><th>状態</th></tr>\n      </thead>\n      <tbody>\n        <tr><td><a href=\"#detail\">佐藤 花子</a></td><td>管理者</td><td><span class=\"sm-badge\">有効</span></td></tr>\n        <tr><td><a href=\"#detail\">鈴木 一郎</a></td><td>編集者</td><td><span class=\"sm-badge\">有効</span></td></tr>\n        <tr><td><a href=\"#detail\">田中 太郎</a></td><td>閲覧者</td><td><span class=\"sm-badge\">停止中</span></td></tr>\n      </tbody>\n    </table>\n  </div>\n  <div class=\"sm-footer\">3 件を表示</div>\n</div>\n---\nid: detail\ntitle: 詳細\n---\n<div class=\"sm-screen\">\n  <div class=\"sm-header\">ユーザー詳細</div>\n  <div class=\"sm-main sm-row\">\n    <div class=\"sm-img\" style=\"width:160px;\"></div>\n    <div class=\"sm-col\" style=\"flex:1;\">\n      <p class=\"sm-heading\">佐藤 花子</p>\n      <span class=\"sm-badge\" style=\"align-self:flex-start;\">管理者</span>\n      <span class=\"sm-text\" data-lines=\"3\" style=\"margin-bottom:36px;\"></span>\n      <div class=\"sm-row\">\n        <a class=\"sm-btn sm-btn-primary\" href=\"#list\">保存</a>\n        <a class=\"sm-btn\" href=\"#list\">一覧へ戻る</a>\n      </div>\n    </div>\n  </div>\n</div>"
+  },
+  {
+    "label": "Form",
+    "i18nKey": "screenmockSampleForm",
+    "icon": "form",
+    "enabled": true,
+    "code": "---\nid: form\ntitle: 入力フォーム\n---\n<div class=\"sm-screen\">\n  <div class=\"sm-header\">新規登録</div>\n  <div class=\"sm-main\">\n    <div class=\"sm-card sm-col\" style=\"max-width:520px;\">\n      <p class=\"sm-heading\">基本情報</p>\n      <input class=\"sm-input\" placeholder=\"タイトル\" />\n      <input class=\"sm-input\" placeholder=\"担当者\" />\n      <input class=\"sm-input\" placeholder=\"期限 (YYYY-MM-DD)\" />\n      <span class=\"sm-text\" data-lines=\"2\" style=\"margin-bottom:18px;\"></span>\n      <div class=\"sm-row\">\n        <a class=\"sm-btn sm-btn-primary\" href=\"#confirm\">確認へ</a>\n        <a class=\"sm-btn\" href=\"#form\">キャンセル</a>\n      </div>\n    </div>\n  </div>\n</div>\n---\nid: confirm\ntitle: 確認\n---\n<div class=\"sm-screen\">\n  <div class=\"sm-header\">入力内容の確認</div>\n  <div class=\"sm-main\">\n    <div class=\"sm-card sm-col\" style=\"max-width:520px;\">\n      <table class=\"sm-table\">\n        <tbody>\n          <tr><th>タイトル</th><td>新機能の設計</td></tr>\n          <tr><th>担当者</th><td>佐藤 花子</td></tr>\n          <tr><th>期限</th><td>2026-08-31</td></tr>\n        </tbody>\n      </table>\n      <div class=\"sm-row\">\n        <a class=\"sm-btn sm-btn-primary\" href=\"#form\">登録する</a>\n        <a class=\"sm-btn\" href=\"#form\">修正する</a>\n      </div>\n    </div>\n  </div>\n</div>"
+  },
+  {
+    "label": "Mobile",
+    "i18nKey": "screenmockSampleMobile",
+    "icon": "mob",
+    "enabled": true,
+    "code": "---\nid: mobile\ntitle: モバイル\n---\n<div class=\"sm-screen\" style=\"max-width:320px;margin:0 auto;\">\n  <div class=\"sm-header\">お知らせ</div>\n  <div class=\"sm-main sm-col\">\n    <div class=\"sm-card sm-col\">\n      <span class=\"sm-badge\" style=\"align-self:flex-start;\">新着</span>\n      <p class=\"sm-heading\">メンテナンスのお知らせ</p>\n      <span class=\"sm-text\" data-lines=\"2\" style=\"margin-bottom:18px;\"></span>\n    </div>\n    <div class=\"sm-card sm-col\">\n      <p class=\"sm-heading\">アップデート公開</p>\n      <span class=\"sm-text\" data-lines=\"2\" style=\"margin-bottom:18px;\"></span>\n    </div>\n    <a class=\"sm-btn sm-btn-primary\" href=\"#mobile\">もっと見る</a>\n  </div>\n  <div class=\"sm-footer sm-row\">\n    <a class=\"sm-btn\" href=\"#mobile\">ホーム</a>\n    <a class=\"sm-btn\" href=\"#mobile\">検索</a>\n    <a class=\"sm-btn\" href=\"#mobile\">設定</a>\n  </div>\n</div>"
+  },
+  {
+    "label": "Empty / Error",
+    "i18nKey": "screenmockSampleStates",
+    "icon": "stat",
+    "enabled": true,
+    "code": "---\nid: empty\ntitle: 空状態\n---\n<div class=\"sm-screen\">\n  <div class=\"sm-header\">プロジェクト</div>\n  <div class=\"sm-main sm-col\" style=\"align-items:center;text-align:center;\">\n    <div class=\"sm-img\" style=\"width:120px;\"></div>\n    <p class=\"sm-heading\">プロジェクトがありません</p>\n    <span class=\"sm-text\" data-lines=\"1\" style=\"width:280px;\"></span>\n    <a class=\"sm-btn sm-btn-primary\" href=\"#error\">新規作成</a>\n  </div>\n</div>\n---\nid: error\ntitle: エラー\n---\n<div class=\"sm-screen\">\n  <div class=\"sm-header\">プロジェクト</div>\n  <div class=\"sm-main sm-col\" style=\"align-items:center;text-align:center;\">\n    <span class=\"sm-badge\">エラー</span>\n    <p class=\"sm-heading\">読み込みに失敗しました</p>\n    <span class=\"sm-text\" data-lines=\"2\" style=\"width:280px;margin-bottom:18px;\"></span>\n    <a class=\"sm-btn sm-btn-primary\" href=\"#empty\">再試行</a>\n  </div>\n</div>"
+  }
+]
