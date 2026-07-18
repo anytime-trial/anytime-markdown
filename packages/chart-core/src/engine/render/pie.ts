@@ -8,7 +8,8 @@ const TWO_PI = Math.PI * 2;
  * 円グラフ（pie / doughnut）を描く。
  * categories = スライス分類、series[0].values = 各スライス値。12 時起点・時計回り、
  * スライスごとにパレット色。各スライスに「分類名 N%」ラベル。donut 時は中心をくり抜き
- * 中央に全体総量を表示する。返り値はスライス重心の hit-test 点。
+ * 中央に全体総量を表示する。total<=0（空データ）は muted のプレースホルダー円で見た目とサイズを保つ。
+ * 返り値はスライス重心の hit-test 点。
  */
 export function drawPie(
   ctx: CanvasRenderingContext2D,
@@ -30,7 +31,17 @@ export function drawPie(
   const radius = Math.max(8, (Math.min(rect.width, rect.height) / 2) * (showLabels ? 0.62 : 0.82));
   const points: PlottedPoint[] = [];
 
-  if (total <= 0) return points;
+  // total<=0 でも無描画にせず muted のプレースホルダー円を描く
+  // （空データ時にカード間でグラフサイズが揃わなくなるのを防ぐ。donut 時は後段で中央に 0 が入る）。
+  if (total <= 0) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = palette.muted;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, TWO_PI);
+    ctx.fill();
+    ctx.restore();
+  }
 
   let angle = START_ANGLE;
   values.forEach((v, i) => {

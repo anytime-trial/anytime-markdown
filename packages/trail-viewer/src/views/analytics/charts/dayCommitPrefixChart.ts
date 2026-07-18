@@ -57,18 +57,8 @@ export function mountDayCommitPrefixChart(
 
   let chartHandle: VanillaViewHandle<{ spec: ReturnType<typeof buildPieSpec>; height: number; palette: string; isDark: boolean }> | null = null;
 
-  function renderEmpty(): void {
-    if (chartHandle) {
-      chartHandle.destroy();
-      chartHandle = null;
-    }
-    contentEl.innerHTML = '';
-    const zero = document.createElement('span');
-    zero.style.cssText = `font-size:1.5rem;color:${props.colors.textSecondary};`;
-    zero.textContent = '0';
-    contentEl.appendChild(zero);
-  }
-
+  // 0 件でもチャートを mount する（空 spec は chart-core がプレースホルダーリング＋中央 0 を描き、
+  // 他カードとグラフサイズが揃う）。ロード中・エラー時も同じ空チャートで表現する。
   function renderChart(commits: readonly TrailSessionCommit[]): void {
     if (chartHandle) {
       chartHandle.destroy();
@@ -104,18 +94,14 @@ export function mountDayCommitPrefixChart(
       const results = await Promise.all(sessionIds.map((id) => props.fetchSessionCommits(id)));
       if (cancelled) return;
       const commits = results.flat();
-      if (commits.length === 0) {
-        renderEmpty();
-      } else {
-        renderChart(commits);
-      }
+      renderChart(commits);
     } catch {
-      if (!cancelled) renderEmpty();
+      if (!cancelled) renderChart([]);
     }
   }
 
   // Start with empty state visually
-  renderEmpty();
+  renderChart([]);
   void fetchAndRender(props.sessionIds);
 
   return {
@@ -129,7 +115,7 @@ export function mountDayCommitPrefixChart(
       const nextKey = next.sessionIds.join(',');
       if (nextKey !== lastFetchKey) {
         lastFetchKey = nextKey;
-        renderEmpty();
+        renderChart([]);
         void fetchAndRender(next.sessionIds);
       }
     },
