@@ -569,6 +569,85 @@ describe('mountCombinedChartsSection', () => {
     expect(container.innerHTML).toBe('');
   });
 
+  // 期間セレクタを 7/30/90 のボタン群から日数入力欄へ変更した際の受け入れ条件。
+  describe('期間入力欄', () => {
+    const periodInput = (container: HTMLElement): HTMLInputElement => {
+      const input = container.querySelector<HTMLInputElement>('input[data-role="period-days"]');
+      if (!input) throw new Error('period input not found');
+      return input;
+    };
+
+    it('現在の期間を初期値に持つ数値入力欄を描画する', () => {
+      const container = document.createElement('div');
+      mountCombinedChartsSection(container, baseProps);
+      const input = periodInput(container);
+      expect(input.type).toBe('number');
+      expect(input.value).toBe('30');
+    });
+
+    it('確定時に setPeriod を呼ぶ', () => {
+      const container = document.createElement('div');
+      const setPeriod = jest.fn();
+      mountCombinedChartsSection(container, { ...baseProps, setPeriod });
+      const input = periodInput(container);
+      input.value = '45';
+      input.dispatchEvent(new Event('change'));
+      expect(setPeriod).toHaveBeenCalledWith(45);
+    });
+
+    it('範囲外の入力を 1〜365 へクランプして欄へ書き戻す', () => {
+      const container = document.createElement('div');
+      const setPeriod = jest.fn();
+      mountCombinedChartsSection(container, { ...baseProps, setPeriod });
+      const input = periodInput(container);
+      input.value = '999';
+      input.dispatchEvent(new Event('change'));
+      expect(setPeriod).toHaveBeenCalledWith(365);
+      expect(input.value).toBe('365');
+    });
+
+    it('値が変わらない確定では setPeriod を呼ばない', () => {
+      const container = document.createElement('div');
+      const setPeriod = jest.fn();
+      mountCombinedChartsSection(container, { ...baseProps, setPeriod });
+      const input = periodInput(container);
+      input.value = '30';
+      input.dispatchEvent(new Event('change'));
+      expect(setPeriod).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('集計単位トグル', () => {
+    const bucketButtons = (container: HTMLElement): HTMLButtonElement[] =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button[data-role="bucket-unit"]'));
+
+    it('1day / 1week のトグルを描画し、既定は 1day', () => {
+      const container = document.createElement('div');
+      mountCombinedChartsSection(container, baseProps);
+      const buttons = bucketButtons(container);
+      expect(buttons.map((b) => b.dataset['value'])).toEqual(['day', 'week']);
+      expect(buttons[0]?.getAttribute('aria-pressed')).toBe('true');
+      expect(buttons[1]?.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    // 表示だけ週に変えてデータが日次のまま残る回帰を防ぐ。
+    it('1week へ切り替えると集計モード week で combined データを取り直す', async () => {
+      const container = document.createElement('div');
+      const fetchCombinedData = jest.fn().mockResolvedValue({});
+      mountCombinedChartsSection(container, { ...baseProps, fetchCombinedData });
+      fetchCombinedData.mockClear();
+      bucketButtons(container)[1]?.click();
+      expect(fetchCombinedData).toHaveBeenCalledWith('week', expect.any(Number));
+    });
+
+    it('期間が 30 日未満でも取得範囲は 30 日を下回らない', () => {
+      const container = document.createElement('div');
+      const fetchCombinedData = jest.fn().mockResolvedValue({});
+      mountCombinedChartsSection(container, { ...baseProps, period: 7, fetchCombinedData });
+      expect(fetchCombinedData).toHaveBeenCalledWith('day', 30);
+    });
+  });
+
   // Regression: vanilla 化（bcd12d461）で エージェント/スキル/リリース トグル内の
   // ↗ ポップアップトリガが欠落し、ポップアップウインドウを開けなくなった不具合を防ぐ。
   it('エージェント/スキル/リリース トグルの ↗ がポップアップコールバックを発火する', () => {

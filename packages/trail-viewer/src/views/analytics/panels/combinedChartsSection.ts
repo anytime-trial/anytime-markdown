@@ -18,6 +18,7 @@ import type {
 import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import type {
   AgentMetric,
+  BucketUnit,
   ChartMetric,
   CombinedChartKind,
   CombinedMetric,
@@ -26,6 +27,12 @@ import type {
   PeriodDays,
   ToolChartMetric,
 } from '../../../components/analytics/types';
+import {
+  PERIOD_DAYS_MAX,
+  PERIOD_DAYS_MIN,
+  clampPeriodDays,
+  resolveCombinedRangeDays,
+} from '../../../domain/analytics/periodSelection';
 import type { ThemeColors, ThemeChartColors } from '../../../theme/designTokens';
 import { mountDailyActivityChart } from '../charts/dailyActivityChart';
 import { mountReleasesLocChart } from '../charts/releasesLocChart';
@@ -99,7 +106,7 @@ const METRICS: CombinedMetric[] = [
   'releases',
 ];
 
-const PERIODS: PeriodDays[] = [7, 30, 90];
+const BUCKET_UNITS: BucketUnit[] = ['day', 'week'];
 
 /** MUI OpenInNew アイコンの SVG path（↗ ポップアップトリガ用）。 */
 const OPEN_IN_NEW_PATH =
@@ -153,6 +160,9 @@ export function mountCombinedChartsSection(
   let agentMetric: AgentMetric = 'tokens';
   let commitMetric: CommitMetric = 'count';
   let repoMetric: ChartMetric = 'count';
+  // 棒グラフの集計単位。旧実装は period === 90 から暗黙に決めていたが、
+  // 期間が任意日数になったため独立したトグルを唯一の決定要因にする。
+  let bucket: BucketUnit = 'day';
   let combinedData: CombinedData | null = null;
   let combinedLoading = false;
   let overlay: {
@@ -171,6 +181,8 @@ export function mountCombinedChartsSection(
   let selectedDate: string | null = null;
   let combinedFetchCancelled = false;
   let overlayFetchCancelled = false;
+  // 期間入力の確定でツールバーが作り直されるため、次の render で入力欄へフォーカスを戻す。
+  let restorePeriodFocus = false;
 
   let currentProps = props;
 
@@ -322,6 +334,89 @@ export function mountCombinedChartsSection(
     parent.appendChild(group);
   }
 
+  /**
+   * 期間（日数）の数値入力欄。
+   *
+   * 確定は change（Enter / フォーカスアウト）のみ購読する。input を購読すると打鍵ごとに
+   * setPeriod → 親の再描画が走り、ツールバーごと作り直されて 1 文字しか入力できなくなる。
+   */
+  function createPeriodInput(p: CombinedChartsSectionProps): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = String(PERIOD_DAYS_MIN);
+    input.max = String(PERIOD_DAYS_MAX);
+    input.step = '1';
+    input.value = String(p.period);
+    input.dataset['role'] = 'period-days';
+    input.setAttribute('aria-label', p.t('analytics.combined.periodDays'));
+    input.style.cssText = [
+      'width:56px',
+      'padding:4px 6px',
+      'font-size:0.8rem',
+      'border:1px solid',
+      `border-color:${p.colors.border}`,
+      `background-color:${p.colors.iceBlueBg}`,
+      `color:${p.colors.textSecondary}`,
+      'border-radius:4px',
+    ].join(';');
+
+    input.addEventListener('change', () => {
+      const next = clampPeriodDays(input.valueAsNumber);
+      // クランプ結果を欄へ書き戻す（範囲外を入力したまま残さない）。
+      input.value = String(next);
+      if (next === currentProps.period) return;
+      selectedDate = null;
+      // 親の再描画で入力欄が作り直されるため、フォーカスを引き継ぐ。
+      restorePeriodFocus = true;
+      p.setPeriod(next);
+    });
+
+    const unit = document.createElement('span');
+    unit.textContent = p.t('releases.days');
+    unit.style.cssText = `font-size:0.8rem;color:${p.colors.textSecondary};`;
+
+    toolbarTooltips.push(
+      createTooltip({ reference: input, title: p.t('analytics.combined.periodDays.description'), multiline: true }),
+    );
+
+    wrap.append(input, unit);
+    return wrap;
+  }
+
+  /** 集計単位（1day / 1week）トグル。パネル内の全 metric に適用する。 */
+  function createBucketToggle(p: CombinedChartsSectionProps): HTMLElement {
+    const group = document.createElement('div');
+    group.style.cssText = 'display:inline-flex;border-radius:4px;overflow:hidden;';
+    const labels: Record<BucketUnit, string> = {
+      day: p.t('analytics.combined.bucketDay'),
+      week: p.t('analytics.combined.bucketWeek'),
+    };
+    for (const unit of BUCKET_UNITS) {
+      const btn = createToggleBtn(labels[unit], unit, bucket);
+      btn.dataset['role'] = 'bucket-unit';
+      btn.addEventListener('click', () => {
+        if (bucket === unit) return;
+        bucket = unit;
+        // 週バケットでは単日ドリルダウンできないため選択を解除する。
+        selectedDate = null;
+        // 表示だけでなく集計モードが変わるため combined データを取り直す。
+        combinedFetchCancelled = true;
+        combinedData = null;
+        combinedLoading = false;
+        fetchCombinedData(currentProps);
+        render(currentProps);
+      });
+      group.appendChild(btn);
+    }
+    toolbarTooltips.push(
+      createTooltip({ reference: group, title: p.t('analytics.combined.bucketUnit.description'), multiline: true }),
+    );
+    return group;
+  }
+
   function renderToolbar(p: CombinedChartsSectionProps): HTMLElement {
     const toolbar = document.createElement('div');
     toolbar.style.cssText =
@@ -344,23 +439,10 @@ export function mountCombinedChartsSection(
     ];
     createMetricGroup(leftGroup, p, metricLabels);
 
-    // Period selector (not for releases)
+    // Period input + bucket unit toggle (not for releases)
     if (metric !== 'releases') {
-      const periodGroup = document.createElement('div');
-      periodGroup.style.cssText = 'display:inline-flex;border-radius:4px;overflow:hidden;';
-      for (const pd of PERIODS) {
-        const btn = createToggleBtn(
-          `${pd}${p.t('releases.days')}`,
-          String(pd),
-          String(p.period),
-        );
-        btn.addEventListener('click', () => {
-          selectedDate = null;
-          p.setPeriod(pd);
-        });
-        periodGroup.appendChild(btn);
-      }
-      leftGroup.appendChild(periodGroup);
+      leftGroup.appendChild(createPeriodInput(p));
+      leftGroup.appendChild(createBucketToggle(p));
     }
 
     toolbar.appendChild(leftGroup);
@@ -447,6 +529,7 @@ export function mountCombinedChartsSection(
     return {
       items: p.dailyActivity,
       period: p.period,
+      bucket,
       mode: tokenMode,
       onDateClick: handleDateClick,
       costOptimization: p.costOptimization,
@@ -524,7 +607,8 @@ export function mountCombinedChartsSection(
   // selectedDate に応じてセッションリストのみを差し替える（チャートは温存）。
   function renderSessionList(p: CombinedChartsSectionProps): void {
     destroySessionList();
-    if (selectedDate && p.period !== 90) {
+    // 週バケットでは棒 1 本が単日に対応しないため、日付ドリルダウンを出さない。
+    if (selectedDate && bucket !== 'week') {
       sessionListHandle = mountDailySessionList(sessionListHost, {
         date: selectedDate,
         sessions: p.sessions,
@@ -549,6 +633,12 @@ export function mountCombinedChartsSection(
     for (const tt of toolbarTooltips) tt.destroy();
     toolbarTooltips.length = 0;
     toolbarHost.replaceChildren(renderToolbar(p));
+    if (restorePeriodFocus) {
+      restorePeriodFocus = false;
+      const input = toolbarHost.querySelector<HTMLInputElement>('input[data-role="period-days"]');
+      input?.focus();
+      input?.select();
+    }
     chartArea.replaceChildren();
     renderChartArea(p, chartArea);
     renderSessionList(p);
@@ -557,8 +647,8 @@ export function mountCombinedChartsSection(
   function fetchCombinedData(p: CombinedChartsSectionProps): void {
     if (!p.fetchCombinedData) return;
     combinedFetchCancelled = false;
-    const rangeDays: CombinedRangeDays = p.period >= 90 ? 90 : 30;
-    const periodMode: CombinedPeriodMode = p.period >= 90 ? 'week' : 'day';
+    const rangeDays: CombinedRangeDays = resolveCombinedRangeDays(p.period);
+    const periodMode: CombinedPeriodMode = bucket;
     combinedLoading = true;
     void (async () => {
       const result = await p.fetchCombinedData!(periodMode, rangeDays);
