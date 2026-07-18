@@ -57,6 +57,7 @@ import { mountSessionMetricsPanel } from '../sessionMetricsPanel';
 import { mountDailySessionList } from '../dailySessionList';
 import { mountSessionCommitList } from '../sessionCommitList';
 import { mountCombinedChartsSection } from '../combinedChartsSection';
+import type { CombinedData } from '../../../../domain/parser/types';
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -606,6 +607,32 @@ describe('mountCombinedChartsSection', () => {
       expect(input.value).toBe('365');
     });
 
+    // レビュー指摘の回帰防止: 非同期 fetch の解決から render が走ると、入力中の
+    // 未確定値とフォーカスが消えていた。
+    it('背景の再描画で入力中の値とフォーカスを失わない', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      let resolveFetch: ((v: CombinedData) => void) | undefined;
+      const fetchCombinedData = jest.fn(
+        () => new Promise<CombinedData>((resolve) => { resolveFetch = resolve; }),
+      );
+      mountCombinedChartsSection(container, { ...baseProps, fetchCombinedData });
+
+      const input = periodInput(container);
+      input.focus();
+      input.value = '12'; // 入力中（change 未発火）
+      expect(document.activeElement).toBe(input);
+
+      resolveFetch?.(emptyCombinedData);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const after = periodInput(container);
+      expect(after.value).toBe('12');
+      expect(document.activeElement).toBe(after);
+      container.remove();
+    });
+
     it('値が変わらない確定では setPeriod を呼ばない', () => {
       const container = document.createElement('div');
       const setPeriod = jest.fn();
@@ -616,6 +643,18 @@ describe('mountCombinedChartsSection', () => {
       expect(setPeriod).not.toHaveBeenCalled();
     });
   });
+
+  const emptyCombinedData: CombinedData = {
+    toolCounts: [],
+    errorRate: [],
+    skillStats: [],
+    modelStats: [],
+    agentStats: [],
+    commitPrefixStats: [],
+    aiFirstTryRate: [],
+    repoStats: [],
+    qualityRates: [],
+  };
 
   describe('集計単位トグル', () => {
     const bucketButtons = (container: HTMLElement): HTMLButtonElement[] =>
@@ -638,6 +677,37 @@ describe('mountCombinedChartsSection', () => {
       fetchCombinedData.mockClear();
       bucketButtons(container)[1]?.click();
       expect(fetchCombinedData).toHaveBeenCalledWith('week', expect.any(Number));
+    });
+
+    // レビュー指摘の回帰防止: 共有 boolean のキャンセルフラグでは、後発の fetch が
+    // フラグを戻した隙に先発の遅い応答が採用され、表示単位と食い違うデータで上書きされた。
+    it('連続切替で先発の遅い応答を採用しない', async () => {
+      const container = document.createElement('div');
+      const resolvers: Array<(v: CombinedData) => void> = [];
+      const fetchCombinedData = jest.fn(
+        () => new Promise<CombinedData>((resolve) => { resolvers.push(resolve); }),
+      );
+      // 再描画の発生は t() の呼び出し（renderToolbar が毎回ラベルを引く）で観測する。
+      const tSpy = jest.fn((k: string) => k);
+      mountCombinedChartsSection(container, { ...baseProps, t: tSpy, fetchCombinedData });
+
+      const buttons = () => bucketButtons(container);
+      buttons()[1]?.click(); // → week
+      buttons()[0]?.click(); // → day
+      expect(resolvers).toHaveLength(3); // mount + week + day
+
+      tSpy.mockClear();
+      // 先発（week 用）を後から解決させても、最新（day 用）を上書きして再描画しない。
+      resolvers[1]?.(emptyCombinedData);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(tSpy).not.toHaveBeenCalled();
+
+      // 最新（day 用）の応答は採用して再描画する。
+      resolvers[2]?.(emptyCombinedData);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(tSpy).toHaveBeenCalled();
     });
 
     it('期間が 30 日未満でも取得範囲は 30 日を下回らない', () => {

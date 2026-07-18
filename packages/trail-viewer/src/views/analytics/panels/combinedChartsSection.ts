@@ -179,10 +179,11 @@ export function mountCombinedChartsSection(
     deploymentFrequency: ReadonlyArray<{ bucketStart: string; value: number }>;
   } | null = null;
   let selectedDate: string | null = null;
-  let combinedFetchCancelled = false;
-  let overlayFetchCancelled = false;
-  // 期間入力の確定でツールバーが作り直されるため、次の render で入力欄へフォーカスを戻す。
-  let restorePeriodFocus = false;
+  // 進行中の fetch は「最新のリクエストか」で判定する。共有 boolean をキャンセルフラグに
+  // 使うと、後発の fetch がフラグを false へ戻した隙に先発の遅い応答が採用され、
+  // 表示中の期間・集計単位と食い違うデータで上書きされる（period / bucket の連続変更）。
+  let combinedRequestId = 0;
+  let overlayRequestId = 0;
 
   let currentProps = props;
 
@@ -369,8 +370,6 @@ export function mountCombinedChartsSection(
       input.value = String(next);
       if (next === currentProps.period) return;
       selectedDate = null;
-      // 親の再描画で入力欄が作り直されるため、フォーカスを引き継ぐ。
-      restorePeriodFocus = true;
       p.setPeriod(next);
     });
 
@@ -402,8 +401,8 @@ export function mountCombinedChartsSection(
         bucket = unit;
         // 週バケットでは単日ドリルダウンできないため選択を解除する。
         selectedDate = null;
-        // 表示だけでなく集計モードが変わるため combined データを取り直す。
-        combinedFetchCancelled = true;
+        // 表示だけでなく集計モードが変わるため combined データを取り直す
+        // （fetchCombinedData が新しい requestId を発行し、先発の応答は破棄される）。
         combinedData = null;
         combinedLoading = false;
         fetchCombinedData(currentProps);
@@ -628,16 +627,36 @@ export function mountCombinedChartsSection(
     }
   }
 
+  function findPeriodInput(): HTMLInputElement | null {
+    return toolbarHost.querySelector<HTMLInputElement>('input[data-role="period-days"]');
+  }
+
+  /**
+   * 期間入力欄の編集中状態を再描画から守る。
+   *
+   * render() はツールバーごと作り直すが、非同期 fetch の解決（fetchCombinedData /
+   * fetchOverlay）からも呼ばれるため、入力中に背景の再描画が走ると未確定の入力値と
+   * フォーカスが失われる。フォーカス中のときだけ生の入力値を引き継ぐ
+   * （非フォーカス時は props.period を正として新しい値を表示する）。
+   *
+   * 選択範囲は復元しない。type=number の input で selectionStart を触ると
+   * InvalidStateError を投げるブラウザがあるため。
+   */
   function render(p: CombinedChartsSectionProps): void {
+    const editing = findPeriodInput();
+    const editingValue =
+      editing && document.activeElement === editing ? editing.value : null;
+
     destroyCharts();
     for (const tt of toolbarTooltips) tt.destroy();
     toolbarTooltips.length = 0;
     toolbarHost.replaceChildren(renderToolbar(p));
-    if (restorePeriodFocus) {
-      restorePeriodFocus = false;
-      const input = toolbarHost.querySelector<HTMLInputElement>('input[data-role="period-days"]');
-      input?.focus();
-      input?.select();
+    if (editingValue !== null) {
+      const input = findPeriodInput();
+      if (input) {
+        input.value = editingValue;
+        input.focus();
+      }
     }
     chartArea.replaceChildren();
     renderChartArea(p, chartArea);
@@ -646,13 +665,13 @@ export function mountCombinedChartsSection(
 
   function fetchCombinedData(p: CombinedChartsSectionProps): void {
     if (!p.fetchCombinedData) return;
-    combinedFetchCancelled = false;
+    const requestId = ++combinedRequestId;
     const rangeDays: CombinedRangeDays = resolveCombinedRangeDays(p.period);
     const periodMode: CombinedPeriodMode = bucket;
     combinedLoading = true;
     void (async () => {
       const result = await p.fetchCombinedData!(periodMode, rangeDays);
-      if (combinedFetchCancelled) return;
+      if (requestId !== combinedRequestId) return;
       combinedData = result;
       combinedLoading = false;
       render(currentProps);
@@ -661,13 +680,13 @@ export function mountCombinedChartsSection(
 
   function fetchOverlay(p: CombinedChartsSectionProps): void {
     if (!p.fetchQualityMetrics || metric === 'releases') return;
-    overlayFetchCancelled = false;
+    const requestId = ++overlayRequestId;
     const now = new Date();
     const to = now.toISOString();
     const from = new Date(now.getTime() - p.period * 86_400_000).toISOString();
     void (async () => {
       const result = await p.fetchQualityMetrics!({ from, to });
-      if (overlayFetchCancelled) return;
+      if (requestId !== overlayRequestId) return;
       if (result) {
         overlay = {
           bucket: result.bucket,
@@ -697,8 +716,6 @@ export function mountCombinedChartsSection(
       // 非 period の update（頻繁な store 通知）で初回 fetch を取り消すと combinedData が
       // null のまま再取得されず、token 以外のチャートが永久に表示されない不具合になる。
       if (periodChanged) {
-        combinedFetchCancelled = true;
-        overlayFetchCancelled = true;
         combinedData = null;
         combinedLoading = false;
         overlay = null;
@@ -711,8 +728,9 @@ export function mountCombinedChartsSection(
       }
     },
     destroy() {
-      combinedFetchCancelled = true;
-      overlayFetchCancelled = true;
+      // 進行中の応答を破棄する（以降どの requestId とも一致しなくなる）。
+      combinedRequestId++;
+      overlayRequestId++;
       destroyCharts();
       destroySessionList();
       for (const tt of toolbarTooltips) tt.destroy();
