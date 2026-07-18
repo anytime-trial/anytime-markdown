@@ -33,6 +33,8 @@
     "screenmockDesignMode": "デザイン編集",
     "screenmockEmptyHint": "frontmatter と HTML で画面を追加してください。",
     "screenmockTabsLabel": "画面",
+    "screenmockDesignHint": "クリックで選択 / ドラッグで並べ替え / Alt + ドラッグで自由配置 / ハンドルでサイズ変更",
+    "screenmockDragFreePosition": "自由配置",
     "source": "ソース",
     "wysiwyg": "編集",
     "fileActions": "ファイル",

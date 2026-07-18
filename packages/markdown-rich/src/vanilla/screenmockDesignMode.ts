@@ -5,11 +5,17 @@ import {
   sanitizeScreenmockHtml,
   scheduleConnectedRerender,
 } from "./screenmockPreview";
+import {
+  annotateScreenmockHtmlPaths,
+  applyElementAbsolutePosition,
+  applyElementSizeToScreenHtml,
+  findElementByPath,
+  moveScreenmockElement,
+  replaceScreenmockScreenHtml,
+} from "./screenmockHtmlMutations";
+import { resolveDropTarget, type DropCandidate, type DropDirection } from "./screenmockDropTarget";
 
-export interface ScreenmockElementSize {
-  widthPercent: number;
-  heightPx: number;
-}
+export type { ScreenmockElementSize } from "./screenmockHtmlMutations";
 
 export interface CreateScreenmockDesignModePreviewOptions {
   source: string;
@@ -19,158 +25,14 @@ export interface CreateScreenmockDesignModePreviewOptions {
   tabListLabel?: string;
   initialSelectedPath?: string;
   onSelectionChange?: (path: string | null) => void;
+  /** 自由配置ドラッグ中に表示するバッジの文言。 */
+  freePositionLabel?: string;
+  /** ステージ上部に出す操作ヒントの文言。 */
+  hintLabel?: string;
 }
 
 export interface ScreenmockDesignModePreviewElement extends HTMLElement {
   destroy: () => void;
-}
-
-function elementPathOf(path: string): number[] | null {
-  if (!path) return null;
-  const parts = path.split("/").map((part) => Number(part));
-  return parts.every((part) => Number.isInteger(part) && part >= 0) ? parts : null;
-}
-
-function findElementByPath(root: DocumentFragment | Element, path: string): Element | null {
-  const parts = elementPathOf(path);
-  if (!parts) return null;
-  let current: DocumentFragment | Element = root;
-  for (const index of parts) {
-    const children = Array.from(current.children);
-    const next = children[index];
-    if (!next) return null;
-    current = next;
-  }
-  return current instanceof Element ? current : null;
-}
-
-function annotateElementPaths(root: DocumentFragment | Element, prefix = ""): void {
-  Array.from(root.children).forEach((child, index) => {
-    const path = prefix ? `${prefix}/${index}` : String(index);
-    child.setAttribute("data-sm-path", path);
-    annotateElementPaths(child, path);
-  });
-}
-
-export function annotateScreenmockHtmlPaths(screenHtml: string): string {
-  const template = document.createElement("template");
-  template.innerHTML = screenHtml;
-  annotateElementPaths(template.content);
-  return template.innerHTML;
-}
-
-function removePathAttributes(root: DocumentFragment | Element): void {
-  root.querySelectorAll("[data-sm-path]").forEach((el) => el.removeAttribute("data-sm-path"));
-}
-
-function mergeStyleAttribute(style: string | null, next: Record<string, string>): string {
-  const declarations: Array<[string, string]> = [];
-  const indexByName = new Map<string, number>();
-  for (const rawPart of (style ?? "").split(";")) {
-    const part = rawPart.trim();
-    if (!part) continue;
-    const colon = part.indexOf(":");
-    if (colon < 0) continue;
-    const name = part.slice(0, colon).trim();
-    const value = part.slice(colon + 1).trim();
-    if (!name || !value) continue;
-    indexByName.set(name.toLowerCase(), declarations.length);
-    declarations.push([name, value]);
-  }
-  for (const [name, value] of Object.entries(next)) {
-    const existing = indexByName.get(name.toLowerCase());
-    if (existing === undefined) {
-      indexByName.set(name.toLowerCase(), declarations.length);
-      declarations.push([name, value]);
-    } else {
-      declarations[existing] = [declarations[existing][0], value];
-    }
-  }
-  return declarations.map(([name, value]) => `${name}: ${value};`).join(" ");
-}
-
-export function applyElementSizeToScreenHtml(
-  screenHtml: string,
-  path: string,
-  size: ScreenmockElementSize,
-): string {
-  const template = document.createElement("template");
-  template.innerHTML = screenHtml;
-  const target = findElementByPath(template.content, path) as HTMLElement | null;
-  if (target) {
-    target.setAttribute(
-      "style",
-      mergeStyleAttribute(target.getAttribute("style"), {
-        width: `${size.widthPercent.toFixed(1)}%`,
-        height: `${Math.round(size.heightPx)}px`,
-      }),
-    );
-  }
-  removePathAttributes(template.content);
-  return template.innerHTML;
-}
-
-interface ScreenRange {
-  bodyStart: number;
-  bodyEnd: number;
-}
-
-function isDelimiter(line: string): boolean {
-  return line.trim() === "---";
-}
-
-function parseFrontmatter(lines: string[]): { id?: string; title?: string } | null {
-  const result: { id?: string; title?: string } = {};
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(line);
-    if (!match) return null;
-    if (match[1] === "id") result.id = match[2].trim();
-    if (match[1] === "title") result.title = match[2].trim();
-  }
-  return result;
-}
-
-function parseScreenRanges(source: string): ScreenRange[] {
-  const lines = source.replace(/\r\n?/g, "\n").split("\n");
-  const firstContentIndex = lines.findIndex((line) => line.trim() !== "");
-  if (firstContentIndex < 0) return [];
-  if (!isDelimiter(lines[firstContentIndex])) {
-    return [{ bodyStart: 0, bodyEnd: lines.length }];
-  }
-
-  const ranges: ScreenRange[] = [];
-  let cursor = firstContentIndex;
-  while (cursor < lines.length) {
-    while (cursor < lines.length && lines[cursor].trim() === "") cursor += 1;
-    if (cursor >= lines.length) break;
-    if (!isDelimiter(lines[cursor])) {
-      ranges.push({ bodyStart: cursor, bodyEnd: lines.length });
-      break;
-    }
-    cursor += 1;
-    const fmStart = cursor;
-    while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
-    if (cursor >= lines.length) break;
-    const frontmatter = lines.slice(fmStart, cursor);
-    cursor += 1;
-    const bodyStart = cursor;
-    while (cursor < lines.length && !isDelimiter(lines[cursor])) cursor += 1;
-    if (parseFrontmatter(frontmatter)) {
-      ranges.push({ bodyStart, bodyEnd: cursor });
-    }
-  }
-  return ranges;
-}
-
-export function replaceScreenmockScreenHtml(source: string, screenIndex: number, nextScreenHtml: string): string {
-  const normalized = source.replace(/\r\n?/g, "\n");
-  const lines = normalized.split("\n");
-  const range = parseScreenRanges(normalized)[screenIndex];
-  if (!range) return normalized;
-  if (range.bodyStart === 0 && range.bodyEnd === lines.length) return nextScreenHtml;
-  const nextLines = nextScreenHtml.split("\n");
-  return [...lines.slice(0, range.bodyStart), ...nextLines, ...lines.slice(range.bodyEnd)].join("\n");
 }
 
 function escapeHtml(value: string): string {
@@ -238,6 +100,7 @@ const SCREENMOCK_DESIGN_BASE_STYLE = `
 .am-smdm-root{display:flex;flex-direction:column;gap:6px;min-height:360px;height:100%;}
 .am-smdm-tabs{display:flex;gap:4px;overflow:auto;padding:2px 0;}
 .am-smdm-tabs button{flex:0 0 auto;min-height:28px;padding:3px 10px;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;cursor:pointer;font:inherit;background:transparent;color:var(--am-color-text-secondary,#656d76);}
+.am-smdm-hint{flex:0 0 auto;padding:2px 0 6px;color:var(--am-color-text-secondary,#656d76);font-size:0.75rem;}
 .am-smdm-tabs button[aria-selected="true"]{background:var(--am-color-action-selected,rgba(9,105,218,.12));color:var(--am-color-primary-main,#0969da);}
 .am-smdm-stage{position:relative;flex:1 1 auto;min-height:320px;overflow:auto;border:1px solid var(--am-color-divider,#d0d7de);border-radius:6px;background:var(--sm-bg,#f6f8fa);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--sm-text,#1f2328);padding:var(--sm-gap,12px);}
 .am-smdm-stage .am-sm-wrap{display:block;position:relative;min-height:100%;background:var(--sm-paper,#fff);border:0;border-radius:0;overflow:hidden;}
@@ -252,7 +115,38 @@ const SCREENMOCK_DESIGN_PROTECTION_STYLE = `
 .am-smdm-handle-e{right:-6px;top:50%;transform:translateY(-50%);cursor:ew-resize;}
 .am-smdm-handle-s{left:50%;bottom:-6px;transform:translateX(-50%);cursor:ns-resize;}
 .am-smdm-handle-se{right:-6px;bottom:-6px;cursor:nwse-resize;}
+.am-smdm-insertline{display:block !important;position:absolute !important;background:var(--sm-primary,#0969da) !important;border-radius:2px !important;pointer-events:none !important;z-index:12 !important;}
+.am-smdm-dragbadge{display:block !important;position:absolute !important;padding:2px 8px !important;border-radius:999px !important;background:var(--sm-primary,#0969da) !important;color:var(--sm-on-primary,#fff) !important;font-size:0.75rem !important;pointer-events:none !important;z-index:12 !important;}
 `;
+
+/** クリック（選択）とドラッグ（移動）を分ける移動量のしきい値。 */
+const DRAG_THRESHOLD_PX = 4;
+
+type DragState =
+  | {
+      kind: "resize";
+      pointerId: number;
+      handle: "e" | "s" | "se";
+      path: string;
+      screenIndex: number;
+      startX: number;
+      startY: number;
+      startWidth: number;
+      startHeight: number;
+      parentWidth: number;
+      width: number;
+      height: number;
+    }
+  | {
+      kind: "element";
+      pointerId: number;
+      path: string;
+      screenIndex: number;
+      startX: number;
+      startY: number;
+      moved: boolean;
+      altKey: boolean;
+    };
 
 export function createScreenmockDesignModePreview(
   options: CreateScreenmockDesignModePreviewOptions,
@@ -267,21 +161,8 @@ export function createScreenmockDesignModePreview(
   let selectedPath: string | null = options.initialSelectedPath ?? null;
   let selectedEl: HTMLElement | null = null;
   let selectionEl: HTMLElement | null = null;
-  let drag:
-    | {
-        pointerId: number;
-        handle: "e" | "s" | "se";
-        path: string;
-        screenIndex: number;
-        startX: number;
-        startY: number;
-        startWidth: number;
-        startHeight: number;
-        parentWidth: number;
-        width: number;
-        height: number;
-      }
-    | null = null;
+  let drag: DragState | null = null;
+  let feedbackEl: HTMLElement | null = null;
 
   const renderSelection = (): void => {
     selectionEl?.remove();
@@ -311,6 +192,7 @@ export function createScreenmockDesignModePreview(
         const selectedRect = selectedEl.getBoundingClientRect();
         const parentRect = (selectedEl.parentElement ?? screen).getBoundingClientRect();
         drag = {
+          kind: "resize",
           pointerId: event.pointerId,
           handle,
           path: selectedPath,
@@ -374,6 +256,7 @@ export function createScreenmockDesignModePreview(
 ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
 <div class="am-smdm-root">
   ${screens.length > 1 ? `<div class="am-smdm-tabs" role="tablist" aria-label="${escapeHtml(options.tabListLabel ?? "Screens")}">${tabs}</div>` : ""}
+  ${options.hintLabel ? `<div class="am-smdm-hint">${escapeHtml(options.hintLabel)}</div>` : ""}
   <div class="am-smdm-stage">${body}</div>
 </div>
 <style>${SCREENMOCK_DESIGN_PROTECTION_STYLE}</style>`;
@@ -401,11 +284,145 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
         clearSelection();
       }
     });
+    shadow.querySelector(".am-sm-wrap")?.addEventListener("dragstart", (event) => {
+      // pointerdown の preventDefault を取りこぼした経路（画像のドラッグ等）の保険。
+      event.preventDefault();
+    });
+    shadow.querySelector(".am-sm-wrap")?.addEventListener("pointerdown", (event) => {
+      const pointerEvent = event as PointerEvent;
+      const el = (pointerEvent.target as HTMLElement | null)?.closest<HTMLElement>("[data-sm-path]");
+      // 画面ルート（sm-screen）は移動対象外。ドロップ先コンテナとしてのみ使う。
+      if (!el?.dataset.smPath || el.classList.contains("sm-screen")) return;
+      // リンク・画像はブラウザ既定のネイティブドラッグが走り、以降 pointerup が届かず
+      // ドロップを取りこぼす（jsdom では再現しない）。既定動作を止めてから掴む。
+      pointerEvent.preventDefault();
+      drag = {
+        kind: "element",
+        pointerId: pointerEvent.pointerId,
+        path: el.dataset.smPath,
+        screenIndex: activeIndex,
+        startX: pointerEvent.clientX,
+        startY: pointerEvent.clientY,
+        moved: false,
+        altKey: pointerEvent.altKey,
+      };
+    });
     renderSelection();
   };
 
+  /** shadow.elementsFromPoint を持たない環境（jsdom 既定）では空配列にフォールバックする。 */
+  const elementsFromPoint = (x: number, y: number): Element[] =>
+    typeof shadow.elementsFromPoint === "function" ? shadow.elementsFromPoint(x, y) : [];
+
+  /**
+   * 描画中の DOM からドロップ先コンテナ・並び方向・挿入位置を求める。
+   *
+   * ポインタ直下の要素が子要素を持つならその要素を（内側へ追加）、持たないならその親を
+   * （兄弟として挿入）コンテナとする。移動元自身とその子孫はコンテナにしない。
+   */
+  const resolveDropContext = (
+    event: PointerEvent,
+    fromPath: string,
+  ): { parentPath: string; index: number; direction: DropDirection } | null => {
+    const stage = shadow.querySelector(".am-sm-wrap") as HTMLElement | null;
+    if (!stage) return null;
+    const hovered = elementsFromPoint(event.clientX, event.clientY).find(
+      (el): el is HTMLElement => el instanceof HTMLElement && el.dataset.smPath !== undefined,
+    );
+    let container: HTMLElement = stage;
+    if (hovered) {
+      const hasElementChildren = Array.from(hovered.children).some(
+        (child) => child instanceof HTMLElement && child.dataset.smPath !== undefined,
+      );
+      container = hasElementChildren ? hovered : (hovered.parentElement ?? stage);
+    }
+    const parentPath = container === stage ? "" : (container.dataset.smPath ?? "");
+    if (parentPath === fromPath || parentPath.startsWith(`${fromPath}/`)) return null;
+    const computed = globalThis.getComputedStyle(container);
+    const direction: DropDirection =
+      computed.display.includes("flex") && computed.flexDirection.startsWith("row") ? "horizontal" : "vertical";
+    const candidates: DropCandidate[] = Array.from(container.children)
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child.dataset.smPath !== undefined)
+      .map((child) => ({ path: child.dataset.smPath ?? "", rect: child.getBoundingClientRect() }));
+    const { index } = resolveDropTarget(candidates, { x: event.clientX, y: event.clientY }, direction);
+    return { parentPath, index, direction };
+  };
+
+  /** 自由配置のドロップ座標を、対象要素の親要素基準の px へ変換する。 */
+  const dropPositionOf = (
+    event: PointerEvent,
+    state: { path: string; startX: number; startY: number },
+  ): { leftPx: number; topPx: number } => {
+    const el = findRenderedElementByPath(shadow, state.path);
+    const parent = el?.parentElement;
+    if (!el || !parent) return { leftPx: 0, topPx: 0 };
+    const elRect = el.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    return {
+      leftPx: elRect.left - parentRect.left + (event.clientX - state.startX),
+      topPx: elRect.top - parentRect.top + (event.clientY - state.startY),
+    };
+  };
+
+  const clearDragFeedback = (): void => {
+    feedbackEl?.remove();
+    feedbackEl = null;
+  };
+
+  /** 挿入位置の線（並べ替え）またはモードバッジ（自由配置）をステージ上へ描く。 */
+  const renderDragFeedback = (event: PointerEvent): void => {
+    clearDragFeedback();
+    if (drag?.kind !== "element") return;
+    const stage = shadow.querySelector(".am-sm-wrap") as HTMLElement | null;
+    if (!stage) return;
+    const stageRect = stage.getBoundingClientRect();
+    const marker = document.createElement("div");
+
+    if (drag.altKey) {
+      marker.className = "am-smdm-dragbadge";
+      marker.textContent = options.freePositionLabel ?? "";
+      marker.style.left = `${event.clientX - stageRect.left + 12}px`;
+      marker.style.top = `${event.clientY - stageRect.top + 12}px`;
+    } else {
+      const drop = resolveDropContext(event, drag.path);
+      if (!drop) return;
+      const container =
+        drop.parentPath === "" ? stage : (findRenderedElementByPath(shadow, drop.parentPath) ?? stage);
+      const siblings = Array.from(container.children).filter(
+        (child): child is HTMLElement => child instanceof HTMLElement && child.dataset.smPath !== undefined,
+      );
+      const sibling = siblings[drop.index];
+      const rect = (sibling ?? siblings.at(-1) ?? container).getBoundingClientRect();
+      const atEnd = !sibling;
+      marker.className = "am-smdm-insertline";
+      if (drop.direction === "horizontal") {
+        marker.style.left = `${(atEnd ? rect.right : rect.left) - stageRect.left}px`;
+        marker.style.top = `${rect.top - stageRect.top}px`;
+        marker.style.width = "2px";
+        marker.style.height = `${rect.height}px`;
+      } else {
+        marker.style.left = `${rect.left - stageRect.left}px`;
+        marker.style.top = `${(atEnd ? rect.bottom : rect.top) - stageRect.top}px`;
+        marker.style.width = `${rect.width}px`;
+        marker.style.height = "2px";
+      }
+    }
+
+    stage.appendChild(marker);
+    feedbackEl = marker;
+  };
+
   const onPointerMove = (event: PointerEvent): void => {
-    if (!drag || !selectedEl || event.pointerId !== drag.pointerId) return;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (drag.kind === "element") {
+      drag.moved ||=
+        Math.abs(event.clientX - drag.startX) > DRAG_THRESHOLD_PX ||
+        Math.abs(event.clientY - drag.startY) > DRAG_THRESHOLD_PX;
+      drag.altKey = event.altKey;
+      if (drag.moved) renderDragFeedback(event);
+      return;
+    }
+    if (!selectedEl) return;
     const dx = event.clientX - drag.startX;
     const dy = event.clientY - drag.startY;
     if (drag.handle === "e" || drag.handle === "se") {
@@ -421,21 +438,50 @@ ${rootStyle ? `<style>:host{${rootStyle}}</style>` : ""}
 
   const onPointerUp = (event: PointerEvent): void => {
     if (!drag || event.pointerId !== drag.pointerId) return;
-    const nextScreenHtml = applyElementSizeToScreenHtml(
-      parseScreenmock(options.getSource())[drag.screenIndex]?.html ?? "",
-      drag.path,
-      { widthPercent: (drag.width / drag.parentWidth) * 100, heightPx: drag.height },
-    );
-    const nextSource = replaceScreenmockScreenHtml(options.getSource(), drag.screenIndex, nextScreenHtml);
+    const current = drag;
     drag = null;
-    options.setSource(nextSource);
+    clearDragFeedback();
+    const sourceText = options.getSource();
+    const screenHtml = parseScreenmock(sourceText)[current.screenIndex]?.html ?? "";
+
+    if (current.kind === "element") {
+      if (!current.moved) return;
+      const drop = current.altKey ? null : resolveDropContext(event, current.path);
+      const nextScreenHtml = current.altKey
+        ? applyElementAbsolutePosition(screenHtml, current.path, dropPositionOf(event, current))
+        : drop
+          ? moveScreenmockElement(screenHtml, current.path, drop.parentPath, drop.index)
+          : screenHtml;
+      if (nextScreenHtml === screenHtml) return;
+      options.setSource(replaceScreenmockScreenHtml(sourceText, current.screenIndex, nextScreenHtml));
+      return;
+    }
+
+    const nextScreenHtml = applyElementSizeToScreenHtml(screenHtml, current.path, {
+      widthPercent: (current.width / current.parentWidth) * 100,
+      heightPx: current.height,
+    });
+    options.setSource(replaceScreenmockScreenHtml(sourceText, current.screenIndex, nextScreenHtml));
+  };
+
+  /**
+   * ポインタがキャンセルされた場合（タッチのスクロール判定・フォーカス喪失等）は書き戻さず
+   * 状態だけ落とす。これが無いと挿入線やバッジが消えずに残る。
+   */
+  const onPointerCancel = (event: PointerEvent): void => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    drag = null;
+    clearDragFeedback();
   };
 
   document.addEventListener("pointermove", onPointerMove);
   document.addEventListener("pointerup", onPointerUp);
+  document.addEventListener("pointercancel", onPointerCancel);
   host.destroy = () => {
     document.removeEventListener("pointermove", onPointerMove);
     document.removeEventListener("pointerup", onPointerUp);
+    document.removeEventListener("pointercancel", onPointerCancel);
+    clearDragFeedback();
     host.remove();
   };
   render();
