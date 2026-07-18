@@ -1,12 +1,12 @@
 ---
 name: anytime-trail-review
 effort: low
-description: コードレビュー結果を出力する際の Markdown 書式（memory-core ingest パーサ対応）。### N. タイトル＋重大度/カテゴリ/対象の3メタデータ＋行頭の問題:/提案: マーカーで指摘を構造化する。レビュードキュメント・code-reviewer subagent 出力・requesting-code-review/security-review の指摘を書く時に使用する。
+description: コードレビュー結果を出力する際の Markdown 書式（memory-core ingest パーサ対応）。### N. タイトル＋重大度/カテゴリ/対象/観点の4メタデータ＋行頭の問題:/提案: マーカーで指摘を構造化する。レビュードキュメント・code-reviewer subagent 出力・requesting-code-review/security-review の指摘を書く時に使用する。
 ---
 
 # レビュー指摘の書式
 
-更新日: 2026-07-16
+更新日: 2026-07-18
 
 コードレビュー結果を出力する際の Markdown 書式。`memory-core/src/ingest/review` パーサ（Route A: review .md doc / Route B: session 抽出 / Route C: agent review）がこの書式を前提に finding を抽出するため、**指摘を確実に Memory に蓄積したい場合は本書式に従う**こと。
 
@@ -47,6 +47,7 @@ target_refs:               # 任意。レビュー対象パス
 - **重大度**: error
 - **カテゴリ**: logic
 - **対象**: `packages/<pkg>/src/<file>.ts:<line>`
+- **観点**: §14
 
 **問題:**
 
@@ -74,6 +75,7 @@ target_refs:               # 任意。レビュー対象パス
 
 - 各指摘は **`### <N>. <タイトル>`** で開始（番号 + 半角ドット + 半角スペース + タイトル）
 - メタデータ 3 行（重大度・カテゴリ・対象）は **必須**・**順序固定**
+- メタデータ 4 行目に **観点**（`- **観点**: §<章番号> / none`）を記載する。global スキル `code-review-checklist` のどの章に基づく指摘かを示す（どの章にも該当しなければ `none`＝観点の穴の候補として集計対象になる）。欠落時はパーサが未記録（null）として取り込む（旧書式と後方互換）
 - `**問題:**` 行で finding 本文を開始
 - `**提案:**` 行で suggestion 本文を開始
 - 指摘間は `---` 水平線で区切る（任意・推奨）
@@ -95,8 +97,9 @@ target_refs:               # 任意。レビュー対象パス
 | `**重大度**` | `error` / `warn` / `info` |
 | `**カテゴリ**` | `design` / `a11y` / `security` / `perf` / `naming` / `spec` / `logic` / `other` |
 | `**対象**` | `<file path>:<line>` 形式、または symbol 名。複数対象は bullet で列挙 |
+| `**観点**` | `§<章番号>`（global スキル `code-review-checklist` の章。例 `§14`・`§14.4`）または `none`（該当章なし） |
 
-カテゴリ・重大度はパーサが自動推論もするが、明示するほうが精度が高い。
+カテゴリ・重大度はパーサが自動推論もするが、明示するほうが精度が高い。観点は推論されない（明示のみ。省略・不正値は未記録 null）。
 
 ## 3. 良い例
 
@@ -108,6 +111,7 @@ target_refs:               # 任意。レビュー対象パス
 - **重大度**: error
 - **カテゴリ**: logic
 - **対象**: `packages/<pkg>/src/components/MemoryPanel.tsx:<line>`
+- **観点**: §8
 
 **問題:**
 
@@ -132,6 +136,7 @@ const name = reader.session.user.name;
 - **重大度**: warn
 - **カテゴリ**: naming
 - **対象**: `packages/<pkg>/src/components/memory/ReviewPanel.tsx:<line>`
+- **観点**: §17
 
 **問題:**
 
@@ -222,6 +227,7 @@ session 抽出は trail.messages の `text_content` 全体に対して `splitInt
 - [ ] `## レビュー指摘事項` セクションを設置したか
 - [ ] 各指摘が `### <N>. <title>` で始まっているか
 - [ ] 重大度・カテゴリ・対象の 3 メタデータが順序通りに記載されているか
+- [ ] 観点（`§<章番号>` / `none`）を 4 行目に記載したか（`code-review-checklist` の章と突合したか）
 - [ ] `**問題:**` / `**提案:**` ペアが各指摘に含まれているか（行頭、bold 必須）
 - [ ] マーカーは `:` または `：` のみ（他コロン記号禁止）
 - [ ] 絵文字・表形式・自由形式マーカーを finding 識別に使っていないか

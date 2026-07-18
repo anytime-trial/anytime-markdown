@@ -9,6 +9,7 @@ import {
   extractProblemSuggestionPairs,
   extractNumberedFindings,
   extractTargetFromFinding,
+  parseChecklistRefMarker,
 } from './findingHelpers';
 
 export type { ParsedFinding };
@@ -89,6 +90,7 @@ export function parseReviewDoc(input: {
     category: ParsedFinding['category'],
     severity: ParsedFinding['severity'],
     is_category_inferred: boolean,
+    checklistRef: string | null,
   ): void {
     const localTarget =
       extractTargetFromFinding(heading + '\n' + findingText + '\n' + suggestionText);
@@ -104,6 +106,7 @@ export function parseReviewDoc(input: {
       suggestion_text: suggestionText,
       chapter_path: heading,
       is_category_inferred,
+      checklist_ref: checklistRef,
     });
   }
 
@@ -116,12 +119,14 @@ export function parseReviewDoc(input: {
     const headingSeverity = inferSeverityFromHeading(chapter.heading);
     // chapter heading severity (Important/Critical 等) を優先、body admonition で上書き許容
     const severity = bodyBasedSeverity === 'info' ? headingSeverity : bodyBasedSeverity;
+    // 観点キー（severity と同じ chapter 粒度。マーカー無しは null＝未記録）
+    const checklistRef = parseChecklistRefMarker(chapterBody);
 
     // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
     const pairs = extractProblemSuggestionPairs(chapter.lines);
     if (pairs.length > 0) {
       for (const [findingText, suggestionText] of pairs) {
-        pushFinding(findingText, suggestionText, chapter.heading, category, severity, is_category_inferred);
+        pushFinding(findingText, suggestionText, chapter.heading, category, severity, is_category_inferred, checklistRef);
       }
       continue;
     }
@@ -130,7 +135,7 @@ export function parseReviewDoc(input: {
     const numbered = extractNumberedFindings(chapter.lines);
     for (const nf of numbered) {
       const findingText = nf.title + (nf.finding ? `\n\n${nf.finding}` : '');
-      pushFinding(findingText, nf.suggestion, chapter.heading, category, severity, is_category_inferred);
+      pushFinding(findingText, nf.suggestion, chapter.heading, category, severity, is_category_inferred, checklistRef);
     }
   }
 

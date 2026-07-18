@@ -53,6 +53,8 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 未対処 finding `quality.unaddressedFindings` | memory | 上昇 |
 | reviewer 空 `quality.reviewerEmpty` | memory | 上昇 |
 | bug:review 比 `quality.bugToReviewRatio` | memory | 上昇 |
+| 観点の穴 `quality.checklistNone` / クラスタ `quality.checklistNoneClusters`（checklist_ref='none' のカテゴリ×パッケージ束・2 件以上） | memory | 新規クラスタ出現 / 増加（null は列未マイグレーション＝測定不能） |
+| 条文効果 `quality.checklistByRef30d`（章別・30 日窓の観点キー付き指摘件数） | memory | 条文化・改訂した章の件数が減らない（2 回連続はメタ還流対象） |
 | 未解決 drift（`drift.byType` から spec_vs_code を除いて算出。設計書ドリフトは dev-cycle 段5 へ移管） | memory | 上昇 / 新種別出現 |
 | embedding 充足率 `docCore.embeddingCoveragePct` | doc-core | 低下 |
 | 孤立 doc `docCore.orphanDocs` | doc-core | 上昇 |
@@ -95,6 +97,8 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **サマリ**: 前回比で悪化/改善した上位シグナルを 3〜5 行。
 - **デルタ表**: メトリクス / 前回 / 今回 / 変化（↑↓→・新規）。**変化があった行を上に**。
 - **現在の主要シグナル**: hotspot top・drift 種別内訳・コスト内訳・SHORTCUT 技術負債（総数 / no-trigger 内訳・top ファイル）・スキル健全性（総数 / 参照切れ / 90 日超 stale / 30 日未使用・利用 top）など現状値。
+- **観点昇格候補**（`quality.checklistNoneClusters`）: checklist_ref='none'（global スキル `code-review-checklist` のどの章にも該当しない指摘）のカテゴリ×パッケージ束で 2 件以上のクラスタを**毎回列挙**する（2 回再発ルールの機械化。global CLAUDE.md「メモリ運用」の横断制約昇格と同じ閾値）。各クラスタは「チェックリストへの観点追加候補」で、§4 の閾値を満たしたら提案＋チケットへ昇格する（§4.1）。条文化はチケットの What 承認後に手動で行い、条文には出典 finding_id をインライン記載する（自動編集しない）。クラスタゼロ・列未マイグレーション（null）もその旨を明記する（沈黙させない）。
+- **条文効果**（`quality.checklistByRef30d`）: 前回レトロ以降に条文化・改訂した章があれば、その章の 30 日窓指摘件数の前回比を明記する（減少＝条文が効いている / 横ばい以上＝§4 メタ還流の観測 1 回目）。
 - **コスト詳細**（`grounding.token-budget.cjs` 出力。集計レベルの cost glance を超える深掘り）: モデル別コスト内訳 `byModel`（model / sessions / cost / cacheRead。Opus 比率を強調）・コスト上位セッション `topSessions`（session / cost / messageCount / peakContextTokens / compactCount / gitBranch / hygieneFlag）・セッション衛生 `hygiene`（expensiveNoCompact 等）・週次トレンド `trend.weekly`。狙いは RC2（Opus メインの超長大セッションが `/clear`・`/compact` なしで継続し `cache_read` が「文脈サイズ×ターン数」で二乗膨張する）の継続監視。
 - **モデル別挙動プロファイル**（`modelBehavior.byModel`・30 日窓・記述的）: モデル（フル ID）ごとの冗長性（`avgOutputTokens`）・ツール失敗率（`toolErrorRatePct`）・平均実行時間（`avgTurnExecMs`）を現状値として表示する。委譲先の役割分担（`anytime-dev-cycle` §1・§3.1 モデル表）の見直し材料。**因果主張はしない**: タスク割当が非ランダム（性質でモデルを選んでいる）ため、モデル間差は「性格」でなく割当タスクの性質を含む交絡を持つ。`assistantMsgs` が `minSampleForJudgment`（5）未満のモデルは「標本不足・判定しない」と明記する。
 - **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 を確認し件数を記す）、(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
@@ -122,6 +126,8 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **委譲先の成績悪化（モデル別）**: `delegation.byModel` の特定モデル／実行系の差し戻し率が 50% 超（記録 5 件以上）→ そのモデルへの委譲を減らす／`anytime-dev-cycle` §1 委譲先選択・§3.1 モデル表の見直しを提案する。
 - **較正表の乖離（見積り予実）**: `delegation.estimates.referenceClass` のあるカテゴリ × モデルで **n≥5 かつ誤差比中央値（`medianErrorOut` または `medianErrorWall`）が 2.0 超 or 0.5 未満** → `references/delegation.md` §2.3 較正表の当該セルの改訂（実測中央値へ置換）を提案する。n<5 の組は判定しない。改訂が 2 回連続で誤差を縮めない場合は表の値でなく機構側（カテゴリ語彙の切り方・ペアリング規則）の改訂を提案する（メタ機構の健全性点検と同原則）。誤差評価は同一実行系内で閉じる（Claude 系とCodex のコスト単位は非互換のためモデル間比較しない）。`modelBehavior` は記述的シグナルであり**それ単独では提案昇格の閾値にしない**（交絡があり因果を主張できないため、あくまで役割分担議論の材料）。
 - `recurrence.danglingClusters` に前回スナップショットと同一の target が残存（2 回目の観測 = constraint メモリ昇格を提案）、または `recurrence.uncoveredBugFiles` に新規ファイルが出現（教訓化されていない再発バグ領域）。提案には対象 target / referrers / ファイルを明記し、メモリ作成自体はユーザー承認後に行う。
+- **観点の穴クラスタの残存**: `quality.checklistNoneClusters` に前回スナップショットと同一（カテゴリ×パッケージ）のクラスタが残存（2 回目の観測）→ global スキル `code-review-checklist` への観点追加を提案・チケット起票する。チケットには対象クラスタと出典 finding_id（`list_unaddressed_review_findings` の `checklist_ref='none'` で列挙）を明記し、条文化はチケット承認後に手動で行う（条文末尾に出典 finding_id をインライン記載）。
+- **条文が効いていない（メタ還流）**: 条文化・改訂した章の `quality.checklistByRef30d` が**条文化後 2 回連続のレトロ**で減少しない → 条文の再改訂でなく、条文の書き方（NG/OK 例の具体性）またはレビュー委任プロンプトへの観点注入方法の見直しを提案する（「改善機構の空回り」と同原則）。
 - **改善機構の空回り（メタ還流）**: 「スキル改訂が効いていない」または「委任テンプレの成績悪化」が**同一対象で 2 回連続のレトロ**にわたり発火した場合、対象本文の再改訂ではなく**機構側の改訂**（還流ルール＝global CLAUDE.md「メモリ運用」・本スキルの昇格閾値・委譲契約テンプレの書式）を提案対象にする。改訂を繰り返しても効かないのは直し方でなく直す仕組みの欠陥を示唆するため、改善手続き自体を改訂対象に含める（Hyperagents arXiv:2603.19461 の知見。固定されたメタ機構が改善の頭打ちを作る）。標本 5 件未満の版は判定しない規則はここでも維持する。
 
 > deep モード（`anytime-proposal --deep` 専門観点パネル）は**コストが高い**ため、複数の重大シグナルが同時悪化した場合か、ユーザーが明示した場合のみ使う。定期実行の既定は lightweight。

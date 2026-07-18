@@ -50,6 +50,17 @@ describe('handleListUnaddressedReviewFindings', () => {
     }));
   });
 
+  // P1 (観点キー): checklist_ref フィルタも memory-core へ素通しされる
+  test('passes checklist_ref filter', async () => {
+    const { listUnaddressedReviewFindings: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+
+    await handleListUnaddressedReviewFindings({ checklist_ref: 'none' });
+
+    expect(mockFn).toHaveBeenCalledWith(expect.objectContaining({
+      checklist_ref: 'none',
+    }));
+  });
+
   test('closes db handle after call', async () => {
     const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
 

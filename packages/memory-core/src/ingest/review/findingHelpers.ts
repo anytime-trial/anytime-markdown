@@ -12,6 +12,11 @@ export type ParsedFinding = {
   suggestion_text: string;
   chapter_path: string;
   is_category_inferred: boolean;
+  /**
+   * code-review-checklist スキルの観点キー。'§14' 等の章番号 / 'none'（該当章なし）/
+   * null（マーカー未記載＝未記録）。章番号は旧 code-quality.md と同一体系。
+   */
+  checklist_ref: string | null;
 };
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -353,6 +358,28 @@ export function parseSeverityMarker(body: string): ParsedFinding['severity'] | n
   if (/error|エラー|critical|致命的|重大(?!度)/i.test(value)) return 'error';
   if (/warn|warning|警告|重要|注意/i.test(value)) return 'warn';
   if (/info|情報|軽微|minor|low/i.test(value)) return 'info';
+  return null;
+}
+
+/**
+ * anytime-trail-review スキルのメタデータ 4 行目 `- 観点: §14` / `checklist: none` を解析する。
+ * 行頭（bullet / bold 許容）の最初のマーカーを採用する。値の正規化:
+ * - `§<数字>(.<数字>)?` で始まる → 章番号のみ残して返す（後続のラベル文は捨てる）
+ * - none / なし / 該当なし → 'none'（明示的にチェックリスト外＝観点の穴の候補）
+ * - それ以外・マーカー無し → null（未記録。旧データ・未対応レビュアーと同じ扱い）
+ */
+const CHECKLIST_REF_MARKER_RE = new RegExp(
+  String.raw`^${BULLET_PREFIX}\*{0,2}(?:観点|checklist)\*{0,2}\s*[：:]\s*\*{0,2}\s*([^\n*]+)`,
+  'im',
+);
+
+export function parseChecklistRefMarker(body: string): string | null {
+  const m = CHECKLIST_REF_MARKER_RE.exec(body.replace(FENCED_BLOCK_RE, ''));
+  if (!m) return null;
+  const value = m[1].trim();
+  if (/^(?:none|なし|該当なし)$/i.test(value)) return 'none';
+  const ref = /^§\s*(\d+(?:\.\d+)?)/.exec(value);
+  if (ref) return `§${ref[1]}`;
   return null;
 }
 

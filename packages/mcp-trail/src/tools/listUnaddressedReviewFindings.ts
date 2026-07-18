@@ -7,6 +7,7 @@ export const ListUnaddressedReviewFindingsInputSchema = z.object({
   daysSinceMin: z.number().optional().describe('Only findings recorded at least N days ago'),
   target_file_path: z.string().optional().describe('Filter by file path'),
   category: z.string().optional().describe('Filter by category'),
+  checklist_ref: z.string().optional().describe("Filter by checklist ref ('§14' etc., or 'none' = チェックリスト該当章なし)"),
   limit: z.number().optional().describe('Max results (default 50)'),
 });
 
