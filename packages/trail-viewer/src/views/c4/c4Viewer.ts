@@ -60,7 +60,7 @@ import {
   sortDsmMatrixByName,
 } from '@anytime-markdown/trail-core/c4';
 import type { ArchitectureFileEntry, ArchitectureMatrix, LayerMatrix, RoleMatrix, SizeMatrix } from '@anytime-markdown/trail-core/c4';
-import type { BusFactorEntry, FileAuthorCommitRow } from '@anytime-markdown/trail-core';
+import type { BusFactorEntry } from '@anytime-markdown/trail-core';
 import type { ArchitectureLayer, CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { ConfidenceCouplingEdge, DefectRiskEntry, TemporalCouplingEdge } from '@anytime-markdown/trail-core';
 
@@ -110,7 +110,7 @@ import { mountHotspotControls } from './overlays/hotspotControls';
 import type { HotspotControlsVanillaProps } from './overlays/hotspotControls';
 import { mountDefectRiskControls } from './overlays/defectRiskControls';
 import { buildDefectRiskElementMap } from './overlays/defectRiskMap';
-import { buildBusFactorElementMap, busFactorScoreMap } from './overlays/busFactorMap';
+import { busFactorEntryMap, busFactorScoreMap } from './overlays/busFactorMap';
 import type { DefectRiskControlsVanillaProps, DefectRiskControlsValue } from './overlays/defectRiskControls';
 import { mountTemporalCouplingControls } from './overlays/temporalCouplingControls';
 import type { TemporalCouplingControlsVanillaProps } from './overlays/temporalCouplingControls';
@@ -472,10 +472,11 @@ interface DefectRiskState {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
-/** Phase 6 S5-B: 属人度。C4 要素単位の再集計に生行を使う */
+/** Phase 6 S5-B: 属人度。C4 要素単位まで集約済みのエントリをサーバーから受け取る */
 interface BusFactorState {
-  rows: FileAuthorCommitRow[];
-  rowsTruncated: boolean;
+  entries: BusFactorEntry[];
+  /** C4 モデルが解決できず集約されなかった場合 false（データ無しと区別する） */
+  c4ModelAvailable: boolean;
   loading: boolean;
   controller: AbortController | null;
   timer: ReturnType<typeof setTimeout> | null;
@@ -570,7 +571,7 @@ export function mountC4Viewer(
   // ── Data states ──
   const hotspotState: HotspotState = { data: null, loading: false, controller: null, timer: null };
   const defectRiskState: DefectRiskState = { entries: [], loading: false, controller: null, timer: null };
-  const busFactorState: BusFactorState = { rows: [], rowsTruncated: false, loading: false, controller: null, timer: null };
+  const busFactorState: BusFactorState = { entries: [], c4ModelAvailable: true, loading: false, controller: null, timer: null };
   const tcState: TCState = { edges: [], granularity: 'commit', loading: false, controller: null, timer: null };
   const elemFnsState: ElementFunctionsState = { data: null, loading: false, controller: null };
   const fnGraphState: FunctionGraphState = { data: null, loading: false, error: null, controller: null };
@@ -773,7 +774,7 @@ export function mountC4Viewer(
     // layer overlay は code graph のノード layer を集約するため、未取得なら取得を起動する。
     if (metricOverlay === 'architecture-layer') fetchCodeGraph();
     // 属人度は生行（コミット×ファイル）を取るため、選択されたときだけ取得する。
-    if (metricOverlay === 'bus-factor' && !busFactorState.rows.length) fetchBusFactor();
+    if (metricOverlay === 'bus-factor' && !busFactorState.entries.length) fetchBusFactor();
     scheduleRender();
   });
 
@@ -1032,7 +1033,7 @@ export function mountC4Viewer(
   function fetchBusFactor(): void {
     if (destroyed) return;
     const { serverUrl } = props;
-    if (!serverUrl) { busFactorState.rows = []; scheduleRender(); return; }
+    if (!serverUrl) { busFactorState.entries = []; scheduleRender(); return; }
     if (busFactorState.timer !== null) clearTimeout(busFactorState.timer);
     busFactorState.controller?.abort();
     const ctrl = new AbortController();
@@ -1041,13 +1042,20 @@ export function mountC4Viewer(
       busFactorState.loading = true;
       fetchBusFactorApi(
         serverUrl,
-        { windowDays: bfWindowDays, minCommits: bfMinCommits, repo: getSelectedRepo() || undefined, includeRows: true },
+        {
+          windowDays: bfWindowDays,
+          minCommits: bfMinCommits,
+          repo: getSelectedRepo() || undefined,
+          // 集約はサーバー側。表示中のリリースを渡して要素 ID を props.c4Model と揃える
+          unit: 'c4',
+          release: props.selectedRelease || undefined,
+        },
         ctrl.signal,
       )
         .then((res) => {
           if (ctrl.signal.aborted || destroyed) return;
-          busFactorState.rows = res.rows ?? [];
-          busFactorState.rowsTruncated = res.rowsTruncated ?? false;
+          busFactorState.entries = res.entries;
+          busFactorState.c4ModelAvailable = res.c4ModelAvailable ?? true;
           busFactorState.loading = false;
           scheduleRender();
         })
@@ -1425,16 +1433,10 @@ export function mountC4Viewer(
   const busFactorMapMemo = createRefMemo<ReadonlyMap<string, BusFactorEntry> | null>();
   function computeBusFactorMapData(): ReadonlyMap<string, BusFactorEntry> | null {
     const { c4Model } = props;
-    return busFactorMapMemo([c4Model, busFactorState.rows, bfMinCommits, busFactorState.rowsTruncated], () => {
-      if (!busFactorState.rows.length || !c4Model) return null;
-      // 要素へ写してから合算し score を再計算する（最大値伝播はしない。Phase 6 S5-B）
-      // 生行が切り詰められている場合は再集計せず null（誤った属人度を出さない）
-      return buildBusFactorElementMap(
-        busFactorState.rows,
-        c4Model,
-        bfMinCommits,
-        busFactorState.rowsTruncated,
-      );
+    return busFactorMapMemo([c4Model, busFactorState.entries], () => {
+      // 集約済みエントリ（unitId = C4 要素 ID）をそのまま索引化する。Phase 6 S5-B
+      if (!busFactorState.entries.length || !c4Model) return null;
+      return busFactorEntryMap(busFactorState.entries);
     });
   }
 
@@ -1872,7 +1874,7 @@ export function mountC4Viewer(
         importanceMatrix: props.importanceMatrix ?? null,
         defectRiskMap: computeDefectRiskMapData(),
         busFactorMap: computeBusFactorMapData(),
-        busFactorTruncated: busFactorState.rowsTruncated,
+        busFactorUnavailable: !busFactorState.c4ModelAvailable,
         hotspotMap: computeHotspotMapData(),
         sizeMatrix: computeSizeMatrixData(),
         layerMatrix: computeLayerMatrixData(),
@@ -2068,7 +2070,7 @@ export function mountC4Viewer(
       },
       repoOptions: repoOptions_,
       selectedRepo: getSelectedRepo() || undefined,
-      onRepoChange: (repo: string) => { selectedRepoInternal = repo; props.onRepoSelect?.(repo); scheduleRender(); fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph(); fetchActivityTrend(); busFactorState.rows = []; if (metricOverlay === 'bus-factor') fetchBusFactor(); },
+      onRepoChange: (repo: string) => { selectedRepoInternal = repo; props.onRepoSelect?.(repo); scheduleRender(); fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph(); fetchActivityTrend(); busFactorState.entries = []; if (metricOverlay === 'bus-factor') fetchBusFactor(); },
       releaseOptions: props.releases ?? [],
       selectedRelease: props.selectedRelease,
       onReleaseChange: props.onReleaseSelect,
@@ -3087,7 +3089,7 @@ export function mountC4Viewer(
 
     const needsRefetch = props.serverUrl !== prevServerUrl || newRepo !== prevRepo || props.selectedRelease !== prevRelease;
     if (needsRefetch) {
-      busFactorState.rows = [];
+      busFactorState.entries = [];
       fetchHotspot(); fetchDefectRisk(); fetchTC(); fetchCodeGraph();
       if (metricOverlay === 'bus-factor') fetchBusFactor();
     }

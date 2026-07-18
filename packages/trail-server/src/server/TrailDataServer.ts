@@ -4,10 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
-import type { C4Model, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
+import type { C4Model, C4ModelPayload, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
   aggregateHeatmapColumnsToC4,
+  buildC4ElementById,
   buildElementTree,
   buildSourceMatrix,
   computeActivityHeatmap,
@@ -17,6 +18,7 @@ import {
   fetchC4Model,
   fetchC4ModelEntries,
   filterTreeByLevel,
+  mapFileToC4Elements,
 } from '@anytime-markdown/trail-core/c4';
 import type {
   CallHierarchyDirection,
@@ -126,9 +128,6 @@ export interface AnalyzeAllPipelineResult {
   messageCommitsBackfilled: number;
   durationMs: number;
 }
-
-/** Phase 6 S5-B: includeRows=1 で返す生行の上限（超過分は rowsTruncated=true で明示） */
-const BUS_FACTOR_MAX_ROWS = 50_000;
 
 const HOTSPOT_PERIODS = ['7d', '30d', '90d', 'all'] as const;
 type HotspotPeriod = typeof HOTSPOT_PERIODS[number];
@@ -1080,7 +1079,7 @@ export class TrailDataServer {
     }
 
     if (pathname === '/api/bus-factor' && method === 'GET') {
-      this.handleBusFactor(res, parsed.searchParams);
+      void this.handleBusFactor(res, parsed.searchParams);
       return;
     }
 
@@ -1694,29 +1693,45 @@ export class TrailDataServer {
   }
 
   /**
-   * Phase 6 S5-B: ファイル単位の属人度（Bus Factor）を返す。
-   * C4 要素単位の集約はクライアント側で「著者×コミットを合算してから再計算」する
-   * （ファイル → C4 要素のマッピングが viewer 側にしかないため）。
+   * Phase 6 S5-B: 属人度（Bus Factor）を返す。
+   *
+   * `unit=c4` では C4 要素単位の集約をサーバー側で行う。生行をクライアントへ送って
+   * 再集計させる方式は、大規模リポジトリで転送量が跳ね上がり上限での切り詰めを招き、
+   * 切り詰めた行から算出した属人度は誤値になるため採用しない（要素へ写してから
+   * 著者×コミットを合算し score を再計算する。ファイル単位の結果の足し合わせでは、
+   * 1 コミットが同一要素内の複数ファイルを触ったときに二重計上になる）。
    */
-  private handleBusFactor(res: http.ServerResponse, params: URLSearchParams): void {
+  private async handleBusFactor(res: http.ServerResponse, params: URLSearchParams): Promise<void> {
     const windowDays = clampInt(params.get('windowDays'), 365, 1, 3650);
     const minCommits = clampInt(params.get('minCommits'), 5, 1, 1000);
     const repo = params.get('repo') ?? undefined;
-
-    // 生行は C4 要素単位の再集計に使う。ファイル単位の結果を足し合わせると、
-    // 1 コミットが同一要素内の複数ファイルを触ったときに二重計上になるため。
-    const includeRows = params.get('includeRows') === '1';
+    const unit = params.get('unit') === 'c4' ? 'c4' : 'file';
+    // viewer が表示中のモデルと要素 ID を揃える（リリース表示中はそのリリースのモデル）
+    const release = params.get('release') || 'current';
 
     try {
       const sinceIso = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
       const rows = this.trailDb.fetchFileAuthorCommits({ repo, sinceIso });
-      const entries = computeBusFactor(rows, { minCommits });
-      const truncated = includeRows && rows.length > BUS_FACTOR_MAX_ROWS;
-      if (truncated) {
-        this.logger.warn(
-          `/api/bus-factor: rows truncated ${rows.length} -> ${BUS_FACTOR_MAX_ROWS} (windowDays=${windowDays})`,
-        );
+
+      let entries = computeBusFactor(rows, { minCommits });
+      let c4ModelAvailable: boolean | undefined;
+      if (unit === 'c4') {
+        const c4Model = (await this.resolveC4ModelPayload(release, repo))?.model ?? null;
+        c4ModelAvailable = c4Model !== null;
+        if (c4Model) {
+          const elementById = buildC4ElementById(c4Model.elements);
+          entries = computeBusFactor(rows, {
+            minCommits,
+            unitsOf: (filePath) => mapFileToC4Elements(filePath, elementById).map((m) => m.elementId),
+          });
+        } else {
+          // モデルが無い状態でファイル単位の結果を返すと、要素 ID を期待する呼び出し側が
+          // 全件未一致を「属人度なし」と誤読する。集約できない事実を明示して空で返す。
+          this.logger.warn(`/api/bus-factor: C4 model unavailable (release=${release}, repo=${repo ?? 'default'})`);
+          entries = [];
+        }
       }
+
       res.writeHead(200, JSON_HEADERS);
       res.end(
         JSON.stringify({
@@ -1724,10 +1739,9 @@ export class TrailDataServer {
           computedAt: new Date().toISOString(),
           windowDays,
           minCommits,
+          unit,
           totalUnits: entries.length,
-          ...(includeRows
-            ? { rows: truncated ? rows.slice(0, BUS_FACTOR_MAX_ROWS) : rows, rowsTruncated: truncated }
-            : {}),
+          ...(c4ModelAvailable === undefined ? {} : { c4ModelAvailable }),
         }),
       );
     } catch (e) {
@@ -2088,7 +2102,11 @@ export class TrailDataServer {
   //  API: C4 endpoints
   // -------------------------------------------------------------------------
 
-  private async handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
+  /**
+   * viewer へ配信するのと同じ C4 モデルを解決する（手動要素のマージ込み）。
+   * 要素 ID を揃える必要があるメトリクス集約（例: /api/bus-factor?unit=c4）も同じ経路を使う。
+   */
+  private async resolveC4ModelPayload(releaseId: string, repo?: string): Promise<C4ModelPayload | null> {
     // trail-core の fetchC4Model 経由でストアから取得（pure 関数 + IC4ModelStore アダプタ）
     const repoName = repo ?? (this.defaultRepo());
     const provider = this.getC4Provider?.();
@@ -2100,7 +2118,11 @@ export class TrailDataServer {
         provider ? provider.getManualRelationships(repo) : this.trailDb.getManualRelationships(repo),
     } : undefined;
     const featureMatrix = provider?.featureMatrix ?? this.trailDb.getCurrentFeatureMatrix() ?? undefined;
-    const payload = await fetchC4Model(store, releaseId, repoName, featureMatrix, manualProvider);
+    return fetchC4Model(store, releaseId, repoName, featureMatrix, manualProvider);
+  }
+
+  private async handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
+    const payload = await this.resolveC4ModelPayload(releaseId, repo);
     if (payload) {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(payload));

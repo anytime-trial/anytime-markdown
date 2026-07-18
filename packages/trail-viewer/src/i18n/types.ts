@@ -299,7 +299,7 @@ export interface TrailI18n {
   'c4.busFactor.commits': string;
   'c4.busFactor.insufficient': string;
   'c4.busFactor.calculating': string;
-  'c4.busFactor.truncated': string;
+  'c4.busFactor.modelUnavailable': string;
   'c4.defectRisk.window': string;
   'c4.defectRisk.halfLife': string;
   'c4.defectRisk.calculating': string;

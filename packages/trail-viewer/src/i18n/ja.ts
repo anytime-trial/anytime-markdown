@@ -433,7 +433,7 @@ export const ja: TrailI18n = {
   'c4.busFactor.commits': 'コミット数',
   'c4.busFactor.insufficient': 'コミット数不足で未判定',
   'c4.busFactor.calculating': '計算中…',
-  'c4.busFactor.truncated': '件数上限のため一部のみ集計',
+  'c4.busFactor.modelUnavailable': 'C4 モデル未取得のため集計できません',
   'c4.defectRisk.window': '期間',
   'c4.defectRisk.halfLife': '半減期',
   'c4.defectRisk.calculating': '計算中…',

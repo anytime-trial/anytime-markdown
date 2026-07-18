@@ -8101,6 +8101,7 @@ export class TrailDatabase {
    * Phase 6 S5-B: ファイル×著者×コミットの生行を返す（Bus Factor 算出の入力）。
    * session_commits の主キーは session_id を含み同一コミットが複数行になり得るが、
    * 一意化は computeBusFactor 側（コミット集合）で行うためここでは重複を許して返す。
+   * 集約は順序に依存しないため ORDER BY は付けない（数万行のソートを避ける）。
    */
   fetchFileAuthorCommits(options: { repo?: string; sinceIso?: string }): FileAuthorCommitRow[] {
     const db = this.ensureDb();
@@ -8123,8 +8124,7 @@ export class TrailDatabase {
        FROM session_commits sc
        JOIN commit_files cf ON cf.commit_hash = sc.commit_hash
        ${join}
-       WHERE ${conditions.join(' AND ')}
-       ORDER BY sc.committed_at DESC`,
+       WHERE ${conditions.join(' AND ')}`,
       args,
     );
     const values = result[0]?.values ?? [];
