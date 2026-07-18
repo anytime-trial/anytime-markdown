@@ -108,6 +108,7 @@ import type { C4ElementTreeVanillaProps } from './panels/c4ElementTreePanel';
 import { mountHotspotControls } from './overlays/hotspotControls';
 import type { HotspotControlsVanillaProps } from './overlays/hotspotControls';
 import { mountDefectRiskControls } from './overlays/defectRiskControls';
+import { buildDefectRiskElementMap } from './overlays/defectRiskMap';
 import type { DefectRiskControlsVanillaProps, DefectRiskControlsValue } from './overlays/defectRiskControls';
 import { mountTemporalCouplingControls } from './overlays/temporalCouplingControls';
 import type { TemporalCouplingControlsVanillaProps } from './overlays/temporalCouplingControls';
@@ -1398,14 +1399,8 @@ export function mountC4Viewer(
     const { c4Model } = props;
     return defectRiskMapMemo([c4Model, defectRiskState.entries], () => {
       if (!defectRiskState.entries.length || !c4Model) return null;
-      const elementById = buildC4ElementById(c4Model.elements);
-      const map = new Map<string, number>();
-      for (const entry of defectRiskState.entries) {
-        for (const m of mapFileToC4Elements(entry.filePath, elementById)) {
-          map.set(m.elementId, Math.max(map.get(m.elementId) ?? 0, entry.score));
-        }
-      }
-      return map;
+      // ファイル → 直接対応要素は最大値、祖先 boundary へは共有 rollup で伝播（Phase 6 S5-A）
+      return buildDefectRiskElementMap(defectRiskState.entries, c4Model);
     });
   }
 
