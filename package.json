@@ -12,7 +12,7 @@
     "report:index": "node scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/report レポート ja",
     "check-skills": "node scripts/check-bundled-skills.mjs && node scripts/check-skill-refs.mjs && node scripts/check-skill-manifest-bump.mjs && node scripts/check-shortcut-markers.mjs && npm run test:scripts",
     "accept:farm": "node scripts/acceptance/farm.mjs",
-    "test:scripts": "node --test scripts/*.test.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs scripts/acceptance/*.test.mjs",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
     "lint": "eslint packages/markdown-viewer/src packages/web-app/src",
     "lint:fix": "eslint --fix packages/markdown-viewer/src packages/web-app/src",

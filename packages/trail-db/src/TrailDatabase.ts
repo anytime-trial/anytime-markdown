@@ -11051,55 +11051,92 @@ export class TrailDatabase {
   }
 
   /**
+   * regression 系 fix コミットか（Conventional Commits: `fix(<pkg>/regression):` / `fix(regression):`。
+   * 規約は git-workflow ルール）。見逃し率の突合対象を要件書 §5.2 の定義に限定する —
+   * `fix(typo)` / `fix(deps)` 等まで数えると経路別見逃し率が過大計上され、Level Gate の誤降格につながる。
+   */
+  private static isRegressionFixMessage(message: string): boolean {
+    return /^fix\(([^)]*\/)?regression\):/.test(message);
+  }
+
+  /**
    * 経路別見逃し率の算出（読み取りのみ・近似指標）。
-   * 「合格コミットの変更ファイルと同じファイルに、合格後 windowDays 日以内の fix 系コミット
-   * （commit_message が 'fix' 始まり・別 SHA）が触れた」件数を missed と数える。厳密な因果は問わない。
+   * 「合格コミットの変更ファイルと同じファイルに、合格後 windowDays 日以内の regression 系 fix
+   * コミット（別 SHA・同一リポジトリ）が触れた」件数を missed と数える。厳密な因果は問わない。
+   * リポジトリは acceptance_records.repo_name → repos.repo_id で解決して照合を同一 repo に限定する
+   * （repo_name 未解決の旧レコードのみ全 repo 照合へ縮退）。インシデント記録との突合は S5 残件（要件書 §5.2）。
    * sql.js のオプティマイザが弱いため、SQL はシンプルスキャンに留め集約は TS 側で行う。
    */
   computeAcceptanceMissRate(windowDays = 14): AcceptanceMissRate[] {
     const db = this.ensureDb();
     const routes: AcceptanceRoute[] = ['auto', 'machine', 'human'];
     const passRes = db.exec(
-      `SELECT commit_sha, route, decided_at FROM acceptance_records
+      `SELECT commit_sha, route, decided_at, repo_name FROM acceptance_records
        WHERE verdict = 'pass' AND decided_at IS NOT NULL`,
     );
     const passRows = (passRes[0]?.values ?? []).map((r) => ({
       commitSha: r[0] as string,
       route: r[1] as AcceptanceRoute,
       decidedAt: r[2] as string,
+      repoName: r[3] as string,
     }));
     if (passRows.length === 0) {
       return routes.map((route) => ({ route, acceptedCount: 0, missedCount: 0, missRate: null, windowDays }));
+    }
+
+    const repoIdByName = new Map<string, number>();
+    for (const row of db.exec(`SELECT repo_id, repo_name FROM repos`)[0]?.values ?? []) {
+      repoIdByName.set(row[1] as string, row[0] as number);
     }
 
     const filesByCommit = this.commitFilesByHashes(db, passRows.map((r) => r.commitSha));
 
     const minDecidedAt = passRows.reduce((min, r) => (r.decidedAt < min ? r.decidedAt : min), passRows[0].decidedAt);
     const fixRes = db.exec(
-      `SELECT DISTINCT commit_hash, committed_at FROM session_commits
+      `SELECT DISTINCT commit_hash, committed_at, repo_id, commit_message FROM session_commits
        WHERE commit_message GLOB 'fix*' AND committed_at IS NOT NULL AND committed_at >= ?`,
       [minDecidedAt],
     );
-    const fixCommits = (fixRes[0]?.values ?? []).map((r) => ({
-      commitHash: r[0] as string,
-      committedAt: r[1] as string,
-    }));
+    const fixCommits = (fixRes[0]?.values ?? [])
+      .map((r) => ({
+        commitHash: r[0] as string,
+        committedAt: r[1] as string,
+        repoId: r[2] as number,
+        message: r[3] as string,
+      }))
+      .filter((f) => TrailDatabase.isRegressionFixMessage(f.message));
     const fixFilesByCommit = this.commitFilesByHashes(db, fixCommits.map((f) => f.commitHash));
+
+    const filesFor = (
+      map: Map<string, Map<number, Set<string>>>,
+      hash: string,
+      repoId: number | null,
+    ): Set<string> => {
+      const byRepo = map.get(hash);
+      if (!byRepo) return new Set();
+      if (repoId !== null) return byRepo.get(repoId) ?? new Set();
+      const union = new Set<string>();
+      for (const set of byRepo.values()) {
+        for (const f of set) union.add(f);
+      }
+      return union;
+    };
 
     const windowMs = windowDays * 24 * 60 * 60 * 1000;
     const missedByRoute = new Map<AcceptanceRoute, number>();
     const acceptedByRoute = new Map<AcceptanceRoute, number>();
     for (const pass of passRows) {
       acceptedByRoute.set(pass.route, (acceptedByRoute.get(pass.route) ?? 0) + 1);
-      const passFiles = filesByCommit.get(pass.commitSha);
-      if (!passFiles || passFiles.size === 0) continue;
+      const passRepoId = repoIdByName.get(pass.repoName) ?? null;
+      const passFiles = filesFor(filesByCommit, pass.commitSha, passRepoId);
+      if (passFiles.size === 0) continue;
       const decidedMs = Date.parse(pass.decidedAt);
       const missed = fixCommits.some((fix) => {
         if (fix.commitHash === pass.commitSha) return false;
+        if (passRepoId !== null && fix.repoId !== passRepoId) return false;
         const fixMs = Date.parse(fix.committedAt);
         if (Number.isNaN(fixMs) || fixMs <= decidedMs || fixMs > decidedMs + windowMs) return false;
-        const fixFiles = fixFilesByCommit.get(fix.commitHash);
-        if (!fixFiles) return false;
+        const fixFiles = filesFor(fixFilesByCommit, fix.commitHash, passRepoId !== null ? fix.repoId : null);
         for (const f of fixFiles) {
           if (passFiles.has(f)) return true;
         }
@@ -11122,25 +11159,31 @@ export class TrailDatabase {
     });
   }
 
-  /** commit_files をハッシュ集合で引き、hash → file_path 集合の Map にする（IN 句はチャンク分割）。 */
-  private commitFilesByHashes(db: Database, hashes: string[]): Map<string, Set<string>> {
-    const result = new Map<string, Set<string>>();
+  /** commit_files をハッシュ集合で引き、hash → (repo_id → file_path 集合) の Map にする（IN 句はチャンク分割）。 */
+  private commitFilesByHashes(db: Database, hashes: string[]): Map<string, Map<number, Set<string>>> {
+    const result = new Map<string, Map<number, Set<string>>>();
     const unique = [...new Set(hashes)];
     const CHUNK = 400;
     for (let i = 0; i < unique.length; i += CHUNK) {
       const chunk = unique.slice(i, i + CHUNK);
       const placeholders = chunk.map(() => '?').join(', ');
       const res = db.exec(
-        `SELECT commit_hash, file_path FROM commit_files WHERE commit_hash IN (${placeholders})`,
+        `SELECT commit_hash, file_path, repo_id FROM commit_files WHERE commit_hash IN (${placeholders})`,
         chunk,
       );
       for (const row of res[0]?.values ?? []) {
         const hash = row[0] as string;
         const file = row[1] as string;
-        let set = result.get(hash);
+        const repoId = row[2] as number;
+        let byRepo = result.get(hash);
+        if (!byRepo) {
+          byRepo = new Map();
+          result.set(hash, byRepo);
+        }
+        let set = byRepo.get(repoId);
         if (!set) {
           set = new Set();
-          result.set(hash, set);
+          byRepo.set(repoId, set);
         }
         set.add(file);
       }

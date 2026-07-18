@@ -20,15 +20,22 @@ function recordInput(overrides: Partial<AcceptanceRecordInput> = {}): Acceptance
   };
 }
 
-function seedCommit(db: TrailDatabase, hash: string, message: string, committedAt: string, files: string[]): void {
+function seedCommit(
+  db: TrailDatabase,
+  hash: string,
+  message: string,
+  committedAt: string,
+  files: string[],
+  repoId = 0,
+): void {
   rawRun(
     db,
     `INSERT INTO session_commits (session_id, commit_hash, commit_message, author, committed_at, repo_id)
-     VALUES ('sess-seed', ?, ?, 'tester', ?, 0)`,
-    [hash, message, committedAt],
+     VALUES ('sess-seed', ?, ?, 'tester', ?, ?)`,
+    [hash, message, committedAt, repoId],
   );
   for (const file of files) {
-    rawRun(db, `INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, 0)`, [hash, file]);
+    rawRun(db, `INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES (?, ?, ?)`, [hash, file, repoId]);
   }
 }
 
@@ -84,11 +91,11 @@ describe('TrailDatabase acceptance records (acceptance_records)', () => {
   });
 
   describe('computeAcceptanceMissRate', () => {
-    it('合格コミットと同一ファイルへ窓内の fix コミットが触れたら missed に数える', () => {
+    it('合格コミットと同一ファイルへ窓内の regression 系 fix が触れたら missed に数える', () => {
       db.upsertAcceptanceRecord(recordInput({ commitSha: 'pass-a', route: 'machine', decidedAt: T0 }));
       seedCommit(db, 'pass-a', 'feat: add feature', '2026-07-18T09:00:00.000Z', ['src/a.ts']);
-      // 窓内（+2 日）の fix が同一ファイルに触れる
-      seedCommit(db, 'fix-a', 'fix(logic): broken feature', '2026-07-20T10:00:00.000Z', ['src/a.ts']);
+      // 窓内（+2 日）の regression fix が同一ファイルに触れる
+      seedCommit(db, 'fix-a', 'fix(web-app/regression): broken feature', '2026-07-20T10:00:00.000Z', ['src/a.ts']);
 
       const rates = db.computeAcceptanceMissRate(14);
       const machine = rates.find((r) => r.route === 'machine');
@@ -97,18 +104,36 @@ describe('TrailDatabase acceptance records (acceptance_records)', () => {
       expect(machine?.missRate).toBe(1);
     });
 
-    it('別ファイルの fix・窓外の fix・fix でないコミットは missed に数えない', () => {
+    it('別ファイル・窓外・非 fix・regression 以外の fix は missed に数えない', () => {
       db.upsertAcceptanceRecord(recordInput({ commitSha: 'pass-b', route: 'human', decidedAt: T0 }));
       seedCommit(db, 'pass-b', 'feat: another', '2026-07-18T09:00:00.000Z', ['src/b.ts']);
-      seedCommit(db, 'fix-other', 'fix(typo): unrelated', '2026-07-19T00:00:00.000Z', ['src/other.ts']);
-      seedCommit(db, 'fix-late', 'fix(logic): too late', '2026-08-10T00:00:00.000Z', ['src/b.ts']);
+      seedCommit(db, 'fix-other', 'fix(web-app/regression): unrelated', '2026-07-19T00:00:00.000Z', ['src/other.ts']);
+      seedCommit(db, 'fix-late', 'fix(regression): too late', '2026-08-10T00:00:00.000Z', ['src/b.ts']);
       seedCommit(db, 'feat-b', 'feat: touches same file', '2026-07-19T00:00:00.000Z', ['src/b.ts']);
+      // 同一ファイル・窓内でも regression 系でない fix は対象外（要件書 §5.2）
+      seedCommit(db, 'fix-logic', 'fix(logic): same file in window', '2026-07-19T12:00:00.000Z', ['src/b.ts']);
 
       const rates = db.computeAcceptanceMissRate(14);
       const human = rates.find((r) => r.route === 'human');
       expect(human?.acceptedCount).toBe(1);
       expect(human?.missedCount).toBe(0);
       expect(human?.missRate).toBe(0);
+    });
+
+    it('repo_name を解決できる場合は同一リポジトリ内でのみ照合する', () => {
+      rawRun(db, `INSERT INTO repos (repo_id, repo_name, created_at) VALUES (1, 'repoA', '${T0}'), (2, 'repoB', '${T0}')`);
+      db.upsertAcceptanceRecord(recordInput({ commitSha: 'pass-r', route: 'machine', decidedAt: T0, repoName: 'repoA' }));
+      seedCommit(db, 'pass-r', 'feat: repoA feature', '2026-07-18T09:00:00.000Z', ['src/shared.ts'], 1);
+      // 別リポジトリ（repoB）の regression fix が同名ファイルに触れても missed にしない
+      seedCommit(db, 'fix-b-repo', 'fix(repoB/regression): other repo', '2026-07-19T00:00:00.000Z', ['src/shared.ts'], 2);
+
+      const before = db.computeAcceptanceMissRate(14).find((r) => r.route === 'machine');
+      expect(before?.missedCount).toBe(0);
+
+      // 同一リポジトリ（repoA）の regression fix なら missed
+      seedCommit(db, 'fix-a-repo', 'fix(repoA/regression): same repo', '2026-07-19T06:00:00.000Z', ['src/shared.ts'], 1);
+      const after = db.computeAcceptanceMissRate(14).find((r) => r.route === 'machine');
+      expect(after?.missedCount).toBe(1);
     });
 
     it('合格レコードが無い route は missRate=null（0 除算を率 0 と区別する）', () => {

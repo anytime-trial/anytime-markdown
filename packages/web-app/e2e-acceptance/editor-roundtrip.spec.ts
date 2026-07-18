@@ -58,7 +58,8 @@ for (const theme of ["light", "dark"] as const) {
     expect(roundtripped).toBe(edited);
   });
 
-  test(`初期表示の視覚回帰 (${theme})`, async ({ page }) => {
+  // @vrt タグは farm ランナーの vrtDiff 機械判定に使う契約（タイトル文字列に依存しない）
+  test(`初期表示の視覚回帰 (${theme})`, { tag: "@vrt" }, async ({ page }) => {
     await openHarness(page, theme);
     await expect(page).toHaveScreenshot(`editor-initial-${theme}.png`);
   });

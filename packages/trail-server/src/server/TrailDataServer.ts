@@ -3250,7 +3250,8 @@ export class TrailDataServer {
         route: (routeParam as AcceptanceRoute | null) ?? undefined,
         since: params.get('since') ?? undefined,
         until: params.get('until') ?? undefined,
-        limit: Number.isNaN(limit) ? 100 : limit,
+        // windowDays（1..365）と同様に境界を持たせる（増分蓄積テーブルのため上限必須）
+        limit: Number.isNaN(limit) ? 100 : Math.min(Math.max(limit, 1), 1000),
       });
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ acceptanceRecords }));
