@@ -267,7 +267,9 @@ export function applyElementOffset(
     const cleared = removeDeclarations(style, ["position", "left", "top"]);
     setStyleAttribute(target, cleared);
   } else {
-    const position = readDeclaration(style, "position") ?? "relative";
+    // static は配置指定として機能しない（left/top が効かない）ため relative へ読み替える。
+    const declared = readDeclaration(style, "position");
+    const position = !declared || declared.toLowerCase() === "static" ? "relative" : declared;
     setStyleAttribute(
       target,
       mergeStyleAttribute(style, { position, left: `${left}px`, top: `${top}px` }),

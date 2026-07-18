@@ -90,6 +90,14 @@ describe("applyElementOffset", () => {
     expect(out).toContain('<span style="color: red;">x</span>');
   });
 
+  it("position: static は relative へ読み替える", () => {
+    const source = '<div><span style="position: static;">x</span></div>';
+
+    const out = applyElementOffset(source, "0/0", { leftPx: 5, topPx: 6 });
+
+    expect(out).toContain('style="position: relative; left: 5px; top: 6px;"');
+  });
+
   it("既に absolute 指定の要素では position を上書きしない", () => {
     const source = '<div><span style="position: absolute; left: 1px;">x</span></div>';
 
