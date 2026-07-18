@@ -285,6 +285,8 @@
     "sectionLockTampered": "Changed outside the lock (unlock to review)",
     "draggableHeading": "Draggable heading, use Alt+Arrow to reorder",
     "codeTab": "Code",
+    "collapseCodePane": "Collapse code pane",
+    "expandCodePane": "Expand code pane",
     "scriptTab": "Script",
     "tableTab": "Table",
     "configTab": "Config",

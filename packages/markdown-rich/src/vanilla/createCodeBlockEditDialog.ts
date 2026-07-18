@@ -108,6 +108,14 @@ function ensureDialogStyle(): void {
 .am-cbed-preview-main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;}
 .am-cbed-preview-with-panel{display:flex;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;}
 .am-cbed-preview-side-panel{flex:0 0 240px;width:240px;min-height:0;overflow:auto;border-left:1px solid var(--am-color-divider,#d0d7de);background:var(--am-color-bg-paper,transparent);}
+.am-cbed-left-topbar{display:flex;align-items:center;border-bottom:1px solid var(--am-color-divider,#d0d7de);flex-shrink:0;}
+.am-cbed-left-title{flex:1 1 auto;padding:4px 8px;font-size:${FS_PANEL_HEADER_FONT_SIZE};min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.am-cbed-left-topbar [role="tablist"]{flex:1 1 auto;min-width:0;}
+.am-cbed-pane-toggle{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;margin:2px 4px;border:0;border-radius:4px;background:transparent;color:inherit;cursor:pointer;font:inherit;font-size:14px;line-height:1;}
+.am-cbed-pane-toggle:hover,.am-cbed-pane-toggle:focus{background:var(--am-color-action-hover,rgba(0,0,0,0.04));}
+.am-cbed-expand-rail{display:none;flex:0 0 28px;width:28px;align-items:center;justify-content:center;border-right:1px solid var(--am-color-divider,#d0d7de);background:var(--am-color-bg-paper,transparent);min-height:0;}
+.am-cbed-expand-rail .am-cbed-pane-toggle{width:100%;height:100%;min-width:0;margin:0;border-radius:0;}
+.am-split-container.col .am-cbed-expand-rail{flex:0 0 28px;width:auto;border-right:0;border-bottom:1px solid var(--am-color-divider,#d0d7de);}
 /* 言語別の実プレビュー（html 等を renderCodeBlockPreview で描画）はコード表示用の
    monospace / white-space:pre を解除し、通常フローでレンダリングする。 */
 .am-cbed-preview.am-cbed-preview--rendered{display:block;font-family:inherit;white-space:normal;}
@@ -177,6 +185,71 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
     isDark,
     t,
   });
+  const divider = split.el.querySelector<HTMLElement>(".am-split-divider");
+  let codePaneCollapsed = false;
+  let lastExpandedLeftWidth = split.left.style.width;
+  const collapseLabel = t("collapseCodePane");
+  const expandLabel = t("expandCodePane");
+  const collapseBtn = document.createElement("button");
+  collapseBtn.type = "button";
+  collapseBtn.className = "am-cbed-pane-toggle";
+  collapseBtn.setAttribute("aria-label", collapseLabel);
+  collapseBtn.setAttribute("aria-expanded", "true");
+  collapseBtn.title = collapseLabel;
+  collapseBtn.textContent = "◀";
+
+  const expandRail = document.createElement("div");
+  expandRail.className = "am-cbed-expand-rail";
+  const expandBtn = document.createElement("button");
+  expandBtn.type = "button";
+  expandBtn.className = "am-cbed-pane-toggle";
+  expandBtn.setAttribute("aria-label", expandLabel);
+  expandBtn.setAttribute("aria-expanded", "false");
+  expandBtn.title = expandLabel;
+  expandBtn.textContent = "▶";
+  expandRail.appendChild(expandBtn);
+  split.el.insertBefore(expandRail, split.right);
+
+  const paneMq = createMediaQuery("(max-width:899.95px)");
+  const isNarrowSplit = (): boolean => paneMq.matches || globalThis.innerWidth < 900;
+  const notifyPreviewResize = (): void => {
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+  };
+  const applyCodePaneCollapse = (collapsed: boolean): void => {
+    codePaneCollapsed = collapsed;
+    if (collapsed) {
+      lastExpandedLeftWidth = split.left.style.width || lastExpandedLeftWidth;
+      split.left.style.display = "none";
+      if (divider) divider.style.display = "none";
+      expandRail.style.display = "flex";
+      collapseBtn.setAttribute("aria-expanded", "false");
+      expandBtn.setAttribute("aria-expanded", "false");
+    } else {
+      split.left.style.display = "";
+      split.left.style.width = isNarrowSplit() ? "" : lastExpandedLeftWidth;
+      if (divider) divider.style.display = isNarrowSplit() ? "none" : "";
+      expandRail.style.display = "none";
+      collapseBtn.setAttribute("aria-expanded", "true");
+      expandBtn.setAttribute("aria-expanded", "true");
+    }
+    notifyPreviewResize();
+  };
+  const paneMqUnsub = paneMq.subscribe(() => {
+    if (codePaneCollapsed) {
+      split.left.style.display = "none";
+      if (divider) divider.style.display = "none";
+      expandRail.style.display = "flex";
+    } else {
+      split.left.style.display = "";
+      split.left.style.width = isNarrowSplit() ? "" : lastExpandedLeftWidth;
+      if (divider) divider.style.display = isNarrowSplit() ? "none" : "";
+    }
+    notifyPreviewResize();
+  });
+  collapseBtn.addEventListener("click", () => applyCodePaneCollapse(true));
+  expandBtn.addEventListener("click", () => applyCodePaneCollapse(false));
 
   // ---- 左: コードエリア + サンプルパネル ----
   const lnt = createLineNumberTextarea({
@@ -244,14 +317,23 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
         }
       },
     });
-    split.left.appendChild(tabs.el);
+    const topbar = document.createElement("div");
+    topbar.className = "am-cbed-left-topbar";
+    topbar.appendChild(tabs.el);
+    topbar.appendChild(collapseBtn);
+    split.left.appendChild(topbar);
     split.left.appendChild(lnt.el);
     split.left.appendChild(auxContainer);
     if (samplePanelEl) split.left.appendChild(samplePanelEl);
   } else {
     const codeHeader = document.createElement("div");
-    codeHeader.style.cssText = `display:flex;align-items:center;padding:4px 8px;border-bottom:1px solid ${getDivider(isDark)};flex-shrink:0;font-size:${FS_PANEL_HEADER_FONT_SIZE};`;
-    codeHeader.textContent = t("codeTab");
+    codeHeader.className = "am-cbed-left-topbar";
+    codeHeader.style.borderBottomColor = getDivider(isDark);
+    const codeTitle = document.createElement("span");
+    codeTitle.className = "am-cbed-left-title";
+    codeTitle.textContent = t("codeTab");
+    codeHeader.appendChild(codeTitle);
+    codeHeader.appendChild(collapseBtn);
     split.left.appendChild(codeHeader);
     split.left.appendChild(lnt.el);
     if (samplePanelEl) split.left.appendChild(samplePanelEl);
@@ -394,6 +476,8 @@ export function createCodeBlockEditDialog(opts: CreateCodeBlockEditDialogOptions
         sidePanelCleanup();
         sidePanelCleanup = undefined;
       }
+      paneMqUnsub();
+      paneMq.destroy();
       unsub();
       split.destroy();
       dlg.destroy();
