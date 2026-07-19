@@ -11,6 +11,10 @@ import {
   ticketFileName,
   buildTicketBody,
   appendComment,
+  parseComments,
+  splitCommentsSection,
+  joinCommentsSection,
+  replaceCommentText,
   countSubtasks,
   type TicketFrontmatter,
 } from '../ticketModel';
@@ -342,6 +346,113 @@ describe('appendComment', () => {
     body = appendComment(body, { author: 'a', timestamp: stamp, text: '1件目' });
     body = appendComment(body, { author: 'b', timestamp: stamp, text: '2件目' });
     expect(body.indexOf('1件目')).toBeLessThan(body.indexOf('2件目'));
+  });
+});
+
+describe('parseComments', () => {
+  const stamp = '2026-07-19T03:00:00.000Z';
+
+  it('appendComment で積んだコメントを順序どおり構造化する', () => {
+    let body = buildTicketBody();
+    body = appendComment(body, { author: 'user', timestamp: stamp, text: '回答: 承認します。' });
+    body = appendComment(body, { author: 'agent', timestamp: stamp, text: '質問: 仕様は A ですか。\n\n複数行目。' });
+    const comments = parseComments(body);
+    expect(comments).toHaveLength(2);
+    expect(comments[0]).toEqual({ author: 'user', timestamp: stamp, text: '回答: 承認します。' });
+    expect(comments[1].author).toBe('agent');
+    expect(comments[1].text).toContain('複数行目。');
+  });
+
+  it('Comments セクションが無ければ空配列', () => {
+    expect(parseComments('## 概要 (Description)\n\nx\n')).toEqual([]);
+    expect(parseComments(buildTicketBody())).toEqual([]);
+  });
+
+  it('日時形式でない ### 見出しはコメント境界にしない（本文中の ### を巻き込まない）', () => {
+    let body = buildTicketBody();
+    body = appendComment(body, {
+      author: 'agent',
+      timestamp: stamp,
+      text: 'コード例:\n\n### 見出しではない行 - メモ\n\n末尾。',
+    });
+    const comments = parseComments(body);
+    expect(comments).toHaveLength(1);
+    expect(comments[0].text).toContain('### 見出しではない行 - メモ');
+    expect(comments[0].text).toContain('末尾。');
+  });
+
+  it('スペースを含む旧形式の投稿者名（ログイン名等）も解析できる', () => {
+    let body = buildTicketBody();
+    body = appendComment(body, { author: 'Kiyotaka Ueda', timestamp: stamp, text: '旧形式。' });
+    const comments = parseComments(body);
+    expect(comments).toHaveLength(1);
+    expect(comments[0].author).toBe('Kiyotaka Ueda');
+  });
+});
+
+describe('splitCommentsSection / joinCommentsSection', () => {
+  const stamp = '2026-07-19T03:00:00.000Z';
+
+  it('分離→再結合で parse 結果と本文が保存される（ラウンドトリップ）', () => {
+    let body = buildTicketBody();
+    body = appendComment(body, { author: 'user', timestamp: stamp, text: '1件目' });
+    body = appendComment(body, { author: 'agent', timestamp: stamp, text: '2件目' });
+    const { content, commentsSection } = splitCommentsSection(body);
+    expect(content).not.toContain('コミュニケーションスレッド');
+    expect(content).toContain('## 概要 (Description)');
+    expect(commentsSection).toContain('## コミュニケーションスレッド (Comments)');
+    const rejoined = joinCommentsSection(content, commentsSection);
+    expect(parseComments(rejoined)).toEqual(parseComments(body));
+    expect(rejoined).toContain('## 概要 (Description)');
+    expect(rejoined).toContain('1件目');
+  });
+
+  it('Comments セクションが無い本文は content のみ・section は空文字', () => {
+    const body = '## 概要 (Description)\n\nx\n';
+    const { content, commentsSection } = splitCommentsSection(body);
+    expect(commentsSection).toBe('');
+    expect(joinCommentsSection(content, commentsSection).trim()).toBe(body.trim());
+  });
+
+  it('Comments が中間セクションでも後続セクションを content に残す', () => {
+    let body = buildTicketBody();
+    body = appendComment(body, { author: 'user', timestamp: stamp, text: '中間コメント' });
+    const withTail = `${body.trimEnd()}\n\n## 追加メモ (Notes)\n\n後続本文\n`;
+    const { content, commentsSection } = splitCommentsSection(withTail);
+    expect(content).toContain('## 追加メモ (Notes)');
+    expect(content).toContain('後続本文');
+    expect(commentsSection).toContain('中間コメント');
+  });
+});
+
+describe('replaceCommentText', () => {
+  const stamp = '2026-07-19T03:00:00.000Z';
+
+  it('指定 index のコメント本文だけ置換し author・日時・他コメントは不変', () => {
+    let body = buildTicketBody();
+    body = appendComment(body, { author: 'user', timestamp: stamp, text: '修正前。' });
+    body = appendComment(body, { author: 'agent', timestamp: stamp, text: '据え置き。' });
+    const next = replaceCommentText(body, 0, '修正後の本文。\n\n2 段落目。');
+    expect(next).not.toBeNull();
+    const comments = parseComments(next ?? '');
+    expect(comments[0]).toEqual({ author: 'user', timestamp: stamp, text: '修正後の本文。\n\n2 段落目。' });
+    expect(comments[1]).toEqual({ author: 'agent', timestamp: stamp, text: '据え置き。' });
+  });
+
+  it('範囲外 index は null を返し本文を変更しない', () => {
+    let body = buildTicketBody();
+    body = appendComment(body, { author: 'user', timestamp: stamp, text: 'x' });
+    expect(replaceCommentText(body, 5, 'y')).toBeNull();
+    expect(replaceCommentText(body, -1, 'y')).toBeNull();
+  });
+
+  it('Comments 以外のセクションを変更しない', () => {
+    let body = `${buildTicketBody().trimEnd()}\n\n## 追加メモ (Notes)\n\n後続本文\n`;
+    body = appendComment(body, { author: 'user', timestamp: stamp, text: '対象' });
+    const next = replaceCommentText(body, 0, '置換済み');
+    expect(next).toContain('## 追加メモ (Notes)');
+    expect(next).toContain('後続本文');
+    expect(next).toContain('## 概要 (Description)');
   });
 });
 

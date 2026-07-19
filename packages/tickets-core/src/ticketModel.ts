@@ -395,6 +395,94 @@ export function appendComment(body: string, comment: TicketComment): string {
   return `${before}\n\n${entry}${tail}`;
 }
 
+// Why not: 単なる `^### ` をコメント境界にすると、コメント本文へ書かれたコード例・見出し風の
+// 行を別コメントに分割してしまう。appendComment が書く「### <投稿者> - <ISO UTC 日時>」の
+// 日時部分まで一致した行だけを境界とする（投稿者名にスペース・日本語・ハイフンを許すため
+// 区切りは末尾の日時形式で判定する）。
+const COMMENT_HEADER_RE = /^###\s+(.+)\s-\s(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)\s*$/;
+
+interface CommentBlock extends TicketComment {
+  /** Comments セクション内の行 index（ヘッダー行） */
+  headerLine: number;
+  /** ブロック終端（次ヘッダー行 or セクション末尾・exclusive） */
+  endLine: number;
+}
+
+function scanCommentBlocks(body: string): { lines: string[]; range: { start: number; end: number } | null; blocks: CommentBlock[] } {
+  const lines = body.split('\n');
+  const range = findSectionRange(body, /Comments|コミュニケーションスレッド/);
+  if (!range) {
+    return { lines, range: null, blocks: [] };
+  }
+  const blocks: CommentBlock[] = [];
+  for (let i = range.start + 1; i < range.end; i += 1) {
+    const match = COMMENT_HEADER_RE.exec(lines[i]);
+    if (!match) {
+      continue;
+    }
+    if (blocks.length > 0) {
+      blocks[blocks.length - 1].endLine = i;
+    }
+    blocks.push({ author: match[1], timestamp: match[2], text: '', headerLine: i, endLine: range.end });
+  }
+  for (const block of blocks) {
+    block.text = lines.slice(block.headerLine + 1, block.endLine).join('\n').trim();
+  }
+  return { lines, range, blocks };
+}
+
+/**
+ * Comments セクションを「投稿者 - 日時」単位の構造化リストへ解析する。
+ * セクションが無い・コメントが無い場合は空配列を返す。
+ */
+export function parseComments(body: string): TicketComment[] {
+  return scanCommentBlocks(body).blocks.map(({ author, timestamp, text }) => ({ author, timestamp, text }));
+}
+
+/**
+ * 本文を Comments セクション（見出し含む）とそれ以外へ分離する。
+ * コメントの表示・編集を専用 UI に寄せ、本文編集の対象から Comments を外すための分離点。
+ * セクションが無い場合は `commentsSection` を空文字で返す。
+ */
+export function splitCommentsSection(body: string): { content: string; commentsSection: string } {
+  const { lines, range } = scanCommentBlocks(body);
+  if (!range) {
+    return { content: body, commentsSection: '' };
+  }
+  const pre = lines.slice(0, range.start).join('\n').trimEnd();
+  const post = lines.slice(range.end).join('\n').trim();
+  const content = post === '' ? `${pre}\n` : `${pre}\n\n${post}\n`;
+  const commentsSection = `${lines.slice(range.start, range.end).join('\n').trimEnd()}\n`;
+  return { content, commentsSection };
+}
+
+/**
+ * splitCommentsSection の逆操作。Comments セクションは常に本文末尾へ結合する
+ * （テンプレート上も Comments は最終セクション。中間位置は正規化される）。
+ */
+export function joinCommentsSection(content: string, commentsSection: string): string {
+  if (commentsSection === '') {
+    return content;
+  }
+  return `${content.trimEnd()}\n\n${commentsSection.trimEnd()}\n`;
+}
+
+/**
+ * 指定 index（parseComments の並び順）のコメント本文テキストのみ置換する。
+ * author・日時・他コメント・他セクションは変更しない。index が範囲外なら null
+ * （silent に原文を返すと「保存できたのに変わらない」に見えるため、呼び出し側でエラー表示させる）。
+ */
+export function replaceCommentText(body: string, index: number, text: string): string | null {
+  const { lines, blocks } = scanCommentBlocks(body);
+  if (index < 0 || index >= blocks.length) {
+    return null;
+  }
+  const target = blocks[index];
+  const replacement = ['', text.trim(), ''];
+  const next = [...lines.slice(0, target.headerLine + 1), ...replacement, ...lines.slice(target.endLine)];
+  return next.join('\n');
+}
+
 /** 作業タスクリストセクション内のチェックボックス（`- [x]` / `- [ ]`）を集計する。 */
 export function countSubtasks(body: string): { done: number; total: number } {
   const range = findSectionRange(body, /Subtasks|作業タスクリスト/);

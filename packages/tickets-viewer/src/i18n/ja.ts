@@ -80,6 +80,10 @@ export const ticketsMessagesJa = {
     commentHeading: "コメント",
     commentPlaceholder: "コメントを追記(本文の Comments セクション末尾へコミットされます)",
     postComment: "コメントを投稿",
+    commentEmpty: "コメントはまだありません",
+    commentEdit: "編集",
+    commentEditSave: "コメントを保存",
+    commentEditCancel: "編集をやめる",
   },
   create: {
     heading: "新規チケット",
