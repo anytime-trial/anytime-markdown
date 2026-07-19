@@ -84,6 +84,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 高コスト×compact 未使用 `hygiene.expensiveNoCompact` | join | 上昇 |
 | 超長大×compact 未使用 `hygiene.longNoCompact` | sessions | 上昇 |
 | 高コストセッション数 `hygiene.expensiveSessions` | session_costs | 上昇 |
+| 料金表未登録モデル `unknownPricingModels`（既定単価で推計中） | session_costs | 1 件以上（trail-core `pricing.ts` の現行化トリガ。レポートで必ず言及する） |
 
 `topSessions` は前回スナップショットに無い `hygieneFlag='expensive-no-compact'` の新規セッションを特に注視する。`estimated_cost_usd` は推定値（サブスク枠の相対比較用）で、絶対額でなく**占有率・デルタ・集中度**で読む。
 

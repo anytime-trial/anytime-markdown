@@ -36,6 +36,7 @@ ls -1 <docsRoot>/report/weekly-research/ 2>/dev/null | sort -r | head -1
 ### 1. Claude Code / Anthropic
 - Claude Code の新機能・アップデート・リリースノート
 - Claude API の変更点（モデル追加・廃止・破壊的変更を含む）
+- Claude 各モデルの料金改定有無（改定・新モデル価格を検知したら trail-core `pricing.ts` の `MODEL_PRICING` 現行化を提案する。参照: proposal/20260719-model-pricing-accuracy）
 - Anthropic 公式ブログの新着記事
 
 ### 2. Codex / OpenAI
