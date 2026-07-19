@@ -14,7 +14,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   };
 }
 
-import { computeDailyActivityDataset, mountDailyActivityChart } from '../dailyActivityChart';
+import { computeDailyActivityDataset, computeOverlayDisplay, mountDailyActivityChart } from '../dailyActivityChart';
 import { mountDayCommitPrefixChart } from '../dayCommitPrefixChart';
 import { mountReleasesBarChart } from '../releasesBarChart';
 import { mountSessionErrorChart } from '../sessionErrorChart';
@@ -111,6 +111,51 @@ describe('computeDailyActivityDataset', () => {
     const items = buildItems(14);
     const dataset = computeDailyActivityDataset({ ...baseProps, items, period: 3, bucket: 'day' });
     expect(dataset.length).toBeLessThan(14);
+  });
+
+  it("mode='loc' は行数のみを載せ、トークン/コストと overlay を落とす", () => {
+    const items = buildItems(3);
+    const dataset = computeDailyActivityDataset({
+      ...baseProps, mode: 'loc', items, period: 30, bucket: 'day',
+    });
+    expect(dataset).toHaveLength(3);
+    expect(dataset[0].linesAdded).toBe(10);
+    expect(dataset[0].linesDeleted).toBe(5);
+    expect(dataset[0].inputTokens).toBe(0);
+    expect(dataset[0].actualCost).toBe(0);
+    // 分母が LOC 自身になるため tok/LOC overlay は出さない。
+    expect(dataset[0].overlayValue).toBeNull();
+  });
+
+  it("mode='tokens' は行数を載せず tok/LOC overlay を出す", () => {
+    const items = buildItems(3);
+    const dataset = computeDailyActivityDataset({ ...baseProps, items, period: 30, bucket: 'day' });
+    expect(dataset[0].linesAdded).toBe(0);
+    expect(dataset[0].linesDeleted).toBe(0);
+    // (100+100+100+100) / (10+5)
+    expect(dataset[0].overlayValue).toBeCloseTo(400 / 15);
+  });
+});
+
+describe('computeOverlayDisplay', () => {
+  const overlay = { bucket: 'day' as const, tokens: [], cost: [] };
+
+  it("mode='loc' は overlay データの有無にかかわらず overlay を描かない", () => {
+    expect(computeOverlayDisplay({ mode: 'loc', overlay, t }).hasOverlay).toBe(false);
+    expect(computeOverlayDisplay({ mode: 'loc', overlay: null, t }).hasOverlay).toBe(false);
+  });
+
+  it("mode='tokens' は overlay データが無くても tok/LOC を描く", () => {
+    const r = computeOverlayDisplay({ mode: 'tokens', overlay: null, t });
+    expect(r.hasOverlay).toBe(true);
+    expect(r.overlayLabel).toBe('chart.tokensPerLoc');
+  });
+
+  it("mode='cost' は overlay データがあるときだけ $/LOC を描く", () => {
+    expect(computeOverlayDisplay({ mode: 'cost', overlay, t })).toEqual({
+      hasOverlay: true, overlayLabel: 'chart.costPerLoc',
+    });
+    expect(computeOverlayDisplay({ mode: 'cost', overlay: null, t }).hasOverlay).toBe(false);
   });
 });
 

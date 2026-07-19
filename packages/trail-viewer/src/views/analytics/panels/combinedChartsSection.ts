@@ -495,8 +495,8 @@ export function mountCombinedChartsSection(
     rightGroup.style.cssText = 'display:inline-flex;align-items:center;gap:8px;';
 
     if (metric === 'tokens') {
-      const tokenModes: DailyViewMode[] = ['tokens', 'cost'];
-      const tokenModeLabels = [p.t('chart.tokens'), p.t('chart.cost')];
+      const tokenModes: DailyViewMode[] = ['tokens', 'cost', 'loc'];
+      const tokenModeLabels = [p.t('chart.tokens'), p.t('chart.cost'), p.t('chart.loc')];
       createBtnGroup(rightGroup, tokenModes, tokenModeLabels, tokenMode, (v) => {
         tokenMode = v as DailyViewMode;
         render(currentProps);

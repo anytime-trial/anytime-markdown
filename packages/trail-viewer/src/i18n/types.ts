@@ -157,6 +157,9 @@ export interface TrailI18n {
   'chart.tokens.description': string;
   'chart.cost': string;
   'chart.cost.description': string;
+  'chart.loc': string;
+  'chart.locAdded': string;
+  'chart.locDeleted': string;
   'chart.tokensPerLoc': string;
   'chart.costPerLoc': string;
   // cost optimization
