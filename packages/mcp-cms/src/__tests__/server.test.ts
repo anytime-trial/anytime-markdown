@@ -24,6 +24,7 @@ jest.mock('@anytime-markdown/cms-core', () => ({
     { key: 'docs/a.md', name: 'a.md', size: 200, lastModified: '2026-05-15T00:00:00.000Z' },
   ]),
   deleteDoc: jest.fn().mockResolvedValue(undefined),
+  readGoogleDoc: jest.fn(),
 }));
 
 import { createMcpServer } from '../server';
@@ -144,4 +145,52 @@ describe('mcp-cms integration', () => {
     });
     expect(result.isError).toBe(true);
   });
+
+describe('read_google_doc (GOOGLE_SERVICE_ACCOUNT_KEY_PATH 未設定)', () => {
+  test('未設定の場合、read_google_doc ツールは登録されない', async () => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH;
+    const server = createMcpServer();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const c = new Client({ name: 'test-client-2', version: '1.0.0' });
+    await c.connect(clientTransport);
+    const { tools } = await c.listTools();
+    expect(tools.map((t) => t.name)).not.toContain('read_google_doc');
+    await c.close();
+  });
+});
+
+describe('read_google_doc (GOOGLE_SERVICE_ACCOUNT_KEY_PATH 設定済み)', () => {
+  let keyPath: string;
+  let localClient: Client;
+
+  beforeEach(async () => {
+    keyPath = path.join(tmpDir, 'service-account.json');
+    await fs.writeFile(keyPath, JSON.stringify({ client_email: 'sa@p.iam.gserviceaccount.com', private_key: 'k' }));
+    process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH = keyPath;
+    (cmsCore.readGoogleDoc as jest.Mock).mockResolvedValue('doc text');
+
+    const server = createMcpServer();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    localClient = new Client({ name: 'test-client-3', version: '1.0.0' });
+    await localClient.connect(clientTransport);
+  });
+
+  afterEach(async () => {
+    await localClient.close();
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH;
+  });
+
+  test('鍵ファイルを読み、readGoogleDocへ委譲する', async () => {
+    const result = await localClient.callTool({ name: 'read_google_doc', arguments: { docRef: 'abc123' } });
+    expect(result.isError).not.toBe(true);
+    expect(cmsCore.readGoogleDoc).toHaveBeenCalledTimes(1);
+    const [input] = (cmsCore.readGoogleDoc as jest.Mock).mock.calls[0];
+    expect(input.docRef).toBe('abc123');
+    expect(JSON.parse(input.serviceAccountKeyJson).client_email).toBe('sa@p.iam.gserviceaccount.com');
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toBe('doc text');
+  });
+});
 });
