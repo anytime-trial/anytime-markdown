@@ -296,6 +296,29 @@ async function main() {
   const verdict = persistent.length > 0 ? "fail" : "pass";
   const vrtDiff = persistent.some((s) => s.tags.includes(VRT_TAG));
   const notesParts = [];
+  // S2: 主観品質の VLM 前処理（差分駆動 — VRT の persistent 失敗があるときのみ起動。合否権限なし）
+  if (vrtDiff) {
+    try {
+      const { collectVrtArtifacts, resolveDocsRoot, runVlmJudge } = await import("./vlm-judge.mjs");
+      const docsRoot = resolveDocsRoot(ROOT);
+      const rubricPath = docsRoot ? path.join(docsRoot, "spec/10.web-app/design.md") : null;
+      const artifacts = collectVrtArtifacts(path.join(WEB_APP_DIR, "test-results"));
+      const judge = await runVlmJudge({ rubricPath, artifacts });
+      fs.writeFileSync(path.join(WEB_APP_DIR, "test-results/vlm-judge.json"), `${JSON.stringify(judge, null, 2)}\n`);
+      const vlmSummary = judge.skipped
+        ? `vlm skipped (${judge.reason})`
+        : `vlm judged ${judge.results.length} screen(s): ${judge.results
+            .map((r) => (r.error ? `${r.name}=error` : `${r.name}=${r.score}/10`))
+            .join(", ")}`;
+      log("INFO", `vlm preprocessing: ${vlmSummary}`);
+      notesParts.push(vlmSummary);
+    } catch (e) {
+      // 前処理の失敗で受入判定を壊さない（判定は決定論側が持つ）。理由は notes に残す
+      const message = e instanceof Error ? e.message : String(e);
+      log("WARN", `vlm preprocessing crashed: ${message}`);
+      notesParts.push(`vlm crashed (${message})`);
+    }
+  }
   if (flaky.length > 0) notesParts.push(`flaky quarantined this run: ${flaky.map((s) => s.title).join(", ")}`);
   if (ticketsUnfiled > 0) notesParts.push(`flaky tickets NOT filed (ACCEPTANCE_TICKETS_DIR unset/missing): ${ticketsUnfiled}`);
   const payload = {
