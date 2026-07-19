@@ -61,5 +61,9 @@ export function extractRepoNameFromJsonl(filePath: string): string | null {
   return null;
 }
 
+// 正規化の実体は trail-core（viewer と共有する単一の正）。trail-db の既存利用箇所
+// （TrailDatabase.getCombinedData・テスト）向けに再エクスポートする。
+export { normalizeWorkspaceName } from '@anytime-markdown/trail-core/domain';
+
 // テストから直接検証したい場合に備えて export
 export const __internal = { deriveRepoNameFromCwd };

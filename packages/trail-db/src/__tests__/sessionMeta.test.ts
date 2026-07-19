@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { extractRepoNameFromJsonl } from '../sessionMeta';
+import { extractRepoNameFromJsonl, normalizeWorkspaceName } from '../sessionMeta';
 
 function writeJsonl(lines: ReadonlyArray<object | string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sessionMeta-test-'));
@@ -106,5 +106,35 @@ describe('extractRepoNameFromJsonl', () => {
   it('strips trailing slash before taking basename', () => {
     const file = writeJsonl([{ type: 'user', cwd: '/anytime-trade/' }]);
     expect(extractRepoNameFromJsonl(file)).toBe('anytime-trade');
+  });
+});
+
+describe('normalizeWorkspaceName', () => {
+  it('returns plain repo names unchanged', () => {
+    expect(normalizeWorkspaceName('anytime-markdown')).toBe('anytime-markdown');
+  });
+
+  it('strips --claude-worktrees- suffix to the parent repo name', () => {
+    expect(
+      normalizeWorkspaceName('anytime-markdown--claude-worktrees-recall-trial--recall-src-scripts'),
+    ).toBe('anytime-markdown');
+  });
+
+  it('strips --worktrees- suffix to the parent repo name', () => {
+    expect(normalizeWorkspaceName('anytime-trade--worktrees-term-help-tooltip')).toBe(
+      'anytime-trade',
+    );
+  });
+
+  it('keeps names where stripping would leave nothing', () => {
+    expect(normalizeWorkspaceName('--worktrees-orphan')).toBe('--worktrees-orphan');
+  });
+
+  it('keeps empty string as-is', () => {
+    expect(normalizeWorkspaceName('')).toBe('');
+  });
+
+  it('does not treat single-dash -worktrees- as a worktree suffix', () => {
+    expect(normalizeWorkspaceName('repo-worktrees-history')).toBe('repo-worktrees-history');
   });
 });
