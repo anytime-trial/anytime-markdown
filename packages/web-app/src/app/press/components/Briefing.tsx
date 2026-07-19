@@ -3,9 +3,13 @@ import type { ReactNode } from 'react';
 
 import styles from '../press.module.css';
 import { ProcessFlow } from './ProcessFlow';
+import { ToolchainCaravan } from './ToolchainCaravan';
 
 interface BriefingItem {
-  num: string;
+  /** 連番。アイコンを出す節（プロセス節）では番号を出さない */
+  num?: string;
+  /** 番号の代わりに置く拡張機能アイコンの URL */
+  icon?: string;
   head: string;
   body: string;
   verdict: string;
@@ -18,6 +22,10 @@ interface BriefingWithEmbedProps {
   /** 未指定ならウィンドウ枠（トラフィックライト）を出さず、埋め込みを素の枠内に置く */
   embedTitle?: string;
   embedActions?: ReactNode;
+  /** 箇条書きの上に置く補足。プロセス節では関係図（隊商のイラスト）を差し込む */
+  mainIntro?: ReactNode;
+  /** true で埋め込みを右カラムへ回し、左右を等幅にする（プロセス節: 左=イラスト・右=フロー図） */
+  reversed?: boolean;
   title: ReactNode;
 }
 
@@ -32,7 +40,12 @@ const TRAFFIC_LIGHT_COLORS = ['#FF5F57', '#FFBD2E', '#28C840'] as const;
 const TRAIL_KEYS = ['trail1', 'trail2', 'trail3', 'trail4', 'trail5', 'trail6', 'trail7', 'trail8', 'trail9', 'trail10', 'trail11', 'trail12', 'trail13', 'trail14', 'trail15', 'trail16', 'trail17', 'trail18', 'trail19', 'trail20', 'trail21', 'trail22', 'trail23', 'trail24', 'trail25', 'trail26'] as const;
 const MARKDOWN_KEYS = ['md3', 'md1', 'md2'] as const;
 const AGENT_KEYS = ['agent1', 'agent2', 'agent3'] as const;
-const PROCESS_EXT_KEYS = ['ext1', 'ext2', 'ext3'] as const;
+/** プロセス節の 3 拡張。番号ではなく拡張機能アイコンを見出しに出す */
+const PROCESS_EXTS = [
+  { key: 'ext1', icon: '/images/anytime-agent-128.png' },
+  { key: 'ext2', icon: '/images/anytime-control-256.png' },
+  { key: 'ext3', icon: '/images/camel_markdown.png' },
+] as const;
 const ROMAN = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'] as const;
 
 function BriefingWithEmbed({
@@ -41,10 +54,15 @@ function BriefingWithEmbed({
   embed,
   embedTitle,
   embedActions,
+  mainIntro,
+  reversed,
   title,
 }: Readonly<BriefingWithEmbedProps>) {
+  const sectionClass = reversed
+    ? `${styles.briefingWithEmbed} ${styles.briefingReversed}`
+    : styles.briefingWithEmbed;
   return (
-    <section className={styles.briefingWithEmbed} id={id}>
+    <section className={sectionClass} id={id}>
       <header className={styles.briefingHeader}>
         <span className={styles.briefingHeaderTitle}>{title}</span>
       </header>
@@ -70,10 +88,16 @@ function BriefingWithEmbed({
         ) : null}
       </div>
       <div className={styles.briefingMain}>
+        {mainIntro}
         <ul className={`${styles.briefingList} ${styles.briefingListInline}`}>
           {items.map((item) => (
-            <li key={item.num}>
-              <span className={styles.briefingNum}>{item.num}</span>
+            <li key={item.head}>
+              {item.icon ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.icon} alt="" className={styles.briefingHeadIcon} />
+              ) : (
+                <span className={styles.briefingNum}>{item.num}</span>
+              )}
               <div className={styles.briefingHead}>
                 {item.head}
                 <p>{item.body}</p>
@@ -90,8 +114,8 @@ function BriefingWithEmbed({
 export function BriefingProcess() {
   const t = useTranslations('press.process');
   const tBriefing = useTranslations('press.briefing');
-  const items: BriefingItem[] = PROCESS_EXT_KEYS.map((key, idx) => ({
-    num: ROMAN[idx],
+  const items: BriefingItem[] = PROCESS_EXTS.map(({ key, icon }) => ({
+    icon,
     head: t(`${key}Title`),
     body: t(`${key}Body`),
     verdict: tBriefing('shipped'),
@@ -101,6 +125,8 @@ export function BriefingProcess() {
       id="process"
       items={items}
       embed={<ProcessFlow />}
+      mainIntro={<ToolchainCaravan />}
+      reversed
       title={
         <>
           {t('header')} <em>{t('headerEm')}</em> {t('subtitle')}
