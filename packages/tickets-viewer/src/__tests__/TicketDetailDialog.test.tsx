@@ -24,7 +24,7 @@ jest.mock("next-intl", () => {
 
 import { TicketDetailDialog } from "../components/TicketDetailDialog";
 import { ticketsMessagesJa } from "../i18n/ja";
-import type { TicketItem } from "../ticketsClient";
+import type { SaveTicketInput, TicketItem } from "../ticketsClient";
 
 const TICKET: TicketItem = {
   path: ".tickets/T-1-first.md",
@@ -203,6 +203,161 @@ describe("TicketDetailDialog の保存後クローズ", () => {
 
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+const BODY_WITH_COMMENTS = [
+  "## 概要 (Description)",
+  "",
+  "説明本文",
+  "",
+  "## コミュニケーションスレッド (Comments)",
+  "",
+  "### agent - 2026-07-19T01:00:00.000Z",
+  "",
+  "質問: 仕様は A ですか。",
+  "",
+  "### user - 2026-07-19T02:00:00.000Z",
+  "",
+  "回答: A で承認します。",
+  "",
+].join("\n");
+
+const COMMENTED: TicketItem = { ...TICKET, body: BODY_WITH_COMMENTS };
+
+function setTextareaValue(element: HTMLTextAreaElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+  setter?.call(element, value);
+  element.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+describe("TicketDetailDialog のコメントスレッド", () => {
+  it("コメント単位で表示され、既定は最新 1 件のみ展開", () => {
+    render({ ticket: COMMENTED, allTickets: [COMMENTED] });
+
+    const headers = Array.from(container.querySelectorAll<HTMLButtonElement>(".tk-comment-item-header"));
+    expect(headers).toHaveLength(2);
+    expect(headers[0].getAttribute("aria-expanded")).toBe("false");
+    expect(headers[1].getAttribute("aria-expanded")).toBe("true");
+    expect(container.textContent).toContain("回答: A で承認します。");
+    expect(container.textContent).not.toContain("質問: 仕様は A ですか。");
+  });
+
+  it("折りたたみヘッダーをクリックすると展開される", () => {
+    render({ ticket: COMMENTED, allTickets: [COMMENTED] });
+
+    const headers = Array.from(container.querySelectorAll<HTMLButtonElement>(".tk-comment-item-header"));
+    act(() => {
+      headers[0].click();
+    });
+
+    expect(headers[0].getAttribute("aria-expanded")).toBe("true");
+    expect(container.textContent).toContain("質問: 仕様は A ですか。");
+  });
+
+  it("user のコメントにのみ編集ボタンが出る（agent のコメントは閲覧のみ）", () => {
+    render({ ticket: COMMENTED, allTickets: [COMMENTED] });
+
+    const headers = Array.from(container.querySelectorAll<HTMLButtonElement>(".tk-comment-item-header"));
+    // 両方展開して編集ボタンの有無を比較する
+    act(() => {
+      headers[0].click();
+    });
+
+    const items = Array.from(container.querySelectorAll(".tk-comment-item"));
+    const editLabel = ticketsMessagesJa.detail.commentEdit;
+    const buttonsIn = (item: Element) =>
+      Array.from(item.querySelectorAll("button")).map((button) => button.textContent?.trim());
+    expect(buttonsIn(items[0])).not.toContain(editLabel); // agent
+    expect(buttonsIn(items[1])).toContain(editLabel); // user
+  });
+
+  it("アーカイブ済みは全コメント閲覧のみ（編集ボタンなし）", () => {
+    const archived = { ...COMMENTED, archived: true };
+    render({ ticket: archived, allTickets: [archived] });
+
+    expect(container.textContent).toContain(ticketsMessagesJa.detail.commentHeading);
+    const buttons = Array.from(container.querySelectorAll("button")).map((button) => button.textContent?.trim());
+    expect(buttons).not.toContain(ticketsMessagesJa.detail.commentEdit);
+  });
+
+  it("コメント編集の保存は本文テキストのみ置換し author・日時を変えない", async () => {
+    const onSave = jest.fn(async (_input: SaveTicketInput) => true);
+    render({ ticket: COMMENTED, allTickets: [COMMENTED], onSave });
+
+    act(() => {
+      findButton(ticketsMessagesJa.detail.commentEdit).click();
+    });
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      `textarea[aria-label="${ticketsMessagesJa.detail.commentEdit}"]`,
+    );
+    expect(textarea?.value).toBe("回答: A で承認します。");
+    act(() => {
+      if (textarea) {
+        setTextareaValue(textarea, "回答: B へ変更します。");
+      }
+    });
+    await act(async () => {
+      findButton(ticketsMessagesJa.detail.commentEditSave).click();
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.body).toContain("回答: B へ変更します。");
+    expect(saved.body).not.toContain("回答: A で承認します。");
+    expect(saved.body).toContain("### user - 2026-07-19T02:00:00.000Z");
+    expect(saved.body).toContain("### agent - 2026-07-19T01:00:00.000Z");
+    expect(saved.body).toContain("質問: 仕様は A ですか。");
+  });
+
+  it("本文プレビュー・本文編集は Comments セクションを含まない", () => {
+    const seen: string[] = [];
+    render({
+      ticket: COMMENTED,
+      allTickets: [COMMENTED],
+      renderBody: (markdown) => {
+        seen.push(markdown);
+        return <div>{markdown}</div>;
+      },
+    });
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0]).toContain("説明本文");
+    expect(seen[0]).not.toContain("コミュニケーションスレッド");
+    expect(seen[0]).not.toContain("### agent");
+  });
+
+  it("本文の保存時に Comments セクションを再結合する（コメントを失わない）", async () => {
+    const onSave = jest.fn(async (_input: SaveTicketInput) => true);
+    render({ ticket: COMMENTED, allTickets: [COMMENTED], onSave });
+
+    await act(async () => {
+      findButton(ticketsMessagesJa.detail.save).click();
+    });
+
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.body).toContain("説明本文");
+    expect(saved.body).toContain("## コミュニケーションスレッド (Comments)");
+    expect(saved.body).toContain("質問: 仕様は A ですか。");
+    expect(saved.body).toContain("回答: A で承認します。");
+  });
+
+  it("コメント投稿の author は user 固定（ログイン名を使わない）", async () => {
+    const onComment = jest.fn(async (_ticket: TicketItem, _author: string, _text: string) => true);
+    render({ ticket: COMMENTED, allTickets: [COMMENTED], onComment, currentUser: "Kiyotaka Ueda" });
+
+    const postArea = container.querySelector<HTMLTextAreaElement>("#tk-detail-comment");
+    act(() => {
+      if (postArea) {
+        setTextareaValue(postArea, "追記します。");
+      }
+    });
+    await act(async () => {
+      findButton(ticketsMessagesJa.detail.postComment).click();
+    });
+
+    expect(onComment).toHaveBeenCalledTimes(1);
+    expect(onComment.mock.calls[0][1]).toBe("user");
   });
 });
 
