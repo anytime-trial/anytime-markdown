@@ -81,6 +81,8 @@ import {
   extractSkillName,
   isAiFirstTryFailureCommit,
   isCodeFile,
+  isCountableModel,
+  isKnownPricingModel,
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
@@ -5499,14 +5501,24 @@ export class TrailDatabase {
        GROUP BY m.session_id, m.model, s.source`,
     );
     const stmt = db.prepare(INSERT_SESSION_COST);
+    const unknownModels = new Set<string>();
     for (const row of result[0]?.values ?? []) {
       const sid = String(row[0]); const m = String(row[1]); const source = String(row[2]) as PricingSource;
+      // '<synthetic>' 等の番兵値はモデル別コストの対象外（トークンも常に 0）
+      if (!isCountableModel(m)) continue;
       const inp = Number(row[3]); const outp = Number(row[4]);
       const cr = Number(row[5]); const cc = Number(row[6]);
+      if (m !== '' && !isKnownPricingModel(m, source)) unknownModels.add(m);
       const billingModel = resolvePricingModelName(m, source);
       stmt.run([sid, billingModel, inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc, source)]);
     }
     stmt.free();
+    if (unknownModels.size > 0) {
+      // 料金表に無いモデルは既定単価で推計される。新モデル追加時は trail-core pricing.ts を現行化する
+      this.logger.warn(
+        `rebuildSessionCosts: unknown pricing model(s), default rates applied: ${[...unknownModels].join(', ')}`,
+      );
+    }
   }
 
   /**
@@ -5730,7 +5742,10 @@ export class TrailDatabase {
     );
     for (const row of modelCounts[0]?.values ?? []) {
       const source = String(row[1]) as PricingSource;
-      const model = resolvePricingModelName(asText(row[2] ?? ''), source);
+      const rawModel = asText(row[2] ?? '');
+      // '<synthetic>' 等の番兵値はモデル別系列に出さない（チャート凡例のノイズ源）
+      if (!isCountableModel(rawModel)) continue;
+      const model = resolvePricingModelName(rawModel, source);
       runWithDateGuard(asText(row[0] ?? ''), ['model', model, Number(row[3] ?? 0), Number(row[4] ?? 0), 0, 0, 0, 0, 0, 0]);
     }
 

@@ -17,12 +17,22 @@ describe('estimateCost', () => {
 
   it('should calculate opus cost with model-specific rates', () => {
     const result = estimateCost('claude-opus-4-6', 1_000_000, 1_000_000, 1_000_000, 1_000_000);
+    expect(result).toBeCloseTo(36.75); // 5 + 25 + 0.5 + 6.25（Opus 4.5 以降の現行価格）
+  });
+
+  it('should calculate legacy opus cost for pre-4.5 generations', () => {
+    const result = estimateCost('claude-opus-4-1-20250805', 1_000_000, 1_000_000, 1_000_000, 1_000_000);
     expect(result).toBeCloseTo(110.25); // 15 + 75 + 1.5 + 18.75
   });
 
   it('should calculate haiku cost with model-specific rates', () => {
     const result = estimateCost('claude-haiku-4-5', 1_000_000, 1_000_000, 1_000_000, 1_000_000);
-    expect(result).toBeCloseTo(5.88); // 0.8 + 4 + 0.08 + 1.0
+    expect(result).toBeCloseTo(7.35); // 1 + 5 + 0.1 + 1.25（Haiku 4.5 の現行価格）
+  });
+
+  it('should calculate fable cost at its own rates, not the sonnet fallback', () => {
+    const result = estimateCost('claude-fable-5', 1_000_000, 1_000_000, 1_000_000, 1_000_000);
+    expect(result).toBeCloseTo(73.5); // 10 + 50 + 1 + 12.5
   });
 
   it('should fallback to sonnet rates for unknown models', () => {
@@ -32,7 +42,8 @@ describe('estimateCost', () => {
 
   it('should match opus by partial name', () => {
     const result = estimateCost('some-opus-variant', 1_000_000, 0, 0, 0);
-    expect(result).toBeCloseTo(15.0);
+    expect(result).toBeCloseTo(5.0); // 世代情報なしの opus は現行世代（4.5 以降）に解決
+
   });
 
   it('should use Codex pricing when the session source is codex', () => {
