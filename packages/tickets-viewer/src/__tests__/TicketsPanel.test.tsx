@@ -32,7 +32,7 @@ const DATA: TicketsData = {
   tickets: [
     {
       path: ".tickets/T-1-first.md",
-      sha: "s1",
+      version: "s1",
       frontmatter: {
         id: "T-1",
         title: "最初のチケット",
@@ -52,7 +52,7 @@ const DATA: TicketsData = {
     },
     {
       path: ".tickets/T-2-second.md",
-      sha: "s2",
+      version: "s2",
       frontmatter: {
         id: "T-2",
         title: "2件目",
@@ -66,7 +66,7 @@ const DATA: TicketsData = {
       archived: false,
     },
   ],
-  invalid: [{ path: ".tickets/broken.md", sha: "s3", reason: "フロントマターがありません" }],
+  invalid: [{ path: ".tickets/broken.md", version: "s3", reason: "フロントマターがありません" }],
 };
 
 function mockFetchOnce(data: unknown): jest.Mock {

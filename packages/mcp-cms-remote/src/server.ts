@@ -20,8 +20,9 @@ import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   TICKET_WORKSPACES,
-  createTicket,
+  createTicketProvider,
   type CreateTicketInput,
+  type TicketProviderConfig,
   type TicketAssignee,
   type TicketPriority,
   type TicketStatus,
@@ -42,13 +43,8 @@ interface PapersConfig {
   mailto: string;
 }
 
-/** チケットリポジトリ（GitHub）への登録設定。全項目が揃った場合のみ create_ticket を登録する */
-export interface TicketsConfig {
-  token: string;
-  /** `owner/repo` 形式 */
-  repo: string;
-  branch: string;
-}
+/** チケット正本ストア（TicketProvider）への登録設定。設定が揃った場合のみ create_ticket を登録する */
+export type TicketsConfig = TicketProviderConfig;
 
 type ToolArgs = Record<string, unknown>;
 type ToolResult = { content: Array<{ type: 'text'; text: string }> };
@@ -248,7 +244,7 @@ export function createRemoteMcpServer(
 
   if (ticketsConfig) {
     registerTool(server, 'create_ticket',
-      'Register a new ticket into the ticket management system (.tickets/ in the GitHub ticket repository). ID is auto-numbered.',
+      'Register a new ticket into the ticket management system (default provider: .tickets/ in the GitHub ticket repository). ID is auto-numbered.',
       createTicketParams, async (args) => {
         const input: CreateTicketInput = {
           title: args.title as string,
@@ -262,7 +258,7 @@ export function createRemoteMcpServer(
         if (args.workspace !== undefined) input.workspace = args.workspace as TicketWorkspace;
         if (args.dependencies !== undefined) input.dependencies = args.dependencies as string[];
         if (args.estimate !== undefined) input.estimate = args.estimate as number;
-        const created = await createTicket({ ...ticketsConfig, input });
+        const created = await createTicketProvider(ticketsConfig).create(input);
         return {
           content: [{
             type: 'text',

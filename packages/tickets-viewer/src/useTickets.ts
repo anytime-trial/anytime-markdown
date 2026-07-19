@@ -42,7 +42,8 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<{ message: string; conflict: boolean } | null>(null);
 
-  const configKey = config ? `${config.repo} ${config.branch}` : "";
+  // provider も取得先を決めるキー（含めないと provider 切替時に旧プロバイダの一覧が残る）
+  const configKey = config ? `${config.repo} ${config.branch} ${config.provider ?? ""}` : "";
 
   const reload = useCallback(async () => {
     if (!config) {
@@ -98,7 +99,7 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
           current
             ? replaceTicket(current, input.path, {
                 path: input.path,
-                sha: result.sha,
+                version: result.version,
                 frontmatter: { ...input.frontmatter, updated_at: result.updated_at },
                 extras: input.extras,
                 body: input.body,
@@ -118,7 +119,7 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
       }
       const ok = await save({
         path: ticket.path,
-        sha: ticket.sha,
+        version: ticket.version,
         frontmatter: { ...ticket.frontmatter, status },
         extras: ticket.extras,
         body: ticket.body,
@@ -155,7 +156,7 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
       });
       return save({
         path: ticket.path,
-        sha: ticket.sha,
+        version: ticket.version,
         frontmatter: ticket.frontmatter,
         extras: ticket.extras,
         body,
@@ -171,7 +172,7 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
         return false;
       }
       return runMutation(async () => {
-        await archiveTicketRemote(config, { path: ticket.path, sha: ticket.sha });
+        await archiveTicketRemote(config, { path: ticket.path, version: ticket.version });
         await reload();
       });
     },
@@ -186,7 +187,7 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
       return runMutation(async () => {
         await deleteTicketRemote(config, {
           path: ticket.path,
-          sha: ticket.sha,
+          version: ticket.version,
           message: `ticket: delete ${ticket.frontmatter.id} ${ticket.frontmatter.title}`,
         });
         setData((current) =>
