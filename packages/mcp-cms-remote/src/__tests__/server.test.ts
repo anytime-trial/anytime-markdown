@@ -23,11 +23,12 @@ jest.mock('@anytime-markdown/cms-core', () => ({
   listPatentFiles: (...args: unknown[]) => mockListPatentFiles(...args),
 }));
 
-// tickets-core のモック（enum 定数・型は実物を使い、GitHub API を叩く createTicket のみ差し替える）
-const mockCreateTicket = jest.fn();
+// tickets-core のモック（enum 定数・型は実物を使い、GitHub API を叩くプロバイダ生成のみ差し替える）
+const mockProviderCreate = jest.fn();
+const mockCreateTicketProvider = jest.fn((..._args: unknown[]) => ({ create: (...args: unknown[]) => mockProviderCreate(...args) }));
 jest.mock('@anytime-markdown/tickets-core', () => ({
   ...jest.requireActual('@anytime-markdown/tickets-core'),
-  createTicket: (...args: unknown[]) => mockCreateTicket(...args),
+  createTicketProvider: (...args: unknown[]) => mockCreateTicketProvider(...args),
 }));
 
 jest.mock('../paperRankingCollector.js', () => ({
@@ -50,6 +51,7 @@ const mockRankingsConfig = {
   mailto: 'test@example.com',
 };
 const mockTicketsConfig = {
+  provider: 'github-contents' as const,
   token: 'github_pat_test',
   repo: 'anytime-trial/anytime-ticket',
   branch: 'main',
@@ -302,7 +304,7 @@ describe('createRemoteMcpServer', () => {
   describe('create_ticket tool (with ticketsConfig)', () => {
     const createdTicket = {
       path: '.tickets/T-3-new-feature.md',
-      sha: 'abc123',
+      version: 'abc123',
       frontmatter: {
         id: 'T-3',
         title: 'new feature',
@@ -322,26 +324,24 @@ describe('createRemoteMcpServer', () => {
     });
 
     it('creates a ticket with defaults (backlog / medium / creator mcp-cms-remote)', async () => {
-      mockCreateTicket.mockResolvedValueOnce(createdTicket);
+      mockProviderCreate.mockResolvedValueOnce(createdTicket);
       const server = createRemoteMcpServer(mockS3Client, mockConfig, undefined, mockTicketsConfig);
       const result = await callTool(server, 'create_ticket', { title: 'new feature' }) as {
         content: Array<{ type: string; text: string }>;
       };
 
-      expect(mockCreateTicket).toHaveBeenCalledWith({
-        token: 'github_pat_test',
-        repo: 'anytime-trial/anytime-ticket',
-        branch: 'main',
-        input: expect.objectContaining({
+      expect(mockCreateTicketProvider).toHaveBeenCalledWith(mockTicketsConfig);
+      expect(mockProviderCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
           title: 'new feature',
           status: 'backlog',
           priority: 'medium',
           creator: 'mcp-cms-remote',
           now: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
         }),
-      });
+      );
       // 既定で埋めない任意項目は input へ渡さない（tickets-core 側で未設定のまま保存される）
-      const input = mockCreateTicket.mock.calls[0][0].input;
+      const input = mockProviderCreate.mock.calls[0][0];
       expect(input).not.toHaveProperty('assignee');
       expect(input).not.toHaveProperty('workspace');
       expect(input).not.toHaveProperty('dependencies');
@@ -354,7 +354,7 @@ describe('createRemoteMcpServer', () => {
     });
 
     it('passes explicit params through to createTicket', async () => {
-      mockCreateTicket.mockResolvedValueOnce({
+      mockProviderCreate.mockResolvedValueOnce({
         ...createdTicket,
         frontmatter: { ...createdTicket.frontmatter, status: 'up_next', priority: 'high' },
       });
@@ -371,11 +371,8 @@ describe('createRemoteMcpServer', () => {
         creator: 'kiyotaka',
       });
 
-      expect(mockCreateTicket).toHaveBeenCalledWith({
-        token: 'github_pat_test',
-        repo: 'anytime-trial/anytime-ticket',
-        branch: 'main',
-        input: expect.objectContaining({
+      expect(mockProviderCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
           title: 'wired ticket',
           description: 'body text',
           status: 'up_next',
@@ -386,11 +383,11 @@ describe('createRemoteMcpServer', () => {
           estimate: 90,
           creator: 'kiyotaka',
         }),
-      });
+      );
     });
 
     it('propagates createTicket errors (validation / GitHub conflict)', async () => {
-      mockCreateTicket.mockRejectedValueOnce(new Error('入力が不正です: title は必須です'));
+      mockProviderCreate.mockRejectedValueOnce(new Error('入力が不正です: title は必須です'));
       const server = createRemoteMcpServer(mockS3Client, mockConfig, undefined, mockTicketsConfig);
       await expect(callTool(server, 'create_ticket', { title: '' })).rejects.toThrow('入力が不正です');
     });

@@ -67,7 +67,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const resetKey = ticket ? `${ticket.path}:${ticket.sha}` : "";
+  const resetKey = ticket ? `${ticket.path}:${ticket.version}` : "";
   useEffect(() => {
     if (!ticket) {
       return;
@@ -122,7 +122,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
     const fm = buildFrontmatter();
     await onSave({
       path: ticket.path,
-      sha: ticket.sha,
+      version: ticket.version,
       frontmatter: fm,
       extras: ticket.extras,
       body,

@@ -5,6 +5,8 @@ import {
   createTicketProvider,
   isTicketProviderKind,
   providerAllowedHosts,
+  providerDefaultHosts,
+  TICKET_PROVIDER_KINDS,
   type TicketProviderConfig,
 } from '../ticketProvider';
 import { TicketConflictError } from '../ticketRepository';
@@ -72,6 +74,12 @@ describe('createTicketProvider / providerAllowedHosts', () => {
     expect(providerAllowedHosts({ ...base, apiBaseUrl: 'https://ghe.example.com/api/v3' })).toEqual([
       'ghe.example.com',
     ]);
+  });
+
+  it('providerDefaultHosts は全種別で既定ホストを返す（SSRF 許可リストの静的合成用）', () => {
+    for (const kind of TICKET_PROVIDER_KINDS) {
+      expect(providerDefaultHosts(kind)).toEqual(['api.github.com']);
+    }
   });
 
   it('isTicketProviderKind は enum 値のみ許可する', () => {

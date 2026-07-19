@@ -17,7 +17,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { toReqRes, toFetchResponse } from 'fetch-to-node';
 
 import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
-import { createRemoteMcpServer } from './server.js';
+import { isTicketProviderKind } from '@anytime-markdown/tickets-core';
+import { createRemoteMcpServer, type TicketsConfig } from './server.js';
 import { paperConfig } from './paperConfig.js';
 import { fetchWebPageForImport, resolveAllowedOrigin, WebFetchProxyError } from './webFetchProxy.js';
 
@@ -33,10 +34,36 @@ interface Env {
   PAPER_S3_BUCKET?: string;
   OPENALEX_MAILTO: string;
   WEB_IMPORT_ALLOW_ORIGIN?: string;
-  // Ticket registration (create_ticket は 3 点が揃った場合のみ登録。TICKETS_BRANCH 省略時 main)
+  // Ticket registration (create_ticket は token + repo が揃った場合のみ登録。TICKETS_BRANCH 省略時 main)
   TICKETS_GITHUB_TOKEN?: string;
   TICKETS_REPO?: string;
   TICKETS_BRANCH?: string;
+  // チケットプロバイダ切替（NFR-7）。'github-contents'（既定）| 'github-issues'
+  TICKETS_PROVIDER?: string;
+}
+
+/** 環境変数からチケットプロバイダ設定を組み立てる。不正な TICKETS_PROVIDER は登録せずエラーログを残す */
+function resolveTicketsConfig(env: Env): TicketsConfig | undefined {
+  if (!env.TICKETS_GITHUB_TOKEN || !env.TICKETS_REPO) {
+    return undefined;
+  }
+  // 空文字 secret（CI の変数未設定など）も既定へ倒すため ?? でなく || を使う
+  const kind = env.TICKETS_PROVIDER || 'github-contents';
+  if (!isTicketProviderKind(kind)) {
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] TICKETS_PROVIDER が不正なため create_ticket を無効化します: ${kind}`,
+    );
+    return undefined;
+  }
+  if (kind === 'github-issues') {
+    return { provider: kind, token: env.TICKETS_GITHUB_TOKEN, repo: env.TICKETS_REPO };
+  }
+  return {
+    provider: 'github-contents',
+    token: env.TICKETS_GITHUB_TOKEN,
+    repo: env.TICKETS_REPO,
+    branch: env.TICKETS_BRANCH || 'main',
+  };
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -80,14 +107,7 @@ app.post('/mcp', async (c) => {
     patentsPrefix: paperConfig.rankingS3Prefix,
     mailto: c.env.OPENALEX_MAILTO,
   };
-  const ticketsConfig = c.env.TICKETS_GITHUB_TOKEN && c.env.TICKETS_REPO
-    ? {
-        token: c.env.TICKETS_GITHUB_TOKEN,
-        repo: c.env.TICKETS_REPO,
-        // 空文字 secret（CI の変数未設定など）も既定 main へ倒すため ?? でなく || を使う
-        branch: c.env.TICKETS_BRANCH || 'main',
-      }
-    : undefined;
+  const ticketsConfig = resolveTicketsConfig(c.env);
   const server = createRemoteMcpServer(s3Client, config, rankingsConfig, ticketsConfig);
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });

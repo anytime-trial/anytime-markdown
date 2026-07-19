@@ -1,17 +1,18 @@
 import type {
   FrontmatterValue,
   TicketAssignee,
-  InvalidTicketFile,
+  InvalidTicketRecord,
   TicketFrontmatter,
   TicketPriority,
   TicketStatus,
   TicketWorkspace,
 } from "@anytime-markdown/tickets-core";
 
-/** web-app の /api/github/tickets 系ルートを呼ぶクライアント（トークンはサーバー側のみが扱う）。 */
+/** web-app の /api/tickets 系ルートを呼ぶクライアント（トークンはサーバー側のみが扱う）。 */
 export interface TicketItem {
   path: string;
-  sha: string;
+  /** 楽観ロックトークン（不透明。実体はプロバイダ依存） */
+  version: string;
   frontmatter: TicketFrontmatter;
   extras: Record<string, FrontmatterValue>;
   body: string;
@@ -20,14 +21,16 @@ export interface TicketItem {
 
 export interface TicketsData {
   tickets: TicketItem[];
-  invalid: InvalidTicketFile[];
+  invalid: InvalidTicketRecord[];
 }
 
 export interface TicketsClientConfig {
   repo: string;
   branch: string;
-  /** 既定 `/api/github/tickets` */
+  /** 既定 `/api/tickets` */
   basePath?: string;
+  /** チケットプロバイダ（省略時はサーバー既定の github-contents） */
+  provider?: string;
 }
 
 export class TicketsClientError extends Error {
@@ -44,7 +47,7 @@ export class TicketsClientError extends Error {
   }
 }
 
-const DEFAULT_BASE_PATH = "/api/github/tickets";
+const DEFAULT_BASE_PATH = "/api/tickets";
 
 async function toClientError(res: Response): Promise<TicketsClientError> {
   let payload: { error?: string; conflict?: boolean; errors?: string[] } = {};
@@ -65,6 +68,9 @@ export async function fetchTickets(
 ): Promise<TicketsData> {
   const base = config.basePath ?? DEFAULT_BASE_PATH;
   const params = new URLSearchParams({ repo: config.repo, branch: config.branch });
+  if (config.provider !== undefined) {
+    params.set("provider", config.provider);
+  }
   if (includeArchive) {
     params.set("includeArchive", "1");
   }
@@ -77,7 +83,7 @@ export async function fetchTickets(
 
 export interface SaveTicketInput {
   path: string;
-  sha: string;
+  version: string;
   frontmatter: TicketFrontmatter;
   extras: Record<string, FrontmatterValue>;
   body: string;
@@ -87,17 +93,17 @@ export interface SaveTicketInput {
 export async function saveTicket(
   config: TicketsClientConfig,
   input: SaveTicketInput,
-): Promise<{ sha: string; updated_at: string }> {
+): Promise<{ version: string; updated_at: string }> {
   const base = config.basePath ?? DEFAULT_BASE_PATH;
   const res = await fetch(base, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo: config.repo, branch: config.branch, ...input }),
+    body: JSON.stringify({ repo: config.repo, branch: config.branch, provider: config.provider, ...input }),
   });
   if (!res.ok) {
     throw await toClientError(res);
   }
-  return (await res.json()) as { sha: string; updated_at: string };
+  return (await res.json()) as { version: string; updated_at: string };
 }
 
 export interface CreateTicketClientInput {
@@ -120,7 +126,7 @@ export async function createTicketRemote(
   const res = await fetch(base, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo: config.repo, branch: config.branch, ...input }),
+    body: JSON.stringify({ repo: config.repo, branch: config.branch, provider: config.provider, ...input }),
   });
   if (!res.ok) {
     throw await toClientError(res);
@@ -130,13 +136,13 @@ export async function createTicketRemote(
 
 export async function deleteTicketRemote(
   config: TicketsClientConfig,
-  input: { path: string; sha: string; message?: string },
+  input: { path: string; version: string; message?: string },
 ): Promise<void> {
   const base = config.basePath ?? DEFAULT_BASE_PATH;
   const res = await fetch(base, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo: config.repo, branch: config.branch, ...input }),
+    body: JSON.stringify({ repo: config.repo, branch: config.branch, provider: config.provider, ...input }),
   });
   if (!res.ok) {
     throw await toClientError(res);
@@ -145,13 +151,13 @@ export async function deleteTicketRemote(
 
 export async function archiveTicketRemote(
   config: TicketsClientConfig,
-  input: { path: string; sha: string },
+  input: { path: string; version: string },
 ): Promise<{ newPath: string }> {
   const base = config.basePath ?? DEFAULT_BASE_PATH;
   const res = await fetch(`${base}/archive`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo: config.repo, branch: config.branch, ...input }),
+    body: JSON.stringify({ repo: config.repo, branch: config.branch, provider: config.provider, ...input }),
   });
   if (!res.ok) {
     throw await toClientError(res);

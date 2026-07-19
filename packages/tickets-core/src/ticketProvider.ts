@@ -97,6 +97,11 @@ export function providerAllowedHosts(config: TicketProviderConfig): string[] {
   return [new URL(config.apiBaseUrl ?? DEFAULT_PROVIDER_API_BASE).host];
 }
 
+/** 種別ごとの既定ホスト（config なしで許可リストを静的合成する用途。現状は全種別 GitHub API） */
+export function providerDefaultHosts(_kind: TicketProviderKind): string[] {
+  return [new URL(DEFAULT_PROVIDER_API_BASE).host];
+}
+
 export function createTicketProvider(config: TicketProviderConfig): TicketProvider {
   switch (config.provider) {
     case 'github-contents':
