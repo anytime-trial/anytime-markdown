@@ -174,6 +174,35 @@ export class JsonlSessionReader {
     return { lines: [], newSeq: seq };
   }
 
+  /**
+   * `event_msg` を取り込み経路（TrailDatabase.normalizeCodexEventMsg）と同じ規則で正規化する。
+   *
+   * agent_message だけが行を生み seq を進める。token_count / task_started は行を生まず
+   * seq も進めない（token_count の usage 適用は取り込み経路のみの関心事で、commit 突合は
+   * トークンを使わない）。ここで seq 進行を再現しないと、agent_message を 1 件でも含む
+   * rollout で以降の全 response_item の uuid が取り込み経路とずれる。
+   */
+  private static normalizeEventMsg(
+    record: RawLine,
+    sessionId: string,
+    seq: number,
+  ): { lines: RawLine[]; newSeq: number } {
+    const payload = record.payload;
+    if (!payload || typeof payload !== 'object') return { lines: [], newSeq: seq };
+    if (payload.type !== 'agent_message' || typeof payload.message !== 'string') {
+      return { lines: [], newSeq: seq };
+    }
+    return {
+      lines: [{
+        uuid: codexMessageUuid(sessionId, seq),
+        type: 'assistant',
+        timestamp: typeof record.timestamp === 'string' ? record.timestamp : '',
+        message: { content: payload.message },
+      }],
+      newSeq: seq + 1,
+    };
+  }
+
   private static normalizeRecords(
     records: readonly RawLine[],
     fallbackSessionId: string,
@@ -187,6 +216,12 @@ export class JsonlSessionReader {
     const normalized: RawLine[] = [];
     let seq = 0;
     for (const record of records) {
+      if (record.type === 'event_msg') {
+        const { lines, newSeq } = JsonlSessionReader.normalizeEventMsg(record, sessionId, seq);
+        normalized.push(...lines);
+        seq = newSeq;
+        continue;
+      }
       if (record.type === 'response_item') {
         const { lines, newSeq } = JsonlSessionReader.normalizeResponseItem(record, sessionId, seq);
         normalized.push(...lines);

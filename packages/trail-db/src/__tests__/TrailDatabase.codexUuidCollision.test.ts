@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { codexMessageUuid } from '../codexMessageUuid';
+import { JsonlSessionReader } from '../JsonlSessionReader';
 import { createTestTrailDatabase } from './support/createTestDb';
 import type { TrailDatabase } from '../TrailDatabase';
 
@@ -127,6 +128,41 @@ describe('Codex message uuid collision (regression)', () => {
     expect(total).toBe(distinct);
   });
 
+  describe('取り込み経路と commit 突合経路の uuid 一致', () => {
+    // JsonlSessionReader は backfillMessageCommits から使われ、その uuid で
+    // message_commits へ書き込む。取り込み経路（importSession）が付けた uuid と
+    // ずれると、FK が OFF のため orphan として静かに蓄積する。
+    it('event_msg を含む rollout でも両経路の uuid 集合が一致する', () => {
+      const filePath = writeCodexRollout(dir, sidA, 3);
+      db.importSession(filePath, 'test-repo');
+
+      const imported = inner(db)
+        .exec('SELECT uuid FROM messages WHERE session_id = ? ORDER BY uuid', [sidA])[0]
+        ?.values.map((v) => String(v[0])) ?? [];
+      const viaReader = JsonlSessionReader.loadFromFile(filePath)
+        .map((m) => m.uuid)
+        .sort((a, b) => a.localeCompare(b));
+
+      expect(viaReader).toEqual(imported);
+    });
+
+    it('backfill が生成する uuid が messages に実在する（orphan を作らない）', () => {
+      const filePath = writeCodexRollout(dir, sidA, 4);
+      db.importSession(filePath, 'test-repo');
+
+      const existing = new Set(
+        inner(db)
+          .exec('SELECT uuid FROM messages WHERE session_id = ?', [sidA])[0]
+          ?.values.map((v) => String(v[0])) ?? [],
+      );
+      const orphans = JsonlSessionReader.loadFromFile(filePath)
+        .map((m) => m.uuid)
+        .filter((u) => !existing.has(u));
+
+      expect(orphans).toEqual([]);
+    });
+  });
+
   describe('migrateCodexMessageUuidScheme', () => {
     function runMigration(target: TrailDatabase): void {
       const self = target as unknown as {
@@ -179,6 +215,51 @@ describe('Codex message uuid collision (regression)', () => {
         "SELECT COUNT(*) FROM message_commits WHERE message_uuid = 'codex-0'",
       );
       expect(Number(rows[0]?.values[0]?.[0] ?? 0)).toBe(0);
+    });
+
+    it('旧行に紐づく message_tool_calls も削除する', () => {
+      seedLegacyRow(db, sidA, 'codex-0');
+      const raw = db as unknown as { db: { run: (sql: string, params?: unknown[]) => void } };
+      raw.db.run(
+        `INSERT OR REPLACE INTO message_tool_calls
+           (session_id, message_uuid, turn_index, call_index, tool_name, timestamp)
+         VALUES (?, 'codex-0', 0, 0, 'exec_command', '2026-07-19T00:00:01.000Z')`,
+        [sidA],
+      );
+
+      runMigration(db);
+
+      const rows = inner(db).exec(
+        "SELECT COUNT(*) FROM message_tool_calls WHERE message_uuid = 'codex-0'",
+      );
+      expect(Number(rows[0]?.values[0]?.[0] ?? 0)).toBe(0);
+    });
+
+    it('依存行を消し残して orphan を作らない', () => {
+      seedLegacyRow(db, sidA, 'codex-0');
+      const raw = db as unknown as { db: { run: (sql: string, params?: unknown[]) => void } };
+      raw.db.run(
+        `INSERT OR REPLACE INTO message_tool_calls
+           (session_id, message_uuid, turn_index, call_index, tool_name, timestamp)
+         VALUES (?, 'codex-0', 0, 0, 'exec_command', '2026-07-19T00:00:01.000Z')`,
+        [sidA],
+      );
+      raw.db.run(
+        `INSERT OR REPLACE INTO message_commits
+           (message_uuid, session_id, commit_hash, detected_at, match_confidence)
+         VALUES ('codex-0', ?, 'abc1234', '2026-07-19T00:00:03.000Z', 'high')`,
+        [sidA],
+      );
+
+      runMigration(db);
+
+      for (const table of ['message_commits', 'message_tool_calls']) {
+        const rows = inner(db).exec(
+          `SELECT COUNT(*) FROM ${table} tc
+           WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.uuid = tc.message_uuid)`,
+        );
+        expect({ table, orphans: Number(rows[0]?.values[0]?.[0] ?? 0) }).toEqual({ table, orphans: 0 });
+      }
     });
 
     it('冪等 — 2 回流しても壊れない', () => {

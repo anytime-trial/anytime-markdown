@@ -174,7 +174,7 @@ import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity 
 import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
 
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
-import { codexMessageUuid } from './codexMessageUuid';
+import { codexMessageUuid, extractCodexSessionId } from './codexMessageUuid';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 import { ExecFileGitService } from './ExecFileGitService';
 import { JsonlSessionReader } from './JsonlSessionReader';
@@ -948,15 +948,16 @@ function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: s
 } {
   const normalized: RawLine[] = [];
   let seq = 0;
-  let sessionId = fallbackSessionId;
+  // sessionId はループ前に確定させる。ループ中に session_meta で更新する形だと、
+  // session_meta より前に現れたレコードだけ fallback 値で採番され、同一レコードが
+  // JsonlSessionReader 側（先に全走査して解決する）と別 uuid になる。
+  let sessionId = extractCodexSessionId(records) ?? fallbackSessionId;
   let version = '';
 
   for (const record of records) {
     const timestamp = typeof record.timestamp === 'string' ? record.timestamp : '';
     if (record.type === 'session_meta' && record.payload && typeof record.payload === 'object') {
       const payload = record.payload;
-      const id = payload.id;
-      if (typeof id === 'string' && id) sessionId = id;
       const cliVersion = payload.cli_version;
       if (typeof cliVersion === 'string' && cliVersion) version = cliVersion;
       continue;
@@ -2066,8 +2067,11 @@ export class TrailDatabase {
    * 消さずに放置すると旧行と新行が併存し、トークンが二重計上される。
    *
    * 旧採番: `codex-` + 数字のみ（ハイフンは 1 つ）。
-   * 新採番: `codex-<sessionId>-<seq>`（sessionId が uuid のためハイフンを複数含む）。
-   * 冪等 — 対象 0 件なら何もしない。
+   * 新採番: `codex-<sessionId>-<seq>`（末尾の `-<seq>` によりハイフンは必ず 2 つ以上）。
+   *
+   * 冪等性は `_migrations` キーではなくデータ述語（対象 0 件なら return）で担保する。
+   * 取りこぼしがあれば次回起動で再実行される自己修復性を優先したため。毎起動の
+   * COUNT は全表スキャンになるが、sql.js はメモリ常駐で I/O を伴わない。
    */
   private migrateCodexMessageUuidScheme(db: Database): void {
     const LEGACY_PREDICATE = `uuid LIKE 'codex-%' AND uuid NOT LIKE 'codex-%-%'`;
@@ -2080,11 +2084,22 @@ export class TrailDatabase {
 
       db.run('BEGIN');
       try {
-        // FK は init() で OFF のため ON DELETE CASCADE は働かない。依存行を明示的に消す。
-        db.run(
-          `DELETE FROM message_commits
-           WHERE message_uuid IN (SELECT uuid FROM messages WHERE ${LEGACY_PREDICATE})`,
-        );
+        // FK は init() で OFF のため ON DELETE CASCADE は働かない。messages(uuid) を
+        // 参照する NOT NULL 側の 2 テーブルを明示的に消す（tables.ts の
+        // REFERENCES messages(uuid) 全 4 箇所のうち残り 2 つは messages 自己参照の
+        // parent_uuid / source_tool_assistant_uuid。codex 正規化はこれらを設定せず、
+        // かつ旧採番の行は全件まとめて消えるため dangling は生じない）。
+        //
+        // message_tool_calls を消し損ねると、再取り込みが新 uuid で同じツール呼び出しを
+        // 追加する一方 UNIQUE(message_uuid, call_index) は uuid 違いで衝突せず、
+        // ツール呼び出しが二重計上される（importSession は既存行を削除しない）。
+        const dependents = ['message_commits', 'message_tool_calls'] as const;
+        for (const table of dependents) {
+          db.run(
+            `DELETE FROM ${table}
+             WHERE message_uuid IN (SELECT uuid FROM messages WHERE ${LEGACY_PREDICATE})`,
+          );
+        }
         db.run(`DELETE FROM messages WHERE ${LEGACY_PREDICATE}`);
         // 再取り込みで commit 突合をやり直させる（旧 uuid への紐付けは失効済み）。
         db.run(
