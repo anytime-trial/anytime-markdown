@@ -269,6 +269,7 @@ export function createTrailDataStore(
   async function fetchCombinedData(
     period: CombinedPeriodMode,
     rangeDays: CombinedRangeDays,
+    workspace?: string,
   ): Promise<CombinedData> {
     const empty: CombinedData = {
       toolCounts: [],
@@ -278,11 +279,14 @@ export function createTrailDataStore(
       agentStats: [],
       commitPrefixStats: [],
       aiFirstTryRate: [],
-      repoStats: [],
       qualityRates: [],
+      workspaces: [],
     };
     try {
-      const res = await fetch(`${baseUrl}/api/trail/combined?period=${period}&rangeDays=${rangeDays}`);
+      const workspaceParam = workspace ? `&workspace=${encodeURIComponent(workspace)}` : '';
+      const res = await fetch(
+        `${baseUrl}/api/trail/combined?period=${period}&rangeDays=${rangeDays}${workspaceParam}`,
+      );
       if (!res.ok) return empty;
       return (await res.json()) as CombinedData;
     } catch {

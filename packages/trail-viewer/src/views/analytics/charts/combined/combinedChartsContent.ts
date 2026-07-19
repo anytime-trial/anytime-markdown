@@ -21,7 +21,6 @@ import { mountCommitsCombinedChart, type CommitsCombinedChartProps } from './com
 import { mountErrorToolsCombinedChart, type ErrorToolsCombinedChartProps } from './errorToolsCombinedChart';
 import { mountLeadTimeOverlay, type LeadTimeOverlayProps } from './leadTimeOverlay';
 import { mountModelsCombinedChart, type ModelsCombinedChartProps } from './modelsCombinedChart';
-import { mountReposCombinedChart, type ReposCombinedChartProps } from './reposCombinedChart';
 import { mountSkillsCombinedChart, type SkillsCombinedChartProps } from './skillsCombinedChart';
 import { mountToolsCombinedChart, type ToolsCombinedChartProps } from './toolsCombinedChart';
 
@@ -56,7 +55,6 @@ export interface CombinedChartsContentProps {
   modelMetric: ChartMetric;
   agentMetric: AgentMetric;
   commitMetric: CommitMetric;
-  repoMetric: ChartMetric;
   leadTimeOverlay: LeadTimeOverlayProps['leadTimeOverlay'];
   onDateClick?: (fullDate: string) => void;
   theme: CombinedChartsContentThemeProps;
@@ -65,7 +63,6 @@ export interface CombinedChartsContentProps {
 type ActiveKind =
   | 'tools'
   | 'tools-error'
-  | 'repos'
   | 'skills'
   | 'agents'
   | 'commits-leadTime'
@@ -74,7 +71,6 @@ type ActiveKind =
 
 function resolveKind(p: CombinedChartsContentProps): ActiveKind {
   if (p.activeChart === 'tools') return p.toolMetric === 'error' ? 'tools-error' : 'tools';
-  if (p.activeChart === 'repos') return 'repos';
   if (p.activeChart === 'skills') return 'skills';
   if (p.activeChart === 'agents') return 'agents';
   if (p.activeChart === 'commits') return p.commitMetric === 'leadTime' ? 'commits-leadTime' : 'commits';
@@ -132,14 +128,6 @@ export function mountCombinedChartsContent(
           toolCategoryKeys: theme.toolCategoryKeys,
         };
         childHandle = mountErrorToolsCombinedChart(container, mountProps) as VanillaViewHandle<unknown>;
-      } else if (kind === 'repos') {
-        const mountProps: ReposCombinedChartProps = {
-          axisInfo, canDrill, onDateClick: p.onDateClick,
-          repoMetric: p.repoMetric,
-          isDark: theme.isDark, cardSx: theme.cardSx,
-          toolPalette: theme.toolPalette,
-        };
-        childHandle = mountReposCombinedChart(container, mountProps) as VanillaViewHandle<unknown>;
       } else if (kind === 'skills') {
         const mountProps: SkillsCombinedChartProps = {
           axisInfo, canDrill, onDateClick: p.onDateClick,
@@ -210,13 +198,6 @@ export function mountCombinedChartsContent(
         getToolCategoryLabel: theme.getToolCategoryLabel,
         getToolCategoryColorByIndex: theme.getToolCategoryColorByIndex,
         toolCategoryKeys: theme.toolCategoryKeys,
-      });
-    } else if (kind === 'repos') {
-      (childHandle as VanillaViewHandle<ReposCombinedChartProps>).update({
-        axisInfo, canDrill, onDateClick: p.onDateClick,
-        repoMetric: p.repoMetric,
-        isDark: theme.isDark, cardSx: theme.cardSx,
-        toolPalette: theme.toolPalette,
       });
     } else if (kind === 'skills') {
       (childHandle as VanillaViewHandle<SkillsCombinedChartProps>).update({

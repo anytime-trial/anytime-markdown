@@ -80,7 +80,11 @@ export function useAnalyticsData(serverUrl: string): AnalyticsDataResult {
   );
 
   const fetchCombinedData = useCallback(
-    async (period: CombinedPeriodMode, rangeDays: CombinedRangeDays): Promise<CombinedData> => {
+    async (
+      period: CombinedPeriodMode,
+      rangeDays: CombinedRangeDays,
+      workspace?: string,
+    ): Promise<CombinedData> => {
       const empty: CombinedData = {
         toolCounts: [],
         errorRate: [],
@@ -89,11 +93,14 @@ export function useAnalyticsData(serverUrl: string): AnalyticsDataResult {
         agentStats: [],
         commitPrefixStats: [],
         aiFirstTryRate: [],
-        repoStats: [],
         qualityRates: [],
+        workspaces: [],
       };
       try {
-        const res = await fetch(`${baseUrl}/api/trail/combined?period=${period}&rangeDays=${rangeDays}`);
+        const workspaceParam = workspace ? `&workspace=${encodeURIComponent(workspace)}` : '';
+        const res = await fetch(
+          `${baseUrl}/api/trail/combined?period=${period}&rangeDays=${rangeDays}${workspaceParam}`,
+        );
         if (!res.ok) return empty;
         return (await res.json()) as CombinedData;
       } catch {
