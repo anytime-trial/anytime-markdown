@@ -171,6 +171,19 @@ const CSS = `
 .tk-textarea { min-height: 180px; width: 100%; resize: vertical; font-family: "Cascadia Code", "Fira Code", Menlo, monospace; line-height: 1.6; }
 .tk-label { display: block; font-size: 0.75rem; color: var(--tk-text-2); margin-bottom: 2px; }
 .tk-fieldset { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* フィルタ行右端のアーカイブ切替。select 群と下端を揃えるため min-height は .tk-select と同値 */
+.tk-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 4px;
+  font-size: 0.875rem;
+  color: var(--tk-text);
+  cursor: pointer;
+}
+.tk-checkbox input { width: 16px; height: 16px; margin: 0; accent-color: var(--tk-primary); cursor: pointer; }
+.tk-checkbox input:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: 1px; }
 
 /* ---- list (table) ---- */
 .tk-table-wrap { overflow-x: auto; border: 1px solid var(--tk-divider); border-radius: var(--tk-radius-card); }
@@ -242,7 +255,8 @@ const CSS = `
   .tk-table th, .tk-table td { padding: 8px 10px; }
 }
 @media (pointer: coarse) {
-  .tk-btn, .tk-input, .tk-select { min-height: 44px; }
+  .tk-btn, .tk-input, .tk-select, .tk-checkbox { min-height: 44px; }
+  .tk-checkbox input { width: 20px; height: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tk-card, .tk-btn { transition-duration: 0.01ms; }

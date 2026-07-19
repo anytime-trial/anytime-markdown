@@ -9,7 +9,6 @@ export const ticketsMessagesJa = {
   view: {
     board: "ボード",
     list: "リスト",
-    showArchive: "アーカイブを表示",
   },
   board: {
     newTicket: "新規チケット",
@@ -63,6 +62,7 @@ export const ticketsMessagesJa = {
     priority: "優先度",
     assignee: "担当",
     workspace: "ワークスペース",
+    archived: "アーカイブを表示",
   },
   detail: {
     bodyLabel: "本文 (Markdown)",

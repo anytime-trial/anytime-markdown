@@ -191,6 +191,65 @@ describe("TicketsPanel", () => {
     expect(rows[0].textContent).toContain("T-1");
   });
 
+  it("ボード表示でもリストと同じフィルタ欄を表示する", async () => {
+    mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    for (const id of ["status", "priority", "assignee", "workspace"]) {
+      expect(container.querySelector(`#tk-filter-${id}`)).not.toBeNull();
+    }
+  });
+
+  it("ボードでステータスを選ぶと該当列だけ表示する", async () => {
+    mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    expect(container.querySelectorAll(".tk-column")).toHaveLength(5);
+    const statusSelect = container.querySelector<HTMLSelectElement>("#tk-filter-status");
+    await act(async () => {
+      if (statusSelect) {
+        statusSelect.value = "up_next";
+        statusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    const columns = container.querySelectorAll(".tk-column");
+    expect(columns).toHaveLength(1);
+    expect(columns[0].getAttribute("data-status")).toBe("up_next");
+    expect(columns[0].textContent).toContain("T-1");
+  });
+
+  it("ボードで優先度フィルタがカードに効く", async () => {
+    mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    expect(container.querySelectorAll(".tk-card")).toHaveLength(2);
+    const prioritySelect = container.querySelector<HTMLSelectElement>("#tk-filter-priority");
+    await act(async () => {
+      if (prioritySelect) {
+        prioritySelect.value = "high";
+        prioritySelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    const cards = container.querySelectorAll(".tk-card");
+    expect(cards).toHaveLength(1);
+    expect(cards[0].textContent).toContain("T-1");
+  });
+
+  it("アーカイブ表示はフィルタ欄のチェックボックスで切り替える（ボタンは廃止）", async () => {
+    const fn = mockFetchOnce(DATA);
+    await renderPanel({ repo: "o/r", branch: "main" });
+    expect(
+      [...container.querySelectorAll("button")].some((b) => b.textContent === "アーカイブを表示"),
+    ).toBe(false);
+    const checkbox = container.querySelector<HTMLInputElement>("#tk-filter-archived");
+    expect(checkbox?.type).toBe("checkbox");
+    expect(checkbox?.checked).toBe(false);
+    const before = fn.mock.calls.length;
+    await act(async () => {
+      checkbox?.click();
+    });
+    expect(container.querySelector<HTMLInputElement>("#tk-filter-archived")?.checked).toBe(true);
+    // アーカイブ込みの再取得が走る
+    expect(fn.mock.calls.length).toBeGreaterThan(before);
+  });
+
   it("カードクリックで詳細ダイアログが開く", async () => {
     mockFetchOnce(DATA);
     await renderPanel({ repo: "o/r", branch: "main" });
