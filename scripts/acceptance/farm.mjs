@@ -15,8 +15,12 @@
  * 未設定時は起票をスキップして WARN + 台帳 notes に記録する（本番チケットストアへの
  * 暗黙フォールバックを持たない — 保護領域書き込みの本番パスフォールバック禁止原則）。
  *
+ * S3: 記録直前にリスクルーティング（route.mjs — Trail DB 実データの決定論スコア）で経路を決定する。
+ * human 経路は verdict 'pending' で記録し（合否は人の記録に譲る）、受入チケットを自動起票する。
+ *
  * Usage: node scripts/acceptance/farm.mjs [--commit <sha>] [--update-baseline] [--skip-build] [--server <url>]
- * Exit: 0=pass / 1=fail / 2=not_run（ファーム実行失敗または台帳記録失敗。受入判定は人手経路へ戻す）
+ * Exit: 0=pass / 1=fail / 2=not_run（ファーム実行失敗または台帳記録失敗。受入判定は人手経路へ戻す）。
+ *       human 経路（pending 記録）の exit はファーム自身の機械判定に従う（赤のマージは経路に関係なく塞ぐ）
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -245,6 +249,28 @@ export function applyGateReport(payload, report) {
   };
 }
 
+/**
+ * S3: ルーティング結果を payload へ適用する。auto / machine は route の差し替えのみ。
+ * human は verdict を 'pending' にして合否を人の記録（同 PK の UPSERT）へ譲る —
+ * farm が human 経路へ pass/fail を書くと人の本判定を先取りし miss-rate の accepted 集計も汚すため。
+ */
+export function applyRouting(payload, routing) {
+  const scorePart = typeof routing.score === "number" ? ` score=${routing.score.toFixed(3)}` : "";
+  const notes = [payload.notes, `route=${routing.route}${scorePart} (${routing.reasons.join("; ")})`]
+    .filter(Boolean)
+    .join(" / ");
+  if (routing.route !== "human") {
+    return { ...payload, route: routing.route, notes };
+  }
+  return {
+    ...payload,
+    route: "human",
+    verdict: "pending",
+    decidedAt: null,
+    notes: `${notes} / farm verdict=${payload.verdict}`,
+  };
+}
+
 function notRunPayload(args, reason) {
   return {
     commitSha: args.commit,
@@ -381,15 +407,41 @@ async function main() {
     quarantinedCount: quarantined.length + flaky.length,
     notes: notesParts.join(" / "),
   };
-  const payload = gateReports.reduce(applyGateReport, basePayload);
+  const gated = gateReports.reduce(applyGateReport, basePayload);
+  // S3: リスクルーティング — machine 固定の経路を決定論スコアで置き換える（記録直前・単一 payload に統合）
+  let payload = gated;
+  try {
+    const routeMod = await import("./route.mjs");
+    const routing = await routeMod.runRouting({ commit: args.commit, root: ROOT, server: args.server });
+    payload = applyRouting(gated, routing);
+    if (routing.route === "human") {
+      const ticket = routeMod.fileAcceptanceTicket({
+        ticketsDir: TICKETS_DIR,
+        commit: args.commit,
+        routeResult: routing,
+        farmSummary: `farm verdict=${gated.verdict} (${path.relative(ROOT, REPORT_PATH)})`,
+      });
+      payload = {
+        ...payload,
+        notes: `${payload.notes} / ${ticket.filed ? `acceptance ticket filed: ${path.basename(ticket.file)}` : `acceptance ticket NOT filed (${ticket.reason})`}`,
+      };
+    }
+  } catch (e) {
+    // ルーティング崩壊も fail-open にしない: 保守側（human・pending）へ倒して理由を残す
+    const message = e instanceof Error ? e.message : String(e);
+    log("ERROR", `routing crashed: ${message}`);
+    payload = applyRouting(gated, { route: "human", score: null, reasons: [`routing crashed (${message}) — conservative human`] });
+  }
   const recorded = await recordToLedger(args.server, payload);
   if (!recorded) {
     // 台帳へ記録できていない結果を成功にしない（受入の主効果は記録。スプール分は次回 drain）
     log("ERROR", "ledger record failed — farm exits as not_run (2). spooled record will be drained next run");
     process.exit(2);
   }
-  log("INFO", `acceptance farm done: verdict=${payload.verdict} persistentFailures=${persistent.length} flaky=${flaky.length}`);
-  process.exit(payload.verdict === "pass" ? 0 : payload.verdict === "fail" ? 1 : 2);
+  log("INFO", `acceptance farm done: route=${payload.route} verdict=${payload.verdict} persistentFailures=${persistent.length} flaky=${flaky.length}`);
+  // human 経路（pending）の exit はファーム自身の機械判定（gated.verdict）で決める — 赤のマージは経路に関係なく塞ぐ
+  const exitVerdict = payload.verdict === "pending" ? gated.verdict : payload.verdict;
+  process.exit(exitVerdict === "pass" ? 0 : exitVerdict === "fail" ? 1 : 2);
 }
 
 // テストから import できるよう、直接実行時のみ main を起動する

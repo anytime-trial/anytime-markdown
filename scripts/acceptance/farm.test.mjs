@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { applyGateReport, classifyRetryResults, collectSpecs, escapeRegex, flakySlug, mergeVerdicts, VRT_TAG } from "./farm.mjs";
+import { applyGateReport, applyRouting, classifyRetryResults, collectSpecs, escapeRegex, flakySlug, mergeVerdicts, VRT_TAG } from "./farm.mjs";
 
 test("escapeRegex は正規表現メタ文字をすべてリテラル化する", () => {
   const title = "初期表示の視覚回帰 (light) [a-z] $1 c++ ?";
@@ -74,4 +74,21 @@ test("applyGateReport: applicable=false は無変更・fail は failedTests と 
   const passed = applyGateReport(base, { applicable: true, verdict: "pass", failedChecks: [], notes: "canary pass (3 ticks)" });
   assert.equal(passed.verdict, "pass");
   assert.equal(passed.notes, "base / canary pass (3 ticks)");
+});
+
+test("applyRouting: auto / machine は route 差し替えのみ・human は pending 化して farm verdict を notes に残す", () => {
+  const base = { route: "machine", verdict: "pass", decidedAt: "2026-07-19T00:00:00.000Z", failedTests: [], notes: "base" };
+  const machine = applyRouting(base, { route: "machine", score: 0.31, reasons: ["score=0.310 -> machine"] });
+  assert.equal(machine.route, "machine");
+  assert.equal(machine.verdict, "pass");
+  assert.match(machine.notes, /route=machine score=0\.310/);
+  const human = applyRouting(base, { route: "human", score: 0.75, reasons: ["score=0.750 -> human"] });
+  assert.equal(human.route, "human");
+  assert.equal(human.verdict, "pending");
+  assert.equal(human.decidedAt, null);
+  assert.match(human.notes, /farm verdict=pass/);
+  // score null（縮退 human）でも notes が壊れない
+  const degraded = applyRouting(base, { route: "human", score: null, reasons: ["risk inputs unavailable"] });
+  assert.equal(degraded.verdict, "pending");
+  assert.match(degraded.notes, /route=human \(risk inputs unavailable\)/);
 });
