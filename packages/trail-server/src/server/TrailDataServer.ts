@@ -3,11 +3,12 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import { computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
-import type { C4Model, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
+import { type AcceptanceDecidedBy, type AcceptanceRoute, type AcceptanceVerdict, computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
+import type { C4Model, C4ModelPayload, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
 import {
   aggregateCoverageFromDb,
   aggregateHeatmapColumnsToC4,
+  buildC4ElementById,
   buildElementTree,
   buildSourceMatrix,
   computeActivityHeatmap,
@@ -17,6 +18,7 @@ import {
   fetchC4Model,
   fetchC4ModelEntries,
   filterTreeByLevel,
+  mapFileToC4Elements,
 } from '@anytime-markdown/trail-core/c4';
 import type {
   CallHierarchyDirection,
@@ -768,6 +770,22 @@ export class TrailDataServer {
       return;
     }
 
+    // 自律受入基盤 S5: 受入台帳（farm と人手記録の書き込み・retro の参照経路）
+    if (pathname === '/api/trail/acceptance' && method === 'POST') {
+      this.handleUpsertAcceptanceRecord(req, res);
+      return;
+    }
+
+    if (pathname === '/api/trail/acceptance' && method === 'GET') {
+      this.handleListAcceptanceRecords(res, parsed.searchParams);
+      return;
+    }
+
+    if (pathname === '/api/trail/acceptance/miss-rate' && method === 'GET') {
+      this.handleAcceptanceMissRate(res, parsed.searchParams);
+      return;
+    }
+
     // Phase 5 S5: trail-viewer の EmergencyPanel 経路。変更系は EmergencyApiHandler 側で
     // Origin allowlist + カスタムヘッダ + Content-Type を検証する（localhost バインドは
     // クロスオリジン送信そのものを防げないため、CSRF 対策をハンドラ内に閉じて持つ）。
@@ -1076,6 +1094,11 @@ export class TrailDataServer {
       return;
     }
 
+    if (pathname === '/api/bus-factor' && method === 'GET') {
+      void this.handleBusFactor(res, parsed.searchParams);
+      return;
+    }
+
     if (pathname === '/api/hotspot' && method === 'GET') {
       this.handleHotspot(res, parsed.searchParams);
       return;
@@ -1145,6 +1168,24 @@ export class TrailDataServer {
       }).catch((err: unknown) => {
         this.logger.error(`[/api/memory/status] ${String(err)}`);
         res.writeHead(500); res.end();
+      });
+      return;
+    }
+
+    if (pathname === '/api/memory/drift/by-day' && method === 'GET') {
+      const p = parsed.searchParams;
+      void this.memoryApi.listDriftHistoryByDay({
+        since: p.get('since') ?? undefined,
+        until: p.get('until') ?? undefined,
+        driftType: p.get('driftType') ?? undefined,
+        severity: p.get('severity') ?? undefined,
+      }).then((points) => {
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ points }));
+      }).catch((err: unknown) => {
+        this.logger.error(`[/api/memory/drift/by-day] ${String(err)}`);
+        res.writeHead(500, JSON_HEADERS);
+        res.end(JSON.stringify({ error: String(err) }));
       });
       return;
     }
@@ -1667,6 +1708,66 @@ export class TrailDataServer {
     }
   }
 
+  /**
+   * Phase 6 S5-B: 属人度（Bus Factor）を返す。
+   *
+   * `unit=c4` では C4 要素単位の集約をサーバー側で行う。生行をクライアントへ送って
+   * 再集計させる方式は、大規模リポジトリで転送量が跳ね上がり上限での切り詰めを招き、
+   * 切り詰めた行から算出した属人度は誤値になるため採用しない（要素へ写してから
+   * 著者×コミットを合算し score を再計算する。ファイル単位の結果の足し合わせでは、
+   * 1 コミットが同一要素内の複数ファイルを触ったときに二重計上になる）。
+   */
+  private async handleBusFactor(res: http.ServerResponse, params: URLSearchParams): Promise<void> {
+    const windowDays = clampInt(params.get('windowDays'), 365, 1, 3650);
+    const minCommits = clampInt(params.get('minCommits'), 5, 1, 1000);
+    const repo = params.get('repo') ?? undefined;
+    const unit = params.get('unit') === 'c4' ? 'c4' : 'file';
+    // viewer が表示中のモデルと要素 ID を揃える（リリース表示中はそのリリースのモデル）
+    const release = params.get('release') || 'current';
+
+    try {
+      const sinceIso = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+      const rows = this.trailDb.fetchFileAuthorCommits({ repo, sinceIso });
+
+      let entries = computeBusFactor(rows, { minCommits });
+      let c4ModelAvailable: boolean | undefined;
+      if (unit === 'c4') {
+        const c4Model = (await this.resolveC4ModelPayload(release, repo))?.model ?? null;
+        c4ModelAvailable = c4Model !== null;
+        if (c4Model) {
+          const elementById = buildC4ElementById(c4Model.elements);
+          entries = computeBusFactor(rows, {
+            minCommits,
+            unitsOf: (filePath) => mapFileToC4Elements(filePath, elementById).map((m) => m.elementId),
+          });
+        } else {
+          // モデルが無い状態でファイル単位の結果を返すと、要素 ID を期待する呼び出し側が
+          // 全件未一致を「属人度なし」と誤読する。集約できない事実を明示して空で返す。
+          this.logger.warn(`/api/bus-factor: C4 model unavailable (release=${release}, repo=${repo ?? 'default'})`);
+          entries = [];
+        }
+      }
+
+      res.writeHead(200, JSON_HEADERS);
+      res.end(
+        JSON.stringify({
+          entries,
+          computedAt: new Date().toISOString(),
+          windowDays,
+          minCommits,
+          unit,
+          totalUnits: entries.length,
+          ...(c4ModelAvailable === undefined ? {} : { c4ModelAvailable }),
+        }),
+      );
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      this.logger.error(`/api/bus-factor failed: ${err.message}\n${err.stack ?? ''}`);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
   notifyCodeGraphUpdated(): void {
     this.callHierarchyIndex = null;
     this.callHierarchyIndexRepo = undefined;
@@ -2017,7 +2118,11 @@ export class TrailDataServer {
   //  API: C4 endpoints
   // -------------------------------------------------------------------------
 
-  private async handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
+  /**
+   * viewer へ配信するのと同じ C4 モデルを解決する（手動要素のマージ込み）。
+   * 要素 ID を揃える必要があるメトリクス集約（例: /api/bus-factor?unit=c4）も同じ経路を使う。
+   */
+  private async resolveC4ModelPayload(releaseId: string, repo?: string): Promise<C4ModelPayload | null> {
     // trail-core の fetchC4Model 経由でストアから取得（pure 関数 + IC4ModelStore アダプタ）
     const repoName = repo ?? (this.defaultRepo());
     const provider = this.getC4Provider?.();
@@ -2029,7 +2134,11 @@ export class TrailDataServer {
         provider ? provider.getManualRelationships(repo) : this.trailDb.getManualRelationships(repo),
     } : undefined;
     const featureMatrix = provider?.featureMatrix ?? this.trailDb.getCurrentFeatureMatrix() ?? undefined;
-    const payload = await fetchC4Model(store, releaseId, repoName, featureMatrix, manualProvider);
+    return fetchC4Model(store, releaseId, repoName, featureMatrix, manualProvider);
+  }
+
+  private async handleC4ModelEndpoint(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
+    const payload = await this.resolveC4ModelPayload(releaseId, repo);
     if (payload) {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(payload));
@@ -2245,6 +2354,7 @@ export class TrailDataServer {
         externalConsumerPkgs: r.externalConsumerPkgs,
         isBarrel: r.isBarrel,
         category: r.category,
+        newlyActive: r.newlyActive,
       }));
 
       res.writeHead(200, JSON_HEADERS);
@@ -3050,6 +3160,121 @@ export class TrailDataServer {
     } catch (e) {
       this.logger.error('handleListUserFeedback failed', e);
       sendServerError(res, 'Failed to list user feedback');
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  API: /api/trail/acceptance (自律受入基盤 S5: 受入台帳)
+  // -------------------------------------------------------------------------
+
+  private static readonly ACCEPTANCE_ROUTES: string[] = ['auto', 'machine', 'human'];
+
+  private static readonly ACCEPTANCE_VERDICTS: string[] = ['pass', 'fail', 'pending', 'not_run'];
+
+  private static readonly ACCEPTANCE_DECIDED_BY: string[] = ['farm', 'human'];
+
+  private static readonly ACCEPTANCE_NOTES_MAX_CHARS = 2000;
+
+  /** 検証はサーバー側が正 — farm スクリプトの入力を境界と見なさない（flight-reviews と同方針）。 */
+  private handleUpsertAcceptanceRecord(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const commitSha = parsed['commitSha'];
+        const route = parsed['route'];
+        const verdict = parsed['verdict'];
+        const decidedBy = parsed['decidedBy'];
+        if (
+          typeof commitSha !== 'string' || commitSha === '' ||
+          typeof route !== 'string' || !TrailDataServer.ACCEPTANCE_ROUTES.includes(route) ||
+          typeof verdict !== 'string' || !TrailDataServer.ACCEPTANCE_VERDICTS.includes(verdict) ||
+          typeof decidedBy !== 'string' || !TrailDataServer.ACCEPTANCE_DECIDED_BY.includes(decidedBy)
+        ) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'commitSha, route(auto|machine|human), verdict(pass|fail|pending|not_run), decidedBy(farm|human) required' }));
+          return;
+        }
+        const failedTestsRaw = parsed['failedTests'];
+        if (failedTestsRaw !== undefined && (!Array.isArray(failedTestsRaw) || failedTestsRaw.some((t) => typeof t !== 'string'))) {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'failedTests must be string[]' }));
+          return;
+        }
+        const notes = typeof parsed['notes'] === 'string' ? parsed['notes'].slice(0, TrailDataServer.ACCEPTANCE_NOTES_MAX_CHARS) : undefined;
+        const quarantinedCountRaw = parsed['quarantinedCount'];
+        this.trailDb.upsertAcceptanceRecord({
+          commitSha,
+          route: route as AcceptanceRoute,
+          verdict: verdict as AcceptanceVerdict,
+          decidedBy: decidedBy as AcceptanceDecidedBy,
+          decidedAt: typeof parsed['decidedAt'] === 'string' && parsed['decidedAt'] !== '' ? parsed['decidedAt'] : null,
+          repoName: typeof parsed['repoName'] === 'string' ? parsed['repoName'] : undefined,
+          farmRunRef: typeof parsed['farmRunRef'] === 'string' ? parsed['farmRunRef'] : undefined,
+          failedTests: failedTestsRaw as string[] | undefined,
+          vrtDiff: parsed['vrtDiff'] === true,
+          quarantinedCount: typeof quarantinedCountRaw === 'number' && Number.isFinite(quarantinedCountRaw) ? quarantinedCountRaw : undefined,
+          notes,
+        });
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        this.logger.error('handleUpsertAcceptanceRecord failed', e);
+        sendServerError(res, 'Failed to record acceptance');
+      }
+    });
+  }
+
+  private handleListAcceptanceRecords(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const routeParam = params.get('route');
+      if (routeParam !== null && !TrailDataServer.ACCEPTANCE_ROUTES.includes(routeParam)) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'invalid route' }));
+        return;
+      }
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const acceptanceRecords = this.trailDb.listAcceptanceRecords({
+        commitSha: params.get('commitSha') ?? undefined,
+        route: (routeParam as AcceptanceRoute | null) ?? undefined,
+        since: params.get('since') ?? undefined,
+        until: params.get('until') ?? undefined,
+        // windowDays（1..365）と同様に境界を持たせる（増分蓄積テーブルのため上限必須）
+        limit: Number.isNaN(limit) ? 100 : Math.min(Math.max(limit, 1), 1000),
+      });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ acceptanceRecords }));
+    } catch (e) {
+      this.logger.error('handleListAcceptanceRecords failed', e);
+      sendServerError(res, 'Failed to list acceptance records');
+    }
+  }
+
+  private handleAcceptanceMissRate(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const windowDays = Number.parseInt(params.get('windowDays') ?? '14', 10);
+      if (Number.isNaN(windowDays) || windowDays < 1 || windowDays > 365) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'windowDays must be 1..365' }));
+        return;
+      }
+      const missRates = this.trailDb.computeAcceptanceMissRate(windowDays);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ missRates }));
+    } catch (e) {
+      this.logger.error('handleAcceptanceMissRate failed', e);
+      sendServerError(res, 'Failed to compute acceptance miss rate');
     }
   }
 

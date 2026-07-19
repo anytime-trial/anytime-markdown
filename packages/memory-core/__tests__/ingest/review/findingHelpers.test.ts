@@ -6,6 +6,7 @@ import {
   extractTargetFromFinding,
   maxSeverity,
   parseSeverityMarker,
+  parseChecklistRefMarker,
 } from '../../../src/ingest/review/findingHelpers';
 
 describe('maxSeverity', () => {
@@ -426,5 +427,51 @@ describe('parseSeverityMarker', () => {
   // pre-merge レビュー warn2: 値側に出た ラベル語 `重大度` を error に誤分類しない。
   test('value equal to label substring 重大度 is not classified as error', () => {
     expect(parseSeverityMarker('severity: 重大度')).toBeNull();
+  });
+});
+
+describe('parseChecklistRefMarker', () => {
+  // anytime-trail-review スキルのメタデータ 4 行目 `- **観点**: §14 / none` を解析する。
+  // 章番号は code-review-checklist スキル（旧 code-quality.md と同一番号）を指す。
+  test('bullet + bold marker `- **観点**: §14` → §14', () => {
+    expect(parseChecklistRefMarker('- **観点**: §14\n- **カテゴリ**: logic')).toBe('§14');
+  });
+
+  test('subsection `- **観点**: §14.4` → §14.4', () => {
+    expect(parseChecklistRefMarker('- **観点**: §14.4')).toBe('§14.4');
+  });
+
+  test('trailing label text is stripped `§6 モダン JS API` → §6', () => {
+    expect(parseChecklistRefMarker('- **観点**: §6 モダン JS API')).toBe('§6');
+  });
+
+  test('none variants → none', () => {
+    expect(parseChecklistRefMarker('- **観点**: none')).toBe('none');
+    expect(parseChecklistRefMarker('- **観点**: 該当なし')).toBe('none');
+    expect(parseChecklistRefMarker('- 観点: なし')).toBe('none');
+  });
+
+  test('English label `checklist: §12` → §12', () => {
+    expect(parseChecklistRefMarker('Checklist: §12')).toBe('§12');
+  });
+
+  test('full-width colon `観点： §3` → §3', () => {
+    expect(parseChecklistRefMarker('- 観点： §3')).toBe('§3');
+  });
+
+  test('no marker line → null (未記録として扱う)', () => {
+    expect(parseChecklistRefMarker('通常の本文。観点の記載なし。')).toBeNull();
+  });
+
+  test('unrecognized value → null (§ でも none でもない)', () => {
+    expect(parseChecklistRefMarker('- **観点**: いろいろ')).toBeNull();
+  });
+
+  test('line-leading 観点: inside a fenced code block → null', () => {
+    expect(parseChecklistRefMarker('```\n観点: §5\n```')).toBeNull();
+  });
+
+  test('first marker wins when multiple findings concatenated', () => {
+    expect(parseChecklistRefMarker('- 観点: §8\n本文\n- 観点: none')).toBe('§8');
   });
 });

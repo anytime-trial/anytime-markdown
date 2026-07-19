@@ -8,8 +8,17 @@ const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
 
-/** リクエスト先として許可するホスト */
-const ALLOWED_HOSTS = new Set(["api.github.com"]);
+import { providerDefaultHosts, TICKET_PROVIDER_KINDS } from "@anytime-markdown/tickets-core";
+
+/**
+ * リクエスト先として許可するホスト。
+ * 基本ホストに、チケットプロバイダが要求するホストを合成する（RFC 詳細設計 3）。
+ * プロバイダ追加時は tickets-core の providerDefaultHosts がホストを供給するため、本ファイルの変更漏れが起こらない。
+ */
+const ALLOWED_HOSTS = new Set([
+  "api.github.com",
+  ...TICKET_PROVIDER_KINDS.flatMap((kind) => providerDefaultHosts(kind)),
+]);
 
 function validateUrl(input: string | URL | Request): void {
   const urlStr = input instanceof Request ? input.url : String(input);

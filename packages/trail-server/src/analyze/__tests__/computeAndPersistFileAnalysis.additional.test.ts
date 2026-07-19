@@ -35,6 +35,8 @@ function makeMockDb(overrides: Record<string, jest.Mock> = {}) {
     getCurrentCoverage: jest.fn().mockReturnValue([]),
     getCommitFilesChurnSince: jest.fn().mockReturnValue(new Map()),
     getCommitFilesEverChurned: jest.fn().mockReturnValue(new Set()),
+    getCommitFilesChurnBefore: jest.fn().mockReturnValue(new Map()),
+    getEarliestCommitAt: jest.fn().mockReturnValue(null),
     clearCurrentFileAnalysis: jest.fn(),
     upsertCurrentFileAnalysis: jest.fn(),
     clearCurrentFunctionAnalysis: jest.fn(),

@@ -114,6 +114,21 @@ export function mountDeadCodeDetailPanel(
     }
     root.appendChild(signalGrid);
 
+    // Phase 6 S5-D: 最近動き始めたコードのバッジ。dead code スコアには加算しないため
+    // シグナル一覧とは分けて表示する（用途はドキュメント整備の優先度提示）。
+    const newlyActiveCount = props.entries.filter((e) => e.newlyActive === true).length;
+    if (newlyActiveCount > 0) {
+      const badge = document.createElement('div');
+      badge.style.cssText = `display:flex;align-items:center;gap:4px;margin-bottom:6px;color:${c.text};font-size:0.6rem;`;
+      const dot = document.createElement('span');
+      dot.style.cssText = 'width:6px;height:6px;border-radius:50%;background:#42a5f5;flex:0 0 auto;';
+      const text = document.createElement('span');
+      text.textContent = `${props.t('c4.popup.newlyActive')} (${newlyActiveCount})`;
+      badge.append(dot, text);
+      badge.title = props.t('c4.popup.newlyActive.description');
+      root.appendChild(badge);
+    }
+
     // Related files
     if (agg.relatedFiles.length > 0) {
       const filesSection = document.createElement('div');

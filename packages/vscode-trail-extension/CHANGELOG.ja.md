@@ -6,6 +6,31 @@
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-07-19
+
+### 追加
+
+- 同梱スキル: レビュー書式に観点行を追加し、retro が観点昇格候補を検知するようにしました（P1/P2）。観点昇格の出口を定型化し、条文の効果測定を追加しました（P3/P4）。
+
+### 変更
+
+- `anytime-token-budget` を `anytime-dev-retro` へ統合し、チケット起票を追加しました。
+
+### 修正
+
+- `anytime-dev-retro` の manifest 版数を 13 へ bump し、更新済みスキルが再インストールされるようにしました。
+
+### Trail Core (trail-core / trail-server / trail-viewer / memory-core)
+
+- 受入台帳（`acceptance_records`）と見逃し率の集計・API を追加しました。
+- Phase 6 S5: C4 Component Rollup の共有化・Bus Factor Score・Drift History Graph・Newly Active Code Detection を追加しました。
+- レビュー指摘に観点キー `checklist_ref` を追加しました（memory-core）。
+- 分析パネルの期間を日数入力＋1day/1week トグルへ変更し、データ 0 件でも円グラフを一定サイズで描画するようにしました。
+
+### 変更
+
+- 同梱スキル `anytime-token-budget` を `anytime-dev-retro` に統合しました。コストのセッション粒度分析（Opus 占有率・cache_read 二乗膨張・「高コスト×compact 未使用」のセッション衛生・週次トレンド）は dev-retro のコスト詳細として提供します。ふりかえりが改善提案へ昇格したシグナルは、提案書に加えてチケットを自動起票するようになりました（manifest bump で配布に反映。旧 `anytime-token-budget` の配置済みコピーは `oldNames` で掃除されます）。リアルタイムのトークン予算監視（Stop フック `token-budget.sh` → タブバー表示）は別機構のため変更ありません。
+
 ## [0.37.0] - 2026-07-17
 
 ### 追加

@@ -48,3 +48,18 @@ export {
   type DefectRiskEntry,
   type ComputeDefectRiskOptions,
 } from './defectRisk';
+
+export {
+  aggregateDriftByDay,
+  type AggregateDriftByDayOptions,
+  type DriftEventTimes,
+  type DriftHistoryPoint,
+} from './drift';
+
+export {
+  computeBusFactor,
+  normalizeAuthor,
+  type BusFactorEntry,
+  type ComputeBusFactorOptions,
+  type FileAuthorCommitRow,
+} from './busFactor';

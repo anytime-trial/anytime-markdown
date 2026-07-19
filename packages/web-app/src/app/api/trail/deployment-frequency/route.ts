@@ -16,5 +16,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     (r) => r.getDeploymentFrequency({ from, to }, bucket),
     [] as ReadonlyArray<{ bucketStart: string; value: number }>,
     '/api/trail/deployment-frequency',
+    `/api/trail/deployment-frequency?from=${from}&to=${to}&bucket=${bucket}`,
   );
 }

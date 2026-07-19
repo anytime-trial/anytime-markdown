@@ -245,6 +245,7 @@ function sampleFileAnalysisRow(filePath: string): FileAnalysisRow {
     isBarrel: false,
     centralityScore: 0,
     category: 'logic',
+    newlyActive: false,
     analyzedAt: '2026-04-01T00:00:00Z',
   };
 }

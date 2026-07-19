@@ -59,6 +59,7 @@ function makeFinding(overrides: Partial<ParsedFinding> = {}): ParsedFinding {
     target_line_end: 20,
     finding_text: 'Some logic issue',
     suggestion_text: 'Fix it like this',
+    checklist_ref: null,
     ...overrides,
   };
 }
@@ -153,6 +154,43 @@ describe('upsertReviewFinding', () => {
       expect(edgeRows[0]?.values).toHaveLength(1);
       expect(edgeRows[0].values[0][1]).toBe(reviewEntityId);
       expect(edgeRows[0].values[0][2]).toBe(result.finding_entity_id);
+    } finally {
+      close();
+    }
+  });
+
+  // P1 (観点キー): checklist_ref の永続化と checklist_ref フィルタ付き取得のラウンドトリップ。
+  // 015_checklist_ref.sql の列追加が openMemoryCoreDb のマイグレーションで効いていることも兼ねて検証する。
+  test('persists checklist_ref and round-trips through listUnaddressedReviewFindings filter', async () => {
+    const { db, reviewEntityId, close } = await openFreshWithReview('checklist-ref-review.md');
+    try {
+      const logger = makeLogger();
+      upsertReviewFinding(db, reviewEntityId, makeFinding({ checklist_ref: '§14' }), TS, logger);
+      upsertReviewFinding(
+        db, reviewEntityId,
+        makeFinding({ finding_index: 1, checklist_ref: 'none', finding_text: 'チェックリスト外の指摘' }),
+        TS, logger,
+      );
+      upsertReviewFinding(
+        db, reviewEntityId,
+        makeFinding({ finding_index: 2, finding_text: '観点マーカーなしの指摘' }),
+        TS, logger,
+      );
+
+      const rows = db.exec(
+        `SELECT finding_index, checklist_ref FROM memory_review_findings WHERE review_id = ? ORDER BY finding_index`,
+        [reviewEntityId],
+      );
+      expect(rows[0]?.values).toEqual([[0, '§14'], [1, 'none'], [2, null]]);
+
+      const { listUnaddressedReviewFindings } = await import('../../../src/retrieve/listUnaddressedReviewFindings');
+      const noneOnly = listUnaddressedReviewFindings({ db, checklist_ref: 'none', logger });
+      expect(noneOnly).toHaveLength(1);
+      expect(noneOnly[0].finding_text).toBe('チェックリスト外の指摘');
+      expect(noneOnly[0].checklist_ref).toBe('none');
+
+      const all = listUnaddressedReviewFindings({ db, logger });
+      expect(all.map((f) => f.checklist_ref).sort()).toEqual(['none', '§14', null].sort());
     } finally {
       close();
     }

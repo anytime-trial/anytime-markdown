@@ -42,5 +42,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     (r) => r.getQualityMetrics({ from, to }),
     emptyMetrics(from, to),
     '/api/trail/quality-metrics',
+    `/api/trail/quality-metrics?from=${from}&to=${to}`,
   );
 }

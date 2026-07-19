@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * /tickets の E2E（GitHub API はサーバールートごと route interception でモック）。
+ * /tickets の E2E（プロバイダ抽象のサーバールート /api/tickets を route interception でモック）。
  * シナリオ正本: /Shared/anytime-markdown-docs/spec/10.web-app/tickets/tickets-e2e.ja.md
  */
 
@@ -9,7 +9,7 @@ const TICKETS_DATA = {
   tickets: [
     {
       path: ".tickets/T-1-first.md",
-      sha: "s1",
+      version: "s1",
       frontmatter: {
         id: "T-1",
         title: "First ticket",
@@ -28,7 +28,7 @@ const TICKETS_DATA = {
     },
     {
       path: ".tickets/T-2-second.md",
-      sha: "s2",
+      version: "s2",
       frontmatter: {
         id: "T-2",
         title: "Second ticket",
@@ -42,7 +42,7 @@ const TICKETS_DATA = {
       archived: false,
     },
   ],
-  invalid: [{ path: ".tickets/broken.md", sha: "s3", reason: "no frontmatter" }],
+  invalid: [{ path: ".tickets/broken.md", version: "s3", reason: "no frontmatter" }],
 };
 
 async function openTicketsPage(page: Page, options?: { putStatus?: number }) {
@@ -52,10 +52,10 @@ async function openTicketsPage(page: Page, options?: { putStatus?: number }) {
       JSON.stringify({ repo: "owner/repo", branch: "main" }),
     );
   });
-  await page.route("**/api/github/tickets?*", async (route) => {
+  await page.route("**/api/tickets?*", async (route) => {
     await route.fulfill({ json: TICKETS_DATA });
   });
-  await page.route("**/api/github/tickets", async (route) => {
+  await page.route("**/api/tickets", async (route) => {
     const method = route.request().method();
     if (method === "PUT") {
       if (options?.putStatus === 409) {
@@ -66,7 +66,7 @@ async function openTicketsPage(page: Page, options?: { putStatus?: number }) {
         return;
       }
       await route.fulfill({
-        json: { path: ".tickets/T-1-first.md", sha: "s1b", commitSha: "c", updated_at: "2026-07-16T01:00:00.000Z" },
+        json: { version: "s1b", updated_at: "2026-07-16T01:00:00.000Z" },
       });
       return;
     }
@@ -79,7 +79,7 @@ async function openTicketsPage(page: Page, options?: { putStatus?: number }) {
         status: 201,
         json: {
           path: ".tickets/T-3-new.md",
-          sha: "s4",
+          version: "s4",
           frontmatter: {
             id: "T-3",
             title: "New ticket",
@@ -124,7 +124,7 @@ test.describe("tickets board", () => {
   test("カードのドラッグでステータス変更の PUT が発行される", async ({ page }) => {
     await openTicketsPage(page);
     const putRequest = page.waitForRequest(
-      (req) => req.method() === "PUT" && req.url().includes("/api/github/tickets"),
+      (req) => req.method() === "PUT" && req.url().includes("/api/tickets"),
     );
     const card = page.locator(".tk-card", { hasText: "T-1" });
     const target = page.locator('[data-status="in_progress"]');
@@ -156,7 +156,7 @@ test.describe("tickets board", () => {
     await page.locator(".tk-card", { hasText: "T-1" }).click();
     await page.locator("#tk-detail-comment").fill("looks good");
     const putRequest = page.waitForRequest(
-      (req) => req.method() === "PUT" && req.url().includes("/api/github/tickets"),
+      (req) => req.method() === "PUT" && req.url().includes("/api/tickets"),
     );
     await page.getByRole("button", { name: /コメントを投稿|Post comment/ }).click();
     const request = await putRequest;
@@ -169,7 +169,7 @@ test.describe("tickets board", () => {
     await openTicketsPage(page);
     await page.locator(".tk-card", { hasText: "T-2" }).click();
     const deleteRequest = page.waitForRequest(
-      (req) => req.method() === "DELETE" && req.url().includes("/api/github/tickets"),
+      (req) => req.method() === "DELETE" && req.url().includes("/api/tickets"),
     );
     await page.getByRole("button", { name: /^削除$|^Delete$/ }).click();
     await page.getByRole("button", { name: /削除を確定|Confirm delete/ }).click();
@@ -181,7 +181,7 @@ test.describe("tickets board", () => {
     await openTicketsPage(page);
     let posted = false;
     page.on("request", (req) => {
-      if (req.method() === "POST" && req.url().includes("/api/github/tickets")) {
+      if (req.method() === "POST" && req.url().includes("/api/tickets")) {
         posted = true;
       }
     });

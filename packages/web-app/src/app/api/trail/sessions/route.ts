@@ -19,5 +19,5 @@ export async function GET(request: Request): Promise<NextResponse> {
     project: url.searchParams.get('project') ?? undefined,
     searchText: url.searchParams.get('q') ?? undefined,
   };
-  return trailReaderRoute((r) => r.getSessions(filter), [], '/api/trail/sessions');
+  return trailReaderRoute((r) => r.getSessions(filter), [], '/api/trail/sessions', `/api/trail/sessions${url.search}`);
 }

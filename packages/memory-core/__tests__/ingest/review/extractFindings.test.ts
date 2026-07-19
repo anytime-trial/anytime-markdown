@@ -16,6 +16,7 @@ function makeFinding(overrides: Partial<ParsedFinding> & { finding_index: number
     suggestion_text: 'test suggestion',
     chapter_path: '1. テスト',
     is_category_inferred: false,
+    checklist_ref: null,
     ...overrides,
   };
 }

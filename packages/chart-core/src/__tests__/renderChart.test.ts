@@ -246,6 +246,20 @@ describe("renderChart", () => {
     expect(layout.points).toHaveLength(0);
   });
 
+  it("pie(donut) は total<=0 でもプレースホルダーリングを描き中央に 0 を表示する", () => {
+    const { ctx, fillTexts } = recordingCtx();
+    const spec: ChartSpec = {
+      kind: "pie",
+      categories: [],
+      series: [{ name: "x", values: [] }],
+      options: { donut: true, legend: "none" },
+    };
+    const layout = renderChart(ctx, rect, spec, theme);
+    // hit-test 点は無いが、中央総量「0」は描かれる（空でもドーナツの見た目とサイズを保つ）
+    expect(layout.points).toHaveLength(0);
+    expect(fillTexts.some((f) => f.text === "0")).toBe(true);
+  });
+
   it("hitTest は近傍点を返し、遠ければ null", () => {
     const spec: ChartSpec = {
       kind: "line",

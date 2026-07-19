@@ -52,11 +52,13 @@ jest.mock('../../charts/dayCommitPrefixChart', () => ({
 }));
 
 import { mountCyclingCard } from '../../widgets/cyclingCard';
+import { OVERVIEW_CARD_SIZING } from '../../widgets/overviewCardShell';
 import { mountOverviewCards } from '../overviewCards';
 import { mountSessionMetricsPanel } from '../sessionMetricsPanel';
 import { mountDailySessionList } from '../dailySessionList';
 import { mountSessionCommitList } from '../sessionCommitList';
 import { mountCombinedChartsSection } from '../combinedChartsSection';
+import type { CombinedData } from '../../../../domain/parser/types';
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -180,6 +182,7 @@ describe('mountCyclingCard', () => {
         index: 0,
         onCycle: () => {},
         cardSx,
+        sizing: OVERVIEW_CARD_SIZING,
       }),
     ).not.toThrow();
   });
@@ -192,6 +195,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(container.textContent).toContain('Label A');
     expect(container.textContent).toContain('42');
@@ -205,6 +209,7 @@ describe('mountCyclingCard', () => {
       index: 1,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(container.textContent).toContain('Label B');
   });
@@ -218,6 +223,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => { called = true; },
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     const card = container.querySelector('div') as HTMLElement;
     card.click();
@@ -233,6 +239,7 @@ describe('mountCyclingCard', () => {
       index: 2,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(container.textContent).toContain('Elite');
   });
@@ -245,6 +252,7 @@ describe('mountCyclingCard', () => {
       index: 2,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(container.textContent).toContain('↑ 5%');
   });
@@ -257,6 +265,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     // The dots container is the last div inside root; its children are one per item
     const root = container.firstElementChild as HTMLElement;
@@ -273,6 +282,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(() =>
       handle.update({
@@ -281,6 +291,7 @@ describe('mountCyclingCard', () => {
         index: 1,
         onCycle: () => {},
         cardSx,
+        sizing: OVERVIEW_CARD_SIZING,
       }),
     ).not.toThrow();
     expect(container.textContent).toContain('Label B');
@@ -294,6 +305,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     handle.destroy();
     expect(container.innerHTML).toBe('');
@@ -315,6 +327,63 @@ describe('mountOverviewCards', () => {
         t,
       }),
     ).not.toThrow();
+  });
+
+  // 回帰防止: 使用量カードは装飾（枠）を内側要素に、寸法（min-height）を外側ラッパーに
+  // 分散させていたため、枠を持つ要素が中身ぶんの高さしか持たず DORA カードと揃わなかった。
+  // jsdom はレイアウトしない（getBoundingClientRect は常に 0）ので、壊れた不変条件
+  // 「枠線を持つ要素が寸法も持つ」を直接 assert する。
+  describe('カード外殻', () => {
+    // DORA カードを 1 枚以上描画させるための最小 qualityMetrics。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const qualityMetrics: any = {
+      bucket: 'day',
+      metrics: {
+        tokensPerLoc: {
+          id: 'tokensPerLoc',
+          value: 37_400,
+          sampleSize: 10,
+          level: 'medium',
+          timeSeries: [],
+        },
+      },
+    };
+
+    // 行のカードは root（display:flex の行）の直接の子。カード 1 枚が装飾と寸法の
+    // 両方を担っているか＝外殻が 1 要素に閉じているかを、直接の子で検査する。
+    const rowCards = (): HTMLElement[] => {
+      const container = document.createElement('div');
+      mountOverviewCards(container, {
+        totals: minimalTotals,
+        qualityMetrics,
+        cardSx,
+        doraColors,
+        t,
+      });
+      const row = container.firstElementChild as HTMLElement;
+      return Array.from(row.children) as HTMLElement[];
+    };
+
+    it('各カードが装飾（枠）と寸法（min-height / flex）を同じ要素に持つ', () => {
+      const cards = rowCards();
+      expect(cards.length).toBeGreaterThan(1);
+      for (const card of cards) {
+        expect(card.style.borderRadius).not.toBe('');
+        expect(card.style.minHeight).not.toBe('');
+        expect(card.style.flex).not.toBe('');
+      }
+    });
+
+    it('使用量カードと DORA カードの最小高さが一致する', () => {
+      const cards = rowCards();
+      const usage = cards.find((el) => el.style.cursor === 'pointer');
+      const dora = cards.filter((el) => el.style.cursor !== 'pointer');
+      expect(usage).toBeDefined();
+      expect(dora.length).toBeGreaterThan(0);
+      for (const card of dora) {
+        expect(card.style.minHeight).toBe(usage?.style.minHeight);
+      }
+    });
   });
 
   it('renders usage group name', () => {
@@ -569,6 +638,154 @@ describe('mountCombinedChartsSection', () => {
     expect(container.innerHTML).toBe('');
   });
 
+  // 期間セレクタを 7/30/90 のボタン群から日数入力欄へ変更した際の受け入れ条件。
+  describe('期間入力欄', () => {
+    const periodInput = (container: HTMLElement): HTMLInputElement => {
+      const input = container.querySelector<HTMLInputElement>('input[data-role="period-days"]');
+      if (!input) throw new Error('period input not found');
+      return input;
+    };
+
+    it('現在の期間を初期値に持つ数値入力欄を描画する', () => {
+      const container = document.createElement('div');
+      mountCombinedChartsSection(container, baseProps);
+      const input = periodInput(container);
+      expect(input.type).toBe('number');
+      expect(input.value).toBe('30');
+    });
+
+    it('確定時に setPeriod を呼ぶ', () => {
+      const container = document.createElement('div');
+      const setPeriod = jest.fn();
+      mountCombinedChartsSection(container, { ...baseProps, setPeriod });
+      const input = periodInput(container);
+      input.value = '45';
+      input.dispatchEvent(new Event('change'));
+      expect(setPeriod).toHaveBeenCalledWith(45);
+    });
+
+    it('範囲外の入力を 1〜365 へクランプして欄へ書き戻す', () => {
+      const container = document.createElement('div');
+      const setPeriod = jest.fn();
+      mountCombinedChartsSection(container, { ...baseProps, setPeriod });
+      const input = periodInput(container);
+      input.value = '999';
+      input.dispatchEvent(new Event('change'));
+      expect(setPeriod).toHaveBeenCalledWith(365);
+      expect(input.value).toBe('365');
+    });
+
+    // レビュー指摘の回帰防止: 非同期 fetch の解決から render が走ると、入力中の
+    // 未確定値とフォーカスが消えていた。
+    it('背景の再描画で入力中の値とフォーカスを失わない', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      let resolveFetch: ((v: CombinedData) => void) | undefined;
+      const fetchCombinedData = jest.fn(
+        () => new Promise<CombinedData>((resolve) => { resolveFetch = resolve; }),
+      );
+      mountCombinedChartsSection(container, { ...baseProps, fetchCombinedData });
+
+      const input = periodInput(container);
+      input.focus();
+      input.value = '12'; // 入力中（change 未発火）
+      expect(document.activeElement).toBe(input);
+
+      resolveFetch?.(emptyCombinedData);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const after = periodInput(container);
+      expect(after.value).toBe('12');
+      expect(document.activeElement).toBe(after);
+      container.remove();
+    });
+
+    it('値が変わらない確定では setPeriod を呼ばない', () => {
+      const container = document.createElement('div');
+      const setPeriod = jest.fn();
+      mountCombinedChartsSection(container, { ...baseProps, setPeriod });
+      const input = periodInput(container);
+      input.value = '30';
+      input.dispatchEvent(new Event('change'));
+      expect(setPeriod).not.toHaveBeenCalled();
+    });
+  });
+
+  const emptyCombinedData: CombinedData = {
+    toolCounts: [],
+    errorRate: [],
+    skillStats: [],
+    modelStats: [],
+    agentStats: [],
+    commitPrefixStats: [],
+    aiFirstTryRate: [],
+    repoStats: [],
+    qualityRates: [],
+  };
+
+  describe('集計単位トグル', () => {
+    const bucketButtons = (container: HTMLElement): HTMLButtonElement[] =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button[data-role="bucket-unit"]'));
+
+    it('1day / 1week のトグルを描画し、既定は 1day', () => {
+      const container = document.createElement('div');
+      mountCombinedChartsSection(container, baseProps);
+      const buttons = bucketButtons(container);
+      expect(buttons.map((b) => b.dataset['value'])).toEqual(['day', 'week']);
+      expect(buttons[0]?.getAttribute('aria-pressed')).toBe('true');
+      expect(buttons[1]?.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    // 表示だけ週に変えてデータが日次のまま残る回帰を防ぐ。
+    it('1week へ切り替えると集計モード week で combined データを取り直す', async () => {
+      const container = document.createElement('div');
+      const fetchCombinedData = jest.fn().mockResolvedValue({});
+      mountCombinedChartsSection(container, { ...baseProps, fetchCombinedData });
+      fetchCombinedData.mockClear();
+      bucketButtons(container)[1]?.click();
+      expect(fetchCombinedData).toHaveBeenCalledWith('week', expect.any(Number));
+    });
+
+    // レビュー指摘の回帰防止: 共有 boolean のキャンセルフラグでは、後発の fetch が
+    // フラグを戻した隙に先発の遅い応答が採用され、表示単位と食い違うデータで上書きされた。
+    it('連続切替で先発の遅い応答を採用しない', async () => {
+      const container = document.createElement('div');
+      const resolvers: Array<(v: CombinedData) => void> = [];
+      const fetchCombinedData = jest.fn(
+        () => new Promise<CombinedData>((resolve) => { resolvers.push(resolve); }),
+      );
+      // 再描画の発生は t() の呼び出し（renderToolbar が毎回ラベルを引く）で観測する。
+      const tSpy = jest.fn((k: string) => k);
+      mountCombinedChartsSection(container, { ...baseProps, t: tSpy, fetchCombinedData });
+
+      const buttons = () => bucketButtons(container);
+      buttons()[1]?.click(); // → week
+      buttons()[0]?.click(); // → day
+      expect(resolvers).toHaveLength(3); // mount + week + day
+
+      tSpy.mockClear();
+      // 先発（week 用）を後から解決させても、最新（day 用）を上書きして再描画しない。
+      resolvers[1]?.(emptyCombinedData);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(tSpy).not.toHaveBeenCalled();
+
+      // 最新（day 用）の応答は採用して再描画する。
+      resolvers[2]?.(emptyCombinedData);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(tSpy).toHaveBeenCalled();
+    });
+
+    it('期間が 30 日未満でも取得範囲は 30 日を下回らない', () => {
+      const container = document.createElement('div');
+      const fetchCombinedData = jest.fn().mockResolvedValue({});
+      mountCombinedChartsSection(container, { ...baseProps, period: 7, fetchCombinedData });
+      expect(fetchCombinedData).toHaveBeenCalledWith('day', 30);
+    });
+  });
+
   // Regression: vanilla 化（bcd12d461）で エージェント/スキル/リリース トグル内の
   // ↗ ポップアップトリガが欠落し、ポップアップウインドウを開けなくなった不具合を防ぐ。
   it('エージェント/スキル/リリース トグルの ↗ がポップアップコールバックを発火する', () => {
@@ -694,10 +911,14 @@ describe('mountOverviewCards — CyclingCard repeated cycling', () => {
       t,
     });
 
-    // overviewCards structure: container > root(flex) > usageCardEl > cyclingCardRoot(cursor:pointer)
-    // 4th-level div: container(div) > overviewRoot(div) > usageCardEl(div) > cyclingCardRoot(div).
-    const cyclingCardRoot = container.querySelector('div > div > div > div') as HTMLElement;
-    expect(cyclingCardRoot).not.toBeNull();
+    // 循環カードは cursor:pointer を持つ唯一のカード。DOM のネスト深さで特定すると
+    // 外殻の共通化（ラッパー廃止）のような構造変更で別要素を掴んでしまうため、
+    // 振る舞いに紐づく属性で選ぶ。
+    const cyclingCardRoot = Array.from(
+      container.querySelectorAll<HTMLElement>('div'),
+    ).find((el) => el.style.cursor === 'pointer');
+    expect(cyclingCardRoot).toBeDefined();
+    if (!cyclingCardRoot) throw new Error('cycling card not found');
 
     // Before any click: index 0 → shows analytics.linesAdded
     expect(container.textContent).toContain('analytics.linesAdded');
@@ -723,10 +944,13 @@ describe('mountSessionMetricsPanel — CyclingCard repeated cycling', () => {
       t,
     });
 
-    // sessionMetricsPanel structure: container > root(flex) > usageEl > cyclingCardRoot(cursor:pointer)
-    // 4th-level div: container(div) > root(div) > usageEl(div) > cyclingCardRoot(div).
-    const usageCyclingRoot = container.querySelector('div > div > div > div') as HTMLElement;
-    expect(usageCyclingRoot).not.toBeNull();
+    // 循環カードは cursor:pointer を持つ。使用量カードは行の先頭。DOM のネスト深さで
+    // 特定すると外殻の共通化（ラッパー廃止）のような構造変更で別要素を掴むため避ける。
+    const usageCyclingRoot = Array.from(
+      container.querySelectorAll<HTMLElement>('div'),
+    ).find((el) => el.style.cursor === 'pointer');
+    expect(usageCyclingRoot).toBeDefined();
+    if (!usageCyclingRoot) throw new Error('usage cycling card not found');
 
     // Before any click: index 0 → analytics.netLines (usage card shows netLines label)
     expect(container.textContent).toContain('analytics.netLines');

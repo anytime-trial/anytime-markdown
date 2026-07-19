@@ -2,6 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { openMemoryCoreDb } from '../../../src/db/connection';
+import { EXPECTED_MIGRATION_COUNTS } from '../../../src/db/migrations/runner';
 
 function makeTmpDb(): string {
   return path.join(os.tmpdir(), `memory-phase2_7-${process.pid}-${Date.now()}.db`);
@@ -120,7 +121,7 @@ describe('Phase 2.7 migration (005_phase2_7_doc_session)', () => {
     const { db: db2, close: close2 } = await openMemoryCoreDb(tmpDb);
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
-    expect([13, 14]).toContain(count); // 全 migration 完了。14 は FTS5 有効時のみ
+    expect(EXPECTED_MIGRATION_COUNTS).toContain(count); // 件数は runner から導出（FTS5 非対応環境は 1 件少ない）
     close2();
   }, 30000);
 

@@ -1,0 +1,24 @@
+{
+  "loopPaths": [
+    ".claude/skills/anytime-loop-start/",
+    ".claude/skills/anytime-loop-stop/",
+    ".claude/skills/anytime-dev-cycle/references/delegation.md",
+    "packages/vscode-agent-extension/skills/anytime-loop-start/",
+    "packages/vscode-agent-extension/skills/anytime-loop-stop/",
+    "packages/vscode-agent-extension/skills/anytime-dev-cycle/references/delegation.md"
+  ],
+  "maxTicks": 3,
+  "model": "haiku",
+  "tickTimeoutMs": 600000,
+  "vsix": {
+    "targets": [
+      {
+        "pkg": "vscode-agent-extension",
+        "extensionId": "anytime-trial.anytime-agent",
+        "command": "anytime-agent.mapping.refresh",
+        "paths": ["packages/vscode-agent-extension/", "packages/vscode-common/"]
+      }
+    ],
+    "stageTimeoutMs": 300000
+  }
+}

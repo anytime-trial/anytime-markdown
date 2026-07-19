@@ -455,6 +455,7 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
   is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
   centrality_score       REAL    NOT NULL DEFAULT 0,
   category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
+  newly_active               INTEGER NOT NULL DEFAULT 0 CHECK (newly_active IN (0, 1)),
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (repo_id, file_path)
 ) STRICT`;
@@ -485,6 +486,7 @@ export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_
   is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
   centrality_score       REAL    NOT NULL DEFAULT 0,
   category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
+  newly_active               INTEGER NOT NULL DEFAULT 0 CHECK (newly_active IN (0, 1)),
   analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
   PRIMARY KEY (release_id, file_path)
 ) STRICT`;
@@ -761,4 +763,30 @@ export const CREATE_USER_FEEDBACK_ENTRIES = `CREATE TABLE IF NOT EXISTS user_fee
 export const CREATE_USER_FEEDBACK_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_user_feedback_entries_session_id ON user_feedback_entries(session_id)`,
   `CREATE INDEX IF NOT EXISTS idx_user_feedback_entries_occurred_at ON user_feedback_entries(occurred_at)`,
+];
+
+// 自律受入基盤 S5 (受入台帳): develop マージコミット単位の受入記録。
+// FK を張らない: farm（受入ファーム）の書き込みは Trail のコミット取込（session_commits）より
+// 先に届くため（flight_reviews / safe_points と同方針）。
+// 冪等性: (commit_sha, route) を PK とし UPSERT（farm の再実行・多重記録を吸収）。
+// verdict='not_run' はファーム自体の実行失敗（環境要因）で、合格でも不合格でもない（要件書 §9）。
+export const CREATE_ACCEPTANCE_RECORDS = `CREATE TABLE IF NOT EXISTS acceptance_records (
+  commit_sha TEXT NOT NULL,
+  route TEXT NOT NULL CHECK (route IN ('auto', 'machine', 'human')),
+  repo_name TEXT NOT NULL DEFAULT '',
+  verdict TEXT NOT NULL DEFAULT 'pending' CHECK (verdict IN ('pass', 'fail', 'pending', 'not_run')),
+  decided_by TEXT NOT NULL DEFAULT 'farm' CHECK (decided_by IN ('farm', 'human')),
+  decided_at TEXT CHECK (decided_at IS NULL OR decided_at GLOB ${TS_GLOB_MS} OR decided_at GLOB ${TS_GLOB_NO_MS}),
+  farm_run_ref TEXT NOT NULL DEFAULT '',
+  failed_tests TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(failed_tests)),
+  vrt_diff INTEGER NOT NULL DEFAULT 0 CHECK (vrt_diff IN (0, 1)),
+  quarantined_count INTEGER NOT NULL DEFAULT 0,
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (commit_sha, route)
+) STRICT`;
+
+export const CREATE_ACCEPTANCE_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_acceptance_records_decided_at ON acceptance_records(decided_at)`,
 ];

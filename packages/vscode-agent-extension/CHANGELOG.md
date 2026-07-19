@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-07-19
+
+### Changed
+
+- Bundled skill `anytime-dev-audit`: addressed three review findings (references to renamed skills, template headings, source licensing).
+
 ## [1.8.0] - 2026-07-17
 
 ### Added

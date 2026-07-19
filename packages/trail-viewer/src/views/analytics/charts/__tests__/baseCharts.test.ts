@@ -14,7 +14,8 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   };
 }
 
-import { mountDailyActivityChart } from '../dailyActivityChart';
+import { computeDailyActivityDataset, mountDailyActivityChart } from '../dailyActivityChart';
+import { mountDayCommitPrefixChart } from '../dayCommitPrefixChart';
 import { mountReleasesBarChart } from '../releasesBarChart';
 import { mountSessionErrorChart } from '../sessionErrorChart';
 import { mountToolUsageChart } from '../toolUsageChart';
@@ -58,12 +59,68 @@ const t = (k: string): string => k;
 //  mountDailyActivityChart
 // ---------------------------------------------------------------------------
 
+describe('computeDailyActivityDataset', () => {
+  // 直近 14 日分の日次データ（テスト実行日基準。cutoff で落ちないよう相対日付で組む）。
+  const buildItems = (days: number) =>
+    Array.from({ length: days }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (days - 1 - i));
+      return {
+        date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        sessions: 1,
+        commits: 1,
+        inputTokens: 100,
+        outputTokens: 100,
+        cacheReadTokens: 100,
+        cacheCreationTokens: 100,
+        linesAdded: 10,
+        linesDeleted: 5,
+        estimatedCostUsd: 0.01,
+      };
+    });
+
+  const baseProps = {
+    mode: 'tokens' as const,
+    chartColors,
+    cardSx,
+    isDark: false,
+    t,
+  };
+
+  it("bucket='day' は日次データをそのまま返す", () => {
+    const items = buildItems(14);
+    const dataset = computeDailyActivityDataset({ ...baseProps, items, period: 30, bucket: 'day' });
+    expect(dataset).toHaveLength(14);
+  });
+
+  it("bucket='week' は週バケットへ集約する", () => {
+    const items = buildItems(14);
+    const dataset = computeDailyActivityDataset({ ...baseProps, items, period: 30, bucket: 'week' });
+    expect(dataset.length).toBeGreaterThan(0);
+    expect(dataset.length).toBeLessThan(14);
+  });
+
+  // 旧実装は period === 90 で暗黙に週集計していた。期間と集計単位は直交する。
+  it('period=90 でも bucket=day なら日次のまま集約しない', () => {
+    const items = buildItems(14);
+    const dataset = computeDailyActivityDataset({ ...baseProps, items, period: 90, bucket: 'day' });
+    expect(dataset).toHaveLength(14);
+  });
+
+  it('period が短いと cutoff より前のデータを除外する', () => {
+    const items = buildItems(14);
+    const dataset = computeDailyActivityDataset({ ...baseProps, items, period: 3, bucket: 'day' });
+    expect(dataset.length).toBeLessThan(14);
+  });
+});
+
 describe('mountDailyActivityChart', () => {
   it('mounts, updates, and destroys without throwing when items is empty', () => {
     const container = document.createElement('div');
     const handle = mountDailyActivityChart(container, {
       items: [],
       period: 30,
+      bucket: 'day',
       mode: 'cost',
       chartColors,
       cardSx,
@@ -71,7 +128,7 @@ describe('mountDailyActivityChart', () => {
       t,
     });
     expect(() =>
-      handle.update({ items: [], period: 7, mode: 'tokens', chartColors, cardSx, isDark: false, t }),
+      handle.update({ items: [], period: 7, bucket: 'day', mode: 'tokens', chartColors, cardSx, isDark: false, t }),
     ).not.toThrow();
     expect(() => handle.destroy()).not.toThrow();
   });
@@ -95,6 +152,7 @@ describe('mountDailyActivityChart', () => {
     const handle = mountDailyActivityChart(container, {
       items,
       period: 30,
+      bucket: 'day',
       mode: 'cost',
       chartColors,
       cardSx,
@@ -102,7 +160,7 @@ describe('mountDailyActivityChart', () => {
       t,
     });
     expect(() =>
-      handle.update({ items, period: 90, mode: 'tokens', chartColors, cardSx, isDark: true, t }),
+      handle.update({ items, period: 90, bucket: 'week', mode: 'tokens', chartColors, cardSx, isDark: true, t }),
     ).not.toThrow();
     expect(() => handle.destroy()).not.toThrow();
     expect(container.innerHTML).toBe('');
@@ -171,6 +229,28 @@ describe('mountSessionErrorChart', () => {
     expect(container.innerHTML).toBe('');
   });
 
+  it('データ 0 件でも「0」テキストではなく固定サイズのチャートを mount する', () => {
+    const container = document.createElement('div');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toolMetrics: any = { errorsByTool: [], toolUsage: [], skillUsage: [] };
+    const handle = mountSessionErrorChart(container, {
+      toolMetrics,
+      colors,
+      cardSx,
+      isDark: true,
+      t,
+    });
+    const zeroSpans = [...container.querySelectorAll('span')].filter(
+      (s) => s.textContent === '0',
+    );
+    expect(zeroSpans).toHaveLength(0);
+    const chartHost = [...container.querySelectorAll('div')].find(
+      (d) => d.style.height === '130px' && d.style.width === '100%',
+    );
+    expect(chartHost).toBeTruthy();
+    handle.destroy();
+  });
+
   it('renders with errorsByTool data', () => {
     const container = document.createElement('div');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -193,6 +273,36 @@ describe('mountSessionErrorChart', () => {
       handle.update({ toolMetrics, colors, cardSx, isDark: false, t }),
     ).not.toThrow();
     expect(() => handle.destroy()).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+//  mountDayCommitPrefixChart
+// ---------------------------------------------------------------------------
+
+describe('mountDayCommitPrefixChart', () => {
+  it('コミット 0 件でも「0」テキストではなく固定サイズのチャートを mount する', async () => {
+    const container = document.createElement('div');
+    const handle = mountDayCommitPrefixChart(container, {
+      sessionIds: ['s1'],
+      fetchSessionCommits: async () => [],
+      colors,
+      cardSx,
+      isDark: true,
+      t,
+    });
+    // fetch 完了（空配列）まで待つ
+    await Promise.resolve();
+    await Promise.resolve();
+    const zeroSpans = [...container.querySelectorAll('span')].filter(
+      (s) => s.textContent === '0',
+    );
+    expect(zeroSpans).toHaveLength(0);
+    const chartHost = [...container.querySelectorAll('div')].find(
+      (d) => d.style.height === '130px' && d.style.width === '100%',
+    );
+    expect(chartHost).toBeTruthy();
+    handle.destroy();
   });
 });
 

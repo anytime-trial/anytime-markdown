@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Analytics period is now a day-count input, with a 1day / 1week bucket toggle.
+- Pie charts render at a fixed size even when there is no data.
+
+### Changed
+
+- Bus Factor C4 rollup moved to the server so it uses the same model-resolution path as the viewer.
+
+### Fixed
+
+- Usage cards now match the height of the other cards.
+- The period input preserves its editing state during re-render, and concurrent fetches no longer race.
+- Bus-factor C4 model resolvability is reset when the target changes.
+
+### Added
+
 - C4: architecture-layer annotation and visualization driven by `classifyLayer` (code-graph coloring + a C4 architecture-layer overlay).
 - C4 selected-element details panel now shows the architecture layer.
 - Completed the vanilla wiring of the Scatter and Code Graph popups.

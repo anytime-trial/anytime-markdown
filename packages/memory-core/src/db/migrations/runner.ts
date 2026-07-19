@@ -24,6 +24,17 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 12, file: '012_function_entity_lifecycle.sql' },
   { version: 13, file: '013_rag_fts.sql', requiresFts5: true },
   { version: 14, file: '014_spec_doc_reference_type.sql' },
+  { version: 15, file: '015_checklist_ref.sql' },
+]
+
+/**
+ * 適用済みになるはずの migration 件数 `[FTS5 非対応環境, FTS5 対応環境]`。
+ * FTS5 非対応環境では `requiresFts5` の migration が適用されないため 2 値を持つ。
+ * テスト側が件数をハードコードすると migration 追加のたびに期待値が陳腐化するため公開する。
+ */
+export const EXPECTED_MIGRATION_COUNTS: readonly [number, number] = [
+  MIGRATIONS.filter((migration) => !migration.requiresFts5).length,
+  MIGRATIONS.length,
 ];
 
 let cachedFts5: WeakMap<MemoryDbConnection, boolean> | null = null;

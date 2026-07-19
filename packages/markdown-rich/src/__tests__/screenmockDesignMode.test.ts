@@ -1,9 +1,14 @@
 import {
+  createScreenmockDesignModePreview,
+  percentBasisWidth,
+  previewScale,
+} from "../vanilla/screenmockDesignMode";
+import { SCREENMOCK_PALETTE_DRAG_EVENT } from "../vanilla/screenmockEditPanel";
+import {
   annotateScreenmockHtmlPaths,
   applyElementSizeToScreenHtml,
-  createScreenmockDesignModePreview,
   replaceScreenmockScreenHtml,
-} from "../vanilla/screenmockDesignMode";
+} from "../vanilla/screenmockHtmlMutations";
 import { sanitizeScreenmockHtml } from "../vanilla/screenmockPreview";
 
 describe("screenmockDesignMode", () => {
@@ -158,5 +163,366 @@ title: Home
     expect(styles.indexOf(lastStyle!)).toBeGreaterThan(userStyleIndex);
     expect(lastStyle?.textContent).toContain(".am-smdm-handle");
     expect(lastStyle?.textContent).toContain("!important");
+  });
+});
+
+describe("screenmockDesignMode ドラッグ操作", () => {
+  interface Box {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }
+
+  /**
+   * data-sm-path をキーにした矩形を注入し、shadow.elementsFromPoint を矩形ベースで代替する。
+   * jsdom はレイアウトを持たず矩形が常に 0 になるため、そのままでは挿入位置の判定を検証できない。
+   */
+  function stubGeometry(host: HTMLElement, boxes: Record<string, Box>): () => void {
+    const shadow = host.shadowRoot as ShadowRoot;
+    const originalRect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function stubbed(this: Element): DOMRect {
+      const key = this instanceof HTMLElement ? (this.dataset.smPath ?? "wrap") : "wrap";
+      const box = boxes[key] ?? { left: 0, top: 0, width: 0, height: 0 };
+      return {
+        ...box,
+        right: box.left + box.width,
+        bottom: box.top + box.height,
+        x: box.left,
+        y: box.top,
+        toJSON: () => ({}),
+      } as DOMRect;
+    };
+    (shadow as unknown as { elementsFromPoint: (x: number, y: number) => Element[] }).elementsFromPoint = (x, y) =>
+      Array.from(shadow.querySelectorAll<HTMLElement>("[data-sm-path]"))
+        .filter((el) => {
+          const box = boxes[el.dataset.smPath ?? ""];
+          return Boolean(box) && x >= box.left && x <= box.left + box.width && y >= box.top && y <= box.top + box.height;
+        })
+        .reverse();
+    return () => {
+      Element.prototype.getBoundingClientRect = originalRect;
+    };
+  }
+
+  function pointer(type: string, init: { clientX: number; clientY: number; altKey?: boolean }): PointerEvent {
+    return new (globalThis.PointerEvent ?? MouseEvent)(type, {
+      bubbles: true,
+      cancelable: true,
+      // 実ブラウザの PointerEvent は composed。false のままだと shadow 境界を越えず、
+      // 「祖先へ伝播しない」検証が素通りしてしまう。
+      composed: true,
+      pointerId: 1,
+      ...init,
+    } as PointerEventInit) as PointerEvent;
+  }
+
+  function mountDesignPreview(initial: string): {
+    host: ReturnType<typeof createScreenmockDesignModePreview>;
+    getSource: () => string;
+  } {
+    let source = initial;
+    const host = createScreenmockDesignModePreview({
+      source,
+      getSource: () => source,
+      setSource: (next) => {
+        source = next;
+      },
+    });
+    document.body.appendChild(host);
+    return { host, getSource: () => source };
+  }
+
+  const stackedBoxes = {
+    wrap: { left: 0, top: 0, width: 100, height: 40 },
+    "0": { left: 0, top: 0, width: 100, height: 40 },
+    "0/0": { left: 0, top: 0, width: 100, height: 20 },
+    "0/1": { left: 0, top: 20, width: 100, height: 20 },
+  };
+
+  it("要素本体のドラッグで並べ替えをソースへ書き戻す", () => {
+    const { host, getSource } = mountDesignPreview('<div class="sm-col"><span>a</span><button>b</button></div>');
+    const restore = stubGeometry(host, stackedBoxes);
+
+    const shadow = host.shadowRoot as ShadowRoot;
+    const target = shadow.querySelector('[data-sm-path="0/1"]') as HTMLElement;
+    target.dispatchEvent(pointer("pointerdown", { clientX: 50, clientY: 30 }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 50, clientY: 4 }));
+    document.dispatchEvent(pointer("pointerup", { clientX: 50, clientY: 4 }));
+
+    expect(getSource()).toBe('<div class="sm-col"><button>b</button><span>a</span></div>');
+    restore();
+    host.destroy();
+  });
+
+  it("パレットからのドラッグ挿入で挿入線を出し、指定位置へ挿入する", () => {
+    const { host, getSource } = mountDesignPreview('<div class="sm-col"><span>a</span><span>b</span></div>');
+    const restore = stubGeometry(host, stackedBoxes);
+    const shadow = host.shadowRoot as ShadowRoot;
+
+    document.dispatchEvent(
+      new CustomEvent(SCREENMOCK_PALETTE_DRAG_EVENT, {
+        detail: {
+          html: '<button class="sm-btn">Button</button>',
+          pointerId: 1,
+          clientX: 50,
+          clientY: 60,
+        },
+      }),
+    );
+    document.dispatchEvent(pointer("pointermove", { clientX: 50, clientY: 15 }));
+
+    expect(shadow.querySelector(".am-smdm-insertline")).not.toBeNull();
+
+    document.dispatchEvent(pointer("pointerup", { clientX: 50, clientY: 15 }));
+
+    expect(getSource()).toBe('<div class="sm-col"><span>a</span><button class="sm-btn">Button</button><span>b</span></div>');
+    restore();
+    host.destroy();
+  });
+
+  it("Alt ドラッグで自由配置をソースへ書き戻す", () => {
+    const { host, getSource } = mountDesignPreview('<div class="sm-col"><button>b</button></div>');
+    const restore = stubGeometry(host, {
+      wrap: { left: 0, top: 0, width: 200, height: 100 },
+      "0": { left: 0, top: 0, width: 200, height: 100 },
+      "0/0": { left: 10, top: 10, width: 50, height: 20 },
+    });
+
+    const shadow = host.shadowRoot as ShadowRoot;
+    const target = shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement;
+    target.dispatchEvent(pointer("pointerdown", { clientX: 10, clientY: 10, altKey: true }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 40, clientY: 30, altKey: true }));
+    document.dispatchEvent(pointer("pointerup", { clientX: 40, clientY: 30, altKey: true }));
+
+    // フローを保つオフセット（ドラッグ量そのもの）。親には触れない。
+    expect(getSource()).toContain("position: relative; left: 30px; top: 20px;");
+    expect(getSource()).toContain('<div class="sm-col">');
+    restore();
+    host.destroy();
+  });
+
+  it("しきい値未満の移動では並べ替えず元のままにする", () => {
+    const initial = '<div class="sm-col"><span>a</span><button>b</button></div>';
+    const { host, getSource } = mountDesignPreview(initial);
+    const restore = stubGeometry(host, stackedBoxes);
+
+    const shadow = host.shadowRoot as ShadowRoot;
+    const target = shadow.querySelector('[data-sm-path="0/1"]') as HTMLElement;
+    target.dispatchEvent(pointer("pointerdown", { clientX: 50, clientY: 30 }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 51, clientY: 31 }));
+    document.dispatchEvent(pointer("pointerup", { clientX: 51, clientY: 31 }));
+
+    expect(getSource()).toBe(initial);
+    restore();
+    host.destroy();
+  });
+
+  it("画面ルート（sm-screen）はドラッグ移動の対象にしない", () => {
+    const initial = '<div class="sm-screen"><span>a</span></div>';
+    const { host, getSource } = mountDesignPreview(initial);
+    const restore = stubGeometry(host, {
+      wrap: { left: 0, top: 0, width: 100, height: 40 },
+      "0": { left: 0, top: 0, width: 100, height: 40 },
+      "0/0": { left: 0, top: 0, width: 100, height: 20 },
+    });
+
+    const shadow = host.shadowRoot as ShadowRoot;
+    const root = shadow.querySelector('[data-sm-path="0"]') as HTMLElement;
+    root.dispatchEvent(pointer("pointerdown", { clientX: 50, clientY: 35 }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 50, clientY: 5 }));
+    document.dispatchEvent(pointer("pointerup", { clientX: 50, clientY: 5 }));
+
+    expect(getSource()).toBe(initial);
+    restore();
+    host.destroy();
+  });
+  it("ヒント文言を指定するとステージ上部に表示する", () => {
+    const source = '<div class="sm-col"><span>a</span></div>';
+    const host = createScreenmockDesignModePreview({
+      source,
+      getSource: () => source,
+      setSource: () => {},
+      hintLabel: "クリックで選択 / ドラッグで並べ替え",
+    });
+    document.body.appendChild(host);
+
+    const hint = host.shadowRoot?.querySelector(".am-smdm-hint");
+    expect(hint?.textContent).toBe("クリックで選択 / ドラッグで並べ替え");
+    host.destroy();
+  });
+
+  it("リンクのドラッグ開始でネイティブドラッグを抑止する", () => {
+    // ネイティブドラッグが走ると pointerup が届かずドロップを取りこぼす（実ブラウザのみで再現）。
+    const { host } = mountDesignPreview('<div class="sm-col"><a href="#next">go</a></div>');
+    const shadow = host.shadowRoot as ShadowRoot;
+    const anchor = shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement;
+
+    const down = pointer("pointerdown", { clientX: 10, clientY: 10 });
+    anchor.dispatchEvent(down);
+
+    expect(down.defaultPrevented).toBe(true);
+    host.destroy();
+  });
+
+  it("pointercancel でドラッグ状態とフィードバック表示を落とす", () => {
+    const initial = '<div class="sm-col"><span>a</span><button>b</button></div>';
+    const { host, getSource } = mountDesignPreview(initial);
+    const restore = stubGeometry(host, stackedBoxes);
+    const shadow = host.shadowRoot as ShadowRoot;
+    const target = shadow.querySelector('[data-sm-path="0/1"]') as HTMLElement;
+
+    target.dispatchEvent(pointer("pointerdown", { clientX: 50, clientY: 30 }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 50, clientY: 4 }));
+    expect(shadow.querySelector(".am-smdm-insertline")).not.toBeNull();
+
+    document.dispatchEvent(pointer("pointercancel", { clientX: 50, clientY: 4 }));
+
+    expect(shadow.querySelector(".am-smdm-insertline")).toBeNull();
+    // キャンセル後の pointerup では書き戻さない。
+    document.dispatchEvent(pointer("pointerup", { clientX: 50, clientY: 4 }));
+    expect(getSource()).toBe(initial);
+    restore();
+    host.destroy();
+  });
+
+  it("要素を掴むドラッグは祖先へ伝播させない（プレビューのパンと二重に走らせない）", () => {
+    const { host } = mountDesignPreview('<div class="sm-col"><button>b</button></div>');
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    container.appendChild(host);
+    const seen: string[] = [];
+    container.addEventListener("pointerdown", () => seen.push("ancestor"));
+
+    const shadow = host.shadowRoot as ShadowRoot;
+    (shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement).dispatchEvent(
+      pointer("pointerdown", { clientX: 10, clientY: 10 }),
+    );
+
+    expect(seen).toEqual([]);
+    host.destroy();
+    container.remove();
+  });
+
+  it("背景（画面ルート）のドラッグは祖先へ伝播させパンを妨げない", () => {
+    const { host } = mountDesignPreview('<div class="sm-screen"><span>a</span></div>');
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    container.appendChild(host);
+    const seen: string[] = [];
+    container.addEventListener("pointerdown", () => seen.push("ancestor"));
+
+    const shadow = host.shadowRoot as ShadowRoot;
+    (shadow.querySelector('[data-sm-path="0"]') as HTMLElement).dispatchEvent(
+      pointer("pointerdown", { clientX: 10, clientY: 10 }),
+    );
+
+    expect(seen).toEqual(["ancestor"]);
+    host.destroy();
+    container.remove();
+  });
+
+  it("ドラッグ中は掴んだ要素をカーソルへ追従させ、離すと戻す", () => {
+    const { host } = mountDesignPreview('<div class="sm-col"><button>b</button></div>');
+    const restore = stubGeometry(host, {
+      wrap: { left: 0, top: 0, width: 200, height: 100 },
+      "0": { left: 0, top: 0, width: 200, height: 100 },
+      "0/0": { left: 10, top: 10, width: 50, height: 20 },
+    });
+    const shadow = host.shadowRoot as ShadowRoot;
+    const target = shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement;
+
+    target.dispatchEvent(pointer("pointerdown", { clientX: 10, clientY: 10, altKey: true }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 40, clientY: 30, altKey: true }));
+
+    expect(target.style.transform).toBe("translate(30px, 20px)");
+    // ヒットテストで自分自身を拾わないよう pointer-events を落とす。
+    expect(target.style.pointerEvents).toBe("none");
+
+    document.dispatchEvent(pointer("pointerup", { clientX: 40, clientY: 30, altKey: true }));
+
+    const after = shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement;
+    expect(after.style.transform).toBe("");
+    expect(after.style.pointerEvents).toBe("");
+    restore();
+    host.destroy();
+  });
+
+  it("pointercancel でも追従表示を戻す", () => {
+    const { host } = mountDesignPreview('<div class="sm-col"><button>b</button></div>');
+    const restore = stubGeometry(host, {
+      wrap: { left: 0, top: 0, width: 200, height: 100 },
+      "0": { left: 0, top: 0, width: 200, height: 100 },
+      "0/0": { left: 10, top: 10, width: 50, height: 20 },
+    });
+    const shadow = host.shadowRoot as ShadowRoot;
+    const target = shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement;
+
+    target.dispatchEvent(pointer("pointerdown", { clientX: 10, clientY: 10, altKey: true }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 40, clientY: 30, altKey: true }));
+    document.dispatchEvent(pointer("pointercancel", { clientX: 40, clientY: 30, altKey: true }));
+
+    expect(target.style.transform).toBe("");
+    expect(target.style.opacity).toBe("");
+    restore();
+    host.destroy();
+  });
+
+  it("拡大表示中はリサイズもポインタ移動量を倍率で換算する", () => {
+    const { host, getSource } = mountDesignPreview('<div class="sm-col"><button>b</button></div>');
+    const restore = stubGeometry(host, {
+      wrap: { left: 0, top: 0, width: 400, height: 200 },
+      "0": { left: 0, top: 0, width: 400, height: 200 },
+      "0/0": { left: 0, top: 0, width: 200, height: 40 },
+    });
+    const shadow = host.shadowRoot as ShadowRoot;
+    // 実寸 400 / レイアウト 200 = 2 倍で表示している状態。
+    const wrap = shadow.querySelector(".am-sm-wrap") as HTMLElement;
+    Object.defineProperty(wrap, "offsetWidth", { configurable: true, value: 200 });
+
+    (shadow.querySelector('[data-sm-path="0/0"]') as HTMLElement).click();
+    const handle = shadow.querySelector(".am-smdm-handle-se") as HTMLElement;
+    handle.dispatchEvent(pointer("pointerdown", { clientX: 100, clientY: 100 }));
+    document.dispatchEvent(pointer("pointermove", { clientX: 200, clientY: 180 }));
+    document.dispatchEvent(pointer("pointerup", { clientX: 200, clientY: 180 }));
+
+    // 画面 +100,+80 → レイアウト +50,+40。幅 100+50=150 は親 200 の 75.0%、高さ 20+40=60px。
+    expect(getSource()).toContain("width: 75.0%");
+    expect(getSource()).toContain("height: 60px");
+    restore();
+    host.destroy();
+  });
+});
+
+describe("previewScale", () => {
+  it("実寸 / レイアウト幅の比を返す", () => {
+    expect(previewScale(300, 200)).toBeCloseTo(1.5);
+  });
+
+  it("未レイアウト（0）や不正値では 1 を返す", () => {
+    expect(previewScale(0, 200)).toBe(1);
+    expect(previewScale(300, 0)).toBe(1);
+    expect(previewScale(Number.NaN, 200)).toBe(1);
+  });
+});
+
+describe("percentBasisWidth", () => {
+  it("親のコンテンツ幅（clientWidth - 左右 padding）を基準にする", () => {
+    const parent = document.createElement("div");
+    parent.style.padding = "10px";
+    document.body.appendChild(parent);
+    Object.defineProperty(parent, "clientWidth", { configurable: true, value: 220 });
+
+    expect(percentBasisWidth(parent, 999)).toBe(200);
+    parent.remove();
+  });
+
+  it("測れない環境ではフォールバック幅を使う", () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+
+    expect(percentBasisWidth(parent, 150)).toBe(150);
+    expect(percentBasisWidth(parent, 0)).toBe(1);
+    parent.remove();
   });
 });

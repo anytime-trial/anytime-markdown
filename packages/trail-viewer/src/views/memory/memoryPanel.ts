@@ -16,6 +16,7 @@ import { MEMORY_TAB_DEFS, type MemoryTabValue } from '../../components/memoryTab
 import { MemoryReader } from '../../data/readers/MemoryReader';
 import type { MemoryDriftEventRow } from '../../data/types';
 import type { ChatBridge } from '../../hooks/useChatBridge';
+import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
 import { mountDriftPanel } from './driftPanel';
 import { mountBugHistoryPanel } from './bugHistoryPanel';
 import { mountReviewPanel } from './reviewPanel';
@@ -63,6 +64,7 @@ export function mountMemoryPanel(
     parseHashSubTab(globalThis.location?.hash ?? '') ?? 'drift';
   let dbExists: boolean | null = null;
   let driftRows: readonly MemoryDriftEventRow[] = [];
+  let driftHistory: readonly DriftHistoryPoint[] = [];
   let pendingBugFilter: { bugEntityIds: readonly string[] } | null = null;
   let pendingReviewFilter: { findingEntityIds: readonly string[] } | null = null;
 
@@ -150,6 +152,8 @@ export function mountMemoryPanel(
       return mountDriftPanel(host, {
         t: tStr,
         rows: driftRows,
+        historyPoints: driftHistory,
+        isDark: props.isDark,
         onResolve: handleResolve,
         onLoadDetail: (id) => reader.getDriftEventDetail(id),
       }) as SubHandle;
@@ -195,6 +199,8 @@ export function mountMemoryPanel(
       (handle as VanillaViewHandle<Parameters<typeof mountDriftPanel>[1]>).update({
         t: tStr,
         rows: driftRows,
+        historyPoints: driftHistory,
+        isDark: props.isDark,
         onResolve: handleResolve,
         onLoadDetail: (id) => reader.getDriftEventDetail(id),
       });
@@ -312,9 +318,13 @@ export function mountMemoryPanel(
   // --- Resolve drift event ---------------------------------------------------
   async function handleResolve(id: string, note: string): Promise<void> {
     await reader.resolveDriftEvent(id, note);
-    const updated = await reader.listDriftEvents({ unresolvedOnly: false, limit: 200 });
+    const [updated, points] = await Promise.all([
+      reader.listDriftEvents({ unresolvedOnly: false, limit: 200 }),
+      reader.getDriftHistoryByDay(),
+    ]);
     if (destroyed) return;
     driftRows = updated;
+    driftHistory = points;
     if (mountedTab === 'drift') {
       updateSub();
     }
@@ -354,6 +364,14 @@ export function mountMemoryPanel(
         if (destroyed) return;
         driftRows = rows;
         // If drift tab is already visible, update it
+        if (mountedTab === 'drift') {
+          updateSub();
+        }
+      });
+      // Phase 6 S5-C: 推移は一覧（limit 200）と別経路のサーバ側集計から取る
+      void reader.getDriftHistoryByDay().then((points) => {
+        if (destroyed) return;
+        driftHistory = points;
         if (mountedTab === 'drift') {
           updateSub();
         }

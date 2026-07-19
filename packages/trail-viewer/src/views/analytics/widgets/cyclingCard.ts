@@ -1,4 +1,8 @@
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
+import { applyCardShell } from './overviewCardShell';
+
+/** 外殻へ後置する、循環カード固有の宣言（クリックで次の指標へ切り替わる）。 */
+const CYCLING_CARD_EXTRA_STYLES = ['cursor:pointer', 'user-select:none'] as const;
 
 export interface VanillaMetricItem {
   readonly label: string;
@@ -14,6 +18,13 @@ export interface CyclingCardProps {
   index: number;
   onCycle: () => void;
   cardSx: { bgcolor: string; border: string; borderRadius: string };
+  /**
+   * カードの寸法（flex / min-width / min-height）。装飾と同じ要素へ載せるため、
+   * ラッパー側ではなくここで渡す。`overviewCardShell.ts` の定数を使う。
+   */
+  sizing: readonly string[];
+  /** 呼び出し側固有の追加宣言（`text-align:center` 等）。 */
+  extraStyles?: readonly string[];
 }
 
 function resolveColor(color: string): string {
@@ -122,17 +133,10 @@ export function mountCyclingCard(
   props: CyclingCardProps,
 ): VanillaViewHandle<CyclingCardProps> {
   const root = document.createElement('div');
-  root.style.cssText = [
-    `background-color:${props.cardSx.bgcolor}`,
-    `border:${props.cardSx.border}`,
-    `border-radius:${props.cardSx.borderRadius}`,
-    'cursor:pointer',
-    'display:flex',
-    'flex-direction:column',
-    'overflow:hidden',
-    'user-select:none',
-    'padding:16px',
-  ].join(';');
+  applyCardShell(root, props.cardSx, props.sizing, [
+    ...CYCLING_CARD_EXTRA_STYLES,
+    ...(props.extraStyles ?? []),
+  ]);
 
   let currentProps = props;
 
@@ -147,9 +151,11 @@ export function mountCyclingCard(
   return {
     update(newProps: CyclingCardProps) {
       currentProps = newProps;
-      root.style.backgroundColor = newProps.cardSx.bgcolor;
-      root.style.border = newProps.cardSx.border;
-      root.style.borderRadius = newProps.cardSx.borderRadius;
+      // 装飾を個別プロパティで上書きすると外殻と二重管理になるため、ヘルパーへ揃える。
+      applyCardShell(root, newProps.cardSx, newProps.sizing, [
+        ...CYCLING_CARD_EXTRA_STYLES,
+        ...(newProps.extraStyles ?? []),
+      ]);
       renderCard(root, newProps);
     },
     destroy() {

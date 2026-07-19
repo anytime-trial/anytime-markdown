@@ -1,4 +1,5 @@
-import type { C4Element, C4Model, ComplexityClass, ComplexityMatrix } from '../c4/types';
+import { rollupMaxToAncestors } from '../c4/rollup';
+import type { C4Model, ComplexityClass, ComplexityMatrix } from '../c4/types';
 import { buildPathToCodeIdIndex } from './pathIndex';
 import type { FileHotspotRow, HotspotEntry, HotspotMap } from './types';
 
@@ -8,37 +9,6 @@ const COMPLEXITY_SCORE: Record<ComplexityClass, number> = {
   'multi-file-edit': 2,
   'high-complexity': 3,
 };
-
-function buildAncestorChain(
-  elementById: ReadonlyMap<string, C4Element>,
-  startId: string,
-): readonly string[] {
-  const chain: string[] = [];
-  const visited = new Set<string>();
-  let cur: string | undefined = startId;
-  while (cur && !visited.has(cur)) {
-    visited.add(cur);
-    chain.push(cur);
-    cur = elementById.get(cur)?.boundaryId;
-  }
-  return chain;
-}
-
-function rollupMaxToAncestors(
-  baseValues: ReadonlyMap<string, number>,
-  c4Model: C4Model,
-): Map<string, number> {
-  const elementById = new Map(c4Model.elements.map((el) => [el.id, el] as const));
-  const result = new Map<string, number>();
-  for (const [id, value] of baseValues) {
-    if (!elementById.has(id)) continue;
-    for (const ancestorId of buildAncestorChain(elementById, id)) {
-      const prev = result.get(ancestorId) ?? 0;
-      if (value > prev) result.set(ancestorId, value);
-    }
-  }
-  return result;
-}
 
 function buildFileChurnMap(
   fileHotspots: readonly FileHotspotRow[],

@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# チケット返却通知 (AL-7)。best-effort: 通知の失敗でコミットを妨げない。
+node "$(dirname "$0")/../notify-ticket-return.mjs" || :

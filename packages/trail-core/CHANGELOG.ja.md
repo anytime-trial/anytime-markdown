@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-07-19
+
+### 追加
+
+- 受入台帳: `acceptance_records` に自律受入の結果を記録し、見逃し率の集計と参照 API を追加しました。
+- Phase 6 S5-A: C4 Component Rollup を共有化し、defect-risk へ祖先伝播を適用しました。
+- Phase 6 S5-B: Bus Factor Score（属人度）を追加しました。
+- Phase 6 S5-C: Drift History Graph（ドリフト件数の日次推移）を追加しました。
+- Phase 6 S5-D: Newly Active Code Detection を追加しました。
+
+### 修正
+
+- 相互レビュー合意 2 件を是正しました（属人度が切り詰めた行で集計されていた・ドリフト累計の繰り越しが誤っていた）。
+
 ## [0.37.0] - 2026-07-17
 
 ### 追加

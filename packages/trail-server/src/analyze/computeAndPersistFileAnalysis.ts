@@ -34,6 +34,7 @@ import {
   parseDeadCodeIgnore,
   matchIgnore,
   computeDeadCodeScore,
+  computeNewlyActive,
   aggregateImportanceToFile,
 } from '@anytime-markdown/trail-core/deadCode';
 import type {
@@ -117,6 +118,12 @@ export async function computeAndPersistFileAnalysis(
   // churnMap は recent 窓のみ返すため、それを hasHistory として使うと
   // hasHistory && churn===0 が論理的に成立しない。全期間の履歴を別途取得する。
   const everChurned = trailDb.getCommitFilesEverChurned(repoName);
+  // 5c. Phase 6 S5-D: recent 窓より前の churn と取込履歴の長さ（Newly Active 判定用）
+  const priorChurnMap = trailDb.getCommitFilesChurnBefore(repoName, sinceIso);
+  const earliestCommitAt = trailDb.getEarliestCommitAt(repoName);
+  const historyDays = earliestCommitAt
+    ? Math.max(0, (Date.now() - new Date(earliestCommitAt).getTime()) / (24 * 60 * 60 * 1000))
+    : 0;
 
   // 6. カバレッジ（coverage file_path = 絶対パス → 相対化）
   const coverageRows = trailDb.getCurrentCoverage(repoName);
@@ -184,6 +191,8 @@ export async function computeAndPersistFileAnalysis(
       relPathNoExtToNodeId,
       churnMap,
       everChurned,
+      priorChurnMap,
+      historyDays,
       coverageMap,
       centralityMap,
       ignoreRules,
@@ -263,6 +272,8 @@ interface BuildFileRowCtx {
   relPathNoExtToNodeId: ReadonlyMap<string, string>;
   churnMap: ReadonlyMap<string, number>;
   everChurned: ReadonlySet<string>;
+  priorChurnMap: ReadonlyMap<string, number>;
+  historyDays: number;
   coverageMap: ReadonlyMap<string, number>;
   centralityMap: ReadonlyMap<string, { crossPkgIn: number; externalConsumerPkgs: number; totalIn: number; isBarrel: boolean; centralityScore: number }>;
   ignoreRules: IgnoreRules;
@@ -273,7 +284,7 @@ interface BuildFileRowCtx {
 function buildFileAnalysisRow(ctx: BuildFileRowCtx): FileAnalysisRow {
   const {
     relPath, repoName, analyzedAt, fileAggregates, inDegree, communitySize,
-    nodeCommunityMap, relPathNoExtToNodeId, churnMap, everChurned,
+    nodeCommunityMap, relPathNoExtToNodeId, churnMap, everChurned, priorChurnMap, historyDays,
     coverageMap, centralityMap, ignoreRules, lineCountByFile, categoryByFile,
   } = ctx;
 
@@ -316,6 +327,12 @@ function buildFileAnalysisRow(ctx: BuildFileRowCtx): FileAnalysisRow {
     isolatedCommunity: communityId !== null && commSize > 0 && commSize <= ISOLATED_COMMUNITY_THRESHOLD,
   };
 
+  // Phase 6 S5-D: 最近になって動き始めたコードか（dead code スコアには加算しない）
+  const [newlyActiveEntry] = computeNewlyActive(
+    [{ filePath: relPath, recentChurn: churn, priorChurn: priorChurnMap.get(relPath) ?? 0 }],
+    { historyDays, windowDays: RECENT_CHURN_WINDOW_DAYS },
+  );
+
   const m = matchIgnore(relPath, ignoreRules);
   const isIgnored = m.matched;
   const ignoreReason = m.matched ? `user:${m.pattern}` : '';
@@ -334,6 +351,7 @@ function buildFileAnalysisRow(ctx: BuildFileRowCtx): FileAnalysisRow {
     cyclomaticComplexityMax: agg.cyclomaticComplexityMax,
     functionCount: agg.functionCount,
     deadCodeScore,
+    newlyActive: newlyActiveEntry.newlyActive,
     signals,
     isIgnored,
     ignoreReason,

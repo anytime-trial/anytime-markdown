@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-07-19
+
+### Added
+
+- Acceptance ledger: `acceptance_records` stores autonomous-acceptance outcomes with miss-rate aggregation and a read API.
+- Phase 6 S5-A: the C4 Component Rollup was made shared and ancestor propagation is now applied to defect-risk.
+- Phase 6 S5-B: Bus Factor Score.
+- Phase 6 S5-C: Drift History Graph (daily drift counts).
+- Phase 6 S5-D: Newly Active Code Detection.
+
+### Fixed
+
+- Cross-review findings: bus-factor aggregation ran over truncated rows, and drift totals were carried over incorrectly.
+
 ## [0.37.0] - 2026-07-17
 
 ### Added

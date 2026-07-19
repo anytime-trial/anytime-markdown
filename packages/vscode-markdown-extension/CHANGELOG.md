@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-07-19
+
+### Changed
+
+- The bundled-skill installer now copies directories recursively, so multi-file skills install correctly.
+- Bundled skill `anytime-doc-authoring` gained writing standards for Japanese technical documents, and three review findings were addressed (stale skill references, template headings, source licensing).
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Screenmock edit dialog gained a right-hand edit panel (parts, attributes, structure, screens) with variants, color tokens, offsets, drag-to-insert, hierarchy tree, screen management, snippets, templates, presets, reordering, alignment and zoom.
+- Screenmock design editing supports drag reordering and Alt free placement.
+- Ctrl/Cmd + wheel zooms the whole document; the code-block edit dialog gained a collapse/expand icon for the code pane.
+
 ## [1.15.0] - 2026-07-17
 
 ### Editor Core (markdown-viewer / markdown-rich)

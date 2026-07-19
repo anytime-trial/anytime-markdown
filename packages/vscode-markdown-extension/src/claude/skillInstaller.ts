@@ -2,8 +2,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 /**
- * 拡張へ同梱した Claude Code スキル（`<extension>/skills/<name>/SKILL.md`）を
- * ワークスペースの `.claude/skills/<name>/` へ配置するインストーラ。
+ * 拡張へ同梱した Claude Code スキル dir（`<extension>/skills/<name>/`、SKILL.md と
+ * references/ 等のサブファイルを含む）を、ワークスペースの `.claude/skills/<name>/` へ
+ * dir 全体を再帰コピーで配置するインストーラ。
  *
  * vscode API には依存しない（fs/path のみ）。配置判定の純関数 {@link planSkillInstall} と
  * 実配置 {@link installSkills} に分離し、前者を単体テストで検証する。
@@ -120,10 +121,13 @@ export function installSkills(opts: InstallOptions): InstallResult {
       continue;
     }
     try {
-      const srcFile = path.join(skillsSrcDir, item.name, 'SKILL.md');
+      const srcSkillDir = path.join(skillsSrcDir, item.name);
       const destDir = path.join(skillsDestDir, item.name);
       fs.mkdirSync(destDir, { recursive: true });
-      fs.copyFileSync(srcFile, path.join(destDir, 'SKILL.md'));
+      // SKILL.md 単体でなくスキル dir 全体を再帰コピーする。references/ 等のサブファイルを
+      // 持つスキル（anytime-doc-authoring 等）を配布ターゲットへ確実に届けるため
+      // （agent/trail 拡張の installStaticSkillDir と挙動を揃える）。
+      fs.cpSync(srcSkillDir, destDir, { recursive: true });
       succeeded.push(item);
       log('info', `スキル配置(${item.reason}): ${item.name} v${item.from ?? '-'}→v${item.to} → ${destDir}`);
     } catch (err) {

@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-07-19
+
+### Added
+
+- Tickets: a `TicketProvider` abstraction with two implementations (GitHub Contents and GitHub Issues). Callers now go through the abstraction via the new `/api/tickets` route, with a version contract and a `TICKETS_PROVIDER` switch.
+- CI/CD: autonomous-acceptance foundation — S1 acceptance farm (E2E, visual regression, flaky quarantine, ledger recording), S2 machine pre-processing for manual-only checks (IME composition, print PDF pixel comparison, VLM pre-processing), S3 risk-routing engine (deterministic scoring, route assignment, acceptance-ticket creation, Level Gate), S4 local canary (sandbox tick + VSIX Extension Host smoke).
+- CI/CD: ticket return notification via a post-commit hook and a one-way LINE webhook.
+
+### Fixed
+
+- Supabase egress reduction, phase 1: TTL caching, narrowed row fetches and all-period clamping, addressing the quota restriction.
+- Tickets: guard against issues outside the managed set, duplicate-id rollback, provider keying, and dead-code removal.
+- tickets-viewer: dark-mode surface elevation was inverted, and the mobile layout scrolled horizontally.
+
 ## [0.40.0] - 2026-07-17
 
 ### Changed

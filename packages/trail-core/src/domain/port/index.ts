@@ -3,4 +3,5 @@ export type { ISessionRepository, SessionStats, MessageCommitInput } from './ISe
 export type { IC4ModelStore, C4ModelEntry, C4ModelResult } from './IC4ModelStore';
 export type { IEmergencyRepository } from './IEmergencyRepository';
 export type { IFlightReviewRepository, IUserFeedbackRepository } from './IFlightReviewRepository';
+export type { IAcceptanceRepository } from './IAcceptanceRepository';
 export type { IKnowledgeBaseSnapshotter } from './IKnowledgeBaseSnapshotter';
