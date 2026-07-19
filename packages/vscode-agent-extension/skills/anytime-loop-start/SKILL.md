@@ -83,18 +83,36 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
 7. **委譲起動（別セッション実行）**: チケット本文の作業を子セッションへ委譲する。
    1. 委譲マーカーを先に記録してから起動する（記録前の起動は禁止。クラッシュ時に手順 1 が検知できなくなる）。
    2. 起動は **`setsid` でセッションから切り離す**（Bash の `run_in_background` に依存しない）。tick 実行体はサブエージェントであり、その終了時にバックグラウンドの子プロセスが巻き添えで停止すると委譲が失われるため、プロセスグループごと分離する。起動確認（マーカーの `pid` 生存）だけ行い、実行完了を待たずに tick を終了する。**切り離した子の終了通知は届かない**ので、結果は次 tick の手順 1（死んだマーカーの検知）から手順 8 の委譲検証で拾う。
-   3. 起動例（`<ticketsRepo>` はチケットリポジトリのルート、cwd はコードワークスペースのルート＝プロジェクト規約・スキルを子に継承させるため）。マーカーの記録と `exec` を同一プロセスに閉じることで「記録前の起動」を構造的に排除している:
+   3. 起動はコード（ランチャースクリプト）とデータ（委譲プロンプト）を**別ファイルに分離**して行う。委譲プロンプトはバッククォート・クォート・`$` を含む長い Markdown であり、シェルコマンド文字列へ直接埋め込むと本文内容に依存して引用が崩れる（`bash -c '...'` 内のバッククォートが command substitution 化した実害あり）。プロンプト本文をシェルにも argv にも一度も通さないことを不変条件とする:
+      1. Write で `/tmp/ticket-delegation-<チケット id>.prompt.md` に委譲プロンプト本文をそのまま書く（エスケープ不要。heredoc での `.sh` への内包は、本文にデリミタが現れた瞬間に壊れるため使わない）。
+      2. Write で `/tmp/ticket-delegation-<チケット id>.sh` にランチャーを書く（`<ticketsRepo>` はチケットリポジトリのルート、`<codeWorkspace>` はコードワークスペースのルート。`cd` 先を `<codeWorkspace>` にするのはプロジェクト規約・スキルを子に継承させるため。Bash ツールの cwd リセットに依存しないよう `cd` はスクリプトに内包する）:
 
-      ```bash
-      mkdir -p <ticketsRepo>/.git/ticket-delegations
-      setsid bash -c 'printf "{\"ticket\":\"T-12\",\"pid\":%d,\"startedAt\":\"%s\"}\n" \
-          "$BASHPID" "$(date -u +%FT%T.%3NZ)" \
-          > <ticketsRepo>/.git/ticket-delegations/T-12.json
-        exec claude -p "<委譲プロンプト>" --permission-mode acceptEdits \
-          --add-dir <ticketsRepo> \
-          --allowedTools "Bash(git -C <ticketsRepo>:*)"' \
-        > /tmp/ticket-delegation-T-12.log 2>&1 < /dev/null &
-      ```
+         ```bash
+         #!/bin/bash
+         # set -euo pipefail が「マーカーを書けなければ子は起動しない」を保証する
+         # （これが無いと printf/mkdir 失敗でも exec まで進み、マーカー無しの子=次 tick が検知できない孤児が生まれる）
+         set -euo pipefail
+         cd <codeWorkspace>
+         mkdir -p <ticketsRepo>/.git/ticket-delegations
+         printf '{"ticket":"%s","pid":%d,"startedAt":"%s"}\n' \
+           "T-12" "$$" "$(date -u +%FT%T.%3NZ)" \
+           > <ticketsRepo>/.git/ticket-delegations/T-12.json
+         exec claude -p --permission-mode acceptEdits \
+           --add-dir <ticketsRepo> \
+           --allowedTools "Bash(git -C <ticketsRepo>:*)" \
+           < /tmp/ticket-delegation-T-12.prompt.md
+         ```
+
+         プロンプトは `-p` の引数ではなく **stdin リダイレクトで渡す**（`"$(cat …)"` も使わない。argv 経由は ARG_MAX 依存かつ `ps` で全文露出する）。`$$` は `exec` で claude に引き継がれるため pid 記録は正しい。マーカーの記録と `exec` を同一プロセスに閉じることで「記録前の起動」を構造的に排除している。
+      3. `bash -n` で構文ゲートを通してから `setsid` で起動する（テンプレート退行を起動前に検知する。ゲートで落ちたらスクリプトを直すまで起動しない）:
+
+         ```bash
+         bash -n /tmp/ticket-delegation-T-12.sh \
+           && setsid bash /tmp/ticket-delegation-T-12.sh \
+             > /tmp/ticket-delegation-T-12.log 2>&1 < /dev/null &
+         ```
+
+         外側の `< /dev/null` はランチャー内の stdin リダイレクトで上書きされるため競合しない。`.prompt.md` は削除せず残す（子が変死したとき「何を指示されたか」をログと併せて事後検証するため。チケット id 単位で上書きされるので蓄積しない）。
 
       **`--add-dir <ticketsRepo>` は必須**（省略不可）。cwd はコードワークスペースのルートであり、チケットリポジトリはその**外**にあるため、付けないと子はチケットファイルを Read すらできず、**質問手順（§2）による中断すら踏めずに死ぬ**（チケットへ何も書けないため痕跡はログにしか残らない）。`--allowedTools` でチケットリポジトリに対する git 操作を事前許可するのも同じ理由で必須である。**ヘッドレスの子は権限プロンプトに応答できないので、必要な許可は起動時に与え切る**（後から承認する経路が無い）。付与範囲は §3 の安全境界と一致させる（チケットリポジトリの git 操作とチケットファイルの読み書きまで。コードワークスペース側の push 権限は与えない）。
 
