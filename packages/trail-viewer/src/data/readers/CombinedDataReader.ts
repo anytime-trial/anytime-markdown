@@ -620,6 +620,12 @@ export class CombinedDataReader {
             tokens: v.tokens,
             costUsd: v.costUsd,
             loc: v.loc,
+            // 欠損統計は「0 件」ではなく「未知」。この経路は trail_session_costs
+            // （セッション単位の合計）から集計しており、ターン単位の素材を持たない。
+            // 算出するには期間全体の trail_messages 走査が必要で、Supabase の egress
+            // 超過を招いた生行全転送パターンそのものになるため意図的に持たない。
+            // 消費側（buildAgentSeries）は total===0 を未知として扱い、欠損率を
+            // 表示しない。0 を「欠損なし」と解釈する消費側を増やさないこと。
             tokenMissingRate: 0,
             tokenTotalTurns: 0,
             tokenMissingTurns: 0,

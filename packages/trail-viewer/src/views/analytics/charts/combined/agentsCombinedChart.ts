@@ -2,7 +2,7 @@
  * vanilla 版 AgentsCombinedChart
  * (`components/analytics/charts/combined/AgentsCombinedChart.tsx` の素 DOM 等価)。
  */
-import { agentBrandColors } from '../../../../theme/designTokens';
+import { getAgentBrandColor } from '../../../../theme/designTokens';
 import { fmtPercent } from '../../../../domain/analytics/formatters';
 import type { AgentMetric } from '../../../../components/analytics/types';
 import type { CombinedAxisInfo } from '../../../../components/analytics/charts/combined/axisInfo';
@@ -22,11 +22,22 @@ export interface AgentsCombinedChartProps {
   t: (key: string) => string;
 }
 
-function buildSpec(p: AgentsCombinedChartProps) {
-  const { agentRows, agentPeriods, agentLabels, agents, agentMap, agentMissingByDisplay } = p.axisInfo;
+/**
+ * 積み上げ系列を組み立てる純粋関数（spec 生成から切り離してテスト可能にしている）。
+ *
+ * - 色は表示ラベル経由で解決する。agentBrandColors は sessions.source をキーに持つため、
+ *   表示ラベル（'Codex'）で直接引くと常に undefined になりブランド色が失われる。
+ * - 欠損率は統計を持つときだけ凡例に出す。Supabase 経路は tokenTotalTurns を 0 固定で
+ *   返す（ターン単位の素材が無い）ため、無条件に描画すると「欠損 0%」と誤って断言する。
+ */
+export function buildAgentSeries(
+  p: AgentsCombinedChartProps,
+): Array<{ name: string; values: number[]; color: string }> {
+  const { agentRows, agentPeriods, agents, agentMap, agentMissingByDisplay } = p.axisInfo;
   const agentSeriesLabel = (agent: string): string => {
     const missing = agentMissingByDisplay.get(agent);
-    const rate = missing && missing.total > 0 ? missing.missing / missing.total : 0;
+    if (!missing || missing.total === 0) return agent;
+    const rate = missing.missing / missing.total;
     return `${agent} (${p.t('analytics.combined.missingRate')} ${fmtPercent(rate)})`;
   };
   const getValue = (r: { tokens: number; costUsd: number; loc: number }): number =>
@@ -36,13 +47,17 @@ function buildSpec(p: AgentsCombinedChartProps) {
     const displayKey = agentMap.get(r.agent) ?? r.agent;
     valMap.set(`${r.period}::${displayKey}`, (valMap.get(`${r.period}::${displayKey}`) ?? 0) + getValue(r));
   }
+  return agents.map((agent, i) => ({
+    name: agentSeriesLabel(agent),
+    values: agentPeriods.map((pp) => valMap.get(`${pp}::${agent}`) ?? 0),
+    color: getAgentBrandColor(agent) ?? p.toolPalette[i % p.toolPalette.length],
+  }));
+}
+
+function buildSpec(p: AgentsCombinedChartProps) {
   return buildStackedBarSpec({
-    categories: agentLabels,
-    series: agents.map((agent, i) => ({
-      name: agentSeriesLabel(agent),
-      values: agentPeriods.map((pp) => valMap.get(`${pp}::${agent}`) ?? 0),
-      color: agentBrandColors[agent] ?? p.toolPalette[i % p.toolPalette.length],
-    })),
+    categories: p.axisInfo.agentLabels,
+    series: buildAgentSeries(p),
   });
 }
 

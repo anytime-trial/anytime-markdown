@@ -425,6 +425,35 @@ export const agentBrandColors: Readonly<Record<string, string>> = {
   cursor:      '#2563EB',  // Cursor – blue
 } as const;
 
+/**
+ * sessions.source → チャートの表示ラベル。
+ *
+ * 集計側（TrailDatabase の SQL / CombinedDataReader）が source を表示ラベルへ畳んでから
+ * 返すため、チャートが受け取る agent 名は source 値ではなくこのラベルになる。
+ * 色引きに source 値をそのまま使うと常に undefined になり、ブランド色が失われる。
+ */
+export const agentDisplayLabels: Readonly<Record<string, string>> = {
+  claude_code: 'Claude Code',
+  codex:       'Codex',
+  gemini:      'Gemini',
+  cursor:      'Cursor',
+} as const;
+
+/** 表示ラベル → ブランド色。agentBrandColors から派生させ、二重管理を避ける。 */
+const agentBrandColorByLabel = new Map<string, string>(
+  Object.entries(agentDisplayLabels)
+    .map(([source, label]) => [label, agentBrandColors[source]] as const)
+    .filter((entry): entry is readonly [string, string] => entry[1] !== undefined),
+);
+
+/**
+ * チャートの表示ラベルからブランド色を返す。未知のラベル（capTopN が畳む 'Others' など）は
+ * undefined を返し、呼び出し側が汎用パレットへフォールバックする。
+ */
+export function getAgentBrandColor(displayLabel: string): string | undefined {
+  return agentBrandColorByLabel.get(displayLabel);
+}
+
 /** Per-tier copper shades for Claude models (dark → light = opus → haiku). */
 const claudeModelColors = {
   opus:   '#8D4E32',  // dark copper
