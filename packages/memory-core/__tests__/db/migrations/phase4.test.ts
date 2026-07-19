@@ -3,6 +3,7 @@ import type { MemoryDbConnection } from '../../../src/db/connection/types';
 import * as path from 'path';
 import * as fs from 'fs';
 import { openMemoryCoreDb } from '../../../src/db/connection';
+import { EXPECTED_MIGRATION_COUNTS } from '../../../src/db/migrations/runner';
 
 function makeTmpDb(): string {
   return path.join(os.tmpdir(), `memory-phase4-${process.pid}-${Date.now()}.db`);
@@ -75,7 +76,7 @@ describe('Phase 4 migration (009_phase4)', () => {
     const { db: db2, close: close2 } = await openMemoryCoreDb(tmpDb);
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
-    expect([13, 14]).toContain(count); // 全 migration 完了。14 は FTS5 有効時のみ
+    expect(EXPECTED_MIGRATION_COUNTS).toContain(count); // 件数は runner から導出（FTS5 非対応環境は 1 件少ない）
     close2();
   }, 30000);
 

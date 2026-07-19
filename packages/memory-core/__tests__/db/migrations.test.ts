@@ -2,6 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { openMemoryCoreDb } from '../../src/db/connection';
+import { EXPECTED_MIGRATION_COUNTS } from '../../src/db/migrations/runner';
 
 const tmpDb = path.join(os.tmpdir(), `memory-test-${process.pid}-${Date.now()}.db`);
 
@@ -57,7 +58,7 @@ describe('migrations', () => {
       const count = result[0]?.values[0][0] as number;
       // migrations 1–12 は無条件、13 (rag_fts) は FTS5 が無いビルドで skip。
       // sql.js 既定 WASM は FTS5 非対応 = 13、better-sqlite3 (FTS5 有効) = 14。
-      expect([13, 14]).toContain(count);
+      expect(EXPECTED_MIGRATION_COUNTS).toContain(count);
       close2();
     } finally {
       try {
