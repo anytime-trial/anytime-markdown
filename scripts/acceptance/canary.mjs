@@ -110,7 +110,9 @@ function git(args, cwd) {
  */
 export function buildSandbox({ commit, root = ROOT, fixtureTicket = DEFAULT_FIXTURE_TICKET, skipWorkspace = false }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "acceptance-canary-"));
-  const workspace = path.join(dir, "workspace");
+  // ディレクトリ名は自ワークスペース識別子の fallback 解決に使われるため、fixture チケットの
+  // workspace: anytime-markdown と一致させる（不一致だと loop tick が全件対象外で空回りする — Codex 指摘）
+  const workspace = path.join(dir, "anytime-markdown");
   if (!skipWorkspace) {
     git(["worktree", "add", "--detach", workspace, commit], root);
   } else {
@@ -128,18 +130,38 @@ export function buildSandbox({ commit, root = ROOT, fixtureTicket = DEFAULT_FIXT
   git(["init", "--bare", "-b", "main", remote], dir);
   git(["remote", "add", "origin", remote], tickets);
   git(["push", "-u", "origin", "main"], tickets);
+  // チケットディレクトリと workspace 識別子の解決を VS Code 設定（最優先経路）で決定論化する
+  fs.mkdirSync(path.join(workspace, ".vscode"), { recursive: true });
+  fs.writeFileSync(
+    path.join(workspace, ".vscode/settings.json"),
+    `${JSON.stringify({ "anytimeAgent.tickets.directory": tickets, "anytimeAgent.tickets.workspace": "anytime-markdown" }, null, 2)}\n`,
+  );
   return { dir, workspace, tickets, remote, skipWorkspace };
 }
 
 export function cleanupSandbox(sandbox, root = ROOT) {
+  let needPrune = false;
   if (!sandbox.skipWorkspace) {
     try {
       git(["worktree", "remove", "--force", sandbox.workspace], root);
     } catch (e) {
       log("WARN", `worktree remove failed (${sandbox.workspace}): ${e instanceof Error ? e.message : String(e)}`);
+      needPrune = true;
     }
   }
   fs.rmSync(sandbox.dir, { recursive: true, force: true });
+  if (needPrune) {
+    // remove 失敗のままディレクトリだけ消すと実リポジトリの .git/worktrees/<id> にメタデータが残る。
+    // ディレクトリ削除後に prune すれば「実体なし」として回収される
+    try {
+      git(["worktree", "prune", "--expire", "now"], root);
+    } catch (e) {
+      log(
+        "WARN",
+        `worktree prune failed — stale metadata may remain under .git/worktrees (root=${root}): ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
 }
 
 export function readTicketStatuses(ticketsDir) {
@@ -270,7 +292,8 @@ export async function runCanary({ commit, root = ROOT, config, claudeBin, report
   log("INFO", `loop-system change detected (${loopFiles.length} file(s)) — running ${cfg.maxTicks} tick canary`);
 
   const bin = claudeBin ?? process.env.ACCEPTANCE_CLAUDE_BIN ?? "claude";
-  const probe = spawnSync(bin, ["--version"], { encoding: "utf8" });
+  // timeout 必須: probe がハングすると farm 全体が無期限ブロックする（timeout は error 経由で not_run へ倒れる）
+  const probe = spawnSync(bin, ["--version"], { encoding: "utf8", timeout: 10000, killSignal: "SIGKILL" });
   if (probe.error || probe.status !== 0) {
     // 環境要因（CLI 不在）は fail でも pass でもなく not_run（fail-open 禁止・人手経路へ倒す。要件 §9）
     return {
@@ -286,6 +309,7 @@ export async function runCanary({ commit, root = ROOT, config, claudeBin, report
   const failedChecks = [];
   const ticks = [];
   const statusHistory = {};
+  const initialStatuses = readTicketStatuses(sandbox.tickets);
   try {
     for (let i = 1; i <= cfg.maxTicks; i++) {
       const t = await runTick({ sandbox, config: cfg, index: i, claudeBin: bin });
@@ -307,6 +331,17 @@ export async function runCanary({ commit, root = ROOT, config, claudeBin, report
       const check = checkStatusTransitions(seq.filter((s) => s !== null));
       if (!check.ok) failedChecks.push(`canary:transition:${file}:${check.reason}`);
     }
+    // 無進捗は fail: 全 tick が正常終了してもチケットが 1 件も前進しないなら、loop は静かに空回りしている
+    // （workspace 識別子不一致等の設定欠陥を pass に見せない — fail-open 禁止。Codex 指摘）
+    const progressed = Object.entries(statusHistory).some(([file, seq]) => {
+      const initial = initialStatuses[file];
+      const last = [...seq].reverse().find((s) => s !== null);
+      return (
+        initial != null && last != null && initial in TICKET_STATUS_RANK && last in TICKET_STATUS_RANK &&
+        TICKET_STATUS_RANK[last] > TICKET_STATUS_RANK[initial]
+      );
+    });
+    if (!progressed) failedChecks.push("canary:no-progress");
     const leftovers = scanLeftoverProcesses(sandbox.dir).filter((p) => p.state !== "Z");
     if (leftovers.length > 0) {
       failedChecks.push(`canary:leftover-process:${leftovers.map((p) => p.pid).join(",")}`);
