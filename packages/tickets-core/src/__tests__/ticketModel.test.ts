@@ -388,6 +388,23 @@ describe('parseComments', () => {
     expect(comments).toHaveLength(1);
     expect(comments[0].author).toBe('Kiyotaka Ueda');
   });
+
+  // 回帰: セクション境界は見出し行（^## ）のみ。本文中に Comments という単語が
+  // あるだけで、そこからを Comments セクションと誤検知してはならない。
+  it('本文中の Comments という単語をセクション見出しと誤検知しない', () => {
+    const description = 'この機能は Comments を分離して扱う。';
+    let body = `## 概要 (Description)\n\n${description}\n\n## 作業タスクリスト (Subtasks)\n\n- [ ] a\n`;
+    body = appendComment(body, { author: 'user', timestamp: stamp, text: 'コメント本体。' });
+
+    // 追記は本物の Comments セクション（新設）へ入り、Description は無傷
+    expect(parseComments(body)).toEqual([{ author: 'user', timestamp: stamp, text: 'コメント本体。' }]);
+
+    const { content, commentsSection } = splitCommentsSection(body);
+    expect(content).toContain(description);
+    expect(content).toContain('- [ ] a');
+    expect(commentsSection).toContain('コメント本体。');
+    expect(commentsSection).not.toContain(description);
+  });
 });
 
 describe('splitCommentsSection / joinCommentsSection', () => {

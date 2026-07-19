@@ -382,9 +382,15 @@ export interface TicketComment {
  * Comments セクション末尾へ「投稿者名 - 日時」付きでコメントを追記する。
  * セクションが無ければ新設する。他セクションは変更しない。
  */
+// Why not: 非アンカーの /Comments|コミュニケーションスレッド/ だと、セクション本文中に
+// 「Comments」という単語がある行を見出しと誤検知し、そこからを Comments セクションとして
+// 切り出してしまう（splitCommentsSection 経由で Description が本文編集から消える実害）。
+// 見出し行（^## ）のみに一致させ、終端判定の /^##\s/（findSectionRange）と対称にする。
+const COMMENTS_SECTION_RE = /^##\s.*(?:Comments|コミュニケーションスレッド)/;
+
 export function appendComment(body: string, comment: TicketComment): string {
   const entry = `### ${comment.author} - ${comment.timestamp}\n\n${comment.text.trim()}\n`;
-  const range = findSectionRange(body, /Comments|コミュニケーションスレッド/);
+  const range = findSectionRange(body, COMMENTS_SECTION_RE);
   if (!range) {
     return `${body.trimEnd()}\n\n${COMMENTS_HEADING}\n\n${entry}`;
   }
@@ -410,7 +416,7 @@ interface CommentBlock extends TicketComment {
 
 function scanCommentBlocks(body: string): { lines: string[]; range: { start: number; end: number } | null; blocks: CommentBlock[] } {
   const lines = body.split('\n');
-  const range = findSectionRange(body, /Comments|コミュニケーションスレッド/);
+  const range = findSectionRange(body, COMMENTS_SECTION_RE);
   if (!range) {
     return { lines, range: null, blocks: [] };
   }
