@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { classifyRetryResults, collectSpecs, escapeRegex, flakySlug, VRT_TAG } from "./farm.mjs";
+import { applyGateReport, classifyRetryResults, collectSpecs, escapeRegex, flakySlug, mergeVerdicts, VRT_TAG } from "./farm.mjs";
 
 test("escapeRegex は正規表現メタ文字をすべてリテラル化する", () => {
   const title = "初期表示の視覚回帰 (light) [a-z] $1 c++ ?";
@@ -48,4 +48,30 @@ test("flakySlug は非英数字を折り畳み 40 文字以内の小文字スラ
   const long = flakySlug(`Very Long Title ${"x".repeat(100)}`);
   assert.ok(long.length <= 40);
   assert.match(long, /^[a-z0-9-]+$/);
+});
+
+test("mergeVerdicts: fail > not_run > pass の優先で合成する", () => {
+  assert.equal(mergeVerdicts("pass", "pass"), "pass");
+  assert.equal(mergeVerdicts("pass", "fail"), "fail");
+  assert.equal(mergeVerdicts("not_run", "fail"), "fail");
+  assert.equal(mergeVerdicts("pass", "not_run"), "not_run");
+  assert.equal(mergeVerdicts("not_run", "pass"), "not_run");
+});
+
+test("applyGateReport: applicable=false は無変更・fail は failedTests と notes を統合する", () => {
+  const base = { verdict: "pass", failedTests: ["t1"], notes: "base" };
+  assert.deepEqual(applyGateReport(base, { applicable: false, verdict: "fail", failedChecks: ["x"], notes: "n" }), base);
+  const merged = applyGateReport(base, {
+    applicable: true,
+    verdict: "fail",
+    failedChecks: ["canary:tick1:exit"],
+    notes: "canary fail: canary:tick1:exit",
+  });
+  assert.equal(merged.verdict, "fail");
+  assert.deepEqual(merged.failedTests, ["t1", "canary:tick1:exit"]);
+  assert.equal(merged.notes, "base / canary fail: canary:tick1:exit");
+  // pass ゲートは verdict を変えず notes だけ足す
+  const passed = applyGateReport(base, { applicable: true, verdict: "pass", failedChecks: [], notes: "canary pass (3 ticks)" });
+  assert.equal(passed.verdict, "pass");
+  assert.equal(passed.notes, "base / canary pass (3 ticks)");
 });
