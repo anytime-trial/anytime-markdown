@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-07-19
+
+### 変更
+
+- 同梱スキル `anytime-dev-audit`: レビュー指摘 3 件（旧スキル参照・テンプレート見出し・出典ライセンス）を対処しました。
+
 ### 修正
 
 - 同梱スキル `anytime-dev-audit` の `/usage` 裏取り参照を、統合済みの `anytime-dev-retro`（コスト詳細分析。旧 `anytime-token-budget`）へ更新しました。

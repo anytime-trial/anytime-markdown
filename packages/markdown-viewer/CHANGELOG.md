@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-07-19
+
+### Added
+
+- Screenmock edit panel (markdown-rich): the screenmock edit dialog gained a right-hand panel for parts, attributes, structure and screens — variants, color tokens, offset inputs, drag-to-insert, a hierarchy tree, screen add/duplicate/delete and id/title editing, plus snippets, screen templates, presets, reordering, alignment and zoom.
+- Screenmock design editing: drag reordering and Alt free placement, operation hints and drag-badge wording, and the grabbed element now follows the cursor while dragging.
+- Screenmock write-back functions were extracted into a dedicated HTML-mutation module (insert / delete / duplicate / wording / transition target / class toggle / style declaration / offset / screen-block operations).
+- Editor: Ctrl/Cmd + wheel zooms the whole document (body text and diagrams together).
+- Code-block edit dialog: a collapse/expand icon for the code pane.
+
+### Fixed
+
+- Reopening a code-block edit dialog after applying showed stale content.
+- Screenmock design editing could not be operated at non-100% zoom, and element drags ran twice together with the preview pan.
+- Free placement now preserves flow layout by reading `position: static` as `relative` instead of switching to absolute coordinates.
+- Native drag-and-drop hijacked screenmock reordering; it is now suppressed so indentation is preserved.
+- The screenmock edit panel is laid out beside the preview instead of below it.
+- Divider rendering writes are centralized in `updateLayout`.
+- Cross-review fixes: `sm-screen` unwrap guard, unhandled `pointercancel`, preset `custom` display, image-source handling restricted to `img`, independent size write-back, duplicate parent resolution, double rendering, screen add/duplicate on bare sources, `position` preservation at offset 0, and duplicate id rejection.
+
 ## [1.15.0] - 2026-07-17
 
 ### Added

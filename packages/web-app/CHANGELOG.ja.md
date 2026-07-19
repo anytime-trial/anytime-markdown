@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-07-19
+
+### 追加
+
+- チケット: 正本ストアの `TicketProvider` 抽象と 2 実装（GitHub Contents / GitHub Issues）を追加しました。呼び出し側は新ルート `/api/tickets` 経由で抽象を使い、version 契約と `TICKETS_PROVIDER` 切替に対応します。
+- CI/CD: 自律受入基盤を追加しました。S1 受入ファーム（E2E・視覚回帰・flaky 隔離・台帳記録）、S2 人手枠の機械前処理（IME 合成・印刷 PDF 画素比較・VLM 前処理）、S3 リスクルーティングエンジン（決定論スコア・経路振り分け・受入チケット自動起票・Level Gate）、S4 ローカルカナリア（sandbox tick + vsix Extension Host スモーク）。
+- CI/CD: post-commit hook と LINE 片方向 webhook によるチケット返却通知を追加しました。
+
+### 修正
+
+- Supabase egress 削減 第 1 段（TTL キャッシュ・取得行の絞り込み・全期間クランプ）を実施し、超過によるサービス制限に対処しました。
+- チケット: 管理対象外 issue のガード・重複 id の巻き戻し・provider キー・dead code 削除を対処しました。
+- tickets-viewer: ダークモードで面の昇格が反転していた問題と、モバイルで横スクロールが発生する問題を是正しました。
+
 ## [0.40.0] - 2026-07-17
 
 ### 変更

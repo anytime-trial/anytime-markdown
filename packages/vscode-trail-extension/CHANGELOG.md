@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-07-19
+
+### Added
+
+- Bundled skills: the review format gained a checklist-reference line, and retro now detects checklist-promotion candidates (P1/P2). Promotion has a formalized exit and clause-effect measurement (P3/P4).
+
+### Changed
+
+- `anytime-token-budget` was merged into `anytime-dev-retro`, which also gained ticket creation.
+
+### Fixed
+
+- The `anytime-dev-retro` manifest version was bumped to 13 so the updated skill actually reinstalls.
+
+### Trail Core (trail-core / trail-server / trail-viewer / memory-core)
+
+- Acceptance ledger (`acceptance_records`) with miss-rate aggregation and API.
+- Phase 6 S5: shared C4 Component Rollup, Bus Factor Score, Drift History Graph and Newly Active Code Detection.
+- Review findings gained a `checklist_ref` checklist key (memory-core).
+- Analytics period is a day-count input with a 1day/1week bucket toggle; pie charts keep a fixed size when empty.
+
 ## [0.37.0] - 2026-07-17
 
 ### Added
