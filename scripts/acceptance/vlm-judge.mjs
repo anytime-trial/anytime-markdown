@@ -14,8 +14,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
+// 一致率計測（要件書 §6 の「人の判定と並走・一致率を S5 台帳に記録」）は未実装 —
+// VLM 稼働後の後続スライスで台帳スキーマ拡張（vlmScore / 人の判定の対応付け）とあわせて対応する。
+
 const DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434";
 const RUBRIC_MAX_CHARS = 8000;
+/** /api/chat（推論本体）のタイムアウト。無応答の ollama で farm 全体をハングさせない（要件書 §9） */
+const CHAT_TIMEOUT_MS = 60000;
 
 function log(level, msg) {
   process.stderr.write(`[${new Date().toISOString()}] [${level}] ${msg}\n`);
@@ -130,6 +135,7 @@ export async function runVlmJudge({
       const res = await fetchImpl(`${ollamaUrl}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(CHAT_TIMEOUT_MS),
         body: JSON.stringify({
           model,
           stream: false,

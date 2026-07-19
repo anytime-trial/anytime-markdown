@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+
+const tmpDirs = [];
+function mkTmpDir(prefix) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tmpDirs.push(dir);
+  return dir;
+}
+after(() => {
+  for (const dir of tmpDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 import {
   buildJudgePrompt,
@@ -32,7 +44,7 @@ test("parseJudgeResponse は不正応答を null にする（score 域外・issu
 });
 
 test("collectVrtArtifacts は test-results から actual/diff の対を再帰収集する", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vlm-artifacts-"));
+  const dir = mkTmpDir("vlm-artifacts-");
   const sub = path.join(dir, "vrt-light-case");
   fs.mkdirSync(sub, { recursive: true });
   fs.writeFileSync(path.join(sub, "shot-actual.png"), "x");
@@ -51,7 +63,7 @@ test("collectVrtArtifacts は test-results から actual/diff の対を再帰収
 });
 
 test("resolveDocsRoot は CLAUDE.md の docsRoot 行を解決し、無ければ null", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vlm-docsroot-"));
+  const dir = mkTmpDir("vlm-docsroot-");
   fs.writeFileSync(path.join(dir, "CLAUDE.md"), "## ドキュメント保存先\n\n- docsRoot: /Shared/example-docs\n");
   assert.equal(resolveDocsRoot(dir), "/Shared/example-docs");
   assert.equal(resolveDocsRoot(path.join(dir, "missing")), null);
@@ -66,7 +78,7 @@ test("runVlmJudge はモデル未設定・ルーブリック欠落・ollama 不�
   assert.equal(noRubric.skipped, true);
   assert.match(noRubric.reason, /rubric not found/);
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vlm-rubric-"));
+  const dir = mkTmpDir("vlm-rubric-");
   const rubricPath = path.join(dir, "design.md");
   fs.writeFileSync(rubricPath, "# rubric");
   const unreachable = await runVlmJudge({
@@ -82,7 +94,7 @@ test("runVlmJudge はモデル未設定・ルーブリック欠落・ollama 不�
 });
 
 test("runVlmJudge は到達可なら画像ごとに採点し、失敗画像はエラーとして残す", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vlm-run-"));
+  const dir = mkTmpDir("vlm-run-");
   const rubricPath = path.join(dir, "design.md");
   fs.writeFileSync(rubricPath, "# rubric");
   const img = path.join(dir, "a-actual.png");
