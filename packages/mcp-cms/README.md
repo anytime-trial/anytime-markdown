@@ -15,6 +15,16 @@ Exposes S3-based document and report management as MCP tools, enabling AI assist
 | `upload_doc` | Upload a local file (Markdown or image) to S3 docs prefix |
 | `list_docs` | List all document files in S3 docs prefix |
 | `delete_doc` | Delete a document from S3 docs prefix |
+| `read_google_doc` | Read a Google Doc as plain text using service account authentication (registered only when `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` is set) |
+
+### Google Drive Reader (`read_google_doc`) setup
+
+1. Enable the Drive API on your GCP project.
+2. Create a service account and issue a JSON key.
+3. Share the target Google Doc with the service account email (`xxx@yyy.iam.gserviceaccount.com`) as a viewer.
+4. Set the environment variable `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` to the absolute path of the key file. Do not commit the key file (`.gitignore` already excludes `*service-account*.json` / `*.pem`).
+
+If unset, the `read_google_doc` tool is not registered (other tools are unaffected).
 
 ## Usage
 

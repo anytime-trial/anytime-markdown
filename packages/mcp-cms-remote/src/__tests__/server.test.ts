@@ -10,6 +10,7 @@ const mockDeleteDoc = jest.fn().mockResolvedValue(undefined);
 const mockGetPatentFile = jest.fn();
 const mockUploadPatentFile = jest.fn().mockResolvedValue({ key: 'patents/test.tsv', name: 'test.tsv' });
 const mockListPatentFiles = jest.fn().mockResolvedValue([{ key: 'patents/monthly-2026-04.tsv', name: 'monthly-2026-04.tsv' }]);
+const mockReadGoogleDoc = jest.fn().mockResolvedValue('Google Doc body');
 
 jest.mock('@anytime-markdown/cms-core', () => ({
   uploadReport: (...args: unknown[]) => mockUploadReport(...args),
@@ -21,6 +22,7 @@ jest.mock('@anytime-markdown/cms-core', () => ({
   getPatentFile: (...args: unknown[]) => mockGetPatentFile(...args),
   uploadPatentFile: (...args: unknown[]) => mockUploadPatentFile(...args),
   listPatentFiles: (...args: unknown[]) => mockListPatentFiles(...args),
+  readGoogleDoc: (...args: unknown[]) => mockReadGoogleDoc(...args),
 }));
 
 // tickets-core のモック（enum 定数・型は実物を使い、GitHub API を叩くプロバイダ生成のみ差し替える）
@@ -390,6 +392,40 @@ describe('createRemoteMcpServer', () => {
       mockProviderCreate.mockRejectedValueOnce(new Error('入力が不正です: title は必須です'));
       const server = createRemoteMcpServer(mockS3Client, mockConfig, undefined, mockTicketsConfig);
       await expect(callTool(server, 'create_ticket', { title: '' })).rejects.toThrow('入力が不正です');
+    });
+  });
+
+  describe('read_google_doc tool (with googleDriveConfig)', () => {
+    const mockGoogleDriveConfig = {
+      serviceAccountKeyJson: JSON.stringify({
+        client_email: 'sa@example.iam.gserviceaccount.com',
+        private_key: '-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----\n',
+      }),
+    };
+
+    it('is not registered without googleDriveConfig', async () => {
+      const server = createRemoteMcpServer(mockS3Client, mockConfig, mockRankingsConfig, mockTicketsConfig);
+      await expect(callTool(server, 'read_google_doc', { docRef: 'abc123' })).rejects.toThrow('Tool not found');
+    });
+
+    it('delegates to readGoogleDoc when googleDriveConfig is provided', async () => {
+      const server = createRemoteMcpServer(
+        mockS3Client,
+        mockConfig,
+        mockRankingsConfig,
+        mockTicketsConfig,
+        mockGoogleDriveConfig,
+      );
+      const result = await callTool(server, 'read_google_doc', { docRef: 'abc123' }) as {
+        content: Array<{ type: string; text: string }>;
+      };
+
+      expect(mockReadGoogleDoc).toHaveBeenCalledWith(
+        { docRef: 'abc123', serviceAccountKeyJson: mockGoogleDriveConfig.serviceAccountKeyJson },
+        expect.any(Function),
+        expect.any(Function),
+      );
+      expect(result.content[0]).toEqual({ type: 'text', text: 'Google Doc body' });
     });
   });
 });

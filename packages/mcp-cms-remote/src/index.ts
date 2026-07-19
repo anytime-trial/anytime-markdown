@@ -40,6 +40,8 @@ interface Env {
   TICKETS_BRANCH?: string;
   // チケットプロバイダ切替（NFR-7）。'github-contents'（既定）| 'github-issues'
   TICKETS_PROVIDER?: string;
+  // Google Drive Reader（サービスアカウント鍵のJSON文字列。wrangler secret put で設定）
+  GOOGLE_SERVICE_ACCOUNT_KEY?: string;
 }
 
 /** 環境変数からチケットプロバイダ設定を組み立てる。不正な TICKETS_PROVIDER は登録せずエラーログを残す */
@@ -108,7 +110,10 @@ app.post('/mcp', async (c) => {
     mailto: c.env.OPENALEX_MAILTO,
   };
   const ticketsConfig = resolveTicketsConfig(c.env);
-  const server = createRemoteMcpServer(s3Client, config, rankingsConfig, ticketsConfig);
+  const googleDriveConfig = c.env.GOOGLE_SERVICE_ACCOUNT_KEY
+    ? { serviceAccountKeyJson: c.env.GOOGLE_SERVICE_ACCOUNT_KEY }
+    : undefined;
+  const server = createRemoteMcpServer(s3Client, config, rankingsConfig, ticketsConfig, googleDriveConfig);
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 

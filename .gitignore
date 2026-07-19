@@ -3,6 +3,10 @@ dist
 node_modules
 prebuilt-vscode
 .agents
+
+# Google Drive Reader サービスアカウント鍵（誤コミット防止。spec/35.mcp/03.google-drive-reader 参照）
+*service-account*.json
+*.pem
 .anytime
 .clone
 .claude/*

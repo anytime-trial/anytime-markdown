@@ -10,9 +10,11 @@ import {
   listDocs,
   getReport,
   listReportKeys,
+  readGoogleDoc,
   uploadDoc,
   uploadReport,
 } from '@anytime-markdown/cms-core';
+import { signRs256Node } from './googleDriveSign';
 
 type ToolArgs = Record<string, unknown>;
 type ToolResult = { content: Array<{ type: 'text'; text: string }> };
@@ -110,6 +112,22 @@ export function createMcpServer(): McpServer {
       return { content: [{ type: 'text' as const, text: JSON.stringify({ deleted: true, key }) }] };
     },
   );
+
+  const googleServiceAccountKeyPath = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH;
+  if (googleServiceAccountKeyPath) {
+    registerTool(server, 'read_google_doc',
+      'Read a Google Doc as plain text using service account authentication. '
+      + 'Accepts a Doc ID or a Google Docs/Drive URL. '
+      + 'Requires the document to be shared with the service account email as a viewer.',
+      { docRef: z.string().describe('Google Doc ID or URL') },
+      async (args) => {
+        const docRef = args.docRef as string;
+        const serviceAccountKeyJson = await readFile(googleServiceAccountKeyPath, 'utf-8');
+        const text = await readGoogleDoc({ docRef, serviceAccountKeyJson }, signRs256Node, fetch);
+        return { content: [{ type: 'text' as const, text }] };
+      },
+    );
+  }
 
   return server;
 }
