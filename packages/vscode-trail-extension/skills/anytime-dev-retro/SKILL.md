@@ -87,6 +87,8 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 
 `topSessions` は前回スナップショットに無い `hygieneFlag='expensive-no-compact'` の新規セッションを特に注視する。`estimated_cost_usd` は推定値（サブスク枠の相対比較用）で、絶対額でなく**占有率・デルタ・集中度**で読む。
 
+**分析観点: 呼び出し回数削減を per-file 削減より優先する**。`message_count`（`sessions` 表）が高いのに `peak_context_tokens` が横ばいのセッションは、1 回あたりの読み込み量でなく往復回数（判断→Read→判断→Read の逐次化・並列化不足）がコスト増の主因である可能性が高い。対策候補の優先順位づけは「1 呼び出しあたりのトークン削減」より「呼び出し回数そのものの削減」を優先する（参考: Qiita「CLAUDE.mdによるClaude Code探索コスト削減」の一事例実測 — CLAUDE.md 導入で API 呼び出し 57.1% 減・入力トークン 45.8% 減、要因分解では呼び出し回数削減の寄与が単位あたり削減より大きい。単一リポジトリでの計測であり一般化の検証は未了だが、基本入力の削減効果は呼び出し回数倍でしか効かない構造は自明のため、ヒューリスティックとして採用する）。
+
 ### 3. 健全性レポート（常時出力）
 
 `<docsRoot>/report/<YYYYMMDD>-dev-retro.ja.md` を出力する（旧名 `<YYYYMMDD>-dev-health.ja.md`。過去分は改名しない）。`anytime-markdown-output` スキルの書式（frontmatter `type: report`）に従う。
