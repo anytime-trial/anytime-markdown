@@ -88,12 +88,12 @@ export function aggregateDriftByDay(
   const startDate = options.sinceIso
     ? toLocalDateString(options.sinceIso, timeZone)
     : allDates.length
-      ? allDates.reduce((a, b) => (a < b ? a : b))
+      ? allDates.reduce((a, b) => (a < b ? a : b), allDates[0])
       : null;
   const endDate = options.untilIso
     ? toLocalDateString(options.untilIso, timeZone)
     : allDates.length
-      ? allDates.reduce((a, b) => (a > b ? a : b))
+      ? allDates.reduce((a, b) => (a > b ? a : b), allDates[0])
       : null;
   if (!startDate || !endDate || startDate > endDate) return [];
 
