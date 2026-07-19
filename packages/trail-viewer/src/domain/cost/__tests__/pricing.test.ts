@@ -19,7 +19,7 @@ describe('pricing', () => {
         cacheReadTokens: 0,
         cacheCreationTokens: 0,
       });
-      expect(cost).toBeCloseTo(15 + 75, 2);
+      expect(cost).toBeCloseTo(5 + 25, 2); // Opus 4.5 以降の現行価格
     });
 
     it('should calculate cost for sonnet model', () => {
@@ -39,7 +39,7 @@ describe('pricing', () => {
         cacheReadTokens: 0,
         cacheCreationTokens: 0,
       });
-      expect(cost).toBeCloseTo(0.8 + 4, 2);
+      expect(cost).toBeCloseTo(1 + 5, 2); // Haiku 4.5 の現行価格
     });
 
     it('should include cache token costs', () => {
@@ -49,7 +49,7 @@ describe('pricing', () => {
         cacheReadTokens: 1_000_000,
         cacheCreationTokens: 1_000_000,
       });
-      expect(cost).toBeCloseTo(15 * 0.1 + 15 * 1.25, 2);
+      expect(cost).toBeCloseTo(5 * 0.1 + 5 * 1.25, 2);
     });
 
     it('should fall back to sonnet pricing for unknown model', () => {
@@ -69,9 +69,10 @@ describe('pricing', () => {
         cacheReadTokens: 0,
         cacheCreationTokens: 0,
       };
-      expect(calculateCost('claude-opus-4-6', tokens)).toBeCloseTo(15, 2);
+      expect(calculateCost('claude-opus-4-6', tokens)).toBeCloseTo(5, 2);
       expect(calculateCost('claude-sonnet-4-6', tokens)).toBeCloseTo(3, 2);
-      expect(calculateCost('claude-haiku-4-5-20251001', tokens)).toBeCloseTo(0.8, 2);
+      expect(calculateCost('claude-haiku-4-5-20251001', tokens)).toBeCloseTo(1, 2);
+      expect(calculateCost('claude-fable-5', tokens)).toBeCloseTo(10, 2); // 回帰: sonnet フォールバック
     });
 
     it('should calculate cost for Codex model names', () => {

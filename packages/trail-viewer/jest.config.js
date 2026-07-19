@@ -14,6 +14,9 @@ const config = {
     // worktree ではなくメインの packages/ui-core を指すため、兄弟ソースへ明示マップする。
     "^@anytime-markdown/ui-core$": "<rootDir>/../ui-core/src/index.ts",
     "^@anytime-markdown/ui-core/(.*)$": "<rootDir>/../ui-core/src/$1",
+    // trail-core も同じ罠（worktree でメイン側へ解決）を踏むため兄弟ソースへ明示マップする
+    "^@anytime-markdown/trail-core$": "<rootDir>/../trail-core/src/index.ts",
+    "^@anytime-markdown/trail-core/(.*)$": "<rootDir>/../trail-core/src/$1",
   },
   maxWorkers: 1,
 };

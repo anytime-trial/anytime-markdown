@@ -1,4 +1,4 @@
-export { MODEL_PRICING, normalizeModelName, resolvePricingModelName, calculateCost } from './pricing';
+export { MODEL_PRICING, normalizeModelName, resolvePricingModelName, calculateCost, isKnownPricingModel, isCountableModel } from './pricing';
 export type { TokenUsage, ModelPricing, PricingSource } from './pricing';
 
 export {
