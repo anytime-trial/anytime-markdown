@@ -174,6 +174,7 @@ import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity 
 import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
 
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
+import { codexMessageUuid } from './codexMessageUuid';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 import { ExecFileGitService } from './ExecFileGitService';
 import { JsonlSessionReader } from './JsonlSessionReader';
@@ -849,7 +850,7 @@ function normalizeCodexEventMsg(
   if (payload.type === 'agent_message' && typeof payload.message === 'string') {
     return {
       lines: [{
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         sessionId,
         type: 'assistant',
         timestamp,
@@ -879,7 +880,7 @@ function normalizeCodexResponseItem(
     const normalizedType: 'user' | 'assistant' | 'system' = role === 'user' ? 'user' : normalizedTypeInner;
     return {
       lines: [{
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         sessionId,
         type: normalizedType,
         subtype: role,
@@ -901,7 +902,7 @@ function normalizeCodexResponseItem(
     }
     return {
       lines: [{
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         sessionId,
         type: 'assistant',
         timestamp,
@@ -917,7 +918,7 @@ function normalizeCodexResponseItem(
       : JSON.stringify(payload.output ?? '');
     return {
       lines: [{
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         sessionId,
         type: 'user',
         timestamp,
@@ -2049,6 +2050,63 @@ export class TrailDatabase {
     this.migrateReleaseChildrenReleaseId(initDb);
     // Phase 5 S4: emergency_log.event へ section_lock 系を追加（CHECK 変更 = 12-step 再構築）。
     this.migrateEmergencyLogEventKinds(initDb);
+    // 旧 Codex uuid 採番（codex-<seq>）の残骸を除去する。
+    this.migrateCodexMessageUuidScheme(initDb);
+  }
+
+  /**
+   * 旧採番 `codex-<seq>` で書かれた messages を削除する。
+   *
+   * 旧採番は seq がセッションごとに 0 から振り直されるため uuid がセッション横断で衝突し、
+   * `INSERT OR REPLACE` により後続セッションが先行セッションの行を上書きして奪っていた
+   * （実測: Codex 243 セッション中 23 件しか messages を保持できていなかった）。
+   *
+   * 残骸を消すだけでよい。`getImportedFileMap` の `hasMessages` 判定が messages を失った
+   * セッションを未取り込みとみなすため、次回 importAll が新採番で再取り込みする。
+   * 消さずに放置すると旧行と新行が併存し、トークンが二重計上される。
+   *
+   * 旧採番: `codex-` + 数字のみ（ハイフンは 1 つ）。
+   * 新採番: `codex-<sessionId>-<seq>`（sessionId が uuid のためハイフンを複数含む）。
+   * 冪等 — 対象 0 件なら何もしない。
+   */
+  private migrateCodexMessageUuidScheme(db: Database): void {
+    const LEGACY_PREDICATE = `uuid LIKE 'codex-%' AND uuid NOT LIKE 'codex-%-%'`;
+    try {
+      const countRow = db.exec(
+        `SELECT COUNT(*) FROM messages WHERE ${LEGACY_PREDICATE}`,
+      )[0]?.values?.[0]?.[0];
+      const legacyCount = Number(countRow ?? 0);
+      if (legacyCount === 0) return;
+
+      db.run('BEGIN');
+      try {
+        // FK は init() で OFF のため ON DELETE CASCADE は働かない。依存行を明示的に消す。
+        db.run(
+          `DELETE FROM message_commits
+           WHERE message_uuid IN (SELECT uuid FROM messages WHERE ${LEGACY_PREDICATE})`,
+        );
+        db.run(`DELETE FROM messages WHERE ${LEGACY_PREDICATE}`);
+        // 再取り込みで commit 突合をやり直させる（旧 uuid への紐付けは失効済み）。
+        db.run(
+          `UPDATE sessions SET message_commits_resolved_at = NULL WHERE source = 'codex'`,
+        );
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+      this.rebuildSessionCosts();
+      this.save();
+      this.logger.info(
+        `[TrailDatabase] removed ${legacyCount} legacy codex-<seq> messages; sessions will be re-imported`,
+      );
+    } catch (e) {
+      this.logger.error(
+        'migrateCodexMessageUuidScheme failed',
+        e instanceof Error ? e : new Error(String(e)),
+      );
+      throw e;
+    }
   }
 
   /**

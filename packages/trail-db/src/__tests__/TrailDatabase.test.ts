@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { codexMessageUuid } from '../codexMessageUuid';
 import { TrailDatabase, estimateCost, INSERT_MESSAGE } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
 
@@ -315,7 +316,9 @@ describe('TrailDatabase.importSession - Codex token usage', () => {
 
     const execMs = (db as unknown as { getTurnExecMsBySession: (sessionId: string) => Map<string, number> })
       .getTurnExecMsBySession('codex-token-session');
-    expect(execMs.get('codex-0')).toBe(1000);
+    // uuid は採番規則をハードコードせずヘルパーから導出する（旧テストは `codex-0` を
+    // 直書きしており、セッション横断で衝突する採番をテスト側が固定してしまっていた）。
+    expect(execMs.get(codexMessageUuid('codex-token-session', 0))).toBe(1000);
 
     db.close();
   });

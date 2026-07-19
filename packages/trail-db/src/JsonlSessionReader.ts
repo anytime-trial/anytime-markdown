@@ -1,7 +1,10 @@
 // JsonlSessionReader.ts — load TrailMessage[] from a JSONL session file
 
 import fs from 'node:fs';
+import path from 'node:path';
 import type { TrailMessage, TrailToolCall } from '@anytime-markdown/trail-core';
+
+import { codexMessageUuid, extractCodexSessionId } from './codexMessageUuid';
 
 interface RawLine {
   uuid?: string;
@@ -49,7 +52,11 @@ export class JsonlSessionReader {
       rawRecords.push(raw);
     }
 
-    const normalized = JsonlSessionReader.normalizeRecords(rawRecords);
+    // uuid は取り込み経路（TrailDatabase.normalizeCodexRecords）と一致させる必要がある。
+    // 不一致だと message_commits.message_uuid が実在しない行を指し、FK OFF のため
+    // orphan として静かに蓄積する。fallback の導出も取り込み側と同じ規則に揃える。
+    const fallbackSessionId = path.basename(filePath).replace(/\.jsonl$/i, '');
+    const normalized = JsonlSessionReader.normalizeRecords(rawRecords, fallbackSessionId);
     const messages: TrailMessage[] = [];
     for (const raw of normalized) {
       if (!raw.uuid || !raw.type || raw.isMeta) continue;
@@ -70,6 +77,7 @@ export class JsonlSessionReader {
 
   private static normalizeMessagePayload(
     payload: Record<string, unknown>,
+    sessionId: string,
     timestamp: string,
     seq: number,
   ): { line: RawLine | null; newSeq: number } {
@@ -82,7 +90,7 @@ export class JsonlSessionReader {
     const normalizedType = role === 'user' ? 'user' : normalizedTypeInner;
     return {
       line: {
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         type: normalizedType,
         subtype: role,
         timestamp,
@@ -95,6 +103,7 @@ export class JsonlSessionReader {
   private static normalizeFunctionCallPayload(
     payload: Record<string, unknown>,
     payloadType: string,
+    sessionId: string,
     timestamp: string,
     seq: number,
   ): { line: RawLine; newSeq: number } {
@@ -113,7 +122,7 @@ export class JsonlSessionReader {
     }
     return {
       line: {
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         type: 'assistant',
         timestamp,
         message: { content: [{ type: 'tool_use', id, name, input: parsedInput }] },
@@ -124,6 +133,7 @@ export class JsonlSessionReader {
 
   private static normalizeResponseItem(
     record: RawLine,
+    sessionId: string,
     seq: number,
   ): { lines: RawLine[]; newSeq: number } {
     if (!record.payload || typeof record.payload !== 'object') return { lines: [], newSeq: seq };
@@ -132,11 +142,11 @@ export class JsonlSessionReader {
     const timestamp = typeof record.timestamp === 'string' ? record.timestamp : '';
 
     if (payloadType === 'message') {
-      const { line, newSeq } = JsonlSessionReader.normalizeMessagePayload(payload, timestamp, seq);
+      const { line, newSeq } = JsonlSessionReader.normalizeMessagePayload(payload, sessionId, timestamp, seq);
       return { lines: line ? [line] : [], newSeq };
     }
     if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
-      const { line, newSeq } = JsonlSessionReader.normalizeFunctionCallPayload(payload, payloadType, timestamp, seq);
+      const { line, newSeq } = JsonlSessionReader.normalizeFunctionCallPayload(payload, payloadType, sessionId, timestamp, seq);
       return { lines: [line], newSeq };
     }
     if (payloadType === 'function_call_output' || payloadType === 'custom_tool_call_output') {
@@ -146,7 +156,7 @@ export class JsonlSessionReader {
         : JSON.stringify(payload.output ?? '');
       return {
         lines: [{
-          uuid: `codex-${seq}`,
+          uuid: codexMessageUuid(sessionId, seq),
           type: 'user',
           timestamp,
           message: {
@@ -164,17 +174,21 @@ export class JsonlSessionReader {
     return { lines: [], newSeq: seq };
   }
 
-  private static normalizeRecords(records: readonly RawLine[]): readonly RawLine[] {
+  private static normalizeRecords(
+    records: readonly RawLine[],
+    fallbackSessionId: string,
+  ): readonly RawLine[] {
     const hasCodexEnvelope = records.some(
       (r) => r.type === 'session_meta' || r.type === 'response_item' || r.type === 'event_msg',
     );
     if (!hasCodexEnvelope) return records;
 
+    const sessionId = extractCodexSessionId(records) ?? fallbackSessionId;
     const normalized: RawLine[] = [];
     let seq = 0;
     for (const record of records) {
       if (record.type === 'response_item') {
-        const { lines, newSeq } = JsonlSessionReader.normalizeResponseItem(record, seq);
+        const { lines, newSeq } = JsonlSessionReader.normalizeResponseItem(record, sessionId, seq);
         normalized.push(...lines);
         seq = newSeq;
       }
