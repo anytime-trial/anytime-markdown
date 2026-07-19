@@ -142,14 +142,6 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
         >
           {t("view.list")}
         </button>
-        <button
-          type="button"
-          className={showArchive ? "tk-btn tk-btn--toggle-on" : "tk-btn"}
-          aria-pressed={showArchive}
-          onClick={() => setShowArchive(!showArchive)}
-        >
-          {t("view.showArchive")}
-        </button>
         <button type="button" className="tk-btn" onClick={() => void tickets.reload()}>
           {t("board.reload")}
         </button>
@@ -157,38 +149,46 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
           {t("board.newTicket")}
         </button>
       </div>
-      {view === "list" && (
-        <div className="tk-toolbar">
-          {filterSelect(
-            "tk-filter-status",
-            t("filters.status"),
-            filters.status,
-            TICKET_STATUSES.map((value) => ({ value, label: t(`status.${value}`) })),
-            (value) => setFilters({ ...filters, status: value as Filters["status"] }),
-          )}
-          {filterSelect(
-            "tk-filter-priority",
-            t("filters.priority"),
-            filters.priority,
-            TICKET_PRIORITIES.map((value) => ({ value, label: t(`priority.${value}`) })),
-            (value) => setFilters({ ...filters, priority: value as Filters["priority"] }),
-          )}
-          {filterSelect(
-            "tk-filter-assignee",
-            t("filters.assignee"),
-            filters.assignee,
-            TICKET_ASSIGNEES.map((value) => ({ value, label: t(`assignee.${value}`) })),
-            (value) => setFilters({ ...filters, assignee: value as Filters["assignee"] }),
-          )}
-          {filterSelect(
-            "tk-filter-workspace",
-            t("filters.workspace"),
-            filters.workspace,
-            TICKET_WORKSPACES.map((value) => ({ value, label: t(`workspace.${value}`) })),
-            (value) => setFilters({ ...filters, workspace: value as Filters["workspace"] }),
-          )}
-        </div>
-      )}
+      <div className="tk-toolbar">
+        {filterSelect(
+          "tk-filter-status",
+          t("filters.status"),
+          filters.status,
+          TICKET_STATUSES.map((value) => ({ value, label: t(`status.${value}`) })),
+          (value) => setFilters({ ...filters, status: value as Filters["status"] }),
+        )}
+        {filterSelect(
+          "tk-filter-priority",
+          t("filters.priority"),
+          filters.priority,
+          TICKET_PRIORITIES.map((value) => ({ value, label: t(`priority.${value}`) })),
+          (value) => setFilters({ ...filters, priority: value as Filters["priority"] }),
+        )}
+        {filterSelect(
+          "tk-filter-assignee",
+          t("filters.assignee"),
+          filters.assignee,
+          TICKET_ASSIGNEES.map((value) => ({ value, label: t(`assignee.${value}`) })),
+          (value) => setFilters({ ...filters, assignee: value as Filters["assignee"] }),
+        )}
+        {filterSelect(
+          "tk-filter-workspace",
+          t("filters.workspace"),
+          filters.workspace,
+          TICKET_WORKSPACES.map((value) => ({ value, label: t(`workspace.${value}`) })),
+          (value) => setFilters({ ...filters, workspace: value as Filters["workspace"] }),
+        )}
+        <span className="tk-toolbar-spacer" />
+        <label className="tk-checkbox" htmlFor="tk-filter-archived">
+          <input
+            id="tk-filter-archived"
+            type="checkbox"
+            checked={showArchive}
+            onChange={(event) => setShowArchive(event.target.checked)}
+          />
+          {t("filters.archived")}
+        </label>
+      </div>
       {tickets.error && (
         <div className="tk-alert tk-alert--error" role="alert">
           <span>{tickets.error.conflict ? t("error.conflict") : tickets.error.message}</span>
@@ -218,6 +218,7 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
       {!tickets.loading && view === "board" && (
         <TicketBoard
           tickets={visible}
+          statusFilter={filters.status}
           onOpen={(ticket) => setSelectedPath(ticket.path)}
           onMoveStatus={(ticket, status) => void tickets.moveStatus(ticket, status)}
         />

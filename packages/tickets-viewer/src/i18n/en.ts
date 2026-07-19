@@ -9,7 +9,6 @@ export const ticketsMessagesEn = {
   view: {
     board: "Board",
     list: "List",
-    showArchive: "Show archive",
   },
   board: {
     newTicket: "New ticket",
@@ -63,6 +62,7 @@ export const ticketsMessagesEn = {
     priority: "Priority",
     assignee: "Assignee",
     workspace: "Workspace",
+    archived: "Show archive",
   },
   detail: {
     bodyLabel: "Body (Markdown)",
