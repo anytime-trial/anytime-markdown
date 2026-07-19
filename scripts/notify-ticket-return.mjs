@@ -94,18 +94,48 @@ export async function sendLine(lineConfig, text, fetchImpl = fetch) {
   }
 }
 
+// timeout: git がハング（ロック競合等）しても hook がコミットをブロックし続けないため（AL-7）
+const GIT_TIMEOUT_MS = 5000;
+
 function git(args, options = {}) {
-  return execFileSync('git', args, { encoding: 'utf8', ...options }).replace(/\n$/, '');
+  return execFileSync('git', args, {
+    encoding: 'utf8',
+    timeout: GIT_TIMEOUT_MS,
+    ...options,
+  }).replace(/\n$/, '');
 }
 
-/** 対象が存在しない場合に null を返す git 呼び出し（親コミットに無いファイルの probe 用）。 */
-function gitOrNull(args) {
+/** 失敗を WARN ログ付きで null に落とす git 呼び出し（best-effort のため中断せず続行する）。 */
+function gitOrWarn(args) {
   try {
     return git(args);
-  } catch {
-    // 期待される不在（初回コミット・親に無いパス）。異常系は main の catch が拾う。
+  } catch (err) {
+    log('WARN', `git ${args.join(' ')} failed: ${err?.message ?? err}`);
     return null;
   }
+}
+
+/**
+ * `--name-status -z` 出力（STATUS NUL path [NUL path2]）を解析する。
+ * R/C は旧パスを oldPath に保持し、A は oldPath なし、D は対象外として除く。
+ *
+ * @returns {Array<{status: string, oldPath: string | null, path: string}>}
+ */
+export function parseNameStatus(raw) {
+  const parts = raw.split('\0').filter((s) => s.length > 0);
+  const entries = [];
+  let i = 0;
+  while (i < parts.length) {
+    const status = parts[i][0];
+    if (status === 'R' || status === 'C') {
+      entries.push({ status, oldPath: parts[i + 1], path: parts[i + 2] });
+      i += 3;
+    } else {
+      entries.push({ status, oldPath: status === 'A' ? null : parts[i + 1], path: parts[i + 1] });
+      i += 2;
+    }
+  }
+  return entries.filter((e) => e.status !== 'D');
 }
 
 async function main() {
@@ -118,18 +148,17 @@ async function main() {
     }
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
 
-    const hasParent = gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD~1']) != null;
+    // 親の有無は rev-list の親ハッシュ数で判定する（probe の失敗を「親なし」と混同しないため。
+    // ここでの git 失敗は main の catch へ伝播し、全チケット新規扱いの誤通知を防ぐ）
+    const hasParent = git(['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(/\s+/).length > 1;
     const listArgs = hasParent
-      ? ['diff', '--name-only', 'HEAD~1', 'HEAD', '--', '.tickets/']
-      : ['diff-tree', '--no-commit-id', '--name-only', '-r', '--root', 'HEAD', '--', '.tickets/'];
-    const changes = git(listArgs)
-      .split('\n')
-      .filter(Boolean)
-      .map((path) => ({
-        path,
-        oldContent: hasParent ? gitOrNull(['show', `HEAD~1:${path}`]) : null,
-        newContent: gitOrNull(['show', `HEAD:${path}`]),
-      }));
+      ? ['diff', '--name-status', '-M', '-z', 'HEAD~1', 'HEAD', '--', '.tickets/']
+      : ['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', '-z', 'HEAD', '--', '.tickets/'];
+    const changes = parseNameStatus(git(listArgs)).map(({ oldPath, path }) => ({
+      path,
+      oldContent: oldPath == null ? null : gitOrWarn(['show', `HEAD~1:${oldPath}`]),
+      newContent: gitOrWarn(['show', `HEAD:${path}`]),
+    }));
     const returns = detectReturns(changes);
     if (returns.length === 0) return;
 
