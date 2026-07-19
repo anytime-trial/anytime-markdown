@@ -7,13 +7,13 @@
 **Code, docs, and AI — made visible.**
 
 AI agents are a caravan crossing the harsh terrain of development.\
-WYSIWYG Markdown editing with diff review and real-time TypeScript architecture visualization — **two VS Code extensions** that serve as your compass in the age of AI.
+WYSIWYG Markdown editing with diff review, real-time TypeScript architecture visualization, and unified AI session management — **three VS Code extensions** that serve as your compass in the age of AI.
 
 
 [**Visit the website**](https://www.anytime-trial.com)
 
 
-## Two VS Code Extensions
+## Three VS Code Extensions
 
 
 ### Anytime Trail — Visualize Structure, Quality, and Behavior
@@ -44,6 +44,20 @@ The same editing experience across three platforms: Web, VS Code, and Android.
 - Japanese / English support
 
 
+### Anytime Agent — Visualize and Hand Off AI Sessions
+
+A VS Code extension that lists every Claude Code / Codex session across worktrees and branches, and hands off bloated sessions along with their context.\
+See the whole caravan without leaving VS Code.
+
+- **Agent mapping**: List all Claude Code / Codex sessions ordered by recent activity. Inspect branch, worktree, and commit details on hover; sessions whose context tokens exceed the threshold get a handoff-recommended warning badge
+- **Session handoff**: Migrate a bloated session to a new one along with a compacted summary of the work. Launch it in a terminal with one click, or copy the handoff document
+- **AI Note**: Share images, tables, and free-form notes with AI tools that cannot see your screen. Notes are stored in the workspace under `.anytime/notes/`
+- **Bundled skills**: Automatically install Claude Code skills such as `anytime-note`, `anytime-cross-review`, and `anytime-dev-cycle` into the workspace `.claude/skills/`
+- **Token budget**: Configure daily and per-session token limits with an alert threshold
+
+> Details: [Anytime Agent README](packages/vscode-agent-extension/README.md)
+
+
 ## MCP Servers
 
 A set of MCP (Model Context Protocol) servers that give AI agents direct access to project assets.
@@ -66,6 +80,7 @@ flowchart TD
         GC["graph-core<br/>(Graph engine)"]
         TC["trail-core<br/>(TypeScript analysis · C4 · DSM)"]
         CC["cms-core<br/>(S3 client)"]
+        AC["agent-core<br/>(AI session state)"]
         SC["spreadsheet-core<br/>trace-core"]
     end
 
@@ -83,6 +98,7 @@ flowchart TD
     subgraph ext ["VS Code Extensions"]
         VME["vscode-markdown-extension"]
         VTE["vscode-trail-extension"]
+        VAE["vscode-agent-extension"]
         VGE["vscode-graph-extension"]
         VSE["vscode-sheet-extension<br/>vscode-history-extension"]
         VEP["vscode-extension-pack"]
@@ -103,6 +119,7 @@ flowchart TD
     VGE --> GC
     VTE --> TC
     VTE --> TV
+    VAE --> AC
     MA --> WA
     MM --> MC
     MG --> GC
