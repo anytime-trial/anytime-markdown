@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   TICKET_ASSIGNEES,
@@ -40,6 +40,48 @@ function splitList(value: string): string[] | undefined {
   return items.length > 0 ? items : undefined;
 }
 
+/** フォーム各欄の編集値（チケット由来の初期値と、切替時のリセット値の単一の出所）。 */
+interface TicketFormState {
+  title: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  assignee: TicketAssignee | "";
+  workspace: TicketWorkspace | "";
+  dependencies: string;
+  estimate: string;
+  actual: string;
+  body: string;
+}
+
+/** チケット（未選択なら null）からフォームの表示値を導出する。 */
+function toFormState(ticket: TicketItem | null): TicketFormState {
+  if (!ticket) {
+    return {
+      title: "",
+      status: "backlog",
+      priority: "medium",
+      assignee: "",
+      workspace: "",
+      dependencies: "",
+      estimate: "",
+      actual: "",
+      body: "",
+    };
+  }
+  const fm = ticket.frontmatter;
+  return {
+    title: fm.title,
+    status: fm.status,
+    priority: fm.priority,
+    assignee: fm.assignee ?? "",
+    workspace: fm.workspace ?? "",
+    dependencies: (fm.dependencies ?? []).join(", "),
+    estimate: fm.estimate === undefined ? "" : String(fm.estimate),
+    actual: fm.actual === undefined ? "" : String(fm.actual),
+    body: ticket.body,
+  };
+}
+
 function parseOptionalNumber(value: string): number | undefined {
   if (value.trim() === "") {
     return undefined;
@@ -52,42 +94,47 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   const { ticket, allTickets, currentUser, onClose, onSave, onComment, onArchive, onDelete, onOpenTicket, renderBody } = props;
   const t = useTranslations("tickets");
   const locale = useLocale();
-  const [title, setTitle] = useState("");
-  const [status, setStatus] = useState<TicketStatus>("backlog");
-  const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [assignee, setAssignee] = useState<TicketAssignee | "">("");
-  const [workspace, setWorkspace] = useState<TicketWorkspace | "">("");
-  const [dependencies, setDependencies] = useState("");
-  const [estimate, setEstimate] = useState("");
-  const [actual, setActual] = useState("");
-  const [body, setBody] = useState("");
+  const resetKey = ticket ? `${ticket.path}:${ticket.version}` : "";
+  const initial = toFormState(ticket);
+
+  const [formKey, setFormKey] = useState(resetKey);
+  const [title, setTitle] = useState(initial.title);
+  const [status, setStatus] = useState<TicketStatus>(initial.status);
+  const [priority, setPriority] = useState<TicketPriority>(initial.priority);
+  const [assignee, setAssignee] = useState<TicketAssignee | "">(initial.assignee);
+  const [workspace, setWorkspace] = useState<TicketWorkspace | "">(initial.workspace);
+  const [dependencies, setDependencies] = useState(initial.dependencies);
+  const [estimate, setEstimate] = useState(initial.estimate);
+  const [actual, setActual] = useState(initial.actual);
+  const [body, setBody] = useState(initial.body);
   const [editingBody, setEditingBody] = useState(false);
   const [message, setMessage] = useState("");
   const [commentText, setCommentText] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const resetKey = ticket ? `${ticket.path}:${ticket.version}` : "";
-  useEffect(() => {
-    if (!ticket) {
-      return;
-    }
-    const fm = ticket.frontmatter;
-    setTitle(fm.title);
-    setStatus(fm.status);
-    setPriority(fm.priority);
-    setAssignee(fm.assignee ?? "");
-    setWorkspace(fm.workspace ?? "");
-    setDependencies((fm.dependencies ?? []).join(", "));
-    setEstimate(fm.estimate === undefined ? "" : String(fm.estimate));
-    setActual(fm.actual === undefined ? "" : String(fm.actual));
-    setBody(ticket.body);
+  // Why not: 初期化を useEffect（mount 後）でやると、初回レンダーは全フィールドが空のまま
+  // 子へ渡る。renderBody で注入される vanilla ビューは mount-once（initialContent は生成時
+  // オプションで、変更は consumer の key remount 契約）なので、空文字で mount されたきり
+  // 更新されず本文が白紙になる。React 公式の「prop 変化に合わせてレンダー中に state を
+  // 調整する」パターンで、初回から実データを持たせる。
+  if (formKey !== resetKey) {
+    const next = toFormState(ticket);
+    setFormKey(resetKey);
+    setTitle(next.title);
+    setStatus(next.status);
+    setPriority(next.priority);
+    setAssignee(next.assignee);
+    setWorkspace(next.workspace);
+    setDependencies(next.dependencies);
+    setEstimate(next.estimate);
+    setActual(next.actual);
+    setBody(next.body);
     setEditingBody(false);
     setMessage("");
     setCommentText("");
     setConfirmingDelete(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey]);
+  }
 
   const byId = useMemo(() => {
     const map = new Map<string, TicketItem>();
@@ -120,7 +167,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   const handleSave = async () => {
     setBusy(true);
     const fm = buildFrontmatter();
-    await onSave({
+    const ok = await onSave({
       path: ticket.path,
       version: ticket.version,
       frontmatter: fm,
@@ -129,6 +176,10 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
       message: message.trim() === "" ? `ticket: update ${fm.id} ${fm.title}` : message.trim(),
     });
     setBusy(false);
+    // Why not: 失敗時も閉じると入力中の編集内容が失われ再入力を強いるため、成功時のみ閉じる
+    if (ok) {
+      onClose();
+    }
   };
 
   const handleComment = async () => {
@@ -344,7 +395,13 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
             aria-label={t("detail.bodyLabel")}
           />
         ) : (
-          <div className="tk-body-view">{renderBody ? renderBody(body) : <pre>{body}</pre>}</div>
+          /* Why not: renderBody で注入される vanilla ビューは mount-once（initialContent は生成時
+             オプション）。依存チケットのリンクはダイアログを開いたまま ticket を差し替えるため、
+             key を付けないとプレビューだけ前のチケットの本文を表示し続ける。フォームのリセットと
+             同じ resetKey を使い、「状態がリセットされる時は必ずプレビューも作り直す」で揃える。 */
+          <div className="tk-body-view" key={`body:${resetKey}`}>
+            {renderBody ? renderBody(body) : <pre>{body}</pre>}
+          </div>
         )}
       </div>
       {!readOnly && (
@@ -373,8 +430,10 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
                 {t("detail.archive")}
               </button>
             )}
+            {/* Why not: 編集可能なチケットでは離脱＝編集の破棄なので「閉じる」ではなく「キャンセル」。
+                読み取り専用（アーカイブ済み）側は取り消す編集が無いため「閉じる」のまま */}
             <button type="button" className="tk-btn" onClick={onClose}>
-              {t("detail.close")}
+              {t("detail.cancel")}
             </button>
             <button type="button" className="tk-btn tk-btn--primary" disabled={busy} onClick={() => void handleSave()}>
               {t("detail.save")}
