@@ -10,6 +10,7 @@ import {
   listDocs,
   listPatentFiles,
   listReportKeys,
+  readGoogleDoc,
   uploadDoc,
   uploadPatentFile,
   uploadReport,
@@ -36,6 +37,7 @@ import {
   addToWrittenList,
 } from './paperRankingCollector.js';
 import { paperConfig } from './paperConfig.js';
+import { signRs256Workers } from './googleDriveSign.js';
 
 interface PapersConfig {
   bucket: string;
@@ -110,6 +112,7 @@ export function createRemoteMcpServer(
   config: CmsConfig,
   rankingsConfig?: PapersConfig,
   ticketsConfig?: TicketsConfig,
+  googleDriveConfig?: { serviceAccountKeyJson: string },
 ): McpServer {
   const server = new McpServer({
     name: 'anytime-markdown-cms-remote',
@@ -269,6 +272,22 @@ export function createRemoteMcpServer(
             }),
           }],
         };
+      });
+  }
+
+  if (googleDriveConfig) {
+    registerTool(server, 'read_google_doc',
+      'Read a Google Doc as plain text using service account authentication. '
+      + 'Accepts a Doc ID or a Google Docs/Drive URL. '
+      + 'Requires the document to be shared with the service account email as a viewer.',
+      { docRef: z.string().describe('Google Doc ID or URL') },
+      async (args) => {
+        const docRef = args.docRef as string;
+        const text = await readGoogleDoc(
+          { docRef, serviceAccountKeyJson: googleDriveConfig.serviceAccountKeyJson },
+          signRs256Workers, fetch,
+        );
+        return { content: [{ type: 'text', text }] };
       });
   }
 
