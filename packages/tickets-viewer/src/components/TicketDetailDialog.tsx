@@ -395,7 +395,13 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
             aria-label={t("detail.bodyLabel")}
           />
         ) : (
-          <div className="tk-body-view">{renderBody ? renderBody(body) : <pre>{body}</pre>}</div>
+          /* Why not: renderBody で注入される vanilla ビューは mount-once（initialContent は生成時
+             オプション）。依存チケットのリンクはダイアログを開いたまま ticket を差し替えるため、
+             key を付けないとプレビューだけ前のチケットの本文を表示し続ける。フォームのリセットと
+             同じ resetKey を使い、「状態がリセットされる時は必ずプレビューも作り直す」で揃える。 */
+          <div className="tk-body-view" key={`body:${resetKey}`}>
+            {renderBody ? renderBody(body) : <pre>{body}</pre>}
+          </div>
         )}
       </div>
       {!readOnly && (

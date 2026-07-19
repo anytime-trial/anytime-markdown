@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 // next-intl は ESM のため jest では実体を使わず、ja メッセージから解決するモックを当てる
@@ -45,6 +45,23 @@ const TICKET: TicketItem = {
 };
 
 const ARCHIVED: TicketItem = { ...TICKET, archived: true };
+
+/**
+ * 本番の renderBody が注入する vanilla ビュー（VanillaMarkdownEditorMount）の **mount-once**
+ * 契約を模したモック。生成時の content だけを保持し、以後 props が変わっても中身を更新しない。
+ *
+ * ここを素の制御コンポーネント（`<div>{markdown}</div>`）にすると、再レンダーのたびに新しい値が
+ * 出てしまい「切替後もプレビューが前のチケットのまま」という本番の壊れ方を再現できない
+ * （テストが fail-open になる）。
+ */
+function MountOncePreview({ content }: Readonly<{ content: string }>) {
+  const [mountedContent] = useState(content);
+  return <div data-testid="preview">{mountedContent}</div>;
+}
+
+function previewText(): string {
+  return container.querySelector('[data-testid="preview"]')?.textContent ?? "";
+}
 
 let container: HTMLDivElement;
 let root: Root;
@@ -138,6 +155,26 @@ describe("TicketDetailDialog のフォーム初期化", () => {
     expect(titleInput?.value).toBe("2件目");
     expect(seen).not.toContain("");
     expect(seen[seen.length - 1]).toBe("別の本文");
+  });
+
+  // 依存チケットのリンク（onOpenTicket）はダイアログを開いたまま ticket を差し替えるため、
+  // ダイアログのインスタンスは生き残る。mount-once の子はそのままだと前のチケットの本文を
+  // 表示し続けるので、resetKey でプレビューを remount させる必要がある。
+  it("ダイアログを開いたままチケットを切り替えても mount-once のプレビューが更新される", () => {
+    const renderBody = (markdown: string) => <MountOncePreview content={markdown} />;
+    render({ renderBody });
+    expect(previewText()).toBe(TICKET.body);
+
+    const other: TicketItem = {
+      ...TICKET,
+      path: ".tickets/T-2-second.md",
+      version: "s2",
+      frontmatter: { ...TICKET.frontmatter, id: "T-2", title: "2件目" },
+      body: "別の本文",
+    };
+    render({ ticket: other, allTickets: [TICKET, other], renderBody });
+
+    expect(previewText()).toBe("別の本文");
   });
 });
 
