@@ -357,7 +357,7 @@ export const en: TrailI18n = {
   'metrics.meanTimeToRecovery.name': 'Mean Time to Recovery',
   'metrics.meanTimeToRecovery.description': 'Average time from the nearest overlapping commit within 168 hours to its fix / revert / hotfix',
   'metrics.taskCompletionRate.name': 'Task Completion Rate',
-  'metrics.taskCompletionRate.description': 'Share of completed tickets among agent-assigned tickets that reached execution (in_progress / in_review / completed)',
+  'metrics.taskCompletionRate.description': 'Share of completed tickets among agent-assigned tickets that reached execution (in_progress / completed)',
   'metrics.empty': 'No data',
 
   'c4.overlay.groupHotspot': 'Hotspot',

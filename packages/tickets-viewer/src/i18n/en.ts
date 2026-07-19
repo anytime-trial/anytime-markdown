@@ -20,7 +20,6 @@ export const ticketsMessagesEn = {
     backlog: "Backlog",
     up_next: "Up next",
     in_progress: "In progress",
-    in_review: "In review",
     completed: "Completed",
   },
   priority: {

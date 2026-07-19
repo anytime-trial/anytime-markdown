@@ -14,8 +14,8 @@ type Inputs = {
   tickets: TicketInput[];
 };
 
-/** 実行到達とみなすステータス（backlog / up_next は着手前のため母数外）。 */
-const ATTEMPTED_STATUSES = new Set(['in_progress', 'in_review', 'completed']);
+/** 実行到達とみなすステータス（backlog / up_next は着手前のため母数外。2026-07-19: in_review 廃止に伴い除外）。 */
+const ATTEMPTED_STATUSES = new Set(['in_progress', 'completed']);
 
 /**
  * チケットベースの TCR。agent 担当かつ実行到達したチケットに対する completed の割合。
