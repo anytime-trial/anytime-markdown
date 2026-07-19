@@ -56,6 +56,7 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
    - 上記で **生存**なら、**下記の進捗観測を行ってから**「委譲実行中（<チケット id>・経過 <分>・進捗 <あり/なし>）」と 1 行報告して終了する（新規着手しない。1 tick 1 チケットの原則は委譲実行中にも適用する）。
      - **観測は `git fetch` + `origin/main` の読み取りで行い、`git pull` してはいけない**。子セッションは同じクローンの作業ツリーで作業・コミット・push しているため、`pull` は作業ツリーとインデックスを触って子の git 操作と競合する（`index.lock` の奪い合い・rebase の巻き込み）。`fetch` は作業ツリーを触らない。
      - 観測項目（`git log origin/main` / `git show origin/main:<チケットパス>`）: 当該チケットの `ticket:` コミットの有無、サブタスクの `- [x]`、`## 引継ぎサマリー (Handoff Notes)` の変化。
+     - **heartbeat の読み取り**: 委譲マーカーの `state` / `lastActivity` / `updatedAt`（手順 7 で配線する hooks が更新する。§3 のマーカー契約）を読み、報告へ含める。`updatedAt` が 10 分以上前で pid が生存している場合は「生存だが無活動」として報告する（hooks 不発・ハングの兆候）。マーカーに `state` が無い場合は heartbeat 未配線の子（旧形式）なので従来どおり扱う。
      - **同一チケットで 2 tick 連続して進捗が無い場合は、その観測内容を無進捗として報告する**（§5）。経過時間だけを見て「実行中」と報告し続けない。
    - **死亡**（未存在・ゾンビ）なら、子の終了痕跡とみなし、マーカーを削除したうえで手順 8 の委譲検証を行ってから通常の tick を続行する。**このとき子のログ（`/tmp/ticket-delegation-<チケット id>.log`）の末尾を読み、終了理由を tick 報告に含める**。子が権限拒否等でチケットへ一切書けずに死んだ場合、痕跡はこのログにしか残らないため（チケット側は無変更のまま）、読まないと「作業が宙に浮いている」としか報告できず原因が分からない。
 2. **最新化と分岐の自己修復**: `git pull --ff-only`（この手順に来るのは委譲実行中でないとき＝作業ツリーを触ってよいときのみ）。失敗したら、終了する前に**分岐の残骸かどうかを判定する**（分岐を放置すると以後の tick が毎回ここで落ち、ループ全体が永久に停止するため）。
@@ -87,7 +88,19 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
    2. 起動は **`setsid` でセッションから切り離す**（Bash の `run_in_background` に依存しない）。tick 実行体はサブエージェントであり、その終了時にバックグラウンドの子プロセスが巻き添えで停止すると委譲が失われるため、プロセスグループごと分離する。起動確認（マーカーの `pid` 生存）だけ行い、実行完了を待たずに tick を終了する。**切り離した子の終了通知は届かない**ので、結果は次 tick の手順 1（死んだマーカーの検知）から手順 8 の委譲検証で拾う。
    3. 起動はコード（ランチャースクリプト）とデータ（委譲プロンプト）を**別ファイルに分離**して行う。委譲プロンプトはバッククォート・クォート・`$` を含む長い Markdown であり、シェルコマンド文字列へ直接埋め込むと本文内容に依存して引用が崩れる（`bash -c '...'` 内のバッククォートが command substitution 化した実害あり）。プロンプト本文をシェルにも argv にも一度も通さないことを不変条件とする:
       1. Write で `/tmp/ticket-delegation-<チケット id>.prompt.md` に委譲プロンプト本文をそのまま書く（エスケープ不要。heredoc での `.sh` への内包は、本文にデリミタが現れた瞬間に壊れるため使わない）。
-      2. Write で `/tmp/ticket-delegation-<チケット id>.sh` にランチャーを書く（`<ticketsRepo>` はチケットリポジトリのルート、`<codeWorkspace>` はコードワークスペースのルート。`cd` 先を `<codeWorkspace>` にするのはプロジェクト規約・スキルを子に継承させるため。Bash ツールの cwd リセットに依存しないよう `cd` はスクリプトに内包する）:
+      2. Write で `/tmp/ticket-delegation-<チケット id>.settings.json` に heartbeat hooks 設定を書く（`<codeWorkspace>` は展開する。委譲子セッションだけに `--settings` で注入するため、グローバル・プロジェクトの settings には配線しない＝他セッションへの影響ゼロ）:
+
+         ```json
+         {
+           "hooks": {
+             "PostToolUse": [{ "hooks": [{ "type": "command", "command": "node <codeWorkspace>/.claude/skills/anytime-loop-start/heartbeat-hook.cjs posttool", "timeout": 5 }] }],
+             "Stop": [{ "hooks": [{ "type": "command", "command": "node <codeWorkspace>/.claude/skills/anytime-loop-start/heartbeat-hook.cjs stop", "timeout": 5 }] }],
+             "SessionEnd": [{ "hooks": [{ "type": "command", "command": "node <codeWorkspace>/.claude/skills/anytime-loop-start/heartbeat-hook.cjs sessionend", "timeout": 5 }] }]
+           }
+         }
+         ```
+
+      3. Write で `/tmp/ticket-delegation-<チケット id>.sh` にランチャーを書く（`<ticketsRepo>` はチケットリポジトリのルート、`<codeWorkspace>` はコードワークスペースのルート。`cd` 先を `<codeWorkspace>` にするのはプロジェクト規約・スキルを子に継承させるため。Bash ツールの cwd リセットに依存しないよう `cd` はスクリプトに内包する）:
 
          ```bash
          #!/bin/bash
@@ -96,18 +109,23 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
          set -euo pipefail
          cd <codeWorkspace>
          mkdir -p <ticketsRepo>/.git/ticket-delegations
-         printf '{"ticket":"%s","pid":%d,"startedAt":"%s"}\n' \
-           "T-12" "$$" "$(date -u +%FT%T.%3NZ)" \
+         now="$(date -u +%FT%T.%3NZ)"
+         printf '{"ticket":"%s","pid":%d,"startedAt":"%s","state":"running","updatedAt":"%s"}\n' \
+           "T-12" "$$" "$now" "$now" \
            > <ticketsRepo>/.git/ticket-delegations/T-12.json
+         export TICKET_DELEGATION_MARKER=<ticketsRepo>/.git/ticket-delegations/T-12.json
          exec claude -p --permission-mode acceptEdits \
            --add-dir <ticketsRepo> \
            --add-dir <docsRoot> \
+           --settings /tmp/ticket-delegation-T-12.settings.json \
            --allowedTools "Bash(git -C <ticketsRepo>:*)" "Bash(git -C <docsRoot>:*)" \
            < /tmp/ticket-delegation-T-12.prompt.md
          ```
 
+         `export TICKET_DELEGATION_MARKER` は `exec` で claude に継承され、`--settings` で注入した hooks（同梱 `heartbeat-hook.cjs`）がこの env でマーカーを特定して heartbeat を書く（env 未設定のセッションでは hook は no-op）。マーカーのフィールド契約は §3 を参照。
+
          プロンプトは `-p` の引数ではなく **stdin リダイレクトで渡す**（`"$(cat …)"` も使わない。argv 経由は ARG_MAX 依存かつ `ps` で全文露出する）。`$$` は `exec` で claude に引き継がれるため pid 記録は正しい。マーカーの記録と `exec` を同一プロセスに閉じることで「記録前の起動」を構造的に排除している。
-      3. `bash -n` で構文ゲートを通してから `setsid` で起動する（テンプレート退行を起動前に検知する。ゲートで落ちたらスクリプトを直すまで起動しない）:
+      4. `bash -n` で構文ゲートを通してから `setsid` で起動する（テンプレート退行を起動前に検知する。ゲートで落ちたらスクリプトを直すまで起動しない）:
 
          ```bash
          bash -n /tmp/ticket-delegation-T-12.sh \
@@ -129,7 +147,7 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
       - **検証**: チケット本文の完了条件・テスト等（実測で確認してから in_review へ遷移する）
       - **中断条件**: 人の判断が必要（§2 の質問手順へ）・無進捗・権限拒否
       - **実施手順**: 本スキル §1.1（子セッションの実行契約）と §2〜§4 に従う旨
-8. **委譲検証（tick の検証責任）**: 手順 1 で死んだマーカーを検知したら（＝前 tick が起動した子セッションの終了痕跡）、子の報告文ではなく実測で結果を検証する: チケットの `status`・`assignee`・コミット履歴（`git log` の `ticket:` コミット）・Handoff Notes を確認する。`in_review` 遷移・§2 の質問化・Handoff Notes 付き中断のいずれにも該当しない（作業が宙に浮いている）場合は、その乖離を tick 報告に含める。**`assignee` が `agent` のまま残っていたら、子が §1.2 の手離しを終える前に落ちた痕跡**なので、`assignee` を `user` へ戻して**コミット・push する**（`actual` は加算しない。マーカーが残っている＝未加算だが、経過時間の実測が子の異常終了で不確かなため、二重計上より欠測を選ぶ）。乖離として報告する。push まで行うのは、リモートが `agent` のままだと web-app のボード上で人へ戻ったように見えず、チケットが誰にも見えない場所で止まるため。検証後、残っていれば委譲マーカーを削除する。
+8. **委譲検証（tick の検証責任）**: 手順 1 で死んだマーカーを検知したら（＝前 tick が起動した子セッションの終了痕跡）、子の報告文ではなく実測で結果を検証する: チケットの `status`・`assignee`・コミット履歴（`git log` の `ticket:` コミット）・Handoff Notes を確認する。`in_review` 遷移・§2 の質問化・Handoff Notes 付き中断のいずれにも該当しない（作業が宙に浮いている）場合は、その乖離を tick 報告に含める。**`assignee` が `agent` のまま残っていたら、子が §1.2 の手離しを終える前に落ちた痕跡**なので、`assignee` を `user` へ戻して**コミット・push する**（`actual` は加算しない。マーカーが残っている＝未加算だが、経過時間の実測が子の異常終了で不確かなため、二重計上より欠測を選ぶ）。乖離として報告する。push まで行うのは、リモートが `agent` のままだと web-app のボード上で人へ戻ったように見えず、チケットが誰にも見えない場所で止まるため。マーカーの最終 `state` / `lastActivity` / `endReason` も tick 報告に含める（`state` が `done` 以外のまま死んでいたら異常終了の傍証）。検証後、残っていれば委譲マーカーを削除する。
 
 ### 1.1 子セッションの実行契約（委譲プロンプトで指示する内容）
 
@@ -183,6 +201,7 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
 - Claude Code の権限設定・hooks・プロジェクト規約を迂回しない（子セッションも同様）。
 - 1 tick で着手するチケットは 1 件のみ。**委譲実行中（マーカーの pid 生存中）は次のチケットに着手しない**（暴走・並行汚染の防止）。
 - 委譲マーカー（`.git/ticket-delegations/`）はローカル管理であり、コミット・push しない。
+- **マーカーのフィールド契約（heartbeat）**: 起動時にランチャーが `ticket` / `pid` / `startedAt` / `state: "running"` / `updatedAt` を書き、以後は同梱 `heartbeat-hook.cjs`（`--settings` 配線・env `TICKET_DELEGATION_MARKER` で特定）が `state`（`running` = PostToolUse / `done` = Stop・SessionEnd。`blocked` / `failed` は予約値 — blocked は §2 の質問化がチケット側に現れるため書かず、failed はマーカーが自身のクラッシュを書けないため手順 1 の死亡検知が担う）・`lastActivity`（直近ツール名）・`updatedAt`・`endReason`（SessionEnd の理由）を追記更新する。`ticket` / `pid` / `startedAt` は不変（手順 1 の死亡検知・§1.2 の `actual` 算出と互換）。更新は同一ディレクトリ tmp → rename の原子置換で、読み手（手順 1 / 8）が半端な JSON を掴まない。hook はマーカー不在時に新規作成しない（「マーカーを先に書いてから起動」の契約を維持）。
 
 ## 4. コミットメッセージ規約
 
