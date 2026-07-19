@@ -20,7 +20,6 @@ export const ticketsMessagesJa = {
     backlog: "バックログ",
     up_next: "着手予定",
     in_progress: "進行中",
-    in_review: "レビュー中",
     completed: "完了",
   },
   priority: {

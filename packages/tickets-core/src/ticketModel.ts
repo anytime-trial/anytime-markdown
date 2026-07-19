@@ -1,4 +1,4 @@
-export const TICKET_STATUSES = ['backlog', 'up_next', 'in_progress', 'in_review', 'completed'] as const;
+export const TICKET_STATUSES = ['backlog', 'up_next', 'in_progress', 'completed'] as const;
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 export const TICKET_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;

@@ -24,7 +24,7 @@ describe('computeTaskCompletionRate', () => {
           ticket('agent', 'completed', '2026-04-21T10:00:00.000Z'),
           ticket('agent', 'completed', '2026-04-22T10:00:00.000Z'),
           ticket('agent', 'in_progress', '2026-04-23T10:00:00.000Z'),
-          ticket('agent', 'in_review', '2026-04-24T10:00:00.000Z'),
+          ticket('agent', 'in_progress', '2026-04-24T10:00:00.000Z'),
         ],
       },
       RANGE,
@@ -45,6 +45,7 @@ describe('computeTaskCompletionRate', () => {
           ticket(undefined, 'completed', '2026-04-21T11:00:00.000Z'),
           ticket('agent', 'backlog', '2026-04-21T12:00:00.000Z'),
           ticket('agent', 'up_next', '2026-04-21T13:00:00.000Z'),
+          ticket('agent', 'in_review', '2026-04-21T13:30:00.000Z'), // legacy status (廃止済み・母数外)
           ticket('agent', 'completed', '2026-04-21T14:00:00.000Z'),
         ],
       },

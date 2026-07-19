@@ -109,11 +109,11 @@ describe("TicketsPanel", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it("5 列のボードとカード・要修復ファイルを表示する", async () => {
+  it("4 列のボードとカード・要修復ファイルを表示する", async () => {
     mockFetchOnce(DATA);
     await renderPanel({ repo: "o/r", branch: "main" });
     const columns = container.querySelectorAll(".tk-column");
-    expect(columns).toHaveLength(5);
+    expect(columns).toHaveLength(4);
     expect(container.textContent).toContain("最初のチケット");
     expect(container.textContent).toContain("1/2");
     expect(container.textContent).toContain(".tickets/broken.md");
@@ -202,7 +202,7 @@ describe("TicketsPanel", () => {
   it("ボードでステータスを選ぶと該当列だけ表示する", async () => {
     mockFetchOnce(DATA);
     await renderPanel({ repo: "o/r", branch: "main" });
-    expect(container.querySelectorAll(".tk-column")).toHaveLength(5);
+    expect(container.querySelectorAll(".tk-column")).toHaveLength(4);
     const statusSelect = container.querySelector<HTMLSelectElement>("#tk-filter-status");
     await act(async () => {
       if (statusSelect) {
