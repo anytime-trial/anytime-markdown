@@ -107,12 +107,17 @@ describe('pricing', () => {
     it('should report known models as known', () => {
       expect(isKnownPricingModel('claude-fable-5')).toBe(true);
       expect(isKnownPricingModel('claude-opus-4-8')).toBe(true);
-      expect(isKnownPricingModel('gpt-5.1-codex', 'codex')).toBe(true);
+      expect(isKnownPricingModel('gpt-5.1-codex')).toBe(true);
     });
 
     it('should report unknown models (silent-fallback detection)', () => {
       expect(isKnownPricingModel('unknown-model')).toBe(false);
       expect(isKnownPricingModel('<synthetic>')).toBe(false);
+    });
+
+    it('should report unknown Codex models as unknown (not masked by the codex default fallback)', () => {
+      // 回帰: resolve 後のキーで判定すると codex 既定フォールバックにより常に true になる
+      expect(isKnownPricingModel('gpt-9-codex-hypothetical')).toBe(false);
     });
   });
 

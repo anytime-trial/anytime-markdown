@@ -5508,7 +5508,7 @@ export class TrailDatabase {
       if (!isCountableModel(m)) continue;
       const inp = Number(row[3]); const outp = Number(row[4]);
       const cr = Number(row[5]); const cc = Number(row[6]);
-      if (m !== '' && !isKnownPricingModel(m, source)) unknownModels.add(m);
+      if (m !== '' && !isKnownPricingModel(m)) unknownModels.add(m);
       const billingModel = resolvePricingModelName(m, source);
       stmt.run([sid, billingModel, inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc, source)]);
     }

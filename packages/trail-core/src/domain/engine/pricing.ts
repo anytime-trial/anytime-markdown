@@ -120,9 +120,13 @@ export function resolvePricingModelName(model: string, source?: PricingSource): 
  * 料金表にエントリのあるモデルか。false のとき calculateCost は既定単価
  * （claude 系: sonnet / codex 系: gpt-5.1-codex）へフォールバックする。
  * 呼び出し側はこの判定で WARN ログを出し、silent フォールバックを可視化する。
+ *
+ * resolvePricingModelName ではなく normalizeModelName で判定する。resolve は
+ * codex ソースで既定キーへ畳んでから返すため、それを見ると未知の Codex モデルが
+ * 常に「既知」になり検知が無効化される（レビュー指摘 2026-07-19）。
  */
-export function isKnownPricingModel(model: string, source?: PricingSource): boolean {
-  return MODEL_PRICING[resolvePricingModelName(model, source)] !== undefined;
+export function isKnownPricingModel(model: string): boolean {
+  return MODEL_PRICING[normalizeModelName(model)] !== undefined;
 }
 
 /**
