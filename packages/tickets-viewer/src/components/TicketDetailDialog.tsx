@@ -120,7 +120,7 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   const handleSave = async () => {
     setBusy(true);
     const fm = buildFrontmatter();
-    await onSave({
+    const ok = await onSave({
       path: ticket.path,
       version: ticket.version,
       frontmatter: fm,
@@ -129,6 +129,10 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
       message: message.trim() === "" ? `ticket: update ${fm.id} ${fm.title}` : message.trim(),
     });
     setBusy(false);
+    // Why not: 失敗時も閉じると入力中の編集内容が失われ再入力を強いるため、成功時のみ閉じる
+    if (ok) {
+      onClose();
+    }
   };
 
   const handleComment = async () => {
@@ -373,8 +377,10 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
                 {t("detail.archive")}
               </button>
             )}
+            {/* Why not: 編集可能なチケットでは離脱＝編集の破棄なので「閉じる」ではなく「キャンセル」。
+                読み取り専用（アーカイブ済み）側は取り消す編集が無いため「閉じる」のまま */}
             <button type="button" className="tk-btn" onClick={onClose}>
-              {t("detail.close")}
+              {t("detail.cancel")}
             </button>
             <button type="button" className="tk-btn tk-btn--primary" disabled={busy} onClick={() => void handleSave()}>
               {t("detail.save")}
