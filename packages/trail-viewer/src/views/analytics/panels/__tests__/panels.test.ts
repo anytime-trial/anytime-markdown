@@ -59,6 +59,7 @@ import { mountDailySessionList } from '../dailySessionList';
 import { mountSessionCommitList } from '../sessionCommitList';
 import { mountCombinedChartsSection } from '../combinedChartsSection';
 import type { CombinedData } from '../../../../domain/parser/types';
+import type { TrailSession } from '../../../../domain/parser/types';
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -720,8 +721,8 @@ describe('mountCombinedChartsSection', () => {
     agentStats: [],
     commitPrefixStats: [],
     aiFirstTryRate: [],
-    repoStats: [],
     qualityRates: [],
+    workspaces: [],
   };
 
   describe('集計単位トグル', () => {
@@ -744,7 +745,7 @@ describe('mountCombinedChartsSection', () => {
       mountCombinedChartsSection(container, { ...baseProps, fetchCombinedData });
       fetchCombinedData.mockClear();
       bucketButtons(container)[1]?.click();
-      expect(fetchCombinedData).toHaveBeenCalledWith('week', expect.any(Number));
+      expect(fetchCombinedData).toHaveBeenCalledWith('week', expect.any(Number), undefined);
     });
 
     // レビュー指摘の回帰防止: 共有 boolean のキャンセルフラグでは、後発の fetch が
@@ -782,7 +783,136 @@ describe('mountCombinedChartsSection', () => {
       const container = document.createElement('div');
       const fetchCombinedData = jest.fn().mockResolvedValue({});
       mountCombinedChartsSection(container, { ...baseProps, period: 7, fetchCombinedData });
-      expect(fetchCombinedData).toHaveBeenCalledWith('day', 30);
+      expect(fetchCombinedData).toHaveBeenCalledWith('day', 30, undefined);
+    });
+  });
+
+  // spec §5.2.1: ワークスペース切替ドロップダウン（All + 正規化名一覧）。
+  describe('ワークスペース切替', () => {
+    const flush = async (): Promise<void> => {
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+    const wsSelectBtn = (container: HTMLElement): HTMLButtonElement | null =>
+      container.querySelector<HTMLButtonElement>('button[aria-label="analytics.combined.workspace"]');
+    // createSelect は click ではなく mousedown で開く。
+    const openWsMenu = (container: HTMLElement): void => {
+      wsSelectBtn(container)?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    };
+    const menuOptions = (): HTMLElement[] =>
+      Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'));
+    const dataWithWorkspaces: CombinedData = {
+      ...emptyCombinedData,
+      workspaces: ['anytime-markdown', 'other-repo'],
+    };
+
+    afterEach(() => {
+      // open したまま終わったメニュー（document.body 直下の portal）を掃除する。
+      document.body.replaceChildren();
+    });
+
+    it('サーバー応答の workspaces から All 付きドロップダウンを描画する', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const fetchCombinedData = jest.fn().mockResolvedValue(dataWithWorkspaces);
+      mountCombinedChartsSection(container, { ...baseProps, fetchCombinedData });
+      await flush();
+      expect(wsSelectBtn(container)).not.toBeNull();
+      openWsMenu(container);
+      const labels = menuOptions().map((o) => o.textContent ?? '');
+      expect(labels).toEqual(['analytics.combined.workspaceAll', 'anytime-markdown', 'other-repo']);
+    });
+
+    it('ワークスペース選択で workspace 付き再取得が走る', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const fetchCombinedData = jest.fn().mockResolvedValue(dataWithWorkspaces);
+      mountCombinedChartsSection(container, { ...baseProps, fetchCombinedData });
+      await flush();
+      openWsMenu(container);
+      fetchCombinedData.mockClear();
+      menuOptions()[1]?.click(); // 'anytime-markdown'
+      expect(fetchCombinedData).toHaveBeenCalledWith('day', 30, 'anytime-markdown');
+    });
+
+    it('releases metric ではドロップダウンを表示しない', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const fetchCombinedData = jest.fn().mockResolvedValue(dataWithWorkspaces);
+      mountCombinedChartsSection(container, { ...baseProps, fetchCombinedData });
+      await flush();
+      expect(wsSelectBtn(container)).not.toBeNull();
+      const releasesBtn = Array.from(container.querySelectorAll('button')).find(
+        (b) => (b as HTMLButtonElement).dataset['value'] === 'releases',
+      );
+      releasesBtn?.click();
+      expect(wsSelectBtn(container)).toBeNull();
+    });
+
+    it('workspace 選択中の tokens チャートは同梱 dailyActivity を使い overlay を重ねない', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const filteredDaily = [
+        { date: '2026-06-21', sessions: 1, inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0 },
+      ];
+      const fetchCombinedData = jest.fn().mockResolvedValue({
+        ...dataWithWorkspaces,
+        dailyActivity: filteredDaily,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const costOptimization: any = { actual: { totalCost: 1, byModel: {} } };
+      mountCombinedChartsSection(container, { ...baseProps, fetchCombinedData, costOptimization });
+      await flush();
+      openWsMenu(container);
+      menuOptions()[1]?.click(); // 'anytime-markdown'
+      await flush();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const lastProps = mockMountDaily.mock.calls.at(-1)?.[1] as any;
+      expect(lastProps.items).toEqual(filteredDaily);
+      expect(lastProps.costOptimization).toBeNull();
+      expect(lastProps.overlay).toBeNull();
+    });
+
+    it('ドリルダウンは選択ワークスペースのセッションのみ表示する（worktree は親に合算）', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const makeSession = (id: string, repoName: string): TrailSession => ({
+        id,
+        slug: id,
+        repoName,
+        gitBranch: 'develop',
+        startTime: '2026-06-21T00:00:00.000Z',
+        endTime: '2026-06-21T01:00:00.000Z',
+        version: '1.0.0',
+        model: 'claude-sonnet-5',
+        messageCount: 1,
+        source: 'claude_code',
+        errorCount: 0,
+        subAgentCount: 0,
+        workspace: '/x',
+        usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreationTokens: 0 },
+      });
+      const sessions = [
+        makeSession('s-main', 'anytime-markdown'),
+        makeSession('s-other', 'other-repo'),
+        makeSession('s-wt', 'anytime-markdown--claude-worktrees-x'),
+      ];
+      const fetchCombinedData = jest.fn().mockResolvedValue({
+        ...dataWithWorkspaces,
+        dailyActivity: [],
+      });
+      mountCombinedChartsSection(container, { ...baseProps, sessions, fetchCombinedData });
+      await flush();
+      openWsMenu(container);
+      menuOptions()[1]?.click(); // 'anytime-markdown'
+      await flush();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dailyProps = mockMountDaily.mock.calls.at(-1)?.[1] as any;
+      dailyProps.onDateClick('2026-06-21');
+      const text = container.textContent ?? '';
+      expect(text).toContain('s-main');
+      expect(text).toContain('s-wt');
+      expect(text).not.toContain('s-other');
     });
   });
 
@@ -866,7 +996,7 @@ describe('mountCombinedChartsSection', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const combinedData: any = {
       toolCounts: [], errorRate: [], skillStats: [], modelStats: [{ name: 'm', periods: [], counts: [], tokens: [] }],
-      agentStats: [], commitPrefixStats: [], aiFirstTryRate: [], repoStats: [], qualityRates: [],
+      agentStats: [], commitPrefixStats: [], aiFirstTryRate: [], qualityRates: [], workspaces: [],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fetchCombinedData = jest.fn(

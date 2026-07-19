@@ -17,7 +17,6 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
   // commit が baseline にも commitRows にも含まれず累積値が欠落する。fetched window 内・
   // 表示 cutoff より前の行を抜き出し、cumulative モードで baseline に加算する。
   const commitRowsPreWindow = (data.commitPrefixStats ?? []).filter(r => r.period < cutoffStr);
-  const repoRows = (data.repoStats ?? []).filter(r => r.period >= cutoffStr);
   const aiRateRows = (data.aiFirstTryRate ?? []).filter(r => r.period >= cutoffStr);
   const allPeriods = [...new Set(toolRows.map(r => r.period))].sort();
   const labels = allPeriods.map(p => p.length > 5 ? p.slice(5) : p);
@@ -27,8 +26,6 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
   const agentLabels = agentPeriods.map(p => p.length > 5 ? p.slice(5) : p);
   const commitPeriods = [...new Set(commitRows.map(r => r.period))].sort();
   const commitLabels = commitPeriods.map(p => p.length > 5 ? p.slice(5) : p);
-  const repoPeriods = [...new Set(repoRows.map(r => r.period))].sort();
-  const repoLabels = repoPeriods.map(p => p.length > 5 ? p.slice(5) : p);
 
   const toolTotals = new Map<string, number>();
   for (const r of toolRows) toolTotals.set(r.tool, (toolTotals.get(r.tool) ?? 0) + r.count);
@@ -42,8 +39,6 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
   for (const r of agentRows) agentTotals.set(r.agent, (agentTotals.get(r.agent) ?? 0) + r.tokens);
   const commitTotals = new Map<string, number>();
   for (const r of commitRows) commitTotals.set(r.prefix, (commitTotals.get(r.prefix) ?? 0) + r.count);
-  const repoTotals = new Map<string, number>();
-  for (const r of repoRows) repoTotals.set(r.repoName, (repoTotals.get(r.repoName) ?? 0) + r.count);
 
   const toolCap = capTopN(toolTotals);
   const errCap = capTopN(errToolTotals);
@@ -51,7 +46,6 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
   const modelCap = capTopN(modelTotals);
   const agentCap = capTopN(agentTotals);
   const commitCap = capTopN(commitTotals);
-  const repoCap = capTopN(repoTotals);
   const agentMissingByDisplay = new Map<string, { total: number; missing: number }>();
   for (const r of agentRows) {
     const displayKey = agentCap.keyMap.get(r.agent) ?? r.agent;
@@ -114,11 +108,6 @@ export function computeCombinedAxisInfo(data: CombinedData | null, periodDays: P
     commitBaseline: data.commitBaseline,
     commitRowsPreWindow,
     commitRegressionByPeriod: (data.commitRegressionByPeriod ?? []).filter(r => r.period >= cutoffStr),
-    repoRows,
-    repoPeriods,
-    repoLabels,
-    repos: repoCap.displayKeys,
-    repoMap: repoCap.keyMap,
   };
 }
 

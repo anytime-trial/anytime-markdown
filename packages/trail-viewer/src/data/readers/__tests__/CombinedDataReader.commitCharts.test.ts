@@ -96,11 +96,7 @@ describe('CombinedDataReader.getCombinedData commit chart stats', () => {
       linesAdded: 12,
       linesDeleted: 0,
     }]);
-    expect(data?.repoStats).toEqual([{
-      period: '2026-05-01',
-      repoName: 'anytime-markdown',
-      count: 1,
-      tokens: 150,
-    }]);
+    // repoStats はワークスペース切替導入で廃止。web-app 経路は選択肢を返さない（All 固定）。
+    expect(data?.workspaces).toEqual([]);
   });
 });
