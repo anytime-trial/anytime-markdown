@@ -223,6 +223,28 @@ async function recordToLedger(server, payload) {
   }
 }
 
+/** S4: ゲート合成の優先順位。いずれかが fail ならマージ阻止、fail なしで not_run ありはゲート未完（人手経路）。 */
+export function mergeVerdicts(a, b) {
+  if (a === "fail" || b === "fail") return "fail";
+  if (a === "not_run" || b === "not_run") return "not_run";
+  return "pass";
+}
+
+/**
+ * S4: canary / vsix スモークの結果を machine 記録へ統合する（applicable=false は無変更）。
+ * acceptance_records の PK は (commit_sha, route) のため、ゲートが独立に POST すると
+ * farm の記録と UPSERT で相互破壊する — 統合された単一 payload だけが記録経路。
+ */
+export function applyGateReport(payload, report) {
+  if (!report || !report.applicable) return payload;
+  return {
+    ...payload,
+    verdict: mergeVerdicts(payload.verdict, report.verdict),
+    failedTests: [...payload.failedTests, ...(report.failedChecks ?? [])],
+    notes: [payload.notes, report.notes].filter(Boolean).join(" / "),
+  };
+}
+
 function notRunPayload(args, reason) {
   return {
     commitSha: args.commit,
@@ -321,7 +343,32 @@ async function main() {
   }
   if (flaky.length > 0) notesParts.push(`flaky quarantined this run: ${flaky.map((s) => s.title).join(", ")}`);
   if (ticketsUnfiled > 0) notesParts.push(`flaky tickets NOT filed (ACCEPTANCE_TICKETS_DIR unset/missing): ${ticketsUnfiled}`);
-  const payload = {
+  // S4: ループ系変更のローカルカナリア + vsix Extension Host スモーク（該当変更のみ起動・machine 記録へ統合）
+  const gateReports = [];
+  try {
+    const canaryMod = await import("./canary.mjs");
+    const vsixMod = await import("./vsix-smoke.mjs");
+    const cfg = canaryMod.loadCanaryConfig();
+    const changedFiles = canaryMod.listChangedFiles(args.commit);
+    if (verdict === "fail") {
+      // 既に不合格のマージへカナリア tick（LLM 実行）や vsce package を費やさない。skip は notes で可視化する
+      if (canaryMod.matchLoopFiles(changedFiles, cfg.loopPaths).length > 0) {
+        notesParts.push("canary skipped (farm already failing)");
+      }
+      if (vsixMod.selectVsixTargets(changedFiles, cfg.vsix).length > 0) {
+        notesParts.push("vsix smoke skipped (farm already failing)");
+      }
+    } else {
+      gateReports.push(await canaryMod.runCanary({ commit: args.commit, root: ROOT, config: cfg }));
+      gateReports.push(await vsixMod.runVsixSmoke({ changedFiles, root: ROOT, config: cfg.vsix }));
+    }
+  } catch (e) {
+    // ゲート実行体の予期しないクラッシュを fail-open にしない（not_run 扱い・人手経路へ）
+    const message = e instanceof Error ? e.message : String(e);
+    log("ERROR", `s4 gate crashed: ${message}`);
+    gateReports.push({ applicable: true, verdict: "not_run", failedChecks: [], notes: `s4 gate crashed (${message})` });
+  }
+  const basePayload = {
     commitSha: args.commit,
     route: "machine",
     verdict,
@@ -334,14 +381,15 @@ async function main() {
     quarantinedCount: quarantined.length + flaky.length,
     notes: notesParts.join(" / "),
   };
+  const payload = gateReports.reduce(applyGateReport, basePayload);
   const recorded = await recordToLedger(args.server, payload);
   if (!recorded) {
     // 台帳へ記録できていない結果を成功にしない（受入の主効果は記録。スプール分は次回 drain）
     log("ERROR", "ledger record failed — farm exits as not_run (2). spooled record will be drained next run");
     process.exit(2);
   }
-  log("INFO", `acceptance farm done: verdict=${verdict} persistentFailures=${persistent.length} flaky=${flaky.length}`);
-  process.exit(verdict === "pass" ? 0 : 1);
+  log("INFO", `acceptance farm done: verdict=${payload.verdict} persistentFailures=${persistent.length} flaky=${flaky.length}`);
+  process.exit(payload.verdict === "pass" ? 0 : payload.verdict === "fail" ? 1 : 2);
 }
 
 // テストから import できるよう、直接実行時のみ main を起動する
