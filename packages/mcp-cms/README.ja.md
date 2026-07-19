@@ -15,6 +15,16 @@ S3 ベースのドキュメント・レポート管理を MCP ツールとして
 | `upload_doc` | ローカルファイル（Markdown または画像）を S3 ドキュメントプレフィックスにアップロード |
 | `list_docs` | S3 ドキュメントプレフィックス内の全ドキュメントファイルを一覧表示 |
 | `delete_doc` | S3 ドキュメントプレフィックスからドキュメントを削除 |
+| `read_google_doc` | サービスアカウント認証で Google ドキュメントをプレーンテキストとして読み取り（`GOOGLE_SERVICE_ACCOUNT_KEY_PATH` 設定時のみ登録） |
+
+### Google Drive Reader（`read_google_doc`）のセットアップ
+
+1. GCP プロジェクトで Drive API を有効化する。
+2. サービスアカウントを作成し、JSON 鍵を発行する。
+3. 対象の Google ドキュメントをサービスアカウントのメールアドレス（`xxx@yyy.iam.gserviceaccount.com`）と共有する（閲覧者権限で可）。
+4. 環境変数 `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` に鍵ファイルの絶対パスを設定する。鍵ファイルはリポジトリにコミットしない（`.gitignore` で `*service-account*.json` / `*.pem` を除外済み）。
+
+未設定の場合、`read_google_doc` ツールは登録されない（他ツールには影響しない）。
 
 ## 使用方法
 
