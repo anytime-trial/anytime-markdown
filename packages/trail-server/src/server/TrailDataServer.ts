@@ -2519,15 +2519,18 @@ export class TrailDataServer {
   }
 
   // -------------------------------------------------------------------------
-  //  API: GET /api/trail/combined?period=day&rangeDays=30
+  //  API: GET /api/trail/combined?period=day&rangeDays=30&workspace=<name>
   // -------------------------------------------------------------------------
 
   private handleGetCombined(res: http.ServerResponse, params: URLSearchParams): void {
     const period = (params.get('period') ?? 'day') as 'day' | 'week';
     const rangeDaysRaw = Number.parseInt(params.get('rangeDays') ?? '30', 10);
     const rangeDays = ([30, 90].includes(rangeDaysRaw) ? rangeDaysRaw : 30) as 30 | 90;
+    // workspace: 正規化済みワークスペース名（未指定・空は全体集計）
+    const workspaceRaw = params.get('workspace')?.trim();
+    const workspace = workspaceRaw ? workspaceRaw : undefined;
     try {
-      const data = this.trailDb.getCombinedData(period, rangeDays);
+      const data = this.trailDb.getCombinedData(period, rangeDays, workspace);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(data));
     } catch (e) {

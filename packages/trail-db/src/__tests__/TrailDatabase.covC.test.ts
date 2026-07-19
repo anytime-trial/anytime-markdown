@@ -575,9 +575,9 @@ describe('getCombinedData — error rate and commit file branches', () => {
     insertSessionCommit(db, 's1', 'abc123', 'feat: add feature', '2026-04-01T10:30:00.000Z', 1);
     insertCommitFile(db, 'abc123', 'packages/foo/src/index.ts');
     const result = db.getCombinedData('day', 30);
-    // commitPrefixStats and repoStats should be populated
+    // commitPrefixStats should be populated (repoStats はワークスペース切替導入で廃止)
     expect(result).toBeDefined();
-    expect(Array.isArray(result.repoStats)).toBe(true);
+    expect(Array.isArray(result.commitPrefixStats)).toBe(true);
   });
 
   it('builds commitRegressionByPeriod from fix commits (lines 9750-9756)', () => {
