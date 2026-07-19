@@ -34,6 +34,8 @@ export type GateVerdict =
 interface ProcessStat {
   readonly ppid: number;
   readonly starttime: string;
+  /** `/proc/<pid>/stat` の 3 番目のフィールド。`Z` はゾンビ（回収待ちの終了済みプロセス）。 */
+  readonly state: string;
 }
 
 export function resolveAirspaceDir(cwd: string): string | null {
@@ -78,10 +80,27 @@ export function readProcessStartTime(pid: number): string | null {
   return readProcessStat(pid)?.starttime ?? null;
 }
 
+/**
+ * ゾンビ（`<defunct>`）判定。
+ *
+ * 終了済みでも親が `wait()` するまで `/proc/<pid>`・`comm`・`starttime` はすべて残るため、
+ * これらだけで生存を判定すると**死んだセッションを永久に生存扱いする**。クレームは
+ * `isClaimLive` 経由でしか GC されないので、滞留したクレームが単独作業でも衝突警告を出し続ける
+ * （実機で 1 worktree に対しゾンビ 4 件が滞留）。同じ罠は `kill -0` にもあり、
+ * `anytime-loop-start` スキルの子プロセス生存判定でも state≠Z を併用している。
+ */
+function isZombieState(state: string): boolean {
+  return state === 'Z';
+}
+
 export function isClaimLive(claim: AirspaceClaim): boolean {
+  // existsSync を先に見るのは、死んだ pid で readComm の警告ログを出さないため。
   if (!existsSync(`/proc/${claim.pid}`)) return false;
   if (!isClaudeComm(readComm(claim.pid))) return false;
-  return readProcessStartTime(claim.pid) === claim.starttime;
+  const stat = readProcessStat(claim.pid);
+  if (stat === null) return false;
+  if (isZombieState(stat.state)) return false;
+  return stat.starttime === claim.starttime;
 }
 
 /**
@@ -502,10 +521,11 @@ function readProcessStat(pid: number): ProcessStat | null {
     const closeParen = stat.lastIndexOf(') ');
     if (closeParen < 0) return null;
     const fields = stat.slice(closeParen + 2).trim().split(/\s+/);
+    const state = fields[0];
     const ppid = Number(fields[1]);
     const starttime = fields[19];
-    if (!Number.isInteger(ppid) || starttime === undefined) return null;
-    return { ppid, starttime };
+    if (!Number.isInteger(ppid) || starttime === undefined || state === undefined) return null;
+    return { ppid, starttime, state };
   } catch (error: unknown) {
     // /proc は競合的に消えるため、プロセス不在として扱う。
     warnFailure(`readProcessStat:${pid}`, error);
