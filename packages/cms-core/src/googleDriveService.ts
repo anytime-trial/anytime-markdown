@@ -58,6 +58,9 @@ const TOKEN_URI = 'https://oauth2.googleapis.com/token';
 const JWT_LIFETIME_SECONDS = 3600;
 
 function parseTokenResponse(json: unknown, status: number, now: number): GoogleAccessToken {
+  if (typeof json !== 'object' || json === null) {
+    throw new Error(`Google OAuth token request failed (status ${status}): unexpected response body`);
+  }
   const obj = json as Record<string, unknown>;
   if (typeof obj.access_token !== 'string' || typeof obj.expires_in !== 'number') {
     const detail = typeof obj.error_description === 'string' ? obj.error_description : JSON.stringify(json);
@@ -94,7 +97,13 @@ export async function getServiceAccountAccessToken(
     }).toString(),
   });
 
-  const json = await response.json();
+  let json: unknown;
+  try {
+    json = await response.json();
+  } catch {
+    // response.json() は内部で body を消費済みのため response.text() は再利用できない
+    throw new Error(`Google OAuth token request failed (status ${response.status}): non-JSON response`);
+  }
   return parseTokenResponse(json, response.status, now);
 }
 
@@ -110,13 +119,14 @@ export async function readGoogleDocAsText(
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) {
+    const body = await response.text();
     if (response.status === 403 || response.status === 404) {
       throw new Error(
         `Google Doc not accessible (status ${response.status}). `
-        + 'Ensure the document is shared with the service account email as a viewer.',
+        + 'Ensure the document is shared with the service account email as a viewer. '
+        + `Detail: ${body}`,
       );
     }
-    const body = await response.text();
     throw new Error(`Google Drive export failed (status ${response.status}): ${body}`);
   }
   return response.text();

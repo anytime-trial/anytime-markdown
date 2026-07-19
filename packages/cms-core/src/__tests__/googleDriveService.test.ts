@@ -119,6 +119,29 @@ describe('getServiceAccountAccessToken', () => {
       getServiceAccountAccessToken(serviceAccount, DRIVE_READONLY_SCOPE, sign, fetchImpl as unknown as typeof fetch, 1000),
     ).rejects.toThrow('Invalid JWT signature');
   });
+
+  it('トークンエンドポイントが非JSON応答を返したらstatus付きで例外を投げる', async () => {
+    const sign = jest.fn().mockResolvedValue('sig');
+    const mockResponse = {
+      status: 502,
+      json: jest.fn().mockRejectedValue(new SyntaxError('Unexpected token < in JSON')),
+    };
+    const fetchImpl = jest.fn().mockResolvedValue(mockResponse);
+
+    await expect(
+      getServiceAccountAccessToken(serviceAccount, DRIVE_READONLY_SCOPE, sign, fetchImpl as unknown as typeof fetch, 1000),
+    ).rejects.toThrow('status 502');
+  });
+
+  it('トークンエンドポイントがnullを返したら例外を投げる', async () => {
+    const sign = jest.fn().mockResolvedValue('sig');
+    const mockResponse = { status: 200, json: jest.fn().mockResolvedValue(null) };
+    const fetchImpl = jest.fn().mockResolvedValue(mockResponse);
+
+    await expect(
+      getServiceAccountAccessToken(serviceAccount, DRIVE_READONLY_SCOPE, sign, fetchImpl as unknown as typeof fetch, 1000),
+    ).rejects.toThrow('unexpected response body');
+  });
 });
 
 describe('readGoogleDocAsText', () => {
@@ -136,6 +159,15 @@ describe('readGoogleDocAsText', () => {
     const fetchImpl = jest.fn().mockResolvedValue({ ok: false, status: 403, text: jest.fn().mockResolvedValue('') });
     await expect(readGoogleDocAsText('file-id-1', 'token-abc', fetchImpl as unknown as typeof fetch))
       .rejects.toThrow('shared with the service account email');
+  });
+
+  it('403の場合、Google側のエラー詳細本文をメッセージに含める', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: false, status: 403,
+      text: jest.fn().mockResolvedValue('{"error":{"reason":"insufficientPermissions"}}'),
+    });
+    await expect(readGoogleDocAsText('file-id-1', 'token-abc', fetchImpl as unknown as typeof fetch))
+      .rejects.toThrow('insufficientPermissions');
   });
 
   it('404の場合も共有設定を促すエラーを投げる', async () => {

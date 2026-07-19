@@ -35,6 +35,9 @@ describe('mcp-cms integration', () => {
   let client: Client;
 
   beforeEach(async () => {
+    // GOOGLE_SERVICE_ACCOUNT_KEY_PATH がアンビエント環境変数として既に設定されている場合、
+    // createMcpServer() が read_google_doc も登録し「6ツール」前提のテストが崩れるため明示的に除去する
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH;
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-cms-int-'));
     const server = createMcpServer();
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
