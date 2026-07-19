@@ -1,0 +1,63 @@
+{
+  "categories": {
+    "ui": [
+      "packages/web-app/src/",
+      "packages/markdown-viewer/src/",
+      "packages/trail-viewer/src/",
+      "packages/tickets-viewer/src/",
+      "packages/graph-viewer/src/",
+      "packages/database-viewer/src/",
+      "packages/spreadsheet-viewer/src/",
+      "packages/mindmap-viewer/src/",
+      "packages/trace-viewer/src/",
+      "packages/ui-core/src/"
+    ],
+    "persistence": [
+      "packages/trail-db/",
+      "packages/memory-core/",
+      "packages/database-core/",
+      "packages/doc-core/",
+      "supabase/"
+    ],
+    "schema": [
+      "packages/trail-core/src/domain/schema/",
+      "supabase/migrations/"
+    ],
+    "packages": [
+      "basename:package.json",
+      "basename:package-lock.json"
+    ],
+    "security": [
+      ".github/workflows/",
+      "packages/mcp-cms-remote/"
+    ]
+  },
+  "highSeverityCategories": ["persistence", "schema", "security"],
+  "weights": {
+    "bugDensity": 0.35,
+    "centrality": 0.25,
+    "cochange": 0.15,
+    "category": 0.25
+  },
+  "categoryWeights": {
+    "ui": 0.3,
+    "packages": 0.5,
+    "loop": 0.5,
+    "persistence": 1,
+    "schema": 1,
+    "security": 1
+  },
+  "thresholds": {
+    "machine": 0.2,
+    "human": 0.6
+  },
+  "autoRouteEnabled": false,
+  "minAutoRecords": 30,
+  "levelGate": {
+    "windowDays": 14,
+    "missRateThreshold": 0.1,
+    "minAccepted": 5
+  },
+  "fetchTimeoutMs": 10000,
+  "repo": "anytime-markdown"
+}

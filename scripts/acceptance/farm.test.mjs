@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { applyGateReport, classifyRetryResults, collectSpecs, escapeRegex, flakySlug, mergeVerdicts, VRT_TAG } from "./farm.mjs";
+import { applyGateReport, applyRouting, classifyRetryResults, fetchHumanDecision, partitionPendingLines, collectSpecs, escapeRegex, flakySlug, mergeVerdicts, VRT_TAG } from "./farm.mjs";
 
 test("escapeRegex は正規表現メタ文字をすべてリテラル化する", () => {
   const title = "初期表示の視覚回帰 (light) [a-z] $1 c++ ?";
@@ -74,4 +74,48 @@ test("applyGateReport: applicable=false は無変更・fail は failedTests と 
   const passed = applyGateReport(base, { applicable: true, verdict: "pass", failedChecks: [], notes: "canary pass (3 ticks)" });
   assert.equal(passed.verdict, "pass");
   assert.equal(passed.notes, "base / canary pass (3 ticks)");
+});
+
+test("applyRouting: auto / machine は route 差し替えのみ・human は pending 化して farm verdict を notes に残す", () => {
+  const base = { route: "machine", verdict: "pass", decidedAt: "2026-07-19T00:00:00.000Z", failedTests: [], notes: "base" };
+  const machine = applyRouting(base, { route: "machine", score: 0.31, reasons: ["score=0.310 -> machine"] });
+  assert.equal(machine.route, "machine");
+  assert.equal(machine.verdict, "pass");
+  assert.match(machine.notes, /route=machine score=0\.310/);
+  const human = applyRouting(base, { route: "human", score: 0.75, reasons: ["score=0.750 -> human"] });
+  assert.equal(human.route, "human");
+  assert.equal(human.verdict, "pending");
+  assert.equal(human.decidedAt, null);
+  assert.match(human.notes, /farm verdict=pass/);
+  // score null（縮退 human）でも notes が壊れない
+  const degraded = applyRouting(base, { route: "human", score: null, reasons: ["risk inputs unavailable"] });
+  assert.equal(degraded.verdict, "pending");
+  assert.match(degraded.notes, /route=human \(risk inputs unavailable\)/);
+});
+
+test("partitionPendingLines: human pending は再送対象から外し、machine 行と非 JSON 行は残す", () => {
+  const humanPending = JSON.stringify({ commitSha: "a", route: "human", verdict: "pending" });
+  const machineFail = JSON.stringify({ commitSha: "b", route: "machine", verdict: "fail" });
+  const { safe, dropped } = partitionPendingLines([humanPending, machineFail, "not-json"]);
+  assert.deepEqual(dropped, [humanPending]);
+  assert.deepEqual(safe, [machineFail, "not-json"]);
+});
+
+test("fetchHumanDecision: 確定あり=decided / 未記録・pending=none / 取得失敗=unknown", async () => {
+  const mk = (records) => async () => ({ ok: true, json: async () => ({ acceptanceRecords: records }) });
+  assert.equal(
+    await fetchHumanDecision("http://x", "sha1", mk([{ commitSha: "sha1", route: "human", decidedBy: "human", verdict: "pass" }])),
+    "decided",
+  );
+  assert.equal(
+    await fetchHumanDecision("http://x", "sha1", mk([{ commitSha: "sha1", route: "human", decidedBy: "farm", verdict: "pending" }])),
+    "none",
+  );
+  assert.equal(await fetchHumanDecision("http://x", "sha1", mk([])), "none");
+  assert.equal(
+    await fetchHumanDecision("http://x", "sha1", async () => {
+      throw new Error("ECONNREFUSED");
+    }),
+    "unknown",
+  );
 });

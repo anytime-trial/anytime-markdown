@@ -15,8 +15,12 @@
  * 未設定時は起票をスキップして WARN + 台帳 notes に記録する（本番チケットストアへの
  * 暗黙フォールバックを持たない — 保護領域書き込みの本番パスフォールバック禁止原則）。
  *
+ * S3: 記録直前にリスクルーティング（route.mjs — Trail DB 実データの決定論スコア）で経路を決定する。
+ * human 経路は verdict 'pending' で記録し（合否は人の記録に譲る）、受入チケットを自動起票する。
+ *
  * Usage: node scripts/acceptance/farm.mjs [--commit <sha>] [--update-baseline] [--skip-build] [--server <url>]
- * Exit: 0=pass / 1=fail / 2=not_run（ファーム実行失敗または台帳記録失敗。受入判定は人手経路へ戻す）
+ * Exit: 0=pass / 1=fail / 2=not_run（ファーム実行失敗または台帳記録失敗。受入判定は人手経路へ戻す）。
+ *       human 経路（pending 記録）の exit はファーム自身の機械判定に従う（赤のマージは経路に関係なく塞ぐ）
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -185,10 +189,35 @@ async function postRecord(server, payload) {
   }
 }
 
+/**
+ * S3: スプール行の分別。human 経路の pending は blind 再送しない —
+ * 遅延再送の時点で人が同 PK (commit_sha, human) に確定 pass/fail を記録済みだと、
+ * 台帳の無条件 UPSERT が人の判定を pending へ巻き戻す（cross-review 指摘）。
+ */
+export function partitionPendingLines(lines) {
+  const safe = [];
+  const dropped = [];
+  for (const line of lines) {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(line);
+    } catch (e) {
+      log("WARN", `unparseable pending line kept for visibility: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (parsed && parsed.route === "human" && parsed.verdict === "pending") dropped.push(line);
+    else safe.push(line);
+  }
+  return { safe, dropped };
+}
+
 /** 前回不達分の再送。成功した行だけ取り除く（at-least-once。台帳側は冪等 UPSERT で吸収）。 */
 async function drainPending(server) {
   if (!fs.existsSync(PENDING_PATH)) return;
-  const lines = fs.readFileSync(PENDING_PATH, "utf8").split("\n").filter((l) => l.trim() !== "");
+  const rawLines = fs.readFileSync(PENDING_PATH, "utf8").split("\n").filter((l) => l.trim() !== "");
+  const { safe: lines, dropped } = partitionPendingLines(rawLines);
+  if (dropped.length > 0) {
+    log("WARN", `dropped ${dropped.length} spooled human-pending record(s) — human 確定判定の巻き戻し防止のため再送しない`);
+  }
   if (lines.length === 0) {
     fs.rmSync(PENDING_PATH, { force: true });
     return;
@@ -243,6 +272,49 @@ export function applyGateReport(payload, report) {
     failedTests: [...payload.failedTests, ...(report.failedChecks ?? [])],
     notes: [payload.notes, report.notes].filter(Boolean).join(" / "),
   };
+}
+
+/**
+ * S3: ルーティング結果を payload へ適用する。auto / machine は route の差し替えのみ。
+ * human は verdict を 'pending' にして合否を人の記録（同 PK の UPSERT）へ譲る —
+ * farm が human 経路へ pass/fail を書くと人の本判定を先取りし miss-rate の accepted 集計も汚すため。
+ */
+export function applyRouting(payload, routing) {
+  const scorePart = typeof routing.score === "number" ? ` score=${routing.score.toFixed(3)}` : "";
+  const notes = [payload.notes, `route=${routing.route}${scorePart} (${routing.reasons.join("; ")})`]
+    .filter(Boolean)
+    .join(" / ");
+  if (routing.route !== "human") {
+    return { ...payload, route: routing.route, notes };
+  }
+  return {
+    ...payload,
+    route: "human",
+    verdict: "pending",
+    decidedAt: null,
+    notes: `${notes} / farm verdict=${payload.verdict}`,
+  };
+}
+
+/**
+ * S3: human 経路の既存確定判定を確認する。台帳の UPSERT は無条件上書きのため、
+ * 人が記録済みの pass/fail を farm の pending 再送で巻き戻さないよう POST 前に確認する（cross-review 指摘）。
+ * 返り値: 'decided'（人の確定あり）/ 'none'（未記録・pending のみ）/ 'unknown'（確認不能）
+ */
+export async function fetchHumanDecision(server, commitSha, fetchImpl = fetch) {
+  try {
+    const res = await fetchImpl(`${server}/api/trail/acceptance?commitSha=${encodeURIComponent(commitSha)}&route=human`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const rec = (data?.acceptanceRecords ?? []).find((r) => r?.commitSha === commitSha && r?.route === "human");
+    if (rec && rec.decidedBy === "human" && (rec.verdict === "pass" || rec.verdict === "fail")) return "decided";
+    return "none";
+  } catch (e) {
+    log("WARN", `human decision check failed: ${e instanceof Error ? e.message : String(e)}`);
+    return "unknown";
+  }
 }
 
 function notRunPayload(args, reason) {
@@ -381,15 +453,63 @@ async function main() {
     quarantinedCount: quarantined.length + flaky.length,
     notes: notesParts.join(" / "),
   };
-  const payload = gateReports.reduce(applyGateReport, basePayload);
-  const recorded = await recordToLedger(args.server, payload);
-  if (!recorded) {
-    // 台帳へ記録できていない結果を成功にしない（受入の主効果は記録。スプール分は次回 drain）
-    log("ERROR", "ledger record failed — farm exits as not_run (2). spooled record will be drained next run");
-    process.exit(2);
+  const gated = gateReports.reduce(applyGateReport, basePayload);
+  // S3: リスクルーティング — machine 固定の経路を決定論スコアで置き換える（記録直前・単一 payload に統合）
+  let payload = gated;
+  try {
+    const routeMod = await import("./route.mjs");
+    const routing = await routeMod.runRouting({ commit: args.commit, root: ROOT, server: args.server });
+    payload = applyRouting(gated, routing);
+    if (routing.route === "human") {
+      const ticket = routeMod.fileAcceptanceTicket({
+        ticketsDir: TICKETS_DIR,
+        commit: args.commit,
+        routeResult: routing,
+        farmSummary: `farm verdict=${gated.verdict} (${path.relative(ROOT, REPORT_PATH)})`,
+      });
+      payload = {
+        ...payload,
+        notes: `${payload.notes} / ${ticket.filed ? `acceptance ticket filed: ${path.basename(ticket.file)}` : `acceptance ticket NOT filed (${ticket.reason})`}`,
+      };
+    }
+  } catch (e) {
+    // ルーティング崩壊も fail-open にしない: 保守側（human・pending）へ倒して理由を残す
+    const message = e instanceof Error ? e.message : String(e);
+    log("ERROR", `routing crashed: ${message}`);
+    payload = applyRouting(gated, { route: "human", score: null, reasons: [`routing crashed (${message}) — conservative human`] });
   }
-  log("INFO", `acceptance farm done: verdict=${payload.verdict} persistentFailures=${persistent.length} flaky=${flaky.length}`);
-  process.exit(payload.verdict === "pass" ? 0 : payload.verdict === "fail" ? 1 : 2);
+  // human 経路（pending）の exit はファーム自身の機械判定（gated.verdict）で決める — 赤のマージは経路に関係なく塞ぐ
+  const exitVerdict = payload.verdict === "pending" ? gated.verdict : payload.verdict;
+  const exitCode = exitVerdict === "pass" ? 0 : exitVerdict === "fail" ? 1 : 2;
+
+  if (payload.route === "human" && payload.verdict === "pending") {
+    // 人の確定判定 (commit×human, decidedBy=human, pass/fail) を pending で巻き戻さない。
+    // スプールも使わない（遅延再送は同じ巻き戻し経路になる）
+    const decision = await fetchHumanDecision(args.server, args.commit);
+    if (decision === "decided") {
+      log("INFO", "human decision already recorded — pending record not posted");
+    } else if (decision === "unknown") {
+      log("ERROR", "cannot verify existing human decision — pending record not posted (farm exits as not_run)");
+      process.exit(2);
+    } else {
+      try {
+        await postRecord(args.server, payload);
+        log("INFO", `acceptance record saved via ${args.server} (commit=${payload.commitSha}, route=human, verdict=pending)`);
+      } catch (e) {
+        log("ERROR", `ledger record failed for human-pending (not spooled): ${e instanceof Error ? e.message : String(e)} — farm exits as not_run (2)`);
+        process.exit(2);
+      }
+    }
+  } else {
+    const recorded = await recordToLedger(args.server, payload);
+    if (!recorded) {
+      // 台帳へ記録できていない結果を成功にしない（受入の主効果は記録。スプール分は次回 drain）
+      log("ERROR", "ledger record failed — farm exits as not_run (2). spooled record will be drained next run");
+      process.exit(2);
+    }
+  }
+  log("INFO", `acceptance farm done: route=${payload.route} verdict=${payload.verdict} persistentFailures=${persistent.length} flaky=${flaky.length}`);
+  process.exit(exitCode);
 }
 
 // テストから import できるよう、直接実行時のみ main を起動する
