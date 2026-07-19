@@ -624,6 +624,14 @@ describe('mountCombinedChartsSection', () => {
     expect(labels.some((l) => l === 'chart.tokens' || l === 'chart.tokenUsage')).toBe(true);
   });
 
+  it('token サブトグルはトークン / コスト / LOC の 3 値をこの順で並べる', () => {
+    const container = document.createElement('div');
+    mountCombinedChartsSection(container, { ...baseProps });
+    const labels = Array.from(container.querySelectorAll('button')).map((b) => b.textContent ?? '');
+    const subToggle = labels.filter((l) => ['chart.tokens', 'chart.cost', 'chart.loc'].includes(l));
+    expect(subToggle).toEqual(['chart.tokens', 'chart.cost', 'chart.loc']);
+  });
+
   it('updates without throwing', () => {
     const container = document.createElement('div');
     const handle = mountCombinedChartsSection(container, baseProps);

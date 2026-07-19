@@ -172,6 +172,7 @@ describe('groupByWeek', () => {
     date: fullDate.slice(5), fullDate,
     inputTokens: 1, outputTokens: 1, cacheReadTokens: 1, cacheCreationTokens: 1,
     actualCost: 1, skillCost: 1,
+    linesAdded: 10, linesDeleted: 4,
     overlayValue,
   });
 
@@ -180,6 +181,8 @@ describe('groupByWeek', () => {
     expect(result).toHaveLength(1);
     expect(result[0].fullDate).toBe('2026-05-01');
     expect(result[0].inputTokens).toBe(2);
+    expect(result[0].linesAdded).toBe(20);
+    expect(result[0].linesDeleted).toBe(8);
   });
   it('overlayValue は平均', () => {
     const result = groupByWeek([mkEntry('2026-05-01', 4), mkEntry('2026-05-02', 6)]);

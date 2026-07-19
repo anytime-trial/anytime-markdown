@@ -112,6 +112,29 @@ describe('computeDailyActivityDataset', () => {
     const dataset = computeDailyActivityDataset({ ...baseProps, items, period: 3, bucket: 'day' });
     expect(dataset.length).toBeLessThan(14);
   });
+
+  it("mode='loc' は行数のみを載せ、トークン/コストと overlay を落とす", () => {
+    const items = buildItems(3);
+    const dataset = computeDailyActivityDataset({
+      ...baseProps, mode: 'loc', items, period: 30, bucket: 'day',
+    });
+    expect(dataset).toHaveLength(3);
+    expect(dataset[0].linesAdded).toBe(10);
+    expect(dataset[0].linesDeleted).toBe(5);
+    expect(dataset[0].inputTokens).toBe(0);
+    expect(dataset[0].actualCost).toBe(0);
+    // 分母が LOC 自身になるため tok/LOC overlay は出さない。
+    expect(dataset[0].overlayValue).toBeNull();
+  });
+
+  it("mode='tokens' は行数を載せず tok/LOC overlay を出す", () => {
+    const items = buildItems(3);
+    const dataset = computeDailyActivityDataset({ ...baseProps, items, period: 30, bucket: 'day' });
+    expect(dataset[0].linesAdded).toBe(0);
+    expect(dataset[0].linesDeleted).toBe(0);
+    // (100+100+100+100) / (10+5)
+    expect(dataset[0].overlayValue).toBeCloseTo(400 / 15);
+  });
 });
 
 describe('mountDailyActivityChart', () => {
