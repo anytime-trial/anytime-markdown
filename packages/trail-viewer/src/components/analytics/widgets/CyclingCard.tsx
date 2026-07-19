@@ -1,6 +1,7 @@
 import type React from 'react';
 import { VanillaIsland } from '../../../shared/vanillaIsland';
 import { mountCyclingCard } from '../../../views/analytics/widgets/cyclingCard';
+import { OVERVIEW_CARD_SIZING } from '../../../views/analytics/widgets/overviewCardShell';
 import type { CyclingCardProps } from '../../../views/analytics/widgets/cyclingCard';
 import type { MetricItem } from '../types';
 
@@ -35,6 +36,7 @@ export function CyclingCard({
     index,
     onCycle,
     cardSx,
+    sizing: OVERVIEW_CARD_SIZING,
   };
   return <VanillaIsland mount={mountCyclingCard} props={vanillaProps} />;
 }

@@ -5,6 +5,7 @@ import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
 import { fmtNum, fmtTokens, fmtUsd } from '../../../domain/analytics/formatters';
 import { formatDoraValue } from '../widgets/doraValueDisplay';
 import { mountCyclingCard } from '../widgets/cyclingCard';
+import { OVERVIEW_CARD_SIZING, applyCardShell } from '../widgets/overviewCardShell';
 import type { VanillaMetricItem } from '../widgets/cyclingCard';
 import type { VanillaViewHandle as ChartHandle } from '../../../shared/vanillaIsland';
 
@@ -182,19 +183,7 @@ export function mountOverviewCards(
     p: OverviewCardsProps,
   ): void {
     doraContainer.innerHTML = '';
-    doraContainer.style.cssText = [
-      `background-color:${p.cardSx.bgcolor}`,
-      `border:${p.cardSx.border}`,
-      `border-radius:${p.cardSx.borderRadius}`,
-      'flex:1 1 140px',
-      'min-width:140px',
-      'padding:16px',
-      'min-height:150px',
-      'text-align:center',
-      'display:flex',
-      'flex-direction:column',
-      'overflow:hidden',
-    ].join(';');
+    applyCardShell(doraContainer, p.cardSx, OVERVIEW_CARD_SIZING, ['text-align:center']);
 
     // Header
     const header = document.createElement('div');
@@ -369,17 +358,10 @@ export function mountOverviewCards(
     root.innerHTML = '';
     doraContainers.length = 0;
 
-    // Usage cycling card container はレイアウトのみを担う。カード装飾（背景・枠・角丸）は
-    // 内側の mountCyclingCard が cardSx で付与するため、外側にも付けると二重枠になる（DORA と非対称
-    // だった回帰の修正）。DORA と同じく外側コンテナは装飾せずレイアウトのみにする。
-    const usageCardEl = document.createElement('div');
-    usageCardEl.style.cssText = [
-      'flex:1 1 140px',
-      'min-width:140px',
-      'min-height:150px',
-    ].join(';');
-    root.appendChild(usageCardEl);
-
+    // Usage cycling card は外側ラッパーを挟まず、mountCyclingCard が作る root を
+    // 行の直接の子にする。ラッパーへ寸法・内側へ装飾と分散させると、装飾を持つ要素が
+    // 高さを持たず DORA カードと揃わなくなる（外殻は applyOverviewCardShell に一元化）。
+    // DORA カードより先に append することで行内の描画順（使用量が先頭）を保つ。
     const usageCards = buildUsageCards(p);
     if (cyclingHandle) {
       cyclingHandle.destroy();
@@ -392,14 +374,16 @@ export function mountOverviewCards(
         index: usageIdx,
         onCycle: cycle,
         cardSx: p.cardSx,
+        sizing: OVERVIEW_CARD_SIZING,
       });
     };
-    cyclingHandle = mountCyclingCard(usageCardEl, {
+    cyclingHandle = mountCyclingCard(root, {
       groupName: p.t('analytics.groupUsage'),
       items: usageCards,
       index: usageIdx,
       onCycle: cycle,
       cardSx: p.cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
 
     // DORA cards

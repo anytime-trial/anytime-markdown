@@ -8,7 +8,8 @@ import {
 } from '../../../domain/analytics/formatters';
 import { sessionCost } from '../../../domain/analytics/calculators';
 import { mountCyclingCard } from '../widgets/cyclingCard';
-import type { VanillaMetricItem } from '../widgets/cyclingCard';
+import { SESSION_METRIC_CARD_SIZING } from '../widgets/overviewCardShell';
+import type { CyclingCardProps, VanillaMetricItem } from '../widgets/cyclingCard';
 
 export interface SessionMetricsPanelProps {
   session: TrailSession;
@@ -29,13 +30,8 @@ export function mountSessionMetricsPanel(
   let productivityIdx = 0;
   let qualityIdx = 0;
 
-  type CycleHandle = VanillaViewHandle<{
-    groupName: string;
-    items: readonly VanillaMetricItem[];
-    index: number;
-    onCycle: () => void;
-    cardSx: { bgcolor: string; border: string; borderRadius: string };
-  }>;
+  // CyclingCardProps を手写しすると props 追加のたびに乖離するため実体の型を参照する。
+  type CycleHandle = VanillaViewHandle<CyclingCardProps>;
 
   let usageHandle: CycleHandle | null = null;
   let productivityHandle: CycleHandle | null = null;
@@ -142,11 +138,10 @@ export function mountSessionMetricsPanel(
 
     const { usageCards, productivityCards, qualityCards } = buildCards(p);
 
-    // 旧 cardStyle: minWidth:160 / flex:'1 1 160px' / textAlign:center（3 枚を等幅に）。
-    const cardContainerCss = 'flex:1 1 160px;min-width:160px;text-align:center;';
-    const usageEl = document.createElement('div');
-    usageEl.style.cssText = cardContainerCss;
-    root.appendChild(usageEl);
+    // 寸法（旧 cardStyle: minWidth:160 / flex:'1 1 160px' / textAlign:center）は
+    // ラッパーではなくカード本体へ渡す。ラッパーへ寸法・内側へ装飾と分けると、装飾を
+    // 持つ要素が高さを持たず隣のカードと揃わなくなる（overviewCards で起きた不具合）。
+    const cardExtraStyles = ['text-align:center'] as const;
     const cycleUsage = (): void => {
       usageIdx = (usageIdx + 1) % usageCards.length;
       usageHandle?.update({
@@ -155,19 +150,20 @@ export function mountSessionMetricsPanel(
         index: usageIdx,
         onCycle: cycleUsage,
         cardSx: p.cardSx,
+        sizing: SESSION_METRIC_CARD_SIZING,
+        extraStyles: cardExtraStyles,
       });
     };
-    usageHandle = mountCyclingCard(usageEl, {
+    usageHandle = mountCyclingCard(root, {
       groupName: p.t('analytics.groupUsage'),
       items: usageCards,
       index: usageIdx,
       onCycle: cycleUsage,
       cardSx: p.cardSx,
+      sizing: SESSION_METRIC_CARD_SIZING,
+      extraStyles: cardExtraStyles,
     });
 
-    const productivityEl = document.createElement('div');
-    productivityEl.style.cssText = cardContainerCss;
-    root.appendChild(productivityEl);
     const cycleProductivity = (): void => {
       productivityIdx = (productivityIdx + 1) % productivityCards.length;
       productivityHandle?.update({
@@ -176,19 +172,20 @@ export function mountSessionMetricsPanel(
         index: productivityIdx,
         onCycle: cycleProductivity,
         cardSx: p.cardSx,
+        sizing: SESSION_METRIC_CARD_SIZING,
+        extraStyles: cardExtraStyles,
       });
     };
-    productivityHandle = mountCyclingCard(productivityEl, {
+    productivityHandle = mountCyclingCard(root, {
       groupName: p.t('analytics.groupProductivity'),
       items: productivityCards,
       index: productivityIdx,
       onCycle: cycleProductivity,
       cardSx: p.cardSx,
+      sizing: SESSION_METRIC_CARD_SIZING,
+      extraStyles: cardExtraStyles,
     });
 
-    const qualityEl = document.createElement('div');
-    qualityEl.style.cssText = cardContainerCss;
-    root.appendChild(qualityEl);
     const cycleQuality = (): void => {
       qualityIdx = (qualityIdx + 1) % qualityCards.length;
       qualityHandle?.update({
@@ -197,14 +194,18 @@ export function mountSessionMetricsPanel(
         index: qualityIdx,
         onCycle: cycleQuality,
         cardSx: p.cardSx,
+        sizing: SESSION_METRIC_CARD_SIZING,
+        extraStyles: cardExtraStyles,
       });
     };
-    qualityHandle = mountCyclingCard(qualityEl, {
+    qualityHandle = mountCyclingCard(root, {
       groupName: p.t('analytics.groupQuality'),
       items: qualityCards,
       index: qualityIdx,
       onCycle: cycleQuality,
       cardSx: p.cardSx,
+      sizing: SESSION_METRIC_CARD_SIZING,
+      extraStyles: cardExtraStyles,
     });
   }
 

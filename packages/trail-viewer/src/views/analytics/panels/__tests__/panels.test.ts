@@ -52,6 +52,7 @@ jest.mock('../../charts/dayCommitPrefixChart', () => ({
 }));
 
 import { mountCyclingCard } from '../../widgets/cyclingCard';
+import { OVERVIEW_CARD_SIZING } from '../../widgets/overviewCardShell';
 import { mountOverviewCards } from '../overviewCards';
 import { mountSessionMetricsPanel } from '../sessionMetricsPanel';
 import { mountDailySessionList } from '../dailySessionList';
@@ -181,6 +182,7 @@ describe('mountCyclingCard', () => {
         index: 0,
         onCycle: () => {},
         cardSx,
+        sizing: OVERVIEW_CARD_SIZING,
       }),
     ).not.toThrow();
   });
@@ -193,6 +195,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(container.textContent).toContain('Label A');
     expect(container.textContent).toContain('42');
@@ -206,6 +209,7 @@ describe('mountCyclingCard', () => {
       index: 1,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(container.textContent).toContain('Label B');
   });
@@ -219,6 +223,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => { called = true; },
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     const card = container.querySelector('div') as HTMLElement;
     card.click();
@@ -234,6 +239,7 @@ describe('mountCyclingCard', () => {
       index: 2,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(container.textContent).toContain('Elite');
   });
@@ -246,6 +252,7 @@ describe('mountCyclingCard', () => {
       index: 2,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(container.textContent).toContain('↑ 5%');
   });
@@ -258,6 +265,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     // The dots container is the last div inside root; its children are one per item
     const root = container.firstElementChild as HTMLElement;
@@ -274,6 +282,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     expect(() =>
       handle.update({
@@ -282,6 +291,7 @@ describe('mountCyclingCard', () => {
         index: 1,
         onCycle: () => {},
         cardSx,
+        sizing: OVERVIEW_CARD_SIZING,
       }),
     ).not.toThrow();
     expect(container.textContent).toContain('Label B');
@@ -295,6 +305,7 @@ describe('mountCyclingCard', () => {
       index: 0,
       onCycle: () => {},
       cardSx,
+      sizing: OVERVIEW_CARD_SIZING,
     });
     handle.destroy();
     expect(container.innerHTML).toBe('');
@@ -316,6 +327,63 @@ describe('mountOverviewCards', () => {
         t,
       }),
     ).not.toThrow();
+  });
+
+  // 回帰防止: 使用量カードは装飾（枠）を内側要素に、寸法（min-height）を外側ラッパーに
+  // 分散させていたため、枠を持つ要素が中身ぶんの高さしか持たず DORA カードと揃わなかった。
+  // jsdom はレイアウトしない（getBoundingClientRect は常に 0）ので、壊れた不変条件
+  // 「枠線を持つ要素が寸法も持つ」を直接 assert する。
+  describe('カード外殻', () => {
+    // DORA カードを 1 枚以上描画させるための最小 qualityMetrics。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const qualityMetrics: any = {
+      bucket: 'day',
+      metrics: {
+        tokensPerLoc: {
+          id: 'tokensPerLoc',
+          value: 37_400,
+          sampleSize: 10,
+          level: 'medium',
+          timeSeries: [],
+        },
+      },
+    };
+
+    // 行のカードは root（display:flex の行）の直接の子。カード 1 枚が装飾と寸法の
+    // 両方を担っているか＝外殻が 1 要素に閉じているかを、直接の子で検査する。
+    const rowCards = (): HTMLElement[] => {
+      const container = document.createElement('div');
+      mountOverviewCards(container, {
+        totals: minimalTotals,
+        qualityMetrics,
+        cardSx,
+        doraColors,
+        t,
+      });
+      const row = container.firstElementChild as HTMLElement;
+      return Array.from(row.children) as HTMLElement[];
+    };
+
+    it('各カードが装飾（枠）と寸法（min-height / flex）を同じ要素に持つ', () => {
+      const cards = rowCards();
+      expect(cards.length).toBeGreaterThan(1);
+      for (const card of cards) {
+        expect(card.style.borderRadius).not.toBe('');
+        expect(card.style.minHeight).not.toBe('');
+        expect(card.style.flex).not.toBe('');
+      }
+    });
+
+    it('使用量カードと DORA カードの最小高さが一致する', () => {
+      const cards = rowCards();
+      const usage = cards.find((el) => el.style.cursor === 'pointer');
+      const dora = cards.filter((el) => el.style.cursor !== 'pointer');
+      expect(usage).toBeDefined();
+      expect(dora.length).toBeGreaterThan(0);
+      for (const card of dora) {
+        expect(card.style.minHeight).toBe(usage?.style.minHeight);
+      }
+    });
   });
 
   it('renders usage group name', () => {
@@ -843,10 +911,14 @@ describe('mountOverviewCards — CyclingCard repeated cycling', () => {
       t,
     });
 
-    // overviewCards structure: container > root(flex) > usageCardEl > cyclingCardRoot(cursor:pointer)
-    // 4th-level div: container(div) > overviewRoot(div) > usageCardEl(div) > cyclingCardRoot(div).
-    const cyclingCardRoot = container.querySelector('div > div > div > div') as HTMLElement;
-    expect(cyclingCardRoot).not.toBeNull();
+    // 循環カードは cursor:pointer を持つ唯一のカード。DOM のネスト深さで特定すると
+    // 外殻の共通化（ラッパー廃止）のような構造変更で別要素を掴んでしまうため、
+    // 振る舞いに紐づく属性で選ぶ。
+    const cyclingCardRoot = Array.from(
+      container.querySelectorAll<HTMLElement>('div'),
+    ).find((el) => el.style.cursor === 'pointer');
+    expect(cyclingCardRoot).toBeDefined();
+    if (!cyclingCardRoot) throw new Error('cycling card not found');
 
     // Before any click: index 0 → shows analytics.linesAdded
     expect(container.textContent).toContain('analytics.linesAdded');
@@ -872,10 +944,13 @@ describe('mountSessionMetricsPanel — CyclingCard repeated cycling', () => {
       t,
     });
 
-    // sessionMetricsPanel structure: container > root(flex) > usageEl > cyclingCardRoot(cursor:pointer)
-    // 4th-level div: container(div) > root(div) > usageEl(div) > cyclingCardRoot(div).
-    const usageCyclingRoot = container.querySelector('div > div > div > div') as HTMLElement;
-    expect(usageCyclingRoot).not.toBeNull();
+    // 循環カードは cursor:pointer を持つ。使用量カードは行の先頭。DOM のネスト深さで
+    // 特定すると外殻の共通化（ラッパー廃止）のような構造変更で別要素を掴むため避ける。
+    const usageCyclingRoot = Array.from(
+      container.querySelectorAll<HTMLElement>('div'),
+    ).find((el) => el.style.cursor === 'pointer');
+    expect(usageCyclingRoot).toBeDefined();
+    if (!usageCyclingRoot) throw new Error('usage cycling card not found');
 
     // Before any click: index 0 → analytics.netLines (usage card shows netLines label)
     expect(container.textContent).toContain('analytics.netLines');
