@@ -90,6 +90,57 @@ afterEach(() => {
   container.remove();
 });
 
+describe("TicketDetailDialog のフォーム初期化", () => {
+  // renderBody で注入される vanilla ビューは mount-once（initialContent は生成時オプション）。
+  // 状態を mount 後に流し込むと、子は空文字で mount されたまま更新されず白紙になる。
+  it("初回レンダーの時点で本文が renderBody へ渡る（空文字で子を mount させない）", () => {
+    const seen: string[] = [];
+    render({
+      renderBody: (markdown) => {
+        seen.push(markdown);
+        return <div>{markdown}</div>;
+      },
+    });
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0]).toBe(TICKET.body);
+    expect(seen).not.toContain("");
+  });
+
+  it("初回レンダーの時点で各フィールドがチケットの値を持つ", () => {
+    render();
+
+    const titleInput = container.querySelector<HTMLInputElement>(".tk-dialog-title input");
+    expect(titleInput?.value).toBe(TICKET.frontmatter.title);
+  });
+
+  it("別のチケットへ切り替えると値が入れ替わる", () => {
+    render();
+    const other: TicketItem = {
+      ...TICKET,
+      path: ".tickets/T-2-second.md",
+      version: "s2",
+      frontmatter: { ...TICKET.frontmatter, id: "T-2", title: "2件目" },
+      body: "別の本文",
+    };
+
+    const seen: string[] = [];
+    render({
+      ticket: other,
+      allTickets: [TICKET, other],
+      renderBody: (markdown) => {
+        seen.push(markdown);
+        return <div>{markdown}</div>;
+      },
+    });
+
+    const titleInput = container.querySelector<HTMLInputElement>(".tk-dialog-title input");
+    expect(titleInput?.value).toBe("2件目");
+    expect(seen).not.toContain("");
+    expect(seen[seen.length - 1]).toBe("別の本文");
+  });
+});
+
 describe("TicketDetailDialog の保存後クローズ", () => {
   it("GitHub へのコミットが成功したらダイアログを閉じる", async () => {
     const onClose = jest.fn();
