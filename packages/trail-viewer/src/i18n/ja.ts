@@ -150,7 +150,6 @@ export const ja: TrailI18n = {
   'chart.cost': 'コスト',
   'chart.cost.description': '推定コスト（USD）',
   'chart.loc': 'LOC',
-  'chart.loc.description': '変更行数（追加行数 + 削除行数）',
   'chart.locAdded': '追加 LOC',
   'chart.locDeleted': '削除 LOC',
   'chart.tokensPerLoc': 'トークン/LOC',

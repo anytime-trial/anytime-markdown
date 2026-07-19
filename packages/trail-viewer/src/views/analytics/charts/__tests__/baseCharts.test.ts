@@ -14,7 +14,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   };
 }
 
-import { computeDailyActivityDataset, mountDailyActivityChart } from '../dailyActivityChart';
+import { computeDailyActivityDataset, computeOverlayDisplay, mountDailyActivityChart } from '../dailyActivityChart';
 import { mountDayCommitPrefixChart } from '../dayCommitPrefixChart';
 import { mountReleasesBarChart } from '../releasesBarChart';
 import { mountSessionErrorChart } from '../sessionErrorChart';
@@ -134,6 +134,28 @@ describe('computeDailyActivityDataset', () => {
     expect(dataset[0].linesDeleted).toBe(0);
     // (100+100+100+100) / (10+5)
     expect(dataset[0].overlayValue).toBeCloseTo(400 / 15);
+  });
+});
+
+describe('computeOverlayDisplay', () => {
+  const overlay = { bucket: 'day' as const, tokens: [], cost: [] };
+
+  it("mode='loc' は overlay データの有無にかかわらず overlay を描かない", () => {
+    expect(computeOverlayDisplay({ mode: 'loc', overlay, t }).hasOverlay).toBe(false);
+    expect(computeOverlayDisplay({ mode: 'loc', overlay: null, t }).hasOverlay).toBe(false);
+  });
+
+  it("mode='tokens' は overlay データが無くても tok/LOC を描く", () => {
+    const r = computeOverlayDisplay({ mode: 'tokens', overlay: null, t });
+    expect(r.hasOverlay).toBe(true);
+    expect(r.overlayLabel).toBe('chart.tokensPerLoc');
+  });
+
+  it("mode='cost' は overlay データがあるときだけ $/LOC を描く", () => {
+    expect(computeOverlayDisplay({ mode: 'cost', overlay, t })).toEqual({
+      hasOverlay: true, overlayLabel: 'chart.costPerLoc',
+    });
+    expect(computeOverlayDisplay({ mode: 'cost', overlay: null, t }).hasOverlay).toBe(false);
   });
 });
 

@@ -112,6 +112,21 @@ export function computeDailyActivityDataset(props: DailyActivityChartProps): Cha
   return bucket === 'week' ? groupByWeek(dailyDataset) : dailyDataset;
 }
 
+/**
+ * 右軸 overlay を描くかどうかとその軸ラベル（テスト公開）。
+ * loc モードは overlay を持たない（tok/LOC・$/LOC はいずれも LOC が分母であり、
+ * LOC 自身を主軸に置いたモードでは軸の意味が二重化して誤読を招くため）。
+ */
+export function computeOverlayDisplay(
+  props: Pick<DailyActivityChartProps, 'mode' | 'overlay' | 't'>,
+): { hasOverlay: boolean; overlayLabel: string } {
+  const isTokens = props.mode === 'tokens';
+  return {
+    hasOverlay: props.mode !== 'loc' && (isTokens || props.overlay != null),
+    overlayLabel: isTokens ? props.t('chart.tokensPerLoc') : props.t('chart.costPerLoc'),
+  };
+}
+
 function applyCardStyle(
   el: HTMLElement,
   cardSx: { bgcolor: string; border: string; borderRadius: string },
@@ -138,10 +153,7 @@ export function mountDailyActivityChart(
 
   function buildSpec(p: DailyActivityChartProps) {
     const dataset = computeDailyActivityDataset(p);
-    const isTokens = p.mode === 'tokens';
-    // loc モードは overlay を持たない（分母が LOC 自身）。
-    const hasOverlay = p.mode !== 'loc' && (isTokens || p.overlay != null);
-    const overlayLabel = isTokens ? p.t('chart.tokensPerLoc') : p.t('chart.costPerLoc');
+    const { hasOverlay, overlayLabel } = computeOverlayDisplay(p);
     return {
       spec: buildDailyActivitySpec(dataset, {
         mode: p.mode,

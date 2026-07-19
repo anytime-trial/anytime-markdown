@@ -158,7 +158,6 @@ export interface TrailI18n {
   'chart.cost': string;
   'chart.cost.description': string;
   'chart.loc': string;
-  'chart.loc.description': string;
   'chart.locAdded': string;
   'chart.locDeleted': string;
   'chart.tokensPerLoc': string;

@@ -150,7 +150,6 @@ export const en: TrailI18n = {
   'chart.cost': 'Cost',
   'chart.cost.description': 'Estimated cost (USD)',
   'chart.loc': 'LOC',
-  'chart.loc.description': 'Lines changed (added + deleted)',
   'chart.locAdded': 'Added LOC',
   'chart.locDeleted': 'Deleted LOC',
   'chart.tokensPerLoc': 'Tokens/LOC',
