@@ -176,7 +176,20 @@ export class GitHubIssuesProvider implements TicketProvider {
 
   private async fetchIssue(issueNumber: number): Promise<IssueJson> {
     const res = await this.request(this.issuesUrl(`/${issueNumber}`));
-    return (await res.json()) as IssueJson;
+    const issue = (await res.json()) as IssueJson;
+    this.assertManagedIssue(issue);
+    return issue;
+  }
+
+  /**
+   * 管理対象（`ticket` ラベル付き・PR でない・削除済みでない）以外への読み書きを拒否する。
+   * これが無いと update / remove / archive が同リポジトリの任意の issue / PR を改変・close できてしまう。
+   */
+  private assertManagedIssue(issue: IssueJson): void {
+    const labels = labelNames(issue);
+    if (issue.pull_request !== undefined || !labels.includes(TICKET_LABEL) || labels.includes(DELETED_LABEL)) {
+      throw new TicketApiError(404, `チケットとして管理されていない issue です: issues/${issue.number}`);
+    }
   }
 
   /**
@@ -254,8 +267,7 @@ export class GitHubIssuesProvider implements TicketProvider {
       }),
     });
     const created = (await res.json()) as IssueJson;
-    // 採番→POST の間の同時作成による id 重複は、Contents 実装（guardDuplicateId）と異なり
-    // 巻き戻さず次回 list 時に要修復として顕在化させる（REST では削除不可のため）
+    await this.guardDuplicateId(id, created);
     return {
       path: issuePath(created.number),
       version: created.updated_at,
@@ -264,6 +276,32 @@ export class GitHubIssuesProvider implements TicketProvider {
       body,
       archived: false,
     };
+  }
+
+  /**
+   * 採番→POST の間に他者が同じ id で作成した競合を事後検出する（Contents 実装の guardDuplicateId と対称）。
+   * REST では issue を削除できないため、巻き戻しは close + `ticket:deleted` で行う。
+   */
+  private async guardDuplicateId(id: string, created: IssueJson): Promise<void> {
+    const issues = await this.listManagedIssues('all');
+    const duplicated = issues.some((issue) => {
+      if (issue.number === created.number || labelNames(issue).includes(DELETED_LABEL)) {
+        return false;
+      }
+      const entry = parseIssueTicket(issue);
+      return isRecord(entry) && entry.frontmatter.id === id;
+    });
+    if (!duplicated) {
+      return;
+    }
+    await this.request(this.issuesUrl(`/${created.number}`), {
+      method: 'PATCH',
+      body: JSON.stringify({ state: 'closed', labels: [TICKET_LABEL, DELETED_LABEL] }),
+    });
+    throw new TicketConflictError(
+      409,
+      `同時作成により id ${id} が重複したため巻き戻しました。再試行してください`,
+    );
   }
 
   async update(input: UpdateTicketRecordInput): Promise<{ path: string; version: string; commitId?: string }> {

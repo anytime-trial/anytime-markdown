@@ -240,4 +240,54 @@ describe('GitHubIssuesProvider.update / remove / archive（check-then-act 楽観
       makeProvider(fetchFn).get('.tickets/T-1.md'),
     ).rejects.toBeInstanceOf(TicketApiError);
   });
+
+  it.each([
+    ['ticket ラベルなし', issueJson({ number: 10, body: T1_BODY, labels: [] })],
+    ['PR', issueJson({ number: 10, body: T1_BODY, pull_request: { url: 'x' } })],
+    ['削除済み', issueJson({ number: 10, body: T1_BODY, labels: ['ticket', 'ticket:deleted'] })],
+  ])('管理対象外（%s）の issue は update / get とも 404 で拒否し PATCH しない', async (_label, json) => {
+    const { fetchFn, calls } = makeFetch({
+      '/repos/o/r/issues/10': [{ method: 'GET', status: 200, json }],
+    });
+    const provider = makeProvider(fetchFn);
+    await expect(
+      provider.update({ path: 'issues/10', content: T1_BODY, version: '2026-07-19T01:00:00Z', message: 'm' }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(provider.get('issues/10')).rejects.toMatchObject({ status: 404 });
+    expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
+  });
+});
+
+describe('GitHubIssuesProvider.create の重複 id ガード（Contents guardDuplicateId と対称）', () => {
+  it('採番→POST 間の同時作成で id が重複したら自分を close + ticket:deleted で巻き戻し 409', async () => {
+    // 採番時（1 回目の list）は空 → id T-1。ガード時（2 回目）は他者が同じ T-1 で先に作成済み
+    const competing = issueJson({ number: 30, body: serializeTicket(fm({ id: 'T-1', title: 'rival' }), '') });
+    let listCall = 0;
+    const calls: { method: string; url: string; body?: Record<string, unknown> }[] = [];
+    const routedFetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
+      calls.push({ method, url, body });
+      if (url.includes('state=all')) {
+        listCall += 1;
+        return new Response(JSON.stringify(listCall === 1 ? [] : [competing]), { status: 200 });
+      }
+      if (method === 'POST') {
+        return new Response(JSON.stringify(issueJson({ number: 40 })), { status: 201 });
+      }
+      if (method === 'PATCH') {
+        return new Response(JSON.stringify(issueJson({ number: 40, state: 'closed' })), { status: 200 });
+      }
+      return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+    }) as typeof fetch;
+    const provider = new GitHubIssuesProvider({ provider: 'github-issues', token: 'tok', repo: 'o/r', fetchFn: routedFetch });
+    await expect(
+      provider.create({ title: 'x', status: 'backlog', priority: 'low', now: '2026-07-19T02:00:00.000Z' }),
+    ).rejects.toBeInstanceOf(TicketConflictError);
+    const rollback = calls.find((c) => c.method === 'PATCH');
+    expect(rollback?.url).toContain('/issues/40');
+    expect(rollback?.body?.state).toBe('closed');
+    expect(rollback?.body?.labels).toEqual(['ticket', 'ticket:deleted']);
+  });
 });

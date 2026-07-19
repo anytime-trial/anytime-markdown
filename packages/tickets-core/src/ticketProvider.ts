@@ -90,14 +90,11 @@ export type TicketProviderConfig = GitHubContentsProviderConfig | GitHubIssuesPr
 const DEFAULT_PROVIDER_API_BASE = 'https://api.github.com';
 
 /**
- * プロバイダが到達する API ホスト（SSRF 許可リストの合成用。要件 NFR-5 / RFC 詳細設計 3）。
- * プロバイダ追加時は本関数がホストを供給するため、許可リスト側の変更漏れが起こらない。
+ * プロバイダ種別が到達する API ホスト（SSRF 許可リストの合成用。要件 NFR-5 / RFC 詳細設計 3）。
+ * プロバイダ追加時は本関数がホストを供給するため、許可リスト側（web-app fetchWithRetry）の変更漏れが起こらない。
+ * 現状は全種別が GitHub API 既定ホストのみ。`apiBaseUrl` をユーザー設定可能にする変更（GHE 対応等）は、
+ * config 由来ホストの供給経路を本関数へ追加しない限り行わないこと（許可リストが追随せず全滅 or 素通りする）。
  */
-export function providerAllowedHosts(config: TicketProviderConfig): string[] {
-  return [new URL(config.apiBaseUrl ?? DEFAULT_PROVIDER_API_BASE).host];
-}
-
-/** 種別ごとの既定ホスト（config なしで許可リストを静的合成する用途。現状は全種別 GitHub API） */
 export function providerDefaultHosts(_kind: TicketProviderKind): string[] {
   return [new URL(DEFAULT_PROVIDER_API_BASE).host];
 }

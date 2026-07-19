@@ -42,7 +42,8 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<{ message: string; conflict: boolean } | null>(null);
 
-  const configKey = config ? `${config.repo} ${config.branch}` : "";
+  // provider も取得先を決めるキー（含めないと provider 切替時に旧プロバイダの一覧が残る）
+  const configKey = config ? `${config.repo} ${config.branch} ${config.provider ?? ""}` : "";
 
   const reload = useCallback(async () => {
     if (!config) {

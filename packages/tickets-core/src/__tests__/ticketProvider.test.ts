@@ -4,10 +4,8 @@ import { serializeTicket, type TicketFrontmatter } from '../ticketModel';
 import {
   createTicketProvider,
   isTicketProviderKind,
-  providerAllowedHosts,
   providerDefaultHosts,
   TICKET_PROVIDER_KINDS,
-  type TicketProviderConfig,
 } from '../ticketProvider';
 import { TicketConflictError } from '../ticketRepository';
 
@@ -66,14 +64,6 @@ describe('createTicketProvider / providerAllowedHosts', () => {
     const provider = createTicketProvider({ provider: 'github-issues', token: 't', repo: 'o/r' });
     expect(provider).toBeInstanceOf(GitHubIssuesProvider);
     expect(provider.kind).toBe('github-issues');
-  });
-
-  it('providerAllowedHosts は apiBaseUrl のホストを返す（既定は api.github.com）', () => {
-    const base: TicketProviderConfig = { provider: 'github-contents', token: 't', repo: 'o/r', branch: 'main' };
-    expect(providerAllowedHosts(base)).toEqual(['api.github.com']);
-    expect(providerAllowedHosts({ ...base, apiBaseUrl: 'https://ghe.example.com/api/v3' })).toEqual([
-      'ghe.example.com',
-    ]);
   });
 
   it('providerDefaultHosts は全種別で既定ホストを返す（SSRF 許可リストの静的合成用）', () => {
