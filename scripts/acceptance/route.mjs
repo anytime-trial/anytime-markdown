@@ -111,17 +111,21 @@ export async function fetchRiskInputs({ server = DEFAULT_SERVER, config, fetchIm
       return null;
     }
   };
-  const defectRisk = await get("defect-risk", `${server}/api/defect-risk?repo=${repo}`, (p) => {
-    const map = new Map();
-    for (const e of p?.entries ?? []) {
-      if (typeof e?.filePath === "string" && typeof e?.score === "number") map.set(e.filePath, e.score);
-    }
-    return map;
-  });
-  const importance = await get("file-analysis", `${server}/api/c4/file-analysis?repo=${repo}`, extractImportanceScores);
-  const coupling = await get("temporal-coupling", `${server}/api/temporal-coupling?repo=${repo}`, extractCouplingFiles);
-  const missRates = await get("miss-rate", `${server}/api/trail/acceptance/miss-rate?windowDays=${config.levelGate?.windowDays ?? 14}`, (p) => p?.missRates ?? []);
-  const acceptance = await get("acceptance-records", `${server}/api/trail/acceptance`, (p) => p?.acceptanceRecords ?? []);
+  // 並列取得: 逐次だと完全不達時に timeout × 5 = 最大約 50 秒を縮退判定の前に浪費する（cross-review 指摘）。
+  // 各 get は内部で例外を握って null を返すため Promise.all で安全
+  const [defectRisk, importance, coupling, missRates, acceptance] = await Promise.all([
+    get("defect-risk", `${server}/api/defect-risk?repo=${repo}`, (p) => {
+      const map = new Map();
+      for (const e of p?.entries ?? []) {
+        if (typeof e?.filePath === "string" && typeof e?.score === "number") map.set(e.filePath, e.score);
+      }
+      return map;
+    }),
+    get("file-analysis", `${server}/api/c4/file-analysis?repo=${repo}`, extractImportanceScores),
+    get("temporal-coupling", `${server}/api/temporal-coupling?repo=${repo}`, extractCouplingFiles),
+    get("miss-rate", `${server}/api/trail/acceptance/miss-rate?windowDays=${config.levelGate?.windowDays ?? 14}`, (p) => p?.missRates ?? []),
+    get("acceptance-records", `${server}/api/trail/acceptance`, (p) => p?.acceptanceRecords ?? []),
+  ]);
   return {
     defectRisk,
     importance,
@@ -129,7 +133,9 @@ export async function fetchRiskInputs({ server = DEFAULT_SERVER, config, fetchIm
     missRates,
     acceptance,
     missing,
-    allMissing: defectRisk === null && importance === null && coupling === null && missRates === null,
+    // human 縮退の判断はスコア成分ソース（defect-risk / file-analysis / coupling）のみで行う。
+    // miss-rate は Level Gate 用の補助入力で、これだけ取れてもスコアの根拠にはならない（cross-review 指摘）
+    allMissing: defectRisk === null && importance === null && coupling === null,
   };
 }
 
@@ -191,6 +197,20 @@ export function decideRoute({ score, categories, missRates, machineDecidedCount,
   let route = score >= t.human ? "human" : score >= t.machine ? "machine" : "auto";
   reasons.push(`score=${score.toFixed(3)} -> ${route}`);
 
+  // auto ガードを Level Gate より先に適用し、実際に使う経路を確定してから降格判定する。
+  // 逆順だと auto 無効設定でも過去の auto 見逃し率で human 降格し、machine 縮退に到達しない（cross-review 指摘）
+  if (route === "auto") {
+    if (!config.autoRouteEnabled) {
+      reasons.push("auto route disabled by config — fallback to machine");
+      route = "machine";
+    } else if ((machineDecidedCount ?? 0) < (config.minAutoRecords ?? 30)) {
+      reasons.push(`auto guard: machine decided records ${machineDecidedCount} < ${config.minAutoRecords ?? 30} — fallback to machine`);
+      route = "machine";
+    } else {
+      reasons.push("auto route enabled (config + record guard satisfied)");
+    }
+  }
+
   const gate = config.levelGate ?? {};
   const rate = (missRates ?? []).find((m) => m?.route === route);
   if (
@@ -203,18 +223,6 @@ export function decideRoute({ score, categories, missRates, machineDecidedCount,
   ) {
     reasons.push(`level gate: ${route} missRate=${rate.missRate.toFixed(3)} > ${gate.missRateThreshold} — demoted to human`);
     return { route: "human", reasons };
-  }
-
-  if (route === "auto") {
-    if (!config.autoRouteEnabled) {
-      reasons.push("auto route disabled by config — fallback to machine");
-      route = "machine";
-    } else if ((machineDecidedCount ?? 0) < (config.minAutoRecords ?? 30)) {
-      reasons.push(`auto guard: machine decided records ${machineDecidedCount} < ${config.minAutoRecords ?? 30} — fallback to machine`);
-      route = "machine";
-    } else {
-      reasons.push("auto route enabled (config + record guard satisfied)");
-    }
   }
   return { route, reasons };
 }
