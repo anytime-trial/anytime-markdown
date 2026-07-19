@@ -13,5 +13,6 @@ export async function GET(
     (r) => r.getSessionToolMetrics(id),
     null,
     `/api/trail/sessions/${id}/tool-metrics`,
+    `/api/trail/sessions/${id}/tool-metrics`,
   );
 }

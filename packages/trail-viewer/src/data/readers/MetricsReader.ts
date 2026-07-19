@@ -51,12 +51,35 @@ export class MetricsReader {
     };
   }
 
+  /**
+   * データ最古の committed_at を 1 行だけ取得する（egress 対策のクランプ基準）。
+   * idx_trail_session_commits_committed_at による index scan 前提。データなしは null。
+   */
+  private async fetchEarliestCommittedAt(): Promise<string | null> {
+    const { data } = await this.client
+      .from('trail_session_commits')
+      .select('committed_at')
+      .order('committed_at', { ascending: true })
+      .limit(1);
+    const rows = (data ?? []) as Array<{ committed_at: string }>;
+    return rows[0]?.committed_at ?? null;
+  }
+
   async getQualityMetrics(range: DateRange): Promise<QualityMetrics> {
-    const fromMs = new Date(range.from).getTime();
+    // egress 対策: 全期間既定 (from=1970) をデータ最古の committed_at へクランプする。
+    // クランプ前の from を使うと「同幅の前期間」が epoch 以前 (1913〜1969 など) に落ち、
+    // 実データが存在し得ないレンジへの照会が毎ロード走っていた。
+    const earliest = await this.fetchEarliestCommittedAt();
+    const requestedFromMs = new Date(range.from).getTime();
+    const earliestMs = earliest === null ? null : new Date(earliest).getTime();
+    const fromMs = earliestMs !== null && earliestMs > requestedFromMs ? earliestMs : requestedFromMs;
+    const effRange: DateRange = fromMs === requestedFromMs ? range : { from: new Date(fromMs).toISOString(), to: range.to };
     const toMs = new Date(range.to).getTime();
     const duration = toMs - fromMs;
     const prevTo = new Date(fromMs - 1).toISOString();
     const prevFrom = new Date(fromMs - 1 - duration).toISOString();
+    // 前期間が丸ごとデータ最古以前 (またはデータなし) なら前期間 fetch をスキップする。
+    const skipPrev = earliestMs === null || fromMs - 1 < earliestMs;
 
     type ReleaseRow = { tag: string; released_at: string; fix_count: number };
     type UserMessageHeader = {
@@ -308,10 +331,10 @@ export class MetricsReader {
     };
 
     const [curReleases, curCommits, prevReleases, prevCommits] = await Promise.all([
-      fetchReleases(range.from, range.to),
-      fetchCommits(range.from, range.to),
-      fetchReleases(prevFrom, prevTo),
-      fetchCommits(prevFrom, prevTo),
+      fetchReleases(effRange.from, effRange.to),
+      fetchCommits(effRange.from, effRange.to),
+      skipPrev ? Promise.resolve([] as ReleaseRow[]) : fetchReleases(prevFrom, prevTo),
+      skipPrev ? Promise.resolve([] as CommitRow[]) : fetchCommits(prevFrom, prevTo),
     ]);
 
     const curSessionIds = [...new Set(curCommits.map((c) => c.session_id))];
@@ -319,7 +342,7 @@ export class MetricsReader {
 
     const [curMessages, curBreakdown, curFilesByHash, prevMessages, prevBreakdown, prevFilesByHash, curSources, prevSources] = await Promise.all([
       fetchUserMessageHeaders(curSessionIds),
-      fetchUserTokenAggregates(range.from, range.to, curSessionIds),
+      fetchUserTokenAggregates(effRange.from, effRange.to, curSessionIds),
       fetchFilesByHashes(curCommits.map((c) => c.commit_hash)),
       fetchUserMessageHeaders(prevSessionIds),
       fetchUserTokenAggregates(prevFrom, prevTo, prevSessionIds),
@@ -387,7 +410,7 @@ export class MetricsReader {
           lines_deleted: c.lines_deleted ?? 0,
         })),
       },
-      range,
+      effRange,
     );
   }
 }

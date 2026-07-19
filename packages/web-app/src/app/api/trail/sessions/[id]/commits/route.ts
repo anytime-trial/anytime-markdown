@@ -13,5 +13,6 @@ export async function GET(
     async (r) => ({ commits: await r.getSessionCommits(id) }),
     { commits: [] },
     `/api/trail/sessions/${id}/commits`,
+    `/api/trail/sessions/${id}/commits`,
   );
 }

@@ -5,5 +5,5 @@ import { trailReaderRoute } from "../../../../lib/api-helpers";
 export const dynamic = 'force-dynamic';
 
 export async function GET(): Promise<NextResponse> {
-  return trailReaderRoute((r) => r.getCostOptimization(), null, '/api/trail/cost-optimization');
+  return trailReaderRoute((r) => r.getCostOptimization(), null, '/api/trail/cost-optimization', '/api/trail/cost-optimization');
 }

@@ -16,5 +16,6 @@ export async function GET(
     async (r) => ({ messages: await r.getMessages(id) }),
     { messages: [] },
     `/api/trail/sessions/${id}`,
+    `/api/trail/sessions/${id}`,
   );
 }
