@@ -64,6 +64,30 @@ export function describeIdleSince(updatedAt: string, nowMs: number): string | nu
   return `最終活動 ${Math.floor(hours / 24)}日前`;
 }
 
+/**
+ * UTC ISO のタイムスタンプを表示用のローカル表記へ変換する。
+ *
+ * クレームの `updatedAt` は UTC ISO で保存される。日本語 UI にそのまま出すと最大 9 時間
+ * ずれた時刻を提示してしまうため、表示の瞬間だけローカルへ変換する（保存側は UTC のまま）。
+ * `timeZone` は省略時にシステムのゾーンを使う。テストからは明示して決定論にする。
+ *
+ * 変換できない値は入力をそのまま返す。表示を空にすると原因調査時に元の値が失われる。
+ */
+export function formatLocalDateTime(iso: string, timeZone?: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone,
+  }).format(parsed);
+}
+
 function emptyWorktree(): WorktreeInfo {
   return {
     path: '',

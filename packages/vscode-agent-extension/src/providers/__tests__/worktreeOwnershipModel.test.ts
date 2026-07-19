@@ -3,6 +3,7 @@ import type { AirspaceClaim } from '@anytime-markdown/agent-core';
 import {
   buildOwnershipRows,
   describeIdleSince,
+  formatLocalDateTime,
   parseWorktreeList,
 } from '../worktreeOwnershipModel';
 
@@ -178,5 +179,21 @@ describe('describeIdleSince', () => {
   it('解釈できない値と未来時刻は表示しない', () => {
     expect(describeIdleSince('not-a-date', now)).toBeNull();
     expect(describeIdleSince('2026-07-20T00:00:00.000Z', now)).toBeNull();
+  });
+});
+
+describe('formatLocalDateTime', () => {
+  // クレームの updatedAt は UTC ISO。日本語 UI に UTC のまま出すと最大 9 時間ずれた
+  // 時刻を提示してしまうため、表示時にローカルへ変換する。
+  it('タイムゾーンを指定してローカル表記に変換する', () => {
+    expect(formatLocalDateTime('2026-07-19T14:57:00.000Z', 'Asia/Tokyo')).toBe(
+      '2026/07/19 23:57:00',
+    );
+    expect(formatLocalDateTime('2026-07-19T14:57:00.000Z', 'UTC')).toBe('2026/07/19 14:57:00');
+  });
+
+  // 変換できない値で表示を空にすると、原因調査時に元の値が失われる。
+  it('解釈できない値は入力をそのまま返す', () => {
+    expect(formatLocalDateTime('not-a-date', 'UTC')).toBe('not-a-date');
   });
 });

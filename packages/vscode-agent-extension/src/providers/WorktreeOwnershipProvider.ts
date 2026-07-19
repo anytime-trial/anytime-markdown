@@ -10,6 +10,7 @@ import { AgentLogger } from '../utils/AgentLogger';
 import {
   buildOwnershipRows,
   describeIdleSince,
+  formatLocalDateTime,
   type OwnershipRow,
   parseWorktreeList,
 } from './worktreeOwnershipModel';
@@ -74,7 +75,7 @@ function itemTooltip(row: OwnershipRow): string {
   if (row.lastActivityAt !== null) {
     // 放置していても解放はしない（クレームの更新はツール実行時のみで、入力待ちの
     // 正常なセッションと区別できないため）。判断材料として経過だけ見せる。
-    lines.push(`最終活動: ${row.lastActivityAt}`);
+    lines.push(`最終活動: ${formatLocalDateTime(row.lastActivityAt)}`);
   }
   if (row.orphan) lines.push('孤立: このクレームの作業ツリーは git worktree list に存在しない');
   return lines.join('\n');
