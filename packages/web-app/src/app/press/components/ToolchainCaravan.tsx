@@ -1,6 +1,7 @@
 import { useTranslations } from 'next-intl';
 
 import styles from '../press.module.css';
+import { TRAFFIC_LIGHT_COLORS } from './constants';
 
 /** Caravan.tsx のオアシスと同じヤシの木形状（隊商のモチーフを図解でも共有する） */
 const PALM_TRUNK_PATH = 'M16 56 L20 56 L19 28 L17 28 Z';
@@ -20,8 +21,6 @@ const HOOFPRINTS: ReadonlyArray<readonly [number, number]> = [
   [184, 234],
   [202, 236],
 ];
-
-const TRAFFIC_LIGHT_COLORS = ['#FF5F57', '#FFBD2E', '#28C840'] as const;
 
 export function ToolchainCaravan() {
   const t = useTranslations('press.toolchain');

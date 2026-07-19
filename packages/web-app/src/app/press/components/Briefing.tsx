@@ -2,6 +2,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 import styles from '../press.module.css';
+import { TRAFFIC_LIGHT_COLORS } from './constants';
 import { ProcessFlow } from './ProcessFlow';
 import { ToolchainCaravan } from './ToolchainCaravan';
 
@@ -36,7 +37,6 @@ interface BriefingEmbedProps {
   trailKeys?: readonly (typeof TRAIL_KEYS[number])[];
 }
 
-const TRAFFIC_LIGHT_COLORS = ['#FF5F57', '#FFBD2E', '#28C840'] as const;
 const TRAIL_KEYS = ['trail1', 'trail2', 'trail3', 'trail4', 'trail5', 'trail6', 'trail7', 'trail8', 'trail9', 'trail10', 'trail11', 'trail12', 'trail13', 'trail14', 'trail15', 'trail16', 'trail17', 'trail18', 'trail19', 'trail20', 'trail21', 'trail22', 'trail23', 'trail24', 'trail25', 'trail26'] as const;
 const MARKDOWN_KEYS = ['md3', 'md1', 'md2'] as const;
 const AGENT_KEYS = ['agent1', 'agent2', 'agent3'] as const;
