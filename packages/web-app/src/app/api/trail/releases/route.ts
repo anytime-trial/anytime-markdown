@@ -5,5 +5,5 @@ import { trailReaderRoute } from '../../../../lib/api-helpers';
 export const dynamic = 'force-dynamic';
 
 export async function GET(): Promise<NextResponse> {
-  return trailReaderRoute((r) => r.getReleases(), [], '/api/trail/releases');
+  return trailReaderRoute((r) => r.getReleases(), [], '/api/trail/releases', '/api/trail/releases');
 }

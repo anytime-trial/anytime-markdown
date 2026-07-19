@@ -17,5 +17,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     (r) => r.getDeploymentFrequencyQuality({ from, to }, bucket),
     [] as ReadonlyArray<ReleaseQualityBucket>,
     '/api/trail/deployment-frequency-quality',
+    `/api/trail/deployment-frequency-quality?from=${from}&to=${to}&bucket=${bucket}`,
   );
 }

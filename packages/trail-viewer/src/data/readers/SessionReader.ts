@@ -15,6 +15,10 @@ import type {
   CommitDbRow,
 } from '../types';
 
+// egress 対策: 一覧は直近分のみ取得する（全件 select は蓄積とともに転送量が単調増加する）。
+// これより古いセッションは一覧・クライアント側フィルタの対象外になる。
+const SESSION_FETCH_LIMIT = 200;
+
 export class SessionReader {
   constructor(private readonly client: SupabaseClient) {}
 
@@ -23,7 +27,8 @@ export class SessionReader {
       .from('trail_sessions')
       // repo_id 正規化後: repo_name は trail_repos を FK 埋め込みして復元する (下で row に flatten)。
       .select('*, repo:trail_repos!repo_id(repo_name), trail_session_costs(*)')
-      .order('start_time', { ascending: false });
+      .order('start_time', { ascending: false })
+      .limit(SESSION_FETCH_LIMIT);
 
     if (filters?.model) {
       query = query.eq('model', filters.model);

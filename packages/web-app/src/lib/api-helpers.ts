@@ -7,6 +7,7 @@ import { SupabaseC4ModelStore, SupabaseTrailReader } from '@anytime-markdown/tra
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
+import { RouteCache, resolveTrailApiCacheTtlMs } from './route-cache';
 import { resolveSupabaseEnv } from './supabase-env';
 
 /**
@@ -47,22 +48,46 @@ export const NO_STORE_HEADERS: Record<string, string> = {
   'Cache-Control': 'no-store, must-revalidate',
 };
 
+// Supabase egress 対策のサーバー内 TTL キャッシュ（成功応答のみ格納）。
+// ブラウザ向けの no-store は維持し、再利用はこのプロセス内に限定する。
+const trailRouteCache = new RouteCache<unknown>({
+  ttlMs: resolveTrailApiCacheTtlMs(),
+  maxEntries: 50,
+});
+
+/** テスト用: trail ルートキャッシュを全消去する。 */
+export function clearTrailRouteCache(): void {
+  trailRouteCache.clear();
+}
+
 /**
  * SupabaseTrailReader を使う /api/trail/* ルートのテンプレート。
  * env 未設定なら fallback を返し、例外時もログ + fallback を返す。
+ * cacheKey 指定時は成功応答を TTL キャッシュへ格納し、期間内の同一キーは
+ * Supabase を読まずに返す（フォールバック応答は障害の固着を防ぐため格納しない）。
  */
 export async function trailReaderRoute<T>(
   fetcher: (reader: SupabaseTrailReader) => Promise<T>,
   fallback: T,
   label: string,
+  cacheKey?: string,
 ): Promise<NextResponse> {
   const env = resolveSupabaseEnv();
   if (!env) {
     return NextResponse.json(fallback, { headers: NO_STORE_HEADERS });
   }
+  if (cacheKey !== undefined) {
+    const cached = trailRouteCache.get(cacheKey);
+    if (cached !== undefined) {
+      return NextResponse.json(cached as T, { headers: NO_STORE_HEADERS });
+    }
+  }
   try {
     const reader = new SupabaseTrailReader(env.url, env.anonKey);
     const data = await fetcher(reader);
+    if (cacheKey !== undefined) {
+      trailRouteCache.set(cacheKey, data);
+    }
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (e) {
     console.error(`[${label}] error`, e);
