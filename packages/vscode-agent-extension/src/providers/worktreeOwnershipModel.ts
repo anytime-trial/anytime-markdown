@@ -15,6 +15,7 @@ export type OwnershipRow =
       readonly sessionId: string;
       readonly pid: number;
       readonly editingFile: string | null;
+      readonly lastActivityAt: string;
       readonly state: 'occupied';
       readonly orphan: false;
     }
@@ -24,6 +25,7 @@ export type OwnershipRow =
       readonly sessionId: null;
       readonly pid: null;
       readonly editingFile: null;
+      readonly lastActivityAt: null;
       readonly state: 'free';
       readonly orphan: false;
     }
@@ -33,9 +35,34 @@ export type OwnershipRow =
       readonly sessionId: string;
       readonly pid: number;
       readonly editingFile: string | null;
+      readonly lastActivityAt: string;
       readonly state: 'occupied';
       readonly orphan: true;
     };
+
+/** これ未満の放置は通常の応答待ちと区別できないため表示しない。 */
+const IDLE_DISPLAY_THRESHOLD_MS = 30 * 60 * 1000;
+
+/**
+ * クレームの最終活動からの経過を表示用文字列にする。解放判定には使わない。
+ *
+ * `updatedAt` はツール実行フックでしか更新されないため「最終ツール実行時刻」であって
+ * 生存時刻ではない。これを TTL 失効に使うと、プロンプトで入力待ちしている正常なセッションの
+ * クレームが消え、衝突ゲートが無言で fail-open する。放置の可視化は表示に留める。
+ */
+export function describeIdleSince(updatedAt: string, nowMs: number): string | null {
+  const updatedMs = Date.parse(updatedAt);
+  if (Number.isNaN(updatedMs)) return null;
+
+  const elapsedMs = nowMs - updatedMs;
+  if (elapsedMs < IDLE_DISPLAY_THRESHOLD_MS) return null;
+
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 60) return `最終活動 ${minutes}分前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `最終活動 ${hours}時間前`;
+  return `最終活動 ${Math.floor(hours / 24)}日前`;
+}
 
 function emptyWorktree(): WorktreeInfo {
   return {
@@ -97,6 +124,7 @@ export function buildOwnershipRows(
         sessionId: null,
         pid: null,
         editingFile: null,
+        lastActivityAt: null,
         state: 'free',
         orphan: false,
       });
@@ -111,6 +139,7 @@ export function buildOwnershipRows(
         sessionId: owner.sessionId,
         pid: owner.pid,
         editingFile: owner.file === '' ? null : owner.file,
+        lastActivityAt: owner.updatedAt,
         state: 'occupied',
         orphan: false,
       });
@@ -125,6 +154,7 @@ export function buildOwnershipRows(
       sessionId: claim.sessionId,
       pid: claim.pid,
       editingFile: claim.file === '' ? null : claim.file,
+      lastActivityAt: claim.updatedAt,
       state: 'occupied',
       orphan: true,
     });

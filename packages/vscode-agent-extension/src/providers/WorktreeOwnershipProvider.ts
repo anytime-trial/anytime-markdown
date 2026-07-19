@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { AgentLogger } from '../utils/AgentLogger';
 import {
   buildOwnershipRows,
+  describeIdleSince,
   type OwnershipRow,
   parseWorktreeList,
 } from './worktreeOwnershipModel';
@@ -56,7 +57,9 @@ function itemLabel(input: WorktreeOwnershipItemInput): string {
 function itemDescription(input: WorktreeOwnershipItemInput): string | undefined {
   if (input.kind === 'error') return 'Anytime Agent の出力を確認してください';
   if (input.row.state === 'free') return input.row.worktreePath;
-  return `pid ${input.row.pid}  ${input.row.sessionId.slice(0, 8)}`;
+  const base = `pid ${input.row.pid}  ${input.row.sessionId.slice(0, 8)}`;
+  const idle = describeIdleSince(input.row.lastActivityAt, Date.now());
+  return idle === null ? base : `${base}  ${idle}`;
 }
 
 function itemTooltip(row: OwnershipRow): string {
@@ -68,6 +71,11 @@ function itemTooltip(row: OwnershipRow): string {
   if (row.sessionId !== null) lines.push(`セッション: ${row.sessionId}`);
   if (row.pid !== null) lines.push(`pid: ${row.pid}`);
   if (row.editingFile !== null) lines.push(`編集中: ${row.editingFile}`);
+  if (row.lastActivityAt !== null) {
+    // 放置していても解放はしない（クレームの更新はツール実行時のみで、入力待ちの
+    // 正常なセッションと区別できないため）。判断材料として経過だけ見せる。
+    lines.push(`最終活動: ${row.lastActivityAt}`);
+  }
   if (row.orphan) lines.push('孤立: このクレームの作業ツリーは git worktree list に存在しない');
   return lines.join('\n');
 }

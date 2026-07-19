@@ -1,6 +1,10 @@
 import type { AirspaceClaim } from '@anytime-markdown/agent-core';
 
-import { buildOwnershipRows, parseWorktreeList } from '../worktreeOwnershipModel';
+import {
+  buildOwnershipRows,
+  describeIdleSince,
+  parseWorktreeList,
+} from '../worktreeOwnershipModel';
 
 function claim(overrides: Partial<AirspaceClaim>): AirspaceClaim {
   return {
@@ -104,6 +108,7 @@ describe('buildOwnershipRows', () => {
         sessionId: 'session-1',
         pid: 123,
         editingFile: '/repo/README.md',
+        lastActivityAt: '2026-07-13T00:00:00.000Z',
         state: 'occupied',
         orphan: false,
       },
@@ -113,6 +118,7 @@ describe('buildOwnershipRows', () => {
         sessionId: null,
         pid: null,
         editingFile: null,
+        lastActivityAt: null,
         state: 'free',
         orphan: false,
       },
@@ -143,9 +149,34 @@ describe('buildOwnershipRows', () => {
       sessionId: 'orphan-session',
       pid: 456,
       editingFile: null,
+      lastActivityAt: '2026-07-13T00:00:00.000Z',
       state: 'occupied',
       orphan: true,
     });
   });
 });
 
+
+// クレームはツール実行フックでしか書かれないため、updatedAt は「最終ツール実行時刻」であり
+// 生存時刻ではない。これを TTL の失効判定に使うと、プロンプトで入力待ちしている正常な
+// セッションのクレームが消えて衝突ゲートが無言で fail-open する。表示だけに使う。
+describe('describeIdleSince', () => {
+  const now = Date.parse('2026-07-19T23:00:00.000Z');
+
+  it('直近の活動には何も表示しない', () => {
+    expect(describeIdleSince('2026-07-19T22:55:00.000Z', now)).toBeNull();
+    expect(describeIdleSince('2026-07-19T23:00:00.000Z', now)).toBeNull();
+  });
+
+  it('放置が閾値を超えたら経過を表示する', () => {
+    expect(describeIdleSince('2026-07-19T22:10:00.000Z', now)).toBe('最終活動 50分前');
+    expect(describeIdleSince('2026-07-19T14:57:00.000Z', now)).toBe('最終活動 8時間前');
+    expect(describeIdleSince('2026-07-17T23:00:00.000Z', now)).toBe('最終活動 2日前');
+  });
+
+  // 未来時刻は時計ずれで起こり得る。負の経過を「◯分前」と出すと読み手を混乱させる。
+  it('解釈できない値と未来時刻は表示しない', () => {
+    expect(describeIdleSince('not-a-date', now)).toBeNull();
+    expect(describeIdleSince('2026-07-20T00:00:00.000Z', now)).toBeNull();
+  });
+});
