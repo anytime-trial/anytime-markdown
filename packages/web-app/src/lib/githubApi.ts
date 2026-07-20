@@ -9,12 +9,18 @@ export interface GitHubRepo {
   defaultBranch: string;
 }
 
-/** ファイル内容を取得（branch または commit SHA 指定） */
+/**
+ * ファイル内容を取得（branch または commit SHA 指定）。
+ * 非 2xx はエラーとして投げる（401 等を空ファイルとして握りつぶすと、権限不足が
+ * 「空文書が開けた」ように見えてしまうため）。
+ */
 export async function fetchFileContent(repo: string, filePath: string, ref: string): Promise<string> {
   const res = await fetch(
     `/api/github/content?repo=${encodeURIComponent(repo)}&path=${encodeURIComponent(filePath)}&ref=${encodeURIComponent(ref)}`,
   );
-  if (!res.ok) return "";
+  if (!res.ok) {
+    throw new Error(`GitHub content fetch failed: ${res.status} (${repo}/${filePath}@${ref})`);
+  }
   const data = await res.json();
   return data.content ?? "";
 }

@@ -897,6 +897,7 @@
     "driveSignInRequired": "Google sign-in required",
     "driveApiKeyMissing": "Google Drive integration is not configured",
     "driveLoadError": "Failed to load the Drive file",
+    "githubLoadError": "Failed to load the GitHub file (check permissions and that the file exists)",
     "driveOpenDraftBlocked": "Cannot open the Drive file because there are unsaved changes. Save or discard them and try again.",
     "discardDraftTitle": "You have unsaved changes",
     "discardDraftBody": "Opening the Drive file will discard the unsaved content you are editing.",
