@@ -22,6 +22,11 @@ export {
   coerceRelationType,
   relationEdgeStyle,
   resolveRelationEdgeStyle,
+  validateCooccurrenceFile,
+  canonicalizeSpec,
+  computeSpecHash,
+  serializeCoocFile,
+  parseCoocFile,
 } from './presets/index';
 export type {
   ThinkingDiagramSpec,
@@ -45,6 +50,9 @@ export type {
   RelationType,
   RelatedRef,
   RelationEdgeStyle,
+  CooccurrenceFile,
+  ValidationError,
+  ValidationErrorCode,
 } from './presets/index';
 // React 依存の canvas ラッパー（useCanvasBase / MinimapCanvas）は
 // @anytime-markdown/graph-react-islands へ分離。graph-core 本体は React-free。

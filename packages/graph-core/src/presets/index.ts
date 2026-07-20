@@ -14,6 +14,14 @@ import { buildLogicTree, buildWhyChain, type LogicTreeSpec, type WhyChainSpec, t
 import { buildSwot, buildMorphBox, buildAffinity, type SwotSpec, type MorphBoxSpec, type AffinitySpec } from './grids';
 import { buildStructureMap, type StructureMapSpec } from './structureMap';
 import { buildCooccurrence, type CooccurrenceSpec } from './cooccurrence';
+export {
+  validateCooccurrenceFile,
+  canonicalizeSpec,
+  computeSpecHash,
+  serializeCoocFile,
+  parseCoocFile,
+} from './cooccurrenceFile';
+export type { CooccurrenceFile, ValidationError, ValidationErrorCode } from './cooccurrenceFile';
 
 export type ThinkingDiagramSpec =
   | FishboneSpec
