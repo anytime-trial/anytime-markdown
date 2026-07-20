@@ -34,6 +34,20 @@
         }
       ]
     },
+    "views": {
+      "anytimeGraph": [
+        {
+          "id": "anytimeGraph.networks",
+          "name": "%view.networks%"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "anytimeGraph.networks",
+        "contents": "%viewsWelcome.networks%"
+      }
+    ],
     "customEditors": [
       {
         "viewType": "anytimeCooccurrence",
@@ -59,14 +73,35 @@
     "commands": [
       {
         "command": "anytime-graph.newCooccurrence",
-        "title": "%command.newCooccurrence%"
+        "title": "%command.newCooccurrence%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "anytime-graph.refreshNetworks",
+        "title": "%command.refreshNetworks%",
+        "icon": "$(refresh)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "anytime-graph.newCooccurrence",
+          "when": "view == anytimeGraph.networks",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-graph.refreshNetworks",
+          "when": "view == anytimeGraph.networks",
+          "group": "navigation@2"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "webpack",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json",
+    "test": "jest",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map"
   },

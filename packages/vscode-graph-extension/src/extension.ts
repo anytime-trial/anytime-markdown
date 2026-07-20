@@ -8,11 +8,40 @@ import {
 	type CooccurrenceFile,
 } from '@anytime-markdown/graph-core/src/presets/cooccurrenceFile';
 import { CooccurrenceEditorProvider } from './providers/CooccurrenceEditorProvider';
+import { CooccurrenceListProvider } from './providers/CooccurrenceListProvider';
 import { GraphMigrationProvider } from './providers/GraphMigrationProvider';
+import { COOC_FILE_GLOB } from './providers/coocListModel';
 
 export function activate(context: vscode.ExtensionContext) {
+	// console.* は拡張ホストのコンソールにしか出ずユーザーから見えない。
+	const output = vscode.window.createOutputChannel('Anytime Graph');
+	context.subscriptions.push(output);
+	const logError = (message: string) => {
+		output.appendLine(`[${new Date().toISOString()}] [ERROR] ${message}`);
+	};
+
 	context.subscriptions.push(CooccurrenceEditorProvider.register(context));
 	context.subscriptions.push(GraphMigrationProvider.register(context));
+
+	const listProvider = new CooccurrenceListProvider(logError);
+	context.subscriptions.push(listProvider);
+	context.subscriptions.push(
+		vscode.window.createTreeView(CooccurrenceListProvider.viewId, {
+			treeDataProvider: listProvider,
+		}),
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anytime-graph.refreshNetworks', () => listProvider.refresh()),
+	);
+
+	// ファイルの増減に一覧を追随させる（リネームは delete + create として届く）。
+	// 中身の変更は一覧の見た目に影響しないため onDidChange は購読しない。
+	const watcher = vscode.workspace.createFileSystemWatcher(COOC_FILE_GLOB);
+	context.subscriptions.push(
+		watcher,
+		watcher.onDidCreate(() => listProvider.refresh()),
+		watcher.onDidDelete(() => listProvider.refresh()),
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-graph.newCooccurrence', async () => {
