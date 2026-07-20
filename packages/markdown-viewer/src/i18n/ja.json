@@ -671,6 +671,7 @@
     "slashThinkMorphBox": "形態分析表（モルフォロジカル）",
     "slashThinkAffinity": "親和図（KJ法）",
     "slashThinkStructureMap": "構造マップ（全体↔部分↔他領域）",
+    "slashThinkCooccurrence": "共起ネットワーク（要因の共起分析）",
     "slashMath": "数式",
     "slashHtml": "HTML",
     "slashToc": "目次",

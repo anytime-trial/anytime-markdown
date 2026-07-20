@@ -13,6 +13,7 @@ import { buildDoubleDiamond, type DoubleDiamondSpec } from './doubleDiamond';
 import { buildLogicTree, buildWhyChain, type LogicTreeSpec, type WhyChainSpec, type TreeNodeSpec } from './trees';
 import { buildSwot, buildMorphBox, buildAffinity, type SwotSpec, type MorphBoxSpec, type AffinitySpec } from './grids';
 import { buildStructureMap, type StructureMapSpec } from './structureMap';
+import { buildCooccurrence, type CooccurrenceSpec } from './cooccurrence';
 
 export type ThinkingDiagramSpec =
   | FishboneSpec
@@ -25,7 +26,8 @@ export type ThinkingDiagramSpec =
   | SwotSpec
   | MorphBoxSpec
   | AffinitySpec
-  | StructureMapSpec;
+  | StructureMapSpec
+  | CooccurrenceSpec;
 
 export type ThinkingDiagramType = ThinkingDiagramSpec['type'];
 
@@ -41,6 +43,7 @@ export const THINKING_DIAGRAM_TYPES: readonly ThinkingDiagramType[] = [
   'morph-box',
   'affinity',
   'structure-map',
+  'cooccurrence',
 ];
 
 export function buildThinkingDiagram(spec: ThinkingDiagramSpec, isDark: boolean): GraphDocument {
@@ -67,6 +70,8 @@ export function buildThinkingDiagram(spec: ThinkingDiagramSpec, isDark: boolean)
       return buildAffinity(spec, isDark);
     case 'structure-map':
       return buildStructureMap(spec, isDark);
+    case 'cooccurrence':
+      return buildCooccurrence(spec, isDark);
     default: {
       const _exhaustive: never = spec;
       throw new Error(`Unknown thinking diagram type: ${JSON.stringify(_exhaustive)}`);
@@ -86,8 +91,10 @@ export type {
   MorphBoxSpec,
   AffinitySpec,
   StructureMapSpec,
+  CooccurrenceSpec,
   TreeNodeSpec,
 };
+export type { CooccurrenceNode, CooccurrenceLink, CooccurrenceCluster } from './cooccurrence';
 
 // ノート網（ドキュメント関係グラフ）プリセット
 export { buildNoteGraph, buildNoteNeighborhood } from './noteGraph';

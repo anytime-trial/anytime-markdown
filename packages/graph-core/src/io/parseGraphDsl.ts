@@ -49,6 +49,12 @@ const TYPE_ALIASES: Record<string, ThinkingDiagramType> = {
   structuremap: 'structure-map',
   structure: 'structure-map',
   'whole-part': 'structure-map',
+  cooccurrence: 'cooccurrence',
+  'co-occurrence': 'cooccurrence',
+  共起: 'cooccurrence',
+  共起ネットワーク: 'cooccurrence',
+  kh: 'cooccurrence',
+  'kh-coder': 'cooccurrence',
 };
 
 function splitItems(value: string): string[] {
@@ -333,6 +339,94 @@ export function parseGraphDsl(text: string): ThinkingDiagramSpec {
       }
       const domains = splitItems(headerValue(lines, 'domains') ?? '');
       return { type, whole, parts, relations, domains };
+    }
+
+    case 'cooccurrence': {
+      // 語（`- ラベル: 頻度`）と共起（`- A -- B: 強度`）は同じ bullet 記法なので、
+      // `--` の有無で振り分ける。数値が読めない場合は黙って 0 に落とさずエラーにする。
+      const title = headerValue(lines, 'title');
+      const nodes: Array<{ label: string; frequency: number }> = [];
+      const links: Array<{ a: string; b: string; strength: number }> = [];
+      for (const raw of lines) {
+        const t = raw.trim();
+        if (!t.startsWith('-')) continue;
+        const rest = t.replace(/^-\s*/, '');
+        const ci = firstColonIndex(rest);
+        if (ci === -1) {
+          throw new GraphDslError(
+            `cooccurrence の行に値がありません: "${t}"（例: "- 納期遅延: 40" / "- A -- B: 0.8"）`,
+          );
+        }
+        const head = rest.slice(0, ci).trim();
+        const valueText = rest.slice(ci + 1).trim();
+        const value = Number(valueText);
+        if (!Number.isFinite(value)) {
+          throw new GraphDslError(
+            `数値として解釈できません: "${valueText}"（"${head}" の行。頻度・共起強度は数値で書いてください）`,
+          );
+        }
+        const pair = /^(.+?)--(.+)$/.exec(head);
+        if (pair) {
+          const a = pair[1].trim();
+          const b = pair[2].trim();
+          if (!a || !b) {
+            throw new GraphDslError(`共起行を解釈できません: "${t}"（例: "- 納期遅延 -- 仕様変更: 0.8"）`);
+          }
+          links.push({ a, b, strength: value });
+        } else {
+          if (!head) {
+            throw new GraphDslError(`語のラベルが空です: "${t}"`);
+          }
+          nodes.push({ label: head, frequency: value });
+        }
+      }
+      if (nodes.length === 0) {
+        throw new GraphDslError('cooccurrence には "- 語: 頻度" を1つ以上記述してください');
+      }
+      const labels = new Set(nodes.map((n) => n.label));
+      for (const link of links) {
+        for (const endpoint of [link.a, link.b]) {
+          if (!labels.has(endpoint)) {
+            throw new GraphDslError(
+              `共起の端点 "${endpoint}" が語に存在しません（"- ${endpoint}: 頻度" を定義してください）`,
+            );
+          }
+        }
+      }
+      // クラスタは `cluster <名前>: 語, 語` 行。bullet ではないので別途拾う。
+      const clusters: Array<{ label: string; members: string[] }> = [];
+      for (const raw of lines) {
+        const t = raw.trim();
+        const m = /^cluster\s+(.+)$/i.exec(t);
+        if (!m) continue;
+        const body = m[1];
+        const ci = firstColonIndex(body);
+        if (ci === -1) {
+          throw new GraphDslError(`cluster 行を解釈できません: "${t}"（例: "cluster 工程: 納期遅延, レビュー待ち"）`);
+        }
+        const label = body.slice(0, ci).trim();
+        const members = splitItems(body.slice(ci + 1));
+        for (const member of members) {
+          if (!labels.has(member)) {
+            throw new GraphDslError(
+              `cluster "${label}" の "${member}" が語に存在しません（"- ${member}: 頻度" を定義してください）`,
+            );
+          }
+        }
+        clusters.push({ label, members });
+      }
+      const subject = headerValue(lines, 'subject');
+      if (subject !== undefined && !labels.has(subject)) {
+        throw new GraphDslError(`subject "${subject}" が語に存在しません（"- ${subject}: 頻度" を定義してください）`);
+      }
+      return {
+        type,
+        ...(title !== undefined ? { title } : {}),
+        ...(subject !== undefined ? { subject } : {}),
+        nodes,
+        links,
+        clusters,
+      };
     }
 
     default: {

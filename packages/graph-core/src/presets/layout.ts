@@ -319,3 +319,155 @@ export function partitionBalanced(weights: number[]): boolean[] {
   }
   return sides;
 }
+
+/** 円同士に最低限あける余白（px）。これを割り込むと追加の斥力が働く。 */
+const NODE_MARGIN = 16;
+
+export interface ForceLink {
+  /** ノード添字（0-based） */
+  source: number;
+  /** ノード添字（0-based） */
+  target: number;
+  /** 結合の強さ。大きいほど強く引き合う（共起強度をそのまま渡す） */
+  weight: number;
+}
+
+export interface ForceLayoutOptions {
+  /**
+   * ノードごとのグループ番号。指定すると同グループが初期リングの同一扇形へ集まり、
+   * クラスタが図の上でもまとまりやすくなる。
+   */
+  groups?: number[];
+  /** ノード半径。指定すると大きい円ほど強く反発し、重なりを避ける。 */
+  radii?: number[];
+  /** 反復回数。既定値は固定で、呼び出しごとにぶれない。 */
+  iterations?: number;
+  /**
+   * 結合したノード間の目標距離（中心間）。既定はノード径から導出するため、
+   * 円が大きい図ほど自動的に広がり、小さい図は詰まる。
+   */
+  spacing?: number;
+}
+
+/** 初期配置: グループごとに扇形を割り当て、その内側へ均等に並べる。 */
+function initialRing(n: number, spacing: number, groups: number[] | undefined): Point[] {
+  const groupOf = (i: number): number => groups?.[i] ?? 0;
+  const ids = Array.from(new Set(Array.from({ length: n }, (_, i) => groupOf(i)))).sort((a, b) => a - b);
+  // 隣接ノードが目標距離だけ離れる円周長から半径を決める
+  const baseRadius = Math.max(spacing, (spacing * n) / (2 * Math.PI));
+  const pos: Point[] = new Array<Point>(n);
+  let placed = 0;
+  for (const id of ids) {
+    const members: number[] = [];
+    for (let i = 0; i < n; i++) if (groupOf(i) === id) members.push(i);
+    const sectorStart = (2 * Math.PI * placed) / n;
+    const sectorSpan = (2 * Math.PI * members.length) / n;
+    // 扇形の 70% だけを使い、グループ間に隙間を残す
+    const innerSpan = sectorSpan * 0.7;
+    const pad = (sectorSpan - innerSpan) / 2;
+    members.forEach((nodeIndex, j) => {
+      const t = members.length === 1 ? 0.5 : j / (members.length - 1);
+      const angle = -Math.PI / 2 + sectorStart + pad + innerSpan * t;
+      // 完全な対称配置は斥力が釣り合って動かなくなるため、半径を決定的に僅かにずらす
+      const slot = placed + j;
+      const radius = baseRadius * (1 + ((slot % 3) - 1) * 0.08);
+      pos[nodeIndex] = { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+    });
+    placed += members.length;
+  }
+  return pos;
+}
+
+/**
+ * 力学モデル（Fruchterman–Reingold 系）でノード座標を解く。
+ *
+ * 乱数・時刻・DOM を使わず、初期配置と反復回数を固定しているため、
+ * 同一入力は常に同一座標を返す（他のレイアウト関数と同じ決定論性）。
+ * 返る座標は重心が原点になるよう正規化される。
+ */
+export function forceDirectedLayout(
+  nodeCount: number,
+  links: readonly ForceLink[],
+  opts: ForceLayoutOptions = {},
+): Point[] {
+  const { groups, radii, iterations = 300 } = opts;
+  if (nodeCount <= 0) return [];
+  if (nodeCount === 1) return [{ x: 0, y: 0 }];
+
+  // 目標距離 k。円の平均直径の 1.6 倍を既定にすると、結合ペアが円 1 個ぶん程度の
+  // 間隔で並び、共起ネットワークとして読める密度になる。
+  const avgDiameter =
+    radii && radii.length > 0 ? (radii.reduce((s, r) => s + r, 0) / radii.length) * 2 : 90;
+  const k = opts.spacing ?? avgDiameter * 1.6;
+
+  const pos = initialRing(nodeCount, k, groups);
+  const cooling = k / (iterations + 1);
+  const disp: Point[] = Array.from({ length: nodeCount }, () => ({ x: 0, y: 0 }));
+  let temp = k;
+
+  for (let step = 0; step < iterations; step++) {
+    for (const d of disp) {
+      d.x = 0;
+      d.y = 0;
+    }
+
+    // 斥力: 全ペアが反発する。半径ぶんを差し引くことで大きい円ほど離れる。
+    for (let i = 0; i < nodeCount; i++) {
+      for (let j = i + 1; j < nodeCount; j++) {
+        let dx = pos[i].x - pos[j].x;
+        let dy = pos[i].y - pos[j].y;
+        let d = Math.hypot(dx, dy);
+        if (d < 1e-6) {
+          // 完全一致は方向が定まらないので、添字から決定的な微小オフセットを与える
+          dx = (i + 1) * 1e-3;
+          dy = (j + 1) * 1e-3;
+          d = Math.hypot(dx, dy);
+        }
+        // 古典的な Fruchterman–Reingold の斥力。距離に反比例するため遠方では弱い。
+        let force = (k * k) / d;
+        // 円が重なる距離まで近づいたときだけ、追加で強く押し戻す
+        const minGap = (radii?.[i] ?? 0) + (radii?.[j] ?? 0) + NODE_MARGIN;
+        if (d < minGap) force += (minGap - d) * k;
+        const ux = (dx / d) * force;
+        const uy = (dy / d) * force;
+        disp[i].x += ux;
+        disp[i].y += uy;
+        disp[j].x -= ux;
+        disp[j].y -= uy;
+      }
+    }
+
+    // 引力: 結合されたペアが weight に比例して引き合う
+    for (const link of links) {
+      const a = pos[link.source];
+      const b = pos[link.target];
+      if (!a || !b) continue;
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 1e-6) continue;
+      const force = ((d * d) / k) * link.weight;
+      const ux = (dx / d) * force;
+      const uy = (dy / d) * force;
+      disp[link.source].x -= ux;
+      disp[link.source].y -= uy;
+      disp[link.target].x += ux;
+      disp[link.target].y += uy;
+    }
+
+    // 変位を温度で頭打ちにして適用（振動を抑えつつ徐々に収束させる）
+    for (let i = 0; i < nodeCount; i++) {
+      const len = Math.hypot(disp[i].x, disp[i].y);
+      if (len < 1e-9) continue;
+      const scale = Math.min(len, temp) / len;
+      pos[i].x += disp[i].x * scale;
+      pos[i].y += disp[i].y * scale;
+    }
+    temp -= cooling;
+  }
+
+  // 重心を原点へ
+  const cx = pos.reduce((s, p) => s + p.x, 0) / nodeCount;
+  const cy = pos.reduce((s, p) => s + p.y, 0) / nodeCount;
+  return pos.map((p) => ({ x: p.x - cx, y: p.y - cy }));
+}
