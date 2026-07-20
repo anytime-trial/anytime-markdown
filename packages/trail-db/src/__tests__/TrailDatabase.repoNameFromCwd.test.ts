@@ -121,4 +121,75 @@ describe('sessions.repo_name is derived from JSONL cwd', () => {
       expect(migrationRows.length).toBe(1);
     });
   });
+
+  describe('migration: backfillSessionsRepoNameFromGitRoot_v2', () => {
+    const runV2 = (db: TrailDatabase): void => {
+      inner(db).run("DELETE FROM _migrations WHERE key = 'sessions_repo_name_from_git_root_v2'");
+      (db as unknown as { backfillSessionsRepoNameFromGitRoot_v2: () => void })
+        .backfillSessionsRepoNameFromGitRoot_v2();
+    };
+
+    it('re-attributes a subdirectory session to the enclosing repository', async () => {
+      const repo = path.join(tmpDir, 'myrepo');
+      const sub = path.join(repo, 'scripts', 'vscode-extension');
+      fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+      fs.mkdirSync(sub, { recursive: true });
+      const filePath = writeSessionJsonl(tmpDir, 'sid-sub', sub);
+
+      const db = await createTestTrailDatabase();
+      insertExistingSession(db, 'sid-sub', filePath, 'myrepo-scripts-vscode-extension');
+      runV2(db);
+
+      expect(repoNameOf(db, 'sid-sub')).toBe('myrepo');
+    });
+
+    it('recovers the repo from the projects dir name when the JSONL is gone', async () => {
+      // projects ディレクトリ名は cwd の `/` を `-` へ潰した平坦化名。実在パスへ一意に
+      // 復元できるなら、平坦化名ではなく本来のリポジトリ名へ是正する。
+      const repo = path.join(tmpDir, 'myrepo');
+      fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+      fs.mkdirSync(path.join(repo, 'packages', 'web-app'), { recursive: true });
+      const flattened = `-${path.join(tmpDir, 'myrepo', 'packages', 'web-app').split('/').filter((s) => s !== '').join('-')}`;
+      const projectsDir = path.join(tmpDir, '.claude', 'projects', flattened);
+      fs.mkdirSync(projectsDir, { recursive: true });
+      const missingFile = path.join(projectsDir, 'sid-gone.jsonl');
+
+      const db = await createTestTrailDatabase();
+      insertExistingSession(db, 'sid-gone', missingFile, 'flattened-bogus-name');
+      runV2(db);
+
+      expect(repoNameOf(db, 'sid-gone')).toBe('myrepo');
+    });
+
+    it('keeps the current attribution when the path cannot be recovered', async () => {
+      const projectsDir = path.join(tmpDir, '.claude', 'projects', '-no-such-path-anywhere');
+      fs.mkdirSync(projectsDir, { recursive: true });
+      const missingFile = path.join(projectsDir, 'sid-unknown.jsonl');
+
+      const db = await createTestTrailDatabase();
+      insertExistingSession(db, 'sid-unknown', missingFile, 'no-such-path-anywhere');
+      runV2(db);
+
+      // 推測でリポジトリ名を作らない（誤った帰属を作るより未解決のまま残す）。
+      expect(repoNameOf(db, 'sid-unknown')).toBe('no-such-path-anywhere');
+    });
+
+    it('is idempotent (running twice yields the same result)', async () => {
+      const repo = path.join(tmpDir, 'idem-repo');
+      fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+      const filePath = writeSessionJsonl(tmpDir, 'sid-v2-idem', repo);
+
+      const db = await createTestTrailDatabase();
+      insertExistingSession(db, 'sid-v2-idem', filePath, 'anytime-markdown');
+      runV2(db);
+      (db as unknown as { backfillSessionsRepoNameFromGitRoot_v2: () => void })
+        .backfillSessionsRepoNameFromGitRoot_v2();
+
+      expect(repoNameOf(db, 'sid-v2-idem')).toBe('idem-repo');
+      const rows = inner(db).exec(
+        "SELECT key FROM _migrations WHERE key = 'sessions_repo_name_from_git_root_v2'",
+      )[0]?.values ?? [];
+      expect(rows.length).toBe(1);
+    });
+  });
 });
