@@ -4,5 +4,5 @@
   "viewsContainers.anytimeGraph.title": "Co-occurrence Network",
   "customEditor.cooccurrence.displayName": "Co-occurrence Network",
   "customEditor.graphMigration.displayName": ".graph Migration Guide",
-  "command.newGraph": "Anytime Graph: New Co-occurrence Network"
+  "command.newCooccurrence": "Anytime Co-occurrence: New Network"
 }

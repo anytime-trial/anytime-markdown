@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **Breaking:** Replaced the `.graph` general graph editor with a `.cooc.json` co-occurrence network editor.
 - **Breaking:** Opening a `.graph` file now shows a migration guide. The general graph editor remains available in the web app at `/graph`.
+- **Breaking:** Renamed the creation command from `anytime-graph.newGraph` to `anytime-graph.newCooccurrence`. Update any custom keybindings that referenced the old id.
 
 ## [0.11.1] - 2026-07-13
 

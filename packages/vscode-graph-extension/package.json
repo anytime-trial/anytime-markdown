@@ -58,8 +58,8 @@
     ],
     "commands": [
       {
-        "command": "anytime-graph.newGraph",
-        "title": "%command.newGraph%"
+        "command": "anytime-graph.newCooccurrence",
+        "title": "%command.newCooccurrence%"
       }
     ]
   },

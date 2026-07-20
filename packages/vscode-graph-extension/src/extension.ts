@@ -8,7 +8,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(GraphMigrationProvider.register(context));
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('anytime-graph.newGraph', async () => {
+		vscode.commands.registerCommand('anytime-graph.newCooccurrence', async () => {
 			const workspaceFolders = vscode.workspace.workspaceFolders;
 			if (!workspaceFolders) {
 				vscode.window.showErrorMessage('Please open a workspace first.');

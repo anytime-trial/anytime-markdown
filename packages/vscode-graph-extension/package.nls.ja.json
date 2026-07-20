@@ -4,5 +4,5 @@
   "viewsContainers.anytimeGraph.title": "共起ネットワーク",
   "customEditor.cooccurrence.displayName": "共起ネットワーク",
   "customEditor.graphMigration.displayName": ".graph 移行案内",
-  "command.newGraph": "Anytime Graph: 新規共起ネットワーク"
+  "command.newCooccurrence": "Anytime 共起ネットワーク: 新規作成"
 }
