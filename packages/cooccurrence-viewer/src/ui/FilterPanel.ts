@@ -26,7 +26,7 @@ function ensureStyles(): void {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-.cooc-filter{display:flex;flex-direction:column;gap:12px;padding:12px;border-bottom:1px solid var(--cooc-divider)}
+.cooc-filter{display:flex;flex-direction:column;flex:0 0 auto;gap:12px;padding:12px;border-bottom:1px solid var(--cooc-divider)}
 .cooc-filter__title{font:600 13px system-ui,sans-serif;color:var(--cooc-text)}
 .cooc-filter__field{display:flex;flex-direction:column;gap:4px;font:12px system-ui,sans-serif;color:var(--cooc-text-secondary)}
 .cooc-filter__field input{box-sizing:border-box;width:100%;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);padding:6px 8px;font:12px system-ui,sans-serif}
