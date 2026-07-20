@@ -17,6 +17,27 @@ describe('serializeGraphDsl', () => {
     expect(out.split('\n')[0]).toBe('type: swot');
   });
 
+  it('cooccurrence をラウンドトリップする（title / subject / クラスタあり）', () => {
+    expectRoundTrip(
+      [
+        'type: cooccurrence',
+        'title: 納期遅延の要因',
+        'subject: 納期遅延',
+        '- 納期遅延: 40',
+        '- 仕様変更: 25',
+        '- レビュー待ち: 18',
+        '- 納期遅延 -- 仕様変更: 0.8',
+        '- 納期遅延 -- レビュー待ち: 0.5',
+        'cluster 工程: 納期遅延, レビュー待ち',
+        'cluster 要求: 仕様変更',
+      ].join('\n'),
+    );
+  });
+
+  it('cooccurrence をラウンドトリップする（共起・クラスタ・subject なし）', () => {
+    expectRoundTrip(['type: cooccurrence', '- A: 1', '- B: 2'].join('\n'));
+  });
+
   it('fishbone をラウンドトリップする（空カテゴリ含む）', () => {
     expectRoundTrip(
       ['type: fishbone', 'problem: 不良率が高い', '- 人: 教育不足, 経験不足', '- 機械: 老朽化', '- 方法:'].join('\n'),

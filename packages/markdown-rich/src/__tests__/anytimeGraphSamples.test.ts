@@ -4,8 +4,8 @@ import { ANYTIME_GRAPH_SAMPLES } from "@anytime-markdown/markdown-viewer/src/con
 import { renderThinkingDiagramSvg } from "@anytime-markdown/graph-core";
 
 describe("ANYTIME_GRAPH_SAMPLES", () => {
-  it("11 図種のサンプルを持つ", () => {
-    expect(ANYTIME_GRAPH_SAMPLES.length).toBe(11);
+  it("12 図種のサンプルを持つ", () => {
+    expect(ANYTIME_GRAPH_SAMPLES.length).toBe(12);
   });
 
   it("各サンプルは label / i18nKey / code を持つ", () => {
@@ -22,7 +22,7 @@ describe("ANYTIME_GRAPH_SAMPLES", () => {
     }
   });
 
-  it("11 種すべての type を網羅する", () => {
+  it("12 種すべての type を網羅する", () => {
     const types = ANYTIME_GRAPH_SAMPLES.map((s) => s.code.split("\n")[0].trim());
     expect(types).toEqual([
       "type: fishbone",
@@ -36,6 +36,7 @@ describe("ANYTIME_GRAPH_SAMPLES", () => {
       "type: morph-box",
       "type: affinity",
       "type: structure-map",
+      "type: cooccurrence",
     ]);
   });
 });

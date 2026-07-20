@@ -75,5 +75,12 @@
     "icon": "schema",
     "enabled": true,
     "code": "type: structure-map\nwhole: 全体テーマ\n- 部分A: 要素1, 要素2\n- 部分B: 要素3\n- 部分C: 要素4\nrelations:\n- 部分A -> 部分B\n- 部分B -> 部分C\ndomains: 隣接領域1, 隣接領域2"
+  },
+  {
+    "label": "Co-occurrence Network",
+    "i18nKey": "slashThinkCooccurrence",
+    "icon": "net",
+    "enabled": true,
+    "code": "type: cooccurrence\ntitle: 納期遅延の要因\nsubject: 納期遅延\n- 納期遅延: 40\n- 仕様変更: 25\n- レビュー待ち: 18\n- 人員不足: 12\n- 納期遅延 -- 仕様変更: 0.8\n- 納期遅延 -- レビュー待ち: 0.5\n- 仕様変更 -- 人員不足: 0.3\ncluster 工程: 納期遅延, レビュー待ち\ncluster 要求: 仕様変更\ncluster 体制: 人員不足"
   }
 ]

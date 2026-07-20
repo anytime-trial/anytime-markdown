@@ -138,6 +138,22 @@ export function serializeGraphDsl(spec: ThinkingDiagramSpec): string {
       break;
     }
 
+    case 'cooccurrence': {
+      pushHeader(lines, 'title', spec.title);
+      pushHeader(lines, 'subject', spec.subject);
+      for (const node of spec.nodes) {
+        lines.push(`- ${node.label}: ${node.frequency}`);
+      }
+      // 共起は `A -- B: 強度`（parser は bullet 行の `--` の有無で語と振り分ける）。
+      for (const link of spec.links) {
+        lines.push(`- ${link.a} -- ${link.b}: ${link.strength}`);
+      }
+      for (const cluster of spec.clusters ?? []) {
+        lines.push(`cluster ${cluster.label}: ${joinItems(cluster.members)}`);
+      }
+      break;
+    }
+
     default: {
       const _exhaustive: never = spec;
       throw new Error(`Unknown thinking diagram type: ${JSON.stringify(_exhaustive)}`);

@@ -15,6 +15,7 @@ const REQUIRED_KEYS = [
   "slashThinkMorphBox",
   "slashThinkAffinity",
   "slashThinkStructureMap",
+  "slashThinkCooccurrence",
 ] as const;
 
 describe("anytime-graph i18n keys", () => {

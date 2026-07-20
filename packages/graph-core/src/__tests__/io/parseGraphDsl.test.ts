@@ -121,6 +121,106 @@ describe('parseGraphDsl', () => {
     expect(parseGraphDsl(['type: whole-part', 'whole: W', '- A'].join('\n')).type).toBe('structure-map');
   });
 
+  it('cooccurrence を解析する（頻度・共起・クラスタ）', () => {
+    const spec = parseGraphDsl(
+      [
+        'type: cooccurrence',
+        'title: 納期遅延の要因',
+        'subject: 納期遅延',
+        '- 納期遅延: 40',
+        '- 仕様変更: 25',
+        '- 納期遅延 -- 仕様変更: 0.8',
+        'cluster 工程: 納期遅延',
+        'cluster 要求: 仕様変更',
+      ].join('\n'),
+    );
+    expect(spec).toEqual({
+      type: 'cooccurrence',
+      title: '納期遅延の要因',
+      subject: '納期遅延',
+      nodes: [
+        { label: '納期遅延', frequency: 40 },
+        { label: '仕様変更', frequency: 25 },
+      ],
+      links: [{ a: '納期遅延', b: '仕様変更', strength: 0.8 }],
+      clusters: [
+        { label: '工程', members: ['納期遅延'] },
+        { label: '要求', members: ['仕様変更'] },
+      ],
+    });
+  });
+
+  it('cooccurrence: 共起・クラスタ・subject は省略可', () => {
+    const spec = parseGraphDsl(['type: cooccurrence', '- A: 1', '- B: 2'].join('\n'));
+    expect(spec.type).toBe('cooccurrence');
+    if (spec.type === 'cooccurrence') {
+      expect(spec.nodes).toEqual([
+        { label: 'A', frequency: 1 },
+        { label: 'B', frequency: 2 },
+      ]);
+      expect(spec.links).toEqual([]);
+      expect(spec.clusters).toEqual([]);
+      expect(spec.subject).toBeUndefined();
+    }
+  });
+
+  it('cooccurrence: エイリアス co-occurrence / 共起 / kh を正規化する', () => {
+    for (const alias of ['co-occurrence', '共起', 'kh']) {
+      expect(parseGraphDsl([`type: ${alias}`, '- A: 1'].join('\n')).type).toBe('cooccurrence');
+    }
+  });
+
+  it('cooccurrence: 未定義語を指す共起行は明示エラー', () => {
+    expect(() =>
+      parseGraphDsl(['type: cooccurrence', '- A: 1', '- A -- Z: 0.5'].join('\n')),
+    ).toThrow(/"Z"/);
+  });
+
+  it('cooccurrence: 未定義語を含む cluster 行は明示エラー', () => {
+    expect(() =>
+      parseGraphDsl(['type: cooccurrence', '- A: 1', 'cluster G: A, Z'].join('\n')),
+    ).toThrow(/"Z"/);
+  });
+
+  it('cooccurrence: 頻度が数値でなければ明示エラー（黙って 0 にしない）', () => {
+    expect(() => parseGraphDsl(['type: cooccurrence', '- A: たくさん'].join('\n'))).toThrow(
+      GraphDslError,
+    );
+  });
+
+  it('cooccurrence: 共起強度が数値でなければ明示エラー', () => {
+    expect(() =>
+      parseGraphDsl(['type: cooccurrence', '- A: 1', '- B: 2', '- A -- B: 強い'].join('\n')),
+    ).toThrow(GraphDslError);
+  });
+
+  it('cooccurrence: 同じ語を 2 回定義したら明示エラー', () => {
+    // 黙って受理すると 2 つ目の円がどの共起にも結び付かない幽霊ノードになる
+    expect(() =>
+      parseGraphDsl(['type: cooccurrence', '- A: 1', '- A: 5'].join('\n')),
+    ).toThrow(/複数回定義/);
+  });
+
+  it('cooccurrence: 自己共起（A -- A）は明示エラー', () => {
+    // 長さ 0 の線になり、強度の正規化も歪めるため（causal-loop の自己参照と同方針）
+    expect(() =>
+      parseGraphDsl(['type: cooccurrence', '- A: 1', '- A -- A: 0.5'].join('\n')),
+    ).toThrow(/自己共起/);
+  });
+
+  it('cooccurrence: 負の頻度・負の共起強度は明示エラー', () => {
+    expect(() => parseGraphDsl(['type: cooccurrence', '- A: -1'].join('\n'))).toThrow(/負の値/);
+    expect(() =>
+      parseGraphDsl(['type: cooccurrence', '- A: 1', '- B: 2', '- A -- B: -0.5'].join('\n')),
+    ).toThrow(/負の値/);
+  });
+
+  it('cooccurrence: 語が 1 つもなければ明示エラー', () => {
+    expect(() => parseGraphDsl(['type: cooccurrence', 'title: x'].join('\n'))).toThrow(
+      GraphDslError,
+    );
+  });
+
   describe('エラー（silent catch 禁止・明示エラー）', () => {
     it('空入力', () => {
       expect(() => parseGraphDsl('   ')).toThrow(GraphDslError);
