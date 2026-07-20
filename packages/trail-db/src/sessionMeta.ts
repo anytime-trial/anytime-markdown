@@ -10,11 +10,35 @@ function stripTrailingSlashes(value: string): string {
   return value.slice(0, end);
 }
 
-function deriveRepoNameFromCwd(cwd: string): string | null {
+/**
+ * cwd から上位へ遡り、`.git`（通常リポジトリはディレクトリ、worktree チェックアウトは
+ * ファイル）を持つ最初のディレクトリを返す。見つからない・パスが既に存在しない場合は null。
+ *
+ * ワークスペース名はリポジトリ単位で決まるべきなので、`packages/web-app` のような
+ * サブディレクトリで起動したセッションを親リポジトリへ帰属させるために使う。
+ */
+function findGitRoot(dir: string, exists: (p: string) => boolean): string | null {
+  let current = dir;
+  while (current !== '' && current !== '/') {
+    if (exists(`${current}/.git`)) return current;
+    const idx = current.lastIndexOf('/');
+    if (idx < 0) return null;
+    current = current.slice(0, idx);
+  }
+  return null;
+}
+
+function deriveRepoNameFromCwd(
+  cwd: string,
+  exists: (p: string) => boolean = fs.existsSync,
+): string | null {
   const trimmed = stripTrailingSlashes(cwd);
   if (trimmed === '' || trimmed === '/') return null;
 
-  const segments = trimmed.split('/').filter((s) => s !== '');
+  // git ルートまで畳んでから basename を取る。ルートを解決できない場合（インポート時点で
+  // パスが消えている等）は cwd そのものを使う従来挙動へフォールバックする。
+  const resolved = findGitRoot(trimmed, exists) ?? trimmed;
+  const segments = resolved.split('/').filter((s) => s !== '');
   if (segments.length === 0) return null;
 
   // worktree 直下 (.worktrees/<name> or .claude-worktrees/<name>) は親 repo に正規化する

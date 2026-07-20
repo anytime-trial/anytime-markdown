@@ -121,4 +121,57 @@ describe('sessions.repo_name is derived from JSONL cwd', () => {
       expect(migrationRows.length).toBe(1);
     });
   });
+
+  describe('migration: backfillSessionsRepoNameFromGitRoot_v2', () => {
+    const runV2 = (db: TrailDatabase): void => {
+      inner(db).run("DELETE FROM _migrations WHERE key = 'sessions_repo_name_from_git_root_v2'");
+      (db as unknown as { backfillSessionsRepoNameFromGitRoot_v2: () => void })
+        .backfillSessionsRepoNameFromGitRoot_v2();
+    };
+
+    it('re-attributes a subdirectory session to the enclosing repository', async () => {
+      const repo = path.join(tmpDir, 'myrepo');
+      const sub = path.join(repo, 'scripts', 'vscode-extension');
+      fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+      fs.mkdirSync(sub, { recursive: true });
+      const filePath = writeSessionJsonl(tmpDir, 'sid-sub', sub);
+
+      const db = await createTestTrailDatabase();
+      insertExistingSession(db, 'sid-sub', filePath, 'myrepo-scripts-vscode-extension');
+      runV2(db);
+
+      expect(repoNameOf(db, 'sid-sub')).toBe('myrepo');
+    });
+
+    it('keeps the current attribution when the JSONL is gone', async () => {
+      const projectsDir = path.join(tmpDir, '.claude', 'projects', '-anytime-markdown-packages-web-app');
+      fs.mkdirSync(projectsDir, { recursive: true });
+      const missingFile = path.join(projectsDir, 'sid-gone.jsonl');
+
+      const db = await createTestTrailDatabase();
+      insertExistingSession(db, 'sid-gone', missingFile, 'anytime-markdown-packages-web-app');
+      runV2(db);
+
+      // v1 と違い projects ディレクトリ名フォールバックを使わないため、平坦化名を作り直さない。
+      expect(repoNameOf(db, 'sid-gone')).toBe('anytime-markdown-packages-web-app');
+    });
+
+    it('is idempotent (running twice yields the same result)', async () => {
+      const repo = path.join(tmpDir, 'idem-repo');
+      fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+      const filePath = writeSessionJsonl(tmpDir, 'sid-v2-idem', repo);
+
+      const db = await createTestTrailDatabase();
+      insertExistingSession(db, 'sid-v2-idem', filePath, 'anytime-markdown');
+      runV2(db);
+      (db as unknown as { backfillSessionsRepoNameFromGitRoot_v2: () => void })
+        .backfillSessionsRepoNameFromGitRoot_v2();
+
+      expect(repoNameOf(db, 'sid-v2-idem')).toBe('idem-repo');
+      const rows = inner(db).exec(
+        "SELECT key FROM _migrations WHERE key = 'sessions_repo_name_from_git_root_v2'",
+      )[0]?.values ?? [];
+      expect(rows.length).toBe(1);
+    });
+  });
 });

@@ -30,6 +30,22 @@ function insertSession(db: TrailDatabase, id: string, repoName: string, startTim
   );
 }
 
+function insertCommit(
+  db: TrailDatabase,
+  sessionId: string,
+  repoName: string,
+  commitHash: string,
+  committedAt: string,
+): void {
+  const repoId = repoIdForName(db, repoName);
+  inner(db).run(
+    `INSERT OR IGNORE INTO session_commits (
+       session_id, commit_hash, commit_message, author, committed_at, repo_id
+     ) VALUES (?, ?, '', '', ?, ?)`,
+    [sessionId, commitHash, committedAt, repoId],
+  );
+}
+
 function insertAssistantMessage(
   db: TrailDatabase,
   uuid: string,
@@ -121,6 +137,44 @@ describe('getCombinedData — workspace filter', () => {
     const filtered = db.getCombinedData('day', 30, 'anytime-markdown');
     expect(filtered.skillStats.map((s) => s.skill)).toEqual(['skill-a']);
     expect(filtered.skillStats[0]!.count).toBe(1);
+  });
+
+  it('excludes repos whose only session is outside the selected range', () => {
+    insertSession(db, 's-stale', 'stale-repo', isoDaysAgo(200));
+    expect(db.getCombinedData('day', 30).workspaces).toEqual(['anytime-markdown', 'other-repo']);
+  });
+
+  it('excludes repos registered without any session or commit', () => {
+    // コード解析・コミット取り込みの副産物として repos だけに行が残るケース。
+    repoIdForName(db, 'analyzed-only-repo');
+    expect(db.getCombinedData('day', 30).workspaces).not.toContain('analyzed-only-repo');
+  });
+
+  it('includes repos whose only in-range activity is commits', () => {
+    insertCommit(db, 's-other', 'docs-repo', 'hash-1', t);
+    expect(db.getCombinedData('day', 30).workspaces).toEqual([
+      'anytime-markdown',
+      'docs-repo',
+      'other-repo',
+    ]);
+  });
+
+  it('excludes repos whose only commits are outside the selected range', () => {
+    insertCommit(db, 's-other', 'old-docs-repo', 'hash-2', isoDaysAgo(200));
+    expect(db.getCombinedData('day', 30).workspaces).toEqual(['anytime-markdown', 'other-repo']);
+  });
+
+  it('keeps the selected workspace listed even when its activity is out of range', () => {
+    insertSession(db, 's-stale', 'stale-repo', isoDaysAgo(200));
+    const filtered = db.getCombinedData('day', 30, 'stale-repo');
+    expect(filtered.workspaces).toContain('stale-repo');
+  });
+
+  it('does not invent a list entry for an unknown selected workspace', () => {
+    expect(db.getCombinedData('day', 30, 'no-such-workspace').workspaces).toEqual([
+      'anytime-markdown',
+      'other-repo',
+    ]);
   });
 
   it('filters toolCounts by the workspace session set', () => {
