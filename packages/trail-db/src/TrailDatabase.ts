@@ -191,7 +191,11 @@ import { type NewCommunity,type OldCommunity, resolveCarryOver } from './communi
 import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
 import { FileKnowledgeBaseSnapshotter } from './KnowledgeBaseSnapshotter';
 import { FileTrailStorage,ITrailStorage } from './ITrailStorage';
-import { extractRepoNameFromJsonl, normalizeWorkspaceName } from './sessionMeta';
+import {
+  extractRepoNameFromJsonl,
+  extractRepoNameFromProjectDirPath,
+  normalizeWorkspaceName,
+} from './sessionMeta';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export type { ITrailStorage } from './ITrailStorage';
@@ -4134,6 +4138,7 @@ export class TrailDatabase {
     this.runNonFatalBackfill('backfillRepoName_v1', () => this.backfillRepoName_v1());
     this.runNonFatalBackfill('backfillDerivedCounts_v1', () => this.backfillDerivedCounts_v1());
     this.runNonFatalBackfill('backfillSessionsRepoNameFromCwd_v1', () => this.backfillSessionsRepoNameFromCwd_v1());
+    this.runNonFatalBackfill('backfillSessionsRepoNameFromGitRoot_v2', () => this.backfillSessionsRepoNameFromGitRoot_v2());
     // ALTER TABLE / backfill 等のスキーマ変更をディスクに永続化する。
     // save() を呼ばないと _migrations フラグが保存されず、次回起動で再実行される。
     this.save();
@@ -4256,6 +4261,53 @@ export class TrailDatabase {
       `[Migration] sessions_repo_name_from_cwd_v1: updated=${updated}, unchanged=${unchanged}, missing=${missing} (${Date.now() - startedAt}ms)`,
     );
     db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('sessions_repo_name_from_cwd_v1')");
+  }
+
+  /**
+   * sessions の repo 帰属を git ルート基準で再計算する。
+   *
+   * v1 は cwd の basename をそのまま repo_name にしていたため、リポジトリのサブディレクトリ
+   * （例 `/anytime-markdown/scripts/vscode-extension`）で起動したセッションが `vscode-extension`
+   * のような「ワークスペースでない名前」に帰属していた。本 migration は cwd から `.git` を
+   * 探して親リポジトリへ畳み直す (sessionMeta.deriveRepoNameFromCwd)。
+   *
+   * JSONL が既に無いセッションは、projects ディレクトリ名（cwd の `/` を `-` へ潰した平坦化名）
+   * から実在パスを一意に復元できた場合のみ是正する。v1 のように平坦化名をそのまま repo 名へ
+   * 採用することはしない（`anytime-markdown-packages-web-app` のような偽名を作らないため）。
+   */
+  private backfillSessionsRepoNameFromGitRoot_v2(): void {
+    const db = this.ensureDb();
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'sessions_repo_name_from_git_root_v2'");
+    if (done[0]?.values?.length) return;
+
+    const startedAt = Date.now();
+    const rows = db.exec("SELECT id, file_path, repo_id FROM sessions WHERE file_path != ''")[0]?.values ?? [];
+    let updated = 0;
+    let unchanged = 0;
+    let missing = 0;
+    const stmt = db.prepare('UPDATE sessions SET repo_id = ? WHERE id = ?');
+    try {
+      for (const row of rows) {
+        const idStr = String(row[0]);
+        const filePathStr = asText(row[1] ?? '');
+        const oldRepoId = row[2] === null || row[2] === undefined ? null : Number(row[2]);
+        const derived = extractRepoNameFromJsonl(filePathStr)
+          ?? extractRepoNameFromProjectDirPath(filePathStr);
+        if (!derived) { missing++; continue; }
+        const derivedRepoId = this.repoIdForName(derived);
+        if (derivedRepoId === oldRepoId) { unchanged++; continue; }
+        stmt.run([derivedRepoId, idStr]);
+        updated++;
+      }
+    } finally {
+      stmt.free();
+    }
+
+    this.logger.info(
+      `[Migration] sessions_repo_name_from_git_root_v2: updated=${updated}, unchanged=${unchanged}, missing=${missing} (${Date.now() - startedAt}ms)`,
+    );
+    db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('sessions_repo_name_from_git_root_v2')");
   }
 
   private backfillDerivedCounts_v1(): void {
@@ -10423,26 +10475,59 @@ export class TrailDatabase {
     const tzOffset = this.getLocalTzOffset();
 
     // ワークスペース解決: repo_name を worktree 正規化した名前でグルーピングし、
-    // 選択肢一覧（常に全件）と、フィルタ対象の repo_id 集合を得る。
+    // 選択肢一覧と、フィルタ対象の repo_id 集合を得る。
+    //
+    // 選択肢は「対象期間に作業があった repo」＝ セッションが動いた repo に限る。
+    // repos には解析対象やコミット先として登場しただけの行も溜まるため、テーブルを
+    // そのまま出すと `mermaid` のようなワークスペースでない名前が並ぶ。
+    //
+    // コミットは *コミット先* の repo ではなく *打ったセッション* の repo で数える。
+    // 別リポジトリ（docs・~/.claude 等）へのコミットは、作業していたワークスペースの
+    // 活動であってコミット先がワークスペースになるわけではないため。
+    //
+    // 絞るのは「一覧に載せる repo」だけで、選択値だけに縮めることはしない
+    // （他ワークスペースへ切り替えられなくなるため）。
     const repoRowsResult = db.exec(`SELECT repo_id, repo_name FROM repos WHERE repo_name != ''`);
+    const activeRepoIdsResult = db.exec(
+      `SELECT repo_id FROM sessions
+        WHERE repo_id IS NOT NULL AND DATE(start_time, '${tzOffset}') >= ${cutoff}
+        UNION
+       SELECT s.repo_id FROM session_commits sc
+         JOIN sessions s ON s.id = sc.session_id
+        WHERE s.repo_id IS NOT NULL AND DATE(sc.committed_at, '${tzOffset}') >= ${cutoff}`,
+    );
+    const activeRepoIds = new Set<number>(
+      (activeRepoIdsResult[0]?.values ?? []).map((r) => Number(r[0])),
+    );
     const workspaceNames = new Set<string>();
     const filterRepoIds: number[] = [];
     for (const row of repoRowsResult[0]?.values ?? []) {
       const repoId = Number(row[0]);
       const name = normalizeWorkspaceName(asText(row[1] ?? ''));
       if (name === '') continue;
-      workspaceNames.add(name);
+      if (activeRepoIds.has(repoId)) workspaceNames.add(name);
+      // フィルタ対象は活動有無に依らず解決する（worktree 由来の repo も親名で拾う）。
       if (workspace !== undefined && name === workspace) filterRepoIds.push(repoId);
     }
-    const workspaces = [...workspaceNames].sort((a, b) => a.localeCompare(b));
     const hasWorkspaceFilter = workspace !== undefined && workspace !== '';
+    // 選択中のワークスペースは、期間を狭めて活動が範囲外になっても一覧に残す
+    // （select の表示値が選択肢に無い状態＝空欄表示になるのを防ぐ）。
+    if (hasWorkspaceFilter && filterRepoIds.length > 0) workspaceNames.add(workspace);
+    const workspaces = [...workspaceNames].sort((a, b) => a.localeCompare(b));
     // IN 句へ埋め込む repo_id 列。Number() 経由のため SQL 安全。該当なしは常偽の -1。
     const repoIdList = filterRepoIds.length > 0 ? filterRepoIds.join(',') : '-1';
     // s = sessions（セッションの属する repo で絞る）/ sc・c = session_commits（コミット先の repo で絞る）
     const sessionRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
-    const commitScRepoFilter = hasWorkspaceFilter ? ` AND sc.repo_id IN (${repoIdList})` : '';
-    const commitCRepoFilter = hasWorkspaceFilter ? ` AND c.repo_id IN (${repoIdList})` : '';
-    const commitBareRepoFilter = hasWorkspaceFilter ? ` AND repo_id IN (${repoIdList})` : '';
+    // コミットの絞り込みも「打ったセッションの repo」で行う（一覧の活動判定と同じ基準）。
+    // コミット先 repo で絞ると、docs や ~/.claude のような「ワークスペースでない宛先」への
+    // コミットがどのワークスペースを選んでも現れず、各ワークスペースの合計が全体と一致しなく
+    // なる。セッション基準なら「そのワークスペースで作業していた間に打ったコミット」で揃う。
+    const commitScRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
+    const commitCRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
+    // sessions を JOIN していないクエリ用（session_id 経由で同じ条件を表す）。
+    const commitBareRepoFilter = hasWorkspaceFilter
+      ? ` AND session_id IN (SELECT id FROM sessions WHERE repo_id IN (${repoIdList}))`
+      : '';
     const sessionStartPeriodExpr = period === 'week'
       ? `strftime('%Y-W%W', s.start_time, '${tzOffset}')`
       : `DATE(s.start_time, '${tzOffset}')`;
