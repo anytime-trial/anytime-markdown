@@ -28,10 +28,14 @@ describe("fetchFileContent", () => {
     );
   });
 
-  it("レスポンスが ok でない場合は空文字を返す", async () => {
-    mockFetch.mockResolvedValue({ ok: false });
-    const result = await fetchFileContent("user/repo", "missing.md", "main");
-    expect(result).toBe("");
+  it("レスポンスが ok でない場合はエラーを投げる（401 を空ファイルとして握りつぶさない）", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 401 });
+    await expect(fetchFileContent("user/repo", "missing.md", "main")).rejects.toThrow(/401/);
+  });
+
+  it("404 でもエラーを投げる", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 404 });
+    await expect(fetchFileContent("user/repo", "missing.md", "main")).rejects.toThrow(/404/);
   });
 
   it("content が undefined の場合は空文字を返す", async () => {

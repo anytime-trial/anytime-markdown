@@ -22,7 +22,7 @@ import { safeSetItem } from "../utils/storage";
 export type VanillaEditorMode = "wysiwyg" | "source" | "review" | "readonly";
 
 /** {@link createSourceModeController} のオプション。 */
-interface CreateSourceModeControllerOptions {
+export interface CreateSourceModeControllerOptions {
   editor: Editor;
   /** editor がマウントされている要素（textarea を並置する）。 */
   contentEl: HTMLElement;
@@ -38,6 +38,12 @@ interface CreateSourceModeControllerOptions {
   announce?: (message: string) => void;
   /** 初期モードを source に固定（localStorage より優先）。 */
   defaultSourceMode?: boolean;
+  /**
+   * 起動時モードの明示指定（`defaultSourceMode`・localStorage より優先）。
+   * ホストが URL クエリ等で一時的な起動モード（例: レビューリンク）を課す経路のため、
+   * 初期適用は localStorage へ永続化しない（後続の手動切替は `persistMode` に従う）。
+   */
+  initialMode?: VanillaEditorMode;
   /** mode を localStorage に永続化するか（既定 true・React 版と同一キー）。 */
   persistMode?: boolean;
   /**
@@ -347,7 +353,7 @@ export function createSourceModeController(
     options.onSourceSave?.(sourceText);
   };
 
-  const applyMode = (next: VanillaEditorMode): void => {
+  const applyMode = (next: VanillaEditorMode, persistNext = true): void => {
     if (next === mode) return;
     // 現モードの後始末
     if (mode === "source") {
@@ -383,15 +389,15 @@ export function createSourceModeController(
       options.announce?.(t("switchedToWysiwyg"));
     }
     mode = next;
-    persist(next);
+    if (persistNext) persist(next);
     options.onModeApplied(next);
   };
 
-  // 初期モード復元（defaultSourceMode 優先 → localStorage）
-  const initial = options.defaultSourceMode ? "source" : readStoredMode();
+  // 初期モード復元（initialMode 優先 → defaultSourceMode → localStorage）
+  const initial = options.initialMode ?? (options.defaultSourceMode ? "source" : readStoredMode());
   if (initial && initial !== "wysiwyg") {
     // mode はまだ "wysiwyg" なので applyMode で通常遷移できる
-    applyMode(initial);
+    applyMode(initial, options.initialMode === undefined);
   }
 
   return {

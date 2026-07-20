@@ -897,6 +897,7 @@
     "driveSignInRequired": "Google サインインが必要です",
     "driveApiKeyMissing": "Google Drive 連携が未設定です",
     "driveLoadError": "Drive ファイルの読み込みに失敗しました",
+    "githubLoadError": "GitHub ファイルの読み込みに失敗しました（権限またはファイルの有無を確認してください）",
     "driveOpenDraftBlocked": "未保存の変更があるため Drive のファイルを開けません。保存または破棄してからやり直してください",
     "discardDraftTitle": "未保存の変更があります",
     "discardDraftBody": "Drive のファイルを開くと、編集中の未保存の内容は失われます。",

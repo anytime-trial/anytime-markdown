@@ -62,6 +62,19 @@ function EditorPage() {
   const t = useTranslations('Common');
   const searchParams = useSearchParams();
   const driveOpenState = searchParams.get('state');
+  // チケット本文の GitHub .md リンク等が付与する直接オープンクエリ（`?gh=&branch=&path=&mode=`）
+  const ghRepo = searchParams.get('gh');
+  const ghBranch = searchParams.get('branch');
+  const ghPath = searchParams.get('path');
+  const modeParam = searchParams.get('mode');
+  const githubOpenRequest = useMemo(
+    () => (ghRepo && ghBranch && ghPath ? { repo: ghRepo, branch: ghBranch, path: ghPath } : null),
+    [ghRepo, ghBranch, ghPath],
+  );
+  const initialMode =
+    modeParam === 'review' || modeParam === 'readonly' || modeParam === 'source' || modeParam === 'wysiwyg'
+      ? modeParam
+      : undefined;
   const {
     open: discardDraftOpen,
     confirmDiscardDraft,
@@ -94,7 +107,7 @@ function EditorPage() {
     handleDriveOpen, handleDriveConflictOverwrite, handleDriveConflictCancel,
     driveSaveAsDialog, handleSaveToDriveClick, handleSaveToDriveConfirm, handleSaveToDriveCancel,
     handleCommitMessageConfirm, handleCommitMessageCancel,
-  } = useEditorPage({ isGitHubConnected, t, driveOpenState, confirmDiscardDraft });
+  } = useEditorPage({ isGitHubConnected, t, driveOpenState, githubOpenRequest, confirmDiscardDraft });
   // 保存を外部（GitHub/Drive）へルーティングするか。Drive は GitHub サインインに依存しない独立経路のため OR で判定する。
   const canExternalSave = isGitHubConnected || hasDriveFile;
 
@@ -160,6 +173,8 @@ function EditorPage() {
           onPresetChange={showThemePreset ? setPresetName : undefined}
           onLocaleChange={setLocale}
           fileSystemProvider={fileSystemProvider}
+          // レビューリンク（`?mode=review`）等の起動時モード指定。localStorage 復元より優先。
+          initialMode={initialMode}
           onCompareModeChange={handleCompareModeChange}
           externalCompareContent={externalCompareContent}
           initialContent={externalContent ?? getDefaultContent(locale)}
