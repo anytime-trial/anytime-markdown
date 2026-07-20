@@ -39,7 +39,7 @@ function ensureStyles(): void {
 .cooc-viewer__stage{position:relative;min-width:0;min-height:0;flex:1}
 .cooc-viewer__canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
 .cooc-viewer__canvas:active{cursor:grabbing}
-.cooc-viewer__panels{width:300px;min-width:240px;max-width:40%;height:100%;min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--cooc-divider);background:var(--cooc-bg)}
+.cooc-viewer__panels{width:300px;min-width:240px;max-width:40%;height:100%;min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--cooc-divider);background:var(--cooc-bg);overflow-y:auto;overflow-x:hidden}
 .cooc-viewer__panels[hidden]{display:none}
 .cooc-viewer__toolbar{position:absolute;inset:12px 12px auto auto;display:flex;gap:8px;align-items:center}
 .cooc-viewer__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 10px;font:12px system-ui,sans-serif}
@@ -134,12 +134,15 @@ export function mountCooccurrenceViewer(
   panelRoot.hidden = !showPanels;
   main.appendChild(panelRoot);
 
+  // ツールバーと状態表示は絶対配置のため、root 直下に置くとパネル列の上にも重なり、
+  // パネル先頭の見出しや入力欄を覆って操作できなくなる。stage を含有ブロックにして
+  // キャンバス領域の中だけに閉じ込める。
   const toolbar = document.createElement('div');
   toolbar.className = 'cooc-viewer__toolbar';
-  root.appendChild(toolbar);
+  stage.appendChild(toolbar);
   const statusEl = document.createElement('div');
   statusEl.className = 'cooc-viewer__status';
-  root.appendChild(statusEl);
+  stage.appendChild(statusEl);
   container.appendChild(root);
 
   let filterCounts: CooccurrenceFilterCounts = {

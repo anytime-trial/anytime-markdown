@@ -37,7 +37,7 @@ function ensureStyles(): void {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-.cooc-words{display:flex;flex-direction:column;min-height:0;flex:1;padding:12px;gap:10px}
+.cooc-words{display:flex;flex-direction:column;flex:1 0 auto;padding:12px;gap:10px}
 .cooc-words__search,.cooc-words__edit input,.cooc-words__edit select{box-sizing:border-box;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);padding:6px 8px;font:12px system-ui,sans-serif}
 .cooc-words__viewport{position:relative;min-height:120px;flex:1;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
 .cooc-words__spacer{position:relative;width:100%}
