@@ -500,6 +500,13 @@ export function describeNode(spec: ThinkingDiagramSpec, path: string): NodeDescr
       }
       return null;
     }
+    // 共起ネットワークは専用 viewer（cooccurrence-viewer）で編集する図種であり、
+    // anytime-graph フェンス上のアウトライン編集は対象外とする。
+    // Why not 語をラベル編集可能にするか: 語の追加・削除は links / subject /
+    // clusters.members / layout.positions の添字の付け替えを伴い（設計書 §3.3）、
+    // パス指定のラベル書き換えでは整合を保てないため。
+    case "cooccurrence":
+      return null;
     default: {
       const _exhaustive: never = spec;
       void _exhaustive;
