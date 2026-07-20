@@ -48,6 +48,25 @@ describe('forceDirectedLayout', () => {
     }
   });
 
+  it('リンクを持たない孤立ノードが発散せず、原点周辺に収まる', () => {
+    // 斥力は全ペアに働くのに引力は結合ペアにしか働かないため、求心力が無いと
+    // 孤立ノードは反復のあいだ一方的に飛び続け、図全体のスケールが破綻する。
+    const spacing = 100;
+    for (const n of [2, 3, 5, 8, 12]) {
+      const pts = forceDirectedLayout(n, [], { spacing });
+      const farthest = Math.max(...pts.map((p) => Math.hypot(p.x, p.y)));
+      expect(farthest).toBeLessThan(spacing * (1 + Math.sqrt(n)));
+    }
+  });
+
+  it('一部だけが結合したグラフでも、孤立ノードが結合成分から極端に離れない', () => {
+    const spacing = 100;
+    // 0-1 は結合、2 は孤立
+    const pts = forceDirectedLayout(3, [{ source: 0, target: 1, weight: 1 }], { spacing });
+    const farthest = Math.max(...pts.map((p) => Math.hypot(p.x, p.y)));
+    expect(farthest).toBeLessThan(spacing * 3);
+  });
+
   it('初期配置のグループ指定が異なれば結果も異なる（クラスタが初期区画に反映される）', () => {
     const links: ForceLink[] = [{ source: 0, target: 1, weight: 0.5 }];
     const grouped = forceDirectedLayout(4, links, { groups: [0, 0, 1, 1] });

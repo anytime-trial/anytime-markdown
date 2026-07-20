@@ -323,6 +323,12 @@ export function partitionBalanced(weights: number[]): boolean[] {
 /** 円同士に最低限あける余白（px）。これを割り込むと追加の斥力が働く。 */
 const NODE_MARGIN = 16;
 
+/**
+ * 原点への求心力の強さ。斥力は全ペアに働く一方、引力は結合ペアにしか働かないため、
+ * 孤立ノードの発散を止めるために必要。大きくすると図が詰まり、小さくすると広がる。
+ */
+const GRAVITY = 0.5;
+
 export interface ForceLink {
   /** ノード添字（0-based） */
   source: number;
@@ -453,6 +459,13 @@ export function forceDirectedLayout(
       disp[link.source].y -= uy;
       disp[link.target].x += ux;
       disp[link.target].y += uy;
+    }
+
+    // 求心力: 原点へ引き戻す。斥力は全ペアに働くのに引力は結合ペアにしか働かないため、
+    // これが無いと共起を持たない孤立語が際限なく飛んでいき、図全体のスケールが破綻する。
+    for (let i = 0; i < nodeCount; i++) {
+      disp[i].x -= pos[i].x * GRAVITY;
+      disp[i].y -= pos[i].y * GRAVITY;
     }
 
     // 変位を温度で頭打ちにして適用（振動を抑えつつ徐々に収束させる）

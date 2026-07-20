@@ -204,6 +204,28 @@ describe('buildCooccurrence', () => {
     }
   });
 
+  it('共起を持たない孤立語が混ざっても図のスケールが破綻しない', () => {
+    // 仕様上 `- A -- B: 強度` は省略可なので、頻度だけの孤立語は正当な入力。
+    // 求心力が無いと孤立語が数千 px 先まで飛び、他の語が点に潰れて見えなくなる。
+    const doc = buildCooccurrence(
+      {
+        type: 'cooccurrence',
+        nodes: [
+          { label: '結合A', frequency: 30 },
+          { label: '結合B', frequency: 20 },
+          { label: '孤立C', frequency: 10 },
+          { label: '孤立D', frequency: 5 },
+        ],
+        links: [{ a: '結合A', b: '結合B', strength: 0.8 }],
+      },
+      true,
+    );
+    const centers = doc.nodes.map((n) => ({ x: n.x + n.width / 2, y: n.y + n.height / 2 }));
+    const extent = Math.max(...centers.map((c) => Math.hypot(c.x, c.y)));
+    // 最大の円の半径（64px）の 10 倍以内に全ノードが収まっていること
+    expect(extent).toBeLessThan(640);
+  });
+
   it('共起が 0 件でもノードだけの図として成立する', () => {
     const doc = buildCooccurrence(
       { type: 'cooccurrence', nodes: [{ label: 'A', frequency: 1 }], links: [] },

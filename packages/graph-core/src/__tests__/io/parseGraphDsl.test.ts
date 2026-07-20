@@ -194,6 +194,27 @@ describe('parseGraphDsl', () => {
     ).toThrow(GraphDslError);
   });
 
+  it('cooccurrence: 同じ語を 2 回定義したら明示エラー', () => {
+    // 黙って受理すると 2 つ目の円がどの共起にも結び付かない幽霊ノードになる
+    expect(() =>
+      parseGraphDsl(['type: cooccurrence', '- A: 1', '- A: 5'].join('\n')),
+    ).toThrow(/複数回定義/);
+  });
+
+  it('cooccurrence: 自己共起（A -- A）は明示エラー', () => {
+    // 長さ 0 の線になり、強度の正規化も歪めるため（causal-loop の自己参照と同方針）
+    expect(() =>
+      parseGraphDsl(['type: cooccurrence', '- A: 1', '- A -- A: 0.5'].join('\n')),
+    ).toThrow(/自己共起/);
+  });
+
+  it('cooccurrence: 負の頻度・負の共起強度は明示エラー', () => {
+    expect(() => parseGraphDsl(['type: cooccurrence', '- A: -1'].join('\n'))).toThrow(/負の値/);
+    expect(() =>
+      parseGraphDsl(['type: cooccurrence', '- A: 1', '- B: 2', '- A -- B: -0.5'].join('\n')),
+    ).toThrow(/負の値/);
+  });
+
   it('cooccurrence: 語が 1 つもなければ明示エラー', () => {
     expect(() => parseGraphDsl(['type: cooccurrence', 'title: x'].join('\n'))).toThrow(
       GraphDslError,

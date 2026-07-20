@@ -372,10 +372,24 @@ export function parseGraphDsl(text: string): ThinkingDiagramSpec {
           if (!a || !b) {
             throw new GraphDslError(`共起行を解釈できません: "${t}"（例: "- 納期遅延 -- 仕様変更: 0.8"）`);
           }
+          // 自己共起は長さ 0 の線になるうえ強度の正規化も歪めるため拒否する
+          // （causal-loop の自己参照リンクと同方針）。
+          if (a === b) {
+            throw new GraphDslError(`自己共起 "${a} -- ${b}" は未対応です（異なる語どうしを書いてください）`);
+          }
+          if (value < 0) {
+            throw new GraphDslError(`共起強度に負の値は指定できません: "${t}"`);
+          }
           links.push({ a, b, strength: value });
         } else {
           if (!head) {
             throw new GraphDslError(`語のラベルが空です: "${t}"`);
+          }
+          if (value < 0) {
+            throw new GraphDslError(`出現頻度に負の値は指定できません: "${t}"`);
+          }
+          if (nodes.some((n) => n.label === head)) {
+            throw new GraphDslError(`語 "${head}" が複数回定義されています（"- ${head}: 頻度" は1回だけ書いてください）`);
           }
           nodes.push({ label: head, frequency: value });
         }
