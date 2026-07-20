@@ -19,9 +19,8 @@ import { evaluateLayoutCache } from './layout/cache';
 import { LayoutCancelledError, startLayoutJob, type LayoutJob } from './layout/runLayout';
 import { buildRenderGraph } from './render/buildRenderGraph';
 import { graphBounds } from './render/bounds';
-import { drawGraph } from './render/drawGraph';
+import { createRenderScheduler, type RenderScheduler } from './render/renderScheduler';
 import { createCooccurrenceT, type CooccurrenceT } from './i18n/createCooccurrenceT';
-import { readCooccurrenceTheme } from './theme/readTheme';
 import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
@@ -106,7 +105,7 @@ export function mountCooccurrenceViewer(
   let showPanels = options.showPanels ?? true;
   let currentJob: LayoutJob | null = null;
   let destroyed = false;
-  let rafId = 0;
+  let scheduler: RenderScheduler | null = null;
   let resizeObserver: ResizeObserver | null = null;
   const pointers = new Map<number, { x: number; y: number }>();
   let dragStart: { x: number; y: number } | null = null;
@@ -248,6 +247,7 @@ export function mountCooccurrenceViewer(
       viewport = fitBounds(graphBounds(graph), updateCanvasSize(canvas));
       fitted = true;
     }
+    scheduler?.invalidate();
   }
 
   function saveCompletedLayout(): void {
@@ -368,32 +368,14 @@ export function mountCooccurrenceViewer(
     });
   }
 
-  function renderLoop(): void {
-    if (destroyed) return;
-    const size = updateCanvasSize(canvas);
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      const dpr = window.devicePixelRatio || 1;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawGraph({
-        ctx,
-        width: size.width,
-        height: size.height,
-        graph,
-        viewport,
-        theme: readCooccurrenceTheme(root, themeMode),
-        selectedNodeIndex,
-        hoveredNode,
-      });
-    }
-    rafId = requestAnimationFrame(renderLoop);
-  }
+
 
   canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
     const point = canvasPoint(canvas, event);
     const factor = Math.exp(-event.deltaY * 0.001);
     viewport = zoomAt(viewport, point, factor);
+    scheduler?.invalidate();
   }, { passive: false });
 
   canvas.addEventListener('pointerdown', (event) => {
@@ -405,16 +387,20 @@ export function mountCooccurrenceViewer(
   });
   canvas.addEventListener('pointermove', (event) => {
     const point = canvasPoint(canvas, event);
+    const previousHover = hoveredNode;
     hoveredNode = hitTestNode(graph, point.x, point.y, viewport);
+    if (previousHover !== hoveredNode) scheduler?.invalidate();
     const previous = pointers.get(event.pointerId);
     if (previous) {
       pointers.set(event.pointerId, point);
       const pinch = currentPinch();
       if (pinch && pinchStart) {
         viewport = zoomAt(viewport, pinch.center, pinch.distance / pinchStart.distance);
+        scheduler?.invalidate();
         pinchStart = pinch;
       } else if (pointers.size === 1) {
         viewport = pan(viewport, point.x - previous.x, point.y - previous.y);
+        scheduler?.invalidate();
       }
     }
   });
@@ -425,6 +411,7 @@ export function mountCooccurrenceViewer(
     if (dragStart && Math.hypot(point.x - dragStart.x, point.y - dragStart.y) < 4) {
       const hit = hitTestNode(graph, point.x, point.y, viewport);
       selectedNodeIndex = hit ? (selectedNodeIndex === hit.index ? null : hit.index) : null;
+      scheduler?.invalidate();
       updatePanels();
     }
     dragStart = null;
@@ -439,24 +426,33 @@ export function mountCooccurrenceViewer(
     if (event.key === '+' || event.key === '=') viewport = zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1.2);
     if (event.key === '-') viewport = zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1 / 1.2);
     if (event.key === 'Escape') selectedNodeIndex = null;
+    scheduler?.invalidate();
     updatePanels();
   });
 
   resizeObserver = new ResizeObserver(() => {
     if (!fitted) viewport = fitBounds(graphBounds(graph), updateCanvasSize(canvas));
+    // 寸法が変わると canvas のバッキングストアを取り直す必要がある。
+    scheduler?.invalidate();
   });
   resizeObserver.observe(root);
 
   rebuildGraph();
   syncPanelVisibility();
   beginLayoutIfNeeded();
-  renderLoop();
+  scheduler = createRenderScheduler({
+    canvas,
+    themeHost: root,
+    getState: () => ({ graph, viewport, selectedNodeIndex, hoveredNode, themeMode }),
+  });
+  scheduler.invalidate();
 
   return {
     update(partial: CooccurrenceViewerUpdate): void {
       if (partial.themeMode !== undefined) {
         themeMode = partial.themeMode;
         applyCooccurrenceThemeVars(root, themeMode);
+        scheduler?.invalidateTheme();
       }
       if (partial.locale !== undefined) {
         options = { ...options, locale: partial.locale };
@@ -487,7 +483,7 @@ export function mountCooccurrenceViewer(
       if (destroyed) return;
       destroyed = true;
       currentJob?.abort();
-      cancelAnimationFrame(rafId);
+      scheduler?.stop();
       resizeObserver?.disconnect();
       filterPanel?.destroy();
       wordListPanel?.destroy();
@@ -496,6 +492,7 @@ export function mountCooccurrenceViewer(
     getLayoutStatus: () => status,
     getCacheDecision: () => cacheDecision,
     getLayoutRunCount: () => layoutRunCount,
+    getRenderFrameCount: () => scheduler?.getFrameCount() ?? 0,
     getFilterCounts: () => filterCounts,
   };
 }

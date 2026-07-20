@@ -36,6 +36,8 @@ export interface CooccurrenceViewerHandle {
   getLayoutStatus(): LayoutStatus;
   getCacheDecision(): CacheDecision;
   getLayoutRunCount(): number;
+  /** 観測点。描画した回数。無操作で増えないことを外から検査できる。 */
+  getRenderFrameCount(): number;
   getFilterCounts(): CooccurrenceFilterCounts;
 }
 
