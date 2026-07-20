@@ -157,10 +157,11 @@ describe('getCombinedData — workspace filter', () => {
     expect(db.getCombinedData('day', 30).workspaces).toEqual(['anytime-markdown', 'other-repo']);
   });
 
-  it('lists the committing session repo when only the commit is in range', () => {
-    // 期間より前に開始したセッションが期間内にコミットしたケース。
+  it('lists the committing session repo, not the commit target, when only the commit is in range', () => {
+    // 期間より前に開始したセッションが、期間内に別リポジトリ（docs）へコミットしたケース。
+    // 載るのは作業していた long-running-repo であって、コミット先の docs-repo ではない。
     insertSession(db, 's-long', 'long-running-repo', isoDaysAgo(200));
-    insertCommit(db, 's-long', 'long-running-repo', 'hash-2', t);
+    insertCommit(db, 's-long', 'docs-repo', 'hash-2', t);
     expect(db.getCombinedData('day', 30).workspaces).toEqual([
       'anytime-markdown',
       'long-running-repo',

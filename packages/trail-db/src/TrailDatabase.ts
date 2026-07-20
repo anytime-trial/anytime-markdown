@@ -10518,9 +10518,16 @@ export class TrailDatabase {
     const repoIdList = filterRepoIds.length > 0 ? filterRepoIds.join(',') : '-1';
     // s = sessions（セッションの属する repo で絞る）/ sc・c = session_commits（コミット先の repo で絞る）
     const sessionRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
-    const commitScRepoFilter = hasWorkspaceFilter ? ` AND sc.repo_id IN (${repoIdList})` : '';
-    const commitCRepoFilter = hasWorkspaceFilter ? ` AND c.repo_id IN (${repoIdList})` : '';
-    const commitBareRepoFilter = hasWorkspaceFilter ? ` AND repo_id IN (${repoIdList})` : '';
+    // コミットの絞り込みも「打ったセッションの repo」で行う（一覧の活動判定と同じ基準）。
+    // コミット先 repo で絞ると、docs や ~/.claude のような「ワークスペースでない宛先」への
+    // コミットがどのワークスペースを選んでも現れず、各ワークスペースの合計が全体と一致しなく
+    // なる。セッション基準なら「そのワークスペースで作業していた間に打ったコミット」で揃う。
+    const commitScRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
+    const commitCRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
+    // sessions を JOIN していないクエリ用（session_id 経由で同じ条件を表す）。
+    const commitBareRepoFilter = hasWorkspaceFilter
+      ? ` AND session_id IN (SELECT id FROM sessions WHERE repo_id IN (${repoIdList}))`
+      : '';
     const sessionStartPeriodExpr = period === 'week'
       ? `strftime('%Y-W%W', s.start_time, '${tzOffset}')`
       : `DATE(s.start_time, '${tzOffset}')`;

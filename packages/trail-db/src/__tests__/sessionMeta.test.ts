@@ -204,6 +204,17 @@ describe('extractRepoNameFromProjectDirPath', () => {
     expect(probe).not.toHaveBeenCalled();
   });
 
+  it('gives up when the probe limit truncates the search, even with exactly one candidate found', () => {
+    // `/a/b` を見つけた直後に上限へ達し、まだ試していない `/a-b` にも候補がある状況。
+    // 打ち切りは「2 件目が無い」ことの証明にならないため、一意と断定してはいけない。
+    const exists = existsIn(['/a', '/a/b', '/a-b']);
+    expect(extractRepoNameFromProjectDirPath(fileFor('-a-b'), exists, 2)).toBeNull();
+    // 上限に達しなければ、同じ入力は「候補 2 件＝曖昧」として null になる。
+    expect(extractRepoNameFromProjectDirPath(fileFor('-a-b'), exists)).toBeNull();
+    // 打ち切らずに探索し切れば復元できる（上の null がガード由来であることの対照）。
+    expect(extractRepoNameFromProjectDirPath(fileFor('-a-b'), existsIn(['/a', '/a/b']), 3)).toBe('b');
+  });
+
   it('returns null when the path is not under a projects directory', () => {
     expect(
       extractRepoNameFromProjectDirPath('/somewhere/else/sid.jsonl', existsIn(['/somewhere'])),

@@ -103,7 +103,7 @@ function collectCandidatePaths(
   prefix: string,
   exists: (p: string) => boolean,
   out: string[],
-  probes: { count: number },
+  probes: { count: number; truncated: boolean; max: number },
 ): void {
   if (start >= tokens.length) {
     out.push(prefix);
@@ -112,7 +112,12 @@ function collectCandidatePaths(
   let segment = '';
   for (let end = start; end < tokens.length; end++) {
     segment = segment === '' ? (tokens[end] ?? '') : `${segment}-${tokens[end] ?? ''}`;
-    if (probes.count >= MAX_PROJECT_DIR_PROBES) return;
+    // 上限で打ち切った探索は「候補が 1 件しか無い」ことの根拠にならない（未探索の枝に
+    // 2 件目があり得る）。truncated を立てて呼び出し側で一意判定を放棄する。
+    if (probes.count >= probes.max) {
+      probes.truncated = true;
+      return;
+    }
     probes.count++;
     const candidate = `${prefix}/${segment}`;
     if (!exists(candidate)) continue;
@@ -125,12 +130,17 @@ function collectCandidatePaths(
  * セッションの JSONL パスに含まれる `.claude/projects/<dir>/` の `<dir>` から元の cwd を
  * 復元し、リポジトリ名を返す。JSONL 本体が既に消えていて cwd を読めない場合の補助。
  *
- * 復元が一意に定まらない（候補 0 件 or 2 件以上）場合は null を返す。推測でリポジトリ名を
- * 作らないことを優先する（誤った帰属を作るより未解決のままにする）。
+ * 復元が一意に定まらない（候補 0 件 or 2 件以上、探索が上限で打ち切られた）場合は null を
+ * 返す。推測でリポジトリ名を作らないことを優先する（誤った帰属を作るより未解決のまま残す）。
+ *
+ * 復元できるのはドットを含まないパスのみ。projects ディレクトリ名は `/` だけでなく `.` も
+ * `-` へ潰すため、`/anytime-markdown/.worktrees/foo` のような cwd は候補 0 件になり現状維持と
+ * なる（fail-closed）。JSONL が消えた worktree セッションが是正されないのはこのため。
  */
 export function extractRepoNameFromProjectDirPath(
   filePath: string,
   exists: (p: string) => boolean = fs.existsSync,
+  maxProbes: number = MAX_PROJECT_DIR_PROBES,
 ): string | null {
   const dirName = /\/projects\/([^/]+)\//.exec(filePath)?.[1]?.replace(/^-+/, '');
   if (!dirName) return null;
@@ -138,8 +148,9 @@ export function extractRepoNameFromProjectDirPath(
   if (tokens.length === 0 || tokens.length > MAX_PROJECT_DIR_TOKENS) return null;
 
   const candidates: string[] = [];
-  collectCandidatePaths(tokens, 0, '', exists, candidates, { count: 0 });
-  if (candidates.length !== 1) return null;
+  const probes = { count: 0, truncated: false, max: maxProbes };
+  collectCandidatePaths(tokens, 0, '', exists, candidates, probes);
+  if (probes.truncated || candidates.length !== 1) return null;
   return deriveRepoNameFromCwd(candidates[0] ?? '', exists);
 }
 
