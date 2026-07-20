@@ -27,6 +27,8 @@ export {
   computeSpecHash,
   serializeCoocFile,
   parseCoocFile,
+  barnesHutLayout,
+  BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
 } from './presets/index';
 export type {
   ThinkingDiagramSpec,

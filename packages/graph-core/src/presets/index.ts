@@ -15,6 +15,10 @@ import { buildSwot, buildMorphBox, buildAffinity, type SwotSpec, type MorphBoxSp
 import { buildStructureMap, type StructureMapSpec } from './structureMap';
 import { buildCooccurrence, type CooccurrenceSpec } from './cooccurrence';
 export {
+  barnesHutLayout,
+  BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
+} from './barnesHutLayout';
+export {
   validateCooccurrenceFile,
   canonicalizeSpec,
   computeSpecHash,
