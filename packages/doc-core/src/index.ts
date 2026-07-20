@@ -14,6 +14,31 @@ export { discoverDocs, type DiscoveredDoc } from './ingest/discoverDocs';
 export { persistDoc, getStoredHash } from './ingest/persist';
 export { ingestDocs, type IngestResult, type IngestOptions } from './ingest/ingestDocs';
 
+// folderIndex（index.<lang>.md の冪等生成）
+export {
+  generateDocIndexes,
+  isSameIgnoringDate,
+  isIndexName,
+  isoDateJst,
+  type GenerateDocIndexesOptions,
+  type GenerateDocIndexesResult,
+} from './folderIndex/generateDocIndexes';
+export {
+  buildFolderIndexMarkdown,
+  truncateExcerpt,
+  formatRelated,
+  type FolderIndexEntry,
+  type FolderIndexChild,
+  type BuildFolderIndexInput,
+} from './folderIndex/buildFolderIndex';
+export {
+  DOC_INDEX_SCOPES,
+  generateDocsRootIndexes,
+  ingestThenIndex,
+  type DocsRootIndexesOptions,
+  type IngestThenIndexResult,
+} from './folderIndex/docsRootIndexes';
+
 // retrieve（構造・キーワード。意味検索 searchSemantic は Phase 2）
 export {
   backlinks,
