@@ -23,12 +23,19 @@ function downloadBlob(blob: Blob, filename: string): void {
   anchor.download = filename;
   document.body.appendChild(anchor);
   anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+  // revoke と remove は次のタスクへ遅らせる。click() はダウンロードの開始を
+  // 予約するだけで Blob の読み出し完了を保証しない。同期で revoke すると
+  // Firefox / Safari で読み出しに先行し、0 バイトまたは不発になる。
+  setTimeout(() => {
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }, 0);
 }
 
 function filenameFor(file: CooccurrenceFile, extension: string): string {
-  const base = file.spec.title?.trim().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'cooccurrence';
+  // Why not /[^\w.-]+/: \w は ASCII のみで、日本語タイトルが全文字落ちて
+  // 常に既定名になる。除去はパス上危険な文字に限る。
+  const base = file.spec.title?.trim().replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-').replace(/^-+|-+$/g, '') || 'cooccurrence';
   return `${base}${extension}`;
 }
 

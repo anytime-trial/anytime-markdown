@@ -178,6 +178,10 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       row.dataset.nodeIndex = String(nodeIndex);
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', String(state.selectedNodeIndex === nodeIndex));
+      // 仮想スクロールでは DOM 上の子要素数＝可視ウィンドウ分しかないため、明示しないと
+      // 支援技術が「12 件中 1 件」のように総数を誤って読み上げる。
+      row.setAttribute('aria-setsize', String(indexes.length));
+      row.setAttribute('aria-posinset', String(indexes.indexOf(nodeIndex) + 1));
       const hiddenByFilter = !state.visibleNodeIndexes.has(nodeIndex);
       row.dataset.hiddenByFilter = String(hiddenByFilter);
       if (hiddenByFilter) row.title = t('words.hiddenByFilter');
@@ -219,7 +223,16 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     deleteButton.textContent = t('words.delete');
     renderClusterOptions();
     syncSelectedInputs();
+    // renderRows() は全行を作り直すため、いま押した行の要素自体が破棄される。
+    // 何もしないとフォーカスが body へ戻り、キーボードだけで操作すると選択のたびに
+    // リスト先頭へ巻き戻されて実質操作できない。
+    const activeNodeIndex =
+      document.activeElement instanceof HTMLElement && element.contains(document.activeElement)
+        ? document.activeElement.dataset.nodeIndex
+        : undefined;
     renderRows();
+    if (activeNodeIndex === undefined) return;
+    items.querySelector<HTMLElement>(`[data-node-index="${activeNodeIndex}"]`)?.focus();
   }
 
   function applyEdit(result: CooccurrenceEditResult): void {

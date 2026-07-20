@@ -117,6 +117,50 @@ describe('WordListPanel', () => {
     panel.destroy();
   });
 
+  it('keeps focus on the same word row after the list re-renders', () => {
+    let selected: number | null = null;
+    const panel = createWordListPanel({
+      file: file(50),
+      visibleNodeIndexes: new Set(Array.from({ length: 50 }, (_, i) => i)),
+      selectedNodeIndex: null,
+      t,
+      onSelectNode: (i) => { selected = i; },
+      onFileChange: jest.fn(),
+    });
+    document.body.appendChild(panel.element);
+    const row = panel.element.querySelector('.cooc-words__row[data-node-index="3"]') as HTMLElement;
+    row.focus();
+    expect(document.activeElement).toBe(row);
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // 選択後にホストが状態を返す＝行が作り直される
+    panel.update({
+      file: file(50),
+      visibleNodeIndexes: new Set(Array.from({ length: 50 }, (_, i) => i)),
+      selectedNodeIndex: selected,
+      t,
+    });
+    const active = document.activeElement as HTMLElement | null;
+    expect(active?.dataset.nodeIndex).toBe('3');
+    panel.destroy();
+  });
+
+  it('tells assistive tech the full list size, not the rendered window', () => {
+    const panel = createWordListPanel({
+      file: file(500),
+      visibleNodeIndexes: new Set(Array.from({ length: 500 }, (_, i) => i)),
+      selectedNodeIndex: null,
+      t,
+      onSelectNode: jest.fn(),
+      onFileChange: jest.fn(),
+    });
+    document.body.appendChild(panel.element);
+    const rows = [...panel.element.querySelectorAll('.cooc-words__row')] as HTMLElement[];
+    expect(rows.length).toBeLessThan(100);
+    expect(rows[0]?.getAttribute('aria-setsize')).toBe('500');
+    expect(rows[0]?.getAttribute('aria-posinset')).toBe('1');
+    panel.destroy();
+  });
+
   it('does not call onFileChange and displays the reason when an edit fails', () => {
     const onFileChange = jest.fn();
     const panel = createWordListPanel({

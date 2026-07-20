@@ -32,13 +32,22 @@ function applyClusterFilter(
   if (selectedClusterIndexes === undefined) return visibleNodes;
 
   const selected = new Set(selectedClusterIndexes);
-  const members = new Set<number>();
+  const selectedMembers = new Set<number>();
+  const anyClusterMembers = new Set<number>();
   spec.clusters?.forEach((cluster, clusterIndex) => {
-    if (!selected.has(clusterIndex)) return;
-    cluster.members.forEach((member) => members.add(member));
+    cluster.members.forEach((member) => {
+      anyClusterMembers.add(member);
+      if (selected.has(clusterIndex)) selectedMembers.add(member);
+    });
   });
 
-  return new Set([...visibleNodes].filter((nodeIndex) => members.has(nodeIndex)));
+  // 設計書 §3.2 の条件は「選択されていないクラスタの語を外す」。
+  // どのクラスタにも属さない語は「選択されていないクラスタの語」ではないので残す。
+  // Why not 選択クラスタのメンバーだけ残すか: 全クラスタを選んだ状態が「絞り込みなし」と
+  // 一致しなくなり、利用者が触っていない条件で未所属語が黙って消える。
+  return new Set(
+    [...visibleNodes].filter((nodeIndex) => selectedMembers.has(nodeIndex) || !anyClusterMembers.has(nodeIndex)),
+  );
 }
 
 export function filterCooccurrenceFile(

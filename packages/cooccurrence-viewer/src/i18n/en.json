@@ -31,6 +31,7 @@
     "layoutStatus.running": "running",
     "layoutStatus.done": "done",
     "layoutStatus.aborted": "aborted",
+    "layoutStatus.failed": "failed",
     "host.openFile": "Open .cooc.json"
   }
 }

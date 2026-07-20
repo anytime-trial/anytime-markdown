@@ -16,7 +16,7 @@ import type {
   ViewportState,
 } from './types';
 import { evaluateLayoutCache } from './layout/cache';
-import { startLayoutJob, type LayoutJob } from './layout/runLayout';
+import { LayoutCancelledError, startLayoutJob, type LayoutJob } from './layout/runLayout';
 import { buildRenderGraph } from './render/buildRenderGraph';
 import { graphBounds } from './render/bounds';
 import { drawGraph } from './render/drawGraph';
@@ -167,6 +167,8 @@ export function mountCooccurrenceViewer(
         return t('layoutStatus.done');
       case 'aborted':
         return t('layoutStatus.aborted');
+      case 'failed':
+        return t('layoutStatus.failed');
     }
   }
 
@@ -351,10 +353,16 @@ export function mountCooccurrenceViewer(
       fitted = false;
       rebuildGraph();
       rebuildToolbar();
-    }).catch(() => {
+    }).catch((error: unknown) => {
       if (destroyed || currentJob !== job) return;
       currentJob = null;
-      status = 'aborted';
+      const cancelled = error instanceof LayoutCancelledError;
+      if (!cancelled) {
+        // 理由を捨てない。捨てると Worker のクラッシュが「中断しました」と同じ見た目になり、
+        // 利用者にも開発者にも原因が残らない。
+        console.error('[cooccurrence-viewer] layout job failed.', error);
+      }
+      status = cancelled ? 'aborted' : 'failed';
       rebuildGraph();
       rebuildToolbar();
     });

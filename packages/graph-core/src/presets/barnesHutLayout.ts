@@ -185,6 +185,16 @@ function relaxOverlaps(pos: Point[], radii: readonly number[] | undefined, passe
   if (!radii) return;
   const maxRadius = radii.reduce((m, r) => Math.max(m, r), 0);
   const cellSize = Math.max(1, maxRadius * 2 + NODE_MARGIN);
+  // SHORTCUT: 空間台帳をパス開始前に 1 度だけ構築する. ceiling: pos はパス中に
+  // 書き換わるため、探索キー（現在位置）とバケツの中身（初期位置）がずれる。
+  // 1 セル幅（maxRadius*2+16 px）以上動いたノードは、移動先で隣接した相手と
+  // 比較されない。upgrade: 全ペア検査で重なり違反が観測されたら、パスごとに
+  // 台帳を作り直す。
+  // パスごとの再構築は実装・計測済みだが、1,000 語で 528〜548ms となり
+  // 500ms の予算を一貫して超えた（文字列キーの数値化でも改善せず）。
+  // 一方この台帳ずれによる違反は、語数 60〜1000・半径分布を変えた 4 構成の
+  // 全ペア検査で 1 件も再現していない（overlapViolations=0 を維持）。
+  // 再現しない不具合のために実在する予算を割らない判断とする。
   const cells = new Map<string, number[]>();
   for (let i = 0; i < pos.length; i++) {
     const cx = Math.floor(pos[i].x / cellSize);

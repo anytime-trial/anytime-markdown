@@ -11,6 +11,14 @@ export interface LayoutResult {
   algorithmVersion: string;
 }
 
+/** 中断（利用者操作・再計算による差し替え）を、異常終了と区別するためのエラー。 */
+export class LayoutCancelledError extends Error {
+  constructor() {
+    super('layout job was cancelled');
+    this.name = 'LayoutCancelledError';
+  }
+}
+
 export interface LayoutJob {
   worker: Worker | null;
   promise: Promise<LayoutResult>;
@@ -84,40 +92,56 @@ export function startLayoutJob(
       abort: () => undefined,
     };
   }
+  const activeWorker = worker;
   let settled = false;
+  // 完了・失敗・中断のどの経路でも 1 回だけ terminate する。
+  // Why: 以前は abort() でしか terminate しておらず、正常完了した Worker が
+  // そのまま常駐していた。編集のたびに再計算が走るため 1 本ずつ蓄積する。
+  const finish = (): void => {
+    if (settled) return;
+    settled = true;
+    activeWorker.terminate();
+  };
+
   const promise = new Promise<LayoutResult>((resolve, reject) => {
-    worker.onmessage = (event: MessageEvent<unknown>) => {
+    activeWorker.onmessage = (event: MessageEvent<unknown>) => {
       if (settled) return;
       if (!isWorkerMessage(event.data)) {
-        settled = true;
+        finish();
         reject(new Error('layout worker returned an unknown message'));
         return;
       }
       if (event.data.type === 'error') {
-        settled = true;
-        reject(new Error(event.data.message));
+        const { message } = event.data;
+        finish();
+        reject(new Error(message));
         return;
       }
-      settled = true;
-      resolve({
-        positions: event.data.positions,
-        specHash,
-        algorithmVersion: BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
-      });
+      const { positions } = event.data;
+      finish();
+      resolve({ positions, specHash, algorithmVersion: BARNES_HUT_LAYOUT_ALGORITHM_VERSION });
     };
-    worker.onerror = (event) => {
+    activeWorker.onerror = (event) => {
       if (settled) return;
-      settled = true;
+      finish();
       reject(new Error(event.message));
     };
   });
-  worker.postMessage({ type: 'layout', file, specHash, algorithmVersion: BARNES_HUT_LAYOUT_ALGORITHM_VERSION });
+  // 中断は必ず reject する。以前は resolve も reject もせず pending のまま
+  // 放置しており、クロージャが掴む file（語・共起・座標の全量）が解放されなかった。
+  let rejectAsCancelled: (() => void) | undefined;
+  const cancellable = new Promise<LayoutResult>((resolve, reject) => {
+    rejectAsCancelled = () => reject(new LayoutCancelledError());
+    promise.then(resolve, reject);
+  });
+
+  activeWorker.postMessage({ type: 'layout', file, specHash, algorithmVersion: BARNES_HUT_LAYOUT_ALGORITHM_VERSION });
   return {
-    worker,
-    promise,
+    worker: activeWorker,
+    promise: cancellable,
     abort: () => {
-      settled = true;
-      worker.terminate();
+      finish();
+      rejectAsCancelled?.();
     },
   };
 }

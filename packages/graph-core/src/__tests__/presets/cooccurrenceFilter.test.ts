@@ -90,3 +90,36 @@ describe('cooccurrence filter', () => {
     expect(setValues(result.linkIndexes)).toEqual([1, 2]);
   });
 });
+
+describe('cooccurrenceFilter クラスタ未所属の語', () => {
+  const file: CooccurrenceFile = {
+    meta: { schemaVersion: 1, generatedAt: '2026-07-20T00:00:00.000Z', origin: 'manual' },
+    spec: {
+      nodes: [
+        { label: 'A', frequency: 5 },
+        { label: 'B', frequency: 4 },
+        { label: 'unclustered', frequency: 3 },
+      ],
+      links: [[0, 1, 3]],
+      clusters: [{ label: 'One', members: [0] }, { label: 'Two', members: [1] }],
+    },
+  };
+  const labels = (indexes: ReadonlySet<number>) => [...indexes].map((i) => file.spec.nodes[i]!.label).sort();
+
+  it('全クラスタ選択は絞り込みなしと一致する（未所属の語も残る）', () => {
+    const none = filterCooccurrenceFile(file, undefined);
+    const all = filterCooccurrenceFile(file, { selectedClusterIndexes: [0, 1] });
+    expect(labels(all.nodeIndexes)).toEqual(labels(none.nodeIndexes));
+    expect(labels(all.nodeIndexes)).toEqual(['A', 'B', 'unclustered']);
+  });
+
+  it('一部クラスタのみ選択でも未所属の語は残る', () => {
+    const result = filterCooccurrenceFile(file, { selectedClusterIndexes: [0] });
+    expect(labels(result.nodeIndexes)).toEqual(['A', 'unclustered']);
+  });
+
+  it('全クラスタ未選択でも未所属の語は残る（クラスタ所属の語だけが消える）', () => {
+    const result = filterCooccurrenceFile(file, { selectedClusterIndexes: [] });
+    expect(labels(result.nodeIndexes)).toEqual(['unclustered']);
+  });
+});

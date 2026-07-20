@@ -1,7 +1,11 @@
 import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
 
 export type ThemeMode = 'dark' | 'light';
-export type LayoutStatus = 'idle' | 'running' | 'done' | 'aborted';
+/**
+ * `aborted` は利用者の明示的な中断、`failed` は Worker のクラッシュ等の異常終了。
+ * 同じ状態にまとめると、原因不明の失敗を「中断しました」と表示してしまう。
+ */
+export type LayoutStatus = 'idle' | 'running' | 'done' | 'aborted' | 'failed';
 export type CacheDecision = 'hit' | 'miss-spec' | 'miss-algorithm' | 'miss-absent';
 
 export interface CooccurrenceViewerCapabilities {

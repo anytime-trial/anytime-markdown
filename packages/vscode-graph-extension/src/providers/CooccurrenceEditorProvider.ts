@@ -4,7 +4,7 @@ import {
 	parseCoocFile,
 	serializeCoocFile,
 	type CooccurrenceFile,
-} from '@anytime-markdown/graph-core';
+} from '@anytime-markdown/graph-core/src/presets/cooccurrenceFile';
 import { resolveLocale } from '@anytime-markdown/vscode-common';
 
 type Locale = 'ja' | 'en';
@@ -24,7 +24,8 @@ function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
 }
 
 function filenameFor(file: CooccurrenceFile): string {
-	const title = file.spec.title?.trim().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '');
+	// Why not /[^\w.-]+/: \w は ASCII のみで、日本語タイトルが全文字落ちて常に既定名になる。
+	const title = file.spec.title?.trim().replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-').replace(/^-+|-+$/g, '');
 	return `${title || 'cooccurrence'}.png`;
 }
 
@@ -58,7 +59,10 @@ export class CooccurrenceEditorProvider implements vscode.CustomTextEditorProvid
 
 		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, currentLocale());
 
-		let isWebviewEdit = false;
+		// カウンタで持つ。ブールだと save が重なったとき、後発が true にした区間を
+		// 先発の finally が false へ戻し、後発の applyEdit がガードを素通りする。
+		// 素通りすると sendDocument() が webview へ load を投げ、選択語と倍率が巻き戻る。
+		let webviewEditDepth = 0;
 
 		const sendDocument = () => {
 			try {
@@ -96,11 +100,11 @@ export class CooccurrenceEditorProvider implements vscode.CustomTextEditorProvid
 							parseCoocFile(json);
 							const edit = new vscode.WorkspaceEdit();
 							edit.replace(document.uri, fullDocumentRange(document), json);
-							isWebviewEdit = true;
+							webviewEditDepth += 1;
 							try {
 								await vscode.workspace.applyEdit(edit);
 							} finally {
-								isWebviewEdit = false;
+								webviewEditDepth -= 1;
 							}
 						} catch (error) {
 							vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
@@ -108,10 +112,25 @@ export class CooccurrenceEditorProvider implements vscode.CustomTextEditorProvid
 						break;
 					}
 					case 'exportPng': {
+						// webview からのメッセージは信頼できない入力として扱う。
+						// 以前は filenameFor が try の外にあり、file が null だと同期例外が
+						// unhandled rejection として捨てられ、ダイアログが開かないだけで
+						// 利用者にもログにも何も出なかった。
+						if (!Array.isArray(message.bytes)) {
+							vscode.window.showErrorMessage('PNG export failed: unexpected payload.');
+							return;
+						}
+						let defaultName: string;
+						try {
+							defaultName = filenameFor(message.file);
+						} catch (error) {
+							vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
+							return;
+						}
 						const uri = await vscode.window.showSaveDialog({
 							defaultUri: vscode.Uri.joinPath(
 								vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(process.cwd()),
-								filenameFor(message.file),
+								defaultName,
 							),
 							filters: { PNG: ['png'] },
 						});
@@ -130,7 +149,7 @@ export class CooccurrenceEditorProvider implements vscode.CustomTextEditorProvid
 		);
 
 		const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
-			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0 && !isWebviewEdit) {
+			if (e.document.uri.toString() === document.uri.toString() && e.contentChanges.length > 0 && webviewEditDepth === 0) {
 				sendDocument();
 			}
 		});
