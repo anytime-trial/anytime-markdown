@@ -66,14 +66,17 @@ export function activate(context: vscode.ExtensionContext) {
 	const docWsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	let docIngestRunner: DocIngestRunner | undefined;
 
-	const startDocIngest = (): void => {
+	// initialRun: 生成直後に ingest を 1 回流すか。コマンドハンドラから呼ぶ場合は false にする
+	// （ハンドラ自身が直後に runOnce するため。初回実行を流すと running ガードに当たり
+	// ハンドラ側の runOnce が空振りする）。
+	const startDocIngest = (initialRun = true): void => {
 		if (docIngestRunner) return; // 既に起動済み（trust 付与での再評価による二重起動を防止）
 		if (!docsRoot || !docWsRoot) return;
 		const dbPath = resolveDocDbPath(docWsRoot, docCfg.get<string>('dbPath'), (msg) => MarkdownLogger.warn(msg));
 		const ingestScriptPath = path.join(extensionDistPath, 'doc-ingest.js');
 		docIngestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath);
 		context.subscriptions.push(docIngestRunner);
-		void docIngestRunner.runOnce();
+		if (initialRun) { void docIngestRunner.runOnce(); }
 		const intervalMin = docCfg.get<number>('intervalMinutes') ?? 30;
 		if (intervalMin > 0) {
 			const docIngestInterval = setInterval(() => void docIngestRunner?.runOnce(), intervalMin * 60 * 1000);
@@ -114,13 +117,13 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => {
 			if (!ensureDocPreconditions()) { return; }
-			startDocIngest();
+			startDocIngest(false);
 			void docIngestRunner?.runOnce();
 		}),
 		// フォルダ索引（index.<lang>.md）の再生成のみ。検索 DB（rebuildDocIndex）とは別物。
 		vscode.commands.registerCommand('anytime-markdown.regenerateDocIndexes', async () => {
 			if (!ensureDocPreconditions()) { return; }
-			startDocIngest();
+			startDocIngest(false);
 			const result = await docIngestRunner?.runOnce('index-only');
 			if (!result) {
 				vscode.window.showWarningMessage(

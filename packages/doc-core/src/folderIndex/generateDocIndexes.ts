@@ -75,6 +75,8 @@ export function isSameIgnoringDate(a: string, b: string): boolean {
 }
 
 function maskDateLine(text: string): string {
+  // g フラグなし＝最初の 1 致のみ置換。生成書式では frontmatter の date が必ず最初に
+  // 現れるため、本文中に date: "..." 行があってもマスクされず差分として検出される。
   return text.replace(/^date: "[^"]*"$/m, 'date: "<masked>"');
 }
 
