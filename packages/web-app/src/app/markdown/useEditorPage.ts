@@ -6,6 +6,7 @@ import { signIn } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { consumeDriveOpenIntent, markDriveOpenIntent } from '../../lib/driveOpenIntent';
+import { consumeGitHubFileOpenAttempt, markGitHubFileOpenAttempt } from '../../lib/githubPickerIntent';
 import { type DriveOpenIntent, parseDriveOpenState } from '../../lib/driveOpenState';
 import { FallbackFileSystemProvider } from '../../lib/FallbackFileSystemProvider';
 import { fetchFileContent } from '../../lib/githubApi';
@@ -143,6 +144,12 @@ interface UseEditorPageOptions {
    * 破棄の可否を呼び出し側（ダイアログ）に委ねる。未注入なら破棄せず中断する（データ損失を避ける）。
    */
   confirmDiscardDraft?: () => Promise<boolean>;
+  /**
+   * `/markdown?gh=<owner>/<repo>&branch=<branch>&path=<path>` の直接オープン要求
+   * （チケット本文の GitHub .md リンク等が付与するクエリ由来）。接続済みなら即オープン、
+   * 未接続ならサインインへ誘導し、クエリ付き callbackUrl で復帰後に自動再開する。
+   */
+  githubOpenRequest?: { repo: string; branch: string; path: string } | null;
   /** Override fetchFileContent for testing */
   fetchFileFn?: typeof fetchFileContent;
   /** Override fetch for testing */
@@ -155,6 +162,7 @@ export function useEditorPage({
   isGitHubConnected,
   t,
   driveOpenState = null,
+  githubOpenRequest = null,
   confirmDiscardDraft,
   fetchFileFn = fetchFileContent,
   fetchFn = typeof window === 'undefined' ? (undefined as unknown as typeof fetch) : window.fetch.bind(window),
@@ -264,20 +272,59 @@ export function useEditorPage({
   const handleGitHubOpenFile = useCallback(async (repo: string, filePath: string, branch: string) => {
     const prev = selectedFileRef.current;
     const isSameFile = prev?.repo === repo && prev?.filePath === filePath && prev?.branch === branch;
+    if (!isSameFile) {
+      // 先に fetch を成功させてから選択状態を切り替える。先に切り替えると、fetch 失敗時に
+      // 保存先だけ新パスを指し、開いたままの旧本文が新パスへコミットされ得る。
+      let content: string;
+      try {
+        content = await fetchFileFn(repo, filePath, branch);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] [ERROR] GitHub file open failed (${repo}/${filePath}@${branch}):`, error);
+        setSaveSnackbar({ message: t('githubLoadError'), severity: 'error' });
+        return;
+      }
+      selectedFileRef.current = { repo, filePath, branch };
+      setGithubDoc({ repo, branch, path: filePath });
+      setDriveFile(null);
+      setExternalSaveKind('github');
+      setIsDirty(false);
+      originalContentRef.current = content;
+      writeDraft(content);
+      setExternalContent(undefined);
+      setExternalFileName(filePath.split("/").pop() ?? filePath);
+      setExternalCompareContent(null);
+      setEditorKey((k) => k + 1);
+      return;
+    }
+    // 同一ファイルの再選択: 本文は開いたまま、保存先だけ GitHub へ戻す（Drive から切替後の復帰）
     selectedFileRef.current = { repo, filePath, branch };
     setGithubDoc({ repo, branch, path: filePath });
     setDriveFile(null);
     setExternalSaveKind('github');
-    if (isSameFile) return;
-    setIsDirty(false);
-    const content = await fetchFileFn(repo, filePath, branch);
-    originalContentRef.current = content;
-    writeDraft(content);
-    setExternalContent(undefined);
-    setExternalFileName(filePath.split("/").pop() ?? filePath);
-    setExternalCompareContent(null);
-    setEditorKey((k) => k + 1);
-  }, [fetchFileFn, setDriveFile]);
+  }, [fetchFileFn, setDriveFile, t]);
+
+  // `?gh=` クエリからの直接オープン（チケット本文の GitHub .md リンク等）。
+  // 開くファイルはクエリが持ち続けるため、sessionStorage には「サインインへ誘導済み」の
+  // 事実だけを記録する（未接続のまま戻ってきたときの再誘導ループ防止）。
+  const githubOpenBootstrapRef = useRef(false);
+  useEffect(() => {
+    if (!githubOpenRequest || githubOpenBootstrapRef.current) return;
+    // セッション未確定（loading）の間は判断しない。接続有無が確定してから 1 回だけ動く。
+    if (isGitHubConnected === undefined) return;
+    githubOpenBootstrapRef.current = true;
+    if (isGitHubConnected) {
+      consumeGitHubFileOpenAttempt(); // サインイン復帰の成功経路: 誘導済みフラグを掃除
+      void handleGitHubOpenFile(githubOpenRequest.repo, githubOpenRequest.path, githubOpenRequest.branch);
+      return;
+    }
+    if (consumeGitHubFileOpenAttempt()) {
+      // 誘導したのに未接続で戻った（キャンセル・失敗）。再誘導せずエラーで知らせる。
+      setSaveSnackbar({ message: t('githubOpenSignInRequired'), severity: 'error' });
+      return;
+    }
+    markGitHubFileOpenAttempt();
+    void signInFn('github', { callbackUrl: window.location.href });
+  }, [githubOpenRequest, isGitHubConnected, handleGitHubOpenFile, signInFn, t]);
 
   /**
    * Drive への PUT を実行する。409（他所での更新）は driveConflict へ委譲する。
