@@ -1,8 +1,11 @@
 import * as vscode from 'vscode';
-import { GraphEditorProvider } from './providers/GraphEditorProvider';
+import { parseCoocFile, serializeCoocFile, type CooccurrenceFile } from '@anytime-markdown/graph-core';
+import { CooccurrenceEditorProvider } from './providers/CooccurrenceEditorProvider';
+import { GraphMigrationProvider } from './providers/GraphMigrationProvider';
 
 export function activate(context: vscode.ExtensionContext) {
-	context.subscriptions.push(GraphEditorProvider.register(context));
+	context.subscriptions.push(CooccurrenceEditorProvider.register(context));
+	context.subscriptions.push(GraphMigrationProvider.register(context));
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-graph.newGraph', async () => {
@@ -13,38 +16,32 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			const name = await vscode.window.showInputBox({
-				prompt: 'Graph file name',
-				value: 'untitled',
+				prompt: 'Co-occurrence network file name',
+				value: 'untitled.cooc.json',
 			});
 			if (!name) return;
 
-			const fileName = name.endsWith('.graph') ? name : `${name}.graph`;
+			const fileName = name.endsWith('.cooc.json') ? name : `${name}.cooc.json`;
 			const uri = vscode.Uri.joinPath(workspaceFolders[0].uri, fileName);
 
-			const now = Date.now();
-			const doc = {
-				id: generateId(),
-				name,
-				nodes: [],
-				edges: [],
-				viewport: { offsetX: 0, offsetY: 0, scale: 1 },
-				createdAt: now,
-				updatedAt: now,
+			const doc: CooccurrenceFile = {
+				meta: {
+					schemaVersion: 1,
+					generatedAt: new Date().toISOString(),
+					origin: 'manual',
+				},
+				spec: {
+					nodes: [],
+					links: [],
+				},
 			};
+			const text = serializeCoocFile(doc);
+			parseCoocFile(text);
 
-			await vscode.workspace.fs.writeFile(uri, Buffer.from(JSON.stringify(doc, null, 2), 'utf-8'));
-			await vscode.commands.executeCommand('vscode.openWith', uri, 'anytimeGraph');
+			await vscode.workspace.fs.writeFile(uri, Buffer.from(text, 'utf-8'));
+			await vscode.commands.executeCommand('vscode.openWith', uri, CooccurrenceEditorProvider.viewType);
 		}),
 	);
-}
-
-function generateId(): string {
-	const bytes = new Uint8Array(16);
-	for (let i = 0; i < 16; i++) {
-		bytes[i] = Math.floor(Math.random() * 256);
-	}
-	const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export function deactivate() {}

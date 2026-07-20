@@ -29,7 +29,7 @@ const extensionConfig = {
     rules: [
       {
         test: /\.ts$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/]trail-core)/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](graph-core|vscode-common))/,
         use: [{
           loader: 'ts-loader',
           options: {
@@ -47,23 +47,22 @@ const extensionConfig = {
 const webviewConfig = {
   target: 'web',
   mode: 'none',
-  entry: './src/webview/index.tsx',
+  entry: {
+    webview: './src/webview/index.tsx',
+    layoutWorker: '../cooccurrence-viewer/src/worker/layoutWorker.ts',
+  },
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'webview.js',
+    filename: '[name].js',
   },
   resolve: {
     extensions: ['.tsx', '.ts', '.js', '.json'],
-    alias: {
-      'next-intl': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
-      'next-intl/server': path.resolve(__dirname, 'src/webview/shims/next-intl.ts'),
-    },
   },
   module: {
     rules: [
       {
         test: /\.tsx?$/,
-        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](graph-core|graph-viewer|vscode-common))/,
+        exclude: /node_modules[\\/](?!@anytime-markdown[\\/](graph-core|cooccurrence-viewer|vscode-common))/,
         use: [
           {
             loader: 'ts-loader',
@@ -80,9 +79,6 @@ const webviewConfig = {
   plugins: [
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('production'),
-    }),
-    new webpack.optimize.LimitChunkCountPlugin({
-      maxChunks: 1,
     }),
   ],
   devtool: 'nosources-source-map',
