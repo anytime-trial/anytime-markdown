@@ -20,6 +20,7 @@ import { startLayoutJob, type LayoutJob } from './layout/runLayout';
 import { buildRenderGraph } from './render/buildRenderGraph';
 import { graphBounds } from './render/bounds';
 import { drawGraph } from './render/drawGraph';
+import { createCooccurrenceT, type CooccurrenceT } from './i18n/createCooccurrenceT';
 import { readCooccurrenceTheme } from './theme/readTheme';
 import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
@@ -93,6 +94,7 @@ export function mountCooccurrenceViewer(
   let options = initialOptions;
   let file = options.file;
   let themeMode = options.themeMode;
+  let t: CooccurrenceT = createCooccurrenceT('Cooccurrence', options.locale);
   let status: LayoutStatus = 'idle';
   let cacheDecision: CacheDecision = 'miss-absent';
   let layoutRunCount = 0;
@@ -125,7 +127,7 @@ export function mountCooccurrenceViewer(
   canvas.className = 'cooc-viewer__canvas';
   canvas.tabIndex = 0;
   canvas.setAttribute('role', 'img');
-  canvas.setAttribute('aria-label', file.spec.title ? `Cooccurrence network: ${file.spec.title}` : 'Cooccurrence network');
+  canvas.setAttribute('aria-label', canvasLabel());
   stage.appendChild(canvas);
 
   const panelRoot = document.createElement('aside');
@@ -151,10 +153,31 @@ export function mountCooccurrenceViewer(
   let filterPanel: FilterPanelHandle | null = null;
   let wordListPanel: WordListPanelHandle | null = null;
 
+  function canvasLabel(): string {
+    return file.spec.title ? t('canvas.labelWithTitle', { title: file.spec.title }) : t('canvas.label');
+  }
+
+  function layoutStatusLabel(): string {
+    switch (status) {
+      case 'idle':
+        return t('layoutStatus.idle');
+      case 'running':
+        return t('layoutStatus.running');
+      case 'done':
+        return t('layoutStatus.done');
+      case 'aborted':
+        return t('layoutStatus.aborted');
+    }
+  }
+
+  function syncCanvasLabel(): void {
+    canvas.setAttribute('aria-label', canvasLabel());
+  }
+
   function updatePanels(): void {
     if (!showPanels) return;
-    const filterState = { file, filter: options.filter, counts: filterCounts };
-    const wordsState = { file, visibleNodeIndexes, selectedNodeIndex };
+    const filterState = { file, filter: options.filter, counts: filterCounts, t };
+    const wordsState = { file, visibleNodeIndexes, selectedNodeIndex, t };
     filterPanel?.update(filterState);
     wordListPanel?.update(wordsState);
   }
@@ -166,7 +189,7 @@ export function mountCooccurrenceViewer(
     selectedNodeIndex = null;
     hoveredNode = null;
     fitted = false;
-    canvas.setAttribute('aria-label', file.spec.title ? `Cooccurrence network: ${file.spec.title}` : 'Cooccurrence network');
+    syncCanvasLabel();
     if (notifyHost) options.onFileChange?.(file);
     beginLayoutIfNeeded();
   }
@@ -177,6 +200,7 @@ export function mountCooccurrenceViewer(
       file,
       filter: options.filter,
       counts: filterCounts,
+      t,
       onFilterChange(nextFilter) {
         options = { ...options, filter: nextFilter };
         fitted = false;
@@ -188,6 +212,7 @@ export function mountCooccurrenceViewer(
       file,
       visibleNodeIndexes,
       selectedNodeIndex,
+      t,
       onSelectNode(nodeIndex) {
         selectedNodeIndex = nodeIndex;
         updatePanels();
@@ -210,7 +235,13 @@ export function mountCooccurrenceViewer(
     filterCounts = filtered.counts;
     visibleNodeIndexes = filtered.nodeIndexes;
     graph = buildRenderGraph(file, filtered.nodeIndexes, filtered.linkIndexes, positions, root, themeMode);
-    statusEl.textContent = `${filtered.counts.visibleNodeCount}/${filtered.counts.totalNodeCount} words, ${filtered.counts.visibleLinkCount}/${filtered.counts.totalLinkCount} cooccurrences, layout: ${status}`;
+    statusEl.textContent = t('status.summary', {
+      visibleWords: filtered.counts.visibleNodeCount,
+      totalWords: filtered.counts.totalNodeCount,
+      visibleCooccurrences: filtered.counts.visibleLinkCount,
+      totalCooccurrences: filtered.counts.totalLinkCount,
+      layoutStatus: layoutStatusLabel(),
+    });
     if (!fitted) {
       viewport = fitBounds(graphBounds(graph), updateCanvasSize(canvas));
       fitted = true;
@@ -239,7 +270,7 @@ export function mountCooccurrenceViewer(
     const fit = document.createElement('button');
     fit.className = 'cooc-viewer__button';
     fit.type = 'button';
-    fit.textContent = 'Fit';
+    fit.textContent = t('toolbar.fit');
     fit.addEventListener('click', () => {
       viewport = fitBounds(graphBounds(graph), updateCanvasSize(canvas));
     });
@@ -248,7 +279,7 @@ export function mountCooccurrenceViewer(
     const panels = document.createElement('button');
     panels.className = 'cooc-viewer__button';
     panels.type = 'button';
-    panels.textContent = showPanels ? 'Hide panels' : 'Show panels';
+    panels.textContent = showPanels ? t('toolbar.hidePanels') : t('toolbar.showPanels');
     panels.addEventListener('click', () => {
       showPanels = !showPanels;
       syncPanelVisibility();
@@ -260,7 +291,7 @@ export function mountCooccurrenceViewer(
       const abort = document.createElement('button');
       abort.className = 'cooc-viewer__button';
       abort.type = 'button';
-      abort.textContent = 'Abort';
+      abort.textContent = t('toolbar.abort');
       abort.addEventListener('click', () => {
         currentJob?.abort();
         currentJob = null;
@@ -274,7 +305,7 @@ export function mountCooccurrenceViewer(
       const save = document.createElement('button');
       save.className = 'cooc-viewer__button';
       save.type = 'button';
-      save.textContent = 'Save';
+      save.textContent = t('toolbar.save');
       save.addEventListener('click', saveCompletedLayout);
       toolbar.appendChild(save);
     }
@@ -282,7 +313,7 @@ export function mountCooccurrenceViewer(
       const png = document.createElement('button');
       png.className = 'cooc-viewer__button';
       png.type = 'button';
-      png.textContent = 'PNG';
+      png.textContent = t('toolbar.exportPng');
       png.addEventListener('click', () => {
         canvas.toBlob((blob) => {
           if (blob) options.onExportPng?.(blob);
@@ -418,6 +449,11 @@ export function mountCooccurrenceViewer(
       if (partial.themeMode !== undefined) {
         themeMode = partial.themeMode;
         applyCooccurrenceThemeVars(root, themeMode);
+      }
+      if (partial.locale !== undefined) {
+        options = { ...options, locale: partial.locale };
+        t = createCooccurrenceT('Cooccurrence', partial.locale);
+        syncCanvasLabel();
       }
       if (partial.capabilities !== undefined) options = { ...options, capabilities: partial.capabilities };
       if (partial.showPanels !== undefined) {

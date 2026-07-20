@@ -56,7 +56,11 @@ export function computeLayoutSync(file: CooccurrenceFile, specHash: string): Lay
   return { positions, specHash, algorithmVersion: BARNES_HUT_LAYOUT_ALGORITHM_VERSION };
 }
 
-export function startLayoutJob(file: CooccurrenceFile, specHash: string, createWorker?: () => Worker): LayoutJob {
+export function startLayoutJob(
+  file: CooccurrenceFile,
+  specHash: string,
+  createWorker?: () => Worker | null | undefined,
+): LayoutJob {
   if (!createWorker) {
     return {
       worker: null,
@@ -65,7 +69,21 @@ export function startLayoutJob(file: CooccurrenceFile, specHash: string, createW
     };
   }
 
-  const worker = createWorker();
+  let worker: Worker | null | undefined;
+  try {
+    worker = createWorker();
+  } catch (error) {
+    // 同期計算へ縮退するが、縮退した事実と理由は残す（無言で遅くなると原因を追えない）。
+    console.warn('[cooccurrence-viewer] layout worker creation failed; falling back to synchronous layout.', error);
+    worker = null;
+  }
+  if (!worker) {
+    return {
+      worker: null,
+      promise: Promise.resolve().then(() => computeLayoutSync(file, specHash)),
+      abort: () => undefined,
+    };
+  }
   let settled = false;
   const promise = new Promise<LayoutResult>((resolve, reject) => {
     worker.onmessage = (event: MessageEvent<unknown>) => {

@@ -12,7 +12,8 @@ export interface CooccurrenceViewerCapabilities {
 export interface CooccurrenceViewerOptions {
   file: CooccurrenceFile;
   themeMode: ThemeMode;
-  createLayoutWorker?: () => Worker;
+  locale?: string;
+  createLayoutWorker?: () => Worker | null | undefined;
   onRequestSave?: (file: CooccurrenceFile) => void;
   onFileChange?: (file: CooccurrenceFile) => void;
   onExportPng?: (blob: Blob) => void;
@@ -22,7 +23,7 @@ export interface CooccurrenceViewerOptions {
 }
 
 export type CooccurrenceViewerUpdate = Partial<
-  Pick<CooccurrenceViewerOptions, 'file' | 'themeMode' | 'filter' | 'capabilities' | 'showPanels'>
+  Pick<CooccurrenceViewerOptions, 'file' | 'themeMode' | 'locale' | 'filter' | 'capabilities' | 'showPanels'>
 >;
 
 export interface CooccurrenceViewerHandle {

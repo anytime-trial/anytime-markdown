@@ -7,12 +7,14 @@ import {
   type CooccurrenceEditResult,
   type CooccurrenceFile,
 } from '@anytime-markdown/graph-core';
+import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { computeVisibleWindow } from './virtualList';
 
 export interface WordListPanelState {
   file: CooccurrenceFile;
   visibleNodeIndexes: ReadonlySet<number>;
   selectedNodeIndex: number | null;
+  t: CooccurrenceT;
 }
 
 export interface WordListPanelOptions extends WordListPanelState {
@@ -71,6 +73,7 @@ function resultMessage(result: CooccurrenceEditResult): string {
 export function createWordListPanel(options: WordListPanelOptions): WordListPanelHandle {
   ensureStyles();
   let state: WordListPanelState = options;
+  let t = state.t;
   let query = '';
 
   const element = document.createElement('section');
@@ -79,8 +82,8 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   const search = document.createElement('input');
   search.className = 'cooc-words__search';
   search.type = 'search';
-  search.placeholder = 'Search words';
-  search.setAttribute('aria-label', 'Search words');
+  search.placeholder = t('words.search');
+  search.setAttribute('aria-label', t('words.search'));
 
   const viewport = document.createElement('div');
   viewport.className = 'cooc-words__viewport';
@@ -90,17 +93,17 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   items.className = 'cooc-words__items';
   // role="option" の行は listbox の子である必要がある（行側だけでは a11y ツリーが成立しない）
   items.setAttribute('role', 'listbox');
-  items.setAttribute('aria-label', 'Words');
+  items.setAttribute('aria-label', t('words.listLabel'));
   spacer.appendChild(items);
   viewport.appendChild(spacer);
 
   const edit = document.createElement('div');
   edit.className = 'cooc-words__edit';
   const labelInput = document.createElement('input');
-  labelInput.placeholder = 'Word';
+  labelInput.placeholder = t('words.word');
   const frequencyInput = document.createElement('input');
   frequencyInput.type = 'number';
-  frequencyInput.placeholder = 'Freq';
+  frequencyInput.placeholder = t('words.freq');
   const clusterSelect = document.createElement('select');
   edit.append(labelInput, frequencyInput, clusterSelect);
 
@@ -109,23 +112,23 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   const addButton = document.createElement('button');
   addButton.className = 'cooc-words__button';
   addButton.type = 'button';
-  addButton.textContent = 'Add';
+  addButton.textContent = t('words.add');
   const renameButton = document.createElement('button');
   renameButton.className = 'cooc-words__button';
   renameButton.type = 'button';
-  renameButton.textContent = 'Rename';
+  renameButton.textContent = t('words.rename');
   const frequencyButton = document.createElement('button');
   frequencyButton.className = 'cooc-words__button';
   frequencyButton.type = 'button';
-  frequencyButton.textContent = 'Set freq';
+  frequencyButton.textContent = t('words.setFreq');
   const clusterButton = document.createElement('button');
   clusterButton.className = 'cooc-words__button';
   clusterButton.type = 'button';
-  clusterButton.textContent = 'Set cluster';
+  clusterButton.textContent = t('words.setCluster');
   const deleteButton = document.createElement('button');
   deleteButton.className = 'cooc-words__button';
   deleteButton.type = 'button';
-  deleteButton.textContent = 'Delete';
+  deleteButton.textContent = t('words.delete');
   buttons.append(addButton, renameButton, frequencyButton, clusterButton, deleteButton);
 
   const error = document.createElement('div');
@@ -148,7 +151,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     clusterSelect.replaceChildren();
     const none = document.createElement('option');
     none.value = '';
-    none.textContent = 'No cluster';
+    none.textContent = t('words.noCluster');
     clusterSelect.appendChild(none);
     state.file.spec.clusters?.forEach((cluster, index) => {
       const option = document.createElement('option');
@@ -177,7 +180,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       row.setAttribute('aria-selected', String(state.selectedNodeIndex === nodeIndex));
       const hiddenByFilter = !state.visibleNodeIndexes.has(nodeIndex);
       row.dataset.hiddenByFilter = String(hiddenByFilter);
-      if (hiddenByFilter) row.title = 'Hidden in the diagram by the current filter';
+      if (hiddenByFilter) row.title = t('words.hiddenByFilter');
       const label = document.createElement('span');
       label.className = 'cooc-words__label';
       label.textContent = node.label;
@@ -204,6 +207,16 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   }
 
   function render(): void {
+    search.placeholder = t('words.search');
+    search.setAttribute('aria-label', t('words.search'));
+    items.setAttribute('aria-label', t('words.listLabel'));
+    labelInput.placeholder = t('words.word');
+    frequencyInput.placeholder = t('words.freq');
+    addButton.textContent = t('words.add');
+    renameButton.textContent = t('words.rename');
+    frequencyButton.textContent = t('words.setFreq');
+    clusterButton.textContent = t('words.setCluster');
+    deleteButton.textContent = t('words.delete');
     renderClusterOptions();
     syncSelectedInputs();
     renderRows();
@@ -249,6 +262,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     element,
     update(nextState: WordListPanelState): void {
       state = nextState;
+      t = state.t;
       render();
     },
     destroy(): void {

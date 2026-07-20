@@ -2,8 +2,11 @@
  * @jest-environment jsdom
  */
 import type { CooccurrenceFile } from '@anytime-markdown/graph-core';
+import { createCooccurrenceT } from '../i18n/createCooccurrenceT';
 import { createFilterPanel } from '../ui/FilterPanel';
 import { createWordListPanel } from '../ui/WordListPanel';
+
+const t = createCooccurrenceT('Cooccurrence', 'en');
 
 function file(count = 3): CooccurrenceFile {
   return {
@@ -27,6 +30,7 @@ describe('FilterPanel', () => {
     const panel = createFilterPanel({
       file: file(),
       counts: { visibleNodeCount: 2, totalNodeCount: 3, visibleLinkCount: 1, totalLinkCount: 4 },
+      t,
       onFilterChange: jest.fn(),
     });
     document.body.appendChild(panel.element);
@@ -39,6 +43,7 @@ describe('FilterPanel', () => {
     const panel = createFilterPanel({
       file: file(),
       counts: { visibleNodeCount: 3, totalNodeCount: 3, visibleLinkCount: 1, totalLinkCount: 1 },
+      t,
       onFilterChange: jest.fn(),
     });
     document.body.appendChild(panel.element);
@@ -48,6 +53,7 @@ describe('FilterPanel', () => {
     panel.update({
       file: file(),
       counts: { visibleNodeCount: 1, totalNodeCount: 3, visibleLinkCount: 0, totalLinkCount: 1 },
+      t,
     });
     expect(document.activeElement).toBe(input);
     expect(input.value).toBe('123');
@@ -62,6 +68,7 @@ describe('WordListPanel', () => {
       file: file(),
       visibleNodeIndexes: new Set([0, 1, 2]),
       selectedNodeIndex: null,
+      t,
       onSelectNode: jest.fn(),
       onFileChange,
     });
@@ -81,6 +88,7 @@ describe('WordListPanel', () => {
       file: file(1000),
       visibleNodeIndexes: new Set(Array.from({ length: 1000 }, (_, index) => index)),
       selectedNodeIndex: null,
+      t,
       onSelectNode: jest.fn(),
       onFileChange: jest.fn(),
     });
@@ -95,6 +103,7 @@ describe('WordListPanel', () => {
       // 図では語 0 だけが表示されている状態
       visibleNodeIndexes: new Set([0]),
       selectedNodeIndex: null,
+      t,
       onSelectNode: jest.fn(),
       onFileChange: jest.fn(),
     });
@@ -114,6 +123,7 @@ describe('WordListPanel', () => {
       file: file(),
       visibleNodeIndexes: new Set([0, 1, 2]),
       selectedNodeIndex: 0,
+      t,
       onSelectNode: jest.fn(),
       onFileChange,
     });

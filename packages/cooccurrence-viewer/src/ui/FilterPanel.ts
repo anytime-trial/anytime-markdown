@@ -1,10 +1,12 @@
 import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
+import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { createFilterOptions, filterOptionsToInput, parseMinFrequency, parseMinStrength, parseTopLinkCount, type FilterModelInput } from './filterModel';
 
 export interface FilterPanelState {
   file: CooccurrenceFile;
   filter?: CooccurrenceFilterOptions;
   counts: CooccurrenceFilterCounts;
+  t: CooccurrenceT;
 }
 
 export interface FilterPanelOptions extends FilterPanelState {
@@ -51,17 +53,18 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
   ensureStyles();
   let state: FilterPanelState = options;
   let inputState: FilterModelInput = filterOptionsToInput(state.file, state.filter);
+  let t = state.t;
 
   const element = document.createElement('section');
   element.className = 'cooc-filter';
 
   const title = document.createElement('div');
   title.className = 'cooc-filter__title';
-  title.textContent = 'Filters';
+  title.textContent = t('filter.title');
 
-  const minFrequency = inputRow('Minimum frequency', inputState.minFrequencyText);
-  const minStrength = inputRow('Minimum cooccurrence strength', inputState.minStrengthText);
-  const topLinks = inputRow('Top cooccurrences', inputState.topLinkCountText);
+  const minFrequency = inputRow(t('filter.minFrequency'), inputState.minFrequencyText);
+  const minStrength = inputRow(t('filter.minStrength'), inputState.minStrengthText);
+  const topLinks = inputRow(t('filter.topLinks'), inputState.topLinkCountText);
   const clusters = document.createElement('div');
   clusters.className = 'cooc-filter__clusters';
   const counts = document.createElement('div');
@@ -100,7 +103,7 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     if (clusterSpecs.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'cooc-filter__check';
-      empty.textContent = 'No clusters';
+      empty.textContent = t('filter.noClusters');
       clusters.appendChild(empty);
       return;
     }
@@ -130,9 +133,15 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
   function renderCounts(): void {
     counts.replaceChildren();
     const nodes = document.createElement('div');
-    nodes.textContent = `${state.counts.visibleNodeCount} / ${state.counts.totalNodeCount} words`;
+    nodes.textContent = t('filter.wordsCount', {
+      visible: state.counts.visibleNodeCount,
+      total: state.counts.totalNodeCount,
+    });
     const links = document.createElement('div');
-    links.textContent = `${state.counts.visibleLinkCount} / ${state.counts.totalLinkCount} cooccurrences`;
+    links.textContent = t('filter.cooccurrencesCount', {
+      visible: state.counts.visibleLinkCount,
+      total: state.counts.totalLinkCount,
+    });
     counts.append(nodes, links);
   }
 
@@ -143,6 +152,10 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
   }
 
   function render(): void {
+    title.textContent = t('filter.title');
+    minFrequency.row.querySelector('span')!.textContent = t('filter.minFrequency');
+    minStrength.row.querySelector('span')!.textContent = t('filter.minStrength');
+    topLinks.row.querySelector('span')!.textContent = t('filter.topLinks');
     syncInputs();
     renderClusters();
     renderCounts();
@@ -155,6 +168,7 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     update(nextState: FilterPanelState): void {
       const active = document.activeElement;
       state = nextState;
+      t = state.t;
       const nextInputState = filterOptionsToInput(state.file, state.filter);
       inputState = {
         minFrequencyText: active === minFrequency.input ? minFrequency.input.value : nextInputState.minFrequencyText,

@@ -81,4 +81,19 @@ describe('mountCooccurrenceViewer panel integration', () => {
     expect(handle.getLayoutRunCount()).toBe(1);
     handle.destroy();
   });
+
+  it('updates visible panel text when locale changes after mount', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const handle = mountCooccurrenceViewer(container, { file: file(true), themeMode: 'light', locale: 'en' });
+    await flush();
+    expect(container.textContent).toContain('Filters');
+    const search = container.querySelector('input[type="search"]') as HTMLInputElement;
+    expect(search.placeholder).toBe('Search words');
+    handle.update({ locale: 'ja' });
+    expect(container.textContent).toContain('絞り込み');
+    expect(search.placeholder).toBe('語を検索');
+    expect(container.textContent).not.toContain('Filters');
+    handle.destroy();
+  });
 });
