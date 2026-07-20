@@ -1,7 +1,7 @@
 {
   "displayName": "Anytime Graph",
   "description": "Co-occurrence network editor for VS Code",
-  "viewsContainers.anytimeGraph.title": "Co-occurrence Network",
+  "viewsContainers.anytimeGraph.title": "Anytime Graph",
   "view.networks": "Co-occurrence Networks",
   "viewsWelcome.networks": "No co-occurrence networks (.cooc.json) in this workspace.\n[New Network](command:anytime-graph.newCooccurrence)",
   "customEditor.cooccurrence.displayName": "Co-occurrence Network",

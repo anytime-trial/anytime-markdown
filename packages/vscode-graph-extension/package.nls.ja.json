@@ -1,7 +1,7 @@
 {
   "displayName": "Anytime Graph",
   "description": "VS Code 用の共起ネットワークエディタ",
-  "viewsContainers.anytimeGraph.title": "共起ネットワーク",
+  "viewsContainers.anytimeGraph.title": "Anytime Graph",
   "view.networks": "共起ネットワーク",
   "viewsWelcome.networks": "このワークスペースに共起ネットワーク（.cooc.json）がありません。\n[新規作成](command:anytime-graph.newCooccurrence)",
   "customEditor.cooccurrence.displayName": "共起ネットワーク",
