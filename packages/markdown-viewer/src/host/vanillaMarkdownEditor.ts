@@ -264,6 +264,11 @@ export interface MountVanillaMarkdownEditorOptions {
   initialFontSize?: number;
   /** 初期表示をソースモードにする。 */
   defaultSourceMode?: boolean;
+  /**
+   * 起動時モードの明示指定（`defaultSourceMode`・localStorage 永続値より優先）。
+   * レビューリンク等の一時起動用のため、初期適用は localStorage へ永続化しない。
+   */
+  initialMode?: VanillaEditorMode;
   /** アウトラインパネルの初期表示。 */
   defaultOutlineOpen?: boolean;
   /** ノート網パネルの初期表示（ピン留め時に別ファイルでも開いた状態にする等）。 */
@@ -1362,6 +1367,7 @@ export function mountVanillaMarkdownEditor(
           layout.liveRegion.textContent = message;
         },
         defaultSourceMode: current.defaultSourceMode,
+        initialMode: current.initialMode,
         persistMode: current.persistModeState,
         // 比較モード中は表示を InlineMergeView が一元管理する（standalone source UI を抑止）。
         isExternallyManaged: () => modeState.inlineMergeOpen === true,
