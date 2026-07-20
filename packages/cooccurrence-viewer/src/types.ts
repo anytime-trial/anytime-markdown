@@ -1,4 +1,4 @@
-import type { CooccurrenceFile, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
+import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
 
 export type ThemeMode = 'dark' | 'light';
 export type LayoutStatus = 'idle' | 'running' | 'done' | 'aborted';
@@ -14,13 +14,15 @@ export interface CooccurrenceViewerOptions {
   themeMode: ThemeMode;
   createLayoutWorker?: () => Worker;
   onRequestSave?: (file: CooccurrenceFile) => void;
+  onFileChange?: (file: CooccurrenceFile) => void;
   onExportPng?: (blob: Blob) => void;
   capabilities?: CooccurrenceViewerCapabilities;
   filter?: CooccurrenceFilterOptions;
+  showPanels?: boolean;
 }
 
 export type CooccurrenceViewerUpdate = Partial<
-  Pick<CooccurrenceViewerOptions, 'file' | 'themeMode' | 'filter' | 'capabilities'>
+  Pick<CooccurrenceViewerOptions, 'file' | 'themeMode' | 'filter' | 'capabilities' | 'showPanels'>
 >;
 
 export interface CooccurrenceViewerHandle {
@@ -29,6 +31,7 @@ export interface CooccurrenceViewerHandle {
   getLayoutStatus(): LayoutStatus;
   getCacheDecision(): CacheDecision;
   getLayoutRunCount(): number;
+  getFilterCounts(): CooccurrenceFilterCounts;
 }
 
 export interface ViewportState {

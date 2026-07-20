@@ -3,6 +3,7 @@ import {
   computeSpecHash,
   filterCooccurrenceFile,
   type CooccurrenceFile,
+  type CooccurrenceFilterCounts,
 } from '@anytime-markdown/graph-core';
 import type {
   CacheDecision,
@@ -21,6 +22,8 @@ import { graphBounds } from './render/bounds';
 import { drawGraph } from './render/drawGraph';
 import { readCooccurrenceTheme } from './theme/readTheme';
 import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
+import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
+import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
 import { fitBounds, pan, zoomAt } from './viewport/viewport';
 import { hitTestNode } from './viewport/hitTest';
 
@@ -32,8 +35,12 @@ function ensureStyles(): void {
   style.id = STYLE_ID;
   style.textContent = `
 .cooc-viewer{position:relative;width:100%;height:100%;min-height:320px;background:var(--cooc-bg);color:var(--cooc-text);overflow:hidden;font-family:system-ui,sans-serif}
+.cooc-viewer__main{display:flex;width:100%;height:100%;min-height:0}
+.cooc-viewer__stage{position:relative;min-width:0;min-height:0;flex:1}
 .cooc-viewer__canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
 .cooc-viewer__canvas:active{cursor:grabbing}
+.cooc-viewer__panels{width:300px;min-width:240px;max-width:40%;height:100%;min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--cooc-divider);background:var(--cooc-bg)}
+.cooc-viewer__panels[hidden]{display:none}
 .cooc-viewer__toolbar{position:absolute;inset:12px 12px auto auto;display:flex;gap:8px;align-items:center}
 .cooc-viewer__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 10px;font:12px system-ui,sans-serif}
 .cooc-viewer__button:hover{background:var(--cooc-action-hover)}
@@ -94,6 +101,7 @@ export function mountCooccurrenceViewer(
   let viewport: ViewportState = { scale: 1, offsetX: 0, offsetY: 0 };
   let hoveredNode: RenderNode | null = null;
   let selectedNodeIndex: number | null = null;
+  let showPanels = options.showPanels ?? true;
   let currentJob: LayoutJob | null = null;
   let destroyed = false;
   let rafId = 0;
@@ -107,12 +115,23 @@ export function mountCooccurrenceViewer(
   root.className = 'cooc-viewer';
   applyCooccurrenceThemeVars(root, themeMode);
 
+  const main = document.createElement('div');
+  main.className = 'cooc-viewer__main';
+  root.appendChild(main);
+  const stage = document.createElement('div');
+  stage.className = 'cooc-viewer__stage';
+  main.appendChild(stage);
   const canvas = document.createElement('canvas');
   canvas.className = 'cooc-viewer__canvas';
   canvas.tabIndex = 0;
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', file.spec.title ? `Cooccurrence network: ${file.spec.title}` : 'Cooccurrence network');
-  root.appendChild(canvas);
+  stage.appendChild(canvas);
+
+  const panelRoot = document.createElement('aside');
+  panelRoot.className = 'cooc-viewer__panels';
+  panelRoot.hidden = !showPanels;
+  main.appendChild(panelRoot);
 
   const toolbar = document.createElement('div');
   toolbar.className = 'cooc-viewer__toolbar';
@@ -122,8 +141,74 @@ export function mountCooccurrenceViewer(
   root.appendChild(statusEl);
   container.appendChild(root);
 
+  let filterCounts: CooccurrenceFilterCounts = {
+    visibleNodeCount: 0,
+    visibleLinkCount: 0,
+    totalNodeCount: file.spec.nodes.length,
+    totalLinkCount: file.spec.links.length,
+  };
+  let visibleNodeIndexes: ReadonlySet<number> = new Set();
+  let filterPanel: FilterPanelHandle | null = null;
+  let wordListPanel: WordListPanelHandle | null = null;
+
+  function updatePanels(): void {
+    if (!showPanels) return;
+    const filterState = { file, filter: options.filter, counts: filterCounts };
+    const wordsState = { file, visibleNodeIndexes, selectedNodeIndex };
+    filterPanel?.update(filterState);
+    wordListPanel?.update(wordsState);
+  }
+
+  function applyFileChange(nextFile: CooccurrenceFile, notifyHost: boolean): void {
+    file = nextFile;
+    options = { ...options, file };
+    positions = file.layout?.positions ?? fallbackPositions(file);
+    selectedNodeIndex = null;
+    hoveredNode = null;
+    fitted = false;
+    canvas.setAttribute('aria-label', file.spec.title ? `Cooccurrence network: ${file.spec.title}` : 'Cooccurrence network');
+    if (notifyHost) options.onFileChange?.(file);
+    beginLayoutIfNeeded();
+  }
+
+  function ensurePanels(): void {
+    if (filterPanel && wordListPanel) return;
+    filterPanel = createFilterPanel({
+      file,
+      filter: options.filter,
+      counts: filterCounts,
+      onFilterChange(nextFilter) {
+        options = { ...options, filter: nextFilter };
+        fitted = false;
+        rebuildGraph();
+        updatePanels();
+      },
+    });
+    wordListPanel = createWordListPanel({
+      file,
+      visibleNodeIndexes,
+      selectedNodeIndex,
+      onSelectNode(nodeIndex) {
+        selectedNodeIndex = nodeIndex;
+        updatePanels();
+      },
+      onFileChange: (nextFile) => applyFileChange(nextFile, true),
+    });
+    panelRoot.append(filterPanel.element, wordListPanel.element);
+  }
+
+  function syncPanelVisibility(): void {
+    panelRoot.hidden = !showPanels;
+    if (showPanels) {
+      ensurePanels();
+      updatePanels();
+    }
+  }
+
   function rebuildGraph(): void {
     const filtered = filterCooccurrenceFile(file, options.filter);
+    filterCounts = filtered.counts;
+    visibleNodeIndexes = filtered.nodeIndexes;
     graph = buildRenderGraph(file, filtered.nodeIndexes, filtered.linkIndexes, positions, root, themeMode);
     statusEl.textContent = `${filtered.counts.visibleNodeCount}/${filtered.counts.totalNodeCount} words, ${filtered.counts.visibleLinkCount}/${filtered.counts.totalLinkCount} cooccurrences, layout: ${status}`;
     if (!fitted) {
@@ -159,6 +244,17 @@ export function mountCooccurrenceViewer(
       viewport = fitBounds(graphBounds(graph), updateCanvasSize(canvas));
     });
     toolbar.appendChild(fit);
+
+    const panels = document.createElement('button');
+    panels.className = 'cooc-viewer__button';
+    panels.type = 'button';
+    panels.textContent = showPanels ? 'Hide panels' : 'Show panels';
+    panels.addEventListener('click', () => {
+      showPanels = !showPanels;
+      syncPanelVisibility();
+      rebuildToolbar();
+    });
+    toolbar.appendChild(panels);
 
     if (status === 'running') {
       const abort = document.createElement('button');
@@ -290,6 +386,7 @@ export function mountCooccurrenceViewer(
     if (dragStart && Math.hypot(point.x - dragStart.x, point.y - dragStart.y) < 4) {
       const hit = hitTestNode(graph, point.x, point.y, viewport);
       selectedNodeIndex = hit ? (selectedNodeIndex === hit.index ? null : hit.index) : null;
+      updatePanels();
     }
     dragStart = null;
   });
@@ -303,6 +400,7 @@ export function mountCooccurrenceViewer(
     if (event.key === '+' || event.key === '=') viewport = zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1.2);
     if (event.key === '-') viewport = zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1 / 1.2);
     if (event.key === 'Escape') selectedNodeIndex = null;
+    updatePanels();
   });
 
   resizeObserver = new ResizeObserver(() => {
@@ -311,6 +409,7 @@ export function mountCooccurrenceViewer(
   resizeObserver.observe(root);
 
   rebuildGraph();
+  syncPanelVisibility();
   beginLayoutIfNeeded();
   renderLoop();
 
@@ -321,23 +420,23 @@ export function mountCooccurrenceViewer(
         applyCooccurrenceThemeVars(root, themeMode);
       }
       if (partial.capabilities !== undefined) options = { ...options, capabilities: partial.capabilities };
+      if (partial.showPanels !== undefined) {
+        showPanels = partial.showPanels;
+        options = { ...options, showPanels };
+        syncPanelVisibility();
+      }
       if (partial.filter !== undefined) {
         options = { ...options, filter: partial.filter };
         fitted = false;
         rebuildGraph();
+        updatePanels();
       }
       if (partial.file !== undefined) {
-        file = partial.file;
-        options = { ...options, file };
-        positions = file.layout?.positions ?? fallbackPositions(file);
-        selectedNodeIndex = null;
-        hoveredNode = null;
-        fitted = false;
-        canvas.setAttribute('aria-label', file.spec.title ? `Cooccurrence network: ${file.spec.title}` : 'Cooccurrence network');
-        beginLayoutIfNeeded();
+        applyFileChange(partial.file, false);
       } else {
         rebuildGraph();
       }
+      updatePanels();
       rebuildToolbar();
     },
     destroy(): void {
@@ -346,10 +445,13 @@ export function mountCooccurrenceViewer(
       currentJob?.abort();
       cancelAnimationFrame(rafId);
       resizeObserver?.disconnect();
+      filterPanel?.destroy();
+      wordListPanel?.destroy();
       root.remove();
     },
     getLayoutStatus: () => status,
     getCacheDecision: () => cacheDecision,
     getLayoutRunCount: () => layoutRunCount,
+    getFilterCounts: () => filterCounts,
   };
 }
