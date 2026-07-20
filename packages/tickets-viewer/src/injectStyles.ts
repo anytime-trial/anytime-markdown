@@ -214,7 +214,7 @@ const CSS = `
   border-radius: var(--tk-radius-card);
   box-shadow: 0 8px 10px -5px rgba(0,0,0,.20), 0 16px 24px 2px rgba(0,0,0,.14), 0 6px 30px 5px rgba(0,0,0,.12);
   width: 100%;
-  max-width: 720px;
+  max-width: 900px;
   padding: 20px;
 }
 .tk-dialog-title { font-size: 1.25rem; font-weight: 700; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
