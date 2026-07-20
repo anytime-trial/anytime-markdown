@@ -68,6 +68,16 @@ describe("sanitizeMarkdown", () => {
     expect(sanitizeMarkdown("<hr>")).toBe("<hr>");
   });
 
+  test("山括弧オートリンク（CommonMark）を保持する", () => {
+    const result = sanitizeMarkdown("<https://github.com/foo/bar/blob/main/proposal/xxx.ja.md>");
+    expect(result).toContain("https://github.com/foo/bar/blob/main/proposal/xxx.ja.md");
+  });
+
+  test("リスト項目内の山括弧オートリンクを保持する", () => {
+    const result = sanitizeMarkdown("- GitHub: <https://github.com/foo/bar>");
+    expect(result).toContain("https://github.com/foo/bar");
+  });
+
   // ── Markdown 構文の保持 ──
 
   test("Markdown の < > & を保持する", () => {
