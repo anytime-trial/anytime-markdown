@@ -94,22 +94,49 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	);
 
+	/** doc 系コマンド共通の前提確認（信頼済みワークスペース + docsRoot 設定済み）。 */
+	const ensureDocPreconditions = (): boolean => {
+		if (!vscode.workspace.isTrusted) {
+			vscode.window.showWarningMessage(
+				'Anytime Markdown: ワークスペースが信頼されていないため doc index を実行できません。',
+			);
+			return false;
+		}
+		if (!docsRoot || !docWsRoot) {
+			vscode.window.showWarningMessage(
+				'Anytime Markdown: anytimeMarkdown.docsRoot が未設定です。設定後に再実行してください。',
+			);
+			return false;
+		}
+		return true;
+	};
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => {
-			if (!vscode.workspace.isTrusted) {
-				vscode.window.showWarningMessage(
-					'Anytime Markdown: ワークスペースが信頼されていないため doc index を実行できません。',
-				);
-				return;
-			}
-			if (!docsRoot || !docWsRoot) {
-				vscode.window.showWarningMessage(
-					'Anytime Markdown: anytimeMarkdown.docsRoot が未設定です。設定後に再実行してください。',
-				);
-				return;
-			}
+			if (!ensureDocPreconditions()) { return; }
 			startDocIngest();
 			void docIngestRunner?.runOnce();
+		}),
+		// フォルダ索引（index.<lang>.md）の再生成のみ。検索 DB（rebuildDocIndex）とは別物。
+		vscode.commands.registerCommand('anytime-markdown.regenerateDocIndexes', async () => {
+			if (!ensureDocPreconditions()) { return; }
+			startDocIngest();
+			const result = await docIngestRunner?.runOnce('index-only');
+			if (!result) {
+				vscode.window.showWarningMessage(
+					'Anytime Markdown: 索引再生成を開始できませんでした（実行中の可能性）。ログ（出力: Anytime Markdown）を確認してください。',
+				);
+				return;
+			}
+			if (result.docIndexesError || !result.docIndexes) {
+				vscode.window.showErrorMessage(
+					`Anytime Markdown: 索引再生成に失敗しました: ${result.docIndexesError ?? '結果不明'}`,
+				);
+				return;
+			}
+			vscode.window.showInformationMessage(
+				`Anytime Markdown: フォルダ索引を再生成しました（更新 ${result.docIndexes.written} 件 / 変更なし ${result.docIndexes.unchanged} 件）。`,
+			);
 		}),
 	);
 
