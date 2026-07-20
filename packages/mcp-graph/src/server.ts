@@ -13,6 +13,8 @@ import { exportSvg } from './tools/exportSvg';
 import { exportDrawio } from './tools/exportDrawio';
 import { importDrawio } from './tools/importDrawio';
 import { batchImport } from './tools/batchImport';
+import { writeCooccurrence } from './tools/writeCooccurrence';
+import { readCooccurrence } from './tools/readCooccurrence';
 
 export interface McpGraphOptions {
   rootDir: string;
@@ -24,6 +26,19 @@ const endpointSchema = z.object({
   nodeId: z.string().optional(),
   x: z.number(),
   y: z.number(),
+});
+const cooccurrenceTermSchema = z.object({
+  label: z.string().describe('Term label'),
+  frequency: z.number().describe('Term frequency'),
+});
+const cooccurrenceLinkSchema = z.object({
+  source: z.string().describe('Source term label'),
+  target: z.string().describe('Target term label'),
+  strength: z.number().describe('Cooccurrence strength'),
+});
+const cooccurrenceClusterSchema = z.object({
+  label: z.string().describe('Cluster label'),
+  members: z.array(z.string()).describe('Cluster member term labels'),
 });
 
 type ToolResult = { content: Array<{ type: 'text'; text: string }> };
@@ -221,6 +236,32 @@ export function createMcpServer(options: McpGraphOptions): McpServer {
     async ({ path, name, nodes, edges }) => {
       const doc = await batchImport({ path, name, nodes, edges }, rootDir);
       return { content: [{ type: 'text' as const, text: JSON.stringify(doc, null, 2) }] };
+    },
+  );
+
+  registerTool(server, 'write_cooccurrence',
+    'Write a cooccurrence network to a .cooc.json file',
+    {
+      path: z.string().describe('Relative path to the .cooc.json file'),
+      mode: z.enum(['replace', 'append']).describe('replace overwrites the file, append preserves existing terms and links'),
+      title: z.string().optional().describe('Optional network title'),
+      subject: z.string().optional().describe('Optional subject term label'),
+      terms: z.array(cooccurrenceTermSchema).describe('Terms with labels and frequencies'),
+      links: z.array(cooccurrenceLinkSchema).describe('Cooccurrences by term label'),
+      clusters: z.array(cooccurrenceClusterSchema).optional().describe('Clusters by term label'),
+    },
+    async ({ path, mode, title, subject, terms, links, clusters }) => {
+      const result = await writeCooccurrence({ path, mode, title, subject, terms, links, clusters }, rootDir);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  registerTool(server, 'read_cooccurrence',
+    'Read a cooccurrence network (.cooc.json) with term-label endpoints',
+    { path: z.string().describe('Relative path to the .cooc.json file') },
+    async ({ path }) => {
+      const result = await readCooccurrence({ path }, rootDir);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
 
