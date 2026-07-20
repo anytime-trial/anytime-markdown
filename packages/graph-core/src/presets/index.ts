@@ -26,6 +26,22 @@ export {
   parseCoocFile,
 } from './cooccurrenceFile';
 export type { CooccurrenceFile, ValidationError, ValidationErrorCode } from './cooccurrenceFile';
+export { filterCooccurrenceFile } from './cooccurrenceFilter';
+export type { CooccurrenceFilterOptions, CooccurrenceFilterCounts, CooccurrenceFilterResult } from './cooccurrenceFilter';
+export {
+  addCooccurrenceNode,
+  deleteCooccurrenceNode,
+  renameCooccurrenceNode,
+  setCooccurrenceNodeFrequency,
+  assignCooccurrenceNodeToCluster,
+  setCooccurrenceNodeCluster,
+  addCooccurrenceLink,
+  deleteCooccurrenceLink,
+  setCooccurrenceLinkStrength,
+  setCooccurrenceTitle,
+  setCooccurrenceSubject,
+} from './cooccurrenceEdit';
+export type { CooccurrenceEditResult } from './cooccurrenceEdit';
 
 export type ThinkingDiagramSpec =
   | FishboneSpec

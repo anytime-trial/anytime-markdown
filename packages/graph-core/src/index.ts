@@ -27,6 +27,18 @@ export {
   computeSpecHash,
   serializeCoocFile,
   parseCoocFile,
+  filterCooccurrenceFile,
+  addCooccurrenceNode,
+  deleteCooccurrenceNode,
+  renameCooccurrenceNode,
+  setCooccurrenceNodeFrequency,
+  assignCooccurrenceNodeToCluster,
+  setCooccurrenceNodeCluster,
+  addCooccurrenceLink,
+  deleteCooccurrenceLink,
+  setCooccurrenceLinkStrength,
+  setCooccurrenceTitle,
+  setCooccurrenceSubject,
   barnesHutLayout,
   BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
 } from './presets/index';
@@ -55,6 +67,10 @@ export type {
   CooccurrenceFile,
   ValidationError,
   ValidationErrorCode,
+  CooccurrenceFilterOptions,
+  CooccurrenceFilterCounts,
+  CooccurrenceFilterResult,
+  CooccurrenceEditResult,
 } from './presets/index';
 // React 依存の canvas ラッパー（useCanvasBase / MinimapCanvas）は
 // @anytime-markdown/graph-react-islands へ分離。graph-core 本体は React-free。
