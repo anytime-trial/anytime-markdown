@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { sha256Hex } from './sha256';
 
 export interface CooccurrenceFile {
   meta: {
@@ -318,7 +318,7 @@ export function canonicalizeSpec(spec: CooccurrenceFile['spec']): string {
 }
 
 export function computeSpecHash(spec: CooccurrenceFile['spec']): string {
-  return createHash('sha256').update(canonicalizeSpec(spec)).digest('hex');
+  return sha256Hex(canonicalizeSpec(spec));
 }
 
 function roundPosition(value: number): number {
