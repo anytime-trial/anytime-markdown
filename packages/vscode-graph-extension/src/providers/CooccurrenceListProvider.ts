@@ -15,8 +15,14 @@ export class CooccurrenceListProvider implements vscode.TreeDataProvider<CoocLis
 	private readonly changeEmitter = new vscode.EventEmitter<void>();
 	public readonly onDidChangeTreeData: vscode.Event<void> = this.changeEmitter.event;
 
-	/** 正規化済み相対パス → URI。TreeItem からファイルを開くための逆引き。 */
-	private readonly uriByRelativePath = new Map<string, vscode.Uri>();
+	/**
+	 * 正規化済み相対パス → URI。TreeItem からファイルを開くための逆引き。
+	 * getChildren はローカルに組み立ててから丸ごと差し替える。現状は構築ループが
+	 * 同期実行なので clear() + 逐次 set() でも壊れないが、それは「ループ内に await が
+	 * 無い」という将来変わり得る前提に依存する。差し替えなら前提なしで、
+	 * 「中途半端に空のマップが外から見える」状態が構造的に起きない。
+	 */
+	private uriByRelativePath = new Map<string, vscode.Uri>();
 
 	public constructor(private readonly logError: (message: string) => void) {}
 
@@ -58,7 +64,7 @@ export class CooccurrenceListProvider implements vscode.TreeDataProvider<CoocLis
 
 		const uris = await vscode.workspace.findFiles(COOC_FILE_GLOB, COOC_FILE_EXCLUDE_GLOB);
 
-		this.uriByRelativePath.clear();
+		const resolved = new Map<string, vscode.Uri>();
 		const relativePaths: string[] = [];
 		for (const uri of uris) {
 			const relativePath = vscode.workspace.asRelativePath(uri, true);
@@ -66,10 +72,11 @@ export class CooccurrenceListProvider implements vscode.TreeDataProvider<CoocLis
 
 			const key = normalizeCoocRelativePath(relativePath);
 			// 重複時は buildCoocListEntries と同じく先勝ちにする。
-			if (key && !this.uriByRelativePath.has(key)) {
-				this.uriByRelativePath.set(key, uri);
+			if (key && !resolved.has(key)) {
+				resolved.set(key, uri);
 			}
 		}
+		this.uriByRelativePath = resolved;
 
 		return buildCoocListEntries(relativePaths);
 	}
