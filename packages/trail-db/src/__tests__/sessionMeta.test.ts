@@ -1,7 +1,11 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { extractRepoNameFromJsonl, normalizeWorkspaceName } from '../sessionMeta';
+import {
+  extractRepoNameFromJsonl,
+  extractRepoNameFromProjectDirPath,
+  normalizeWorkspaceName,
+} from '../sessionMeta';
 
 function writeJsonl(lines: ReadonlyArray<object | string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sessionMeta-test-'));
@@ -158,6 +162,52 @@ describe('extractRepoNameFromJsonl — git ルート解決', () => {
     const plain = path.join(root, 'plain-dir');
     fs.mkdirSync(plain, { recursive: true });
     expect(extractRepoNameFromJsonl(writeJsonlWithCwd(plain))).toBe('plain-dir');
+  });
+});
+
+describe('extractRepoNameFromProjectDirPath', () => {
+  const fileFor = (dirName: string): string => `/home/u/.claude/projects/${dirName}/sid.jsonl`;
+  const existsIn = (paths: readonly string[]) => (p: string): boolean => paths.includes(p);
+
+  it('recovers the repository from a flattened projects dir name', () => {
+    const exists = existsIn([
+      '/anytime-markdown',
+      '/anytime-markdown/.git',
+      '/anytime-markdown/packages',
+      '/anytime-markdown/packages/web-app',
+    ]);
+    expect(
+      extractRepoNameFromProjectDirPath(fileFor('-anytime-markdown-packages-web-app'), exists),
+    ).toBe('anytime-markdown');
+  });
+
+  it('returns null when no split of the name exists on disk', () => {
+    expect(
+      extractRepoNameFromProjectDirPath(fileFor('-no-such-path'), existsIn([])),
+    ).toBeNull();
+  });
+
+  it('returns null when more than one split resolves (ambiguous)', () => {
+    const exists = existsIn([
+      '/a',
+      '/a/b-c',
+      '/a/b',
+      '/a/b/c',
+    ]);
+    expect(extractRepoNameFromProjectDirPath(fileFor('-a-b-c'), exists)).toBeNull();
+  });
+
+  it('gives up on names with too many segments to search', () => {
+    const dirName = `-${Array.from({ length: 20 }, (_, i) => `t${i}`).join('-')}`;
+    const probe = jest.fn(() => true);
+    expect(extractRepoNameFromProjectDirPath(fileFor(dirName), probe)).toBeNull();
+    expect(probe).not.toHaveBeenCalled();
+  });
+
+  it('returns null when the path is not under a projects directory', () => {
+    expect(
+      extractRepoNameFromProjectDirPath('/somewhere/else/sid.jsonl', existsIn(['/somewhere'])),
+    ).toBeNull();
   });
 });
 

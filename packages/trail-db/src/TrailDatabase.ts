@@ -191,7 +191,11 @@ import { type NewCommunity,type OldCommunity, resolveCarryOver } from './communi
 import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
 import { FileKnowledgeBaseSnapshotter } from './KnowledgeBaseSnapshotter';
 import { FileTrailStorage,ITrailStorage } from './ITrailStorage';
-import { extractRepoNameFromJsonl, normalizeWorkspaceName } from './sessionMeta';
+import {
+  extractRepoNameFromJsonl,
+  extractRepoNameFromProjectDirPath,
+  normalizeWorkspaceName,
+} from './sessionMeta';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export type { ITrailStorage } from './ITrailStorage';
@@ -4267,8 +4271,9 @@ export class TrailDatabase {
    * のような「ワークスペースでない名前」に帰属していた。本 migration は cwd から `.git` を
    * 探して親リポジトリへ畳み直す (sessionMeta.deriveRepoNameFromCwd)。
    *
-   * v1 と違い projects ディレクトリ名フォールバックは使わない。JSONL が既に無いセッションは
-   * 現在の repo_id を維持する（誤った平坦化名を再生産しないため）。
+   * JSONL が既に無いセッションは、projects ディレクトリ名（cwd の `/` を `-` へ潰した平坦化名）
+   * から実在パスを一意に復元できた場合のみ是正する。v1 のように平坦化名をそのまま repo 名へ
+   * 採用することはしない（`anytime-markdown-packages-web-app` のような偽名を作らないため）。
    */
   private backfillSessionsRepoNameFromGitRoot_v2(): void {
     const db = this.ensureDb();
@@ -4287,7 +4292,8 @@ export class TrailDatabase {
         const idStr = String(row[0]);
         const filePathStr = asText(row[1] ?? '');
         const oldRepoId = row[2] === null || row[2] === undefined ? null : Number(row[2]);
-        const derived = extractRepoNameFromJsonl(filePathStr);
+        const derived = extractRepoNameFromJsonl(filePathStr)
+          ?? extractRepoNameFromProjectDirPath(filePathStr);
         if (!derived) { missing++; continue; }
         const derivedRepoId = this.repoIdForName(derived);
         if (derivedRepoId === oldRepoId) { unchanged++; continue; }
@@ -10471,17 +10477,24 @@ export class TrailDatabase {
     // ワークスペース解決: repo_name を worktree 正規化した名前でグルーピングし、
     // 選択肢一覧と、フィルタ対象の repo_id 集合を得る。
     //
-    // 選択肢は「対象期間に活動（セッション開始 or コミット）があった repo」に限る。
+    // 選択肢は「対象期間に作業があった repo」＝ セッションが動いた repo に限る。
     // repos には解析対象やコミット先として登場しただけの行も溜まるため、テーブルを
     // そのまま出すと `mermaid` のようなワークスペースでない名前が並ぶ。
-    // フィルタ選択中も一覧は絞り込まない（選択解除・切替のため全件必要）。
+    //
+    // コミットは *コミット先* の repo ではなく *打ったセッション* の repo で数える。
+    // 別リポジトリ（docs・~/.claude 等）へのコミットは、作業していたワークスペースの
+    // 活動であってコミット先がワークスペースになるわけではないため。
+    //
+    // 絞るのは「一覧に載せる repo」だけで、選択値だけに縮めることはしない
+    // （他ワークスペースへ切り替えられなくなるため）。
     const repoRowsResult = db.exec(`SELECT repo_id, repo_name FROM repos WHERE repo_name != ''`);
     const activeRepoIdsResult = db.exec(
       `SELECT repo_id FROM sessions
         WHERE repo_id IS NOT NULL AND DATE(start_time, '${tzOffset}') >= ${cutoff}
         UNION
-       SELECT repo_id FROM session_commits
-        WHERE repo_id IS NOT NULL AND DATE(committed_at, '${tzOffset}') >= ${cutoff}`,
+       SELECT s.repo_id FROM session_commits sc
+         JOIN sessions s ON s.id = sc.session_id
+        WHERE s.repo_id IS NOT NULL AND DATE(sc.committed_at, '${tzOffset}') >= ${cutoff}`,
     );
     const activeRepoIds = new Set<number>(
       (activeRepoIdsResult[0]?.values ?? []).map((r) => Number(r[0])),

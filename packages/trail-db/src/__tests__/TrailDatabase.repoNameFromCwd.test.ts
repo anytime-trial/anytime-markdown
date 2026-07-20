@@ -143,17 +143,35 @@ describe('sessions.repo_name is derived from JSONL cwd', () => {
       expect(repoNameOf(db, 'sid-sub')).toBe('myrepo');
     });
 
-    it('keeps the current attribution when the JSONL is gone', async () => {
-      const projectsDir = path.join(tmpDir, '.claude', 'projects', '-anytime-markdown-packages-web-app');
+    it('recovers the repo from the projects dir name when the JSONL is gone', async () => {
+      // projects ディレクトリ名は cwd の `/` を `-` へ潰した平坦化名。実在パスへ一意に
+      // 復元できるなら、平坦化名ではなく本来のリポジトリ名へ是正する。
+      const repo = path.join(tmpDir, 'myrepo');
+      fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+      fs.mkdirSync(path.join(repo, 'packages', 'web-app'), { recursive: true });
+      const flattened = `-${path.join(tmpDir, 'myrepo', 'packages', 'web-app').split('/').filter((s) => s !== '').join('-')}`;
+      const projectsDir = path.join(tmpDir, '.claude', 'projects', flattened);
       fs.mkdirSync(projectsDir, { recursive: true });
       const missingFile = path.join(projectsDir, 'sid-gone.jsonl');
 
       const db = await createTestTrailDatabase();
-      insertExistingSession(db, 'sid-gone', missingFile, 'anytime-markdown-packages-web-app');
+      insertExistingSession(db, 'sid-gone', missingFile, 'flattened-bogus-name');
       runV2(db);
 
-      // v1 と違い projects ディレクトリ名フォールバックを使わないため、平坦化名を作り直さない。
-      expect(repoNameOf(db, 'sid-gone')).toBe('anytime-markdown-packages-web-app');
+      expect(repoNameOf(db, 'sid-gone')).toBe('myrepo');
+    });
+
+    it('keeps the current attribution when the path cannot be recovered', async () => {
+      const projectsDir = path.join(tmpDir, '.claude', 'projects', '-no-such-path-anywhere');
+      fs.mkdirSync(projectsDir, { recursive: true });
+      const missingFile = path.join(projectsDir, 'sid-unknown.jsonl');
+
+      const db = await createTestTrailDatabase();
+      insertExistingSession(db, 'sid-unknown', missingFile, 'no-such-path-anywhere');
+      runV2(db);
+
+      // 推測でリポジトリ名を作らない（誤った帰属を作るより未解決のまま残す）。
+      expect(repoNameOf(db, 'sid-unknown')).toBe('no-such-path-anywhere');
     });
 
     it('is idempotent (running twice yields the same result)', async () => {

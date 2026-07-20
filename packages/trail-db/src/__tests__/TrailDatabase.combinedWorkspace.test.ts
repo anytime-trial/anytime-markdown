@@ -150,17 +150,27 @@ describe('getCombinedData — workspace filter', () => {
     expect(db.getCombinedData('day', 30).workspaces).not.toContain('analyzed-only-repo');
   });
 
-  it('includes repos whose only in-range activity is commits', () => {
+  it('does not list a repo that only appears as a commit target', () => {
+    // docs リポジトリや ~/.claude へのコミットは、作業していたワークスペースの活動であって
+    // コミット先がワークスペースになるわけではない。
     insertCommit(db, 's-other', 'docs-repo', 'hash-1', t);
+    expect(db.getCombinedData('day', 30).workspaces).toEqual(['anytime-markdown', 'other-repo']);
+  });
+
+  it('lists the committing session repo when only the commit is in range', () => {
+    // 期間より前に開始したセッションが期間内にコミットしたケース。
+    insertSession(db, 's-long', 'long-running-repo', isoDaysAgo(200));
+    insertCommit(db, 's-long', 'long-running-repo', 'hash-2', t);
     expect(db.getCombinedData('day', 30).workspaces).toEqual([
       'anytime-markdown',
-      'docs-repo',
+      'long-running-repo',
       'other-repo',
     ]);
   });
 
-  it('excludes repos whose only commits are outside the selected range', () => {
-    insertCommit(db, 's-other', 'old-docs-repo', 'hash-2', isoDaysAgo(200));
+  it('excludes repos whose session and commits are all outside the selected range', () => {
+    insertSession(db, 's-old', 'old-repo', isoDaysAgo(200));
+    insertCommit(db, 's-old', 'old-repo', 'hash-3', isoDaysAgo(200));
     expect(db.getCombinedData('day', 30).workspaces).toEqual(['anytime-markdown', 'other-repo']);
   });
 

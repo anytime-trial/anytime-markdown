@@ -85,6 +85,64 @@ export function extractRepoNameFromJsonl(filePath: string): string | null {
   return null;
 }
 
+// Claude Code の projects ディレクトリ名は cwd の `/` を `-` へ潰した平坦化名
+// （`/anytime-markdown/packages/web-app` → `-anytime-markdown-packages-web-app`）。
+// `-` がセグメント区切りか名前中のハイフンかは名前だけでは決まらないため、
+// ファイルシステム上に実在するパスだけを辿って復元する。
+const MAX_PROJECT_DIR_TOKENS = 12;
+const MAX_PROJECT_DIR_PROBES = 512;
+
+/**
+ * トークン列を「実在するディレクトリ」の連なりへ分割する候補を集める。セグメント境界でのみ
+ * 存在確認するため、`/anytime` のような途中経過は探索されない。候補が 2 つ以上（＝復元が
+ * 一意でない）と分かった時点で打ち切る。
+ */
+function collectCandidatePaths(
+  tokens: readonly string[],
+  start: number,
+  prefix: string,
+  exists: (p: string) => boolean,
+  out: string[],
+  probes: { count: number },
+): void {
+  if (start >= tokens.length) {
+    out.push(prefix);
+    return;
+  }
+  let segment = '';
+  for (let end = start; end < tokens.length; end++) {
+    segment = segment === '' ? (tokens[end] ?? '') : `${segment}-${tokens[end] ?? ''}`;
+    if (probes.count >= MAX_PROJECT_DIR_PROBES) return;
+    probes.count++;
+    const candidate = `${prefix}/${segment}`;
+    if (!exists(candidate)) continue;
+    collectCandidatePaths(tokens, end + 1, candidate, exists, out, probes);
+    if (out.length > 1) return;
+  }
+}
+
+/**
+ * セッションの JSONL パスに含まれる `.claude/projects/<dir>/` の `<dir>` から元の cwd を
+ * 復元し、リポジトリ名を返す。JSONL 本体が既に消えていて cwd を読めない場合の補助。
+ *
+ * 復元が一意に定まらない（候補 0 件 or 2 件以上）場合は null を返す。推測でリポジトリ名を
+ * 作らないことを優先する（誤った帰属を作るより未解決のままにする）。
+ */
+export function extractRepoNameFromProjectDirPath(
+  filePath: string,
+  exists: (p: string) => boolean = fs.existsSync,
+): string | null {
+  const dirName = /\/projects\/([^/]+)\//.exec(filePath)?.[1]?.replace(/^-+/, '');
+  if (!dirName) return null;
+  const tokens = dirName.split('-').filter((t) => t !== '');
+  if (tokens.length === 0 || tokens.length > MAX_PROJECT_DIR_TOKENS) return null;
+
+  const candidates: string[] = [];
+  collectCandidatePaths(tokens, 0, '', exists, candidates, { count: 0 });
+  if (candidates.length !== 1) return null;
+  return deriveRepoNameFromCwd(candidates[0] ?? '', exists);
+}
+
 // 正規化の実体は trail-core（viewer と共有する単一の正）。trail-db の既存利用箇所
 // （TrailDatabase.getCombinedData・テスト）向けに再エクスポートする。
 export { normalizeWorkspaceName } from '@anytime-markdown/trail-core/domain';
