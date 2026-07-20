@@ -285,6 +285,21 @@ describe("anytimeGraphMutate", () => {
     });
   });
 
+  describe("cooccurrence（専用 viewer で編集する図種）", () => {
+    const dsl = ["type: cooccurrence", "- 納期遅延: 40", "- 人員不足: 25", "- 納期遅延 -- 人員不足: 0.8"].join("\n");
+
+    it("describeNode はアウトライン編集の対象外として null を返す", () => {
+      const spec = parseGraphDsl(dsl);
+      expect(describeNode(spec, "nodes.0")).toBeNull();
+      expect(describeNode(spec, "links.0")).toBeNull();
+    });
+
+    it("addChild は非対応として理由付きで失敗する（無言で成功させない）", () => {
+      expect(() => applyAnytimeGraphOp(dsl, { kind: "addChild", path: "nodes.0", value: "x" }))
+        .toThrow(AnytimeGraphMutateError);
+    });
+  });
+
   it("生成 DSL は常に再パース可能", () => {
     const dsl = "type: affinity\n- g0: n0, n1";
     const out = applyAnytimeGraphOp(dsl, { kind: "addChild", path: "groups.0", value: "n2" });

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@anytime-markdown/cms-core": "*",
+    "@anytime-markdown/cooccurrence-viewer": "*",
     "@anytime-markdown/database-core": "*",
     "@anytime-markdown/database-viewer": "*",
     "@anytime-markdown/graph-viewer": "*",

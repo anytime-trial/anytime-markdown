@@ -1,7 +1,8 @@
 {
-  "displayName": "Anytime Graph",
-  "description": "Graph whiteboard editor for VS Code",
-  "viewsContainers.anytimeGraph.title": "Anytime Graph",
-  "customEditor.displayName": "Graph Editor",
-  "command.newGraph": "Anytime Graph: New Graph"
+  "displayName": "Anytime Co-occurrence Network",
+  "description": "Co-occurrence network editor for VS Code",
+  "viewsContainers.anytimeGraph.title": "Co-occurrence Network",
+  "customEditor.cooccurrence.displayName": "Co-occurrence Network",
+  "customEditor.graphMigration.displayName": ".graph Migration Guide",
+  "command.newCooccurrence": "Anytime Co-occurrence: New Network"
 }

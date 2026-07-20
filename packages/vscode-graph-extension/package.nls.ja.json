@@ -1,7 +1,8 @@
 {
-  "displayName": "Anytime Graph",
-  "description": "VS Code 用のグラフホワイトボードエディタ",
-  "viewsContainers.anytimeGraph.title": "Anytime Graph",
-  "customEditor.displayName": "グラフエディタ",
-  "command.newGraph": "Anytime Graph: 新規グラフ"
+  "displayName": "Anytime 共起ネットワーク",
+  "description": "VS Code 用の共起ネットワークエディタ",
+  "viewsContainers.anytimeGraph.title": "共起ネットワーク",
+  "customEditor.cooccurrence.displayName": "共起ネットワーク",
+  "customEditor.graphMigration.displayName": ".graph 移行案内",
+  "command.newCooccurrence": "Anytime 共起ネットワーク: 新規作成"
 }

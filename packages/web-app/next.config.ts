@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
     '@anytime-markdown/markdown-core',
     '@anytime-markdown/database-core',
     '@anytime-markdown/database-viewer',
+    '@anytime-markdown/cooccurrence-viewer',
+    '@anytime-markdown/graph-core',
     '@anytime-markdown/markdown-viewer',
     '@anytime-markdown/markdown-react-islands',
     '@anytime-markdown/section-lock-core',
