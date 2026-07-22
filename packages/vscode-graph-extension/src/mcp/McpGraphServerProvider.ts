@@ -18,7 +18,14 @@ export class McpGraphServerProvider
 	public readonly onDidChangeMcpServerDefinitions = this._changeEmitter.event;
 	private readonly _foldersWatcher: vscode.Disposable;
 
-	constructor(private readonly extensionDistPath: string) {
+	/**
+	 * @param version 拡張の版数。VS Code はこの値の変化でサーバー定義の更新を判断するため、
+	 *   リテラルで二重管理せず package.json から渡す。
+	 */
+	constructor(
+		private readonly extensionDistPath: string,
+		private readonly version: string,
+	) {
 		// ワークスペースフォルダが変わったら rootDir env を更新するため再評価を促す。
 		this._foldersWatcher = vscode.workspace.onDidChangeWorkspaceFolders(() => {
 			this._changeEmitter.fire();
@@ -26,18 +33,21 @@ export class McpGraphServerProvider
 	}
 
 	provideMcpServerDefinitions(_token: vscode.CancellationToken): vscode.McpServerDefinition[] {
-		const serverScriptPath = path.join(this.extensionDistPath, 'mcp-graph-server.js');
-		const env: Record<string, string | number | null> = {};
 		const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-		if (workspacePath) {
-			env['ANYTIME_GRAPH_ROOT'] = workspacePath;
+		// ワークスペースが無いときは定義を出さない。rootDir を渡せないままサーバーを
+		// 起こすと、読み書きの基準が拡張ホストの cwd（ホームディレクトリ等になり得る）
+		// になり、利用者が意図しない場所の *.cooc.json へ手が届く。
+		// フォルダを開けば onDidChangeWorkspaceFolders で再評価される。
+		if (!workspacePath) {
+			return [];
 		}
+		const serverScriptPath = path.join(this.extensionDistPath, 'mcp-graph-server.js');
 		const definition = new vscode.McpStdioServerDefinition(
 			'mcp-graph',
 			process.execPath,
 			[serverScriptPath],
-			env,
-			'0.12.0',
+			{ ANYTIME_GRAPH_ROOT: workspacePath },
+			this.version,
 		);
 		return [definition];
 	}

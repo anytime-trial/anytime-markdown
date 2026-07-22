@@ -104,11 +104,17 @@ const mcpGraphServerConfig = {
     extensionAlias: { '.js': ['.ts', '.js'] },
     alias: {
       // worktree の node_modules symlink が main checkout を指すため、当該 worktree の
-      // graph-core を直接解決する。alias は package.json の exports を迂回するので、
-      // mcp-graph が使う subpath（`/types` `/engine` `/src/*`）を個別に張る。
+      // graph-core を直接解決する。
+      //
+      // alias は package.json の exports を迂回する。張り漏れた subpath はエラーに
+      // ならず node_modules 側（別チェックアウトのことがある）へ静かに解決され、
+      // 「ビルドは通るが取り込まれたソースが別ツリー」という発見の遅い壊れ方をする。
+      // そのため graph-core の exports 全 subpath を漏れなく張る。
+      // **graph-core の exports を変更したらここも更新すること。**
       '@anytime-markdown/graph-core/types': path.resolve(__dirname, '../graph-core/src/types.ts'),
       '@anytime-markdown/graph-core/engine': path.resolve(__dirname, '../graph-core/src/engine/index.ts'),
       '@anytime-markdown/graph-core/state': path.resolve(__dirname, '../graph-core/src/state/index.ts'),
+      '@anytime-markdown/graph-core/viewer': path.resolve(__dirname, '../graph-core/src/viewer/index.ts'),
       '@anytime-markdown/graph-core/element': path.resolve(__dirname, '../graph-core/src/element.ts'),
       '@anytime-markdown/graph-core/src': path.resolve(__dirname, '../graph-core/src'),
       '@anytime-markdown/graph-core$': path.resolve(__dirname, '../graph-core/src/index.ts'),

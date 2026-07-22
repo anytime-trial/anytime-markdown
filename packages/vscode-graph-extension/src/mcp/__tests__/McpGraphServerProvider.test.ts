@@ -17,6 +17,7 @@ interface StdioDefinition {
 	command: string;
 	args: string[];
 	env: Record<string, string | number | null>;
+	version?: string;
 }
 
 function stdioDefinitions(provider: McpGraphServerProvider): StdioDefinition[] {
@@ -29,7 +30,8 @@ describe('McpGraphServerProvider', () => {
 	});
 
 	test('同梱バンドル (dist/mcp-graph-server.js) を node で起動する定義を返す', () => {
-		const provider = new McpGraphServerProvider(DIST);
+		mockVscode.workspace.workspaceFolders = [{ uri: { fsPath: '/ws/project' } }];
+		const provider = new McpGraphServerProvider(DIST, '9.9.9');
 		const [definition] = stdioDefinitions(provider);
 		expect(definition.label).toBe('mcp-graph');
 		expect(definition.command).toBe(process.execPath);
@@ -39,16 +41,24 @@ describe('McpGraphServerProvider', () => {
 
 	test('ワークスペースを ANYTIME_GRAPH_ROOT で渡す（渡さないと cwd が拡張ホストになる）', () => {
 		mockVscode.workspace.workspaceFolders = [{ uri: { fsPath: '/ws/project' } }];
-		const provider = new McpGraphServerProvider(DIST);
+		const provider = new McpGraphServerProvider(DIST, '9.9.9');
 		const [definition] = stdioDefinitions(provider);
 		expect(definition.env).toEqual({ ANYTIME_GRAPH_ROOT: '/ws/project' });
 		provider.dispose();
 	});
 
-	test('ワークスペース未オープン: rootDir を渡さない（サーバー側が cwd へフォールバック）', () => {
-		const provider = new McpGraphServerProvider(DIST);
+	test('version は呼び出し側から受け取る（package.json との二重管理を避ける）', () => {
+		mockVscode.workspace.workspaceFolders = [{ uri: { fsPath: '/ws/project' } }];
+		const provider = new McpGraphServerProvider(DIST, '9.9.9');
 		const [definition] = stdioDefinitions(provider);
-		expect(definition.env).toEqual({});
+		expect(definition.version).toBe('9.9.9');
+		provider.dispose();
+	});
+
+	// rootDir を渡せないまま起こすと、読み書きの基準が拡張ホストの cwd になる。
+	test('ワークスペース未オープン: 定義を返さない', () => {
+		const provider = new McpGraphServerProvider(DIST, '9.9.9');
+		expect(stdioDefinitions(provider)).toEqual([]);
 		provider.dispose();
 	});
 });
