@@ -159,6 +159,27 @@ describe('mcpJsonRegistration', () => {
       expect(mockVscode.window.showWarningMessage).toHaveBeenCalled();
     });
 
+    // JSON として妥当でも形が違う入力。配列は `arr['name'] = entry` が stringify で
+    // 落ちるため、素通しすると「追加しました」と通知しながらエントリが消える。
+    test.each([
+      ['mcpServers が配列', '{"mcpServers":[]}'],
+      ['mcpServers が文字列', '{"mcpServers":"nope"}'],
+      ['root が配列', '[]'],
+    ])('形が不正な .mcp.json (%s): 退避してから作り直し、エントリが実際に書かれる', async (_label, raw) => {
+      fs.writeFileSync(mcpJson(), raw);
+      await registerMcpServerToJson(options);
+
+      const backups = fs.readdirSync(dir).filter((f) => f.includes('.bak.'));
+      expect(backups).toHaveLength(1);
+      expect(fs.readFileSync(path.join(dir, backups[0]), 'utf-8')).toBe(raw);
+      // 通知だけ成功して中身が空、という状態にならないことまで見る
+      expect(JSON.parse(readMcpJson()).mcpServers['mcp-test']).toEqual({
+        command: '/usr/bin/node',
+        args: ['/ext/dist/server.js'],
+        env: { ANYTIME_TEST_ROOT: dir },
+      });
+    });
+
     test('ワークスペース未オープン: エラー通知を出して何も書かない', async () => {
       mockVscode.workspace.workspaceFolders = undefined;
       await registerMcpServerToJson(options);

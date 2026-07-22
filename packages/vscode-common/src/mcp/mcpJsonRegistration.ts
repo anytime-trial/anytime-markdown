@@ -45,6 +45,10 @@ function workspaceRootOrNull(): string | null {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * activate 時の自動登録: `<workspaceRoot>/.mcp.json` に `mcpServers.<serverName>` が
  * 無い場合のみ追加する（Claude Code 向け。拡張インストールで完結させる）。
@@ -105,7 +109,17 @@ export async function registerMcpServerToJson(options: McpJsonRegistrationOption
   if (fs.existsSync(mcpJsonPath)) {
     try {
       const raw = fs.readFileSync(mcpJsonPath, 'utf-8');
-      existing = JSON.parse(raw) as McpJsonShape;
+      const parsed: unknown = JSON.parse(raw);
+      // 形の検証まで行う。JSON として妥当でも root や mcpServers が object でなければ
+      // 後段の代入が無意味になる。特に配列は `arr['name'] = entry` が JSON.stringify で
+      // 落ちるため、「追加しました」と通知しながらエントリが消える。
+      if (!isPlainObject(parsed)) {
+        throw new Error('root is not an object');
+      }
+      if (parsed.mcpServers !== undefined && !isPlainObject(parsed.mcpServers)) {
+        throw new Error('mcpServers is not an object');
+      }
+      existing = parsed as McpJsonShape;
       preexistedEntry = existing.mcpServers?.[serverName];
     } catch (err) {
       const backupPath = `${mcpJsonPath}.bak.${Date.now()}`;
