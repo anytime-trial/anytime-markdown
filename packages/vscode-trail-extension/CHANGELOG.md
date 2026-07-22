@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-22
+
+### Added
+
+- Bundled skills: `anytime-dev-retro` gained a two-tier trigger for pricing-table drift — a mechanical layer (`grounding.token-budget.cjs` detects models missing from the pricing table via `session_costs` and surfaces them in the health report) and a manual layer (`weekly-research`'s Claude/Anthropic section now asks about model pricing revisions).
+- Bundled skills: `anytime-dev-retro`'s cost-analysis guidance gained a call-count-priority heuristic (sessions with a high `message_count` but flat `peak_context_tokens` should prioritize reducing round-trips over reducing per-call cost).
+
+### Fixed
+
+- The `anytime-dev-retro` manifest version was bumped to 15 after two sessions independently bumped it 13 → 14 with different content, so the merged revision actually reinstalls.
+
+### Trail Core (trail-core / trail-db / trail-server / trail-viewer)
+
+- trail-core: added `normalizeWorkspaceName` and resolved `MODEL_PRICING` per model generation (added `fable`, corrected `opus` / `haiku`, surfaced unknown models via WARN, excluded synthetic rows from aggregation).
+- trail-db: fixed a uuid-collision bug in Codex message normalization that silently dropped most Codex sessions' messages (plus a follow-up fix for a `message_tool_calls` cleanup gap and a seq mismatch between the two ingestion paths). Added a workspace filter and a `workspaces` listing to the combined analytics aggregation (including the `trail-server` `/api/trail/combined` query parameter). Fixed the workspace picker listing non-workspace names by scoping choices to repos with activity in the period and resolving repo names via the git root instead of the cwd basename, with follow-up fixes for a truncated-probe misattribution and for aligning commit-side filtering to the session-based repo.
+- trail-viewer: the analytics token chart gained a LOC mode; analytics gained a workspace switcher and dropped the repository chart; fixed the agent-series brand colors and a missing-rate false assertion.
+
 ## [0.38.0] - 2026-07-19
 
 ### Added

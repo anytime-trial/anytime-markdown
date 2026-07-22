@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-07-22
+
+### Added
+
+- New `/cooccurrence` page for viewing co-occurrence networks, with live theme and locale reflection (the existing `/graph` page is unchanged).
+- Landing page (press) Dispatch section now links to `/cooccurrence`, gated behind the existing `NEXT_PUBLIC_SHOW_GRAPH` flag shared with `/graph` and `/mindmap`.
+- Landing page Development Process section now includes a caravan-themed relationship diagram connecting the agent, the three VS Code extensions, the design docs, and the product.
+- GitHub `.md`/`.markdown` blob links inside ticket details and comments now open in the Markdown editor's review mode (`/markdown?gh=...&mode=review`) instead of navigating away; unauthenticated users are redirected to sign-in and automatically resume afterward.
+
+### Changed
+
+- press: traffic-light window-frame constants shared via `constants.ts` instead of being duplicated across components.
+
+### Fixed
+
+- `fetchFileContent` no longer silently returns an empty string on non-2xx GitHub API responses; errors now propagate to the caller and surface as a snackbar.
+- Co-occurrence network editing: full-cluster selection no longer hides unaffiliated words; Web Workers are terminated on all completion/failure paths instead of accumulating; aborted layout promises are rejected instead of left pending; layout failures are now distinguished from user-initiated aborts; new-file creation now checks for existing files and confirms before overwriting.
+
+### Security
+
+- Updated `dompurify` (3.4.11 → 3.4.12) and applied `npm audit fix` updates (`js-yaml`, `linkify-it`, `brace-expansion`, `fast-uri`, `body-parser`).
+
 ## [0.41.0] - 2026-07-19
 
 ### Added

@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-22
+
+### 追加
+
+- Google Drive Reader の共有ロジック（`googleDriveService`）を追加。サービスアカウント JWT 構築・base64url エンコード・Google OAuth トークン取得・Doc ID/URL 解析・Drive エクスポート取得を純粋関数/DI 関数として実装し、RS256 署名は呼び出し側から注入可能（新規 npm 依存追加なし）。
+
+### 修正
+
+- 403/404 応答に Google 側のエラー診断情報を付記し、トークンエンドポイントの非 JSON/null 応答を HTTP ステータス付きの例外に変換（anytime-cross-review 指摘対応）。
+
 ## [0.1.7] - 2026-06-20
 
 ### 追加

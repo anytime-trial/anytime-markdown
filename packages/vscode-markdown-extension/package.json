@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -368,7 +368,7 @@
     "@emotion/styled": "11.14.0",
     "@xmldom/xmldom": "0.9.10",
     "diff": "8.0.3",
-    "dompurify": "3.4.11",
+    "dompurify": "3.4.12",
     "gray-matter": "4.0.3",
     "jsxgraph": "1.12.2",
     "marked": "17.0.3",

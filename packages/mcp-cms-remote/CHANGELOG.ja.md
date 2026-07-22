@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-22
+
+### 追加
+
+- `read_google_doc` MCP ツールを追加。サービスアカウント認証（RS256 署名は Web Crypto `SubtleCrypto` で実装）で Google Doc をプレーンテキストとして読み取る。Doc ID または Google Docs/Drive の URL を受け付ける。Workers Secret `GOOGLE_SERVICE_ACCOUNT_KEY` 設定時のみ登録され、対象ドキュメントはサービスアカウントのメールアドレスへ閲覧者共有が必要。
+
 ## [0.2.0] - 2026-07-18
 
 ### 追加

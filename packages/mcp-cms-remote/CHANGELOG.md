@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-22
+
+### Added
+
+- Added `read_google_doc` MCP tool: reads a Google Doc as plain text via service account authentication (RS256 signing implemented with Web Crypto `SubtleCrypto`), accepting a Doc ID or a Google Docs/Drive URL. Registered only when the `GOOGLE_SERVICE_ACCOUNT_KEY` Workers secret is configured; the target document must be shared with the service account email as a viewer.
+
 ## [0.2.0] - 2026-07-18
 
 ### Added

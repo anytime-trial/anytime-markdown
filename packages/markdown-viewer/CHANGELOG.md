@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-07-22
+
+### Added
+
+- Host mode control: a new `initialMode` option lets the host (e.g. the web-app's `/markdown?mode=review` link) force the startup mode explicitly, taking priority over `defaultSourceMode` and the persisted `localStorage` value. The initial application is not persisted to `localStorage`, so a tab opened from a review link doesn't overwrite the user's normal startup mode.
+- Cooccurrence network diagram (markdown-rich / graph-core): a new anytime-graph diagram type showing which factor events are discussed together with a given subject, encoding frequency as circle area, co-occurrence strength as line width, and cluster membership as color.
+
+### Fixed
+
+- Angle-bracket autolinks (`<https://...>`) were dropped by `sanitizeMarkdown` because DOMPurify treats the syntax as an invalid HTML tag; autolinks are now escaped and restored using the same placeholder pattern as the existing MATH/FN/ADM/CMT constructs.
+- A regression where adding the cooccurrence network diagram broke the web-app production build (`next build` type check), because the exhaustiveness check in `describeNode` hadn't been updated for the new diagram type.
+
 ## [1.16.0] - 2026-07-19
 
 ### Added

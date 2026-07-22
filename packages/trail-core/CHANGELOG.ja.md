@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-22
+
+### 追加
+
+- `normalizeWorkspaceName` を追加しました。`repos.repo_name` の worktree サフィックス（`--worktrees-` / `--claude-worktrees-`）を親ワークスペース名へ畳み、trail-db と trail-viewer が共有する分析パネルのワークスペース切替の基盤とします。
+
+### 修正
+
+- `MODEL_PRICING` を現行価格へ世代別解決化しました。fable エントリの欠落（sonnet 単価への silent フォールバックで実料金の約 3.3 分の 1 に過小評価）、opus の旧価格固定（実データは全行 Opus 4.6 以降のため約 3 倍過大評価）、haiku の旧世代価格固定を是正しました。`isKnownPricingModel` を新設し未知モデルを WARN ログで可視化するようにし、`isCountableModel` で `'<synthetic>'` 等の番兵値を `session_costs` / `daily_counts` の集計から除外するようにしました。
+- `isKnownPricingModel` の判定基準を、フォールバック後の解決結果ではなく正規化直後のモデル名に変更しました。これにより未知の Codex モデルが既定モデルへのフォールバックで「既知」と誤判定されなくなりました。
+
 ## [0.38.0] - 2026-07-19
 
 ### 追加

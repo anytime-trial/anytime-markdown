@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-22
+
+### Changed
+
+- Version bump to keep the database release line in sync with `@anytime-markdown/trail-db`. No functional changes to this package.
+
 ## [0.3.3] - 2026-07-17
 
 ### Added

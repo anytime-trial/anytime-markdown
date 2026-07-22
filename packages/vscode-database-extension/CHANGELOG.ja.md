@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-22
+
+### 修正
+
+- Codex セッションの `messages` が消失する `@anytime-markdown/trail-db` の修正を同梱。Codex 取り込み経路は `messages.uuid` を `codex-${seq}`（`seq` はセッションごとに 0 リセット）で採番しており、`messages.uuid` は全セッション横断の PRIMARY KEY で `INSERT OR REPLACE` されるため、後から取り込んだセッションが先行セッションの行を無言で上書きしていた（Codex 243 セッション中 23 件しか `messages` が残っておらず、trail-viewer のエージェントタブに Codex のバーが描画されなかった）。uuid 採番にセッション ID を含めるよう修正し、旧採番の残骸を除去する migration を追加。
+- 同一修正に対するマージ前レビュー指摘の対処として、依存テーブル `message_tool_calls` の削除漏れ（FK 無効化のため orphan が静かに蓄積し、再取り込みでツール呼び出しが二重計上され得た）と、uuid を導出する 2 経路（取り込み経路とコミット突合経路）が `event_msg` を含む rollout で `seq` の進み方が食い違っていた問題を修正。
+
+### Database Core (database-core / database-viewer)
+
+- 機能変更なし（依存更新のみ）。
+
 ## [0.3.3] - 2026-07-17
 
 ### Database Core (database-core / database-viewer)

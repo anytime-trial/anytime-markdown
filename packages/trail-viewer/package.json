@@ -14,10 +14,10 @@
   "dependencies": {
     "@anytime-markdown/chart-core": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
-    "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/trace-viewer": "*",
+    "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/ui-core": "*",
-    "dompurify": "3.4.11",
+    "dompurify": "3.4.12",
     "graphology": "0.26.0",
     "marked": "17.0.3",
     "sigma": "3.0.2"

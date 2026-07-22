@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-07-22
+
+### Added
+
+- "Regenerate Doc Folder Indexes" command regenerates `index.<lang>.md` files under docsRoot from the command palette. A successful doc-core.db scan (DocIngestRunner) now triggers this regeneration automatically afterward (a failed scan does not, to avoid overwriting the index with incomplete input).
+
+### Fixed
+
+- `startDocIngest` invoked via a command no longer skips its first ingest run. The runner's own startup `runOnce` and the command handler's follow-up `runOnce` were racing on the same `running` guard, causing `regenerateDocIndexes` to report a spurious failure warning and `rebuildDocIndex` to skip its second run.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Added an `initialMode` option so the host can specify the startup mode explicitly.
+- Added the cooccurrence-network diagram type shared with anytime-graph.
+- Fixed angle-bracket autolinks being dropped by `sanitizeMarkdown`.
+
 ## [1.16.0] - 2026-07-19
 
 ### Changed

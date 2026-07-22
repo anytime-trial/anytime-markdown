@@ -6,13 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-07-20
+## [0.12.0] - 2026-07-22
+
+### Added
+
+- Added an activity bar view listing the `.cooc.json` co-occurrence networks in the workspace; selecting an item opens it in the co-occurrence network editor. Shows a "New Network" welcome action when the workspace has none, and stays in sync with the file system via a watcher (create/delete).
+- Added the `anytime-graph.refreshNetworks` command and a refresh button in the new view's title bar.
 
 ### Changed
 
 - **Breaking:** Replaced the `.graph` general graph editor with a `.cooc.json` co-occurrence network editor.
-- **Breaking:** Opening a `.graph` file now shows a migration guide. The general graph editor remains available in the web app at `/graph`.
+- **Breaking:** Opening a `.graph` file now shows a migration guide instead of failing silently. The general graph editor remains available in the web app at `/graph`.
 - **Breaking:** Renamed the creation command from `anytime-graph.newGraph` to `anytime-graph.newCooccurrence`. Update any custom keybindings that referenced the old id.
+- Rebuilt the editor webview as vanilla JS, removing the React and `graph-viewer` dependencies. Saving now goes through a `WorkspaceEdit`, so unsaved markers, undo, and diff view work through VS Code's standard document editing.
+- Unified the extension display name and the activity bar view container title to "Anytime Graph" (both languages); the per-view and per-editor labels ("Co-occurrence Network(s)") are unchanged.
+- The webview build (webpack) now type-checks instead of only transpiling, catching bugs (e.g. undefined variables) that previously compiled successfully; the packaged webview bundle also shrank from 607KB to 172KB by avoiding a DOM-dependent import path into graph-core.
+
+### Fixed
+
+- Fixed PNG export failures being silently swallowed; a failed write is now surfaced instead of leaving the user believing the file was saved.
+- Fixed creating a new co-occurrence network silently truncating an existing file at the same path with no confirmation; a confirmation prompt is now shown before overwriting, and unsafe paths (path separators, `..`) are rejected.
+
+### Graph Core (graph-core)
+
+- 共起ネットワーク図種・`.cooc.json` スキーマ検証・Barnes-Hut レイアウト・絞り込みと編集操作、および共起ネットワークビューア（描画コア・フィルタ/語一覧パネル・レイアウト Worker・i18n・Web アプリ `/cooccurrence`）を追加。
+- 孤立語の発散・入力検証漏れ・`node:crypto` 依存によるビルド失敗・クラスタ絞り込みの不具合・Worker 未終了や中断処理まわりの不具合・右サイドパネル下部の到達不能を修正。
+- ビューアの描画を要求時のみに変更（アイドル時の負荷を削減）。
 
 ## [0.11.1] - 2026-07-13
 

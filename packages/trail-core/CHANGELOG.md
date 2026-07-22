@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-22
+
+### Added
+
+- `normalizeWorkspaceName`: collapses worktree-suffixed repo names (`--worktrees-` / `--claude-worktrees-`) into the parent workspace name, shared by `trail-db` and `trail-viewer` as the foundation for the analytics workspace switcher.
+
+### Fixed
+
+- `MODEL_PRICING` now resolves prices per model generation instead of folding every generation into one family key: added the missing `fable` entry (was silently falling back to Sonnet pricing, ~3.3x under the actual cost), corrected `opus` (was pinned to pre-4.5 pricing, ~3x over the actual cost since all recorded usage is 4.6+) and `haiku` (was pinned to the 3.5-era rate). Added `isKnownPricingModel` to WARN-log unknown models instead of silently falling back, and `isCountableModel` to exclude synthetic sentinel rows from `session_costs` / `daily_counts` aggregation.
+- `isKnownPricingModel` now judges the pre-fallback normalized model name instead of the already-defaulted resolver output, so unknown Codex models are no longer masked as "known" by the default-model fallback.
+
 ## [0.38.0] - 2026-07-19
 
 ### Added

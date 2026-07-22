@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-22
+
+### Added
+
+- Added a 12th thinking-method diagram type, co-occurrence network: circle size encodes word occurrence frequency (area-proportional, sqrt-scaled radius), edge width encodes co-occurrence strength, and color encodes cluster. Frequency and strength are specified explicitly in the DSL; there is no automatic extraction from body text.
+- Added the `.cooc.json` file format with schema validation shared by the web app, VS Code extension, and MCP tools. Validation reports all errors instead of stopping at the first one, and the layout cache is invalidated by an algorithm version tag (not just a spec hash) so layout improvements are not masked by stale cached coordinates.
+- Added a Barnes-Hut (quadtree-approximated) force-directed layout for co-occurrence networks, cutting layout time for 2,000 words from 8,549ms to 336ms, with a word-count-scaled centering force to keep the graph bounded as word count grows.
+- Added co-occurrence network filtering (minimum frequency, cluster selection, minimum strength, top-N edges) and non-destructive edit operations (add/remove/rename word) that keep all node-index references consistent.
+- Added the co-occurrence network rendering core (canvas drawing, label placement, hit-testing, viewport/zoom, theme sync), a filter panel and virtualized word-list panel, a dedicated layout Worker, ja/en localization, and a `/cooccurrence` page in the web app (`cooccurrence-viewer` package).
+
+### Changed
+
+- Changed the co-occurrence viewer to render on demand instead of every animation frame, removing continuous theme reads, canvas backing-store reallocation, and O(n²) label-overlap checks while idle.
+
+### Fixed
+
+- Fixed unbounded divergence of isolated words (words with no co-occurrence edges) in the force-directed layout; they could previously drift over 13,000px from the origin and collapse the rest of the graph in the viewBox.
+- Fixed missing input validation: duplicate word definitions and self co-occurrence (`A -- A`) are now rejected as errors, and negative frequency/strength values are rejected instead of being silently clamped to the minimum circle size.
+- Fixed a build failure in browser bundles (including the VS Code extension webview) caused by `computeSpecHash`'s dependency on Node's `node:crypto`; replaced it with a pure-JS SHA-256 implementation that produces identical output, so existing `.cooc.json` `layout.specHash` values remain valid.
+- Fixed cluster-based filtering hiding words that belong to no cluster even when all clusters were selected.
+- Fixed the co-occurrence viewer: layout Workers are now always terminated instead of accumulating across edits; an aborted layout now rejects its Promise instead of leaving it pending; layout failures are now reported distinctly from user-initiated aborts; a Blob URL race no longer causes exported files to read as empty; non-ASCII (e.g. Japanese) titles are no longer dropped from exported filenames; and PNG export payloads are now validated before use.
+- Fixed the word-list panel losing keyboard focus on every re-render, and added `aria-setsize`/`aria-posinset` to its virtualized rows for assistive technology.
+- Fixed the right side panel (filters / word list) being clipped at the bottom and unreachable; the panel column is now its own scroll region.
+
 ## [0.11.1] - 2026-07-13
 
 ### Security

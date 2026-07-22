@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -86,12 +86,12 @@
     },
     "handlebars": "4.7.9",
     "@xmldom/xmldom": "0.9.10",
-    "brace-expansion": "1.1.13",
+    "brace-expansion": "1.1.16",
     "ignore": "7.0.5",
     "ws": "8.21.0",
     "markdown-it": "14.2.0",
-    "linkify-it": "5.0.1",
-    "dompurify": "3.4.11"
+    "linkify-it": "5.0.2",
+    "dompurify": "3.4.12"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",

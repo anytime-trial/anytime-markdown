@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-22
+
+### Fixed
+
+- Bundles an `@anytime-markdown/trail-db` fix for Codex session `messages` disappearing: the Codex import path derived `messages.uuid` as `codex-${seq}` with `seq` reset per session, and because `messages.uuid` is a cross-session PRIMARY KEY written via `INSERT OR REPLACE`, a later-imported session silently overwrote an earlier session's rows (only 23 of 243 Codex sessions had retained their `messages`, so Codex bars were missing from the trail-viewer agent tab). uuid derivation now includes the session ID, and a migration removes the stale rows.
+- A follow-up fix from pre-merge review corrected two related gaps in the same change: the row-removal migration was not also deleting dependent `message_tool_calls` rows (foreign keys are disabled, so orphans accumulated silently and re-import could double-count tool calls), and the two code paths that derive Codex uuids (import vs. commit backfill) disagreed on `seq` progression for rollouts containing `event_msg` records.
+
+### Database Core (database-core / database-viewer)
+
+- No functional changes (dependency update only).
+
 ## [0.3.3] - 2026-07-17
 
 ### Database Core (database-core / database-viewer)

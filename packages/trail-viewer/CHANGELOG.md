@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Analytics tab: the token chart gained a LOC (lines-of-code) mode alongside Tokens / Cost, rendering daily added/removed LOC as a stacked bar on the same timeline as token consumption.
+
+### Changed
+
+- Analytics charts gained a workspace switcher (All + normalized workspace list) next to the bucket toggle; selecting one re-fetches combined data scoped to that workspace, hides the quality / cost-optimization overlays (which are aggregate-only and would be misleading when scoped), and scopes the date drill-down to that workspace's sessions (worktrees roll up into the parent workspace).
+- Removed the repository chart (`repos` toggle, `ReposCombinedChart`, `repoStats`) in favor of the workspace switcher.
+
+### Fixed
+
+- The agent series lost its brand color because the color lookup used the aggregated display label (`'Claude Code'` / `'Codex'`) instead of `sessions.source`, always falling back to the generic palette.
+- The legend no longer asserts "0% missing" when the data source has no turn-level statistics (the Supabase path returns a fixed zero for `tokenTotalTurns`); the missing-rate figure now renders only when real statistics exist.
+
+### Added
+
 - Analytics period is now a day-count input, with a 1day / 1week bucket toggle.
 - Pie charts render at a fixed size even when there is no data.
 

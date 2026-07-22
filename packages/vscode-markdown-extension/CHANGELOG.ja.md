@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-07-22
+
+### 追加
+
+- コマンドパレットから docsRoot 配下の `index.<lang>.md` を再生成する「Regenerate Doc Folder Indexes」コマンドを追加しました。doc-core.db の走査（DocIngestRunner）が成功した場合、続けて索引再生成を自動実行します（走査失敗時は不完全な入力で上書きしないため実行しません）。
+
+### 修正
+
+- コマンド経由の `startDocIngest` が初回 ingest を実行しない問題を修正しました。ランナー自身の起動時 `runOnce` とコマンドハンドラが続けて呼ぶ `runOnce` が同じ `running` ガードを取り合っており、`regenerateDocIndexes` が誤った失敗警告を出したり、`rebuildDocIndex` の 2 回目がスキップされたりしていました。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- initialMode オプションを追加し、ホストが起動モードを明示的に指定できるようにしました。
+- 共起ネットワーク図種を anytime-graph に追加しました。
+- 山括弧オートリンクの sanitizeMarkdown 消失を修正しました。
+
 ## [1.16.0] - 2026-07-19
 
 ### 変更
