@@ -1,3 +1,5 @@
+import * as path from 'node:path';
+
 import * as vscode from 'vscode';
 // DOM 非依存のモジュールから直接取る。index 経由だと graph-core の描画系まで
 // 拡張ホスト（node ターゲット・lib は ES2022）の型プログラムとバンドルに入り、
@@ -11,14 +13,29 @@ import { CooccurrenceEditorProvider } from './providers/CooccurrenceEditorProvid
 import { CooccurrenceListProvider } from './providers/CooccurrenceListProvider';
 import { GraphMigrationProvider } from './providers/GraphMigrationProvider';
 import { COOC_FILE_GLOB } from './providers/coocListModel';
+import { McpGraphServerProvider } from './mcp/McpGraphServerProvider';
+import { autoRegisterMcpServerIfMissing, registerMcpRegistrationCommand } from './mcp/mcpRegistrationCommand';
+import { GraphLogger } from './utils/GraphLogger';
 
 export function activate(context: vscode.ExtensionContext) {
 	// console.* は拡張ホストのコンソールにしか出ずユーザーから見えない。
 	const output = vscode.window.createOutputChannel('Anytime Graph');
 	context.subscriptions.push(output);
-	const logError = (message: string) => {
-		output.appendLine(`[${new Date().toISOString()}] [ERROR] ${message}`);
-	};
+	GraphLogger.init(output);
+	const logError = (message: string) => GraphLogger.error(message);
+
+	// 同梱した mcp-graph サーバーを VS Code ネイティブ MCP 探索へ登録し、
+	// `.mcp.json` 書き出しコマンドも提供する（markdown / trail 拡張と同等の配線）。
+	const extensionDistPath = path.join(context.extensionUri.fsPath, 'dist');
+	const mcpGraphServerProvider = new McpGraphServerProvider(extensionDistPath);
+	context.subscriptions.push(
+		mcpGraphServerProvider,
+		vscode.lm.registerMcpServerDefinitionProvider('anytime-graph.mcp', mcpGraphServerProvider),
+	);
+	registerMcpRegistrationCommand(context, extensionDistPath);
+	// Claude Code 向け .mcp.json への登録も activate 時に自動実施する（エントリ不在時のみ追加。
+	// 既存エントリ・パース不能ファイルには触れない）。
+	autoRegisterMcpServerIfMissing(extensionDistPath);
 
 	context.subscriptions.push(CooccurrenceEditorProvider.register(context));
 	context.subscriptions.push(GraphMigrationProvider.register(context));

@@ -7,5 +7,6 @@
   "customEditor.cooccurrence.displayName": "共起ネットワーク",
   "customEditor.graphMigration.displayName": ".graph 移行案内",
   "command.newCooccurrence": "Anytime Graph: 新規作成",
-  "command.refreshNetworks": "Anytime Graph: 一覧を更新"
+  "command.refreshNetworks": "Anytime Graph: 一覧を更新",
+  "command.registerMcpServer": "Anytime Graph: MCP サーバーを .mcp.json に登録"
 }
