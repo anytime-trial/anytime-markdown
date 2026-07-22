@@ -302,12 +302,25 @@ function isCooccurrenceFile(file: unknown): file is CooccurrenceFile {
   return validateCooccurrenceFile(file).length === 0;
 }
 
+/**
+ * キーを UTF-16 コードユニット順で比較する（既定の `Array.prototype.sort` と同一順序）。
+ *
+ * Why not localeCompare: 正規化結果は `computeSpecHash` の入力であり、同じ spec は
+ * どの環境でも同じハッシュにならなければならない。`localeCompare` はロケールと ICU
+ * データに依存するため、実行環境が変わると順序が変わりハッシュが不安定になる。
+ * ここで必要なのは「言語的に正しい並び」ではなく「決定論的な並び」。
+ */
+function compareCodeUnits(a: string, b: string): number {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+}
+
 function canonicalValue(value: JsonValue): JsonValue {
   if (Array.isArray(value)) return value.map((item) => canonicalValue(item));
   if (value === null || typeof value !== 'object') return value;
 
   const ordered: { [key: string]: JsonValue } = {};
-  for (const key of Object.keys(value).sort()) {
+  for (const key of Object.keys(value).sort(compareCodeUnits)) {
     ordered[key] = canonicalValue(value[key]);
   }
   return ordered;
