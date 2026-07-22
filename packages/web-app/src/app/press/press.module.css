@@ -693,6 +693,14 @@
     padding-top: 4px;
 }
 
+.briefingHeadIcon {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    margin-top: 3px;
+    display: block;
+}
+
 .briefingHead {
     font-family: var(--font-display);
     font-weight: 700;
@@ -750,6 +758,26 @@
         grid-template-columns: 1fr;
         gap: 24px;
     }
+}
+
+/*
+ * 左右反転版（プロセス節）。左カラムにイラストと箇条書き、右カラムにフロー図を等幅で置く。
+ * grid の配置順は order で入れ替える（DOM 順は見出し → 埋め込み → 本文のまま）。
+ */
+.briefingReversed {
+    grid-template-columns: 2fr 1fr;
+}
+
+.briefingReversed .briefingHeader {
+    order: 1;
+}
+
+.briefingReversed .briefingMain {
+    order: 2;
+}
+
+.briefingReversed .briefingLeftStack {
+    order: 3;
 }
 
 .briefingEmbed {
@@ -1013,6 +1041,87 @@
     font-size: var(--fs-footnote);
     line-height: 1.6;
     color: var(--ink-light);
+}
+
+/* ── Toolchain caravan (隊商の比喩による関係図) ───────── */
+.toolchain {
+    margin: 0 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.toolchainFrame {
+    border: var(--rule-thin) solid var(--ink);
+    background: var(--paper);
+    overflow: hidden;
+}
+
+.toolchainScene {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* 線・面の色分け。SVG 属性ではなくトークン経由にしてダーク/ライト両対応にする */
+.toolchainRule {
+    stroke: var(--ink-light);
+    stroke-width: 1.2;
+}
+
+.toolchainHair {
+    stroke: var(--ink-light);
+    stroke-width: 0.8;
+}
+
+.toolchainSheet {
+    fill: var(--paper-fold);
+    stroke: var(--ink);
+    stroke-width: 1.2;
+}
+
+.toolchainAccentLine {
+    stroke: var(--vermilion);
+    stroke-width: 1.4;
+}
+
+.toolchainAccentFill {
+    fill: var(--vermilion);
+}
+
+.toolchainRuleFill {
+    fill: var(--ink-light);
+}
+
+.toolchainPrints {
+    fill: var(--vermilion);
+}
+
+.toolchainPalm {
+    fill: var(--ink);
+    stroke: var(--ink);
+}
+
+.toolchainTitleText {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 700;
+    font-size: 14px;
+    fill: var(--ink);
+}
+
+.toolchainSubText {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    fill: var(--ink-faded);
+}
+
+.toolchainMicroText {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.02em;
+    fill: var(--vermilion);
 }
 
 /* ── PullQuote ─────────────────────────────────────── */

@@ -13,6 +13,12 @@ import { MarkdownLogger } from '../utils/MarkdownLogger';
 
 export { resolveDocDbPath } from './docDbPath';
 
+/** 子プロセス（ingestEntry）が stdout に出す JSON の形。索引件数の通知に使う。 */
+export interface DocIngestRunResult {
+  readonly docIndexes?: { readonly written: number; readonly unchanged: number };
+  readonly docIndexesError?: string;
+}
+
 export class DocIngestRunner implements vscode.Disposable {
   private running = false;
 
@@ -22,20 +28,26 @@ export class DocIngestRunner implements vscode.Disposable {
     private readonly dbPath: string,
   ) {}
 
-  /** 1 回 ingest（＋prune）を子プロセスで実行する。失敗はログのみ。 */
-  runOnce(): Promise<void> {
+  /**
+   * 1 回 ingest（＋prune・成功時はフォルダ索引再生成）を子プロセスで実行する。失敗はログのみ。
+   *
+   * @param mode 'ingest'（既定）は取込→索引再生成、'index-only' は索引再生成だけを行う
+   * @returns 子プロセスが stdout に出した JSON（索引件数の通知用）。失敗・解析不能時は null
+   */
+  runOnce(mode: 'ingest' | 'index-only' = 'ingest'): Promise<DocIngestRunResult | null> {
     if (this.running) {
       MarkdownLogger.info('[doc-core] ingest already running; skip');
-      return Promise.resolve();
+      return Promise.resolve(null);
     }
     this.running = true;
-    return new Promise<void>((resolve) => {
+    return new Promise<DocIngestRunResult | null>((resolve) => {
       const child = spawn(process.execPath, [this.ingestScriptPath], {
         env: {
           ...process.env,
           ELECTRON_RUN_AS_NODE: '1',
           ANYTIME_MARKDOWN_DOC_DB: this.dbPath,
           ANYTIME_MARKDOWN_DOCS_ROOT: this.docsRoot,
+          ANYTIME_MARKDOWN_DOC_MODE: mode,
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -49,17 +61,23 @@ export class DocIngestRunner implements vscode.Disposable {
       child.on('error', (err) => {
         MarkdownLogger.error('[doc-core] ingest spawn failed', err);
         this.running = false;
-        resolve();
+        resolve(null);
       });
       child.on('close', (code) => {
-        if (code === 0) {
-          MarkdownLogger.info(`[doc-core] ingest ${out.trim()} (db=${this.dbPath})`);
-        } else {
+        this.running = false;
+        if (code !== 0) {
           const tail = out.trim();
           MarkdownLogger.error(`[doc-core] ingest exited with code=${code}${tail ? ` stdout=${tail}` : ''}`);
+          resolve(null);
+          return;
         }
-        this.running = false;
-        resolve();
+        MarkdownLogger.info(`[doc-core] ingest ${out.trim()} (db=${this.dbPath})`);
+        try {
+          resolve(JSON.parse(out.trim()) as DocIngestRunResult);
+        } catch (err) {
+          MarkdownLogger.warn(`[doc-core] ingest output parse failed: ${String(err)}`);
+          resolve(null);
+        }
       });
     });
   }

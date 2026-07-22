@@ -54,6 +54,44 @@ function startClaudeNamedProcess(dir: string, subdir = 'bin'): ChildProcessWitho
   return spawn(executable, ['30']);
 }
 
+/**
+ * ゾンビ（`<defunct>`）状態の 'claude' 名プロセスを作る。
+ *
+ * 親シェルが背景ジョブを wait しないため、子は終了しても回収されず Z のまま残る。
+ * Claude Code 自体も VS Code のターミナル配下で同じ状態になり得る（実機で 4 件観測）。
+ * Node は自前の子を自動回収するので、間に sh を挟まないとゾンビは再現できない。
+ */
+async function startZombieClaudeProcess(
+  dir: string,
+  subdir: string,
+): Promise<{ readonly parent: ChildProcessWithoutNullStreams; readonly pid: number }> {
+  const binDir = join(dir, subdir);
+  mkdirSync(binDir, { recursive: true });
+  const executable = join(binDir, 'claude');
+  symlinkSync('/bin/sleep', executable);
+
+  // `exec` で親シェルを sleep に置き換えるのが要点。シェルのまま前景ジョブを待つと、
+  // dash の wait() が背景の子まで回収してしまいゾンビが再現できない（実測）。
+  // sleep は wait() を呼ばないため、子は回収されず Z のまま残る。
+  const parent = spawn('sh', ['-c', `"${executable}" 0 & echo $!; exec sleep 30`]);
+  const pid = await new Promise<number>((resolvePid, rejectPid) => {
+    const timer = setTimeout(() => rejectPid(new Error('zombie pid was not reported')), 5_000);
+    parent.stdout.once('data', (chunk: Buffer) => {
+      clearTimeout(timer);
+      resolvePid(Number.parseInt(chunk.toString('utf8').trim(), 10));
+    });
+  });
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    if (stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0] === 'Z') {
+      return { parent, pid };
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`pid ${pid} did not become a zombie`);
+}
+
 describe('実機検証の回帰: 環境変数プレフィックスでゲートがすり抜けない', () => {
   const MY = '/repo';
 
@@ -347,6 +385,32 @@ describe('process liveness', () => {
     expect(starttime).not.toBeNull();
     expect(isClaimLive(claim({ pid: process.pid, starttime: `${starttime}-mismatch` }))).toBe(false);
   });
+
+  // 実機回帰: ゾンビは /proc/<pid> が残り comm も 'claude' のまま starttime も一致するため、
+  // 3 条件すべてを通過して「生存」と誤判定されていた。クレームが永久に GC されず、
+  // 単独作業でも存在しないセッションとの衝突警告が出続けた（実機で 4 件滞留）。
+  it('ゾンビプロセスのクレームを死亡として扱う', async () => {
+    const dir = tempDir();
+    try {
+      const { parent, pid } = await startZombieClaudeProcess(dir, 'bin-zombie');
+      try {
+        const starttime = readProcessStartTime(pid);
+        expect(starttime).not.toBeNull();
+        if (starttime === null) throw new Error('zombie starttime is unavailable');
+
+        // 誤判定の前提条件が実際に成立していることを固定する（ここが崩れるとテストが
+        // 「ゾンビを検査していない」まま通ってしまう）。
+        expect(existsSync(`/proc/${pid}`)).toBe(true);
+        expect(readFileSync(`/proc/${pid}/comm`, 'utf8').trim()).toBe('claude');
+
+        expect(isClaimLive(claim({ pid, starttime }))).toBe(false);
+      } finally {
+        parent.kill();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('listLiveClaims', () => {
@@ -399,6 +463,25 @@ describe('listLiveClaims', () => {
     expect(existsSync(brokenPath)).toBe(false);
     expect(existsSync(selfPath)).toBe(true);
     expect(existsSync(otherPath)).toBe(true);
+  });
+
+  // GC は isClaimLive に依存しているため、ゾンビを生存扱いするとクレームファイルが
+  // 消えず、実機で観測された「1 worktree に 7 件の占有中」が積み上がる。
+  it('ゾンビのクレームファイルを削除する', async () => {
+    dir = tempDir();
+    const { parent, pid } = await startZombieClaudeProcess(dir, 'bin-zombie');
+    try {
+      const starttime = readProcessStartTime(pid);
+      if (starttime === null) throw new Error('zombie starttime is unavailable');
+      writeClaim(dir, claim({ sessionId: 'zombie', pid, starttime }));
+      const zombiePath = join(dir, 'claims', 'zombie.json');
+      expect(existsSync(zombiePath)).toBe(true);
+
+      expect(listLiveClaims(dir, 'self')).toEqual([]);
+      expect(existsSync(zombiePath)).toBe(false);
+    } finally {
+      parent.kill();
+    }
   });
 });
 

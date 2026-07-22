@@ -326,6 +326,11 @@ function sanitizeNonCodePart(part: string): string {
   inner = cmt.result;
   const cmtp = protectSpans(inner, /<span data-comment-point="[^"]*"><\/span>/g, "CMTP");
   inner = cmtp.result;
+  // CommonMark の山括弧オートリンク（<https://...> 等）を退避する。
+  // DOMPurify は HTML パーサのためこの構文を <a> タグとして認識できず、
+  // 不正なタグとして丸ごと消費して削除してしまう（ALLOWED_TAGS に a を足しても直らない）。
+  const autolink = protectSpans(inner, /<[a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>\x00-\x1F]*>/g, "AL");
+  inner = autolink.result;
 
   // DOMPurify でサニタイズ（DOM も注入 window も無い環境では素通し + エンティティ正規化）
   const unescapeEntities = (s: string) =>
@@ -343,6 +348,7 @@ function sanitizeNonCodePart(part: string): string {
   sanitized = restoreSpans(sanitized, "FN", fn.spans);
   sanitized = restoreSpans(sanitized, "CMTP", cmtp.spans);
   sanitized = restoreSpans(sanitized, "CMT", cmt.spans);
+  sanitized = restoreSpans(sanitized, "AL", autolink.spans);
   sanitized = restoreSpans(sanitized, "IC", inlineCodes);
   return leadingNL + sanitized + trailingNL;
 }

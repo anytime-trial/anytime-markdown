@@ -21,6 +21,8 @@ import { TicketCard } from "./TicketCard";
 
 export interface TicketBoardProps {
   tickets: TicketItem[];
+  /** 空文字はフィルタ未選択（全列表示）。指定時は該当ステータスの列だけ描画する */
+  statusFilter?: TicketStatus | "";
   onOpen: (ticket: TicketItem) => void;
   onMoveStatus: (ticket: TicketItem, status: TicketStatus) => void;
 }
@@ -52,8 +54,14 @@ function BoardColumn({
   );
 }
 
-export function TicketBoard({ tickets, onOpen, onMoveStatus }: Readonly<TicketBoardProps>) {
+export function TicketBoard({
+  tickets,
+  statusFilter = "",
+  onOpen,
+  onMoveStatus,
+}: Readonly<TicketBoardProps>) {
   const [active, setActive] = useState<TicketItem | null>(null);
+  const columns = statusFilter === "" ? TICKET_STATUSES : [statusFilter];
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor),
@@ -84,7 +92,7 @@ export function TicketBoard({ tickets, onOpen, onMoveStatus }: Readonly<TicketBo
       onDragCancel={() => setActive(null)}
     >
       <div className="tk-board">
-        {TICKET_STATUSES.map((status) => (
+        {columns.map((status) => (
           <BoardColumn
             key={status}
             status={status}

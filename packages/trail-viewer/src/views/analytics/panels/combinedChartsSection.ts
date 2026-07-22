@@ -41,7 +41,8 @@ import {
   type CombinedChartsContentThemeProps,
 } from '../charts/combined/combinedChartsContent';
 import { mountDailySessionList } from './dailySessionList';
-import { createTooltip, createSpinner } from '@anytime-markdown/ui-core';
+import { createTooltip, createSpinner, createSelect } from '@anytime-markdown/ui-core';
+import { normalizeWorkspaceName } from '@anytime-markdown/trail-core/domain';
 
 // メトリクストグルの説明ツールチップ i18n キー（value → key。旧 CombinedChartsSection の
 // 各 ToggleButton を包んでいた Tooltip title を復元する。value 名とキー名は一部非対称）。
@@ -51,7 +52,6 @@ const METRIC_DESCRIPTION_KEYS: Record<CombinedMetric, string> = {
   models: 'analytics.combined.model.description',
   skills: 'analytics.combined.skill.description',
   tools: 'analytics.combined.tool.description',
-  repos: 'analytics.combined.repository.description',
   commits: 'analytics.combined.commitPrefix.description',
   releases: 'analytics.combined.release.description',
 };
@@ -73,6 +73,7 @@ export interface CombinedChartsSectionProps {
   fetchCombinedData?: (
     period: CombinedPeriodMode,
     rangeDays: CombinedRangeDays,
+    workspace?: string,
   ) => Promise<CombinedData>;
   fetchQualityMetrics?: (range: DateRange) => Promise<QualityMetrics | null>;
   fetchReleaseQuality?: (
@@ -101,7 +102,6 @@ const METRICS: CombinedMetric[] = [
   'models',
   'skills',
   'tools',
-  'repos',
   'commits',
   'releases',
 ];
@@ -159,7 +159,9 @@ export function mountCombinedChartsSection(
   let modelMetric: ChartMetric = 'count';
   let agentMetric: AgentMetric = 'tokens';
   let commitMetric: CommitMetric = 'count';
-  let repoMetric: ChartMetric = 'count';
+  // ワークスペース切替（'' = All・フィルタなし）。選択肢はサーバー応答（workspaces）由来。
+  let workspace = '';
+  let workspaceOptions: readonly string[] = [];
   // 棒グラフの集計単位。旧実装は period === 90 から暗黙に決めていたが、
   // 期間が任意日数になったため独立したトグルを唯一の決定要因にする。
   let bucket: BucketUnit = 'day';
@@ -190,6 +192,8 @@ export function mountCombinedChartsSection(
   const chartHandles: AnyHandle[] = [];
   // ツールバートグルの tooltip handle（toolbar 再構築・destroy で残置を防ぐため追跡）。
   const toolbarTooltips: Array<{ destroy: () => void }> = [];
+  // ワークスペース select の handle（toolbar 再構築・destroy で残置を防ぐため追跡）。
+  const toolbarSelects: Array<{ destroy: () => void }> = [];
 
   // 永続ホスト: ツールバー / チャート / セッションリストを分離して保持する。
   // drill-down（日付クリック）時はセッションリストのみ差し替え、チャートは破棄せず
@@ -416,6 +420,46 @@ export function mountCombinedChartsSection(
     return group;
   }
 
+  /**
+   * ワークスペース切替ドロップダウン（All + repo_name の worktree 正規化名）。
+   * combined セクション全体（tokens 含む全 metric・ドリルダウン）に適用する。
+   */
+  function createWorkspaceSelect(p: CombinedChartsSectionProps): HTMLElement {
+    const handle = createSelect({
+      value: workspace,
+      options: [
+        { value: '', label: p.t('analytics.combined.workspaceAll') },
+        ...workspaceOptions.map((w) => ({ value: w, label: w })),
+      ],
+      ariaLabel: p.t('analytics.combined.workspace'),
+      fullWidth: false,
+      minWidth: 160, // 選択値の文字数で幅がガタつくのを防ぐ（filterBar と同趣旨）。
+      onChange: (val) => {
+        if (val === workspace) return;
+        workspace = val;
+        // フィルタが変わると単日の内訳も変わるためドリルダウン選択を解除する。
+        selectedDate = null;
+        // 集計対象が変わるため combined データを取り直す
+        // （fetchCombinedData が新しい requestId を発行し、先発の応答は破棄される）。
+        combinedData = null;
+        combinedLoading = false;
+        fetchCombinedData(currentProps);
+        // All へ戻ったときに overlay 未取得なら取り直す（選択中はガードで no-op）。
+        if (workspace === '' && !overlay) fetchOverlay(currentProps);
+        render(currentProps);
+      },
+    });
+    toolbarSelects.push(handle);
+    toolbarTooltips.push(
+      createTooltip({
+        reference: handle.el,
+        title: p.t('analytics.combined.workspace.description'),
+        multiline: true,
+      }),
+    );
+    return handle.el;
+  }
+
   function renderToolbar(p: CombinedChartsSectionProps): HTMLElement {
     const toolbar = document.createElement('div');
     toolbar.style.cssText =
@@ -432,16 +476,16 @@ export function mountCombinedChartsSection(
       p.t('analytics.combined.model'),
       p.t('analytics.combined.skill'),
       p.t('analytics.combined.tool'),
-      p.t('analytics.combined.repository'),
       p.t('analytics.combined.commitPrefix'),
       p.t('analytics.combined.release'),
     ];
     createMetricGroup(leftGroup, p, metricLabels);
 
-    // Period input + bucket unit toggle (not for releases)
+    // Period input + bucket unit toggle + workspace select (not for releases)
     if (metric !== 'releases') {
       leftGroup.appendChild(createPeriodInput(p));
       leftGroup.appendChild(createBucketToggle(p));
+      leftGroup.appendChild(createWorkspaceSelect(p));
     }
 
     toolbar.appendChild(leftGroup);
@@ -451,8 +495,8 @@ export function mountCombinedChartsSection(
     rightGroup.style.cssText = 'display:inline-flex;align-items:center;gap:8px;';
 
     if (metric === 'tokens') {
-      const tokenModes: DailyViewMode[] = ['tokens', 'cost'];
-      const tokenModeLabels = [p.t('chart.tokens'), p.t('chart.cost')];
+      const tokenModes: DailyViewMode[] = ['tokens', 'cost', 'loc'];
+      const tokenModeLabels = [p.t('chart.tokens'), p.t('chart.cost'), p.t('chart.loc')];
       createBtnGroup(rightGroup, tokenModes, tokenModeLabels, tokenMode, (v) => {
         tokenMode = v as DailyViewMode;
         render(currentProps);
@@ -489,16 +533,6 @@ export function mountCombinedChartsSection(
         agentMetric = v as AgentMetric;
         render(currentProps);
       });
-    } else if (metric === 'repos') {
-      const repoMetrics: ChartMetric[] = ['count', 'tokens'];
-      const repoMetricLabels = [
-        p.t('analytics.combined.count'),
-        p.t('analytics.combined.tokens'),
-      ];
-      createBtnGroup(rightGroup, repoMetrics, repoMetricLabels, repoMetric, (v) => {
-        repoMetric = v as ChartMetric;
-        render(currentProps);
-      });
     } else if (metric === 'commits') {
       const commitMetrics: CommitMetric[] = ['count', 'cumulative', 'loc', 'leadTime'];
       const commitMetricLabels = [
@@ -525,14 +559,20 @@ export function mountCombinedChartsSection(
 
   // 各 metric のチャート props を構築（mount / update で共有しデータ更新時の再生成を避ける）。
   function buildDailyProps(p: CombinedChartsSectionProps) {
+    // workspace 選択中は combined 応答に同梱された絞り込み済み dailyActivity を使う。
+    // 全体集計由来の overlay / costOptimization は、絞り込んだ棒グラフと混在させると
+    // 誤読を招くため選択中は表示しない（spec §5.2.1）。
+    const filtered = workspace !== '';
     return {
-      items: p.dailyActivity,
+      items: filtered ? (combinedData?.dailyActivity ?? []) : p.dailyActivity,
       period: p.period,
       bucket,
       mode: tokenMode,
       onDateClick: handleDateClick,
-      costOptimization: p.costOptimization,
-      overlay: overlay ? { bucket: overlay.bucket, tokens: overlay.tokens, cost: overlay.cost } : null,
+      costOptimization: filtered ? null : p.costOptimization,
+      overlay: !filtered && overlay
+        ? { bucket: overlay.bucket, tokens: overlay.tokens, cost: overlay.cost }
+        : null,
       chartColors: p.chartColors,
       cardSx: p.cardSx,
       isDark: p.isDark,
@@ -552,8 +592,8 @@ export function mountCombinedChartsSection(
       modelMetric,
       agentMetric,
       commitMetric,
-      repoMetric,
-      leadTimeOverlay: overlay
+      // 全体集計由来の overlay は workspace 選択中は重ねない（buildDailyProps と同趣旨）。
+      leadTimeOverlay: workspace === '' && overlay
         ? { leadTimePerLoc: overlay.leadTimePerLoc, unmapped: overlay.leadTimeUnmapped, byPrefix: overlay.leadTimeByPrefix }
         : null,
       onDateClick: handleDateClick,
@@ -569,6 +609,15 @@ export function mountCombinedChartsSection(
     parent.appendChild(chartEl);
 
     if (metric === 'tokens') {
+      // workspace 選択中の tokens チャートは combined 応答（dailyActivity 同梱）待ち。
+      if (workspace !== '' && combinedLoading && !combinedData) {
+        const loadingEl = document.createElement('div');
+        loadingEl.style.cssText =
+          'display:flex;justify-content:center;align-items:center;min-height:240px;';
+        loadingEl.appendChild(createSpinner({ size: 24, ariaLabel: p.t('viewer.loading') }).el);
+        parent.appendChild(loadingEl);
+        return;
+      }
       const handle = mountDailyActivityChart(chartEl, buildDailyProps(p));
       chartHandles.push(handle as AnyHandle);
       activeChartUpdate = (np) => handle.update(buildDailyProps(np));
@@ -608,9 +657,13 @@ export function mountCombinedChartsSection(
     destroySessionList();
     // 週バケットでは棒 1 本が単日に対応しないため、日付ドリルダウンを出さない。
     if (selectedDate && bucket !== 'week') {
+      // workspace 選択中は該当ワークスペースのセッションのみ（repoName の正規化名で一致）。
+      const visibleSessions = workspace === ''
+        ? p.sessions
+        : p.sessions.filter((s) => normalizeWorkspaceName(s.repoName ?? '') === workspace);
       sessionListHandle = mountDailySessionList(sessionListHost, {
         date: selectedDate,
-        sessions: p.sessions,
+        sessions: visibleSessions,
         sessionsLoading: p.sessionsLoading,
         onSelectSession: p.onSelectSession,
         onJumpToTrace: p.onJumpToTrace,
@@ -650,6 +703,8 @@ export function mountCombinedChartsSection(
     destroyCharts();
     for (const tt of toolbarTooltips) tt.destroy();
     toolbarTooltips.length = 0;
+    for (const s of toolbarSelects) s.destroy();
+    toolbarSelects.length = 0;
     toolbarHost.replaceChildren(renderToolbar(p));
     if (editingValue !== null) {
       const input = findPeriodInput();
@@ -670,16 +725,19 @@ export function mountCombinedChartsSection(
     const periodMode: CombinedPeriodMode = bucket;
     combinedLoading = true;
     void (async () => {
-      const result = await p.fetchCombinedData!(periodMode, rangeDays);
+      const result = await p.fetchCombinedData!(periodMode, rangeDays, workspace || undefined);
       if (requestId !== combinedRequestId) return;
       combinedData = result;
+      // ドロップダウンの選択肢はフィルタ有無に依らず全件が返る（一覧を安定させる）。
+      workspaceOptions = result.workspaces ?? [];
       combinedLoading = false;
       render(currentProps);
     })();
   }
 
   function fetchOverlay(p: CombinedChartsSectionProps): void {
-    if (!p.fetchQualityMetrics || metric === 'releases') return;
+    // workspace 選択中は overlay を表示しないため取得もしない（buildDailyProps 参照）。
+    if (!p.fetchQualityMetrics || metric === 'releases' || workspace !== '') return;
     const requestId = ++overlayRequestId;
     const now = new Date();
     const to = now.toISOString();
@@ -735,6 +793,8 @@ export function mountCombinedChartsSection(
       destroySessionList();
       for (const tt of toolbarTooltips) tt.destroy();
       toolbarTooltips.length = 0;
+      for (const s of toolbarSelects) s.destroy();
+      toolbarSelects.length = 0;
       root.remove();
     },
   };

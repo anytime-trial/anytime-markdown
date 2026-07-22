@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-22
+
+### 追加
+
+- 同梱スキル: `anytime-dev-retro` に料金表の追従漏れを検知する 2 層トリガを追加しました。機械層（`grounding.token-budget.cjs` が `session_costs` から料金表未登録モデルを検知しレポートへ可視化）と、人手層（`weekly-research` の Claude/Anthropic 調査項目に料金改定有無の確認を追加）です。
+- 同梱スキル: `anytime-dev-retro` のコスト分析観点に、呼び出し回数を優先するヒューリスティックを追加しました（`message_count` が高く `peak_context_tokens` が横ばいのセッションは、1 呼び出しあたりの削減よりも往復回数の削減を優先すべきという指針）。
+
+### 修正
+
+- `anytime-dev-retro` の manifest 版数を 15 へ bump しました。並行する 2 セッションが独立に 13→14 へ異なる内容で bump しており、マージ結果が再配備されない状態を解消しました。
+
+### Trail Core (trail-core / trail-db / trail-server / trail-viewer)
+
+- trail-core: ワークスペース名正規化ヘルパー `normalizeWorkspaceName` を追加し、モデル料金表を世代別解決化しました（fable 追加・opus/haiku の価格是正・未知モデルの WARN 可視化・synthetic 行の集計除外）。
+- trail-db: Codex メッセージの uuid 衝突により大半の Codex セッションで messages が消えていた問題（および付随する `message_tool_calls` 削除漏れ・両経路の seq 不一致の是正）を修正しました。combined 集計にワークスペースフィルタと `workspaces` 一覧を追加しました（`trail-server` の `/api/trail/combined` クエリパラメータ追加を含む）。ワークスペース選択肢に非ワークスペース名（コミット先 repo・サブディレクトリ起動由来の平坦化名）が混入する問題を、期間内に活動があった repo への絞り込みと git ルート解決で修正しました（探索打ち切りの誤帰属修正・コミット絞り込み基準の統一を含む追加是正 2 件を含みます）。
+- trail-viewer: 分析タブのトークンチャートに LOC モードを追加し、分析グラフにワークスペース切替を追加してリポジトリ別チャートを廃止しました。エージェント系列のブランド色喪失と、欠損率表示の誤断言を修正しました。
+
 ## [0.38.0] - 2026-07-19
 
 ### 追加

@@ -11,3 +11,4 @@ export {
 } from './metrics/aiFirstTrySuccessRate';
 export { tokenFactor, tokenMissingRate, applyTokenFactor } from './metrics/tokenAdjustment';
 export type { TokenTurnCounts } from './metrics/tokenAdjustment';
+export { normalizeWorkspaceName } from './workspaceName';

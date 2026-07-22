@@ -66,14 +66,17 @@ export function activate(context: vscode.ExtensionContext) {
 	const docWsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	let docIngestRunner: DocIngestRunner | undefined;
 
-	const startDocIngest = (): void => {
+	// initialRun: 生成直後に ingest を 1 回流すか。コマンドハンドラから呼ぶ場合は false にする
+	// （ハンドラ自身が直後に runOnce するため。初回実行を流すと running ガードに当たり
+	// ハンドラ側の runOnce が空振りする）。
+	const startDocIngest = (initialRun = true): void => {
 		if (docIngestRunner) return; // 既に起動済み（trust 付与での再評価による二重起動を防止）
 		if (!docsRoot || !docWsRoot) return;
 		const dbPath = resolveDocDbPath(docWsRoot, docCfg.get<string>('dbPath'), (msg) => MarkdownLogger.warn(msg));
 		const ingestScriptPath = path.join(extensionDistPath, 'doc-ingest.js');
 		docIngestRunner = new DocIngestRunner(ingestScriptPath, docsRoot, dbPath);
 		context.subscriptions.push(docIngestRunner);
-		void docIngestRunner.runOnce();
+		if (initialRun) { void docIngestRunner.runOnce(); }
 		const intervalMin = docCfg.get<number>('intervalMinutes') ?? 30;
 		if (intervalMin > 0) {
 			const docIngestInterval = setInterval(() => void docIngestRunner?.runOnce(), intervalMin * 60 * 1000);
@@ -94,22 +97,49 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	);
 
+	/** doc 系コマンド共通の前提確認（信頼済みワークスペース + docsRoot 設定済み）。 */
+	const ensureDocPreconditions = (): boolean => {
+		if (!vscode.workspace.isTrusted) {
+			vscode.window.showWarningMessage(
+				'Anytime Markdown: ワークスペースが信頼されていないため doc index を実行できません。',
+			);
+			return false;
+		}
+		if (!docsRoot || !docWsRoot) {
+			vscode.window.showWarningMessage(
+				'Anytime Markdown: anytimeMarkdown.docsRoot が未設定です。設定後に再実行してください。',
+			);
+			return false;
+		}
+		return true;
+	};
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand('anytime-markdown.rebuildDocIndex', () => {
-			if (!vscode.workspace.isTrusted) {
-				vscode.window.showWarningMessage(
-					'Anytime Markdown: ワークスペースが信頼されていないため doc index を実行できません。',
-				);
-				return;
-			}
-			if (!docsRoot || !docWsRoot) {
-				vscode.window.showWarningMessage(
-					'Anytime Markdown: anytimeMarkdown.docsRoot が未設定です。設定後に再実行してください。',
-				);
-				return;
-			}
-			startDocIngest();
+			if (!ensureDocPreconditions()) { return; }
+			startDocIngest(false);
 			void docIngestRunner?.runOnce();
+		}),
+		// フォルダ索引（index.<lang>.md）の再生成のみ。検索 DB（rebuildDocIndex）とは別物。
+		vscode.commands.registerCommand('anytime-markdown.regenerateDocIndexes', async () => {
+			if (!ensureDocPreconditions()) { return; }
+			startDocIngest(false);
+			const result = await docIngestRunner?.runOnce('index-only');
+			if (!result) {
+				vscode.window.showWarningMessage(
+					'Anytime Markdown: 索引再生成を開始できませんでした（実行中の可能性）。ログ（出力: Anytime Markdown）を確認してください。',
+				);
+				return;
+			}
+			if (result.docIndexesError || !result.docIndexes) {
+				vscode.window.showErrorMessage(
+					`Anytime Markdown: 索引再生成に失敗しました: ${result.docIndexesError ?? '結果不明'}`,
+				);
+				return;
+			}
+			vscode.window.showInformationMessage(
+				`Anytime Markdown: フォルダ索引を再生成しました（更新 ${result.docIndexes.written} 件 / 変更なし ${result.docIndexes.unchanged} 件）。`,
+			);
 		}),
 	);
 

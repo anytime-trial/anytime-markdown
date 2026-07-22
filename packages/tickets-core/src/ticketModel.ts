@@ -1,4 +1,4 @@
-export const TICKET_STATUSES = ['backlog', 'up_next', 'in_progress', 'in_review', 'completed'] as const;
+export const TICKET_STATUSES = ['backlog', 'up_next', 'in_progress', 'completed'] as const;
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 export const TICKET_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
@@ -382,9 +382,15 @@ export interface TicketComment {
  * Comments セクション末尾へ「投稿者名 - 日時」付きでコメントを追記する。
  * セクションが無ければ新設する。他セクションは変更しない。
  */
+// Why not: 非アンカーの /Comments|コミュニケーションスレッド/ だと、セクション本文中に
+// 「Comments」という単語がある行を見出しと誤検知し、そこからを Comments セクションとして
+// 切り出してしまう（splitCommentsSection 経由で Description が本文編集から消える実害）。
+// 見出し行（^## ）のみに一致させ、終端判定の /^##\s/（findSectionRange）と対称にする。
+const COMMENTS_SECTION_RE = /^##\s.*(?:Comments|コミュニケーションスレッド)/;
+
 export function appendComment(body: string, comment: TicketComment): string {
   const entry = `### ${comment.author} - ${comment.timestamp}\n\n${comment.text.trim()}\n`;
-  const range = findSectionRange(body, /Comments|コミュニケーションスレッド/);
+  const range = findSectionRange(body, COMMENTS_SECTION_RE);
   if (!range) {
     return `${body.trimEnd()}\n\n${COMMENTS_HEADING}\n\n${entry}`;
   }
@@ -393,6 +399,94 @@ export function appendComment(body: string, comment: TicketComment): string {
   const after = lines.slice(range.end).join('\n');
   const tail = after === '' ? '' : `\n${after}`;
   return `${before}\n\n${entry}${tail}`;
+}
+
+// Why not: 単なる `^### ` をコメント境界にすると、コメント本文へ書かれたコード例・見出し風の
+// 行を別コメントに分割してしまう。appendComment が書く「### <投稿者> - <ISO UTC 日時>」の
+// 日時部分まで一致した行だけを境界とする（投稿者名にスペース・日本語・ハイフンを許すため
+// 区切りは末尾の日時形式で判定する）。
+const COMMENT_HEADER_RE = /^###\s+(.+)\s-\s(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z)\s*$/;
+
+interface CommentBlock extends TicketComment {
+  /** Comments セクション内の行 index（ヘッダー行） */
+  headerLine: number;
+  /** ブロック終端（次ヘッダー行 or セクション末尾・exclusive） */
+  endLine: number;
+}
+
+function scanCommentBlocks(body: string): { lines: string[]; range: { start: number; end: number } | null; blocks: CommentBlock[] } {
+  const lines = body.split('\n');
+  const range = findSectionRange(body, COMMENTS_SECTION_RE);
+  if (!range) {
+    return { lines, range: null, blocks: [] };
+  }
+  const blocks: CommentBlock[] = [];
+  for (let i = range.start + 1; i < range.end; i += 1) {
+    const match = COMMENT_HEADER_RE.exec(lines[i]);
+    if (!match) {
+      continue;
+    }
+    if (blocks.length > 0) {
+      blocks[blocks.length - 1].endLine = i;
+    }
+    blocks.push({ author: match[1], timestamp: match[2], text: '', headerLine: i, endLine: range.end });
+  }
+  for (const block of blocks) {
+    block.text = lines.slice(block.headerLine + 1, block.endLine).join('\n').trim();
+  }
+  return { lines, range, blocks };
+}
+
+/**
+ * Comments セクションを「投稿者 - 日時」単位の構造化リストへ解析する。
+ * セクションが無い・コメントが無い場合は空配列を返す。
+ */
+export function parseComments(body: string): TicketComment[] {
+  return scanCommentBlocks(body).blocks.map(({ author, timestamp, text }) => ({ author, timestamp, text }));
+}
+
+/**
+ * 本文を Comments セクション（見出し含む）とそれ以外へ分離する。
+ * コメントの表示・編集を専用 UI に寄せ、本文編集の対象から Comments を外すための分離点。
+ * セクションが無い場合は `commentsSection` を空文字で返す。
+ */
+export function splitCommentsSection(body: string): { content: string; commentsSection: string } {
+  const { lines, range } = scanCommentBlocks(body);
+  if (!range) {
+    return { content: body, commentsSection: '' };
+  }
+  const pre = lines.slice(0, range.start).join('\n').trimEnd();
+  const post = lines.slice(range.end).join('\n').trim();
+  const content = post === '' ? `${pre}\n` : `${pre}\n\n${post}\n`;
+  const commentsSection = `${lines.slice(range.start, range.end).join('\n').trimEnd()}\n`;
+  return { content, commentsSection };
+}
+
+/**
+ * splitCommentsSection の逆操作。Comments セクションは常に本文末尾へ結合する
+ * （テンプレート上も Comments は最終セクション。中間位置は正規化される）。
+ */
+export function joinCommentsSection(content: string, commentsSection: string): string {
+  if (commentsSection === '') {
+    return content;
+  }
+  return `${content.trimEnd()}\n\n${commentsSection.trimEnd()}\n`;
+}
+
+/**
+ * 指定 index（parseComments の並び順）のコメント本文テキストのみ置換する。
+ * author・日時・他コメント・他セクションは変更しない。index が範囲外なら null
+ * （silent に原文を返すと「保存できたのに変わらない」に見えるため、呼び出し側でエラー表示させる）。
+ */
+export function replaceCommentText(body: string, index: number, text: string): string | null {
+  const { lines, blocks } = scanCommentBlocks(body);
+  if (index < 0 || index >= blocks.length) {
+    return null;
+  }
+  const target = blocks[index];
+  const replacement = ['', text.trim(), ''];
+  const next = [...lines.slice(0, target.headerLine + 1), ...replacement, ...lines.slice(target.endLine)];
+  return next.join('\n');
 }
 
 /** 作業タスクリストセクション内のチェックボックス（`- [x]` / `- [ ]`）を集計する。 */

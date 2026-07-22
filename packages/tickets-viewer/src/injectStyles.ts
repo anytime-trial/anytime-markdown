@@ -171,6 +171,19 @@ const CSS = `
 .tk-textarea { min-height: 180px; width: 100%; resize: vertical; font-family: "Cascadia Code", "Fira Code", Menlo, monospace; line-height: 1.6; }
 .tk-label { display: block; font-size: 0.75rem; color: var(--tk-text-2); margin-bottom: 2px; }
 .tk-fieldset { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* フィルタ行右端のアーカイブ切替。select 群と下端を揃えるため min-height は .tk-select と同値 */
+.tk-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 4px;
+  font-size: 0.875rem;
+  color: var(--tk-text);
+  cursor: pointer;
+}
+.tk-checkbox input { width: 16px; height: 16px; margin: 0; accent-color: var(--tk-primary); cursor: pointer; }
+.tk-checkbox input:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: 1px; }
 
 /* ---- list (table) ---- */
 .tk-table-wrap { overflow-x: auto; border: 1px solid var(--tk-divider); border-radius: var(--tk-radius-card); }
@@ -201,7 +214,7 @@ const CSS = `
   border-radius: var(--tk-radius-card);
   box-shadow: 0 8px 10px -5px rgba(0,0,0,.20), 0 16px 24px 2px rgba(0,0,0,.14), 0 6px 30px 5px rgba(0,0,0,.12);
   width: 100%;
-  max-width: 720px;
+  max-width: 900px;
   padding: 20px;
 }
 .tk-dialog-title { font-size: 1.25rem; font-weight: 700; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -227,6 +240,17 @@ const CSS = `
 .tk-link-btn { background: none; border: none; color: var(--tk-primary); font: inherit; cursor: pointer; text-decoration: underline; padding: 2px; }
 .tk-link-btn:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: 1px; }
 .tk-comment { border-top: 1px solid var(--tk-divider); padding-top: 12px; margin-top: 16px; }
+.tk-comment-thread { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.tk-comment-empty { color: var(--tk-text-2); font-size: 0.85rem; margin: 8px 0 0; }
+.tk-comment-item { border: 1px solid var(--tk-divider); border-radius: var(--tk-radius-control); overflow: hidden; }
+.tk-comment-item-header { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px; background: transparent; border: 0; cursor: pointer; color: var(--tk-text); font: inherit; text-align: left; }
+.tk-comment-item-header:hover { background: var(--tk-hover); }
+.tk-comment-author { font-weight: 600; }
+.tk-comment-author[data-author="agent"] { color: var(--tk-accent); }
+.tk-comment-date { color: var(--tk-text-2); font-size: 0.8rem; }
+.tk-comment-caret { margin-left: auto; color: var(--tk-text-2); }
+.tk-comment-item-body { padding: 8px 12px 12px; border-top: 1px solid var(--tk-divider); }
+.tk-comment-item-body pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-family: inherit; font-size: 0.9rem; line-height: 1.6; }
 .tk-body-view { border: 1px solid var(--tk-divider); border-radius: var(--tk-radius-control); padding: 12px; overflow-x: auto; }
 .tk-body-view pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-family: "Cascadia Code", "Fira Code", Menlo, monospace; font-size: 0.85rem; line-height: 1.6; }
 
@@ -242,7 +266,8 @@ const CSS = `
   .tk-table th, .tk-table td { padding: 8px 10px; }
 }
 @media (pointer: coarse) {
-  .tk-btn, .tk-input, .tk-select { min-height: 44px; }
+  .tk-btn, .tk-input, .tk-select, .tk-checkbox { min-height: 44px; }
+  .tk-checkbox input { width: 20px; height: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tk-card, .tk-btn { transition-duration: 0.01ms; }

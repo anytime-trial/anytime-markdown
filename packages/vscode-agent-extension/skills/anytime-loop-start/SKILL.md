@@ -5,7 +5,7 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
 
 # anytime-loop-start — チケット駆動自動実行（1 tick・ループ開始）
 
-更新日: 2026-07-17
+更新日: 2026-07-20
 
 チケット正本は Git リポジトリの `.tickets/` 配下の Markdown（フォーマットは要件定義書
 `spec/00.requirements/ticket-system-requirements.ja.md` の FR-2 / §8。web-app の /tickets ボードと同一）。
@@ -34,6 +34,8 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
    4. cron ジョブは**セッション限り**（ディスクに保存されず Claude 終了時に消える）で、recurring はさらに **7 日で自動失効**する。どちらの経路で消えても、次に手動起動した tick が手順 6-3 で再確保する。ループを止めるのは `CronDelete`（tick 報告に job id を残しておくのはこのため）。
    - 登録に失敗した場合はループを確保できなかった旨を報告するが、**その tick 自体は継続する**（ループ確保の失敗はチケット処理の中断理由にしない）。
 
+このほか、成果物ドキュメントの保存先 `<docsRoot>` をコードワークスペースの `CLAUDE.md`「ドキュメント保存先（docsRoot）」節から解決しておく（手順 7 の `--add-dir <docsRoot>` と §1.1 の成果物リンク契約で使う。節が無いプロジェクトでは docsRoot 関連の契約と `--add-dir` を省略する）。
+
 ## 1. tick の手順（tick 実行体＝サブエージェントの固定手順・分岐最小）
 
 > **本節の実行体はサブエージェント（`model: sonnet` 明示）**であり、メインセッションではない。tick は固定手順のみで高い推論力を要さないため、メインセッションのモデルが高コスト（Fable / Opus）でも本節がそのモデルで走らないようにする。メインセッションが自ら行うのは §0（前提解決・ループ自己確保）とサブエージェント起動、返却された報告の中継のみ。起動パラメータと委任プロンプトは §5.1 を参照。
@@ -54,9 +56,14 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
    - 上記で **生存**なら、**下記の進捗観測を行ってから**「委譲実行中（<チケット id>・経過 <分>・進捗 <あり/なし>）」と 1 行報告して終了する（新規着手しない。1 tick 1 チケットの原則は委譲実行中にも適用する）。
      - **観測は `git fetch` + `origin/main` の読み取りで行い、`git pull` してはいけない**。子セッションは同じクローンの作業ツリーで作業・コミット・push しているため、`pull` は作業ツリーとインデックスを触って子の git 操作と競合する（`index.lock` の奪い合い・rebase の巻き込み）。`fetch` は作業ツリーを触らない。
      - 観測項目（`git log origin/main` / `git show origin/main:<チケットパス>`）: 当該チケットの `ticket:` コミットの有無、サブタスクの `- [x]`、`## 引継ぎサマリー (Handoff Notes)` の変化。
+     - **heartbeat の読み取り**: 委譲マーカーの `state` / `lastActivity` / `updatedAt`（手順 7 で配線する hooks が更新する。§3 のマーカー契約）を読み、報告へ含める。`updatedAt` が 10 分以上前で pid が生存している場合は「生存だが無活動」として報告する（hooks 不発・ハングの兆候）。マーカーに `state` が無い場合は heartbeat 未配線の子（旧形式）なので従来どおり扱う。
      - **同一チケットで 2 tick 連続して進捗が無い場合は、その観測内容を無進捗として報告する**（§5）。経過時間だけを見て「実行中」と報告し続けない。
    - **死亡**（未存在・ゾンビ）なら、子の終了痕跡とみなし、マーカーを削除したうえで手順 8 の委譲検証を行ってから通常の tick を続行する。**このとき子のログ（`/tmp/ticket-delegation-<チケット id>.log`）の末尾を読み、終了理由を tick 報告に含める**。子が権限拒否等でチケットへ一切書けずに死んだ場合、痕跡はこのログにしか残らないため（チケット側は無変更のまま）、読まないと「作業が宙に浮いている」としか報告できず原因が分からない。
-2. **最新化**: `git pull --ff-only`（この手順に来るのは委譲実行中でないとき＝作業ツリーを触ってよいときのみ）。失敗（コンフリクト・非 ff）したら何も変更せず報告して終了する。
+2. **最新化と分岐の自己修復**: `git pull --ff-only`（この手順に来るのは委譲実行中でないとき＝作業ツリーを触ってよいときのみ）。失敗したら、終了する前に**分岐の残骸かどうかを判定する**（分岐を放置すると以後の tick が毎回ここで落ち、ループ全体が永久に停止するため）。
+   1. `git rev-list --count --left-right @{u}...HEAD` で ahead / behind を数える。ahead が 0 なら分岐ではないので、何も変更せず報告して終了する（コンフリクト等）。
+   2. ahead > 0 なら、ahead 側の各コミットの件名を `git log --format=%s @{u}..HEAD` で確認する。**すべてが着手宣言（`ticket: <id> start (in_progress)` 形式）**であり、**かつ下記 2-4 の作業ツリー確認を通過した**なら、それは過去 tick が push できずに残した再生成可能な状態更新でしかないので、`git reset --hard @{u}` で破棄して再同期し、tick を続行する。破棄したコミットの SHA と件名を tick 報告に含める。
+   3. ahead 側に着手宣言以外のコミット（`ticket: <id> subtask n/m` や手離しコミット等、**子セッションが記録した作業の痕跡**）が 1 つでも混ざっていたら、**何も破棄せず**その旨を報告して終了する。子の進捗・Handoff Notes は再生成できないため、自動破棄の対象にしない。
+   4. **`git reset --hard` の前に必ず `git status --porcelain` で作業ツリーがクリーンであることを確認する**。出力が空でなければ**破棄せず**、未コミットの変更があることを報告して終了する。`reset --hard` はコミット履歴だけでなく**作業ツリーの未コミット変更も破棄する**ため、コミット件名の判定だけでは守れない。子セッションはこのクローンの作業ツリーで作業しており、編集済み・未コミットのまま異常終了し得る（手離し〔§1.2〕は加算・返却・コミットを 1 コミットで行う契約なので、その手前で落ちればファイルだけ変更された状態が残る）。この確認を省くと、子が書きかけた本文や Handoff Notes を無言で失う。
 3. **走査**: `.tickets/*.md`（`archive/` は除外）のフロントマターを解析する。解析不能ファイルはスキップし、tick 報告に「要修復」として列挙する（ループ全体を止めない）。
 4. **対象選定**（上から優先・各条件はすべて AND）:
    1. 再開: `status: in_progress` / `assignee` が **`agent`** / `workspace` が**自ワークスペース**（§0-3）（人の回答が済み再開待ち）
@@ -65,34 +72,82 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
    - `assignee` が `agent` 以外（`user` / 未設定 / 旧識別名 `claude-code` 等）は対象外。人の回答待ちは `assignee: user` が表現する（§2。旧 `question` ラベルによる判定は 2026-07-17 に廃止した）。
    - `workspace` が自ワークスペースと一致しない・未設定のチケットは対象外（他プロジェクトのチケットを拾わない）。
 5. **対象 0 件**: 「静穏 tick（対象なし）」と 1 行報告して終了する。**このとき `assignee: agent` でありながら `workspace` の不一致・未設定で除外した件数を併記する**（例: 「静穏 tick（対象なし。workspace 不一致・未設定で 3 件除外）」）。設定漏れでループが静かに停止しているのか、本当に対象が無いのかを区別できないと、止まっていることに気づけないため。
-6. **着手宣言（重複実行防止）**: 選定チケットの `status: in_progress` と `updated_at`（ISO 8601 UTC）を更新し、当該ファイルのみコミットして push する。push が non fast-forward 等で拒否されたら**他エージェントの先行**とみなし、ローカルコミットを取り消さず `git pull --rebase` → 自分の変更が競合したら手を引いて終了する（次 tick に委ねる）。
+6. **着手宣言（重複実行防止・失敗時は痕跡ゼロ）**: 着手宣言は「成功して push されるか、何も残らないか」の二択で終える。中途半端なローカルコミットを残すとループが自滅するため（下記 6-4）。
+   1. **作業ツリーの清浄を確認してから復帰点を記録する**:
+      1. `git status --porcelain` が空であることを確認する。**空でなければ着手しない**（未コミットの変更があることを報告して終了する）。子セッションが編集途中で異常終了していると、その変更が作業ツリーに残っている。この状態で「当該ファイルのみ」コミットすると、対象チケットが同じファイルなら**子の書きかけを着手宣言コミットに巻き込み**、後続の `reset --hard` で一緒に失う。
+      2. 清浄を確認できたら `BASE=$(git rev-parse HEAD)` を記録する。手順 2 を通過し、かつ作業ツリーが清浄なので、`BASE` は「コミット・未コミットとも tick 以外の変更が存在しない」地点である。これ以降に生じる差分は tick 自身が作ったものだけであり、この保証が 6-3-1 の `reset --hard` を安全にしている（保証が崩れる経路を作らないこと）。
+   2. 選定チケットの `status: in_progress` と `updated_at`（ISO 8601 UTC）を更新し、当該ファイルのみコミット（`ticket: <id> start (in_progress)`）して push する。
+   3. push が non fast-forward 等で拒否されたら**他エージェントまたは人の編集が先行した**とみなし、次の順で回復する（`git pull --rebase` は使わない。着手宣言は `updated_at` を必ず書き換えるため、先行編集とほぼ必ず同じ行で競合し、rebase 途中で止まる）:
+      1. `git reset --hard "$BASE"` で自分の着手宣言コミットを捨てる。**破棄対象は tick 自身が直前に作ったコミットのみ**であり、`origin/main` ではなく `BASE` を指定することで他者の作業を巻き込まない。
+      2. `git pull --ff-only` で再同期する（ここで失敗したら報告して終了）。
+      3. **手順 3〜4 を再実行し、そのチケットがまだ対象条件を満たすか再判定する**。先行編集で `status` や `assignee` が変わっていれば（他エージェントが先に着手した・人が引き取った等）そのチケットは対象外になるので、次の候補へ移るか対象 0 件として終了する。
+      4. まだ対象なら**1 回だけ** 6-1 からリトライする。2 回目も拒否されたら `git reset --hard "$BASE"` → `git pull --ff-only` で片付けたうえで、競合が続いている旨を報告して終了する（3 回以上は試さない）。
+   4. **どの失敗経路でも、tick 終了時にローカルが origin より ahead で終わってはならない**。ahead のまま終えると次 tick の手順 2 が `--ff-only` で必ず失敗し、そこで止まるため**以後どのチケットにも着手できなくなる**（この規定と手順 2 の自己修復は、その自滅を二重に塞ぐためにある）。
 7. **委譲起動（別セッション実行）**: チケット本文の作業を子セッションへ委譲する。
    1. 委譲マーカーを先に記録してから起動する（記録前の起動は禁止。クラッシュ時に手順 1 が検知できなくなる）。
    2. 起動は **`setsid` でセッションから切り離す**（Bash の `run_in_background` に依存しない）。tick 実行体はサブエージェントであり、その終了時にバックグラウンドの子プロセスが巻き添えで停止すると委譲が失われるため、プロセスグループごと分離する。起動確認（マーカーの `pid` 生存）だけ行い、実行完了を待たずに tick を終了する。**切り離した子の終了通知は届かない**ので、結果は次 tick の手順 1（死んだマーカーの検知）から手順 8 の委譲検証で拾う。
-   3. 起動例（`<ticketsRepo>` はチケットリポジトリのルート、cwd はコードワークスペースのルート＝プロジェクト規約・スキルを子に継承させるため）。マーカーの記録と `exec` を同一プロセスに閉じることで「記録前の起動」を構造的に排除している:
+   3. 起動はコード（ランチャースクリプト）とデータ（委譲プロンプト）を**別ファイルに分離**して行う。委譲プロンプトはバッククォート・クォート・`$` を含む長い Markdown であり、シェルコマンド文字列へ直接埋め込むと本文内容に依存して引用が崩れる（`bash -c '...'` 内のバッククォートが command substitution 化した実害あり）。プロンプト本文をシェルにも argv にも一度も通さないことを不変条件とする:
+      1. Write で `/tmp/ticket-delegation-<チケット id>.prompt.md` に委譲プロンプト本文をそのまま書く（エスケープ不要。heredoc での `.sh` への内包は、本文にデリミタが現れた瞬間に壊れるため使わない）。
+      2. Write で `/tmp/ticket-delegation-<チケット id>.settings.json` に heartbeat hooks 設定を書く（`<codeWorkspace>` は展開する。委譲子セッションだけに `--settings` で注入するため、グローバル・プロジェクトの settings には配線しない＝他セッションへの影響ゼロ）:
 
-      ```bash
-      mkdir -p <ticketsRepo>/.git/ticket-delegations
-      setsid bash -c 'printf "{\"ticket\":\"T-12\",\"pid\":%d,\"startedAt\":\"%s\"}\n" \
-          "$BASHPID" "$(date -u +%FT%T.%3NZ)" \
-          > <ticketsRepo>/.git/ticket-delegations/T-12.json
-        exec claude -p "<委譲プロンプト>" --permission-mode acceptEdits \
-          --add-dir <ticketsRepo> \
-          --allowedTools "Bash(git -C <ticketsRepo>:*)"' \
-        > /tmp/ticket-delegation-T-12.log 2>&1 < /dev/null &
-      ```
+         ```json
+         {
+           "hooks": {
+             "PostToolUse": [{ "hooks": [{ "type": "command", "command": "node <codeWorkspace>/.claude/skills/anytime-loop-start/heartbeat-hook.cjs posttool", "timeout": 5 }] }],
+             "Stop": [{ "hooks": [{ "type": "command", "command": "node <codeWorkspace>/.claude/skills/anytime-loop-start/heartbeat-hook.cjs stop", "timeout": 5 }] }],
+             "SessionEnd": [{ "hooks": [{ "type": "command", "command": "node <codeWorkspace>/.claude/skills/anytime-loop-start/heartbeat-hook.cjs sessionend", "timeout": 5 }] }]
+           }
+         }
+         ```
+
+      3. Write で `/tmp/ticket-delegation-<チケット id>.sh` にランチャーを書く（`<ticketsRepo>` はチケットリポジトリのルート、`<codeWorkspace>` はコードワークスペースのルート。`cd` 先を `<codeWorkspace>` にするのはプロジェクト規約・スキルを子に継承させるため。Bash ツールの cwd リセットに依存しないよう `cd` はスクリプトに内包する）:
+
+         ```bash
+         #!/bin/bash
+         # set -euo pipefail が「マーカーを書けなければ子は起動しない」を保証する
+         # （これが無いと printf/mkdir 失敗でも exec まで進み、マーカー無しの子=次 tick が検知できない孤児が生まれる）
+         set -euo pipefail
+         cd <codeWorkspace>
+         mkdir -p <ticketsRepo>/.git/ticket-delegations
+         now="$(date -u +%FT%T.%3NZ)"
+         printf '{"ticket":"%s","pid":%d,"startedAt":"%s","state":"running","updatedAt":"%s"}\n' \
+           "T-12" "$$" "$now" "$now" \
+           > <ticketsRepo>/.git/ticket-delegations/T-12.json
+         export TICKET_DELEGATION_MARKER=<ticketsRepo>/.git/ticket-delegations/T-12.json
+         exec claude -p --permission-mode acceptEdits \
+           --add-dir <ticketsRepo> \
+           --add-dir <docsRoot> \
+           --settings /tmp/ticket-delegation-T-12.settings.json \
+           --allowedTools "Bash(git -C <ticketsRepo>:*)" "Bash(git -C <docsRoot>:*)" \
+           < /tmp/ticket-delegation-T-12.prompt.md
+         ```
+
+         `export TICKET_DELEGATION_MARKER` は `exec` で claude に継承され、`--settings` で注入した hooks（同梱 `heartbeat-hook.cjs`）がこの env でマーカーを特定して heartbeat を書く（env 未設定のセッションでは hook は no-op）。マーカーのフィールド契約は §3 を参照。
+
+         プロンプトは `-p` の引数ではなく **stdin リダイレクトで渡す**（`"$(cat …)"` も使わない。argv 経由は ARG_MAX 依存かつ `ps` で全文露出する）。`$$` は `exec` で claude に引き継がれるため pid 記録は正しい。マーカーの記録と `exec` を同一プロセスに閉じることで「記録前の起動」を構造的に排除している。
+      4. `bash -n` で構文ゲートを通してから `setsid` で起動する（テンプレート退行を起動前に検知する。ゲートで落ちたらスクリプトを直すまで起動しない）:
+
+         ```bash
+         bash -n /tmp/ticket-delegation-T-12.sh \
+           && setsid bash /tmp/ticket-delegation-T-12.sh \
+             > /tmp/ticket-delegation-T-12.log 2>&1 < /dev/null &
+         ```
+
+         外側の `< /dev/null` はランチャー内の stdin リダイレクトで上書きされるため競合しない。`.prompt.md` は削除せず残す（子が変死したとき「何を指示されたか」をログと併せて事後検証するため。チケット id 単位で上書きされるので蓄積しない）。
 
       **`--add-dir <ticketsRepo>` は必須**（省略不可）。cwd はコードワークスペースのルートであり、チケットリポジトリはその**外**にあるため、付けないと子はチケットファイルを Read すらできず、**質問手順（§2）による中断すら踏めずに死ぬ**（チケットへ何も書けないため痕跡はログにしか残らない）。`--allowedTools` でチケットリポジトリに対する git 操作を事前許可するのも同じ理由で必須である。**ヘッドレスの子は権限プロンプトに応答できないので、必要な許可は起動時に与え切る**（後から承認する経路が無い）。付与範囲は §3 の安全境界と一致させる（チケットリポジトリの git 操作とチケットファイルの読み書きまで。コードワークスペース側の push 権限は与えない）。
+
+      **`--add-dir <docsRoot>` も必須**（`<docsRoot>` はプロジェクト CLAUDE.md の「ドキュメント保存先（docsRoot）」節の値。tick 起動前の §0 で解決してテンプレートへ展開する）。§1.1 のとおり成果物ドキュメントは docsRoot 配下へ保存する契約であり、付けないと子は成果物を規約どおりの場所へ書けず、チケット本文へ貼る逸脱かエラーで止まる。docsRoot の git はドキュメントの明示 add によるコミットと push まで（§1.1）。
 
    4. 権限・hooks は迂回しない（`--dangerously-skip-permissions` は使わない）。ヘッドレスの子は権限プロンプトに応答できないため、許可リストで拒否された操作は §2 の質問へ切り替えるよう委譲プロンプトで指示する。
    5. 委譲プロンプトに含める 6 点（グローバル CLAUDE.md の委譲ルール準拠）:
       - **対象**: チケット id とチケットファイルの絶対パス、チケットリポジトリのルート
       - **禁止範囲**: §3 の安全境界（チケットファイル以外のリモート push・本番リリース・破壊的操作の禁止）
-      - **完了条件**: 全サブタスク完了（または本文の完了条件充足）→ `status: in_review` 遷移と §1.2 の手離し手順（`actual` 加算・`assignee: user` 返却）をコミット・push
-      - **検証**: チケット本文の完了条件・テスト等（実測で確認してから in_review へ遷移する）
+      - **完了条件**: 全サブタスク完了（または本文の完了条件充足）→ 成果物ドキュメントは docsRoot へ保存しチケットへリンクを記載（§1.1）→ Comments へ「完了報告:」コメントを追記し、§1.2 の手離し手順（`actual` 加算・`assignee: user` 返却。`status` は `in_progress` のまま）をコミット・push
+      - **検証**: チケット本文の完了条件・テスト等（実測で確認してから完了報告コメントを書く）
       - **中断条件**: 人の判断が必要（§2 の質問手順へ）・無進捗・権限拒否
       - **実施手順**: 本スキル §1.1（子セッションの実行契約）と §2〜§4 に従う旨
-8. **委譲検証（tick の検証責任）**: 手順 1 で死んだマーカーを検知したら（＝前 tick が起動した子セッションの終了痕跡）、子の報告文ではなく実測で結果を検証する: チケットの `status`・`assignee`・コミット履歴（`git log` の `ticket:` コミット）・Handoff Notes を確認する。`in_review` 遷移・§2 の質問化・Handoff Notes 付き中断のいずれにも該当しない（作業が宙に浮いている）場合は、その乖離を tick 報告に含める。**`assignee` が `agent` のまま残っていたら、子が §1.2 の手離しを終える前に落ちた痕跡**なので、`assignee` を `user` へ戻して**コミット・push する**（`actual` は加算しない。マーカーが残っている＝未加算だが、経過時間の実測が子の異常終了で不確かなため、二重計上より欠測を選ぶ）。乖離として報告する。push まで行うのは、リモートが `agent` のままだと web-app のボード上で人へ戻ったように見えず、チケットが誰にも見えない場所で止まるため。検証後、残っていれば委譲マーカーを削除する。
+8. **委譲検証（tick の検証責任）**: 手順 1 で死んだマーカーを検知したら（＝前 tick が起動した子セッションの終了痕跡）、子の報告文ではなく実測で結果を検証する: チケットの `status`・`assignee`・コミット履歴（`git log` の `ticket:` コミット）・Handoff Notes を確認する。「完了報告:」コメント付きの手離し・§2 の質問化・Handoff Notes 付き中断のいずれにも該当しない（作業が宙に浮いている）場合は、その乖離を tick 報告に含める。**`assignee` が `agent` のまま残っていたら、子が §1.2 の手離しを終える前に落ちた痕跡**なので、`assignee` を `user` へ戻して**コミット・push する**（`actual` は加算しない。マーカーが残っている＝未加算だが、経過時間の実測が子の異常終了で不確かなため、二重計上より欠測を選ぶ）。乖離として報告する。push まで行うのは、リモートが `agent` のままだと web-app のボード上で人へ戻ったように見えず、チケットが誰にも見えない場所で止まるため。マーカーの最終 `state` / `lastActivity` / `endReason` も tick 報告に含める（`state` が `done` 以外のまま死んでいたら異常終了の傍証）。検証後、残っていれば委譲マーカーを削除する。
 
 ### 1.1 子セッションの実行契約（委譲プロンプトで指示する内容）
 
@@ -100,7 +155,12 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
 - サブタスクを完了するたびに `- [x]` 化を**コミットして push する**（ローカルに溜めない。§3 の push 原則）。push しないと、tick 側の進捗観測（手順 1）も web-app のボードもリモートを見るため進捗が見えず、無進捗と誤判定される。子が異常終了した場合は取り残される。
 - 中断・セッション跨ぎに備え、`## 引継ぎサマリー (Handoff Notes)` に現在状態（何が済み・次に何をするか）を維持する。
 - 作業の進め方自体は通常の開発規約（`anytime-dev-cycle`・プロジェクト CLAUDE.md）に従う。コードリポジトリで他セッション（親 tick セッションを含む）が ACTIVE なら、worktree 分離等の並行セッション規約に従う。
-- 全サブタスク完了（または本文の完了条件を充足）したら `status: in_review` と `updated_at` を更新してコミット・push する。`completed` への遷移は人のレビュー操作であり、行わない。
+- **成果物ドキュメント（検討結果・設計書・提案・レポート等）はチケット本文へ貼らず、ワークスペースの規約で規定された保存先（プロジェクト CLAUDE.md の `docsRoot` 配下・type 別フォルダ）へ保存し、チケットにはそのリンクを記載する**。チケットは状態と参照の正本であり、ドキュメントの正本は docsRoot 側に置く（本文へ貼るとチケットが肥大し、docsRoot の索引・related グラフからも外れる）。**docsRoot へ保存したドキュメントは当該ファイルを明示 add でコミットし、push まで行う**（チケットに記載したリンクの参照先をリモートでも成立させるため。push が権限・競合で失敗した場合は作業を止めず、その旨を Handoff Notes へ記録して続行する）。push してよいのはチケットファイルと docsRoot のドキュメントのみで、コード成果物の push 禁止は従来どおり（§3）。例外: 数行で収まる要約・結論はチケットへ直接書いてよい（リンク先の要約として併記するのが望ましい）。
+  - **リンクはローカルファイルパスで記載しない**。チケットは GitHub・web-app ボードなど docsRoot と別のマシン／別のクローンから参照されるため、ローカル絶対パス（`<docsRoot>/...` や `/Shared/...`）はチケット読者の手元で開けない。参照可能な URL に変換して記載する:
+    - **docsRoot が git リポジトリ**（`git -C <docsRoot> rev-parse --is-inside-work-tree` が true）: push 後に `git -C <docsRoot> remote get-url origin` を取得し、`git@github.com:<org>/<repo>.git` → `https://github.com/<org>/<repo>` の形へ正規化のうえ、`https://github.com/<org>/<repo>/blob/<branch>/<docsRoot からの相対パス>`（`<branch>` は push 先ブランチ）を記載する。GitHub 以外のホスティングも同様に SSH remote を HTTPS の Web URL へ正規化する。
+    - **ドキュメントが Google Drive 上にある**（docsRoot がローカルクローンを持たず Drive 運用のプロジェクト等）: そのドキュメントの共有リンク URL（`https://docs.google.com/...` 等）をそのまま記載する。
+    - どちらにも該当せず URL 化できない場合は、その旨と理由（例: push 前で未確定・権限不明）を Handoff Notes に記録し、チケットには暫定でローカルパスと「URL 未確定」を明記する（サイレントに未変換のまま確定リンクとして書かない）。
+- **完了報告（2026-07-19 変更・`in_review` ステータス廃止）**: 全サブタスク完了（または本文の完了条件を充足）したら、`status` は `in_progress` のまま `## コミュニケーションスレッド (Comments)` へ「`完了報告:`」プレフィクス付きで実施内容・検証方法・結果を追記し、コミット・push する。その後は §1.2 の手離し手順（`actual` 加算・`assignee: user` 返却）を同じ流れで実施する。`completed` への遷移は人が完了報告を確認したうえで行う手動操作であり、tick・子セッションのいずれも行わない。
 - 人の判断が必要になったら §2 に従いチケット上で質問し、このチケットの作業を中断する。
 - **終了時は必ず §1.2 の「手離し手順」を実施する**（完了・質問中断・無進捗中断のいずれでも同じ）。
 
@@ -135,12 +195,17 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
 
 ## 3. 安全境界
 
-- **push してよいのは `.tickets/` 配下のチケットファイルの変更のみ**。コミットはファイル名を明示して add する（`git add .` 禁止）。
+- **push してよいのは `.tickets/` 配下のチケットファイルの変更と、docsRoot リポジトリへ保存した成果物ドキュメント（§1.1）のみ**。コミットはいずれもファイル名を明示して add する（`git add .` 禁止）。
 - **チケットファイルをコミットしたら必ず push する（ローカルに留めない）**。本スキルでチケットへの変更を「コミットする」と書いてある箇所は、例外なく push までを含む。正本は GitHub 上のリモートであり、tick の進捗観測（手順 1）も委譲検証（手順 8）も web-app のボードもリモートを見るため、ローカルに留まった変更は**存在しないのと同じ**（無進捗と誤判定され、子の異常終了で取り残される）。唯一の例外は委譲マーカー（`.git/` 配下・下記）。
 - 作業成果物（コード等）のリモート push・本番リリース・破壊的操作（`git reset --hard` / `clean -f` 等）は、§2 の承認依頼で明示承認を得るまで実行しない。
+  - **例外（承認不要）**: 手順 6-3 の `git reset --hard "$BASE"` と手順 2-2 の着手宣言残骸の破棄。この 2 つを承認必須にすると、承認を待つ間ループが手順 2 で停止し続けるため、例外として明示する。ただし例外が成り立つのは**破棄対象が tick 自身の生成物だけだと確認できている場合に限る**。それを担保するのが次の 2 つのガードであり、**どちらも省略してはならない**:
+    - コミット済みの判定: ahead 側が全て着手宣言コミットであること（手順 2-2 / 2-3）
+    - **未コミットの判定**: `git status --porcelain` が空であること（手順 2-4 / 6-1-1）。`reset --hard` は作業ツリーの未コミット変更も破棄するため、コミット件名の判定だけでは子セッションの書きかけを守れない
+    - いずれかのガードに引っかかったら破棄せず報告して終了する（＝そのときは人の判断へ回す）。
 - Claude Code の権限設定・hooks・プロジェクト規約を迂回しない（子セッションも同様）。
 - 1 tick で着手するチケットは 1 件のみ。**委譲実行中（マーカーの pid 生存中）は次のチケットに着手しない**（暴走・並行汚染の防止）。
 - 委譲マーカー（`.git/ticket-delegations/`）はローカル管理であり、コミット・push しない。
+- **マーカーのフィールド契約（heartbeat）**: 起動時にランチャーが `ticket` / `pid` / `startedAt` / `state: "running"` / `updatedAt` を書き、以後は同梱 `heartbeat-hook.cjs`（`--settings` 配線・env `TICKET_DELEGATION_MARKER` で特定）が `state`（`running` = PostToolUse / `done` = Stop・SessionEnd。`blocked` / `failed` は予約値 — blocked は §2 の質問化がチケット側に現れるため書かず、failed はマーカーが自身のクラッシュを書けないため手順 1 の死亡検知が担う）・`lastActivity`（直近ツール名）・`updatedAt`・`endReason`（SessionEnd の理由）を追記更新する。`ticket` / `pid` / `startedAt` は不変（手順 1 の死亡検知・§1.2 の `actual` 算出と互換）。更新は同一ディレクトリ tmp → rename の原子置換で、読み手（手順 1 / 8）が半端な JSON を掴まない。hook はマーカー不在時に新規作成しない（「マーカーを先に書いてから起動」の契約を維持）。
 
 ## 4. コミットメッセージ規約
 
@@ -149,7 +214,7 @@ description: チケット駆動の自動実行 1 tick とループ開始。「/a
 | 着手宣言 | `ticket: T-12 start (in_progress)` |
 | 進捗反映 | `ticket: T-12 subtask 3/5` |
 | 質問・承認依頼 | `ticket: T-12 needs answer (assignee: user, +25m)` |
-| 完了 | `ticket: T-12 ready for review (in_review, assignee: user, +25m)` |
+| 完了報告・手離し | `ticket: T-12 done, handback (assignee: user, +25m)` |
 
 手離し（§1.2）を伴うコミットは、返却先（`assignee: user`）と今回加算した実施工数（`+<分>m`）を件名に含める。
 

@@ -247,6 +247,12 @@ const THINKING_DIAGRAM_ITEMS: readonly VanillaSlashCommandItem[] = [
       "structure-map",
       "構造マップ",
       "構造化",
+      "cooccurrence",
+      "共起",
+      "共起ネットワーク",
+      "ネットワーク",
+      "network",
+      "kh",
     ],
     action: (editor) => {
       insertThinkingDiagram(editor, thinkingDiagramSkeleton());

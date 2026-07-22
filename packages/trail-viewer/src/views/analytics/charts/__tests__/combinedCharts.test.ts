@@ -5,7 +5,6 @@
  */
 import { mountAgentsCombinedChart } from '../combined/agentsCombinedChart';
 import { mountModelsCombinedChart } from '../combined/modelsCombinedChart';
-import { mountReposCombinedChart } from '../combined/reposCombinedChart';
 import { mountSkillsCombinedChart } from '../combined/skillsCombinedChart';
 import { mountToolsCombinedChart } from '../combined/toolsCombinedChart';
 import { mountErrorToolsCombinedChart } from '../combined/errorToolsCombinedChart';
@@ -57,12 +56,6 @@ function makeAxisInfo() {
     commitBaseline: undefined,
     aiRateRows: [],
     commitRegressionByPeriod: [],
-    // repos
-    repoRows: [],
-    repoPeriods: [],
-    repoLabels: [],
-    repos: [],
-    repoMap: new Map<string, string>(),
     // other axisInfo fields
     toolMap: new Map<string, string>(),
     errTools: [],
@@ -154,22 +147,6 @@ describe('mountModelsCombinedChart', () => {
     // empty state: card children should contain emptyEl
     expect(c.querySelector('p')?.textContent).toBe('0');
     h.update({ axisInfo, modelMetric: 'tokens', canDrill: false, isDark: false, toolPalette: TOOL_PALETTE, cardSx: CARD_SX, t });
-    h.destroy();
-  });
-});
-
-// ---------------------------------------------------------------------------
-//  mountReposCombinedChart
-// ---------------------------------------------------------------------------
-
-describe('mountReposCombinedChart', () => {
-  it('mounts, update, destroy without throwing', () => {
-    const c = makeDiv();
-    const h = mountReposCombinedChart(c, {
-      axisInfo, repoMetric: 'count', canDrill: true,
-      isDark: false, toolPalette: TOOL_PALETTE, cardSx: CARD_SX,
-    });
-    h.update({ axisInfo, repoMetric: 'tokens', canDrill: false, isDark: true, toolPalette: TOOL_PALETTE, cardSx: CARD_SX });
     h.destroy();
   });
 });
@@ -310,7 +287,7 @@ describe('mountCombinedChartsContent', () => {
     const h = mountCombinedChartsContent(c, {
       data: null, periodDays: 30, activeChart: 'models',
       toolMetric: 'count', modelMetric: 'count', agentMetric: 'tokens',
-      commitMetric: 'count', repoMetric: 'count', leadTimeOverlay: null, theme,
+      commitMetric: 'count', leadTimeOverlay: null, theme,
     });
     expect(c.children).toHaveLength(0);
     h.destroy();
@@ -325,11 +302,11 @@ describe('mountCombinedChartsContent', () => {
       modelStats: [],
       agentStats: [],
       commitPrefixStats: [],
-      repoStats: [],
       aiFirstTryRate: [],
       qualityRates: [],
       commitBaseline: undefined,
       commitRegressionByPeriod: [],
+      workspaces: [],
     };
     const base = {
       data: minimalData as unknown as Parameters<typeof mountCombinedChartsContent>[1]['data'],
@@ -338,14 +315,12 @@ describe('mountCombinedChartsContent', () => {
       modelMetric: 'count' as const,
       agentMetric: 'tokens' as const,
       commitMetric: 'count' as const,
-      repoMetric: 'count' as const,
       leadTimeOverlay: null,
       theme,
     };
     const h = mountCombinedChartsContent(c, { ...base, activeChart: 'models' });
     h.update({ ...base, activeChart: 'tools' });
     h.update({ ...base, activeChart: 'tools', toolMetric: 'error' as const });
-    h.update({ ...base, activeChart: 'repos' });
     h.update({ ...base, activeChart: 'skills' });
     h.update({ ...base, activeChart: 'agents' });
     h.update({ ...base, activeChart: 'commits' });

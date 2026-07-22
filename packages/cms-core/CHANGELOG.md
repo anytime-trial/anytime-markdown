@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-22
+
+### Added
+
+- Google Drive Reader shared logic (`googleDriveService`): service account JWT construction, base64url encoding, Google OAuth token acquisition, Doc ID/URL parsing, and Drive export fetching, implemented as pure/DI functions so RS256 signing can be injected by the caller (no new npm dependency).
+
+### Fixed
+
+- 403/404 responses from Google now include the upstream error detail body for diagnostics, and non-JSON/null token endpoint responses are converted into exceptions carrying the HTTP status (anytime-cross-review findings).
+
 ## [0.1.7] - 2026-06-20
 
 ### Added

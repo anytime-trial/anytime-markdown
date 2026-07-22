@@ -102,9 +102,11 @@ async function openTicketsPage(page: Page, options?: { putStatus?: number }) {
 }
 
 test.describe("tickets board", () => {
-  test("5 列のボードにカードと要修復ファイルが表示される", async ({ page }) => {
+  test("4 列のボードにカードと要修復ファイルが表示される", async ({ page }) => {
     await openTicketsPage(page);
-    await expect(page.locator(".tk-column")).toHaveCount(5);
+    // TICKET_STATUSES は backlog / up_next / in_progress / completed の 4 状態
+    // （in_review は廃止され、完了は handback で報告する）
+    await expect(page.locator(".tk-column")).toHaveCount(4);
     const upNext = page.locator('[data-status="up_next"]');
     await expect(upNext).toContainText("T-1");
     await expect(upNext).toContainText("First ticket");

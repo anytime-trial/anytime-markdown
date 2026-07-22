@@ -1,15 +1,15 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "license": "MIT",
   "private": true,
   "scripts": {
     "version:sync": "npm version --no-git-tag-version --workspaces",
-    "spec:index": "node scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/spec 設計書 ja",
-    "tech:index": "node scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/tech 技術ドキュメント ja",
-    "proposal:index": "node scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/proposal 提案 ja",
-    "review:index": "node scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/review レビュー ja",
-    "report:index": "node scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/report レポート ja",
+    "spec:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/spec 設計書 ja",
+    "tech:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/tech 技術ドキュメント ja",
+    "proposal:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/proposal 提案 ja",
+    "review:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/review レビュー ja",
+    "report:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/report レポート ja",
     "check-skills": "node scripts/check-bundled-skills.mjs && node scripts/check-skill-refs.mjs && node scripts/check-skill-manifest-bump.mjs && node scripts/check-shortcut-markers.mjs && npm run test:scripts",
     "accept:farm": "node scripts/acceptance/farm.mjs",
     "test:scripts": "node --test scripts/*.test.mjs scripts/acceptance/*.test.mjs",
@@ -59,6 +59,7 @@
     "packages/tickets-viewer",
     "packages/trail-viewer",
     "packages/graph-viewer",
+    "packages/cooccurrence-viewer",
     "packages/mindmap-viewer",
     "packages/mcp-trail",
     "packages/trace-core",
@@ -85,12 +86,12 @@
     },
     "handlebars": "4.7.9",
     "@xmldom/xmldom": "0.9.10",
-    "brace-expansion": "1.1.13",
+    "brace-expansion": "1.1.16",
     "ignore": "7.0.5",
     "ws": "8.21.0",
     "markdown-it": "14.2.0",
-    "linkify-it": "5.0.1",
-    "dompurify": "3.4.11"
+    "linkify-it": "5.0.2",
+    "dompurify": "3.4.12"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",
@@ -100,6 +101,7 @@
     "husky": "9.1.7",
     "lint-staged": "17.0.8",
     "raw-loader": "4.0.2",
+    "tsx": "4.23.1",
     "typescript": "6.0.3",
     "typescript-eslint": "8.61.0"
   },

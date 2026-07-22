@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   TICKET_ASSIGNEES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   TICKET_WORKSPACES,
+  joinCommentsSection,
+  parseComments,
+  replaceCommentText,
+  splitCommentsSection,
   type TicketAssignee,
   type TicketFrontmatter,
   type TicketPriority,
@@ -15,8 +19,16 @@ import {
 } from "@anytime-markdown/tickets-core";
 
 import type { SaveTicketInput, TicketItem } from "../ticketsClient";
+import { CommentThread } from "./CommentThread";
 import { ModalShell } from "./ModalShell";
 import { PriorityBadge, formatLocalDate } from "./parts";
+
+/**
+ * web-app からの投稿・編集の操作者（FR-6）。担当（assignee）と同じ 2 値モデルの user 固定。
+ * ログイン名を使わないのは、セッションごとに可変で「同じ担当者のみ編集可」の判定が
+ * 担当モデルと一致しなくなるため。AI エージェント側は `agent` 固定で追記する。
+ */
+const WEB_ACTOR = "user";
 
 export interface TicketDetailDialogProps {
   ticket: TicketItem | null;
@@ -40,6 +52,50 @@ function splitList(value: string): string[] | undefined {
   return items.length > 0 ? items : undefined;
 }
 
+/** フォーム各欄の編集値（チケット由来の初期値と、切替時のリセット値の単一の出所）。 */
+interface TicketFormState {
+  title: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  assignee: TicketAssignee | "";
+  workspace: TicketWorkspace | "";
+  dependencies: string;
+  estimate: string;
+  actual: string;
+  body: string;
+}
+
+/** チケット（未選択なら null）からフォームの表示値を導出する。 */
+function toFormState(ticket: TicketItem | null): TicketFormState {
+  if (!ticket) {
+    return {
+      title: "",
+      status: "backlog",
+      priority: "medium",
+      assignee: "",
+      workspace: "",
+      dependencies: "",
+      estimate: "",
+      actual: "",
+      body: "",
+    };
+  }
+  const fm = ticket.frontmatter;
+  return {
+    title: fm.title,
+    status: fm.status,
+    priority: fm.priority,
+    assignee: fm.assignee ?? "",
+    workspace: fm.workspace ?? "",
+    dependencies: (fm.dependencies ?? []).join(", "),
+    estimate: fm.estimate === undefined ? "" : String(fm.estimate),
+    actual: fm.actual === undefined ? "" : String(fm.actual),
+    // FR-6: 本文編集は Comments セクションを対象外にする（コメント編集制限を本文編集で
+    // 迂回させない）。Comments は保存時に joinCommentsSection で再結合する。
+    body: splitCommentsSection(ticket.body).content,
+  };
+}
+
 function parseOptionalNumber(value: string): number | undefined {
   if (value.trim() === "") {
     return undefined;
@@ -52,42 +108,47 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   const { ticket, allTickets, currentUser, onClose, onSave, onComment, onArchive, onDelete, onOpenTicket, renderBody } = props;
   const t = useTranslations("tickets");
   const locale = useLocale();
-  const [title, setTitle] = useState("");
-  const [status, setStatus] = useState<TicketStatus>("backlog");
-  const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [assignee, setAssignee] = useState<TicketAssignee | "">("");
-  const [workspace, setWorkspace] = useState<TicketWorkspace | "">("");
-  const [dependencies, setDependencies] = useState("");
-  const [estimate, setEstimate] = useState("");
-  const [actual, setActual] = useState("");
-  const [body, setBody] = useState("");
+  const resetKey = ticket ? `${ticket.path}:${ticket.version}` : "";
+  const initial = toFormState(ticket);
+
+  const [formKey, setFormKey] = useState(resetKey);
+  const [title, setTitle] = useState(initial.title);
+  const [status, setStatus] = useState<TicketStatus>(initial.status);
+  const [priority, setPriority] = useState<TicketPriority>(initial.priority);
+  const [assignee, setAssignee] = useState<TicketAssignee | "">(initial.assignee);
+  const [workspace, setWorkspace] = useState<TicketWorkspace | "">(initial.workspace);
+  const [dependencies, setDependencies] = useState(initial.dependencies);
+  const [estimate, setEstimate] = useState(initial.estimate);
+  const [actual, setActual] = useState(initial.actual);
+  const [body, setBody] = useState(initial.body);
   const [editingBody, setEditingBody] = useState(false);
   const [message, setMessage] = useState("");
   const [commentText, setCommentText] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const resetKey = ticket ? `${ticket.path}:${ticket.version}` : "";
-  useEffect(() => {
-    if (!ticket) {
-      return;
-    }
-    const fm = ticket.frontmatter;
-    setTitle(fm.title);
-    setStatus(fm.status);
-    setPriority(fm.priority);
-    setAssignee(fm.assignee ?? "");
-    setWorkspace(fm.workspace ?? "");
-    setDependencies((fm.dependencies ?? []).join(", "));
-    setEstimate(fm.estimate === undefined ? "" : String(fm.estimate));
-    setActual(fm.actual === undefined ? "" : String(fm.actual));
-    setBody(ticket.body);
+  // Why not: 初期化を useEffect（mount 後）でやると、初回レンダーは全フィールドが空のまま
+  // 子へ渡る。renderBody で注入される vanilla ビューは mount-once（initialContent は生成時
+  // オプションで、変更は consumer の key remount 契約）なので、空文字で mount されたきり
+  // 更新されず本文が白紙になる。React 公式の「prop 変化に合わせてレンダー中に state を
+  // 調整する」パターンで、初回から実データを持たせる。
+  if (formKey !== resetKey) {
+    const next = toFormState(ticket);
+    setFormKey(resetKey);
+    setTitle(next.title);
+    setStatus(next.status);
+    setPriority(next.priority);
+    setAssignee(next.assignee);
+    setWorkspace(next.workspace);
+    setDependencies(next.dependencies);
+    setEstimate(next.estimate);
+    setActual(next.actual);
+    setBody(next.body);
     setEditingBody(false);
     setMessage("");
     setCommentText("");
     setConfirmingDelete(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey]);
+  }
 
   const byId = useMemo(() => {
     const map = new Map<string, TicketItem>();
@@ -96,6 +157,8 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
     }
     return map;
   }, [allTickets]);
+
+  const comments = useMemo(() => parseComments(ticket?.body ?? ""), [ticket]);
 
   if (!ticket) {
     return null;
@@ -120,15 +183,22 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
   const handleSave = async () => {
     setBusy(true);
     const fm = buildFrontmatter();
-    await onSave({
+    const ok = await onSave({
       path: ticket.path,
       version: ticket.version,
       frontmatter: fm,
       extras: ticket.extras,
-      body,
+      // 本文フォームは Comments 除外済み（toFormState）。最新の ticket.body から
+      // Comments セクションを取り直して再結合する（フォームを開いた後に追記された
+      // コメントを本文保存で巻き戻さない）。
+      body: joinCommentsSection(body, splitCommentsSection(ticket.body).commentsSection),
       message: message.trim() === "" ? `ticket: update ${fm.id} ${fm.title}` : message.trim(),
     });
     setBusy(false);
+    // Why not: 失敗時も閉じると入力中の編集内容が失われ再入力を強いるため、成功時のみ閉じる
+    if (ok) {
+      onClose();
+    }
   };
 
   const handleComment = async () => {
@@ -136,11 +206,35 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
       return;
     }
     setBusy(true);
-    const ok = await onComment(ticket, currentUser ?? "anonymous", commentText.trim());
+    const ok = await onComment(ticket, WEB_ACTOR, commentText.trim());
     setBusy(false);
     if (ok) {
       setCommentText("");
     }
+  };
+
+  const handleCommentEdit = async (index: number, text: string): Promise<boolean> => {
+    const nextBody = replaceCommentText(ticket.body, index, text);
+    if (nextBody === null) {
+      console.warn(
+        `[${new Date().toISOString()}] [WARN] tickets: コメント編集対象が見つかりません (${ticket.path} index=${index})`,
+      );
+      return false;
+    }
+    setBusy(true);
+    const ok = await onSave({
+      path: ticket.path,
+      version: ticket.version,
+      // Why not: フォームの編集中値（buildFrontmatter）を混ぜると、コメント編集の保存が
+      // 未確定のフィールド変更まで一緒にコミットしてしまう。コメント編集は投稿と同じく
+      // チケットの現在値に対する独立操作にする。
+      frontmatter: ticket.frontmatter,
+      extras: ticket.extras,
+      body: nextBody,
+      message: `ticket: ${ticket.frontmatter.id} edit comment`,
+    });
+    setBusy(false);
+    return ok;
   };
 
   const dependencyIds = ticket.frontmatter.dependencies ?? [];
@@ -344,7 +438,49 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
             aria-label={t("detail.bodyLabel")}
           />
         ) : (
-          <div className="tk-body-view">{renderBody ? renderBody(body) : <pre>{body}</pre>}</div>
+          /* Why not: renderBody で注入される vanilla ビューは mount-once（initialContent は生成時
+             オプション）。依存チケットのリンクはダイアログを開いたまま ticket を差し替えるため、
+             key を付けないとプレビューだけ前のチケットの本文を表示し続ける。フォームのリセットと
+             同じ resetKey を使い、「状態がリセットされる時は必ずプレビューも作り直す」で揃える。 */
+          <div className="tk-body-view" key={`body:${resetKey}`}>
+            {renderBody ? renderBody(body) : <pre>{body}</pre>}
+          </div>
+        )}
+      </div>
+      <div className="tk-comment">
+        <span className="tk-label">{t("detail.commentHeading")}</span>
+        {/* 展開状態（最新のみ展開）は mount 時に確定するため、フォームリセットと同じ
+            resetKey で remount させる（リセット単位と remount 単位を揃える） */}
+        <CommentThread
+          key={`comments:${resetKey}`}
+          comments={comments}
+          editableAuthor={readOnly ? undefined : WEB_ACTOR}
+          busy={busy}
+          onEditSave={handleCommentEdit}
+          renderBody={renderBody}
+        />
+        {!readOnly && (
+          <>
+            <textarea
+              id="tk-detail-comment"
+              className="tk-textarea"
+              style={{ minHeight: 72 }}
+              value={commentText}
+              onChange={(event) => setCommentText(event.target.value)}
+              placeholder={t("detail.commentPlaceholder")}
+              aria-label={t("detail.postComment")}
+            />
+            <div className="tk-dialog-actions">
+              <button
+                type="button"
+                className="tk-btn"
+                disabled={busy || commentText.trim() === ""}
+                onClick={() => void handleComment()}
+              >
+                {t("detail.postComment")}
+              </button>
+            </div>
+          </>
         )}
       </div>
       {!readOnly && (
@@ -373,35 +509,14 @@ export function TicketDetailDialog(props: Readonly<TicketDetailDialogProps>) {
                 {t("detail.archive")}
               </button>
             )}
+            {/* Why not: 編集可能なチケットでは離脱＝編集の破棄なので「閉じる」ではなく「キャンセル」。
+                読み取り専用（アーカイブ済み）側は取り消す編集が無いため「閉じる」のまま */}
             <button type="button" className="tk-btn" onClick={onClose}>
-              {t("detail.close")}
+              {t("detail.cancel")}
             </button>
             <button type="button" className="tk-btn tk-btn--primary" disabled={busy} onClick={() => void handleSave()}>
               {t("detail.save")}
             </button>
-          </div>
-          <div className="tk-comment">
-            <label className="tk-label" htmlFor="tk-detail-comment">
-              {t("detail.commentHeading")}
-            </label>
-            <textarea
-              id="tk-detail-comment"
-              className="tk-textarea"
-              style={{ minHeight: 72 }}
-              value={commentText}
-              onChange={(event) => setCommentText(event.target.value)}
-              placeholder={t("detail.commentPlaceholder")}
-            />
-            <div className="tk-dialog-actions">
-              <button
-                type="button"
-                className="tk-btn"
-                disabled={busy || commentText.trim() === ""}
-                onClick={() => void handleComment()}
-              >
-                {t("detail.postComment")}
-              </button>
-            </div>
           </div>
         </>
       )}

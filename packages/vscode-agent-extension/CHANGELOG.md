@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-07-22
+
+### Added
+
+- Delegation markers now track child-session progress via a heartbeat: hooks (PostToolUse/Stop/SessionEnd) injected into headless ticket-loop child sessions append `state`/`lastActivity`/`updatedAt`, replacing indirect progress inference (pushed diffs + liveness check) with direct marker reads (Phase 1 of child-session observability).
+- Ticket loop: artifact documents produced during ticket work (findings, design docs, reports) are now saved under the project's docsRoot instead of being pasted into the ticket body, with the ticket linking to them. The child session commits and pushes the docsRoot document (in addition to the ticket file), and the link is rewritten from a local path to a remote URL (git blob URL, or a Drive share link) so it resolves from other environments.
+- Tickets: comment threads are now shown as a collapsible list (latest entry expanded by default), and editing a comment is restricted to the same author as the current user.
+- Tickets board view: added the same filter bar (status/priority/assignee/workspace) as the list view, and moved the archive toggle out of the view-switch buttons into a checkbox in the filter bar.
+
+### Changed
+
+- Tickets workflow: removed the `in_review` status in favor of a 4-state model (backlog/up_next/in_progress/completed). Completion is now reported via a "完了報告:" comment plus the existing hand-off procedure (assignee returned to `user`); `completed` is now a manual, human-only transition.
+- Tickets viewer: widened the ticket edit dialog's max width to 900px to fit the growing number of form fields.
+
+### Fixed
+
+- Agent core: a zombie (`<defunct>`) process's claim was still judged "live" because liveness only checked `/proc/<pid>` existence, `comm`, and start time, none of which change for a zombie. The GC now also reads `/proc/<pid>/stat` state and treats `Z` as dead.
+- The claim occupancy tooltip's last-activity timestamp is now converted to the viewer's local timezone for display (storage remains UTC).
+- Fixed the ticket loop self-deadlocking after a push conflict during start-declaration: a failed push previously left a local commit that permanently diverged from origin, blocking every subsequent tick. Start-declaration now records a base commit and, on any failure, resets to it, re-pulls, and retries once instead of leaving stray commits.
+- Fixed shell-quoting corruption in the `anytime-loop-start` delegation launch template by separating the launch script from the prompt content and passing the prompt via stdin instead of embedding it in a shell string.
+- Fixed the Comments section boundary detection matching the word "Comments" anywhere in the body instead of only heading lines, which could cut the Description into the Comments section.
+- Fixed the ticket edit dialog's body preview rendering blank on first open, caused by form state being populated in a post-mount effect instead of during render.
+- The ticket edit dialog now closes on a successful commit, and the exit button is labeled "Cancel" (rather than "Close") for editable tickets, since it discards the edit.
+- Fixed a stale body preview left over from the previously opened ticket when switching tickets via a dependency link, and hardened `git reset --hard` guards in the ticket loop to require a clean working tree before resetting, so a child session's uncommitted work-in-progress is never silently discarded.
+
 ## [1.8.1] - 2026-07-19
 
 ### Changed

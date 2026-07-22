@@ -3,6 +3,12 @@ dist
 node_modules
 prebuilt-vscode
 .agents
+
+# Google Drive Reader サービスアカウント鍵（誤コミット防止。spec/35.mcp/03.google-drive-reader 参照）
+*service-account*.json
+*.pem
+# GCP ダウンロード既定命名（<project-id>-<hex>.json）で service-account を含まないファイル名になるケースを個別除外
+packages/web-app/anytime-trial-*.json
 .anytime
 .clone
 .claude/*

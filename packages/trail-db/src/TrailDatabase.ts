@@ -81,6 +81,8 @@ import {
   extractSkillName,
   isAiFirstTryFailureCommit,
   isCodeFile,
+  isCountableModel,
+  isKnownPricingModel,
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
@@ -174,6 +176,7 @@ import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity 
 import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
 
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
+import { codexMessageUuid, extractCodexSessionId } from './codexMessageUuid';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 import { ExecFileGitService } from './ExecFileGitService';
 import { JsonlSessionReader } from './JsonlSessionReader';
@@ -188,7 +191,11 @@ import { type NewCommunity,type OldCommunity, resolveCarryOver } from './communi
 import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegrityMonitor';
 import { FileKnowledgeBaseSnapshotter } from './KnowledgeBaseSnapshotter';
 import { FileTrailStorage,ITrailStorage } from './ITrailStorage';
-import { extractRepoNameFromJsonl } from './sessionMeta';
+import {
+  extractRepoNameFromJsonl,
+  extractRepoNameFromProjectDirPath,
+  normalizeWorkspaceName,
+} from './sessionMeta';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export type { ITrailStorage } from './ITrailStorage';
@@ -645,8 +652,11 @@ interface CombinedData {
   }[];
   readonly commitPrefixStats: readonly { period: string; prefix: string; count: number; linesAdded: number; linesDeleted: number }[];
   readonly aiFirstTryRate: readonly { period: string; rate: number; sampleSize: number }[];
-  readonly repoStats: readonly { period: string; repoName: string; count: number; tokens: number }[];
   readonly qualityRates: readonly { period: string; retryRate: number | null; buildFailRate: number | null; testFailRate: number | null }[];
+  /** ワークスペース切替の選択肢（repo_name の worktree 正規化名 distinct。フィルタ有無に依らず全件）。 */
+  readonly workspaces: readonly string[];
+  /** workspace フィルタ指定時のみ同梱する絞り込み済み日次アクティビティ（All 時は analytics 側を使う）。 */
+  readonly dailyActivity?: AnalyticsData['dailyActivity'];
   readonly commitBaseline?: CommitBaselineSummary;
   readonly commitRegressionByPeriod?: readonly { period: string; count: number }[];
 }
@@ -849,7 +859,7 @@ function normalizeCodexEventMsg(
   if (payload.type === 'agent_message' && typeof payload.message === 'string') {
     return {
       lines: [{
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         sessionId,
         type: 'assistant',
         timestamp,
@@ -879,7 +889,7 @@ function normalizeCodexResponseItem(
     const normalizedType: 'user' | 'assistant' | 'system' = role === 'user' ? 'user' : normalizedTypeInner;
     return {
       lines: [{
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         sessionId,
         type: normalizedType,
         subtype: role,
@@ -901,7 +911,7 @@ function normalizeCodexResponseItem(
     }
     return {
       lines: [{
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         sessionId,
         type: 'assistant',
         timestamp,
@@ -917,7 +927,7 @@ function normalizeCodexResponseItem(
       : JSON.stringify(payload.output ?? '');
     return {
       lines: [{
-        uuid: `codex-${seq}`,
+        uuid: codexMessageUuid(sessionId, seq),
         sessionId,
         type: 'user',
         timestamp,
@@ -947,15 +957,16 @@ function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: s
 } {
   const normalized: RawLine[] = [];
   let seq = 0;
-  let sessionId = fallbackSessionId;
+  // sessionId はループ前に確定させる。ループ中に session_meta で更新する形だと、
+  // session_meta より前に現れたレコードだけ fallback 値で採番され、同一レコードが
+  // JsonlSessionReader 側（先に全走査して解決する）と別 uuid になる。
+  let sessionId = extractCodexSessionId(records) ?? fallbackSessionId;
   let version = '';
 
   for (const record of records) {
     const timestamp = typeof record.timestamp === 'string' ? record.timestamp : '';
     if (record.type === 'session_meta' && record.payload && typeof record.payload === 'object') {
       const payload = record.payload;
-      const id = payload.id;
-      if (typeof id === 'string' && id) sessionId = id;
       const cliVersion = payload.cli_version;
       if (typeof cliVersion === 'string' && cliVersion) version = cliVersion;
       continue;
@@ -1847,6 +1858,7 @@ export class TrailDatabase {
     rangeDays: number,
     period: 'day' | 'week',
     tzOffset: string,
+    allowedSessionIds?: ReadonlySet<string>,
   ): readonly Record<string, unknown>[] {
     const db = this.ensureDb();
     return this.runQuery(
@@ -1863,7 +1875,11 @@ export class TrailDatabase {
           `SELECT session_id, message_uuid, turn_index, tool_name, COALESCE(turn_exec_ms, 0) AS turn_exec_ms
            FROM message_tool_calls`,
         );
-        const tcRows = tcResult[0]?.values ?? [];
+        // workspace 絞り込み（getCombinedData の許可 session 集合）。message / turn は単一
+        // session に属するため、ここで絞っても tools_in_msg / tools_in_turn の按分母は不変。
+        const tcRows = (tcResult[0]?.values ?? []).filter(
+          (row) => allowedSessionIds === undefined || allowedSessionIds.has(asText(row[0] ?? '')),
+        );
         if (tcRows.length === 0) return [];
 
         // Step 3: filter 前の全集合に対して tools_in_msg / tools_in_turn を算出
@@ -2049,6 +2065,77 @@ export class TrailDatabase {
     this.migrateReleaseChildrenReleaseId(initDb);
     // Phase 5 S4: emergency_log.event へ section_lock 系を追加（CHECK 変更 = 12-step 再構築）。
     this.migrateEmergencyLogEventKinds(initDb);
+    // 旧 Codex uuid 採番（codex-<seq>）の残骸を除去する。
+    this.migrateCodexMessageUuidScheme(initDb);
+  }
+
+  /**
+   * 旧採番 `codex-<seq>` で書かれた messages を削除する。
+   *
+   * 旧採番は seq がセッションごとに 0 から振り直されるため uuid がセッション横断で衝突し、
+   * `INSERT OR REPLACE` により後続セッションが先行セッションの行を上書きして奪っていた
+   * （実測: Codex 243 セッション中 23 件しか messages を保持できていなかった）。
+   *
+   * 残骸を消すだけでよい。`getImportedFileMap` の `hasMessages` 判定が messages を失った
+   * セッションを未取り込みとみなすため、次回 importAll が新採番で再取り込みする。
+   * 消さずに放置すると旧行と新行が併存し、トークンが二重計上される。
+   *
+   * 旧採番: `codex-` + 数字のみ（ハイフンは 1 つ）。
+   * 新採番: `codex-<sessionId>-<seq>`（末尾の `-<seq>` によりハイフンは必ず 2 つ以上）。
+   *
+   * 冪等性は `_migrations` キーではなくデータ述語（対象 0 件なら return）で担保する。
+   * 取りこぼしがあれば次回起動で再実行される自己修復性を優先したため。毎起動の
+   * COUNT は全表スキャンになるが、sql.js はメモリ常駐で I/O を伴わない。
+   */
+  private migrateCodexMessageUuidScheme(db: Database): void {
+    const LEGACY_PREDICATE = `uuid LIKE 'codex-%' AND uuid NOT LIKE 'codex-%-%'`;
+    try {
+      const countRow = db.exec(
+        `SELECT COUNT(*) FROM messages WHERE ${LEGACY_PREDICATE}`,
+      )[0]?.values?.[0]?.[0];
+      const legacyCount = Number(countRow ?? 0);
+      if (legacyCount === 0) return;
+
+      db.run('BEGIN');
+      try {
+        // FK は init() で OFF のため ON DELETE CASCADE は働かない。messages(uuid) を
+        // 参照する NOT NULL 側の 2 テーブルを明示的に消す（tables.ts の
+        // REFERENCES messages(uuid) 全 4 箇所のうち残り 2 つは messages 自己参照の
+        // parent_uuid / source_tool_assistant_uuid。codex 正規化はこれらを設定せず、
+        // かつ旧採番の行は全件まとめて消えるため dangling は生じない）。
+        //
+        // message_tool_calls を消し損ねると、再取り込みが新 uuid で同じツール呼び出しを
+        // 追加する一方 UNIQUE(message_uuid, call_index) は uuid 違いで衝突せず、
+        // ツール呼び出しが二重計上される（importSession は既存行を削除しない）。
+        const dependents = ['message_commits', 'message_tool_calls'] as const;
+        for (const table of dependents) {
+          db.run(
+            `DELETE FROM ${table}
+             WHERE message_uuid IN (SELECT uuid FROM messages WHERE ${LEGACY_PREDICATE})`,
+          );
+        }
+        db.run(`DELETE FROM messages WHERE ${LEGACY_PREDICATE}`);
+        // 再取り込みで commit 突合をやり直させる（旧 uuid への紐付けは失効済み）。
+        db.run(
+          `UPDATE sessions SET message_commits_resolved_at = NULL WHERE source = 'codex'`,
+        );
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+      this.rebuildSessionCosts();
+      this.save();
+      this.logger.info(
+        `[TrailDatabase] removed ${legacyCount} legacy codex-<seq> messages; sessions will be re-imported`,
+      );
+    } catch (e) {
+      this.logger.error(
+        'migrateCodexMessageUuidScheme failed',
+        e instanceof Error ? e : new Error(String(e)),
+      );
+      throw e;
+    }
   }
 
   /**
@@ -4051,6 +4138,7 @@ export class TrailDatabase {
     this.runNonFatalBackfill('backfillRepoName_v1', () => this.backfillRepoName_v1());
     this.runNonFatalBackfill('backfillDerivedCounts_v1', () => this.backfillDerivedCounts_v1());
     this.runNonFatalBackfill('backfillSessionsRepoNameFromCwd_v1', () => this.backfillSessionsRepoNameFromCwd_v1());
+    this.runNonFatalBackfill('backfillSessionsRepoNameFromGitRoot_v2', () => this.backfillSessionsRepoNameFromGitRoot_v2());
     // ALTER TABLE / backfill 等のスキーマ変更をディスクに永続化する。
     // save() を呼ばないと _migrations フラグが保存されず、次回起動で再実行される。
     this.save();
@@ -4173,6 +4261,53 @@ export class TrailDatabase {
       `[Migration] sessions_repo_name_from_cwd_v1: updated=${updated}, unchanged=${unchanged}, missing=${missing} (${Date.now() - startedAt}ms)`,
     );
     db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('sessions_repo_name_from_cwd_v1')");
+  }
+
+  /**
+   * sessions の repo 帰属を git ルート基準で再計算する。
+   *
+   * v1 は cwd の basename をそのまま repo_name にしていたため、リポジトリのサブディレクトリ
+   * （例 `/anytime-markdown/scripts/vscode-extension`）で起動したセッションが `vscode-extension`
+   * のような「ワークスペースでない名前」に帰属していた。本 migration は cwd から `.git` を
+   * 探して親リポジトリへ畳み直す (sessionMeta.deriveRepoNameFromCwd)。
+   *
+   * JSONL が既に無いセッションは、projects ディレクトリ名（cwd の `/` を `-` へ潰した平坦化名）
+   * から実在パスを一意に復元できた場合のみ是正する。v1 のように平坦化名をそのまま repo 名へ
+   * 採用することはしない（`anytime-markdown-packages-web-app` のような偽名を作らないため）。
+   */
+  private backfillSessionsRepoNameFromGitRoot_v2(): void {
+    const db = this.ensureDb();
+    db.run('CREATE TABLE IF NOT EXISTS _migrations (key TEXT PRIMARY KEY)');
+    const done = db.exec("SELECT 1 FROM _migrations WHERE key = 'sessions_repo_name_from_git_root_v2'");
+    if (done[0]?.values?.length) return;
+
+    const startedAt = Date.now();
+    const rows = db.exec("SELECT id, file_path, repo_id FROM sessions WHERE file_path != ''")[0]?.values ?? [];
+    let updated = 0;
+    let unchanged = 0;
+    let missing = 0;
+    const stmt = db.prepare('UPDATE sessions SET repo_id = ? WHERE id = ?');
+    try {
+      for (const row of rows) {
+        const idStr = String(row[0]);
+        const filePathStr = asText(row[1] ?? '');
+        const oldRepoId = row[2] === null || row[2] === undefined ? null : Number(row[2]);
+        const derived = extractRepoNameFromJsonl(filePathStr)
+          ?? extractRepoNameFromProjectDirPath(filePathStr);
+        if (!derived) { missing++; continue; }
+        const derivedRepoId = this.repoIdForName(derived);
+        if (derivedRepoId === oldRepoId) { unchanged++; continue; }
+        stmt.run([derivedRepoId, idStr]);
+        updated++;
+      }
+    } finally {
+      stmt.free();
+    }
+
+    this.logger.info(
+      `[Migration] sessions_repo_name_from_git_root_v2: updated=${updated}, unchanged=${unchanged}, missing=${missing} (${Date.now() - startedAt}ms)`,
+    );
+    db.run("INSERT OR IGNORE INTO _migrations (key) VALUES ('sessions_repo_name_from_git_root_v2')");
   }
 
   private backfillDerivedCounts_v1(): void {
@@ -5418,14 +5553,24 @@ export class TrailDatabase {
        GROUP BY m.session_id, m.model, s.source`,
     );
     const stmt = db.prepare(INSERT_SESSION_COST);
+    const unknownModels = new Set<string>();
     for (const row of result[0]?.values ?? []) {
       const sid = String(row[0]); const m = String(row[1]); const source = String(row[2]) as PricingSource;
+      // '<synthetic>' 等の番兵値はモデル別コストの対象外（トークンも常に 0）
+      if (!isCountableModel(m)) continue;
       const inp = Number(row[3]); const outp = Number(row[4]);
       const cr = Number(row[5]); const cc = Number(row[6]);
+      if (m !== '' && !isKnownPricingModel(m)) unknownModels.add(m);
       const billingModel = resolvePricingModelName(m, source);
       stmt.run([sid, billingModel, inp, outp, cr, cc, estimateCost(m, inp, outp, cr, cc, source)]);
     }
     stmt.free();
+    if (unknownModels.size > 0) {
+      // 料金表に無いモデルは既定単価で推計される。新モデル追加時は trail-core pricing.ts を現行化する
+      this.logger.warn(
+        `rebuildSessionCosts: unknown pricing model(s), default rates applied: ${[...unknownModels].join(', ')}`,
+      );
+    }
   }
 
   /**
@@ -5649,7 +5794,10 @@ export class TrailDatabase {
     );
     for (const row of modelCounts[0]?.values ?? []) {
       const source = String(row[1]) as PricingSource;
-      const model = resolvePricingModelName(asText(row[2] ?? ''), source);
+      const rawModel = asText(row[2] ?? '');
+      // '<synthetic>' 等の番兵値はモデル別系列に出さない（チャート凡例のノイズ源）
+      if (!isCountableModel(rawModel)) continue;
+      const model = resolvePricingModelName(rawModel, source);
       runWithDateGuard(asText(row[0] ?? ''), ['model', model, Number(row[3] ?? 0), Number(row[4] ?? 0), 0, 0, 0, 0, 0, 0]);
     }
 
@@ -9926,6 +10074,122 @@ export class TrailDatabase {
     }
   }
 
+  /**
+   * 日次アクティビティ（トークン・コスト・セッション/コミット数）を集計する。
+   * getAnalytics の dailyActivity と、getCombinedData の workspace 絞り込み時の
+   * dailyActivity が同一ロジックを共有する（経路分裂による集計乖離を防ぐ）。
+   *
+   * @param repoIdList SQL の IN 句に埋め込む repo_id 列（数値のみ・カンマ区切り）。
+   *   省略時はフィルタなし（getAnalytics 従来挙動）。
+   */
+  private computeDailyActivity(
+    tzOffset: string,
+    factorBySource: ReadonlyMap<string, number>,
+    repoIdList?: string,
+  ): AnalyticsData['dailyActivity'] {
+    const db = this.ensureDb();
+    const sessionRepoFilter = repoIdList !== undefined ? ` AND s.repo_id IN (${repoIdList})` : '';
+    const bareRepoFilter = repoIdList !== undefined ? ` AND repo_id IN (${repoIdList})` : '';
+    const commitRepoFilter = repoIdList !== undefined ? ` AND sc.repo_id IN (${repoIdList})` : '';
+
+    // Daily activity from messages — grouped by session start_time date (same basis as session list)
+    const dailyMsgResult = db.exec(
+      `SELECT DATE(s.start_time, '${tzOffset}') AS date,
+        s.source,
+        SUM(COALESCE(m.input_tokens,0)) AS raw_input,
+        SUM(COALESCE(m.output_tokens,0)) AS raw_output,
+        SUM(COALESCE(m.cache_read_tokens,0)) AS raw_cache_read,
+        SUM(COALESCE(m.cache_creation_tokens,0)) AS raw_cache_creation,
+        COUNT(*) AS total_turns,
+        SUM(CASE WHEN COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)
+                      +COALESCE(m.cache_read_tokens,0)+COALESCE(m.cache_creation_tokens,0)=0
+                 THEN 1 ELSE 0 END) AS missing_turns
+       FROM messages m
+       JOIN sessions s ON s.id = m.session_id
+       WHERE m.type = 'assistant'
+         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')${sessionRepoFilter}
+       GROUP BY date, s.source
+       ORDER BY date`,
+    );
+    const dailyCostResult = db.exec(
+      `SELECT DATE(s.start_time, '${tzOffset}') AS date,
+        s.source, COALESCE(SUM(sc.estimated_cost_usd), 0)
+       FROM session_costs sc
+       JOIN sessions s ON s.id = sc.session_id
+       WHERE DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')${sessionRepoFilter}
+       GROUP BY date, s.source`,
+    );
+    type DailyEntry = { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; estimatedCostUsd: number; commits: number; linesAdded: number; linesDeleted: number };
+    const dailyMap = new Map<string, DailyEntry>();
+    for (const row of dailyMsgResult[0]?.values ?? []) {
+      const date = String(row[0]);
+      const rawInput = Number(row[2]);
+      const rawOutput = Number(row[3]);
+      const rawCacheRead = Number(row[4]);
+      const rawCacheCreation = Number(row[5]);
+      const totalTurns = Number(row[6]);
+      const missingTurns = Number(row[7]);
+      const observed = totalTurns - missingTurns;
+      const factor = observed > 0 ? totalTurns / observed : 1;
+      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
+      entry.inputTokens += Math.round(rawInput * factor);
+      entry.outputTokens += Math.round(rawOutput * factor);
+      entry.cacheReadTokens += Math.round(rawCacheRead * factor);
+      entry.cacheCreationTokens += Math.round(rawCacheCreation * factor);
+      dailyMap.set(date, entry);
+    }
+    for (const row of dailyCostResult[0]?.values ?? []) {
+      const date = String(row[0]);
+      const source = asText(row[1] ?? '');
+      const rawCost = Number(row[2]);
+      const factor = factorBySource.get(source) ?? 1;
+      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
+      entry.estimatedCostUsd += rawCost * factor;
+      dailyMap.set(date, entry);
+    }
+
+    // Sessions, Commits, LOC daily breakdown
+    const dailyStatsResult = db.exec(
+      `SELECT date,
+              SUM(sessions) AS sessions,
+              SUM(commits) AS commits,
+              SUM(loc_added) AS loc_added,
+              SUM(loc_deleted) AS loc_deleted
+       FROM (
+         SELECT DATE(start_time, '${tzOffset}') AS date, COUNT(*) AS sessions, 0 AS commits, 0 AS loc_added, 0 AS loc_deleted
+         FROM sessions WHERE start_time != ''${bareRepoFilter} GROUP BY date
+         UNION ALL
+         SELECT date, 0 AS sessions, SUM(commit_count) AS commits, SUM(lines_added) AS loc_added, SUM(lines_deleted) AS loc_deleted
+         FROM (
+           SELECT DATE(s.start_time, '${tzOffset}') AS date,
+                  COUNT(*) AS commit_count,
+                  SUM(COALESCE(sc.lines_added, 0)) AS lines_added,
+                  SUM(COALESCE(sc.lines_deleted, 0)) AS lines_deleted
+           FROM session_commits sc
+           JOIN sessions s ON sc.session_id = s.id
+           WHERE sc.committed_at != '' AND s.start_time != ''${commitRepoFilter}
+           GROUP BY s.id
+         )
+         GROUP BY date
+       )
+       WHERE date >= DATE('now', '${tzOffset}', '-180 days')
+       GROUP BY date`,
+    );
+    for (const row of dailyStatsResult[0]?.values ?? []) {
+      const date = String(row[0]);
+      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
+      entry.sessions += Number(row[1]);
+      entry.commits += Number(row[2]);
+      entry.linesAdded += Number(row[3]);
+      entry.linesDeleted += Number(row[4]);
+      dailyMap.set(date, entry);
+    }
+
+    return [...dailyMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date, ...v }));
+  }
+
   getAnalytics(): AnalyticsData {
     const db = this.ensureDb();
 
@@ -10004,102 +10268,7 @@ export class TrailDatabase {
       // json functions may not be available
     }
 
-    // Daily activity from messages — grouped by session start_time date (same basis as session list)
-    const dailyMsgResult = db.exec(
-      `SELECT DATE(s.start_time, '${tzOffset}') AS date,
-        s.source,
-        SUM(COALESCE(m.input_tokens,0)) AS raw_input,
-        SUM(COALESCE(m.output_tokens,0)) AS raw_output,
-        SUM(COALESCE(m.cache_read_tokens,0)) AS raw_cache_read,
-        SUM(COALESCE(m.cache_creation_tokens,0)) AS raw_cache_creation,
-        COUNT(*) AS total_turns,
-        SUM(CASE WHEN COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)
-                      +COALESCE(m.cache_read_tokens,0)+COALESCE(m.cache_creation_tokens,0)=0
-                 THEN 1 ELSE 0 END) AS missing_turns
-       FROM messages m
-       JOIN sessions s ON s.id = m.session_id
-       WHERE m.type = 'assistant'
-         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')
-       GROUP BY date, s.source
-       ORDER BY date`,
-    );
-    const dailyCostResult = db.exec(
-      `SELECT DATE(s.start_time, '${tzOffset}') AS date,
-        s.source, COALESCE(SUM(sc.estimated_cost_usd), 0)
-       FROM session_costs sc
-       JOIN sessions s ON s.id = sc.session_id
-       WHERE DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-180 days')
-       GROUP BY date, s.source`,
-    );
-    type DailyEntry = { sessions: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; estimatedCostUsd: number; commits: number; linesAdded: number; linesDeleted: number };
-    const dailyMap = new Map<string, DailyEntry>();
-    for (const row of dailyMsgResult[0]?.values ?? []) {
-      const date = String(row[0]);
-      const rawInput = Number(row[2]);
-      const rawOutput = Number(row[3]);
-      const rawCacheRead = Number(row[4]);
-      const rawCacheCreation = Number(row[5]);
-      const totalTurns = Number(row[6]);
-      const missingTurns = Number(row[7]);
-      const observed = totalTurns - missingTurns;
-      const factor = observed > 0 ? totalTurns / observed : 1;
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
-      entry.inputTokens += Math.round(rawInput * factor);
-      entry.outputTokens += Math.round(rawOutput * factor);
-      entry.cacheReadTokens += Math.round(rawCacheRead * factor);
-      entry.cacheCreationTokens += Math.round(rawCacheCreation * factor);
-      dailyMap.set(date, entry);
-    }
-    for (const row of dailyCostResult[0]?.values ?? []) {
-      const date = String(row[0]);
-      const source = asText(row[1] ?? '');
-      const rawCost = Number(row[2]);
-      const factor = factorBySource.get(source) ?? 1;
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
-      entry.estimatedCostUsd += rawCost * factor;
-      dailyMap.set(date, entry);
-    }
-
-    // Sessions, Commits, LOC daily breakdown
-    const dailyStatsResult = db.exec(
-      `SELECT date,
-              SUM(sessions) AS sessions,
-              SUM(commits) AS commits,
-              SUM(loc_added) AS loc_added,
-              SUM(loc_deleted) AS loc_deleted
-       FROM (
-         SELECT DATE(start_time, '${tzOffset}') AS date, COUNT(*) AS sessions, 0 AS commits, 0 AS loc_added, 0 AS loc_deleted
-         FROM sessions WHERE start_time != '' GROUP BY date
-         UNION ALL
-         SELECT date, 0 AS sessions, SUM(commit_count) AS commits, SUM(lines_added) AS loc_added, SUM(lines_deleted) AS loc_deleted
-         FROM (
-           SELECT DATE(s.start_time, '${tzOffset}') AS date,
-                  COUNT(*) AS commit_count,
-                  SUM(COALESCE(sc.lines_added, 0)) AS lines_added,
-                  SUM(COALESCE(sc.lines_deleted, 0)) AS lines_deleted
-           FROM session_commits sc
-           JOIN sessions s ON sc.session_id = s.id
-           WHERE sc.committed_at != '' AND s.start_time != ''
-           GROUP BY s.id
-         )
-         GROUP BY date
-       )
-       WHERE date >= DATE('now', '${tzOffset}', '-180 days')
-       GROUP BY date`,
-    );
-    for (const row of dailyStatsResult[0]?.values ?? []) {
-      const date = String(row[0]);
-      const entry = dailyMap.get(date) ?? { sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, estimatedCostUsd: 0, commits: 0, linesAdded: 0, linesDeleted: 0 };
-      entry.sessions += Number(row[1]);
-      entry.commits += Number(row[2]);
-      entry.linesAdded += Number(row[3]);
-      entry.linesDeleted += Number(row[4]);
-      dailyMap.set(date, entry);
-    }
-
-    const dailyActivity = [...dailyMap.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, v]) => ({ date, ...v }));
+    const dailyActivity = this.computeDailyActivity(tzOffset, factorBySource);
 
     // Commit totals
     // Phase H-4: session_commits.repo_name 列は撤去済。dedup は repo_id × commit_hash で行う
@@ -10297,13 +10466,68 @@ export class TrailDatabase {
       .sort((a, b) => a.period.localeCompare(b.period));
   }
 
-  getCombinedData(period: 'day' | 'week', rangeDays: 30 | 90): CombinedData {
+  getCombinedData(period: 'day' | 'week', rangeDays: 30 | 90, workspace?: string): CombinedData {
     const db = this.ensureDb();
     // daily_counts.date は YYYY-MM-DD（タイムゾーン適用済み）。
     // week 集計時は strftime('%Y-W%W', date) で週キー化。
     const periodExpr = period === 'week' ? `strftime('%Y-W%W', date)` : 'date';
     const cutoff = `DATE('now', '-${rangeDays} days')`;
     const tzOffset = this.getLocalTzOffset();
+
+    // ワークスペース解決: repo_name を worktree 正規化した名前でグルーピングし、
+    // 選択肢一覧と、フィルタ対象の repo_id 集合を得る。
+    //
+    // 選択肢は「対象期間に作業があった repo」＝ セッションが動いた repo に限る。
+    // repos には解析対象やコミット先として登場しただけの行も溜まるため、テーブルを
+    // そのまま出すと `mermaid` のようなワークスペースでない名前が並ぶ。
+    //
+    // コミットは *コミット先* の repo ではなく *打ったセッション* の repo で数える。
+    // 別リポジトリ（docs・~/.claude 等）へのコミットは、作業していたワークスペースの
+    // 活動であってコミット先がワークスペースになるわけではないため。
+    //
+    // 絞るのは「一覧に載せる repo」だけで、選択値だけに縮めることはしない
+    // （他ワークスペースへ切り替えられなくなるため）。
+    const repoRowsResult = db.exec(`SELECT repo_id, repo_name FROM repos WHERE repo_name != ''`);
+    const activeRepoIdsResult = db.exec(
+      `SELECT repo_id FROM sessions
+        WHERE repo_id IS NOT NULL AND DATE(start_time, '${tzOffset}') >= ${cutoff}
+        UNION
+       SELECT s.repo_id FROM session_commits sc
+         JOIN sessions s ON s.id = sc.session_id
+        WHERE s.repo_id IS NOT NULL AND DATE(sc.committed_at, '${tzOffset}') >= ${cutoff}`,
+    );
+    const activeRepoIds = new Set<number>(
+      (activeRepoIdsResult[0]?.values ?? []).map((r) => Number(r[0])),
+    );
+    const workspaceNames = new Set<string>();
+    const filterRepoIds: number[] = [];
+    for (const row of repoRowsResult[0]?.values ?? []) {
+      const repoId = Number(row[0]);
+      const name = normalizeWorkspaceName(asText(row[1] ?? ''));
+      if (name === '') continue;
+      if (activeRepoIds.has(repoId)) workspaceNames.add(name);
+      // フィルタ対象は活動有無に依らず解決する（worktree 由来の repo も親名で拾う）。
+      if (workspace !== undefined && name === workspace) filterRepoIds.push(repoId);
+    }
+    const hasWorkspaceFilter = workspace !== undefined && workspace !== '';
+    // 選択中のワークスペースは、期間を狭めて活動が範囲外になっても一覧に残す
+    // （select の表示値が選択肢に無い状態＝空欄表示になるのを防ぐ）。
+    if (hasWorkspaceFilter && filterRepoIds.length > 0) workspaceNames.add(workspace);
+    const workspaces = [...workspaceNames].sort((a, b) => a.localeCompare(b));
+    // IN 句へ埋め込む repo_id 列。Number() 経由のため SQL 安全。該当なしは常偽の -1。
+    const repoIdList = filterRepoIds.length > 0 ? filterRepoIds.join(',') : '-1';
+    // s = sessions（セッションの属する repo で絞る）/ sc・c = session_commits（コミット先の repo で絞る）
+    const sessionRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
+    // コミットの絞り込みも「打ったセッションの repo」で行う（一覧の活動判定と同じ基準）。
+    // コミット先 repo で絞ると、docs や ~/.claude のような「ワークスペースでない宛先」への
+    // コミットがどのワークスペースを選んでも現れず、各ワークスペースの合計が全体と一致しなく
+    // なる。セッション基準なら「そのワークスペースで作業していた間に打ったコミット」で揃う。
+    const commitScRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
+    const commitCRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
+    // sessions を JOIN していないクエリ用（session_id 経由で同じ条件を表す）。
+    const commitBareRepoFilter = hasWorkspaceFilter
+      ? ` AND session_id IN (SELECT id FROM sessions WHERE repo_id IN (${repoIdList}))`
+      : '';
     const sessionStartPeriodExpr = period === 'week'
       ? `strftime('%Y-W%W', s.start_time, '${tzOffset}')`
       : `DATE(s.start_time, '${tzOffset}')`;
@@ -10317,7 +10541,13 @@ export class TrailDatabase {
       return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]])));
     };
 
-    const toolRawRows = this.aggregateToolUsageByMessageDateCutoff(rangeDays, period, tzOffset);
+    // toolCounts は JS 集計（message_tool_calls 全走査）のため、workspace は許可 session 集合で絞る。
+    let allowedSessionIds: ReadonlySet<string> | undefined;
+    if (hasWorkspaceFilter) {
+      const sessionIdResult = db.exec(`SELECT id FROM sessions WHERE repo_id IN (${repoIdList})`);
+      allowedSessionIds = new Set((sessionIdResult[0]?.values ?? []).map((r) => asText(r[0] ?? '')));
+    }
+    const toolRawRows = this.aggregateToolUsageByMessageDateCutoff(rangeDays, period, tzOffset, allowedSessionIds);
     // JS 側で (period, tool) 単位に集約し factor を適用する
     type ToolAggEntry = { count: number; durationMs: number; adjustedTokens: number; totalTurns: number; missingTurns: number };
     const toolAggMap = new Map<string, ToolAggEntry>();
@@ -10366,7 +10596,7 @@ export class TrailDatabase {
        FROM message_tool_calls mtc
        JOIN sessions s ON s.id = mtc.session_id
        WHERE mtc.is_error = 1
-         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')${sessionRepoFilter}
        GROUP BY period, tool`,
     );
     const errByPeriod = new Map<string, { byTool: Record<string, number> }>();
@@ -10383,12 +10613,24 @@ export class TrailDatabase {
       period: p, rate: 0, byTool: v.byTool,
     }));
 
-    const skillResult = db.exec(
-      `SELECT ${periodExpr} AS period, key AS skill, SUM(count) AS count
-       FROM daily_counts
-       WHERE kind = 'skill' AND date >= ${cutoff}
-       GROUP BY period, key`,
-    );
+    // skill 集計: 全体表示は事前集計 daily_counts（kind='skill'）を使う。daily_counts は
+    // repo 次元を持たないため、workspace 絞り込み時のみ生成元と同じ message_tool_calls
+    // ベースの集計（session start_time 基準・skill_name 単位）へ切り替える。
+    const skillResult = hasWorkspaceFilter
+      ? db.exec(
+          `SELECT ${sessionStartPeriodExpr} AS period, mtc.skill_name AS skill, COUNT(*) AS count
+           FROM message_tool_calls mtc
+           JOIN sessions s ON s.id = mtc.session_id
+           WHERE mtc.skill_name IS NOT NULL
+             AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}${sessionRepoFilter}
+           GROUP BY period, mtc.skill_name`,
+        )
+      : db.exec(
+          `SELECT ${periodExpr} AS period, key AS skill, SUM(count) AS count
+           FROM daily_counts
+           WHERE kind = 'skill' AND date >= ${cutoff}
+           GROUP BY period, key`,
+        );
     const skillStats = toRows(skillResult).map(r => ({
       period: asText(r['period'] ?? ''),
       skill: asText(r['skill'] ?? ''),
@@ -10407,7 +10649,7 @@ export class TrailDatabase {
                        THEN 1 ELSE 0 END) AS token_missing_turns
        FROM messages m
        INNER JOIN sessions s ON s.id = m.session_id
-       WHERE m.type = 'assistant' AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}
+       WHERE m.type = 'assistant' AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}${sessionRepoFilter}
        GROUP BY period, COALESCE(m.model, ''), s.source`,
     );
     const modelStats = this.aggregateModelStats(toRows(modelResult));
@@ -10424,7 +10666,7 @@ export class TrailDatabase {
                   END) AS token_missing_turns
        FROM messages m
        JOIN sessions s ON s.id = m.session_id
-       WHERE DATE(s.start_time, '${tzOffset}') >= ${cutoff}
+       WHERE DATE(s.start_time, '${tzOffset}') >= ${cutoff}${sessionRepoFilter}
        GROUP BY period, agent`,
     );
     const agentCostResult = db.exec(
@@ -10433,7 +10675,7 @@ export class TrailDatabase {
               SUM(COALESCE(sc.estimated_cost_usd,0)) AS cost_usd
        FROM session_costs sc
        JOIN sessions s ON s.id = sc.session_id
-       WHERE DATE(s.start_time, '${tzOffset}') >= ${cutoff}
+       WHERE DATE(s.start_time, '${tzOffset}') >= ${cutoff}${sessionRepoFilter}
        GROUP BY period, agent`,
     );
     const agentLocResult = db.exec(
@@ -10442,7 +10684,7 @@ export class TrailDatabase {
               SUM(COALESCE(c.lines_added,0)) AS loc
        FROM session_commits c
        JOIN sessions s ON s.id = c.session_id
-       WHERE DATE(c.committed_at, '${tzOffset}') >= ${cutoff}
+       WHERE DATE(c.committed_at, '${tzOffset}') >= ${cutoff}${commitCRepoFilter}
        GROUP BY period, agent`,
     );
     const agentStats = this.aggregateAgentStats(
@@ -10471,7 +10713,7 @@ export class TrailDatabase {
        JOIN sessions s ON sc.session_id = s.id
        LEFT JOIN repos rp ON rp.repo_id = sc.repo_id
        WHERE sc.committed_at >= DATETIME('now', '-${rangeDays} days')
-         AND sc.committed_at <= DATETIME('now', '+${commitWindowSec} seconds')
+         AND sc.committed_at <= DATETIME('now', '+${commitWindowSec} seconds')${commitScRepoFilter}
        GROUP BY sc.session_id, sc.repo_id, sc.commit_hash`,
     );
     type CommitRow = {
@@ -10551,7 +10793,7 @@ export class TrailDatabase {
                 MAX(COALESCE(lines_added, 0)) AS lines_added,
                 MAX(COALESCE(lines_deleted, 0)) AS lines_deleted
          FROM session_commits
-         WHERE committed_at < DATETIME('now', '-${rangeDays} days')
+         WHERE committed_at < DATETIME('now', '-${rangeDays} days')${commitBareRepoFilter}
          GROUP BY repo_id, commit_hash
        )`,
     );
@@ -10561,53 +10803,6 @@ export class TrailDatabase {
       linesDeleted: Number(r['lines_deleted'] ?? 0),
     }));
     const commitBaseline = aggregateCommitPrefixBaseline(baselineRows);
-
-    // Repository stats: COUNT は commitRows を再利用（既に repo_name+commit_hash で重複排除済み）
-    const repoCountMap = new Map<string, number>();
-    for (const c of commitRows) {
-      if (c.period > todayPeriod) continue;
-      if (!c.repoName) continue;
-      const k = `${c.period}::${c.repoName}`;
-      repoCountMap.set(k, (repoCountMap.get(k) ?? 0) + 1);
-    }
-
-    // Repository stats: TOKEN は messages JOIN sessions で集計（session start_time 基準）
-    // Phase H-4: sessions.repo_name 列は撤去済。repos を JOIN して repo_name を射影・グルーピングする。
-    // 旧 `s.repo_name != ''` (非空 repo のみ) は repos JOIN + `r.repo_name != ''` で意味等価
-    // (sentinel '' repo・repo_id 未解決行を除外する)。
-    const repoTokenResult = db.exec(
-      `SELECT ${sessionStartPeriodExpr} AS period,
-              r.repo_name AS repo_name,
-              SUM(COALESCE(m.input_tokens,0) + COALESCE(m.output_tokens,0)
-                  + COALESCE(m.cache_read_tokens,0) + COALESCE(m.cache_creation_tokens,0)) AS tokens
-       FROM messages m
-       JOIN sessions s ON s.id = m.session_id
-       JOIN repos r ON r.repo_id = s.repo_id
-       WHERE m.type = 'assistant'
-         AND DATE(s.start_time, '${tzOffset}') >= ${cutoff}
-         AND r.repo_name != ''
-       GROUP BY period, s.repo_id`,
-    );
-    const repoTokenMap = new Map<string, number>();
-    for (const r of toRows(repoTokenResult)) {
-      const period = asText(r['period'] ?? '');
-      const repoName = asText(r['repo_name'] ?? '');
-      const k = `${period}::${repoName}`;
-      repoTokenMap.set(k, Number(r['tokens'] ?? 0));
-    }
-
-    // COUNT と TOKEN をマージ
-    const repoAllKeys = new Set([...repoCountMap.keys(), ...repoTokenMap.keys()]);
-    const repoStats = [...repoAllKeys].map(k => {
-      const sep = k.indexOf('::');
-      const repoName = k.slice(sep + 2);
-      return {
-        period: k.slice(0, sep),
-        repoName,
-        count: repoCountMap.get(k) ?? 0,
-        tokens: repoTokenMap.get(k) ?? 0,
-      };
-    }).filter(r => r.repoName !== '');
 
     // AI First-Try Success Rate per period
     const aiFirstTryRate = this.computeAiFirstTryRate(commitRows, todayPeriod);
@@ -10637,7 +10832,7 @@ export class TrailDatabase {
          FROM message_tool_calls mtc
          JOIN sessions s ON s.id = mtc.session_id
          WHERE mtc.tool_name = 'Bash'
-           AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+           AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')${sessionRepoFilter}
        )
        WHERE cmd_type IS NOT NULL
        GROUP BY period`,
@@ -10649,7 +10844,7 @@ export class TrailDatabase {
        FROM message_tool_calls mtc
        JOIN sessions s ON s.id = mtc.session_id
        WHERE mtc.tool_name IN ('Edit', 'Write')
-         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+         AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')${sessionRepoFilter}
        GROUP BY period`,
     );
     const retryResult = db.exec(
@@ -10660,7 +10855,7 @@ export class TrailDatabase {
          JOIN sessions s ON s.id = mtc.session_id
          WHERE mtc.tool_name IN ('Edit', 'Write')
            AND mtc.file_path IS NOT NULL AND mtc.file_path != ''
-           AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')
+           AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')${sessionRepoFilter}
          GROUP BY ${sessionStartPeriodExpr}, mtc.session_id, mtc.file_path
          HAVING COUNT(*) > 1
        )
@@ -10668,6 +10863,32 @@ export class TrailDatabase {
     );
 
     const qualityRates = aggregateQualityRates(toRows(buildTestResult), toRows(editCountResult), toRows(retryResult));
+
+    // workspace 絞り込み時のみ、同じ repo 集合で日次アクティビティを同梱する（tokens チャート用）。
+    // missing-rate 補正係数（factorBySource）も絞り込み後の集合から計算する（getAnalytics と同手順）。
+    let dailyActivity: AnalyticsData['dailyActivity'] | undefined;
+    if (hasWorkspaceFilter) {
+      const tokensBySourceResult = db.exec(
+        `SELECT s.source,
+                COUNT(*) AS total_turns,
+                SUM(CASE WHEN COALESCE(m.input_tokens,0)+COALESCE(m.output_tokens,0)
+                              +COALESCE(m.cache_read_tokens,0)+COALESCE(m.cache_creation_tokens,0)=0
+                         THEN 1 ELSE 0 END) AS missing_turns
+         FROM messages m
+         JOIN sessions s ON s.id = m.session_id
+         WHERE m.type = 'assistant'${sessionRepoFilter}
+         GROUP BY s.source`,
+      );
+      const factorBySource = new Map<string, number>();
+      for (const row of tokensBySourceResult[0]?.values ?? []) {
+        const source = asText(row[0] ?? '');
+        const totalTurns = Number(row[1]);
+        const missingTurns = Number(row[2]);
+        const observed = totalTurns - missingTurns;
+        factorBySource.set(source, observed > 0 ? totalTurns / observed : 1);
+      }
+      dailyActivity = this.computeDailyActivity(tzOffset, factorBySource, repoIdList);
+    }
 
     return {
       toolCounts,
@@ -10677,10 +10898,11 @@ export class TrailDatabase {
       agentStats,
       commitPrefixStats,
       aiFirstTryRate,
-      repoStats,
       qualityRates,
       commitBaseline,
       commitRegressionByPeriod,
+      workspaces,
+      dailyActivity,
     };
   }
 

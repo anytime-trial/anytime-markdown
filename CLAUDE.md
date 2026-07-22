@@ -24,7 +24,9 @@
 
 ## Trail DB
 
-- **Trail DB** (`~/.claude/trail/trail.db`): セッション・コミット・コードグラフの調査は `git log` / `*.jsonl` grep より DB を優先。
+- **Trail DB** (`trail.db`): セッション・コミット・コードグラフの調査は `git log` / `*.jsonl` grep より DB を優先。
+
+  保存先は Trail 拡張の設定に依存するため固定パスを前提にしない。`lep.json` の `database.storagePath`（既定 `.anytime/trail/db`）を、`anytimeTrail.workspace.path` が決めるワークスペースルート起点で解決する（`lep.json` 自体の位置は `anytimeTrail.lep.configPath`。旧 `anytimeTrail.database.storagePath` は廃止）。既定構成での実体は `<wsRoot>/.anytime/trail/db/trail.db` で、同ディレクトリに `memory-core.db` / `doc-core.db` / `verification.db` / `extension-logs.db` が並ぶ。参照前に実在を確認する。
 
   | 用途 | テーブル |
   | --- | --- |

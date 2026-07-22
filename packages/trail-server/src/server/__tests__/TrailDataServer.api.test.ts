@@ -129,6 +129,22 @@ describe('GET /api/trail/combined', () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/trail/combined?period=week&rangeDays=90`);
     expect(res.status).toBe(200);
   });
+
+  it('passes workspace query param through to getCombinedData', async () => {
+    const spy = jest.spyOn(db, 'getCombinedData');
+    const res = await fetch(
+      `http://127.0.0.1:${port}/api/trail/combined?period=day&rangeDays=30&workspace=anytime-markdown`,
+    );
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledWith('day', 30, 'anytime-markdown');
+  });
+
+  it('treats empty workspace param as no filter', async () => {
+    const spy = jest.spyOn(db, 'getCombinedData');
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/combined?workspace=`);
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledWith('day', 30, undefined);
+  });
 });
 
 describe('GET /api/trail/quality-metrics', () => {

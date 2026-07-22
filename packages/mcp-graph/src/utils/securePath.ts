@@ -14,3 +14,9 @@ export function validateGraphExtension(filePath: string): void {
     throw new Error('File type not allowed. Only .graph files are supported.');
   }
 }
+
+export function validateCooccurrenceExtension(filePath: string): void {
+  if (!filePath.endsWith('.cooc.json')) {
+    throw new Error('File type not allowed. Only .cooc.json files are supported.');
+  }
+}

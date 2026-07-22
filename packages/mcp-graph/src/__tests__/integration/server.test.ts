@@ -27,9 +27,9 @@ describe('mcp-graph integration', () => {
     return (result.content as Array<{ type: string; text: string }>)[0].text;
   }
 
-  it('should list all 13 tools', async () => {
+  it('should list all 15 tools', async () => {
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(13);
+    expect(tools).toHaveLength(15);
     const names = tools.map((t) => t.name);
     expect(names).toContain('read_graph');
     expect(names).toContain('write_graph');
@@ -44,6 +44,8 @@ describe('mcp-graph integration', () => {
     expect(names).toContain('export_drawio');
     expect(names).toContain('import_drawio');
     expect(names).toContain('batch_import');
+    expect(names).toContain('write_cooccurrence');
+    expect(names).toContain('read_cooccurrence');
   });
 
   it('should create graph, add nodes, add edge, export SVG', async () => {

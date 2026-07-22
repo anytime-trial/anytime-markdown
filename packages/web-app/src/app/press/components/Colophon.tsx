@@ -73,6 +73,11 @@ export function Colophon() {
                 <Link href="/mindmap">{tLanding('mindmapPage')}</Link>
               </li>
             ) : null}
+            {showGraph ? (
+              <li>
+                <Link href="/cooccurrence">{tLanding('cooccurrencePage')}</Link>
+              </li>
+            ) : null}
             {showSheet ? (
               <li>
                 <Link href="/sheet">{tLanding('sheetPage')}</Link>

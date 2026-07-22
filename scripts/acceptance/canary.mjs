@@ -23,7 +23,7 @@ const REPORT_PATH = path.join(ROOT, "packages/web-app/test-results/canary-report
 // 残留プロセスの検出は /proc/<pid>/environ にこの marker が残っているかで行う。
 const SANDBOX_ENV_KEY = "ACCEPTANCE_CANARY_SANDBOX";
 
-export const TICKET_STATUS_RANK = { backlog: 0, up_next: 1, in_progress: 2, in_review: 3, completed: 4 };
+export const TICKET_STATUS_RANK = { backlog: 0, up_next: 1, in_progress: 2, completed: 3 };
 
 function log(level, msg) {
   console.log(`[${new Date().toISOString()}] [${level}] [canary] ${msg}`);

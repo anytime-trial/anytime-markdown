@@ -7,6 +7,7 @@ export type ChartEntry = {
   date: string; fullDate: string;
   inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheCreationTokens: number;
   actualCost: number; skillCost: number;
+  linesAdded: number; linesDeleted: number;
   overlayValue: number | null;
 };
 
@@ -145,13 +146,15 @@ export function groupByWeek(entries: readonly ChartEntry[]): ChartEntry[] {
   const map = new Map<string, ChartEntry & { _overlayCount: number }>();
   for (const d of entries) {
     const key = toFridayWeekKey(d.fullDate);
-    const e = map.get(key) ?? { date: key.slice(5), fullDate: key, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, actualCost: 0, skillCost: 0, overlayValue: null, _overlayCount: 0 };
+    const e = map.get(key) ?? { date: key.slice(5), fullDate: key, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, actualCost: 0, skillCost: 0, linesAdded: 0, linesDeleted: 0, overlayValue: null, _overlayCount: 0 };
     e.inputTokens += d.inputTokens;
     e.outputTokens += d.outputTokens;
     e.cacheReadTokens += d.cacheReadTokens;
     e.cacheCreationTokens += d.cacheCreationTokens;
     e.actualCost += d.actualCost;
     e.skillCost += d.skillCost;
+    e.linesAdded += d.linesAdded;
+    e.linesDeleted += d.linesDeleted;
     if (d.overlayValue != null) {
       e.overlayValue = (e.overlayValue ?? 0) + d.overlayValue;
       e._overlayCount += 1;

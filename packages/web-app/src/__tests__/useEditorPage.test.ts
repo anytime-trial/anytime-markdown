@@ -122,6 +122,110 @@ describe("useEditorPage", () => {
 
       expect(result.current.externalFileName).toBe("intro.md");
     });
+
+    it("取得失敗時はエラー snackbar を出し、選択状態を変えない（401 リグレッション）", async () => {
+      const fetchFileFn = jest.fn().mockRejectedValue(new Error("GitHub content fetch failed: 401"));
+      const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ fetchFileFn })),
+      );
+      const initialKey = result.current.editorKey;
+
+      await act(async () => {
+        await result.current.handleGitHubOpenFile("owner/private-repo", "secret.md", "main");
+      });
+
+      expect(result.current.saveSnackbar).toEqual({ message: "githubLoadError", severity: "error" });
+      // 保存先が未取得ファイルを指したままにならない（旧本文が新パスへコミットされる事故の防止）
+      expect(result.current.externalSaveKind).toBeUndefined();
+      expect(result.current.githubDoc).toBeUndefined();
+      expect(result.current.externalFileName).toBeUndefined();
+      expect(result.current.editorKey).toBe(initialKey);
+      consoleError.mockRestore();
+    });
+  });
+
+  describe("githubOpenRequest（?gh= クエリからの直接オープン）", () => {
+    const request = { repo: "owner/repo", branch: "develop", path: "docs/design.md" };
+
+    it("接続済みなら自動でファイルを開く", async () => {
+      const fetchFileFn = jest.fn().mockResolvedValue("# Doc");
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ isGitHubConnected: true, githubOpenRequest: request, fetchFileFn })),
+      );
+
+      await act(async () => {});
+
+      expect(fetchFileFn).toHaveBeenCalledWith("owner/repo", "docs/design.md", "develop");
+      expect(result.current.externalFileName).toBe("design.md");
+      expect(result.current.externalSaveKind).toBe("github");
+    });
+
+    it("未接続なら誘導済みフラグを立てて GitHub サインインへ誘導する", async () => {
+      const fetchFileFn = jest.fn();
+      const signInFn = jest.fn().mockResolvedValue(undefined);
+      renderHook(() =>
+        useEditorPage(createHookOptions({ isGitHubConnected: false, githubOpenRequest: request, fetchFileFn, signInFn })),
+      );
+
+      await act(async () => {});
+
+      expect(signInFn).toHaveBeenCalledWith("github", { callbackUrl: window.location.href });
+      expect(fetchFileFn).not.toHaveBeenCalled();
+      expect(sessionStorage.getItem("githubFileOpenAttempt")).toBe("1");
+    });
+
+    it("誘導済みなのに未接続で戻ったら再誘導せずエラー snackbar を出す（ループ防止）", async () => {
+      sessionStorage.setItem("githubFileOpenAttempt", "1");
+      const signInFn = jest.fn();
+      const { result } = renderHook(() =>
+        useEditorPage(createHookOptions({ isGitHubConnected: false, githubOpenRequest: request, signInFn })),
+      );
+
+      await act(async () => {});
+
+      expect(signInFn).not.toHaveBeenCalled();
+      expect(result.current.saveSnackbar).toEqual({ message: "githubOpenSignInRequired", severity: "error" });
+      expect(sessionStorage.getItem("githubFileOpenAttempt")).toBeNull();
+    });
+
+    it("セッション未確定（undefined）の間は何もしない", async () => {
+      const fetchFileFn = jest.fn();
+      const signInFn = jest.fn();
+      renderHook(() =>
+        useEditorPage(createHookOptions({ isGitHubConnected: undefined, githubOpenRequest: request, fetchFileFn, signInFn })),
+      );
+
+      await act(async () => {});
+
+      expect(fetchFileFn).not.toHaveBeenCalled();
+      expect(signInFn).not.toHaveBeenCalled();
+    });
+
+    it("接続済みで開いたら誘導済みフラグを掃除する", async () => {
+      sessionStorage.setItem("githubFileOpenAttempt", "1");
+      const fetchFileFn = jest.fn().mockResolvedValue("# Doc");
+      renderHook(() =>
+        useEditorPage(createHookOptions({ isGitHubConnected: true, githubOpenRequest: request, fetchFileFn })),
+      );
+
+      await act(async () => {});
+
+      expect(sessionStorage.getItem("githubFileOpenAttempt")).toBeNull();
+    });
+
+    it("githubOpenRequest が無い従来起動では自動オープンもサインイン誘導もしない（回帰）", async () => {
+      const fetchFileFn = jest.fn();
+      const signInFn = jest.fn();
+      renderHook(() =>
+        useEditorPage(createHookOptions({ isGitHubConnected: true, fetchFileFn, signInFn })),
+      );
+
+      await act(async () => {});
+
+      expect(fetchFileFn).not.toHaveBeenCalled();
+      expect(signInFn).not.toHaveBeenCalled();
+    });
   });
 
   describe("handleExternalSave", () => {

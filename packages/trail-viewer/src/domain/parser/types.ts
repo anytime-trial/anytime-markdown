@@ -105,13 +105,6 @@ export interface CombinedCommitPrefix {
   readonly linesDeleted: number;
 }
 
-export interface CombinedRepository {
-  readonly period: string;
-  readonly repoName: string;
-  readonly count: number;
-  readonly tokens: number;
-}
-
 export interface CombinedAiFirstTryRate {
   readonly period: string;
   readonly rate: number;      // 0-100
@@ -151,10 +144,13 @@ export interface CombinedData {
   readonly agentStats: readonly CombinedAgent[];
   readonly commitPrefixStats: readonly CombinedCommitPrefix[];
   readonly aiFirstTryRate: readonly CombinedAiFirstTryRate[];
-  readonly repoStats: readonly CombinedRepository[];
   readonly qualityRates: readonly CombinedQualityRate[];
   readonly commitBaseline?: CommitBaselineSummary;
   readonly commitRegressionByPeriod?: readonly CombinedCommitRegression[];
+  /** ワークスペース切替の選択肢（repo_name の worktree 正規化名 distinct。フィルタ有無に依らず全件）。 */
+  readonly workspaces: readonly string[];
+  /** workspace フィルタ指定時のみサーバーが同梱する絞り込み済み日次アクティビティ。 */
+  readonly dailyActivity?: AnalyticsData['dailyActivity'];
 }
 
 export type CombinedPeriodMode = 'day' | 'week';

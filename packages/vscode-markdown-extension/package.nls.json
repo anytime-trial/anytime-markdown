@@ -29,6 +29,7 @@
   "command.compareWithCommit": "Compare with this commit",
   "command.registerMcpServer": "Register MCP Server (write .mcp.json)",
   "command.rebuildDocIndex": "Rebuild Doc Search Index",
+  "command.regenerateDocIndexes": "Regenerate Doc Folder Indexes (index.<lang>.md)",
   "command.reinstallSkills": "Reinstall Markdown Skills (.claude/skills)",
   "configuration.docsRoot.description": "Root directory of the documentation repository (e.g. /Shared/anytime-markdown-docs). Absolute path. Used by both doc search indexing and the Note Graph panel. Empty disables doc indexing; the Note Graph then falls back to the git repository of the current document.",
   "configuration.docSearch.dbPath.description": "Path of the doc search database (doc-core.db). Empty defaults to <workspace>/.anytime/markdown/doc-core.db.",

@@ -9,7 +9,6 @@ export const ticketsMessagesEn = {
   view: {
     board: "Board",
     list: "List",
-    showArchive: "Show archive",
   },
   board: {
     newTicket: "New ticket",
@@ -21,7 +20,6 @@ export const ticketsMessagesEn = {
     backlog: "Backlog",
     up_next: "Up next",
     in_progress: "In progress",
-    in_review: "In review",
     completed: "Completed",
   },
   priority: {
@@ -63,6 +61,7 @@ export const ticketsMessagesEn = {
     priority: "Priority",
     assignee: "Assignee",
     workspace: "Workspace",
+    archived: "Show archive",
   },
   detail: {
     bodyLabel: "Body (Markdown)",
@@ -80,6 +79,10 @@ export const ticketsMessagesEn = {
     commentHeading: "Comments",
     commentPlaceholder: "Add a comment (committed to the end of the Comments section)",
     postComment: "Post comment",
+    commentEmpty: "No comments yet",
+    commentEdit: "Edit",
+    commentEditSave: "Save comment",
+    commentEditCancel: "Stop editing",
   },
   create: {
     heading: "New ticket",

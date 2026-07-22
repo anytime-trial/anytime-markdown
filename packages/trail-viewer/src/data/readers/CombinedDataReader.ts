@@ -510,12 +510,10 @@ export class CombinedDataReader {
 
       const sourceBySessionId = new Map<string, string>();
       const sessionStartById = new Map<string, string>();
-      const repoNameById = new Map<string, string>();
       for (const s of allSessionRows) {
         const source = s.source === 'codex' ? 'Codex' : 'Claude Code';
         sourceBySessionId.set(s.id, source);
         if (s.start_time) sessionStartById.set(s.id, s.start_time);
-        if (s.repo_name) repoNameById.set(s.id, s.repo_name);
       }
 
       // エラー集計: session start_time 基準（daily_counts の timestamp 基準と異なる）
@@ -571,7 +569,6 @@ export class CombinedDataReader {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([p, byTool]) => ({ period: p, rate: 0, byTool }));
 
-      const repoTokenMap = new Map<string, number>();
       const agentMap = new Map<string, { tokens: number; costUsd: number; loc: number }>();
       const addAgent = (periodKeyStr: string, agent: string, delta: Partial<{ tokens: number; costUsd: number; loc: number }>) => {
         const k = `${periodKeyStr}::${agent}`;
@@ -590,11 +587,6 @@ export class CombinedDataReader {
         const p = periodKey(toJSTDate(start));
         const tokens = (c.input_tokens ?? 0) + (c.output_tokens ?? 0) + (c.cache_read_tokens ?? 0) + (c.cache_creation_tokens ?? 0);
         addAgent(p, agent, { tokens, costUsd: c.estimated_cost_usd ?? 0 });
-        const repoName = repoNameById.get(c.session_id);
-        if (repoName) {
-          const rk = `${p}::${repoName}`;
-          repoTokenMap.set(rk, (repoTokenMap.get(rk) ?? 0) + tokens);
-        }
       }
 
       const toolCounts = [...toolDcMap.entries()].map(([k, e]) => {
@@ -620,6 +612,12 @@ export class CombinedDataReader {
             tokens: v.tokens,
             costUsd: v.costUsd,
             loc: v.loc,
+            // 欠損統計は「0 件」ではなく「未知」。この経路は trail_session_costs
+            // （セッション単位の合計）から集計しており、ターン単位の素材を持たない。
+            // 算出するには期間全体の trail_messages 走査が必要で、Supabase の egress
+            // 超過を招いた生行全転送パターンそのものになるため意図的に持たない。
+            // 消費側（buildAgentSeries）は total===0 を未知として扱い、欠損率を
+            // 表示しない。0 を「欠損なし」と解釈する消費側を増やさないこと。
             tokenMissingRate: 0,
             tokenTotalTurns: 0,
             tokenMissingTurns: 0,
@@ -646,7 +644,6 @@ export class CombinedDataReader {
       };
       const seenHashes = new Set<string>();
       const prefixMap = new Map<string, { count: number; linesAdded: number; linesDeleted: number }>();
-      const repoCommitCountMap = new Map<string, number>();
       const regressionByPeriodMap = new Map<string, number>();
       // 旧実装は session_commits を 2 度フェッチしていた (Loop 4: agent.loc, Loop 5: prefix/repo)。
       // 同じ条件・同じテーブルなので allCommitRows 1 回の取得から両者を導出する。
@@ -659,11 +656,6 @@ export class CombinedDataReader {
         const identity = `${c.repo_name ?? ''}:${c.commit_hash}`;
         if (seenHashes.has(identity)) continue;
         seenHashes.add(identity);
-        const repoForCommit = c.repo_name?.trim();
-        if (repoForCommit) {
-          const rck = `${periodKey(toJSTDate(c.committed_at))}::${repoForCommit}`;
-          repoCommitCountMap.set(rck, (repoCommitCountMap.get(rck) ?? 0) + 1);
-        }
         const subject = (c.commit_message ?? c.subject ?? '').split('\n')[0];
         const prefix = extractPrefix(subject);
         const p = periodKey(toJSTDate(c.committed_at));
@@ -685,13 +677,11 @@ export class CombinedDataReader {
         .map(([k, e]) => { const [p, prefix] = splitKey(k); return { period: p, prefix, count: e.count, linesAdded: e.linesAdded, linesDeleted: e.linesDeleted }; })
         .sort((a, b) => a.period.localeCompare(b.period));
 
-      const repoKeys = new Set([...repoCommitCountMap.keys(), ...repoTokenMap.keys()]);
-      const repoStats = [...repoKeys].map(k => {
-        const [p, repoName] = splitKey(k);
-        return { period: p, repoName, count: repoCommitCountMap.get(k) ?? 0, tokens: repoTokenMap.get(k) ?? 0 };
-      }).sort((a, b) => a.period.localeCompare(b.period));
-
-      return { toolCounts, errorRate, skillStats, modelStats, agentStats, commitPrefixStats, aiFirstTryRate: [], repoStats, qualityRates: [], commitBaseline, commitRegressionByPeriod };
+      // SHORTCUT: workspace フィルタ・選択肢は未対応（workspaces: [] を返し UI は All のみ）.
+      // ceiling: tool/skill/model 系列の素材が repo 次元を持たない daily_counts で、絞り込みには
+      // trail_messages 級の生行転送（egress 超過の主因パターン）が要る. upgrade: Supabase 側に
+      // repo 次元付きの日次集計テーブルを追加したらフィルタ対応へ.
+      return { toolCounts, errorRate, skillStats, modelStats, agentStats, commitPrefixStats, aiFirstTryRate: [], qualityRates: [], commitBaseline, commitRegressionByPeriod, workspaces: [] };
     } catch (e) {
       console.error('[CombinedDataReader.getCombinedData] failed', e);
       return null;

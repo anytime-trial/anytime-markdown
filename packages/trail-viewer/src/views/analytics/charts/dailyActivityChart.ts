@@ -49,7 +49,7 @@ function computeOverlayByDate(
   overlay: DailyActivityChartProps['overlay'],
   mode: DailyViewMode,
 ): Map<string, number> {
-  if (!overlay || mode === 'tokens') return new Map<string, number>();
+  if (!overlay || mode !== 'cost') return new Map<string, number>();
   const map = new Map<string, number>();
   for (const b of overlay.cost) {
     const localDate = toLocalDateKey(b.bucketStart);
@@ -57,6 +57,25 @@ function computeOverlayByDate(
     map.set(key, b.value);
   }
   return map;
+}
+
+/**
+ * 右軸 overlay の当日値。tokens は日次データから tok/LOC を算出し、cost は
+ * サーバー由来の $/LOC を引く。loc モードは分母が LOC 自身のため overlay を持たない。
+ */
+function computeOverlayValue(
+  d: AnalyticsData['dailyActivity'][number],
+  mode: DailyViewMode,
+  overlayByDate: Map<string, number>,
+  overlayBucket: 'day' | 'week' | undefined,
+): number | null {
+  if (mode === 'loc') return null;
+  if (mode === 'cost') {
+    return overlayByDate.get(overlayBucket === 'week' ? toFridayWeekKey(d.date) : d.date) ?? null;
+  }
+  const grossLoc = d.linesAdded + d.linesDeleted;
+  if (grossLoc <= 0) return null;
+  return (d.inputTokens + d.outputTokens + d.cacheReadTokens + d.cacheCreationTokens) / grossLoc;
 }
 
 /** 表示期間で絞り込み、集計単位に応じて日次 / 週次のデータセットを組み立てる（テスト公開）。 */
@@ -71,20 +90,10 @@ export function computeDailyActivityDataset(props: DailyActivityChartProps): Cha
   const cutoffStr = toLocalDateKey(cutoff.toISOString());
   const filtered = items.filter((d) => d.date >= cutoffStr);
   const isTokens = mode === 'tokens';
+  const isCost = mode === 'cost';
 
   const dailyDataset: ChartEntry[] = filtered.map((d) => {
     const costEntry = costByDate.get(d.date);
-    let overlayValue: number | null = null;
-    if (isTokens) {
-      const grossLoc = d.linesAdded + d.linesDeleted;
-      if (grossLoc > 0) {
-        overlayValue =
-          (d.inputTokens + d.outputTokens + d.cacheReadTokens + d.cacheCreationTokens) / grossLoc;
-      }
-    } else {
-      overlayValue =
-        overlayByDate.get(overlayBucket === 'week' ? toFridayWeekKey(d.date) : d.date) ?? null;
-    }
     return {
       date: d.date.slice(5),
       fullDate: d.date,
@@ -92,13 +101,30 @@ export function computeDailyActivityDataset(props: DailyActivityChartProps): Cha
       outputTokens: isTokens ? d.outputTokens : 0,
       cacheReadTokens: isTokens ? d.cacheReadTokens : 0,
       cacheCreationTokens: isTokens ? d.cacheCreationTokens : 0,
-      actualCost: isTokens ? 0 : (costEntry?.actual ?? d.estimatedCostUsd),
-      skillCost: isTokens ? 0 : (costEntry?.skill ?? 0),
-      overlayValue,
+      actualCost: isCost ? (costEntry?.actual ?? d.estimatedCostUsd) : 0,
+      skillCost: isCost ? (costEntry?.skill ?? 0) : 0,
+      linesAdded: mode === 'loc' ? d.linesAdded : 0,
+      linesDeleted: mode === 'loc' ? d.linesDeleted : 0,
+      overlayValue: computeOverlayValue(d, mode, overlayByDate, overlayBucket),
     };
   });
 
   return bucket === 'week' ? groupByWeek(dailyDataset) : dailyDataset;
+}
+
+/**
+ * 右軸 overlay を描くかどうかとその軸ラベル（テスト公開）。
+ * loc モードは overlay を持たない（tok/LOC・$/LOC はいずれも LOC が分母であり、
+ * LOC 自身を主軸に置いたモードでは軸の意味が二重化して誤読を招くため）。
+ */
+export function computeOverlayDisplay(
+  props: Pick<DailyActivityChartProps, 'mode' | 'overlay' | 't'>,
+): { hasOverlay: boolean; overlayLabel: string } {
+  const isTokens = props.mode === 'tokens';
+  return {
+    hasOverlay: props.mode !== 'loc' && (isTokens || props.overlay != null),
+    overlayLabel: isTokens ? props.t('chart.tokensPerLoc') : props.t('chart.costPerLoc'),
+  };
 }
 
 function applyCardStyle(
@@ -127,12 +153,10 @@ export function mountDailyActivityChart(
 
   function buildSpec(p: DailyActivityChartProps) {
     const dataset = computeDailyActivityDataset(p);
-    const isTokens = p.mode === 'tokens';
-    const hasOverlay = isTokens || p.overlay != null;
-    const overlayLabel = isTokens ? p.t('chart.tokensPerLoc') : p.t('chart.costPerLoc');
+    const { hasOverlay, overlayLabel } = computeOverlayDisplay(p);
     return {
       spec: buildDailyActivitySpec(dataset, {
-        isTokens,
+        mode: p.mode,
         hasOverlay,
         overlayLabel,
         colors: p.chartColors,
@@ -143,6 +167,8 @@ export function mountDailyActivityChart(
           cacheWrite: 'Cache Write',
           current: 'Current',
           optimized: 'Optimized',
+          locAdded: p.t('chart.locAdded'),
+          locDeleted: p.t('chart.locDeleted'),
         },
       }),
       dataset,

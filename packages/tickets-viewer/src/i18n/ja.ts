@@ -9,7 +9,6 @@ export const ticketsMessagesJa = {
   view: {
     board: "ボード",
     list: "リスト",
-    showArchive: "アーカイブを表示",
   },
   board: {
     newTicket: "新規チケット",
@@ -21,7 +20,6 @@ export const ticketsMessagesJa = {
     backlog: "バックログ",
     up_next: "着手予定",
     in_progress: "進行中",
-    in_review: "レビュー中",
     completed: "完了",
   },
   priority: {
@@ -63,6 +61,7 @@ export const ticketsMessagesJa = {
     priority: "優先度",
     assignee: "担当",
     workspace: "ワークスペース",
+    archived: "アーカイブを表示",
   },
   detail: {
     bodyLabel: "本文 (Markdown)",
@@ -80,6 +79,10 @@ export const ticketsMessagesJa = {
     commentHeading: "コメント",
     commentPlaceholder: "コメントを追記(本文の Comments セクション末尾へコミットされます)",
     postComment: "コメントを投稿",
+    commentEmpty: "コメントはまだありません",
+    commentEdit: "編集",
+    commentEditSave: "コメントを保存",
+    commentEditCancel: "編集をやめる",
   },
   create: {
     heading: "新規チケット",

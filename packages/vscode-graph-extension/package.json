@@ -2,7 +2,7 @@
   "name": "anytime-graph",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -18,9 +18,9 @@
   ],
   "keywords": [
     "graph",
-    "whiteboard",
-    "diagram",
-    "canvas"
+    "cooccurrence",
+    "network",
+    "visualization"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
@@ -34,10 +34,34 @@
         }
       ]
     },
+    "views": {
+      "anytimeGraph": [
+        {
+          "id": "anytimeGraph.networks",
+          "name": "%view.networks%"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "anytimeGraph.networks",
+        "contents": "%viewsWelcome.networks%"
+      }
+    ],
     "customEditors": [
       {
+        "viewType": "anytimeCooccurrence",
+        "displayName": "%customEditor.cooccurrence.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.cooc.json"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "anytimeGraph",
-        "displayName": "%customEditor.displayName%",
+        "displayName": "%customEditor.graphMigration.displayName%",
         "selector": [
           {
             "filenamePattern": "*.graph"
@@ -48,33 +72,50 @@
     ],
     "commands": [
       {
-        "command": "anytime-graph.newGraph",
-        "title": "%command.newGraph%"
+        "command": "anytime-graph.newCooccurrence",
+        "title": "%command.newCooccurrence%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "anytime-graph.refreshNetworks",
+        "title": "%command.refreshNetworks%",
+        "icon": "$(refresh)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "anytime-graph.newCooccurrence",
+          "when": "view == anytimeGraph.networks",
+          "group": "navigation@1"
+        },
+        {
+          "command": "anytime-graph.refreshNetworks",
+          "when": "view == anytimeGraph.networks",
+          "group": "navigation@2"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "webpack",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json",
+    "test": "jest",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map"
   },
   "devDependencies": {
     "@types/node": "22.x",
     "@types/vscode": "1.109.0",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
     "ts-loader": "9.6.0",
     "typescript": "6.0.3",
     "webpack": "5.104.1",
     "webpack-cli": "6.0.1"
   },
   "dependencies": {
+    "@anytime-markdown/cooccurrence-viewer": "*",
     "@anytime-markdown/graph-core": "*",
-    "@anytime-markdown/graph-viewer": "*",
-    "@anytime-markdown/trail-core": "*",
-    "@anytime-markdown/vscode-common": "*",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "@anytime-markdown/vscode-common": "*"
   }
 }

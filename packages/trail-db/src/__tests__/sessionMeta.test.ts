@@ -1,7 +1,11 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { extractRepoNameFromJsonl } from '../sessionMeta';
+import {
+  extractRepoNameFromJsonl,
+  extractRepoNameFromProjectDirPath,
+  normalizeWorkspaceName,
+} from '../sessionMeta';
 
 function writeJsonl(lines: ReadonlyArray<object | string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sessionMeta-test-'));
@@ -106,5 +110,144 @@ describe('extractRepoNameFromJsonl', () => {
   it('strips trailing slash before taking basename', () => {
     const file = writeJsonl([{ type: 'user', cwd: '/anytime-trade/' }]);
     expect(extractRepoNameFromJsonl(file)).toBe('anytime-trade');
+  });
+});
+
+describe('extractRepoNameFromJsonl — git ルート解決', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'sessionMeta-git-'));
+  });
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  function writeJsonlWithCwd(cwd: string): string {
+    return writeJsonl([{ type: 'user', cwd }]);
+  }
+
+  it('attributes a subdirectory cwd to the enclosing git repository', () => {
+    const repo = path.join(root, 'myrepo');
+    fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+    const sub = path.join(repo, 'packages', 'web-app');
+    fs.mkdirSync(sub, { recursive: true });
+    expect(extractRepoNameFromJsonl(writeJsonlWithCwd(sub))).toBe('myrepo');
+  });
+
+  it('collapses a worktree checkout (.git file) into the parent repo', () => {
+    const repo = path.join(root, 'myrepo');
+    const wt = path.join(repo, '.worktrees', 'feature-foo');
+    fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+    fs.mkdirSync(wt, { recursive: true });
+    fs.writeFileSync(path.join(wt, '.git'), 'gitdir: /elsewhere\n', 'utf-8');
+    expect(extractRepoNameFromJsonl(writeJsonlWithCwd(wt))).toBe('myrepo');
+  });
+
+  it('collapses a subdirectory inside a worktree into the parent repo', () => {
+    const repo = path.join(root, 'myrepo');
+    const wt = path.join(repo, '.worktrees', 'feature-foo');
+    const sub = path.join(wt, 'scripts', 'vscode-extension');
+    fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+    fs.mkdirSync(sub, { recursive: true });
+    fs.writeFileSync(path.join(wt, '.git'), 'gitdir: /elsewhere\n', 'utf-8');
+    expect(extractRepoNameFromJsonl(writeJsonlWithCwd(sub))).toBe('myrepo');
+  });
+
+  it('falls back to the cwd basename when the path no longer exists', () => {
+    expect(extractRepoNameFromJsonl(writeJsonlWithCwd('/gone/anytime-trade'))).toBe('anytime-trade');
+  });
+
+  it('falls back to the cwd basename when no .git is found up the tree', () => {
+    const plain = path.join(root, 'plain-dir');
+    fs.mkdirSync(plain, { recursive: true });
+    expect(extractRepoNameFromJsonl(writeJsonlWithCwd(plain))).toBe('plain-dir');
+  });
+});
+
+describe('extractRepoNameFromProjectDirPath', () => {
+  const fileFor = (dirName: string): string => `/home/u/.claude/projects/${dirName}/sid.jsonl`;
+  const existsIn = (paths: readonly string[]) => (p: string): boolean => paths.includes(p);
+
+  it('recovers the repository from a flattened projects dir name', () => {
+    const exists = existsIn([
+      '/anytime-markdown',
+      '/anytime-markdown/.git',
+      '/anytime-markdown/packages',
+      '/anytime-markdown/packages/web-app',
+    ]);
+    expect(
+      extractRepoNameFromProjectDirPath(fileFor('-anytime-markdown-packages-web-app'), exists),
+    ).toBe('anytime-markdown');
+  });
+
+  it('returns null when no split of the name exists on disk', () => {
+    expect(
+      extractRepoNameFromProjectDirPath(fileFor('-no-such-path'), existsIn([])),
+    ).toBeNull();
+  });
+
+  it('returns null when more than one split resolves (ambiguous)', () => {
+    const exists = existsIn([
+      '/a',
+      '/a/b-c',
+      '/a/b',
+      '/a/b/c',
+    ]);
+    expect(extractRepoNameFromProjectDirPath(fileFor('-a-b-c'), exists)).toBeNull();
+  });
+
+  it('gives up on names with too many segments to search', () => {
+    const dirName = `-${Array.from({ length: 20 }, (_, i) => `t${i}`).join('-')}`;
+    const probe = jest.fn(() => true);
+    expect(extractRepoNameFromProjectDirPath(fileFor(dirName), probe)).toBeNull();
+    expect(probe).not.toHaveBeenCalled();
+  });
+
+  it('gives up when the probe limit truncates the search, even with exactly one candidate found', () => {
+    // `/a/b` を見つけた直後に上限へ達し、まだ試していない `/a-b` にも候補がある状況。
+    // 打ち切りは「2 件目が無い」ことの証明にならないため、一意と断定してはいけない。
+    const exists = existsIn(['/a', '/a/b', '/a-b']);
+    expect(extractRepoNameFromProjectDirPath(fileFor('-a-b'), exists, 2)).toBeNull();
+    // 上限に達しなければ、同じ入力は「候補 2 件＝曖昧」として null になる。
+    expect(extractRepoNameFromProjectDirPath(fileFor('-a-b'), exists)).toBeNull();
+    // 打ち切らずに探索し切れば復元できる（上の null がガード由来であることの対照）。
+    expect(extractRepoNameFromProjectDirPath(fileFor('-a-b'), existsIn(['/a', '/a/b']), 3)).toBe('b');
+  });
+
+  it('returns null when the path is not under a projects directory', () => {
+    expect(
+      extractRepoNameFromProjectDirPath('/somewhere/else/sid.jsonl', existsIn(['/somewhere'])),
+    ).toBeNull();
+  });
+});
+
+describe('normalizeWorkspaceName', () => {
+  it('returns plain repo names unchanged', () => {
+    expect(normalizeWorkspaceName('anytime-markdown')).toBe('anytime-markdown');
+  });
+
+  it('strips --claude-worktrees- suffix to the parent repo name', () => {
+    expect(
+      normalizeWorkspaceName('anytime-markdown--claude-worktrees-recall-trial--recall-src-scripts'),
+    ).toBe('anytime-markdown');
+  });
+
+  it('strips --worktrees- suffix to the parent repo name', () => {
+    expect(normalizeWorkspaceName('anytime-trade--worktrees-term-help-tooltip')).toBe(
+      'anytime-trade',
+    );
+  });
+
+  it('keeps names where stripping would leave nothing', () => {
+    expect(normalizeWorkspaceName('--worktrees-orphan')).toBe('--worktrees-orphan');
+  });
+
+  it('keeps empty string as-is', () => {
+    expect(normalizeWorkspaceName('')).toBe('');
+  });
+
+  it('does not treat single-dash -worktrees- as a worktree suffix', () => {
+    expect(normalizeWorkspaceName('repo-worktrees-history')).toBe('repo-worktrees-history');
   });
 });
