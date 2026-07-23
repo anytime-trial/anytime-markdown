@@ -58,7 +58,19 @@ export const workspace = {
 	findFiles: jest.fn(),
 	asRelativePath: jest.fn(),
 	createFileSystemWatcher: jest.fn(),
+	onDidChangeWorkspaceFolders: jest.fn(() => ({ dispose: () => undefined })),
 };
+
+/** MCP 探索へ渡す stdio 起動定義。テストは args / env を検査する。 */
+export class McpStdioServerDefinition {
+	public constructor(
+		public readonly label: string,
+		public readonly command: string,
+		public readonly args: string[],
+		public readonly env: Record<string, string | number | null>,
+		public readonly version?: string,
+	) {}
+}
 
 export const window = {
 	createOutputChannel: jest.fn(() => ({ appendLine: jest.fn(), dispose: jest.fn() })),
