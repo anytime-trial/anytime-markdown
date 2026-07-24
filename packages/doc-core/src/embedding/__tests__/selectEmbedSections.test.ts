@@ -1,14 +1,14 @@
 /**
  * selectEmbedSections の仕様（FR-3 / AC-1）:
- * 埋め込み対象は葉節（子見出しを持たない節）とリード節のみ。
- * 親節は子の本文を含むため除外し、同一 doc の親子で類似度上位が重複するバイアスを防ぐ。
+ * 埋め込み対象はリード節＋各見出しの「固有本文」（次の任意レベル見出しまで）。
+ * 区間が互いに素なため、親子の内容重複による類似度バイアスと、
+ * 親固有テキストの検索脱落の両方が起きない。
  */
 
-import { splitSections } from '../../ingest/splitSections';
 import { selectEmbedSections } from '../selectEmbedSections';
 
 describe('selectEmbedSections', () => {
-  test('入れ子構造では親節を除外し葉節のみ選ぶ', () => {
+  test('入れ子構造では各見出しの固有本文が選ばれ、親は子の本文を含まない', () => {
     const body = [
       '# 概要',
       'h1 本文',
@@ -19,46 +19,49 @@ describe('selectEmbedSections', () => {
       '## まとめ',
       'h2 まとめ本文',
     ].join('\n');
-    const selected = selectEmbedSections(splitSections(body));
-    // 「概要」(h1) は「詳細」以下を含む親、「詳細」(h2) は「内訳」を含む親 → 除外。
-    expect(selected.map((s) => s.heading)).toEqual(['内訳', 'まとめ']);
+    const selected = selectEmbedSections(body);
+    expect(selected.map((s) => s.heading)).toEqual(['概要', '詳細', '内訳', 'まとめ']);
+    // 親「概要」の固有本文は次の見出しの手前で止まる（子の本文を含まない＝重複ゼロ）。
+    expect(selected[0].text).toBe('# 概要\nh1 本文');
+    expect(selected[1].text).toBe('## 詳細\nh2 本文');
+    // 固有本文の集合はどの 2 節も内容を共有しない。
+    for (const a of selected) {
+      for (const b of selected) {
+        if (a.sectionIdx !== b.sectionIdx) expect(a.text.includes(b.text)).toBe(false);
+      }
+    }
   });
 
-  test('リード節は常に選ばれる（本文は最初の見出しで止まり子を含まないため）', () => {
+  test('親見出し直下の固有テキストが脱落しない（レビュー指摘の回帰）', () => {
+    const body = ['## 親', '親固有の説明文', '### 子', '子の本文'].join('\n');
+    const selected = selectEmbedSections(body);
+    const joined = selected.map((s) => s.text).join('\n');
+    expect(joined).toContain('親固有の説明文');
+    expect(selected.map((s) => s.heading)).toEqual(['親', '子']);
+  });
+
+  test('リード節は常に選ばれる', () => {
     const body = ['前文テキスト', '', '# 見出し', '本文'].join('\n');
-    const selected = selectEmbedSections(splitSections(body));
+    const selected = selectEmbedSections(body);
     expect(selected.map((s) => s.heading)).toEqual(['', '見出し']);
     expect(selected[0].level).toBe(0);
+    expect(selected[0].text).toBe('前文テキスト');
   });
 
-  test('同レベルの兄弟見出しはすべて葉として選ばれる', () => {
-    const body = ['# A', 'a', '# B', 'b', '# C', 'c'].join('\n');
-    const selected = selectEmbedSections(splitSections(body));
-    expect(selected.map((s) => s.heading)).toEqual(['A', 'B', 'C']);
+  test('見出しのみで固有本文が見出し行だけの節も選ばれる（見出し語の検索シグナル）', () => {
+    const body = ['# 親', '## 子', '子の本文'].join('\n');
+    const selected = selectEmbedSections(body);
+    expect(selected.map((s) => s.text)).toEqual(['# 親', '## 子\n子の本文']);
   });
 
-  test('sectionIdx は選定後の文書順連番になる', () => {
-    const body = ['# 親', 'p', '## 子1', 'c1', '## 子2', 'c2'].join('\n');
-    const selected = selectEmbedSections(splitSections(body));
-    expect(selected.map((s) => s.sectionIdx)).toEqual([0, 1]);
-    expect(selected.map((s) => s.heading)).toEqual(['子1', '子2']);
+  test('sectionIdx は文書順連番になる', () => {
+    const body = ['# A', 'a', '## B', 'b', '# C', 'c'].join('\n');
+    const selected = selectEmbedSections(body);
+    expect(selected.map((s) => s.sectionIdx)).toEqual([0, 1, 2]);
   });
 
-  test('レベルが飛んで戻る構造でも親判定は直後の節のレベルで決まる', () => {
-    // 「B」(h3) の次は「C」(h1) → B は葉。「A」(h1) は h3 を含む親 → 除外。
-    const body = ['# A', 'a', '### B', 'b', '# C', 'c'].join('\n');
-    const selected = selectEmbedSections(splitSections(body));
-    expect(selected.map((s) => s.heading)).toEqual(['B', 'C']);
-  });
-
-  test('空配列は空配列を返す', () => {
-    expect(selectEmbedSections([])).toEqual([]);
-  });
-
-  test('選ばれた節の text は splitSections の本文をそのまま保持する', () => {
-    const body = ['# A', 'a 本文', '## B', 'b 本文'].join('\n');
-    const selected = selectEmbedSections(splitSections(body));
-    expect(selected).toHaveLength(1);
-    expect(selected[0].text).toBe('## B\nb 本文');
+  test('空・空白のみの本文は空配列を返す', () => {
+    expect(selectEmbedSections('')).toEqual([]);
+    expect(selectEmbedSections('   \n  ')).toEqual([]);
   });
 });
