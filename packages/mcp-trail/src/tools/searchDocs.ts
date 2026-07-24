@@ -87,7 +87,8 @@ export async function handleSearchDocs(input: SearchDocsInput): Promise<unknown>
           granularity,
           query: input.query,
           model: storedModel,
-          results: await searchSemanticSections(db, embed, input.query, limit),
+          // storedModel で絞り込み、モデル変更 backfill 途中の新旧混在行を除外する。
+          results: await searchSemanticSections(db, embed, input.query, limit, storedModel),
         };
       }
       return {

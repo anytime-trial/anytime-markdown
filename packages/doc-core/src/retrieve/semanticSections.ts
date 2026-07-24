@@ -20,18 +20,24 @@ interface SecEmbRow {
  * 節単位の意味検索（cosine top-k・score は大きいほど良い）。節埋め込み未生成なら空配列。
  *
  * @param embed クエリ用埋め込み関数（節 embedding と同一モデルであること）
+ * @param model 指定時はこのモデルの行だけをスコアリングする。モデル変更の backfill が
+ *              途中失敗すると新旧モデルの行が混在し得るため、クエリ側モデルと一致する
+ *              行に絞らないと異なる次元/空間のベクトルまで cosine 対象になり無言で劣化する。
  */
 export async function searchSemanticSections(
   db: DocDb,
   embed: EmbedFn,
   query: string,
   k = 10,
+  model?: string,
 ): Promise<SectionHit[]> {
   const qVec = await embed(query);
   if (!Array.isArray(qVec) || qVec.length === 0) return [];
-  const rows = db
-    .prepare('SELECT path, heading, level, vec FROM doc_section_embedding')
-    .all() as unknown as SecEmbRow[];
+  const rows = (
+    model === undefined
+      ? db.prepare('SELECT path, heading, level, vec FROM doc_section_embedding').all()
+      : db.prepare('SELECT path, heading, level, vec FROM doc_section_embedding WHERE model = ?').all(model)
+  ) as unknown as SecEmbRow[];
 
   const scored: SectionHit[] = rows.map((r) => ({
     path: r.path,

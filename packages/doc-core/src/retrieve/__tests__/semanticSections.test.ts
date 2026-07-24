@@ -58,4 +58,16 @@ describe('searchSemanticSections', () => {
     const hits = await searchSemanticSections(db, fakeEmbed, '何か', 5);
     expect(hits).toEqual([]);
   });
+
+  test('model 指定時は他モデルの行をスコアリング対象にしない（混在時の無言劣化防止）', async () => {
+    await embedSections(db, fakeEmbed, { model: 'model-new' });
+    // モデル変更 backfill の途中失敗を模擬: 旧モデルの行を手動投入。
+    db.prepare(
+      `INSERT INTO doc_section_embedding (path, section_idx, heading, level, model, dim, vec, content_hash)
+       VALUES ('spec/long.ja.md', 99, '旧モデル節', 1, 'model-old', 2, ?, 'stale-hash')`,
+    ).run(new Uint8Array(8));
+    const hits = await searchSemanticSections(db, fakeEmbed, '後半の話題', 10, 'model-new');
+    expect(hits.map((h) => h.heading)).not.toContain('旧モデル節');
+    expect(hits.length).toBe(2);
+  });
 });
