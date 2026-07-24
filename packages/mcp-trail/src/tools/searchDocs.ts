@@ -9,6 +9,7 @@ import {
   getDocCoreDbPath,
   searchFts,
   searchSemantic,
+  searchSemanticSections,
   backlinks,
   neighbors,
   isRelationType,
@@ -23,6 +24,12 @@ export const SearchDocsInputSchema = z.object({
     .enum(['keyword', 'semantic', 'backlinks', 'neighbors'])
     .optional()
     .describe('keyword (FTS5, default) / semantic (cosine, needs ollama) / backlinks / neighbors'),
+  granularity: z
+    .enum(['doc', 'section'])
+    .optional()
+    .describe(
+      'semantic mode only: doc (default, whole-doc embeddings truncated to ~3000 chars) / section (leaf-section embeddings, returns heading for pinpoint reference)',
+    ),
   path: z.string().optional().describe('Target doc path for backlinks/neighbors (root-relative, e.g. spec/...)'),
   type: z
     .string()
@@ -55,18 +62,44 @@ export async function handleSearchDocs(input: SearchDocsInput): Promise<unknown>
     }
     if (mode === 'semantic') {
       if (!input.query) return { error: 'query is required for semantic' };
+      const granularity = input.granularity ?? 'doc';
       // クエリは格納済み embedding と同一モデルで埋め込む（モデル/次元の食い違いによる無言の誤結果を防ぐ）。
-      const storedModel = (db.prepare('SELECT model FROM doc_embedding LIMIT 1').get() as
+      const modelTable = granularity === 'section' ? 'doc_section_embedding' : 'doc_embedding';
+      const storedModel = (db.prepare(`SELECT model FROM ${modelTable} LIMIT 1`).get() as
         | { model: string }
         | undefined)?.model;
       if (!storedModel) {
-        return { mode, query: input.query, results: [], note: 'no embeddings present (run daemon embedding backfill with ollama up)' };
+        return {
+          mode,
+          granularity,
+          query: input.query,
+          results: [],
+          note: `no ${granularity} embeddings present (run daemon embedding backfill with ollama up)`,
+        };
       }
       const baseUrl = process.env['OLLAMA_BASE_URL'];
       const ollama = createOllamaClient(baseUrl ? { baseUrl } : {});
       const embed: EmbedFn = async (text) =>
         Array.from((await ollama.embeddings({ model: storedModel, prompt: text })).embedding);
-      return { mode, query: input.query, model: storedModel, results: await searchSemantic(db, embed, input.query, limit) };
+      if (granularity === 'section') {
+        return {
+          mode,
+          granularity,
+          query: input.query,
+          model: storedModel,
+          // storedModel で絞り込み、モデル変更 backfill 途中の新旧混在行を除外する。
+          results: await searchSemanticSections(db, embed, input.query, limit, storedModel),
+        };
+      }
+      return {
+        mode,
+        granularity,
+        query: input.query,
+        model: storedModel,
+        results: await searchSemantic(db, embed, input.query, limit),
+        // FR-6: doc 粒度の死角の明示（全文検索が要るなら granularity: 'section'）。
+        note: 'doc embeddings cover only the first ~3000 chars (+ heading outline) of each doc; use granularity: "section" for full-body coverage',
+      };
     }
     // keyword (FTS5)
     if (!input.query) return { error: 'query is required for keyword' };

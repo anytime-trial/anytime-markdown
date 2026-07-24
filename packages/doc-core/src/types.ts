@@ -57,8 +57,8 @@ export interface SectionHit {
   heading: string;
   /** 見出しレベル（1〜6、リード節は 0）。 */
   level: number;
-  /** キーワード一致箇所の抜粋（FTS5 snippet）。 */
+  /** キーワード一致箇所の抜粋（FTS5 snippet・keyword 検索時のみ）。 */
   snippet?: string;
-  /** スコア（FTS5 rank・小さいほど良い）。 */
+  /** スコア（手段により意味が異なる: FTS5 rank は小さいほど良い / cosine は大きいほど良い）。 */
   score?: number;
 }

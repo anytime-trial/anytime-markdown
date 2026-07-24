@@ -40,6 +40,31 @@ function extractHeadingPositions(lines: string[]): HeadingPos[] {
 }
 
 /**
+ * 本文を「各見出しの固有本文」へ分割する。各節の text は自身の見出し行から
+ * **次の任意レベルの見出し**までで、子見出しの本文を含まない（splitSections と違い
+ * 区間が互いに素）。埋め込みなど重複が害になる用途向け。リード節・空本文の扱いは
+ * {@link splitSections} と同じ。
+ */
+export function splitOwnSections(body: string): DocSection[] {
+  const lines = body.split('\n');
+  const headings = extractHeadingPositions(lines);
+  const sections: DocSection[] = [];
+
+  const firstHeadingLine = headings.length ? headings[0].lineIdx : lines.length;
+  const lead = lines.slice(0, firstHeadingLine).join('\n').trim();
+  if (lead) sections.push({ heading: '', level: 0, text: lead });
+
+  for (let h = 0; h < headings.length; h++) {
+    const cur = headings[h];
+    const endLine = h + 1 < headings.length ? headings[h + 1].lineIdx : lines.length;
+    const text = lines.slice(cur.lineIdx, endLine).join('\n').trim();
+    sections.push({ heading: cur.text, level: cur.level, text });
+  }
+
+  return sections;
+}
+
+/**
  * 本文を {@link DocSection}[] に分割する。見出しが無い場合は本文全体を 1 リード節として返す。
  * 空（空白のみ）本文は空配列。
  */

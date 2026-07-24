@@ -7,7 +7,7 @@
  */
 
 import { writeFileSync, renameSync } from 'node:fs';
-import { openDocDb, ingestDocs, embedDocs, type DocDb, type EmbedFn } from '@anytime-markdown/doc-core';
+import { openDocDb, ingestDocs, embedDocs, embedSections, type DocDb, type EmbedFn } from '@anytime-markdown/doc-core';
 
 export interface DocCoreRunnerOptions {
   /** ドキュメントリポジトリのルート（例 `/Shared/anytime-markdown-docs`）。 */
@@ -38,6 +38,9 @@ export interface DocCoreRunStatus {
   ingestError?: string;
   embed?: { embedded: number; skipped: number; failed: number; firstError?: string };
   embedError?: string;
+  /** 節単位埋め込み backfill の結果（FR-7）。 */
+  sectionEmbed?: { docsEmbedded: number; sectionsEmbedded: number; skipped: number; failed: number; firstError?: string };
+  sectionEmbedError?: string;
   /** embedding をスキップした理由（embed/embedModel 未注入）。 */
   embedSkippedReason?: string;
   /** 突合（reconciliation）: doc 件数 vs doc_embedding 件数。missing>0 はベクトル検索の欠落。 */
@@ -122,6 +125,28 @@ export function createDocCoreRunner(opts: DocCoreRunnerOptions): DocCoreRunner {
           status.ok = false;
           status.embedError = errMsg(err);
           log(`ERROR embed ${status.embedError}`);
+        }
+        // 2.5. 節単位埋め込み backfill（FR-7・独立 try/catch）。doc 埋め込みの失敗と独立に進める。
+        try {
+          const s = await embedSections(db, opts.embed, { model: opts.embedModel });
+          status.sectionEmbed = {
+            docsEmbedded: s.docsEmbedded,
+            sectionsEmbedded: s.sectionsEmbedded,
+            skipped: s.skipped,
+            failed: s.failed,
+            ...(s.firstError === undefined ? {} : { firstError: s.firstError }),
+          };
+          log(
+            `sectionEmbed docs=${s.docsEmbedded} sections=${s.sectionsEmbedded} skipped=${s.skipped} failed=${s.failed}`,
+          );
+          if (s.failed > 0) {
+            status.ok = false;
+            log(`sectionEmbed had ${s.failed} failures; first: ${s.firstError ?? '(unknown)'}`);
+          }
+        } catch (err) {
+          status.ok = false;
+          status.sectionEmbedError = errMsg(err);
+          log(`ERROR sectionEmbed ${status.sectionEmbedError}`);
         }
       } else {
         status.embedSkippedReason = 'embed/embedModel not provided';
