@@ -45,11 +45,11 @@ describe('embedSections', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  test('葉節のみ埋め込まれ、2 回目は差分ゼロでスキップされる', async () => {
+  test('固有本文の節が埋め込まれ、2 回目は差分ゼロでスキップされる', async () => {
     const r1 = await embedSections(db, okEmbed, { model: 'test-model' });
     expect(r1.docsEmbedded).toBe(2);
-    expect(r1.sectionsEmbedded).toBe(3); // A: 子1・子2 / B: 単独
-    expect(sectionRows(db, DOC_A).map((s) => s.heading)).toEqual(['子1', '子2']);
+    expect(r1.sectionsEmbedded).toBe(4); // A: 親(固有本文)・子1・子2 / B: 単独
+    expect(sectionRows(db, DOC_A).map((s) => s.heading)).toEqual(['親', '子1', '子2']);
 
     const r2 = await embedSections(db, okEmbed, { model: 'test-model' });
     expect(r2.docsEmbedded).toBe(0);
@@ -97,7 +97,18 @@ describe('embedSections', () => {
     // 復旧後の再実行で A が完了する。
     const r2 = await embedSections(db, okEmbed, { model: 'test-model' });
     expect(r2.docsEmbedded).toBe(1);
-    expect(sectionRows(db, DOC_A).map((s) => s.heading)).toEqual(['子1', '子2']);
+    expect(sectionRows(db, DOC_A).map((s) => s.heading)).toEqual(['親', '子1', '子2']);
+  });
+
+  test('body が空へ遷移した doc は節埋め込みが洗い替えで消える（残留させない）', async () => {
+    await embedSections(db, okEmbed, { model: 'test-model' });
+    expect(sectionRows(db, DOC_A).length).toBeGreaterThan(0);
+
+    // A の body を空（frontmatter のみ）へ編集して再 ingest。
+    fs.writeFileSync(path.join(dir, DOC_A), '---\ntitle: a.ja.md\n---\n', 'utf8');
+    await ingestDocs(db, dir, { updatedAt: '2026-07-24T02:00:00.000Z' });
+    await embedSections(db, okEmbed, { model: 'test-model' });
+    expect(sectionRows(db, DOC_A)).toEqual([]); // 削除済み内容の節が検索に返り続けない
   });
 
   test('切り詰め: maxChars を超える節は先頭のみ embed に渡る', async () => {

@@ -9,7 +9,6 @@
 
 import type { DocDb } from '../db/open';
 import { float32ToBlob } from './blob';
-import { splitSections } from '../ingest/splitSections';
 import { selectEmbedSections } from './selectEmbedSections';
 import { DEFAULT_MAX_EMBED_CHARS, type EmbedFn, type EmbedOptions } from './embedDocs';
 
@@ -67,8 +66,13 @@ export async function embedSections(db: DocDb, embed: EmbedFn, opts: EmbedOption
   let firstError: string | undefined;
 
   for (const row of pending) {
-    const sections = selectEmbedSections(splitSections(row.body ?? '')).filter((s) => s.text.length > 0);
-    if (sections.length === 0) continue; // skipped（対象節なし。pending のままだが embed コストはゼロ）
+    const sections = selectEmbedSections(row.body ?? '');
+    if (sections.length === 0) {
+      // body が空へ遷移した doc の旧節を残さない（洗い替えの対称性。残すと削除済み内容が
+      // granularity: section の検索に無期限に返り続ける）。
+      del.run(row.path);
+      continue; // skipped（対象節なし。pending のままだが embed コストはゼロ）
+    }
 
     const vecs: number[][] = [];
     let docFailed = false;
