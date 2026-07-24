@@ -53,6 +53,7 @@ export { searchDocs, type SearchDocsOptions } from './retrieve/searchDocs';
 export { searchSections, type SearchSectionsOptions } from './retrieve/searchSections';
 export { splitSections } from './ingest/splitSections';
 export { searchSemantic } from './retrieve/semantic';
+export { searchSemanticSections } from './retrieve/semanticSections';
 
 // embedding（注入式 EmbedFn。daemon が ollama bge-m3 を、テストが fake を供給）
 export {
@@ -62,5 +63,7 @@ export {
   type EmbedOptions,
   type EmbedResult,
 } from './embedding/embedDocs';
+export { embedSections, type EmbedSectionsResult } from './embedding/embedSections';
+export { selectEmbedSections, type EmbedSection } from './embedding/selectEmbedSections';
 export { cosineSim } from './embedding/cosine';
 export { float32ToBlob, blobToFloat32 } from './embedding/blob';
