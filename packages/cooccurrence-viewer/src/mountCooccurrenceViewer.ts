@@ -27,8 +27,19 @@ import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
 import { createMinimapPanel, type MinimapPanelHandle } from './ui/MinimapPanel';
 import { createExportPanel, type ExportPanelHandle, type ExportPanelState } from './ui/ExportPanel';
-import { createTabBar, type TabBarHandle, type TabBarItem } from './ui/TabBar';
-import { COOC_TAB_IDS, tabElementId, tabPanelElementId, type CooccurrenceTabId } from './ui/tabModel';
+import {
+  createSideIconRail,
+  type SideIconRailHandle,
+  type SideIconRailItem,
+  type SideIconRailState,
+} from './ui/SideIconRail';
+import {
+  COOC_TAB_IDS,
+  panelStateAfterSelect,
+  tabElementId,
+  tabPanelElementId,
+  type CooccurrenceTabId,
+} from './ui/tabModel';
 import { zoomViewportCenter } from './ui/minimapModel';
 import { ensureButtonBaseStyles } from './ui/buttonBaseStyle';
 import { fitBounds, pan, zoomAt } from './viewport/viewport';
@@ -156,7 +167,6 @@ export function mountCooccurrenceViewer(
   let wordListPanel: WordListPanelHandle | null = null;
   let minimapPanel: MinimapPanelHandle | null = null;
   let exportPanel: ExportPanelHandle | null = null;
-  let tabBar: TabBarHandle | null = null;
   // 既定はミニマップ（仕様 §3.5）。図を開いた直後に必要なのは全体の把握である。
   let activeTab: CooccurrenceTabId = 'minimap';
 
@@ -175,6 +185,24 @@ export function mountCooccurrenceViewer(
   const editTabPanel = createTabPanel('edit');
   const minimapTabPanel = createTabPanel('minimap');
   const exportTabPanel = createTabPanel('export');
+
+  /**
+   * 図の右端のアイコン列。パネルの中身と違って畳んでいる間も残す。
+   *
+   * 図の上に開閉ボタンを置かない代わりに、ここが唯一の開閉の入口になる（仕様 §3.5）。
+   * 列まで消すと、畳んだ状態からパネルへ戻る手段が無くなる。
+   */
+  const rail: SideIconRailHandle = createSideIconRail({
+    ...railState(),
+    onSelect(id) {
+      const next = panelStateAfterSelect({ activeId: activeTab, expanded: showPanels }, id);
+      activeTab = next.activeId;
+      showPanels = next.expanded;
+      options = { ...options, showPanels };
+      syncPanelVisibility();
+    },
+  });
+  main.appendChild(rail.element);
 
   /**
    * 今そこにあるタブ。保存も PNG も提供しないホストでは保存タブを出さない（仕様 §3.5・§6.3）。
@@ -292,17 +320,9 @@ export function mountCooccurrenceViewer(
     filterTabPanel.appendChild(filterPanel.element);
     editTabPanel.appendChild(wordListPanel.element);
     minimapTabPanel.appendChild(minimapPanel.element);
-    tabBar = createTabBar({
-      items: tabItems(),
-      activeId: activeTab,
-      onSelect(id) {
-        activeTab = id;
-        syncActiveTab();
-      },
-    });
-    // tabpanel の DOM 順もタブの並びに合わせる。見た目には 1 枚しか出ないが、
+    // tabpanel の DOM 順もアイコンの並びに合わせる。見た目には 1 枚しか出ないが、
     // 支援技術の読み上げ順と Tab キーの移動順はこの順序に従う。
-    panelRoot.append(tabBar.element, minimapTabPanel, filterTabPanel, editTabPanel);
+    panelRoot.append(minimapTabPanel, filterTabPanel, editTabPanel);
     syncExportPanel();
     syncActiveTab();
   }
@@ -337,7 +357,7 @@ export function mountCooccurrenceViewer(
    * 検査している（`i18n.test.ts`）。変数越しに引くと走査から外れ、使われているキーが
    * 「参照ゼロ」と判定される。
    */
-  function tabItem(id: CooccurrenceTabId): TabBarItem {
+  function tabItem(id: CooccurrenceTabId): SideIconRailItem {
     switch (id) {
       case 'filter':
         return { id, label: t('tabs.filter'), panelId: filterTabPanel.id };
@@ -350,8 +370,13 @@ export function mountCooccurrenceViewer(
     }
   }
 
-  function tabItems(): readonly TabBarItem[] {
+  function tabItems(): readonly SideIconRailItem[] {
     return displayedTabIds().map(tabItem);
+  }
+
+  /** アイコン列へ流し込む状態。選択中のタブと、パネルを開いているかを一緒に渡す。 */
+  function railState(): SideIconRailState {
+    return { items: tabItems(), activeId: activeTab, expanded: showPanels, listLabel: t('tabs.listLabel') };
   }
 
   /**
@@ -370,17 +395,32 @@ export function mountCooccurrenceViewer(
     editTabPanel.hidden = activeTab !== 'edit';
     minimapTabPanel.hidden = activeTab !== 'minimap';
     exportTabPanel.hidden = activeTab !== 'export';
-    tabBar?.update(tabItems(), activeTab);
+    // 開いているかは制御される側（tabpanel）が持つ。`tab` に `aria-expanded` を置くのは
+    // 現行の指針から外れる（`SideIconRail` の Why not を参照）。
+    for (const tabPanel of [filterTabPanel, editTabPanel, minimapTabPanel, exportTabPanel]) {
+      tabPanel.setAttribute('aria-expanded', String(showPanels && !tabPanel.hidden));
+    }
+    rail.update(railState());
+    // 畳んでいる間の作り直しは意味を持たない。列の高さが 0 のまま組むと、仮想リストの
+    // 可視ウィンドウが 0 行で確定し、開き直しても空のまま残る。
+    if (!showPanels) return;
     if (activeTab === 'edit') wordListPanel?.refresh();
     if (activeTab === 'minimap') minimapPanel?.refresh();
   }
 
+  /**
+   * パネルの開閉を画面へ反映する。
+   *
+   * 畳んだ場合もアイコン列は更新する（選択中の見た目を落とすため）。中身の更新は開いている
+   * ときだけ行う。
+   */
   function syncPanelVisibility(): void {
     panelRoot.hidden = !showPanels;
     if (showPanels) {
       ensurePanels();
       updatePanels();
     }
+    syncActiveTab();
   }
 
   function rebuildGraph(): void {
@@ -451,9 +491,9 @@ export function mountCooccurrenceViewer(
   /**
    * レイアウトの状態に連動する表示をまとめて合わせる。
    *
-   * 図の上に置くボタンは、パネルの開閉と、計算中の中断だけに絞る（仕様 §3.5）。
-   * 全体表示・保存・PNG は右パネルのタブへ移した。図の上のボタンは常に図そのものを
-   * 覆うため、そこへ置いてよいのは図を広く使う操作に限る。
+   * 図の上に置くボタンは計算中の中断だけに絞る（仕様 §3.5）。全体表示・保存・PNG は右パネルの
+   * タブへ、パネルの開閉は右端のアイコン列へ移した。図の上のボタンは常に図そのものを覆うため、
+   * そこへ置いてよいのは、図を広く使っている最中にしか起きない操作に限る。
    *
    * Why not ツールバーだけを組み直すか: 保存できるかどうかも同じ状態で決まる
    * （反復を完了した計算だけが保存対象。仕様 §4.2）。別々に更新すると、状態が
@@ -462,16 +502,6 @@ export function mountCooccurrenceViewer(
   function syncStatusUi(): void {
     exportPanel?.update(exportPanelState());
     toolbar.replaceChildren();
-    const panels = document.createElement('button');
-    panels.className = 'cooc-btn cooc-viewer__button';
-    panels.type = 'button';
-    panels.textContent = showPanels ? t('toolbar.hidePanels') : t('toolbar.showPanels');
-    panels.addEventListener('click', () => {
-      showPanels = !showPanels;
-      syncPanelVisibility();
-      syncStatusUi();
-    });
-    toolbar.appendChild(panels);
 
     if (status === 'running') {
       const abort = document.createElement('button');

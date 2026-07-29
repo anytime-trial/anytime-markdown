@@ -57,7 +57,7 @@ describe('cooccurrence viewer panel tabs', () => {
       'cooccurrence-viewer-style',
       'cooccurrence-filter-panel-style',
       'cooccurrence-word-list-panel-style',
-      'cooccurrence-tab-bar-style',
+      'cooccurrence-side-rail-style',
       'cooccurrence-button-base-style',
     ]) {
       document.getElementById(id)?.remove();
@@ -117,10 +117,79 @@ describe('cooccurrence viewer panel tabs', () => {
     const minimapTab = tab(container, 'cooc-panel-minimap');
     minimapTab.focus();
 
-    minimapTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    // アイコンは縦に並ぶ。並びと同じ向きのキーで移せることを固定する（仕様 §3.5）。
+    minimapTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 
     expect(tab(container, 'cooc-panel-filter').getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(tab(container, 'cooc-panel-filter'));
+    handle.destroy();
+  });
+
+  it('collapses the panel when the selected icon is clicked again, and keeps the rail', () => {
+    // 図の上に開閉ボタンを置かない代わりの経路（仕様 §3.5）。列まで消えると戻れなくなる。
+    const { container, handle } = mount();
+    const panels = container.querySelector('.cooc-viewer__panels') as HTMLElement;
+    const rail = container.querySelector('.cooc-rail') as HTMLElement;
+
+    tab(container, 'cooc-panel-minimap').click();
+
+    expect(panels.hidden).toBe(true);
+    expect(rail.hidden).toBe(false);
+    expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('false');
+    // 開閉は制御される側（tabpanel）が持つ。`tab` へ置くのは現行の指針から外れる。
+    expect(panel(container, 'cooc-panel-minimap').getAttribute('aria-expanded')).toBe('false');
+    expect(tab(container, 'cooc-panel-minimap').hasAttribute('aria-expanded')).toBe(false);
+    // 畳んでも列の停止点は残す。無くなるとキーボードからパネルへ戻れない。
+    expect(tab(container, 'cooc-panel-minimap').tabIndex).toBe(0);
+
+    tab(container, 'cooc-panel-minimap').click();
+
+    expect(panels.hidden).toBe(false);
+    expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('true');
+    expect(panel(container, 'cooc-panel-minimap').getAttribute('aria-expanded')).toBe('true');
+    // 隠れているタブの内容は「開いていない」と読める必要がある。
+    expect(panel(container, 'cooc-panel-filter').getAttribute('aria-expanded')).toBe('false');
+    handle.destroy();
+  });
+
+  it('opens another tab directly while the panel is collapsed', () => {
+    const { container, handle } = mount();
+    const panels = container.querySelector('.cooc-viewer__panels') as HTMLElement;
+    tab(container, 'cooc-panel-minimap').click();
+
+    tab(container, 'cooc-panel-edit').click();
+
+    expect(panels.hidden).toBe(false);
+    expect(panel(container, 'cooc-panel-edit').hidden).toBe(false);
+    expect(tab(container, 'cooc-panel-edit').getAttribute('aria-selected')).toBe('true');
+    handle.destroy();
+  });
+
+  it('rebuilds the word rows when the panel is reopened on the edit tab', () => {
+    // 畳んでいる間は列の高さが 0 で、仮想リストの可視ウィンドウが 0 行に確定しうる。
+    // 開き直す側が作り直さないと、一覧が空のまま残る。
+    const { container, handle } = mount();
+    tab(container, 'cooc-panel-edit').click();
+    const items = container.querySelector('.cooc-words__items') as HTMLElement;
+
+    tab(container, 'cooc-panel-edit').click();
+    items.replaceChildren();
+    tab(container, 'cooc-panel-edit').click();
+
+    expect(items.querySelectorAll('[role="option"]').length).toBe(2);
+    handle.destroy();
+  });
+
+  it('stands the rail to the right of the panel column', () => {
+    // 画面の並びは 図 → パネル → アイコン列（仕様 §3.5）。列がパネルの内側にあると、
+    // パネルを畳んだ時点でアイコンごと消える。
+    const { container, handle } = mount();
+    const main = container.querySelector('.cooc-viewer__main') as HTMLElement;
+    const rail = container.querySelector('.cooc-rail') as HTMLElement;
+
+    expect(rail.parentElement).toBe(main);
+    expect([...main.children].indexOf(rail)).toBe(main.children.length - 1);
+    expect(rail.getAttribute('aria-orientation')).toBe('vertical');
     handle.destroy();
   });
 
@@ -202,18 +271,36 @@ describe('cooccurrence viewer panel tabs', () => {
     handle.destroy();
   });
 
-  it('translates the tab labels when the locale changes', () => {
+  it('translates the icon names when the locale changes', () => {
+    // 図柄だけのボタンは、名前を持たないと支援技術から「ボタン」としか読めない。
     const { container, handle } = mount('ja');
 
-    expect(tab(container, 'cooc-panel-filter').textContent).toBe('絞り込み');
-    expect(tab(container, 'cooc-panel-edit').textContent).toBe('編集');
-    expect(tab(container, 'cooc-panel-minimap').textContent).toBe('ミニマップ');
+    expect(tab(container, 'cooc-panel-filter').getAttribute('aria-label')).toBe('絞り込み');
+    expect(tab(container, 'cooc-panel-edit').getAttribute('aria-label')).toBe('編集');
+    expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-label')).toBe('ミニマップ');
+    expect(tab(container, 'cooc-panel-minimap').title).toBe('ミニマップ');
+    expect((container.querySelector('.cooc-rail') as HTMLElement).getAttribute('aria-label'))
+      .toBe('パネルの切り替え');
 
     handle.update({ locale: 'en' });
 
-    expect(tab(container, 'cooc-panel-filter').textContent).toBe('Filter');
-    expect(tab(container, 'cooc-panel-edit').textContent).toBe('Edit');
-    expect(tab(container, 'cooc-panel-minimap').textContent).toBe('Minimap');
+    expect(tab(container, 'cooc-panel-filter').getAttribute('aria-label')).toBe('Filter');
+    expect(tab(container, 'cooc-panel-edit').getAttribute('aria-label')).toBe('Edit');
+    expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-label')).toBe('Minimap');
+    expect((container.querySelector('.cooc-rail') as HTMLElement).getAttribute('aria-label'))
+      .toBe('Panel switcher');
+    handle.destroy();
+  });
+
+  it('carries an icon on every rail button', () => {
+    // 図柄が抜けても aria-label は残るため、視覚的には空のボタンが並ぶだけで検知できない。
+    const { container, handle } = mount();
+
+    for (const panelId of ['cooc-panel-minimap', 'cooc-panel-filter', 'cooc-panel-edit']) {
+      const icon = tab(container, panelId).querySelector('svg');
+      expect(icon?.getAttribute('aria-hidden')).toBe('true');
+      expect(icon?.querySelector('path')?.getAttribute('d')?.length ?? 0).toBeGreaterThan(10);
+    }
     handle.destroy();
   });
 });

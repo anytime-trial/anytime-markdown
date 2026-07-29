@@ -1,8 +1,7 @@
 {
   "Cooccurrence": {
     "toolbar.abort": "Abort",
-    "toolbar.hidePanels": "Hide panels",
-    "toolbar.showPanels": "Show panels",
+    "tabs.listLabel": "Panel switcher",
     "tabs.filter": "Filter",
     "tabs.edit": "Edit",
     "tabs.minimap": "Minimap",

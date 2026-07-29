@@ -38,7 +38,7 @@ function viewerCss(): string {
   const css = [
     injectedCss("ui/buttonBaseStyle.ts"),
     injectedCss("mountCooccurrenceViewer.ts"),
-    injectedCss("ui/TabBar.ts"),
+    injectedCss("ui/SideIconRail.ts"),
     injectedCss("ui/FilterPanel.ts"),
     injectedCss("ui/WordListPanel.ts"),
     injectedCss("ui/MinimapPanel.ts"),
@@ -49,8 +49,8 @@ function viewerCss(): string {
   for (const selector of [
     ".cooc-viewer__panels",
     ".cooc-viewer__tabpanel",
-    ".cooc-tabs",
-    ".cooc-tabs__tab",
+    ".cooc-rail",
+    ".cooc-rail__item",
     ".cooc-filter",
     ".cooc-words",
     ".cooc-words__viewport",
@@ -69,7 +69,7 @@ const WORD_COUNT = 36;
 
 type ActiveTab = "filter" | "edit" | "minimap" | "export";
 
-/** タブ列。表示順とラベルは仕様 §3.5 の表に一致させる（先頭が既定タブ）。 */
+/** アイコン列。表示順と操作名は仕様 §3.5 の表に一致させる（先頭が既定タブ）。 */
 const TABS: ReadonlyArray<{ id: ActiveTab; label: string; panelId: string }> = [
   { id: "minimap", label: "ミニマップ", panelId: "cooc-panel-minimap" },
   { id: "filter", label: "絞り込み", panelId: "cooc-panel-filter" },
@@ -77,11 +77,20 @@ const TABS: ReadonlyArray<{ id: ActiveTab; label: string; panelId: string }> = [
   { id: "export", label: "保存", panelId: "cooc-panel-export" },
 ];
 
-function tabsHtml(activeTab: ActiveTab): string {
+/**
+ * 図の右端のアイコン列。
+ *
+ * 図柄そのものは寸法に効かないため、20px の矩形 1 つで代用する（列の幅・アイコンの寸法・
+ * 縦の並びだけをここで測る）。
+ */
+function railHtml(activeTab: ActiveTab): string {
   return TABS.map(({ id, label, panelId }) => {
     const active = String(id === activeTab);
-    return `<button class="cooc-btn cooc-tabs__tab" type="button" role="tab" aria-controls="${panelId}"`
-      + ` aria-selected="${active}" data-active="${active}" tabindex="${id === activeTab ? 0 : -1}">${label}</button>`;
+    return `<button class="cooc-btn cooc-rail__item" type="button" role="tab" aria-controls="${panelId}"`
+      + ` aria-label="${label}" title="${label}" aria-selected="${active}" aria-expanded="${active}"`
+      + ` data-active="${active}" tabindex="${id === activeTab ? 0 : -1}">`
+      + `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">`
+      + `<path d="M4 4h16v16H4z"></path></svg></button>`;
   }).join("");
 }
 
@@ -104,7 +113,6 @@ ${viewerCss()}
 <div class="cooc-viewer"><div class="cooc-viewer__main">
 <div class="cooc-viewer__stage"><canvas class="cooc-viewer__canvas"></canvas></div>
 <aside class="cooc-viewer__panels">
- <div class="cooc-tabs" role="tablist">${tabsHtml(activeTab)}</div>
  <div class="cooc-viewer__tabpanel" id="cooc-panel-filter" role="tabpanel"${hiddenUnless("filter")}>
   <section class="cooc-filter">
    <div class="cooc-filter__title">絞り込み</div>
@@ -148,7 +156,9 @@ ${viewerCss()}
    <div class="cooc-export__note"></div>
   </section>
  </div>
-</aside></div></div></div></body></html>`;
+</aside>
+<div class="cooc-rail" role="tablist" aria-orientation="vertical" aria-label="パネルの切り替え">${railHtml(activeTab)}</div>
+</div></div></div></body></html>`;
 }
 
 interface PanelMetrics {
@@ -158,15 +168,22 @@ interface PanelMetrics {
   rowHeight: number;
   buttonsReachable: boolean;
   searchReachable: boolean;
-  tabsHeight: number;
-  /** パネル列を最下部までスクロールしても、タブ列が可視領域に残っているか。 */
-  tabsStayVisible: boolean;
-  /** タブ列に並んだタブの数。 */
-  tabCount: number;
-  /** 全てのタブが同じ行にあるか（折り返していないか）。 */
-  tabsOnOneLine: boolean;
-  /** どのタブもラベルが 1 行に収まっているか（ボタンの中で折り返していないか）。 */
-  tabLabelsFit: boolean;
+  /** アイコン列の幅。 */
+  railWidth: number;
+  /** アイコン列がパネル列の内側にあるか（内側なら列のスクロールに巻き込まれる）。 */
+  railInsidePanels: boolean;
+  /** パネル列を最下部までスクロールした後の、アイコン列の上端。 */
+  railTopAfterScroll: number;
+  /** 同じ状態での先頭アイコンの上端。負なら画面の上へ流れている。 */
+  railFirstItemTopAfterScroll: number;
+  /** アイコン列に並んだアイコンの数。 */
+  railCount: number;
+  /** 全てのアイコンが同じ列にあるか（横へこぼれていないか）。 */
+  railInOneColumn: boolean;
+  /** 最後のアイコンまで画面の中に収まっているか。 */
+  railFitsInViewport: boolean;
+  /** アイコンボタンの一辺。潰れると押せる面積が失われる。 */
+  railItemSize: number;
 }
 
 async function measure(
@@ -181,7 +198,7 @@ async function measure(
   return page.evaluate(() => {
     const viewport = document.querySelector(".cooc-words__viewport") as HTMLElement;
     const panels = document.querySelector(".cooc-viewer__panels") as HTMLElement;
-    const tabs = document.querySelector(".cooc-tabs") as HTMLElement;
+    const rail = document.querySelector(".cooc-rail") as HTMLElement;
     const panelsRect = panels.getBoundingClientRect();
     // パネル列をスクロールし切れば見える位置にあるか。
     const reachable = (selector: string): boolean => {
@@ -196,28 +213,33 @@ async function measure(
       rowHeight: Math.round((document.querySelector(".cooc-words__row") as HTMLElement).getBoundingClientRect().height),
       buttonsReachable: reachable(".cooc-words__buttons"),
       searchReachable: reachable(".cooc-words__search"),
-      tabsHeight: Math.round(tabs.getBoundingClientRect().height),
-      tabsStayVisible: (() => {
-        // 列がスクロールする状況でタブ列が上へ流れると、切り替え手段そのものが視野から消える。
+      railWidth: Math.round(rail.getBoundingClientRect().width),
+      ...(() => {
+        // アイコン列はパネル列の外に立てる（仕様 §3.5）。中に置くと、絞り込みの内容が高い
+        // ときに列と一緒に流れ、切り替えと開閉の手段そのものが視野から消える。
+        //
+        // Why not「画面のどこかにある」だけを見るか: 上へ流れて `top` が負になっても真に
+        // なり、列をパネルの内側へ戻す退行を素通りさせる。包含関係と、パネル列を最下部まで
+        // スクロールした後の位置を別々に返し、どちらが壊れたか失敗時に分かるようにする。
         panels.scrollTop = panels.scrollHeight;
-        const stays = tabs.getBoundingClientRect().bottom > panels.getBoundingClientRect().top;
+        const rect = rail.getBoundingClientRect();
+        const first = rail.querySelector<HTMLElement>(".cooc-rail__item")?.getBoundingClientRect();
         panels.scrollTop = 0;
-        return stays;
+        return {
+          railInsidePanels: panels.contains(rail),
+          railTopAfterScroll: Math.round(rect.top),
+          railFirstItemTopAfterScroll: Math.round(first?.top ?? Number.NaN),
+        };
       })(),
       ...(() => {
-        const tabButtons = [...tabs.querySelectorAll<HTMLElement>(".cooc-tabs__tab")];
-        const tops = tabButtons.map((tab) => Math.round(tab.getBoundingClientRect().top));
-        // ラベルの行数を測る。ボタンの高さは内容に追従して伸びるため、`scrollHeight` や
-        // `scrollWidth` との比較では折り返しを検知できない（実測で確認済み）。
-        const lineCount = (tab: HTMLElement): number => {
-          const range = document.createRange();
-          range.selectNodeContents(tab);
-          return range.getClientRects().length;
-        };
+        const items = [...rail.querySelectorAll<HTMLElement>(".cooc-rail__item")];
+        const rects = items.map((item) => item.getBoundingClientRect());
+        const lefts = rects.map((rect) => Math.round(rect.left));
         return {
-          tabCount: tabButtons.length,
-          tabsOnOneLine: tops.every((top) => top === tops[0]),
-          tabLabelsFit: tabButtons.every((tab) => lineCount(tab) <= 1),
+          railCount: items.length,
+          railInOneColumn: lefts.every((left) => left === lefts[0]),
+          railFitsInViewport: rects.every((rect) => rect.bottom <= window.innerHeight + 1),
+          railItemSize: Math.round(rects[0]?.height ?? 0),
         };
       })(),
     };
@@ -259,7 +281,6 @@ test.describe("共起ビューアのパネル高さ配分", () => {
 
     // 絞り込み欄だけなら列に収まる。
     expect(metrics.panelsScrolls).toBe(false);
-    expect(metrics.tabsHeight).toBeGreaterThanOrEqual(28);
   });
 
   test("既定のミニマップタブでは列がスクロールしない", async ({ page }) => {
@@ -268,23 +289,29 @@ test.describe("共起ビューアのパネル高さ配分", () => {
     const metrics = await measure(page, 900, "minimap");
 
     expect(metrics.panelsScrolls).toBe(false);
-    expect(metrics.tabsOnOneLine).toBe(true);
+    expect(metrics.railInOneColumn).toBe(true);
   });
 
-  test("絞り込みタブで列が低くてもタブ見出しへ到達できる", async ({ page }) => {
+  test("絞り込みタブで列が低くてもアイコン列が視野に残る", async ({ page }) => {
     const metrics = await measure(page, 320, "filter");
 
     // 絞り込み欄（クラスタ 5 件を含む）が列より高くなると列がスクロールする。その状態でも
-    // タブ列が視野から消えると、編集タブへ戻る手段が無くなる。
-    expect(metrics.tabsStayVisible).toBe(true);
+    // アイコン列が視野から消えると、切り替えとパネルを開き直す手段が無くなる。
+    expect(metrics.railInsidePanels).toBe(false);
+    expect(metrics.railTopAfterScroll).toBeGreaterThanOrEqual(0);
+    expect(metrics.railFirstItemTopAfterScroll).toBeGreaterThanOrEqual(0);
+    // Why not 列の下端も画面内に収める条件を課すか: 列は `height:100%` で、行の高さが内容に
+    // 引かれると画面より高くなりうる（実測で落ちた）。アイコンは列の上端から積むため、
+    // 到達性に効くのは上端と個々のアイコンの位置である。全アイコンが画面に収まることは
+    // 「画面が低くてもアイコンが潰れず全部見える」が別途測る。
   });
 
-  test("列が低くてもタブ見出しが潰れない", async ({ page }) => {
+  test("画面が低くてもアイコンが潰れず全部見える", async ({ page }) => {
     const metrics = await measure(page, 320);
 
-    // タブ列が縮むと、パネルを切り替える手段そのものへ到達できなくなる。
-    // 内容（12px の文字 + 上下 6px の余白）が収まる高さを下限として固定する。
-    expect(metrics.tabsHeight).toBeGreaterThanOrEqual(28);
+    // アイコンが縮むと押せる面積が失われ、列からはみ出すと下のアイコンへ到達できなくなる。
+    expect(metrics.railItemSize).toBe(32);
+    expect(metrics.railFitsInViewport).toBe(true);
     expect(metrics.searchReachable).toBe(true);
   });
 
@@ -300,26 +327,22 @@ test.describe("共起ビューアのパネル高さ配分", () => {
     expect(hiddenHeight).toBe(0);
   });
 
-  test("タブ 4 枚が 1 行に収まる", async ({ page }) => {
+  test("アイコン 4 つが縦 1 列に並ぶ", async ({ page }) => {
     const metrics = await measure(page, 900, "filter");
 
-    // パネル幅 300px にタブ 4 枚を並べる（仕様 §3.5）。折り返すと、選択中のタブの内容が
-    // 得られる高さがそのぶん減る。ラベルを短くしたのはこの制約のためであり、
-    // 実ブラウザで測らなければ判断の根拠そのものが検証されない。
-    expect(metrics.tabCount).toBe(4);
-    expect(metrics.tabsOnOneLine).toBe(true);
-    expect(metrics.tabLabelsFit).toBe(true);
-    // 1 行ぶん（12px の文字 + 上下 6px の余白 + 上の余白 8px）を超えていないこと。
-    expect(metrics.tabsHeight).toBeLessThan(48);
+    // 図柄に置き換えたぶん、収まりの制約はラベル幅から列幅へ移った（仕様 §3.5）。
+    expect(metrics.railCount).toBe(4);
+    expect(metrics.railInOneColumn).toBe(true);
+    expect(metrics.railWidth).toBe(46);
   });
 
-  test("列が狭くなってもタブ 4 枚が 1 行に収まる", async ({ page }) => {
-    // パネル列は `max-width:40%` を持つ。画面が狭いと 300px より細くなり、タブ列は
-    // ここが最も厳しい。ラベルを短くした判断が効いているかはこの条件で決まる。
+  test("画面が狭くなってもアイコン列の幅は変わらない", async ({ page }) => {
+    // パネル列は `max-width:40%` を持つため画面幅に追従して細くなる。アイコン列まで
+    // 一緒に縮むと図柄が潰れる。列は縮まない側に置いた（`flex:0 0 auto`）。
     const metrics = await measure(page, 900, "filter", 640);
 
-    expect(metrics.tabsOnOneLine).toBe(true);
-    expect(metrics.tabLabelsFit).toBe(true);
+    expect(metrics.railWidth).toBe(46);
+    expect(metrics.railInOneColumn).toBe(true);
   });
 
   test("行の高さが仮想リストの前提どおり 36px になる", async ({ page }) => {
