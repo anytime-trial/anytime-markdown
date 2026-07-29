@@ -34,10 +34,21 @@ export function readCooccurrenceTheme(target: HTMLElement, mode: ThemeMode): Coo
   };
 }
 
+/** パレット（`--cooc-cluster-0`〜`-7`）の色数。 */
+const CLUSTER_PALETTE_SIZE = 8;
+
+/**
+ * クラスタ番号に対応する CSS 変数名。
+ *
+ * 色そのものではなく変数名を返すのは、絞り込みパネルの色見本が `var(...)` で参照できるようにするため。
+ * 変数を参照しておけばテーマ切替（`applyCooccurrenceThemeVars` の再適用）に自動で追従する。
+ * グラフのノードとパネルの色見本で割当が食い違わないよう、パレットの巻き戻しはここが単一の正。
+ */
+export function clusterColorVarName(clusterIndex: number | undefined): string {
+  if (clusterIndex === undefined) return '--cooc-primary';
+  return `--cooc-cluster-${clusterIndex % CLUSTER_PALETTE_SIZE}`;
+}
+
 export function clusterColor(target: HTMLElement, clusterIndex: number | undefined, mode: ThemeMode): string {
-  if (clusterIndex === undefined) {
-    return readCssVar(target, '--cooc-primary', mode === 'dark' ? '#90CAF9' : '#3D4A52');
-  }
-  const paletteIndex = clusterIndex % 8;
-  return readCssVar(target, `--cooc-cluster-${paletteIndex}`, mode === 'dark' ? '#90CAF9' : '#3D4A52');
+  return readCssVar(target, clusterColorVarName(clusterIndex), mode === 'dark' ? '#90CAF9' : '#3D4A52');
 }

@@ -1,6 +1,7 @@
 import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { createFilterOptions, filterOptionsToInput, parseMinFrequency, parseMinStrength, parseTopLinkCount, type FilterModelInput } from './filterModel';
+import { clusterColorVarName } from '../theme/readTheme';
 
 export interface FilterPanelState {
   file: CooccurrenceFile;
@@ -32,6 +33,7 @@ function ensureStyles(): void {
 .cooc-filter__field input{box-sizing:border-box;width:100%;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);padding:6px 8px;font:12px system-ui,sans-serif}
 .cooc-filter__clusters{display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto}
 .cooc-filter__check{display:flex;gap:6px;align-items:center;color:var(--cooc-text);font:12px system-ui,sans-serif}
+.cooc-filter__swatch{flex:0 0 auto;width:10px;height:10px;border-radius:50%;border:1px solid var(--cooc-divider)}
 .cooc-filter__counts{display:flex;flex-direction:column;gap:2px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
@@ -123,9 +125,14 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
         inputState = { ...inputState, selectedClusterIndexes: next };
         emit();
       });
+      // グラフ上の円と同じ色を示す見本。色は装飾で、情報の正はクラスタ名のテキスト側にある。
+      const swatch = document.createElement('span');
+      swatch.className = 'cooc-filter__swatch';
+      swatch.style.background = `var(${clusterColorVarName(index)})`;
+      swatch.setAttribute('aria-hidden', 'true');
       const text = document.createElement('span');
       text.textContent = cluster.label;
-      label.append(checkbox, text);
+      label.append(checkbox, swatch, text);
       clusters.appendChild(label);
     });
   }
