@@ -210,6 +210,37 @@ describe('時間タブ', () => {
     mounted.handle.destroy();
   });
 
+  it('レイヤーの円に触れると、そのスライスの値と全期間の値を出し分ける', async () => {
+    const mounted = mount();
+    await flush();
+    openTimelineTab(mounted.container);
+    addSlice(mounted.container, '1月');
+    addSlice(mounted.container, '2月');
+
+    const canvas = mounted.container.querySelector('.cooc-viewer__canvas') as HTMLCanvasElement;
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 400 }) as DOMRect;
+    // 1 月のレイヤーの語 Alpha は座標 (0,0)。視野は全体表示のままなので、円の中心を狙う。
+    canvas.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 0, clientY: 0 }));
+    const popup = mounted.handle.getNotePopupState();
+    expect(popup?.kind).toBe('node');
+    // レイヤー表示では 4 行（スライス名・そのスライスの頻度・そのレイヤーの共起数・全期間の頻度）。
+    // 単一表示の 2 行と数で見分ける。文言はロケールで変わるため、行数と対象名で固定する。
+    expect(popup?.details).toHaveLength(4);
+    expect(popup?.details[0]).toContain('1月');
+    mounted.handle.destroy();
+  });
+
+  it('単一表示では全期間の値だけを出す', async () => {
+    const mounted = mount();
+    await flush();
+    const canvas = mounted.container.querySelector('.cooc-viewer__canvas') as HTMLCanvasElement;
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 400 }) as DOMRect;
+    canvas.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 0, clientY: 0 }));
+    const popup = mounted.handle.getNotePopupState();
+    expect(popup?.details).toHaveLength(2);
+    mounted.handle.destroy();
+  });
+
   it('スライスを 1 枚も持たない図ではスライス別の入力欄を出さない', async () => {
     const mounted = mount();
     await flush();

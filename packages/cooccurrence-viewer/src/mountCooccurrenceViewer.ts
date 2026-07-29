@@ -15,6 +15,7 @@ import type {
   CooccurrenceViewerUpdate,
   LayoutStatus,
   RenderGraph,
+  RenderLink,
   RenderNode,
   TimelineLayerState,
   TimelineViewState,
@@ -39,7 +40,13 @@ import { createExportPanel, type ExportPanelHandle, type ExportPanelState } from
 import { createClusterListPanel, type ClusterListPanelHandle } from './ui/ClusterListPanel';
 import { createTimelinePanel, type TimelinePanelHandle } from './ui/TimelinePanel';
 import { createNotePopup, type NotePopupHandle } from './ui/NotePopup';
-import { clusterPopupState, linkPopupState, nodePopupState } from './ui/notePopupModel';
+import {
+  clusterPopupState,
+  linkPopupState,
+  nodePopupState,
+  type LinkPopupLayerContext,
+  type NodePopupLayerContext,
+} from './ui/notePopupModel';
 import {
   createSideIconRail,
   type SideIconRailHandle,
@@ -557,9 +564,9 @@ export function mountCooccurrenceViewer(
       node === null
         ? (() => {
             const link = hitTestLink(graph, point.x, point.y, viewport);
-            return link === null ? null : linkPopupState(file, link.index, t);
+            return link === null ? null : linkPopupState(file, link.index, t, linkLayerContext(link));
           })()
-        : nodePopupState(file, node.index, t);
+        : nodePopupState(file, node.index, t, nodeLayerContext(node));
     if (popupState === null) {
       notePopup?.hide();
       return;
@@ -601,6 +608,24 @@ export function mountCooccurrenceViewer(
       };
     });
     return { inputs, nodes, links };
+  }
+
+  /**
+   * 触れた円が属するレイヤーの値。単一表示では undefined（全期間の値が出る）。
+   *
+   * 円の大きさはそのスライスの値で描かれているため、合計だけを出すと「小さい円に大きい数字」が
+   * 並び、どちらが今見ている値なのか読めない（設計書 §3.6）。
+   */
+  function nodeLayerContext(node: RenderNode): NodePopupLayerContext | undefined {
+    const layer = graph.layers[node.layer];
+    if (layer === undefined) return undefined;
+    return { sliceLabel: layer.label, frequency: node.frequency, cooccurrenceCount: node.cooccurrenceCount };
+  }
+
+  function linkLayerContext(link: RenderLink): LinkPopupLayerContext | undefined {
+    const layer = graph.layers[link.layer];
+    if (layer === undefined) return undefined;
+    return { sliceLabel: layer.label, strength: link.strength };
   }
 
   function rebuildGraph(): void {

@@ -87,6 +87,9 @@
     "timeline.empty": "スライスがありません。追加すると、現在の値が最初のスライスへ引き継がれます。",
     "filter.slices": "表示するスライス",
     "words.sliceValues": "スライス別の頻度",
-    "links.sliceValues": "スライス別の強度"
+    "links.sliceValues": "スライス別の強度",
+    "note.slice": "スライス: {value}",
+    "note.totalFrequency": "全期間の頻度: {value}",
+    "note.totalStrength": "全期間の強度: {value}"
   }
 }

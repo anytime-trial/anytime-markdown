@@ -87,6 +87,9 @@
     "timeline.empty": "No slices yet. Adding one carries the current values into the first slice.",
     "filter.slices": "Slices to show",
     "words.sliceValues": "Frequency per slice",
-    "links.sliceValues": "Strength per slice"
+    "links.sliceValues": "Strength per slice",
+    "note.slice": "Slice: {value}",
+    "note.totalFrequency": "Total frequency: {value}",
+    "note.totalStrength": "Total strength: {value}"
   }
 }
