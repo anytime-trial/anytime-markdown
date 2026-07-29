@@ -64,11 +64,13 @@ describe('cooccurrence viewer panel tabs', () => {
     }
   });
 
-  it('opens on the filter tab', () => {
+  it('opens on the minimap tab', () => {
+    // 図を開いた直後に必要なのは全体の把握である（仕様 §3.5）。
     const { container, handle } = mount();
 
-    expect(tab(container, 'cooc-panel-filter').getAttribute('aria-selected')).toBe('true');
-    expect(panel(container, 'cooc-panel-filter').hidden).toBe(false);
+    expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('true');
+    expect(panel(container, 'cooc-panel-minimap').hidden).toBe(false);
+    expect(panel(container, 'cooc-panel-filter').hidden).toBe(true);
     expect(panel(container, 'cooc-panel-edit').hidden).toBe(true);
     handle.destroy();
   });
@@ -112,33 +114,34 @@ describe('cooccurrence viewer panel tabs', () => {
 
   it('moves the selection with arrow keys', () => {
     const { container, handle } = mount();
-    const filterTab = tab(container, 'cooc-panel-filter');
-    filterTab.focus();
+    const minimapTab = tab(container, 'cooc-panel-minimap');
+    minimapTab.focus();
 
-    filterTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    minimapTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 
-    expect(tab(container, 'cooc-panel-edit').getAttribute('aria-selected')).toBe('true');
-    expect(document.activeElement).toBe(tab(container, 'cooc-panel-edit'));
+    expect(tab(container, 'cooc-panel-filter').getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(tab(container, 'cooc-panel-filter'));
     handle.destroy();
   });
 
   it('uses roving tabindex so the panel has a single tab stop', () => {
     const { container, handle } = mount();
 
-    expect(tab(container, 'cooc-panel-filter').tabIndex).toBe(0);
+    expect(tab(container, 'cooc-panel-minimap').tabIndex).toBe(0);
+    expect(tab(container, 'cooc-panel-filter').tabIndex).toBe(-1);
     expect(tab(container, 'cooc-panel-edit').tabIndex).toBe(-1);
     handle.destroy();
   });
 
-  it('records the selection while the filter tab stays active and fills the form after switching', () => {
+  it('records the selection while the active tab stays put and fills the form after switching', () => {
     const { container, handle } = mount();
     // 図の中の語をクリックした場合と同じ経路（selectedNodeIndex の更新 → updatePanels）を、
     // jsdom で座標を組めない canvas の代わりに一覧の行クリックで起こす。
     const row = container.querySelector('[role="option"][data-node-index="1"]') as HTMLButtonElement;
     row.click();
 
-    // 選択が起きてもタブは奪われない（仕様 §3.5）。
-    expect(tab(container, 'cooc-panel-filter').getAttribute('aria-selected')).toBe('true');
+    // 選択が起きてもタブは奪われない（仕様 §3.5）。既定はミニマップタブ。
+    expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('true');
 
     tab(container, 'cooc-panel-edit').click();
 
@@ -169,7 +172,7 @@ describe('cooccurrence viewer panel tabs', () => {
 
     canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-    expect(tab(container, 'cooc-panel-filter').getAttribute('aria-selected')).toBe('true');
+    expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('true');
     expect(panel(container, 'cooc-panel-edit').hidden).toBe(true);
     handle.destroy();
   });

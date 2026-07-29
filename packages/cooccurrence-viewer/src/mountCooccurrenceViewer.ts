@@ -157,7 +157,8 @@ export function mountCooccurrenceViewer(
   let minimapPanel: MinimapPanelHandle | null = null;
   let exportPanel: ExportPanelHandle | null = null;
   let tabBar: TabBarHandle | null = null;
-  let activeTab: CooccurrenceTabId = 'filter';
+  // 既定はミニマップ（仕様 §3.5）。図を開いた直後に必要なのは全体の把握である。
+  let activeTab: CooccurrenceTabId = 'minimap';
 
   // タブの内容は隠す側も DOM に残す。破棄すると絞り込みの入力値と、入力中のフォーカス復帰
   // （FilterPanel が activeElement を見て行う）が切り替えのたびに失われる。
@@ -299,7 +300,9 @@ export function mountCooccurrenceViewer(
         syncActiveTab();
       },
     });
-    panelRoot.append(tabBar.element, filterTabPanel, editTabPanel, minimapTabPanel);
+    // tabpanel の DOM 順もタブの並びに合わせる。見た目には 1 枚しか出ないが、
+    // 支援技術の読み上げ順と Tab キーの移動順はこの順序に従う。
+    panelRoot.append(tabBar.element, minimapTabPanel, filterTabPanel, editTabPanel);
     syncExportPanel();
     syncActiveTab();
   }
@@ -362,7 +365,7 @@ export function mountCooccurrenceViewer(
     const displayed = displayedTabIds();
     // 選択中のタブが capability の変化で消えることがある。放置すると、どのタブも
     // 選ばれていない（内容が何も出ない）状態が残る。
-    if (!displayed.includes(activeTab)) activeTab = displayed[0] ?? 'filter';
+    if (!displayed.includes(activeTab)) activeTab = displayed[0] ?? 'minimap';
     filterTabPanel.hidden = activeTab !== 'filter';
     editTabPanel.hidden = activeTab !== 'edit';
     minimapTabPanel.hidden = activeTab !== 'minimap';

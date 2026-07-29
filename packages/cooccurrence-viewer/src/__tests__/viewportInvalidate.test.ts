@@ -37,10 +37,14 @@ function minimapButton(action: 'zoom-in' | 'zoom-out' | 'fit'): HTMLButtonElemen
   return button;
 }
 
-function openMinimapTab(): void {
-  const tab = document.querySelector<HTMLButtonElement>('#cooc-panel-minimap-tab');
-  if (!tab) throw new Error('ミニマップタブが見つからない');
+function openTab(id: 'minimap' | 'filter' | 'edit' | 'export'): void {
+  const tab = document.querySelector<HTMLButtonElement>(`#cooc-panel-${id}-tab`);
+  if (!tab) throw new Error(`タブが見つからない: ${id}`);
   tab.click();
+}
+
+function openMinimapTab(): void {
+  openTab('minimap');
 }
 
 /**
@@ -163,8 +167,17 @@ describe('viewport を変える操作は再描画を要求する', () => {
    * （`getRenderFrameCount`）では捕まらない。専用の観測点で固定する。
    */
   describe('ミニマップの描き直し', () => {
-    it('タブを開いた時点で描かれる', () => {
+    it('既定のミニマップタブで開いた時点で描かれる', () => {
       const viewer = mount();
+
+      // 既定タブなので、mount 直後の 1 フレームで描かれている（仕様 §3.5）。
+      expect(viewer.getMinimapDrawCount()).toBe(1);
+    });
+
+    it('別のタブから戻ると描き直される', () => {
+      const viewer = mount();
+      openTab('filter');
+      flushFrames();
       const before = viewer.getMinimapDrawCount();
 
       openMinimapTab();
@@ -223,10 +236,13 @@ describe('viewport を変える操作は再描画を要求する', () => {
 
     it('隠れている間は描かない', () => {
       const viewer = mount();
+      // 絞り込みタブへ移してミニマップを隠す。この状態で図を操作しても、見えていない面は
+      // 描かない（図をドラッグしている間ずっと空振りするのを避ける）。
+      openTab('filter');
+      flushFrames();
       const canvas = document.querySelector('.cooc-viewer__canvas');
       const before = viewer.getMinimapDrawCount();
 
-      // 既定は絞り込みタブ。この状態で図を操作しても、見えていない面は描かない。
       canvas?.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true, cancelable: true }));
       flushFrames();
 

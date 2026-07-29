@@ -1,5 +1,10 @@
-/** 右サイドパネルのタブ。表示順に並べる。 */
-export const COOC_TAB_IDS = ['filter', 'edit', 'minimap', 'export'] as const;
+/**
+ * 右サイドパネルのタブ。表示順に並べる。
+ *
+ * 先頭がミニマップなのは、図を開いた直後に必要なのが全体の把握だからである（仕様 §3.5）。
+ * 既定タブもここの先頭に従う。
+ */
+export const COOC_TAB_IDS = ['minimap', 'filter', 'edit', 'export'] as const;
 
 export type CooccurrenceTabId = (typeof COOC_TAB_IDS)[number];
 
