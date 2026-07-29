@@ -8,6 +8,9 @@
  */
 export type ThemeMode = 'dark' | 'light';
 
+// SHORTCUT: high-contrast を dark 配色へ丸めている. ceiling: high contrast 専用の
+// コントラストトークンは未定義で、WCAG AAA 相当の強制配色要件を満たす保証はない.
+// upgrade: high contrast 環境での可読性・コントラスト比の問題報告が出たら専用モードを追加する.
 const DARK_BODY_CLASSES = new Set(['vscode-dark', 'vscode-high-contrast']);
 
 export function resolveThemeFromBodyClasses(classes: readonly string[]): ThemeMode {

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { TicketsPanel, injectTicketsStyles } from '@anytime-markdown/tickets-viewer';
 import { setLocale } from './shims/next-intl';
 
-import { createRpcTicketsGateway, type RpcTransport } from './rpcGateway';
+import { createRpcTicketsGateway, isRecord, type RpcTransport } from './rpcGateway';
 import { isInitMessage, type InitMessage } from './initMessage';
 import { resolveThemeFromBodyClasses } from './theme';
 
@@ -17,8 +17,8 @@ function makeTransport(): RpcTransport {
     // VS Code webview のメッセージは origin が空文字列または vscode-webview:// スキーム
     if (e.origin && !e.origin.startsWith('vscode-webview://')) return;
     const data = e.data as unknown;
-    if (typeof data !== 'object' || data === null) return;
-    if (typeof (data as { type?: unknown }).type !== 'string') return;
+    // rpcGateway.ts の isRecord を共有し、同じ検証ロジックの二重実装を避ける。
+    if (!isRecord(data) || typeof data.type !== 'string') return;
     listeners.forEach((l) => l(data));
   };
   globalThis.addEventListener('message', onWindowMessage);
