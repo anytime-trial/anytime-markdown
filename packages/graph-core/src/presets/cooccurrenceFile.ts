@@ -7,6 +7,19 @@ import {
   type CooccurrenceNotes,
   type CooccurrenceNoteTarget,
 } from './cooccurrenceNotes';
+import {
+  COOCCURRENCE_SLICE_ENTRY_MAX,
+  COOCCURRENCE_SLICE_MAX,
+  COOCCURRENCE_SLICE_TARGETS,
+  cloneCooccurrenceTimeline,
+  cooccurrenceSliceDateValue,
+  cooccurrenceSliceEntryCount,
+  hasCooccurrenceTimeline,
+  roundCooccurrenceTotal,
+  totalCooccurrenceSliceValue,
+  type CooccurrenceSliceTarget,
+  type CooccurrenceTimeline,
+} from './cooccurrenceTimeline';
 
 /** 共起の向き。0=無向・1=順方向（a→b）・2=逆方向（b→a）・3=双方向。 */
 export const LINK_DIRECTION = { none: 0, forward: 1, backward: 2, both: 3 } as const;
@@ -53,8 +66,8 @@ function hasDirectedLink(links: readonly CooccurrenceLinkTuple[]): boolean {
 }
 
 /**
- * spec の内容から版数を導出する。メモを 1 件でも持てば 3、向きを 1 本でも持てば 2、
- * いずれも無ければ 1（設計書 §2.2）。
+ * spec の内容から版数を導出する。時間軸を持てば 4、メモを 1 件でも持てば 3、向きを 1 本でも
+ * 持てば 2、いずれも無ければ 1（設計書 §2.2）。
  *
  * Why not 版数を書き出し時にだけ決めるか: 編集の途中で版数だけが内容から取り残され、検証が
  * 「版数と内容が一致しない」（設計書 §2.6）で落ちる。版数は内容の説明であり、内容を変えたら
@@ -63,7 +76,8 @@ function hasDirectedLink(links: readonly CooccurrenceLinkTuple[]): boolean {
  * Why not 共起（links）だけを見る関数のままにするか: メモは links の外にあるため、links だけを
  * 見る関数を残すと、メモを持つファイルが版数 2 以下で書かれ、自作のファイルが自作の検証に落ちる。
  */
-export function schemaVersionForSpec(spec: CooccurrenceFile['spec']): 1 | 2 | 3 {
+export function schemaVersionForSpec(spec: CooccurrenceFile['spec']): 1 | 2 | 3 | 4 {
+  if (hasCooccurrenceTimeline(spec)) return 4;
   if (hasAnyCooccurrenceNote(spec)) return 3;
   return hasDirectedLink(spec.links) ? 2 : 1;
 }
@@ -72,9 +86,9 @@ export interface CooccurrenceFile {
   meta: {
     /**
      * スキーマの版数。互換性のない変更で繰り上げる。向き付きの共起を含むとき 2、
-     * メモを含むとき 3（設計書 §2.2）。
+     * メモを含むとき 3、時間軸を含むとき 4（設計書 §2.2）。
      */
-    schemaVersion: 1 | 2 | 3;
+    schemaVersion: 1 | 2 | 3 | 4;
     /** 生成日時（ISO 8601・UTC）。 */
     generatedAt: string;
     /** 生成元。 */
@@ -92,6 +106,8 @@ export interface CooccurrenceFile {
     clusters?: Array<{ label: string; members: number[] }>;
     /** メモ。添字は同名の配列を指す。1 件も持たないときは書かない（設計書 §2.2）。 */
     notes?: CooccurrenceNotes;
+    /** 時間軸。スライスを 1 つも持たないときは書かない（設計書 §2.2・§3.6）。 */
+    timeline?: CooccurrenceTimeline;
   };
   /** 座標キャッシュ。無くてよい。 */
   layout?: {
@@ -116,7 +132,20 @@ export type ValidationErrorCode =
   | 'note-target-out-of-range'
   | 'duplicate-note-target'
   | 'empty-note'
-  | 'note-too-long';
+  | 'note-too-long'
+  | 'slice-count-mismatch'
+  | 'empty-slice-label'
+  | 'duplicate-slice-label'
+  | 'invalid-slice-date'
+  | 'slice-order-not-chronological'
+  | 'slice-target-out-of-range'
+  | 'duplicate-slice-target'
+  | 'non-positive-slice-value'
+  | 'too-many-slices'
+  | 'too-many-slice-entries'
+  | 'total-not-derived'
+  | 'total-not-editable'
+  | 'slice-values-required';
 
 export interface ValidationError {
   code: ValidationErrorCode;
@@ -152,6 +181,65 @@ function nodeCountOfSpec(spec: unknown): number | undefined {
   return Array.isArray(nodes) ? nodes.length : undefined;
 }
 
+function validateTimelineStructure(timeline: Record<string, unknown>, schemaVersion: unknown): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  const slices = prop(timeline, 'slices');
+  if (!Array.isArray(slices)) {
+    errors.push(error('invalid-schema', 'spec.timeline.slices', 'slices must be an array'));
+  } else {
+    // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。向き・メモと同じ理由で、
+    // 旧実装が拒否するファイルを新実装だけが受理する状態を作らない。
+    if (slices.length > 0 && schemaVersion !== 4) {
+      errors.push(error('invalid-schema', 'spec.timeline', 'timeline requires schemaVersion 4'));
+    }
+    slices.forEach((slice, i) => {
+      if (!isRecord(slice)) {
+        errors.push(error('invalid-schema', `spec.timeline.slices.${i}`, 'slice must be an object'));
+        return;
+      }
+      if (typeof prop(slice, 'label') !== 'string') {
+        errors.push(error('invalid-schema', `spec.timeline.slices.${i}.label`, 'slice label must be a string'));
+      }
+      const at = prop(slice, 'at');
+      if (at !== undefined && typeof at !== 'string') {
+        errors.push(error('invalid-schema', `spec.timeline.slices.${i}.at`, 'slice at must be a string'));
+      }
+    });
+  }
+
+  for (const target of COOCCURRENCE_SLICE_TARGETS) {
+    const perSlice = prop(timeline, target);
+    if (!Array.isArray(perSlice)) {
+      errors.push(error('invalid-schema', `spec.timeline.${target}`, `timeline ${target} must be an array`));
+      continue;
+    }
+    perSlice.forEach((entries, sliceIndex) => {
+      if (!Array.isArray(entries)) {
+        errors.push(
+          error('invalid-schema', `spec.timeline.${target}.${sliceIndex}`, 'slice entries must be an array'),
+        );
+        return;
+      }
+      entries.forEach((entry, i) => {
+        const path = `spec.timeline.${target}.${sliceIndex}.${i}`;
+        if (!Array.isArray(entry) || entry.length !== 2) {
+          errors.push(error('invalid-schema', path, 'slice entry must be [index, value]'));
+          return;
+        }
+        if (!Number.isInteger(entry[0])) {
+          errors.push(error('invalid-schema', `${path}.0`, 'slice entry target must be an integer'));
+        }
+        if (!isFiniteNumber(entry[1])) {
+          errors.push(error('invalid-schema', `${path}.1`, 'slice entry value must be a finite number'));
+        }
+      });
+    });
+  }
+
+  return errors;
+}
+
 function validateStructure(file: unknown): ValidationError[] {
   const errors: ValidationError[] = [];
   if (!isRecord(file)) {
@@ -164,8 +252,8 @@ function validateStructure(file: unknown): ValidationError[] {
     errors.push(error('invalid-schema', 'meta', 'meta must be an object'));
   } else {
     schemaVersion = prop(meta, 'schemaVersion');
-    if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3) {
-      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1, 2 or 3'));
+    if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4) {
+      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1, 2, 3 or 4'));
     }
     if (typeof prop(meta, 'generatedAt') !== 'string') {
       errors.push(error('invalid-schema', 'meta.generatedAt', 'generatedAt must be a string'));
@@ -307,6 +395,15 @@ function validateStructure(file: unknown): ValidationError[] {
     }
   }
 
+  const timeline = prop(spec, 'timeline');
+  if (timeline !== undefined) {
+    if (!isRecord(timeline)) {
+      errors.push(error('invalid-schema', 'spec.timeline', 'timeline must be an object'));
+    } else {
+      errors.push(...validateTimelineStructure(timeline, schemaVersion));
+    }
+  }
+
   const layout = prop(file, 'layout');
   if (layout !== undefined) {
     if (!isRecord(layout)) {
@@ -336,6 +433,133 @@ function validateStructure(file: unknown): ValidationError[] {
   }
 
   return errors;
+}
+
+function validateTimelineContent(
+  timeline: Record<string, unknown>,
+  counts: Record<CooccurrenceSliceTarget, number>,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const slices = prop(timeline, 'slices');
+  if (!Array.isArray(slices)) return errors;
+
+  if (slices.length > COOCCURRENCE_SLICE_MAX) {
+    errors.push(
+      error('too-many-slices', 'spec.timeline.slices', `timeline must not exceed ${COOCCURRENCE_SLICE_MAX} slices`),
+    );
+  }
+
+  const firstIndexByLabel = new Map<string, number>();
+  let previousAt: number | undefined;
+  slices.forEach((slice, i) => {
+    if (!isRecord(slice)) return;
+    const label = prop(slice, 'label');
+    if (typeof label === 'string') {
+      if (label === '') {
+        errors.push(error('empty-slice-label', `spec.timeline.slices.${i}.label`, 'slice label must not be empty'));
+      }
+      const firstIndex = firstIndexByLabel.get(label);
+      if (firstIndex === undefined) {
+        firstIndexByLabel.set(label, i);
+      } else {
+        errors.push(
+          error(
+            'duplicate-slice-label',
+            `spec.timeline.slices.${i}.label`,
+            `slice label "${label}" duplicates spec.timeline.slices.${firstIndex}`,
+          ),
+        );
+      }
+    }
+    const at = prop(slice, 'at');
+    if (typeof at !== 'string') return;
+    const value = cooccurrenceSliceDateValue(at);
+    if (value === undefined) {
+      errors.push(error('invalid-slice-date', `spec.timeline.slices.${i}.at`, 'slice at must be an ISO 8601 date'));
+      return;
+    }
+    // 配列の順序が時間順であるという規則（設計書 §2.2）を、日付を持つスライスの間で検査する。
+    if (previousAt !== undefined && value < previousAt) {
+      errors.push(
+        error(
+          'slice-order-not-chronological',
+          `spec.timeline.slices.${i}.at`,
+          'slices with a date must be in chronological order',
+        ),
+      );
+    }
+    previousAt = value;
+  });
+
+  let entryCount = 0;
+  for (const target of COOCCURRENCE_SLICE_TARGETS) {
+    const perSlice = prop(timeline, target);
+    if (!Array.isArray(perSlice)) continue;
+    if (perSlice.length !== slices.length) {
+      errors.push(
+        error(
+          'slice-count-mismatch',
+          `spec.timeline.${target}`,
+          `timeline ${target} length must match slices length`,
+        ),
+      );
+    }
+    perSlice.forEach((entries, sliceIndex) => {
+      if (!Array.isArray(entries)) return;
+      entryCount += entries.length;
+      const seen = new Set<number>();
+      entries.forEach((entry, i) => {
+        if (!Array.isArray(entry) || entry.length !== 2) return;
+        const index = entry[0];
+        const value = entry[1];
+        const path = `spec.timeline.${target}.${sliceIndex}.${i}`;
+        if (Number.isInteger(index)) {
+          if (!isIndex(index, counts[target])) {
+            errors.push(error('slice-target-out-of-range', `${path}.0`, `slice entry target is outside ${target}`));
+          }
+          if (seen.has(index)) {
+            errors.push(
+              error('duplicate-slice-target', `${path}.0`, `slice entry target ${index} appears twice in this slice`),
+            );
+          }
+          seen.add(index);
+        }
+        // 不在は「エントリが現れないこと」で表す。0 を許すと同じ状態に 2 通りの表現ができる（§2.2）。
+        if (isFiniteNumber(value) && value <= 0) {
+          errors.push(error('non-positive-slice-value', `${path}.1`, 'slice entry value must be positive'));
+        }
+      });
+    });
+  }
+
+  if (entryCount > COOCCURRENCE_SLICE_ENTRY_MAX) {
+    errors.push(
+      error(
+        'too-many-slice-entries',
+        'spec.timeline',
+        `timeline must not exceed ${COOCCURRENCE_SLICE_ENTRY_MAX} entries in total`,
+      ),
+    );
+  }
+
+  return errors;
+}
+
+/** 生の（未検証の）時間軸から全体値の合計を求める。検証は spec の値とこれを突き合わせる。 */
+function rawSliceTotals(timeline: Record<string, unknown>, target: CooccurrenceSliceTarget, count: number): number[] {
+  const totals = new Array<number>(count).fill(0);
+  const perSlice = prop(timeline, target);
+  if (!Array.isArray(perSlice)) return totals;
+  for (const entries of perSlice) {
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const index = entry[0];
+      const value = entry[1];
+      if (Number.isInteger(index) && index >= 0 && index < count && isFiniteNumber(value)) totals[index] += value;
+    }
+  }
+  return totals.map(roundCooccurrenceTotal);
 }
 
 export function validateCooccurrenceFile(file: unknown): ValidationError[] {
@@ -454,6 +678,51 @@ export function validateCooccurrenceFile(file: unknown): ValidationError[] {
     }
   }
 
+  const timeline = prop(spec, 'timeline');
+  if (isRecord(timeline)) {
+    const linkCount = Array.isArray(links) ? links.length : 0;
+    errors.push(...validateTimelineContent(timeline, { nodes: nodeCount, links: linkCount }));
+
+    const slices = prop(timeline, 'slices');
+    if (Array.isArray(slices) && slices.length > 0) {
+      // 全体値はスライス値の合計として導出される（設計書 §2.2）。取り残された全体値を受理すると、
+      // 単一表示とレイヤー表示で別の大きさの円が描かれる。
+      const nodeTotals = rawSliceTotals(timeline, 'nodes', nodeCount);
+      if (Array.isArray(nodes)) {
+        nodes.forEach((node, i) => {
+          if (!isRecord(node)) return;
+          const frequency = prop(node, 'frequency');
+          if (isFiniteNumber(frequency) && roundCooccurrenceTotal(frequency) !== nodeTotals[i]) {
+            errors.push(
+              error(
+                'total-not-derived',
+                `spec.nodes.${i}.frequency`,
+                `frequency must equal the sum of slice values (${nodeTotals[i]})`,
+              ),
+            );
+          }
+        });
+      }
+
+      const linkTotals = rawSliceTotals(timeline, 'links', linkCount);
+      if (Array.isArray(links)) {
+        links.forEach((link, i) => {
+          if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) return;
+          const strength = link[2];
+          if (isFiniteNumber(strength) && roundCooccurrenceTotal(strength) !== linkTotals[i]) {
+            errors.push(
+              error(
+                'total-not-derived',
+                `spec.links.${i}.2`,
+                `strength must equal the sum of slice values (${linkTotals[i]})`,
+              ),
+            );
+          }
+        });
+      }
+    }
+  }
+
   const fileLayout = prop(file, 'layout');
   if (isRecord(fileLayout)) {
     const positions = prop(fileLayout, 'positions');
@@ -506,9 +775,11 @@ export function computeSpecHash(spec: CooccurrenceFile['spec']): string {
   // 向きは座標に影響しない（力学モデルは強度だけを見る）。ハッシュへ含めると、矢印を 1 本足した
   // だけで 1,000 語の再計算（約 2.2 秒）が走る（設計書 §2.4）。
   // メモも同じ理由で外す。メモは編集中に何度も変わり、含めると 1 件書き足すたびに再計算が走る。
-  const { notes: _notes, ...withoutNotes } = spec;
+  // 時間軸も外す。レイアウトは全期間の和集合に対して 1 回だけ計算し、全レイヤーがその座標を
+  // 共有する（設計書 §3.6.1）。スライスは描画対象の選択と値の差し替えにしか効かない。
+  const { notes: _notes, timeline: _timeline, ...withoutDerived } = spec;
   const forHash: CooccurrenceFile['spec'] = {
-    ...withoutNotes,
+    ...withoutDerived,
     links: spec.links.map((link) => [link[0], link[1], link[2]]),
   };
   return sha256Hex(canonicalizeSpec(forHash));
@@ -518,13 +789,50 @@ function roundPosition(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+/**
+ * 時間軸を持つ spec の全体値をスライス値の合計で埋め直す。時間軸が無ければそのまま返す
+ * （設計書 §2.2）。
+ *
+ * Why not 書き手が全体値も指定できるようにするか: 同じ量に対する真実が 2 箇所（全体値と
+ * スライス値）にあると、片方だけ更新された中間状態が生まれ、単一表示とレイヤー表示で別の
+ * 大きさの円が描かれる。版数を内容から導出するのと同じ理由による。
+ */
+export function withDerivedTotals(spec: CooccurrenceFile['spec']): CooccurrenceFile['spec'] {
+  const timeline = spec.timeline;
+  if (timeline === undefined || timeline.slices.length === 0) return spec;
+  return {
+    ...spec,
+    nodes: spec.nodes.map((node, index) => ({
+      ...node,
+      frequency: totalCooccurrenceSliceValue(timeline, 'nodes', index),
+    })),
+    // writeLink を通すのは、全体値の差し替えで向きが落ちないようにするため。
+    links: spec.links.map((link, index) =>
+      writeLink({ ...readLink(link), strength: totalCooccurrenceSliceValue(timeline, 'links', index) }),
+    ),
+  };
+}
+
 export function serializeCoocFile(file: CooccurrenceFile): string {
+  // スライスを 1 つも持たない時間軸は落とす。空の器を残すと版数の導出と往復一致が揺れる（§2.2）。
+  const timeline = cloneCooccurrenceTimeline(file.spec.timeline);
+  const compacted: CooccurrenceFile['spec'] = { ...file.spec };
+  if (timeline === undefined) {
+    delete compacted.timeline;
+  } else {
+    compacted.timeline = timeline;
+  }
+
+  // 全体値はスライス値の合計として導出する（§2.2）。書き出しで導出を通さないと、編集経路を
+  // 1 つでも通し忘れたファイルが「合計と一致しない全体値」を持ったまま保存される。
+  const derived = withDerivedTotals(compacted);
+
   // 無向は 3 要素へ畳む。畳んだ結果 4 要素が 1 本も無ければ版数は 1 のままで、旧実装との往復が
   // 保たれる（設計書 §2.2）。版数の判定を書き出しの一箇所へ集約し、編集経路ごとに繰り上げ条件が
   // 分かれる状態を作らない。
-  const links = file.spec.links.map((link) => writeLink(readLink(link)));
-  const notes = cloneCooccurrenceNotes(file.spec.notes);
-  const spec: CooccurrenceFile['spec'] = { ...file.spec, links };
+  const links = derived.links.map((link) => writeLink(readLink(link)));
+  const notes = cloneCooccurrenceNotes(derived.notes);
+  const spec: CooccurrenceFile['spec'] = { ...derived, links };
   if (notes === undefined) {
     delete spec.notes;
   } else {

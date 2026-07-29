@@ -308,8 +308,14 @@ describe('向きの検証', () => {
     expect(validateCooccurrenceFile(base([[0, 1, 5]], 3))).toEqual([]);
   });
 
-  it('版数 4 は拒否する', () => {
-    const errors = validateCooccurrenceFile(base([[0, 1, 5]], 4));
+  // 版数 4 は時間軸の導入で有効になった（設計書 §2.2）。版数 3 と同じく、内容より高い版数の
+  // 宣言は受理する。
+  it('版数 4 は受理する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5]], 4))).toEqual([]);
+  });
+
+  it('版数 5 は拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5]], 5));
     expect(errors.some((e) => e.path === 'meta.schemaVersion')).toBe(true);
   });
 
