@@ -1,5 +1,6 @@
 import { parseGraphDsl, GraphDslError } from '../../io/parseGraphDsl';
 import { renderThinkingDiagramSvg } from '../../io/renderThinkingDiagram';
+import { serializeGraphDsl } from '../../io/serializeGraphDsl';
 
 describe('parseGraphDsl', () => {
   it('fishbone を解析する', () => {
@@ -316,5 +317,56 @@ describe('renderThinkingDiagramSvg', () => {
 
   it('不正 DSL は GraphDslError を投げる', () => {
     expect(() => renderThinkingDiagramSvg('type: fishbone', true)).toThrow(GraphDslError);
+  });
+});
+
+describe('共起の向きの DSL 記法', () => {
+  function linksOf(line: string) {
+    const spec = parseGraphDsl(['type: cooccurrence', '- A: 3', '- B: 3', line].join('\n'));
+    if (spec.type !== 'cooccurrence') throw new Error('unexpected spec type');
+    return spec.links;
+  }
+
+  it('-- は無向（direction を持たない）', () => {
+    expect(linksOf('- A -- B: 0.8')).toEqual([{ a: 'A', b: 'B', strength: 0.8 }]);
+  });
+
+  it('--> は順方向', () => {
+    expect(linksOf('- A --> B: 0.8')).toEqual([{ a: 'A', b: 'B', strength: 0.8, direction: 'forward' }]);
+  });
+
+  it('<-- は逆方向', () => {
+    expect(linksOf('- A <-- B: 0.8')).toEqual([{ a: 'A', b: 'B', strength: 0.8, direction: 'backward' }]);
+  });
+
+  it('<--> は双方向', () => {
+    expect(linksOf('- A <--> B: 0.8')).toEqual([{ a: 'A', b: 'B', strength: 0.8, direction: 'both' }]);
+  });
+
+  it('矢印付きでも自己共起を拒否する', () => {
+    expect(() => parseGraphDsl(['type: cooccurrence', '- A: 3', '- A --> A: 0.8'].join('\n'))).toThrow(GraphDslError);
+  });
+
+  it('矢印付きでも負の強度を拒否する', () => {
+    expect(() => linksOf('- A --> B: -1')).toThrow(GraphDslError);
+  });
+
+  it('語名の < > を矢印と誤読しない', () => {
+    const spec = parseGraphDsl(['type: cooccurrence', '- <A>: 3', '- B: 3', '- <A> -- B: 0.8'].join('\n'));
+    if (spec.type !== 'cooccurrence') throw new Error('unexpected spec type');
+    expect(spec.nodes[0].label).toBe('<A>');
+    expect(spec.links).toEqual([{ a: '<A>', b: 'B', strength: 0.8 }]);
+  });
+
+  it('往復で向きが保たれる', () => {
+    for (const [line, arrow] of [
+      ['- A -- B: 0.8', '- A -- B: 0.8'],
+      ['- A --> B: 0.8', '- A --> B: 0.8'],
+      ['- A <-- B: 0.8', '- A <-- B: 0.8'],
+      ['- A <--> B: 0.8', '- A <--> B: 0.8'],
+    ]) {
+      const source = ['type: cooccurrence', '- A: 3', '- B: 3', line].join('\n');
+      expect(serializeGraphDsl(parseGraphDsl(source))).toContain(arrow);
+    }
   });
 });

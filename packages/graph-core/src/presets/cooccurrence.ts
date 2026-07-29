@@ -20,11 +20,16 @@ export interface CooccurrenceNode {
   frequency: number;
 }
 
+/** 共起の向き。DSL・静的図では名前で扱う（`.cooc.json` の数値コードは永続形式の都合）。 */
+export type CooccurrenceLinkDirection = 'forward' | 'backward' | 'both';
+
 export interface CooccurrenceLink {
   a: string;
   b: string;
   /** 共起の強さ。線の太さと引力に比例させる。 */
   strength: number;
+  /** 向き。省略時は無向で、矢印を描かない（設計書 §2.1）。 */
+  direction?: CooccurrenceLinkDirection;
 }
 
 export interface CooccurrenceCluster {
