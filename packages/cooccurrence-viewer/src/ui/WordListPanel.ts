@@ -39,9 +39,10 @@ function ensureStyles(): void {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-.cooc-words{display:flex;flex-direction:column;flex:1 0 auto;padding:12px;gap:10px}
+.cooc-words{display:flex;flex-direction:column;flex:1 1 auto;padding:12px;gap:10px}
+.cooc-words__search{flex:0 0 auto}
 .cooc-words__search,.cooc-words__edit input,.cooc-words__edit select{box-sizing:border-box;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);padding:6px 8px;font:12px system-ui,sans-serif}
-.cooc-words__viewport{position:relative;min-height:120px;flex:1;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
+.cooc-words__viewport{position:relative;min-height:120px;flex:1 1 auto;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
 .cooc-words__spacer{position:relative;width:100%}
 .cooc-words__items{position:absolute;inset:0 0 auto 0}
 .cooc-words__row{height:36px;display:grid;grid-template-columns:minmax(0,1fr) 56px 64px;gap:8px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif}
@@ -49,12 +50,12 @@ function ensureStyles(): void {
 .cooc-words__row[aria-selected="true"]{background:var(--cooc-action-selected)}
 .cooc-words__row[data-hidden-by-filter="true"] .cooc-words__label{color:var(--cooc-text-disabled)}
 .cooc-words__label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cooc-words__meta{color:var(--cooc-text-secondary);text-align:right}
-.cooc-words__edit{display:grid;grid-template-columns:1fr 72px 88px;gap:6px}
-.cooc-words__buttons{display:flex;gap:6px;flex-wrap:wrap}
+.cooc-words__meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cooc-text-secondary);text-align:right}
+.cooc-words__edit{flex:0 0 auto;display:grid;grid-template-columns:1fr 72px 88px;gap:6px}
+.cooc-words__buttons{flex:0 0 auto;display:flex;gap:6px;flex-wrap:wrap}
 .cooc-words__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 8px;font:12px system-ui,sans-serif}
 .cooc-words__button:hover{background:var(--cooc-action-hover)}
-.cooc-words__error{min-height:16px;color:var(--cooc-accent);font:12px system-ui,sans-serif}
+.cooc-words__error{flex:0 0 auto;min-height:16px;color:var(--cooc-accent);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
 }
@@ -196,6 +197,8 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       const cluster = document.createElement('span');
       cluster.className = 'cooc-words__meta';
       cluster.textContent = clusterLabelFor(state.file, nodeIndex);
+      // 列幅に収まらないクラスタ名は省略表示になるため、全体はホバーで読めるようにする。
+      cluster.title = cluster.textContent;
       row.append(label, frequency, cluster);
       row.addEventListener('click', () => options.onSelectNode(state.selectedNodeIndex === nodeIndex ? null : nodeIndex));
       items.appendChild(row);
