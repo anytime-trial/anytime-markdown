@@ -73,6 +73,24 @@ function authRequiredResponse(id: string): TicketsRpcResponse {
   };
 }
 
+/**
+ * resolveContext() が例外を投げたときの webview 応答。例外の実メッセージ（GitHub
+ * トークン・ファイルパス等の機密を含み得る）は一切埋め込まず、固定の汎用文言のみを返す
+ * （詳細は handleRpc の catch 内で Logger へ記録済み）。
+ */
+function contextResolutionFailedResponse(id: string): TicketsRpcResponse {
+  return {
+    type: 'rpcResult',
+    id,
+    error: {
+      message: 'リポジトリの解決または GitHub 認証中にエラーが発生しました。再読み込みしてください。',
+      status: 500,
+      conflict: false,
+      validationErrors: [],
+    },
+  };
+}
+
 /** チケットボードの WebviewPanel を 1 枚だけ保持し、RPC を拡張ホストへ橋渡しする。 */
 export class TicketsPanelManager {
   private panel: vscode.WebviewPanel | null = null;
@@ -111,7 +129,14 @@ export class TicketsPanelManager {
       this.panel = null;
     });
     panel.webview.onDidReceiveMessage((message: unknown) => {
-      void this.handleMessage(message);
+      // handleMessage 内部（特に handleRpc の resolveContext 呼び出し）は throw しうる。
+      // void で fire-and-forget すると例外が未処理 Promise 拒否として消え、Logger に
+      // 一切残らない（silent catch より悪い「検知不能」状態）ため、必ず catch してログへ残す。
+      // rpc リクエストに対する応答生成（webview 側 Promise の解決）は handleRpc 側の
+      // 個別 catch が担うため、ここでは「拾い漏れの最終防衛線」として汎用ログのみ行う。
+      this.handleMessage(message).catch((error: unknown) => {
+        this.logger.error('webview メッセージの処理に失敗しました', error);
+      });
     });
     panel.webview.html = this.buildHtml(panel.webview);
   }
@@ -140,7 +165,20 @@ export class TicketsPanelManager {
   }
 
   private async handleRpc(request: TicketsRpcRequest): Promise<void> {
-    const { provider } = await this.resolveContext();
+    let provider: TicketProvider | null;
+    try {
+      ({ provider } = await this.resolveContext());
+    } catch (error) {
+      // resolveContext() は handleTicketsRpc() の try/catch の外側で呼ばれており
+      // （getGitHubToken の認証 API 呼び出し・createProvider の初期化等が失敗しうる）、
+      // ここで捕捉しないと webview 側 rpcGateway.pending に積まれた Promise が
+      // タイムアウト無しで永久に解決しない（画面が固まったまま操作不能になる）。
+      // 応答は固定の汎用文言のみとし、error のメッセージ（トークン・パス等の機密を
+      // 含み得る）はそのまま webview へは渡さない。詳細は Logger 側にのみ残す。
+      this.logger.error(`RPC ${request.method} の前処理(resolveContext)に失敗しました (id=${request.id})`, error);
+      this.postToPanel(contextResolutionFailedResponse(request.id));
+      return;
+    }
     if (!provider) {
       this.postToPanel(authRequiredResponse(request.id));
       return;

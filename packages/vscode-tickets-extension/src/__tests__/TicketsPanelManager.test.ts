@@ -216,6 +216,39 @@ describe('TicketsPanelManager', () => {
     expect(fake.postMessage).toHaveBeenCalledWith({ type: 'rpcResult', id: '3', result: { tickets: [], invalid: [] } });
   });
 
+  it('resolveContext が reject したら logger.error を呼び、機密を含まない固定文言の rpcResult エラー応答を id 一致で返す', async () => {
+    const fake = makeFakePanel();
+    createWebviewPanel.mockReturnValue(fake.panel);
+    const secretToken = 'ghp_supersecretfaketoken1234567890abcd';
+    const resolveContext = jest.fn(async (): Promise<PanelContext> => {
+      throw new Error(`GitHub API 呼び出しに失敗しました: token=${secretToken}`);
+    });
+    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, jest.fn());
+
+    await manager.open();
+    fake.postMessage.mockClear();
+    await fake.fireMessage({ type: 'rpc', id: '42', method: 'list', params: {} });
+
+    // 1. resolveContext が reject したとき logger.error が呼ばれる（未処理 Promise 拒否として
+    // 消えていないことの検証）。
+    expect(logger.error).toHaveBeenCalled();
+
+    // 2. 元のリクエストと id が一致する rpcResult エラー応答が webview へ送られる
+    // （画面が固まったまま操作不能になるのを防ぐ）。
+    expect(fake.postMessage).toHaveBeenCalledTimes(1);
+    const sent = fake.postMessage.mock.calls[0][0] as {
+      type: string;
+      id: string;
+      error?: { message: string };
+    };
+    expect(sent.type).toBe('rpcResult');
+    expect(sent.id).toBe('42');
+    expect(sent.error).toBeDefined();
+
+    // 3. エラーメッセージに機密（トークン相当の文字列）が含まれない（固定の汎用文言のみ）。
+    expect(sent.error?.message).not.toContain(secretToken);
+  });
+
   it('resolveContext の await 中にパネルが破棄されたら応答を送らない', async () => {
     const fake = makeFakePanel();
     createWebviewPanel.mockReturnValue(fake.panel);
