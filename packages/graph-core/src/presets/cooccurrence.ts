@@ -147,7 +147,7 @@ export function buildCooccurrence(spec: CooccurrenceSpec, isDark: boolean): Grap
     );
   });
 
-  // ── 共起（無向。矢印は付けない） ──
+  // ── 共起（向きが与えられていれば矢印を付ける。設計書 §2.1） ──
   const centerOf = (label: string): Point | undefined => {
     const i = indexOf.get(label);
     return i === undefined ? undefined : centers[i];
@@ -162,6 +162,8 @@ export function buildCooccurrence(spec: CooccurrenceSpec, isDark: boolean): Grap
       lineEdge(`co-${i}`, from, to, {
         stroke: edgeColor,
         strokeWidth: STROKE_MIN + (STROKE_MAX - STROKE_MIN) * t,
+        ...(link.direction === 'backward' || link.direction === 'both' ? { startShape: 'arrow' as const } : {}),
+        ...(link.direction === 'forward' || link.direction === 'both' ? { endShape: 'arrow' as const } : {}),
         metadata: { path: `links.${i}.strength` },
       }),
     ];

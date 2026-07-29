@@ -139,25 +139,46 @@ function resolveBezierPath(edge: GraphEdge, nodes: GraphNode[]): { x: number; y:
   return computeBezierPath(fromNode, toNode);
 }
 
+/** 線の端 `tip` に、`from` から `tip` へ向かう矢頭を描く。 */
+function pushArrowPolygon(
+  lines: string[],
+  tip: { x: number; y: number },
+  from: { x: number; y: number },
+  stroke: string,
+): void {
+  const angle = Math.atan2(tip.y - from.y, tip.x - from.x);
+  const len = 12;
+  const x1 = tip.x - len * Math.cos(angle - Math.PI / 6);
+  const y1 = tip.y - len * Math.sin(angle - Math.PI / 6);
+  const x2 = tip.x - len * Math.cos(angle + Math.PI / 6);
+  const y2 = tip.y - len * Math.sin(angle + Math.PI / 6);
+  lines.push(`<polygon points="${tip.x},${tip.y} ${x1},${y1} ${x2},${y2}" fill="${stroke}"/>`);
+}
+
+/**
+ * 両端の矢頭を描く。
+ *
+ * Why not 終端だけを見るか: drawio 出力と canvas 描画は `startShape` を扱うのに SVG だけが
+ * 見ておらず、双方向の関係を書き出すと始端の矢印が消えていた（同じ図が経路によって別の意味に
+ * なる）。
+ */
 function renderArrowMarker(
   lines: string[],
   points: { x: number; y: number }[],
   edge: GraphEdge,
   stroke: string,
 ): void {
+  const hasPoints = points.length >= 2;
+  const last = hasPoints ? points.at(-1)! : { x: edge.to.x, y: edge.to.y };
+  const beforeLast = hasPoints ? points.at(-2)! : { x: edge.from.x, y: edge.from.y };
+  const first = hasPoints ? points[0] : { x: edge.from.x, y: edge.from.y };
+  const afterFirst = hasPoints ? points[1] : { x: edge.to.x, y: edge.to.y };
+
   const endShape = edge.style.endShape ?? (edge.type === 'connector' ? 'arrow' : 'none');
-  if (endShape !== 'arrow') {
-    return;
-  }
-  const last = points.length >= 2 ? points.at(-1)! : { x: edge.to.x, y: edge.to.y };
-  const prev = points.length >= 2 ? points.at(-2)! : { x: edge.from.x, y: edge.from.y };
-  const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
-  const len = 12;
-  const x1 = last.x - len * Math.cos(angle - Math.PI / 6);
-  const y1 = last.y - len * Math.sin(angle - Math.PI / 6);
-  const x2 = last.x - len * Math.cos(angle + Math.PI / 6);
-  const y2 = last.y - len * Math.sin(angle + Math.PI / 6);
-  lines.push(`<polygon points="${last.x},${last.y} ${x1},${y1} ${x2},${y2}" fill="${stroke}"/>`);
+  if (endShape === 'arrow') pushArrowPolygon(lines, last, beforeLast, stroke);
+
+  const startShape = edge.style.startShape ?? 'none';
+  if (startShape === 'arrow') pushArrowPolygon(lines, first, afterFirst, stroke);
 }
 
 function renderEdgeSvg(edge: GraphEdge, nodes: GraphNode[], textColor: string = COLOR_TEXT_PRIMARY): string {

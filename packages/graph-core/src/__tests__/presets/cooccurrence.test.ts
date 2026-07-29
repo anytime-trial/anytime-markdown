@@ -1,4 +1,5 @@
-import { buildCooccurrence, type CooccurrenceSpec } from '../../presets/cooccurrence';
+import { buildCooccurrence, type CooccurrenceLink, type CooccurrenceSpec } from '../../presets/cooccurrence';
+import { renderThinkingDiagramSvg } from '../../io/renderThinkingDiagram';
 
 const SPEC: CooccurrenceSpec = {
   type: 'cooccurrence',
@@ -233,5 +234,67 @@ describe('buildCooccurrence', () => {
     );
     expect(doc.nodes).toHaveLength(1);
     expect(doc.edges).toHaveLength(0);
+  });
+});
+
+describe('静的図の矢印', () => {
+  function edgeOf(direction?: CooccurrenceLink['direction']) {
+    const spec: CooccurrenceSpec = {
+      type: 'cooccurrence',
+      nodes: [
+        { label: 'A', frequency: 3 },
+        { label: 'B', frequency: 3 },
+      ],
+      links: [{ a: 'A', b: 'B', strength: 0.8, ...(direction ? { direction } : {}) }],
+    };
+    return buildCooccurrence(spec, false).edges[0];
+  }
+
+  it('無向では端点形状を付けない', () => {
+    const edge = edgeOf();
+    expect(edge.style.startShape ?? 'none').toBe('none');
+    expect(edge.style.endShape ?? 'none').toBe('none');
+  });
+
+  it('順方向では終端へ矢印を付ける', () => {
+    const edge = edgeOf('forward');
+    expect(edge.style.endShape).toBe('arrow');
+    expect(edge.style.startShape ?? 'none').toBe('none');
+  });
+
+  it('逆方向では始端へ矢印を付ける', () => {
+    const edge = edgeOf('backward');
+    expect(edge.style.startShape).toBe('arrow');
+    expect(edge.style.endShape ?? 'none').toBe('none');
+  });
+
+  it('双方向では両端へ矢印を付ける', () => {
+    const edge = edgeOf('both');
+    expect(edge.style.startShape).toBe('arrow');
+    expect(edge.style.endShape).toBe('arrow');
+  });
+
+  it('向きを付けても強度と metadata は変わらない', () => {
+    expect(edgeOf('forward').metadata).toEqual(edgeOf().metadata);
+    expect(edgeOf('forward').style.strokeWidth).toBe(edgeOf().style.strokeWidth);
+  });
+
+  // SVG は startShape を見ていなかったため、双方向を書き出すと始端の矢印が消えていた。
+  // 同じ図が経路（drawio / canvas / SVG）によって別の意味になる状態を作らない。
+  function polygonCount(direction?: CooccurrenceLink['direction']): number {
+    const dsl = [
+      'type: cooccurrence',
+      '- A: 3',
+      '- B: 3',
+      `- A ${direction === 'both' ? '<-->' : direction === 'backward' ? '<--' : direction === 'forward' ? '-->' : '--'} B: 0.8`,
+    ].join('\n');
+    return renderThinkingDiagramSvg(dsl, true).split('<polygon').length - 1;
+  }
+
+  it('SVG では向きに応じた数の矢頭を書き出す', () => {
+    expect(polygonCount()).toBe(0);
+    expect(polygonCount('forward')).toBe(1);
+    expect(polygonCount('backward')).toBe(1);
+    expect(polygonCount('both')).toBe(2);
   });
 });
