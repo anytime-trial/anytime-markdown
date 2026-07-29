@@ -92,6 +92,31 @@ describe('handleTicketsRpc', () => {
     expect(persistedUpdatedAt).not.toBe(staleUpdatedAt);
   });
 
+  it('save は tickets-core の validateTicketFrontmatter（ビジネスルール検証）を通し、不正な frontmatter は update を呼ばずに拒否する（回帰: web-app PUT との非対称バイパス）', async () => {
+    const provider = makeProvider();
+    const result = await call(provider, {
+      type: 'rpc',
+      id: '2d',
+      method: 'save',
+      params: {
+        path: record.path,
+        version: 'v1',
+        frontmatter: {
+          ...record.frontmatter,
+          title: 'bad\ntitle', // 制御文字（改行）— checkNoControlChars
+          estimate: -1, // 範囲外（min 0）— checkOptionalNumber
+        },
+        extras: {},
+        body: 'next',
+      },
+    });
+
+    expect(provider.update).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ type: 'rpcResult', id: '2d', error: { status: 400, conflict: false } });
+    const error = (result as { error: { validationErrors: string[] } }).error;
+    expect(error.validationErrors.length).toBeGreaterThan(0);
+  });
+
   it('archive は newPath を返す', async () => {
     const provider = makeProvider();
     const result = await call(provider, {

@@ -1,5 +1,6 @@
 import {
   serializeTicket,
+  validateTicketFrontmatter,
   TICKET_ASSIGNEES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -221,6 +222,17 @@ function validateListParams(params: unknown): ValidationResult<ListParams> {
   return { ok: true, value: { includeArchive: includeArchive === true } };
 }
 
+/**
+ * RPC 入力の外形検査（型ガード）。webview からの信頼できない `unknown` を、
+ * どのフィールドが存在しどんな型かだけを見て `TicketFrontmatter` の形へ絞り込む。
+ *
+ * ここでは業務ルール（UTC 日付形式・estimate/actual/ai_confidence の数値範囲・
+ * id/title 等の制御文字禁止）は検査しない。それらは tickets-core の
+ * `validateTicketFrontmatter`（単一の正）が担当する。`case 'save'` は本関数の
+ * 戻り値をさらに `validateTicketFrontmatter` へ通してから使う（create 経路は
+ * `provider.create()` が内部で同じ関数を通すため、拡張ホスト側で二重に呼ぶ必要はない）。
+ * 二重検証に見えるが役割が異なるため、どちらか一方を削らないこと。
+ */
 function validateFrontmatter(value: unknown, errors: string[]): TicketFrontmatter | undefined {
   if (!isRecord(value)) {
     errors.push('frontmatter はオブジェクトである必要があります');
@@ -369,15 +381,27 @@ async function dispatch(provider: TicketProvider, request: TicketsRpcRequest): P
       // 時刻になり「保存直後は新しく見えるが実体は古い」というクライアント状態の食い違いが起きる。
       const now = new Date().toISOString();
       const frontmatterWithNow: TicketFrontmatter = { ...frontmatter, updated_at: now };
+      // tickets-core のビジネスルール検証（validateFrontmatter は型ガードのみで、UTC 日付形式・
+      // 数値範囲・制御文字は見ていない）。create 経路は provider.create() 内部の createTicket が
+      // 同じ関数を通すため保護されているが、save 経路は provider.update() が再検証しないため、
+      // ここを通さないと不正な estimate/ai_confidence/制御文字混入がそのまま GitHub へ書き込まれる。
+      // 検証対象は「上書き後」の updated_at（now）であること。上書き前の古い値を検証しても無意味。
+      // validateTicketFrontmatter は raw: Record<string, unknown> を受け取る。TicketFrontmatter は
+      // 具象インターフェース（index signature 無し）のため変数のまま渡すと代入できないが、
+      // 新規オブジェクトリテラルとして渡せば TS が個別プロパティ単位で照合するため as は不要。
+      const businessValidation = validateTicketFrontmatter({ ...frontmatterWithNow });
+      if (!businessValidation.ok) {
+        throw new RpcValidationError(businessValidation.errors);
+      }
       // 引数順は serializeTicket(frontmatter, body, extras) — packages/tickets-core/src/ticketModel.ts で実物確認済み。
-      const content = serializeTicket(frontmatterWithNow, body, extras);
+      const content = serializeTicket(businessValidation.value, body, extras);
       const updated = await provider.update({
         path,
         content,
         version,
         message: message ?? `ticket: update ${path}`,
       });
-      return { version: updated.version, updated_at: now };
+      return { version: updated.version, updated_at: businessValidation.value.updated_at };
     }
     case 'create': {
       const parsed = validateCreateParams(request.params);
