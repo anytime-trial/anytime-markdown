@@ -435,13 +435,9 @@ function validateStructure(file: unknown): ValidationError[] {
   return errors;
 }
 
-function validateTimelineContent(
-  timeline: Record<string, unknown>,
-  counts: Record<CooccurrenceSliceTarget, number>,
-): ValidationError[] {
+/** スライスの定義そのもの（枚数・ラベル・日付・並び）を検査する。 */
+function validateSliceDefinitions(slices: readonly unknown[]): ValidationError[] {
   const errors: ValidationError[] = [];
-  const slices = prop(timeline, 'slices');
-  if (!Array.isArray(slices)) return errors;
 
   if (slices.length > COOCCURRENCE_SLICE_MAX) {
     errors.push(
@@ -491,11 +487,21 @@ function validateTimelineContent(
     previousAt = value;
   });
 
+  return errors;
+}
+
+/** スライスごとの値（配列長・添字・重複・正負・延べ件数）を検査する。 */
+function validateSliceEntries(
+  timeline: Record<string, unknown>,
+  sliceCount: number,
+  counts: Record<CooccurrenceSliceTarget, number>,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
   let entryCount = 0;
   for (const target of COOCCURRENCE_SLICE_TARGETS) {
     const perSlice = prop(timeline, target);
     if (!Array.isArray(perSlice)) continue;
-    if (perSlice.length !== slices.length) {
+    if (perSlice.length !== sliceCount) {
       errors.push(
         error(
           'slice-count-mismatch',
@@ -543,6 +549,22 @@ function validateTimelineContent(
   }
 
   return errors;
+}
+
+/**
+ * 時間軸の内容を検査する。
+ *
+ * Why not 1 つの関数に置くか: 検査は「定義そのもの」と「スライスごとの値」の 2 群に分かれ、
+ * 前者はスライス配列だけ・後者は値の配列と対象の件数を見る。1 つに置くと 3 段のループと
+ * 8 種類の分岐が同居し、認知的複雑度の上限（15）を超える。
+ */
+function validateTimelineContent(
+  timeline: Record<string, unknown>,
+  counts: Record<CooccurrenceSliceTarget, number>,
+): ValidationError[] {
+  const slices = prop(timeline, 'slices');
+  if (!Array.isArray(slices)) return [];
+  return [...validateSliceDefinitions(slices), ...validateSliceEntries(timeline, slices.length, counts)];
 }
 
 /** 生の（未検証の）時間軸から全体値の合計を求める。検証は spec の値とこれを突き合わせる。 */

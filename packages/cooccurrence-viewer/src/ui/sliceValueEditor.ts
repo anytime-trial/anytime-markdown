@@ -56,12 +56,24 @@ export function createSliceValueEditor(options: SliceValueEditorOptions): SliceV
   ensureStyles();
   let titleText = '';
   let inputs: HTMLInputElement[] = [];
+  let inputSlices: readonly CooccurrenceSlice[] = [];
 
   const element = document.createElement('div');
   element.className = 'cooc-slice-values';
   const title = document.createElement('div');
   title.className = 'cooc-slice-values__title';
   element.appendChild(title);
+
+  /**
+   * 入力欄の読み上げ名。見出し（頻度か強度か）とスライス名を連結する。
+   *
+   * この欄は語タブ（スライス別の頻度）と共起タブ（スライス別の強度）が共有するため、スライス名
+   * だけを名前にすると、支援技術にはどちらの欄も「1月」としか読まれず、何の値を入力しているのか
+   * 分からない。見出しは素の div であり、入力欄と関連付いていない。
+   */
+  function inputLabel(slice: CooccurrenceSlice): string {
+    return titleText === '' ? slice.label : `${titleText} ${slice.label}`;
+  }
 
   function render(slices: readonly CooccurrenceSlice[], values: readonly (number | undefined)[]): void {
     title.textContent = titleText;
@@ -78,7 +90,7 @@ export function createSliceValueEditor(options: SliceValueEditorOptions): SliceV
         name.textContent = slice.at === undefined ? slice.label : `${slice.label}（${slice.at}）`;
         const input = document.createElement('input');
         input.type = 'number';
-        input.setAttribute('aria-label', slice.label);
+        input.setAttribute('aria-label', inputLabel(slice));
         input.addEventListener('change', () => {
           const raw = input.value.trim();
           if (raw === '') {
@@ -98,9 +110,10 @@ export function createSliceValueEditor(options: SliceValueEditorOptions): SliceV
         if (name !== null && name !== undefined) {
           name.textContent = slice.at === undefined ? slice.label : `${slice.label}（${slice.at}）`;
         }
-        inputs[index].setAttribute('aria-label', slice.label);
+        inputs[index].setAttribute('aria-label', inputLabel(slice));
       });
     }
+    inputSlices = slices;
     inputs.forEach((input, index) => {
       if (input === focused) return;
       const value = values[index];
@@ -115,6 +128,9 @@ export function createSliceValueEditor(options: SliceValueEditorOptions): SliceV
     setTitle(text: string): void {
       titleText = text;
       title.textContent = text;
+      // 既に組んである欄の読み上げ名も貼り直す。見出しだけ差し替えると、ロケールを切り替えた
+      // 後の読み上げ名が前の言語のまま残る。
+      inputSlices.forEach((slice, index) => inputs[index]?.setAttribute('aria-label', inputLabel(slice)));
     },
     update(slices, values): void {
       render(slices, values);

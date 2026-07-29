@@ -172,7 +172,8 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
    * 表示するスライスの選択（設計書 §3.6.5）。
    *
    * 落としたスライスを挟む 2 つのレイヤーは点線で直接は結ばない。間に何があったか分からない
-   * まま線を引かないためで、`buildRenderGraph` が「隣り合うレイヤー」だけを結ぶことで満たす。
+   * まま線を引かないためで、`buildRenderGraph` が**スライスの添字**の隣接で結ぶことで満たす
+   * （描画レイヤーの番号は落とした分を詰めるため、番号の隣接で判定すると跨いでしまう）。
    */
   function renderSlices(): void {
     const sliceSpecs = state.file.spec.timeline?.slices ?? [];

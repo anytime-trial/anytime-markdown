@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { parseCoocFile } from '@anytime-markdown/graph-core/src/presets/cooccurrenceFile';
-import { writeCooccurrence } from '../../tools/writeCooccurrence';
+import { writeCooccurrence, type WriteCooccurrenceInput } from '../../tools/writeCooccurrence';
 import { readCooccurrence } from '../../tools/readCooccurrence';
 
 describe('cooccurrence tools', () => {
@@ -446,7 +446,7 @@ describe('cooccurrence timeline tools', () => {
     return parseCoocFile(await fs.readFile(path.join(tmpDir, testFile), 'utf-8'));
   }
 
-  const INPUT = {
+  const INPUT: WriteCooccurrenceInput = {
     path: 'timeline.cooc.json',
     mode: 'replace' as const,
     slices: [
@@ -559,5 +559,101 @@ describe('cooccurrence timeline tools', () => {
     expect(result.ok).toBe(false);
     expect(result.errors?.map((error) => error.code)).toContain('slice-order-not-chronological');
     await expect(fs.readFile(path.join(tmpDir, testFile), 'utf-8')).rejects.toThrow();
+  });
+});
+
+describe('時間軸を持つ図への全体値の直接指定', () => {
+  let tmpDir: string;
+  const testFile = 'timeline.cooc.json';
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-cooc-total-'));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true });
+  });
+
+  const BASE: WriteCooccurrenceInput = {
+    path: testFile,
+    mode: 'replace',
+    slices: [{ label: '1月' }, { label: '2月' }],
+    terms: [{ label: 'alpha', sliceValues: { '1月': 6, '2月': 4 } }],
+    links: [],
+  };
+
+  async function savedText(): Promise<string> {
+    return fs.readFile(path.join(tmpDir, testFile), 'utf-8');
+  }
+
+  it('sliceValues を書かずに frequency だけを渡した追記は拒否し、ファイルを書き換えない', async () => {
+    await writeCooccurrence(BASE, tmpDir);
+    const before = await savedText();
+
+    const result = await writeCooccurrence(
+      {
+        path: testFile,
+        mode: 'append',
+        slices: BASE.slices,
+        terms: [{ label: 'gamma', frequency: 5 }],
+        links: [],
+      },
+      tmpDir,
+    );
+
+    // 導出に任せると合計 0 へ潰れ、ok:true でどのレイヤーにも現れない語が書き込まれる。
+    expect(result.ok).toBe(false);
+    expect(result.errors?.map((error) => error.code)).toContain('slice-values-required');
+    expect(await savedText()).toBe(before);
+  });
+
+  it('replace でも sliceValues を書かずに frequency だけを渡せば拒否する', async () => {
+    const result = await writeCooccurrence(
+      { ...BASE, terms: [{ label: 'alpha', frequency: 10 }] },
+      tmpDir,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.map((error) => error.code)).toContain('slice-values-required');
+  });
+
+  it('共起の strength だけを渡した場合も拒否する', async () => {
+    const result = await writeCooccurrence(
+      {
+        ...BASE,
+        terms: [
+          { label: 'alpha', sliceValues: { '1月': 6 } },
+          { label: 'beta', sliceValues: { '1月': 4 } },
+        ],
+        links: [{ source: 'alpha', target: 'beta', strength: 0.9 }],
+      },
+      tmpDir,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.map((error) => error.code)).toContain('slice-values-required');
+  });
+
+  it('frequency と sliceValues の合計が食い違えば、黙って上書きせず拒否する', async () => {
+    const result = await writeCooccurrence(
+      { ...BASE, terms: [{ label: 'alpha', frequency: 99, sliceValues: { '1月': 6, '2月': 4 } }] },
+      tmpDir,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.map((error) => error.code)).toContain('total-not-editable');
+  });
+
+  it('frequency が合計と一致していれば受理する（呼び出し側の確認として書ける）', async () => {
+    const result = await writeCooccurrence(
+      { ...BASE, terms: [{ label: 'alpha', frequency: 10, sliceValues: { '1月': 6, '2月': 4 } }] },
+      tmpDir,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('時間軸を持たない図では従来どおり frequency だけで書ける', async () => {
+    const result = await writeCooccurrence(
+      { path: testFile, mode: 'replace', terms: [{ label: 'alpha', frequency: 3 }], links: [] },
+      tmpDir,
+    );
+    expect(result.ok).toBe(true);
   });
 });

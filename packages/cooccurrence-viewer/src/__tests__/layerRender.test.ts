@@ -67,11 +67,14 @@ function themeTarget(): HTMLElement {
   return document.createElement('div');
 }
 
-function buildLayers(file: CooccurrenceFile, options: { gap?: number; showTimeLinks?: boolean } = {}): RenderGraph {
+function buildLayers(
+  file: CooccurrenceFile,
+  options: { gap?: number; showTimeLinks?: boolean; visibleSliceIndexes?: number[] } = {},
+): RenderGraph {
   const slices = file.spec.timeline?.slices ?? [];
   const placements = computeLayerPlacements({
     slices,
-    visibleSliceIndexes: slices.map((_slice, index) => index),
+    visibleSliceIndexes: options.visibleSliceIndexes ?? slices.map((_slice, index) => index),
     bounds: unionBounds(POSITIONS, RADIUS_MAX),
     axis: 'horizontal',
     gap: options.gap ?? 160,
@@ -236,6 +239,22 @@ describe('レイヤー間の点線', () => {
     const graph = buildLayers(timelineFile());
     expect(graph.timeLinks.every((timeLink) => timeLink.y1 === timeLink.y2)).toBe(true);
     expect(graph.timeLinks.every((timeLink) => timeLink.x1 < timeLink.x2)).toBe(true);
+  });
+
+  it('表示から外したスライスを挟む 2 枚は結ばない', () => {
+    // 1月・3月だけを表示する。語 A は 3 枚すべてに存在するため、レイヤー番号の隣接で結ぶ実装
+    // では 1月→3月 の点線が引かれ、隠した 2月 に何があったか分からないまま「ずっと存在した」
+    // のと同じ見た目になる（設計書 §3.6.5）。
+    const graph = buildLayers(timelineFile(), { visibleSliceIndexes: [0, 2] });
+    expect(graph.layers.map((layer) => layer.slice)).toEqual([0, 2]);
+    expect(graph.nodes.filter((node) => node.index === 0)).toHaveLength(2);
+    expect(graph.timeLinks).toEqual([]);
+  });
+
+  it('表示から外したスライスが端にあるだけなら、残りは従来どおり結ぶ', () => {
+    // 1月・2月を表示（3月だけを外す）。隣接は保たれるので点線は引く。
+    const graph = buildLayers(timelineFile(), { visibleSliceIndexes: [0, 1] });
+    expect(graph.timeLinks.map((timeLink) => timeLink.nodeIndex)).toEqual([0]);
   });
 
   it('点線を切ると 1 本も引かない', () => {

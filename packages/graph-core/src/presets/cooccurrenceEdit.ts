@@ -265,15 +265,17 @@ export function deleteCooccurrenceNode(file: CooccurrenceFile, nodeIndex: number
   // 語のメモは語と同じ規則で繰り上がる。共起のメモは「道連れで消えた共起」の分だけ詰まるため、
   // 削除前の共起の並びから残存判定を作って付け替える（添字の対応を語側の remap から導けない）。
   setNotes(next, 'nodes', remap);
-  const keptLinkIndexes: number[] = [];
+  // Why not 残った添字の配列を作って indexOf で引くか: 付け替えはメモだけでなく全スライスの
+  // 共起エントリ（上限 8,000 件）にも適用される。共起 3,000 本の図で語を 1 つ消すたびに
+  // 8,000 × 3,000 回の走査になる。対応を Map で持つ。
+  const keptLinkPositions = new Map<number, number>();
   file.spec.links.forEach((link, index) => {
     const view = readLink(link);
-    if (remap(view.source) !== undefined && remap(view.target) !== undefined) keptLinkIndexes.push(index);
+    if (remap(view.source) !== undefined && remap(view.target) !== undefined) {
+      keptLinkPositions.set(index, keptLinkPositions.size);
+    }
   });
-  const remapLink = (index: number): number | undefined => {
-    const position = keptLinkIndexes.indexOf(index);
-    return position === -1 ? undefined : position;
-  };
+  const remapLink = (index: number): number | undefined => keptLinkPositions.get(index);
   setNotes(next, 'links', remapLink);
 
   // スライスの添字もメモと同じ規則で付け替える。共起側は「道連れで消えた共起」の分だけ詰まるため、

@@ -67,10 +67,21 @@ function scaleRanges(file: CooccurrenceFile, layered: boolean): { frequency: Val
   };
 }
 
-/** レイヤー間の点線。隣り合うレイヤーの両方に描かれた語だけを結ぶ（設計書 §3.6.3）。 */
-function buildTimeLinks(nodesByLayer: readonly RenderNode[][]): RenderTimeLink[] {
+/**
+ * レイヤー間の点線。隣り合う**スライス**の両方に描かれた語だけを結ぶ（設計書 §3.6.3・§3.6.5）。
+ *
+ * Why not 描画レイヤーの隣接で判定するか: 表示するスライスを絞ると、落としたスライスの分は
+ * 詰めてレイヤー番号を振り直す（`computeLayerPlacements`）。レイヤー番号の隣接で結ぶと、
+ * 隠したスライスを挟む 2 枚が直接つながり、その間に何があったか分からないまま「全期間を通して
+ * 存在し続けた」のと同じ見た目になる。判定はスライスの添字で行う。
+ */
+function buildTimeLinks(
+  nodesByLayer: readonly RenderNode[][],
+  placements: readonly RenderLayer[],
+): RenderTimeLink[] {
   const timeLinks: RenderTimeLink[] = [];
   for (let layer = 0; layer + 1 < nodesByLayer.length; layer++) {
+    if (placements[layer + 1]?.slice !== (placements[layer]?.slice ?? -1) + 1) continue;
     const next = new Map(nodesByLayer[layer + 1].map((node) => [node.index, node]));
     for (const node of nodesByLayer[layer]) {
       const partner = next.get(node.index);
@@ -175,7 +186,7 @@ export function buildRenderGraph(options: BuildRenderGraphOptions): RenderGraph 
   return {
     nodes: nodesByLayer.flat(),
     links,
-    timeLinks: layered && options.showTimeLinks !== false ? buildTimeLinks(nodesByLayer) : [],
+    timeLinks: layered && options.showTimeLinks !== false ? buildTimeLinks(nodesByLayer, placements) : [],
     layers: placements,
   };
 }

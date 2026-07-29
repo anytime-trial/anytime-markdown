@@ -130,6 +130,14 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   const clusterSelect = document.createElement('select');
   edit.append(labelInput, frequencyInput, clusterSelect);
 
+  /*
+   * スライス別の値の欄は「選択中の語の値の表示」と「追加する語の値の入力」を兼ねる。
+   *
+   * Why not 追加用の欄を分けるか: 語名・頻度・クラスタも同じ欄を兼ねており（設計書 §3.5 の
+   * 編集フォーム）、スライス値だけ別の欄にすると、追加のときだけ入力先が 2 箇所へ分かれる。
+   * 語を選んだまま追加すると選択語の値を引きずるが、値は画面に見えたままなので黙って失われる
+   * わけではない。
+   */
   const sliceValues: SliceValueEditorHandle = createSliceValueEditor({
     onSet(sliceIndex, value) {
       if (state.selectedNodeIndex === null) return;

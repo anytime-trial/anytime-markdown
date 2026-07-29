@@ -394,3 +394,54 @@ describe('スライスを指定した絞り込み', () => {
     expect([...result.nodeIndexes].sort()).toEqual([0, 1, 2]);
   });
 });
+
+describe('サイズ予算（設計書 §2.3・§4.4）', () => {
+  /** 1,000 語・3,000 共起・座標つきで、上限いっぱいの時間軸を持つファイル。 */
+  function budgetFile(): CooccurrenceFile {
+    const nodeCount = 1000;
+    const linkCount = 3000;
+    const sliceCount = COOCCURRENCE_SLICE_MAX;
+    // 延べエントリ数を上限（8,000）へ寄せる。1 スライスあたり語 250 + 共起 83 = 333。
+    const nodesPerSlice = 250;
+    const linksPerSlice = 83;
+    const nodes = Array.from({ length: nodeCount }, (_unused, i) => ({ label: `語${i}`, frequency: 0 }));
+    const links = Array.from({ length: linkCount }, (_unused, i): [number, number, number] => [
+      i % nodeCount,
+      (i + 1) % nodeCount,
+      0,
+    ]);
+    const timeline = {
+      slices: Array.from({ length: sliceCount }, (_unused, s) => ({ label: `第${s}期`, at: undefined })).map(
+        (slice) => ({ label: slice.label }),
+      ),
+      nodes: Array.from({ length: sliceCount }, (_unused, s) =>
+        Array.from({ length: nodesPerSlice }, (_u, i): [number, number] => [(s * nodesPerSlice + i) % nodeCount, 3]),
+      ),
+      links: Array.from({ length: sliceCount }, (_unused, s) =>
+        Array.from({ length: linksPerSlice }, (_u, i): [number, number] => [(s * linksPerSlice + i) % linkCount, 0.75]),
+      ),
+    };
+    return {
+      meta: { schemaVersion: 4, generatedAt: '2026-07-29T00:00:00.000Z', origin: 'manual' },
+      spec: { nodes, links, timeline },
+      layout: {
+        positions: Array.from({ length: nodeCount }, (_unused, i): [number, number] => [i * 1.5, i * 2.5]),
+        specHash: 'x'.repeat(64),
+        algorithmVersion: 'v1',
+      },
+    };
+  }
+
+  it('24 スライス・延べ 8,000 エントリ以内なら 200KB に収まる', () => {
+    const file = budgetFile();
+    // 上限の根拠（1 エントリ約 11 バイト）を守るのは件数ではなくバイト数なので、両方を測る。
+    expect(cooccurrenceSliceEntryCount(file.spec.timeline)).toBeLessThanOrEqual(COOCCURRENCE_SLICE_ENTRY_MAX);
+    const bytes = Buffer.byteLength(serializeCoocFile(file), 'utf8');
+    expect(bytes).toBeLessThanOrEqual(200 * 1024);
+  });
+
+  it('上限いっぱいの時間軸でも検証を通る', () => {
+    // 全体値は書き出しで導出されるため、検証は書き出した結果に対して行う。
+    expect(validateCooccurrenceFile(parseCoocFile(serializeCoocFile(budgetFile())))).toEqual([]);
+  });
+});

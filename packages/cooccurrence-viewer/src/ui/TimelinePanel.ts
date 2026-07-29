@@ -30,6 +30,15 @@ export interface TimelinePanelState {
 export interface TimelinePanelOptions extends TimelinePanelState {
   onFileChange(file: CooccurrenceFile): void;
   onViewChange(view: TimelineViewState): void;
+  /**
+   * スライスの改名が成った。旧ラベルと新ラベルを渡す。
+   *
+   * 「表示するスライス」の選択はラベルで持つため（設計書 §3.6.5）、改名はラベルが動く唯一の
+   * 操作である。付け替えないと、表示中のスライスを改名しただけでそのレイヤーが選択から外れ、
+   * 図から消える。削除・並べ替えでラベルが動かないことを理由にラベルを選んだ以上、動く操作は
+   * ここで面倒を見る。
+   */
+  onSliceRenamed(from: string, to: string): void;
 }
 
 export interface TimelinePanelHandle {
@@ -191,7 +200,10 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
   addButton.addEventListener('click', () => {
     const label = addLabel.value.trim();
     const at = addAt.value.trim();
-    showResult(addCooccurrenceSlice(state.file, at === '' ? { label } : { label, at }));
+    const result = addCooccurrenceSlice(state.file, at === '' ? { label } : { label, at });
+    showResult(result);
+    // 失敗したときは入力を残す。ラベルの重複や日付の書式で拒否されたときに打ち直しを強いない。
+    if (!result.ok) return;
     addLabel.value = '';
     addAt.value = '';
   });
@@ -227,7 +239,10 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
       function commit(): void {
         const label = labelInput.value.trim();
         const at = atInput.value.trim();
-        showResult(renameCooccurrenceSlice(state.file, index, at === '' ? { label } : { label, at }));
+        const previousLabel = slice.label;
+        const result = renameCooccurrenceSlice(state.file, index, at === '' ? { label } : { label, at });
+        if (result.ok && label !== previousLabel) options.onSliceRenamed(previousLabel, label);
+        showResult(result);
       }
       labelInput.addEventListener('change', commit);
       atInput.addEventListener('change', commit);

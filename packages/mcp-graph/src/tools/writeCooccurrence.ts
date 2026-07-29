@@ -16,7 +16,9 @@ import {
   type CooccurrenceNoteTarget,
 } from '@anytime-markdown/graph-core/src/presets/cooccurrenceNotes';
 import {
+  hasCooccurrenceTimeline,
   readCooccurrenceSliceValue,
+  roundCooccurrenceTotal,
   withCooccurrenceSliceValue,
   type CooccurrenceSlice,
   type CooccurrenceSliceTarget,
@@ -249,6 +251,52 @@ function attachSliceValues(
   return errors;
 }
 
+/**
+ * 時間軸を持つ図に対する入力の規則を課す（設計書 §2.2・§2.6）。
+ *
+ * Why not 導出（`withDerivedTotals`）に任せて黙って合計へ揃えるか: `sliceValues` を書かずに
+ * `frequency` だけを渡した入力が「合計 0」へ潰され、`ok: true` でファイルが書き換わる。呼び出し側は
+ * 書けたと受け取るが、その語はどのレイヤーにも現れない。同じ入力は graph-core の編集経路
+ * （`addCooccurrenceNode`）では `slice-values-required` で拒否されるため、放置すると
+ * 「UI からは拒否される入力が MCP からは通る」状態になり、§2.6 が守っている
+ * 「経路によって受理されたり拒否されたりしない」が崩れる。
+ */
+function validateTimelineInput(input: WriteCooccurrenceInput, hasTimeline: boolean): ValidationError[] {
+  if (!hasTimeline) return [];
+  const errors: ValidationError[] = [];
+  const check = (
+    sliceValues: CooccurrenceSliceValueInput | undefined,
+    total: number | undefined,
+    inputPath: string,
+    totalField: string,
+  ): void => {
+    if (sliceValues === undefined) {
+      errors.push(
+        validationError(
+          'slice-values-required',
+          inputPath,
+          `file has a time axis; pass sliceValues instead of ${totalField}`,
+        ),
+      );
+      return;
+    }
+    if (total === undefined) return;
+    const sum = Object.values(sliceValues).reduce((accumulated, value) => accumulated + value, 0);
+    if (roundCooccurrenceTotal(total) !== roundCooccurrenceTotal(sum)) {
+      errors.push(
+        validationError(
+          'total-not-editable',
+          `${inputPath}.${totalField}`,
+          `${totalField} is derived from sliceValues (${roundCooccurrenceTotal(sum)}); omit it`,
+        ),
+      );
+    }
+  };
+  input.terms.forEach((term, i) => check(term.sliceValues, term.frequency, `terms.${i}`, 'frequency'));
+  input.links.forEach((link, i) => check(link.sliceValues, link.strength, `links.${i}`, 'strength'));
+  return errors;
+}
+
 function resolveLabel(indexes: Map<string, number>, label: string, inputPath: string): number | ValidationError {
   const index = indexes.get(label);
   if (index === undefined) {
@@ -420,7 +468,12 @@ function applyInput(base: CooccurrenceFile, input: WriteCooccurrenceInput): Buil
   // ときに「版数と内容が一致しない」で自分の書き込みが検証に落ちる。
   file.meta.schemaVersion = schemaVersionForSpec(file.spec);
 
-  const errors = [...labelErrors, ...sliceErrors, ...validateCooccurrenceFile(file)];
+  const errors = [
+    ...labelErrors,
+    ...sliceErrors,
+    ...validateTimelineInput(input, hasCooccurrenceTimeline(file.spec)),
+    ...validateCooccurrenceFile(file),
+  ];
   if (errors.length > 0) return { ok: false, path: input.path, errors };
   return { ok: true, path: input.path, file };
 }

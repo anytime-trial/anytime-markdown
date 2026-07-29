@@ -305,6 +305,16 @@ describe('スライスの増減と表示するスライスの選択', () => {
     buttons[2].dispatchEvent(new MouseEvent('click', { bubbles: true }));
   }
 
+  /** ラベルで行を引いて名前を書き換える。 */
+  function renameSlice(container: HTMLElement, from: string, to: string): void {
+    const rows = [...container.querySelectorAll('.cooc-timeline__slice')];
+    const row = rows.find((entry) => (entry.querySelector('input') as HTMLInputElement | null)?.value === from);
+    if (row === undefined) throw new Error(`slice row not found: ${from}`);
+    const input = row.querySelector('input') as HTMLInputElement;
+    input.value = to;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   function threeSlices(): Mounted {
     const mounted = mount();
     openTimelineTab(mounted.container);
@@ -337,6 +347,24 @@ describe('スライスの増減と表示するスライスの選択', () => {
     expect(mounted.latest().spec.timeline?.slices.map((slice) => slice.label)).toEqual(['2月', '3月']);
     expect(shownLabels(mounted)).toEqual(['2月']);
     expect(mounted.handle.getTimelineLayerState()?.layerCount).toBe(1);
+    mounted.handle.destroy();
+  });
+
+  it('表示中のスライスを改名しても、そのレイヤーが消えない', async () => {
+    const mounted = threeSlices();
+    await flush();
+    // 3 月を外す（1 月と 2 月を描く）。
+    uncheck(mounted.container, 2);
+    expect(mounted.handle.getTimelineLayerState()?.layerCount).toBe(2);
+
+    // 1 月を改名する。選択をラベルで持つ以上、改名はラベルが動く唯一の操作であり、
+    // 付け替えないと改名したスライスが選択から外れてレイヤーが消える。
+    openTimelineTab(mounted.container);
+    renameSlice(mounted.container, '1月', '第1期');
+
+    expect(mounted.latest().spec.timeline?.slices.map((slice) => slice.label)).toEqual(['第1期', '2月', '3月']);
+    expect(mounted.handle.getTimelineLayerState()?.layerCount).toBe(2);
+    expect(shownLabels(mounted)).toEqual(['第1期', '2月']);
     mounted.handle.destroy();
   });
 

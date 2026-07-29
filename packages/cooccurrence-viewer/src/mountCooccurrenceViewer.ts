@@ -404,6 +404,14 @@ export function mountCooccurrenceViewer(
       view: timelineView,
       t,
       onFileChange: (nextFile) => applyFileChange(nextFile, true),
+      onSliceRenamed(from, to) {
+        const selected = timelineView.selectedSliceLabels;
+        if (selected === undefined || !selected.includes(from)) return;
+        timelineView = {
+          ...timelineView,
+          selectedSliceLabels: selected.map((label) => (label === from ? to : label)),
+        };
+      },
       onViewChange(nextView) {
         timelineView = nextView;
         // 表示状態を変えただけなのでレイアウトは走らない。図の組み直しだけを要求する
@@ -945,8 +953,11 @@ export function mountCooccurrenceViewer(
     getLayoutRunCount: () => layoutRunCount,
     getRenderFrameCount: () => scheduler?.getFrameCount() ?? 0,
     getFilterCounts: () => filterCounts,
+    // レイヤー表示の「意図」で null を分ける。描いた枚数で分けると、「レイヤー表示のはずなのに
+    // 1 枚も描いていない」（全て非表示にした・選択がどのスライスにも一致しない）が単一表示と
+    // 同じ null に潰れ、外から区別できない（設計書 §6.4）。
     getTimelineLayerState: () =>
-      graph.layers.length === 0
+      !isLayered()
         ? null
         : { axis: timelineView.axis, layerCount: graph.layers.length, timeLinkCount: graph.timeLinks.length },
     getMinimapDrawCount: () => minimapPanel?.getDrawCount() ?? 0,
