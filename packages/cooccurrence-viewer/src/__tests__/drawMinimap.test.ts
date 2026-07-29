@@ -53,6 +53,7 @@ function createRecordingContext(): Recorded {
 function node(overrides: Partial<RenderNode> = {}): RenderNode {
   return {
     index: 0,
+    layer: 0,
     label: 'A',
     frequency: 5,
     clusterIndex: undefined,
@@ -87,7 +88,9 @@ function theme(): CooccurrenceTheme {
 const SIZE = { width: 240, height: 120 };
 const GRAPH: RenderGraph = {
   nodes: [node({ index: 0, x: -100, y: -50 }), node({ index: 1, x: 100, y: 50 })],
-  links: [{ index: 0, source: 0, target: 1, strength: 3, width: 2, direction: LINK_DIRECTION.none, hasNote: false }],
+  links: [{ index: 0, layer: 0, source: 0, target: 1, strength: 3, width: 2, direction: LINK_DIRECTION.none, hasNote: false }],
+  timeLinks: [],
+  layers: [],
 };
 
 function draw(graph: RenderGraph, frame: ReturnType<typeof visibleRect> | null): Recorded {
@@ -136,7 +139,7 @@ describe('minimap drawing', () => {
   });
 
   it('draws nothing but the background for an empty graph', () => {
-    const recorded = draw({ nodes: [], links: [] }, null);
+    const recorded = draw({ nodes: [], links: [], timeLinks: [], layers: [] }, null);
 
     expect(recorded.arcs).toEqual([]);
     expect(recorded.lines).toBe(0);

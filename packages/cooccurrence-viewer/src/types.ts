@@ -58,6 +58,23 @@ export interface CooccurrenceViewerHandle {
    * 出ていないときは null。
    */
   getNotePopupState(): NotePopupState | null;
+  /**
+   * 観測点。レイヤー表示の状態（設計書 §6.4）。レイヤー表示でないときは null。
+   *
+   * 点線の本数を外から読めるようにするのは、「隣り合うレイヤーの両方に存在する語だけを結ぶ」
+   * という条件（§3.6.3）が壊れても図が破綻しないためである。跨いで結ぶ実装も、1 本も引かない
+   * 実装も、見た目は「点線のある図」であり続ける。
+   */
+  getTimelineLayerState(): TimelineLayerState | null;
+}
+
+/** 観測点。レイヤー表示の状態。 */
+export interface TimelineLayerState {
+  axis: LayerAxis;
+  /** 描いたレイヤーの枚数。 */
+  layerCount: number;
+  /** 直近の組み立てで引いたレイヤー間の点線の本数。 */
+  timeLinkCount: number;
 }
 
 /** ポップアップの対象。クラスタは図に図形を持たないためパネルの一覧行から出る（設計書 §3.1）。 */
@@ -96,8 +113,35 @@ export interface CanvasSize {
   height: number;
 }
 
+/** レイヤーを並べる向き（設計書 §3.6.2）。表示状態でありファイルへは書かない。 */
+export type LayerAxis = 'horizontal' | 'vertical';
+
+/** 時間軸の表示状態。ビューアが保持し、`.cooc.json` へは書かない（設計書 §3.6.2）。 */
+export interface TimelineViewState {
+  /** レイヤー表示にするか。時間軸を持つファイルの既定は true（設計書 §3.6.4）。 */
+  layered: boolean;
+  axis: LayerAxis;
+  /** レイヤー間の余白（世界座標）。 */
+  gap: number;
+  /** レイヤー間の点線を描くか。 */
+  showTimeLinks: boolean;
+  /**
+   * 表示するスライスの添字（設計書 §3.6.5）。`undefined` は全て表示。
+   *
+   * 空配列（1 枚も表示しない）と `undefined`（全表示）を区別する。同じ扱いにすると、利用者が
+   * 全てのチェックを外した状態が黙って全表示へ戻る。
+   */
+  selectedSlices?: readonly number[];
+}
+
 export interface RenderNode {
   index: number;
+  /**
+   * このレイヤーの並び順（レイヤー表示でないときは 0）。
+   *
+   * 同じ `index` の語がレイヤーの数だけ現れるため、語を一意に指すには `layer` と組で扱う。
+   */
+  layer: number;
   label: string;
   frequency: number;
   clusterIndex: number | undefined;
@@ -116,6 +160,8 @@ export interface RenderNode {
 
 export interface RenderLink {
   index: number;
+  /** 端点はこのレイヤーの語を指す（レイヤー表示でないときは 0）。 */
+  layer: number;
   source: number;
   target: number;
   strength: number;
@@ -126,7 +172,43 @@ export interface RenderLink {
   hasNote: boolean;
 }
 
+/**
+ * レイヤーをまたいで同じ語を結ぶ点線（設計書 §3.6.3）。
+ *
+ * 共起（`RenderLink`）と別の型にするのは、示すものが違うためである。共起は語どうしの関係、
+ * これは同じ語の同一性を示す。同じ型に混ぜると、向き・強度・メモといった共起の属性が
+ * 意味を持たないまま付いて回る。
+ */
+export interface RenderTimeLink {
+  /** 結んでいる語の添字（両端で同じ）。 */
+  nodeIndex: number;
+  fromLayer: number;
+  toLayer: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/** 描いたレイヤー 1 枚。レイヤー表示でないときは空配列になる。 */
+export interface RenderLayer {
+  layer: number;
+  /** 対応する `spec.timeline.slices` の添字。 */
+  slice: number;
+  label: string;
+  at?: string;
+  offsetX: number;
+  offsetY: number;
+  /** レイヤー名を描く位置（世界座標。レイヤーが占める矩形の左上）。 */
+  labelX: number;
+  labelY: number;
+}
+
 export interface RenderGraph {
   nodes: readonly RenderNode[];
   links: readonly RenderLink[];
+  /** レイヤー間の点線。単一表示と、点線を切っているときは空。 */
+  timeLinks: readonly RenderTimeLink[];
+  /** 描いたレイヤー。単一表示のときは空（レイヤー表示かどうかの判定に使う）。 */
+  layers: readonly RenderLayer[];
 }

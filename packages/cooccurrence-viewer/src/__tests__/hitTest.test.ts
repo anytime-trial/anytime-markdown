@@ -4,6 +4,7 @@ import { hitTestLink, hitTestNode } from '../viewport/hitTest';
 function node(index: number, x: number): RenderNode {
   return {
     index,
+    layer: 0,
     label: `node-${index}`,
     frequency: 1,
     clusterIndex: undefined,
@@ -22,24 +23,24 @@ function node(index: number, x: number): RenderNode {
 
 describe('hitTestNode', () => {
   it('finds a node from screen coordinates through the viewport', () => {
-    const graph: RenderGraph = { nodes: [node(0, 10)], links: [] };
+    const graph: RenderGraph = { nodes: [node(0, 10)], links: [], timeLinks: [], layers: [] };
     expect(hitTestNode(graph, 30, 0, { scale: 2, offsetX: 10, offsetY: 0 })?.index).toBe(0);
   });
 
   it('returns null outside every circle', () => {
-    const graph: RenderGraph = { nodes: [node(0, 10)], links: [] };
+    const graph: RenderGraph = { nodes: [node(0, 10)], links: [], timeLinks: [], layers: [] };
     expect(hitTestNode(graph, 100, 0, { scale: 1, offsetX: 0, offsetY: 0 })).toBeNull();
   });
 });
 
 function link(overrides: Partial<RenderLink> = {}): RenderLink {
-  return { index: 0, source: 0, target: 1, strength: 1, width: 2, direction: 0, hasNote: false, ...overrides };
+  return { index: 0, layer: 0, source: 0, target: 1, strength: 1, width: 2, direction: 0, hasNote: false, ...overrides };
 }
 
 const IDENTITY = { scale: 1, offsetX: 0, offsetY: 0 };
 
 describe('hitTestLink', () => {
-  const graph: RenderGraph = { nodes: [node(0, 0), node(1, 200)], links: [link()] };
+  const graph: RenderGraph = { nodes: [node(0, 0), node(1, 200)], links: [link()], timeLinks: [], layers: [] };
 
   it('線の上を拾う', () => {
     expect(hitTestLink(graph, 100, 0, IDENTITY)?.index).toBe(0);
@@ -70,7 +71,9 @@ describe('hitTestLink', () => {
   it('重なった線では近いほうを拾う', () => {
     const overlapping: RenderGraph = {
       nodes: [node(0, 0), node(1, 200), { ...node(2, 0), y: 8 }, { ...node(3, 200), y: 8 }],
-      links: [link({ index: 0 }), link({ index: 1, source: 2, target: 3 })],
+      links: [link({ index: 0 }), link({ index: 1, layer: 0, source: 2, target: 3 })],
+      timeLinks: [],
+      layers: [],
     };
     expect(hitTestLink(overlapping, 100, 7, IDENTITY)?.index).toBe(1);
     expect(hitTestLink(overlapping, 100, 1, IDENTITY)?.index).toBe(0);

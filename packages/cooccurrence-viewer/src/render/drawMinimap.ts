@@ -2,6 +2,7 @@ import type { RenderGraph, ViewportState } from '../types';
 import type { CooccurrenceTheme } from '../theme/readTheme';
 import type { MinimapRect } from '../ui/minimapModel';
 import { worldToScreen } from '../viewport/viewport';
+import { buildNodeLookup, linkEndpoints } from './nodeLookup';
 
 /** ミニマップ上で円が消えない最小半径（CSS ピクセル）。 */
 const MIN_NODE_RADIUS = 1;
@@ -39,14 +40,14 @@ export function drawMinimap(opts: DrawMinimapOptions): void {
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, width, height);
 
-  const nodeByIndex = new Map(graph.nodes.map((node) => [node.index, node]));
+  const lookup = buildNodeLookup(graph.nodes);
 
   ctx.strokeStyle = theme.link;
   ctx.lineWidth = LINK_WIDTH;
   for (const link of graph.links) {
-    const source = nodeByIndex.get(link.source);
-    const target = nodeByIndex.get(link.target);
-    if (!source || !target) continue;
+    const endpoints = linkEndpoints(lookup, link);
+    if (endpoints === null) continue;
+    const { source, target } = endpoints;
     const from = worldToScreen({ x: source.x, y: source.y }, viewport);
     const to = worldToScreen({ x: target.x, y: target.y }, viewport);
     ctx.beginPath();

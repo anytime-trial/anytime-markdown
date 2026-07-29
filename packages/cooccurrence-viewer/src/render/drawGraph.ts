@@ -4,6 +4,18 @@ import type { CooccurrenceTheme } from '../theme/readTheme';
 import { arrowHeadPoints, type ArrowHead } from './arrow';
 import { computeNeighborhoodHighlight } from './highlight';
 import { selectVisibleLabels } from './labels';
+import { buildNodeLookup, linkEndpoints } from './nodeLookup';
+import { worldToScreen } from '../viewport/viewport';
+
+/** レイヤー間の点線の見え方（設計書 §3.6.3）。矢印は持たず、共起の線より低いコントラストで描く。 */
+const TIME_LINK_DASH = [4, 4];
+const TIME_LINK_WIDTH = 1;
+const TIME_LINK_ALPHA = 0.45;
+
+/** レイヤー名の文字の大きさ（画面ピクセル）。視野の縮尺に依らず読める大きさで固定する。 */
+const LAYER_LABEL_FONT_SIZE = 13;
+/** レイヤー名を、レイヤーの矩形の上端からどれだけ離すか（画面ピクセル）。 */
+const LAYER_LABEL_MARGIN = 6;
 
 /**
  * 座標系の契約: `drawGraph` は CSS ピクセル座標で描き、基底の変換行列（devicePixelRatio）は
@@ -88,16 +100,34 @@ export function drawGraph(opts: DrawGraphOptions): void {
   ctx.fillRect(0, 0, width, height);
 
   const highlight = computeNeighborhoodHighlight(graph, selectedNodeIndex);
-  const nodeByIndex = new Map(graph.nodes.map((node) => [node.index, node]));
+  const lookup = buildNodeLookup(graph.nodes);
 
   ctx.save();
   ctx.translate(viewport.offsetX, viewport.offsetY);
   ctx.scale(viewport.scale, viewport.scale);
 
+  // レイヤー間の点線は最背面へ。同一性を示す線であり、語どうしの関係を示す共起の線と同じ強さで
+  // 描くと 2 種類の線が混ざる（設計書 §3.6.3）。
+  if (graph.timeLinks.length > 0) {
+    ctx.save();
+    ctx.setLineDash(TIME_LINK_DASH);
+    ctx.strokeStyle = theme.link;
+    ctx.lineWidth = TIME_LINK_WIDTH;
+    for (const timeLink of graph.timeLinks) {
+      ctx.globalAlpha = visibleAlpha(selectedNodeIndex, highlight?.nodeIndexes, timeLink.nodeIndex) * TIME_LINK_ALPHA;
+      ctx.beginPath();
+      ctx.moveTo(timeLink.x1, timeLink.y1);
+      ctx.lineTo(timeLink.x2, timeLink.y2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
   for (const link of graph.links) {
-    const source = nodeByIndex.get(link.source);
-    const target = nodeByIndex.get(link.target);
-    if (!source || !target) continue;
+    const endpoints = linkEndpoints(lookup, link);
+    if (endpoints === null) continue;
+    const { source, target } = endpoints;
     const selectedAlpha = selectedNodeIndex === null || highlight?.linkIndexes.has(link.index) ? 1 : 0.14;
     ctx.globalAlpha = selectedAlpha;
     ctx.strokeStyle = theme.link;
@@ -141,6 +171,18 @@ export function drawGraph(opts: DrawGraphOptions): void {
   }
   ctx.restore();
   ctx.globalAlpha = 1;
+
+  // レイヤー名は世界座標ではなく画面ピクセルで描く。世界座標で描くと、縮小したときに真っ先に
+  // 読めなくなるのがレイヤー名になる（どのレイヤーを見ているかは、縮小しているときほど要る）。
+  for (const layer of graph.layers) {
+    const anchor = worldToScreen({ x: layer.labelX, y: layer.labelY }, viewport);
+    ctx.font = `${LAYER_LABEL_FONT_SIZE}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = theme.text;
+    const text = layer.at === undefined ? layer.label : `${layer.label}（${layer.at}）`;
+    ctx.fillText(text, anchor.x, anchor.y - LAYER_LABEL_MARGIN);
+  }
 
   const labels = selectVisibleLabels(
     graph.nodes,

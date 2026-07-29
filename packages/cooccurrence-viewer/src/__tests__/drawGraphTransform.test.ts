@@ -95,6 +95,7 @@ function createRecordingContext(base: Matrix): RecordingContext {
 function node(overrides: Partial<RenderNode> = {}): RenderNode {
   return {
     index: 0,
+    layer: 0,
     label: 'A',
     frequency: 5,
     clusterIndex: undefined,
@@ -141,7 +142,7 @@ function drawAt(dpr: number, viewport: ViewportState, graph: RenderGraph): Recor
 }
 
 describe('円とラベルは同じ座標系で描かれる', () => {
-  const graph: RenderGraph = { nodes: [node()], links: [] };
+  const graph: RenderGraph = { nodes: [node()], links: [], timeLinks: [], layers: [] };
 
   it.each([
     ['dpr=1', 1, { scale: 1, offsetX: 0, offsetY: 0 }],
@@ -180,7 +181,7 @@ describe('円とラベルは同じ座標系で描かれる', () => {
   it('メモを持つ語には円の右上に印を描く', () => {
     const dpr = 2;
     const noted = node({ hasNote: true });
-    const { arcs } = drawAt(dpr, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [noted], links: [] });
+    const { arcs } = drawAt(dpr, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [noted], links: [], timeLinks: [], layers: [] });
 
     expect(arcs).toHaveLength(2);
     const offset = (noted.radius * Math.SQRT1_2) * dpr;
@@ -190,7 +191,7 @@ describe('円とラベルは同じ座標系で描かれる', () => {
   });
 
   it('メモを持たない語には印を描かない', () => {
-    const { arcs } = drawAt(2, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [node()], links: [] });
+    const { arcs } = drawAt(2, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [node()], links: [], timeLinks: [], layers: [] });
 
     expect(arcs).toHaveLength(1);
   });

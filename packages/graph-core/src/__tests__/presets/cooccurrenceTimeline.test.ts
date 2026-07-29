@@ -21,6 +21,7 @@ import {
   withDerivedTotals,
   type CooccurrenceFile,
 } from '../../presets/cooccurrenceFile';
+import { filterCooccurrenceFile } from '../../presets/cooccurrenceFilter';
 
 function timeline(): CooccurrenceTimeline {
   return {
@@ -351,5 +352,45 @@ describe('時間軸と座標キャッシュ・往復', () => {
     file.spec.nodes[0].frequency = 99;
     const parsed = JSON.parse(serializeCoocFile(file));
     expect(parsed.spec.nodes[0].frequency).toBe(10);
+  });
+});
+
+describe('スライスを指定した絞り込み', () => {
+  function sliceFile(): CooccurrenceFile {
+    return fileWithTimeline();
+  }
+
+  it('そのスライスに現れない語と共起は最初から外れる', () => {
+    const result = filterCooccurrenceFile(sliceFile(), { sliceIndex: 0 });
+    expect([...result.nodeIndexes].sort()).toEqual([0, 1]);
+    expect([...result.linkIndexes].sort()).toEqual([0]);
+  });
+
+  it('最小出現頻度はスライスの値で判定する（全体値では判定しない）', () => {
+    // 語 0 は 1 月に 6、2 月に 4、全体で 10。閾値 5 を 2 月へ適用すると外れる。
+    const january = filterCooccurrenceFile(sliceFile(), { sliceIndex: 0, minFrequency: 5 });
+    expect(january.nodeIndexes.has(0)).toBe(true);
+    const february = filterCooccurrenceFile(sliceFile(), { sliceIndex: 1, minFrequency: 5 });
+    expect(february.nodeIndexes.has(0)).toBe(false);
+    // 全体値（10）で判定していれば 2 月でも残ってしまう。
+    const union = filterCooccurrenceFile(sliceFile(), { minFrequency: 5 });
+    expect(union.nodeIndexes.has(0)).toBe(true);
+  });
+
+  it('最小共起強度もスライスの値で判定する', () => {
+    const january = filterCooccurrenceFile(sliceFile(), { sliceIndex: 0, minStrength: 0.8 });
+    expect(january.linkIndexes.has(0)).toBe(true);
+    const strict = filterCooccurrenceFile(sliceFile(), { sliceIndex: 0, minStrength: 0.95 });
+    expect(strict.linkIndexes.has(0)).toBe(false);
+  });
+
+  it('最小値 0 でも不在の語は描かれない（不在を 0 とみなさない）', () => {
+    const result = filterCooccurrenceFile(sliceFile(), { sliceIndex: 0, minFrequency: 0 });
+    expect(result.nodeIndexes.has(2)).toBe(false);
+  });
+
+  it('スライスを指定しなければ従来どおり全体値で判定する', () => {
+    const result = filterCooccurrenceFile(sliceFile(), {});
+    expect([...result.nodeIndexes].sort()).toEqual([0, 1, 2]);
   });
 });

@@ -1,6 +1,7 @@
 import {
   BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
   computeSpecHash,
+  cooccurrenceSliceCount,
   filterCooccurrenceFile,
   readLink,
   writeLink,
@@ -15,11 +16,16 @@ import type {
   LayoutStatus,
   RenderGraph,
   RenderNode,
+  TimelineLayerState,
+  TimelineViewState,
   ViewportState,
 } from './types';
 import { evaluateLayoutCache } from './layout/cache';
 import { LayoutCancelledError, startLayoutJob, type LayoutJob } from './layout/runLayout';
-import { buildRenderGraph } from './render/buildRenderGraph';
+import { buildRenderGraph, type RenderLayerInput } from './render/buildRenderGraph';
+import { computeLayerPlacements, unionBounds } from './render/layerLayout';
+import { RADIUS_MAX } from './render/scales';
+import { defaultTimelineViewState, visibleSliceIndexes } from './ui/timelineModel';
 import { graphBounds } from './render/bounds';
 import { updateCanvasSize } from './render/canvasSize';
 import { createRenderScheduler, type RenderScheduler } from './render/renderScheduler';
@@ -116,7 +122,8 @@ export function mountCooccurrenceViewer(
   let cacheDecision: CacheDecision = 'miss-absent';
   let layoutRunCount = 0;
   let positions: Array<[number, number]> = file.layout?.positions ?? fallbackPositions(file);
-  let graph: RenderGraph = { nodes: [], links: [] };
+  let graph: RenderGraph = { nodes: [], links: [], timeLinks: [], layers: [] };
+  let timelineView: TimelineViewState = defaultTimelineViewState();
   let viewport: ViewportState = { scale: 1, offsetX: 0, offsetY: 0 };
   let notePopup: NotePopupHandle | null = null;
   let selectedNodeIndex: number | null = null;
@@ -516,17 +523,81 @@ export function mountCooccurrenceViewer(
     notePopup?.show(popupState, toRootPoint(client));
   }
 
+  function isLayered(): boolean {
+    return timelineView.layered && cooccurrenceSliceCount(file.spec) > 0;
+  }
+
+  /**
+   * レイヤー表示の 1 枚ごとの表示対象を作る。
+   *
+   * 絞り込みの 5 条件はレイヤーごとに、そのスライスの値を基準として適用する（設計書 §3.6.5）。
+   * 全体値を基準にすると、あるスライスで 1 回しか現れない語が、全期間で 50 回現れることを
+   * 理由に全レイヤーへ描かれる。
+   */
+  function buildLayerInputs(): { inputs: RenderLayerInput[]; nodes: Set<number>; links: Set<number> } {
+    const timeline = file.spec.timeline;
+    const slices = timeline?.slices ?? [];
+    const placements = computeLayerPlacements({
+      slices,
+      visibleSliceIndexes: visibleSliceIndexes(slices.length, timelineView.selectedSlices),
+      bounds: unionBounds(positions, RADIUS_MAX),
+      axis: timelineView.axis,
+      gap: timelineView.gap,
+    });
+    const nodes = new Set<number>();
+    const links = new Set<number>();
+    const inputs = placements.map((placement) => {
+      const filtered = filterCooccurrenceFile(file, { ...options.filter, sliceIndex: placement.slice });
+      filtered.nodeIndexes.forEach((index) => nodes.add(index));
+      filtered.linkIndexes.forEach((index) => links.add(index));
+      return {
+        placement,
+        visibleNodeIndexes: filtered.nodeIndexes,
+        visibleLinkIndexes: filtered.linkIndexes,
+      };
+    });
+    return { inputs, nodes, links };
+  }
+
   function rebuildGraph(): void {
-    const filtered = filterCooccurrenceFile(file, options.filter);
-    filterCounts = filtered.counts;
-    visibleNodeIndexes = filtered.nodeIndexes;
-    visibleLinkIndexes = filtered.linkIndexes;
-    graph = buildRenderGraph(file, filtered.nodeIndexes, filtered.linkIndexes, positions, root, themeMode);
+    if (isLayered()) {
+      const layered = buildLayerInputs();
+      // 表示件数は「1 枚でも描かれた語・共起」を数える。レイヤーごとの延べ数にすると、全体の
+      // 語数（分母）と桁が揃わず、どれだけ絞れているのかが読めなくなる。
+      visibleNodeIndexes = layered.nodes;
+      visibleLinkIndexes = layered.links;
+      filterCounts = {
+        visibleNodeCount: layered.nodes.size,
+        visibleLinkCount: layered.links.size,
+        totalNodeCount: file.spec.nodes.length,
+        totalLinkCount: file.spec.links.length,
+      };
+      graph = buildRenderGraph({
+        file,
+        positions,
+        themeTarget: root,
+        mode: themeMode,
+        layers: layered.inputs,
+        showTimeLinks: timelineView.showTimeLinks,
+      });
+    } else {
+      const filtered = filterCooccurrenceFile(file, options.filter);
+      filterCounts = filtered.counts;
+      visibleNodeIndexes = filtered.nodeIndexes;
+      visibleLinkIndexes = filtered.linkIndexes;
+      graph = buildRenderGraph({
+        file,
+        positions,
+        themeTarget: root,
+        mode: themeMode,
+        layers: [{ visibleNodeIndexes: filtered.nodeIndexes, visibleLinkIndexes: filtered.linkIndexes }],
+      });
+    }
     statusEl.textContent = t('status.summary', {
-      visibleWords: filtered.counts.visibleNodeCount,
-      totalWords: filtered.counts.totalNodeCount,
-      visibleCooccurrences: filtered.counts.visibleLinkCount,
-      totalCooccurrences: filtered.counts.totalLinkCount,
+      visibleWords: filterCounts.visibleNodeCount,
+      totalWords: filterCounts.totalNodeCount,
+      visibleCooccurrences: filterCounts.visibleLinkCount,
+      totalCooccurrences: filterCounts.totalLinkCount,
       layoutStatus: layoutStatusLabel(),
     });
     if (!fitted) {
@@ -804,6 +875,10 @@ export function mountCooccurrenceViewer(
     getLayoutRunCount: () => layoutRunCount,
     getRenderFrameCount: () => scheduler?.getFrameCount() ?? 0,
     getFilterCounts: () => filterCounts,
+    getTimelineLayerState: () =>
+      graph.layers.length === 0
+        ? null
+        : { axis: timelineView.axis, layerCount: graph.layers.length, timeLinkCount: graph.timeLinks.length },
     getMinimapDrawCount: () => minimapPanel?.getDrawCount() ?? 0,
     getNotePopupState: () => notePopup?.getState() ?? null,
   };
