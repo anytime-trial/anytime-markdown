@@ -26,6 +26,14 @@ export interface WordListPanelOptions extends WordListPanelState {
 export interface WordListPanelHandle {
   element: HTMLElement;
   update(state: WordListPanelState): void;
+  /**
+   * 行だけを作り直す。
+   *
+   * 隠れている間は viewport の clientHeight が 0 になり、仮想リストの可視ウィンドウが
+   * 0 行として確定する。再表示しても状態は変わらないため update() は呼ばれず、一覧が
+   * 空のまま残る。表示へ戻す側が明示的に呼ぶ。
+   */
+  refresh(): void;
   destroy(): void;
 }
 
@@ -282,6 +290,9 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       state = nextState;
       t = state.t;
       render();
+    },
+    refresh(): void {
+      renderRows();
     },
     destroy(): void {
       element.remove();

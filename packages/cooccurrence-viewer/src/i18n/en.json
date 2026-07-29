@@ -6,6 +6,8 @@
     "toolbar.exportPng": "PNG",
     "toolbar.hidePanels": "Hide panels",
     "toolbar.showPanels": "Show panels",
+    "tabs.filter": "Filter",
+    "tabs.edit": "Edit elements",
     "filter.title": "Filters",
     "filter.minFrequency": "Minimum frequency",
     "filter.minStrength": "Minimum cooccurrence strength",

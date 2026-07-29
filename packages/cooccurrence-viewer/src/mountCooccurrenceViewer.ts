@@ -24,6 +24,8 @@ import { createCooccurrenceT, type CooccurrenceT } from './i18n/createCooccurren
 import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
+import { createTabBar, type TabBarHandle, type TabBarItem } from './ui/TabBar';
+import type { CooccurrenceTabId } from './ui/tabModel';
 import { ensureButtonBaseStyles } from './ui/buttonBaseStyle';
 import { fitBounds, pan, zoomAt } from './viewport/viewport';
 import { hitTestNode } from './viewport/hitTest';
@@ -43,6 +45,8 @@ function ensureStyles(): void {
 .cooc-viewer__canvas:active{cursor:grabbing}
 .cooc-viewer__panels{width:300px;min-width:240px;max-width:40%;height:100%;min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--cooc-divider);background:var(--cooc-bg);overflow-y:auto;overflow-x:hidden}
 .cooc-viewer__panels[hidden]{display:none}
+.cooc-viewer__tabpanel{flex:1 1 0;min-height:0;display:flex;flex-direction:column}
+.cooc-viewer__tabpanel[hidden]{display:none}
 .cooc-viewer__toolbar{position:absolute;inset:12px 12px auto auto;display:flex;gap:8px;align-items:center}
 .cooc-viewer__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 10px;font:12px system-ui,sans-serif}
 .cooc-viewer__button:hover{background:var(--cooc-action-hover)}
@@ -156,6 +160,21 @@ export function mountCooccurrenceViewer(
   let visibleNodeIndexes: ReadonlySet<number> = new Set();
   let filterPanel: FilterPanelHandle | null = null;
   let wordListPanel: WordListPanelHandle | null = null;
+  let tabBar: TabBarHandle | null = null;
+  let activeTab: CooccurrenceTabId = 'filter';
+
+  // タブの内容は隠す側も DOM に残す。破棄すると絞り込みの入力値と、入力中のフォーカス復帰
+  // （FilterPanel が activeElement を見て行う）が切り替えのたびに失われる。
+  const filterTabPanel = document.createElement('div');
+  filterTabPanel.className = 'cooc-viewer__tabpanel';
+  filterTabPanel.id = 'cooc-panel-filter';
+  filterTabPanel.setAttribute('role', 'tabpanel');
+  filterTabPanel.setAttribute('aria-labelledby', 'cooc-panel-filter-tab');
+  const editTabPanel = document.createElement('div');
+  editTabPanel.className = 'cooc-viewer__tabpanel';
+  editTabPanel.id = 'cooc-panel-edit';
+  editTabPanel.setAttribute('role', 'tabpanel');
+  editTabPanel.setAttribute('aria-labelledby', 'cooc-panel-edit-tab');
 
   function canvasLabel(): string {
     return file.spec.title ? t('canvas.labelWithTitle', { title: file.spec.title }) : t('canvas.label');
@@ -225,7 +244,38 @@ export function mountCooccurrenceViewer(
       },
       onFileChange: (nextFile) => applyFileChange(nextFile, true),
     });
-    panelRoot.append(filterPanel.element, wordListPanel.element);
+    filterTabPanel.appendChild(filterPanel.element);
+    editTabPanel.appendChild(wordListPanel.element);
+    tabBar = createTabBar({
+      items: tabItems(),
+      activeId: activeTab,
+      onSelect(id) {
+        activeTab = id;
+        syncActiveTab();
+      },
+    });
+    panelRoot.append(tabBar.element, filterTabPanel, editTabPanel);
+    syncActiveTab();
+  }
+
+  function tabItems(): readonly TabBarItem[] {
+    return [
+      { id: 'filter', label: t('tabs.filter'), panelId: 'cooc-panel-filter' },
+      { id: 'edit', label: t('tabs.edit'), panelId: 'cooc-panel-edit' },
+    ];
+  }
+
+  /**
+   * 選択中のタブを画面へ反映する。
+   *
+   * 語一覧は隠れている間 viewport の高さが 0 になり、仮想リストの可視ウィンドウが 0 行で
+   * 確定する。表示へ戻すだけでは状態が変わらず再描画も走らないため、ここで作り直す。
+   */
+  function syncActiveTab(): void {
+    filterTabPanel.hidden = activeTab !== 'filter';
+    editTabPanel.hidden = activeTab !== 'edit';
+    tabBar?.update(tabItems(), activeTab);
+    if (activeTab === 'edit') wordListPanel?.refresh();
   }
 
   function syncPanelVisibility(): void {
@@ -233,6 +283,9 @@ export function mountCooccurrenceViewer(
     if (showPanels) {
       ensurePanels();
       updatePanels();
+      // 再表示では ensurePanels() が既存の handle を返して何もしないため、
+      // タブの表示と語一覧の行はここで戻す。
+      syncActiveTab();
     }
   }
 
@@ -482,6 +535,8 @@ export function mountCooccurrenceViewer(
         options = { ...options, locale: partial.locale };
         t = createCooccurrenceT('Cooccurrence', partial.locale);
         syncCanvasLabel();
+        // タブ見出しはパネルの update を経由しないため、ここで訳し直さないと旧言語で残る。
+        syncActiveTab();
       }
       if (partial.capabilities !== undefined) options = { ...options, capabilities: partial.capabilities };
       if (partial.showPanels !== undefined) {
