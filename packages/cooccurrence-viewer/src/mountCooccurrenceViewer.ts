@@ -708,11 +708,13 @@ export function mountCooccurrenceViewer(
         updatePanels();
       }
       if (partial.file !== undefined) {
+        // applyFileChange が内部で updatePanels() まで済ませる。ここで重ねて呼ぶと、同じ状態で
+        // 一覧を 2 回作り直すだけになる。
         applyFileChange(partial.file, false);
       } else {
         rebuildGraph();
+        updatePanels();
       }
-      updatePanels();
       syncStatusUi();
     },
     destroy(): void {

@@ -199,6 +199,20 @@ describe('共起の向きの編集', () => {
     if (result.ok) expect(readLink(result.file.spec.links[1]).direction).toBe(LINK_DIRECTION.forward);
   });
 
+  it('向き付きでも自己共起の追加を拒否する', () => {
+    // 編集 UI・MCP・読み込みの 3 経路が同じ検証関数を共有する（設計書 §2.6）。向きを付けた
+    // だけで受理されると、UI から不正なファイルを作れる。
+    expect(addCooccurrenceLink(file(), [0, 0, 5, LINK_DIRECTION.forward]).ok).toBe(false);
+  });
+
+  it('向き付きでも負の強度を拒否する', () => {
+    expect(addCooccurrenceLink(file(), [0, 1, -5, LINK_DIRECTION.both]).ok).toBe(false);
+  });
+
+  it('向き付きでも範囲外の端点を拒否する', () => {
+    expect(addCooccurrenceLink(file(), [0, 99, 5, LINK_DIRECTION.backward]).ok).toBe(false);
+  });
+
   it('語の削除で残る共起の向きと端点が保たれる', () => {
     // 語 0 を削除すると links[0]（端点に語 0 を持つ）が消え、元 links[1] = [1, 3] が
     // [0, 2] へ繰り上がる。向きは端点の添字が変わっても「どちらからどちらへ」を保つ。

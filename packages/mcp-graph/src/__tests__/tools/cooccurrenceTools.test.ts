@@ -245,6 +245,37 @@ describe('cooccurrence tools', () => {
       expect(result.links[0].direction).toBe('none');
     });
 
+    it('向き付きでも自己共起を拒否しファイルを書き換えない', async () => {
+      await write('forward');
+      const before = await fs.readFile(path.join(tmpDir, testFile), 'utf-8');
+      const result = await writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'replace',
+          terms,
+          links: [{ source: 'alpha', target: 'alpha', strength: 5, direction: 'forward' }],
+        },
+        tmpDir,
+      );
+
+      expect(result.ok).toBe(false);
+      expect(await fs.readFile(path.join(tmpDir, testFile), 'utf-8')).toBe(before);
+    });
+
+    it('向き付きでも負の強度を拒否する', async () => {
+      const result = await writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'replace',
+          terms,
+          links: [{ source: 'alpha', target: 'beta', strength: -1, direction: 'both' }],
+        },
+        tmpDir,
+      );
+
+      expect(result.ok).toBe(false);
+    });
+
     it('追記でも向きが保たれる', async () => {
       await write('forward');
       await writeCooccurrence(

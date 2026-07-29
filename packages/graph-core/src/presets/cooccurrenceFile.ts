@@ -312,7 +312,10 @@ export function validateCooccurrenceFile(file: unknown): ValidationError[] {
   const links = prop(spec, 'links');
   if (Array.isArray(links)) {
     links.forEach((link, i) => {
-      if (!Array.isArray(link) || link.length !== 3) return;
+      // 長さで早期 return すると、向き付き（4 要素）の共起だけが自己共起・端点の範囲・負の強度の
+      // 検証を素通りする。構造の検証（validateStructure）と内容の検証はループが別なので、
+      // 受け入れる長さを両方で揃える。
+      if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) return;
       const a = link[0];
       const b = link[1];
       const strength = link[2];

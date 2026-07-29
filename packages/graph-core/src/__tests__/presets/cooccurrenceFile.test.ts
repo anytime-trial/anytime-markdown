@@ -309,6 +309,31 @@ describe('向きの検証', () => {
   it('要素数が 2 の共起は従来どおり拒否する', () => {
     expect(validateCooccurrenceFile(base([[0, 1]], 1))).toHaveLength(1);
   });
+
+  // 内容の検証（自己共起・端点の範囲・負の強度）は構造の検証とは別のループにある。タプルの
+  // 長さで早期 return すると、向き付きの共起だけが内容検証を素通りする。
+  describe('向き付きでも内容の検証が効く', () => {
+    it('自己共起を拒否する', () => {
+      const errors = validateCooccurrenceFile(base([[0, 0, 5, 1]], 2));
+      expect(errors.map((e) => e.code)).toContain('self-cooccurrence');
+    });
+
+    it('範囲外の端点を拒否する', () => {
+      const errors = validateCooccurrenceFile(base([[0, 99, 5, 1]], 2));
+      expect(errors.map((e) => e.code)).toContain('link-endpoint-out-of-range');
+    });
+
+    it('負の強度を拒否する', () => {
+      const errors = validateCooccurrenceFile(base([[0, 1, -5, 2]], 2));
+      expect(errors.map((e) => e.code)).toContain('negative-link-strength');
+    });
+
+    it('3 要素と 4 要素で同じ理由を返す', () => {
+      const three = validateCooccurrenceFile(base([[0, 0, -5]], 1)).map((e) => e.code).sort();
+      const four = validateCooccurrenceFile(base([[0, 0, -5, 1]], 2)).map((e) => e.code).sort();
+      expect(four).toEqual(three);
+    });
+  });
 });
 
 describe('readLink / writeLink', () => {
