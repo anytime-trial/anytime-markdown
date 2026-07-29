@@ -1,4 +1,6 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "types": ["node", "jest"] }
+  "compilerOptions": { "types": ["node", "jest"] },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/webview/**"]
 }
