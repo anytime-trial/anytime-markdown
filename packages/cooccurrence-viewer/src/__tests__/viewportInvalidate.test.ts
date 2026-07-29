@@ -4,7 +4,6 @@
 import { BARNES_HUT_LAYOUT_ALGORITHM_VERSION, computeSpecHash, type CooccurrenceFile } from '@anytime-markdown/graph-core';
 import { mountCooccurrenceViewer } from '../mountCooccurrenceViewer';
 import type { CooccurrenceViewerHandle } from '../types';
-import ja from '../i18n/ja.json';
 
 function file(): CooccurrenceFile {
   const base: CooccurrenceFile = {
@@ -26,11 +25,22 @@ function flushFrames(): void {
   queued.forEach((cb) => cb(0));
 }
 
-function findButton(label: string): HTMLButtonElement {
-  const buttons = [...document.querySelectorAll<HTMLButtonElement>('.cooc-viewer__button')];
-  const button = buttons.find((candidate) => candidate.textContent === label);
-  if (!button) throw new Error(`ボタンが見つからない: ${label}（候補: ${buttons.map((b) => b.textContent).join(', ')}）`);
+let resizeCallbacks: Array<() => void> = [];
+function fireResize(): void {
+  resizeCallbacks.forEach((cb) => cb());
+}
+
+/** ミニマップの操作ボタン。タブを開いてから押す。 */
+function minimapButton(action: 'zoom-in' | 'zoom-out' | 'fit'): HTMLButtonElement {
+  const button = document.querySelector<HTMLButtonElement>(`.cooc-minimap__button[data-action="${action}"]`);
+  if (!button) throw new Error(`ミニマップのボタンが見つからない: ${action}`);
   return button;
+}
+
+function openMinimapTab(): void {
+  const tab = document.querySelector<HTMLButtonElement>('#cooc-panel-minimap-tab');
+  if (!tab) throw new Error('ミニマップタブが見つからない');
+  tab.click();
 }
 
 /**
@@ -45,22 +55,33 @@ describe('viewport を変える操作は再描画を要求する', () => {
 
   beforeEach(() => {
     pending = [];
+    resizeCallbacks = [];
     jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       setTransform() {}, clearRect() {}, fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {},
       stroke() {}, arc() {}, fill() {}, measureText: () => ({ width: 10 }), fillText() {},
       save() {}, restore() {}, closePath() {}, translate() {}, scale() {}, rect() {}, clip() {},
-      roundRect() {},
+      roundRect() {}, strokeRect() {},
       set fillStyle(_v: string) {}, set strokeStyle(_v: string) {}, set lineWidth(_v: number) {},
       set font(_v: string) {}, set globalAlpha(_v: number) {}, set textAlign(_v: string) {},
       set textBaseline(_v: string) {}, set lineJoin(_v: string) {}, set lineCap(_v: string) {},
     } as unknown as CanvasRenderingContext2D);
+    // jsdom はレイアウトを計算せず clientWidth / clientHeight が常に 0 になる。ミニマップは
+    // 寸法 0 で描画を打ち切る（隠れているタブでの空振りを避けるため）ので、寸法を与えないと
+    // 「描かれた回数」の検査そのものが成立しない（常に 0 で、退行と区別がつかない）。
+    for (const property of ['clientWidth', 'clientHeight'] as const) {
+      Object.defineProperty(HTMLElement.prototype, property, { value: 300, configurable: true });
+    }
     Object.defineProperty(window, 'requestAnimationFrame', {
       value: (cb: FrameRequestCallback) => { pending.push(cb); return pending.length; },
       configurable: true,
     });
     Object.defineProperty(window, 'cancelAnimationFrame', { value: jest.fn(), configurable: true });
     Object.defineProperty(window, 'ResizeObserver', {
-      value: class { observe(): void {} disconnect(): void {} },
+      value: class {
+        constructor(callback: () => void) { resizeCallbacks.push(callback); }
+        observe(): void {}
+        disconnect(): void {}
+      },
       configurable: true,
     });
   });
@@ -80,11 +101,17 @@ describe('viewport を変える操作は再描画を要求する', () => {
     return handle;
   }
 
-  it('全体表示ボタンで再描画される', () => {
+  it.each([
+    ['全体表示', 'fit'],
+    ['拡大', 'zoom-in'],
+    ['縮小', 'zoom-out'],
+  ] as const)('ミニマップの %s ボタンで再描画される', (_name, action) => {
     const viewer = mount();
+    openMinimapTab();
+    flushFrames();
     const before = viewer.getRenderFrameCount();
 
-    findButton(ja.Cooccurrence['toolbar.fit']).click();
+    minimapButton(action).click();
     flushFrames();
 
     expect(viewer.getRenderFrameCount()).toBe(before + 1);
@@ -113,6 +140,98 @@ describe('viewport を変える操作は再描画を要求する', () => {
     flushFrames();
 
     expect(viewer.getRenderFrameCount()).toBe(before + 1);
+  });
+
+  it('ミニマップを押すと表示位置が動いて再描画される', () => {
+    const viewer = mount();
+    openMinimapTab();
+    flushFrames();
+    const minimapCanvas = document.querySelector('.cooc-minimap__canvas');
+    const before = viewer.getRenderFrameCount();
+
+    // jsdom は PointerEvent を持たない。座標を運ぶのは MouseEvent 側の口なので、
+    // 同じ型名のイベントを MouseEvent で組んで流す。
+    minimapCanvas?.dispatchEvent(new MouseEvent('pointerdown', { clientX: 20, clientY: 10, bubbles: true }));
+    flushFrames();
+
+    expect(viewer.getRenderFrameCount()).toBe(before + 1);
+  });
+
+  /**
+   * ミニマップは図の視野そのものを映す面であり、要求時にだけ描く。要求の書き忘れは
+   * 「図だけが動いて枠が取り残される」形でしか現れず、図側の描画回数
+   * （`getRenderFrameCount`）では捕まらない。専用の観測点で固定する。
+   */
+  describe('ミニマップの描き直し', () => {
+    it('タブを開いた時点で描かれる', () => {
+      const viewer = mount();
+      const before = viewer.getMinimapDrawCount();
+
+      openMinimapTab();
+      flushFrames();
+
+      expect(viewer.getMinimapDrawCount()).toBe(before + 1);
+    });
+
+    it('図を動かすと枠が追従して描き直される', () => {
+      const viewer = mount();
+      openMinimapTab();
+      flushFrames();
+      const canvas = document.querySelector('.cooc-viewer__canvas');
+      const before = viewer.getMinimapDrawCount();
+
+      canvas?.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true, cancelable: true }));
+      flushFrames();
+
+      expect(viewer.getMinimapDrawCount()).toBe(before + 1);
+    });
+
+    it('表示領域の寸法が変わると描き直される', () => {
+      // 枠は図の canvas の寸法から計算する。視野が動かなくても、ウィンドウの大きさが
+      // 変われば見えている範囲は変わる。
+      const viewer = mount();
+      openMinimapTab();
+      flushFrames();
+      const before = viewer.getMinimapDrawCount();
+
+      fireResize();
+      flushFrames();
+
+      expect(viewer.getMinimapDrawCount()).toBe(before + 1);
+    });
+
+    it.each([
+      ['ArrowRight'],
+      ['ArrowLeft'],
+      ['ArrowUp'],
+      ['ArrowDown'],
+    ])('矢印キー %s で表示位置が動いて描き直される', (key) => {
+      // ポインタ専用の面にしない（キーボードだけの利用者が位置を動かせる）。
+      const viewer = mount();
+      openMinimapTab();
+      flushFrames();
+      const minimapCanvas = document.querySelector('.cooc-minimap__canvas');
+      const before = viewer.getRenderFrameCount();
+      const minimapBefore = viewer.getMinimapDrawCount();
+
+      minimapCanvas?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      flushFrames();
+
+      expect(viewer.getRenderFrameCount()).toBe(before + 1);
+      expect(viewer.getMinimapDrawCount()).toBe(minimapBefore + 1);
+    });
+
+    it('隠れている間は描かない', () => {
+      const viewer = mount();
+      const canvas = document.querySelector('.cooc-viewer__canvas');
+      const before = viewer.getMinimapDrawCount();
+
+      // 既定は絞り込みタブ。この状態で図を操作しても、見えていない面は描かない。
+      canvas?.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true, cancelable: true }));
+      flushFrames();
+
+      expect(viewer.getMinimapDrawCount()).toBe(before);
+    });
   });
 
   it('ホイールのズームで再描画される', () => {

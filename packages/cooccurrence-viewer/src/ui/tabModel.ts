@@ -1,5 +1,5 @@
 /** 右サイドパネルのタブ。表示順に並べる。 */
-export const COOC_TAB_IDS = ['filter', 'edit'] as const;
+export const COOC_TAB_IDS = ['filter', 'edit', 'minimap', 'export'] as const;
 
 export type CooccurrenceTabId = (typeof COOC_TAB_IDS)[number];
 
@@ -21,22 +21,37 @@ export function tabElementId(panelId: string): string {
 /**
  * キー入力に対する次のタブを返す。選択を動かさないキーは null を返す。
  *
+ * `displayedIds` は今そこにあるタブだけを表示順に並べたもの。ホストが保存も PNG も
+ * 提供しない場合は保存タブを出さないため（仕様 §3.5・§6.3）、巡回対象は
+ * {@link COOC_TAB_IDS} と一致しない。
+ *
+ * Why not `displayedIds` を省略可能にして既定を全タブにするか: 呼び出し側が渡し忘れても
+ * 動いてしまい、存在しないタブを選ぶ状態が無言で戻る。省略できない引数にして、
+ * 表示集合を変えた箇所が必ず型で止まるようにする。
+ *
  * Why not キー処理を DOM 側へ直接書くか: 折り返しと Home/End の境界は取り違えやすく、
  * DOM の中に埋めると jsdom のキーイベント経由でしか検査できない。境界だけを純関数に
  * 出して固定する。
  */
-export function nextTabId(current: CooccurrenceTabId, key: string): CooccurrenceTabId | null {
-  const index = COOC_TAB_IDS.indexOf(current);
-  const last = COOC_TAB_IDS.length - 1;
+export function nextTabId(
+  current: CooccurrenceTabId,
+  key: string,
+  displayedIds: readonly CooccurrenceTabId[],
+): CooccurrenceTabId | null {
+  const last = displayedIds.length - 1;
+  if (last < 0) return null;
+  const index = displayedIds.indexOf(current);
+  // 選択中のタブが消えた直後。動かさないと、どのキーを押しても反応しない状態が残る。
+  if (index < 0) return displayedIds[0] ?? null;
   switch (key) {
     case 'ArrowRight':
-      return COOC_TAB_IDS[index === last ? 0 : index + 1] ?? null;
+      return displayedIds[index === last ? 0 : index + 1] ?? null;
     case 'ArrowLeft':
-      return COOC_TAB_IDS[index === 0 ? last : index - 1] ?? null;
+      return displayedIds[index === 0 ? last : index - 1] ?? null;
     case 'Home':
-      return COOC_TAB_IDS[0] ?? null;
+      return displayedIds[0] ?? null;
     case 'End':
-      return COOC_TAB_IDS[last] ?? null;
+      return displayedIds[last] ?? null;
     default:
       return null;
   }

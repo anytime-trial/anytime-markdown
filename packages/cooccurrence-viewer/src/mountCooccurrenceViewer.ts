@@ -19,13 +19,17 @@ import { evaluateLayoutCache } from './layout/cache';
 import { LayoutCancelledError, startLayoutJob, type LayoutJob } from './layout/runLayout';
 import { buildRenderGraph } from './render/buildRenderGraph';
 import { graphBounds } from './render/bounds';
+import { updateCanvasSize } from './render/canvasSize';
 import { createRenderScheduler, type RenderScheduler } from './render/renderScheduler';
 import { createCooccurrenceT, type CooccurrenceT } from './i18n/createCooccurrenceT';
 import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
+import { createMinimapPanel, type MinimapPanelHandle } from './ui/MinimapPanel';
+import { createExportPanel, type ExportPanelHandle, type ExportPanelState } from './ui/ExportPanel';
 import { createTabBar, type TabBarHandle, type TabBarItem } from './ui/TabBar';
-import { tabElementId, tabPanelElementId, type CooccurrenceTabId } from './ui/tabModel';
+import { COOC_TAB_IDS, tabElementId, tabPanelElementId, type CooccurrenceTabId } from './ui/tabModel';
+import { zoomViewportCenter } from './ui/minimapModel';
 import { ensureButtonBaseStyles } from './ui/buttonBaseStyle';
 import { fitBounds, pan, zoomAt } from './viewport/viewport';
 import { hitTestNode } from './viewport/hitTest';
@@ -79,16 +83,6 @@ function fallbackPositions(file: CooccurrenceFile): Array<[number, number]> {
 function canvasPoint(canvas: HTMLCanvasElement, event: MouseEvent | WheelEvent | PointerEvent): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-}
-
-function updateCanvasSize(canvas: HTMLCanvasElement): { width: number; height: number } {
-  const parent = canvas.parentElement;
-  const width = parent?.clientWidth ?? 0;
-  const height = parent?.clientHeight ?? 0;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.floor(width * dpr));
-  canvas.height = Math.max(1, Math.floor(height * dpr));
-  return { width, height };
 }
 
 export function mountCooccurrenceViewer(
@@ -160,6 +154,8 @@ export function mountCooccurrenceViewer(
   let visibleNodeIndexes: ReadonlySet<number> = new Set();
   let filterPanel: FilterPanelHandle | null = null;
   let wordListPanel: WordListPanelHandle | null = null;
+  let minimapPanel: MinimapPanelHandle | null = null;
+  let exportPanel: ExportPanelHandle | null = null;
   let tabBar: TabBarHandle | null = null;
   let activeTab: CooccurrenceTabId = 'filter';
 
@@ -176,6 +172,39 @@ export function mountCooccurrenceViewer(
 
   const filterTabPanel = createTabPanel('filter');
   const editTabPanel = createTabPanel('edit');
+  const minimapTabPanel = createTabPanel('minimap');
+  const exportTabPanel = createTabPanel('export');
+
+  /**
+   * 今そこにあるタブ。保存も PNG も提供しないホストでは保存タブを出さない（仕様 §3.5・§6.3）。
+   * タブ列・矢印キーの巡回・表示の切り替えは、いずれもこの並びを唯一の根拠にする。
+   */
+  function displayedTabIds(): readonly CooccurrenceTabId[] {
+    return COOC_TAB_IDS.filter((id) => id !== 'export' || canExport());
+  }
+
+  function canSave(): boolean {
+    return options.capabilities?.save === true && options.onRequestSave !== undefined;
+  }
+
+  function canExportPng(): boolean {
+    return options.capabilities?.exportPng === true && options.onExportPng !== undefined;
+  }
+
+  function canExport(): boolean {
+    return canSave() || canExportPng();
+  }
+
+  /**
+   * 保存タブへ渡す状態。
+   *
+   * capability とコールバックの両方を見た結果だけを渡す。パネル側で判定させると、
+   * `capabilities.save` は true だが `onRequestSave` が無いホストで、押しても
+   * 何も起きないボタンが出る。
+   */
+  function exportPanelState(): ExportPanelState {
+    return { canSave: canSave(), canExportPng: canExportPng(), layoutStatus: status, t };
+  }
 
   function canvasLabel(): string {
     return file.spec.title ? t('canvas.labelWithTitle', { title: file.spec.title }) : t('canvas.label');
@@ -206,6 +235,10 @@ export function mountCooccurrenceViewer(
     const wordsState = { file, visibleNodeIndexes, selectedNodeIndex, t };
     filterPanel?.update(filterState);
     wordListPanel?.update(wordsState);
+    syncExportPanel();
+    minimapPanel?.setT(t);
+    minimapPanel?.refresh();
+    exportPanel?.update(exportPanelState());
   }
 
   function applyFileChange(nextFile: CooccurrenceFile, notifyHost: boolean): void {
@@ -245,8 +278,19 @@ export function mountCooccurrenceViewer(
       },
       onFileChange: (nextFile) => applyFileChange(nextFile, true),
     });
+    minimapPanel = createMinimapPanel({
+      themeHost: root,
+      t,
+      getState: () => ({ graph, viewport, canvasSize: canvasDisplaySize(), themeMode }),
+      onViewportChange: setViewport,
+      onZoom(factor) {
+        setViewport(zoomViewportCenter(viewport, canvasDisplaySize(), factor));
+      },
+      onFitContent: fitToGraph,
+    });
     filterTabPanel.appendChild(filterPanel.element);
     editTabPanel.appendChild(wordListPanel.element);
+    minimapTabPanel.appendChild(minimapPanel.element);
     tabBar = createTabBar({
       items: tabItems(),
       activeId: activeTab,
@@ -255,15 +299,56 @@ export function mountCooccurrenceViewer(
         syncActiveTab();
       },
     });
-    panelRoot.append(tabBar.element, filterTabPanel, editTabPanel);
+    panelRoot.append(tabBar.element, filterTabPanel, editTabPanel, minimapTabPanel);
+    syncExportPanel();
     syncActiveTab();
   }
 
+  /**
+   * 保存タブを capability に合わせて出し入れする。
+   *
+   * ホストは `update({ capabilities })` で後から対応状況を変えられる。作るだけにすると、
+   * 対応が外れた後も保存タブが残り、押しても何も起きないボタンが並ぶ。
+   */
+  function syncExportPanel(): void {
+    if (canExport() === (exportPanel !== null)) return;
+    if (exportPanel) {
+      exportPanel.destroy();
+      exportPanel = null;
+      exportTabPanel.remove();
+      return;
+    }
+    exportPanel = createExportPanel({
+      ...exportPanelState(),
+      onRequestSave: saveCompletedLayout,
+      onExportPng: exportPng,
+    });
+    exportTabPanel.appendChild(exportPanel.element);
+    panelRoot.appendChild(exportTabPanel);
+  }
+
+  /**
+   * タブ 1 枚ぶんの見出し。
+   *
+   * Why not キーを表引きにまとめるか: 辞書の使用状況は `t(キー)` の直書きを走査して
+   * 検査している（`i18n.test.ts`）。変数越しに引くと走査から外れ、使われているキーが
+   * 「参照ゼロ」と判定される。
+   */
+  function tabItem(id: CooccurrenceTabId): TabBarItem {
+    switch (id) {
+      case 'filter':
+        return { id, label: t('tabs.filter'), panelId: filterTabPanel.id };
+      case 'edit':
+        return { id, label: t('tabs.edit'), panelId: editTabPanel.id };
+      case 'minimap':
+        return { id, label: t('tabs.minimap'), panelId: minimapTabPanel.id };
+      case 'export':
+        return { id, label: t('tabs.export'), panelId: exportTabPanel.id };
+    }
+  }
+
   function tabItems(): readonly TabBarItem[] {
-    return [
-      { id: 'filter', label: t('tabs.filter'), panelId: filterTabPanel.id },
-      { id: 'edit', label: t('tabs.edit'), panelId: editTabPanel.id },
-    ];
+    return displayedTabIds().map(tabItem);
   }
 
   /**
@@ -274,10 +359,17 @@ export function mountCooccurrenceViewer(
    * ここで作り直す。
    */
   function syncActiveTab(): void {
+    const displayed = displayedTabIds();
+    // 選択中のタブが capability の変化で消えることがある。放置すると、どのタブも
+    // 選ばれていない（内容が何も出ない）状態が残る。
+    if (!displayed.includes(activeTab)) activeTab = displayed[0] ?? 'filter';
     filterTabPanel.hidden = activeTab !== 'filter';
     editTabPanel.hidden = activeTab !== 'edit';
+    minimapTabPanel.hidden = activeTab !== 'minimap';
+    exportTabPanel.hidden = activeTab !== 'export';
     tabBar?.update(tabItems(), activeTab);
     if (activeTab === 'edit') wordListPanel?.refresh();
+    if (activeTab === 'minimap') minimapPanel?.refresh();
   }
 
   function syncPanelVisibility(): void {
@@ -322,6 +414,13 @@ export function mountCooccurrenceViewer(
   function setViewport(next: ViewportState): void {
     viewport = next;
     scheduler?.invalidate();
+    // ミニマップの枠は視野そのものを映す。ここで要求しないと、図だけが動いて枠が取り残される。
+    minimapPanel?.refresh();
+  }
+
+  /** 図の canvas の表示サイズ（CSS ピクセル）。バッキングストアには触れない。 */
+  function canvasDisplaySize(): { width: number; height: number } {
+    return { width: canvas.clientWidth, height: canvas.clientHeight };
   }
 
   /**
@@ -346,17 +445,20 @@ export function mountCooccurrenceViewer(
     };
   }
 
-  function rebuildToolbar(): void {
+  /**
+   * レイアウトの状態に連動する表示をまとめて合わせる。
+   *
+   * 図の上に置くボタンは、パネルの開閉と、計算中の中断だけに絞る（仕様 §3.5）。
+   * 全体表示・保存・PNG は右パネルのタブへ移した。図の上のボタンは常に図そのものを
+   * 覆うため、そこへ置いてよいのは図を広く使う操作に限る。
+   *
+   * Why not ツールバーだけを組み直すか: 保存できるかどうかも同じ状態で決まる
+   * （反復を完了した計算だけが保存対象。仕様 §4.2）。別々に更新すると、状態が
+   * 変わった箇所のどちらか一方だけが更新されずに残る。
+   */
+  function syncStatusUi(): void {
+    exportPanel?.update(exportPanelState());
     toolbar.replaceChildren();
-    const fit = document.createElement('button');
-    fit.className = 'cooc-btn cooc-viewer__button';
-    fit.type = 'button';
-    fit.textContent = t('toolbar.fit');
-    fit.addEventListener('click', () => {
-      fitToGraph();
-    });
-    toolbar.appendChild(fit);
-
     const panels = document.createElement('button');
     panels.className = 'cooc-btn cooc-viewer__button';
     panels.type = 'button';
@@ -364,7 +466,7 @@ export function mountCooccurrenceViewer(
     panels.addEventListener('click', () => {
       showPanels = !showPanels;
       syncPanelVisibility();
-      rebuildToolbar();
+      syncStatusUi();
     });
     toolbar.appendChild(panels);
 
@@ -378,30 +480,16 @@ export function mountCooccurrenceViewer(
         currentJob = null;
         status = 'aborted';
         rebuildGraph();
-        rebuildToolbar();
+        syncStatusUi();
       });
       toolbar.appendChild(abort);
     }
-    if (options.capabilities?.save && options.onRequestSave) {
-      const save = document.createElement('button');
-      save.className = 'cooc-btn cooc-viewer__button';
-      save.type = 'button';
-      save.textContent = t('toolbar.save');
-      save.addEventListener('click', saveCompletedLayout);
-      toolbar.appendChild(save);
-    }
-    if (options.capabilities?.exportPng && options.onExportPng) {
-      const png = document.createElement('button');
-      png.className = 'cooc-btn cooc-viewer__button';
-      png.type = 'button';
-      png.textContent = t('toolbar.exportPng');
-      png.addEventListener('click', () => {
-        canvas.toBlob((blob) => {
-          if (blob) options.onExportPng?.(blob);
-        }, 'image/png');
-      });
-      toolbar.appendChild(png);
-    }
+  }
+
+  function exportPng(): void {
+    canvas.toBlob((blob) => {
+      if (blob) options.onExportPng?.(blob);
+    }, 'image/png');
   }
 
   function beginLayoutIfNeeded(): void {
@@ -413,7 +501,7 @@ export function mountCooccurrenceViewer(
       positions = file.layout.positions.map((pos) => [pos[0], pos[1]]);
       status = 'done';
       rebuildGraph();
-      rebuildToolbar();
+      syncStatusUi();
       return;
     }
     status = 'running';
@@ -422,7 +510,7 @@ export function mountCooccurrenceViewer(
     const job = startLayoutJob(file, startHash, options.createLayoutWorker);
     currentJob = job;
     rebuildGraph();
-    rebuildToolbar();
+    syncStatusUi();
     job.promise.then((result) => {
       if (destroyed || currentJob !== job) return;
       currentJob = null;
@@ -431,7 +519,7 @@ export function mountCooccurrenceViewer(
       status = 'done';
       fitted = false;
       rebuildGraph();
-      rebuildToolbar();
+      syncStatusUi();
     }).catch((error: unknown) => {
       if (destroyed || currentJob !== job) return;
       currentJob = null;
@@ -443,7 +531,7 @@ export function mountCooccurrenceViewer(
       }
       status = cancelled ? 'aborted' : 'failed';
       rebuildGraph();
-      rebuildToolbar();
+      syncStatusUi();
     });
   }
 
@@ -510,6 +598,9 @@ export function mountCooccurrenceViewer(
     if (!fitted) fitToGraph();
     // 寸法が変わると canvas のバッキングストアを取り直す必要がある。
     scheduler?.invalidate();
+    // ミニマップも同様。枠は図の canvas の寸法から計算するため（`visibleRect`）、視野が
+    // 動かなくても描き直しが要る。ミニマップ自身の幅もパネル列の幅に追従して変わる。
+    minimapPanel?.refresh();
   });
   resizeObserver.observe(root);
 
@@ -537,7 +628,13 @@ export function mountCooccurrenceViewer(
         // タブ見出しはパネルの update を経由しないため、ここで訳し直さないと旧言語で残る。
         syncActiveTab();
       }
-      if (partial.capabilities !== undefined) options = { ...options, capabilities: partial.capabilities };
+      if (partial.capabilities !== undefined) {
+        options = { ...options, capabilities: partial.capabilities };
+        // 保存タブの有無が変わる。タブ列と選択状態をこの時点で合わせておかないと、
+        // 消えたタブが選ばれたまま内容だけが空になる。
+        syncExportPanel();
+        syncActiveTab();
+      }
       if (partial.showPanels !== undefined) {
         showPanels = partial.showPanels;
         options = { ...options, showPanels };
@@ -555,7 +652,7 @@ export function mountCooccurrenceViewer(
         rebuildGraph();
       }
       updatePanels();
-      rebuildToolbar();
+      syncStatusUi();
     },
     destroy(): void {
       if (destroyed) return;
@@ -565,6 +662,8 @@ export function mountCooccurrenceViewer(
       resizeObserver?.disconnect();
       filterPanel?.destroy();
       wordListPanel?.destroy();
+      minimapPanel?.destroy();
+      exportPanel?.destroy();
       root.remove();
     },
     getLayoutStatus: () => status,
@@ -572,5 +671,6 @@ export function mountCooccurrenceViewer(
     getLayoutRunCount: () => layoutRunCount,
     getRenderFrameCount: () => scheduler?.getFrameCount() ?? 0,
     getFilterCounts: () => filterCounts,
+    getMinimapDrawCount: () => minimapPanel?.getDrawCount() ?? 0,
   };
 }

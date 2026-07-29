@@ -38,6 +38,13 @@ export interface CooccurrenceViewerHandle {
   getLayoutRunCount(): number;
   /** 観測点。描画した回数。無操作で増えないことを外から検査できる。 */
   getRenderFrameCount(): number;
+  /**
+   * 観測点。ミニマップを描いた回数。
+   *
+   * ミニマップも要求時にだけ描くため、要求の書き忘れは「図だけ動いて枠が取り残される」
+   * 形でしか現れない。回数を外から見られないと、その退行をテストで捕まえられない。
+   */
+  getMinimapDrawCount(): number;
   getFilterCounts(): CooccurrenceFilterCounts;
 }
 
