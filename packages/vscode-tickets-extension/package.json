@@ -44,6 +44,7 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/vscode-common": "*",
     "next-intl": "4.12.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -51,7 +52,6 @@
   "devDependencies": {
     "@anytime-markdown/tickets-core": "*",
     "@anytime-markdown/tickets-viewer": "*",
-    "@anytime-markdown/vscode-common": "*",
     "@types/jest": "30.0.0",
     "@types/node": "22.x",
     "@types/react": "19.2.14",
