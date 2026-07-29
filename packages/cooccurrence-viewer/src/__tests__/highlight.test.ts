@@ -16,6 +16,7 @@ const renderNode = (index: number): RenderNode => ({
   labelFontSize: 12,
   cooccurrenceCount: 0,
   isSubject: false,
+  hasNote: false,
 });
 
 describe('computeNeighborhoodHighlight', () => {
@@ -23,9 +24,9 @@ describe('computeNeighborhoodHighlight', () => {
     const graph: RenderGraph = {
       nodes: [renderNode(0), renderNode(1), renderNode(2), renderNode(3)],
       links: [
-        { index: 0, source: 0, target: 1, strength: 1, width: 1, direction: LINK_DIRECTION.none },
-        { index: 1, source: 1, target: 2, strength: 1, width: 1, direction: LINK_DIRECTION.none },
-        { index: 2, source: 3, target: 0, strength: 1, width: 1, direction: LINK_DIRECTION.none },
+        { index: 0, source: 0, target: 1, strength: 1, width: 1, direction: LINK_DIRECTION.none, hasNote: false },
+        { index: 1, source: 1, target: 2, strength: 1, width: 1, direction: LINK_DIRECTION.none, hasNote: false },
+        { index: 2, source: 3, target: 0, strength: 1, width: 1, direction: LINK_DIRECTION.none, hasNote: false },
       ],
     };
     const result = computeNeighborhoodHighlight(graph, 0);

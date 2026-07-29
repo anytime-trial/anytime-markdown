@@ -30,6 +30,9 @@ import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPane
 import { createLinkListPanel, type LinkListPanelHandle } from './ui/LinkListPanel';
 import { createMinimapPanel, type MinimapPanelHandle } from './ui/MinimapPanel';
 import { createExportPanel, type ExportPanelHandle, type ExportPanelState } from './ui/ExportPanel';
+import { createClusterListPanel, type ClusterListPanelHandle } from './ui/ClusterListPanel';
+import { createNotePopup, type NotePopupHandle } from './ui/NotePopup';
+import { clusterPopupState, linkPopupState, nodePopupState } from './ui/notePopupModel';
 import {
   createSideIconRail,
   type SideIconRailHandle,
@@ -46,7 +49,7 @@ import {
 import { zoomViewportCenter } from './ui/minimapModel';
 import { ensureButtonBaseStyles } from './ui/buttonBaseStyle';
 import { fitBounds, pan, zoomAt } from './viewport/viewport';
-import { hitTestNode } from './viewport/hitTest';
+import { hitTestLink, hitTestNode } from './viewport/hitTest';
 
 const STYLE_ID = 'cooccurrence-viewer-style';
 
@@ -115,7 +118,7 @@ export function mountCooccurrenceViewer(
   let positions: Array<[number, number]> = file.layout?.positions ?? fallbackPositions(file);
   let graph: RenderGraph = { nodes: [], links: [] };
   let viewport: ViewportState = { scale: 1, offsetX: 0, offsetY: 0 };
-  let hoveredNode: RenderNode | null = null;
+  let notePopup: NotePopupHandle | null = null;
   let selectedNodeIndex: number | null = null;
   let showPanels = options.showPanels ?? true;
   let currentJob: LayoutJob | null = null;
@@ -173,6 +176,8 @@ export function mountCooccurrenceViewer(
   let linkListPanel: LinkListPanelHandle | null = null;
   let minimapPanel: MinimapPanelHandle | null = null;
   let exportPanel: ExportPanelHandle | null = null;
+  let clusterListPanel: ClusterListPanelHandle | null = null;
+  let selectedClusterIndex: number | null = null;
   // 既定はミニマップ（仕様 §3.5）。図を開いた直後に必要なのは全体の把握である。
   let activeTab: CooccurrenceTabId = 'minimap';
 
@@ -191,6 +196,7 @@ export function mountCooccurrenceViewer(
   const wordsTabPanel = createTabPanel('words');
   const linksTabPanel = createTabPanel('links');
   const minimapTabPanel = createTabPanel('minimap');
+  const clustersTabPanel = createTabPanel('clusters');
   const exportTabPanel = createTabPanel('export');
 
   /**
@@ -271,6 +277,7 @@ export function mountCooccurrenceViewer(
     const wordsState = { file, visibleNodeIndexes, selectedNodeIndex, t };
     const linksState = { file, visibleLinkIndexes, selectedNodeIndex, t };
     filterPanel?.update(filterState);
+    clusterListPanel?.update({ file, selectedClusterIndex, t });
     wordListPanel?.update(wordsState);
     linkListPanel?.update(linksState);
     syncExportPanel();
@@ -284,7 +291,8 @@ export function mountCooccurrenceViewer(
     options = { ...options, file };
     positions = file.layout?.positions ?? fallbackPositions(file);
     selectedNodeIndex = null;
-    hoveredNode = null;
+    // 編集で添字がずれると、出したままのポップアップが別の要素の内容を指すことになる。
+    notePopup?.hide();
     fitted = false;
     syncCanvasLabel();
     if (notifyHost) options.onFileChange?.(file);
@@ -339,13 +347,33 @@ export function mountCooccurrenceViewer(
       },
       onFitContent: fitToGraph,
     });
+    clusterListPanel = createClusterListPanel({
+      file,
+      selectedClusterIndex,
+      t,
+      onSelectCluster(clusterIndex) {
+        selectedClusterIndex = clusterIndex;
+        updatePanels();
+      },
+      onFileChange: (nextFile) => applyFileChange(nextFile, true),
+      onHoverCluster(clusterIndex, anchor) {
+        if (clusterIndex === null || anchor === null) {
+          notePopup?.hide();
+          return;
+        }
+        const popupState = clusterPopupState(file, clusterIndex, t);
+        if (popupState === null) return;
+        notePopup?.show(popupState, toRootPoint(anchor));
+      },
+    });
+    clustersTabPanel.appendChild(clusterListPanel.element);
     filterTabPanel.appendChild(filterPanel.element);
     wordsTabPanel.appendChild(wordListPanel.element);
     linksTabPanel.appendChild(linkListPanel.element);
     minimapTabPanel.appendChild(minimapPanel.element);
     // tabpanel の DOM 順もアイコンの並びに合わせる。見た目には 1 枚しか出ないが、
     // 支援技術の読み上げ順と Tab キーの移動順はこの順序に従う。
-    panelRoot.append(minimapTabPanel, filterTabPanel, wordsTabPanel, linksTabPanel);
+    panelRoot.append(minimapTabPanel, filterTabPanel, wordsTabPanel, linksTabPanel, clustersTabPanel);
     syncExportPanel();
     syncActiveTab();
   }
@@ -390,6 +418,8 @@ export function mountCooccurrenceViewer(
         return { id, label: t('tabs.links'), panelId: linksTabPanel.id };
       case 'minimap':
         return { id, label: t('tabs.minimap'), panelId: minimapTabPanel.id };
+      case 'clusters':
+        return { id, label: t('tabs.clusters'), panelId: clustersTabPanel.id };
       case 'export':
         return { id, label: t('tabs.export'), panelId: exportTabPanel.id };
     }
@@ -420,10 +450,18 @@ export function mountCooccurrenceViewer(
     wordsTabPanel.hidden = activeTab !== 'words';
     linksTabPanel.hidden = activeTab !== 'links';
     minimapTabPanel.hidden = activeTab !== 'minimap';
+    clustersTabPanel.hidden = activeTab !== 'clusters';
     exportTabPanel.hidden = activeTab !== 'export';
     // 開いているかは制御される側（tabpanel）が持つ。`tab` に `aria-expanded` を置くのは
     // 現行の指針から外れる（`SideIconRail` の Why not を参照）。
-    for (const tabPanel of [filterTabPanel, wordsTabPanel, linksTabPanel, minimapTabPanel, exportTabPanel]) {
+    for (const tabPanel of [
+      filterTabPanel,
+      wordsTabPanel,
+      linksTabPanel,
+      clustersTabPanel,
+      minimapTabPanel,
+      exportTabPanel,
+    ]) {
       tabPanel.setAttribute('aria-expanded', String(showPanels && !tabPanel.hidden));
     }
     rail.update(railState());
@@ -448,6 +486,34 @@ export function mountCooccurrenceViewer(
       updatePanels();
     }
     syncActiveTab();
+  }
+
+  /** クライアント座標をポップアップの基準（root）座標へ移す。 */
+  function toRootPoint(point: { x: number; y: number }): { x: number; y: number } {
+    const rect = root.getBoundingClientRect();
+    return { x: point.x - rect.left, y: point.y - rect.top };
+  }
+
+  /**
+   * 図の上のホバーをポップアップへ反映する。
+   *
+   * 円を先に試す（設計書 §3.1）。線を優先すると、円は線より小さく線は円の間を通るため、
+   * 円の上にいるのに線が拾われて語を触れなくなる。
+   */
+  function syncCanvasHover(point: { x: number; y: number }, client: { x: number; y: number }): void {
+    const node = hitTestNode(graph, point.x, point.y, viewport);
+    const popupState =
+      node === null
+        ? (() => {
+            const link = hitTestLink(graph, point.x, point.y, viewport);
+            return link === null ? null : linkPopupState(file, link.index, t);
+          })()
+        : nodePopupState(file, node.index, t);
+    if (popupState === null) {
+      notePopup?.hide();
+      return;
+    }
+    notePopup?.show(popupState, toRootPoint(client));
   }
 
   function rebuildGraph(): void {
@@ -614,9 +680,7 @@ export function mountCooccurrenceViewer(
   });
   canvas.addEventListener('pointermove', (event) => {
     const point = canvasPoint(canvas, event);
-    const previousHover = hoveredNode;
-    hoveredNode = hitTestNode(graph, point.x, point.y, viewport);
-    if (previousHover !== hoveredNode) scheduler?.invalidate();
+    syncCanvasHover(point, { x: event.clientX, y: event.clientY });
     const previous = pointers.get(event.pointerId);
     if (previous) {
       pointers.set(event.pointerId, point);
@@ -641,6 +705,7 @@ export function mountCooccurrenceViewer(
     }
     dragStart = null;
   });
+  canvas.addEventListener('pointerleave', () => notePopup?.hide());
   canvas.addEventListener('pointercancel', (event) => {
     pointers.delete(event.pointerId);
     pinchStart = currentPinch();
@@ -665,13 +730,14 @@ export function mountCooccurrenceViewer(
   });
   resizeObserver.observe(root);
 
+  notePopup = createNotePopup({ container: root, t });
   rebuildGraph();
   syncPanelVisibility();
   beginLayoutIfNeeded();
   scheduler = createRenderScheduler({
     canvas,
     themeHost: root,
-    getState: () => ({ graph, viewport, selectedNodeIndex, hoveredNode, themeMode }),
+    getState: () => ({ graph, viewport, selectedNodeIndex, themeMode }),
   });
   scheduler.invalidate();
 
@@ -685,6 +751,7 @@ export function mountCooccurrenceViewer(
       if (partial.locale !== undefined) {
         options = { ...options, locale: partial.locale };
         t = createCooccurrenceT('Cooccurrence', partial.locale);
+        notePopup?.setT(t);
         syncCanvasLabel();
         // タブ見出しはパネルの update を経由しないため、ここで訳し直さないと旧言語で残る。
         syncActiveTab();
@@ -728,6 +795,8 @@ export function mountCooccurrenceViewer(
       linkListPanel?.destroy();
       minimapPanel?.destroy();
       exportPanel?.destroy();
+      clusterListPanel?.destroy();
+      notePopup?.destroy();
       root.remove();
     },
     getLayoutStatus: () => status,
@@ -736,5 +805,6 @@ export function mountCooccurrenceViewer(
     getRenderFrameCount: () => scheduler?.getFrameCount() ?? 0,
     getFilterCounts: () => filterCounts,
     getMinimapDrawCount: () => minimapPanel?.getDrawCount() ?? 0,
+    getNotePopupState: () => notePopup?.getState() ?? null,
   };
 }

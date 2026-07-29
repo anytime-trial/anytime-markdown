@@ -2,13 +2,12 @@ import { drawGraph } from './drawGraph';
 import { updateCanvasSize } from './canvasSize';
 import { readCooccurrenceTheme } from '../theme/readTheme';
 import type { CooccurrenceTheme } from '../theme/readTheme';
-import type { RenderGraph, RenderNode, ThemeMode, ViewportState } from '../types';
+import type { RenderGraph, ThemeMode, ViewportState } from '../types';
 
 export interface RenderFrameState {
   graph: RenderGraph;
   viewport: ViewportState;
   selectedNodeIndex: number | null;
-  hoveredNode: RenderNode | null;
   themeMode: ThemeMode;
 }
 
@@ -70,7 +69,6 @@ export function createRenderScheduler(options: RenderSchedulerOptions): RenderSc
       viewport: state.viewport,
       theme,
       selectedNodeIndex: state.selectedNodeIndex,
-      hoveredNode: state.hoveredNode,
     });
     frameCount += 1;
   }

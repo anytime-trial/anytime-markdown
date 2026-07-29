@@ -13,7 +13,7 @@ interface DevicePoint {
 interface RecordingContext {
   ctx: CanvasRenderingContext2D;
   /** arc() の中心をデバイス座標で記録したもの（＝実際に円が描かれた位置）。 */
-  arcs: DevicePoint[];
+  arcs: Array<DevicePoint & { radius: number }>;
   /** fillText() の基準点をデバイス座標で記録したもの（＝実際に文字が描かれた位置）。 */
   texts: Array<DevicePoint & { text: string }>;
   /** clearRect() の矩形をデバイス座標で記録したもの（＝実際に消えた範囲）。 */
@@ -33,7 +33,7 @@ function apply(m: Matrix, x: number, y: number): DevicePoint {
 function createRecordingContext(base: Matrix): RecordingContext {
   let matrix: Matrix = [...base];
   const stack: Matrix[] = [];
-  const arcs: DevicePoint[] = [];
+  const arcs: Array<DevicePoint & { radius: number }> = [];
   const texts: Array<DevicePoint & { text: string }> = [];
   const clears: RecordingContext['clears'] = [];
 
@@ -56,8 +56,8 @@ function createRecordingContext(base: Matrix): RecordingContext {
       const [a, b, c, d, e, f] = matrix;
       matrix = [a * sx, b * sx, c * sy, d * sy, e, f];
     },
-    arc(x: number, y: number): void {
-      arcs.push(apply(matrix, x, y));
+    arc(x: number, y: number, radius: number): void {
+      arcs.push({ ...apply(matrix, x, y), radius });
     },
     fillText(text: string, x: number, y: number): void {
       texts.push({ text, ...apply(matrix, x, y) });
@@ -107,6 +107,7 @@ function node(overrides: Partial<RenderNode> = {}): RenderNode {
     labelFontSize: 14,
     cooccurrenceCount: 1,
     isSubject: false,
+    hasNote: false,
     ...overrides,
   };
 }
@@ -125,12 +126,7 @@ function theme(): CooccurrenceTheme {
   };
 }
 
-function drawAt(
-  dpr: number,
-  viewport: ViewportState,
-  graph: RenderGraph,
-  hoveredNode: RenderNode | null = null,
-): RecordingContext {
+function drawAt(dpr: number, viewport: ViewportState, graph: RenderGraph): RecordingContext {
   const recording = createRecordingContext([dpr, 0, 0, dpr, 0, 0]);
   drawGraph({
     ctx: recording.ctx,
@@ -140,7 +136,6 @@ function drawAt(
     viewport,
     theme: theme(),
     selectedNodeIndex: null,
-    hoveredNode,
   });
   return recording;
 }
@@ -180,14 +175,23 @@ describe('円とラベルは同じ座標系で描かれる', () => {
     expect(clears[0]).toEqual({ left: 0, top: 0, right: 400 * dpr, bottom: 300 * dpr });
   });
 
-  it('ツールチップは対象ノードの右下 14px に置かれる', () => {
+  // ホバーの情報は canvas ではなく DOM のポップアップが持つ（設計書 §3.1）。canvas に残るのは
+  // 「メモを持つ」という印だけであり、その印は円の右上・円周上に置かれる。
+  it('メモを持つ語には円の右上に印を描く', () => {
     const dpr = 2;
-    const hovered = node();
-    const { arcs, texts } = drawAt(dpr, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [hovered], links: [] }, hovered);
-    const tooltipLine = texts.find((entry) => entry.text === 'frequency: 5');
+    const noted = node({ hasNote: true });
+    const { arcs } = drawAt(dpr, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [noted], links: [] });
 
-    expect(tooltipLine).toBeDefined();
-    // 箱の左上 +8px から書き始めるので、ノード中心からの差は 14 + 8 = 22px（CSS px 換算）。
-    expect((tooltipLine!.x - arcs[0].x) / dpr).toBeCloseTo(22, 5);
+    expect(arcs).toHaveLength(2);
+    const offset = (noted.radius * Math.SQRT1_2) * dpr;
+    expect(arcs[1].x - arcs[0].x).toBeCloseTo(offset, 5);
+    expect(arcs[1].y - arcs[0].y).toBeCloseTo(-offset, 5);
+    expect(arcs[1].radius).toBeLessThan(arcs[0].radius);
+  });
+
+  it('メモを持たない語には印を描かない', () => {
+    const { arcs } = drawAt(2, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [node()], links: [] });
+
+    expect(arcs).toHaveLength(1);
   });
 });

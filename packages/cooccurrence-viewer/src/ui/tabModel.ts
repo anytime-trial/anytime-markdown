@@ -4,7 +4,7 @@
  * 先頭がミニマップなのは、図を開いた直後に必要なのが全体の把握だからである（仕様 §3.5）。
  * 既定タブもここの先頭に従う。
  */
-export const COOC_TAB_IDS = ['minimap', 'filter', 'words', 'links', 'export'] as const;
+export const COOC_TAB_IDS = ['minimap', 'filter', 'words', 'links', 'clusters', 'export'] as const;
 
 export type CooccurrenceTabId = (typeof COOC_TAB_IDS)[number];
 
