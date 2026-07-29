@@ -10,19 +10,19 @@ export interface FilterPanelState {
   counts: CooccurrenceFilterCounts;
   t: CooccurrenceT;
   /**
-   * 表示するスライスの添字（設計書 §3.6.5）。`undefined` は全表示。
+   * 表示するスライスのラベル（設計書 §3.6.5）。`undefined` は全表示。
    *
    * 絞り込みの他の 4 条件（`filter`）と別の入れ物にするのは、これがファイルの要素ではなく
    * レイヤーを落とす操作だからである。`CooccurrenceFilterOptions` は graph-core が
    * 語・共起の集合を決めるために受け取る型であり、そこへ混ぜると「1 枚のスライスを指す」
    * 意味の `sliceIndex` と「複数枚を選ぶ」意味の集合が同じ型に同居する。
    */
-  selectedSlices?: readonly number[];
+  selectedSliceLabels?: readonly string[];
 }
 
 export interface FilterPanelOptions extends FilterPanelState {
   onFilterChange(options: CooccurrenceFilterOptions): void;
-  onSelectedSlicesChange(selected: readonly number[]): void;
+  onSelectedSliceLabelsChange(selected: readonly string[]): void;
 }
 
 export interface FilterPanelHandle {
@@ -183,21 +183,24 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     slices.replaceChildren();
     if (hidden) return;
 
-    const selected = state.selectedSlices;
-    sliceSpecs.forEach((slice, index) => {
+    const selected = state.selectedSliceLabels;
+    sliceSpecs.forEach((slice) => {
       const label = document.createElement('label');
       label.className = 'cooc-filter__check';
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
-      checkbox.checked = selected === undefined || selected.includes(index);
+      checkbox.checked = selected === undefined || selected.includes(slice.label);
       checkbox.addEventListener('change', () => {
-        const current = new Set(selected ?? sliceSpecs.map((_slice, i) => i));
+        const current = new Set(selected ?? sliceSpecs.map((entry) => entry.label));
         if (checkbox.checked) {
-          current.add(index);
+          current.add(slice.label);
         } else {
-          current.delete(index);
+          current.delete(slice.label);
         }
-        options.onSelectedSlicesChange([...current].sort((a, b) => a - b));
+        // 並びは時間順（spec のスライスの順）で作り直す。集合の反復順に依存させない。
+        options.onSelectedSliceLabelsChange(
+          sliceSpecs.map((entry) => entry.label).filter((entry) => current.has(entry)),
+        );
       });
       const text = document.createElement('span');
       text.textContent = slice.at === undefined ? slice.label : `${slice.label}（${slice.at}）`;

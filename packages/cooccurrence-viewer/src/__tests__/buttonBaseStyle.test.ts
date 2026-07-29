@@ -100,7 +100,7 @@ describe('ボタンの UA 既定スタイルを打ち消す', () => {
       file: file(),
       counts: { visibleNodeCount: 2, totalNodeCount: 2, visibleLinkCount: 1, totalLinkCount: 1 },
       t: createCooccurrenceT('Cooccurrence', 'ja'),
-      onFilterChange: jest.fn(), onSelectedSlicesChange: jest.fn(),
+      onFilterChange: jest.fn(), onSelectedSliceLabelsChange: jest.fn(),
     })],
     ['語一覧', () => createWordListPanel({
       file: file(),

@@ -288,7 +288,7 @@ export function mountCooccurrenceViewer(
       filter: options.filter,
       counts: filterCounts,
       t,
-      selectedSlices: timelineView.selectedSlices,
+      selectedSliceLabels: timelineView.selectedSliceLabels,
     };
     const wordsState = { file, visibleNodeIndexes, selectedNodeIndex, t };
     const linksState = { file, visibleLinkIndexes, selectedNodeIndex, t };
@@ -329,15 +329,15 @@ export function mountCooccurrenceViewer(
       filter: options.filter,
       counts: filterCounts,
       t,
-      selectedSlices: timelineView.selectedSlices,
+      selectedSliceLabels: timelineView.selectedSliceLabels,
       onFilterChange(nextFilter) {
         options = { ...options, filter: nextFilter };
         fitted = false;
         rebuildGraph();
         updatePanels();
       },
-      onSelectedSlicesChange(selected) {
-        timelineView = { ...timelineView, selectedSlices: selected };
+      onSelectedSliceLabelsChange(selected) {
+        timelineView = { ...timelineView, selectedSliceLabels: selected };
         // レイヤーの枚数が変わると図の外接矩形も変わる。全体表示をやり直さないと、
         // 落としたレイヤーの跡の空白を見たままになる。
         fitted = false;
@@ -583,7 +583,7 @@ export function mountCooccurrenceViewer(
     const slices = timeline?.slices ?? [];
     const placements = computeLayerPlacements({
       slices,
-      visibleSliceIndexes: visibleSliceIndexes(slices.length, timelineView.selectedSlices),
+      visibleSliceIndexes: visibleSliceIndexes(slices, timelineView.selectedSliceLabels),
       bounds: unionBounds(positions, RADIUS_MAX),
       axis: timelineView.axis,
       gap: timelineView.gap,

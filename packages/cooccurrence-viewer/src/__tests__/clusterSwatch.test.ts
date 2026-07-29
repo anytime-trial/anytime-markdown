@@ -29,7 +29,7 @@ function mountPanel(clusterCount: number): { element: HTMLElement; destroy(): vo
     file: file(clusterCount),
     counts: { visibleNodeCount: clusterCount, totalNodeCount: clusterCount, visibleLinkCount: 0, totalLinkCount: 0 },
     t,
-    onFilterChange: jest.fn(), onSelectedSlicesChange: jest.fn(),
+    onFilterChange: jest.fn(), onSelectedSliceLabelsChange: jest.fn(),
   });
   document.body.appendChild(panel.element);
   return { element: panel.element, destroy: () => panel.destroy() };

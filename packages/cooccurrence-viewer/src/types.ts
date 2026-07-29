@@ -126,12 +126,16 @@ export interface TimelineViewState {
   /** レイヤー間の点線を描くか。 */
   showTimeLinks: boolean;
   /**
-   * 表示するスライスの添字（設計書 §3.6.5）。`undefined` は全て表示。
+   * 表示するスライス（設計書 §3.6.5）。`undefined` は全て表示。
+   *
+   * Why not 添字で持つか: 添字はスライスを 1 枚消したり並べ替えたりするたびに別のスライスを
+   * 指す。利用者が外したのとは違うスライスが黙って消える形でしか現れない。ラベルは一意で
+   * （§2.6 が重複を拒否する）、削除にも並べ替えにも動かない。
    *
    * 空配列（1 枚も表示しない）と `undefined`（全表示）を区別する。同じ扱いにすると、利用者が
    * 全てのチェックを外した状態が黙って全表示へ戻る。
    */
-  selectedSlices?: readonly number[];
+  selectedSliceLabels?: readonly string[];
 }
 
 export interface RenderNode {

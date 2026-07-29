@@ -218,3 +218,108 @@ describe('時間タブ', () => {
     mounted.handle.destroy();
   });
 });
+
+describe('スライスの増減と表示するスライスの選択', () => {
+  beforeEach(() => {
+    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    Object.defineProperty(window, 'requestAnimationFrame', { value: jest.fn(() => 1), configurable: true });
+    Object.defineProperty(window, 'cancelAnimationFrame', { value: jest.fn(), configurable: true });
+    Object.defineProperty(window, 'ResizeObserver', {
+      value: class {
+        observe(): void {}
+        disconnect(): void {}
+      },
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    document.body.replaceChildren();
+    for (const id of [
+      'cooccurrence-viewer-style',
+      'cooccurrence-timeline-panel-style',
+      'cooccurrence-slice-value-editor-style',
+      'cooccurrence-button-base-style',
+    ]) {
+      document.getElementById(id)?.remove();
+    }
+  });
+
+  function sliceCheckboxes(container: HTMLElement): HTMLInputElement[] {
+    return [...container.querySelectorAll('.cooc-filter__slices input[type="checkbox"]')] as HTMLInputElement[];
+  }
+
+  function uncheck(container: HTMLElement, position: number): void {
+    const checkbox = sliceCheckboxes(container)[position];
+    checkbox.checked = false;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  /** ラベルで行を引いて「後ろへ移動」を押す。押すたびに行は組み直されるため、毎回引き直す。 */
+  function moveDown(container: HTMLElement, label: string): void {
+    const rows = [...container.querySelectorAll('.cooc-timeline__slice')];
+    const row = rows.find((entry) => (entry.querySelector('input') as HTMLInputElement | null)?.value === label);
+    if (row === undefined) throw new Error(`slice row not found: ${label}`);
+    const buttons = [...row.querySelectorAll('button')] as HTMLButtonElement[];
+    buttons[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }
+
+  /** ラベルで行を引いて「このスライスを削除」を押す。 */
+  function removeSlice(container: HTMLElement, label: string): void {
+    const rows = [...container.querySelectorAll('.cooc-timeline__slice')];
+    const row = rows.find((entry) => (entry.querySelector('input') as HTMLInputElement | null)?.value === label);
+    if (row === undefined) throw new Error(`slice row not found: ${label}`);
+    const buttons = [...row.querySelectorAll('button')] as HTMLButtonElement[];
+    buttons[2].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }
+
+  function threeSlices(): Mounted {
+    const mounted = mount();
+    openTimelineTab(mounted.container);
+    addSlice(mounted.container, '1月');
+    addSlice(mounted.container, '2月');
+    addSlice(mounted.container, '3月');
+    return mounted;
+  }
+
+  /** 今どのスライスが描かれているかを、レイヤー名から読む。 */
+  function shownLabels(mounted: Mounted): string[] {
+    const slices = mounted.latest().spec.timeline?.slices ?? [];
+    const selected = sliceCheckboxes(mounted.container)
+      .map((checkbox, index) => (checkbox.checked ? slices[index]?.label : undefined))
+      .filter((label): label is string => label !== undefined);
+    return selected;
+  }
+
+  it('スライスを消しても、外したスライスの選択がずれない', async () => {
+    const mounted = threeSlices();
+    await flush();
+    // 3 月を外す（1 月と 2 月だけを描く）。
+    uncheck(mounted.container, 2);
+    expect(shownLabels(mounted)).toEqual(['1月', '2月']);
+
+    // 1 月を削除する。選択を添字（0・1）で持っていると、残った 2 枚がそのまま添字 0・1 になり、
+    // 利用者が外したはずの 3 月が黙って描かれる。
+    removeSlice(mounted.container, '1月');
+
+    expect(mounted.latest().spec.timeline?.slices.map((slice) => slice.label)).toEqual(['2月', '3月']);
+    expect(shownLabels(mounted)).toEqual(['2月']);
+    expect(mounted.handle.getTimelineLayerState()?.layerCount).toBe(1);
+    mounted.handle.destroy();
+  });
+
+  it('スライスを並べ替えても、外したスライスの選択がずれない', async () => {
+    const mounted = threeSlices();
+    await flush();
+    uncheck(mounted.container, 0);
+
+    // 1 月を末尾へ 2 回動かす（1月・2月・3月 → 2月・3月・1月）。行はラベルで引き直す。
+    moveDown(mounted.container, '1月');
+    moveDown(mounted.container, '1月');
+
+    expect(mounted.latest().spec.timeline?.slices.map((slice) => slice.label)).toEqual(['2月', '3月', '1月']);
+    expect(shownLabels(mounted)).toEqual(['2月', '3月']);
+    mounted.handle.destroy();
+  });
+});
