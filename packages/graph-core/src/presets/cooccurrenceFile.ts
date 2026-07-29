@@ -40,6 +40,17 @@ export function writeLink(view: CooccurrenceLinkView): CooccurrenceLinkTuple {
     : [view.source, view.target, view.strength, view.direction];
 }
 
+/**
+ * 共起の内容から版数を導出する。向きを 1 本でも持てば 2、無向だけなら 1（設計書 §2.2）。
+ *
+ * Why not 版数を書き出し時にだけ決めるか: 編集の途中で版数だけが内容から取り残され、検証が
+ * 「版数と内容が一致しない」（設計書 §2.6）で落ちる。版数は内容の説明であり、内容を変えたら
+ * 同時に決まる。導出をここへ集約し、編集経路と書き出し経路で規則が分かれないようにする。
+ */
+export function schemaVersionForLinks(links: readonly CooccurrenceLinkTuple[]): 1 | 2 {
+  return links.some((link) => link.length === 4 && link[3] !== LINK_DIRECTION.none) ? 2 : 1;
+}
+
 export interface CooccurrenceFile {
   meta: {
     /** スキーマの版数。互換性のない変更で繰り上げる。向き付きの共起を含むとき 2（設計書 §2.2）。 */
@@ -407,7 +418,7 @@ export function serializeCoocFile(file: CooccurrenceFile): string {
   // 保たれる（設計書 §2.2）。版数の判定を書き出しの一箇所へ集約し、編集経路ごとに繰り上げ条件が
   // 分かれる状態を作らない。
   const links = file.spec.links.map((link) => writeLink(readLink(link)));
-  const schemaVersion: 1 | 2 = links.some((link) => link.length === 4) ? 2 : 1;
+  const schemaVersion = schemaVersionForLinks(links);
   const serializable: CooccurrenceFile = {
     ...file,
     meta: { ...file.meta, schemaVersion },

@@ -1,4 +1,13 @@
-import { validateCooccurrenceFile, type CooccurrenceFile, type ValidationError } from './cooccurrenceFile';
+import {
+  LINK_DIRECTION,
+  readLink,
+  schemaVersionForLinks,
+  validateCooccurrenceFile,
+  writeLink,
+  type CooccurrenceFile,
+  type LinkDirection,
+  type ValidationError,
+} from './cooccurrenceFile';
 
 export type CooccurrenceEditResult =
   | { ok: true; file: CooccurrenceFile }
@@ -13,7 +22,9 @@ function cloneSpec(spec: CooccurrenceFile['spec']): CooccurrenceFile['spec'] {
     ...(spec.title === undefined ? {} : { title: spec.title }),
     ...(spec.subject === undefined ? {} : { subject: spec.subject }),
     nodes: spec.nodes.map((node) => ({ ...node })),
-    links: spec.links.map((link) => [link[0], link[1], link[2]]),
+    // writeLink を通すのは、複製で向きが落ちないようにするため。添字で組み直すと、
+    // 語の改名やクラスタ割当のような無関係な編集を 1 回挟むだけで向きが消える。
+    links: spec.links.map((link) => writeLink(readLink(link))),
     ...(spec.clusters === undefined
       ? {}
       : { clusters: spec.clusters.map((cluster) => ({ label: cluster.label, members: [...cluster.members] })) }),
@@ -37,8 +48,14 @@ function cloneFile(file: CooccurrenceFile): CooccurrenceFile {
 }
 
 function validateCandidate(file: CooccurrenceFile): CooccurrenceEditResult {
-  const errors = validateCooccurrenceFile(file);
-  return errors.length === 0 ? { ok: true, file } : { ok: false, errors };
+  // 版数は共起の内容から導出する。編集で向きが増減したとき版数だけが取り残されると、検証が
+  // 「版数と内容が一致しない」で落ち、正当な編集そのものが失敗する（設計書 §2.2・§2.6）。
+  const candidate: CooccurrenceFile = {
+    ...file,
+    meta: { ...file.meta, schemaVersion: schemaVersionForLinks(file.spec.links) },
+  };
+  const errors = validateCooccurrenceFile(candidate);
+  return errors.length === 0 ? { ok: true, file: candidate } : { ok: false, errors };
 }
 
 function reject(path: string, message: string): CooccurrenceEditResult {
@@ -77,9 +94,10 @@ export function deleteCooccurrenceNode(file: CooccurrenceFile, nodeIndex: number
 
   next.spec.nodes = next.spec.nodes.filter((_, index) => index !== nodeIndex);
   next.spec.links = next.spec.links.flatMap((link) => {
-    const source = remap(link[0]);
-    const target = remap(link[1]);
-    return source === undefined || target === undefined ? [] : [[source, target, link[2]]];
+    const view = readLink(link);
+    const source = remap(view.source);
+    const target = remap(view.target);
+    return source === undefined || target === undefined ? [] : [writeLink({ ...view, source, target })];
   });
 
   if (next.spec.subject !== undefined) {
@@ -166,7 +184,7 @@ export function addCooccurrenceLink(
   link: CooccurrenceFile['spec']['links'][number],
 ): CooccurrenceEditResult {
   const next = cloneFile(file);
-  next.spec.links.push([link[0], link[1], link[2]]);
+  next.spec.links.push(writeLink(readLink(link)));
   return validateCandidate(next);
 }
 
@@ -184,8 +202,29 @@ export function setCooccurrenceLinkStrength(
 ): CooccurrenceEditResult {
   if (!isLinkIndex(file, linkIndex)) return reject(`spec.links.${linkIndex}`, 'link index is outside links');
   const next = cloneFile(file);
-  const link = next.spec.links[linkIndex];
-  next.spec.links[linkIndex] = [link[0], link[1], strength];
+  const view = readLink(next.spec.links[linkIndex]);
+  next.spec.links[linkIndex] = writeLink({ ...view, strength });
+  return validateCandidate(next);
+}
+
+/**
+ * 共起の向きを変える。
+ *
+ * Why not 強度と同じ関数で両方を受けるか: 片方だけ変えたい呼び出し側がもう一方の現在値を読んで
+ * 渡す必要が生じ、読み落とすと黙って既定値へ戻る。
+ */
+export function setCooccurrenceLinkDirection(
+  file: CooccurrenceFile,
+  linkIndex: number,
+  direction: LinkDirection,
+): CooccurrenceEditResult {
+  if (!isLinkIndex(file, linkIndex)) return reject(`spec.links.${linkIndex}`, 'link index is outside links');
+  if (!Number.isInteger(direction) || direction < LINK_DIRECTION.none || direction > LINK_DIRECTION.both) {
+    return reject(`spec.links.${linkIndex}.3`, 'link direction must be an integer in 0..3');
+  }
+  const next = cloneFile(file);
+  const view = readLink(next.spec.links[linkIndex]);
+  next.spec.links[linkIndex] = writeLink({ ...view, direction });
   return validateCandidate(next);
 }
 

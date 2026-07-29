@@ -5,12 +5,13 @@ import {
   deleteCooccurrenceLink,
   deleteCooccurrenceNode,
   renameCooccurrenceNode,
+  setCooccurrenceLinkDirection,
   setCooccurrenceLinkStrength,
   setCooccurrenceNodeFrequency,
   setCooccurrenceSubject,
   setCooccurrenceTitle,
 } from '../../presets/cooccurrenceEdit';
-import type { CooccurrenceFile } from '../../presets/cooccurrenceFile';
+import { LINK_DIRECTION, readLink, type CooccurrenceFile } from '../../presets/cooccurrenceFile';
 
 function file(): CooccurrenceFile {
   return {
@@ -140,5 +141,75 @@ describe('cooccurrence edit', () => {
 
     expect(result.ok).toBe(false);
     expect(JSON.stringify(input)).toBe(before);
+  });
+});
+
+describe('共起の向きの編集', () => {
+  function directedFile(): CooccurrenceFile {
+    const result = setCooccurrenceLinkDirection(file(), 1, LINK_DIRECTION.forward);
+    if (!result.ok) throw new Error('setup failed');
+    return result.file;
+  }
+
+  it('向きを設定できる', () => {
+    const result = setCooccurrenceLinkDirection(file(), 0, LINK_DIRECTION.forward);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(readLink(result.file.spec.links[0]).direction).toBe(LINK_DIRECTION.forward);
+  });
+
+  it('向きを無向へ戻すと 3 要素になる', () => {
+    const result = setCooccurrenceLinkDirection(directedFile(), 1, LINK_DIRECTION.none);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.file.spec.links[1]).toHaveLength(3);
+  });
+
+  it('範囲外の共起の添字を拒否する', () => {
+    expect(setCooccurrenceLinkDirection(file(), 99, LINK_DIRECTION.forward).ok).toBe(false);
+  });
+
+  it('範囲外の向きの値を拒否する', () => {
+    expect(setCooccurrenceLinkDirection(file(), 0, 4 as never).ok).toBe(false);
+    expect(setCooccurrenceLinkDirection(file(), 0, -1 as never).ok).toBe(false);
+  });
+
+  it('強度の変更で向きが失われない', () => {
+    const result = setCooccurrenceLinkStrength(directedFile(), 1, 0.5);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(readLink(result.file.spec.links[1])).toMatchObject({
+        strength: 0.5,
+        direction: LINK_DIRECTION.forward,
+      });
+    }
+  });
+
+  it('向き付きで共起を追加できる', () => {
+    const result = addCooccurrenceLink(file(), [0, 2, 0.4, LINK_DIRECTION.both]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const added = result.file.spec.links.at(-1);
+      expect(added).toBeDefined();
+      expect(readLink(added!).direction).toBe(LINK_DIRECTION.both);
+    }
+  });
+
+  it('他の編集でも向きが保たれる', () => {
+    const result = renameCooccurrenceNode(directedFile(), 1, 'B2');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(readLink(result.file.spec.links[1]).direction).toBe(LINK_DIRECTION.forward);
+  });
+
+  it('語の削除で残る共起の向きと端点が保たれる', () => {
+    // 語 0 を削除すると links[0]（端点に語 0 を持つ）が消え、元 links[1] = [1, 3] が
+    // [0, 2] へ繰り上がる。向きは端点の添字が変わっても「どちらからどちらへ」を保つ。
+    const result = deleteCooccurrenceNode(directedFile(), 0);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(readLink(result.file.spec.links[0])).toMatchObject({
+        source: 0,
+        target: 2,
+        direction: LINK_DIRECTION.forward,
+      });
+    }
   });
 });
