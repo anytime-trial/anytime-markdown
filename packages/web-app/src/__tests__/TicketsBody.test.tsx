@@ -3,13 +3,29 @@ import React from "react";
 
 // tickets-viewer は index.ts 経由の実 import ではなく、gateway 生成呼び出しと
 // TicketsPanel への渡し props を検証したいので、TicketsPanel/createHttpTicketsGateway をモックする。
+// gateway/source は本物の TicketsGateway/{label} 型を re-export すると tickets-viewer の
+// 実装詳細に結合するため、テストが必要とする最小限のフィールドだけを unknown で受ける。
+type MockTicketsPanelProps = {
+  gateway: unknown;
+  source: unknown;
+  onRequestRepoSelect: () => void;
+};
+
 const createGatewaySpy = jest.fn((config: unknown) => ({ __marker: "mock-gateway", config }));
-const panelRenderSpy = jest.fn();
+const panelRenderSpy = jest.fn((_props: MockTicketsPanelProps) => undefined);
+
+// panelRenderSpy.mock.calls への直近アクセスを一箇所に集約する。
+// noUncheckedIndexedAccess 無効のためタプルインデックスは undefined を含まず、
+// `!` 非ヌルアサーションなしで安全に取得できる（他テストの mock.calls[0] 直接参照と同じ慣習）。
+function lastPanelProps(): MockTicketsPanelProps {
+  const calls = panelRenderSpy.mock.calls;
+  return calls[calls.length - 1][0];
+}
 
 jest.mock("@anytime-markdown/tickets-viewer", () => ({
   __esModule: true,
   createHttpTicketsGateway: (config: unknown) => createGatewaySpy(config),
-  TicketsPanel: (props: any) => {
+  TicketsPanel: (props: MockTicketsPanelProps) => {
     panelRenderSpy(props);
     return (
       <div data-testid="tickets-panel">
@@ -24,7 +40,7 @@ jest.mock("@anytime-markdown/tickets-viewer", () => ({
 // TicketsRepoDialog は onSelect を叩けるだけのボタンに差し替え、リポジトリ選択の変更を模擬する。
 jest.mock("../app/tickets/TicketsRepoDialog", () => ({
   __esModule: true,
-  default: ({ onSelect }: any) => (
+  default: ({ onSelect }: { onSelect: (selection: { repo: string; branch: string }) => void }) => (
     <button type="button" onClick={() => onSelect({ repo: "other/repo", branch: "develop" })}>
       select-other-repo
     </button>
@@ -63,7 +79,7 @@ describe("TicketsBody gateway wiring", () => {
     render(<TicketsBody />);
 
     expect(await screen.findByTestId("tickets-panel")).toBeTruthy();
-    const props = panelRenderSpy.mock.calls.at(-1)?.[0];
+    const props = lastPanelProps();
     expect(props.gateway).toBeNull();
     expect(props.source).toBeNull();
     expect(createGatewaySpy).not.toHaveBeenCalled();
@@ -78,12 +94,13 @@ describe("TicketsBody gateway wiring", () => {
     expect(createGatewaySpy).toHaveBeenCalledTimes(1);
     expect(createGatewaySpy).toHaveBeenCalledWith({ repo: "octo/repo", branch: "main" });
 
-    const props = panelRenderSpy.mock.calls.at(-1)?.[0];
+    const props = lastPanelProps();
     expect(props.source).toEqual({ label: "octo/repo / main" });
   });
 
   // Task 3 レビューの warn: gateway のメモ化が効いていないと selection 不変の再レンダーでも
   // gateway が再生成され、useTickets 側の依存（インスタンス同一性）を通じて無限再取得になる。
+  // 実装側のメモ化理由コメント: TicketsBody.tsx の gateway useMemo 直前を参照。
   it("selection と無関係な再レンダーでは gateway インスタンスを再生成しない（メモ化の検証）", async () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ repo: "octo/repo", branch: "main" }));
 
@@ -91,13 +108,13 @@ describe("TicketsBody gateway wiring", () => {
     await screen.findByTestId("tickets-panel");
 
     expect(createGatewaySpy).toHaveBeenCalledTimes(1);
-    const firstGateway = panelRenderSpy.mock.calls.at(-1)?.[0].gateway;
+    const firstGateway = lastPanelProps().gateway;
 
     // dialogOpen state だけを変える再レンダーを誘発する（selection は不変）。
     fireEvent.click(screen.getByText("open-dialog"));
 
     expect(createGatewaySpy).toHaveBeenCalledTimes(1); // 再生成されていない
-    const lastGateway = panelRenderSpy.mock.calls.at(-1)?.[0].gateway;
+    const lastGateway = lastPanelProps().gateway;
     expect(lastGateway).toBe(firstGateway); // インスタンス同一性が保たれている
   });
 
@@ -110,7 +127,7 @@ describe("TicketsBody gateway wiring", () => {
 
     expect(createGatewaySpy).toHaveBeenCalledTimes(1);
     expect(createGatewaySpy).toHaveBeenCalledWith({ repo: "other/repo", branch: "develop" });
-    const props = panelRenderSpy.mock.calls.at(-1)?.[0];
+    const props = lastPanelProps();
     expect(props.source).toEqual({ label: "other/repo / develop" });
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe(
       JSON.stringify({ repo: "other/repo", branch: "develop" }),

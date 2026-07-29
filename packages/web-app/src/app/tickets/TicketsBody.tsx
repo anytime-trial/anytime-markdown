@@ -70,6 +70,8 @@ export default function TicketsBody() {
     setRestored(true);
   }, []);
 
+  // useTickets はインスタンス同一性で gateway 変更を検知するため、selection 不変時に
+  // 新しい gateway を生成すると無限再取得になる（メモ化必須。検証: __tests__/TicketsBody.test.tsx）
   const gateway: TicketsGateway | null = useMemo(
     () => (selection ? createHttpTicketsGateway({ repo: selection.repo, branch: selection.branch }) : null),
     [selection],
