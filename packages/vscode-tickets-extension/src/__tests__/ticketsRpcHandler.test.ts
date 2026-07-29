@@ -1,5 +1,5 @@
 import { handleTicketsRpc, type TicketsRpcRequest } from '../ticketsRpcHandler';
-import type { TicketProvider } from '@anytime-markdown/tickets-core';
+import { parseTicketMarkdown, type TicketProvider } from '@anytime-markdown/tickets-core';
 
 const record = {
   path: '.tickets/T-1.md',
@@ -66,6 +66,30 @@ describe('handleTicketsRpc', () => {
     expect(typeof arg.content).toBe('string');
     expect(arg.content).toContain('next');
     expect((result as { result: { version: string } }).result.version).toBe('v2');
+  });
+
+  it('save は永続化する updated_at と応答の updated_at を一致させ、webview が送った古い値を上書きする（回帰: web-app PUT と同じ契約）', async () => {
+    const provider = makeProvider();
+    const staleUpdatedAt = record.frontmatter.updated_at;
+    const result = await call(provider, {
+      type: 'rpc',
+      id: '2b',
+      method: 'save',
+      params: { path: record.path, version: 'v1', frontmatter: record.frontmatter, extras: {}, body: 'next' },
+    });
+
+    const arg = (provider.update as jest.Mock).mock.calls[0][0];
+    const parsed = parseTicketMarkdown(arg.content as string);
+    if (parsed === null) {
+      throw new Error('直列化された content の frontmatter を解析できなかった');
+    }
+    const persistedUpdatedAt = parsed.frontmatter.updated_at;
+    const responseUpdatedAt = (result as { result: { updated_at: string } }).result.updated_at;
+
+    // 永続化内容（ディスクに書かれる値）と RPC 応答が同一の値であること。
+    expect(persistedUpdatedAt).toBe(responseUpdatedAt);
+    // かつ webview から送られてきた古い updated_at ではなく、上書きされていること。
+    expect(persistedUpdatedAt).not.toBe(staleUpdatedAt);
   });
 
   it('archive は newPath を返す', async () => {
@@ -170,7 +194,6 @@ describe('handleTicketsRpc', () => {
         title: 't',
         status: 'not-a-status',
         priority: 'low',
-        now: '2026-07-01T00:00:00.000Z',
       },
     });
 
@@ -191,20 +214,29 @@ describe('handleTicketsRpc', () => {
     expect(result).toEqual({ type: 'rpcResult', id: '10', result: null });
   });
 
-  it('create は params を CreateTicketInput として provider へ渡す', async () => {
+  it('create は params を CreateTicketInput として provider へ渡し、now は拡張ホスト側で生成する（webview から送られた now があっても無視する）', async () => {
     const provider = makeProvider();
+    // CreateTicketClientInput（webview 側の型）に now は存在しない契約。ここで仮に now を
+    // 送ってきても、拡張ホストが自分の時計で上書きすることを確認する（クライアント時計の非信頼）。
+    const clientSuppliedNow = '2020-01-01T00:00:00.000Z';
+    const before = new Date().toISOString();
     await call(provider, {
       type: 'rpc',
       id: '11',
       method: 'create',
-      params: { title: 't', status: 'backlog', priority: 'low', now: '2026-07-01T00:00:00.000Z' },
+      params: { title: 't', status: 'backlog', priority: 'low', now: clientSuppliedNow },
     });
+    const after = new Date().toISOString();
 
+    expect(provider.create).toHaveBeenCalledTimes(1);
+    const arg = (provider.create as jest.Mock).mock.calls[0][0] as { now: string };
+    expect(arg.now).not.toBe(clientSuppliedNow);
+    expect(arg.now >= before && arg.now <= after).toBe(true);
     expect(provider.create).toHaveBeenCalledWith({
       title: 't',
       status: 'backlog',
       priority: 'low',
-      now: '2026-07-01T00:00:00.000Z',
+      now: arg.now,
       assignee: undefined,
       workspace: undefined,
       creator: undefined,

@@ -291,7 +291,15 @@ function validateSaveParams(params: unknown): ValidationResult<SaveParams> {
   return { ok: true, value: { path, version, frontmatter, extras, body, message } };
 }
 
-function validateCreateParams(params: unknown): ValidationResult<CreateTicketInput> {
+/**
+ * webview から届く create params の型。`CreateTicketInput` から `now` を除いたもの。
+ * `now`（created_at / updated_at の元）は webview の `CreateTicketClientInput`
+ * （packages/tickets-viewer/src/ticketsClient.ts）に存在せず、拡張ホスト側で
+ * `new Date().toISOString()` により生成する（web-app の POST ハンドラと同じ契約）。
+ */
+type CreateParams = Omit<CreateTicketInput, 'now'>;
+
+function validateCreateParams(params: unknown): ValidationResult<CreateParams> {
   if (!isRecord(params)) {
     return { ok: false, errors: ['params はオブジェクトである必要があります'] };
   }
@@ -299,7 +307,6 @@ function validateCreateParams(params: unknown): ValidationResult<CreateTicketInp
   const title = readRequiredString(params, 'title', errors);
   const status = readTicketStatus(params, errors);
   const priority = readTicketPriority(params, errors);
-  const now = readRequiredString(params, 'now', errors);
   const assignee = readOptionalAssignee(params, errors);
   const workspace = readOptionalWorkspace(params, errors);
   const creator = readOptionalString(params, 'creator', errors);
@@ -308,12 +315,12 @@ function validateCreateParams(params: unknown): ValidationResult<CreateTicketInp
   const description = readOptionalString(params, 'description', errors);
   const message = readOptionalString(params, 'message', errors);
 
-  if (title === undefined || status === undefined || priority === undefined || now === undefined || errors.length > 0) {
+  if (title === undefined || status === undefined || priority === undefined || errors.length > 0) {
     return { ok: false, errors };
   }
   return {
     ok: true,
-    value: { title, status, priority, now, assignee, workspace, creator, dependencies, estimate, description, message },
+    value: { title, status, priority, assignee, workspace, creator, dependencies, estimate, description, message },
   };
 }
 
@@ -356,22 +363,31 @@ async function dispatch(provider: TicketProvider, request: TicketsRpcRequest): P
         throw new RpcValidationError(parsed.errors);
       }
       const { path, version, frontmatter, extras, body, message } = parsed.value;
+      // web-app の PUT ハンドラ（packages/web-app/src/app/api/github/tickets/route.ts）と同じ契約:
+      // 直列化してディスクへ書く updated_at と、応答で返す updated_at を同一の now にする。
+      // webview から届いた（前回 list 時点の）古い updated_at をそのまま書くと、応答だけが新しい
+      // 時刻になり「保存直後は新しく見えるが実体は古い」というクライアント状態の食い違いが起きる。
+      const now = new Date().toISOString();
+      const frontmatterWithNow: TicketFrontmatter = { ...frontmatter, updated_at: now };
       // 引数順は serializeTicket(frontmatter, body, extras) — packages/tickets-core/src/ticketModel.ts で実物確認済み。
-      const content = serializeTicket(frontmatter, body, extras);
+      const content = serializeTicket(frontmatterWithNow, body, extras);
       const updated = await provider.update({
         path,
         content,
         version,
         message: message ?? `ticket: update ${path}`,
       });
-      return { version: updated.version, updated_at: new Date().toISOString() };
+      return { version: updated.version, updated_at: now };
     }
     case 'create': {
       const parsed = validateCreateParams(request.params);
       if (!parsed.ok) {
         throw new RpcValidationError(parsed.errors);
       }
-      return provider.create(parsed.value);
+      // web-app の POST ハンドラと同じく now はサーバー（拡張ホスト）側で生成する。
+      // webview 側の CreateTicketClientInput（packages/tickets-viewer/src/ticketsClient.ts）に
+      // now フィールドは無く、クライアント時計を信頼しない契約のため params から読まない。
+      return provider.create({ ...parsed.value, now: new Date().toISOString() });
     }
     case 'remove': {
       const parsed = validatePathVersionParams(request.params);
