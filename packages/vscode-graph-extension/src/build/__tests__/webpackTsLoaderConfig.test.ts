@@ -24,9 +24,30 @@ function webpackConfigPaths(): string[] {
     .filter((path) => existsSync(path));
 }
 
-/** `configFile: <値>` の値をソースから抜き出す。 */
+/**
+ * `configFile: <値>` の値をソースから抜き出す。
+ *
+ * 値は `path.resolve(__dirname, 'x.json')` のようにカンマを含むため、行末までを 1 つの値
+ * として取る（カンマ区切りで切ると `path.resolve(__dirname` で途切れる）。
+ */
 function configFileValues(source: string): string[] {
-  return [...source.matchAll(/configFile:\s*([^,\n]+)/g)].map((match) => match[1]!.trim());
+  return [...source.matchAll(/configFile:\s*([^\n]+?),?\s*$/gm)]
+    .map((match) => match[1]?.trim())
+    .filter((value): value is string => value !== undefined);
+}
+
+/**
+ * `configFile` に渡された `path.resolve(__dirname, '<相対パス>')` の相対パスを取り出す。
+ *
+ * Why not ソース全体から `path.resolve(__dirname, ...)` を拾うか: `output.path` や
+ * `resolve.alias` まで巻き込む。実際に最初の版がそうなっており、`'dist'` を掴んで
+ * 「未ビルドの作業ツリーでは必ず落ちる」テストになっていた（レビュー検出）。
+ * 検査したいのは configFile の指す先だけである。
+ */
+function configFileRelativePaths(source: string): string[] {
+  return configFileValues(source)
+    .map((value) => value.match(/^path\.resolve\(__dirname,\s*'([^']+)'\)$/)?.[1])
+    .filter((value): value is string => value !== undefined);
 }
 
 describe('webpack の ts-loader configFile', () => {
@@ -50,14 +71,21 @@ describe('webpack の ts-loader configFile', () => {
     },
   );
 
-  it('graph 拡張の webview が指す tsconfig が実在する', () => {
+  it('graph 拡張の configFile が指す tsconfig が実在する', () => {
     // 絶対パス化しても、指す先が無ければ同じ探索フォールバックへ落ちる。
     const source = readFileSync(join(PACKAGES_DIR, 'vscode-graph-extension/webpack.config.js'), 'utf8');
-    const literals = [...source.matchAll(/path\.resolve\(__dirname,\s*'([^']+)'\)/g)].map((match) => match[1]!);
-    expect(literals).toContain('tsconfig.webview.json');
-    for (const literal of literals) {
-      const resolved = join(PACKAGES_DIR, 'vscode-graph-extension', literal);
+    const relativePaths = configFileRelativePaths(source);
+
+    // ガード: 抽出が空振りすると以下のループが 0 回で pass する。
+    expect(relativePaths).toContain('tsconfig.webview.json');
+    expect(relativePaths).toContain('../mcp-graph/tsconfig.json');
+
+    for (const relativePath of relativePaths) {
+      const resolved = join(PACKAGES_DIR, 'vscode-graph-extension', relativePath);
       expect(isAbsolute(resolved)).toBe(true);
+      // 検査対象は tsconfig だけである（ビルド成果物のような、作業ツリーの状態で
+      // 有無が変わるものを混ぜない）。
+      expect(relativePath).toMatch(/tsconfig[^/]*\.json$/);
       expect(existsSync(resolved)).toBe(true);
     }
   });
