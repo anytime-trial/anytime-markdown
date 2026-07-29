@@ -289,6 +289,12 @@ export function mountCooccurrenceViewer(
     syncCanvasLabel();
     if (notifyHost) options.onFileChange?.(file);
     beginLayoutIfNeeded();
+    // パネルはレイアウトの完了ではなくファイルの変更に追従させる。
+    //
+    // Why not beginLayoutIfNeeded に任せるか: 座標に影響しない編集（共起の向き。設計書 §2.4）は
+    // キャッシュ判定が hit になりレイアウトが走らないため、レイアウト完了を契機にすると、その
+    // 経路だけ一覧が古いまま固まる。座標が変わる編集でも、パネルの内容は座標と無関係である。
+    updatePanels();
   }
 
   function ensurePanels(): void {
