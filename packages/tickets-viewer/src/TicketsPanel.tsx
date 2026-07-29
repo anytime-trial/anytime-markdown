@@ -15,19 +15,25 @@ import {
 
 import { injectTicketsStyles } from "./injectStyles";
 import { useTickets } from "./useTickets";
-import type { TicketItem, TicketsClientConfig } from "./ticketsClient";
+import type { TicketItem } from "./ticketsClient";
+import type { TicketsGateway } from "./ticketsGateway";
 import { TicketBoard } from "./components/TicketBoard";
 import { TicketList } from "./components/TicketList";
 import { TicketDetailDialog } from "./components/TicketDetailDialog";
 import { TicketCreateDialog } from "./components/TicketCreateDialog";
 
 export interface TicketsPanelProps {
-  /** 未選択（null）の場合は空状態を表示する */
-  config: TicketsClientConfig | null;
+  /**
+   * データ経路。`null` の場合は未設定（未選択・未認証）として空状態を表示する。
+   * インスタンス同一性が再取得のトリガになるため、呼び出し側でメモ化すること。
+   */
+  gateway: TicketsGateway | null;
+  /** ツールバーに出す保存先の表示名。`gateway` が null のときは null。 */
+  source: { label: string } | null;
   currentUser?: string;
-  /** リポジトリ選択 UI を開く（web-app の GitHubRepoBrowser 等） */
+  /** リポジトリ選択 UI を開く（web-app はダイアログ、拡張は selectRepo コマンド） */
   onRequestRepoSelect: () => void;
-  /** サニタイズ済みリッチ表示のレンダラ（web-app から注入） */
+  /** サニタイズ済みリッチ表示のレンダラ（省略時は本文を pre で表示） */
   renderBody?: (markdown: string) => ReactNode;
 }
 
@@ -61,14 +67,20 @@ function applyFilters(tickets: TicketItem[], filters: Filters, showArchive: bool
   });
 }
 
-export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderBody }: Readonly<TicketsPanelProps>) {
+export function TicketsPanel({
+  gateway,
+  source,
+  currentUser,
+  onRequestRepoSelect,
+  renderBody,
+}: Readonly<TicketsPanelProps>) {
   const t = useTranslations("tickets");
   const [view, setView] = useState<"board" | "list">("board");
   const [showArchive, setShowArchive] = useState(false);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const tickets = useTickets(config, showArchive);
+  const tickets = useTickets(gateway, showArchive);
 
   useEffect(() => {
     injectTicketsStyles();
@@ -81,7 +93,7 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
   );
   const selected = selectedPath ? (allTickets.find((item) => item.path === selectedPath) ?? null) : null;
 
-  if (!config) {
+  if (!gateway) {
     return (
       <div className="tk-root">
         <div className="tk-empty">
@@ -120,7 +132,7 @@ export function TicketsPanel({ config, currentUser, onRequestRepoSelect, renderB
     <div className="tk-root">
       <div className="tk-toolbar">
         <span className="tk-card-meta">
-          {t("repo.location")}: {config.repo} / {config.branch}
+          {t("repo.location")}: {source?.label ?? ""}
         </span>
         <button type="button" className="tk-btn" onClick={onRequestRepoSelect}>
           {t("repo.change")}

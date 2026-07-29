@@ -27,6 +27,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { TicketsPanel } from "../TicketsPanel";
 import { ticketsMessagesJa } from "../i18n/ja";
 import type { TicketsData } from "../ticketsClient";
+import type { TicketsGateway } from "../ticketsGateway";
 
 const DATA: TicketsData = {
   tickets: [
@@ -69,15 +70,26 @@ const DATA: TicketsData = {
   invalid: [{ path: ".tickets/broken.md", version: "s3", reason: "フロントマターがありません" }],
 };
 
-function mockFetchOnce(data: unknown): jest.Mock {
-  const fn = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => data });
-  (globalThis as { fetch: unknown }).fetch = fn;
-  return fn;
+/**
+ * Why not: タスク計画では `makeGateway(tickets: TicketItem[] = [])` を示していたが、
+ * 「4 列のボードと…要修復ファイルを表示する」テストが `invalid` 配列（DATA.invalid）を
+ * 必要とするため、tickets 配列単体ではなく TicketsData 全体を受け取る形へ調整した。
+ */
+function makeGateway(data: TicketsData = { tickets: [], invalid: [] }): TicketsGateway {
+  return {
+    list: jest.fn().mockResolvedValue(data),
+    save: jest.fn().mockResolvedValue({ version: "v2", updated_at: "2026-07-29T00:00:00Z" }),
+    create: jest.fn(),
+    remove: jest.fn().mockResolvedValue(undefined),
+    archive: jest.fn().mockResolvedValue({ newPath: ".tickets/archive/T-1.md" }),
+  };
 }
 
 describe("TicketsPanel", () => {
   let container: HTMLDivElement;
   let root: Root;
+  const onRequestRepoSelect = jest.fn();
+  const SOURCE = { label: "o/r / main" };
 
   beforeEach(() => {
     container = document.createElement("div");
@@ -92,26 +104,38 @@ describe("TicketsPanel", () => {
     container.remove();
   });
 
-  async function renderPanel(config: { repo: string; branch: string } | null) {
+  async function renderPanel(gateway: TicketsGateway | null, source: { label: string } | null) {
     await act(async () => {
       root.render(
         <NextIntlClientProvider locale="ja" messages={{ tickets: ticketsMessagesJa }}>
-          <TicketsPanel config={config} currentUser="kiyotaka" onRequestRepoSelect={() => {}} />
+          <TicketsPanel
+            gateway={gateway}
+            source={source}
+            currentUser="kiyotaka"
+            onRequestRepoSelect={onRequestRepoSelect}
+          />
         </NextIntlClientProvider>,
       );
     });
   }
 
   it("未選択時は空状態とリポジトリ選択ボタンを表示する", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel(null);
+    await renderPanel(null, null);
     expect(container.textContent).toContain("チケットを保存する GitHub リポジトリを選択してください");
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("gateway が null なら空状態とリポジトリ選択ボタンを出す", async () => {
+    await renderPanel(null, null);
+    expect(container.textContent).toContain(ticketsMessagesJa.repo.empty);
+  });
+
+  it("ツールバーに source.label を保存先として表示する", async () => {
+    await renderPanel(makeGateway(), { label: "owner/repo / main" });
+    expect(container.textContent).toContain("owner/repo / main");
   });
 
   it("4 列のボードとカード・要修復ファイルを表示する", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     const columns = container.querySelectorAll(".tk-column");
     expect(columns).toHaveLength(4);
     expect(container.textContent).toContain("最初のチケット");
@@ -122,16 +146,14 @@ describe("TicketsPanel", () => {
   });
 
   it("カードにワークスペースと工数（実施/予定・分）を表示する", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     const card = container.querySelector('[data-status="up_next"]');
     expect(card?.textContent).toContain("anytime-markdown");
     expect(card?.textContent).toContain("30/120 分");
   });
 
   it("工数もサブタスクも無いチケットでは工数要素を描画しない（空要素の余白を残さない）", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     // T-2 は estimate / actual / サブタスクをいずれも持たない
     const backlog = container.querySelector('[data-status="backlog"]');
     expect(backlog?.textContent).toContain("2件目");
@@ -141,8 +163,7 @@ describe("TicketsPanel", () => {
   });
 
   it("廃止した進捗バー・ラベルチップを描画しない", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     expect(container.querySelector(".tk-progress-track")).toBeNull();
     expect(container.querySelector(".tk-chip--question")).toBeNull();
     // extras に残る廃止属性が UI へ漏れていないこと
@@ -151,8 +172,7 @@ describe("TicketsPanel", () => {
   });
 
   it("ワークスペースでフィルタできる", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     const listButton = [...container.querySelectorAll("button")].find((b) => b.textContent === "リスト");
     await act(async () => {
       listButton?.click();
@@ -172,8 +192,7 @@ describe("TicketsPanel", () => {
   });
 
   it("リスト表示へ切り替えて priority でフィルタできる", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     const listButton = [...container.querySelectorAll("button")].find((b) => b.textContent === "リスト");
     await act(async () => {
       listButton?.click();
@@ -192,16 +211,14 @@ describe("TicketsPanel", () => {
   });
 
   it("ボード表示でもリストと同じフィルタ欄を表示する", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     for (const id of ["status", "priority", "assignee", "workspace"]) {
       expect(container.querySelector(`#tk-filter-${id}`)).not.toBeNull();
     }
   });
 
   it("ボードでステータスを選ぶと該当列だけ表示する", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     expect(container.querySelectorAll(".tk-column")).toHaveLength(4);
     const statusSelect = container.querySelector<HTMLSelectElement>("#tk-filter-status");
     await act(async () => {
@@ -217,8 +234,7 @@ describe("TicketsPanel", () => {
   });
 
   it("ボードで優先度フィルタがカードに効く", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     expect(container.querySelectorAll(".tk-card")).toHaveLength(2);
     const prioritySelect = container.querySelector<HTMLSelectElement>("#tk-filter-priority");
     await act(async () => {
@@ -233,26 +249,25 @@ describe("TicketsPanel", () => {
   });
 
   it("アーカイブ表示はフィルタ欄のチェックボックスで切り替える（ボタンは廃止）", async () => {
-    const fn = mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    const gateway = makeGateway(DATA);
+    await renderPanel(gateway, SOURCE);
     expect(
       [...container.querySelectorAll("button")].some((b) => b.textContent === "アーカイブを表示"),
     ).toBe(false);
     const checkbox = container.querySelector<HTMLInputElement>("#tk-filter-archived");
     expect(checkbox?.type).toBe("checkbox");
     expect(checkbox?.checked).toBe(false);
-    const before = fn.mock.calls.length;
+    const before = (gateway.list as jest.Mock).mock.calls.length;
     await act(async () => {
       checkbox?.click();
     });
     expect(container.querySelector<HTMLInputElement>("#tk-filter-archived")?.checked).toBe(true);
     // アーカイブ込みの再取得が走る
-    expect(fn.mock.calls.length).toBeGreaterThan(before);
+    expect((gateway.list as jest.Mock).mock.calls.length).toBeGreaterThan(before);
   });
 
   it("カードクリックで詳細ダイアログが開く", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     const card = container.querySelector<HTMLButtonElement>(".tk-card");
     await act(async () => {
       card?.click();
@@ -263,8 +278,7 @@ describe("TicketsPanel", () => {
   });
 
   it("新規作成の担当は agent / user の選択式になっている", async () => {
-    mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    await renderPanel(makeGateway(DATA), SOURCE);
     const newButton = [...container.querySelectorAll("button")].find(
       (b) => b.textContent === "新規チケット",
     );
@@ -277,8 +291,8 @@ describe("TicketsPanel", () => {
   });
 
   it("詳細の削除は 2 段階確認で DELETE を発行しボードから消える", async () => {
-    const fn = mockFetchOnce(DATA);
-    await renderPanel({ repo: "o/r", branch: "main" });
+    const gateway = makeGateway(DATA);
+    await renderPanel(gateway, SOURCE);
     const card = [...container.querySelectorAll<HTMLButtonElement>(".tk-card")].find((c) =>
       c.textContent?.includes("T-1"),
     );
@@ -294,23 +308,21 @@ describe("TicketsPanel", () => {
     await act(async () => {
       first?.click();
     });
-    expect(fn.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "DELETE")).toBe(false);
+    expect(gateway.remove).not.toHaveBeenCalled();
     const second = findDelete();
     expect(second?.textContent).toBe("削除を確定");
     await act(async () => {
       second?.click();
     });
-    expect(fn.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "DELETE")).toBe(true);
+    expect(gateway.remove).toHaveBeenCalledTimes(1);
     expect(document.querySelector(".tk-dialog")).toBeNull();
     expect(container.textContent).not.toContain("最初のチケット");
   });
 
   it("一覧取得失敗時はエラーと再読込導線を表示する", async () => {
-    const fn = jest
-      .fn()
-      .mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: "boom" }) });
-    (globalThis as { fetch: unknown }).fetch = fn;
-    await renderPanel({ repo: "o/r", branch: "main" });
+    const gateway = makeGateway();
+    (gateway.list as jest.Mock).mockRejectedValue(new Error("boom"));
+    await renderPanel(gateway, SOURCE);
     expect(container.querySelector(".tk-alert--error")?.textContent).toContain("boom");
   });
 });
