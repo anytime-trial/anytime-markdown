@@ -403,15 +403,27 @@ function roundPosition(value: number): number {
 }
 
 export function serializeCoocFile(file: CooccurrenceFile): string {
-  const serializable: CooccurrenceFile = file.layout
-    ? {
-        ...file,
-        layout: {
-          ...file.layout,
-          positions: file.layout.positions.map((position) => [roundPosition(position[0]), roundPosition(position[1])]),
-        },
-      }
-    : file;
+  // 無向は 3 要素へ畳む。畳んだ結果 4 要素が 1 本も無ければ版数は 1 のままで、旧実装との往復が
+  // 保たれる（設計書 §2.2）。版数の判定を書き出しの一箇所へ集約し、編集経路ごとに繰り上げ条件が
+  // 分かれる状態を作らない。
+  const links = file.spec.links.map((link) => writeLink(readLink(link)));
+  const schemaVersion: 1 | 2 = links.some((link) => link.length === 4) ? 2 : 1;
+  const serializable: CooccurrenceFile = {
+    ...file,
+    meta: { ...file.meta, schemaVersion },
+    spec: { ...file.spec, links },
+    ...(file.layout
+      ? {
+          layout: {
+            ...file.layout,
+            positions: file.layout.positions.map((position) => [
+              roundPosition(position[0]),
+              roundPosition(position[1]),
+            ]),
+          },
+        }
+      : {}),
+  };
   return JSON.stringify(serializable);
 }
 

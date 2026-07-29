@@ -188,6 +188,55 @@ describe('cooccurrence .cooc.json helpers', () => {
   });
 });
 
+describe('保存時の版数', () => {
+  const file = (links: CooccurrenceLinkTuple[]): CooccurrenceFile => ({
+    meta: { schemaVersion: 1, generatedAt: '2026-07-29T00:00:00.000Z', origin: 'manual' },
+    spec: {
+      nodes: [
+        { label: 'A', frequency: 1 },
+        { label: 'B', frequency: 1 },
+      ],
+      links,
+    },
+  });
+
+  it('無向だけなら版数 1 で書く', () => {
+    const json = JSON.parse(serializeCoocFile(file([[0, 1, 5]])));
+    expect(json.meta.schemaVersion).toBe(1);
+    expect(json.spec.links[0]).toEqual([0, 1, 5]);
+  });
+
+  it('向きがあれば版数 2 で書く', () => {
+    const json = JSON.parse(serializeCoocFile(file([[0, 1, 5, LINK_DIRECTION.forward]])));
+    expect(json.meta.schemaVersion).toBe(2);
+    expect(json.spec.links[0]).toEqual([0, 1, 5, 1]);
+  });
+
+  it('無向へ戻せば版数 1 へ戻り 4 要素が残らない', () => {
+    const json = JSON.parse(serializeCoocFile(file([[0, 1, 5, LINK_DIRECTION.none]])));
+    expect(json.meta.schemaVersion).toBe(1);
+    expect(json.spec.links[0]).toEqual([0, 1, 5]);
+  });
+
+  it('向きを 1 本でも持てば版数 2 になる', () => {
+    const json = JSON.parse(
+      serializeCoocFile(
+        file([
+          [0, 1, 5],
+          [1, 0, 3, LINK_DIRECTION.both],
+        ]),
+      ),
+    );
+    expect(json.meta.schemaVersion).toBe(2);
+    expect(json.spec.links[0]).toEqual([0, 1, 5]);
+  });
+
+  it('書き出したファイルは検証を通る', () => {
+    const json = JSON.parse(serializeCoocFile(file([[0, 1, 5, LINK_DIRECTION.backward]])));
+    expect(validateCooccurrenceFile(json)).toEqual([]);
+  });
+});
+
 describe('specHash は向きを見ない', () => {
   const spec = (links: CooccurrenceLinkTuple[]): CooccurrenceFile['spec'] => ({
     nodes: [
