@@ -1,5 +1,6 @@
 import type { NotePopupState } from '../types';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
+import { placeNotePopup } from './notePopupModel';
 
 /**
  * ホバーのポップアップ（設計書 §3.1）。語・共起・クラスタで 1 枚を共有する。
@@ -90,25 +91,17 @@ export function createNotePopup(options: NotePopupOptions): NotePopupHandle {
     element.appendChild(note);
   }
 
-  /**
-   * 表示領域の内側へ収める（設計書 §3.1）。
-   *
-   * はみ出す側では反対側へ折り返す。折り返してもなお入らない（ポップアップのほうが領域より
-   * 大きい）場合は縁に寄せる。縁からの位置を先に決めてから下限を掛けると、上下端の両方で
-   * はみ出す状況で「下端に合わせた結果、上端が切れる」ほうを選んでしまう。
-   */
   function place(anchor: { x: number; y: number }): void {
     const bounds = options.container.getBoundingClientRect();
-    const width = element.offsetWidth;
-    const height = element.offsetHeight;
-
-    const right = anchor.x + ANCHOR_OFFSET;
-    const left = right + width > bounds.width - EDGE_MARGIN ? anchor.x - ANCHOR_OFFSET - width : right;
-    const below = anchor.y + ANCHOR_OFFSET;
-    const top = below + height > bounds.height - EDGE_MARGIN ? anchor.y - ANCHOR_OFFSET - height : below;
-
-    element.style.left = `${Math.max(EDGE_MARGIN, left)}px`;
-    element.style.top = `${Math.max(EDGE_MARGIN, top)}px`;
+    const { left, top } = placeNotePopup({
+      anchor,
+      size: { width: element.offsetWidth, height: element.offsetHeight },
+      bounds: { width: bounds.width, height: bounds.height },
+      offset: ANCHOR_OFFSET,
+      margin: EDGE_MARGIN,
+    });
+    element.style.left = `${left}px`;
+    element.style.top = `${top}px`;
   }
 
   return {

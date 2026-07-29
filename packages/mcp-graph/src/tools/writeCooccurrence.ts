@@ -217,7 +217,6 @@ function addClusters(
       }
     });
     converted.push({ label: cluster.label, members });
-    file.spec.clusters = converted;
     attachNote(file, 'clusters', converted.length - 1, cluster.note);
   });
   file.spec.clusters = converted;

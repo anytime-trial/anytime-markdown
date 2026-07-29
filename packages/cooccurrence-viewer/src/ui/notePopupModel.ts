@@ -77,3 +77,48 @@ function noteOf(
   const note = readCooccurrenceNote(file.spec, target, index);
   return note === undefined ? {} : { note };
 }
+
+/** ポップアップを置く位置を決めるための入力。すべて `container` の左上を原点とする。 */
+export interface NotePopupPlacement {
+  anchor: { x: number; y: number };
+  size: { width: number; height: number };
+  bounds: { width: number; height: number };
+  /** 対象からの逃がし幅。カーソルの直下に出すと、ポインタ自身が本文の先頭を覆う。 */
+  offset: number;
+  /** 表示領域の縁との最小の間隔。 */
+  margin: number;
+}
+
+/**
+ * ポップアップを表示領域の内側へ収める（設計書 §3.1）。
+ *
+ * はみ出す側では反対側へ折り返し、折り返してもなお入らない（ポップアップのほうが領域より
+ * 大きい）場合は縁に寄せる。
+ *
+ * Why not DOM のハンドラへ直接書くか: 上下左右 4 方向 ×「折り返す／折り返しても入らない」の
+ * 組み合わせは取り違えやすく、DOM の中に埋めると jsdom では要素の寸法が 0 になるため検査
+ * できない。実際、canvas 描画から DOM へ移したときに上限のクランプが落ち、図の右下端の語で
+ * ポップアップが切れる退行が入った（マージ前レビューで検出）。境界を純関数へ出して固定する。
+ */
+export function placeNotePopup(placement: NotePopupPlacement): { left: number; top: number } {
+  const { anchor, size, bounds, offset, margin } = placement;
+  return {
+    left: clampToBounds(anchor.x, size.width, bounds.width, offset, margin),
+    top: clampToBounds(anchor.y, size.height, bounds.height, offset, margin),
+  };
+}
+
+function clampToBounds(
+  anchor: number,
+  size: number,
+  bound: number,
+  offset: number,
+  margin: number,
+): number {
+  const after = anchor + offset;
+  const flipped = after + size > bound - margin ? anchor - offset - size : after;
+  // 下限を先に決めてから上限で切る。順序を逆にすると、領域より大きいポップアップで
+  // 「下端に合わせた結果、上端が切れて先頭が読めない」ほうを選んでしまう。
+  const max = Math.max(margin, bound - margin - size);
+  return Math.min(max, Math.max(margin, flipped));
+}
