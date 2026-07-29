@@ -34,7 +34,14 @@ interface Mounted {
   pngCalls: number;
 }
 
-function mount(capabilities?: CooccurrenceViewerCapabilities): Mounted {
+/** ホストが渡すコールバックの有無。capability を宣言しつつ渡さないホストを再現する。 */
+interface HostCallbacks {
+  save?: boolean;
+  png?: boolean;
+}
+
+function mount(capabilities?: CooccurrenceViewerCapabilities, callbacks: HostCallbacks = {}): Mounted {
+  const { save = true, png = true } = callbacks;
   const container = document.createElement('div');
   document.body.appendChild(container);
   const saved: CooccurrenceFile[] = [];
@@ -44,10 +51,14 @@ function mount(capabilities?: CooccurrenceViewerCapabilities): Mounted {
     themeMode: 'light',
     locale: 'ja',
     ...(capabilities === undefined ? {} : { capabilities }),
-    onRequestSave: (next) => saved.push(next),
-    onExportPng: () => {
-      pngCalls += 1;
-    },
+    ...(save ? { onRequestSave: (next: CooccurrenceFile) => saved.push(next) } : {}),
+    ...(png
+      ? {
+          onExportPng: () => {
+            pngCalls += 1;
+          },
+        }
+      : {}),
   });
   return {
     container,
@@ -166,6 +177,19 @@ describe('minimap and save tabs', () => {
     handle.destroy();
   });
 
+  it('hides the save button when the capability is declared without a callback', () => {
+    // capability だけ true でコールバックが無いホスト。押しても無言で終わるボタンを出さない。
+    // PNG 側は提供されるため、保存タブそのものは残る。
+    const { container, handle } = mount(BOTH, { save: false });
+
+    expect(tabLabels(container)).toContain('保存');
+    expect(exportButton(container, 'save')).toBeNull();
+    expect(exportButton(container, 'export-png')).not.toBeNull();
+    // 保存できないホストで「計算が終われば保存できる」と読める案内を出さない。
+    expect(container.querySelector('.cooc-export__note')?.textContent).toBe('');
+    handle.destroy();
+  });
+
   it('gives the minimap controls an accessible name', () => {
     const { container, handle } = mount(BOTH);
 
@@ -173,7 +197,14 @@ describe('minimap and save tabs', () => {
       element.getAttribute('aria-label'),
     );
     expect(names).toEqual(['拡大', '縮小', '全体表示']);
-    expect(container.querySelector('.cooc-minimap__canvas')?.getAttribute('aria-label')).toBe('ミニマップ');
+
+    const canvas = container.querySelector('.cooc-minimap__canvas') as HTMLElement;
+    expect(canvas.getAttribute('aria-label')).toBe('ミニマップ');
+    // 操作面であることを宣言する。`img` は静止した画像を表す role であり、
+    // クリック・ドラッグ・矢印キーで動かせることが支援技術に伝わらない。
+    expect(canvas.getAttribute('role')).toBe('application');
+    // キーボードだけの利用者が到達できること。
+    expect(canvas.tabIndex).toBe(0);
     handle.destroy();
   });
 

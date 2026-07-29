@@ -132,12 +132,12 @@ ${viewerCss()}
  </div>
  <div class="cooc-viewer__tabpanel" id="cooc-panel-minimap" role="tabpanel"${hiddenUnless("minimap")}>
   <section class="cooc-minimap">
-   <div class="cooc-minimap__frame"><canvas class="cooc-minimap__canvas"></canvas></div>
+   <div class="cooc-minimap__frame"><canvas class="cooc-minimap__canvas" role="application" tabindex="0"></canvas></div>
    <div class="cooc-minimap__buttons">
     <button class="cooc-btn cooc-minimap__button" data-action="zoom-in"></button>
     <button class="cooc-btn cooc-minimap__button" data-action="zoom-out"></button>
     <button class="cooc-btn cooc-minimap__button" data-action="fit"></button></div>
-   <div class="cooc-minimap__hint">クリックまたはドラッグで表示位置を移動</div>
+   <div class="cooc-minimap__hint">クリック・ドラッグ・矢印キーで表示位置を移動</div>
   </section>
  </div>
  <div class="cooc-viewer__tabpanel" id="cooc-panel-export" role="tabpanel"${hiddenUnless("export")}>

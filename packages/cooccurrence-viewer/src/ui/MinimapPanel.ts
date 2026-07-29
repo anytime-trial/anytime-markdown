@@ -4,11 +4,13 @@ import { graphBounds } from '../render/bounds';
 import { drawMinimap } from '../render/drawMinimap';
 import { updateCanvasSize } from '../render/canvasSize';
 import { readCooccurrenceTheme, type CooccurrenceTheme } from '../theme/readTheme';
-import { centerOnMinimapPoint, minimapViewport, visibleRect } from './minimapModel';
+import { centerOnMinimapPoint, minimapViewport, nudgeOnMinimap, visibleRect } from './minimapModel';
 import { ensureButtonBaseStyles } from './buttonBaseStyle';
 
 /** ボタン 1 回あたりの倍率。canvas 上のキーボード操作（`+` / `-`）と揃える。 */
 const ZOOM_STEP = 1.2;
+/** 矢印キー 1 回あたりの移動量（ミニマップ上の CSS ピクセル）。 */
+const NUDGE_STEP = 8;
 
 /** 描画に必要な、図の側の状態。 */
 export interface MinimapFrameState {
@@ -51,6 +53,14 @@ export interface MinimapPanelHandle {
    * （語一覧が可視行数を失うのと同じ経路）。
    */
   refresh(): void;
+  /**
+   * 観測点。実際に描いた回数。
+   *
+   * 要求時にだけ描く作りは、要求の書き忘れが「画面が更新されない」形でしか現れない。
+   * 外から回数を見られないと、その退行をテストで捕まえられない（`renderScheduler` の
+   * `getFrameCount()` と同じ役割）。
+   */
+  getDrawCount(): number;
   destroy(): void;
 }
 
@@ -111,6 +121,14 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
   let destroyed = false;
   let rafId = 0;
   let dragging = false;
+  let drawCount = 0;
+  /**
+   * 直近に描いたときの寸法。
+   *
+   * ポインタ位置の変換にも同じ値を使う。描画側と変換側で別々に測ると、CSS の余白が
+   * 変わった時に「描かれた全体像」と「押した点の world 座標」が静かにずれる。
+   */
+  let lastSize: CanvasSize = { width: 0, height: 0 };
 
   const element = document.createElement('section');
   element.className = 'cooc-minimap';
@@ -119,7 +137,11 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
   frame.className = 'cooc-minimap__frame';
   const canvas = document.createElement('canvas');
   canvas.className = 'cooc-minimap__canvas';
-  canvas.setAttribute('role', 'img');
+  // Why not role="img" か: この canvas はクリック・ドラッグ・矢印キーで表示位置を動かす
+  // 操作面である。`img` は静止した画像を宣言する role であり、操作できることが支援技術に
+  // 伝わらない。`tabindex` と併せて、キーボードだけでも到達できる状態にする。
+  canvas.setAttribute('role', 'application');
+  canvas.tabIndex = 0;
   frame.appendChild(canvas);
 
   const buttons = document.createElement('div');
@@ -150,11 +172,22 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
     return minimapViewport(graphBounds(graph), size);
   }
 
+  /**
+   * 隠れているタブの中にいるか。
+   *
+   * Why not `offsetParent === null` で見るか: jsdom はレイアウトを計算しないため常に
+   * null を返し、「表示中なら描く」側のテストが成立しなくなる。タブの表示は `hidden`
+   * 属性で切り替えているので、そちらを辿れば実ブラウザと jsdom の双方で同じ判定になる。
+   */
+  function isHidden(): boolean {
+    return element.closest('[hidden]') !== null;
+  }
+
   function draw(): void {
     scheduled = false;
-    if (destroyed) return;
+    if (destroyed || isHidden()) return;
     const size = updateCanvasSize(canvas);
-    // 隠れているタブでは 0 になる。この状態で描いても何も残らないうえ、表示へ戻った
+    // 描画前や、寸法が確定していない場面。描いても何も残らないうえ、表示へ戻った
     // ときに描き直さないと空のままになる（切替時の refresh() が対になっている）。
     if (size.width <= 0 || size.height <= 0) return;
     const ctx = canvas.getContext('2d');
@@ -166,6 +199,7 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
     }
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    lastSize = size;
     const mini = currentMinimapViewport(state.graph, size);
     drawMinimap({
       ctx,
@@ -176,10 +210,15 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
       frame: state.graph.nodes.length === 0 ? null : visibleRect(state.viewport, state.canvasSize, mini),
       theme,
     });
+    drawCount += 1;
   }
 
   function invalidate(): void {
     if (scheduled || destroyed) return;
+    // 隠れている間は要求そのものを捨てる。図をドラッグしている間は毎フレーム要求が来るが、
+    // 既定タブは「絞り込み」であり（仕様 §3.5）、ミニマップが隠れている状態が通常である。
+    // 表示へ戻したときの描き直しは、切り替える側の refresh() が担う。
+    if (isHidden()) return;
     scheduled = true;
     rafId = requestAnimationFrame(draw);
   }
@@ -192,9 +231,24 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
 
   function moveTo(event: PointerEvent): void {
     const state = options.getState();
-    const size = { width: canvas.clientWidth, height: canvas.clientHeight };
-    const mini = currentMinimapViewport(state.graph, size);
+    const mini = currentMinimapViewport(state.graph, lastSize);
     options.onViewportChange(centerOnMinimapPoint(state.viewport, state.canvasSize, pointOf(event), mini));
+  }
+
+  /** 矢印キーの移動量。押されたキーに対応しなければ null。 */
+  function stepOf(key: string): { dx: number; dy: number } | null {
+    switch (key) {
+      case 'ArrowLeft':
+        return { dx: -NUDGE_STEP, dy: 0 };
+      case 'ArrowRight':
+        return { dx: NUDGE_STEP, dy: 0 };
+      case 'ArrowUp':
+        return { dx: 0, dy: -NUDGE_STEP };
+      case 'ArrowDown':
+        return { dx: 0, dy: NUDGE_STEP };
+      default:
+        return null;
+    }
   }
 
   canvas.addEventListener('pointerdown', (event) => {
@@ -212,6 +266,15 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
   };
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('keydown', (event) => {
+    const step = stepOf(event.key);
+    if (!step) return;
+    // 既定動作（パネル列のスクロール）が残ると、キーで動かすたびに列の表示位置まで飛ぶ。
+    event.preventDefault();
+    const state = options.getState();
+    const mini = currentMinimapViewport(state.graph, lastSize);
+    options.onViewportChange(nudgeOnMinimap(state.viewport, state.canvasSize, mini, step.dx, step.dy));
+  });
 
   function renderLabels(): void {
     canvas.setAttribute('aria-label', t('minimap.canvasLabel'));
@@ -236,6 +299,7 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
     refresh(): void {
       invalidate();
     },
+    getDrawCount: () => drawCount,
     destroy(): void {
       destroyed = true;
       cancelAnimationFrame(rafId);

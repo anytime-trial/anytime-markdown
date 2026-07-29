@@ -1,9 +1,18 @@
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
-import type { CooccurrenceViewerCapabilities, LayoutStatus } from '../types';
+import type { LayoutStatus } from '../types';
 import { ensureButtonBaseStyles } from './buttonBaseStyle';
 
+/**
+ * 保存タブの状態。
+ *
+ * Why not `capabilities` をそのまま渡すか: 「保存できるか」は capability だけでは決まらず、
+ * ホストがコールバックを渡しているかにもよる。両側でそれぞれ判定すると条件が食い違い、
+ * `capabilities.save` は true だが `onRequestSave` が無いホストで、押しても無言で終わる
+ * ボタンが出る。判定は mount 側の 1 箇所に置き、ここへは解決済みの真偽値だけを渡す。
+ */
 export interface ExportPanelState {
-  capabilities: CooccurrenceViewerCapabilities | undefined;
+  canSave: boolean;
+  canExportPng: boolean;
   /** レイアウトの状態。反復を完了した計算だけが保存対象（仕様 §4.2）。 */
   layoutStatus: LayoutStatus;
   t: CooccurrenceT;
@@ -70,11 +79,9 @@ export function createExportPanel(options: ExportPanelOptions): ExportPanelHandl
 
   function render(): void {
     const t = state.t;
-    const canSave = state.capabilities?.save === true;
-    const canExportPng = state.capabilities?.exportPng === true;
     buttons.replaceChildren();
-    if (canSave) buttons.appendChild(save);
-    if (canExportPng) buttons.appendChild(png);
+    if (state.canSave) buttons.appendChild(save);
+    if (state.canExportPng) buttons.appendChild(png);
 
     save.textContent = t('export.save');
     png.textContent = t('export.png');
@@ -83,7 +90,7 @@ export function createExportPanel(options: ExportPanelOptions): ExportPanelHandl
     // 保存したつもりのまま閉じられる。押せない理由を出す。
     const ready = state.layoutStatus === 'done';
     save.disabled = !ready;
-    note.textContent = canSave && !ready ? t('export.saveUnavailable') : '';
+    note.textContent = state.canSave && !ready ? t('export.saveUnavailable') : '';
   }
 
   render();

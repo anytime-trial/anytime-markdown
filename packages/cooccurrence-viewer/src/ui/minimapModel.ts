@@ -63,6 +63,24 @@ export function centerOnMinimapPoint(
 }
 
 /**
+ * ミニマップ上で一定量ぶん表示位置をずらす。キーボード操作の入口。
+ *
+ * 今の中心をミニマップ上の点に直し、そこから `dx` / `dy` だけ動かした点を中心へ持ってくる。
+ * ポインタ操作と同じ {@link centerOnMinimapPoint} を通すため、移動量の意味が両者で揃う。
+ */
+export function nudgeOnMinimap(
+  main: ViewportState,
+  mainSize: CanvasSize,
+  mini: ViewportState,
+  dx: number,
+  dy: number,
+): ViewportState {
+  const centre = screenToWorld({ x: mainSize.width / 2, y: mainSize.height / 2 }, main);
+  const onMinimap = worldToScreen(centre, mini);
+  return centerOnMinimapPoint(main, mainSize, { x: onMinimap.x + dx, y: onMinimap.y + dy }, mini);
+}
+
+/**
  * 図の中心を保ったまま倍率を変える。
  *
  * 倍率の上下限は `zoomAt` が持つものに従う。ここで別の制限を書くと、ホイール操作と

@@ -1,4 +1,10 @@
-import { centerOnMinimapPoint, minimapViewport, visibleRect, zoomViewportCenter } from '../ui/minimapModel';
+import {
+  centerOnMinimapPoint,
+  minimapViewport,
+  nudgeOnMinimap,
+  visibleRect,
+  zoomViewportCenter,
+} from '../ui/minimapModel';
 import { screenToWorld, worldToScreen } from '../viewport/viewport';
 import type { ViewportState } from '../types';
 
@@ -93,6 +99,29 @@ describe('minimap model', () => {
     const after = screenToWorld(centre, zoomed);
     expect(after.x).toBeCloseTo(before.x, 6);
     expect(after.y).toBeCloseTo(before.y, 6);
+  });
+
+  it('moves the view by a step on the minimap', () => {
+    // キーボードだけでも表示位置を動かせるようにする（ミニマップはポインタ専用の面にしない）。
+    const mini = minimapViewport(BOUNDS, MINI_SIZE);
+    const main: ViewportState = { scale: 2, offsetX: 400, offsetY: 300 };
+
+    const moved = nudgeOnMinimap(main, MAIN_SIZE, mini, 10, 0);
+
+    // ミニマップ上で右へ寄せる = 図の中心が world の右側へ移る = offsetX は減る。
+    expect(moved.offsetX).toBeLessThan(main.offsetX);
+    expect(moved.offsetY).toBeCloseTo(main.offsetY, 6);
+    expect(moved.scale).toBe(main.scale);
+  });
+
+  it('keeps the view unchanged for a zero step', () => {
+    const mini = minimapViewport(BOUNDS, MINI_SIZE);
+    const main: ViewportState = { scale: 2, offsetX: 400, offsetY: 300 };
+
+    const moved = nudgeOnMinimap(main, MAIN_SIZE, mini, 0, 0);
+
+    expect(moved.offsetX).toBeCloseTo(main.offsetX, 6);
+    expect(moved.offsetY).toBeCloseTo(main.offsetY, 6);
   });
 
   it('respects the zoom limits of the graph viewport', () => {

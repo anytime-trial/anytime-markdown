@@ -11,7 +11,7 @@
     "view.zoomOut": "縮小",
     "view.fit": "全体表示",
     "minimap.canvasLabel": "ミニマップ",
-    "minimap.hint": "クリックまたはドラッグで表示位置を移動",
+    "minimap.hint": "クリック・ドラッグ・矢印キーで表示位置を移動",
     "export.save": "保存",
     "export.png": "PNG",
     "export.saveUnavailable": "レイアウトの計算が完了すると保存できます",

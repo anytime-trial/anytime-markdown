@@ -26,7 +26,7 @@ import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
 import { createMinimapPanel, type MinimapPanelHandle } from './ui/MinimapPanel';
-import { createExportPanel, type ExportPanelHandle } from './ui/ExportPanel';
+import { createExportPanel, type ExportPanelHandle, type ExportPanelState } from './ui/ExportPanel';
 import { createTabBar, type TabBarHandle, type TabBarItem } from './ui/TabBar';
 import { COOC_TAB_IDS, tabElementId, tabPanelElementId, type CooccurrenceTabId } from './ui/tabModel';
 import { zoomViewportCenter } from './ui/minimapModel';
@@ -195,6 +195,17 @@ export function mountCooccurrenceViewer(
     return canSave() || canExportPng();
   }
 
+  /**
+   * 保存タブへ渡す状態。
+   *
+   * capability とコールバックの両方を見た結果だけを渡す。パネル側で判定させると、
+   * `capabilities.save` は true だが `onRequestSave` が無いホストで、押しても
+   * 何も起きないボタンが出る。
+   */
+  function exportPanelState(): ExportPanelState {
+    return { canSave: canSave(), canExportPng: canExportPng(), layoutStatus: status, t };
+  }
+
   function canvasLabel(): string {
     return file.spec.title ? t('canvas.labelWithTitle', { title: file.spec.title }) : t('canvas.label');
   }
@@ -227,7 +238,7 @@ export function mountCooccurrenceViewer(
     syncExportPanel();
     minimapPanel?.setT(t);
     minimapPanel?.refresh();
-    exportPanel?.update({ capabilities: options.capabilities, layoutStatus: status, t });
+    exportPanel?.update(exportPanelState());
   }
 
   function applyFileChange(nextFile: CooccurrenceFile, notifyHost: boolean): void {
@@ -308,9 +319,7 @@ export function mountCooccurrenceViewer(
       return;
     }
     exportPanel = createExportPanel({
-      capabilities: options.capabilities,
-      layoutStatus: status,
-      t,
+      ...exportPanelState(),
       onRequestSave: saveCompletedLayout,
       onExportPng: exportPng,
     });
@@ -448,7 +457,7 @@ export function mountCooccurrenceViewer(
    * 変わった箇所のどちらか一方だけが更新されずに残る。
    */
   function syncStatusUi(): void {
-    exportPanel?.update({ capabilities: options.capabilities, layoutStatus: status, t });
+    exportPanel?.update(exportPanelState());
     toolbar.replaceChildren();
     const panels = document.createElement('button');
     panels.className = 'cooc-btn cooc-viewer__button';
@@ -589,6 +598,9 @@ export function mountCooccurrenceViewer(
     if (!fitted) fitToGraph();
     // 寸法が変わると canvas のバッキングストアを取り直す必要がある。
     scheduler?.invalidate();
+    // ミニマップも同様。枠は図の canvas の寸法から計算するため（`visibleRect`）、視野が
+    // 動かなくても描き直しが要る。ミニマップ自身の幅もパネル列の幅に追従して変わる。
+    minimapPanel?.refresh();
   });
   resizeObserver.observe(root);
 
@@ -659,5 +671,6 @@ export function mountCooccurrenceViewer(
     getLayoutRunCount: () => layoutRunCount,
     getRenderFrameCount: () => scheduler?.getFrameCount() ?? 0,
     getFilterCounts: () => filterCounts,
+    getMinimapDrawCount: () => minimapPanel?.getDrawCount() ?? 0,
   };
 }

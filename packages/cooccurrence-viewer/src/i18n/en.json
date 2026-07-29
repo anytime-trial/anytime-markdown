@@ -11,7 +11,7 @@
     "view.zoomOut": "Zoom out",
     "view.fit": "Fit to view",
     "minimap.canvasLabel": "Minimap",
-    "minimap.hint": "Click or drag to move the view",
+    "minimap.hint": "Click, drag, or use the arrow keys to move the view",
     "export.save": "Save",
     "export.png": "PNG",
     "export.saveUnavailable": "Saving becomes available once the layout finishes.",
