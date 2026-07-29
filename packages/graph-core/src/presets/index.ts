@@ -134,7 +134,12 @@ export type {
   CooccurrenceSpec,
   TreeNodeSpec,
 };
-export type { CooccurrenceNode, CooccurrenceLink, CooccurrenceCluster } from './cooccurrence';
+export type {
+  CooccurrenceNode,
+  CooccurrenceLink,
+  CooccurrenceLinkDirection,
+  CooccurrenceCluster,
+} from './cooccurrence';
 
 // ノート網（ドキュメント関係グラフ）プリセット
 export { buildNoteGraph, buildNoteNeighborhood } from './noteGraph';
