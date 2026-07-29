@@ -48,20 +48,6 @@ jest.mock("../app/components/LandingHeader", () => ({
   default: () => <div data-testid="landing-header" />,
 }));
 
-// @mui/material はこの worktree の node_modules に未インストール（環境要因・Task 5 と無関係）。
-// TicketsBody.tsx が直接 import する Box/Container/Typography だけを virtual mock で差し替え、
-// 環境の欠落に左右されずに gateway 配線のロジックを検証する。
-jest.mock(
-  "@mui/material",
-  () => ({
-    __esModule: true,
-    Box: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    Container: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    Typography: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  }),
-  { virtual: true },
-);
-
 import TicketsBody from "../app/tickets/TicketsBody";
 
 const STORAGE_KEY = "ticketsRepoSelection";
