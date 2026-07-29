@@ -102,11 +102,12 @@ function node(index: number, x: number): RenderNode {
     labelFontSize: 14,
     cooccurrenceCount: 1,
     isSubject: false,
+    hasNote: false,
   };
 }
 
 function link(direction: LinkDirection, overrides: Partial<RenderLink> = {}): RenderLink {
-  return { index: 0, source: 0, target: 1, strength: 5, width: 3, direction, ...overrides };
+  return { index: 0, source: 0, target: 1, strength: 5, width: 3, direction, hasNote: false, ...overrides };
 }
 
 function theme(): CooccurrenceTheme {
@@ -133,7 +134,6 @@ function draw(graph: RenderGraph, selectedNodeIndex: number | null = null): Reco
     viewport: { scale: 1, offsetX: 0, offsetY: 0 },
     theme: theme(),
     selectedNodeIndex,
-    hoveredNode: null,
   });
   return recording;
 }

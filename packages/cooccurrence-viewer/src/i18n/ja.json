@@ -55,6 +55,19 @@
     "links.add": "追加",
     "links.update": "更新",
     "links.delete": "削除",
-    "links.hiddenByFilter": "現在の絞り込みにより図では非表示"
+    "links.hiddenByFilter": "現在の絞り込みにより図では非表示",
+    "tabs.clusters": "クラスタ",
+    "note.label": "メモ",
+    "note.placeholder": "メモ（この語・共起・クラスタの読み方）",
+    "note.set": "メモを設定",
+    "note.remove": "メモを削除",
+    "note.marker": "メモあり",
+    "note.frequency": "頻度: {value}",
+    "note.cooccurrences": "共起数: {value}",
+    "note.strength": "強度: {value}",
+    "note.clusterMembers": "所属語数: {value}",
+    "note.popupLabel": "メモ",
+    "clusters.listLabel": "クラスタ一覧",
+    "clusters.empty": "クラスタがありません"
   }
 }

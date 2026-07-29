@@ -1,4 +1,12 @@
 import { sha256Hex } from './sha256';
+import {
+  COOCCURRENCE_NOTE_MAX_LENGTH,
+  COOCCURRENCE_NOTE_TARGETS,
+  cloneCooccurrenceNotes,
+  hasAnyCooccurrenceNote,
+  type CooccurrenceNotes,
+  type CooccurrenceNoteTarget,
+} from './cooccurrenceNotes';
 
 /** 共起の向き。0=無向・1=順方向（a→b）・2=逆方向（b→a）・3=双方向。 */
 export const LINK_DIRECTION = { none: 0, forward: 1, backward: 2, both: 3 } as const;
@@ -40,21 +48,33 @@ export function writeLink(view: CooccurrenceLinkView): CooccurrenceLinkTuple {
     : [view.source, view.target, view.strength, view.direction];
 }
 
+function hasDirectedLink(links: readonly CooccurrenceLinkTuple[]): boolean {
+  return links.some((link) => link.length === 4 && link[3] !== LINK_DIRECTION.none);
+}
+
 /**
- * 共起の内容から版数を導出する。向きを 1 本でも持てば 2、無向だけなら 1（設計書 §2.2）。
+ * spec の内容から版数を導出する。メモを 1 件でも持てば 3、向きを 1 本でも持てば 2、
+ * いずれも無ければ 1（設計書 §2.2）。
  *
  * Why not 版数を書き出し時にだけ決めるか: 編集の途中で版数だけが内容から取り残され、検証が
  * 「版数と内容が一致しない」（設計書 §2.6）で落ちる。版数は内容の説明であり、内容を変えたら
  * 同時に決まる。導出をここへ集約し、編集経路と書き出し経路で規則が分かれないようにする。
+ *
+ * Why not 共起（links）だけを見る関数のままにするか: メモは links の外にあるため、links だけを
+ * 見る関数を残すと、メモを持つファイルが版数 2 以下で書かれ、自作のファイルが自作の検証に落ちる。
  */
-export function schemaVersionForLinks(links: readonly CooccurrenceLinkTuple[]): 1 | 2 {
-  return links.some((link) => link.length === 4 && link[3] !== LINK_DIRECTION.none) ? 2 : 1;
+export function schemaVersionForSpec(spec: CooccurrenceFile['spec']): 1 | 2 | 3 {
+  if (hasAnyCooccurrenceNote(spec)) return 3;
+  return hasDirectedLink(spec.links) ? 2 : 1;
 }
 
 export interface CooccurrenceFile {
   meta: {
-    /** スキーマの版数。互換性のない変更で繰り上げる。向き付きの共起を含むとき 2（設計書 §2.2）。 */
-    schemaVersion: 1 | 2;
+    /**
+     * スキーマの版数。互換性のない変更で繰り上げる。向き付きの共起を含むとき 2、
+     * メモを含むとき 3（設計書 §2.2）。
+     */
+    schemaVersion: 1 | 2 | 3;
     /** 生成日時（ISO 8601・UTC）。 */
     generatedAt: string;
     /** 生成元。 */
@@ -70,6 +90,8 @@ export interface CooccurrenceFile {
     links: CooccurrenceLinkTuple[];
     /** クラスタ。members は nodes の添字。 */
     clusters?: Array<{ label: string; members: number[] }>;
+    /** メモ。添字は同名の配列を指す。1 件も持たないときは書かない（設計書 §2.2）。 */
+    notes?: CooccurrenceNotes;
   };
   /** 座標キャッシュ。無くてよい。 */
   layout?: {
@@ -90,7 +112,11 @@ export type ValidationErrorCode =
   | 'negative-link-strength'
   | 'link-endpoint-out-of-range'
   | 'node-reference-out-of-range'
-  | 'layout-position-count-mismatch';
+  | 'layout-position-count-mismatch'
+  | 'note-target-out-of-range'
+  | 'duplicate-note-target'
+  | 'empty-note'
+  | 'note-too-long';
 
 export interface ValidationError {
   code: ValidationErrorCode;
@@ -138,8 +164,8 @@ function validateStructure(file: unknown): ValidationError[] {
     errors.push(error('invalid-schema', 'meta', 'meta must be an object'));
   } else {
     schemaVersion = prop(meta, 'schemaVersion');
-    if (schemaVersion !== 1 && schemaVersion !== 2) {
-      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1 or 2'));
+    if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3) {
+      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1, 2 or 3'));
     }
     if (typeof prop(meta, 'generatedAt') !== 'string') {
       errors.push(error('invalid-schema', 'meta.generatedAt', 'generatedAt must be a string'));
@@ -245,6 +271,39 @@ function validateStructure(file: unknown): ValidationError[] {
           }
         });
       });
+    }
+  }
+
+  const notes = prop(spec, 'notes');
+  if (notes !== undefined) {
+    if (!isRecord(notes)) {
+      errors.push(error('invalid-schema', 'spec.notes', 'notes must be an object'));
+    } else {
+      // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。向きのときと同じ理由で、
+      // 旧実装が拒否するファイルを新実装だけが受理する状態を作らない。
+      if (schemaVersion === 1 || schemaVersion === 2) {
+        errors.push(error('invalid-schema', 'spec.notes', 'notes require schemaVersion 3'));
+      }
+      for (const target of COOCCURRENCE_NOTE_TARGETS) {
+        const entries = prop(notes, target);
+        if (entries === undefined) continue;
+        if (!Array.isArray(entries)) {
+          errors.push(error('invalid-schema', `spec.notes.${target}`, 'notes entries must be an array'));
+          continue;
+        }
+        entries.forEach((entry, i) => {
+          if (!Array.isArray(entry) || entry.length !== 2) {
+            errors.push(error('invalid-schema', `spec.notes.${target}.${i}`, 'note must be [index, text]'));
+            return;
+          }
+          if (!Number.isInteger(entry[0])) {
+            errors.push(error('invalid-schema', `spec.notes.${target}.${i}.0`, 'note target must be an integer'));
+          }
+          if (typeof entry[1] !== 'string') {
+            errors.push(error('invalid-schema', `spec.notes.${target}.${i}.1`, 'note text must be a string'));
+          }
+        });
+      }
     }
   }
 
@@ -357,6 +416,44 @@ export function validateCooccurrenceFile(file: unknown): ValidationError[] {
     });
   }
 
+  const notes = prop(spec, 'notes');
+  if (isRecord(notes)) {
+    const countByTarget: Record<CooccurrenceNoteTarget, number> = {
+      nodes: nodeCount,
+      links: Array.isArray(links) ? links.length : 0,
+      clusters: Array.isArray(clusters) ? clusters.length : 0,
+    };
+    for (const target of COOCCURRENCE_NOTE_TARGETS) {
+      const entries = prop(notes, target);
+      if (!Array.isArray(entries)) continue;
+      const seen = new Set<number>();
+      entries.forEach((entry, i) => {
+        if (!Array.isArray(entry) || entry.length !== 2) return;
+        const index = entry[0];
+        const text = entry[1];
+        const path = `spec.notes.${target}.${i}`;
+        if (Number.isInteger(index)) {
+          if (!isIndex(index, countByTarget[target])) {
+            errors.push(error('note-target-out-of-range', `${path}.0`, `note target is outside ${target}`));
+          }
+          if (seen.has(index)) {
+            errors.push(error('duplicate-note-target', `${path}.0`, `note target ${index} is already noted`));
+          }
+          seen.add(index);
+        }
+        if (typeof text === 'string') {
+          // 空文字を許すと「メモが無い」状態に 2 通りの表現ができ、往復一致と版数の導出が揺れる。
+          if (text === '') errors.push(error('empty-note', `${path}.1`, 'note text must not be empty'));
+          if (text.length > COOCCURRENCE_NOTE_MAX_LENGTH) {
+            errors.push(
+              error('note-too-long', `${path}.1`, `note text must not exceed ${COOCCURRENCE_NOTE_MAX_LENGTH} characters`),
+            );
+          }
+        }
+      });
+    }
+  }
+
   const fileLayout = prop(file, 'layout');
   if (isRecord(fileLayout)) {
     const positions = prop(fileLayout, 'positions');
@@ -399,14 +496,19 @@ function canonicalValue(value: JsonValue): JsonValue {
 }
 
 export function canonicalizeSpec(spec: CooccurrenceFile['spec']): string {
-  return JSON.stringify(canonicalValue(spec));
+  // spec は JSON として書き出せる値だけで構成されるが、名前付きの省略可能フィールドを持つため
+  // `JsonValue` のインデックスシグネチャに構造的には適合しない。JSON へ落とす直前の 1 箇所だけで
+  // 橋渡しする（`canonicalValue` 側を緩めると、順序の正規化が任意の値に対して働くように見える）。
+  return JSON.stringify(canonicalValue(JSON.parse(JSON.stringify(spec)) as JsonValue));
 }
 
 export function computeSpecHash(spec: CooccurrenceFile['spec']): string {
   // 向きは座標に影響しない（力学モデルは強度だけを見る）。ハッシュへ含めると、矢印を 1 本足した
   // だけで 1,000 語の再計算（約 2.2 秒）が走る（設計書 §2.4）。
+  // メモも同じ理由で外す。メモは編集中に何度も変わり、含めると 1 件書き足すたびに再計算が走る。
+  const { notes: _notes, ...withoutNotes } = spec;
   const forHash: CooccurrenceFile['spec'] = {
-    ...spec,
+    ...withoutNotes,
     links: spec.links.map((link) => [link[0], link[1], link[2]]),
   };
   return sha256Hex(canonicalizeSpec(forHash));
@@ -421,11 +523,17 @@ export function serializeCoocFile(file: CooccurrenceFile): string {
   // 保たれる（設計書 §2.2）。版数の判定を書き出しの一箇所へ集約し、編集経路ごとに繰り上げ条件が
   // 分かれる状態を作らない。
   const links = file.spec.links.map((link) => writeLink(readLink(link)));
-  const schemaVersion = schemaVersionForLinks(links);
+  const notes = cloneCooccurrenceNotes(file.spec.notes);
+  const spec: CooccurrenceFile['spec'] = { ...file.spec, links };
+  if (notes === undefined) {
+    delete spec.notes;
+  } else {
+    spec.notes = notes;
+  }
   const serializable: CooccurrenceFile = {
     ...file,
-    meta: { ...file.meta, schemaVersion },
-    spec: { ...file.spec, links },
+    meta: { ...file.meta, schemaVersion: schemaVersionForSpec(spec) },
+    spec,
     ...(file.layout
       ? {
           layout: {

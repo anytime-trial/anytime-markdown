@@ -55,6 +55,19 @@
     "links.add": "Add",
     "links.update": "Update",
     "links.delete": "Delete",
-    "links.hiddenByFilter": "Hidden in the diagram by the current filter"
+    "links.hiddenByFilter": "Hidden in the diagram by the current filter",
+    "tabs.clusters": "Clusters",
+    "note.label": "Note",
+    "note.placeholder": "Note (how to read this term, cooccurrence, or cluster)",
+    "note.set": "Set note",
+    "note.remove": "Remove note",
+    "note.marker": "Has a note",
+    "note.frequency": "frequency: {value}",
+    "note.cooccurrences": "cooccurrences: {value}",
+    "note.strength": "strength: {value}",
+    "note.clusterMembers": "members: {value}",
+    "note.popupLabel": "Note",
+    "clusters.listLabel": "Cluster list",
+    "clusters.empty": "No clusters"
   }
 }

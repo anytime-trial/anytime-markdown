@@ -1,13 +1,20 @@
 import {
   LINK_DIRECTION,
   readLink,
-  schemaVersionForLinks,
+  schemaVersionForSpec,
   validateCooccurrenceFile,
   writeLink,
   type CooccurrenceFile,
   type LinkDirection,
   type ValidationError,
 } from './cooccurrenceFile';
+import {
+  cloneCooccurrenceNotes,
+  remapCooccurrenceNotes,
+  withCooccurrenceNote,
+  withoutCooccurrenceNote,
+  type CooccurrenceNoteTarget,
+} from './cooccurrenceNotes';
 
 export type CooccurrenceEditResult =
   | { ok: true; file: CooccurrenceFile }
@@ -28,6 +35,7 @@ function cloneSpec(spec: CooccurrenceFile['spec']): CooccurrenceFile['spec'] {
     ...(spec.clusters === undefined
       ? {}
       : { clusters: spec.clusters.map((cluster) => ({ label: cluster.label, members: [...cluster.members] })) }),
+    ...(cloneCooccurrenceNotes(spec.notes) === undefined ? {} : { notes: cloneCooccurrenceNotes(spec.notes) }),
   };
 }
 
@@ -52,7 +60,7 @@ function validateCandidate(file: CooccurrenceFile): CooccurrenceEditResult {
   // 「版数と内容が一致しない」で落ち、正当な編集そのものが失敗する（設計書 §2.2・§2.6）。
   const candidate: CooccurrenceFile = {
     ...file,
-    meta: { ...file.meta, schemaVersion: schemaVersionForLinks(file.spec.links) },
+    meta: { ...file.meta, schemaVersion: schemaVersionForSpec(file.spec) },
   };
   const errors = validateCooccurrenceFile(candidate);
   return errors.length === 0 ? { ok: true, file: candidate } : { ok: false, errors };
@@ -123,7 +131,34 @@ export function deleteCooccurrenceNode(file: CooccurrenceFile, nodeIndex: number
     next.layout.positions = next.layout.positions.filter((_, index) => index !== nodeIndex);
   }
 
+  // 語のメモは語と同じ規則で繰り上がる。共起のメモは「道連れで消えた共起」の分だけ詰まるため、
+  // 削除前の共起の並びから残存判定を作って付け替える（添字の対応を語側の remap から導けない）。
+  setNotes(next, 'nodes', remap);
+  const keptLinkIndexes: number[] = [];
+  file.spec.links.forEach((link, index) => {
+    const view = readLink(link);
+    if (remap(view.source) !== undefined && remap(view.target) !== undefined) keptLinkIndexes.push(index);
+  });
+  setNotes(next, 'links', (index) => {
+    const position = keptLinkIndexes.indexOf(index);
+    return position === -1 ? undefined : position;
+  });
+
   return validateCandidate(next);
+}
+
+/** `next.spec.notes` を付け替えた結果で置き換える。空になったら `notes` ごと落とす。 */
+function setNotes(
+  next: CooccurrenceFile,
+  target: CooccurrenceNoteTarget,
+  remap: (index: number) => number | undefined,
+): void {
+  const notes = remapCooccurrenceNotes(next.spec.notes, target, remap);
+  if (notes === undefined) {
+    delete next.spec.notes;
+  } else {
+    next.spec.notes = notes;
+  }
 }
 
 export function renameCooccurrenceNode(
@@ -192,6 +227,10 @@ export function deleteCooccurrenceLink(file: CooccurrenceFile, linkIndex: number
   if (!isLinkIndex(file, linkIndex)) return reject(`spec.links.${linkIndex}`, 'link index is outside links');
   const next = cloneFile(file);
   next.spec.links = next.spec.links.filter((_, index) => index !== linkIndex);
+  setNotes(next, 'links', (index) => {
+    if (index === linkIndex) return undefined;
+    return index > linkIndex ? index - 1 : index;
+  });
   return validateCandidate(next);
 }
 
@@ -246,4 +285,75 @@ export function setCooccurrenceSubject(file: CooccurrenceFile, subject: number |
     next.spec.subject = subject;
   }
   return validateCandidate(next);
+}
+
+/**
+ * メモを設定する。
+ *
+ * Why not 空文字で削除を兼ねるか: 空文字は §2.6 で不正であり、兼ねると「削除したつもりが
+ * 入力エラーになる」か「不正な値を書き込む」のどちらかになる。削除は削除として持つ。
+ */
+function setNote(
+  file: CooccurrenceFile,
+  target: CooccurrenceNoteTarget,
+  index: number,
+  text: string,
+): CooccurrenceEditResult {
+  if (!isNoteTargetIndex(file, target, index)) {
+    return reject(`spec.notes.${target}`, `note target is outside ${target}`);
+  }
+  const next = cloneFile(file);
+  next.spec.notes = withCooccurrenceNote(next.spec.notes, target, index, text);
+  return validateCandidate(next);
+}
+
+function removeNote(file: CooccurrenceFile, target: CooccurrenceNoteTarget, index: number): CooccurrenceEditResult {
+  if (!isNoteTargetIndex(file, target, index)) {
+    return reject(`spec.notes.${target}`, `note target is outside ${target}`);
+  }
+  const next = cloneFile(file);
+  const notes = withoutCooccurrenceNote(next.spec.notes, target, index);
+  if (notes === undefined) {
+    delete next.spec.notes;
+  } else {
+    next.spec.notes = notes;
+  }
+  return validateCandidate(next);
+}
+
+function isNoteTargetIndex(file: CooccurrenceFile, target: CooccurrenceNoteTarget, index: number): boolean {
+  const counts: Record<CooccurrenceNoteTarget, number> = {
+    nodes: file.spec.nodes.length,
+    links: file.spec.links.length,
+    clusters: file.spec.clusters?.length ?? 0,
+  };
+  return Number.isInteger(index) && index >= 0 && index < counts[target];
+}
+
+export function setCooccurrenceNodeNote(file: CooccurrenceFile, nodeIndex: number, text: string): CooccurrenceEditResult {
+  return setNote(file, 'nodes', nodeIndex, text);
+}
+
+export function removeCooccurrenceNodeNote(file: CooccurrenceFile, nodeIndex: number): CooccurrenceEditResult {
+  return removeNote(file, 'nodes', nodeIndex);
+}
+
+export function setCooccurrenceLinkNote(file: CooccurrenceFile, linkIndex: number, text: string): CooccurrenceEditResult {
+  return setNote(file, 'links', linkIndex, text);
+}
+
+export function removeCooccurrenceLinkNote(file: CooccurrenceFile, linkIndex: number): CooccurrenceEditResult {
+  return removeNote(file, 'links', linkIndex);
+}
+
+export function setCooccurrenceClusterNote(
+  file: CooccurrenceFile,
+  clusterIndex: number,
+  text: string,
+): CooccurrenceEditResult {
+  return setNote(file, 'clusters', clusterIndex, text);
+}
+
+export function removeCooccurrenceClusterNote(file: CooccurrenceFile, clusterIndex: number): CooccurrenceEditResult {
+  return removeNote(file, 'clusters', clusterIndex);
 }

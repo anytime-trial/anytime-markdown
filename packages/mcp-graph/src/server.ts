@@ -27,9 +27,14 @@ const endpointSchema = z.object({
   x: z.number(),
   y: z.number(),
 });
+const noteSchema = z
+  .string()
+  .optional()
+  .describe('Free-form note shown when the element is hovered. Omit for no note; an empty string is rejected');
 const cooccurrenceTermSchema = z.object({
   label: z.string().describe('Term label'),
   frequency: z.number().describe('Term frequency'),
+  note: noteSchema,
 });
 const cooccurrenceLinkSchema = z.object({
   source: z.string().describe('Source term label'),
@@ -39,10 +44,12 @@ const cooccurrenceLinkSchema = z.object({
     .enum(['none', 'forward', 'backward', 'both'])
     .optional()
     .describe('Direction of the relation (source to target). Omit for an undirected cooccurrence'),
+  note: noteSchema,
 });
 const cooccurrenceClusterSchema = z.object({
   label: z.string().describe('Cluster label'),
   members: z.array(z.string()).describe('Cluster member term labels'),
+  note: noteSchema,
 });
 
 type ToolResult = { content: Array<{ type: 'text'; text: string }> };

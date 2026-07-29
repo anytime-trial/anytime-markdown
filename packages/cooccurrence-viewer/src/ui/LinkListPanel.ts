@@ -2,7 +2,11 @@ import {
   LINK_DIRECTION,
   addCooccurrenceLink,
   deleteCooccurrenceLink,
+  noteBearingIndexes,
+  readCooccurrenceNote,
   readLink,
+  removeCooccurrenceLinkNote,
+  setCooccurrenceLinkNote,
   setCooccurrenceLinkDirection,
   setCooccurrenceLinkStrength,
   type CooccurrenceEditResult,
@@ -13,6 +17,7 @@ import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { directionSymbol, filterLinkRows } from './linkListModel';
 import { computeVisibleWindow } from './virtualList';
 import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
 
 export interface LinkListPanelState {
   file: CooccurrenceFile;
@@ -50,7 +55,7 @@ function ensureStyles(): void {
 .cooc-links__viewport{position:relative;min-height:120px;flex:1 1 0;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
 .cooc-links__spacer{position:relative;width:100%}
 .cooc-links__items{position:absolute;inset:0 0 auto 0}
-.cooc-links__row{height:36px;display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr) 44px;gap:6px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif}
+.cooc-links__row{height:36px;display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr) 44px 16px;gap:6px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif}
 .cooc-links__row:hover{background:var(--cooc-action-hover)}
 .cooc-links__row[aria-selected="true"]{background:var(--cooc-action-selected)}
 .cooc-links__row[data-related="true"] .cooc-links__label{color:var(--cooc-primary)}
@@ -62,6 +67,7 @@ function ensureStyles(): void {
 .cooc-links__buttons{flex:0 0 auto;display:flex;gap:6px;flex-wrap:wrap}
 .cooc-links__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 8px;font:12px system-ui,sans-serif}
 .cooc-links__button:hover{background:var(--cooc-action-hover)}
+.cooc-links__note-mark{color:var(--cooc-text);text-align:center}
 .cooc-links__error{flex:0 0 auto;min-height:16px;color:var(--cooc-accent);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
@@ -136,7 +142,20 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
 
   const error = document.createElement('div');
   error.className = 'cooc-links__error';
-  element.append(search, viewport, edit, buttons, error);
+
+  const noteEditor: NoteEditorHandle = createNoteEditor({
+    t,
+    onSet(text) {
+      if (selectedLinkIndex === null) return;
+      applyEdit(setCooccurrenceLinkNote(state.file, selectedLinkIndex, text));
+    },
+    onRemove() {
+      if (selectedLinkIndex === null) return;
+      applyEdit(removeCooccurrenceLinkNote(state.file, selectedLinkIndex));
+    },
+  });
+
+  element.append(search, viewport, edit, buttons, noteEditor.element, error);
 
   function renderEndpointOptions(select: HTMLSelectElement): void {
     const previous = select.value;
@@ -171,6 +190,7 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
   }
 
   function renderRows(): void {
+    const noted = noteBearingIndexes(state.file.spec, 'links');
     const rows = filterLinkRows(state.file.spec.nodes, state.file.spec.links, query);
     const viewportHeight = viewport.clientHeight || 120;
     const slice = computeVisibleWindow(rows.length, ROW_HEIGHT, viewport.scrollTop, viewportHeight, OVERSCAN);
@@ -207,7 +227,11 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
       const strength = document.createElement('span');
       strength.className = 'cooc-links__meta';
       strength.textContent = String(row.strength);
-      element.append(source, arrow, target, strength);
+      const noteMark = document.createElement('span');
+      noteMark.className = 'cooc-links__note-mark';
+      noteMark.textContent = noted.has(row.linkIndex) ? '＊' : '';
+      if (noted.has(row.linkIndex)) noteMark.title = t('note.marker');
+      element.append(source, arrow, target, strength, noteMark);
       element.addEventListener('click', () => {
         selectedLinkIndex = selectedLinkIndex === row.linkIndex ? null : row.linkIndex;
         render();
@@ -235,6 +259,10 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
     search.placeholder = t('links.search');
     search.setAttribute('aria-label', t('links.search'));
     items.setAttribute('aria-label', t('links.listLabel'));
+    noteEditor.setT(t);
+    noteEditor.setValue(
+      selectedLinkIndex === null ? undefined : readCooccurrenceNote(state.file.spec, 'links', selectedLinkIndex),
+    );
     sourceSelect.setAttribute('aria-label', t('links.source'));
     targetSelect.setAttribute('aria-label', t('links.target'));
     strengthInput.placeholder = t('links.strength');

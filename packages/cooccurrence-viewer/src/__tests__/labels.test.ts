@@ -16,6 +16,7 @@ function node(index: number, label: string, x: number, frequency: number): Rende
     labelFontSize: 12,
     cooccurrenceCount: 0,
     isSubject: false,
+    hasNote: false,
   };
 }
 

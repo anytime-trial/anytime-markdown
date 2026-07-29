@@ -1,17 +1,16 @@
 import { LINK_DIRECTION } from '@anytime-markdown/graph-core';
-import type { RenderGraph, RenderNode, ViewportState } from '../types';
+import type { RenderGraph, RenderLink, RenderNode, ViewportState } from '../types';
 import type { CooccurrenceTheme } from '../theme/readTheme';
 import { arrowHeadPoints, type ArrowHead } from './arrow';
 import { computeNeighborhoodHighlight } from './highlight';
 import { selectVisibleLabels } from './labels';
-import { worldToScreen } from '../viewport/viewport';
 
 /**
  * 座標系の契約: `drawGraph` は CSS ピクセル座標で描き、基底の変換行列（devicePixelRatio）は
  * 呼び出し側が張ったものをそのまま使う。
  *
  * Why not 先頭で `setTransform(1,0,0,1,0,0)` して自前でリセットするか: 円と線は
- * `save/restore` の内側、ラベルとツールチップは外側で描くため、内側だけ単位行列へ落とすと
+ * `save/restore` の内側、ラベルは外側で描くため、内側だけ単位行列へ落とすと
  * 円が DPR なし・ラベルが DPR ありの別座標系になり、DPR が 1 でない環境（VS Code の
  * ウィンドウズームで変化する）でラベルだけ dpr 倍の位置へ飛ぶ。クリア範囲も
  * バッキングストアの一部しか覆えず、外周に描いたラベルが消えずに残る。
@@ -26,7 +25,40 @@ export interface DrawGraphOptions {
   viewport: ViewportState;
   theme: CooccurrenceTheme;
   selectedNodeIndex: number | null;
-  hoveredNode: RenderNode | null;
+}
+
+/**
+ * メモの印の大きさ（世界座標）。円の半径に比例させつつ上下限で頭打ちにする。
+ *
+ * 比例だけにすると、頻度の低い語（小さい円）の印が読めない大きさへ潰れ、頻度の高い語では
+ * 円と見分けがつかなくなる。矢印の大きさと同じ扱いである（設計書 §3.1）。
+ */
+const NOTE_MARK_MIN_RADIUS = 2.5;
+const NOTE_MARK_MAX_RADIUS = 5;
+
+function noteMarkRadius(nodeRadius: number): number {
+  return Math.min(NOTE_MARK_MAX_RADIUS, Math.max(NOTE_MARK_MIN_RADIUS, nodeRadius * 0.22));
+}
+
+/**
+ * メモを持つ印を描く。
+ *
+ * 色ではなく図形で示す（設計書 §3.1）。色はクラスタの符号として既に使われており、印に色を
+ * 与えると、メモを持つ語が別クラスタに属するように見える。
+ */
+function drawNoteMark(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string): void {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function linkMidpoint(source: RenderNode, target: RenderNode): { x: number; y: number } {
+  return { x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 };
+}
+
+function shouldMarkLink(link: RenderLink): boolean {
+  return link.hasNote;
 }
 
 function fillArrowHead(ctx: CanvasRenderingContext2D, head: ArrowHead, color: string): void {
@@ -49,7 +81,7 @@ function visibleAlpha(
 }
 
 export function drawGraph(opts: DrawGraphOptions): void {
-  const { ctx, width, height, graph, viewport, theme, selectedNodeIndex, hoveredNode } = opts;
+  const { ctx, width, height, graph, viewport, theme, selectedNodeIndex } = opts;
   ctx.save();
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = theme.background;
@@ -84,6 +116,11 @@ export function drawGraph(opts: DrawGraphOptions): void {
     if (link.direction === LINK_DIRECTION.backward || link.direction === LINK_DIRECTION.both) {
       fillArrowHead(ctx, arrowHeadPoints(target, source, source.radius, link.width), theme.link);
     }
+
+    if (shouldMarkLink(link)) {
+      const mid = linkMidpoint(source, target);
+      drawNoteMark(ctx, mid.x, mid.y, NOTE_MARK_MIN_RADIUS, theme.text);
+    }
   }
 
   for (const node of graph.nodes) {
@@ -95,6 +132,12 @@ export function drawGraph(opts: DrawGraphOptions): void {
     ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+
+    if (node.hasNote) {
+      // 円周の右上。中心へ置くとラベルと重なり、外へ離すと隣の円の印と紛れる。
+      const offset = node.radius * Math.SQRT1_2;
+      drawNoteMark(ctx, node.x + offset, node.y - offset, noteMarkRadius(node.radius), theme.text);
+    }
   }
   ctx.restore();
   ctx.globalAlpha = 1;
@@ -119,38 +162,5 @@ export function drawGraph(opts: DrawGraphOptions): void {
   }
   ctx.globalAlpha = 1;
 
-  if (hoveredNode) drawTooltip(ctx, hoveredNode, viewport, theme, width, height);
   ctx.restore();
-}
-
-function drawTooltip(
-  ctx: CanvasRenderingContext2D,
-  node: RenderNode,
-  viewport: ViewportState,
-  theme: CooccurrenceTheme,
-  width: number,
-  height: number,
-): void {
-  const anchor = worldToScreen({ x: node.x, y: node.y }, viewport);
-  const x = anchor.x + 14;
-  const y = anchor.y + 14;
-  const lines = [node.label, `frequency: ${node.frequency}`, `cooccurrences: ${node.cooccurrenceCount}`];
-  ctx.font = '12px sans-serif';
-  const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
-  const boxWidth = textWidth + 16;
-  const boxHeight = lines.length * 18 + 12;
-  const left = Math.min(Math.max(8, x), Math.max(8, width - boxWidth - 8));
-  const top = Math.min(Math.max(8, y), Math.max(8, height - boxHeight - 8));
-
-  ctx.fillStyle = theme.surface;
-  ctx.strokeStyle = theme.divider;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(left, top, boxWidth, boxHeight, 6);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = theme.text;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  lines.forEach((line, index) => ctx.fillText(line, left + 8, top + 8 + index * 18));
 }

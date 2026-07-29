@@ -1,4 +1,4 @@
-import { readLink, type CooccurrenceFile } from '@anytime-markdown/graph-core';
+import { noteBearingIndexes, readLink, type CooccurrenceFile } from '@anytime-markdown/graph-core';
 import type { RenderGraph, RenderLink, RenderNode, ThemeMode } from '../types';
 import { NODE_STROKE_NORMAL, NODE_STROKE_SUBJECT, labelFontSizeForRadius, radiusForFrequency, widthForStrength } from './scales';
 import { withAlpha } from './color';
@@ -30,6 +30,8 @@ export function buildRenderGraph(
   const strengthMin = strengths.length > 0 ? Math.min(...strengths) : 0;
   const strengthMax = strengths.length > 0 ? Math.max(...strengths) : 0;
   const clusterIndex = buildClusterIndex(file);
+  const notedNodes = noteBearingIndexes(file.spec, 'nodes');
+  const notedLinks = noteBearingIndexes(file.spec, 'links');
   const cooccurrenceCounts = new Map<number, number>();
   for (const view of views) {
     cooccurrenceCounts.set(view.source, (cooccurrenceCounts.get(view.source) ?? 0) + 1);
@@ -56,6 +58,7 @@ export function buildRenderGraph(
       labelFontSize: labelFontSizeForRadius(radius),
       cooccurrenceCount: cooccurrenceCounts.get(index) ?? 0,
       isSubject: file.spec.subject === index,
+      hasNote: notedNodes.has(index),
     });
   });
 
@@ -69,6 +72,7 @@ export function buildRenderGraph(
       strength: view.strength,
       width: widthForStrength(view.strength, strengthMin, strengthMax),
       direction: view.direction,
+      hasNote: notedLinks.has(index),
     });
   });
 

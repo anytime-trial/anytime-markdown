@@ -1,5 +1,9 @@
 import {
   addCooccurrenceNode,
+  noteBearingIndexes,
+  readCooccurrenceNote,
+  removeCooccurrenceNodeNote,
+  setCooccurrenceNodeNote,
   deleteCooccurrenceNode,
   renameCooccurrenceNode,
   setCooccurrenceNodeCluster,
@@ -10,6 +14,7 @@ import {
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { computeVisibleWindow } from './virtualList';
 import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
 
 export interface WordListPanelState {
   file: CooccurrenceFile;
@@ -54,7 +59,7 @@ function ensureStyles(): void {
 .cooc-words__viewport{position:relative;min-height:120px;flex:1 1 0;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
 .cooc-words__spacer{position:relative;width:100%}
 .cooc-words__items{position:absolute;inset:0 0 auto 0}
-.cooc-words__row{height:36px;display:grid;grid-template-columns:minmax(0,1fr) 56px 64px;gap:8px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif}
+.cooc-words__row{height:36px;display:grid;grid-template-columns:minmax(0,1fr) 56px 64px 16px;gap:8px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif}
 .cooc-words__row:hover{background:var(--cooc-action-hover)}
 .cooc-words__row[aria-selected="true"]{background:var(--cooc-action-selected)}
 .cooc-words__row[data-hidden-by-filter="true"] .cooc-words__label{color:var(--cooc-text-disabled)}
@@ -64,6 +69,7 @@ function ensureStyles(): void {
 .cooc-words__buttons{flex:0 0 auto;display:flex;gap:6px;flex-wrap:wrap}
 .cooc-words__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 8px;font:12px system-ui,sans-serif}
 .cooc-words__button:hover{background:var(--cooc-action-hover)}
+.cooc-words__note-mark{color:var(--cooc-text);text-align:center}
 .cooc-words__error{flex:0 0 auto;min-height:16px;color:var(--cooc-accent);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
@@ -145,7 +151,20 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
 
   const error = document.createElement('div');
   error.className = 'cooc-words__error';
-  element.append(search, viewport, edit, buttons, error);
+
+  const noteEditor: NoteEditorHandle = createNoteEditor({
+    t,
+    onSet(text) {
+      if (state.selectedNodeIndex === null) return;
+      applyEdit(setCooccurrenceNodeNote(state.file, state.selectedNodeIndex, text));
+    },
+    onRemove() {
+      if (state.selectedNodeIndex === null) return;
+      applyEdit(removeCooccurrenceNodeNote(state.file, state.selectedNodeIndex));
+    },
+  });
+
+  element.append(search, viewport, edit, buttons, noteEditor.element, error);
 
   // 一覧は編集面であるため、絞り込みで図から消えた語も残す。
   // Why not 図と同じ絞り込みを掛けるか: 低頻度語を絞り込んでから消す、という
@@ -175,6 +194,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   }
 
   function renderRows(): void {
+    const noted = noteBearingIndexes(state.file.spec, 'nodes');
     const indexes = listedIndexes();
     const viewportHeight = viewport.clientHeight || 120;
     const slice = computeVisibleWindow(indexes.length, ROW_HEIGHT, viewport.scrollTop, viewportHeight, OVERSCAN);
@@ -208,7 +228,12 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       cluster.textContent = clusterLabelFor(state.file, nodeIndex);
       // 列幅に収まらないクラスタ名は省略表示になるため、全体はホバーで読めるようにする。
       cluster.title = cluster.textContent;
-      row.append(label, frequency, cluster);
+      const noteMark = document.createElement('span');
+      noteMark.className = 'cooc-words__note-mark';
+      // 記号で示す。色はクラスタの符号であり、印に色を与えると所属が誤って読める（設計書 §3.1）。
+      noteMark.textContent = noted.has(nodeIndex) ? '＊' : '';
+      if (noted.has(nodeIndex)) noteMark.title = t('note.marker');
+      row.append(label, frequency, cluster, noteMark);
       row.addEventListener('click', () => options.onSelectNode(state.selectedNodeIndex === nodeIndex ? null : nodeIndex));
       items.appendChild(row);
     });
@@ -237,6 +262,12 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     deleteButton.textContent = t('words.delete');
     renderClusterOptions();
     syncSelectedInputs();
+    noteEditor.setT(t);
+    noteEditor.setValue(
+      state.selectedNodeIndex === null
+        ? undefined
+        : readCooccurrenceNote(state.file.spec, 'nodes', state.selectedNodeIndex),
+    );
     // renderRows() は全行を作り直すため、いま押した行の要素自体が破棄される。
     // 何もしないとフォーカスが body へ戻り、キーボードだけで操作すると選択のたびに
     // リスト先頭へ巻き戻されて実質操作できない。

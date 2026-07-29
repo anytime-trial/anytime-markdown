@@ -3,19 +3,26 @@ import path from 'node:path';
 import {
   parseCoocFile,
   readLink,
-  schemaVersionForLinks,
+  schemaVersionForSpec,
   serializeCoocFile,
   validateCooccurrenceFile,
   writeLink,
   type CooccurrenceFile,
   type ValidationError,
 } from '@anytime-markdown/graph-core/src/presets/cooccurrenceFile';
+import {
+  readCooccurrenceNote,
+  withCooccurrenceNote,
+  type CooccurrenceNoteTarget,
+} from '@anytime-markdown/graph-core/src/presets/cooccurrenceNotes';
 import { resolveSecurePath, validateCooccurrenceExtension } from '../utils/securePath';
 import { DIRECTION_BY_NAME, directionNameOf, type CooccurrenceDirectionName } from './cooccurrenceDirection';
 
 export interface CooccurrenceTermInput {
   label: string;
   frequency: number;
+  /** 省略時はメモなし。添字表現は外へ出さない（設計書 §5）。 */
+  note?: string;
 }
 
 export interface CooccurrenceLinkInput {
@@ -24,11 +31,15 @@ export interface CooccurrenceLinkInput {
   strength: number;
   /** 省略時は無向。ファイル内部の数値コードは外へ出さない（設計書 §5）。 */
   direction?: CooccurrenceDirectionName;
+  /** 省略時はメモなし。 */
+  note?: string;
 }
 
 export interface CooccurrenceClusterInput {
   label: string;
   members: string[];
+  /** 省略時はメモなし。 */
+  note?: string;
 }
 
 export interface WriteCooccurrenceInput {
@@ -141,6 +152,18 @@ function addTerms(
   return indexByLabel(file.spec.nodes);
 }
 
+/**
+ * メモを対象の添字へ結びつける。
+ *
+ * 呼び出し側（Claude Code）は語名・両端・クラスタ名でしか対象を指さないため、添字への変換は
+ * ここに閉じる。省略された `note` は書かない（空文字は §2.6 で不正であり、「省略＝メモなし」を
+ * 空文字へ読み替えると、省略しただけの書き込みが検証で落ちる）。
+ */
+function attachNote(file: CooccurrenceFile, target: CooccurrenceNoteTarget, index: number, note: string | undefined): void {
+  if (note === undefined) return;
+  file.spec.notes = withCooccurrenceNote(file.spec.notes, target, index, note);
+}
+
 function resolveLabel(indexes: Map<string, number>, label: string, inputPath: string): number | ValidationError {
   const index = indexes.get(label);
   if (index === undefined) {
@@ -169,6 +192,7 @@ function addLinks(
     file.spec.links.push(
       writeLink({ source, target, strength: link.strength, direction: DIRECTION_BY_NAME[link.direction ?? 'none'] }),
     );
+    attachNote(file, 'links', file.spec.links.length - 1, link.note);
   });
   return errors;
 }
@@ -193,32 +217,44 @@ function addClusters(
       }
     });
     converted.push({ label: cluster.label, members });
+    attachNote(file, 'clusters', converted.length - 1, cluster.note);
   });
   file.spec.clusters = converted;
   return errors;
+}
+
+function noteField(file: CooccurrenceFile, target: CooccurrenceNoteTarget, index: number): { note?: string } {
+  const note = readCooccurrenceNote(file.spec, target, index);
+  return note === undefined ? {} : { note };
 }
 
 function toResult(pathName: string, file: CooccurrenceFile): WriteCooccurrenceResult {
   const result: WriteCooccurrenceResult = {
     ok: true,
     path: pathName,
-    terms: file.spec.nodes.map((node) => ({ label: node.label, frequency: node.frequency })),
-    links: file.spec.links.map((link) => {
+    terms: file.spec.nodes.map((node, index) => ({
+      label: node.label,
+      frequency: node.frequency,
+      ...noteField(file, 'nodes', index),
+    })),
+    links: file.spec.links.map((link, index) => {
       const view = readLink(link);
       return {
         source: file.spec.nodes[view.source].label,
         target: file.spec.nodes[view.target].label,
         strength: view.strength,
         direction: directionNameOf(view.direction),
+        ...noteField(file, 'links', index),
       };
     }),
   };
   if (file.spec.title !== undefined) result.title = file.spec.title;
   if (file.spec.subject !== undefined) result.subject = file.spec.nodes[file.spec.subject].label;
   if (file.spec.clusters !== undefined) {
-    result.clusters = file.spec.clusters.map((cluster) => ({
+    result.clusters = file.spec.clusters.map((cluster, index) => ({
       label: cluster.label,
       members: cluster.members.map((member) => file.spec.nodes[member].label),
+      ...noteField(file, 'clusters', index),
     }));
   }
   return result;
@@ -234,6 +270,10 @@ function applyInput(base: CooccurrenceFile, input: WriteCooccurrenceInput): Buil
   if (input.title !== undefined) file.spec.title = input.title;
 
   const indexes = addTerms(file, input.terms, input.mode);
+  input.terms.forEach((term) => {
+    const index = indexes.get(term.label);
+    if (index !== undefined) attachNote(file, 'nodes', index, term.note);
+  });
   const labelErrors = [
     ...addLinks(file, input.links, indexes),
     ...addClusters(file, input.clusters, indexes),
@@ -250,7 +290,7 @@ function applyInput(base: CooccurrenceFile, input: WriteCooccurrenceInput): Buil
 
   // 版数は共起の内容から導出する（設計書 §2.2）。1 固定のままだと、向き付きの共起を書いた
   // ときに「版数と内容が一致しない」で自分の書き込みが検証に落ちる。
-  file.meta.schemaVersion = schemaVersionForLinks(file.spec.links);
+  file.meta.schemaVersion = schemaVersionForSpec(file.spec);
 
   const errors = [...labelErrors, ...validateCooccurrenceFile(file)];
   if (errors.length > 0) return { ok: false, path: input.path, errors };

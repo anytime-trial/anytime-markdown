@@ -8,7 +8,7 @@ describe('cooccurrence tab model', () => {
   it('lists the tabs in display order', () => {
     // 先頭はミニマップ。既定タブもこの並びの先頭に従う（仕様 §3.5）。
     // 語と共起は別のタブに置く（編集フォームの項目も一覧の行の意味も違う。仕様 §3.3）。
-    expect(COOC_TAB_IDS).toEqual(['minimap', 'filter', 'words', 'links', 'export']);
+    expect(COOC_TAB_IDS).toEqual(['minimap', 'filter', 'words', 'links', 'clusters', 'export']);
   });
 
   it('moves to the next tab with ArrowRight', () => {

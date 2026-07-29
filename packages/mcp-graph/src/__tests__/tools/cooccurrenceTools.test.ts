@@ -296,6 +296,128 @@ describe('cooccurrence tools', () => {
     });
   });
 
+  describe('メモ', () => {
+    const terms = [
+      { label: 'alpha', frequency: 1 },
+      { label: 'beta', frequency: 1 },
+    ];
+
+    it('語・共起・クラスタのメモが保存され、版数が 3 になる', async () => {
+      await writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'replace',
+          terms: [{ ...terms[0], note: '語のメモ\n二行目' }, terms[1]],
+          links: [{ source: 'alpha', target: 'beta', strength: 5, note: '共起のメモ' }],
+          clusters: [{ label: 'c1', members: ['alpha'], note: 'クラスタのメモ' }],
+        },
+        tmpDir,
+      );
+      const saved = await readSaved();
+
+      expect(saved.meta.schemaVersion).toBe(3);
+      expect(saved.spec.notes).toEqual({
+        nodes: [[0, '語のメモ\n二行目']],
+        links: [[0, '共起のメモ']],
+        clusters: [[0, 'クラスタのメモ']],
+      });
+    });
+
+    it('省略するとメモが書かれず版数は 1 のままになる', async () => {
+      await writeCooccurrence(
+        { path: testFile, mode: 'replace', terms, links: [{ source: 'alpha', target: 'beta', strength: 5 }] },
+        tmpDir,
+      );
+      const saved = await readSaved();
+
+      expect(saved.meta.schemaVersion).toBe(1);
+      expect(saved.spec.notes).toBeUndefined();
+    });
+
+    it('読み出すとメモが対象に添えて返る', async () => {
+      await writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'replace',
+          terms: [{ ...terms[0], note: '語のメモ' }, terms[1]],
+          links: [{ source: 'alpha', target: 'beta', strength: 5, note: '共起のメモ' }],
+          clusters: [{ label: 'c1', members: ['alpha'], note: 'クラスタのメモ' }],
+        },
+        tmpDir,
+      );
+      const result = await readCooccurrence({ path: testFile }, tmpDir);
+
+      expect(result.terms[0].note).toBe('語のメモ');
+      expect(result.terms[1].note).toBeUndefined();
+      expect(result.links[0].note).toBe('共起のメモ');
+      expect(result.clusters?.[0].note).toBe('クラスタのメモ');
+    });
+
+    it('上限を超えるメモを拒否し、ファイルを書き換えない', async () => {
+      await writeCooccurrence(
+        { path: testFile, mode: 'replace', terms, links: [{ source: 'alpha', target: 'beta', strength: 5 }] },
+        tmpDir,
+      );
+      const before = await fs.readFile(path.join(tmpDir, testFile), 'utf-8');
+
+      const result = await writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'replace',
+          terms: [{ ...terms[0], note: 'あ'.repeat(2001) }, terms[1]],
+          links: [{ source: 'alpha', target: 'beta', strength: 5 }],
+        },
+        tmpDir,
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.errors?.some((error) => error.code === 'note-too-long')).toBe(true);
+      expect(await fs.readFile(path.join(tmpDir, testFile), 'utf-8')).toBe(before);
+    });
+
+    it('空文字のメモを拒否する', async () => {
+      const result = await writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'replace',
+          terms: [{ ...terms[0], note: '' }, terms[1]],
+          links: [{ source: 'alpha', target: 'beta', strength: 5 }],
+        },
+        tmpDir,
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.errors?.some((error) => error.code === 'empty-note')).toBe(true);
+    });
+
+    it('追記した語のメモが既存の語のメモを上書きしない', async () => {
+      await writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'replace',
+          terms: [{ ...terms[0], note: 'alpha のメモ' }, terms[1]],
+          links: [{ source: 'alpha', target: 'beta', strength: 5 }],
+        },
+        tmpDir,
+      );
+      await writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'append',
+          terms: [{ label: 'gamma', frequency: 1, note: 'gamma のメモ' }],
+          links: [],
+        },
+        tmpDir,
+      );
+      const saved = await readSaved();
+
+      expect(saved.spec.notes?.nodes).toEqual([
+        [0, 'alpha のメモ'],
+        [2, 'gamma のメモ'],
+      ]);
+    });
+  });
+
   it('should reject paths outside the root directory', async () => {
     await expect(writeCooccurrence({
       path: '../outside.cooc.json',
