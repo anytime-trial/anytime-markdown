@@ -71,7 +71,8 @@ describe('cooccurrence viewer panel tabs', () => {
     expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('true');
     expect(panel(container, 'cooc-panel-minimap').hidden).toBe(false);
     expect(panel(container, 'cooc-panel-filter').hidden).toBe(true);
-    expect(panel(container, 'cooc-panel-edit').hidden).toBe(true);
+    expect(panel(container, 'cooc-panel-words').hidden).toBe(true);
+    expect(panel(container, 'cooc-panel-links').hidden).toBe(true);
     handle.destroy();
   });
 
@@ -80,7 +81,7 @@ describe('cooccurrence viewer panel tabs', () => {
     const list = container.querySelector('[role="tablist"]') as HTMLElement;
 
     expect(list).not.toBeNull();
-    for (const panelId of ['cooc-panel-filter', 'cooc-panel-edit']) {
+    for (const panelId of ['cooc-panel-filter', 'cooc-panel-words', 'cooc-panel-links']) {
       expect(tab(container, panelId).parentElement).toBe(list);
       expect(panel(container, panelId).getAttribute('role')).toBe('tabpanel');
       expect(panel(container, panelId).getAttribute('aria-labelledby')).toBe(`${panelId}-tab`);
@@ -88,13 +89,13 @@ describe('cooccurrence viewer panel tabs', () => {
     handle.destroy();
   });
 
-  it('switches to the edit tab on click', () => {
+  it('switches to the words tab on click', () => {
     const { container, handle } = mount();
 
-    tab(container, 'cooc-panel-edit').click();
+    tab(container, 'cooc-panel-words').click();
 
-    expect(tab(container, 'cooc-panel-edit').getAttribute('aria-selected')).toBe('true');
-    expect(panel(container, 'cooc-panel-edit').hidden).toBe(false);
+    expect(tab(container, 'cooc-panel-words').getAttribute('aria-selected')).toBe('true');
+    expect(panel(container, 'cooc-panel-words').hidden).toBe(false);
     expect(panel(container, 'cooc-panel-filter').hidden).toBe(true);
     handle.destroy();
   });
@@ -105,7 +106,7 @@ describe('cooccurrence viewer panel tabs', () => {
     minFrequency.value = '7';
     minFrequency.dispatchEvent(new Event('input', { bubbles: true }));
 
-    tab(container, 'cooc-panel-edit').click();
+    tab(container, 'cooc-panel-words').click();
     tab(container, 'cooc-panel-filter').click();
 
     expect((container.querySelector('.cooc-filter__field input') as HTMLInputElement).value).toBe('7');
@@ -157,24 +158,24 @@ describe('cooccurrence viewer panel tabs', () => {
     const panels = container.querySelector('.cooc-viewer__panels') as HTMLElement;
     tab(container, 'cooc-panel-minimap').click();
 
-    tab(container, 'cooc-panel-edit').click();
+    tab(container, 'cooc-panel-words').click();
 
     expect(panels.hidden).toBe(false);
-    expect(panel(container, 'cooc-panel-edit').hidden).toBe(false);
-    expect(tab(container, 'cooc-panel-edit').getAttribute('aria-selected')).toBe('true');
+    expect(panel(container, 'cooc-panel-words').hidden).toBe(false);
+    expect(tab(container, 'cooc-panel-words').getAttribute('aria-selected')).toBe('true');
     handle.destroy();
   });
 
-  it('rebuilds the word rows when the panel is reopened on the edit tab', () => {
+  it('rebuilds the word rows when the panel is reopened on the words tab', () => {
     // 畳んでいる間は列の高さが 0 で、仮想リストの可視ウィンドウが 0 行に確定しうる。
     // 開き直す側が作り直さないと、一覧が空のまま残る。
     const { container, handle } = mount();
-    tab(container, 'cooc-panel-edit').click();
+    tab(container, 'cooc-panel-words').click();
     const items = container.querySelector('.cooc-words__items') as HTMLElement;
 
-    tab(container, 'cooc-panel-edit').click();
+    tab(container, 'cooc-panel-words').click();
     items.replaceChildren();
-    tab(container, 'cooc-panel-edit').click();
+    tab(container, 'cooc-panel-words').click();
 
     expect(items.querySelectorAll('[role="option"]').length).toBe(2);
     handle.destroy();
@@ -198,7 +199,7 @@ describe('cooccurrence viewer panel tabs', () => {
 
     expect(tab(container, 'cooc-panel-minimap').tabIndex).toBe(0);
     expect(tab(container, 'cooc-panel-filter').tabIndex).toBe(-1);
-    expect(tab(container, 'cooc-panel-edit').tabIndex).toBe(-1);
+    expect(tab(container, 'cooc-panel-words').tabIndex).toBe(-1);
     handle.destroy();
   });
 
@@ -212,7 +213,7 @@ describe('cooccurrence viewer panel tabs', () => {
     // 選択が起きてもタブは奪われない（仕様 §3.5）。既定はミニマップタブ。
     expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('true');
 
-    tab(container, 'cooc-panel-edit').click();
+    tab(container, 'cooc-panel-words').click();
 
     // 切り替えた時点で、選んだ語が編集フォームに入っている（E2E §8 No.6）。
     const inputs = container.querySelectorAll('.cooc-words__edit input');
@@ -242,30 +243,31 @@ describe('cooccurrence viewer panel tabs', () => {
     canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
     expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('true');
-    expect(panel(container, 'cooc-panel-edit').hidden).toBe(true);
+    expect(panel(container, 'cooc-panel-words').hidden).toBe(true);
+    expect(panel(container, 'cooc-panel-links').hidden).toBe(true);
     handle.destroy();
   });
 
   it('keeps the active tab across hiding and showing the panel', () => {
     const { container, handle } = mount();
-    tab(container, 'cooc-panel-edit').click();
+    tab(container, 'cooc-panel-words').click();
 
     handle.update({ showPanels: false });
     handle.update({ showPanels: true });
 
-    expect(tab(container, 'cooc-panel-edit').getAttribute('aria-selected')).toBe('true');
-    expect(panel(container, 'cooc-panel-edit').hidden).toBe(false);
+    expect(tab(container, 'cooc-panel-words').getAttribute('aria-selected')).toBe('true');
+    expect(panel(container, 'cooc-panel-words').hidden).toBe(false);
     handle.destroy();
   });
 
-  it('rebuilds the word rows when the edit tab becomes visible', () => {
+  it('rebuilds the word rows when the words tab becomes visible', () => {
     const { container, handle } = mount();
     const items = container.querySelector('.cooc-words__items') as HTMLElement;
     // 隠れている間は viewport の clientHeight が 0 で、仮想ウィンドウが 0 行に確定しうる。
     // 表示へ戻す側が作り直さないと、一覧が空のまま残る。
     items.replaceChildren();
 
-    tab(container, 'cooc-panel-edit').click();
+    tab(container, 'cooc-panel-words').click();
 
     expect(items.querySelectorAll('[role="option"]').length).toBe(2);
     handle.destroy();
@@ -276,7 +278,8 @@ describe('cooccurrence viewer panel tabs', () => {
     const { container, handle } = mount('ja');
 
     expect(tab(container, 'cooc-panel-filter').getAttribute('aria-label')).toBe('絞り込み');
-    expect(tab(container, 'cooc-panel-edit').getAttribute('aria-label')).toBe('編集');
+    expect(tab(container, 'cooc-panel-words').getAttribute('aria-label')).toBe('語');
+    expect(tab(container, 'cooc-panel-links').getAttribute('aria-label')).toBe('共起');
     expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-label')).toBe('ミニマップ');
     expect(tab(container, 'cooc-panel-minimap').title).toBe('ミニマップ');
     expect((container.querySelector('.cooc-rail') as HTMLElement).getAttribute('aria-label'))
@@ -285,7 +288,8 @@ describe('cooccurrence viewer panel tabs', () => {
     handle.update({ locale: 'en' });
 
     expect(tab(container, 'cooc-panel-filter').getAttribute('aria-label')).toBe('Filter');
-    expect(tab(container, 'cooc-panel-edit').getAttribute('aria-label')).toBe('Edit');
+    expect(tab(container, 'cooc-panel-words').getAttribute('aria-label')).toBe('Terms');
+    expect(tab(container, 'cooc-panel-links').getAttribute('aria-label')).toBe('Cooccurrences');
     expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-label')).toBe('Minimap');
     expect((container.querySelector('.cooc-rail') as HTMLElement).getAttribute('aria-label'))
       .toBe('Panel switcher');
@@ -296,7 +300,7 @@ describe('cooccurrence viewer panel tabs', () => {
     // 図柄が抜けても aria-label は残るため、視覚的には空のボタンが並ぶだけで検知できない。
     const { container, handle } = mount();
 
-    for (const panelId of ['cooc-panel-minimap', 'cooc-panel-filter', 'cooc-panel-edit']) {
+    for (const panelId of ['cooc-panel-minimap', 'cooc-panel-filter', 'cooc-panel-words', 'cooc-panel-links']) {
       const icon = tab(container, panelId).querySelector('svg');
       expect(icon?.getAttribute('aria-hidden')).toBe('true');
       expect(icon?.querySelector('path')?.getAttribute('d')?.length ?? 0).toBeGreaterThan(10);
