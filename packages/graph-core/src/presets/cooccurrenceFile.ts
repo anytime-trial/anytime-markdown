@@ -121,12 +121,14 @@ function validateStructure(file: unknown): ValidationError[] {
     return [error('invalid-schema', '', 'file must be an object')];
   }
 
+  let schemaVersion: unknown;
   const meta = prop(file, 'meta');
   if (!isRecord(meta)) {
     errors.push(error('invalid-schema', 'meta', 'meta must be an object'));
   } else {
-    if (prop(meta, 'schemaVersion') !== 1) {
-      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1'));
+    schemaVersion = prop(meta, 'schemaVersion');
+    if (schemaVersion !== 1 && schemaVersion !== 2) {
+      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1 or 2'));
     }
     if (typeof prop(meta, 'generatedAt') !== 'string') {
       errors.push(error('invalid-schema', 'meta.generatedAt', 'generatedAt must be a string'));
@@ -175,8 +177,14 @@ function validateStructure(file: unknown): ValidationError[] {
     errors.push(error('invalid-schema', 'spec.links', 'links must be an array'));
   } else {
     links.forEach((link, i) => {
-      if (!Array.isArray(link) || link.length !== 3) {
-        errors.push(error('invalid-schema', `spec.links.${i}`, 'link must be [source, target, strength]'));
+      if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) {
+        errors.push(
+          error(
+            'invalid-schema',
+            `spec.links.${i}`,
+            'link must be [source, target, strength] or [source, target, strength, direction]',
+          ),
+        );
         return;
       }
       for (let j = 0; j < 2; j++) {
@@ -186,6 +194,16 @@ function validateStructure(file: unknown): ValidationError[] {
       }
       if (!isFiniteNumber(link[2])) {
         errors.push(error('invalid-schema', `spec.links.${i}.2`, 'link strength must be a finite number'));
+      }
+      if (link.length === 4) {
+        // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。読めてしまうと、旧実装が
+        // 拒否するファイルを新実装だけが受理する状態になり、どちらが正しいのか判断できなくなる。
+        if (schemaVersion === 1) {
+          errors.push(error('invalid-schema', `spec.links.${i}`, 'link with direction requires schemaVersion 2'));
+        }
+        if (!Number.isInteger(link[3]) || link[3] < 0 || link[3] > 3) {
+          errors.push(error('invalid-schema', `spec.links.${i}.3`, 'link direction must be an integer in 0..3'));
+        }
       }
     });
   }

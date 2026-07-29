@@ -188,6 +188,52 @@ describe('cooccurrence .cooc.json helpers', () => {
   });
 });
 
+describe('向きの検証', () => {
+  const base = (links: unknown[], schemaVersion: number): unknown => ({
+    meta: { schemaVersion, generatedAt: '2026-07-29T00:00:00.000Z', origin: 'manual' },
+    spec: {
+      nodes: [
+        { label: 'A', frequency: 1 },
+        { label: 'B', frequency: 1 },
+      ],
+      links,
+    },
+  });
+
+  it('版数 2 なら 4 要素の共起を受理する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5, 1]], 2))).toEqual([]);
+  });
+
+  it('版数 1 に 4 要素の共起があれば拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5, 1]], 1));
+    expect(errors).toHaveLength(1);
+    expect(errors[0].path).toBe('spec.links.0');
+  });
+
+  it('向きが範囲外なら拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5, 4]], 2));
+    expect(errors).toHaveLength(1);
+    expect(errors[0].path).toBe('spec.links.0.3');
+  });
+
+  it('向きが整数でなければ拒否する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5, 1.5]], 2))).toHaveLength(1);
+  });
+
+  it('版数 1 の 3 要素の共起は従来どおり受理する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5]], 1))).toEqual([]);
+  });
+
+  it('版数 3 は拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5]], 3));
+    expect(errors.some((e) => e.path === 'meta.schemaVersion')).toBe(true);
+  });
+
+  it('要素数が 2 の共起は従来どおり拒否する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1]], 1))).toHaveLength(1);
+  });
+});
+
 describe('readLink / writeLink', () => {
   it('3 要素のタプルは無向として読む', () => {
     expect(readLink([0, 1, 8])).toEqual({ source: 0, target: 1, strength: 8, direction: 0 });
