@@ -2,10 +2,23 @@ import type { RenderGraph, RenderNode, ViewportState } from '../types';
 import type { CooccurrenceTheme } from '../theme/readTheme';
 import { computeNeighborhoodHighlight } from './highlight';
 import { selectVisibleLabels } from './labels';
+import { worldToScreen } from '../viewport/viewport';
 
+/**
+ * 座標系の契約: `drawGraph` は CSS ピクセル座標で描き、基底の変換行列（devicePixelRatio）は
+ * 呼び出し側が張ったものをそのまま使う。
+ *
+ * Why not 先頭で `setTransform(1,0,0,1,0,0)` して自前でリセットするか: 円と線は
+ * `save/restore` の内側、ラベルとツールチップは外側で描くため、内側だけ単位行列へ落とすと
+ * 円が DPR なし・ラベルが DPR ありの別座標系になり、DPR が 1 でない環境（VS Code の
+ * ウィンドウズームで変化する）でラベルだけ dpr 倍の位置へ飛ぶ。クリア範囲も
+ * バッキングストアの一部しか覆えず、外周に描いたラベルが消えずに残る。
+ */
 export interface DrawGraphOptions {
   ctx: CanvasRenderingContext2D;
+  /** CSS ピクセル単位の表示幅（バッキングストアの実ピクセル数ではない）。 */
   width: number;
+  /** CSS ピクセル単位の表示高さ。 */
   height: number;
   graph: RenderGraph;
   viewport: ViewportState;
@@ -26,13 +39,14 @@ function visibleAlpha(
 export function drawGraph(opts: DrawGraphOptions): void {
   const { ctx, width, height, graph, viewport, theme, selectedNodeIndex, hoveredNode } = opts;
   ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, width, height);
 
   const highlight = computeNeighborhoodHighlight(graph, selectedNodeIndex);
   const nodeByIndex = new Map(graph.nodes.map((node) => [node.index, node]));
+
+  ctx.save();
   ctx.translate(viewport.offsetX, viewport.offsetY);
   ctx.scale(viewport.scale, viewport.scale);
 
@@ -85,6 +99,7 @@ export function drawGraph(opts: DrawGraphOptions): void {
   ctx.globalAlpha = 1;
 
   if (hoveredNode) drawTooltip(ctx, hoveredNode, viewport, theme, width, height);
+  ctx.restore();
 }
 
 function drawTooltip(
@@ -95,8 +110,9 @@ function drawTooltip(
   width: number,
   height: number,
 ): void {
-  const x = node.x * viewport.scale + viewport.offsetX + 14;
-  const y = node.y * viewport.scale + viewport.offsetY + 14;
+  const anchor = worldToScreen({ x: node.x, y: node.y }, viewport);
+  const x = anchor.x + 14;
+  const y = anchor.y + 14;
   const lines = [node.label, `frequency: ${node.frequency}`, `cooccurrences: ${node.cooccurrenceCount}`];
   ctx.font = '12px sans-serif';
   const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
