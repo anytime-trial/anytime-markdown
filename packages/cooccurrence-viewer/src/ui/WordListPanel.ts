@@ -9,6 +9,7 @@ import {
 } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { computeVisibleWindow } from './virtualList';
+import { ensureButtonBaseStyles } from './buttonBaseStyle';
 
 export interface WordListPanelState {
   file: CooccurrenceFile;
@@ -33,6 +34,7 @@ const ROW_HEIGHT = 36;
 const OVERSCAN = 4;
 
 function ensureStyles(): void {
+  ensureButtonBaseStyles();
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
@@ -42,7 +44,7 @@ function ensureStyles(): void {
 .cooc-words__viewport{position:relative;min-height:120px;flex:1;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
 .cooc-words__spacer{position:relative;width:100%}
 .cooc-words__items{position:absolute;inset:0 0 auto 0}
-.cooc-words__row{box-sizing:border-box;height:36px;display:grid;grid-template-columns:minmax(0,1fr) 56px 64px;gap:8px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif;cursor:pointer}
+.cooc-words__row{height:36px;display:grid;grid-template-columns:minmax(0,1fr) 56px 64px;gap:8px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif}
 .cooc-words__row:hover{background:var(--cooc-action-hover)}
 .cooc-words__row[aria-selected="true"]{background:var(--cooc-action-selected)}
 .cooc-words__row[data-hidden-by-filter="true"] .cooc-words__label{color:var(--cooc-text-disabled)}
@@ -110,23 +112,23 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   const buttons = document.createElement('div');
   buttons.className = 'cooc-words__buttons';
   const addButton = document.createElement('button');
-  addButton.className = 'cooc-words__button';
+  addButton.className = 'cooc-btn cooc-words__button';
   addButton.type = 'button';
   addButton.textContent = t('words.add');
   const renameButton = document.createElement('button');
-  renameButton.className = 'cooc-words__button';
+  renameButton.className = 'cooc-btn cooc-words__button';
   renameButton.type = 'button';
   renameButton.textContent = t('words.rename');
   const frequencyButton = document.createElement('button');
-  frequencyButton.className = 'cooc-words__button';
+  frequencyButton.className = 'cooc-btn cooc-words__button';
   frequencyButton.type = 'button';
   frequencyButton.textContent = t('words.setFreq');
   const clusterButton = document.createElement('button');
-  clusterButton.className = 'cooc-words__button';
+  clusterButton.className = 'cooc-btn cooc-words__button';
   clusterButton.type = 'button';
   clusterButton.textContent = t('words.setCluster');
   const deleteButton = document.createElement('button');
-  deleteButton.className = 'cooc-words__button';
+  deleteButton.className = 'cooc-btn cooc-words__button';
   deleteButton.type = 'button';
   deleteButton.textContent = t('words.delete');
   buttons.append(addButton, renameButton, frequencyButton, clusterButton, deleteButton);
@@ -173,7 +175,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       const node = state.file.spec.nodes[nodeIndex];
       if (!node) return;
       const row = document.createElement('button');
-      row.className = 'cooc-words__row';
+      row.className = 'cooc-btn cooc-btn--block cooc-words__row';
       row.type = 'button';
       row.dataset.nodeIndex = String(nodeIndex);
       row.setAttribute('role', 'option');

@@ -2,6 +2,7 @@ import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOpti
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { createFilterOptions, filterOptionsToInput, parseMinFrequency, parseMinStrength, parseTopLinkCount, type FilterModelInput } from './filterModel';
 import { clusterColorVarName } from '../theme/readTheme';
+import { ensureButtonBaseStyles } from './buttonBaseStyle';
 
 export interface FilterPanelState {
   file: CooccurrenceFile;
@@ -23,6 +24,9 @@ export interface FilterPanelHandle {
 const STYLE_ID = 'cooccurrence-filter-panel-style';
 
 function ensureStyles(): void {
+  // 現状このパネルに button は無いが、3 パネルで呼び出しを揃えておく。
+  // 例外を作ると、後からボタンを足す人が土台の注入に気づけない。
+  ensureButtonBaseStyles();
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
