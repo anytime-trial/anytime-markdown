@@ -119,14 +119,13 @@ describe("TicketsPanel", () => {
     });
   }
 
-  it("未選択時は空状態とリポジトリ選択ボタンを表示する", async () => {
-    await renderPanel(null, null);
-    expect(container.textContent).toContain("チケットを保存する GitHub リポジトリを選択してください");
-  });
-
   it("gateway が null なら空状態とリポジトリ選択ボタンを出す", async () => {
     await renderPanel(null, null);
     expect(container.textContent).toContain(ticketsMessagesJa.repo.empty);
+    const selectButton = [...container.querySelectorAll("button")].find(
+      (b) => b.textContent === ticketsMessagesJa.repo.select,
+    );
+    expect(selectButton).not.toBeUndefined();
   });
 
   it("ツールバーに source.label を保存先として表示する", async () => {
