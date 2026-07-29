@@ -1,4 +1,4 @@
-import { parseGraphDsl } from "@anytime-markdown/graph-core";
+import { parseGraphDsl, serializeGraphDsl } from "@anytime-markdown/graph-core";
 import { applyAnytimeGraphOp, AnytimeGraphMutateError, describeNode } from "../vanilla/anytimeGraphMutate";
 import type { AnytimeGraphOp } from "../vanilla/anytimeGraphMutate";
 
@@ -297,6 +297,27 @@ describe("anytimeGraphMutate", () => {
     it("addChild は非対応として理由付きで失敗する（無言で成功させない）", () => {
       expect(() => applyAnytimeGraphOp(dsl, { kind: "addChild", path: "nodes.0", value: "x" }))
         .toThrow(AnytimeGraphMutateError);
+    });
+
+    // 向き付きの共起（`-->` / `<--` / `<-->`）を含むフェンスでも、フェンス側の編集経路が
+    // DSL を壊さないことを固定する。書き戻しで矢印が消えると、図の意味が変わる。
+    const directedDsl = [
+      "type: cooccurrence",
+      "- 納期遅延: 40",
+      "- 人員不足: 25",
+      "- 納期遅延 --> 人員不足: 0.8",
+    ].join("\n");
+
+    it("向き付きの共起でも describeNode は対象外として null を返す", () => {
+      const spec = parseGraphDsl(directedDsl);
+      expect(describeNode(spec, "links.0")).toBeNull();
+    });
+
+    it("向き付きの共起は parse と serialize の往復で矢印を保つ", () => {
+      const spec = parseGraphDsl(directedDsl);
+      expect(spec.type).toBe("cooccurrence");
+      if (spec.type === "cooccurrence") expect(spec.links[0].direction).toBe("forward");
+      expect(serializeGraphDsl(spec)).toContain("- 納期遅延 --> 人員不足: 0.8");
     });
   });
 
