@@ -301,8 +301,15 @@ describe('向きの検証', () => {
     expect(validateCooccurrenceFile(base([[0, 1, 5]], 1))).toEqual([]);
   });
 
-  it('版数 3 は拒否する', () => {
-    const errors = validateCooccurrenceFile(base([[0, 1, 5]], 3));
+  // 版数 3 はメモの導入で有効になった（設計書 §2.2）。内容より高い版数を宣言したファイルは
+  // 受理する（版数 2 の無向だけのファイルと同じ扱い）。拒否するのは逆向きの食い違い
+  // ——版数が内容を説明していない場合——だけである。
+  it('版数 3 は受理する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5]], 3))).toEqual([]);
+  });
+
+  it('版数 4 は拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5]], 4));
     expect(errors.some((e) => e.path === 'meta.schemaVersion')).toBe(true);
   });
 

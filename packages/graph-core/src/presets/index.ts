@@ -26,7 +26,7 @@ export {
   parseCoocFile,
   readLink,
   writeLink,
-  schemaVersionForLinks,
+  schemaVersionForSpec,
   LINK_DIRECTION,
 } from './cooccurrenceFile';
 export type {
@@ -37,6 +37,15 @@ export type {
   ValidationError,
   ValidationErrorCode,
 } from './cooccurrenceFile';
+export {
+  COOCCURRENCE_NOTE_MAX_LENGTH,
+  COOCCURRENCE_NOTE_TARGETS,
+  hasAnyCooccurrenceNote,
+  noteBearingIndexes,
+  readCooccurrenceNote,
+  withCooccurrenceNote,
+} from './cooccurrenceNotes';
+export type { CooccurrenceNoteEntry, CooccurrenceNotes, CooccurrenceNoteTarget } from './cooccurrenceNotes';
 export { filterCooccurrenceFile } from './cooccurrenceFilter';
 export type { CooccurrenceFilterOptions, CooccurrenceFilterCounts, CooccurrenceFilterResult } from './cooccurrenceFilter';
 export {
@@ -52,6 +61,12 @@ export {
   setCooccurrenceLinkDirection,
   setCooccurrenceTitle,
   setCooccurrenceSubject,
+  setCooccurrenceNodeNote,
+  removeCooccurrenceNodeNote,
+  setCooccurrenceLinkNote,
+  removeCooccurrenceLinkNote,
+  setCooccurrenceClusterNote,
+  removeCooccurrenceClusterNote,
 } from './cooccurrenceEdit';
 export type { CooccurrenceEditResult } from './cooccurrenceEdit';
 
