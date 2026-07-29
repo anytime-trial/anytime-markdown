@@ -26,6 +26,15 @@ export interface WordListPanelOptions extends WordListPanelState {
 export interface WordListPanelHandle {
   element: HTMLElement;
   update(state: WordListPanelState): void;
+  /**
+   * 行だけを作り直す。
+   *
+   * 隠れている間は viewport の clientHeight が 0 になり、可視ウィンドウが
+   * `clientHeight || 120` のフォールバックで 120px 相当（数行）に固まる。表示へ戻しても
+   * 状態は変わらないため update() は呼ばれず、列の高さに見合う行数まで増えない。
+   * 表示へ戻す側が明示的に呼ぶ。
+   */
+  refresh(): void;
   destroy(): void;
 }
 
@@ -282,6 +291,9 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       state = nextState;
       t = state.t;
       render();
+    },
+    refresh(): void {
+      renderRows();
     },
     destroy(): void {
       element.remove();

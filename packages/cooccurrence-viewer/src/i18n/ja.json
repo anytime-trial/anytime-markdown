@@ -6,6 +6,8 @@
     "toolbar.exportPng": "PNG",
     "toolbar.hidePanels": "パネルを隠す",
     "toolbar.showPanels": "パネルを表示",
+    "tabs.filter": "絞り込み",
+    "tabs.edit": "要素の編集",
     "filter.title": "絞り込み",
     "filter.minFrequency": "最小頻度",
     "filter.minStrength": "最小共起強度",
