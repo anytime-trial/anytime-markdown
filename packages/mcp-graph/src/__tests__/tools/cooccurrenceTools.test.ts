@@ -41,8 +41,8 @@ describe('cooccurrence tools', () => {
 
     expect(result.ok).toBe(true);
     expect(result.links).toEqual([
-      { source: 'alpha', target: 'gamma', strength: 0.8 },
-      { source: 'beta', target: 'gamma', strength: 0.4 },
+      { source: 'alpha', target: 'gamma', strength: 0.8, direction: 'none' },
+      { source: 'beta', target: 'gamma', strength: 0.4, direction: 'none' },
     ]);
     expect(JSON.stringify(result)).not.toContain('[0,2');
     const saved = await readSaved();
@@ -132,7 +132,7 @@ describe('cooccurrence tools', () => {
       { label: 'alpha', frequency: 3 },
       { label: 'beta', frequency: 2 },
     ]);
-    expect(read.links).toEqual([{ source: 'alpha', target: 'beta', strength: 0.6 }]);
+    expect(read.links).toEqual([{ source: 'alpha', target: 'beta', strength: 0.6, direction: 'none' }]);
     expect(read.clusters).toEqual([{ label: 'Pair', members: ['alpha', 'beta'] }]);
     expect(JSON.stringify(read)).not.toContain('"source":0');
     expect(JSON.stringify(read)).not.toContain('"members":[0');
@@ -187,6 +187,82 @@ describe('cooccurrence tools', () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toBeDefined();
     expect(await fs.readFile(path.join(tmpDir, testFile), 'utf-8')).toBe(before);
+  });
+
+  describe('共起の向き', () => {
+    const terms = [
+      { label: 'alpha', frequency: 1 },
+      { label: 'beta', frequency: 1 },
+    ];
+
+    async function write(direction?: 'none' | 'forward' | 'backward' | 'both') {
+      return writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'replace',
+          terms,
+          links: [{ source: 'alpha', target: 'beta', strength: 5, ...(direction ? { direction } : {}) }],
+        },
+        tmpDir,
+      );
+    }
+
+    it('名前で書き込むと数値コードで保存される', async () => {
+      await write('forward');
+      const saved = await readSaved();
+
+      expect(saved.meta.schemaVersion).toBe(2);
+      expect(saved.spec.links[0]).toEqual([0, 1, 5, 1]);
+    });
+
+    it('逆方向と双方向も保存される', async () => {
+      await write('backward');
+      expect((await readSaved()).spec.links[0]).toEqual([0, 1, 5, 2]);
+
+      await write('both');
+      expect((await readSaved()).spec.links[0]).toEqual([0, 1, 5, 3]);
+    });
+
+    it('省略すると無向として保存され版数は 1 のままになる', async () => {
+      await write();
+      const saved = await readSaved();
+
+      expect(saved.meta.schemaVersion).toBe(1);
+      expect(saved.spec.links[0]).toEqual([0, 1, 5]);
+    });
+
+    it('読み出すと名前で返る', async () => {
+      await write('both');
+      const result = await readCooccurrence({ path: testFile }, tmpDir);
+
+      expect(result.links[0]).toMatchObject({ source: 'alpha', target: 'beta', strength: 5, direction: 'both' });
+    });
+
+    it('無向は direction: none で返る', async () => {
+      await write();
+      const result = await readCooccurrence({ path: testFile }, tmpDir);
+
+      expect(result.links[0].direction).toBe('none');
+    });
+
+    it('追記でも向きが保たれる', async () => {
+      await write('forward');
+      await writeCooccurrence(
+        {
+          path: testFile,
+          mode: 'append',
+          terms: [{ label: 'gamma', frequency: 1 }],
+          links: [{ source: 'beta', target: 'gamma', strength: 2, direction: 'backward' }],
+        },
+        tmpDir,
+      );
+      const saved = await readSaved();
+
+      expect(saved.spec.links).toEqual([
+        [0, 1, 5, 1],
+        [1, 2, 2, 2],
+      ]);
+    });
   });
 
   it('should reject paths outside the root directory', async () => {

@@ -35,6 +35,10 @@ const cooccurrenceLinkSchema = z.object({
   source: z.string().describe('Source term label'),
   target: z.string().describe('Target term label'),
   strength: z.number().describe('Cooccurrence strength'),
+  direction: z
+    .enum(['none', 'forward', 'backward', 'both'])
+    .optional()
+    .describe('Direction of the relation (source to target). Omit for an undirected cooccurrence'),
 });
 const cooccurrenceClusterSchema = z.object({
   label: z.string().describe('Cluster label'),

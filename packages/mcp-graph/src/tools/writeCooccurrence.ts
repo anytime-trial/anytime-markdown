@@ -2,12 +2,16 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
   parseCoocFile,
+  readLink,
+  schemaVersionForLinks,
   serializeCoocFile,
   validateCooccurrenceFile,
+  writeLink,
   type CooccurrenceFile,
   type ValidationError,
 } from '@anytime-markdown/graph-core/src/presets/cooccurrenceFile';
 import { resolveSecurePath, validateCooccurrenceExtension } from '../utils/securePath';
+import { DIRECTION_BY_NAME, directionNameOf, type CooccurrenceDirectionName } from './cooccurrenceDirection';
 
 export interface CooccurrenceTermInput {
   label: string;
@@ -18,6 +22,8 @@ export interface CooccurrenceLinkInput {
   source: string;
   target: string;
   strength: number;
+  /** 省略時は無向。ファイル内部の数値コードは外へ出さない（設計書 §5）。 */
+  direction?: CooccurrenceDirectionName;
 }
 
 export interface CooccurrenceClusterInput {
@@ -160,7 +166,9 @@ function addLinks(
       errors.push(target);
       return;
     }
-    file.spec.links.push([source, target, link.strength]);
+    file.spec.links.push(
+      writeLink({ source, target, strength: link.strength, direction: DIRECTION_BY_NAME[link.direction ?? 'none'] }),
+    );
   });
   return errors;
 }
@@ -195,11 +203,15 @@ function toResult(pathName: string, file: CooccurrenceFile): WriteCooccurrenceRe
     ok: true,
     path: pathName,
     terms: file.spec.nodes.map((node) => ({ label: node.label, frequency: node.frequency })),
-    links: file.spec.links.map(([source, target, strength]) => ({
-      source: file.spec.nodes[source].label,
-      target: file.spec.nodes[target].label,
-      strength,
-    })),
+    links: file.spec.links.map((link) => {
+      const view = readLink(link);
+      return {
+        source: file.spec.nodes[view.source].label,
+        target: file.spec.nodes[view.target].label,
+        strength: view.strength,
+        direction: directionNameOf(view.direction),
+      };
+    }),
   };
   if (file.spec.title !== undefined) result.title = file.spec.title;
   if (file.spec.subject !== undefined) result.subject = file.spec.nodes[file.spec.subject].label;
@@ -235,6 +247,10 @@ function applyInput(base: CooccurrenceFile, input: WriteCooccurrenceInput): Buil
       labelErrors.push(subject);
     }
   }
+
+  // 版数は共起の内容から導出する（設計書 §2.2）。1 固定のままだと、向き付きの共起を書いた
+  // ときに「版数と内容が一致しない」で自分の書き込みが検証に落ちる。
+  file.meta.schemaVersion = schemaVersionForLinks(file.spec.links);
 
   const errors = [...labelErrors, ...validateCooccurrenceFile(file)];
   if (errors.length > 0) return { ok: false, path: input.path, errors };
