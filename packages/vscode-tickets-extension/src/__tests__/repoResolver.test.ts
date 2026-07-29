@@ -25,6 +25,21 @@ describe('parseGitHubRemote', () => {
   it('サブグループのような 3 階層パスは受け付けない', () => {
     expect(parseGitHubRemote('https://github.com/owner/group/repo.git')).toBeNull();
   });
+
+  it.each([
+    // 認証情報付き URL: 資格情報混入・SSRF 対策として reject を固定する
+    'https://user:token@github.com/owner/repo.git',
+    // git:// プロトコル: HTTPS/SSH 以外は受け付けない
+    'git://github.com/owner/repo.git',
+    // ポート番号付き: ホスト名に想定外のサフィックスが付くケースを reject 固定する
+    'https://github.com:443/owner/repo.git',
+  ])('セキュリティ境界: %s は null を返す', (url) => {
+    expect(parseGitHubRemote(url)).toBeNull();
+  });
+
+  it('ホスト名の大文字小文字違いは意図的に reject する(実際の git remote URL は小文字が大半のため)', () => {
+    expect(parseGitHubRemote('https://GitHub.com/owner/repo.git')).toBeNull();
+  });
 });
 
 describe('resolveTicketSource', () => {

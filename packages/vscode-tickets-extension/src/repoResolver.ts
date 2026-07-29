@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { TicketProviderKind } from '@anytime-markdown/tickets-core';
 
 const SSH_SCP = /^git@github\.com:([^/]+)\/([^/]+)$/;
 const SSH_URL = /^ssh:\/\/git@github\.com\/([^/]+)\/([^/]+)$/;
@@ -12,6 +13,8 @@ const HTTPS_URL = /^https:\/\/github\.com\/([^/]+)\/([^/]+)$/;
  * ホスト拡張は許可リストの供給経路を整えるまで行わない。
  */
 export function parseGitHubRemote(url: string): string | null {
+  // Why not: replace を先に行うと、末尾に空白/改行がある入力（git remote get-url の出力等）で
+  // /\.git$/ がマッチせず .git が残る。trim を先に行う必要がある。
   const trimmed = url.trim().replace(/\.git$/, '');
   for (const pattern of [SSH_SCP, SSH_URL, HTTPS_URL]) {
     const matched = pattern.exec(trimmed);
@@ -25,7 +28,7 @@ export function parseGitHubRemote(url: string): string | null {
 export interface TicketSource {
   repo: string;
   branch: string;
-  provider: 'github-contents' | 'github-issues';
+  provider: TicketProviderKind;
 }
 
 export interface GitFacts {
