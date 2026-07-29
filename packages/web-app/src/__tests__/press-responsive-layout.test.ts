@@ -18,13 +18,51 @@ interface CssRule {
     body: string;
 }
 
+interface MediaCondition {
+    maxWidth: number | null;
+    minWidth: number | null;
+    /**
+     * max-width / min-width 以外の条件（feature query 等）を含む @media。
+     * 幅だけでは適用可否を決められないため、実効値の計算に混ぜず前提テストで弾く。
+     * 「解釈できない条件を暗黙に常時適用とみなす」と、対象セレクタに新しい種類の
+     * ブレークポイントが増えたときテストが誤って通過する（fail-open）。
+     */
+    unsupported: boolean;
+}
+
 interface GridColumnsDecl {
     selector: string;
     value: string;
-    /** ルールを囲む @media の max-width。囲まれていなければ null（常に適用） */
-    maxWidth: number | null;
+    /** ルールを囲む @media の条件。囲まれていなければ常に適用 */
+    media: MediaCondition;
     /** ソース順。カスケードの後勝ち判定に使う */
     order: number;
+}
+
+const ALWAYS_APPLIES: MediaCondition = { maxWidth: null, minWidth: null, unsupported: false };
+
+/** `@media (max-width: 880px) and (min-width: 400px)` のような prelude を条件へ落とす */
+function parseMediaCondition(prelude: string, inherited: MediaCondition): MediaCondition {
+    let { maxWidth, minWidth, unsupported } = inherited;
+    for (const term of prelude.replace(/^@media/, "").trim().split(/\s+and\s+/)) {
+        const max = /^\(\s*max-width:\s*(\d+)px\s*\)$/.exec(term);
+        const min = /^\(\s*min-width:\s*(\d+)px\s*\)$/.exec(term);
+        if (max) {
+            const value = Number(max[1]);
+            maxWidth = maxWidth === null ? value : Math.min(maxWidth, value);
+        } else if (min) {
+            const value = Number(min[1]);
+            minWidth = minWidth === null ? value : Math.max(minWidth, value);
+        } else {
+            unsupported = true;
+        }
+    }
+    return { maxWidth, minWidth, unsupported };
+}
+
+function mediaApplies(media: MediaCondition, viewportWidth: number): boolean {
+    if (media.maxWidth !== null && viewportWidth > media.maxWidth) return false;
+    return !(media.minWidth !== null && viewportWidth < media.minWidth);
 }
 
 /** 深さ 0 の `prelude { body }` を出現順に切り出す（ネストした @media は body ごと返す） */
@@ -56,29 +94,31 @@ function collectGridColumnsDecls(css: string): GridColumnsDecl[] {
     const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
     const decls: GridColumnsDecl[] = [];
     let order = 0;
-    const walk = (text: string, inheritedMaxWidth: number | null): void => {
+    const walk = (text: string, media: MediaCondition): void => {
         for (const rule of parseRules(text)) {
             if (rule.prelude.startsWith("@media")) {
-                const matched = /max-width:\s*(\d+)px/.exec(rule.prelude);
-                walk(rule.body, matched ? Number(matched[1]) : inheritedMaxWidth);
+                walk(rule.body, parseMediaCondition(rule.prelude, media));
                 continue;
             }
             order += 1;
             const value = /(?:^|;)\s*grid-template-columns\s*:\s*([^;}]+)/.exec(rule.body)?.[1]?.trim();
             if (value) {
-                decls.push({ selector: rule.prelude, value, maxWidth: inheritedMaxWidth, order });
+                decls.push({ selector: rule.prelude, value, media, order });
             }
         }
     };
-    walk(stripped, null);
+    walk(stripped, ALWAYS_APPLIES);
     return decls;
+}
+
+function targetDecls(decls: readonly GridColumnsDecl[]): GridColumnsDecl[] {
+    return decls.filter((decl) => (TARGET_SELECTORS as readonly string[]).includes(decl.selector));
 }
 
 /** 指定ビューポート幅で `.briefingWithEmbed.briefingReversed` に効く grid-template-columns */
 function effectiveGridColumns(decls: readonly GridColumnsDecl[], viewportWidth: number): string {
-    const applicable = decls
-        .filter((decl) => (TARGET_SELECTORS as readonly string[]).includes(decl.selector))
-        .filter((decl) => decl.maxWidth === null || viewportWidth <= decl.maxWidth)
+    const applicable = targetDecls(decls)
+        .filter((decl) => mediaApplies(decl.media, viewportWidth))
         .sort((a, b) => a.order - b.order);
     return applicable.at(-1)?.value ?? "";
 }
@@ -96,8 +136,16 @@ describe("press.module.css: briefing のレスポンシブカラム", () => {
         expect(css.length).toBeGreaterThan(0);
         expect(decls.some((decl) => decl.selector === ".briefingReversed")).toBe(true);
         expect(
-            decls.some((decl) => decl.selector === ".briefingWithEmbed" && decl.maxWidth === 880),
+            decls.some(
+                (decl) => decl.selector === ".briefingWithEmbed" && decl.media.maxWidth === 880,
+            ),
         ).toBe(true);
+    });
+
+    it("解析の前提: 対象セレクタが幅以外の @media 条件に囲まれていない", () => {
+        // 解釈できない条件を常時適用とみなすと実効値の計算が崩れるので、
+        // 新種のブレークポイントが増えた時点でここが落ちるようにする
+        expect(targetDecls(decls).filter((decl) => decl.media.unsupported)).toEqual([]);
     });
 
     it.each([375, 480, 880])("スマホ・タブレット幅 %ipx では 1 カラムに畳む", (width) => {
