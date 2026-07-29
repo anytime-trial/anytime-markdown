@@ -74,7 +74,9 @@ export function createTabBar(options: TabBarOptions): TabBarHandle {
       button.textContent = item.label;
       button.addEventListener('click', () => select(item.id));
       button.addEventListener('keydown', (event) => {
-        const next = nextTabId(activeId, event.key);
+        // 巡回対象は「今そこにあるタブ」。ホストが保存に対応しない場合は保存タブが
+        // 並びから外れるため、固定の一覧で解くと存在しないタブへ移る。
+        const next = nextTabId(activeId, event.key, [...buttons.keys()]);
         if (next === null) return;
         // 既定動作（パネル列のスクロール等）が残ると、キーでタブを移すたびに表示位置が飛ぶ。
         event.preventDefault();

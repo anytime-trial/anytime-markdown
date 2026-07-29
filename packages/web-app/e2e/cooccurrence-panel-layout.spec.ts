@@ -41,6 +41,8 @@ function viewerCss(): string {
     injectedCss("ui/TabBar.ts"),
     injectedCss("ui/FilterPanel.ts"),
     injectedCss("ui/WordListPanel.ts"),
+    injectedCss("ui/MinimapPanel.ts"),
+    injectedCss("ui/ExportPanel.ts"),
   ].join("\n");
 
   // 取り出しが壊れていないことの確認。ここが空振りすると高さの検査が意味を失う。
@@ -48,10 +50,14 @@ function viewerCss(): string {
     ".cooc-viewer__panels",
     ".cooc-viewer__tabpanel",
     ".cooc-tabs",
+    ".cooc-tabs__tab",
     ".cooc-filter",
     ".cooc-words",
     ".cooc-words__viewport",
     ".cooc-words__row",
+    ".cooc-minimap",
+    ".cooc-minimap__frame",
+    ".cooc-export",
   ]) {
     if (!css.includes(`${selector}{`)) throw new Error(`注入 CSS に ${selector} が含まれない`);
   }
@@ -61,7 +67,23 @@ function viewerCss(): string {
 const ROW_HEIGHT = 36;
 const WORD_COUNT = 36;
 
-type ActiveTab = "filter" | "edit";
+type ActiveTab = "filter" | "edit" | "minimap" | "export";
+
+/** タブ列。表示順とラベルは仕様 §3.5 の表に一致させる。 */
+const TABS: ReadonlyArray<{ id: ActiveTab; label: string; panelId: string }> = [
+  { id: "filter", label: "絞り込み", panelId: "cooc-panel-filter" },
+  { id: "edit", label: "編集", panelId: "cooc-panel-edit" },
+  { id: "minimap", label: "ミニマップ", panelId: "cooc-panel-minimap" },
+  { id: "export", label: "保存", panelId: "cooc-panel-export" },
+];
+
+function tabsHtml(activeTab: ActiveTab): string {
+  return TABS.map(({ id, label, panelId }) => {
+    const active = String(id === activeTab);
+    return `<button class="cooc-btn cooc-tabs__tab" type="button" role="tab" aria-controls="${panelId}"`
+      + ` aria-selected="${active}" data-active="${active}" tabindex="${id === activeTab ? 0 : -1}">${label}</button>`;
+  }).join("");
+}
 
 function pageHtml(activeTab: ActiveTab): string {
   const rows = Array.from({ length: WORD_COUNT }, (_, index) => `<button class="cooc-btn cooc-btn--block cooc-words__row" type="button">`
@@ -74,7 +96,7 @@ function pageHtml(activeTab: ActiveTab): string {
     + `<span>クラスタ ${index}</span></label>`).join("");
 
   // 既定では絞り込みタブ、切り替えると編集タブが開く（仕様 §3.5）。両方の状態を測る。
-  const editActive = activeTab === "edit";
+  const hiddenUnless = (id: ActiveTab): string => (activeTab === id ? "" : " hidden");
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 html,body,#root{margin:0;padding:0;width:100%;height:100vh;overflow:hidden}
 ${viewerCss()}
@@ -82,11 +104,8 @@ ${viewerCss()}
 <div class="cooc-viewer"><div class="cooc-viewer__main">
 <div class="cooc-viewer__stage"><canvas class="cooc-viewer__canvas"></canvas></div>
 <aside class="cooc-viewer__panels">
- <div class="cooc-tabs" role="tablist">
-  <button class="cooc-btn cooc-tabs__tab" type="button" role="tab" aria-selected="${String(!editActive)}" data-active="${String(!editActive)}" tabindex="${editActive ? -1 : 0}">絞り込み</button>
-  <button class="cooc-btn cooc-tabs__tab" type="button" role="tab" aria-selected="${String(editActive)}" data-active="${String(editActive)}" tabindex="${editActive ? 0 : -1}">要素の編集</button>
- </div>
- <div class="cooc-viewer__tabpanel" id="cooc-panel-filter" role="tabpanel"${editActive ? " hidden" : ""}>
+ <div class="cooc-tabs" role="tablist">${tabsHtml(activeTab)}</div>
+ <div class="cooc-viewer__tabpanel" id="cooc-panel-filter" role="tabpanel"${hiddenUnless("filter")}>
   <section class="cooc-filter">
    <div class="cooc-filter__title">絞り込み</div>
    <label class="cooc-filter__field"><span>最小頻度</span><input type="number"></label>
@@ -96,7 +115,7 @@ ${viewerCss()}
    <div class="cooc-filter__counts"><div>36 / 36 語</div><div>51 / 51 共起</div></div>
   </section>
  </div>
- <div class="cooc-viewer__tabpanel" id="cooc-panel-edit" role="tabpanel"${editActive ? "" : " hidden"}>
+ <div class="cooc-viewer__tabpanel" id="cooc-panel-edit" role="tabpanel"${hiddenUnless("edit")}>
   <section class="cooc-words">
    <input class="cooc-words__search" placeholder="語を検索">
    <div class="cooc-words__viewport"><div class="cooc-words__spacer" style="height:${WORD_COUNT * ROW_HEIGHT}px">
@@ -109,6 +128,24 @@ ${viewerCss()}
     <button class="cooc-btn cooc-words__button">クラスタ</button>
     <button class="cooc-btn cooc-words__button">削除</button></div>
    <div class="cooc-words__error"></div>
+  </section>
+ </div>
+ <div class="cooc-viewer__tabpanel" id="cooc-panel-minimap" role="tabpanel"${hiddenUnless("minimap")}>
+  <section class="cooc-minimap">
+   <div class="cooc-minimap__frame"><canvas class="cooc-minimap__canvas"></canvas></div>
+   <div class="cooc-minimap__buttons">
+    <button class="cooc-btn cooc-minimap__button" data-action="zoom-in"></button>
+    <button class="cooc-btn cooc-minimap__button" data-action="zoom-out"></button>
+    <button class="cooc-btn cooc-minimap__button" data-action="fit"></button></div>
+   <div class="cooc-minimap__hint">クリックまたはドラッグで表示位置を移動</div>
+  </section>
+ </div>
+ <div class="cooc-viewer__tabpanel" id="cooc-panel-export" role="tabpanel"${hiddenUnless("export")}>
+  <section class="cooc-export">
+   <div class="cooc-export__buttons">
+    <button class="cooc-btn cooc-export__button" data-action="save">保存</button>
+    <button class="cooc-btn cooc-export__button" data-action="export-png">PNG</button></div>
+   <div class="cooc-export__note"></div>
   </section>
  </div>
 </aside></div></div></div></body></html>`;
@@ -124,14 +161,22 @@ interface PanelMetrics {
   tabsHeight: number;
   /** パネル列を最下部までスクロールしても、タブ列が可視領域に残っているか。 */
   tabsStayVisible: boolean;
+  /** タブ列に並んだタブの数。 */
+  tabCount: number;
+  /** 全てのタブが同じ行にあるか（折り返していないか）。 */
+  tabsOnOneLine: boolean;
+  /** どのタブもラベルが 1 行に収まっているか（ボタンの中で折り返していないか）。 */
+  tabLabelsFit: boolean;
 }
 
 async function measure(
   page: import("@playwright/test").Page,
   height: number,
   activeTab: ActiveTab = "edit",
+  /** 画面幅。パネル列は `width:300px; max-width:40%` なので、狭い画面では列も狭くなる。 */
+  width = 1200,
 ): Promise<PanelMetrics> {
-  await page.setViewportSize({ width: 1200, height });
+  await page.setViewportSize({ width, height });
   await page.setContent(pageHtml(activeTab));
   return page.evaluate(() => {
     const viewport = document.querySelector(".cooc-words__viewport") as HTMLElement;
@@ -158,6 +203,22 @@ async function measure(
         const stays = tabs.getBoundingClientRect().bottom > panels.getBoundingClientRect().top;
         panels.scrollTop = 0;
         return stays;
+      })(),
+      ...(() => {
+        const tabButtons = [...tabs.querySelectorAll<HTMLElement>(".cooc-tabs__tab")];
+        const tops = tabButtons.map((tab) => Math.round(tab.getBoundingClientRect().top));
+        // ラベルの行数を測る。ボタンの高さは内容に追従して伸びるため、`scrollHeight` や
+        // `scrollWidth` との比較では折り返しを検知できない（実測で確認済み）。
+        const lineCount = (tab: HTMLElement): number => {
+          const range = document.createRange();
+          range.selectNodeContents(tab);
+          return range.getClientRects().length;
+        };
+        return {
+          tabCount: tabButtons.length,
+          tabsOnOneLine: tops.every((top) => top === tops[0]),
+          tabLabelsFit: tabButtons.every((tab) => lineCount(tab) <= 1),
+        };
       })(),
     };
   });
@@ -228,6 +289,36 @@ test.describe("共起ビューアのパネル高さ配分", () => {
 
     // hidden 属性だけでは display:flex が勝ち、隠したはずの絞り込み欄が列の高さを取り続ける。
     expect(hiddenHeight).toBe(0);
+  });
+
+  test("タブ 4 枚が 1 行に収まる", async ({ page }) => {
+    const metrics = await measure(page, 900, "filter");
+
+    // パネル幅 300px にタブ 4 枚を並べる（仕様 §3.5）。折り返すと、選択中のタブの内容が
+    // 得られる高さがそのぶん減る。ラベルを短くしたのはこの制約のためであり、
+    // 実ブラウザで測らなければ判断の根拠そのものが検証されない。
+    expect(metrics.tabCount).toBe(4);
+    expect(metrics.tabsOnOneLine).toBe(true);
+    expect(metrics.tabLabelsFit).toBe(true);
+    // 1 行ぶん（12px の文字 + 上下 6px の余白 + 上の余白 8px）を超えていないこと。
+    expect(metrics.tabsHeight).toBeLessThan(48);
+  });
+
+  test("列が狭くなってもタブ 4 枚が 1 行に収まる", async ({ page }) => {
+    // パネル列は `max-width:40%` を持つ。画面が狭いと 300px より細くなり、タブ列は
+    // ここが最も厳しい。ラベルを短くした判断が効いているかはこの条件で決まる。
+    const metrics = await measure(page, 900, "filter", 640);
+
+    expect(metrics.tabsOnOneLine).toBe(true);
+    expect(metrics.tabLabelsFit).toBe(true);
+  });
+
+  test("ミニマップタブでも列がスクロールしない", async ({ page }) => {
+    const metrics = await measure(page, 900, "minimap");
+
+    // ミニマップは縦横比で高さが決まる。列を溢れさせると操作ボタンが視野から出る。
+    expect(metrics.panelsScrolls).toBe(false);
+    expect(metrics.tabsOnOneLine).toBe(true);
   });
 
   test("行の高さが仮想リストの前提どおり 36px になる", async ({ page }) => {

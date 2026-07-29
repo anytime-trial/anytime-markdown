@@ -203,12 +203,14 @@ describe('cooccurrence viewer panel tabs', () => {
     const { container, handle } = mount('ja');
 
     expect(tab(container, 'cooc-panel-filter').textContent).toBe('絞り込み');
-    expect(tab(container, 'cooc-panel-edit').textContent).toBe('要素の編集');
+    expect(tab(container, 'cooc-panel-edit').textContent).toBe('編集');
+    expect(tab(container, 'cooc-panel-minimap').textContent).toBe('ミニマップ');
 
     handle.update({ locale: 'en' });
 
     expect(tab(container, 'cooc-panel-filter').textContent).toBe('Filter');
-    expect(tab(container, 'cooc-panel-edit').textContent).toBe('Edit elements');
+    expect(tab(container, 'cooc-panel-edit').textContent).toBe('Edit');
+    expect(tab(container, 'cooc-panel-minimap').textContent).toBe('Minimap');
     handle.destroy();
   });
 });

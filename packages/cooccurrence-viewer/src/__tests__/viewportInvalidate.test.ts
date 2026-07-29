@@ -4,7 +4,6 @@
 import { BARNES_HUT_LAYOUT_ALGORITHM_VERSION, computeSpecHash, type CooccurrenceFile } from '@anytime-markdown/graph-core';
 import { mountCooccurrenceViewer } from '../mountCooccurrenceViewer';
 import type { CooccurrenceViewerHandle } from '../types';
-import ja from '../i18n/ja.json';
 
 function file(): CooccurrenceFile {
   const base: CooccurrenceFile = {
@@ -26,11 +25,17 @@ function flushFrames(): void {
   queued.forEach((cb) => cb(0));
 }
 
-function findButton(label: string): HTMLButtonElement {
-  const buttons = [...document.querySelectorAll<HTMLButtonElement>('.cooc-viewer__button')];
-  const button = buttons.find((candidate) => candidate.textContent === label);
-  if (!button) throw new Error(`ボタンが見つからない: ${label}（候補: ${buttons.map((b) => b.textContent).join(', ')}）`);
+/** ミニマップの操作ボタン。タブを開いてから押す。 */
+function minimapButton(action: 'zoom-in' | 'zoom-out' | 'fit'): HTMLButtonElement {
+  const button = document.querySelector<HTMLButtonElement>(`.cooc-minimap__button[data-action="${action}"]`);
+  if (!button) throw new Error(`ミニマップのボタンが見つからない: ${action}`);
   return button;
+}
+
+function openMinimapTab(): void {
+  const tab = document.querySelector<HTMLButtonElement>('#cooc-panel-minimap-tab');
+  if (!tab) throw new Error('ミニマップタブが見つからない');
+  tab.click();
 }
 
 /**
@@ -80,11 +85,17 @@ describe('viewport を変える操作は再描画を要求する', () => {
     return handle;
   }
 
-  it('全体表示ボタンで再描画される', () => {
+  it.each([
+    ['全体表示', 'fit'],
+    ['拡大', 'zoom-in'],
+    ['縮小', 'zoom-out'],
+  ] as const)('ミニマップの %s ボタンで再描画される', (_name, action) => {
     const viewer = mount();
+    openMinimapTab();
+    flushFrames();
     const before = viewer.getRenderFrameCount();
 
-    findButton(ja.Cooccurrence['toolbar.fit']).click();
+    minimapButton(action).click();
     flushFrames();
 
     expect(viewer.getRenderFrameCount()).toBe(before + 1);
@@ -110,6 +121,21 @@ describe('viewport を変える操作は再描画を要求する', () => {
     const before = viewer.getRenderFrameCount();
 
     canvas?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    flushFrames();
+
+    expect(viewer.getRenderFrameCount()).toBe(before + 1);
+  });
+
+  it('ミニマップを押すと表示位置が動いて再描画される', () => {
+    const viewer = mount();
+    openMinimapTab();
+    flushFrames();
+    const minimapCanvas = document.querySelector('.cooc-minimap__canvas');
+    const before = viewer.getRenderFrameCount();
+
+    // jsdom は PointerEvent を持たない。座標を運ぶのは MouseEvent 側の口なので、
+    // 同じ型名のイベントを MouseEvent で組んで流す。
+    minimapCanvas?.dispatchEvent(new MouseEvent('pointerdown', { clientX: 20, clientY: 10, bubbles: true }));
     flushFrames();
 
     expect(viewer.getRenderFrameCount()).toBe(before + 1);
