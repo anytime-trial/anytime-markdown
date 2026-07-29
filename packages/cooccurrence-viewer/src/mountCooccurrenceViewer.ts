@@ -247,7 +247,7 @@ export function mountCooccurrenceViewer(
       layoutStatus: layoutStatusLabel(),
     });
     if (!fitted) {
-      viewport = fitBounds(graphBounds(graph), updateCanvasSize(canvas));
+      fitToGraph();
       fitted = true;
     }
     scheduler?.invalidate();
@@ -256,6 +256,28 @@ export function mountCooccurrenceViewer(
   function saveCompletedLayout(): void {
     if (!options.capabilities?.save || !options.onRequestSave || status !== 'done') return;
     options.onRequestSave(cloneWithLayout(file, positions, computeSpecHash(file.spec)));
+  }
+
+  /**
+   * viewport を差し替える唯一の入口。
+   *
+   * Why not 各ハンドラで `viewport = ...` と代入するか: 描画は要求時のみ行うため、
+   * 更新と `invalidate()` が分かれていると片方だけ書き忘れる。実際に全体表示ボタンだけ
+   * 要求が抜け、画面が空のまま次の操作まで戻らなかった。
+   */
+  function setViewport(next: ViewportState): void {
+    viewport = next;
+    scheduler?.invalidate();
+  }
+
+  /**
+   * グラフ全体が収まるよう viewport を合わせる。
+   *
+   * `updateCanvasSize()` は `canvas.width` へ代入するため、同じ値でも canvas の内容が消える。
+   * 再描画要求を伴わないと画面が空のまま残る。
+   */
+  function fitToGraph(): void {
+    setViewport(fitBounds(graphBounds(graph), updateCanvasSize(canvas)));
   }
 
   function currentPinch(): { distance: number; center: { x: number; y: number } } | null {
@@ -277,7 +299,7 @@ export function mountCooccurrenceViewer(
     fit.type = 'button';
     fit.textContent = t('toolbar.fit');
     fit.addEventListener('click', () => {
-      viewport = fitBounds(graphBounds(graph), updateCanvasSize(canvas));
+      fitToGraph();
     });
     toolbar.appendChild(fit);
 
@@ -377,8 +399,7 @@ export function mountCooccurrenceViewer(
     event.preventDefault();
     const point = canvasPoint(canvas, event);
     const factor = Math.exp(-event.deltaY * 0.001);
-    viewport = zoomAt(viewport, point, factor);
-    scheduler?.invalidate();
+    setViewport(zoomAt(viewport, point, factor));
   }, { passive: false });
 
   canvas.addEventListener('pointerdown', (event) => {
@@ -398,12 +419,10 @@ export function mountCooccurrenceViewer(
       pointers.set(event.pointerId, point);
       const pinch = currentPinch();
       if (pinch && pinchStart) {
-        viewport = zoomAt(viewport, pinch.center, pinch.distance / pinchStart.distance);
-        scheduler?.invalidate();
+        setViewport(zoomAt(viewport, pinch.center, pinch.distance / pinchStart.distance));
         pinchStart = pinch;
       } else if (pointers.size === 1) {
-        viewport = pan(viewport, point.x - previous.x, point.y - previous.y);
-        scheduler?.invalidate();
+        setViewport(pan(viewport, point.x - previous.x, point.y - previous.y));
       }
     }
   });
@@ -425,16 +444,16 @@ export function mountCooccurrenceViewer(
     dragStart = null;
   });
   canvas.addEventListener('keydown', (event) => {
-    if (event.key === '0') viewport = fitBounds(graphBounds(graph), updateCanvasSize(canvas));
-    if (event.key === '+' || event.key === '=') viewport = zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1.2);
-    if (event.key === '-') viewport = zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1 / 1.2);
+    if (event.key === '0') fitToGraph();
+    if (event.key === '+' || event.key === '=') setViewport(zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1.2));
+    if (event.key === '-') setViewport(zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1 / 1.2));
     if (event.key === 'Escape') selectedNodeIndex = null;
     scheduler?.invalidate();
     updatePanels();
   });
 
   resizeObserver = new ResizeObserver(() => {
-    if (!fitted) viewport = fitBounds(graphBounds(graph), updateCanvasSize(canvas));
+    if (!fitted) fitToGraph();
     // 寸法が変わると canvas のバッキングストアを取り直す必要がある。
     scheduler?.invalidate();
   });
