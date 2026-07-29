@@ -24,8 +24,19 @@ export {
   computeSpecHash,
   serializeCoocFile,
   parseCoocFile,
+  readLink,
+  writeLink,
+  schemaVersionForLinks,
+  LINK_DIRECTION,
 } from './cooccurrenceFile';
-export type { CooccurrenceFile, ValidationError, ValidationErrorCode } from './cooccurrenceFile';
+export type {
+  CooccurrenceFile,
+  CooccurrenceLinkTuple,
+  CooccurrenceLinkView,
+  LinkDirection,
+  ValidationError,
+  ValidationErrorCode,
+} from './cooccurrenceFile';
 export { filterCooccurrenceFile } from './cooccurrenceFilter';
 export type { CooccurrenceFilterOptions, CooccurrenceFilterCounts, CooccurrenceFilterResult } from './cooccurrenceFilter';
 export {
@@ -38,6 +49,7 @@ export {
   addCooccurrenceLink,
   deleteCooccurrenceLink,
   setCooccurrenceLinkStrength,
+  setCooccurrenceLinkDirection,
   setCooccurrenceTitle,
   setCooccurrenceSubject,
 } from './cooccurrenceEdit';

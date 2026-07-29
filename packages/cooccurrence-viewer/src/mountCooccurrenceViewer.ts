@@ -2,6 +2,8 @@ import {
   BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
   computeSpecHash,
   filterCooccurrenceFile,
+  readLink,
+  writeLink,
   type CooccurrenceFile,
   type CooccurrenceFilterCounts,
 } from '@anytime-markdown/graph-core';
@@ -76,7 +78,8 @@ function cloneWithLayout(file: CooccurrenceFile, positions: Array<[number, numbe
     spec: {
       ...file.spec,
       nodes: file.spec.nodes.map((node) => ({ ...node })),
-      links: file.spec.links.map((link) => [link[0], link[1], link[2]]),
+      // writeLink を通す。添字で組み直すと、レイアウト完了後のファイル差し替えで向きが落ちる。
+      links: file.spec.links.map((link) => writeLink(readLink(link))),
       clusters: file.spec.clusters?.map((cluster) => ({ label: cluster.label, members: [...cluster.members] })),
     },
     layout: { positions, specHash, algorithmVersion: BARNES_HUT_LAYOUT_ALGORITHM_VERSION },

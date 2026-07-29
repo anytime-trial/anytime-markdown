@@ -123,3 +123,40 @@ describe('cooccurrenceFilter クラスタ未所属の語', () => {
     expect(labels(result.nodeIndexes)).toEqual(['unclustered']);
   });
 });
+
+describe('向き付きの共起の絞り込み', () => {
+  function directedFile(): CooccurrenceFile {
+    return {
+      meta: { schemaVersion: 2, generatedAt: '2026-07-29T00:00:00.000Z', origin: 'manual' },
+      spec: {
+        nodes: [
+          { label: 'A', frequency: 10 },
+          { label: 'B', frequency: 10 },
+          { label: 'C', frequency: 10 },
+        ],
+        links: [
+          [0, 1, 0.9, 1],
+          [1, 2, 0.2, 2],
+          [0, 2, 0.5, 3],
+        ],
+      },
+    };
+  }
+
+  it('向き付きでも強度で絞り込める', () => {
+    const result = filterCooccurrenceFile(directedFile(), { minStrength: 0.5 });
+    expect(setValues(result.linkIndexes)).toEqual([0, 2]);
+  });
+
+  it('向き付きでも上位 N 本の対象になる', () => {
+    const result = filterCooccurrenceFile(directedFile(), { topLinkCount: 2 });
+    expect(setValues(result.linkIndexes)).toEqual([0, 2]);
+  });
+
+  it('向き付きでも端点の生存判定が効く', () => {
+    const file = directedFile();
+    file.spec.nodes[2].frequency = 1;
+    const result = filterCooccurrenceFile(file, { minFrequency: 5 });
+    expect(setValues(result.linkIndexes)).toEqual([0]);
+  });
+});
