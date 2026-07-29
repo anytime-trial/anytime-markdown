@@ -389,7 +389,13 @@ export function canonicalizeSpec(spec: CooccurrenceFile['spec']): string {
 }
 
 export function computeSpecHash(spec: CooccurrenceFile['spec']): string {
-  return sha256Hex(canonicalizeSpec(spec));
+  // 向きは座標に影響しない（力学モデルは強度だけを見る）。ハッシュへ含めると、矢印を 1 本足した
+  // だけで 1,000 語の再計算（約 2.2 秒）が走る（設計書 §2.4）。
+  const forHash: CooccurrenceFile['spec'] = {
+    ...spec,
+    links: spec.links.map((link) => [link[0], link[1], link[2]]),
+  };
+  return sha256Hex(canonicalizeSpec(forHash));
 }
 
 function roundPosition(value: number): number {

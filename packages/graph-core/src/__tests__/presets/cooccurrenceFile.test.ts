@@ -188,6 +188,34 @@ describe('cooccurrence .cooc.json helpers', () => {
   });
 });
 
+describe('specHash は向きを見ない', () => {
+  const spec = (links: CooccurrenceLinkTuple[]): CooccurrenceFile['spec'] => ({
+    nodes: [
+      { label: 'A', frequency: 1 },
+      { label: 'B', frequency: 1 },
+    ],
+    links,
+  });
+
+  it('向きだけが違う spec のハッシュは一致する', () => {
+    expect(computeSpecHash(spec([[0, 1, 5, LINK_DIRECTION.forward]]))).toBe(computeSpecHash(spec([[0, 1, 5]])));
+  });
+
+  it('順方向と双方向のハッシュも一致する', () => {
+    expect(computeSpecHash(spec([[0, 1, 5, LINK_DIRECTION.both]]))).toBe(
+      computeSpecHash(spec([[0, 1, 5, LINK_DIRECTION.forward]])),
+    );
+  });
+
+  it('強度が違えばハッシュは異なる', () => {
+    expect(computeSpecHash(spec([[0, 1, 5]]))).not.toBe(computeSpecHash(spec([[0, 1, 6]])));
+  });
+
+  it('端点の順序が違えばハッシュは異なる', () => {
+    expect(computeSpecHash(spec([[0, 1, 5]]))).not.toBe(computeSpecHash(spec([[1, 0, 5]])));
+  });
+});
+
 describe('向きの検証', () => {
   const base = (links: unknown[], schemaVersion: number): unknown => ({
     meta: { schemaVersion, generatedAt: '2026-07-29T00:00:00.000Z', origin: 'manual' },
