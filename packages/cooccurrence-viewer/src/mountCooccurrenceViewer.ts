@@ -24,12 +24,14 @@ import { createCooccurrenceT, type CooccurrenceT } from './i18n/createCooccurren
 import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
+import { ensureButtonBaseStyles } from './ui/buttonBaseStyle';
 import { fitBounds, pan, zoomAt } from './viewport/viewport';
 import { hitTestNode } from './viewport/hitTest';
 
 const STYLE_ID = 'cooccurrence-viewer-style';
 
 function ensureStyles(): void {
+  ensureButtonBaseStyles();
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
@@ -295,7 +297,7 @@ export function mountCooccurrenceViewer(
   function rebuildToolbar(): void {
     toolbar.replaceChildren();
     const fit = document.createElement('button');
-    fit.className = 'cooc-viewer__button';
+    fit.className = 'cooc-btn cooc-viewer__button';
     fit.type = 'button';
     fit.textContent = t('toolbar.fit');
     fit.addEventListener('click', () => {
@@ -304,7 +306,7 @@ export function mountCooccurrenceViewer(
     toolbar.appendChild(fit);
 
     const panels = document.createElement('button');
-    panels.className = 'cooc-viewer__button';
+    panels.className = 'cooc-btn cooc-viewer__button';
     panels.type = 'button';
     panels.textContent = showPanels ? t('toolbar.hidePanels') : t('toolbar.showPanels');
     panels.addEventListener('click', () => {
@@ -316,7 +318,7 @@ export function mountCooccurrenceViewer(
 
     if (status === 'running') {
       const abort = document.createElement('button');
-      abort.className = 'cooc-viewer__button';
+      abort.className = 'cooc-btn cooc-viewer__button';
       abort.type = 'button';
       abort.textContent = t('toolbar.abort');
       abort.addEventListener('click', () => {
@@ -330,7 +332,7 @@ export function mountCooccurrenceViewer(
     }
     if (options.capabilities?.save && options.onRequestSave) {
       const save = document.createElement('button');
-      save.className = 'cooc-viewer__button';
+      save.className = 'cooc-btn cooc-viewer__button';
       save.type = 'button';
       save.textContent = t('toolbar.save');
       save.addEventListener('click', saveCompletedLayout);
@@ -338,7 +340,7 @@ export function mountCooccurrenceViewer(
     }
     if (options.capabilities?.exportPng && options.onExportPng) {
       const png = document.createElement('button');
-      png.className = 'cooc-viewer__button';
+      png.className = 'cooc-btn cooc-viewer__button';
       png.type = 'button';
       png.textContent = t('toolbar.exportPng');
       png.addEventListener('click', () => {
