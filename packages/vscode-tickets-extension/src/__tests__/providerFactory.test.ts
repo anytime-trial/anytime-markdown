@@ -164,4 +164,62 @@ describe('createRetryingFetch', () => {
     await expect(fetchFn(request)).rejects.toThrow(DisallowedHostError);
     expect(inner).not.toHaveBeenCalled();
   });
+
+  it('URL インスタンスを入力として受け付ける', async () => {
+    const inner = jest.fn().mockResolvedValue(jsonResponse(200));
+    const fetchFn = createRetryingFetch({ allowedHosts: ['api.github.com'], fetchFn: inner, sleep: async () => {} });
+
+    await expect(fetchFn(new URL('https://api.github.com/repos/o/r'))).resolves.toMatchObject({ status: 200 });
+    expect(inner).toHaveBeenCalledTimes(1);
+  });
+
+  // --- Request の method/headers/credentials 引き継ぎ（修正2の再指摘: 静かに失われていた欠落の回帰テスト） ---
+
+  it('Request を単一引数で渡すと method が inner の init に反映される', async () => {
+    const inner = jest.fn().mockResolvedValue(jsonResponse(200));
+    const fetchFn = createRetryingFetch({ allowedHosts: ['api.github.com'], fetchFn: inner, sleep: async () => {} });
+
+    const request = new Request('https://api.github.com/repos/o/r', { method: 'DELETE' });
+    await fetchFn(request);
+
+    expect(inner).toHaveBeenCalledWith(
+      expect.objectContaining({ href: 'https://api.github.com/repos/o/r' }),
+      expect.objectContaining({ method: 'DELETE', redirect: 'manual' }),
+    );
+  });
+
+  it('Request と init の両方を渡すと init 側の method が優先される', async () => {
+    const inner = jest.fn().mockResolvedValue(jsonResponse(200));
+    const fetchFn = createRetryingFetch({ allowedHosts: ['api.github.com'], fetchFn: inner, sleep: async () => {} });
+
+    const request = new Request('https://api.github.com/repos/o/r', { method: 'DELETE' });
+    await fetchFn(request, { method: 'PATCH' });
+
+    expect(inner).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ method: 'PATCH', redirect: 'manual' }),
+    );
+  });
+
+  it('Request 自身が redirect: follow を持っていても manual を強制する', async () => {
+    const inner = jest.fn().mockResolvedValue(jsonResponse(200));
+    const fetchFn = createRetryingFetch({ allowedHosts: ['api.github.com'], fetchFn: inner, sleep: async () => {} });
+
+    const request = new Request('https://api.github.com/repos/o/r', { redirect: 'follow' });
+    await fetchFn(request, { redirect: 'error' });
+
+    expect(inner).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ redirect: 'manual' }));
+  });
+
+  it('body を持つ Request はサポートせず明示的にエラーにする', async () => {
+    const inner = jest.fn();
+    const fetchFn = createRetryingFetch({ allowedHosts: ['api.github.com'], fetchFn: inner, sleep: async () => {} });
+
+    const request = new Request('https://api.github.com/repos/o/r', {
+      method: 'POST',
+      body: JSON.stringify({ a: 1 }),
+    });
+    await expect(fetchFn(request)).rejects.toThrow(/body を持つ Request/);
+    expect(inner).not.toHaveBeenCalled();
+  });
 });

@@ -42,6 +42,49 @@ function resolveRequestUrl(input: RequestInfo | URL): URL {
   return new URL(input.url);
 }
 
+/**
+ * `input` が `Request` の場合、その `method` / `headers` / `credentials` を `init` へ引き継ぐ
+ * （`init` 側で明示された項目はそちらを優先する）。`redirect` は常に `'manual'` を最後に上書きする。
+ *
+ * SHORTCUT: Request からは method/headers/credentials のみ引き継ぐ. ceiling: mode/cache/integrity/signal
+ * 等は非対応（現状の呼び出し元 createProvider は文字列 URL しか使わず未使用）. upgrade: それらを渡す
+ * Request を実際に扱う呼び出し元が出たら都度追加する.
+ *
+ * body を持つ Request は非対応としエラーにする（呼び出し側で決定）。理由は throwIfUnsupportedBody を参照。
+ */
+function resolveRequestInit(input: RequestInfo | URL, init: RequestInit | undefined): RequestInit {
+  if (input instanceof Request) {
+    throwIfUnsupportedBody(input);
+    return {
+      method: input.method,
+      headers: input.headers,
+      credentials: input.credentials,
+      ...init,
+      redirect: 'manual',
+    };
+  }
+  return { ...init, redirect: 'manual' };
+}
+
+/**
+ * body を持つ Request を明示的に拒否する。
+ *
+ * Why not: Request#body は ReadableStream であり、一度読み出すと再利用できない。
+ * このモジュールは 429 リトライとリダイレクト追従のために inner() を複数回呼び得るため、
+ * body を保持したまま複数ホップ・複数試行へ安全に転送する手段が無い
+ * （clone() での複製は fetch 実装依存の消費タイミング差異を持ち込み、検証コストに見合わない）。
+ * 黙って 2 回目以降が空ボディになる事故を避けるため、サポート外として明示的に例外にする。
+ * body 無しの Request（GET/DELETE 等）は本関数を通らず正常に扱える。
+ */
+function throwIfUnsupportedBody(request: Request): void {
+  if (request.body !== null) {
+    throw new Error(
+      'body を持つ Request はサポートしていません（429 リトライ・リダイレクト追従で ReadableStream を再送できないため）。' +
+        '文字列 URL または URL インスタンス + init.body の形で呼び出してください。',
+    );
+  }
+}
+
 function isRedirectStatus(status: number): boolean {
   return status >= 300 && status < 400;
 }
@@ -78,6 +121,12 @@ async function fetchWithRetry(
  * そのため `init.redirect` を常に `'manual'` へ上書きし、Location ヘッダーを
  * 自前で追跡してホップごとに許可ホスト判定を行う。呼び出し元が `init.redirect` を
  * 指定していても上書きする（このガードを迂回できる正当なユースケースは無い）。
+ *
+ * 既定値（`maxAttempts=3` / `MAX_REDIRECTS=5`）での上限（Task 9 でタイムアウトを設計する際の参考値）:
+ * - 最大外部リクエスト回数: `maxAttempts × (MAX_REDIRECTS + 1)` = 3 × 6 = 18 回
+ *   （全ホップで 429 が続いた最悪ケース）
+ * - 最大待機時間: 1 ホップあたり最大 `500ms + 1000ms` = 1,500ms（429 の指数バックオフ）
+ *   × (MAX_REDIRECTS + 1) ホップ = 最大 約 9,000ms（9 秒）
  */
 export function createRetryingFetch(options: RetryingFetchOptions): typeof fetch {
   const inner = options.fetchFn ?? fetch;
@@ -93,7 +142,7 @@ export function createRetryingFetch(options: RetryingFetchOptions): typeof fetch
   const retryingFetch: typeof fetch = async (input, init) => {
     let currentUrl = resolveRequestUrl(input);
     checkAllowed(currentUrl);
-    const manualInit: RequestInit = { ...init, redirect: 'manual' };
+    const manualInit = resolveRequestInit(input, init);
 
     for (let redirectsFollowed = 0; ; redirectsFollowed += 1) {
       const response = await fetchWithRetry(inner, currentUrl, manualInit, sleep, maxAttempts);
