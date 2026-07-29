@@ -1,10 +1,14 @@
 import {
+  LINK_DIRECTION,
   canonicalizeSpec,
   computeSpecHash,
   parseCoocFile,
+  readLink,
   serializeCoocFile,
   validateCooccurrenceFile,
+  writeLink,
   type CooccurrenceFile,
+  type CooccurrenceLinkTuple,
 } from '../../presets/cooccurrenceFile';
 
 function validFile(): CooccurrenceFile {
@@ -181,5 +185,35 @@ describe('cooccurrence .cooc.json helpers', () => {
     const text = serializeCoocFile(file);
     const firstLabelOccurrences = text.split('"共起語彙0"').length - 1;
     expect(firstLabelOccurrences).toBe(1);
+  });
+});
+
+describe('readLink / writeLink', () => {
+  it('3 要素のタプルは無向として読む', () => {
+    expect(readLink([0, 1, 8])).toEqual({ source: 0, target: 1, strength: 8, direction: 0 });
+  });
+
+  it('4 要素のタプルは向きを読む', () => {
+    expect(readLink([0, 1, 8, 2])).toEqual({ source: 0, target: 1, strength: 8, direction: 2 });
+  });
+
+  it('無向は 3 要素で書く', () => {
+    expect(writeLink({ source: 0, target: 1, strength: 8, direction: LINK_DIRECTION.none })).toEqual([0, 1, 8]);
+  });
+
+  it('向きがあれば 4 要素で書く', () => {
+    expect(writeLink({ source: 0, target: 1, strength: 8, direction: LINK_DIRECTION.forward })).toEqual([0, 1, 8, 1]);
+  });
+
+  it('readLink と writeLink は往復する', () => {
+    const tuples: CooccurrenceLinkTuple[] = [
+      [0, 1, 8],
+      [2, 3, 4, LINK_DIRECTION.forward],
+      [5, 6, 7, LINK_DIRECTION.backward],
+      [8, 9, 1, LINK_DIRECTION.both],
+    ];
+    for (const tuple of tuples) {
+      expect(writeLink(readLink(tuple))).toEqual(tuple);
+    }
   });
 });

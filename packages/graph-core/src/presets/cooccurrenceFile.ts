@@ -1,9 +1,49 @@
 import { sha256Hex } from './sha256';
 
+/** 共起の向き。0=無向・1=順方向（a→b）・2=逆方向（b→a）・3=双方向。 */
+export const LINK_DIRECTION = { none: 0, forward: 1, backward: 2, both: 3 } as const;
+
+export type LinkDirection = (typeof LINK_DIRECTION)[keyof typeof LINK_DIRECTION];
+
+/** 共起のタプル。向きが無向のときは第 4 要素を書かない（設計書 §2.2）。 */
+export type CooccurrenceLinkTuple =
+  | [source: number, target: number, strength: number]
+  | [source: number, target: number, strength: number, direction: LinkDirection];
+
+/** タプルを展開した形。消費側はこの形だけを見る。 */
+export interface CooccurrenceLinkView {
+  source: number;
+  target: number;
+  strength: number;
+  direction: LinkDirection;
+}
+
+/**
+ * タプルを展開する。第 4 要素が無いときは無向を補う。
+ *
+ * Why not 消費側で `link[3] ?? 0` と書くか: 既定値の補完が呼び出し箇所ごとに散り、書き漏らしが
+ * 「向きが黙って消える」形でしか現れない（設計書 §2.2）。
+ */
+export function readLink(link: CooccurrenceLinkTuple): CooccurrenceLinkView {
+  return { source: link[0], target: link[1], strength: link[2], direction: link[3] ?? LINK_DIRECTION.none };
+}
+
+/**
+ * タプルへ畳む。無向なら 3 要素で返す。
+ *
+ * `schemaVersion` を 1 に保つ条件（4 要素が 1 本も無いこと）をここへ集約する。実装へ散らすと、
+ * 向きを使っていないファイルが版数 2 で書かれ、旧実装との往復が黙って切れる。
+ */
+export function writeLink(view: CooccurrenceLinkView): CooccurrenceLinkTuple {
+  return view.direction === LINK_DIRECTION.none
+    ? [view.source, view.target, view.strength]
+    : [view.source, view.target, view.strength, view.direction];
+}
+
 export interface CooccurrenceFile {
   meta: {
-    /** スキーマの版数。互換性のない変更で繰り上げる。 */
-    schemaVersion: 1;
+    /** スキーマの版数。互換性のない変更で繰り上げる。向き付きの共起を含むとき 2（設計書 §2.2）。 */
+    schemaVersion: 1 | 2;
     /** 生成日時（ISO 8601・UTC）。 */
     generatedAt: string;
     /** 生成元。 */
@@ -15,8 +55,8 @@ export interface CooccurrenceFile {
     subject?: number;
     /** 語。配列の順序が語の同一性を決める（添字が識別子）。 */
     nodes: Array<{ label: string; frequency: number }>;
-    /** 共起。[語の添字, 語の添字, 強度]。 */
-    links: Array<[number, number, number]>;
+    /** 共起。[語の添字, 語の添字, 強度] または [語の添字, 語の添字, 強度, 向き]。 */
+    links: CooccurrenceLinkTuple[];
     /** クラスタ。members は nodes の添字。 */
     clusters?: Array<{ label: string; members: number[] }>;
   };
