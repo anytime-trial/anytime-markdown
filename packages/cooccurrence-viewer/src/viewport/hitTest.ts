@@ -1,5 +1,6 @@
 import type { RenderGraph, RenderLink, RenderNode, ViewportState } from '../types';
 import { screenToWorld } from './viewport';
+import { buildNodeLookup, linkEndpoints } from '../render/nodeLookup';
 
 export function hitTestNode(graph: RenderGraph, screenX: number, screenY: number, viewport: ViewportState): RenderNode | null {
   const world = screenToWorld({ x: screenX, y: screenY }, viewport);
@@ -50,13 +51,13 @@ export function hitTestLink(
   viewport: ViewportState,
 ): RenderLink | null {
   const world = screenToWorld({ x: screenX, y: screenY }, viewport);
-  const nodeByIndex = new Map(graph.nodes.map((node) => [node.index, node]));
+  const lookup = buildNodeLookup(graph.nodes);
   const tolerance = LINK_HIT_TOLERANCE_PX / viewport.scale;
   let best: { link: RenderLink; distance: number } | null = null;
   for (const link of graph.links) {
-    const source = nodeByIndex.get(link.source);
-    const target = nodeByIndex.get(link.target);
-    if (!source || !target) continue;
+    const endpoints = linkEndpoints(lookup, link);
+    if (endpoints === null) continue;
+    const { source, target } = endpoints;
     const distance = distanceToSegment(world.x, world.y, source.x, source.y, target.x, target.y);
     const limit = Math.max(tolerance, link.width / 2);
     if (distance > limit) continue;

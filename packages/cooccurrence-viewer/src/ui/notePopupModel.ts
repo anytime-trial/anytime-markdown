@@ -13,36 +13,77 @@ import { directionSymbol } from './linkListModel';
  * メモが無い対象でも state を返す。応答の有無をメモの有無で変えると、利用者は「反応しない＝
  * ホバーが効いていない」と読み、メモの不在を確かめられない。
  */
-export function nodePopupState(file: CooccurrenceFile, nodeIndex: number, t: CooccurrenceT): NotePopupState | null {
+/**
+ * レイヤー表示で触れた語・共起の、そのレイヤーでの値（設計書 §3.6）。
+ *
+ * 渡さないと全期間の合計が出る。円の大きさはそのスライスの値で描かれているため、合計だけを
+ * 出すと「小さい円に大きい数字」が並び、どちらが今見ている値なのか読めない。
+ */
+export interface NodePopupLayerContext {
+  sliceLabel: string;
+  frequency: number;
+  cooccurrenceCount: number;
+}
+
+export interface LinkPopupLayerContext {
+  sliceLabel: string;
+  strength: number;
+}
+
+export function nodePopupState(
+  file: CooccurrenceFile,
+  nodeIndex: number,
+  t: CooccurrenceT,
+  layer?: NodePopupLayerContext,
+): NotePopupState | null {
   const node = file.spec.nodes[nodeIndex];
   if (node === undefined) return null;
   const cooccurrenceCount = file.spec.links.reduce((count, link) => {
     const view = readLink(link);
     return view.source === nodeIndex || view.target === nodeIndex ? count + 1 : count;
   }, 0);
+  const details =
+    layer === undefined
+      ? [t('note.frequency', { value: node.frequency }), t('note.cooccurrences', { value: cooccurrenceCount })]
+      : [
+          t('note.slice', { value: layer.sliceLabel }),
+          t('note.frequency', { value: layer.frequency }),
+          t('note.cooccurrences', { value: layer.cooccurrenceCount }),
+          t('note.totalFrequency', { value: node.frequency }),
+        ];
   return {
     kind: 'node',
     index: nodeIndex,
     title: node.label,
-    details: [
-      t('note.frequency', { value: node.frequency }),
-      t('note.cooccurrences', { value: cooccurrenceCount }),
-    ],
+    details,
     ...noteOf(file, 'nodes', nodeIndex),
   };
 }
 
-export function linkPopupState(file: CooccurrenceFile, linkIndex: number, t: CooccurrenceT): NotePopupState | null {
+export function linkPopupState(
+  file: CooccurrenceFile,
+  linkIndex: number,
+  t: CooccurrenceT,
+  layer?: LinkPopupLayerContext,
+): NotePopupState | null {
   const link = file.spec.links[linkIndex];
   if (link === undefined) return null;
   const view = readLink(link);
   const source = file.spec.nodes[view.source]?.label ?? '';
   const target = file.spec.nodes[view.target]?.label ?? '';
+  const details =
+    layer === undefined
+      ? [t('note.strength', { value: view.strength })]
+      : [
+          t('note.slice', { value: layer.sliceLabel }),
+          t('note.strength', { value: layer.strength }),
+          t('note.totalStrength', { value: view.strength }),
+        ];
   return {
     kind: 'link',
     index: linkIndex,
     title: `${source} ${directionSymbol(view.direction)} ${target}`,
-    details: [t('note.strength', { value: view.strength })],
+    details,
     ...noteOf(file, 'links', linkIndex),
   };
 }

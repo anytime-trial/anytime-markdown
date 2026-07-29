@@ -1,6 +1,7 @@
 import {
   BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
   computeSpecHash,
+  cooccurrenceSliceCount,
   filterCooccurrenceFile,
   readLink,
   writeLink,
@@ -14,12 +15,18 @@ import type {
   CooccurrenceViewerUpdate,
   LayoutStatus,
   RenderGraph,
+  RenderLink,
   RenderNode,
+  TimelineLayerState,
+  TimelineViewState,
   ViewportState,
 } from './types';
 import { evaluateLayoutCache } from './layout/cache';
 import { LayoutCancelledError, startLayoutJob, type LayoutJob } from './layout/runLayout';
-import { buildRenderGraph } from './render/buildRenderGraph';
+import { buildRenderGraph, type RenderLayerInput } from './render/buildRenderGraph';
+import { computeLayerPlacements, unionBounds } from './render/layerLayout';
+import { RADIUS_MAX } from './render/scales';
+import { defaultTimelineViewState, visibleSliceIndexes } from './ui/timelineModel';
 import { graphBounds } from './render/bounds';
 import { updateCanvasSize } from './render/canvasSize';
 import { createRenderScheduler, type RenderScheduler } from './render/renderScheduler';
@@ -31,8 +38,15 @@ import { createLinkListPanel, type LinkListPanelHandle } from './ui/LinkListPane
 import { createMinimapPanel, type MinimapPanelHandle } from './ui/MinimapPanel';
 import { createExportPanel, type ExportPanelHandle, type ExportPanelState } from './ui/ExportPanel';
 import { createClusterListPanel, type ClusterListPanelHandle } from './ui/ClusterListPanel';
+import { createTimelinePanel, type TimelinePanelHandle } from './ui/TimelinePanel';
 import { createNotePopup, type NotePopupHandle } from './ui/NotePopup';
-import { clusterPopupState, linkPopupState, nodePopupState } from './ui/notePopupModel';
+import {
+  clusterPopupState,
+  linkPopupState,
+  nodePopupState,
+  type LinkPopupLayerContext,
+  type NodePopupLayerContext,
+} from './ui/notePopupModel';
 import {
   createSideIconRail,
   type SideIconRailHandle,
@@ -116,7 +130,8 @@ export function mountCooccurrenceViewer(
   let cacheDecision: CacheDecision = 'miss-absent';
   let layoutRunCount = 0;
   let positions: Array<[number, number]> = file.layout?.positions ?? fallbackPositions(file);
-  let graph: RenderGraph = { nodes: [], links: [] };
+  let graph: RenderGraph = { nodes: [], links: [], timeLinks: [], layers: [] };
+  let timelineView: TimelineViewState = defaultTimelineViewState();
   let viewport: ViewportState = { scale: 1, offsetX: 0, offsetY: 0 };
   let notePopup: NotePopupHandle | null = null;
   let selectedNodeIndex: number | null = null;
@@ -177,6 +192,7 @@ export function mountCooccurrenceViewer(
   let minimapPanel: MinimapPanelHandle | null = null;
   let exportPanel: ExportPanelHandle | null = null;
   let clusterListPanel: ClusterListPanelHandle | null = null;
+  let timelinePanel: TimelinePanelHandle | null = null;
   let selectedClusterIndex: number | null = null;
   // 既定はミニマップ（仕様 §3.5）。図を開いた直後に必要なのは全体の把握である。
   let activeTab: CooccurrenceTabId = 'minimap';
@@ -197,6 +213,7 @@ export function mountCooccurrenceViewer(
   const linksTabPanel = createTabPanel('links');
   const minimapTabPanel = createTabPanel('minimap');
   const clustersTabPanel = createTabPanel('clusters');
+  const timelineTabPanel = createTabPanel('timeline');
   const exportTabPanel = createTabPanel('export');
 
   /**
@@ -273,11 +290,18 @@ export function mountCooccurrenceViewer(
 
   function updatePanels(): void {
     if (!showPanels) return;
-    const filterState = { file, filter: options.filter, counts: filterCounts, t };
+    const filterState = {
+      file,
+      filter: options.filter,
+      counts: filterCounts,
+      t,
+      selectedSliceLabels: timelineView.selectedSliceLabels,
+    };
     const wordsState = { file, visibleNodeIndexes, selectedNodeIndex, t };
     const linksState = { file, visibleLinkIndexes, selectedNodeIndex, t };
     filterPanel?.update(filterState);
     clusterListPanel?.update({ file, selectedClusterIndex, t });
+    timelinePanel?.update({ file, view: timelineView, t });
     wordListPanel?.update(wordsState);
     linkListPanel?.update(linksState);
     syncExportPanel();
@@ -312,8 +336,17 @@ export function mountCooccurrenceViewer(
       filter: options.filter,
       counts: filterCounts,
       t,
+      selectedSliceLabels: timelineView.selectedSliceLabels,
       onFilterChange(nextFilter) {
         options = { ...options, filter: nextFilter };
+        fitted = false;
+        rebuildGraph();
+        updatePanels();
+      },
+      onSelectedSliceLabelsChange(selected) {
+        timelineView = { ...timelineView, selectedSliceLabels: selected };
+        // レイヤーの枚数が変わると図の外接矩形も変わる。全体表示をやり直さないと、
+        // 落としたレイヤーの跡の空白を見たままになる。
         fitted = false;
         rebuildGraph();
         updatePanels();
@@ -366,6 +399,28 @@ export function mountCooccurrenceViewer(
         notePopup?.show(popupState, toRootPoint(anchor));
       },
     });
+    timelinePanel = createTimelinePanel({
+      file,
+      view: timelineView,
+      t,
+      onFileChange: (nextFile) => applyFileChange(nextFile, true),
+      onSliceRenamed(from, to) {
+        const selected = timelineView.selectedSliceLabels;
+        if (selected === undefined || !selected.includes(from)) return;
+        timelineView = {
+          ...timelineView,
+          selectedSliceLabels: selected.map((label) => (label === from ? to : label)),
+        };
+      },
+      onViewChange(nextView) {
+        timelineView = nextView;
+        // 表示状態を変えただけなのでレイアウトは走らない。図の組み直しだけを要求する
+        // （設計書 §2.4: 時間軸はレイアウトの入力ではない）。
+        rebuildGraph();
+        updatePanels();
+      },
+    });
+    timelineTabPanel.appendChild(timelinePanel.element);
     clustersTabPanel.appendChild(clusterListPanel.element);
     filterTabPanel.appendChild(filterPanel.element);
     wordsTabPanel.appendChild(wordListPanel.element);
@@ -373,7 +428,14 @@ export function mountCooccurrenceViewer(
     minimapTabPanel.appendChild(minimapPanel.element);
     // tabpanel の DOM 順もアイコンの並びに合わせる。見た目には 1 枚しか出ないが、
     // 支援技術の読み上げ順と Tab キーの移動順はこの順序に従う。
-    panelRoot.append(minimapTabPanel, filterTabPanel, wordsTabPanel, linksTabPanel, clustersTabPanel);
+    panelRoot.append(
+      minimapTabPanel,
+      filterTabPanel,
+      wordsTabPanel,
+      linksTabPanel,
+      clustersTabPanel,
+      timelineTabPanel,
+    );
     syncExportPanel();
     syncActiveTab();
   }
@@ -420,6 +482,8 @@ export function mountCooccurrenceViewer(
         return { id, label: t('tabs.minimap'), panelId: minimapTabPanel.id };
       case 'clusters':
         return { id, label: t('tabs.clusters'), panelId: clustersTabPanel.id };
+      case 'timeline':
+        return { id, label: t('tabs.timeline'), panelId: timelineTabPanel.id };
       case 'export':
         return { id, label: t('tabs.export'), panelId: exportTabPanel.id };
     }
@@ -451,6 +515,7 @@ export function mountCooccurrenceViewer(
     linksTabPanel.hidden = activeTab !== 'links';
     minimapTabPanel.hidden = activeTab !== 'minimap';
     clustersTabPanel.hidden = activeTab !== 'clusters';
+    timelineTabPanel.hidden = activeTab !== 'timeline';
     exportTabPanel.hidden = activeTab !== 'export';
     // 開いているかは制御される側（tabpanel）が持つ。`tab` に `aria-expanded` を置くのは
     // 現行の指針から外れる（`SideIconRail` の Why not を参照）。
@@ -459,6 +524,7 @@ export function mountCooccurrenceViewer(
       wordsTabPanel,
       linksTabPanel,
       clustersTabPanel,
+      timelineTabPanel,
       minimapTabPanel,
       exportTabPanel,
     ]) {
@@ -506,9 +572,9 @@ export function mountCooccurrenceViewer(
       node === null
         ? (() => {
             const link = hitTestLink(graph, point.x, point.y, viewport);
-            return link === null ? null : linkPopupState(file, link.index, t);
+            return link === null ? null : linkPopupState(file, link.index, t, linkLayerContext(link));
           })()
-        : nodePopupState(file, node.index, t);
+        : nodePopupState(file, node.index, t, nodeLayerContext(node));
     if (popupState === null) {
       notePopup?.hide();
       return;
@@ -516,17 +582,99 @@ export function mountCooccurrenceViewer(
     notePopup?.show(popupState, toRootPoint(client));
   }
 
+  function isLayered(): boolean {
+    return timelineView.layered && cooccurrenceSliceCount(file.spec) > 0;
+  }
+
+  /**
+   * レイヤー表示の 1 枚ごとの表示対象を作る。
+   *
+   * 絞り込みの 5 条件はレイヤーごとに、そのスライスの値を基準として適用する（設計書 §3.6.5）。
+   * 全体値を基準にすると、あるスライスで 1 回しか現れない語が、全期間で 50 回現れることを
+   * 理由に全レイヤーへ描かれる。
+   */
+  function buildLayerInputs(): { inputs: RenderLayerInput[]; nodes: Set<number>; links: Set<number> } {
+    const timeline = file.spec.timeline;
+    const slices = timeline?.slices ?? [];
+    const placements = computeLayerPlacements({
+      slices,
+      visibleSliceIndexes: visibleSliceIndexes(slices, timelineView.selectedSliceLabels),
+      bounds: unionBounds(positions, RADIUS_MAX),
+      axis: timelineView.axis,
+      gap: timelineView.gap,
+    });
+    const nodes = new Set<number>();
+    const links = new Set<number>();
+    const inputs = placements.map((placement) => {
+      const filtered = filterCooccurrenceFile(file, { ...options.filter, sliceIndex: placement.slice });
+      filtered.nodeIndexes.forEach((index) => nodes.add(index));
+      filtered.linkIndexes.forEach((index) => links.add(index));
+      return {
+        placement,
+        visibleNodeIndexes: filtered.nodeIndexes,
+        visibleLinkIndexes: filtered.linkIndexes,
+      };
+    });
+    return { inputs, nodes, links };
+  }
+
+  /**
+   * 触れた円が属するレイヤーの値。単一表示では undefined（全期間の値が出る）。
+   *
+   * 円の大きさはそのスライスの値で描かれているため、合計だけを出すと「小さい円に大きい数字」が
+   * 並び、どちらが今見ている値なのか読めない（設計書 §3.6）。
+   */
+  function nodeLayerContext(node: RenderNode): NodePopupLayerContext | undefined {
+    const layer = graph.layers[node.layer];
+    if (layer === undefined) return undefined;
+    return { sliceLabel: layer.label, frequency: node.frequency, cooccurrenceCount: node.cooccurrenceCount };
+  }
+
+  function linkLayerContext(link: RenderLink): LinkPopupLayerContext | undefined {
+    const layer = graph.layers[link.layer];
+    if (layer === undefined) return undefined;
+    return { sliceLabel: layer.label, strength: link.strength };
+  }
+
   function rebuildGraph(): void {
-    const filtered = filterCooccurrenceFile(file, options.filter);
-    filterCounts = filtered.counts;
-    visibleNodeIndexes = filtered.nodeIndexes;
-    visibleLinkIndexes = filtered.linkIndexes;
-    graph = buildRenderGraph(file, filtered.nodeIndexes, filtered.linkIndexes, positions, root, themeMode);
+    if (isLayered()) {
+      const layered = buildLayerInputs();
+      // 表示件数は「1 枚でも描かれた語・共起」を数える。レイヤーごとの延べ数にすると、全体の
+      // 語数（分母）と桁が揃わず、どれだけ絞れているのかが読めなくなる。
+      visibleNodeIndexes = layered.nodes;
+      visibleLinkIndexes = layered.links;
+      filterCounts = {
+        visibleNodeCount: layered.nodes.size,
+        visibleLinkCount: layered.links.size,
+        totalNodeCount: file.spec.nodes.length,
+        totalLinkCount: file.spec.links.length,
+      };
+      graph = buildRenderGraph({
+        file,
+        positions,
+        themeTarget: root,
+        mode: themeMode,
+        layers: layered.inputs,
+        showTimeLinks: timelineView.showTimeLinks,
+      });
+    } else {
+      const filtered = filterCooccurrenceFile(file, options.filter);
+      filterCounts = filtered.counts;
+      visibleNodeIndexes = filtered.nodeIndexes;
+      visibleLinkIndexes = filtered.linkIndexes;
+      graph = buildRenderGraph({
+        file,
+        positions,
+        themeTarget: root,
+        mode: themeMode,
+        layers: [{ visibleNodeIndexes: filtered.nodeIndexes, visibleLinkIndexes: filtered.linkIndexes }],
+      });
+    }
     statusEl.textContent = t('status.summary', {
-      visibleWords: filtered.counts.visibleNodeCount,
-      totalWords: filtered.counts.totalNodeCount,
-      visibleCooccurrences: filtered.counts.visibleLinkCount,
-      totalCooccurrences: filtered.counts.totalLinkCount,
+      visibleWords: filterCounts.visibleNodeCount,
+      totalWords: filterCounts.totalNodeCount,
+      visibleCooccurrences: filterCounts.visibleLinkCount,
+      totalCooccurrences: filterCounts.totalLinkCount,
       layoutStatus: layoutStatusLabel(),
     });
     if (!fitted) {
@@ -796,6 +944,7 @@ export function mountCooccurrenceViewer(
       minimapPanel?.destroy();
       exportPanel?.destroy();
       clusterListPanel?.destroy();
+      timelinePanel?.destroy();
       notePopup?.destroy();
       root.remove();
     },
@@ -804,6 +953,13 @@ export function mountCooccurrenceViewer(
     getLayoutRunCount: () => layoutRunCount,
     getRenderFrameCount: () => scheduler?.getFrameCount() ?? 0,
     getFilterCounts: () => filterCounts,
+    // レイヤー表示の「意図」で null を分ける。描いた枚数で分けると、「レイヤー表示のはずなのに
+    // 1 枚も描いていない」（全て非表示にした・選択がどのスライスにも一致しない）が単一表示と
+    // 同じ null に潰れ、外から区別できない（設計書 §6.4）。
+    getTimelineLayerState: () =>
+      !isLayered()
+        ? null
+        : { axis: timelineView.axis, layerCount: graph.layers.length, timeLinkCount: graph.timeLinks.length },
     getMinimapDrawCount: () => minimapPanel?.getDrawCount() ?? 0,
     getNotePopupState: () => notePopup?.getState() ?? null,
   };

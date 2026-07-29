@@ -27,6 +27,7 @@ export {
   readLink,
   writeLink,
   schemaVersionForSpec,
+  withDerivedTotals,
   LINK_DIRECTION,
 } from './cooccurrenceFile';
 export type {
@@ -46,6 +47,26 @@ export {
   withCooccurrenceNote,
 } from './cooccurrenceNotes';
 export type { CooccurrenceNoteEntry, CooccurrenceNotes, CooccurrenceNoteTarget } from './cooccurrenceNotes';
+export {
+  COOCCURRENCE_SLICE_ENTRY_MAX,
+  COOCCURRENCE_SLICE_MAX,
+  COOCCURRENCE_SLICE_TARGETS,
+  cooccurrenceSliceCount,
+  cooccurrenceSliceDateValue,
+  cooccurrenceSliceEntryCount,
+  hasCooccurrenceTimeline,
+  readCooccurrenceSliceValue,
+  roundCooccurrenceTotal,
+  sliceBearingIndexes,
+  totalCooccurrenceSliceValue,
+} from './cooccurrenceTimeline';
+export type {
+  CooccurrenceSlice,
+  CooccurrenceSliceEntry,
+  CooccurrenceSliceRef,
+  CooccurrenceSliceTarget,
+  CooccurrenceTimeline,
+} from './cooccurrenceTimeline';
 export { filterCooccurrenceFile } from './cooccurrenceFilter';
 export type { CooccurrenceFilterOptions, CooccurrenceFilterCounts, CooccurrenceFilterResult } from './cooccurrenceFilter';
 export {
@@ -67,8 +88,21 @@ export {
   removeCooccurrenceLinkNote,
   setCooccurrenceClusterNote,
   removeCooccurrenceClusterNote,
+  addCooccurrenceSlice,
+  deleteCooccurrenceSlice,
+  renameCooccurrenceSlice,
+  moveCooccurrenceSlice,
+  setCooccurrenceNodeSliceValue,
+  removeCooccurrenceNodeSliceValue,
+  setCooccurrenceLinkSliceValue,
+  removeCooccurrenceLinkSliceValue,
 } from './cooccurrenceEdit';
-export type { CooccurrenceEditResult } from './cooccurrenceEdit';
+export type {
+  CooccurrenceEditResult,
+  CooccurrenceNodeInput,
+  CooccurrenceNodeSliceRef,
+  CooccurrenceLinkSliceRef,
+} from './cooccurrenceEdit';
 
 export type ThinkingDiagramSpec =
   | FishboneSpec

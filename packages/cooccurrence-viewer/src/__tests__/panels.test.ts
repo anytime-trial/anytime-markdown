@@ -31,7 +31,7 @@ describe('FilterPanel', () => {
       file: file(),
       counts: { visibleNodeCount: 2, totalNodeCount: 3, visibleLinkCount: 1, totalLinkCount: 4 },
       t,
-      onFilterChange: jest.fn(),
+      onFilterChange: jest.fn(), onSelectedSliceLabelsChange: jest.fn(),
     });
     document.body.appendChild(panel.element);
     expect(panel.element.textContent).toContain('2 / 3 words');
@@ -44,7 +44,7 @@ describe('FilterPanel', () => {
       file: file(),
       counts: { visibleNodeCount: 3, totalNodeCount: 3, visibleLinkCount: 1, totalLinkCount: 1 },
       t,
-      onFilterChange: jest.fn(),
+      onFilterChange: jest.fn(), onSelectedSliceLabelsChange: jest.fn(),
     });
     document.body.appendChild(panel.element);
     const input = panel.element.querySelector('input[type="number"]') as HTMLInputElement;

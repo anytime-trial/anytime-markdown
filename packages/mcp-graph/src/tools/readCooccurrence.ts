@@ -6,6 +6,8 @@ import {
   readCooccurrenceNote,
   type CooccurrenceNoteTarget,
 } from '@anytime-markdown/graph-core/src/presets/cooccurrenceNotes';
+import type { CooccurrenceSlice } from '@anytime-markdown/graph-core/src/presets/cooccurrenceTimeline';
+import { sliceValuesField, type CooccurrenceSliceValueInput } from './writeCooccurrence';
 
 export interface ReadCooccurrenceInput {
   path: string;
@@ -14,8 +16,17 @@ export interface ReadCooccurrenceInput {
 export interface ReadCooccurrenceResult {
   title?: string;
   subject?: string;
-  terms: Array<{ label: string; frequency: number; note?: string }>;
-  links: Array<{ source: string; target: string; strength: number; direction: CooccurrenceDirectionName; note?: string }>;
+  /** 時間軸のスライス。時間軸を持たない図では書かない。 */
+  slices?: CooccurrenceSlice[];
+  terms: Array<{ label: string; frequency: number; note?: string; sliceValues?: CooccurrenceSliceValueInput }>;
+  links: Array<{
+    source: string;
+    target: string;
+    strength: number;
+    direction: CooccurrenceDirectionName;
+    note?: string;
+    sliceValues?: CooccurrenceSliceValueInput;
+  }>;
   clusters?: Array<{ label: string; members: string[]; note?: string }>;
 }
 
@@ -27,6 +38,7 @@ export async function readCooccurrence(input: ReadCooccurrenceInput, rootDir: st
     label: node.label,
     frequency: node.frequency,
     ...noteField(file, 'nodes', index),
+    ...sliceValuesField(file, 'nodes', index),
   }));
   const result: ReadCooccurrenceResult = {
     terms,
@@ -38,9 +50,15 @@ export async function readCooccurrence(input: ReadCooccurrenceInput, rootDir: st
         strength: view.strength,
         direction: directionNameOf(view.direction),
         ...noteField(file, 'links', index),
+        ...sliceValuesField(file, 'links', index),
       };
     }),
   };
+  if (file.spec.timeline !== undefined) {
+    result.slices = file.spec.timeline.slices.map((slice) =>
+      slice.at === undefined ? { label: slice.label } : { label: slice.label, at: slice.at },
+    );
+  }
   if (file.spec.title !== undefined) result.title = file.spec.title;
   if (file.spec.subject !== undefined) result.subject = file.spec.nodes[file.spec.subject].label;
   if (file.spec.clusters !== undefined) {

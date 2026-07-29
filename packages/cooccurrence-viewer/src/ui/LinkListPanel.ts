@@ -8,6 +8,10 @@ import {
   removeCooccurrenceLinkNote,
   setCooccurrenceLinkNote,
   setCooccurrenceLinkDirection,
+  hasCooccurrenceTimeline,
+  readCooccurrenceSliceValue,
+  removeCooccurrenceLinkSliceValue,
+  setCooccurrenceLinkSliceValue,
   setCooccurrenceLinkStrength,
   type CooccurrenceEditResult,
   type CooccurrenceFile,
@@ -18,6 +22,7 @@ import { directionSymbol, filterLinkRows } from './linkListModel';
 import { computeVisibleWindow } from './virtualList';
 import { ensureButtonBaseStyles } from './buttonBaseStyle';
 import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
+import { createSliceValueEditor, type SliceValueEditorHandle } from './sliceValueEditor';
 
 export interface LinkListPanelState {
   file: CooccurrenceFile;
@@ -124,6 +129,17 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
   directionSelect.dataset.field = 'direction';
   edit.append(sourceSelect, targetSelect, strengthInput, directionSelect);
 
+  const sliceValues: SliceValueEditorHandle = createSliceValueEditor({
+    onSet(sliceIndex, value) {
+      if (selectedLinkIndex === null) return;
+      applyEdit(setCooccurrenceLinkSliceValue(state.file, { link: selectedLinkIndex, slice: sliceIndex }, value));
+    },
+    onRemove(sliceIndex) {
+      if (selectedLinkIndex === null) return;
+      applyEdit(removeCooccurrenceLinkSliceValue(state.file, { link: selectedLinkIndex, slice: sliceIndex }));
+    },
+  });
+
   const buttons = document.createElement('div');
   buttons.className = 'cooc-links__buttons';
   const addButton = document.createElement('button');
@@ -155,7 +171,7 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
     },
   });
 
-  element.append(search, viewport, edit, buttons, noteEditor.element, error);
+  element.append(search, viewport, edit, sliceValues.element, buttons, noteEditor.element, error);
 
   function renderEndpointOptions(select: HTMLSelectElement): void {
     const previous = select.value;
@@ -255,6 +271,30 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
     if (document.activeElement !== directionSelect) directionSelect.value = String(link.direction);
   }
 
+  /**
+   * スライス別の強度を流し込む。
+   *
+   * 全体値は合計から導出されるため（設計書 §2.2）、時間軸を持つ図では強度の入力を触れなく
+   * する。押しても必ず拒否されるボタンを操作できるままにしない。
+   */
+  function syncSliceValues(): void {
+    const layered = hasCooccurrenceTimeline(state.file.spec);
+    strengthInput.disabled = layered;
+    const slices = state.file.spec.timeline?.slices ?? [];
+    sliceValues.update(
+      slices,
+      slices.map((_slice, sliceIndex) =>
+        selectedLinkIndex === null
+          ? undefined
+          : readCooccurrenceSliceValue(state.file.spec, {
+              target: 'links',
+              slice: sliceIndex,
+              index: selectedLinkIndex,
+            }),
+      ),
+    );
+  }
+
   function render(): void {
     search.placeholder = t('links.search');
     search.setAttribute('aria-label', t('links.search'));
@@ -273,6 +313,8 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
     deleteButton.textContent = t('links.delete');
     renderEndpointOptions(sourceSelect);
     renderEndpointOptions(targetSelect);
+    sliceValues.setTitle(t('links.sliceValues'));
+    syncSliceValues();
     renderDirectionOptions();
     syncSelectedInputs();
     // 行を作り直すと押した行の要素自体が破棄される。フォーカスが body へ戻ると、キーボード
@@ -304,11 +346,18 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
   viewport.addEventListener('scroll', renderRows);
 
   addButton.addEventListener('click', () => {
+    const endpoints: [number, number] = [Number(sourceSelect.value), Number(targetSelect.value)];
+    if (hasCooccurrenceTimeline(state.file.spec)) {
+      // 全体値は合計から導出されるため 0 を置き、スライス別の値を渡す（設計書 §2.2）。
+      applyEdit(
+        addCooccurrenceLink(state.file, [...endpoints, 0, selectedDirection()], sliceValues.readValues()),
+      );
+      return;
+    }
     const strength = Number(strengthInput.value);
     applyEdit(
       addCooccurrenceLink(state.file, [
-        Number(sourceSelect.value),
-        Number(targetSelect.value),
+        ...endpoints,
         Number.isFinite(strength) ? strength : 1,
         selectedDirection(),
       ]),
@@ -319,6 +368,11 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
     if (selectedLinkIndex === null) return;
     // 強度と向きを別々の関数で当てる。片方が検証で落ちたらそこで止め、もう片方だけが適用
     // された中途半端な状態を残さない。
+    // 時間軸を持つ図では強度は導出値であり、向きだけを当てる。
+    if (hasCooccurrenceTimeline(state.file.spec)) {
+      applyEdit(setCooccurrenceLinkDirection(state.file, selectedLinkIndex, selectedDirection()));
+      return;
+    }
     const strengthResult = setCooccurrenceLinkStrength(state.file, selectedLinkIndex, Number(strengthInput.value));
     if (!strengthResult.ok) {
       applyEdit(strengthResult);

@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { parseCoocFile } from '@anytime-markdown/graph-core/src/presets/cooccurrenceFile';
-import { writeCooccurrence } from '../../tools/writeCooccurrence';
+import { writeCooccurrence, type WriteCooccurrenceInput } from '../../tools/writeCooccurrence';
 import { readCooccurrence } from '../../tools/readCooccurrence';
 
 describe('cooccurrence tools', () => {
@@ -427,5 +427,233 @@ describe('cooccurrence tools', () => {
     }, tmpDir)).rejects.toThrow('Access denied');
 
     await expect(readCooccurrence({ path: '../outside.cooc.json' }, tmpDir)).rejects.toThrow('Access denied');
+  });
+});
+
+describe('cooccurrence timeline tools', () => {
+  let tmpDir: string;
+  const testFile = 'timeline.cooc.json';
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-cooc-timeline-'));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true });
+  });
+
+  async function readSaved() {
+    return parseCoocFile(await fs.readFile(path.join(tmpDir, testFile), 'utf-8'));
+  }
+
+  const INPUT: WriteCooccurrenceInput = {
+    path: 'timeline.cooc.json',
+    mode: 'replace' as const,
+    slices: [
+      { label: '1月', at: '2026-01-01' },
+      { label: '2月', at: '2026-02-01' },
+    ],
+    terms: [
+      { label: 'alpha', sliceValues: { '1月': 6, '2月': 4 } },
+      { label: 'beta', sliceValues: { '1月': 4 } },
+    ],
+    links: [{ source: 'alpha', target: 'beta', sliceValues: { '1月': 0.9 } }],
+  };
+
+  it('スライスの定義とスライス別の値を書き込み、版数 4 で保存する', async () => {
+    const result = await writeCooccurrence(INPUT, tmpDir);
+    expect(result.ok).toBe(true);
+
+    const saved = await readSaved();
+    expect(saved.meta.schemaVersion).toBe(4);
+    expect(saved.spec.timeline?.slices).toEqual([
+      { label: '1月', at: '2026-01-01' },
+      { label: '2月', at: '2026-02-01' },
+    ]);
+    expect(saved.spec.timeline?.nodes).toEqual([
+      [
+        [0, 6],
+        [1, 4],
+      ],
+      [[0, 4]],
+    ]);
+    expect(saved.spec.timeline?.links).toEqual([[[0, 0.9]], []]);
+  });
+
+  it('全体値はスライス値の合計から導出する（書き手は指定しない）', async () => {
+    await writeCooccurrence(INPUT, tmpDir);
+    const saved = await readSaved();
+    expect(saved.spec.nodes.map((node) => node.frequency)).toEqual([10, 4]);
+    expect(saved.spec.links[0][2]).toBe(0.9);
+  });
+
+  it('スライス名の打ち間違いは黙って捨てず、誤りとして返す', async () => {
+    const result = await writeCooccurrence(
+      { ...INPUT, terms: [{ label: 'alpha', sliceValues: { '3月': 5 } }], links: [] },
+      tmpDir,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.some((error) => error.message.includes('"3月"'))).toBe(true);
+  });
+
+  it('読み出しはスライスと、ラベル対応のスライス別の値を返す', async () => {
+    await writeCooccurrence(INPUT, tmpDir);
+    const result = await readCooccurrence({ path: testFile }, tmpDir);
+    expect(result.slices).toEqual([
+      { label: '1月', at: '2026-01-01' },
+      { label: '2月', at: '2026-02-01' },
+    ]);
+    expect(result.terms[0]).toEqual({ label: 'alpha', frequency: 10, sliceValues: { '1月': 6, '2月': 4 } });
+    expect(result.terms[1]).toEqual({ label: 'beta', frequency: 4, sliceValues: { '1月': 4 } });
+    expect(result.links[0].sliceValues).toEqual({ '1月': 0.9 });
+  });
+
+  it('時間軸を持たない図では slices も sliceValues も返さない', async () => {
+    await writeCooccurrence(
+      {
+        path: testFile,
+        mode: 'replace',
+        terms: [{ label: 'alpha', frequency: 3 }],
+        links: [],
+      },
+      tmpDir,
+    );
+    const result = await readCooccurrence({ path: testFile }, tmpDir);
+    expect(result.slices).toBeUndefined();
+    expect(result.terms[0]).toEqual({ label: 'alpha', frequency: 3 });
+  });
+
+  it('追記で同じスライス名を渡すと、そのスライスの既存の値を残す', async () => {
+    await writeCooccurrence(INPUT, tmpDir);
+    const result = await writeCooccurrence(
+      {
+        path: testFile,
+        mode: 'append',
+        slices: INPUT.slices,
+        terms: [{ label: 'gamma', sliceValues: { '2月': 7 } }],
+        links: [],
+      },
+      tmpDir,
+    );
+    expect(result.ok).toBe(true);
+    const saved = await readSaved();
+    // 既存の alpha・beta の値が残り、gamma が 2 月へ足される。
+    expect(saved.spec.nodes.map((node) => node.frequency)).toEqual([10, 4, 7]);
+    expect(saved.spec.timeline?.nodes[1]).toEqual([
+      [0, 4],
+      [2, 7],
+    ]);
+  });
+
+  it('日付の並びが時間順でなければ書き込まない', async () => {
+    const result = await writeCooccurrence(
+      {
+        ...INPUT,
+        slices: [
+          { label: '1月', at: '2026-03-01' },
+          { label: '2月', at: '2026-02-01' },
+        ],
+      },
+      tmpDir,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.map((error) => error.code)).toContain('slice-order-not-chronological');
+    await expect(fs.readFile(path.join(tmpDir, testFile), 'utf-8')).rejects.toThrow();
+  });
+});
+
+describe('時間軸を持つ図への全体値の直接指定', () => {
+  let tmpDir: string;
+  const testFile = 'timeline.cooc.json';
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-cooc-total-'));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true });
+  });
+
+  const BASE: WriteCooccurrenceInput = {
+    path: testFile,
+    mode: 'replace',
+    slices: [{ label: '1月' }, { label: '2月' }],
+    terms: [{ label: 'alpha', sliceValues: { '1月': 6, '2月': 4 } }],
+    links: [],
+  };
+
+  async function savedText(): Promise<string> {
+    return fs.readFile(path.join(tmpDir, testFile), 'utf-8');
+  }
+
+  it('sliceValues を書かずに frequency だけを渡した追記は拒否し、ファイルを書き換えない', async () => {
+    await writeCooccurrence(BASE, tmpDir);
+    const before = await savedText();
+
+    const result = await writeCooccurrence(
+      {
+        path: testFile,
+        mode: 'append',
+        slices: BASE.slices,
+        terms: [{ label: 'gamma', frequency: 5 }],
+        links: [],
+      },
+      tmpDir,
+    );
+
+    // 導出に任せると合計 0 へ潰れ、ok:true でどのレイヤーにも現れない語が書き込まれる。
+    expect(result.ok).toBe(false);
+    expect(result.errors?.map((error) => error.code)).toContain('slice-values-required');
+    expect(await savedText()).toBe(before);
+  });
+
+  it('replace でも sliceValues を書かずに frequency だけを渡せば拒否する', async () => {
+    const result = await writeCooccurrence(
+      { ...BASE, terms: [{ label: 'alpha', frequency: 10 }] },
+      tmpDir,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.map((error) => error.code)).toContain('slice-values-required');
+  });
+
+  it('共起の strength だけを渡した場合も拒否する', async () => {
+    const result = await writeCooccurrence(
+      {
+        ...BASE,
+        terms: [
+          { label: 'alpha', sliceValues: { '1月': 6 } },
+          { label: 'beta', sliceValues: { '1月': 4 } },
+        ],
+        links: [{ source: 'alpha', target: 'beta', strength: 0.9 }],
+      },
+      tmpDir,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.map((error) => error.code)).toContain('slice-values-required');
+  });
+
+  it('frequency と sliceValues の合計が食い違えば、黙って上書きせず拒否する', async () => {
+    const result = await writeCooccurrence(
+      { ...BASE, terms: [{ label: 'alpha', frequency: 99, sliceValues: { '1月': 6, '2月': 4 } }] },
+      tmpDir,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors?.map((error) => error.code)).toContain('total-not-editable');
+  });
+
+  it('frequency が合計と一致していれば受理する（呼び出し側の確認として書ける）', async () => {
+    const result = await writeCooccurrence(
+      { ...BASE, terms: [{ label: 'alpha', frequency: 10, sliceValues: { '1月': 6, '2月': 4 } }] },
+      tmpDir,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('時間軸を持たない図では従来どおり frequency だけで書ける', async () => {
+    const result = await writeCooccurrence(
+      { path: testFile, mode: 'replace', terms: [{ label: 'alpha', frequency: 3 }], links: [] },
+      tmpDir,
+    );
+    expect(result.ok).toBe(true);
   });
 });
