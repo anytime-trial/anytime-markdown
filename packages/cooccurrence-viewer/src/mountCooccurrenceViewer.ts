@@ -45,7 +45,7 @@ function ensureStyles(): void {
 .cooc-viewer__canvas:active{cursor:grabbing}
 .cooc-viewer__panels{width:300px;min-width:240px;max-width:40%;height:100%;min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--cooc-divider);background:var(--cooc-bg);overflow-y:auto;overflow-x:hidden}
 .cooc-viewer__panels[hidden]{display:none}
-.cooc-viewer__tabpanel{flex:1 1 0;min-height:0;display:flex;flex-direction:column}
+.cooc-viewer__tabpanel{flex:1 1 0;display:flex;flex-direction:column}
 .cooc-viewer__tabpanel[hidden]{display:none}
 .cooc-viewer__toolbar{position:absolute;inset:12px 12px auto auto;display:flex;gap:8px;align-items:center}
 .cooc-viewer__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 10px;font:12px system-ui,sans-serif}
