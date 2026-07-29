@@ -108,9 +108,13 @@ function iconElement(id: CooccurrenceTabId): SVGSVGElement {
  * 右パネルのタブ 1 枚に対応し、選択中のアイコンをもう一度押すとパネルを畳む（仕様 §3.5）。
  *
  * WAI-ARIA の tabs パターンに従い、選択中のアイコンだけを Tab キーの停止点にする
- * （roving tabindex）。パネルを畳んでいる間はどのアイコンも `aria-selected` にせず、
- * 開閉そのものは `aria-expanded` で表す。畳んだ状態でも列は残るため、最後に選んでいた
- * アイコンが停止点を持ち続ける（停止点が無くなるとキーボードからパネルへ戻れない）。
+ * （roving tabindex）。パネルを畳んでいる間はどのアイコンも `aria-selected` にしない。
+ * 畳んだ状態でも列は残るため、最後に選んでいたアイコンが停止点を持ち続ける
+ * （停止点が無くなるとキーボードからパネルへ戻れない）。
+ *
+ * Why not `tab` に `aria-expanded` を付けて開閉を表すか: `aria-expanded` は `tab` ではなく
+ * 制御される `tabpanel` 側に置くのが現行の指針である（MDN / ARIA の tablist 記述）。開閉は
+ * mount 側が tabpanel へ流し込み、ここは選択状態だけを持つ。
  */
 export function createSideIconRail(options: SideIconRailOptions): SideIconRailHandle {
   ensureStyles();
@@ -165,9 +169,6 @@ export function createSideIconRail(options: SideIconRailOptions): SideIconRailHa
       const active = id === state.activeId;
       const selected = active && state.expanded;
       button.setAttribute('aria-selected', String(selected));
-      // 押すとパネルが開く／畳まれることを支援技術へ伝える。選択状態だけでは、畳んだ状態が
-      // 「どのタブも選ばれていない」としか読めない。
-      button.setAttribute('aria-expanded', String(selected));
       button.tabIndex = active ? 0 : -1;
       // 選択中の見た目は data 属性で切り替える（クラスの付け外しより状態が読み取りやすい）。
       button.dataset.active = String(selected);

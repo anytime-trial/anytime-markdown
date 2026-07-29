@@ -395,6 +395,11 @@ export function mountCooccurrenceViewer(
     editTabPanel.hidden = activeTab !== 'edit';
     minimapTabPanel.hidden = activeTab !== 'minimap';
     exportTabPanel.hidden = activeTab !== 'export';
+    // 開いているかは制御される側（tabpanel）が持つ。`tab` に `aria-expanded` を置くのは
+    // 現行の指針から外れる（`SideIconRail` の Why not を参照）。
+    for (const tabPanel of [filterTabPanel, editTabPanel, minimapTabPanel, exportTabPanel]) {
+      tabPanel.setAttribute('aria-expanded', String(showPanels && !tabPanel.hidden));
+    }
     rail.update(railState());
     // 畳んでいる間の作り直しは意味を持たない。列の高さが 0 のまま組むと、仮想リストの
     // 可視ウィンドウが 0 行で確定し、開き直しても空のまま残る。

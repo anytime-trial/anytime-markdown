@@ -170,8 +170,12 @@ interface PanelMetrics {
   searchReachable: boolean;
   /** アイコン列の幅。 */
   railWidth: number;
-  /** パネル列を最下部までスクロールしても、アイコン列が可視領域に残っているか。 */
-  railStaysVisible: boolean;
+  /** アイコン列がパネル列の内側にあるか（内側なら列のスクロールに巻き込まれる）。 */
+  railInsidePanels: boolean;
+  /** パネル列を最下部までスクロールした後の、アイコン列の上端。 */
+  railTopAfterScroll: number;
+  /** 同じ状態での先頭アイコンの上端。負なら画面の上へ流れている。 */
+  railFirstItemTopAfterScroll: number;
   /** アイコン列に並んだアイコンの数。 */
   railCount: number;
   /** 全てのアイコンが同じ列にあるか（横へこぼれていないか）。 */
@@ -210,13 +214,22 @@ async function measure(
       buttonsReachable: reachable(".cooc-words__buttons"),
       searchReachable: reachable(".cooc-words__search"),
       railWidth: Math.round(rail.getBoundingClientRect().width),
-      railStaysVisible: (() => {
+      ...(() => {
         // アイコン列はパネル列の外に立てる（仕様 §3.5）。中に置くと、絞り込みの内容が高い
         // ときに列と一緒に流れ、切り替えと開閉の手段そのものが視野から消える。
+        //
+        // Why not「画面のどこかにある」だけを見るか: 上へ流れて `top` が負になっても真に
+        // なり、列をパネルの内側へ戻す退行を素通りさせる。包含関係と、パネル列を最下部まで
+        // スクロールした後の位置を別々に返し、どちらが壊れたか失敗時に分かるようにする。
         panels.scrollTop = panels.scrollHeight;
-        const stays = rail.getBoundingClientRect().top < window.innerHeight;
+        const rect = rail.getBoundingClientRect();
+        const first = rail.querySelector<HTMLElement>(".cooc-rail__item")?.getBoundingClientRect();
         panels.scrollTop = 0;
-        return stays;
+        return {
+          railInsidePanels: panels.contains(rail),
+          railTopAfterScroll: Math.round(rect.top),
+          railFirstItemTopAfterScroll: Math.round(first?.top ?? Number.NaN),
+        };
       })(),
       ...(() => {
         const items = [...rail.querySelectorAll<HTMLElement>(".cooc-rail__item")];
@@ -284,7 +297,13 @@ test.describe("共起ビューアのパネル高さ配分", () => {
 
     // 絞り込み欄（クラスタ 5 件を含む）が列より高くなると列がスクロールする。その状態でも
     // アイコン列が視野から消えると、切り替えとパネルを開き直す手段が無くなる。
-    expect(metrics.railStaysVisible).toBe(true);
+    expect(metrics.railInsidePanels).toBe(false);
+    expect(metrics.railTopAfterScroll).toBeGreaterThanOrEqual(0);
+    expect(metrics.railFirstItemTopAfterScroll).toBeGreaterThanOrEqual(0);
+    // Why not 列の下端も画面内に収める条件を課すか: 列は `height:100%` で、行の高さが内容に
+    // 引かれると画面より高くなりうる（実測で落ちた）。アイコンは列の上端から積むため、
+    // 到達性に効くのは上端と個々のアイコンの位置である。全アイコンが画面に収まることは
+    // 「画面が低くてもアイコンが潰れず全部見える」が別途測る。
   });
 
   test("画面が低くてもアイコンが潰れず全部見える", async ({ page }) => {

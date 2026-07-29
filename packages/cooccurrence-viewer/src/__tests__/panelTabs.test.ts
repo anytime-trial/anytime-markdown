@@ -136,7 +136,9 @@ describe('cooccurrence viewer panel tabs', () => {
     expect(panels.hidden).toBe(true);
     expect(rail.hidden).toBe(false);
     expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('false');
-    expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-expanded')).toBe('false');
+    // 開閉は制御される側（tabpanel）が持つ。`tab` へ置くのは現行の指針から外れる。
+    expect(panel(container, 'cooc-panel-minimap').getAttribute('aria-expanded')).toBe('false');
+    expect(tab(container, 'cooc-panel-minimap').hasAttribute('aria-expanded')).toBe(false);
     // 畳んでも列の停止点は残す。無くなるとキーボードからパネルへ戻れない。
     expect(tab(container, 'cooc-panel-minimap').tabIndex).toBe(0);
 
@@ -144,7 +146,9 @@ describe('cooccurrence viewer panel tabs', () => {
 
     expect(panels.hidden).toBe(false);
     expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-selected')).toBe('true');
-    expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-expanded')).toBe('true');
+    expect(panel(container, 'cooc-panel-minimap').getAttribute('aria-expanded')).toBe('true');
+    // 隠れているタブの内容は「開いていない」と読める必要がある。
+    expect(panel(container, 'cooc-panel-filter').getAttribute('aria-expanded')).toBe('false');
     handle.destroy();
   });
 
