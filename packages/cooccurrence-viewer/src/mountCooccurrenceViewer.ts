@@ -37,6 +37,7 @@ import { createLinkListPanel, type LinkListPanelHandle } from './ui/LinkListPane
 import { createMinimapPanel, type MinimapPanelHandle } from './ui/MinimapPanel';
 import { createExportPanel, type ExportPanelHandle, type ExportPanelState } from './ui/ExportPanel';
 import { createClusterListPanel, type ClusterListPanelHandle } from './ui/ClusterListPanel';
+import { createTimelinePanel, type TimelinePanelHandle } from './ui/TimelinePanel';
 import { createNotePopup, type NotePopupHandle } from './ui/NotePopup';
 import { clusterPopupState, linkPopupState, nodePopupState } from './ui/notePopupModel';
 import {
@@ -184,6 +185,7 @@ export function mountCooccurrenceViewer(
   let minimapPanel: MinimapPanelHandle | null = null;
   let exportPanel: ExportPanelHandle | null = null;
   let clusterListPanel: ClusterListPanelHandle | null = null;
+  let timelinePanel: TimelinePanelHandle | null = null;
   let selectedClusterIndex: number | null = null;
   // 既定はミニマップ（仕様 §3.5）。図を開いた直後に必要なのは全体の把握である。
   let activeTab: CooccurrenceTabId = 'minimap';
@@ -204,6 +206,7 @@ export function mountCooccurrenceViewer(
   const linksTabPanel = createTabPanel('links');
   const minimapTabPanel = createTabPanel('minimap');
   const clustersTabPanel = createTabPanel('clusters');
+  const timelineTabPanel = createTabPanel('timeline');
   const exportTabPanel = createTabPanel('export');
 
   /**
@@ -280,11 +283,18 @@ export function mountCooccurrenceViewer(
 
   function updatePanels(): void {
     if (!showPanels) return;
-    const filterState = { file, filter: options.filter, counts: filterCounts, t };
+    const filterState = {
+      file,
+      filter: options.filter,
+      counts: filterCounts,
+      t,
+      selectedSlices: timelineView.selectedSlices,
+    };
     const wordsState = { file, visibleNodeIndexes, selectedNodeIndex, t };
     const linksState = { file, visibleLinkIndexes, selectedNodeIndex, t };
     filterPanel?.update(filterState);
     clusterListPanel?.update({ file, selectedClusterIndex, t });
+    timelinePanel?.update({ file, view: timelineView, t });
     wordListPanel?.update(wordsState);
     linkListPanel?.update(linksState);
     syncExportPanel();
@@ -319,8 +329,17 @@ export function mountCooccurrenceViewer(
       filter: options.filter,
       counts: filterCounts,
       t,
+      selectedSlices: timelineView.selectedSlices,
       onFilterChange(nextFilter) {
         options = { ...options, filter: nextFilter };
+        fitted = false;
+        rebuildGraph();
+        updatePanels();
+      },
+      onSelectedSlicesChange(selected) {
+        timelineView = { ...timelineView, selectedSlices: selected };
+        // レイヤーの枚数が変わると図の外接矩形も変わる。全体表示をやり直さないと、
+        // 落としたレイヤーの跡の空白を見たままになる。
         fitted = false;
         rebuildGraph();
         updatePanels();
@@ -373,6 +392,20 @@ export function mountCooccurrenceViewer(
         notePopup?.show(popupState, toRootPoint(anchor));
       },
     });
+    timelinePanel = createTimelinePanel({
+      file,
+      view: timelineView,
+      t,
+      onFileChange: (nextFile) => applyFileChange(nextFile, true),
+      onViewChange(nextView) {
+        timelineView = nextView;
+        // 表示状態を変えただけなのでレイアウトは走らない。図の組み直しだけを要求する
+        // （設計書 §2.4: 時間軸はレイアウトの入力ではない）。
+        rebuildGraph();
+        updatePanels();
+      },
+    });
+    timelineTabPanel.appendChild(timelinePanel.element);
     clustersTabPanel.appendChild(clusterListPanel.element);
     filterTabPanel.appendChild(filterPanel.element);
     wordsTabPanel.appendChild(wordListPanel.element);
@@ -380,7 +413,14 @@ export function mountCooccurrenceViewer(
     minimapTabPanel.appendChild(minimapPanel.element);
     // tabpanel の DOM 順もアイコンの並びに合わせる。見た目には 1 枚しか出ないが、
     // 支援技術の読み上げ順と Tab キーの移動順はこの順序に従う。
-    panelRoot.append(minimapTabPanel, filterTabPanel, wordsTabPanel, linksTabPanel, clustersTabPanel);
+    panelRoot.append(
+      minimapTabPanel,
+      filterTabPanel,
+      wordsTabPanel,
+      linksTabPanel,
+      clustersTabPanel,
+      timelineTabPanel,
+    );
     syncExportPanel();
     syncActiveTab();
   }
@@ -427,6 +467,8 @@ export function mountCooccurrenceViewer(
         return { id, label: t('tabs.minimap'), panelId: minimapTabPanel.id };
       case 'clusters':
         return { id, label: t('tabs.clusters'), panelId: clustersTabPanel.id };
+      case 'timeline':
+        return { id, label: t('tabs.timeline'), panelId: timelineTabPanel.id };
       case 'export':
         return { id, label: t('tabs.export'), panelId: exportTabPanel.id };
     }
@@ -458,6 +500,7 @@ export function mountCooccurrenceViewer(
     linksTabPanel.hidden = activeTab !== 'links';
     minimapTabPanel.hidden = activeTab !== 'minimap';
     clustersTabPanel.hidden = activeTab !== 'clusters';
+    timelineTabPanel.hidden = activeTab !== 'timeline';
     exportTabPanel.hidden = activeTab !== 'export';
     // 開いているかは制御される側（tabpanel）が持つ。`tab` に `aria-expanded` を置くのは
     // 現行の指針から外れる（`SideIconRail` の Why not を参照）。
@@ -466,6 +509,7 @@ export function mountCooccurrenceViewer(
       wordsTabPanel,
       linksTabPanel,
       clustersTabPanel,
+      timelineTabPanel,
       minimapTabPanel,
       exportTabPanel,
     ]) {
@@ -867,6 +911,7 @@ export function mountCooccurrenceViewer(
       minimapPanel?.destroy();
       exportPanel?.destroy();
       clusterListPanel?.destroy();
+      timelinePanel?.destroy();
       notePopup?.destroy();
       root.remove();
     },

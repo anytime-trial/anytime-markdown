@@ -7,7 +7,11 @@ import {
   deleteCooccurrenceNode,
   renameCooccurrenceNode,
   setCooccurrenceNodeCluster,
+  hasCooccurrenceTimeline,
+  readCooccurrenceSliceValue,
+  removeCooccurrenceNodeSliceValue,
   setCooccurrenceNodeFrequency,
+  setCooccurrenceNodeSliceValue,
   type CooccurrenceEditResult,
   type CooccurrenceFile,
 } from '@anytime-markdown/graph-core';
@@ -15,6 +19,7 @@ import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { computeVisibleWindow } from './virtualList';
 import { ensureButtonBaseStyles } from './buttonBaseStyle';
 import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
+import { createSliceValueEditor, type SliceValueEditorHandle } from './sliceValueEditor';
 
 export interface WordListPanelState {
   file: CooccurrenceFile;
@@ -125,6 +130,17 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   const clusterSelect = document.createElement('select');
   edit.append(labelInput, frequencyInput, clusterSelect);
 
+  const sliceValues: SliceValueEditorHandle = createSliceValueEditor({
+    onSet(sliceIndex, value) {
+      if (state.selectedNodeIndex === null) return;
+      applyEdit(setCooccurrenceNodeSliceValue(state.file, { node: state.selectedNodeIndex, slice: sliceIndex }, value));
+    },
+    onRemove(sliceIndex) {
+      if (state.selectedNodeIndex === null) return;
+      applyEdit(removeCooccurrenceNodeSliceValue(state.file, { node: state.selectedNodeIndex, slice: sliceIndex }));
+    },
+  });
+
   const buttons = document.createElement('div');
   buttons.className = 'cooc-words__buttons';
   const addButton = document.createElement('button');
@@ -164,7 +180,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     },
   });
 
-  element.append(search, viewport, edit, buttons, noteEditor.element, error);
+  element.append(search, viewport, edit, sliceValues.element, buttons, noteEditor.element, error);
 
   // 一覧は編集面であるため、絞り込みで図から消えた語も残す。
   // Why not 図と同じ絞り込みを掛けるか: 低頻度語を絞り込んでから消す、という
@@ -243,6 +259,24 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     const selected = state.selectedNodeIndex === null ? undefined : state.file.spec.nodes[state.selectedNodeIndex];
     if (selected && document.activeElement !== labelInput) labelInput.value = selected.label;
     if (selected && document.activeElement !== frequencyInput) frequencyInput.value = String(selected.frequency);
+    // 時間軸を持つ図では全体値は合計から導出され、直接は編集できない（設計書 §2.2）。
+    // 押しても必ず拒否されるボタンを操作できるままにしない。
+    const layered = hasCooccurrenceTimeline(state.file.spec);
+    frequencyInput.disabled = layered;
+    frequencyButton.disabled = layered;
+    const slices = state.file.spec.timeline?.slices ?? [];
+    sliceValues.update(
+      slices,
+      slices.map((_slice, sliceIndex) =>
+        state.selectedNodeIndex === null
+          ? undefined
+          : readCooccurrenceSliceValue(state.file.spec, {
+              target: 'nodes',
+              slice: sliceIndex,
+              index: state.selectedNodeIndex,
+            }),
+      ),
+    );
     if (state.selectedNodeIndex !== null) {
       const clusterIndex = clusterIndexFor(state.file, state.selectedNodeIndex);
       clusterSelect.value = clusterIndex === undefined || clusterIndex < 0 ? '' : String(clusterIndex);
@@ -261,6 +295,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     clusterButton.textContent = t('words.setCluster');
     deleteButton.textContent = t('words.delete');
     renderClusterOptions();
+    sliceValues.setTitle(t('words.sliceValues'));
     syncSelectedInputs();
     noteEditor.setT(t);
     noteEditor.setValue(
@@ -293,6 +328,11 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   });
   viewport.addEventListener('scroll', renderRows);
   addButton.addEventListener('click', () => {
+    if (hasCooccurrenceTimeline(state.file.spec)) {
+      // 時間軸を持つ図では全体値ではなくスライス別の値を渡す（設計書 §2.2）。
+      applyEdit(addCooccurrenceNode(state.file, { label: labelInput.value, sliceValues: sliceValues.readValues() }));
+      return;
+    }
     const frequency = Number(frequencyInput.value);
     applyEdit(addCooccurrenceNode(state.file, { label: labelInput.value, frequency: Number.isFinite(frequency) ? frequency : 1 }));
   });
