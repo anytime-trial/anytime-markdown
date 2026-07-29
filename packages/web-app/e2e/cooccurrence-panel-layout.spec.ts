@@ -69,11 +69,11 @@ const WORD_COUNT = 36;
 
 type ActiveTab = "filter" | "edit" | "minimap" | "export";
 
-/** タブ列。表示順とラベルは仕様 §3.5 の表に一致させる。 */
+/** タブ列。表示順とラベルは仕様 §3.5 の表に一致させる（先頭が既定タブ）。 */
 const TABS: ReadonlyArray<{ id: ActiveTab; label: string; panelId: string }> = [
+  { id: "minimap", label: "ミニマップ", panelId: "cooc-panel-minimap" },
   { id: "filter", label: "絞り込み", panelId: "cooc-panel-filter" },
   { id: "edit", label: "編集", panelId: "cooc-panel-edit" },
-  { id: "minimap", label: "ミニマップ", panelId: "cooc-panel-minimap" },
   { id: "export", label: "保存", panelId: "cooc-panel-export" },
 ];
 
@@ -254,12 +254,21 @@ test.describe("共起ビューアのパネル高さ配分", () => {
     expect(metrics.panelsScrolls).toBe(false);
   });
 
-  test("既定の絞り込みタブでは列がスクロールしない", async ({ page }) => {
+  test("絞り込みタブでは列がスクロールしない", async ({ page }) => {
     const metrics = await measure(page, 900, "filter");
 
-    // 図を開いた直後に見える状態（仕様 §3.5 の既定タブ）。絞り込み欄だけなら列に収まる。
+    // 絞り込み欄だけなら列に収まる。
     expect(metrics.panelsScrolls).toBe(false);
     expect(metrics.tabsHeight).toBeGreaterThanOrEqual(28);
+  });
+
+  test("既定のミニマップタブでは列がスクロールしない", async ({ page }) => {
+    // 図を開いた直後に見える状態（仕様 §3.5 の既定タブ）。ミニマップは縦横比で高さが
+    // 決まるため、列を溢れさせると操作ボタンが視野から出る。
+    const metrics = await measure(page, 900, "minimap");
+
+    expect(metrics.panelsScrolls).toBe(false);
+    expect(metrics.tabsOnOneLine).toBe(true);
   });
 
   test("絞り込みタブで列が低くてもタブ見出しへ到達できる", async ({ page }) => {
@@ -311,14 +320,6 @@ test.describe("共起ビューアのパネル高さ配分", () => {
 
     expect(metrics.tabsOnOneLine).toBe(true);
     expect(metrics.tabLabelsFit).toBe(true);
-  });
-
-  test("ミニマップタブでも列がスクロールしない", async ({ page }) => {
-    const metrics = await measure(page, 900, "minimap");
-
-    // ミニマップは縦横比で高さが決まる。列を溢れさせると操作ボタンが視野から出る。
-    expect(metrics.panelsScrolls).toBe(false);
-    expect(metrics.tabsOnOneLine).toBe(true);
   });
 
   test("行の高さが仮想リストの前提どおり 36px になる", async ({ page }) => {

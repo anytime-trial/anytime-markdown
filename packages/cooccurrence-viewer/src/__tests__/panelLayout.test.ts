@@ -101,7 +101,8 @@ describe('cooccurrence viewer panel layout', () => {
   it('gives the active tab panel the column height', () => {
     const { container, destroy } = mount();
     // 表示中のタブで測る。隠れている側は display:none で、寸法の宣言が意味を持たない。
-    const activePanel = container.querySelector('#cooc-panel-filter') as HTMLElement;
+    // 既定はミニマップタブ（仕様 §3.5）。
+    const activePanel = container.querySelector('#cooc-panel-minimap') as HTMLElement;
     const computed = getComputedStyle(activePanel);
 
     // ガード: 解決できていなければ以下の検査が既定値で fail-open する。
@@ -133,13 +134,15 @@ describe('cooccurrence viewer panel layout', () => {
 
   it('hides the inactive tab panel so it does not take column height', () => {
     const { container, destroy } = mount();
+    const minimapPanel = container.querySelector('#cooc-panel-minimap') as HTMLElement;
     const filterPanel = container.querySelector('#cooc-panel-filter') as HTMLElement;
     const editPanel = container.querySelector('#cooc-panel-edit') as HTMLElement;
 
     // hidden 属性だけでは display:flex が勝つ（UA の [hidden]{display:none} は
     // 詳細度で負ける）。明示した打ち消しが効いていることを固定する。
     expect(getComputedStyle(editPanel).display).toBe('none');
-    expect(getComputedStyle(filterPanel).display).toBe('flex');
+    expect(getComputedStyle(filterPanel).display).toBe('none');
+    expect(getComputedStyle(minimapPanel).display).toBe('flex');
     destroy();
   });
 
