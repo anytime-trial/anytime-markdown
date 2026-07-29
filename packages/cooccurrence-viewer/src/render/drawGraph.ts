@@ -1,5 +1,7 @@
+import { LINK_DIRECTION } from '@anytime-markdown/graph-core';
 import type { RenderGraph, RenderNode, ViewportState } from '../types';
 import type { CooccurrenceTheme } from '../theme/readTheme';
+import { arrowHeadPoints, type ArrowHead } from './arrow';
 import { computeNeighborhoodHighlight } from './highlight';
 import { selectVisibleLabels } from './labels';
 import { worldToScreen } from '../viewport/viewport';
@@ -25,6 +27,16 @@ export interface DrawGraphOptions {
   theme: CooccurrenceTheme;
   selectedNodeIndex: number | null;
   hoveredNode: RenderNode | null;
+}
+
+function fillArrowHead(ctx: CanvasRenderingContext2D, head: ArrowHead, color: string): void {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(head.tip.x, head.tip.y);
+  ctx.lineTo(head.left.x, head.left.y);
+  ctx.lineTo(head.right.x, head.right.y);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function visibleAlpha(
@@ -63,6 +75,15 @@ export function drawGraph(opts: DrawGraphOptions): void {
     ctx.moveTo(source.x, source.y);
     ctx.lineTo(target.x, target.y);
     ctx.stroke();
+
+    // 矢頭は線と同じ globalAlpha のまま描く。線だけが淡くなり矢頭が残ると、隠したはずの共起が
+    // 目立つ（設計書 §3.1）。
+    if (link.direction === LINK_DIRECTION.forward || link.direction === LINK_DIRECTION.both) {
+      fillArrowHead(ctx, arrowHeadPoints(source, target, target.radius, link.width), theme.link);
+    }
+    if (link.direction === LINK_DIRECTION.backward || link.direction === LINK_DIRECTION.both) {
+      fillArrowHead(ctx, arrowHeadPoints(target, source, source.radius, link.width), theme.link);
+    }
   }
 
   for (const node of graph.nodes) {

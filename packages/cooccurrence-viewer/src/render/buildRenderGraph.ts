@@ -1,4 +1,4 @@
-import type { CooccurrenceFile } from '@anytime-markdown/graph-core';
+import { readLink, type CooccurrenceFile } from '@anytime-markdown/graph-core';
 import type { RenderGraph, RenderLink, RenderNode, ThemeMode } from '../types';
 import { NODE_STROKE_NORMAL, NODE_STROKE_SUBJECT, labelFontSizeForRadius, radiusForFrequency, widthForStrength } from './scales';
 import { withAlpha } from './color';
@@ -25,14 +25,15 @@ export function buildRenderGraph(
   const frequencies = file.spec.nodes.map((node) => node.frequency);
   const freqMin = frequencies.length > 0 ? Math.min(...frequencies) : 0;
   const freqMax = frequencies.length > 0 ? Math.max(...frequencies) : 0;
-  const strengths = file.spec.links.map((link) => link[2]);
+  const views = file.spec.links.map(readLink);
+  const strengths = views.map((view) => view.strength);
   const strengthMin = strengths.length > 0 ? Math.min(...strengths) : 0;
   const strengthMax = strengths.length > 0 ? Math.max(...strengths) : 0;
   const clusterIndex = buildClusterIndex(file);
   const cooccurrenceCounts = new Map<number, number>();
-  for (const link of file.spec.links) {
-    cooccurrenceCounts.set(link[0], (cooccurrenceCounts.get(link[0]) ?? 0) + 1);
-    cooccurrenceCounts.set(link[1], (cooccurrenceCounts.get(link[1]) ?? 0) + 1);
+  for (const view of views) {
+    cooccurrenceCounts.set(view.source, (cooccurrenceCounts.get(view.source) ?? 0) + 1);
+    cooccurrenceCounts.set(view.target, (cooccurrenceCounts.get(view.target) ?? 0) + 1);
   }
 
   const nodes: RenderNode[] = [];
@@ -59,14 +60,15 @@ export function buildRenderGraph(
   });
 
   const links: RenderLink[] = [];
-  file.spec.links.forEach((link, index) => {
+  views.forEach((view, index) => {
     if (!visibleLinkIndexes.has(index)) return;
     links.push({
       index,
-      source: link[0],
-      target: link[1],
-      strength: link[2],
-      width: widthForStrength(link[2], strengthMin, strengthMax),
+      source: view.source,
+      target: view.target,
+      strength: view.strength,
+      width: widthForStrength(view.strength, strengthMin, strengthMax),
+      direction: view.direction,
     });
   });
 

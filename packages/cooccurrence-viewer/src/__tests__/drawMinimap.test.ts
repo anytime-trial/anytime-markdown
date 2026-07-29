@@ -1,3 +1,4 @@
+import { LINK_DIRECTION } from '@anytime-markdown/graph-core';
 import { drawMinimap } from '../render/drawMinimap';
 import { minimapViewport, visibleRect } from '../ui/minimapModel';
 import type { CooccurrenceTheme } from '../theme/readTheme';
@@ -85,7 +86,7 @@ function theme(): CooccurrenceTheme {
 const SIZE = { width: 240, height: 120 };
 const GRAPH: RenderGraph = {
   nodes: [node({ index: 0, x: -100, y: -50 }), node({ index: 1, x: 100, y: 50 })],
-  links: [{ index: 0, source: 0, target: 1, strength: 3, width: 2 }],
+  links: [{ index: 0, source: 0, target: 1, strength: 3, width: 2, direction: LINK_DIRECTION.none }],
 };
 
 function draw(graph: RenderGraph, frame: ReturnType<typeof visibleRect> | null): Recorded {

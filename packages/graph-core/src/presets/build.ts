@@ -59,6 +59,7 @@ export interface EdgeOpts {
   stroke?: string;
   strokeWidth?: number;
   dashed?: boolean;
+  startShape?: EndpointShape;
   endShape?: EndpointShape;
   label?: string;
   routing?: RoutingMode;
@@ -71,6 +72,7 @@ function edgeStyle(opts: EdgeOpts): EdgeStyle {
     stroke: opts.stroke ?? 'rgba(255,255,255,0.4)',
     strokeWidth: opts.strokeWidth ?? 2,
     dashed: opts.dashed,
+    startShape: opts.startShape,
     endShape: opts.endShape,
     routing: opts.routing,
   };

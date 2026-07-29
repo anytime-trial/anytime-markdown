@@ -2,6 +2,8 @@ import {
   BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
   computeSpecHash,
   filterCooccurrenceFile,
+  readLink,
+  writeLink,
   type CooccurrenceFile,
   type CooccurrenceFilterCounts,
 } from '@anytime-markdown/graph-core';
@@ -25,6 +27,7 @@ import { createCooccurrenceT, type CooccurrenceT } from './i18n/createCooccurren
 import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
+import { createLinkListPanel, type LinkListPanelHandle } from './ui/LinkListPanel';
 import { createMinimapPanel, type MinimapPanelHandle } from './ui/MinimapPanel';
 import { createExportPanel, type ExportPanelHandle, type ExportPanelState } from './ui/ExportPanel';
 import {
@@ -76,7 +79,8 @@ function cloneWithLayout(file: CooccurrenceFile, positions: Array<[number, numbe
     spec: {
       ...file.spec,
       nodes: file.spec.nodes.map((node) => ({ ...node })),
-      links: file.spec.links.map((link) => [link[0], link[1], link[2]]),
+      // writeLink を通す。添字で組み直すと、レイアウト完了後のファイル差し替えで向きが落ちる。
+      links: file.spec.links.map((link) => writeLink(readLink(link))),
       clusters: file.spec.clusters?.map((cluster) => ({ label: cluster.label, members: [...cluster.members] })),
     },
     layout: { positions, specHash, algorithmVersion: BARNES_HUT_LAYOUT_ALGORITHM_VERSION },
@@ -163,8 +167,10 @@ export function mountCooccurrenceViewer(
     totalLinkCount: file.spec.links.length,
   };
   let visibleNodeIndexes: ReadonlySet<number> = new Set();
+  let visibleLinkIndexes: ReadonlySet<number> = new Set();
   let filterPanel: FilterPanelHandle | null = null;
   let wordListPanel: WordListPanelHandle | null = null;
+  let linkListPanel: LinkListPanelHandle | null = null;
   let minimapPanel: MinimapPanelHandle | null = null;
   let exportPanel: ExportPanelHandle | null = null;
   // 既定はミニマップ（仕様 §3.5）。図を開いた直後に必要なのは全体の把握である。
@@ -182,7 +188,8 @@ export function mountCooccurrenceViewer(
   }
 
   const filterTabPanel = createTabPanel('filter');
-  const editTabPanel = createTabPanel('edit');
+  const wordsTabPanel = createTabPanel('words');
+  const linksTabPanel = createTabPanel('links');
   const minimapTabPanel = createTabPanel('minimap');
   const exportTabPanel = createTabPanel('export');
 
@@ -262,8 +269,10 @@ export function mountCooccurrenceViewer(
     if (!showPanels) return;
     const filterState = { file, filter: options.filter, counts: filterCounts, t };
     const wordsState = { file, visibleNodeIndexes, selectedNodeIndex, t };
+    const linksState = { file, visibleLinkIndexes, selectedNodeIndex, t };
     filterPanel?.update(filterState);
     wordListPanel?.update(wordsState);
+    linkListPanel?.update(linksState);
     syncExportPanel();
     minimapPanel?.setT(t);
     minimapPanel?.refresh();
@@ -280,10 +289,16 @@ export function mountCooccurrenceViewer(
     syncCanvasLabel();
     if (notifyHost) options.onFileChange?.(file);
     beginLayoutIfNeeded();
+    // パネルはレイアウトの完了ではなくファイルの変更に追従させる。
+    //
+    // Why not beginLayoutIfNeeded に任せるか: 座標に影響しない編集（共起の向き。設計書 §2.4）は
+    // キャッシュ判定が hit になりレイアウトが走らないため、レイアウト完了を契機にすると、その
+    // 経路だけ一覧が古いまま固まる。座標が変わる編集でも、パネルの内容は座標と無関係である。
+    updatePanels();
   }
 
   function ensurePanels(): void {
-    if (filterPanel && wordListPanel) return;
+    if (filterPanel && wordListPanel && linkListPanel) return;
     filterPanel = createFilterPanel({
       file,
       filter: options.filter,
@@ -307,6 +322,13 @@ export function mountCooccurrenceViewer(
       },
       onFileChange: (nextFile) => applyFileChange(nextFile, true),
     });
+    linkListPanel = createLinkListPanel({
+      file,
+      visibleLinkIndexes,
+      selectedNodeIndex,
+      t,
+      onFileChange: (nextFile) => applyFileChange(nextFile, true),
+    });
     minimapPanel = createMinimapPanel({
       themeHost: root,
       t,
@@ -318,11 +340,12 @@ export function mountCooccurrenceViewer(
       onFitContent: fitToGraph,
     });
     filterTabPanel.appendChild(filterPanel.element);
-    editTabPanel.appendChild(wordListPanel.element);
+    wordsTabPanel.appendChild(wordListPanel.element);
+    linksTabPanel.appendChild(linkListPanel.element);
     minimapTabPanel.appendChild(minimapPanel.element);
     // tabpanel の DOM 順もアイコンの並びに合わせる。見た目には 1 枚しか出ないが、
     // 支援技術の読み上げ順と Tab キーの移動順はこの順序に従う。
-    panelRoot.append(minimapTabPanel, filterTabPanel, editTabPanel);
+    panelRoot.append(minimapTabPanel, filterTabPanel, wordsTabPanel, linksTabPanel);
     syncExportPanel();
     syncActiveTab();
   }
@@ -361,8 +384,10 @@ export function mountCooccurrenceViewer(
     switch (id) {
       case 'filter':
         return { id, label: t('tabs.filter'), panelId: filterTabPanel.id };
-      case 'edit':
-        return { id, label: t('tabs.edit'), panelId: editTabPanel.id };
+      case 'words':
+        return { id, label: t('tabs.words'), panelId: wordsTabPanel.id };
+      case 'links':
+        return { id, label: t('tabs.links'), panelId: linksTabPanel.id };
       case 'minimap':
         return { id, label: t('tabs.minimap'), panelId: minimapTabPanel.id };
       case 'export':
@@ -392,19 +417,21 @@ export function mountCooccurrenceViewer(
     // 選ばれていない（内容が何も出ない）状態が残る。
     if (!displayed.includes(activeTab)) activeTab = displayed[0] ?? 'minimap';
     filterTabPanel.hidden = activeTab !== 'filter';
-    editTabPanel.hidden = activeTab !== 'edit';
+    wordsTabPanel.hidden = activeTab !== 'words';
+    linksTabPanel.hidden = activeTab !== 'links';
     minimapTabPanel.hidden = activeTab !== 'minimap';
     exportTabPanel.hidden = activeTab !== 'export';
     // 開いているかは制御される側（tabpanel）が持つ。`tab` に `aria-expanded` を置くのは
     // 現行の指針から外れる（`SideIconRail` の Why not を参照）。
-    for (const tabPanel of [filterTabPanel, editTabPanel, minimapTabPanel, exportTabPanel]) {
+    for (const tabPanel of [filterTabPanel, wordsTabPanel, linksTabPanel, minimapTabPanel, exportTabPanel]) {
       tabPanel.setAttribute('aria-expanded', String(showPanels && !tabPanel.hidden));
     }
     rail.update(railState());
     // 畳んでいる間の作り直しは意味を持たない。列の高さが 0 のまま組むと、仮想リストの
     // 可視ウィンドウが 0 行で確定し、開き直しても空のまま残る。
     if (!showPanels) return;
-    if (activeTab === 'edit') wordListPanel?.refresh();
+    if (activeTab === 'words') wordListPanel?.refresh();
+    if (activeTab === 'links') linkListPanel?.refresh();
     if (activeTab === 'minimap') minimapPanel?.refresh();
   }
 
@@ -427,6 +454,7 @@ export function mountCooccurrenceViewer(
     const filtered = filterCooccurrenceFile(file, options.filter);
     filterCounts = filtered.counts;
     visibleNodeIndexes = filtered.nodeIndexes;
+    visibleLinkIndexes = filtered.linkIndexes;
     graph = buildRenderGraph(file, filtered.nodeIndexes, filtered.linkIndexes, positions, root, themeMode);
     statusEl.textContent = t('status.summary', {
       visibleWords: filtered.counts.visibleNodeCount,
@@ -680,11 +708,13 @@ export function mountCooccurrenceViewer(
         updatePanels();
       }
       if (partial.file !== undefined) {
+        // applyFileChange が内部で updatePanels() まで済ませる。ここで重ねて呼ぶと、同じ状態で
+        // 一覧を 2 回作り直すだけになる。
         applyFileChange(partial.file, false);
       } else {
         rebuildGraph();
+        updatePanels();
       }
-      updatePanels();
       syncStatusUi();
     },
     destroy(): void {
@@ -695,6 +725,7 @@ export function mountCooccurrenceViewer(
       resizeObserver?.disconnect();
       filterPanel?.destroy();
       wordListPanel?.destroy();
+      linkListPanel?.destroy();
       minimapPanel?.destroy();
       exportPanel?.destroy();
       root.remove();

@@ -123,10 +123,10 @@ describe('minimap and save tabs', () => {
     }
   });
 
-  it('shows four tabs when the host can save', () => {
+  it('shows five tabs when the host can save', () => {
     const { container, handle } = mount(BOTH);
 
-    expect(tabLabels(container)).toEqual(['ミニマップ', '絞り込み', '編集', '保存']);
+    expect(tabLabels(container)).toEqual(['ミニマップ', '絞り込み', '語', '共起', '保存']);
     handle.destroy();
   });
 
@@ -134,7 +134,7 @@ describe('minimap and save tabs', () => {
     // 空のタブは、その機能があるという誤った期待を与える（仕様 §3.5・§6.3）。
     const { container, handle } = mount({});
 
-    expect(tabLabels(container)).toEqual(['ミニマップ', '絞り込み', '編集']);
+    expect(tabLabels(container)).toEqual(['ミニマップ', '絞り込み', '語', '共起']);
     expect(container.querySelector('#cooc-panel-export')).toBeNull();
     handle.destroy();
   });
@@ -172,7 +172,7 @@ describe('minimap and save tabs', () => {
 
     handle.update({ capabilities: {} });
 
-    expect(tabLabels(container)).toEqual(['ミニマップ', '絞り込み', '編集']);
+    expect(tabLabels(container)).toEqual(['ミニマップ', '絞り込み', '語', '共起']);
     // 消えたタブが選ばれたままだと、どの内容も出ない状態が残る。先頭のタブへ戻す。
     expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute('aria-label'))
       .toBe('ミニマップ');
@@ -226,7 +226,7 @@ describe('minimap and save tabs', () => {
     (container.querySelector('#cooc-panel-minimap-tab') as HTMLButtonElement).click();
     expect(shown('minimap')).toBe(true);
     expect(shown('filter')).toBe(false);
-    expect(shown('edit')).toBe(false);
+    expect(shown('words')).toBe(false);
     handle.destroy();
   });
 });

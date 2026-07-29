@@ -142,7 +142,7 @@ describe('cooccurrence viewer panel layout', () => {
     const { container, destroy } = mount();
     const minimapPanel = container.querySelector('#cooc-panel-minimap') as HTMLElement;
     const filterPanel = container.querySelector('#cooc-panel-filter') as HTMLElement;
-    const editPanel = container.querySelector('#cooc-panel-edit') as HTMLElement;
+    const editPanel = container.querySelector('#cooc-panel-words') as HTMLElement;
 
     // hidden 属性だけでは display:flex が勝つ（UA の [hidden]{display:none} は
     // 詳細度で負ける）。明示した打ち消しが効いていることを固定する。

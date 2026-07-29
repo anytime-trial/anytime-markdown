@@ -1,4 +1,9 @@
-import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
+import type {
+  CooccurrenceFile,
+  CooccurrenceFilterCounts,
+  CooccurrenceFilterOptions,
+  LinkDirection,
+} from '@anytime-markdown/graph-core';
 
 export type ThemeMode = 'dark' | 'light';
 /**
@@ -91,6 +96,8 @@ export interface RenderLink {
   target: number;
   strength: number;
   width: number;
+  /** 共起の向き。矢印の有無と側を決める（設計書 §2.1）。 */
+  direction: LinkDirection;
 }
 
 export interface RenderGraph {

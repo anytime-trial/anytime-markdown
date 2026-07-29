@@ -2,17 +2,19 @@ import { COOC_TAB_IDS, nextTabId, panelStateAfterSelect } from '../ui/tabModel';
 
 const ALL = COOC_TAB_IDS;
 /** 保存タブを出せないホスト（capability なし）で表示されるタブ。 */
-const WITHOUT_EXPORT = ['minimap', 'filter', 'edit'] as const;
+const WITHOUT_EXPORT = ['minimap', 'filter', 'words', 'links'] as const;
 
 describe('cooccurrence tab model', () => {
   it('lists the tabs in display order', () => {
     // 先頭はミニマップ。既定タブもこの並びの先頭に従う（仕様 §3.5）。
-    expect(COOC_TAB_IDS).toEqual(['minimap', 'filter', 'edit', 'export']);
+    // 語と共起は別のタブに置く（編集フォームの項目も一覧の行の意味も違う。仕様 §3.3）。
+    expect(COOC_TAB_IDS).toEqual(['minimap', 'filter', 'words', 'links', 'export']);
   });
 
   it('moves to the next tab with ArrowRight', () => {
     expect(nextTabId('minimap', 'ArrowRight', ALL)).toBe('filter');
-    expect(nextTabId('filter', 'ArrowRight', ALL)).toBe('edit');
+    expect(nextTabId('filter', 'ArrowRight', ALL)).toBe('words');
+    expect(nextTabId('words', 'ArrowRight', ALL)).toBe('links');
   });
 
   it('wraps around at the ends', () => {
@@ -33,7 +35,7 @@ describe('cooccurrence tab model', () => {
   });
 
   it('jumps to the first and last tab with Home and End', () => {
-    expect(nextTabId('edit', 'Home', ALL)).toBe('minimap');
+    expect(nextTabId('words', 'Home', ALL)).toBe('minimap');
     expect(nextTabId('minimap', 'End', ALL)).toBe('export');
   });
 
@@ -45,10 +47,15 @@ describe('cooccurrence tab model', () => {
   // 保存も PNG も提供しないホストでは保存タブを出さない（仕様 §3.5・§6.3）。矢印キーが
   // 存在しないタブを選ぶと、内容の無いタブへ移って操作が止まる。
   it('skips tabs that are not displayed', () => {
-    expect(nextTabId('edit', 'ArrowDown', WITHOUT_EXPORT)).toBe('minimap');
-    expect(nextTabId('edit', 'ArrowRight', WITHOUT_EXPORT)).toBe('minimap');
-    expect(nextTabId('minimap', 'ArrowLeft', WITHOUT_EXPORT)).toBe('edit');
-    expect(nextTabId('minimap', 'End', WITHOUT_EXPORT)).toBe('edit');
+    expect(nextTabId('links', 'ArrowDown', WITHOUT_EXPORT)).toBe('minimap');
+    expect(nextTabId('links', 'ArrowRight', WITHOUT_EXPORT)).toBe('minimap');
+    expect(nextTabId('minimap', 'ArrowLeft', WITHOUT_EXPORT)).toBe('links');
+    expect(nextTabId('minimap', 'End', WITHOUT_EXPORT)).toBe('links');
+  });
+
+  it('moves between the words and links tabs with the vertical keys', () => {
+    expect(nextTabId('words', 'ArrowDown', ALL)).toBe('links');
+    expect(nextTabId('links', 'ArrowUp', ALL)).toBe('words');
   });
 
   it('falls back to the first displayed tab when the current one is gone', () => {
@@ -65,24 +72,24 @@ describe('cooccurrence tab model', () => {
 
 describe('cooccurrence panel state after selecting an icon', () => {
   it('opens the selected tab when another icon is chosen', () => {
-    expect(panelStateAfterSelect({ activeId: 'minimap', expanded: true }, 'edit'))
-      .toEqual({ activeId: 'edit', expanded: true });
+    expect(panelStateAfterSelect({ activeId: 'minimap', expanded: true }, 'words'))
+      .toEqual({ activeId: 'words', expanded: true });
   });
 
   it('collapses the panel when the selected icon is chosen again', () => {
     // 図を広く使いたいときの畳み方。図の上に開閉ボタンを置かない代わりの経路（仕様 §3.5）。
-    expect(panelStateAfterSelect({ activeId: 'edit', expanded: true }, 'edit'))
-      .toEqual({ activeId: 'edit', expanded: false });
+    expect(panelStateAfterSelect({ activeId: 'words', expanded: true }, 'words'))
+      .toEqual({ activeId: 'words', expanded: false });
   });
 
   it('reopens the same tab from the collapsed state', () => {
     // 畳んだ状態では選択中のアイコンが無い。同じアイコンを押したら畳み直すのではなく開く。
-    expect(panelStateAfterSelect({ activeId: 'edit', expanded: false }, 'edit'))
-      .toEqual({ activeId: 'edit', expanded: true });
+    expect(panelStateAfterSelect({ activeId: 'words', expanded: false }, 'words'))
+      .toEqual({ activeId: 'words', expanded: true });
   });
 
   it('opens another tab directly from the collapsed state', () => {
-    expect(panelStateAfterSelect({ activeId: 'edit', expanded: false }, 'filter'))
+    expect(panelStateAfterSelect({ activeId: 'words', expanded: false }, 'filter'))
       .toEqual({ activeId: 'filter', expanded: true });
   });
 });

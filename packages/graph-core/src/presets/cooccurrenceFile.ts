@@ -1,9 +1,60 @@
 import { sha256Hex } from './sha256';
 
+/** 共起の向き。0=無向・1=順方向（a→b）・2=逆方向（b→a）・3=双方向。 */
+export const LINK_DIRECTION = { none: 0, forward: 1, backward: 2, both: 3 } as const;
+
+export type LinkDirection = (typeof LINK_DIRECTION)[keyof typeof LINK_DIRECTION];
+
+/** 共起のタプル。向きが無向のときは第 4 要素を書かない（設計書 §2.2）。 */
+export type CooccurrenceLinkTuple =
+  | [source: number, target: number, strength: number]
+  | [source: number, target: number, strength: number, direction: LinkDirection];
+
+/** タプルを展開した形。消費側はこの形だけを見る。 */
+export interface CooccurrenceLinkView {
+  source: number;
+  target: number;
+  strength: number;
+  direction: LinkDirection;
+}
+
+/**
+ * タプルを展開する。第 4 要素が無いときは無向を補う。
+ *
+ * Why not 消費側で `link[3] ?? 0` と書くか: 既定値の補完が呼び出し箇所ごとに散り、書き漏らしが
+ * 「向きが黙って消える」形でしか現れない（設計書 §2.2）。
+ */
+export function readLink(link: CooccurrenceLinkTuple): CooccurrenceLinkView {
+  return { source: link[0], target: link[1], strength: link[2], direction: link[3] ?? LINK_DIRECTION.none };
+}
+
+/**
+ * タプルへ畳む。無向なら 3 要素で返す。
+ *
+ * `schemaVersion` を 1 に保つ条件（4 要素が 1 本も無いこと）をここへ集約する。実装へ散らすと、
+ * 向きを使っていないファイルが版数 2 で書かれ、旧実装との往復が黙って切れる。
+ */
+export function writeLink(view: CooccurrenceLinkView): CooccurrenceLinkTuple {
+  return view.direction === LINK_DIRECTION.none
+    ? [view.source, view.target, view.strength]
+    : [view.source, view.target, view.strength, view.direction];
+}
+
+/**
+ * 共起の内容から版数を導出する。向きを 1 本でも持てば 2、無向だけなら 1（設計書 §2.2）。
+ *
+ * Why not 版数を書き出し時にだけ決めるか: 編集の途中で版数だけが内容から取り残され、検証が
+ * 「版数と内容が一致しない」（設計書 §2.6）で落ちる。版数は内容の説明であり、内容を変えたら
+ * 同時に決まる。導出をここへ集約し、編集経路と書き出し経路で規則が分かれないようにする。
+ */
+export function schemaVersionForLinks(links: readonly CooccurrenceLinkTuple[]): 1 | 2 {
+  return links.some((link) => link.length === 4 && link[3] !== LINK_DIRECTION.none) ? 2 : 1;
+}
+
 export interface CooccurrenceFile {
   meta: {
-    /** スキーマの版数。互換性のない変更で繰り上げる。 */
-    schemaVersion: 1;
+    /** スキーマの版数。互換性のない変更で繰り上げる。向き付きの共起を含むとき 2（設計書 §2.2）。 */
+    schemaVersion: 1 | 2;
     /** 生成日時（ISO 8601・UTC）。 */
     generatedAt: string;
     /** 生成元。 */
@@ -15,8 +66,8 @@ export interface CooccurrenceFile {
     subject?: number;
     /** 語。配列の順序が語の同一性を決める（添字が識別子）。 */
     nodes: Array<{ label: string; frequency: number }>;
-    /** 共起。[語の添字, 語の添字, 強度]。 */
-    links: Array<[number, number, number]>;
+    /** 共起。[語の添字, 語の添字, 強度] または [語の添字, 語の添字, 強度, 向き]。 */
+    links: CooccurrenceLinkTuple[];
     /** クラスタ。members は nodes の添字。 */
     clusters?: Array<{ label: string; members: number[] }>;
   };
@@ -81,12 +132,14 @@ function validateStructure(file: unknown): ValidationError[] {
     return [error('invalid-schema', '', 'file must be an object')];
   }
 
+  let schemaVersion: unknown;
   const meta = prop(file, 'meta');
   if (!isRecord(meta)) {
     errors.push(error('invalid-schema', 'meta', 'meta must be an object'));
   } else {
-    if (prop(meta, 'schemaVersion') !== 1) {
-      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1'));
+    schemaVersion = prop(meta, 'schemaVersion');
+    if (schemaVersion !== 1 && schemaVersion !== 2) {
+      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1 or 2'));
     }
     if (typeof prop(meta, 'generatedAt') !== 'string') {
       errors.push(error('invalid-schema', 'meta.generatedAt', 'generatedAt must be a string'));
@@ -135,8 +188,14 @@ function validateStructure(file: unknown): ValidationError[] {
     errors.push(error('invalid-schema', 'spec.links', 'links must be an array'));
   } else {
     links.forEach((link, i) => {
-      if (!Array.isArray(link) || link.length !== 3) {
-        errors.push(error('invalid-schema', `spec.links.${i}`, 'link must be [source, target, strength]'));
+      if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) {
+        errors.push(
+          error(
+            'invalid-schema',
+            `spec.links.${i}`,
+            'link must be [source, target, strength] or [source, target, strength, direction]',
+          ),
+        );
         return;
       }
       for (let j = 0; j < 2; j++) {
@@ -146,6 +205,16 @@ function validateStructure(file: unknown): ValidationError[] {
       }
       if (!isFiniteNumber(link[2])) {
         errors.push(error('invalid-schema', `spec.links.${i}.2`, 'link strength must be a finite number'));
+      }
+      if (link.length === 4) {
+        // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。読めてしまうと、旧実装が
+        // 拒否するファイルを新実装だけが受理する状態になり、どちらが正しいのか判断できなくなる。
+        if (schemaVersion === 1) {
+          errors.push(error('invalid-schema', `spec.links.${i}`, 'link with direction requires schemaVersion 2'));
+        }
+        if (!Number.isInteger(link[3]) || link[3] < 0 || link[3] > 3) {
+          errors.push(error('invalid-schema', `spec.links.${i}.3`, 'link direction must be an integer in 0..3'));
+        }
       }
     });
   }
@@ -243,7 +312,10 @@ export function validateCooccurrenceFile(file: unknown): ValidationError[] {
   const links = prop(spec, 'links');
   if (Array.isArray(links)) {
     links.forEach((link, i) => {
-      if (!Array.isArray(link) || link.length !== 3) return;
+      // 長さで早期 return すると、向き付き（4 要素）の共起だけが自己共起・端点の範囲・負の強度の
+      // 検証を素通りする。構造の検証（validateStructure）と内容の検証はループが別なので、
+      // 受け入れる長さを両方で揃える。
+      if (!Array.isArray(link) || (link.length !== 3 && link.length !== 4)) return;
       const a = link[0];
       const b = link[1];
       const strength = link[2];
@@ -331,7 +403,13 @@ export function canonicalizeSpec(spec: CooccurrenceFile['spec']): string {
 }
 
 export function computeSpecHash(spec: CooccurrenceFile['spec']): string {
-  return sha256Hex(canonicalizeSpec(spec));
+  // 向きは座標に影響しない（力学モデルは強度だけを見る）。ハッシュへ含めると、矢印を 1 本足した
+  // だけで 1,000 語の再計算（約 2.2 秒）が走る（設計書 §2.4）。
+  const forHash: CooccurrenceFile['spec'] = {
+    ...spec,
+    links: spec.links.map((link) => [link[0], link[1], link[2]]),
+  };
+  return sha256Hex(canonicalizeSpec(forHash));
 }
 
 function roundPosition(value: number): number {
@@ -339,15 +417,27 @@ function roundPosition(value: number): number {
 }
 
 export function serializeCoocFile(file: CooccurrenceFile): string {
-  const serializable: CooccurrenceFile = file.layout
-    ? {
-        ...file,
-        layout: {
-          ...file.layout,
-          positions: file.layout.positions.map((position) => [roundPosition(position[0]), roundPosition(position[1])]),
-        },
-      }
-    : file;
+  // 無向は 3 要素へ畳む。畳んだ結果 4 要素が 1 本も無ければ版数は 1 のままで、旧実装との往復が
+  // 保たれる（設計書 §2.2）。版数の判定を書き出しの一箇所へ集約し、編集経路ごとに繰り上げ条件が
+  // 分かれる状態を作らない。
+  const links = file.spec.links.map((link) => writeLink(readLink(link)));
+  const schemaVersion = schemaVersionForLinks(links);
+  const serializable: CooccurrenceFile = {
+    ...file,
+    meta: { ...file.meta, schemaVersion },
+    spec: { ...file.spec, links },
+    ...(file.layout
+      ? {
+          layout: {
+            ...file.layout,
+            positions: file.layout.positions.map((position) => [
+              roundPosition(position[0]),
+              roundPosition(position[1]),
+            ]),
+          },
+        }
+      : {}),
+  };
   return JSON.stringify(serializable);
 }
 

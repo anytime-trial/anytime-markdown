@@ -3,7 +3,8 @@
     "toolbar.abort": "Abort",
     "tabs.listLabel": "Panel switcher",
     "tabs.filter": "Filter",
-    "tabs.edit": "Edit",
+    "tabs.words": "Terms",
+    "tabs.links": "Cooccurrences",
     "tabs.minimap": "Minimap",
     "tabs.export": "Save",
     "view.zoomIn": "Zoom in",
@@ -40,6 +41,20 @@
     "layoutStatus.done": "done",
     "layoutStatus.aborted": "aborted",
     "layoutStatus.failed": "failed",
-    "host.openFile": "Open .cooc.json"
+    "host.openFile": "Open .cooc.json",
+    "links.search": "Search cooccurrences",
+    "links.listLabel": "Cooccurrence list",
+    "links.source": "Term A",
+    "links.target": "Term B",
+    "links.strength": "Strength",
+    "links.direction": "Direction",
+    "links.direction.none": "Undirected",
+    "links.direction.forward": "Forward (A to B)",
+    "links.direction.backward": "Backward (A from B)",
+    "links.direction.both": "Both directions",
+    "links.add": "Add",
+    "links.update": "Update",
+    "links.delete": "Delete",
+    "links.hiddenByFilter": "Hidden in the diagram by the current filter"
   }
 }

@@ -37,7 +37,7 @@ function minimapButton(action: 'zoom-in' | 'zoom-out' | 'fit'): HTMLButtonElemen
   return button;
 }
 
-function openTab(id: 'minimap' | 'filter' | 'edit' | 'export'): void {
+function openTab(id: 'minimap' | 'filter' | 'words' | 'export'): void {
   const tab = document.querySelector<HTMLButtonElement>(`#cooc-panel-${id}-tab`);
   if (!tab) throw new Error(`タブが見つからない: ${id}`);
   // 選択中のアイコンをもう一度押すとパネルが畳まれる（仕様 §3.5）。ここでの目的は開くこと

@@ -1,4 +1,4 @@
-import type { CooccurrenceFile } from './cooccurrenceFile';
+import { readLink, type CooccurrenceFile } from './cooccurrenceFile';
 
 export interface CooccurrenceFilterOptions {
   minFrequency?: number;
@@ -69,14 +69,14 @@ export function filterCooccurrenceFile(
   visibleNodes = applyClusterFilter(file.spec, visibleNodes, options.selectedClusterIndexes);
 
   let survivingLinks = file.spec.links
-    .map((link, linkIndex) => ({ link, linkIndex }))
-    .filter(({ link }) => visibleNodes.has(link[0]) && visibleNodes.has(link[1]))
-    .filter(({ link }) => link[2] >= minStrength);
+    .map((link, linkIndex) => ({ link: readLink(link), linkIndex }))
+    .filter(({ link }) => visibleNodes.has(link.source) && visibleNodes.has(link.target))
+    .filter(({ link }) => link.strength >= minStrength);
 
   if (topLinkCount !== undefined) {
     survivingLinks = [...survivingLinks]
       .sort((a, b) => {
-        const strengthOrder = b.link[2] - a.link[2];
+        const strengthOrder = b.link.strength - a.link.strength;
         return strengthOrder !== 0 ? strengthOrder : a.linkIndex - b.linkIndex;
       })
       .slice(0, topLinkCount);

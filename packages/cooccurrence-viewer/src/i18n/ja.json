@@ -3,7 +3,8 @@
     "toolbar.abort": "中断",
     "tabs.listLabel": "パネルの切り替え",
     "tabs.filter": "絞り込み",
-    "tabs.edit": "編集",
+    "tabs.words": "語",
+    "tabs.links": "共起",
     "tabs.minimap": "ミニマップ",
     "tabs.export": "保存",
     "view.zoomIn": "拡大",
@@ -40,6 +41,20 @@
     "layoutStatus.done": "完了",
     "layoutStatus.aborted": "中断",
     "layoutStatus.failed": "失敗",
-    "host.openFile": "ファイルを開く"
+    "host.openFile": "ファイルを開く",
+    "links.search": "共起を検索",
+    "links.listLabel": "共起一覧",
+    "links.source": "語 A",
+    "links.target": "語 B",
+    "links.strength": "強度",
+    "links.direction": "向き",
+    "links.direction.none": "無向",
+    "links.direction.forward": "順方向（A → B）",
+    "links.direction.backward": "逆方向（A ← B）",
+    "links.direction.both": "双方向",
+    "links.add": "追加",
+    "links.update": "更新",
+    "links.delete": "削除",
+    "links.hiddenByFilter": "現在の絞り込みにより図では非表示"
   }
 }
