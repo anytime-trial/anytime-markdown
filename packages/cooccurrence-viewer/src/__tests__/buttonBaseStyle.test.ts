@@ -76,11 +76,19 @@ describe('ボタンの UA 既定スタイルを打ち消す', () => {
     expect(getComputedStyle(query('.cooc-words__row')).borderBottomWidth).not.toBe('0px');
   });
 
-  it.each([
-    ['ツールバー', '.cooc-viewer__button'],
-    ['語一覧の操作', '.cooc-words__button'],
-  ])('%sボタンの枠が土台に潰されない（土台が個別スタイルより先に挿入されている）', (_name, selector) => {
-    expect(getComputedStyle(query(selector)).borderTopWidth).not.toBe('0px');
+  it('語一覧の操作ボタンの枠が土台に潰されない（土台が個別スタイルより先に挿入されている）', () => {
+    expect(getComputedStyle(query('.cooc-words__button')).borderTopWidth).not.toBe('0px');
+  });
+
+  it('アイコン列のボタンの体裁が土台に潰されない（土台が個別スタイルより先に挿入されている）', () => {
+    // アイコン列のボタンは枠を持たない。潰されると図柄の中央寄せと寸法が失われ、
+    // 46px の列の中で図柄が左上へ寄る。
+    const computed = getComputedStyle(query('.cooc-rail__item'));
+
+    expect(computed.display).toBe('flex');
+    expect(computed.alignItems).toBe('center');
+    expect(computed.width).toBe('32px');
+    expect(computed.borderRadius).toBe('6px');
   });
 
   it('土台のスタイルは重複して挿入されない', () => {

@@ -44,6 +44,7 @@ describe('cooccurrence viewer panel layout', () => {
     document.getElementById('cooccurrence-viewer-style')?.remove();
     document.getElementById('cooccurrence-filter-panel-style')?.remove();
     document.getElementById('cooccurrence-word-list-panel-style')?.remove();
+    document.getElementById('cooccurrence-side-rail-style')?.remove();
   });
 
   it('scrolls the word list itself instead of stretching the panel column', () => {
@@ -123,12 +124,17 @@ describe('cooccurrence viewer panel layout', () => {
     destroy();
   });
 
-  it('keeps the tab bar from shrinking', () => {
+  it('keeps the icon rail from shrinking', () => {
     const { container, destroy } = mount();
-    const tabs = container.querySelector('.cooc-tabs') as HTMLElement;
+    const rail = container.querySelector('.cooc-rail') as HTMLElement;
+    const item = rail.querySelector('.cooc-rail__item') as HTMLElement;
 
-    // 縮むとタブ見出しが潰れ、パネルの切り替え手段そのものへ到達できなくなる。
-    expect(getComputedStyle(tabs).flexShrink).toBe('0');
+    // ガード: 解決できていなければ以下の検査が既定値で fail-open する。
+    expect(getComputedStyle(rail).width).toBe('46px');
+
+    // 縮むとアイコンが潰れ、パネルの切り替えと開閉の手段そのものへ到達できなくなる。
+    expect(getComputedStyle(rail).flexShrink).toBe('0');
+    expect(getComputedStyle(item).flexShrink).toBe('0');
     destroy();
   });
 

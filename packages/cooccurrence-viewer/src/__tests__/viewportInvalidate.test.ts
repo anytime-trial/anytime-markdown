@@ -40,6 +40,9 @@ function minimapButton(action: 'zoom-in' | 'zoom-out' | 'fit'): HTMLButtonElemen
 function openTab(id: 'minimap' | 'filter' | 'edit' | 'export'): void {
   const tab = document.querySelector<HTMLButtonElement>(`#cooc-panel-${id}-tab`);
   if (!tab) throw new Error(`タブが見つからない: ${id}`);
+  // 選択中のアイコンをもう一度押すとパネルが畳まれる（仕様 §3.5）。ここでの目的は開くこと
+  // なので、既に開いているなら押さない。
+  if (tab.getAttribute('aria-selected') === 'true') return;
   tab.click();
 }
 

@@ -1,8 +1,7 @@
 {
   "Cooccurrence": {
     "toolbar.abort": "中断",
-    "toolbar.hidePanels": "パネルを隠す",
-    "toolbar.showPanels": "パネルを表示",
+    "tabs.listLabel": "パネルの切り替え",
     "tabs.filter": "絞り込み",
     "tabs.edit": "編集",
     "tabs.minimap": "ミニマップ",

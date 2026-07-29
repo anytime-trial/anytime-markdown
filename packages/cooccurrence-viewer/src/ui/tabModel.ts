@@ -1,5 +1,5 @@
 /**
- * 右サイドパネルのタブ。表示順に並べる。
+ * 右サイドパネルのタブ。図の右端に立つアイコン列（`SideIconRail`）の並び順でもある。
  *
  * 先頭がミニマップなのは、図を開いた直後に必要なのが全体の把握だからである（仕様 §3.5）。
  * 既定タブもここの先頭に従う。
@@ -21,6 +21,30 @@ export function tabPanelElementId(id: CooccurrenceTabId): string {
 /** tab ボタンの DOM id。tabpanel の `aria-labelledby` が指す先。 */
 export function tabElementId(panelId: string): string {
   return `${panelId}-tab`;
+}
+
+/** 右パネルの表示状態。どのタブを選んでいるかと、パネルを開いているか。 */
+export interface CooccurrencePanelState {
+  readonly activeId: CooccurrenceTabId;
+  readonly expanded: boolean;
+}
+
+/**
+ * アイコンを選んだ後の表示状態を返す。
+ *
+ * 選択中のアイコンをもう一度押すとパネルを畳む（仕様 §3.5）。図の上に開閉ボタンを置かない
+ * ため、畳む操作の入口はここだけである。
+ *
+ * Why not 畳む判定を DOM のハンドラへ直接書くか: 「畳んだ状態で同じアイコンを押したら開く」
+ * という分岐が抜けやすく、抜けても押しても何も起きないだけで例外にならない。境界を純関数に
+ * 出して固定する。
+ */
+export function panelStateAfterSelect(
+  current: CooccurrencePanelState,
+  selectedId: CooccurrenceTabId,
+): CooccurrencePanelState {
+  const collapse = current.expanded && selectedId === current.activeId;
+  return { activeId: selectedId, expanded: !collapse };
 }
 
 /**
@@ -49,8 +73,12 @@ export function nextTabId(
   // 選択中のタブが消えた直後。動かさないと、どのキーを押しても反応しない状態が残る。
   if (index < 0) return displayedIds[0] ?? null;
   switch (key) {
+    // 列は縦に並ぶ（仕様 §3.5）。左右も受けるのは、横並びのタブ列を想定した操作の記憶を
+    // 切らないためで、向きが違うだけで移動先は同じ並びを辿る。
+    case 'ArrowDown':
     case 'ArrowRight':
       return displayedIds[index === last ? 0 : index + 1] ?? null;
+    case 'ArrowUp':
     case 'ArrowLeft':
       return displayedIds[index === 0 ? last : index - 1] ?? null;
     case 'Home':

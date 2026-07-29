@@ -70,8 +70,9 @@ function mount(capabilities?: CooccurrenceViewerCapabilities, callbacks: HostCal
   } as Mounted;
 }
 
+/** アイコン列に並んだ操作名。図柄だけのボタンなので名前は aria-label が持つ。 */
 function tabLabels(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('[role="tab"]')].map((element) => element.textContent ?? '');
+  return [...container.querySelectorAll('[role="tab"]')].map((element) => element.getAttribute('aria-label') ?? '');
 }
 
 function toolbarLabels(container: HTMLElement): string[] {
@@ -115,7 +116,7 @@ describe('minimap and save tabs', () => {
       'cooccurrence-word-list-panel-style',
       'cooccurrence-minimap-panel-style',
       'cooccurrence-export-panel-style',
-      'cooccurrence-tab-bar-style',
+      'cooccurrence-side-rail-style',
       'cooccurrence-button-base-style',
     ]) {
       document.getElementById(id)?.remove();
@@ -138,12 +139,13 @@ describe('minimap and save tabs', () => {
     handle.destroy();
   });
 
-  it('keeps only the panel toggle on top of the diagram', () => {
+  it('leaves no button on top of the diagram while the layout is settled', () => {
     const { container, handle } = mount(BOTH);
 
-    // 全体表示・保存・PNG は右パネルへ移した。図の上のボタンは図そのものを覆う。
+    // 全体表示・保存・PNG は右パネルへ、開閉は右端のアイコン列へ移した（仕様 §3.5）。
+    // 図の上のボタンは図そのものを覆うため、計算中の中断だけを残す。
     const labels = toolbarLabels(container);
-    expect(labels).toEqual([ja.Cooccurrence['toolbar.hidePanels']]);
+    expect(labels).toEqual([]);
     expect(labels).not.toContain(ja.Cooccurrence['view.fit']);
     expect(labels).not.toContain(ja.Cooccurrence['export.save']);
     expect(labels).not.toContain(ja.Cooccurrence['export.png']);
@@ -172,7 +174,8 @@ describe('minimap and save tabs', () => {
 
     expect(tabLabels(container)).toEqual(['ミニマップ', '絞り込み', '編集']);
     // 消えたタブが選ばれたままだと、どの内容も出ない状態が残る。先頭のタブへ戻す。
-    expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('ミニマップ');
+    expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute('aria-label'))
+      .toBe('ミニマップ');
     expect((container.querySelector('#cooc-panel-minimap') as HTMLElement).hidden).toBe(false);
     handle.destroy();
   });
