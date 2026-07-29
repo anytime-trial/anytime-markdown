@@ -9,6 +9,7 @@
  */
 
 import type { ThinkingDiagramSpec, ThinkingDiagramType } from '../presets/index';
+import type { CooccurrenceLink } from '../presets/cooccurrence';
 import type { TreeNodeSpec } from '../presets/trees';
 
 export class GraphDslError extends Error {
@@ -344,9 +345,10 @@ export function parseGraphDsl(text: string): ThinkingDiagramSpec {
     case 'cooccurrence': {
       // 語（`- ラベル: 頻度`）と共起（`- A -- B: 強度`）は同じ bullet 記法なので、
       // `--` の有無で振り分ける。数値が読めない場合は黙って 0 に落とさずエラーにする。
+      // 向きは `-->` / `<--` / `<-->` で書く。いずれも `--` を含むため、この振り分けは変わらない。
       const title = headerValue(lines, 'title');
       const nodes: Array<{ label: string; frequency: number }> = [];
-      const links: Array<{ a: string; b: string; strength: number }> = [];
+      const links: CooccurrenceLink[] = [];
       for (const raw of lines) {
         const t = raw.trim();
         if (!t.startsWith('-')) continue;
@@ -365,10 +367,22 @@ export function parseGraphDsl(text: string): ThinkingDiagramSpec {
             `数値として解釈できません: "${valueText}"（"${head}" の行。頻度・共起強度は数値で書いてください）`,
           );
         }
-        const pair = /^(.+?)--(.+)$/.exec(head);
+        // 矢印として読むのは `--` に隣接する `<` `>` だけ。語名に `<` `>` を含められる状態を
+        // 保つ（設計書 §2.5）。`(.+?)` が非貪欲なので、`<A> -- B` は a="<A>" として読める。
+        const pair = /^(.+?)\s*(<?)--(>?)\s*(.+)$/.exec(head);
         if (pair) {
           const a = pair[1].trim();
-          const b = pair[2].trim();
+          const b = pair[4].trim();
+          const hasLeftArrow = pair[2] === '<';
+          const hasRightArrow = pair[3] === '>';
+          const direction: CooccurrenceLink['direction'] =
+            hasLeftArrow && hasRightArrow
+              ? 'both'
+              : hasLeftArrow
+                ? 'backward'
+                : hasRightArrow
+                  ? 'forward'
+                  : undefined;
           if (!a || !b) {
             throw new GraphDslError(`共起行を解釈できません: "${t}"（例: "- 納期遅延 -- 仕様変更: 0.8"）`);
           }
@@ -380,7 +394,7 @@ export function parseGraphDsl(text: string): ThinkingDiagramSpec {
           if (value < 0) {
             throw new GraphDslError(`共起強度に負の値は指定できません: "${t}"`);
           }
-          links.push({ a, b, strength: value });
+          links.push(direction === undefined ? { a, b, strength: value } : { a, b, strength: value, direction });
         } else {
           if (!head) {
             throw new GraphDslError(`語のラベルが空です: "${t}"`);

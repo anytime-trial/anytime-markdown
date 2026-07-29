@@ -7,5 +7,6 @@
   "customEditor.cooccurrence.displayName": "Co-occurrence Network",
   "customEditor.graphMigration.displayName": ".graph Migration Guide",
   "command.newCooccurrence": "Anytime Graph: New Network",
-  "command.refreshNetworks": "Anytime Graph: Refresh Networks"
+  "command.refreshNetworks": "Anytime Graph: Refresh Networks",
+  "command.registerMcpServer": "Anytime Graph: Register MCP Server in .mcp.json"
 }

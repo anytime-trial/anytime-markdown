@@ -4,6 +4,7 @@
  */
 
 import type { DocDb } from '../db/open';
+import { splitSections } from '../ingest/splitSections';
 import { float32ToBlob } from './blob';
 
 /** テキスト → 埋め込みベクトル。daemon が ollama を、テストが fake を供給する。 */
@@ -44,9 +45,22 @@ interface PendingRow {
   body: string | null;
 }
 
-/** title / excerpt / body から埋め込み入力テキストを組み立てる。 */
+/**
+ * title / excerpt / 見出しアウトライン / body から埋め込み入力テキストを組み立てる。
+ * アウトラインは maxChars 切り詰めで溢れる後半のトピック語を埋め込みへ乗せるための
+ * 圧縮表現（FR-1。本文詳細の死角は節単位埋め込み側が担う）。
+ */
 function buildEmbedText(row: PendingRow, maxChars: number): string {
-  return [row.title, row.excerpt, row.body].filter((s): s is string => !!s).join('\n\n').slice(0, maxChars);
+  const outline = row.body
+    ? splitSections(row.body)
+        .map((s) => s.heading)
+        .filter((h) => h.length > 0)
+        .join('\n')
+    : '';
+  return [row.title, row.excerpt, outline || null, row.body]
+    .filter((s): s is string => !!s)
+    .join('\n\n')
+    .slice(0, maxChars);
 }
 
 /**

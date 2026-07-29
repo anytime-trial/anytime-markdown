@@ -1,14 +1,25 @@
 import {
   addCooccurrenceNode,
+  noteBearingIndexes,
+  readCooccurrenceNote,
+  removeCooccurrenceNodeNote,
+  setCooccurrenceNodeNote,
   deleteCooccurrenceNode,
   renameCooccurrenceNode,
   setCooccurrenceNodeCluster,
+  hasCooccurrenceTimeline,
+  readCooccurrenceSliceValue,
+  removeCooccurrenceNodeSliceValue,
   setCooccurrenceNodeFrequency,
+  setCooccurrenceNodeSliceValue,
   type CooccurrenceEditResult,
   type CooccurrenceFile,
 } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { computeVisibleWindow } from './virtualList';
+import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
+import { createSliceValueEditor, type SliceValueEditorHandle } from './sliceValueEditor';
 
 export interface WordListPanelState {
   file: CooccurrenceFile;
@@ -25,6 +36,15 @@ export interface WordListPanelOptions extends WordListPanelState {
 export interface WordListPanelHandle {
   element: HTMLElement;
   update(state: WordListPanelState): void;
+  /**
+   * 行だけを作り直す。
+   *
+   * 隠れている間は viewport の clientHeight が 0 になり、可視ウィンドウが
+   * `clientHeight || 120` のフォールバックで 120px 相当（数行）に固まる。表示へ戻しても
+   * 状態は変わらないため update() は呼ばれず、列の高さに見合う行数まで増えない。
+   * 表示へ戻す側が明示的に呼ぶ。
+   */
+  refresh(): void;
   destroy(): void;
 }
 
@@ -33,26 +53,29 @@ const ROW_HEIGHT = 36;
 const OVERSCAN = 4;
 
 function ensureStyles(): void {
+  ensureButtonBaseStyles();
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-.cooc-words{display:flex;flex-direction:column;flex:1 0 auto;padding:12px;gap:10px}
+.cooc-words{display:flex;flex-direction:column;flex:1 1 auto;padding:12px;gap:10px}
+.cooc-words__search{flex:0 0 auto}
 .cooc-words__search,.cooc-words__edit input,.cooc-words__edit select{box-sizing:border-box;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);padding:6px 8px;font:12px system-ui,sans-serif}
-.cooc-words__viewport{position:relative;min-height:120px;flex:1;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
+.cooc-words__viewport{position:relative;min-height:120px;flex:1 1 0;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
 .cooc-words__spacer{position:relative;width:100%}
 .cooc-words__items{position:absolute;inset:0 0 auto 0}
-.cooc-words__row{box-sizing:border-box;height:36px;display:grid;grid-template-columns:minmax(0,1fr) 56px 64px;gap:8px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif;cursor:pointer}
+.cooc-words__row{height:36px;display:grid;grid-template-columns:minmax(0,1fr) 56px 64px 16px;gap:8px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif}
 .cooc-words__row:hover{background:var(--cooc-action-hover)}
 .cooc-words__row[aria-selected="true"]{background:var(--cooc-action-selected)}
 .cooc-words__row[data-hidden-by-filter="true"] .cooc-words__label{color:var(--cooc-text-disabled)}
 .cooc-words__label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cooc-words__meta{color:var(--cooc-text-secondary);text-align:right}
-.cooc-words__edit{display:grid;grid-template-columns:1fr 72px 88px;gap:6px}
-.cooc-words__buttons{display:flex;gap:6px;flex-wrap:wrap}
+.cooc-words__meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cooc-text-secondary);text-align:right}
+.cooc-words__edit{flex:0 0 auto;display:grid;grid-template-columns:1fr 72px 88px;gap:6px}
+.cooc-words__buttons{flex:0 0 auto;display:flex;gap:6px;flex-wrap:wrap}
 .cooc-words__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 8px;font:12px system-ui,sans-serif}
 .cooc-words__button:hover{background:var(--cooc-action-hover)}
-.cooc-words__error{min-height:16px;color:var(--cooc-accent);font:12px system-ui,sans-serif}
+.cooc-words__note-mark{color:var(--cooc-text);text-align:center}
+.cooc-words__error{flex:0 0 auto;min-height:16px;color:var(--cooc-accent);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
 }
@@ -107,33 +130,65 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   const clusterSelect = document.createElement('select');
   edit.append(labelInput, frequencyInput, clusterSelect);
 
+  /*
+   * スライス別の値の欄は「選択中の語の値の表示」と「追加する語の値の入力」を兼ねる。
+   *
+   * Why not 追加用の欄を分けるか: 語名・頻度・クラスタも同じ欄を兼ねており（設計書 §3.5 の
+   * 編集フォーム）、スライス値だけ別の欄にすると、追加のときだけ入力先が 2 箇所へ分かれる。
+   * 語を選んだまま追加すると選択語の値を引きずるが、値は画面に見えたままなので黙って失われる
+   * わけではない。
+   */
+  const sliceValues: SliceValueEditorHandle = createSliceValueEditor({
+    onSet(sliceIndex, value) {
+      if (state.selectedNodeIndex === null) return;
+      applyEdit(setCooccurrenceNodeSliceValue(state.file, { node: state.selectedNodeIndex, slice: sliceIndex }, value));
+    },
+    onRemove(sliceIndex) {
+      if (state.selectedNodeIndex === null) return;
+      applyEdit(removeCooccurrenceNodeSliceValue(state.file, { node: state.selectedNodeIndex, slice: sliceIndex }));
+    },
+  });
+
   const buttons = document.createElement('div');
   buttons.className = 'cooc-words__buttons';
   const addButton = document.createElement('button');
-  addButton.className = 'cooc-words__button';
+  addButton.className = 'cooc-btn cooc-words__button';
   addButton.type = 'button';
   addButton.textContent = t('words.add');
   const renameButton = document.createElement('button');
-  renameButton.className = 'cooc-words__button';
+  renameButton.className = 'cooc-btn cooc-words__button';
   renameButton.type = 'button';
   renameButton.textContent = t('words.rename');
   const frequencyButton = document.createElement('button');
-  frequencyButton.className = 'cooc-words__button';
+  frequencyButton.className = 'cooc-btn cooc-words__button';
   frequencyButton.type = 'button';
   frequencyButton.textContent = t('words.setFreq');
   const clusterButton = document.createElement('button');
-  clusterButton.className = 'cooc-words__button';
+  clusterButton.className = 'cooc-btn cooc-words__button';
   clusterButton.type = 'button';
   clusterButton.textContent = t('words.setCluster');
   const deleteButton = document.createElement('button');
-  deleteButton.className = 'cooc-words__button';
+  deleteButton.className = 'cooc-btn cooc-words__button';
   deleteButton.type = 'button';
   deleteButton.textContent = t('words.delete');
   buttons.append(addButton, renameButton, frequencyButton, clusterButton, deleteButton);
 
   const error = document.createElement('div');
   error.className = 'cooc-words__error';
-  element.append(search, viewport, edit, buttons, error);
+
+  const noteEditor: NoteEditorHandle = createNoteEditor({
+    t,
+    onSet(text) {
+      if (state.selectedNodeIndex === null) return;
+      applyEdit(setCooccurrenceNodeNote(state.file, state.selectedNodeIndex, text));
+    },
+    onRemove() {
+      if (state.selectedNodeIndex === null) return;
+      applyEdit(removeCooccurrenceNodeNote(state.file, state.selectedNodeIndex));
+    },
+  });
+
+  element.append(search, viewport, edit, sliceValues.element, buttons, noteEditor.element, error);
 
   // 一覧は編集面であるため、絞り込みで図から消えた語も残す。
   // Why not 図と同じ絞り込みを掛けるか: 低頻度語を絞り込んでから消す、という
@@ -163,6 +218,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   }
 
   function renderRows(): void {
+    const noted = noteBearingIndexes(state.file.spec, 'nodes');
     const indexes = listedIndexes();
     const viewportHeight = viewport.clientHeight || 120;
     const slice = computeVisibleWindow(indexes.length, ROW_HEIGHT, viewport.scrollTop, viewportHeight, OVERSCAN);
@@ -173,7 +229,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       const node = state.file.spec.nodes[nodeIndex];
       if (!node) return;
       const row = document.createElement('button');
-      row.className = 'cooc-words__row';
+      row.className = 'cooc-btn cooc-btn--block cooc-words__row';
       row.type = 'button';
       row.dataset.nodeIndex = String(nodeIndex);
       row.setAttribute('role', 'option');
@@ -194,7 +250,14 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       const cluster = document.createElement('span');
       cluster.className = 'cooc-words__meta';
       cluster.textContent = clusterLabelFor(state.file, nodeIndex);
-      row.append(label, frequency, cluster);
+      // 列幅に収まらないクラスタ名は省略表示になるため、全体はホバーで読めるようにする。
+      cluster.title = cluster.textContent;
+      const noteMark = document.createElement('span');
+      noteMark.className = 'cooc-words__note-mark';
+      // 記号で示す。色はクラスタの符号であり、印に色を与えると所属が誤って読める（設計書 §3.1）。
+      noteMark.textContent = noted.has(nodeIndex) ? '＊' : '';
+      if (noted.has(nodeIndex)) noteMark.title = t('note.marker');
+      row.append(label, frequency, cluster, noteMark);
       row.addEventListener('click', () => options.onSelectNode(state.selectedNodeIndex === nodeIndex ? null : nodeIndex));
       items.appendChild(row);
     });
@@ -204,6 +267,24 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     const selected = state.selectedNodeIndex === null ? undefined : state.file.spec.nodes[state.selectedNodeIndex];
     if (selected && document.activeElement !== labelInput) labelInput.value = selected.label;
     if (selected && document.activeElement !== frequencyInput) frequencyInput.value = String(selected.frequency);
+    // 時間軸を持つ図では全体値は合計から導出され、直接は編集できない（設計書 §2.2）。
+    // 押しても必ず拒否されるボタンを操作できるままにしない。
+    const layered = hasCooccurrenceTimeline(state.file.spec);
+    frequencyInput.disabled = layered;
+    frequencyButton.disabled = layered;
+    const slices = state.file.spec.timeline?.slices ?? [];
+    sliceValues.update(
+      slices,
+      slices.map((_slice, sliceIndex) =>
+        state.selectedNodeIndex === null
+          ? undefined
+          : readCooccurrenceSliceValue(state.file.spec, {
+              target: 'nodes',
+              slice: sliceIndex,
+              index: state.selectedNodeIndex,
+            }),
+      ),
+    );
     if (state.selectedNodeIndex !== null) {
       const clusterIndex = clusterIndexFor(state.file, state.selectedNodeIndex);
       clusterSelect.value = clusterIndex === undefined || clusterIndex < 0 ? '' : String(clusterIndex);
@@ -222,7 +303,14 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     clusterButton.textContent = t('words.setCluster');
     deleteButton.textContent = t('words.delete');
     renderClusterOptions();
+    sliceValues.setTitle(t('words.sliceValues'));
     syncSelectedInputs();
+    noteEditor.setT(t);
+    noteEditor.setValue(
+      state.selectedNodeIndex === null
+        ? undefined
+        : readCooccurrenceNote(state.file.spec, 'nodes', state.selectedNodeIndex),
+    );
     // renderRows() は全行を作り直すため、いま押した行の要素自体が破棄される。
     // 何もしないとフォーカスが body へ戻り、キーボードだけで操作すると選択のたびに
     // リスト先頭へ巻き戻されて実質操作できない。
@@ -248,6 +336,11 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   });
   viewport.addEventListener('scroll', renderRows);
   addButton.addEventListener('click', () => {
+    if (hasCooccurrenceTimeline(state.file.spec)) {
+      // 時間軸を持つ図では全体値ではなくスライス別の値を渡す（設計書 §2.2）。
+      applyEdit(addCooccurrenceNode(state.file, { label: labelInput.value, sliceValues: sliceValues.readValues() }));
+      return;
+    }
     const frequency = Number(frequencyInput.value);
     applyEdit(addCooccurrenceNode(state.file, { label: labelInput.value, frequency: Number.isFinite(frequency) ? frequency : 1 }));
   });
@@ -277,6 +370,9 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       state = nextState;
       t = state.t;
       render();
+    },
+    refresh(): void {
+      renderRows();
     },
     destroy(): void {
       element.remove();

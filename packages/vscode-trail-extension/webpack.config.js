@@ -224,7 +224,7 @@ const trailStandaloneConfig = {
         use: [{
           loader: 'ts-loader',
           options: {
-            configFile: 'tsconfig.trail-standalone.json',
+            configFile: path.resolve(__dirname, 'tsconfig.trail-standalone.json'),
             allowTsInNodeModules: true,
             transpileOnly: true,
           },

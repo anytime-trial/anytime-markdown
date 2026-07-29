@@ -69,8 +69,28 @@ CREATE VIRTUAL TABLE doc_section_fts USING fts5(
 );
 `;
 
+// 節単位埋め込み（葉節＋リード節のみ。spec/00.requirements/doc-section-embedding-requirements.ja.md）。
+// content_hash は doc の hash（差分判定は doc 単位・節の安定 ID は持たない）。
+// backfill は ingest と独立に doc と本テーブルの差分から pending を導出するため、
+// v3 の「既存 doc が空のまま」問題（再構築必須）は発生しない。
+// path の削除連鎖は FK CASCADE、doc 更新時の洗い替えは embedSections が DELETE→再生成する。
+const SECTION_EMBEDDING = `
+CREATE TABLE doc_section_embedding (
+  path         TEXT NOT NULL REFERENCES doc (path) ON DELETE CASCADE,
+  section_idx  INTEGER NOT NULL CHECK (section_idx >= 0),
+  heading      TEXT NOT NULL DEFAULT '',
+  level        INTEGER NOT NULL CHECK (level BETWEEN 0 AND 6),
+  model        TEXT NOT NULL,
+  dim          INTEGER NOT NULL CHECK (dim > 0),
+  vec          BLOB NOT NULL,
+  content_hash TEXT NOT NULL,
+  PRIMARY KEY (path, section_idx)
+) STRICT;
+`;
+
 export const MIGRATIONS: readonly DocMigration[] = [
   { version: 1, sql: INITIAL },
   { version: 2, sql: FACET_INDEXES },
   { version: 3, sql: SECTION_FTS },
+  { version: 4, sql: SECTION_EMBEDDING },
 ];

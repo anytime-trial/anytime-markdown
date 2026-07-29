@@ -10,6 +10,15 @@
  */
 
 import type { ThinkingDiagramSpec } from '../presets/index';
+import type { CooccurrenceLinkDirection } from '../presets/cooccurrence';
+
+/** 共起の向きに対応する DSL の矢印。parseGraphDsl の解釈と対をなす（設計書 §2.5）。 */
+const COOCCURRENCE_ARROW: Record<CooccurrenceLinkDirection | 'none', string> = {
+  none: '--',
+  forward: '-->',
+  backward: '<--',
+  both: '<-->',
+};
 import type { TreeNodeSpec } from '../presets/trees';
 
 /** カンマ区切り項目（parser の splitItems と対）。 */
@@ -145,8 +154,9 @@ export function serializeGraphDsl(spec: ThinkingDiagramSpec): string {
         lines.push(`- ${node.label}: ${node.frequency}`);
       }
       // 共起は `A -- B: 強度`（parser は bullet 行の `--` の有無で語と振り分ける）。
+      // 向きは矢印で書く。書かないと、DSL へ書き出した時点で向きが黙って消える（設計書 §2.5）。
       for (const link of spec.links) {
-        lines.push(`- ${link.a} -- ${link.b}: ${link.strength}`);
+        lines.push(`- ${link.a} ${COOCCURRENCE_ARROW[link.direction ?? 'none']} ${link.b}: ${link.strength}`);
       }
       for (const cluster of spec.clusters ?? []) {
         lines.push(`cluster ${cluster.label}: ${joinItems(cluster.members)}`);

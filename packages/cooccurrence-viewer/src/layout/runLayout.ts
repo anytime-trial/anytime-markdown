@@ -1,6 +1,7 @@
 import {
   BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
   barnesHutLayout,
+  readLink,
   type CooccurrenceFile,
 } from '@anytime-markdown/graph-core';
 import { radiusForFrequency, normalize } from '../render/scales';
@@ -50,14 +51,16 @@ export function computeLayoutSync(file: CooccurrenceFile, specHash: string): Lay
   const frequencies = file.spec.nodes.map((node) => node.frequency);
   const freqMin = frequencies.length > 0 ? Math.min(...frequencies) : 0;
   const freqMax = frequencies.length > 0 ? Math.max(...frequencies) : 0;
-  const strengths = file.spec.links.map((link) => link[2]);
+  // レイアウトは向きを見ない（力学モデルの引力は強度だけに依存する。設計書 §2.4）。
+  const views = file.spec.links.map(readLink);
+  const strengths = views.map((view) => view.strength);
   const strengthMin = strengths.length > 0 ? Math.min(...strengths) : 0;
   const strengthMax = strengths.length > 0 ? Math.max(...strengths) : 0;
   const radii = file.spec.nodes.map((node) => radiusForFrequency(node.frequency, freqMin, freqMax));
-  const links = file.spec.links.map((link) => ({
-    source: link[0],
-    target: link[1],
-    weight: 0.3 + 0.7 * normalize(link[2], strengthMin, strengthMax),
+  const links = views.map((view) => ({
+    source: view.source,
+    target: view.target,
+    weight: 0.3 + 0.7 * normalize(view.strength, strengthMin, strengthMax),
   }));
   const positions = barnesHutLayout(file.spec.nodes.length, links, { groups: groupsFor(file), radii })
     .map((point): [number, number] => [Math.round(point.x * 10) / 10, Math.round(point.y * 10) / 10]);

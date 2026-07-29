@@ -753,16 +753,12 @@
     scroll-margin-top: 120px;
 }
 
-@media (max-width: 880px) {
-    .briefingWithEmbed {
-        grid-template-columns: 1fr;
-        gap: 24px;
-    }
-}
-
 /*
  * 左右反転版（プロセス節）。左カラムにイラストと箇条書き、右カラムにフロー図を等幅で置く。
  * grid の配置順は order で入れ替える（DOM 順は見出し → 埋め込み → 本文のまま）。
+ *
+ * Why not: この基底宣言は狭幅の @media より「前」に置くこと。同一詳細度のため後述すると
+ * 1 カラム化を上書きしてしまい、スマホでもフロー図が細い右カラムに押し込まれる。
  */
 .briefingReversed {
     grid-template-columns: 2fr 1fr;
@@ -778,6 +774,14 @@
 
 .briefingReversed .briefingLeftStack {
     order: 3;
+}
+
+/* 狭幅では全 variant（反転版を含む）を 1 カラムへ畳む */
+@media (max-width: 880px) {
+    .briefingWithEmbed {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
 }
 
 .briefingEmbed {

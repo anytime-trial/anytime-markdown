@@ -24,7 +24,7 @@ export type AutoMergeResult =
  * 自動登録（activate 時）専用のポリシー:
  * - エントリが既に在れば内容が異なっても**上書きしない**（`skip: exists`）。
  *   ユーザーがソース直起動等へカスタムした構成を壊さないため。上書きしたい場合は
- *   手動コマンド `anytime-markdown.registerMcpServer` を使う。
+ *   各拡張が提供する手動登録コマンド（`<extension>.registerMcpServer`）を使う。
  * - パース不能・object でない JSON は**書き換えない**（`skip: unparseable`）。
  *   自動経路でのバックアップ退避や新規作成は行わない（ユーザーの気づかない所で
  *   ファイルを動かさない）。
