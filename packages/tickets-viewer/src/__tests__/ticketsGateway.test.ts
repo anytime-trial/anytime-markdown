@@ -23,10 +23,15 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe("createHttpTicketsGateway", () => {
   let fetchMock: jest.Mock;
+  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     fetchMock = jest.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   it("list は includeArchive をクエリへ載せて GET する", async () => {
