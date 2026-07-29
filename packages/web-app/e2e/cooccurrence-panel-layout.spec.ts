@@ -61,7 +61,9 @@ function viewerCss(): string {
 const ROW_HEIGHT = 36;
 const WORD_COUNT = 36;
 
-function pageHtml(): string {
+type ActiveTab = "filter" | "edit";
+
+function pageHtml(activeTab: ActiveTab): string {
   const rows = Array.from({ length: WORD_COUNT }, (_, index) => `<button class="cooc-btn cooc-btn--block cooc-words__row" type="button">`
     + `<span class="cooc-words__label">語 ${index}</span>`
     + `<span class="cooc-words__meta">${index + 1}</span>`
@@ -71,8 +73,8 @@ function pageHtml(): string {
     + `<input type="checkbox" checked><span class="cooc-filter__swatch" aria-hidden="true"></span>`
     + `<span>クラスタ ${index}</span></label>`).join("");
 
-  // 「要素の編集」タブを開いた状態を測る。語一覧が列の高さを得られることが
-  // タブ化（仕様 §3.5）の目的であり、検査すべき状態はそこにある。
+  // 既定では絞り込みタブ、切り替えると編集タブが開く（仕様 §3.5）。両方の状態を測る。
+  const editActive = activeTab === "edit";
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 html,body,#root{margin:0;padding:0;width:100%;height:100vh;overflow:hidden}
 ${viewerCss()}
@@ -81,10 +83,10 @@ ${viewerCss()}
 <div class="cooc-viewer__stage"><canvas class="cooc-viewer__canvas"></canvas></div>
 <aside class="cooc-viewer__panels">
  <div class="cooc-tabs" role="tablist">
-  <button class="cooc-btn cooc-tabs__tab" type="button" role="tab" aria-selected="false" data-active="false" tabindex="-1">絞り込み</button>
-  <button class="cooc-btn cooc-tabs__tab" type="button" role="tab" aria-selected="true" data-active="true" tabindex="0">要素の編集</button>
+  <button class="cooc-btn cooc-tabs__tab" type="button" role="tab" aria-selected="${String(!editActive)}" data-active="${String(!editActive)}" tabindex="${editActive ? -1 : 0}">絞り込み</button>
+  <button class="cooc-btn cooc-tabs__tab" type="button" role="tab" aria-selected="${String(editActive)}" data-active="${String(editActive)}" tabindex="${editActive ? 0 : -1}">要素の編集</button>
  </div>
- <div class="cooc-viewer__tabpanel" id="cooc-panel-filter" role="tabpanel" hidden>
+ <div class="cooc-viewer__tabpanel" id="cooc-panel-filter" role="tabpanel"${editActive ? " hidden" : ""}>
   <section class="cooc-filter">
    <div class="cooc-filter__title">絞り込み</div>
    <label class="cooc-filter__field"><span>最小頻度</span><input type="number"></label>
@@ -94,7 +96,7 @@ ${viewerCss()}
    <div class="cooc-filter__counts"><div>36 / 36 語</div><div>51 / 51 共起</div></div>
   </section>
  </div>
- <div class="cooc-viewer__tabpanel" id="cooc-panel-edit" role="tabpanel">
+ <div class="cooc-viewer__tabpanel" id="cooc-panel-edit" role="tabpanel"${editActive ? "" : " hidden"}>
   <section class="cooc-words">
    <input class="cooc-words__search" placeholder="語を検索">
    <div class="cooc-words__viewport"><div class="cooc-words__spacer" style="height:${WORD_COUNT * ROW_HEIGHT}px">
@@ -120,14 +122,21 @@ interface PanelMetrics {
   buttonsReachable: boolean;
   searchReachable: boolean;
   tabsHeight: number;
+  /** パネル列を最下部までスクロールしても、タブ列が可視領域に残っているか。 */
+  tabsStayVisible: boolean;
 }
 
-async function measure(page: import("@playwright/test").Page, height: number): Promise<PanelMetrics> {
+async function measure(
+  page: import("@playwright/test").Page,
+  height: number,
+  activeTab: ActiveTab = "edit",
+): Promise<PanelMetrics> {
   await page.setViewportSize({ width: 1200, height });
-  await page.setContent(pageHtml());
+  await page.setContent(pageHtml(activeTab));
   return page.evaluate(() => {
     const viewport = document.querySelector(".cooc-words__viewport") as HTMLElement;
     const panels = document.querySelector(".cooc-viewer__panels") as HTMLElement;
+    const tabs = document.querySelector(".cooc-tabs") as HTMLElement;
     const panelsRect = panels.getBoundingClientRect();
     // パネル列をスクロールし切れば見える位置にあるか。
     const reachable = (selector: string): boolean => {
@@ -142,7 +151,14 @@ async function measure(page: import("@playwright/test").Page, height: number): P
       rowHeight: Math.round((document.querySelector(".cooc-words__row") as HTMLElement).getBoundingClientRect().height),
       buttonsReachable: reachable(".cooc-words__buttons"),
       searchReachable: reachable(".cooc-words__search"),
-      tabsHeight: Math.round((document.querySelector(".cooc-tabs") as HTMLElement).getBoundingClientRect().height),
+      tabsHeight: Math.round(tabs.getBoundingClientRect().height),
+      tabsStayVisible: (() => {
+        // 列がスクロールする状況でタブ列が上へ流れると、切り替え手段そのものが視野から消える。
+        panels.scrollTop = panels.scrollHeight;
+        const stays = tabs.getBoundingClientRect().bottom > panels.getBoundingClientRect().top;
+        panels.scrollTop = 0;
+        return stays;
+      })(),
     };
   });
 }
@@ -175,6 +191,22 @@ test.describe("共起ビューアのパネル高さ配分", () => {
     // ただし全件ぶん（36 × 36 = 1296px）を抱え込んで内部スクロールを失ってはいけない。
     expect(metrics.viewportScrolls).toBe(true);
     expect(metrics.panelsScrolls).toBe(false);
+  });
+
+  test("既定の絞り込みタブでは列がスクロールしない", async ({ page }) => {
+    const metrics = await measure(page, 900, "filter");
+
+    // 図を開いた直後に見える状態（仕様 §3.5 の既定タブ）。絞り込み欄だけなら列に収まる。
+    expect(metrics.panelsScrolls).toBe(false);
+    expect(metrics.tabsHeight).toBeGreaterThanOrEqual(28);
+  });
+
+  test("絞り込みタブで列が低くてもタブ見出しへ到達できる", async ({ page }) => {
+    const metrics = await measure(page, 320, "filter");
+
+    // 絞り込み欄（クラスタ 5 件を含む）が列より高くなると列がスクロールする。その状態でも
+    // タブ列が視野から消えると、編集タブへ戻る手段が無くなる。
+    expect(metrics.tabsStayVisible).toBe(true);
   });
 
   test("列が低くてもタブ見出しが潰れない", async ({ page }) => {

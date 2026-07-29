@@ -29,9 +29,10 @@ export interface WordListPanelHandle {
   /**
    * 行だけを作り直す。
    *
-   * 隠れている間は viewport の clientHeight が 0 になり、仮想リストの可視ウィンドウが
-   * 0 行として確定する。再表示しても状態は変わらないため update() は呼ばれず、一覧が
-   * 空のまま残る。表示へ戻す側が明示的に呼ぶ。
+   * 隠れている間は viewport の clientHeight が 0 になり、可視ウィンドウが
+   * `clientHeight || 120` のフォールバックで 120px 相当（数行）に固まる。表示へ戻しても
+   * 状態は変わらないため update() は呼ばれず、列の高さに見合う行数まで増えない。
+   * 表示へ戻す側が明示的に呼ぶ。
    */
   refresh(): void;
   destroy(): void;

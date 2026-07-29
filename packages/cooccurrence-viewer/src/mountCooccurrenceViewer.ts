@@ -25,7 +25,7 @@ import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
 import { createTabBar, type TabBarHandle, type TabBarItem } from './ui/TabBar';
-import type { CooccurrenceTabId } from './ui/tabModel';
+import { tabElementId, tabPanelElementId, type CooccurrenceTabId } from './ui/tabModel';
 import { ensureButtonBaseStyles } from './ui/buttonBaseStyle';
 import { fitBounds, pan, zoomAt } from './viewport/viewport';
 import { hitTestNode } from './viewport/hitTest';
@@ -165,16 +165,17 @@ export function mountCooccurrenceViewer(
 
   // タブの内容は隠す側も DOM に残す。破棄すると絞り込みの入力値と、入力中のフォーカス復帰
   // （FilterPanel が activeElement を見て行う）が切り替えのたびに失われる。
-  const filterTabPanel = document.createElement('div');
-  filterTabPanel.className = 'cooc-viewer__tabpanel';
-  filterTabPanel.id = 'cooc-panel-filter';
-  filterTabPanel.setAttribute('role', 'tabpanel');
-  filterTabPanel.setAttribute('aria-labelledby', 'cooc-panel-filter-tab');
-  const editTabPanel = document.createElement('div');
-  editTabPanel.className = 'cooc-viewer__tabpanel';
-  editTabPanel.id = 'cooc-panel-edit';
-  editTabPanel.setAttribute('role', 'tabpanel');
-  editTabPanel.setAttribute('aria-labelledby', 'cooc-panel-edit-tab');
+  function createTabPanel(id: CooccurrenceTabId): HTMLDivElement {
+    const element = document.createElement('div');
+    element.className = 'cooc-viewer__tabpanel';
+    element.id = tabPanelElementId(id);
+    element.setAttribute('role', 'tabpanel');
+    element.setAttribute('aria-labelledby', tabElementId(element.id));
+    return element;
+  }
+
+  const filterTabPanel = createTabPanel('filter');
+  const editTabPanel = createTabPanel('edit');
 
   function canvasLabel(): string {
     return file.spec.title ? t('canvas.labelWithTitle', { title: file.spec.title }) : t('canvas.label');
@@ -260,16 +261,17 @@ export function mountCooccurrenceViewer(
 
   function tabItems(): readonly TabBarItem[] {
     return [
-      { id: 'filter', label: t('tabs.filter'), panelId: 'cooc-panel-filter' },
-      { id: 'edit', label: t('tabs.edit'), panelId: 'cooc-panel-edit' },
+      { id: 'filter', label: t('tabs.filter'), panelId: filterTabPanel.id },
+      { id: 'edit', label: t('tabs.edit'), panelId: editTabPanel.id },
     ];
   }
 
   /**
    * 選択中のタブを画面へ反映する。
    *
-   * 語一覧は隠れている間 viewport の高さが 0 になり、仮想リストの可視ウィンドウが 0 行で
-   * 確定する。表示へ戻すだけでは状態が変わらず再描画も走らないため、ここで作り直す。
+   * 語一覧は隠れている間 viewport の高さが 0 になり、可視ウィンドウがフォールバックの
+   * 120px 相当（数行）で固まる。表示へ戻すだけでは状態が変わらず再描画も走らないため、
+   * ここで作り直す。
    */
   function syncActiveTab(): void {
     filterTabPanel.hidden = activeTab !== 'filter';
@@ -283,9 +285,6 @@ export function mountCooccurrenceViewer(
     if (showPanels) {
       ensurePanels();
       updatePanels();
-      // 再表示では ensurePanels() が既存の handle を返して何もしないため、
-      // タブの表示と語一覧の行はここで戻す。
-      syncActiveTab();
     }
   }
 

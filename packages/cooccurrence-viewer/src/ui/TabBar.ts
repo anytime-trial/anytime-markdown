@@ -1,4 +1,4 @@
-import { nextTabId, type CooccurrenceTabId } from './tabModel';
+import { nextTabId, tabElementId, type CooccurrenceTabId } from './tabModel';
 import { ensureButtonBaseStyles } from './buttonBaseStyle';
 
 export interface TabBarItem {
@@ -30,7 +30,7 @@ function ensureStyles(): void {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-.cooc-tabs{flex:0 0 auto;display:flex;gap:4px;padding:8px 8px 0;border-bottom:1px solid var(--cooc-divider)}
+.cooc-tabs{position:sticky;top:0;z-index:1;flex:0 0 auto;display:flex;gap:4px;padding:8px 8px 0;background:var(--cooc-bg);border-bottom:1px solid var(--cooc-divider)}
 .cooc-tabs__tab{flex:1 1 auto;border:1px solid var(--cooc-divider);border-bottom-width:0;border-radius:6px 6px 0 0;background:var(--cooc-bg);color:var(--cooc-text-secondary);padding:6px 8px;font:12px system-ui,sans-serif}
 .cooc-tabs__tab:hover{background:var(--cooc-action-hover)}
 .cooc-tabs__tab[data-active="true"]{background:var(--cooc-surface);color:var(--cooc-text);font-weight:600}
@@ -68,7 +68,7 @@ export function createTabBar(options: TabBarOptions): TabBarHandle {
       const button = document.createElement('button');
       button.className = 'cooc-btn cooc-tabs__tab';
       button.type = 'button';
-      button.id = `${item.panelId}-tab`;
+      button.id = tabElementId(item.panelId);
       button.setAttribute('role', 'tab');
       button.setAttribute('aria-controls', item.panelId);
       button.textContent = item.label;

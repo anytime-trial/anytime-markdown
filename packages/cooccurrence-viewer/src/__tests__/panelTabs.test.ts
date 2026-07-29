@@ -130,6 +130,39 @@ describe('cooccurrence viewer panel tabs', () => {
     handle.destroy();
   });
 
+  it('records the selection while the filter tab stays active and fills the form after switching', () => {
+    const { container, handle } = mount();
+    // 図の中の語をクリックした場合と同じ経路（selectedNodeIndex の更新 → updatePanels）を、
+    // jsdom で座標を組めない canvas の代わりに一覧の行クリックで起こす。
+    const row = container.querySelector('[role="option"][data-node-index="1"]') as HTMLButtonElement;
+    row.click();
+
+    // 選択が起きてもタブは奪われない（仕様 §3.5）。
+    expect(tab(container, 'cooc-panel-filter').getAttribute('aria-selected')).toBe('true');
+
+    tab(container, 'cooc-panel-edit').click();
+
+    // 切り替えた時点で、選んだ語が編集フォームに入っている（E2E §8 No.6）。
+    const inputs = container.querySelectorAll('.cooc-words__edit input');
+    expect((inputs[0] as HTMLInputElement).value).toBe('Beta');
+    expect((inputs[1] as HTMLInputElement).value).toBe('2');
+    handle.destroy();
+  });
+
+  it('keeps focus on the tab bar when the host changes the locale', () => {
+    const { container, handle } = mount('ja');
+    const filterTab = tab(container, 'cooc-panel-filter');
+    filterTab.focus();
+
+    // タブ列は update() で作り直されるため、戻さないとフォーカスが body へ落ちる。
+    // 矢印キー経路はハンドラ自身が focus() を張り直すので、この復帰が効くのはホスト起点の
+    // 更新（言語切替など）のときだけである。
+    handle.update({ locale: 'en' });
+
+    expect(document.activeElement).toBe(tab(container, 'cooc-panel-filter'));
+    handle.destroy();
+  });
+
   it('does not steal the active tab when the canvas changes the selection', () => {
     const { container, handle } = mount();
     const canvas = container.querySelector('.cooc-viewer__canvas') as HTMLCanvasElement;

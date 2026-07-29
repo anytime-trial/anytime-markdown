@@ -113,6 +113,12 @@ describe('cooccurrence viewer panel layout', () => {
     // 120px まで潰れることを実測した（列高 900px・語 36 件）。
     expect(computed.flexGrow).toBe('1');
     expect(computed.flexShrink).toBe('1');
+
+    // basis は単位なしの 0 でなければならない。0% は親の高さが未確定な段階で解決できず
+    // content ベースへフォールバックする（fc045ca43 の真因）。現状の親（.cooc-viewer__panels）
+    // は height:100% を持つため 0% へ戻しても実ブラウザでは落ちないことを実測したが、
+    // 親の高さが未確定になった時点で同じ罠が再来する。ここで単位を固定しておく。
+    expect(computed.flexBasis).toBe('0px');
     destroy();
   });
 
