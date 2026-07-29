@@ -73,10 +73,20 @@ describe('cooccurrence viewer panel layout', () => {
   it('scrolls inside the word list viewport', () => {
     const { container, destroy } = mount();
     const viewport = container.querySelector('.cooc-words__viewport') as HTMLElement;
+    const computed = getComputedStyle(viewport);
 
-    expect(getComputedStyle(viewport).overflow).toBe('auto');
+    expect(computed.overflow).toBe('auto');
     // 縮めないと親からはみ出し、内部スクロールでなくパネル列の引き伸ばしになる。
-    expect(getComputedStyle(viewport).flexShrink).toBe('1');
+    expect(computed.flexShrink).toBe('1');
+
+    // basis は「単位なしの 0」でなければならない。0% でも auto でもいけない。
+    // パーセンテージは親の高さが未確定な段階で解決できず content ベースへフォールバックし、
+    // viewport の最小寄与が spacer の高さ（件数 × 36px）になって .cooc-words の
+    // flex-shrink:1 が効かなくなる。ショートハンドの `flex:1` は `1 1 0%` に展開されるため
+    // 同じ罠にはまる（元のコードがこれで、内部スクロールが働いていなかった）。
+    // Chromium 実測（36 件・列高 900px）: 0% → viewport 1296px・スクロールなし、
+    // 0 → 425px・スクロールあり。jsdom は 0% と 0px を区別できるのでここで固定する。
+    expect(computed.flexBasis).toBe('0px');
     destroy();
   });
 

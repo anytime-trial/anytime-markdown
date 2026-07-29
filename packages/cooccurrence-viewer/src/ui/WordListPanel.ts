@@ -42,7 +42,7 @@ function ensureStyles(): void {
 .cooc-words{display:flex;flex-direction:column;flex:1 1 auto;padding:12px;gap:10px}
 .cooc-words__search{flex:0 0 auto}
 .cooc-words__search,.cooc-words__edit input,.cooc-words__edit select{box-sizing:border-box;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);padding:6px 8px;font:12px system-ui,sans-serif}
-.cooc-words__viewport{position:relative;min-height:120px;flex:1 1 auto;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
+.cooc-words__viewport{position:relative;min-height:120px;flex:1 1 0;overflow:auto;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg)}
 .cooc-words__spacer{position:relative;width:100%}
 .cooc-words__items{position:absolute;inset:0 0 auto 0}
 .cooc-words__row{height:36px;display:grid;grid-template-columns:minmax(0,1fr) 56px 64px;gap:8px;align-items:center;padding:0 8px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text);font:12px system-ui,sans-serif}
