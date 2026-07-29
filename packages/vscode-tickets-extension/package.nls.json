@@ -1,0 +1,11 @@
+{
+  "displayName": "Anytime Tickets",
+  "description": "Git-native ticket management board backed by the .tickets/ directory of a GitHub repository.",
+  "command.open": "Open Ticket Board",
+  "command.reload": "Reload Tickets",
+  "command.selectRepo": "Select Repository and Branch",
+  "command.signIn": "Sign in to GitHub",
+  "config.repo": "Target repository in `owner/repo` form. Leave empty to infer from the workspace `origin` remote.",
+  "config.branch": "Target branch. Leave empty to infer from the workspace current branch.",
+  "config.provider": "Ticket store provider. `github-contents` uses `.tickets/*.md` via the Contents API. `github-issues` uses GitHub Issues."
+}

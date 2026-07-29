@@ -1,0 +1,67 @@
+{
+  "name": "anytime-tickets",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.1.0",
+  "license": "MIT",
+  "publisher": "anytime-trial",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anytime-trial/anytime-markdown.git"
+  },
+  "engines": { "vscode": "^1.109.0" },
+  "categories": ["Other"],
+  "keywords": ["tickets", "issues", "kanban", "github"],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "anytime-tickets.open", "title": "%command.open%", "category": "Anytime Tickets" },
+      { "command": "anytime-tickets.reload", "title": "%command.reload%", "category": "Anytime Tickets" },
+      { "command": "anytime-tickets.selectRepo", "title": "%command.selectRepo%", "category": "Anytime Tickets" },
+      { "command": "anytime-tickets.signIn", "title": "%command.signIn%", "category": "Anytime Tickets" }
+    ],
+    "configuration": {
+      "title": "Anytime Tickets",
+      "properties": {
+        "anytimeTickets.repo": { "type": "string", "default": "", "description": "%config.repo%" },
+        "anytimeTickets.branch": { "type": "string", "default": "", "description": "%config.branch%" },
+        "anytimeTickets.provider": {
+          "type": "string",
+          "enum": ["github-contents", "github-issues"],
+          "default": "github-contents",
+          "description": "%config.provider%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "npm run clean && webpack --mode production --devtool hidden-source-map",
+    "test": "jest --maxWorkers=1"
+  },
+  "dependencies": {
+    "next-intl": "4.12.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@anytime-markdown/tickets-core": "*",
+    "@anytime-markdown/tickets-viewer": "*",
+    "@anytime-markdown/vscode-common": "*",
+    "@types/jest": "30.0.0",
+    "@types/node": "22.x",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/vscode": "1.109.0",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.11",
+    "ts-loader": "9.6.0",
+    "typescript": "6.0.3",
+    "webpack": "5.104.1",
+    "webpack-cli": "6.0.1"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "displayName": "Anytime Tickets",
+  "description": "GitHub リポジトリの .tickets/ ディレクトリを正本とする Git ネイティブなチケット管理ボード。",
+  "command.open": "チケットボードを開く",
+  "command.reload": "チケットを再読込",
+  "command.selectRepo": "リポジトリとブランチを選択",
+  "command.signIn": "GitHub にサインイン",
+  "config.repo": "対象リポジトリ（`owner/repo` 形式）。空ならワークスペースの `origin` リモートから推定する。",
+  "config.branch": "対象ブランチ。空ならワークスペースの現在ブランチから推定する。",
+  "config.provider": "チケット正本ストアのプロバイダ。`github-contents` は Contents API 経由の `.tickets/*.md`、`github-issues` は GitHub Issues。"
+}

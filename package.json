@@ -57,6 +57,7 @@
     "packages/trail-db",
     "packages/tickets-core",
     "packages/tickets-viewer",
+    "packages/vscode-tickets-extension",
     "packages/trail-viewer",
     "packages/graph-viewer",
     "packages/cooccurrence-viewer",

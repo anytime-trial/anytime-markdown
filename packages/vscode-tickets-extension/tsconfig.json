@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "outDir": "out",
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "paths": {
+      "@anytime-markdown/tickets-core": ["../tickets-core/src/index.ts"],
+      "@anytime-markdown/vscode-common": ["../vscode-common/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/webview/**", "src/**/__tests__/**"]
+}
