@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import * as ts from 'typescript';
 
 /**
  * next-intl shim がバレルから import していないことを固定する。
@@ -25,8 +26,23 @@ import { join } from 'node:path';
 const SHIM_PATH = join(__dirname, '..', 'next-intl.ts');
 const BARREL = '@anytime-markdown/tickets-viewer';
 
+/**
+ * import 元を AST から列挙する。
+ *
+ * Why not: 正規表現で抜き出さない。クォート種別（`'` / `"`）やセミコロン省略に
+ * 追随できず、取りこぼした行は「検査対象に入らないまま green」になる（fail-open）。
+ * 他の import が残っていれば「抽出が空」のガードもすり抜けるため、
+ * 特定の書き方の回帰だけを静かに見逃す。記法揺れに強い AST で列挙する。
+ */
 function importSpecifiers(source: string): string[] {
-  return [...source.matchAll(/^import\s[^;]*?from\s+'([^']+)';/gm)].map((m) => m[1]);
+  const sourceFile = ts.createSourceFile('next-intl.ts', source, ts.ScriptTarget.ESNext, true);
+  const specifiers: string[] = [];
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      specifiers.push(statement.moduleSpecifier.text);
+    }
+  }
+  return specifiers;
 }
 
 describe('next-intl shim の import 元', () => {
