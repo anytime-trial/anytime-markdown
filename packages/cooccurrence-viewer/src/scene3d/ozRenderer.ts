@@ -2,9 +2,11 @@ import {
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
+  CircleGeometry,
   Color,
   ConeGeometry,
   DirectionalLight,
+  DoubleSide,
   Fog,
   HemisphereLight,
   InstancedMesh,
@@ -13,12 +15,15 @@ import {
   LineLoop,
   LineSegments,
   Matrix4,
+  Mesh,
+  MeshBasicMaterial,
   MeshPhongMaterial,
   Object3D,
   PerspectiveCamera,
   Quaternion,
   Raycaster,
   Scene,
+  ShaderMaterial,
   Sprite,
   SpriteMaterial,
   SphereGeometry,
@@ -27,7 +32,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import type { ThemeMode } from '../types';
-import type { OzSceneLabel, OzSceneLink, OzSceneModel } from './sceneModel';
+import type { OzSceneHeading, OzSceneLabel, OzSceneLink, OzSceneModel, OzSceneNode } from './sceneModel';
 import {
   cameraPose,
   createOrbitState,
@@ -56,6 +61,8 @@ export interface OzRendererOptions {
 export interface OzRenderer {
   setModel(model: OzSceneModel): void;
   setThemeMode(mode: ThemeMode): void;
+  /** 流れアニメーションの有効/無効。無効・タブ非表示中は rAF を止める（要件書 §5 v2）。 */
+  setAnimating(on: boolean): void;
   fitView(): void;
   exportPng(): Promise<Blob | null>;
   dispose(): void;
@@ -67,15 +74,29 @@ const SPHERE_SEGMENTS = 24;
 const CLICK_SLOP_PX = 4;
 const ROTATE_SPEED = 0.005;
 const ZOOM_WHEEL_SPEED = 0.001;
+/** 曲線 1 本の折れ線分割数。 */
+const CURVE_SEGMENTS = 12;
+/** 破線の流れの速さ（world 単位 / 秒）と 1 周期の world 長。 */
+const FLOW_SPEED = 90;
+const DASH_PERIOD = 64;
+/** ピルテクスチャの解像度倍率（等倍だとズーム時に文字が粗れる）。 */
+const PILL_TEXTURE_SCALE = 2;
+/** 淡色化したピルの不透明度はモデルの alpha をそのまま使う。ドットは色 lerp（v1 と同じ）。 */
 
 interface OzThemePalette {
   background: Color;
   /** 淡色化（alpha < 1）の lerp 先。フォグと同じ色にして空間へ溶かす。 */
   fade: Color;
+  /** 背景平面の同心円模様の色。 */
   ringColor: Color;
   labelColor: string;
   linkBase: Color;
-  emissive: Color;
+  pillBg: string;
+  pillText: string;
+  /** 巨大なパステル塗り円（参考画像の円形空間。要件書 §2.2 v2）。 */
+  circles: Array<{ color: Color; opacity: number }>;
+  /** 細い輪郭リング。 */
+  outlines: Array<{ color: Color; opacity: number }>;
 }
 
 function paletteOf(mode: ThemeMode): OzThemePalette {
@@ -86,16 +107,36 @@ function paletteOf(mode: ThemeMode): OzThemePalette {
       ringColor: new Color('#2A3568'),
       labelColor: 'rgba(255,255,255,0.92)',
       linkBase: new Color('#A0BEFF'),
-      emissive: new Color('#1B2354'),
+      pillBg: '#12183F',
+      pillText: 'rgba(255,255,255,0.92)',
+      circles: [
+        { color: new Color('#31408F'), opacity: 0.16 },
+        { color: new Color('#1E5F58'), opacity: 0.12 },
+        { color: new Color('#7A2B52'), opacity: 0.1 },
+      ],
+      outlines: [
+        { color: new Color('#FF6B9C'), opacity: 0.3 },
+        { color: new Color('#4FC3F7'), opacity: 0.24 },
+      ],
     };
   }
   return {
-    background: new Color('#FFFFFF'),
-    fade: new Color('#FFFFFF'),
-    ringColor: new Color('#D9EEFB'),
+    background: new Color('#F4F5FB'),
+    fade: new Color('#F4F5FB'),
+    ringColor: new Color('#DDE3F2'),
     labelColor: '#1B2A4A',
-    linkBase: new Color('#5B7C99'),
-    emissive: new Color('#000000'),
+    linkBase: new Color('#8A93A6'),
+    pillBg: '#FFFFFF',
+    pillText: '#1B2A4A',
+    circles: [
+      { color: new Color('#F8BBD0'), opacity: 0.12 },
+      { color: new Color('#B2DFDB'), opacity: 0.1 },
+      { color: new Color('#B3E5FC'), opacity: 0.08 },
+    ],
+    outlines: [
+      { color: new Color('#EF9A9A'), opacity: 0.35 },
+      { color: new Color('#F48FB1'), opacity: 0.28 },
+    ],
   };
 }
 
@@ -117,6 +158,167 @@ function lineGeometry(links: readonly OzSceneLink[], base: Color, fade: Color): 
   geometry.setAttribute('position', new BufferAttribute(positions, 3));
   geometry.setAttribute('color', new BufferAttribute(colors, 3));
   return geometry;
+}
+
+/** 二次ベジェ上の点（t は 0..1）。 */
+function bezierPoint(link: OzSceneLink, t: number): [number, number, number] {
+  const u = 1 - t;
+  return [
+    u * u * link.x1 + 2 * u * t * link.cpX + t * t * link.x2,
+    u * u * link.y1 + 2 * u * t * link.cpY + t * t * link.y2,
+    u * u * link.z1 + 2 * u * t * link.cpZ + t * t * link.z2,
+  ];
+}
+
+/**
+ * 曲線を折れ線へ展開し、流れシェーダ用の属性（色・線上距離・流す向き）を付ける。
+ * 属性名は three が vertexColors で予約する `color` と衝突しないよう streamColor にする。
+ */
+function streamGeometry(links: readonly OzSceneLink[], base: Color, fade: Color): BufferGeometry {
+  const vertsPerLink = CURVE_SEGMENTS * 2;
+  const positions = new Float32Array(links.length * vertsPerLink * 3);
+  const colors = new Float32Array(links.length * vertsPerLink * 3);
+  const dists = new Float32Array(links.length * vertsPerLink);
+  const flows = new Float32Array(links.length * vertsPerLink);
+  const color = new Color();
+  links.forEach((link, i) => {
+    color.copy(fade).lerp(base, linkStrengthAlpha(link.width) * link.alpha);
+    let dist = 0;
+    let prev = bezierPoint(link, 0);
+    for (let s = 0; s < CURVE_SEGMENTS; s += 1) {
+      const next = bezierPoint(link, (s + 1) / CURVE_SEGMENTS);
+      const v = i * vertsPerLink + s * 2;
+      positions.set([...prev, ...next], v * 3);
+      colors.set([color.r, color.g, color.b, color.r, color.g, color.b], v * 3);
+      const segment = Math.hypot(next[0] - prev[0], next[1] - prev[1], next[2] - prev[2]);
+      dists[v] = dist;
+      dists[v + 1] = dist + segment;
+      flows[v] = link.flow;
+      flows[v + 1] = link.flow;
+      dist += segment;
+      prev = next;
+    }
+  });
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(positions, 3));
+  geometry.setAttribute('streamColor', new BufferAttribute(colors, 3));
+  geometry.setAttribute('lineDist', new BufferAttribute(dists, 1));
+  geometry.setAttribute('flowDir', new BufferAttribute(flows, 1));
+  return geometry;
+}
+
+/**
+ * データストリームの破線シェーダ。uTime を進めると明部が線上距離方向へ流れる。
+ * flow = 0（both・点線）は静的に塗る。ジオメトリは固定で uniform 更新のみ（要件書 §5 v2）。
+ */
+function makeStreamMaterial(fade: Color): ShaderMaterial {
+  return new ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uFade: { value: fade.clone() },
+      uSpeed: { value: FLOW_SPEED },
+      uPeriod: { value: DASH_PERIOD },
+    },
+    vertexShader: [
+      'attribute vec3 streamColor;',
+      'attribute float lineDist;',
+      'attribute float flowDir;',
+      'varying vec3 vColor;',
+      'varying float vDist;',
+      'varying float vFlow;',
+      'void main() {',
+      '  vColor = streamColor;',
+      '  vDist = lineDist;',
+      '  vFlow = flowDir;',
+      '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+      '}',
+    ].join('\n'),
+    fragmentShader: [
+      'uniform float uTime;',
+      'uniform vec3 uFade;',
+      'uniform float uSpeed;',
+      'uniform float uPeriod;',
+      'varying vec3 vColor;',
+      'varying float vDist;',
+      'varying float vFlow;',
+      'void main() {',
+      '  float visibility = 1.0;',
+      '  if (abs(vFlow) > 0.5) {',
+      '    float k = fract((vDist - vFlow * uTime * uSpeed) / uPeriod);',
+      '    float dash = smoothstep(0.0, 0.2, k) * (1.0 - smoothstep(0.6, 0.8, k));',
+      '    visibility = mix(0.35, 1.0, dash);',
+      '  }',
+      '  gl_FragColor = vec4(mix(uFade, vColor, visibility), 1.0);',
+      '}',
+    ].join('\n'),
+  });
+}
+
+/** roundRect 相当（arcTo 実装。実行環境差で Path2D.roundRect に依存しない）。 */
+function tracePill(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number): void {
+  const r = height / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+/**
+ * ピル型ラベルのテクスチャ（参考画像のノード表現。要件書 §2.2 v2）。
+ * 白地の角丸 + クラスタ色の縁・左ドット + 語テキスト + 淡い影。
+ */
+function makePillTexture(
+  text: string,
+  accent: string,
+  palette: OzThemePalette,
+): { texture: CanvasTexture; aspect: number } | null {
+  const canvas = document.createElement('canvas');
+  const probe = canvas.getContext('2d');
+  if (!probe) return null;
+  const scale = PILL_TEXTURE_SCALE;
+  const font = `600 ${13 * scale}px system-ui, sans-serif`;
+  probe.font = font;
+  const textWidth = Math.ceil(probe.measureText(text).width);
+  const height = 26 * scale;
+  const dotRadius = 3.5 * scale;
+  const padX = 10 * scale;
+  const gap = 6 * scale;
+  const margin = 4 * scale;
+  const width = padX + dotRadius * 2 + gap + textWidth + padX;
+  canvas.width = width + margin * 2;
+  canvas.height = height + margin * 2;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.save();
+  ctx.shadowColor = 'rgba(27,42,74,0.2)';
+  ctx.shadowBlur = 3 * scale;
+  ctx.shadowOffsetY = scale;
+  tracePill(ctx, margin, margin, width, height);
+  ctx.fillStyle = palette.pillBg;
+  ctx.fill();
+  ctx.restore();
+  ctx.lineWidth = 1.5 * scale;
+  ctx.strokeStyle = accent;
+  tracePill(ctx, margin + ctx.lineWidth / 2, margin + ctx.lineWidth / 2, width - ctx.lineWidth, height - ctx.lineWidth);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(margin + padX + dotRadius, margin + height / 2, dotRadius, 0, Math.PI * 2);
+  ctx.fillStyle = accent;
+  ctx.fill();
+  ctx.font = font;
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = palette.pillText;
+  ctx.fillText(text, margin + padX + dotRadius * 2 + gap, margin + height / 2);
+  const texture = new CanvasTexture(canvas);
+  return { texture, aspect: canvas.width / canvas.height };
+}
+
+/** ピルの世界座標での高さ。頻度（radius）に追従しつつ読める下限を持つ。 */
+function pillWorldHeight(radius: number): number {
+  return Math.max(18, radius * 2.2);
 }
 
 function makeLabelTexture(text: string, colorCss: string): { texture: CanvasTexture; aspect: number } | null {
@@ -159,17 +361,49 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
   sun.position.set(0.6, 1, 0.8);
   scene.add(hemisphere, sun);
 
-  const sphereGeometry = new SphereGeometry(1, SPHERE_SEGMENTS, SPHERE_SEGMENTS / 2 | 0);
-  const sphereMaterial = new MeshPhongMaterial({ shininess: 90, specular: new Color('#FFFFFF') });
+  // ドット（ピル上限から漏れた語）はフラットな色点として描く（参考画像の点表現）。
+  const dotGeometry = new SphereGeometry(1, SPHERE_SEGMENTS, SPHERE_SEGMENTS / 2 | 0);
+  const dotMaterial = new MeshBasicMaterial();
   const coneGeometry = new ConeGeometry(0.5, 1, 12);
   const coneMaterial = new MeshPhongMaterial({ shininess: 30 });
+  const streamMaterial = makeStreamMaterial(palette.fade);
+
+  /**
+   * ピルテクスチャのキャッシュ。key = テーマ|クラスタ色|語。setModel のたびに全生成すると
+   * 選択変更のような部分更新でも数百枚の canvas を焼き直すことになる（要件書 pre-mortem）。
+   */
+  const pillTextures = new Map<string, { texture: CanvasTexture; aspect: number }>();
+  let usedPillKeys = new Set<string>();
+
+  function pillTextureOf(label: string, accent: string): { texture: CanvasTexture; aspect: number } | null {
+    const key = `${mode}|${accent}|${label}`;
+    let entry = pillTextures.get(key);
+    if (entry === undefined) {
+      const made = makePillTexture(label, accent, palette);
+      if (made === null) return null;
+      pillTextures.set(key, made);
+      entry = made;
+    }
+    usedPillKeys.add(key);
+    return entry;
+  }
+
+  function prunePillTextures(): void {
+    for (const [key, entry] of pillTextures) {
+      if (usedPillKeys.has(key)) continue;
+      entry.texture.dispose();
+      pillTextures.delete(key);
+    }
+  }
 
   /** setModel のたびに作り直すオブジェクト群。dispose 漏れを防ぐためひとまとめに追跡する。 */
   let dynamicObjects: Object3D[] = [];
   let dynamicDisposables: Array<{ dispose(): void }> = [];
-  let spheres: InstancedMesh | null = null;
+  let dots: InstancedMesh | null = null;
   /** InstancedMesh の instanceId → 語 index（レイキャストの復元用）。 */
-  let sphereNodeIndexes: number[] = [];
+  let dotNodeIndexes: number[] = [];
+  /** ピルスプライト（userData.nodeIndex を持つ。レイキャスト対象）。 */
+  let pillSprites: Sprite[] = [];
   let model: OzSceneModel | null = null;
   let disposed = false;
 
@@ -178,8 +412,9 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     for (const disposable of dynamicDisposables) disposable.dispose();
     dynamicObjects = [];
     dynamicDisposables = [];
-    spheres = null;
-    sphereNodeIndexes = [];
+    dots = null;
+    dotNodeIndexes = [];
+    pillSprites = [];
   }
 
   function track<T extends Object3D>(object: T, ...disposables: Array<{ dispose(): void }>): T {
@@ -189,23 +424,42 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     return object;
   }
 
-  function buildSpheres(current: OzSceneModel): void {
-    if (current.nodes.length === 0) return;
-    const mesh = new InstancedMesh(sphereGeometry, sphereMaterial, current.nodes.length);
-    const matrix = new Matrix4();
-    const color = new Color();
-    current.nodes.forEach((node, i) => {
-      matrix.makeScale(node.radius, node.radius, node.radius);
-      matrix.setPosition(node.x, node.y, node.z);
-      mesh.setMatrixAt(i, matrix);
-      color.set(node.color);
-      if (node.alpha < 1) color.lerp(palette.fade, 1 - node.alpha);
-      mesh.setColorAt(i, color);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    sphereNodeIndexes = current.nodes.map((node) => node.index);
-    spheres = track(mesh, mesh);
+  function buildNodes(current: OzSceneModel): void {
+    const pills: OzSceneNode[] = [];
+    const dotNodes: OzSceneNode[] = [];
+    for (const node of current.nodes) (node.pill ? pills : dotNodes).push(node);
+
+    for (const node of pills) {
+      const made = pillTextureOf(node.label, node.color);
+      if (made === null) continue;
+      // テクスチャはキャッシュ共有のため dispose しない。マテリアルはスプライト個別（不透明度が異なる）。
+      const material = new SpriteMaterial({ map: made.texture, transparent: true, opacity: node.alpha });
+      const sprite = new Sprite(material);
+      const height = pillWorldHeight(node.radius);
+      sprite.position.set(node.x, node.y, node.z);
+      sprite.scale.set(height * made.aspect, height, 1);
+      sprite.userData.nodeIndex = node.index;
+      pillSprites.push(track(sprite, material));
+    }
+
+    if (dotNodes.length > 0) {
+      const mesh = new InstancedMesh(dotGeometry, dotMaterial, dotNodes.length);
+      const matrix = new Matrix4();
+      const color = new Color();
+      dotNodes.forEach((node, i) => {
+        const radius = Math.max(2.5, node.radius * 0.5);
+        matrix.makeScale(radius, radius, radius);
+        matrix.setPosition(node.x, node.y, node.z);
+        mesh.setMatrixAt(i, matrix);
+        color.set(node.color);
+        if (node.alpha < 1) color.lerp(palette.fade, 1 - node.alpha);
+        mesh.setColorAt(i, color);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      dotNodeIndexes = dotNodes.map((node) => node.index);
+      dots = track(mesh, mesh);
+    }
   }
 
   function buildCones(current: OzSceneModel): void {
@@ -232,11 +486,11 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     track(mesh, mesh);
   }
 
-  function buildLinks(current: OzSceneModel): void {
+  function buildStreams(current: OzSceneModel): void {
     if (current.links.length > 0) {
-      const geometry = lineGeometry(current.links, palette.linkBase, palette.fade);
-      const material = new LineBasicMaterial({ vertexColors: true });
-      track(new LineSegments(geometry, material), geometry, material);
+      const geometry = streamGeometry(current.links, palette.linkBase, palette.fade);
+      // streamMaterial は使い回す（uniform の uTime を共有するため）。dispose はしない。
+      track(new LineSegments(geometry, streamMaterial), geometry);
     }
     if (current.timeLinks.length > 0) {
       const geometry = lineGeometry(current.timeLinks, palette.linkBase, palette.fade);
@@ -259,23 +513,98 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     }
   }
 
-  /** OZ の白空間の記号: コンテンツの下に淡い同心円の床を敷く（要件書 §2.2）。 */
-  function buildRings(current: OzSceneModel): void {
+  /** クラスタ見出し（参考画像の「TOOLS / OUTPUT」。要件書 §2.2 v2）。 */
+  function buildHeadings(headings: readonly OzSceneHeading[]): void {
+    for (const heading of headings) {
+      const made = makeLabelTexture(heading.text, heading.color);
+      if (made === null) continue;
+      const material = new SpriteMaterial({ map: made.texture, transparent: true, opacity: 0.6, depthWrite: false });
+      const sprite = new Sprite(material);
+      sprite.position.set(heading.x, heading.y, heading.z);
+      sprite.scale.set(72 * made.aspect, 72, 1);
+      sprite.renderOrder = -1;
+      track(sprite, made.texture, material);
+    }
+  }
+
+  /** 円周の折れ線ジオメトリ（LineLoop 用）。 */
+  function circleOutlineGeometry(radius: number): BufferGeometry {
+    const points = new Float32Array(129 * 3);
+    for (let i = 0; i <= 128; i += 1) {
+      const angle = (i / 128) * Math.PI * 2;
+      points.set([Math.cos(angle) * radius, Math.sin(angle) * radius, 0], i * 3);
+    }
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(points, 3));
+    return geometry;
+  }
+
+  /**
+   * 無限に広がる巨大な円形の仮想空間（要件書 §2.2 v2）。
+   * 巨大なパステル塗り円・輪郭リング・同心円模様をシーン境界から決定的に配置する
+   * （乱数を使うと setModel のたびに空間が変わる）。
+   */
+  function buildBackdrop(current: OzSceneModel): void {
     const bounds = modelBounds(current);
     if (bounds === null) return;
-    const floorY = bounds.minY - 120;
-    const maxRadius = Math.max(bounds.radius * 1.4, 300);
-    for (const ratio of [0.25, 0.45, 0.7, 1]) {
-      const radius = maxRadius * ratio;
-      const points = new Float32Array(129 * 3);
-      for (let i = 0; i <= 128; i += 1) {
-        const angle = (i / 128) * Math.PI * 2;
-        points.set([bounds.centerX + Math.cos(angle) * radius, floorY, bounds.centerZ + Math.sin(angle) * radius], i * 3);
-      }
-      const geometry = new BufferGeometry();
-      geometry.setAttribute('position', new BufferAttribute(points, 3));
-      const material = new LineBasicMaterial({ color: palette.ringColor });
-      track(new LineLoop(geometry, material), geometry, material);
+    const radius = Math.max(bounds.radius, 300);
+
+    // 巨大なパステル塗り円。角度・距離・傾きは見え方を散らすための固定テーブル。
+    const placements = [
+      { angle: 0.4, distance: 1.6, zFactor: -1.2, scale: 2.4, tiltX: 0.35, tiltY: 0.1 },
+      { angle: 2.4, distance: 1.9, zFactor: -1.5, scale: 1.8, tiltX: -0.2, tiltY: 0.25 },
+      { angle: 4.4, distance: 2.2, zFactor: -1.8, scale: 2.9, tiltX: 0.15, tiltY: -0.3 },
+    ];
+    placements.forEach((placement, i) => {
+      const style = palette.circles[i % palette.circles.length];
+      const material = new MeshBasicMaterial({
+        color: style.color,
+        transparent: true,
+        opacity: style.opacity,
+        side: DoubleSide,
+        depthWrite: false,
+      });
+      const mesh = new Mesh(new CircleGeometry(1, 72), material);
+      mesh.position.set(
+        bounds.centerX + Math.cos(placement.angle) * radius * placement.distance,
+        bounds.centerY + Math.sin(placement.angle) * radius * placement.distance,
+        bounds.centerZ + radius * placement.zFactor,
+      );
+      mesh.scale.setScalar(radius * placement.scale);
+      mesh.rotation.set(placement.tiltX, placement.tiltY, 0);
+      mesh.renderOrder = -3;
+      track(mesh, mesh.geometry, material);
+    });
+
+    // 細い輪郭リング。
+    const outlinePlacements = [
+      { angle: 1.4, distance: 1.2, zFactor: -0.9, scale: 2.0, tiltX: 0.3, tiltY: -0.15 },
+      { angle: 5.2, distance: 1.5, zFactor: -1.1, scale: 2.6, tiltX: -0.25, tiltY: 0.2 },
+    ];
+    outlinePlacements.forEach((placement, i) => {
+      const style = palette.outlines[i % palette.outlines.length];
+      const geometry = circleOutlineGeometry(1);
+      const material = new LineBasicMaterial({ color: style.color, transparent: true, opacity: style.opacity });
+      const loop = new LineLoop(geometry, material);
+      loop.position.set(
+        bounds.centerX + Math.cos(placement.angle) * radius * placement.distance,
+        bounds.centerY + Math.sin(placement.angle) * radius * placement.distance,
+        bounds.centerZ + radius * placement.zFactor,
+      );
+      loop.scale.setScalar(radius * placement.scale);
+      loop.rotation.set(placement.tiltX, placement.tiltY, 0);
+      loop.renderOrder = -2;
+      track(loop, geometry, material);
+    });
+
+    // 背景平面の淡い同心円模様（幾何学模様）。
+    for (const ratio of [0.5, 0.9, 1.4, 2.0]) {
+      const geometry = circleOutlineGeometry(radius * ratio);
+      const material = new LineBasicMaterial({ color: palette.ringColor, transparent: true, opacity: 0.5 });
+      const loop = new LineLoop(geometry, material);
+      loop.position.set(bounds.centerX, bounds.centerY, bounds.centerZ - radius * 2.2);
+      loop.renderOrder = -2;
+      track(loop, geometry, material);
     }
   }
 
@@ -301,7 +630,7 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     palette = paletteOf(mode);
     scene.background = palette.background;
     scene.fog = new Fog(palette.background, orbit.distance * 1.2, orbit.distance * 4 + 4000);
-    sphereMaterial.emissive = palette.emissive;
+    (streamMaterial.uniforms.uFade.value as Color).copy(palette.fade);
     hemisphere.intensity = mode === 'dark' ? 0.7 : 1.0;
     sun.intensity = mode === 'dark' ? 0.9 : 1.2;
   }
@@ -309,30 +638,63 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
   function rebuild(): void {
     clearDynamic();
     if (model === null) return;
-    buildSpheres(model);
-    buildLinks(model);
+    usedPillKeys = new Set();
+    buildNodes(model);
+    buildStreams(model);
     buildCones(model);
-    buildLabels(model.labels, 26);
+    buildHeadings(model.headings);
     buildLabels(model.layerLabels, 44);
-    buildRings(model);
+    buildBackdrop(model);
+    prunePillTextures();
   }
 
-  // ---- 要求時レンダリング（既存 renderScheduler と同じ原則。無操作で GPU を回さない） ----
+  function renderScene(): void {
+    syncSize();
+    const pose = cameraPose(orbit);
+    camera.position.set(pose.x, pose.y, pose.z);
+    camera.lookAt(pose.targetX, pose.targetY, pose.targetZ);
+    scene.fog = new Fog(palette.background, orbit.distance * 1.2, orbit.distance * 4 + 4000);
+    renderer.render(scene, camera);
+  }
+
+  // ---- 描画駆動: 要求時レンダリング + 流れアニメーション（要件書 §5 v2） ----
+  // 静止時は invalidate（要求時 1 フレーム）。アニメ有効かつタブ可視の間だけ rAF を連続で回し、
+  // uTime の更新のみでジオメトリは再構築しない。
   let renderRequested = false;
+  let animating = false;
+  let flowRaf = 0;
+
   function invalidate(): void {
     if (renderRequested || disposed) return;
     renderRequested = true;
     requestAnimationFrame(() => {
       renderRequested = false;
       if (disposed) return;
-      syncSize();
-      const pose = cameraPose(orbit);
-      camera.position.set(pose.x, pose.y, pose.z);
-      camera.lookAt(pose.targetX, pose.targetY, pose.targetZ);
-      scene.fog = new Fog(palette.background, orbit.distance * 1.2, orbit.distance * 4 + 4000);
-      renderer.render(scene, camera);
+      renderScene();
     });
   }
+
+  function flowLoop(nowMs: number): void {
+    flowRaf = 0;
+    if (disposed || !animating || document.hidden) return;
+    streamMaterial.uniforms.uTime.value = nowMs / 1000;
+    renderScene();
+    flowRaf = requestAnimationFrame(flowLoop);
+  }
+
+  function syncFlowLoop(): void {
+    const shouldRun = animating && !disposed && !document.hidden;
+    if (shouldRun && flowRaf === 0) flowRaf = requestAnimationFrame(flowLoop);
+    if (!shouldRun && flowRaf !== 0) {
+      cancelAnimationFrame(flowRaf);
+      flowRaf = 0;
+    }
+  }
+
+  function handleVisibilityChange(): void {
+    syncFlowLoop();
+  }
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   function syncSize(): void {
     const width = Math.max(container.clientWidth, 1);
@@ -355,17 +717,23 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
   let dragging = false;
 
   function hitNodeIndex(event: PointerEvent): number | null {
-    if (spheres === null) return null;
+    const targets: Object3D[] = [];
+    if (dots !== null) targets.push(dots);
+    for (const sprite of pillSprites) targets.push(sprite);
+    if (targets.length === 0) return null;
     const rect = renderer.domElement.getBoundingClientRect();
     const ndc = new Vector2(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
       -((event.clientY - rect.top) / rect.height) * 2 + 1,
     );
     raycaster.setFromCamera(ndc, camera);
-    const hits = raycaster.intersectObject(spheres, false);
-    const instanceId = hits[0]?.instanceId;
-    if (instanceId === undefined) return null;
-    return sphereNodeIndexes[instanceId] ?? null;
+    const hit = raycaster.intersectObjects(targets, false)[0];
+    if (hit === undefined) return null;
+    if (dots !== null && hit.object === dots) {
+      return hit.instanceId === undefined ? null : dotNodeIndexes[hit.instanceId] ?? null;
+    }
+    const nodeIndex = (hit.object.userData as { nodeIndex?: unknown }).nodeIndex;
+    return typeof nodeIndex === 'number' ? nodeIndex : null;
   }
 
   /** 1 ピクセルのパンが動かす世界座標量（現在の距離での視野の実寸から換算）。 */
@@ -436,9 +804,13 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     setThemeMode(nextMode: ThemeMode): void {
       mode = nextMode;
       applyTheme();
-      // 球の淡色化・ラベル色・リング色はパレット依存のため作り直す。
+      // ピル・ドットの淡色化・見出し・背景円はパレット依存のため作り直す。
       rebuild();
       invalidate();
+    },
+    setAnimating(on: boolean): void {
+      animating = on;
+      syncFlowLoop();
     },
     fitView(): void {
       const bounds = model === null ? null : modelBounds(model);
@@ -454,15 +826,14 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     },
     exportPng(): Promise<Blob | null> {
       // WebGL の drawing buffer は合成後に破棄されるため、描画直後に取り出す（要件書 pre-mortem）。
-      syncSize();
-      const pose = cameraPose(orbit);
-      camera.position.set(pose.x, pose.y, pose.z);
-      camera.lookAt(pose.targetX, pose.targetY, pose.targetZ);
-      renderer.render(scene, camera);
+      renderScene();
       return new Promise((resolve) => renderer.domElement.toBlob((blob: Blob | null) => resolve(blob), 'image/png'));
     },
     dispose(): void {
       disposed = true;
+      animating = false;
+      syncFlowLoop();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       resizeObserver?.disconnect();
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
@@ -470,10 +841,13 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
       renderer.domElement.removeEventListener('wheel', handleWheel);
       renderer.domElement.removeEventListener('contextmenu', handleContextMenu);
       clearDynamic();
-      sphereGeometry.dispose();
-      sphereMaterial.dispose();
+      for (const entry of pillTextures.values()) entry.texture.dispose();
+      pillTextures.clear();
+      dotGeometry.dispose();
+      dotMaterial.dispose();
       coneGeometry.dispose();
       coneMaterial.dispose();
+      streamMaterial.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },
