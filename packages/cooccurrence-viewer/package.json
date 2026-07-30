@@ -14,7 +14,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@anytime-markdown/graph-core": "*"
+    "@anytime-markdown/graph-core": "*",
+    "three": "0.185.1"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",
