@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/web-app",
-  "version": "0.42.0",
+  "version": "0.43.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -33,7 +33,7 @@
     "@anytime-markdown/trace-core": "*",
     "@anytime-markdown/trace-viewer": "*",
     "@anytime-markdown/trail-viewer": "*",
-    "@auth/core": "0.41.1",
+    "@auth/core": "0.41.3",
     "@aws-sdk/client-s3": "3.1004.0",
     "@capacitor/core": "7.5.0",
     "@capacitor/status-bar": "7.0.5",
@@ -55,7 +55,7 @@
     "mathjs": "15.2.0",
     "mermaid": "11.15.0",
     "next": "16.2.6",
-    "next-auth": "5.0.0-beta.30",
+    "next-auth": "5.0.0-beta.32",
     "next-intl": "4.12.0",
     "plantuml-encoder": "1.4.0",
     "plotly.js-gl3d-dist-min": "3.4.0",

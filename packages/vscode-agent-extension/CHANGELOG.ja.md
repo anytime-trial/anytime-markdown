@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-30
+
+### 追加
+
+- チケット管理を本拡張へ移設した。専用の TreeView からチケットの webview パネルを開き、リポジトリ / ブランチ解決、GitHub 認証、プロバイダ生成、webview と拡張ホスト間の RPC ハンドラを備える。
+- webview 向けの `next-intl` shim（ネスト解決と ICU 補間）を `@anytime-markdown/vscode-common` 経由で追加した。
+
+### 修正
+
+- チケットリポジトリを `tickets.directory` 設定から解決し、git 実行の基点をそのリポジトリに固定した。
+- webview の初期化エラーを起こしていた循環 import を断った。
+- 型検査を host / webview で分離し、host コードでの DOM 誤参照の検出力を戻した。テストも `tsconfig.test.json` で型検査対象に含めた。
+- `save` でも tickets-core のフロントマター検証を通し、応答の `updated_at` を永続化内容と一致させた。
+- リダイレクト先も許可ホスト判定にかけ、`Request` の method / body を inner へ引き継ぎ、webview メッセージ処理の例外を握り潰さずログへ残すようにした。
+
 ## [1.9.0] - 2026-07-22
 
 ### 追加

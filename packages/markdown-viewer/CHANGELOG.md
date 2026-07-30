@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-07-30
+
+### Changed
+
+- `applyEditorThemeCssVars` now removes a previously injected Google Fonts `<link>` on every re-apply, so `loadGoogleFonts: false` always reflects the current state. Previously an injected link stayed behind and kept being blocked under a webview CSP.
+- The embedded cooccurrence network diagram (markdown-rich / graph-core) now supports directed links with arrowheads, a time axis of slices, and per-element notes. See the graph-core changelog for details.
+
 ## [1.17.0] - 2026-07-22
 
 ### Added

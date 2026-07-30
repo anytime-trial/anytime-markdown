@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-07-30
+
+### Added
+
+- Auto-registration of the Trail MCP server into the workspace `.mcp.json`, using the shared registration logic in `@anytime-markdown/vscode-common`.
+
+### Fixed
+
+- `ts-loader`'s `configFile` is now an absolute path, removing intermittent build failures where the parent-directory lookup picked up the root `tsconfig`.
+
+### Trail Core (trail-server / mcp-trail / doc-core / memory-core)
+
+- `mcp-trail` の `search_docs` semantic に `granularity: doc/section` を追加
+- `doc-core` に節単位埋め込みを追加し、doc 埋め込み入力へ見出しアウトラインを混ぜ込む。節の選定を葉節限定から固有本文の disjoint 分割へ変更
+- `trail-server` の docCoreRunner へ節埋め込みの backfill を配線
+- 空 body へ遷移した doc の節埋め込み残留を洗い替えで削除。節の意味検索を格納モデルの行に絞り、新旧混在による無言の劣化を防止
+
 ## [0.39.0] - 2026-07-22
 
 ### Added

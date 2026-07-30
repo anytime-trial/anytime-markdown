@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-07-30
+
+### 変更
+
+- `.mcp.json` の登録ロジック（アトミック書き込み・マージ・登録コマンド）を共通パッケージ `@anytime-markdown/vscode-common` へ移した。挙動は同じだが、`mcpServers` が object でない `.mcp.json` は上書きせず退避するようになった。
+
+### 修正
+
+- webview が Google Fonts を読み込まないようにした。webview の CSP（`style-src ${webview.cspSource} 'unsafe-inline'`）は外部 CDN を許可しておらず、読み込みは必ずブロックされていた。プリセットのフォントはシステムフォントへフォールバックする。不変条件を単体テストで守るため、テーマ適用を `webviewTheme` モジュールへ分離した。
+- `ts-loader` の `configFile` を絶対パスで固定し、親方向探索がルートの `tsconfig` を掴むことによる間欠的なビルド失敗を解消した。
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Google Fonts の `<link>` を再適用のたびに取り除くようにした
+- 埋め込みの共起ネットワーク図が共起の向き・時間軸・要素メモに対応
+
 ## [1.17.0] - 2026-07-22
 
 ### 追加

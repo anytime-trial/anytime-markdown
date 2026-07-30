@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-30
+
+### Changed
+
+- Version bump only, kept in sync with the `anytime-database` extension release. There is no functional change in this package.
+
 ## [0.3.4] - 2026-07-22
 
 ### Changed

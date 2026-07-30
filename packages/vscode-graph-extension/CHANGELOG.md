@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-30
+
+### Added
+
+- The `mcp-graph` MCP server is now bundled with the extension and auto-registered into the workspace `.mcp.json` when missing. A manual registration command and an MCP server provider are included. The server receives its root directory via the `ANYTIME_GRAPH_ROOT` environment variable rather than the process working directory, which points at the extension host.
+
+### Fixed
+
+- `ts-loader`'s `configFile` is now an absolute path, removing intermittent build failures where the parent-directory lookup picked up the root `tsconfig`.
+- A regression test that failed on a working tree without a prior build.
+
+### Graph Core (graph-core / cooccurrence-viewer)
+
+- 共起の向き（矢印）・時間軸（スライスの並置と点線）・語 / 共起 / クラスタのメモに対応
+- 共起ビューアの右パネルを右端の縦アイコン列 + タブ（ミニマップ / 絞り込み / 要素 / 共起 / 時間 / 保存）へ再構成
+- OZ 風 3D 表示（three.js）のトグルとフォールバックを追加
+- 表示の修正: DPR によるラベルずれ、全体表示で画面が空になる、語一覧の内部スクロール、ポップアップのはみ出し、語一覧の行が白地に白文字
+
 ## [0.12.0] - 2026-07-22
 
 ### Added
