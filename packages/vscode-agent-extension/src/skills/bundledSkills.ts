@@ -43,7 +43,9 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
     ],
   },
   { name: 'anytime-impl-test-design' },
-  { name: 'anytime-proposal' },
+  // 2026-07-30 に anytime-proposal からリネーム（提案書の生成から「分析と分析結果の出力
+  // （提案書 / 共起グラフ .cooc.json）」へ再定義し、共起グラフ出力モード §9 を統合）。
+  { name: 'anytime-analysis', oldNames: ['anytime-proposal'] },
   // チケット駆動自動実行（tick 自身が cron を自己確保する）。web-app /tickets とフォーマット正本を共有する。
   // 2026-07-17 に anytime-ticket-loop からリネーム（start / stop の対で名前を揃えた）。
   { name: 'anytime-loop-start', oldNames: ['anytime-ticket-loop'] },

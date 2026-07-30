@@ -112,7 +112,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 
 ### 4. 改善提案への昇格（閾値超のみ）
 
-下記いずれかを満たすシグナルがあれば、`anytime-proposal` スキル（**既定 lightweight**・1 提案 = 1 論点）で改善提案を生成し `proposal/<YYYYMMDD>-<topic>.ja.md` に出力し、**提案 1 件につきチケットを 1 件起票する**（§4.1）。満たさなければレポートのみで終了。
+下記いずれかを満たすシグナルがあれば、`anytime-analysis` スキル（**既定 lightweight**・1 提案 = 1 論点）で改善提案を生成し `proposal/<YYYYMMDD>-<topic>.ja.md` に出力し、**提案 1 件につきチケットを 1 件起票する**（§4.1）。満たさなければレポートのみで終了。
 
 昇格閾値（いずれか）:
 
@@ -133,7 +133,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **条文が効いていない（メタ還流）**: 条文化・改訂した章の `quality.checklistByRef30d` が**条文化後 2 回連続のレトロ**で減少しない → 条文の再改訂でなく、条文の書き方（NG/OK 例の具体性）またはレビュー委任プロンプトへの観点注入方法の見直しを提案する（「改善機構の空回り」と同原則）。
 - **改善機構の空回り（メタ還流）**: 「スキル改訂が効いていない」または「委任テンプレの成績悪化」が**同一対象で 2 回連続のレトロ**にわたり発火した場合、対象本文の再改訂ではなく**機構側の改訂**（還流ルール＝global CLAUDE.md「メモリ運用」・本スキルの昇格閾値・委譲契約テンプレの書式）を提案対象にする。改訂を繰り返しても効かないのは直し方でなく直す仕組みの欠陥を示唆するため、改善手続き自体を改訂対象に含める（Hyperagents arXiv:2603.19461 の知見。固定されたメタ機構が改善の頭打ちを作る）。標本 5 件未満の版は判定しない規則はここでも維持する。
 
-> deep モード（`anytime-proposal --deep` 専門観点パネル）は**コストが高い**ため、複数の重大シグナルが同時悪化した場合か、ユーザーが明示した場合のみ使う。定期実行の既定は lightweight。
+> deep モード（`anytime-analysis --deep` 専門観点パネル）は**コストが高い**ため、複数の重大シグナルが同時悪化した場合か、ユーザーが明示した場合のみ使う。定期実行の既定は lightweight。
 
 ### 4.1 チケット起票（提案 1 件 = チケット 1 件）
 
@@ -163,7 +163,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 
 1. **事実収集（read-only）**: 事故の時系列・影響範囲を Trail の記録（`messages` / `session_commits` / git 活動記録・フォレンジックログ）と実測で裏取りする。推測で埋めず、確認できない箇所は「※要確認」と明記する。
 2. **重大度・復旧方針の決定は人（管制官）**: AI は判断材料（影響範囲・復旧選択肢）の提示まで。復旧作業そのものは本モードの範囲外（該当タスクとして別途実施）。
-3. **why-why-why 分析（3 段以上）と再発防止提案書の起草**: `anytime-proposal`（既定 lightweight）で `proposal/<YYYYMMDD>-<topic>.ja.md` へ出力し、§4.1 の要領でチケットを 1 件起票する（`title` は `再発防止: <テーマ>`、`priority` は事故の重大度に応じて `high` / `urgent`）。global CLAUDE.md「バグ修正時」のリリース後不具合ルールと同一プロセスであり、分析様式を二重定義しない。
+3. **why-why-why 分析（3 段以上）と再発防止提案書の起草**: `anytime-analysis`（既定 lightweight）で `proposal/<YYYYMMDD>-<topic>.ja.md` へ出力し、§4.1 の要領でチケットを 1 件起票する（`title` は `再発防止: <テーマ>`、`priority` は事故の重大度に応じて `high` / `urgent`）。global CLAUDE.md「バグ修正時」のリリース後不具合ルールと同一プロセスであり、分析様式を二重定義しない。
 4. **提案の採否は人**。採択された提案は `anytime-dev-cycle` 段2（要件書・設計書の改訂 → What 承認）へ引き継ぎ、必要ならロードマップ（`spec/00.requirements/trail-roadmap.ja.md`）の更新も同時に提案する。
 
 ## セットアップ監査は別スキル

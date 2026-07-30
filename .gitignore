@@ -28,7 +28,7 @@ packages/web-app/anytime-trial-*.json
 .claude/skills/anytime-dev-cycle/
 .claude/skills/anytime-impl-test-design/
 .claude/skills/anytime-note/
-.claude/skills/anytime-proposal/
+.claude/skills/anytime-analysis/
 # trail 拡張が activate 時に配置する生成物（ソースは packages/vscode-trail-extension/skills/）
 .claude/skills/anytime-dev-retro/
 .claude/skills/anytime-reverse-codegraph/

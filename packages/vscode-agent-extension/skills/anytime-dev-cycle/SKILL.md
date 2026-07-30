@@ -25,7 +25,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 | 単発委譲 | 「Codex にやらせて」「ollama に投げて」 | サイクルを回さず `references/delegation.md` を読む |
 | 単発回転 | 「サブエージェント回転で」「毎タスク compact」 | サイクルを回さず `references/agent-rotation.md` を読む |
 
-モード判定が曖昧な場合だけ 1 回確認する。単発の「提案書を書いて」「技術記事を書いて」は `anytime-proposal` / `anytime-doc-authoring`、レビューだけは `superpowers:requesting-code-review` / `anytime-cross-review`、リリースは `production-release` へ直行する。
+モード判定が曖昧な場合だけ 1 回確認する。単発の「提案書を書いて」「技術記事を書いて」は `anytime-analysis` / `anytime-doc-authoring`、レビューだけは `superpowers:requesting-code-review` / `anytime-cross-review`、リリースは `production-release` へ直行する。
 
 ### 0.5. プリフライト（事前チェック・初回必須）
 
@@ -73,7 +73,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 | 段 | 内容 | 成果物 / 委譲先 | ゲート |
 | --- | --- | --- | --- |
 | 0 | ブランチ確認 | `git branch --show-current` | master/main では作業せず develop 由来の作業ブランチ |
-| 1 | 提案書（明示指示時のみ） | `anytime-proposal` → `<docsRoot>/proposal/` | ファイル存在 + ユーザー `ok` |
+| 1 | 提案書（明示指示時のみ） | `anytime-analysis` → `<docsRoot>/proposal/` | ファイル存在 + ユーザー `ok` |
 | 2 | 要件書・機能仕様書の作成・改訂（AI） | `anytime-spec-lookup` + `anytime-markdown-output`（要件定義書・component spec・E2E シナリオ・試験設計書） | ファイル存在 + ユーザー承認（What の確定。実装前で唯一の内容承認。バグ修正 2 案の選択もここ） |
 | 3 | 実装計画の作成（AI・承認不要） | `superpowers:writing-plans` → `<docsRoot>/plan/` | ファイル存在のみ（承認ゲートなし。検証コマンドの実在確認は必須） |
 | 4 | 実装 | §3 の手段選択 + `anytime-impl-test-design` | 出口から導出した検証が通過 |
@@ -170,7 +170,7 @@ abstain 出口は `references/stopping-rules-playbook.md` 共通。abstained 返
 | 段5 で正本を目視更新しただけで drift 検知を掛けなかった | `check_alignment` / `detect_drift` を実行し、未解消 drift の是正 or 逸脱理由の記録を済ませて段6 へ |
 | 成果物を `/anytime-markdown/plan/` 等へ置いた | docs リポ `<docsRoot>/` へ作り直す |
 | enum 追加を 1 ファイルだけで済ませた | 兄弟値リテラルで横断検索しミラーを更新 |
-| 単発「提案書を書いて」を開発サイクルで処理した | `anytime-proposal` へ直行 |
+| 単発「提案書を書いて」を開発サイクルで処理した | `anytime-analysis` へ直行 |
 | 委譲失敗を同じ条件で再委任した | `stopping-rules-playbook.md` に従い再委任 / スキップ / エスカレーションを選ぶ |
 | 委譲先の「完了しました」を検証せず統合した | 委譲元が実測（テスト実行・`git diff`・対象ファイルの実在確認）で裏取りしてから統合する |
 | エラーは出ないまま同じ場所を回り続けた | playbook「無進捗」の観測（同一ファイルの再読・編集の往復・変わらない検証結果）で中断し、方針を再評価する |

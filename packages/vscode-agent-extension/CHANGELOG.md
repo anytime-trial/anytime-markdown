@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed the bundled skill `anytime-proposal` to `anytime-analysis`, redefining it from proposal generation to "analysis and analysis output": besides proposals (RFC / ADR / lightweight), it now also outputs research results as a co-occurrence graph (`.cooc.json`).
+
 ## [1.10.0] - 2026-07-30
 
 ### Added

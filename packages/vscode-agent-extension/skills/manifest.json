@@ -5,7 +5,7 @@
   "anytime-loop-start": 16,
   "anytime-loop-stop": 1,
   "anytime-dev-audit": 4,
-  "anytime-dev-cycle": 13,
+  "anytime-dev-cycle": 14,
   "anytime-impl-test-design": 1,
-  "anytime-proposal": 2
+  "anytime-analysis": 3
 }
