@@ -41,7 +41,7 @@ import {
   zoomOrbit,
   type OrbitState,
 } from './orbitState';
-import { linkColorOf, makeStreamMaterial } from './streamShader';
+import { linkColorOf, makeStreamMaterial, type LinkColorPalette } from './streamShader';
 
 /**
  * OZ 3D の three.js アダプタ。
@@ -87,6 +87,9 @@ export interface OzThemePalette {
   /** 背景平面の同心円模様の色。 */
   ringColor: Color;
   labelColor: string;
+  /** 強度が最小の線の色。背景に対する下限コントラストを決める（{@link linkColorOf}）。 */
+  linkFloor: Color;
+  /** 強度が最大の線の色。 */
   linkBase: Color;
   pillBg: string;
   pillText: string;
@@ -103,6 +106,10 @@ export function paletteOf(mode: ThemeMode): OzThemePalette {
       fade: new Color('#0A0F2E'),
       ringColor: new Color('#2A3568'),
       labelColor: 'rgba(255,255,255,0.92)',
+      // Why not ライトのように背景と別の下限色を置くか: 夜の OZ は linkBase が背景から十分
+      // 遠く、背景を起点にしても最弱リンクが 3.91:1 に届く。別の下限色を置くと最弱が 5.89:1
+      // まで持ち上がり、線の強度差が読み取りにくくなる。
+      linkFloor: new Color('#0A0F2E'),
       linkBase: new Color('#A0BEFF'),
       pillBg: '#12183F',
       pillText: 'rgba(255,255,255,0.92)',
@@ -122,7 +129,10 @@ export function paletteOf(mode: ThemeMode): OzThemePalette {
     fade: new Color('#F4F5FB'),
     ringColor: new Color('#DDE3F2'),
     labelColor: '#1B2A4A',
-    linkBase: new Color('#8A93A6'),
+    // 下限色は背景 #F4F5FB に対し 3.53:1。白へ溶かす旧方式では最大でも 2.84:1 までしか
+    // 届かず、白の OZ では弱い共起がほぼ消えていた。
+    linkFloor: new Color('#7A8296'),
+    linkBase: new Color('#4A5468'),
     pillBg: '#FFFFFF',
     pillText: '#1B2A4A',
     circles: [
@@ -137,13 +147,13 @@ export function paletteOf(mode: ThemeMode): OzThemePalette {
   };
 }
 
-function lineGeometry(links: readonly OzSceneLink[], base: Color, fade: Color): BufferGeometry {
+function lineGeometry(links: readonly OzSceneLink[], palette: LinkColorPalette): BufferGeometry {
   const positions = new Float32Array(links.length * 6);
   const colors = new Float32Array(links.length * 6);
   const color = new Color();
   links.forEach((link, i) => {
     positions.set([link.x1, link.y1, link.z1, link.x2, link.y2, link.z2], i * 6);
-    linkColorOf(color, base, fade, link);
+    linkColorOf(color, palette, link);
     colors.set([color.r, color.g, color.b, color.r, color.g, color.b], i * 6);
   });
   const geometry = new BufferGeometry();
@@ -166,7 +176,7 @@ function bezierPoint(link: OzSceneLink, t: number): [number, number, number] {
  * 曲線を折れ線へ展開し、流れシェーダ用の属性（色・線上距離・流す向き）を付ける。
  * 属性名は three が vertexColors で予約する `color` と衝突しないよう streamColor にする。
  */
-function streamGeometry(links: readonly OzSceneLink[], base: Color, fade: Color): BufferGeometry {
+function streamGeometry(links: readonly OzSceneLink[], palette: LinkColorPalette): BufferGeometry {
   const vertsPerLink = CURVE_SEGMENTS * 2;
   const positions = new Float32Array(links.length * vertsPerLink * 3);
   const colors = new Float32Array(links.length * vertsPerLink * 3);
@@ -174,7 +184,7 @@ function streamGeometry(links: readonly OzSceneLink[], base: Color, fade: Color)
   const flows = new Float32Array(links.length * vertsPerLink);
   const color = new Color();
   links.forEach((link, i) => {
-    linkColorOf(color, base, fade, link);
+    linkColorOf(color, palette, link);
     let dist = 0;
     let prev = bezierPoint(link, 0);
     for (let s = 0; s < CURVE_SEGMENTS; s += 1) {
@@ -457,12 +467,12 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
 
   function buildStreams(current: OzSceneModel): void {
     if (current.links.length > 0) {
-      const geometry = streamGeometry(current.links, palette.linkBase, palette.fade);
+      const geometry = streamGeometry(current.links, palette);
       // streamMaterial は使い回す（uniform の uTime を共有するため）。dispose はしない。
       track(new LineSegments(geometry, streamMaterial), geometry);
     }
     if (current.timeLinks.length > 0) {
-      const geometry = lineGeometry(current.timeLinks, palette.linkBase, palette.fade);
+      const geometry = lineGeometry(current.timeLinks, palette);
       const material = new LineDashedMaterial({ vertexColors: true, dashSize: 8, gapSize: 8 });
       const lines = new LineSegments(geometry, material);
       lines.computeLineDistances();

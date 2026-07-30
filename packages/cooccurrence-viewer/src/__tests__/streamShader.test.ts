@@ -46,7 +46,7 @@ function contrastRatio(a: Rgb, b: Rgb): number {
  */
 function screenColorsOf(mode: ThemeMode, width: number): { bright: Rgb; dim: Rgb; background: Rgb } {
   const palette = paletteOf(mode);
-  const link = linkColorOf(new Color(), palette.linkBase, palette.fade, { width, alpha: 1 });
+  const link = linkColorOf(new Color(), palette, { width, alpha: 1 });
   return {
     bright: toScreenRgb(link),
     dim: toScreenRgb(palette.fade.clone().lerp(link, DASH_MIN_VISIBILITY)),
@@ -94,30 +94,47 @@ describe('streamShader: 画面へ出る線の視認性', () => {
    * 色空間変換が効いていること自体は上の describe が担保する。ここが見るのは「変換が効いた
    * 前提でどう見えるか」— 強度写像（linkStrengthAlpha）とパレット側の回帰。
    *
-   * 非テキスト要素のコントラスト下限（WCAG 1.4.11）は 3:1。破線の谷は線の一部でしかないため
-   * 明部にのみ 3:1 を課し、谷は背景と識別できること（1.8:1）までを保証する。
+   * 非テキスト要素のコントラスト下限（WCAG 1.4.11）は 3:1。最弱リンクの明部がこれを満たすのは
+   * 下限色（linkFloor）を強度 lerp の起点にしているからで、背景を起点に戻すと dark 1.37:1 /
+   * light 1.26:1 まで落ちる。
    */
-  test('dark: 最弱リンクでも背景から見分けられる', () => {
-    const { bright, dim, background } = screenColorsOf('dark', 1);
+  test.each(['dark', 'light'] as const)('%s: 最弱リンクの明部が下限コントラストを満たす', (mode) => {
+    const { bright, background } = screenColorsOf(mode, 1);
     expect(contrastRatio(bright, background)).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(dim, background)).toBeGreaterThanOrEqual(1.8);
   });
 
   /**
-   * ライトは溶け込み先が白（#F4F5FB）で linkBase も中間グレーのため、最弱リンクの明部でも
-   * 1.26:1 しかない（dark は 3.91:1）。これは色空間の誤りとは別の既知の弱さで、揃えるには
-   * パレット（linkBase）の変更が要る。ここでは悪化だけを検知する。
+   * 破線の谷は uFade（＝背景色）へ 65% 溶かすため、背景が明るいライトでは谷そのものが薄くなる
+   * （dark 2.01:1 / light 1.36:1）。線の存在は明部で読めるので谷には下限コントラストを課さず、
+   * 悪化のみを検知する。谷を上げるには DASH_MIN_VISIBILITY を上げることになり、流れの明滅
+   * （データストリームの視覚言語）が浅くなる。
    */
-  test('light: 既知の薄さを下回らない', () => {
-    const { bright, background } = screenColorsOf('light', 1);
-    expect(contrastRatio(bright, background)).toBeGreaterThanOrEqual(1.2);
+  test.each([
+    ['dark', 1.8],
+    ['light', 1.3],
+  ] as const)('%s: 破線の谷は背景から識別できる', (mode, minRatio) => {
+    const { dim, background } = screenColorsOf(mode, 1);
+    expect(contrastRatio(dim, background)).toBeGreaterThanOrEqual(minRatio);
   });
 
-  test('強度が上がるほど線は背景から離れる', () => {
-    const background = screenColorsOf('dark', 1).background;
-    const ratios = [1, 3, 5].map((width) => contrastRatio(screenColorsOf('dark', width).bright, background));
+  test.each(['dark', 'light'] as const)('%s: 強度が上がるほど線は背景から離れる', (mode) => {
+    const background = screenColorsOf(mode, 1).background;
+    const ratios = [1, 3, 5].map((width) => contrastRatio(screenColorsOf(mode, width).bright, background));
     expect(ratios[1]).toBeGreaterThan(ratios[0]);
     expect(ratios[2]).toBeGreaterThan(ratios[1]);
+  });
+
+  /**
+   * 淡色化（選択の近傍外）は下限色より薄くなって良い。強度 lerp と同じ段に畳み込むと、
+   * 淡色化していない弱い共起まで背景へ寄り、下限色を起点にした意味が消える。
+   */
+  test('淡色化した線は下限色より背景へ寄る', () => {
+    const palette = paletteOf('dark');
+    const background = toScreenRgb(palette.background);
+    const full = toScreenRgb(linkColorOf(new Color(), palette, { width: 1, alpha: 1 }));
+    const dimmed = toScreenRgb(linkColorOf(new Color(), palette, { width: 1, alpha: 0.14 }));
+    expect(contrastRatio(dimmed, background)).toBeLessThan(contrastRatio(full, background));
+    expect(contrastRatio(dimmed, background)).toBeLessThan(1.3);
   });
 
   test('linkStrengthAlpha は上限 0.65 で頭打ちになる', () => {
