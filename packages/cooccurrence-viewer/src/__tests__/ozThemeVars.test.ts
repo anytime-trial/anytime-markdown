@@ -5,7 +5,7 @@ import { applyCooccurrenceThemeVars, CLUSTER_COLORS_DARK, CLUSTER_COLORS_LIGHT }
 
 describe('applyCooccurrenceThemeVars: OZ スキン', () => {
   test.each([
-    ['light', '#FFFFFF', '#1B2A4A'],
+    ['light', '#F4F5FB', '#1B2A4A'],
     ['dark', '#0A0F2E', 'rgba(255,255,255,0.92)'],
   ] as const)('oz %s は OZ 変数一式とキャンディパレットを適用する', (mode, bg, text) => {
     const el = document.createElement('div');
