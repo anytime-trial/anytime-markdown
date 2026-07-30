@@ -38,6 +38,7 @@ import {
 import { buildNotePageContent } from './notes/noteTemplate';
 import { installClaudeMdGuidance } from './skills/claudeMdGuidance';
 import { installWorkspaceSkills } from './skills/installWorkspaceSkills';
+import { registerTicketsFeature } from './tickets/registerTickets';
 import { AgentLogger } from './utils/AgentLogger';
 import {
   AgentStatusWorkerHost,
@@ -643,6 +644,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ollamaProvider?.startOllama();
     }),
   );
+
+  // チケット管理（TreeView のボタン → カンバンボードの webview）。
+  // GitHub アクセストークンは拡張ホスト内に閉じ、webview へは渡さない。
+  registerTicketsFeature(context, AgentLogger);
 
   void path.resolve;
 }

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import type { TicketProvider } from '@anytime-markdown/tickets-core';
 
-import type { Logger } from './logger';
+import type { TicketsLogger } from './ticketsRpcHandler';
 import {
   handleTicketsRpc,
   TICKETS_RPC_METHODS,
@@ -18,7 +18,7 @@ import type { TicketSource } from './repoResolver';
  * import されないため node:crypto を安全に使える
  * （vscode-graph-extension の CooccurrenceEditorProvider と同じパターン）。
  * 万一 import が webview 側へ混入していないかは、ビルド後に
- * `grep -c "node:crypto" dist/webview.js` が 0 であることで確認する。
+ * `grep -c "node:crypto" dist/tickets-webview.js` が 0 であることで確認する。
  */
 function makeNonce(): string {
   return randomBytes(16).toString('hex');
@@ -97,7 +97,7 @@ export class TicketsPanelManager {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly logger: Logger,
+    private readonly logger: TicketsLogger,
     private readonly resolveContext: () => Promise<PanelContext>,
     private readonly onSelectRepo: () => Promise<void>,
   ) {}
@@ -109,7 +109,7 @@ export class TicketsPanelManager {
       return;
     }
     const panel = vscode.window.createWebviewPanel(
-      'anytimeTickets.board',
+      'anytimeAgent.ticketsBoard',
       'Anytime Tickets',
       vscode.ViewColumn.Active,
       {
@@ -118,7 +118,7 @@ export class TicketsPanelManager {
         // React ツリーが破棄されると編集中の内容が失われるため、メモリ消費とのトレードオフを
         // 踏まえたうえで意図的に retainContextWhenHidden: true を選ぶ（判断記録）。
         retainContextWhenHidden: true,
-        // dist/webview.js 以外のローカルリソースを読み込ませない（CSP と二重の防御）。
+        // dist/tickets-webview.js 以外のローカルリソースを読み込ませない（CSP と二重の防御）。
         localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'dist')],
       },
     );
@@ -209,7 +209,7 @@ export class TicketsPanelManager {
 
   private buildHtml(webview: vscode.Webview): string {
     const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview.js'),
+      vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'tickets-webview.js'),
     );
     const nonce = makeNonce();
     return `<!DOCTYPE html>

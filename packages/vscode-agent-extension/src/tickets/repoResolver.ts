@@ -59,7 +59,7 @@ export function readTicketConfig(): {
   branch: string;
   provider: TicketSource['provider'];
 } {
-  const section = vscode.workspace.getConfiguration('anytimeTickets');
+  const section = vscode.workspace.getConfiguration('anytimeAgent.tickets.github');
   return {
     repo: section.get<string>('repo') ?? '',
     branch: section.get<string>('branch') ?? '',

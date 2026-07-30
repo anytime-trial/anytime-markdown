@@ -3,13 +3,16 @@ import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 import { resolveLocale } from '@anytime-markdown/vscode-common';
 
+import { TicketsViewProvider } from '../providers/TicketsViewProvider';
 import { getGitHubToken } from './githubAuth';
-import { createLogger, type Logger } from './logger';
 import { createProvider } from './providerFactory';
 import { readTicketConfig, resolveTicketSource, type TicketSource } from './repoResolver';
 import { TicketsPanelManager, type PanelContext } from './TicketsPanelManager';
+import type { TicketsLogger } from './ticketsRpcHandler';
 
 const run = promisify(execFile);
+
+const CONFIG_SECTION = 'anytimeAgent.tickets.github';
 
 /**
  * git を実行し stdout を返す。git 未インストール・リポジトリ外・対象ブランチ無し等は
@@ -19,7 +22,7 @@ const run = promisify(execFile);
  * execFile は引数を配列で渡すためシェルを経由しない（`cwd` がユーザー環境依存の
  * パスであってもシェルインジェクションの余地はない）。
  */
-async function git(args: string[], cwd: string, logger: Logger): Promise<string | null> {
+async function git(args: string[], cwd: string, logger: TicketsLogger): Promise<string | null> {
   try {
     const { stdout } = await run('git', args, { cwd });
     return stdout.trim();
@@ -31,10 +34,16 @@ async function git(args: string[], cwd: string, logger: Logger): Promise<string 
   }
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  const logger = createLogger();
-  context.subscriptions.push({ dispose: () => logger.dispose() });
-
+/**
+ * チケット機能（TreeView + カンバンボードの webview + コマンド）を agent 拡張へ登録する。
+ *
+ * Why not: agent 拡張の `extension.ts` へ直接展開しない。既に 600 行超あり、
+ * チケット機能は独立して有効・無効を判断できる単位のため、登録処理ごと分離しておく。
+ */
+export function registerTicketsFeature(
+  context: vscode.ExtensionContext,
+  logger: TicketsLogger,
+): void {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
   const resolveSource = async (): Promise<TicketSource | null> => {
@@ -53,25 +62,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // resolveContext は RPC のたびに呼ばれる設計のため、素朴に毎回子プロセスを起動すると
   // 無駄が大きい。値でなく Promise 自体をキャッシュすることで、解決結果が undefined
   // だった場合（git 未設定・workspaceRoot 無し）も「解決済み」として扱え、かつ同時多発
-  // 呼び出しでの多重起動も防げる。activate() のライフタイム内では無効化しない
-  // （途中で `git config user.name` を変更する運用は想定しない）。
+  // 呼び出しでの多重起動も防げる。
   let currentUserPromise: Promise<string | undefined> | undefined;
   const resolveCurrentUser = (): Promise<string | undefined> => {
     if (!workspaceRoot) {
       return Promise.resolve(undefined);
     }
-    if (!currentUserPromise) {
-      currentUserPromise = git(['config', 'user.name'], workspaceRoot, logger).then((name) => name ?? undefined);
-    }
+    currentUserPromise ??= git(['config', 'user.name'], workspaceRoot, logger).then(
+      (name) => name ?? undefined,
+    );
     return currentUserPromise;
   };
 
   const resolveContext = async (interactive = false): Promise<PanelContext> => {
-    // resolveLocale(override, envLanguage)。本拡張はロケール上書き設定を持たないため override は undefined。
+    // resolveLocale(override, envLanguage)。ロケール上書き設定は持たないため override は undefined。
     const locale = resolveLocale(undefined, vscode.env.language);
     const source = await resolveSource();
     if (!source) {
-      logger.warn('リポジトリを解決できませんでした。anytimeTickets.repo を設定してください。');
+      logger.warn(
+        `チケットのリポジトリを解決できませんでした。${CONFIG_SECTION}.repo を設定してください。`,
+      );
       return { source: null, provider: null, locale };
     }
     // SHORTCUT: getGitHubToken を resolveContext 呼び出しのたび（RPC ごと）に呼んでいる.
@@ -92,17 +102,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // selectRepo は manager.reload() を呼ぶが、manager のコンストラクタは selectRepo を
   // onSelectRepo として要求する（webview からの 'selectRepo' 受信時に呼ぶため）ため、
   // 両者は本質的に相互参照になる。TDZ の暗黙のホイスティングに依存する代わりに、
-  // 「後から代入されるスロット」であることをコード上で明示する。activate() は同期的に
-  // 最後まで実行されるため、webview / コマンドからの実際の呼び出し時点では必ず代入済みになる。
+  // 「後から代入されるスロット」であることをコード上で明示する。本関数は同期的に
+  // 最後まで実行されるため、実際の呼び出し時点では必ず代入済みになる。
   let selectRepoAction: (() => Promise<void>) | undefined;
-  const manager = new TicketsPanelManager(
-    context,
-    logger,
-    () => resolveContext(false),
-    async () => {
-      await selectRepoAction?.();
-    },
-  );
+  const manager = new TicketsPanelManager(context, logger, () => resolveContext(false), async () => {
+    await selectRepoAction?.();
+  });
   context.subscriptions.push({ dispose: () => manager.dispose() });
 
   const selectRepo = async (): Promise<void> => {
@@ -118,22 +123,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       value: readTicketConfig().branch,
     });
     if (branch === undefined) return;
-    const section = vscode.workspace.getConfiguration('anytimeTickets');
+    const section = vscode.workspace.getConfiguration(CONFIG_SECTION);
     await section.update('repo', repo, vscode.ConfigurationTarget.Workspace);
     await section.update('branch', branch, vscode.ConfigurationTarget.Workspace);
     await manager.reload();
   };
   selectRepoAction = selectRepo;
 
+  const viewProvider = new TicketsViewProvider();
   context.subscriptions.push(
-    vscode.commands.registerCommand('anytime-tickets.open', async () => {
+    vscode.window.createTreeView('anytimeAgent.tickets', { treeDataProvider: viewProvider }),
+    vscode.commands.registerCommand('anytime-agent.tickets.open', async () => {
       await manager.open();
     }),
-    vscode.commands.registerCommand('anytime-tickets.reload', async () => {
+    vscode.commands.registerCommand('anytime-agent.tickets.reload', async () => {
       await manager.reload();
     }),
-    vscode.commands.registerCommand('anytime-tickets.selectRepo', selectRepo),
-    vscode.commands.registerCommand('anytime-tickets.signIn', async () => {
+    vscode.commands.registerCommand('anytime-agent.tickets.selectRepo', selectRepo),
+    vscode.commands.registerCommand('anytime-agent.tickets.signIn', async () => {
       const ctx = await resolveContext(true);
       if (ctx.provider) {
         logger.info('GitHub 認証に成功しました。');
@@ -143,10 +150,4 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
   );
-
-  logger.info('anytime-tickets を有効化しました。');
-}
-
-export function deactivate(): void {
-  // 後始末は context.subscriptions が担う
 }

@@ -38,5 +38,13 @@
   "config.workSnapshotRetentionDays.description": "スナップショットの ref を保持する日数。これを過ぎた ref は削除する。",
   "command.showWorkSnapshots": "作業スナップショットを表示",
   "configuration.tickets.directory.markdownDescription": "anytime-loop-start スキルが使うチケットリポジトリの場所（ローカルクローンのルート、または .tickets/ ディレクトリ。絶対パスまたはワークスペース相対）。未設定時はワークスペース直下の .tickets/ → 環境変数 ANYTIME_TICKETS_DIR の順で解決します。",
-  "configuration.tickets.workspace.markdownDescription": "anytime-loop-start スキルが自動実行の対象を絞り込むためのワークスペース識別子。チケットの `workspace` がこの値と一致するものだけを実行対象にします。未設定時はワークスペースルートのディレクトリ名で判定するため、通常は設定不要です。worktree 配下や別名クローンなどディレクトリ名が一致しない環境で明示してください。"
+  "configuration.tickets.workspace.markdownDescription": "anytime-loop-start スキルが自動実行の対象を絞り込むためのワークスペース識別子。チケットの `workspace` がこの値と一致するものだけを実行対象にします。未設定時はワークスペースルートのディレクトリ名で判定するため、通常は設定不要です。worktree 配下や別名クローンなどディレクトリ名が一致しない環境で明示してください。",
+  "view.tickets": "チケット",
+  "command.tickets.open": "チケットボードを開く",
+  "command.tickets.reload": "チケットを再読込",
+  "command.tickets.selectRepo": "チケットのリポジトリとブランチを選択",
+  "command.tickets.signIn": "GitHub にサインイン（チケット）",
+  "config.tickets.github.repo": "チケットボードの対象 GitHub リポジトリ（`owner/repo` 形式）。空ならワークスペースの `origin` リモートから推定する。anytime-loop-start スキルが使うローカルクローンを指す `anytimeAgent.tickets.directory` とは別の設定である。",
+  "config.tickets.github.branch": "チケットボードの対象ブランチ。空ならワークスペースの現在ブランチから推定する。",
+  "config.tickets.github.provider": "チケットボードの正本ストアのプロバイダ。`github-contents` は Contents API 経由の `.tickets/*.md`、`github-issues` は GitHub Issues。"
 }

@@ -15,7 +15,18 @@ import {
   type TicketWorkspace,
 } from '@anytime-markdown/tickets-core';
 
-import type { Logger } from './logger';
+/**
+ * チケット機能が必要とするログ出力の最小契約。
+ *
+ * Why not: agent 拡張の `AgentLogger`（`utils/AgentLogger`）を直接型として参照すると、
+ * `dispose` などチケット側が使わないメンバーまで結合してしまう。構造的部分型で満たせる
+ * 最小形にしておき、`AgentLogger` をそのまま渡せる状態を保つ。
+ */
+export interface TicketsLogger {
+  info(message: string): void;
+  warn(message: string): void;
+  error(message: string, error?: unknown): void;
+}
 
 export const TICKETS_RPC_METHODS = ['list', 'save', 'create', 'remove', 'archive'] as const;
 export type TicketsRpcMethod = (typeof TICKETS_RPC_METHODS)[number];
@@ -474,7 +485,7 @@ function toRpcError(error: unknown): TicketsRpcError {
  */
 export async function handleTicketsRpc(input: {
   provider: TicketProvider;
-  logger: Logger;
+  logger: TicketsLogger;
   request: TicketsRpcRequest;
 }): Promise<TicketsRpcResponse> {
   const { provider, logger, request } = input;

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { TicketsPanel, injectTicketsStyles } from '@anytime-markdown/tickets-viewer';
-import { setLocale } from './shims/next-intl';
+import { setLocale } from '../shims/next-intl';
 
 import { createRpcTicketsGateway, isRecord, type RpcTransport } from './rpcGateway';
 import { isInitMessage, type InitMessage } from './initMessage';
@@ -93,7 +93,7 @@ const App: React.FC = () => {
     return null;
   }
 
-  // gateway は source が無いとき（`anytimeTickets.repo` 未設定など、リポジトリ自体を
+  // gateway は source が無いとき（`anytimeAgent.tickets.github.repo` 未設定など、リポジトリ自体を
   // 解決できない場合）のみ null にする。GitHub 未認証（source はあるが provider が
   // 無い）場合は Task 12 の TicketsPanelManager.postInit が source を非 null のまま
   // 送るため gateway は生成され、RPC 呼び出しは 401 の rpcResult エラーとして返る。

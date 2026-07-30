@@ -1,4 +1,4 @@
-import { setLocale, useLocale, useTranslations } from '../webview/shims/next-intl';
+import { setLocale, useLocale, useTranslations } from '../../webview/shims/next-intl';
 
 /**
  * 既知の罠（memory: vanilla-ui-conventions 系事例と同種）: フォールバックが効くため

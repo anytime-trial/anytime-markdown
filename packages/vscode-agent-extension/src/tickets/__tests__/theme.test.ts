@@ -1,4 +1,4 @@
-import { resolveThemeFromBodyClasses } from '../webview/theme';
+import { resolveThemeFromBodyClasses } from '../../webview/tickets/theme';
 
 describe('resolveThemeFromBodyClasses', () => {
   it('vscode-dark を dark と判定する', () => {

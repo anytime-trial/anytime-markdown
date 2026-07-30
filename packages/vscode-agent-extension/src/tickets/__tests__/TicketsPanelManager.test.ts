@@ -8,7 +8,7 @@ import {
   type PanelContext,
 } from '../TicketsPanelManager';
 import type { TicketSource } from '../repoResolver';
-import { isInitMessage } from '../webview/initMessage';
+import { isInitMessage } from '../../webview/tickets/initMessage';
 
 const source: TicketSource = { repo: 'owner/repo', branch: 'main', provider: 'github-contents' };
 const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), dispose: jest.fn() };

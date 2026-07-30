@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // jest は CommonJS で実行する。tsconfig.json 側は Node16 なので、
+    // module を落とす場合は moduleResolution も対で下げる必要がある。
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    // tickets のテストは webview 側の純粋関数（theme / initMessage / rpcGateway）を
+    // 参照し、その import グラフが tickets-viewer の React コンポーネントまで届く。
+    // DOM と jsx が無いと TicketsPanel.tsx の型検査で落ちる。
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node", "jest"],
+    "paths": {
+      "@anytime-markdown/tickets-core": ["../tickets-core/src/index.ts"],
+      "@anytime-markdown/tickets-viewer": ["../tickets-viewer/src/index.ts"],
+      "@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"],
+      // next-intl は ESM 専用。webpack の alias / jest の moduleNameMapper と同じ shim を指す。
+      "next-intl": ["./src/webview/shims/next-intl.ts"],
+      "next-intl/server": ["./src/webview/shims/next-intl.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": []
+}
