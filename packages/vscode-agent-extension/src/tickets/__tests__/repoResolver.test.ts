@@ -1,4 +1,9 @@
-import { parseGitHubRemote, resolveTicketsRepoRoot, resolveTicketSource } from '../repoResolver';
+import {
+  parseGitHubRemote,
+  pickProviderKind,
+  resolveTicketsRepoRoot,
+  resolveTicketSource,
+} from '../repoResolver';
 
 describe('parseGitHubRemote', () => {
   it.each([
@@ -50,13 +55,13 @@ describe('resolveTicketSource', () => {
 
   it('設定が空なら git 実測から解決する', () => {
     expect(
-      resolveTicketSource({ repo: '', branch: '', provider: 'github-contents' }, gitFacts),
+      resolveTicketSource({ repo: '', branch: '', provider: 'github-contents' }, gitFacts, '/repo'),
     ).toEqual({ repo: 'anytime-trial/anytime-markdown', branch: 'develop', provider: 'github-contents' });
   });
 
   it('設定が git 実測より優先される', () => {
     expect(
-      resolveTicketSource({ repo: 'o/r', branch: 'main', provider: 'github-contents' }, gitFacts),
+      resolveTicketSource({ repo: 'o/r', branch: 'main', provider: 'github-contents' }, gitFacts, '/repo'),
     ).toEqual({ repo: 'o/r', branch: 'main', provider: 'github-contents' });
   });
 
@@ -65,6 +70,7 @@ describe('resolveTicketSource', () => {
       resolveTicketSource(
         { repo: '', branch: '', provider: 'github-contents' },
         { remoteUrl: 'https://gitlab.com/o/r.git', branch: 'main' },
+        '/repo',
       ),
     ).toBeNull();
   });
@@ -74,8 +80,31 @@ describe('resolveTicketSource', () => {
       resolveTicketSource(
         { repo: '', branch: '', provider: 'github-contents' },
         { remoteUrl: gitFacts.remoteUrl, branch: null },
+        '/repo',
       ),
     ).toBeNull();
+  });
+
+  it('local-git はローカルクローンのルートだけで解決し、remote / branch を要求しない', () => {
+    expect(
+      resolveTicketSource(
+        { repo: '', branch: '', provider: 'local-git' },
+        { remoteUrl: null, branch: null },
+        '/home/user/anytime-ticket',
+      ),
+    ).toEqual({ provider: 'local-git', repoRoot: '/home/user/anytime-ticket' });
+  });
+
+  it('local-git はクローンのルートを解決できなければ null', () => {
+    expect(
+      resolveTicketSource({ repo: '', branch: '', provider: 'local-git' }, gitFacts, null),
+    ).toBeNull();
+  });
+
+  it('local-git は GitHub 用の repo 設定に引きずられない（設定が残っていても無視する）', () => {
+    expect(
+      resolveTicketSource({ repo: 'o/r', branch: 'main', provider: 'local-git' }, gitFacts, '/local'),
+    ).toEqual({ provider: 'local-git', repoRoot: '/local' });
   });
 
   it('github-issues は branch 不要なので解決できる', () => {
@@ -83,8 +112,32 @@ describe('resolveTicketSource', () => {
       resolveTicketSource(
         { repo: '', branch: '', provider: 'github-issues' },
         { remoteUrl: gitFacts.remoteUrl, branch: '' },
+        '/repo',
       ),
     ).toEqual({ repo: 'anytime-trial/anytime-markdown', branch: '', provider: 'github-issues' });
+  });
+});
+
+describe('pickProviderKind', () => {
+  it('どちらも未設定なら既定は local-git（GitHub 認証を要求しない）', () => {
+    expect(pickProviderKind({ provider: undefined, legacyProvider: undefined })).toEqual({
+      kind: 'local-git',
+      usedLegacy: false,
+    });
+  });
+
+  it('新キーが設定されていればそれを使う', () => {
+    expect(pickProviderKind({ provider: 'github-issues', legacyProvider: 'github-contents' })).toEqual({
+      kind: 'github-issues',
+      usedLegacy: false,
+    });
+  });
+
+  it('新キーが未設定なら旧キーの値を尊重する（既存利用者の設定を黙って無効化しない）', () => {
+    expect(pickProviderKind({ provider: undefined, legacyProvider: 'github-contents' })).toEqual({
+      kind: 'github-contents',
+      usedLegacy: true,
+    });
   });
 });
 

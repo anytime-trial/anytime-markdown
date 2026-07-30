@@ -26,11 +26,29 @@ export function parseGitHubRemote(url: string): string | null {
   return null;
 }
 
-export interface TicketSource {
+/** ローカルクローンの `.tickets/` を直接読み書きする対象。GitHub 認証を必要としない。 */
+export interface LocalGitTicketSource {
+  provider: 'local-git';
+  /** チケットリポジトリのローカルクローンのルート */
+  repoRoot: string;
+}
+
+/** GitHub API 経由で読み書きする対象。アクセストークンを必要とする。 */
+export interface GitHubTicketSource {
+  provider: 'github-contents' | 'github-issues';
   repo: string;
   branch: string;
-  provider: TicketProviderKind;
 }
+
+/**
+ * チケットの取得先。
+ *
+ * provider による判別共用体にしているのは、必要な情報が排他的なため
+ * （local-git はローカルパスだけ、GitHub は repo/branch だけを持つ）。
+ * 片方の形に寄せて未使用フィールドを空文字で埋めると、認証が要る経路と
+ * 要らない経路の区別が型から消える。
+ */
+export type TicketSource = LocalGitTicketSource | GitHubTicketSource;
 
 export interface GitFacts {
   remoteUrl: string | null;
@@ -39,11 +57,18 @@ export interface GitFacts {
 
 /**
  * 設定 → git 実測の順で対象を解決する。解決できなければ null（呼び出し側が設定を促す）。
+ *
+ * local-git はローカルクローンのルートだけを見る（remote 名やブランチ名に依存しない。
+ * remote 未設定のクローンでもボードは開ける）。
  */
 export function resolveTicketSource(
-  config: { repo: string; branch: string; provider: TicketSource['provider'] },
+  config: { repo: string; branch: string; provider: TicketProviderKind },
   git: GitFacts,
+  repoRoot: string | null,
 ): TicketSource | null {
+  if (config.provider === 'local-git') {
+    return repoRoot === null ? null : { provider: 'local-git', repoRoot };
+  }
   const repo = config.repo.trim() || (git.remoteUrl ? parseGitHubRemote(git.remoteUrl) : null);
   if (!repo) {
     return null;
@@ -55,16 +80,59 @@ export function resolveTicketSource(
   return { repo, branch, provider: config.provider };
 }
 
+/** 既定のプロバイダ。GitHub 認証を必要とせず、ローカルクローンだけで完結する。 */
+export const DEFAULT_TICKET_PROVIDER: TicketProviderKind = 'local-git';
+
+/**
+ * 新旧 2 つのプロバイダ設定キーから実際に使う種別を決める。
+ *
+ * `anytimeAgent.tickets.github.provider` は local-git を含まない名前になったため
+ * `anytimeAgent.tickets.provider` へ移した。旧キーを明示的に設定していた利用者の
+ * 設定を黙って無効化しないよう、新キーが未設定のときに限り旧キーを採用する。
+ * どちらも未設定なら既定（local-git）。
+ */
+export function pickProviderKind(explicit: {
+  provider: TicketProviderKind | undefined;
+  legacyProvider: TicketProviderKind | undefined;
+}): { kind: TicketProviderKind; usedLegacy: boolean } {
+  if (explicit.provider !== undefined) {
+    return { kind: explicit.provider, usedLegacy: false };
+  }
+  if (explicit.legacyProvider !== undefined) {
+    return { kind: explicit.legacyProvider, usedLegacy: true };
+  }
+  return { kind: DEFAULT_TICKET_PROVIDER, usedLegacy: false };
+}
+
+/**
+ * 設定が「明示的に指定されている」場合だけ値を返す。
+ * `get()` は package.json の既定値を返すため、未設定と既定値どおりの指定を区別できない。
+ */
+function readExplicit<T>(section: vscode.WorkspaceConfiguration, key: string): T | undefined {
+  const inspected = section.inspect<T>(key);
+  return (
+    inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue ?? undefined
+  );
+}
+
 export function readTicketConfig(): {
   repo: string;
   branch: string;
-  provider: TicketSource['provider'];
+  provider: TicketProviderKind;
+  /** 旧キー（`...github.provider`）由来の値を使ったか。呼び出し側が移行を促すために使う */
+  usedLegacyProviderKey: boolean;
 } {
-  const section = vscode.workspace.getConfiguration('anytimeAgent.tickets.github');
+  const tickets = vscode.workspace.getConfiguration('anytimeAgent.tickets');
+  const github = vscode.workspace.getConfiguration('anytimeAgent.tickets.github');
+  const picked = pickProviderKind({
+    provider: readExplicit<TicketProviderKind>(tickets, 'provider'),
+    legacyProvider: readExplicit<TicketProviderKind>(github, 'provider'),
+  });
   return {
-    repo: section.get<string>('repo') ?? '',
-    branch: section.get<string>('branch') ?? '',
-    provider: section.get<TicketSource['provider']>('provider') ?? 'github-contents',
+    repo: github.get<string>('repo') ?? '',
+    branch: github.get<string>('branch') ?? '',
+    provider: picked.kind,
+    usedLegacyProviderKey: picked.usedLegacy,
   };
 }
 

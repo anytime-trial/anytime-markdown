@@ -439,6 +439,16 @@
           "default": "",
           "markdownDescription": "%config.tickets.github.branch%"
         },
+        "anytimeAgent.tickets.provider": {
+          "type": "string",
+          "enum": [
+            "local-git",
+            "github-contents",
+            "github-issues"
+          ],
+          "default": "local-git",
+          "markdownDescription": "%config.tickets.provider%"
+        },
         "anytimeAgent.tickets.github.provider": {
           "type": "string",
           "enum": [
@@ -446,7 +456,8 @@
             "github-issues"
           ],
           "default": "github-contents",
-          "markdownDescription": "%config.tickets.github.provider%"
+          "markdownDescription": "%config.tickets.github.provider%",
+          "markdownDeprecationMessage": "%config.tickets.github.provider.deprecated%"
         }
       }
     }

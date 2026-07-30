@@ -45,5 +45,7 @@
   "command.tickets.signIn": "GitHub にサインイン（チケット）",
   "config.tickets.github.repo": "チケットボードの対象 GitHub リポジトリ（`owner/repo` 形式）。空ならワークスペースの `origin` リモートから推定する。anytime-loop-start スキルが使うローカルクローンを指す `anytimeAgent.tickets.directory` とは別の設定である。",
   "config.tickets.github.branch": "チケットボードの対象ブランチ。空ならワークスペースの現在ブランチから推定する。",
-  "config.tickets.github.provider": "チケットボードの正本ストアのプロバイダ。`github-contents` は Contents API 経由の `.tickets/*.md`、`github-issues` は GitHub Issues。"
+  "config.tickets.provider": "チケットの読み書き先。`local-git` はローカルクローンを直接扱い（書き込み・commit・push）、GitHub サインインを必要としません。`github-contents` / `github-issues` は GitHub API 経由のためサインインが必要です。",
+  "config.tickets.github.provider": "チケットボードの正本ストアのプロバイダ。`github-contents` は Contents API 経由の `.tickets/*.md`、`github-issues` は GitHub Issues。",
+  "config.tickets.github.provider.deprecated": "`anytimeAgent.tickets.provider` を使用してください。新しいキーが未設定の間は、このキーの値を引き続き使用します。"
 }

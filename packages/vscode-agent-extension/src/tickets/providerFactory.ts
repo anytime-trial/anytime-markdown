@@ -1,10 +1,11 @@
 import {
   createTicketProvider,
   providerDefaultHosts,
+  type LocalGitIo,
   type TicketProvider,
 } from '@anytime-markdown/tickets-core';
 
-import type { TicketSource } from './repoResolver';
+import type { GitHubTicketSource, LocalGitTicketSource } from './repoResolver';
 
 export interface RetryingFetchOptions {
   allowedHosts: string[];
@@ -175,7 +176,14 @@ export function createRetryingFetch(options: RetryingFetchOptions): typeof fetch
   return retryingFetch;
 }
 
-export function createProvider(source: TicketSource, token: string): TicketProvider {
+/**
+ * GitHub API 経由のプロバイダを作る。
+ *
+ * Why not: local-git と 1 つの関数にまとめない。まとめると「トークンが要る経路」と
+ * 「要らない経路」を 1 つのシグネチャで表すことになり、token を nullable にするか
+ * 戻り値を nullable にするかのどちらかで、呼び出し側から必須性が読み取れなくなる。
+ */
+export function createGitHubProvider(source: GitHubTicketSource, token: string): TicketProvider {
   const fetchFn = createRetryingFetch({ allowedHosts: providerDefaultHosts(source.provider) });
   if (source.provider === 'github-contents') {
     return createTicketProvider({
@@ -192,4 +200,14 @@ export function createProvider(source: TicketSource, token: string): TicketProvi
     repo: source.repo,
     fetchFn,
   });
+}
+
+/**
+ * ローカルクローンを直接読み書きするプロバイダを作る。
+ *
+ * 外部ホストへ出ないため許可ホストリスト（SSRF ガード）も認証トークンも要らない。
+ * 認証はクローンが既に持っている git の資格情報（SSH 鍵等）に委ねる。
+ */
+export function createLocalGitProvider(source: LocalGitTicketSource, io: LocalGitIo): TicketProvider {
+  return createTicketProvider({ provider: 'local-git', repoRoot: source.repoRoot, io });
 }

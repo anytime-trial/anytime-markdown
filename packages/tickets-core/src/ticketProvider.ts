@@ -2,6 +2,7 @@ import type { FrontmatterValue, TicketFrontmatter } from './ticketModel';
 import type { CreateTicketInput } from './ticketRepository';
 import { GitHubContentsProvider } from './githubContentsProvider';
 import { GitHubIssuesProvider } from './githubIssuesProvider';
+import { LocalGitProvider, type LocalGitProviderConfig } from './localGitProvider';
 
 /**
  * チケット正本ストアのプロバイダ抽象（要件 UR-10 / NFR-7）。
@@ -59,7 +60,7 @@ export interface TicketProvider {
   archive(input: ArchiveTicketRecordInput): Promise<{ newPath: string }>;
 }
 
-export const TICKET_PROVIDER_KINDS = ['github-contents', 'github-issues'] as const;
+export const TICKET_PROVIDER_KINDS = ['github-contents', 'github-issues', 'local-git'] as const;
 export type TicketProviderKind = (typeof TICKET_PROVIDER_KINDS)[number];
 
 export function isTicketProviderKind(value: unknown): value is TicketProviderKind {
@@ -85,7 +86,10 @@ export interface GitHubIssuesProviderConfig {
   apiBaseUrl?: string;
 }
 
-export type TicketProviderConfig = GitHubContentsProviderConfig | GitHubIssuesProviderConfig;
+export type TicketProviderConfig =
+  | GitHubContentsProviderConfig
+  | GitHubIssuesProviderConfig
+  | LocalGitProviderConfig;
 
 const DEFAULT_PROVIDER_API_BASE = 'https://api.github.com';
 
@@ -95,7 +99,12 @@ const DEFAULT_PROVIDER_API_BASE = 'https://api.github.com';
  * 現状は全種別が GitHub API 既定ホストのみ。`apiBaseUrl` をユーザー設定可能にする変更（GHE 対応等）は、
  * config 由来ホストの供給経路を本関数へ追加しない限り行わないこと（許可リストが追随せず全滅 or 素通りする）。
  */
-export function providerDefaultHosts(_kind: TicketProviderKind): string[] {
+export function providerDefaultHosts(kind: TicketProviderKind): string[] {
+  // local-git は外部 API を叩かない（ローカルクローンの git のみ）。
+  // 空を返すことで、許可リストを合成する側が「到達先なし」を扱える。
+  if (kind === 'local-git') {
+    return [];
+  }
   return [new URL(DEFAULT_PROVIDER_API_BASE).host];
 }
 
@@ -105,6 +114,8 @@ export function createTicketProvider(config: TicketProviderConfig): TicketProvid
       return new GitHubContentsProvider(config);
     case 'github-issues':
       return new GitHubIssuesProvider(config);
+    case 'local-git':
+      return new LocalGitProvider(config);
     default: {
       const exhaustive: never = config;
       throw new Error(`未知のチケットプロバイダです: ${JSON.stringify(exhaustive)}`);

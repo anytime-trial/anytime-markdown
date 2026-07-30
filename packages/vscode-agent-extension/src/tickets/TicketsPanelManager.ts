@@ -55,8 +55,14 @@ export function isTicketsRpcRequest(value: unknown): value is TicketsRpcRequest 
   );
 }
 
-/** TicketSource を webview 表示用のラベルへ変換する純粋関数。branch が空文字列なら省略する。 */
+/**
+ * TicketSource を webview 表示用のラベルへ変換する純粋関数。
+ * branch が空文字列なら省略する。local-git はローカルパスをそのまま示す。
+ */
 export function describeTicketSource(source: TicketSource): string {
+  if (source.provider === 'local-git') {
+    return source.repoRoot;
+  }
   return source.branch ? `${source.repo} / ${source.branch}` : source.repo;
 }
 

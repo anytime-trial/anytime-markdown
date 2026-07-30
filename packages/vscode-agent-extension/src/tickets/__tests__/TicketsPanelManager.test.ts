@@ -23,6 +23,12 @@ describe('describeTicketSource', () => {
   it('branch が空文字列なら repo のみを返す(github-issues は branch を持たない)', () => {
     expect(describeTicketSource({ repo: 'owner/repo', branch: '', provider: 'github-issues' })).toBe('owner/repo');
   });
+
+  it('local-git はローカルクローンのパスをそのまま示す', () => {
+    expect(describeTicketSource({ provider: 'local-git', repoRoot: '/home/user/anytime-ticket' })).toBe(
+      '/home/user/anytime-ticket',
+    );
+  });
 });
 
 describe('isTicketsRpcRequest', () => {

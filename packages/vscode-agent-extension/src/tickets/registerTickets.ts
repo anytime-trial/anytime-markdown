@@ -7,7 +7,8 @@ import { resolveLocale } from '@anytime-markdown/vscode-common';
 
 import { TicketsViewProvider } from '../providers/TicketsViewProvider';
 import { getGitHubToken } from './githubAuth';
-import { createProvider } from './providerFactory';
+import { createLocalGitIo } from './localGitIo';
+import { createGitHubProvider, createLocalGitProvider } from './providerFactory';
 import {
   readTicketConfig,
   readTicketsDirectorySetting,
@@ -70,15 +71,25 @@ export function registerTicketsFeature(
 
   const resolveSource = async (): Promise<TicketSource | null> => {
     const config = readTicketConfig();
+    if (config.usedLegacyProviderKey) {
+      logger.warn(
+        '`anytimeAgent.tickets.github.provider` は非推奨です。' +
+          '`anytimeAgent.tickets.provider` へ移してください（当面は旧キーの値を使用します）。',
+      );
+    }
     const repoRoot = resolveRepoRoot();
     if (!repoRoot) {
-      return resolveTicketSource(config, { remoteUrl: null, branch: null });
+      return resolveTicketSource(config, { remoteUrl: null, branch: null }, null);
+    }
+    // local-git は remote / ブランチを見ないので、子プロセス起動ごと省く。
+    if (config.provider === 'local-git') {
+      return resolveTicketSource(config, { remoteUrl: null, branch: null }, repoRoot);
     }
     const [remoteUrl, branch] = await Promise.all([
       git(['remote', 'get-url', 'origin'], repoRoot, logger),
       git(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot, logger),
     ]);
-    return resolveTicketSource(config, { remoteUrl, branch });
+    return resolveTicketSource(config, { remoteUrl, branch }, repoRoot);
   };
 
   // 未認証の通知を 1 回の未認証状態につき 1 度だけ出すためのフラグ。
@@ -116,6 +127,16 @@ export function registerTicketsFeature(
       );
       return { source: null, provider: null, locale };
     }
+    // local-git はクローンが既に持つ git の資格情報で完結するため、GitHub 認証を通らない。
+    if (source.provider === 'local-git') {
+      const currentUser = await resolveCurrentUser();
+      return {
+        source,
+        provider: createLocalGitProvider(source, createLocalGitIo(source.repoRoot)),
+        currentUser,
+        locale,
+      };
+    }
     // SHORTCUT: getGitHubToken を resolveContext 呼び出しのたび（RPC ごと）に呼んでいる.
     // ceiling: VS Code の authentication API はセッションをプロセス内で保持しており、
     // silent 呼び出しは通常ネットワーク往復を伴わない前提（拡張側で応答時間の実測はしていない）.
@@ -129,7 +150,7 @@ export function registerTicketsFeature(
     }
     signInPrompted = false;
     const currentUser = await resolveCurrentUser();
-    return { source, provider: createProvider(source, token), currentUser, locale };
+    return { source, provider: createGitHubProvider(source, token), currentUser, locale };
   };
 
   // promptSignInIfNeeded は manager.reload() を呼ぶ signIn を経由するため、
@@ -143,6 +164,14 @@ export function registerTicketsFeature(
 
   const signIn = async (): Promise<void> => {
     const ctx = await resolveContext(true);
+    if (ctx.source?.provider === 'local-git') {
+      // local-git はクローンの git 資格情報で完結する。ここで「認証に成功」と伝えると、
+      // GitHub のセッションが張られたと誤解させる。
+      void vscode.window.showInformationMessage(
+        'ローカルの git リポジトリを直接使う設定のため、GitHub へのサインインは不要です。',
+      );
+      return;
+    }
     if (ctx.provider) {
       logger.info('GitHub 認証に成功しました。');
       await manager.reload();

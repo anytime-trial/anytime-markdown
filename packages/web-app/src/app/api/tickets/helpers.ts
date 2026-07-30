@@ -29,6 +29,15 @@ export async function resolveTicketProvider(
   if (!isTicketProviderKind(kind)) {
     return NextResponse.json({ error: `Invalid provider: ${kind}` }, { status: 400 });
   }
+  // local-git はローカルクローンのファイルシステムを直接読み書きする方式のため、
+  // HTTP API の背後（サーバーに当該クローンが存在しない）では成立しない。
+  // enum には含まれるので、ここで明示的に 400 として弾く。
+  if (kind === "local-git") {
+    return NextResponse.json(
+      { error: "Provider 'local-git' is only available in the VS Code extension" },
+      { status: 400 },
+    );
+  }
   if (!repo || !validateGitHubRepo(repo)) {
     return NextResponse.json({ error: "Invalid or missing repo" }, { status: 400 });
   }

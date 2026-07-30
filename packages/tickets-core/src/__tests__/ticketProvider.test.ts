@@ -66,15 +66,27 @@ describe('createTicketProvider / providerAllowedHosts', () => {
     expect(provider.kind).toBe('github-issues');
   });
 
-  it('providerDefaultHosts は全種別で既定ホストを返す（SSRF 許可リストの静的合成用）', () => {
+  it('providerDefaultHosts は外部 API を叩く種別に既定ホストを返す（SSRF 許可リストの静的合成用）', () => {
+    expect(providerDefaultHosts('github-contents')).toEqual(['api.github.com']);
+    expect(providerDefaultHosts('github-issues')).toEqual(['api.github.com']);
+  });
+
+  it('local-git は外部へ出ないため許可ホストを持たない', () => {
+    // 空配列は fail-close 側に倒れる（許可リストが空の fetch は全て拒否される）。
+    // 新しい種別を追加してホストを書き忘れた場合も、素通りではなく拒否になる。
+    expect(providerDefaultHosts('local-git')).toEqual([]);
+  });
+
+  it('providerDefaultHosts は全種別を網羅する（未知の種別で undefined を返さない）', () => {
     for (const kind of TICKET_PROVIDER_KINDS) {
-      expect(providerDefaultHosts(kind)).toEqual(['api.github.com']);
+      expect(Array.isArray(providerDefaultHosts(kind))).toBe(true);
     }
   });
 
   it('isTicketProviderKind は enum 値のみ許可する', () => {
     expect(isTicketProviderKind('github-contents')).toBe(true);
     expect(isTicketProviderKind('github-issues')).toBe(true);
+    expect(isTicketProviderKind('local-git')).toBe(true);
     expect(isTicketProviderKind('backlog')).toBe(false);
     expect(isTicketProviderKind(undefined)).toBe(false);
   });
