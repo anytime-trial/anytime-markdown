@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { TicketProviderKind } from '@anytime-markdown/tickets-core';
 
@@ -65,4 +66,63 @@ export function readTicketConfig(): {
     branch: section.get<string>('branch') ?? '',
     provider: section.get<TicketSource['provider']>('provider') ?? 'github-contents',
   };
+}
+
+export interface TicketsDirectoryInputs {
+  /** VS Code 設定 `anytimeAgent.tickets.directory`（絶対パスまたはワークスペース相対） */
+  configured: string;
+  workspaceRoot: string | null;
+  /** ワークスペースルート直下に `.tickets/` が実在するか */
+  workspaceHasTicketsDir: boolean;
+  /** 環境変数 `ANYTIME_TICKETS_DIR` */
+  envDir: string | undefined;
+}
+
+/**
+ * チケットリポジトリのルートを解決する。
+ *
+ * 優先順位は anytime-loop-start スキルの規則に揃える（同じチケット実体を
+ * ループとボードで別々に解決すると、片方だけ別リポジトリを見て食い違う）:
+ *   1. VS Code 設定 `anytimeAgent.tickets.directory`
+ *   2. ワークスペースルートの `.tickets/`
+ *   3. 環境変数 `ANYTIME_TICKETS_DIR`
+ *
+ * 設定値は「クローンのルート」でも「`.tickets/` ディレクトリ自体」でもよい。
+ * 後者の場合は git 操作の基点が変わるため、親をリポジトリルートとして返す。
+ *
+ * Why not: ワークスペース自身の origin から推定しない。チケットは別リポジトリ
+ * （例: anytime-ticket）に置かれる運用であり、ワークスペース（例: anytime-markdown）の
+ * remote を見ると存在しない `.tickets/` を探しに行く。
+ */
+export function resolveTicketsRepoRoot(inputs: TicketsDirectoryInputs): string | null {
+  const raw = pickTicketsDirectory(inputs);
+  if (raw === null) {
+    return null;
+  }
+  const absolute = path.isAbsolute(raw)
+    ? raw
+    : inputs.workspaceRoot
+      ? path.resolve(inputs.workspaceRoot, raw)
+      : null;
+  if (absolute === null) {
+    return null;
+  }
+  // `.tickets` 自体を指された場合、git 操作の基点はその親。
+  return path.basename(absolute) === '.tickets' ? path.dirname(absolute) : absolute;
+}
+
+function pickTicketsDirectory(inputs: TicketsDirectoryInputs): string | null {
+  const configured = inputs.configured.trim();
+  if (configured !== '') {
+    return configured;
+  }
+  if (inputs.workspaceHasTicketsDir && inputs.workspaceRoot !== null) {
+    return inputs.workspaceRoot;
+  }
+  const env = inputs.envDir?.trim();
+  return env !== undefined && env !== '' ? env : null;
+}
+
+export function readTicketsDirectorySetting(): string {
+  return vscode.workspace.getConfiguration('anytimeAgent.tickets').get<string>('directory') ?? '';
 }

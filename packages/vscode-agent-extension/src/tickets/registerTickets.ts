@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import * as path from 'node:path';
 import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 import { resolveLocale } from '@anytime-markdown/vscode-common';
@@ -6,7 +8,13 @@ import { resolveLocale } from '@anytime-markdown/vscode-common';
 import { TicketsViewProvider } from '../providers/TicketsViewProvider';
 import { getGitHubToken } from './githubAuth';
 import { createProvider } from './providerFactory';
-import { readTicketConfig, resolveTicketSource, type TicketSource } from './repoResolver';
+import {
+  readTicketConfig,
+  readTicketsDirectorySetting,
+  resolveTicketsRepoRoot,
+  resolveTicketSource,
+  type TicketSource,
+} from './repoResolver';
 import { TicketsPanelManager, type PanelContext } from './TicketsPanelManager';
 import type { TicketsLogger } from './ticketsRpcHandler';
 
@@ -46,14 +54,29 @@ export function registerTicketsFeature(
 ): void {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
+  /**
+   * git 操作の基点となるチケットリポジトリのルート。
+   * ワークスペース自身ではなく `anytimeAgent.tickets.directory` が指すクローンを見る
+   * （チケットは別リポジトリに置かれる運用のため）。
+   */
+  const resolveRepoRoot = (): string | null =>
+    resolveTicketsRepoRoot({
+      configured: readTicketsDirectorySetting(),
+      workspaceRoot: workspaceRoot ?? null,
+      workspaceHasTicketsDir:
+        workspaceRoot !== undefined && existsSync(path.join(workspaceRoot, '.tickets')),
+      envDir: process.env.ANYTIME_TICKETS_DIR,
+    });
+
   const resolveSource = async (): Promise<TicketSource | null> => {
     const config = readTicketConfig();
-    if (!workspaceRoot) {
+    const repoRoot = resolveRepoRoot();
+    if (!repoRoot) {
       return resolveTicketSource(config, { remoteUrl: null, branch: null });
     }
     const [remoteUrl, branch] = await Promise.all([
-      git(['remote', 'get-url', 'origin'], workspaceRoot, logger),
-      git(['rev-parse', '--abbrev-ref', 'HEAD'], workspaceRoot, logger),
+      git(['remote', 'get-url', 'origin'], repoRoot, logger),
+      git(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot, logger),
     ]);
     return resolveTicketSource(config, { remoteUrl, branch });
   };
@@ -65,10 +88,13 @@ export function registerTicketsFeature(
   // 呼び出しでの多重起動も防げる。
   let currentUserPromise: Promise<string | undefined> | undefined;
   const resolveCurrentUser = (): Promise<string | undefined> => {
-    if (!workspaceRoot) {
+    // コメント著者はチケットリポジトリへのコミット者と一致させたいので、
+    // ワークスペースではなくチケットリポジトリ側の user.name を引く。
+    const repoRoot = resolveRepoRoot();
+    if (!repoRoot) {
       return Promise.resolve(undefined);
     }
-    currentUserPromise ??= git(['config', 'user.name'], workspaceRoot, logger).then(
+    currentUserPromise ??= git(['config', 'user.name'], repoRoot, logger).then(
       (name) => name ?? undefined,
     );
     return currentUserPromise;
@@ -80,7 +106,9 @@ export function registerTicketsFeature(
     const source = await resolveSource();
     if (!source) {
       logger.warn(
-        `チケットのリポジトリを解決できませんでした。${CONFIG_SECTION}.repo を設定してください。`,
+        'チケットのリポジトリを解決できませんでした。' +
+          '`anytimeAgent.tickets.directory` にチケットリポジトリのローカルクローンを指定するか、' +
+          `\`${CONFIG_SECTION}.repo\` / \`.branch\` で直接指定してください。`,
       );
       return { source: null, provider: null, locale };
     }

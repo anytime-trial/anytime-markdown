@@ -1,4 +1,4 @@
-import { parseGitHubRemote, resolveTicketSource } from '../repoResolver';
+import { parseGitHubRemote, resolveTicketsRepoRoot, resolveTicketSource } from '../repoResolver';
 
 describe('parseGitHubRemote', () => {
   it.each([
@@ -85,5 +85,61 @@ describe('resolveTicketSource', () => {
         { remoteUrl: gitFacts.remoteUrl, branch: '' },
       ),
     ).toEqual({ repo: 'anytime-trial/anytime-markdown', branch: '', provider: 'github-issues' });
+  });
+});
+
+describe('resolveTicketsRepoRoot', () => {
+  const base = {
+    configured: '',
+    workspaceRoot: '/ws',
+    workspaceHasTicketsDir: false,
+    envDir: undefined,
+  };
+
+  it('設定が絶対パスならそのまま使う', () => {
+    expect(resolveTicketsRepoRoot({ ...base, configured: '/Shared/anytime-ticket' })).toBe(
+      '/Shared/anytime-ticket',
+    );
+  });
+
+  it('設定がワークスペース相対なら解決する', () => {
+    expect(resolveTicketsRepoRoot({ ...base, configured: '../tickets-repo' })).toBe(
+      '/tickets-repo',
+    );
+  });
+
+  it('設定が .tickets 自体を指す場合は親をリポジトリルートにする', () => {
+    expect(resolveTicketsRepoRoot({ ...base, configured: '/Shared/anytime-ticket/.tickets' })).toBe(
+      '/Shared/anytime-ticket',
+    );
+  });
+
+  it('設定が空ならワークスペース直下の .tickets を使う', () => {
+    expect(resolveTicketsRepoRoot({ ...base, workspaceHasTicketsDir: true })).toBe('/ws');
+  });
+
+  it('設定もワークスペースの .tickets も無ければ環境変数を使う', () => {
+    expect(resolveTicketsRepoRoot({ ...base, envDir: '/env/tickets' })).toBe('/env/tickets');
+  });
+
+  it('設定はワークスペース直下の .tickets より優先される', () => {
+    expect(
+      resolveTicketsRepoRoot({
+        ...base,
+        configured: '/Shared/anytime-ticket',
+        workspaceHasTicketsDir: true,
+        envDir: '/env/tickets',
+      }),
+    ).toBe('/Shared/anytime-ticket');
+  });
+
+  it('どれも無ければ null', () => {
+    expect(resolveTicketsRepoRoot(base)).toBeNull();
+  });
+
+  it('相対パス設定でワークスペースが無ければ解決できず null', () => {
+    expect(
+      resolveTicketsRepoRoot({ ...base, workspaceRoot: null, configured: 'relative/path' }),
+    ).toBeNull();
   });
 });
