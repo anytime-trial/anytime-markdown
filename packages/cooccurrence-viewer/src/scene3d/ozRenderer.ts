@@ -23,7 +23,6 @@ import {
   Quaternion,
   Raycaster,
   Scene,
-  ShaderMaterial,
   Sprite,
   SpriteMaterial,
   SphereGeometry,
@@ -42,6 +41,7 @@ import {
   zoomOrbit,
   type OrbitState,
 } from './orbitState';
+import { linkColorOf, makeStreamMaterial } from './streamShader';
 
 /**
  * OZ 3D の three.js アダプタ。
@@ -76,14 +76,11 @@ const ROTATE_SPEED = 0.005;
 const ZOOM_WHEEL_SPEED = 0.001;
 /** 曲線 1 本の折れ線分割数。 */
 const CURVE_SEGMENTS = 12;
-/** 破線の流れの速さ（world 単位 / 秒）と 1 周期の world 長。 */
-const FLOW_SPEED = 90;
-const DASH_PERIOD = 64;
 /** ピルテクスチャの解像度倍率（等倍だとズーム時に文字が粗れる）。 */
 const PILL_TEXTURE_SCALE = 2;
 /** 淡色化したピルの不透明度はモデルの alpha をそのまま使う。ドットは色 lerp（v1 と同じ）。 */
 
-interface OzThemePalette {
+export interface OzThemePalette {
   background: Color;
   /** 淡色化（alpha < 1）の lerp 先。フォグと同じ色にして空間へ溶かす。 */
   fade: Color;
@@ -99,7 +96,7 @@ interface OzThemePalette {
   outlines: Array<{ color: Color; opacity: number }>;
 }
 
-function paletteOf(mode: ThemeMode): OzThemePalette {
+export function paletteOf(mode: ThemeMode): OzThemePalette {
   if (mode === 'dark') {
     return {
       background: new Color('#0A0F2E'),
@@ -140,18 +137,13 @@ function paletteOf(mode: ThemeMode): OzThemePalette {
   };
 }
 
-/** 強度（2D の線幅 1..n）を線色の濃さへ写す。WebGL は線幅を変えられない（要件書 §2.2）。 */
-function linkStrengthAlpha(width: number): number {
-  return Math.min(0.2 + width * 0.12, 0.65);
-}
-
 function lineGeometry(links: readonly OzSceneLink[], base: Color, fade: Color): BufferGeometry {
   const positions = new Float32Array(links.length * 6);
   const colors = new Float32Array(links.length * 6);
   const color = new Color();
   links.forEach((link, i) => {
     positions.set([link.x1, link.y1, link.z1, link.x2, link.y2, link.z2], i * 6);
-    color.copy(fade).lerp(base, linkStrengthAlpha(link.width) * link.alpha);
+    linkColorOf(color, base, fade, link);
     colors.set([color.r, color.g, color.b, color.r, color.g, color.b], i * 6);
   });
   const geometry = new BufferGeometry();
@@ -182,7 +174,7 @@ function streamGeometry(links: readonly OzSceneLink[], base: Color, fade: Color)
   const flows = new Float32Array(links.length * vertsPerLink);
   const color = new Color();
   links.forEach((link, i) => {
-    color.copy(fade).lerp(base, linkStrengthAlpha(link.width) * link.alpha);
+    linkColorOf(color, base, fade, link);
     let dist = 0;
     let prev = bezierPoint(link, 0);
     for (let s = 0; s < CURVE_SEGMENTS; s += 1) {
@@ -205,53 +197,6 @@ function streamGeometry(links: readonly OzSceneLink[], base: Color, fade: Color)
   geometry.setAttribute('lineDist', new BufferAttribute(dists, 1));
   geometry.setAttribute('flowDir', new BufferAttribute(flows, 1));
   return geometry;
-}
-
-/**
- * データストリームの破線シェーダ。uTime を進めると明部が線上距離方向へ流れる。
- * flow = 0（both・点線）は静的に塗る。ジオメトリは固定で uniform 更新のみ（要件書 §5 v2）。
- */
-function makeStreamMaterial(fade: Color): ShaderMaterial {
-  return new ShaderMaterial({
-    uniforms: {
-      uTime: { value: 0 },
-      uFade: { value: fade.clone() },
-      uSpeed: { value: FLOW_SPEED },
-      uPeriod: { value: DASH_PERIOD },
-    },
-    vertexShader: [
-      'attribute vec3 streamColor;',
-      'attribute float lineDist;',
-      'attribute float flowDir;',
-      'varying vec3 vColor;',
-      'varying float vDist;',
-      'varying float vFlow;',
-      'void main() {',
-      '  vColor = streamColor;',
-      '  vDist = lineDist;',
-      '  vFlow = flowDir;',
-      '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
-      '}',
-    ].join('\n'),
-    fragmentShader: [
-      'uniform float uTime;',
-      'uniform vec3 uFade;',
-      'uniform float uSpeed;',
-      'uniform float uPeriod;',
-      'varying vec3 vColor;',
-      'varying float vDist;',
-      'varying float vFlow;',
-      'void main() {',
-      '  float visibility = 1.0;',
-      '  if (abs(vFlow) > 0.5) {',
-      '    float k = fract((vDist - vFlow * uTime * uSpeed) / uPeriod);',
-      '    float dash = smoothstep(0.0, 0.2, k) * (1.0 - smoothstep(0.6, 0.8, k));',
-      '    visibility = mix(0.35, 1.0, dash);',
-      '  }',
-      '  gl_FragColor = vec4(mix(uFade, vColor, visibility), 1.0);',
-      '}',
-    ].join('\n'),
-  });
 }
 
 /** roundRect 相当（arcTo 実装。実行環境差で Path2D.roundRect に依存しない）。 */
