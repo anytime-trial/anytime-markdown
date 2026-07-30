@@ -62,6 +62,7 @@ export const window = {
   showInputBox: jest.fn(),
   showQuickPick: jest.fn(),
   createWebviewPanel: jest.fn(),
+  createTreeView: jest.fn(() => ({ dispose: jest.fn() })),
   createOutputChannel: jest.fn(() => ({
     appendLine: jest.fn(),
     dispose: jest.fn(),
