@@ -321,6 +321,27 @@ function pillWorldHeight(radius: number): number {
   return Math.max(18, radius * 2.2);
 }
 
+/** クラスタ見出しのテクスチャ。大きく描いてスプライト拡大時のぼやけを避ける（字間は空間の記号）。 */
+function makeHeadingTexture(text: string, colorCss: string): { texture: CanvasTexture; aspect: number } | null {
+  const canvas = document.createElement('canvas');
+  const probe = canvas.getContext('2d');
+  if (!probe) return null;
+  const font = '700 72px system-ui, sans-serif';
+  probe.font = font;
+  const width = Math.ceil(probe.measureText(text).width) + 32;
+  canvas.width = width;
+  canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.font = font;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = colorCss;
+  ctx.fillText(text, width / 2, 48);
+  const texture = new CanvasTexture(canvas);
+  return { texture, aspect: width / 96 };
+}
+
 function makeLabelTexture(text: string, colorCss: string): { texture: CanvasTexture; aspect: number } | null {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -516,12 +537,12 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
   /** クラスタ見出し（参考画像の「TOOLS / OUTPUT」。要件書 §2.2 v2）。 */
   function buildHeadings(headings: readonly OzSceneHeading[]): void {
     for (const heading of headings) {
-      const made = makeLabelTexture(heading.text, heading.color);
+      const made = makeHeadingTexture(heading.text, heading.color);
       if (made === null) continue;
-      const material = new SpriteMaterial({ map: made.texture, transparent: true, opacity: 0.6, depthWrite: false });
+      const material = new SpriteMaterial({ map: made.texture, transparent: true, opacity: 0.85, depthWrite: false });
       const sprite = new Sprite(material);
       sprite.position.set(heading.x, heading.y, heading.z);
-      sprite.scale.set(72 * made.aspect, 72, 1);
+      sprite.scale.set(84 * made.aspect, 84, 1);
       sprite.renderOrder = -1;
       track(sprite, made.texture, material);
     }

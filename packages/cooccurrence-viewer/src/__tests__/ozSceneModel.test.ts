@@ -205,11 +205,11 @@ describe('buildOzSceneModel: 曲線ストリーム（v2）', () => {
 });
 
 describe('buildOzSceneModel: クラスタ見出し（v2）', () => {
-  test('label 持ちクラスタは所属ノードの重心にクラスタ色で出る', () => {
+  test('label 持ちクラスタは重心 x・クラスタ上端より上にクラスタ色で出る', () => {
     const graph = graphOf({
       nodes: [
         makeNode(0, 0, 0, 0, { clusterIndex: 0, stroke: '#FF6B6B' }),
-        makeNode(1, 0, 100, 0, { clusterIndex: 0, stroke: '#FF6B6B' }),
+        makeNode(1, 0, 100, -80, { clusterIndex: 0, stroke: '#FF6B6B' }),
         makeNode(2, 0, 500, 0, { clusterIndex: 1, stroke: '#4FC3F7' }),
       ],
     });
@@ -219,6 +219,9 @@ describe('buildOzSceneModel: クラスタ見出し（v2）', () => {
     expect(heading.text).toBe('TOOLS');
     expect(heading.color).toBe('#FF6B6B');
     expect(heading.x).toBeCloseTo(50, 6);
+    // ピルの山に埋もれないよう、所属ノードの最上端（シーン y の最大）より上に置く。
+    const memberTop = Math.max(model.nodes[0].y, model.nodes[1].y);
+    expect(heading.y).toBeGreaterThan(memberTop);
   });
 
   test('所属ノードのないクラスタ・引数省略時は出さない', () => {

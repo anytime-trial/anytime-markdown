@@ -177,22 +177,25 @@ function flowOf(direction: RenderLink['direction']): 1 | -1 | 0 {
   return 1;
 }
 
-/** クラスタ見出し。所属ノードの重心にクラスタ色（所属先頭ノードの stroke）で置く。 */
+/** 見出しをクラスタ上端からどれだけ持ち上げるか（世界座標）。重心のままだとピルの山に埋もれる。 */
+const HEADING_LIFT = 60;
+
+/** クラスタ見出し。重心 x/z・上端より上の y に、クラスタ色（所属先頭ノードの stroke）で置く。 */
 function buildHeadings(
   nodes: readonly RenderNode[],
   positionOf: ReadonlyMap<RenderNode, Point3>,
   clusterLabels: readonly string[],
 ): OzSceneHeading[] {
-  const groups = new Map<number, { sumX: number; sumY: number; sumZ: number; count: number; color: string }>();
+  const groups = new Map<number, { sumX: number; maxY: number; sumZ: number; count: number; color: string }>();
   for (const node of nodes) {
     if (node.clusterIndex === undefined) continue;
     const label = clusterLabels[node.clusterIndex];
     if (label === undefined || label === '') continue;
     const position = positionOf.get(node);
     if (position === undefined) continue;
-    const group = groups.get(node.clusterIndex) ?? { sumX: 0, sumY: 0, sumZ: 0, count: 0, color: node.stroke };
+    const group = groups.get(node.clusterIndex) ?? { sumX: 0, maxY: -Infinity, sumZ: 0, count: 0, color: node.stroke };
     group.sumX += position.x;
-    group.sumY += position.y;
+    group.maxY = Math.max(group.maxY, position.y);
     group.sumZ += position.z;
     group.count += 1;
     groups.set(node.clusterIndex, group);
@@ -202,7 +205,7 @@ function buildHeadings(
     .map(([clusterIndex, group]) => ({
       text: clusterLabels[clusterIndex],
       x: group.sumX / group.count,
-      y: group.sumY / group.count,
+      y: group.maxY + HEADING_LIFT,
       z: group.sumZ / group.count,
       color: group.color,
     }));
