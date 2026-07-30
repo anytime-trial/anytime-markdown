@@ -257,6 +257,18 @@ describe('local-git プロバイダの配線', () => {
     expect(vscode.window.showWarningMessage as jest.Mock).not.toHaveBeenCalled();
   });
 
+  it('LocalGitProvider が実際に生成され、init の保存先がチケットリポジトリを指す', async () => {
+    // 否定形（認証を呼ばない・remote を引かない）だけでは、プロバイダが正しい
+    // repoRoot で生成されたかを検出できない。init に載る保存先ラベルで正の疎通を固定する。
+    const panel = await openPanel(TICKETS_DIR, 'local-git');
+    await panel.fireReady();
+
+    const posted = (vscode.window.createWebviewPanel as jest.Mock).mock.results[0].value.webview
+      .postMessage as jest.Mock;
+    const init = posted.mock.calls.map((c) => c[0]).find((m) => m?.type === 'init');
+    expect(init.source).toEqual({ label: TICKETS_DIR });
+  });
+
   it('remote / ブランチを引かない（remote 未設定のクローンでも開ける）', async () => {
     const panel = await openPanel(TICKETS_DIR, 'local-git');
     await panel.fireReady();

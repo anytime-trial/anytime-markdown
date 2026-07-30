@@ -1,4 +1,9 @@
-import { LocalGitProvider, LocalGitConflictError, type LocalGitIo } from '../localGitProvider';
+import {
+  LocalGitConflictError,
+  LocalGitPathError,
+  LocalGitProvider,
+  type LocalGitIo,
+} from '../localGitProvider';
 import { serializeTicket, type TicketFrontmatter } from '../ticketModel';
 
 const ROOT = '/repo';
@@ -16,12 +21,18 @@ const FRONTMATTER: TicketFrontmatter = {
 function makeIo(files: Record<string, string> = {}): LocalGitIo & {
   files: Record<string, string>;
   gitCalls: string[][];
-  failPush: boolean;
+  /** push 失敗時に git が吐く文言。null なら push は成功する */
+  pushError: string | null;
+  commitError: string | null;
+  warnings: string[];
 } {
   const state = {
     files: { ...files },
     gitCalls: [] as string[][],
-    failPush: false,
+    pushError: null as string | null,
+    commitError: null as string | null,
+    warnings: [] as string[],
+    exists: async (path: string) => state.files[path] !== undefined,
     listFiles: async (dir: string) =>
       Object.keys(state.files)
         .filter((p) => p.startsWith(`${dir}/`) && !p.slice(dir.length + 1).includes('/'))
@@ -45,8 +56,11 @@ function makeIo(files: Record<string, string> = {}): LocalGitIo & {
     hash: (text: string) => `h${text.length}:${text.slice(0, 8)}`,
     git: async (args: string[]) => {
       state.gitCalls.push(args);
-      if (args[0] === 'push' && state.failPush) {
-        throw new Error('! [rejected] main -> main (fetch first)');
+      if (args[0] === 'push' && state.pushError !== null) {
+        throw new Error(state.pushError);
+      }
+      if (args[0] === 'commit' && state.commitError !== null) {
+        throw new Error(state.commitError);
       }
       return '';
     },
@@ -54,8 +68,13 @@ function makeIo(files: Record<string, string> = {}): LocalGitIo & {
   return state;
 }
 
-function makeProvider(io: LocalGitIo) {
-  return new LocalGitProvider({ provider: 'local-git', repoRoot: ROOT, io });
+function makeProvider(io: ReturnType<typeof makeIo>) {
+  return new LocalGitProvider({
+    provider: 'local-git',
+    repoRoot: ROOT,
+    io,
+    onWarn: (message) => io.warnings.push(message),
+  });
 }
 
 const TICKET_TEXT = serializeTicket(FRONTMATTER, '## 概要 (Description)\n\n本文\n');
@@ -130,7 +149,7 @@ describe('LocalGitProvider', () => {
       expect(io.files[`${ROOT}/.tickets/T-1-test.md`]).toBe('更新後の内容');
       expect(io.gitCalls).toEqual([
         ['add', '--', '.tickets/T-1-test.md'],
-        ['commit', '-m', 'ticket: update T-1'],
+        ['commit', '-m', 'ticket: update T-1', '--', '.tickets/T-1-test.md'],
         ['push'],
       ]);
       expect(result.version).toBe(io.hash('更新後の内容'));
@@ -160,9 +179,9 @@ describe('LocalGitProvider', () => {
       ).rejects.toMatchObject({ status: 409 });
     });
 
-    it('push 拒否は競合として返す（コミットは残す）', async () => {
+    it('push の非 fast-forward 拒否は競合として返す（コミットは残す）', async () => {
       const io = makeIo({ [`${ROOT}/.tickets/T-1-test.md`]: TICKET_TEXT });
-      io.failPush = true;
+      io.pushError = '! [rejected] main -> main (fetch first)';
 
       await expect(
         makeProvider(io).update({
@@ -248,6 +267,145 @@ describe('LocalGitProvider', () => {
 
       expect(io.files[`${ROOT}/.tickets/T-1-test.md`]).toBe(TICKET_TEXT);
       expect(io.gitCalls).toHaveLength(0);
+    });
+  });
+
+  describe('commit / push の失敗の扱い', () => {
+    it('commit は対象パスだけを指定する（利用者が別途 stage した変更を巻き込まない）', async () => {
+      const io = makeIo({ [`${ROOT}/.tickets/T-1-test.md`]: TICKET_TEXT });
+
+      await makeProvider(io).update({
+        path: '.tickets/T-1-test.md',
+        content: 'x',
+        version: io.hash(TICKET_TEXT),
+        message: 'm',
+      });
+
+      // パススペック無しの `git commit -m` はインデックス全体をコミットするため、
+      // チケット保存が無関係な stage 済み変更まで push してしまう（実測で再現済み）。
+      const commit = io.gitCalls.find((c) => c[0] === 'commit');
+      expect(commit).toEqual(['commit', '-m', 'm', '--', '.tickets/T-1-test.md']);
+    });
+
+    it('archive の commit は移動元と移動先の両方を指定する', async () => {
+      const io = makeIo({ [`${ROOT}/.tickets/T-1-test.md`]: TICKET_TEXT });
+
+      await makeProvider(io).archive({ path: '.tickets/T-1-test.md', version: io.hash(TICKET_TEXT) });
+
+      const commit = io.gitCalls.find((c) => c[0] === 'commit');
+      expect(commit?.slice(-2)).toEqual(['.tickets/T-1-test.md', '.tickets/archive/T-1-test.md']);
+    });
+
+    it('push 先が無いだけなら競合にせず警告に留める（remote 未設定のクローンでも前進できる）', async () => {
+      const io = makeIo({ [`${ROOT}/.tickets/T-1-test.md`]: TICKET_TEXT });
+      io.pushError = 'fatal: No configured push destination.';
+
+      await expect(
+        makeProvider(io).update({
+          path: '.tickets/T-1-test.md',
+          content: 'x',
+          version: io.hash(TICKET_TEXT),
+          message: 'm',
+        }),
+      ).resolves.toBeDefined();
+
+      expect(io.files[`${ROOT}/.tickets/T-1-test.md`]).toBe('x');
+      expect(io.warnings.join(' ')).toContain('push 先');
+    });
+
+    it('push のその他の失敗は競合にしない（再読込しても解決しないため）', async () => {
+      const io = makeIo({ [`${ROOT}/.tickets/T-1-test.md`]: TICKET_TEXT });
+      io.pushError = 'fatal: Authentication failed';
+
+      await expect(
+        makeProvider(io).update({
+          path: '.tickets/T-1-test.md',
+          content: 'x',
+          version: io.hash(TICKET_TEXT),
+          message: 'm',
+        }),
+      ).rejects.not.toBeInstanceOf(LocalGitConflictError);
+    });
+
+    it('commit の失敗は「書き込み済みだが commit できていない」と伝える', async () => {
+      const io = makeIo({ [`${ROOT}/.tickets/T-1-test.md`]: TICKET_TEXT });
+      io.commitError = 'nothing to commit, working tree clean';
+
+      await expect(
+        makeProvider(io).update({
+          path: '.tickets/T-1-test.md',
+          content: 'x',
+          version: io.hash(TICKET_TEXT),
+          message: 'm',
+        }),
+      ).rejects.toThrow(/commit できませんでした/);
+    });
+  });
+
+  describe('パス検証（チケット置き場の外へ出さない）', () => {
+    const OUTSIDE = ['.tickets/../../etc/passwd.md', '/etc/passwd.md', '.tickets/sub/../../x.md', 'other.md'];
+
+    it.each(OUTSIDE)('get は %s を拒否する', async (path) => {
+      await expect(makeProvider(makeIo()).get(path)).rejects.toBeInstanceOf(LocalGitPathError);
+    });
+
+    it.each(OUTSIDE)('update は %s を拒否し、書き込みも git 実行もしない', async (path) => {
+      const io = makeIo();
+      await expect(
+        makeProvider(io).update({ path, content: 'PWNED', version: 'v', message: 'm' }),
+      ).rejects.toBeInstanceOf(LocalGitPathError);
+      expect(Object.keys(io.files)).toHaveLength(0);
+      expect(io.gitCalls).toHaveLength(0);
+    });
+
+    it.each(OUTSIDE)('remove は %s を拒否し、削除しない', async (path) => {
+      const io = makeIo({ [`${ROOT}/${path}`]: 'victim' });
+      await expect(makeProvider(io).remove({ path, version: 'v' })).rejects.toBeInstanceOf(
+        LocalGitPathError,
+      );
+      expect(io.files[`${ROOT}/${path}`]).toBe('victim');
+    });
+
+    it.each(OUTSIDE)('archive は %s を拒否する', async (path) => {
+      await expect(
+        makeProvider(makeIo()).archive({ path, version: 'v' }),
+      ).rejects.toBeInstanceOf(LocalGitPathError);
+    });
+
+    it('不正パスは 400（サーバー障害ではなく受理できない要求として区別する）', async () => {
+      await expect(makeProvider(makeIo()).get('../x.md')).rejects.toMatchObject({ status: 400 });
+    });
+
+    it('正当なパス（直下・アーカイブ）は通す', async () => {
+      const io = makeIo({
+        [`${ROOT}/.tickets/T-1-a.md`]: TICKET_TEXT,
+        [`${ROOT}/.tickets/archive/T-2-b.md`]: TICKET_TEXT,
+      });
+      await expect(makeProvider(io).get('.tickets/T-1-a.md')).resolves.toBeDefined();
+      await expect(makeProvider(io).get('.tickets/archive/T-2-b.md')).resolves.toBeDefined();
+    });
+  });
+
+  describe('remove の楽観ロック', () => {
+    it('版数不一致なら拒否し、削除も git 実行もしない', async () => {
+      const io = makeIo({ [`${ROOT}/.tickets/T-1-test.md`]: TICKET_TEXT });
+
+      await expect(
+        makeProvider(io).remove({ path: '.tickets/T-1-test.md', version: 'stale' }),
+      ).rejects.toBeInstanceOf(LocalGitConflictError);
+
+      expect(io.files[`${ROOT}/.tickets/T-1-test.md`]).toBe(TICKET_TEXT);
+      expect(io.gitCalls).toHaveLength(0);
+    });
+
+    it('読み込み後に他者が削除していたら競合として返す（生の ENOENT にしない）', async () => {
+      const io = makeIo({ [`${ROOT}/.tickets/T-1-test.md`]: TICKET_TEXT });
+      const version = io.hash(TICKET_TEXT);
+      delete io.files[`${ROOT}/.tickets/T-1-test.md`];
+
+      await expect(
+        makeProvider(io).update({ path: '.tickets/T-1-test.md', content: 'x', version, message: 'm' }),
+      ).rejects.toBeInstanceOf(LocalGitConflictError);
     });
   });
 });

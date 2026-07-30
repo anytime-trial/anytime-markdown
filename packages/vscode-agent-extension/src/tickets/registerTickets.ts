@@ -71,6 +71,12 @@ export function registerTicketsFeature(
 
   const resolveSource = async (): Promise<TicketSource | null> => {
     const config = readTicketConfig();
+    for (const value of config.invalidProviderValues) {
+      logger.warn(
+        `プロバイダ設定の値が不正なため無視しました: ${value}` +
+          '（有効な値: local-git / github-contents / github-issues）',
+      );
+    }
     if (config.usedLegacyProviderKey) {
       logger.warn(
         '`anytimeAgent.tickets.github.provider` は非推奨です。' +

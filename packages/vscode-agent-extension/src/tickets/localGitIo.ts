@@ -1,11 +1,15 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { promisify } from 'node:util';
 import type { LocalGitIo } from '@anytime-markdown/tickets-core';
 
 const run = promisify(execFile);
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * `LocalGitIo` の Node 実装。
@@ -16,9 +20,17 @@ const run = promisify(execFile);
  */
 export function createLocalGitIo(repoRoot: string): LocalGitIo {
   const git = async (args: string[]): Promise<string> => {
-    // execFile は引数を配列で渡すためシェルを経由しない（パスに空白等があっても安全）。
-    const { stdout } = await run('git', args, { cwd: repoRoot });
-    return stdout;
+    try {
+      // execFile は引数を配列で渡すためシェルを経由しない（パスに空白等があっても安全）。
+      const { stdout } = await run('git', args, { cwd: repoRoot });
+      return stdout;
+    } catch (error) {
+      // 呼び出し側は失敗の種類（非 fast-forward か push 先が無いか等）を stderr の文言で
+      // 判別する。promisify(execFile) の例外はプラットフォームによって message へ
+      // stderr を含めないことがあるため、明示的に連結して情報を落とさない。
+      const stderr = (error as { stderr?: string }).stderr ?? '';
+      throw new Error(`git ${args.join(' ')} が失敗しました: ${describe(error)} ${stderr}`.trim());
+    }
   };
 
   return {
@@ -33,6 +45,20 @@ export function createLocalGitIo(repoRoot: string): LocalGitIo {
           return [];
         }
         throw error;
+      }
+    },
+
+    async exists(path) {
+      try {
+        await access(path);
+        return true;
+      } catch (error) {
+        // 存在しない場合のみ false。権限不足等は呼び出し側が読み取り時に検出できるよう
+        // 「存在する」に倒す（存在しない扱いにすると、実体があるのに削除されたと誤判定する）。
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return false;
+        }
+        return true;
       }
     },
 

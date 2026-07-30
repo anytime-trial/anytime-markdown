@@ -17,10 +17,10 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { toReqRes, toFetchResponse } from 'fetch-to-node';
 
 import { createCmsConfig, createS3Client } from '@anytime-markdown/cms-core';
-import { isTicketProviderKind } from '@anytime-markdown/tickets-core';
 import { createRemoteMcpServer, type TicketsConfig } from './server.js';
 import { paperConfig } from './paperConfig.js';
 import { fetchWebPageForImport, resolveAllowedOrigin, WebFetchProxyError } from './webFetchProxy.js';
+import { resolveTicketsConfig } from './ticketsConfig.js';
 
 interface Env {
   MCP_API_KEY: string;
@@ -39,34 +39,12 @@ interface Env {
   TICKETS_REPO?: string;
   TICKETS_BRANCH?: string;
   // チケットプロバイダ切替（NFR-7）。'github-contents'（既定）| 'github-issues'
+  // （'local-git' は enum には在るが Workers 上では成立しないため受け付けない）
   TICKETS_PROVIDER?: string;
   // Google Drive Reader（サービスアカウント鍵のJSON文字列。wrangler secret put で設定）
   GOOGLE_SERVICE_ACCOUNT_KEY?: string;
 }
 
-/** 環境変数からチケットプロバイダ設定を組み立てる。不正な TICKETS_PROVIDER は登録せずエラーログを残す */
-function resolveTicketsConfig(env: Env): TicketsConfig | undefined {
-  if (!env.TICKETS_GITHUB_TOKEN || !env.TICKETS_REPO) {
-    return undefined;
-  }
-  // 空文字 secret（CI の変数未設定など）も既定へ倒すため ?? でなく || を使う
-  const kind = env.TICKETS_PROVIDER || 'github-contents';
-  if (!isTicketProviderKind(kind)) {
-    console.error(
-      `[${new Date().toISOString()}] [ERROR] TICKETS_PROVIDER が不正なため create_ticket を無効化します: ${kind}`,
-    );
-    return undefined;
-  }
-  if (kind === 'github-issues') {
-    return { provider: kind, token: env.TICKETS_GITHUB_TOKEN, repo: env.TICKETS_REPO };
-  }
-  return {
-    provider: 'github-contents',
-    token: env.TICKETS_GITHUB_TOKEN,
-    repo: env.TICKETS_REPO,
-    branch: env.TICKETS_BRANCH || 'main',
-  };
-}
 
 const app = new Hono<{ Bindings: Env }>();
 

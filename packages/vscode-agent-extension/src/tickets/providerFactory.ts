@@ -194,12 +194,12 @@ export function createGitHubProvider(source: GitHubTicketSource, token: string):
       fetchFn,
     });
   }
-  return createTicketProvider({
-    provider: 'github-issues',
-    token,
-    repo: source.repo,
-    fetchFn,
-  });
+  if (source.provider === 'github-issues') {
+    return createTicketProvider({ provider: 'github-issues', token, repo: source.repo, fetchFn });
+  }
+  // 種別を増やしたのにここへ足し忘れると型エラーになる（黙って github-issues へ倒さない）。
+  const exhaustive: never = source.provider;
+  throw new Error(`未対応の provider です: ${String(exhaustive)}`);
 }
 
 /**

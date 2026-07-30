@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import type { TicketProviderKind } from '@anytime-markdown/tickets-core';
+import { isTicketProviderKind, type TicketProviderKind } from '@anytime-markdown/tickets-core';
 
 const SSH_SCP = /^git@github\.com:([^/]+)\/([^/]+)$/;
 const SSH_URL = /^ssh:\/\/git@github\.com\/([^/]+)\/([^/]+)$/;
@@ -94,12 +94,19 @@ export const DEFAULT_TICKET_PROVIDER: TicketProviderKind = 'local-git';
 export function pickProviderKind(explicit: {
   provider: TicketProviderKind | undefined;
   legacyProvider: TicketProviderKind | undefined;
+  /** 旧 GitHub 経路の設定 `anytimeAgent.tickets.github.repo` が明示されているか */
+  hasLegacyRepo: boolean;
 }): { kind: TicketProviderKind; usedLegacy: boolean } {
   if (explicit.provider !== undefined) {
     return { kind: explicit.provider, usedLegacy: false };
   }
   if (explicit.legacyProvider !== undefined) {
     return { kind: explicit.legacyProvider, usedLegacy: true };
+  }
+  // 旧既定（github-contents）に任せて repo だけ設定していた利用者を、既定変更で
+  // 無言の機能停止に落とさない。repo の明示は GitHub 経路を使っていた証拠として扱う。
+  if (explicit.hasLegacyRepo) {
+    return { kind: 'github-contents', usedLegacy: true };
   }
   return { kind: DEFAULT_TICKET_PROVIDER, usedLegacy: false };
 }
@@ -115,24 +122,53 @@ function readExplicit<T>(section: vscode.WorkspaceConfiguration, key: string): T
   );
 }
 
+/**
+ * 設定値をプロバイダ種別として検証する。
+ *
+ * package.json の enum は設定 UI を絞るだけで、手書きの settings.json には任意の文字列が
+ * 入る。未検証のままキャストすると、綴り間違い（例 "github"）がどの分岐にも当たらず
+ * 無言で別のプロバイダとして解決され、利用者は違う場所のチケットを見ることになる。
+ */
+function readProviderKind(
+  section: vscode.WorkspaceConfiguration,
+  key: string,
+  onInvalid: (value: string) => void,
+): TicketProviderKind | undefined {
+  const raw = readExplicit<unknown>(section, key);
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (typeof raw !== 'string' || !isTicketProviderKind(raw)) {
+    onInvalid(String(raw));
+    return undefined;
+  }
+  return raw;
+}
+
 export function readTicketConfig(): {
   repo: string;
   branch: string;
   provider: TicketProviderKind;
-  /** 旧キー（`...github.provider`）由来の値を使ったか。呼び出し側が移行を促すために使う */
+  /** 旧キー（`...github.*`）由来で種別を決めたか。呼び出し側が移行を促すために使う */
   usedLegacyProviderKey: boolean;
+  /** 不正な設定値。呼び出し側が warn ログへ出す（黙って既定へ倒さない） */
+  invalidProviderValues: string[];
 } {
   const tickets = vscode.workspace.getConfiguration('anytimeAgent.tickets');
   const github = vscode.workspace.getConfiguration('anytimeAgent.tickets.github');
+  const invalidProviderValues: string[] = [];
+  const onInvalid = (value: string): void => void invalidProviderValues.push(value);
   const picked = pickProviderKind({
-    provider: readExplicit<TicketProviderKind>(tickets, 'provider'),
-    legacyProvider: readExplicit<TicketProviderKind>(github, 'provider'),
+    provider: readProviderKind(tickets, 'provider', onInvalid),
+    legacyProvider: readProviderKind(github, 'provider', onInvalid),
+    hasLegacyRepo: (readExplicit<string>(github, 'repo') ?? '').trim() !== '',
   });
   return {
     repo: github.get<string>('repo') ?? '',
     branch: github.get<string>('branch') ?? '',
     provider: picked.kind,
     usedLegacyProviderKey: picked.usedLegacy,
+    invalidProviderValues,
   };
 }
 

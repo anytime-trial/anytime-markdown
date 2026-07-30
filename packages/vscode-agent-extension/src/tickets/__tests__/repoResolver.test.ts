@@ -1,5 +1,8 @@
+import * as vscode from 'vscode';
+
 import {
   parseGitHubRemote,
+  readTicketConfig,
   pickProviderKind,
   resolveTicketsRepoRoot,
   resolveTicketSource,
@@ -120,24 +123,89 @@ describe('resolveTicketSource', () => {
 
 describe('pickProviderKind', () => {
   it('どちらも未設定なら既定は local-git（GitHub 認証を要求しない）', () => {
-    expect(pickProviderKind({ provider: undefined, legacyProvider: undefined })).toEqual({
-      kind: 'local-git',
-      usedLegacy: false,
-    });
+    expect(
+      pickProviderKind({ provider: undefined, legacyProvider: undefined, hasLegacyRepo: false }),
+    ).toEqual({ kind: 'local-git', usedLegacy: false });
   });
 
   it('新キーが設定されていればそれを使う', () => {
-    expect(pickProviderKind({ provider: 'github-issues', legacyProvider: 'github-contents' })).toEqual({
-      kind: 'github-issues',
-      usedLegacy: false,
-    });
+    expect(
+      pickProviderKind({
+        provider: 'github-issues',
+        legacyProvider: 'github-contents',
+        hasLegacyRepo: true,
+      }),
+    ).toEqual({ kind: 'github-issues', usedLegacy: false });
   });
 
   it('新キーが未設定なら旧キーの値を尊重する（既存利用者の設定を黙って無効化しない）', () => {
-    expect(pickProviderKind({ provider: undefined, legacyProvider: 'github-contents' })).toEqual({
-      kind: 'github-contents',
-      usedLegacy: true,
-    });
+    expect(
+      pickProviderKind({ provider: undefined, legacyProvider: 'github-contents', hasLegacyRepo: false }),
+    ).toEqual({ kind: 'github-contents', usedLegacy: true });
+  });
+
+  it('provider 未設定でも github.repo が明示されていれば github-contents を維持する', () => {
+    // 旧既定（github-contents）に任せて repo だけ設定していた利用者が、既定変更で
+    // 「リポジトリを解決できません」に落ちて無言で機能停止するのを防ぐ。
+    expect(
+      pickProviderKind({ provider: undefined, legacyProvider: undefined, hasLegacyRepo: true }),
+    ).toEqual({ kind: 'github-contents', usedLegacy: true });
+  });
+
+  it('新キーが明示されていれば github.repo が残っていても新キーが勝つ', () => {
+    expect(
+      pickProviderKind({ provider: 'local-git', legacyProvider: undefined, hasLegacyRepo: true }),
+    ).toEqual({ kind: 'local-git', usedLegacy: false });
+  });
+});
+
+describe('readTicketConfig（設定値の検証）', () => {
+  /** `inspect()` が明示値を返す設定モック。`get()` は package.json の既定値相当。 */
+  function mockConfig(explicit: Record<string, Record<string, unknown>>): void {
+    (vscode.workspace.getConfiguration as jest.Mock).mockImplementation((section: string) => ({
+      get: () => '',
+      inspect: (key: string) =>
+        explicit[section]?.[key] === undefined ? undefined : { globalValue: explicit[section][key] },
+    }));
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('綴り間違いの provider は採用せず既定へ倒し、不正値を報告する', () => {
+    // package.json の enum は設定 UI を絞るだけで、手書きの settings.json は素通りする。
+    // 未検証だと "github" のような値がどの分岐にも当たらず、無言で別のプロバイダになる。
+    mockConfig({ 'anytimeAgent.tickets': { provider: 'github' } });
+
+    const config = readTicketConfig();
+
+    expect(config.provider).toBe('local-git');
+    expect(config.invalidProviderValues).toEqual(['github']);
+  });
+
+  it('文字列でない値も不正として扱う', () => {
+    mockConfig({ 'anytimeAgent.tickets': { provider: 42 } });
+
+    expect(readTicketConfig().invalidProviderValues).toEqual(['42']);
+  });
+
+  it('旧キー側の不正値も報告する', () => {
+    mockConfig({ 'anytimeAgent.tickets.github': { provider: 'gh-contents' } });
+
+    const config = readTicketConfig();
+
+    expect(config.provider).toBe('local-git');
+    expect(config.invalidProviderValues).toEqual(['gh-contents']);
+  });
+
+  it('正しい値なら不正値の報告は空', () => {
+    mockConfig({ 'anytimeAgent.tickets': { provider: 'github-issues' } });
+
+    const config = readTicketConfig();
+
+    expect(config.provider).toBe('github-issues');
+    expect(config.invalidProviderValues).toEqual([]);
   });
 });
 
