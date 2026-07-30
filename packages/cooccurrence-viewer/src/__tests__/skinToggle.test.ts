@@ -172,6 +172,42 @@ describe('OZ スキンのトグルと配線', () => {
     expect(selected?.label).toBe('Alpha');
   });
 
+  it('語一覧の行クリック選択が 3D シーンへ即時反映される', async () => {
+    // 語 2 は孤立させ、語 0 の選択で近傍外の淡色化（0.18）が観測できる形にする。
+    const file: CooccurrenceFile = {
+      meta: { schemaVersion: 1, generatedAt: '2026-07-30T00:00:00.000Z', origin: 'manual' },
+      spec: {
+        nodes: [
+          { label: 'Alpha', frequency: 3 },
+          { label: 'Beta', frequency: 2 },
+          { label: 'Gamma', frequency: 1 },
+        ],
+        links: [[0, 1, 4]],
+      },
+    };
+    file.layout = {
+      positions: [[0, 0], [50, 0], [200, 0]],
+      specHash: computeSpecHash(file.spec),
+      algorithmVersion: BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
+    };
+    const { root } = mount({ file });
+    await flush();
+    skinToggle(root).click();
+    const before = fake.setModel.mock.calls.length;
+    const row = root.querySelector('.cooc-words__row[data-node-index="0"]');
+    if (!(row instanceof HTMLButtonElement)) throw new Error('word row not found');
+    row.click();
+    expect(fake.setModel.mock.calls.length).toBeGreaterThan(before);
+    const model = fake.setModel.mock.calls.at(-1)?.[0] as OzSceneModel;
+    const byIndex = new Map(model.nodes.map((node) => [node.index, node]));
+    expect(byIndex.get(0)?.alpha).toBe(1);
+    expect(byIndex.get(2)?.alpha).toBe(0.18);
+    // もう一度クリックすると選択解除（2D と同じトグル規則）が 3D へも届く。
+    row.click();
+    const cleared = fake.setModel.mock.calls.at(-1)?.[0] as OzSceneModel;
+    expect(cleared.nodes.every((node) => node.alpha === 1)).toBe(true);
+  });
+
   it('WebGL 初期化失敗時は standard のまま通知を出す', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     createOzRendererMock.mockImplementation(() => {
