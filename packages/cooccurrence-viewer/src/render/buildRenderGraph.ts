@@ -145,7 +145,7 @@ export function buildRenderGraph(options: BuildRenderGraphOptions): RenderGraph 
       if (frequency === undefined) return;
       const pos = positions[index] ?? [0, 0];
       const radius = radiusForFrequency(frequency, ranges.frequency.min, ranges.frequency.max);
-      const color = clusterColor(themeTarget, clusterIndex.get(index), mode);
+      const color = clusterColor(themeTarget, clusterIndex.get(index));
       layerNodes.push({
         index,
         layer,

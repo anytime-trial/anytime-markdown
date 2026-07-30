@@ -49,6 +49,7 @@ export function clusterColorVarName(clusterIndex: number | undefined): string {
   return `--cooc-cluster-${clusterIndex % CLUSTER_PALETTE_SIZE}`;
 }
 
-export function clusterColor(target: HTMLElement, clusterIndex: number | undefined, mode: ThemeMode): string {
-  return readCssVar(target, clusterColorVarName(clusterIndex), mode === 'dark' ? '#90CAF9' : '#3D4A52');
+/** クラスタ色。パレットはライト/ダーク共通のため、変数が未適用のときの既定もモードで変えない。 */
+export function clusterColor(target: HTMLElement, clusterIndex: number | undefined): string {
+  return readCssVar(target, clusterColorVarName(clusterIndex), '#90CAF9');
 }

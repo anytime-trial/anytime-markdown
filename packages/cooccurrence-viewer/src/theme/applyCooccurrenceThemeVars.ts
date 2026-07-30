@@ -1,6 +1,13 @@
 import type { CooccurrenceSkin, ThemeMode } from '../types';
 
-export const CLUSTER_COLORS_DARK = [
+/**
+ * 標準スキンのクラスタパレット（ライト/ダーク共通）。
+ *
+ * Why not モード別に分けるか: 同じグラフをモードを切り替えて見たときに語の色まで変わると、
+ * 色でクラスタを覚えられない。かつてのライト用パレットは彩度を落とした暗色系で、8 色のうち
+ * 4 色がグレー寄り（#3D4A52 / #4A5A6B / #8A918F / #222A30）に潰れて識別しにくかった。
+ */
+export const CLUSTER_COLORS_STANDARD = [
   '#90CAF9',
   '#66BB6A',
   '#9B7BD8',
@@ -8,17 +15,6 @@ export const CLUSTER_COLORS_DARK = [
   '#F44336',
   '#42A5F5',
   '#E3F2FD',
-  '#238636',
-];
-
-export const CLUSTER_COLORS_LIGHT = [
-  '#3D4A52',
-  '#4B5A3E',
-  '#4A5A6B',
-  '#E8A012',
-  '#6B2A20',
-  '#8A918F',
-  '#222A30',
   '#238636',
 ];
 
@@ -112,6 +108,6 @@ export function applyCooccurrenceThemeVars(
     };
 
   for (const [name, value] of Object.entries(vars)) target.style.setProperty(name, value);
-  const clusters = skin === 'oz' ? CLUSTER_COLORS_OZ : mode === 'dark' ? CLUSTER_COLORS_DARK : CLUSTER_COLORS_LIGHT;
+  const clusters = skin === 'oz' ? CLUSTER_COLORS_OZ : CLUSTER_COLORS_STANDARD;
   clusters.forEach((value, index) => target.style.setProperty(`--cooc-cluster-${index}`, value));
 }

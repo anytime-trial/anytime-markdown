@@ -23,7 +23,6 @@ import {
   Quaternion,
   Raycaster,
   Scene,
-  ShaderMaterial,
   Sprite,
   SpriteMaterial,
   SphereGeometry,
@@ -42,6 +41,7 @@ import {
   zoomOrbit,
   type OrbitState,
 } from './orbitState';
+import { linkColorOf, makeStreamMaterial, type LinkColorPalette } from './streamShader';
 
 /**
  * OZ 3D の three.js アダプタ。
@@ -76,20 +76,20 @@ const ROTATE_SPEED = 0.005;
 const ZOOM_WHEEL_SPEED = 0.001;
 /** 曲線 1 本の折れ線分割数。 */
 const CURVE_SEGMENTS = 12;
-/** 破線の流れの速さ（world 単位 / 秒）と 1 周期の world 長。 */
-const FLOW_SPEED = 90;
-const DASH_PERIOD = 64;
 /** ピルテクスチャの解像度倍率（等倍だとズーム時に文字が粗れる）。 */
 const PILL_TEXTURE_SCALE = 2;
 /** 淡色化したピルの不透明度はモデルの alpha をそのまま使う。ドットは色 lerp（v1 と同じ）。 */
 
-interface OzThemePalette {
+export interface OzThemePalette {
   background: Color;
   /** 淡色化（alpha < 1）の lerp 先。フォグと同じ色にして空間へ溶かす。 */
   fade: Color;
   /** 背景平面の同心円模様の色。 */
   ringColor: Color;
   labelColor: string;
+  /** 強度が最小の線の色。背景に対する下限コントラストを決める（{@link linkColorOf}）。 */
+  linkFloor: Color;
+  /** 強度が最大の線の色。 */
   linkBase: Color;
   pillBg: string;
   pillText: string;
@@ -99,13 +99,17 @@ interface OzThemePalette {
   outlines: Array<{ color: Color; opacity: number }>;
 }
 
-function paletteOf(mode: ThemeMode): OzThemePalette {
+export function paletteOf(mode: ThemeMode): OzThemePalette {
   if (mode === 'dark') {
     return {
       background: new Color('#0A0F2E'),
       fade: new Color('#0A0F2E'),
       ringColor: new Color('#2A3568'),
       labelColor: 'rgba(255,255,255,0.92)',
+      // Why not ライトのように背景と別の下限色を置くか: 夜の OZ は linkBase が背景から十分
+      // 遠く、背景を起点にしても最弱リンクが 3.91:1 に届く。別の下限色を置くと最弱が 5.89:1
+      // まで持ち上がり、線の強度差が読み取りにくくなる。
+      linkFloor: new Color('#0A0F2E'),
       linkBase: new Color('#A0BEFF'),
       pillBg: '#12183F',
       pillText: 'rgba(255,255,255,0.92)',
@@ -125,7 +129,10 @@ function paletteOf(mode: ThemeMode): OzThemePalette {
     fade: new Color('#F4F5FB'),
     ringColor: new Color('#DDE3F2'),
     labelColor: '#1B2A4A',
-    linkBase: new Color('#8A93A6'),
+    // 下限色は背景 #F4F5FB に対し 3.53:1。白へ溶かす旧方式では最大でも 2.84:1 までしか
+    // 届かず、白の OZ では弱い共起がほぼ消えていた。
+    linkFloor: new Color('#7A8296'),
+    linkBase: new Color('#4A5468'),
     pillBg: '#FFFFFF',
     pillText: '#1B2A4A',
     circles: [
@@ -140,18 +147,13 @@ function paletteOf(mode: ThemeMode): OzThemePalette {
   };
 }
 
-/** 強度（2D の線幅 1..n）を線色の濃さへ写す。WebGL は線幅を変えられない（要件書 §2.2）。 */
-function linkStrengthAlpha(width: number): number {
-  return Math.min(0.2 + width * 0.12, 0.65);
-}
-
-function lineGeometry(links: readonly OzSceneLink[], base: Color, fade: Color): BufferGeometry {
+function lineGeometry(links: readonly OzSceneLink[], palette: LinkColorPalette): BufferGeometry {
   const positions = new Float32Array(links.length * 6);
   const colors = new Float32Array(links.length * 6);
   const color = new Color();
   links.forEach((link, i) => {
     positions.set([link.x1, link.y1, link.z1, link.x2, link.y2, link.z2], i * 6);
-    color.copy(fade).lerp(base, linkStrengthAlpha(link.width) * link.alpha);
+    linkColorOf(color, palette, link);
     colors.set([color.r, color.g, color.b, color.r, color.g, color.b], i * 6);
   });
   const geometry = new BufferGeometry();
@@ -174,7 +176,7 @@ function bezierPoint(link: OzSceneLink, t: number): [number, number, number] {
  * 曲線を折れ線へ展開し、流れシェーダ用の属性（色・線上距離・流す向き）を付ける。
  * 属性名は three が vertexColors で予約する `color` と衝突しないよう streamColor にする。
  */
-function streamGeometry(links: readonly OzSceneLink[], base: Color, fade: Color): BufferGeometry {
+function streamGeometry(links: readonly OzSceneLink[], palette: LinkColorPalette): BufferGeometry {
   const vertsPerLink = CURVE_SEGMENTS * 2;
   const positions = new Float32Array(links.length * vertsPerLink * 3);
   const colors = new Float32Array(links.length * vertsPerLink * 3);
@@ -182,7 +184,7 @@ function streamGeometry(links: readonly OzSceneLink[], base: Color, fade: Color)
   const flows = new Float32Array(links.length * vertsPerLink);
   const color = new Color();
   links.forEach((link, i) => {
-    color.copy(fade).lerp(base, linkStrengthAlpha(link.width) * link.alpha);
+    linkColorOf(color, palette, link);
     let dist = 0;
     let prev = bezierPoint(link, 0);
     for (let s = 0; s < CURVE_SEGMENTS; s += 1) {
@@ -205,53 +207,6 @@ function streamGeometry(links: readonly OzSceneLink[], base: Color, fade: Color)
   geometry.setAttribute('lineDist', new BufferAttribute(dists, 1));
   geometry.setAttribute('flowDir', new BufferAttribute(flows, 1));
   return geometry;
-}
-
-/**
- * データストリームの破線シェーダ。uTime を進めると明部が線上距離方向へ流れる。
- * flow = 0（both・点線）は静的に塗る。ジオメトリは固定で uniform 更新のみ（要件書 §5 v2）。
- */
-function makeStreamMaterial(fade: Color): ShaderMaterial {
-  return new ShaderMaterial({
-    uniforms: {
-      uTime: { value: 0 },
-      uFade: { value: fade.clone() },
-      uSpeed: { value: FLOW_SPEED },
-      uPeriod: { value: DASH_PERIOD },
-    },
-    vertexShader: [
-      'attribute vec3 streamColor;',
-      'attribute float lineDist;',
-      'attribute float flowDir;',
-      'varying vec3 vColor;',
-      'varying float vDist;',
-      'varying float vFlow;',
-      'void main() {',
-      '  vColor = streamColor;',
-      '  vDist = lineDist;',
-      '  vFlow = flowDir;',
-      '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
-      '}',
-    ].join('\n'),
-    fragmentShader: [
-      'uniform float uTime;',
-      'uniform vec3 uFade;',
-      'uniform float uSpeed;',
-      'uniform float uPeriod;',
-      'varying vec3 vColor;',
-      'varying float vDist;',
-      'varying float vFlow;',
-      'void main() {',
-      '  float visibility = 1.0;',
-      '  if (abs(vFlow) > 0.5) {',
-      '    float k = fract((vDist - vFlow * uTime * uSpeed) / uPeriod);',
-      '    float dash = smoothstep(0.0, 0.2, k) * (1.0 - smoothstep(0.6, 0.8, k));',
-      '    visibility = mix(0.35, 1.0, dash);',
-      '  }',
-      '  gl_FragColor = vec4(mix(uFade, vColor, visibility), 1.0);',
-      '}',
-    ].join('\n'),
-  });
 }
 
 /** roundRect 相当（arcTo 実装。実行環境差で Path2D.roundRect に依存しない）。 */
@@ -512,12 +467,12 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
 
   function buildStreams(current: OzSceneModel): void {
     if (current.links.length > 0) {
-      const geometry = streamGeometry(current.links, palette.linkBase, palette.fade);
+      const geometry = streamGeometry(current.links, palette);
       // streamMaterial は使い回す（uniform の uTime を共有するため）。dispose はしない。
       track(new LineSegments(geometry, streamMaterial), geometry);
     }
     if (current.timeLinks.length > 0) {
-      const geometry = lineGeometry(current.timeLinks, palette.linkBase, palette.fade);
+      const geometry = lineGeometry(current.timeLinks, palette);
       const material = new LineDashedMaterial({ vertexColors: true, dashSize: 8, gapSize: 8 });
       const lines = new LineSegments(geometry, material);
       lines.computeLineDistances();

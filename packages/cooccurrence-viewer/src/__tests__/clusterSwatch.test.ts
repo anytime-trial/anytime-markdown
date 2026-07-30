@@ -71,20 +71,20 @@ describe('クラスタの色見本', () => {
     panel.destroy();
   });
 
-  // クラスタ 0 の色は `clusterColor` の未設定時フォールバック（dark #90CAF9 / light #3D4A52）と
-  // 文字列が一致するため、検査に使うと変数解決が丸ごと壊れても green のまま通る。
+  // クラスタ 0 の色は `clusterColor` の未設定時フォールバック（#90CAF9）と文字列が一致するため、
+  // 検査に使うと変数解決が丸ごと壊れても green のまま通る。
   // フォールバックと異なる値を持つクラスタ 1 で検査する。
-  it.each<['dark' | 'light', string]>([
-    ['dark', '#66BB6A'],
-    ['light', '#4B5A3E'],
-  ])('%s モードで色変数が解決され、グラフのノード色と一致する', (mode, expected) => {
-    const host = document.createElement('div');
-    document.body.appendChild(host);
-    applyCooccurrenceThemeVars(host, mode);
+  it.each<['dark' | 'light']>([['dark'], ['light']])(
+    '%s モードで色変数が解決され、グラフのノード色と一致する',
+    (mode) => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      applyCooccurrenceThemeVars(host, mode);
 
-    // 見本が参照する変数名と、グラフのノードが読む色が同じ経路であることを固定する。
-    expect(clusterColorVarName(1)).toBe('--cooc-cluster-1');
-    expect(clusterColor(host, 1, mode)).toBe(expected);
-    expect(clusterColor(host, 9, mode)).toBe(clusterColor(host, 1, mode));
-  });
+      // 見本が参照する変数名と、グラフのノードが読む色が同じ経路であることを固定する。
+      expect(clusterColorVarName(1)).toBe('--cooc-cluster-1');
+      expect(clusterColor(host, 1)).toBe('#66BB6A');
+      expect(clusterColor(host, 9)).toBe(clusterColor(host, 1));
+    },
+  );
 });
