@@ -26,6 +26,10 @@ export function linkStrengthAlpha(width: number): number {
 /**
  * 淡色化の作業色。リンク 1 本ごとに new すると、再構築のたびに本数ぶんの割り当てになる。
  * linkColorOf の内部だけで完結し、呼び出しをまたいで値を持ち越さない。
+ *
+ * SHORTCUT: モジュールスコープの 1 個を使い回す. ceiling: 同期・非再入の呼び出し前提
+ * （現状はジオメトリ構築の forEach から逐次呼ぶだけ）. upgrade: linkColorOf を非同期化するか
+ * Worker で並列に回すならローカル変数へ戻す.
  */
 const fadeWork = new Color();
 
