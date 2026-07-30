@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { applyCooccurrenceThemeVars, CLUSTER_COLORS_DARK, CLUSTER_COLORS_LIGHT } from '../theme/applyCooccurrenceThemeVars';
+import { applyCooccurrenceThemeVars, CLUSTER_COLORS_STANDARD } from '../theme/applyCooccurrenceThemeVars';
 
 describe('applyCooccurrenceThemeVars: OZ スキン', () => {
   test.each([
@@ -20,8 +20,22 @@ describe('applyCooccurrenceThemeVars: OZ スキン', () => {
     const el = document.createElement('div');
     applyCooccurrenceThemeVars(el, mode);
     expect(el.style.getPropertyValue('--cooc-bg')).toBe(mode === 'dark' ? '#0D1117' : '#F2EFE8');
-    const clusters = mode === 'dark' ? CLUSTER_COLORS_DARK : CLUSTER_COLORS_LIGHT;
-    expect(el.style.getPropertyValue('--cooc-cluster-0')).toBe(clusters[0]);
+    expect(el.style.getPropertyValue('--cooc-cluster-0')).toBe(CLUSTER_COLORS_STANDARD[0]);
+  });
+
+  /**
+   * クラスタ色はモードで変えない。モードを切り替えると語の色まで変わる状態へ戻すと、
+   * 色でクラスタを覚えられなくなる。
+   */
+  test('標準スキンのクラスタパレットはライトとダークで同一', () => {
+    const light = document.createElement('div');
+    const dark = document.createElement('div');
+    applyCooccurrenceThemeVars(light, 'light');
+    applyCooccurrenceThemeVars(dark, 'dark');
+    for (let index = 0; index < CLUSTER_COLORS_STANDARD.length; index += 1) {
+      const name = `--cooc-cluster-${index}`;
+      expect(light.style.getPropertyValue(name)).toBe(dark.style.getPropertyValue(name));
+    }
   });
 
   test('standard を明示しても skin 省略と同じ変数になる', () => {
