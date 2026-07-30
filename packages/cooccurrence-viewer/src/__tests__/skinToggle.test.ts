@@ -14,6 +14,7 @@ const createOzRendererMock = createOzRenderer as jest.MockedFunction<typeof crea
 interface FakeOzRenderer extends OzRenderer {
   setModel: jest.Mock;
   setThemeMode: jest.Mock;
+  setAnimating: jest.Mock;
   fitView: jest.Mock;
   exportPng: jest.Mock;
   dispose: jest.Mock;
@@ -23,6 +24,7 @@ function fakeRenderer(): FakeOzRenderer {
   return {
     setModel: jest.fn(),
     setThemeMode: jest.fn(),
+    setAnimating: jest.fn(),
     fitView: jest.fn(),
     exportPng: jest.fn().mockResolvedValue(null),
     dispose: jest.fn(),
@@ -110,15 +112,19 @@ describe('OZ スキンのトグルと配線', () => {
     await flush();
     skinToggle(root).click();
     expect(createOzRendererMock).toHaveBeenCalledTimes(1);
-    expect(coocBg(root)).toBe('#FFFFFF');
+    expect(coocBg(root)).toBe('#F4F5FB');
     expect(skinToggle(root).getAttribute('aria-pressed')).toBe('true');
     const canvas = root.querySelector('.cooc-viewer__canvas') as HTMLElement;
     expect(canvas.style.display).toBe('none');
     expect(fake.setModel).toHaveBeenCalled();
     const model = fake.setModel.mock.calls.at(-1)?.[0] as OzSceneModel;
     expect(model.nodes).toHaveLength(2);
-    // 球色はキャンディパレット（--cooc-cluster-* の焼き込み）
+    // ノード色はキャンディパレット（--cooc-cluster-* の焼き込み）
     expect(model.nodes.map((node) => node.color)).toEqual(expect.arrayContaining(['#FF6B6B', '#4FC3F7']));
+    // クラスタ見出しがファイルのクラスタ label から渡る（v2）
+    expect(model.headings.map((heading) => heading.text)).toEqual(['A', 'B']);
+    // 流れアニメーションが有効化される（v2）
+    expect(fake.setAnimating).toHaveBeenLastCalledWith(true);
   });
 
   it('再トグルで standard へ戻る', async () => {
@@ -127,6 +133,7 @@ describe('OZ スキンのトグルと配線', () => {
     skinToggle(root).click();
     skinToggle(root).click();
     expect(coocBg(root)).toBe('#F2EFE8');
+    expect(fake.setAnimating).toHaveBeenLastCalledWith(false);
     const canvas = root.querySelector('.cooc-viewer__canvas') as HTMLElement;
     expect(canvas.style.display).toBe('');
     const oz = root.querySelector('.cooc-viewer__oz') as HTMLElement;
@@ -137,7 +144,7 @@ describe('OZ スキンのトグルと配線', () => {
     const { root, handle } = mount();
     await flush();
     handle.update({ skin: 'oz' });
-    expect(coocBg(root)).toBe('#FFFFFF');
+    expect(coocBg(root)).toBe('#F4F5FB');
     handle.update({ themeMode: 'dark' });
     expect(coocBg(root)).toBe('#0A0F2E');
     expect(fake.setThemeMode).toHaveBeenCalledWith('dark');
@@ -159,8 +166,10 @@ describe('OZ スキンのトグルと配線', () => {
     const rendererOptions = createOzRendererMock.mock.calls[0][0];
     rendererOptions.onSelect(0);
     const model = fake.setModel.mock.calls.at(-1)?.[0] as OzSceneModel;
-    expect(model.labels.length).toBeGreaterThan(0);
-    expect(model.labels.map((label) => label.text)).toContain('Alpha');
+    // v2: 選択語はピルとして描かれ、語テキストをモデルが持つ
+    const selected = model.nodes.find((node) => node.index === 0);
+    expect(selected?.pill).toBe(true);
+    expect(selected?.label).toBe('Alpha');
   });
 
   it('WebGL 初期化失敗時は standard のまま通知を出す', async () => {

@@ -40,7 +40,8 @@ export const CLUSTER_COLORS_OZ = [
 ];
 
 const OZ_VARS_LIGHT: Record<string, string> = {
-  '--cooc-bg': '#FFFFFF',
+  // v2: シーン背景（ozRenderer の paletteOf）と同じ淡ラベンダー白。純白はピル地に譲る。
+  '--cooc-bg': '#F4F5FB',
   '--cooc-surface': '#FFFFFF',
   '--cooc-text': '#1B2A4A',
   '--cooc-text-secondary': '#5A6B8C',

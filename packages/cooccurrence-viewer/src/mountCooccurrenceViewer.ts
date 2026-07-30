@@ -711,7 +711,9 @@ export function mountCooccurrenceViewer(
   /** graph と選択状態を 3D シーンへ写す。standard 中は何もしない。 */
   function syncOzScene(): void {
     if (skin !== 'oz') return;
-    ozView?.setModel(buildOzSceneModel(graph, selectedNodeIndex));
+    // クラスタ見出し（v2）はファイルのクラスタ label から。無題は sceneModel 側で落ちる。
+    const clusterLabels = file.spec.clusters?.map((cluster) => cluster.label) ?? [];
+    ozView?.setModel(buildOzSceneModel(graph, selectedNodeIndex, clusterLabels));
   }
 
   function showNotice(text: string): void {
@@ -802,6 +804,8 @@ export function mountCooccurrenceViewer(
       if (ozContainer) ozContainer.style.display = 'none';
       notePopup?.hide();
     }
+    // 流れアニメーションは OZ 表示中だけ回す（standard へ戻したら GPU を止める。要件書 §5 v2）。
+    ozView?.setAnimating(skin === 'oz');
     scheduler?.invalidateTheme();
     syncStatusUi();
     syncActiveTab();
