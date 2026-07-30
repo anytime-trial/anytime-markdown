@@ -89,7 +89,8 @@ function ensureStyles(): void {
 .cooc-viewer__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 10px;font:12px system-ui,sans-serif}
 .cooc-viewer__button:hover{background:var(--cooc-action-hover)}
 .cooc-viewer__status{position:absolute;inset:auto 12px 12px 12px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif;pointer-events:none}
-.cooc-viewer__oz{position:absolute;inset:0}
+.cooc-viewer__oz{position:absolute;inset:0;overflow:hidden}
+.cooc-viewer__oz canvas{display:block;width:100%;height:100%}
 .cooc-viewer__notice{position:absolute;inset:12px auto auto 12px;max-width:70%;padding:6px 10px;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
