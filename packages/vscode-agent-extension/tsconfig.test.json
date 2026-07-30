@@ -5,11 +5,11 @@
     // module を落とす場合は moduleResolution も対で下げる必要がある。
     "module": "CommonJS",
     "moduleResolution": "Node",
-    // tickets のテストは webview 側の純粋関数（theme / initMessage / rpcGateway）を
-    // 参照し、その import グラフが tickets-viewer の React コンポーネントまで届く。
-    // DOM と jsx が無いと TicketsPanel.tsx の型検査で落ちる。
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
+    // lib に DOM を足さないこと。拡張ホスト側コードの唯一の型検査ゲートは ts-jest であり
+    // （webpack の ts-loader は transpileOnly、専用の tsc スクリプトも無い）、DOM を足すと
+    // extension host が誤って window / document を参照しても型エラーにならなくなる。
+    // 実行時には存在しないため ReferenceError として初めて表面化する。
+    // webview 側（tickets-viewer の .tsx）は tsconfig.test.webview.json が担当する。
     "types": ["node", "jest"],
     "paths": {
       "@anytime-markdown/tickets-core": ["../tickets-core/src/index.ts"],
@@ -20,6 +20,9 @@
       "next-intl/server": ["./src/webview/shims/next-intl.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": []
+  // webview 側は tsconfig.test.webview.json が担当する。ここに含めると
+  // src/webview/**/*.ts から tickets-viewer の .tsx まで引き込まれ、DOM / jsx が
+  // 無いこの構成では必ず落ちる（jest の host project の対象範囲と揃えている）。
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/webview/**"]
 }

@@ -29,7 +29,14 @@ export class DisallowedHostError extends Error {
   }
 }
 
-function resolveRequestUrl(input: RequestInfo | URL): URL {
+/**
+ * `fetch` の第 1 引数の型。`RequestInfo` は DOM lib 由来で、@types/node は提供しない。
+ * 拡張ホスト側の型検査に DOM lib を足すと window / document の誤参照を検出できなくなるため、
+ * グローバル `fetch` の宣言から導出する。
+ */
+type FetchInput = Parameters<typeof fetch>[0];
+
+function resolveRequestUrl(input: FetchInput | URL): URL {
   if (typeof input === 'string') {
     return new URL(input);
   }
@@ -52,7 +59,7 @@ function resolveRequestUrl(input: RequestInfo | URL): URL {
  *
  * body を持つ Request は非対応としエラーにする（呼び出し側で決定）。理由は throwIfUnsupportedBody を参照。
  */
-function resolveRequestInit(input: RequestInfo | URL, init: RequestInit | undefined): RequestInit {
+function resolveRequestInit(input: FetchInput | URL, init: RequestInit | undefined): RequestInit {
   if (input instanceof Request) {
     throwIfUnsupportedBody(input);
     return {

@@ -1,4 +1,4 @@
-import { createRpcTicketsGateway, type RpcTransport } from '../../webview/tickets/rpcGateway';
+import { createRpcTicketsGateway, type RpcTransport } from '../rpcGateway';
 
 function makeTransport() {
   const listeners: ((m: unknown) => void)[] = [];

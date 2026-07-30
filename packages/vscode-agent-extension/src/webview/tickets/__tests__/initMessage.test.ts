@@ -1,4 +1,4 @@
-import { isInitMessage } from '../../webview/tickets/initMessage';
+import { isInitMessage } from '../initMessage';
 
 describe('isInitMessage', () => {
   it('type/source/currentUser/locale が正しい形の値を init メッセージとして受理する', () => {
