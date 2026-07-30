@@ -10,6 +10,7 @@ import {
 } from '@anytime-markdown/graph-core';
 import type {
   CacheDecision,
+  CooccurrenceSkin,
   CooccurrenceViewerHandle,
   CooccurrenceViewerOptions,
   CooccurrenceViewerUpdate,
@@ -32,6 +33,8 @@ import { updateCanvasSize } from './render/canvasSize';
 import { createRenderScheduler, type RenderScheduler } from './render/renderScheduler';
 import { createCooccurrenceT, type CooccurrenceT } from './i18n/createCooccurrenceT';
 import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
+import { buildOzSceneModel } from './scene3d/sceneModel';
+import { createOzRenderer, type OzRenderer } from './scene3d/ozRenderer';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
 import { createLinkListPanel, type LinkListPanelHandle } from './ui/LinkListPanel';
@@ -86,6 +89,8 @@ function ensureStyles(): void {
 .cooc-viewer__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 10px;font:12px system-ui,sans-serif}
 .cooc-viewer__button:hover{background:var(--cooc-action-hover)}
 .cooc-viewer__status{position:absolute;inset:auto 12px 12px 12px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif;pointer-events:none}
+.cooc-viewer__oz{position:absolute;inset:0}
+.cooc-viewer__notice{position:absolute;inset:12px auto auto 12px;max-width:70%;padding:6px 10px;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
 }
@@ -140,6 +145,12 @@ export function mountCooccurrenceViewer(
   let destroyed = false;
   let scheduler: RenderScheduler | null = null;
   let resizeObserver: ResizeObserver | null = null;
+  let skin: CooccurrenceSkin = 'standard';
+  let ozView: OzRenderer | null = null;
+  let ozContainer: HTMLDivElement | null = null;
+  /** WebGL 初期化に一度失敗したら再試行しない（毎トグルで throw を繰り返さないため）。 */
+  let ozUnavailable = false;
+  let noticeEl: HTMLDivElement | null = null;
   const pointers = new Map<number, { x: number; y: number }>();
   let dragStart: { x: number; y: number } | null = null;
   let pinchStart: { distance: number; center: { x: number; y: number } } | null = null;
@@ -479,7 +490,14 @@ export function mountCooccurrenceViewer(
       case 'links':
         return { id, label: t('tabs.links'), panelId: linksTabPanel.id };
       case 'minimap':
-        return { id, label: t('tabs.minimap'), panelId: minimapTabPanel.id };
+        // OZ 3D では視野矩形が意味を持たないため押せなくする（要件書 §2.4）。
+        return {
+          id,
+          label: t('tabs.minimap'),
+          panelId: minimapTabPanel.id,
+          disabled: skin === 'oz',
+          disabledReason: t('minimap.unavailable3d'),
+        };
       case 'clusters':
         return { id, label: t('tabs.clusters'), panelId: clustersTabPanel.id };
       case 'timeline':
@@ -507,9 +525,12 @@ export function mountCooccurrenceViewer(
    */
   function syncActiveTab(): void {
     const displayed = displayedTabIds();
-    // 選択中のタブが capability の変化で消えることがある。放置すると、どのタブも
-    // 選ばれていない（内容が何も出ない）状態が残る。
-    if (!displayed.includes(activeTab)) activeTab = displayed[0] ?? 'minimap';
+    // 選択中のタブが capability の変化で消える・OZ 3D で無効になることがある。放置すると、
+    // どのタブも選ばれていない（内容が何も出ない）状態が残る。
+    const selectable = (id: CooccurrenceTabId): boolean => !(id === 'minimap' && skin === 'oz');
+    if (!displayed.includes(activeTab) || !selectable(activeTab)) {
+      activeTab = displayed.find(selectable) ?? displayed[0] ?? 'minimap';
+    }
     filterTabPanel.hidden = activeTab !== 'filter';
     wordsTabPanel.hidden = activeTab !== 'words';
     linksTabPanel.hidden = activeTab !== 'links';
@@ -682,6 +703,109 @@ export function mountCooccurrenceViewer(
       fitted = true;
     }
     scheduler?.invalidate();
+    // 3D シーンは RenderGraph の派生。graph を組み直した経路すべて（絞り込み・編集・
+    // レイアウト完了・テーマ）で自動的に追従させる。
+    syncOzScene();
+  }
+
+  /** graph と選択状態を 3D シーンへ写す。standard 中は何もしない。 */
+  function syncOzScene(): void {
+    if (skin !== 'oz') return;
+    ozView?.setModel(buildOzSceneModel(graph, selectedNodeIndex));
+  }
+
+  function showNotice(text: string): void {
+    if (noticeEl === null) {
+      noticeEl = document.createElement('div');
+      noticeEl.className = 'cooc-viewer__notice';
+      stage.appendChild(noticeEl);
+    }
+    noticeEl.textContent = text;
+  }
+
+  function hideNotice(): void {
+    noticeEl?.remove();
+    noticeEl = null;
+  }
+
+  function handleOzSelect(index: number | null): void {
+    // 2D のクリック選択と同じ規則（同じ語をもう一度選ぶと解除）。
+    selectedNodeIndex = index === null ? null : selectedNodeIndex === index ? null : index;
+    syncOzScene();
+    updatePanels();
+  }
+
+  function handleOzHover(index: number | null, client: { x: number; y: number }): void {
+    if (index === null) {
+      notePopup?.hide();
+      return;
+    }
+    // レイヤー文脈は渡さない（3D のレイキャストは語 index だけを返す）。全期間の値が出る。
+    const popupState = nodePopupState(file, index, t, undefined);
+    if (popupState === null) {
+      notePopup?.hide();
+      return;
+    }
+    notePopup?.show(popupState, toRootPoint(client));
+  }
+
+  /**
+   * 3D レンダラを（無ければ）用意する。WebGL を初期化できない環境では false を返し、
+   * 呼び出し側は standard に留まる（要件書 §2.1。silent fallback にしない）。
+   */
+  function ensureOzView(): boolean {
+    if (ozView !== null) return true;
+    if (ozUnavailable) {
+      showNotice(t('status.webglUnavailable'));
+      return false;
+    }
+    const element = document.createElement('div');
+    element.className = 'cooc-viewer__oz';
+    // ツールバー・状態表示より後ろへ挟む（DOM 順で重なりが決まる。canvas の直後）。
+    canvas.insertAdjacentElement('afterend', element);
+    try {
+      ozView = createOzRenderer({
+        container: element,
+        themeMode,
+        onHover: handleOzHover,
+        onSelect: handleOzSelect,
+      });
+      ozContainer = element;
+      return true;
+    } catch (error) {
+      element.remove();
+      ozUnavailable = true;
+      console.warn('[cooccurrence-viewer] WebGL renderer creation failed; staying in 2D view.', error);
+      showNotice(t('status.webglUnavailable'));
+      return false;
+    }
+  }
+
+  function setSkin(next: CooccurrenceSkin): void {
+    if (skin === next) return;
+    if (next === 'oz' && !ensureOzView()) {
+      syncStatusUi();
+      return;
+    }
+    skin = next;
+    hideNotice();
+    applyCooccurrenceThemeVars(root, themeMode, skin);
+    // 球色（node.stroke）は CSS 変数から焼き込まれるため、変数の切替後に組み直す。
+    // rebuildGraph が syncOzScene まで済ませる。
+    rebuildGraph();
+    if (skin === 'oz') {
+      canvas.style.display = 'none';
+      if (ozContainer) ozContainer.style.display = '';
+      ozView?.setThemeMode(themeMode);
+    } else {
+      canvas.style.display = '';
+      if (ozContainer) ozContainer.style.display = 'none';
+      notePopup?.hide();
+    }
+    scheduler?.invalidateTheme();
+    syncStatusUi();
+    syncActiveTab();
+    updatePanels();
   }
 
   function saveCompletedLayout(): void {
@@ -745,6 +869,24 @@ export function mountCooccurrenceViewer(
     exportPanel?.update(exportPanelState());
     toolbar.replaceChildren();
 
+    // OZ 3D のトグルは常設する。状態（押されているか）は aria-pressed で表す。
+    const skinButton = document.createElement('button');
+    skinButton.className = 'cooc-btn cooc-viewer__button';
+    skinButton.type = 'button';
+    skinButton.textContent = t('toolbar.skinOz');
+    skinButton.setAttribute('aria-pressed', String(skin === 'oz'));
+    skinButton.addEventListener('click', () => setSkin(skin === 'oz' ? 'standard' : 'oz'));
+    toolbar.appendChild(skinButton);
+
+    if (skin === 'oz') {
+      const fit = document.createElement('button');
+      fit.className = 'cooc-btn cooc-viewer__button';
+      fit.type = 'button';
+      fit.textContent = t('view.fit');
+      fit.addEventListener('click', () => ozView?.fitView());
+      toolbar.appendChild(fit);
+    }
+
     if (status === 'running') {
       const abort = document.createElement('button');
       abort.className = 'cooc-btn cooc-viewer__button';
@@ -762,6 +904,13 @@ export function mountCooccurrenceViewer(
   }
 
   function exportPng(): void {
+    // OZ 3D 中は現在の視点を WebGL canvas から書き出す（要件書 §2.4）。
+    if (skin === 'oz' && ozView !== null) {
+      void ozView.exportPng().then((blob) => {
+        if (blob) options.onExportPng?.(blob);
+      });
+      return;
+    }
     canvas.toBlob((blob) => {
       if (blob) options.onExportPng?.(blob);
     }, 'image/png');
@@ -888,12 +1037,19 @@ export function mountCooccurrenceViewer(
     getState: () => ({ graph, viewport, selectedNodeIndex, themeMode }),
   });
   scheduler.invalidate();
+  // 初期スキンはトグルと同じ経路で適用する（WebGL 不能環境でも同じ縮退が働く）。
+  if ((options.skin ?? 'standard') === 'oz') setSkin('oz');
 
   return {
     update(partial: CooccurrenceViewerUpdate): void {
+      if (partial.skin !== undefined) {
+        setSkin(partial.skin);
+      }
       if (partial.themeMode !== undefined) {
         themeMode = partial.themeMode;
-        applyCooccurrenceThemeVars(root, themeMode);
+        // skin を渡し忘れると、テーマ切替のたびに OZ の変数一式が standard へ戻る。
+        applyCooccurrenceThemeVars(root, themeMode, skin);
+        ozView?.setThemeMode(themeMode);
         scheduler?.invalidateTheme();
       }
       if (partial.locale !== undefined) {
@@ -946,6 +1102,7 @@ export function mountCooccurrenceViewer(
       clusterListPanel?.destroy();
       timelinePanel?.destroy();
       notePopup?.destroy();
+      ozView?.dispose();
       root.remove();
     },
     getLayoutStatus: () => status,
