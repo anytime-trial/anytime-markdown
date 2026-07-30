@@ -139,13 +139,15 @@ describe('minimap and save tabs', () => {
     handle.destroy();
   });
 
-  it('leaves no button on top of the diagram while the layout is settled', () => {
+  it('leaves only the skin toggle on top of the diagram while the layout is settled', () => {
     const { container, handle } = mount(BOTH);
 
     // 全体表示・保存・PNG は右パネルへ、開閉は右端のアイコン列へ移した（仕様 §3.5）。
-    // 図の上のボタンは図そのものを覆うため、計算中の中断だけを残す。
+    // 図の上のボタンは図そのものを覆うため、常設は OZ 3D のトグルだけに絞る
+    // （表示モードの切替は図の見た目そのものの操作であり、パネルへ移すと図と操作が離れる。
+    // OZ 風 3D 表示要件書 §2.1）。
     const labels = toolbarLabels(container);
-    expect(labels).toEqual([]);
+    expect(labels).toEqual([ja.Cooccurrence['toolbar.skinOz']]);
     expect(labels).not.toContain(ja.Cooccurrence['view.fit']);
     expect(labels).not.toContain(ja.Cooccurrence['export.save']);
     expect(labels).not.toContain(ja.Cooccurrence['export.png']);

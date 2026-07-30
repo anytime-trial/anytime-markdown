@@ -8,6 +8,15 @@ export interface SideIconRailItem {
   readonly label: string;
   /** 対応する tabpanel の id 属性。aria-controls で結ぶ。 */
   readonly panelId: string;
+  /**
+   * 一時的に押せないタブ（例: OZ 3D 中のミニマップ）。
+   *
+   * Why not 並びから外すか: 消えると「どこへ行ったのか」が読めない。無効の見た目と
+   * 理由（tooltip）を残し、条件が戻れば同じ場所で復帰する。
+   */
+  readonly disabled?: boolean;
+  /** 無効の理由（i18n 済み）。tooltip に出す。 */
+  readonly disabledReason?: string;
 }
 
 export interface SideIconRailState {
@@ -155,13 +164,16 @@ export function createSideIconRail(options: SideIconRailOptions): SideIconRailHa
       button.setAttribute('aria-controls', item.panelId);
       button.setAttribute('aria-label', item.label);
       // ポインタ利用者には図柄だけでは伝わらない。ネイティブの tooltip で名前を出す。
-      button.title = item.label;
+      // 無効時は理由に差し替える（無言で押せないボタンにしない）。
+      button.title = item.disabled ? item.disabledReason ?? item.label : item.label;
+      button.disabled = item.disabled === true;
       button.appendChild(iconElement(item.id));
       button.addEventListener('click', () => options.onSelect(item.id));
       button.addEventListener('keydown', (event) => {
-        // 巡回対象は「今そこにあるアイコン」。保存に対応しないホストでは保存アイコンが
-        // 並びから外れるため、固定の一覧で解くと存在しないタブへ移る。
-        const next = nextTabId(state.activeId, event.key, [...buttons.keys()]);
+        // 巡回対象は「今そこにある押せるアイコン」。保存に対応しないホストでは保存アイコンが
+        // 並びから外れ、無効中のタブ（OZ 3D のミニマップ）は飛ばす。
+        const enabledIds = state.items.filter((candidate) => candidate.disabled !== true).map((candidate) => candidate.id);
+        const next = nextTabId(state.activeId, event.key, enabledIds);
         if (next === null) return;
         // 既定動作（列のスクロール等）が残ると、キーで移すたびに表示位置が飛ぶ。
         event.preventDefault();

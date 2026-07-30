@@ -7,6 +7,11 @@ import type {
 
 export type ThemeMode = 'dark' | 'light';
 /**
+ * 見た目のスキン。`ThemeMode`（ダーク/ライト）と直交する（要件書 OZ 風 3D 表示 §2.1）。
+ * `oz` は three.js による 3D 表示、`standard` は従来の 2D canvas。
+ */
+export type CooccurrenceSkin = 'standard' | 'oz';
+/**
  * `aborted` は利用者の明示的な中断、`failed` は Worker のクラッシュ等の異常終了。
  * 同じ状態にまとめると、原因不明の失敗を「中断しました」と表示してしまう。
  */
@@ -29,10 +34,11 @@ export interface CooccurrenceViewerOptions {
   capabilities?: CooccurrenceViewerCapabilities;
   filter?: CooccurrenceFilterOptions;
   showPanels?: boolean;
+  skin?: CooccurrenceSkin;
 }
 
 export type CooccurrenceViewerUpdate = Partial<
-  Pick<CooccurrenceViewerOptions, 'file' | 'themeMode' | 'locale' | 'filter' | 'capabilities' | 'showPanels'>
+  Pick<CooccurrenceViewerOptions, 'file' | 'themeMode' | 'locale' | 'filter' | 'capabilities' | 'showPanels' | 'skin'>
 >;
 
 export interface CooccurrenceViewerHandle {

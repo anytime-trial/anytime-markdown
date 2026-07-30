@@ -90,6 +90,9 @@
     "links.sliceValues": "スライス別の強度",
     "note.slice": "スライス: {value}",
     "note.totalFrequency": "全期間の頻度: {value}",
-    "note.totalStrength": "全期間の強度: {value}"
+    "note.totalStrength": "全期間の強度: {value}",
+    "toolbar.skinOz": "OZ 風 3D",
+    "status.webglUnavailable": "WebGL を初期化できないため 2D 表示を継続します",
+    "minimap.unavailable3d": "3D 表示中はミニマップを使えません"
   }
 }
