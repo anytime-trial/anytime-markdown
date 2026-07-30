@@ -104,6 +104,21 @@ function ensureRoughenFilter(): void {
   document.body.appendChild(svg);
 }
 
+const GOOGLE_FONTS_LINK_ID = "google-fonts-preset";
+
+/**
+ * 既に注入済みの Google Fonts `<link>` を取り除く。
+ *
+ * Why not: 削除を `loadPresetGoogleFonts` の内側だけに置かない。`loadGoogleFonts: false`
+ * で呼ばれたときに削除処理ごとスキップされ、一度注入された link が残ってしまう。
+ * フラグは「このホストでは外部フォントを読まない」という指示なので、
+ * 過去に注入されたものも取り消せなければ意味を成さない（webview の CSP 下では
+ * 残った link が毎回ブロックされ続ける）。
+ */
+function removePresetGoogleFonts(): void {
+  document.getElementById(GOOGLE_FONTS_LINK_ID)?.remove();
+}
+
 function loadPresetGoogleFonts(fontFamily: string, displayFont: string): void {
   const families = [
     ...new Set(
@@ -114,8 +129,7 @@ function loadPresetGoogleFonts(fontFamily: string, displayFont: string): void {
     ),
   ];
   if (families.length === 0) return;
-  const id = "google-fonts-preset";
-  document.getElementById(id)?.remove();
+  const id = GOOGLE_FONTS_LINK_ID;
   const params = families
     .map((f) => `family=${f.replaceAll(" ", "+")}:wght@400;600;700`)
     .join("&");
@@ -199,6 +213,9 @@ export function applyEditorThemeCssVars(
     }
   }
 
+  // 再適用のたびに一旦消してから、有効なときだけ入れ直す。
+  // これで loadGoogleFonts の値が常に現在の状態と一致する。
+  removePresetGoogleFonts();
   if (loadGoogleFonts) {
     loadPresetGoogleFonts(preset.fontFamily, preset.displayFont);
   }

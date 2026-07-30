@@ -205,7 +205,17 @@ let historicalContent: string | null = null;
 
 /** テーマ（CSS 変数 + body 背景）を反映する。MUI ThemeProvider/CssBaseline の置換。 */
 function applyTheme(): void {
-  applyEditorThemeCssVars({ presetName: state.presetName, themeMode: state.themeMode });
+  // Why not: webview では Google Fonts を読まない。webview の CSP は
+  // `style-src ${webview.cspSource} 'unsafe-inline'` で外部 CDN を許可しておらず、
+  // 読み込もうとしても必ずブロックされる（実機で確認）。CSP を緩めて外部 CDN を
+  // 許可する選択もあるが、webview は拡張ホスト経由のローカル資産で完結させる方針
+  // （default-src 'none' / localResourceRoots）と反し、オフラインでも失敗し続ける。
+  // プリセットのフォントはシステムフォントへフォールバックさせる。
+  applyEditorThemeCssVars({
+    presetName: state.presetName,
+    themeMode: state.themeMode,
+    loadGoogleFonts: false,
+  });
   document.body.style.margin = '0';
   document.body.style.backgroundColor = state.themeMode === 'dark' ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG;
   document.documentElement.style.colorScheme = state.themeMode;
