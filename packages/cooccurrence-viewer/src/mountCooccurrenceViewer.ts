@@ -325,6 +325,8 @@ export function mountCooccurrenceViewer(
     file = nextFile;
     options = { ...options, file };
     positions = file.layout?.positions ?? fallbackPositions(file);
+    // Why not selectNode(null): 直後の再構築（rebuildGraph / レイアウト）が 2D・3D・パネルへ
+    // まとめて伝播する。ここで selectNode を呼ぶと差し替え前の古い graph で 3D を一度描き直す。
     selectedNodeIndex = null;
     // 編集で添字がずれると、出したままのポップアップが別の要素の内容を指すことになる。
     notePopup?.hide();
@@ -369,8 +371,7 @@ export function mountCooccurrenceViewer(
       selectedNodeIndex,
       t,
       onSelectNode(nodeIndex) {
-        selectedNodeIndex = nodeIndex;
-        updatePanels();
+        selectNode(nodeIndex);
       },
       onFileChange: (nextFile) => applyFileChange(nextFile, true),
     });
@@ -708,6 +709,21 @@ export function mountCooccurrenceViewer(
     syncOzScene();
   }
 
+  /**
+   * 選択状態を差し替える唯一の入口。
+   *
+   * Why not 各ハンドラで `selectedNodeIndex = ...` と代入するか: 選択の反映先は
+   * 2D（scheduler）・3D（syncOzScene）・パネルの 3 つあり、代入と伝播が分かれていると
+   * 経路ごとに伝播漏れが起きる。実際に語一覧からの選択だけ 3D へ届かず、カメラを
+   * 動かしても古い選択のまま描き続けた（setViewport と同じ構造の再発）。
+   */
+  function selectNode(next: number | null): void {
+    selectedNodeIndex = next;
+    scheduler?.invalidate();
+    syncOzScene();
+    updatePanels();
+  }
+
   /** graph と選択状態を 3D シーンへ写す。standard 中は何もしない。 */
   function syncOzScene(): void {
     if (skin !== 'oz') return;
@@ -732,9 +748,7 @@ export function mountCooccurrenceViewer(
 
   function handleOzSelect(index: number | null): void {
     // 2D のクリック選択と同じ規則（同じ語をもう一度選ぶと解除）。
-    selectedNodeIndex = index === null ? null : selectedNodeIndex === index ? null : index;
-    syncOzScene();
-    updatePanels();
+    selectNode(index === null ? null : selectedNodeIndex === index ? null : index);
   }
 
   function handleOzHover(index: number | null, client: { x: number; y: number }): void {
@@ -1000,9 +1014,7 @@ export function mountCooccurrenceViewer(
     pinchStart = currentPinch();
     if (dragStart && Math.hypot(point.x - dragStart.x, point.y - dragStart.y) < 4) {
       const hit = hitTestNode(graph, point.x, point.y, viewport);
-      selectedNodeIndex = hit ? (selectedNodeIndex === hit.index ? null : hit.index) : null;
-      scheduler?.invalidate();
-      updatePanels();
+      selectNode(hit ? (selectedNodeIndex === hit.index ? null : hit.index) : null);
     }
     dragStart = null;
   });
@@ -1016,7 +1028,7 @@ export function mountCooccurrenceViewer(
     if (event.key === '0') fitToGraph();
     if (event.key === '+' || event.key === '=') setViewport(zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1.2));
     if (event.key === '-') setViewport(zoomAt(viewport, { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 }, 1 / 1.2));
-    if (event.key === 'Escape') selectedNodeIndex = null;
+    if (event.key === 'Escape') selectNode(null);
     scheduler?.invalidate();
     updatePanels();
   });
