@@ -132,7 +132,13 @@ export function registerTicketsFeature(
     return { source, provider: createProvider(source, token), currentUser, locale };
   };
 
-  const manager = new TicketsPanelManager(context, logger, () => resolveContext(false));
+  // promptSignInIfNeeded は manager.reload() を呼ぶ signIn を経由するため、
+  // manager より後に定義される。後から代入されるスロットとして明示する
+  // （init 送信時点では必ず代入済み）。
+  let onContextResolved: ((ctx: PanelContext) => void) | undefined;
+  const manager = new TicketsPanelManager(context, logger, () => resolveContext(false), (ctx) => {
+    onContextResolved?.(ctx);
+  });
   context.subscriptions.push({ dispose: () => manager.dispose() });
 
   const signIn = async (): Promise<void> => {
@@ -167,16 +173,19 @@ export function registerTicketsFeature(
     }
   };
 
+  // init を送るたび（open / reload の両方）に、解決済みの文脈で未認証を判定する。
+  // リポジトリは解決できているのにトークンが無い場合だけ促す（未設定は空状態の案内で足りる）。
+  onContextResolved = (ctx) => {
+    if (ctx.source && !ctx.provider) {
+      void promptSignInIfNeeded();
+    }
+  };
+
   const viewProvider = new TicketsViewProvider();
   context.subscriptions.push(
     vscode.window.createTreeView('anytimeAgent.tickets', { treeDataProvider: viewProvider }),
     vscode.commands.registerCommand('anytime-agent.tickets.open', async () => {
       await manager.open();
-      // パネルを開いた直後に未認証なら促す（開く前に聞くと、見たいだけの操作を妨げる）。
-      const ctx = await resolveContext(false);
-      if (ctx.source && !ctx.provider) {
-        await promptSignInIfNeeded();
-      }
     }),
     vscode.commands.registerCommand('anytime-agent.tickets.reload', async () => {
       await manager.reload();

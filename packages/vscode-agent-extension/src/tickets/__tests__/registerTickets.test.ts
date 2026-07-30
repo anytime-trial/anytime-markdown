@@ -116,3 +116,112 @@ describe('registerTicketsFeature の git 実行基点', () => {
     expect(execFileMock).not.toHaveBeenCalled();
   });
 });
+
+describe('サインイン導線と resolveContext の呼び出し回数', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  /** open コマンドを実行し、webview の 'ready' 到達までを再現する。 */
+  async function openPanel(configured: string): Promise<{
+    fireReady: () => Promise<void>;
+    warnCalls: () => unknown[][];
+  }> {
+    const handlers = new Map<string, (...a: unknown[]) => unknown>();
+    let onMessage: ((m: unknown) => unknown) | undefined;
+
+    (vscode.commands.registerCommand as jest.Mock).mockImplementation(
+      (id: string, h: (...a: unknown[]) => unknown) => {
+        handlers.set(id, h);
+        return { dispose: jest.fn() };
+      },
+    );
+    (vscode.workspace.getConfiguration as jest.Mock).mockImplementation((section: string) => ({
+      get: (key: string) =>
+        section === 'anytimeAgent.tickets' && key === 'directory' ? configured : '',
+      update: jest.fn(),
+    }));
+    Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+      value: [{ uri: { fsPath: WORKSPACE_ROOT } }],
+      configurable: true,
+    });
+    // 未サインイン（トークンが取れない）状態を作る
+    (vscode.authentication.getSession as jest.Mock).mockResolvedValue(undefined);
+    (vscode.window.showWarningMessage as jest.Mock).mockResolvedValue(undefined);
+    (vscode.window.createWebviewPanel as jest.Mock).mockImplementation(() => ({
+      webview: {
+        html: '',
+        cspSource: 'vscode-webview:',
+        asWebviewUri: (u: unknown) => u,
+        onDidReceiveMessage: (l: (m: unknown) => unknown) => {
+          onMessage = l;
+          return { dispose: jest.fn() };
+        },
+        postMessage: jest.fn(),
+      },
+      onDidDispose: jest.fn(),
+      reveal: jest.fn(),
+      dispose: jest.fn(),
+    }));
+    execFileMock.mockImplementation((...args: unknown[]) => {
+      const cb = args[args.length - 1] as (e: unknown, v: unknown) => void;
+      const gitArgs = args[1] as string[];
+      cb(null, {
+        stdout: gitArgs.includes('remote')
+          ? 'git@github.com:anytime-trial/anytime-ticket.git\n'
+          : 'main\n',
+        stderr: '',
+      });
+    });
+
+    const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    registerTicketsFeature(
+      { subscriptions: [], extensionUri: { fsPath: '/ext' } } as never,
+      logger,
+    );
+    await handlers.get('anytime-agent.tickets.open')!();
+
+    return {
+      fireReady: async () => {
+        await onMessage?.({ type: 'ready' });
+        await new Promise((r) => setImmediate(r));
+      },
+      warnCalls: () => (logger.warn as jest.Mock).mock.calls,
+    };
+  }
+
+  it('open だけでは resolveContext を呼ばない（ready 到達時に 1 度だけ解決する）', async () => {
+    const panel = await openPanel(TICKETS_DIR);
+
+    // open 時点で git を叩いていたら、ready 後の解決と合わせて二重になる
+    expect(execFileMock).not.toHaveBeenCalled();
+
+    await panel.fireReady();
+    const remoteCalls = gitCalls().filter((c) => c.args.includes('remote'));
+    expect(remoteCalls).toHaveLength(1);
+  });
+
+  it('未サインインなら init 送信時にサインインを促す', async () => {
+    const panel = await openPanel(TICKETS_DIR);
+    await panel.fireReady();
+
+    expect(vscode.window.showWarningMessage as jest.Mock).toHaveBeenCalledTimes(1);
+    const message = (vscode.window.showWarningMessage as jest.Mock).mock.calls[0][0] as string;
+    expect(message).toContain('サインイン');
+  });
+
+  it('促すのは 1 度だけ（init が複数回来ても通知を積まない）', async () => {
+    const panel = await openPanel(TICKETS_DIR);
+    await panel.fireReady();
+    await panel.fireReady();
+
+    expect(vscode.window.showWarningMessage as jest.Mock).toHaveBeenCalledTimes(1);
+  });
+
+  it('リポジトリが解決できないときは促さない（空状態の案内で足りる）', async () => {
+    const panel = await openPanel('');
+    await panel.fireReady();
+
+    expect(vscode.window.showWarningMessage as jest.Mock).not.toHaveBeenCalled();
+  });
+});

@@ -99,6 +99,15 @@ export class TicketsPanelManager {
     private readonly context: vscode.ExtensionContext,
     private readonly logger: TicketsLogger,
     private readonly resolveContext: () => Promise<PanelContext>,
+    /**
+     * init を webview へ送るたびに、その時点で解決済みの文脈を通知する。
+     *
+     * Why not: 呼び出し側が open() の後に resolveContext() を呼び直さない。
+     * resolveContext は git 子プロセス 2 回と認証 API 呼び出しを伴うため、
+     * 二重に呼ぶとパネルを開くたび git が 4 回起動する。解決済みの値をここから
+     * 渡すことで、未認証の判定などを追加コストなしに行える。
+     */
+    private readonly onContextResolved?: (ctx: PanelContext) => void,
   ) {}
 
   async open(): Promise<void> {
@@ -190,6 +199,7 @@ export class TicketsPanelManager {
       currentUser: ctx.currentUser,
       locale: ctx.locale,
     });
+    this.onContextResolved?.(ctx);
   }
 
   /**
