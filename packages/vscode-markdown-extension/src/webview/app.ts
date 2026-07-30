@@ -14,10 +14,7 @@
  */
 
 import {
-  applyEditorThemeCssVars,
   createMarkdownT,
-  DEFAULT_DARK_BG,
-  DEFAULT_LIGHT_BG,
   DEFAULT_SETTINGS,
   setWebImportProvider,
   type EditorSettings,
@@ -42,6 +39,7 @@ import { getVsCodeApi } from './vscodeApi';
 import { buildWebviewFileHandlers } from './fileHandlers';
 import { isInternalLink } from './linkClick';
 import { createVsCodeEmbedProviders } from './vscodeEmbedProviders';
+import { applyWebviewTheme } from './webviewTheme';
 import { createWebImportBridgeProvider } from './webImportBridge';
 import { createNoteGraphPanel, type NoteGraphPanelHandle } from '@anytime-markdown/graph-core';
 
@@ -203,22 +201,12 @@ let bannerEl: HTMLElement | null = null;
 let latestContent: string | null = null;
 let historicalContent: string | null = null;
 
-/** テーマ（CSS 変数 + body 背景）を反映する。MUI ThemeProvider/CssBaseline の置換。 */
+/**
+ * テーマ（CSS 変数 + body 背景）を反映する。
+ * 実体は `webviewTheme.ts`。Google Fonts を読まない不変条件をテストで守るため分離している。
+ */
 function applyTheme(): void {
-  // Why not: webview では Google Fonts を読まない。webview の CSP は
-  // `style-src ${webview.cspSource} 'unsafe-inline'` で外部 CDN を許可しておらず、
-  // 読み込もうとしても必ずブロックされる（実機で確認）。CSP を緩めて外部 CDN を
-  // 許可する選択もあるが、webview は拡張ホスト経由のローカル資産で完結させる方針
-  // （default-src 'none' / localResourceRoots）と反し、オフラインでも失敗し続ける。
-  // プリセットのフォントはシステムフォントへフォールバックさせる。
-  applyEditorThemeCssVars({
-    presetName: state.presetName,
-    themeMode: state.themeMode,
-    loadGoogleFonts: false,
-  });
-  document.body.style.margin = '0';
-  document.body.style.backgroundColor = state.themeMode === 'dark' ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG;
-  document.documentElement.style.colorScheme = state.themeMode;
+  applyWebviewTheme(state.presetName, state.themeMode);
 }
 
 // --- Claude 編集中バナー ---
