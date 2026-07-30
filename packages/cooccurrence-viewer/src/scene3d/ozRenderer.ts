@@ -370,7 +370,10 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
   // WebGL コンテキストを作れない環境はここで throw し、呼び出し側が 2D へ縮退する（要件書 §2.1）。
   const renderer = new WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio || 1);
-  renderer.domElement.style.display = 'block';
+  // canvas の表示サイズは注入 CSS（.cooc-viewer__oz canvas）が 100% に固定する。
+  // setSize(…, updateStyle: false) は CSS サイズを書かず、無指定だと表示サイズが
+  // 属性サイズ（クライアント幅 × devicePixelRatio）になり、dpr > 1 で canvas が
+  // コンテナからはみ出して右パネルを覆う（ポインタ→NDC 変換も同じ rect を使うためずれる）。
   container.appendChild(renderer.domElement);
 
   const scene = new Scene();
