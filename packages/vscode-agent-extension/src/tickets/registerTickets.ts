@@ -81,6 +81,10 @@ export function registerTicketsFeature(
     return resolveTicketSource(config, { remoteUrl, branch });
   };
 
+  // 未認証の通知を 1 回の未認証状態につき 1 度だけ出すためのフラグ。
+  // 認証が通った時点で false に戻し、サインアウト後は再度促せるようにする。
+  let signInPrompted = false;
+
   // git config user.name は VS Code セッション中に変わることを想定しない値である一方、
   // resolveContext は RPC のたびに呼ばれる設計のため、素朴に毎回子プロセスを起動すると
   // 無駄が大きい。値でなく Promise 自体をキャッシュすることで、解決結果が undefined
@@ -123,59 +127,60 @@ export function registerTicketsFeature(
       logger.warn('GitHub 認証セッションがありません。サインインしてください。');
       return { source, provider: null, locale };
     }
+    signInPrompted = false;
     const currentUser = await resolveCurrentUser();
     return { source, provider: createProvider(source, token), currentUser, locale };
   };
 
-  // selectRepo は manager.reload() を呼ぶが、manager のコンストラクタは selectRepo を
-  // onSelectRepo として要求する（webview からの 'selectRepo' 受信時に呼ぶため）ため、
-  // 両者は本質的に相互参照になる。TDZ の暗黙のホイスティングに依存する代わりに、
-  // 「後から代入されるスロット」であることをコード上で明示する。本関数は同期的に
-  // 最後まで実行されるため、実際の呼び出し時点では必ず代入済みになる。
-  let selectRepoAction: (() => Promise<void>) | undefined;
-  const manager = new TicketsPanelManager(context, logger, () => resolveContext(false), async () => {
-    await selectRepoAction?.();
-  });
+  const manager = new TicketsPanelManager(context, logger, () => resolveContext(false));
   context.subscriptions.push({ dispose: () => manager.dispose() });
 
-  const selectRepo = async (): Promise<void> => {
-    const repo = await vscode.window.showInputBox({
-      title: 'Anytime Tickets',
-      prompt: 'owner/repo',
-      value: readTicketConfig().repo,
-    });
-    if (repo === undefined) return;
-    const branch = await vscode.window.showInputBox({
-      title: 'Anytime Tickets',
-      prompt: 'branch',
-      value: readTicketConfig().branch,
-    });
-    if (branch === undefined) return;
-    const section = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    await section.update('repo', repo, vscode.ConfigurationTarget.Workspace);
-    await section.update('branch', branch, vscode.ConfigurationTarget.Workspace);
-    await manager.reload();
+  const signIn = async (): Promise<void> => {
+    const ctx = await resolveContext(true);
+    if (ctx.provider) {
+      logger.info('GitHub 認証に成功しました。');
+      await manager.reload();
+    } else {
+      void vscode.window.showErrorMessage('GitHub 認証に失敗しました。');
+    }
   };
-  selectRepoAction = selectRepo;
+
+  /**
+   * 未サインインのときにサインイン導線を出す。
+   *
+   * Accounts メニューのバッジだけでは気づきにくく、ボード側には
+   * 「認証が未完了」という表示しか出ないため、パネルを開いた時点で能動的に促す。
+   * 1 回の未認証状態につき 1 度だけ出す（RPC ごとに通知が積まれるのを防ぐ）。
+   */
+  const promptSignInIfNeeded = async (): Promise<void> => {
+    if (signInPrompted) {
+      return;
+    }
+    signInPrompted = true;
+    const signInLabel = 'サインイン';
+    const picked = await vscode.window.showWarningMessage(
+      'チケットの読み込みには GitHub へのサインインが必要です。',
+      signInLabel,
+    );
+    if (picked === signInLabel) {
+      await signIn();
+    }
+  };
 
   const viewProvider = new TicketsViewProvider();
   context.subscriptions.push(
     vscode.window.createTreeView('anytimeAgent.tickets', { treeDataProvider: viewProvider }),
     vscode.commands.registerCommand('anytime-agent.tickets.open', async () => {
       await manager.open();
+      // パネルを開いた直後に未認証なら促す（開く前に聞くと、見たいだけの操作を妨げる）。
+      const ctx = await resolveContext(false);
+      if (ctx.source && !ctx.provider) {
+        await promptSignInIfNeeded();
+      }
     }),
     vscode.commands.registerCommand('anytime-agent.tickets.reload', async () => {
       await manager.reload();
     }),
-    vscode.commands.registerCommand('anytime-agent.tickets.selectRepo', selectRepo),
-    vscode.commands.registerCommand('anytime-agent.tickets.signIn', async () => {
-      const ctx = await resolveContext(true);
-      if (ctx.provider) {
-        logger.info('GitHub 認証に成功しました。');
-        await manager.reload();
-      } else {
-        void vscode.window.showErrorMessage('GitHub 認証に失敗しました。');
-      }
-    }),
+    vscode.commands.registerCommand('anytime-agent.tickets.signIn', signIn),
   );
 }

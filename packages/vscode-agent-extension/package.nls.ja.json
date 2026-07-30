@@ -42,7 +42,6 @@
   "view.tickets": "チケット",
   "command.tickets.open": "チケットボードを開く",
   "command.tickets.reload": "チケットを再読込",
-  "command.tickets.selectRepo": "チケットのリポジトリとブランチを選択",
   "command.tickets.signIn": "GitHub にサインイン（チケット）",
   "config.tickets.github.repo": "チケットボードの対象 GitHub リポジトリ（`owner/repo` 形式）。空ならワークスペースの `origin` リモートから推定する。anytime-loop-start スキルが使うローカルクローンを指す `anytimeAgent.tickets.directory` とは別の設定である。",
   "config.tickets.github.branch": "チケットボードの対象ブランチ。空ならワークスペースの現在ブランチから推定する。",

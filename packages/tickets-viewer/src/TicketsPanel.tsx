@@ -28,11 +28,18 @@ export interface TicketsPanelProps {
    * インスタンス同一性が再取得のトリガになるため、呼び出し側でメモ化すること。
    */
   gateway: TicketsGateway | null;
-  /** ツールバーに出す保存先の表示名。`gateway` が null のときは null。 */
-  source: { label: string } | null;
+  /**
+   * ツールバーに出す保存先の表示名。省略・null なら保存先を表示しない。
+   * 保存先をホスト側の設定で決めるホスト（VS Code 拡張は設定で指定する）では渡さない。
+   */
+  source?: { label: string } | null;
   currentUser?: string;
-  /** リポジトリ選択 UI を開く（web-app はダイアログ、拡張は selectRepo コマンド） */
-  onRequestRepoSelect: () => void;
+  /**
+   * リポジトリ選択 UI を開く（web-app のダイアログ）。
+   * 省略すると「変更」ボタンと空状態の選択ボタンを描画しない。保存先を画面から
+   * 切り替えられないホスト（VS Code 拡張は設定で指定する）では渡さない。
+   */
+  onRequestRepoSelect?: () => void;
   /** サニタイズ済みリッチ表示のレンダラ（省略時は本文を pre で表示） */
   renderBody?: (markdown: string) => ReactNode;
 }
@@ -97,10 +104,14 @@ export function TicketsPanel({
     return (
       <div className="tk-root">
         <div className="tk-empty">
-          <p>{t("repo.empty")}</p>
-          <button type="button" className="tk-btn tk-btn--primary" onClick={onRequestRepoSelect}>
-            {t("repo.select")}
-          </button>
+          {/* 画面から保存先を切り替えられるホストは選択導線を出す。
+              そうでないホスト（設定で決める）は、どこで設定するかを案内する。 */}
+          <p>{onRequestRepoSelect ? t("repo.empty") : t("repo.emptyManagedByHost")}</p>
+          {onRequestRepoSelect && (
+            <button type="button" className="tk-btn tk-btn--primary" onClick={onRequestRepoSelect}>
+              {t("repo.select")}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -131,12 +142,16 @@ export function TicketsPanel({
   return (
     <div className="tk-root">
       <div className="tk-toolbar">
-        <span className="tk-card-meta">
-          {t("repo.location")}: {source?.label ?? ""}
-        </span>
-        <button type="button" className="tk-btn" onClick={onRequestRepoSelect}>
-          {t("repo.change")}
-        </button>
+        {source && (
+          <span className="tk-card-meta">
+            {t("repo.location")}: {source.label}
+          </span>
+        )}
+        {onRequestRepoSelect && (
+          <button type="button" className="tk-btn" onClick={onRequestRepoSelect}>
+            {t("repo.change")}
+          </button>
+        )}
         <span className="tk-toolbar-spacer" />
         <button
           type="button"

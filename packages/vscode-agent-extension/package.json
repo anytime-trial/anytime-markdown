@@ -218,11 +218,6 @@
         "category": "Anytime Agent"
       },
       {
-        "command": "anytime-agent.tickets.selectRepo",
-        "title": "%command.tickets.selectRepo%",
-        "category": "Anytime Agent"
-      },
-      {
         "command": "anytime-agent.tickets.signIn",
         "title": "%command.tickets.signIn%",
         "category": "Anytime Agent"

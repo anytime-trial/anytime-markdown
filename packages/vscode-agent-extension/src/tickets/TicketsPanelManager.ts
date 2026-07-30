@@ -99,7 +99,6 @@ export class TicketsPanelManager {
     private readonly context: vscode.ExtensionContext,
     private readonly logger: TicketsLogger,
     private readonly resolveContext: () => Promise<PanelContext>,
-    private readonly onSelectRepo: () => Promise<void>,
   ) {}
 
   async open(): Promise<void> {
@@ -150,10 +149,6 @@ export class TicketsPanelManager {
     const type = message.type;
     if (type === 'ready') {
       await this.postInit();
-      return;
-    }
-    if (type === 'selectRepo') {
-      await this.onSelectRepo();
       return;
     }
     if (type !== 'rpc') return;

@@ -1,6 +1,7 @@
 /** web-app の next-intl `tickets` namespace として集約されるメッセージ（ja）。en.ts と同時更新必須。 */
 export const ticketsMessagesJa = {
   repo: {
+    emptyManagedByHost: "チケットの保存先が未設定か、GitHub の認証が未完了です。VS Code の設定と Accounts メニューを確認してください",
     empty: "チケットを保存する GitHub リポジトリを選択してください",
     select: "リポジトリを選択",
     change: "変更",
