@@ -20,11 +20,16 @@ export interface CooccurrenceNode {
   frequency: number;
 }
 
+/** 共起の向き。DSL・静的図では名前で扱う（`.cooc.json` の数値コードは永続形式の都合）。 */
+export type CooccurrenceLinkDirection = 'forward' | 'backward' | 'both';
+
 export interface CooccurrenceLink {
   a: string;
   b: string;
   /** 共起の強さ。線の太さと引力に比例させる。 */
   strength: number;
+  /** 向き。省略時は無向で、矢印を描かない（設計書 §2.1）。 */
+  direction?: CooccurrenceLinkDirection;
 }
 
 export interface CooccurrenceCluster {
@@ -142,7 +147,7 @@ export function buildCooccurrence(spec: CooccurrenceSpec, isDark: boolean): Grap
     );
   });
 
-  // ── 共起（無向。矢印は付けない） ──
+  // ── 共起（向きが与えられていれば矢印を付ける。設計書 §2.1） ──
   const centerOf = (label: string): Point | undefined => {
     const i = indexOf.get(label);
     return i === undefined ? undefined : centers[i];
@@ -157,6 +162,8 @@ export function buildCooccurrence(spec: CooccurrenceSpec, isDark: boolean): Grap
       lineEdge(`co-${i}`, from, to, {
         stroke: edgeColor,
         strokeWidth: STROKE_MIN + (STROKE_MAX - STROKE_MIN) * t,
+        ...(link.direction === 'backward' || link.direction === 'both' ? { startShape: 'arrow' as const } : {}),
+        ...(link.direction === 'forward' || link.direction === 'both' ? { endShape: 'arrow' as const } : {}),
         metadata: { path: `links.${i}.strength` },
       }),
     ];

@@ -1,7 +1,11 @@
 'use client';
 
 import { createMarkdownT } from '@anytime-markdown/markdown-viewer/src/i18n/createMarkdownT';
-import { TicketsPanel, type TicketsClientConfig } from '@anytime-markdown/tickets-viewer';
+import {
+  TicketsPanel,
+  createHttpTicketsGateway,
+  type TicketsGateway,
+} from '@anytime-markdown/tickets-viewer';
 import { Box, Container, Typography } from '@mui/material';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
@@ -66,8 +70,14 @@ export default function TicketsBody() {
     setRestored(true);
   }, []);
 
-  const config: TicketsClientConfig | null = useMemo(
-    () => (selection ? { repo: selection.repo, branch: selection.branch } : null),
+  // useTickets はインスタンス同一性で gateway 変更を検知するため、selection 不変時に
+  // 新しい gateway を生成すると無限再取得になる（メモ化必須。検証: __tests__/TicketsBody.test.tsx）
+  const gateway: TicketsGateway | null = useMemo(
+    () => (selection ? createHttpTicketsGateway({ repo: selection.repo, branch: selection.branch }) : null),
+    [selection],
+  );
+  const source = useMemo(
+    () => (selection ? { label: `${selection.repo} / ${selection.branch}` } : null),
     [selection],
   );
 
@@ -101,7 +111,8 @@ export default function TicketsBody() {
         {restored && (
           <Box>
             <TicketsPanel
-              config={config}
+              gateway={gateway}
+              source={source}
               currentUser={session?.user?.name ?? undefined}
               onRequestRepoSelect={() => setDialogOpen(true)}
               renderBody={renderBody}

@@ -1,10 +1,14 @@
 import {
+  LINK_DIRECTION,
   canonicalizeSpec,
   computeSpecHash,
   parseCoocFile,
+  readLink,
   serializeCoocFile,
   validateCooccurrenceFile,
+  writeLink,
   type CooccurrenceFile,
+  type CooccurrenceLinkTuple,
 } from '../../presets/cooccurrenceFile';
 
 function validFile(): CooccurrenceFile {
@@ -181,5 +185,196 @@ describe('cooccurrence .cooc.json helpers', () => {
     const text = serializeCoocFile(file);
     const firstLabelOccurrences = text.split('"共起語彙0"').length - 1;
     expect(firstLabelOccurrences).toBe(1);
+  });
+});
+
+describe('保存時の版数', () => {
+  const file = (links: CooccurrenceLinkTuple[]): CooccurrenceFile => ({
+    meta: { schemaVersion: 1, generatedAt: '2026-07-29T00:00:00.000Z', origin: 'manual' },
+    spec: {
+      nodes: [
+        { label: 'A', frequency: 1 },
+        { label: 'B', frequency: 1 },
+      ],
+      links,
+    },
+  });
+
+  it('無向だけなら版数 1 で書く', () => {
+    const json = JSON.parse(serializeCoocFile(file([[0, 1, 5]])));
+    expect(json.meta.schemaVersion).toBe(1);
+    expect(json.spec.links[0]).toEqual([0, 1, 5]);
+  });
+
+  it('向きがあれば版数 2 で書く', () => {
+    const json = JSON.parse(serializeCoocFile(file([[0, 1, 5, LINK_DIRECTION.forward]])));
+    expect(json.meta.schemaVersion).toBe(2);
+    expect(json.spec.links[0]).toEqual([0, 1, 5, 1]);
+  });
+
+  it('無向へ戻せば版数 1 へ戻り 4 要素が残らない', () => {
+    const json = JSON.parse(serializeCoocFile(file([[0, 1, 5, LINK_DIRECTION.none]])));
+    expect(json.meta.schemaVersion).toBe(1);
+    expect(json.spec.links[0]).toEqual([0, 1, 5]);
+  });
+
+  it('向きを 1 本でも持てば版数 2 になる', () => {
+    const json = JSON.parse(
+      serializeCoocFile(
+        file([
+          [0, 1, 5],
+          [1, 0, 3, LINK_DIRECTION.both],
+        ]),
+      ),
+    );
+    expect(json.meta.schemaVersion).toBe(2);
+    expect(json.spec.links[0]).toEqual([0, 1, 5]);
+  });
+
+  it('書き出したファイルは検証を通る', () => {
+    const json = JSON.parse(serializeCoocFile(file([[0, 1, 5, LINK_DIRECTION.backward]])));
+    expect(validateCooccurrenceFile(json)).toEqual([]);
+  });
+});
+
+describe('specHash は向きを見ない', () => {
+  const spec = (links: CooccurrenceLinkTuple[]): CooccurrenceFile['spec'] => ({
+    nodes: [
+      { label: 'A', frequency: 1 },
+      { label: 'B', frequency: 1 },
+    ],
+    links,
+  });
+
+  it('向きだけが違う spec のハッシュは一致する', () => {
+    expect(computeSpecHash(spec([[0, 1, 5, LINK_DIRECTION.forward]]))).toBe(computeSpecHash(spec([[0, 1, 5]])));
+  });
+
+  it('順方向と双方向のハッシュも一致する', () => {
+    expect(computeSpecHash(spec([[0, 1, 5, LINK_DIRECTION.both]]))).toBe(
+      computeSpecHash(spec([[0, 1, 5, LINK_DIRECTION.forward]])),
+    );
+  });
+
+  it('強度が違えばハッシュは異なる', () => {
+    expect(computeSpecHash(spec([[0, 1, 5]]))).not.toBe(computeSpecHash(spec([[0, 1, 6]])));
+  });
+
+  it('端点の順序が違えばハッシュは異なる', () => {
+    expect(computeSpecHash(spec([[0, 1, 5]]))).not.toBe(computeSpecHash(spec([[1, 0, 5]])));
+  });
+});
+
+describe('向きの検証', () => {
+  const base = (links: unknown[], schemaVersion: number): unknown => ({
+    meta: { schemaVersion, generatedAt: '2026-07-29T00:00:00.000Z', origin: 'manual' },
+    spec: {
+      nodes: [
+        { label: 'A', frequency: 1 },
+        { label: 'B', frequency: 1 },
+      ],
+      links,
+    },
+  });
+
+  it('版数 2 なら 4 要素の共起を受理する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5, 1]], 2))).toEqual([]);
+  });
+
+  it('版数 1 に 4 要素の共起があれば拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5, 1]], 1));
+    expect(errors).toHaveLength(1);
+    expect(errors[0].path).toBe('spec.links.0');
+  });
+
+  it('向きが範囲外なら拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5, 4]], 2));
+    expect(errors).toHaveLength(1);
+    expect(errors[0].path).toBe('spec.links.0.3');
+  });
+
+  it('向きが整数でなければ拒否する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5, 1.5]], 2))).toHaveLength(1);
+  });
+
+  it('版数 1 の 3 要素の共起は従来どおり受理する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5]], 1))).toEqual([]);
+  });
+
+  // 版数 3 はメモの導入で有効になった（設計書 §2.2）。内容より高い版数を宣言したファイルは
+  // 受理する（版数 2 の無向だけのファイルと同じ扱い）。拒否するのは逆向きの食い違い
+  // ——版数が内容を説明していない場合——だけである。
+  it('版数 3 は受理する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5]], 3))).toEqual([]);
+  });
+
+  // 版数 4 は時間軸の導入で有効になった（設計書 §2.2）。版数 3 と同じく、内容より高い版数の
+  // 宣言は受理する。
+  it('版数 4 は受理する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5]], 4))).toEqual([]);
+  });
+
+  it('版数 5 は拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5]], 5));
+    expect(errors.some((e) => e.path === 'meta.schemaVersion')).toBe(true);
+  });
+
+  it('要素数が 2 の共起は従来どおり拒否する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1]], 1))).toHaveLength(1);
+  });
+
+  // 内容の検証（自己共起・端点の範囲・負の強度）は構造の検証とは別のループにある。タプルの
+  // 長さで早期 return すると、向き付きの共起だけが内容検証を素通りする。
+  describe('向き付きでも内容の検証が効く', () => {
+    it('自己共起を拒否する', () => {
+      const errors = validateCooccurrenceFile(base([[0, 0, 5, 1]], 2));
+      expect(errors.map((e) => e.code)).toContain('self-cooccurrence');
+    });
+
+    it('範囲外の端点を拒否する', () => {
+      const errors = validateCooccurrenceFile(base([[0, 99, 5, 1]], 2));
+      expect(errors.map((e) => e.code)).toContain('link-endpoint-out-of-range');
+    });
+
+    it('負の強度を拒否する', () => {
+      const errors = validateCooccurrenceFile(base([[0, 1, -5, 2]], 2));
+      expect(errors.map((e) => e.code)).toContain('negative-link-strength');
+    });
+
+    it('3 要素と 4 要素で同じ理由を返す', () => {
+      const three = validateCooccurrenceFile(base([[0, 0, -5]], 1)).map((e) => e.code).sort();
+      const four = validateCooccurrenceFile(base([[0, 0, -5, 1]], 2)).map((e) => e.code).sort();
+      expect(four).toEqual(three);
+    });
+  });
+});
+
+describe('readLink / writeLink', () => {
+  it('3 要素のタプルは無向として読む', () => {
+    expect(readLink([0, 1, 8])).toEqual({ source: 0, target: 1, strength: 8, direction: 0 });
+  });
+
+  it('4 要素のタプルは向きを読む', () => {
+    expect(readLink([0, 1, 8, 2])).toEqual({ source: 0, target: 1, strength: 8, direction: 2 });
+  });
+
+  it('無向は 3 要素で書く', () => {
+    expect(writeLink({ source: 0, target: 1, strength: 8, direction: LINK_DIRECTION.none })).toEqual([0, 1, 8]);
+  });
+
+  it('向きがあれば 4 要素で書く', () => {
+    expect(writeLink({ source: 0, target: 1, strength: 8, direction: LINK_DIRECTION.forward })).toEqual([0, 1, 8, 1]);
+  });
+
+  it('readLink と writeLink は往復する', () => {
+    const tuples: CooccurrenceLinkTuple[] = [
+      [0, 1, 8],
+      [2, 3, 4, LINK_DIRECTION.forward],
+      [5, 6, 7, LINK_DIRECTION.backward],
+      [8, 9, 1, LINK_DIRECTION.both],
+    ];
+    for (const tuple of tuples) {
+      expect(writeLink(readLink(tuple))).toEqual(tuple);
+    }
   });
 });

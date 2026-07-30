@@ -4,6 +4,7 @@ import { boxesOverlap, selectVisibleLabels } from '../render/labels';
 function node(index: number, label: string, x: number, frequency: number): RenderNode {
   return {
     index,
+    layer: 0,
     label,
     frequency,
     clusterIndex: undefined,
@@ -16,6 +17,7 @@ function node(index: number, label: string, x: number, frequency: number): Rende
     labelFontSize: 12,
     cooccurrenceCount: 0,
     isSubject: false,
+    hasNote: false,
   };
 }
 

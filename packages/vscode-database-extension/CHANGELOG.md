@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-30
+
+### Fixed
+
+- `ts-loader`'s `configFile` is now an absolute path, removing intermittent build failures where the parent-directory lookup picked up the root `tsconfig` and produced an empty program.
+
 ## [0.3.4] - 2026-07-22
 
 ### Fixed

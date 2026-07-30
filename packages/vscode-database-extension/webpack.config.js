@@ -128,7 +128,7 @@ const webviewConfig = {
           {
             loader: 'ts-loader',
             options: {
-              configFile: 'tsconfig.webview.json',
+              configFile: path.resolve(__dirname, 'tsconfig.webview.json'),
               allowTsInNodeModules: true,
               transpileOnly: true,
             },

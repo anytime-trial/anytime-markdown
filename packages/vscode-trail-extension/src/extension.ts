@@ -41,7 +41,7 @@ import {
 } from '@anytime-markdown/vscode-common';
 import * as vscode from 'vscode';
 
-import { registerMcpRegistrationCommand } from './commands/mcpRegistrationCommand';
+import { registerMcpRegistrationCommand, autoRegisterMcpServerIfMissing } from './commands/mcpRegistrationCommand';
 import { getTraceOutputDir, registerTraceCommands } from './commands/traceCommands';
 import { registerEmergencyCommands } from './commands/emergencyCommands';
 import { startEmergencySpoolDrain } from './emergency/emergencySpoolDrain';
@@ -1070,6 +1070,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Claude Code (CLI) 向け登録ヘルパー
 	registerMcpRegistrationCommand(context, extensionDistPath);
+	// Claude Code 向け .mcp.json への登録も activate 時に自動実施する（エントリ不在時のみ追加。
+	// 既存エントリ・パース不能ファイルには触れない。markdown / graph 拡張と同じ方針）。
+	autoRegisterMcpServerIfMissing(extensionDistPath);
 
 	// Ollama ステータスパネルは vscode-agent-extension に移動済み (Phase 6/7)
 	// pipeline-status.json は DB と同じディレクトリ (${TRAIL_HOME}/db/) に置く。

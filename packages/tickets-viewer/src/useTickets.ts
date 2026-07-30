@@ -3,19 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { appendComment, type TicketStatus } from "@anytime-markdown/tickets-core";
 
-import {
-  archiveTicketRemote,
-  createTicketRemote,
-  deleteTicketRemote,
-  fetchTickets,
-  saveTicket,
-  TicketsClientError,
-  type CreateTicketClientInput,
-  type SaveTicketInput,
-  type TicketItem,
-  type TicketsClientConfig,
-  type TicketsData,
+import { TicketsClientError } from "./ticketsClient";
+import type {
+  CreateTicketClientInput,
+  SaveTicketInput,
+  TicketItem,
+  TicketsData,
 } from "./ticketsClient";
+import type { TicketsGateway } from "./ticketsGateway";
 
 export interface UseTicketsResult {
   data: TicketsData | null;
@@ -36,31 +31,35 @@ function replaceTicket(data: TicketsData, path: string, next: TicketItem): Ticke
   return { ...data, tickets: data.tickets.map((t) => (t.path === path ? next : t)) };
 }
 
-/** チケット一覧の取得と CRUD 操作の状態管理。conflict(409) は上書きせずエラー通知に落とす。 */
-export function useTickets(config: TicketsClientConfig | null, includeArchive: boolean): UseTicketsResult {
+/**
+ * チケット一覧の取得と CRUD 操作の状態管理。conflict(409) は上書きせずエラー通知に落とす。
+ *
+ * `gateway` はインスタンス同一性が再取得のトリガになる。呼び出し側で必ずメモ化すること
+ * （毎レンダー生成すると無限に再取得する）。
+ */
+export function useTickets(
+  gateway: TicketsGateway | null,
+  includeArchive: boolean,
+): UseTicketsResult {
   const [data, setData] = useState<TicketsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<{ message: string; conflict: boolean } | null>(null);
 
-  // provider も取得先を決めるキー（含めないと provider 切替時に旧プロバイダの一覧が残る）
-  const configKey = config ? `${config.repo} ${config.branch} ${config.provider ?? ""}` : "";
-
   const reload = useCallback(async () => {
-    if (!config) {
+    if (!gateway) {
       setData(null);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      setData(await fetchTickets(config, includeArchive));
+      setData(await gateway.list(includeArchive));
     } catch (err) {
       setError({ message: err instanceof Error ? err.message : String(err), conflict: false });
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configKey, includeArchive, config?.basePath]);
+  }, [gateway, includeArchive]);
 
   useEffect(() => {
     void reload();
@@ -90,11 +89,11 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
 
   const save = useCallback(
     async (input: SaveTicketInput): Promise<boolean> => {
-      if (!config) {
+      if (!gateway) {
         return false;
       }
       return runMutation(async () => {
-        const result = await saveTicket(config, input);
+        const result = await gateway.save(input);
         setData((current) =>
           current
             ? replaceTicket(current, input.path, {
@@ -109,7 +108,7 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
         );
       });
     },
-    [config, runMutation],
+    [gateway, runMutation],
   );
 
   const moveStatus = useCallback(
@@ -134,17 +133,17 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
 
   const create = useCallback(
     async (input: CreateTicketClientInput): Promise<boolean> => {
-      if (!config) {
+      if (!gateway) {
         return false;
       }
       return runMutation(async () => {
-        const created = await createTicketRemote(config, input);
+        const created = await gateway.create(input);
         setData((current) =>
           current ? { ...current, tickets: [...current.tickets, created] } : current,
         );
       });
     },
-    [config, runMutation],
+    [gateway, runMutation],
   );
 
   const comment = useCallback(
@@ -168,24 +167,24 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
 
   const archive = useCallback(
     async (ticket: TicketItem): Promise<boolean> => {
-      if (!config) {
+      if (!gateway) {
         return false;
       }
       return runMutation(async () => {
-        await archiveTicketRemote(config, { path: ticket.path, version: ticket.version });
+        await gateway.archive({ path: ticket.path, version: ticket.version });
         await reload();
       });
     },
-    [config, runMutation, reload],
+    [gateway, runMutation, reload],
   );
 
   const remove = useCallback(
     async (ticket: TicketItem): Promise<boolean> => {
-      if (!config) {
+      if (!gateway) {
         return false;
       }
       return runMutation(async () => {
-        await deleteTicketRemote(config, {
+        await gateway.remove({
           path: ticket.path,
           version: ticket.version,
           message: `ticket: delete ${ticket.frontmatter.id} ${ticket.frontmatter.title}`,
@@ -197,7 +196,7 @@ export function useTickets(config: TicketsClientConfig | null, includeArchive: b
         );
       });
     },
-    [config, runMutation],
+    [gateway, runMutation],
   );
 
   const clearError = useCallback(() => setError(null), []);

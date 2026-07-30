@@ -2,7 +2,7 @@
   "name": "anytime-agent",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -27,7 +27,8 @@
     "onView:anytimeAgent.aiNote",
     "onView:anytimeAgent.mapping",
     "onView:anytimeAgent.worktreeOwnership",
-    "onView:anytimeAgent.ollama"
+    "onView:anytimeAgent.ollama",
+    "onView:anytimeAgent.tickets"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -61,6 +62,10 @@
         {
           "id": "anytimeAgent.ollama",
           "name": "%view.ollama%"
+        },
+        {
+          "id": "anytimeAgent.tickets",
+          "name": "%view.tickets%"
         }
       ]
     },
@@ -200,6 +205,26 @@
       {
         "command": "anytime-agent.showWorkSnapshots",
         "title": "%command.showWorkSnapshots%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.tickets.open",
+        "title": "%command.tickets.open%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.tickets.reload",
+        "title": "%command.tickets.reload%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.tickets.selectRepo",
+        "title": "%command.tickets.selectRepo%",
+        "category": "Anytime Agent"
+      },
+      {
+        "command": "anytime-agent.tickets.signIn",
+        "title": "%command.tickets.signIn%",
         "category": "Anytime Agent"
       }
     ],
@@ -408,6 +433,25 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Agent マッピングに Codex（OpenAI CLI）のセッションを「Codex」グループとして表示する。Codex は rollout ファイルの読み取り専用スキャンのため、最終アクティビティとコンテキストトークンのみ表示され、編集中ロック・コミット・引き継ぎは非対応。"
+        },
+        "anytimeAgent.tickets.github.repo": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.tickets.github.repo%"
+        },
+        "anytimeAgent.tickets.github.branch": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.tickets.github.branch%"
+        },
+        "anytimeAgent.tickets.github.provider": {
+          "type": "string",
+          "enum": [
+            "github-contents",
+            "github-issues"
+          ],
+          "default": "github-contents",
+          "markdownDescription": "%config.tickets.github.provider%"
         }
       }
     }
@@ -421,11 +465,18 @@
   },
   "dependencies": {
     "@anytime-markdown/agent-core": "*",
-    "@anytime-markdown/vscode-common": "*"
+    "@anytime-markdown/tickets-core": "*",
+    "@anytime-markdown/vscode-common": "*",
+    "next-intl": "4.12.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@anytime-markdown/tickets-viewer": "*",
     "@types/jest": "30.0.0",
     "@types/node": "22.15.21",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
     "@types/vscode": "1.109.0",
     "jest": "30.2.0",
     "ts-jest": "29.4.11",

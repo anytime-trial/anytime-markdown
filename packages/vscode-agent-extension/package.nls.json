@@ -38,5 +38,13 @@
   "config.workSnapshotRetentionDays.description": "Number of days to keep work snapshot refs before pruning them.",
   "command.showWorkSnapshots": "Show Work Snapshots",
   "configuration.tickets.directory.markdownDescription": "Location of the ticket repository used by the anytime-loop-start skill (root of a local clone, or the .tickets/ directory; absolute or workspace-relative). When unset, resolution falls back to .tickets/ at the workspace root, then the ANYTIME_TICKETS_DIR environment variable.",
-  "configuration.tickets.workspace.markdownDescription": "Workspace identifier the anytime-loop-start skill uses to scope automatic execution. Only tickets whose `workspace` matches this value are picked up. When unset, the workspace root directory name is used, so this is usually not needed. Set it explicitly where the directory name does not match (worktrees, clones under a different name)."
+  "configuration.tickets.workspace.markdownDescription": "Workspace identifier the anytime-loop-start skill uses to scope automatic execution. Only tickets whose `workspace` matches this value are picked up. When unset, the workspace root directory name is used, so this is usually not needed. Set it explicitly where the directory name does not match (worktrees, clones under a different name).",
+  "view.tickets": "Tickets",
+  "command.tickets.open": "Open Ticket Board",
+  "command.tickets.reload": "Reload Tickets",
+  "command.tickets.selectRepo": "Select Ticket Repository and Branch",
+  "command.tickets.signIn": "Sign in to GitHub (Tickets)",
+  "config.tickets.github.repo": "Target GitHub repository for the ticket board, in `owner/repo` form. Leave empty to infer from the workspace `origin` remote. Separate from `anytimeAgent.tickets.directory`, which points at a local clone used by the anytime-loop-start skill.",
+  "config.tickets.github.branch": "Target branch for the ticket board. Leave empty to infer from the workspace current branch.",
+  "config.tickets.github.provider": "Ticket store provider for the board. `github-contents` uses `.tickets/*.md` via the Contents API. `github-issues` uses GitHub Issues."
 }

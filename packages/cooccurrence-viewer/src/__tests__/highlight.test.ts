@@ -1,8 +1,10 @@
+import { LINK_DIRECTION } from '@anytime-markdown/graph-core';
 import type { RenderGraph, RenderNode } from '../types';
 import { computeNeighborhoodHighlight } from '../render/highlight';
 
 const renderNode = (index: number): RenderNode => ({
   index,
+  layer: 0,
   label: String(index),
   frequency: 1,
   clusterIndex: undefined,
@@ -15,6 +17,7 @@ const renderNode = (index: number): RenderNode => ({
   labelFontSize: 12,
   cooccurrenceCount: 0,
   isSubject: false,
+  hasNote: false,
 });
 
 describe('computeNeighborhoodHighlight', () => {
@@ -22,10 +25,12 @@ describe('computeNeighborhoodHighlight', () => {
     const graph: RenderGraph = {
       nodes: [renderNode(0), renderNode(1), renderNode(2), renderNode(3)],
       links: [
-        { index: 0, source: 0, target: 1, strength: 1, width: 1 },
-        { index: 1, source: 1, target: 2, strength: 1, width: 1 },
-        { index: 2, source: 3, target: 0, strength: 1, width: 1 },
+        { index: 0, layer: 0, source: 0, target: 1, strength: 1, width: 1, direction: LINK_DIRECTION.none, hasNote: false },
+        { index: 1, layer: 0, source: 1, target: 2, strength: 1, width: 1, direction: LINK_DIRECTION.none, hasNote: false },
+        { index: 2, layer: 0, source: 3, target: 0, strength: 1, width: 1, direction: LINK_DIRECTION.none, hasNote: false },
       ],
+      timeLinks: [],
+      layers: [],
     };
     const result = computeNeighborhoodHighlight(graph, 0);
     expect([...result?.nodeIndexes ?? []].sort()).toEqual([0, 1, 3]);

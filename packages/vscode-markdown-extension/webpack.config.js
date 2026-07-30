@@ -82,7 +82,7 @@ const webviewConfig = {
           {
             loader: 'ts-loader',
             options: {
-              configFile: 'tsconfig.webview.json',
+              configFile: path.resolve(__dirname, 'tsconfig.webview.json'),
               allowTsInNodeModules: true,
               // markdown-core は第三者 vendored ソース（tiptap 自前のゆるい設定でビルドされ
               // strict 下では implicitNoAny 等が出る）。app コード(markdown-core/rich)のみ型診断する。

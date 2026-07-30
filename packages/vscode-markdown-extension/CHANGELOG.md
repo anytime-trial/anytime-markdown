@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-07-30
+
+### Changed
+
+- The `.mcp.json` registration logic (atomic write, merge, registration command) moved to the shared `@anytime-markdown/vscode-common` package. Behaviour is unchanged, except that a `.mcp.json` whose `mcpServers` is not an object is now backed up instead of being overwritten.
+
+### Fixed
+
+- The webview no longer requests Google Fonts. The webview CSP (`style-src ${webview.cspSource} 'unsafe-inline'`) does not allow external CDNs, so the request was always blocked; preset fonts now fall back to system fonts. Theme application moved to a dedicated `webviewTheme` module so a unit test can hold the invariant.
+- `ts-loader`'s `configFile` is now an absolute path, removing intermittent build failures where the parent-directory lookup picked up the root `tsconfig`.
+
+### Editor Core (markdown-viewer / markdown-rich)
+
+- Google Fonts の `<link>` を再適用のたびに取り除くようにした
+- 埋め込みの共起ネットワーク図が共起の向き・時間軸・要素メモに対応
+
 ## [1.17.0] - 2026-07-22
 
 ### Added

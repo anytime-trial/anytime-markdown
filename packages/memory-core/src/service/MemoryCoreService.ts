@@ -13,8 +13,8 @@ import type {
  * memory-core ingest パイプラインをホストする長寿命サービス。
  *
  * BaseRunner を継承し、共通の pause/resume/state/ticks/lastRunAt ロジックは
- * 基底から受け継ぐ。memory-core 固有の処理 (チャンク化・埋め込み・FTS index
- * 再構築 等) を `runImpl(reason)` で実装する。
+ * 基底から受け継ぐ。memory-core 固有の処理 (memory_entities 行単位の埋め込み・
+ * FTS index 再構築 等) を `runImpl(reason)` で実装する。
  *
  * 既存の `createMemoryCoreRunner().runAfterImport()` 本体は `pipelineRunner`
  * オプションに注入される。省略時はパッケージ内デフォルトを使用する。

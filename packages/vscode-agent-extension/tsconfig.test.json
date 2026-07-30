@@ -1,0 +1,32 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // jest は CommonJS で実行する。tsconfig.json 側は Node16 なので、
+    // module を落とす場合は moduleResolution も対で下げる必要がある。
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    // lib に DOM を足さないこと。拡張ホスト側コードの唯一の型検査ゲートは ts-jest であり
+    // （webpack の ts-loader は transpileOnly、専用の tsc スクリプトも無い）、DOM を足すと
+    // extension host が誤って window / document を参照しても型エラーにならなくなる。
+    // 実行時には存在しないため ReferenceError として初めて表面化する。
+    // webview 側（tickets-viewer の .tsx）は tsconfig.test.webview.json が担当する。
+    "types": ["node", "jest"],
+    "paths": {
+      "@anytime-markdown/tickets-core": ["../tickets-core/src/index.ts"],
+      "@anytime-markdown/tickets-viewer": ["../tickets-viewer/src/index.ts"],
+      // shim はバレルではなく i18n のサブパスから取る（循環 import 回避）。
+      // moduleResolution が exports を見ない構成のため paths で明示する。
+      "@anytime-markdown/tickets-viewer/i18n/ja": ["../tickets-viewer/src/i18n/ja.ts"],
+      "@anytime-markdown/tickets-viewer/i18n/en": ["../tickets-viewer/src/i18n/en.ts"],
+      "@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"],
+      // next-intl は ESM 専用。webpack の alias / jest の moduleNameMapper と同じ shim を指す。
+      "next-intl": ["./src/webview/shims/next-intl.ts"],
+      "next-intl/server": ["./src/webview/shims/next-intl.ts"]
+    }
+  },
+  // webview 側は tsconfig.test.webview.json が担当する。ここに含めると
+  // src/webview/**/*.ts から tickets-viewer の .tsx まで引き込まれ、DOM / jsx が
+  // 無いこの構成では必ず落ちる（jest の host project の対象範囲と揃えている）。
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/webview/**"]
+}

@@ -27,18 +27,49 @@ const endpointSchema = z.object({
   x: z.number(),
   y: z.number(),
 });
+const noteSchema = z
+  .string()
+  .optional()
+  .describe('Free-form note shown when the element is hovered. Omit for no note; an empty string is rejected');
+/**
+ * スライス別の値。キーはスライスのラベル（設計書 §5）。添字で受けると、スライスを 1 つ挿入した
+ * 瞬間に、それ以前の呼び出しが指していた対象が黙ってずれる。
+ */
+const sliceValuesSchema = z
+  .record(z.string(), z.number())
+  .optional()
+  .describe('Per-slice values keyed by slice label. Use with slices; omit for a graph without a time axis');
+const cooccurrenceSliceSchema = z.object({
+  label: z.string().describe('Slice label (unique, used as the key of sliceValues)'),
+  at: z.string().optional().describe('ISO 8601 date of the slice. Slices with a date must be in chronological order'),
+});
 const cooccurrenceTermSchema = z.object({
   label: z.string().describe('Term label'),
-  frequency: z.number().describe('Term frequency'),
+  frequency: z
+    .number()
+    .optional()
+    .describe('Term frequency. Omit when slices are given; the total is derived from the sum of sliceValues'),
+  sliceValues: sliceValuesSchema,
+  note: noteSchema,
 });
 const cooccurrenceLinkSchema = z.object({
   source: z.string().describe('Source term label'),
   target: z.string().describe('Target term label'),
-  strength: z.number().describe('Cooccurrence strength'),
+  strength: z
+    .number()
+    .optional()
+    .describe('Cooccurrence strength. Omit when slices are given; the total is derived from the sum of sliceValues'),
+  sliceValues: sliceValuesSchema,
+  direction: z
+    .enum(['none', 'forward', 'backward', 'both'])
+    .optional()
+    .describe('Direction of the relation (source to target). Omit for an undirected cooccurrence'),
+  note: noteSchema,
 });
 const cooccurrenceClusterSchema = z.object({
   label: z.string().describe('Cluster label'),
   members: z.array(z.string()).describe('Cluster member term labels'),
+  note: noteSchema,
 });
 
 type ToolResult = { content: Array<{ type: 'text'; text: string }> };
@@ -246,12 +277,16 @@ export function createMcpServer(options: McpGraphOptions): McpServer {
       mode: z.enum(['replace', 'append']).describe('replace overwrites the file, append preserves existing terms and links'),
       title: z.string().optional().describe('Optional network title'),
       subject: z.string().optional().describe('Optional subject term label'),
+      slices: z
+        .array(cooccurrenceSliceSchema)
+        .optional()
+        .describe('Time axis slices in chronological order. Each layer of the diagram is one slice'),
       terms: z.array(cooccurrenceTermSchema).describe('Terms with labels and frequencies'),
       links: z.array(cooccurrenceLinkSchema).describe('Cooccurrences by term label'),
       clusters: z.array(cooccurrenceClusterSchema).optional().describe('Clusters by term label'),
     },
-    async ({ path, mode, title, subject, terms, links, clusters }) => {
-      const result = await writeCooccurrence({ path, mode, title, subject, terms, links, clusters }, rootDir);
+    async ({ path, mode, title, subject, slices, terms, links, clusters }) => {
+      const result = await writeCooccurrence({ path, mode, title, subject, slices, terms, links, clusters }, rootDir);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

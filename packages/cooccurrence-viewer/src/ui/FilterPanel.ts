@@ -1,16 +1,28 @@
 import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { createFilterOptions, filterOptionsToInput, parseMinFrequency, parseMinStrength, parseTopLinkCount, type FilterModelInput } from './filterModel';
+import { clusterColorVarName } from '../theme/readTheme';
+import { ensureButtonBaseStyles } from './buttonBaseStyle';
 
 export interface FilterPanelState {
   file: CooccurrenceFile;
   filter?: CooccurrenceFilterOptions;
   counts: CooccurrenceFilterCounts;
   t: CooccurrenceT;
+  /**
+   * 表示するスライスのラベル（設計書 §3.6.5）。`undefined` は全表示。
+   *
+   * 絞り込みの他の 4 条件（`filter`）と別の入れ物にするのは、これがファイルの要素ではなく
+   * レイヤーを落とす操作だからである。`CooccurrenceFilterOptions` は graph-core が
+   * 語・共起の集合を決めるために受け取る型であり、そこへ混ぜると「1 枚のスライスを指す」
+   * 意味の `sliceIndex` と「複数枚を選ぶ」意味の集合が同じ型に同居する。
+   */
+  selectedSliceLabels?: readonly string[];
 }
 
 export interface FilterPanelOptions extends FilterPanelState {
   onFilterChange(options: CooccurrenceFilterOptions): void;
+  onSelectedSliceLabelsChange(selected: readonly string[]): void;
 }
 
 export interface FilterPanelHandle {
@@ -22,6 +34,9 @@ export interface FilterPanelHandle {
 const STYLE_ID = 'cooccurrence-filter-panel-style';
 
 function ensureStyles(): void {
+  // 現状このパネルに button は無いが、3 パネルで呼び出しを揃えておく。
+  // 例外を作ると、後からボタンを足す人が土台の注入に気づけない。
+  ensureButtonBaseStyles();
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
@@ -31,7 +46,12 @@ function ensureStyles(): void {
 .cooc-filter__field{display:flex;flex-direction:column;gap:4px;font:12px system-ui,sans-serif;color:var(--cooc-text-secondary)}
 .cooc-filter__field input{box-sizing:border-box;width:100%;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);padding:6px 8px;font:12px system-ui,sans-serif}
 .cooc-filter__clusters{display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto}
+.cooc-filter__slices{display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto}
+.cooc-filter__slices[hidden]{display:none}
+.cooc-filter__subtitle{font:600 12px system-ui,sans-serif;color:var(--cooc-text)}
+.cooc-filter__subtitle[hidden]{display:none}
 .cooc-filter__check{display:flex;gap:6px;align-items:center;color:var(--cooc-text);font:12px system-ui,sans-serif}
+.cooc-filter__swatch{flex:0 0 auto;width:10px;height:10px;border-radius:50%;border:1px solid var(--cooc-divider)}
 .cooc-filter__counts{display:flex;flex-direction:column;gap:2px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
@@ -67,9 +87,22 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
   const topLinks = inputRow(t('filter.topLinks'), inputState.topLinkCountText);
   const clusters = document.createElement('div');
   clusters.className = 'cooc-filter__clusters';
+  const slicesTitle = document.createElement('div');
+  slicesTitle.className = 'cooc-filter__subtitle';
+  const slices = document.createElement('div');
+  slices.className = 'cooc-filter__slices';
   const counts = document.createElement('div');
   counts.className = 'cooc-filter__counts';
-  element.append(title, minFrequency.row, clusters, minStrength.row, topLinks.row, counts);
+  element.append(
+    title,
+    minFrequency.row,
+    clusters,
+    minStrength.row,
+    topLinks.row,
+    slicesTitle,
+    slices,
+    counts,
+  );
 
   function emit(): void {
     if ((state.file.spec.clusters?.length ?? 0) === 0) {
@@ -123,10 +156,57 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
         inputState = { ...inputState, selectedClusterIndexes: next };
         emit();
       });
+      // グラフ上の円と同じ色を示す見本。色は装飾で、情報の正はクラスタ名のテキスト側にある。
+      const swatch = document.createElement('span');
+      swatch.className = 'cooc-filter__swatch';
+      swatch.style.background = `var(${clusterColorVarName(index)})`;
+      swatch.setAttribute('aria-hidden', 'true');
       const text = document.createElement('span');
       text.textContent = cluster.label;
-      label.append(checkbox, text);
+      label.append(checkbox, swatch, text);
       clusters.appendChild(label);
+    });
+  }
+
+  /**
+   * 表示するスライスの選択（設計書 §3.6.5）。
+   *
+   * 落としたスライスを挟む 2 つのレイヤーは点線で直接は結ばない。間に何があったか分からない
+   * まま線を引かないためで、`buildRenderGraph` が**スライスの添字**の隣接で結ぶことで満たす
+   * （描画レイヤーの番号は落とした分を詰めるため、番号の隣接で判定すると跨いでしまう）。
+   */
+  function renderSlices(): void {
+    const sliceSpecs = state.file.spec.timeline?.slices ?? [];
+    const hidden = sliceSpecs.length === 0;
+    slicesTitle.hidden = hidden;
+    slices.hidden = hidden;
+    slicesTitle.textContent = t('filter.slices');
+    slices.replaceChildren();
+    if (hidden) return;
+
+    const selected = state.selectedSliceLabels;
+    sliceSpecs.forEach((slice) => {
+      const label = document.createElement('label');
+      label.className = 'cooc-filter__check';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selected === undefined || selected.includes(slice.label);
+      checkbox.addEventListener('change', () => {
+        const current = new Set(selected ?? sliceSpecs.map((entry) => entry.label));
+        if (checkbox.checked) {
+          current.add(slice.label);
+        } else {
+          current.delete(slice.label);
+        }
+        // 並びは時間順（spec のスライスの順）で作り直す。集合の反復順に依存させない。
+        options.onSelectedSliceLabelsChange(
+          sliceSpecs.map((entry) => entry.label).filter((entry) => current.has(entry)),
+        );
+      });
+      const text = document.createElement('span');
+      text.textContent = slice.at === undefined ? slice.label : `${slice.label}（${slice.at}）`;
+      label.append(checkbox, text);
+      slices.appendChild(label);
     });
   }
 
@@ -158,6 +238,7 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     topLinks.row.querySelector('span')!.textContent = t('filter.topLinks');
     syncInputs();
     renderClusters();
+    renderSlices();
     renderCounts();
   }
 

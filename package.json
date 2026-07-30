@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.17.0",
+  "version": "1.18.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -80,9 +80,9 @@
     "postcss": "8.5.10",
     "uuid": "^14.0.0",
     "next": "16.2.6",
-    "@auth/core": "0.41.1",
+    "@auth/core": "0.41.3",
     "next-auth": {
-      "@auth/core": "0.41.1"
+      "@auth/core": "0.41.3"
     },
     "handlebars": "4.7.9",
     "@xmldom/xmldom": "0.9.10",
@@ -110,7 +110,7 @@
     "packages/web-app/src/**/*.{ts,tsx}": "eslint"
   },
   "dependencies": {
-    "@auth/core": "0.41.1",
+    "@auth/core": "0.41.3",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.0",
     "@xmldom/xmldom": "0.9.10",

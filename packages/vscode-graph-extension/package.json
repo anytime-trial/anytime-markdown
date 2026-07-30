@@ -2,7 +2,7 @@
   "name": "anytime-graph",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -22,7 +22,9 @@
     "network",
     "visualization"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -80,6 +82,16 @@
         "command": "anytime-graph.refreshNetworks",
         "title": "%command.refreshNetworks%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "anytime-graph.registerMcpServer",
+        "title": "%command.registerMcpServer%"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "anytime-graph.mcp",
+        "label": "Anytime Graph"
       }
     ],
     "menus": {
@@ -116,6 +128,7 @@
   "dependencies": {
     "@anytime-markdown/cooccurrence-viewer": "*",
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/mcp-graph": "*",
     "@anytime-markdown/vscode-common": "*"
   }
 }

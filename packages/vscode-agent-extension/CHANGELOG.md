@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-30
+
+### Added
+
+- Ticket management moved into this extension. A dedicated TreeView opens a tickets webview panel, backed by a repository/branch resolver, GitHub authentication, a provider factory, and an RPC handler between the webview and the extension host.
+- A `next-intl` shim for the webview with nested key resolution and ICU interpolation, shared through `@anytime-markdown/vscode-common`.
+
+### Fixed
+
+- The ticket repository is now resolved from the `tickets.directory` setting, and git commands run with that repository as their working directory.
+- A circular import that broke webview initialisation.
+- Type checking is split between host and webview, restoring detection of DOM misuse in host code. Tests are included in the type-check scope via `tsconfig.test.json`.
+- `save` now goes through the tickets-core frontmatter validation, and the `updated_at` it returns matches what was persisted.
+- Redirect targets are also checked against the allowed-host list, `Request` method and body are carried through to the inner request, and exceptions in webview message handling are caught and logged instead of being swallowed.
+
 ## [1.9.0] - 2026-07-22
 
 ### Added

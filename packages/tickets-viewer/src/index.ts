@@ -8,6 +8,10 @@ export {
   type TicketsClientConfig,
   type TicketsData,
 } from "./ticketsClient";
+export {
+  createHttpTicketsGateway,
+  type TicketsGateway,
+} from "./ticketsGateway";
 export { injectTicketsStyles } from "./injectStyles";
 export { ticketsMessagesJa } from "./i18n/ja";
 export { ticketsMessagesEn } from "./i18n/en";

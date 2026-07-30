@@ -1,13 +1,13 @@
 import { drawGraph } from './drawGraph';
+import { updateCanvasSize } from './canvasSize';
 import { readCooccurrenceTheme } from '../theme/readTheme';
 import type { CooccurrenceTheme } from '../theme/readTheme';
-import type { RenderGraph, RenderNode, ThemeMode, ViewportState } from '../types';
+import type { RenderGraph, ThemeMode, ViewportState } from '../types';
 
 export interface RenderFrameState {
   graph: RenderGraph;
   viewport: ViewportState;
   selectedNodeIndex: number | null;
-  hoveredNode: RenderNode | null;
   themeMode: ThemeMode;
 }
 
@@ -26,16 +26,6 @@ export interface RenderScheduler {
   stop(): void;
   /** 観測点。描画した回数（テストが「無操作で増えない」ことを検査できる）。 */
   getFrameCount(): number;
-}
-
-function updateCanvasSize(canvas: HTMLCanvasElement): { width: number; height: number } {
-  const parent = canvas.parentElement;
-  const width = parent?.clientWidth ?? 0;
-  const height = parent?.clientHeight ?? 0;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.floor(width * dpr));
-  canvas.height = Math.max(1, Math.floor(height * dpr));
-  return { width, height };
 }
 
 /**
@@ -79,7 +69,6 @@ export function createRenderScheduler(options: RenderSchedulerOptions): RenderSc
       viewport: state.viewport,
       theme,
       selectedNodeIndex: state.selectedNodeIndex,
-      hoveredNode: state.hoveredNode,
     });
     frameCount += 1;
   }

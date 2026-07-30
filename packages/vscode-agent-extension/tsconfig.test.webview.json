@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": {
+    // tickets-viewer の React コンポーネント（.tsx）専用。DOM と jsx はここだけで有効にし、
+    // 拡張ホスト側の型検査（tsconfig.test.json）へ漏らさない。
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": []
+}

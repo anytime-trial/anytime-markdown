@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-07-30
+
+### 変更
+
+- `applyEditorThemeCssVars` が再適用のたびに注入済みの Google Fonts `<link>` を取り除くようになり、`loadGoogleFonts: false` が常に現在の状態と一致する。以前は一度注入された link が残り、webview の CSP 下でブロックされ続けていた。
+- 埋め込みの共起ネットワーク図（markdown-rich / graph-core 経由）が共起の向きの矢印・スライスによる時間軸・要素メモに対応した。詳細は graph-core の変更履歴を参照。
+
 ## [1.17.0] - 2026-07-22
 
 ### 追加

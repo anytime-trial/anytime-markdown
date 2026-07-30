@@ -1,5 +1,14 @@
 // VS Code API minimal mock for unit testing
 
+/** チケットパネル（webview）用。GitHub 認証・ロケール・設定更新先の各 API を追加で提供する。 */
+export const authentication = { getSession: jest.fn() };
+
+export const env = { language: 'ja' };
+
+export const ConfigurationTarget = { Global: 1, Workspace: 2, WorkspaceFolder: 3 };
+
+export const ViewColumn = { One: 1, Active: -1, Beside: -2 };
+
 export const Uri = {
   file: (path: string) => ({ scheme: 'file', fsPath: path, path, toString: () => path }),
   parse: (str: string) => ({ scheme: 'file', fsPath: str, path: str, toString: () => str }),
@@ -52,6 +61,8 @@ export const window = {
   showErrorMessage: jest.fn(),
   showInputBox: jest.fn(),
   showQuickPick: jest.fn(),
+  createWebviewPanel: jest.fn(),
+  createTreeView: jest.fn(() => ({ dispose: jest.fn() })),
   createOutputChannel: jest.fn(() => ({
     appendLine: jest.fn(),
     dispose: jest.fn(),

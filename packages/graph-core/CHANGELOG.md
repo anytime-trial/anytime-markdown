@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-30
+
+### Added
+
+- Cooccurrence link direction: types and read/write helpers, DSL notation, edit functions, arrowheads in the static diagram, and public exports. The spec version is raised to 2 only when direction is actually used, and `specHash` excludes direction so existing files keep their hash.
+- A time axis for the cooccurrence network: slices with labels, carried through read/write and rendered as juxtaposed layers with dotted links between the same word.
+- Notes on words, cooccurrences and clusters.
+
+### Changed
+
+- Filtering and layout now read links through `readLink`.
+
+### Fixed
+
+- Content validation (self-cooccurrence, out-of-range endpoints, negative strength) now also applies to directed cooccurrences. The directed path previously skipped validation entirely, which allowed invalid files to be written from both the UI and MCP.
+
 ## [0.12.0] - 2026-07-22
 
 ### Added

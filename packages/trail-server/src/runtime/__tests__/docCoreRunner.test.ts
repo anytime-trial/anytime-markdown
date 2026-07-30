@@ -106,6 +106,10 @@ describe('createDocCoreRunner status + reconciliation (止血 RC3)', () => {
     expect(s.ingest.ingested).toBeGreaterThan(0);
     expect(s.embed.embedded).toBeGreaterThan(0);
     expect(s.embed.failed).toBe(0);
+    // 節単位埋め込み（FR-7）も同一 run で backfill される。
+    expect(s.sectionEmbed.docsEmbedded).toBe(2);
+    expect(s.sectionEmbed.sectionsEmbedded).toBeGreaterThan(0);
+    expect(s.sectionEmbed.failed).toBe(0);
     expect(s.reconcile.docs).toBe(2);
     expect(s.reconcile.embeddings).toBe(2);
     expect(s.reconcile.missing).toBe(0);
@@ -131,6 +135,8 @@ describe('createDocCoreRunner status + reconciliation (止血 RC3)', () => {
     expect(s.embed.failed).toBe(2);
     expect(s.embed.embedded).toBe(0);
     expect(s.embed.firstError).toContain('ollama_unreachable');
+    expect(s.sectionEmbed.failed).toBe(2);
+    expect(s.sectionEmbed.docsEmbedded).toBe(0);
     expect(s.reconcile.embeddings).toBe(0);
     // doc_embedding=0 が WARN として可視化される(silent failure の撲滅)。
     expect(logs.some((l) => l.includes('doc_embedding=0'))).toBe(true);

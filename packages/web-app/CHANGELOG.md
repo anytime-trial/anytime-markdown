@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-07-30
+
+### Changed
+
+- The tickets screen moved to `TicketsGateway` injection, with the data path extracted behind that abstraction and `useTickets` taking a gateway.
+
+### Fixed
+
+- The process section of the press landing page no longer stays in two columns at phone widths. The variant's base declaration was written after the media query, so at the same specificity it won and cancelled the narrow-width collapse.
+
+### Tests
+
+- Added a real-browser regression test for the cooccurrence viewer's panel height distribution, and stopped the responsive layout check from failing open on non-width `@media` queries.
+
 ## [0.42.0] - 2026-07-22
 
 ### Added

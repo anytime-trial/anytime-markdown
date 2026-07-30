@@ -50,6 +50,17 @@ describe('handleSearchDocs', () => {
     expect(r.note).toBeDefined();
   });
 
+  it('semantic granularity: section は doc_section_embedding の有無で判定する', async () => {
+    const r = (await handleSearchDocs({ mode: 'semantic', granularity: 'section', query: 'graph' })) as {
+      granularity?: string;
+      results: unknown[];
+      note?: string;
+    };
+    expect(r.granularity).toBe('section');
+    expect(r.results).toEqual([]);
+    expect(r.note).toContain('section embeddings');
+  });
+
   it('requires path for backlinks / neighbors', async () => {
     expect((await handleSearchDocs({ mode: 'backlinks' })) as { error?: string }).toHaveProperty('error');
     expect((await handleSearchDocs({ mode: 'neighbors' })) as { error?: string }).toHaveProperty('error');
