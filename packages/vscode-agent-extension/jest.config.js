@@ -26,6 +26,8 @@ const shared = {
     '^next-intl$': '<rootDir>/src/webview/shims/next-intl.ts',
     '^next-intl/server$': '<rootDir>/src/webview/shims/next-intl.ts',
     '^@anytime-markdown/tickets-core$': '<rootDir>/../tickets-core/src/index.ts',
+    // shim はバレルではなく i18n のサブパスから取る（循環 import 回避）。
+    '^@anytime-markdown/tickets-viewer/i18n/(ja|en)$': '<rootDir>/../tickets-viewer/src/i18n/$1.ts',
   },
 };
 

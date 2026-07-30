@@ -11,6 +11,10 @@
     "paths": {
       "@anytime-markdown/tickets-core": ["../tickets-core/src/index.ts"],
       "@anytime-markdown/tickets-viewer": ["../tickets-viewer/src/index.ts"],
+      // shim はバレルではなく i18n のサブパスから取る（循環 import 回避）。
+      // moduleResolution が exports を見ない構成のため paths で明示する。
+      "@anytime-markdown/tickets-viewer/i18n/ja": ["../tickets-viewer/src/i18n/ja.ts"],
+      "@anytime-markdown/tickets-viewer/i18n/en": ["../tickets-viewer/src/i18n/en.ts"],
       "@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"]
     }
   },
