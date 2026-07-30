@@ -83,7 +83,10 @@ function fillArrowHead(ctx: CanvasRenderingContext2D, head: ArrowHead, color: st
   ctx.fill();
 }
 
-function visibleAlpha(
+/** 選択中に近傍外の線へ与える透明度。2D と OZ 3D（sceneModel）で同じ値を共有する。 */
+export const LINK_DIM_ALPHA = 0.14;
+
+export function visibleAlpha(
   selectedNodeIndex: number | null,
   highlightedNodes: ReadonlySet<number> | undefined,
   index: number,
@@ -128,7 +131,7 @@ export function drawGraph(opts: DrawGraphOptions): void {
     const endpoints = linkEndpoints(lookup, link);
     if (endpoints === null) continue;
     const { source, target } = endpoints;
-    const selectedAlpha = selectedNodeIndex === null || highlight?.linkIndexes.has(link.index) ? 1 : 0.14;
+    const selectedAlpha = selectedNodeIndex === null || highlight?.linkIndexes.has(link.index) ? 1 : LINK_DIM_ALPHA;
     ctx.globalAlpha = selectedAlpha;
     ctx.strokeStyle = theme.link;
     ctx.lineWidth = link.width;
