@@ -56,9 +56,16 @@ jobs:
             fi
           done
 
+      # daily-build.yml の Security audit と同一条件・同一コマンドに揃える。
+      # Why not: master PR 限定にしない。npm audit は毎回リモートの Advisory DB を引くため、
+      # コード無変更でも新規 Advisory の公開だけで赤に変わる。master PR は数日〜数週に一度しか
+      # 発生せず、その間 ci.yml 側は一度も audit を実行しない（2026-07-23〜07-30 に Auth.js の
+      # critical 3 件が日次だけを 7 日連続で落とし、ci.yml は素通りした実績がある）。
+      # Why not: --omit=dev を残さない。日次が dev 込みで判定している以上、条件を分けると
+      # 「どちらのゲートで落ちたか」で対処要否が変わり、揃える意味がなくなる。
       - name: Security audit
-        if: github.event_name == 'pull_request' && github.base_ref == 'master'
-        run: npm audit --audit-level=critical --omit=dev
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+        run: npm audit --audit-level=critical
 
       - name: Type check
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
