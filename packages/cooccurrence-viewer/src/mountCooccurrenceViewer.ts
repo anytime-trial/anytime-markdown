@@ -86,6 +86,9 @@ import { hitTestLink, hitTestNode } from './viewport/hitTest';
 
 const STYLE_ID = 'cooccurrence-viewer-style';
 
+/** 画面下の注記を出した理由。枠が 1 つしかないため、消してよいかの判定に使う。 */
+type NoticeOwner = 'webgl' | 'edit';
+
 /** 追加アイコンの一辺（px）。図の拡大率に依らず一定に保つ（要件書 §2.2）。 */
 const ADD_HANDLE_SIZE = 28;
 /** 語の縁と追加アイコンの間の余白（px）。 */
@@ -197,6 +200,7 @@ export function mountCooccurrenceViewer(
   /** WebGL 初期化に一度失敗したら再試行しない（毎トグルで throw を繰り返さないため）。 */
   let ozUnavailable = false;
   let noticeEl: HTMLDivElement | null = null;
+  let noticeOwner: NoticeOwner | null = null;
   const pointers = new Map<number, { x: number; y: number }>();
   let dragStart: { x: number; y: number } | null = null;
   let pinchStart: { distance: number; center: { x: number; y: number } } | null = null;
@@ -316,6 +320,7 @@ export function mountCooccurrenceViewer(
       sourceNodeIndex: selectedNodeIndex,
       // アイコンの右下から出す。真上に出すとアイコン自体を覆い、閉じる前に押し直せない。
       anchor: toRootPoint({ x: rect.right, y: rect.bottom }),
+      returnFocusTo: addHandle,
     });
   });
 
@@ -404,6 +409,9 @@ export function mountCooccurrenceViewer(
     selectedNodeIndex = null;
     // 編集で添字がずれると、出したままのポップアップが別の要素の内容を指すことになる。
     notePopup?.hide();
+    // 添字がずれるのはメモのポップアップと同じ。開いたままにすると相手を失った状態で
+    // 登録でき、理由の無いエラーだけが出る。
+    addPopup?.hide();
     fitted = false;
     syncCanvasLabel();
     if (notifyHost) options.onFileChange?.(file);
@@ -602,8 +610,10 @@ export function mountCooccurrenceViewer(
   /**
    * 追加アイコンの表示と位置を合わせる。
    *
-   * 呼ぶ契機は 4 つ（拡大縮小・移動 / 図の組み直し / 選択 / 表示形式の切り替え）。1 つでも
-   * 落とすとアイコンが語から離れた場所に取り残される。
+   * 呼ぶ契機は 5 つ（拡大縮小・移動 / 図の組み直し / 選択 / 表示形式の切り替え / 表示領域の
+   * 寸法変化）。1 つでも落とすとアイコンが語から離れた場所に取り残される。寸法変化を含める
+   * のは、端の折り返しが表示領域の幅と高さで決まるためで、パネルを開いて図が狭くなった
+   * 瞬間に古い幅のまま図の外へ残る。
    */
   /** 図柄だけのボタンなので、名前と tooltip を持たせる。言語切替でも訳し直す。 */
   function syncAddHandleLabel(): void {
@@ -685,10 +695,10 @@ export function mountCooccurrenceViewer(
   /** 3D 表示中は図から足せない。押せないだけにせず、理由を画面に出す（要件書 §2.2）。 */
   function syncEditNotice(): void {
     if (editMode && skin === 'oz') {
-      showNotice(t('edit.unavailable3d'));
+      showNotice('edit', t('edit.unavailable3d'));
       return;
     }
-    hideNotice();
+    hideNotice('edit');
   }
 
   function railState(): SideIconRailState {
@@ -965,9 +975,10 @@ export function mountCooccurrenceViewer(
     syncOzScene();
     updatePanels();
     syncAddHandle();
-    // 選択が変わればポップアップの相手も変わる。開いたままだと、閉じたときに別の語へ
-    // 結ばれる。
-    if (next === null) addPopup?.hide();
+    // 選択が変わればポップアップの相手も変わる。ポップアップは見出しに開いた時点の相手を
+    // 出したままなので、開いたままにすると「金利 との共起」と読める画面で別の語へ結ばれる。
+    const popupSource = addPopup?.getSourceNodeIndex() ?? null;
+    if (popupSource !== null && popupSource !== next) addPopup?.hide();
   }
 
   /** graph と選択状態を 3D シーンへ写す。standard 中は何もしない。 */
@@ -978,7 +989,12 @@ export function mountCooccurrenceViewer(
     ozView?.setModel(buildOzSceneModel(graph, selectedNodeIndex, clusterLabels));
   }
 
-  function showNotice(text: string): void {
+  /**
+   * 注記の持ち主。枠は 1 つしかないため、誰が出したかを覚えていないと、別の理由の告知を
+   * 横から消してしまう（WebGL の縮退の告知を編集モードの切り替えが消していた）。
+   */
+  function showNotice(owner: NoticeOwner, text: string): void {
+    noticeOwner = owner;
     if (noticeEl === null) {
       noticeEl = document.createElement('div');
       noticeEl.className = 'cooc-viewer__notice';
@@ -987,7 +1003,10 @@ export function mountCooccurrenceViewer(
     noticeEl.textContent = text;
   }
 
-  function hideNotice(): void {
+  function hideNotice(owner: NoticeOwner): void {
+    // 自分が出したものだけを消す。持ち主が違えば別の理由の告知が出ている。
+    if (noticeOwner !== owner) return;
+    noticeOwner = null;
     noticeEl?.remove();
     noticeEl = null;
   }
@@ -1018,7 +1037,7 @@ export function mountCooccurrenceViewer(
   function ensureOzView(): boolean {
     if (ozView !== null) return true;
     if (ozUnavailable) {
-      showNotice(t('status.webglUnavailable'));
+      showNotice('webgl', t('status.webglUnavailable'));
       return false;
     }
     const element = document.createElement('div');
@@ -1038,7 +1057,7 @@ export function mountCooccurrenceViewer(
       element.remove();
       ozUnavailable = true;
       console.warn('[cooccurrence-viewer] WebGL renderer creation failed; staying in 2D view.', error);
-      showNotice(t('status.webglUnavailable'));
+      showNotice('webgl', t('status.webglUnavailable'));
       return false;
     }
   }
@@ -1050,7 +1069,9 @@ export function mountCooccurrenceViewer(
       return;
     }
     skin = next;
-    hideNotice();
+    // 表示形式が変わればどちらの告知も前提を失う（3D へ入れた時点で WebGL の縮退は解けている）。
+    hideNotice('webgl');
+    hideNotice('edit');
     applyCooccurrenceThemeVars(root, themeMode, skin);
     // 球色（node.stroke）は CSS 変数から焼き込まれるため、変数の切替後に組み直す。
     // rebuildGraph が syncOzScene まで済ませる。
@@ -1288,6 +1309,9 @@ export function mountCooccurrenceViewer(
 
   resizeObserver = new ResizeObserver(() => {
     if (!fitted) fitToGraph();
+    // 折り返しは表示領域の寸法で決まる。ここを落とすと、パネルを開いて図が狭くなったとき
+    // アイコンだけが図の外へ残る。
+    syncAddHandle();
     // 寸法が変わると canvas のバッキングストアを取り直す必要がある。
     scheduler?.invalidate();
     // ミニマップも同様。枠は図の canvas の寸法から計算するため（`visibleRect`）、視野が

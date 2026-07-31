@@ -32,6 +32,9 @@ function file(timeline = false): CooccurrenceFile {
 function setup(options?: { timeline?: boolean; reject?: string }) {
   const container = document.createElement('div');
   document.body.append(container);
+  // 閉じたときのフォーカスの戻し先。実際の呼び出し側では図の追加アイコンがこれにあたる。
+  const opener = document.createElement('button');
+  container.append(opener);
   const submitted: AddElementSubmitValues[] = [];
   const popup = createAddElementPopup({
     container,
@@ -41,8 +44,13 @@ function setup(options?: { timeline?: boolean; reject?: string }) {
       return options?.reject === undefined ? { ok: true } : { ok: false, reason: options.reject };
     },
   });
-  popup.show({ file: file(options?.timeline), sourceNodeIndex: 0, anchor: { x: 10, y: 10 } });
-  return { popup, container, submitted };
+  popup.show({
+    file: file(options?.timeline),
+    sourceNodeIndex: 0,
+    anchor: { x: 10, y: 10 },
+    returnFocusTo: opener,
+  });
+  return { popup, container, submitted, opener };
 }
 
 function field(container: HTMLElement, name: string): HTMLInputElement {
@@ -151,19 +159,36 @@ describe('createAddElementPopup', () => {
     ]);
   });
 
-  it('Esc で閉じる', () => {
-    const { container, popup } = setup();
+  it('Esc で閉じ、フォーカスを開いた操作面へ戻す', () => {
+    const { container, popup, opener } = setup();
     container
       .querySelector('[data-role="popup"]')
       ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(popup.isOpen()).toBe(false);
+    // 戻さないとフォーカスが body へ落ち、キーボードでは図の先頭から辿り直しになる。
+    expect(document.activeElement).toBe(opener);
   });
 
-  it('キャンセルで閉じる', () => {
-    const { container, popup, submitted } = setup();
+  it('キャンセルで閉じ、フォーカスを開いた操作面へ戻す', () => {
+    const { container, popup, submitted, opener } = setup();
     click(container, 'cancel');
     expect(popup.isOpen()).toBe(false);
     expect(submitted).toHaveLength(0);
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('登録に成功して閉じたときもフォーカスを戻す', () => {
+    const { container, opener } = setup();
+    fill(container, 'インフレ', '3', '0.4');
+    click(container, 'submit');
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('開いているあいだは共起の相手を答える', () => {
+    const { popup } = setup();
+    expect(popup.getSourceNodeIndex()).toBe(0);
+    popup.hide();
+    expect(popup.getSourceNodeIndex()).toBeNull();
   });
 
   it('開き直すと前回の入力を持ち越さない', () => {

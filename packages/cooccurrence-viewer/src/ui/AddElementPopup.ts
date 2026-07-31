@@ -36,6 +36,13 @@ export interface AddElementShowInput {
   readonly sourceNodeIndex: number;
   /** container の左上を原点とする表示位置。 */
   readonly anchor: { readonly x: number; readonly y: number };
+  /**
+   * 閉じたときにフォーカスを戻す先。
+   *
+   * 戻さないとフォーカスが body へ落ち、キーボードの利用者は図の先頭から辿り直しになる
+   * （要件書 §2.3）。開いた操作面を呼び出し側が知っているので、そこから渡す。
+   */
+  readonly returnFocusTo?: HTMLElement;
 }
 
 export interface AddElementPopupHandle {
@@ -43,6 +50,8 @@ export interface AddElementPopupHandle {
   show(input: AddElementShowInput): void;
   hide(): void;
   isOpen(): boolean;
+  /** いま共起の相手にしている語の添字。閉じていれば null。 */
+  getSourceNodeIndex(): number | null;
   setT(t: CooccurrenceT): void;
   destroy(): void;
 }
@@ -66,7 +75,7 @@ function ensureStyles(): void {
 .cooc-add-popup__row{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}
 .cooc-add-popup__label{color:var(--cooc-text-secondary)}
 .cooc-add-popup__input{box-sizing:border-box;width:100%;padding:3px 6px;border:1px solid var(--cooc-divider);border-radius:4px;background:var(--cooc-bg);color:var(--cooc-text);font:inherit}
-.cooc-add-popup__error{margin:6px 0;color:var(--cooc-error,#d33);overflow-wrap:anywhere}
+.cooc-add-popup__error{margin:6px 0;color:var(--cooc-accent);overflow-wrap:anywhere}
 .cooc-add-popup__error:empty{display:none}
 .cooc-add-popup__buttons{display:flex;gap:6px;justify-content:flex-end}
 .cooc-add-popup__button{padding:3px 10px;border:1px solid var(--cooc-divider);border-radius:4px;background:var(--cooc-bg)}
@@ -261,8 +270,11 @@ export function createAddElementPopup(options: AddElementPopupOptions): AddEleme
   function hide(): void {
     if (!open) return;
     open = false;
+    const returnFocusTo = current?.returnFocusTo;
     current = null;
     element.hidden = true;
+    // 隠した中の要素はフォーカスを保てない。戻し先が生きているときだけ戻す。
+    if (returnFocusTo?.isConnected === true && !returnFocusTo.hidden) returnFocusTo.focus();
   }
 
   function place(anchor: { x: number; y: number }): void {
@@ -293,6 +305,7 @@ export function createAddElementPopup(options: AddElementPopupOptions): AddEleme
     },
     hide,
     isOpen: () => open,
+    getSourceNodeIndex: () => (open ? (current?.sourceNodeIndex ?? null) : null),
     setT(nextT): void {
       t = nextT;
       element.setAttribute('aria-label', t('edit.popupLabel'));

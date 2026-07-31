@@ -167,6 +167,67 @@ describe('図からの要素追加', () => {
     handle.destroy();
   });
 
+  it('開いたまま別の語を選ぶとポップアップを閉じる', () => {
+    // 見出しには開いた時点の相手が出たままになる。開いたままにすると「金利 との共起」と
+    // 読める画面で、後から選んだ語へ結ばれる。
+    const { container, handle } = mount();
+    enterEditMode(container);
+    selectWord(container, '金利');
+    addHandle(container)?.click();
+    expect((container.querySelector('[data-role="popup"]') as HTMLElement).hidden).toBe(false);
+
+    selectWord(container, '株価');
+    expect((container.querySelector('[data-role="popup"]') as HTMLElement).hidden).toBe(true);
+    handle.destroy();
+  });
+
+  it('パネル側の編集でファイルが差し替わるとポップアップを閉じる', () => {
+    const { container, handle } = mount();
+    enterEditMode(container);
+    selectWord(container, '金利');
+    addHandle(container)?.click();
+
+    // 語一覧から語を 1 つ足す（添字がずれ、ポップアップは相手を失う）。
+    const words = container.querySelector('#cooc-panel-words') as HTMLElement;
+    (words.querySelectorAll('input')[1] as HTMLInputElement).value = '為替';
+    [...words.querySelectorAll('button')].find((button) => button.textContent === '追加')?.click();
+
+    expect((container.querySelector('[data-role="popup"]') as HTMLElement).hidden).toBe(true);
+    handle.destroy();
+  });
+
+  it('編集モードを切ると、開いた全パネルの書き換え操作が押せなくなる', () => {
+    // パネルを列挙せずに mount の配線を見る。setEditMode からどれか 1 枚への配布が
+    // 落ちても、この検査なら落ちる。
+    const { container, handle } = mount();
+    enterEditMode(container);
+    for (const panelId of ['cooc-panel-words', 'cooc-panel-links', 'cooc-panel-clusters', 'cooc-panel-timeline']) {
+      (container.querySelector(`[role="tab"][aria-controls="${panelId}"]`) as HTMLButtonElement).click();
+    }
+    const controls = [...container.querySelectorAll<HTMLButtonElement>('[data-edit-control="true"]')];
+    expect(controls.length).toBeGreaterThan(0);
+
+    enterEditMode(container);
+    expect(controls.filter((control) => !control.disabled)).toEqual([]);
+    handle.destroy();
+  });
+
+  it('WebGL の縮退の告知を編集モードの切り替えで消さない', () => {
+    // 注記の枠は 1 つしかない。持ち主を見ずに消すと、別の理由の告知を横から消す。
+    // 初期化の失敗は例外で表れる（null を返しても失敗とは扱われない）。
+    createOzRendererMock.mockImplementation(() => {
+      throw new Error('webgl unavailable');
+    });
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const { container, handle } = mount();
+    [...container.querySelectorAll('button')].find((button) => button.textContent === 'OZ 風 3D')?.click();
+    expect(container.textContent).toContain('WebGL を初期化できない');
+
+    enterEditMode(container);
+    expect(container.textContent).toContain('WebGL を初期化できない');
+    handle.destroy();
+  });
+
   it('OZ 風 3D では追加アイコンを出さず、理由を示す', () => {
     const { container, handle } = mount();
     enterEditMode(container);
