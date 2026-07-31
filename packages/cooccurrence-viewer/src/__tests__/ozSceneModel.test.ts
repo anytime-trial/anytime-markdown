@@ -81,13 +81,15 @@ describe('buildOzSceneModel: レイヤー表示', () => {
     expect(model.nodes[1].z - model.nodes[0].z).toBe(LAYER_Z_PITCH);
   });
 
-  test('レイヤー間の点線は両端がそれぞれのレイヤーの z を持つ', () => {
+  test('レイヤー間の同一語は 1 本の柱になり、両端がそれぞれのレイヤーの z を持つ', () => {
     const model = buildOzSceneModel(graph, null);
-    expect(model.timeLinks).toHaveLength(1);
-    const tl = model.timeLinks[0];
-    expect(tl.x1).toBe(10);
-    expect(tl.x2).toBe(10);
-    expect(tl.z2 - tl.z1).toBe(LAYER_Z_PITCH);
+    expect(model.pillars).toHaveLength(1);
+    const pillar = model.pillars[0];
+    expect(pillar.nodeIndex).toBe(0);
+    expect(pillar.x).toBe(10);
+    expect(pillar.y).toBe(-20);
+    expect(pillar.zFrom).toBe(0);
+    expect(pillar.zTo).toBe(LAYER_Z_PITCH);
   });
 
   test('レイヤー名ラベルがレイヤーの z 平面に置かれる', () => {
@@ -95,6 +97,119 @@ describe('buildOzSceneModel: レイヤー表示', () => {
     expect(model.layerLabels).toHaveLength(2);
     expect(model.layerLabels[0].text).toBe('L0');
     expect(model.layerLabels[1].z - model.layerLabels[0].z).toBe(LAYER_Z_PITCH);
+  });
+});
+
+describe('buildOzSceneModel: 同一語の柱', () => {
+  function timeLink(nodeIndex: number, fromLayer: number, toLayer: number, x1: number, x2: number): RenderTimeLink {
+    return { nodeIndex, fromLayer, toLayer, x1, y1: 20, x2, y2: 20 };
+  }
+
+  test('連続する 3 スライスは 1 本の柱に畳まれ、語名は柱の中央に 1 つだけ出る', () => {
+    const graph = graphOf({
+      nodes: [makeNode(0, 0, 10, 20), makeNode(0, 1, 1010, 20), makeNode(0, 2, 2010, 20)],
+      layers: [makeLayer(0, 0), makeLayer(1, 1000), makeLayer(2, 2000)],
+      timeLinks: [timeLink(0, 0, 1, 10, 1010), timeLink(0, 1, 2, 1010, 2010)],
+    });
+    const model = buildOzSceneModel(graph, null);
+    expect(model.pillars).toHaveLength(1);
+    const pillar = model.pillars[0];
+    expect(pillar.zFrom).toBe(0);
+    expect(pillar.zTo).toBe(LAYER_Z_PITCH * 2);
+    expect(pillar.labelZ).toBe(LAYER_Z_PITCH);
+    expect(pillar.label).toBe('w0');
+    expect(pillar.labeled).toBe(true);
+    // 節は色ドットへ縮退し、語名を持つのは柱ラベルだけになる。
+    // 件数も見る（節が 1 つも返らなくなる退行でも every は通るため）。
+    expect(model.nodes).toHaveLength(3);
+    expect(model.nodes.every((node) => !node.pill)).toBe(true);
+  });
+
+  test('途中のスライスに不在なら柱は 2 本に割れ、欠損区間をまたがない', () => {
+    const graph = graphOf({
+      nodes: [
+        makeNode(0, 0, 10, 20),
+        makeNode(0, 1, 1010, 20),
+        makeNode(0, 3, 3010, 20),
+        makeNode(0, 4, 4010, 20),
+      ],
+      layers: [makeLayer(0, 0), makeLayer(1, 1000), makeLayer(2, 2000), makeLayer(3, 3000), makeLayer(4, 4000)],
+      timeLinks: [timeLink(0, 0, 1, 10, 1010), timeLink(0, 3, 4, 3010, 4010)],
+    });
+    const model = buildOzSceneModel(graph, null);
+    expect(model.pillars.map((pillar) => [pillar.zFrom, pillar.zTo])).toEqual([
+      [0, LAYER_Z_PITCH],
+      [LAYER_Z_PITCH * 3, LAYER_Z_PITCH * 4],
+    ]);
+    // 割れた柱はそれぞれ語名を持つ（どちらの区間の語かが読める）。
+    expect(model.pillars.every((pillar) => pillar.labeled)).toBe(true);
+  });
+
+  test('「同じ語を点線で結ぶ」が OFF なら柱はゼロで、節は従来どおりピルに戻る', () => {
+    const graph = graphOf({
+      nodes: [makeNode(0, 0, 10, 20), makeNode(0, 1, 1010, 20)],
+      layers: [makeLayer(0, 0), makeLayer(1, 1000)],
+      timeLinks: [],
+    });
+    const model = buildOzSceneModel(graph, null);
+    expect(model.pillars).toHaveLength(0);
+    expect(model.nodes).toHaveLength(2);
+    expect(model.nodes.every((node) => node.pill)).toBe(true);
+  });
+
+  test('柱を持つ語は、選択してもその節がピルへ昇格しない', () => {
+    // ラベル上限を超える構成にして、選択近傍の昇格経路を通す。
+    const singles = Array.from({ length: PILL_MAX }, (_, i) =>
+      makeNode(i + 1, 0, (i + 1) * 10, 400, { frequency: i + 1 }),
+    );
+    const graph = graphOf({
+      nodes: [makeNode(0, 0, 10, 20), makeNode(0, 1, 1010, 20), ...singles],
+      layers: [makeLayer(0, 0), makeLayer(1, 1000)],
+      timeLinks: [timeLink(0, 0, 1, 10, 1010)],
+      links: [makeLink(0, 0, 0, 1)],
+    });
+    const model = buildOzSceneModel(graph, 0);
+    const covered = model.nodes.filter((node) => node.index === 0);
+    expect(covered).toHaveLength(2);
+    // 語名は柱ラベルが 1 つ持つ。選択しても節へラベルが戻らない（同じ語名が 3 回読める状態に戻らない）。
+    expect(covered.every((node) => !node.pill)).toBe(true);
+    expect(model.pillars[0].labeled).toBe(true);
+  });
+
+  test('選択の近傍外では柱と柱ラベルが淡くなる', () => {
+    const graph = graphOf({
+      nodes: [makeNode(0, 0, 10, 20), makeNode(0, 1, 1010, 20), makeNode(1, 0, 500, 20)],
+      layers: [makeLayer(0, 0), makeLayer(1, 1000)],
+      timeLinks: [timeLink(0, 0, 1, 10, 1010)],
+    });
+    const plain = buildOzSceneModel(graph, null);
+    expect(plain.pillars[0].alpha).toBeCloseTo(0.7, 6);
+    expect(plain.pillars[0].labelAlpha).toBe(1);
+
+    // 語 1 を選ぶと、繋がっていない語 0 の柱は 2D と同じ 0.18 まで落ちる。
+    const selected = buildOzSceneModel(graph, 1);
+    expect(selected.pillars[0].alpha).toBeCloseTo(0.7 * 0.18, 6);
+    expect(selected.pillars[0].labelAlpha).toBe(0.18);
+  });
+
+  test('ラベルの上限 PILL_MAX は柱ラベルと節のピルで共有する', () => {
+    const singles = Array.from({ length: PILL_MAX }, (_, i) =>
+      makeNode(i + 1, 0, (i + 1) * 10, 400, { frequency: i + 1 }),
+    );
+    const graph = graphOf({
+      nodes: [
+        makeNode(0, 0, 10, 20, { frequency: 10_000 }),
+        makeNode(0, 1, 1010, 20, { frequency: 10_000 }),
+        ...singles,
+      ],
+      layers: [makeLayer(0, 0), makeLayer(1, 1000)],
+      timeLinks: [timeLink(0, 0, 1, 10, 1010)],
+    });
+    const model = buildOzSceneModel(graph, null);
+    // ラベル対象は「柱 1 本 + 単独語 PILL_MAX 個」で上限を 1 つ超える。最低頻度の語が漏れる。
+    expect(model.pillars[0].labeled).toBe(true);
+    expect(model.nodes.filter((node) => node.pill)).toHaveLength(PILL_MAX - 1);
+    expect(model.nodes.find((node) => node.index === 1)?.pill).toBe(false);
   });
 });
 
@@ -186,21 +301,6 @@ describe('buildOzSceneModel: 曲線ストリーム（v2）', () => {
     });
     const model = buildOzSceneModel(graph, null);
     expect(model.links.map((link) => link.flow)).toEqual([1, 1, -1, 0]);
-  });
-
-  test('レイヤー間の点線は直線（制御点 = 中点）で流さない', () => {
-    const layers = [makeLayer(0, 0), makeLayer(1, 1000)];
-    const graph = graphOf({
-      nodes: [makeNode(0, 0, 10, 20), makeNode(0, 1, 1010, 20)],
-      layers,
-      timeLinks: [{ nodeIndex: 0, fromLayer: 0, toLayer: 1, x1: 10, y1: 20, x2: 1010, y2: 20 }],
-    });
-    const model = buildOzSceneModel(graph, null);
-    const tl = model.timeLinks[0];
-    expect(tl.cpX).toBeCloseTo((tl.x1 + tl.x2) / 2, 6);
-    expect(tl.cpY).toBeCloseTo((tl.y1 + tl.y2) / 2, 6);
-    expect(tl.cpZ).toBeCloseTo((tl.z1 + tl.z2) / 2, 6);
-    expect(tl.flow).toBe(0);
   });
 });
 
