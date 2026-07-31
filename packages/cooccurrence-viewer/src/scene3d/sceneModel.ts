@@ -1,5 +1,5 @@
 import { LINK_DIRECTION } from '@anytime-markdown/graph-core';
-import { computeNeighborhoodHighlight } from '../render/highlight';
+import { computeNeighborhoodHighlight, isNodeLit, type HighlightSelection } from '../render/highlight';
 import { LINK_DIM_ALPHA, visibleAlpha } from '../render/drawGraph';
 import { buildNodeLookup, linkEndpoints } from '../render/nodeLookup';
 import type { RenderGraph, RenderLayer, RenderLink, RenderNode, RenderTimeLink } from '../types';
@@ -285,9 +285,9 @@ function selectLabelTargets(input: {
   /** 全ての節。柱に覆われたものはこの関数が除外する。 */
   nodes: readonly RenderNode[];
   covered: ReadonlySet<string>;
-  highlightIndexes: ReadonlySet<number> | undefined;
+  highlight: HighlightSelection | null;
 }): { pillars: Set<PillarSegment>; nodes: Set<RenderNode> } {
-  const { segments, covered, highlightIndexes } = input;
+  const { segments, covered, highlight } = input;
   const nodes = input.nodes.filter((node) => !covered.has(nodeKey(node.index, node.layer)));
   if (segments.length + nodes.length <= PILL_MAX) {
     return { pillars: new Set(segments), nodes: new Set(nodes) };
@@ -313,15 +313,28 @@ function selectLabelTargets(input: {
     if (candidate.kind === 'pillar') pillars.add(candidate.segment);
     else pillNodes.add(candidate.node);
   }
-  if (highlightIndexes !== undefined) {
+  if (highlight !== null) {
     for (const segment of segments) {
-      if (highlightIndexes.has(segment.nodeIndex)) pillars.add(segment);
+      if (pillarLit(highlight, segment)) pillars.add(segment);
     }
     for (const node of nodes) {
-      if (highlightIndexes.has(node.index)) pillNodes.add(node);
+      if (isNodeLit(highlight, node.index, node.layer)) pillNodes.add(node);
     }
   }
   return { pillars, nodes: pillNodes };
+}
+
+/**
+ * 柱を明るく残すか。覆う区間のどこか 1 レイヤーでも点灯していれば柱全体を点灯する
+ * （レイヤー単位ハイライト要件書 §2.5）。柱は 1 本のジオメトリで部分点灯できず、
+ * 区間の途中で明暗を切ると「語が途切れた」ように読めるためである。
+ */
+function pillarLit(highlight: HighlightSelection | null, segment: PillarSegment): boolean {
+  if (highlight === null) return true;
+  for (let layer = segment.fromLayer; layer <= segment.toLayer; layer++) {
+    if (isNodeLit(highlight, segment.nodeIndex, layer)) return true;
+  }
+  return false;
 }
 
 interface Point3 {
@@ -405,7 +418,7 @@ export function buildOzSceneModel(
     segments,
     nodes: graph.nodes,
     covered: coveredNodeKeys(segments),
-    highlightIndexes: highlight?.nodeIndexes,
+    highlight,
   });
   const pillNodes = labelTargets.nodes;
   const nodes: OzSceneNode[] = [];
@@ -419,7 +432,7 @@ export function buildOzSceneModel(
       ...position,
       radius: node.radius,
       color: node.stroke,
-      alpha: visibleAlpha(selectedNodeIndex, highlight?.nodeIndexes, node.index),
+      alpha: visibleAlpha(highlight, node.index, node.layer),
       label: node.label,
       pill: pillNodes.has(node),
     });
@@ -461,7 +474,7 @@ export function buildOzSceneModel(
   }
 
   const pillars: OzScenePillar[] = segments.map((segment) => {
-    const labelAlpha = visibleAlpha(selectedNodeIndex, highlight?.nodeIndexes, segment.nodeIndex);
+    const labelAlpha = pillarLit(highlight, segment) ? 1 : 0.18;
     return {
       nodeIndex: segment.nodeIndex,
       x: segment.x,

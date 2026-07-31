@@ -235,6 +235,41 @@ describe('buildOzSceneModel: 選択と近傍ハイライト', () => {
     expect(model.links[1].alpha).toBe(0.14);
   });
 
+  test('レイヤー表示では近傍の節を、選択語との線があるレイヤーでだけ明るく残す', () => {
+    // 語 0（選択）と語 1 は層 0〜1 の両方に存在するが、共起の線は層 0 にしか無い。
+    const graph = graphOf({
+      nodes: [
+        makeNode(0, 0, 10, 20), makeNode(0, 1, 1010, 20),
+        makeNode(1, 0, 100, 20), makeNode(1, 1, 1100, 20),
+      ],
+      layers: [makeLayer(0, 0), makeLayer(1, 1000)],
+      links: [makeLink(0, 0, 0, 1)],
+    });
+    const model = buildOzSceneModel(graph, 0);
+    const at = (index: number, layer: number) => model.nodes.find((n) => n.index === index && n.layer === layer);
+    // 選択語自身は全レイヤーで明るいまま。
+    expect(at(0, 0)?.alpha).toBe(1);
+    expect(at(0, 1)?.alpha).toBe(1);
+    // 近傍は線のある層 0 だけ。層 1 は淡くなる。
+    expect(at(1, 0)?.alpha).toBe(1);
+    expect(at(1, 1)?.alpha).toBe(0.18);
+  });
+
+  test('柱は覆う区間のどこかのレイヤーが点灯していれば柱全体が明るいまま', () => {
+    // 語 1 は層 0〜1 を柱で貫き、選択語 0 との線は層 0 だけにある。
+    const graph = graphOf({
+      nodes: [
+        makeNode(0, 0, 10, 20),
+        makeNode(1, 0, 100, 20), makeNode(1, 1, 1100, 20),
+      ],
+      layers: [makeLayer(0, 0), makeLayer(1, 1000)],
+      timeLinks: [{ nodeIndex: 1, fromLayer: 0, toLayer: 1, x1: 100, y1: 20, x2: 1100, y2: 20 }],
+      links: [makeLink(0, 0, 0, 1)],
+    });
+    const model = buildOzSceneModel(graph, 0);
+    expect(model.pillars[0].alpha).toBeCloseTo(0.7, 6);
+    expect(model.pillars[0].labelAlpha).toBe(1);
+  });
 });
 
 describe('buildOzSceneModel: ピル選抜（v2）', () => {
