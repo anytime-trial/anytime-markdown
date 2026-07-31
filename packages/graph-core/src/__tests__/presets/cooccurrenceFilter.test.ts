@@ -160,3 +160,68 @@ describe('向き付きの共起の絞り込み', () => {
     expect(setValues(result.linkIndexes)).toEqual([0]);
   });
 });
+
+describe('サブクラスタによる絞り込み', () => {
+  function subclusterFile(): CooccurrenceFile {
+    return {
+      meta: { schemaVersion: 5, generatedAt: '2026-07-31T00:00:00.000Z', origin: 'manual' },
+      spec: {
+        nodes: [
+          { label: 'A', frequency: 10 },
+          { label: 'B', frequency: 10 },
+          { label: 'C', frequency: 10 },
+          { label: 'D', frequency: 10 },
+        ],
+        links: [[0, 1, 0.9], [1, 2, 0.8], [2, 3, 0.7]],
+        clusters: [
+          // C は「クラスタには属すがどのサブクラスタにも属さない」残余の語。
+          { label: 'left', members: [0, 1, 2], subclusters: [{ label: 'a', members: [0] }, { label: 'b', members: [1] }] },
+          { label: 'right', members: [3] },
+        ],
+      },
+    };
+  }
+
+  function labelsOf(file: CooccurrenceFile, indexes: ReadonlySet<number>): string[] {
+    return setValues(indexes).map((index) => file.spec.nodes[index].label);
+  }
+
+  it('選択されていないサブクラスタの語を外す', () => {
+    const target = subclusterFile();
+    const result = filterCooccurrenceFile(target, { selectedSubclusters: [{ cluster: 0, subcluster: 0 }] });
+    // b（語 B）だけが落ちる。残余の C とサブクラスタを持たないクラスタの D は残る。
+    expect(labelsOf(target, result.nodeIndexes)).toEqual(['A', 'C', 'D']);
+  });
+
+  it('全サブクラスタを選んだ状態は絞り込みなしと一致する', () => {
+    const target = subclusterFile();
+    const all = filterCooccurrenceFile(target, {
+      selectedSubclusters: [{ cluster: 0, subcluster: 0 }, { cluster: 0, subcluster: 1 }],
+    });
+    const none = filterCooccurrenceFile(target, {});
+    expect(setValues(all.nodeIndexes)).toEqual(setValues(none.nodeIndexes));
+    expect(setValues(all.linkIndexes)).toEqual(setValues(none.linkIndexes));
+  });
+
+  it('サブクラスタを全て外しても、どのサブクラスタにも属さない語は残る', () => {
+    const target = subclusterFile();
+    const result = filterCooccurrenceFile(target, { selectedSubclusters: [] });
+    expect(labelsOf(target, result.nodeIndexes)).toEqual(['C', 'D']);
+  });
+
+  it('クラスタを外すと、その中のサブクラスタの語も選択に関わらず消える', () => {
+    const target = subclusterFile();
+    const result = filterCooccurrenceFile(target, {
+      selectedClusterIndexes: [1],
+      selectedSubclusters: [{ cluster: 0, subcluster: 0 }, { cluster: 0, subcluster: 1 }],
+    });
+    expect(labelsOf(target, result.nodeIndexes)).toEqual(['D']);
+  });
+
+  it('語が消えると、その語を端点に持つ共起も消える', () => {
+    const target = subclusterFile();
+    const result = filterCooccurrenceFile(target, { selectedSubclusters: [{ cluster: 0, subcluster: 1 }] });
+    // A が消えるので共起 0（A-B）も落ちる。B-C・C-D は残る。
+    expect(setValues(result.linkIndexes)).toEqual([1, 2]);
+  });
+});

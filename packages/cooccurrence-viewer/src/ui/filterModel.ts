@@ -1,10 +1,55 @@
-import { readLink, type CooccurrenceFile, type CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
+import {
+  readLink,
+  type CooccurrenceFile,
+  type CooccurrenceFilterOptions,
+  type CooccurrenceSubclusterRef,
+} from '@anytime-markdown/graph-core';
 
 export interface FilterModelInput {
   minFrequencyText: string;
   minStrengthText: string;
   topLinkCountText: string;
   selectedClusterIndexes: ReadonlySet<number>;
+  /**
+   * 選択されているサブクラスタ（`"クラスタ添字:サブクラスタ添字"`）。サブクラスタを 1 つも
+   * 持たないファイルでは `undefined`。
+   *
+   * Why not 空集合で代用するか: 空集合は「全て外した」（サブクラスタの語を全部隠す）状態であり、
+   * 「サブクラスタという条件が存在しない」状態とは結果が違う。
+   */
+  selectedSubclusterKeys?: ReadonlySet<string>;
+}
+
+/** サブクラスタの選択に使う鍵。サブクラスタはクラスタの中でしか一意にならない。 */
+export function subclusterKey(clusterIndex: number, subclusterIndex: number): string {
+  return `${clusterIndex}:${subclusterIndex}`;
+}
+
+function parseSubclusterKey(key: string): CooccurrenceSubclusterRef | undefined {
+  const [cluster, subcluster] = key.split(':').map(Number);
+  if (!Number.isInteger(cluster) || !Number.isInteger(subcluster)) return undefined;
+  return { cluster, subcluster };
+}
+
+/** ファイルが持つ全サブクラスタの鍵。1 つも無ければ空集合。 */
+export function allSubclusterKeys(file: CooccurrenceFile): Set<string> {
+  const keys = new Set<string>();
+  file.spec.clusters?.forEach((cluster, clusterIndex) => {
+    cluster.subclusters?.forEach((_subcluster, subclusterIndex) => {
+      keys.add(subclusterKey(clusterIndex, subclusterIndex));
+    });
+  });
+  return keys;
+}
+
+export function selectedSubclustersFromOptions(
+  file: CooccurrenceFile,
+  options: CooccurrenceFilterOptions | undefined,
+): Set<string> | undefined {
+  const all = allSubclusterKeys(file);
+  if (all.size === 0) return undefined;
+  if (options?.selectedSubclusters === undefined) return all;
+  return new Set(options.selectedSubclusters.map((ref) => subclusterKey(ref.cluster, ref.subcluster)));
 }
 
 export function parseOptionalNumber(value: string): number | undefined {
@@ -141,9 +186,20 @@ export function createFilterOptions(input: FilterModelInput): CooccurrenceFilter
   return {
     ...(minFrequency === undefined ? {} : { minFrequency }),
     selectedClusterIndexes: [...input.selectedClusterIndexes].sort((a, b) => a - b),
+    ...(input.selectedSubclusterKeys === undefined
+      ? {}
+      : { selectedSubclusters: subclusterRefsFromKeys(input.selectedSubclusterKeys) }),
     ...(minStrength === undefined ? {} : { minStrength }),
     ...(topLinkCount === undefined ? {} : { topLinkCount }),
   };
+}
+
+/** 鍵の集合を graph-core が受け取る形へ畳む。並びはクラスタ → サブクラスタの添字順に正規化する。 */
+function subclusterRefsFromKeys(keys: ReadonlySet<string>): CooccurrenceSubclusterRef[] {
+  return [...keys]
+    .map(parseSubclusterKey)
+    .filter((ref): ref is CooccurrenceSubclusterRef => ref !== undefined)
+    .sort((a, b) => (a.cluster !== b.cluster ? a.cluster - b.cluster : a.subcluster - b.subcluster));
 }
 
 export function filterOptionsToInput(
@@ -155,5 +211,6 @@ export function filterOptionsToInput(
     minStrengthText: options?.minStrength === undefined ? '' : String(options.minStrength),
     topLinkCountText: options?.topLinkCount === undefined ? '' : String(options.topLinkCount),
     selectedClusterIndexes: selectedClustersFromOptions(file, options),
+    selectedSubclusterKeys: selectedSubclustersFromOptions(file, options),
   };
 }

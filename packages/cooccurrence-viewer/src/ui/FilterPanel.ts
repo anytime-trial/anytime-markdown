@@ -9,6 +9,7 @@ import {
   frequencySliderRange,
   roundSliderValue,
   sliderPositionFromText,
+  subclusterKey,
   sliderTextFromPosition,
   strengthSliderRange,
   topLinkSliderRange,
@@ -71,6 +72,8 @@ function ensureStyles(): void {
 .cooc-filter__subtitle{font:600 12px system-ui,sans-serif;color:var(--cooc-text)}
 .cooc-filter__subtitle[hidden]{display:none}
 .cooc-filter__check{display:flex;gap:6px;align-items:center;color:var(--cooc-text);font:12px system-ui,sans-serif}
+.cooc-filter__check--sub{padding-left:18px;color:var(--cooc-text-secondary)}
+.cooc-filter__check--sub:has(input:disabled){opacity:0.5}
 .cooc-filter__swatch{flex:0 0 auto;width:10px;height:10px;border-radius:50%;border:1px solid var(--cooc-divider)}
 .cooc-filter__counts{display:flex;flex-direction:column;gap:2px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif}
 `;
@@ -225,6 +228,8 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     clusterSpecs.forEach((cluster, index) => {
       const label = document.createElement('label');
       label.className = 'cooc-filter__check';
+      /** このクラスタに属するサブクラスタの操作。親の選択に追従して無効・有効を切り替える。 */
+      const subclusterBoxes: HTMLInputElement[] = [];
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = inputState.selectedClusterIndexes.has(index);
@@ -236,6 +241,11 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
           next.delete(index);
         }
         inputState = { ...inputState, selectedClusterIndexes: next };
+        // 子は即座に無効・有効を切り替える。ホストからの再描画を待つと、その往復の間だけ
+        // 「親を外したのに子が押せる」状態が出る（押しても結果は変わらない面になる）。
+        subclusterBoxes.forEach((box) => {
+          box.disabled = !checkbox.checked;
+        });
         emit();
       });
       // グラフ上の円と同じ色を示す見本。色は装飾で、情報の正はクラスタ名のテキスト側にある。
@@ -247,7 +257,52 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
       text.textContent = cluster.label;
       label.append(checkbox, swatch, text);
       clusters.appendChild(label);
+      subclusterBoxes.push(...renderSubclusters(cluster.subclusters ?? [], index, checkbox.checked));
     });
+  }
+
+  /**
+   * サブクラスタの選択（設計書 §3.2）。クラスタの下に字下げして並べる。
+   *
+   * **サブクラスタに色見本を付けない**。色はクラスタの符号であり（§2.1）、同じ色を子にも
+   * 並べると、どちらの段の符号なのかが読めなくなる。字下げが階層の唯一の符号である。
+   *
+   * 親のクラスタを外している間は子を無効にする。親を外すとその中の語は選択に関わらず全て
+   * 消えるため、操作できる状態にすると「触っても何も起きない面」になる。
+   */
+  function renderSubclusters(
+    subclusterSpecs: ReadonlyArray<{ label: string }>,
+    clusterIndex: number,
+    clusterSelected: boolean,
+  ): HTMLInputElement[] {
+    const selectedKeys = inputState.selectedSubclusterKeys;
+    if (selectedKeys === undefined) return [];
+    const boxes: HTMLInputElement[] = [];
+    subclusterSpecs.forEach((subcluster, subclusterIndex) => {
+      const key = subclusterKey(clusterIndex, subclusterIndex);
+      const label = document.createElement('label');
+      label.className = 'cooc-filter__check cooc-filter__check--sub';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selectedKeys.has(key);
+      checkbox.disabled = !clusterSelected;
+      checkbox.addEventListener('change', () => {
+        const next = new Set(inputState.selectedSubclusterKeys ?? []);
+        if (checkbox.checked) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
+        inputState = { ...inputState, selectedSubclusterKeys: next };
+        emit();
+      });
+      const text = document.createElement('span');
+      text.textContent = subcluster.label;
+      label.append(checkbox, text);
+      clusters.appendChild(label);
+      boxes.push(checkbox);
+    });
+    return boxes;
   }
 
   /**
@@ -361,6 +416,7 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
         minStrengthText: active === minStrength.input ? inputState.minStrengthText : nextInputState.minStrengthText,
         topLinkCountText: active === topLinks.input ? inputState.topLinkCountText : nextInputState.topLinkCountText,
         selectedClusterIndexes: nextInputState.selectedClusterIndexes,
+        selectedSubclusterKeys: nextInputState.selectedSubclusterKeys,
       };
       render();
       if (active instanceof HTMLElement && element.contains(active)) active.focus();
