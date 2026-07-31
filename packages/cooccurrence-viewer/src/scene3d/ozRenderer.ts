@@ -2,20 +2,15 @@ import {
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
-  CircleGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
   DirectionalLight,
-  DoubleSide,
   Fog,
   HemisphereLight,
   InstancedMesh,
-  LineBasicMaterial,
-  LineLoop,
   LineSegments,
   Matrix4,
-  Mesh,
   MeshBasicMaterial,
   MeshPhongMaterial,
   Object3D,
@@ -92,8 +87,6 @@ export interface OzThemePalette {
   background: Color;
   /** 淡色化（alpha < 1）の lerp 先。フォグと同じ色にして空間へ溶かす。 */
   fade: Color;
-  /** 背景平面の同心円模様の色。 */
-  ringColor: Color;
   labelColor: string;
   /** 強度が最小の線の色。背景に対する下限コントラストを決める（{@link linkColorOf}）。 */
   linkFloor: Color;
@@ -101,10 +94,6 @@ export interface OzThemePalette {
   linkBase: Color;
   pillBg: string;
   pillText: string;
-  /** 巨大なパステル塗り円（参考画像の円形空間。要件書 §2.2 v2）。 */
-  circles: Array<{ color: Color; opacity: number }>;
-  /** 細い輪郭リング。 */
-  outlines: Array<{ color: Color; opacity: number }>;
 }
 
 export function paletteOf(mode: ThemeMode): OzThemePalette {
@@ -112,7 +101,6 @@ export function paletteOf(mode: ThemeMode): OzThemePalette {
     return {
       background: new Color('#0A0F2E'),
       fade: new Color('#0A0F2E'),
-      ringColor: new Color('#2A3568'),
       labelColor: 'rgba(255,255,255,0.92)',
       // Why not ライトのように背景と別の下限色を置くか: 夜の OZ は linkBase が背景から十分
       // 遠く、背景を起点にしても最弱リンクが 3.91:1 に届く。別の下限色を置くと最弱が 5.89:1
@@ -121,21 +109,11 @@ export function paletteOf(mode: ThemeMode): OzThemePalette {
       linkBase: new Color('#A0BEFF'),
       pillBg: '#12183F',
       pillText: 'rgba(255,255,255,0.92)',
-      circles: [
-        { color: new Color('#31408F'), opacity: 0.16 },
-        { color: new Color('#1E5F58'), opacity: 0.12 },
-        { color: new Color('#7A2B52'), opacity: 0.1 },
-      ],
-      outlines: [
-        { color: new Color('#FF6B9C'), opacity: 0.3 },
-        { color: new Color('#4FC3F7'), opacity: 0.24 },
-      ],
     };
   }
   return {
     background: new Color('#F4F5FB'),
     fade: new Color('#F4F5FB'),
-    ringColor: new Color('#DDE3F2'),
     labelColor: '#1B2A4A',
     // 下限色は背景 #F4F5FB に対し 3.53:1。白へ溶かす旧方式では最大でも 2.84:1 までしか
     // 届かず、白の OZ では弱い共起がほぼ消えていた。
@@ -143,15 +121,6 @@ export function paletteOf(mode: ThemeMode): OzThemePalette {
     linkBase: new Color('#4A5468'),
     pillBg: '#FFFFFF',
     pillText: '#1B2A4A',
-    circles: [
-      { color: new Color('#F8BBD0'), opacity: 0.12 },
-      { color: new Color('#B2DFDB'), opacity: 0.1 },
-      { color: new Color('#B3E5FC'), opacity: 0.08 },
-    ],
-    outlines: [
-      { color: new Color('#EF9A9A'), opacity: 0.35 },
-      { color: new Color('#F48FB1'), opacity: 0.28 },
-    ],
   };
 }
 
@@ -536,87 +505,6 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     }
   }
 
-  /** 円周の折れ線ジオメトリ（LineLoop 用）。 */
-  function circleOutlineGeometry(radius: number): BufferGeometry {
-    const points = new Float32Array(129 * 3);
-    for (let i = 0; i <= 128; i += 1) {
-      const angle = (i / 128) * Math.PI * 2;
-      points.set([Math.cos(angle) * radius, Math.sin(angle) * radius, 0], i * 3);
-    }
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new BufferAttribute(points, 3));
-    return geometry;
-  }
-
-  /**
-   * 無限に広がる巨大な円形の仮想空間（要件書 §2.2 v2）。
-   * 巨大なパステル塗り円・輪郭リング・同心円模様をシーン境界から決定的に配置する
-   * （乱数を使うと setModel のたびに空間が変わる）。
-   */
-  function buildBackdrop(current: OzSceneModel): void {
-    const bounds = modelBounds(current);
-    if (bounds === null) return;
-    const radius = Math.max(bounds.radius, 300);
-
-    // 巨大なパステル塗り円。角度・距離・傾きは見え方を散らすための固定テーブル。
-    const placements = [
-      { angle: 0.4, distance: 1.6, zFactor: -1.2, scale: 2.4, tiltX: 0.35, tiltY: 0.1 },
-      { angle: 2.4, distance: 1.9, zFactor: -1.5, scale: 1.8, tiltX: -0.2, tiltY: 0.25 },
-      { angle: 4.4, distance: 2.2, zFactor: -1.8, scale: 2.9, tiltX: 0.15, tiltY: -0.3 },
-    ];
-    placements.forEach((placement, i) => {
-      const style = palette.circles[i % palette.circles.length];
-      const material = new MeshBasicMaterial({
-        color: style.color,
-        transparent: true,
-        opacity: style.opacity,
-        side: DoubleSide,
-        depthWrite: false,
-      });
-      const mesh = new Mesh(new CircleGeometry(1, 72), material);
-      mesh.position.set(
-        bounds.centerX + Math.cos(placement.angle) * radius * placement.distance,
-        bounds.centerY + Math.sin(placement.angle) * radius * placement.distance,
-        bounds.centerZ + radius * placement.zFactor,
-      );
-      mesh.scale.setScalar(radius * placement.scale);
-      mesh.rotation.set(placement.tiltX, placement.tiltY, 0);
-      mesh.renderOrder = -3;
-      track(mesh, mesh.geometry, material);
-    });
-
-    // 細い輪郭リング。
-    const outlinePlacements = [
-      { angle: 1.4, distance: 1.2, zFactor: -0.9, scale: 2.0, tiltX: 0.3, tiltY: -0.15 },
-      { angle: 5.2, distance: 1.5, zFactor: -1.1, scale: 2.6, tiltX: -0.25, tiltY: 0.2 },
-    ];
-    outlinePlacements.forEach((placement, i) => {
-      const style = palette.outlines[i % palette.outlines.length];
-      const geometry = circleOutlineGeometry(1);
-      const material = new LineBasicMaterial({ color: style.color, transparent: true, opacity: style.opacity });
-      const loop = new LineLoop(geometry, material);
-      loop.position.set(
-        bounds.centerX + Math.cos(placement.angle) * radius * placement.distance,
-        bounds.centerY + Math.sin(placement.angle) * radius * placement.distance,
-        bounds.centerZ + radius * placement.zFactor,
-      );
-      loop.scale.setScalar(radius * placement.scale);
-      loop.rotation.set(placement.tiltX, placement.tiltY, 0);
-      loop.renderOrder = -2;
-      track(loop, geometry, material);
-    });
-
-    // 背景平面の淡い同心円模様（幾何学模様）。
-    for (const ratio of [0.5, 0.9, 1.4, 2.0]) {
-      const geometry = circleOutlineGeometry(radius * ratio);
-      const material = new LineBasicMaterial({ color: palette.ringColor, transparent: true, opacity: 0.5 });
-      const loop = new LineLoop(geometry, material);
-      loop.position.set(bounds.centerX, bounds.centerY, bounds.centerZ - radius * 2.2);
-      loop.renderOrder = -2;
-      track(loop, geometry, material);
-    }
-  }
-
   function modelBounds(current: OzSceneModel): { centerX: number; centerY: number; centerZ: number; minY: number; radius: number } | null {
     if (current.nodes.length === 0) return null;
     let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
@@ -654,7 +542,6 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     buildCones(model);
     buildHeadings(model.headings);
     buildLabels(model.layerLabels, 44);
-    buildBackdrop(model);
     prunePillTextures();
   }
 
