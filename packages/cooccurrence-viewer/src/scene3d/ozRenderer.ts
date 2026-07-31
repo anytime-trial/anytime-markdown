@@ -5,13 +5,13 @@ import {
   CircleGeometry,
   Color,
   ConeGeometry,
+  CylinderGeometry,
   DirectionalLight,
   DoubleSide,
   Fog,
   HemisphereLight,
   InstancedMesh,
   LineBasicMaterial,
-  LineDashedMaterial,
   LineLoop,
   LineSegments,
   Matrix4,
@@ -76,6 +76,14 @@ const ROTATE_SPEED = 0.005;
 const ZOOM_WHEEL_SPEED = 0.001;
 /** 曲線 1 本の折れ線分割数。 */
 const CURVE_SEGMENTS = 12;
+/**
+ * 柱の半径と円周分割数（柱表示要件書 §2.1）。
+ *
+ * Why not 頻度で太さを変えるか: 値は節（ドット）の半径が担う。柱まで太さを変えると同じ情報を
+ * 二重に持ち、共起の線とも紛らわしくなる。節の最小半径（2.5）より細い固定値にする。
+ */
+const PILLAR_RADIUS = 1.6;
+const PILLAR_SEGMENTS = 6;
 /** ピルテクスチャの解像度倍率（等倍だとズーム時に文字が粗れる）。 */
 const PILL_TEXTURE_SCALE = 2;
 /** 淡色化したピルの不透明度はモデルの alpha をそのまま使う。ドットは色 lerp（v1 と同じ）。 */
@@ -145,21 +153,6 @@ export function paletteOf(mode: ThemeMode): OzThemePalette {
       { color: new Color('#F48FB1'), opacity: 0.28 },
     ],
   };
-}
-
-function lineGeometry(links: readonly OzSceneLink[], palette: LinkColorPalette): BufferGeometry {
-  const positions = new Float32Array(links.length * 6);
-  const colors = new Float32Array(links.length * 6);
-  const color = new Color();
-  links.forEach((link, i) => {
-    positions.set([link.x1, link.y1, link.z1, link.x2, link.y2, link.z2], i * 6);
-    linkColorOf(color, palette, link);
-    colors.set([color.r, color.g, color.b, color.r, color.g, color.b], i * 6);
-  });
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new BufferAttribute(colors, 3));
-  return geometry;
 }
 
 /** 二次ベジェ上の点（t は 0..1）。 */
@@ -343,6 +336,9 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
   // ドット（ピル上限から漏れた語）はフラットな色点として描く（参考画像の点表現）。
   const dotGeometry = new SphereGeometry(1, SPHERE_SEGMENTS, SPHERE_SEGMENTS / 2 | 0);
   const dotMaterial = new MeshBasicMaterial();
+  // 単位円柱（軸は y）。柱はすべて z 軸平行なので、インスタンスの回転は定数で足りる。
+  const pillarGeometry = new CylinderGeometry(1, 1, 1, PILLAR_SEGMENTS);
+  const pillarMaterial = new MeshBasicMaterial();
   const coneGeometry = new ConeGeometry(0.5, 1, 12);
   const coneMaterial = new MeshPhongMaterial({ shininess: 30 });
   const streamMaterial = makeStreamMaterial(palette.fade);
@@ -471,12 +467,46 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
       // streamMaterial は使い回す（uniform の uTime を共有するため）。dispose はしない。
       track(new LineSegments(geometry, streamMaterial), geometry);
     }
-    if (current.timeLinks.length > 0) {
-      const geometry = lineGeometry(current.timeLinks, palette);
-      const material = new LineDashedMaterial({ vertexColors: true, dashSize: 8, gapSize: 8 });
-      const lines = new LineSegments(geometry, material);
-      lines.computeLineDistances();
-      track(lines, geometry, material);
+  }
+
+  /**
+   * スライスをまたぐ同一語の柱（柱表示要件書 §2.1）。
+   *
+   * 柱はすべて z 軸に平行なので回転は定数でよい。長さ・位置・色だけをインスタンスごとに与える。
+   * 語名ラベルは柱の中央に 1 つだけ置き、節（ドット）は語名を持たない。
+   */
+  function buildPillars(current: OzSceneModel): void {
+    if (current.pillars.length === 0) return;
+    const mesh = new InstancedMesh(pillarGeometry, pillarMaterial, current.pillars.length);
+    const matrix = new Matrix4();
+    const scale = new Vector3();
+    const color = new Color();
+    current.pillars.forEach((pillar, i) => {
+      const length = Math.abs(pillar.zTo - pillar.zFrom);
+      matrix.makeRotationX(Math.PI / 2);
+      matrix.scale(scale.set(PILLAR_RADIUS, length, PILLAR_RADIUS));
+      matrix.setPosition(pillar.x, pillar.y, (pillar.zFrom + pillar.zTo) / 2);
+      mesh.setMatrixAt(i, matrix);
+      color.set(pillar.color);
+      if (pillar.alpha < 1) color.lerp(palette.fade, 1 - pillar.alpha);
+      mesh.setColorAt(i, color);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    track(mesh, mesh);
+
+    for (const pillar of current.pillars) {
+      if (!pillar.labeled) continue;
+      const made = pillTextureOf(pillar.label, pillar.color);
+      if (made === null) continue;
+      const material = new SpriteMaterial({ map: made.texture, transparent: true, opacity: pillar.labelAlpha });
+      const sprite = new Sprite(material);
+      const height = pillWorldHeight(pillar.radius);
+      sprite.position.set(pillar.x, pillar.y, pillar.labelZ);
+      sprite.scale.set(height * made.aspect, height, 1);
+      // 柱ラベルは選択の入口でもある（節と同じ経路でレイキャストへ載せる）。
+      sprite.userData.nodeIndex = pillar.nodeIndex;
+      pillSprites.push(track(sprite, material));
     }
   }
 
@@ -619,6 +649,7 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
     if (model === null) return;
     usedPillKeys = new Set();
     buildNodes(model);
+    buildPillars(model);
     buildStreams(model);
     buildCones(model);
     buildHeadings(model.headings);
@@ -824,6 +855,8 @@ export function createOzRenderer(options: OzRendererOptions): OzRenderer {
       pillTextures.clear();
       dotGeometry.dispose();
       dotMaterial.dispose();
+      pillarGeometry.dispose();
+      pillarMaterial.dispose();
       coneGeometry.dispose();
       coneMaterial.dispose();
       streamMaterial.dispose();
