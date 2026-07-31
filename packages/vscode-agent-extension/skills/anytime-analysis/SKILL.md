@@ -249,7 +249,7 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
 ### 9.1 鉄則（違反すると成果物が壊れる・過去に実害あり）
 
 1. **`.cooc.json` を Write / Edit で手書きしない**。ファイル実体は index 参照のスキーマで、手書きは参照ずれ・スキーマ追従漏れを起こす。必ず `mcp__mcp-graph__write_cooccurrence`（ラベルベース・検証込み）を使う。スキーマ調査のために graph-core のソースや既存 `.cooc.json` を読む必要はない — 本節の情報で足りる。
-2. **既存の `.cooc.json` を削除・上書き・整形しない**。ユーザーの成果物である。追記は `mode: "append"`、新規は別パスに `mode: "replace"`。
+2. **既存の `.cooc.json` を削除・上書き・整形しない**。ユーザーの成果物である。新規は別パスに `mode: "replace"`。**既存の図への追記に `mode: "append"` を使わない** — append がマージするのは既存 term の `sliceValues` だけで、既存リンクは同じ 2 点間に 2 本目が生え、同名クラスタは 2 個に増える（2026-07-31 実測）。追記は `read_cooccurrence` で全量を読み、差分を当てた全量を同じパスへ `replace` で書き戻す（読み戻した `slices` はそのまま渡す。書き込みは `layout`＝手で整えたノード位置を破棄する）。
 3. **出力パスはワークスペースルートからの相対パスのみ**（例: `nikkei-crash.cooc.json`）。`write_cooccurrence` の `path` はワークスペース起点で解決されるため、`/tmp` 等の外部パスには書けない。外部に置きたい要望があっても、まずワークスペース内に生成してから移動する。
 
 ### 9.2 手順
@@ -281,7 +281,7 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
 | `links[].direction` | 順序が出典から確定できる時のみ `forward`。通常は省略 |
 | `clusters[].members` | ラベル配列。**8 個以内**・全ノードをできるだけカバー |
 | `note` | 空文字は拒否。推測は「（推測）」と明記 |
-| `mode` | 新規 `replace` / 既存への追記 `append` |
+| `mode` | 常に `replace`。既存への追記も read → 全量 `replace`（`append` 禁止・§9.1 鉄則 2） |
 
 ### 9.5 よくある失敗
 
