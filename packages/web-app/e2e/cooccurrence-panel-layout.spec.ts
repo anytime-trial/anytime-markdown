@@ -120,7 +120,10 @@ ${viewerCss()}
  <div class="cooc-viewer__tabpanel" id="cooc-panel-filter" role="tabpanel"${hiddenUnless("filter")}>
   <section class="cooc-filter">
    <div class="cooc-filter__title">絞り込み</div>
-   <label class="cooc-filter__field"><span>最小頻度</span><input type="number"></label>
+   <label class="cooc-filter__field">
+    <span class="cooc-filter__head"><span>最小頻度</span><span class="cooc-filter__value">全件</span></span>
+    <input type="range" min="1" max="50" step="1" value="1">
+    <span class="cooc-filter__bounds"><span>1</span><span>50</span></span></label>
    <div class="cooc-filter__clusters">${clusters}</div>
    <label class="cooc-filter__field">
     <span class="cooc-filter__head"><span>最小共起強度</span><span class="cooc-filter__value">全件</span></span>

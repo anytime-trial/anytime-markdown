@@ -6,8 +6,10 @@ import {
   parseMinFrequency,
   parseMinStrength,
   parseTopLinkCount,
+  frequencySliderRange,
   roundSliderValue,
   sliderPositionFromText,
+  subclusterKey,
   sliderTextFromPosition,
   strengthSliderRange,
   topLinkSliderRange,
@@ -70,31 +72,18 @@ function ensureStyles(): void {
 .cooc-filter__subtitle{font:600 12px system-ui,sans-serif;color:var(--cooc-text)}
 .cooc-filter__subtitle[hidden]{display:none}
 .cooc-filter__check{display:flex;gap:6px;align-items:center;color:var(--cooc-text);font:12px system-ui,sans-serif}
+.cooc-filter__check--sub{padding-left:18px;color:var(--cooc-text-secondary)}
+.cooc-filter__check--sub:has(input:disabled){opacity:0.5}
 .cooc-filter__swatch{flex:0 0 auto;width:10px;height:10px;border-radius:50%;border:1px solid var(--cooc-divider)}
 .cooc-filter__counts{display:flex;flex-direction:column;gap:2px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
 }
 
-interface FieldRow {
+interface SliderFieldRow {
   row: HTMLElement;
   input: HTMLInputElement;
   label: HTMLElement;
-}
-
-function inputRow(label: string, value: string): FieldRow {
-  const row = document.createElement('label');
-  row.className = 'cooc-filter__field';
-  const text = document.createElement('span');
-  text.textContent = label;
-  const input = document.createElement('input');
-  input.type = 'number';
-  input.value = value;
-  row.append(text, input);
-  return { row, input, label: text };
-}
-
-interface SliderFieldRow extends FieldRow {
   /** 現在値の表示。可動域だけでは今どこにいるかが読めないため、数値も併記する。 */
   value: HTMLElement;
   /** 可動域の両端の表示。「どこまで動かせるか」＝データの分布の要約（設計書 §3.2）。 */
@@ -123,6 +112,9 @@ function sliderRow(label: string): SliderFieldRow {
   return { row, input, label: text, value, lowerBound, upperBound };
 }
 
+/** スライダーが書き込む入力の種類。3 条件とも文字列の入力状態を共有する（空＝絞り込みなし）。 */
+type SliderInputKey = 'minFrequencyText' | 'minStrengthText' | 'topLinkCountText';
+
 /** 表示用の数値。刻みで生じた端数を落とし、整数は小数点を付けずに出す。 */
 function formatSliderNumber(value: number): string {
   return String(roundSliderValue(value));
@@ -141,9 +133,10 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
   title.className = 'cooc-filter__title';
   title.textContent = t('filter.title');
 
-  const minFrequency = inputRow(t('filter.minFrequency'), inputState.minFrequencyText);
+  const minFrequency = sliderRow(t('filter.minFrequency'));
   const minStrength = sliderRow(t('filter.minStrength'));
   const topLinks = sliderRow(t('filter.topLinks'));
+  let frequencyRange: SliderRange = frequencySliderRange(state.file);
   let strengthRange: SliderRange = strengthSliderRange(state.file);
   let topLinkRange: SliderRange = topLinkSliderRange(state.file);
   const clusters = document.createElement('div');
@@ -180,13 +173,6 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     options.onFilterChange(createFilterOptions(inputState));
   }
 
-  function bindTextInput(input: HTMLInputElement, key: 'minFrequencyText' | 'minStrengthText' | 'topLinkCountText'): void {
-    input.addEventListener('input', () => {
-      inputState = { ...inputState, [key]: input.value };
-      emit();
-    });
-  }
-
   /**
    * つまみの位置を絞り込みの入力へ写す。位置が絞り込みなしの端にあるときは条件を持たない状態
    * （空文字）へ落とす。端に戻せば元に戻ることを保つのが、既定値を絞り込みなしに置く
@@ -194,7 +180,7 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
    */
   function bindSlider(
     field: SliderFieldRow,
-    key: 'minStrengthText' | 'topLinkCountText',
+    key: SliderInputKey,
     range: () => SliderRange,
     edge: SliderNoFilterEdge,
   ): void {
@@ -205,17 +191,17 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     });
   }
 
-  bindTextInput(minFrequency.input, 'minFrequencyText');
+  bindSlider(minFrequency, 'minFrequencyText', () => frequencyRange, 'min');
   bindSlider(minStrength, 'minStrengthText', () => strengthRange, 'min');
   bindSlider(topLinks, 'topLinkCountText', () => topLinkRange, 'max');
 
   function renderSliderValue(
     field: SliderFieldRow,
-    key: 'minStrengthText' | 'topLinkCountText',
+    key: SliderInputKey,
     range: SliderRange,
     edge: SliderNoFilterEdge,
   ): void {
-    // 動かせる幅が無いとき（共起が無い・強度が 1 種類）は、動かせない値を現在値として出さない。
+    // 動かせる幅が無いとき（語や共起が無い・値が 1 種類）は、動かせない値を現在値として出さない。
     if (!range.enabled) {
       field.value.textContent = edge === 'max' ? t('filter.noFilter') : '—';
       return;
@@ -242,6 +228,8 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     clusterSpecs.forEach((cluster, index) => {
       const label = document.createElement('label');
       label.className = 'cooc-filter__check';
+      /** このクラスタに属するサブクラスタの操作。親の選択に追従して無効・有効を切り替える。 */
+      const subclusterBoxes: HTMLInputElement[] = [];
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = inputState.selectedClusterIndexes.has(index);
@@ -253,6 +241,11 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
           next.delete(index);
         }
         inputState = { ...inputState, selectedClusterIndexes: next };
+        // 子は即座に無効・有効を切り替える。ホストからの再描画を待つと、その往復の間だけ
+        // 「親を外したのに子が押せる」状態が出る（押しても結果は変わらない面になる）。
+        subclusterBoxes.forEach((box) => {
+          box.disabled = !checkbox.checked;
+        });
         emit();
       });
       // グラフ上の円と同じ色を示す見本。色は装飾で、情報の正はクラスタ名のテキスト側にある。
@@ -264,7 +257,52 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
       text.textContent = cluster.label;
       label.append(checkbox, swatch, text);
       clusters.appendChild(label);
+      subclusterBoxes.push(...renderSubclusters(cluster.subclusters ?? [], index, checkbox.checked));
     });
+  }
+
+  /**
+   * サブクラスタの選択（設計書 §3.2）。クラスタの下に字下げして並べる。
+   *
+   * **サブクラスタに色見本を付けない**。色はクラスタの符号であり（§2.1）、同じ色を子にも
+   * 並べると、どちらの段の符号なのかが読めなくなる。字下げが階層の唯一の符号である。
+   *
+   * 親のクラスタを外している間は子を無効にする。親を外すとその中の語は選択に関わらず全て
+   * 消えるため、操作できる状態にすると「触っても何も起きない面」になる。
+   */
+  function renderSubclusters(
+    subclusterSpecs: ReadonlyArray<{ label: string }>,
+    clusterIndex: number,
+    clusterSelected: boolean,
+  ): HTMLInputElement[] {
+    const selectedKeys = inputState.selectedSubclusterKeys;
+    if (selectedKeys === undefined) return [];
+    const boxes: HTMLInputElement[] = [];
+    subclusterSpecs.forEach((subcluster, subclusterIndex) => {
+      const key = subclusterKey(clusterIndex, subclusterIndex);
+      const label = document.createElement('label');
+      label.className = 'cooc-filter__check cooc-filter__check--sub';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selectedKeys.has(key);
+      checkbox.disabled = !clusterSelected;
+      checkbox.addEventListener('change', () => {
+        const next = new Set(inputState.selectedSubclusterKeys ?? []);
+        if (checkbox.checked) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
+        inputState = { ...inputState, selectedSubclusterKeys: next };
+        emit();
+      });
+      const text = document.createElement('span');
+      text.textContent = subcluster.label;
+      label.append(checkbox, text);
+      clusters.appendChild(label);
+      boxes.push(checkbox);
+    });
+    return boxes;
   }
 
   /**
@@ -326,7 +364,7 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
 
   function syncSlider(
     field: SliderFieldRow,
-    key: 'minStrengthText' | 'topLinkCountText',
+    key: SliderInputKey,
     range: SliderRange,
     edge: SliderNoFilterEdge,
   ): void {
@@ -343,9 +381,10 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
   }
 
   function syncInputs(): void {
-    if (document.activeElement !== minFrequency.input) minFrequency.input.value = inputState.minFrequencyText;
+    frequencyRange = frequencySliderRange(state.file);
     strengthRange = strengthSliderRange(state.file);
     topLinkRange = topLinkSliderRange(state.file);
+    syncSlider(minFrequency, 'minFrequencyText', frequencyRange, 'min');
     syncSlider(minStrength, 'minStrengthText', strengthRange, 'min');
     syncSlider(topLinks, 'topLinkCountText', topLinkRange, 'max');
   }
@@ -371,12 +410,13 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
       t = state.t;
       const nextInputState = filterOptionsToInput(state.file, state.filter);
       inputState = {
-        minFrequencyText: active === minFrequency.input ? minFrequency.input.value : nextInputState.minFrequencyText,
         // スライダーの `value` はつまみ位置であって絞り込みの値ではない（端＝空文字）。操作中は
         // 位置ではなく、直前の `input` で書いた入力の側を残す。
+        minFrequencyText: active === minFrequency.input ? inputState.minFrequencyText : nextInputState.minFrequencyText,
         minStrengthText: active === minStrength.input ? inputState.minStrengthText : nextInputState.minStrengthText,
         topLinkCountText: active === topLinks.input ? inputState.topLinkCountText : nextInputState.topLinkCountText,
         selectedClusterIndexes: nextInputState.selectedClusterIndexes,
+        selectedSubclusterKeys: nextInputState.selectedSubclusterKeys,
       };
       render();
       if (active instanceof HTMLElement && element.contains(active)) active.focus();

@@ -103,13 +103,13 @@ describe('cooccurrence viewer panel tabs', () => {
   it('keeps the filter panel mounted so its input values survive the switch', () => {
     const { container, handle } = mount();
     const minFrequency = container.querySelector('.cooc-filter__field input') as HTMLInputElement;
-    minFrequency.value = '7';
+    minFrequency.value = '3';
     minFrequency.dispatchEvent(new Event('input', { bubbles: true }));
 
     tab(container, 'cooc-panel-words').click();
     tab(container, 'cooc-panel-filter').click();
 
-    expect((container.querySelector('.cooc-filter__field input') as HTMLInputElement).value).toBe('7');
+    expect((container.querySelector('.cooc-filter__field input') as HTMLInputElement).value).toBe('3');
     handle.destroy();
   });
 
