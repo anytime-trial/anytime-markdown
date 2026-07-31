@@ -143,25 +143,25 @@ const twoNodes = [node(0, 0), node(1, 100)];
 
 describe('矢印の描画', () => {
   it('無向では矢頭を描かない', () => {
-    const { filledPolygons } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.none)], timeLinks: [], layers: [] });
+    const { filledPolygons } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.none)], timeLinks: [], layers: [], clusterLanes: [] });
     expect(filledPolygons).toHaveLength(0);
   });
 
   it('順方向では target 側の円周の手前に矢頭を 1 つ描く', () => {
-    const { filledPolygons } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.forward)], timeLinks: [], layers: [] });
+    const { filledPolygons } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.forward)], timeLinks: [], layers: [], clusterLanes: [] });
     expect(filledPolygons).toHaveLength(1);
     expect(filledPolygons[0]).toHaveLength(3);
     expect(filledPolygons[0][0].x).toBeCloseTo(100 - (10 + ARROW_TIP_GAP));
   });
 
   it('逆方向では source 側の円周の手前に矢頭を 1 つ描く', () => {
-    const { filledPolygons } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.backward)], timeLinks: [], layers: [] });
+    const { filledPolygons } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.backward)], timeLinks: [], layers: [], clusterLanes: [] });
     expect(filledPolygons).toHaveLength(1);
     expect(filledPolygons[0][0].x).toBeCloseTo(10 + ARROW_TIP_GAP);
   });
 
   it('双方向では両端に矢頭を描く', () => {
-    const { filledPolygons } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.both)], timeLinks: [], layers: [] });
+    const { filledPolygons } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.both)], timeLinks: [], layers: [], clusterLanes: [] });
     expect(filledPolygons).toHaveLength(2);
     const tipXs = filledPolygons.map((polygon) => polygon[0].x).sort((a, b) => a - b);
     expect(tipXs[0]).toBeCloseTo(10 + ARROW_TIP_GAP);
@@ -175,7 +175,7 @@ describe('矢印の描画', () => {
       nodes: [...twoNodes, node(2, 200), node(3, 300)],
       links: [link(LINK_DIRECTION.forward, { index: 0, layer: 0, source: 2, target: 3 })],
       timeLinks: [],
-      layers: [],
+      layers: [], clusterLanes: [],
     };
     const { fillAlphas, strokeAlphas } = draw(graph, 0);
     const arrowAlpha = fillAlphas[0];
@@ -184,7 +184,7 @@ describe('矢印の描画', () => {
   });
 
   it('線そのものは向きに関わらず両端の中心を結ぶ', () => {
-    const { strokedLines } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.forward)], timeLinks: [], layers: [] });
+    const { strokedLines } = draw({ nodes: twoNodes, links: [link(LINK_DIRECTION.forward)], timeLinks: [], layers: [], clusterLanes: [] });
     expect(strokedLines[0]).toEqual({ from: { x: 0, y: 0 }, to: { x: 100, y: 0 } });
   });
 });

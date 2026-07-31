@@ -72,6 +72,24 @@ export interface CooccurrenceViewerHandle {
    * 実装も、見た目は「点線のある図」であり続ける。
    */
   getTimelineLayerState(): TimelineLayerState | null;
+  /**
+   * 観測点。クラスタレーン表示の状態（要件書「クラスタレーン表示」§2.8）。レーン表示でないときは null。
+   *
+   * 「レーンに分かれて見える図」は、軸がスライス軸と直交していなくても、未分類レーンが落ちていても、
+   * レーン幅が絞り込みで動いていても成立する。図が破綻しない壊れ方を検査で捕まえるには、状態を
+   * 外から読めなければならない（`getTimelineLayerState` を置いたのと同じ理由）。
+   */
+  getClusterLaneState(): ClusterLaneState | null;
+}
+
+/** 観測点。クラスタレーン表示の状態。 */
+export interface ClusterLaneState {
+  /** レーンを並べる軸。スライスのレイヤー軸と直交する。 */
+  axis: LayerAxis;
+  /** 描いたレーンの本数（未分類レーンを含む）。 */
+  laneCount: number;
+  /** 未分類レーンがあるか。 */
+  hasUnclustered: boolean;
 }
 
 /** 観測点。レイヤー表示の状態。 */
@@ -144,6 +162,20 @@ export interface TimelineViewState {
   selectedSliceLabels?: readonly string[];
 }
 
+/**
+ * クラスタレーン表示の状態（要件書「クラスタレーン表示」§2.1）。ビューアが保持し、
+ * `.cooc.json` へは書かない（時間軸の表示状態と同じ扱い）。
+ *
+ * 軸を持たないのは、レーンの軸をスライスのレイヤー軸から**導出する**ためである。両方を独立に
+ * 選べると、レイヤーとレーンが同一方向へ重なり、どちらの区切りなのか図から判別できない状態を
+ * 利用者が作れてしまう。
+ */
+export interface ClusterLaneViewState {
+  enabled: boolean;
+  /** レーン間の余白（世界座標）。時間軸の `gap` とは別に持つ（スライスなしでも使うため）。 */
+  gap: number;
+}
+
 export interface RenderNode {
   index: number;
   /**
@@ -214,6 +246,31 @@ export interface RenderLayer {
   labelY: number;
 }
 
+/**
+ * 描いたクラスタレーン 1 本（要件書「クラスタレーン表示」§2.4）。
+ *
+ * 座標はすでに `RenderNode` の x, y へ織り込まれている。この型が持つのはレーン名を描くために
+ * 要る情報だけである。
+ */
+export interface RenderClusterLane {
+  /** `spec.clusters` の添字。未分類レーンでは undefined。 */
+  cluster?: number;
+  /**
+   * レーンを並べた軸。レーン名をどちら側へ置くかを決める。
+   *
+   * Why not 描画側でレーンの座標から推定するか: レーンが 1 本しか無いとき（クラスタが 1 つだけ・
+   * 未分類だけ）、座標からは縦と横を区別できない。推定は「レーン名が反対側へ出る」形でしか
+   * 現れず、図としては成立してしまう。
+   */
+  axis: LayerAxis;
+  /** レーン名（クラスタ名。無題クラスタと未分類は呼び出し側が文言を決める）。 */
+  label: string;
+  /** レーン名の色（クラスタ色。色とレーンの対応を図の中で結び直せるようにする）。 */
+  color: string;
+  labelX: number;
+  labelY: number;
+}
+
 export interface RenderGraph {
   nodes: readonly RenderNode[];
   links: readonly RenderLink[];
@@ -221,4 +278,6 @@ export interface RenderGraph {
   timeLinks: readonly RenderTimeLink[];
   /** 描いたレイヤー。単一表示のときは空（レイヤー表示かどうかの判定に使う）。 */
   layers: readonly RenderLayer[];
+  /** 描いたクラスタレーン。レーン表示でないときは空。 */
+  clusterLanes: readonly RenderClusterLane[];
 }

@@ -17,6 +17,9 @@ const LAYER_LABEL_FONT_SIZE = 13;
 /** レイヤー名を、レイヤーの矩形の上端からどれだけ離すか（画面ピクセル）。 */
 const LAYER_LABEL_MARGIN = 6;
 
+/** クラスタレーン名を、レーンの矩形の始端からどれだけ外へ離すか（画面ピクセル）。 */
+const CLUSTER_LANE_LABEL_MARGIN = 10;
+
 /**
  * 座標系の契約: `drawGraph` は CSS ピクセル座標で描き、基底の変換行列（devicePixelRatio）は
  * 呼び出し側が張ったものをそのまま使う。
@@ -185,6 +188,26 @@ export function drawGraph(opts: DrawGraphOptions): void {
     ctx.fillStyle = theme.text;
     const text = layer.at === undefined ? layer.label : `${layer.label}（${layer.at}）`;
     ctx.fillText(text, anchor.x, anchor.y - LAYER_LABEL_MARGIN);
+  }
+
+  // クラスタレーン名（要件書「クラスタレーン表示」§2.4）。レイヤー名と同じく画面ピクセルで描く。
+  //
+  // 描く側はレーンの軸で決める。縦レーンなら図の左外、横レーンなら図の上外へ置く。レイヤー名は
+  // レイヤーの矩形の上端に付くため、軸が直交している限りこの 2 つは同じ場所を取り合わない。
+  for (const lane of graph.clusterLanes) {
+    const anchor = worldToScreen({ x: lane.labelX, y: lane.labelY }, viewport);
+    const vertical = lane.axis === 'vertical';
+    ctx.font = `${LAYER_LABEL_FONT_SIZE}px sans-serif`;
+    ctx.fillStyle = lane.color;
+    if (vertical) {
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText(lane.label, anchor.x - CLUSTER_LANE_LABEL_MARGIN, anchor.y);
+    } else {
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(lane.label, anchor.x, anchor.y - CLUSTER_LANE_LABEL_MARGIN);
+    }
   }
 
   const labels = selectVisibleLabels(

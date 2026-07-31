@@ -141,8 +141,60 @@ function drawAt(dpr: number, viewport: ViewportState, graph: RenderGraph): Recor
   return recording;
 }
 
+/**
+ * クラスタレーン名（要件書「クラスタレーン表示」§2.4）。
+ *
+ * レーン名は語ラベルと違い、縮小しても読める大きさで画面ピクセルへ描く。描画そのものを検査
+ * しないと、名前が一切出ていなくても図は「レーンに分かれた図」として成立してしまう。
+ */
+describe('クラスタレーン名', () => {
+  function graphWithLanes(axis: 'horizontal' | 'vertical'): RenderGraph {
+    return {
+      nodes: [node()],
+      links: [],
+      timeLinks: [],
+      layers: [],
+      clusterLanes: [
+        { cluster: 0, axis, label: '赤', color: '#f00', labelX: 0, labelY: 0 },
+        { axis, label: '未分類', color: '#888', labelX: 0, labelY: 200 },
+      ],
+    };
+  }
+
+  it('レーンの本数だけ名前を描く', () => {
+    const { texts } = drawAt(1, { scale: 1, offsetX: 0, offsetY: 0 }, graphWithLanes('vertical'));
+    expect(texts.map((entry) => entry.text)).toEqual(expect.arrayContaining(['赤', '未分類']));
+  });
+
+  it('縦レーンでは名前が図の左外へ出る', () => {
+    const { texts, arcs } = drawAt(1, { scale: 1, offsetX: 0, offsetY: 0 }, graphWithLanes('vertical'));
+    const lane = texts.find((entry) => entry.text === '赤');
+    expect(lane).toBeDefined();
+    // 語（x=100）より左。レーン名がレーンの内側へ入ると円やラベルと重なる。
+    expect(lane!.x).toBeLessThan(arcs[0].x);
+  });
+
+  it('横レーンでは名前が図の上外へ出る', () => {
+    const { texts, arcs } = drawAt(1, { scale: 1, offsetX: 0, offsetY: 0 }, graphWithLanes('horizontal'));
+    const lane = texts.find((entry) => entry.text === '赤');
+    expect(lane).toBeDefined();
+    expect(lane!.y).toBeLessThan(arcs[0].y);
+  });
+
+  it('レーンが無ければ名前は描かない', () => {
+    const { texts } = drawAt(1, { scale: 1, offsetX: 0, offsetY: 0 }, {
+      nodes: [node()],
+      links: [],
+      timeLinks: [],
+      layers: [],
+      clusterLanes: [],
+    });
+    expect(texts.map((entry) => entry.text)).toEqual(['A']);
+  });
+});
+
 describe('円とラベルは同じ座標系で描かれる', () => {
-  const graph: RenderGraph = { nodes: [node()], links: [], timeLinks: [], layers: [] };
+  const graph: RenderGraph = { nodes: [node()], links: [], timeLinks: [], layers: [], clusterLanes: [] };
 
   it.each([
     ['dpr=1', 1, { scale: 1, offsetX: 0, offsetY: 0 }],
@@ -181,7 +233,7 @@ describe('円とラベルは同じ座標系で描かれる', () => {
   it('メモを持つ語には円の右上に印を描く', () => {
     const dpr = 2;
     const noted = node({ hasNote: true });
-    const { arcs } = drawAt(dpr, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [noted], links: [], timeLinks: [], layers: [] });
+    const { arcs } = drawAt(dpr, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [noted], links: [], timeLinks: [], layers: [], clusterLanes: [] });
 
     expect(arcs).toHaveLength(2);
     const offset = (noted.radius * Math.SQRT1_2) * dpr;
@@ -191,7 +243,7 @@ describe('円とラベルは同じ座標系で描かれる', () => {
   });
 
   it('メモを持たない語には印を描かない', () => {
-    const { arcs } = drawAt(2, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [node()], links: [], timeLinks: [], layers: [] });
+    const { arcs } = drawAt(2, { scale: 1, offsetX: 0, offsetY: 0 }, { nodes: [node()], links: [], timeLinks: [], layers: [], clusterLanes: [] });
 
     expect(arcs).toHaveLength(1);
   });
