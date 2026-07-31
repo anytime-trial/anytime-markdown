@@ -215,6 +215,7 @@ B 値下がり            ← クラスタ（メタ・色を持つ・期間を�
 - **3〜5 営業日が読みやすい上限**。それ以上は日次でなく週次スライスへ切り替える
 - slices を使う場合、**全 terms / links は `sliceValues`（slice label キーの値マップ）で書き、`frequency` / `strength` は省略する**。合計は sliceValues の和から導出される。両方を書いて合計が一致しないと `total-not-editable`、`sliceValues` を書かずに `frequency` だけ渡すと `slice-values-required` で落ちる
 - ある営業日にしか現れない語は、その slice のキーだけ持つ `sliceValues` でよい。値は正の数（0 は「その日は無い」を意味しないため、無いなら**キーごと省く**）
+- **スライスに語を点灯させるなら、その営業日に点灯するリンク（その slice に `sliceValues` を持つリンク）を最低 1 本記録する。** 実線はその日に値を持つリンクだけ、点線（同一語の時間リンク）は隣接スライスの両方に語がある場合だけ描かれるため、前後の営業日に不在の語へその日のリンクを付け忘れると、そのレイヤーで完全な孤立ノードになる。役割が反転した日（受け皿だった銘柄が売られた日など）は反転後の共起の記録が漏れやすい（2026-07-31 実測: 4 ノードで発生）
 - 値のスケールは全ノード・全リンクで共通にする（例: 1〜10）
 - **引け後に発表された決算は、発表日のスライスに「発表」を、翌営業日のスライスに「株価反応」を置く。** 同じ日に両方を入れると反応が 1 日早まる
 
@@ -262,10 +263,18 @@ cl.forEach((c,i)=>{const sub=c.subclusters||[];if(!sub.length)return;
   const owned=new Set(c.members), claimed=new Set();
   const bad=sub.flatMap(sc=>sc.members.filter(m=>!owned.has(m)||claimed.has(m)||!claimed.add(m)&&false));
   console.log("subclusters",c.label,sub.map(x=>x.label+":"+x.members.length).join(","),bad.length?"NG "+bad:"");});
+const tl=g.timeline;
+if(tl){tl.slices.forEach((s,si)=>{
+  const present=new Set(tl.nodes[si].map(([n])=>n));
+  const lit=new Set(); tl.links[si].forEach(([li])=>{const l=g.links[li]; lit.add(l[0]); lit.add(l[1]);});
+  const prev=si>0?new Set(tl.nodes[si-1].map(([n])=>n)):new Set();
+  const next=si<tl.slices.length-1?new Set(tl.nodes[si+1].map(([n])=>n)):new Set();
+  const orphan=[...present].filter(n=>!lit.has(n)&&!prev.has(n)&&!next.has(n));
+  console.log("slice-orphans",s.label,orphan.length?"NG "+orphan.map(n=>g.nodes[n].label).join(","):"なし");});}
 '
 ```
 
-期待値: `clusters 8` / `order AABBCCDD` / `ratio` 1.0〜1.7 / `uncovered` と `isolated` は空 / `labels with digits` は固有名の一部だけ（§3 の例外）。timeline を使ったなら、各スライスに現れるノードが偏っていないかも併せて見る。
+期待値: `clusters 8` / `order AABBCCDD` / `ratio` 1.0〜1.7 / `uncovered` と `isolated` は空 / `labels with digits` は固有名の一部だけ（§3 の例外）/ timeline を使ったなら `slice-orphans` は全スライス「なし」。全体の `isolated` が空でも、ある営業日に点灯する線が 1 本も無くかつ前後の営業日に同じ語が無いノードは、そのレイヤーでは実線も点線も持たない完全な孤立に見える（§6）。timeline を使ったなら、各スライスに現れるノードが偏っていないかも併せて見る。
 
 
 ## 9. クイックリファレンス
@@ -304,6 +313,7 @@ cl.forEach((c,i)=>{const sub=c.subclusters||[];if(!sub.length)return;
 | スキーマを調べようと graph-core ソースや既存 `.cooc.json` を読解する | 不要。本スキルだけで完結する |
 | 既存の図への営業日追記を `append` で行う | 既存リンクが 2 本になり同名クラスタが 2 個に増える。read → 差分を当てた全量を `replace`（§1） |
 | 導出ノード（値幅・二極化）を元の指数と結ぶ | 定義上自明で情報がない。要因側・裏付け観測側の線だけを受けさせる（§5） |
+| スライスに語だけ点灯させ、その日に点灯するリンクを付けない | 全体の `isolated` 検査は素通りし、そのレイヤーだけ孤立ノードに見える。§8 の `slice-orphans` で全スライス「なし」を確認（§6） |
 | 値幅の上端・下端に銘柄（実体）を直接結ぶ | 上端・下端を作った主体は行動。銘柄は寄与度で指数へ `forward`（§5） |
 | Write で生 JSON を自作し index がずれる / 旧 schemaVersion で書く | 手書き禁止。ツールがラベル→index 変換と検証を行う |
 | 例を見た流れで既存 `.cooc.json` を消す・整形する | 既存ファイルは読み取り専用。rm・再フォーマット禁止 |
