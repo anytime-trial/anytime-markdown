@@ -5,7 +5,7 @@ import { drawMinimap } from '../render/drawMinimap';
 import { updateCanvasSize } from '../render/canvasSize';
 import { readCooccurrenceTheme, type CooccurrenceTheme } from '../theme/readTheme';
 import { centerOnMinimapPoint, minimapViewport, nudgeOnMinimap, visibleRect } from './minimapModel';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 
 /** ボタン 1 回あたりの倍率。canvas 上のキーボード操作（`+` / `-`）と揃える。 */
 const ZOOM_STEP = 1.2;
@@ -148,9 +148,7 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
   buttons.className = 'cooc-minimap__buttons';
 
   function createButton(action: string, icon: SVGSVGElement, onClick: () => void): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.className = 'cooc-btn cooc-minimap__button';
-    button.type = 'button';
+    const button = createPanelButton('cooc-minimap__button');
     button.dataset.action = action;
     button.appendChild(icon);
     button.addEventListener('click', onClick);

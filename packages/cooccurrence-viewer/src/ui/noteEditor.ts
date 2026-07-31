@@ -1,6 +1,6 @@
 import { COOCCURRENCE_NOTE_MAX_LENGTH } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 
 /**
  * メモの編集欄（設計書 §3.3）。語・共起・クラスタの 3 タブが同じ形を共有する。
@@ -57,13 +57,9 @@ export function createNoteEditor(options: NoteEditorOptions): NoteEditorHandle {
 
   const buttons = document.createElement('div');
   buttons.className = 'cooc-note-editor__buttons';
-  const setButton = document.createElement('button');
-  setButton.className = 'cooc-btn cooc-note-editor__button';
-  setButton.type = 'button';
+  const setButton = createPanelButton('cooc-note-editor__button');
   setButton.textContent = t('note.set');
-  const removeButton = document.createElement('button');
-  removeButton.className = 'cooc-btn cooc-note-editor__button';
-  removeButton.type = 'button';
+  const removeButton = createPanelButton('cooc-note-editor__button');
   removeButton.textContent = t('note.remove');
   buttons.append(setButton, removeButton);
   element.append(input, buttons);

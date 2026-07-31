@@ -8,7 +8,7 @@ import {
 } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { clusterColorVarName } from '../theme/readTheme';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
 
 /**
@@ -121,9 +121,7 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
     }
     const noted = noteBearingIndexes(state.file.spec, 'clusters');
     clusters.forEach((cluster, index) => {
-      const row = document.createElement('button');
-      row.className = 'cooc-btn cooc-btn--block cooc-clusters__row';
-      row.type = 'button';
+      const row = createPanelButton('cooc-btn--block cooc-clusters__row');
       row.dataset.clusterIndex = String(index);
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', String(state.selectedClusterIndex === index));

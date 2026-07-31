@@ -1,5 +1,5 @@
 import { nextTabId, tabElementId, type CooccurrenceTabId } from './tabModel';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 
 export interface SideIconRailItem {
   /** タブの識別子。 */
@@ -156,9 +156,7 @@ export function createSideIconRail(options: SideIconRailOptions): SideIconRailHa
     element.replaceChildren();
     buttons.clear();
     state.items.forEach((item) => {
-      const button = document.createElement('button');
-      button.className = 'cooc-btn cooc-rail__item';
-      button.type = 'button';
+      const button = createPanelButton('cooc-rail__item');
       button.id = tabElementId(item.panelId);
       button.setAttribute('role', 'tab');
       button.setAttribute('aria-controls', item.panelId);
