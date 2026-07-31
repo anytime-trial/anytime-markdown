@@ -99,6 +99,20 @@
     "toolbar.skinOz": "OZ 風 3D",
     "status.webglUnavailable": "WebGL を初期化できないため 2D 表示を継続します",
     "minimap.unavailable3d": "3D 表示中はミニマップを使えません",
-    "edit.mode": "編集モード"
+    "edit.mode": "編集モード",
+    "edit.popupLabel": "要素を追加",
+    "edit.label": "語名",
+    "edit.frequency": "頻度",
+    "edit.cluster": "クラスタ",
+    "edit.strength": "強度（{source} との共起）",
+    "edit.sliceFrequencies": "スライス別の頻度",
+    "edit.sliceStrengths": "スライス別の強度",
+    "edit.submit": "登録",
+    "edit.cancel": "キャンセル",
+    "edit.errorEmptyLabel": "語名を入力してください",
+    "edit.errorDuplicateLabel": "同じ名前の語がすでにあります",
+    "edit.errorInvalidFrequency": "頻度には 0 以上の数値を入力してください",
+    "edit.errorInvalidStrength": "強度には 0 以上の数値を入力してください",
+    "edit.errorRejected": "登録できませんでした: {reason}"
   }
 }
