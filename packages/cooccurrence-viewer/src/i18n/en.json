@@ -114,9 +114,9 @@
     "edit.errorInvalidFrequency": "Frequency must be a number of 0 or more.",
     "edit.errorInvalidStrength": "Strength must be a number of 0 or more.",
     "edit.errorRejected": "Could not add: {reason}",
-    "edit.add": "Add a word linked to this word",
-    "edit.unavailable3d": "Adding from the diagram is unavailable in 3D. Switch to the standard view.",
     "edit.errorNoSliceFrequency": "Enter a frequency for at least one slice.",
-    "edit.errorNoSliceStrength": "Enter a strength for at least one slice."
+    "edit.errorNoSliceStrength": "Enter a strength for at least one slice.",
+    "edit.add": "Add a word linked to this word",
+    "edit.unavailable3d": "Adding from the diagram is unavailable in 3D. Switch to the standard view."
   }
 }

@@ -158,6 +158,17 @@ describe('validateAddElementForm', () => {
     ).toBe('no-slice-strength');
   });
 
+  it('時間軸ありで 0 を入れた期は「値あり」として通す', () => {
+    // 0 を空と同一視すると、その期に値が無いことと 0 であることの区別が消える。
+    expect(
+      validateAddElementForm(file, {
+        label: 'インフレ',
+        sliceFrequencies: ['0', ''],
+        sliceStrengths: ['0', ''],
+      }),
+    ).toBeNull();
+  });
+
   it('時間軸ありの空欄は「その期に無い」として通す', () => {
     expect(
       validateAddElementForm(file, {

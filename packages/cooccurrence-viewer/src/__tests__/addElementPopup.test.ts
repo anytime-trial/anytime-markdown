@@ -161,9 +161,15 @@ describe('createAddElementPopup', () => {
 
   it('時間軸を持つ図でも強度の見出しに相手の語の名前を出す', () => {
     const { container } = setup({ timeline: true });
-    const labels = [...container.querySelectorAll('.cooc-add-popup__label')].map((el) => el.textContent ?? '');
-    // 全体値の欄が無いため、ここで出さないと相手が画面のどこにも出ない。
-    expect(labels.filter((label) => label.includes('金利')).length).toBeGreaterThan(0);
+    // 見出しは入力欄と for で結ばれている。スタイル用のクラス名を頼りにすると、改名で
+    // 静かに 0 件マッチへ倒れる。
+    const labels = [...container.querySelectorAll('label[for^="cooc-add-field-sliceStrength-"]')].map(
+      (el) => el.textContent ?? '',
+    );
+    // 全体値の欄が無いため、ここで出さないと相手が画面のどこにも出ない。片方の期にしか
+    // 出ていない状態も弾く。
+    expect(labels).toHaveLength(2);
+    expect(labels.every((label) => label.includes('金利'))).toBe(true);
   });
 
   it('時間軸ありで頻度を全期空のまま登録しない', () => {

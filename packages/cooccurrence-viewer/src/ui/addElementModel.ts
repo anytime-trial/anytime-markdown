@@ -111,9 +111,12 @@ export function validateAddElementForm(
 
   const layered = values.sliceFrequencies !== undefined || values.sliceStrengths !== undefined;
   if (layered) {
+    // 欄ごとにまとめ、画面の並び（頻度が上・強度が下）と同じ順で見る。検査の種類ごとに
+    // 並べると、頻度が全期空で強度に壊れた値がある入力で、下の欄を直した直後に上の欄の
+    // エラーが出る往復になる。
     if (invalidSliceValues(values.sliceFrequencies)) return 'invalid-frequency';
-    if (invalidSliceValues(values.sliceStrengths)) return 'invalid-strength';
     if (allSliceValuesEmpty(values.sliceFrequencies)) return 'no-slice-frequency';
+    if (invalidSliceValues(values.sliceStrengths)) return 'invalid-strength';
     if (allSliceValuesEmpty(values.sliceStrengths)) return 'no-slice-strength';
     return null;
   }

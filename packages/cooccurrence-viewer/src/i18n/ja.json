@@ -114,9 +114,9 @@
     "edit.errorInvalidFrequency": "頻度には 0 以上の数値を入力してください",
     "edit.errorInvalidStrength": "強度には 0 以上の数値を入力してください",
     "edit.errorRejected": "登録できませんでした: {reason}",
-    "edit.add": "この語につながる語を追加",
-    "edit.unavailable3d": "3D 表示中は図から追加できません。標準表示へ切り替えてください",
     "edit.errorNoSliceFrequency": "いずれかの期に頻度を入力してください",
-    "edit.errorNoSliceStrength": "いずれかの期に強度を入力してください"
+    "edit.errorNoSliceStrength": "いずれかの期に強度を入力してください",
+    "edit.add": "この語につながる語を追加",
+    "edit.unavailable3d": "3D 表示中は図から追加できません。標準表示へ切り替えてください"
   }
 }
