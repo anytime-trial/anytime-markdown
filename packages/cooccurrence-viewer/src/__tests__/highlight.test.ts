@@ -1,6 +1,6 @@
 import { LINK_DIRECTION } from '@anytime-markdown/graph-core';
 import type { RenderGraph, RenderNode } from '../types';
-import { computeNeighborhoodHighlight, isNodeLit } from '../render/highlight';
+import { computeNeighborhoodHighlight, isNodeLit, timeLinkLit } from '../render/highlight';
 
 const renderNode = (index: number, layer = 0): RenderNode => ({
   index,
@@ -33,7 +33,7 @@ describe('computeNeighborhoodHighlight', () => {
       layers: [], clusterLanes: [],
     };
     const result = computeNeighborhoodHighlight(graph, 0);
-    expect([...result?.nodeIndexes ?? []].sort()).toEqual([0, 1, 3]);
+    expect([0, 1, 2, 3].filter((i) => isNodeLit(result, i, 0))).toEqual([0, 1, 3]);
     expect([...result?.linkIndexes ?? []].sort()).toEqual([0, 2]);
   });
 
@@ -85,9 +85,23 @@ describe('computeNeighborhoodHighlight', () => {
       expect(isNodeLit(result, 2, 1)).toBe(false);
     });
 
-    it('keeps any-layer node set and incident links for pillar/promotion consumers', () => {
-      expect([...result?.nodeIndexes ?? []].sort()).toEqual([0, 1]);
+    it('keeps incident links regardless of layer', () => {
       expect([...result?.linkIndexes ?? []].sort()).toEqual([0]);
+    });
+
+    describe('timeLinkLit（レイヤー間の点線）', () => {
+      it('lights the dashed line only when both end layers are lit', () => {
+        // 選択語 0 の点線は全レイヤー点灯なので常に明るい。
+        expect(timeLinkLit(result, { nodeIndex: 0, fromLayer: 0, toLayer: 1 })).toBe(true);
+        expect(timeLinkLit(result, { nodeIndex: 0, fromLayer: 1, toLayer: 2 })).toBe(true);
+        // 近傍 1 は層 0 だけ点灯。層 0→1 の点線は片端が淡いため淡くする。
+        expect(timeLinkLit(result, { nodeIndex: 1, fromLayer: 0, toLayer: 1 })).toBe(false);
+        expect(timeLinkLit(result, { nodeIndex: 1, fromLayer: 1, toLayer: 2 })).toBe(false);
+      });
+
+      it('lights everything when nothing is selected', () => {
+        expect(timeLinkLit(null, { nodeIndex: 1, fromLayer: 0, toLayer: 1 })).toBe(true);
+      });
     });
   });
 });

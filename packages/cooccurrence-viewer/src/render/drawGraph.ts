@@ -2,7 +2,7 @@ import { LINK_DIRECTION } from '@anytime-markdown/graph-core';
 import type { RenderGraph, RenderLink, RenderNode, ViewportState } from '../types';
 import type { CooccurrenceTheme } from '../theme/readTheme';
 import { arrowHeadPoints, type ArrowHead } from './arrow';
-import { computeNeighborhoodHighlight, isNodeLit, type HighlightSelection } from './highlight';
+import { computeNeighborhoodHighlight, isNodeLit, timeLinkLit, type HighlightSelection } from './highlight';
 import { selectVisibleLabels } from './labels';
 import { buildNodeLookup, linkEndpoints } from './nodeLookup';
 import { worldToScreen } from '../viewport/viewport';
@@ -122,13 +122,8 @@ export function drawGraph(opts: DrawGraphOptions): void {
     ctx.setLineDash(TIME_LINK_DASH);
     ctx.strokeStyle = theme.link;
     ctx.lineWidth = TIME_LINK_WIDTH;
-    // 点線は両端のレイヤーがともに点灯しているときだけ明るく残す。片端だけで残すと、線の無い
-    // レイヤー側へ視線が誘導され、レイヤー単位に絞った意味が点線経由で失われる（要件書 §2.3）。
     for (const timeLink of graph.timeLinks) {
-      const lit =
-        isNodeLit(highlight, timeLink.nodeIndex, timeLink.fromLayer) &&
-        isNodeLit(highlight, timeLink.nodeIndex, timeLink.toLayer);
-      ctx.globalAlpha = (lit ? 1 : 0.18) * TIME_LINK_ALPHA;
+      ctx.globalAlpha = (timeLinkLit(highlight, timeLink) ? 1 : 0.18) * TIME_LINK_ALPHA;
       ctx.beginPath();
       ctx.moveTo(timeLink.x1, timeLink.y1);
       ctx.lineTo(timeLink.x2, timeLink.y2);
