@@ -30,7 +30,7 @@ describe('computeNeighborhoodHighlight', () => {
         { index: 2, layer: 0, source: 3, target: 0, strength: 1, width: 1, direction: LINK_DIRECTION.none, hasNote: false },
       ],
       timeLinks: [],
-      layers: [],
+      layers: [], clusterLanes: [],
     };
     const result = computeNeighborhoodHighlight(graph, 0);
     expect([...result?.nodeIndexes ?? []].sort()).toEqual([0, 1, 3]);

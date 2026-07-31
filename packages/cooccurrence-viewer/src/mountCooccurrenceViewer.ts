@@ -11,10 +11,13 @@ import {
 import type {
   CacheDecision,
   CooccurrenceSkin,
+  ClusterLaneState,
+  ClusterLaneViewState,
   CooccurrenceViewerHandle,
   CooccurrenceViewerOptions,
   CooccurrenceViewerUpdate,
   LayoutStatus,
+  RenderClusterLane,
   RenderGraph,
   RenderLink,
   RenderNode,
@@ -26,13 +29,21 @@ import { evaluateLayoutCache } from './layout/cache';
 import { LayoutCancelledError, startLayoutJob, type LayoutJob } from './layout/runLayout';
 import { buildRenderGraph, type RenderLayerInput } from './render/buildRenderGraph';
 import { computeLayerPlacements, unionBounds } from './render/layerLayout';
+import {
+  applyClusterLanes,
+  clusterMembership,
+  computeClusterLanePlacements,
+  type ClusterLanePlacement,
+} from './render/clusterLanes';
 import { RADIUS_MAX } from './render/scales';
 import { defaultTimelineViewState, visibleSliceIndexes } from './ui/timelineModel';
+import { clusterLaneAxis, defaultClusterLaneViewState } from './ui/clusterLaneModel';
 import { graphBounds } from './render/bounds';
 import { updateCanvasSize } from './render/canvasSize';
 import { createRenderScheduler, type RenderScheduler } from './render/renderScheduler';
 import { createCooccurrenceT, type CooccurrenceT } from './i18n/createCooccurrenceT';
 import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
+import { clusterColor } from './theme/readTheme';
 import { buildOzSceneModel } from './scene3d/sceneModel';
 import { createOzRenderer, type OzRenderer } from './scene3d/ozRenderer';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
@@ -136,8 +147,11 @@ export function mountCooccurrenceViewer(
   let cacheDecision: CacheDecision = 'miss-absent';
   let layoutRunCount = 0;
   let positions: Array<[number, number]> = file.layout?.positions ?? fallbackPositions(file);
-  let graph: RenderGraph = { nodes: [], links: [], timeLinks: [], layers: [] };
+  let graph: RenderGraph = { nodes: [], links: [], timeLinks: [], layers: [], clusterLanes: [] };
   let timelineView: TimelineViewState = defaultTimelineViewState();
+  let clusterLaneView: ClusterLaneViewState = defaultClusterLaneViewState();
+  /** 直近の組み立てで使ったレーン。観測点と、レーン名の描画に使う。 */
+  let clusterLanes: ClusterLanePlacement[] = [];
   let viewport: ViewportState = { scale: 1, offsetX: 0, offsetY: 0 };
   let notePopup: NotePopupHandle | null = null;
   let selectedNodeIndex: number | null = null;
@@ -312,7 +326,7 @@ export function mountCooccurrenceViewer(
     const wordsState = { file, visibleNodeIndexes, selectedNodeIndex, t };
     const linksState = { file, visibleLinkIndexes, selectedNodeIndex, t };
     filterPanel?.update(filterState);
-    clusterListPanel?.update({ file, selectedClusterIndex, t });
+    clusterListPanel?.update({ file, selectedClusterIndex, laneView: clusterLaneView, t });
     timelinePanel?.update({ file, view: timelineView, t });
     wordListPanel?.update(wordsState);
     linkListPanel?.update(linksState);
@@ -396,9 +410,17 @@ export function mountCooccurrenceViewer(
     clusterListPanel = createClusterListPanel({
       file,
       selectedClusterIndex,
+      laneView: clusterLaneView,
       t,
       onSelectCluster(clusterIndex) {
         selectedClusterIndex = clusterIndex;
+        updatePanels();
+      },
+      onLaneViewChange(nextView) {
+        clusterLaneView = nextView;
+        // レーン化は図の外接矩形を変える。全体表示をやり直さないと、伸びた方向が画面の外に出たままになる。
+        fitted = false;
+        rebuildGraph();
         updatePanels();
       },
       onFileChange: (nextFile) => applyFileChange(nextFile, true),
@@ -616,13 +638,18 @@ export function mountCooccurrenceViewer(
    * 全体値を基準にすると、あるスライスで 1 回しか現れない語が、全期間で 50 回現れることを
    * 理由に全レイヤーへ描かれる。
    */
-  function buildLayerInputs(): { inputs: RenderLayerInput[]; nodes: Set<number>; links: Set<number> } {
+  function buildLayerInputs(
+    layoutPositions: readonly (readonly [number, number])[],
+  ): { inputs: RenderLayerInput[]; nodes: Set<number>; links: Set<number> } {
     const timeline = file.spec.timeline;
     const slices = timeline?.slices ?? [];
     const placements = computeLayerPlacements({
       slices,
       visibleSliceIndexes: visibleSliceIndexes(slices, timelineView.selectedSliceLabels),
-      bounds: unionBounds(positions, RADIUS_MAX),
+      // レーン化後の座標から取る。レーン化前のままだと、レーンで伸びた方向にレイヤー名だけが
+      // 取り残される（要件書 §2.5）。スライス軸方向のスパンはレーン化で変わらないため、
+      // レイヤーのピッチは影響を受けない。
+      bounds: unionBounds(layoutPositions, RADIUS_MAX),
       axis: timelineView.axis,
       gap: timelineView.gap,
     });
@@ -659,9 +686,49 @@ export function mountCooccurrenceViewer(
     return { sliceLabel: layer.label, strength: link.strength };
   }
 
+  /**
+   * クラスタレーンの配置（要件書「クラスタレーン表示」§2.2）。レーン化していないときは空。
+   *
+   * クラスタを 1 つも持たないファイルではレーンが 1 本しかできず、表示が変わらない。
+   */
+  function computeLanes(): ClusterLanePlacement[] {
+    const clusters = file.spec.clusters ?? [];
+    if (!clusterLaneView.enabled || clusters.length === 0) return [];
+    return computeClusterLanePlacements({
+      positions,
+      membership: clusterMembership(file),
+      clusterCount: clusters.length,
+      axis: clusterLaneAxis(isLayered() ? timelineView.axis : null),
+      gap: clusterLaneView.gap,
+      padding: RADIUS_MAX,
+    });
+  }
+
+  /** レーン名を描くための情報。座標は `RenderNode` へ織り込み済みで、ここでは名前と色だけを解決する。 */
+  function renderClusterLanes(lanes: readonly ClusterLanePlacement[]): RenderClusterLane[] {
+    const axis = clusterLaneAxis(isLayered() ? timelineView.axis : null);
+    return lanes.map((lane) => {
+      const label =
+        lane.cluster === undefined
+          ? t('clusters.unclustered')
+          : file.spec.clusters?.[lane.cluster]?.label || t('clusters.untitled', { index: lane.cluster + 1 });
+      return {
+        ...(lane.cluster === undefined ? {} : { cluster: lane.cluster }),
+        axis,
+        label,
+        color: clusterColor(root, lane.cluster),
+        labelX: lane.labelX,
+        labelY: lane.labelY,
+      };
+    });
+  }
+
   function rebuildGraph(): void {
+    clusterLanes = computeLanes();
+    const layoutPositions = clusterLanes.length === 0 ? positions : applyClusterLanes(positions, clusterLanes);
+    const lanes = renderClusterLanes(clusterLanes);
     if (isLayered()) {
-      const layered = buildLayerInputs();
+      const layered = buildLayerInputs(layoutPositions);
       // 表示件数は「1 枚でも描かれた語・共起」を数える。レイヤーごとの延べ数にすると、全体の
       // 語数（分母）と桁が揃わず、どれだけ絞れているのかが読めなくなる。
       visibleNodeIndexes = layered.nodes;
@@ -674,11 +741,12 @@ export function mountCooccurrenceViewer(
       };
       graph = buildRenderGraph({
         file,
-        positions,
+        positions: layoutPositions,
         themeTarget: root,
         mode: themeMode,
         layers: layered.inputs,
         showTimeLinks: timelineView.showTimeLinks,
+        clusterLanes: lanes,
       });
     } else {
       const filtered = filterCooccurrenceFile(file, options.filter);
@@ -687,10 +755,11 @@ export function mountCooccurrenceViewer(
       visibleLinkIndexes = filtered.linkIndexes;
       graph = buildRenderGraph({
         file,
-        positions,
+        positions: layoutPositions,
         themeTarget: root,
         mode: themeMode,
         layers: [{ visibleNodeIndexes: filtered.nodeIndexes, visibleLinkIndexes: filtered.linkIndexes }],
+        clusterLanes: lanes,
       });
     }
     statusEl.textContent = t('status.summary', {
@@ -1136,5 +1205,15 @@ export function mountCooccurrenceViewer(
         : { axis: timelineView.axis, layerCount: graph.layers.length, timeLinkCount: graph.timeLinks.length },
     getMinimapDrawCount: () => minimapPanel?.getDrawCount() ?? 0,
     getNotePopupState: () => notePopup?.getState() ?? null,
+    // レイヤー表示と同じく「意図」で null を分ける。レーン化を有効にしたのにレーンが 1 本も
+    // できていない（クラスタが無い）ことを、レーン化していない状態と同じ null に潰さない。
+    getClusterLaneState: (): ClusterLaneState | null =>
+      !clusterLaneView.enabled
+        ? null
+        : {
+            axis: clusterLaneAxis(isLayered() ? timelineView.axis : null),
+            laneCount: clusterLanes.length,
+            hasUnclustered: clusterLanes.some((lane) => lane.cluster === undefined),
+          },
   };
 }

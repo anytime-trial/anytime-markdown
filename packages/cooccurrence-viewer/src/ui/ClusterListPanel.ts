@@ -7,9 +7,11 @@ import {
   type CooccurrenceFile,
 } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
+import type { ClusterLaneViewState } from '../types';
 import { clusterColorVarName } from '../theme/readTheme';
 import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
+import { CLUSTER_LANE_GAP_MAX, CLUSTER_LANE_GAP_MIN, CLUSTER_LANE_GAP_STEP } from './clusterLaneModel';
 
 /**
  * クラスタのタブ（設計書 §3.5）。
@@ -22,6 +24,13 @@ import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
 export interface ClusterListPanelState {
   file: CooccurrenceFile;
   selectedClusterIndex: number | null;
+  /**
+   * クラスタレーン表示の状態（要件書「クラスタレーン表示」§2.7）。
+   *
+   * 時間タブではなくここに置くのは、レーンがクラスタの見せ方であり、スライスを持たないファイル
+   * でも使うためである（時間タブはスライスが無ければ何も設定できないタブである）。
+   */
+  laneView: ClusterLaneViewState;
   t: CooccurrenceT;
 }
 
@@ -30,6 +39,7 @@ export interface ClusterListPanelOptions extends ClusterListPanelState {
   onFileChange(file: CooccurrenceFile): void;
   /** 行のホバー。ポップアップの発火点（設計書 §3.1）。外れたときは null を渡す。 */
   onHoverCluster(clusterIndex: number | null, anchor: { x: number; y: number } | null): void;
+  onLaneViewChange(view: ClusterLaneViewState): void;
 }
 
 export interface ClusterListPanelHandle {
@@ -55,6 +65,10 @@ function ensureStyles(): void {
 .cooc-clusters__label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cooc-clusters__meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cooc-text-secondary);text-align:right}
 .cooc-clusters__note-mark{color:var(--cooc-text);text-align:center}
+.cooc-clusters__lane{display:flex;flex-direction:column;gap:6px}
+.cooc-clusters__row-inline{display:flex;align-items:center;gap:6px;font:12px system-ui,sans-serif;color:var(--cooc-text)}
+.cooc-clusters__row-inline label{display:flex;align-items:center;gap:6px}
+.cooc-clusters__field{flex:1 1 auto;min-width:0;padding:4px 6px;border:1px solid var(--cooc-divider);border-radius:4px;background:var(--cooc-bg);color:var(--cooc-text);font:12px system-ui,sans-serif}
 .cooc-clusters__empty{padding:12px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif}
 .cooc-clusters__error{flex:0 0 auto;min-height:16px;color:var(--cooc-accent);font:12px system-ui,sans-serif}
 `;
@@ -72,6 +86,45 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
 
   const element = document.createElement('section');
   element.className = 'cooc-clusters';
+
+  // レーンの操作（要件書 §2.7）。置くのはチェックボックスと余白の 2 つだけで、軸は選ばせない
+  // （スライスのレイヤー軸から導出する。要件書 §2.1）。
+  const lane = document.createElement('div');
+  lane.className = 'cooc-clusters__lane';
+  const laneRow = document.createElement('div');
+  laneRow.className = 'cooc-clusters__row-inline';
+  const laneToggleLabel = document.createElement('label');
+  const laneToggle = document.createElement('input');
+  laneToggle.type = 'checkbox';
+  const laneToggleText = document.createTextNode('');
+  laneToggleLabel.append(laneToggle, laneToggleText);
+  laneRow.appendChild(laneToggleLabel);
+
+  const laneGapRow = document.createElement('div');
+  laneGapRow.className = 'cooc-clusters__row-inline';
+  const laneGapLabel = document.createElement('label');
+  const laneGapText = document.createTextNode('');
+  const laneGapInput = document.createElement('input');
+  laneGapInput.type = 'number';
+  laneGapInput.className = 'cooc-clusters__field';
+  laneGapInput.min = String(CLUSTER_LANE_GAP_MIN);
+  laneGapInput.max = String(CLUSTER_LANE_GAP_MAX);
+  laneGapInput.step = String(CLUSTER_LANE_GAP_STEP);
+  laneGapLabel.append(laneGapText, laneGapInput);
+  laneGapRow.appendChild(laneGapLabel);
+  lane.append(laneRow, laneGapRow);
+
+  laneToggle.addEventListener('change', () => {
+    options.onLaneViewChange({ ...state.laneView, enabled: laneToggle.checked });
+  });
+  laneGapInput.addEventListener('change', () => {
+    const value = Number(laneGapInput.value);
+    if (!Number.isFinite(value)) return;
+    options.onLaneViewChange({
+      ...state.laneView,
+      gap: Math.min(CLUSTER_LANE_GAP_MAX, Math.max(CLUSTER_LANE_GAP_MIN, value)),
+    });
+  });
 
   const viewport = document.createElement('div');
   viewport.className = 'cooc-clusters__viewport';
@@ -95,7 +148,7 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
     },
   });
 
-  element.append(viewport, noteEditor.element, error);
+  element.append(lane, viewport, noteEditor.element, error);
 
   function applyEdit(result: CooccurrenceEditResult): void {
     error.textContent = resultMessage(result);
@@ -151,7 +204,19 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
     });
   }
 
+  function renderLaneControls(): void {
+    // クラスタが 1 つも無いとレーンは 1 本しかできず、表示が変わらない。
+    const hasClusters = (state.file.spec.clusters?.length ?? 0) > 0;
+    laneToggleText.textContent = t('clusters.lanes');
+    laneToggle.checked = state.laneView.enabled;
+    laneToggle.disabled = !hasClusters;
+    laneGapText.textContent = t('clusters.laneGap');
+    laneGapInput.value = String(state.laneView.gap);
+    laneGapInput.disabled = !hasClusters || !state.laneView.enabled;
+  }
+
   function render(): void {
+    renderLaneControls();
     list.setAttribute('aria-label', t('clusters.listLabel'));
     noteEditor.setT(t);
     noteEditor.setValue(

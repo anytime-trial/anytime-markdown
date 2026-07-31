@@ -42,7 +42,7 @@ function makeLayer(layer: number, offsetX: number, over: Partial<RenderLayer> = 
 }
 
 function graphOf(parts: Partial<RenderGraph>): RenderGraph {
-  return { nodes: [], links: [], timeLinks: [], layers: [], ...parts };
+  return { nodes: [], links: [], timeLinks: [], layers: [], clusterLanes: [], ...parts };
 }
 
 describe('buildOzSceneModel: 単一表示', () => {
