@@ -53,6 +53,27 @@ describe('createEditableGroup', () => {
     expect(button.disabled).toBe(true);
   });
 
+  it('作り直しの後の解放で、外れた要素だけ登録から捨てる', () => {
+    const group = createEditableGroup();
+    const attached = document.createElement('button');
+    document.body.append(attached);
+    group.register(attached);
+    const detached = group.register(document.createElement('button'));
+    group.releaseDetached();
+    group.setEditable(false);
+    // 捨てられた要素は以後の切り替えを受け取らない。生きている要素は受け取る。
+    expect(detached.disabled).toBe(false);
+    expect(attached.disabled).toBe(true);
+    attached.remove();
+  });
+
+  it('解放を呼ばなければ未接続の要素にも切り替えが効く（生成直後の適用を壊さない）', () => {
+    const group = createEditableGroup();
+    const pending = group.register(document.createElement('button'));
+    group.setEditable(false);
+    expect(pending.disabled).toBe(true);
+  });
+
   it('登録した目印を付けて横断検査から見つけられるようにする', () => {
     const group = createEditableGroup();
     const button = group.register(document.createElement('button'));

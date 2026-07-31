@@ -9,6 +9,14 @@ export interface EditableGroup {
   register<T extends EditableControl>(control: T): T;
   /** コントロール自身の理由（例: 時間軸ありでは全体値を編集できない）による無効を設定する。 */
   setOwnDisabled(control: EditableControl, disabled: boolean): void;
+  /**
+   * 文書から切り離された登録を捨てる。行やスライス別の入力を**作り直した直後**に呼ぶ。
+   *
+   * Why not 切り替えのたびに自動で捨てるか: 生成直後でまだ append していないコントロールと
+   * 作り直しで捨てられたコントロールは、どちらも `isConnected === false` で見分けが付かない。
+   * 自動にすると前者まで登録から外れ、編集モードの切り替えが効かなくなる。
+   */
+  releaseDetached(): void;
   /** 編集モードの入／切を反映する。 */
   setEditable(editable: boolean): void;
 }
@@ -42,6 +50,11 @@ export function createEditableGroup(): EditableGroup {
     setOwnDisabled(control, disabled) {
       ownDisabled.set(control, disabled);
       apply(control);
+    },
+    releaseDetached() {
+      ownDisabled.forEach((_own, control) => {
+        if (!control.isConnected) ownDisabled.delete(control);
+      });
     },
     setEditable(next) {
       editable = next;
