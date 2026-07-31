@@ -113,6 +113,8 @@
     "edit.errorDuplicateLabel": "同じ名前の語がすでにあります",
     "edit.errorInvalidFrequency": "頻度には 0 以上の数値を入力してください",
     "edit.errorInvalidStrength": "強度には 0 以上の数値を入力してください",
-    "edit.errorRejected": "登録できませんでした: {reason}"
+    "edit.errorRejected": "登録できませんでした: {reason}",
+    "edit.add": "この語につながる語を追加",
+    "edit.unavailable3d": "3D 表示中は図から追加できません。標準表示へ切り替えてください"
   }
 }
