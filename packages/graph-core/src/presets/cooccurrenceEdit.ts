@@ -400,6 +400,59 @@ export function addCooccurrenceLink(
   return validateCandidate(next);
 }
 
+/** 語と、その語を既存の語へ結ぶ共起を 1 回で足す入力。 */
+export interface CooccurrenceNodeWithLinkInput {
+  /** 追加する語。時間軸の有無で `frequency` と `sliceValues` を使い分ける（`CooccurrenceNodeInput` と同じ）。 */
+  node: CooccurrenceNodeInput;
+  /** 共起の相手になる既存の語の添字。 */
+  source: number;
+  /** 共起の強度。時間軸を持つファイルでは 0 を渡し `linkSliceValues` を使う。 */
+  strength?: number;
+  /** 時間軸を持つファイルでの共起のスライス別の値。 */
+  linkSliceValues?: ReadonlyArray<number | undefined>;
+  /** 追加する語を入れるクラスタの添字。省略するとどのクラスタにも入れない。 */
+  clusterIndex?: number;
+  /** 追加する語の初期座標。 */
+  position?: [number, number];
+}
+
+/**
+ * 語・クラスタ所属・共起を 1 回で適用する。
+ *
+ * Why not 呼び出し側で 3 つの関数を順に呼ぶか: 途中で検証に落ちると「語だけ増えて共起が付かない」
+ * 中途半端なファイルが残る。ここで畳んでおけば、失敗したときに呼び出し側へ渡るのは元のファイル
+ * だけになる（各関数は入力を複製してから触るため、失敗した段階の途中結果は捨てられる）。
+ */
+export function addCooccurrenceNodeWithLink(
+  file: CooccurrenceFile,
+  input: CooccurrenceNodeWithLinkInput,
+): CooccurrenceEditResult {
+  if (!isNodeIndex(file, input.source)) {
+    return reject('spec.links', 'source node index is outside nodes');
+  }
+
+  const added = addCooccurrenceNode(file, input.node, input.position);
+  if (!added.ok) return added;
+  const nodeIndex = added.file.spec.nodes.length - 1;
+
+  const clustered =
+    input.clusterIndex === undefined
+      ? added
+      : setCooccurrenceNodeCluster(added.file, nodeIndex, input.clusterIndex);
+  if (!clustered.ok) return clustered;
+
+  return addCooccurrenceLink(
+    clustered.file,
+    writeLink({
+      source: input.source,
+      target: nodeIndex,
+      strength: input.strength ?? 0,
+      direction: LINK_DIRECTION.none,
+    }),
+    input.linkSliceValues,
+  );
+}
+
 export function deleteCooccurrenceLink(file: CooccurrenceFile, linkIndex: number): CooccurrenceEditResult {
   if (!isLinkIndex(file, linkIndex)) return reject(`spec.links.${linkIndex}`, 'link index is outside links');
   const next = cloneFile(file);
