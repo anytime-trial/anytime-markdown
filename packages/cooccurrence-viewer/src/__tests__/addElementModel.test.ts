@@ -137,6 +137,38 @@ describe('validateAddElementForm', () => {
     ).toBe('invalid-strength');
   });
 
+  it('時間軸ありで頻度が全期空なら弾く', () => {
+    // 全期を空にすると頻度 0・どの期にも現れない語になり、図から足したのに図に出ない。
+    expect(
+      validateAddElementForm(file, {
+        label: 'インフレ',
+        sliceFrequencies: ['', ''],
+        sliceStrengths: ['0.2', ''],
+      }),
+    ).toBe('no-slice-frequency');
+  });
+
+  it('時間軸ありで強度が全期空なら弾く', () => {
+    expect(
+      validateAddElementForm(file, {
+        label: 'インフレ',
+        sliceFrequencies: ['1', ''],
+        sliceStrengths: ['', ''],
+      }),
+    ).toBe('no-slice-strength');
+  });
+
+  it('時間軸ありで 0 を入れた期は「値あり」として通す', () => {
+    // 0 を空と同一視すると、その期に値が無いことと 0 であることの区別が消える。
+    expect(
+      validateAddElementForm(file, {
+        label: 'インフレ',
+        sliceFrequencies: ['0', ''],
+        sliceStrengths: ['0', ''],
+      }),
+    ).toBeNull();
+  });
+
   it('時間軸ありの空欄は「その期に無い」として通す', () => {
     expect(
       validateAddElementForm(file, {

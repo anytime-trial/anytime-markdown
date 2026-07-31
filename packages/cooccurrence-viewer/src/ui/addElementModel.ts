@@ -66,7 +66,9 @@ export type AddElementFormError =
   | 'empty-label'
   | 'duplicate-label'
   | 'invalid-frequency'
-  | 'invalid-strength';
+  | 'invalid-strength'
+  | 'no-slice-frequency'
+  | 'no-slice-strength';
 
 function invalidNumber(text: string | undefined): boolean {
   if (text === undefined) return true;
@@ -79,6 +81,18 @@ function invalidSliceValues(values: ReadonlyArray<string> | undefined): boolean 
   if (values === undefined) return true;
   // 空欄は「その期には無い」を表す（スライス別入力の既存の扱い）。数値として壊れている欄だけ弾く。
   return values.some((value) => value.trim() !== '' && invalidNumber(value));
+}
+
+/**
+ * どの期にも値が入っていないか。
+ *
+ * 全期が空でも graph-core の検証は通る（合計 0 と導出される全体値が一致するため）。通すと、
+ * 頻度 0 でどのレイヤーにも現れない語ができ、図から足したのに図に出てこない。空欄が
+ * 「その期には無い」を表す規則は保ったまま、全期が空の場合だけを弾く（要件書 §2.3）。
+ */
+function allSliceValuesEmpty(values: ReadonlyArray<string> | undefined): boolean {
+  if (values === undefined) return true;
+  return values.every((value) => value.trim() === '');
 }
 
 /**
@@ -97,8 +111,13 @@ export function validateAddElementForm(
 
   const layered = values.sliceFrequencies !== undefined || values.sliceStrengths !== undefined;
   if (layered) {
+    // 欄ごとにまとめ、画面の並び（頻度が上・強度が下）と同じ順で見る。検査の種類ごとに
+    // 並べると、頻度が全期空で強度に壊れた値がある入力で、下の欄を直した直後に上の欄の
+    // エラーが出る往復になる。
     if (invalidSliceValues(values.sliceFrequencies)) return 'invalid-frequency';
+    if (allSliceValuesEmpty(values.sliceFrequencies)) return 'no-slice-frequency';
     if (invalidSliceValues(values.sliceStrengths)) return 'invalid-strength';
+    if (allSliceValuesEmpty(values.sliceStrengths)) return 'no-slice-strength';
     return null;
   }
   if (invalidNumber(values.frequency)) return 'invalid-frequency';

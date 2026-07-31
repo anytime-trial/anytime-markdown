@@ -159,6 +159,41 @@ describe('createAddElementPopup', () => {
     ]);
   });
 
+  it('時間軸を持つ図でも強度の見出しに相手の語の名前を出す', () => {
+    const { container } = setup({ timeline: true });
+    // 見出しは入力欄と for で結ばれている。スタイル用のクラス名を頼りにすると、改名で
+    // 静かに 0 件マッチへ倒れる。
+    const labels = [...container.querySelectorAll('label[for^="cooc-add-field-sliceStrength-"]')].map(
+      (el) => el.textContent ?? '',
+    );
+    // 全体値の欄が無いため、ここで出さないと相手が画面のどこにも出ない。片方の期にしか
+    // 出ていない状態も弾く。
+    expect(labels).toHaveLength(2);
+    expect(labels.every((label) => label.includes('金利'))).toBe(true);
+  });
+
+  it('時間軸ありで頻度を全期空のまま登録しない', () => {
+    const { container, submitted } = setup({ timeline: true });
+    field(container, 'label').value = 'インフレ';
+    field(container, 'sliceStrength-0').value = '0.3';
+    click(container, 'submit');
+    expect(submitted).toHaveLength(0);
+    expect(container.querySelector('[data-role="error"]')?.textContent).toBe(
+      'いずれかの期に頻度を入力してください',
+    );
+  });
+
+  it('時間軸ありで強度を全期空のまま登録しない', () => {
+    const { container, submitted } = setup({ timeline: true });
+    field(container, 'label').value = 'インフレ';
+    field(container, 'sliceFrequency-0').value = '2';
+    click(container, 'submit');
+    expect(submitted).toHaveLength(0);
+    expect(container.querySelector('[data-role="error"]')?.textContent).toBe(
+      'いずれかの期に強度を入力してください',
+    );
+  });
+
   it('Esc で閉じ、フォーカスを開いた操作面へ戻す', () => {
     const { container, popup, opener } = setup();
     container

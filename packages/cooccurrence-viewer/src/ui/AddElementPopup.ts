@@ -101,6 +101,10 @@ function errorMessage(t: CooccurrenceT, error: AddElementFormError): string {
       return t('edit.errorInvalidFrequency');
     case 'invalid-strength':
       return t('edit.errorInvalidStrength');
+    case 'no-slice-frequency':
+      return t('edit.errorNoSliceFrequency');
+    case 'no-slice-strength':
+      return t('edit.errorNoSliceStrength');
   }
 }
 
@@ -205,7 +209,9 @@ export function createAddElementPopup(options: AddElementPopupOptions): AddEleme
       slices.forEach((slice, index) => {
         const control = numberInput(`sliceStrength-${index}`);
         sliceStrengthInputs.push(control);
-        addRow(`${t('edit.sliceStrengths')} ${slice.label}`, control);
+        // 相手の語をここでも出す。全体値の欄にしか出さないと、時間軸を持つ図では誰との
+        // 共起を入力しているのかが画面から読めない（要件書 §2.3）。
+        addRow(`${t('edit.sliceStrengths', { source: sourceLabel })} ${slice.label}`, control);
       });
     } else {
       frequencyInput = numberInput('frequency');
