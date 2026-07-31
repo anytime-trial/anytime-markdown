@@ -19,6 +19,7 @@
     "filter.minFrequency": "Minimum frequency",
     "filter.minStrength": "Minimum cooccurrence strength",
     "filter.topLinks": "Top cooccurrences",
+    "filter.noFilter": "All",
     "filter.noClusters": "No clusters",
     "filter.wordsCount": "{visible} / {total} words",
     "filter.cooccurrencesCount": "{visible} / {total} cooccurrences",
