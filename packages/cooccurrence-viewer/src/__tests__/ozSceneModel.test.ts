@@ -120,6 +120,8 @@ describe('buildOzSceneModel: 同一語の柱', () => {
     expect(pillar.label).toBe('w0');
     expect(pillar.labeled).toBe(true);
     // 節は色ドットへ縮退し、語名を持つのは柱ラベルだけになる。
+    // 件数も見る（節が 1 つも返らなくなる退行でも every は通るため）。
+    expect(model.nodes).toHaveLength(3);
     expect(model.nodes.every((node) => !node.pill)).toBe(true);
   });
 
@@ -151,7 +153,27 @@ describe('buildOzSceneModel: 同一語の柱', () => {
     });
     const model = buildOzSceneModel(graph, null);
     expect(model.pillars).toHaveLength(0);
+    expect(model.nodes).toHaveLength(2);
     expect(model.nodes.every((node) => node.pill)).toBe(true);
+  });
+
+  test('柱を持つ語は、選択してもその節がピルへ昇格しない', () => {
+    // ラベル上限を超える構成にして、選択近傍の昇格経路を通す。
+    const singles = Array.from({ length: PILL_MAX }, (_, i) =>
+      makeNode(i + 1, 0, (i + 1) * 10, 400, { frequency: i + 1 }),
+    );
+    const graph = graphOf({
+      nodes: [makeNode(0, 0, 10, 20), makeNode(0, 1, 1010, 20), ...singles],
+      layers: [makeLayer(0, 0), makeLayer(1, 1000)],
+      timeLinks: [timeLink(0, 0, 1, 10, 1010)],
+      links: [makeLink(0, 0, 0, 1)],
+    });
+    const model = buildOzSceneModel(graph, 0);
+    const covered = model.nodes.filter((node) => node.index === 0);
+    expect(covered).toHaveLength(2);
+    // 語名は柱ラベルが 1 つ持つ。選択しても節へラベルが戻らない（同じ語名が 3 回読める状態に戻らない）。
+    expect(covered.every((node) => !node.pill)).toBe(true);
+    expect(model.pillars[0].labeled).toBe(true);
   });
 
   test('選択の近傍外では柱と柱ラベルが淡くなる', () => {
@@ -280,7 +302,6 @@ describe('buildOzSceneModel: 曲線ストリーム（v2）', () => {
     const model = buildOzSceneModel(graph, null);
     expect(model.links.map((link) => link.flow)).toEqual([1, 1, -1, 0]);
   });
-
 });
 
 describe('buildOzSceneModel: クラスタ見出し（v2）', () => {

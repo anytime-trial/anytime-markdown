@@ -181,13 +181,19 @@ interface PillarSegment {
   frequency: number;
 }
 
+/** 柱の区間（語とレイヤーの範囲）。同型の number が 3 つ並ぶため、引数で散らさず 1 つにまとめる。 */
+interface PillarRange {
+  nodeIndex: number;
+  fromLayer: number;
+  toLayer: number;
+}
+
 function segmentOf(
-  nodeIndex: number,
-  fromLayer: number,
-  toLayer: number,
+  range: PillarRange,
   nodeAt: ReadonlyMap<string, RenderNode>,
   layers: readonly RenderLayer[],
 ): PillarSegment | null {
+  const { nodeIndex, fromLayer, toLayer } = range;
   let first: RenderNode | undefined;
   let radius = 0;
   let frequency = 0;
@@ -233,22 +239,31 @@ function buildPillarSegments(
   const segments: PillarSegment[] = [];
   for (const [nodeIndex, links] of [...byNode.entries()].sort(([a], [b]) => a - b)) {
     const sorted = [...links].sort((a, b) => a.fromLayer - b.fromLayer);
-    let fromLayer = sorted[0].fromLayer;
-    let toLayer = sorted[0].toLayer;
+    let range: PillarRange = { nodeIndex, fromLayer: sorted[0].fromLayer, toLayer: sorted[0].toLayer };
     for (const link of sorted.slice(1)) {
-      if (link.fromLayer === toLayer) {
-        toLayer = link.toLayer;
+      if (link.fromLayer === range.toLayer) {
+        range = { ...range, toLayer: link.toLayer };
         continue;
       }
-      const segment = segmentOf(nodeIndex, fromLayer, toLayer, nodeAt, layers);
+      const segment = segmentOf(range, nodeAt, layers);
       if (segment !== null) segments.push(segment);
-      fromLayer = link.fromLayer;
-      toLayer = link.toLayer;
+      range = { nodeIndex, fromLayer: link.fromLayer, toLayer: link.toLayer };
     }
-    const last = segmentOf(nodeIndex, fromLayer, toLayer, nodeAt, layers);
+    const last = segmentOf(range, nodeAt, layers);
     if (last !== null) segments.push(last);
   }
   return segments;
+}
+
+/** 柱に覆われた (語, レイヤー) の集合。ここに入る節は語名を柱ラベルへ譲る。 */
+function coveredNodeKeys(segments: readonly PillarSegment[]): Set<string> {
+  const covered = new Set<string>();
+  for (const segment of segments) {
+    for (let layer = segment.fromLayer; layer <= segment.toLayer; layer++) {
+      covered.add(nodeKey(segment.nodeIndex, layer));
+    }
+  }
+  return covered;
 }
 
 type LabelCandidate =
@@ -260,12 +275,20 @@ type LabelCandidate =
  *
  * 柱ラベルと節のピルは同じ上限を分け合う（柱表示要件書 §4）。柱を上限の外に置くと、
  * 1000 語規模でスプライトが上限なく増える。
+ *
+ * Why not 覆われた節の除外を呼び出し側でやるか: 除外を外に置くと、選択近傍の昇格ループ
+ * （下）は渡された集合をそのまま昇格させるため、「柱を持つ語は昇格させない」（要件書 §2.3）が
+ * 呼び出し側の書き方だけに依存する。除外と昇格を同じ関数に収め、シームが外れないようにする。
  */
-function selectLabelTargets(
-  segments: readonly PillarSegment[],
-  nodes: readonly RenderNode[],
-  highlightIndexes: ReadonlySet<number> | undefined,
-): { pillars: Set<PillarSegment>; nodes: Set<RenderNode> } {
+function selectLabelTargets(input: {
+  segments: readonly PillarSegment[];
+  /** 全ての節。柱に覆われたものはこの関数が除外する。 */
+  nodes: readonly RenderNode[];
+  covered: ReadonlySet<string>;
+  highlightIndexes: ReadonlySet<number> | undefined;
+}): { pillars: Set<PillarSegment>; nodes: Set<RenderNode> } {
+  const { segments, covered, highlightIndexes } = input;
+  const nodes = input.nodes.filter((node) => !covered.has(nodeKey(node.index, node.layer)));
   if (segments.length + nodes.length <= PILL_MAX) {
     return { pillars: new Set(segments), nodes: new Set(nodes) };
   }
@@ -378,17 +401,12 @@ export function buildOzSceneModel(
   const nodeAt = new Map(graph.nodes.map((node) => [nodeKey(node.index, node.layer), node]));
   const segments = buildPillarSegments(graph.timeLinks, nodeAt, graph.layers);
   // 柱に属する節は語名を柱ラベルへ譲り、色ドットへ縮退する（柱表示要件書 §2.3）。
-  const covered = new Set<string>();
-  for (const segment of segments) {
-    for (let layer = segment.fromLayer; layer <= segment.toLayer; layer++) {
-      covered.add(nodeKey(segment.nodeIndex, layer));
-    }
-  }
-  const labelTargets = selectLabelTargets(
+  const labelTargets = selectLabelTargets({
     segments,
-    graph.nodes.filter((node) => !covered.has(nodeKey(node.index, node.layer))),
-    highlight?.nodeIndexes,
-  );
+    nodes: graph.nodes,
+    covered: coveredNodeKeys(segments),
+    highlightIndexes: highlight?.nodeIndexes,
+  });
   const pillNodes = labelTargets.nodes;
   const nodes: OzSceneNode[] = [];
   const positionOf = new Map<RenderNode, Point3>();
