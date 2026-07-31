@@ -256,7 +256,6 @@ console.log("labels with digits",g.nodes.filter(x=>/[0-9]/.test(x.label)).map(x=
 
 ## 参考
 
-- 実例: `nikkei-volatility-20260728-0730.cooc.json`（67 ノード / 110 リンク / 8 クラスタ / 3 営業日スライス）
 - パレットの実装: `packages/cooccurrence-viewer/src/theme/applyCooccurrenceThemeVars.ts`
 - 設計書: `<docsRoot>/spec/33.graph/05.cooccurrence-viewer/cooccurrence-viewer.ja.md`
 - 株価以外のテーマを共起グラフにする / 提案書として書く: `anytime-analysis`（§9 が共起グラフの一般形）
