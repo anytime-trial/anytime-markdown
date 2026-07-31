@@ -21,6 +21,10 @@ export interface SideIconRailItem {
 
 export interface SideIconRailState {
   readonly items: readonly SideIconRailItem[];
+  /** 編集モードが入っているか。押下状態として見せる。 */
+  readonly editMode: boolean;
+  /** 編集モードのトグルの名前（i18n 済み）。 */
+  readonly editModeLabel: string;
   readonly activeId: CooccurrenceTabId;
   /** パネルが開いているか。畳んでいる間はどのアイコンも選択中にしない。 */
   readonly expanded: boolean;
@@ -29,6 +33,8 @@ export interface SideIconRailState {
 }
 
 export interface SideIconRailOptions extends SideIconRailState {
+  /** 編集モードのトグルが押された。入／切の判定は状態の持ち主（mount 側）が行う。 */
+  onToggleEditMode(): void;
   /**
    * アイコンが選ばれた。押されたアイコンの id だけを渡す。
    *
@@ -64,7 +70,10 @@ const ICON_SIZE = 20;
  * web-app の双方へ素の DOM として埋め込まれる。フォントの読み込みに依存すると、読み込みに
  * 失敗したホストで図柄が消え、操作面が空のボタンだけになる。
  */
-const ICON_PATH: Record<CooccurrenceTabId, string> = {
+const ICON_PATH: Record<CooccurrenceTabId | 'editMode', string> = {
+  // 枠の中に鉛筆（編集モード）。語タブの図柄（鉛筆のみ）と小さくても取り違えないよう枠を持たせる。
+  editMode:
+    'M3 3h11v2H5v14h14v-9h2v11H3zm18.7 1.3-2-2a1 1 0 0 0-1.4 0L17 3.6 20.4 7l1.3-1.3a1 1 0 0 0 0-1.4M8 13.5V17h3.5l8-8L16 5.5z',
   // MapIcon（ミニマップ）
   minimap:
     'M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5M15 19l-6-2.11V5l6 2.11z',
@@ -96,6 +105,9 @@ function ensureStyles(): void {
   style.id = STYLE_ID;
   style.textContent = `
 .cooc-rail{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;width:46px;height:100%;padding:8px 0;border-left:1px solid var(--cooc-divider);background:var(--cooc-bg);color:var(--cooc-text-secondary)}
+.cooc-rail__tabs{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
+.cooc-rail__divider{flex:0 0 auto;width:24px;height:1px;margin:4px 0;background:var(--cooc-divider)}
+.cooc-rail__toggle[aria-pressed="true"]{background:var(--cooc-action-selected);color:var(--cooc-text)}
 .cooc-rail__item{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:6px;color:inherit}
 .cooc-rail__item:hover{background:var(--cooc-action-hover);color:var(--cooc-text)}
 .cooc-rail__item[data-active="true"]{background:var(--cooc-action-selected);color:var(--cooc-text)}
@@ -104,7 +116,7 @@ function ensureStyles(): void {
   document.head.appendChild(style);
 }
 
-function iconElement(id: CooccurrenceTabId): SVGSVGElement {
+function iconElement(id: CooccurrenceTabId | 'editMode'): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('width', String(ICON_SIZE));
@@ -140,9 +152,29 @@ export function createSideIconRail(options: SideIconRailOptions): SideIconRailHa
 
   const element = document.createElement('div');
   element.className = 'cooc-rail';
-  element.setAttribute('role', 'tablist');
+
+  /*
+   * 編集モードのトグルはタブの一覧の外へ置く。
+   *
+   * Why not tablist の一員にするか: tablist の子は tab であることが前提で、押すと開く／畳む
+   * タブと、状態を切り替えるトグルが同じ役割で読まれる。支援技術には「タブが 1 枚増えた」と
+   * 伝わり、選ぶと何が起きるかが読み取れない。
+   */
+  const editModeToggle = createPanelButton('cooc-rail__item cooc-rail__toggle');
+  editModeToggle.dataset.editModeToggle = 'true';
+  editModeToggle.appendChild(iconElement('editMode'));
+  editModeToggle.addEventListener('click', () => options.onToggleEditMode());
+
+  const divider = document.createElement('div');
+  divider.className = 'cooc-rail__divider';
+
+  const tabs = document.createElement('div');
+  tabs.className = 'cooc-rail__tabs';
+  tabs.setAttribute('role', 'tablist');
   // 縦に並ぶ列であることを宣言する。既定は horizontal で、読み上げ上の並びが見た目とずれる。
-  element.setAttribute('aria-orientation', 'vertical');
+  tabs.setAttribute('aria-orientation', 'vertical');
+
+  element.append(editModeToggle, divider, tabs);
 
   const buttons = new Map<CooccurrenceTabId, HTMLButtonElement>();
   let state: SideIconRailState = {
@@ -150,10 +182,12 @@ export function createSideIconRail(options: SideIconRailOptions): SideIconRailHa
     activeId: options.activeId,
     expanded: options.expanded,
     listLabel: options.listLabel,
+    editMode: options.editMode,
+    editModeLabel: options.editModeLabel,
   };
 
   function build(): void {
-    element.replaceChildren();
+    tabs.replaceChildren();
     buttons.clear();
     state.items.forEach((item) => {
       const button = createPanelButton('cooc-rail__item');
@@ -179,12 +213,15 @@ export function createSideIconRail(options: SideIconRailOptions): SideIconRailHa
         buttons.get(next)?.focus();
       });
       buttons.set(item.id, button);
-      element.appendChild(button);
+      tabs.appendChild(button);
     });
   }
 
   function syncSelection(): void {
-    element.setAttribute('aria-label', state.listLabel);
+    tabs.setAttribute('aria-label', state.listLabel);
+    editModeToggle.setAttribute('aria-pressed', String(state.editMode));
+    editModeToggle.setAttribute('aria-label', state.editModeLabel);
+    editModeToggle.title = state.editModeLabel;
     buttons.forEach((button, id) => {
       const active = id === state.activeId;
       const selected = active && state.expanded;

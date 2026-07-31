@@ -190,7 +190,8 @@ describe('cooccurrence viewer panel tabs', () => {
 
     expect(rail.parentElement).toBe(main);
     expect([...main.children].indexOf(rail)).toBe(main.children.length - 1);
-    expect(rail.getAttribute('aria-orientation')).toBe('vertical');
+    // 縦の宣言はタブの一覧が持つ（列そのものは tablist ではなく、編集モードのトグルも抱える）。
+    expect(rail.querySelector('[role="tablist"]')?.getAttribute('aria-orientation')).toBe('vertical');
     handle.destroy();
   });
 
@@ -282,7 +283,7 @@ describe('cooccurrence viewer panel tabs', () => {
     expect(tab(container, 'cooc-panel-links').getAttribute('aria-label')).toBe('共起');
     expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-label')).toBe('ミニマップ');
     expect(tab(container, 'cooc-panel-minimap').title).toBe('ミニマップ');
-    expect((container.querySelector('.cooc-rail') as HTMLElement).getAttribute('aria-label'))
+    expect((container.querySelector('[role="tablist"]') as HTMLElement).getAttribute('aria-label'))
       .toBe('パネルの切り替え');
 
     handle.update({ locale: 'en' });
@@ -291,7 +292,7 @@ describe('cooccurrence viewer panel tabs', () => {
     expect(tab(container, 'cooc-panel-words').getAttribute('aria-label')).toBe('Terms');
     expect(tab(container, 'cooc-panel-links').getAttribute('aria-label')).toBe('Cooccurrences');
     expect(tab(container, 'cooc-panel-minimap').getAttribute('aria-label')).toBe('Minimap');
-    expect((container.querySelector('.cooc-rail') as HTMLElement).getAttribute('aria-label'))
+    expect((container.querySelector('[role="tablist"]') as HTMLElement).getAttribute('aria-label'))
       .toBe('Panel switcher');
     handle.destroy();
   });
@@ -305,6 +306,49 @@ describe('cooccurrence viewer panel tabs', () => {
       expect(icon?.getAttribute('aria-hidden')).toBe('true');
       expect(icon?.querySelector('path')?.getAttribute('d')?.length ?? 0).toBeGreaterThan(10);
     }
+    handle.destroy();
+  });
+});
+
+describe('編集モードのトグル', () => {
+  beforeEach(() => {
+    document.body.replaceChildren();
+  });
+
+  function toggleOf(container: HTMLElement): HTMLButtonElement {
+    return container.querySelector('[data-edit-mode-toggle="true"]') as HTMLButtonElement;
+  }
+
+  it('タブの一覧（tablist）の中に入れない', () => {
+    // tablist の子は tab でなければならない。性格の違う操作を混ぜると、支援技術には
+    // 「タブが 1 枚増えた」と読まれる。
+    const { container, handle } = mount();
+    const toggle = toggleOf(container);
+
+    expect(toggle).not.toBeNull();
+    expect(toggle.closest('[role="tablist"]')).toBeNull();
+    expect(container.querySelector('.cooc-rail')?.contains(toggle)).toBe(true);
+    handle.destroy();
+  });
+
+  it('押下状態を支援技術へ伝える', () => {
+    const { container, handle } = mount();
+
+    expect(toggleOf(container).getAttribute('aria-pressed')).toBe('false');
+    toggleOf(container).click();
+    expect(toggleOf(container).getAttribute('aria-pressed')).toBe('true');
+    handle.destroy();
+  });
+
+  it('図柄と名前を持つ', () => {
+    const { container, handle } = mount('ja');
+
+    expect(toggleOf(container).querySelector('svg')).not.toBeNull();
+    expect(toggleOf(container).getAttribute('aria-label')).toBe('編集モード');
+    expect(toggleOf(container).title).toBe('編集モード');
+
+    handle.update({ locale: 'en' });
+    expect(toggleOf(container).getAttribute('aria-label')).toBe('Edit mode');
     handle.destroy();
   });
 });

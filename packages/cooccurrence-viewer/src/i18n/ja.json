@@ -98,6 +98,7 @@
     "note.totalStrength": "全期間の強度: {value}",
     "toolbar.skinOz": "OZ 風 3D",
     "status.webglUnavailable": "WebGL を初期化できないため 2D 表示を継続します",
-    "minimap.unavailable3d": "3D 表示中はミニマップを使えません"
+    "minimap.unavailable3d": "3D 表示中はミニマップを使えません",
+    "edit.mode": "編集モード"
   }
 }

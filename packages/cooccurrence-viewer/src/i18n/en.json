@@ -98,6 +98,7 @@
     "note.totalStrength": "Total strength: {value}",
     "toolbar.skinOz": "OZ 3D",
     "status.webglUnavailable": "WebGL is unavailable; staying in the 2D view",
-    "minimap.unavailable3d": "Minimap is unavailable in the 3D view"
+    "minimap.unavailable3d": "Minimap is unavailable in the 3D view",
+    "edit.mode": "Edit mode"
   }
 }

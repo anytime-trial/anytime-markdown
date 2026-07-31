@@ -154,6 +154,12 @@ export function mountCooccurrenceViewer(
   let clusterLanes: ClusterLanePlacement[] = [];
   let viewport: ViewportState = { scale: 1, offsetX: 0, offsetY: 0 };
   let notePopup: NotePopupHandle | null = null;
+  /**
+   * 編集モード。既定は切（閲覧専用）で、ファイルにもホストにも保存しない（要件書 §2.1）。
+   *
+   * 閲覧のたびに入っていると、図を読むだけのときの誤操作がそのままファイルの変更になる。
+   */
+  let editMode = false;
   let selectedNodeIndex: number | null = null;
   let showPanels = options.showPanels ?? true;
   let currentJob: LayoutJob | null = null;
@@ -256,6 +262,9 @@ export function mountCooccurrenceViewer(
       showPanels = next.expanded;
       options = { ...options, showPanels };
       syncPanelVisibility();
+    },
+    onToggleEditMode() {
+      setEditMode(!editMode);
     },
   });
   main.appendChild(rail.element);
@@ -381,8 +390,7 @@ export function mountCooccurrenceViewer(
       },
     });
     wordListPanel = createWordListPanel({
-      // SHORTCUT: 編集モードの配線が入るまでは常に編集可とする. ceiling: 閲覧中も書き換えられる. upgrade: 図の編集モードを組み込む工程で editMode へ差し替える.
-      editable: true,
+      editable: editMode,
       file,
       visibleNodeIndexes,
       selectedNodeIndex,
@@ -393,8 +401,7 @@ export function mountCooccurrenceViewer(
       onFileChange: (nextFile) => applyFileChange(nextFile, true),
     });
     linkListPanel = createLinkListPanel({
-      // SHORTCUT: 編集モードの配線が入るまでは常に編集可とする. ceiling: 閲覧中も書き換えられる. upgrade: 図の編集モードを組み込む工程で editMode へ差し替える.
-      editable: true,
+      editable: editMode,
       file,
       visibleLinkIndexes,
       selectedNodeIndex,
@@ -412,8 +419,7 @@ export function mountCooccurrenceViewer(
       onFitContent: fitToGraph,
     });
     clusterListPanel = createClusterListPanel({
-      // SHORTCUT: 編集モードの配線が入るまでは常に編集可とする. ceiling: 閲覧中も書き換えられる. upgrade: 図の編集モードを組み込む工程で editMode へ差し替える.
-      editable: true,
+      editable: editMode,
       file,
       selectedClusterIndex,
       laneView: clusterLaneView,
@@ -441,8 +447,7 @@ export function mountCooccurrenceViewer(
       },
     });
     timelinePanel = createTimelinePanel({
-      // SHORTCUT: 編集モードの配線が入るまでは常に編集可とする. ceiling: 閲覧中も書き換えられる. upgrade: 図の編集モードを組み込む工程で editMode へ差し替える.
-      editable: true,
+      editable: editMode,
       file,
       view: timelineView,
       t,
@@ -544,8 +549,30 @@ export function mountCooccurrenceViewer(
   }
 
   /** アイコン列へ流し込む状態。選択中のタブと、パネルを開いているかを一緒に渡す。 */
+  /**
+   * 編集モードを切り替える。
+   *
+   * Why not 各パネルの側で編集モードを見に行くか: 反映先はパネル 4 枚と図の操作面に分かれる。
+   * 入口を 1 つにしないと、どれか 1 つだけ古い状態のまま残る。
+   */
+  function setEditMode(next: boolean): void {
+    editMode = next;
+    wordListPanel?.setEditable(editMode);
+    linkListPanel?.setEditable(editMode);
+    clusterListPanel?.setEditable(editMode);
+    timelinePanel?.setEditable(editMode);
+    rail.update(railState());
+  }
+
   function railState(): SideIconRailState {
-    return { items: tabItems(), activeId: activeTab, expanded: showPanels, listLabel: t('tabs.listLabel') };
+    return {
+      items: tabItems(),
+      activeId: activeTab,
+      expanded: showPanels,
+      listLabel: t('tabs.listLabel'),
+      editMode,
+      editModeLabel: t('edit.mode'),
+    };
   }
 
   /**

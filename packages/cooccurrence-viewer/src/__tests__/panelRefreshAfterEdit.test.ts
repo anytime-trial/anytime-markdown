@@ -23,7 +23,15 @@ function mount(): { container: HTMLElement; handle: ReturnType<typeof mountCoocc
   const container = document.createElement('div');
   document.body.appendChild(container);
   const handle = mountCooccurrenceViewer(container, { file: file(), themeMode: 'light', locale: 'ja' });
+  enterEditMode(container);
   return { container, handle };
+}
+
+/**
+ * 編集モードへ入る。既定は閲覧専用のため、書き換えの検査は必ずここを通る（要件書 §2.1）。
+ */
+function enterEditMode(container: HTMLElement): void {
+  (container.querySelector('[data-edit-mode-toggle="true"]') as HTMLButtonElement).click();
 }
 
 function tab(container: HTMLElement, panelId: string): HTMLButtonElement {
