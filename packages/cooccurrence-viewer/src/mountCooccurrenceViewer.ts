@@ -1,8 +1,10 @@
 import {
   BARNES_HUT_LAYOUT_ALGORITHM_VERSION,
+  addCooccurrenceNodeWithLink,
   computeSpecHash,
   cooccurrenceSliceCount,
   filterCooccurrenceFile,
+  hasCooccurrenceTimeline,
   readLink,
   writeLink,
   type CooccurrenceFile,
@@ -46,6 +48,7 @@ import { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 import { clusterColor } from './theme/readTheme';
 import { buildOzSceneModel } from './scene3d/sceneModel';
 import { createOzRenderer, type OzRenderer } from './scene3d/ozRenderer';
+import { createPanelButton } from './ui/buttonBaseStyle';
 import { createFilterPanel, type FilterPanelHandle } from './ui/FilterPanel';
 import { createWordListPanel, type WordListPanelHandle } from './ui/WordListPanel';
 import { createLinkListPanel, type LinkListPanelHandle } from './ui/LinkListPanel';
@@ -53,6 +56,8 @@ import { createMinimapPanel, type MinimapPanelHandle } from './ui/MinimapPanel';
 import { createExportPanel, type ExportPanelHandle, type ExportPanelState } from './ui/ExportPanel';
 import { createClusterListPanel, type ClusterListPanelHandle } from './ui/ClusterListPanel';
 import { createTimelinePanel, type TimelinePanelHandle } from './ui/TimelinePanel';
+import { createAddElementPopup, type AddElementPopupHandle } from './ui/AddElementPopup';
+import { addHandlePlacement, shouldShowAddHandle } from './ui/addElementModel';
 import { createNotePopup, type NotePopupHandle } from './ui/NotePopup';
 import {
   clusterPopupState,
@@ -81,6 +86,14 @@ import { hitTestLink, hitTestNode } from './viewport/hitTest';
 
 const STYLE_ID = 'cooccurrence-viewer-style';
 
+/** 画面下の注記を出した理由。枠が 1 つしかないため、消してよいかの判定に使う。 */
+type NoticeOwner = 'webgl' | 'edit';
+
+/** 追加アイコンの一辺（px）。図の拡大率に依らず一定に保つ（要件書 §2.2）。 */
+const ADD_HANDLE_SIZE = 28;
+/** 語の縁と追加アイコンの間の余白（px）。 */
+const ADD_HANDLE_GAP = 4;
+
 function ensureStyles(): void {
   ensureButtonBaseStyles();
   if (document.getElementById(STYLE_ID)) return;
@@ -97,6 +110,9 @@ function ensureStyles(): void {
 .cooc-viewer__tabpanel{flex:1 1 0;display:flex;flex-direction:column}
 .cooc-viewer__tabpanel[hidden]{display:none}
 .cooc-viewer__toolbar{position:absolute;inset:12px 12px auto auto;display:flex;gap:8px;align-items:center}
+.cooc-add-handle{position:absolute;z-index:2;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--cooc-divider);border-radius:14px;background:var(--cooc-surface);color:var(--cooc-text);font:16px system-ui,sans-serif;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.3)}
+.cooc-add-handle:hover{background:var(--cooc-action-hover)}
+.cooc-add-handle[hidden]{display:none}
 .cooc-viewer__button{border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px;padding:6px 10px;font:12px system-ui,sans-serif}
 .cooc-viewer__button:hover{background:var(--cooc-action-hover)}
 .cooc-viewer__status{position:absolute;inset:auto 12px 12px 12px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif;pointer-events:none}
@@ -129,6 +145,17 @@ function fallbackPositions(file: CooccurrenceFile): Array<[number, number]> {
   });
 }
 
+/**
+ * スライス別の入力（文字列）を書き込み用の数値へ写す。
+ *
+ * 空欄は「そのスライスには無い」を表すため undefined にする。0 に丸めると、値が無いことと
+ * 値が 0 であることの区別が消える。
+ */
+function toSliceNumbers(values: readonly string[] | undefined): (number | undefined)[] | undefined {
+  if (values === undefined) return undefined;
+  return values.map((value) => (value.trim() === '' ? undefined : Number(value)));
+}
+
 function canvasPoint(canvas: HTMLCanvasElement, event: MouseEvent | WheelEvent | PointerEvent): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -154,6 +181,13 @@ export function mountCooccurrenceViewer(
   let clusterLanes: ClusterLanePlacement[] = [];
   let viewport: ViewportState = { scale: 1, offsetX: 0, offsetY: 0 };
   let notePopup: NotePopupHandle | null = null;
+  /**
+   * 編集モード。既定は切（閲覧専用）で、ファイルにもホストにも保存しない（要件書 §2.1）。
+   *
+   * 閲覧のたびに入っていると、図を読むだけのときの誤操作がそのままファイルの変更になる。
+   */
+  let editMode = false;
+  let addPopup: AddElementPopupHandle | null = null;
   let selectedNodeIndex: number | null = null;
   let showPanels = options.showPanels ?? true;
   let currentJob: LayoutJob | null = null;
@@ -166,6 +200,7 @@ export function mountCooccurrenceViewer(
   /** WebGL 初期化に一度失敗したら再試行しない（毎トグルで throw を繰り返さないため）。 */
   let ozUnavailable = false;
   let noticeEl: HTMLDivElement | null = null;
+  let noticeOwner: NoticeOwner | null = null;
   const pointers = new Map<number, { x: number; y: number }>();
   let dragStart: { x: number; y: number } | null = null;
   let pinchStart: { distance: number; center: { x: number; y: number } } | null = null;
@@ -199,6 +234,20 @@ export function mountCooccurrenceViewer(
   const toolbar = document.createElement('div');
   toolbar.className = 'cooc-viewer__toolbar';
   stage.appendChild(toolbar);
+
+  /**
+   * 選択中の語の脇に出る追加アイコン（要件書 §2.2）。
+   *
+   * Why not キャンバスへ描くか: 図と一緒に拡縮すると縮小表示で数 px まで縮んで押せなくなり、
+   * キャンバスはフォーカスを持てないためキーボードから到達できない。当たり判定と描画の
+   * 両方に手を入れずに済む利点もある。
+   */
+  const addHandle = createPanelButton('cooc-add-handle');
+  addHandle.dataset.role = 'add-handle';
+  addHandle.textContent = '＋';
+  addHandle.hidden = true;
+  stage.appendChild(addHandle);
+  syncAddHandleLabel();
   const statusEl = document.createElement('div');
   statusEl.className = 'cooc-viewer__status';
   stage.appendChild(statusEl);
@@ -257,8 +306,23 @@ export function mountCooccurrenceViewer(
       options = { ...options, showPanels };
       syncPanelVisibility();
     },
+    onToggleEditMode() {
+      setEditMode(!editMode);
+    },
   });
   main.appendChild(rail.element);
+
+  addHandle.addEventListener('click', () => {
+    if (selectedNodeIndex === null) return;
+    const rect = addHandle.getBoundingClientRect();
+    ensureAddPopup().show({
+      file,
+      sourceNodeIndex: selectedNodeIndex,
+      // アイコンの右下から出す。真上に出すとアイコン自体を覆い、閉じる前に押し直せない。
+      anchor: toRootPoint({ x: rect.right, y: rect.bottom }),
+      returnFocusTo: addHandle,
+    });
+  });
 
   /**
    * 今そこにあるタブ。保存も PNG も提供しないホストでは保存タブを出さない（仕様 §3.5・§6.3）。
@@ -345,6 +409,9 @@ export function mountCooccurrenceViewer(
     selectedNodeIndex = null;
     // 編集で添字がずれると、出したままのポップアップが別の要素の内容を指すことになる。
     notePopup?.hide();
+    // 添字がずれるのはメモのポップアップと同じ。開いたままにすると相手を失った状態で
+    // 登録でき、理由の無いエラーだけが出る。
+    addPopup?.hide();
     fitted = false;
     syncCanvasLabel();
     if (notifyHost) options.onFileChange?.(file);
@@ -381,6 +448,7 @@ export function mountCooccurrenceViewer(
       },
     });
     wordListPanel = createWordListPanel({
+      editable: editMode,
       file,
       visibleNodeIndexes,
       selectedNodeIndex,
@@ -391,6 +459,7 @@ export function mountCooccurrenceViewer(
       onFileChange: (nextFile) => applyFileChange(nextFile, true),
     });
     linkListPanel = createLinkListPanel({
+      editable: editMode,
       file,
       visibleLinkIndexes,
       selectedNodeIndex,
@@ -408,6 +477,7 @@ export function mountCooccurrenceViewer(
       onFitContent: fitToGraph,
     });
     clusterListPanel = createClusterListPanel({
+      editable: editMode,
       file,
       selectedClusterIndex,
       laneView: clusterLaneView,
@@ -435,6 +505,7 @@ export function mountCooccurrenceViewer(
       },
     });
     timelinePanel = createTimelinePanel({
+      editable: editMode,
       file,
       view: timelineView,
       t,
@@ -536,8 +607,109 @@ export function mountCooccurrenceViewer(
   }
 
   /** アイコン列へ流し込む状態。選択中のタブと、パネルを開いているかを一緒に渡す。 */
+  /**
+   * 追加アイコンの表示と位置を合わせる。
+   *
+   * 呼ぶ契機は 5 つ（拡大縮小・移動 / 図の組み直し / 選択 / 表示形式の切り替え / 表示領域の
+   * 寸法変化）。1 つでも落とすとアイコンが語から離れた場所に取り残される。寸法変化を含める
+   * のは、端の折り返しが表示領域の幅と高さで決まるためで、パネルを開いて図が狭くなった
+   * 瞬間に古い幅のまま図の外へ残る。
+   */
+  /** 図柄だけのボタンなので、名前と tooltip を持たせる。言語切替でも訳し直す。 */
+  function syncAddHandleLabel(): void {
+    addHandle.setAttribute('aria-label', t('edit.add'));
+    addHandle.title = t('edit.add');
+  }
+
+  function syncAddHandle(): void {
+    const node =
+      selectedNodeIndex === null
+        ? undefined
+        : graph.nodes.find((candidate) => candidate.index === selectedNodeIndex);
+    const visible = shouldShowAddHandle({
+      editMode,
+      skin,
+      selectedNodeIndex,
+      hasPosition: node !== undefined,
+    });
+    addHandle.hidden = !visible;
+    if (!visible || node === undefined) return;
+    const placement = addHandlePlacement({
+      node: { x: node.x, y: node.y, radius: node.radius },
+      viewport,
+      canvas: canvasDisplaySize(),
+      handleSize: ADD_HANDLE_SIZE,
+      gap: ADD_HANDLE_GAP,
+    });
+    addHandle.style.left = `${placement.x}px`;
+    addHandle.style.top = `${placement.y}px`;
+  }
+
+  function ensureAddPopup(): AddElementPopupHandle {
+    if (addPopup !== null) return addPopup;
+    addPopup = createAddElementPopup({
+      container: root,
+      t,
+      onSubmit(values) {
+        if (selectedNodeIndex === null) return { ok: false, reason: '' };
+        const layered = hasCooccurrenceTimeline(file.spec);
+        const result = addCooccurrenceNodeWithLink(file, {
+          node: layered
+            ? { label: values.label, sliceValues: toSliceNumbers(values.sliceFrequencies) }
+            : { label: values.label, frequency: Number(values.frequency) },
+          source: selectedNodeIndex,
+          strength: layered ? 0 : Number(values.strength),
+          linkSliceValues: layered ? toSliceNumbers(values.sliceStrengths) : undefined,
+          clusterIndex: values.clusterIndex ?? undefined,
+        });
+        if (!result.ok) return { ok: false, reason: result.errors[0]?.message ?? '' };
+        const addedIndex = result.file.spec.nodes.length - 1;
+        applyFileChange(result.file, true);
+        // 選択の復帰は applyFileChange の後に置く。applyFileChange は差し替え前の図で
+        // 選択を落とすため、先に選ぶと足した語が選ばれないまま残る。
+        selectNode(addedIndex);
+        return { ok: true };
+      },
+    });
+    return addPopup;
+  }
+
+  /**
+   * 編集モードを切り替える。
+   *
+   * Why not 各パネルの側で編集モードを見に行くか: 反映先はパネル 4 枚と図の操作面に分かれる。
+   * 入口を 1 つにしないと、どれか 1 つだけ古い状態のまま残る。
+   */
+  function setEditMode(next: boolean): void {
+    editMode = next;
+    wordListPanel?.setEditable(editMode);
+    linkListPanel?.setEditable(editMode);
+    clusterListPanel?.setEditable(editMode);
+    timelinePanel?.setEditable(editMode);
+    rail.update(railState());
+    syncEditNotice();
+    syncAddHandle();
+    if (!editMode) addPopup?.hide();
+  }
+
+  /** 3D 表示中は図から足せない。押せないだけにせず、理由を画面に出す（要件書 §2.2）。 */
+  function syncEditNotice(): void {
+    if (editMode && skin === 'oz') {
+      showNotice('edit', t('edit.unavailable3d'));
+      return;
+    }
+    hideNotice('edit');
+  }
+
   function railState(): SideIconRailState {
-    return { items: tabItems(), activeId: activeTab, expanded: showPanels, listLabel: t('tabs.listLabel') };
+    return {
+      items: tabItems(),
+      activeId: activeTab,
+      expanded: showPanels,
+      listLabel: t('tabs.listLabel'),
+      editMode,
+      editModeLabel: t('edit.mode'),
+    };
   }
 
   /**
@@ -785,6 +957,8 @@ export function mountCooccurrenceViewer(
     // 3D シーンは RenderGraph の派生。graph を組み直した経路すべて（絞り込み・編集・
     // レイアウト完了・テーマ）で自動的に追従させる。
     syncOzScene();
+    // 座標は graph が持つ。組み直しのたびにアイコンの位置も取り直す。
+    syncAddHandle();
   }
 
   /**
@@ -800,6 +974,11 @@ export function mountCooccurrenceViewer(
     scheduler?.invalidate();
     syncOzScene();
     updatePanels();
+    syncAddHandle();
+    // 選択が変わればポップアップの相手も変わる。ポップアップは見出しに開いた時点の相手を
+    // 出したままなので、開いたままにすると「金利 との共起」と読める画面で別の語へ結ばれる。
+    const popupSource = addPopup?.getSourceNodeIndex() ?? null;
+    if (popupSource !== null && popupSource !== next) addPopup?.hide();
   }
 
   /** graph と選択状態を 3D シーンへ写す。standard 中は何もしない。 */
@@ -810,7 +989,12 @@ export function mountCooccurrenceViewer(
     ozView?.setModel(buildOzSceneModel(graph, selectedNodeIndex, clusterLabels));
   }
 
-  function showNotice(text: string): void {
+  /**
+   * 注記の持ち主。枠は 1 つしかないため、誰が出したかを覚えていないと、別の理由の告知を
+   * 横から消してしまう（WebGL の縮退の告知を編集モードの切り替えが消していた）。
+   */
+  function showNotice(owner: NoticeOwner, text: string): void {
+    noticeOwner = owner;
     if (noticeEl === null) {
       noticeEl = document.createElement('div');
       noticeEl.className = 'cooc-viewer__notice';
@@ -819,7 +1003,10 @@ export function mountCooccurrenceViewer(
     noticeEl.textContent = text;
   }
 
-  function hideNotice(): void {
+  function hideNotice(owner: NoticeOwner): void {
+    // 自分が出したものだけを消す。持ち主が違えば別の理由の告知が出ている。
+    if (noticeOwner !== owner) return;
+    noticeOwner = null;
     noticeEl?.remove();
     noticeEl = null;
   }
@@ -850,7 +1037,7 @@ export function mountCooccurrenceViewer(
   function ensureOzView(): boolean {
     if (ozView !== null) return true;
     if (ozUnavailable) {
-      showNotice(t('status.webglUnavailable'));
+      showNotice('webgl', t('status.webglUnavailable'));
       return false;
     }
     const element = document.createElement('div');
@@ -870,7 +1057,7 @@ export function mountCooccurrenceViewer(
       element.remove();
       ozUnavailable = true;
       console.warn('[cooccurrence-viewer] WebGL renderer creation failed; staying in 2D view.', error);
-      showNotice(t('status.webglUnavailable'));
+      showNotice('webgl', t('status.webglUnavailable'));
       return false;
     }
   }
@@ -882,7 +1069,9 @@ export function mountCooccurrenceViewer(
       return;
     }
     skin = next;
-    hideNotice();
+    // 表示形式が変わればどちらの告知も前提を失う（3D へ入れた時点で WebGL の縮退は解けている）。
+    hideNotice('webgl');
+    hideNotice('edit');
     applyCooccurrenceThemeVars(root, themeMode, skin);
     // 球色（node.stroke）は CSS 変数から焼き込まれるため、変数の切替後に組み直す。
     // rebuildGraph が syncOzScene まで済ませる。
@@ -902,6 +1091,11 @@ export function mountCooccurrenceViewer(
     syncStatusUi();
     syncActiveTab();
     updatePanels();
+    // 表示形式が変わると図から足せるかどうかも変わる。編集モードのまま 3D へ移った場合は
+    // 理由を出し、アイコンは引っ込める（rebuildGraph 経由の同期は skin の更新前に走る）。
+    syncEditNotice();
+    syncAddHandle();
+    if (skin === 'oz') addPopup?.hide();
   }
 
   function saveCompletedLayout(): void {
@@ -919,6 +1113,8 @@ export function mountCooccurrenceViewer(
   function setViewport(next: ViewportState): void {
     viewport = next;
     scheduler?.invalidate();
+    // 図が動けばアイコンも動く。ここを落とすと、拡大や移動のあとだけ語から離れる。
+    syncAddHandle();
     // ミニマップの枠は視野そのものを映す。ここで要求しないと、図だけが動いて枠が取り残される。
     minimapPanel?.refresh();
   }
@@ -1113,6 +1309,9 @@ export function mountCooccurrenceViewer(
 
   resizeObserver = new ResizeObserver(() => {
     if (!fitted) fitToGraph();
+    // 折り返しは表示領域の寸法で決まる。ここを落とすと、パネルを開いて図が狭くなったとき
+    // アイコンだけが図の外へ残る。
+    syncAddHandle();
     // 寸法が変わると canvas のバッキングストアを取り直す必要がある。
     scheduler?.invalidate();
     // ミニマップも同様。枠は図の canvas の寸法から計算するため（`visibleRect`）、視野が
@@ -1150,6 +1349,10 @@ export function mountCooccurrenceViewer(
         options = { ...options, locale: partial.locale };
         t = createCooccurrenceT('Cooccurrence', partial.locale);
         notePopup?.setT(t);
+        addPopup?.setT(t);
+        syncAddHandleLabel();
+        // 出したままの注記も訳し直す（3D で編集モードに入っている場合）。
+        syncEditNotice();
         syncCanvasLabel();
         // タブ見出しはパネルの update を経由しないため、ここで訳し直さないと旧言語で残る。
         syncActiveTab();

@@ -1,4 +1,5 @@
 import type { CooccurrenceSlice } from '@anytime-markdown/graph-core';
+import type { EditableGroup } from './editableGroup';
 
 /**
  * スライス別の値の入力欄（設計書 §3.5）。
@@ -10,6 +11,12 @@ import type { CooccurrenceSlice } from '@anytime-markdown/graph-core';
  * 現れないことで表す規則（設計書 §2.2）と表現を 1 つに保つためである。
  */
 export interface SliceValueEditorOptions {
+  /**
+   * 書き換え系コントロールの入れ物。スライス別の入力欄を登録する。
+   *
+   * 欄はスライスの枚数が変わるたびに作り直すため、作り直した直後に登録の解放を呼ぶ。
+   */
+  edit: EditableGroup;
   /** 値を入れた・変えた。 */
   onSet(sliceIndex: number, value: number): void;
   /** 欄を空にした（そのスライスから外す）。 */
@@ -82,13 +89,16 @@ export function createSliceValueEditor(options: SliceValueEditorOptions): SliceV
     // 限り作り直さず、値だけを流し込む。
     const focused = document.activeElement;
     if (inputs.length !== slices.length) {
+      // 作り直す前に前回の欄の登録を外す。捨てた欄を持ち続けると、スライスを増減するたびに
+      // 登録が積もる。
+      inputs.forEach((input) => options.edit.unregister(input));
       element.replaceChildren(title);
       inputs = slices.map((slice, index) => {
         const row = document.createElement('div');
         row.className = 'cooc-slice-values__row';
         const name = document.createElement('span');
         name.textContent = slice.at === undefined ? slice.label : `${slice.label}（${slice.at}）`;
-        const input = document.createElement('input');
+        const input = options.edit.register(document.createElement('input'));
         input.type = 'number';
         input.setAttribute('aria-label', inputLabel(slice));
         input.addEventListener('change', () => {

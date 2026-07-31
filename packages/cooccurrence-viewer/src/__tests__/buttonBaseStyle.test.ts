@@ -133,6 +133,7 @@ describe('ボタンの UA 既定スタイルを打ち消す', () => {
       onFilterChange: jest.fn(), onSelectedSliceLabelsChange: jest.fn(),
     })],
     ['語一覧', () => createWordListPanel({
+      editable: true,
       file: file(),
       visibleNodeIndexes: new Set([0, 1]),
       selectedNodeIndex: null,

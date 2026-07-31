@@ -76,6 +76,7 @@ export type {
 } from './cooccurrenceFilter';
 export {
   addCooccurrenceNode,
+  addCooccurrenceNodeWithLink,
   deleteCooccurrenceNode,
   renameCooccurrenceNode,
   setCooccurrenceNodeFrequency,
@@ -105,6 +106,7 @@ export {
 export type {
   CooccurrenceEditResult,
   CooccurrenceNodeInput,
+  CooccurrenceNodeWithLinkInput,
   CooccurrenceNodeSliceRef,
   CooccurrenceLinkSliceRef,
 } from './cooccurrenceEdit';

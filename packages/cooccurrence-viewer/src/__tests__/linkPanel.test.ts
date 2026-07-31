@@ -29,6 +29,7 @@ interface Harness {
 function mount(overrides: Partial<Parameters<typeof createLinkListPanel>[0]> = {}): Harness {
   const changed: CooccurrenceFile[] = [];
   const handle = createLinkListPanel({
+      editable: true,
     file: file(),
     visibleLinkIndexes: new Set([0, 1]),
     selectedNodeIndex: null,

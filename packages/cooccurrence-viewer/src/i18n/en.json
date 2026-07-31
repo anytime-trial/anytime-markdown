@@ -98,6 +98,23 @@
     "note.totalStrength": "Total strength: {value}",
     "toolbar.skinOz": "OZ 3D",
     "status.webglUnavailable": "WebGL is unavailable; staying in the 2D view",
-    "minimap.unavailable3d": "Minimap is unavailable in the 3D view"
+    "minimap.unavailable3d": "Minimap is unavailable in the 3D view",
+    "edit.mode": "Edit mode",
+    "edit.popupLabel": "Add element",
+    "edit.label": "Word",
+    "edit.frequency": "Frequency",
+    "edit.cluster": "Cluster",
+    "edit.strength": "Strength (co-occurrence with {source})",
+    "edit.sliceFrequencies": "Frequency per slice",
+    "edit.sliceStrengths": "Strength per slice",
+    "edit.submit": "Add",
+    "edit.cancel": "Cancel",
+    "edit.errorEmptyLabel": "Enter a word.",
+    "edit.errorDuplicateLabel": "A word with the same name already exists.",
+    "edit.errorInvalidFrequency": "Frequency must be a number of 0 or more.",
+    "edit.errorInvalidStrength": "Strength must be a number of 0 or more.",
+    "edit.errorRejected": "Could not add: {reason}",
+    "edit.add": "Add a word linked to this word",
+    "edit.unavailable3d": "Adding from the diagram is unavailable in 3D. Switch to the standard view."
   }
 }
