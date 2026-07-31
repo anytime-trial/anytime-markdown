@@ -8,7 +8,7 @@ import {
 } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import type { TimelineViewState } from '../types';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 import { isLayerAxis } from './timelineModel';
 
 /**
@@ -157,8 +157,7 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
   const addAt = document.createElement('input');
   addAt.type = 'text';
   addAt.className = 'cooc-timeline__field';
-  const addButton = document.createElement('button');
-  addButton.type = 'button';
+  const addButton = createPanelButton();
   addRow.append(addLabel, addAt, addButton);
 
   const errorEl = document.createElement('div');
@@ -249,20 +248,17 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
 
       const actions = document.createElement('div');
       actions.className = 'cooc-timeline__actions';
-      const up = document.createElement('button');
-      up.type = 'button';
+      const up = createPanelButton();
       up.textContent = '↑';
       up.disabled = index === 0;
       up.setAttribute('aria-label', t('timeline.moveEarlier'));
       up.addEventListener('click', () => showResult(moveCooccurrenceSlice(state.file, index, index - 1)));
-      const down = document.createElement('button');
-      down.type = 'button';
+      const down = createPanelButton();
       down.textContent = '↓';
       down.disabled = index === slices.length - 1;
       down.setAttribute('aria-label', t('timeline.moveLater'));
       down.addEventListener('click', () => showResult(moveCooccurrenceSlice(state.file, index, index + 1)));
-      const remove = document.createElement('button');
-      remove.type = 'button';
+      const remove = createPanelButton();
       remove.textContent = '×';
       remove.setAttribute('aria-label', t('timeline.removeSlice'));
       remove.addEventListener('click', () => showResult(deleteCooccurrenceSlice(state.file, index)));

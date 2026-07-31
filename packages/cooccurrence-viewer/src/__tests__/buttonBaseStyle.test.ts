@@ -95,6 +95,36 @@ describe('ボタンの UA 既定スタイルを打ち消す', () => {
     expect(document.querySelectorAll('#cooccurrence-button-base-style')).toHaveLength(1);
   });
 
+  /**
+   * 個別のパネルごとに検査すると、新しく足したパネルが検査から漏れる。実際、時間軸パネルの
+   * 並べ替え・削除・追加のボタンだけ土台クラスが抜けており、暗いテーマで白面に塗り潰されて
+   * 図柄も活性状態も読めなくなっていた（同種の付け忘れは 3 回目）。
+   */
+  it('ビューアの中の全てのボタンが土台クラスを持つ（パネルを足したときの付け忘れを検知する）', () => {
+    // スライス行は 1 枚も無いと描かれない。UI から 1 枚足して並べ替え・削除まで検査範囲に入れる。
+    (query('#cooc-panel-timeline-tab') as HTMLButtonElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const [labelInput, atInput] = [...document.querySelectorAll('.cooc-timeline__add input')] as HTMLInputElement[];
+    labelInput.value = '1月';
+    atInput.value = '2026-01-01';
+    (query('.cooc-timeline__add button') as HTMLButtonElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    // 検査対象が空だと「全て通った」と「1 つも見ていない」が区別できない。
+    expect(document.querySelectorAll('.cooc-timeline__slice').length).toBeGreaterThan(0);
+    const buttons = [...document.querySelectorAll('button')];
+    expect(buttons.length).toBeGreaterThan(0);
+
+    // 症状そのものの検査。土台が効いていないと UA 既定の面（`buttonface`）が残り、
+    // 明色の図柄と重なって読めなくなる。透明な面は土台からしか来ない
+    // （jsdom は `transparent` を `rgba(0, 0, 0, 0)` へ正規化する）。
+    const action = query('.cooc-timeline__actions button');
+    expect(getComputedStyle(action).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+
+    const missing = buttons
+      .filter((button) => !button.classList.contains('cooc-btn'))
+      .map((button) => `${button.className || '(class なし)'} / ${button.getAttribute('aria-label') ?? button.textContent}`);
+    expect(missing).toEqual([]);
+  });
+
   it.each<[string, () => { destroy(): void }]>([
     ['絞り込み', () => createFilterPanel({
       file: file(),

@@ -20,7 +20,7 @@ import {
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { directionSymbol, filterLinkRows } from './linkListModel';
 import { computeVisibleWindow } from './virtualList';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
 import { createSliceValueEditor, type SliceValueEditorHandle } from './sliceValueEditor';
 
@@ -142,17 +142,11 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
 
   const buttons = document.createElement('div');
   buttons.className = 'cooc-links__buttons';
-  const addButton = document.createElement('button');
-  addButton.className = 'cooc-btn cooc-links__button';
-  addButton.type = 'button';
+  const addButton = createPanelButton('cooc-links__button');
   addButton.dataset.action = 'add';
-  const updateButton = document.createElement('button');
-  updateButton.className = 'cooc-btn cooc-links__button';
-  updateButton.type = 'button';
+  const updateButton = createPanelButton('cooc-links__button');
   updateButton.dataset.action = 'update';
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'cooc-btn cooc-links__button';
-  deleteButton.type = 'button';
+  const deleteButton = createPanelButton('cooc-links__button');
   deleteButton.dataset.action = 'delete';
   buttons.append(addButton, updateButton, deleteButton);
 
@@ -214,9 +208,7 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
     items.style.transform = `translateY(${slice.offsetY}px)`;
     items.replaceChildren();
     rows.slice(slice.startIndex, slice.endIndex).forEach((row, offset) => {
-      const element = document.createElement('button');
-      element.className = 'cooc-btn cooc-btn--block cooc-links__row';
-      element.type = 'button';
+      const element = createPanelButton('cooc-btn--block cooc-links__row');
       element.dataset.linkIndex = String(row.linkIndex);
       element.setAttribute('role', 'option');
       element.setAttribute('aria-selected', String(selectedLinkIndex === row.linkIndex));

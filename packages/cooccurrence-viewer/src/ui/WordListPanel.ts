@@ -17,7 +17,7 @@ import {
 } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { computeVisibleWindow } from './virtualList';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
 import { createSliceValueEditor, type SliceValueEditorHandle } from './sliceValueEditor';
 
@@ -151,25 +151,15 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
 
   const buttons = document.createElement('div');
   buttons.className = 'cooc-words__buttons';
-  const addButton = document.createElement('button');
-  addButton.className = 'cooc-btn cooc-words__button';
-  addButton.type = 'button';
+  const addButton = createPanelButton('cooc-words__button');
   addButton.textContent = t('words.add');
-  const renameButton = document.createElement('button');
-  renameButton.className = 'cooc-btn cooc-words__button';
-  renameButton.type = 'button';
+  const renameButton = createPanelButton('cooc-words__button');
   renameButton.textContent = t('words.rename');
-  const frequencyButton = document.createElement('button');
-  frequencyButton.className = 'cooc-btn cooc-words__button';
-  frequencyButton.type = 'button';
+  const frequencyButton = createPanelButton('cooc-words__button');
   frequencyButton.textContent = t('words.setFreq');
-  const clusterButton = document.createElement('button');
-  clusterButton.className = 'cooc-btn cooc-words__button';
-  clusterButton.type = 'button';
+  const clusterButton = createPanelButton('cooc-words__button');
   clusterButton.textContent = t('words.setCluster');
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'cooc-btn cooc-words__button';
-  deleteButton.type = 'button';
+  const deleteButton = createPanelButton('cooc-words__button');
   deleteButton.textContent = t('words.delete');
   buttons.append(addButton, renameButton, frequencyButton, clusterButton, deleteButton);
 
@@ -228,9 +218,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     indexes.slice(slice.startIndex, slice.endIndex).forEach((nodeIndex) => {
       const node = state.file.spec.nodes[nodeIndex];
       if (!node) return;
-      const row = document.createElement('button');
-      row.className = 'cooc-btn cooc-btn--block cooc-words__row';
-      row.type = 'button';
+      const row = createPanelButton('cooc-btn--block cooc-words__row');
       row.dataset.nodeIndex = String(nodeIndex);
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', String(state.selectedNodeIndex === nodeIndex));
