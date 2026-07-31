@@ -1,6 +1,7 @@
 import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import {
+  allClusterIndexes,
   createFilterOptions,
   filterOptionsToInput,
   parseMinFrequency,
@@ -69,6 +70,9 @@ function ensureStyles(): void {
 .cooc-filter__clusters{display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto}
 .cooc-filter__slices{display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto}
 .cooc-filter__slices[hidden]{display:none}
+.cooc-filter__all{display:flex;flex-direction:column;margin-bottom:-6px}
+.cooc-filter__all[hidden]{display:none}
+.cooc-filter__check--all{padding-bottom:6px;border-bottom:1px solid var(--cooc-divider)}
 .cooc-filter__subtitle{font:600 12px system-ui,sans-serif;color:var(--cooc-text)}
 .cooc-filter__subtitle[hidden]{display:none}
 .cooc-filter__check{display:flex;gap:6px;align-items:center;color:var(--cooc-text);font:12px system-ui,sans-serif}
@@ -141,19 +145,27 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
   let topLinkRange: SliderRange = topLinkSliderRange(state.file);
   const clusters = document.createElement('div');
   clusters.className = 'cooc-filter__clusters';
+  // 一括操作「すべて」はスクロールする一覧の外に置く。一覧の中に入れると、件数が増えたとき
+  // スクロールで見えなくなり、全解除・全選択に使う面が一覧の先頭までの往復を要求する。
+  const clustersAll = document.createElement('div');
+  clustersAll.className = 'cooc-filter__all';
   const slicesTitle = document.createElement('div');
   slicesTitle.className = 'cooc-filter__subtitle';
   const slices = document.createElement('div');
   slices.className = 'cooc-filter__slices';
+  const slicesAll = document.createElement('div');
+  slicesAll.className = 'cooc-filter__all';
   const counts = document.createElement('div');
   counts.className = 'cooc-filter__counts';
   element.append(
     title,
     minFrequency.row,
+    clustersAll,
     clusters,
     minStrength.row,
     topLinks.row,
     slicesTitle,
+    slicesAll,
     slices,
     counts,
   );
@@ -215,9 +227,60 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     field.value.textContent = formatSliderNumber(sliderPositionFromText(inputState[key], range, edge));
   }
 
+  /**
+   * 一覧先頭の一括操作「すべて」（設計書 §3.2）。3 状態のチェックボックスで現在の選択を
+   * 要約する（全て選択済み＝選択、全て未選択＝未選択、混在＝中間状態）。押した向きは
+   * 「全て選択済みなら全解除、それ以外は全選択」で、描画時の状態から決める。クリックが
+   * checked をどう変えるかはブラウザの indeterminate の扱いに依存するため、そちらを
+   * 判定に使わない。
+   */
+  function renderSelectAll(
+    container: HTMLElement,
+    selectedCount: number,
+    totalCount: number,
+    onToggle: (selectAll: boolean) => void,
+  ): void {
+    container.replaceChildren();
+    container.hidden = totalCount === 0;
+    if (totalCount === 0) return;
+    const label = document.createElement('label');
+    label.className = 'cooc-filter__check cooc-filter__check--all';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    const allSelected = selectedCount === totalCount;
+    checkbox.checked = allSelected;
+    checkbox.indeterminate = selectedCount > 0 && !allSelected;
+    checkbox.addEventListener('change', () => {
+      onToggle(!allSelected);
+    });
+    const text = document.createElement('span');
+    text.textContent = t('filter.selectAll');
+    label.append(checkbox, text);
+    container.appendChild(label);
+  }
+
+  function renderClustersMaster(): void {
+    const clusterSpecs = state.file.spec.clusters ?? [];
+    // 選択集合には削除済みクラスタの添字が残り得るため、実在する添字だけを数える。
+    const selectedCount = [...inputState.selectedClusterIndexes].filter(
+      (index) => index < clusterSpecs.length,
+    ).length;
+    renderSelectAll(clustersAll, selectedCount, clusterSpecs.length, (selectAll) => {
+      inputState = {
+        ...inputState,
+        selectedClusterIndexes: selectAll ? allClusterIndexes(state.file) : new Set(),
+      };
+      // 個別の行と子（サブクラスタ）の無効状態を新しい集合で作り直す。サブクラスタの
+      // 選択集合はここでは変えない（設計書 §3.2。親の全解除で子が無効になる規則だけが働く）。
+      renderClusters();
+      emit();
+    });
+  }
+
   function renderClusters(): void {
     clusters.replaceChildren();
     const clusterSpecs = state.file.spec.clusters ?? [];
+    renderClustersMaster();
     if (clusterSpecs.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'cooc-filter__check';
@@ -246,6 +309,8 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
         subclusterBoxes.forEach((box) => {
           box.disabled = !checkbox.checked;
         });
+        // 「すべて」の 3 状態も同じ理由で即座に作り直す。
+        renderClustersMaster();
         emit();
       });
       // グラフ上の円と同じ色を示す見本。色は装飾で、情報の正はクラスタ名のテキスト側にある。
@@ -319,9 +384,21 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     slices.hidden = hidden;
     slicesTitle.textContent = t('filter.slices');
     slices.replaceChildren();
-    if (hidden) return;
+    if (hidden) {
+      renderSelectAll(slicesAll, 0, 0, () => undefined);
+      return;
+    }
 
     const selected = state.selectedSliceLabels;
+    const allLabels = sliceSpecs.map((entry) => entry.label);
+    // 選択には存在しないラベルが残り得る（設計書 §3.6.5）ため、実在するスライスだけを数える。
+    const selectedCount =
+      selected === undefined ? allLabels.length : allLabels.filter((label) => selected.includes(label)).length;
+    renderSelectAll(slicesAll, selectedCount, allLabels.length, (selectAll) => {
+      // 全選択も明示のラベル列（時間順）で通知する。ここでは再描画しない。選択はホストが
+      // 持つ状態であり、update() で戻ってきた値から描き直す（個別の行と同じ経路）。
+      options.onSelectedSliceLabelsChange(selectAll ? allLabels : []);
+    });
     sliceSpecs.forEach((slice) => {
       const label = document.createElement('label');
       label.className = 'cooc-filter__check';

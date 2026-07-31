@@ -91,6 +91,7 @@
     "timeline.moveLater": "後ろへ移動",
     "timeline.empty": "スライスがありません。追加すると、現在の値が最初のスライスへ引き継がれます。",
     "filter.slices": "表示するスライス",
+    "filter.selectAll": "すべて",
     "words.sliceValues": "スライス別の頻度",
     "links.sliceValues": "スライス別の強度",
     "note.slice": "スライス: {value}",

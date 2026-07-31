@@ -91,6 +91,7 @@
     "timeline.moveLater": "Move later",
     "timeline.empty": "No slices yet. Adding one carries the current values into the first slice.",
     "filter.slices": "Slices to show",
+    "filter.selectAll": "All",
     "words.sliceValues": "Frequency per slice",
     "links.sliceValues": "Strength per slice",
     "note.slice": "Slice: {value}",
