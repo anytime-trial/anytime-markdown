@@ -19,6 +19,10 @@ const LAYER_LABEL_MARGIN = 6;
 
 /** クラスタレーン名を、レーンの矩形の始端からどれだけ外へ離すか（画面ピクセル）。 */
 const CLUSTER_LANE_LABEL_MARGIN = 10;
+/** サブレーン名の文字の大きさ（画面ピクセル）。クラスタ名より一段小さくする（要件書「サブクラスタ」§2.4）。 */
+const CLUSTER_SUB_LANE_LABEL_FONT_SIZE = 11;
+/** サブレーン名をクラスタ名より内側へ字下げする量（画面ピクセル）。 */
+const CLUSTER_SUB_LANE_LABEL_INDENT = 12;
 
 /**
  * 座標系の契約: `drawGraph` は CSS ピクセル座標で描き、基底の変換行列（devicePixelRatio）は
@@ -207,6 +211,24 @@ export function drawGraph(opts: DrawGraphOptions): void {
       ctx.textAlign = 'left';
       ctx.textBaseline = 'bottom';
       ctx.fillText(lane.label, anchor.x, anchor.y - CLUSTER_LANE_LABEL_MARGIN);
+    }
+
+    // サブレーン名（要件書「サブクラスタ」§2.4）。大きさ・色・字下げの 3 つでクラスタ名と
+    // 差をつける。同じ見た目で描くと、名前が 2 段あることしか分からず階層が読めない。
+    for (const sub of lane.subLanes) {
+      if (sub.label === undefined) continue;
+      const subAnchor = worldToScreen({ x: sub.labelX, y: sub.labelY }, viewport);
+      ctx.font = `${CLUSTER_SUB_LANE_LABEL_FONT_SIZE}px sans-serif`;
+      ctx.fillStyle = theme.textSecondary;
+      if (vertical) {
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillText(sub.label, subAnchor.x - CLUSTER_LANE_LABEL_MARGIN - CLUSTER_SUB_LANE_LABEL_INDENT, subAnchor.y);
+      } else {
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(sub.label, subAnchor.x + CLUSTER_SUB_LANE_LABEL_INDENT, subAnchor.y - CLUSTER_LANE_LABEL_MARGIN);
+      }
     }
   }
 

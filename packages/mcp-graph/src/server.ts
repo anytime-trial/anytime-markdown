@@ -66,9 +66,19 @@ const cooccurrenceLinkSchema = z.object({
     .describe('Direction of the relation (source to target). Omit for an undirected cooccurrence'),
   note: noteSchema,
 });
+const cooccurrenceSubclusterSchema = z.object({
+  label: z.string().describe('Subcluster label'),
+  members: z.array(z.string()).describe('Subcluster member term labels'),
+});
 const cooccurrenceClusterSchema = z.object({
   label: z.string().describe('Cluster label'),
   members: z.array(z.string()).describe('Cluster member term labels'),
+  subclusters: z
+    .array(cooccurrenceSubclusterSchema)
+    .optional()
+    .describe(
+      'One level of subdivision inside the cluster. Members must be a subset of the cluster members and must not overlap each other',
+    ),
   note: noteSchema,
 });
 

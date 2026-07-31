@@ -65,6 +65,16 @@ function hasDirectedLink(links: readonly CooccurrenceLinkTuple[]): boolean {
   return links.some((link) => link.length === 4 && link[3] !== LINK_DIRECTION.none);
 }
 
+/** スキーマの版数。内容から導出する（`schemaVersionForSpec`）。 */
+export type CooccurrenceSchemaVersion = 1 | 2 | 3 | 4 | 5;
+
+/** 版数の下限。この版数以上でなければ、その内容を持つファイルを受理しない。 */
+const SCHEMA_VERSION_MIN = { direction: 2, notes: 3, timeline: 4, subclusters: 5 } as const;
+
+function hasSubcluster(spec: CooccurrenceFile['spec']): boolean {
+  return (spec.clusters ?? []).some((cluster) => (cluster.subclusters?.length ?? 0) > 0);
+}
+
 /**
  * spec の内容から版数を導出する。時間軸を持てば 4、メモを 1 件でも持てば 3、向きを 1 本でも
  * 持てば 2、いずれも無ければ 1（設計書 §2.2）。
@@ -76,7 +86,8 @@ function hasDirectedLink(links: readonly CooccurrenceLinkTuple[]): boolean {
  * Why not 共起（links）だけを見る関数のままにするか: メモは links の外にあるため、links だけを
  * 見る関数を残すと、メモを持つファイルが版数 2 以下で書かれ、自作のファイルが自作の検証に落ちる。
  */
-export function schemaVersionForSpec(spec: CooccurrenceFile['spec']): 1 | 2 | 3 | 4 {
+export function schemaVersionForSpec(spec: CooccurrenceFile['spec']): CooccurrenceSchemaVersion {
+  if (hasSubcluster(spec)) return 5;
   if (hasCooccurrenceTimeline(spec)) return 4;
   if (hasAnyCooccurrenceNote(spec)) return 3;
   return hasDirectedLink(spec.links) ? 2 : 1;
@@ -86,9 +97,9 @@ export interface CooccurrenceFile {
   meta: {
     /**
      * スキーマの版数。互換性のない変更で繰り上げる。向き付きの共起を含むとき 2、
-     * メモを含むとき 3、時間軸を含むとき 4（設計書 §2.2）。
+     * メモを含むとき 3、時間軸を含むとき 4、サブクラスタを含むとき 5（設計書 §2.2）。
      */
-    schemaVersion: 1 | 2 | 3 | 4;
+    schemaVersion: CooccurrenceSchemaVersion;
     /** 生成日時（ISO 8601・UTC）。 */
     generatedAt: string;
     /** 生成元。 */
@@ -102,8 +113,18 @@ export interface CooccurrenceFile {
     nodes: Array<{ label: string; frequency: number }>;
     /** 共起。[語の添字, 語の添字, 強度] または [語の添字, 語の添字, 強度, 向き]。 */
     links: CooccurrenceLinkTuple[];
-    /** クラスタ。members は nodes の添字。 */
-    clusters?: Array<{ label: string; members: number[] }>;
+    /**
+     * クラスタ。members は nodes の添字。
+     *
+     * `subclusters` はクラスタの中を 1 段だけ細分する（要件書「サブクラスタ」§2.1）。
+     * **所属を決めるのは `members` だけ**で、`subclusters` はその部分集合を分割するにすぎない。
+     * 導出に切り替えないのは、サブクラスタを知らない読み手にクラスタが空に見えるためである。
+     */
+    clusters?: Array<{
+      label: string;
+      members: number[];
+      subclusters?: Array<{ label: string; members: number[] }>;
+    }>;
     /** メモ。添字は同名の配列を指す。1 件も持たないときは書かない（設計書 §2.2）。 */
     notes?: CooccurrenceNotes;
     /** 時間軸。スライスを 1 つも持たないときは書かない（設計書 §2.2・§3.6）。 */
@@ -145,7 +166,11 @@ export type ValidationErrorCode =
   | 'too-many-slice-entries'
   | 'total-not-derived'
   | 'total-not-editable'
-  | 'slice-values-required';
+  | 'slice-values-required'
+  | 'subcluster-member-outside-cluster'
+  | 'subcluster-member-duplicated'
+  | 'subcluster-label-duplicated'
+  | 'subcluster-empty';
 
 export interface ValidationError {
   code: ValidationErrorCode;
@@ -181,6 +206,117 @@ function nodeCountOfSpec(spec: unknown): number | undefined {
   return Array.isArray(nodes) ? nodes.length : undefined;
 }
 
+/** 版数が下限以上か。版数が読めない（数でない）ときは、版数側のエラーに任せて通す。 */
+function atLeastVersion(schemaVersion: unknown, minimum: number): boolean {
+  return typeof schemaVersion !== 'number' || schemaVersion >= minimum;
+}
+
+/**
+ * サブクラスタの構造（要件書「サブクラスタ」§2.1・§2.2）。
+ *
+ * 所属の整合（クラスタの members の部分集合であること）は添字を解決してからでないと見られない
+ * ため、参照の検証側（`validateReferences`）で行う。ここは形だけを見る。
+ */
+/**
+ * サブクラスタの所属（要件書「サブクラスタ」§2.2）。
+ *
+ * `members` を唯一の正とするため、サブクラスタは**その部分集合**でなければならない。外れた語を
+ * 許すと、クラスタに属さない語がクラスタのレーンの中へ描かれ、色（クラスタ）と位置（レーン）が
+ * 食い違う。
+ *
+ * サブクラスタどうしの重複も拒否する。同じ語が 2 本のサブレーンに現れると、「2 つの性質を持つ
+ * 語」なのか書き間違いなのかが図から区別できない。
+ */
+function validateSubclusterReferences(
+  cluster: Record<string, unknown>,
+  clusterIndex: number,
+  clusterMembers: readonly unknown[],
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const subclusters = prop(cluster, 'subclusters');
+  if (!Array.isArray(subclusters)) return errors;
+  const owned = new Set(clusterMembers.filter((member): member is number => Number.isInteger(member)));
+  const claimed = new Set<number>();
+  subclusters.forEach((subcluster, k) => {
+    if (!isRecord(subcluster)) return;
+    const members = prop(subcluster, 'members');
+    if (!Array.isArray(members)) return;
+    members.forEach((member, j) => {
+      if (!Number.isInteger(member)) return;
+      const path = `spec.clusters.${clusterIndex}.subclusters.${k}.members.${j}`;
+      if (!owned.has(member)) {
+        errors.push(
+          error('subcluster-member-outside-cluster', path, 'subcluster member is not a member of the cluster'),
+        );
+        return;
+      }
+      if (claimed.has(member)) {
+        errors.push(error('subcluster-member-duplicated', path, 'subcluster member appears in another subcluster'));
+        return;
+      }
+      claimed.add(member);
+    });
+  });
+  return errors;
+}
+
+function validateSubclusterStructure(
+  cluster: Record<string, unknown>,
+  clusterIndex: number,
+  schemaVersion: unknown,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const subclusters = prop(cluster, 'subclusters');
+  if (subclusters === undefined) return errors;
+  if (!Array.isArray(subclusters)) {
+    errors.push(
+      error('invalid-schema', `spec.clusters.${clusterIndex}.subclusters`, 'subclusters must be an array'),
+    );
+    return errors;
+  }
+  if (subclusters.length > 0 && !atLeastVersion(schemaVersion, SCHEMA_VERSION_MIN.subclusters)) {
+    errors.push(
+      error(
+        'invalid-schema',
+        `spec.clusters.${clusterIndex}.subclusters`,
+        'subclusters require schemaVersion 5 or later',
+      ),
+    );
+  }
+  const seenLabels = new Set<string>();
+  subclusters.forEach((subcluster, k) => {
+    const path = `spec.clusters.${clusterIndex}.subclusters.${k}`;
+    if (!isRecord(subcluster)) {
+      errors.push(error('invalid-schema', path, 'subcluster must be an object'));
+      return;
+    }
+    const label = prop(subcluster, 'label');
+    if (typeof label !== 'string') {
+      errors.push(error('invalid-schema', `${path}.label`, 'subcluster label must be a string'));
+    } else if (seenLabels.has(label)) {
+      // 同じ名前の 2 本は、図の上で区別できない（レーン名が同じ帯が並ぶ）。
+      errors.push(error('subcluster-label-duplicated', `${path}.label`, 'subcluster label is duplicated'));
+    } else {
+      seenLabels.add(label);
+    }
+    const members = prop(subcluster, 'members');
+    if (!Array.isArray(members)) {
+      errors.push(error('invalid-schema', `${path}.members`, 'subcluster members must be an array'));
+      return;
+    }
+    if (members.length === 0) {
+      // 空のサブレーンは「語の無いサブクラスタ」と「書き忘れ」の区別が図から付かない。
+      errors.push(error('subcluster-empty', `${path}.members`, 'subcluster must have at least one member'));
+    }
+    members.forEach((member, j) => {
+      if (!Number.isInteger(member)) {
+        errors.push(error('invalid-schema', `${path}.members.${j}`, 'subcluster member must be an integer'));
+      }
+    });
+  });
+  return errors;
+}
+
 function validateTimelineStructure(timeline: Record<string, unknown>, schemaVersion: unknown): ValidationError[] {
   const errors: ValidationError[] = [];
 
@@ -190,8 +326,11 @@ function validateTimelineStructure(timeline: Record<string, unknown>, schemaVers
   } else {
     // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。向き・メモと同じ理由で、
     // 旧実装が拒否するファイルを新実装だけが受理する状態を作らない。
-    if (slices.length > 0 && schemaVersion !== 4) {
-      errors.push(error('invalid-schema', 'spec.timeline', 'timeline requires schemaVersion 4'));
+    // Why not `schemaVersion !== 4`（等値）: 版数を 1 つ足すたびに、時間軸を併用したファイルが
+    // 「新しい内容を持つのに時間軸の検査で落ちる」形で壊れる。実際にサブクラスタ（版数 5）で
+    // 踏んだ。向き・メモと同じく下限で比べる。
+    if (slices.length > 0 && !atLeastVersion(schemaVersion, SCHEMA_VERSION_MIN.timeline)) {
+      errors.push(error('invalid-schema', 'spec.timeline', 'timeline requires schemaVersion 4 or later'));
     }
     slices.forEach((slice, i) => {
       if (!isRecord(slice)) {
@@ -252,8 +391,8 @@ function validateStructure(file: unknown): ValidationError[] {
     errors.push(error('invalid-schema', 'meta', 'meta must be an object'));
   } else {
     schemaVersion = prop(meta, 'schemaVersion');
-    if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4) {
-      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1, 2, 3 or 4'));
+    if (!(Number.isInteger(schemaVersion) && (schemaVersion as number) >= 1 && (schemaVersion as number) <= 5)) {
+      errors.push(error('invalid-schema', 'meta.schemaVersion', 'schemaVersion must be 1, 2, 3, 4 or 5'));
     }
     if (typeof prop(meta, 'generatedAt') !== 'string') {
       errors.push(error('invalid-schema', 'meta.generatedAt', 'generatedAt must be a string'));
@@ -323,8 +462,8 @@ function validateStructure(file: unknown): ValidationError[] {
       if (link.length === 4) {
         // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。読めてしまうと、旧実装が
         // 拒否するファイルを新実装だけが受理する状態になり、どちらが正しいのか判断できなくなる。
-        if (schemaVersion === 1) {
-          errors.push(error('invalid-schema', `spec.links.${i}`, 'link with direction requires schemaVersion 2'));
+        if (!atLeastVersion(schemaVersion, SCHEMA_VERSION_MIN.direction)) {
+          errors.push(error('invalid-schema', `spec.links.${i}`, 'link with direction requires schemaVersion 2 or later'));
         }
         if (!Number.isInteger(link[3]) || link[3] < 0 || link[3] > 3) {
           errors.push(error('invalid-schema', `spec.links.${i}.3`, 'link direction must be an integer in 0..3'));
@@ -358,6 +497,7 @@ function validateStructure(file: unknown): ValidationError[] {
             );
           }
         });
+        errors.push(...validateSubclusterStructure(cluster, i, schemaVersion));
       });
     }
   }
@@ -369,8 +509,8 @@ function validateStructure(file: unknown): ValidationError[] {
     } else {
       // 版数が内容を説明していないファイルを受理しない（設計書 §2.6）。向きのときと同じ理由で、
       // 旧実装が拒否するファイルを新実装だけが受理する状態を作らない。
-      if (schemaVersion === 1 || schemaVersion === 2) {
-        errors.push(error('invalid-schema', 'spec.notes', 'notes require schemaVersion 3'));
+      if (!atLeastVersion(schemaVersion, SCHEMA_VERSION_MIN.notes)) {
+        errors.push(error('invalid-schema', 'spec.notes', 'notes require schemaVersion 3 or later'));
       }
       for (const target of COOCCURRENCE_NOTE_TARGETS) {
         const entries = prop(notes, target);
@@ -659,6 +799,7 @@ export function validateCooccurrenceFile(file: unknown): ValidationError[] {
           );
         }
       });
+      errors.push(...validateSubclusterReferences(cluster, i, members));
     });
   }
 

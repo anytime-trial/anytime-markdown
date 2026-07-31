@@ -59,9 +59,22 @@ export interface CooccurrenceLinkInput {
   note?: string;
 }
 
+/** クラスタの中の細分（要件書「サブクラスタ」§2.6）。メンバーは語ラベルで指す。 */
+export interface CooccurrenceSubclusterInput {
+  label: string;
+  members: string[];
+}
+
 export interface CooccurrenceClusterInput {
   label: string;
   members: string[];
+  /**
+   * クラスタの中を 1 段だけ細分する。省略時は細分なし。
+   *
+   * 所属を決めるのは `members` だけで、ここはその部分集合を分割する。部分集合であることと
+   * サブクラスタどうしが重ならないことは、書き出し前の検証（graph-core）が拒否する。
+   */
+  subclusters?: CooccurrenceSubclusterInput[];
   /** 省略時はメモなし。 */
   note?: string;
 }
@@ -354,7 +367,20 @@ function addClusters(
         errors.push(index);
       }
     });
-    converted.push({ label: cluster.label, members });
+    const subclusters: Array<{ label: string; members: number[] }> = [];
+    (cluster.subclusters ?? []).forEach((subcluster, k) => {
+      const subMembers: number[] = [];
+      subcluster.members.forEach((member, j) => {
+        const index = resolveLabel(indexes, member, `clusters.${i}.subclusters.${k}.members.${j}`);
+        if (typeof index === 'number') {
+          subMembers.push(index);
+        } else {
+          errors.push(index);
+        }
+      });
+      subclusters.push({ label: subcluster.label, members: subMembers });
+    });
+    converted.push({ label: cluster.label, members, ...(subclusters.length === 0 ? {} : { subclusters }) });
     attachNote(file, 'clusters', converted.length - 1, cluster.note);
   });
   file.spec.clusters = converted;
@@ -415,6 +441,14 @@ function toResult(pathName: string, file: CooccurrenceFile): WriteCooccurrenceRe
     result.clusters = file.spec.clusters.map((cluster, index) => ({
       label: cluster.label,
       members: cluster.members.map((member) => file.spec.nodes[member].label),
+      ...(cluster.subclusters === undefined
+        ? {}
+        : {
+            subclusters: cluster.subclusters.map((subcluster) => ({
+              label: subcluster.label,
+              members: subcluster.members.map((member) => file.spec.nodes[member].label),
+            })),
+          }),
       ...noteField(file, 'clusters', index),
     }));
   }

@@ -27,7 +27,13 @@ export interface ReadCooccurrenceResult {
     note?: string;
     sliceValues?: CooccurrenceSliceValueInput;
   }>;
-  clusters?: Array<{ label: string; members: string[]; note?: string }>;
+  clusters?: Array<{
+    label: string;
+    members: string[];
+    /** クラスタの中の細分（要件書「サブクラスタ」§2.6）。細分が無ければ省く。 */
+    subclusters?: Array<{ label: string; members: string[] }>;
+    note?: string;
+  }>;
 }
 
 export async function readCooccurrence(input: ReadCooccurrenceInput, rootDir: string): Promise<ReadCooccurrenceResult> {
@@ -65,6 +71,14 @@ export async function readCooccurrence(input: ReadCooccurrenceInput, rootDir: st
     result.clusters = file.spec.clusters.map((cluster, index) => ({
       label: cluster.label,
       members: cluster.members.map((member) => file.spec.nodes[member].label),
+      ...(cluster.subclusters === undefined
+        ? {}
+        : {
+            subclusters: cluster.subclusters.map((subcluster) => ({
+              label: subcluster.label,
+              members: subcluster.members.map((member) => file.spec.nodes[member].label),
+            })),
+          }),
       ...noteField(file, 'clusters', index),
     }));
   }

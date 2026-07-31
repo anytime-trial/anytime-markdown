@@ -248,3 +248,96 @@ describe('applyClusterLanes', () => {
     expect(applyClusterLanes(positions, [])).toEqual(positions);
   });
 });
+
+/**
+ * サブクラスタ（要件書「サブクラスタ」§2.3）。
+ *
+ * サブレーンはクラスタレーンと同じ軸方向の平行移動で、クラスタのオフセットに積み上がる。
+ * 余白はクラスタ間より狭くする — 同じ余白だと、どこがクラスタの切れ目でどこがサブクラスタの
+ * 切れ目か図から読めない。
+ */
+describe('サブレーン', () => {
+  // クラスタ 0 = 語 0,1,2（y = 0, 20, 60）、クラスタ 1 = 語 3（y = 500）。
+  const positions: Array<[number, number]> = [
+    [0, 0],
+    [10, 20],
+    [-5, 60],
+    [30, 500],
+  ];
+  const membership = [0, 0, 0, 1];
+  const padding = 10;
+  const gap = 120;
+
+  function lanesWith(subclusters: number[][][]): ReturnType<typeof computeClusterLanePlacements> {
+    return computeClusterLanePlacements({
+      positions,
+      membership,
+      clusterCount: 2,
+      axis: 'vertical',
+      gap,
+      padding,
+      subclusters,
+    });
+  }
+
+  it('サブクラスタが無ければサブレーンを作らない（従来どおり 1 本のレーン）', () => {
+    const lanes = lanesWith([[], []]);
+    expect(lanes.every((lane) => lane.subLanes.length === 0)).toBe(true);
+  });
+
+  it('サブクラスタごとにサブレーンを作り、残りを名前なしの残余サブレーンへ集める', () => {
+    const lanes = lanesWith([[[0], [1]], []]);
+    // 語 2 はどのサブクラスタにも入らない → 残余。
+    expect(lanes[0].subLanes.map((sub) => sub.subcluster)).toEqual([0, 1, undefined]);
+    expect(lanes[0].subLanes[2].members).toEqual([2]);
+  });
+
+  it('全てがサブクラスタに入れば残余サブレーンを作らない', () => {
+    const lanes = lanesWith([[[0], [1, 2]], []]);
+    expect(lanes[0].subLanes.map((sub) => sub.subcluster)).toEqual([0, 1]);
+  });
+
+  it('サブレーン間の余白はクラスタ間より狭い', () => {
+    const lanes = lanesWith([[[0], [1]], []]);
+    const span = (members: readonly number[], offset: number): { min: number; max: number } => {
+      const values = members.map((index) => positions[index][1]);
+      return { min: Math.min(...values) - padding + offset, max: Math.max(...values) + padding + offset };
+    };
+    const subs = lanes[0].subLanes.map((sub) => span(sub.members, sub.offsetY));
+    const subGap = subs[1].min - subs[0].max;
+    expect(subGap).toBeGreaterThan(0);
+    expect(subGap).toBeLessThan(gap);
+    // クラスタ 0 の終端とクラスタ 1 の始端の距離はクラスタ間の余白のまま。
+    const cluster1 = span(lanes[1].members, lanes[1].offsetY);
+    expect(cluster1.min - subs[subs.length - 1].max).toBeCloseTo(gap);
+  });
+
+  it('サブレーンに割ってもクラスタどうしは重ならない', () => {
+    const lanes = lanesWith([[[0], [1], [2]], []]);
+    const all = lanes.flatMap((lane) =>
+      (lane.subLanes.length === 0 ? [{ members: lane.members, offsetY: lane.offsetY }] : lane.subLanes).map((unit) => {
+        const values = unit.members.map((index) => positions[index][1]);
+        return { min: Math.min(...values) - padding + unit.offsetY, max: Math.max(...values) + padding + unit.offsetY };
+      }),
+    );
+    for (let i = 0; i + 1 < all.length; i++) expect(all[i + 1].min).toBeGreaterThan(all[i].max);
+  });
+
+  it('applyClusterLanes はサブレーンのオフセットで語を動かす', () => {
+    const lanes = lanesWith([[[0], [1]], []]);
+    const moved = applyClusterLanes(positions, lanes);
+    lanes[0].subLanes.forEach((sub) => {
+      sub.members.forEach((index) => {
+        expect(moved[index][1]).toBeCloseTo(positions[index][1] + sub.offsetY);
+        expect(moved[index][0]).toBeCloseTo(positions[index][0]);
+      });
+    });
+  });
+
+  it('サブレーン名の位置はレーン名と同じ側の軸に並ぶ', () => {
+    const lanes = lanesWith([[[0], [1]], []]);
+    expect(lanes[0].subLanes.every((sub) => sub.labelX === lanes[0].labelX)).toBe(true);
+    // 先頭のサブレーンはクラスタの始端と同じ位置から始まる。
+    expect(lanes[0].subLanes[0].labelY).toBeCloseTo(lanes[0].labelY);
+  });
+});

@@ -21,6 +21,117 @@ describe('cooccurrence tools', () => {
     return parseCoocFile(await fs.readFile(path.join(tmpDir, testFile), 'utf-8'));
   }
 
+  /**
+   * サブクラスタ（要件書「サブクラスタ」§2.6）。ラベル→添字の変換と検証はツール側が持つ。
+   * 検証を通さないと、UI からは作れない不正なファイルを MCP からだけ作れる穴が空く
+   * （向き付き共起で同型の穴を踏んだ実績がある）。
+   */
+  describe('サブクラスタ', () => {
+    const base: WriteCooccurrenceInput = {
+      path: testFile,
+      mode: 'replace',
+      terms: [
+        { label: '半導体関連株', frequency: 10 },
+        { label: '電子部品', frequency: 6 },
+        { label: '内需株', frequency: 5 },
+      ],
+      links: [{ source: '半導体関連株', target: '電子部品', strength: 3 }],
+      clusters: [
+        {
+          label: '売られた側',
+          members: ['半導体関連株', '電子部品'],
+          subclusters: [
+            { label: '半導体・AI 関連', members: ['半導体関連株'] },
+            { label: '電子部品', members: ['電子部品'] },
+          ],
+        },
+        { label: '買われた側', members: ['内需株'] },
+      ],
+    };
+
+    it('ラベルで受けたサブクラスタを添字で保存し、版数 5 で書く', async () => {
+      const result = await writeCooccurrence(base, tmpDir);
+      expect(result.ok).toBe(true);
+
+      const saved = await readSaved();
+      expect(saved.meta.schemaVersion).toBe(5);
+      expect(saved.spec.clusters?.[0].subclusters).toEqual([
+        { label: '半導体・AI 関連', members: [0] },
+        { label: '電子部品', members: [1] },
+      ]);
+      // 細分していないクラスタには subclusters を書かない。
+      expect(saved.spec.clusters?.[1].subclusters).toBeUndefined();
+    });
+
+    it('read_cooccurrence がサブクラスタをラベルで返す', async () => {
+      await writeCooccurrence(base, tmpDir);
+      const read = await readCooccurrence({ path: testFile }, tmpDir);
+      expect(read.clusters?.[0].subclusters).toEqual([
+        { label: '半導体・AI 関連', members: ['半導体関連株'] },
+        { label: '電子部品', members: ['電子部品'] },
+      ]);
+      expect(read.clusters?.[1].subclusters).toBeUndefined();
+    });
+
+    it('クラスタの members に無い語をサブクラスタへ入れると拒否する', async () => {
+      const result = await writeCooccurrence(
+        {
+          ...base,
+          clusters: [
+            {
+              label: '売られた側',
+              members: ['半導体関連株'],
+              subclusters: [{ label: '誤り', members: ['内需株'] }],
+            },
+          ],
+        },
+        tmpDir,
+      );
+      expect(result.ok).toBe(false);
+      expect(result.errors?.map((e) => e.code)).toContain('subcluster-member-outside-cluster');
+      // 拒否したらファイルを書かない（部分的に書き込んだ状態を残さない）。
+      await expect(fs.readFile(path.join(tmpDir, testFile), 'utf-8')).rejects.toThrow();
+    });
+
+    it('サブクラスタどうしでメンバーが重複すると拒否する', async () => {
+      const result = await writeCooccurrence(
+        {
+          ...base,
+          clusters: [
+            {
+              label: '売られた側',
+              members: ['半導体関連株', '電子部品'],
+              subclusters: [
+                { label: 'a', members: ['半導体関連株', '電子部品'] },
+                { label: 'b', members: ['電子部品'] },
+              ],
+            },
+          ],
+        },
+        tmpDir,
+      );
+      expect(result.ok).toBe(false);
+      expect(result.errors?.map((e) => e.code)).toContain('subcluster-member-duplicated');
+    });
+
+    it('未定義の語をサブクラスタへ入れると拒否する', async () => {
+      const result = await writeCooccurrence(
+        {
+          ...base,
+          clusters: [
+            {
+              label: '売られた側',
+              members: ['半導体関連株'],
+              subclusters: [{ label: '誤り', members: ['存在しない語'] }],
+            },
+          ],
+        },
+        tmpDir,
+      );
+      expect(result.ok).toBe(false);
+    });
+  });
+
   it('should create a .cooc.json file and save label endpoints as indexes', async () => {
     const result = await writeCooccurrence({
       path: testFile,
