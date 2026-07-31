@@ -19,6 +19,7 @@
     "filter.minFrequency": "最小頻度",
     "filter.minStrength": "最小共起強度",
     "filter.topLinks": "上位の共起",
+    "filter.noFilter": "全件",
     "filter.noClusters": "クラスタなし",
     "filter.wordsCount": "{visible} / {total} 語",
     "filter.cooccurrencesCount": "{visible} / {total} 共起",

@@ -52,6 +52,8 @@ function viewerCss(): string {
     ".cooc-rail",
     ".cooc-rail__item",
     ".cooc-filter",
+    ".cooc-filter__head",
+    ".cooc-filter__bounds",
     ".cooc-words",
     ".cooc-words__viewport",
     ".cooc-words__row",
@@ -120,8 +122,14 @@ ${viewerCss()}
    <div class="cooc-filter__title">絞り込み</div>
    <label class="cooc-filter__field"><span>最小頻度</span><input type="number"></label>
    <div class="cooc-filter__clusters">${clusters}</div>
-   <label class="cooc-filter__field"><span>最小共起強度</span><input type="number"></label>
-   <label class="cooc-filter__field"><span>上位の共起</span><input type="number"></label>
+   <label class="cooc-filter__field">
+    <span class="cooc-filter__head"><span>最小共起強度</span><span class="cooc-filter__value">全件</span></span>
+    <input type="range" min="0.1" max="2.4" step="0.023" value="0.1">
+    <span class="cooc-filter__bounds"><span>0.1</span><span>2.4</span></span></label>
+   <label class="cooc-filter__field">
+    <span class="cooc-filter__head"><span>上位の共起</span><span class="cooc-filter__value">全件</span></span>
+    <input type="range" min="1" max="51" step="1" value="51">
+    <span class="cooc-filter__bounds"><span>1</span><span>51</span></span></label>
    <div class="cooc-filter__counts"><div>36 / 36 語</div><div>51 / 51 共起</div></div>
   </section>
  </div>

@@ -1,6 +1,20 @@
 import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
-import { createFilterOptions, filterOptionsToInput, parseMinFrequency, parseMinStrength, parseTopLinkCount, type FilterModelInput } from './filterModel';
+import {
+  createFilterOptions,
+  filterOptionsToInput,
+  parseMinFrequency,
+  parseMinStrength,
+  parseTopLinkCount,
+  roundSliderValue,
+  sliderPositionFromText,
+  sliderTextFromPosition,
+  strengthSliderRange,
+  topLinkSliderRange,
+  type FilterModelInput,
+  type SliderNoFilterEdge,
+  type SliderRange,
+} from './filterModel';
 import { clusterColorVarName } from '../theme/readTheme';
 import { ensureButtonBaseStyles } from './buttonBaseStyle';
 
@@ -45,6 +59,11 @@ function ensureStyles(): void {
 .cooc-filter__title{font:600 13px system-ui,sans-serif;color:var(--cooc-text)}
 .cooc-filter__field{display:flex;flex-direction:column;gap:4px;font:12px system-ui,sans-serif;color:var(--cooc-text-secondary)}
 .cooc-filter__field input{box-sizing:border-box;width:100%;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);padding:6px 8px;font:12px system-ui,sans-serif}
+.cooc-filter__field input[type=range]{border:none;background:transparent;padding:0;accent-color:var(--cooc-accent,#E8A012);cursor:pointer}
+.cooc-filter__field input[type=range]:disabled{cursor:default;opacity:0.5}
+.cooc-filter__head{display:flex;gap:8px;align-items:baseline;justify-content:space-between}
+.cooc-filter__value{flex:0 0 auto;color:var(--cooc-text);font:12px system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.cooc-filter__bounds{display:flex;justify-content:space-between;color:var(--cooc-text-secondary);font:11px system-ui,sans-serif;font-variant-numeric:tabular-nums}
 .cooc-filter__clusters{display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto}
 .cooc-filter__slices{display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto}
 .cooc-filter__slices[hidden]{display:none}
@@ -57,7 +76,13 @@ function ensureStyles(): void {
   document.head.appendChild(style);
 }
 
-function inputRow(label: string, value: string): { row: HTMLElement; input: HTMLInputElement } {
+interface FieldRow {
+  row: HTMLElement;
+  input: HTMLInputElement;
+  label: HTMLElement;
+}
+
+function inputRow(label: string, value: string): FieldRow {
   const row = document.createElement('label');
   row.className = 'cooc-filter__field';
   const text = document.createElement('span');
@@ -66,7 +91,41 @@ function inputRow(label: string, value: string): { row: HTMLElement; input: HTML
   input.type = 'number';
   input.value = value;
   row.append(text, input);
-  return { row, input };
+  return { row, input, label: text };
+}
+
+interface SliderFieldRow extends FieldRow {
+  /** 現在値の表示。可動域だけでは今どこにいるかが読めないため、数値も併記する。 */
+  value: HTMLElement;
+  /** 可動域の両端の表示。「どこまで動かせるか」＝データの分布の要約（設計書 §3.2）。 */
+  lowerBound: HTMLElement;
+  upperBound: HTMLElement;
+}
+
+function sliderRow(label: string): SliderFieldRow {
+  const row = document.createElement('label');
+  row.className = 'cooc-filter__field';
+  const head = document.createElement('span');
+  head.className = 'cooc-filter__head';
+  const text = document.createElement('span');
+  text.textContent = label;
+  const value = document.createElement('span');
+  value.className = 'cooc-filter__value';
+  head.append(text, value);
+  const input = document.createElement('input');
+  input.type = 'range';
+  const bounds = document.createElement('span');
+  bounds.className = 'cooc-filter__bounds';
+  const lowerBound = document.createElement('span');
+  const upperBound = document.createElement('span');
+  bounds.append(lowerBound, upperBound);
+  row.append(head, input, bounds);
+  return { row, input, label: text, value, lowerBound, upperBound };
+}
+
+/** 表示用の数値。刻みで生じた端数を落とし、整数は小数点を付けずに出す。 */
+function formatSliderNumber(value: number): string {
+  return String(roundSliderValue(value));
 }
 
 export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandle {
@@ -83,8 +142,10 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
   title.textContent = t('filter.title');
 
   const minFrequency = inputRow(t('filter.minFrequency'), inputState.minFrequencyText);
-  const minStrength = inputRow(t('filter.minStrength'), inputState.minStrengthText);
-  const topLinks = inputRow(t('filter.topLinks'), inputState.topLinkCountText);
+  const minStrength = sliderRow(t('filter.minStrength'));
+  const topLinks = sliderRow(t('filter.topLinks'));
+  let strengthRange: SliderRange = strengthSliderRange(state.file);
+  let topLinkRange: SliderRange = topLinkSliderRange(state.file);
   const clusters = document.createElement('div');
   clusters.className = 'cooc-filter__clusters';
   const slicesTitle = document.createElement('div');
@@ -126,9 +187,47 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     });
   }
 
+  /**
+   * つまみの位置を絞り込みの入力へ写す。位置が絞り込みなしの端にあるときは条件を持たない状態
+   * （空文字）へ落とす。端に戻せば元に戻ることを保つのが、既定値を絞り込みなしに置く
+   * 設計書 §3.2 のスライダー版である。
+   */
+  function bindSlider(
+    field: SliderFieldRow,
+    key: 'minStrengthText' | 'topLinkCountText',
+    range: () => SliderRange,
+    edge: SliderNoFilterEdge,
+  ): void {
+    field.input.addEventListener('input', () => {
+      inputState = { ...inputState, [key]: sliderTextFromPosition(Number(field.input.value), range(), edge) };
+      renderSliderValue(field, key, range(), edge);
+      emit();
+    });
+  }
+
   bindTextInput(minFrequency.input, 'minFrequencyText');
-  bindTextInput(minStrength.input, 'minStrengthText');
-  bindTextInput(topLinks.input, 'topLinkCountText');
+  bindSlider(minStrength, 'minStrengthText', () => strengthRange, 'min');
+  bindSlider(topLinks, 'topLinkCountText', () => topLinkRange, 'max');
+
+  function renderSliderValue(
+    field: SliderFieldRow,
+    key: 'minStrengthText' | 'topLinkCountText',
+    range: SliderRange,
+    edge: SliderNoFilterEdge,
+  ): void {
+    // 動かせる幅が無いとき（共起が無い・強度が 1 種類）は、動かせない値を現在値として出さない。
+    if (!range.enabled) {
+      field.value.textContent = edge === 'max' ? t('filter.noFilter') : '—';
+      return;
+    }
+    // 絞り込みなしの端では数値でなく「全件」と出す。上位の共起で総数（例: 42）と出すと、共起が
+    // 43 本に増えたときに、何もしていないのに絞り込みが始まったように見える。
+    if (inputState[key] === '') {
+      field.value.textContent = t('filter.noFilter');
+      return;
+    }
+    field.value.textContent = formatSliderNumber(sliderPositionFromText(inputState[key], range, edge));
+  }
 
   function renderClusters(): void {
     clusters.replaceChildren();
@@ -225,17 +324,37 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     counts.append(nodes, links);
   }
 
+  function syncSlider(
+    field: SliderFieldRow,
+    key: 'minStrengthText' | 'topLinkCountText',
+    range: SliderRange,
+    edge: SliderNoFilterEdge,
+  ): void {
+    field.input.min = String(range.min);
+    field.input.max = String(range.max);
+    field.input.step = String(range.step);
+    field.input.disabled = !range.enabled;
+    if (document.activeElement !== field.input) {
+      field.input.value = String(sliderPositionFromText(inputState[key], range, edge));
+    }
+    field.lowerBound.textContent = range.enabled ? formatSliderNumber(range.min) : '';
+    field.upperBound.textContent = range.enabled ? formatSliderNumber(range.max) : '';
+    renderSliderValue(field, key, range, edge);
+  }
+
   function syncInputs(): void {
     if (document.activeElement !== minFrequency.input) minFrequency.input.value = inputState.minFrequencyText;
-    if (document.activeElement !== minStrength.input) minStrength.input.value = inputState.minStrengthText;
-    if (document.activeElement !== topLinks.input) topLinks.input.value = inputState.topLinkCountText;
+    strengthRange = strengthSliderRange(state.file);
+    topLinkRange = topLinkSliderRange(state.file);
+    syncSlider(minStrength, 'minStrengthText', strengthRange, 'min');
+    syncSlider(topLinks, 'topLinkCountText', topLinkRange, 'max');
   }
 
   function render(): void {
     title.textContent = t('filter.title');
-    minFrequency.row.querySelector('span')!.textContent = t('filter.minFrequency');
-    minStrength.row.querySelector('span')!.textContent = t('filter.minStrength');
-    topLinks.row.querySelector('span')!.textContent = t('filter.topLinks');
+    minFrequency.label.textContent = t('filter.minFrequency');
+    minStrength.label.textContent = t('filter.minStrength');
+    topLinks.label.textContent = t('filter.topLinks');
     syncInputs();
     renderClusters();
     renderSlices();
@@ -253,8 +372,10 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
       const nextInputState = filterOptionsToInput(state.file, state.filter);
       inputState = {
         minFrequencyText: active === minFrequency.input ? minFrequency.input.value : nextInputState.minFrequencyText,
-        minStrengthText: active === minStrength.input ? minStrength.input.value : nextInputState.minStrengthText,
-        topLinkCountText: active === topLinks.input ? topLinks.input.value : nextInputState.topLinkCountText,
+        // スライダーの `value` はつまみ位置であって絞り込みの値ではない（端＝空文字）。操作中は
+        // 位置ではなく、直前の `input` で書いた入力の側を残す。
+        minStrengthText: active === minStrength.input ? inputState.minStrengthText : nextInputState.minStrengthText,
+        topLinkCountText: active === topLinks.input ? inputState.topLinkCountText : nextInputState.topLinkCountText,
         selectedClusterIndexes: nextInputState.selectedClusterIndexes,
       };
       render();
