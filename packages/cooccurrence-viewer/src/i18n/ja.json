@@ -106,7 +106,7 @@
     "edit.cluster": "クラスタ",
     "edit.strength": "強度（{source} との共起）",
     "edit.sliceFrequencies": "スライス別の頻度",
-    "edit.sliceStrengths": "スライス別の強度",
+    "edit.sliceStrengths": "スライス別の強度（{source} との共起）",
     "edit.submit": "登録",
     "edit.cancel": "キャンセル",
     "edit.errorEmptyLabel": "語名を入力してください",
@@ -115,6 +115,8 @@
     "edit.errorInvalidStrength": "強度には 0 以上の数値を入力してください",
     "edit.errorRejected": "登録できませんでした: {reason}",
     "edit.add": "この語につながる語を追加",
-    "edit.unavailable3d": "3D 表示中は図から追加できません。標準表示へ切り替えてください"
+    "edit.unavailable3d": "3D 表示中は図から追加できません。標準表示へ切り替えてください",
+    "edit.errorNoSliceFrequency": "いずれかの期に頻度を入力してください",
+    "edit.errorNoSliceStrength": "いずれかの期に強度を入力してください"
   }
 }
