@@ -48,8 +48,14 @@ export interface SliderRange {
   enabled: boolean;
 }
 
-/** スライダーの刻みで生じる浮動小数の端数を落とす。表示値と保存値を一致させる。 */
-function roundSliderValue(value: number): number {
+/**
+ * スライダーの刻みで生じる浮動小数の端数を落とす。表示値と保存値を一致させる。
+ *
+ * SHORTCUT: 丸めを 4 桁固定にしている. ceiling: 可動域の幅が 0.0001 未満だと表示上は同じ値に
+ * 見える（つまみは動く）. upgrade: 強度がその桁で意味を持つファイルが現れたら、刻みに応じた
+ * 有効桁へ切り替える.
+ */
+export function roundSliderValue(value: number): number {
   return Number(value.toFixed(4));
 }
 
@@ -68,7 +74,11 @@ export function strengthSliderRange(file: CooccurrenceFile): SliderRange {
   if (strengths.length === 0) return rangeFrom(0, 0, 1);
   const min = Math.min(...strengths);
   const max = Math.max(...strengths);
-  return rangeFrom(min, max, roundSliderValue((max - min) / SLIDER_STEP_COUNT));
+  // 刻みは端数を落とした値を使うが、可動域が狭いと 4 桁の丸めで 0 になる（例: 幅 0.00001）。
+  // `step="0"` は不正値で、ブラウザは実装依存の既定（多くは 1）へ落ちるため、可動域より粗い
+  // 刻みしか選べない＝実質操作できないスライダーになる。丸めで消えるときは生の刻みを使う。
+  const rawStep = (max - min) / SLIDER_STEP_COUNT;
+  return rangeFrom(min, max, roundSliderValue(rawStep) || rawStep);
 }
 
 /** 上位の共起のスライダーの可動域。右端＝共起の総数＝制限なし。 */

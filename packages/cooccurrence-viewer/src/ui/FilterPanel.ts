@@ -6,6 +6,7 @@ import {
   parseMinFrequency,
   parseMinStrength,
   parseTopLinkCount,
+  roundSliderValue,
   sliderPositionFromText,
   sliderTextFromPosition,
   strengthSliderRange,
@@ -124,7 +125,7 @@ function sliderRow(label: string): SliderFieldRow {
 
 /** 表示用の数値。刻みで生じた端数を落とし、整数は小数点を付けずに出す。 */
 function formatSliderNumber(value: number): string {
-  return String(Number(value.toFixed(4)));
+  return String(roundSliderValue(value));
 }
 
 export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandle {

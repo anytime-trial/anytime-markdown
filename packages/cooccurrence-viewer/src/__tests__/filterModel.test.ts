@@ -82,6 +82,13 @@ describe('filterModel スライダーの可動域', () => {
     expect(range.step).toBeGreaterThan(0);
   });
 
+  it('可動域が狭くても刻みが 0 にならない（step="0" は不正値でブラウザの既定へ落ちる）', () => {
+    const range = strengthSliderRange(fileWithLinks([[0, 1, 0.523401], [1, 2, 0.523402]]));
+    expect(range.enabled).toBe(true);
+    expect(range.step).toBeGreaterThan(0);
+    expect(range.step).toBeLessThan(range.max - range.min);
+  });
+
   it('共起が 1 本も無いときは両方の可動域を無効にする', () => {
     expect(strengthSliderRange(fileWithLinks([])).enabled).toBe(false);
     expect(topLinkSliderRange(fileWithLinks([])).enabled).toBe(false);
