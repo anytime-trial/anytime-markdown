@@ -93,6 +93,15 @@ describe('サブクラスタの検証', () => {
     expect(codes(file)).toContain('subcluster-label-duplicated');
   });
 
+  /**
+   * 空の名前を許すと、名前を持たない残余サブレーンと見た目で区別できなくなる。描画側は
+   * `label === undefined` でしか残余を判定しておらず、空文字は「名前を描いたのに何も出ない」
+   * 形で通り抜ける（図としては成立してしまう）。
+   */
+  it('名前が空文字のサブクラスタを拒否する', () => {
+    expect(codes(fileWithSubclusters([{ label: '', members: [0] }]))).toContain('empty-subcluster-label');
+  });
+
   it('メンバーが 0 件のサブクラスタを拒否する', () => {
     expect(codes(fileWithSubclusters([{ label: '空', members: [] }]))).toContain('subcluster-empty');
   });

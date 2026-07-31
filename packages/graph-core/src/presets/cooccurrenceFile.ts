@@ -170,6 +170,7 @@ export type ValidationErrorCode =
   | 'subcluster-member-outside-cluster'
   | 'subcluster-member-duplicated'
   | 'subcluster-label-duplicated'
+  | 'empty-subcluster-label'
   | 'subcluster-empty';
 
 export interface ValidationError {
@@ -293,6 +294,10 @@ function validateSubclusterStructure(
     const label = prop(subcluster, 'label');
     if (typeof label !== 'string') {
       errors.push(error('invalid-schema', `${path}.label`, 'subcluster label must be a string'));
+    } else if (label.length === 0) {
+      // 空の名前は、名前を持たない残余サブレーンと図の上で区別できない（描画側は名前の有無で
+      // 残余を判定している）。「名前を描いたのに何も出ない」形で通り抜けさせない。
+      errors.push(error('empty-subcluster-label', `${path}.label`, 'subcluster label must not be empty'));
     } else if (seenLabels.has(label)) {
       // 同じ名前の 2 本は、図の上で区別できない（レーン名が同じ帯が並ぶ）。
       errors.push(error('subcluster-label-duplicated', `${path}.label`, 'subcluster label is duplicated'));
