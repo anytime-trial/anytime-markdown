@@ -1,6 +1,7 @@
 import { filterCooccurrenceFile, type CooccurrenceFile, type CooccurrenceLinkTuple } from '@anytime-markdown/graph-core';
 import {
   createFilterOptions,
+  frequencySliderRange,
   parseMinFrequency,
   parseMinStrength,
   parseTopLinkCount,
@@ -92,6 +93,10 @@ describe('filterModel スライダーの可動域', () => {
   it('共起が 1 本も無いときは両方の可動域を無効にする', () => {
     expect(strengthSliderRange(fileWithLinks([])).enabled).toBe(false);
     expect(topLinkSliderRange(fileWithLinks([])).enabled).toBe(false);
+  });
+
+  it('頻度の可動域は語の頻度の最小〜最大とし、整数だけなら刻みも 1 にする', () => {
+    expect(frequencySliderRange(fileWithLinks([]))).toEqual({ min: 1, max: 3, step: 1, enabled: true });
   });
 
   it('上位の共起の可動域は 1 本から共起の総数までとする', () => {

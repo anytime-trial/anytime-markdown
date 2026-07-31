@@ -47,16 +47,18 @@ describe('FilterPanel', () => {
       onFilterChange: jest.fn(), onSelectedSliceLabelsChange: jest.fn(),
     });
     document.body.appendChild(panel.element);
-    const input = panel.element.querySelector('input[type="number"]') as HTMLInputElement;
+    // 3 条件ともスライダー。1 本目は最小出現頻度（可動域は語の頻度 1〜3）。
+    const input = panel.element.querySelector('input[type="range"]') as HTMLInputElement;
     input.focus();
-    input.value = '123';
+    input.value = '2';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     panel.update({
       file: file(),
       counts: { visibleNodeCount: 1, totalNodeCount: 3, visibleLinkCount: 0, totalLinkCount: 1 },
       t,
     });
     expect(document.activeElement).toBe(input);
-    expect(input.value).toBe('123');
+    expect(input.value).toBe('2');
     panel.destroy();
   });
 });

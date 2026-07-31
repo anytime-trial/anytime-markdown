@@ -58,7 +58,8 @@ describe('mountCooccurrenceViewer panel integration', () => {
     const handle = mountCooccurrenceViewer(container, { file: file(), themeMode: 'light' });
     await flush();
     const before = handle.getLayoutRunCount();
-    const input = container.querySelector('.cooc-filter input[type="number"]') as HTMLInputElement;
+    // 絞り込みの 1 本目は最小出現頻度のスライダー（可動域は語の頻度 2〜3）。
+    const input = container.querySelector('.cooc-filter input[type="range"]') as HTMLInputElement;
     input.value = '3';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     expect(handle.getLayoutRunCount()).toBe(before);

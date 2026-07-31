@@ -66,19 +66,37 @@ function rangeFrom(min: number, max: number, step: number): SliderRange {
   return { min, max, step: enabled ? step : 1, enabled };
 }
 
-/** 最小共起強度のスライダーの可動域。左端＝絞り込みなし・右端＝最強の 1 本だけ残る。 */
-export function strengthSliderRange(file: CooccurrenceFile): SliderRange {
-  const strengths = file.spec.links
-    .map((link) => readLink(link).strength)
-    .filter((strength) => Number.isFinite(strength));
-  if (strengths.length === 0) return rangeFrom(0, 0, 1);
-  const min = Math.min(...strengths);
-  const max = Math.max(...strengths);
-  // 刻みは端数を落とした値を使うが、可動域が狭いと 4 桁の丸めで 0 になる（例: 幅 0.00001）。
-  // `step="0"` は不正値で、ブラウザは実装依存の既定（多くは 1）へ落ちるため、可動域より粗い
-  // 刻みしか選べない＝実質操作できないスライダーになる。丸めで消えるときは生の刻みを使う。
+/**
+ * 実測値の並びから可動域を作る。左端＝最小値・右端＝最大値。
+ *
+ * 刻みは端数を落とした値を使うが、可動域が狭いと 4 桁の丸めで 0 になる（例: 幅 0.00001）。
+ * `step="0"` は不正値で、ブラウザは実装依存の既定（多くは 1）へ落ちるため、可動域より粗い
+ * 刻みしか選べない＝実質操作できないスライダーになる。丸めで消えるときは生の刻みを使う。
+ *
+ * 値が全て整数のときは刻みも 1 にする。回数のように整数でしか意味を持たない量で、つまみが
+ * 12.25 のような位置に止まると、読めない値が絞り込み条件として出ていく。
+ */
+function sliderRangeFromValues(values: readonly number[]): SliderRange {
+  if (values.length === 0) return rangeFrom(0, 0, 1);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (values.every(Number.isInteger)) return rangeFrom(min, max, 1);
   const rawStep = (max - min) / SLIDER_STEP_COUNT;
   return rangeFrom(min, max, roundSliderValue(rawStep) || rawStep);
+}
+
+/** 最小出現頻度のスライダーの可動域。左端＝絞り込みなし・右端＝最頻の語だけ残る。 */
+export function frequencySliderRange(file: CooccurrenceFile): SliderRange {
+  return sliderRangeFromValues(
+    file.spec.nodes.map((node) => node.frequency).filter((frequency) => Number.isFinite(frequency)),
+  );
+}
+
+/** 最小共起強度のスライダーの可動域。左端＝絞り込みなし・右端＝最強の 1 本だけ残る。 */
+export function strengthSliderRange(file: CooccurrenceFile): SliderRange {
+  return sliderRangeFromValues(
+    file.spec.links.map((link) => readLink(link).strength).filter((strength) => Number.isFinite(strength)),
+  );
 }
 
 /** 上位の共起のスライダーの可動域。右端＝共起の総数＝制限なし。 */
