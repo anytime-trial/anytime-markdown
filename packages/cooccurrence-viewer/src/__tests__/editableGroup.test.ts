@@ -53,23 +53,20 @@ describe('createEditableGroup', () => {
     expect(button.disabled).toBe(true);
   });
 
-  it('作り直しの後の解放で、外れた要素だけ登録から捨てる', () => {
+  it('登録を外した要素は以後の切り替えを受け取らない', () => {
     const group = createEditableGroup();
-    const attached = document.createElement('button');
-    document.body.append(attached);
-    group.register(attached);
-    const detached = group.register(document.createElement('button'));
-    group.releaseDetached();
+    const kept = group.register(document.createElement('button'));
+    const dropped = group.register(document.createElement('button'));
+    group.unregister(dropped);
     group.setEditable(false);
-    // 捨てられた要素は以後の切り替えを受け取らない。生きている要素は受け取る。
-    expect(detached.disabled).toBe(false);
-    expect(attached.disabled).toBe(true);
-    attached.remove();
+    expect(dropped.disabled).toBe(false);
+    expect(kept.disabled).toBe(true);
   });
 
-  it('解放を呼ばなければ未接続の要素にも切り替えが効く（生成直後の適用を壊さない）', () => {
+  it('文書へ挿す前の要素にも切り替えが効く（組み立て中の登録を捨てない）', () => {
     const group = createEditableGroup();
     const pending = group.register(document.createElement('button'));
+    expect(pending.isConnected).toBe(false);
     group.setEditable(false);
     expect(pending.disabled).toBe(true);
   });

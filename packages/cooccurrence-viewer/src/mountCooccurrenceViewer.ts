@@ -381,6 +381,8 @@ export function mountCooccurrenceViewer(
       },
     });
     wordListPanel = createWordListPanel({
+      // SHORTCUT: 編集モードの配線が入るまでは常に編集可とする. ceiling: 閲覧中も書き換えられる. upgrade: 図の編集モードを組み込む工程で editMode へ差し替える.
+      editable: true,
       file,
       visibleNodeIndexes,
       selectedNodeIndex,
@@ -391,6 +393,8 @@ export function mountCooccurrenceViewer(
       onFileChange: (nextFile) => applyFileChange(nextFile, true),
     });
     linkListPanel = createLinkListPanel({
+      // SHORTCUT: 編集モードの配線が入るまでは常に編集可とする. ceiling: 閲覧中も書き換えられる. upgrade: 図の編集モードを組み込む工程で editMode へ差し替える.
+      editable: true,
       file,
       visibleLinkIndexes,
       selectedNodeIndex,
@@ -408,6 +412,8 @@ export function mountCooccurrenceViewer(
       onFitContent: fitToGraph,
     });
     clusterListPanel = createClusterListPanel({
+      // SHORTCUT: 編集モードの配線が入るまでは常に編集可とする. ceiling: 閲覧中も書き換えられる. upgrade: 図の編集モードを組み込む工程で editMode へ差し替える.
+      editable: true,
       file,
       selectedClusterIndex,
       laneView: clusterLaneView,
@@ -435,6 +441,8 @@ export function mountCooccurrenceViewer(
       },
     });
     timelinePanel = createTimelinePanel({
+      // SHORTCUT: 編集モードの配線が入るまでは常に編集可とする. ceiling: 閲覧中も書き換えられる. upgrade: 図の編集モードを組み込む工程で editMode へ差し替える.
+      editable: true,
       file,
       view: timelineView,
       t,

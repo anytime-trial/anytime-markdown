@@ -10,6 +10,7 @@ import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import type { ClusterLaneViewState } from '../types';
 import { clusterColorVarName } from '../theme/readTheme';
 import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createEditableGroup } from './editableGroup';
 import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
 import { CLUSTER_LANE_GAP_MAX, CLUSTER_LANE_GAP_MIN, CLUSTER_LANE_GAP_STEP } from './clusterLaneModel';
 
@@ -35,6 +36,8 @@ export interface ClusterListPanelState {
 }
 
 export interface ClusterListPanelOptions extends ClusterListPanelState {
+  /** 編集モードの入／切。切のあいだはファイルを書き換える操作を無効にする（要件書 §2.1）。 */
+  editable: boolean;
   onSelectCluster(clusterIndex: number | null): void;
   onFileChange(file: CooccurrenceFile): void;
   /** 行のホバー。ポップアップの発火点（設計書 §3.1）。外れたときは null を渡す。 */
@@ -45,6 +48,8 @@ export interface ClusterListPanelOptions extends ClusterListPanelState {
 export interface ClusterListPanelHandle {
   element: HTMLElement;
   update(state: ClusterListPanelState): void;
+  /** 編集モードの入／切を反映する。 */
+  setEditable(editable: boolean): void;
   destroy(): void;
 }
 
@@ -84,6 +89,7 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
   ensureStyles();
   let state: ClusterListPanelState = options;
   let t = state.t;
+  const editGroup = createEditableGroup();
 
   const element = document.createElement('section');
   element.className = 'cooc-clusters';
@@ -138,6 +144,7 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
   error.className = 'cooc-clusters__error';
 
   const noteEditor: NoteEditorHandle = createNoteEditor({
+    edit: editGroup,
     t,
     onSet(text) {
       if (state.selectedClusterIndex === null) return;
@@ -249,6 +256,7 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
   }
 
   render();
+  editGroup.setEditable(options.editable);
 
   return {
     element,
@@ -256,6 +264,9 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
       state = nextState;
       t = state.t;
       render();
+    },
+    setEditable(editable: boolean): void {
+      editGroup.setEditable(editable);
     },
     destroy(): void {
       element.remove();
