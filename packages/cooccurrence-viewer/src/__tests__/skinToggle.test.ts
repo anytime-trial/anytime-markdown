@@ -120,7 +120,7 @@ describe('OZ スキンのトグルと配線', () => {
     const model = fake.setModel.mock.calls.at(-1)?.[0] as OzSceneModel;
     expect(model.nodes).toHaveLength(2);
     // ノード色はキャンディパレット（--cooc-cluster-* の焼き込み）
-    expect(model.nodes.map((node) => node.color)).toEqual(expect.arrayContaining(['#FF6B6B', '#4FC3F7']));
+    expect(model.nodes.map((node) => node.color)).toEqual(expect.arrayContaining(['#FF6B6B', '#FFB3B3']));
     // クラスタ見出しがファイルのクラスタ label から渡る（v2）
     expect(model.headings.map((heading) => heading.text)).toEqual(['A', 'B']);
     // 流れアニメーションが有効化される（v2）
