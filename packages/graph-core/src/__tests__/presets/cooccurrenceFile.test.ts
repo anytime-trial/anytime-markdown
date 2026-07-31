@@ -314,8 +314,18 @@ describe('向きの検証', () => {
     expect(validateCooccurrenceFile(base([[0, 1, 5]], 4))).toEqual([]);
   });
 
-  it('版数 5 は拒否する', () => {
-    const errors = validateCooccurrenceFile(base([[0, 1, 5]], 5));
+  // 版数 5 はサブクラスタの導入で有効になった（要件書「サブクラスタ」§2.1）。
+  it('版数 5 は受理する', () => {
+    expect(validateCooccurrenceFile(base([[0, 1, 5]], 5))).toEqual([]);
+  });
+
+  it('版数 6 は拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5]], 6));
+    expect(errors.some((e) => e.path === 'meta.schemaVersion')).toBe(true);
+  });
+
+  it('版数が整数でなければ拒否する', () => {
+    const errors = validateCooccurrenceFile(base([[0, 1, 5]], 4.5));
     expect(errors.some((e) => e.path === 'meta.schemaVersion')).toBe(true);
   });
 

@@ -155,8 +155,8 @@ describe('クラスタレーン名', () => {
       timeLinks: [],
       layers: [],
       clusterLanes: [
-        { cluster: 0, axis, label: '赤', color: '#f00', labelX: 0, labelY: 0 },
-        { axis, label: '未分類', color: '#888', labelX: 0, labelY: 200 },
+        { cluster: 0, axis, label: '赤', color: '#f00', labelX: 0, labelY: 0, subLanes: [] },
+        { axis, label: '未分類', color: '#888', labelX: 0, labelY: 200, subLanes: [] },
       ],
     };
   }
@@ -179,6 +179,38 @@ describe('クラスタレーン名', () => {
     const lane = texts.find((entry) => entry.text === '赤');
     expect(lane).toBeDefined();
     expect(lane!.y).toBeLessThan(arcs[0].y);
+  });
+
+  it('サブレーン名をクラスタ名より内側・小さく描く', () => {
+    const graph: RenderGraph = {
+      nodes: [node()],
+      links: [],
+      timeLinks: [],
+      layers: [],
+      clusterLanes: [
+        {
+          cluster: 0,
+          axis: 'vertical',
+          label: '売られた側',
+          color: '#f00',
+          labelX: 0,
+          labelY: 0,
+          subLanes: [
+            { label: '半導体・AI 関連', labelX: 0, labelY: 0 },
+            { labelX: 0, labelY: 80 },
+          ],
+        },
+      ],
+    };
+    const { texts } = drawAt(1, { scale: 1, offsetX: 0, offsetY: 0 }, graph);
+    const cluster = texts.find((entry) => entry.text === '売られた側');
+    const sub = texts.find((entry) => entry.text === '半導体・AI 関連');
+    expect(cluster).toBeDefined();
+    expect(sub).toBeDefined();
+    // 縦レーンでは右揃えのため、内側へ字下げすると x が小さくなる。
+    expect(sub!.x).toBeLessThan(cluster!.x);
+    // 名前を持たない残余サブレーンは描かない。
+    expect(texts.filter((entry) => entry.text === '').length).toBe(0);
   });
 
   it('レーンが無ければ名前は描かない', () => {

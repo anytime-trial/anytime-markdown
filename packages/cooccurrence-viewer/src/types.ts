@@ -90,6 +90,13 @@ export interface ClusterLaneState {
   laneCount: number;
   /** 未分類レーンがあるか。 */
   hasUnclustered: boolean;
+  /**
+   * サブレーンの総本数（名前なしの残余サブレーンを含む。要件書「サブクラスタ」§2.8）。
+   * 細分していないクラスタは 0 本として数える。
+   */
+  subLaneCount: number;
+  /** サブクラスタに入らない語の残余サブレーンがあるか。 */
+  hasResidualSubLane: boolean;
 }
 
 /** 観測点。レイヤー表示の状態。 */
@@ -267,6 +274,21 @@ export interface RenderClusterLane {
   label: string;
   /** レーン名の色（クラスタ色。色とレーンの対応を図の中で結び直せるようにする）。 */
   color: string;
+  labelX: number;
+  labelY: number;
+  /**
+   * クラスタの中の細分（要件書「サブクラスタ」§2.3）。細分していないクラスタでは空。
+   *
+   * サブクラスタは色を持たない。濃淡はすでにカテゴリ内の 2 クラスタを分ける符号として使われて
+   * おり、3 段目の濃淡を足すと色から階層を読めなくなる。入れ子は位置と名前で表す。
+   */
+  subLanes: readonly RenderClusterSubLane[];
+}
+
+/** 描いたサブレーン 1 本。残余（どのサブクラスタにも入らない語）は名前を持たない。 */
+export interface RenderClusterSubLane {
+  /** サブクラスタ名。残余サブレーンでは undefined（名前を描かない）。 */
+  label?: string;
   labelX: number;
   labelY: number;
 }

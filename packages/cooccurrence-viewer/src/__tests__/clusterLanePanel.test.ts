@@ -152,6 +152,91 @@ describe('クラスタレーン表示', () => {
     }
   });
 
+  describe('サブクラスタ（要件書「サブクラスタ」§2.3・§2.5・§2.8）', () => {
+    function subclusteredFile(all: boolean): CooccurrenceFile {
+      const base = file();
+      base.meta.schemaVersion = 5;
+      base.spec.clusters = [
+        {
+          label: '売られた側',
+          members: [0, 1],
+          subclusters: all
+            ? [
+                { label: '半導体・AI 関連', members: [0] },
+                { label: '電子部品', members: [1] },
+              ]
+            : [{ label: '半導体・AI 関連', members: [0] }],
+        },
+        { label: '買われた側', members: [2] },
+      ];
+      base.layout!.specHash = computeSpecHash(base.spec);
+      return base;
+    }
+
+    it('サブレーンの本数と残余の有無を観測点から読める', async () => {
+      const mounted = mount({ file: subclusteredFile(false) });
+      await flush();
+      enableLanes(mounted.container);
+
+      const state = mounted.handle.getClusterLaneState();
+      // 名前付き 1 本 + 残余 1 本。細分していない「買われた側」と未分類は 0 本として数える。
+      expect(state?.subLaneCount).toBe(2);
+      expect(state?.hasResidualSubLane).toBe(true);
+      mounted.handle.destroy();
+    });
+
+    it('全ての語がサブクラスタに入れば残余サブレーンは無い', async () => {
+      const mounted = mount({ file: subclusteredFile(true) });
+      await flush();
+      enableLanes(mounted.container);
+
+      const state = mounted.handle.getClusterLaneState();
+      expect(state?.subLaneCount).toBe(2);
+      expect(state?.hasResidualSubLane).toBe(false);
+      mounted.handle.destroy();
+    });
+
+    it('サブクラスタを持たないファイルではサブレーンを作らない', async () => {
+      const mounted = mount({ file: file() });
+      await flush();
+      enableLanes(mounted.container);
+
+      expect(mounted.handle.getClusterLaneState()).toMatchObject({
+        subLaneCount: 0,
+        hasResidualSubLane: false,
+      });
+      mounted.handle.destroy();
+    });
+
+    it('レーン化していなくてもクラスタタブにサブクラスタ行が出る', async () => {
+      const mounted = mount({ file: subclusteredFile(true) });
+      await flush();
+      openTab(mounted.container, 'clusters');
+
+      const rows = [...mounted.container.querySelectorAll('.cooc-clusters__subrow')];
+      expect(rows.map((row) => row.querySelector('.cooc-clusters__label')?.textContent)).toEqual([
+        '半導体・AI 関連',
+        '電子部品',
+      ]);
+      // サブクラスタは色を持たないため、色見本を出さない。
+      expect(rows.every((row) => row.querySelector('.cooc-clusters__swatch') === null)).toBe(true);
+      mounted.handle.destroy();
+    });
+
+    it('レーン化しても点線の本数は変わらない', async () => {
+      const base = subclusteredFile(true);
+      base.meta.schemaVersion = 5;
+      base.spec.timeline = file({ timeline: true }).spec.timeline;
+      base.layout!.specHash = computeSpecHash(base.spec);
+      const mounted = mount({ file: base });
+      await flush();
+      const before = mounted.handle.getTimelineLayerState()?.timeLinkCount;
+      enableLanes(mounted.container);
+      expect(mounted.handle.getTimelineLayerState()?.timeLinkCount).toBe(before);
+      mounted.handle.destroy();
+    });
+  });
+
   it('既定ではレーン表示でない', async () => {
     const mounted = mount({ file: file() });
     await flush();
@@ -165,8 +250,14 @@ describe('クラスタレーン表示', () => {
     enableLanes(mounted.container);
 
     const state = mounted.handle.getClusterLaneState();
-    // クラスタ 2 本 + 未分類 1 本。
-    expect(state).toEqual({ axis: 'vertical', laneCount: 3, hasUnclustered: true });
+    // クラスタ 2 本 + 未分類 1 本。細分していないのでサブレーンは 0 本。
+    expect(state).toEqual({
+      axis: 'vertical',
+      laneCount: 3,
+      hasUnclustered: true,
+      subLaneCount: 0,
+      hasResidualSubLane: false,
+    });
     mounted.handle.destroy();
   });
 
@@ -185,6 +276,8 @@ describe('クラスタレーン表示', () => {
       axis: 'vertical',
       laneCount: 2,
       hasUnclustered: false,
+      subLaneCount: 0,
+      hasResidualSubLane: false,
     });
     mounted.handle.destroy();
   });
@@ -295,6 +388,8 @@ describe('クラスタレーン表示', () => {
       axis: 'vertical',
       laneCount: 0,
       hasUnclustered: false,
+      subLaneCount: 0,
+      hasResidualSubLane: false,
     });
     mounted.handle.destroy();
   });

@@ -701,6 +701,7 @@ export function mountCooccurrenceViewer(
       axis: clusterLaneAxis(isLayered() ? timelineView.axis : null),
       gap: clusterLaneView.gap,
       padding: RADIUS_MAX,
+      subclusters: clusters.map((cluster) => (cluster.subclusters ?? []).map((sub) => sub.members)),
     });
   }
 
@@ -712,6 +713,7 @@ export function mountCooccurrenceViewer(
         lane.cluster === undefined
           ? t('clusters.unclustered')
           : file.spec.clusters?.[lane.cluster]?.label || t('clusters.untitled', { index: lane.cluster + 1 });
+      const subclusters = lane.cluster === undefined ? [] : (file.spec.clusters?.[lane.cluster]?.subclusters ?? []);
       return {
         ...(lane.cluster === undefined ? {} : { cluster: lane.cluster }),
         axis,
@@ -719,6 +721,12 @@ export function mountCooccurrenceViewer(
         color: clusterColor(root, lane.cluster),
         labelX: lane.labelX,
         labelY: lane.labelY,
+        // 残余サブレーンは名前を持たない。「その他」という名のサブクラスタが在るように見せない。
+        subLanes: lane.subLanes.map((sub) => ({
+          ...(sub.subcluster === undefined ? {} : { label: subclusters[sub.subcluster]?.label ?? '' }),
+          labelX: sub.labelX,
+          labelY: sub.labelY,
+        })),
       };
     });
   }
@@ -1214,6 +1222,10 @@ export function mountCooccurrenceViewer(
             axis: clusterLaneAxis(isLayered() ? timelineView.axis : null),
             laneCount: clusterLanes.length,
             hasUnclustered: clusterLanes.some((lane) => lane.cluster === undefined),
+            subLaneCount: clusterLanes.reduce((total, lane) => total + lane.subLanes.length, 0),
+            hasResidualSubLane: clusterLanes.some((lane) =>
+              lane.subLanes.some((sub) => sub.subcluster === undefined),
+            ),
           },
   };
 }

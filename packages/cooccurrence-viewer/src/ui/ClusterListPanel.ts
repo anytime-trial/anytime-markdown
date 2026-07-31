@@ -69,6 +69,7 @@ function ensureStyles(): void {
 .cooc-clusters__row-inline{display:flex;align-items:center;gap:6px;font:12px system-ui,sans-serif;color:var(--cooc-text)}
 .cooc-clusters__row-inline label{display:flex;align-items:center;gap:6px}
 .cooc-clusters__field{flex:1 1 auto;min-width:0;padding:4px 6px;border:1px solid var(--cooc-divider);border-radius:4px;background:var(--cooc-bg);color:var(--cooc-text);font:12px system-ui,sans-serif}
+.cooc-clusters__subrow{width:100%;display:grid;grid-template-columns:14px minmax(0,1fr) 56px 16px;gap:8px;align-items:center;padding:5px 8px 5px 20px;border-bottom:1px solid var(--cooc-divider);color:var(--cooc-text-secondary);font:11px system-ui,sans-serif}
 .cooc-clusters__empty{padding:12px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif}
 .cooc-clusters__error{flex:0 0 auto;min-height:16px;color:var(--cooc-accent);font:12px system-ui,sans-serif}
 `;
@@ -195,13 +196,33 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
       if (noted.has(index)) mark.title = t('note.marker');
 
       row.append(swatch, label, members, mark);
+      // クラスタ行のあとにサブクラスタ行を字下げして並べる（要件書「サブクラスタ」§2.5）。
+      // 色見本を持たせないのは、サブクラスタが色を持たないためである（持たせると、色で
+      // 区別できるかのように見える）。
       row.addEventListener('click', () =>
         options.onSelectCluster(state.selectedClusterIndex === index ? null : index),
       );
       row.addEventListener('pointerenter', () => options.onHoverCluster(index, anchorOf(row)));
       row.addEventListener('pointerleave', () => options.onHoverCluster(null, null));
       list.appendChild(row);
+      renderSubclusterRows(cluster.subclusters ?? []);
     });
+  }
+
+  function renderSubclusterRows(subclusters: ReadonlyArray<{ label: string; members: number[] }>): void {
+    for (const subcluster of subclusters) {
+      const row = document.createElement('div');
+      row.className = 'cooc-clusters__subrow';
+      const spacer = document.createElement('span');
+      const label = document.createElement('span');
+      label.className = 'cooc-clusters__label';
+      label.textContent = subcluster.label;
+      const members = document.createElement('span');
+      members.className = 'cooc-clusters__meta';
+      members.textContent = String(subcluster.members.length);
+      row.append(spacer, label, members, document.createElement('span'));
+      list.appendChild(row);
+    }
   }
 
   function renderLaneControls(): void {
