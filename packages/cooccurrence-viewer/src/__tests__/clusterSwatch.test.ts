@@ -83,7 +83,7 @@ describe('クラスタの色見本', () => {
 
       // 見本が参照する変数名と、グラフのノードが読む色が同じ経路であることを固定する。
       expect(clusterColorVarName(1)).toBe('--cooc-cluster-1');
-      expect(clusterColor(host, 1)).toBe('#66BB6A');
+      expect(clusterColor(host, 1)).toBe('#FF8A80');
       expect(clusterColor(host, 9)).toBe(clusterColor(host, 1));
     },
   );

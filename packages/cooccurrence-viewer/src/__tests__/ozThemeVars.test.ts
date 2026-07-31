@@ -13,7 +13,7 @@ describe('applyCooccurrenceThemeVars: OZ スキン', () => {
     expect(el.style.getPropertyValue('--cooc-bg')).toBe(bg);
     expect(el.style.getPropertyValue('--cooc-text')).toBe(text);
     expect(el.style.getPropertyValue('--cooc-cluster-0')).toBe('#FF6B6B');
-    expect(el.style.getPropertyValue('--cooc-cluster-7')).toBe('#4DD0E1');
+    expect(el.style.getPropertyValue('--cooc-cluster-7')).toBe('#7ADFA8');
   });
 
   test.each(['light', 'dark'] as const)('skin 省略時は現行の %s 変数のまま（回帰）', (mode) => {
