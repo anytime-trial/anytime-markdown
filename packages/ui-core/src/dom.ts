@@ -68,16 +68,20 @@ export function svgIcon(path: string | readonly string[], size = 16): SVGSVGElem
 }
 
 /**
- * 指定 id の `<style>` を `document.head` へ 1 度だけ注入する（pseudo-class / keyframe 用）。
- * 各 ui-vanilla ファクトリの `ensureXxxStyles()` ボイラープレートを集約する。SSR 安全。
+ * 指定 id の `<style>` を `head` へ 1 度だけ注入する（pseudo-class / keyframe 用）。
+ * 各 ui-vanilla ファクトリの `ensureXxxStyles()` と各 viewer の `injectXxxStyles()`
+ * ボイラープレートを集約する。SSR 安全。
+ *
+ * @param doc 注入先の Document（省略時はグローバルの `document`。iframe / テスト用）。
  */
-export function ensureStyle(id: string, css: string): void {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(id)) return;
-  const style = document.createElement("style");
+export function ensureStyle(id: string, css: string, doc?: Document): void {
+  const target = doc ?? (typeof document === "undefined" ? undefined : document);
+  if (!target) return;
+  if (target.getElementById(id)) return;
+  const style = target.createElement("style");
   style.id = id;
   style.textContent = css;
-  document.head.appendChild(style);
+  target.head.appendChild(style);
 }
 
 let _idSeq = 0;

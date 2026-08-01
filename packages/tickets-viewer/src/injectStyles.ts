@@ -6,6 +6,8 @@
  * トークン値はデザインシステム（spec/10.web-app/design.md §2.2/§2.3）から導出する。
  */
 
+import { ensureStyle } from "@anytime-markdown/ui-core/dom";
+
 const STYLE_ELEMENT_ID = "anytime-tickets-ui-styles";
 
 const CSS = `
@@ -276,11 +278,5 @@ const CSS = `
 
 /** `<style id="anytime-tickets-ui-styles">` を document.head へ冪等に注入する。 */
 export function injectTicketsStyles(doc: Document = document): void {
-  if (doc.getElementById(STYLE_ELEMENT_ID)) {
-    return;
-  }
-  const style = doc.createElement("style");
-  style.id = STYLE_ELEMENT_ID;
-  style.textContent = CSS;
-  doc.head.appendChild(style);
+  ensureStyle(STYLE_ELEMENT_ID, CSS, doc);
 }
