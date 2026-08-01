@@ -12,8 +12,7 @@
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { worldToScreen } from '@anytime-markdown/graph-core/engine';
 import type { GraphNode, NodeType, Viewport } from '../types';
-import { iconButton } from '../ui/uiCoreAdapters';
-import { createTooltip, type TooltipHandle } from '../ui-vanilla/Tooltip';
+import { iconButton, tooltip, type TooltipHandle } from '../ui/uiCoreAdapters';
 import { createCircleOutlinedIcon as createEllipseIcon, createCropSquareIcon as createRectIcon } from '../ui-vanilla/icons';
 import { createDiamondShapeIcon, createParallelogramShapeIcon, createCylinderShapeIcon } from './ShapeIcons';
 import type { GraphT } from '../i18n/createGraphT';
@@ -122,8 +121,8 @@ export function createShapeHoverBar(
       ...resolveActiveColors(node.type, shape.type),
     });
 
-    const tooltip = createTooltip(btn, t(shape.i18nKey));
-    tooltips.push(tooltip);
+    const tip = tooltip(btn, t(shape.i18nKey));
+    tooltips.push(tip);
     buttons.push(btn);
     el.appendChild(btn);
   }

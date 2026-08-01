@@ -18,12 +18,12 @@ import type { GraphT } from '../i18n/createGraphT';
 import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
 import { createGraphMenu } from '../ui/graphMenu';
-import { divider, iconButton, listItemIcon, listItemText } from '../ui/uiCoreAdapters';
+import { divider, iconButton, listItemIcon, listItemText, tooltip, type TooltipHandle } from '../ui/uiCoreAdapters';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
 import type { ToggleButtonGroupHandle } from '../ui-vanilla/ToggleButton';
 import { createPopover } from '../ui-vanilla/Popover';
-import { createTooltip } from '../ui-vanilla/Tooltip';
-import type { TooltipHandle } from '../ui-vanilla/Tooltip';
+
+
 import { createCircularProgress } from '../ui-vanilla/CircularProgress';
 import {
   createAccountTreeIcon,
@@ -219,7 +219,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // Tooltip handles for cleanup
   const tooltips: TooltipHandle[] = [];
   const addTooltip = (target: HTMLElement, title: string): void => {
-    tooltips.push(createTooltip(target, title));
+    tooltips.push(tooltip(target, title));
   };
 
   // -------------------------------------------------------------------
@@ -520,7 +520,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
     const fullLabel = LAYOUT_FULL_LABEL_MAP[currentLayoutAlgorithm];
     autoLayoutWrapper.title = '';
     // remove old tooltip and add fresh one
-    tooltips.push(createTooltip(autoLayoutWrapper, `${t('autoLayout')} (${fullLabel})`));
+    tooltips.push(tooltip(autoLayoutWrapper, `${t('autoLayout')} (${fullLabel})`));
   };
   updateAutoLayoutTooltip();
   box.appendChild(autoLayoutWrapper);

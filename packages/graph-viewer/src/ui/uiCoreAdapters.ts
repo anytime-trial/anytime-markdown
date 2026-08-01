@@ -19,6 +19,7 @@ import { createDivider } from '@anytime-markdown/ui-core/Divider';
 import { createListItemIcon } from '@anytime-markdown/ui-core/ListItemIcon';
 import { createListItemText } from '@anytime-markdown/ui-core/ListItemText';
 import { createText } from '@anytime-markdown/ui-core/Text';
+import { createTooltip } from '@anytime-markdown/ui-core/Tooltip';
 import { applyStyle, ensureStyle, type VanillaContent } from '@anytime-markdown/ui-core/dom';
 
 /** gv createListItemIcon 互換（要素返し）。色・幅は --am-color-action-active / --am-menu-icon-minw。 */
@@ -161,6 +162,26 @@ export function iconButton(o: GvIconButtonProps = {}): HTMLButtonElement {
     }
   });
   return el;
+}
+
+/** gv TooltipHandle 互換。 */
+export interface TooltipHandle {
+  destroy(): void;
+}
+
+/**
+ * gv createTooltip 互換（target 上方に表示・destroy のみ）。
+ *
+ * gv 意匠（MUI グレー背景 rgba(97,97,97,.92)・radius 4・weight 500・z 1500）を
+ * リテラル色で上書きするため、`--am-color-tooltip-*` トークン非依存 = ポータル先は
+ * 既定の document.body のままでよい。配置は placement "top" + offset 既定 6px
+ * （= gv の top-6px と同じ隙間）。
+ */
+export function tooltip(target: HTMLElement, title: string): TooltipHandle {
+  const t = createTooltip({ reference: target, title, placement: 'top' });
+  t.el.style.cssText +=
+    'background:rgba(97,97,97,0.92);color:#fff;border-radius:4px;font-weight:500;max-width:300px;z-index:1500;';
+  return { destroy: t.destroy };
 }
 
 /** gv createText 互換のオプション（ui-vanilla/Text.ts の CreateTextProps と同形）。 */
