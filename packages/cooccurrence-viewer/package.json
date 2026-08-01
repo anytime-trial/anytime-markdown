@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/ui-core": "*",
     "three": "0.185.1"
   },
   "devDependencies": {

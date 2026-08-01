@@ -1,40 +1,32 @@
 /**
  * React 非依存の translator（vanilla mount 用）。
- * graph-viewer の createGraphT と同型の解決ロジック
- * （ja フォールバック + `{var}` 置換）を持つ。
+ * ja フォールバック + `{var}` 置換の解決ロジックを持つ。
+ *
+ * 解決ロジックの実体は `@anytime-markdown/ui-core/i18n` にある（各 viewer で
+ * 同型のコピーを持たないため）。本モジュールは辞書と namespace 型を束ねる薄い層。
  */
+
+import { createTranslator, type Translator } from '@anytime-markdown/ui-core/i18n';
 
 import enMessages from './en.json';
 import jaMessages from './ja.json';
 
-export type SupportedLocale = 'ja' | 'en';
+export { detectLocale, resolveLocale, type SupportedLocale } from '@anytime-markdown/ui-core/i18n';
+
 export type CooccurrenceNamespace = 'Cooccurrence';
-type NsMessages = Record<string, string>;
 
-const messagesByLocale: Record<SupportedLocale, typeof jaMessages> = { ja: jaMessages, en: enMessages };
+const messagesByLocale = { ja: jaMessages, en: enMessages };
 
-export function resolveLocale(locale: string): SupportedLocale {
-  return locale.startsWith('ja') ? 'ja' : 'en';
-}
-
-export function detectLocale(): SupportedLocale {
-  return typeof navigator !== 'undefined' && navigator.language.startsWith('ja') ? 'ja' : 'en';
-}
-
-export type CooccurrenceT = (key: string, vars?: Record<string, string | number>) => string;
+export type CooccurrenceT = Translator;
 
 /**
  * namespace 固定の translator を生成する。
  *
  * @param locale 省略時はブラウザ言語から検出する。
  */
-export function createCooccurrenceT(namespace: CooccurrenceNamespace, locale?: string): CooccurrenceT {
-  const resolved = locale ? resolveLocale(locale) : detectLocale();
-  const ns = messagesByLocale[resolved][namespace] as unknown as NsMessages;
-  const fallbackNs = messagesByLocale['ja'][namespace] as unknown as NsMessages;
-  return function t(key: string, vars?: Record<string, string | number>): string {
-    const template = ns?.[key] ?? fallbackNs?.[key] ?? key;
-    if (!vars) return template;
-    return Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{${k}}`, String(v)), template);
-  };
+export function createCooccurrenceT(
+  namespace: CooccurrenceNamespace,
+  locale?: string,
+): CooccurrenceT {
+  return createTranslator({ messagesByLocale, namespace, locale });
 }

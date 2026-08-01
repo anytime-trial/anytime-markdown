@@ -16,7 +16,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@anytime-markdown/spreadsheet-core": "*"
+    "@anytime-markdown/spreadsheet-core": "*",
+    "@anytime-markdown/ui-core": "*"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",
