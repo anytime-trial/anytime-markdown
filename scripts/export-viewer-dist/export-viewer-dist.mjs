@@ -4,7 +4,7 @@
 // dirty・sha256・サイズ）を記録した manifest.json を併置する。dist は gitignore のため
 // 「渡した版がどのコミット由来か」が消えやすく、それを manifest で機械的に残すのが目的。
 //
-// 使い方: node scripts/export-viewer-dist.mjs --out <dir> [--package <name>]
+// 使い方: node scripts/export-viewer-dist/export-viewer-dist.mjs --out <dir> [--package <name>]
 //   --package 省略時は cooccurrence-viewer。対象は package.json に build スクリプトを持ち
 //   dist/*.js を出すパッケージ（cooccurrence-viewer / markdown-viewer / mindmap-viewer 等）。
 //   出力: <out>/<name>/ に dist の .js と manifest.json。
@@ -15,9 +15,9 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFi
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-const USAGE = 'usage: node scripts/export-viewer-dist.mjs --out <dir> [--package <name>]';
+const USAGE = 'usage: node scripts/export-viewer-dist/export-viewer-dist.mjs --out <dir> [--package <name>]';
 
 /** 引数を解釈する（純粋関数）。不正時は usage を含む Error を投げる。 */
 export function parseArgs(argv) {
