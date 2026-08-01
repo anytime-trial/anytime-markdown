@@ -123,6 +123,8 @@ function theme(): CooccurrenceTheme {
     divider: '#333',
     accent: '#f0f',
     link: '#888',
+    viewportFrame: '#eee',
+    viewportFill: 'rgba(255,255,255,0.12)',
     mutedAlpha: 0.2,
   };
 }

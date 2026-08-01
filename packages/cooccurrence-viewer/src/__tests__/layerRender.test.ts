@@ -306,6 +306,8 @@ describe('点線の描画', () => {
       divider: '#ccc',
       accent: '#00f',
       link: '#888',
+      viewportFrame: '#eee',
+      viewportFill: 'rgba(255,255,255,0.12)',
       mutedAlpha: 0.2,
     };
   }

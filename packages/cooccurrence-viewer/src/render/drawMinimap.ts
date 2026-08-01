@@ -8,6 +8,8 @@ import { buildNodeLookup, linkEndpoints } from './nodeLookup';
 const MIN_NODE_RADIUS = 1;
 /** ミニマップの線の太さ。図の太さを縮尺すると 1px を割って消える。 */
 const LINK_WIDTH = 0.5;
+/** 「今見えている範囲」の枠線の太さ。共起の線（{@link LINK_WIDTH}）より太くして手前に見せる。 */
+const FRAME_WIDTH = 1.5;
 
 export interface DrawMinimapOptions {
   ctx: CanvasRenderingContext2D;
@@ -66,11 +68,20 @@ export function drawMinimap(opts: DrawMinimapOptions): void {
   }
 
   if (frame) {
-    ctx.strokeStyle = theme.accent;
-    ctx.lineWidth = 1;
+    // 線だけでなく内側も薄く塗る。線 1 本では、全体像の円と線が密なところで枠がどこまでか
+    // 追えなくなる（C4 のミニマップと同じ見せ方。trail-viewer `minimapCanvas.ts`）。
+    // 塗りは下の全体像が透ける濃さに留める。塗り潰すと、見えている範囲の中身が読めなくなる。
+    const x = frame.x + FRAME_WIDTH / 2;
+    const y = frame.y + FRAME_WIDTH / 2;
+    const width = Math.max(1, frame.width - FRAME_WIDTH);
+    const height = Math.max(1, frame.height - FRAME_WIDTH);
+    ctx.fillStyle = theme.viewportFill;
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeStyle = theme.viewportFrame;
+    ctx.lineWidth = FRAME_WIDTH;
     // 枠は canvas の外側へも伸びる（全体表示中は全体とほぼ一致し、縁が切れる）。
-    // 0.5px 内側へ寄せて 1px の線が半分に切られないようにする。
-    ctx.strokeRect(frame.x + 0.5, frame.y + 0.5, Math.max(1, frame.width - 1), Math.max(1, frame.height - 1));
+    // 線幅の半分だけ内側へ寄せて、縁の線が半分に切られないようにする。
+    ctx.strokeRect(x, y, width, height);
   }
   ctx.restore();
 }
