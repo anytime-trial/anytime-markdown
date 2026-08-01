@@ -7,8 +7,8 @@
  */
 
 import type { NodeFilterConfig, RangeFilter, TextFilter } from '../types/nodeFilter';
-import { button } from '../ui/uiCoreAdapters';
-import { createChip } from '../ui-vanilla/Chip';
+import { button, chip } from '../ui/uiCoreAdapters';
+
 import { createIconButton } from '../ui-vanilla/IconButton';
 import { createAddIcon, createCloseIcon, createDeleteIcon } from '../ui-vanilla/icons';
 import { createRangeSlider } from '../ui-vanilla/Slider';
@@ -124,8 +124,8 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       const labelRow = document.createElement('div');
       labelRow.style.cssText = 'display:flex;align-items:center;gap:4px';
 
-      const chip = createChip({ label: rf.key, size: 'small' });
-      labelRow.appendChild(chip);
+      const chipEl = chip({ label: rf.key, size: 'small' });
+      labelRow.appendChild(chipEl);
 
       const deleteBtn = createIconButton({
         size: 'small',
@@ -238,8 +238,8 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:8px';
 
-      const chip = createChip({ label: tf.key, size: 'small' });
-      row.appendChild(chip);
+      const chipEl = chip({ label: tf.key, size: 'small' });
+      row.appendChild(chipEl);
 
       const input = createTextField({
         size: 'small',

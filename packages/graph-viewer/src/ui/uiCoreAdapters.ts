@@ -13,10 +13,11 @@
  */
 
 import { createButton } from '@anytime-markdown/ui-core/Button';
+import { createChip } from '@anytime-markdown/ui-core/Chip';
 import { createDivider } from '@anytime-markdown/ui-core/Divider';
 import { createListItemIcon } from '@anytime-markdown/ui-core/ListItemIcon';
 import { createListItemText } from '@anytime-markdown/ui-core/ListItemText';
-import { ensureStyle, type VanillaContent } from '@anytime-markdown/ui-core/dom';
+import { applyStyle, ensureStyle, type VanillaContent } from '@anytime-markdown/ui-core/dom';
 
 /** gv createListItemIcon 互換（要素返し）。色・幅は --am-color-action-active / --am-menu-icon-minw。 */
 export const listItemIcon = (
@@ -97,5 +98,25 @@ export function button(o: GvButtonProps = {}): HTMLButtonElement {
     });
   }
   if (o.onClick) el.addEventListener('click', o.onClick);
+  return el;
+}
+
+// gv-chip の意匠（action-selected 背景の角丸ピル）。ui-core Chip の inline cssText
+// （transparent 背景・radius 16・MUI 寸法）との差分を上書きする。
+const GV_CHIP_STYLE: Record<'small' | 'medium', string> = {
+  small: 'gap:4px;height:20px;padding:0 6px;border-radius:12px;font-size:0.6875rem;line-height:1;background-color:var(--am-color-action-selected);',
+  medium: 'gap:4px;height:24px;padding:0 8px;border-radius:12px;font-size:0.75rem;line-height:1;background-color:var(--am-color-action-selected);',
+};
+
+/** gv createChip 互換（要素返し・ラベルのみ。gv の onDelete は graph-viewer 内で未使用）。 */
+export function chip(o: {
+  readonly label: VanillaContent;
+  readonly size?: 'small' | 'medium';
+  readonly style?: Partial<CSSStyleDeclaration>;
+  readonly className?: string;
+}): HTMLElement {
+  const { el } = createChip({ label: o.label, size: o.size, className: o.className });
+  el.style.cssText += GV_CHIP_STYLE[o.size ?? 'medium'];
+  applyStyle(el, o.style);
   return el;
 }
