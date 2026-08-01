@@ -1,6 +1,6 @@
 # stopping-rules playbook（委任タスクの中断規則集）
 
-更新日: 2026-07-02
+更新日: 2026-08-01
 
 委任先（サブエージェント / Codex）が「作業を止めて報告（abstain）すべき」観測条件の正本。
 proposal `20260702-agentic-abstention-adoption`（CONVOLVE 風 playbook・段階 1 ＝手動運用）に基づく。
@@ -31,6 +31,7 @@ proposal `20260702-agentic-abstention-adoption`（CONVOLVE 風 playbook・段階
 - 同じファイルを 3 回以上読み直しているのに、その間 1 度も編集・検証を実行していない（出典: loop engineering の no-progress detector）
 - 直前に自分が加えた編集を元に戻す往復（A→B→A）が 2 巡した（出典: 同上）
 - 検証は通るが、完了条件に近づいたことを示す指標（残りの型エラー数・テスト通過数・未対処の指摘数）が 3 ターン以上変化していない（出典: 同上）
+- 上記の指標には、着手時のループ宣言（`SKILL.md` §3）で宣言した進捗指標を使う。委任プロンプトに指標が無いまま受けたタスクは、着手前に「何が減れば前進か」を確認する（出典: proposal `20260801-agentic-design-patterns-dev-cycle`）
 
 ## 完了条件の観測不能
 
