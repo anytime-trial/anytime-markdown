@@ -6,6 +6,8 @@
  * 注入）で追従する。`chrome/vanillaToolbar.ts` の cssText + CSS 変数パターンに従う。
  */
 
+import { applyStyle } from "./dom";
+
 /** createDivider のオプション。`ui/Divider.tsx` の DividerProps に対応。 */
 export interface CreateDividerOptions {
   /** 区切り線の向き。既定は horizontal。 */
@@ -16,6 +18,8 @@ export interface CreateDividerOptions {
   className?: string;
   /** aria-label（区切りの意味を補足する場合）。 */
   ariaLabel?: string;
+  /** 追加スタイル（margin 等の上書き。ListItemIcon / ListItemText と同じ契約）。 */
+  style?: Partial<CSSStyleDeclaration>;
 }
 
 /** orientation / flexItem から cssText を組み立てる。 */
@@ -49,6 +53,7 @@ export function createDivider(opts: CreateDividerOptions = {}): { el: HTMLHRElem
 
   const el = document.createElement("hr");
   el.style.cssText = buildCssText(orientation, flexItem);
+  applyStyle(el, opts.style);
 
   // role=separator + aria-orientation で a11y を明示（hr の暗黙 role を補強）。
   el.setAttribute("role", "separator");
