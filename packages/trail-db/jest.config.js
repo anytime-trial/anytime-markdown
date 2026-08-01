@@ -1,4 +1,5 @@
 const base = require('../../jest.config.base');
+const { buildModuleNameMapperFromExports } = require('../../scripts/jest-exports-mapper.cjs');
 /** @type {import('jest').Config} */
 module.exports = {
   ...base,
@@ -9,7 +10,11 @@ module.exports = {
   moduleNameMapper: {
     // Node16 の ESM 動的 import() は .js 拡張子必須(TS2835)。ts-jest(CJS) 解決のため .js を剥がして .ts に解決させる
     '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^@anytime-markdown/trail-core$': '<rootDir>/../trail-core/src/index.ts',
-    '^@anytime-markdown/trail-core/(.*)$': '<rootDir>/../trail-core/src/$1',
+    // 兄弟ソースへのマップは trail-core の exports から導出する（規約外 subpath の取りこぼし防止）。
+    ...buildModuleNameMapperFromExports(
+      '@anytime-markdown/trail-core',
+      require('../trail-core/package.json').exports,
+      '<rootDir>/../trail-core',
+    ),
   },
 };
