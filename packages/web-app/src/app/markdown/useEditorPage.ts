@@ -1,7 +1,7 @@
 'use client';
 
-import type { SaveTargetInfo } from '@anytime-markdown/markdown-viewer/src/host/fileOpsController';
-import { clearDraft, readDraft, writeDraft } from '@anytime-markdown/markdown-viewer/src/utils/draftStorage';
+import type { SaveTargetInfo } from '@anytime-markdown/markdown-editor/src/host/fileOpsController';
+import { clearDraft, readDraft, writeDraft } from '@anytime-markdown/markdown-editor/src/utils/draftStorage';
 import { signIn } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -92,7 +92,7 @@ export interface EditorPageState {
   hasDriveFile: boolean;
   /**
    * 上書き保存の宛先種別。エディタのツールバー表示（GitHub なら「GitHub にコミット」）に使う。
-   * ローカルへ「名前を付けて保存」した後は markdown-viewer 側が自動で無効化する。
+   * ローカルへ「名前を付けて保存」した後は markdown-editor 側が自動で無効化する。
    */
   externalSaveKind: 'github' | 'drive' | undefined;
   /**
@@ -172,7 +172,7 @@ export function useEditorPage({
   const [externalFileName, setExternalFileName] = useState<string | undefined>(undefined);
   const [githubDoc, setGithubDoc] = useState<{ repo: string; branch: string; path: string } | undefined>(undefined);
   const [externalCompareContent, setExternalCompareContent] = useState<string | null>(null);
-  // 値は参照されない（比較モードの分岐は markdown-viewer 側が持つ）。setter のみ使う。
+  // 値は参照されない（比較モードの分岐は markdown-editor 側が持つ）。setter のみ使う。
   const [, setCompareModeOpen] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   const selectedFileRef = useRef<{ repo: string; filePath: string; branch: string } | null>(null);

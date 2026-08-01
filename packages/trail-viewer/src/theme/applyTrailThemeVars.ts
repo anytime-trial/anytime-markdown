@@ -11,7 +11,7 @@
  * も併せて設定する（残存する React island 等が参照する可能性に備える）。
  *
  * 値は trail-viewer のブランドパレット（{@link getTokens} = `theme/designTokens`）に準拠。
- * 構造トークン（tooltip / slider / switch / skeleton / input）は markdown-viewer の
+ * 構造トークン（tooltip / slider / switch / skeleton / input）は markdown-editor の
  * `applyEditorThemeCssVars` と同値にして ui-core プリミティブの見た目を揃える。
  */
 import { getTokens } from './designTokens';
@@ -47,7 +47,7 @@ export function trailThemeCssVars(isDark: boolean): Record<string, string> {
     '--am-color-info-main': colors.info,
     '--am-color-info-bg': colors.infoBg,
     '--am-color-success-main': colors.success,
-    // 構造トークン（markdown-viewer applyEditorThemeCssVars と同値）
+    // 構造トークン（markdown-editor applyEditorThemeCssVars と同値）
     '--am-color-input-border': isDark ? 'rgba(255,255,255,0.23)' : 'rgba(0,0,0,0.23)',
     '--am-color-skeleton-bg': isDark ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.11)',
     '--am-color-slider-rail': isDark ? 'rgba(144,202,249,0.38)' : 'rgba(25,118,210,0.38)',

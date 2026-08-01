@@ -18,7 +18,7 @@ export const VERIFICATION_KINDS = ['unit', 'build', 'next-build', 'typecheck', '
 export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
 
 export const GetVerificationStatusInputSchema = z.object({
-  package: z.string().describe('Target package name recorded by run-verified (e.g. markdown-viewer)'),
+  package: z.string().describe('Target package name recorded by run-verified (e.g. markdown-editor)'),
   kinds: z.array(z.enum(VERIFICATION_KINDS)).optional().describe('Kinds to check (default: all 7)'),
   workspacePath: z.string().optional().describe('Workspace root (default: cwd)'),
 });

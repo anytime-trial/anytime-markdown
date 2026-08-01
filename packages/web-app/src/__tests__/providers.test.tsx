@@ -15,7 +15,7 @@ jest.mock("@anytime-markdown/markdown-react-islands", () => ({
   ConfirmProvider: ({ children }: { children: React.ReactNode }) => children,
   ThemeModeProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock("@anytime-markdown/markdown-viewer", () => ({
+jest.mock("@anytime-markdown/markdown-editor", () => ({
   applyEditorThemeCssVars: jest.fn(),
   ACCENT_COLOR: "#e8a012",
   DEFAULT_DARK_BG: "#0D1117",

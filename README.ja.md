@@ -69,8 +69,8 @@ AI エージェントがプロジェクトの資産に直接アクセスする�
 ```mermaid
 flowchart TD
     subgraph core ["共有ライブラリ"]
-        MV["markdown-viewer<br/>(エディタ基盤)"]
-        MR["markdown-rich<br/>(図表描画・基盤の派生)"]
+        MV["markdown-editor<br/>(エディタ基盤)"]
+        MR["markdown-rich-editor<br/>(図表描画・基盤の派生)"]
         GC["graph-core<br/>(グラフエンジン)"]
         TC["trail-core<br/>(TypeScript 解析・C4・DSM)"]
         CC["cms-core<br/>(S3 クライアント)"]
@@ -145,25 +145,25 @@ flowchart TD
 
 ### markdown 系パッケージの役割
 
-`markdown-` を接頭辞に持つパッケージは 7 つあり、**名前から依存の向きが読み取れない**。土台は `markdown-viewer` で、`markdown-rich` はその上に図表描画を足した派生である（その逆ではない）。
+`markdown-` を接頭辞に持つパッケージは 7 つある。土台は `markdown-editor` で、`markdown-rich-editor` はその上に図表描画を足した派生である（その逆ではない）。名前が似ているため、各パッケージの守備範囲と依存の向きを下表で明示する。
 
 | パッケージ | 役割 | 内部依存 |
 | --- | --- | --- |
-| `markdown-viewer` | **エディタ基盤**。TipTap 拡張の組み立て・mount API・vanilla UI・i18n・ファイルシステム抽象。名前に反して read-only ビューアではない | `markdown-core` |
-| `markdown-rich` | `markdown-viewer` に **mermaid / katex / plantuml / plotly / jsxgraph の描画を足した派生**。重量依存をここへ隔離し、基盤側を軽量に保つ | `markdown-viewer` |
+| `markdown-editor` | **エディタ基盤**。TipTap 拡張の組み立て・mount API・vanilla UI・i18n・ファイルシステム抽象。図表描画は含まない | `markdown-core` |
+| `markdown-rich-editor` | `markdown-editor` に **mermaid / katex / plantuml / plotly / jsxgraph の描画を足した派生**。重量依存をここへ隔離し、基盤側を軽量に保つ | `markdown-editor` |
 | `markdown-core` | vendored tiptap。自作コードではなく、バンドラ・tsconfig のエイリアス経由で参照する | なし |
 | `markdown-engine` | markdown テキスト処理（整形・差分・セクション解析・サニタイズ）。エディタに依存しない | なし |
-| `markdown-react-islands` | web-app 向けの React ラッパ。エディタ本体は React-free で、React が要る箇所だけをここに隔離する | `markdown-viewer` |
-| `markdown-view` | 公開ラッパ。`<anytime-markdown-view>`（図表あり）を登録する | `markdown-rich` |
-| `markdown-view-lite` | 公開ラッパ。`<anytime-markdown-view>`（図表なし）を登録する | `markdown-viewer` |
+| `markdown-react-islands` | web-app 向けの React ラッパ。エディタ本体は React-free で、React が要る箇所だけをここに隔離する | `markdown-editor` |
+| `markdown-view` | 公開ラッパ。`<anytime-markdown-view>`（図表あり）を登録する | `markdown-rich-editor` |
+| `markdown-view-lite` | 公開ラッパ。`<anytime-markdown-view>`（図表なし）を登録する | `markdown-editor` |
 
 配布する Web Component は次の 3 つで、いずれも同じ属性・プロパティ・イベントの I/F を持つ。
 
 | タグ | 登録元 | 図表描画 | 編集 |
 | --- | --- | --- | --- |
-| `<anytime-markdown-editor>` | `markdown-viewer/element` | なし | あり |
-| `<anytime-markdown-rich-editor>` | `markdown-rich/element` | あり | あり |
-| `<anytime-markdown-view>` | `markdown-rich` または `markdown-view-lite` | 登録元による | なし（read-only） |
+| `<anytime-markdown-editor>` | `markdown-editor/element` | なし | あり |
+| `<anytime-markdown-rich-editor>` | `markdown-rich-editor/element` | あり | あり |
+| `<anytime-markdown-view>` | `markdown-rich-editor` または `markdown-view-lite` | 登録元による | なし（read-only） |
 
 `<anytime-markdown-view>` は同一タグの軽量／同梱の双子で、どちらを import したかで描画能力が決まる。両方を同一ページで読み込むと先に登録されたほうが有効になる。
 

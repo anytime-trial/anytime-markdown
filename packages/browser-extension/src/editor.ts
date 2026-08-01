@@ -1,20 +1,20 @@
 /**
  * 拡張ページ（editor.html）のエントリ。
  *
- * `@anytime-markdown/markdown-rich/element` を import すると
+ * `@anytime-markdown/markdown-rich-editor/element` を import すると
  * `<anytime-markdown-rich-editor>` Custom Element が登録される（副作用 import）。
  * mermaid / katex / plantuml / math / graph に対応する rich 版。
  *
- * 軽量なプレーン版に戻す場合は `@anytime-markdown/markdown-viewer/element`
+ * 軽量なプレーン版に戻す場合は `@anytime-markdown/markdown-editor/element`
  * （`<anytime-markdown-editor>`）に差し替える。
  *
  * 要素は `options` を connect 前に渡すため JS で生成する（属性で表現できない
  * sideToolbar / hide 等を一度の mount で反映するため）。
  */
-import "@anytime-markdown/markdown-rich/element";
-import { WebFileSystemProvider } from "@anytime-markdown/markdown-viewer/fs/web-file-system-provider";
-import { DriveFileSystemProvider } from "@anytime-markdown/markdown-viewer/fs/drive-file-system-provider";
-import type { CapturedPage } from "@anytime-markdown/markdown-viewer/web-import/capture-page";
+import "@anytime-markdown/markdown-rich-editor/element";
+import { WebFileSystemProvider } from "@anytime-markdown/markdown-editor/fs/web-file-system-provider";
+import { DriveFileSystemProvider } from "@anytime-markdown/markdown-editor/fs/drive-file-system-provider";
+import type { CapturedPage } from "@anytime-markdown/markdown-editor/web-import/capture-page";
 
 /**
  * 本拡張で WC に渡す最小オプション型（このファイルは esbuild トランスパイルのみで

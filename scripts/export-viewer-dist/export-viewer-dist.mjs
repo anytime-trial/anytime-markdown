@@ -6,9 +6,9 @@
 // manifest で機械的に残すのが目的。
 //
 // 使い方: node scripts/export-viewer-dist/export-viewer-dist.mjs --out <dir> [--package <name>]...
-//   --package 省略時は cooccurrence-viewer と markdown-viewer の両方。複数指定可。
+//   --package 省略時は cooccurrence-viewer と markdown-editor の両方。複数指定可。
 //   対象は package.json に build スクリプトを持ち dist/*.js を出すパッケージ
-//   （cooccurrence-viewer / markdown-viewer 等）。
+//   （cooccurrence-viewer / markdown-editor 等）。
 //   出力: <out>/<name>/ に dist の .js と manifest.json。
 // 終了コード: 引数不正・対象不正・ビルド失敗・成果物なしのとき 1。
 import { execFileSync } from 'node:child_process';
@@ -30,7 +30,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const USAGE =
   'usage: node scripts/export-viewer-dist/export-viewer-dist.mjs --out <dir> [--package <name>]...';
 
-const DEFAULT_PACKAGES = ['cooccurrence-viewer', 'markdown-viewer'];
+const DEFAULT_PACKAGES = ['cooccurrence-viewer', 'markdown-editor'];
 
 /** 引数を解釈する（純粋関数）。不正時は usage を含む Error を投げる。 */
 export function parseArgs(argv) {
@@ -67,7 +67,7 @@ export function parseArgs(argv) {
  * 名前順で選ぶ（純粋関数）。
  *
  * mtime で絞るのは、dist に過去の別方式のビルド残骸が残っている場合があるため
- * （markdown-viewer に旧 tsc 出力 14 ファイルが残っていた実例）。ディレクトリ全体を
+ * （markdown-editor に旧 tsc 出力 14 ファイルが残っていた実例）。ディレクトリ全体を
  * コピーすると、古い残骸が今回の配布物の顔で相手に渡る。
  */
 export function selectFreshDistFiles(entries, buildStartedAtMs) {

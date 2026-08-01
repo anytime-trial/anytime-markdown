@@ -13,7 +13,7 @@
  * 削除し、その値を最終式として残す」処理を追記する方式を取る。
  * ここでは globalThis への一時代入のみを行う。
  */
-import { capturePageMarkdown } from "@anytime-markdown/markdown-viewer/web-import/capture-page";
+import { capturePageMarkdown } from "@anytime-markdown/markdown-editor/web-import/capture-page";
 
 declare global {
   interface Window {

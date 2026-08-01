@@ -86,11 +86,11 @@ packages/web-app/public/THIRD-PARTY-NOTICES.md
 # 生成 .d.ts を無視する。正規ビルド（tsc -b）は declaration を各パッケージの dist/ に出力するため
 # src に .d.ts は生じない。手書き ambient .d.ts（.ts 兄弟を持たないモジュール宣言）は下の ! で
 # 明示追跡を維持する。新規 ambient .d.ts を src に追加する場合は negate 行を追記すること。
-/packages/markdown-viewer/src/**/*.d.ts
-!/packages/markdown-viewer/src/css.d.ts
-!/packages/markdown-viewer/src/md.d.ts
-!/packages/markdown-viewer/src/types/stylis.d.ts
-!/packages/markdown-viewer/src/types/vscode.d.ts
-/packages/markdown-rich/src/**/*.d.ts
-!/packages/markdown-rich/src/plotly-gl3d.d.ts
+/packages/markdown-editor/src/**/*.d.ts
+!/packages/markdown-editor/src/css.d.ts
+!/packages/markdown-editor/src/md.d.ts
+!/packages/markdown-editor/src/types/stylis.d.ts
+!/packages/markdown-editor/src/types/vscode.d.ts
+/packages/markdown-rich-editor/src/**/*.d.ts
+!/packages/markdown-rich-editor/src/plotly-gl3d.d.ts
 /packages/markdown-engine/src/**/*.d.ts

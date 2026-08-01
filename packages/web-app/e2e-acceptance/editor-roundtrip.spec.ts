@@ -3,13 +3,13 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 /**
- * 受入ファーム S1 初回フロー: markdown-viewer standalone の「編集 → 保存 → 再読込」往復一致 + VRT。
- * ハーネス（file://）は packages/markdown-viewer/e2e-harness/index.html。
- * 事前に markdown-viewer の build（dist/anytime-markdown-editor.iife.js）が必要 — farm ランナーが担う。
+ * 受入ファーム S1 初回フロー: markdown-editor standalone の「編集 → 保存 → 再読込」往復一致 + VRT。
+ * ハーネス（file://）は packages/markdown-editor/e2e-harness/index.html。
+ * 事前に markdown-editor の build（dist/anytime-markdown-editor.iife.js）が必要 — farm ランナーが担う。
  */
 
 const HARNESS_URL = pathToFileURL(
-  path.resolve(__dirname, "../../markdown-viewer/e2e-harness/index.html"),
+  path.resolve(__dirname, "../../markdown-editor/e2e-harness/index.html"),
 ).href;
 
 const FIXTURE = [

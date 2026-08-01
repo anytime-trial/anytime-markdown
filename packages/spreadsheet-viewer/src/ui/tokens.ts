@@ -101,7 +101,7 @@ export function themeCssVars(isDark: boolean): Record<string, string> {
  *
  * Menu / Dialog / Tooltip は `document.body` へポータルされるため、UI ルート要素に
  * inline で置いた CSS 変数が届かない。ポータル先まで確実に変数を行き渡らせるために
- * documentElement へ設定する（markdown-viewer の `applyEditorThemeCssVars` と同方針。
+ * documentElement へ設定する（markdown-editor の `applyEditorThemeCssVars` と同方針。
  * プレフィックスが `--sv-*` なので `--am-*` とは衝突しない）。
  * SSR / 非 DOM 環境では何もしない。
  */

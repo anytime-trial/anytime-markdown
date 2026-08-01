@@ -8,7 +8,7 @@
  *   加えて、いずれの経路でも内部バッファを **同期的に** 更新する（グリッド内コピー→ペーストの保証）。
  * - 読み取り: `navigator.clipboard.readText` が使えない/空のときは内部バッファにフォールバックする。
  *
- * `markdown-viewer/utils/clipboardHelpers` と同方針だが、`markdown-viewer` → `spreadsheet-viewer` の
+ * `markdown-editor/utils/clipboardHelpers` と同方針だが、`markdown-editor` → `spreadsheet-viewer` の
  * 依存があるため逆 import は循環になる。本パッケージ内に独立して持つ。
  */
 

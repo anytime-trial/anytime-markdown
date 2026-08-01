@@ -1,7 +1,7 @@
 import type {
   WebImportFetchResult,
   WebImportProvider,
-} from '@anytime-markdown/markdown-viewer';
+} from '@anytime-markdown/markdown-editor';
 
 import { getVsCodeApi } from './vscodeApi';
 

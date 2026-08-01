@@ -27,8 +27,8 @@ afterEach(() => {
 
 const baseRun = {
   kind: 'unit',
-  package: 'markdown-viewer',
-  command: 'npx jest packages/markdown-viewer',
+  package: 'markdown-editor',
+  command: 'npx jest packages/markdown-editor',
   status: 'pass',
   durationMs: 1234,
   commitHash: 'abc123',
@@ -78,7 +78,7 @@ test('queryVerifiedKinds: pass のみ・kind ごとに最新を返す', () => {
   recordRun(db, { ...baseRun, startedAt: '2026-07-06T01:00:00.000Z' });
   recordRun(db, { ...baseRun, startedAt: '2026-07-06T02:00:00.000Z' });
   recordRun(db, { ...baseRun, kind: 'typecheck', status: 'fail' });
-  const verified = queryVerifiedKinds(db, { packageName: 'markdown-viewer', codeStateHash: 'abc123' });
+  const verified = queryVerifiedKinds(db, { packageName: 'markdown-editor', codeStateHash: 'abc123' });
   assert.deepEqual([...verified.keys()], ['unit']);
   assert.equal(verified.get('unit').started_at, '2026-07-06T02:00:00.000Z');
   db.close();

@@ -2,7 +2,7 @@
   "name": "@anytime-markdown/markdown-react-islands",
   "version": "0.1.0",
   "private": true,
-  "description": "markdown エディタの意図的 React island（web-app 用 Mount ラッパ・provider 群・ローダー）。markdown-viewer / markdown-rich 本体は React-free。",
+  "description": "markdown エディタの意図的 React island（web-app 用 Mount ラッパ・provider 群・ローダー）。markdown-editor / markdown-rich-editor 本体は React-free。",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@anytime-markdown/markdown-core": "*",
-    "@anytime-markdown/markdown-viewer": "*"
+    "@anytime-markdown/markdown-editor": "*"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * 受入ファーム（自律受入基盤 S1）専用の Playwright 設定。
- * 既存 e2e（playwright.config.ts）とはレイヤーが異なる: 対象は markdown-viewer standalone の
+ * 既存 e2e（playwright.config.ts）とはレイヤーが異なる: 対象は markdown-editor standalone の
  * ハーネス（file://）で、web-app の devserver を必要としない。
  *
  * retries は 0 に固定する — flaky 判定は farm ランナー（scripts/acceptance/farm.mjs）が

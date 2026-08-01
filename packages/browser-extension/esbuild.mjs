@@ -7,7 +7,7 @@
  * 2. src/background.js を bundle して dist/background.js（MV3 service worker）
  * 3. public/ 配下（manifest.json / editor.html / icons）を dist/ にコピー
  *
- * markdown-rich は本来 ESM 配布で重量 peer を external にするが、拡張は CSP（script-src 'self'）
+ * markdown-rich-editor は本来 ESM 配布で重量 peer を external にするが、拡張は CSP（script-src 'self'）
  * のため外部 CDN を読めない。よってここでは全 peer を bundle し、フォント等も拡張内へ同梱する。
  *
  * 注意: workspace パッケージの解決に node_modules の symlink が要るため、

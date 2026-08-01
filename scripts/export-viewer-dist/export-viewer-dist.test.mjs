@@ -4,20 +4,20 @@ import { buildManifest, parseArgs, selectFreshDistFiles } from './export-viewer-
 
 test('parseArgs: --out は必須で、省略時は usage エラーを投げる', () => {
   assert.throws(() => parseArgs([]), /--out/);
-  assert.throws(() => parseArgs(['--package', 'markdown-viewer']), /--out/);
+  assert.throws(() => parseArgs(['--package', 'markdown-editor']), /--out/);
 });
 
-test('parseArgs: --package 省略時は cooccurrence-viewer と markdown-viewer の両方', () => {
+test('parseArgs: --package 省略時は cooccurrence-viewer と markdown-editor の両方', () => {
   assert.deepEqual(parseArgs(['--out', '/tmp/handoff']), {
     outDir: '/tmp/handoff',
-    packageNames: ['cooccurrence-viewer', 'markdown-viewer'],
+    packageNames: ['cooccurrence-viewer', 'markdown-editor'],
   });
 });
 
 test('parseArgs: --package 指定で 1 つに絞れる', () => {
-  assert.deepEqual(parseArgs(['--out', '/tmp/handoff', '--package', 'markdown-viewer']), {
+  assert.deepEqual(parseArgs(['--out', '/tmp/handoff', '--package', 'markdown-editor']), {
     outDir: '/tmp/handoff',
-    packageNames: ['markdown-viewer'],
+    packageNames: ['markdown-editor'],
   });
 });
 
@@ -25,13 +25,13 @@ test('parseArgs: --package は複数指定でき、重複は除く', () => {
   assert.deepEqual(
     parseArgs([
       '--out', '/tmp/handoff',
-      '--package', 'markdown-viewer',
+      '--package', 'markdown-editor',
       '--package', 'cooccurrence-viewer',
-      '--package', 'markdown-viewer',
+      '--package', 'markdown-editor',
     ]),
     {
       outDir: '/tmp/handoff',
-      packageNames: ['markdown-viewer', 'cooccurrence-viewer'],
+      packageNames: ['markdown-editor', 'cooccurrence-viewer'],
     },
   );
 });
@@ -64,7 +64,7 @@ test('selectFreshDistFiles: .js のみを名前順で選ぶ（map や .d.ts は�
   );
 });
 
-// 回帰テスト: markdown-viewer の dist に旧 tsc 出力（searchReplaceExtension.js 等）が
+// 回帰テスト: markdown-editor の dist に旧 tsc 出力（searchReplaceExtension.js 等）が
 // 残っていた実例。ビルド開始時刻より古い .js は「このビルドの成果物」ではないため
 // 受け渡しに含めない（含めると古い残骸が配布物の顔で相手に渡る）。
 test('selectFreshDistFiles: ビルド開始時刻より古い残骸 .js を除外する', () => {

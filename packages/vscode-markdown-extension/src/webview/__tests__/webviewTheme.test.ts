@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import { applyWebviewTheme } from '../webviewTheme';
-import { applyEditorThemeCssVars } from '@anytime-markdown/markdown-viewer';
+import { applyEditorThemeCssVars } from '@anytime-markdown/markdown-editor';
 
 /**
  * webview の CSP（`style-src ${webview.cspSource} 'unsafe-inline'`）は外部 CDN を許可しない。
@@ -11,10 +11,10 @@ import { applyEditorThemeCssVars } from '@anytime-markdown/markdown-viewer';
  *
  * この「渡し忘れ」は型では防げない（省略しても既定値 true で通る）ため、
  * **呼び出し側の引数そのもの**をここで固定する。共有関数側の単体テスト
- * （markdown-viewer の applyEditorThemeCssVars.googleFonts.test.ts）は
+ * （markdown-editor の applyEditorThemeCssVars.googleFonts.test.ts）は
  * フラグの効果を検証するもので、渡し忘れは検知できない。
  */
-jest.mock('@anytime-markdown/markdown-viewer', () => ({
+jest.mock('@anytime-markdown/markdown-editor', () => ({
   applyEditorThemeCssVars: jest.fn(),
   DEFAULT_DARK_BG: '#1e1e1e',
   DEFAULT_LIGHT_BG: '#ffffff',

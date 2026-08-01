@@ -4,8 +4,8 @@ import { buildReportMarkdown } from './generate-test-report.mjs';
 
 const passRun = {
   kind: 'unit',
-  package: 'markdown-viewer',
-  command: 'npx jest packages/markdown-viewer',
+  package: 'markdown-editor',
+  command: 'npx jest packages/markdown-editor',
   status: 'pass',
   duration_ms: 1500,
   commit_hash: 'abc123def',
@@ -43,7 +43,7 @@ test('失敗と対処: fail の後の pass を対処済みとして示す', () =
     targetLabel: 't',
     generatedAtIso: '2026-07-06T02:00:00.000Z',
   });
-  assert.match(md, /## 失敗と対処[\s\S]*?markdown-viewer[\s\S]*?fail/);
+  assert.match(md, /## 失敗と対処[\s\S]*?markdown-editor[\s\S]*?fail/);
   assert.match(md, /対処済み/);
 });
 

@@ -2,7 +2,7 @@
  * `<anytime-cooccurrence-viewer>` Custom Element — cooccurrence-viewer の vanilla mount API
  * （{@link mountCooccurrenceViewer}）をフレームワーク非依存の Web Component で包む。
  *
- * markdown-viewer の `AnytimeMarkdownEditorElement` と同じ anytime WC 規約に揃える。
+ * markdown-editor の `AnytimeMarkdownEditorElement` と同じ anytime WC 規約に揃える。
  * スタイルは Light DOM（mount が `document.head` へ注入するスタイルとテーマ変数がそのまま適用される。
  * テーマ変数は mount 自身が root へ適用するため、この要素での自給処理は不要）。
  *
@@ -35,7 +35,7 @@ import { createInlineLayoutWorker } from './worker/createInlineLayoutWorker';
 
 /**
  * SSR/Node 安全化: `HTMLElement` 未定義環境でも class 定義時に ReferenceError を投げないよう
- * ダミー基底へフォールバックする（markdown-viewer と同じ）。
+ * ダミー基底へフォールバックする（markdown-editor と同じ）。
  */
 const HTMLElementBase: typeof HTMLElement =
   typeof HTMLElement !== 'undefined'
@@ -181,7 +181,7 @@ export class AnytimeCooccurrenceViewerElement extends HTMLElementBase {
     if (this.handle || !this.cachedFile) return;
     const opts = this.fullOptions;
     // 属性由来の既定 → フル options で上書き → callback は emit と consumer 提供の両方を
-    // 呼ぶラッパで最後に確定する（markdown-viewer と同じ合成順）。
+    // 呼ぶラッパで最後に確定する（markdown-editor と同じ合成順）。
     const userOnFileChange = opts.onFileChange;
     const userOnExportPng = opts.onExportPng;
     const userOnRequestSave = opts.onRequestSave;

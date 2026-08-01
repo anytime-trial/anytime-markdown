@@ -11,8 +11,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
-    "@anytime-markdown/markdown-rich": "*",
-    "@anytime-markdown/markdown-viewer": "*",
+    "@anytime-markdown/markdown-rich-editor": "*",
+    "@anytime-markdown/markdown-editor": "*",
     "diff": "8.0.3",
     "dompurify": "3.4.12",
     "jsxgraph": "1.12.2",

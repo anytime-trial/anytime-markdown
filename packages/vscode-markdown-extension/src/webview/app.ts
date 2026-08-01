@@ -21,19 +21,19 @@ import {
   STORAGE_KEY_CONTENT,
   STORAGE_KEY_SETTINGS,
   type ThemePresetName,
-} from '@anytime-markdown/markdown-viewer';
+} from '@anytime-markdown/markdown-editor';
 import {
   MEASURE_PRESETS,
   type MeasurePreset,
-} from '@anytime-markdown/markdown-viewer/src/utils/measurePreset';
-import { detectLocale } from '@anytime-markdown/markdown-viewer/src/i18n/createMarkdownT';
-import { setEmbedProviders } from '@anytime-markdown/markdown-viewer/src/embedProviders';
+} from '@anytime-markdown/markdown-editor/src/utils/measurePreset';
+import { detectLocale } from '@anytime-markdown/markdown-editor/src/i18n/createMarkdownT';
+import { setEmbedProviders } from '@anytime-markdown/markdown-editor/src/embedProviders';
 import type {
   VanillaMarkdownEditorHandle,
   VanillaMarkdownEditorUpdatePatch,
-} from '@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor';
-import { diffLivePatch } from '@anytime-markdown/markdown-viewer/src/host/liveUpdateDiff';
-import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich/src/vanilla/mountVanillaRichMarkdownEditor';
+} from '@anytime-markdown/markdown-editor/src/host/vanillaMarkdownEditor';
+import { diffLivePatch } from '@anytime-markdown/markdown-editor/src/host/liveUpdateDiff';
+import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich-editor/src/vanilla/mountVanillaRichMarkdownEditor';
 
 import { getVsCodeApi } from './vscodeApi';
 import { buildWebviewFileHandlers } from './fileHandlers';

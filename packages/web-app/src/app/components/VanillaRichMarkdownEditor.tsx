@@ -14,7 +14,7 @@
  * （fileSystemProvider / 各 callback / settings 等）は要素の `options` プロパティで渡す。
  */
 
-import '@anytime-markdown/markdown-rich/src/element';
+import '@anytime-markdown/markdown-rich-editor/src/element';
 import {
   VanillaMarkdownEditorMount,
   type VanillaMarkdownEditorMountProps,
@@ -22,7 +22,7 @@ import {
 import {
   getWebImportProvider,
   setWebImportProvider,
-} from '@anytime-markdown/markdown-viewer/src/webImport/webImportProvider';
+} from '@anytime-markdown/markdown-editor/src/webImport/webImportProvider';
 import { useEffect, useMemo } from 'react';
 
 import { createWebImportProvider } from '../../lib/webImportProvider';

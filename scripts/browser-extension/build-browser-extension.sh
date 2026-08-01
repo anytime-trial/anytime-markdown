@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Chrome / Edge (Manifest V3) 拡張 @anytime-markdown/browser-extension をビルドする。
-# 拡張は markdown-rich → markdown-viewer のソースを esbuild で自己完結バンドルするため、
+# 拡張は markdown-rich-editor → markdown-editor のソースを esbuild で自己完結バンドルするため、
 # VS Code 拡張の build-*.sh と異なり workspace 依存の事前ビルド (_build-workspace-deps.mjs) は
 # 不要。出力は packages/browser-extension/dist/（未パッケージ拡張としてそのまま読み込む）。
 

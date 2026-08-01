@@ -15,10 +15,10 @@ after(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
-// MV(markdown-viewer) <- MR(markdown-rich)、VEP は依存ゼロ、の最小構成。
+// MV(markdown-editor) <- MR(markdown-rich-editor)、VEP は依存ゼロ、の最小構成。
 const PACKAGES = {
-  'markdown-viewer': {},
-  'markdown-rich': { dependencies: { '@anytime-markdown/markdown-viewer': '*' } },
+  'markdown-editor': {},
+  'markdown-rich-editor': { dependencies: { '@anytime-markdown/markdown-editor': '*' } },
   'vscode-extension-pack': {},
 };
 
@@ -60,7 +60,7 @@ describe('checkReadmeGraph', () => {
   });
 
   it('依存の向きが逆のエッジを検出する', () => {
-    // markdown-viewer -> markdown-rich は実在しない(本ゲートを作った動機そのもの)。
+    // markdown-editor -> markdown-rich-editor は実在しない(本ゲートを作った動機そのもの)。
     const errors = checkReadmeGraph(makeRepo({ ja: diagram([['MR', 'MV'], ['MV', 'MR']]) }));
     assert.equal(errors.length, 1);
     assert.match(errors[0], /実依存に裏付けなし: MV->MR/);
@@ -135,15 +135,15 @@ describe('collectInternalDeps', () => {
   it('@anytime-markdown スコープの依存だけを拾う', () => {
     const root = makeRepo({ ja: VALID });
     writeFileSync(
-      join(root, 'packages', 'markdown-rich', 'package.json'),
+      join(root, 'packages', 'markdown-rich-editor', 'package.json'),
       JSON.stringify({
-        name: '@anytime-markdown/markdown-rich',
-        dependencies: { '@anytime-markdown/markdown-viewer': '*', mermaid: '11.0.0' },
-        devDependencies: { '@anytime-markdown/markdown-viewer': '*', jest: '30.0.0' },
+        name: '@anytime-markdown/markdown-rich-editor',
+        dependencies: { '@anytime-markdown/markdown-editor': '*', mermaid: '11.0.0' },
+        devDependencies: { '@anytime-markdown/markdown-editor': '*', jest: '30.0.0' },
       }),
     );
     const deps = collectInternalDeps(root);
-    assert.deepEqual([...deps.get('markdown-rich')], ['markdown-viewer']);
+    assert.deepEqual([...deps.get('markdown-rich-editor')], ['markdown-editor']);
   });
 
   it('packages ディレクトリが無ければ空を返す', () => {

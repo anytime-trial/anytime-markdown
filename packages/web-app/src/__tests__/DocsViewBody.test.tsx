@@ -32,7 +32,7 @@ jest.mock("../app/components/MarkdownViewer", () => ({
   __esModule: true,
   default: (props: any) => (
     <div
-      data-testid="markdown-viewer"
+      data-testid="markdown-editor"
       data-doc-key={props.docKey}
       data-minimal={props.minimal ? "true" : "false"}
       data-measure={props.measure ?? ""}
@@ -46,7 +46,7 @@ import DocsViewBody from "../app/docs/view/DocsViewBody";
 describe("DocsViewBody", () => {
   it("renders MarkdownViewer when key is provided", () => {
     render(<DocsViewBody />);
-    const viewer = screen.getByTestId("markdown-viewer");
+    const viewer = screen.getByTestId("markdown-editor");
     expect(viewer).toBeTruthy();
     expect(viewer.getAttribute("data-doc-key")).toBe("docs/test/test.ja.md");
   });
@@ -60,7 +60,7 @@ describe("DocsViewBody", () => {
   // minimal / measure="wide" / noScroll を MarkdownViewer に渡すことを保証する。
   it("uses the same read-only view component as reports (minimal + wide + noScroll)", () => {
     render(<DocsViewBody />);
-    const viewer = screen.getByTestId("markdown-viewer");
+    const viewer = screen.getByTestId("markdown-editor");
     expect(viewer.getAttribute("data-minimal")).toBe("true");
     expect(viewer.getAttribute("data-measure")).toBe("wide");
     expect(viewer.getAttribute("data-no-scroll")).toBe("true");
@@ -70,7 +70,7 @@ describe("DocsViewBody", () => {
 describe("DocsViewBody with locale map", () => {
   it("passes correct doc key", () => {
     render(<DocsViewBody />);
-    const viewer = screen.getByTestId("markdown-viewer");
+    const viewer = screen.getByTestId("markdown-editor");
     expect(viewer.getAttribute("data-doc-key")).toBe("docs/test/test.ja.md");
   });
 });
@@ -81,7 +81,7 @@ describe("DocsViewBody resolveDocKeys logic", () => {
   // ja locale の場合、test.ja.md → localeMap: { en: "test.en.md" }
   it("passes correct doc key for ja.md file", () => {
     render(<DocsViewBody />);
-    const viewer = screen.getByTestId("markdown-viewer");
+    const viewer = screen.getByTestId("markdown-editor");
     // useSearchParams returns "key=docs/test/test.ja.md", locale=ja
     expect(viewer.getAttribute("data-doc-key")).toBe("docs/test/test.ja.md");
   });

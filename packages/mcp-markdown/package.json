@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@anytime-markdown/doc-core": "*",
-    "@anytime-markdown/markdown-viewer": "*",
+    "@anytime-markdown/markdown-editor": "*",
     "@anytime-markdown/section-lock-core": "*",
     "@modelcontextprotocol/sdk": "1.27.1",
     "gray-matter": "4.0.3",

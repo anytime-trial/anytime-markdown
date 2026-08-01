@@ -1,7 +1,7 @@
 /**
  * React 非依存の translator（vanilla 化用）。
  * React context 版（{@link ./context.tsx} の `useGraphT`）と同一の解決ロジック
- * （ja フォールバック + `{var}` 置換）の単一ソース。markdown-viewer の `createMarkdownT` と同型。
+ * （ja フォールバック + `{var}` 置換）の単一ソース。markdown-editor の `createMarkdownT` と同型。
  */
 
 import enMessages from './en.json';

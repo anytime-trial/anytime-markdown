@@ -76,8 +76,8 @@ A set of MCP (Model Context Protocol) servers that give AI agents direct access 
 ```mermaid
 flowchart TD
     subgraph core ["Shared Libraries"]
-        MV["markdown-viewer<br/>(Editor foundation)"]
-        MR["markdown-rich<br/>(Diagram rendering · derived)"]
+        MV["markdown-editor<br/>(Editor foundation)"]
+        MR["markdown-rich-editor<br/>(Diagram rendering · derived)"]
         GC["graph-core<br/>(Graph engine)"]
         TC["trail-core<br/>(TypeScript analysis · C4 · DSM)"]
         CC["cms-core<br/>(S3 client)"]
@@ -152,25 +152,25 @@ Arrows reflect the internal dependencies (`@anytime-markdown/*`) declared in eac
 
 ### The markdown-* packages
 
-Seven packages share the `markdown-` prefix, and **the direction of their dependencies cannot be inferred from the names**. `markdown-viewer` is the foundation; `markdown-rich` is derived from it by adding diagram rendering — not the other way around.
+Seven packages share the `markdown-` prefix. `markdown-editor` is the foundation; `markdown-rich-editor` is derived from it by adding diagram rendering — not the other way around. Because the names are similar, the table below states each package's scope and the direction of its dependencies explicitly.
 
 | Package | Role | Internal dependency |
 | --- | --- | --- |
-| `markdown-viewer` | **Editor foundation.** TipTap extension assembly, mount API, vanilla UI, i18n, file system abstraction. Despite the name, it is not a read-only viewer | `markdown-core` |
-| `markdown-rich` | `markdown-viewer` plus **mermaid / katex / plantuml / plotly / jsxgraph rendering**. Isolates the heavy dependencies here so the foundation stays lean | `markdown-viewer` |
+| `markdown-editor` | **Editor foundation.** TipTap extension assembly, mount API, vanilla UI, i18n, file system abstraction. Does not include diagram rendering | `markdown-core` |
+| `markdown-rich-editor` | `markdown-editor` plus **mermaid / katex / plantuml / plotly / jsxgraph rendering**. Isolates the heavy dependencies here so the foundation stays lean | `markdown-editor` |
 | `markdown-core` | Vendored tiptap. Not first-party code; consumed through bundler and tsconfig aliases | none |
 | `markdown-engine` | Markdown text processing (formatting, diff, section parsing, sanitization). Independent of the editor | none |
-| `markdown-react-islands` | React wrappers for web-app. The editor itself is React-free; React is isolated to this package | `markdown-viewer` |
-| `markdown-view` | Published wrapper registering `<anytime-markdown-view>` (with diagrams) | `markdown-rich` |
-| `markdown-view-lite` | Published wrapper registering `<anytime-markdown-view>` (without diagrams) | `markdown-viewer` |
+| `markdown-react-islands` | React wrappers for web-app. The editor itself is React-free; React is isolated to this package | `markdown-editor` |
+| `markdown-view` | Published wrapper registering `<anytime-markdown-view>` (with diagrams) | `markdown-rich-editor` |
+| `markdown-view-lite` | Published wrapper registering `<anytime-markdown-view>` (without diagrams) | `markdown-editor` |
 
 Three Web Components are distributed. All three expose the same attribute, property, and event interface.
 
 | Tag | Registered by | Diagrams | Editing |
 | --- | --- | --- | --- |
-| `<anytime-markdown-editor>` | `markdown-viewer/element` | no | yes |
-| `<anytime-markdown-rich-editor>` | `markdown-rich/element` | yes | yes |
-| `<anytime-markdown-view>` | `markdown-rich` or `markdown-view-lite` | depends on which | no (read-only) |
+| `<anytime-markdown-editor>` | `markdown-editor/element` | no | yes |
+| `<anytime-markdown-rich-editor>` | `markdown-rich-editor/element` | yes | yes |
+| `<anytime-markdown-view>` | `markdown-rich-editor` or `markdown-view-lite` | depends on which | no (read-only) |
 
 `<anytime-markdown-view>` has lean and diagram-bundled twins under the same tag; the import you choose determines its rendering capability. If both are loaded on one page, whichever registers first wins.
 

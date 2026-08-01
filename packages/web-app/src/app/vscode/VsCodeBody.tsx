@@ -1,6 +1,6 @@
 'use client';
 
-import { ACCENT_COLOR } from '@anytime-markdown/markdown-viewer';
+import { ACCENT_COLOR } from '@anytime-markdown/markdown-editor';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CodeIcon from '@mui/icons-material/Code';

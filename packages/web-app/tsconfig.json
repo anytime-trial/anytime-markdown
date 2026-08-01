@@ -17,12 +17,12 @@
     "resolveJsonModule": true,
     "jsx": "preserve",
     "paths": {
-      "@/*": ["../markdown-viewer/src/*"],
-      "@anytime-markdown/markdown-viewer/src/*": ["../markdown-viewer/src/*"],
-      "@anytime-markdown/markdown-viewer": ["../markdown-viewer/src/index.ts"],
+      "@/*": ["../markdown-editor/src/*"],
+      "@anytime-markdown/markdown-editor/src/*": ["../markdown-editor/src/*"],
+      "@anytime-markdown/markdown-editor": ["../markdown-editor/src/index.ts"],
       "@anytime-markdown/markdown-engine": ["../markdown-engine/src/index.ts"],
-      "@anytime-markdown/markdown-rich/src/*": ["../markdown-rich/src/*"],
-      "@anytime-markdown/markdown-rich": ["../markdown-rich/src/index.ts"],
+      "@anytime-markdown/markdown-rich-editor/src/*": ["../markdown-rich-editor/src/*"],
+      "@anytime-markdown/markdown-rich-editor": ["../markdown-rich-editor/src/index.ts"],
       "@anytime-markdown/graph-core": ["../graph-core/src/index.ts"],
       "@anytime-markdown/graph-core/*": ["../graph-core/src/*"],
       "@anytime-markdown/graph-viewer": ["../graph-viewer/src/index.ts"],
@@ -88,10 +88,10 @@
     "src/**/*",
     "next-env.d.ts",
     ".next/types/**/*.ts",
-    "../markdown-viewer/src/md.d.ts",
-    "../markdown-viewer/src/types/vscode.d.ts",
-    "../markdown-viewer/src/types/stylis.d.ts",
-    "../markdown-rich/src/plotly-gl3d.d.ts"
+    "../markdown-editor/src/md.d.ts",
+    "../markdown-editor/src/types/vscode.d.ts",
+    "../markdown-editor/src/types/stylis.d.ts",
+    "../markdown-rich-editor/src/plotly-gl3d.d.ts"
   ],
   "exclude": [
     "node_modules",

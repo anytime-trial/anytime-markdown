@@ -10,8 +10,8 @@ jest.mock("next-intl", () => ({
 jest.mock("@anytime-markdown/markdown-react-islands", () => ({
   MarkdownCoreI18nProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock("@anytime-markdown/markdown-viewer/src/i18n/en.json", () => ({}), { virtual: true });
-jest.mock("@anytime-markdown/markdown-viewer/src/i18n/ja.json", () => ({}), { virtual: true });
+jest.mock("@anytime-markdown/markdown-editor/src/i18n/en.json", () => ({}), { virtual: true });
+jest.mock("@anytime-markdown/markdown-editor/src/i18n/ja.json", () => ({}), { virtual: true });
 jest.mock("@anytime-markdown/spreadsheet-viewer", () => ({
   SpreadsheetI18nProvider: ({ children }: { children: React.ReactNode }) => children,
 }));

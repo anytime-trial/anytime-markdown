@@ -19,7 +19,7 @@
  * 読み取り、取り込み後に削除する（自動保存復元より優先）。
  */
 /* global chrome */
-import { extractDriveFileId } from "@anytime-markdown/markdown-viewer/fs/drive-client";
+import { extractDriveFileId } from "@anytime-markdown/markdown-editor/fs/drive-client";
 
 const EDITOR_IMPORT_URL = "editor.html?import=1";
 const EDITOR_DRIVE_IMPORT_URL = "editor.html?driveImport=1";

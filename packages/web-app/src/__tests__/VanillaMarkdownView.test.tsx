@@ -10,7 +10,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 // Web Component 登録の副作用 import を無効化（jsdom で custom element 実体は不要）
-jest.mock("@anytime-markdown/markdown-rich/src/view-element", () => ({}));
+jest.mock("@anytime-markdown/markdown-rich-editor/src/view-element", () => ({}));
 jest.mock("@anytime-markdown/markdown-react-islands", () => ({
   VanillaMarkdownEditorMount: () => (
     <div>

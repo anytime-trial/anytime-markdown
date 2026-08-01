@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 
 import { useMarkdownT } from '../i18n/context';
 import ConfirmDialog from './ConfirmDialog';
-import { DialogOptions } from '@anytime-markdown/markdown-viewer/src/providers/types';
+import { DialogOptions } from '@anytime-markdown/markdown-editor/src/providers/types';
 
 const defaultContextValue: {
   confirm: (options: DialogOptions) => Promise<void>;

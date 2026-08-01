@@ -62,7 +62,7 @@ const webviewConfig = {
     alias: {
       // @anytime-markdown/markdown-* → vendored ソース
       ...buildWebpackAlias(),
-      '@': path.resolve(__dirname, '../markdown-viewer/src'),
+      '@': path.resolve(__dirname, '../markdown-editor/src'),
       '@anytime-markdown/markdown-engine': path.resolve(__dirname, '../markdown-engine/src/index.ts'),
       // graph-core / ui-core はワークスペース src を直接解決する（worktree の node_modules
       // symlink が main checkout を指すため、alias で当該 worktree の src に固定）。

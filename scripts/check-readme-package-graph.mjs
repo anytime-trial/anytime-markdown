@@ -3,9 +3,9 @@
 //
 // README.ja.md / README.md の「プロジェクト構成」に置いた mermaid 依存図は、手書きゆえに
 // パッケージの追加・改名へ追随せず腐る。実際 2026-05-31 の名前玉突き
-// (markdown-core -> markdown-viewer / tiptap-vendor -> markdown-core) に約 2 か月間
+// (markdown-core -> markdown-editor / tiptap-vendor -> markdown-core) に約 2 か月間
 // 追随しておらず、markdown-core を「エディタエンジン」と説明したまま放置されていた。
-// この乖離が markdown-viewer と markdown-rich の依存の向きを逆に読む誤解を生んだため、
+// この乖離が markdown-editor と markdown-rich-editor の依存の向きを逆に読む誤解を生んだため、
 // 図の主張を packages/*/package.json の実依存と機械的に突合する。
 //
 // 検査する 5 点:
@@ -23,8 +23,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** 図のノード ID -> 実パッケージ名。複数を 1 ノードに束ねている場合は配列。 */
 export const ID_TO_PKG = {
-  MV: ['markdown-viewer'],
-  MR: ['markdown-rich'],
+  MV: ['markdown-editor'],
+  MR: ['markdown-rich-editor'],
   MC: ['markdown-core'],
   GC: ['graph-core'],
   TC: ['trail-core'],

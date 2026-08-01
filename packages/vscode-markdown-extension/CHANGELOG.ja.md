@@ -17,7 +17,7 @@
 - webview が Google Fonts を読み込まないようにした。webview の CSP（`style-src ${webview.cspSource} 'unsafe-inline'`）は外部 CDN を許可しておらず、読み込みは必ずブロックされていた。プリセットのフォントはシステムフォントへフォールバックする。不変条件を単体テストで守るため、テーマ適用を `webviewTheme` モジュールへ分離した。
 - `ts-loader` の `configFile` を絶対パスで固定し、親方向探索がルートの `tsconfig` を掴むことによる間欠的なビルド失敗を解消した。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Google Fonts の `<link>` を再適用のたびに取り除くようにした
 - 埋め込みの共起ネットワーク図が共起の向き・時間軸・要素メモに対応
@@ -32,7 +32,7 @@
 
 - コマンド経由の `startDocIngest` が初回 ingest を実行しない問題を修正しました。ランナー自身の起動時 `runOnce` とコマンドハンドラが続けて呼ぶ `runOnce` が同じ `running` ガードを取り合っており、`regenerateDocIndexes` が誤った失敗警告を出したり、`rebuildDocIndex` の 2 回目がスキップされたりしていました。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - initialMode オプションを追加し、ホストが起動モードを明示的に指定できるようにしました。
 - 共起ネットワーク図種を anytime-graph に追加しました。
@@ -45,7 +45,7 @@
 - 同梱スキルのインストーラをディレクトリ再帰コピーへ拡張し、複数ファイル構成のスキルが正しく配置されるようにしました。
 - 同梱スキル `anytime-doc-authoring` に日本語技術文書の文章規範を追加し、レビュー指摘 3 件（旧スキル参照・テンプレート見出し・出典ライセンス）を対処しました。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - screenmock 編集ダイアログに右側編集パネル（部品・属性・構造・画面）を追加し、バリアント・色トークン・オフセット・ドラッグ挿入・階層ツリー・画面管理・スニペット・テンプレート・プリセット・並べ替え・整列・ズームに対応しました。
 - screenmock デザイン編集がドラッグ並べ替えと Alt 自由配置に対応しました。
@@ -62,7 +62,7 @@
 
 ## [1.15.0] - 2026-07-17
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - screenmock フェンス: 画面遷移・トランジション・部品語彙を備えたインタラクティブな画面モックフェンス。デザイン編集モード（マウスリサイズ + ソース書き戻し）とスラッシュコマンドの挿入項目を追加。cross-review 指摘 9 件の修正を含みます。
 
@@ -72,13 +72,13 @@
 
 - 同梱の MCP サーバー（`mcp-markdown`）の変更系ツールがセクションロックを検査するようになりました。ロックされた見出しセクションに触れる編集は第 2 の防御層として拒否されます。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - セクションロック: 見出しセクションを「確定」としてロック可能に（アウトラインのロック/解除ボタン・frontmatter 永続化。FR-8.3）。アウトラインボタンの表示不具合・frontmatter 自動展開・ロック付き文書のマウント失敗の修正を含みます。
 
 ## [1.13.4] - 2026-07-16
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - web アプリで表示するプライバシーポリシー文言を更新。拡張機能自体の機能変更はなし。
 
@@ -94,7 +94,7 @@
 
 - 同梱スキル `anytime-doc-authoring` の委譲参照を `anytime-dev-cycle` へ更新しました（skill manifest を bump したため activate 時に再配置されます）。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - コードフェンス内の markdown プレビューが本文幅設定に追従しない不具合を修正しました。
 
@@ -147,7 +147,7 @@
 
 ## [1.10.0] - 2026-07-09
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Google Drive の Markdown を revision 突合の競合検出付きで開閉・保存する `DriveFileSystemProvider` を追加。
 - Google Drive API リクエストとページキャプチャの共有純粋関数を追加。
@@ -159,7 +159,7 @@
 
 - workspace trust ガードを追加し、Disposable 処理とログ規約をプロジェクト規約に整合。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - vanilla UI のロジック・状態購読・エラー可視化の回帰を修正、diff 色をテーマトークン化。
 - PlantUML encoder 修正、KaTeX/印刷 SVG サニタイズ、webImport サニタイズの対称化と origin 検証。
@@ -175,7 +175,7 @@
 
 - 「Claude 編集中」バナーが解除されない問題を修正（stale 状態の安全網＋ファイル単位ロック配信）。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - 思考法ダイアグラム: structure-map 図種、プレビュー上でのインラインラベル編集、DSL 由来ラベル編集（structure-map まとめ／causal-loop 極性）。
 - マインドマップを FreeMind 風レイアウトへ変更、子ノード重なりを修正。
@@ -187,7 +187,7 @@
 
 - Web ページ取り込み: 拡張ホストで SSRF ガード付き fetch（リダイレクト各ホップ再検証・content-type/サイズ/タイムアウト制限）により URL を取得し Markdown 化。カーソル位置へ挿入（`/web`）または無題ドキュメントとして新規作成（ツールバー）。
 
-### Editor Core (markdown-viewer)
+### Editor Core (markdown-editor)
 
 - スラッシュコマンド/ツールバーから Web ページ取り込み（Readability + Turndown）。フロントマターは YAML 安全化。
 
@@ -203,7 +203,7 @@
 - webview の `Ctrl+S` を host の保存ハンドラに配線（「名前を付けて保存」ダウンロードダイアログにフォールバックしていた問題を修正）。
 - webview mount に `vscodeApi` を配線。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - mdEmbed トランスクルージョン（インライン編集可能な埋め込み Markdown リンク）、`link` スラッシュコマンド、比較モードのミニマップ差分マーカー、変更オーバービューミニマップの復元、変更 gutter／検索バー／mdEmbed 保存整合性の各種修正。
 
@@ -223,13 +223,13 @@
 - 未使用だった `anytimeMarkdown.editorMaxWidth` 設定を削除（エディタ側で適用されていませんでした）。
 - `anytimeMarkdown.claudeStatus.directory` 設定を削除。Claude Code の編集ステータスは agent-status ワーカー（DB）から取得するようになり、旧 `claude-code-status.json` ファイルパスは不要になりました。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - スペルチェック機能を削除。ソースモードが狭幅で折り返すように。画像 crop 編集を全画面化。表インラインツールバーの操作を編集画面へ集約。`embed-all` テンプレートに Anytime Chart / Thinking Diagram 節を追加。HTML 編集の実プレビューとコードブロックプレビューのハイライトを修復。
 
 ## [1.5.1] - 2026-06-23
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - 狭い表示幅でも幅広テーブルを横スクロールできるようにした（table wrapper を既定で描画）。
 
@@ -252,7 +252,7 @@
 - `search_docs` の抜粋・`get_section` の `maxChars` に対応し、節単位の FTS を追加。
 - 見出し上の空行を 2 → 1 に変更（整形規約の更新）。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - vanilla UI プリミティブを `@anytime-markdown/ui-core` へ抽出。
 - `anytime-chart` に combo-stacked / combo-area / markers サンプルを追加。chart-core の下部凡例・ドリルダウン・円グラフ中心配置。
@@ -268,7 +268,7 @@
 
 - `related` フロントマターの読み書きパスを堅牢化（マージ前レビュー指摘対処）。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - `chart-core` を同梱。`anytime-chart` フェンスを `<anytime-chart>` Web Component（9 図種・DPR 補正・hover ツールチップ・a11y）で描画。編集ダイアログに「表」タブと `chart` スラッシュコマンドを追加。
 - 設定パネルに本文幅切替 UI（集中 / 標準 / 広い）を em 基準プリセットで追加し、可読性を改善。
@@ -281,7 +281,7 @@
 
 - エディタ右レール（Outline 風）にノート網パネルを追加。ドキュメント中心ビュー＋バックリンク、マウスドラッグでの幅変更、ピン留め（自動で閉じない・別ファイルでも初期表示で開く）に対応。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - フロントマター由来のノート網ビューア、思考法ダイアグラムのプレビュー上 WYSIWYG 編集。
 - ソースモードの行番号ガター、本文・比較左ペインへの `.md` ドロップで開く。
@@ -294,7 +294,7 @@
 
 - 拡張機能のアイコンを camel ブランディングに変更。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - `anytime-markdown-view` Web Component（React 非依存の read-only カスタム要素）と read-only ビューの font/theme 直置きツールバーを追加。
 - Web Component 基底クラスを SSR/Node 安全化。
@@ -306,7 +306,7 @@
 
 - TypeScript 6.0.3 へアップグレード（ビルドツールチェーン更新）。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - エディタ本文デザインをデザイン仕様へ整合し、本文 measure 既定を 1000px へ変更。
 - a11y 改善（タップ 44px・focus リング統一・フォント上限拡張）。
@@ -319,7 +319,7 @@
 - React-free 化したエディタコアを同梱。webview を vanilla bootstrap 化し、拡張バンドルから React を完全除去（バンドル軽量化）。
 - VS Code の言語変更を `editorKey` の remount で反映。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - エディタコアから React を完全排除。全 NodeView と chrome を native/vanilla 化し、旧 React 実装（136 src / 27 css / 148 テスト）と `markdown-react` パッケージを撤去。
 - React island（embed/graph プレビュー）を別パッケージ `markdown-react-islands` へ分離。viewer/rich コアは React-free。
@@ -331,9 +331,9 @@
 
 - MUI を全廃し自前 UI プリミティブキットへ書き換えたエディタコアを同梱（拡張からの挙動変化なし）。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
-- エディタ chrome と `markdown-rich` から `@mui/material`・`@mui/icons-material` を全廃し、自前 `ui/` プリミティブキットと vendored アイコンへ置換（MUI 削減 Phase3a/3b）。
+- エディタ chrome と `markdown-rich-editor` から `@mui/material`・`@mui/icons-material` を全廃し、自前 `ui/` プリミティブキットと vendored アイコンへ置換（MUI 削減 Phase3a/3b）。
 - MUI `GlobalStyles`・`useTheme`・`useMediaQuery` を stylis ベース `ui/GlobalStyle`・`ThemeModeContext`（`useIsDark`）・自前メディアクエリフックへ置換。peerDependencies から `@mui/*`・`@emotion/*` を削除。
 - 比較モードの imageRow バッジレイアウトを修正。
 
@@ -347,7 +347,7 @@
 
 - 見出しボーダーをデザイン仕様準拠の墨色に統一。
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - フレームワーク非依存の `diffEngine` / sanitize クラスタを新パッケージ `@anytime-markdown/markdown-engine` へ抽出し、`sanitizeMarkdown` を DOM 非依存化。
 - 共有のエディタテーマ CSS 変数インジェクタと Tiptap コンテンツスタイル合成を抽出し、比較モードのスタイルを通常エディタと統一。
@@ -356,11 +356,11 @@
 
 ## [0.16.0] - 2026-05-31
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - `@tiptap/*` npm 依存を vendored な Tiptap v3.20.0 ソース（`@anytime-markdown/markdown-*` 名前空間）へ全面置換し、外部 Tiptap サプライチェーンを排除。
-- リッチコードブロッククラスタ（図表・ダークモード PDF レンダリング）を新パッケージ `@anytime-markdown/markdown-rich` へ分離。`markdown-viewer` は利用側の共有 API を公開。
-- エディタコアパッケージを `@anytime-markdown/markdown-viewer` へ改名（旧 `markdown-core` 名は vendored Tiptap ソースを保持）。
+- リッチコードブロッククラスタ（図表・ダークモード PDF レンダリング）を新パッケージ `@anytime-markdown/markdown-rich-editor` へ分離。`markdown-editor` は利用側の共有 API を公開。
+- エディタコアパッケージを `@anytime-markdown/markdown-editor` へ改名（旧 `markdown-core` 名は vendored Tiptap ソースを保持）。
 
 ## [0.15.6] - 2026-05-27
 

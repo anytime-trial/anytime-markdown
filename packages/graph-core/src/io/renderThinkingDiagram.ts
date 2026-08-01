@@ -1,6 +1,6 @@
 /**
  * anytime-graph フェンスの DSL から、埋め込み用のインライン SVG を生成する。
- * markdown のコードブロックプレビュー（markdown-rich）・SSR / PDF 経路の双方が
+ * markdown のコードブロックプレビュー（markdown-rich-editor）・SSR / PDF 経路の双方が
  * この単一エントリを呼ぶことで、描画結果を揃える。
  */
 

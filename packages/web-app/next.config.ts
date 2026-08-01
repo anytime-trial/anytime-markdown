@@ -28,7 +28,7 @@ const nextConfig: NextConfig = {
     '@anytime-markdown/database-viewer',
     '@anytime-markdown/cooccurrence-viewer',
     '@anytime-markdown/graph-core',
-    '@anytime-markdown/markdown-viewer',
+    '@anytime-markdown/markdown-editor',
     '@anytime-markdown/markdown-react-islands',
     '@anytime-markdown/section-lock-core',
     '@anytime-markdown/markdown-engine',

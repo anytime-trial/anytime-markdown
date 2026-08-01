@@ -29,7 +29,7 @@ jest.mock('next-intl', () => ({
   NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// providers.tsx の import 連鎖（markdown-viewer / capacitor）を既存 providers テストと同様に断つ。
+// providers.tsx の import 連鎖（markdown-editor / capacitor）を既存 providers テストと同様に断つ。
 jest.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
 jest.mock('@capacitor/status-bar', () => ({ StatusBar: {}, Style: { Light: 'LIGHT', Dark: 'DARK' } }));
 jest.mock('@anytime-markdown/markdown-react-islands', () => ({
@@ -40,7 +40,7 @@ jest.mock('@anytime-markdown/markdown-react-islands', () => ({
 jest.mock('@anytime-markdown/database-viewer', () => ({
   DatabaseI18nProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock('@anytime-markdown/markdown-viewer', () => {
+jest.mock('@anytime-markdown/markdown-editor', () => {
   const preset = { label: 'p', fontFamily: 'sans-serif', displayFont: 'serif', borderRadius: { sm: 4, md: 8, lg: 12 } };
   const color = () => '#000000';
   return {

@@ -125,7 +125,7 @@ type フォルダおよびその全サブフォルダの直下に索引 `index.[
 
 ## 3. component spec（パッケージ設計書）の記載ルール
 
-`spec/<NN>.<pkg>/` 配下のパッケージ設計書は、以下のルールで記載する。雛形は `spec/31.markdown-viewer/`。
+`spec/<NN>.<pkg>/` 配下のパッケージ設計書は、以下のルールで記載する。雛形は `spec/31.markdown-editor/`。
 
 ### 3.1. 機能仕様（外部仕様）で書く
 

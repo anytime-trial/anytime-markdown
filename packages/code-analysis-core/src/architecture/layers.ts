@@ -31,6 +31,12 @@ const DOMAIN_NAMES: ReadonlySet<string> = new Set([
   'markdown-eval-core',
 ]);
 
+// Why not: markdown-editor を接尾辞規則で拾わない。旧名 markdown-viewer は `-viewer` 規則に
+// 合致して presentation-ui と判定されていたが、改名で規則から外れ foundation へ落ちる
+// （TipTap/ProseMirror だけを使うため render-only 判定に合致する）。層は変わっていないので
+// 名前を明示して従来の判定を維持する。派生の markdown-rich-editor は旧名 markdown-rich の
+// 時点から render-only 経由の foundation であり、ここに足すと逆に判定が変わるため足さない。
+
 /** これらだけを使うモジュールは描画プリミティブ＝foundation 層。 */
 const RENDER_ONLY: ReadonlySet<FrameworkId> = new Set<FrameworkId>([
   'markdown-render',
@@ -83,6 +89,7 @@ function evaluateUi(c: ClassifyContext): RuleHit | null {
   const nameHit =
     c.short.endsWith('-viewer') ||
     c.short === 'web-app' ||
+    c.short === 'markdown-editor' ||
     c.short.endsWith('-react-islands') ||
     c.short === 'browser-extension';
   const markerHit = c.markers.includes('next.config') || c.markers.includes('astro.config');

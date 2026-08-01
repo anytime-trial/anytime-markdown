@@ -14,13 +14,13 @@
     "accept:farm": "node scripts/acceptance/farm.mjs",
     "test:scripts": "node --test scripts/*.test.mjs scripts/acceptance/*.test.mjs scripts/export-viewer-dist/*.test.mjs",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
-    "lint": "eslint packages/markdown-viewer/src packages/web-app/src",
-    "lint:fix": "eslint --fix packages/markdown-viewer/src packages/web-app/src",
+    "lint": "eslint packages/markdown-editor/src packages/web-app/src",
+    "lint:fix": "eslint --fix packages/markdown-editor/src packages/web-app/src",
     "prepare": "husky && node scripts/install-extra-hooks.mjs"
   },
   "workspaces": [
-    "packages/markdown-viewer",
-    "packages/markdown-rich",
+    "packages/markdown-editor",
+    "packages/markdown-rich-editor",
     "packages/markdown-view",
     "packages/markdown-view-lite",
     "packages/markdown-react-islands",
@@ -105,7 +105,7 @@
     "typescript-eslint": "8.61.0"
   },
   "lint-staged": {
-    "packages/markdown-viewer/src/**/*.{ts,tsx}": "eslint",
+    "packages/markdown-editor/src/**/*.{ts,tsx}": "eslint",
     "packages/web-app/src/**/*.{ts,tsx}": "eslint"
   },
   "dependencies": {

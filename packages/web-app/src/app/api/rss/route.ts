@@ -1,4 +1,4 @@
-import { parseRssLatest } from "@anytime-markdown/markdown-viewer/src/utils/rssParser";
+import { parseRssLatest } from "@anytime-markdown/markdown-editor/src/utils/rssParser";
 import { NextResponse } from "next/server";
 
 import { assertSafeUrl, safeFetch } from "../../../lib/ssrfGuard";

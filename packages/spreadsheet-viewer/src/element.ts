@@ -3,7 +3,7 @@
  *
  * このファイルを import すると Custom Element が登録される。`index.ts` には含めない
  * （クラスのみ export）ことで、CSV ユーティリティだけを使う既存 consumer
- * （markdown-viewer 等）に customElements.define の副作用を波及させない。
+ * （markdown-editor 等）に customElements.define の副作用を波及させない。
  *
  * esbuild 配布ビルド（`dist/anytime-spreadsheet.js` / `.iife.js`）のエントリでもある。
  */

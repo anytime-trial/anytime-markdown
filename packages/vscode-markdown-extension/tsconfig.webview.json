@@ -6,10 +6,10 @@
 		"resolveJsonModule": true,
 		"baseUrl": ".",
 		"paths": {
-			"@anytime-markdown/markdown-viewer": ["../markdown-viewer/src/index.ts"],
-			"@anytime-markdown/markdown-viewer/*": ["../markdown-viewer/*"],
-			"@anytime-markdown/markdown-rich": ["../markdown-rich/src/index.ts"],
-			"@anytime-markdown/markdown-rich/*": ["../markdown-rich/*"],
+			"@anytime-markdown/markdown-editor": ["../markdown-editor/src/index.ts"],
+			"@anytime-markdown/markdown-editor/*": ["../markdown-editor/*"],
+			"@anytime-markdown/markdown-rich-editor": ["../markdown-rich-editor/src/index.ts"],
+			"@anytime-markdown/markdown-rich-editor/*": ["../markdown-rich-editor/*"],
 			"@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"],
 			"@anytime-markdown/markdown-core": ["../markdown-core/core/src/index.ts"],
 			"@anytime-markdown/markdown-engine": ["../markdown-engine/src/index.ts"],
@@ -24,18 +24,18 @@
 			"@anytime-markdown/markdown-extension-task-list": ["../markdown-core/_shims/extension-task-list.ts"],
 			"@anytime-markdown/markdown-extension-*": ["../markdown-core/extension-*/src/index.ts"],
 			"@anytime-markdown/markdown-md": ["../markdown-core/tiptap-markdown"],
-			"@/*": ["../markdown-viewer/src/*"]
+			"@/*": ["../markdown-editor/src/*"]
 		}
 	},
 	"include": [
 		"src/webview/**/*",
-		"../markdown-viewer/src/**/*",
-		"../markdown-rich/src/**/*",
+		"../markdown-editor/src/**/*",
+		"../markdown-rich-editor/src/**/*",
 		"../vscode-common/src/webview/**/*"
 	],
 	"exclude": [
-		"../markdown-viewer/src/__tests__/**/*",
-		"../markdown-viewer/src/testUtils/**/*",
-		"../markdown-rich/src/__tests__/**/*"
+		"../markdown-editor/src/__tests__/**/*",
+		"../markdown-editor/src/testUtils/**/*",
+		"../markdown-rich-editor/src/__tests__/**/*"
 	]
 }

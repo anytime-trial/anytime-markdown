@@ -2,7 +2,7 @@
  * 確認ダイアログ（Promise ベース・vanilla）。
  *
  * `createDialog` の self-append に乗せ、確定/取消/ESC/backdrop で解決して自前破棄する。
- * installBlockOverlays の `confirmDelete` と markdown-rich installCodeBlockOverlay の
+ * installBlockOverlays の `confirmDelete` と markdown-rich-editor installCodeBlockOverlay の
  * `confirmVanilla` が同パターンを重複実装していたものの集約。
  */
 

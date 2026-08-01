@@ -80,7 +80,7 @@ jobs:
       # README の依存図(mermaid)が packages/*/package.json の実依存と一致しているか検証する。
       # 手書きの図はパッケージの追加・改名へ追随せず腐る。実際 2026-05-31 の名前玉突きに
       # 約 2 か月間追随せず、markdown-core を「エディタエンジン」と説明したまま放置され、
-      # markdown-viewer と markdown-rich の依存の向きを逆に読む誤解を生んだ。
+      # markdown-editor と markdown-rich-editor の依存の向きを逆に読む誤解を生んだ。
       # ドキュメントの追随漏れはビルドもテストも通るため、専用ゲートでしか検出できない。
       - name: Check README package graph is in sync
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
@@ -96,15 +96,15 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: npm run lint
 
-      - name: Run markdown-viewer tests with coverage
+      - name: Run markdown-editor tests with coverage
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
         run: npx jest --coverage --coverageReporters=lcov
-        working-directory: packages/markdown-viewer
+        working-directory: packages/markdown-editor
 
-      - name: Run markdown-rich tests with coverage
+      - name: Run markdown-rich-editor tests with coverage
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
         run: npx jest --coverage --coverageReporters=lcov
-        working-directory: packages/markdown-rich
+        working-directory: packages/markdown-rich-editor
 
       - name: Run mcp-markdown tests
         if: github.event_name == 'pull_request' && github.base_ref == 'master'
@@ -341,7 +341,7 @@ jobs:
       # SonarCloud のカバレッジ計測対象を daily-build と揃える（canonical な
       # パッケージリストと --experimental-vm-modules フラグは coverage-remaining
       # action に集約）。上で個別に coverage 済みの cms-core / database-core /
-      # database-viewer は exclude で二重計測を避ける（markdown-viewer / markdown-rich /
+      # database-viewer は exclude で二重計測を避ける（markdown-editor / markdown-rich-editor /
       # web-app / graph-core は action のリストに含まれないため exclude 不要）。
       # lcov を作らないパッケージは sonar.sources に載っていても 0% 計上される。
       - name: Run remaining package tests with coverage

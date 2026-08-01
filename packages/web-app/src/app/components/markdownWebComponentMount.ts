@@ -8,11 +8,11 @@
  * 各ラッパは登録 import（副作用）を済ませたうえで該当タグ名を渡す。
  */
 
-import type { AnytimeMarkdownEditorElement } from '@anytime-markdown/markdown-viewer/src/AnytimeMarkdownEditorElement';
+import type { AnytimeMarkdownEditorElement } from '@anytime-markdown/markdown-editor/src/AnytimeMarkdownEditorElement';
 import type {
   MountVanillaMarkdownEditorOptions,
   VanillaMarkdownEditorHandle,
-} from '@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor';
+} from '@anytime-markdown/markdown-editor/src/host/vanillaMarkdownEditor';
 
 export function createWebComponentMount(
   tagName: string,

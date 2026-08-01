@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 
 // 配布用 Web Component バンドル。エントリは customElements.define を含む src/element.ts。
-// graph-core / three を内包する（peer が無いため external なし。markdown-viewer と同方針）。
+// graph-core / three を内包する（peer が無いため external なし。markdown-editor と同方針）。
 //
 // レイアウトワーカーは (1) classic worker として単独バンドル → (2) プラグインで
 // src/worker/layoutWorkerCode.ts のプレースホルダを実コード文字列へ差し替える、の 2 段で内包する。

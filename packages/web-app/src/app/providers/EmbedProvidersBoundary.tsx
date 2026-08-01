@@ -1,12 +1,12 @@
 'use client';
 
-import { setEmbedProviders } from '@anytime-markdown/markdown-viewer/src/embedProviders';
+import { setEmbedProviders } from '@anytime-markdown/markdown-editor/src/embedProviders';
 import type {
   EmbedProviders,
   OembedData,
   OgpData,
   RssLatestData,
-} from '@anytime-markdown/markdown-viewer/src/types/embedProvider';
+} from '@anytime-markdown/markdown-editor/src/types/embedProvider';
 import { type ReactNode } from 'react';
 
 async function fetchOgp(url: string): Promise<OgpData> {
