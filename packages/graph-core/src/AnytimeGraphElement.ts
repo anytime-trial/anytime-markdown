@@ -133,7 +133,7 @@ export class AnytimeGraphElement extends HTMLElementBase {
     if (!this.canvas) return;
     const rect = this.getBoundingClientRect();
     // 文字を鮮明に保つ: backing を整数 device px に丸め、表示 CSS を backing/dpr に固定する
-    // （anytime WC 共通の DPR 補正）。
+    // （AnytimeChartElement.syncCanvasSize と同一の補正。片方を変えたら両方を合わせる）。
     const dpr = globalThis.devicePixelRatio || 1;
     const backingW = Math.max(1, Math.round(rect.width * dpr));
     const backingH = Math.max(1, Math.round(rect.height * dpr));
