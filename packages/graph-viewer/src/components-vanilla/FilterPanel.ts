@@ -7,12 +7,12 @@
  */
 
 import type { NodeFilterConfig, RangeFilter, TextFilter } from '../types/nodeFilter';
-import { createButton } from '../ui-vanilla/Button';
-import { createChip } from '../ui-vanilla/Chip';
-import { createIconButton } from '../ui-vanilla/IconButton';
+import { button, chip, iconButton } from '../ui/uiCoreAdapters';
+
 import { createAddIcon, createCloseIcon, createDeleteIcon } from '../ui-vanilla/icons';
 import { createRangeSlider } from '../ui-vanilla/Slider';
-import { createTextField } from '../ui-vanilla/TextField';
+import { createTextField } from '@anytime-markdown/ui-core/TextField';
+import { createSelect } from '@anytime-markdown/ui-core/Select';
 import { injectGraphUiStyles } from '../ui/injectStyles';
 
 export interface FilterPanelOptions {
@@ -26,6 +26,8 @@ export interface FilterPanelOptions {
   readonly keyRanges: ReadonlyMap<string, readonly [number, number]>;
   /** 閉じるコールバック。 */
   readonly onClose: () => void;
+  /** Select ポップアップのポータル先。`--am-color-*` の届く graph ルート（またはその配下）。 */
+  readonly portalTarget: HTMLElement;
 }
 
 export interface FilterPanelHandle {
@@ -56,6 +58,9 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
   let newRangeKey = '';
   let newTextKey = '';
 
+  // rebuild ごとに作り直す ui-core Select の後始末（開いたままの overlay 撤去）。
+  const selectCleanups: Array<() => void> = [];
+
   // ---- ルート ----
   const el = document.createElement('div');
   el.className = 'gv-scroll';
@@ -83,7 +88,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
     label.textContent = 'Filter';
     row.appendChild(label);
 
-    const closeBtn = createIconButton({
+    const closeBtn = iconButton({
       size: 'small',
       ariaLabel: 'Close filter panel',
       onClick: opts.onClose,
@@ -124,10 +129,10 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       const labelRow = document.createElement('div');
       labelRow.style.cssText = 'display:flex;align-items:center;gap:4px';
 
-      const chip = createChip({ label: rf.key, size: 'small' });
-      labelRow.appendChild(chip);
+      const chipEl = chip({ label: rf.key, size: 'small' });
+      labelRow.appendChild(chipEl);
 
-      const deleteBtn = createIconButton({
+      const deleteBtn = iconButton({
         size: 'small',
         onClick: () => {
           currentConfig = {
@@ -168,34 +173,25 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       const addRow = document.createElement('div');
       addRow.style.cssText = 'display:flex;gap:4px';
 
-      const selectEl = createTextField({
-        select: true,
-        size: 'small',
+      const selectEl = createSelect({
         value: newRangeKey,
-        fullWidth: true,
-        children: (() => {
-          const frag = document.createDocumentFragment();
-          const defaultOpt = document.createElement('option');
-          defaultOpt.value = '';
-          defaultOpt.textContent = 'Select key';
-          frag.appendChild(defaultOpt);
-          numericKeys
+        options: [
+          { value: '', label: 'Select key' },
+          ...numericKeys
             .filter((k) => !currentConfig.rangeFilters.some((rf) => rf.key === k))
-            .forEach((k) => {
-              const opt = document.createElement('option');
-              opt.value = k;
-              opt.textContent = k;
-              frag.appendChild(opt);
-            });
-          return frag;
-        })(),
-        onChange: (e) => {
-          newRangeKey = (e.target as HTMLSelectElement).value;
+            .map((k) => ({ value: k, label: k })),
+        ],
+        fullWidth: true,
+        ariaLabel: 'Select key',
+        portalTarget: opts.portalTarget,
+        onChange: (v) => {
+          newRangeKey = v;
         },
       });
+      selectCleanups.push(() => selectEl.destroy());
       addRow.appendChild(selectEl.el);
 
-      const addBtn = createIconButton({
+      const addBtn = iconButton({
         size: 'small',
         disabled: !newRangeKey,
         onClick: () => {
@@ -238,8 +234,8 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:8px';
 
-      const chip = createChip({ label: tf.key, size: 'small' });
-      row.appendChild(chip);
+      const chipEl = chip({ label: tf.key, size: 'small' });
+      row.appendChild(chipEl);
 
       const input = createTextField({
         size: 'small',
@@ -257,7 +253,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       });
       row.appendChild(input.el);
 
-      const deleteBtn = createIconButton({
+      const deleteBtn = iconButton({
         size: 'small',
         onClick: () => {
           currentConfig = {
@@ -280,34 +276,25 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       const addRow = document.createElement('div');
       addRow.style.cssText = 'display:flex;gap:4px';
 
-      const selectEl = createTextField({
-        select: true,
-        size: 'small',
+      const selectEl = createSelect({
         value: newTextKey,
-        fullWidth: true,
-        children: (() => {
-          const frag = document.createDocumentFragment();
-          const defaultOpt = document.createElement('option');
-          defaultOpt.value = '';
-          defaultOpt.textContent = 'Select key';
-          frag.appendChild(defaultOpt);
-          textKeys
+        options: [
+          { value: '', label: 'Select key' },
+          ...textKeys
             .filter((k) => !currentConfig.textFilters.some((tf) => tf.key === k))
-            .forEach((k) => {
-              const opt = document.createElement('option');
-              opt.value = k;
-              opt.textContent = k;
-              frag.appendChild(opt);
-            });
-          return frag;
-        })(),
-        onChange: (e) => {
-          newTextKey = (e.target as HTMLSelectElement).value;
+            .map((k) => ({ value: k, label: k })),
+        ],
+        fullWidth: true,
+        ariaLabel: 'Select key',
+        portalTarget: opts.portalTarget,
+        onChange: (v) => {
+          newTextKey = v;
         },
       });
+      selectCleanups.push(() => selectEl.destroy());
       addRow.appendChild(selectEl.el);
 
-      const addBtn = createIconButton({
+      const addBtn = iconButton({
         size: 'small',
         disabled: !newTextKey,
         onClick: () => {
@@ -335,7 +322,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
     const section = document.createElement('div');
     section.style.padding = '12px';
 
-    const resetBtn = createButton({
+    const resetBtn = button({
       size: 'small',
       variant: 'outlined',
       disabled: currentConfig.rangeFilters.length === 0 && currentConfig.textFilters.length === 0,
@@ -354,6 +341,12 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
 
   // ---- 全体再構築 ----
   function rebuild(): void {
+    // ui-core Select の開いたポップアップ（backdrop + listbox）は el の子ではなく
+    // portalTarget 直下に居るため、パネル内 DOM の除去だけでは残留する。残った透明
+    // backdrop は viewport 全体を覆い次のクリックを吸い取るので、必ず先に destroy する
+    // （Select.destroy() は open 中の overlay を close で撤去する）。
+    for (const dispose of selectCleanups) dispose();
+    selectCleanups.length = 0;
     while (el.firstChild) el.removeChild(el.firstChild);
     el.appendChild(buildHeader());
     el.appendChild(buildDivider());
@@ -376,6 +369,9 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       rebuild();
     },
     destroy() {
+      // 開いたままの Select ポップアップを撤去する（rebuild と同じ理由）。
+      for (const dispose of selectCleanups) dispose();
+      selectCleanups.length = 0;
       // el は外部が管理するため remove しない。
       // injectGraphUiStyles() は冪等のためクリーンアップ不要。
     },

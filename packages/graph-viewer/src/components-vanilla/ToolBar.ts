@@ -15,17 +15,14 @@ import type { AlignType, ToolType } from '../types';
 import type { SaveStatus } from '../types/persistence';
 import type { GraphT } from '../i18n/createGraphT';
 
-import { createIconButton } from '../ui-vanilla/IconButton';
-import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
-import type { ToggleButtonGroupHandle } from '../ui-vanilla/ToggleButton';
-import { createDivider } from '../ui-vanilla/Divider';
-import { createMenu } from '../ui-vanilla/Menu';
-import { createPopover } from '../ui-vanilla/Popover';
-import { createTooltip } from '../ui-vanilla/Tooltip';
-import type { TooltipHandle } from '../ui-vanilla/Tooltip';
-import { createMenuItem } from '../ui-vanilla/MenuItem';
-import { createListItemIcon } from '../ui-vanilla/ListItemIcon';
-import { createListItemText } from '../ui-vanilla/ListItemText';
+import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
+
+import { createGraphMenu, createGraphPopover } from '../ui/graphMenu';
+import { divider, iconButton, listItemIcon, listItemText, toggleButton, toggleButtonGroup, tooltip, type ToggleButtonGroupHandle, type TooltipHandle } from '../ui/uiCoreAdapters';
+
+
+
+
 import { createCircularProgress } from '../ui-vanilla/CircularProgress';
 import {
   createAccountTreeIcon,
@@ -145,6 +142,8 @@ export interface ToolBarOpts {
   readonly filterActive?: boolean;
   readonly themeMode?: 'light' | 'dark';
   readonly t: GraphT;
+  /** メニューのポータル先。`--am-color-*` の届く graph ルート（またはその配下）を渡す。 */
+  readonly portalTarget: HTMLElement;
 }
 
 // Fields that update() accepts — a partial snapshot of mutable state
@@ -188,6 +187,11 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   const isDark = themeMode === 'dark';
   const colors = getCanvasColors(isDark);
 
+  // ui-core MenuItem はハンドル（{ el, update, destroy }）を返す。ツールバーのメニューは
+  // 開閉ごとに使い捨てで update 不要のため el だけ取り出す。
+  const menuItem = (o: Parameters<typeof createMenuItem>[0]): HTMLLIElement =>
+    createMenuItem(o).el;
+
   // -------------------------------------------------------------------
   // Mutable closure state (equiv. React useState / useRef)
   // -------------------------------------------------------------------
@@ -214,7 +218,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // Tooltip handles for cleanup
   const tooltips: TooltipHandle[] = [];
   const addTooltip = (target: HTMLElement, title: string): void => {
-    tooltips.push(createTooltip(target, title));
+    tooltips.push(tooltip(target, title));
   };
 
   // -------------------------------------------------------------------
@@ -241,11 +245,10 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   const isShapeSelected = (): boolean => isShapeTool(currentTool);
   const groupValue = (): string => isShapeSelected() ? lastShape : currentTool;
 
-  const toolGroup: ToggleButtonGroupHandle = createToggleButtonGroup({
+  const toolGroup: ToggleButtonGroupHandle = toggleButtonGroup({
     value: groupValue(),
-    exclusive: true,
     size: 'small',
-    onChange: (_e, val) => {
+    onChange: (val) => {
       if (!val) return;
       if (isShapeTool(val as ToolType)) return; // shape button handles itself
       opts.onToolChange(val as ToolType);
@@ -253,12 +256,12 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   });
 
   // select
-  const selectBtn = createToggleButton({ value: 'select', ariaLabel: t('select'), children: createSelectIcon({ fontSize: 'small' }) });
+  const selectBtn = toggleButton({ value: 'select', ariaLabel: t('select'), children: createSelectIcon({ fontSize: 'small' }) });
   addTooltip(selectBtn.el, `${t('select')} (V)`);
   toolGroup.register(selectBtn);
 
   // pan
-  const panBtn = createToggleButton({ value: 'pan', ariaLabel: t('pan'), children: createPanIcon({ fontSize: 'small' }) });
+  const panBtn = toggleButton({ value: 'pan', ariaLabel: t('pan'), children: createPanIcon({ fontSize: 'small' }) });
   addTooltip(panBtn.el, `${t('pan')} (Space)`);
   toolGroup.register(panBtn);
 
@@ -267,6 +270,9 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   shapeIconWrapper.style.display = 'flex';
   shapeIconWrapper.style.alignItems = 'center';
   shapeIconWrapper.style.position = 'relative';
+  // ドロップダウン矢印の余白。旧実装はボタン側の style だったが、ui-core ToggleButton は
+  // 選択切替時に cssText を再構築し inline 上書きが消えるため、children 側へ持つ。
+  shapeIconWrapper.style.paddingRight = '20px';
 
   const buildShapeIcon = (): SVGSVGElement => {
     switch (lastShape) {
@@ -290,12 +296,11 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   };
   refreshShapeIcon();
 
-  const shapeBtn = createToggleButton({
+  const shapeBtn = toggleButton({
     value: lastShape,
     selected: isShapeSelected(),
     ariaLabel: t(lastShape),
     children: shapeIconWrapper,
-    style: { position: 'relative', paddingRight: '20px' },
     onMouseDown: (e) => {
       isLongPress = false;
       const target = e.currentTarget as HTMLElement;
@@ -324,27 +329,27 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   toolGroup.register(shapeBtn);
 
   // line
-  const lineBtn = createToggleButton({ value: 'line', ariaLabel: t('line'), children: createLineIcon({ fontSize: 'small' }) });
+  const lineBtn = toggleButton({ value: 'line', ariaLabel: t('line'), children: createLineIcon({ fontSize: 'small' }) });
   addTooltip(lineBtn.el, `${t('line')} (L)`);
   toolGroup.register(lineBtn);
 
   // sticky
-  const stickyBtn = createToggleButton({ value: 'sticky', ariaLabel: t('sticky'), children: createStickyIcon({ fontSize: 'small' }) });
+  const stickyBtn = toggleButton({ value: 'sticky', ariaLabel: t('sticky'), children: createStickyIcon({ fontSize: 'small' }) });
   addTooltip(stickyBtn.el, `${t('sticky')} (S)`);
   toolGroup.register(stickyBtn);
 
   // text
-  const textBtn = createToggleButton({ value: 'text', ariaLabel: t('text'), children: createTextIcon({ fontSize: 'small' }) });
+  const textBtn = toggleButton({ value: 'text', ariaLabel: t('text'), children: createTextIcon({ fontSize: 'small' }) });
   addTooltip(textBtn.el, `${t('text')} (T)`);
   toolGroup.register(textBtn);
 
   // doc
-  const docBtn = createToggleButton({ value: 'doc', ariaLabel: t('doc'), children: createDocIcon({ fontSize: 'small' }) });
+  const docBtn = toggleButton({ value: 'doc', ariaLabel: t('doc'), children: createDocIcon({ fontSize: 'small' }) });
   addTooltip(docBtn.el, `${t('doc')} (M)`);
   toolGroup.register(docBtn);
 
   // frame
-  const frameBtn = createToggleButton({ value: 'frame', ariaLabel: t('frame'), children: createFrameIcon({ fontSize: 'small' }) });
+  const frameBtn = toggleButton({ value: 'frame', ariaLabel: t('frame'), children: createFrameIcon({ fontSize: 'small' }) });
   addTooltip(frameBtn.el, `${t('frame')} (F)`);
   toolGroup.register(frameBtn);
 
@@ -363,7 +368,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
     ];
 
     const itemEls: HTMLButtonElement[] = shapeItems.map(({ shape, icon }) => {
-      const btn = createIconButton({
+      const btn = iconButton({
         size: 'small',
         children: icon,
       });
@@ -391,30 +396,29 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
       popoverContent.appendChild(btn);
     }
 
-    const popover = createPopover({
+    const popover = createGraphPopover({
       anchorEl,
       onClose: () => { popover.close(); },
-      anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
-      transformOrigin: { vertical: 'top', horizontal: 'left' },
       paperStyle: {
         backgroundColor: colors.panelBg,
         border: `1px solid ${colors.panelBorder}`,
         backdropFilter: 'blur(12px)',
       },
       children: popoverContent,
+      portalTarget: opts.portalTarget,
     });
   };
 
   // -------------------------------------------------------------------
   // Divider
   // -------------------------------------------------------------------
-  box.appendChild(createDivider({ orientation: 'vertical', flexItem: true }));
+  box.appendChild(divider({ orientation: 'vertical', flexItem: true }));
 
   // -------------------------------------------------------------------
   // Undo / Redo
   // -------------------------------------------------------------------
   const undoWrapper = document.createElement('span');
-  const undoBtn = createIconButton({ size: 'small', children: createUndoIcon({ fontSize: 'small' }) });
+  const undoBtn = iconButton({ size: 'small', children: createUndoIcon({ fontSize: 'small' }) });
   undoBtn.disabled = !currentCanUndo;
   undoBtn.addEventListener('click', opts.onUndo);
   undoWrapper.appendChild(undoBtn);
@@ -422,7 +426,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   box.appendChild(undoWrapper);
 
   const redoWrapper = document.createElement('span');
-  const redoBtn = createIconButton({ size: 'small', children: createRedoIcon({ fontSize: 'small' }) });
+  const redoBtn = iconButton({ size: 'small', children: createRedoIcon({ fontSize: 'small' }) });
   redoBtn.disabled = !currentCanRedo;
   redoBtn.addEventListener('click', opts.onRedo);
   redoWrapper.appendChild(redoBtn);
@@ -432,12 +436,12 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Divider
   // -------------------------------------------------------------------
-  box.appendChild(createDivider({ orientation: 'vertical', flexItem: true }));
+  box.appendChild(divider({ orientation: 'vertical', flexItem: true }));
 
   // -------------------------------------------------------------------
   // Clear All
   // -------------------------------------------------------------------
-  const clearBtn = createIconButton({ size: 'small', children: createClearAllIcon({ fontSize: 'small' }) });
+  const clearBtn = iconButton({ size: 'small', children: createClearAllIcon({ fontSize: 'small' }) });
   clearBtn.addEventListener('click', opts.onClearAll);
   addTooltip(clearBtn, t('clearAll'));
   box.appendChild(clearBtn);
@@ -446,7 +450,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // Alignment menu
   // -------------------------------------------------------------------
   const alignWrapper = document.createElement('span');
-  const alignBtn = createIconButton({ size: 'small', children: createAlignHorizontalLeftIcon({ fontSize: 'small' }) });
+  const alignBtn = iconButton({ size: 'small', children: createAlignHorizontalLeftIcon({ fontSize: 'small' }) });
   alignBtn.disabled = currentSelectionCount < 2;
   alignBtn.addEventListener('click', () => {
     if (currentSelectionCount < 2) return;
@@ -472,32 +476,33 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
 
     const menuItems: (HTMLLIElement | HTMLHRElement)[] = [];
     for (const { type, icon, label } of alignItems) {
-      const li = createMenuItem({
+      const li = menuItem({
         onClick: () => { opts.onAlign(type); menu.close(); },
         children: [
-          createListItemIcon({ children: icon }),
-          createListItemText({ children: label }),
+          listItemIcon({ children: icon }),
+          listItemText({ children: label }),
         ],
       });
       menuItems.push(li);
     }
-    menuItems.push(createDivider());
+    menuItems.push(divider());
     for (const { type, icon, label } of distItems) {
-      const li = createMenuItem({
+      const li = menuItem({
         onClick: () => { opts.onAlign(type); menu.close(); },
         disabled: currentSelectionCount < 3,
         children: [
-          createListItemIcon({ children: icon }),
-          createListItemText({ children: label }),
+          listItemIcon({ children: icon }),
+          listItemText({ children: label }),
         ],
       });
       menuItems.push(li);
     }
 
-    const menu = createMenu({
+    const menu = createGraphMenu({
       anchorEl,
       onClose: () => { menu.close(); },
       children: menuItems,
+      portalTarget: opts.portalTarget,
     });
   };
 
@@ -506,7 +511,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   const autoLayoutWrapper = document.createElement('span');
   let layoutBtnIcon: SVGSVGElement | HTMLSpanElement = createAccountTreeIcon({ fontSize: 'small' });
-  const autoLayoutBtn = createIconButton({ size: 'small', children: layoutBtnIcon });
+  const autoLayoutBtn = iconButton({ size: 'small', children: layoutBtnIcon });
   autoLayoutBtn.disabled = currentLayoutRunning;
   autoLayoutBtn.addEventListener('click', () => { opts.onAutoLayout?.(); });
   autoLayoutWrapper.appendChild(autoLayoutBtn);
@@ -514,7 +519,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
     const fullLabel = LAYOUT_FULL_LABEL_MAP[currentLayoutAlgorithm];
     autoLayoutWrapper.title = '';
     // remove old tooltip and add fresh one
-    tooltips.push(createTooltip(autoLayoutWrapper, `${t('autoLayout')} (${fullLabel})`));
+    tooltips.push(tooltip(autoLayoutWrapper, `${t('autoLayout')} (${fullLabel})`));
   };
   updateAutoLayoutTooltip();
   box.appendChild(autoLayoutWrapper);
@@ -525,7 +530,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   algoBtnText.style.fontWeight = 'bold';
   algoBtnText.style.lineHeight = '1';
   algoBtnText.textContent = LAYOUT_LABEL_MAP[currentLayoutAlgorithm];
-  const algoBtn = createIconButton({ size: 'small', children: algoBtnText });
+  const algoBtn = iconButton({ size: 'small', children: algoBtnText });
   algoBtn.disabled = currentLayoutRunning;
   algoBtn.addEventListener('click', () => {
     const idx = LAYOUT_CYCLE.indexOf(currentLayoutAlgorithm);
@@ -535,7 +540,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   box.appendChild(algoBtn);
 
   // Collision toggle
-  const collisionBtn = createIconButton({ size: 'small', children: createLayersIcon({ fontSize: 'small' }) });
+  const collisionBtn = iconButton({ size: 'small', children: createLayersIcon({ fontSize: 'small' }) });
   collisionBtn.style.color = currentCollisionEnabled ? colors.accentColor : 'inherit';
   collisionBtn.style.backgroundColor = currentCollisionEnabled ? `${colors.accentColor}1F` : 'transparent';
   collisionBtn.style.borderRadius = '4px';
@@ -544,7 +549,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   box.appendChild(collisionBtn);
 
   // Spread connected
-  const spreadBtn = createIconButton({ size: 'small', children: createSpreadIcon({ fontSize: 'small' }) });
+  const spreadBtn = iconButton({ size: 'small', children: createSpreadIcon({ fontSize: 'small' }) });
   spreadBtn.addEventListener('click', () => { opts.onSpreadConnected?.(); });
   addTooltip(spreadBtn, t('spreadConnected'));
   box.appendChild(spreadBtn);
@@ -559,7 +564,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Zoom controls
   // -------------------------------------------------------------------
-  const zoomOutBtn = createIconButton({ size: 'small', children: createZoomOutIcon({ fontSize: 'small' }) });
+  const zoomOutBtn = iconButton({ size: 'small', children: createZoomOutIcon({ fontSize: 'small' }) });
   zoomOutBtn.addEventListener('click', opts.onZoomOut);
   addTooltip(zoomOutBtn, t('zoomOut'));
   box.appendChild(zoomOutBtn);
@@ -579,7 +584,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   const openZoomMenu = (anchorEl: HTMLElement): void => {
     const presets = [50, 75, 100, 150, 200];
     const menuItems = presets.map((pct) =>
-      createMenuItem({
+      menuItem({
         onClick: () => {
           opts.onSetScale(pct / 100);
           menu.close();
@@ -587,19 +592,20 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
         children: `${pct}%`,
       }),
     );
-    const menu = createMenu({
+    const menu = createGraphMenu({
       anchorEl,
       onClose: () => { menu.close(); },
       children: menuItems,
+      portalTarget: opts.portalTarget,
     });
   };
 
-  const zoomInBtn = createIconButton({ size: 'small', children: createZoomInIcon({ fontSize: 'small' }) });
+  const zoomInBtn = iconButton({ size: 'small', children: createZoomInIcon({ fontSize: 'small' }) });
   zoomInBtn.addEventListener('click', opts.onZoomIn);
   addTooltip(zoomInBtn, t('zoomIn'));
   box.appendChild(zoomInBtn);
 
-  const fitBtn = createIconButton({ size: 'small', children: createFitIcon({ fontSize: 'small' }) });
+  const fitBtn = iconButton({ size: 'small', children: createFitIcon({ fontSize: 'small' }) });
   fitBtn.addEventListener('click', opts.onFitContent);
   addTooltip(fitBtn, t('fitContent'));
   box.appendChild(fitBtn);
@@ -641,12 +647,12 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Divider
   // -------------------------------------------------------------------
-  box.appendChild(createDivider({ orientation: 'vertical', flexItem: true }));
+  box.appendChild(divider({ orientation: 'vertical', flexItem: true }));
 
   // -------------------------------------------------------------------
   // Grid toggle
   // -------------------------------------------------------------------
-  const gridBtn = createIconButton({ size: 'small', children: createGridIcon({ fontSize: 'small' }) });
+  const gridBtn = iconButton({ size: 'small', children: createGridIcon({ fontSize: 'small' }) });
   gridBtn.style.color = currentShowGrid ? colors.accentColor : '';
   gridBtn.addEventListener('click', opts.onToggleGrid);
   addTooltip(gridBtn, t('grid'));
@@ -655,7 +661,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Filter toggle
   // -------------------------------------------------------------------
-  const filterBtn = createIconButton({ size: 'small', children: createFilterListIcon({ fontSize: 'small' }) });
+  const filterBtn = iconButton({ size: 'small', children: createFilterListIcon({ fontSize: 'small' }) });
   filterBtn.style.color = currentFilterActive ? colors.accentColor : '';
   filterBtn.addEventListener('click', () => { opts.onToggleFilter?.(); });
   addTooltip(filterBtn, 'Filter');
@@ -664,59 +670,61 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Divider
   // -------------------------------------------------------------------
-  box.appendChild(createDivider({ orientation: 'vertical', flexItem: true }));
+  box.appendChild(divider({ orientation: 'vertical', flexItem: true }));
 
   // -------------------------------------------------------------------
   // Export menu
   // -------------------------------------------------------------------
-  const exportBtn = createIconButton({ size: 'small', children: createExportIcon({ fontSize: 'small' }) });
+  const exportBtn = iconButton({ size: 'small', children: createExportIcon({ fontSize: 'small' }) });
   exportBtn.addEventListener('click', () => { openExportMenu(exportBtn); });
   addTooltip(exportBtn, t('export'));
   box.appendChild(exportBtn);
 
   const openExportMenu = (anchorEl: HTMLElement): void => {
-    const menu = createMenu({
+    const menu = createGraphMenu({
       anchorEl,
       onClose: () => { menu.close(); },
       children: [
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onExportSvg(); menu.close(); },
-          children: createListItemText({ children: t('exportSvg') }),
+          children: listItemText({ children: t('exportSvg') }),
         }),
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onExportDrawio(); menu.close(); },
-          children: createListItemText({ children: t('exportDrawio') }),
+          children: listItemText({ children: t('exportDrawio') }),
         }),
       ],
+      portalTarget: opts.portalTarget,
     });
   };
 
   // -------------------------------------------------------------------
   // Import menu
   // -------------------------------------------------------------------
-  const importBtn = createIconButton({ size: 'small', children: createImportIcon({ fontSize: 'small' }) });
+  const importBtn = iconButton({ size: 'small', children: createImportIcon({ fontSize: 'small' }) });
   importBtn.addEventListener('click', () => { openImportMenu(importBtn); });
   addTooltip(importBtn, t('import'));
   box.appendChild(importBtn);
 
   const openImportMenu = (anchorEl: HTMLElement): void => {
-    const menu = createMenu({
+    const menu = createGraphMenu({
       anchorEl,
       onClose: () => { menu.close(); },
       children: [
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onImportDrawio(); menu.close(); },
-          children: createListItemText({ children: t('importDrawio') }),
+          children: listItemText({ children: t('importDrawio') }),
         }),
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onImportGraph(); menu.close(); },
-          children: createListItemText({ children: t('importGraph') }),
+          children: listItemText({ children: t('importGraph') }),
         }),
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onImportMermaid(); menu.close(); },
-          children: createListItemText({ children: t('importMermaid') }),
+          children: listItemText({ children: t('importMermaid') }),
         }),
       ],
+      portalTarget: opts.portalTarget,
     });
   };
 

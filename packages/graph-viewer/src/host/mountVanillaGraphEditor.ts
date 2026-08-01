@@ -30,6 +30,7 @@ import {
 
 import { createGraphT } from '../i18n/createGraphT';
 import { applyGraphUiThemeVars } from '../ui/tokens';
+import { button } from '../ui/uiCoreAdapters';
 import { injectGraphUiStyles } from '../ui/injectStyles';
 import { createAutoSave } from '../hooks-vanilla/createAutoSave';
 import { createCanvasInteraction } from '../hooks-vanilla/createCanvasInteraction';
@@ -199,14 +200,17 @@ export function mountVanillaGraphEditor(
 
   // ── DOM 構築 ─────────────────────────────────────────────────────────────
 
-  // CSS 注入とテーマ変数適用
+  // CSS 注入
   injectGraphUiStyles();
-  applyGraphUiThemeVars(isDark);
 
   // root コンテナ
   const root = document.createElement('div');
   root.style.cssText = `display:flex;flex-direction:column;height:${containerHeight};width:100vw;overflow:hidden`;
   container.appendChild(root);
+
+  // テーマ変数適用。--gv-* は documentElement、--am-*（ui-core 用）は root へスコープする
+  // （web-app が documentElement に供給する chrome 配色を奪わないため）。
+  applyGraphUiThemeVars(isDark, root);
 
   // ── previewRef / hoverNodeIdRef / mouseWorldRef（canvasInteraction で更新） ──
 
@@ -652,6 +656,8 @@ export function mountVanillaGraphEditor(
       },
       availableKeys: computeAvailableMetadataKeys(),
       keyRanges: computeMetadataKeyRanges(),
+      // Select ポップアップのポータル先。--am-color-* が root スコープのため body ではなく root。
+      portalTarget: root,
       onClose: () => {
         showFilter = false;
         toolBarHandle?.update({ filterActive: filterConfig.rangeFilters.length > 0 || filterConfig.textFilters.length > 0 });
@@ -749,20 +755,20 @@ export function mountVanillaGraphEditor(
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px';
 
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'gv-btn gv-btn-text';
-    cancelBtn.textContent = t('cancel');
-    cancelBtn.addEventListener('click', closeConfirmDialog);
+    // ui-core アダプタの button()（gv-btn text variant 相当の意匠）。従来の直書き
+    // className は modifier の綴りが 'gv-btn-text'（正: gv-btn--text）で hover CSS に
+    // 一致していなかったため、hover 背景はアダプタ移行で本来の意図どおりになる。
+    const cancelBtn = button({ children: t('cancel'), onClick: closeConfirmDialog });
 
-    const confirmBtn = document.createElement('button');
-    confirmBtn.className = 'gv-btn gv-btn-text';
-    confirmBtn.style.color = 'var(--gv-color-error-main)';
-    confirmBtn.textContent = t('confirm');
-    confirmBtn.setAttribute('autofocus', '');
-    confirmBtn.addEventListener('click', () => {
-      onConfirm();
-      closeConfirmDialog();
+    const confirmBtn = button({
+      children: t('confirm'),
+      onClick: () => {
+        onConfirm();
+        closeConfirmDialog();
+      },
     });
+    confirmBtn.style.color = 'var(--gv-color-error-main)';
+    confirmBtn.setAttribute('autofocus', '');
 
     actions.appendChild(cancelBtn);
     actions.appendChild(confirmBtn);
@@ -890,6 +896,8 @@ export function mountVanillaGraphEditor(
   const toolBarHandle = createToolBar({
     tool,
     t,
+    // メニューのポータル先。--am-color-* / --am-menu-* が root スコープのため body ではなく root。
+    portalTarget: root,
     onToolChange: (newTool) => {
       tool = newTool;
       toolBarHandle.update({ tool });
@@ -1122,11 +1130,13 @@ export function mountVanillaGraphEditor(
       hasClipboard: true,
       locale,
       onAction: handleContextAction,
+      // メニューのポータル先。--am-color-* / --am-menu-* が root スコープのため body ではなく root。
+      portalTarget: root,
       onClose: () => {
         // Menu 側は項目クリック時のみ close() 済みで onClose を呼ぶ（handleAction）。
-        // backdrop クリック / Escape は close() を呼ばず onClose のみを直接呼ぶため
-        // （ui-vanilla/Menu.ts 実装）、ここで closeContextMenu() を呼び close() を保証する。
-        // close() は backdrop.remove() / paper.remove() とも冪等なため二重呼び出しでも安全。
+        // backdrop クリック / Escape / Tab は close() を呼ばず onClose のみを直接呼ぶため
+        // （ui-core Menu 実装）、ここで closeContextMenu() を呼び close() を保証する。
+        // close()（= ui-core destroy()）は冪等なため二重呼び出しでも安全。
         closeContextMenu();
       },
     });
@@ -1413,7 +1423,7 @@ export function mountVanillaGraphEditor(
     if (patch.themeMode !== undefined && patch.themeMode !== themeMode) {
       themeMode = patch.themeMode;
       isDark = themeMode === 'dark';
-      applyGraphUiThemeVars(isDark);
+      applyGraphUiThemeVars(isDark, root);
       graphCanvasHandle.update({ isDark });
     }
     if (patch.onThemeModeChange !== undefined) {

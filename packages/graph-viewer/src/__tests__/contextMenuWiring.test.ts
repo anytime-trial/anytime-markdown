@@ -93,16 +93,19 @@ function rightClickEmptyCanvas(canvasEl: HTMLElement): void {
   );
 }
 
+// ui-core Menu（graphMenu ラッパー経由・c56c37411 以降）の DOM 構造:
+// [data-am-menu-root]（wrapper）> [data-am-menu-backdrop] + ul[role="menu"]。
+// ポータル先は document.body ではなく graph ルート（--am-color-* スコープの内側）。
 function queryMenuPaper(): Element | null {
-  return document.body.querySelector('.gv-menu-paper');
+  return document.querySelector('[data-am-menu-root] [role="menu"]');
 }
 
 function queryMenuBackdrop(): Element | null {
-  return document.body.querySelector('.gv-menu-backdrop');
+  return document.querySelector('[data-am-menu-backdrop]');
 }
 
 function queryMenuItems(): Element[] {
-  return Array.from(document.body.querySelectorAll('.gv-menu-paper [role="menuitem"]'));
+  return Array.from(document.querySelectorAll('[data-am-menu-root] [role="menuitem"]'));
 }
 
 describe('右クリックコンテキストメニュー配線（canvas 対象）', () => {
@@ -141,7 +144,7 @@ describe('右クリックコンテキストメニュー配線（canvas 対象）
     }
   });
 
-  it('空キャンバス右クリックで document.body にメニューが mount される', () => {
+  it('空キャンバス右クリックで graph ルート配下（コンテナ内）にメニューが mount される', () => {
     handle = mountVanillaGraphEditor(container, { persistence: emptyPersistence() });
 
     rightClickEmptyCanvas(getCanvasEl(container));
@@ -150,6 +153,9 @@ describe('右クリックコンテキストメニュー配線（canvas 対象）
     const paper = queryMenuPaper();
     expect(paper).not.toBeNull();
     expect(paper?.getAttribute('role')).toBe('menu');
+    // --am-color-* は graph ルートへスコープされるため、ポータル先が body だと配色が
+    // 崩れる。トークンの届く範囲（コンテナ内）にあることを固定する。
+    expect(container.contains(paper)).toBe(true);
   });
 
   it('canvas 対象のメニューには Paste と Select All が表示される', () => {
@@ -176,7 +182,6 @@ describe('右クリックコンテキストメニュー配線（canvas 対象）
     const pasteItem = queryMenuItems().find((el) => el.textContent?.includes('Paste'));
     expect(pasteItem).toBeDefined();
     expect(pasteItem?.getAttribute('aria-disabled')).not.toBe('true');
-    expect(pasteItem?.className).not.toContain('gv-menu-item--disabled');
   });
 
   it('クリップボードが空のまま Paste をクリックしても例外なくノードが増えない', async () => {
@@ -233,8 +238,8 @@ describe('右クリックコンテキストメニュー配線（canvas 対象）
     expect(queryMenuBackdrop()).toBeNull();
   });
 
-  it('backdrop の mousedown で閉じ、backdrop が残留しない（89b6a1b2f 回帰防止）', () => {
-    // Menu.ts の backdrop mousedown は close() を経由せず onClose() を直接呼ぶため、
+  it('backdrop のクリックで閉じ、backdrop が残留しない（89b6a1b2f 回帰防止）', () => {
+    // ui-core Menu の backdrop click は close() を経由せず onClose() を直接呼ぶため、
     // mountVanillaGraphEditor 側の onClose が closeContextMenu()（= handle.close() 保証）を
     // 呼んでいないと backdrop が DOM に残留し、以降の全面クリックを遮断する。
     handle = mountVanillaGraphEditor(container, { persistence: emptyPersistence() });
@@ -243,7 +248,7 @@ describe('右クリックコンテキストメニュー配線（canvas 対象）
     const backdrop = queryMenuBackdrop();
     expect(backdrop).not.toBeNull();
 
-    backdrop?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    backdrop?.dispatchEvent(new MouseEvent('click', { cancelable: true }));
 
     expect(queryMenuBackdrop()).toBeNull();
     expect(queryMenuPaper()).toBeNull();

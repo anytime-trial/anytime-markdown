@@ -1,3 +1,5 @@
+import { applyChromeTokens as applyUiCoreChromeTokens } from "@anytime-markdown/ui-core/chromeTokens";
+
 import {
   alpha,
   DEFAULT_DARK_BG,
@@ -228,47 +230,31 @@ export function applyEditorThemeCssVars(
  * からも再利用する。
  */
 export function applyChromeTokens(root: HTMLElement, isDark: boolean): void {
-  // chrome UI トークン（--am-color-*）。モード別の値を直接設定する（[data-theme] 非依存）。
-  // 既存の color getter を単一箇所で CSS 変数化し、chrome コンポーネントから JS の
-  // isDark 判定（useTheme 依存）を排除するための seam。
-  root.style.setProperty("--am-color-divider", getDivider(isDark));
-  root.style.setProperty("--am-color-text-primary", getTextPrimary(isDark));
-  root.style.setProperty("--am-color-text-secondary", getTextSecondary(isDark));
-  root.style.setProperty("--am-color-bg-paper", getBgPaper(isDark));
-  // MUI ダークモードの elevation overlay。Paper を elevation に応じて白で持ち上げる挙動の
-  // elevation 16 相当（temporary Drawer 既定）。light では overlay なし。
-  // 値 0.145 は実行中テーマの MUI Drawer paper を getComputedStyle で実測した値
-  // （MUI の getOverlayAlpha(16) 公式は 0.15。MUI を上げたら再実測すること）。
-  // TODO: Dialog（elevation 24 ≒ 0.16）/ Menu（elevation 8 ≒ 0.12）は現状 overlay 非適用
-  //   （VR 非対象のため flat 据え置き）。これらの dark VR を追加する際は同様の overlay が要る。
-  root.style.setProperty(
-    "--am-overlay-elevation-16",
-    isDark ? "linear-gradient(rgba(255,255,255,0.145), rgba(255,255,255,0.145))" : "none",
+  // 色の値は本パッケージの colors.ts が単一の出典。トークン名への写像と派生値
+  // （slider rail / skeleton 地色 / switch の off 色等）の算出は ui-core が持つ
+  // （graph-viewer 等 ui-core を使う他パッケージが同じ供給手段を使えるようにするため）。
+  applyUiCoreChromeTokens(
+    root,
+    {
+      divider: getDivider(isDark),
+      textPrimary: getTextPrimary(isDark),
+      textSecondary: getTextSecondary(isDark),
+      bgPaper: getBgPaper(isDark),
+      bgDefault: isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG,
+      actionHover: getActionHover(isDark),
+      actionSelected: getActionSelected(isDark),
+      actionActive: getActionActive(isDark),
+      primaryMain: getPrimaryMain(isDark),
+      primaryContrast: getPrimaryContrast(isDark),
+      errorMain: getErrorMain(isDark),
+      successMain: getSuccessMain(isDark),
+      warningMain: getWarningMain(isDark),
+    },
+    isDark,
   );
-  root.style.setProperty("--am-color-action-hover", getActionHover(isDark));
-  root.style.setProperty("--am-color-action-selected", getActionSelected(isDark));
-  root.style.setProperty("--am-color-action-active", getActionActive(isDark));
-  // MUI outlined input/select の枠線色（divider 0.12 ではなく 0.23）。ui/Select の VR 忠実性に必要。
-  root.style.setProperty("--am-color-input-border", isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
-  // MUI Switch(small) の off 状態（実測）。thumb=light #fff/dark #e0e0e0、track 地色=light #000/dark #fff、
-  // track 不透明度=light 0.38/dark 0.3。on 状態は primary-main + track opacity 0.5。
-  root.style.setProperty("--am-color-switch-thumb-off", isDark ? "#e0e0e0" : "#fff");
-  root.style.setProperty("--am-color-switch-track-off", isDark ? "#fff" : "#000");
-  root.style.setProperty("--am-switch-track-opacity-off", isDark ? "0.3" : "0.38");
-  // MUI Skeleton 既定の地色 = alpha(text.primary, light 0.11 / dark 0.13)。
-  root.style.setProperty("--am-color-skeleton-bg", alpha(getTextPrimary(isDark), isDark ? 0.13 : 0.11));
-  root.style.setProperty("--am-color-primary-main", getPrimaryMain(isDark));
-  root.style.setProperty("--am-color-primary-contrast", getPrimaryContrast(isDark));
-  root.style.setProperty("--am-color-error-main", getErrorMain(isDark));
-  root.style.setProperty("--am-color-success-main", getSuccessMain(isDark));
-  root.style.setProperty("--am-color-warning-main", getWarningMain(isDark));
-  // MUI Slider の rail 色 = primary.main の opacity 0.38。
-  root.style.setProperty("--am-color-slider-rail", alpha(getPrimaryMain(isDark), 0.38));
-  root.style.setProperty("--am-color-tooltip-bg", isDark ? "rgba(50,50,50,0.95)" : "rgba(40,40,40,0.92)");
-  root.style.setProperty("--am-color-tooltip-text", "rgba(255,255,255,0.95)");
-  // エディタ背景（既定）と差分インラインハイライト（removed=error / added=success、alpha 0.35）。
-  // 旧 LinePreviewPanel の useTheme + @mui/material/styles alpha を排除するための seam。
-  root.style.setProperty("--am-color-bg-default", isDark ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG);
+
+  // ここから下は markdown-editor 固有のトークン（エディタ本文・差分表示）。
+  // chrome 共通ではないため ui-core へは移さない。
   // コードブロックの <pre> 背景。markdown-rich-editor の native codeblock NodeView（反転）が
   // React context（useIsDark）を読めないため CSS 変数化する。
   root.style.setProperty("--am-color-code-bg", isDark ? DEFAULT_DARK_CODE_BG : DEFAULT_LIGHT_CODE_BG);
@@ -282,22 +268,6 @@ export function applyChromeTokens(root: HTMLElement, isDark: boolean): void {
   root.style.setProperty("--am-color-diff-collapse-fg", getDiffCollapseFg(isDark));
   root.style.setProperty("--am-color-diff-collapse-bg", getDiffCollapseBg(isDark));
   root.style.setProperty("--am-color-diff-collapse-border", getDiffCollapseBorder(isDark));
-
-  // chrome 寸法トークン（モード非依存・spec/12.design 準拠）。
-  // Next.js のグローバル CSS import 制約を避けるため CSS ファイルではなく JS で注入する。
-  root.style.setProperty("--am-space-1", "4px");
-  root.style.setProperty("--am-space-2", "8px");
-  root.style.setProperty("--am-space-3", "12px");
-  root.style.setProperty("--am-space-4", "16px");
-  root.style.setProperty("--am-radius-sm", "12px");
-  root.style.setProperty("--am-radius-md", "8px");
-  root.style.setProperty(
-    "--am-elevation-3",
-    "0 8px 10px -5px rgba(0,0,0,0.2), 0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12)",
-  );
-  root.style.setProperty("--am-duration-fast", "150ms");
-  root.style.setProperty("--am-ease-standard", "cubic-bezier(0.4, 0, 0.2, 1)");
-  root.style.setProperty("--am-font-size-dialog-header", "0.875rem");
 }
 
 /**
