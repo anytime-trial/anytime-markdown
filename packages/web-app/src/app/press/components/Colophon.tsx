@@ -70,11 +70,6 @@ export function Colophon() {
             ) : null}
             {showGraph ? (
               <li>
-                <Link href="/mindmap">{tLanding('mindmapPage')}</Link>
-              </li>
-            ) : null}
-            {showGraph ? (
-              <li>
                 <Link href="/cooccurrence">{tLanding('cooccurrencePage')}</Link>
               </li>
             ) : null}

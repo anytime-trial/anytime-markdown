@@ -2,7 +2,7 @@
  * `<anytime-markdown-editor>` Custom Element — markdown-viewer の vanilla mount API
  * （{@link mountVanillaMarkdownEditor}）をフレームワーク非依存の Web Component で包む。
  *
- * mindmap-viewer / anytime-spreadsheet と同じ anytime WC 規約に揃える。スタイルは Light DOM
+ * anytime-graph / anytime-spreadsheet と同じ anytime WC 規約に揃える。スタイルは Light DOM
  * （既定）で `document.head` 注入クラスと editor root スコープのテーマ CSS 変数がそのまま適用される。
  *
  * I/F:

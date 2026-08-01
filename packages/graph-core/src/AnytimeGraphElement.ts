@@ -2,9 +2,9 @@
  * `<anytime-graph>` Custom Element — graph-core の vanilla `GraphView`（canvas レンダラ）を
  * フレームワーク非依存の Web Component で包む。
  *
- * mindmap-viewer の `MindmapViewerElement` と同じ anytime WC 規約に揃える。`GraphView` のみに依存し
- * React は一切含まない（配布対象 React/MUI フリーの不変条件）。mindmap-viewer が `GraphInput` を
- * 正規化して受けるのに対し、本要素は graph-core ネイティブの `GraphDocument` を直接受ける汎用版。
+ * anytime WC 規約（属性 I/F・property でのデータ受け渡し・composed イベント）に揃える。`GraphView`
+ * のみに依存し React は一切含まない（配布対象 React/MUI フリーの不変条件）。graph-core ネイティブの
+ * `GraphDocument` を直接受ける。
  *
  * I/F:
  * - 属性: `theme`（dark/light）/ `movable-nodes` / `collapsible` / `minimap`
@@ -133,7 +133,7 @@ export class AnytimeGraphElement extends HTMLElementBase {
     if (!this.canvas) return;
     const rect = this.getBoundingClientRect();
     // 文字を鮮明に保つ: backing を整数 device px に丸め、表示 CSS を backing/dpr に固定する
-    // （MindmapViewerElement と同一の DPR 補正）。
+    // （anytime WC 共通の DPR 補正）。
     const dpr = globalThis.devicePixelRatio || 1;
     const backingW = Math.max(1, Math.round(rect.width * dpr));
     const backingH = Math.max(1, Math.round(rect.height * dpr));
