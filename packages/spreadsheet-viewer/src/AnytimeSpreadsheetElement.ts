@@ -2,7 +2,7 @@
  * `<anytime-spreadsheet>` Custom Element — spreadsheet-viewer の vanilla mount API
  * （{@link mountSpreadsheetEditor}）をフレームワーク非依存の Web Component で包む。
  *
- * mindmap-viewer の `MindmapViewerElement` を anytime WC 規約のテンプレートとし、属性 I/F・
+ * anytime WC 規約（`AnytimeGraphElement` と同系）に沿って、属性 I/F・
  * プロパティ I/F・CustomEvent・ライフサイクルを揃える。スタイルは Light DOM（既定）で
  * `document.head` 注入の `.sv-*` クラスとテーマ CSS 変数がそのまま適用される。
  *

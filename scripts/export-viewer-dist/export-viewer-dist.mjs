@@ -8,7 +8,7 @@
 // 使い方: node scripts/export-viewer-dist/export-viewer-dist.mjs --out <dir> [--package <name>]...
 //   --package 省略時は cooccurrence-viewer と markdown-viewer の両方。複数指定可。
 //   対象は package.json に build スクリプトを持ち dist/*.js を出すパッケージ
-//   （cooccurrence-viewer / markdown-viewer / mindmap-viewer 等）。
+//   （cooccurrence-viewer / markdown-viewer 等）。
 //   出力: <out>/<name>/ に dist の .js と manifest.json。
 // 終了コード: 引数不正・対象不正・ビルド失敗・成果物なしのとき 1。
 import { execFileSync } from 'node:child_process';

@@ -84,7 +84,6 @@ function evaluateUi(c: ClassifyContext): RuleHit | null {
     c.short.endsWith('-viewer') ||
     c.short === 'web-app' ||
     c.short.endsWith('-react-islands') ||
-    c.short === 'mindmap-viewer' ||
     c.short === 'browser-extension';
   const markerHit = c.markers.includes('next.config') || c.markers.includes('astro.config');
   if (!nameHit && !markerHit) return null;

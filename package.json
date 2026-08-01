@@ -60,7 +60,6 @@
     "packages/trail-viewer",
     "packages/graph-viewer",
     "packages/cooccurrence-viewer",
-    "packages/mindmap-viewer",
     "packages/mcp-trail",
     "packages/trace-core",
     "packages/trace-agent-node",
