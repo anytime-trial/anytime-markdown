@@ -25,12 +25,12 @@ STRICT・CHECK・FK ON DELETE・timestamp GLOB・インデックス命名・12-s
 ## trail-core 固有の運用メモ
 
 - **マイグレーションは `.mts` で書く**: `tables.ts` の DDL を `import` して drift を防ぐ。`.mjs` での DDL inline 複製は禁止。実行は `node --experimental-strip-types scripts/migrate-<topic>.mts <db-path>`。
-- **本番 `trail.db` への適用**: 直接実行せず、`cp` でコピー → 動作確認（integrity_check / foreign_key_check / row counts）→ VACUUM → 原子的 swap（`*.before-X-YYYYMMDD` でバックアップ）の順。詳細手順は global スキル §9.6 を参照。
+- **本番 `trail.db` への適用**: 直接実行せず、`cp` でコピー → 動作確認（integrity_check / foreign_key_check / row counts）→ VACUUM → 原子的 swap（`*.before-X-YYYYMMDD` でバックアップ）の順。詳細手順は global スキル `sqlite-table-definition` の `references/migration-12step.md`「9.6 本番適用の手順」を参照。
 - **既存データ保持が前提**: trail.db は既存データを保持するため `ALTER TABLE` / 12-step migration を使う（Supabase の洗い替え方式とは異なる。project スキル `supabase-schema-sync` 参照）。
-- **`sql.js`（WASM SQLite）のクエリ設計**: trail-viewer 等の sql.js 経由クエリは CTE + window 関数 + 非等値 JOIN + GROUP BY の組み合わせで性能崩壊する。シンプル範囲スキャン + JS 側集計に分解する（global スキル `sqlite-table-definition` §11 参照）。
+- **`sql.js`（WASM SQLite）のクエリ設計**: trail-viewer 等の sql.js 経由クエリは CTE + window 関数 + 非等値 JOIN + GROUP BY の組み合わせで性能崩壊する。シンプル範囲スキャン + JS 側集計に分解する（global スキル `sqlite-table-definition` の `references/query-design-sqljs.md` 参照）。
 
 ## 関連
 
-- global `sqlite-table-definition` — 汎用 SQLite テーブル定義ルール（本スキルの前提）。§11 に sql.js クエリ設計
+- global `sqlite-table-definition` — 汎用 SQLite テーブル定義ルール（本スキルの前提）。詳細は同スキルの `references/`（`migration-12step.md` / `antipatterns.md` / `query-design-sqljs.md`）
 - `supabase-schema-sync` — Supabase 側のスキーマ運用・洗い替え同期（本スキルとは方針が異なる）
 - global スキル `code-review-checklist` `references/datetime.md`（§14）— 日時データの UTC 統一
