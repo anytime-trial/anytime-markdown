@@ -8,13 +8,23 @@
  * 完全一致させ、ドリフトを防ぐ）。各コンポーネントは個別色を `getCanvasColors(isDark)` から
  * 直接 `style` で渡すため、ここで導出する `--gv-*` 変数は UI キット内蔵 CSS の既定値として働く。
  *
- * graph-viewer は host が `--am-color-*` を注入しないため、これらのトークンは
- * `document.documentElement` へ直接適用して自己完結させる（{@link applyGraphUiThemeVars}）。
- * Menu / Dialog / Tooltip は `document.body` へポータルされるため documentElement に置く必要がある。
- * プレフィックスが `--gv-*` なので他 viewer の `--sv-*` / `--dbv-*` / `--am-*` とは衝突しない。
+ * `--gv-*` は `document.documentElement` へ適用する（Menu / Dialog / Tooltip が `document.body`
+ * へポータルされるため）。プレフィックスが `--gv-*` なので他 viewer の `--sv-*` / `--dbv-*` /
+ * `--am-*` とは衝突しない。
+ *
+ * ui-core コンポーネント用の `--am-color-*` は {@link chromeColorPalette} から供給するが、
+ * web-app が documentElement に置く値と 4 種（text-primary / text-secondary / action-hover /
+ * primary-contrast）で意図的に異なる（キャンバス配色と一致させるため）。documentElement に
+ * 置くと web-app 全体の chrome 配色を奪うので、graph-viewer ルートへ**スコープして**適用する
+ * （{@link applyGraphUiThemeVars} の `chromeRoot`）。ポータルされる ui-core 部品には
+ * `portalTarget` で graph-viewer ルート配下を渡し、トークンの届く範囲に収める。
  */
 
 import { getCanvasColors } from '@anytime-markdown/graph-core';
+import {
+  applyChromeTokens,
+  type ChromeColorPalette,
+} from '@anytime-markdown/ui-core/chromeTokens';
 
 export type GraphThemeMode = 'light' | 'dark';
 
@@ -79,17 +89,51 @@ export function themeCssVars(isDark: boolean): Record<string, string> {
 }
 
 /**
- * テーマトークンを `document.documentElement` に適用する。
+ * ui-core コンポーネントが読む `--am-color-*` トークンの元パレット。
  *
- * Menu / Dialog / Tooltip は `document.body` へポータルされるため、ポータル先まで確実に変数を
- * 行き渡らせるために documentElement へ設定する。SSR / 非 DOM 環境では何もしない。
+ * 出典は `--gv-*` と同じ {@link getPalette}（= getCanvasColors）で、キャンバス配色との一致を保つ。
+ * GraphPalette に無い 3 スロットは次の根拠で埋める:
+ * - `actionActive`: gv のメニューアイコン（`.gv-list-item-icon`）は text-secondary を使うため、
+ *   ui-core 側で同スロットを担う action-active（ListItemIcon / Select 矢印）も同値にする
+ *   （フェーズ3 移行時の視覚不変）
+ * - `successMain` / `warningMain`: gv の UI キットに消費者が無い（Alert / Rating 未使用）。
+ *   ui-core のスロットを埋めるための MUI 既定値
  */
-export function applyGraphUiThemeVars(isDark: boolean): void {
+export function chromeColorPalette(isDark: boolean): ChromeColorPalette {
+  const p = getPalette(isDark);
+  return {
+    divider: p.divider,
+    textPrimary: p.textPrimary,
+    textSecondary: p.textSecondary,
+    bgPaper: p.bgPaper,
+    bgDefault: p.bgDefault,
+    actionHover: p.actionHover,
+    actionSelected: p.actionSelected,
+    actionActive: p.textSecondary,
+    primaryMain: p.primaryMain,
+    primaryContrast: p.primaryContrast,
+    errorMain: p.errorMain,
+    successMain: isDark ? '#66BB6A' : '#2E7D32',
+    warningMain: isDark ? '#FFA726' : '#ED6C02',
+  };
+}
+
+/**
+ * テーマトークンを適用する。SSR / 非 DOM 環境では何もしない。
+ *
+ * - `--gv-*`: `document.documentElement` へ（自前 UI キットのポータルが `document.body` 配下のため）
+ * - `--am-*`（ui-core 用）: `chromeRoot` へスコープして適用する。documentElement に置くと
+ *   web-app が供給する chrome 配色（値が 4 種異なる）を奪うため、graph-viewer ルートに閉じる
+ */
+export function applyGraphUiThemeVars(isDark: boolean, chromeRoot?: HTMLElement): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   const vars = themeCssVars(isDark);
   for (const key of Object.keys(vars)) {
     root.style.setProperty(key, vars[key]);
+  }
+  if (chromeRoot) {
+    applyChromeTokens(chromeRoot, chromeColorPalette(isDark), isDark);
   }
 }
 

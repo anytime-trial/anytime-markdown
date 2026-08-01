@@ -199,14 +199,17 @@ export function mountVanillaGraphEditor(
 
   // ── DOM 構築 ─────────────────────────────────────────────────────────────
 
-  // CSS 注入とテーマ変数適用
+  // CSS 注入
   injectGraphUiStyles();
-  applyGraphUiThemeVars(isDark);
 
   // root コンテナ
   const root = document.createElement('div');
   root.style.cssText = `display:flex;flex-direction:column;height:${containerHeight};width:100vw;overflow:hidden`;
   container.appendChild(root);
+
+  // テーマ変数適用。--gv-* は documentElement、--am-*（ui-core 用）は root へスコープする
+  // （web-app が documentElement に供給する chrome 配色を奪わないため）。
+  applyGraphUiThemeVars(isDark, root);
 
   // ── previewRef / hoverNodeIdRef / mouseWorldRef（canvasInteraction で更新） ──
 
@@ -1413,7 +1416,7 @@ export function mountVanillaGraphEditor(
     if (patch.themeMode !== undefined && patch.themeMode !== themeMode) {
       themeMode = patch.themeMode;
       isDark = themeMode === 'dark';
-      applyGraphUiThemeVars(isDark);
+      applyGraphUiThemeVars(isDark, root);
       graphCanvasHandle.update({ isDark });
     }
     if (patch.onThemeModeChange !== undefined) {
