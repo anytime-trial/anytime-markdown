@@ -10,10 +10,10 @@ import type { EndpointShape, GraphEdge, GraphNode } from '../types';
 import type { GraphT } from '../i18n/createGraphT';
 import { createSlider } from '@anytime-markdown/ui-core/Slider';
 import { createTextField } from '@anytime-markdown/ui-core/TextField';
-import { divider, iconButton, text } from '../ui/uiCoreAdapters';
+import { divider, iconButton, text, toggleButton, toggleButtonGroup } from '../ui/uiCoreAdapters';
 import { createSwitch } from '@anytime-markdown/ui-core/Switch';
 import { createFormControlLabel } from '../ui-vanilla/FormControlLabel';
-import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
+
 import {
   createCloseIcon,
   createLockIcon,
@@ -390,13 +390,12 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
         gradDirLabel.textContent = t('gradientDirection');
         el.appendChild(gradDirLabel);
 
-        const gradGroup = createToggleButtonGroup({
+        const gradGroup = toggleButtonGroup({
           value: node.style.gradientDirection ?? 'vertical',
-          exclusive: true,
           size: 'small',
           fullWidth: true,
           style: { marginBottom: '16px' },
-          onChange: (_e, v) => {
+          onChange: (v) => {
             if (v != null) {
               onUpdateNode(node.id, {
                 style: {
@@ -414,7 +413,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
           { value: 'diagonal', label: t('gradientDiagonal'), content: '↗' },
         ];
         gradBtns.forEach(({ value, label, content }) => {
-          const btn = createToggleButton({ value, ariaLabel: label, children: content });
+          const btn = toggleButton({ value, ariaLabel: label, children: content });
           gradGroup.register(btn);
         });
         el.appendChild(gradGroup.el);
@@ -547,13 +546,12 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       startShapeLabel.textContent = t('startShape');
       el.appendChild(startShapeLabel);
 
-      const startShapeGroup = createToggleButtonGroup({
+      const startShapeGroup = toggleButtonGroup({
         value: edge.style.startShape ?? 'none',
-        exclusive: true,
         size: 'small',
         fullWidth: true,
         style: { marginBottom: '16px' },
-        onChange: (_e, v) => {
+        onChange: (v) => {
           if (v != null) {
             onUpdateEdge(edge.id, { style: { ...edge.style, startShape: v as EndpointShape } });
           }
@@ -567,7 +565,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
         { value: 'bar', label: t('shapeBar') },
       ];
       endpointValues.forEach(({ value, label }) => {
-        const btn = createToggleButton({ value, children: label });
+        const btn = toggleButton({ value, children: label });
         startShapeGroup.register(btn);
       });
       el.appendChild(startShapeGroup.el);
@@ -578,20 +576,19 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       endShapeLabel.textContent = t('endShape');
       el.appendChild(endShapeLabel);
 
-      const endShapeGroup = createToggleButtonGroup({
+      const endShapeGroup = toggleButtonGroup({
         value: edge.style.endShape ?? (edge.type === 'connector' ? 'arrow' : 'none'),
-        exclusive: true,
         size: 'small',
         fullWidth: true,
         style: { marginBottom: '16px' },
-        onChange: (_e, v) => {
+        onChange: (v) => {
           if (v != null) {
             onUpdateEdge(edge.id, { style: { ...edge.style, endShape: v as EndpointShape } });
           }
         },
       });
       endpointValues.forEach(({ value, label }) => {
-        const btn = createToggleButton({ value, children: label });
+        const btn = toggleButton({ value, children: label });
         endShapeGroup.register(btn);
       });
       el.appendChild(endShapeGroup.el);
@@ -622,13 +619,12 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
         routingLabel.textContent = t('routing');
         el.appendChild(routingLabel);
 
-        const routingGroup = createToggleButtonGroup({
+        const routingGroup = toggleButtonGroup({
           value: edge.style.routing ?? 'orthogonal',
-          exclusive: true,
           size: 'small',
           fullWidth: true,
           style: { marginBottom: '16px' },
-          onChange: (_e, v) => {
+          onChange: (v) => {
             if (v != null) {
               onUpdateEdge(edge.id, {
                 style: {
@@ -645,7 +641,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
           { value: 'straight', label: t('routingStraight') },
         ];
         routingValues.forEach(({ value, label }) => {
-          const btn = createToggleButton({ value, children: label });
+          const btn = toggleButton({ value, children: label });
           routingGroup.register(btn);
         });
         el.appendChild(routingGroup.el);

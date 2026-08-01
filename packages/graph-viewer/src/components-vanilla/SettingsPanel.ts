@@ -2,16 +2,12 @@
  * graph-viewer vanilla SettingsPanel ファクトリ。
  *
  * React 実装 `components/SettingsPanel.tsx` の DOM 版。
- * iconButton / text（ui-core アダプタ）/ createToggleButton / createToggleButtonGroup を使用。
+ * iconButton / text / toggleButton / toggleButtonGroup（ui-core アダプタ）を使用。
  */
 
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { createGraphT } from '../i18n/createGraphT';
-import { iconButton, text } from '../ui/uiCoreAdapters';
-import {
-  createToggleButton,
-  createToggleButtonGroup,
-} from '../ui-vanilla/ToggleButton';
+import { iconButton, text, toggleButton, toggleButtonGroup } from '../ui/uiCoreAdapters';
 import {
   createCloseIcon,
   createDarkModeIcon,
@@ -117,17 +113,16 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   themeRow.appendChild(themeModeIcon);
   themeRow.appendChild(themeLabelEl);
 
-  const themeGroup = createToggleButtonGroup({
+  const themeGroup = toggleButtonGroup({
     value: themeMode,
-    exclusive: true,
     size: 'small',
     fullWidth: true,
-    onChange: (_e, v) => {
+    onChange: (v) => {
       if (v === 'light' || v === 'dark') onThemeModeChange?.(v);
     },
   });
-  const lightBtn = createToggleButton({ value: 'light', children: 'Light' });
-  const darkBtn = createToggleButton({ value: 'dark', children: 'Dark' });
+  const lightBtn = toggleButton({ value: 'light', children: 'Light' });
+  const darkBtn = toggleButton({ value: 'dark', children: 'Dark' });
   themeGroup.register(lightBtn);
   themeGroup.register(darkBtn);
 
@@ -148,17 +143,16 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   });
 
   const currentLocale = locale ?? 'ja';
-  const langGroup = createToggleButtonGroup({
+  const langGroup = toggleButtonGroup({
     value: currentLocale,
-    exclusive: true,
     size: 'small',
     fullWidth: true,
-    onChange: (_e, v) => {
+    onChange: (v) => {
       if (v != null) onLocaleChange?.(v);
     },
   });
-  const enBtn = createToggleButton({ value: 'en', children: 'English' });
-  const jaBtn = createToggleButton({ value: 'ja', children: 'Japanese' });
+  const enBtn = toggleButton({ value: 'en', children: 'English' });
+  const jaBtn = toggleButton({ value: 'ja', children: 'Japanese' });
   langGroup.register(enBtn);
   langGroup.register(jaBtn);
 

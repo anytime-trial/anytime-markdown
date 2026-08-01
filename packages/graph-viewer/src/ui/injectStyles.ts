@@ -32,44 +32,6 @@ const CSS = `
 @keyframes gv-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .gv-spinner { animation-duration: 2s; } }
 
-/* ---- TextField ---- */
-.gv-textfield {
-  box-sizing: border-box;
-  font: inherit;
-  font-size: 0.8125rem;
-  color: var(--gv-color-text-primary);
-  background: transparent;
-  border: 1px solid var(--gv-color-divider);
-  border-radius: 4px;
-  padding: 6px 8px;
-}
-.gv-textfield:focus-visible { outline: none; border-color: var(--gv-color-primary-main); }
-.gv-textfield::placeholder { color: var(--gv-color-text-secondary); opacity: 0.7; }
-.gv-select { cursor: pointer; }
-.gv-select option { background: var(--gv-color-bg-paper); color: var(--gv-color-text-primary); }
-
-/* ---- ToggleButtonGroup ---- */
-.gv-toggle-group { display: inline-flex; border: 1px solid var(--gv-color-divider); border-radius: 4px; overflow: hidden; }
-.gv-toggle-group--full { display: flex; width: 100%; }
-.gv-toggle-group--full .gv-toggle-btn { flex: 1; }
-.gv-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-left: 1px solid var(--gv-color-divider);
-  background: transparent;
-  color: var(--gv-color-text-secondary);
-  cursor: pointer;
-  padding: 4px 8px;
-  font: inherit;
-  font-size: 0.8125rem;
-}
-.gv-toggle-btn--small { padding: 2px 6px; font-size: 0.65rem; }
-.gv-toggle-btn:first-child { border-left: none; }
-.gv-toggle-btn:hover:not(:disabled) { background: var(--gv-color-action-hover); }
-.gv-toggle-btn[aria-pressed="true"] { background: var(--gv-color-action-selected); color: var(--gv-color-primary-main); }
-.gv-toggle-btn:disabled { opacity: 0.38; cursor: default; }
 
 /* ---- Slider (range / dual-thumb) ---- */
 .gv-slider-range { position: relative; width: 100%; height: 20px; }
@@ -115,32 +77,6 @@ const CSS = `
   to { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) { .gv-shape-bar { animation: none; opacity: 1; } }
-
-/* ---- Switch ---- */
-.gv-switch { position: relative; display: inline-flex; align-items: center; width: 34px; height: 20px; cursor: pointer; }
-.gv-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
-.gv-switch__track {
-  position: absolute;
-  inset: 3px 0;
-  border-radius: 7px;
-  background: var(--gv-color-text-secondary);
-  opacity: 0.4;
-  transition: background-color 150ms, opacity 150ms;
-}
-.gv-switch__thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0,0,0,.3);
-  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-.gv-switch input:checked + .gv-switch__track { background: var(--gv-color-primary-main); opacity: 0.5; }
-.gv-switch input:checked ~ .gv-switch__thumb { transform: translateX(14px); background: var(--gv-color-primary-main); }
-.gv-switch input:focus-visible ~ .gv-switch__thumb { outline: 2px solid var(--gv-color-primary-main); outline-offset: 2px; }
 
 /* ---- FormControlLabel ---- */
 .gv-form-control-label {

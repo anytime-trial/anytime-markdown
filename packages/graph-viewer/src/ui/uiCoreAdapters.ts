@@ -19,6 +19,7 @@ import { createDivider } from '@anytime-markdown/ui-core/Divider';
 import { createListItemIcon } from '@anytime-markdown/ui-core/ListItemIcon';
 import { createListItemText } from '@anytime-markdown/ui-core/ListItemText';
 import { createText } from '@anytime-markdown/ui-core/Text';
+import { createToggleButton, createToggleButtonGroup } from '@anytime-markdown/ui-core/ToggleButton';
 import { createTooltip } from '@anytime-markdown/ui-core/Tooltip';
 import { applyStyle, ensureStyle, type VanillaContent } from '@anytime-markdown/ui-core/dom';
 
@@ -162,6 +163,74 @@ export function iconButton(o: GvIconButtonProps = {}): HTMLButtonElement {
     }
   });
   return el;
+}
+
+export type ToggleButtonHandle = ReturnType<typeof createToggleButton>;
+export type ToggleButtonGroupHandle = ReturnType<typeof createToggleButtonGroup>;
+
+/** gv createToggleButton 互換のオプション（意匠は ui-core 標準・選択1 で受け入れ）。 */
+export interface GvToggleButtonProps {
+  readonly value?: string;
+  readonly selected?: boolean;
+  readonly ariaLabel?: string;
+  readonly title?: string;
+  readonly disabled?: boolean;
+  readonly children?: VanillaContent;
+  /** 長押し検出等の生 listener（ui-core は onClick 相当のみ持つため el へ直付けする）。 */
+  readonly onMouseDown?: (e: MouseEvent) => void;
+  readonly onMouseUp?: (e: MouseEvent) => void;
+  readonly onMouseLeave?: (e: MouseEvent) => void;
+}
+
+/**
+ * gv createToggleButton 互換（ハンドル返し・group.register へそのまま渡せる）。
+ * 注意: ui-core ToggleButton は選択切替時に cssText を再構築するため、el への
+ * inline style 上書きは持続しない。レイアウト調整は children 側の要素へ行うこと。
+ */
+export function toggleButton(o: GvToggleButtonProps = {}): ToggleButtonHandle {
+  const h = createToggleButton({
+    value: o.value,
+    selected: o.selected,
+    ariaLabel: o.ariaLabel,
+    title: o.title,
+    disabled: o.disabled,
+    children: o.children,
+  });
+  if (o.onMouseDown) h.el.addEventListener('mousedown', o.onMouseDown);
+  if (o.onMouseUp) h.el.addEventListener('mouseup', o.onMouseUp);
+  if (o.onMouseLeave) h.el.addEventListener('mouseleave', o.onMouseLeave);
+  return h;
+}
+
+/** gv createToggleButtonGroup 互換のオプション（exclusive は ui-core では常時のため受けない）。 */
+export interface GvToggleGroupProps {
+  readonly value?: string | null;
+  readonly size?: 'small' | 'medium';
+  /** 幅 100% + 子ボタン均等割（旧 .gv-toggle-group--full）。 */
+  readonly fullWidth?: boolean;
+  readonly style?: Partial<CSSStyleDeclaration>;
+  readonly onChange: (value: string | null) => void;
+}
+
+/**
+ * gv createToggleButtonGroup 互換（ハンドル返し）。意匠は ui-core standard variant。
+ * fullWidth の子ボタン均等割は stylesheet で付与する（子の inline cssText は選択切替で
+ * 再構築されるため inline では持続しない）。
+ */
+export function toggleButtonGroup(o: GvToggleGroupProps): ToggleButtonGroupHandle {
+  const g = createToggleButtonGroup({
+    value: o.value ?? undefined,
+    size: o.size,
+    onChange: (v) => o.onChange((v ?? null) as string | null),
+  });
+  if (o.fullWidth) {
+    g.el.style.display = 'flex';
+    g.el.style.width = '100%';
+    g.el.setAttribute('data-gv-toggle-full', '');
+    ensureStyle('gv-uicore-toggle-full', '[data-gv-toggle-full] > button{flex:1 1 0;}');
+  }
+  applyStyle(g.el, o.style);
+  return g;
 }
 
 /** gv TooltipHandle 互換。 */

@@ -18,9 +18,9 @@ import type { GraphT } from '../i18n/createGraphT';
 import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
 import { createGraphMenu, createGraphPopover } from '../ui/graphMenu';
-import { divider, iconButton, listItemIcon, listItemText, tooltip, type TooltipHandle } from '../ui/uiCoreAdapters';
-import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
-import type { ToggleButtonGroupHandle } from '../ui-vanilla/ToggleButton';
+import { divider, iconButton, listItemIcon, listItemText, toggleButton, toggleButtonGroup, tooltip, type ToggleButtonGroupHandle, type TooltipHandle } from '../ui/uiCoreAdapters';
+
+
 
 
 import { createCircularProgress } from '../ui-vanilla/CircularProgress';
@@ -245,11 +245,10 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   const isShapeSelected = (): boolean => isShapeTool(currentTool);
   const groupValue = (): string => isShapeSelected() ? lastShape : currentTool;
 
-  const toolGroup: ToggleButtonGroupHandle = createToggleButtonGroup({
+  const toolGroup: ToggleButtonGroupHandle = toggleButtonGroup({
     value: groupValue(),
-    exclusive: true,
     size: 'small',
-    onChange: (_e, val) => {
+    onChange: (val) => {
       if (!val) return;
       if (isShapeTool(val as ToolType)) return; // shape button handles itself
       opts.onToolChange(val as ToolType);
@@ -257,12 +256,12 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   });
 
   // select
-  const selectBtn = createToggleButton({ value: 'select', ariaLabel: t('select'), children: createSelectIcon({ fontSize: 'small' }) });
+  const selectBtn = toggleButton({ value: 'select', ariaLabel: t('select'), children: createSelectIcon({ fontSize: 'small' }) });
   addTooltip(selectBtn.el, `${t('select')} (V)`);
   toolGroup.register(selectBtn);
 
   // pan
-  const panBtn = createToggleButton({ value: 'pan', ariaLabel: t('pan'), children: createPanIcon({ fontSize: 'small' }) });
+  const panBtn = toggleButton({ value: 'pan', ariaLabel: t('pan'), children: createPanIcon({ fontSize: 'small' }) });
   addTooltip(panBtn.el, `${t('pan')} (Space)`);
   toolGroup.register(panBtn);
 
@@ -271,6 +270,9 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   shapeIconWrapper.style.display = 'flex';
   shapeIconWrapper.style.alignItems = 'center';
   shapeIconWrapper.style.position = 'relative';
+  // ドロップダウン矢印の余白。旧実装はボタン側の style だったが、ui-core ToggleButton は
+  // 選択切替時に cssText を再構築し inline 上書きが消えるため、children 側へ持つ。
+  shapeIconWrapper.style.paddingRight = '20px';
 
   const buildShapeIcon = (): SVGSVGElement => {
     switch (lastShape) {
@@ -294,12 +296,11 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   };
   refreshShapeIcon();
 
-  const shapeBtn = createToggleButton({
+  const shapeBtn = toggleButton({
     value: lastShape,
     selected: isShapeSelected(),
     ariaLabel: t(lastShape),
     children: shapeIconWrapper,
-    style: { position: 'relative', paddingRight: '20px' },
     onMouseDown: (e) => {
       isLongPress = false;
       const target = e.currentTarget as HTMLElement;
@@ -328,27 +329,27 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   toolGroup.register(shapeBtn);
 
   // line
-  const lineBtn = createToggleButton({ value: 'line', ariaLabel: t('line'), children: createLineIcon({ fontSize: 'small' }) });
+  const lineBtn = toggleButton({ value: 'line', ariaLabel: t('line'), children: createLineIcon({ fontSize: 'small' }) });
   addTooltip(lineBtn.el, `${t('line')} (L)`);
   toolGroup.register(lineBtn);
 
   // sticky
-  const stickyBtn = createToggleButton({ value: 'sticky', ariaLabel: t('sticky'), children: createStickyIcon({ fontSize: 'small' }) });
+  const stickyBtn = toggleButton({ value: 'sticky', ariaLabel: t('sticky'), children: createStickyIcon({ fontSize: 'small' }) });
   addTooltip(stickyBtn.el, `${t('sticky')} (S)`);
   toolGroup.register(stickyBtn);
 
   // text
-  const textBtn = createToggleButton({ value: 'text', ariaLabel: t('text'), children: createTextIcon({ fontSize: 'small' }) });
+  const textBtn = toggleButton({ value: 'text', ariaLabel: t('text'), children: createTextIcon({ fontSize: 'small' }) });
   addTooltip(textBtn.el, `${t('text')} (T)`);
   toolGroup.register(textBtn);
 
   // doc
-  const docBtn = createToggleButton({ value: 'doc', ariaLabel: t('doc'), children: createDocIcon({ fontSize: 'small' }) });
+  const docBtn = toggleButton({ value: 'doc', ariaLabel: t('doc'), children: createDocIcon({ fontSize: 'small' }) });
   addTooltip(docBtn.el, `${t('doc')} (M)`);
   toolGroup.register(docBtn);
 
   // frame
-  const frameBtn = createToggleButton({ value: 'frame', ariaLabel: t('frame'), children: createFrameIcon({ fontSize: 'small' }) });
+  const frameBtn = toggleButton({ value: 'frame', ariaLabel: t('frame'), children: createFrameIcon({ fontSize: 'small' }) });
   addTooltip(frameBtn.el, `${t('frame')} (F)`);
   toolGroup.register(frameBtn);
 
