@@ -4,8 +4,9 @@
  * markdown-react-islands — markdown エディタの意図的 React island。
  *
  * markdown-viewer / markdown-rich 本体は React-free（vanilla）であり、React に依存する
- * 部分（エディタ mount の React ラッパ・provider 群・embed / graph プレビュー）だけを
- * 本パッケージへ隔離している。consumer（web-app / vscode webview）はここから import する。
+ * 部分（エディタ mount の React ラッパ・provider 群・ローダー）だけを本パッケージへ隔離する。
+ * 目的は再利用ではなく隔離。consumer は増減するのでここに列挙しない
+ * （`grep -rn '@anytime-markdown/markdown-react-islands' packages` で調べる）。
  */
 
 // エディタ mount の React ラッパ

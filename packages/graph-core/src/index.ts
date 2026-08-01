@@ -126,5 +126,5 @@ export type {
   CooccurrenceSliceTarget,
   CooccurrenceTimeline,
 } from './presets/index';
-// React 依存の canvas ラッパー（useCanvasBase / MinimapCanvas）は
+// React 依存の canvas ラッパー（useCanvasBase）は
 // @anytime-markdown/graph-react-islands へ分離。graph-core 本体は React-free。
