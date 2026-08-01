@@ -12,7 +12,7 @@
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { worldToScreen } from '@anytime-markdown/graph-core/engine';
 import type { GraphNode, NodeType, Viewport } from '../types';
-import { createIconButton } from '../ui-vanilla/IconButton';
+import { iconButton } from '../ui/uiCoreAdapters';
 import { createTooltip, type TooltipHandle } from '../ui-vanilla/Tooltip';
 import { createCircleOutlinedIcon as createEllipseIcon, createCropSquareIcon as createRectIcon } from '../ui-vanilla/icons';
 import { createDiamondShapeIcon, createParallelogramShapeIcon, createCylinderShapeIcon } from './ShapeIcons';
@@ -108,7 +108,7 @@ export function createShapeHoverBar(
 
   for (const shape of SHAPES) {
     const iconEl = shape.icon();
-    const btn = createIconButton({
+    const btn = iconButton({
       size: 'small',
       children: iconEl,
       onClick: () => onChangeType(node.id, shape.type),

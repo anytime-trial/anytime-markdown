@@ -7,9 +7,8 @@
  */
 
 import type { NodeFilterConfig, RangeFilter, TextFilter } from '../types/nodeFilter';
-import { button, chip } from '../ui/uiCoreAdapters';
+import { button, chip, iconButton } from '../ui/uiCoreAdapters';
 
-import { createIconButton } from '../ui-vanilla/IconButton';
 import { createAddIcon, createCloseIcon, createDeleteIcon } from '../ui-vanilla/icons';
 import { createRangeSlider } from '../ui-vanilla/Slider';
 import { createTextField } from '../ui-vanilla/TextField';
@@ -83,7 +82,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
     label.textContent = 'Filter';
     row.appendChild(label);
 
-    const closeBtn = createIconButton({
+    const closeBtn = iconButton({
       size: 'small',
       ariaLabel: 'Close filter panel',
       onClick: opts.onClose,
@@ -127,7 +126,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       const chipEl = chip({ label: rf.key, size: 'small' });
       labelRow.appendChild(chipEl);
 
-      const deleteBtn = createIconButton({
+      const deleteBtn = iconButton({
         size: 'small',
         onClick: () => {
           currentConfig = {
@@ -195,7 +194,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       });
       addRow.appendChild(selectEl.el);
 
-      const addBtn = createIconButton({
+      const addBtn = iconButton({
         size: 'small',
         disabled: !newRangeKey,
         onClick: () => {
@@ -257,7 +256,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       });
       row.appendChild(input.el);
 
-      const deleteBtn = createIconButton({
+      const deleteBtn = iconButton({
         size: 'small',
         onClick: () => {
           currentConfig = {
@@ -307,7 +306,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       });
       addRow.appendChild(selectEl.el);
 
-      const addBtn = createIconButton({
+      const addBtn = iconButton({
         size: 'small',
         disabled: !newTextKey,
         onClick: () => {

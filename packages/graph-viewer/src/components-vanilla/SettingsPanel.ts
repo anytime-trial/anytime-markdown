@@ -2,13 +2,12 @@
  * graph-viewer vanilla SettingsPanel ファクトリ。
  *
  * React 実装 `components/SettingsPanel.tsx` の DOM 版。
- * createIconButton / createText / createToggleButton / createToggleButtonGroup を使用。
+ * iconButton / text（ui-core アダプタ）/ createToggleButton / createToggleButtonGroup を使用。
  */
 
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { createGraphT } from '../i18n/createGraphT';
-import { createIconButton } from '../ui-vanilla/IconButton';
-import { text } from '../ui/uiCoreAdapters';
+import { iconButton, text } from '../ui/uiCoreAdapters';
 import {
   createToggleButton,
   createToggleButtonGroup,
@@ -79,7 +78,7 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   });
 
   const closeIconEl = createCloseIcon({ fontSize: 'small' });
-  const closeBtn = createIconButton({
+  const closeBtn = iconButton({
     size: 'small',
     onClick: onClose,
     children: closeIconEl,

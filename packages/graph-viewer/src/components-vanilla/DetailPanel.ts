@@ -10,8 +10,7 @@
  */
 
 import type { GraphNode } from '../types';
-import { createIconButton } from '../ui-vanilla/IconButton';
-import { divider, text } from '../ui/uiCoreAdapters';
+import { divider, iconButton, text } from '../ui/uiCoreAdapters';
 import { createCloseIcon } from '../ui-vanilla/icons';
 
 /** DetailPanel handle。destroy() で DOM 除去・イベント解除を行う。 */
@@ -74,7 +73,7 @@ export function createDetailPanel(opts: Readonly<CreateDetailPanelOpts>): Detail
     children: node.text ?? '(Untitled)',
   });
 
-  const closeBtn = createIconButton({
+  const closeBtn = iconButton({
     size: 'small',
     ariaLabel: 'Close detail panel',
     children: createCloseIcon({ fontSize: 'small' }),

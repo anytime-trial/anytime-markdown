@@ -14,6 +14,7 @@
 
 import { createButton } from '@anytime-markdown/ui-core/Button';
 import { createChip } from '@anytime-markdown/ui-core/Chip';
+import { createIconButton } from '@anytime-markdown/ui-core/IconButton';
 import { createDivider } from '@anytime-markdown/ui-core/Divider';
 import { createListItemIcon } from '@anytime-markdown/ui-core/ListItemIcon';
 import { createListItemText } from '@anytime-markdown/ui-core/ListItemText';
@@ -108,6 +109,59 @@ const GV_CHIP_STYLE: Record<'small' | 'medium', string> = {
   small: 'gap:4px;height:20px;padding:0 6px;border-radius:12px;font-size:0.6875rem;line-height:1;background-color:var(--am-color-action-selected);',
   medium: 'gap:4px;height:24px;padding:0 8px;border-radius:12px;font-size:0.75rem;line-height:1;background-color:var(--am-color-action-selected);',
 };
+
+/** gv createIconButton 互換のオプション（ui-vanilla/IconButton.ts の CreateIconButtonProps と同形）。 */
+export interface GvIconButtonProps {
+  readonly size?: 'small' | 'medium';
+  readonly children?: VanillaContent;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly type?: 'button' | 'submit' | 'reset';
+  readonly title?: string;
+  readonly ariaLabel?: string;
+  readonly onClick?: (e: MouseEvent) => void;
+}
+
+/**
+ * gv createIconButton 互換（要素返し）。
+ *
+ * - サイズ写像: gv medium（padding 5px）→ ui-core small / gv small（4px）→ ui-core compact
+ * - disabled opacity は gv の 0.38 を stylesheet で上書き（ui-core 共有ルールの 0.5 より
+ *   後に注入され同 specificity のため勝つ）
+ * - hover 背景: ui-core は inline `background:transparent` が共有ルールの `:hover` に勝ち
+ *   無効化されるため、pointerenter / pointerleave で切り替える。呼び出し側が selected 状態の
+ *   背景（accent 系）を inline 指定している場合は上書きしない（gv の CSS hover が inline に
+ *   負けていた従来挙動と一致）
+ */
+export function iconButton(o: GvIconButtonProps = {}): HTMLButtonElement {
+  const { el } = createIconButton({
+    size: (o.size ?? 'medium') === 'small' ? 'compact' : 'small',
+    children: o.children,
+    className: o.className,
+    disabled: o.disabled,
+    type: o.type,
+    title: o.title,
+    ariaLabel: o.ariaLabel,
+    onClick: o.onClick,
+  });
+  el.setAttribute('data-gv-icon-btn', '');
+  ensureStyle(
+    'gv-uicore-iconbtn-parity',
+    'button[data-gv-icon-btn]:disabled{opacity:0.38;}',
+  );
+  el.addEventListener('pointerenter', () => {
+    const bg = el.style.backgroundColor;
+    if (!el.disabled && (bg === '' || bg === 'transparent')) {
+      el.style.backgroundColor = 'var(--am-color-action-hover)';
+    }
+  });
+  el.addEventListener('pointerleave', () => {
+    if (el.style.backgroundColor === 'var(--am-color-action-hover)') {
+      el.style.backgroundColor = '';
+    }
+  });
+  return el;
+}
 
 /** gv createText 互換のオプション（ui-vanilla/Text.ts の CreateTextProps と同形）。 */
 export interface GvTextProps {

@@ -18,8 +18,7 @@ import type { GraphT } from '../i18n/createGraphT';
 import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
 import { createGraphMenu } from '../ui/graphMenu';
-import { divider, listItemIcon, listItemText } from '../ui/uiCoreAdapters';
-import { createIconButton } from '../ui-vanilla/IconButton';
+import { divider, iconButton, listItemIcon, listItemText } from '../ui/uiCoreAdapters';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
 import type { ToggleButtonGroupHandle } from '../ui-vanilla/ToggleButton';
 import { createPopover } from '../ui-vanilla/Popover';
@@ -369,7 +368,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
     ];
 
     const itemEls: HTMLButtonElement[] = shapeItems.map(({ shape, icon }) => {
-      const btn = createIconButton({
+      const btn = iconButton({
         size: 'small',
         children: icon,
       });
@@ -420,7 +419,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // Undo / Redo
   // -------------------------------------------------------------------
   const undoWrapper = document.createElement('span');
-  const undoBtn = createIconButton({ size: 'small', children: createUndoIcon({ fontSize: 'small' }) });
+  const undoBtn = iconButton({ size: 'small', children: createUndoIcon({ fontSize: 'small' }) });
   undoBtn.disabled = !currentCanUndo;
   undoBtn.addEventListener('click', opts.onUndo);
   undoWrapper.appendChild(undoBtn);
@@ -428,7 +427,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   box.appendChild(undoWrapper);
 
   const redoWrapper = document.createElement('span');
-  const redoBtn = createIconButton({ size: 'small', children: createRedoIcon({ fontSize: 'small' }) });
+  const redoBtn = iconButton({ size: 'small', children: createRedoIcon({ fontSize: 'small' }) });
   redoBtn.disabled = !currentCanRedo;
   redoBtn.addEventListener('click', opts.onRedo);
   redoWrapper.appendChild(redoBtn);
@@ -443,7 +442,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Clear All
   // -------------------------------------------------------------------
-  const clearBtn = createIconButton({ size: 'small', children: createClearAllIcon({ fontSize: 'small' }) });
+  const clearBtn = iconButton({ size: 'small', children: createClearAllIcon({ fontSize: 'small' }) });
   clearBtn.addEventListener('click', opts.onClearAll);
   addTooltip(clearBtn, t('clearAll'));
   box.appendChild(clearBtn);
@@ -452,7 +451,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // Alignment menu
   // -------------------------------------------------------------------
   const alignWrapper = document.createElement('span');
-  const alignBtn = createIconButton({ size: 'small', children: createAlignHorizontalLeftIcon({ fontSize: 'small' }) });
+  const alignBtn = iconButton({ size: 'small', children: createAlignHorizontalLeftIcon({ fontSize: 'small' }) });
   alignBtn.disabled = currentSelectionCount < 2;
   alignBtn.addEventListener('click', () => {
     if (currentSelectionCount < 2) return;
@@ -513,7 +512,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   const autoLayoutWrapper = document.createElement('span');
   let layoutBtnIcon: SVGSVGElement | HTMLSpanElement = createAccountTreeIcon({ fontSize: 'small' });
-  const autoLayoutBtn = createIconButton({ size: 'small', children: layoutBtnIcon });
+  const autoLayoutBtn = iconButton({ size: 'small', children: layoutBtnIcon });
   autoLayoutBtn.disabled = currentLayoutRunning;
   autoLayoutBtn.addEventListener('click', () => { opts.onAutoLayout?.(); });
   autoLayoutWrapper.appendChild(autoLayoutBtn);
@@ -532,7 +531,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   algoBtnText.style.fontWeight = 'bold';
   algoBtnText.style.lineHeight = '1';
   algoBtnText.textContent = LAYOUT_LABEL_MAP[currentLayoutAlgorithm];
-  const algoBtn = createIconButton({ size: 'small', children: algoBtnText });
+  const algoBtn = iconButton({ size: 'small', children: algoBtnText });
   algoBtn.disabled = currentLayoutRunning;
   algoBtn.addEventListener('click', () => {
     const idx = LAYOUT_CYCLE.indexOf(currentLayoutAlgorithm);
@@ -542,7 +541,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   box.appendChild(algoBtn);
 
   // Collision toggle
-  const collisionBtn = createIconButton({ size: 'small', children: createLayersIcon({ fontSize: 'small' }) });
+  const collisionBtn = iconButton({ size: 'small', children: createLayersIcon({ fontSize: 'small' }) });
   collisionBtn.style.color = currentCollisionEnabled ? colors.accentColor : 'inherit';
   collisionBtn.style.backgroundColor = currentCollisionEnabled ? `${colors.accentColor}1F` : 'transparent';
   collisionBtn.style.borderRadius = '4px';
@@ -551,7 +550,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   box.appendChild(collisionBtn);
 
   // Spread connected
-  const spreadBtn = createIconButton({ size: 'small', children: createSpreadIcon({ fontSize: 'small' }) });
+  const spreadBtn = iconButton({ size: 'small', children: createSpreadIcon({ fontSize: 'small' }) });
   spreadBtn.addEventListener('click', () => { opts.onSpreadConnected?.(); });
   addTooltip(spreadBtn, t('spreadConnected'));
   box.appendChild(spreadBtn);
@@ -566,7 +565,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Zoom controls
   // -------------------------------------------------------------------
-  const zoomOutBtn = createIconButton({ size: 'small', children: createZoomOutIcon({ fontSize: 'small' }) });
+  const zoomOutBtn = iconButton({ size: 'small', children: createZoomOutIcon({ fontSize: 'small' }) });
   zoomOutBtn.addEventListener('click', opts.onZoomOut);
   addTooltip(zoomOutBtn, t('zoomOut'));
   box.appendChild(zoomOutBtn);
@@ -602,12 +601,12 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
     });
   };
 
-  const zoomInBtn = createIconButton({ size: 'small', children: createZoomInIcon({ fontSize: 'small' }) });
+  const zoomInBtn = iconButton({ size: 'small', children: createZoomInIcon({ fontSize: 'small' }) });
   zoomInBtn.addEventListener('click', opts.onZoomIn);
   addTooltip(zoomInBtn, t('zoomIn'));
   box.appendChild(zoomInBtn);
 
-  const fitBtn = createIconButton({ size: 'small', children: createFitIcon({ fontSize: 'small' }) });
+  const fitBtn = iconButton({ size: 'small', children: createFitIcon({ fontSize: 'small' }) });
   fitBtn.addEventListener('click', opts.onFitContent);
   addTooltip(fitBtn, t('fitContent'));
   box.appendChild(fitBtn);
@@ -654,7 +653,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Grid toggle
   // -------------------------------------------------------------------
-  const gridBtn = createIconButton({ size: 'small', children: createGridIcon({ fontSize: 'small' }) });
+  const gridBtn = iconButton({ size: 'small', children: createGridIcon({ fontSize: 'small' }) });
   gridBtn.style.color = currentShowGrid ? colors.accentColor : '';
   gridBtn.addEventListener('click', opts.onToggleGrid);
   addTooltip(gridBtn, t('grid'));
@@ -663,7 +662,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Filter toggle
   // -------------------------------------------------------------------
-  const filterBtn = createIconButton({ size: 'small', children: createFilterListIcon({ fontSize: 'small' }) });
+  const filterBtn = iconButton({ size: 'small', children: createFilterListIcon({ fontSize: 'small' }) });
   filterBtn.style.color = currentFilterActive ? colors.accentColor : '';
   filterBtn.addEventListener('click', () => { opts.onToggleFilter?.(); });
   addTooltip(filterBtn, 'Filter');
@@ -677,7 +676,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Export menu
   // -------------------------------------------------------------------
-  const exportBtn = createIconButton({ size: 'small', children: createExportIcon({ fontSize: 'small' }) });
+  const exportBtn = iconButton({ size: 'small', children: createExportIcon({ fontSize: 'small' }) });
   exportBtn.addEventListener('click', () => { openExportMenu(exportBtn); });
   addTooltip(exportBtn, t('export'));
   box.appendChild(exportBtn);
@@ -703,7 +702,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Import menu
   // -------------------------------------------------------------------
-  const importBtn = createIconButton({ size: 'small', children: createImportIcon({ fontSize: 'small' }) });
+  const importBtn = iconButton({ size: 'small', children: createImportIcon({ fontSize: 'small' }) });
   importBtn.addEventListener('click', () => { openImportMenu(importBtn); });
   addTooltip(importBtn, t('import'));
   box.appendChild(importBtn);

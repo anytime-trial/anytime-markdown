@@ -12,7 +12,7 @@ import {
   createDialogContent,
   createDialogTitle,
 } from '../ui-vanilla/Dialog';
-import { createIconButton } from '../ui-vanilla/IconButton';
+import { iconButton } from '../ui/uiCoreAdapters';
 import { createCloseIcon } from '../ui-vanilla/icons';
 
 export interface DocEditorModalOptions {
@@ -92,7 +92,7 @@ export function createDocEditorModal(opts: Readonly<DocEditorModalOptions>): Doc
       titleText.style.cssText = `color:${colors.textPrimary};font-weight:600;font-size:1rem`;
       headerEl.appendChild(titleText);
 
-      const closeBtn = createIconButton({
+      const closeBtn = iconButton({
         size: 'small',
         ariaLabel: 'Close',
         onClick: doClose,

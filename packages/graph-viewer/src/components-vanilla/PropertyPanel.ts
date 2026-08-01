@@ -8,10 +8,9 @@
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import type { EndpointShape, GraphEdge, GraphNode } from '../types';
 import type { GraphT } from '../i18n/createGraphT';
-import { createIconButton } from '../ui-vanilla/IconButton';
 import { createSlider } from '../ui-vanilla/Slider';
 import { createTextField } from '../ui-vanilla/TextField';
-import { divider, text } from '../ui/uiCoreAdapters';
+import { divider, iconButton, text } from '../ui/uiCoreAdapters';
 import { createSwitch } from '../ui-vanilla/Switch';
 import { createFormControlLabel } from '../ui-vanilla/FormControlLabel';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
@@ -189,7 +188,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
     titleEl.textContent = t('properties');
     header.appendChild(titleEl);
 
-    const closeBtn = createIconButton({
+    const closeBtn = iconButton({
       size: 'small',
       ariaLabel: 'close',
       onClick: () => onClose(),
@@ -211,7 +210,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       const lockRow = document.createElement('div');
       applyStyle(lockRow, { display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '16px' });
 
-      const lockBtn = createIconButton({
+      const lockBtn = iconButton({
         size: 'small',
         ariaLabel: node.locked ? t('unlock') : t('lock'),
         onClick: () => onUpdateNode(node.id, { locked: !node.locked }),
@@ -224,22 +223,22 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       lockText.textContent = node.locked ? t('locked') : t('unlocked');
       lockRow.appendChild(lockText);
 
-      const topBtn = createIconButton({ size: 'small', ariaLabel: t('layerTop'), onClick: () => onLayerAction?.('top') });
+      const topBtn = iconButton({ size: 'small', ariaLabel: t('layerTop'), onClick: () => onLayerAction?.('top') });
       topBtn.style.color = colors.textSecondary;
       topBtn.appendChild(createTopIcon({ fontSize: 'small' }));
       lockRow.appendChild(topBtn);
 
-      const upBtn = createIconButton({ size: 'small', ariaLabel: t('layerUp'), onClick: () => onLayerAction?.('up') });
+      const upBtn = iconButton({ size: 'small', ariaLabel: t('layerUp'), onClick: () => onLayerAction?.('up') });
       upBtn.style.color = colors.textSecondary;
       upBtn.appendChild(createUpIcon({ fontSize: 'small' }));
       lockRow.appendChild(upBtn);
 
-      const downBtn = createIconButton({ size: 'small', ariaLabel: t('layerDown'), onClick: () => onLayerAction?.('down') });
+      const downBtn = iconButton({ size: 'small', ariaLabel: t('layerDown'), onClick: () => onLayerAction?.('down') });
       downBtn.style.color = colors.textSecondary;
       downBtn.appendChild(createDownIcon({ fontSize: 'small' }));
       lockRow.appendChild(downBtn);
 
-      const bottomBtn = createIconButton({ size: 'small', ariaLabel: t('layerBottom'), onClick: () => onLayerAction?.('bottom') });
+      const bottomBtn = iconButton({ size: 'small', ariaLabel: t('layerBottom'), onClick: () => onLayerAction?.('bottom') });
       bottomBtn.style.color = colors.textSecondary;
       bottomBtn.appendChild(createBottomIcon({ fontSize: 'small' }));
       lockRow.appendChild(bottomBtn);
@@ -455,7 +454,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       connCount.textContent = `${4 + (node.extraConnectionPoints?.length ?? 0)} ${t('points')}`;
       connRow.appendChild(connCount);
 
-      const addConnBtn = createIconButton({
+      const addConnBtn = iconButton({
         size: 'small',
         ariaLabel: t('addConnectionPoints'),
         onClick: () => {
@@ -477,7 +476,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       connRow.appendChild(addConnBtn);
 
       if ((node.extraConnectionPoints?.length ?? 0) > 0) {
-        const resetConnBtn = createIconButton({
+        const resetConnBtn = iconButton({
           size: 'small',
           ariaLabel: t('resetConnectionPoints'),
           onClick: () => onUpdateNode(node.id, { extraConnectionPoints: undefined }),
