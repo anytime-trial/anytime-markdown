@@ -9,6 +9,8 @@
  * テーマ色は {@link themeCssVars} が documentElement へ設定する `--dbv-color-*` を参照する。
  */
 
+import { ensureStyle } from "@anytime-markdown/ui-core/dom";
+
 const STYLE_ELEMENT_ID = "anytime-database-ui-styles";
 
 const CSS = `
@@ -249,10 +251,5 @@ const CSS = `
  * 複数の DatabaseEditor がマウントされても 1 度だけ注入される。
  */
 export function injectDatabaseUiStyles(): void {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(STYLE_ELEMENT_ID)) return;
-  const style = document.createElement("style");
-  style.id = STYLE_ELEMENT_ID;
-  style.textContent = CSS;
-  document.head.appendChild(style);
+  ensureStyle(STYLE_ELEMENT_ID, CSS);
 }

@@ -9,6 +9,8 @@
  * テーマ色は {@link themeCssVars} が UI ルート要素へ設定する `--sv-color-*` を参照する。
  */
 
+import { ensureStyle } from "@anytime-markdown/ui-core/dom";
+
 const STYLE_ELEMENT_ID = "anytime-spreadsheet-ui-styles";
 
 const CSS = `
@@ -248,10 +250,5 @@ const CSS = `
  * 複数の SpreadsheetEditor がマウントされても 1 度だけ注入される。
  */
 export function injectSpreadsheetUiStyles(): void {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(STYLE_ELEMENT_ID)) return;
-  const style = document.createElement("style");
-  style.id = STYLE_ELEMENT_ID;
-  style.textContent = CSS;
-  document.head.appendChild(style);
+  ensureStyle(STYLE_ELEMENT_ID, CSS);
 }

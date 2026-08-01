@@ -23,6 +23,9 @@
  */
 
 import type { CooccurrenceFile } from '@anytime-markdown/graph-core';
+import { ensureStyle } from '@anytime-markdown/ui-core/dom';
+import { HTMLElementBase } from '@anytime-markdown/ui-core/ssrSafeElement';
+
 import { mountCooccurrenceViewer } from './mountCooccurrenceViewer';
 import type {
   CooccurrenceSkin,
@@ -32,15 +35,6 @@ import type {
   ThemeMode,
 } from './types';
 import { createInlineLayoutWorker } from './worker/createInlineLayoutWorker';
-
-/**
- * SSR/Node 安全化: `HTMLElement` 未定義環境でも class 定義時に ReferenceError を投げないよう
- * ダミー基底へフォールバックする（markdown-editor と同じ）。
- */
-const HTMLElementBase: typeof HTMLElement =
-  typeof HTMLElement !== 'undefined'
-    ? HTMLElement
-    : (class {} as unknown as typeof HTMLElement);
 
 const HOST_STYLE_ID = 'anytime-cooccurrence-viewer-host-style';
 
@@ -53,11 +47,7 @@ const HOST_STYLE_ID = 'anytime-cooccurrence-viewer-host-style';
  * 「未指定時の既定」だけを提供する。
  */
 function ensureHostStyle(): void {
-  if (typeof document === 'undefined' || document.getElementById(HOST_STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = HOST_STYLE_ID;
-  style.textContent = ':where(anytime-cooccurrence-viewer) { display: block; }';
-  document.head.appendChild(style);
+  ensureStyle(HOST_STYLE_ID, ':where(anytime-cooccurrence-viewer) { display: block; }');
 }
 
 /** `change` / `save-request` イベントの `detail`。 */

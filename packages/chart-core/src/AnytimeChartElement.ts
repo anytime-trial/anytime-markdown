@@ -12,14 +12,10 @@
  * - a11y: `role="img"` + `aria-label`（タイトル + 系列要約）
  */
 
+import { HTMLElementBase } from "@anytime-markdown/ui-core/ssrSafeElement";
+
 import type { ChartSpec, PaletteKey } from "./types";
 import { ChartView } from "./viewer/ChartView";
-
-/** SSR/Node 安全化: HTMLElement 未定義環境でも class 定義時に ReferenceError を投げない。 */
-const HTMLElementBase: typeof HTMLElement =
-  typeof HTMLElement !== "undefined"
-    ? HTMLElement
-    : (class {} as unknown as typeof HTMLElement);
 
 export class AnytimeChartElement extends HTMLElementBase {
   static get observedAttributes(): string[] {

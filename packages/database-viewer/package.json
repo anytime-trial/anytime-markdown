@@ -16,7 +16,8 @@
     "@anytime-markdown/database-core": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/spreadsheet-core": "*",
-    "@anytime-markdown/spreadsheet-viewer": "*"
+    "@anytime-markdown/spreadsheet-viewer": "*",
+    "@anytime-markdown/ui-core": "*"
   },
   "peerDependencies": {
     "next-intl": ">=4",

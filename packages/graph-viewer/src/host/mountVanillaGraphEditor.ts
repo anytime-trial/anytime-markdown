@@ -16,7 +16,7 @@ import {
   importFromDrawio, importFromMermaid,
   layoutWithSubgroups,
 } from '@anytime-markdown/graph-core';
-import { clearImageCache } from '@anytime-markdown/graph-core/engine';
+import { clearImageCache, MINIMAP_BOUNDS_PAD } from '@anytime-markdown/graph-core/engine';
 import type { LayoutAlgorithm } from '@anytime-markdown/graph-core/engine';
 import {
   alignBottom, alignCenterH, alignCenterV, alignLeft, alignRight, alignTop,
@@ -408,13 +408,12 @@ export function mountVanillaGraphEditor(
     ctx.fillRect(0, 0, MINI_W, MINI_H);
     if (nodes.length === 0) return;
 
-    const PAD = 10;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const n of nodes) {
-      minX = Math.min(minX, n.x - PAD);
-      minY = Math.min(minY, n.y - PAD);
-      maxX = Math.max(maxX, n.x + n.width + PAD);
-      maxY = Math.max(maxY, n.y + n.height + PAD);
+      minX = Math.min(minX, n.x - MINIMAP_BOUNDS_PAD);
+      minY = Math.min(minY, n.y - MINIMAP_BOUNDS_PAD);
+      maxX = Math.max(maxX, n.x + n.width + MINIMAP_BOUNDS_PAD);
+      maxY = Math.max(maxY, n.y + n.height + MINIMAP_BOUNDS_PAD);
     }
     const bw = maxX - minX;
     const bh = maxY - minY;

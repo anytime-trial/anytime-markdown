@@ -232,3 +232,16 @@ export const MERMAID_LAYOUT_ORIGIN = 100;
 
 /** 太線エッジの線幅 (px) */
 export const THICK_EDGE_STROKE_WIDTH = 4;
+
+// ── Minimap ──
+
+/**
+ * ミニマップに収めるコンテンツ境界の余白（ワールド単位）。
+ *
+ * graph-core の GraphView・graph-viewer の簡易ミニマップ・trail-viewer の
+ * mountMinimapCanvas が同じ見た目になるよう、3 実装で本定数を共有する。
+ */
+export const MINIMAP_BOUNDS_PAD = 10;
+
+/** ミニマップのズームボタン 1 回あたりのホイール相当量。 */
+export const MINIMAP_ZOOM_DELTA = 300;

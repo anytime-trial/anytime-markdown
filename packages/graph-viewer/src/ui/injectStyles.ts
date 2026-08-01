@@ -9,6 +9,8 @@
  * テーマ色は {@link themeCssVars} が documentElement へ設定する `--gv-color-*` を参照する。
  */
 
+import { ensureStyle } from '@anytime-markdown/ui-core/dom';
+
 const STYLE_ELEMENT_ID = 'anytime-graph-ui-styles';
 
 const CSS = `
@@ -378,13 +380,10 @@ let injected = false;
 /**
  * UI スタイルを `document.head` へ冪等注入する。SSR/非 DOM 環境では何もしない。
  * 各 UI primitive が render ごとに呼ぶため、2 回目以降はモジュールスコープの
- * boolean フラグで O(1) に短絡する（DOM 走査を避ける）。
+ * boolean フラグで短絡する（DOM への問い合わせ自体を避ける）。
  */
 export function injectGraphUiStyles(): void {
   if (injected || typeof document === 'undefined') return;
   injected = true;
-  const style = document.createElement('style');
-  style.id = STYLE_ELEMENT_ID;
-  style.textContent = CSS;
-  document.head.appendChild(style);
+  ensureStyle(STYLE_ELEMENT_ID, CSS);
 }
