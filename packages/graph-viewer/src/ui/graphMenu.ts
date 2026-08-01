@@ -15,6 +15,7 @@
  */
 
 import { createMenu } from '@anytime-markdown/ui-core/Menu';
+import { createPopover } from '@anytime-markdown/ui-core/Popover';
 import type { VanillaContent } from '@anytime-markdown/ui-core/dom';
 
 export interface GraphMenuOptions {
@@ -63,4 +64,43 @@ export function createGraphMenu(opts: GraphMenuOptions): GraphMenuHandle {
     portalTarget: opts.portalTarget,
   });
   return { el: menu.el, close: menu.destroy };
+}
+
+/** {@link createGraphPopover} のオプション。gv Popover（bottom-start 固定）互換。 */
+export interface GraphPopoverOptions {
+  readonly anchorEl: HTMLElement;
+  readonly onClose: () => void;
+  readonly children: VanillaContent;
+  /** ポータル先（graph ルートまたはその配下）。`--am-color-*` の届く要素を渡す。 */
+  readonly portalTarget: HTMLElement;
+  /** paper への追加スタイル（gv paperStyle 相当。既定意匠より優先）。 */
+  readonly paperStyle?: Partial<CSSStyleDeclaration>;
+}
+
+/**
+ * graph-viewer 意匠の ui-core Popover を開く（ツールバーの shape ポップオーバー等）。
+ * gv Popover は旧 .gv-menu-paper の意匠 + offset 0 だったため、Menu と同じ
+ * GV_PAPER_STYLE に寸法系を足し、ui-core の offset 4px を margin で相殺する。
+ */
+export function createGraphPopover(opts: GraphPopoverOptions): {
+  el: HTMLDivElement;
+  close(): void;
+} {
+  const r = createPopover({
+    anchor: opts.anchorEl,
+    onClose: opts.onClose,
+    children: opts.children,
+    portalTarget: opts.portalTarget,
+    paperStyle: {
+      ...GV_PAPER_STYLE,
+      minWidth: '112px',
+      maxHeight: 'calc(100vh - 32px)',
+      overflowY: 'auto',
+      color: 'var(--am-color-text-primary)',
+      // gv は anchor 直付け（offset 0）。ui-core Popover の offsetPx 4 を相殺する。
+      marginTop: '-4px',
+      ...opts.paperStyle,
+    },
+  });
+  return { el: r.el, close: r.destroy };
 }

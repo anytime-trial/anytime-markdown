@@ -17,11 +17,10 @@ import type { GraphT } from '../i18n/createGraphT';
 
 import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
-import { createGraphMenu } from '../ui/graphMenu';
+import { createGraphMenu, createGraphPopover } from '../ui/graphMenu';
 import { divider, iconButton, listItemIcon, listItemText, tooltip, type TooltipHandle } from '../ui/uiCoreAdapters';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
 import type { ToggleButtonGroupHandle } from '../ui-vanilla/ToggleButton';
-import { createPopover } from '../ui-vanilla/Popover';
 
 
 import { createCircularProgress } from '../ui-vanilla/CircularProgress';
@@ -396,17 +395,16 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
       popoverContent.appendChild(btn);
     }
 
-    const popover = createPopover({
+    const popover = createGraphPopover({
       anchorEl,
       onClose: () => { popover.close(); },
-      anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
-      transformOrigin: { vertical: 'top', horizontal: 'left' },
       paperStyle: {
         backgroundColor: colors.panelBg,
         border: `1px solid ${colors.panelBorder}`,
         backdropFilter: 'blur(12px)',
       },
       children: popoverContent,
+      portalTarget: opts.portalTarget,
     });
   };
 
