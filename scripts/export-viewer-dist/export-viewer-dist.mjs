@@ -99,7 +99,7 @@ function git(args) {
   }).trim();
 }
 
-function exportPackage(packageName, outDir, provenance) {
+function exportPackage(packageName, outDir) {
   const pkgDir = join(repoRoot, 'packages', packageName);
   const pkgJsonPath = join(pkgDir, 'package.json');
   if (!existsSync(pkgJsonPath)) {
@@ -136,10 +136,18 @@ function exportPackage(packageName, outDir, provenance) {
     };
   });
 
+  // 由来はパッケージごとに「そのビルドの直後」に取得する。全パッケージで 1 回だけ共有
+  // すると、複数ビルドの間に worktree が変化した場合（並行セッションの実例あり）に、
+  // 後続パッケージの manifest が実際のビルド元と乖離する。
   const manifest = buildManifest({
     packageName,
     version: pkgJson.version,
-    ...provenance,
+    commit: git(['rev-parse', 'HEAD']),
+    // バンドルは workspace 依存（graph-core 等）のソースを内包するため、対象パッケージ
+    // 単体で判定すると依存側だけが dirty のとき「clean な commit 由来」と偽ってしまう。
+    // 依存グラフからの導出は申告揺れ（dependencies/devDependencies の不一致例あり）で
+    // 信頼できないため、バンドル入力の全域である packages/ で判定する（過剰側に倒す）。
+    dirty: git(['status', '--porcelain', '--', 'packages/']).length > 0,
     generatedAt: new Date().toISOString(),
     files: fileEntries,
   });
@@ -149,24 +157,14 @@ function exportPackage(packageName, outDir, provenance) {
   for (const entry of fileEntries) {
     console.log(`[export-viewer-dist]   ${entry.name} (${(entry.bytes / 1024).toFixed(0)} KB)`);
   }
+  console.log(`[export-viewer-dist] commit ${manifest.commit}${manifest.dirty ? ' (dirty)' : ''}`);
 }
 
 function main() {
   const { outDir, packageNames } = parseArgs(process.argv.slice(2));
-  const provenance = {
-    commit: git(['rev-parse', 'HEAD']),
-    // バンドルは workspace 依存（graph-core 等）のソースを内包するため、対象パッケージ
-    // 単体で判定すると依存側だけが dirty のとき「clean な commit 由来」と偽ってしまう。
-    // 依存グラフからの導出は申告揺れ（dependencies/devDependencies の不一致例あり）で
-    // 信頼できないため、バンドル入力の全域である packages/ で判定する（過剰側に倒す）。
-    dirty: git(['status', '--porcelain', '--', 'packages/']).length > 0,
-  };
   for (const packageName of packageNames) {
-    exportPackage(packageName, outDir, provenance);
+    exportPackage(packageName, outDir);
   }
-  console.log(
-    `[export-viewer-dist] commit ${provenance.commit}${provenance.dirty ? ' (dirty)' : ''}`,
-  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
