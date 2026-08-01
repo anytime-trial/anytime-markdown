@@ -8,6 +8,7 @@
       "packages/graph-viewer/src/",
       "packages/database-viewer/src/",
       "packages/spreadsheet-viewer/src/",
+      "packages/cooccurrence-viewer/src/",
       "packages/trace-viewer/src/",
       "packages/ui-core/src/"
     ],
