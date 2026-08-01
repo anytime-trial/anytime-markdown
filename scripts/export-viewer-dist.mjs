@@ -109,7 +109,11 @@ function main() {
     packageName,
     version: pkgJson.version,
     commit: git(['rev-parse', 'HEAD']),
-    dirty: git(['status', '--porcelain', '--', `packages/${packageName}`]).length > 0,
+    // バンドルは workspace 依存（graph-core 等）のソースを内包するため、対象パッケージ
+    // 単体で判定すると依存側だけが dirty のとき「clean な commit 由来」と偽ってしまう。
+    // 依存グラフからの導出は申告揺れ（dependencies/devDependencies の不一致例あり）で
+    // 信頼できないため、バンドル入力の全域である packages/ で判定する（過剰側に倒す）。
+    dirty: git(['status', '--porcelain', '--', 'packages/']).length > 0,
     generatedAt: new Date().toISOString(),
     files: fileEntries,
   });
