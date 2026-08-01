@@ -10,8 +10,8 @@ import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
 import { createGraphT } from '../i18n/createGraphT';
 import { createGraphMenu, type GraphMenuHandle } from '../ui/graphMenu';
+import { listItemIcon } from '../ui/uiCoreAdapters';
 import { createDivider } from '../ui-vanilla/Divider';
-import { createListItemIcon } from '../ui-vanilla/ListItemIcon';
 import { createListItemText } from '../ui-vanilla/ListItemText';
 import {
   createContentCopyIcon,
@@ -79,7 +79,7 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
       menuItem({
         onClick: () => handleAction('copy'),
         children: [
-          createListItemIcon({ children: createContentCopyIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createContentCopyIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('copy') }),
         ],
       }),
@@ -87,14 +87,14 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
         onClick: () => handleAction('paste'),
         disabled: !hasClipboard,
         children: [
-          createListItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('paste') }),
         ],
       }),
       menuItem({
         onClick: () => handleAction('delete'),
         children: [
-          createListItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('delete') }),
         ],
       }),
@@ -102,14 +102,14 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
       menuItem({
         onClick: () => handleAction('bringToFront'),
         children: [
-          createListItemIcon({ children: createFlipToFrontIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createFlipToFrontIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('bringToFront') }),
         ],
       }),
       menuItem({
         onClick: () => handleAction('sendToBack'),
         children: [
-          createListItemIcon({ children: createFlipToBackIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createFlipToBackIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('sendToBack') }),
         ],
       }),
@@ -117,14 +117,14 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
       menuItem({
         onClick: () => handleAction('group'),
         children: [
-          createListItemIcon({ children: createGroupWorkIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createGroupWorkIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('group') }),
         ],
       }),
       menuItem({
         onClick: () => handleAction('ungroup'),
         children: [
-          createListItemIcon({ children: createDeblurIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createDeblurIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('ungroup') }),
         ],
       }),
@@ -134,7 +134,7 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
       menuItem({
         onClick: () => handleAction('delete'),
         children: [
-          createListItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('delete') }),
         ],
       }),
@@ -146,14 +146,14 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
         onClick: () => handleAction('paste'),
         disabled: !hasClipboard,
         children: [
-          createListItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('paste') }),
         ],
       }),
       menuItem({
         onClick: () => handleAction('selectAll'),
         children: [
-          createListItemIcon({ children: createSelectAllIcon({ fontSize: 'small' }) }),
+          listItemIcon({ children: createSelectAllIcon({ fontSize: 'small' }) }),
           createListItemText({ children: t('selectAll') }),
         ],
       }),

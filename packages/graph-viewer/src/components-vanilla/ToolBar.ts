@@ -18,6 +18,7 @@ import type { GraphT } from '../i18n/createGraphT';
 import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
 import { createGraphMenu } from '../ui/graphMenu';
+import { listItemIcon } from '../ui/uiCoreAdapters';
 import { createIconButton } from '../ui-vanilla/IconButton';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
 import type { ToggleButtonGroupHandle } from '../ui-vanilla/ToggleButton';
@@ -25,7 +26,6 @@ import { createDivider } from '../ui-vanilla/Divider';
 import { createPopover } from '../ui-vanilla/Popover';
 import { createTooltip } from '../ui-vanilla/Tooltip';
 import type { TooltipHandle } from '../ui-vanilla/Tooltip';
-import { createListItemIcon } from '../ui-vanilla/ListItemIcon';
 import { createListItemText } from '../ui-vanilla/ListItemText';
 import { createCircularProgress } from '../ui-vanilla/CircularProgress';
 import {
@@ -483,7 +483,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
       const li = menuItem({
         onClick: () => { opts.onAlign(type); menu.close(); },
         children: [
-          createListItemIcon({ children: icon }),
+          listItemIcon({ children: icon }),
           createListItemText({ children: label }),
         ],
       });
@@ -495,7 +495,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
         onClick: () => { opts.onAlign(type); menu.close(); },
         disabled: currentSelectionCount < 3,
         children: [
-          createListItemIcon({ children: icon }),
+          listItemIcon({ children: icon }),
           createListItemText({ children: label }),
         ],
       });
