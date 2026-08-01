@@ -10,9 +10,8 @@ import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
 import { createGraphT } from '../i18n/createGraphT';
 import { createGraphMenu, type GraphMenuHandle } from '../ui/graphMenu';
-import { listItemIcon } from '../ui/uiCoreAdapters';
+import { listItemIcon, listItemText } from '../ui/uiCoreAdapters';
 import { createDivider } from '../ui-vanilla/Divider';
-import { createListItemText } from '../ui-vanilla/ListItemText';
 import {
   createContentCopyIcon,
   createContentPasteIcon,
@@ -80,7 +79,7 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
         onClick: () => handleAction('copy'),
         children: [
           listItemIcon({ children: createContentCopyIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('copy') }),
+          listItemText({ children: t('copy') }),
         ],
       }),
       menuItem({
@@ -88,14 +87,14 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
         disabled: !hasClipboard,
         children: [
           listItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('paste') }),
+          listItemText({ children: t('paste') }),
         ],
       }),
       menuItem({
         onClick: () => handleAction('delete'),
         children: [
           listItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('delete') }),
+          listItemText({ children: t('delete') }),
         ],
       }),
       createDivider(),
@@ -103,14 +102,14 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
         onClick: () => handleAction('bringToFront'),
         children: [
           listItemIcon({ children: createFlipToFrontIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('bringToFront') }),
+          listItemText({ children: t('bringToFront') }),
         ],
       }),
       menuItem({
         onClick: () => handleAction('sendToBack'),
         children: [
           listItemIcon({ children: createFlipToBackIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('sendToBack') }),
+          listItemText({ children: t('sendToBack') }),
         ],
       }),
       createDivider(),
@@ -118,14 +117,14 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
         onClick: () => handleAction('group'),
         children: [
           listItemIcon({ children: createGroupWorkIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('group') }),
+          listItemText({ children: t('group') }),
         ],
       }),
       menuItem({
         onClick: () => handleAction('ungroup'),
         children: [
           listItemIcon({ children: createDeblurIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('ungroup') }),
+          listItemText({ children: t('ungroup') }),
         ],
       }),
     );
@@ -135,7 +134,7 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
         onClick: () => handleAction('delete'),
         children: [
           listItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('delete') }),
+          listItemText({ children: t('delete') }),
         ],
       }),
     );
@@ -147,14 +146,14 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
         disabled: !hasClipboard,
         children: [
           listItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('paste') }),
+          listItemText({ children: t('paste') }),
         ],
       }),
       menuItem({
         onClick: () => handleAction('selectAll'),
         children: [
           listItemIcon({ children: createSelectAllIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('selectAll') }),
+          listItemText({ children: t('selectAll') }),
         ],
       }),
     );

@@ -18,7 +18,7 @@ import type { GraphT } from '../i18n/createGraphT';
 import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
 import { createGraphMenu } from '../ui/graphMenu';
-import { listItemIcon } from '../ui/uiCoreAdapters';
+import { listItemIcon, listItemText } from '../ui/uiCoreAdapters';
 import { createIconButton } from '../ui-vanilla/IconButton';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
 import type { ToggleButtonGroupHandle } from '../ui-vanilla/ToggleButton';
@@ -26,7 +26,6 @@ import { createDivider } from '../ui-vanilla/Divider';
 import { createPopover } from '../ui-vanilla/Popover';
 import { createTooltip } from '../ui-vanilla/Tooltip';
 import type { TooltipHandle } from '../ui-vanilla/Tooltip';
-import { createListItemText } from '../ui-vanilla/ListItemText';
 import { createCircularProgress } from '../ui-vanilla/CircularProgress';
 import {
   createAccountTreeIcon,
@@ -484,7 +483,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
         onClick: () => { opts.onAlign(type); menu.close(); },
         children: [
           listItemIcon({ children: icon }),
-          createListItemText({ children: label }),
+          listItemText({ children: label }),
         ],
       });
       menuItems.push(li);
@@ -496,7 +495,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
         disabled: currentSelectionCount < 3,
         children: [
           listItemIcon({ children: icon }),
-          createListItemText({ children: label }),
+          listItemText({ children: label }),
         ],
       });
       menuItems.push(li);
@@ -691,11 +690,11 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
       children: [
         menuItem({
           onClick: () => { opts.onExportSvg(); menu.close(); },
-          children: createListItemText({ children: t('exportSvg') }),
+          children: listItemText({ children: t('exportSvg') }),
         }),
         menuItem({
           onClick: () => { opts.onExportDrawio(); menu.close(); },
-          children: createListItemText({ children: t('exportDrawio') }),
+          children: listItemText({ children: t('exportDrawio') }),
         }),
       ],
       portalTarget: opts.portalTarget,
@@ -717,15 +716,15 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
       children: [
         menuItem({
           onClick: () => { opts.onImportDrawio(); menu.close(); },
-          children: createListItemText({ children: t('importDrawio') }),
+          children: listItemText({ children: t('importDrawio') }),
         }),
         menuItem({
           onClick: () => { opts.onImportGraph(); menu.close(); },
-          children: createListItemText({ children: t('importGraph') }),
+          children: listItemText({ children: t('importGraph') }),
         }),
         menuItem({
           onClick: () => { opts.onImportMermaid(); menu.close(); },
-          children: createListItemText({ children: t('importMermaid') }),
+          children: listItemText({ children: t('importMermaid') }),
         }),
       ],
       portalTarget: opts.portalTarget,

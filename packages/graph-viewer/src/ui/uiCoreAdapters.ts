@@ -13,8 +13,14 @@
  */
 
 import { createListItemIcon } from '@anytime-markdown/ui-core/ListItemIcon';
+import { createListItemText } from '@anytime-markdown/ui-core/ListItemText';
 
 /** gv createListItemIcon 互換（要素返し）。色・幅は --am-color-action-active / --am-menu-icon-minw。 */
 export const listItemIcon = (
   o: Parameters<typeof createListItemIcon>[0],
 ): HTMLSpanElement => createListItemIcon(o).el;
+
+/** gv createListItemText 互換（要素返し）。flex 伸長・省略表示は ui-core 側の既定。 */
+export const listItemText = (
+  o: Parameters<typeof createListItemText>[0],
+): HTMLSpanElement => createListItemText(o).el;
