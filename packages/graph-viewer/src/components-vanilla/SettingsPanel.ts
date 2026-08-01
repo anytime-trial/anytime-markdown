@@ -8,7 +8,7 @@
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { createGraphT } from '../i18n/createGraphT';
 import { createIconButton } from '../ui-vanilla/IconButton';
-import { createText } from '../ui-vanilla/Text';
+import { text } from '../ui/uiCoreAdapters';
 import {
   createToggleButton,
   createToggleButtonGroup,
@@ -72,7 +72,7 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   header.style.padding = '12px 16px';
   header.style.borderBottom = `1px solid ${colors.panelBorder}`;
 
-  const titleEl = createText({
+  const titleEl = text({
     variant: 'subtitle2',
     style: { color: colors.textPrimary, fontWeight: '700' },
     children: t('settings'),
@@ -110,7 +110,7 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
     ? createDarkModeIcon({ fontSize: 'small', color: colors.textSecondary })
     : createLightModeIcon({ fontSize: 'small', color: colors.textSecondary });
 
-  const themeLabelEl = createText({
+  const themeLabelEl = text({
     style: { color: colors.textPrimary, fontWeight: '600' },
     children: t('themeMode'),
   });
@@ -138,7 +138,7 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   // Language section
   const langSection = document.createElement('div');
 
-  const langLabelEl = createText({
+  const langLabelEl = text({
     style: {
       color: colors.textPrimary,
       fontWeight: '600',

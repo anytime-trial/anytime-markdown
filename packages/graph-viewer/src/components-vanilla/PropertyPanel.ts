@@ -11,8 +11,7 @@ import type { GraphT } from '../i18n/createGraphT';
 import { createIconButton } from '../ui-vanilla/IconButton';
 import { createSlider } from '../ui-vanilla/Slider';
 import { createTextField } from '../ui-vanilla/TextField';
-import { createText } from '../ui-vanilla/Text';
-import { divider } from '../ui/uiCoreAdapters';
+import { divider, text } from '../ui/uiCoreAdapters';
 import { createSwitch } from '../ui-vanilla/Switch';
 import { createFormControlLabel } from '../ui-vanilla/FormControlLabel';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
@@ -186,7 +185,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       marginBottom: '8px',
     });
 
-    const titleEl = createText({ variant: 'subtitle2', style: { color: colors.textPrimary } });
+    const titleEl = text({ variant: 'subtitle2', style: { color: colors.textPrimary } });
     titleEl.textContent = t('properties');
     header.appendChild(titleEl);
 
@@ -221,7 +220,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       lockBtn.appendChild(node.locked ? createLockIcon({ fontSize: 'small' }) : createLockOpenIcon({ fontSize: 'small' }));
       lockRow.appendChild(lockBtn);
 
-      const lockText = createText({ variant: 'caption', style: { color: colors.textSecondary, flex: '1' } });
+      const lockText = text({ variant: 'caption', style: { color: colors.textSecondary, flex: '1' } });
       lockText.textContent = node.locked ? t('locked') : t('unlocked');
       lockRow.appendChild(lockText);
 
@@ -248,7 +247,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       el.appendChild(lockRow);
 
       // --- 塗り色 ---
-      const fillLabel = createText({ variant: 'caption', style: { color: colors.textSecondary } });
+      const fillLabel = text({ variant: 'caption', style: { color: colors.textSecondary } });
       fillLabel.textContent = t('fillColor');
       el.appendChild(fillLabel);
 
@@ -261,7 +260,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       }));
 
       // --- 線の色 ---
-      const strokeLabel = createText({ variant: 'caption', style: { color: colors.textSecondary } });
+      const strokeLabel = text({ variant: 'caption', style: { color: colors.textSecondary } });
       strokeLabel.textContent = t('strokeColor');
       el.appendChild(strokeLabel);
 
@@ -274,7 +273,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       }));
 
       // --- 線の太さ ---
-      const strokeWidthLabel = createText({ variant: 'caption', style: { color: colors.textSecondary } });
+      const strokeWidthLabel = text({ variant: 'caption', style: { color: colors.textSecondary } });
       strokeWidthLabel.textContent = t('strokeWidth');
       el.appendChild(strokeWidthLabel);
 
@@ -292,7 +291,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       cleanups.push(() => strokeWidthSlider.destroy());
 
       // --- フォントサイズ ---
-      const fontSizeLabel = createText({ variant: 'caption', style: { color: colors.textSecondary } });
+      const fontSizeLabel = text({ variant: 'caption', style: { color: colors.textSecondary } });
       fontSizeLabel.textContent = t('fontSize');
       el.appendChild(fontSizeLabel);
 
@@ -310,7 +309,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       cleanups.push(() => fontSizeSlider.destroy());
 
       // --- 角丸 ---
-      const borderRadiusLabel = createText({ variant: 'caption', style: { color: colors.textSecondary } });
+      const borderRadiusLabel = text({ variant: 'caption', style: { color: colors.textSecondary } });
       borderRadiusLabel.textContent = t('borderRadius');
       el.appendChild(borderRadiusLabel);
 
@@ -332,7 +331,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
         checked: node.style.shadow ?? false,
         onChange: (v) => onUpdateNode(node.id, { style: { ...node.style, shadow: v } }),
       });
-      const shadowLabel = createText({ variant: 'caption', style: { color: colors.textSecondary } });
+      const shadowLabel = text({ variant: 'caption', style: { color: colors.textSecondary } });
       shadowLabel.textContent = t('shadow');
       const shadowFcl = createFormControlLabel({
         control: shadowSwitch.el,
@@ -342,7 +341,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       el.appendChild(shadowFcl);
 
       // --- グラデーション終止色 ---
-      const gradientToLabel = createText({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
+      const gradientToLabel = text({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
       gradientToLabel.textContent = t('gradientTo');
       el.appendChild(gradientToLabel);
 
@@ -388,7 +387,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
 
       // --- グラデーション方向（gradientTo が設定されている時のみ）---
       if (node.style.gradientTo) {
-        const gradDirLabel = createText({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
+        const gradDirLabel = text({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
         gradDirLabel.textContent = t('gradientDirection');
         el.appendChild(gradDirLabel);
 
@@ -424,7 +423,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       }
 
       // --- URL ---
-      const urlLabel = createText({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
+      const urlLabel = text({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
       urlLabel.textContent = t('url');
       el.appendChild(urlLabel);
 
@@ -445,14 +444,14 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       // --- 接続点 ---
       el.appendChild(divider({ style: { margin: '8px 0' } }));
 
-      const connLabel = createText({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
+      const connLabel = text({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
       connLabel.textContent = t('connectionPoints');
       el.appendChild(connLabel);
 
       const connRow = document.createElement('div');
       applyStyle(connRow, { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' });
 
-      const connCount = createText({ variant: 'caption', style: { color: colors.textSecondary, fontSize: '0.65rem' } });
+      const connCount = text({ variant: 'caption', style: { color: colors.textSecondary, fontSize: '0.65rem' } });
       connCount.textContent = `${4 + (node.extraConnectionPoints?.length ?? 0)} ${t('points')}`;
       connRow.appendChild(connCount);
 
@@ -472,7 +471,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       });
       addConnBtn.style.color = colors.textSecondary;
       addConnBtn.style.fontSize = '0.7rem';
-      const addText = createText({ variant: 'caption' });
+      const addText = text({ variant: 'caption' });
       addText.textContent = '+8';
       addConnBtn.appendChild(addText);
       connRow.appendChild(addConnBtn);
@@ -485,7 +484,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
         });
         resetConnBtn.style.color = colors.textSecondary;
         resetConnBtn.style.fontSize = '0.7rem';
-        const resetText = createText({ variant: 'caption' });
+        const resetText = text({ variant: 'caption' });
         resetText.textContent = t('reset');
         resetConnBtn.appendChild(resetText);
         connRow.appendChild(resetConnBtn);
@@ -501,7 +500,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       const edge = currentEdge; // closure 安定化
 
       // --- 線の色 ---
-      const strokeColorLabel = createText({ variant: 'caption', style: { color: colors.textSecondary } });
+      const strokeColorLabel = text({ variant: 'caption', style: { color: colors.textSecondary } });
       strokeColorLabel.textContent = t('strokeColor');
       el.appendChild(strokeColorLabel);
 
@@ -527,7 +526,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       el.appendChild(edgeColorBox);
 
       // --- 線の太さ ---
-      const edgeStrokeWidthLabel = createText({ variant: 'caption', style: { color: colors.textSecondary } });
+      const edgeStrokeWidthLabel = text({ variant: 'caption', style: { color: colors.textSecondary } });
       edgeStrokeWidthLabel.textContent = t('strokeWidth');
       el.appendChild(edgeStrokeWidthLabel);
 
@@ -545,7 +544,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       cleanups.push(() => edgeStrokeWidthSlider.destroy());
 
       // --- startShape ---
-      const startShapeLabel = createText({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
+      const startShapeLabel = text({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
       startShapeLabel.textContent = t('startShape');
       el.appendChild(startShapeLabel);
 
@@ -576,7 +575,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       cleanups.push(() => startShapeGroup.destroy());
 
       // --- endShape ---
-      const endShapeLabel = createText({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
+      const endShapeLabel = text({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
       endShapeLabel.textContent = t('endShape');
       el.appendChild(endShapeLabel);
 
@@ -600,7 +599,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       cleanups.push(() => endShapeGroup.destroy());
 
       // --- ラベル ---
-      const edgeLabelLabel = createText({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
+      const edgeLabelLabel = text({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
       edgeLabelLabel.textContent = t('edgeLabel');
       el.appendChild(edgeLabelLabel);
 
@@ -620,7 +619,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
 
       // --- ルーティングモード（connector タイプのみ）---
       if (edge.type === 'connector') {
-        const routingLabel = createText({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
+        const routingLabel = text({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
         routingLabel.textContent = t('routing');
         el.appendChild(routingLabel);
 

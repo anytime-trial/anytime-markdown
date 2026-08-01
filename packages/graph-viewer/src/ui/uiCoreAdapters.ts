@@ -17,6 +17,7 @@ import { createChip } from '@anytime-markdown/ui-core/Chip';
 import { createDivider } from '@anytime-markdown/ui-core/Divider';
 import { createListItemIcon } from '@anytime-markdown/ui-core/ListItemIcon';
 import { createListItemText } from '@anytime-markdown/ui-core/ListItemText';
+import { createText } from '@anytime-markdown/ui-core/Text';
 import { applyStyle, ensureStyle, type VanillaContent } from '@anytime-markdown/ui-core/dom';
 
 /** gv createListItemIcon 互換（要素返し）。色・幅は --am-color-action-active / --am-menu-icon-minw。 */
@@ -107,6 +108,45 @@ const GV_CHIP_STYLE: Record<'small' | 'medium', string> = {
   small: 'gap:4px;height:20px;padding:0 6px;border-radius:12px;font-size:0.6875rem;line-height:1;background-color:var(--am-color-action-selected);',
   medium: 'gap:4px;height:24px;padding:0 8px;border-radius:12px;font-size:0.75rem;line-height:1;background-color:var(--am-color-action-selected);',
 };
+
+/** gv createText 互換のオプション（ui-vanilla/Text.ts の CreateTextProps と同形）。 */
+export interface GvTextProps {
+  readonly variant?: 'body' | 'caption' | 'subtitle2';
+  readonly color?: 'text.secondary' | 'error' | 'inherit';
+  readonly style?: Partial<CSSStyleDeclaration>;
+  readonly className?: string;
+  readonly children?: VanillaContent;
+  readonly title?: string;
+}
+
+// gv-text 系の意匠。ui-core Text の MUI スケール（letter-spacing 付き・subtitle2 weight 500）
+// との差分を上書きする。body は gv 同様フォントを親から継承する（パネルの font-size に追従）。
+const GV_TEXT_STYLE: Record<'body' | 'caption' | 'subtitle2', string> = {
+  body: 'font:inherit;letter-spacing:normal;margin:0;',
+  caption: 'font-size:0.75rem;font-weight:400;line-height:1.66;letter-spacing:normal;margin:0;',
+  subtitle2: 'font-size:0.875rem;font-weight:600;line-height:1.57;letter-spacing:normal;margin:0;',
+};
+
+/** gv createText 互換（要素返し・span 固定）。色は --am-color-*（gv と同値）で表現する。 */
+export function text(o: GvTextProps = {}): HTMLElement {
+  const color =
+    o.color === 'text.secondary'
+      ? 'color:var(--am-color-text-secondary);'
+      : o.color === 'error'
+        ? 'color:var(--am-color-error-main);'
+        : '';
+  const { el } = createText({
+    // caption はタグが span（gv と同じ）。フォント値は style で全上書きするため
+    // variant の選択はタグ決定のためだけに働く。
+    variant: 'caption',
+    className: o.className,
+    children: o.children,
+    style: GV_TEXT_STYLE[o.variant ?? 'body'] + color,
+  });
+  if (o.title !== undefined) el.title = o.title;
+  applyStyle(el, o.style);
+  return el;
+}
 
 /** gv createChip 互換（要素返し・ラベルのみ。gv の onDelete は graph-viewer 内で未使用）。 */
 export function chip(o: {

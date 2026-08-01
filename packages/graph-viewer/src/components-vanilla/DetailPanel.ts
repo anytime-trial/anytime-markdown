@@ -11,8 +11,7 @@
 
 import type { GraphNode } from '../types';
 import { createIconButton } from '../ui-vanilla/IconButton';
-import { createText } from '../ui-vanilla/Text';
-import { divider } from '../ui/uiCoreAdapters';
+import { divider, text } from '../ui/uiCoreAdapters';
 import { createCloseIcon } from '../ui-vanilla/icons';
 
 /** DetailPanel handle。destroy() で DOM 除去・イベント解除を行う。 */
@@ -63,7 +62,7 @@ export function createDetailPanel(opts: Readonly<CreateDetailPanelOpts>): Detail
     gap: '8px',
   });
 
-  const titleText = createText({
+  const titleText = text({
     variant: 'subtitle2',
     style: {
       flex: '1',
@@ -91,18 +90,18 @@ export function createDetailPanel(opts: Readonly<CreateDetailPanelOpts>): Detail
   const basicSection = document.createElement('div');
   basicSection.style.padding = '12px';
 
-  basicSection.appendChild(createText({ variant: 'caption', color: 'text.secondary', children: 'Type' }));
+  basicSection.appendChild(text({ variant: 'caption', color: 'text.secondary', children: 'Type' }));
 
-  const typeText = createText({
+  const typeText = text({
     style: { display: 'block', marginBottom: '8px' },
     children: node.type,
   });
   basicSection.appendChild(typeText);
 
   if (node.url) {
-    basicSection.appendChild(createText({ variant: 'caption', color: 'text.secondary', children: 'URL' }));
+    basicSection.appendChild(text({ variant: 'caption', color: 'text.secondary', children: 'URL' }));
 
-    const urlText = createText({
+    const urlText = text({
       className: 'gv-link',
       style: {
         display: 'block',
@@ -119,9 +118,9 @@ export function createDetailPanel(opts: Readonly<CreateDetailPanelOpts>): Detail
   }
 
   if (node.label) {
-    basicSection.appendChild(createText({ variant: 'caption', color: 'text.secondary', children: 'Label' }));
+    basicSection.appendChild(text({ variant: 'caption', color: 'text.secondary', children: 'Label' }));
 
-    const labelText = createText({
+    const labelText = text({
       style: { display: 'block', marginBottom: '8px' },
       children: node.label,
     });
@@ -137,7 +136,7 @@ export function createDetailPanel(opts: Readonly<CreateDetailPanelOpts>): Detail
     const metaSection = document.createElement('div');
     metaSection.style.padding = '12px';
 
-    const metaLabel = createText({
+    const metaLabel = text({
       variant: 'caption',
       color: 'text.secondary',
       style: { marginBottom: '4px', display: 'block' },
@@ -153,8 +152,8 @@ export function createDetailPanel(opts: Readonly<CreateDetailPanelOpts>): Detail
         padding: '4px 0',
       });
 
-      const keyText = createText({ color: 'text.secondary', children: key });
-      const valText = createText({
+      const keyText = text({ color: 'text.secondary', children: key });
+      const valText = text({
         style: { fontWeight: '500', fontVariantNumeric: 'tabular-nums' },
         children:
           typeof value === 'number'
