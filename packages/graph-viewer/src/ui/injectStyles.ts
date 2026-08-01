@@ -71,40 +71,6 @@ const CSS = `
 .gv-toggle-btn[aria-pressed="true"] { background: var(--gv-color-action-selected); color: var(--gv-color-primary-main); }
 .gv-toggle-btn:disabled { opacity: 0.38; cursor: default; }
 
-/* ---- Slider ---- */
-.gv-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--gv-color-divider);
-  outline: none;
-  cursor: pointer;
-  margin: 8px 0;
-  accent-color: var(--gv-color-primary-main);
-}
-.gv-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--gv-color-primary-main);
-  cursor: pointer;
-  border: none;
-}
-.gv-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--gv-color-primary-main);
-  cursor: pointer;
-  border: none;
-}
-.gv-slider--small { height: 3px; }
-.gv-slider:focus-visible { outline: 2px solid var(--gv-color-primary-main); outline-offset: 4px; }
-
 /* ---- Slider (range / dual-thumb) ---- */
 .gv-slider-range { position: relative; width: 100%; height: 20px; }
 .gv-slider-range__track { position: absolute; top: 50%; left: 0; right: 0; height: 4px; transform: translateY(-50%); border-radius: 2px; background: var(--gv-color-divider); }
