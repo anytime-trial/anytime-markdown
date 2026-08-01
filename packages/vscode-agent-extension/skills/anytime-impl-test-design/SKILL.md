@@ -1,11 +1,11 @@
 ---
 name: anytime-impl-test-design
-description: anytime-markdown で実装・変更が一段落し「実装後にどのテストを書くか」を決める時に使用する。特に書き換え/移行（React→vanilla 脱React）・host 配線（postMessage/コールバック）・mount/描画・i18n キーを触った時、ユニットは green なのに配線/mount/型/i18n の回帰が出荷される時、ts-jest が通っても tsc/統合/実機を確認していない時。「テスト内容の決め方」「実装後テスト」「機能パリティ照合」「移行漏れ」「検知ギャップ」で発火する。
+description: anytime-markdown で実装・変更が一段落し「実装後にどのテストを書くか」を決める時に使用する。特に書き換え/移行（React→vanilla 脱React）・host 配線（postMessage/コールバック）・mount/描画・i18n キーを触った時、ユニットは green なのに配線/mount/型/i18n の回帰が出荷される時、ts-jest が通っても tsc/統合/実機を確認していない時。「テスト内容の決め方」「実装後テスト」「機能パリティ照合」「移行漏れ」「検知ギャップ」で発火する。新設したテスト・golden master・照合手段が本当に退行で落ちるかを確かめる時（verifier-first）も使用する。
 ---
 
 # anytime-impl-test-design — 実装後テストを「変更の出口」から導出する
 
-更新日: 2026-06-28
+更新日: 2026-08-01
 
 ## Overview
 
@@ -69,6 +69,23 @@ description: anytime-markdown で実装・変更が一段落し「実装後に�
 
 **自動化版（Characterization / Golden Master test）**: これは Michael Feathers『Working Effectively with Legacy Code』の characterization test（＝旧い振る舞いをスナップショットし意図せぬ改変を検出）の適用。出口が**スナップショット可能**（レンダリング HTML・シリアライズ出力・DOM 構造）なら、リテラル grep の手動照合に加え、**旧実装から golden master を採取 → 新実装に当てて一致を assert** すれば回帰を自動で固定できる。grep は「配線が在るか」、golden master は「出力が一致するか」を担い相補。
 
+## 検証器を先に検証する（verifier-first）
+
+出口に割り当てた検証器（テストコード・golden master・parity チェック・grep 照合）自体が壊れていれば green は無意味。過去の回帰はテスト不足だけでなく**検証器が検証していなかった**形でも出た（モックシームが抽象移行で素通り・否定形アサーションの fail-open・スイートが起動不能で総数が減るだけで気づけない）。下の Red Flags のリトマスを思考実験で終えず、**実測に格上げする**（langchain-ai/langchain-skills `eval-engineering/verifier-design` の翻案）。
+
+1. **Pass iff を 1 行で書く**: 各検証器の意図を「Pass iff <独立に観測可能な成功>」で明文化する。書けないなら成功条件が曖昧＝出口の定義に戻る。
+2. **fixture 2 点で検証器を実測してから信じる**:
+
+   | ケース | 期待 |
+   | --- | --- |
+   | 正しい実装（等価な別解・リファクタ後の形を含む） | pass |
+   | この出口に固有の現実的な退行（1 件を意図的に注入） | fail |
+
+   誤答が pass／正解が fail なら、被験コードではなく**検証器側**（アサーション・fixture・モックシーム）を直して再実測する。fixture の追加は具体的リスク（もっともらしい否定・境界値等）1 件につき 1 個にとどめ、既定で広い行列は作らない。
+3. **実在した壊れ方は否定 fixture として固定する**: 過去バグやログで観測した失敗の形を controlled negative として再現する（「修正前に fail するリグレッションテスト」の一般化）。期待値は当時の記録から独立に決める。
+4. **判定手段を客観/意味で切り分ける**: 客観事実（ファイル実在・テスト通過・状態変化・配線の存在）は決定的なコード判定で決める。**意味的正しさをキーワード・部分文字列一致で近似しない** — リテラル grep は「配線が在るか」の検知専用で、「出力が正しいか」は golden master／実行アサーションが担う。
+5. **基盤失敗と被験失敗を区別する**: スイートが起動しない・環境欠落は「fail 0 件」でも合格でもない。`Tests: N passed, N total` の**総数 N を前回と突合**し、減少を回帰として扱う。
+
 ## Red Flags（見たら停止）
 
 > **リトマス**: 「この変更にバグが入ったら、これらのテストは落ちるか？ 落ちたらどこを直せばいいか分かるか？」— No なら出口にテストが足りていない。
@@ -80,6 +97,7 @@ description: anytime-markdown で実装・変更が一段落し「実装後に�
 | symbol 追跡で「データ生存」を確認し配線確認を省いた | リテラル grep で**配線まで**到達を確認 |
 | ts-jest green で型 OK と判断 | `tsc --noEmit` を別途実行 |
 | 「実機未確認」のまま完了報告 | VS Code 拡張は compile→Extension Host Reload→実機 |
+| 新設した検証器が fail するのを一度も見ずに green を信じた | 現実的な退行を 1 件注入して落ちることを実測（verifier-first） |
 
 ## Common Mistakes
 
@@ -113,3 +131,4 @@ description: anytime-markdown で実装・変更が一段落し「実装後に�
 - Characterization / Golden Master test（旧振る舞いのスナップショットで回帰検出）: Michael Feathers『Working Effectively with Legacy Code』／[Wikipedia](https://en.wikipedia.org/wiki/Characterization_test)
 - 振る舞いカバレッジ監査（行カバレッジでなく契約をテスト）: `pr-test-analyzer`（pr-review-toolkit）
 - 実装前の純粋関数 TDD: `superpowers:test-driven-development`
+- 検証器の事前テスト（pass/fail fixture・客観/意味の判定切り分け・基盤失敗の区別）: [langchain-ai/langchain-skills eval-engineering/verifier-design](https://github.com/langchain-ai/langchain-skills/blob/main/config/skills/eval-engineering/references/verifier-design.md)
