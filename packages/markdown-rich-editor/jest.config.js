@@ -1,5 +1,9 @@
 const base = require('../../jest.config.base');
 const { buildJestMapper, buildJestTransform } = require('../markdown-core/alias.cjs');
+const { buildModuleNameMapperFromExports } = require('../../scripts/jest-exports-mapper.cjs');
+
+// testEnvironment: jsdom が既定で適用する条件（customExportConditions = ['browser']）に合わせる。
+const JSDOM_CONDITIONS = ["browser", "default"];
 /** @type {import('jest').Config} */
 const config = {
   ...base,
@@ -18,13 +22,21 @@ const config = {
     // markdown-engine（フレームワーク非依存層）は alias.cjs(vendored)外のため明示マップ。
     // shim 経由でロードされる markdown-editor の diffEngine が再 export する。
     "^@anytime-markdown/markdown-engine$": "<rootDir>/../markdown-engine/src/index.ts",
-    // graph-core（思考法ダイアグラム）は src を直接公開。node_modules シンボリックリンク経由だと
-    // worktree ではなくメインの packages/graph-core を指すため、兄弟ソースへ明示マップする。
-    "^@anytime-markdown/graph-core$": "<rootDir>/../graph-core/src/index.ts",
-    "^@anytime-markdown/graph-core/(.*)$": "<rootDir>/../graph-core/src/$1",
-    // ui-core（vanilla DOM プリミティブ）も同様に src を直接公開するため兄弟ソースへ明示マップ。
-    "^@anytime-markdown/ui-core$": "<rootDir>/../ui-core/src/index.ts",
-    "^@anytime-markdown/ui-core/(.*)$": "<rootDir>/../ui-core/src/$1",
+    // graph-core / ui-core は src を直接公開する。node_modules シンボリックリンク経由だと
+    // worktree ではなくメインの packages/ を指すため、兄弟ソースへ明示マップする。
+    // マップは各パッケージの exports から導出し、規約外 subpath を取りこぼさない。
+    ...buildModuleNameMapperFromExports({
+      packageName: "@anytime-markdown/graph-core",
+      exports: require("../graph-core/package.json").exports,
+      rootToken: "<rootDir>/../graph-core",
+      conditions: JSDOM_CONDITIONS,
+    }),
+    ...buildModuleNameMapperFromExports({
+      packageName: "@anytime-markdown/ui-core",
+      exports: require("../ui-core/package.json").exports,
+      rootToken: "<rootDir>/../ui-core",
+      conditions: JSDOM_CONDITIONS,
+    }),
     // CSS Modules（*.module.css）はクラス名そのものを返す Proxy へ。
     // shim 経由でロードされる markdown-editor の UI コンポーネント（EditDialogHeader → Button 等）が
     // import するため、markdown-editor の既存 proxy を共用する。

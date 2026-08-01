@@ -1,5 +1,9 @@
 const base = require('../../jest.config.base');
 const { buildJestMapper, buildJestTransform } = require('../markdown-core/alias.cjs');
+const { buildModuleNameMapperFromExports } = require('../../scripts/jest-exports-mapper.cjs');
+
+// testEnvironment: jsdom が既定で適用する条件（customExportConditions = ['browser']）に合わせる。
+const JSDOM_CONDITIONS = ["browser", "default"];
 /** @type {import('jest').Config} */
 const config = {
   ...base,
@@ -19,9 +23,14 @@ const config = {
     "^@anytime-markdown/markdown-engine$": "<rootDir>/../markdown-engine/src/index.ts",
     // ui-core（vanilla DOM プリミティブ）は src を直接公開。node_modules シンボリックリンク経由だと
     // worktree ではなくメインの packages/ui-core を指すため、兄弟ソースへ明示マップする。
+    // マップは ui-core の exports から導出する。
     // （markdown-editor は graph-core を直接使わず ui-core のみ消費する。）
-    "^@anytime-markdown/ui-core$": "<rootDir>/../ui-core/src/index.ts",
-    "^@anytime-markdown/ui-core/(.*)$": "<rootDir>/../ui-core/src/$1",
+    ...buildModuleNameMapperFromExports({
+      packageName: "@anytime-markdown/ui-core",
+      exports: require("../ui-core/package.json").exports,
+      rootToken: "<rootDir>/../ui-core",
+      conditions: JSDOM_CONDITIONS,
+    }),
     // CSS Modules（*.module.css）はクラス名そのものを返す Proxy へ
     "\\.module\\.css$": "<rootDir>/__mocks__/cssModuleProxy.js",
     "^@/(.*)$": "<rootDir>/src/$1",
