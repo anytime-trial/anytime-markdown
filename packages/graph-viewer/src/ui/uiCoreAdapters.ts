@@ -12,9 +12,11 @@
  * 削除候補（graphMenu.ts と同じ位置づけ）。
  */
 
+import { createButton } from '@anytime-markdown/ui-core/Button';
 import { createDivider } from '@anytime-markdown/ui-core/Divider';
 import { createListItemIcon } from '@anytime-markdown/ui-core/ListItemIcon';
 import { createListItemText } from '@anytime-markdown/ui-core/ListItemText';
+import { ensureStyle, type VanillaContent } from '@anytime-markdown/ui-core/dom';
 
 /** gv createListItemIcon 互換（要素返し）。色・幅は --am-color-action-active / --am-menu-icon-minw。 */
 export const listItemIcon = (
@@ -34,3 +36,66 @@ export const listItemText = (
 export const divider = (
   o: Parameters<typeof createDivider>[0] = {},
 ): HTMLHRElement => createDivider({ ...o, style: { margin: '4px 0', ...o.style } }).el;
+
+/** gv createButton 互換のオプション（ui-vanilla/Button.ts の CreateButtonProps と同形）。 */
+export interface GvButtonProps {
+  readonly variant?: 'text' | 'outlined' | 'contained';
+  readonly size?: 'small' | 'medium';
+  readonly startIcon?: Node;
+  readonly children?: VanillaContent;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly type?: 'button' | 'submit' | 'reset';
+  readonly title?: string;
+  readonly onClick?: (e: MouseEvent) => void;
+}
+
+// gv-btn の意匠（radius 4 / weight 500 / lh 1.75 / gv 寸法）。ui-core Button の
+// inline cssText（radius 8 / weight 600 / MUI 寸法）との差分を上書きする。
+const GV_BTN_STYLE: Record<'small' | 'medium', string> = {
+  small: 'border-radius:4px;font-weight:500;line-height:1.75;font-size:0.75rem;padding:3px 8px;min-height:26px;',
+  medium: 'border-radius:4px;font-weight:500;line-height:1.75;font-size:0.8125rem;padding:4px 10px;min-height:30px;',
+};
+
+/**
+ * gv createButton 互換（要素返し）。ui-core Button は hover / disabled / focus の
+ * 状態表現を持たないため、gv-btn の従来挙動（action-hover 背景・contained の
+ * brightness 0.92・disabled opacity 0.5・focus-visible リング）をここで補完する。
+ */
+export function button(o: GvButtonProps = {}): HTMLButtonElement {
+  const variant = o.variant ?? 'text';
+  const { el } = createButton({
+    variant,
+    size: o.size ?? 'medium',
+    startIcon: o.startIcon,
+    children: o.children,
+    className: o.className,
+    disabled: o.disabled,
+    buttonType: o.type,
+    title: o.title,
+  });
+  el.style.cssText += GV_BTN_STYLE[o.size ?? 'medium'];
+  el.setAttribute('data-gv-btn', '');
+  // focus リングは inline で表現できないため stylesheet で補完する（outline は
+  // inline 指定が無く通常規則で効く）。hover 背景は inline background と競合するため
+  // pointerenter / pointerleave で切り替える（ui-core MenuItem と同じ方式）。
+  ensureStyle(
+    'gv-uicore-btn-parity',
+    '[data-gv-btn]:focus-visible{outline:2px solid var(--am-color-primary-main);outline-offset:1px;}',
+  );
+  if (o.disabled) {
+    el.style.opacity = '0.5';
+    el.style.cursor = 'default';
+  } else {
+    el.addEventListener('pointerenter', () => {
+      if (variant === 'contained') el.style.filter = 'brightness(0.92)';
+      else el.style.backgroundColor = 'var(--am-color-action-hover)';
+    });
+    el.addEventListener('pointerleave', () => {
+      if (variant === 'contained') el.style.filter = '';
+      else el.style.backgroundColor = 'transparent';
+    });
+  }
+  if (o.onClick) el.addEventListener('click', o.onClick);
+  return el;
+}

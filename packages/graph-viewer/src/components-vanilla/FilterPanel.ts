@@ -7,7 +7,7 @@
  */
 
 import type { NodeFilterConfig, RangeFilter, TextFilter } from '../types/nodeFilter';
-import { createButton } from '../ui-vanilla/Button';
+import { button } from '../ui/uiCoreAdapters';
 import { createChip } from '../ui-vanilla/Chip';
 import { createIconButton } from '../ui-vanilla/IconButton';
 import { createAddIcon, createCloseIcon, createDeleteIcon } from '../ui-vanilla/icons';
@@ -335,7 +335,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
     const section = document.createElement('div');
     section.style.padding = '12px';
 
-    const resetBtn = createButton({
+    const resetBtn = button({
       size: 'small',
       variant: 'outlined',
       disabled: currentConfig.rangeFilters.length === 0 && currentConfig.textFilters.length === 0,
