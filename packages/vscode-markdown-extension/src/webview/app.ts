@@ -26,7 +26,7 @@ import {
   MEASURE_PRESETS,
   type MeasurePreset,
 } from '@anytime-markdown/markdown-editor/utils/measure-preset';
-import { detectLocale } from '@anytime-markdown/markdown-editor/i18n/locale';
+import { detectLocale } from '@anytime-markdown/markdown-editor/i18n/translator';
 import { setEmbedProviders } from '@anytime-markdown/markdown-editor/embed-providers';
 import type {
   VanillaMarkdownEditorHandle,

@@ -64,13 +64,16 @@ export default tseslint.config(
   //
   // 旧綴り `markdown-editor/src/*` は exports から削除済みのため解決自体が失敗するが、
   // 失敗の理由を明示するために合わせて禁止する。
+  //
+  // テストコード（`*.test.*` / `__tests__` / `testUtils`）は本ファイル冒頭のグローバル ignores で
+  // lint 対象外のため、本ゲートも適用されない。テストの `internal/*` 直参照（mock seam）は
+  // 意図的に許容している。
   {
     files: [
       "packages/web-app/**/*.{ts,tsx}",
       "packages/vscode-markdown-extension/**/*.{ts,tsx}",
       "packages/markdown-react-islands/**/*.{ts,tsx}",
     ],
-    ignores: ["**/__tests__/**"],
     rules: {
       "no-restricted-imports": [
         "error",

@@ -1,6 +1,9 @@
 const base = require('../../jest.config.base');
 const { buildJestMapper, buildJestTransform } = require('../markdown-core/alias.cjs');
 const { buildModuleNameMapperFromExports } = require('../../scripts/jest-exports-mapper.cjs');
+// testEnvironment: jsdom が既定で適用する条件（customExportConditions = ['browser']）に合わせる。
+// 条件を testEnvironment と食い違わせると、テストだけが本番と別のモジュールグラフを踏む。
+const JSDOM_CONDITIONS = ["browser", "default"];
 /** @type {import('jest').Config} */
 const config = {
   ...base,
@@ -26,6 +29,7 @@ const config = {
       packageName: "@anytime-markdown/markdown-editor",
       exports: require("../markdown-editor/package.json").exports,
       rootToken: "<rootDir>/../markdown-editor",
+      conditions: JSDOM_CONDITIONS,
     }),
     "\\.module\\.css$": "<rootDir>/../markdown-editor/__mocks__/cssModuleProxy.js",
     "^@/(.*)$": "<rootDir>/src/$1",

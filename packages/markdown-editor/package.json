@@ -9,9 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./i18n/messages": "./src/i18n/index.ts",
-    "./i18n/locale": "./src/i18n/createMarkdownT.ts",
+    "./i18n/translator": "./src/i18n/createMarkdownT.ts",
     "./element": "./src/element.ts",
-    "./element-class": "./src/AnytimeMarkdownEditorElement.ts",
     "./view-element": "./src/view-element.ts",
     "./settings": "./src/editorSettings.ts",
     "./embed-providers": "./src/embedProviders.ts",

@@ -4,6 +4,29 @@ const { buildModuleNameMapperFromExports } = require('../../scripts/jest-exports
 
 // testEnvironment: jsdom が既定で適用する条件（customExportConditions = ['browser']）に合わせる。
 const JSDOM_CONDITIONS = ["browser", "default"];
+
+// markdown-editor の subpath は exports から導出する（手書きワイルドカードは宣言済み subpath を
+// 取りこぼし、node_modules symlink 経由の未トランスパイルへ静かに縮退する）。
+const editorMapper = buildModuleNameMapperFromExports({
+  packageName: "@anytime-markdown/markdown-editor",
+  exports: require("../markdown-editor/package.json").exports,
+  rootToken: "<rootDir>/../markdown-editor",
+  conditions: JSDOM_CONDITIONS,
+});
+
+// barrel だけは core の index.ts（MarkdownEditorPage / templates.md など重量ツリーを eager ロード）
+// ではなく、rich が使う葉モジュールだけを再 export する軽量 shim へ差し替える。
+// requireActual も moduleNameMapper を通るため、テストの barrel mock の base もこの shim になる。
+// 差し替え対象が消えていたら「上書き」が「新規追加」に変質して意図が満たされなくなるため、
+// 存在を表明してから上書きする（コメントは実行されない）。
+const EDITOR_BARREL_KEY = "^@anytime-markdown/markdown-editor$";
+if (!(EDITOR_BARREL_KEY in editorMapper)) {
+  throw new Error(
+    "[markdown-rich-editor/jest] markdown-editor の barrel エントリが exports から消えた。shim 差し替えの前提が崩れている",
+  );
+}
+editorMapper[EDITOR_BARREL_KEY] = "<rootDir>/jest-shims/markdown-core.ts";
+
 /** @type {import('jest').Config} */
 const config = {
   ...base,
@@ -41,26 +64,11 @@ const config = {
     // shim 経由でロードされる markdown-editor の UI コンポーネント（EditDialogHeader → Button 等）が
     // import するため、markdown-editor の既存 proxy を共用する。
     "\\.module\\.css$": "<rootDir>/../markdown-editor/__mocks__/cssModuleProxy.js",
-    // barrel は core の index.ts (MarkdownEditorPage / templates.md など重量ツリーを eager ロード)
-    // ではなく、rich が使う葉モジュールだけを再 export する軽量 shim に差し替える。
-    // requireActual も moduleNameMapper を通るため、テストの barrel mock の base もこの shim になる。
-    // Phase3b（脱 @mui）: rich が markdown-editor の ui/ プリミティブ・icons・color helper を
-    // サブパス（/src/ui/*, /src/constants/*, /src/contexts/*）で import するため、node_modules
-    // シンボリックリンク経由（transformIgnorePatterns で除外され未トランスパイル＝undefined になる）
-    // ではなく実ソースへ解決する。barrel($) より先に置き subpath を確実に捕捉する。
-    // markdown-editor の subpath は exports から導出する（手書きワイルドカードは
-    // 宣言済み subpath を取りこぼし、node_modules symlink 経由の未トランスパイルへ静かに縮退する）。
-    ...buildModuleNameMapperFromExports({
-      packageName: "@anytime-markdown/markdown-editor",
-      exports: require("../markdown-editor/package.json").exports,
-      rootToken: "<rootDir>/../markdown-editor",
-    }),
-    // 上の導出マップも barrel($) を含むが、後勝ち（オブジェクトリテラルの重複キー）で
-    // 本 shim が採用される。順序を入れ替えると barrel が実 index.ts へ解決され shim が無効になる。
-    "^@anytime-markdown/markdown-editor$": "<rootDir>/jest-shims/markdown-core.ts",
-    // markdown-rich-editor のソース/テストは @/ を使わない。shim 経由でロードされる markdown-core
-    // ソースの @/ を core/src へ解決するためのマッピング。
-    "^@/(.*)$": "<rootDir>/../markdown-editor/src/$1",
+    // rich は markdown-editor の内部モジュール（ui プリミティブ・icons・color helper 等）を
+    // `internal/*` で参照する。node_modules symlink 経由だと transformIgnorePatterns で除外され
+    // 未トランスパイル＝undefined になるため、実ソースへ解決させる必要がある。
+    // 中身（barrel は shim・subpath は実ソース）は上の editorMapper で組み立て済み。
+    ...editorMapper,
     "^next-intl$": "<rootDir>/__mocks__/next-intl.ts",
   },
   maxWorkers: 2,

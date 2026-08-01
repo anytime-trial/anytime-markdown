@@ -8,7 +8,7 @@
  * 各ラッパは登録 import（副作用）を済ませたうえで該当タグ名を渡す。
  */
 
-import type { AnytimeMarkdownEditorElement } from '@anytime-markdown/markdown-editor/element-class';
+import type { AnytimeMarkdownEditorElement } from '@anytime-markdown/markdown-editor';
 import type {
   MountVanillaMarkdownEditorOptions,
   VanillaMarkdownEditorHandle,

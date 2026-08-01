@@ -7,7 +7,7 @@
  * ために barrel を経由すると、サーバーの API ルートや i18n ヘルパまでエディタを引きずる。
  *
  * 葉のモジュールが要るだけの consumer は `package.json` の `exports` が宣言する
- * **用途別の名前付き subpath** を使う（`./settings` / `./i18n/locale` / `./utils/draft-storage`
+ * **用途別の名前付き subpath** を使う（`./settings` / `./i18n/translator` / `./utils/draft-storage`
  * / `./host/mount` / `./types/embed-provider` など）。
  *
  * `./internal/*` は markdown-rich-editor（派生パッケージ）専用の口で、内部構造の変更に対して
