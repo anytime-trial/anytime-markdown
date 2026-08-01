@@ -7,12 +7,12 @@
 import { StarterKit } from "@anytime-markdown/markdown-starter-kit";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 
-jest.mock("@anytime-markdown/markdown-editor/src/buildEditorExtensions", () => ({
+jest.mock("@anytime-markdown/markdown-editor/internal/buildEditorExtensions", () => ({
   buildEditorExtensions: () => [StarterKit],
 }));
 
 // constants/templates は raw .md を import するため jest が解析できない（EditorMenuPopovers 経由）。
-jest.mock("@anytime-markdown/markdown-editor/src/constants/templates", () => ({
+jest.mock("@anytime-markdown/markdown-editor/internal/constants/templates", () => ({
   getBuiltinTemplates: () => [],
 }));
 

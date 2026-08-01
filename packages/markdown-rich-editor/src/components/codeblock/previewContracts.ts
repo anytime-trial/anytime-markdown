@@ -11,12 +11,12 @@ import {
   DEFAULT_EMBED_BASELINE,
   type EmbedBaseline,
   parseEmbedInfoString,
-} from "@anytime-markdown/markdown-editor/src/utils/embedInfoString";
+} from "@anytime-markdown/markdown-editor/internal/utils/embedInfoString";
 
 // ===== インタフェース =====
 
 // EmbedMountHandle は実装ホームの viewer（components-vanilla/embed/createEmbedPreview）が正規定義。
-export type { EmbedMountHandle } from "@anytime-markdown/markdown-editor/src/components-vanilla/embed/createEmbedPreview";
+export type { EmbedMountHandle } from "@anytime-markdown/markdown-editor/internal/components-vanilla/embed/createEmbedPreview";
 
 /** math グラフ vanilla マウントのハンドル。 */
 export interface GraphMountHandle {
@@ -28,7 +28,7 @@ export interface GraphMountHandle {
 
 // parseBaseline は実装ホームの viewer（utils/embedInfoString）へ正規化。互換のため再 export する。
 // `export { X } from` はモジュールスコープへ取り込まないため、本ファイル内の使用向けに import も行う。
-import { parseBaseline } from "@anytime-markdown/markdown-editor/src/utils/embedInfoString";
+import { parseBaseline } from "@anytime-markdown/markdown-editor/internal/utils/embedInfoString";
 
 export { parseBaseline };
 

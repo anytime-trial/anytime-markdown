@@ -11,9 +11,9 @@ jest.mock("lowlight", () => ({
 }));
 
 jest.mock("@anytime-markdown/markdown-editor", () => ({
-  ...jest.requireActual("@anytime-markdown/markdown-editor/src/chrome/blockChrome"),
-  ...jest.requireActual("@anytime-markdown/markdown-editor/src/chrome/vanillaToolbar"),
-  ...jest.requireActual("@anytime-markdown/markdown-editor/src/utils/embedInfoString"),
+  ...jest.requireActual("@anytime-markdown/markdown-editor/internal/chrome/blockChrome"),
+  ...jest.requireActual("@anytime-markdown/markdown-editor/internal/chrome/vanillaToolbar"),
+  ...jest.requireActual("@anytime-markdown/markdown-editor/internal/utils/embedInfoString"),
   ...jest.requireActual("@anytime-markdown/ui-core"),
   PREVIEW_MAX_HEIGHT: 400,
   getDivider: () => "#ccc",

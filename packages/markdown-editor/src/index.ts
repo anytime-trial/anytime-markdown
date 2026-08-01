@@ -1,14 +1,34 @@
+/**
+ * markdown-editor の barrel。
+ *
+ * **この barrel は「エディタ実体をすでに読み込む consumer」向け**である。`appLowlight` や
+ * `mountVanillaMarkdownEditor` まで再エクスポートするため、import した時点でエディタの
+ * モジュールグラフ全体（lowlight・markdown-engine 等）が起動する。設定値 1 つ・型 1 つの
+ * ために barrel を経由すると、サーバーの API ルートや i18n ヘルパまでエディタを引きずる。
+ *
+ * 葉のモジュールが要るだけの consumer は `package.json` の `exports` が宣言する
+ * **用途別の名前付き subpath** を使う（`./settings` / `./i18n/locale` / `./utils/draft-storage`
+ * / `./host/mount` / `./types/embed-provider` など）。
+ *
+ * `./internal/*` は markdown-rich-editor（派生パッケージ）専用の口で、内部構造の変更に対して
+ * 何も保証しない。ホスト層での使用は eslint の `no-restricted-imports` が禁止する。
+ */
+
 // i18n（React 非依存 translator。React Provider/useMarkdownT は markdown-react-islands へ移設）
-export { createMarkdownT } from './i18n/createMarkdownT';
+export { createMarkdownT, detectLocale, resolveLocale } from './i18n/createMarkdownT';
+export type { MarkdownNamespace, SupportedLocale } from './i18n/createMarkdownT';
 
 // 脱React G3: vanilla orchestrator（React ラッパ VanillaMarkdownEditorMount は
 // markdown-react-islands へ移設。consumer はそちらを import する）
 export {
   mountVanillaMarkdownEditor,
   type MountVanillaMarkdownEditorOptions,
+  type NoteGraphSlot,
   type VanillaMarkdownEditorHandle,
   type VanillaMarkdownEditorUpdatePatch,
 } from './host/vanillaMarkdownEditor';
+// 保存先の種別・表示名（ホストが外部保存の参照を破棄する判断に使う）
+export type { SaveTargetInfo } from './host/fileOpsController';
 // live patch の差分計算（冪等でない sink の不要発火を source 側で防ぐ）
 export { diffLivePatch } from './host/liveUpdateDiff';
 
@@ -180,6 +200,9 @@ export { buildPlantUmlUrl,PLANTUML_CONSENT_KEY, PLANTUML_DARK_SKINPARAMS, PLANTU
 export { preserveBlankLines, restoreBlankLines, sanitizeMarkdown, splitByCodeBlocks } from './utils/sanitizeMarkdown';
 export type { ApplyEditorThemeCssVarsOptions } from './utils/applyEditorThemeCssVars';
 export { applyChromeTokens, applyEditorThemeCssVars, ensureChromeTokens } from './utils/applyEditorThemeCssVars';
+// 本文幅プリセット（ホストのビューア設定 UI が選択肢として列挙する）
+export type { MeasurePreset } from './utils/measurePreset';
+export { MEASURE_PRESETS } from './utils/measurePreset';
 export { getSectionRange, moveHeadingSection } from './utils/sectionHelpers';
 export { moveTableColumn,moveTableRow } from './utils/tableHelpers';
 export { saveBlob } from './utils/clipboardHelpers';
@@ -205,8 +228,15 @@ export { enMessages as messagesEn, jaMessages as messagesJa } from './i18n';
 export { getDefaultContent } from './constants/defaultContent';
 
 // Embed プレビューの外部 fetch 注入（consumer が起動時に設定。実装 createEmbedPreview は
-// rich の CodeBlockBlockContent が deep import する内部 API のため barrel 非公開）
+// rich の CodeBlockBlockContent が internal 経由で参照する内部 API のため barrel 非公開）
 export { setEmbedProviders, getEmbedProviders } from './embedProviders';
+// 注入する fetch 実装の契約。ホスト（web-app / VS Code webview）が実装する
+export type {
+  EmbedProviders,
+  OembedData,
+  OgpData,
+  RssLatestData,
+} from './types/embedProvider';
 
 // Web Component（クラスのみ。customElements.define の副作用は "./element" 側に置く）
 export { AnytimeMarkdownEditorElement } from './AnytimeMarkdownEditorElement';

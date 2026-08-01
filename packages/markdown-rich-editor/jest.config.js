@@ -48,7 +48,15 @@ const config = {
     // サブパス（/src/ui/*, /src/constants/*, /src/contexts/*）で import するため、node_modules
     // シンボリックリンク経由（transformIgnorePatterns で除外され未トランスパイル＝undefined になる）
     // ではなく実ソースへ解決する。barrel($) より先に置き subpath を確実に捕捉する。
-    "^@anytime-markdown/markdown-editor/src/(.*)$": "<rootDir>/../markdown-editor/src/$1",
+    // markdown-editor の subpath は exports から導出する（手書きワイルドカードは
+    // 宣言済み subpath を取りこぼし、node_modules symlink 経由の未トランスパイルへ静かに縮退する）。
+    ...buildModuleNameMapperFromExports({
+      packageName: "@anytime-markdown/markdown-editor",
+      exports: require("../markdown-editor/package.json").exports,
+      rootToken: "<rootDir>/../markdown-editor",
+    }),
+    // 上の導出マップも barrel($) を含むが、後勝ち（オブジェクトリテラルの重複キー）で
+    // 本 shim が採用される。順序を入れ替えると barrel が実 index.ts へ解決され shim が無効になる。
     "^@anytime-markdown/markdown-editor$": "<rootDir>/jest-shims/markdown-core.ts",
     // markdown-rich-editor のソース/テストは @/ を使わない。shim 経由でロードされる markdown-core
     // ソースの @/ を core/src へ解決するためのマッピング。

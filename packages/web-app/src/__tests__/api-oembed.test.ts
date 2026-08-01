@@ -3,7 +3,7 @@
  */
 
 // Mock sanitizeTweetHtml to pass through
-jest.mock('@anytime-markdown/markdown-editor/src/utils/tweetSanitize', () => ({
+jest.mock('@anytime-markdown/markdown-editor/utils/tweet-sanitize', () => ({
   sanitizeTweetHtml: jest.fn((html: string) => `sanitized:${html}`),
 }), { virtual: true });
 

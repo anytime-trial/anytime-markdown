@@ -12,7 +12,7 @@ import {
   getTextSecondary,
   DEFAULT_DARK_BG,
   DEFAULT_LIGHT_BG,
-} from "@anytime-markdown/markdown-editor/src/constants/colors";
+} from "@anytime-markdown/markdown-editor/internal/constants/colors";
 import {
   appendContent,
   ensureStyle,

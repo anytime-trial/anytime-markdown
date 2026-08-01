@@ -39,7 +39,7 @@ import {
   findCounterpartCode,
   getCodeBlockIndex,
   getMergeEditors,
-} from "@anytime-markdown/markdown-editor/src/contexts/MergeEditorsContext";
+} from "@anytime-markdown/markdown-editor/internal/contexts/MergeEditorsContext";
 
 import {
   classifyCodeBlock,

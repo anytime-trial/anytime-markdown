@@ -22,7 +22,7 @@ import {
 import {
   getWebImportProvider,
   setWebImportProvider,
-} from '@anytime-markdown/markdown-editor/src/webImport/webImportProvider';
+} from '@anytime-markdown/markdown-editor/web-import/provider';
 import { useEffect, useMemo } from 'react';
 
 import { createWebImportProvider } from '../../lib/webImportProvider';

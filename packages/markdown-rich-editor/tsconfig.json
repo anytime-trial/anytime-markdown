@@ -11,7 +11,7 @@
 		"paths": {
 			"@/*": ["./src/*"],
 			"@anytime-markdown/markdown-editor": ["../markdown-editor/src/index.ts"],
-			"@anytime-markdown/markdown-editor/src/*": ["../markdown-editor/src/*"],
+			"@anytime-markdown/markdown-editor/internal/*": ["../markdown-editor/src/*"],
 			"@anytime-markdown/markdown-engine": ["../markdown-engine/src/index.ts"],
 			"@anytime-markdown/markdown-engine/*": ["../markdown-engine/src/*"],
 			"@anytime-markdown/markdown-core": ["../markdown-core/core/src/index.ts"],

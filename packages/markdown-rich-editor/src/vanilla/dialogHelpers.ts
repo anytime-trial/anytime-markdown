@@ -25,7 +25,7 @@ import { createMenu } from "@anytime-markdown/ui-core/Menu";
 import { createMenuItem } from "@anytime-markdown/ui-core/MenuItem";
 import { ensureStyle } from "@anytime-markdown/ui-core/dom";
 import { createMediaQuery } from "@anytime-markdown/ui-core/mediaQuery";
-import { escapeHtml } from "@anytime-markdown/markdown-editor/src/utils/escapeHtml";
+import { escapeHtml } from "@anytime-markdown/markdown-editor/internal/utils/escapeHtml";
 import type { ZoomPanController } from "./zoomPanState";
 
 /** サンプルパネルに表示するサンプル項目。 */

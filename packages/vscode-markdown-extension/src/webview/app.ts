@@ -25,14 +25,14 @@ import {
 import {
   MEASURE_PRESETS,
   type MeasurePreset,
-} from '@anytime-markdown/markdown-editor/src/utils/measurePreset';
-import { detectLocale } from '@anytime-markdown/markdown-editor/src/i18n/createMarkdownT';
-import { setEmbedProviders } from '@anytime-markdown/markdown-editor/src/embedProviders';
+} from '@anytime-markdown/markdown-editor/utils/measure-preset';
+import { detectLocale } from '@anytime-markdown/markdown-editor/i18n/locale';
+import { setEmbedProviders } from '@anytime-markdown/markdown-editor/embed-providers';
 import type {
   VanillaMarkdownEditorHandle,
   VanillaMarkdownEditorUpdatePatch,
-} from '@anytime-markdown/markdown-editor/src/host/vanillaMarkdownEditor';
-import { diffLivePatch } from '@anytime-markdown/markdown-editor/src/host/liveUpdateDiff';
+} from '@anytime-markdown/markdown-editor/host/mount';
+import { diffLivePatch } from '@anytime-markdown/markdown-editor/host/live-update-diff';
 import { mountVanillaRichMarkdownEditor } from '@anytime-markdown/markdown-rich-editor/src/vanilla/mountVanillaRichMarkdownEditor';
 
 import { getVsCodeApi } from './vscodeApi';

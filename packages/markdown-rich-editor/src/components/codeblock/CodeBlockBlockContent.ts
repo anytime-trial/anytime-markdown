@@ -1,10 +1,10 @@
 import type { NodeViewRendererProps } from "@anytime-markdown/markdown-core";
 import type { NodeView } from "@anytime-markdown/markdown-pm/view";
 import { PREVIEW_MAX_HEIGHT } from "@anytime-markdown/markdown-editor";
-import { safeGetPos as wrapGetPos } from "@anytime-markdown/markdown-editor/src/utils/safeGetPos";
+import { safeGetPos as wrapGetPos } from "@anytime-markdown/markdown-editor/internal/utils/safeGetPos";
 
-import { createEmbedPreview } from "@anytime-markdown/markdown-editor/src/components-vanilla/embed/createEmbedPreview";
-import { EDITOR_CODE_VARS_CHANGED_EVENT } from "@anytime-markdown/markdown-editor/src/utils/editorCodeCssVars";
+import { createEmbedPreview } from "@anytime-markdown/markdown-editor/internal/components-vanilla/embed/createEmbedPreview";
+import { EDITOR_CODE_VARS_CHANGED_EVENT } from "@anytime-markdown/markdown-editor/internal/utils/editorCodeCssVars";
 
 import { renderCodeBlockPreview } from "./codeBlockPreview";
 import {

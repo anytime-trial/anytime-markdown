@@ -1,7 +1,7 @@
 import type {
   WebImportFetchResult,
   WebImportProvider,
-} from '@anytime-markdown/markdown-editor/src/webImport/webImportProvider';
+} from '@anytime-markdown/markdown-editor/web-import/provider';
 
 const WEB_IMPORT_PROXY_URL = process.env.NEXT_PUBLIC_WEB_IMPORT_PROXY_URL?.replace(/\/+$/, '');
 

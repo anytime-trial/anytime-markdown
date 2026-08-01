@@ -7,8 +7,8 @@
  * 注入する。重い CodeBlockBlockContent / codeBlockOverlayHelpers は軽量 stub に差し替える。
  */
 jest.mock("@anytime-markdown/markdown-editor", () => ({
-  ...jest.requireActual("@anytime-markdown/markdown-editor/src/chrome/blockChrome"),
-  ...jest.requireActual("@anytime-markdown/markdown-editor/src/chrome/vanillaToolbar"),
+  ...jest.requireActual("@anytime-markdown/markdown-editor/internal/chrome/blockChrome"),
+  ...jest.requireActual("@anytime-markdown/markdown-editor/internal/chrome/vanillaToolbar"),
 }));
 
 jest.mock("../components/codeblock/CodeBlockBlockContent", () => ({

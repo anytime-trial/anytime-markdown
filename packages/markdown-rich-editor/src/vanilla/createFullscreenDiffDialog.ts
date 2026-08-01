@@ -15,13 +15,13 @@
 import {
   createMergeEditorPanel,
   type MergeEditorPanelHandle,
-} from "@anytime-markdown/markdown-editor/src/components-vanilla/MergeEditorPanel";
+} from "@anytime-markdown/markdown-editor/internal/components-vanilla/MergeEditorPanel";
 import { createDialog } from "@anytime-markdown/ui-core/Dialog";
 import {
   applyMerge,
   computeDiff,
   type DiffResult,
-} from "@anytime-markdown/markdown-editor/src/utils/diffEngine";
+} from "@anytime-markdown/markdown-editor/internal/utils/diffEngine";
 
 import { createDialogHeader } from "./dialogHelpers";
 

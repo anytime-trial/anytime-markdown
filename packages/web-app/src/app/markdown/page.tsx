@@ -1,7 +1,7 @@
 'use client';
 
 import { COMMENT_PANEL_WIDTH, createMarkdownT, getDefaultContent } from '@anytime-markdown/markdown-editor';
-import { readDraft } from '@anytime-markdown/markdown-editor/src/utils/draftStorage';
+import { readDraft } from '@anytime-markdown/markdown-editor/utils/draft-storage';
 import {
   Alert, Box, CircularProgress, Snackbar,
 } from '@mui/material';

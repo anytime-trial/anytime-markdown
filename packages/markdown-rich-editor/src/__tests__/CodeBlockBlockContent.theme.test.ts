@@ -12,7 +12,7 @@ jest.mock("../components/codeblock/codeBlockPreview", () => ({
   renderCodeBlockPreview: (...args: unknown[]) => mockRenderPreview(...(args as [])),
 }));
 
-import { EDITOR_CODE_VARS_CHANGED_EVENT } from "@anytime-markdown/markdown-editor/src/utils/editorCodeCssVars";
+import { EDITOR_CODE_VARS_CHANGED_EVENT } from "@anytime-markdown/markdown-editor/internal/utils/editorCodeCssVars";
 
 import { createCodeBlockNodeView } from "../components/codeblock/CodeBlockBlockContent";
 

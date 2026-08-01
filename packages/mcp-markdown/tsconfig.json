@@ -9,7 +9,6 @@
     "declaration": true,
     "baseUrl": ".",
     "paths": {
-      "@anytime-markdown/markdown-editor/src/*": ["../markdown-editor/src/*"],
       "@anytime-markdown/markdown-engine": ["../markdown-engine/src/index.ts"]
     }
   },

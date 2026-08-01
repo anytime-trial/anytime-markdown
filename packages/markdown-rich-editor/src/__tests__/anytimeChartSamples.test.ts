@@ -1,6 +1,6 @@
 // markdown-rich-editor の jest は bare `@anytime-markdown/markdown-editor` をシムに解決するため、
 // 実データ ANYTIME_CHART_SAMPLES は subpath import（moduleNameMapper で worktree src へ）で取得する。
-import { ANYTIME_CHART_SAMPLES } from "@anytime-markdown/markdown-editor/src/constants/samples";
+import { ANYTIME_CHART_SAMPLES } from "@anytime-markdown/markdown-editor/internal/constants/samples";
 import { renderChart, getChartTheme, type ChartSpec } from "@anytime-markdown/chart-core";
 
 /** jsdom には 2D context が無いため no-op スタブを使う（renderChart 契約検証用）。 */

@@ -1,7 +1,7 @@
 'use client';
 
-import type { SaveTargetInfo } from '@anytime-markdown/markdown-editor/src/host/fileOpsController';
-import { clearDraft, readDraft, writeDraft } from '@anytime-markdown/markdown-editor/src/utils/draftStorage';
+import type { SaveTargetInfo } from '@anytime-markdown/markdown-editor/host/file-ops';
+import { clearDraft, readDraft, writeDraft } from '@anytime-markdown/markdown-editor/utils/draft-storage';
 import { signIn } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 

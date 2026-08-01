@@ -1,6 +1,6 @@
 // markdown-rich-editor の jest は bare `@anytime-markdown/markdown-editor` をシムに解決するため、
 // 実データ ANYTIME_GRAPH_SAMPLES は subpath import（moduleNameMapper で worktree src へ）で取得する。
-import { ANYTIME_GRAPH_SAMPLES } from "@anytime-markdown/markdown-editor/src/constants/samples";
+import { ANYTIME_GRAPH_SAMPLES } from "@anytime-markdown/markdown-editor/internal/constants/samples";
 import { renderThinkingDiagramSvg } from "@anytime-markdown/graph-core";
 
 describe("ANYTIME_GRAPH_SAMPLES", () => {

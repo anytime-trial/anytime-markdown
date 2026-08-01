@@ -1,6 +1,6 @@
 'use client';
 
-import { createMarkdownT } from '@anytime-markdown/markdown-editor/src/i18n/createMarkdownT';
+import { createMarkdownT } from '@anytime-markdown/markdown-editor/i18n/locale';
 import {
   TicketsPanel,
   createHttpTicketsGateway,

@@ -1,4 +1,5 @@
 const base = require('../../jest.config.base');
+const { buildModuleNameMapperFromExports } = require('../../scripts/jest-exports-mapper.cjs');
 const { buildJestMapper } = require('../markdown-core/alias.cjs');
 /** @type {import('jest').Config} */
 const config = {
@@ -16,7 +17,13 @@ const config = {
     ...buildJestMapper(),
     "\\.md$": "<rootDir>/src/__mocks__/md-raw.js",
     "^@/(.*)$": "<rootDir>/../markdown-editor/src/$1",
-    "^@anytime-markdown/markdown-editor/src/(.*)$": "<rootDir>/../markdown-editor/src/$1",
+    // markdown-editor の subpath は exports から導出する（手書きワイルドカードは
+    // 宣言済み subpath を取りこぼし、node_modules symlink 経由の未トランスパイルへ静かに縮退する）。
+    ...buildModuleNameMapperFromExports({
+      packageName: "@anytime-markdown/markdown-editor",
+      exports: require("../markdown-editor/package.json").exports,
+      rootToken: "<rootDir>/../markdown-editor",
+    }),
     "^@anytime-markdown/markdown-react-islands/src/(.*)$": "<rootDir>/../markdown-react-islands/src/$1",
     "^@anytime-markdown/markdown-react-islands$": "<rootDir>/../markdown-react-islands/src/index.ts",
     "^@anytime-markdown/markdown-editor$": "<rootDir>/../markdown-editor/src/index.ts",

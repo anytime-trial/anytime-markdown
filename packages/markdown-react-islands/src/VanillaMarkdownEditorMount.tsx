@@ -24,7 +24,7 @@ import {
   mountVanillaMarkdownEditor,
   type MountVanillaMarkdownEditorOptions,
   type VanillaMarkdownEditorHandle,
-} from "@anytime-markdown/markdown-editor/src/host/vanillaMarkdownEditor";
+} from "@anytime-markdown/markdown-editor/host/mount";
 
 /** {@link VanillaMarkdownEditorMount} の props（orchestrator options + コンテナ装飾）。 */
 export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEditorOptions {

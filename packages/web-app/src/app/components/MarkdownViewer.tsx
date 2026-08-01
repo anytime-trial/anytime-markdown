@@ -1,9 +1,10 @@
 'use client';
 
-// barrel ではなく i18n モジュールを deep import（jest が viewer barrel の CSS module を解析しないように）。
-import { DEFAULT_SETTINGS } from '@anytime-markdown/markdown-editor/src/editorSettings';
-import { createMarkdownT } from '@anytime-markdown/markdown-editor/src/i18n/createMarkdownT';
-import type { MeasurePreset } from '@anytime-markdown/markdown-editor/src/utils/measurePreset';
+// barrel ではなく用途別の公開 subpath を使う（barrel は appLowlight 等まで再エクスポートするため、
+// 設定 1 つのためにエディタ全体のモジュールグラフを起動してしまう）。
+import { DEFAULT_SETTINGS } from '@anytime-markdown/markdown-editor/settings';
+import { createMarkdownT } from '@anytime-markdown/markdown-editor/i18n/locale';
+import type { MeasurePreset } from '@anytime-markdown/markdown-editor/utils/measure-preset';
 import { Alert, Box, Button, CircularProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';

@@ -21,11 +21,11 @@ jest.mock("lowlight", () => ({
 // （vanilla.installCodeBlockOverlay.compare.test.ts と同パターン）。SCREENMOCK_SAMPLES は
 // 実データを注入し、配線が生きているかを実物で確認する。
 jest.mock("@anytime-markdown/markdown-editor", () => ({
-  ...jest.requireActual("@anytime-markdown/markdown-editor/src/chrome/blockChrome"),
-  ...jest.requireActual("@anytime-markdown/markdown-editor/src/chrome/vanillaToolbar"),
-  ...jest.requireActual("@anytime-markdown/markdown-editor/src/utils/embedInfoString"),
+  ...jest.requireActual("@anytime-markdown/markdown-editor/internal/chrome/blockChrome"),
+  ...jest.requireActual("@anytime-markdown/markdown-editor/internal/chrome/vanillaToolbar"),
+  ...jest.requireActual("@anytime-markdown/markdown-editor/internal/utils/embedInfoString"),
   ...jest.requireActual("@anytime-markdown/ui-core"),
-  SCREENMOCK_SAMPLES: jest.requireActual("@anytime-markdown/markdown-editor/src/constants/samples")
+  SCREENMOCK_SAMPLES: jest.requireActual("@anytime-markdown/markdown-editor/internal/constants/samples")
     .SCREENMOCK_SAMPLES,
   PREVIEW_MAX_HEIGHT: 400,
   getDivider: () => "#ccc",
@@ -69,14 +69,14 @@ jest.mock("../components/codeblock/codeBlockChrome", () => ({
 import { Editor } from "@anytime-markdown/markdown-core";
 import type { Node as PMNode } from "@anytime-markdown/markdown-pm/model";
 import { StarterKit } from "@anytime-markdown/markdown-starter-kit";
-import { SCREENMOCK_SAMPLES } from "@anytime-markdown/markdown-editor/src/constants/samples";
+import { SCREENMOCK_SAMPLES } from "@anytime-markdown/markdown-editor/internal/constants/samples";
 
 import { CODE_HELLO_SAMPLES } from "../constants/codeHelloSamples";
 import { parseScreenmock } from "../vanilla/screenmockPreview";
 import { installCodeBlockOverlay } from "../vanilla/installCodeBlockOverlay";
 
-import jaMessages from "@anytime-markdown/markdown-editor/src/i18n/ja.json";
-import enMessages from "@anytime-markdown/markdown-editor/src/i18n/en.json";
+import jaMessages from "@anytime-markdown/markdown-editor/internal/i18n/ja.json";
+import enMessages from "@anytime-markdown/markdown-editor/internal/i18n/en.json";
 
 const t = (key: string): string => key;
 
