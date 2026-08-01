@@ -77,6 +77,15 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: node scripts/sync-vendored-tsconfig-paths.mjs --check
 
+      # README の依存図(mermaid)が packages/*/package.json の実依存と一致しているか検証する。
+      # 手書きの図はパッケージの追加・改名へ追随せず腐る。実際 2026-05-31 の名前玉突きに
+      # 約 2 か月間追随せず、markdown-core を「エディタエンジン」と説明したまま放置され、
+      # markdown-viewer と markdown-rich の依存の向きを逆に読む誤解を生んだ。
+      # ドキュメントの追随漏れはビルドもテストも通るため、専用ゲートでしか検出できない。
+      - name: Check README package graph is in sync
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+        run: node scripts/check-readme-package-graph.mjs
+
       # 拡張同梱スキル(packages/*/skills/<name>/SKILL.md)が canonical(.claude/skills)と
       # byte 一致しているか検証する。手動複製ゆえ canonical 更新時の追随漏れを検出する。
       - name: Check bundled skills are in sync
