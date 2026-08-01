@@ -1,28 +1,41 @@
 #!/usr/bin/env node
 // export-viewer-dist.mjs — viewer 配布バンドルの受け渡しパッケージング。
-// 対象パッケージをビルドし、dist の .js を出力先へコピーして、由来（コミット SHA・
-// dirty・sha256・サイズ）を記録した manifest.json を併置する。dist は gitignore のため
-// 「渡した版がどのコミット由来か」が消えやすく、それを manifest で機械的に残すのが目的。
+// 対象パッケージをビルドし、そのビルドが出力した dist の .js を出力先へコピーして、
+// 由来（コミット SHA・dirty・sha256・サイズ）を記録した manifest.json を併置する。
+// dist は gitignore のため「渡した版がどのコミット由来か」が消えやすく、それを
+// manifest で機械的に残すのが目的。
 //
-// 使い方: node scripts/export-viewer-dist/export-viewer-dist.mjs --out <dir> [--package <name>]
-//   --package 省略時は cooccurrence-viewer。対象は package.json に build スクリプトを持ち
-//   dist/*.js を出すパッケージ（cooccurrence-viewer / markdown-viewer / mindmap-viewer 等）。
+// 使い方: node scripts/export-viewer-dist/export-viewer-dist.mjs --out <dir> [--package <name>]...
+//   --package 省略時は cooccurrence-viewer と markdown-viewer の両方。複数指定可。
+//   対象は package.json に build スクリプトを持ち dist/*.js を出すパッケージ
+//   （cooccurrence-viewer / markdown-viewer / mindmap-viewer 等）。
 //   出力: <out>/<name>/ に dist の .js と manifest.json。
-// 終了コード: 引数不正・対象不正・ビルド失敗・dist が空のとき 1。
+// 終了コード: 引数不正・対象不正・ビルド失敗・成果物なしのとき 1。
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-const USAGE = 'usage: node scripts/export-viewer-dist/export-viewer-dist.mjs --out <dir> [--package <name>]';
+const USAGE =
+  'usage: node scripts/export-viewer-dist/export-viewer-dist.mjs --out <dir> [--package <name>]...';
+
+const DEFAULT_PACKAGES = ['cooccurrence-viewer', 'markdown-viewer'];
 
 /** 引数を解釈する（純粋関数）。不正時は usage を含む Error を投げる。 */
 export function parseArgs(argv) {
   let outDir;
-  let packageName = 'cooccurrence-viewer';
+  const requested = [];
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--out') {
@@ -30,24 +43,38 @@ export function parseArgs(argv) {
       if (!outDir) throw new Error(`--out requires a directory. ${USAGE}`);
       i += 1;
     } else if (arg === '--package') {
-      packageName = argv[i + 1];
-      if (!packageName) throw new Error(`--package requires a name. ${USAGE}`);
+      const name = argv[i + 1];
+      if (!name) throw new Error(`--package requires a name. ${USAGE}`);
+      requested.push(name);
       i += 1;
     } else {
       throw new Error(`unknown argument: ${arg}. ${USAGE}`);
     }
   }
   if (!outDir) throw new Error(`--out is required. ${USAGE}`);
-  // packages/ 直下の名前だけを受け付け、パス区切りで外へ出る解決を防ぐ。
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(packageName)) {
-    throw new Error(`invalid package name: ${packageName}. ${USAGE}`);
+  const packageNames = [...new Set(requested.length > 0 ? requested : DEFAULT_PACKAGES)];
+  for (const name of packageNames) {
+    // packages/ 直下の名前だけを受け付け、パス区切りで外へ出る解決を防ぐ。
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) {
+      throw new Error(`invalid package name: ${name}. ${USAGE}`);
+    }
   }
-  return { outDir, packageName };
+  return { outDir, packageNames };
 }
 
-/** dist 直下から配布対象（.js のみ）を名前順で選ぶ（純粋関数）。 */
-export function selectDistFiles(names) {
-  return names.filter((name) => name.endsWith('.js')).sort();
+/**
+ * dist 直下から「このビルドの成果物」（.js かつ mtime がビルド開始時刻以降）を
+ * 名前順で選ぶ（純粋関数）。
+ *
+ * mtime で絞るのは、dist に過去の別方式のビルド残骸が残っている場合があるため
+ * （markdown-viewer に旧 tsc 出力 14 ファイルが残っていた実例）。ディレクトリ全体を
+ * コピーすると、古い残骸が今回の配布物の顔で相手に渡る。
+ */
+export function selectFreshDistFiles(entries, buildStartedAtMs) {
+  return entries
+    .filter((entry) => entry.name.endsWith('.js') && entry.mtimeMs >= buildStartedAtMs)
+    .map((entry) => entry.name)
+    .sort();
 }
 
 /** 受け渡しの由来と検証情報を持つ manifest を組み立てる（純粋関数）。 */
@@ -72,8 +99,7 @@ function git(args) {
   }).trim();
 }
 
-function main() {
-  const { outDir, packageName } = parseArgs(process.argv.slice(2));
+function exportPackage(packageName, outDir) {
   const pkgDir = join(repoRoot, 'packages', packageName);
   const pkgJsonPath = join(pkgDir, 'package.json');
   if (!existsSync(pkgJsonPath)) {
@@ -85,12 +111,17 @@ function main() {
   }
 
   console.log(`[export-viewer-dist] building ${pkgJson.name} ...`);
+  const buildStartedAtMs = Date.now();
   execFileSync('npm', ['run', 'build', '-w', pkgJson.name], { cwd: repoRoot, stdio: 'inherit' });
 
   const distDir = join(pkgDir, 'dist');
-  const files = selectDistFiles(existsSync(distDir) ? readdirSync(distDir) : []);
+  const entries = (existsSync(distDir) ? readdirSync(distDir) : []).map((name) => ({
+    name,
+    mtimeMs: statSync(join(distDir, name)).mtimeMs,
+  }));
+  const files = selectFreshDistFiles(entries, buildStartedAtMs);
   if (files.length === 0) {
-    throw new Error(`build succeeded but ${distDir} has no .js output`);
+    throw new Error(`build succeeded but ${distDir} has no fresh .js output`);
   }
 
   const destDir = join(outDir, packageName);
@@ -105,6 +136,9 @@ function main() {
     };
   });
 
+  // 由来はパッケージごとに「そのビルドの直後」に取得する。全パッケージで 1 回だけ共有
+  // すると、複数ビルドの間に worktree が変化した場合（並行セッションの実例あり）に、
+  // 後続パッケージの manifest が実際のビルド元と乖離する。
   const manifest = buildManifest({
     packageName,
     version: pkgJson.version,
@@ -124,6 +158,13 @@ function main() {
     console.log(`[export-viewer-dist]   ${entry.name} (${(entry.bytes / 1024).toFixed(0)} KB)`);
   }
   console.log(`[export-viewer-dist] commit ${manifest.commit}${manifest.dirty ? ' (dirty)' : ''}`);
+}
+
+function main() {
+  const { outDir, packageNames } = parseArgs(process.argv.slice(2));
+  for (const packageName of packageNames) {
+    exportPackage(packageName, outDir);
+  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
