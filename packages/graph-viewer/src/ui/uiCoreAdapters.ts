@@ -12,6 +12,7 @@
  * 削除候補（graphMenu.ts と同じ位置づけ）。
  */
 
+import { createDivider } from '@anytime-markdown/ui-core/Divider';
 import { createListItemIcon } from '@anytime-markdown/ui-core/ListItemIcon';
 import { createListItemText } from '@anytime-markdown/ui-core/ListItemText';
 
@@ -24,3 +25,12 @@ export const listItemIcon = (
 export const listItemText = (
   o: Parameters<typeof createListItemText>[0],
 ): HTMLSpanElement => createListItemText(o).el;
+
+/**
+ * gv createDivider 互換（要素返し）。gv 既定意匠の margin 4px 0（.gv-divider /
+ * .gv-divider--vertical 共通）を維持しつつ、呼び元の style 指定を優先する。
+ * 色は --am-color-divider（= --gv-color-divider と同値）。
+ */
+export const divider = (
+  o: Parameters<typeof createDivider>[0] = {},
+): HTMLHRElement => createDivider({ ...o, style: { margin: '4px 0', ...o.style } }).el;

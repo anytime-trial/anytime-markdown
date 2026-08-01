@@ -18,11 +18,10 @@ import type { GraphT } from '../i18n/createGraphT';
 import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
 import { createGraphMenu } from '../ui/graphMenu';
-import { listItemIcon, listItemText } from '../ui/uiCoreAdapters';
+import { divider, listItemIcon, listItemText } from '../ui/uiCoreAdapters';
 import { createIconButton } from '../ui-vanilla/IconButton';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
 import type { ToggleButtonGroupHandle } from '../ui-vanilla/ToggleButton';
-import { createDivider } from '../ui-vanilla/Divider';
 import { createPopover } from '../ui-vanilla/Popover';
 import { createTooltip } from '../ui-vanilla/Tooltip';
 import type { TooltipHandle } from '../ui-vanilla/Tooltip';
@@ -415,7 +414,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Divider
   // -------------------------------------------------------------------
-  box.appendChild(createDivider({ orientation: 'vertical', flexItem: true }));
+  box.appendChild(divider({ orientation: 'vertical', flexItem: true }));
 
   // -------------------------------------------------------------------
   // Undo / Redo
@@ -439,7 +438,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Divider
   // -------------------------------------------------------------------
-  box.appendChild(createDivider({ orientation: 'vertical', flexItem: true }));
+  box.appendChild(divider({ orientation: 'vertical', flexItem: true }));
 
   // -------------------------------------------------------------------
   // Clear All
@@ -488,7 +487,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
       });
       menuItems.push(li);
     }
-    menuItems.push(createDivider());
+    menuItems.push(divider());
     for (const { type, icon, label } of distItems) {
       const li = menuItem({
         onClick: () => { opts.onAlign(type); menu.close(); },
@@ -650,7 +649,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Divider
   // -------------------------------------------------------------------
-  box.appendChild(createDivider({ orientation: 'vertical', flexItem: true }));
+  box.appendChild(divider({ orientation: 'vertical', flexItem: true }));
 
   // -------------------------------------------------------------------
   // Grid toggle
@@ -673,7 +672,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   // -------------------------------------------------------------------
   // Divider
   // -------------------------------------------------------------------
-  box.appendChild(createDivider({ orientation: 'vertical', flexItem: true }));
+  box.appendChild(divider({ orientation: 'vertical', flexItem: true }));
 
   // -------------------------------------------------------------------
   // Export menu

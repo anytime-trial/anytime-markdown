@@ -12,7 +12,7 @@ import { createIconButton } from '../ui-vanilla/IconButton';
 import { createSlider } from '../ui-vanilla/Slider';
 import { createTextField } from '../ui-vanilla/TextField';
 import { createText } from '../ui-vanilla/Text';
-import { createDivider } from '../ui-vanilla/Divider';
+import { divider } from '../ui/uiCoreAdapters';
 import { createSwitch } from '../ui-vanilla/Switch';
 import { createFormControlLabel } from '../ui-vanilla/FormControlLabel';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
@@ -200,7 +200,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
     header.appendChild(closeBtn);
     el.appendChild(header);
 
-    el.appendChild(createDivider({ style: { marginBottom: '16px' } }));
+    el.appendChild(divider({ style: { marginBottom: '16px' } }));
 
     // =========================================================
     // ノード選択
@@ -443,7 +443,7 @@ export function createPropertyPanel(opts: Readonly<PropertyPanelOpts>): Property
       cleanups.push(() => urlField.destroy());
 
       // --- 接続点 ---
-      el.appendChild(createDivider({ style: { margin: '8px 0' } }));
+      el.appendChild(divider({ style: { margin: '8px 0' } }));
 
       const connLabel = createText({ variant: 'caption', style: { color: colors.textSecondary, display: 'block' } });
       connLabel.textContent = t('connectionPoints');

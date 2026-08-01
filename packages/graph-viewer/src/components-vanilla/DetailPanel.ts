@@ -12,7 +12,7 @@
 import type { GraphNode } from '../types';
 import { createIconButton } from '../ui-vanilla/IconButton';
 import { createText } from '../ui-vanilla/Text';
-import { createDivider } from '../ui-vanilla/Divider';
+import { divider } from '../ui/uiCoreAdapters';
 import { createCloseIcon } from '../ui-vanilla/icons';
 
 /** DetailPanel handle。destroy() で DOM 除去・イベント解除を行う。 */
@@ -85,7 +85,7 @@ export function createDetailPanel(opts: Readonly<CreateDetailPanelOpts>): Detail
   header.appendChild(titleText);
   header.appendChild(closeBtn);
   el.appendChild(header);
-  el.appendChild(createDivider());
+  el.appendChild(divider());
 
   // ---- ノード基本情報 ----
   const basicSection = document.createElement('div');
@@ -132,7 +132,7 @@ export function createDetailPanel(opts: Readonly<CreateDetailPanelOpts>): Detail
 
   // ---- メタデータ ----
   if (entries.length > 0) {
-    el.appendChild(createDivider());
+    el.appendChild(divider());
 
     const metaSection = document.createElement('div');
     metaSection.style.padding = '12px';

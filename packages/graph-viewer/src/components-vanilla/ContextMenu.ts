@@ -10,8 +10,7 @@ import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
 
 import { createGraphT } from '../i18n/createGraphT';
 import { createGraphMenu, type GraphMenuHandle } from '../ui/graphMenu';
-import { listItemIcon, listItemText } from '../ui/uiCoreAdapters';
-import { createDivider } from '../ui-vanilla/Divider';
+import { divider, listItemIcon, listItemText } from '../ui/uiCoreAdapters';
 import {
   createContentCopyIcon,
   createContentPasteIcon,
@@ -97,7 +96,7 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
           listItemText({ children: t('delete') }),
         ],
       }),
-      createDivider(),
+      divider(),
       menuItem({
         onClick: () => handleAction('bringToFront'),
         children: [
@@ -112,7 +111,7 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
           listItemText({ children: t('sendToBack') }),
         ],
       }),
-      createDivider(),
+      divider(),
       menuItem({
         onClick: () => handleAction('group'),
         children: [
