@@ -1,4 +1,10 @@
 export { mountCooccurrenceViewer } from './mountCooccurrenceViewer';
+export { AnytimeCooccurrenceViewerElement } from './AnytimeCooccurrenceViewerElement';
+export type {
+  CooccurrenceExportPngDetail,
+  CooccurrenceFileDetail,
+} from './AnytimeCooccurrenceViewerElement';
+export { createInlineLayoutWorker } from './worker/createInlineLayoutWorker';
 export { applyCooccurrenceThemeVars } from './theme/applyCooccurrenceThemeVars';
 export { createCooccurrenceT, detectLocale, resolveLocale } from './i18n/createCooccurrenceT';
 export type {
