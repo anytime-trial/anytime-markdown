@@ -2,7 +2,7 @@
   "name": "@anytime-markdown/graph-react-islands",
   "version": "0.1.0",
   "private": true,
-  "description": "graph-core の意図的 React island（useCanvasBase フック・MinimapCanvas コンポーネント）。graph-core 本体は React-free。",
+  "description": "graph-core の意図的 React island（useCanvasBase フック）。graph-core 本体は React-free。",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {

@@ -1,8 +1,9 @@
 /**
  * MinimapCanvas vanilla factory for the C4 architecture graph minimap.
  *
- * Ports MinimapCanvas.tsx (graph-react-islands) to a self-contained vanilla
- * DOM factory with no React dependency.
+ * Ports the former React MinimapCanvas.tsx (graph-react-islands) to a
+ * self-contained vanilla DOM factory with no React dependency.
+ * The React original was deleted after this port became the only consumer.
  *
  * @example
  *   const handle = mountMinimapCanvas(containerEl, props);
@@ -38,7 +39,7 @@ export interface MinimapCanvasHandle {
 }
 
 // ---------------------------------------------------------------------------
-// Constants (ported verbatim from MinimapCanvas.tsx)
+// Constants (ported verbatim from the deleted React MinimapCanvas.tsx)
 // ---------------------------------------------------------------------------
 
 const PAD = 10;
@@ -71,7 +72,7 @@ interface DragState {
 }
 
 // ---------------------------------------------------------------------------
-// Pure helpers (ported verbatim from MinimapCanvas.tsx)
+// Pure helpers (ported verbatim from the deleted React MinimapCanvas.tsx)
 // ---------------------------------------------------------------------------
 
 function computeBounds(nodes: readonly GraphNode[]): {

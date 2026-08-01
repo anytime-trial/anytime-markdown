@@ -377,8 +377,8 @@ export function mountVanillaGraphEditor(
     velocityRef: velocityRef.current,
   });
 
-  // ── MinimapCanvas（簡易 vanilla 実装） ───────────────────────────────────
-  // graph-core の MinimapCanvas は React コンポーネントのため直接使用不可。
+  // ── ミニマップ（簡易 vanilla 実装） ─────────────────────────────────────
+  // graph-core は React-free でミニマップの React コンポーネントを持たない。
   // インライン canvas でノード矩形とビューポート枠のみ描画する簡易版を使う。
 
   const MINI_W = 200;
@@ -981,7 +981,7 @@ export function mountVanillaGraphEditor(
       originNodeId: phState.originNodeId,
     });
 
-    // MinimapCanvas 更新
+    // ミニマップ更新
     minimapCanvas.update();
 
     // ToolBar 更新
