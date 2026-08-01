@@ -21,7 +21,9 @@ const TOGGLE_RADIUS_CSS = 10;
 const MINIMAP_W_CSS = 200;
 const MINIMAP_H_CSS = 130;
 const MINIMAP_MARGIN_CSS = 8;
-const MINIMAP_BOUNDS_PAD = 10; // ワールド単位のコンテンツ余白
+// ワールド単位のコンテンツ余白。graph-viewer の簡易ミニマップと trail-viewer の
+// mountMinimapCanvas も同じ値を持つ。片方だけ動かすと 3 実装の見た目がずれる。
+const MINIMAP_BOUNDS_PAD = 10;
 const MINIMAP_ZOOM_DELTA = 300;
 const MINIMAP_BTN_CSS = 18; // ズーム/fit ボタンの一辺
 const MINIMAP_BTN_GAP_CSS = 4;

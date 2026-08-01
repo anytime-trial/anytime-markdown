@@ -378,8 +378,8 @@ export function mountVanillaGraphEditor(
   });
 
   // ── ミニマップ（簡易 vanilla 実装） ─────────────────────────────────────
-  // graph-core は React-free でミニマップの React コンポーネントを持たない。
-  // インライン canvas でノード矩形とビューポート枠のみ描画する簡易版を使う。
+  // graph-core の GraphView もミニマップを描くが drawMinimap は private で再利用できない。
+  // ここではインライン canvas にノード矩形とビューポート枠のみ描く簡易版を使う（PAD は同値）。
 
   const MINI_W = 200;
   const MINI_H = 130;
