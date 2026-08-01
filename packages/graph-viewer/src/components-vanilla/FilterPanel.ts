@@ -58,6 +58,9 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
   let newRangeKey = '';
   let newTextKey = '';
 
+  // rebuild ごとに作り直す ui-core Select の後始末（開いたままの overlay 撤去）。
+  const selectCleanups: Array<() => void> = [];
+
   // ---- ルート ----
   const el = document.createElement('div');
   el.className = 'gv-scroll';
@@ -185,6 +188,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
           newRangeKey = v;
         },
       });
+      selectCleanups.push(() => selectEl.destroy());
       addRow.appendChild(selectEl.el);
 
       const addBtn = iconButton({
@@ -287,6 +291,7 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
           newTextKey = v;
         },
       });
+      selectCleanups.push(() => selectEl.destroy());
       addRow.appendChild(selectEl.el);
 
       const addBtn = iconButton({
@@ -336,6 +341,12 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
 
   // ---- 全体再構築 ----
   function rebuild(): void {
+    // ui-core Select の開いたポップアップ（backdrop + listbox）は el の子ではなく
+    // portalTarget 直下に居るため、パネル内 DOM の除去だけでは残留する。残った透明
+    // backdrop は viewport 全体を覆い次のクリックを吸い取るので、必ず先に destroy する
+    // （Select.destroy() は open 中の overlay を close で撤去する）。
+    for (const dispose of selectCleanups) dispose();
+    selectCleanups.length = 0;
     while (el.firstChild) el.removeChild(el.firstChild);
     el.appendChild(buildHeader());
     el.appendChild(buildDivider());
@@ -358,6 +369,9 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       rebuild();
     },
     destroy() {
+      // 開いたままの Select ポップアップを撤去する（rebuild と同じ理由）。
+      for (const dispose of selectCleanups) dispose();
+      selectCleanups.length = 0;
       // el は外部が管理するため remove しない。
       // injectGraphUiStyles() は冪等のためクリーンアップ不要。
     },

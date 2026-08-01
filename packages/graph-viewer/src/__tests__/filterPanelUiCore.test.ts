@@ -68,4 +68,25 @@ describe('FilterPanel の ui-core 部品配線', () => {
     );
     expect(options).toContain('score');
   });
+
+  test('Select を開いたまま update（rebuild）しても overlay が残留しない（マージ前レビュー指摘の回帰防止）', () => {
+    // rebuild はパネル内 DOM しか除去しないため、portalTarget 直下の開いた overlay
+    // （透明 backdrop + listbox）は Select.destroy() を呼ばない限り残留し、
+    // 残った backdrop が viewport 全体のクリックを吸い取る。
+    const { handle } = build({ rangeFilters: [], textFilters: [] });
+    const combo = [...handle.el.querySelectorAll('button')].find(
+      (b) => b.getAttribute('aria-haspopup') === 'listbox',
+    ) as HTMLButtonElement;
+    combo.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    expect(portal.querySelector('[role="listbox"]')).not.toBeNull();
+
+    handle.update({
+      config: { rangeFilters: [], textFilters: [] },
+      availableKeys: ['score', 'tag'],
+      keyRanges: new Map([['score', [0, 10] as const]]),
+    });
+
+    expect(portal.querySelector('[role="listbox"]')).toBeNull();
+    expect(portal.childElementCount).toBe(0);
+  });
 });

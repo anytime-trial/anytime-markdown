@@ -3,7 +3,7 @@
  *
  * React 実装 `components/ContextMenu.tsx` の DOM 版。
  * Menu / MenuItem は ui-core（graphMenu ラッパー経由）、ListItemIcon / ListItemText /
- * Divider は移行中のため ui-vanilla を使用。
+ * Divider は uiCoreAdapters（ui-core 移行済み）を使用。
  */
 
 import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
