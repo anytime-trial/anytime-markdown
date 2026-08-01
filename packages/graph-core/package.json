@@ -18,7 +18,9 @@
     "build": "node esbuild.mjs",
     "test": "jest"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@anytime-markdown/ui-core": "*"
+  },
   "devDependencies": {
     "@types/jest": "30.0.0",
     "esbuild": "0.27.3",

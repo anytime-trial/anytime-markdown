@@ -23,6 +23,8 @@
  */
 
 import type { CooccurrenceFile } from '@anytime-markdown/graph-core';
+import { HTMLElementBase } from '@anytime-markdown/ui-core/ssrSafeElement';
+
 import { mountCooccurrenceViewer } from './mountCooccurrenceViewer';
 import type {
   CooccurrenceSkin,
@@ -32,15 +34,6 @@ import type {
   ThemeMode,
 } from './types';
 import { createInlineLayoutWorker } from './worker/createInlineLayoutWorker';
-
-/**
- * SSR/Node 安全化: `HTMLElement` 未定義環境でも class 定義時に ReferenceError を投げないよう
- * ダミー基底へフォールバックする（markdown-editor と同じ）。
- */
-const HTMLElementBase: typeof HTMLElement =
-  typeof HTMLElement !== 'undefined'
-    ? HTMLElement
-    : (class {} as unknown as typeof HTMLElement);
 
 const HOST_STYLE_ID = 'anytime-cooccurrence-viewer-host-style';
 
