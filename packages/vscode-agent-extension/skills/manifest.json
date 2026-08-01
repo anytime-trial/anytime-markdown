@@ -6,7 +6,7 @@
   "anytime-loop-stop": 1,
   "anytime-dev-audit": 4,
   "anytime-dev-cycle": 16,
-  "anytime-impl-test-design": 1,
+  "anytime-impl-test-design": 2,
   "anytime-analysis": 9,
   "anytime-stock-cooccurrence": 9
 }
