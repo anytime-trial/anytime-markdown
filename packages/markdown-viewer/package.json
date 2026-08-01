@@ -1,6 +1,7 @@
 {
   "name": "@anytime-markdown/markdown-viewer",
   "version": "1.18.0",
+  "description": "Markdown エディタ基盤（TipTap 拡張の組み立て・mount API・vanilla UI・i18n・ファイルシステム抽象）。名前に反して read-only ビューアではなく、markdown-rich / markdown-react-islands / markdown-view-lite が依存する土台。図表描画は含まない（markdown-rich が担う）。",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
