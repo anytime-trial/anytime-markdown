@@ -6,9 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-08-01
+
+### Added
+
+- Tickets can now be read and written through local git, so GitHub authentication is no longer required. A provider factory picks the local-git or GitHub provider, and the storage destination is chosen in settings.
+- Nine critical-thinking lenses in the bundled `anytime-analysis` skill.
+- A new bundled skill `anytime-stock-cooccurrence`, split off from the generic co-occurrence skill for market and stock analysis.
+
 ### Changed
 
-- Renamed the bundled skill `anytime-proposal` to `anytime-analysis`, redefining it from proposal generation to "analysis and analysis output": besides proposals (RFC / ADR / lightweight), it now also outputs research results as a co-occurrence graph (`.cooc.json`).
+- Renamed the bundled skill `anytime-proposal` to `anytime-analysis`, redefining it from proposal generation to "analysis and analysis output": besides proposals (RFC / ADR / lightweight), it now also outputs research results as a co-occurrence graph (`.cooc.json`). The skill was restructured for progressive disclosure and no longer hardcodes model names.
+- `anytime-stock-cooccurrence`: append is now prohibited in favour of a full replace, definitional links are disallowed, cluster naming rules were revised, and a per-slice isolated-node check was added.
+- Other bundled skills updated: `anytime-dev-cycle` (concurrency table, preventive disciplines), `anytime-dev-audit` (cross-check against the CLAUDE.md prompting norms), `anytime-impl-test-design` (verifier-first discipline), `anytime-build-webapp` (Phase 6 split into `verification.md`).
+
+### Fixed
+
+- The unauthenticated check now rides on the resolution result sent at init instead of an extra round trip.
+- The authentication entry point was restored and the storage-destination UI moved into settings.
+- Pre-merge review findings in the local-git provider.
 
 ## [1.10.0] - 2026-07-30
 

@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-08-01
+
+### 変更
+
+- **破壊的変更:** パッケージ `@anytime-markdown/markdown-viewer` を `markdown-editor` へ、`@anytime-markdown/markdown-rich` を `markdown-rich-editor` へ改名した。
+- 公開面を用途別の subpath へ整理し、catch-all の exports を `internal/*` へ隔離した。葉の利用側がモジュールグラフ全体を引き込まなくなる。
+- スタイル注入（`ensureStyle`）・translator の解決・Web Component の SSR 安全化基底・chrome トークンの供給を `@anytime-markdown/ui-core` へ集約した。
+
 ## [1.18.0] - 2026-07-30
 
 ### 変更

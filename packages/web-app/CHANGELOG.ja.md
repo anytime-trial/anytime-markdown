@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-01
+
+### 変更
+
+- 改名後のエディタパッケージ（`markdown-editor` / `markdown-rich-editor`）と、その新しい subpath 公開面へ追従させた。
+- graph-viewer の vanilla UI 部品を `@anytime-markdown/ui-core` へ移行した。
+
+### 削除
+
+- `/mindmap` ページと `mindmap-viewer` パッケージ、およびその配線を削除した。
+
+### 修正
+
+- cooccurrence ページの mount がテーマ・ロケールの stale 値に固まる競合を修正した。
+- 絞り込みスライダーの刻みが、可動域が狭いとき 0 になるのを直した。
+- 高 DPI で OZ の canvas が右パネルを覆うはみ出しを修正した。
+
 ## [0.43.0] - 2026-07-30
 
 ### 変更

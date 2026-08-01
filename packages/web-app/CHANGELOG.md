@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-01
+
+### Changed
+
+- Follows the renamed editor packages (`markdown-editor` / `markdown-rich-editor`) and their new subpath surface.
+- graph-viewer's vanilla UI components were migrated to `@anytime-markdown/ui-core`.
+
+### Removed
+
+- The `/mindmap` page, along with the `mindmap-viewer` package and its wiring.
+
+### Fixed
+
+- The cooccurrence page's mount no longer freezes on stale theme and locale values.
+- The co-occurrence filter slider no longer collapses its step to 0 when the range is narrow.
+- On high-DPI displays the OZ canvas no longer overflows and covers the right panel.
+
 ## [0.43.0] - 2026-07-30
 
 ### Changed

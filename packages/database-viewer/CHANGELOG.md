@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-08-01
+
+### Changed
+
+- Style injection now goes through `ensureStyle` in `@anytime-markdown/ui-core`.
+
 ## [0.3.5] - 2026-07-30
 
 ### Changed

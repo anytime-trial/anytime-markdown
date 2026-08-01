@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-01
+
+### Changed
+
+- Rebuilt against the spreadsheet viewer's ui-core consolidation.
+
 ## [0.8.1] - 2026-07-30
 
 ### Fixed

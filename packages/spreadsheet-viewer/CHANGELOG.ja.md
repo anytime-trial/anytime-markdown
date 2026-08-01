@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-01
+
+### 変更
+
+- スタイル注入・translator の解決・Web Component の SSR 安全化基底を `@anytime-markdown/ui-core` から取るようにした。
+
 ## [0.8.1] - 2026-07-30
 
 ### 変更

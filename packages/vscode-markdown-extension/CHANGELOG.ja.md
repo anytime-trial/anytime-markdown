@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-08-01
+
+### 変更
+
+- webview の import ブリッジとテーマ配線を、エディタパッケージの新しい用途別 subpath 公開面へ追従させた。
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- パッケージを `markdown-viewer` → `markdown-editor`、`markdown-rich` → `markdown-rich-editor` へ改名（破壊的変更）
+- 公開面を用途別 subpath へ整理し、catch-all exports を `internal/*` へ隔離
+- スタイル注入・translator 解決・SSR 安全化基底・chrome トークン供給を ui-core へ集約
+
 ## [1.18.0] - 2026-07-30
 
 ### 変更

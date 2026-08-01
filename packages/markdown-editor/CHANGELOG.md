@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-08-01
+
+### Changed
+
+- **Breaking:** renamed the packages `@anytime-markdown/markdown-viewer` to `markdown-editor` and `@anytime-markdown/markdown-rich` to `markdown-rich-editor`.
+- Reorganized the public surface into purpose-specific subpaths and isolated the catch-all exports under `internal/*`, so leaf consumers no longer pull in the whole module graph.
+- Style injection (`ensureStyle`), translator resolution, the SSR-safe Web Component base, and chrome token supply moved to `@anytime-markdown/ui-core`.
+
 ## [1.18.0] - 2026-07-30
 
 ### Changed

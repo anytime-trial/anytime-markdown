@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-01
+
+### Added
+
+- A co-occurrence editing API that adds a term and its link in a single call.
+- Subclusters: one further level of subdivision inside a cluster, usable as a filter target.
+
+### Changed
+
+- Minimap constants are now shared across the three implementations.
+- The SSR-safe Web Component base and translator resolution moved to `@anytime-markdown/ui-core`.
+
+### Fixed
+
+- Subclusters with an empty name are now rejected by validation.
+
 ## [0.13.0] - 2026-07-30
 
 ### Added

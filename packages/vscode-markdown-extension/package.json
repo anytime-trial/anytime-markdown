@@ -2,7 +2,7 @@
   "name": "anytime-markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -360,8 +360,8 @@
   "dependencies": {
     "@anytime-markdown/doc-core": "*",
     "@anytime-markdown/graph-core": "*",
-    "@anytime-markdown/markdown-rich-editor": "*",
     "@anytime-markdown/markdown-editor": "*",
+    "@anytime-markdown/markdown-rich-editor": "*",
     "@anytime-markdown/mcp-markdown": "*",
     "@anytime-markdown/vscode-common": "*",
     "@emotion/react": "11.14.0",
