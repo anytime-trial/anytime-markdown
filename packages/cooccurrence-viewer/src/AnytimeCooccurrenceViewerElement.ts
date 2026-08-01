@@ -23,6 +23,7 @@
  */
 
 import type { CooccurrenceFile } from '@anytime-markdown/graph-core';
+import { ensureStyle } from '@anytime-markdown/ui-core/dom';
 import { HTMLElementBase } from '@anytime-markdown/ui-core/ssrSafeElement';
 
 import { mountCooccurrenceViewer } from './mountCooccurrenceViewer';
@@ -46,11 +47,7 @@ const HOST_STYLE_ID = 'anytime-cooccurrence-viewer-host-style';
  * 「未指定時の既定」だけを提供する。
  */
 function ensureHostStyle(): void {
-  if (typeof document === 'undefined' || document.getElementById(HOST_STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = HOST_STYLE_ID;
-  style.textContent = ':where(anytime-cooccurrence-viewer) { display: block; }';
-  document.head.appendChild(style);
+  ensureStyle(HOST_STYLE_ID, ':where(anytime-cooccurrence-viewer) { display: block; }');
 }
 
 /** `change` / `save-request` イベントの `detail`。 */

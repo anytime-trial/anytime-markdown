@@ -17,7 +17,6 @@ import { HTMLElementBase } from "@anytime-markdown/ui-core/ssrSafeElement";
 import type { ChartSpec, PaletteKey } from "./types";
 import { ChartView } from "./viewer/ChartView";
 
-
 export class AnytimeChartElement extends HTMLElementBase {
   static get observedAttributes(): string[] {
     return ["theme", "palette"];

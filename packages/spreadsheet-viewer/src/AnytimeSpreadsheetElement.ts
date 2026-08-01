@@ -15,19 +15,19 @@
 import {
   createInMemorySheetAdapter,
   parseCsv,
-  serializeCsv,
   parseMarkdownTable,
+  serializeCsv,
   serializeMarkdownTable,
   type SheetAdapter,
   type SheetSnapshot,
 } from "@anytime-markdown/spreadsheet-core";
 import { HTMLElementBase } from "@anytime-markdown/ui-core/ssrSafeElement";
 
+import type { ChartDefinition } from "./vanilla/chartLayer.types";
 import {
   mountSpreadsheetEditor,
   type SpreadsheetEditorHandle,
 } from "./vanilla/spreadsheetEditor";
-import type { ChartDefinition } from "./vanilla/chartLayer.types";
 
 export type { ChartDefinition };
 
@@ -42,7 +42,6 @@ export interface SpreadsheetChangeDetail {
 export interface SpreadsheetChartsChangeDetail {
   charts: ChartDefinition[];
 }
-
 
 export class AnytimeSpreadsheetElement extends HTMLElementBase {
   static get observedAttributes(): string[] {

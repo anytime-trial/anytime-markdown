@@ -20,19 +20,18 @@
 
 import { HTMLElementBase } from "@anytime-markdown/ui-core/ssrSafeElement";
 
-import { createMarkdownT } from "./i18n/createMarkdownT";
 import {
   mountVanillaMarkdownEditor,
   type MountVanillaMarkdownEditorOptions,
   type VanillaMarkdownEditorHandle,
   type VanillaMarkdownEditorUpdatePatch,
 } from "./host/vanillaMarkdownEditor";
-import { getMarkdownFromEditorSafe } from "./utils/markdownSerializer";
+import { createMarkdownT } from "./i18n/createMarkdownT";
 import { ensureChromeTokens } from "./utils/applyEditorThemeCssVars";
+import { getMarkdownFromEditorSafe } from "./utils/markdownSerializer";
 
 /** handle から導出する editor 型（markdown-core への直接 import を避ける）。 */
 type EditorInstance = VanillaMarkdownEditorHandle["editor"];
-
 
 /** `detail` が `{ value }` の `change` イベント。 */
 export interface MarkdownChangeDetail {
