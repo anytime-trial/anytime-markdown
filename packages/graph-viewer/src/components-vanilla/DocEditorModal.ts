@@ -2,18 +2,20 @@
  * DocEditorModal の vanilla DOM factory。
  *
  * React 版 `components/DocEditorModal.tsx` の DOM 置換。
- * createDialog を利用して backdrop + paper を構築し、textarea 編集状態を closure で管理する。
+ * backdrop + paper は自前構築（gv Dialog 非依存）で、textarea 編集状態を closure で管理する。
  */
 
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { createGraphT } from '../i18n/createGraphT';
-import {
-  createDialog,
-  createDialogContent,
-  createDialogTitle,
-} from '../ui-vanilla/Dialog';
 import { iconButton } from '../ui/uiCoreAdapters';
 import { createCloseIcon } from '../ui-vanilla/icons';
+
+/** open 中のモーダル DOM への内部ハンドル（自前 backdrop + paper。gv Dialog 非依存）。 */
+interface ModalDomHandle {
+  readonly el: HTMLDivElement;
+  readonly paper: HTMLDivElement;
+  close(): void;
+}
 
 export interface DocEditorModalOptions {
   /** ドキュメントタイトル（ヘッダーに表示）。 */
@@ -52,7 +54,7 @@ export function createDocEditorModal(opts: Readonly<DocEditorModalOptions>): Doc
 
   // ---- closure 状態 ----
   let editorContent = '';
-  let dialogHandle: ReturnType<typeof createDialog> | null = null;
+  let dialogHandle: ModalDomHandle | null = null;
   let textarea: HTMLTextAreaElement | null = null;
 
   // ---- 閉じる処理 ----
