@@ -18,6 +18,9 @@
       // moduleResolution が exports を見ない構成のため paths で明示する。
       "@anytime-markdown/tickets-viewer/i18n/ja": ["../tickets-viewer/src/i18n/ja.ts"],
       "@anytime-markdown/tickets-viewer/i18n/en": ["../tickets-viewer/src/i18n/en.ts"],
+      // ui-core は exports の "./*" だけで subpath を公開する（index からは出さない）。
+      // 上の i18n と同じく、exports を見ない moduleResolution のため paths で明示する。
+      "@anytime-markdown/ui-core/*": ["../ui-core/src/*"],
       "@anytime-markdown/vscode-common/webview": ["../vscode-common/src/webview/index.ts"],
       // next-intl は ESM 専用。webpack の alias / jest の moduleNameMapper と同じ shim を指す。
       "next-intl": ["./src/webview/shims/next-intl.ts"],
