@@ -11,7 +11,8 @@ import { button, chip, iconButton } from '../ui/uiCoreAdapters';
 
 import { createAddIcon, createCloseIcon, createDeleteIcon } from '../ui-vanilla/icons';
 import { createRangeSlider } from '../ui-vanilla/Slider';
-import { createTextField } from '../ui-vanilla/TextField';
+import { createTextField } from '@anytime-markdown/ui-core/TextField';
+import { createSelect } from '@anytime-markdown/ui-core/Select';
 import { injectGraphUiStyles } from '../ui/injectStyles';
 
 export interface FilterPanelOptions {
@@ -25,6 +26,8 @@ export interface FilterPanelOptions {
   readonly keyRanges: ReadonlyMap<string, readonly [number, number]>;
   /** 閉じるコールバック。 */
   readonly onClose: () => void;
+  /** Select ポップアップのポータル先。`--am-color-*` の届く graph ルート（またはその配下）。 */
+  readonly portalTarget: HTMLElement;
 }
 
 export interface FilterPanelHandle {
@@ -167,29 +170,19 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       const addRow = document.createElement('div');
       addRow.style.cssText = 'display:flex;gap:4px';
 
-      const selectEl = createTextField({
-        select: true,
-        size: 'small',
+      const selectEl = createSelect({
         value: newRangeKey,
-        fullWidth: true,
-        children: (() => {
-          const frag = document.createDocumentFragment();
-          const defaultOpt = document.createElement('option');
-          defaultOpt.value = '';
-          defaultOpt.textContent = 'Select key';
-          frag.appendChild(defaultOpt);
-          numericKeys
+        options: [
+          { value: '', label: 'Select key' },
+          ...numericKeys
             .filter((k) => !currentConfig.rangeFilters.some((rf) => rf.key === k))
-            .forEach((k) => {
-              const opt = document.createElement('option');
-              opt.value = k;
-              opt.textContent = k;
-              frag.appendChild(opt);
-            });
-          return frag;
-        })(),
-        onChange: (e) => {
-          newRangeKey = (e.target as HTMLSelectElement).value;
+            .map((k) => ({ value: k, label: k })),
+        ],
+        fullWidth: true,
+        ariaLabel: 'Select key',
+        portalTarget: opts.portalTarget,
+        onChange: (v) => {
+          newRangeKey = v;
         },
       });
       addRow.appendChild(selectEl.el);
@@ -279,29 +272,19 @@ export function createFilterPanel(opts: Readonly<FilterPanelOptions>): FilterPan
       const addRow = document.createElement('div');
       addRow.style.cssText = 'display:flex;gap:4px';
 
-      const selectEl = createTextField({
-        select: true,
-        size: 'small',
+      const selectEl = createSelect({
         value: newTextKey,
-        fullWidth: true,
-        children: (() => {
-          const frag = document.createDocumentFragment();
-          const defaultOpt = document.createElement('option');
-          defaultOpt.value = '';
-          defaultOpt.textContent = 'Select key';
-          frag.appendChild(defaultOpt);
-          textKeys
+        options: [
+          { value: '', label: 'Select key' },
+          ...textKeys
             .filter((k) => !currentConfig.textFilters.some((tf) => tf.key === k))
-            .forEach((k) => {
-              const opt = document.createElement('option');
-              opt.value = k;
-              opt.textContent = k;
-              frag.appendChild(opt);
-            });
-          return frag;
-        })(),
-        onChange: (e) => {
-          newTextKey = (e.target as HTMLSelectElement).value;
+            .map((k) => ({ value: k, label: k })),
+        ],
+        fullWidth: true,
+        ariaLabel: 'Select key',
+        portalTarget: opts.portalTarget,
+        onChange: (v) => {
+          newTextKey = v;
         },
       });
       addRow.appendChild(selectEl.el);

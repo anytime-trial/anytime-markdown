@@ -656,6 +656,8 @@ export function mountVanillaGraphEditor(
       },
       availableKeys: computeAvailableMetadataKeys(),
       keyRanges: computeMetadataKeyRanges(),
+      // Select ポップアップのポータル先。--am-color-* が root スコープのため body ではなく root。
+      portalTarget: root,
       onClose: () => {
         showFilter = false;
         toolBarHandle?.update({ filterActive: filterConfig.rangeFilters.length > 0 || filterConfig.textFilters.length > 0 });

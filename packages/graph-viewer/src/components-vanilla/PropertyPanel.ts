@@ -9,7 +9,7 @@ import { getCanvasColors } from '@anytime-markdown/graph-core';
 import type { EndpointShape, GraphEdge, GraphNode } from '../types';
 import type { GraphT } from '../i18n/createGraphT';
 import { createSlider } from '@anytime-markdown/ui-core/Slider';
-import { createTextField } from '../ui-vanilla/TextField';
+import { createTextField } from '@anytime-markdown/ui-core/TextField';
 import { divider, iconButton, text } from '../ui/uiCoreAdapters';
 import { createSwitch } from '@anytime-markdown/ui-core/Switch';
 import { createFormControlLabel } from '../ui-vanilla/FormControlLabel';
