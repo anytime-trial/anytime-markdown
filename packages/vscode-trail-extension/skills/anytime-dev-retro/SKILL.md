@@ -67,7 +67,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 見積り予実 `delegation.estimates.referenceClass`（カテゴリ×モデル別の 実測中央値・誤差比中央値） | docs(plan) | n≥5 の組で誤差比中央値が 2.0 超 or 0.5 未満（系統的な過小/過大見積り） |
 | 再発シグナル `recurrence.danglingClusters` / `recurrence.uncoveredBugFiles` | memory dir + memory | 新規クラスタ出現 / 増加 |
 
-- **再発の「2 回」判定**: `recurrence.danglingClusters` の同一 target、または `skillHealth.brokenRefs` 対象の同一スキルが**前回スナップショットにも存在**していたら「2 回目」とみなし、R023（constraint メモリ昇格）/ R024（スキル本文反映）の発火候補として §4 の提案へ昇格する。grounding はステートレスに現在値のみ出力し、連続判定は本デルタ比較で行う。
+- **再発の「2 回」判定**: `recurrence.danglingClusters` は件数ではなく、同一 target の滞留サイクル数（初出 / 2 回目 / 3 回目以降）で扱う。同一 target が**前回スナップショットにも存在**していたら「2 回目」とみなし、R023（constraint メモリ昇格）の発火候補として §4 の提案へ昇格する。grounding はステートレスに現在値のみ出力するため、前回スナップショットとの突合で滞留サイクル数を数えるのは本デルタ比較の責務である。`skillHealth.brokenRefs` 対象の同一スキルが前回にも存在した場合は、R024（スキル本文反映）の発火候補として扱う。
 
 - 各メトリクスを **新規発生 / 悪化 / 改善 / 横ばい** に分類する。
 - 前回スナップショットが無い（初回）場合は全メトリクスを「初期値」として記録し、デルタ比較はスキップする。
@@ -104,7 +104,8 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **条文効果**（`quality.checklistByRef30d`）: 前回レトロ以降に条文化・改訂した章があれば、その章の 30 日窓指摘件数の前回比を明記する（減少＝条文が効いている / 横ばい以上＝§4 メタ還流の観測 1 回目）。
 - **コスト詳細**（`grounding.token-budget.cjs` 出力。集計レベルの cost glance を超える深掘り）: モデル別コスト内訳 `byModel`（model / sessions / cost / cacheRead。Opus 比率を強調）・コスト上位セッション `topSessions`（session / cost / messageCount / peakContextTokens / compactCount / gitBranch / hygieneFlag）・セッション衛生 `hygiene`（expensiveNoCompact 等）・週次トレンド `trend.weekly`。狙いは RC2（Opus メインの超長大セッションが `/clear`・`/compact` なしで継続し `cache_read` が「文脈サイズ×ターン数」で二乗膨張する）の継続監視。
 - **モデル別挙動プロファイル**（`modelBehavior.byModel`・30 日窓・記述的）: モデル（フル ID）ごとの冗長性（`avgOutputTokens`）・ツール失敗率（`toolErrorRatePct`）・平均実行時間（`avgTurnExecMs`）を現状値として表示する。委譲先の役割分担（`anytime-dev-cycle` §1・§3.1 モデル表）の見直し材料。**因果主張はしない**: タスク割当が非ランダム（性質でモデルを選んでいる）ため、モデル間差は「性格」でなく割当タスクの性質を含む交絡を持つ。`assistantMsgs` が `minSampleForJudgment`（5）未満のモデルは「標本不足・判定しない」と明記する。
-- **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 を確認し件数を記す）、(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
+- **再発シグナル**（`recurrence.danglingClusters` / `recurrence.uncoveredBugFiles`）: dangling target は全件を滞留サイクル数（初出 / 2 回目 / 3 回目以降）付きで列挙する。参照元が 3 件以上の target は `priority: high` 相当として扱う。
+- **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 のいずれかへ必ず遷移させ、件数だけでなく状態を確定させる）。前回レトロが昇格した提案は次回レトロまでにこの 3 状態のいずれかへ置く。`ticketStatus: "unfiled"` の提案は滞留日数付きで全件再掲し、件数で丸めない。未判断が 2 回連続した提案は見送りに落として追跡対象から外し、その理由 1 行を当該提案書に残す。(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
 - **grounding errors**（あれば）: 測定不能だったシグナル。
 - 末尾に「次アクション候補」を箇条書き（提案に昇格したものは proposal へのリンク）。
 
@@ -128,7 +129,9 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **委任テンプレの成績悪化**: `delegation.byVersion` の現行版数の差し戻し率が前回比 +20pt 以上または 50% 超 → `references/delegation.md`（anytime-dev-cycle）の契約書式改訂候補として提案。記録件数が 5 件未満の版は判定しない（少数標本の偽シグナル抑制）。
 - **委譲先の成績悪化（モデル別）**: `delegation.byModel` の特定モデル／実行系の差し戻し率が 50% 超（記録 5 件以上）→ そのモデルへの委譲を減らす／`anytime-dev-cycle` §1 委譲先選択・§3.1 モデル表の見直しを提案する。
 - **較正表の乖離（見積り予実）**: `delegation.estimates.referenceClass` のあるカテゴリ × モデルで **n≥5 かつ誤差比中央値（`medianErrorOut` または `medianErrorWall`）が 2.0 超 or 0.5 未満** → `references/delegation.md` §2.3 較正表の当該セルの改訂（実測中央値へ置換）を提案する。n<5 の組は判定しない。改訂が 2 回連続で誤差を縮めない場合は表の値でなく機構側（カテゴリ語彙の切り方・ペアリング規則）の改訂を提案する（メタ機構の健全性点検と同原則）。誤差評価は同一実行系内で閉じる（Claude 系とCodex のコスト単位は非互換のためモデル間比較しない）。`modelBehavior` は記述的シグナルであり**それ単独では提案昇格の閾値にしない**（交絡があり因果を主張できないため、あくまで役割分担議論の材料）。
-- `recurrence.danglingClusters` に前回スナップショットと同一の target が残存（2 回目の観測 = constraint メモリ昇格を提案）、または `recurrence.uncoveredBugFiles` に新規ファイルが出現（教訓化されていない再発バグ領域）。提案には対象 target / referrers / ファイルを明記し、メモリ作成自体はユーザー承認後に行う。
+- `recurrence.danglingClusters` に前回スナップショットと同一の target が残存（2 回目の観測 = constraint メモリ昇格を提案）、または `recurrence.uncoveredBugFiles` に新規ファイルが出現（教訓化されていない再発バグ領域）。3 回目以降の dangling target は新しい個別メモリを「作成しない」判断を確定させ、参照元リンクの書き換え、または既存の索引メモリへ寄せる作業をタスク化する。提案には対象 target / referrers / ファイルを明記し、メモリ作成・書き換え自体はユーザー承認後に行う。
+  - 完了済みの作業単位を指す target は、個別メモリを作らず既存の索引メモリへ寄せてよい。ただしメモリ領域は保護領域であり、作成・書き換えは必ずユーザー承認後に行う。
+  - **作成前に `<docsRoot>/plan/` を検索する**。target が指す作業単位の本体がプランファイルとして既に存在することが多く、その場合は教訓を書き起こさず `type: reference` のポインタメモリ（本体パス＋要点 1〜2 行＋参照元リンク）で解消する（2026-08-01 実測: 参照元 3 件以上の dangling 2 件はいずれもプランファイルを本体に持っていた）。
 - **観点の穴クラスタの残存**: `quality.checklistNoneClusters` に前回スナップショットと同一（カテゴリ×パッケージ）のクラスタが残存（2 回目の観測）→ global スキル `code-review-checklist` への観点追加を提案・チケット起票する。チケットには対象クラスタと出典 finding_id（`list_unaddressed_review_findings` の `checklist_ref='none'` で列挙）を明記し、条文化はチケット承認後に手動で行う（条文末尾に出典 finding_id をインライン記載）。
 - **条文が効いていない（メタ還流）**: 条文化・改訂した章の `quality.checklistByRef30d` が**条文化後 2 回連続のレトロ**で減少しない → 条文の再改訂でなく、条文の書き方（NG/OK 例の具体性）またはレビュー委任プロンプトへの観点注入方法の見直しを提案する（「改善機構の空回り」と同原則）。
 - **改善機構の空回り（メタ還流）**: 「スキル改訂が効いていない」または「委任テンプレの成績悪化」が**同一対象で 2 回連続のレトロ**にわたり発火した場合、対象本文の再改訂ではなく**機構側の改訂**（還流ルール＝global CLAUDE.md「メモリ運用」・本スキルの昇格閾値・委譲契約テンプレの書式）を提案対象にする。改訂を繰り返しても効かないのは直し方でなく直す仕組みの欠陥を示唆するため、改善手続き自体を改訂対象に含める（Hyperagents arXiv:2603.19461 の知見。固定されたメタ機構が改善の頭打ちを作る）。標本 5 件未満の版は判定しない規則はここでも維持する。
@@ -142,12 +145,21 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - `title`: `改善提案: <提案テーマ>`
 - `description`: 一文サマリ + 提案書パス（`proposal/<YYYYMMDD>-<topic>.ja.md`）+ 起点シグナル（メトリクス名・前回比）。実装前に提案書本体を Read するよう明記する
 - `status`: `backlog`（**人が採否を判断するまで自動実行ループの対象外**に保つ。loop は `up_next` / `in_progress` のみ拾う）
-- `assignee`: `user`（採否＝What の承認は人。採用時に人が `agent` へ変更して着手させる）
+- `assignee`: 提案書 frontmatter の `assignee` と同じ値（`user` または `agent`）
 - `workspace`: `anytime-markdown`
 - `priority`: 原則 `medium`。効率／品質／要件適合への影響が特に大きいシグナル（重大 drift・cc>200 新規関数・コスト急増）は `high`
 - `creator`: `anytime-dev-retro`
 
-レスポンスのチケット ID（`T-N`）をレポート末尾「次アクション候補」に併記する。ツールが使えない環境（ローカル mcp-cms には create_ticket が無い）・呼び出し失敗時はリトライせず「未起票（理由）」と記す。提案を生成しなかった週（閾値未超）はチケットも起票しない。
+提案 1 件ごとに消化担当を明記する。提案書 frontmatter の `assignee`（`user` または `agent`）とチケットの `assignee` には同じ値を書く。既定は `user`（採否＝What の承認は人。採用時に人が `agent` へ変更して着手させる）とし、すでに採択済みで次の実装を直接ループへ渡す提案だけ `agent` を選べる。
+
+起票の成否は提案書 frontmatter に必ず記録する。
+
+- 成功時: `ticketStatus: "filed"` と `ticketId: "T-N"`（例: `T-12`）を書く。
+- 不成立時: `ticketStatus: "unfiled"` と `ticketBlockedReason: "<1 行の理由>"` を書く。
+
+`mcp__claude_ai_mcp-cms-remote__create_ticket` が使えない環境では、フォールバックとして VS Code 設定 `anytimeAgent.tickets.directory`（ワークスペースの `.vscode/settings.json`。既定値は `/Shared/anytime-ticket`）が指すチケットリポジトリを解決し、その `.tickets/` 配下へ `anytime-loop-start` スキルと同じ YAML frontmatter + Markdown 本文のチケットを直接作成する。設定値がリポジトリルートを指す場合は直下の `.tickets/` を使い、`.tickets/` 自体を指す場合はそのディレクトリを使う。ファイル名は `T-<連番>-<英数スラッグ>.md` とし、既存 `T-*.md` の最大連番の次を使う。frontmatter には上記 `title` / `status` / `priority` / `assignee` / `workspace` / `creator` と `id` / `created_at` / `updated_at` を書き、本文には概要、起点シグナル、提案書パス、実装前に提案書本体を Read する指示を含める。
+
+レスポンスまたはフォールバック作成で得たチケット ID（`T-N`）をレポート末尾「次アクション候補」に併記する。API 呼び出しに失敗した場合はリトライせずフォールバックを試す。チケットリポジトリを解決できない、または `.tickets/` へ作成できない場合にのみ「未起票（理由）」と記し、提案書 frontmatter を `ticketStatus: "unfiled"` にする。提案を生成しなかった週（閾値未超）はチケットも起票しない。
 
 ### 5. ガードレール / 申し送り
 
