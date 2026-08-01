@@ -74,6 +74,9 @@ const OZ_VARS_LIGHT: Record<string, string> = {
   '--cooc-link': 'rgba(91,124,153,0.35)',
   '--cooc-muted-alpha': '0.18',
   '--cooc-tooltip-bg': '#FFFFFF',
+  '--cooc-scrim': 'rgba(255,255,255,0.45)',
+  '--cooc-viewport-frame': 'rgba(27,42,74,0.70)',
+  '--cooc-viewport-fill': 'rgba(27,42,74,0.10)',
 };
 
 const OZ_VARS_DARK: Record<string, string> = {
@@ -90,6 +93,9 @@ const OZ_VARS_DARK: Record<string, string> = {
   '--cooc-link': 'rgba(160,190,255,0.38)',
   '--cooc-muted-alpha': '0.2',
   '--cooc-tooltip-bg': '#12183F',
+  '--cooc-scrim': 'rgba(0,0,0,0.35)',
+  '--cooc-viewport-frame': 'rgba(255,255,255,0.75)',
+  '--cooc-viewport-fill': 'rgba(255,255,255,0.12)',
 };
 
 export function applyCooccurrenceThemeVars(
@@ -114,6 +120,9 @@ export function applyCooccurrenceThemeVars(
       '--cooc-link': 'rgba(255,255,255,0.34)',
       '--cooc-muted-alpha': '0.2',
       '--cooc-tooltip-bg': '#121212',
+      '--cooc-scrim': 'rgba(0,0,0,0.35)',
+      '--cooc-viewport-frame': 'rgba(255,255,255,0.75)',
+      '--cooc-viewport-fill': 'rgba(255,255,255,0.12)',
     }
     : {
       '--cooc-bg': '#F2EFE8',
@@ -129,6 +138,9 @@ export function applyCooccurrenceThemeVars(
       '--cooc-link': 'rgba(31,30,28,0.32)',
       '--cooc-muted-alpha': '0.18',
       '--cooc-tooltip-bg': '#FBF9F3',
+      '--cooc-scrim': 'rgba(255,255,255,0.45)',
+      '--cooc-viewport-frame': 'rgba(31,30,28,0.70)',
+      '--cooc-viewport-fill': 'rgba(31,30,28,0.10)',
     };
 
   for (const [name, value] of Object.entries(vars)) target.style.setProperty(name, value);

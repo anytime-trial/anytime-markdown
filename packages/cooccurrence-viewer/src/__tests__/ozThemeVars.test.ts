@@ -38,6 +38,31 @@ describe('applyCooccurrenceThemeVars: OZ スキン', () => {
     }
   });
 
+  /**
+   * 変数名の集合はスキン・モードの 4 通りで揃える。片方にだけ足すと、そのモードでだけ
+   * `var(--cooc-*)` が解決できず、面が透明・線が既定色になって静かに崩れる。
+   * 名前を数え上げる側でなく「全通りを突き合わせる」側で書くのは、後から足した変数を
+   * 検査が見落とさないようにするため。
+   */
+  test('変数名の集合はスキン・モードの 4 通りで一致する', () => {
+    const names = ([['standard', 'light'], ['standard', 'dark'], ['oz', 'light'], ['oz', 'dark']] as const).map(
+      ([skin, mode]) => {
+        const el = document.createElement('div');
+        applyCooccurrenceThemeVars(el, mode, skin);
+        // jsdom の CSSStyleDeclaration は反復可能ではないため、添字で取り出す。
+        return Array.from({ length: el.style.length }, (_unused, index) => el.style.item(index))
+          .filter((name) => !name.startsWith('--cooc-cluster-'))
+          .sort();
+      },
+    );
+
+    for (const set of names) expect(set).toEqual(names[0]);
+    // 新しく足した変数がどのモードにも無い、という素通りを防ぐ。
+    expect(names[0]).toContain('--cooc-viewport-frame');
+    expect(names[0]).toContain('--cooc-viewport-fill');
+    expect(names[0]).toContain('--cooc-scrim');
+  });
+
   test('standard を明示しても skin 省略と同じ変数になる', () => {
     const explicit = document.createElement('div');
     const omitted = document.createElement('div');

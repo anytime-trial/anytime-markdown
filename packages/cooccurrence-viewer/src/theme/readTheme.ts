@@ -14,6 +14,10 @@ export interface CooccurrenceTheme {
   divider: string;
   accent: string;
   link: string;
+  /** ミニマップの「今見えている範囲」の枠線。 */
+  viewportFrame: string;
+  /** 同じ枠の内側の塗り。枠線より薄く、下の全体像が透ける。 */
+  viewportFill: string;
   mutedAlpha: number;
 }
 
@@ -30,6 +34,18 @@ export function readCooccurrenceTheme(target: HTMLElement, mode: ThemeMode): Coo
     divider: readCssVar(target, '--cooc-divider', fallbackDark ? 'rgba(255,255,255,0.12)' : 'rgba(31,30,28,0.12)'),
     accent: readCssVar(target, '--cooc-accent', '#E8A012'),
     link: readCssVar(target, '--cooc-link', fallbackDark ? 'rgba(255,255,255,0.34)' : 'rgba(31,30,28,0.32)'),
+    // 枠は差し色（`--cooc-accent`）ではなく、モードごとの明暗で描く。差し色は「唯一の強調」で
+    // あり（design.md §1）、常時出ている枠に使うと図の中の強調と競合する。
+    viewportFrame: readCssVar(
+      target,
+      '--cooc-viewport-frame',
+      fallbackDark ? 'rgba(255,255,255,0.75)' : 'rgba(31,30,28,0.70)',
+    ),
+    viewportFill: readCssVar(
+      target,
+      '--cooc-viewport-fill',
+      fallbackDark ? 'rgba(255,255,255,0.12)' : 'rgba(31,30,28,0.10)',
+    ),
     mutedAlpha: Number.isFinite(mutedAlpha) ? mutedAlpha : fallbackDark ? 0.2 : 0.18,
   };
 }
