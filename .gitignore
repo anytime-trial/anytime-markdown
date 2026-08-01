@@ -14,6 +14,9 @@ packages/web-app/anytime-trial-*.json
 .claude/*
 !.claude/rules/
 !.claude/skills/
+# チーム共有の Claude Code 設定（MCP 有効化・permissions の基本形）。
+# 個人差分は settings.local.json 側に置き、そちらは .claude/* の除外に任せる。
+!.claude/settings.json
 # markdown 拡張が activate 時に配置する生成物（ソースは packages/vscode-markdown-extension/skills/）
 .claude/skills/anytime-markdown-check/
 .claude/skills/anytime-markdown-output/
