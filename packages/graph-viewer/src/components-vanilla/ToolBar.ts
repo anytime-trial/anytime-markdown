@@ -15,15 +15,16 @@ import type { AlignType, ToolType } from '../types';
 import type { SaveStatus } from '../types/persistence';
 import type { GraphT } from '../i18n/createGraphT';
 
+import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
+
+import { createGraphMenu } from '../ui/graphMenu';
 import { createIconButton } from '../ui-vanilla/IconButton';
 import { createToggleButton, createToggleButtonGroup } from '../ui-vanilla/ToggleButton';
 import type { ToggleButtonGroupHandle } from '../ui-vanilla/ToggleButton';
 import { createDivider } from '../ui-vanilla/Divider';
-import { createMenu } from '../ui-vanilla/Menu';
 import { createPopover } from '../ui-vanilla/Popover';
 import { createTooltip } from '../ui-vanilla/Tooltip';
 import type { TooltipHandle } from '../ui-vanilla/Tooltip';
-import { createMenuItem } from '../ui-vanilla/MenuItem';
 import { createListItemIcon } from '../ui-vanilla/ListItemIcon';
 import { createListItemText } from '../ui-vanilla/ListItemText';
 import { createCircularProgress } from '../ui-vanilla/CircularProgress';
@@ -145,6 +146,8 @@ export interface ToolBarOpts {
   readonly filterActive?: boolean;
   readonly themeMode?: 'light' | 'dark';
   readonly t: GraphT;
+  /** メニューのポータル先。`--am-color-*` の届く graph ルート（またはその配下）を渡す。 */
+  readonly portalTarget: HTMLElement;
 }
 
 // Fields that update() accepts — a partial snapshot of mutable state
@@ -187,6 +190,11 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   const themeMode = opts.themeMode ?? 'dark';
   const isDark = themeMode === 'dark';
   const colors = getCanvasColors(isDark);
+
+  // ui-core MenuItem はハンドル（{ el, update, destroy }）を返す。ツールバーのメニューは
+  // 開閉ごとに使い捨てで update 不要のため el だけ取り出す。
+  const menuItem = (o: Parameters<typeof createMenuItem>[0]): HTMLLIElement =>
+    createMenuItem(o).el;
 
   // -------------------------------------------------------------------
   // Mutable closure state (equiv. React useState / useRef)
@@ -472,7 +480,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
 
     const menuItems: (HTMLLIElement | HTMLHRElement)[] = [];
     for (const { type, icon, label } of alignItems) {
-      const li = createMenuItem({
+      const li = menuItem({
         onClick: () => { opts.onAlign(type); menu.close(); },
         children: [
           createListItemIcon({ children: icon }),
@@ -483,7 +491,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
     }
     menuItems.push(createDivider());
     for (const { type, icon, label } of distItems) {
-      const li = createMenuItem({
+      const li = menuItem({
         onClick: () => { opts.onAlign(type); menu.close(); },
         disabled: currentSelectionCount < 3,
         children: [
@@ -494,10 +502,11 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
       menuItems.push(li);
     }
 
-    const menu = createMenu({
+    const menu = createGraphMenu({
       anchorEl,
       onClose: () => { menu.close(); },
       children: menuItems,
+      portalTarget: opts.portalTarget,
     });
   };
 
@@ -579,7 +588,7 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   const openZoomMenu = (anchorEl: HTMLElement): void => {
     const presets = [50, 75, 100, 150, 200];
     const menuItems = presets.map((pct) =>
-      createMenuItem({
+      menuItem({
         onClick: () => {
           opts.onSetScale(pct / 100);
           menu.close();
@@ -587,10 +596,11 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
         children: `${pct}%`,
       }),
     );
-    const menu = createMenu({
+    const menu = createGraphMenu({
       anchorEl,
       onClose: () => { menu.close(); },
       children: menuItems,
+      portalTarget: opts.portalTarget,
     });
   };
 
@@ -675,19 +685,20 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   box.appendChild(exportBtn);
 
   const openExportMenu = (anchorEl: HTMLElement): void => {
-    const menu = createMenu({
+    const menu = createGraphMenu({
       anchorEl,
       onClose: () => { menu.close(); },
       children: [
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onExportSvg(); menu.close(); },
           children: createListItemText({ children: t('exportSvg') }),
         }),
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onExportDrawio(); menu.close(); },
           children: createListItemText({ children: t('exportDrawio') }),
         }),
       ],
+      portalTarget: opts.portalTarget,
     });
   };
 
@@ -700,23 +711,24 @@ export function createToolBar(opts: Readonly<ToolBarOpts>): ToolBarHandle {
   box.appendChild(importBtn);
 
   const openImportMenu = (anchorEl: HTMLElement): void => {
-    const menu = createMenu({
+    const menu = createGraphMenu({
       anchorEl,
       onClose: () => { menu.close(); },
       children: [
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onImportDrawio(); menu.close(); },
           children: createListItemText({ children: t('importDrawio') }),
         }),
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onImportGraph(); menu.close(); },
           children: createListItemText({ children: t('importGraph') }),
         }),
-        createMenuItem({
+        menuItem({
           onClick: () => { opts.onImportMermaid(); menu.close(); },
           children: createListItemText({ children: t('importMermaid') }),
         }),
       ],
+      portalTarget: opts.portalTarget,
     });
   };
 

@@ -47,6 +47,11 @@ describe('applyGraphUiThemeVars', () => {
     expect(chromeRoot.style.getPropertyValue('--am-color-slider-rail')).not.toBe('');
     // 寸法トークンも chromeRoot に入る（ui-core コンポーネントの radius / elevation 参照先）
     expect(chromeRoot.style.getPropertyValue('--am-radius-md')).toBe('8px');
+    // gv メニュー意匠の寸法（旧 .gv-menu-item / .gv-list-item-icon）を ui-core の
+    // メニュー系変数で再現する（graphMenu ラッパーの paperStyle と対）
+    expect(chromeRoot.style.getPropertyValue('--am-menu-item-minh')).toBe('0px');
+    expect(chromeRoot.style.getPropertyValue('--am-menu-item-font')).toBe('0.875rem');
+    expect(chromeRoot.style.getPropertyValue('--am-menu-icon-minw')).toBe('28px');
   });
 
   test('chromeRoot 省略時（後方互換）: --gv-* のみ適用され例外を出さない', () => {

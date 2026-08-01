@@ -134,6 +134,12 @@ export function applyGraphUiThemeVars(isDark: boolean, chromeRoot?: HTMLElement)
   }
   if (chromeRoot) {
     applyChromeTokens(chromeRoot, chromeColorPalette(isDark), isDark);
+    // gv メニュー意匠（旧 .gv-menu-item / .gv-list-item-icon）の寸法を ui-core の
+    // メニュー系 CSS 変数で再現する（min-height なし・font 0.875rem・アイコン幅 28px）。
+    // paper レベルの意匠差は ui/graphMenu.ts の paperStyle が担う。
+    chromeRoot.style.setProperty('--am-menu-item-minh', '0px');
+    chromeRoot.style.setProperty('--am-menu-item-font', '0.875rem');
+    chromeRoot.style.setProperty('--am-menu-icon-minw', '28px');
   }
 }
 

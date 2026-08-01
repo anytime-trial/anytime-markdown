@@ -893,6 +893,8 @@ export function mountVanillaGraphEditor(
   const toolBarHandle = createToolBar({
     tool,
     t,
+    // メニューのポータル先。--am-color-* / --am-menu-* が root スコープのため body ではなく root。
+    portalTarget: root,
     onToolChange: (newTool) => {
       tool = newTool;
       toolBarHandle.update({ tool });
@@ -1125,11 +1127,13 @@ export function mountVanillaGraphEditor(
       hasClipboard: true,
       locale,
       onAction: handleContextAction,
+      // メニューのポータル先。--am-color-* / --am-menu-* が root スコープのため body ではなく root。
+      portalTarget: root,
       onClose: () => {
         // Menu 側は項目クリック時のみ close() 済みで onClose を呼ぶ（handleAction）。
-        // backdrop クリック / Escape は close() を呼ばず onClose のみを直接呼ぶため
-        // （ui-vanilla/Menu.ts 実装）、ここで closeContextMenu() を呼び close() を保証する。
-        // close() は backdrop.remove() / paper.remove() とも冪等なため二重呼び出しでも安全。
+        // backdrop クリック / Escape / Tab は close() を呼ばず onClose のみを直接呼ぶため
+        // （ui-core Menu 実装）、ここで closeContextMenu() を呼び close() を保証する。
+        // close()（= ui-core destroy()）は冪等なため二重呼び出しでも安全。
         closeContextMenu();
       },
     });
