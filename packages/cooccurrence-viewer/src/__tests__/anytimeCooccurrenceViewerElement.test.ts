@@ -77,6 +77,38 @@ describe('AnytimeCooccurrenceViewerElement', () => {
     expect(el.viewer).toBeNull();
   });
 
+  it('再接続（DOM 移動）で mount / destroy が対称に走り、二重 mount しない', () => {
+    const el = createElement();
+    el.file = file();
+    document.body.appendChild(el);
+    const first = el.viewer;
+    expect(first).not.toBeNull();
+
+    el.remove();
+    expect(el.viewer).toBeNull();
+
+    document.body.appendChild(el);
+    expect(el.viewer).not.toBeNull();
+    expect(el.viewer).not.toBe(first);
+    expect(el.querySelectorAll('.cooc-viewer')).toHaveLength(1);
+  });
+
+  it('display の既定は inline style でなく詳細度 0 の注入スタイルで与える（consumer のルールが勝てる）', () => {
+    const el = createElement();
+    el.file = file();
+    document.body.appendChild(el);
+    expect(el.style.display).toBe('');
+    const hostStyle = document.getElementById('anytime-cooccurrence-viewer-host-style');
+    expect(hostStyle?.textContent).toContain(':where(anytime-cooccurrence-viewer)');
+    expect(hostStyle?.textContent).toContain('display: block');
+    // 再接続しても注入は 1 回だけ。
+    el.remove();
+    document.body.appendChild(el);
+    expect(
+      document.querySelectorAll('#anytime-cooccurrence-viewer-host-style'),
+    ).toHaveLength(1);
+  });
+
   it('file が無ければ mount しない', () => {
     const el = createElement();
     document.body.appendChild(el);

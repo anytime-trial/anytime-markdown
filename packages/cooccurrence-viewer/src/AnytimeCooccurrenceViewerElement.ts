@@ -42,6 +42,24 @@ const HTMLElementBase: typeof HTMLElement =
     ? HTMLElement
     : (class {} as unknown as typeof HTMLElement);
 
+const HOST_STYLE_ID = 'anytime-cooccurrence-viewer-host-style';
+
+/**
+ * ホスト要素の display 既定（block）を注入する（1 回だけ）。
+ *
+ * inline style（`this.style.display`）で与えないのは、インライン宣言が consumer の
+ * スタイルシート（`anytime-cooccurrence-viewer { display: flex }` 等）に常に勝ってしまう
+ * ためである。`:where()` で詳細度を 0 に落とし、consumer のどんなルールにも負ける
+ * 「未指定時の既定」だけを提供する。
+ */
+function ensureHostStyle(): void {
+  if (typeof document === 'undefined' || document.getElementById(HOST_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = HOST_STYLE_ID;
+  style.textContent = ':where(anytime-cooccurrence-viewer) { display: block; }';
+  document.head.appendChild(style);
+}
+
 /** `change` / `save-request` イベントの `detail`。 */
 export interface CooccurrenceFileDetail {
   file: CooccurrenceFile;
@@ -64,9 +82,8 @@ export class AnytimeCooccurrenceViewerElement extends HTMLElementBase {
   private fullOptions: Partial<CooccurrenceViewerOptions> = {};
 
   connectedCallback(): void {
-    // canvas が要素の実寸へ追従するため、inline 既定（幅ゼロ）のままだと何も見えない。
-    // consumer が display を指定していれば触らない（Light DOM の外部スタイルを優先）。
-    if (!this.style.display) this.style.display = 'block';
+    // canvas が要素の実寸へ追従するため、inline 既定のままだと高さゼロで何も見えない。
+    ensureHostStyle();
     this.mount();
   }
 
