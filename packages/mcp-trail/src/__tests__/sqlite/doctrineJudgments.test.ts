@@ -6,15 +6,16 @@ import {
   getDoctrineAgreementDirect,
   type DoctrineJudgmentInput,
 } from '../../sqlite/doctrineJudgments';
-import type { ResolvedCitation } from '../../doctrine/resolveCitations';
+import type { CitationApproval, ResolvedCitation } from '../../doctrine/resolveCitations';
 
-function resolvedCitation(resolved = true): ResolvedCitation {
+function resolvedCitation(resolved = true, approval: CitationApproval = 'canon'): ResolvedCitation {
   return {
     docPath: '/docs/spec/92.doctrine/principles.ja.md',
     section: 'エラー処理',
     quote: 'ゲートは fail-closed、記録は fail-open とする。',
     resolved,
     reason: resolved ? 'ok' : 'quote_not_found',
+    approval: resolved ? approval : 'unknown',
   };
 }
 
@@ -158,6 +159,41 @@ describe('doctrineJudgments', () => {
     expect(metrics.escalationRate).toBe(0.25);
     // 引用 4 件中 3 件解決（A/B/D が resolved、C が未解決）
     expect(metrics.citationResolutionRate).toBe(0.75);
+  });
+
+  it('canon 接地率は covered 判断のうち canon 引用を持つ割合（DCT-3）', () => {
+    // covered + canon 引用
+    recordDoctrineJudgmentDirect(db, judgment({ subject: 'canon 接地' }));
+    // covered + draft 引用のみ（未承認条項を根拠にした判断）
+    recordDoctrineJudgmentDirect(db, {
+      ...judgment({ subject: 'draft 接地' }),
+      citations: [resolvedCitation(true, 'draft')],
+    });
+    // silent（covered ではないため分母外）
+    recordDoctrineJudgmentDirect(db, {
+      ...judgment({ subject: 'escalate', judgment: 'escalate', coverage: 'silent' }),
+      citations: [],
+    });
+
+    const metrics = getDoctrineAgreementDirect(db);
+    expect(metrics.canonGroundedRate).toBe(0.5);
+  });
+
+  it('明文規約（canon_by_document）の引用も canon 接地として数える', () => {
+    recordDoctrineJudgmentDirect(db, {
+      ...judgment({ subject: 'CLAUDE.md 接地' }),
+      citations: [resolvedCitation(true, 'canon_by_document')],
+    });
+    expect(getDoctrineAgreementDirect(db).canonGroundedRate).toBe(1);
+  });
+
+  it('承認状態を持たない旧レコードは canon 接地なしと数える', () => {
+    recordDoctrineJudgmentDirect(db, judgment({ subject: '旧記録' }));
+    // 本機能より前の citations_json（approval フィールドを持たない）を再現する
+    db.prepare('UPDATE doctrine_judgments SET citations_json = ?').run(
+      JSON.stringify([{ docPath: '/docs/x.md', section: 'a', quote: 'b', resolved: true, reason: 'ok' }]),
+    );
+    expect(getDoctrineAgreementDirect(db).canonGroundedRate).toBe(0);
   });
 
   it('期間指定（since/until）で集計対象を絞れる', () => {

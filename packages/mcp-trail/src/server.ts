@@ -475,7 +475,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_doctrine_agreement',
-    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, and pending (undecided) count. Gate metrics for D2 promotion.', inputSchema: {
+    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), and pending (undecided) count. Gate metrics for D2 promotion.', inputSchema: {
       since: GetDoctrineAgreementInputSchema.shape.since,
       until: GetDoctrineAgreementInputSchema.shape.until,
       workspacePath: GetDoctrineAgreementInputSchema.shape.workspacePath,
