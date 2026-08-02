@@ -40,6 +40,12 @@ export interface DoctrineAgreementMetrics {
   readonly escalationRate: number | null;
   /** 解決検査を通過した引用の割合 */
   readonly citationResolutionRate: number | null;
+  /**
+   * canon 接地率 (DCT-3)。covered 判断のうち、承認済み条項 (canon) または明文規約
+   * (canon_by_document) の引用を 1 件以上持つものの割合。一致率が高くても未承認条項に
+   * 依存した判断は代行根拠にならないため、D2 昇格ゲートは本指標を併せて見る。
+   */
+  readonly canonGroundedRate: number | null;
 }
 
 /**
@@ -146,6 +152,16 @@ export function recordHumanDecisionDirect(
   return { agreement, agentJudgment: row.agent_judgment };
 }
 
+/**
+ * 承認済み条項 (canon) または明文規約 (canon_by_document) の引用を 1 件以上持つか。
+ * 本機能より前に記録されたレコードは approval を持たないため canon 接地なしと数える
+ * (記録時点で承認状態を検査していないものを遡って canon 扱いにしない)。
+ */
+function hasCanonCitation(citationsJson: string): boolean {
+  const citations = JSON.parse(citationsJson) as ReadonlyArray<{ approval?: string }>;
+  return citations.some((c) => c.approval === 'canon' || c.approval === 'canon_by_document');
+}
+
 export function getDoctrineAgreementDirect(
   db: Database,
   range: { readonly since?: string; readonly until?: string } = {},
@@ -165,7 +181,7 @@ export function getDoctrineAgreementDirect(
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
   const rows = db
     .prepare(
-      `SELECT agent_judgment, coverage, human_decision, citation_count, resolved_count FROM doctrine_judgments${where}`,
+      `SELECT agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json FROM doctrine_judgments${where}`,
     )
     .all(...params) as Array<{
     agent_judgment: AgentJudgment;
@@ -173,6 +189,7 @@ export function getDoctrineAgreementDirect(
     human_decision: HumanDecision | null;
     citation_count: number;
     resolved_count: number;
+    citations_json: string;
   }>;
 
   const total = rows.length;
@@ -190,6 +207,8 @@ export function getDoctrineAgreementDirect(
   ).length;
   const citationTotal = rows.reduce((sum, r) => sum + r.citation_count, 0);
   const citationResolved = rows.reduce((sum, r) => sum + r.resolved_count, 0);
+  const coveredRows = rows.filter((r) => r.coverage === 'covered');
+  const canonGrounded = coveredRows.filter((r) => hasCanonCitation(r.citations_json)).length;
 
   return {
     total,
@@ -198,5 +217,6 @@ export function getDoctrineAgreementDirect(
     agreementRate: agreementTargets.length > 0 ? matched / agreementTargets.length : null,
     escalationRate: total > 0 ? escalations / total : null,
     citationResolutionRate: citationTotal > 0 ? citationResolved / citationTotal : null,
+    canonGroundedRate: coveredRows.length > 0 ? canonGrounded / coveredRows.length : null,
   };
 }
