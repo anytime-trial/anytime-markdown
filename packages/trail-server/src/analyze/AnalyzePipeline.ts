@@ -11,6 +11,7 @@ import { classifyPythonFiles } from '@anytime-markdown/code-analysis-python';
 
 import type { Logger } from '../runtime/Logger';
 import type { CodeGraphService } from './CodeGraphService';
+import { recordBoundaryDrift } from './recordBoundaryDrift';
 export { findTsconfigCandidates, hasPythonFiles } from './analyzeUtils';
 export type { TsconfigCandidate } from './analyzeUtils';
 
@@ -379,6 +380,16 @@ export async function runAnalyzeCurrentCodePipeline(
   callbacks.notifyModelUpdated();
 
   await generateCodeGraph({ codeGraphService, repoName, analysisRoot, trailGraph: graph, callbacks, onProgress, logger, warnings });
+
+  // コードグラフ保存後にのみ意味を持つ（community 付与済みノードが要る）ため、
+  // generateCodeGraph の直後に置く。fail-open は recordBoundaryDrift 側が担う。
+  recordBoundaryDrift({
+    repoName,
+    graph: codeGraphService.getGraph(repoName),
+    trailDb,
+    logger,
+    warnings,
+  });
 
   try {
     const count = trailDb.importCurrentCoverage(analysisRoot, repoName);
