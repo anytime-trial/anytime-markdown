@@ -808,6 +808,10 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
   decided_at TEXT CHECK (decided_at IS NULL OR decided_at GLOB ${TS_GLOB_MS} OR decided_at GLOB ${TS_GLOB_NO_MS}),
   created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
   updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  -- 後から追加した列は末尾に置く。既存 DB へは ALTER TABLE ADD COLUMN で足すため、
+  -- 中間に挿入すると新規 DB と移行 DB で列順が食い違う
+  gate_verdict TEXT CHECK (gate_verdict IS NULL OR gate_verdict IN ('delegable', 'escalate')),
+  gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json)),
   UNIQUE (session_id, subject)
 ) STRICT`;
 

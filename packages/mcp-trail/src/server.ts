@@ -442,12 +442,14 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'record_doctrine_judgment',
-    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). Re-recording the same session_id + subject overwrites and resets any recorded human decision.', inputSchema: {
+    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) also evaluates whether the judgment would have been delegable under D2 and stores the verdict — it does NOT change the approval flow (shadow mode); omitting target_paths or severity makes the verdict escalate (fail-closed). Re-recording the same session_id + subject overwrites and resets any recorded human decision.', inputSchema: {
       session_id: RecordDoctrineJudgmentInputSchema.shape.session_id,
       subject: RecordDoctrineJudgmentInputSchema.shape.subject,
       judgment: RecordDoctrineJudgmentInputSchema.shape.judgment,
       coverage: RecordDoctrineJudgmentInputSchema.shape.coverage,
       citations: RecordDoctrineJudgmentInputSchema.shape.citations,
+      target_paths: RecordDoctrineJudgmentInputSchema.shape.target_paths,
+      severity: RecordDoctrineJudgmentInputSchema.shape.severity,
       judged_at: RecordDoctrineJudgmentInputSchema.shape.judged_at,
       workspacePath: RecordDoctrineJudgmentInputSchema.shape.workspacePath,
     }, },
@@ -475,7 +477,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_doctrine_agreement',
-    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), and pending (undecided) count. Gate metrics for D2 promotion.', inputSchema: {
+    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), and pending (undecided) count. Gate metrics for D2 promotion.', inputSchema: {
       since: GetDoctrineAgreementInputSchema.shape.since,
       until: GetDoctrineAgreementInputSchema.shape.until,
       workspacePath: GetDoctrineAgreementInputSchema.shape.workspacePath,

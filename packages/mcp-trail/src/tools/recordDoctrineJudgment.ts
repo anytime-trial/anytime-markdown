@@ -1,8 +1,11 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import { z } from 'zod';
 import { resolveDbPath } from '../dbPath';
 import { openTrailDb } from '../sqlite/openDb';
 import { resolveCitations, type ResolvedCitation } from '../doctrine/resolveCitations';
+import { evaluateCoverageGate, type CoverageGateResult } from '../doctrine/coverageGate';
+import { resolveOddConfig } from '../doctrine/oddRoots';
 import {
   recordDoctrineJudgmentDirect,
   type DoctrineJudgmentRecordResult,
@@ -30,6 +33,14 @@ export const RecordDoctrineJudgmentInputSchema = z.object({
     )
     .default([])
     .describe('Grounding citations. Each is resolution-checked (file exists + quote matches) at record time'),
+  target_paths: z
+    .array(z.string())
+    .optional()
+    .describe('Absolute paths the decision affects. Omitted = ODD boundary undecidable, which the coverage gate treats as escalate (fail-closed)'),
+  severity: z
+    .enum(['low', 'medium', 'high'])
+    .optional()
+    .describe('Caller-declared severity. Omitted = undecidable, which the coverage gate treats as escalate (fail-closed)'),
   judged_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
   workspacePath: z.string().optional().describe('Workspace root to resolve trail.db (defaults to cwd)'),
 });
@@ -38,27 +49,42 @@ export type RecordDoctrineJudgmentInput = z.infer<typeof RecordDoctrineJudgmentI
 
 export interface RecordDoctrineJudgmentResult extends DoctrineJudgmentRecordResult {
   readonly citations: ReadonlyArray<ResolvedCitation>;
+  /** カバレッジゲートの判定 (D1 では記録のみ。承認フローは変えない) */
+  readonly gate: CoverageGateResult;
 }
 
 /** 判断記録は router (HTTP-first) を経由しない。better-sqlite3 のファイル直書きは
  * SQLite のロックで並行安全であり、拡張側の HTTP ハンドラ追加・再配布を待たずに
  * 記録を開始できることを優先する (D1 は計測段階で書込頻度も低い)。 */
+function readTextFile(path: string): string | null {
+  try {
+    return fs.readFileSync(path, 'utf8');
+  } catch {
+    // 不在・権限エラーは「解決不能」として扱う (呼び出し側が file_not_found / 既定値へ倒す)
+    return null;
+  }
+}
+
 export async function handleRecordDoctrineJudgment(
   input: RecordDoctrineJudgmentInput,
 ): Promise<RecordDoctrineJudgmentResult> {
   const resolved = resolveCitations(
     input.citations.map((c) => ({ docPath: c.doc_path, section: c.section, quote: c.quote })),
-    (path) => {
-      try {
-        return fs.readFileSync(path, 'utf8');
-      } catch {
-        // 不在・権限エラーは「解決不能な引用」として扱う (resolveCitations が file_not_found を記録する)
-        return null;
-      }
-    },
+    readTextFile,
   );
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
   const workspacePath = input.workspacePath ?? process.env['TRAIL_WORKSPACE_PATH'];
+  const gate = evaluateCoverageGate({
+    coverage: input.coverage,
+    citations: resolved,
+    targetPaths: input.target_paths,
+    severity: input.severity,
+    odd: resolveOddConfig({
+      workspacePath: workspacePath ?? process.cwd(),
+      homeDir: os.homedir(),
+      readFile: readTextFile,
+    }),
+  });
   const dbPath = resolveDbPath(workspacePath === undefined ? {} : { workspacePath });
   const opened = await openTrailDb(dbPath, 'readwrite');
   try {
@@ -68,10 +94,11 @@ export async function handleRecordDoctrineJudgment(
       judgment: input.judgment,
       coverage: input.coverage,
       citations: resolved,
+      gate,
       ...(input.judged_at === undefined ? {} : { judgedAt: input.judged_at }),
     });
     opened.save();
-    return { ...result, citations: resolved };
+    return { ...result, citations: resolved, gate };
   } finally {
     opened.close();
   }
