@@ -38,7 +38,18 @@ const REVALIDATE = 3600;
 
 export async function GET() {
     try {
-        const apiKey = process.env.GUARDIAN_API_KEY ?? 'test';
+        const apiKey = process.env.GUARDIAN_API_KEY?.trim();
+        if (!apiKey) {
+            // 旧実装はダミーキー 'test' へフォールバックしていたが、Guardian は 401 を返すため
+            // 「設定漏れ」が「上流障害(502)」として報告され、原因の切り分けができなかった。
+            console.error(
+                `[${new Date().toISOString()}] [ERROR] [/api/news] GUARDIAN_API_KEY が未設定です`,
+            );
+            return NextResponse.json(
+                { error: 'GUARDIAN_API_KEY is not configured' },
+                { status: 503 },
+            );
+        }
 
         const url = new URL('https://content.guardianapis.com/search');
         url.searchParams.set('section', 'world|politics|business|us-news');
