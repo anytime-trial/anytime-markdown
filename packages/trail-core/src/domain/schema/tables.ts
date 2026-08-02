@@ -789,4 +789,28 @@ export const CREATE_ACCEPTANCE_RECORDS = `CREATE TABLE IF NOT EXISTS acceptance_
 
 export const CREATE_ACCEPTANCE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_acceptance_records_decided_at ON acceptance_records(decided_at)`,
+]
+
+// ドクトリン接地判断の並走記録 (D1)。中間承認の直前のエージェント判断と人の判断を
+// 突合し一致率を計測する。session_id は sessions(id) への FK を張らない
+// (セッション取込は import ラグで数十分遅延し、判断記録が先行するため)。
+export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_judgments (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  agent_judgment TEXT NOT NULL CHECK (agent_judgment IN ('approve', 'reject', 'escalate')),
+  coverage TEXT NOT NULL CHECK (coverage IN ('covered', 'silent', 'conflict', 'odd_out')),
+  citations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(citations_json)),
+  citation_count INTEGER NOT NULL DEFAULT 0,
+  resolved_count INTEGER NOT NULL DEFAULT 0,
+  human_decision TEXT CHECK (human_decision IS NULL OR human_decision IN ('approve', 'reject', 'modified')),
+  judged_at TEXT NOT NULL CHECK (judged_at GLOB ${TS_GLOB_MS} OR judged_at GLOB ${TS_GLOB_NO_MS}),
+  decided_at TEXT CHECK (decided_at IS NULL OR decided_at GLOB ${TS_GLOB_MS} OR decided_at GLOB ${TS_GLOB_NO_MS}),
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  UNIQUE (session_id, subject)
+) STRICT`
+
+export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON doctrine_judgments(judged_at)`,
 ];
