@@ -196,6 +196,71 @@ describe('doctrineJudgments', () => {
     expect(getDoctrineAgreementDirect(db).canonGroundedRate).toBe(0);
   });
 
+  it('ゲート判定を保存し、代行可能率を集計する（DCT-10〜12）', () => {
+    recordDoctrineJudgmentDirect(db, {
+      ...judgment({ subject: '代行可' }),
+      gate: { verdict: 'delegable', reasons: [] },
+    });
+    recordDoctrineJudgmentDirect(db, {
+      ...judgment({ subject: '代行不可' }),
+      gate: { verdict: 'escalate', reasons: ['severity_high'] },
+    });
+    const row = db
+      .prepare(`SELECT gate_verdict, gate_reasons_json FROM doctrine_judgments WHERE subject = ?`)
+      .get('代行不可') as { gate_verdict: string; gate_reasons_json: string };
+    expect(row.gate_verdict).toBe('escalate');
+    expect(JSON.parse(row.gate_reasons_json)).toEqual(['severity_high']);
+    expect(getDoctrineAgreementDirect(db).delegableRate).toBe(0.5);
+  });
+
+  it('ゲート未評価のレコードは代行可能率の分母から除く', () => {
+    recordDoctrineJudgmentDirect(db, judgment({ subject: 'ゲートなし' }));
+    expect(getDoctrineAgreementDirect(db).delegableRate).toBeNull();
+
+    recordDoctrineJudgmentDirect(db, {
+      ...judgment({ subject: 'ゲートあり' }),
+      gate: { verdict: 'delegable', reasons: [] },
+    });
+    expect(getDoctrineAgreementDirect(db).delegableRate).toBe(1);
+  });
+
+  it('gate 列を持たない旧スキーマの DB へ冪等に列追加する', () => {
+    const legacy = new BetterSqlite3(':memory:');
+    legacy.exec(`CREATE TABLE doctrine_judgments (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      agent_judgment TEXT NOT NULL,
+      coverage TEXT NOT NULL,
+      citations_json TEXT NOT NULL DEFAULT '[]',
+      citation_count INTEGER NOT NULL DEFAULT 0,
+      resolved_count INTEGER NOT NULL DEFAULT 0,
+      human_decision TEXT,
+      judged_at TEXT NOT NULL,
+      decided_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE (session_id, subject)
+    )`);
+    legacy
+      .prepare(
+        `INSERT INTO doctrine_judgments (session_id, subject, agent_judgment, coverage, judged_at, created_at, updated_at)
+         VALUES ('s', '旧行', 'approve', 'covered', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
+      )
+      .run();
+
+    ensureDoctrineJudgmentsTable(legacy);
+    ensureDoctrineJudgmentsTable(legacy);
+
+    const columns = (
+      legacy.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
+    ).map((c) => c.name);
+    expect(columns).toEqual(expect.arrayContaining(['gate_verdict', 'gate_reasons_json']));
+    const rows = legacy.prepare(`SELECT subject, gate_verdict FROM doctrine_judgments`).all();
+    expect(rows).toEqual([{ subject: '旧行', gate_verdict: null }]);
+    legacy.close();
+  });
+
   it('期間指定（since/until）で集計対象を絞れる', () => {
     recordDoctrineJudgmentDirect(db, { ...judgment({ subject: '過去' }), judgedAt: '2026-01-01T00:00:00.000Z' });
     recordDoctrineJudgmentDirect(db, { ...judgment({ subject: '現在' }), judgedAt: '2026-08-02T00:00:00.000Z' });

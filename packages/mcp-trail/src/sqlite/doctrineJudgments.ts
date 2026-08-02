@@ -4,6 +4,7 @@ import {
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
 } from '@anytime-markdown/trail-core';
 import type { ResolvedCitation } from '../doctrine/resolveCitations';
+import type { CoverageGateResult } from '../doctrine/coverageGate';
 
 export type AgentJudgment = 'approve' | 'reject' | 'escalate';
 export type Coverage = 'covered' | 'silent' | 'conflict' | 'odd_out';
@@ -16,6 +17,8 @@ export interface DoctrineJudgmentInput {
   readonly coverage: Coverage;
   readonly citations: ReadonlyArray<ResolvedCitation>;
   readonly judgedAt?: string;
+  /** カバレッジゲートの判定 (DCT-10〜12)。未評価なら省略し、列は NULL のままにする */
+  readonly gate?: CoverageGateResult;
 }
 
 export interface DoctrineJudgmentRecordResult {
@@ -46,16 +49,46 @@ export interface DoctrineAgreementMetrics {
    * 依存した判断は代行根拠にならないため、D2 昇格ゲートは本指標を併せて見る。
    */
   readonly canonGroundedRate: number | null;
+  /**
+   * 代行可能率 (DCT-10〜12)。カバレッジゲートが `delegable` と判定した割合。分母は
+   * ゲート判定を持つレコードのみ (ゲート導入前のレコードは判定していないため除く)。
+   * D2 昇格時に「どれだけの What 承認が代行に置き換わるか」の見積りになる。
+   */
+  readonly delegableRate: number | null;
 }
 
 /**
  * テーブルは拡張 (TrailDatabase) 側でも作成されるが、拡張の再ビルド・再配布より
  * 先に本ツールが動けるよう、書込前に冪等作成する (DDL は trail-core が単一の正)。
  */
+/**
+ * テーブル本体より後に追加した列。既存 DB には ALTER TABLE で足す (純追加・既存行は
+ * NULL のまま)。DDL は trail-core の CREATE 文と同じ制約を書き写す。
+ */
+const ADDED_COLUMNS: ReadonlyArray<{ readonly name: string; readonly ddl: string }> = [
+  {
+    name: 'gate_verdict',
+    ddl: `ALTER TABLE doctrine_judgments ADD COLUMN gate_verdict TEXT CHECK (gate_verdict IS NULL OR gate_verdict IN ('delegable', 'escalate'))`,
+  },
+  {
+    name: 'gate_reasons_json',
+    ddl: `ALTER TABLE doctrine_judgments ADD COLUMN gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json))`,
+  },
+];
+
 export function ensureDoctrineJudgmentsTable(db: Database): void {
   db.exec(CREATE_DOCTRINE_JUDGMENTS);
   for (const idx of CREATE_DOCTRINE_JUDGMENT_INDEXES) {
     db.exec(idx);
+  }
+  const columns = db.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{
+    name: string;
+  }>;
+  const existing = new Set(columns.map((column) => column.name));
+  for (const column of ADDED_COLUMNS) {
+    if (!existing.has(column.name)) {
+      db.exec(column.ddl);
+    }
   }
 }
 
@@ -78,14 +111,17 @@ export function recordDoctrineJudgmentDirect(
   db.prepare(
     `INSERT INTO doctrine_judgments (
        session_id, subject, agent_judgment, coverage, citations_json,
-       citation_count, resolved_count, judged_at, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       citation_count, resolved_count, gate_verdict, gate_reasons_json,
+       judged_at, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(session_id, subject) DO UPDATE SET
        agent_judgment = excluded.agent_judgment,
        coverage = excluded.coverage,
        citations_json = excluded.citations_json,
        citation_count = excluded.citation_count,
        resolved_count = excluded.resolved_count,
+       gate_verdict = excluded.gate_verdict,
+       gate_reasons_json = excluded.gate_reasons_json,
        judged_at = excluded.judged_at,
        human_decision = NULL,
        decided_at = NULL,
@@ -98,6 +134,8 @@ export function recordDoctrineJudgmentDirect(
     JSON.stringify(input.citations),
     citationCount,
     resolvedCount,
+    input.gate === undefined ? null : input.gate.verdict,
+    input.gate === undefined ? null : JSON.stringify(input.gate.reasons),
     judgedAt,
     now,
     now,
@@ -181,7 +219,7 @@ export function getDoctrineAgreementDirect(
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
   const rows = db
     .prepare(
-      `SELECT agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json FROM doctrine_judgments${where}`,
+      `SELECT agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, gate_verdict FROM doctrine_judgments${where}`,
     )
     .all(...params) as Array<{
     agent_judgment: AgentJudgment;
@@ -190,6 +228,7 @@ export function getDoctrineAgreementDirect(
     citation_count: number;
     resolved_count: number;
     citations_json: string;
+    gate_verdict: 'delegable' | 'escalate' | null;
   }>;
 
   const total = rows.length;
@@ -209,6 +248,8 @@ export function getDoctrineAgreementDirect(
   const citationResolved = rows.reduce((sum, r) => sum + r.resolved_count, 0);
   const coveredRows = rows.filter((r) => r.coverage === 'covered');
   const canonGrounded = coveredRows.filter((r) => hasCanonCitation(r.citations_json)).length;
+  const gatedRows = rows.filter((r) => r.gate_verdict !== null);
+  const delegable = gatedRows.filter((r) => r.gate_verdict === 'delegable').length;
 
   return {
     total,
@@ -218,5 +259,6 @@ export function getDoctrineAgreementDirect(
     escalationRate: total > 0 ? escalations / total : null,
     citationResolutionRate: citationTotal > 0 ? citationResolved / citationTotal : null,
     canonGroundedRate: coveredRows.length > 0 ? canonGrounded / coveredRows.length : null,
+    delegableRate: gatedRows.length > 0 ? delegable / gatedRows.length : null,
   };
 }
