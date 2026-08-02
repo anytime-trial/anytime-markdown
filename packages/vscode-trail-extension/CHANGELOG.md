@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.40.1] - 2026-08-01
+
+### Changed
+
+- Bundled skill updates: `anytime-dev-retro` took in three retrospective proposals, and `anytime-proposal` was renamed to `anytime-analysis`.
+
+### Trail Core (trail-core / trail-server / trail-viewer)
+
+- trail-viewer のミニマップ定数を graph-core と共有
+- jest の兄弟ソースマップを `exports` から導出（テスト基盤のみ）
+
 ## [0.40.0] - 2026-07-30
 
 ### Added

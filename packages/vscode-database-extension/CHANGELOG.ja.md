@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-08-01
+
+### 変更
+
+- 更新後のビューアバンドルで再ビルドした。
+
+### Database Core (database-core / database-viewer)
+
+- database-viewer のスタイル注入を ui-core の `ensureStyle` へ集約
+
 ## [0.3.5] - 2026-07-30
 
 ### 修正

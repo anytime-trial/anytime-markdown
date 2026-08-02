@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-08-01
+
+### Changed
+
+- The webview's import bridge and theme wiring now follow the editor packages' new purpose-specific subpath surface.
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- パッケージを `markdown-viewer` → `markdown-editor`、`markdown-rich` → `markdown-rich-editor` へ改名（破壊的変更）
+- 公開面を用途別 subpath へ整理し、catch-all exports を `internal/*` へ隔離
+- スタイル注入・translator 解決・SSR 安全化基底・chrome トークン供給を ui-core へ集約
+
 ## [1.18.0] - 2026-07-30
 
 ### Changed
@@ -18,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The webview no longer requests Google Fonts. The webview CSP (`style-src ${webview.cspSource} 'unsafe-inline'`) does not allow external CDNs, so the request was always blocked; preset fonts now fall back to system fonts. Theme application moved to a dedicated `webviewTheme` module so a unit test can hold the invariant.
 - `ts-loader`'s `configFile` is now an absolute path, removing intermittent build failures where the parent-directory lookup picked up the root `tsconfig`.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Google Fonts の `<link>` を再適用のたびに取り除くようにした
 - 埋め込みの共起ネットワーク図が共起の向き・時間軸・要素メモに対応
@@ -33,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - `startDocIngest` invoked via a command no longer skips its first ingest run. The runner's own startup `runOnce` and the command handler's follow-up `runOnce` were racing on the same `running` guard, causing `regenerateDocIndexes` to report a spurious failure warning and `rebuildDocIndex` to skip its second run.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Added an `initialMode` option so the host can specify the startup mode explicitly.
 - Added the cooccurrence-network diagram type shared with anytime-graph.
@@ -46,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The bundled-skill installer now copies directories recursively, so multi-file skills install correctly.
 - Bundled skill `anytime-doc-authoring` gained writing standards for Japanese technical documents, and three review findings were addressed (stale skill references, template headings, source licensing).
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Screenmock edit dialog gained a right-hand edit panel (parts, attributes, structure, screens) with variants, color tokens, offsets, drag-to-insert, hierarchy tree, screen management, snippets, templates, presets, reordering, alignment and zoom.
 - Screenmock design editing supports drag reordering and Alt free placement.
@@ -54,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.15.0] - 2026-07-17
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Screenmock fenced blocks: an interactive screen mockup fence with navigation, transitions and a component vocabulary, plus a design edit mode (mouse resize + write-back to source) and a slash-command insertion item. Includes cross-review fixes (9 items).
 
@@ -64,13 +76,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - The bundled MCP server (`mcp-markdown`) enforces Section Lock on its write tools: edits touching a locked heading section are rejected as a second enforcement layer.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Section Lock: heading sections can be locked as "final", with outline lock/unlock buttons and frontmatter persistence (FR-8.3). Includes fixes for outline button display, frontmatter auto-expansion and a mount failure on locked documents.
 
 ## [1.13.4] - 2026-07-16
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Updated the privacy policy strings consumed by the web app. No functional change to the extension itself.
 
@@ -86,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Updated the bundled `anytime-doc-authoring` skill so its delegation reference points at `anytime-dev-cycle` (skill manifest bumped, so the skill is re-deployed on activation).
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Fixed the markdown preview in fenced code blocks not following the editor body-width setting.
 
@@ -139,7 +151,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.10.0] - 2026-07-09
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Added `DriveFileSystemProvider` for opening and saving Google Drive Markdown files with revision-based conflict detection.
 - Added shared pure helpers for Google Drive API requests and page capture.
@@ -151,7 +163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Added a workspace-trust guard and brought Disposable handling and logging into line with the project conventions.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Fixed vanilla-UI logic, editor-state subscription, and error-surfacing regressions; theme-tokenized diff colors.
 - Fixed the PlantUML encoder; sanitized KaTeX / print SVG; symmetrized web-import sanitization with origin validation.
@@ -167,7 +179,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - "Claude is editing" banner sometimes failed to clear; added a stale-state safety net and per-file lock delivery.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Thinking-method diagrams: structure-map diagram type, in-place inline label editing, and DSL-derived label editing (structure-map summaries, causal-loop polarity).
 - Mindmaps switched to a FreeMind-style layout; child-node overlap fixed.
@@ -179,7 +191,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Web page import: fetch a URL in the extension host with an SSRF-guarded fetch (manual redirect re-validation, content-type/size/timeout limits) and import it as Markdown — inserted at the cursor (`/web`) or opened as a new untitled document (toolbar).
 
-### Editor Core (markdown-viewer)
+### Editor Core (markdown-editor)
 
 - Web page import (Readability + Turndown) via slash command and toolbar, with YAML-safe frontmatter.
 
@@ -195,7 +207,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Wire the webview `Ctrl+S` to the host save handler (it was falling back to a "Save As" download dialog).
 - Wire `vscodeApi` into the webview mount.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - mdEmbed transclusion (inline-editable embedded Markdown links), a `link` slash command, comparison-mode minimap diff markers, the restored change-overview minimap, and several change-gutter / search-bar / mdEmbed save-integrity fixes.
 
@@ -215,13 +227,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Removed the unused `anytimeMarkdown.editorMaxWidth` setting (it was never applied by the editor).
 - Removed the `anytimeMarkdown.claudeStatus.directory` setting. Claude Code editing status is now read from the agent-status worker (DB), so the old `claude-code-status.json` file path is no longer used.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Removed the spell-check feature; source mode now wraps on narrow widths; image crop edit goes full-screen; table inline-toolbar ops moved into the edit dialog; `embed-all` template gains Anytime Chart / Thinking Diagram sections; HTML edit live preview and code-block preview highlighting restored.
 
 ## [1.5.1] - 2026-06-23
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Wide tables now scroll horizontally on narrow viewports (the table wrapper is rendered by default).
 
@@ -244,7 +256,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `search_docs` excerpts/snippets and `get_section` `maxChars`; section-granular FTS.
 - Heading blank-line convention changed from 2 to 1 line above (formatting rule update).
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Extract vanilla UI primitives into `@anytime-markdown/ui-core`.
 - `anytime-chart`: combo-stacked / combo-area / markers samples; chart-core bottom legend, drill-down, pie centering.
@@ -260,7 +272,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Hardened the `related` frontmatter read/write path (pre-merge review fixes).
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Bundled `chart-core`; `anytime-chart` fences render as `<anytime-chart>` Web Components with 9 chart types, DPR correction, hover tooltips, and a11y. Added a Table tab to the chart edit dialog and a `chart` slash command.
 - Added a body-measure width switcher (Focused / Standard / Wide) using em-based presets for improved readability.
@@ -273,7 +285,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Added a note graph panel in the editor's right rail (Outline-style): document-centric view with backlinks, mouse-draggable width, and a pin (keep-open) option that opens the note graph on startup across files.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Frontmatter-derived note graph viewer and in-preview WYSIWYG editing for thinking-method diagrams.
 - Source-mode line-number gutter; `.md` drop-to-open on the content area and compare-mode left pane.
@@ -286,7 +298,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Switched the extension icon to the new camel branding.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Added the `anytime-markdown-view` Web Component (React-free read-only custom element) and an inline font/theme `viewerToolbar` in the read-only view.
 - Hardened the Web Component base class for SSR/Node safety.
@@ -298,7 +310,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Upgraded TypeScript to 6.0.3 (build toolchain update).
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Aligned editor body design with the design-system spec; changed the default body measure to 1000 px.
 - Accessibility improvements: 44 px touch targets, unified focus rings, extended font-size cap.
@@ -311,7 +323,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Bundled the React-free editor core. The webview now boots from a vanilla bootstrap with React fully removed from the extension bundle, reducing bundle size.
 - Reflect VS Code language changes via an `editorKey` remount.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Fully removed React from the editor core: all NodeViews and chrome are now native/vanilla. The legacy React implementation (136 src / 27 css / 148 tests) and the `markdown-react` package were removed.
 - React islands (embed/graph previews) split into the separate `markdown-react-islands` package; viewer/rich cores are React-free.
@@ -323,9 +335,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Bundled the rewritten editor core that fully drops MUI in favor of an in-house UI primitive kit (no extension-facing behavior change).
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
-- Removed all `@mui/material` / `@mui/icons-material` usage from the editor chrome and `markdown-rich`, replacing it with an in-house `ui/` primitive kit and vendored icons (MUI reduction Phase 3a/3b).
+- Removed all `@mui/material` / `@mui/icons-material` usage from the editor chrome and `markdown-rich-editor`, replacing it with an in-house `ui/` primitive kit and vendored icons (MUI reduction Phase 3a/3b).
 - Replaced MUI `GlobalStyles` / `useTheme` / `useMediaQuery` with a stylis-based `ui/GlobalStyle`, `ThemeModeContext` (`useIsDark`), and an in-house media-query hook; dropped `@mui/*` and `@emotion/*` from peer dependencies.
 - Fixed compare-mode imageRow badge layout.
 
@@ -339,7 +351,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Unified the heading border to the design-spec sumi (ink) color.
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Extracted the framework-agnostic `diffEngine` / sanitize cluster into the new `@anytime-markdown/markdown-engine` package and made `sanitizeMarkdown` DOM-agnostic.
 - Extracted shared editor theme CSS variable injector and Tiptap content-style composer; unified compare-mode styles with the normal editor.
@@ -348,11 +360,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.16.0] - 2026-05-31
 
-### Editor Core (markdown-viewer / markdown-rich)
+### Editor Core (markdown-editor / markdown-rich-editor)
 
 - Replaced the `@tiptap/*` npm dependencies with vendored Tiptap v3.20.0 sources under the `@anytime-markdown/markdown-*` namespace, removing the external Tiptap supply chain.
-- Split the rich code-block cluster (diagrams, dark-mode PDF rendering) into the new `@anytime-markdown/markdown-rich` package; `markdown-viewer` exposes the shared API it consumes.
-- Renamed the editor core package to `@anytime-markdown/markdown-viewer` (the former `markdown-core` name now hosts the vendored Tiptap sources).
+- Split the rich code-block cluster (diagrams, dark-mode PDF rendering) into the new `@anytime-markdown/markdown-rich-editor` package; `markdown-editor` exposes the shared API it consumes.
+- Renamed the editor core package to `@anytime-markdown/markdown-editor` (the former `markdown-core` name now hosts the vendored Tiptap sources).
 
 ## [0.15.6] - 2026-05-27
 

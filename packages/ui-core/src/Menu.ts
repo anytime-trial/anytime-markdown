@@ -70,6 +70,13 @@ export interface CreateMenuOptions {
   paperStyle?: Partial<CSSStyleDeclaration>;
   /** aria-label。 */
   ariaLabel?: string;
+  /**
+   * ポータル先（既定 `document.body`）。`--am-color-*` トークンを自ルートへスコープする host
+   * （graph-viewer 等）は、トークンが届く要素を渡す。overlay は position:fixed のため、祖先に
+   * transform / filter 等の containing block を作る要素が無い場所を渡すこと（Dialog / Popover /
+   * Select の `portalTarget` と同じ契約）。
+   */
+  portalTarget?: HTMLElement;
 }
 
 /**
@@ -93,9 +100,9 @@ function resolveReference(
  * floating ul(role=menu)（createFloating）+ MenuList の矢印キー state machine（↑↓ / Home / End /
  * Enter / Esc）+ Tab で閉じる + 初期フォーカス（最初の menuitem）/ 直前フォーカス復帰（createFocusTrap）。
  *
- * 返り値の `el`（backdrop + ul を内包する wrapper・createPortal フラグメント相当）を `document.body`
- * 等へ append すると開く。`destroy()` で listener 解除・autoUpdate 解除・MenuList 破棄・focusTrap
- * release（直前フォーカス復帰）・el の取り外しを行う。
+ * 生成時に `portalTarget`（既定 `document.body`）へ自前マウントして開く（呼び元は append 不要）。
+ * `destroy()` で listener 解除・autoUpdate 解除・MenuList 破棄・focusTrap release（直前フォーカス
+ * 復帰）・el の取り外しを行う。
  *
  * - backdrop の click / contextmenu で `onClose`（Menu.tsx backdrop onClick / onContextMenu 相当）。
  * - menu(ul) の keydown: ↑↓ / Home / End で項目移動（MenuList・DOM フォーカスで表現）、Enter/Space で
@@ -140,10 +147,11 @@ export function createMenu(opts: CreateMenuOptions): {
   el.appendChild(backdrop);
   el.appendChild(menu);
 
-  // ポータルとして document.body へ自前マウントする（backdrop + position:fixed のオーバーレイ）。
-  // 接続前に focus すると no-op になる（detached focus はブラウザ/jsdom 共に効かない）ため、
-  // 初期フォーカス（後段の setActiveIndex / focusTrap）より前に必ず接続しておく。destroy で取り外す。
-  document.body.appendChild(el);
+  // ポータルとして portalTarget（既定 document.body）へ自前マウントする（backdrop +
+  // position:fixed のオーバーレイ）。接続前に focus すると no-op になる（detached focus は
+  // ブラウザ/jsdom 共に効かない）ため、初期フォーカス（後段の setActiveIndex / focusTrap）より
+  // 前に必ず接続しておく。destroy で取り外す。
+  (opts.portalTarget ?? document.body).appendChild(el);
 
   // 背景クリック / 右クリックで閉じる（Menu.tsx backdrop onClick / onContextMenu 相当）。
   const onBackdropClick = (): void => onClose();

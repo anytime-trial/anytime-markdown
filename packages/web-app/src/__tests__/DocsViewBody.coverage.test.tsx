@@ -29,7 +29,7 @@ jest.mock("../app/components/MarkdownViewer", () => ({
   __esModule: true,
   default: (props: any) => (
     <div
-      data-testid="markdown-viewer"
+      data-testid="markdown-editor"
       data-doc-key={props.docKey}
       data-locale-map={props.docKeyByLocale ? JSON.stringify(props.docKeyByLocale) : ""}
     />
@@ -63,7 +63,7 @@ describe("DocsViewBody - en.md key", () => {
   it("resolves en.md key and passes ja locale map", () => {
     mockSearchParams = new URLSearchParams("key=docs/test/test.en.md");
     render(<DocsViewBody />);
-    const viewer = screen.getByTestId("markdown-viewer");
+    const viewer = screen.getByTestId("markdown-editor");
     expect(viewer.getAttribute("data-doc-key")).toBe("docs/test/test.en.md");
     const localeMap = JSON.parse(viewer.getAttribute("data-locale-map") || "{}");
     expect(localeMap.ja).toBe("docs/test/test.ja.md");
@@ -74,7 +74,7 @@ describe("DocsViewBody - folder key", () => {
   it("resolves folder key to locale-specific file", () => {
     mockSearchParams = new URLSearchParams("key=docs/guide/");
     render(<DocsViewBody />);
-    const viewer = screen.getByTestId("markdown-viewer");
+    const viewer = screen.getByTestId("markdown-editor");
     expect(viewer.getAttribute("data-doc-key")).toBe("docs/guide/guide.ja.md");
     const localeMap = JSON.parse(viewer.getAttribute("data-locale-map") || "{}");
     expect(localeMap.en).toBe("docs/guide/guide.en.md");
@@ -85,7 +85,7 @@ describe("DocsViewBody - no locale suffix key", () => {
   it("resolves key without locale suffix as-is", () => {
     mockSearchParams = new URLSearchParams("key=docs/readme.md");
     render(<DocsViewBody />);
-    const viewer = screen.getByTestId("markdown-viewer");
+    const viewer = screen.getByTestId("markdown-editor");
     expect(viewer.getAttribute("data-doc-key")).toBe("docs/readme.md");
     // No locale map for non-locale-suffixed keys
     expect(viewer.getAttribute("data-locale-map")).toBe("");

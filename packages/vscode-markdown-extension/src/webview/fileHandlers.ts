@@ -10,7 +10,7 @@
  * ここで `onSaveFile` を extension host への `save` メッセージへ配線することで、
  * host 側の `ctx.document.save()`（既存ファイルへダイアログ無しで保存）に繋ぐ。
  */
-import type { ToolbarFileHandlers } from '@anytime-markdown/markdown-viewer/src/types/toolbar';
+import type { ToolbarFileHandlers } from '@anytime-markdown/markdown-editor/types/toolbar';
 
 /** extension host へメッセージを送る関数（`vscode.postMessage` 相当）。 */
 export type PostMessage = (message: { type: string; [key: string]: unknown }) => void;

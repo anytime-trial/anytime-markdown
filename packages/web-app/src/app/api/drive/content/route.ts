@@ -8,7 +8,7 @@ import {
   buildDriveUpdateRequest,
   type DriveFileMeta,
   type DriveRequest,
-} from "@anytime-markdown/markdown-viewer/fs/drive-client";
+} from "@anytime-markdown/markdown-editor/fs/drive-client";
 
 /** Drive API へのリクエストを実行する。fetch 実行そのものはここでのみ行う。 */
 function driveFetch(token: string, req: DriveRequest): Promise<Response> {

@@ -38,9 +38,15 @@
 
 - **discovery 順序（mcp-trail discovery ツール優先）**: 構造・依存・所在の探索は (1) どこから読むか＝`get_important_files`（filter: central/dead/barrel/risky）→ (2) 影響範囲＝`get_code_dependencies`（filePath 可・incoming/outgoing）/ シンボル所在＝`query_code_graph`（検索専用・既定 summary）/ 接続経路＝`find_code_path` / 共変更＝`get_cochange_partners` → Serena（本文）→ Read（編集箇所）の順（原則は global `~/.claude/CLAUDE.md`「discovery の順序」）。`current_code_graphs.graph_json` の丸読み（約43万トークン）と `list_relationships` の影響範囲用途は禁止（後者は手動 C4 専用。影響範囲は `get_code_dependencies` を使う）。TrailDataServer 稼働が前提（未起動時はエラー）。
 
-## 並行セッション検知
+## 並行セッション検知（airspace）
 
-- worktree 作成や長時間タスク開始前に `/anytime-markdown/.vscode/claude-code-status-*.json` の `timestamp` を確認。自身以外のセッションが ACTIVE（5 分以内）で別ブランチを触っているなら worktree 採用、同一ブランチで動いているなら衝突回避のためユーザーに確認。
+- **台帳は `<git-common-dir>/anytime/claims/*.json`**（既定構成での実体は `/anytime-markdown/.git/anytime/claims/`）。全 worktree で共有される。1 セッション 1 ファイルで `sessionId` / `pid` / `starttime` / `worktree` / `branch` / `updatedAt` を持つ。
+- **生存判定は `updatedAt` ではなくプロセス実在**（`packages/agent-core/src/status/airspace.ts` の `isClaimLive`）。`/proc/<pid>` の実在・`comm` が claude・非ゾンビ・`starttime` 一致の 4 条件をすべて満たすものだけを生存クレームとして数える。**`updatedAt` が数時間古くても、プロセスが生きていれば衝突相手である**（アイドル中のセッションを「終了済み」と誤判定しないこと）。
+- **判定の単位は worktree**（ブランチ名ではない）。SessionStart ゲート（`evaluateSessionStartGate`）は、自分と**同一の worktree** を持つ別の生存クレームがあれば警告する。
+- worktree 作成や長時間タスク開始前に `claims/` を確認する。自分以外の生存クレームが同一 worktree を保持していれば、相手の終了を待つか `git worktree add` で作業領域を分離する。別 worktree なら衝突しない。
+- Bash ゲート（`evaluateBashGate`）は破壊的 git を分類し、対象ディレクトリに他者の生存クレームがあれば作業ツリー破棄系は deny、それ以外は warn を返す。`git worktree remove` は対象 worktree の保持者がいれば deny。
+- 脱出口はコマンド行の `ANYTIME_AIRSPACE=off`（フックの `process.env` には届かないため環境変数ではなくコマンド行に置く）。ユーザー確認済みの場合のみ使う。
+- **既知の罠**: `/clear` は `sessionId` だけを変え pid は生き続けるため、単独作業でも自分の旧クレームと衝突して永久 deny になり得る。その場合は旧クレームファイルの削除を検討する。
 
 ## プロジェクト固有ルール
 
@@ -53,7 +59,7 @@
 | `screen-design` | UI / 画面コンポーネントの実装・修正時 |
 | `sqlite-table-definition-trail-core` | SQLite テーブル定義の新規作成・変更・マイグレーション時（trail-core 固有補足。汎用ルールは global スキル `sqlite-table-definition`） |
 | `anytime-trail-review` | コードレビュー結果の出力時（trail memory-core ingest 対応書式） |
-| `vanilla-ui-conventions` | 脱React vanilla UI（markdown-viewer）・エディタ状態購読の実装・修正時 |
+| `vanilla-ui-conventions` | 脱React vanilla UI（markdown-editor）・エディタ状態購読の実装・修正時 |
 | `production-release` | 本番リリース（拡張機能の vsix 作成・Marketplace 公開・バージョン bump）時。anytime-markdown 固有のパッケージ系統・CI 配線に特化（global から移設） |
 | `deploy-cms-remote` | `packages/mcp-cms-remote`（Cloudflare Workers）のデプロイ時。当該パッケージ専用（global から移設） |
 

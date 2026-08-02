@@ -3,6 +3,7 @@ import { worldToScreen } from '../viewport/viewport';
 
 export interface LabelBox {
   nodeIndex: number;
+  layer: number;
   text: string;
   x: number;
   y: number;
@@ -38,6 +39,7 @@ export function selectVisibleLabels(
     const height = fontSize + padding * 2;
     const candidate: LabelBox = {
       nodeIndex: node.index,
+      layer: node.layer,
       text: node.label,
       x: center.x - width / 2,
       y: center.y - height / 2,

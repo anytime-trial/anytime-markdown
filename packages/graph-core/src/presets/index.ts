@@ -68,9 +68,15 @@ export type {
   CooccurrenceTimeline,
 } from './cooccurrenceTimeline';
 export { filterCooccurrenceFile } from './cooccurrenceFilter';
-export type { CooccurrenceFilterOptions, CooccurrenceFilterCounts, CooccurrenceFilterResult } from './cooccurrenceFilter';
+export type {
+  CooccurrenceFilterOptions,
+  CooccurrenceFilterCounts,
+  CooccurrenceFilterResult,
+  CooccurrenceSubclusterRef,
+} from './cooccurrenceFilter';
 export {
   addCooccurrenceNode,
+  addCooccurrenceNodeWithLink,
   deleteCooccurrenceNode,
   renameCooccurrenceNode,
   setCooccurrenceNodeFrequency,
@@ -100,6 +106,7 @@ export {
 export type {
   CooccurrenceEditResult,
   CooccurrenceNodeInput,
+  CooccurrenceNodeWithLinkInput,
   CooccurrenceNodeSliceRef,
   CooccurrenceLinkSliceRef,
 } from './cooccurrenceEdit';

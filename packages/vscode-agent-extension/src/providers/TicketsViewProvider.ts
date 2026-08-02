@@ -41,12 +41,6 @@ export class TicketsViewProvider implements vscode.TreeDataProvider<TicketsActio
         'anytime-agent.tickets.open',
         'カンバンボードをエディタタブで開く',
       ),
-      new TicketsActionItem(
-        'リポジトリとブランチを選択',
-        'repo',
-        'anytime-agent.tickets.selectRepo',
-        'チケットの保存先を切り替える',
-      ),
     ];
   }
 

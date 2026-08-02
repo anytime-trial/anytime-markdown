@@ -2,9 +2,9 @@
  * `<anytime-graph>` Custom Element — graph-core の vanilla `GraphView`（canvas レンダラ）を
  * フレームワーク非依存の Web Component で包む。
  *
- * mindmap-viewer の `MindmapViewerElement` と同じ anytime WC 規約に揃える。`GraphView` のみに依存し
- * React は一切含まない（配布対象 React/MUI フリーの不変条件）。mindmap-viewer が `GraphInput` を
- * 正規化して受けるのに対し、本要素は graph-core ネイティブの `GraphDocument` を直接受ける汎用版。
+ * anytime WC 規約（属性 I/F・property でのデータ受け渡し・composed イベント）に揃える。`GraphView`
+ * のみに依存し React は一切含まない（配布対象 React/MUI フリーの不変条件）。graph-core ネイティブの
+ * `GraphDocument` を直接受ける。
  *
  * I/F:
  * - 属性: `theme`（dark/light）/ `movable-nodes` / `collapsible` / `minimap`
@@ -13,6 +13,8 @@
  * - メソッド: `fitToContent()` / `toPng(scale)`
  */
 
+import { HTMLElementBase } from "@anytime-markdown/ui-core/ssrSafeElement";
+
 import type { GraphDocument } from "./types";
 import { GraphView } from "./viewer/index";
 
@@ -20,15 +22,6 @@ import { GraphView } from "./viewer/index";
 export interface GraphNodeClickDetail {
   id: string;
 }
-
-/**
- * SSR/Node 安全化: `HTMLElement` 未定義環境でも class 定義時に ReferenceError を投げないよう
- * ダミー基底へフォールバックする。実際の登録・動作はブラウザでのみ行う。
- */
-const HTMLElementBase: typeof HTMLElement =
-  typeof HTMLElement !== "undefined"
-    ? HTMLElement
-    : (class {} as unknown as typeof HTMLElement);
 
 export class AnytimeGraphElement extends HTMLElementBase {
   static get observedAttributes(): string[] {
@@ -133,7 +126,7 @@ export class AnytimeGraphElement extends HTMLElementBase {
     if (!this.canvas) return;
     const rect = this.getBoundingClientRect();
     // 文字を鮮明に保つ: backing を整数 device px に丸め、表示 CSS を backing/dpr に固定する
-    // （MindmapViewerElement と同一の DPR 補正）。
+    // （AnytimeChartElement.syncCanvasSize と同一の補正。片方を変えたら両方を合わせる）。
     const dpr = globalThis.devicePixelRatio || 1;
     const backingW = Math.max(1, Math.round(rect.width * dpr));
     const backingH = Math.max(1, Math.round(rect.height * dpr));

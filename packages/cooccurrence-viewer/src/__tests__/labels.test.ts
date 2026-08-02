@@ -24,8 +24,8 @@ function node(index: number, label: string, x: number, frequency: number): Rende
 describe('label placement', () => {
   it('detects overlap between label boxes', () => {
     expect(boxesOverlap(
-      { nodeIndex: 0, text: 'A', x: 0, y: 0, width: 20, height: 20, fontSize: 12 },
-      { nodeIndex: 1, text: 'B', x: 10, y: 10, width: 20, height: 20, fontSize: 12 },
+      { nodeIndex: 0, layer: 0, text: 'A', x: 0, y: 0, width: 20, height: 20, fontSize: 12 },
+      { nodeIndex: 1, layer: 0, text: 'B', x: 10, y: 10, width: 20, height: 20, fontSize: 12 },
     )).toBe(true);
   });
 

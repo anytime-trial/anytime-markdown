@@ -2,15 +2,15 @@
  * graph-viewer vanilla ContextMenu ファクトリ。
  *
  * React 実装 `components/ContextMenu.tsx` の DOM 版。
- * createMenu / createMenuItem / createListItemIcon / createListItemText / createDivider を使用。
+ * Menu / MenuItem は ui-core（graphMenu ラッパー経由）、ListItemIcon / ListItemText /
+ * Divider は uiCoreAdapters（ui-core 移行済み）を使用。
  */
 
+import { createMenuItem } from '@anytime-markdown/ui-core/MenuItem';
+
 import { createGraphT } from '../i18n/createGraphT';
-import { createDivider } from '../ui-vanilla/Divider';
-import { createListItemIcon } from '../ui-vanilla/ListItemIcon';
-import { createListItemText } from '../ui-vanilla/ListItemText';
-import { createMenu, type MenuHandle } from '../ui-vanilla/Menu';
-import { createMenuItem } from '../ui-vanilla/MenuItem';
+import { createGraphMenu, type GraphMenuHandle } from '../ui/graphMenu';
+import { divider, listItemIcon, listItemText } from '../ui/uiCoreAdapters';
 import {
   createContentCopyIcon,
   createContentPasteIcon,
@@ -40,6 +40,8 @@ export interface ContextMenuOptions {
   readonly onClose: () => void;
   readonly hasClipboard: boolean;
   readonly locale?: string;
+  /** メニューのポータル先。`--am-color-*` の届く graph ルート（またはその配下）を渡す。 */
+  readonly portalTarget: HTMLElement;
 }
 
 export interface ContextMenuHandle {
@@ -63,99 +65,105 @@ export function createContextMenu(opts: Readonly<ContextMenuOptions>): ContextMe
     onClose();
   };
 
+  // ui-core MenuItem はハンドル（{ el, update, destroy }）を返す。本メニューは開閉ごとに
+  // 使い捨てで update 不要のため el だけ取り出す（listener は el の GC と共に回収される）。
+  const menuItem = (o: Parameters<typeof createMenuItem>[0]): HTMLLIElement =>
+    createMenuItem(o).el;
+
   const items: Node[] = [];
 
   if (targetType === 'node') {
     items.push(
-      createMenuItem({
+      menuItem({
         onClick: () => handleAction('copy'),
         children: [
-          createListItemIcon({ children: createContentCopyIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('copy') }),
+          listItemIcon({ children: createContentCopyIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('copy') }),
         ],
       }),
-      createMenuItem({
+      menuItem({
         onClick: () => handleAction('paste'),
         disabled: !hasClipboard,
         children: [
-          createListItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('paste') }),
+          listItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('paste') }),
         ],
       }),
-      createMenuItem({
+      menuItem({
         onClick: () => handleAction('delete'),
         children: [
-          createListItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('delete') }),
+          listItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('delete') }),
         ],
       }),
-      createDivider(),
-      createMenuItem({
+      divider(),
+      menuItem({
         onClick: () => handleAction('bringToFront'),
         children: [
-          createListItemIcon({ children: createFlipToFrontIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('bringToFront') }),
+          listItemIcon({ children: createFlipToFrontIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('bringToFront') }),
         ],
       }),
-      createMenuItem({
+      menuItem({
         onClick: () => handleAction('sendToBack'),
         children: [
-          createListItemIcon({ children: createFlipToBackIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('sendToBack') }),
+          listItemIcon({ children: createFlipToBackIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('sendToBack') }),
         ],
       }),
-      createDivider(),
-      createMenuItem({
+      divider(),
+      menuItem({
         onClick: () => handleAction('group'),
         children: [
-          createListItemIcon({ children: createGroupWorkIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('group') }),
+          listItemIcon({ children: createGroupWorkIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('group') }),
         ],
       }),
-      createMenuItem({
+      menuItem({
         onClick: () => handleAction('ungroup'),
         children: [
-          createListItemIcon({ children: createDeblurIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('ungroup') }),
+          listItemIcon({ children: createDeblurIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('ungroup') }),
         ],
       }),
     );
   } else if (targetType === 'edge') {
     items.push(
-      createMenuItem({
+      menuItem({
         onClick: () => handleAction('delete'),
         children: [
-          createListItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('delete') }),
+          listItemIcon({ children: createDeleteIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('delete') }),
         ],
       }),
     );
   } else {
     // canvas
     items.push(
-      createMenuItem({
+      menuItem({
         onClick: () => handleAction('paste'),
         disabled: !hasClipboard,
         children: [
-          createListItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('paste') }),
+          listItemIcon({ children: createContentPasteIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('paste') }),
         ],
       }),
-      createMenuItem({
+      menuItem({
         onClick: () => handleAction('selectAll'),
         children: [
-          createListItemIcon({ children: createSelectAllIcon({ fontSize: 'small' }) }),
-          createListItemText({ children: t('selectAll') }),
+          listItemIcon({ children: createSelectAllIcon({ fontSize: 'small' }) }),
+          listItemText({ children: t('selectAll') }),
         ],
       }),
     );
   }
 
-  const menu: MenuHandle = createMenu({
+  const menu: GraphMenuHandle = createGraphMenu({
     anchorReference: 'anchorPosition',
     anchorPosition,
     onClose,
     children: items,
+    portalTarget: opts.portalTarget,
   });
 
   return menu;

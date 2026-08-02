@@ -9,7 +9,7 @@ import {
   type MarkdownNamespace,
   resolveLocale,
   type SupportedLocale,
-} from '@anytime-markdown/markdown-viewer/src/i18n/createMarkdownT';
+} from '@anytime-markdown/markdown-editor/i18n/translator';
 
 // 純粋ロジック（locale 解決 + translator 生成）は ./createMarkdownT が単一ソース。
 // 本ファイルは React context 結合部のみ（island 移設対象）。

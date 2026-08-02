@@ -201,7 +201,7 @@ describe('minimap and save tabs', () => {
     const names = [...container.querySelectorAll('.cooc-minimap__button')].map((element) =>
       element.getAttribute('aria-label'),
     );
-    expect(names).toEqual(['拡大', '縮小', '全体表示']);
+    expect(names).toEqual(['縮小', '拡大', '全体表示']);
 
     const canvas = container.querySelector('.cooc-minimap__canvas') as HTMLElement;
     expect(canvas.getAttribute('aria-label')).toBe('ミニマップ');
@@ -210,6 +210,20 @@ describe('minimap and save tabs', () => {
     expect(canvas.getAttribute('role')).toBe('application');
     // キーボードだけの利用者が到達できること。
     expect(canvas.tabIndex).toBe(0);
+    handle.destroy();
+  });
+
+  it('overlays the minimap controls on the map itself', () => {
+    // 操作ボタンは全体像の上に重ねる（C4 のミニマップと同じ置き方）。全体像の下へ 1 行として
+    // 並べ直すと、ボタン列がパネルの高さを取るぶん全体像が縮む。
+    const { container, handle } = mount(BOTH);
+
+    const frame = container.querySelector('.cooc-minimap__frame') as HTMLElement;
+    const buttons = container.querySelector('.cooc-minimap__buttons') as HTMLElement;
+    expect(buttons.parentElement).toBe(frame);
+    // 重ねる先が位置の基準を持たないと、ボタンはパネルの左上へ飛ぶ。
+    expect(getComputedStyle(frame).position).toBe('relative');
+    expect(getComputedStyle(buttons).position).toBe('absolute');
     handle.destroy();
   });
 

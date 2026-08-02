@@ -18,13 +18,13 @@ jest.mock("../app/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer", () => ({
+jest.mock("@anytime-markdown/markdown-editor", () => ({
   ACCENT_COLOR: "#e8a012",
 }));
 
 jest.mock("../app/components/MarkdownViewer", () => ({
   __esModule: true,
-  default: () => <div data-testid="markdown-viewer">Viewer</div>,
+  default: () => <div data-testid="markdown-editor">Viewer</div>,
 }));
 
 jest.mock("../app/components/SiteFooter", () => ({
@@ -72,7 +72,7 @@ describe("VsCodeBody", () => {
 
   it("renders markdown viewer", () => {
     render(<VsCodeBody />);
-    expect(screen.getByTestId("markdown-viewer")).toBeTruthy();
+    expect(screen.getByTestId("markdown-editor")).toBeTruthy();
   });
 
   it("renders header and footer", () => {

@@ -5,7 +5,7 @@
  * （要件: phase5-emergency-protocol-requirements.ja.md §22.1。サイドカー・本文マーカーは却下済み）。
  * YAML は本モジュールが emit する限定サブセットのみを扱う。lockedSections ブロックは
  * 機械管理であり、他の frontmatter キーには一切触れない。
- * gray-matter 等を使わないのは、ブラウザバンドル（markdown-viewer）で Buffer polyfill を
+ * gray-matter 等を使わないのは、ブラウザバンドル（markdown-editor）で Buffer polyfill を
  * 要求しないため。
  */
 

@@ -43,7 +43,13 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
     ],
   },
   { name: 'anytime-impl-test-design' },
-  { name: 'anytime-proposal' },
+  // 2026-07-30 に anytime-proposal からリネーム（提案書の生成から「分析と分析結果の出力
+  // （提案書 / 共起グラフ .cooc.json）」へ再定義し、共起グラフ出力モード §9 を統合）。
+  { name: 'anytime-analysis', oldNames: ['anytime-proposal'] },
+  // 株価・相場の変動要因に特化した共起グラフ（.cooc.json）の作成規約。調査項目・ノードの粒度・
+  // 4 カテゴリ × 2 クラスタの並び順・因果の向き・営業日スライス・誤読の型を持つ。
+  // 株価以外のテーマ向けの一般形は anytime-analysis §9 に残す。
+  { name: 'anytime-stock-cooccurrence', oldNames: ['anytime-cooccurrence'] },
   // チケット駆動自動実行（tick 自身が cron を自己確保する）。web-app /tickets とフォーマット正本を共有する。
   // 2026-07-17 に anytime-ticket-loop からリネーム（start / stop の対で名前を揃えた）。
   { name: 'anytime-loop-start', oldNames: ['anytime-ticket-loop'] },

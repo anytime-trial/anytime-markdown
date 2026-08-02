@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-01
+
+### Changed
+
+- Follows the renamed editor packages (`markdown-editor` / `markdown-rich-editor`) and their new subpath surface.
+- graph-viewer's vanilla UI components were migrated to `@anytime-markdown/ui-core`.
+
+### Removed
+
+- The `/mindmap` page, along with the `mindmap-viewer` package and its wiring.
+
+### Fixed
+
+- The cooccurrence page's mount no longer freezes on stale theme and locale values.
+- The co-occurrence filter slider no longer collapses its step to 0 when the range is narrow.
+- On high-DPI displays the OZ canvas no longer overflows and covers the right panel.
+
 ## [0.43.0] - 2026-07-30
 
 ### Changed
@@ -166,7 +183,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
-- Server-side SSRF guard (`assertSafeUrl`) and OGP parser (`parseOgpHtml`), used by the `/api/ogp` and `/api/rss` routes, now live inside web-app instead of being deep-imported from markdown-viewer internals (which had removed them as dead code), restoring the production build.
+- Server-side SSRF guard (`assertSafeUrl`) and OGP parser (`parseOgpHtml`), used by the `/api/ogp` and `/api/rss` routes, now live inside web-app instead of being deep-imported from markdown-editor internals (which had removed them as dead code), restoring the production build.
 
 ## [0.34.0] - 2026-06-30
 
@@ -236,7 +253,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- Picked up latest changes from markdown-viewer, markdown-rich, and graph-core: `anytime-chart` spreadsheet tab, body-width toggle UI (focused / standard / wide), and typed note relations.
+- Picked up latest changes from markdown-editor, markdown-rich-editor, and graph-core: `anytime-chart` spreadsheet tab, body-width toggle UI (focused / standard / wide), and typed note relations.
 
 ## [0.30.0] - 2026-06-17
 
@@ -283,7 +300,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- Picked up the React-free editor core (markdown-viewer / markdown-rich) and the vanilla spreadsheet viewer.
+- Picked up the React-free editor core (markdown-editor / markdown-rich-editor) and the vanilla spreadsheet viewer.
 - Synced `next-env.d.ts` to the Next-generated types path.
 - Added `jq` to the local Docker image.
 
@@ -315,7 +332,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
-- Adopted the vendored Tiptap v3.20.0 editor core (`@anytime-markdown/markdown-viewer` / `markdown-rich`); the web editor no longer depends on `@tiptap/*` npm packages.
+- Adopted the vendored Tiptap v3.20.0 editor core (`@anytime-markdown/markdown-editor` / `markdown-rich-editor`); the web editor no longer depends on `@tiptap/*` npm packages.
 - Added `RichMarkdownEditorPage` wiring for the split rich code-block cluster.
 - SonarCloud S1874 deprecated-API migration and S3358 nested-ternary fix. No functional changes.
 

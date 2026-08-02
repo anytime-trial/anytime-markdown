@@ -12,7 +12,7 @@
 		{ "path": "packages/spreadsheet-core" },
 		{ "path": "packages/spreadsheet-viewer" },
 		{ "path": "packages/markdown-engine" },
-		{ "path": "packages/markdown-viewer" },
+		{ "path": "packages/markdown-editor" },
 		{ "path": "packages/cms-core" },
 		{ "path": "packages/database-core" },
 		{ "path": "packages/database-viewer" },

@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import LandingHeader from '../components/LandingHeader';
 import { useLocaleSwitch } from '../LocaleProvider';
 import { useThemeMode } from '../providers';
+import { createLayoutWorker } from './createLayoutWorker';
 import { createCooccurrenceT } from '@anytime-markdown/cooccurrence-viewer';
 import type { CooccurrenceFile } from '@anytime-markdown/graph-core';
 import type { CooccurrenceViewerHandle } from '@anytime-markdown/cooccurrence-viewer';
@@ -39,18 +40,6 @@ function filenameFor(file: CooccurrenceFile, extension: string): string {
   return `${base}${extension}`;
 }
 
-function createLayoutWorker(): Worker | null {
-  try {
-    return new Worker(
-      new URL('@anytime-markdown/cooccurrence-viewer/src/worker/layoutWorker.ts', import.meta.url),
-      { type: 'module' },
-    );
-  } catch (error) {
-    console.error('[cooccurrence] Failed to create layout worker. Falling back to synchronous layout.', error);
-    return null;
-  }
-}
-
 /**
  * cooccurrence ページ。エディタ本体は vanilla（mountCooccurrenceViewer）を ref コンテナへ
  * mount する。SSR を避けるため cooccurrence-viewer は useEffect 内で動的 import する。
@@ -58,6 +47,13 @@ function createLayoutWorker(): Worker | null {
 export default function CooccurrencePage() {
   const { themeMode } = useThemeMode();
   const { locale } = useLocaleSwitch();
+  // mount は動的 import の解決後に走るため、初回レンダーの closure 値では stale になり得る
+  // （Providers が localStorage から light を確定するのは初回 effect。import がそれより遅いと
+  // 旧値 dark のまま mount され、以後の update も no-op で夜の OZ に固まる）。最新値を ref で渡す。
+  const themeModeRef = useRef(themeMode);
+  themeModeRef.current = themeMode;
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const handleRef = useRef<CooccurrenceViewerHandle | null>(null);
   const fileRef = useRef<CooccurrenceFile>(createEmptyFile());
@@ -73,8 +69,8 @@ export default function CooccurrencePage() {
       if (!container || disposed) return;
       handleRef.current = mountCooccurrenceViewer(container, {
         file: fileRef.current,
-        themeMode,
-        locale,
+        themeMode: themeModeRef.current,
+        locale: localeRef.current,
         createLayoutWorker,
         capabilities: { save: true, exportPng: true },
         onFileChange(file) {

@@ -1,6 +1,6 @@
 {
   "name": "anytime-markdown-monorepo",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -10,17 +10,19 @@
     "proposal:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/proposal 提案 ja",
     "review:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/review レビュー ja",
     "report:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/report レポート ja",
+    "plan:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/plan プラン ja",
+    "test:index": "tsx scripts/gen-spec-index.mjs /Shared/anytime-markdown-docs/test 試験設計書 ja",
     "check-skills": "node scripts/check-bundled-skills.mjs && node scripts/check-skill-refs.mjs && node scripts/check-skill-manifest-bump.mjs && node scripts/check-shortcut-markers.mjs && npm run test:scripts",
     "accept:farm": "node scripts/acceptance/farm.mjs",
-    "test:scripts": "node --test scripts/*.test.mjs scripts/acceptance/*.test.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs scripts/acceptance/*.test.mjs scripts/export-viewer-dist/*.test.mjs",
     "postinstall": "rm -rf node_modules/next-auth/node_modules/@auth",
-    "lint": "eslint packages/markdown-viewer/src packages/web-app/src",
-    "lint:fix": "eslint --fix packages/markdown-viewer/src packages/web-app/src",
+    "lint": "eslint packages/markdown-editor/src packages/web-app/src",
+    "lint:fix": "eslint --fix packages/markdown-editor/src packages/web-app/src",
     "prepare": "husky && node scripts/install-extra-hooks.mjs"
   },
   "workspaces": [
-    "packages/markdown-viewer",
-    "packages/markdown-rich",
+    "packages/markdown-editor",
+    "packages/markdown-rich-editor",
     "packages/markdown-view",
     "packages/markdown-view-lite",
     "packages/markdown-react-islands",
@@ -60,7 +62,6 @@
     "packages/trail-viewer",
     "packages/graph-viewer",
     "packages/cooccurrence-viewer",
-    "packages/mindmap-viewer",
     "packages/mcp-trail",
     "packages/trace-core",
     "packages/trace-agent-node",
@@ -77,21 +78,22 @@
   "overrides": {
     "serialize-javascript": "7.0.5",
     "diff": "8.0.3",
-    "postcss": "8.5.10",
+    "postcss": "8.5.25",
     "uuid": "^14.0.0",
-    "next": "16.2.6",
+    "next": "16.2.12",
     "@auth/core": "0.41.3",
     "next-auth": {
       "@auth/core": "0.41.3"
     },
     "handlebars": "4.7.9",
     "@xmldom/xmldom": "0.9.10",
-    "brace-expansion": "1.1.16",
+    "brace-expansion": "1.1.18",
     "ignore": "7.0.5",
     "ws": "8.21.0",
     "markdown-it": "14.2.0",
     "linkify-it": "5.0.2",
-    "dompurify": "3.4.12"
+    "dompurify": "3.4.12",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",
@@ -106,7 +108,7 @@
     "typescript-eslint": "8.61.0"
   },
   "lint-staged": {
-    "packages/markdown-viewer/src/**/*.{ts,tsx}": "eslint",
+    "packages/markdown-editor/src/**/*.{ts,tsx}": "eslint",
     "packages/web-app/src/**/*.{ts,tsx}": "eslint"
   },
   "dependencies": {
@@ -115,6 +117,6 @@
     "@emotion/styled": "11.14.0",
     "@xmldom/xmldom": "0.9.10",
     "ignore": "7.0.5",
-    "next": "16.2.6"
+    "next": "16.2.12"
   }
 }

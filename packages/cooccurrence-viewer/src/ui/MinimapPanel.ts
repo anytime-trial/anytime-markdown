@@ -5,7 +5,7 @@ import { drawMinimap } from '../render/drawMinimap';
 import { updateCanvasSize } from '../render/canvasSize';
 import { readCooccurrenceTheme, type CooccurrenceTheme } from '../theme/readTheme';
 import { centerOnMinimapPoint, minimapViewport, nudgeOnMinimap, visibleRect } from './minimapModel';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 
 /** ボタン 1 回あたりの倍率。canvas 上のキーボード操作（`+` / `-`）と揃える。 */
 const ZOOM_STEP = 1.2;
@@ -73,44 +73,47 @@ function ensureStyles(): void {
   style.id = STYLE_ID;
   style.textContent = `
 .cooc-minimap{display:flex;flex-direction:column;flex:1 1 auto;padding:12px;gap:10px}
-.cooc-minimap__frame{position:relative;flex:0 0 auto;width:100%;aspect-ratio:3 / 2;min-height:120px;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-bg);overflow:hidden}
+.cooc-minimap__frame{position:relative;flex:0 0 auto;width:100%;aspect-ratio:3 / 2;min-height:120px;border:1px solid var(--cooc-divider);border-radius:8px;background:var(--cooc-bg);overflow:hidden;box-shadow:0 3px 1px -2px rgba(0,0,0,.20),0 2px 2px 0 rgba(0,0,0,.14),0 1px 5px 0 rgba(0,0,0,.12)}
 .cooc-minimap__canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
-.cooc-minimap__buttons{flex:0 0 auto;display:flex;gap:6px}
-.cooc-minimap__button{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid var(--cooc-divider);background:var(--cooc-surface);color:var(--cooc-text);border-radius:6px}
-.cooc-minimap__button:hover{background:var(--cooc-action-hover)}
+.cooc-minimap__buttons{position:absolute;right:4px;bottom:4px;display:flex;gap:4px}
+.cooc-minimap__button{display:flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;background:var(--cooc-scrim);color:var(--cooc-text);border-radius:4px}
+.cooc-minimap__button:hover{background:var(--cooc-action-selected)}
 .cooc-minimap__hint{flex:0 0 auto;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
 }
 
 /**
- * アイコンの図形。`currentColor` で描くため、ボタンの文字色をそのまま継ぐ。
+ * アイコンの図形。`currentColor` で塗るため、ボタンの文字色をそのまま継ぐ。
  *
  * Why not アイコンフォントや絵文字か: 絵文字は使わない規約であり（design.md §8）、
  * フォントの追加読み込みは webview の CSP と初回表示の待ち時間に効く。
  */
-function createIcon(paths: readonly string[]): SVGSVGElement {
+function createIcon(d: string): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', '18');
-  svg.setAttribute('height', '18');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '2');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('fill', 'currentColor');
   svg.setAttribute('aria-hidden', 'true');
-  for (const d of paths) {
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', d);
-    svg.appendChild(path);
-  }
+  svg.setAttribute('focusable', 'false');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  svg.appendChild(path);
   return svg;
 }
 
-const ICON_ZOOM_IN = ['M12 5v14', 'M5 12h14'];
-const ICON_ZOOM_OUT = ['M5 12h14'];
-const ICON_FIT = ['M4 9V4h5', 'M20 9V4h-5', 'M4 15v5h5', 'M20 15v5h-5'];
+/**
+ * 図柄は Material Filled（design.md §8）で、C4 のミニマップ（trail-viewer
+ * `minimapCanvas.ts`）と同じ図形を使う。同じ製品群の中で同じ操作を別の図柄で描くと、
+ * ビューアを移った利用者が図柄を覚え直すことになる。
+ */
+const ICON_ZOOM_IN =
+  'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14m.5-7H9v2H7v1h2v2h1v-2h2V9h-2z';
+const ICON_ZOOM_OUT =
+  'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14M7 9h5v1H7z';
+const ICON_FIT =
+  'M17 4h3c1.1 0 2 .9 2 2v2h-2V6h-3zM4 8V6h3V4H4c-1.1 0-2 .9-2 2v2zm16 8v2h-3v2h3c1.1 0 2-.9 2-2v-2zM7 18H4v-2H2v2c0 1.1.9 2 2 2h3zM18 8H6v8h12z';
 
 export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHandle {
   ensureStyles();
@@ -144,13 +147,16 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
   canvas.tabIndex = 0;
   frame.appendChild(canvas);
 
+  // 操作ボタンは全体像の上（右下）へ重ねる。C4 のミニマップ（trail-viewer
+  // `minimapCanvas.ts`）と同じ置き方で、視野を動かす操作が全体像から離れない。
+  // Why not 全体像の下へ 1 行として並べるか: ボタン列がパネルの高さを取るぶん全体像が縮む。
+  // 重ねても覆うのは右下の隅だけであり、そこは枠を追うときに最も情報が薄い領域である。
   const buttons = document.createElement('div');
   buttons.className = 'cooc-minimap__buttons';
+  frame.appendChild(buttons);
 
   function createButton(action: string, icon: SVGSVGElement, onClick: () => void): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.className = 'cooc-btn cooc-minimap__button';
-    button.type = 'button';
+    const button = createPanelButton('cooc-minimap__button');
     button.dataset.action = action;
     button.appendChild(icon);
     button.addEventListener('click', onClick);
@@ -158,14 +164,16 @@ export function createMinimapPanel(options: MinimapPanelOptions): MinimapPanelHa
     return button;
   }
 
-  const zoomInButton = createButton('zoom-in', createIcon(ICON_ZOOM_IN), () => options.onZoom(ZOOM_STEP));
+  // 並びは縮小・拡大・全体表示の順（C4 のミニマップと同じ）。倍率を下げる側を左に置き、
+  // 左から右へ「引く・寄る・全体へ戻す」と読めるようにする。
   const zoomOutButton = createButton('zoom-out', createIcon(ICON_ZOOM_OUT), () => options.onZoom(1 / ZOOM_STEP));
+  const zoomInButton = createButton('zoom-in', createIcon(ICON_ZOOM_IN), () => options.onZoom(ZOOM_STEP));
   const fitButton = createButton('fit', createIcon(ICON_FIT), () => options.onFitContent());
 
   const hint = document.createElement('div');
   hint.className = 'cooc-minimap__hint';
 
-  element.append(frame, buttons, hint);
+  element.append(frame, hint);
 
   /** ミニマップ自身の視野。canvas の寸法に依存するため、使う直前に測って決める。 */
   function currentMinimapViewport(graph: RenderGraph, size: CanvasSize): ViewportState {

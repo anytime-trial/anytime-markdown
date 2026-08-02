@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-08-01
+
+### Changed
+
+- Rebuilt against the updated viewer bundle.
+
+### Database Core (database-core / database-viewer)
+
+- database-viewer のスタイル注入を ui-core の `ensureStyle` へ集約
+
 ## [0.3.5] - 2026-07-30
 
 ### Fixed

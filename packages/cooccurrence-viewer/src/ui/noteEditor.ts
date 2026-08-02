@@ -1,6 +1,7 @@
 import { COOCCURRENCE_NOTE_MAX_LENGTH } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
+import type { EditableGroup } from './editableGroup';
 
 /**
  * メモの編集欄（設計書 §3.3）。語・共起・クラスタの 3 タブが同じ形を共有する。
@@ -21,6 +22,12 @@ export interface NoteEditorOptions {
   t: CooccurrenceT;
   onSet(text: string): void;
   onRemove(): void;
+  /**
+   * 書き換え系コントロールの入れ物。メモの入力と 2 つのボタンを登録する。
+   *
+   * メモはファイルへ書き込む操作であり、閲覧専用のときは触れない（要件書 §2.1）。
+   */
+  edit: EditableGroup;
 }
 
 const STYLE_ID = 'cooccurrence-note-editor-style';
@@ -47,7 +54,7 @@ export function createNoteEditor(options: NoteEditorOptions): NoteEditorHandle {
   const element = document.createElement('div');
   element.className = 'cooc-note-editor';
 
-  const input = document.createElement('textarea');
+  const input = options.edit.register(document.createElement('textarea'));
   input.className = 'cooc-note-editor__input';
   input.placeholder = t('note.placeholder');
   input.setAttribute('aria-label', t('note.label'));
@@ -57,13 +64,9 @@ export function createNoteEditor(options: NoteEditorOptions): NoteEditorHandle {
 
   const buttons = document.createElement('div');
   buttons.className = 'cooc-note-editor__buttons';
-  const setButton = document.createElement('button');
-  setButton.className = 'cooc-btn cooc-note-editor__button';
-  setButton.type = 'button';
+  const setButton = options.edit.register(createPanelButton('cooc-note-editor__button'));
   setButton.textContent = t('note.set');
-  const removeButton = document.createElement('button');
-  removeButton.className = 'cooc-btn cooc-note-editor__button';
-  removeButton.type = 'button';
+  const removeButton = options.edit.register(createPanelButton('cooc-note-editor__button'));
   removeButton.textContent = t('note.remove');
   buttons.append(setButton, removeButton);
   element.append(input, buttons);

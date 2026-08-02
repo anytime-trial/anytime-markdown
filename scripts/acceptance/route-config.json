@@ -2,13 +2,13 @@
   "categories": {
     "ui": [
       "packages/web-app/src/",
-      "packages/markdown-viewer/src/",
+      "packages/markdown-editor/src/",
       "packages/trail-viewer/src/",
       "packages/tickets-viewer/src/",
       "packages/graph-viewer/src/",
       "packages/database-viewer/src/",
       "packages/spreadsheet-viewer/src/",
-      "packages/mindmap-viewer/src/",
+      "packages/cooccurrence-viewer/src/",
       "packages/trace-viewer/src/",
       "packages/ui-core/src/"
     ],

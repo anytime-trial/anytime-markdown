@@ -22,7 +22,7 @@ jest.mock("../app/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer", () => ({
+jest.mock("@anytime-markdown/markdown-editor", () => ({
   ACCENT_COLOR: "#e8a012",
   DEFAULT_DARK_BG: "#0D1117",
   DEFAULT_LIGHT_BG: "#F8F9FA",

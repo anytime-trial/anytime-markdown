@@ -92,6 +92,16 @@ describe("GET /api/tickets", () => {
     expect(mockCreateTicketProvider).not.toHaveBeenCalled();
   });
 
+  it("local-git は 400（enum には在るが HTTP API の背後では成立しない）", async () => {
+    // local-git はローカルクローンのファイルシステムを直接扱う VS Code 拡張向けの方式。
+    // サーバーには当該クローンが無いため、プロバイダを生成させずに弾く。
+    const res = (await GET(
+      getRequest({ repo: "o/r", branch: "main", provider: "local-git" }),
+    )) as unknown as MockResp;
+    expect(res._status).toBe(400);
+    expect(mockCreateTicketProvider).not.toHaveBeenCalled();
+  });
+
   it("既定は github-contents プロバイダで list を呼ぶ", async () => {
     mockProviderList.mockResolvedValue({ tickets: [], invalid: [] });
     const res = (await GET(getRequest({ repo: "o/r", branch: "main", includeArchive: "1" }))) as unknown as MockResp;

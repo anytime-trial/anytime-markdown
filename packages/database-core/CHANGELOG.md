@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-08-01
+
+### Changed
+
+- Version sync with the database extension. No functional changes.
+
 ## [0.3.5] - 2026-07-30
 
 ### Changed

@@ -1,6 +1,23 @@
 import type { CooccurrenceFile, CooccurrenceFilterCounts, CooccurrenceFilterOptions } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
-import { createFilterOptions, filterOptionsToInput, parseMinFrequency, parseMinStrength, parseTopLinkCount, type FilterModelInput } from './filterModel';
+import {
+  allClusterIndexes,
+  createFilterOptions,
+  filterOptionsToInput,
+  parseMinFrequency,
+  parseMinStrength,
+  parseTopLinkCount,
+  frequencySliderRange,
+  roundSliderValue,
+  sliderPositionFromText,
+  subclusterKey,
+  sliderTextFromPosition,
+  strengthSliderRange,
+  topLinkSliderRange,
+  type FilterModelInput,
+  type SliderNoFilterEdge,
+  type SliderRange,
+} from './filterModel';
 import { clusterColorVarName } from '../theme/readTheme';
 import { ensureButtonBaseStyles } from './buttonBaseStyle';
 
@@ -45,28 +62,66 @@ function ensureStyles(): void {
 .cooc-filter__title{font:600 13px system-ui,sans-serif;color:var(--cooc-text)}
 .cooc-filter__field{display:flex;flex-direction:column;gap:4px;font:12px system-ui,sans-serif;color:var(--cooc-text-secondary)}
 .cooc-filter__field input{box-sizing:border-box;width:100%;border:1px solid var(--cooc-divider);border-radius:6px;background:var(--cooc-surface);color:var(--cooc-text);padding:6px 8px;font:12px system-ui,sans-serif}
+.cooc-filter__field input[type=range]{border:none;background:transparent;padding:0;accent-color:var(--cooc-accent,#E8A012);cursor:pointer}
+.cooc-filter__field input[type=range]:disabled{cursor:default;opacity:0.5}
+.cooc-filter__head{display:flex;gap:8px;align-items:baseline;justify-content:space-between}
+.cooc-filter__value{flex:0 0 auto;color:var(--cooc-text);font:12px system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.cooc-filter__bounds{display:flex;justify-content:space-between;color:var(--cooc-text-secondary);font:11px system-ui,sans-serif;font-variant-numeric:tabular-nums}
 .cooc-filter__clusters{display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto}
 .cooc-filter__slices{display:flex;flex-direction:column;gap:6px;max-height:120px;overflow:auto}
 .cooc-filter__slices[hidden]{display:none}
+.cooc-filter__all{display:flex;flex-direction:column;margin-bottom:-6px}
+.cooc-filter__all[hidden]{display:none}
+.cooc-filter__check--all{padding-bottom:6px;border-bottom:1px solid var(--cooc-divider)}
 .cooc-filter__subtitle{font:600 12px system-ui,sans-serif;color:var(--cooc-text)}
 .cooc-filter__subtitle[hidden]{display:none}
 .cooc-filter__check{display:flex;gap:6px;align-items:center;color:var(--cooc-text);font:12px system-ui,sans-serif}
+.cooc-filter__check--sub{padding-left:18px;color:var(--cooc-text-secondary)}
+.cooc-filter__check--sub:has(input:disabled){opacity:0.5}
 .cooc-filter__swatch{flex:0 0 auto;width:10px;height:10px;border-radius:50%;border:1px solid var(--cooc-divider)}
 .cooc-filter__counts{display:flex;flex-direction:column;gap:2px;color:var(--cooc-text-secondary);font:12px system-ui,sans-serif}
 `;
   document.head.appendChild(style);
 }
 
-function inputRow(label: string, value: string): { row: HTMLElement; input: HTMLInputElement } {
+interface SliderFieldRow {
+  row: HTMLElement;
+  input: HTMLInputElement;
+  label: HTMLElement;
+  /** 現在値の表示。可動域だけでは今どこにいるかが読めないため、数値も併記する。 */
+  value: HTMLElement;
+  /** 可動域の両端の表示。「どこまで動かせるか」＝データの分布の要約（設計書 §3.2）。 */
+  lowerBound: HTMLElement;
+  upperBound: HTMLElement;
+}
+
+function sliderRow(label: string): SliderFieldRow {
   const row = document.createElement('label');
   row.className = 'cooc-filter__field';
+  const head = document.createElement('span');
+  head.className = 'cooc-filter__head';
   const text = document.createElement('span');
   text.textContent = label;
+  const value = document.createElement('span');
+  value.className = 'cooc-filter__value';
+  head.append(text, value);
   const input = document.createElement('input');
-  input.type = 'number';
-  input.value = value;
-  row.append(text, input);
-  return { row, input };
+  input.type = 'range';
+  const bounds = document.createElement('span');
+  bounds.className = 'cooc-filter__bounds';
+  const lowerBound = document.createElement('span');
+  const upperBound = document.createElement('span');
+  bounds.append(lowerBound, upperBound);
+  row.append(head, input, bounds);
+  return { row, input, label: text, value, lowerBound, upperBound };
+}
+
+/** スライダーが書き込む入力の種類。3 条件とも文字列の入力状態を共有する（空＝絞り込みなし）。 */
+type SliderInputKey = 'minFrequencyText' | 'minStrengthText' | 'topLinkCountText';
+
+/** 表示用の数値。刻みで生じた端数を落とし、整数は小数点を付けずに出す。 */
+function formatSliderNumber(value: number): string {
+  return String(roundSliderValue(value));
 }
 
 export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandle {
@@ -82,24 +137,35 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
   title.className = 'cooc-filter__title';
   title.textContent = t('filter.title');
 
-  const minFrequency = inputRow(t('filter.minFrequency'), inputState.minFrequencyText);
-  const minStrength = inputRow(t('filter.minStrength'), inputState.minStrengthText);
-  const topLinks = inputRow(t('filter.topLinks'), inputState.topLinkCountText);
+  const minFrequency = sliderRow(t('filter.minFrequency'));
+  const minStrength = sliderRow(t('filter.minStrength'));
+  const topLinks = sliderRow(t('filter.topLinks'));
+  let frequencyRange: SliderRange = frequencySliderRange(state.file);
+  let strengthRange: SliderRange = strengthSliderRange(state.file);
+  let topLinkRange: SliderRange = topLinkSliderRange(state.file);
   const clusters = document.createElement('div');
   clusters.className = 'cooc-filter__clusters';
+  // 一括操作「すべて」はスクロールする一覧の外に置く。一覧の中に入れると、件数が増えたとき
+  // スクロールで見えなくなり、全解除・全選択に使う面が一覧の先頭までの往復を要求する。
+  const clustersAll = document.createElement('div');
+  clustersAll.className = 'cooc-filter__all';
   const slicesTitle = document.createElement('div');
   slicesTitle.className = 'cooc-filter__subtitle';
   const slices = document.createElement('div');
   slices.className = 'cooc-filter__slices';
+  const slicesAll = document.createElement('div');
+  slicesAll.className = 'cooc-filter__all';
   const counts = document.createElement('div');
   counts.className = 'cooc-filter__counts';
   element.append(
     title,
     minFrequency.row,
+    clustersAll,
     clusters,
     minStrength.row,
     topLinks.row,
     slicesTitle,
+    slicesAll,
     slices,
     counts,
   );
@@ -119,20 +185,102 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     options.onFilterChange(createFilterOptions(inputState));
   }
 
-  function bindTextInput(input: HTMLInputElement, key: 'minFrequencyText' | 'minStrengthText' | 'topLinkCountText'): void {
-    input.addEventListener('input', () => {
-      inputState = { ...inputState, [key]: input.value };
+  /**
+   * つまみの位置を絞り込みの入力へ写す。位置が絞り込みなしの端にあるときは条件を持たない状態
+   * （空文字）へ落とす。端に戻せば元に戻ることを保つのが、既定値を絞り込みなしに置く
+   * 設計書 §3.2 のスライダー版である。
+   */
+  function bindSlider(
+    field: SliderFieldRow,
+    key: SliderInputKey,
+    range: () => SliderRange,
+    edge: SliderNoFilterEdge,
+  ): void {
+    field.input.addEventListener('input', () => {
+      inputState = { ...inputState, [key]: sliderTextFromPosition(Number(field.input.value), range(), edge) };
+      renderSliderValue(field, key, range(), edge);
       emit();
     });
   }
 
-  bindTextInput(minFrequency.input, 'minFrequencyText');
-  bindTextInput(minStrength.input, 'minStrengthText');
-  bindTextInput(topLinks.input, 'topLinkCountText');
+  bindSlider(minFrequency, 'minFrequencyText', () => frequencyRange, 'min');
+  bindSlider(minStrength, 'minStrengthText', () => strengthRange, 'min');
+  bindSlider(topLinks, 'topLinkCountText', () => topLinkRange, 'max');
+
+  function renderSliderValue(
+    field: SliderFieldRow,
+    key: SliderInputKey,
+    range: SliderRange,
+    edge: SliderNoFilterEdge,
+  ): void {
+    // 動かせる幅が無いとき（語や共起が無い・値が 1 種類）は、動かせない値を現在値として出さない。
+    if (!range.enabled) {
+      field.value.textContent = edge === 'max' ? t('filter.noFilter') : '—';
+      return;
+    }
+    // 絞り込みなしの端では数値でなく「全件」と出す。上位の共起で総数（例: 42）と出すと、共起が
+    // 43 本に増えたときに、何もしていないのに絞り込みが始まったように見える。
+    if (inputState[key] === '') {
+      field.value.textContent = t('filter.noFilter');
+      return;
+    }
+    field.value.textContent = formatSliderNumber(sliderPositionFromText(inputState[key], range, edge));
+  }
+
+  /**
+   * 一覧先頭の一括操作「すべて」（設計書 §3.2）。3 状態のチェックボックスで現在の選択を
+   * 要約する（全て選択済み＝選択、全て未選択＝未選択、混在＝中間状態）。押した向きは
+   * 「全て選択済みなら全解除、それ以外は全選択」で、描画時の状態から決める。クリックが
+   * checked をどう変えるかはブラウザの indeterminate の扱いに依存するため、そちらを
+   * 判定に使わない。
+   */
+  function renderSelectAll(
+    container: HTMLElement,
+    selectedCount: number,
+    totalCount: number,
+    onToggle: (selectAll: boolean) => void,
+  ): void {
+    container.replaceChildren();
+    container.hidden = totalCount === 0;
+    if (totalCount === 0) return;
+    const label = document.createElement('label');
+    label.className = 'cooc-filter__check cooc-filter__check--all';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    const allSelected = selectedCount === totalCount;
+    checkbox.checked = allSelected;
+    checkbox.indeterminate = selectedCount > 0 && !allSelected;
+    checkbox.addEventListener('change', () => {
+      onToggle(!allSelected);
+    });
+    const text = document.createElement('span');
+    text.textContent = t('filter.selectAll');
+    label.append(checkbox, text);
+    container.appendChild(label);
+  }
+
+  function renderClustersMaster(): void {
+    const clusterSpecs = state.file.spec.clusters ?? [];
+    // 選択集合には削除済みクラスタの添字が残り得るため、実在する添字だけを数える。
+    const selectedCount = [...inputState.selectedClusterIndexes].filter(
+      (index) => index < clusterSpecs.length,
+    ).length;
+    renderSelectAll(clustersAll, selectedCount, clusterSpecs.length, (selectAll) => {
+      inputState = {
+        ...inputState,
+        selectedClusterIndexes: selectAll ? allClusterIndexes(state.file) : new Set(),
+      };
+      // 個別の行と子（サブクラスタ）の無効状態を新しい集合で作り直す。サブクラスタの
+      // 選択集合はここでは変えない（設計書 §3.2。親の全解除で子が無効になる規則だけが働く）。
+      renderClusters();
+      emit();
+    });
+  }
 
   function renderClusters(): void {
     clusters.replaceChildren();
     const clusterSpecs = state.file.spec.clusters ?? [];
+    renderClustersMaster();
     if (clusterSpecs.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'cooc-filter__check';
@@ -143,6 +291,8 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     clusterSpecs.forEach((cluster, index) => {
       const label = document.createElement('label');
       label.className = 'cooc-filter__check';
+      /** このクラスタに属するサブクラスタの操作。親の選択に追従して無効・有効を切り替える。 */
+      const subclusterBoxes: HTMLInputElement[] = [];
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = inputState.selectedClusterIndexes.has(index);
@@ -154,6 +304,13 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
           next.delete(index);
         }
         inputState = { ...inputState, selectedClusterIndexes: next };
+        // 子は即座に無効・有効を切り替える。ホストからの再描画を待つと、その往復の間だけ
+        // 「親を外したのに子が押せる」状態が出る（押しても結果は変わらない面になる）。
+        subclusterBoxes.forEach((box) => {
+          box.disabled = !checkbox.checked;
+        });
+        // 「すべて」の 3 状態も同じ理由で即座に作り直す。
+        renderClustersMaster();
         emit();
       });
       // グラフ上の円と同じ色を示す見本。色は装飾で、情報の正はクラスタ名のテキスト側にある。
@@ -165,7 +322,52 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
       text.textContent = cluster.label;
       label.append(checkbox, swatch, text);
       clusters.appendChild(label);
+      subclusterBoxes.push(...renderSubclusters(cluster.subclusters ?? [], index, checkbox.checked));
     });
+  }
+
+  /**
+   * サブクラスタの選択（設計書 §3.2）。クラスタの下に字下げして並べる。
+   *
+   * **サブクラスタに色見本を付けない**。色はクラスタの符号であり（§2.1）、同じ色を子にも
+   * 並べると、どちらの段の符号なのかが読めなくなる。字下げが階層の唯一の符号である。
+   *
+   * 親のクラスタを外している間は子を無効にする。親を外すとその中の語は選択に関わらず全て
+   * 消えるため、操作できる状態にすると「触っても何も起きない面」になる。
+   */
+  function renderSubclusters(
+    subclusterSpecs: ReadonlyArray<{ label: string }>,
+    clusterIndex: number,
+    clusterSelected: boolean,
+  ): HTMLInputElement[] {
+    const selectedKeys = inputState.selectedSubclusterKeys;
+    if (selectedKeys === undefined) return [];
+    const boxes: HTMLInputElement[] = [];
+    subclusterSpecs.forEach((subcluster, subclusterIndex) => {
+      const key = subclusterKey(clusterIndex, subclusterIndex);
+      const label = document.createElement('label');
+      label.className = 'cooc-filter__check cooc-filter__check--sub';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selectedKeys.has(key);
+      checkbox.disabled = !clusterSelected;
+      checkbox.addEventListener('change', () => {
+        const next = new Set(inputState.selectedSubclusterKeys ?? []);
+        if (checkbox.checked) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
+        inputState = { ...inputState, selectedSubclusterKeys: next };
+        emit();
+      });
+      const text = document.createElement('span');
+      text.textContent = subcluster.label;
+      label.append(checkbox, text);
+      clusters.appendChild(label);
+      boxes.push(checkbox);
+    });
+    return boxes;
   }
 
   /**
@@ -182,9 +384,21 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     slices.hidden = hidden;
     slicesTitle.textContent = t('filter.slices');
     slices.replaceChildren();
-    if (hidden) return;
+    if (hidden) {
+      renderSelectAll(slicesAll, 0, 0, () => undefined);
+      return;
+    }
 
     const selected = state.selectedSliceLabels;
+    const allLabels = sliceSpecs.map((entry) => entry.label);
+    // 選択には存在しないラベルが残り得る（設計書 §3.6.5）ため、実在するスライスだけを数える。
+    const selectedCount =
+      selected === undefined ? allLabels.length : allLabels.filter((label) => selected.includes(label)).length;
+    renderSelectAll(slicesAll, selectedCount, allLabels.length, (selectAll) => {
+      // 全選択も明示のラベル列（時間順）で通知する。ここでは再描画しない。選択はホストが
+      // 持つ状態であり、update() で戻ってきた値から描き直す（個別の行と同じ経路）。
+      options.onSelectedSliceLabelsChange(selectAll ? allLabels : []);
+    });
     sliceSpecs.forEach((slice) => {
       const label = document.createElement('label');
       label.className = 'cooc-filter__check';
@@ -225,17 +439,38 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
     counts.append(nodes, links);
   }
 
+  function syncSlider(
+    field: SliderFieldRow,
+    key: SliderInputKey,
+    range: SliderRange,
+    edge: SliderNoFilterEdge,
+  ): void {
+    field.input.min = String(range.min);
+    field.input.max = String(range.max);
+    field.input.step = String(range.step);
+    field.input.disabled = !range.enabled;
+    if (document.activeElement !== field.input) {
+      field.input.value = String(sliderPositionFromText(inputState[key], range, edge));
+    }
+    field.lowerBound.textContent = range.enabled ? formatSliderNumber(range.min) : '';
+    field.upperBound.textContent = range.enabled ? formatSliderNumber(range.max) : '';
+    renderSliderValue(field, key, range, edge);
+  }
+
   function syncInputs(): void {
-    if (document.activeElement !== minFrequency.input) minFrequency.input.value = inputState.minFrequencyText;
-    if (document.activeElement !== minStrength.input) minStrength.input.value = inputState.minStrengthText;
-    if (document.activeElement !== topLinks.input) topLinks.input.value = inputState.topLinkCountText;
+    frequencyRange = frequencySliderRange(state.file);
+    strengthRange = strengthSliderRange(state.file);
+    topLinkRange = topLinkSliderRange(state.file);
+    syncSlider(minFrequency, 'minFrequencyText', frequencyRange, 'min');
+    syncSlider(minStrength, 'minStrengthText', strengthRange, 'min');
+    syncSlider(topLinks, 'topLinkCountText', topLinkRange, 'max');
   }
 
   function render(): void {
     title.textContent = t('filter.title');
-    minFrequency.row.querySelector('span')!.textContent = t('filter.minFrequency');
-    minStrength.row.querySelector('span')!.textContent = t('filter.minStrength');
-    topLinks.row.querySelector('span')!.textContent = t('filter.topLinks');
+    minFrequency.label.textContent = t('filter.minFrequency');
+    minStrength.label.textContent = t('filter.minStrength');
+    topLinks.label.textContent = t('filter.topLinks');
     syncInputs();
     renderClusters();
     renderSlices();
@@ -252,10 +487,13 @@ export function createFilterPanel(options: FilterPanelOptions): FilterPanelHandl
       t = state.t;
       const nextInputState = filterOptionsToInput(state.file, state.filter);
       inputState = {
-        minFrequencyText: active === minFrequency.input ? minFrequency.input.value : nextInputState.minFrequencyText,
-        minStrengthText: active === minStrength.input ? minStrength.input.value : nextInputState.minStrengthText,
-        topLinkCountText: active === topLinks.input ? topLinks.input.value : nextInputState.topLinkCountText,
+        // スライダーの `value` はつまみ位置であって絞り込みの値ではない（端＝空文字）。操作中は
+        // 位置ではなく、直前の `input` で書いた入力の側を残す。
+        minFrequencyText: active === minFrequency.input ? inputState.minFrequencyText : nextInputState.minFrequencyText,
+        minStrengthText: active === minStrength.input ? inputState.minStrengthText : nextInputState.minStrengthText,
+        topLinkCountText: active === topLinks.input ? inputState.topLinkCountText : nextInputState.topLinkCountText,
         selectedClusterIndexes: nextInputState.selectedClusterIndexes,
+        selectedSubclusterKeys: nextInputState.selectedSubclusterKeys,
       };
       render();
       if (active instanceof HTMLElement && element.contains(active)) active.focus();

@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '../ui/Dialog';
 import { ErrorIcon, InfoIcon, WarningIcon } from '../ui/icons';
 import styles from './ConfirmDialog.module.css';
-import { DialogOptions } from '@anytime-markdown/markdown-viewer/src/providers/types';
+import type { DialogOptions } from '@anytime-markdown/markdown-editor/types/dialog';
 
 interface ConfirmProps extends DialogOptions {
   onSubmit: () => void;

@@ -69,23 +69,30 @@ AI エージェントがプロジェクトの資産に直接アクセスする�
 ```mermaid
 flowchart TD
     subgraph core ["共有ライブラリ"]
-        MC["markdown-core<br/>(エディタエンジン)"]
+        MV["markdown-editor<br/>(エディタ基盤)"]
+        MR["markdown-rich-editor<br/>(図表描画・基盤の派生)"]
         GC["graph-core<br/>(グラフエンジン)"]
         TC["trail-core<br/>(TypeScript 解析・C4・DSM)"]
         CC["cms-core<br/>(S3 クライアント)"]
         AC["agent-core<br/>(AI セッション状態)"]
         SC["spreadsheet-core<br/>trace-core"]
+        DC["database-core<br/>(SQLite アクセス)"]
+    end
+
+    subgraph vendor ["ベンダリング"]
+        MC["markdown-core<br/>(vendored tiptap)"]
     end
 
     subgraph viewer ["ビューア (Web 埋め込み)"]
         TV["trail-viewer"]
         GV["graph-viewer"]
         SV["spreadsheet-viewer"]
+        CV["cooccurrence-viewer"]
+        DV["database-viewer"]
     end
 
     subgraph app ["アプリケーション"]
-        WA["web-app<br/>(Next.js)"]
-        MA["mobile-app<br/>(Capacitor Android)"]
+        WA["web-app<br/>(Next.js · Capacitor Android ビルドを兼ねる)"]
     end
 
     subgraph ext ["VS Code 拡張機能"]
@@ -93,6 +100,7 @@ flowchart TD
         VTE["vscode-trail-extension"]
         VAE["vscode-agent-extension"]
         VGE["vscode-graph-extension"]
+        VDE["vscode-database-extension"]
         VSE["vscode-sheet-extension<br/>vscode-history-extension"]
         VEP["vscode-extension-pack"]
     end
@@ -104,21 +112,60 @@ flowchart TD
         MCM["mcp-cms<br/>mcp-cms-remote"]
     end
 
-    WA --> MC
-    WA --> GC
+    MR --> MV
+    MV --> MC
+    TV --> TC
+    GV --> GC
+    SV --> SC
+    CV --> GC
+    DV --> DC
+    WA --> MR
+    WA --> MV
     WA --> TV
+    WA --> GV
+    WA --> CV
     WA --> CC
-    VME --> MC
+    VME --> MR
+    VME --> MV
     VGE --> GC
+    VGE --> CV
     VTE --> TC
     VTE --> TV
     VAE --> AC
-    MA --> WA
-    MM --> MC
+    VDE --> DV
+    VDE --> TC
+    VSE --> SV
+    MM --> MV
     MG --> GC
     MT --> TC
     MCM --> CC
 ```
+
+矢印は各 `package.json` の内部依存（`@anytime-markdown/*`）に基づく。例外は `vscode-trail-extension → trail-viewer` で、これは webpack のバンドル時依存であり `package.json` には現れない。
+
+### markdown 系パッケージの役割
+
+`markdown-` を接頭辞に持つパッケージは 7 つある。土台は `markdown-editor` で、`markdown-rich-editor` はその上に図表描画を足した派生である（その逆ではない）。名前が似ているため、各パッケージの守備範囲と依存の向きを下表で明示する。
+
+| パッケージ | 役割 | 内部依存 |
+| --- | --- | --- |
+| `markdown-editor` | **エディタ基盤**。TipTap 拡張の組み立て・mount API・vanilla UI・i18n・ファイルシステム抽象。図表描画は含まない | `markdown-core` |
+| `markdown-rich-editor` | `markdown-editor` に **mermaid / katex / plantuml / plotly / jsxgraph の描画を足した派生**。重量依存をここへ隔離し、基盤側を軽量に保つ | `markdown-editor` |
+| `markdown-core` | vendored tiptap。自作コードではなく、バンドラ・tsconfig のエイリアス経由で参照する | なし |
+| `markdown-engine` | markdown テキスト処理（整形・差分・セクション解析・サニタイズ）。エディタに依存しない | なし |
+| `markdown-react-islands` | web-app 向けの React ラッパ。エディタ本体は React-free で、React が要る箇所だけをここに隔離する | `markdown-editor` |
+| `markdown-view` | 公開ラッパ。`<anytime-markdown-view>`（図表あり）を登録する | `markdown-rich-editor` |
+| `markdown-view-lite` | 公開ラッパ。`<anytime-markdown-view>`（図表なし）を登録する | `markdown-editor` |
+
+配布する Web Component は次の 3 つで、いずれも同じ属性・プロパティ・イベントの I/F を持つ。
+
+| タグ | 登録元 | 図表描画 | 編集 |
+| --- | --- | --- | --- |
+| `<anytime-markdown-editor>` | `markdown-editor/element` | なし | あり |
+| `<anytime-markdown-rich-editor>` | `markdown-rich-editor/element` | あり | あり |
+| `<anytime-markdown-view>` | `markdown-rich-editor` または `markdown-view-lite` | 登録元による | なし（read-only） |
+
+`<anytime-markdown-view>` は同一タグの軽量／同梱の双子で、どちらを import したかで描画能力が決まる。両方を同一ページで読み込むと先に登録されたほうが有効になる。
 
 ## 前提条件
 

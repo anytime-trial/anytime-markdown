@@ -8,7 +8,7 @@ description: anytime-markdown の ProseMirror / TipTap Plugin を実装・修正
 
 更新日: 2026-07-18
 
-anytime-markdown のエディタ（web-app の TipTap、markdown-viewer の ProseMirror）で Plugin 状態を扱う際の**プロジェクト固有規約**。
+anytime-markdown のエディタ（web-app の TipTap、markdown-editor の ProseMirror）で Plugin 状態を扱う際の**プロジェクト固有規約**。
 
 > [!IMPORTANT]
 > 汎用のコード品質規約（型安全・エラーハンドリング・DOM 計測と状態更新の無限ループ防止）は global `~/.claude/rules/code-quality.md` を、レビュー観点チェックリスト（パフォーマンス等）は global スキル `code-review-checklist` を参照。本スキルは ProseMirror / TipTap 固有の状態管理と変更禁止エリアのみを定義する。
@@ -37,4 +37,4 @@ DOM 計測と状態更新を組み合わせる場合、無限ループ防止策�
 - global `~/.claude/rules/code-quality.md` — 汎用コード品質規約（§2 DOM 計測）
 - global スキル `code-review-checklist` — レビュー観点（§10 パフォーマンス）
 - `screen-design` — エディタページのレイアウト・パディング構造
-- `vanilla-ui-conventions` — markdown-viewer（脱 React vanilla DOM エディタ）の実装規約
+- `vanilla-ui-conventions` — markdown-editor（脱 React vanilla DOM エディタ）の実装規約

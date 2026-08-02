@@ -56,4 +56,42 @@ export default tseslint.config(
       "@next/next/no-html-link-for-pages": "off",
     },
   },
+  // markdown-editor の公開面ゲート。
+  //
+  // ホスト層（アプリ・拡張・React island）は package.json の exports が宣言する
+  // 名前付き subpath だけを使う。`internal/*` は markdown-rich-editor（派生パッケージ）
+  // 専用の口であり、内部構造の変更に対して何も保証しない。
+  //
+  // 旧綴り `markdown-editor/src/*` は exports から削除済みのため解決自体が失敗するが、
+  // 失敗の理由を明示するために合わせて禁止する。
+  //
+  // テストコード（`*.test.*` / `__tests__` / `testUtils`）は本ファイル冒頭のグローバル ignores で
+  // lint 対象外のため、本ゲートも適用されない。テストの `internal/*` 直参照（mock seam）は
+  // 意図的に許容している。
+  {
+    files: [
+      "packages/web-app/**/*.{ts,tsx}",
+      "packages/vscode-markdown-extension/**/*.{ts,tsx}",
+      "packages/markdown-react-islands/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@anytime-markdown/markdown-editor/internal/*"],
+              message:
+                "internal/* は markdown-rich-editor 専用。ホスト層は package.json の exports が宣言する名前付き subpath（例: ./host/mount, ./i18n/locale, ./utils/draft-storage）を使う。必要な口が無ければ markdown-editor の exports に追加する。",
+            },
+            {
+              group: ["@anytime-markdown/markdown-editor/src/*"],
+              message:
+                "`/src/*` の直参照は廃止した。package.json の exports が宣言する名前付き subpath を使う。",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

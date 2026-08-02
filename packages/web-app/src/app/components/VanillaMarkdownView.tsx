@@ -14,7 +14,7 @@
  * 対象外のリンクは通常のブラウザ遷移のまま。
  */
 
-import '@anytime-markdown/markdown-rich/src/view-element';
+import '@anytime-markdown/markdown-rich-editor/src/view-element';
 import {
   VanillaMarkdownEditorMount,
   type VanillaMarkdownEditorMountProps,

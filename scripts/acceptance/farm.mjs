@@ -340,8 +340,8 @@ async function main() {
   await drainPending(args.server);
 
   if (!args.skipBuild) {
-    log("INFO", "building markdown-viewer (dist/anytime-markdown-editor.iife.js)");
-    const build = spawnSync("npm", ["run", "-w", "@anytime-markdown/markdown-viewer", "build"], {
+    log("INFO", "building markdown-editor (dist/anytime-markdown-editor.iife.js)");
+    const build = spawnSync("npm", ["run", "-w", "@anytime-markdown/markdown-editor", "build"], {
       cwd: ROOT,
       stdio: ["ignore", "inherit", "inherit"],
     });

@@ -82,10 +82,21 @@ describe('classifyLayer', () => {
 
   it('classifies a render-only library without -core suffix as foundation', () => {
     const r = classifyLayer({
-      name: '@anytime-markdown/markdown-rich',
+      name: '@anytime-markdown/markdown-rich-editor',
       dependencies: { katex: '0.16.0' },
     });
     expect(r.layer).toBe('foundation');
+  });
+
+  // 改名（markdown-viewer -> markdown-editor）で `-viewer` 接尾辞規則から外れたため、
+  // layers.ts が名前を明示して presentation-ui を維持している。明示を外すと render-only
+  // 判定で foundation へ落ちるので、実際の依存（TipTap）を添えて退行を検出する。
+  it('classifies markdown-editor as presentation-ui even though its deps are render-only', () => {
+    const r = classifyLayer({
+      name: '@anytime-markdown/markdown-editor',
+      dependencies: { '@tiptap/core': '2.0.0', dompurify: '3.4.12' },
+    });
+    expect(r.layer).toBe('presentation-ui');
   });
 
   it('falls back to utility with low confidence when no signal matches', () => {

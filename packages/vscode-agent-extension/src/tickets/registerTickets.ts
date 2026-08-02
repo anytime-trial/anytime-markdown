@@ -7,7 +7,8 @@ import { resolveLocale } from '@anytime-markdown/vscode-common';
 
 import { TicketsViewProvider } from '../providers/TicketsViewProvider';
 import { getGitHubToken } from './githubAuth';
-import { createProvider } from './providerFactory';
+import { createLocalGitIo } from './localGitIo';
+import { createGitHubProvider, createLocalGitProvider } from './providerFactory';
 import {
   readTicketConfig,
   readTicketsDirectorySetting,
@@ -70,16 +71,36 @@ export function registerTicketsFeature(
 
   const resolveSource = async (): Promise<TicketSource | null> => {
     const config = readTicketConfig();
+    for (const value of config.invalidProviderValues) {
+      logger.warn(
+        `プロバイダ設定の値が不正なため無視しました: ${value}` +
+          '（有効な値: local-git / github-contents / github-issues）',
+      );
+    }
+    if (config.usedLegacyProviderKey) {
+      logger.warn(
+        '`anytimeAgent.tickets.github.provider` は非推奨です。' +
+          '`anytimeAgent.tickets.provider` へ移してください（当面は旧キーの値を使用します）。',
+      );
+    }
     const repoRoot = resolveRepoRoot();
     if (!repoRoot) {
-      return resolveTicketSource(config, { remoteUrl: null, branch: null });
+      return resolveTicketSource(config, { remoteUrl: null, branch: null }, null);
+    }
+    // local-git は remote / ブランチを見ないので、子プロセス起動ごと省く。
+    if (config.provider === 'local-git') {
+      return resolveTicketSource(config, { remoteUrl: null, branch: null }, repoRoot);
     }
     const [remoteUrl, branch] = await Promise.all([
       git(['remote', 'get-url', 'origin'], repoRoot, logger),
       git(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot, logger),
     ]);
-    return resolveTicketSource(config, { remoteUrl, branch });
+    return resolveTicketSource(config, { remoteUrl, branch }, repoRoot);
   };
+
+  // 未認証の通知を 1 回の未認証状態につき 1 度だけ出すためのフラグ。
+  // 認証が通った時点で false に戻し、サインアウト後は再度促せるようにする。
+  let signInPrompted = false;
 
   // git config user.name は VS Code セッション中に変わることを想定しない値である一方、
   // resolveContext は RPC のたびに呼ばれる設計のため、素朴に毎回子プロセスを起動すると
@@ -112,6 +133,16 @@ export function registerTicketsFeature(
       );
       return { source: null, provider: null, locale };
     }
+    // local-git はクローンが既に持つ git の資格情報で完結するため、GitHub 認証を通らない。
+    if (source.provider === 'local-git') {
+      const currentUser = await resolveCurrentUser();
+      return {
+        source,
+        provider: createLocalGitProvider(source, createLocalGitIo(source.repoRoot)),
+        currentUser,
+        locale,
+      };
+    }
     // SHORTCUT: getGitHubToken を resolveContext 呼び出しのたび（RPC ごと）に呼んでいる.
     // ceiling: VS Code の authentication API はセッションをプロセス内で保持しており、
     // silent 呼び出しは通常ネットワーク往復を伴わない前提（拡張側で応答時間の実測はしていない）.
@@ -123,40 +154,67 @@ export function registerTicketsFeature(
       logger.warn('GitHub 認証セッションがありません。サインインしてください。');
       return { source, provider: null, locale };
     }
+    signInPrompted = false;
     const currentUser = await resolveCurrentUser();
-    return { source, provider: createProvider(source, token), currentUser, locale };
+    return { source, provider: createGitHubProvider(source, token), currentUser, locale };
   };
 
-  // selectRepo は manager.reload() を呼ぶが、manager のコンストラクタは selectRepo を
-  // onSelectRepo として要求する（webview からの 'selectRepo' 受信時に呼ぶため）ため、
-  // 両者は本質的に相互参照になる。TDZ の暗黙のホイスティングに依存する代わりに、
-  // 「後から代入されるスロット」であることをコード上で明示する。本関数は同期的に
-  // 最後まで実行されるため、実際の呼び出し時点では必ず代入済みになる。
-  let selectRepoAction: (() => Promise<void>) | undefined;
-  const manager = new TicketsPanelManager(context, logger, () => resolveContext(false), async () => {
-    await selectRepoAction?.();
+  // promptSignInIfNeeded は manager.reload() を呼ぶ signIn を経由するため、
+  // manager より後に定義される。後から代入されるスロットとして明示する
+  // （init 送信時点では必ず代入済み）。
+  let onContextResolved: ((ctx: PanelContext) => void) | undefined;
+  const manager = new TicketsPanelManager(context, logger, () => resolveContext(false), (ctx) => {
+    onContextResolved?.(ctx);
   });
   context.subscriptions.push({ dispose: () => manager.dispose() });
 
-  const selectRepo = async (): Promise<void> => {
-    const repo = await vscode.window.showInputBox({
-      title: 'Anytime Tickets',
-      prompt: 'owner/repo',
-      value: readTicketConfig().repo,
-    });
-    if (repo === undefined) return;
-    const branch = await vscode.window.showInputBox({
-      title: 'Anytime Tickets',
-      prompt: 'branch',
-      value: readTicketConfig().branch,
-    });
-    if (branch === undefined) return;
-    const section = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    await section.update('repo', repo, vscode.ConfigurationTarget.Workspace);
-    await section.update('branch', branch, vscode.ConfigurationTarget.Workspace);
-    await manager.reload();
+  const signIn = async (): Promise<void> => {
+    const ctx = await resolveContext(true);
+    if (ctx.source?.provider === 'local-git') {
+      // local-git はクローンの git 資格情報で完結する。ここで「認証に成功」と伝えると、
+      // GitHub のセッションが張られたと誤解させる。
+      void vscode.window.showInformationMessage(
+        'ローカルの git リポジトリを直接使う設定のため、GitHub へのサインインは不要です。',
+      );
+      return;
+    }
+    if (ctx.provider) {
+      logger.info('GitHub 認証に成功しました。');
+      await manager.reload();
+    } else {
+      void vscode.window.showErrorMessage('GitHub 認証に失敗しました。');
+    }
   };
-  selectRepoAction = selectRepo;
+
+  /**
+   * 未サインインのときにサインイン導線を出す。
+   *
+   * Accounts メニューのバッジだけでは気づきにくく、ボード側には
+   * 「認証が未完了」という表示しか出ないため、パネルを開いた時点で能動的に促す。
+   * 1 回の未認証状態につき 1 度だけ出す（RPC ごとに通知が積まれるのを防ぐ）。
+   */
+  const promptSignInIfNeeded = async (): Promise<void> => {
+    if (signInPrompted) {
+      return;
+    }
+    signInPrompted = true;
+    const signInLabel = 'サインイン';
+    const picked = await vscode.window.showWarningMessage(
+      'チケットの読み込みには GitHub へのサインインが必要です。',
+      signInLabel,
+    );
+    if (picked === signInLabel) {
+      await signIn();
+    }
+  };
+
+  // init を送るたび（open / reload の両方）に、解決済みの文脈で未認証を判定する。
+  // リポジトリは解決できているのにトークンが無い場合だけ促す（未設定は空状態の案内で足りる）。
+  onContextResolved = (ctx) => {
+    if (ctx.source && !ctx.provider) {
+      void promptSignInIfNeeded();
+    }
+  };
 
   const viewProvider = new TicketsViewProvider();
   context.subscriptions.push(
@@ -167,15 +225,6 @@ export function registerTicketsFeature(
     vscode.commands.registerCommand('anytime-agent.tickets.reload', async () => {
       await manager.reload();
     }),
-    vscode.commands.registerCommand('anytime-agent.tickets.selectRepo', selectRepo),
-    vscode.commands.registerCommand('anytime-agent.tickets.signIn', async () => {
-      const ctx = await resolveContext(true);
-      if (ctx.provider) {
-        logger.info('GitHub 認証に成功しました。');
-        await manager.reload();
-      } else {
-        void vscode.window.showErrorMessage('GitHub 認証に失敗しました。');
-      }
-    }),
+    vscode.commands.registerCommand('anytime-agent.tickets.signIn', signIn),
   );
 }

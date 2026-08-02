@@ -1,11 +1,12 @@
 {
-  "anytime-build-webapp": 2,
+  "anytime-build-webapp": 3,
   "anytime-debrief": 1,
   "anytime-cross-review": 5,
   "anytime-loop-start": 16,
   "anytime-loop-stop": 1,
-  "anytime-dev-audit": 4,
-  "anytime-dev-cycle": 13,
-  "anytime-impl-test-design": 1,
-  "anytime-proposal": 2
+  "anytime-dev-audit": 5,
+  "anytime-dev-cycle": 17,
+  "anytime-impl-test-design": 2,
+  "anytime-analysis": 9,
+  "anytime-stock-cooccurrence": 9
 }

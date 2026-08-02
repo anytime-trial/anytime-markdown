@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.40.1] - 2026-08-01
+
+### Changed
+
+- Test tooling only: jest's sibling source mapping is derived from `exports` instead of hand-written wildcards.
+
 ## [0.40.0] - 2026-07-30
 
 ### Changed

@@ -100,12 +100,10 @@ const App: React.FC = () => {
   // それは TicketsPanel 側の tickets.error（再読み込みボタン付きアラート）で表示される
   // 既存経路であり、未認証と未設定を空状態の二値だけで区別する必要は無い。
   return (
-    <TicketsPanel
-      gateway={init.source ? gateway : null}
-      source={init.source}
-      currentUser={init.currentUser}
-      onRequestRepoSelect={() => vscode.postMessage({ type: 'selectRepo' })}
-    />
+    // 保存先の表示と切替ボタンは渡さない。チケットの参照先は VS Code 設定
+    // （anytimeAgent.tickets.directory）で決めるため、画面から切り替えられると
+    // 設定と画面のどちらが正なのか分からなくなる。
+    <TicketsPanel gateway={init.source ? gateway : null} currentUser={init.currentUser} />
   );
 };
 

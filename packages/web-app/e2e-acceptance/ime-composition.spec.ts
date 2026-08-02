@@ -15,7 +15,7 @@ import { pathToFileURL } from "node:url";
  */
 
 const HARNESS_URL = pathToFileURL(
-  path.resolve(__dirname, "../../markdown-viewer/e2e-harness/index.html"),
+  path.resolve(__dirname, "../../markdown-editor/e2e-harness/index.html"),
 ).href;
 
 const FIXTURE = "# 見出し\n\n本文段落です。\n";

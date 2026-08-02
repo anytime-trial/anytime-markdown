@@ -1,5 +1,9 @@
 const base = require('../../jest.config.base');
+const { buildModuleNameMapperFromExports } = require('../../scripts/jest-exports-mapper.cjs');
 const { buildJestMapper } = require('../markdown-core/alias.cjs');
+// testEnvironment: jsdom が既定で適用する条件（customExportConditions = ['browser']）に合わせる。
+// 条件を testEnvironment と食い違わせると、テストだけが本番と別のモジュールグラフを踏む。
+const JSDOM_CONDITIONS = ["browser", "default"];
 /** @type {import('jest').Config} */
 const config = {
   ...base,
@@ -15,11 +19,17 @@ const config = {
     // @anytime-markdown/markdown-* → vendored ソースへ解決（共有 alias ヘルパ）
     ...buildJestMapper(),
     "\\.md$": "<rootDir>/src/__mocks__/md-raw.js",
-    "^@/(.*)$": "<rootDir>/../markdown-viewer/src/$1",
-    "^@anytime-markdown/markdown-viewer/src/(.*)$": "<rootDir>/../markdown-viewer/src/$1",
+    // markdown-editor の subpath は exports から導出する（手書きワイルドカードは
+    // 宣言済み subpath を取りこぼし、node_modules symlink 経由の未トランスパイルへ静かに縮退する）。
+    ...buildModuleNameMapperFromExports({
+      packageName: "@anytime-markdown/markdown-editor",
+      exports: require("../markdown-editor/package.json").exports,
+      rootToken: "<rootDir>/../markdown-editor",
+      conditions: JSDOM_CONDITIONS,
+    }),
     "^@anytime-markdown/markdown-react-islands/src/(.*)$": "<rootDir>/../markdown-react-islands/src/$1",
     "^@anytime-markdown/markdown-react-islands$": "<rootDir>/../markdown-react-islands/src/index.ts",
-    "^@anytime-markdown/markdown-viewer$": "<rootDir>/../markdown-viewer/src/index.ts",
+    "^@anytime-markdown/markdown-editor$": "<rootDir>/../markdown-editor/src/index.ts",
     "^@anytime-markdown/graph-viewer/src/(.*)$": "<rootDir>/../graph-viewer/src/$1",
     "^@anytime-markdown/graph-viewer$": "<rootDir>/../graph-viewer/src/index.ts",
     "^@anytime-markdown/tickets-core$": "<rootDir>/../tickets-core/src/index.ts",

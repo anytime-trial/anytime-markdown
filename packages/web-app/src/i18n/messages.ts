@@ -1,5 +1,7 @@
-import markdownCoreEnMessages from '@anytime-markdown/markdown-viewer/src/i18n/en.json';
-import markdownCoreJaMessages from '@anytime-markdown/markdown-viewer/src/i18n/ja.json';
+import {
+  enMessages as markdownCoreEnMessages,
+  jaMessages as markdownCoreJaMessages,
+} from '@anytime-markdown/markdown-editor/i18n/messages';
 import { ticketsMessagesEn } from '@anytime-markdown/tickets-viewer/i18n/en';
 import { ticketsMessagesJa } from '@anytime-markdown/tickets-viewer/i18n/ja';
 

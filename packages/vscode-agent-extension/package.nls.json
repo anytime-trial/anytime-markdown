@@ -42,9 +42,10 @@
   "view.tickets": "Tickets",
   "command.tickets.open": "Open Ticket Board",
   "command.tickets.reload": "Reload Tickets",
-  "command.tickets.selectRepo": "Select Ticket Repository and Branch",
   "command.tickets.signIn": "Sign in to GitHub (Tickets)",
   "config.tickets.github.repo": "Target GitHub repository for the ticket board, in `owner/repo` form. Leave empty to infer from the workspace `origin` remote. Separate from `anytimeAgent.tickets.directory`, which points at a local clone used by the anytime-loop-start skill.",
   "config.tickets.github.branch": "Target branch for the ticket board. Leave empty to infer from the workspace current branch.",
-  "config.tickets.github.provider": "Ticket store provider for the board. `github-contents` uses `.tickets/*.md` via the Contents API. `github-issues` uses GitHub Issues."
+  "config.tickets.provider": "Where tickets are read from and written to. `local-git` uses the local clone directly (write, commit, push) and needs no GitHub sign-in. `github-contents` / `github-issues` go through the GitHub API and require sign-in.",
+  "config.tickets.github.provider": "Ticket store provider for the board. `github-contents` uses `.tickets/*.md` via the Contents API. `github-issues` uses GitHub Issues.",
+  "config.tickets.github.provider.deprecated": "Use `anytimeAgent.tickets.provider` instead. This key is still honored when the new one is unset."
 }

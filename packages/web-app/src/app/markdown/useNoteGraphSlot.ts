@@ -1,5 +1,5 @@
 import type { NoteGraphPanelHandle } from "@anytime-markdown/graph-core";
-import type { NoteGraphSlot } from "@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor";
+import type { NoteGraphSlot } from "@anytime-markdown/markdown-editor/host/mount";
 import { useEffect, useMemo, useRef } from "react";
 
 import { fetchNoteGraphDocs } from "../../lib/githubApi";

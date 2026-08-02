@@ -52,12 +52,16 @@ function viewerCss(): string {
     ".cooc-rail",
     ".cooc-rail__item",
     ".cooc-filter",
+    ".cooc-filter__head",
+    ".cooc-filter__bounds",
     ".cooc-words",
     ".cooc-words__viewport",
     ".cooc-words__row",
     ".cooc-minimap",
     ".cooc-minimap__frame",
     ".cooc-export",
+    ".cooc-viewer__oz",
+    ".cooc-viewer__oz canvas",
   ]) {
     if (!css.includes(`${selector}{`)) throw new Error(`注入 CSS に ${selector} が含まれない`);
   }
@@ -116,10 +120,19 @@ ${viewerCss()}
  <div class="cooc-viewer__tabpanel" id="cooc-panel-filter" role="tabpanel"${hiddenUnless("filter")}>
   <section class="cooc-filter">
    <div class="cooc-filter__title">絞り込み</div>
-   <label class="cooc-filter__field"><span>最小頻度</span><input type="number"></label>
+   <label class="cooc-filter__field">
+    <span class="cooc-filter__head"><span>最小頻度</span><span class="cooc-filter__value">全件</span></span>
+    <input type="range" min="1" max="50" step="1" value="1">
+    <span class="cooc-filter__bounds"><span>1</span><span>50</span></span></label>
    <div class="cooc-filter__clusters">${clusters}</div>
-   <label class="cooc-filter__field"><span>最小共起強度</span><input type="number"></label>
-   <label class="cooc-filter__field"><span>上位の共起</span><input type="number"></label>
+   <label class="cooc-filter__field">
+    <span class="cooc-filter__head"><span>最小共起強度</span><span class="cooc-filter__value">全件</span></span>
+    <input type="range" min="0.1" max="2.4" step="0.023" value="0.1">
+    <span class="cooc-filter__bounds"><span>0.1</span><span>2.4</span></span></label>
+   <label class="cooc-filter__field">
+    <span class="cooc-filter__head"><span>上位の共起</span><span class="cooc-filter__value">全件</span></span>
+    <input type="range" min="1" max="51" step="1" value="51">
+    <span class="cooc-filter__bounds"><span>1</span><span>51</span></span></label>
    <div class="cooc-filter__counts"><div>36 / 36 語</div><div>51 / 51 共起</div></div>
   </section>
  </div>
@@ -351,5 +364,51 @@ test.describe("共起ビューアのパネル高さ配分", () => {
       const metrics = await measure(page, height);
       expect(metrics.rowHeight).toBe(ROW_HEIGHT);
     }
+  });
+});
+
+test.describe("OZ 3D の canvas がパネルを覆わない", () => {
+  test("dpr > 1 相当の属性サイズでも canvas の表示は stage に収まる", async ({ page }) => {
+    // three の setSize(…, updateStyle: false) は CSS サイズを書かないため、canvas の
+    // 表示サイズは既定で属性サイズになる。dpr 1.5 では属性サイズ = クライアント幅 × 1.5 で、
+    // 注入 CSS が表示サイズを固定しないと canvas が stage からはみ出して右パネルを覆う
+    // （実機で再現済み。ヘッドレスは dpr=1 のため属性 = 表示となり素通りした）。
+    // ここでは dpr 1.5 の属性サイズを直接与え、表示が stage に一致することを注入 CSS の
+    // 効果として測る。
+    await page.setViewportSize({ width: 1400, height: 900 });
+    const ozHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+html,body,#root{margin:0;padding:0;width:100%;height:100vh;overflow:hidden}
+${viewerCss()}
+</style></head><body><div id="root">
+<div class="cooc-viewer"><div class="cooc-viewer__main">
+<div class="cooc-viewer__stage">
+ <canvas class="cooc-viewer__canvas" style="display:none"></canvas>
+ <div class="cooc-viewer__oz"><canvas width="1581" height="1350"></canvas></div>
+</div>
+<aside class="cooc-viewer__panels"><div class="cooc-viewer__tabpanel"><section class="cooc-filter">
+ <div class="cooc-filter__title">絞り込み</div></section></div></aside>
+<div class="cooc-rail" role="tablist" aria-orientation="vertical" aria-label="パネルの切り替え">${railHtml("filter")}</div>
+</div></div></div></body></html>`;
+    await page.setContent(ozHtml);
+    const metrics = await page.evaluate(() => {
+      const canvas = document.querySelector(".cooc-viewer__oz canvas") as HTMLCanvasElement;
+      const stage = document.querySelector(".cooc-viewer__stage") as HTMLElement;
+      const panels = document.querySelector(".cooc-viewer__panels") as HTMLElement;
+      const c = canvas.getBoundingClientRect();
+      const s = stage.getBoundingClientRect();
+      const p = panels.getBoundingClientRect();
+      return {
+        canvasRight: Math.round(c.right),
+        stageRight: Math.round(s.right),
+        panelLeft: Math.round(p.left),
+        canvasWidth: Math.round(c.width),
+        stageWidth: Math.round(s.width),
+      };
+    });
+
+    // 表示サイズが stage と一致し、パネルの左端を越えない。
+    expect(metrics.canvasWidth).toBe(metrics.stageWidth);
+    expect(metrics.canvasRight).toBeLessThanOrEqual(metrics.panelLeft + 1);
+    expect(metrics.canvasRight).toBeLessThanOrEqual(metrics.stageRight + 1);
   });
 });

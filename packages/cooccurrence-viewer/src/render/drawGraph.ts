@@ -2,7 +2,7 @@ import { LINK_DIRECTION } from '@anytime-markdown/graph-core';
 import type { RenderGraph, RenderLink, RenderNode, ViewportState } from '../types';
 import type { CooccurrenceTheme } from '../theme/readTheme';
 import { arrowHeadPoints, type ArrowHead } from './arrow';
-import { computeNeighborhoodHighlight } from './highlight';
+import { computeNeighborhoodHighlight, isNodeLit, timeLinkLit, type HighlightSelection } from './highlight';
 import { selectVisibleLabels } from './labels';
 import { buildNodeLookup, linkEndpoints } from './nodeLookup';
 import { worldToScreen } from '../viewport/viewport';
@@ -16,6 +16,13 @@ const TIME_LINK_ALPHA = 0.45;
 const LAYER_LABEL_FONT_SIZE = 13;
 /** レイヤー名を、レイヤーの矩形の上端からどれだけ離すか（画面ピクセル）。 */
 const LAYER_LABEL_MARGIN = 6;
+
+/** クラスタレーン名を、レーンの矩形の始端からどれだけ外へ離すか（画面ピクセル）。 */
+const CLUSTER_LANE_LABEL_MARGIN = 10;
+/** サブレーン名の文字の大きさ（画面ピクセル）。クラスタ名より一段小さくする（要件書「サブクラスタ」§2.4）。 */
+const CLUSTER_SUB_LANE_LABEL_FONT_SIZE = 11;
+/** サブレーン名をクラスタ名より内側へ字下げする量（画面ピクセル）。 */
+const CLUSTER_SUB_LANE_LABEL_INDENT = 12;
 
 /**
  * 座標系の契約: `drawGraph` は CSS ピクセル座標で描き、基底の変換行列（devicePixelRatio）は
@@ -87,12 +94,11 @@ function fillArrowHead(ctx: CanvasRenderingContext2D, head: ArrowHead, color: st
 export const LINK_DIM_ALPHA = 0.14;
 
 export function visibleAlpha(
-  selectedNodeIndex: number | null,
-  highlightedNodes: ReadonlySet<number> | undefined,
+  highlight: HighlightSelection | null,
   index: number,
+  layer: number,
 ): number {
-  if (selectedNodeIndex === null || !highlightedNodes) return 1;
-  return highlightedNodes.has(index) ? 1 : 0.18;
+  return isNodeLit(highlight, index, layer) ? 1 : 0.18;
 }
 
 export function drawGraph(opts: DrawGraphOptions): void {
@@ -117,7 +123,7 @@ export function drawGraph(opts: DrawGraphOptions): void {
     ctx.strokeStyle = theme.link;
     ctx.lineWidth = TIME_LINK_WIDTH;
     for (const timeLink of graph.timeLinks) {
-      ctx.globalAlpha = visibleAlpha(selectedNodeIndex, highlight?.nodeIndexes, timeLink.nodeIndex) * TIME_LINK_ALPHA;
+      ctx.globalAlpha = (timeLinkLit(highlight, timeLink) ? 1 : 0.18) * TIME_LINK_ALPHA;
       ctx.beginPath();
       ctx.moveTo(timeLink.x1, timeLink.y1);
       ctx.lineTo(timeLink.x2, timeLink.y2);
@@ -157,7 +163,7 @@ export function drawGraph(opts: DrawGraphOptions): void {
   }
 
   for (const node of graph.nodes) {
-    ctx.globalAlpha = visibleAlpha(selectedNodeIndex, highlight?.nodeIndexes, node.index);
+    ctx.globalAlpha = visibleAlpha(highlight, node.index, node.layer);
     ctx.fillStyle = node.fill;
     ctx.strokeStyle = node.stroke;
     ctx.lineWidth = node.strokeWidth;
@@ -187,6 +193,44 @@ export function drawGraph(opts: DrawGraphOptions): void {
     ctx.fillText(text, anchor.x, anchor.y - LAYER_LABEL_MARGIN);
   }
 
+  // クラスタレーン名（要件書「クラスタレーン表示」§2.4）。レイヤー名と同じく画面ピクセルで描く。
+  //
+  // 描く側はレーンの軸で決める。縦レーンなら図の左外、横レーンなら図の上外へ置く。レイヤー名は
+  // レイヤーの矩形の上端に付くため、軸が直交している限りこの 2 つは同じ場所を取り合わない。
+  for (const lane of graph.clusterLanes) {
+    const anchor = worldToScreen({ x: lane.labelX, y: lane.labelY }, viewport);
+    const vertical = lane.axis === 'vertical';
+    ctx.font = `${LAYER_LABEL_FONT_SIZE}px sans-serif`;
+    ctx.fillStyle = lane.color;
+    if (vertical) {
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText(lane.label, anchor.x - CLUSTER_LANE_LABEL_MARGIN, anchor.y);
+    } else {
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(lane.label, anchor.x, anchor.y - CLUSTER_LANE_LABEL_MARGIN);
+    }
+
+    // サブレーン名（要件書「サブクラスタ」§2.4）。大きさ・色・字下げの 3 つでクラスタ名と
+    // 差をつける。同じ見た目で描くと、名前が 2 段あることしか分からず階層が読めない。
+    for (const sub of lane.subLanes) {
+      if (sub.label === undefined) continue;
+      const subAnchor = worldToScreen({ x: sub.labelX, y: sub.labelY }, viewport);
+      ctx.font = `${CLUSTER_SUB_LANE_LABEL_FONT_SIZE}px sans-serif`;
+      ctx.fillStyle = theme.textSecondary;
+      if (vertical) {
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillText(sub.label, subAnchor.x - CLUSTER_LANE_LABEL_MARGIN - CLUSTER_SUB_LANE_LABEL_INDENT, subAnchor.y);
+      } else {
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(sub.label, subAnchor.x + CLUSTER_SUB_LANE_LABEL_INDENT, subAnchor.y - CLUSTER_LANE_LABEL_MARGIN);
+      }
+    }
+  }
+
   const labels = selectVisibleLabels(
     graph.nodes,
     viewport,
@@ -196,7 +240,7 @@ export function drawGraph(opts: DrawGraphOptions): void {
     },
   );
   for (const label of labels) {
-    const alpha = visibleAlpha(selectedNodeIndex, highlight?.nodeIndexes, label.nodeIndex);
+    const alpha = visibleAlpha(highlight, label.nodeIndex, label.layer);
     if (alpha < 0.5) continue;
     ctx.font = `${label.fontSize}px sans-serif`;
     ctx.textAlign = 'center';

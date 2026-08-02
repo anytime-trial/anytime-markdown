@@ -1,5 +1,5 @@
 /**
- * chart-core 共有型。全フェーズ（chart-core / markdown-rich / spreadsheet-viewer / ホスト）が
+ * chart-core 共有型。全フェーズ（chart-core / markdown-rich-editor / spreadsheet-viewer / ホスト）が
  * この定義を `import type` で参照する単一ソース。手書き再定義は禁止（ドリフト防止）。
  */
 

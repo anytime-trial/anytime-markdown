@@ -119,6 +119,20 @@ describe("TicketsPanel", () => {
     });
   }
 
+  /**
+   * 保存先を画面から切り替えられないホスト（VS Code 拡張は設定で指定する）の描画。
+   * `source` / `onRequestRepoSelect` を渡さない。
+   */
+  async function renderHostManagedPanel(gateway: TicketsGateway | null) {
+    await act(async () => {
+      root.render(
+        <NextIntlClientProvider locale="ja" messages={{ tickets: ticketsMessagesJa }}>
+          <TicketsPanel gateway={gateway} currentUser="kiyotaka" />
+        </NextIntlClientProvider>,
+      );
+    });
+  }
+
   it("gateway が null なら空状態とリポジトリ選択ボタンを出す", async () => {
     await renderPanel(null, null);
     expect(container.textContent).toContain(ticketsMessagesJa.repo.empty);
@@ -323,5 +337,30 @@ describe("TicketsPanel", () => {
     (gateway.list as jest.Mock).mockRejectedValue(new Error("boom"));
     await renderPanel(gateway, SOURCE);
     expect(container.querySelector(".tk-alert--error")?.textContent).toContain("boom");
+  });
+
+  describe("保存先をホスト側の設定で決めるホスト（source / onRequestRepoSelect を渡さない）", () => {
+    it("ツールバーに保存先と変更ボタンを描画しない", async () => {
+      await renderHostManagedPanel(makeGateway(DATA));
+
+      expect(container.textContent).not.toContain(ticketsMessagesJa.repo.location);
+      const labels = [...container.querySelectorAll("button")].map((b) => b.textContent);
+      expect(labels).not.toContain(ticketsMessagesJa.repo.change);
+    });
+
+    it("ボード本体は従来どおり描画される（保存先を消しても機能は落ちない）", async () => {
+      await renderHostManagedPanel(makeGateway(DATA));
+
+      expect(container.textContent).toContain(ticketsMessagesJa.board.newTicket);
+      expect(container.textContent).toContain(ticketsMessagesJa.status.backlog);
+    });
+
+    it("空状態では選択ボタンではなく設定を案内する", async () => {
+      await renderHostManagedPanel(null);
+
+      expect(container.textContent).toContain(ticketsMessagesJa.repo.emptyManagedByHost);
+      const labels = [...container.querySelectorAll("button")].map((b) => b.textContent);
+      expect(labels).not.toContain(ticketsMessagesJa.repo.select);
+    });
   });
 });

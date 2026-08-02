@@ -10,8 +10,12 @@ jest.mock("next-intl", () => ({
 jest.mock("@anytime-markdown/markdown-react-islands", () => ({
   MarkdownCoreI18nProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock("@anytime-markdown/markdown-viewer/src/i18n/en.json", () => ({}), { virtual: true });
-jest.mock("@anytime-markdown/markdown-viewer/src/i18n/ja.json", () => ({}), { virtual: true });
+// messages.ts が読み込む i18n メッセージ束（元は en.json / ja.json を個別に mock していたが、
+// 公開 subpath 経由へ移行したため実際に読まれるモジュールを mock する）
+jest.mock("@anytime-markdown/markdown-editor/i18n/messages", () => ({
+  enMessages: {},
+  jaMessages: {},
+}));
 jest.mock("@anytime-markdown/spreadsheet-viewer", () => ({
   SpreadsheetI18nProvider: ({ children }: { children: React.ReactNode }) => children,
 }));

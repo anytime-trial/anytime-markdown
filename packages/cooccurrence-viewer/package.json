@@ -10,16 +10,19 @@
     "./src/*": "./src/*"
   },
   "scripts": {
+    "build": "node esbuild.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest"
   },
   "dependencies": {
     "@anytime-markdown/graph-core": "*",
+    "@anytime-markdown/ui-core": "*",
     "three": "0.185.1"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",
     "@types/three": "0.185.1",
+    "esbuild": "0.27.3",
     "jest": "30.2.0",
     "ts-jest": "29.4.11"
   }

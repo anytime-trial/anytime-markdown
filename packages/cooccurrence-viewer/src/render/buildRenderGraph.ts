@@ -4,20 +4,19 @@ import {
   readLink,
   type CooccurrenceFile,
 } from '@anytime-markdown/graph-core';
-import type { RenderGraph, RenderLayer, RenderLink, RenderNode, RenderTimeLink, ThemeMode } from '../types';
+import type {
+  RenderClusterLane,
+  RenderGraph,
+  RenderLayer,
+  RenderLink,
+  RenderNode,
+  RenderTimeLink,
+  ThemeMode,
+} from '../types';
 import { NODE_STROKE_NORMAL, NODE_STROKE_SUBJECT, labelFontSizeForRadius, radiusForFrequency, widthForStrength } from './scales';
 import { withAlpha } from './color';
 import { clusterColor } from '../theme/readTheme';
-
-function buildClusterIndex(file: CooccurrenceFile): Map<number, number> {
-  const index = new Map<number, number>();
-  file.spec.clusters?.forEach((cluster, clusterIndex) => {
-    cluster.members.forEach((member) => {
-      if (!index.has(member)) index.set(member, clusterIndex);
-    });
-  });
-  return index;
-}
+import { clusterMembership } from './clusterLanes';
 
 /** 1 枚のレイヤーに描くもの。`placement` を持たない 1 件だけを渡すと単一表示になる。 */
 export interface RenderLayerInput {
@@ -35,6 +34,15 @@ export interface BuildRenderGraphOptions {
   layers: readonly RenderLayerInput[];
   /** レイヤー間の点線を描くか（設計書 §3.6.3）。単一表示では効かない。 */
   showTimeLinks?: boolean;
+  /**
+   * 描くクラスタレーン（要件書「クラスタレーン表示」§2.4）。
+   *
+   * `positions` にはレーンのオフセットがすでに適用されている前提で、ここへ渡すのはレーン名を
+   * 描くための情報だけである。座標の移動をここでやらないのは、移動後の座標を
+   * `unionBounds` / `computeLayerPlacements` も見る必要があるためである（移動をこの関数の中へ
+   * 隠すと、レイヤー名の基準だけがレーン化前の座標に取り残される）。
+   */
+  clusterLanes?: readonly RenderClusterLane[];
 }
 
 interface ValueRange {
@@ -105,7 +113,7 @@ export function buildRenderGraph(options: BuildRenderGraphOptions): RenderGraph 
   const { file, positions, themeTarget, mode } = options;
   const layered = options.layers.some((layer) => layer.placement !== undefined);
   const ranges = scaleRanges(file, layered);
-  const clusterIndex = buildClusterIndex(file);
+  const membership = clusterMembership(file);
   const notedNodes = noteBearingIndexes(file.spec, 'nodes');
   const notedLinks = noteBearingIndexes(file.spec, 'links');
   const views = file.spec.links.map(readLink);
@@ -145,13 +153,13 @@ export function buildRenderGraph(options: BuildRenderGraphOptions): RenderGraph 
       if (frequency === undefined) return;
       const pos = positions[index] ?? [0, 0];
       const radius = radiusForFrequency(frequency, ranges.frequency.min, ranges.frequency.max);
-      const color = clusterColor(themeTarget, clusterIndex.get(index), mode);
+      const color = clusterColor(themeTarget, membership[index]);
       layerNodes.push({
         index,
         layer,
         label: node.label,
         frequency,
-        clusterIndex: clusterIndex.get(index),
+        clusterIndex: membership[index],
         x: pos[0] + offsetX,
         y: pos[1] + offsetY,
         radius,
@@ -188,5 +196,6 @@ export function buildRenderGraph(options: BuildRenderGraphOptions): RenderGraph 
     links,
     timeLinks: layered && options.showTimeLinks !== false ? buildTimeLinks(nodesByLayer, placements) : [],
     layers: placements,
+    clusterLanes: options.clusterLanes ?? [],
   };
 }

@@ -7,7 +7,7 @@
  * This file keeps the `GraphCanvas` component name and all previously-exported
  * types so that C4ViewerCore + external consumers are unchanged.
  */
-import type { GraphDocument, GraphGroup, SelectionState, Viewport } from '@anytime-markdown/graph-core';
+import type { GraphDocument, SelectionState, Viewport } from '@anytime-markdown/graph-core';
 import type { Action } from '@anytime-markdown/graph-core/state';
 import type React from 'react';
 import { useRef } from 'react';
@@ -23,22 +23,6 @@ import { mountGraphCanvas } from '../../../views/c4/canvases/graphCanvas';
 
 // Re-export types from the vanilla module for back-compat.
 export type { CommunityOverlayStyle, C4GhostEdgeGranularity, C4GhostEdgeRender } from '../../../views/c4/canvases/graphCanvas';
-
-/**
- * Re-export deleteGroupsContainingSelection for any consumers that import it from this path.
- * Defined here since graph-react-islands does not re-export it from its package index.
- */
-export function deleteGroupsContainingSelection(
-  selectedIds: Set<string>,
-  groups: readonly GraphGroup[],
-  dispatch: ((action: { type: string; [key: string]: unknown }) => void) | undefined,
-): void {
-  for (const g of groups) {
-    if (g.memberIds.some((id) => selectedIds.has(id))) {
-      dispatch?.({ type: 'DELETE_GROUP', id: g.id });
-    }
-  }
-}
 
 // Suppress unused-import warnings for types used only in JSDoc / re-export
 type _Unused = SelectionState;

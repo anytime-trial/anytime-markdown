@@ -20,7 +20,8 @@ import {
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { directionSymbol, filterLinkRows } from './linkListModel';
 import { computeVisibleWindow } from './virtualList';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createEditableGroup } from './editableGroup';
 import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
 import { createSliceValueEditor, type SliceValueEditorHandle } from './sliceValueEditor';
 
@@ -33,12 +34,16 @@ export interface LinkListPanelState {
 }
 
 export interface LinkListPanelOptions extends LinkListPanelState {
+  /** 編集モードの入／切。切のあいだはファイルを書き換える操作を無効にする（要件書 §2.1）。 */
+  editable: boolean;
   onFileChange(file: CooccurrenceFile): void;
 }
 
 export interface LinkListPanelHandle {
   element: HTMLElement;
   update(state: LinkListPanelState): void;
+  /** 編集モードの入／切を反映する。 */
+  setEditable(editable: boolean): void;
   /** 隠れている間は viewport の高さが 0 になり可視ウィンドウが固まるため、表示へ戻す側が呼ぶ。 */
   refresh(): void;
   destroy(): void;
@@ -98,6 +103,7 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
    * 同期先が無い。`.cooc.json` へも書かない表示状態である（設計書 §3.5）。
    */
   let selectedLinkIndex: number | null = null;
+  const editGroup = createEditableGroup();
 
   const element = document.createElement('section');
   element.className = 'cooc-links';
@@ -118,18 +124,19 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
 
   const edit = document.createElement('div');
   edit.className = 'cooc-links__edit';
-  const sourceSelect = document.createElement('select');
+  const sourceSelect = editGroup.register(document.createElement('select'));
   sourceSelect.dataset.field = 'source';
-  const targetSelect = document.createElement('select');
+  const targetSelect = editGroup.register(document.createElement('select'));
   targetSelect.dataset.field = 'target';
-  const strengthInput = document.createElement('input');
+  const strengthInput = editGroup.register(document.createElement('input'));
   strengthInput.type = 'number';
   strengthInput.dataset.field = 'strength';
-  const directionSelect = document.createElement('select');
+  const directionSelect = editGroup.register(document.createElement('select'));
   directionSelect.dataset.field = 'direction';
   edit.append(sourceSelect, targetSelect, strengthInput, directionSelect);
 
   const sliceValues: SliceValueEditorHandle = createSliceValueEditor({
+    edit: editGroup,
     onSet(sliceIndex, value) {
       if (selectedLinkIndex === null) return;
       applyEdit(setCooccurrenceLinkSliceValue(state.file, { link: selectedLinkIndex, slice: sliceIndex }, value));
@@ -142,17 +149,11 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
 
   const buttons = document.createElement('div');
   buttons.className = 'cooc-links__buttons';
-  const addButton = document.createElement('button');
-  addButton.className = 'cooc-btn cooc-links__button';
-  addButton.type = 'button';
+  const addButton = editGroup.register(createPanelButton('cooc-links__button'));
   addButton.dataset.action = 'add';
-  const updateButton = document.createElement('button');
-  updateButton.className = 'cooc-btn cooc-links__button';
-  updateButton.type = 'button';
+  const updateButton = editGroup.register(createPanelButton('cooc-links__button'));
   updateButton.dataset.action = 'update';
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'cooc-btn cooc-links__button';
-  deleteButton.type = 'button';
+  const deleteButton = editGroup.register(createPanelButton('cooc-links__button'));
   deleteButton.dataset.action = 'delete';
   buttons.append(addButton, updateButton, deleteButton);
 
@@ -160,6 +161,7 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
   error.className = 'cooc-links__error';
 
   const noteEditor: NoteEditorHandle = createNoteEditor({
+    edit: editGroup,
     t,
     onSet(text) {
       if (selectedLinkIndex === null) return;
@@ -214,9 +216,7 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
     items.style.transform = `translateY(${slice.offsetY}px)`;
     items.replaceChildren();
     rows.slice(slice.startIndex, slice.endIndex).forEach((row, offset) => {
-      const element = document.createElement('button');
-      element.className = 'cooc-btn cooc-btn--block cooc-links__row';
-      element.type = 'button';
+      const element = createPanelButton('cooc-btn--block cooc-links__row');
       element.dataset.linkIndex = String(row.linkIndex);
       element.setAttribute('role', 'option');
       element.setAttribute('aria-selected', String(selectedLinkIndex === row.linkIndex));
@@ -279,7 +279,7 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
    */
   function syncSliceValues(): void {
     const layered = hasCooccurrenceTimeline(state.file.spec);
-    strengthInput.disabled = layered;
+    editGroup.setOwnDisabled(strengthInput, layered);
     const slices = state.file.spec.timeline?.slices ?? [];
     sliceValues.update(
       slices,
@@ -388,6 +388,9 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
     applyEdit(result);
   });
 
+  // 描画の前に反映する。「自身の理由による無効」（時間軸ありの全体値）は描画のたびに
+  // 入れ替わるが、入れ物が編集モードと OR で解決するため順序に依らない。
+  editGroup.setEditable(options.editable);
   render();
 
   return {
@@ -396,6 +399,9 @@ export function createLinkListPanel(options: LinkListPanelOptions): LinkListPane
       state = nextState;
       t = state.t;
       render();
+    },
+    setEditable(editable: boolean): void {
+      editGroup.setEditable(editable);
     },
     refresh(): void {
       renderRows();

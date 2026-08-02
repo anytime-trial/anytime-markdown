@@ -8,7 +8,7 @@ getPreset, getPrimaryContrast,
 getPrimaryDark, getPrimaryLight,   getPrimaryMain, getSuccessMain, getTextDisabled,
 getTextPrimary, getTextSecondary, getWarningLight, getWarningMain, isPresetName,
   type ThemePresetName,
-} from '@anytime-markdown/markdown-viewer';
+} from '@anytime-markdown/markdown-editor';
 import {
   ConfirmProvider,
   ThemeModeProvider as EditorThemeModeProvider,

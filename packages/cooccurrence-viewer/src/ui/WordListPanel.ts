@@ -17,7 +17,8 @@ import {
 } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import { computeVisibleWindow } from './virtualList';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createEditableGroup } from './editableGroup';
 import { createNoteEditor, type NoteEditorHandle } from './noteEditor';
 import { createSliceValueEditor, type SliceValueEditorHandle } from './sliceValueEditor';
 
@@ -29,6 +30,8 @@ export interface WordListPanelState {
 }
 
 export interface WordListPanelOptions extends WordListPanelState {
+  /** 編集モードの入／切。切のあいだはファイルを書き換える操作を無効にする（要件書 §2.1）。 */
+  editable: boolean;
   onSelectNode(nodeIndex: number | null): void;
   onFileChange(file: CooccurrenceFile): void;
 }
@@ -36,6 +39,8 @@ export interface WordListPanelOptions extends WordListPanelState {
 export interface WordListPanelHandle {
   element: HTMLElement;
   update(state: WordListPanelState): void;
+  /** 編集モードの入／切を反映する。 */
+  setEditable(editable: boolean): void;
   /**
    * 行だけを作り直す。
    *
@@ -98,6 +103,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   let state: WordListPanelState = options;
   let t = state.t;
   let query = '';
+  const editGroup = createEditableGroup();
 
   const element = document.createElement('section');
   element.className = 'cooc-words';
@@ -122,12 +128,12 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
 
   const edit = document.createElement('div');
   edit.className = 'cooc-words__edit';
-  const labelInput = document.createElement('input');
+  const labelInput = editGroup.register(document.createElement('input'));
   labelInput.placeholder = t('words.word');
-  const frequencyInput = document.createElement('input');
+  const frequencyInput = editGroup.register(document.createElement('input'));
   frequencyInput.type = 'number';
   frequencyInput.placeholder = t('words.freq');
-  const clusterSelect = document.createElement('select');
+  const clusterSelect = editGroup.register(document.createElement('select'));
   edit.append(labelInput, frequencyInput, clusterSelect);
 
   /*
@@ -139,6 +145,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
    * わけではない。
    */
   const sliceValues: SliceValueEditorHandle = createSliceValueEditor({
+    edit: editGroup,
     onSet(sliceIndex, value) {
       if (state.selectedNodeIndex === null) return;
       applyEdit(setCooccurrenceNodeSliceValue(state.file, { node: state.selectedNodeIndex, slice: sliceIndex }, value));
@@ -151,25 +158,15 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
 
   const buttons = document.createElement('div');
   buttons.className = 'cooc-words__buttons';
-  const addButton = document.createElement('button');
-  addButton.className = 'cooc-btn cooc-words__button';
-  addButton.type = 'button';
+  const addButton = editGroup.register(createPanelButton('cooc-words__button'));
   addButton.textContent = t('words.add');
-  const renameButton = document.createElement('button');
-  renameButton.className = 'cooc-btn cooc-words__button';
-  renameButton.type = 'button';
+  const renameButton = editGroup.register(createPanelButton('cooc-words__button'));
   renameButton.textContent = t('words.rename');
-  const frequencyButton = document.createElement('button');
-  frequencyButton.className = 'cooc-btn cooc-words__button';
-  frequencyButton.type = 'button';
+  const frequencyButton = editGroup.register(createPanelButton('cooc-words__button'));
   frequencyButton.textContent = t('words.setFreq');
-  const clusterButton = document.createElement('button');
-  clusterButton.className = 'cooc-btn cooc-words__button';
-  clusterButton.type = 'button';
+  const clusterButton = editGroup.register(createPanelButton('cooc-words__button'));
   clusterButton.textContent = t('words.setCluster');
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'cooc-btn cooc-words__button';
-  deleteButton.type = 'button';
+  const deleteButton = editGroup.register(createPanelButton('cooc-words__button'));
   deleteButton.textContent = t('words.delete');
   buttons.append(addButton, renameButton, frequencyButton, clusterButton, deleteButton);
 
@@ -177,6 +174,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
   error.className = 'cooc-words__error';
 
   const noteEditor: NoteEditorHandle = createNoteEditor({
+    edit: editGroup,
     t,
     onSet(text) {
       if (state.selectedNodeIndex === null) return;
@@ -228,9 +226,7 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     indexes.slice(slice.startIndex, slice.endIndex).forEach((nodeIndex) => {
       const node = state.file.spec.nodes[nodeIndex];
       if (!node) return;
-      const row = document.createElement('button');
-      row.className = 'cooc-btn cooc-btn--block cooc-words__row';
-      row.type = 'button';
+      const row = createPanelButton('cooc-btn--block cooc-words__row');
       row.dataset.nodeIndex = String(nodeIndex);
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', String(state.selectedNodeIndex === nodeIndex));
@@ -270,8 +266,8 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     // 時間軸を持つ図では全体値は合計から導出され、直接は編集できない（設計書 §2.2）。
     // 押しても必ず拒否されるボタンを操作できるままにしない。
     const layered = hasCooccurrenceTimeline(state.file.spec);
-    frequencyInput.disabled = layered;
-    frequencyButton.disabled = layered;
+    editGroup.setOwnDisabled(frequencyInput, layered);
+    editGroup.setOwnDisabled(frequencyButton, layered);
     const slices = state.file.spec.timeline?.slices ?? [];
     sliceValues.update(
       slices,
@@ -362,6 +358,9 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
     applyEdit(deleteCooccurrenceNode(state.file, state.selectedNodeIndex));
   });
 
+  // 描画の前に反映する。「自身の理由による無効」（時間軸ありの全体値）は描画のたびに
+  // 入れ替わるが、入れ物が編集モードと OR で解決するため順序に依らない。
+  editGroup.setEditable(options.editable);
   render();
 
   return {
@@ -370,6 +369,9 @@ export function createWordListPanel(options: WordListPanelOptions): WordListPane
       state = nextState;
       t = state.t;
       render();
+    },
+    setEditable(editable: boolean): void {
+      editGroup.setEditable(editable);
     },
     refresh(): void {
       renderRows();

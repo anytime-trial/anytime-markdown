@@ -19,7 +19,7 @@ jest.mock("@anytime-markdown/markdown-react-islands", () => ({
   ThemeModeProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock("@anytime-markdown/markdown-viewer", () => {
+jest.mock("@anytime-markdown/markdown-editor", () => {
   const presets: Record<string, any> = {
     professional: {
       label: "Professional",
@@ -38,7 +38,7 @@ jest.mock("@anytime-markdown/markdown-viewer", () => {
     // 実装の CSS 変数副作用（--editor-* / Google Fonts link）を検証するテストがあるため
     // applyEditorThemeCssVars だけは実装に委譲する（refactor で providers から本ユーティリティへ移管）。
     applyEditorThemeCssVars: jest.requireActual(
-      "@anytime-markdown/markdown-viewer/src/utils/applyEditorThemeCssVars",
+      "@anytime-markdown/markdown-editor/internal/utils/applyEditorThemeCssVars",
     ).applyEditorThemeCssVars,
     ACCENT_COLOR: "#e8a012",
     DEFAULT_DARK_BG: "#0D1117",

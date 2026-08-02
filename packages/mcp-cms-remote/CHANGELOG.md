@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-01
+
+### Changed
+
+- Tickets configuration resolution was extracted from `index.ts` into `ticketsConfig.ts` and covered by dedicated tests.
+
 ## [0.3.0] - 2026-07-22
 
 ### Added

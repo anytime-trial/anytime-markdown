@@ -2,17 +2,12 @@
  * graph-viewer vanilla SettingsPanel ファクトリ。
  *
  * React 実装 `components/SettingsPanel.tsx` の DOM 版。
- * createIconButton / createText / createToggleButton / createToggleButtonGroup を使用。
+ * iconButton / text / toggleButton / toggleButtonGroup（ui-core アダプタ）を使用。
  */
 
 import { getCanvasColors } from '@anytime-markdown/graph-core';
 import { createGraphT } from '../i18n/createGraphT';
-import { createIconButton } from '../ui-vanilla/IconButton';
-import { createText } from '../ui-vanilla/Text';
-import {
-  createToggleButton,
-  createToggleButtonGroup,
-} from '../ui-vanilla/ToggleButton';
+import { iconButton, text, toggleButton, toggleButtonGroup } from '../ui/uiCoreAdapters';
 import {
   createCloseIcon,
   createDarkModeIcon,
@@ -72,14 +67,14 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   header.style.padding = '12px 16px';
   header.style.borderBottom = `1px solid ${colors.panelBorder}`;
 
-  const titleEl = createText({
+  const titleEl = text({
     variant: 'subtitle2',
     style: { color: colors.textPrimary, fontWeight: '700' },
     children: t('settings'),
   });
 
   const closeIconEl = createCloseIcon({ fontSize: 'small' });
-  const closeBtn = createIconButton({
+  const closeBtn = iconButton({
     size: 'small',
     onClick: onClose,
     children: closeIconEl,
@@ -110,7 +105,7 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
     ? createDarkModeIcon({ fontSize: 'small', color: colors.textSecondary })
     : createLightModeIcon({ fontSize: 'small', color: colors.textSecondary });
 
-  const themeLabelEl = createText({
+  const themeLabelEl = text({
     style: { color: colors.textPrimary, fontWeight: '600' },
     children: t('themeMode'),
   });
@@ -118,17 +113,16 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   themeRow.appendChild(themeModeIcon);
   themeRow.appendChild(themeLabelEl);
 
-  const themeGroup = createToggleButtonGroup({
+  const themeGroup = toggleButtonGroup({
     value: themeMode,
-    exclusive: true,
     size: 'small',
     fullWidth: true,
-    onChange: (_e, v) => {
+    onChange: (v) => {
       if (v === 'light' || v === 'dark') onThemeModeChange?.(v);
     },
   });
-  const lightBtn = createToggleButton({ value: 'light', children: 'Light' });
-  const darkBtn = createToggleButton({ value: 'dark', children: 'Dark' });
+  const lightBtn = toggleButton({ value: 'light', children: 'Light' });
+  const darkBtn = toggleButton({ value: 'dark', children: 'Dark' });
   themeGroup.register(lightBtn);
   themeGroup.register(darkBtn);
 
@@ -138,7 +132,7 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   // Language section
   const langSection = document.createElement('div');
 
-  const langLabelEl = createText({
+  const langLabelEl = text({
     style: {
       color: colors.textPrimary,
       fontWeight: '600',
@@ -149,17 +143,16 @@ export function createSettingsPanel(opts: Readonly<SettingsPanelOptions>): Setti
   });
 
   const currentLocale = locale ?? 'ja';
-  const langGroup = createToggleButtonGroup({
+  const langGroup = toggleButtonGroup({
     value: currentLocale,
-    exclusive: true,
     size: 'small',
     fullWidth: true,
-    onChange: (_e, v) => {
+    onChange: (v) => {
       if (v != null) onLocaleChange?.(v);
     },
   });
-  const enBtn = createToggleButton({ value: 'en', children: 'English' });
-  const jaBtn = createToggleButton({ value: 'ja', children: 'Japanese' });
+  const enBtn = toggleButton({ value: 'en', children: 'English' });
+  const jaBtn = toggleButton({ value: 'ja', children: 'Japanese' });
   langGroup.register(enBtn);
   langGroup.register(jaBtn);
 

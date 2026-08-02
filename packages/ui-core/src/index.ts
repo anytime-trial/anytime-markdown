@@ -3,6 +3,10 @@
  *
  * React 非依存・`--am-color-*` CSS 変数でテーマ追従する素 DOM 部品を提供する。
  * 依存方向は chrome → ui-vanilla → dom（逆流させない）。
+ *
+ * 葉モジュール（`i18n` / `ssrSafeElement`）は本 barrel に載せず subpath 専用とする。
+ * barrel 経由で取ると、翻訳関数や WC 基底が欲しいだけの消費側が ui-core 全体の
+ * モジュールグラフ（`@floating-ui/dom` を含む）を起動してしまうため。
  */
 
 // --- 共通 helper / hook の素関数版 ---

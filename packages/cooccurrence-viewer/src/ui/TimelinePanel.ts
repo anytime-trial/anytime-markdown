@@ -8,7 +8,8 @@ import {
 } from '@anytime-markdown/graph-core';
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import type { TimelineViewState } from '../types';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createEditableGroup, type EditableControl } from './editableGroup';
 import { isLayerAxis } from './timelineModel';
 
 /**
@@ -28,6 +29,8 @@ export interface TimelinePanelState {
 }
 
 export interface TimelinePanelOptions extends TimelinePanelState {
+  /** 編集モードの入／切。切のあいだはファイルを書き換える操作を無効にする（要件書 §2.1）。 */
+  editable: boolean;
   onFileChange(file: CooccurrenceFile): void;
   onViewChange(view: TimelineViewState): void;
   /**
@@ -44,6 +47,8 @@ export interface TimelinePanelOptions extends TimelinePanelState {
 export interface TimelinePanelHandle {
   element: HTMLElement;
   update(state: TimelinePanelState): void;
+  /** 編集モードの入／切を反映する。 */
+  setEditable(editable: boolean): void;
   destroy(): void;
 }
 
@@ -92,6 +97,9 @@ function labelledCheckbox(text: string): { wrapper: HTMLLabelElement; input: HTM
 export function createTimelinePanel(options: TimelinePanelOptions): TimelinePanelHandle {
   ensureStyles();
   let state: TimelinePanelState = { file: options.file, view: options.view, t: options.t };
+  const editGroup = createEditableGroup();
+  /** スライス行のコントロール。作り直す前に登録を外すために覚えておく。 */
+  let sliceControls: EditableControl[] = [];
 
   const element = document.createElement('div');
   element.className = 'cooc-timeline';
@@ -151,14 +159,13 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
 
   const addRow = document.createElement('div');
   addRow.className = 'cooc-timeline__add';
-  const addLabel = document.createElement('input');
+  const addLabel = editGroup.register(document.createElement('input'));
   addLabel.type = 'text';
   addLabel.className = 'cooc-timeline__field';
-  const addAt = document.createElement('input');
+  const addAt = editGroup.register(document.createElement('input'));
   addAt.type = 'text';
   addAt.className = 'cooc-timeline__field';
-  const addButton = document.createElement('button');
-  addButton.type = 'button';
+  const addButton = editGroup.register(createPanelButton());
   addRow.append(addLabel, addAt, addButton);
 
   const errorEl = document.createElement('div');
@@ -211,6 +218,9 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
   function renderSlices(): void {
     const { file, t } = state;
     const slices = file.spec.timeline?.slices ?? [];
+    // 行は毎回作り直す。捨てる行の登録を先に外さないと、スライスを操作するたびに積もる。
+    sliceControls.forEach((control) => editGroup.unregister(control));
+    sliceControls = [];
     viewport.replaceChildren();
     if (slices.length === 0) {
       const empty = document.createElement('div');
@@ -224,13 +234,13 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
       const row = document.createElement('div');
       row.className = 'cooc-timeline__slice';
 
-      const labelInput = document.createElement('input');
+      const labelInput = editGroup.register(document.createElement('input'));
       labelInput.type = 'text';
       labelInput.className = 'cooc-timeline__field';
       labelInput.value = slice.label;
       labelInput.setAttribute('aria-label', t('timeline.sliceLabel'));
 
-      const atInput = document.createElement('input');
+      const atInput = editGroup.register(document.createElement('input'));
       atInput.type = 'text';
       atInput.className = 'cooc-timeline__field';
       atInput.value = slice.at ?? '';
@@ -249,25 +259,23 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
 
       const actions = document.createElement('div');
       actions.className = 'cooc-timeline__actions';
-      const up = document.createElement('button');
-      up.type = 'button';
+      const up = editGroup.register(createPanelButton());
       up.textContent = '↑';
-      up.disabled = index === 0;
+      editGroup.setOwnDisabled(up, index === 0);
       up.setAttribute('aria-label', t('timeline.moveEarlier'));
       up.addEventListener('click', () => showResult(moveCooccurrenceSlice(state.file, index, index - 1)));
-      const down = document.createElement('button');
-      down.type = 'button';
+      const down = editGroup.register(createPanelButton());
       down.textContent = '↓';
-      down.disabled = index === slices.length - 1;
+      editGroup.setOwnDisabled(down, index === slices.length - 1);
       down.setAttribute('aria-label', t('timeline.moveLater'));
       down.addEventListener('click', () => showResult(moveCooccurrenceSlice(state.file, index, index + 1)));
-      const remove = document.createElement('button');
-      remove.type = 'button';
+      const remove = editGroup.register(createPanelButton());
       remove.textContent = '×';
       remove.setAttribute('aria-label', t('timeline.removeSlice'));
       remove.addEventListener('click', () => showResult(deleteCooccurrenceSlice(state.file, index)));
       actions.append(up, down, remove);
 
+      sliceControls.push(labelInput, atInput, up, down, remove);
       row.append(labelInput, atInput, actions);
       viewport.appendChild(row);
     });
@@ -307,6 +315,9 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
     renderSlices();
   }
 
+  // 描画の前に反映する。スライスの行は描画のたびに作り直され、作った時点の編集モードで
+  // 無効／有効が決まるため、後に置くと最初の描画分だけ編集モードが効かない。
+  editGroup.setEditable(options.editable);
   render();
 
   return {
@@ -314,6 +325,9 @@ export function createTimelinePanel(options: TimelinePanelOptions): TimelinePane
     update(next: TimelinePanelState): void {
       state = next;
       render();
+    },
+    setEditable(editable: boolean): void {
+      editGroup.setEditable(editable);
     },
     destroy(): void {
       element.remove();

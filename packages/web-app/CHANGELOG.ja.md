@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-01
+
+### 変更
+
+- 改名後のエディタパッケージ（`markdown-editor` / `markdown-rich-editor`）と、その新しい subpath 公開面へ追従させた。
+- graph-viewer の vanilla UI 部品を `@anytime-markdown/ui-core` へ移行した。
+
+### 削除
+
+- `/mindmap` ページと `mindmap-viewer` パッケージ、およびその配線を削除した。
+
+### 修正
+
+- cooccurrence ページの mount がテーマ・ロケールの stale 値に固まる競合を修正した。
+- 絞り込みスライダーの刻みが、可動域が狭いとき 0 になるのを直した。
+- 高 DPI で OZ の canvas が右パネルを覆うはみ出しを修正した。
+
 ## [0.43.0] - 2026-07-30
 
 ### 変更
@@ -166,7 +183,7 @@
 
 ### 修正
 
-- `/api/ogp`・`/api/rss` が使うサーバー側 SSRF ガード（`assertSafeUrl`）と OGP パーサ（`parseOgpHtml`）を、markdown-viewer 内部からの deep import（dead code として削除済み）ではなく web-app 内に保持するよう移設し、本番ビルドを復旧。
+- `/api/ogp`・`/api/rss` が使うサーバー側 SSRF ガード（`assertSafeUrl`）と OGP パーサ（`parseOgpHtml`）を、markdown-editor 内部からの deep import（dead code として削除済み）ではなく web-app 内に保持するよう移設し、本番ビルドを復旧。
 
 ## [0.34.0] - 2026-06-30
 
@@ -236,7 +253,7 @@
 
 ### 変更
 
-- markdown-viewer / markdown-rich / graph-core の最新変更（anytime-chart 表タブ、本文幅切替 UI、型付きノート関連付け）を取り込み。
+- markdown-editor / markdown-rich-editor / graph-core の最新変更（anytime-chart 表タブ、本文幅切替 UI、型付きノート関連付け）を取り込み。
 
 ## [0.30.0] - 2026-06-17
 
@@ -283,7 +300,7 @@
 
 ### 変更
 
-- React-free 化したエディタコア（markdown-viewer / markdown-rich）と vanilla 版 spreadsheet viewer を取り込み。
+- React-free 化したエディタコア（markdown-editor / markdown-rich-editor）と vanilla 版 spreadsheet viewer を取り込み。
 - `next-env.d.ts` を Next 生成の types パスへ同期。
 - ローカル Docker イメージに `jq` を追加。
 
@@ -315,7 +332,7 @@
 
 ### 変更
 
-- vendored Tiptap v3.20.0 エディタコア（`@anytime-markdown/markdown-viewer` / `markdown-rich`）を採用。Web エディタは `@tiptap/*` npm パッケージに依存しなくなった。
+- vendored Tiptap v3.20.0 エディタコア（`@anytime-markdown/markdown-editor` / `markdown-rich-editor`）を採用。Web エディタは `@tiptap/*` npm パッケージに依存しなくなった。
 - 分離したリッチコードブロッククラスタ向けに `RichMarkdownEditorPage` を配線。
 - SonarCloud S1874 非推奨 API の移行と S3358 ネスト三項演算子の修正。機能変更なし。
 

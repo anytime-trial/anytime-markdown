@@ -22,3 +22,18 @@ export function ensureButtonBaseStyles(): void {
 `;
   document.head.appendChild(style);
 }
+
+/**
+ * パネルのボタンを組み立てる。土台クラス `cooc-btn` と `type="button"` を必ず付ける。
+ *
+ * Why not 各パネルで `document.createElement('button')` を書くか: 土台クラスの付与が呼び出し側の
+ * 記憶に頼りになり、実際に 3 度落とした。直近は時間軸パネルの並べ替え・削除・追加のボタンで、
+ * 暗いテーマの白面（UA 既定の `buttonface`）に明色の図柄が乗って読めなくなっていた。生成を
+ * ここへ集めれば落としようがない。`className` には土台の上に重ねる個別クラスだけを渡す。
+ */
+export function createPanelButton(className = ''): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = className === '' ? 'cooc-btn' : `cooc-btn ${className}`;
+  return button;
+}

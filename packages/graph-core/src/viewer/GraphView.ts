@@ -1,5 +1,5 @@
 import type { GraphDocument, GraphEdge, GraphNode, Viewport } from '../types';
-import { fitToContent as computeFit, getVisibleBounds, hitTest, pan, render, resolveEdgesForRender, screenToWorld, worldToScreen, zoom } from '../engine/index';
+import { fitToContent as computeFit, getVisibleBounds, hitTest, MINIMAP_BOUNDS_PAD, MINIMAP_ZOOM_DELTA, pan, render, resolveEdgesForRender, screenToWorld, worldToScreen, zoom } from '../engine/index';
 import { getCanvasColors } from '../theme';
 
 export interface GraphViewOptions {
@@ -21,8 +21,6 @@ const TOGGLE_RADIUS_CSS = 10;
 const MINIMAP_W_CSS = 200;
 const MINIMAP_H_CSS = 130;
 const MINIMAP_MARGIN_CSS = 8;
-const MINIMAP_BOUNDS_PAD = 10; // ワールド単位のコンテンツ余白（MinimapCanvas と同じ）
-const MINIMAP_ZOOM_DELTA = 300;
 const MINIMAP_BTN_CSS = 18; // ズーム/fit ボタンの一辺
 const MINIMAP_BTN_GAP_CSS = 4;
 const MINIMAP_RADIUS_CSS = 8;
@@ -589,7 +587,7 @@ export class GraphView {
     ctx.closePath();
   }
 
-  /** 全体俯瞰のミニマップを右上に描画する（MinimapCanvas 準拠）。screen(backing) px。 */
+  /** 全体俯瞰のミニマップを右上に描画する。screen(backing) px。 */
   private drawMinimap(): void {
     if (!this.minimap) return;
     const box = this.minimapRect();

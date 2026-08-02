@@ -1,6 +1,6 @@
 import type { CooccurrenceT } from '../i18n/createCooccurrenceT';
 import type { LayoutStatus } from '../types';
-import { ensureButtonBaseStyles } from './buttonBaseStyle';
+import { createPanelButton, ensureButtonBaseStyles } from './buttonBaseStyle';
 
 /**
  * 保存タブの状態。
@@ -65,15 +65,11 @@ export function createExportPanel(options: ExportPanelOptions): ExportPanelHandl
   note.className = 'cooc-export__note';
   element.append(buttons, note);
 
-  const save = document.createElement('button');
-  save.className = 'cooc-btn cooc-export__button';
-  save.type = 'button';
+  const save = createPanelButton('cooc-export__button');
   save.dataset.action = 'save';
   save.addEventListener('click', () => options.onRequestSave());
 
-  const png = document.createElement('button');
-  png.className = 'cooc-btn cooc-export__button';
-  png.type = 'button';
+  const png = createPanelButton('cooc-export__button');
   png.dataset.action = 'export-png';
   png.addEventListener('click', () => options.onExportPng());
 

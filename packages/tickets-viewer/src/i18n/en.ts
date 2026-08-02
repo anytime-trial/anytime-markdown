@@ -1,6 +1,7 @@
 /** Messages aggregated into web-app next-intl `tickets` namespace (en). Update together with ja.ts. */
 export const ticketsMessagesEn = {
   repo: {
+    emptyManagedByHost: "The ticket location is not configured, or GitHub sign-in is incomplete. Check your VS Code settings and the Accounts menu.",
     empty: "Select a GitHub repository to store tickets",
     select: "Select repository",
     change: "Change",

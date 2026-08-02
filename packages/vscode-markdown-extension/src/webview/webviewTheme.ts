@@ -3,7 +3,7 @@ import {
   DEFAULT_DARK_BG,
   DEFAULT_LIGHT_BG,
   type ThemePresetName,
-} from '@anytime-markdown/markdown-viewer';
+} from '@anytime-markdown/markdown-editor';
 
 /**
  * webview のテーマ（CSS 変数 + body 背景）を反映する。MUI ThemeProvider/CssBaseline の置換。

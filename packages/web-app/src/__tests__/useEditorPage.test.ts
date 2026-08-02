@@ -2,7 +2,7 @@
  * useEditorPage hook のユニットテスト
  */
 
-import { writeDraft } from "@anytime-markdown/markdown-viewer/src/utils/draftStorage";
+import { writeDraft } from "@anytime-markdown/markdown-editor/utils/draft-storage";
 import { renderHook, act } from "@testing-library/react";
 
 import { useEditorPage } from "../app/markdown/useEditorPage";

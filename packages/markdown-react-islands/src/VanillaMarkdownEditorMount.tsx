@@ -24,7 +24,7 @@ import {
   mountVanillaMarkdownEditor,
   type MountVanillaMarkdownEditorOptions,
   type VanillaMarkdownEditorHandle,
-} from "@anytime-markdown/markdown-viewer/src/host/vanillaMarkdownEditor";
+} from "@anytime-markdown/markdown-editor/host/mount";
 
 /** {@link VanillaMarkdownEditorMount} の props（orchestrator options + コンテナ装飾）。 */
 export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEditorOptions {
@@ -32,7 +32,7 @@ export interface VanillaMarkdownEditorMountProps extends MountVanillaMarkdownEdi
   style?: React.CSSProperties;
   /**
    * orchestrator の差し替え（既定は {@link mountVanillaMarkdownEditor}）。
-   * rich 注入版（markdown-rich の `mountVanillaRichMarkdownEditor`）を渡す consumer 用。
+   * rich 注入版（markdown-rich-editor の `mountVanillaRichMarkdownEditor`）を渡す consumer 用。
    */
   mount?: (
     container: HTMLElement,

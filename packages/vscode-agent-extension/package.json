@@ -2,7 +2,7 @@
   "name": "anytime-agent",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -215,11 +215,6 @@
       {
         "command": "anytime-agent.tickets.reload",
         "title": "%command.tickets.reload%",
-        "category": "Anytime Agent"
-      },
-      {
-        "command": "anytime-agent.tickets.selectRepo",
-        "title": "%command.tickets.selectRepo%",
         "category": "Anytime Agent"
       },
       {
@@ -444,6 +439,16 @@
           "default": "",
           "markdownDescription": "%config.tickets.github.branch%"
         },
+        "anytimeAgent.tickets.provider": {
+          "type": "string",
+          "enum": [
+            "local-git",
+            "github-contents",
+            "github-issues"
+          ],
+          "default": "local-git",
+          "markdownDescription": "%config.tickets.provider%"
+        },
         "anytimeAgent.tickets.github.provider": {
           "type": "string",
           "enum": [
@@ -451,7 +456,8 @@
             "github-issues"
           ],
           "default": "github-contents",
-          "markdownDescription": "%config.tickets.github.provider%"
+          "markdownDescription": "%config.tickets.github.provider%",
+          "markdownDeprecationMessage": "%config.tickets.github.provider.deprecated%"
         }
       }
     }

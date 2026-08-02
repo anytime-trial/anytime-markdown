@@ -6,6 +6,26 @@
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-08-01
+
+### 追加
+
+- チケットをローカル git 経由で読み書きできるようにし、GitHub 認証を不要にした。プロバイダ生成でローカル git / GitHub を切り替え、保存先は設定から選ぶ。
+- 同梱スキル `anytime-analysis` に批判的思考レンズ 9 種を追加した。
+- 汎用の共起グラフスキルから相場向けを切り出し、同梱スキル `anytime-stock-cooccurrence` を新設した。
+
+### 変更
+
+- 同梱スキル `anytime-proposal` を `anytime-analysis` へリネームし、「提案書の生成」から「分析と分析結果の出力」へ再定義した。提案書（RFC / ADR / 軽量提案）に加えて、調査結果を共起グラフ（`.cooc.json`）として出力するモードを追加した。併せて progressive disclosure 化し、モデル名のハードコードを解消した。
+- `anytime-stock-cooccurrence`: 追記手順を append 禁止（全量 replace）へ是正し、定義的リンクを禁止、クラスタ命名規約を改め、スライス別の孤立ノード検査を追加した。
+- その他の同梱スキルを更新: `anytime-dev-cycle`（並行実行数の早見表・予防系規律）、`anytime-dev-audit`（CLAUDE.md のプロンプティング規範照合）、`anytime-impl-test-design`（verifier-first 規律）、`anytime-build-webapp`（Phase 6 を `verification.md` へ分離）。
+
+### 修正
+
+- 未認証判定を init 送信時の解決結果に相乗りさせ、余分な往復を無くした。
+- 認証導線を復活させ、保存先の UI を設定へ寄せた。
+- local-git プロバイダのマージ前レビュー指摘を対処した。
+
 ## [1.10.0] - 2026-07-30
 
 ### 追加

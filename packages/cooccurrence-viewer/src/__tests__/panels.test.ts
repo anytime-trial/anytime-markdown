@@ -47,16 +47,18 @@ describe('FilterPanel', () => {
       onFilterChange: jest.fn(), onSelectedSliceLabelsChange: jest.fn(),
     });
     document.body.appendChild(panel.element);
-    const input = panel.element.querySelector('input[type="number"]') as HTMLInputElement;
+    // 3 条件ともスライダー。1 本目は最小出現頻度（可動域は語の頻度 1〜3）。
+    const input = panel.element.querySelector('input[type="range"]') as HTMLInputElement;
     input.focus();
-    input.value = '123';
+    input.value = '2';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     panel.update({
       file: file(),
       counts: { visibleNodeCount: 1, totalNodeCount: 3, visibleLinkCount: 0, totalLinkCount: 1 },
       t,
     });
     expect(document.activeElement).toBe(input);
-    expect(input.value).toBe('123');
+    expect(input.value).toBe('2');
     panel.destroy();
   });
 });
@@ -65,6 +67,7 @@ describe('WordListPanel', () => {
   it('filters visible rows by search text without changing the file', () => {
     const onFileChange = jest.fn();
     const panel = createWordListPanel({
+      editable: true,
       file: file(),
       visibleNodeIndexes: new Set([0, 1, 2]),
       selectedNodeIndex: null,
@@ -85,6 +88,7 @@ describe('WordListPanel', () => {
 
   it('renders fewer than 100 row elements for 1000 words', () => {
     const panel = createWordListPanel({
+      editable: true,
       file: file(1000),
       visibleNodeIndexes: new Set(Array.from({ length: 1000 }, (_, index) => index)),
       selectedNodeIndex: null,
@@ -99,6 +103,7 @@ describe('WordListPanel', () => {
 
   it('lists words hidden by the filter so they stay editable, marked as hidden', () => {
     const panel = createWordListPanel({
+      editable: true,
       file: file(3),
       // 図では語 0 だけが表示されている状態
       visibleNodeIndexes: new Set([0]),
@@ -120,6 +125,7 @@ describe('WordListPanel', () => {
   it('keeps focus on the same word row after the list re-renders', () => {
     let selected: number | null = null;
     const panel = createWordListPanel({
+      editable: true,
       file: file(50),
       visibleNodeIndexes: new Set(Array.from({ length: 50 }, (_, i) => i)),
       selectedNodeIndex: null,
@@ -146,6 +152,7 @@ describe('WordListPanel', () => {
 
   it('tells assistive tech the full list size, not the rendered window', () => {
     const panel = createWordListPanel({
+      editable: true,
       file: file(500),
       visibleNodeIndexes: new Set(Array.from({ length: 500 }, (_, i) => i)),
       selectedNodeIndex: null,
@@ -164,6 +171,7 @@ describe('WordListPanel', () => {
   it('does not call onFileChange and displays the reason when an edit fails', () => {
     const onFileChange = jest.fn();
     const panel = createWordListPanel({
+      editable: true,
       file: file(),
       visibleNodeIndexes: new Set([0, 1, 2]),
       selectedNodeIndex: 0,

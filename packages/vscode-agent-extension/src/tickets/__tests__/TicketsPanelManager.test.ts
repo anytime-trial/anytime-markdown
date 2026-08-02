@@ -23,6 +23,12 @@ describe('describeTicketSource', () => {
   it('branch が空文字列なら repo のみを返す(github-issues は branch を持たない)', () => {
     expect(describeTicketSource({ repo: 'owner/repo', branch: '', provider: 'github-issues' })).toBe('owner/repo');
   });
+
+  it('local-git はローカルクローンのパスをそのまま示す', () => {
+    expect(describeTicketSource({ provider: 'local-git', repoRoot: '/home/user/anytime-ticket' })).toBe(
+      '/home/user/anytime-ticket',
+    );
+  });
 });
 
 describe('isTicketsRpcRequest', () => {
@@ -115,7 +121,7 @@ describe('TicketsPanelManager', () => {
     const resolveContext = jest.fn(
       async (): Promise<PanelContext> => ({ source, provider: makeProvider(), currentUser: 'octocat', locale: 'ja' }),
     );
-    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, jest.fn());
+    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext);
 
     await manager.open();
     await fake.fireMessage({ type: 'ready' });
@@ -132,7 +138,7 @@ describe('TicketsPanelManager', () => {
     const resolveContext = jest.fn(
       async (): Promise<PanelContext> => ({ source: null, provider: null, locale: 'en' }),
     );
-    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, jest.fn());
+    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext);
 
     await manager.open();
     await fake.fireMessage({ type: 'ready' });
@@ -148,7 +154,7 @@ describe('TicketsPanelManager', () => {
     const resolveContext = jest.fn(
       async (): Promise<PanelContext> => ({ source, provider: makeProvider(), locale: 'ja' }),
     );
-    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, jest.fn());
+    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext);
 
     await manager.open();
     await manager.open();
@@ -157,25 +163,12 @@ describe('TicketsPanelManager', () => {
     expect(fake.panel.reveal).toHaveBeenCalledTimes(1);
   });
 
-  it('selectRepo メッセージは onSelectRepo コールバックへ委譲する', async () => {
-    const fake = makeFakePanel();
-    createWebviewPanel.mockReturnValue(fake.panel);
-    const resolveContext = jest.fn(async (): Promise<PanelContext> => ({ source: null, provider: null, locale: 'ja' }));
-    const onSelectRepo = jest.fn().mockResolvedValue(undefined);
-    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, onSelectRepo);
-
-    await manager.open();
-    await fake.fireMessage({ type: 'selectRepo' });
-
-    expect(onSelectRepo).toHaveBeenCalledTimes(1);
-  });
-
   it('不正な RPC メッセージ(method 未知)は無視し warn ログを残す', async () => {
     const fake = makeFakePanel();
     createWebviewPanel.mockReturnValue(fake.panel);
     const provider = makeProvider();
     const resolveContext = jest.fn(async (): Promise<PanelContext> => ({ source, provider, locale: 'ja' }));
-    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, jest.fn());
+    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext);
 
     await manager.open();
     fake.postMessage.mockClear();
@@ -190,7 +183,7 @@ describe('TicketsPanelManager', () => {
     const fake = makeFakePanel();
     createWebviewPanel.mockReturnValue(fake.panel);
     const resolveContext = jest.fn(async (): Promise<PanelContext> => ({ source, provider: null, locale: 'ja' }));
-    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, jest.fn());
+    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext);
 
     await manager.open();
     fake.postMessage.mockClear();
@@ -206,7 +199,7 @@ describe('TicketsPanelManager', () => {
     createWebviewPanel.mockReturnValue(fake.panel);
     const provider = makeProvider();
     const resolveContext = jest.fn(async (): Promise<PanelContext> => ({ source, provider, locale: 'ja' }));
-    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, jest.fn());
+    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext);
 
     await manager.open();
     fake.postMessage.mockClear();
@@ -223,7 +216,7 @@ describe('TicketsPanelManager', () => {
     const resolveContext = jest.fn(async (): Promise<PanelContext> => {
       throw new Error(`GitHub API 呼び出しに失敗しました: token=${secretToken}`);
     });
-    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, jest.fn());
+    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext);
 
     await manager.open();
     fake.postMessage.mockClear();
@@ -259,7 +252,7 @@ describe('TicketsPanelManager', () => {
           releaseContext = () => resolve({ source, provider: makeProvider(), locale: 'ja' });
         }),
     );
-    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext, jest.fn());
+    const manager = new TicketsPanelManager(makeContext(), logger, resolveContext);
 
     await manager.open();
     fake.postMessage.mockClear();

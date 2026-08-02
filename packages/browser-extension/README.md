@@ -1,7 +1,7 @@
 # @anytime-markdown/browser-extension
 
 Chrome / Edge（Manifest V3）拡張。ツールバーアイコンをクリックすると、新規タブで全画面の
-Markdown エディタを開く。エディタ本体は `@anytime-markdown/markdown-rich` の Web Component
+Markdown エディタを開く。エディタ本体は `@anytime-markdown/markdown-rich-editor` の Web Component
 `<anytime-markdown-rich-editor>`（脱 React の vanilla DOM 実装・mermaid / katex / plantuml /
 math / graph 対応）をそのまま利用する。
 
@@ -57,7 +57,7 @@ npm run build -w @anytime-markdown/browser-extension
 
 ## カスタマイズ
 
-- 軽量なプレーン版に戻す場合: `src/editor.ts` の import を `@anytime-markdown/markdown-viewer/element`
+- 軽量なプレーン版に戻す場合: `src/editor.ts` の import を `@anytime-markdown/markdown-editor/element`
   に、`public/editor.html` のタグを `<anytime-markdown-editor>` に差し替える（mermaid/katex 等は無効）
 - グラフ機能（jsxgraph/plotly）を隠してバンドルを軽くする: `<anytime-markdown-rich-editor>` に
   `hide-graph` 属性を付ける

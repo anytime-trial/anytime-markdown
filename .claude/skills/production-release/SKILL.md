@@ -40,7 +40,7 @@ git pull origin develop     # 最新化
 
 | 系統 | publish ジョブ / タグ | 同期セット（手動 bump 対象） | 備考 |
 | --- | --- | --- | --- |
-| **markdown 系** | `publish-markdown` / `v<x>` | `package.json` (root), `packages/mcp-markdown`, `packages/markdown-viewer`, `packages/markdown-rich`, `packages/vscode-markdown-extension` | `markdown-core` は vendored tiptap で **0.0.0 固定**・bump 対象外。`version.ts` の `APP_VERSION` は root を動的参照 |
+| **markdown 系** | `publish-markdown` / `v<x>` | `package.json` (root), `packages/mcp-markdown`, `packages/markdown-editor`, `packages/markdown-rich-editor`, `packages/vscode-markdown-extension` | `markdown-core` は vendored tiptap で **0.0.0 固定**・bump 対象外。`version.ts` の `APP_VERSION` は root を動的参照 |
 | **graph 系** | `publish-graph` / `graph-v<x>` | `packages/graph-core`, `packages/mcp-graph`, `packages/vscode-graph-extension` | `graph-viewer` は独立バージョン |
 | **trail 系** | `publish-trail` / `trail-v<x>` | `packages/trail-core`, `packages/vscode-trail-extension` | `trail-server` / `trail-viewer` / `trail-db` / `mcp-trail` / `memory-core` / `agent-core` は独立・bump 対象外（webpack 同梱）。VSIX は **per-platform 4 種**（`build-trail` matrix: linux/win32 × x64/arm64） |
 | **database 系** | `publish-database` / `database-v<x>` | `packages/database-core`, `packages/database-viewer`, `packages/vscode-database-extension` | VSIX は **per-platform 4 種**（`build-database` matrix: linux/win32 × x64/arm64。**darwin なし**） |
@@ -114,7 +114,7 @@ git diff --name-only origin/master...HEAD -- packages/ | cut -d/ -f2 | sort | un
 ```
 
 更新後、上記4ファイルのバージョンが統一されていることを確認。\
-`packages/markdown-viewer/src/version.ts` の `APP_VERSION` はルート package.json を動的参照するため手動更新不要。
+`packages/markdown-editor/src/version.ts` の `APP_VERSION` はルート package.json を動的参照するため手動更新不要。
 
 **graph 系の更新:**
 ```bash
@@ -200,8 +200,8 @@ develop ブランチの最新コミットログを参照してエントリ内容
 
 | CHANGELOG | 記載する内容 | 記載しない内容 |
 | --- | --- | --- |
-| `packages/markdown-viewer/CHANGELOG.md` | エディタコア機能（Tiptap、コンポーネント、拡張機能、スタイル、セキュリティ）。`markdown-rich` 固有変更も含む | VS Code 固有、web-app 固有、CI/CD。`markdown-core`（vendored tiptap）は CHANGELOG なし |
-| `packages/vscode-markdown-extension/CHANGELOG.md` | VS Code 拡張固有（Custom Editor、treeview、webview、activationEvents、ステータスバー移行等）+ `### Editor Core (markdown-viewer / markdown-rich)` セクションにエディタコア更新の要約 | web-app 固有、CI/CD、git treeview、graph editor |
+| `packages/markdown-editor/CHANGELOG.md` | エディタコア機能（Tiptap、コンポーネント、拡張機能、スタイル、セキュリティ）。`markdown-rich-editor` 固有変更も含む | VS Code 固有、web-app 固有、CI/CD。`markdown-core`（vendored tiptap）は CHANGELOG なし |
+| `packages/vscode-markdown-extension/CHANGELOG.md` | VS Code 拡張固有（Custom Editor、treeview、webview、activationEvents、ステータスバー移行等）+ `### Editor Core (markdown-editor / markdown-rich-editor)` セクションにエディタコア更新の要約 | web-app 固有、CI/CD、git treeview、graph editor |
 | `packages/web-app/CHANGELOG.md` | web-app 固有（ランディングページ、CMS、/docs、C4 Viewer、Next.js、SEO、Auth.js、PWA、Dockerfile）+ CI/CD（GitHub Actions、SonarCloud、e2e テスト） | VS Code 固有、エディタコア |
 | `packages/graph-core/CHANGELOG.md` | グラフエンジンコア（ノード、エッジ、キャンバス、レイアウト、エクスポート、アクセシビリティ） | VS Code 固有 |
 | `packages/vscode-graph-extension/CHANGELOG.md` | VS Code Graph 拡張固有（Custom Editor、テーマ、設定パネル）+ `### Graph Core (graph-core)` セクションに graph-core 更新の要約 | graph-core 詳細 |
@@ -262,7 +262,7 @@ critical / high の脆弱性がある場合は、該当パッケージを更新�
 ```bash
 # 5-1: 型チェック・lint・スキルゲート
 npx tsc --noEmit
-npm run lint  # 注: root の lint 実体は `eslint packages/markdown-viewer/src packages/web-app/src` のみ。graph 系・trail 系・database 系等は lint 対象外
+npm run lint  # 注: root の lint 実体は `eslint packages/markdown-editor/src packages/web-app/src` のみ。graph 系・trail 系・database 系等は lint 対象外
 npm run check-skills  # 同梱スキルの byte 一致 + 参照実在性 lint + SHORTCUT ゲート + scripts テスト。develop push の CI が回すのでローカルでも必須
 bash scripts/check-test-safety.sh --all  # 保護領域書込・new TrailDatabase 直呼びのゲート。develop push の CI が回すのでローカルでも必須（2026-07-17 リリースで CI 初検出の実績）
 
@@ -296,7 +296,7 @@ done
 
 **共有パッケージの波及先を確認する。** `vscode-common` のような共有パッケージを変更した場合、それを import する拡張は自身の `src` に差分が無くてもバンドル内容が変わる。バージョンを上げない系統はタグ既存で publish がスキップされ、修正がユーザーに届かない。`grep -rn "from '@anytime-markdown/vscode-common'" packages/*/src` で import シンボルまで見て、変更した API を実際に使う系統を bump 対象に含めること。
 
-- **lint エラー**がある場合は修正してから次のステップに進むこと（CI の `npm run lint` と同じチェック）。root の lint 実体は `eslint packages/markdown-viewer/src packages/web-app/src` のみで、graph 系・trail 系・database 系等は lint 対象外。
+- **lint エラー**がある場合は修正してから次のステップに進むこと（CI の `npm run lint` と同じチェック）。root の lint 実体は `eslint packages/markdown-editor/src packages/web-app/src` のみで、graph 系・trail 系・database 系等は lint 対象外。
 - **e2e テスト**が失敗した場合は修正してから次のステップに進むこと（PR 作成前の必須ゲート）。
 - **VR（ビジュアル回帰）が失敗したら、まず `--update-snapshots` を打たない。** 祖先要素の小数高さ（例: ボタン行 39.39px）による sub-pixel ずれだと、見た目は変わっていないのに複数スナップショットが落ちる。`origin/master` を worktree に出して同じ VR を走らせ（node_modules は main へ symlink）、master で pass するならローカル環境差ではなくコード起因。差分画像を読み、要素の `getBoundingClientRect()` の `top` が整数かを確認してから、ベースライン更新か実装修正かを決める。
 - **E2E カバレッジ**: `e2e:coverage` は Chromium のみで実行し、`coverage/coverage-final.json`（Istanbul 形式）を出力する。出力されたカバレッジファイルのファイル数をコンソールで確認する（`E2E coverage: N files →` のログ）。C4 モデルビューアでカバレッジを読み込み、対象ファイルのカバレッジ状況を視覚的に確認する。

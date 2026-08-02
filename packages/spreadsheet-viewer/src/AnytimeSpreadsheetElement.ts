@@ -2,7 +2,7 @@
  * `<anytime-spreadsheet>` Custom Element — spreadsheet-viewer の vanilla mount API
  * （{@link mountSpreadsheetEditor}）をフレームワーク非依存の Web Component で包む。
  *
- * mindmap-viewer の `MindmapViewerElement` を anytime WC 規約のテンプレートとし、属性 I/F・
+ * anytime WC 規約（`AnytimeGraphElement` と同系）に沿って、属性 I/F・
  * プロパティ I/F・CustomEvent・ライフサイクルを揃える。スタイルは Light DOM（既定）で
  * `document.head` 注入の `.sv-*` クラスとテーマ CSS 変数がそのまま適用される。
  *
@@ -15,18 +15,19 @@
 import {
   createInMemorySheetAdapter,
   parseCsv,
-  serializeCsv,
   parseMarkdownTable,
+  serializeCsv,
   serializeMarkdownTable,
   type SheetAdapter,
   type SheetSnapshot,
 } from "@anytime-markdown/spreadsheet-core";
+import { HTMLElementBase } from "@anytime-markdown/ui-core/ssrSafeElement";
 
+import type { ChartDefinition } from "./vanilla/chartLayer.types";
 import {
   mountSpreadsheetEditor,
   type SpreadsheetEditorHandle,
 } from "./vanilla/spreadsheetEditor";
-import type { ChartDefinition } from "./vanilla/chartLayer.types";
 
 export type { ChartDefinition };
 
@@ -41,16 +42,6 @@ export interface SpreadsheetChangeDetail {
 export interface SpreadsheetChartsChangeDetail {
   charts: ChartDefinition[];
 }
-
-/**
- * SSR/Node 安全化: `HTMLElement` 未定義環境（Next の SSR・Node ビルド・barrel 経由の
- * サーバ評価）でも class 定義時に ReferenceError を投げないようダミー基底へフォールバックする。
- * 実際の登録（customElements.define）と動作はブラウザ（HTMLElement 定義済み）でのみ行う。
- */
-const HTMLElementBase: typeof HTMLElement =
-  typeof HTMLElement !== "undefined"
-    ? HTMLElement
-    : (class {} as unknown as typeof HTMLElement);
 
 export class AnytimeSpreadsheetElement extends HTMLElementBase {
   static get observedAttributes(): string[] {

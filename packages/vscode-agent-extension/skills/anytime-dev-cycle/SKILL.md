@@ -6,7 +6,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 
 # anytime-dev-cycle — 開発基本スキル
 
-更新日: 2026-07-16
+更新日: 2026-08-01
 
 本体は入口判定・工程ルート・ゲートだけを持つ。提案、仕様、計画、実装、レビュー、回転、委譲の詳細手順は各スキルまたは `references/` へ委譲し、ここへ複製しない。
 
@@ -25,7 +25,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 | 単発委譲 | 「Codex にやらせて」「ollama に投げて」 | サイクルを回さず `references/delegation.md` を読む |
 | 単発回転 | 「サブエージェント回転で」「毎タスク compact」 | サイクルを回さず `references/agent-rotation.md` を読む |
 
-モード判定が曖昧な場合だけ 1 回確認する。単発の「提案書を書いて」「技術記事を書いて」は `anytime-proposal` / `anytime-doc-authoring`、レビューだけは `superpowers:requesting-code-review` / `anytime-cross-review`、リリースは `production-release` へ直行する。
+モード判定が曖昧な場合だけ 1 回確認する。単発の「提案書を書いて」「技術記事を書いて」は `anytime-analysis` / `anytime-doc-authoring`、レビューだけは `superpowers:requesting-code-review` / `anytime-cross-review`、リリースは `production-release` へ直行する。
 
 ### 0.5. プリフライト（事前チェック・初回必須）
 
@@ -73,7 +73,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 | 段 | 内容 | 成果物 / 委譲先 | ゲート |
 | --- | --- | --- | --- |
 | 0 | ブランチ確認 | `git branch --show-current` | master/main では作業せず develop 由来の作業ブランチ |
-| 1 | 提案書（明示指示時のみ） | `anytime-proposal` → `<docsRoot>/proposal/` | ファイル存在 + ユーザー `ok` |
+| 1 | 提案書（明示指示時のみ） | `anytime-analysis` → `<docsRoot>/proposal/` | ファイル存在 + ユーザー `ok` |
 | 2 | 要件書・機能仕様書の作成・改訂（AI） | `anytime-spec-lookup` + `anytime-markdown-output`（要件定義書・component spec・E2E シナリオ・試験設計書） | ファイル存在 + ユーザー承認（What の確定。実装前で唯一の内容承認。バグ修正 2 案の選択もここ） |
 | 3 | 実装計画の作成（AI・承認不要） | `superpowers:writing-plans` → `<docsRoot>/plan/` | ファイル存在のみ（承認ゲートなし。検証コマンドの実在確認は必須） |
 | 4 | 実装 | §3 の手段選択 + `anytime-impl-test-design` | 出口から導出した検証が通過 |
@@ -108,7 +108,7 @@ description: anytime-markdown で「実装して」「直して」「リファ�
 
 ## 3. 段4: 実行手段の選択
 
-**先にループ形状を決める（プロンプトより前）**。手順が既知で終了条件が確定しているタスクに開放ループ（自律反復）を与えると堂々巡りになり、探索が要るタスクを固定手順に押し込むと途中で破綻する。着手前に 1 行で宣言する。
+**先にループ形状を決める（プロンプトより前）**。手順が既知で終了条件が確定しているタスクに開放ループ（自律反復）を与えると堂々巡りになり、探索が要るタスクを固定手順に押し込むと途中で破綻する。着手前に 1 行で宣言する。宣言には形状・1 ターンの定義・終了条件に加えて**進捗指標**（何が減れば/増えれば前進か。例: 残り型エラー数・未通過テスト数・残タスク数・未対処指摘数）を含める。この指標が `stopping-rules-playbook.md` の無進捗観測「指標が 3 ターン以上変化していない」の判定対象になる — 未宣言のままでは無進捗検知が後手に回る（proposal `20260801-agentic-design-patterns-dev-cycle`）。
 
 | ループ形状 | 選ぶ条件 | 1 ターンの定義 / 終了条件 |
 | --- | --- | --- |
@@ -145,7 +145,20 @@ abstain 出口は `references/stopping-rules-playbook.md` 共通。abstained 返
 | **opus** | 設計判断を伴う複雑な実装、アーキテクチャ変更（理由をプロンプトに明記） |
 | **fable** | 原則使わない（メイン専用）。fable が必要なほど複雑なタスクは委譲せずメインで実施 |
 
-並行実行数の絞り込み（メモリ基準）と委任プロンプトの必須事項は global `~/.claude/CLAUDE.md`「サブエージェント」に従う。
+**再委任時のモデル昇格**: 能力不足が疑われる差し戻し・abstain の再委任は、同条件・同モデルで繰り返さず（playbook「委譲先の異常」）、haiku → sonnet →（opus / Codex / メイン自作）へ 1 段昇格して行う。昇格しても失敗したらユーザーへエスカレーションする。昇格判断の材料は委譲結果行の `[model]` 記録（`references/delegation.md` §2.2）。逆に、初回選択を安易に安いモデルへ倒す免罪符にはしない（初回は上表の用途基準で選ぶ）。
+
+### 3.2. 並行実行数
+
+物理 96GB 環境では通常 4〜6 並列で問題ない。**事前の毎回確認は不要**で、OOM・swap・ビルド失敗を観測したときだけ `free -h` を確認し、available メモリで動的に絞る。
+
+| 利用可能メモリ | 最大並行数 | ビルド/テストを含む場合 |
+| --- | --- | --- |
+| 30GB 以上（通常運用） | 6 | 4 |
+| 15〜30GB | 4 | 2 |
+| 6〜15GB | 2 | 1 |
+| 6GB 未満 | 逐次実行 | 逐次実行 |
+
+委任プロンプトの必須事項は global `~/.claude/CLAUDE.md`「サブエージェント」に従う。
 
 ## 4. ガードレール
 
@@ -170,7 +183,7 @@ abstain 出口は `references/stopping-rules-playbook.md` 共通。abstained 返
 | 段5 で正本を目視更新しただけで drift 検知を掛けなかった | `check_alignment` / `detect_drift` を実行し、未解消 drift の是正 or 逸脱理由の記録を済ませて段6 へ |
 | 成果物を `/anytime-markdown/plan/` 等へ置いた | docs リポ `<docsRoot>/` へ作り直す |
 | enum 追加を 1 ファイルだけで済ませた | 兄弟値リテラルで横断検索しミラーを更新 |
-| 単発「提案書を書いて」を開発サイクルで処理した | `anytime-proposal` へ直行 |
+| 単発「提案書を書いて」を開発サイクルで処理した | `anytime-analysis` へ直行 |
 | 委譲失敗を同じ条件で再委任した | `stopping-rules-playbook.md` に従い再委任 / スキップ / エスカレーションを選ぶ |
 | 委譲先の「完了しました」を検証せず統合した | 委譲元が実測（テスト実行・`git diff`・対象ファイルの実在確認）で裏取りしてから統合する |
 | エラーは出ないまま同じ場所を回り続けた | playbook「無進捗」の観測（同一ファイルの再読・編集の往復・変わらない検証結果）で中断し、方針を再評価する |

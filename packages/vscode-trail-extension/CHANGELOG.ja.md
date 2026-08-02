@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.40.1] - 2026-08-01
+
+### 変更
+
+- 同梱スキルを更新: `anytime-dev-retro` にレトロ提案 3 件を取り込み、`anytime-proposal` を `anytime-analysis` へ改名した。
+
+### Trail Core (trail-core / trail-server / trail-viewer)
+
+- trail-viewer のミニマップ定数を graph-core と共有
+- jest の兄弟ソースマップを `exports` から導出（テスト基盤のみ）
+
 ## [0.40.0] - 2026-07-30
 
 ### 追加

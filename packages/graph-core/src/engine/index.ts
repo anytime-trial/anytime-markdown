@@ -46,6 +46,7 @@ export type { PathResult } from './graphTraversal';
 export { batchCreateGraph } from './batchImport';
 export type { BatchNodeInput, BatchEdgeInput, BatchImportInput } from './batchImport';
 export { resolveEdgesForRender } from './edgeResolution';
+export { MINIMAP_BOUNDS_PAD, MINIMAP_ZOOM_DELTA } from './constants';
 export { computeRadialLayout } from './physics/radial';
 export { computeRootedTreeLayout } from './physics/rootedTree';
 export { computeHierarchicalLayout } from './physics/hierarchical';

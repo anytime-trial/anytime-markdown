@@ -14,6 +14,9 @@ packages/web-app/anytime-trial-*.json
 .claude/*
 !.claude/rules/
 !.claude/skills/
+# チーム共有の Claude Code 設定（MCP 有効化・permissions の基本形）。
+# 個人差分は settings.local.json 側に置き、そちらは .claude/* の除外に任せる。
+!.claude/settings.json
 # markdown 拡張が activate 時に配置する生成物（ソースは packages/vscode-markdown-extension/skills/）
 .claude/skills/anytime-markdown-check/
 .claude/skills/anytime-markdown-output/
@@ -28,7 +31,8 @@ packages/web-app/anytime-trial-*.json
 .claude/skills/anytime-dev-cycle/
 .claude/skills/anytime-impl-test-design/
 .claude/skills/anytime-note/
-.claude/skills/anytime-proposal/
+.claude/skills/anytime-analysis/
+.claude/skills/anytime-stock-cooccurrence/
 # trail 拡張が activate 時に配置する生成物（ソースは packages/vscode-trail-extension/skills/）
 .claude/skills/anytime-dev-retro/
 .claude/skills/anytime-reverse-codegraph/
@@ -85,11 +89,11 @@ packages/web-app/public/THIRD-PARTY-NOTICES.md
 # 生成 .d.ts を無視する。正規ビルド（tsc -b）は declaration を各パッケージの dist/ に出力するため
 # src に .d.ts は生じない。手書き ambient .d.ts（.ts 兄弟を持たないモジュール宣言）は下の ! で
 # 明示追跡を維持する。新規 ambient .d.ts を src に追加する場合は negate 行を追記すること。
-/packages/markdown-viewer/src/**/*.d.ts
-!/packages/markdown-viewer/src/css.d.ts
-!/packages/markdown-viewer/src/md.d.ts
-!/packages/markdown-viewer/src/types/stylis.d.ts
-!/packages/markdown-viewer/src/types/vscode.d.ts
-/packages/markdown-rich/src/**/*.d.ts
-!/packages/markdown-rich/src/plotly-gl3d.d.ts
+/packages/markdown-editor/src/**/*.d.ts
+!/packages/markdown-editor/src/css.d.ts
+!/packages/markdown-editor/src/md.d.ts
+!/packages/markdown-editor/src/types/stylis.d.ts
+!/packages/markdown-editor/src/types/vscode.d.ts
+/packages/markdown-rich-editor/src/**/*.d.ts
+!/packages/markdown-rich-editor/src/plotly-gl3d.d.ts
 /packages/markdown-engine/src/**/*.d.ts

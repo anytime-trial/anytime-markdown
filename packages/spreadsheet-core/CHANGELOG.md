@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-01
+
+### Changed
+
+- Version sync with the sheet extension. No functional changes.
+
 ## [0.8.1] - 2026-07-30
 
 ### Changed

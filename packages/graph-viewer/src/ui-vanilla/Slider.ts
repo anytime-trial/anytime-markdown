@@ -1,96 +1,13 @@
 /**
  * MUI Slider / ui/Slider.tsx の vanilla DOM 置換（graph-viewer 専用）。
  *
- * 単一値（number）と範囲（number[]、dual-thumb）の両対応。
- * gv-slider / gv-slider-range クラスは injectStyles.ts で定義済みを流用する。
+ * 範囲（number[]、dual-thumb）専用。単一値スライダーは ui-core Slider へ移行済み
+ * （dual-thumb は ui-core に対応が無いため据え置き）。
+ * gv-slider-range クラスは injectStyles.ts で定義済みを流用する。
  */
 
 import { injectGraphUiStyles } from '../ui/injectStyles';
 import { applyStyle } from './dom';
-
-// --- 単一 Slider -------------------------------------------------------------
-
-/** {@link createSlider} のオプション。ui/Slider.tsx の SliderProps 相当（単一値モード）。 */
-export interface CreateSliderOptions {
-  /** 現在値。 */
-  readonly value: number;
-  /** 値変更コールバック。引数は新しい値と元の input イベント。 */
-  readonly onChange?: (value: number, event: Event) => void;
-  /** 下限（既定 0）。 */
-  readonly min?: number;
-  /** 上限（既定 100）。 */
-  readonly max?: number;
-  /** ステップ（既定 1）。 */
-  readonly step?: number;
-  /** サイズ（small で gv-slider--small を付与）。既定 "medium"。 */
-  readonly size?: 'small' | 'medium';
-  /** 無効状態。 */
-  readonly disabled?: boolean;
-  /** root への追加スタイル。 */
-  readonly style?: Partial<CSSStyleDeclaration>;
-  /** root への追加クラス。 */
-  readonly className?: string;
-  /** aria-label。 */
-  readonly ariaLabel?: string;
-}
-
-/** {@link createSlider} の戻り値。 */
-export interface SliderHandle {
-  /** input[type=range] 要素。 */
-  readonly el: HTMLInputElement;
-  /** value を外部からセットする（onChange は発火しない）。 */
-  setValue(v: number): void;
-  /** event listener を解除する。 */
-  destroy(): void;
-}
-
-/**
- * 単一値の MUI Slider vanilla 置換。
- * gv-slider クラスを使用する。
- */
-export function createSlider(opts: CreateSliderOptions): SliderHandle {
-  injectGraphUiStyles();
-
-  const min = opts.min ?? 0;
-  const max = opts.max ?? 100;
-  const step = opts.step ?? 1;
-
-  const classes = [
-    'gv-slider',
-    opts.size === 'small' ? 'gv-slider--small' : '',
-    opts.className,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const el = document.createElement('input');
-  el.type = 'range';
-  el.className = classes;
-  el.min = String(min);
-  el.max = String(max);
-  el.step = String(step);
-  el.value = String(opts.value);
-  if (opts.disabled) el.disabled = true;
-  if (opts.ariaLabel != null) el.setAttribute('aria-label', opts.ariaLabel);
-  applyStyle(el, opts.style);
-
-  let changeHandler = opts.onChange;
-  const onInput = (e: Event): void => {
-    changeHandler?.(Number(el.value), e);
-  };
-  el.addEventListener('input', onInput);
-
-  return {
-    el,
-    setValue(v: number): void {
-      el.value = String(v);
-    },
-    destroy(): void {
-      el.removeEventListener('input', onInput);
-      changeHandler = undefined;
-    },
-  };
-}
 
 // --- 範囲 Slider（dual-thumb）------------------------------------------------
 

@@ -1,8 +1,8 @@
 /**
  * graph-viewer ui-vanilla 共通の素 DOM ヘルパー。
  *
- * markdown-viewer の ui-vanilla/dom.ts と同一思想だが、graph-viewer から
- * markdown-viewer を import しないためここに最小版を自作する。
+ * markdown-editor の ui-vanilla/dom.ts と同一思想だが、graph-viewer から
+ * markdown-editor を import しないためここに最小版を自作する。
  * 依存方向: chrome → ui-vanilla → dom（逆流禁止）。
  */
 

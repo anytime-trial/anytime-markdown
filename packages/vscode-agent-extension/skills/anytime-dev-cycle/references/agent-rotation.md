@@ -97,7 +97,7 @@ import type { RotationPolicy, HandoffState } from '@anytime-markdown/agent-core'
 
 > [!IMPORTANT]
 > **policy 選択は threshold より効く。まず「継続に文脈引き継ぎの実利があるか」を判断する。**
-> 実測（2026-06-25・markdown-viewer 脱 any 5ファイル）では、独立タスクで `continue-while-cheap`
+> 実測（2026-06-25・markdown-editor 脱 any 5ファイル）では、独立タスクで `continue-while-cheap`
 > を選んだ結果、継続（`SendMessage`）が fresh より**約 28K トークン/ステップ余計**にかかった
 > （同規模 16 any: 継続 83K vs fresh 51〜60K）。継続は**累積トランスクリプト全体を毎回読み直す**
 > ため入力が膨らむ。**独立・機械的な作業は `always-fresh`（＋下記バッチ化）の方が安い**。回転＝

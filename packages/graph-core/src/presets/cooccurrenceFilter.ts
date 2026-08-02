@@ -1,9 +1,22 @@
 import { readLink, type CooccurrenceFile } from './cooccurrenceFile';
 import { readCooccurrenceSliceValue } from './cooccurrenceTimeline';
 
+/** サブクラスタの指し方。サブクラスタはクラスタの中でしか一意にならないため、対で指す。 */
+export interface CooccurrenceSubclusterRef {
+  cluster: number;
+  subcluster: number;
+}
+
 export interface CooccurrenceFilterOptions {
   minFrequency?: number;
   selectedClusterIndexes?: readonly number[];
+  /**
+   * 表示するサブクラスタ（設計書 §3.2）。`undefined` は全表示（サブクラスタで絞らない）。
+   *
+   * クラスタの選択とは独立に効く。クラスタを外せばその中の語は全て消え、クラスタを残したまま
+   * サブクラスタを外すと、そのサブクラスタの語だけが消える。
+   */
+  selectedSubclusters?: readonly CooccurrenceSubclusterRef[];
   minStrength?: number;
   topLinkCount?: number;
   /**
@@ -60,6 +73,42 @@ function applyClusterFilter(
   );
 }
 
+function subclusterKey(cluster: number, subcluster: number): string {
+  return `${cluster}:${subcluster}`;
+}
+
+/**
+ * サブクラスタによる絞り込み。クラスタ側（`applyClusterFilter`）と同じ規則で書く。
+ *
+ * どのサブクラスタにも属さない語（クラスタ直下の残余）は「選択されていないサブクラスタの語」では
+ * ないので残す。クラスタ側で未所属語を残したのと同じ理由で、全サブクラスタを選んだ状態が
+ * 「絞り込みなし」と一致しなくなるのを避ける。
+ */
+function applySubclusterFilter(
+  spec: CooccurrenceFile['spec'],
+  visibleNodes: Set<number>,
+  selectedSubclusters: readonly CooccurrenceSubclusterRef[] | undefined,
+): Set<number> {
+  if (selectedSubclusters === undefined) return visibleNodes;
+
+  const selected = new Set(selectedSubclusters.map((ref) => subclusterKey(ref.cluster, ref.subcluster)));
+  const selectedMembers = new Set<number>();
+  const anySubclusterMembers = new Set<number>();
+  spec.clusters?.forEach((cluster, clusterIndex) => {
+    cluster.subclusters?.forEach((subcluster, subclusterIndex) => {
+      const isSelected = selected.has(subclusterKey(clusterIndex, subclusterIndex));
+      subcluster.members.forEach((member) => {
+        anySubclusterMembers.add(member);
+        if (isSelected) selectedMembers.add(member);
+      });
+    });
+  });
+
+  return new Set(
+    [...visibleNodes].filter((nodeIndex) => selectedMembers.has(nodeIndex) || !anySubclusterMembers.has(nodeIndex)),
+  );
+}
+
 export function filterCooccurrenceFile(
   file: CooccurrenceFile,
   options: CooccurrenceFilterOptions = {},
@@ -90,6 +139,7 @@ export function filterCooccurrenceFile(
   });
 
   visibleNodes = applyClusterFilter(file.spec, visibleNodes, options.selectedClusterIndexes);
+  visibleNodes = applySubclusterFilter(file.spec, visibleNodes, options.selectedSubclusters);
 
   let survivingLinks = file.spec.links
     .map((link, linkIndex) => ({ link: readLink(link), linkIndex, strength: strengthOf(linkIndex) }))
