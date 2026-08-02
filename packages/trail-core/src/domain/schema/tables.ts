@@ -789,7 +789,7 @@ export const CREATE_ACCEPTANCE_RECORDS = `CREATE TABLE IF NOT EXISTS acceptance_
 
 export const CREATE_ACCEPTANCE_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_acceptance_records_decided_at ON acceptance_records(decided_at)`,
-]
+];
 
 // ドクトリン接地判断の並走記録 (D1)。中間承認の直前のエージェント判断と人の判断を
 // 突合し一致率を計測する。session_id は sessions(id) への FK を張らない
@@ -809,7 +809,7 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
   created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
   updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
   UNIQUE (session_id, subject)
-) STRICT`
+) STRICT`;
 
 export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON doctrine_judgments(judged_at)`,
