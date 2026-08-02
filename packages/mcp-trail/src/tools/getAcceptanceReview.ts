@@ -57,8 +57,9 @@ export async function handleGetAcceptanceReview(
   const baseRef = input.base_ref ?? DEFAULT_BASE_REF;
   const headRef = input.head_ref ?? DEFAULT_HEAD_REF;
 
-  // ensure (CREATE TABLE IF NOT EXISTS / ALTER) を含むため readwrite で開く
-  const opened = await openTrailDb(dbPath, 'readwrite');
+  // 提示のためだけに本番 DB のスキーマを変えない。readonly で開き、テーブル・
+  // 後付け列の不在は listDoctrineJudgmentsBySession 側で縮退させる
+  const opened = await openTrailDb(dbPath, 'readonly');
   let judgments;
   try {
     judgments = listDoctrineJudgmentsBySession(opened.db, input.session_id);

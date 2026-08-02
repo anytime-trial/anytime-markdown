@@ -239,15 +239,32 @@ function parseJsonArrayColumn<T>(column: string, raw: string | null): JsonParseO
   return { value: parsed as T[], error: null };
 }
 
+function tableColumns(db: Database, table: string): Set<string> {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return new Set(rows.map((row) => row.name));
+}
+
+/**
+ * 受け入れ確認 (DCT-13) の読み出し。**書込・DDL を行わない** (ensure を呼ばない)。
+ * 提示のためだけに本番 DB のスキーマを変えないため、テーブル不在は空配列、
+ * 後付け列 (gate_*) の不在は NULL として扱う。
+ */
 export function listDoctrineJudgmentsBySession(
   db: Database,
   sessionId: string,
 ): DoctrineJudgmentView[] {
-  ensureDoctrineJudgmentsTable(db);
+  const columns = tableColumns(db, 'doctrine_judgments');
+  if (columns.size === 0) {
+    return [];
+  }
+  const gateVerdictExpr = columns.has('gate_verdict') ? 'gate_verdict' : 'NULL AS gate_verdict';
+  const gateReasonsExpr = columns.has('gate_reasons_json')
+    ? 'gate_reasons_json'
+    : 'NULL AS gate_reasons_json';
   const rows = db
     .prepare(
       `SELECT id, session_id, subject, agent_judgment, coverage, citations_json,
-              gate_verdict, gate_reasons_json, human_decision, judged_at, decided_at
+              ${gateVerdictExpr}, ${gateReasonsExpr}, human_decision, judged_at, decided_at
          FROM doctrine_judgments
         WHERE session_id = ?
         ORDER BY judged_at ASC, id ASC`,

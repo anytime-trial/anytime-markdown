@@ -378,5 +378,52 @@ describe('doctrineJudgments', () => {
     it('判断が 0 件のセッションは空配列を返す（例外にしない）', () => {
       expect(listDoctrineJudgmentsBySession(db, 'session-none')).toEqual([]);
     });
+
+    it('テーブルが無い DB では空配列を返す（提示のために作らない）', () => {
+      const empty = new BetterSqlite3(':memory:');
+      expect(listDoctrineJudgmentsBySession(empty, 'session-1')).toEqual([]);
+      expect(
+        empty
+          .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`)
+          .all('doctrine_judgments'),
+      ).toEqual([]);
+      empty.close();
+    });
+
+    it('gate 列が無い旧 DB でも列を追加せず NULL として読む', () => {
+      const legacy = new BetterSqlite3(':memory:');
+      legacy.exec(`CREATE TABLE doctrine_judgments (
+        id INTEGER PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        agent_judgment TEXT NOT NULL,
+        coverage TEXT NOT NULL,
+        citations_json TEXT NOT NULL DEFAULT '[]',
+        citation_count INTEGER NOT NULL DEFAULT 0,
+        resolved_count INTEGER NOT NULL DEFAULT 0,
+        human_decision TEXT,
+        judged_at TEXT NOT NULL,
+        decided_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (session_id, subject)
+      )`);
+      legacy
+        .prepare(
+          `INSERT INTO doctrine_judgments (session_id, subject, agent_judgment, coverage, judged_at, created_at, updated_at)
+           VALUES ('s', '旧行', 'approve', 'covered', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
+        )
+        .run();
+
+      const [row] = listDoctrineJudgmentsBySession(legacy, 's');
+
+      expect(row?.gateVerdict).toBeNull();
+      expect(row?.gateReasons).toEqual([]);
+      const columns = (
+        legacy.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
+      ).map((c) => c.name);
+      expect(columns).not.toContain('gate_verdict');
+      legacy.close();
+    });
   });
 });
