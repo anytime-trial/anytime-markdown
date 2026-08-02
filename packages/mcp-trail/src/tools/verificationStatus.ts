@@ -10,6 +10,8 @@ import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { promisify } from 'node:util';
 import { z } from 'zod';
+import { workspacePathParam } from './workspaceParam';
+import { resolveWorkspacePath } from '../dbPath';
 
 const execFileAsync = promisify(execFile);
 
@@ -20,7 +22,7 @@ export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
 export const GetVerificationStatusInputSchema = z.object({
   package: z.string().describe('Target package name recorded by run-verified (e.g. markdown-editor)'),
   kinds: z.array(z.enum(VERIFICATION_KINDS)).optional().describe('Kinds to check (default: all 7)'),
-  workspacePath: z.string().optional().describe('Workspace root (default: cwd)'),
+  workspacePath: workspacePathParam,
 });
 
 export type GetVerificationStatusInput = z.infer<typeof GetVerificationStatusInputSchema>;
@@ -58,7 +60,7 @@ function resolveDbPath(workspacePath: string): string {
 export async function handleGetVerificationStatus(
   input: GetVerificationStatusInput,
 ): Promise<VerificationStatusResult> {
-  const ws = input.workspacePath ?? process.cwd();
+  const ws = resolveWorkspacePath(input.workspacePath).path;
   const kinds: string[] = input.kinds ? [...input.kinds] : [...VERIFICATION_KINDS];
   const dbPath = resolveDbPath(ws);
   if (!fs.existsSync(dbPath)) {

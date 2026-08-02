@@ -1,9 +1,11 @@
 import { z } from 'zod';
+import { workspacePathParam } from './workspaceParam';
 import { listUnaddressedReviewFindings, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
 import type { UnaddressedReviewFinding } from '@anytime-markdown/memory-core/query';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const ListUnaddressedReviewFindingsInputSchema = z.object({
+  workspacePath: workspacePathParam,
   severity: z.string().optional().describe('Filter by severity (info, warn, error)'),
   daysSinceMin: z.number().optional().describe('Only findings recorded at least N days ago'),
   target_file_path: z.string().optional().describe('Filter by file path'),
@@ -17,7 +19,7 @@ export type ListUnaddressedReviewFindingsInput = z.infer<typeof ListUnaddressedR
 export async function handleListUnaddressedReviewFindings(
   input: ListUnaddressedReviewFindingsInput,
 ): Promise<UnaddressedReviewFinding[]> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return listUnaddressedReviewFindings({ db: memHandle.db, ...input, logger });

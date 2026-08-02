@@ -8,6 +8,9 @@
 
 ### 変更
 
+- ワークスペースルートの解決を `resolveWorkspacePath`（`src/dbPath.ts`）へ一元化した（2026-08-02）。優先順は `workspacePath` 引数 > `TRAIL_WORKSPACE_PATH` > `process.cwd()`。各ツールが個別に `process.env` を読む重複を除去した
+- 全ツールに任意の `workspacePath` 引数を追加した。memory-core 系 13 ツールはこれまで引数を持たず cwd 固定で、別ワークスペースから呼ぶと他プロジェクトの DB を掴み得た
+- cwd へフォールバックした場合に stderr へ警告を出すようにした（暗黙のフォールバックをやめる）
 - SQLite アクセスを `sql.js` (WASM) から `better-sqlite3` (ネイティブ) に置換。memory-core / trail-db / trail-server も同時に better-sqlite3 一本化済みであり、`vsce package --no-dependencies` 配布の制約も解消したため WASM 経由は不要になった。`openTrailDb` の `tmp + rename` による atomic 書き出しは、better-sqlite3 の close 時 WAL checkpoint に置き換わった。
 
 ## [0.10.1] - 2026-05-08

@@ -409,6 +409,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       subject_id: DetectDriftInputSchema.shape.subject_id,
       since: DetectDriftInputSchema.shape.since,
       limit: DetectDriftInputSchema.shape.limit,
+      workspacePath: DetectDriftInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleDetectDrift(args);
@@ -418,7 +419,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'explain_drift',
-    { description: 'Return the 5-source (conversation/spec/code/bug_history/review) evidence for a specific drift event', inputSchema: { event_id: ExplainDriftInputSchema.shape.event_id } },
+    { description: 'Return the 5-source (conversation/spec/code/bug_history/review) evidence for a specific drift event', inputSchema: { event_id: ExplainDriftInputSchema.shape.event_id, workspacePath: ExplainDriftInputSchema.shape.workspacePath } },
     async (args) => {
       const result = await handleExplainDrift(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
@@ -431,6 +432,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       event_id: ResolveDriftInputSchema.shape.event_id,
       resolution_note: ResolveDriftInputSchema.shape.resolution_note,
       resolved_at: ResolveDriftInputSchema.shape.resolved_at,
+      workspacePath: ResolveDriftInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleResolveDrift(args);
@@ -533,6 +535,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       target_refs: RunReviewAgentInputSchema.shape.target_refs,
       prompt_kind: RunReviewAgentInputSchema.shape.prompt_kind,
       model: RunReviewAgentInputSchema.shape.model,
+      workspacePath: RunReviewAgentInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleRunReviewAgent(args);
@@ -542,7 +545,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_review_run_status',
-    { description: 'Get the status of a review agent run by run_id', inputSchema: { run_id: GetReviewRunStatusInputSchema.shape.run_id } },
+    { description: 'Get the status of a review agent run by run_id', inputSchema: { run_id: GetReviewRunStatusInputSchema.shape.run_id, workspacePath: GetReviewRunStatusInputSchema.shape.workspacePath } },
     async (args) => {
       const result = await handleGetReviewRunStatus(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
@@ -558,6 +561,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       model: ListReviewRunsInputSchema.shape.model,
       since: ListReviewRunsInputSchema.shape.since,
       limit: ListReviewRunsInputSchema.shape.limit,
+      workspacePath: ListReviewRunsInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleListReviewRuns(args);
@@ -567,7 +571,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'list_review_target_hints',
-    { description: 'List prioritized review target candidates based on drift events, recent bug fixes, and unreviewed files', inputSchema: { limit: ListReviewTargetHintsInputSchema.shape.limit } },
+    { description: 'List prioritized review target candidates based on drift events, recent bug fixes, and unreviewed files', inputSchema: { limit: ListReviewTargetHintsInputSchema.shape.limit, workspacePath: ListReviewTargetHintsInputSchema.shape.workspacePath } },
     async (args) => {
       const result = await handleListReviewTargetHints(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
@@ -586,6 +590,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       caused_by_entity_id: ListRecurringBugsInputSchema.shape.caused_by_entity_id,
       windowDays: ListRecurringBugsInputSchema.shape.windowDays,
       minCount: ListRecurringBugsInputSchema.shape.minCount,
+      workspacePath: ListRecurringBugsInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleListRecurringBugs(args);
@@ -600,6 +605,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       file_path: GetBugHistoryInputSchema.shape.file_path,
       category: GetBugHistoryInputSchema.shape.category,
       limit: GetBugHistoryInputSchema.shape.limit,
+      workspacePath: GetBugHistoryInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleGetBugHistory(args);
@@ -620,6 +626,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       category: ListUnaddressedReviewFindingsInputSchema.shape.category,
       checklist_ref: ListUnaddressedReviewFindingsInputSchema.shape.checklist_ref,
       limit: ListUnaddressedReviewFindingsInputSchema.shape.limit,
+      workspacePath: ListUnaddressedReviewFindingsInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleListUnaddressedReviewFindings(args);
@@ -635,6 +642,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       category: GetReviewHistoryInputSchema.shape.category,
       include_precedes_bugs: GetReviewHistoryInputSchema.shape.include_precedes_bugs,
       limit: GetReviewHistoryInputSchema.shape.limit,
+      workspacePath: GetReviewHistoryInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleGetReviewHistory(args);
@@ -649,6 +657,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       commit_sha: LinkReviewToCommitInputSchema.shape.commit_sha,
       addressed_at: LinkReviewToCommitInputSchema.shape.addressed_at,
       override_auto: LinkReviewToCommitInputSchema.shape.override_auto,
+      workspacePath: LinkReviewToCommitInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleLinkReviewToCommit(args);
@@ -688,6 +697,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       since: SearchMemoryInputSchema.shape.since,
       limit: SearchMemoryInputSchema.shape.limit,
       hops: SearchMemoryInputSchema.shape.hops,
+      workspacePath: SearchMemoryInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleSearchMemory(args);
