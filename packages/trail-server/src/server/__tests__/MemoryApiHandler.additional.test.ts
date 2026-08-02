@@ -205,9 +205,35 @@ describe('MemoryApiHandler — additional coverage', () => {
 
   describe('handleStatus', () => {
     it('returns exists:false when no dbPath configured', async () => {
-      const h = new MemoryApiHandler(makeMockLogger(), undefined);
+      const h = new MemoryApiHandler(makeMockLogger(), null);
       const result = await h.handleStatus();
       expect(result).toEqual({ exists: false });
+    });
+
+    it('未設定時に cwd 配下の本番 DB へ暗黙フォールバックしない', async () => {
+      // 実行場所に本番と同じ配置の memory-core.db があっても掴まない。
+      // 掴むと「未設定」の判定が実行場所依存になり、CI では常に不在で pass するため
+      // 永久に検知されない（code-quality.md §15 の保護領域フォールバック禁止）。
+      const cwdDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-api-cwd-'));
+      const prodDbDir = path.join(cwdDir, '.anytime', 'trail', 'db');
+      fs.mkdirSync(prodDbDir, { recursive: true });
+      fs.writeFileSync(path.join(prodDbDir, 'memory-core.db'), '');
+      const originalCwd = process.cwd();
+      const originalTrailHome = process.env['TRAIL_HOME'];
+      delete process.env['TRAIL_HOME'];
+      process.chdir(cwdDir);
+      try {
+        const h = new MemoryApiHandler(makeMockLogger(), null);
+        expect(await h.handleStatus()).toEqual({ exists: false });
+      } finally {
+        process.chdir(originalCwd);
+        if (originalTrailHome === undefined) {
+          delete process.env['TRAIL_HOME'];
+        } else {
+          process.env['TRAIL_HOME'] = originalTrailHome;
+        }
+        fs.rmSync(cwdDir, { recursive: true, force: true });
+      }
     });
   });
 

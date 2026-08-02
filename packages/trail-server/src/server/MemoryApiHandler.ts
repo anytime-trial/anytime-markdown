@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, getMemoryCoreDbPath, resolveDrift } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, resolveDrift } from '@anytime-markdown/memory-core';
 import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -186,21 +186,18 @@ export class MemoryApiHandler {
    */
   private readonly nativeBinding?: string;
 
-  constructor(logger: Logger, dbPath?: string, nativeBinding?: string) {
+  /**
+   * @param dbPath memory-core.db の絶対パス。未設定は `null` で**明示**する（全 API
+   *   レスポンスを "not configured" = exists:false / null として返す縮退に入る）。
+   *
+   *   省略可にして `getMemoryCoreDbPath()` へ暗黙フォールバックしていたが、解決先が
+   *   `process.cwd()` 基準のため「未設定」の判定が実行場所依存になっていた。開発リポジトリ
+   *   直下から動かすと本番 DB を掴み、CI では同ファイルが無いため常に「未設定」と判定されて
+   *   永久に検知されない（`~/.claude/rules/code-quality.md` §15）。解決は呼び出し側の責務とする。
+   */
+  constructor(logger: Logger, dbPath: string | null, nativeBinding?: string) {
     this.logger = logger;
-    // dbPath が明示されなければ getMemoryCoreDbPath() を遅延 fallback として呼ぶ。
-    // VS Code 拡張のように保護領域 cwd では Error throw されるが、その場合は dbPath=undefined にして
-    // 全 API レスポンスを "not configured" (exists:false / null) として返す。
-    if (dbPath) {
-      this.dbPath = dbPath;
-    } else {
-      try {
-        this.dbPath = getMemoryCoreDbPath();
-      } catch (err) {
-        this.logger.warn(`[MemoryApiHandler] memory-core.db path not resolvable: ${err instanceof Error ? err.message : String(err)}`);
-        this.dbPath = undefined;
-      }
-    }
+    this.dbPath = dbPath ?? undefined;
     this.nativeBinding = nativeBinding;
   }
 

@@ -346,7 +346,9 @@ export class TrailDataServer {
     // better-sqlite3 の既定解決へフォールバックする（実在しないパスを渡すと open が常に失敗する）。
     this.memoryApi = new MemoryApiHandler(
       this.logger.child('MemoryApiHandler'),
-      memoryDbPath,
+      // 未指定は「未設定」として明示的に伝える。ハンドラ側で cwd 基準の暗黙解決を
+      // させない（解決の責務は注入元にある）。
+      memoryDbPath ?? null,
       fs.existsSync(nativeBinding) ? nativeBinding : undefined,
     );
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
