@@ -1,6 +1,5 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { getMemoryCoreDbPath } from './paths';
 import { runMigrations } from './migrations/runner';
 import { BetterSqlite3MemoryDb } from './connection/BetterSqlite3MemoryDb';
 import type { MemoryDbConnection } from './connection/types';
@@ -29,16 +28,24 @@ export interface OpenMemoryCoreDbOptions {
   readonly nativeBinding?: string;
 }
 
+/**
+ * memory-core.db を開く（不在なら作成しマイグレーションを流す）。
+ *
+ * `dbPath` は**必須**。省略時に `getMemoryCoreDbPath()`（= `process.cwd()` 基準）へ
+ * フォールバックしていたが、本関数は解決先に `mkdirSync` + マイグレーションを行うため、
+ * cwd がずれた場所から呼ぶとスキーマ完備の空 DB が生まれ、以降のクエリが一律 0 件を返す。
+ * 呼び出し側からは「該当なし」と区別が付かない偽陰性になるため、解決は呼び出し側の責務と
+ * する（`~/.claude/rules/code-quality.md` §15）。
+ */
 export async function openMemoryCoreDb(
-  dbPath?: string,
+  dbPath: string,
   opts?: OpenMemoryCoreDbOptions,
 ): Promise<MemoryCoreDb> {
-  const resolvedPath = dbPath ?? getMemoryCoreDbPath();
-  const dir = path.dirname(resolvedPath);
+  const dir = path.dirname(dbPath);
   fs.mkdirSync(dir, { recursive: true });
 
   const conn: MemoryDbConnection = new BetterSqlite3MemoryDb({
-    filePath: resolvedPath,
+    filePath: dbPath,
     readOnly: false,
     nativeBinding: opts?.nativeBinding,
   });

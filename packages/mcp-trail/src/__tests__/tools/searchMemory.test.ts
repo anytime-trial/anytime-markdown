@@ -5,6 +5,13 @@ const mockSearchMemoryFn = jest.fn();
 const mockOpenMemoryCoreDb = jest.fn();
 const mockCreateOllamaClient = jest.fn().mockReturnValue({});
 
+// resolveMemoryDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
+// openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
+jest.mock('../../dbPath', () => ({
+  ...jest.requireActual('../../dbPath'),
+  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/memory-core.db',
+}));
+
 jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: (...args: unknown[]) => mockOpenMemoryCoreDb(...args),
@@ -37,6 +44,9 @@ describe('handleSearchMemory', () => {
     const result = await handleSearchMemory({ query: 'test runner' });
 
     expect(mockOpenMemoryCoreDb).toHaveBeenCalledTimes(1);
+    // 解決したパスが open へ渡っているか（配線切れの検知）。件数だけ見ていると、
+    // 解決結果を使わない実装へ変わっても気づけない
+    expect(mockOpenMemoryCoreDb).toHaveBeenCalledWith('/tmp/mcp-trail-test/memory-core.db');
     expect(mockSearchMemoryFn).toHaveBeenCalledWith(
       expect.objectContaining({
         input: { query: 'test runner' },

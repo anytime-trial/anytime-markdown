@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { getBugHistory, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
 import type { BugHistoryEntry } from '@anytime-markdown/memory-core/query';
+import { resolveMemoryDbPath } from '../dbPath';
 
 export const GetBugHistoryInputSchema = z.object({
   package: z.string().optional().describe('Filter by package name'),
@@ -12,7 +13,7 @@ export const GetBugHistoryInputSchema = z.object({
 export type GetBugHistoryInput = z.infer<typeof GetBugHistoryInputSchema>;
 
 export async function handleGetBugHistory(input: GetBugHistoryInput): Promise<BugHistoryEntry[]> {
-  const memHandle = await openMemoryCoreDb();
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return getBugHistory({ db: memHandle.db, ...input, logger });

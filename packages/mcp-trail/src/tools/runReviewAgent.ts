@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { runReviewAgent, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
 import type { RunReviewAgentResult } from '@anytime-markdown/memory-core/query';
+import { resolveMemoryDbPath } from '../dbPath';
 
 export const RunReviewAgentInputSchema = z.object({
   trigger_kind: z.literal('mcp').describe('Trigger kind (must be "mcp")'),
@@ -13,7 +14,7 @@ export const RunReviewAgentInputSchema = z.object({
 export type RunReviewAgentInput = z.infer<typeof RunReviewAgentInputSchema>;
 
 export async function handleRunReviewAgent(input: RunReviewAgentInput): Promise<RunReviewAgentResult> {
-  const memHandle = await openMemoryCoreDb();
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return runReviewAgent({ db: memHandle.db, ...input, logger });

@@ -5,6 +5,7 @@ import {
 } from '@anytime-markdown/memory-core/query';
 import type { SearchResult } from '@anytime-markdown/memory-core/query';
 import { createOllamaClient } from '@anytime-markdown/agent-core';
+import { resolveMemoryDbPath } from '../dbPath';
 
 export const SearchMemoryInputSchema = z.object({
   query: z.string().describe('Search query'),
@@ -20,7 +21,7 @@ export type SearchMemoryInput = z.infer<typeof SearchMemoryInputSchema>;
 export async function handleSearchMemory(input: SearchMemoryInput): Promise<SearchResult> {
   const ollamaBaseUrl = process.env['OLLAMA_BASE_URL'];
 
-  const memHandle = await openMemoryCoreDb();
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
 
   try {
     const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});
