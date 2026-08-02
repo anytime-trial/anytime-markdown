@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { Recorder } from './recorder';
 import type { TraceFile } from '@anytime-markdown/trace-core';
-import { CURRENT_TRACE_VERSION } from '@anytime-markdown/trace-core';
 import { safeSerialize } from './serializer';
 import type { JsonValue } from '@anytime-markdown/trace-core';
 
@@ -13,6 +12,14 @@ interface FlusherOptions {
     lifelineMap: Map<string, string>;
     startedAt: string;
 }
+
+/**
+ * 出力するスキーマバージョン。trace-core の `CURRENT_TRACE_VERSION` を**値として** import しない
+ * （trace-core は TS ソースを配る型専用パッケージで、実行時 require は
+ * `node --require @anytime-markdown/trace-agent-node` を ERR_MODULE_NOT_FOUND で落とす）。
+ * 型を `TraceFile['version']` に固定しているため、スキーマが上がればここが型エラーになる。
+ */
+const OUTPUT_TRACE_VERSION: TraceFile['version'] = 2;
 
 export class Flusher {
     private readonly opts: FlusherOptions;
@@ -85,7 +92,7 @@ export class Flusher {
         }
 
         const traceFile: TraceFile = {
-            version: CURRENT_TRACE_VERSION,
+            version: OUTPUT_TRACE_VERSION,
             metadata: {
                 startedAt,
                 endedAt,
