@@ -814,3 +814,40 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
 export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON doctrine_judgments(judged_at)`,
 ];
+
+// Architectural Drift Detection (管制塔要件 §2.3): 宣言境界（パッケージ）と
+// 実装コミュニティのずれ。コードグラフ解析の完了後に 1 リポジトリ分をまとめて記録する。
+// 仕様は spec/31.trail/03.trail-core/architectural-drift-detection.ja.md。
+//
+// 洗い替えず履歴として積む（境界の劣化・改善の推移を追うため）。コミュニティ id は
+// 再クラスタリングで変わり得るので、同一性の追跡は stable_key で行う
+// (current_code_graph_communities が既に持つ値と揃える。空文字＝未解決)。
+//
+// 指標列を kind ごとに出し分けるのは、判定結果が discriminated union だからである。
+// CHECK で「その kind に無い指標は NULL」を強制し、DB 側でも union を崩さない。
+export const CREATE_BOUNDARY_DRIFT_WARNINGS = `CREATE TABLE IF NOT EXISTS boundary_drift_warnings (
+  id INTEGER PRIMARY KEY,
+  repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  detected_at TEXT NOT NULL CHECK (detected_at GLOB ${TS_GLOB_MS} OR detected_at GLOB ${TS_GLOB_NO_MS}),
+  kind TEXT NOT NULL CHECK (kind IN ('boundary_spanning', 'package_fragmentation')),
+  target_key TEXT NOT NULL,
+  stable_key TEXT NOT NULL DEFAULT '',
+  span_count INTEGER,
+  dominance REAL,
+  community_count INTEGER,
+  node_count INTEGER NOT NULL,
+  severity REAL NOT NULL,
+  breakdown_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(breakdown_json)),
+  CHECK (
+    (kind = 'boundary_spanning'
+      AND span_count IS NOT NULL AND dominance IS NOT NULL AND community_count IS NULL)
+    OR
+    (kind = 'package_fragmentation'
+      AND community_count IS NOT NULL AND span_count IS NULL AND dominance IS NULL)
+  )
+) STRICT`;
+
+export const CREATE_BOUNDARY_DRIFT_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_boundary_drift_warnings_detected_at ON boundary_drift_warnings(repo_id, detected_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_boundary_drift_warnings_kind ON boundary_drift_warnings(repo_id, kind, severity)`,
+];
