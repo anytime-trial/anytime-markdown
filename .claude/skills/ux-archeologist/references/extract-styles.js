@@ -75,14 +75,86 @@
     }
   }
 
-  // 3) 語彙・UX の手掛かり（ナビ・見出し・主要アクションのラベル）
+  // 3) 役割別スタイル（DESIGN.md の typography トークンは役割名で引くため、頻度表とは別に取る）
+  const ROLES = {
+    h1: 'h1',
+    h2: 'h2',
+    h3: 'h3',
+    h4: 'h4',
+    body: 'p',
+    link: 'a',
+    button: 'button',
+    input: 'input, textarea, select',
+    code: 'code, pre',
+    small: 'small, caption, figcaption',
+    tableHeader: 'th',
+    tableCell: 'td',
+  };
+  // 代表は「先頭の要素」ではなく「最も多いスタイルの組」を採る。
+  // 先頭採用だと、本文 <p> の代表がヘッダー内の小さな <p> になるなど実際に取り違える。
+  const roleStyles = {};
+  for (const [role, selector] of Object.entries(ROLES)) {
+    const els = [...document.querySelectorAll(selector)]
+      .filter((n) => {
+        const r = n.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      })
+      .slice(0, 200);
+    if (!els.length) continue;
+    const tally = new Map();
+    for (const el of els) {
+      const cs = getComputedStyle(el);
+      const key = [cs.fontWeight, cs.fontSize, cs.fontFamily, cs.color, cs.borderRadius].join('|');
+      const hit = tally.get(key);
+      if (hit) hit.count++;
+      else tally.set(key, { cs, count: 1 });
+    }
+    const ranked = [...tally.values()].sort((a, b) => b.count - a.count);
+    const { cs, count } = ranked[0];
+    roleStyles[role] = {
+      fontFamily: cs.fontFamily,
+      fontSize: cs.fontSize,
+      fontWeight: cs.fontWeight,
+      lineHeight: cs.lineHeight,
+      letterSpacing: cs.letterSpacing,
+      color: cs.color,
+      background: cs.backgroundColor,
+      radius: cs.borderRadius,
+      padding: cs.padding,
+      border: cs.border,
+      visibleCount: els.length,
+      dominantCount: count,
+      // 支配率が低い役割は 1 つの代表値にまとめられない（複数系統が同居している）
+      variantCount: ranked.length,
+    };
+  }
+
+  // 4) 語彙・UX の手掛かり（ナビ・見出し・主要アクションのラベル）
   const collect = (selector) =>
     [...document.querySelectorAll(selector)].map(label).filter(Boolean).slice(0, MAX_LABELS);
   const texts = {
     title: document.title,
+    lang: document.documentElement.lang || '',
+    description: document.querySelector('meta[name="description"]')?.content?.slice(0, 200) || '',
     nav: collect('nav a, header a'),
     headings: collect('h1, h2, h3'),
     actions: collect('button, a[class*="btn"], [role="button"], input[type="submit"]'),
+  };
+
+  // 5) レイアウト（DESIGN.md の Layout セクション。コンテナ幅は頻度表からは出ない）
+  const main = document.querySelector('main, [role="main"]') || document.body;
+  const mainCs = getComputedStyle(main);
+  const layout = {
+    containerMaxWidth: mainCs.maxWidth,
+    containerWidth: Math.round(main.getBoundingClientRect().width),
+    containerPadding: mainCs.padding,
+    bodyBackground: getComputedStyle(document.body).backgroundColor,
+    gridTemplates: [...document.querySelectorAll('*')]
+      .slice(0, MAX_ELEMENTS)
+      .map((el) => getComputedStyle(el))
+      .filter((cs) => cs.display === 'grid' && cs.gridTemplateColumns !== 'none')
+      .map((cs) => cs.gridTemplateColumns)
+      .slice(0, 6),
   };
 
   return {
@@ -92,7 +164,9 @@
     skippedSheets,
     sampledElements: visited,
     histograms,
+    roleStyles,
     componentSamples,
+    layout,
     texts,
   };
 }
