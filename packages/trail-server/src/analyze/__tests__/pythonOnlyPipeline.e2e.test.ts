@@ -50,6 +50,7 @@ describe('runAnalyzeCurrentCodePipeline (Python-only, no tsconfig)', () => {
       const result = await runAnalyzeCurrentCodePipeline({
         analysisRoot: repoRoot,
         tsconfigPath: undefined,
+        compute: { kind: 'in-host' },
         trailDb,
         callbacks: noopCallbacks,
         codeGraphService,

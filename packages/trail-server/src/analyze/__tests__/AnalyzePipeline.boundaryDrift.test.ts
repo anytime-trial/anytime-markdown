@@ -45,6 +45,7 @@ describe('runAnalyzeCurrentCodePipeline — boundary drift 結線', () => {
       const result = await runAnalyzeCurrentCodePipeline({
         analysisRoot: repoRoot,
         tsconfigPath: undefined,
+        compute: { kind: 'in-host' },
         trailDb,
         callbacks: noopCallbacks,
         codeGraphService,
@@ -96,6 +97,7 @@ describe('runAnalyzeCurrentCodePipeline — boundary drift 結線', () => {
       const result = await runAnalyzeCurrentCodePipeline({
         analysisRoot: repoRoot,
         tsconfigPath: undefined,
+        compute: { kind: 'in-host' },
         trailDb,
         callbacks: noopCallbacks,
         codeGraphService,

@@ -13,6 +13,7 @@ export {
   runAnalyzeCurrentCodePipeline,
   runAnalyzeReleaseCodePipeline,
 } from './analyze/AnalyzePipeline';
+export type { AnalyzeComputeMode } from './analyze/AnalyzePipeline';
 export { computeAndPersistFileAnalysis } from './analyze/computeAndPersistFileAnalysis';
 export type * from './analyze/CodeGraph.types';
 

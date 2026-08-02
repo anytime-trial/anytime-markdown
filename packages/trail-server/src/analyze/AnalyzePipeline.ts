@@ -51,6 +51,21 @@ const NOOP_LOGGER: Logger = {
   child: () => NOOP_LOGGER,
 };
 
+/**
+ * TS 解析（program 構築・抽出・importance・classify）の実行方式。
+ *
+ * Why not 省略可能な `analyzeChildPath?: string`: 省略時に「ホスト内計算へ黙って縮退する」
+ * 設計だったため、渡し忘れが型でも実行時でも検出できず、webpack バンドル済みの daemon では
+ * 出力に含まれない `computeAnalysis.js` の動的 import へ落ちて必ず失敗していた
+ * （HTTP 経路 `server.onAnalyzeCurrentCode` の実例）。呼び出し側に方式の明示を強制し、
+ * `in-host` を選ぶのは非バンドル環境（jest・standalone CLI）だけにする。
+ */
+export type AnalyzeComputeMode =
+  /** 解析子プロセス `analyze-child.js` へ隔離する（SIGSEGV 耐性化）。バンドル環境は常にこれ。 */
+  | { readonly kind: 'child'; readonly analyzeChildPath: string }
+  /** ホストプロセス内で計算する。`computeAnalysis.js` が解決できる環境でのみ選べる。 */
+  | { readonly kind: 'in-host' };
+
 export interface AnalyzeCurrentOpts {
   analysisRoot: string;
   /**
@@ -69,11 +84,8 @@ export interface AnalyzeCurrentOpts {
   logger?: Logger;
   /** UI 側（VS Code progress）の進捗コールバック。HTTP 経路では未指定。 */
   onProgress?: (phase: string, percent?: number) => void;
-  /**
-   * 解析子プロセス (analyze-child.js) の絶対パス。指定時は TS 経路を child_process で
-   * 隔離する（SIGSEGV 耐性化）。未指定時は在来どおりホスト内で計算する（テスト・後方互換）。
-   */
-  analyzeChildPath?: string;
+  /** TS 解析の実行方式。省略不可（渡し忘れによる縮退を型で塞ぐ）。 */
+  compute: AnalyzeComputeMode;
 }
 
 export interface AnalyzeCurrentResult {
@@ -131,38 +143,39 @@ async function analyzeTypeScriptBranch(
 
   // 重い TS 解析（program 構築・抽出・importance・classify）は child_process に隔離する。
   // 子が SIGSEGV してもホストは生存し、AnalyzeChildRunner が 1 回リトライする。
-  // analyzeChildPath 未指定時は在来どおりホスト内で計算する（テスト・後方互換）。
-  let compute: import('./analyzeChildProtocol').AnalyzeComputeResult;
-  if (opts.analyzeChildPath) {
+  // in-host は呼び出し側が明示的に選んだ時だけ通る（非バンドル環境専用）。
+  let computed: import('./analyzeChildProtocol').AnalyzeComputeResult;
+  if (opts.compute.kind === 'child') {
     const { AnalyzeChildRunner } = await import('./AnalyzeChildRunner.js');
-    const runner = new AnalyzeChildRunner(opts.analyzeChildPath, {
+    const runner = new AnalyzeChildRunner(opts.compute.analyzeChildPath, {
       onProgress: (phase) => reportProgress(phase),
       logger,
     });
-    compute = await runner.run(request);
+    computed = await runner.run(request);
   } else {
     // computeAnalysis は trail-core/analyze (typescript) を引き込む。daemon バンドルは
-    // 常に analyzeChildPath を渡すためこの else に到達しないが、webpack は静的に追跡して
+    // 常に kind:'child' を渡すためこの分岐に到達しないが、webpack は静的に追跡して
     // typescript を同梱してしまう。webpackIgnore で追跡を止め、trail-daemon.js から
-    // typescript を排除する。テスト・非バンドル環境 (jest) では従来どおり解決される。
+    // typescript を排除する。その代償として、バンドル出力に computeAnalysis.js は存在しない
+    // ＝ここへ到達した時点で必ず失敗する。到達可能なのは jest・standalone CLI だけである。
     const { computeAnalysis } = await import(/* webpackIgnore: true */ './computeAnalysis.js');
-    compute = await computeAnalysis(request, (phase) => reportProgress(phase));
+    computed = await computeAnalysis(request, (phase) => reportProgress(phase));
   }
-  warnings.push(...compute.warnings);
+  warnings.push(...computed.warnings);
 
-  trailDb.saveCurrentGraph(compute.graph, tsconfigPath, commitId, repoName);
+  trailDb.saveCurrentGraph(computed.graph, tsconfigPath, commitId, repoName);
   logger.info(
     `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
   );
 
   // decision comment を trail-db へ洗い替え永続化（memory-core が読む中継）。
   try {
-    trailDb.saveDecisionComments(repoName, compute.decisionComments ?? [], {
+    trailDb.saveDecisionComments(repoName, computed.decisionComments ?? [], {
       commitSha: commitId || null,
       recordedAt: new Date().toISOString(),
     });
     logger.info(
-      `C4 analysis [${repoName}]: saved ${compute.decisionComments?.length ?? 0} decision comments`,
+      `C4 analysis [${repoName}]: saved ${computed.decisionComments?.length ?? 0} decision comments`,
     );
   } catch (err) {
     const msg = `saveDecisionComments failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -170,14 +183,14 @@ async function analyzeTypeScriptBranch(
     warnings.push(msg);
   }
   logger.info(
-    `C4 analysis [${repoName}]: classified ${compute.categoryByFile?.length ?? 0} files, scored ${compute.scored.length} functions`,
+    `C4 analysis [${repoName}]: classified ${computed.categoryByFile?.length ?? 0} files, scored ${computed.scored.length} functions`,
   );
 
   return {
-    graph: compute.graph,
-    scored: compute.scored,
-    lineCountByFile: new Map(compute.lineCountByFile),
-    categoryByFile: compute.categoryByFile ? new Map(compute.categoryByFile) : undefined,
+    graph: computed.graph,
+    scored: computed.scored,
+    lineCountByFile: new Map(computed.lineCountByFile),
+    categoryByFile: computed.categoryByFile ? new Map(computed.categoryByFile) : undefined,
   };
 }
 
