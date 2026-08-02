@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
+import { fetchApiJson } from '../../../lib/fetchApiJson';
 import type { ReportMeta } from '../../../types/report';
 import type { PressReportsResponse } from '../../api/press-reports/route';
 import styles from '../press.module.css';
@@ -39,8 +40,7 @@ export function PressReports() {
 
     useEffect(() => {
         let cancelled = false;
-        fetch('/api/press-reports')
-            .then((r) => r.json())
+        fetchApiJson<PressReportsResponse>('/api/press-reports')
             .then((d: PressReportsResponse) => {
                 if (!cancelled) setData(d);
             })

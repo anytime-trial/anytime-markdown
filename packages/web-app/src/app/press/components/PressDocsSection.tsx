@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
+import { fetchApiJson } from '../../../lib/fetchApiJson';
 import type { LayoutCategory, LayoutData } from '../../../types/layout';
 import styles from '../press.module.css';
 
@@ -44,8 +45,7 @@ export function PressDocsSection() {
 
     useEffect(() => {
         let cancelled = false;
-        fetch('/api/press-docs')
-            .then((r) => r.json())
+        fetchApiJson<LayoutData>('/api/press-docs')
             .then((d: LayoutData) => {
                 if (!cancelled) setData(d);
             })
