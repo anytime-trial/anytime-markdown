@@ -99,6 +99,32 @@ describe('doctrineJudgments', () => {
     expect(result.agreement).toBeNull();
   });
 
+  it("coverage='covered' は根拠引用なしでは記録できない（DCT-9）", () => {
+    expect(() =>
+      recordDoctrineJudgmentDirect(db, { ...judgment(), citations: [] }),
+    ).toThrow(/requires at least one citation/);
+  });
+
+  it("coverage='silent' 等のエスカレーション系は空引用を許容する", () => {
+    const result = recordDoctrineJudgmentDirect(db, {
+      ...judgment({ judgment: 'escalate', coverage: 'silent' }),
+      citations: [],
+    });
+    expect(result.citationCount).toBe(0);
+  });
+
+  it('人の判断はレコード id でも突合できる（record が返す最安定キー）', () => {
+    const recorded = recordDoctrineJudgmentDirect(db, judgment());
+    const result = recordHumanDecisionDirect(db, { id: recorded.id, decision: 'approve' });
+    expect(result.agreement).toBe(true);
+  });
+
+  it('id も (sessionId + subject) も無い人の判断記録はエラー', () => {
+    expect(() => recordHumanDecisionDirect(db, { decision: 'approve' })).toThrow(
+      /requires id or/,
+    );
+  });
+
   it('対応レコードがない人の判断記録はエラー（黙って新規作成しない）', () => {
     expect(() =>
       recordHumanDecisionDirect(db, {

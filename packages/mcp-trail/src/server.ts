@@ -459,7 +459,8 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'record_human_decision',
-    { description: "Record the human's actual decision for a previously recorded doctrine judgment (same session_id + subject) and return the agreement result. Errors if no matching judgment exists.", inputSchema: {
+    { description: "Record the human's actual decision for a previously recorded doctrine judgment (lookup by id, or by session_id + subject) and return the agreement result. Errors if no matching judgment exists.", inputSchema: {
+      id: RecordHumanDecisionInputSchema.shape.id,
       session_id: RecordHumanDecisionInputSchema.shape.session_id,
       subject: RecordHumanDecisionInputSchema.shape.subject,
       decision: RecordHumanDecisionInputSchema.shape.decision,

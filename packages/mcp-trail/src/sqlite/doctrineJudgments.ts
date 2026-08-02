@@ -57,6 +57,11 @@ export function recordDoctrineJudgmentDirect(
   db: Database,
   input: DoctrineJudgmentInput,
 ): DoctrineJudgmentRecordResult {
+  if (input.coverage === 'covered' && input.citations.length === 0) {
+    // DCT-9: covered は「ドクトリンが判断根拠を与える」状態であり、根拠引用なしの
+    // covered を許すと一致率だけが増え引用解決率を測れないレコードになる
+    throw new Error("coverage='covered' requires at least one citation (DCT-9)");
+  }
   ensureDoctrineJudgmentsTable(db);
   const now = new Date().toISOString();
   const judgedAt = input.judgedAt ?? now;
@@ -100,22 +105,34 @@ export function recordDoctrineJudgmentDirect(
 export function recordHumanDecisionDirect(
   db: Database,
   args: {
-    readonly sessionId: string;
-    readonly subject: string;
+    readonly id?: number;
+    readonly sessionId?: string;
+    readonly subject?: string;
     readonly decision: HumanDecision;
     readonly decidedAt?: string;
   },
 ): HumanDecisionResult {
   ensureDoctrineJudgmentsTable(db);
-  const row = db
-    .prepare(
-      `SELECT id, agent_judgment FROM doctrine_judgments WHERE session_id = ? AND subject = ?`,
-    )
-    .get(args.sessionId, args.subject) as { id: number; agent_judgment: AgentJudgment } | undefined;
+  let row: { id: number; agent_judgment: AgentJudgment } | undefined;
+  let keyLabel: string;
+  if (args.id !== undefined) {
+    // record_doctrine_judgment が返す id が最も安定した突合キー (subject は表記揺れし得る)
+    row = db
+      .prepare(`SELECT id, agent_judgment FROM doctrine_judgments WHERE id = ?`)
+      .get(args.id) as typeof row;
+    keyLabel = `id=${args.id}`;
+  } else if (args.sessionId !== undefined && args.subject !== undefined) {
+    row = db
+      .prepare(
+        `SELECT id, agent_judgment FROM doctrine_judgments WHERE session_id = ? AND subject = ?`,
+      )
+      .get(args.sessionId, args.subject) as typeof row;
+    keyLabel = `session_id=${args.sessionId}, subject=${args.subject}`;
+  } else {
+    throw new Error('recordHumanDecisionDirect requires id or (sessionId + subject)');
+  }
   if (row === undefined) {
-    throw new Error(
-      `doctrine judgment not found (session_id=${args.sessionId}, subject=${args.subject}); record_doctrine_judgment first`,
-    );
+    throw new Error(`doctrine judgment not found (${keyLabel}); record_doctrine_judgment first`);
   }
   const now = new Date().toISOString();
   db.prepare(

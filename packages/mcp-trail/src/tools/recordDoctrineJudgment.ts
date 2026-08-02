@@ -57,7 +57,9 @@ export async function handleRecordDoctrineJudgment(
       }
     },
   );
-  const dbPath = resolveDbPath({ workspacePath: input.workspacePath });
+  // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
+  const workspacePath = input.workspacePath ?? process.env['TRAIL_WORKSPACE_PATH'];
+  const dbPath = resolveDbPath(workspacePath === undefined ? {} : { workspacePath });
   const opened = await openTrailDb(dbPath, 'readwrite');
   try {
     const result = recordDoctrineJudgmentDirect(opened.db, {

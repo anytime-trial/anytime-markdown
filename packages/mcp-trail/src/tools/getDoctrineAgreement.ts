@@ -17,7 +17,9 @@ export type GetDoctrineAgreementInput = z.infer<typeof GetDoctrineAgreementInput
 export async function handleGetDoctrineAgreement(
   input: GetDoctrineAgreementInput,
 ): Promise<DoctrineAgreementMetrics> {
-  const dbPath = resolveDbPath({ workspacePath: input.workspacePath });
+  // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
+  const workspacePath = input.workspacePath ?? process.env['TRAIL_WORKSPACE_PATH'];
+  const dbPath = resolveDbPath(workspacePath === undefined ? {} : { workspacePath });
   // ensure (CREATE TABLE IF NOT EXISTS) を含むため readwrite で開く
   const opened = await openTrailDb(dbPath, 'readwrite');
   try {

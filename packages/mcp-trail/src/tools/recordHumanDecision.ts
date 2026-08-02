@@ -7,8 +7,13 @@ import {
 } from '../sqlite/doctrineJudgments';
 
 export const RecordHumanDecisionInputSchema = z.object({
-  session_id: z.string().min(1).describe('Session ID used when the judgment was recorded'),
-  subject: z.string().min(1).describe('Subject key used when the judgment was recorded'),
+  id: z
+    .number()
+    .int()
+    .optional()
+    .describe('Judgment record ID returned by record_doctrine_judgment (preferred lookup key)'),
+  session_id: z.string().min(1).optional().describe('Session ID used when the judgment was recorded (required with subject when id is omitted)'),
+  subject: z.string().min(1).optional().describe('Subject key used when the judgment was recorded (required with session_id when id is omitted)'),
   decision: z
     .enum(['approve', 'reject', 'modified'])
     .describe("Human's actual decision (modified = approved with changes / conditions)"),
@@ -21,12 +26,18 @@ export type RecordHumanDecisionInput = z.infer<typeof RecordHumanDecisionInputSc
 export async function handleRecordHumanDecision(
   input: RecordHumanDecisionInput,
 ): Promise<HumanDecisionResult> {
-  const dbPath = resolveDbPath({ workspacePath: input.workspacePath });
+  if (input.id === undefined && (input.session_id === undefined || input.subject === undefined)) {
+    throw new Error('record_human_decision requires id or (session_id + subject)');
+  }
+  // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
+  const workspacePath = input.workspacePath ?? process.env['TRAIL_WORKSPACE_PATH'];
+  const dbPath = resolveDbPath(workspacePath === undefined ? {} : { workspacePath });
   const opened = await openTrailDb(dbPath, 'readwrite');
   try {
     const result = recordHumanDecisionDirect(opened.db, {
-      sessionId: input.session_id,
-      subject: input.subject,
+      ...(input.id === undefined ? {} : { id: input.id }),
+      ...(input.session_id === undefined ? {} : { sessionId: input.session_id }),
+      ...(input.subject === undefined ? {} : { subject: input.subject }),
       decision: input.decision,
       ...(input.decided_at === undefined ? {} : { decidedAt: input.decided_at }),
     });
