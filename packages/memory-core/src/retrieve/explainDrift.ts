@@ -23,7 +23,8 @@ function gatherConversationSource(
 ): DriftSourceEvidence | null {
   try {
     const epRows = db.exec(
-      `SELECT me.content, me.recorded_at
+      // memory_episodes に content 列は無い（本文は raw_excerpt、要約は summary）。
+      `SELECT COALESCE(NULLIF(me.summary, ''), me.raw_excerpt) AS content, me.recorded_at
        FROM memory_episodes me
        JOIN memory_episode_entities mee ON mee.episode_id = me.id
        WHERE mee.entity_id = ?
@@ -83,17 +84,27 @@ function gatherCodeSource(
 ): DriftSourceEvidence | null {
   try {
     const codeRows = db.exec(
-      `SELECT cf.file_path, cf.fact_kind, cf.fact_value, cf.last_seen_at
+      // memory_code_facts は entity_id を持たない。File エンティティの canonical_name が
+      // ファイルパスなので、それを結合キーにする（列名も実スキーマの fact_type / recorded_at）。
+      //
+      // canonical_name は canonicalize()（NFKC → trim → 小文字化 → 空白畳み込み）を通した値で、
+      // file_path は原文のまま格納される。素の等値結合では大文字を含むパスが落ちる
+      // （実測: 2,376 パス中 558 件しか一致しない）。パスに空白・全角は現れないため
+      // 小文字化のみで canonicalize() と一致する。
+      // LOWER() は file_path のインデックスを使えないが、対象は 25 万行程度で
+      // explain_drift は対話的・低頻度のため許容する。
+      `SELECT cf.file_path, cf.fact_type, cf.fact_value, cf.recorded_at
        FROM memory_code_facts cf
-       WHERE cf.entity_id = ?
-       ORDER BY cf.last_seen_at DESC LIMIT 3`,
+       JOIN memory_entities e ON e.canonical_name = LOWER(cf.file_path) AND e.type = 'File'
+       WHERE e.id = ?
+       ORDER BY cf.recorded_at DESC LIMIT 3`,
       [subjectEntityId],
     );
     const items = (codeRows[0]?.values ?? []).map((r) => ({
       file_path: r[0] as string,
-      fact_kind: r[1] as string,
+      fact_type: r[1] as string,
       fact_value: r[2] as string,
-      last_seen_at: r[3] as string,
+      recorded_at: r[3] as string,
       value: codeValue ?? undefined,
     }));
     if (items.length > 0 || codeValue) {

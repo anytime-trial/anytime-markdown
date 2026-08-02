@@ -7,6 +7,10 @@ export type ReviewTargetHint = {
   reason: string;
 };
 
+// 時刻比較は strftime('%Y-%m-%dT%H:%M:%SZ', ...) で ISO 8601 の閾値を作る（列は T/Z 付きで
+// 格納されるため datetime() の 'YYYY-MM-DD HH:MM:SS' とは比較できない）。閾値にミリ秒が
+// 付かないため、境界の 1 秒内にあるミリ秒付きの行は文字列比較で「小さい」と判定され得る
+// （'.' < 'Z'）。日単位の窓では影響が無いため、既知の不精度として許容する。
 export function listReviewTargetHints(input: {
   db: MemoryDbConnection;
   limit?: number;
@@ -64,7 +68,7 @@ export function listReviewTargetHints(input: {
   addScalarRows(
     `SELECT DISTINCT je.value
      FROM memory_bug_fixes bf, json_each(bf.affected_file_paths_json) je
-     WHERE bf.committed_at >= datetime('now', '-30 days')`,
+     WHERE bf.committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 days')`,
     'high',
     'regression fix in last 30 days',
     'bug query failed',
@@ -73,7 +77,7 @@ export function listReviewTargetHints(input: {
   // Medium: spec/code files changed in the last 7 days (memory_code_facts)
   addScalarRows(
     `SELECT DISTINCT file_path FROM memory_code_facts
-     WHERE last_seen_at >= datetime('now', '-7 days')
+     WHERE recorded_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-7 days')
      LIMIT 50`,
     'medium',
     'code changed in last 7 days',
@@ -86,7 +90,7 @@ export function listReviewTargetHints(input: {
      FROM memory_code_facts cf, json_each('["' || REPLACE(cf.file_path, ',', '","') || '"]') je
      WHERE cf.file_path NOT IN (
        SELECT DISTINCT rf.target_file_path FROM memory_review_findings rf
-       WHERE rf.recorded_at >= datetime('now', '-90 days')
+       WHERE rf.recorded_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-90 days')
          AND rf.target_file_path IS NOT NULL
      )
      LIMIT 50`,

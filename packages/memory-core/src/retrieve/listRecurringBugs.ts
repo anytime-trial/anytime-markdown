@@ -37,7 +37,7 @@ function queryPackageBugs(
       `SELECT id, commit_sha, subject_summary, committed_at
        FROM memory_bug_fixes
        WHERE package = ?
-         AND committed_at >= datetime('now', '-' || ? || ' days')
+         AND committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')
        ORDER BY committed_at DESC`,
       [pkg, windowDays],
     );
@@ -62,7 +62,7 @@ function queryFilePathBugs(
       `SELECT memory_bug_fixes.id, commit_sha, subject_summary, committed_at
        FROM memory_bug_fixes, json_each(affected_file_paths_json)
        WHERE json_each.value = ?
-         AND committed_at >= datetime('now', '-' || ? || ' days')
+         AND committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')
        ORDER BY committed_at DESC`,
       [filePath, windowDays],
     );
@@ -108,7 +108,7 @@ function queryCausedByBugs(
         `SELECT id, commit_sha, subject_summary, committed_at
          FROM memory_bug_fixes
          WHERE bug_entity_id = ?
-           AND committed_at >= datetime('now', '-' || ? || ' days')
+           AND committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')
          ORDER BY committed_at DESC LIMIT 1`,
         [bugEntityId, windowDays],
       );
