@@ -25,6 +25,12 @@ export function sortByDateDesc(reports: ReportMeta[]): ReportMeta[] {
   return [...reports].sort((a, b) => b.date.localeCompare(a.date));
 }
 
+/**
+ * 記事一覧の 1 ページあたり件数。
+ * 一覧の描画（client）と canonical / prev-next の算出（server）の両方で使うため、ここを単一の正とする。
+ */
+export const REPORTS_PER_PAGE = 10;
+
 /** ページネーション */
 export function paginate<T>(items: T[], page: number, perPage: number): { items: T[]; totalPages: number } {
   const totalPages = Math.max(1, Math.ceil(items.length / perPage));

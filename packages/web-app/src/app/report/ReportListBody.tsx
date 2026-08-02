@@ -16,11 +16,10 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import { buildArchiveMonths, paginate } from '../../lib/reportUtils';
+import { buildArchiveMonths, paginate, REPORTS_PER_PAGE } from '../../lib/reportUtils';
 import type { ReportMeta } from '../../types/report';
 import LandingHeader from '../components/LandingHeader';
 
-const PER_PAGE = 10;
 const RECENT_COUNT = 5;
 
 interface ReportListBodyProps {
@@ -43,7 +42,7 @@ export default function ReportListBody({ reports, currentPage, filterMonth }: Re
   }, [reports, validMonth]);
 
   const { items: pageItems, totalPages } = useMemo(
-    () => paginate(filtered, currentPage, PER_PAGE),
+    () => paginate(filtered, currentPage, REPORTS_PER_PAGE),
     [filtered, currentPage],
   );
   const safePage = Math.max(1, Math.min(currentPage, totalPages));

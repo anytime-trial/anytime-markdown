@@ -7,7 +7,8 @@ const DESCRIPTION =
   'A newspaper-press dispatch of Anytime Markdown — slow writing, by design. Browser-only markdown editor for Spec-Driven Development.';
 
 export const metadata: Metadata = {
-  title: TITLE,
+  // ランディングは独自のブランド表記を使うため、ルート layout の template を適用しない
+  title: { absolute: TITLE },
   description: DESCRIPTION,
   alternates: { canonical: '/' },
   openGraph: {

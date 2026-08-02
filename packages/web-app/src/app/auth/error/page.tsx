@@ -1,10 +1,17 @@
 import { Box, Button, Typography } from '@mui/material';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { validateAuthEnv } from '../../../lib/authEnv';
 
 type Props = {
   searchParams: Promise<{ error?: string }>;
+};
+
+export const metadata: Metadata = {
+  title: 'Sign-in Error',
+  // 認証エラー画面。検索結果に出す意味がない
+  robots: { index: false, follow: false },
 };
 
 type AuthErrorVariant = 'config' | 'expired' | 'generic';

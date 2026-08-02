@@ -13,7 +13,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const { key } = await searchParams;
   if (!key) {
     return {
-      title: 'Document - Anytime Markdown',
+      title: 'Document',
     };
   }
 
@@ -24,13 +24,13 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     const title = item?.displayName ?? key.replace(/\.md$/, '').split('/').pop() ?? 'Document';
 
     return {
-      title: `${title} - Anytime Markdown`,
+      title,
       description: category?.description || undefined,
       alternates: { canonical: `/docs/view?key=${encodeURIComponent(key)}` },
     };
   } catch {
     return {
-      title: 'Document - Anytime Markdown',
+      title: 'Document',
     };
   }
 }

@@ -6,7 +6,8 @@ import type { TraceFileMeta } from '../../api/trace/list/route';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Trace - Anytime Trail',
+  // Anytime Trail 側の画面なので、ルート layout の "- Anytime Markdown" を付けない
+  title: { absolute: 'Trace - Anytime Trail' },
   description: 'Execution trace viewer. Open trace files recorded by Anytime Trail.',
   robots: { index: false },
 };
