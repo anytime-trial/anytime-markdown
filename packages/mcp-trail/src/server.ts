@@ -34,6 +34,7 @@ import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift
 import { handleRecordDoctrineJudgment, RecordDoctrineJudgmentInputSchema } from './tools/recordDoctrineJudgment.js';
 import { handleRecordHumanDecision, RecordHumanDecisionInputSchema } from './tools/recordHumanDecision.js';
 import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './tools/getDoctrineAgreement.js';
+import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
 import { handleSearchDocs,SearchDocsInputSchema } from './tools/searchDocs.js';
 import { handleSearchMemory,SearchMemoryInputSchema } from './tools/searchMemory.js';
@@ -484,6 +485,21 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = await handleGetDoctrineAgreement(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_acceptance_review',
+    { description: 'Assemble the acceptance-review material for a session (DCT-13): the delegated judgments, the doctrine clauses each judgment cited (verbatim quote + approval state + resolution result), the artifact diff, and the escalations with their reasons. Returns both structured data and a Markdown rendering meant to be pasted into the completion report. Read-only. The diff is taken from git directly (not the lagging session_commits import); a git failure degrades to available=false with a reason instead of failing the whole call.', inputSchema: {
+      session_id: GetAcceptanceReviewInputSchema.shape.session_id,
+      base_ref: GetAcceptanceReviewInputSchema.shape.base_ref,
+      head_ref: GetAcceptanceReviewInputSchema.shape.head_ref,
+      include_diff: GetAcceptanceReviewInputSchema.shape.include_diff,
+      workspacePath: GetAcceptanceReviewInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleGetAcceptanceReview(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

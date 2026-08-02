@@ -4,6 +4,7 @@ import {
   recordDoctrineJudgmentDirect,
   recordHumanDecisionDirect,
   getDoctrineAgreementDirect,
+  listDoctrineJudgmentsBySession,
   type DoctrineJudgmentInput,
 } from '../../sqlite/doctrineJudgments';
 import type { CitationApproval, ResolvedCitation } from '../../doctrine/resolveCitations';
@@ -275,5 +276,154 @@ describe('doctrineJudgments', () => {
     recordDoctrineJudgmentDirect(db, { ...judgment({ subject: '現在' }), judgedAt: '2026-08-02T00:00:00.000Z' });
     const metrics = getDoctrineAgreementDirect(db, { since: '2026-06-01T00:00:00.000Z' });
     expect(metrics.total).toBe(1);
+  });
+
+  describe('listDoctrineJudgmentsBySession', () => {
+    it('対象セッションの判断だけを judged_at 昇順で返す', () => {
+      recordDoctrineJudgmentDirect(db, {
+        ...judgment({ subject: '後' }),
+        judgedAt: '2026-08-02T02:00:00.000Z',
+      });
+      recordDoctrineJudgmentDirect(db, {
+        ...judgment({ subject: '先' }),
+        judgedAt: '2026-08-02T01:00:00.000Z',
+      });
+      recordDoctrineJudgmentDirect(db, {
+        ...judgment({ subject: '別セッション', sessionId: 'session-2' }),
+      });
+
+      const rows = listDoctrineJudgmentsBySession(db, 'session-1');
+
+      expect(rows.map((r) => r.subject)).toEqual(['先', '後']);
+      expect(rows[0]?.sessionId).toBe('session-1');
+    });
+
+    it('引用・ゲート判定・人の判断を復元する', () => {
+      const recorded = recordDoctrineJudgmentDirect(db, {
+        ...judgment(),
+        gate: { verdict: 'escalate', reasons: ['no_canon_citation'] },
+      });
+      recordHumanDecisionDirect(db, { id: recorded.id, decision: 'modified' });
+
+      const [row] = listDoctrineJudgmentsBySession(db, 'session-1');
+
+      expect(row?.citations).toEqual([resolvedCitation()]);
+      expect(row?.gateVerdict).toBe('escalate');
+      expect(row?.gateReasons).toEqual(['no_canon_citation']);
+      expect(row?.humanDecision).toBe('modified');
+      expect(row?.decidedAt).not.toBeNull();
+      expect(row?.parseError).toBeNull();
+    });
+
+    it('ゲート未評価の記録は verdict null・理由なしで返す', () => {
+      recordDoctrineJudgmentDirect(db, judgment());
+
+      const [row] = listDoctrineJudgmentsBySession(db, 'session-1');
+
+      expect(row?.gateVerdict).toBeNull();
+      expect(row?.gateReasons).toEqual([]);
+      expect(row?.humanDecision).toBeNull();
+    });
+
+    it('配列でない citations_json はレコードを落とさず parseError を立てる', () => {
+      // json_valid の CHECK は通るが形が違う値（外部書込・スキーマ変更の取りこぼし）。
+      // JSON.parse は成功するため、パース可否だけの防御では素通りする
+      recordDoctrineJudgmentDirect(db, judgment());
+      db.prepare(
+        `UPDATE doctrine_judgments SET citations_json = '"not-an-array"' WHERE session_id = ?`,
+      ).run('session-1');
+
+      const [row] = listDoctrineJudgmentsBySession(db, 'session-1');
+
+      expect(row?.subject).toBe('doctrine-judgment 機能仕様書の What 承認');
+      expect(row?.citations).toEqual([]);
+      expect(row?.parseError).not.toBeNull();
+    });
+
+    it('不正な JSON を持つ旧 DB（CHECK なし）でもレコードを落とさない', () => {
+      // 現行スキーマは json_valid の CHECK を持つが、CHECK 導入前に書かれた行は
+      // 素通りしている可能性がある
+      const legacy = new BetterSqlite3(':memory:');
+      legacy.exec(`CREATE TABLE doctrine_judgments (
+        id INTEGER PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        agent_judgment TEXT NOT NULL,
+        coverage TEXT NOT NULL,
+        citations_json TEXT NOT NULL DEFAULT '[]',
+        citation_count INTEGER NOT NULL DEFAULT 0,
+        resolved_count INTEGER NOT NULL DEFAULT 0,
+        human_decision TEXT,
+        judged_at TEXT NOT NULL,
+        decided_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (session_id, subject)
+      )`);
+      legacy
+        .prepare(
+          `INSERT INTO doctrine_judgments (session_id, subject, agent_judgment, coverage, citations_json, judged_at, created_at, updated_at)
+           VALUES ('s', '旧行', 'approve', 'covered', '{壊れた JSON', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
+        )
+        .run();
+
+      const [row] = listDoctrineJudgmentsBySession(legacy, 's');
+
+      expect(row?.subject).toBe('旧行');
+      expect(row?.citations).toEqual([]);
+      expect(row?.parseError).not.toBeNull();
+      legacy.close();
+    });
+
+    it('判断が 0 件のセッションは空配列を返す（例外にしない）', () => {
+      expect(listDoctrineJudgmentsBySession(db, 'session-none')).toEqual([]);
+    });
+
+    it('テーブルが無い DB では空配列を返す（提示のために作らない）', () => {
+      const empty = new BetterSqlite3(':memory:');
+      expect(listDoctrineJudgmentsBySession(empty, 'session-1')).toEqual([]);
+      expect(
+        empty
+          .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`)
+          .all('doctrine_judgments'),
+      ).toEqual([]);
+      empty.close();
+    });
+
+    it('gate 列が無い旧 DB でも列を追加せず NULL として読む', () => {
+      const legacy = new BetterSqlite3(':memory:');
+      legacy.exec(`CREATE TABLE doctrine_judgments (
+        id INTEGER PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        agent_judgment TEXT NOT NULL,
+        coverage TEXT NOT NULL,
+        citations_json TEXT NOT NULL DEFAULT '[]',
+        citation_count INTEGER NOT NULL DEFAULT 0,
+        resolved_count INTEGER NOT NULL DEFAULT 0,
+        human_decision TEXT,
+        judged_at TEXT NOT NULL,
+        decided_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (session_id, subject)
+      )`);
+      legacy
+        .prepare(
+          `INSERT INTO doctrine_judgments (session_id, subject, agent_judgment, coverage, judged_at, created_at, updated_at)
+           VALUES ('s', '旧行', 'approve', 'covered', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
+        )
+        .run();
+
+      const [row] = listDoctrineJudgmentsBySession(legacy, 's');
+
+      expect(row?.gateVerdict).toBeNull();
+      expect(row?.gateReasons).toEqual([]);
+      const columns = (
+        legacy.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
+      ).map((c) => c.name);
+      expect(columns).not.toContain('gate_verdict');
+      legacy.close();
+    });
   });
 });

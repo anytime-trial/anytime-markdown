@@ -191,6 +191,120 @@ export function recordHumanDecisionDirect(
 }
 
 /**
+ * 受け入れ確認 (DCT-13) の提示物 1・2・4 の供給元。JSON 列のパース失敗は当該
+ * レコードを落とさず parseError へ落とす (1 件の破損で提示物全体を失わせない)。
+ */
+export interface DoctrineJudgmentView {
+  readonly id: number;
+  readonly sessionId: string;
+  readonly subject: string;
+  readonly agentJudgment: AgentJudgment;
+  readonly coverage: Coverage;
+  readonly citations: ReadonlyArray<ResolvedCitation>;
+  /** ゲート未評価 (導入前の記録) は null。delegable として扱わない */
+  readonly gateVerdict: 'delegable' | 'escalate' | null;
+  readonly gateReasons: readonly string[];
+  readonly humanDecision: HumanDecision | null;
+  readonly judgedAt: string;
+  readonly decidedAt: string | null;
+  /** JSON 列のパース失敗理由。成功時は null */
+  readonly parseError: string | null;
+}
+
+interface JsonParseOutcome<T> {
+  readonly value: T;
+  readonly error: string | null;
+}
+
+/**
+ * JSON 列を配列として読む。json_valid の CHECK があってもパース後の「形」までは
+ * 保証されないため (`'"str"'` は valid JSON)、配列かどうかを別に検査する。
+ */
+function parseJsonArrayColumn<T>(column: string, raw: string | null): JsonParseOutcome<T[]> {
+  if (raw === null) {
+    return { value: [], error: null };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    return {
+      value: [],
+      error: `${column}: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  if (!Array.isArray(parsed)) {
+    return { value: [], error: `${column}: expected an array, got ${typeof parsed}` };
+  }
+  return { value: parsed as T[], error: null };
+}
+
+function tableColumns(db: Database, table: string): Set<string> {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return new Set(rows.map((row) => row.name));
+}
+
+/**
+ * 受け入れ確認 (DCT-13) の読み出し。**書込・DDL を行わない** (ensure を呼ばない)。
+ * 提示のためだけに本番 DB のスキーマを変えないため、テーブル不在は空配列、
+ * 後付け列 (gate_*) の不在は NULL として扱う。
+ */
+export function listDoctrineJudgmentsBySession(
+  db: Database,
+  sessionId: string,
+): DoctrineJudgmentView[] {
+  const columns = tableColumns(db, 'doctrine_judgments');
+  if (columns.size === 0) {
+    return [];
+  }
+  const gateVerdictExpr = columns.has('gate_verdict') ? 'gate_verdict' : 'NULL AS gate_verdict';
+  const gateReasonsExpr = columns.has('gate_reasons_json')
+    ? 'gate_reasons_json'
+    : 'NULL AS gate_reasons_json';
+  const rows = db
+    .prepare(
+      `SELECT id, session_id, subject, agent_judgment, coverage, citations_json,
+              ${gateVerdictExpr}, ${gateReasonsExpr}, human_decision, judged_at, decided_at
+         FROM doctrine_judgments
+        WHERE session_id = ?
+        ORDER BY judged_at ASC, id ASC`,
+    )
+    .all(sessionId) as Array<{
+    id: number;
+    session_id: string;
+    subject: string;
+    agent_judgment: AgentJudgment;
+    coverage: Coverage;
+    citations_json: string | null;
+    gate_verdict: 'delegable' | 'escalate' | null;
+    gate_reasons_json: string | null;
+    human_decision: HumanDecision | null;
+    judged_at: string;
+    decided_at: string | null;
+  }>;
+
+  return rows.map((row) => {
+    const citations = parseJsonArrayColumn<ResolvedCitation>('citations_json', row.citations_json);
+    const reasons = parseJsonArrayColumn<string>('gate_reasons_json', row.gate_reasons_json);
+    const errors = [citations.error, reasons.error].filter((e): e is string => e !== null);
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      subject: row.subject,
+      agentJudgment: row.agent_judgment,
+      coverage: row.coverage,
+      citations: citations.value,
+      gateVerdict: row.gate_verdict,
+      gateReasons: reasons.value,
+      humanDecision: row.human_decision,
+      judgedAt: row.judged_at,
+      decidedAt: row.decided_at,
+      parseError: errors.length === 0 ? null : errors.join('; '),
+    };
+  });
+}
+
+/**
  * 承認済み条項 (canon) または明文規約 (canon_by_document) の引用を 1 件以上持つか。
  * 本機能より前に記録されたレコードは approval を持たないため canon 接地なしと数える
  * (記録時点で承認状態を検査していないものを遡って canon 扱いにしない)。
