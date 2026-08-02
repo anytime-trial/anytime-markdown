@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { workspacePathParam } from './workspaceParam';
 
-import { resolveDbPath } from '../dbPath';
+import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
 import {
   listBoundaryDriftDirect,
   type BoundaryDriftListResult,
@@ -22,7 +23,7 @@ export const ListBoundaryDriftInputSchema = z.object({
     .optional()
     .describe('Include past detection runs (default false: latest run only)'),
   limit: z.number().optional().describe('Maximum warnings to return (default 50)'),
-  workspacePath: z.string().optional().describe('Workspace root to resolve trail.db (defaults to cwd)'),
+  workspacePath: workspacePathParam,
 });
 
 export type ListBoundaryDriftInput = z.infer<typeof ListBoundaryDriftInputSchema>;
@@ -31,8 +32,8 @@ export async function handleListBoundaryDrift(
   input: ListBoundaryDriftInput,
 ): Promise<BoundaryDriftListResult> {
   // 既存 MCP ルートと同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
-  const workspacePath = input.workspacePath ?? process.env['TRAIL_WORKSPACE_PATH'];
-  const dbPath = resolveDbPath(workspacePath === undefined ? {} : { workspacePath });
+  const workspacePath = resolveWorkspacePath(input.workspacePath).path;
+  const dbPath = resolveDbPath({ workspacePath });
   const opened = await openTrailDb(dbPath, 'readonly');
   try {
     return listBoundaryDriftDirect(opened.db, {

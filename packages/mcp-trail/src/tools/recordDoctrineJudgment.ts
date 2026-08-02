@@ -1,7 +1,8 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { z } from 'zod';
-import { resolveDbPath } from '../dbPath';
+import { workspacePathParam } from './workspaceParam';
+import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
 import { openTrailDb } from '../sqlite/openDb';
 import { resolveCitations, type ResolvedCitation } from '../doctrine/resolveCitations';
 import { evaluateCoverageGate, type CoverageGateResult } from '../doctrine/coverageGate';
@@ -42,7 +43,7 @@ export const RecordDoctrineJudgmentInputSchema = z.object({
     .optional()
     .describe('Caller-declared severity. Omitted = undecidable, which the coverage gate treats as escalate (fail-closed)'),
   judged_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
-  workspacePath: z.string().optional().describe('Workspace root to resolve trail.db (defaults to cwd)'),
+  workspacePath: workspacePathParam,
 });
 
 export type RecordDoctrineJudgmentInput = z.infer<typeof RecordDoctrineJudgmentInputSchema>;
@@ -73,7 +74,7 @@ export async function handleRecordDoctrineJudgment(
     readTextFile,
   );
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
-  const workspacePath = input.workspacePath ?? process.env['TRAIL_WORKSPACE_PATH'];
+  const workspacePath = resolveWorkspacePath(input.workspacePath).path;
   const gate = evaluateCoverageGate({
     coverage: input.coverage,
     citations: resolved,
@@ -85,7 +86,7 @@ export async function handleRecordDoctrineJudgment(
       readFile: readTextFile,
     }),
   });
-  const dbPath = resolveDbPath(workspacePath === undefined ? {} : { workspacePath });
+  const dbPath = resolveDbPath({ workspacePath });
   const opened = await openTrailDb(dbPath, 'readwrite');
   try {
     const result = recordDoctrineJudgmentDirect(opened.db, {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { workspacePathParam } from './workspaceParam';
 import {
   searchMemory,
   openMemoryCoreDb,
@@ -8,6 +9,7 @@ import { createOllamaClient } from '@anytime-markdown/agent-core';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const SearchMemoryInputSchema = z.object({
+  workspacePath: workspacePathParam,
   query: z.string().describe('Search query'),
   entity_types: z.array(z.string()).optional().describe('Filter by entity types'),
   source_type: z.string().optional().describe('Filter by source type'),
@@ -21,7 +23,7 @@ export type SearchMemoryInput = z.infer<typeof SearchMemoryInputSchema>;
 export async function handleSearchMemory(input: SearchMemoryInput): Promise<SearchResult> {
   const ollamaBaseUrl = process.env['OLLAMA_BASE_URL'];
 
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
 
   try {
     const ollama = createOllamaClient(ollamaBaseUrl ? { baseUrl: ollamaBaseUrl } : {});

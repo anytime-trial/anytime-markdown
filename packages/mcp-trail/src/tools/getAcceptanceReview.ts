@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { resolveDbPath } from '../dbPath';
+import { workspacePathParam } from './workspaceParam';
+import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
 import { openTrailDb } from '../sqlite/openDb';
 import { listDoctrineJudgmentsBySession } from '../sqlite/doctrineJudgments';
 import { summarizeGitDiff, type GitDiffSummary } from '../doctrine/gitDiffSummary';
@@ -52,7 +53,7 @@ export async function handleGetAcceptanceReview(
   input: GetAcceptanceReviewInput,
 ): Promise<AcceptanceReview> {
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
-  const workspacePath = input.workspacePath ?? process.env['TRAIL_WORKSPACE_PATH'] ?? process.cwd();
+  const workspacePath = resolveWorkspacePath(input.workspacePath).path;
   const dbPath = resolveDbPath({ workspacePath });
   const baseRef = input.base_ref ?? DEFAULT_BASE_REF;
   const headRef = input.head_ref ?? DEFAULT_HEAD_REF;

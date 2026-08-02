@@ -20,7 +20,10 @@
     "mcp-trail": {
       "command": "npx",
       "args": ["tsx", "packages/mcp-trail/src/stdio.ts"],
-      "cwd": "/anytime-markdown"
+      "cwd": "/anytime-markdown",
+      "env": {
+        "TRAIL_WORKSPACE_PATH": "/anytime-markdown"
+      }
     },
     "mcp-markdown": {
       "command": "npx",
