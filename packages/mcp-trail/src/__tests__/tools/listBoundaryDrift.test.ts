@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import {
   CREATE_BOUNDARY_DRIFT_INDEXES,
+  CREATE_BOUNDARY_DRIFT_RUNS,
   CREATE_BOUNDARY_DRIFT_WARNINGS,
 } from '@anytime-markdown/trail-core';
 
@@ -24,11 +25,18 @@ function createWorkspace(): string {
       `CREATE TABLE repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)`,
     );
     db.exec(CREATE_BOUNDARY_DRIFT_WARNINGS);
+    db.exec(CREATE_BOUNDARY_DRIFT_RUNS);
     for (const idx of CREATE_BOUNDARY_DRIFT_INDEXES) db.exec(idx);
     db.prepare('INSERT INTO repos (repo_id, repo_name, created_at) VALUES (1, ?, ?)').run(
       'anytime-markdown',
       NEW_RUN,
     );
+    const insertRun = db.prepare(
+      `INSERT INTO boundary_drift_runs (repo_id, detected_at, warning_count, node_count)
+       VALUES (1, ?, 1, 100)`,
+    );
+    insertRun.run(OLD_RUN);
+    insertRun.run(NEW_RUN);
     const insert = db.prepare(
       `INSERT INTO boundary_drift_warnings
          (repo_id, detected_at, kind, target_key, stable_key, span_count, dominance,

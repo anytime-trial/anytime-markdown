@@ -13,7 +13,10 @@ export const ListBoundaryDriftInputSchema = z.object({
     .enum(['boundary_spanning', 'package_fragmentation'])
     .optional()
     .describe('boundary_spanning: one community spans many packages. package_fragmentation: one package splits across many communities'),
-  minSeverity: z.number().optional().describe('Minimum severity (higher = more entangled)'),
+  minSeverity: z
+    .number()
+    .optional()
+    .describe('Minimum severity. Requires kind: severity is comparable only within a kind (boundary_spanning = spanCount x (1 - dominance), package_fragmentation = communityCount)'),
   includeHistory: z
     .boolean()
     .optional()

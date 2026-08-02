@@ -160,4 +160,59 @@ describe('TrailDatabase: boundary_drift_warnings', () => {
   it('該当なしで空配列を返す', () => {
     expect(db.listBoundaryDriftWarnings({ repoId: 1 })).toEqual([]);
   });
+
+  it('警告 0 件でも検出回を記録する（健全と未解析を区別できるように）', () => {
+    expect(db.recordBoundaryDriftWarnings(1, T0, [], new Map(), 2429)).toBe(0);
+
+    const runs = db.listBoundaryDriftRuns({ repoId: 1 });
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ detectedAt: T0, warningCount: 0, nodeCount: 2429 });
+  });
+
+  it('検出回に警告件数と対象ノード数を記録する', () => {
+    db.recordBoundaryDriftWarnings(1, T0, [spanning(3), fragmentation('trail-core')], new Map(), 100);
+
+    expect(db.listBoundaryDriftRuns({ repoId: 1 })[0]).toMatchObject({
+      warningCount: 2,
+      nodeCount: 100,
+    });
+  });
+
+  it('検出回は新しい順に並び、repo で絞れる', () => {
+    db.recordBoundaryDriftWarnings(1, T0, []);
+    db.recordBoundaryDriftWarnings(1, T1, []);
+    db.recordBoundaryDriftWarnings(2, T1, []);
+
+    expect(db.listBoundaryDriftRuns({ repoId: 1 }).map((r) => r.detectedAt)).toEqual([T1, T0]);
+    expect(db.listBoundaryDriftRuns()).toHaveLength(3);
+  });
+
+  it('同一 (repo, 検出時刻) の検出回を二重に積まない', () => {
+    db.recordBoundaryDriftWarnings(1, T0, [spanning(3)], new Map(), 50);
+    db.recordBoundaryDriftWarnings(1, T0, [spanning(3)], new Map(), 50);
+
+    expect(db.listBoundaryDriftRuns({ repoId: 1 })).toHaveLength(1);
+  });
+
+  it('重複禁止が DB 側の制約になっている（アプリ層を迂回しても弾く）', () => {
+    db.recordBoundaryDriftWarnings(1, T0, [spanning(3)]);
+
+    expect(() =>
+      rawRun(
+        db,
+        `INSERT INTO boundary_drift_warnings
+           (repo_id, detected_at, kind, target_key, span_count, dominance, node_count, severity)
+         VALUES (1, ?, 'boundary_spanning', '3', 3, 0.4, 10, 1.0)`,
+        [T0],
+      ),
+    ).toThrow();
+  });
+
+  it('リポジトリ削除で検出回も消える（ON DELETE CASCADE）', () => {
+    db.recordBoundaryDriftWarnings(1, T0, [], new Map(), 10);
+    rawRun(db, `PRAGMA foreign_keys = ON`);
+    rawRun(db, `DELETE FROM repos WHERE repo_id = 1`);
+
+    expect(db.listBoundaryDriftRuns({ repoId: 1 })).toHaveLength(0);
+  });
 });

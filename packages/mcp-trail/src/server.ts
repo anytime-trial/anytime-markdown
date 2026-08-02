@@ -489,7 +489,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'list_boundary_drift',
-    { description: 'List architectural boundary drift warnings: communities that span many packages (boundary_spanning) or packages split across many communities (package_fragmentation). Sorted by severity. Defaults to the latest detection run of the most recent code graph analysis.', inputSchema: {
+    { description: 'List architectural boundary drift warnings: communities that span many packages (boundary_spanning) or packages split across many communities (package_fragmentation). Sorted by severity. Defaults to each repository latest detection run. An empty result carries a reason: no-warnings (analyzed and healthy) vs no-detection (never analyzed).', inputSchema: {
       repoName: ListBoundaryDriftInputSchema.shape.repoName,
       kind: ListBoundaryDriftInputSchema.shape.kind,
       minSeverity: ListBoundaryDriftInputSchema.shape.minSeverity,

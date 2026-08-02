@@ -1,6 +1,7 @@
 import BetterSqlite3, { type Database } from 'better-sqlite3';
 import {
   CREATE_BOUNDARY_DRIFT_INDEXES,
+  CREATE_BOUNDARY_DRIFT_RUNS,
   CREATE_BOUNDARY_DRIFT_WARNINGS,
 } from '@anytime-markdown/trail-core';
 
@@ -15,6 +16,7 @@ function createDb(): Database {
     `CREATE TABLE repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)`,
   );
   db.exec(CREATE_BOUNDARY_DRIFT_WARNINGS);
+  db.exec(CREATE_BOUNDARY_DRIFT_RUNS);
   for (const idx of CREATE_BOUNDARY_DRIFT_INDEXES) db.exec(idx);
   db.prepare('INSERT INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)').run(
     1,
@@ -29,10 +31,23 @@ function createDb(): Database {
   return db;
 }
 
+/** 検出回を記録する。警告を積む側からも呼ばれ、warning_count を実装と同じ意味に保つ。 */
+function insertRun(
+  db: Database,
+  args: { repoId?: number; detectedAt?: string; warningCount?: number; nodeCount?: number },
+): void {
+  db.prepare(
+    `INSERT INTO boundary_drift_runs (repo_id, detected_at, warning_count, node_count)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(repo_id, detected_at) DO UPDATE SET warning_count = warning_count + excluded.warning_count`,
+  ).run(args.repoId ?? 1, args.detectedAt ?? NEW_RUN, args.warningCount ?? 0, args.nodeCount ?? 100);
+}
+
 function insertSpanning(
   db: Database,
   args: { repoId?: number; detectedAt?: string; target: string; severity: number; spanCount?: number },
 ): void {
+  insertRun(db, { ...args, warningCount: 1 });
   db.prepare(
     `INSERT INTO boundary_drift_warnings
        (repo_id, detected_at, kind, target_key, stable_key, span_count, dominance,
@@ -53,6 +68,7 @@ function insertFragmentation(
   db: Database,
   args: { repoId?: number; detectedAt?: string; target: string; severity: number },
 ): void {
+  insertRun(db, { ...args, warningCount: 1 });
   db.prepare(
     `INSERT INTO boundary_drift_warnings
        (repo_id, detected_at, kind, target_key, stable_key, span_count, dominance,
@@ -106,9 +122,18 @@ describe('listBoundaryDriftDirect', () => {
     insertFragmentation(db, { target: 'trail-core', severity: 4 });
 
     expect(listBoundaryDriftDirect(db, { kind: 'boundary_spanning' }).warnings).toHaveLength(1);
-    expect(listBoundaryDriftDirect(db, { minSeverity: 2 }).warnings.map((w) => w.target)).toEqual([
-      'trail-core',
-    ]);
+    expect(
+      listBoundaryDriftDirect(db, { kind: 'package_fragmentation', minSeverity: 2 }).warnings.map(
+        (w) => w.target,
+      ),
+    ).toEqual(['trail-core']);
+  });
+
+  it('kind 無しの minSeverity は拒否する（severity は kind 内でのみ比較可能）', () => {
+    insertSpanning(db, { target: '3', severity: 1.5 });
+
+    // 尺度が違う 2 種を横断で足切りすると、spanning だけが静かに全滅する。
+    expect(() => listBoundaryDriftDirect(db, { minSeverity: 2 })).toThrow(/minSeverity requires kind/);
   });
 
   it('kind で絞っても最新回の特定は絞り込み前に行う', () => {
@@ -156,6 +181,35 @@ describe('listBoundaryDriftDirect', () => {
     insertSpanning(db, { target: '5', severity: 1 });
 
     expect(listBoundaryDriftDirect(db, { limit: 2 }).warnings).toHaveLength(2);
+  });
+
+  it('repo ごとに最新回を取る（解析時刻の新しい repo が古い repo を消さない）', () => {
+    // repo1 の最新回は OLD、repo2 の最新回は NEW。全 repo 横断の MAX を採ると repo1 が消える。
+    insertSpanning(db, { repoId: 1, detectedAt: OLD_RUN, target: '3', severity: 5 });
+    insertSpanning(db, { repoId: 2, detectedAt: NEW_RUN, target: '99', severity: 2 });
+
+    const result = listBoundaryDriftDirect(db);
+
+    expect(result.warnings.map((w) => w.target)).toEqual(['3', '99']);
+    // 検出時刻が repo ごとに違うので単一の detectedAt は名乗らない。runs で明示する。
+    expect(result.detectedAt).toBeNull();
+    expect(result.runs.map((r) => [r.repoName, r.detectedAt])).toEqual([
+      ['other-repo', NEW_RUN],
+      ['anytime-markdown', OLD_RUN],
+    ]);
+  });
+
+  it('警告が解消された回は健全として返る（古い警告が最新に居座らない）', () => {
+    insertSpanning(db, { detectedAt: OLD_RUN, target: '3', severity: 9 });
+    // 最新回は警告 0 件（＝解消された）。警告行が無いので run だけが積まれる。
+    insertRun(db, { detectedAt: NEW_RUN, warningCount: 0 });
+
+    const result = listBoundaryDriftDirect(db);
+
+    expect(result.warnings).toEqual([]);
+    expect(result.reason).toBe('no-warnings');
+    expect(result.detectedAt).toBe(NEW_RUN);
+    expect(result.runs[0]).toMatchObject({ detectedAt: NEW_RUN, warningCount: 0 });
   });
 
   it('空結果の理由を区別する（未解析・未知リポ・テーブル無し）', () => {

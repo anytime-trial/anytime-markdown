@@ -34,6 +34,7 @@ import {
   type BoundaryDriftKind,
   type BoundaryDriftWarning,
   CREATE_BOUNDARY_DRIFT_INDEXES,
+  CREATE_BOUNDARY_DRIFT_RUNS,
   CREATE_BOUNDARY_DRIFT_WARNINGS,
   CREATE_DOCTRINE_JUDGMENTS,
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
@@ -228,6 +229,19 @@ export interface BoundaryDriftWarningRow {
   readonly nodeCount: number;
   readonly severity: number;
   readonly breakdown: readonly BoundaryDriftBreakdownEntry[];
+}
+
+/**
+ * 検出回の 1 行。警告が 0 件でも積まれる。
+ * 「解析して健全だった」と「まだ解析していない」の区別はこの行の有無で行う。
+ */
+export interface BoundaryDriftRunRow {
+  readonly id: number;
+  readonly repoId: number;
+  readonly detectedAt: string;
+  readonly warningCount: number;
+  /** 判定対象にしたノード数。0 件警告が「健全」か「グラフが空」かの区別に要る。 */
+  readonly nodeCount: number;
 }
 
 export interface BoundaryDriftQuery {
@@ -4111,6 +4125,7 @@ export class TrailDatabase {
     // Architectural Drift Detection (管制塔 §2.3)。新規テーブルのみ。
     // CREATE TABLE IF NOT EXISTS なので既存 DB も次回オープンで冪等に追加される。
     db.run(CREATE_BOUNDARY_DRIFT_WARNINGS);
+    db.run(CREATE_BOUNDARY_DRIFT_RUNS);
     for (const idx of CREATE_BOUNDARY_DRIFT_INDEXES) {
       db.run(idx);
     }
@@ -8876,28 +8891,37 @@ export class TrailDatabase {
   }
 
   /**
-   * 副作用: boundary_drift_warnings へ INSERT。永続化は呼び出し側の save() 契約に従う。
+   * 副作用: boundary_drift_runs と boundary_drift_warnings へ INSERT。
+   * 永続化は呼び出し側の save() 契約に従う。
    *
    * 洗い替えはしない。境界の劣化・改善の推移を追うため履歴として積む。
-   * 同一 (repo_id, detected_at, kind, target_key) の再投入は無視する（解析の再実行で
-   * 同じ検出時刻の行を二重に積まないため）。戻り値は実際に挿入した件数。
+   * 同一 (repo_id, detected_at, kind, target_key) の再投入は DB の UNIQUE インデックスが
+   * 弾く（解析の再実行で同じ検出時刻の行を二重に積まないため）。戻り値は挿入した警告件数。
+   *
+   * **警告が 0 件でも検出回（boundary_drift_runs）は必ず記録する。** 警告行だけでは
+   * 「解析して健全だった」と「まだ解析していない」を区別できず、警告が解消された回が
+   * 残らないため、照会側が解消済みの古い警告を最新として返し続ける。
+   *
+   * @param nodeCount 判定対象にしたノード数（検出回の規模。0 件警告の解釈に要る）
    */
   recordBoundaryDriftWarnings(
     repoId: number,
     detectedAt: string,
     warnings: readonly BoundaryDriftWarning[],
     stableKeyByCommunityId: ReadonlyMap<number, string> = new Map(),
+    nodeCount = 0,
   ): number {
     const db = this.ensureDb();
+    db.run(
+      `INSERT OR REPLACE INTO boundary_drift_runs (repo_id, detected_at, warning_count, node_count)
+       VALUES (?, ?, ?, ?)`,
+      [repoId, detectedAt, warnings.length, nodeCount],
+    );
     const stmt = db.prepare(
-      `INSERT INTO boundary_drift_warnings
+      `INSERT OR IGNORE INTO boundary_drift_warnings
          (repo_id, detected_at, kind, target_key, stable_key,
           span_count, dominance, community_count, node_count, severity, breakdown_json)
-       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-       WHERE NOT EXISTS (
-         SELECT 1 FROM boundary_drift_warnings
-         WHERE repo_id = ? AND detected_at = ? AND kind = ? AND target_key = ?
-       )`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     let inserted = 0;
     try {
@@ -8919,10 +8943,6 @@ export class TrailDatabase {
           warning.nodeCount,
           warning.severity,
           JSON.stringify(warning.breakdown),
-          repoId,
-          detectedAt,
-          warning.kind,
-          targetKey,
         ]);
         inserted += db.getRowsModified();
       }
@@ -8930,6 +8950,28 @@ export class TrailDatabase {
       stmt.free();
     }
     return inserted;
+  }
+
+  /** 検出回の一覧（新しい順）。警告 0 件の回も含む。 */
+  listBoundaryDriftRuns(options: { repoId?: number; limit?: number } = {}): BoundaryDriftRunRow[] {
+    const db = this.ensureDb();
+    const where = options.repoId === undefined ? '' : 'WHERE repo_id = ?';
+    const params: Array<string | number> = options.repoId === undefined ? [] : [options.repoId];
+    const res = db.exec(
+      `SELECT id, repo_id, detected_at, warning_count, node_count
+         FROM boundary_drift_runs ${where}
+        ORDER BY detected_at DESC
+        LIMIT ?`,
+      [...params, options.limit ?? 50],
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      id: row[0] as number,
+      repoId: row[1] as number,
+      detectedAt: row[2] as string,
+      warningCount: row[3] as number,
+      nodeCount: row[4] as number,
+    }));
   }
 
   /** severity 降順。kind / 最小 severity で絞り込める。 */

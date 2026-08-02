@@ -126,6 +126,8 @@ describe('recordBoundaryDrift', () => {
 
     expect(recordBoundaryDriftWarnings).toHaveBeenCalledTimes(1);
     expect(recordBoundaryDriftWarnings.mock.calls[0][2]).toEqual([]);
+    // 判定対象のノード数を渡す（0 件警告が「健全」か「グラフが空」かの区別に要る）。
+    expect(recordBoundaryDriftWarnings.mock.calls[0][4]).toBe(2);
   });
 
   it('グラフが無ければ DB を触らない', () => {

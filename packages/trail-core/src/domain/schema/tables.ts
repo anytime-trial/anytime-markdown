@@ -847,7 +847,26 @@ export const CREATE_BOUNDARY_DRIFT_WARNINGS = `CREATE TABLE IF NOT EXISTS bounda
   )
 ) STRICT`;
 
+/**
+ * 検出回そのものの記録。警告 0 件でも 1 行積む。
+ *
+ * 警告行だけでは「解析して健全だった」と「まだ解析していない」を区別できず、
+ * 警告が解消された回が記録されないため、最新回の特定を警告行の MAX(detected_at) で
+ * 行うと解消済みの古い警告を最新として返し続ける。検出回を独立に持ってこれを断つ。
+ */
+export const CREATE_BOUNDARY_DRIFT_RUNS = `CREATE TABLE IF NOT EXISTS boundary_drift_runs (
+  id INTEGER PRIMARY KEY,
+  repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  detected_at TEXT NOT NULL CHECK (detected_at GLOB ${TS_GLOB_MS} OR detected_at GLOB ${TS_GLOB_NO_MS}),
+  warning_count INTEGER NOT NULL CHECK (warning_count >= 0),
+  node_count INTEGER NOT NULL CHECK (node_count >= 0)
+) STRICT`;
+
 export const CREATE_BOUNDARY_DRIFT_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_boundary_drift_warnings_detected_at ON boundary_drift_warnings(repo_id, detected_at)`,
   `CREATE INDEX IF NOT EXISTS idx_boundary_drift_warnings_kind ON boundary_drift_warnings(repo_id, kind, severity)`,
+  // 重複禁止をアプリ層の NOT EXISTS だけに置かず DB 側の不変条件にする
+  // (別経路の書き手・一括投入でも守られるように)。
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_warnings_key ON boundary_drift_warnings(repo_id, detected_at, kind, target_key)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_runs_key ON boundary_drift_runs(repo_id, detected_at)`,
 ];

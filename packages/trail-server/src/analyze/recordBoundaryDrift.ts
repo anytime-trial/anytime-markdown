@@ -56,6 +56,7 @@ export function recordBoundaryDrift(args: RecordBoundaryDriftArgs): number | nul
       graph.generatedAt,
       detected,
       stableKeysForSpanning(graph, detected),
+      graph.nodes.length,
     );
     const spanning = detected.filter((w) => w.kind === 'boundary_spanning').length;
     logger.info(
