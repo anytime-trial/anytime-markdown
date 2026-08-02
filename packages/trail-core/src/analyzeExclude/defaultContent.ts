@@ -7,6 +7,7 @@ export const DEFAULT_ANALYZE_EXCLUDE_CONTENT = `# コードグラフ解析から
 #   !path/foo.test.ts - 上記除外から除外（明示的に含める）
 # Auto-generated on first analyze. Edit freely.
 
+node_modules/
 .worktrees/
 .vscode-test/
 .claude/
