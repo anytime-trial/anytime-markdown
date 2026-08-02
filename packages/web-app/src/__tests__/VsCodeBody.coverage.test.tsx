@@ -14,7 +14,7 @@ jest.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
-jest.mock("../app/LocaleProvider", () => ({
+jest.mock("../app/[locale]/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
@@ -22,28 +22,28 @@ jest.mock("@anytime-markdown/markdown-editor", () => ({
   ACCENT_COLOR: "#e8a012",
 }));
 
-jest.mock("../app/components/MarkdownViewer", () => ({
+jest.mock("../app/[locale]/components/MarkdownViewer", () => ({
   __esModule: true,
   default: () => <div data-testid="markdown-editor">Viewer</div>,
 }));
 
-jest.mock("../app/components/SiteFooter", () => ({
+jest.mock("../app/[locale]/components/SiteFooter", () => ({
   __esModule: true,
   default: () => <footer data-testid="footer">Footer</footer>,
 }));
 
-jest.mock("../app/components/LandingHeader", () => ({
+jest.mock("../app/[locale]/components/LandingHeader", () => ({
   __esModule: true,
   default: () => <header data-testid="header">Header</header>,
 }));
 
-jest.mock("../app/trail/components/TrailViewer", () => ({
+jest.mock("../app/[locale]/trail/components/TrailViewer", () => ({
   __esModule: true,
   TrailViewer: () => <div data-testid="trail-viewer">TrailViewer</div>,
 }));
 
 import { createTheme, ThemeProvider } from "@mui/material";
-import VsCodeBody from "../app/vscode/VsCodeBody";
+import VsCodeBody from "../app/[locale]/vscode/VsCodeBody";
 
 const darkTheme = createTheme({ palette: { mode: "dark" } });
 

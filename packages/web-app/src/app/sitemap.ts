@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { routing } from "../i18n/routing";
+import { localeHref } from "../lib/localeAlternates";
 import { listReports } from "../lib/reportClient";
 import { fetchLayoutData } from "../lib/s3Client";
 
@@ -17,13 +19,74 @@ const DEPLOYED_AT = new Date();
  * 掲載しない。noindex ページのサイトマップ掲載は検索エンジンへの矛盾シグナルになる。
  * /docs は app/docs/ 直下に page.tsx が無く 404 になるため掲載しない。
  */
-const STATIC_PAGES: MetadataRoute.Sitemap = [
-  { url: BASE_URL, lastModified: DEPLOYED_AT, changeFrequency: "monthly", priority: 1 },
-  { url: `${BASE_URL}/markdown`, lastModified: DEPLOYED_AT, changeFrequency: "monthly", priority: 0.9 },
-  { url: `${BASE_URL}/report`, lastModified: DEPLOYED_AT, changeFrequency: "weekly", priority: 0.8 },
-  { url: `${BASE_URL}/privacy`, lastModified: DEPLOYED_AT, changeFrequency: "yearly", priority: 0.3 },
-  { url: `${BASE_URL}/privacy/services`, lastModified: DEPLOYED_AT, changeFrequency: "yearly", priority: 0.3 },
+const STATIC_ROUTES = [
+  { path: "/", changeFrequency: "monthly" as const, priority: 1 },
+  { path: "/markdown", changeFrequency: "monthly" as const, priority: 0.9 },
+  { path: "/report", changeFrequency: "weekly" as const, priority: 0.8 },
+  { path: "/privacy", changeFrequency: "yearly" as const, priority: 0.3 },
+  { path: "/privacy/services", changeFrequency: "yearly" as const, priority: 0.3 },
 ];
+
+/**
+ * 1 つのパスを全ロケール分の URL へ展開する。
+ * 各エントリに `alternates.languages` を付けないと、検索エンジンは ja 版と en 版を
+ * 別々の独立したページとして扱い、対応関係を認識しない。
+ */
+function expandLocales(
+  path: string,
+  entry: { lastModified: Date; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]; priority: number },
+): MetadataRoute.Sitemap {
+  // localeHref('/', 'ja') は '/' を返すため、そのまま連結するとルートだけ末尾スラッシュが付く
+  const absolute = (locale: (typeof routing.locales)[number]) => {
+    const href = localeHref(path, locale);
+    return href === "/" ? BASE_URL : `${BASE_URL}${href}`;
+  };
+
+  const languages: Record<string, string> = {};
+  for (const locale of routing.locales) {
+    languages[locale] = absolute(locale);
+  }
+  // x-default は既定ロケール（ja）。HTML の alternates（lib/localeAlternates）と
+  // 同じ集合にしないと、同じページについて sitemap と HTML で別の申告になる。
+  languages["x-default"] = absolute(routing.defaultLocale);
+
+  return routing.locales.map((locale) => ({
+    url: absolute(locale),
+    lastModified: entry.lastModified,
+    changeFrequency: entry.changeFrequency,
+    priority: entry.priority,
+    alternates: { languages },
+  }));
+}
+
+/**
+ * 本文が単一言語（ja）のページを 1 URL だけ掲載する。
+ * 記事・ドキュメントの本文は S3 上の単一ソースで `/en` 配下でも同じ内容を返すため、
+ * 両ロケールを掲載すると 1 本の記事を 2 URL で重複申告することになる。
+ * HTML 側は `buildSingleSourceAlternates` が canonical を ja へ向ける。
+ */
+function singleSourcePage(
+  path: string,
+  entry: { lastModified: Date; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]; priority: number },
+): MetadataRoute.Sitemap {
+  const href = localeHref(path, routing.defaultLocale);
+  return [
+    {
+      url: href === "/" ? BASE_URL : `${BASE_URL}${href}`,
+      lastModified: entry.lastModified,
+      changeFrequency: entry.changeFrequency,
+      priority: entry.priority,
+    },
+  ];
+}
+
+const STATIC_PAGES: MetadataRoute.Sitemap = STATIC_ROUTES.flatMap((route) =>
+  expandLocales(route.path, {
+    lastModified: DEPLOYED_AT,
+    changeFrequency: route.changeFrequency,
+    priority: route.priority,
+  }),
+);
 
 /** frontmatter の date は自由入力なので、パースできない場合はデプロイ時刻へ縮退する */
 function parseArticleDate(date: string | undefined): Date {
@@ -36,22 +99,24 @@ async function buildDocPages(): Promise<MetadataRoute.Sitemap> {
   const layout = await fetchLayoutData();
   return layout.categories
     .flatMap((cat) => cat.items)
-    .map((item) => ({
-      url: `${BASE_URL}/docs/view?key=${encodeURIComponent(item.docKey)}`,
-      lastModified: DEPLOYED_AT,
-      changeFrequency: "weekly" as const,
-      priority: 0.5,
-    }));
+    .flatMap((item) =>
+      singleSourcePage(`/docs/view?key=${encodeURIComponent(item.docKey)}`, {
+        lastModified: DEPLOYED_AT,
+        changeFrequency: "weekly",
+        priority: 0.5,
+      }),
+    );
 }
 
 async function buildReportPages(): Promise<MetadataRoute.Sitemap> {
   const reports = await listReports();
-  return reports.map((report) => ({
-    url: `${BASE_URL}/report/${report.slug}`,
-    lastModified: parseArticleDate(report.date),
-    changeFrequency: "monthly" as const,
-    priority: 0.7,
-  }));
+  return reports.flatMap((report) =>
+    singleSourcePage(`/report/${report.slug}`, {
+      lastModified: parseArticleDate(report.date),
+      changeFrequency: "monthly",
+      priority: 0.7,
+    }),
+  );
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

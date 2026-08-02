@@ -12,7 +12,7 @@ jest.mock("next/link", () => ({
   default: ({ children, ...props }: any) => <a {...props}>{children}</a>,
 }));
 
-jest.mock("../app/LocaleProvider", () => ({
+jest.mock("../app/[locale]/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
@@ -51,7 +51,7 @@ jest.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: () => undefined } },
 }));
 
-jest.mock("../app/docs/edit/useLayoutEditor", () => ({
+jest.mock("../app/[locale]/docs/edit/useLayoutEditor", () => ({
   useLayoutEditor: () => ({
     t: (key: string) => key,
     tCommon: (key: string) => key,
@@ -97,7 +97,7 @@ jest.mock("../app/docs/edit/useLayoutEditor", () => ({
   }),
 }));
 
-import EditBody from "../app/docs/edit/EditBody";
+import EditBody from "../app/[locale]/docs/edit/EditBody";
 
 describe("EditBody", () => {
   it("renders edit page title", () => {
@@ -127,7 +127,7 @@ describe("EditBody structure", () => {
 describe("EditBody loading state", () => {
   beforeEach(() => {
     // Override mock to return loading=true
-    const mod = require("../app/docs/edit/useLayoutEditor");
+    const mod = require("../app/[locale]/docs/edit/useLayoutEditor");
     jest.spyOn(mod, "useLayoutEditor").mockReturnValue({
       t: (key: string) => key,
       tCommon: (key: string) => key,
@@ -186,7 +186,7 @@ describe("EditBody loading state", () => {
 
 describe("EditBody with delete dialog", () => {
   beforeEach(() => {
-    const mod = require("../app/docs/edit/useLayoutEditor");
+    const mod = require("../app/[locale]/docs/edit/useLayoutEditor");
     jest.spyOn(mod, "useLayoutEditor").mockReturnValue({
       t: (key: string, params?: any) => params ? `${key}:${JSON.stringify(params)}` : key,
       tCommon: (key: string) => key,
@@ -245,7 +245,7 @@ describe("EditBody with delete dialog", () => {
 
 describe("EditBody with snackbar", () => {
   beforeEach(() => {
-    const mod = require("../app/docs/edit/useLayoutEditor");
+    const mod = require("../app/[locale]/docs/edit/useLayoutEditor");
     jest.spyOn(mod, "useLayoutEditor").mockReturnValue({
       t: (key: string) => key,
       tCommon: (key: string) => key,

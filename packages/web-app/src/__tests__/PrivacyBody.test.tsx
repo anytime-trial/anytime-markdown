@@ -14,15 +14,15 @@ jest.mock("next/link", () => ({
   default: ({ children, ...props }: any) => <a {...props}>{children}</a>,
 }));
 
-jest.mock("../app/LocaleProvider", () => ({
+jest.mock("../app/[locale]/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
-jest.mock("../app/providers", () => ({
+jest.mock("../app/[locale]/providers", () => ({
   useThemeMode: () => ({ themeMode: "light", setThemeMode: jest.fn() }),
 }));
 
-import PrivacyBody from "../app/privacy/PrivacyBody";
+import PrivacyBody from "../app/[locale]/privacy/PrivacyBody";
 
 describe("PrivacyBody", () => {
   it("renders privacy title", () => {

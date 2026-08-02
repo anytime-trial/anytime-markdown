@@ -10,15 +10,15 @@ jest.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
-jest.mock("../app/LocaleProvider", () => ({
+jest.mock("../app/[locale]/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
-jest.mock("../app/providers", () => ({
+jest.mock("../app/[locale]/providers", () => ({
   useThemeMode: () => ({ themeMode: "light", setThemeMode: jest.fn() }),
 }));
 
-import LandingHeader from "../app/components/LandingHeader";
+import LandingHeader from "../app/[locale]/components/LandingHeader";
 
 // ハンバーガー / モバイルドロワーは撤去し、言語・テーマ切替を狭幅でも常時表示する。
 describe("LandingHeader nav (no hamburger)", () => {
@@ -40,7 +40,7 @@ describe("LandingHeader nav (no hamburger)", () => {
   it("言語切替クリックで setLocale が呼ばれる", () => {
     const setLocale = jest.fn();
     jest
-      .spyOn(require("../app/LocaleProvider"), "useLocaleSwitch")
+      .spyOn(require("../app/[locale]/LocaleProvider"), "useLocaleSwitch")
       .mockReturnValue({ locale: "en", setLocale });
 
     render(<LandingHeader />);
@@ -51,7 +51,7 @@ describe("LandingHeader nav (no hamburger)", () => {
   it("テーマ切替クリックで setThemeMode が呼ばれる", () => {
     const setThemeMode = jest.fn();
     jest
-      .spyOn(require("../app/providers"), "useThemeMode")
+      .spyOn(require("../app/[locale]/providers"), "useThemeMode")
       .mockReturnValue({ themeMode: "light", setThemeMode });
 
     render(<LandingHeader />);

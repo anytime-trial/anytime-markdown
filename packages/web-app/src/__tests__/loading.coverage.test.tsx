@@ -6,7 +6,7 @@ jest.mock("@anytime-markdown/markdown-react-islands/src/components/loader/FullPa
   default: () => <div data-testid="loader">Loading...</div>,
 }));
 
-import Loading from "../app/loading";
+import Loading from "../app/[locale]/loading";
 
 describe("Loading", () => {
   it("renders FullPageLoader", () => {

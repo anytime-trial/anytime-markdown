@@ -43,7 +43,7 @@ jest.mock("@anytime-markdown/markdown-editor", () => ({
   DEFAULT_LIGHT_BG: "#F8F9FA",
 }));
 
-import CardAreaPanel from "../app/docs/edit/CardAreaPanel";
+import CardAreaPanel from "../app/[locale]/docs/edit/CardAreaPanel";
 
 const baseProps = {
   categories: [] as any[],

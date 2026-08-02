@@ -11,16 +11,16 @@
 import { act, render } from '@testing-library/react';
 import { useEffect, useState } from 'react';
 
-import { LocaleProvider } from '../app/LocaleProvider';
-import CooccurrencePage from '../app/cooccurrence/page';
-import { ThemeModeContext } from '../app/providers';
+import { LocaleProvider } from '../app/[locale]/LocaleProvider';
+import CooccurrencePage from '../app/[locale]/cooccurrence/page';
+import { ThemeModeContext } from '../app/[locale]/providers';
 
-jest.mock('../app/components/LandingHeader', () => ({
+jest.mock('../app/[locale]/components/LandingHeader', () => ({
   __esModule: true,
   default: () => null,
 }));
 
-jest.mock('../app/cooccurrence/createLayoutWorker', () => ({
+jest.mock('../app/[locale]/cooccurrence/createLayoutWorker', () => ({
   createLayoutWorker: () => null,
 }));
 

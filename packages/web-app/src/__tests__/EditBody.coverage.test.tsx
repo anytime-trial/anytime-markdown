@@ -18,7 +18,7 @@ jest.mock("next/link", () => ({
   default: ({ children, ...props }: any) => <a {...props}>{children}</a>,
 }));
 
-jest.mock("../app/LocaleProvider", () => ({
+jest.mock("../app/[locale]/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
@@ -72,12 +72,12 @@ const mockSetSiteDescription = jest.fn();
 
 let mockState: any = {};
 
-jest.mock("../app/docs/edit/useLayoutEditor", () => ({
+jest.mock("../app/[locale]/docs/edit/useLayoutEditor", () => ({
   useLayoutEditor: () => mockState,
 }));
 
 let capturedFileListPanelProps: any = {};
-jest.mock("../app/docs/edit/FileListPanel", () => {
+jest.mock("../app/[locale]/docs/edit/FileListPanel", () => {
   return {
     __esModule: true,
     default: (props: any) => {
@@ -88,7 +88,7 @@ jest.mock("../app/docs/edit/FileListPanel", () => {
 });
 
 let capturedCategoryAreaPanelProps: any = {};
-jest.mock("../app/docs/edit/CardAreaPanel", () => {
+jest.mock("../app/[locale]/docs/edit/CardAreaPanel", () => {
   return {
     __esModule: true,
     default: (props: any) => {
@@ -98,7 +98,7 @@ jest.mock("../app/docs/edit/CardAreaPanel", () => {
   };
 });
 
-import EditBody from "../app/docs/edit/EditBody";
+import EditBody from "../app/[locale]/docs/edit/EditBody";
 
 function getDefaultState(overrides: any = {}) {
   return {

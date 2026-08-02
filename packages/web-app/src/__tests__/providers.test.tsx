@@ -47,7 +47,7 @@ jest.mock("@anytime-markdown/markdown-editor", () => ({
   getInfoMain: (isDark: boolean) => isDark ? "#42A5F5" : "#3D4A52",
 }));
 
-import { Providers, useThemeMode } from "../app/providers";
+import { Providers, useThemeMode } from "../app/[locale]/providers";
 
 const THEME_STORAGE_KEY = "anytime-markdown-theme-mode";
 
