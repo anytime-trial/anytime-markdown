@@ -13,6 +13,7 @@
 
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import type { DocLink } from '@anytime-markdown/trail-core/c4';
+import type { SourceLocation } from '@anytime-markdown/trace-core/types';
 import type { TrailLocale } from '../i18n';
 import { getTokens } from '../theme/designTokens';
 import { createTrailDataStore } from '../hooks/stores/trailDataStore';
@@ -335,6 +336,11 @@ export function mountTrailViewerApp(
       sessionsLoading: trail.sessionsLoading,
       c4: c4Props,
       traceFiles: traceFiles.length > 0 ? traceFiles : undefined,
+      // TRC-5: シーケンス図のノードクリック → ホスト（VS Code 拡張）が該当行を開く。
+      // C4 の「ファイルを開く」と同じ open-file コマンドへ行番号を添えて送る。
+      onJumpToSource: (loc: SourceLocation) => {
+        c4.sendCommand('open-file', { filePath: loc.file, line: loc.line });
+      },
       initialTab: props.initialTab,
       onTabVisit: (tab: number) => {
         if (isC4RelatedTab(tab)) {

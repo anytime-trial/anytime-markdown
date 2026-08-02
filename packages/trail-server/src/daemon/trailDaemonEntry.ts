@@ -429,8 +429,8 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   server.onOpenDocLink = (docPath: string) => {
     sendEvent('openDocLink', { docPath });
   };
-  server.onOpenFile = (filePath: string) => {
-    sendEvent('openFile', { filePath });
+  server.onOpenFile = (filePath: string, line?: number) => {
+    sendEvent('openFile', line === undefined ? { filePath } : { filePath, line });
   };
   server.onAddNotePage = (payload) => {
     sendEvent('addNotePage', payload);

@@ -6,6 +6,7 @@ import { instrumentCode } from '../astTransform';
 import { globalRecorder } from '../globalRecorder';
 import { __traceEnter, __traceExit, __traceThrow, getLifelineMap, resetLifelineMap } from '../runtime';
 import { Flusher } from '../flusher';
+import { CURRENT_TRACE_VERSION } from '@anytime-markdown/trace-core/types';
 
 let tmpDir: string;
 
@@ -51,6 +52,8 @@ describe('integration', () => {
         const callEntry = globalRecorder.entries().find(e => e.type === 'call');
         expect(callEntry).toBeDefined();
         expect(callEntry?.fn).toBe('greet');
+        // TRC-5: AST が拾った定義行が loc として残る（1 行目の function greet）
+        expect(callEntry?.loc).toEqual({ file: filename, line: 1 });
 
         const traceOut = path.join(tmpDir, 'out');
         new Flusher({
@@ -65,7 +68,7 @@ describe('integration', () => {
         expect(files.length).toBeGreaterThan(0);
 
         const content = JSON.parse(fs.readFileSync(path.join(traceOut, files[0]), 'utf-8'));
-        expect(content.version).toBe(1);
+        expect(content.version).toBe(CURRENT_TRACE_VERSION);
         expect(content.events.find((e: { type: string }) => e.type === 'call')).toBeDefined();
     });
 });

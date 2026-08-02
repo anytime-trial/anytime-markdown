@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { Flusher } from '../flusher';
 import { Recorder } from '../recorder';
+import { CURRENT_TRACE_VERSION } from '@anytime-markdown/trace-core/types';
 
 let tmpDir: string;
 
@@ -34,7 +35,7 @@ describe('Flusher', () => {
         expect(files).toHaveLength(1);
 
         const content = JSON.parse(fs.readFileSync(path.join(tmpDir, files[0]), 'utf-8'));
-        expect(content.version).toBe(1);
+        expect(content.version).toBe(CURRENT_TRACE_VERSION);
         expect(content.events.length).toBe(2);
     });
 

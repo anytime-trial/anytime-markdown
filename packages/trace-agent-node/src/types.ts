@@ -20,6 +20,8 @@ export interface RecorderEntry {
     error?: { name: string; message: string; stack?: string };
     method?: string;
     meta?: unknown;
+    /** call エントリのソース位置（TRC-5 ソースジャンプ先）。行番号が取れない場合は未設定。 */
+    loc?: { file: string; line: number };
 }
 
 export interface LifelineEntry {

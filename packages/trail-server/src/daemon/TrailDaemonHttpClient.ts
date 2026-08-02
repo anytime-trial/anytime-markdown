@@ -66,7 +66,7 @@ export class TrailDaemonHttpClient {
    * extension 側で VS Code API (vscode.workspace.openTextDocument 等) を呼ぶ。
    * @returns unsubscribe 関数。
    */
-  onOpenFile(cb: (payload: { filePath: string }) => void): () => void {
+  onOpenFile(cb: (payload: { filePath: string; line?: number }) => void): () => void {
     return this.host.on('openFile', cb);
   }
 

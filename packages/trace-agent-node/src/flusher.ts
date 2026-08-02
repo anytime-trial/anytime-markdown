@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { Recorder } from './recorder';
 import type { TraceFile } from '@anytime-markdown/trace-core';
+import { CURRENT_TRACE_VERSION } from '@anytime-markdown/trace-core';
 import { safeSerialize } from './serializer';
 import type { JsonValue } from '@anytime-markdown/trace-core';
 
@@ -41,6 +42,8 @@ export class Flusher {
                     to: entry.lifelineId!,
                     fn: entry.fn!, args: (entry.args ?? []).map(a => safeSerialize(a)) as JsonValue[],
                     depth: entry.depth ?? 0,
+                    // TRC-5: ソースジャンプ先。行番号が取れなかった呼び出しでは undefined のまま落とす。
+                    ...(entry.loc ? { loc: entry.loc } : {}),
                 };
             }
             if (entry.type === 'return') {
@@ -82,7 +85,7 @@ export class Flusher {
         }
 
         const traceFile: TraceFile = {
-            version: 1,
+            version: CURRENT_TRACE_VERSION,
             metadata: {
                 startedAt,
                 endedAt,
