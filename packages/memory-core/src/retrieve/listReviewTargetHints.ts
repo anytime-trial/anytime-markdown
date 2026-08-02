@@ -7,6 +7,15 @@ export type ReviewTargetHint = {
   reason: string;
 };
 
+type Priority = ReviewTargetHint['priority'];
+
+const PRIORITY_ORDER: readonly Priority[] = ['high', 'medium', 'low'];
+
+// 優先度ごとの枠の比率。high 候補（未対処レビュー指摘 + 直近 30 日の regression fix）は
+// 実 DB で数百件に達するため、素直に上から詰めると medium / low が一度も返らない。
+// 呼び出し側からは「該当なし」と区別が付かないので、優先度ごとに枠を割り当てる。
+const QUOTA_RATIO: Record<Priority, number> = { high: 0.5, medium: 0.35, low: 0.15 };
+
 // 時刻比較は strftime('%Y-%m-%dT%H:%M:%SZ', ...) で ISO 8601 の閾値を作る（列は T/Z 付きで
 // 格納されるため datetime() の 'YYYY-MM-DD HH:MM:SS' とは比較できない）。閾値にミリ秒が
 // 付かないため、境界の 1 秒内にあるミリ秒付きの行は文字列比較で「小さい」と判定され得る
@@ -16,20 +25,23 @@ export function listReviewTargetHints(input: {
   limit?: number;
   logger: MemoryLogger;
 }): ReviewTargetHint[] {
-  const { db, limit = 20, logger } = input;
-  const results: ReviewTargetHint[] = [];
+  const { db, limit: requestedLimit = 20, logger } = input;
+  // 非整数・負値は枠計算（Math.floor(limit * ratio)）と slice を壊す。負値は枠が負に
+  // なって配分が破綻し、変更前は slice(0, -n) が「末尾 n 件を落とした全件」を返していた。
+  const limit = Math.max(0, Math.floor(requestedLimit));
+  const buckets: Record<Priority, ReviewTargetHint[]> = { high: [], medium: [], low: [] };
   const seen = new Set<string>();
 
-  function add(ref: string, priority: ReviewTargetHint['priority'], reason: string) {
+  function add(ref: string, priority: Priority, reason: string) {
     if (!seen.has(ref)) {
       seen.add(ref);
-      results.push({ target_ref: ref, priority, reason });
+      buckets[priority].push({ target_ref: ref, priority, reason });
     }
   }
 
   function addScalarRows(
     sql: string,
-    priority: ReviewTargetHint['priority'],
+    priority: Priority,
     reason: string,
     onError: string,
   ): void {
@@ -65,10 +77,13 @@ export function listReviewTargetHints(input: {
   }
 
   // High: files with regression fixes in the last 30 days
+  // category を絞らないと通常の fix コミットまで high に入り、仕様（memory-core.ja.md §6.5.2
+  // 「直近 30 日に regression fix が発生した file」）から外れて high が数百件に膨らむ。
   addScalarRows(
     `SELECT DISTINCT je.value
      FROM memory_bug_fixes bf, json_each(bf.affected_file_paths_json) je
-     WHERE bf.committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 days')`,
+     WHERE bf.category = 'regression'
+       AND bf.committed_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 days')`,
     'high',
     'regression fix in last 30 days',
     'bug query failed',
@@ -99,5 +114,33 @@ export function listReviewTargetHints(input: {
     'unreviewed query failed',
   );
 
-  return results.slice(0, limit);
+  return selectWithinQuota(buckets, limit);
+}
+
+/**
+ * 優先度ごとの枠で詰め、余った枠を優先度順に再配分する。
+ * 候補が枠に満たない優先度があっても総数は `limit` を下回らない（候補総数が足りない場合を除く）。
+ */
+function selectWithinQuota(
+  buckets: Record<Priority, ReviewTargetHint[]>,
+  limit: number,
+): ReviewTargetHint[] {
+  const taken: Record<Priority, number> = { high: 0, medium: 0, low: 0 };
+  let total = 0;
+
+  for (const priority of PRIORITY_ORDER) {
+    const quota = Math.floor(limit * QUOTA_RATIO[priority]);
+    const n = Math.min(quota, buckets[priority].length, limit - total);
+    taken[priority] = n;
+    total += n;
+  }
+
+  for (const priority of PRIORITY_ORDER) {
+    if (total >= limit) break;
+    const extra = Math.min(buckets[priority].length - taken[priority], limit - total);
+    taken[priority] += extra;
+    total += extra;
+  }
+
+  return PRIORITY_ORDER.flatMap((priority) => buckets[priority].slice(0, taken[priority]));
 }
