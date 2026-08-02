@@ -38,7 +38,7 @@ C4 モデル要素・関係・グループの CRUD と、コード解析パイ�
 | `TRAIL_SERVER_URL` | `serverUrl` の既定値（例: `http://localhost:19842`） |
 | `TRAIL_REPO_NAME` | `repoName` の既定値（例: `anytime-markdown`） |
 | `TRAIL_HOME` | Trail 関連ファイル一式の格納ルート（既定: `<workspace>/.anytime/trail`） |
-| `TRAIL_WORKSPACE_PATH` | ワークスペースの絶対パス。`TRAIL_HOME` 未設定時のフォールバック基点と `repoName` 既定値（basename）に使用 |
+| `TRAIL_WORKSPACE_PATH` | ワークスペースの絶対パス。`TRAIL_HOME` 未設定時の解決基点（`workspacePath` 引数の次に優先）と `repoName` 既定値（basename）に使用 |
 | `MCP_TRAIL_FORCE_DIRECT` | `1` で `TrailDataServer` 生存チェックを skip し、書き込みも常に SQLite 直書きにする（CI / バッチ向け） |
 | `OLLAMA_BASE_URL` | Ollama API のベース URL（`search_memory` のベクトル検索で使用。例: `http://localhost:11434`） |
 
@@ -48,7 +48,9 @@ C4 モデル要素・関係・グループの CRUD と、コード解析パイ�
 DB パスの解決先:
 
 - `${TRAIL_HOME}/db/trail.db`（既定: `<workspace>/.anytime/trail/db/trail.db`）
-- `TRAIL_HOME` 未設定時は `TRAIL_WORKSPACE_PATH`（または `process.cwd()`）配下に解決される
+- `TRAIL_HOME` 未設定時のワークスペースルートは **`workspacePath` 引数 > `TRAIL_WORKSPACE_PATH` > `process.cwd()`** の順で解決する（`src/dbPath.ts` の `resolveWorkspacePath` が単一の入口）
+- **cwd へ落ちたときは stderr に警告を出す**。cwd 基準の解決は別ワークスペースの DB を掴み得るため、暗黙のまま通さない。`.mcp.json` の `env` で `TRAIL_WORKSPACE_PATH` を明示するのが推奨構成
+- `memory-core.db` は不在なら throw する（**ディレクトリも DB も作らない**）。作ってしまうとスキーマ完備の空 DB になり、以降のクエリが一律 0 件を返して「該当なし」と区別が付かなくなるため
 
 
 ## 3. 共通パラメータ
