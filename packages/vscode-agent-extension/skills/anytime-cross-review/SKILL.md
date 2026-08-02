@@ -59,7 +59,8 @@ develop マージ前の品質ゲートを Claude と Codex の**二者独立レ�
 
 ### 6. ガードレール
 
-- Codex は read-only。exit 3（ファイル変更検出）は逸脱として**中断**し、`git status` で混入を確認・復元する。
+- Codex は read-only。exit 3（ファイル変更検出）は逸脱として**中断**し、`git status` で混入を確認・復元する。ただし diff の内容が**自分の編集**なら Codex の逸脱ではなく下記の静止義務違反 — 自編集をコミットして worktree を静止させてから再実行する。
+- **Round 1 / Round 2 の実行中は対象リポジトリを編集しない（静止義務）**: fingerprint は Codex 起動前後の worktree 差分で判定するため、レビュー走行中の自己編集（先に届いた他方レビュアーの指摘対処を含む）は偽陽性 exit 3 を起こす。指摘対処は両輪完了・統合後に行う（実例: 2026-08-02 D1 実装。同種 3 例目）。
 - Codex 失敗・タイムアウトは Claude 単独で継続し degrade をサマリに明記（silent に握りつぶさない）。
 - ラッパ/スキルのエラーは識別子付きでログ（silent catch 禁止）。
 - anytime-trail-review 逸脱で Codex 指摘が取りこぼされうる（件数突合で検知）。
