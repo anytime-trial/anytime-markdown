@@ -26,10 +26,7 @@ export const GetAcceptanceReviewInputSchema = z.object({
     .boolean()
     .optional()
     .describe('Set false to skip running git (when the diff is presented separately). Defaults to true'),
-  workspacePath: z
-    .string()
-    .optional()
-    .describe('Workspace root to resolve trail.db and run git in (defaults to cwd)'),
+  workspacePath: workspacePathParam,
 });
 
 export type GetAcceptanceReviewInput = z.infer<typeof GetAcceptanceReviewInputSchema>;
