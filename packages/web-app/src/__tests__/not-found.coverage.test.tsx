@@ -10,7 +10,7 @@ jest.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
-import NotFound from "../app/not-found";
+import NotFound from "../app/[locale]/not-found";
 
 describe("NotFound", () => {
   it("renders 404 heading", () => {

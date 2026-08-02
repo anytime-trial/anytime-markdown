@@ -65,7 +65,7 @@ jest.mock("@anytime-markdown/markdown-editor", () => {
   };
 });
 
-import { Providers, useThemeMode, usePreset } from "../app/providers";
+import { Providers, useThemeMode, usePreset } from "../app/[locale]/providers";
 
 describe("Providers - preset handling", () => {
   beforeEach(() => {

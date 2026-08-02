@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 
 jest.mock("next-auth/react", () => ({ signIn: jest.fn() }));
 
-import { useGitHubPicker } from "../app/markdown/useGitHubPicker";
+import { useGitHubPicker } from "../app/[locale]/markdown/useGitHubPicker";
 
 describe("useGitHubPicker", () => {
   beforeEach(() => {

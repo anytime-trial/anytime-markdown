@@ -8,22 +8,45 @@
 const TEST_UUID = "550e8400-e29b-41d4-a716-446655440000";
 const TEST_NONCE = Buffer.from(TEST_UUID).toString("base64");
 
-// NextResponse.next() が返すレスポンスのモック
+// ロケール解決は next-intl の middleware が返す応答へ CSP を載せる形になったため、
+// NextResponse.next() ではなく「next-intl へ渡された Request のヘッダ」を捕捉する。
 let capturedRequestHeaders: Headers;
 const mockResponseHeaders = new Headers();
+let capturedRedirectUrl: string | null = null;
 
 jest.mock("next/server", () => {
+  class MockNextRequest {
+    headers: Headers;
+    nextUrl: { pathname: string };
+    url: string;
+    constructor(input: { nextUrl: { pathname: string }; url: string }, init?: { headers?: Headers }) {
+      this.headers = init?.headers ?? new Headers();
+      this.nextUrl = input.nextUrl;
+      this.url = input.url;
+    }
+  }
+
   return {
+    NextRequest: MockNextRequest,
     NextResponse: {
-      next: jest.fn(({ request }: { request: { headers: Headers } }) => {
-        capturedRequestHeaders = request.headers;
-        return {
-          headers: mockResponseHeaders,
-        };
+      redirect: jest.fn((url: URL) => {
+        capturedRedirectUrl = url.toString();
+        return { headers: mockResponseHeaders };
       }),
     },
   };
 });
+
+// next-intl の middleware 本体はロケール解決だけを行う。ここでは合成の配線
+// （渡された Request のヘッダ・返した応答へ CSP が載ること）だけを検証する。
+jest.mock("next-intl/middleware", () => ({
+  __esModule: true,
+  default: () =>
+    jest.fn((request: { headers: Headers }) => {
+      capturedRequestHeaders = request.headers;
+      return { headers: mockResponseHeaders };
+    }),
+}));
 
 beforeEach(() => {
   mockResponseHeaders.forEach((_, key) => mockResponseHeaders.delete(key));

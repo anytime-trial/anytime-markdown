@@ -38,7 +38,7 @@ jest.mock("@anytime-markdown/tickets-viewer", () => ({
 }));
 
 // TicketsRepoDialog は onSelect を叩けるだけのボタンに差し替え、リポジトリ選択の変更を模擬する。
-jest.mock("../app/tickets/TicketsRepoDialog", () => ({
+jest.mock("../app/[locale]/tickets/TicketsRepoDialog", () => ({
   __esModule: true,
   default: ({ onSelect }: { onSelect: (selection: { repo: string; branch: string }) => void }) => (
     <button type="button" onClick={() => onSelect({ repo: "other/repo", branch: "develop" })}>
@@ -51,20 +51,20 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock("../app/LocaleProvider", () => ({
+jest.mock("../app/[locale]/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "ja", setLocale: jest.fn() }),
 }));
 
-jest.mock("../app/providers", () => ({
+jest.mock("../app/[locale]/providers", () => ({
   useThemeMode: () => ({ themeMode: "light", setThemeMode: jest.fn() }),
 }));
 
-jest.mock("../app/components/LandingHeader", () => ({
+jest.mock("../app/[locale]/components/LandingHeader", () => ({
   __esModule: true,
   default: () => <div data-testid="landing-header" />,
 }));
 
-import TicketsBody from "../app/tickets/TicketsBody";
+import TicketsBody from "../app/[locale]/tickets/TicketsBody";
 
 const STORAGE_KEY = "ticketsRepoSelection";
 

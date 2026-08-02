@@ -7,11 +7,11 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock("../app/LocaleProvider", () => ({
+jest.mock("../app/[locale]/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
-jest.mock("../app/providers", () => ({
+jest.mock("../app/[locale]/providers", () => ({
   useThemeMode: () => ({ themeMode: "light", setThemeMode: jest.fn() }),
   usePreset: () => ({ presetName: "professional", setPresetName: jest.fn() }),
 }));
@@ -22,7 +22,7 @@ jest.mock("next/dynamic", () => () => {
   return MockComponent;
 });
 
-import MarkdownViewer from "../app/components/MarkdownViewer";
+import MarkdownViewer from "../app/[locale]/components/MarkdownViewer";
 
 describe("MarkdownViewer", () => {
   beforeEach(() => {

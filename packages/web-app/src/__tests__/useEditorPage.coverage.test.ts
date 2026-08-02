@@ -21,7 +21,7 @@ jest.mock("../lib/githubApi", () => ({
   fetchFileContent: jest.fn().mockResolvedValue("# Test"),
 }));
 
-import { useEditorPage } from "../app/markdown/useEditorPage";
+import { useEditorPage } from "../app/[locale]/markdown/useEditorPage";
 
 describe("useEditorPage - additional coverage", () => {
   const defaultOptions = {

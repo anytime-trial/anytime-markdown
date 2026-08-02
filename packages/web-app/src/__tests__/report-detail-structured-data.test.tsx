@@ -10,13 +10,13 @@ jest.mock("../lib/reportClient", () => ({
   listReports: jest.fn(),
 }));
 
-jest.mock("../app/report/[slug]/ReportDetailBody", () => ({
+jest.mock("../app/[locale]/report/[slug]/ReportDetailBody", () => ({
   __esModule: true,
   default: () => <div data-testid="report-body" />,
 }));
 
 import { getReportBySlug, listReports } from "../lib/reportClient";
-import ReportDetailPage, { generateMetadata } from "../app/report/[slug]/page";
+import ReportDetailPage, { generateMetadata } from "../app/[locale]/report/[slug]/page";
 
 const mockGetReportBySlug = getReportBySlug as jest.MockedFunction<typeof getReportBySlug>;
 const mockListReports = listReports as jest.MockedFunction<typeof listReports>;

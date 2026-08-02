@@ -8,7 +8,7 @@ import path from "node:path";
  * 「スマホ幅で何カラムになるか」は観測できない。そこで CSS ソースを読み、
  * 「詳細度が等しい宣言は後勝ち」というカスケード規則をそのまま再現して実効値を求める。
  */
-const CSS_PATH = path.join(__dirname, "..", "app", "press", "press.module.css");
+const CSS_PATH = path.join(__dirname, "..", "app", "[locale]", "press", "press.module.css");
 
 /** 対象要素（プロセス節の section）が持つクラス。どちらも詳細度 (0,1,0) */
 const TARGET_SELECTORS = [".briefingWithEmbed", ".briefingReversed"] as const;

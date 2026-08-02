@@ -1,13 +1,31 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import createMiddleware from "next-intl/middleware";
+
+import { routing } from "./i18n/routing";
+
+const handleI18nRouting = createMiddleware(routing);
+
+/** ロケールプレフィックスを取り除いたパス（`/en/docs/edit` → `/docs/edit`） */
+function stripLocalePrefix(pathname: string): string {
+  for (const locale of routing.locales) {
+    if (pathname === `/${locale}`) return "/";
+    if (pathname.startsWith(`/${locale}/`)) return pathname.slice(locale.length + 1);
+  }
+  return pathname;
+}
 
 export function proxy(request: NextRequest) {
-  // 本番環境では /docs/edit へのアクセスを /docs/view にリダイレクト
+  // 本番環境では /docs/edit へのアクセスを /docs/view にリダイレクト。
+  // ロケールプレフィックス付き（/en/docs/edit）も同じ扱いにするためプレフィックスを剥がして判定し、
+  // リダイレクト先は同じロケールに留める。
+  const pathname = request.nextUrl.pathname;
+  const unprefixed = stripLocalePrefix(pathname);
   if (
-    request.nextUrl.pathname.startsWith("/docs/edit") &&
+    unprefixed.startsWith("/docs/edit") &&
     process.env.NEXT_PUBLIC_ENABLE_DOCS_EDIT !== "true"
   ) {
-    return NextResponse.redirect(new URL("/docs/view", request.url));
+    const localePrefix = pathname.slice(0, pathname.length - unprefixed.length);
+    return NextResponse.redirect(new URL(`${localePrefix}/docs/view`, request.url));
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
@@ -45,9 +63,12 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", cspHeader);
 
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  // ロケール解決（rewrite / redirect）は next-intl に委ね、その応答へ CSP を載せる。
+  // NextResponse.next() を自前で返すとロケールの書き換えが打ち消されるため、
+  // x-nonce はヘッダを差し替えた Request として next-intl へ渡す。
+  const response = handleI18nRouting(
+    new NextRequest(request, { headers: requestHeaders }),
+  );
   response.headers.set("Content-Security-Policy", cspHeader);
 
   return response;
@@ -56,8 +77,11 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
+      // robots.txt / sitemap.xml / opengraph-image / twitter-image は app 直下の
+      // 特殊ファイルでロケールを持たない。除外しないと next-intl がロケール配下へ
+      // 書き換えてしまい 404 になる。
       source:
-        "/((?!api|_next/static|_next/image|favicon\\.ico|icons|manifest\\.json|sw\\.js|swe-worker|workbox).*)",
+        "/((?!api|_next/static|_next/image|favicon\\.ico|icons|manifest\\.json|sw\\.js|swe-worker|workbox|robots\\.txt|sitemap\\.xml|opengraph-image|twitter-image).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
