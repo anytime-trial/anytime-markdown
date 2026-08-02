@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { linkReviewToCommit, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
 import type { LinkReviewToCommitResult } from '@anytime-markdown/memory-core/query';
+import { resolveMemoryDbPath } from '../dbPath';
 
 export const LinkReviewToCommitInputSchema = z.object({
   finding_id: z.string().describe('Review finding ID to mark as addressed'),
@@ -12,7 +13,7 @@ export const LinkReviewToCommitInputSchema = z.object({
 export type LinkReviewToCommitInput = z.infer<typeof LinkReviewToCommitInputSchema>;
 
 export async function handleLinkReviewToCommit(input: LinkReviewToCommitInput): Promise<LinkReviewToCommitResult> {
-  const memHandle = await openMemoryCoreDb();
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return linkReviewToCommit({ db: memHandle.db, ...input, logger });

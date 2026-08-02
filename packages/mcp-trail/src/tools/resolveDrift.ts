@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { resolveDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
 import type { ResolveDriftResult } from '@anytime-markdown/memory-core/query';
+import { resolveMemoryDbPath } from '../dbPath';
 
 export const ResolveDriftInputSchema = z.object({
   event_id: z.string().describe('Drift event ID to resolve'),
@@ -11,7 +12,7 @@ export const ResolveDriftInputSchema = z.object({
 export type ResolveDriftInput = z.infer<typeof ResolveDriftInputSchema>;
 
 export async function handleResolveDrift(input: ResolveDriftInput): Promise<ResolveDriftResult> {
-  const memHandle = await openMemoryCoreDb();
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return resolveDrift({ db: memHandle.db, ...input, logger });

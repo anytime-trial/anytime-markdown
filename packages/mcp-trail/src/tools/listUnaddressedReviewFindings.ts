@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { listUnaddressedReviewFindings, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
 import type { UnaddressedReviewFinding } from '@anytime-markdown/memory-core/query';
+import { resolveMemoryDbPath } from '../dbPath';
 
 export const ListUnaddressedReviewFindingsInputSchema = z.object({
   severity: z.string().optional().describe('Filter by severity (info, warn, error)'),
@@ -16,7 +17,7 @@ export type ListUnaddressedReviewFindingsInput = z.infer<typeof ListUnaddressedR
 export async function handleListUnaddressedReviewFindings(
   input: ListUnaddressedReviewFindingsInput,
 ): Promise<UnaddressedReviewFinding[]> {
-  const memHandle = await openMemoryCoreDb();
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return listUnaddressedReviewFindings({ db: memHandle.db, ...input, logger });

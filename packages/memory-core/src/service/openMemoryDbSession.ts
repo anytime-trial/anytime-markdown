@@ -65,7 +65,9 @@ export async function openMemoryDbSession(
   }
 
   logger.info('Opening memory-core DB');
-  const memDb = await openMemoryCoreDb(ctx.dbPath, { nativeBinding: ctx.nativeBinding });
+  // バックアップ対象（memoryDbPath）と同じパスを開く。以前は ctx.dbPath を素通ししており、
+  // 未指定時にバックアップは gitRoot 基準・open は cwd 基準となって別ファイルを指し得た。
+  const memDb = await openMemoryCoreDb(memoryDbPath, { nativeBinding: ctx.nativeBinding });
 
   try {
     logger.info(`Attaching trail DB: ${ctx.trailDbPath}`);

@@ -1,5 +1,12 @@
 import { handleRunReviewAgent } from '../../tools/runReviewAgent';
 
+// resolveMemoryDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
+// openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
+jest.mock('../../dbPath', () => ({
+  ...jest.requireActual('../../dbPath'),
+  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/memory-core.db',
+}));
+
 jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({

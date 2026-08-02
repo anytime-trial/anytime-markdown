@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { explainDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
 import type { ExplainDriftResult } from '@anytime-markdown/memory-core/query';
+import { resolveMemoryDbPath } from '../dbPath';
 
 export const ExplainDriftInputSchema = z.object({
   event_id: z.string().describe('Drift event ID to explain'),
@@ -9,7 +10,7 @@ export const ExplainDriftInputSchema = z.object({
 export type ExplainDriftInput = z.infer<typeof ExplainDriftInputSchema>;
 
 export async function handleExplainDrift(input: ExplainDriftInput): Promise<ExplainDriftResult | null> {
-  const memHandle = await openMemoryCoreDb();
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return explainDrift({ db: memHandle.db, ...input, logger });

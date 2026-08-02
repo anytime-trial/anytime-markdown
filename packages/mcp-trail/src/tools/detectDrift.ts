@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { detectDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
 import type { DriftEventSummary } from '@anytime-markdown/memory-core/query';
+import { resolveMemoryDbPath } from '../dbPath';
 
 export const DetectDriftInputSchema = z.object({
   unresolved_only: z.boolean().optional().describe('Only return unresolved events (default true)'),
@@ -14,7 +15,7 @@ export const DetectDriftInputSchema = z.object({
 export type DetectDriftInput = z.infer<typeof DetectDriftInputSchema>;
 
 export async function handleDetectDrift(input: DetectDriftInput): Promise<DriftEventSummary[]> {
-  const memHandle = await openMemoryCoreDb();
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({}));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return detectDrift({ db: memHandle.db, ...input, logger });
