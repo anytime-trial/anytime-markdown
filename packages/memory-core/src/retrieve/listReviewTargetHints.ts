@@ -7,6 +7,10 @@ export type ReviewTargetHint = {
   reason: string;
 };
 
+// 時刻比較は strftime('%Y-%m-%dT%H:%M:%SZ', ...) で ISO 8601 の閾値を作る（列は T/Z 付きで
+// 格納されるため datetime() の 'YYYY-MM-DD HH:MM:SS' とは比較できない）。閾値にミリ秒が
+// 付かないため、境界の 1 秒内にあるミリ秒付きの行は文字列比較で「小さい」と判定され得る
+// （'.' < 'Z'）。日単位の窓では影響が無いため、既知の不精度として許容する。
 export function listReviewTargetHints(input: {
   db: MemoryDbConnection;
   limit?: number;

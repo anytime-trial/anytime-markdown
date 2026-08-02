@@ -86,9 +86,16 @@ function gatherCodeSource(
     const codeRows = db.exec(
       // memory_code_facts は entity_id を持たない。File エンティティの canonical_name が
       // ファイルパスなので、それを結合キーにする（列名も実スキーマの fact_type / recorded_at）。
+      //
+      // canonical_name は canonicalize()（NFKC → trim → 小文字化 → 空白畳み込み）を通した値で、
+      // file_path は原文のまま格納される。素の等値結合では大文字を含むパスが落ちる
+      // （実測: 2,376 パス中 558 件しか一致しない）。パスに空白・全角は現れないため
+      // 小文字化のみで canonicalize() と一致する。
+      // LOWER() は file_path のインデックスを使えないが、対象は 25 万行程度で
+      // explain_drift は対話的・低頻度のため許容する。
       `SELECT cf.file_path, cf.fact_type, cf.fact_value, cf.recorded_at
        FROM memory_code_facts cf
-       JOIN memory_entities e ON e.canonical_name = cf.file_path AND e.type = 'File'
+       JOIN memory_entities e ON e.canonical_name = LOWER(cf.file_path) AND e.type = 'File'
        WHERE e.id = ?
        ORDER BY cf.recorded_at DESC LIMIT 3`,
       [subjectEntityId],

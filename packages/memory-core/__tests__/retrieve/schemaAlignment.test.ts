@@ -77,6 +77,40 @@ describe('retrieve クエリとスキーマの整合', () => {
     expect(result).not.toBeNull();
   });
 
+  it('explainDrift の code ソースが大文字を含むパスでも拾える', () => {
+    // canonical_name は canonicalize() で小文字化される一方、code_facts の file_path は
+    // 原文のまま。素の等値結合にすると大文字を含むパス（実 DB の 76%）が落ちる。
+    const now = '2026-08-02T00:00:00.000Z';
+    handle.db.run(
+      `INSERT INTO memory_entities
+         (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'File', ?, ?, ?, ?, ?)`,
+      ['ent-file-2', 'packages/foo/src/mixedcase.ts', 'MixedCase.ts', now, now, now],
+    );
+    handle.db.run(
+      `INSERT INTO memory_drift_events
+         (id, subject_entity_id, predicate, drift_type, severity, detected_at, detail_json)
+       VALUES (?, ?, 'depends_on', 'spec_vs_code', 'warn', ?, '{}')`,
+      ['drift:test:2', 'ent-file-2', now],
+    );
+    handle.db.run(
+      `INSERT INTO memory_code_facts
+         (id, repo_name, file_path, fact_type, fact_value, recorded_at)
+       VALUES (?, 'anytime-markdown', ?, 'imports', 'react', ?)`,
+      ['fact-1', 'packages/foo/src/MixedCase.ts', now],
+    );
+
+    const result = explainDrift({ db: handle.db, event_id: 'drift:test:2', logger });
+
+    expect(errors).toEqual([]);
+    const code = result?.sources.find((s) => s.source === 'code');
+    expect(code?.items).toHaveLength(1);
+    expect(code?.items[0]).toMatchObject({
+      file_path: 'packages/foo/src/MixedCase.ts',
+      fact_type: 'imports',
+    });
+  });
+
   it('detectDrift / getBugHistory / listRecurringBugs がスキーマに通る', () => {
     detectDrift({ db: handle.db, logger });
     listRecurringBugs({ db: handle.db, logger });
