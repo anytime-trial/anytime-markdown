@@ -85,6 +85,28 @@ const DECISION_LABELS: Readonly<Record<NonNullable<DoctrineJudgmentView['humanDe
     modified: '条件付き承認',
   };
 
+/** 見出し・箇条書きへ埋める自由記述。改行が入ると行構造が壊れるため 1 行へ畳む */
+function singleLine(text: string): string {
+  return text.replace(/\r?\n/g, ' ');
+}
+
+/**
+ * 表セルへ埋める自由記述の整形。subject・引用元パスは呼び出し側が自由に書ける
+ * ため、パイプをエスケープしないと以降の列がずれる。
+ */
+function escapeTableCell(text: string): string {
+  return singleLine(text).replace(/\|/g, '\\|');
+}
+
+/**
+ * 逐語引用の引用ブロック。引用は複数行にわたり得る (解決検査は空白を正規化して
+ * 一致を見るだけで、保存される quote は入力のまま) ため、全行へ `>` を付ける。
+ * 付けないと空行で引用ブロックが終端し、以降が節の外の段落として出力される。
+ */
+function renderQuoteBlock(quote: string, indent: string): string[] {
+  return quote.split(/\r?\n/).map((line) => `${indent}> ${line}`);
+}
+
 function describeGateReason(code: string): string {
   const label = GATE_REASON_LABELS[code];
   return label === undefined ? code : `${code}（${label}）`;
@@ -168,7 +190,7 @@ function renderJudgmentTable(judgments: readonly DoctrineJudgmentView[]): string
           : 'エスカレーション';
     const decision =
       judgment.humanDecision === null ? '未確定' : DECISION_LABELS[judgment.humanDecision];
-    return `| ${judgment.id} | ${judgment.subject} | ${JUDGMENT_LABELS[judgment.agentJudgment]} | ${judgment.coverage} | ${gate} | ${decision} |`;
+    return `| ${judgment.id} | ${escapeTableCell(judgment.subject)} | ${JUDGMENT_LABELS[judgment.agentJudgment]} | ${judgment.coverage} | ${gate} | ${decision} |`;
   });
   return [
     '| # | 対象 | エージェント判断 | カバレッジ | ゲート | 人の判断 |',
@@ -184,7 +206,7 @@ function renderCitations(judgments: readonly DoctrineJudgmentView[]): string[] {
   }
   const lines: string[] = [];
   for (const judgment of judgments) {
-    lines.push(`**${judgment.subject}**`, '');
+    lines.push(`**${singleLine(judgment.subject)}**`, '');
     if (judgment.parseError !== null) {
       lines.push(`- 引用を読み取れなかった: ${judgment.parseError}`, '');
     }
@@ -197,8 +219,8 @@ function renderCitations(judgments: readonly DoctrineJudgmentView[]): string[] {
     for (const citation of judgment.citations) {
       const status = citation.resolved ? '解決済み' : `未解決（${citation.reason}）`;
       lines.push(
-        `- \`${citation.docPath}\` § ${citation.section} — 承認: ${citation.approval} / ${status}`,
-        `    > ${citation.quote}`,
+        `- \`${citation.docPath}\` § ${escapeTableCell(citation.section)} — 承認: ${citation.approval} / ${status}`,
+        ...renderQuoteBlock(citation.quote, '    '),
       );
     }
     lines.push('');
@@ -228,7 +250,7 @@ function renderDiff(diff: GitDiffSummary): string[] {
     lines.push(
       ...diff.files.map(
         (file) =>
-          `| \`${file.path}\` | ${file.insertions ?? '-'} | ${file.deletions ?? '-'} |`,
+          `| \`${escapeTableCell(file.path)}\` | ${file.insertions ?? '-'} | ${file.deletions ?? '-'} |`,
       ),
     );
     lines.push('');
@@ -242,7 +264,7 @@ function renderEscalations(escalations: readonly AcceptanceEscalation[]): string
   }
   const lines: string[] = [];
   for (const escalation of escalations) {
-    lines.push(`**${escalation.subject}**`, '');
+    lines.push(`**${singleLine(escalation.subject)}**`, '');
     if (escalation.byAgent) {
       lines.push(
         `- エージェント判断: エスカレーション（カバレッジ ${escalation.coverage} — ${COVERAGE_LABELS[escalation.coverage]}）`,

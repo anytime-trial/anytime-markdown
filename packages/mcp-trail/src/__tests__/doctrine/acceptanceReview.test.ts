@@ -181,6 +181,43 @@ describe('buildAcceptanceReview', () => {
     expect(review.markdown).toContain('承認済み条項（canon）の引用がない');
   });
 
+  it('複数行の逐語引用でも引用ブロックが途切れない', () => {
+    const review = buildAcceptanceReview({
+      sessionId: 'session-1',
+      judgments: [
+        judgmentView({
+          citations: [citation({ quote: '1 行目の主張。\n\n2 行目の根拠。' })],
+        }),
+      ],
+      diff: diffSummary(),
+    });
+
+    const lines = review.markdown.split('\n');
+    const quoteLines = lines.filter((line) => line.includes('行目の'));
+    expect(quoteLines).toHaveLength(2);
+    // 引用本文の全行が引用ブロックの内側にある（空行で終端しない）
+    for (const line of quoteLines) {
+      expect(line.trimStart().startsWith('>')).toBe(true);
+    }
+    expect(lines.some((line) => line.trim() === '2 行目の根拠。')).toBe(false);
+  });
+
+  it('パイプを含む対象名でも判断表の列がずれない', () => {
+    const review = buildAcceptanceReview({
+      sessionId: 'session-1',
+      judgments: [judgmentView({ subject: 'A | B のどちらを採るか' })],
+      diff: diffSummary(),
+    });
+
+    const row = review.markdown
+      .split('\n')
+      .find((line) => line.includes('のどちらを採るか') && line.startsWith('|'));
+    expect(row).toBeDefined();
+    // 先頭・末尾の空セルを除いた列数が見出しと一致する（6 列）
+    expect(row?.split(/(?<!\\)\|/).length).toBe(8);
+    expect(row).toContain('A \\| B');
+  });
+
   it('引用のパース失敗は当該判断を落とさず注意行に出す', () => {
     const review = buildAcceptanceReview({
       sessionId: 'session-1',
