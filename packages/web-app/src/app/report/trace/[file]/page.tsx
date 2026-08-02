@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { file } = await params;
   const fileName = decodeURIComponent(file) + '.json';
   return {
-    title: `Trace: ${fileName} - Anytime Trail`,
+    title: { absolute: `Trace: ${fileName} - Anytime Trail` },
     description: `Execution trace viewer for ${fileName}`,
     robots: { index: false },
   };

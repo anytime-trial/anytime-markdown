@@ -1,9 +1,15 @@
 import { Box, Container, Typography } from '@mui/material';
+import type { Metadata } from 'next';
 
 import LandingHeader from '../components/LandingHeader';
 import { PlaylistPageContent } from './PlaylistPageContent';
 
-export const metadata = { title: 'プレイリスト作成 | anytime-markdown' };
+export const metadata: Metadata = {
+  title: 'プレイリスト作成',
+  description:
+    'Spotify・YouTube の話題のコンテンツを選んで、プレイリストを作成します。| Build a playlist from trending Spotify and YouTube content.',
+  alternates: { canonical: '/playlist' },
+};
 
 export default function PlaylistPage() {
   return (

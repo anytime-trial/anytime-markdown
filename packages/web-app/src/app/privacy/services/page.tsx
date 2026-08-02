@@ -6,7 +6,7 @@ import PrivacyServicesBody from './PrivacyServicesBody';
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('PrivacyServices');
   return {
-    title: `${t('title')} - Anytime Markdown`,
+    title: t('title'),
     description: t('metaDescription'),
     alternates: {
       canonical: '/privacy/services',
