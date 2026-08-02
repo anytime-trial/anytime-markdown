@@ -101,7 +101,10 @@ export default async function LocaleLayout({ children, params }: Readonly<Layout
   if (!(routing.locales as readonly string[]).includes(locale)) {
     notFound();
   }
-  // 静的レンダリングを有効にする（これが無いと全ページが動的レンダリングへ落ちる）
+  // ロケールをリクエストスコープへ固定する。next-intl が静的レンダリングを許すための前提だが、
+  // 現状はこの直後の headers()（CSP nonce の取得）が Dynamic API のため、配下は動的レンダリング
+  // のままである。静的化を取るなら nonce を必要とする <Script> を子 client component へ切り出し、
+  // この layout から headers() を外す必要がある。
   setRequestLocale(locale as Locale);
 
   const t = await getTranslations('Landing');

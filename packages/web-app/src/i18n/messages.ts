@@ -7,10 +7,14 @@ import { ticketsMessagesJa } from '@anytime-markdown/tickets-viewer/i18n/ja';
 
 import authErrorEnMessages from '../app/[locale]/auth/error/i18n/en.json';
 import authErrorJaMessages from '../app/[locale]/auth/error/i18n/ja.json';
+import editorEnMessages from '../app/[locale]/markdown/i18n/en.json';
+import editorJaMessages from '../app/[locale]/markdown/i18n/ja.json';
 import pressEnMessages from '../app/[locale]/press/i18n/en.json';
 import pressJaMessages from '../app/[locale]/press/i18n/ja.json';
 import privacyServicesEnMessages from '../app/[locale]/privacy/services/i18n/en.json';
 import privacyServicesJaMessages from '../app/[locale]/privacy/services/i18n/ja.json';
+import reportEnMessages from '../app/[locale]/report/i18n/en.json';
+import reportJaMessages from '../app/[locale]/report/i18n/ja.json';
 import { routing } from './routing';
 
 /**
@@ -30,15 +34,19 @@ export const defaultLocale: Locale = routing.defaultLocale;
 const mergedJa = {
   ...markdownCoreJaMessages,
   AuthError: authErrorJaMessages,
+  Editor: editorJaMessages,
   press: pressJaMessages,
   PrivacyServices: privacyServicesJaMessages,
+  Report: reportJaMessages,
   tickets: ticketsMessagesJa,
 };
 const mergedEn = {
   ...markdownCoreEnMessages,
   AuthError: authErrorEnMessages,
+  Editor: editorEnMessages,
   press: pressEnMessages,
   PrivacyServices: privacyServicesEnMessages,
+  Report: reportEnMessages,
   tickets: ticketsMessagesEn,
 };
 

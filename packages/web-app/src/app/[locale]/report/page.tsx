@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { cache } from 'react';
 
 import { buildAlternates, localeHref, toLocale } from '../../../lib/localeAlternates';
@@ -12,7 +13,6 @@ export const revalidate = 3600;
 
 const TITLE = 'Report';
 const SOCIAL_TITLE = socialTitle(TITLE);
-const DESCRIPTION = 'Technical reports and articles. | 技術レポートと記事。';
 
 /** generateMetadata と本体レンダリングで同一リクエスト内の S3 取得を共有する */
 const loadReports = cache(async (): Promise<ReportMeta[]> => {
@@ -41,13 +41,18 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { page, month } = await searchParams;
   const currentPage = parsePage(page);
   const isMonthFilter = !!month && /^\d{4}-\d{2}$/.test(month);
+  // description はロケールごとに出し分ける（/en が日本語混じりの説明を返さないため）
+  const t = await getTranslations({ locale, namespace: 'Report' });
+  const description = t('metaDescription');
 
   // 月別アーカイブは同じ記事集合の絞り込みビュー。個別記事は sitemap から直接辿れるため、
   // 重複コンテンツを増やさないよう noindex にしつつリンクは辿らせる。
+  // Why not: この分岐にだけ alternates を付けない。noindex のビューへ canonical と
+  // hreflang を宣言すると「インデックスするな」と「これが正規形だ」を同時に申告することになる。
   if (isMonthFilter) {
     return {
       title: TITLE,
-      description: DESCRIPTION,
+      description,
       robots: { index: false, follow: true },
     };
   }
@@ -59,7 +64,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
   return {
     title: TITLE,
-    description: DESCRIPTION,
+    description,
     // 2 ページ目以降を '/report' へ集約すると、そこにしか無い記事への経路が切れる。
     // ページ番号を含む自己 canonical にして各ページを独立させる。
     // Why not: rel=prev/next は 2019 年に Google がインデックス用途での利用を終了しており、
@@ -68,7 +73,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     alternates: buildAlternates(pathFor(safePage), locale),
     openGraph: {
       title: SOCIAL_TITLE,
-      description: DESCRIPTION,
+      description,
       url: localeHref(pathFor(safePage), locale),
     },
   };

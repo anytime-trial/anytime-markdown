@@ -22,6 +22,11 @@ const STATIC_ROUTE_COUNT = 5;
 /** 対応ロケール数（ja / en）。各ルートはロケール分だけ URL を持つ */
 const LOCALE_COUNT = 2;
 const STATIC_PAGE_COUNT = STATIC_ROUTE_COUNT * LOCALE_COUNT;
+/**
+ * 記事・ドキュメントは本文が単一ソース（ja）なので 1 URL だけ掲載する。
+ * 両ロケールを載せると 1 本の記事を 2 URL で重複申告することになる。
+ */
+const SINGLE_SOURCE_URL_COUNT = 1;
 
 const LAYOUT_FIXTURE = {
   categories: [
@@ -60,7 +65,7 @@ describe("sitemap", () => {
     mockListReports.mockResolvedValue(REPORT_FIXTURE);
 
     const result = await sitemap();
-    expect(result.length).toBe(STATIC_PAGE_COUNT + (2 + 2) * LOCALE_COUNT);
+    expect(result.length).toBe(STATIC_PAGE_COUNT + (2 + 2) * SINGLE_SOURCE_URL_COUNT);
 
     const urls = result.map((entry) => entry.url);
     expect(urls.some((url) => url.includes("docs%2Ftest.md"))).toBe(true);
@@ -77,7 +82,7 @@ describe("sitemap", () => {
     expect(urls.some((url) => url.endsWith("/report/second-post"))).toBe(true);
   });
 
-  it("lists every locale for every route", async () => {
+  it("lists every locale for translated routes", async () => {
     mockFetchLayoutData.mockResolvedValue(LAYOUT_FIXTURE);
     mockListReports.mockResolvedValue(REPORT_FIXTURE);
 
@@ -88,22 +93,45 @@ describe("sitemap", () => {
     expect(urls).toContain("https://www.anytime-trial.com/en");
     expect(urls).toContain("https://www.anytime-trial.com/markdown");
     expect(urls).toContain("https://www.anytime-trial.com/en/markdown");
-    expect(urls).toContain("https://www.anytime-trial.com/report/first-post");
-    expect(urls).toContain("https://www.anytime-trial.com/en/report/first-post");
   });
 
-  it("cross-links locales through alternates on every entry", async () => {
+  it("lists single-source content under one URL only", async () => {
+    mockFetchLayoutData.mockResolvedValue(LAYOUT_FIXTURE);
+    mockListReports.mockResolvedValue(REPORT_FIXTURE);
+
+    const result = await sitemap();
+    const urls = result.map((entry) => entry.url);
+    // 記事本文は S3 上の単一ソース。/en 版を掲載すると同じ記事を 2 URL で申告することになる
+    expect(urls).toContain("https://www.anytime-trial.com/report/first-post");
+    expect(urls).not.toContain("https://www.anytime-trial.com/en/report/first-post");
+    expect(urls.some((url) => url.startsWith("https://www.anytime-trial.com/en/docs/view"))).toBe(
+      false,
+    );
+  });
+
+  it("cross-links locales through alternates on translated entries", async () => {
     mockFetchLayoutData.mockResolvedValue(LAYOUT_FIXTURE);
     mockListReports.mockResolvedValue(REPORT_FIXTURE);
 
     const result = await sitemap();
     const entry = result.find((e) => e.url === "https://www.anytime-trial.com/markdown");
+    // x-default は HTML 側の alternates（lib/localeAlternates）と同じ集合にする
     expect(entry?.alternates?.languages).toEqual({
       ja: "https://www.anytime-trial.com/markdown",
       en: "https://www.anytime-trial.com/en/markdown",
+      "x-default": "https://www.anytime-trial.com/markdown",
     });
-    // 全エントリが対応関係を持つ（片方だけ欠けると検索エンジンが別ページ扱いする）
-    expect(result.every((e) => !!e.alternates?.languages)).toBe(true);
+    // 翻訳のあるルートは全て対応関係を持つ（片方だけ欠けると検索エンジンが別ページ扱いする）
+    const translated = result.filter(
+      (e) => !e.url.includes("/report/") && !e.url.includes("/docs/view"),
+    );
+    expect(translated.every((e) => !!e.alternates?.languages)).toBe(true);
+    // 単一ソースのページは languages を持たない（翻訳版があると申告しない）
+    const singleSource = result.filter(
+      (e) => e.url.includes("/report/") || e.url.includes("/docs/view"),
+    );
+    expect(singleSource.length).toBeGreaterThan(0);
+    expect(singleSource.every((e) => !e.alternates?.languages)).toBe(true);
   });
 
   it("uses the article date as lastModified", async () => {
@@ -132,7 +160,7 @@ describe("sitemap", () => {
     mockListReports.mockResolvedValue(REPORT_FIXTURE);
 
     const result = await sitemap();
-    expect(result.length).toBe(STATIC_PAGE_COUNT + 2 * LOCALE_COUNT);
+    expect(result.length).toBe(STATIC_PAGE_COUNT + 2 * SINGLE_SOURCE_URL_COUNT);
     expect(result.some((entry) => entry.url.endsWith("/report/first-post"))).toBe(true);
   });
 
@@ -141,7 +169,7 @@ describe("sitemap", () => {
     mockListReports.mockRejectedValue(new Error("report fail"));
 
     const result = await sitemap();
-    expect(result.length).toBe(STATIC_PAGE_COUNT + 2 * LOCALE_COUNT);
+    expect(result.length).toBe(STATIC_PAGE_COUNT + 2 * SINGLE_SOURCE_URL_COUNT);
     expect(result.some((entry) => entry.url.includes("docs%2Ftest.md"))).toBe(true);
   });
 

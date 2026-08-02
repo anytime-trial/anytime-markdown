@@ -46,6 +46,9 @@ function expandLocales(
   for (const locale of routing.locales) {
     languages[locale] = absolute(locale);
   }
+  // x-default は既定ロケール（ja）。HTML の alternates（lib/localeAlternates）と
+  // 同じ集合にしないと、同じページについて sitemap と HTML で別の申告になる。
+  languages["x-default"] = absolute(routing.defaultLocale);
 
   return routing.locales.map((locale) => ({
     url: absolute(locale),
@@ -54,6 +57,27 @@ function expandLocales(
     priority: entry.priority,
     alternates: { languages },
   }));
+}
+
+/**
+ * 本文が単一言語（ja）のページを 1 URL だけ掲載する。
+ * 記事・ドキュメントの本文は S3 上の単一ソースで `/en` 配下でも同じ内容を返すため、
+ * 両ロケールを掲載すると 1 本の記事を 2 URL で重複申告することになる。
+ * HTML 側は `buildSingleSourceAlternates` が canonical を ja へ向ける。
+ */
+function singleSourcePage(
+  path: string,
+  entry: { lastModified: Date; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]; priority: number },
+): MetadataRoute.Sitemap {
+  const href = localeHref(path, routing.defaultLocale);
+  return [
+    {
+      url: href === "/" ? BASE_URL : `${BASE_URL}${href}`,
+      lastModified: entry.lastModified,
+      changeFrequency: entry.changeFrequency,
+      priority: entry.priority,
+    },
+  ];
 }
 
 const STATIC_PAGES: MetadataRoute.Sitemap = STATIC_ROUTES.flatMap((route) =>
@@ -76,7 +100,7 @@ async function buildDocPages(): Promise<MetadataRoute.Sitemap> {
   return layout.categories
     .flatMap((cat) => cat.items)
     .flatMap((item) =>
-      expandLocales(`/docs/view?key=${encodeURIComponent(item.docKey)}`, {
+      singleSourcePage(`/docs/view?key=${encodeURIComponent(item.docKey)}`, {
         lastModified: DEPLOYED_AT,
         changeFrequency: "weekly",
         priority: 0.5,
@@ -87,7 +111,7 @@ async function buildDocPages(): Promise<MetadataRoute.Sitemap> {
 async function buildReportPages(): Promise<MetadataRoute.Sitemap> {
   const reports = await listReports();
   return reports.flatMap((report) =>
-    expandLocales(`/report/${report.slug}`, {
+    singleSourcePage(`/report/${report.slug}`, {
       lastModified: parseArticleDate(report.date),
       changeFrequency: "monthly",
       priority: 0.7,

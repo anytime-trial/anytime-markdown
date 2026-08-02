@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
+import { buildSingleSourceAlternates, singleSourceHref } from '../../../../lib/localeAlternates';
 import { getReportBySlug, listReports } from '../../../../lib/reportClient';
-import { buildAlternates, localeHref, toLocale } from '../../../../lib/localeAlternates';
 import { buildNavigation } from '../../../../lib/reportUtils';
 import { SITE_NAME } from '../../../../lib/siteMetadata';
 import type { ReportMeta } from '../../../../types/report';
@@ -16,8 +16,7 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { locale: rawLocale, slug } = await params;
-  const locale = toLocale(rawLocale);
+  const { slug } = await params;
   const report = await getReportBySlug(slug);
 
   if (!report) {
@@ -27,12 +26,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: report.meta.title,
     description: report.meta.excerpt,
-    alternates: buildAlternates(`/report/${slug}`, locale),
+    // 記事本文は S3 上の単一ソースで /en でも同じ本文を返す。hreflang を出すと
+    // 1 本の記事を 2 URL で重複申告することになるため、canonical を ja へ寄せる。
+    alternates: buildSingleSourceAlternates(`/report/${slug}`),
     openGraph: {
       title: report.meta.title,
       description: report.meta.excerpt,
       type: 'article',
-      url: localeHref(`/report/${slug}`, locale),
+      url: singleSourceHref(`/report/${slug}`),
       publishedTime: report.meta.date,
       authors: report.meta.author ? [report.meta.author] : undefined,
     },

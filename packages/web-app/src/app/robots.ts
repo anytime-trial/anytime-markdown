@@ -1,9 +1,18 @@
 import type { MetadataRoute } from "next";
 
+import { routing } from "../i18n/routing";
+import { localeHref } from "../lib/localeAlternates";
+
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.anytime-trial.com";
 
-/** 検索エンジンへ公開するルート。sitemap.ts の静的ページと 1 対 1 で対応させる。 */
-const PUBLIC_PATHS = ["/", "/markdown", "/report", "/privacy", "/privacy/services"];
+/**
+ * 検索エンジンへ公開するルート。sitemap.ts の静的ページと 1 対 1 で対応させる。
+ * sitemap は 1 ルートを全ロケール分の URL へ展開するため、こちらも同じ展開をかける
+ * （ja は非プレフィックス・en は /en 配下）。
+ */
+const PUBLIC_PATHS = ["/", "/markdown", "/report", "/privacy", "/privacy/services"].flatMap(
+  (path) => routing.locales.map((locale) => localeHref(path, locale)),
+);
 
 export default function robots(): MetadataRoute.Robots {
   return {

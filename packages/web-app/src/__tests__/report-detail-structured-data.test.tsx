@@ -43,7 +43,7 @@ function readJsonLd(container: HTMLElement, type: string): Record<string, unknow
 }
 
 async function renderPage() {
-  const element = await ReportDetailPage({ params: Promise.resolve({ slug: "my-post" }) });
+  const element = await ReportDetailPage({ params: Promise.resolve({ locale: "ja", slug: "my-post" }) });
   return render(element);
 }
 
@@ -119,7 +119,7 @@ describe("/report/[slug] metadata", () => {
   });
 
   it("uses the bare article title so the root template adds the suffix once", async () => {
-    const meta = await generateMetadata({ params: Promise.resolve({ slug: "my-post" }) });
+    const meta = await generateMetadata({ params: Promise.resolve({ locale: "ja", slug: "my-post" }) });
     expect(meta.title).toBe("My Post");
     expect(meta.alternates?.canonical).toBe("/report/my-post");
   });
@@ -127,7 +127,7 @@ describe("/report/[slug] metadata", () => {
   it("marks a missing article as noindex", async () => {
     mockGetReportBySlug.mockResolvedValue(null);
 
-    const meta = await generateMetadata({ params: Promise.resolve({ slug: "nope" }) });
+    const meta = await generateMetadata({ params: Promise.resolve({ locale: "ja", slug: "nope" }) });
     expect(meta.robots).toEqual({ index: false, follow: true });
   });
 });

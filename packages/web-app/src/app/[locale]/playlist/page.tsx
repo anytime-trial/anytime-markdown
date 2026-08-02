@@ -1,7 +1,7 @@
 import { Box, Container, Typography } from '@mui/material';
 import type { Metadata } from 'next';
 
-import { buildAlternates, toLocale } from '../../../lib/localeAlternates';
+import { buildSingleSourceAlternates } from '../../../lib/localeAlternates';
 import LandingHeader from '../components/LandingHeader';
 import { PlaylistPageContent } from './PlaylistPageContent';
 
@@ -30,9 +30,8 @@ export default function PlaylistPage() {
   );
 }
 
-export async function generateMetadata({
-  params,
-}: Readonly<{ params: Promise<{ locale: string }> }>): Promise<Metadata> {
-  const locale = toLocale((await params).locale);
-  return { ...METADATA_BASE, alternates: buildAlternates('/playlist', locale) };
+// 本文が日本語のみ（i18n メッセージを使っていない）ため、en 版があるとは申告しない。
+// 翻訳を入れる際は buildAlternates へ戻し、metadata も getTranslations 経由にする。
+export function generateMetadata(): Metadata {
+  return { ...METADATA_BASE, alternates: buildSingleSourceAlternates('/playlist') };
 }

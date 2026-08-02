@@ -8,6 +8,7 @@ import { createContext, useCallback, useContext, useMemo } from 'react';
 import { type Locale, messagesByLocale } from '../../i18n/messages';
 import { usePathname, useRouter } from '../../i18n/navigation';
 import { routing } from '../../i18n/routing';
+import { parseLocale } from '../../lib/localeAlternates';
 
 interface LocaleContextValue {
   locale: Locale;
@@ -20,10 +21,6 @@ export function useLocaleSwitch() {
   const ctx = useContext(LocaleContext);
   if (!ctx) throw new Error('useLocaleSwitch must be used within LocaleProvider');
   return ctx;
-}
-
-function toLocale(value: string | null | undefined): Locale | null {
-  return value === 'ja' || value === 'en' ? value : null;
 }
 
 interface LocaleProviderProps {
@@ -48,7 +45,7 @@ function LocaleSwitchProvider({
 
   const setLocale = useCallback(
     (newLocale: string) => {
-      const next = toLocale(newLocale);
+      const next = parseLocale(newLocale);
       if (!next || next === locale) return;
       // pathname はロケールプレフィックスを含まない。クエリとハッシュは
       // 現在の location から引き継ぐ（切替でページ内位置と絞り込みを失わせない）。
@@ -69,7 +66,7 @@ export function LocaleProvider({ serverLocale, children }: Readonly<LocaleProvid
   // （localStorage / navigator.language による自動切替は廃止した。
   //  クローラーが取得する HTML と JS 実行後の表示が食い違う原因になっていたため。
   //  要件書 spec/10.web-app/locale-routing/locale-routing.ja.md）。
-  const locale: Locale = toLocale(serverLocale) ?? routing.defaultLocale;
+  const locale: Locale = parseLocale(serverLocale) ?? routing.defaultLocale;
 
   return (
     <MarkdownCoreI18nProvider locale={locale}>

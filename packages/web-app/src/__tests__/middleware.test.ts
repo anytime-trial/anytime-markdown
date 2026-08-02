@@ -59,8 +59,15 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function createMockRequest(pathname = "/"): { headers: Headers; nextUrl: { pathname: string }; url: string } {
-  return { headers: new Headers(), nextUrl: { pathname }, url: `http://localhost:3000${pathname}` };
+function createMockRequest(
+  pathname = "/",
+  search = "",
+): { headers: Headers; nextUrl: { pathname: string; search: string }; url: string } {
+  return {
+    headers: new Headers(),
+    nextUrl: { pathname, search },
+    url: `http://localhost:3000${pathname}${search}`,
+  };
 }
 
 describe("proxy", () => {
@@ -77,6 +84,37 @@ describe("proxy", () => {
       proxy(createMockRequest());
       const csp = capturedRequestHeaders.get("Content-Security-Policy")!;
       expect(csp).toContain(`'nonce-${TEST_NONCE}'`);
+    });
+  });
+
+  describe("/docs/edit redirect", () => {
+    const env = process.env;
+
+    beforeEach(() => {
+      capturedRedirectUrl = null;
+      jest.replaceProperty(process, "env", { ...env });
+      delete (process.env as Record<string, string>).NEXT_PUBLIC_ENABLE_DOCS_EDIT;
+    });
+
+    afterEach(() => {
+      jest.replaceProperty(process, "env", env);
+    });
+
+    it("redirects to the viewer and keeps the query string", () => {
+      proxy(createMockRequest("/docs/edit", "?key=docs%2Fguide.md"));
+      // クエリを落とすと閲覧側で対象ドキュメントを失う
+      expect(capturedRedirectUrl).toBe("http://localhost:3000/docs/view?key=docs%2Fguide.md");
+    });
+
+    it("keeps the locale prefix when redirecting", () => {
+      proxy(createMockRequest("/en/docs/edit", "?key=a"));
+      expect(capturedRedirectUrl).toBe("http://localhost:3000/en/docs/view?key=a");
+    });
+
+    it("does not redirect when the editor is enabled", () => {
+      (process.env as Record<string, string>).NEXT_PUBLIC_ENABLE_DOCS_EDIT = "true";
+      proxy(createMockRequest("/docs/edit"));
+      expect(capturedRedirectUrl).toBeNull();
     });
   });
 
@@ -182,14 +220,43 @@ describe("config", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { config } = require("../proxy");
 
-  it("has matcher that excludes api and static routes", () => {
+  // 文字列に部分一致するかではなく、実際のパスに対して matcher を評価する。
+  // 「除外リストに名前が載っているか」を見るだけでは、public/ 配下のアセットが
+  // ロケール配下へ書き換えられて 404 になる欠陥（実機で icon.svg が 404）を検知できない。
+  const matches = (pathname: string): boolean =>
+    new RegExp(`^${config.matcher[0].source}$`).test(pathname);
+
+  it("has matcher that excludes api and Next.js internals", () => {
     expect(config.matcher).toBeDefined();
     expect(config.matcher.length).toBeGreaterThan(0);
-    const source = config.matcher[0].source;
-    expect(source).toContain("api");
-    expect(source).toContain("_next/static");
-    expect(source).toContain("_next/image");
-    expect(source).toContain("favicon");
+    expect(matches("/api/ogp")).toBe(false);
+    expect(matches("/_next/static/chunk.js")).toBe(false);
+    expect(matches("/_next/image")).toBe(false);
+    expect(matches("/opengraph-image")).toBe(false);
+    expect(matches("/twitter-image")).toBe(false);
+  });
+
+  it("excludes public assets and root-level special files", () => {
+    for (const path of [
+      "/favicon.ico",
+      "/icon.svg",
+      "/manifest.json",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/sw.js",
+      "/camel_face.png",
+      "/images/camel_transparent.png",
+      "/icons/icon-192.png",
+      "/sql/sql-wasm.wasm",
+    ]) {
+      expect([path, matches(path)]).toEqual([path, false]);
+    }
+  });
+
+  it("still matches content routes so locales are resolved", () => {
+    for (const path of ["/", "/markdown", "/en/markdown", "/report/first-post", "/docs/view"]) {
+      expect([path, matches(path)]).toEqual([path, true]);
+    }
   });
 
   it("excludes prefetch requests", () => {
