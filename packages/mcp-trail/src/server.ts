@@ -34,6 +34,7 @@ import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift
 import { handleRecordDoctrineJudgment, RecordDoctrineJudgmentInputSchema } from './tools/recordDoctrineJudgment.js';
 import { handleRecordHumanDecision, RecordHumanDecisionInputSchema } from './tools/recordHumanDecision.js';
 import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './tools/getDoctrineAgreement.js';
+import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
 import { handleSearchDocs,SearchDocsInputSchema } from './tools/searchDocs.js';
 import { handleSearchMemory,SearchMemoryInputSchema } from './tools/searchMemory.js';
@@ -482,6 +483,22 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = await handleGetDoctrineAgreement(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'list_boundary_drift',
+    { description: 'List architectural boundary drift warnings: communities that span many packages (boundary_spanning) or packages split across many communities (package_fragmentation). Sorted by severity. Defaults to the latest detection run of the most recent code graph analysis.', inputSchema: {
+      repoName: ListBoundaryDriftInputSchema.shape.repoName,
+      kind: ListBoundaryDriftInputSchema.shape.kind,
+      minSeverity: ListBoundaryDriftInputSchema.shape.minSeverity,
+      includeHistory: ListBoundaryDriftInputSchema.shape.includeHistory,
+      limit: ListBoundaryDriftInputSchema.shape.limit,
+      workspacePath: ListBoundaryDriftInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleListBoundaryDrift(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
