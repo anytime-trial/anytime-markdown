@@ -115,6 +115,28 @@ describe('listReviewTargetHints の優先度配分', () => {
     expect(result).toHaveLength(3);
   });
 
+  it.each([
+    [0, 0],
+    [1, 1],
+    [2, 2],
+  ])('limit=%i では %i 件返る（枠が 0 でも再配分で埋まる）', (limit, expected) => {
+    insertRegressionFixes(30);
+    insertCodeFacts(5, 2, 'recent');
+
+    const result = listReviewTargetHints({ db: handle.db, limit, logger });
+
+    expect(result).toHaveLength(expected);
+  });
+
+  it('負値・非整数の limit で件数が増えない', () => {
+    insertRegressionFixes(30);
+
+    // 負値を素通しすると枠が負になって配分が破綻する（変更前は slice(0, -1) が
+    // 「末尾 1 件を落とした全件」＝ 29 件を返していた）。
+    expect(listReviewTargetHints({ db: handle.db, limit: -1, logger })).toHaveLength(0);
+    expect(listReviewTargetHints({ db: handle.db, limit: 2.7, logger })).toHaveLength(2);
+  });
+
   it('regression 以外の bug fix は high に入らない（§6.5.2 準拠）', () => {
     insertRegressionFixes(5, 'logic');
     insertCodeFacts(2, 2, 'recent');

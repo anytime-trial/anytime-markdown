@@ -25,7 +25,10 @@ export function listReviewTargetHints(input: {
   limit?: number;
   logger: MemoryLogger;
 }): ReviewTargetHint[] {
-  const { db, limit = 20, logger } = input;
+  const { db, limit: requestedLimit = 20, logger } = input;
+  // 非整数・負値は枠計算（Math.floor(limit * ratio)）と slice を壊す。負値は枠が負に
+  // なって配分が破綻し、変更前は slice(0, -n) が「末尾 n 件を落とした全件」を返していた。
+  const limit = Math.max(0, Math.floor(requestedLimit));
   const buckets: Record<Priority, ReviewTargetHint[]> = { high: [], medium: [], low: [] };
   const seen = new Set<string>();
 
