@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 修正
+
+- Trail ビューを開かない限り拡張が activate せず、Stop フック記録のスプール drain と TrailDataServer がどちらも起動しない問題を修正した。`activationEvents` に `onStartupFinished` を追加し、記録の取込を UI 操作から切り離した。スプール方式（0.40.1 系）が解消したのは記録の全損であって取込の遅延ではなく、遅延はこの activate 条件が原因だった。
+
 ## [0.40.1] - 2026-08-01
 
 ### 変更
