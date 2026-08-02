@@ -29,6 +29,13 @@ import {
   CREATE_C4_MANUAL_INDEXES,
   CREATE_ACCEPTANCE_INDEXES,
   CREATE_ACCEPTANCE_RECORDS,
+  boundaryDriftTargetKey,
+  type BoundaryDriftBreakdownEntry,
+  type BoundaryDriftKind,
+  type BoundaryDriftWarning,
+  CREATE_BOUNDARY_DRIFT_INDEXES,
+  CREATE_BOUNDARY_DRIFT_RUNS,
+  CREATE_BOUNDARY_DRIFT_WARNINGS,
   CREATE_DOCTRINE_JUDGMENTS,
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
   CREATE_C4_MANUAL_RELATIONSHIPS,
@@ -199,6 +206,52 @@ import {
   normalizeWorkspaceName,
 } from './sessionMeta';
 export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
+
+/**
+ * boundary_drift_warnings の 1 行。
+ *
+ * 判定結果（trail-core の BoundaryDriftWarning）は kind による discriminated union だが、
+ * 永続化層は 1 テーブルに正規化するため指標列を null 許容の平坦な形で持つ。
+ * kind と指標の整合は CREATE TABLE の CHECK が担保する。
+ */
+export interface BoundaryDriftWarningRow {
+  readonly id: number;
+  readonly repoId: number;
+  readonly detectedAt: string;
+  readonly kind: BoundaryDriftKind;
+  /** boundary_spanning ならコミュニティ id の文字列、package_fragmentation ならパッケージ名。 */
+  readonly targetKey: string;
+  /** 再クラスタリングを跨いだ同一性追跡用。未解決は空文字。 */
+  readonly stableKey: string;
+  readonly spanCount: number | null;
+  readonly dominance: number | null;
+  readonly communityCount: number | null;
+  readonly nodeCount: number;
+  readonly severity: number;
+  readonly breakdown: readonly BoundaryDriftBreakdownEntry[];
+}
+
+/**
+ * 検出回の 1 行。警告が 0 件でも積まれる。
+ * 「解析して健全だった」と「まだ解析していない」の区別はこの行の有無で行う。
+ */
+export interface BoundaryDriftRunRow {
+  readonly id: number;
+  readonly repoId: number;
+  readonly detectedAt: string;
+  readonly warningCount: number;
+  /** 判定対象にしたノード数。0 件警告が「健全」か「グラフが空」かの区別に要る。 */
+  readonly nodeCount: number;
+}
+
+export interface BoundaryDriftQuery {
+  readonly repoId?: number;
+  readonly kind?: BoundaryDriftKind;
+  readonly minSeverity?: number;
+  /** 特定の検出時刻に絞る（同一解析回の結果だけを見たいとき）。 */
+  readonly detectedAt?: string;
+  readonly limit?: number;
+}
 export { DatabaseIntegrityMonitor } from './DatabaseIntegrityMonitor';
 export type { ITrailStorage } from './ITrailStorage';
 export type { BackupEntry } from './ITrailStorage';
@@ -4067,6 +4120,13 @@ export class TrailDatabase {
     // ドクトリン接地判断の並走記録 (D1)。新規テーブルのみ。
     db.run(CREATE_DOCTRINE_JUDGMENTS);
     for (const idx of CREATE_DOCTRINE_JUDGMENT_INDEXES) {
+      db.run(idx);
+    }
+    // Architectural Drift Detection (管制塔 §2.3)。新規テーブルのみ。
+    // CREATE TABLE IF NOT EXISTS なので既存 DB も次回オープンで冪等に追加される。
+    db.run(CREATE_BOUNDARY_DRIFT_WARNINGS);
+    db.run(CREATE_BOUNDARY_DRIFT_RUNS);
+    for (const idx of CREATE_BOUNDARY_DRIFT_INDEXES) {
       db.run(idx);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
@@ -8827,6 +8887,138 @@ export class TrailDatabase {
       label: row[5] as string,
       source: row[6] as SafePoint['source'],
       sessionId: (row[7] as string | null) ?? null,
+    }));
+  }
+
+  /**
+   * 副作用: boundary_drift_runs と boundary_drift_warnings へ INSERT。
+   * 永続化は呼び出し側の save() 契約に従う。
+   *
+   * 洗い替えはしない。境界の劣化・改善の推移を追うため履歴として積む。
+   * 同一 (repo_id, detected_at, kind, target_key) の再投入は DB の UNIQUE インデックスが
+   * 弾く（解析の再実行で同じ検出時刻の行を二重に積まないため）。戻り値は挿入した警告件数。
+   *
+   * **警告が 0 件でも検出回（boundary_drift_runs）は必ず記録する。** 警告行だけでは
+   * 「解析して健全だった」と「まだ解析していない」を区別できず、警告が解消された回が
+   * 残らないため、照会側が解消済みの古い警告を最新として返し続ける。
+   *
+   * @param nodeCount 判定対象にしたノード数（検出回の規模。0 件警告の解釈に要る）
+   */
+  recordBoundaryDriftWarnings(
+    repoId: number,
+    detectedAt: string,
+    warnings: readonly BoundaryDriftWarning[],
+    stableKeyByCommunityId: ReadonlyMap<number, string> = new Map(),
+    nodeCount = 0,
+  ): number {
+    const db = this.ensureDb();
+    db.run(
+      `INSERT OR REPLACE INTO boundary_drift_runs (repo_id, detected_at, warning_count, node_count)
+       VALUES (?, ?, ?, ?)`,
+      [repoId, detectedAt, warnings.length, nodeCount],
+    );
+    const stmt = db.prepare(
+      `INSERT OR IGNORE INTO boundary_drift_warnings
+         (repo_id, detected_at, kind, target_key, stable_key,
+          span_count, dominance, community_count, node_count, severity, breakdown_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    let inserted = 0;
+    try {
+      for (const warning of warnings) {
+        const targetKey = boundaryDriftTargetKey(warning);
+        const stableKey =
+          warning.kind === 'boundary_spanning'
+            ? (stableKeyByCommunityId.get(warning.communityId) ?? '')
+            : '';
+        stmt.run([
+          repoId,
+          detectedAt,
+          warning.kind,
+          targetKey,
+          stableKey,
+          warning.kind === 'boundary_spanning' ? warning.spanCount : null,
+          warning.kind === 'boundary_spanning' ? warning.dominance : null,
+          warning.kind === 'package_fragmentation' ? warning.communityCount : null,
+          warning.nodeCount,
+          warning.severity,
+          JSON.stringify(warning.breakdown),
+        ]);
+        inserted += db.getRowsModified();
+      }
+    } finally {
+      stmt.free();
+    }
+    return inserted;
+  }
+
+  /** 検出回の一覧（新しい順）。警告 0 件の回も含む。 */
+  listBoundaryDriftRuns(options: { repoId?: number; limit?: number } = {}): BoundaryDriftRunRow[] {
+    const db = this.ensureDb();
+    const where = options.repoId === undefined ? '' : 'WHERE repo_id = ?';
+    const params: Array<string | number> = options.repoId === undefined ? [] : [options.repoId];
+    const res = db.exec(
+      `SELECT id, repo_id, detected_at, warning_count, node_count
+         FROM boundary_drift_runs ${where}
+        ORDER BY detected_at DESC
+        LIMIT ?`,
+      [...params, options.limit ?? 50],
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      id: row[0] as number,
+      repoId: row[1] as number,
+      detectedAt: row[2] as string,
+      warningCount: row[3] as number,
+      nodeCount: row[4] as number,
+    }));
+  }
+
+  /** severity 降順。kind / 最小 severity で絞り込める。 */
+  listBoundaryDriftWarnings(options: BoundaryDriftQuery = {}): BoundaryDriftWarningRow[] {
+    const db = this.ensureDb();
+    const conditions: string[] = [];
+    const params: Array<string | number> = [];
+    if (options.repoId !== undefined) {
+      conditions.push('repo_id = ?');
+      params.push(options.repoId);
+    }
+    if (options.kind !== undefined) {
+      conditions.push('kind = ?');
+      params.push(options.kind);
+    }
+    if (options.minSeverity !== undefined) {
+      conditions.push('severity >= ?');
+      params.push(options.minSeverity);
+    }
+    if (options.detectedAt !== undefined) {
+      conditions.push('detected_at = ?');
+      params.push(options.detectedAt);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(options.limit ?? 100);
+
+    const res = db.exec(
+      `SELECT id, repo_id, detected_at, kind, target_key, stable_key,
+              span_count, dominance, community_count, node_count, severity, breakdown_json
+       FROM boundary_drift_warnings ${where}
+       ORDER BY severity DESC, detected_at DESC, id DESC LIMIT ?`,
+      params,
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      id: row[0] as number,
+      repoId: row[1] as number,
+      detectedAt: row[2] as string,
+      kind: row[3] as BoundaryDriftKind,
+      targetKey: row[4] as string,
+      stableKey: row[5] as string,
+      spanCount: (row[6] as number | null) ?? null,
+      dominance: (row[7] as number | null) ?? null,
+      communityCount: (row[8] as number | null) ?? null,
+      nodeCount: row[9] as number,
+      severity: row[10] as number,
+      breakdown: JSON.parse(row[11] as string) as BoundaryDriftBreakdownEntry[],
     }));
   }
 

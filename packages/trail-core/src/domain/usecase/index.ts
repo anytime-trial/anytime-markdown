@@ -3,6 +3,7 @@ export { computeFlightOutcome, type FlightOutcomeAggregate } from './ComputeFlig
 export { extractSelfAssessment } from './ExtractSelfAssessment';
 export { detectUserFeedback, type UserFeedbackMatch } from './DetectUserFeedback';
 export { extractLessonCandidates, type LessonCandidateInput } from './ExtractLessonCandidates';
+export { detectBoundaryDrift, targetKey as boundaryDriftTargetKey } from './DetectBoundaryDrift';
 export {
   checkArchitecturalAlignment,
   type AlignmentDeps,

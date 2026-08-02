@@ -11,6 +11,7 @@ import { classifyPythonFiles } from '@anytime-markdown/code-analysis-python';
 
 import type { Logger } from '../runtime/Logger';
 import type { CodeGraphService } from './CodeGraphService';
+import { recordBoundaryDrift } from './recordBoundaryDrift';
 export { findTsconfigCandidates, hasPythonFiles } from './analyzeUtils';
 export type { TsconfigCandidate } from './analyzeUtils';
 
@@ -244,6 +245,13 @@ async function analyzePythonOnlyBranch(
   return { graph, scored, lineCountByFile, categoryByFile };
 }
 
+/**
+ * コードグラフを生成し、in-memory cache を DB と join 済みの内容で再構築する。
+ *
+ * @returns 生成が成功したか。`getGraph()` は cache を返すだけで失敗時に invalidate されず、
+ * 長寿命の daemon では前回グラフがそのまま残るため、後段が「今回のグラフ」を要求する
+ * 処理（境界ドリフト判定）は本戻り値で成否を判別する。
+ */
 async function generateCodeGraph(args: {
   codeGraphService: CodeGraphService;
   repoName: string;
@@ -253,7 +261,7 @@ async function generateCodeGraph(args: {
   onProgress: AnalyzeCurrentOpts['onProgress'];
   logger: Logger;
   warnings: string[];
-}): Promise<void> {
+}): Promise<boolean> {
   const { codeGraphService, repoName, analysisRoot, trailGraph, callbacks, onProgress, logger, warnings } = args;
   // per-call の analysisRoot を current_code_graphs / communities 生成へ貫通させる。
   // codeGraphService は activate 時に固定した repositories を持つため、上書きしないと
@@ -278,10 +286,12 @@ async function generateCodeGraph(args: {
       logger.warn(`C4 analysis [${repoName}]: cache compose failed (loadFromDb): ${err instanceof Error ? err.message : String(err)}`);
     }
     callbacks.notifyCodeGraphUpdated();
+    return true;
   } catch (err) {
     const msg = `code graph generation failed: ${err instanceof Error ? err.message : String(err)}`;
     logger.error(`C4 analysis [${repoName}]: ${msg}`, err);
     warnings.push(msg);
+    return false;
   }
 }
 
@@ -378,7 +388,23 @@ export async function runAnalyzeCurrentCodePipeline(
   // ここで model-updated を通知する。
   callbacks.notifyModelUpdated();
 
-  await generateCodeGraph({ codeGraphService, repoName, analysisRoot, trailGraph: graph, callbacks, onProgress, logger, warnings });
+  const codeGraphGenerated = await generateCodeGraph({ codeGraphService, repoName, analysisRoot, trailGraph: graph, callbacks, onProgress, logger, warnings });
+
+  // コードグラフ保存後にのみ意味を持つ（community 付与済みノードが要る）ため、
+  // generateCodeGraph の直後に置く。fail-open は recordBoundaryDrift 側が担う。
+  // 生成失敗回は判定しない。getGraph() は cache を返すだけなので、呼ぶと前回グラフに
+  // 対する判定が「今回の検出回」として記録されてしまう。
+  if (codeGraphGenerated) {
+    recordBoundaryDrift({
+      repoName,
+      graph: codeGraphService.getGraph(repoName),
+      trailDb,
+      logger,
+      warnings,
+    });
+  } else {
+    logger.warn(`C4 analysis [${repoName}]: boundary drift skipped (code graph generation failed)`);
+  }
 
   try {
     const count = trailDb.importCurrentCoverage(analysisRoot, repoName);

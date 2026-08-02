@@ -818,3 +818,59 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
 export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON doctrine_judgments(judged_at)`,
 ];
+
+// Architectural Drift Detection (管制塔要件 §2.3): 宣言境界（パッケージ）と
+// 実装コミュニティのずれ。コードグラフ解析の完了後に 1 リポジトリ分をまとめて記録する。
+// 仕様は spec/31.trail/03.trail-core/architectural-drift-detection.ja.md。
+//
+// 洗い替えず履歴として積む（境界の劣化・改善の推移を追うため）。コミュニティ id は
+// 再クラスタリングで変わり得るので、同一性の追跡は stable_key で行う
+// (current_code_graph_communities が既に持つ値と揃える。空文字＝未解決)。
+//
+// 指標列を kind ごとに出し分けるのは、判定結果が discriminated union だからである。
+// CHECK で「その kind に無い指標は NULL」を強制し、DB 側でも union を崩さない。
+export const CREATE_BOUNDARY_DRIFT_WARNINGS = `CREATE TABLE IF NOT EXISTS boundary_drift_warnings (
+  id INTEGER PRIMARY KEY,
+  repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  detected_at TEXT NOT NULL CHECK (detected_at GLOB ${TS_GLOB_MS} OR detected_at GLOB ${TS_GLOB_NO_MS}),
+  kind TEXT NOT NULL CHECK (kind IN ('boundary_spanning', 'package_fragmentation')),
+  target_key TEXT NOT NULL,
+  stable_key TEXT NOT NULL DEFAULT '',
+  span_count INTEGER,
+  dominance REAL,
+  community_count INTEGER,
+  node_count INTEGER NOT NULL,
+  severity REAL NOT NULL,
+  breakdown_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(breakdown_json)),
+  CHECK (
+    (kind = 'boundary_spanning'
+      AND span_count IS NOT NULL AND dominance IS NOT NULL AND community_count IS NULL)
+    OR
+    (kind = 'package_fragmentation'
+      AND community_count IS NOT NULL AND span_count IS NULL AND dominance IS NULL)
+  )
+) STRICT`;
+
+/**
+ * 検出回そのものの記録。警告 0 件でも 1 行積む。
+ *
+ * 警告行だけでは「解析して健全だった」と「まだ解析していない」を区別できず、
+ * 警告が解消された回が記録されないため、最新回の特定を警告行の MAX(detected_at) で
+ * 行うと解消済みの古い警告を最新として返し続ける。検出回を独立に持ってこれを断つ。
+ */
+export const CREATE_BOUNDARY_DRIFT_RUNS = `CREATE TABLE IF NOT EXISTS boundary_drift_runs (
+  id INTEGER PRIMARY KEY,
+  repo_id INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  detected_at TEXT NOT NULL CHECK (detected_at GLOB ${TS_GLOB_MS} OR detected_at GLOB ${TS_GLOB_NO_MS}),
+  warning_count INTEGER NOT NULL CHECK (warning_count >= 0),
+  node_count INTEGER NOT NULL CHECK (node_count >= 0)
+) STRICT`;
+
+export const CREATE_BOUNDARY_DRIFT_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_boundary_drift_warnings_detected_at ON boundary_drift_warnings(repo_id, detected_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_boundary_drift_warnings_kind ON boundary_drift_warnings(repo_id, kind, severity)`,
+  // 重複禁止をアプリ層の NOT EXISTS だけに置かず DB 側の不変条件にする
+  // (別経路の書き手・一括投入でも守られるように)。
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_warnings_key ON boundary_drift_warnings(repo_id, detected_at, kind, target_key)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_runs_key ON boundary_drift_runs(repo_id, detected_at)`,
+];
