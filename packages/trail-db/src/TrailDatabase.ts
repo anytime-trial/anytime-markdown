@@ -29,6 +29,8 @@ import {
   CREATE_C4_MANUAL_INDEXES,
   CREATE_ACCEPTANCE_INDEXES,
   CREATE_ACCEPTANCE_RECORDS,
+  CREATE_DOCTRINE_JUDGMENTS,
+  CREATE_DOCTRINE_JUDGMENT_INDEXES,
   CREATE_C4_MANUAL_RELATIONSHIPS,
   CREATE_CODE_DECISION_COMMENTS,
   CREATE_COMMIT_FILES,
@@ -4060,6 +4062,11 @@ export class TrailDatabase {
     // 自律受入基盤 S5 (受入台帳)。新規テーブルのみ。
     db.run(CREATE_ACCEPTANCE_RECORDS);
     for (const idx of CREATE_ACCEPTANCE_INDEXES) {
+      db.run(idx);
+    }
+    // ドクトリン接地判断の並走記録 (D1)。新規テーブルのみ。
+    db.run(CREATE_DOCTRINE_JUDGMENTS);
+    for (const idx of CREATE_DOCTRINE_JUDGMENT_INDEXES) {
       db.run(idx);
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
