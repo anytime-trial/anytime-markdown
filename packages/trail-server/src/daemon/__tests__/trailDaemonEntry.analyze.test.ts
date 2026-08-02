@@ -69,6 +69,7 @@ jest.mock('../../analyze/CodeGraphService', () => ({
 
 import { _getAnalyzeAllRunnerForTest, _resetForTest, dispatch } from '../trailDaemonEntry';
 import { runAnalyzeCurrentCodePipeline, runAnalyzeReleaseCodePipeline } from '../../analyze/AnalyzePipeline';
+import { TrailDataServer } from '../../server/TrailDataServer';
 
 /** configure() を成功させるための最小設定。 */
 const MINIMAL_CFG = {
@@ -136,7 +137,7 @@ describe('trailDaemonEntry.dispatch — analyzeCurrentCode', () => {
     expect((result as { repoName: string }).repoName).toBe('test');
   });
 
-  it('analyzeCurrentCode opts に analyzeChildPath が渡される', async () => {
+  it('analyzeCurrentCode opts に呼び出し元の analyzeChildPath が渡される', async () => {
     await dispatch('configure', MINIMAL_CFG);
     await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
 
@@ -146,7 +147,20 @@ describe('trailDaemonEntry.dispatch — analyzeCurrentCode', () => {
     });
 
     const calledOpts = (runAnalyzeCurrentCodePipeline as jest.Mock).mock.calls[0][0];
-    expect(calledOpts.analyzeChildPath).toBe('/tmp/analyze-child.js');
+    expect(calledOpts.compute).toEqual({ kind: 'child', analyzeChildPath: '/tmp/analyze-child.js' });
+  });
+
+  it('analyzeChildPath 省略時も daemon 自身の dist へフォールバックする（in-host へ落とさない）', async () => {
+    await dispatch('configure', MINIMAL_CFG);
+    await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
+
+    await dispatch('analyzeCurrentCode', { analysisRoot: '/tmp/repo' });
+
+    const calledOpts = (runAnalyzeCurrentCodePipeline as jest.Mock).mock.calls[0][0];
+    expect(calledOpts.compute).toEqual({
+      kind: 'child',
+      analyzeChildPath: expect.stringMatching(/analyze-child\.js$/),
+    });
   });
 });
 
@@ -233,5 +247,41 @@ describe('trailDaemonEntry.dispatch — startHttpServer の configure 非依存'
 
     expect(runAnalyzeCurrentCodePipeline).toHaveBeenCalledTimes(1);
     expect((result as { repoName: string }).repoName).toBe('test');
+  });
+});
+
+describe('trailDaemonEntry — HTTP 経路 (server.onAnalyzeCurrentCode)', () => {
+  beforeEach(() => {
+    _resetForTest();
+    (TrailDataServer as unknown as jest.Mock).mockClear();
+    (runAnalyzeCurrentCodePipeline as jest.Mock).mockClear();
+  });
+
+  /** startHttpServer が構築した TrailDataServer モックインスタンスを取り出す。 */
+  function httpArm(): (req: { workspacePath?: string; tsconfigPath?: string }) => Promise<unknown> {
+    const instance = (TrailDataServer as unknown as jest.Mock).mock.results.at(-1)?.value as {
+      onAnalyzeCurrentCode?: (req: { workspacePath?: string; tsconfigPath?: string }) => Promise<unknown>;
+    };
+    if (!instance?.onAnalyzeCurrentCode) {
+      throw new Error('onAnalyzeCurrentCode is not wired');
+    }
+    return instance.onAnalyzeCurrentCode;
+  }
+
+  // 回帰: HTTP 経路 (MCP analyze_current_code → TrailDataServer) だけが解析方式を渡して
+  // おらず、バンドル済み拡張では dist に存在しない computeAnalysis.js への動的 import へ
+  // 黙って縮退し、analyze_current_code が必ず失敗していた。IPC 経路は渡していたため、
+  // コマンドパレット経由では再現せず HTTP 経路のみで顕在化した。
+  it('HTTP 経路でも TS 解析を analyze-child へ隔離する', async () => {
+    await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
+
+    await httpArm()({ workspacePath: '/tmp/repo', tsconfigPath: '/tmp/repo/tsconfig.json' });
+
+    expect(runAnalyzeCurrentCodePipeline).toHaveBeenCalledTimes(1);
+    const calledOpts = (runAnalyzeCurrentCodePipeline as jest.Mock).mock.calls[0][0];
+    expect(calledOpts.compute).toEqual({
+      kind: 'child',
+      analyzeChildPath: expect.stringMatching(/analyze-child\.js$/),
+    });
   });
 });

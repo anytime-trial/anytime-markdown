@@ -564,6 +564,11 @@ async function runCurrentCodeAnalysis(args: {
     analysisRoot,
     excludeRoot,
     tsconfigPath: resolvedTsconfig,
+    // standalone CLI は在来どおりホスト内で計算する（ソース起動時は computeAnalysis.js を解決できる）。
+    // FIXME: webpack バンドル (dist/cli.js) では webpackIgnore により computeAnalysis.js が
+    // 出力されないため、この経路はバンドル形態では失敗する（daemon の HTTP 経路と同じ欠陥）。
+    // 解消には analyze-child を trail-server の webpack entry に追加し kind:'child' へ切り替える。
+    compute: { kind: 'in-host' },
     trailDb,
     callbacks: server,
     codeGraphService,
