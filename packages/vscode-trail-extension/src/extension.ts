@@ -710,12 +710,19 @@ export async function activate(context: vscode.ExtensionContext) {
 			});
 
 			// IPC イベント: openFile → VS Code でファイルを開く
-			httpClient.onOpenFile(({ filePath }) => {
+			// line 付き（TRC-5 ソースジャンプ）のときは該当行を選択・リビールする。
+			// trace の loc.file は記録時の絶対パスで来るため path.resolve で受ける
+			// （path.join だとワークスペース配下へ連結され壊れたパスになる）。
+			httpClient.onOpenFile(({ filePath, line }) => {
 				const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 				if (!workspaceFolder) return;
-				const uri = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, filePath));
+				const uri = vscode.Uri.file(path.resolve(workspaceFolder.uri.fsPath, filePath));
+				const options: vscode.TextDocumentShowOptions | undefined =
+					typeof line === 'number' && line > 0
+						? { selection: new vscode.Range(line - 1, 0, line - 1, 0) }
+						: undefined;
 				vscode.workspace.openTextDocument(uri).then(
-					(doc) => vscode.window.showTextDocument(doc),
+					(doc) => vscode.window.showTextDocument(doc, options),
 					() => void vscode.window.showWarningMessage(`File not found: ${uri.fsPath}`),
 				);
 			});

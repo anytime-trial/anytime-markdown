@@ -3,6 +3,7 @@ import { useCanvasBase } from '@anytime-markdown/graph-react-islands';
 import { engine } from '@anytime-markdown/graph-core';
 import type { GraphNode, Viewport, SelectionState } from '@anytime-markdown/graph-core';
 import type { SequenceLayout } from '../engine/layout';
+import { resolveSourceLocation } from '../engine/sourceJump';
 import type { SourceLocation } from '@anytime-markdown/trace-core/types';
 
 export interface SequenceCanvasProps {
@@ -29,13 +30,25 @@ export function SequenceCanvas({
     const getViewport = useCallback(() => viewport, [viewport]);
     const getNodes = useCallback(() => layout.nodes, [layout.nodes]);
 
+    // TRC-5: ジャンプ先 metadata を持つノード（活性化バー・自己呼び出しチップ・ヘッダ）の
+    // クリックでソースジャンプを起こす。持たないノードでは何もしない。
+    const handleNodeClick = useCallback(
+        (node: GraphNode | null) => {
+            onNodeClick?.(node);
+            if (!onJumpToSource) return;
+            const loc = resolveSourceLocation(node);
+            if (loc) onJumpToSource(loc);
+        },
+        [onNodeClick, onJumpToSource],
+    );
+
     const { handleMouseDown, handleMouseMove, handleMouseUp } = useCanvasBase({
         canvasRef,
         getViewport,
         getNodes,
         setViewport,
         setSelection,
-        onNodeClick,
+        onNodeClick: handleNodeClick,
     });
 
     useEffect(() => {

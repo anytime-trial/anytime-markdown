@@ -339,7 +339,7 @@ export type DaemonEvent =
   | {
       readonly type: 'event';
       readonly channel: 'openFile';
-      readonly payload: { readonly filePath: string };
+      readonly payload: { readonly filePath: string; readonly line?: number };
     }
   | {
       readonly type: 'event';

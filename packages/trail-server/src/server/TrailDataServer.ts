@@ -262,7 +262,7 @@ export class TrailDataServer {
   private callHierarchyIndex: CallHierarchyIndex | null = null;
   private callHierarchyIndexRepo: string | undefined;
   onOpenDocLink: ((docPath: string) => void) | undefined;
-  onOpenFile: ((filePath: string) => void) | undefined;
+  onOpenFile: ((filePath: string, line?: number) => void) | undefined;
   onAddNotePage: ((payload: { title: string; contextMarkdown: string; imageDataUrl?: string }) => void) | undefined;
   onTokenBudgetExceeded: ((status: import('./types').TokenBudgetUpdatedMessage) => void) | undefined;
 
@@ -3481,7 +3481,7 @@ export class TrailDataServer {
         this.onOpenDocLink?.(parsed.path);
         return;
       case 'open-file':
-        this.onOpenFile?.(parsed.filePath);
+        this.onOpenFile?.(parsed.filePath, typeof parsed.line === 'number' ? parsed.line : undefined);
         return;
       case 'add-note-page':
         this.onAddNotePage?.({ title: parsed.title, contextMarkdown: parsed.contextMarkdown, imageDataUrl: parsed.imageDataUrl });

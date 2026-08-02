@@ -141,6 +141,8 @@ export interface GenerateCodeGraphCommand {
 export interface OpenFileCommand {
   readonly type: 'open-file';
   readonly filePath: string;
+  /** 開いた直後にリビールする 1 始まりの行（TRC-5 ソースジャンプ）。省略時はファイル先頭。 */
+  readonly line?: number;
 }
 
 /**
