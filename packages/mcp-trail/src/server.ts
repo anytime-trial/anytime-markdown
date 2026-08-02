@@ -31,6 +31,9 @@ import { handleListReviewTargetHints,ListReviewTargetHintsInputSchema } from './
 import { handleListUnaddressedReviewFindings,ListUnaddressedReviewFindingsInputSchema } from './tools/listUnaddressedReviewFindings.js';
 import { toCodeGraphNodeId } from './tools/nodeId.js';
 import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift.js';
+import { handleRecordDoctrineJudgment, RecordDoctrineJudgmentInputSchema } from './tools/recordDoctrineJudgment.js';
+import { handleRecordHumanDecision, RecordHumanDecisionInputSchema } from './tools/recordHumanDecision.js';
+import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './tools/getDoctrineAgreement.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
 import { handleSearchDocs,SearchDocsInputSchema } from './tools/searchDocs.js';
 import { handleSearchMemory,SearchMemoryInputSchema } from './tools/searchMemory.js';
@@ -429,6 +432,55 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = await handleResolveDrift(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Doctrine judgment tools (D1 並走記録: trail.db 直書き)
+  // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'record_doctrine_judgment',
+    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). Re-recording the same session_id + subject overwrites and resets any recorded human decision.', inputSchema: {
+      session_id: RecordDoctrineJudgmentInputSchema.shape.session_id,
+      subject: RecordDoctrineJudgmentInputSchema.shape.subject,
+      judgment: RecordDoctrineJudgmentInputSchema.shape.judgment,
+      coverage: RecordDoctrineJudgmentInputSchema.shape.coverage,
+      citations: RecordDoctrineJudgmentInputSchema.shape.citations,
+      judged_at: RecordDoctrineJudgmentInputSchema.shape.judged_at,
+      workspacePath: RecordDoctrineJudgmentInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleRecordDoctrineJudgment(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'record_human_decision',
+    { description: "Record the human's actual decision for a previously recorded doctrine judgment (same session_id + subject) and return the agreement result. Errors if no matching judgment exists.", inputSchema: {
+      session_id: RecordHumanDecisionInputSchema.shape.session_id,
+      subject: RecordHumanDecisionInputSchema.shape.subject,
+      decision: RecordHumanDecisionInputSchema.shape.decision,
+      decided_at: RecordHumanDecisionInputSchema.shape.decided_at,
+      workspacePath: RecordHumanDecisionInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleRecordHumanDecision(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_doctrine_agreement',
+    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, and pending (undecided) count. Gate metrics for D2 promotion.', inputSchema: {
+      since: GetDoctrineAgreementInputSchema.shape.since,
+      until: GetDoctrineAgreementInputSchema.shape.until,
+      workspacePath: GetDoctrineAgreementInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleGetDoctrineAgreement(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
