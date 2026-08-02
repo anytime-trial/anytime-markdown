@@ -22,6 +22,7 @@
     "analysis"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onView:anytimeTrail.dashboard"
   ],
   "icon": "images/anytime-control-256.png",

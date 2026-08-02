@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed the extension not activating unless the Trail view was opened, which left both the Stop-hook spool drain and the TrailDataServer down. Added `onStartupFinished` to `activationEvents` so record ingestion no longer depends on UI interaction. The spool mechanism (0.40.1 line) removed total record loss but not ingestion latency; that latency was caused by this activation condition.
+
 ## [0.40.1] - 2026-08-01
 
 ### Changed
