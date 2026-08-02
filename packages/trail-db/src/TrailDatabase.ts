@@ -8764,23 +8764,34 @@ export class TrailDatabase {
   /** セーフポイント保持上限。超過分は record 時に古い順で削除する（肥大化防止）。 */
   private static readonly SAFE_POINT_RETENTION = 500;
 
-  /** 副作用: safe_points へ INSERT（+ 保持上限超過分の DELETE）。永続化は呼び出し側の save() 契約に従う。 */
+  /**
+   * 副作用: safe_points へ INSERT（+ 保持上限超過分の DELETE）。永続化は呼び出し側の save() 契約に従う。
+   * 全列一致の既存行があれば挿入しない（内容キーで冪等）。Stop フックの記録は spool drain の
+   * at-least-once 再送（POST 成功をクライアントのタイムアウトが失敗扱いにし再送し得る）を
+   * 経由するため、再送をここで吸収する（recordEmergencyEvent と同方針）。
+   */
   recordSafePoint(input: SafePointInput): void {
     const db = this.ensureDb();
     const stmt = db.prepare(
       `INSERT INTO safe_points (created_at, commit_hash, branch, worktree, label, source, session_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       SELECT ?, ?, ?, ?, ?, ?, ?
+       WHERE NOT EXISTS (
+         SELECT 1 FROM safe_points
+         WHERE created_at = ? AND commit_hash = ? AND branch = ? AND worktree = ?
+           AND label = ? AND source = ? AND session_id IS ?
+       )`,
     );
+    const values = [
+      input.createdAt,
+      input.commitHash,
+      input.branch,
+      input.worktree,
+      input.label,
+      input.source,
+      input.sessionId,
+    ];
     try {
-      stmt.run([
-        input.createdAt,
-        input.commitHash,
-        input.branch,
-        input.worktree,
-        input.label,
-        input.source,
-        input.sessionId,
-      ]);
+      stmt.run([...values, ...values]);
     } finally {
       stmt.free();
     }
