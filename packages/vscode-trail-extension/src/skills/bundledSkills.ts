@@ -24,6 +24,8 @@ export const TRAIL_BUNDLED_SKILLS: readonly TrailBundledSkill[] = [
 		oldNames: ['build-code-graph', 'trail-design', 'anytime-reverse-engineer'],
 	},
 	{ name: 'anytime-reverse-spec', oldNames: ['anytime-basic-design'] },
+	// リバース系譜第 3 段（コード＋履歴＋文書 → 文化・暗黙知）。
+	{ name: 'anytime-reverse-doctrine' },
 	// anytime-token-budget を統合（2026-07-18）。旧 dir は oldNames で配置済みコピーを掃除する。
 	{ name: 'anytime-dev-retro', oldNames: ['anytime-dev-health', 'anytime-token-budget'] },
 	// レビュー指摘書式（memory-core ingest パーサとの機械契約）。契約とパーサ実装を同じ
