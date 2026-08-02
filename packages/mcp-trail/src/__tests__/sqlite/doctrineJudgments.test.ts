@@ -256,6 +256,15 @@ describe('doctrineJudgments', () => {
       legacy.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
     ).map((c) => c.name);
     expect(columns).toEqual(expect.arrayContaining(['gate_verdict', 'gate_reasons_json']));
+    // 新規 DB と移行 DB で列順まで一致させる（ALTER は必ず末尾へ足すため、CREATE 側も
+    // 追加列を末尾に置く。食い違うと SELECT * の列位置が経路で変わる）
+    const fresh = new BetterSqlite3(':memory:');
+    ensureDoctrineJudgmentsTable(fresh);
+    const freshColumns = (
+      fresh.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
+    ).map((c) => c.name);
+    expect(columns).toEqual(freshColumns);
+    fresh.close();
     const rows = legacy.prepare(`SELECT subject, gate_verdict FROM doctrine_judgments`).all();
     expect(rows).toEqual([{ subject: '旧行', gate_verdict: null }]);
     legacy.close();

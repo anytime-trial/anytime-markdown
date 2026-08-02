@@ -64,7 +64,13 @@ function evaluateOdd(
   targetPaths: ReadonlyArray<string> | undefined,
   odd: OddConfig,
 ): GateReason | null {
-  if (targetPaths === undefined || targetPaths.length === 0) {
+  // 空文字列は path.resolve で cwd (＝ワークスペース内) へ解決してしまい ODD 判定を
+  // すり抜けるため、申告の欠落として扱う
+  if (
+    targetPaths === undefined ||
+    targetPaths.length === 0 ||
+    targetPaths.some((target) => target.trim() === '')
+  ) {
     return 'odd_unknown';
   }
   // 前方一致の前に正規化する。`..` を含むパスをそのまま比較すると境界をすり抜ける

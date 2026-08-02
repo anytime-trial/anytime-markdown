@@ -35,6 +35,13 @@ describe('evaluateCoverageGate', () => {
     expect(evaluateCoverageGate(input({ targetPaths: [] })).reasons).toEqual(['odd_unknown']);
   });
 
+  it('空文字列のパス申告は odd_unknown で escalate（cwd へ解決してすり抜けさせない）', () => {
+    expect(evaluateCoverageGate(input({ targetPaths: [''] })).reasons).toEqual(['odd_unknown']);
+    expect(
+      evaluateCoverageGate(input({ targetPaths: ['/anytime-markdown/a.ts', '  '] })).reasons,
+    ).toEqual(['odd_unknown']);
+  });
+
   it('ODD 外のパスを含むと odd_out で escalate', () => {
     const result = evaluateCoverageGate(input({ targetPaths: ['/other-repo/src/index.ts'] }));
     expect(result).toEqual({ verdict: 'escalate', reasons: ['odd_out'] });
