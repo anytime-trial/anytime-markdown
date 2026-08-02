@@ -3,13 +3,14 @@ import { cache } from 'react';
 
 import { listReports } from '../../lib/reportClient';
 import { REPORTS_PER_PAGE } from '../../lib/reportUtils';
+import { socialTitle } from '../../lib/siteMetadata';
 import type { ReportMeta } from '../../types/report';
 import ReportListBody from './ReportListBody';
 
 export const revalidate = 3600;
 
 const TITLE = 'Report';
-const SOCIAL_TITLE = 'Report - Anytime Markdown';
+const SOCIAL_TITLE = socialTitle(TITLE);
 const DESCRIPTION = 'Technical reports and articles. | 技術レポートと記事。';
 
 /** generateMetadata と本体レンダリングで同一リクエスト内の S3 取得を共有する */

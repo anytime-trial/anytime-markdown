@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 
+import { socialTitle } from '../../lib/siteMetadata';
+
 const TITLE = 'Editor';
-/** openGraph / twitter は template が効かないため、表示用の完全形を別に持つ */
-const SOCIAL_TITLE = 'Editor - Anytime Markdown';
+/** openGraph / twitter は title.template が効かないため、同じ文言から完全形を導出する */
+const SOCIAL_TITLE = socialTitle(TITLE);
 const DESCRIPTION =
   'Free WYSIWYG Markdown editor with Mermaid diagrams, PlantUML preview, KaTeX math, diff comparison, merge, and table editor. No sign-up required. | 無料WYSIWYGマークダウン エディタ。Mermaid/PlantUML図解、KaTeX数式、差分比較(diff)、マージ(merge)、表編集対応。登録不要。';
 const SOCIAL_DESCRIPTION =

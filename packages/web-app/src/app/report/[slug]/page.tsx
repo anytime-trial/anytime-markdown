@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { getReportBySlug, listReports } from '../../../lib/reportClient';
 import { buildNavigation } from '../../../lib/reportUtils';
+import { SITE_NAME } from '../../../lib/siteMetadata';
 import type { ReportMeta } from '../../../types/report';
 import ReportDetailBody from './ReportDetailBody';
 
@@ -57,11 +58,11 @@ function buildArticleJsonLd(meta: ReportMeta) {
     articleSection: meta.category,
     author: {
       '@type': meta.author ? 'Person' : 'Organization',
-      name: meta.author ?? 'Anytime Markdown',
+      name: meta.author ?? SITE_NAME,
     },
     publisher: {
       '@type': 'Organization',
-      name: 'Anytime Markdown',
+      name: SITE_NAME,
       url: BASE_URL,
     },
     mainEntityOfPage: {

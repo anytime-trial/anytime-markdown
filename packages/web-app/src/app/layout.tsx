@@ -5,14 +5,9 @@ import { headers } from 'next/headers';
 import Script from 'next/script';
 import { getLocale,getTranslations } from 'next-intl/server';
 
+import { SITE_DESCRIPTION, SITE_NAME, TITLE_TEMPLATE } from '../lib/siteMetadata';
 import { LocaleProvider } from './LocaleProvider';
 import { Providers } from './providers';
-
-const SITE_NAME = 'Anytime Markdown';
-
-/** 検索結果で切られない長さ（160 字以内）に収める */
-const SITE_DESCRIPTION =
-  'Browser-based WYSIWYG Markdown editor for Spec-Driven Development. Mermaid and PlantUML diagrams, KaTeX math, diff and merge, Git integration. No sign-up.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.anytime-trial.com'),
@@ -20,7 +15,7 @@ export const metadata: Metadata = {
   // 二重付与を避けたいページ（/ と Anytime Trail 系）は title.absolute を使う。
   title: {
     default: `${SITE_NAME} — Browser-based Markdown Editor`,
-    template: `%s - ${SITE_NAME}`,
+    template: TITLE_TEMPLATE,
   },
   description: SITE_DESCRIPTION,
   manifest: '/manifest.json',
