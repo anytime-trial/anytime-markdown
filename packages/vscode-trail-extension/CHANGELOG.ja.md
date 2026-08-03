@@ -6,9 +6,33 @@
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-08-03
+
+### 追加
+
+- コード・git 履歴・設計文書・レビュー記録から暗黙知を明文化する `anytime-reverse-doctrine` スキルを同梱した。
+
 ### 修正
 
-- Trail ビューを開かない限り拡張が activate せず、Stop フック記録のスプール drain と TrailDataServer がどちらも起動しない問題を修正した。`activationEvents` に `onStartupFinished` を追加し、記録の取込を UI 操作から切り離した。スプール方式（0.40.1 系）が解消したのは記録の全損であって取込の遅延ではなく、遅延はこの activate 条件が原因だった。
+- Trail ビューを開かない限り拡張が activate せず、Stop フック記録のスプール drain と TrailDataServer がどちらも起動しない問題を修正した。`activationEvents` に `onStartupFinished` を追加し、記録の取込を UI 操作から切り離した。スプール方式が解消したのは記録の全損であって取込の遅延ではなく、遅延はこの activate 条件が原因だった。
+- Stop フック記録をデーモンへの直接 POST（失敗の握り潰し付き）から、`<git-common-dir>/anytime/stop-hook-spool.jsonl` へ追記して拡張が drain するスプール方式へ移行した。従来はデーモン停止中の記録が痕跡なく全損していた。
+- 委任プロンプトのルール参照を、解決できない `{repoRoot}/SKILL.md` からインライン転記へ変更した。
+
+### 変更
+
+- 拡張マニフェストに `homepage` を追加し、Marketplace のページからプロジェクトサイトへ辿れるようにした。
+
+### Trail Core (trail-core / trail-server / trail-viewer / trail-db / memory-core / mcp-trail)
+
+- ドクトリン接地判断の記録・照会ツール 3 点（D1）と、承認状態（canon / draft）の解決・集計を追加
+- ドクトリンカバレッジゲート（DCT-10〜12）を shadow mode で追加し、受け入れ確認インターフェース（DCT-13）を追加
+- 境界ドリフトの判定・記録（`boundary_drift_warnings`）と `list_boundary_drift` による照会を追加
+- mcp-trail のワークスペースルート解決を一元化し、全ツールへ注入して fail-closed 化
+- memory-core.db の解決を呼び出し側の責務にし、cwd 基準の暗黙フォールバックを廃止
+- `safe_points` の INSERT を内容キーで冪等化
+- trail-server の `handleHttp` をルートテーブル化し、解析方式を判別子にして HTTP 経路の縮退を型で封じた
+- `TrailDatabase` の認知的複雑度（S3776）超過を 15 件から 0 件へ
+- Python 解析で `node_modules` を常に除外（依存パッケージ同梱の `.py` による汚染を停止）
 
 ## [0.40.1] - 2026-08-01
 

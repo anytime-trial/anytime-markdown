@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-08-03
+
+### Changed
+
+- Added `homepage` to the extension manifest so the Marketplace listing links back to the project site.
+- Added links to the project site and the other Anytime extensions in the README.
+
+### Database Core (database-core / database-viewer)
+
+- 変更なし（バージョン同期のみ）
+
 ## [0.3.6] - 2026-08-01
 
 ### Changed

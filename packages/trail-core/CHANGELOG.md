@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-08-03
+
+### Added
+
+- Added the `doctrine_judgments` table that backs the D1 parallel record of doctrine-grounding judgments.
+- Added a check that contrasts declared boundaries against the implementation communities derived from the code graph (boundary drift).
+
+### Fixed
+
+- Boundary drift now records the detection run and resolves the latest run per repository, instead of mixing runs from different repositories.
+
 ## [0.40.1] - 2026-08-01
 
 ### Changed

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-03
+
+### Added
+
+- Source jump (TRC-5): jump from a trace entry to the corresponding source location.
+- Schema v2 migrator (TRC-6) for existing trace files.
+
+### Fixed
+
+- Fixed `trace-agent-node` failing to start under `--require`, caused by a value import of `trace-core`, which ships TypeScript sources and is type-only at runtime. `tsc`, jest, and webpack all passed; only the `--require` path failed.
+
+### Changed
+
+- Added `homepage` to the extension manifest and links to the project site and the other Anytime extensions in the README.
+
 ## [0.2.7] - 2026-07-14
 
 ### Fixed

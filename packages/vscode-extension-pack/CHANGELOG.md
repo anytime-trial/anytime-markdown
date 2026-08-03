@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-03
+
+### Changed
+
+- Added `homepage` to the manifest and links to the project site and each bundled extension in the README.
+
 ## [0.5.1] - 2026-05-17
 
 ### Changed

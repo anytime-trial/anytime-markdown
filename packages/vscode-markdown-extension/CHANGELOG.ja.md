@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-08-03
+
+### 変更
+
+- 拡張マニフェストに `homepage` を追加し、Marketplace のページからプロジェクトサイトへ辿れるようにした。
+- README にプロジェクトサイトと他の Anytime 拡張へのリンクを追加した。
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- `html` フェンス内の HTML5 media 要素（`video` / `audio` / `source` / `track` / `picture`）と `crossorigin` を許可（issue #155）
+- `installChrome` を分割し認知的複雑度を 128 から 15 以下へ
+
 ## [1.19.0] - 2026-08-01
 
 ### 変更

@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-08-03
+
+### Added
+
+- Added long-tail landing pages for individual Markdown notations under `/markdown`.
+- Added server-rendered explanation, usage, and FAQ sections to `/markdown`.
+
+### Changed
+
+- The locale is now decided by the URL, with English pages served under `/en`.
+- Consolidated the site name and the title format into a single source.
+- `robots.txt` and the sitemap now derive their public routes from one source.
+
+### Fixed
+
+- Fixed the SEO metadata so articles have an indexable path: hreflang no longer points every locale at `/`, the sitemap no longer advertises routes without a page, and the canonical URL is no longer fixed to the first page.
+- Fixed soft 404s under `[locale]`, which returned HTTP 200 for missing routes.
+- Restored public assets (`/icon.svg`, `/images/**`) that started returning 404 after the middleware matcher exclusion gap.
+- Added an `h1` to the explanation section and stopped the background from scrolling while a modal is open.
+- The `press` APIs now return 503 instead of hiding a fetch failure behind a 200.
+- An unset `GUARDIAN_API_KEY` is no longer reported as an upstream outage.
+- Fixed unknown keys in `extras` being dropped when a ticket passes through the API / RPC layer.
+
 ## [0.44.0] - 2026-08-01
 
 ### Changed

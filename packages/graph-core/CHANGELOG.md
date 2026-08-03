@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-03
+
+### Changed
+
+- Test-only: restored the `barnesHutLayout` metric checks to run through assertions. No behavior change.
+
 ## [1.0.0] - 2026-08-01
 
 ### Added
