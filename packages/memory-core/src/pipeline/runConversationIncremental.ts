@@ -331,10 +331,6 @@ export async function runConversationIncremental(opts: {
   };
 
   let maxTimestamp = sinceISO;
-  // 最後に extraction 失敗した episode の valid_from (quarantine 用)。
-  // quarantine 時はこれ + 1ms をカーソルにして「失敗した episode を
-  // skip しつつ、未処理の後続 session を再走査可能にする」。
-  let lastFailedEpisodeTime: string | null = null;
   let consecutiveFailures = 0;
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
   let stoppedByThrottle = false;
@@ -419,7 +415,6 @@ export async function runConversationIncremental(opts: {
         if (result.outcome === 'failed') {
           totals.items_failed += 1;
           consecutiveFailures += 1;
-          lastFailedEpisodeTime = episode.valid_from;
           continue;
         }
 
@@ -456,8 +451,8 @@ export async function runConversationIncremental(opts: {
       status: 'error',
       error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
-    finalizePipelineRun(db, rId, startedAt, 'error', totals);
-    return { status: 'error', ...totals };
+    finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+    return { status: finalStatus, ...totals };
   }
 
   // ── 3.5 Throttle 中断 ─────────────────────────────────────────────────────
