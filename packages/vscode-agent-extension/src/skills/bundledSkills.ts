@@ -55,4 +55,7 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   { name: 'anytime-loop-start', oldNames: ['anytime-ticket-loop'] },
   // 上記が確保した cron の停止。停止と「実行中チケット作業の中断」は別物のため別スキルに分けてある。
   { name: 'anytime-loop-stop', oldNames: ['anytime-ticket-loop-stop'] },
+  // ソース非アクセスの外形リバース（DESIGN.md / ux-concept.md / ux-report.md の 3 系統）。
+  // 2026-08-03 に anytime- 接頭辞へ揃えつつ、プロジェクト固有スキル（.claude/skills/）から同梱化した。
+  { name: 'anytime-ux-archeologist', oldNames: ['ux-archeologist'] },
 ];
