@@ -1,4 +1,6 @@
+import FullPageLoader from '@anytime-markdown/markdown-react-islands/src/components/loader/FullPageLoader';
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 
 import { buildSingleSourceAlternates } from '../../../../lib/localeAlternates';
 import { fetchLayoutData } from '../../../../lib/s3Client';
@@ -38,15 +40,27 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   }
 }
 
-export default async function DocsViewPage({ searchParams }: Readonly<Props>) {
-  const { key } = await searchParams;
+/**
+ * S3 のレイアウト取得を待つ部分。Why not: ルート単位の `loading.tsx` を使わない
+ * （配下へ継承され `notFound()` がソフト 404 になる）。境界はページの内側に閉じる。
+ */
+async function DocsView({ docKey }: Readonly<{ docKey?: string }>) {
   let docTitle: string | undefined;
-  if (key) {
+  if (docKey) {
     try {
       const layout = await fetchLayoutData();
-      const item = layout.categories.flatMap((c) => c.items).find((i) => i.docKey === key);
+      const item = layout.categories.flatMap((c) => c.items).find((i) => i.docKey === docKey);
       docTitle = item?.displayName;
     } catch { /* fallback to key-derived name in client */ }
   }
   return <DocsViewBody docTitle={docTitle} />;
+}
+
+export default async function DocsViewPage({ searchParams }: Readonly<Props>) {
+  const { key } = await searchParams;
+  return (
+    <Suspense fallback={<FullPageLoader />}>
+      <DocsView docKey={key} />
+    </Suspense>
+  );
 }

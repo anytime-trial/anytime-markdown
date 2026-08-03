@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
-import { Link as NextLink } from '../../../../i18n/navigation';
+import { Suspense } from 'react';
 
+import { Link as NextLink } from '../../../../i18n/navigation';
 import type { TraceFileMeta } from '../../../api/trace/list/route';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,11 @@ async function listTraceFiles(): Promise<TraceFileMeta[]> {
   }
 }
 
-export default async function TraceListPage() {
+/**
+ * API の取得を待つ部分。Why not: ルート単位の `loading.tsx` を使わない
+ * （配下の `[file]` へ継承され、そこの `notFound()` がソフト 404 になる）。
+ */
+async function TraceList() {
   const files = await listTraceFiles();
 
   return (
@@ -62,5 +67,16 @@ export default async function TraceListPage() {
         </ul>
       )}
     </main>
+  );
+}
+
+export default function TraceListPage() {
+  // フォールバックは `FullPageLoader` ではなく素の DOM。この画面は Anytime Trail 側の
+  // 内部ツールで MUI を使わずインライン style だけで組んであり、`[file]` 側の
+  // フォールバックとも揃えている。
+  return (
+    <Suspense fallback={<main style={{ padding: '2rem' }}>Loading...</main>}>
+      <TraceList />
+    </Suspense>
   );
 }
