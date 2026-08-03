@@ -47,6 +47,11 @@ export interface SerializableAnalyzeAllConfig {
   readonly gitRoot: string;
   readonly statePath?: string;
   readonly gitRoots?: readonly string[];
+  /**
+   * コミット取込だけを行う追加リポジトリ (設計書リポジトリ等)。コードグラフ・カバレッジ・
+   * リリース解析の対象には含めない。詳細は `AnalyzeAllRunnerOptions.commitWatchRoots`。
+   */
+  readonly commitWatchRoots?: readonly string[];
   readonly claudeProjectsDir?: string;
   readonly codexSessionsDir?: string;
   readonly stage: 'disabled' | 'sources' | 'primary' | 'memory' | 'primary+memory' | 'all';

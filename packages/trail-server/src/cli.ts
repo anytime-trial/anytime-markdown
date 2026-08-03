@@ -322,6 +322,10 @@ program
       gitRoot: memoryCorePrimaryGitRoot,
       trailDb,
       gitRoots: effectiveGitRoots,
+      // 設計書リポジトリはコード解析の対象ではないが、check_alignment が
+      // 「設計書が更新されたか」を判定するために commit 取込は必要。gitRoots へ
+      // 二重に書かせず sources.docs.root から導出する。
+      commitWatchRoots: resolveDocsCommitWatchRoots(lepConfig.sources.docs.root, logger),
       claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
       codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
       memoryCoreService,
@@ -612,4 +616,26 @@ function makeTrailLoggerAdapter(logger: Logger): TrailLoggerLike {
     warn: (msg) => logger.warn(msg),
     error: (msg, err) => logger.error(msg, err),
   };
+}
+
+/**
+ * lep.json `sources.docs.root`（設計書リポジトリ）を commit 取込専用の監視対象へ変換する。
+ *
+ * 未設定・不在・git working tree でない場合は空配列を返す（警告は残す）。コード解析側
+ * （コードグラフ / カバレッジ / リリース）の対象には入れない。
+ */
+export function resolveDocsCommitWatchRoots(docsRoot: string, logger: Logger): readonly string[] {
+  const root = docsRoot.trim();
+  if (root === '') return [];
+
+  if (!existsSync(root)) {
+    logger.warn('sources.docs.root does not exist; spec commit ingestion disabled', { root });
+    return [];
+  }
+  if (!existsSync(join(root, '.git'))) {
+    logger.warn('sources.docs.root is not a git repository; spec commit ingestion disabled', { root });
+    return [];
+  }
+
+  return [root];
 }

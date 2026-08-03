@@ -63,6 +63,22 @@ export function shouldDeferPeriodicRun(reason: RunReason, deferFn?: () => boolea
   return reason === 'periodic' && deferFn?.() === true;
 }
 
+/** 2 つのパス集合を順序を保って結合し、空文字と重複を落とす（先勝ち）。 */
+export function mergeUnique(
+  primary: readonly string[],
+  additional: readonly string[],
+): readonly string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const value of [...primary, ...additional]) {
+    const trimmed = value.trim();
+    if (trimmed === '' || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    merged.push(trimmed);
+  }
+  return merged;
+}
+
 export interface AnalyzeAllRunnerOptions {
   /** ログ書き込み先 (拡張: OutputChannel, daemon: Logger ラッパ) */
   logSink: RunnerLogSink;
@@ -74,6 +90,14 @@ export interface AnalyzeAllRunnerOptions {
   trailDb?: TrailDatabase;
   /** 監視対象 gitRoot 集合 (commit / release / coverage / codegraph 解析対象) */
   gitRoots?: readonly string[];
+  /**
+   * コミット取込**だけ**を行う追加リポジトリ (lep.json `sources.docs.root` 由来の設計書
+   * リポジトリ等)。`gitRoots` と合成して CommitResolver / CommitFilesBackfiller にのみ渡す。
+   *
+   * コードグラフ・カバレッジ・リリース解析の対象には含めない: 設計書リポジトリには
+   * 解析対象のソースが無く、`gitRoots[0]` を primary とみなす既存挙動にも影響させない。
+   */
+  commitWatchRoots?: readonly string[];
   /**
    * Claude Code セッションログ (JSONL) の探索元 (lep.json `sources.claude.projectsDir`)。
    * 省略 / 空時は JsonlIngester 既定 (`os.homedir()/.claude/projects`)。
@@ -241,6 +265,8 @@ export class AnalyzeAllRunner extends BaseRunner {
     if (this.importPipelineEnabled && opts.trailDb) {
       const trailDb = opts.trailDb;
       const gitRoots = opts.gitRoots ?? [];
+      // コミット取込のみ対象の追加リポジトリを合成する (重複は先勝ちで排除)。
+      const commitRoots = mergeUnique(gitRoots, opts.commitWatchRoots ?? []);
       const onPhase = opts.onImportPhase;
       const onProgress = opts.onImportProgress;
       const fallbackRepoName = gitRoots[0] ? basename(gitRoots[0]) : undefined;
@@ -259,7 +285,7 @@ export class AnalyzeAllRunner extends BaseRunner {
 
       // 核 analyzer (toggle 不可)
       sessionImporter = new SessionImporter({ trailDb, onProgress, onPhase });
-      commitResolver = new CommitResolver({ trailDb, gitRoots });
+      commitResolver = new CommitResolver({ trailDb, gitRoots: commitRoots });
       codeGraphBuilder = new CodeGraphBuilder({
         trailDb,
         gitRoots,
@@ -287,7 +313,7 @@ export class AnalyzeAllRunner extends BaseRunner {
         ? new BehaviorAnalyzer({ trailDb, onPhase, onProgress })
         : null;
       const commitFilesBackfiller = primaryEnabled('CommitFilesBackfiller')
-        ? new CommitFilesBackfiller({ trailDb, gitRoots, onProgress })
+        ? new CommitFilesBackfiller({ trailDb, gitRoots: commitRoots, onProgress })
         : null;
       const subagentTypeBackfiller = primaryEnabled('SubagentTypeBackfiller')
         ? new SubagentTypeBackfiller({ trailDb, onProgress })
