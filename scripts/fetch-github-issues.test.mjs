@@ -86,13 +86,45 @@ test('403 の取得失敗は stderr に理由を残す（0 件と区別できる
   assert.match(res.stderr, /403|失敗/, '失敗理由が stderr に出ていない');
 });
 
+test('取得できなかったソースは末尾の要約行に名前が出る', () => {
+  const res = runWithStub(DEPENDABOT_403_STUB);
+  // 要約はヘルパ呼び出し（コマンド置換＝サブシェル）を跨いで集計する必要がある。
+  // シェル配列で貯めると親へ届かず、この行が永久に出ない。
+  assert.match(res.stderr, /取得できなかったソース: .*Dependabot/);
+});
+
 test('エラー応答の本体が成果物へ混入しない', () => {
   const res = runWithStub(DEPENDABOT_403_STUB);
+  // 事前条件を置く。スクリプトが落ちて stdout が空だと、否定形アサーションは
+  // 「検査対象が消えた」だけで自明に通ってしまう（fail-open）。
+  assert.equal(res.status, 0, `exit ${res.status}\nstderr: ${res.stderr}`);
+  const parsed = JSON.parse(res.stdout);
+  assert.ok(parsed.length > 0, '出力が空では混入の有無を検査できない');
   assert.doesNotMatch(
     res.stdout,
     /Resource not accessible/,
     'gh がエラー時に stdout へ書いた本体が出力へ紛れ込んでいる',
   );
+});
+
+test('応答の形が想定と違っても落ちず、写像失敗として縮退する', () => {
+  // gh が exit 0 で「配列だが中身がページ配列でない」ものを返す状況。
+  // --slurp は常に配列で包むため fetch_json_array の配列ガードは通り、
+  // 破れは写像 jq の `.[][]` まで露見しない。
+  const res = runWithStub(`
+case "$1" in
+  issue) echo '[]' ;;
+  api)
+    case "$*" in
+      *code-scanning*) echo '[{"unexpected":"object"}]' ;;
+      *) echo '[[]]' ;;
+    esac ;;
+esac
+`);
+  assert.equal(res.status, 0, `形状不一致でスクリプトごと落ちてはならない\nstderr: ${res.stderr}`);
+  assert.ok(Array.isArray(JSON.parse(res.stdout)));
+  assert.match(res.stderr, /写像に失敗/);
+  assert.match(res.stderr, /取得できなかったソース: .*Code Scanning/);
 });
 
 test('code-scanning は --paginate で全ページを取りに行く', () => {

@@ -8,10 +8,14 @@ set -euo pipefail
 REPO="${1:?Usage: fetch-github-issues.sh <owner/repo>}"
 
 STDERR_CAPTURE=$(mktemp)
-trap 'rm -f "$STDERR_CAPTURE"' EXIT
-
-# 取得できなかったソース名。最後にまとめて要約を出す（0 件と取得不可を混同させない）。
-FAILED_SOURCES=()
+# 取得できなかったソース名を 1 行 1 件で貯める。最後にまとめて要約を出す
+# （0 件と取得不可を混同させない）。
+#
+# シェル変数の配列にしてはいけない。下のヘルパはすべて `x=$(helper ...)` の
+# コマンド置換＝**サブシェル**で呼ばれるため、配列への追記は親シェルへ届かず、
+# 要約の分岐が常に偽になる（変数とコメントだけが残る死にコードになる）。
+FAILED_LOG=$(mktemp)
+trap 'rm -f "$STDERR_CAPTURE" "$FAILED_LOG"' EXIT
 
 ##
 # gh コマンドを実行し、JSON 配列が返ったときだけそれを stdout へ出す。
@@ -35,14 +39,14 @@ fetch_json_array() {
     local reason
     reason=$(tr '\n' ' ' <"$STDERR_CAPTURE" | cut -c1-300)
     printf 'WARN: %s の取得に失敗しました (exit %d): %s\n' "$label" "$status" "$reason" >&2
-    FAILED_SOURCES+=("$label")
+    printf '%s\n' "$label" >>"$FAILED_LOG"
     printf '[]'
     return 0
   fi
 
   if ! jq -e 'type == "array"' <<<"$out" >/dev/null 2>&1; then
     printf 'WARN: %s が JSON 配列を返しませんでした。0 件として続行します\n' "$label" >&2
-    FAILED_SOURCES+=("$label")
+    printf '%s\n' "$label" >>"$FAILED_LOG"
     printf '[]'
     return 0
   fi
@@ -53,11 +57,23 @@ fetch_json_array() {
 ##
 # 取得した JSON を共通スキーマの配列へ写像し、件数を stderr に出す。
 # 件数を必ず出すのは、0 件（正常）と取得失敗（WARN 済み）を読み手が区別できるようにするため。
+#
+# 写像側にも採否判定を置く。`--slurp` は gh が exit 0 で返す限り必ず配列で包むため、
+# fetch_json_array の「配列か」ガードは通ってしまい、応答の形が想定と違うことは
+# ここの `.[][]` が `Cannot iterate over ...` で落ちるまで分からない。素通しにすると
+# `set -e` でスクリプトごと止まり、今回直したのと同じ「1 ソースの異常で収集が
+# まるごと失われる」障害が別経路で戻る。
 ##
 map_and_count() {
   local label="$1" filter="$2" raw="$3"
   local mapped
-  mapped=$(jq -c "$filter" <<<"$raw")
+  if ! mapped=$(jq -c "$filter" <<<"$raw" 2>"$STDERR_CAPTURE"); then
+    printf 'WARN: %s の写像に失敗しました（応答の形が想定と異なる）: %s\n' \
+      "$label" "$(tr '\n' ' ' <"$STDERR_CAPTURE" | cut -c1-300)" >&2
+    printf '%s\n' "$label" >>"$FAILED_LOG"
+    printf '[]'
+    return 0
+  fi
   printf 'INFO: %s: %s 件\n' "$label" "$(jq 'length' <<<"$mapped")" >&2
   printf '%s' "$mapped"
 }
@@ -131,9 +147,9 @@ codescan=$(map_and_count "Code Scanning Alerts" '
     url: .html_url
   }]' "$codescan_raw")
 
-if [[ ${#FAILED_SOURCES[@]} -gt 0 ]]; then
+if [[ -s "$FAILED_LOG" ]]; then
   printf 'WARN: 取得できなかったソース: %s（レポートの収集結果に「取得不可」として残すこと）\n' \
-    "$(IFS=', '; echo "${FAILED_SOURCES[*]}")" >&2
+    "$(sort -u "$FAILED_LOG" | paste -sd', ' -)" >&2
 fi
 
 jq -s 'add' <<<"$issues
