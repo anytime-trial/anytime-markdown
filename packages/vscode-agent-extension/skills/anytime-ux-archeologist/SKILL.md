@@ -82,12 +82,12 @@ trigger: /anytime-ux-archeologist
 `only` が `design` / `ux` のときは実行しない。`report` を出す場合、着手前に `scenario`（想定ユーザーと目標）を確定する。
 
 1. **代理指標の計測**: 各ページで `browser_evaluate` に `references/measure-ux.js` の関数を渡す。Phase 1 の抽出とは別に、ページへ遷移した直後に実行する（`perf` は navigation timing に依存し、遷移から時間が経つと LCP・CLS の観測窓を外す）。
-2. **導線の計測**: 各ページの `cognitive.internalHrefs` を突き合わせ、起点から `scenario` の目標ページまでの最小クリック数を出す。同一オリジンリンクの HTTP ステータスを実測し、リンク切れを数える。
+2. **導線の計測**: 各ページの `cognitive.internalHrefs` を突き合わせ、起点から `scenario` の目標ページまでの最小クリック数を出す。同一オリジンリンクの HTTP ステータスを実測し、リンク切れを数える。あわせて `cognitive.navLinkTargets` のリンク文言を遷移先ページの `doc.title` と突合する（チェックリスト 4-1。ページ横断のため計測スクリプト内では判定できない）。
 3. **規範照合**: `findings` を WCAG 2.1/2.2 AA と Nielsen 10 原則へ割り当て、`references/ux-report-template.md` の重大度定義で分類する。
-4. **項目レベルの走査**: `references/heuristic-checklist.md` の 48 項目を検出手段の区分（`auto` / `auto-todo` / `static` / `interactive` / `user-test`）に従って処理する。**`interactive` の 21 項目は静的巡回では判定できない**ため、レポート §2 の「計測から除外した範囲」へ列挙する。とくに原則 9（エラー回復）は 3 項目すべてが `interactive` で、丸ごと未判定になる。
+4. **項目レベルの走査**: `references/heuristic-checklist.md` の 48 項目を検出手段の区分（`auto` / `static` / `interactive` / `user-test`）に従って処理する。**`interactive` の 21 項目は静的巡回では判定できない**ため、レポート §2 の「計測から除外した範囲」へ列挙する。とくに原則 9（エラー回復）は 3 項目すべてが `interactive` で、丸ごと未判定になる。
 5. **執筆**: `references/ux-report-template.md` の正準セクション順に従う。**未計測欄を数値で埋めない**。
 
-計測できないものを計測したように書かないことが本フェーズの最大の失敗要因である。SUS・NPS・タスク完了率・タスク所要時間は実ユーザーのテストでしか得られない。同様に、チェックリストの 48 項目のうち静的巡回で判定できるのは 22 項目（`auto` 6 ＋ `static` 16）にとどまる。「チェックリストで評価した」と書くとき、残り 26 項目が空欄であることを隠さない。
+計測できないものを計測したように書かないことが本フェーズの最大の失敗要因である。SUS・NPS・タスク完了率・タスク所要時間は実ユーザーのテストでしか得られない。同様に、チェックリストの 48 項目のうち静的巡回で判定できるのは 26 項目（`auto` 10 ＋ `static` 16）にとどまる。「チェックリストで評価した」と書くとき、残り 22 項目が空欄であることを隠さない。
 
 ## トークン上限設計
 

@@ -219,6 +219,114 @@ async () => {
   }
   if (activeBefore && activeBefore.focus) activeBefore.focus({ preventScroll: true });
 
+  // 7a) 制約のある入力形式の事前制御（チェックリスト 5-3）
+  // ラベル・placeholder・name が特定の形式を示唆しているのに type="text" のまま放置され、
+  // pattern も inputmode も無いものを拾う。自由記述させてから弾く設計を事前に検出する。
+  const FORMAT_HINTS = [
+    { kind: 'email', re: /メール|mail|email/i, expect: 'type="email"' },
+    { kind: 'tel', re: /電話|tel|phone/i, expect: 'type="tel" / inputmode="tel"' },
+    { kind: 'postal', re: /郵便|zip|postal/i, expect: 'pattern / inputmode="numeric"' },
+    { kind: 'date', re: /日付|年月日|date(?!time-local)/i, expect: 'type="date"' },
+    { kind: 'url', re: /URL|ホームページ/i, expect: 'type="url"' },
+    { kind: 'number', re: /数量|金額|個数|amount|quantity/i, expect: 'type="number" / inputmode="numeric"' },
+  ];
+  const fieldHintText = (el) => {
+    const byId = el.id ? document.querySelector('label[for="' + CSS.escape(el.id) + '"]') : null;
+    const wrapped = el.closest('label');
+    return [
+      byId ? text(byId) : '',
+      wrapped ? text(wrapped) : '',
+      el.getAttribute('aria-label') || '',
+      el.getAttribute('placeholder') || '',
+      el.getAttribute('name') || '',
+      el.id || '',
+    ].join(' ');
+  };
+  for (const el of document.querySelectorAll('input')) {
+    if (!visible(el)) continue;
+    const type = (el.getAttribute('type') || 'text').toLowerCase();
+    if (type !== 'text' && type !== 'search') continue;
+    if (el.hasAttribute('pattern') || el.hasAttribute('inputmode') || el.hasAttribute('list')) continue;
+    const hint = fieldHintText(el);
+    const matched = FORMAT_HINTS.find((h) => h.re.test(hint));
+    if (matched) {
+      add('inputFormatUnconstrained', {
+        selector: selectorOf(el),
+        inferredKind: matched.kind,
+        expected: matched.expect,
+        hint: hint.trim().slice(0, MAX_TEXT),
+      });
+    }
+  }
+
+  // 7b) 入力欄の幅が想定文字数に見合うか（チェックリスト 5-2）
+  // maxlength か type から想定文字数が決まる欄に限る。決まらない欄は判定しない
+  // （自由記述欄が広いのは正しい）。想定幅は文字数 × フォントサイズ × 0.6 で近似する。
+  const BOUNDED_BY_TYPE = { tel: 14, date: 10, month: 7, time: 5, week: 8 };
+  const CHAR_WIDTH_RATIO = 0.6;
+  const WIDTH_TOLERANCE = 2; // 想定幅の 2 倍を超えたら過剰と見なす
+  for (const el of document.querySelectorAll('input')) {
+    if (!visible(el)) continue;
+    const type = (el.getAttribute('type') || 'text').toLowerCase();
+    const maxLength = Number(el.getAttribute('maxlength'));
+    const expectedChars = Number.isFinite(maxLength) && maxLength > 0
+      ? maxLength
+      : BOUNDED_BY_TYPE[type];
+    if (!expectedChars || expectedChars > 30) continue; // 上限が緩い欄は「短い入力」ではない
+    const cs = getComputedStyle(el);
+    const px = parseFloat(cs.fontSize) || 16;
+    const expectedPx = expectedChars * px * CHAR_WIDTH_RATIO;
+    const actualPx = el.getBoundingClientRect().width;
+    if (actualPx > expectedPx * WIDTH_TOLERANCE) {
+      add('inputWidthOversized', {
+        selector: selectorOf(el),
+        type,
+        expectedChars,
+        expectedPx: Math.round(expectedPx),
+        actualPx: Math.round(actualPx),
+        ratio: Math.round((actualPx / expectedPx) * 100) / 100,
+      });
+    }
+  }
+
+  // 7c) 行間・行長（チェックリスト 8-1）
+  // 行数は scrollHeight では取れない（高さが内容に追従して伸びるため溢れない）。
+  // Range#getClientRects() の矩形数で実際の折り返し行数を数える。
+  const LINE_HEIGHT_MIN_RATIO = 1.4; // 出典の目安「行間は文字サイズの 50〜100%」の下限側
+  const CHARS_PER_LINE_MAX = 50; // 目安 25〜40 字。誤検出を避けるため上限側だけを見る
+  const MIN_TEXT_FOR_READABILITY = 80; // 短文は 1 行に収まり行長を論じられない
+  for (const { el, sample } of painters) {
+    const content = (el.textContent || '').trim();
+    if (content.length < MIN_TEXT_FOR_READABILITY) continue;
+    const cs = getComputedStyle(el);
+    const px = parseFloat(cs.fontSize) || 16;
+    const lh = cs.lineHeight === 'normal' ? px * 1.2 : parseFloat(cs.lineHeight);
+    const ratio = Math.round((lh / px) * 100) / 100;
+    let lineCount = 0;
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      lineCount = range.getClientRects().length;
+    } catch {
+      continue; // 範囲を作れない要素は判定しない（未判定であって適合ではない）
+    }
+    if (lineCount < 2) continue;
+    const charsPerLine = Math.round(content.length / lineCount);
+    if (ratio < LINE_HEIGHT_MIN_RATIO || charsPerLine > CHARS_PER_LINE_MAX) {
+      add('readabilityOutOfRange', {
+        selector: selectorOf(el),
+        text: sample,
+        lineHeightRatio: ratio,
+        charsPerLine,
+        lineCount,
+        violates: [
+          ratio < LINE_HEIGHT_MIN_RATIO ? `行間 ${ratio} < ${LINE_HEIGHT_MIN_RATIO}` : null,
+          charsPerLine > CHARS_PER_LINE_MAX ? `行長 ${charsPerLine} > ${CHARS_PER_LINE_MAX} 字` : null,
+        ].filter(Boolean),
+      });
+    }
+  }
+
   // 7) 見出し階層
   const headings = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].filter(visible);
   let prev = 0;
@@ -287,6 +395,12 @@ async () => {
     interactiveInFirstView: interactive.filter(inFirstView).length,
     navLinkCount: navLinks.length,
     navLabels: navLinks.map((a) => text(a)).filter(Boolean).slice(0, MAX_ITEMS),
+    // チェックリスト 4-1（ナビ文言と遷移先タイトルの一致）用。
+    // 突合はページ横断のため本関数では行えない。遷移先の doc.title と照合するのは呼び出し側。
+    navLinkTargets: navLinks
+      .map((a) => ({ text: text(a), href: a.getAttribute('href') }))
+      .filter((x) => x.text && x.href)
+      .slice(0, MAX_ITEMS),
     distinctTextColors: colors.size,
     distinctFontFamilies: fonts.size,
     fontFamilies: [...fonts].slice(0, MAX_ITEMS),

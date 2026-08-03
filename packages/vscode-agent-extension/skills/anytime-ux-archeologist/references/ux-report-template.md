@@ -34,6 +34,8 @@
 | 有効性 | 主要導線の到達可否・最小クリック数 | 内部リンクのページ横断グラフ（`cognitive.internalHrefs`） | 主要目標へ 3 クリック以内 |
 | 有効性 | リンク切れ・404 率 | 同一オリジンリンクへの HTTP ステータス実測 | 0 件 |
 | 有効性 | 操作要素のアクセシブル名欠落 | `findings.interactiveMissingName` | 0 件（欠落＝支援技術利用者には到達不能） |
+| 有効性 | 画像の代替テキスト欠落 | `findings.imgMissingAlt` / `findings.svgUnlabelled` | 0 件（WCAG 2.1 A 1.1.1） |
+| 有効性 | 見出しレベルの飛び | `findings.headingLevelSkipped` | 0 件（WCAG 2.1 A 1.3.1） |
 | 効率性 | ナビゲーション項目数 | `cognitive.navLinkCount` | Miller 7±2 を目安に、超過は階層化の検討材料 |
 | 効率性 | ファーストビュー内の操作可能要素数 | `cognitive.interactiveInFirstView` | 絶対基準なし。ページ間比較で外れ値を見る |
 | 効率性 | フォーム入力欄数・必須欄数 | `cognitive.formFields` / `requiredFields` | 必須欄の削減余地を検討 |
@@ -41,7 +43,11 @@
 | 効率性 | タッチターゲット < 24px | `findings.targetBelow24px` | 0 件（WCAG 2.2 AA 2.5.8） |
 | 満足度 | コントラスト比 AA 未達 | `findings.contrastBelowAA` | 0 件（WCAG 2.1 AA 1.4.3） |
 | 満足度 | 文字色の種類数・書体数 | `cognitive.distinctTextColors` / `distinctFontFamilies` | 絶対基準なし。DESIGN.md のトークン数と突合し逸脱を見る |
-| 満足度 | フォーカス可視性の除去 | `findings.focusOutlineRemoved` | 0 件（WCAG 2.1 AA 2.4.7） |
+| 満足度 | フォーカス可視性の欠落 | `findings.focusIndicatorMissing` | 0 件（WCAG 2.1 AA 2.4.7） |
+| 満足度 | 行間・行長が可読性の範囲か | `findings.readabilityOutOfRange` | 行間比 1.4 以上・1 行 50 字以下 |
+| 有効性 | 制約のある入力形式の事前制御 | `findings.inputFormatUnconstrained` | 0 件（自由記述させてから弾く設計の検出） |
+| 効率性 | 入力欄の幅が想定文字数に見合うか | `findings.inputWidthOversized` | 想定幅の 2 倍以内 |
+| 一貫性 | ナビ文言と遷移先タイトルの一致 | `cognitive.navLinkTargets` × 遷移先 `doc.title` | 一致。突合は呼び出し側で行う |
 
 > 満足度の代理は 3 要素の中で最も弱い。満足度は本質的に主観であり、規範違反の不在は不満の不在を意味しない。本節の代理指標が全て良好でも「満足度は良好」と書いてはならない。書けるのは「満足度を下げる既知の要因は検出されなかった」までである。
 
@@ -152,7 +158,7 @@ Critical と High の上位課題のみ。各課題を 3 段で書く。
 ### 7. 確度と読み方の注意
 
 - 本書は外形観測と規範照合による評価であり、実ユーザーの計測を含まない範囲を明示する
-- **チェックリスト 48 項目のうち何項目を判定したかを書く。** 静的巡回で判定できるのは `auto` 6 ＋ `static` 16 の計 22 項目にとどまり、`interactive` 21 項目と `user-test` 1 項目は未判定、`auto-todo` 4 項目は未実装である（`references/heuristic-checklist.md`）
+- **チェックリスト 48 項目のうち何項目を判定したかを書く。** 静的巡回で判定できるのは `auto` 10 ＋ `static` 16 の計 26 項目にとどまり、`interactive` 21 項目と `user-test` 1 項目は未判定である（`references/heuristic-checklist.md`）
 - **ヒューリスティック評価は本来 3〜5 名の独立した評価者を要する。** 単一エージェントによる評価はその条件を満たさない旨を書く
 - 未計測の指標と、それを埋めるために必要な調査を列挙する
 - 巡回できなかった範囲（認証必須画面・上限で落としたページ・未実行の操作）
