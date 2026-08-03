@@ -27,6 +27,8 @@
     "./c4/services": "./src/c4/services/catalog.ts",
     "./c4/callHierarchy": "./src/c4/callHierarchy/index.ts",
     "./codeGraph": "./src/codeGraph.ts",
+    "./codeGraphNodeId": "./src/codeGraphNodeId.ts",
+    "./authorHeatmap": "./src/authorHeatmap/index.ts",
     "./deadCode": "./src/deadCode/index.ts",
     "./analyzeExclude": "./src/analyzeExclude/index.ts",
     "./commitCategories": {
