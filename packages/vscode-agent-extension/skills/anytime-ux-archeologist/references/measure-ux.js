@@ -222,13 +222,17 @@ async () => {
   // 7a) 制約のある入力形式の事前制御（チェックリスト 5-3）
   // ラベル・placeholder・name が特定の形式を示唆しているのに type="text" のまま放置され、
   // pattern も inputmode も無いものを拾う。自由記述させてから弾く設計を事前に検出する。
+  // ラテン文字の語は必ず語境界で挟む。境界が無いと name / id の一部へ当たって誤検出する
+  // （実測: `updated_at` `candidate` `validate_flag` が date、`hotel_name` が tel、
+  // `curl_target` `item_url_slug` が url に誤マッチした）。日本語は語境界が効かないため素で書く。
+  const w = (word) => `(^|[^a-z])${word}([^a-z]|$)`;
   const FORMAT_HINTS = [
-    { kind: 'email', re: /メール|mail|email/i, expect: 'type="email"' },
-    { kind: 'tel', re: /電話|tel|phone/i, expect: 'type="tel" / inputmode="tel"' },
-    { kind: 'postal', re: /郵便|zip|postal/i, expect: 'pattern / inputmode="numeric"' },
-    { kind: 'date', re: /日付|年月日|date(?!time-local)/i, expect: 'type="date"' },
-    { kind: 'url', re: /URL|ホームページ/i, expect: 'type="url"' },
-    { kind: 'number', re: /数量|金額|個数|amount|quantity/i, expect: 'type="number" / inputmode="numeric"' },
+    { kind: 'email', re: new RegExp(`メール|${w('e?mail')}`, 'i'), expect: 'type="email"' },
+    { kind: 'tel', re: new RegExp(`電話|${w('tel')}|${w('phone')}`, 'i'), expect: 'type="tel" / inputmode="tel"' },
+    { kind: 'postal', re: new RegExp(`郵便|${w('zip')}|${w('postal')}`, 'i'), expect: 'pattern / inputmode="numeric"' },
+    { kind: 'date', re: new RegExp(`日付|年月日|${w('date')}`, 'i'), expect: 'type="date"' },
+    { kind: 'url', re: new RegExp(`ホームページ|${w('url')}`, 'i'), expect: 'type="url"' },
+    { kind: 'number', re: new RegExp(`数量|金額|個数|${w('amount')}|${w('quantity')}`, 'i'), expect: 'type="number" / inputmode="numeric"' },
   ];
   const fieldHintText = (el) => {
     const byId = el.id ? document.querySelector('label[for="' + CSS.escape(el.id) + '"]') : null;
@@ -269,9 +273,9 @@ async () => {
     if (!visible(el)) continue;
     const type = (el.getAttribute('type') || 'text').toLowerCase();
     const maxLength = Number(el.getAttribute('maxlength'));
-    const expectedChars = Number.isFinite(maxLength) && maxLength > 0
-      ? maxLength
-      : BOUNDED_BY_TYPE[type];
+    // type は DOM 由来の任意文字列。素の添字だと type="constructor" 等でプロトタイプを引く
+    const boundedByType = Object.hasOwn(BOUNDED_BY_TYPE, type) ? BOUNDED_BY_TYPE[type] : undefined;
+    const expectedChars = Number.isFinite(maxLength) && maxLength > 0 ? maxLength : boundedByType;
     if (!expectedChars || expectedChars > 30) continue; // 上限が緩い欄は「短い入力」ではない
     const cs = getComputedStyle(el);
     const px = parseFloat(cs.fontSize) || 16;
@@ -291,36 +295,46 @@ async () => {
 
   // 7c) 行間・行長（チェックリスト 8-1）
   // 行数は scrollHeight では取れない（高さが内容に追従して伸びるため溢れない）。
-  // Range#getClientRects() の矩形数で実際の折り返し行数を数える。
+  // Range#getClientRects() で数えるが、返るのは行ボックスではなく**テキスト断片**単位である。
+  // <p>本文 <strong>強調</strong> 続き</p> のように行内へインライン要素があると 1 行が複数の
+  // 矩形へ割れ、行数を過大に数えて charsPerLine が実際より小さく出る（＝検知漏れ側へ倒れる）。
+  // top 座標で丸めて集約し、ユニークな行位置の数を行数とする。
   const LINE_HEIGHT_MIN_RATIO = 1.4; // 出典の目安「行間は文字サイズの 50〜100%」の下限側
   const CHARS_PER_LINE_MAX = 50; // 目安 25〜40 字。誤検出を避けるため上限側だけを見る
   const MIN_TEXT_FOR_READABILITY = 80; // 短文は 1 行に収まり行長を論じられない
+  let readabilityUnmeasured = 0; // 測れなかった件数。0 件と「測れず 0 件に見える」を区別する
   for (const { el, sample } of painters) {
     const content = (el.textContent || '').trim();
     if (content.length < MIN_TEXT_FOR_READABILITY) continue;
     const cs = getComputedStyle(el);
     const px = parseFloat(cs.fontSize) || 16;
-    const lh = cs.lineHeight === 'normal' ? px * 1.2 : parseFloat(cs.lineHeight);
-    const ratio = Math.round((lh / px) * 100) / 100;
+    const declared = cs.lineHeight !== 'normal';
+    const lh = declared ? parseFloat(cs.lineHeight) : px * 1.2;
+    const lineHeightRatio = Math.round((lh / px) * 100) / 100;
     let lineCount = 0;
     try {
       const range = document.createRange();
       range.selectNodeContents(el);
-      lineCount = range.getClientRects().length;
+      const tops = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+      lineCount = tops.size;
     } catch {
-      continue; // 範囲を作れない要素は判定しない（未判定であって適合ではない）
+      readabilityUnmeasured++; // 未判定であって適合ではない。件数を返り値へ残す
+      continue;
     }
     if (lineCount < 2) continue;
     const charsPerLine = Math.round(content.length / lineCount);
-    if (ratio < LINE_HEIGHT_MIN_RATIO || charsPerLine > CHARS_PER_LINE_MAX) {
+    if (lineHeightRatio < LINE_HEIGHT_MIN_RATIO || charsPerLine > CHARS_PER_LINE_MAX) {
       add('readabilityOutOfRange', {
         selector: selectorOf(el),
         text: sample,
-        lineHeightRatio: ratio,
+        lineHeightRatio,
+        // 'normal' は宣言ではなくブラウザ既定（概ね 1.15〜1.2）。
+        // 「指定していない」と「過小に指定した」をレポート側で書き分けられるようにする。
+        lineHeightSource: declared ? 'declared' : 'normal',
         charsPerLine,
         lineCount,
         violates: [
-          ratio < LINE_HEIGHT_MIN_RATIO ? `行間 ${ratio} < ${LINE_HEIGHT_MIN_RATIO}` : null,
+          lineHeightRatio < LINE_HEIGHT_MIN_RATIO ? `行間 ${lineHeightRatio} < ${LINE_HEIGHT_MIN_RATIO}` : null,
           charsPerLine > CHARS_PER_LINE_MAX ? `行長 ${charsPerLine} > ${CHARS_PER_LINE_MAX} 字` : null,
         ].filter(Boolean),
       });
@@ -398,7 +412,7 @@ async () => {
     // チェックリスト 4-1（ナビ文言と遷移先タイトルの一致）用。
     // 突合はページ横断のため本関数では行えない。遷移先の doc.title と照合するのは呼び出し側。
     navLinkTargets: navLinks
-      .map((a) => ({ text: text(a), href: a.getAttribute('href') }))
+      .map((a) => ({ text: text(a), href: (a.getAttribute('href') || '').slice(0, 200) }))
       .filter((x) => x.text && x.href)
       .slice(0, MAX_ITEMS),
     distinctTextColors: colors.size,
@@ -456,6 +470,8 @@ async () => {
     url: location.href,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     doc,
+    // 測れなかった件数。findings の 0 件が「適合」か「測れていない」かを読み手が区別できるようにする
+    measurementGaps: { readability: readabilityUnmeasured },
     findings,
     findingCounts: Object.fromEntries(Object.entries(findings).map(([k, v]) => [k, v.count])),
     cognitive,

@@ -112,7 +112,7 @@ Phase 4（評価レポート）で使う項目レベルの評価観点。Nielsen
 | --- | --- | --- | --- |
 | 8-1 | 行間および行長が可読性に適した設定になっているか | `auto` | `findings.readabilityOutOfRange`。行間比 1.4 未満、または 1 行 50 字超を検出。行数は `Range#getClientRects()` の矩形数で数える（`scrollHeight` では折り返しを検知できない） |
 | 8-2 | 錯視による視覚的ズレを意図的に補正しているか | `user-test` | 幾何学的中心と視覚的中心の差は人の目でしか判定できない |
-| 8-3 | 強調表現の多用による優先度のインフレを防いでいるか | `auto`（部分） | `cognitive.distinctTextColors` / `distinctFontFamilies`。太字比率は `auto-todo` |
+| 8-3 | 強調表現の多用による優先度のインフレを防いでいるか | `auto`（部分） | `cognitive.distinctTextColors` / `distinctFontFamilies`。太字比率は未計測（本項目は色数・書体数のみの部分判定） |
 | 8-4 | 情報や機能が隠されずに明示されているか | `interactive` | hover でのみ出現する操作の検出には操作が要る |
 | 8-5 | ボタンの優先度に応じたスタイリングがなされているか | `static` | 主・副アクションの塗り／枠線／テキストの差 |
 | 8-6 | 関連するフォームや情報が近接の原則で整理されているか | `static` | ラベルと入力欄の距離。スクリーンショットで判定 |

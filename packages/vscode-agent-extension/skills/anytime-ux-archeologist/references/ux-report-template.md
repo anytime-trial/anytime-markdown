@@ -36,6 +36,7 @@
 | 有効性 | 操作要素のアクセシブル名欠落 | `findings.interactiveMissingName` | 0 件（欠落＝支援技術利用者には到達不能） |
 | 有効性 | 画像の代替テキスト欠落 | `findings.imgMissingAlt` / `findings.svgUnlabelled` | 0 件（WCAG 2.1 A 1.1.1） |
 | 有効性 | 見出しレベルの飛び | `findings.headingLevelSkipped` | 0 件（WCAG 2.1 A 1.3.1） |
+| 有効性 | フォーム要素のラベル欠落 | `findings.formControlUnlabelled` | 0 件（WCAG 2.1 A 1.3.1 / 3.3.2） |
 | 効率性 | ナビゲーション項目数 | `cognitive.navLinkCount` | Miller 7±2 を目安に、超過は階層化の検討材料 |
 | 効率性 | ファーストビュー内の操作可能要素数 | `cognitive.interactiveInFirstView` | 絶対基準なし。ページ間比較で外れ値を見る |
 | 効率性 | フォーム入力欄数・必須欄数 | `cognitive.formFields` / `requiredFields` | 必須欄の削減余地を検討 |

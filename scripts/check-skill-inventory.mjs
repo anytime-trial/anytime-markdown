@@ -15,6 +15,11 @@
 // 使い方: node scripts/check-skill-inventory.mjs [--json] [inventoryPath]
 // 終了コード: 掲載漏れ・過剰掲載・件数表記の不一致を検出したときのみ 1。
 //
+// **実効範囲はローカル実行のみ。** docsRoot はリポジトリ外にあり GitHub ランナーには
+// 存在しないため、CI の `npm run check-skills` 経由では常に skip される（skip は warn を
+// stderr へ出すだけで、CI ログは緑のまま）。CI にも実効性を持たせるには docs リポジトリを
+// checkout する必要がある。現状は「develop マージ前にローカルで回すゲート」と位置づける。
+//
 // 検査しないもの（意図的な範囲外）:
 //   - §1.1 配置方式の拡張別内訳（表記ゆれに弱く、集合差分で実質カバーされる）
 //   - 各行の用途・トリガ列の内容（機械判定できない）
@@ -22,7 +27,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -90,31 +95,65 @@ export function diffSets(docNames, actualNames) {
   };
 }
 
-/** 件数表記の検査（純粋関数）。表の行数と本文の数字がずれるのが典型的な陳腐化。 */
+/**
+ * 件数表記の検査（純粋関数）。表の行数と本文の数字がずれるのが典型的な陳腐化。
+ *
+ * 期待フレーズの includes だけでは不足する。正しい数字が 1 か所にあれば、同じ言い回しの
+ * 古い数字が別の箇所に残っていても通ってしまう（総数は frontmatter の excerpt と本文の
+ * 2 か所にある）。値を抽出して**全出現**を比較し、書式変更（0 件ヒット）と値の陳腐化を
+ * 別 kind で返す。
+ */
 export function checkCountPhrases(markdown, { total, bundled, projectOnly }) {
-  // 総数は frontmatter の excerpt と本文の 2 か所にあり、片方だけ直すと食い違う。両方を見る。
-  const expected = [
-    `保持する ${total} 本`,
-    `本プロジェクトは ${total} 本`,
-    `うち ${bundled} 本`,
-    `残る ${projectOnly} 本`,
-    `## 1. 拡張同梱スキル（${bundled} 本）`,
-    `## 3. 拡張同梱なしスキル（${projectOnly} 本）`,
+  // アンカーは「その数量にしか当たらない」ところまで伸ばす。緩いと別の数量を拾う。
+  // 実測: `うち (\d+) 本` は §4 の「23 本のうち 20 本は packages 側が正本」にも当たり、
+  // 同梱数 23 を期待して 20 を検出する誤報になった。
+  const specs = [
+    { label: '保持する N 本（excerpt）', re: /保持する (\d+) 本の Claude Code スキル/g, expected: total },
+    { label: '本プロジェクトは N 本（本文）', re: /本プロジェクトは (\d+) 本の Claude Code スキル/g, expected: total },
+    { label: 'うち N 本は VS Code 拡張に同梱', re: /うち (\d+) 本は VS Code 拡張に同梱/g, expected: bundled },
+    { label: '残る N 本は本リポジトリ固有', re: /残る (\d+) 本は本リポジトリ固有/g, expected: projectOnly },
+    { label: '## 1. 拡張同梱スキル（N 本）', re: /## 1\. 拡張同梱スキル（(\d+) 本）/g, expected: bundled },
+    { label: '## 3. 拡張同梱なしスキル（N 本）', re: /## 3\. 拡張同梱なしスキル（(\d+) 本）/g, expected: projectOnly },
   ];
-  return expected.filter((phrase) => !markdown.includes(phrase));
+  const problems = [];
+  for (const { label, re, expected } of specs) {
+    const found = [...markdown.matchAll(re)].map((m) => Number(m[1]));
+    if (found.length === 0) {
+      // 推敲で言い回しが変わった可能性。データの陳腐化とは区別する
+      problems.push({ kind: 'count-phrase-missing', label, expected });
+      continue;
+    }
+    const stale = found.filter((v) => v !== expected);
+    if (stale.length > 0) {
+      problems.push({ kind: 'count-mismatch', label, expected, found: stale });
+    }
+  }
+  return problems;
 }
 
-function main() {
-  const args = process.argv.slice(2);
+export function main(args = process.argv.slice(2)) {
   const asJson = args.includes('--json');
   const explicitPath = args.find((a) => !a.startsWith('--'));
   const inventoryPath = explicitPath ?? join(DOCS_ROOT, INVENTORY_REL);
 
-  if (!existsSync(inventoryPath)) {
-    console.warn(
-      `[check-skill-inventory] ${inventoryPath} が見つかりません。検証不能のためスキップします（掲載漏れの有無は未判定）`,
-    );
+  // fail-open は「docsRoot ごと存在しない」ケースだけに限定する。
+  // docsRoot が在るのに一覧文書だけ無いのは、検証不能ではなく一覧が消えた状態であり、
+  // まさに本ゲートが検知すべき事象なので落とす。明示パス指定時も同様（打ち間違いを
+  // 黙って成功にすると「走らせたつもりで走っていない」を作れる）。
+  if (!explicitPath && !existsSync(DOCS_ROOT)) {
+    const reason = `${DOCS_ROOT} が存在しません。検証不能のためスキップします（掲載漏れの有無は未判定）`;
+    if (asJson) console.log(JSON.stringify({ inventoryPath, skipped: true, reason, problems: [] }, null, 2));
+    else console.warn(`[check-skill-inventory] ${reason}`);
     return 0;
+  }
+  if (!existsSync(inventoryPath)) {
+    const detail = `${inventoryPath} が見つかりません`;
+    if (asJson) {
+      console.log(JSON.stringify({ inventoryPath, problems: [{ kind: 'inventory-missing', detail }] }, null, 2));
+    } else {
+      console.error(`[check-skill-inventory] NG: ${detail}（docsRoot は存在します。改名・削除を疑ってください）`);
+    }
+    return 1;
   }
 
   const markdown = readFileSync(inventoryPath, 'utf8');
@@ -155,13 +194,11 @@ function main() {
         problems.push({ kind: 'missing-in-reality', section, name });
       }
     }
-    for (const phrase of checkCountPhrases(markdown, {
+    problems.push(...checkCountPhrases(markdown, {
       total: actualBundled.size + actualProjectOnly.size,
       bundled: actualBundled.size,
       projectOnly: actualProjectOnly.size,
-    })) {
-      problems.push({ kind: 'count-mismatch', detail: phrase });
-    }
+    }));
   }
 
   if (asJson) {
@@ -182,7 +219,9 @@ function main() {
     } else if (p.kind === 'missing-in-reality') {
       console.error(`  過剰掲載 [${p.section}] ${p.name} — 一覧にあるが実体がありません`);
     } else if (p.kind === 'count-mismatch') {
-      console.error(`  件数表記 "${p.detail}" が本文に見つかりません`);
+      console.error(`  件数表記 "${p.label}" が実態 ${p.expected} と食い違います（記載: ${p.found.join(' / ')}）`);
+    } else if (p.kind === 'count-phrase-missing') {
+      console.error(`  件数表記 "${p.label}" が本文に見つかりません（期待値 ${p.expected}。言い回しの変更を疑ってください）`);
     } else {
       console.error(`  ${p.kind} [${p.section}] ${p.detail}`);
     }
@@ -191,6 +230,6 @@ function main() {
   return 1;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('check-skill-inventory.mjs')) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exit(main());
 }
