@@ -23,12 +23,51 @@
 import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
 
 import { buildEditorExtensions } from "../buildEditorExtensions";
+import { installBlockOverlays } from "../chrome/installBlockOverlays";
+import { createEditorBubbleMenu } from "../components-vanilla/EditorBubbleMenu";
+import { createEditorContextMenu } from "../components-vanilla/EditorContextMenu";
+import { createEditorDialogs } from "../components-vanilla/EditorDialogs";
+import { createEditorMenuPopovers } from "../components-vanilla/EditorMenuPopovers";
+import { createEditorSettingsPanel } from "../components-vanilla/EditorSettingsPanel";
+import { createEditorSideToolbar } from "../components-vanilla/EditorSideToolbar";
+import {
+  createEditorToolbar,
+  type CreateEditorToolbarOptions,
+} from "../components-vanilla/EditorToolbar";
+import {
+  createFrontmatterBlock,
+  type FrontmatterBlockHandle,
+} from "../components-vanilla/FrontmatterBlock";
+import { createMarkdownMinimap } from "../components-vanilla/MarkdownMinimap";
+import { createSearchReplaceBar } from "../components-vanilla/SearchReplaceBar";
+import { DEFAULT_SLASH_ITEMS } from "../components-vanilla/slashCommandItems";
+import {
+  createSlashCommandMenu,
+  type VanillaSlashCommandItem,
+} from "../components-vanilla/SlashCommandMenu";
+import { createStatusBar, type StatusInfo } from "../components-vanilla/StatusBar";
+import {
+  openTableEditDialog,
+  type TableEditDialogHandle,
+} from "../components-vanilla/TableEditDialog";
+import {
+  createViewerToolbar,
+  type ViewerToolbarHandle,
+} from "../components-vanilla/ViewerToolbar";
+import { getEditDialogBg } from "../constants/colors";
+import type { ThemePresetName } from "../constants/themePresets";
+import { DEFAULT_SETTINGS, type EditorSettings } from "../editorSettings";
+import { setContentBypassingSectionLock } from "../extensions/sectionLockPlugin";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
+import {
+  type LinkedMdContent,
+  type LinkedMdSaveResult,
+  type LinkedMdToken,
+  setLinkedMdProvider,
+} from "../linkedMdProvider";
 import { getEditorStorage, getMarkdownFromEditor, type HeadingItem, type TranslationFn } from "../types";
-import { DEFAULT_SETTINGS, type EditorSettings } from "../editorSettings";
-import { measureToCssMaxWidth } from "../utils/measurePreset";
-import type { ThemePresetName } from "../constants/themePresets";
+import type { FileSystemProvider } from "../types/fileSystem";
 import type {
   ToolbarFileCapabilities,
   ToolbarFileHandlers,
@@ -37,89 +76,46 @@ import type {
   ToolbarVisibility,
 } from "../types/toolbar";
 import type { CommentInfo } from "../utils/commentNotifications";
-import { installCommentNotifications } from "../utils/commentNotifications";
 import { onCommentStateChange } from "../utils/commentStateSubscription";
 import { readDraft, writeDraft } from "../utils/draftStorage";
-import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
-import type { FileSystemProvider } from "../types/fileSystem";
-import { createFileOpsController, type SaveTargetInfo } from "./fileOpsController";
-import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
-import { setContentBypassingSectionLock } from "../extensions/sectionLockPlugin";
-import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
-import {
-  type ExternalSaveKind,
-  fileOriginFor,
-  nextExternalSaveKind,
-} from "../utils/externalSaveKind";
-import { EDITOR_CODE_VARS_CHANGED_EVENT } from "../utils/editorCodeCssVars";
+import { type ExternalSaveKind, fileOriginFor } from "../utils/externalSaveKind";
+import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
+import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
+import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
+import { composeInsertSnippet, composeNewDocument } from "../webImport/composeMarkdown";
+import { fetchAndConvert } from "../webImport/importWebPage";
+import { getWebImportProvider } from "../webImport/webImportProvider";
+import { createCompareMode } from "./chrome/compareMode";
 import { installContentFileDrop } from "./chrome/contentFileDrop";
+import { createEditorAppearance } from "./chrome/editorAppearance";
 import { installEditorDomShortcuts, installGlobalShortcuts } from "./chrome/editorShortcuts";
-import { installEditorZoom } from "./chrome/editorZoom";
-import { createLiveUpdate } from "./chrome/liveUpdate";
-import { installSidebarPanels } from "./chrome/sidebarPanels";
-import { installSectionLocks } from "./chrome/sectionLocks";
-import { createVanillaEditorHost } from "./vanillaEditorHost";
 import {
-  createAutoReloadController,
-  installFrontmatterStorage,
-  installHeadingsNotifier,
-  installVSCodeContentSync,
-  installVSCodeEditorEvents,
-  installVSCodeModeEvents,
-} from "./vanillaPageSeams";
+  applySettingsOverrides,
+  createInitialModeState,
+  resolveInitialSettings,
+} from "./chrome/editorState";
+import { installEditorZoom } from "./chrome/editorZoom";
+import { buildFileHandlers } from "./chrome/fileHandlers";
+import { createFileStatusSync } from "./chrome/fileStatusSync";
+import { createLiveUpdate } from "./chrome/liveUpdate";
+import { installNotifierSeams } from "./chrome/notifierSeams";
+import { installSectionLocks } from "./chrome/sectionLocks";
+import { installSidebarPanels } from "./chrome/sidebarPanels";
+import { installSideToolbar } from "./chrome/sideToolbar";
+import { createFileOpsController, type SaveTargetInfo } from "./fileOpsController";
 import {
   createSourceModeController,
   type SourceModeController,
   type VanillaEditorMode,
 } from "./sourceModeController";
-import { installBlockOverlays } from "../chrome/installBlockOverlays";
-import { injectEditorContentCss } from "../styles/editorContentCss";
-import { getEditDialogBg, getEditorBg, getEditorText } from "../constants/colors";
-import { calcPaperContentWidth } from "../constants/dimensions";
+import { createVanillaEditorHost } from "./vanillaEditorHost";
 import {
-  openTableEditDialog,
-  type TableEditDialogHandle,
-} from "../components-vanilla/TableEditDialog";
-import { createEditorBubbleMenu } from "../components-vanilla/EditorBubbleMenu";
-import { createStatusBar, type StatusInfo } from "../components-vanilla/StatusBar";
-import {
-  createFrontmatterBlock,
-  type FrontmatterBlockHandle,
-} from "../components-vanilla/FrontmatterBlock";
-import {
-  createSlashCommandMenu,
-  type VanillaSlashCommandItem,
-} from "../components-vanilla/SlashCommandMenu";
-import { DEFAULT_SLASH_ITEMS } from "../components-vanilla/slashCommandItems";
-import {
-  createEditorToolbar,
-  type CreateEditorToolbarOptions,
-} from "../components-vanilla/EditorToolbar";
-import {
-  createViewerToolbar,
-  type ViewerToolbarHandle,
-} from "../components-vanilla/ViewerToolbar";
-import { createEditorContextMenu } from "../components-vanilla/EditorContextMenu";
-import {
-  createInlineMergeView,
-  type InlineMergeViewHandle,
-} from "../components-vanilla/InlineMergeView";
-import { createEditorDialogs } from "../components-vanilla/EditorDialogs";
-import { createEditorMenuPopovers } from "../components-vanilla/EditorMenuPopovers";
-import { createEditorSettingsPanel } from "../components-vanilla/EditorSettingsPanel";
-import { createEditorSideToolbar } from "../components-vanilla/EditorSideToolbar";
-import { createSearchReplaceBar } from "../components-vanilla/SearchReplaceBar";
-import { createMarkdownMinimap } from "../components-vanilla/MarkdownMinimap";
-import {
-  setLinkedMdProvider,
-  type LinkedMdContent,
-  type LinkedMdSaveResult,
-  type LinkedMdToken,
-} from "../linkedMdProvider";
-import { getWebImportProvider } from "../webImport/webImportProvider";
-import { fetchAndConvert } from "../webImport/importWebPage";
-import { composeInsertSnippet, composeNewDocument } from "../webImport/composeMarkdown";
+  createAutoReloadController,
+  installVSCodeContentSync,
+  installVSCodeEditorEvents,
+  installVSCodeModeEvents,
+} from "./vanillaPageSeams";
 
 /** 保存（onContentChange / localStorage）デバウンス（React useMarkdownEditor と同値）。 */
 const SAVE_DEBOUNCE_MS = 500;
@@ -455,30 +451,6 @@ function buildLayout(): VanillaLayout {
   };
 }
 
-/**
- * settings を editor / root へ適用する（React useEditorSettingsSync 相当の素 DOM 版）。
- */
-function applyEditorSettings(
-  editor: Editor,
-  root: HTMLElement,
-  settings: EditorSettings,
-  readonlyMode: boolean,
-): void {
-  // スペルチェック機能は撤去済み。エディタ DOM では常に無効化する
-  // （未指定だと contenteditable のブラウザ既定で有効化されるため明示的に false 固定）。
-  editor.view.dom.setAttribute("spellcheck", "false");
-  editor.setEditable(!readonlyMode);
-  root.style.setProperty("--am-editor-font-size", `${settings.fontSize}px`);
-  root.style.setProperty("--am-editor-line-height", String(settings.lineHeight));
-  root.style.setProperty("--am-editor-measure", measureToCssMaxWidth(settings.measure));
-  root.style.setProperty("--am-editor-word-break", settings.wordBreak);
-  root.style.setProperty("--am-editor-table-width", settings.tableWidth);
-  root.dataset.blockAlign = settings.blockAlign;
-  root.dataset.paperSize = settings.paperSize;
-  root.dataset.tableWidth = settings.tableWidth;
-  root.style.setProperty("--am-paper-margin", `${settings.paperMargin}mm`);
-}
-
 /** persistDraft 時の下書き読込（失敗時は initialContent へフォールバック）。 */
 function loadDraft(initialContent: string): string {
   return readDraft(initialContent);
@@ -714,67 +686,19 @@ export function mountVanillaMarkdownEditor(
       const disposers: Array<() => void> = [];
 
       // === 状態（closure・React hooks の置換） =================================
-      let settings: EditorSettings = { ...(current.settings ?? DEFAULT_SETTINGS) };
-      if (current.initialFontSize && settings.fontSize !== current.initialFontSize) {
-        settings.fontSize = current.initialFontSize;
-      }
-      const effectiveSettings = (): EditorSettings => ({
-        ...settings,
-        ...(current.defaultFontSize ? { fontSize: current.defaultFontSize } : {}),
-        ...(current.defaultBlockAlign ? { blockAlign: current.defaultBlockAlign } : {}),
-      });
-      const modeState: ToolbarModeState = {
-        sourceMode: false,
-        readonlyMode: false,
-        hostReadOnly: current.readOnly ?? false,
-        reviewMode: false,
-        outlineOpen: current.defaultOutlineOpen ?? false,
-        inlineMergeOpen: false,
-        commentOpen: false,
-        explorerOpen: false,
-        noteGraphOpen: current.defaultNoteGraphOpen ?? false,
-      };
+      let settings: EditorSettings = resolveInitialSettings(current);
+      const effectiveSettings = (): EditorSettings => applySettingsOverrides(settings, current);
+      const modeState: ToolbarModeState = createInitialModeState(current);
       const readonlyNow = (): boolean => (current.readOnly ?? false) || modeState.readonlyMode === true;
       const notifyMode = (): void => current.onModeChange?.({ ...modeState });
-      /**
-       * rich codeblock（native content）が読む実行時 CSS 変数（CodeDialogHost 相当）。
-       * documentElement でなく editor root へ書き、複数インスタンス間の後勝ち上書きを防ぐ
-       * （カスタムプロパティは継承するため、NodeView は自身の要素の computed style から読める）。
-       */
-      const applyCodeCssVars = (): void => {
-        root.style.setProperty("--am-editor-dark", current.themeMode === "dark" ? "1" : "0");
-        root.style.setProperty("--am-code-font-size", `${effectiveSettings().fontSize}px`);
-        root.style.setProperty("--am-code-line-height", `${effectiveSettings().lineHeight}`);
-        // NodeView（rich codeblock）は構築時に変数を読めない（dom 未接続・本適用前）ため、
-        // 適用完了を通知して isDark / fontSize 変化を再描画させる（mermaid ダーク色の回帰防止）。
-        document.dispatchEvent(new CustomEvent(EDITOR_CODE_VARS_CHANGED_EVENT));
-      };
-      /**
-       * コンテンツ装飾 CSS（styles/editorContentCss・旧 GlobalStyle 注入の置換）と、
-       * その CSS が参照するテーマ × 設定依存の CSS 変数（背景・文字色・用紙幅）を適用する。
-       */
-      const applyContentCssVars = (): void => {
-        const isDark = current.themeMode === "dark";
-        const s = effectiveSettings();
-        injectEditorContentCss(isDark);
-        root.style.setProperty("--am-editor-text", getEditorText(isDark, s));
-        const editorBg = getEditorBg(isDark, s);
-        root.style.setProperty("--am-editor-bg", editorBg);
-        // 用紙サイズ有効時は外側を少し暗く/明るくして用紙境界を示す（旧 getEditorPaperSx と同値）
-        const paperBg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
-        root.style.setProperty("--am-editor-outer-bg", s.paperSize === "off" ? editorBg : paperBg);
-        if (s.paperSize !== "off") {
-          root.style.setProperty(
-            "--am-paper-max-width",
-            `${calcPaperContentWidth(s.paperSize, s.paperMargin)}px`,
-          );
-        }
-      };
-      const applyAllSettings = (): void => {
-        applyEditorSettings(editor, root, effectiveSettings(), readonlyNow());
-        applyCodeCssVars();
-        applyContentCssVars();
-      };
+      const appearance = createEditorAppearance({
+        editor,
+        root,
+        getSettings: effectiveSettings,
+        isDark: () => current.themeMode === "dark",
+        isReadOnly: readonlyNow,
+      });
+      const applyAllSettings = (): void => appearance.applyAll();
       applyAllSettings();
       setTrailingNewline(editor, initialTrailingNewline);
       if (pre.comments.size > 0) {
@@ -921,24 +845,18 @@ export function mountVanillaMarkdownEditor(
 
       // === file ops（fileSystemProvider / onExternalSave / import / clear・React useFileSystem
       //     + useEditorFileOps の plain 版） ========================================
-      // 上書き保存の宛先種別（ラベル切替用）。保存先の遷移とホストの live prop の双方で変わる。
-      let externalSaveKind = current.fileCapabilities?.externalSaveKind ?? current.externalSaveKind;
-      /**
-       * 宛先種別を反映してツールバーのラベルとステータスバーの所在バッジを更新する
-       * （値が変わったときのみ）。
-       */
-      const applyExternalSaveKind = (next: ExternalSaveKind | undefined): void => {
-        if (externalSaveKind === next) return;
-        externalSaveKind = next;
-        toolbar?.update({
-          fileCapabilities: {
-            ...fileCapabilities,
-            hasSaveTarget: fileOps.hasSaveTarget(),
-            externalSaveKind,
-          },
-        });
-        statusBar?.update({ fileOrigin: fileOriginFor(fileOps.getFileName(), externalSaveKind) });
-      };
+      // 保存先の状態（ファイル名・dirty・宛先種別）→ toolbar / statusBar の反映は chrome/fileStatusSync。
+      const fileStatus = createFileStatusSync(
+        {
+          getFileOps: () => fileOps,
+          getToolbar: () => toolbar,
+          getStatusBar: () => statusBar,
+          getFileCapabilities: () => fileCapabilities,
+          getHostExternalSaveKind: () => current.externalSaveKind,
+          notifySaveTarget: (target) => current.onSaveTargetChange?.(target),
+        },
+        current.fileCapabilities?.externalSaveKind ?? current.externalSaveKind,
+      );
       const fileOps = createFileOpsController({
         editor,
         t,
@@ -958,32 +876,8 @@ export function mountVanillaMarkdownEditor(
         getSourceMode: () => modeState.sourceMode === true,
         getSourceText: () => sourceController?.getSourceText() ?? "",
         setSourceText: (text) => sourceController?.setSourceText(text),
-        onSaveTargetChange: (target) => {
-          // ローカルへ移れば種別は消え、外部保存のままならホストの最新値（GitHub → Drive 等）へ追従する。
-          // fileOps は onFileStateChange を先に発火させるため、ここで改めてツールバーへ反映する。
-          applyExternalSaveKind(nextExternalSaveKind(target?.kind ?? null, current.externalSaveKind));
-          current.onSaveTargetChange?.(target);
-        },
-        onFileStateChange: ({ fileName, isDirty }) => {
-          // fileOps が文書ファイル名の単一の真実源。`current.fileName`（外部ソース由来）は
-          // mount / update で fileOps へ取り込むため、ここでフォールバックしてはならない
-          // （フォールバックすると Drive で開いた本文が localStorage の古いローカル名へ戻る）。
-          statusBar?.update({
-            fileName,
-            isDirty,
-            fileOrigin: fileOriginFor(fileName, externalSaveKind),
-          });
-          // save ボタンの dirty ゲート（保存が必要なときのみ有効化）。ファイルを開く/保存で
-          // hasSaveTarget も変わるため、最新の保存先状態と合わせてツールバーへ反映する。
-          toolbar?.update({
-            isDirty,
-            fileCapabilities: {
-              ...fileCapabilities,
-              hasSaveTarget: fileOps.hasSaveTarget(),
-              externalSaveKind,
-            },
-          });
-        },
+        onSaveTargetChange: fileStatus.handleSaveTargetChange,
+        onFileStateChange: fileStatus.handleFileStateChange,
         notify: (key) => {
           layout.liveRegion.textContent = t(key);
         },
@@ -1027,72 +921,18 @@ export function mountVanillaMarkdownEditor(
       globalThis.addEventListener("beforeunload", onBeforeUnload);
       disposers.push(() => globalThis.removeEventListener("beforeunload", onBeforeUnload));
 
-      // === file handlers（opts 優先・未指定は fileOps / editor / blob ベースの既定） =
-      const defaultDownload = (): void => {
-        const md = fileOps.getFullMarkdown();
-        const blob = new Blob([md], { type: "text/markdown" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileOps.getFileName() ?? "untitled.md";
-        a.click();
-        URL.revokeObjectURL(url);
-      };
-      // toolbar の import ボタン（引数なし）: ファイルピッカー → 確認付き取り込み。
-      const defaultImportClick = (): void => {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".md,.markdown,text/markdown,text/plain";
-        input.addEventListener("change", () => {
-          const file = input.files?.[0];
-          if (file) void fileOps.selectFile(file);
-        });
-        input.click();
-      };
-      const fileHandlers: ToolbarFileHandlers = {
-        onDownload: current.fileHandlers?.onDownload ?? defaultDownload,
-        onImport: current.fileHandlers?.onImport ?? defaultImportClick,
-        onClear: current.fileHandlers?.onClear ?? (() => void fileOps.clearAll()),
-        onOpenFile:
-          current.fileHandlers?.onOpenFile ??
-          (current.fileSystemProvider ? () => void fileOps.openFile() : undefined),
-        // Drive から開く経路は fileOps の外側で文書を差し替えるため、ここで未保存ガードを掛ける。
-        onOpenFromDrive: current.fileHandlers?.onOpenFromDrive
-          ? async () => {
-              if (!(await fileOps.confirmContinue())) return;
-              await current.fileHandlers?.onOpenFromDrive?.();
-            }
-          : undefined,
-        // GitHub から開く経路も同様に fileOps の外側で差し替えるため未保存ガードを掛ける。
-        onOpenFromGitHub: current.fileHandlers?.onOpenFromGitHub
-          ? async () => {
-              if (!(await fileOps.confirmContinue())) return;
-              await current.fileHandlers?.onOpenFromGitHub?.();
-            }
-          : undefined,
-        onNewFile: current.fileHandlers?.onNewFile ?? (() => void fileOps.newFile()),
-        onSaveToDrive: current.fileHandlers?.onSaveToDrive,
-        onSaveFile:
-          current.fileHandlers?.onSaveFile ??
-          (current.fileSystemProvider || current.onExternalSave
-            ? () => void fileOps.saveFile()
-            : undefined),
-        onSaveAsFile:
-          current.fileHandlers?.onSaveAsFile ??
-          (current.fileSystemProvider ? () => void fileOps.saveAsFile() : undefined),
-        onWebImport: current.fileHandlers?.onWebImport ?? (() => dialogs.openWebImport("create")),
-        onExportPdf: current.fileHandlers?.onExportPdf,
-        onLoadRightFile: current.fileHandlers?.onLoadRightFile,
-        onExportRightFile: current.fileHandlers?.onExportRightFile,
-      };
-      const fileCapabilities: ToolbarFileCapabilities = {
-        ...(current.fileCapabilities ?? {
-          hasSaveTarget: fileOps.hasSaveTarget(),
-          supportsDirectAccess: current.fileSystemProvider?.supportsDirectAccess ?? false,
-          externalSaveOnly: !current.fileSystemProvider && !!current.onExternalSave,
-        }),
-        externalSaveKind,
-      };
+      // === file handlers（override 優先・既定の組み立ては chrome/fileHandlers） =====
+      const { fileHandlers, fileCapabilities } = buildFileHandlers({
+        fileOps,
+        overrides: current.fileHandlers,
+        liveOverrides: () => current.fileHandlers,
+        fileSystemProvider: current.fileSystemProvider,
+        hasExternalSave: !!current.onExternalSave,
+        capabilities: current.fileCapabilities,
+        externalSaveKind: fileStatus.getExternalSaveKind(),
+        openWebImport: () => dialogs.openWebImport("create"),
+      });
+
 
       // === 確定セクションロック（Phase 5 S4・FR-S4-2） =========================
       const sectionLocks = installSectionLocks({
@@ -1119,58 +959,6 @@ export function mountVanillaMarkdownEditor(
         canToggleSectionLock: () => !readonlyNow() && modeState.reviewMode !== true,
       });
       disposers.push(() => sidebarPanels.dispose());
-
-      // === merge（比較）モード state（useMergeMode 相当・パネルは syncMergeView） ==
-      let compareFileContent: string | null = null;
-      let editorMarkdown = "";
-      let clearDiffTimer: ReturnType<typeof setTimeout> | null = null;
-      const notifyCompareMode = (): void =>
-        current.onCompareModeChange?.(modeState.inlineMergeOpen === true);
-      // merge ビュー本体（InlineMergeView vanilla）の配線（実体は toolbar 構築後に代入）。
-      let syncMergeView: () => void = () => {};
-      let mergeView: InlineMergeViewHandle | null = null;
-      const setInlineMergeOpen = (open: boolean): void => {
-        if (modeState.inlineMergeOpen === open) return;
-        modeState.inlineMergeOpen = open;
-        // 比較中はホストの単一 frontmatter バーを隠す（InlineMergeView 内蔵の比較行に委ねる）。
-        compareModeActive = open;
-        syncFrontmatterView();
-        if (!open) {
-          if (clearDiffTimer) clearTimeout(clearDiffTimer);
-          clearDiffTimer = setTimeout(() => {
-            if (!editor.isDestroyed) editor.commands.clearDiffHighlight();
-          }, 100);
-        }
-        syncMergeView();
-        refreshToolbarMode();
-        notifyCompareMode();
-      };
-      const applyExternalCompareContent = (content: string): void => {
-        compareFileContent = content;
-        if (!modeState.inlineMergeOpen) {
-          if (!modeState.sourceMode) {
-            editorMarkdown = getMarkdownFromEditorSafe(editor) ?? "";
-          }
-          setInlineMergeOpen(true);
-        } else {
-          syncMergeView();
-        }
-      };
-      disposers.push(() => {
-        if (clearDiffTimer) clearTimeout(clearDiffTimer);
-      });
-      // VS Code からの比較ロード/解除（useMergeMode のカスタムイベント相当）。
-      const onLoadCompareFile = (e: Event): void => {
-        const content = (e as CustomEvent<string>).detail;
-        if (typeof content === "string") applyExternalCompareContent(content);
-      };
-      const onExitCompareMode = (): void => setInlineMergeOpen(false);
-      globalThis.addEventListener("vscode-load-compare-file", onLoadCompareFile);
-      globalThis.addEventListener("vscode-exit-compare-mode", onExitCompareMode);
-      disposers.push(() => {
-        globalThis.removeEventListener("vscode-load-compare-file", onLoadCompareFile);
-        globalThis.removeEventListener("vscode-exit-compare-mode", onExitCompareMode);
-      });
 
       // === mode handlers（sourceModeController + closure 状態 + toolbar 再描画） ==
       let toolbar: ReturnType<typeof createEditorToolbar> | null = null;
@@ -1213,6 +1001,29 @@ export function mountVanillaMarkdownEditor(
         notifyMode();
       };
 
+      // === merge（比較）モード（開閉遷移・diff 基準・InlineMergeView 実体） ========
+      const compare = createCompareMode({
+        editor,
+        t,
+        contentEl,
+        editorMountEl,
+        minimap,
+        modeState,
+        getSettings: effectiveSettings,
+        getFrontmatter: () => frontmatter,
+        getCodeBlockExtension: () => current.codeBlockExtension,
+        getSourceController: () => sourceController,
+        setMergeUndoRedo: (handle) => toolbar?.update({ mergeUndoRedo: handle }),
+        saveEditedText: (text) => saveContent(() => text, false),
+        setCompareModeActive: (active) => {
+          compareModeActive = active;
+        },
+        syncFrontmatterView,
+        refreshToolbarMode,
+        notifyCompareMode: (open) => current.onCompareModeChange?.(open),
+      });
+      disposers.push(() => compare.dispose());
+
       sourceController = createSourceModeController({
         editor,
         contentEl,
@@ -1231,11 +1042,7 @@ export function mountVanillaMarkdownEditor(
           // 表示されるグリッチを防ぐ）。WYSIWYG/review/readonly では本文が見えるので表示する。
           minimap.setActive(mode !== "source");
           // 比較モード中はモード切替を比較ビューへ反映する（standalone DOM は出さない）。
-          // source→wysiwyg では右ペイン diff の基準となる editorMarkdown を最新化する。
-          if (modeState.inlineMergeOpen) {
-            if (!modeState.sourceMode) editorMarkdown = getMarkdownFromEditorSafe(editor) ?? "";
-            syncMergeView();
-          }
+          compare.syncAfterModeChange();
           refreshToolbarMode();
         },
         announce: (message) => {
@@ -1297,12 +1104,7 @@ export function mountVanillaMarkdownEditor(
           }
           refreshToolbarMode();
         },
-        onMerge: () => {
-          if (!modeState.inlineMergeOpen && !modeState.sourceMode) {
-            editorMarkdown = getMarkdownFromEditorSafe(editor) ?? "";
-          }
-          setInlineMergeOpen(!modeState.inlineMergeOpen);
-        },
+        onMerge: () => compare.toggle(),
       };
 
       // === ViewerToolbar（read-only ビュー用・編集ツールバーより優先） ==========
@@ -1360,32 +1162,26 @@ export function mountVanillaMarkdownEditor(
         disposers.push(() => toolbar?.destroy());
       }
 
-      // === SideToolbar（右端縦・outline/comment/settings） ======================
+      // === SideToolbar（右端縦・設置は chrome/sideToolbar） =====================
       if (current.sideToolbar) {
-        sideToolbarHandle = createEditorSideToolbar({
+        const side = installSideToolbar({
           t,
-          sourceMode: modeState.sourceMode,
-          outlineOpen: modeState.outlineOpen,
-          commentOpen: modeState.commentOpen,
-          explorerOpen: modeState.explorerOpen,
-          noteGraphOpen: modeState.noteGraphOpen,
-          onToggleOutline: modeHandlers.onToggleOutline,
+          slot: sideToolbarSlot,
+          modeState,
+          modeHandlers,
+          hide: current.hide,
+          hasNoteGraph: !!current.noteGraph,
           onToggleComment: (open) => {
             modeState.commentOpen = open;
             refreshToolbarMode();
           },
-          // 上部ツールバーの explorer ボタンは sideToolbar 併用時に side-coupled で ≥900px から
-          // 隠れる（EditorToolbar.ts）。受け皿のこちらへ配線しないと広い画面でトグルが消える。
-          onToggleExplorer: current.hide?.explorer ? undefined : modeHandlers.onToggleExplorer,
-          // ノート網パネルが提供されている場合のみアイコンを出す
-          onToggleNoteGraph: current.noteGraph ? modeHandlers.onToggleNoteGraph : undefined,
-          onOpenSettings: current.hide?.settings ? undefined : openSettings,
-          // ハンバーガー（その他メニュー）の versionInfo と同じダイアログを最上部に鏡写しする。
-          onOpenVersionDialog: current.hide?.versionInfo ? undefined : () => dialogs.openVersion(),
+          onOpenSettings: openSettings,
+          onOpenVersionDialog: () => dialogs.openVersion(),
         });
-        sideToolbarSlot.appendChild(sideToolbarHandle.el);
-        disposers.push(() => sideToolbarHandle?.destroy());
+        sideToolbarHandle = side.handle;
+        disposers.push(side.dispose);
       }
+
 
       // === BubbleMenu（onLink → dialog・readOnly 変更時は remake） ==============
       // readonlyMode / reviewMode は getter で渡し、モード切替に追従させる（show 毎に評価される）。
@@ -1409,7 +1205,7 @@ export function mountVanillaMarkdownEditor(
         editor,
         t,
         fileName: fileOps.getFileName(),
-        fileOrigin: fileOriginFor(fileOps.getFileName(), externalSaveKind),
+        fileOrigin: fileOriginFor(fileOps.getFileName(), fileStatus.getExternalSaveKind()),
         onStatusChange: current.onStatusChange,
         hidden: current.hideStatusBar,
         getSourceTextarea: () => sourceController?.getTextarea() ?? null,
@@ -1436,83 +1232,8 @@ export function mountVanillaMarkdownEditor(
         slash.destroy();
       });
 
-      // === merge ビュー実体（InlineMergeView vanilla・syncMergeView へ代入） =====
-      const mergeEditorContent = (): string =>
-        modeState.sourceMode
-          ? (sourceController?.getSourceText() ?? "")
-          : editorMarkdown;
-      // 比較中の editor.view.dom 表示制御: sourceMode は比較ビューが textarea で表示を担い、
-      // editor（editorMountEl）は contentEl 上の孤児になるため隠す。WYSIWYG は右ペインへ移設した
-      // editor を表示する（detachStandaloneUi の display 復帰や renderWysiwyg の非リセットを上書き）。
-      const applyCompareEditorVisibility = (): void => {
-        editor.view.dom.style.display = modeState.sourceMode ? "none" : "";
-      };
-      syncMergeView = (): void => {
-        if (modeState.inlineMergeOpen && !mergeView) {
-          // WYSIWYG では右パネルが editorMountEl（editor.options.element）ごと自分の中へ移設する。
-          // 比較 enter: standalone source UI を撤去し editor.view.dom の display を戻す
-          // （比較ビューが source/wysiwyg 表示を一元管理する。display:none 残留で右ペインが
-          // 不可視になる回帰を防ぐ）。
-          sourceController?.detachStandaloneUi();
-          mergeView = createInlineMergeView({
-            editor,
-            t,
-            settings: {
-              fontSize: effectiveSettings().fontSize,
-              lineHeight: effectiveSettings().lineHeight,
-            },
-            sourceMode: modeState.sourceMode === true,
-            editorContent: mergeEditorContent(),
-            frontmatter,
-            codeBlockExtension: current.codeBlockExtension,
-            compareContent: compareFileContent,
-            onCompareContentConsumed: () => {
-              compareFileContent = null;
-            },
-            onEditTextChange: (text) => {
-              if (modeState.sourceMode) sourceController?.setSourceText(text);
-              saveContent(() => text, false);
-            },
-            onUndoRedoChange: (handle) => toolbar?.update({ mergeUndoRedo: handle }),
-            // 差分ハイライト/アライン確定時にミニマップの差分マーカーを再計算する。
-            onDiffChange: () => minimap.refresh(),
-          });
-          contentEl.appendChild(mergeView.el);
-          applyCompareEditorVisibility();
-          // ミニマップを差分モードへ切替（右ペインを基準に [data-diff-block] をマーカー表示）。
-          const activeMerge = mergeView;
-          minimap.setDiffSource({
-            scrollContainer: activeMerge.getRightScroller(),
-            getRatios: () => activeMerge.getDiffBlockRatios(),
-          });
-        } else if (modeState.inlineMergeOpen && mergeView) {
-          mergeView.update({
-            sourceMode: modeState.sourceMode === true,
-            editorContent: mergeEditorContent(),
-            frontmatter,
-            compareContent: compareFileContent,
-          });
-          applyCompareEditorVisibility();
-        } else if (!modeState.inlineMergeOpen && mergeView) {
-          mergeView.destroy();
-          mergeView.el.remove();
-          mergeView = null;
-          toolbar?.update({ mergeUndoRedo: null });
-          // ミニマップを既定（本文の変更追跡）へ戻す。
-          minimap.setDiffSource(null);
-          // editorMountEl は merge 右パネル内に移設されている場合があるため contentEl へ戻す。
-          if (editorMountEl.parentElement !== contentEl) {
-            contentEl.appendChild(editorMountEl);
-          }
-          // 比較 exit: source モードなら standalone source UI を再生成して戻す。
-          sourceController?.attachStandaloneUi();
-        }
-      };
-      disposers.push(() => {
-        mergeView?.destroy();
-        mergeView?.el.remove();
-        mergeView = null;
-      });
+      // === merge ビュー実体の後始末（生成・同期は createCompareMode が持つ） =====
+      disposers.push(() => compare.destroyView());
 
       // === editorProps（paste/drop/click/clipboard + heading menu） =============
       // React の useRef を plain { current } で置換（構造的互換）。
@@ -1575,25 +1296,19 @@ export function mountVanillaMarkdownEditor(
       disposers.push(() => contextMenu?.destroy());
 
       // === 通知系 seam（headings / comments / frontmatter storage） =============
-      if (current.onHeadingsChange) {
-        disposers.push(
-          installHeadingsNotifier(editor, (h) => current.onHeadingsChange?.(h)),
-        );
-      }
-      if (current.onCommentsChange) {
-        disposers.push(
-          installCommentNotifications(editor, (c) => current.onCommentsChange?.(c)),
-        );
-      }
-      disposers.push(installFrontmatterStorage(editor, () => frontmatter, setFrontmatter));
-      // スラッシュコマンド（/frontmatter）が折りたたみ状態でも展開してフォーカスできるよう、
-      // storage.frontmatter に focusEditor を生やす（installFrontmatterStorage の get/set に追加）。
-      {
-        const fmStorage = editorStorage.frontmatter as
-          | { focusEditor?: () => void }
-          | undefined;
-        if (fmStorage) fmStorage.focusEditor = () => frontmatterBlock?.expandAndFocus();
-      }
+      disposers.push(
+        ...installNotifierSeams({
+          editor,
+          editorStorage,
+          hasHeadingsListener: !!current.onHeadingsChange,
+          hasCommentsListener: !!current.onCommentsChange,
+          notifyHeadings: (h) => current.onHeadingsChange?.(h),
+          notifyComments: (c) => current.onCommentsChange?.(c),
+          getFrontmatter: () => frontmatter,
+          setFrontmatter,
+          focusFrontmatter: () => frontmatterBlock?.expandAndFocus(),
+        }),
+      );
 
       // === autoReload（変更 gutter baseline + Alt+F5 ナビ） =====================
       const autoReloadController = createAutoReloadController(editor);
@@ -1620,11 +1335,7 @@ export function mountVanillaMarkdownEditor(
             statusBar?.update({ sourceText: body });
           },
           setFrontmatter,
-          onEditorApplied: () => {
-            if (!modeState.sourceMode) {
-              editorMarkdown = getMarkdownFromEditorSafe(editor) ?? "";
-            }
-          },
+          onEditorApplied: () => compare.refreshBaselineIfWysiwyg(),
         }),
       );
 
@@ -1700,12 +1411,12 @@ export function mountVanillaMarkdownEditor(
         mergeSettings: (patch) => { settings = { ...settings, ...patch }; },
         applyAllSettings,
         syncViewerTheme: () => viewerToolbar?.syncTheme(current.themeMode ?? "light"),
-        applyExternalSaveKind,
+        applyExternalSaveKind: fileStatus.applyExternalSaveKind,
         // 表示更新だけでなく永続化の副作用を伴う: localStorage の保存済みファイル名を上書きし、
         // null のときはネイティブファイルハンドル（IndexedDB）も破棄する。
         adoptExternalFile: (fileName) => fileOps.adoptExternalFile(fileName),
-        openCompare: (content) => applyExternalCompareContent(content),
-        closeCompare: () => setInlineMergeOpen(false),
+        openCompare: (content) => compare.applyExternalContent(content),
+        closeCompare: () => compare.setOpen(false),
       });
       applyLivePatch = (patch) => liveUpdate.apply(patch);
       disposers.push(() => {
@@ -1715,7 +1426,7 @@ export function mountVanillaMarkdownEditor(
       // 初期 externalCompareContent（mount 直後に比較モードを開く）。
       liveUpdate.primeCompareContent(current.externalCompareContent ?? null);
       if (current.externalCompareContent != null) {
-        applyExternalCompareContent(current.externalCompareContent);
+        compare.applyExternalContent(current.externalCompareContent);
       }
 
       return disposers;
