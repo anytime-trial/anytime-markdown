@@ -202,6 +202,7 @@ export interface ImportAllLepOptions {
     currentCoverageImported?: number;
   };
 }
+import type { FileSessionCommitRow } from '@anytime-markdown/trail-core/authorHeatmap';
 import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import { buildFeatureMatrixFromCommunities } from '@anytime-markdown/trail-core/c4';
 import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
@@ -8167,6 +8168,45 @@ export class TrailDatabase {
         commitHash: asText(r[2] ?? ''),
       }))
       .filter((r) => r.filePath && r.author && r.commitHash);
+  }
+
+  /**
+   * ファイル×セッション×コミットの生行を返す（Author Heatmap 算出の入力）。
+   *
+   * `fetchFileAuthorCommits` との違いは著者の単位で、git author ではなく `session_id` を返す。
+   * 一意化と最終編集の決定は computeAuthorHeatmap 側で行うため重複を許して返す。
+   *
+   * commit_files との結合に `repo_id` を含める: commit_files の主キーは
+   * (repo_id, commit_hash, file_path) で、同一 commit_hash が複数リポに存在し得る。
+   * 結合条件を commit_hash だけにすると他リポのファイルが混ざる。
+   */
+  fetchFileSessionCommits(options: { repo?: string }): FileSessionCommitRow[] {
+    const db = this.ensureDb();
+    const { repo } = options;
+    const conditions: string[] = ["sc.session_id <> ''"];
+    const args: (string | number)[] = [];
+    if (repo) {
+      // 純粋 read のため repoIdForNameReadonly で解決 (未登録は -1 → 空結果)。
+      conditions.push('sc.repo_id = ?');
+      args.push(this.repoIdForNameReadonly(repo));
+    }
+    const result = db.exec(
+      `SELECT cf.file_path, sc.session_id, sc.commit_hash, sc.committed_at
+       FROM session_commits sc
+       JOIN commit_files cf
+         ON cf.commit_hash = sc.commit_hash AND cf.repo_id = sc.repo_id
+       WHERE ${conditions.join(' AND ')}`,
+      args,
+    );
+    const values = result[0]?.values ?? [];
+    return values
+      .map((r) => ({
+        filePath: asText(r[0] ?? ''),
+        sessionId: asText(r[1] ?? ''),
+        commitHash: asText(r[2] ?? ''),
+        committedAt: asText(r[3] ?? ''),
+      }))
+      .filter((r) => r.filePath && r.sessionId && r.commitHash);
   }
 
   /**
