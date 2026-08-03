@@ -104,11 +104,34 @@ describe("/report/[slug] structured data", () => {
     ]);
   });
 
-  it("emits no structured data when the article is missing", async () => {
+  it("throws notFound when the article is missing but the source is reachable", async () => {
+    // 記事一覧を引けている＝供給元は到達可能。この slug が無いことは「存在しない」と
+    // 言い切れるので 404 にする。ここで描画してしまうと、無い記事が 200 で返り、
+    // 検索エンジンには中身のあるページとして扱われる（ソフト 404）。
     mockGetReportBySlug.mockResolvedValue(null);
+    mockListReports.mockResolvedValue([REPORT.meta]);
+
+    await expect(renderPage()).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404/);
+  });
+
+  it("does not 404 when the source itself is unreachable", async () => {
+    // getReportBySlug は S3 バケット未設定でも null を返す。一覧も引けないときに
+    // 404 を返すと、設定不備や供給元の障害が「全記事が存在しない」に化ける。
+    mockGetReportBySlug.mockResolvedValue(null);
+    mockListReports.mockResolvedValue([]);
 
     const { container } = await renderPage();
     expect(container.querySelectorAll('script[type="application/ld+json"]').length).toBe(0);
+  });
+
+  it("does not 404 when listing the articles throws", async () => {
+    mockGetReportBySlug.mockResolvedValue(null);
+    mockListReports.mockRejectedValue(new Error("S3 unavailable"));
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { container } = await renderPage();
+    expect(container.querySelectorAll('script[type="application/ld+json"]').length).toBe(0);
+    jest.restoreAllMocks();
   });
 });
 

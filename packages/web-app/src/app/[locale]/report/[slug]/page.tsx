@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 
 import { buildSingleSourceAlternates, singleSourceHref } from '../../../../lib/localeAlternates';
 import { getReportBySlug, listReports } from '../../../../lib/reportClient';
@@ -92,6 +93,8 @@ export default async function ReportDetailPage({ params }: Readonly<Props>) {
 
   let report: { meta: ReportMeta; content: string } | null = null;
   let nav = { prev: null as ReportMeta | null, next: null as ReportMeta | null };
+  /** 記事一覧を引けたか。引けていれば供給元は到達可能で、無い slug は「存在しない」と言い切れる */
+  let sourceReachable = false;
 
   try {
     const [reportResult, allReports] = await Promise.all([
@@ -99,6 +102,7 @@ export default async function ReportDetailPage({ params }: Readonly<Props>) {
       listReports(),
     ]);
     report = reportResult;
+    sourceReachable = allReports.length > 0;
     if (report) {
       nav = buildNavigation(allReports, slug);
     }
@@ -107,6 +111,19 @@ export default async function ReportDetailPage({ params }: Readonly<Props>) {
       `[${new Date().toISOString()}] [WARN] [/report/${slug}] failed to load report:`,
       e instanceof Error ? e.stack : e,
     );
+  }
+
+  // 存在しない記事は 404 を返す。ここで返さないと、無い slug が「読み込みエラー」の
+  // 本文とともに 200 で返り、検索エンジンには中身のあるページとして扱われる。
+  //
+  // Why not: `report === null` だけで 404 にしない。`getReportBySlug` は S3 バケット未設定
+  // でも null を返すため、設定不備や供給元の障害が「全記事が存在しない」に化ける。一覧を
+  // 引けたときだけ「無い」と断定し、引けなかったときは従来どおりエラー表示（200）へ落とす。
+  //
+  // notFound() はここ（描画開始前）で呼ぶ必要がある。上位に Suspense 境界があると
+  // シェルが 200 で送出済みになり、ステータスを変えられない（ソフト 404）。
+  if (!report && sourceReachable) {
+    notFound();
   }
 
   return (

@@ -1,6 +1,7 @@
+import FullPageLoader from '@anytime-markdown/markdown-react-islands/src/components/loader/FullPageLoader';
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
-import { cache } from 'react';
+import { cache, Suspense } from 'react';
 
 import { buildAlternates, localeHref, toLocale } from '../../../lib/localeAlternates';
 import { listReports } from '../../../lib/reportClient';
@@ -79,10 +80,28 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   };
 }
 
+/**
+ * S3 の取得を待つ部分。ページ本体ではなくここを Suspense の内側に置く。
+ *
+ * Why not: ルート単位の `loading.tsx` を使わない。`loading.tsx` は配下の全ルートへ継承され、
+ * 本文が決まる前にシェルをステータス 200 で送り出してしまうため、配下の `notFound()`
+ * （`/report/[slug]`）がソフト 404 になる。境界はページの内側に閉じる。
+ */
+async function ReportList({
+  currentPage,
+  filterMonth,
+}: Readonly<{ currentPage: number; filterMonth?: string }>) {
+  const reports = await loadReports();
+  return <ReportListBody reports={reports} currentPage={currentPage} filterMonth={filterMonth} />;
+}
+
 export default async function ReportPage({ searchParams }: Readonly<Props>) {
   const { page, month } = await searchParams;
   const currentPage = parsePage(page);
-  const reports = await loadReports();
 
-  return <ReportListBody reports={reports} currentPage={currentPage} filterMonth={month} />;
+  return (
+    <Suspense fallback={<FullPageLoader />}>
+      <ReportList currentPage={currentPage} filterMonth={month} />
+    </Suspense>
+  );
 }
