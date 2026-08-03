@@ -7,7 +7,7 @@
  * どちらを採るか**を固定していなかった。分割で「最初の値」が「最後の値」に化けても
  * 検知できない状態だったため、その条件を明示的に置く。
  */
-import { extractSessionMetaFromLines, parseJsonlLines } from "../sessionImport";
+import { buildMessageInsertParams, extractSessionMetaFromLines, parseJsonlLines } from "../sessionImport";
 import type { RawLine } from "../rawLine";
 
 const TS1 = "2026-08-03T01:00:00.000Z";
@@ -166,5 +166,170 @@ describe("extractSessionMetaFromLines — 時刻", () => {
     ]);
     expect(meta.startTime).toBe(TS2);
     expect(meta.endTime).toBe(TS2);
+  });
+});
+
+/**
+ * `buildMessageInsertParams` の特性化テスト。
+ *
+ * 直接呼ぶテストは 1 本も無かった。列は 34 個あり、**取り違えても型は通る**（すべて
+ * `unknown[]`）。取り込み経路の統合テストは行数しか見ていないため、変異注入では
+ * 「`toolUseResult` の null を JSON 文字列化する」が 88 スイート全体を素通りした。
+ */
+describe("buildMessageInsertParams", () => {
+  const SESSION = { sessionId: "s1", isSubagent: false, fileSubagentType: null };
+
+  /** 列順そのものが振る舞い（INSERT_MESSAGE と 1 対 1）なので、代表 1 件は配列全体を固定する。 */
+  it("assistant メッセージの列を並び順ごと固定する", () => {
+    const params = buildMessageInsertParams(
+      {
+        uuid: "u1",
+        parentUuid: "p1",
+        type: "assistant",
+        timestamp: "2026-08-03T10:00:00+09:00",
+        cwd: "/repo",
+        gitBranch: "develop",
+        durationMs: 120,
+        requestId: "req-1",
+        isSidechain: true,
+        message: {
+          model: "claude-opus-5",
+          stop_reason: "end_turn",
+          content: [{ type: "text", text: "hi" }],
+          usage: {
+            input_tokens: 10,
+            output_tokens: 2,
+            cache_read_input_tokens: 3,
+            cache_creation_input_tokens: 4,
+            service_tier: "standard",
+            speed: "fast",
+          },
+        },
+      },
+      SESSION,
+    );
+
+    expect(params).toEqual([
+      "u1", "s1", "p1",
+      "assistant", null,
+      "hi", null, null, null,
+      "claude-opus-5", "req-1", "end_turn",
+      10, 2, 3, 4, "standard", "fast",
+      "2026-08-03T01:00:00.000Z", 1, 0,
+      "/repo", "develop",
+      120, null, null, null,
+      null, null, null,
+      null, null,
+      null, null,
+    ]);
+  });
+
+  it("欠けている項目は既定値で埋める（トークンは 0・その他は null）", () => {
+    const params = buildMessageInsertParams({ type: "user" }, SESSION);
+    expect(params[0]).toBe("");
+    expect(params.slice(12, 16)).toEqual([0, 0, 0, 0]);
+    expect(params[18]).toBe("");
+    expect(params.slice(19, 21)).toEqual([0, 0]);
+  });
+
+  it("本文は assistant からだけ取り、user の文字列 content は別の列へ入る", () => {
+    const assistant = buildMessageInsertParams(
+      { type: "assistant", message: { content: [{ type: "text", text: "a" }] } },
+      SESSION,
+    );
+    expect([assistant[5], assistant[6]]).toEqual(["a", null]);
+
+    const user = buildMessageInsertParams({ type: "user", message: { content: "q" } }, SESSION);
+    expect([user[5], user[6]]).toEqual([null, "q"]);
+  });
+
+  describe("tool_use_result", () => {
+    it("user の content から tool_result ブロックだけを取り出す", () => {
+      const params = buildMessageInsertParams(
+        {
+          type: "user",
+          message: {
+            content: [
+              { type: "text", text: "ignored" },
+              { type: "tool_result", tool_use_id: "t1", content: "out" },
+            ] as never,
+          },
+        },
+        SESSION,
+      );
+      expect(JSON.parse(params[8] as string)).toEqual([
+        { type: "tool_result", tool_use_id: "t1", content: "out" },
+      ]);
+    });
+
+    it("tool_result が無ければ toolUseResult へ退避する（文字列はそのまま）", () => {
+      const params = buildMessageInsertParams(
+        { type: "user", toolUseResult: "raw output" },
+        SESSION,
+      );
+      expect(params[8]).toBe("raw output");
+    });
+
+    it("toolUseResult がオブジェクトなら JSON 文字列にする", () => {
+      const params = buildMessageInsertParams({ type: "user", toolUseResult: { a: 1 } }, SESSION);
+      expect(params[8]).toBe('{"a":1}');
+    });
+
+    it("toolUseResult が null / undefined なら null（文字列 \"null\" にしない）", () => {
+      expect(buildMessageInsertParams({ type: "user", toolUseResult: null }, SESSION)[8]).toBeNull();
+      expect(buildMessageInsertParams({ type: "user" }, SESSION)[8]).toBeNull();
+    });
+
+    it("tool_use_result の長さからトークン数を見積もる（4 文字 ≒ 1 トークン）", () => {
+      const params = buildMessageInsertParams({ type: "user", toolUseResult: "12345" }, SESSION);
+      expect(params[24]).toBe(2);
+      expect(buildMessageInsertParams({ type: "user" }, SESSION)[24]).toBeNull();
+    });
+  });
+
+  describe("system_command", () => {
+    it.each([
+      ["compact_boundary", "/compact"],
+      ["local_command", "/clear"],
+    ])("subtype=%s は %s として記録する", (subtype, expected) => {
+      expect(buildMessageInsertParams({ type: "system", subtype }, SESSION)[32]).toBe(expected);
+    });
+
+    it("その他の subtype なら null", () => {
+      expect(buildMessageInsertParams({ type: "system", subtype: "other" }, SESSION)[32]).toBeNull();
+    });
+  });
+
+  describe("subagent_type", () => {
+    // tool_calls は id / name / input の 3 項目へ正規化される（id が先頭）
+    const agentCall = JSON.stringify([
+      { id: "i", name: "Agent", input: { description: "d", model: "m", subagent_type: "explorer" } },
+    ]);
+
+    it("主セッションでは Agent tool_use の subagent_type を採る", () => {
+      const params = buildMessageInsertParams(
+        { type: "assistant", message: { content: [{ type: "tool_use", id: "i", name: "Agent", input: { description: "d", model: "m", subagent_type: "explorer" } }] } },
+        SESSION,
+      );
+      expect(params[33]).toBe("explorer");
+      expect([params[25], params[26]]).toEqual(["d", "m"]);
+      expect(params[7]).toBe(agentCall);
+    });
+
+    it("サブエージェント JSONL では meta.json 由来の値を全メッセージへ付ける", () => {
+      const params = buildMessageInsertParams(
+        { type: "user", message: { content: "q" } },
+        { sessionId: "s1", isSubagent: true, fileSubagentType: "code-reviewer" },
+      );
+      expect(params[33]).toBe("code-reviewer");
+    });
+
+    it("サブエージェント JSONL で meta.json が無ければ null のまま", () => {
+      const params = buildMessageInsertParams(
+        { type: "assistant", message: { content: [{ type: "tool_use", id: "i", name: "Agent", input: { subagent_type: "explorer" } }] } },
+        { sessionId: "s1", isSubagent: true, fileSubagentType: null },
+      );
+      expect(params[33]).toBeNull();
+    });
   });
 });
