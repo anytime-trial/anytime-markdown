@@ -16,20 +16,16 @@ unresolved_count=$(jq 'length' "$UNRESOLVED")
 skipped_count=$(jq 'length' "$SKIPPED")
 total=$((resolved_count + unresolved_count + skipped_count))
 
-count_by_source() {
-  local file="$1"
-  local source="$2"
-  jq --arg s "$source" '[.[] | select(.source == $s)] | length' "$file"
-}
-
-gh_count=0; sec_count=0; dep_count=0; snyk_count=0; sq_count=0
-for f in "$RESOLVED" "$UNRESOLVED" "$SKIPPED"; do
-  gh_count=$((gh_count + $(count_by_source "$f" "github-issue")))
-  sec_count=$((sec_count + $(count_by_source "$f" "security-alert")))
-  dep_count=$((dep_count + $(count_by_source "$f" "dependabot")))
-  snyk_count=$((snyk_count + $(count_by_source "$f" "snyk")))
-  sq_count=$((sq_count + $(count_by_source "$f" "sonarcloud")))
-done
+# 内訳はデータに現れた source から導出する。ラベルを固定列挙にすると、
+# 収集側が source を増やしたときに「内訳 0」として黙って消える（実際、
+# code-scanning 337 件と sonarcloud-hotspot が数えられておらず、存在しない
+# `snyk` の枠だけが残っていた）。導出にすれば内訳の和は必ず対象件数と一致する。
+breakdown=$(jq -r -s '
+  add
+  | group_by(.source)
+  | map("\(.[0].source): \(length)")
+  | join(", ")
+' "$RESOLVED" "$UNRESOLVED" "$SKIPPED")
 
 # frontmatter は web-app packages/web-app/src/types/report.ts の reportFrontmatterSchema と
 # 同期を保つ（title/date は必須。欠けると /report 一覧から silent に除外される）
@@ -48,7 +44,7 @@ lang: ja
 
 ## サマリー
 
-- 対象: ${total} 件（GitHub Issues: ${gh_count}, Security: ${sec_count}, Dependabot: ${dep_count}, Snyk: ${snyk_count}, SonarCloud: ${sq_count}）
+- 対象: ${total} 件（${breakdown:-内訳なし}）
 - 解決: ${resolved_count} 件
 - 未解決: ${unresolved_count} 件
 - スキップ: ${skipped_count} 件
