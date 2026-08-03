@@ -283,6 +283,16 @@ export interface TrailI18n {
   'codeGraph.colorBy.label': string;
   'codeGraph.colorBy.community': string;
   'codeGraph.colorBy.layer': string;
+  'codeGraph.colorBy.lastEditor': string;
+  'codeGraph.colorBy.editFrequency': string;
+  'codeGraph.authorHeatmap.other': string;
+  'codeGraph.authorHeatmap.noData': string;
+  'codeGraph.authorHeatmap.sessionNote': string;
+  'codeGraph.authorHeatmap.emphasis': string;
+  'codeGraph.authorHeatmap.coverage': string;
+  'codeGraph.authorHeatmap.frequency.low': string;
+  'codeGraph.authorHeatmap.frequency.mid': string;
+  'codeGraph.authorHeatmap.frequency.high': string;
   'c4.overlay.groupStructure': string;
   'c4.overlay.functionRoles': string;
   'c4.overlayHelp.functionRoles': string;

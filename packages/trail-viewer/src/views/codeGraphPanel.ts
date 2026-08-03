@@ -15,7 +15,18 @@ import {
   LAYER_LABEL_KEYS,
   layerColor,
 } from '../components/communityColors';
+import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-core/authorHeatmap';
 import {
+  buildEditFrequencyColorMap,
+  buildLastEditorColorMap,
+  frequencyColor,
+  noDataColor,
+  otherSessionColor,
+  selectEmphasizedNodes,
+  SESSION_COLORS,
+} from './authorHeatmapColors';
+import {
+  isOverrideColorBy,
   mountCodeGraphCanvas,
   type CodeGraphColorBy,
   type CodeGraphGhostEdge,
@@ -27,6 +38,16 @@ const COLOR_BY_FALLBACK: Record<string, string> = {
   'codeGraph.colorBy.label': '配色',
   'codeGraph.colorBy.community': 'コミュニティ',
   'codeGraph.colorBy.layer': '層',
+  'codeGraph.colorBy.lastEditor': '最終編集者',
+  'codeGraph.colorBy.editFrequency': '編集頻度',
+  'codeGraph.authorHeatmap.other': 'その他',
+  'codeGraph.authorHeatmap.noData': '記録なし',
+  'codeGraph.authorHeatmap.sessionNote': '編集者はセッション（作業単位）で、個人ではありません',
+  'codeGraph.authorHeatmap.emphasis': '太枠 = 単一セッションへの偏りが大きい',
+  'codeGraph.authorHeatmap.coverage': '集計対象',
+  'codeGraph.authorHeatmap.frequency.low': '低（1〜2 コミット）',
+  'codeGraph.authorHeatmap.frequency.mid': '中（3〜8 コミット）',
+  'codeGraph.authorHeatmap.frequency.high': '高（9 コミット以上）',
   'c4.layer.foundation': '基盤',
   'c4.layer.analysis': '解析',
   'c4.layer.data': '永続化',
@@ -64,6 +85,26 @@ export interface CodeGraphPanelProps {
   readonly communitySummaries?: Record<string, { name: string; summary?: string }>;
   /** i18n translator（未指定時は JP フォールバック）。配色トグル・層凡例で使用。 */
   readonly t?: (key: string) => string;
+  /**
+   * Author Heatmap の集計（`lastEditor` / `editFrequency` 配色で使用）。
+   * 取得中・未取得は null。取得は React ラッパ側が担う。
+   */
+  readonly authorHeatmap?: AuthorHeatmapViewData | null;
+  /** 配色方式が変わったときの通知（ラッパが集計取得の要否を判断する）。 */
+  readonly onColorByChange?: (colorBy: CodeGraphColorBy) => void;
+}
+
+/** Author Heatmap の描画に必要な集計（`/api/author-heatmap` の応答から作る）。 */
+export interface AuthorHeatmapViewData {
+  readonly entries: readonly AuthorHeatmapEntry[];
+  readonly topSessions: readonly string[];
+  readonly coveredNodes: number;
+  readonly totalNodes: number;
+}
+
+/** セッション ID は UUID で長いため、凡例では先頭 8 文字だけ出す。 */
+function shortSessionId(sessionId: string): string {
+  return sessionId.slice(0, 8);
 }
 
 // ---------------------------------------------------------------------------
@@ -128,9 +169,23 @@ export function mountCodeGraphPanel(
   optCommunity.value = 'community';
   const optLayer = document.createElement('option');
   optLayer.value = 'layer';
-  colorBySelect.append(optCommunity, optLayer);
+  const optLastEditor = document.createElement('option');
+  optLastEditor.value = 'lastEditor';
+  const optEditFrequency = document.createElement('option');
+  optEditFrequency.value = 'editFrequency';
+  colorBySelect.append(optCommunity, optLayer, optLastEditor, optEditFrequency);
+
+  const COLOR_BY_VALUES: readonly CodeGraphColorBy[] = [
+    'community',
+    'layer',
+    'lastEditor',
+    'editFrequency',
+  ];
   colorBySelect.addEventListener('change', () => {
-    colorBy = colorBySelect.value === 'layer' ? 'layer' : 'community';
+    const selected = COLOR_BY_VALUES.find((v) => v === colorBySelect.value) ?? 'community';
+    if (selected === colorBy) return;
+    colorBy = selected;
+    props.onColorByChange?.(colorBy);
     renderState();
   });
   colorByWrap.appendChild(colorBySelect);
@@ -158,10 +213,109 @@ export function mountCodeGraphPanel(
     }
   }
 
+  /** 凡例に色見本 + ラベルの 1 項目を足す。 */
+  function appendLegendItem(color: string, text: string, emphasized = false): void {
+    const item = document.createElement('span');
+    item.style.cssText = 'display:inline-flex;align-items:center;gap:3px;';
+    const sw = document.createElement('span');
+    sw.style.cssText =
+      `width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${color};` +
+      (emphasized ? 'outline:2px solid var(--am-color-text-primary);outline-offset:1px;' : '');
+    const txt = document.createElement('span');
+    txt.textContent = text;
+    item.append(sw, txt);
+    legendEl.appendChild(item);
+  }
+
+  /** 凡例の末尾に説明文（色見本なし）を足す。 */
+  function appendLegendNote(text: string): void {
+    const note = document.createElement('span');
+    note.style.cssText = 'color:var(--am-color-text-secondary);';
+    note.textContent = text;
+    legendEl.appendChild(note);
+  }
+
+  function renderAuthorHeatmapLegend(): void {
+    legendEl.replaceChildren();
+    const data = props.authorHeatmap;
+    const isDark = props.isDark ?? false;
+
+    if (colorBy === 'lastEditor') {
+      const topSessions = data?.topSessions ?? [];
+      topSessions.forEach((sessionId, i) => {
+        appendLegendItem(SESSION_COLORS[i % SESSION_COLORS.length], shortSessionId(sessionId));
+      });
+      if (topSessions.length > 0) {
+        appendLegendItem(otherSessionColor(isDark), tr('codeGraph.authorHeatmap.other'));
+      }
+    } else {
+      appendLegendItem(frequencyColor('low', isDark), tr('codeGraph.authorHeatmap.frequency.low'));
+      appendLegendItem(frequencyColor('mid', isDark), tr('codeGraph.authorHeatmap.frequency.mid'));
+      appendLegendItem(frequencyColor('high', isDark), tr('codeGraph.authorHeatmap.frequency.high'));
+    }
+
+    appendLegendItem(noDataColor(isDark), tr('codeGraph.authorHeatmap.noData'));
+
+    if (colorBy === 'lastEditor') {
+      appendLegendNote(tr('codeGraph.authorHeatmap.emphasis'));
+      appendLegendNote(tr('codeGraph.authorHeatmap.sessionNote'));
+    }
+
+    // 被覆率は応答から算出する（設計書の実測値を焼き込まない）。
+    if (data && data.totalNodes > 0) {
+      const percent = Math.round((data.coveredNodes / data.totalNodes) * 100);
+      appendLegendNote(
+        `${tr('codeGraph.authorHeatmap.coverage')}: ${data.coveredNodes} / ${data.totalNodes} (${percent}%)`,
+      );
+    }
+  }
+
+  /**
+   * 配色マップのメモ化。
+   *
+   * canvas は props を同一性で比較して sigma を再構築するため、renderState のたびに
+   * 新しい Map を渡すと毎回フルレイアウトが走る。入力（集計・配色方式・テーマ）が
+   * 変わったときだけ作り直す。
+   */
+  type HeatmapVisual = {
+    readonly overrides: ReadonlyMap<string, string>;
+    readonly emphasized: ReadonlySet<string> | null;
+  };
+  let visualCache:
+    | { data: AuthorHeatmapViewData; colorBy: CodeGraphColorBy; isDark: boolean; visual: HeatmapVisual }
+    | null = null;
+
+  function resolveHeatmapVisual(
+    data: AuthorHeatmapViewData | null,
+    mode: CodeGraphColorBy,
+    isDark: boolean,
+  ): HeatmapVisual | null {
+    if (!data) return null;
+    if (
+      visualCache &&
+      visualCache.data === data &&
+      visualCache.colorBy === mode &&
+      visualCache.isDark === isDark
+    ) {
+      return visualCache.visual;
+    }
+    const visual: HeatmapVisual = {
+      overrides:
+        mode === 'lastEditor'
+          ? buildLastEditorColorMap(data.entries, data.topSessions, isDark)
+          : buildEditFrequencyColorMap(data.entries, isDark),
+      emphasized: mode === 'lastEditor' ? selectEmphasizedNodes(data.entries) : null,
+    };
+    visualCache = { data, colorBy: mode, isDark, visual };
+    return visual;
+  }
+
   function refreshColorByLabels(): void {
     colorByLabel.textContent = tr('codeGraph.colorBy.label');
     optCommunity.textContent = tr('codeGraph.colorBy.community');
     optLayer.textContent = tr('codeGraph.colorBy.layer');
+    optLastEditor.textContent = tr('codeGraph.colorBy.lastEditor');
+    optEditFrequency.textContent = tr('codeGraph.colorBy.editFrequency');
   }
 
   // --- Hint alert ---
@@ -248,6 +402,9 @@ export function mountCodeGraphPanel(
     if (colorBy === 'layer') {
       renderLegend();
       legendEl.style.display = 'flex';
+    } else if (isOverrideColorBy(colorBy)) {
+      renderAuthorHeatmapLegend();
+      legendEl.style.display = 'flex';
     } else {
       legendEl.style.display = 'none';
     }
@@ -307,6 +464,9 @@ export function mountCodeGraphPanel(
     }
 
     // Ready state
+    const isDark = props.isDark ?? false;
+    const heatmap = isOverrideColorBy(colorBy) ? props.authorHeatmap : null;
+    const visual = resolveHeatmapVisual(heatmap ?? null, colorBy, isDark);
     const canvasProps = {
       graph: state.graph,
       highlightedNodes: props.highlightedNodes,
@@ -315,6 +475,9 @@ export function mountCodeGraphPanel(
       ghostEdges: props.ghostEdgesEnabled ? props.ghostEdges : undefined,
       ghostEdgeGranularity: props.ghostEdgeGranularity,
       colorBy,
+      nodeColorOverrides: visual?.overrides ?? null,
+      emphasizedNodes: visual?.emphasized ?? null,
+      neutralColor: noDataColor(isDark),
     };
 
     if (!canvasHandle) {

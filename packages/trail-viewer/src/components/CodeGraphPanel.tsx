@@ -1,18 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import { type CodeGraphGhostEdge } from './CodeGraphCanvas';
+import { toCodeGraphNodeId } from '@anytime-markdown/trail-core/codeGraphNodeId';
 import { useCodeGraph } from '../hooks/useCodeGraph';
+import { useAuthorHeatmap } from '../hooks/useAuthorHeatmap';
+import { isOverrideColorBy, type CodeGraphColorBy } from '../views/codeGraphCanvas';
 import { useTemporalCoupling } from '../c4/hooks/useTemporalCoupling';
 import type { TemporalCouplingControlsValue } from '../c4/components/overlays/TemporalCouplingControls';
 import { VanillaIsland } from '../shared/vanillaIsland';
 import { mountCodeGraphPanel, type CodeGraphPanelProps as VanillaProps } from '../views/codeGraphPanel';
 import { useTrailI18n } from '../i18n';
 import type { TrailI18n } from '../i18n';
-
-function toCodeGraphNodeId(repoId: string, filePath: string): string {
-  const cleaned = filePath.replace(/\.(tsx?|mdx?)$/, '');
-  return `${repoId}:${cleaned}`;
-}
 
 const DEFAULT_TC_VALUE: TemporalCouplingControlsValue = {
   enabled: false,
@@ -39,7 +37,26 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
   });
   const [highlightedNodes, setHighlightedNodes] = useState<ReadonlySet<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<CodeGraphNode | null>(null);
+  // 配色方式は vanilla view がローカルに持つが、Author Heatmap は取得の要否を決めるため
+  // ラッパ側にもミラーする（view から onColorByChange で通知される）。
+  const [colorBy, setColorBy] = useState<CodeGraphColorBy>('community');
   const tcValue = tcValueProp ?? DEFAULT_TC_VALUE;
+
+  const { data: authorHeatmapData } = useAuthorHeatmap({
+    enabled: isOverrideColorBy(colorBy),
+    serverUrl,
+    repo: repoName,
+  });
+
+  const authorHeatmap = useMemo<VanillaProps['authorHeatmap']>(() => {
+    if (!authorHeatmapData) return null;
+    return {
+      entries: authorHeatmapData.entries,
+      topSessions: authorHeatmapData.topSessions,
+      coveredNodes: authorHeatmapData.coveredNodes,
+      totalNodes: authorHeatmapData.totalNodes,
+    };
+  }, [authorHeatmapData]);
 
   const tcRepoId = useMemo<string | null>(() => {
     if (!graph || graph.repositories.length === 0) return null;
@@ -146,6 +163,8 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     onNodeClick: (n) => void handleNodeClick(n),
     communitySummaries: graph?.communitySummaries,
     t,
+    authorHeatmap,
+    onColorByChange: setColorBy,
   };
 
   return <VanillaIsland mount={mountCodeGraphPanel} props={viewProps} />;
