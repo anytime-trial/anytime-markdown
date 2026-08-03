@@ -112,16 +112,6 @@
     "text": "Faster tools lead writers astray. We carry words at the caravan's pace.",
     "attr": "— editorial · prologue · vol.iii"
   },
-  "news": {
-    "label": "DISPATCH · BREAKING",
-    "heading": "Today's Top Stories",
-    "poweredBy": "via The Guardian"
-  },
-  "wsj": {
-    "label": "BUSINESS · TODAY",
-    "heading": "Today's Business News",
-    "poweredBy": "via The Wall Street Journal"
-  },
   "weather": {
     "label": "WEATHER · WORLD",
     "heading": "Today's Weather",

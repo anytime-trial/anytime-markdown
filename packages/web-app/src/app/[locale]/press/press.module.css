@@ -1395,220 +1395,10 @@
     transition: width 0.05s linear;
 }
 
-/* ── Today's Dispatch ニュース面 ────────────────────── */
-.newsfront {
-    padding: 48px var(--gutter);
-    border-bottom: var(--rule-bold) solid var(--ink);
-    scroll-margin-top: 120px;
-}
-
-.newsfrontHeader {
-    display: flex;
-    align-items: baseline;
-    gap: 16px;
-    border-bottom: var(--rule-thin) solid var(--ink);
-    padding-bottom: 8px;
-    margin-bottom: 32px;
-    font-family: var(--font-display);
-}
-
-.newsfrontLabel {
-    font-family: var(--font-mono);
-    font-size: var(--fs-footnote);
-    color: var(--vermilion);
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    white-space: nowrap;
-}
-
-.newsfrontHeading {
-    font-style: italic;
-    font-weight: 700;
-    font-size: 28px;
-    margin: 0;
-}
-
-.newsfrontMeta {
-    margin-left: auto;
-    font-family: var(--font-mono);
-    font-size: var(--fs-footnote);
-    color: var(--ink-faded);
-    white-space: nowrap;
-}
-
-.newsfrontColumns {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--column-gap);
-}
-
-@media (max-width: 880px) {
-    .newsfrontHeader {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-    }
-
-    .newsfrontMeta {
-        margin-left: 0;
-    }
-
-    .newsfrontColumns {
-        grid-template-columns: 1fr;
-        gap: 32px;
-    }
-}
-
-.newsfrontArticle {
-    border-top: var(--rule-bold) solid var(--ink);
-    padding-top: 16px;
-    border-right: var(--rule-hair) solid var(--ink-light);
-    padding-right: calc(var(--column-gap) / 2);
-}
-
-.newsfrontArticle:last-child {
-    border-right: 0;
-    padding-right: 0;
-}
-
-@media (max-width: 880px) {
-    .newsfrontArticle {
-        border-right: 0;
-        padding-right: 0;
-        border-bottom: var(--rule-hair) solid var(--ink-light);
-        padding-bottom: 24px;
-    }
-
-    .newsfrontArticle:last-child {
-        border-bottom: 0;
-        padding-bottom: 0;
-    }
-}
-
-.newsfrontKicker {
-    font-family: var(--font-mono);
-    font-size: var(--fs-footnote);
-    color: var(--vermilion);
-    letter-spacing: 0.1em;
-    display: block;
-    margin-bottom: 10px;
-}
-
-.newsfrontHeadline {
-    font-family: var(--font-display);
-    font-style: italic;
-    font-weight: 700;
-    font-size: clamp(18px, 2vw, 24px);
-    line-height: 1.2;
-    letter-spacing: -0.015em;
-    margin: 0 0 14px;
-}
-
-.newsfrontLink {
-    color: var(--ink);
-    border-bottom: 1px solid transparent;
-    transition: color 0.15s, border-color 0.15s;
-    text-decoration: none;
-}
-
-.newsfrontLink:hover {
-    color: var(--vermilion);
-    border-bottom-color: var(--vermilion);
-}
-
-.newsfrontLink:focus-visible {
-    outline: 2px solid var(--vermilion);
-    outline-offset: 2px;
-    border-radius: 1px;
-}
-
-.newsfrontLead {
-    font-family: var(--font-body);
-    font-size: var(--fs-caption);
-    line-height: 1.7;
-    color: var(--ink-faded);
-    margin: 0 0 14px;
-    display: -webkit-box;
-    -webkit-line-clamp: 4;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.newsfrontByline {
-    font-family: var(--font-mono);
-    font-size: var(--fs-footnote);
-    color: var(--ink-faded);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-    border-top: var(--rule-hair) solid var(--ink-light);
-    padding-top: 10px;
-}
-
-.newsfrontSkeleton {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--column-gap);
-}
-
-@media (max-width: 880px) {
-    .newsfrontSkeleton {
-        grid-template-columns: 1fr;
-    }
-}
-
-.newsfrontSkeletonItem {
-    border-top: var(--rule-bold) solid var(--ink-light);
-    padding-top: 16px;
-    height: 140px;
-    position: relative;
-    overflow: hidden;
-}
-
-.newsfrontSkeletonItem::before {
-    content: '';
-    position: absolute;
-    top: 24px;
-    left: 0;
-    right: 0;
-    height: 8px;
-    background: var(--ink-light);
-    opacity: 0.3;
-    border-radius: 2px;
-}
-
-.newsfrontSkeletonItem::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgba(255, 255, 255, 0.06) 50%,
-        transparent 100%
-    );
-    animation: newsfrontShimmer 1.6s ease-in-out infinite;
-}
-
-.root[data-cp-mode='dark'] .newsfrontSkeletonItem::after {
-    background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgba(255, 255, 255, 0.04) 50%,
-        transparent 100%
-    );
-}
-
-@keyframes newsfrontShimmer {
+/* ── スケルトン共通シマー（各セクションのローディング表示で共用） ── */
+@keyframes skeletonShimmer {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .newsfrontSkeletonItem::after {
-        animation: none;
-    }
 }
 
 /* ── Spotify Charts 音楽面 ──────────────────────────── */
@@ -1790,7 +1580,7 @@
         rgba(255, 255, 255, 0.06) 50%,
         transparent 100%
     );
-    animation: newsfrontShimmer 1.6s ease-in-out infinite;
+    animation: skeletonShimmer 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1938,7 +1728,7 @@
         rgba(255, 255, 255, 0.06) 50%,
         transparent 100%
     );
-    animation: newsfrontShimmer 1.6s ease-in-out infinite;
+    animation: skeletonShimmer 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2099,7 +1889,7 @@
         rgba(255, 255, 255, 0.06) 50%,
         transparent 100%
     );
-    animation: newsfrontShimmer 1.6s ease-in-out infinite;
+    animation: skeletonShimmer 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2230,7 +2020,7 @@
         rgba(255, 255, 255, 0.06) 50%,
         transparent 100%
     );
-    animation: newsfrontShimmer 1.6s ease-in-out infinite;
+    animation: skeletonShimmer 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2464,7 +2254,7 @@
         rgba(255, 255, 255, 0.06) 50%,
         transparent 100%
     );
-    animation: newsfrontShimmer 1.6s ease-in-out infinite;
+    animation: skeletonShimmer 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

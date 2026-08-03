@@ -25,9 +25,7 @@ import { ProgressRule } from './components/ProgressRule';
 import { PullQuote } from './components/PullQuote';
 import { SpotifyCharts } from './components/SpotifyCharts';
 import { Ticker } from './components/Ticker';
-import { TodaysNews } from './components/TodaysNews';
 import { WeatherForecast } from './components/WeatherForecast';
-import { WsjNews } from './components/WsjNews';
 import { bodoni, jetbrains, shippori, yujiBoku } from './fonts';
 import styles from './press.module.css';
 
@@ -161,8 +159,6 @@ export function PressBody() {
         }
       />
       <PullQuote />
-      <TodaysNews />
-      <WsjNews />
       <PressReports />
       <GithubTrending />
       <SpotifyCharts />
