@@ -23,7 +23,7 @@ total=$((resolved_count + unresolved_count + skipped_count))
 breakdown=$(jq -r -s '
   add
   | group_by(.source)
-  | map("\(.[0].source): \(length)")
+  | map("\(.[0].source // "unknown"): \(length)")
   | join(", ")
 ' "$RESOLVED" "$UNRESOLVED" "$SKIPPED")
 

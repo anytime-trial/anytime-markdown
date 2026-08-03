@@ -72,8 +72,11 @@ exit 6
 `,
     { args: ['K'] },
   );
-  assert.notEqual(res.stderr.trim(), '', '理由が一切出ないまま終了してはならない');
-  assert.match(res.stderr, /通信に失敗|curl exit 6|Could not resolve/);
+  // 「通信に失敗」「curl exit 6」はスクリプト自身が -S の有無に関係なく出す文字列なので、
+  // それを選択肢に含めると -S を外す変異でも通ってしまう。スタブが -sS のときだけ出す
+  // 文字列を単独で必須にする。
+  assert.match(res.stderr, /Could not resolve host/, 'curl のエラー理由が捕捉されていない（-S 欠落）');
+  assert.match(res.stderr, /curl exit 6/);
 });
 
 test('API のエラー本文を捨てず、HTTP ステータスと msg を出す', () => {
@@ -83,6 +86,66 @@ test('API のエラー本文を捨てず、HTTP ステータスと msg を出す
   );
   assert.match(res.stderr, /403/);
   assert.match(res.stderr, /Insufficient privileges/, 'API のエラー本文が捨てられている');
+  // 生ボディへのフォールバックでも上の 2 つは通る（本文に同じ文字列が含まれるため）。
+  // 構造化抽出そのものを固定するには、JSON 断片が出ていないことまで見る必要がある。
+  assert.doesNotMatch(res.stderr, /\{"errors"/, 'errors[].msg を抽出せず生ボディを出している');
+});
+
+test('paging.total が整数でないとき、無限ループせず縮退する', () => {
+  // total を算術評価へ素通しすると `(( ... ))` が構文エラーになり、|| で繋いだ
+  // 停止条件が両方失われて外部 API を叩き続ける（実測 12 秒で 298 回）。
+  const dir = mkdtempSync(path.join(tmpdir(), 'fetch-sonar-total-'));
+  try {
+    const log = path.join(dir, 'calls.txt');
+    const curl = path.join(dir, 'curl');
+    writeFileSync(
+      curl,
+      `#!/bin/bash\necho x >> ${log}\nprintf '{"paging":{"total":{"x":1}},"issues":[]}\\n200'\n`,
+    );
+    chmodSync(curl, 0o755);
+    const res = spawnSync('bash', [SCRIPT, 'K'], {
+      encoding: 'utf8',
+      cwd: dir,
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+      timeout: 20000,
+    });
+    assert.notEqual(res.signal, 'SIGTERM', 'タイムアウトした（無限ループの疑い）');
+    const calls = spawnSync('cat', [log], { encoding: 'utf8' }).stdout.trim().split('\n').length;
+    assert.ok(calls <= 4, `curl の呼び出しが ${calls} 回。ページを回し続けている`);
+    assert.match(res.stderr, /paging.total が整数ではありません/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('本文が空の 200 は「0 件」で済ませず警告する', () => {
+  // プロキシや LB が本文なしの 200 を返す状況。jq は何も出さず exit 0 で返るため、
+  // null 判定だけだと素通りし、課題ゼロの健全なプロジェクトと区別がつかない。
+  const res = runWithCurl(`printf '\\n200'`, { args: ['K'] });
+  assert.match(res.stderr, /paging.total が整数ではありません/);
+  assert.match(res.stderr, /取得できなかったソース/);
+});
+
+test('ページ途中の失敗でも、取得済みのページは捨てない', () => {
+  const res = runWithCurl(
+    `
+if [[ "$*" == *"hotspots/search"* ]]; then
+  printf '{"paging":{"total":0},"hotspots":[]}\\n200'
+elif [[ "$*" == *"p=2"* ]]; then
+  printf '{"errors":[{"msg":"boom"}]}\\n500'
+else
+  printf '{"paging":{"total":250},"issues":[${issue('i1')}]}\\n200'
+fi
+`,
+    { args: ['K'] },
+  );
+  assert.equal(res.status, 0, `exit ${res.status}\nstderr: ${res.stderr}`);
+  const parsed = JSON.parse(res.stdout);
+  assert.equal(parsed.length, 1, '1 ページ目の成功分が捨てられている');
+  // 部分取得は「取得不可」ではなく「一部しか取得できなかった」側に出る。
+  assert.match(res.stderr, /一部しか取得できなかったソース: .*SonarCloud Issues/);
+  // 「一部しか取得できなかったソース:」を部分一致で拾わないよう行頭で固定する。
+  assert.doesNotMatch(res.stderr, /(^|\n)WARN: 取得できなかったソース:/);
 });
 
 test('Hotspots だけ失敗しても、収集済みの Issues は残る', () => {
@@ -121,6 +184,11 @@ fi
     { args: ['K'] },
   );
   assert.match(res.stderr, /10,?000/, '上限に触れたことが分かるメッセージが出ていない');
+  // 上限に達しても取得自体は成功している。「取得不可」として報告すると、
+  // レポートに「取れなかった」と誤記される。
+  assert.match(res.stderr, /一部しか取得できなかったソース/);
+  // 「一部しか取得できなかったソース:」を部分一致で拾わないよう行頭で固定する。
+  assert.doesNotMatch(res.stderr, /(^|\n)WARN: 取得できなかったソース:/);
 });
 
 test('projectKey が見つからないときは理由を出して終わる（無言死しない）', () => {
@@ -144,14 +212,19 @@ test('projectKey が見つからないときは理由を出して終わる（無
   }
 });
 
-test('SONAR_TOKEN があれば認証を付けて呼ぶ', () => {
+test('SONAR_TOKEN は argv でなく --config（stdin）経由で渡す', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'fetch-sonar-auth-'));
   try {
-    const log = path.join(dir, 'calls.txt');
+    const argvLog = path.join(dir, 'argv.txt');
+    const stdinLog = path.join(dir, 'stdin.txt');
     const curl = path.join(dir, 'curl');
     writeFileSync(
       curl,
-      `#!/bin/bash\necho "$*" >> ${log}\nprintf '{"paging":{"total":0},"issues":[],"hotspots":[]}\\n200'\n`,
+      `#!/bin/bash
+echo "$*" >> ${argvLog}
+case "$*" in *--config*) cat >> ${stdinLog} ;; esac
+printf '{"paging":{"total":0},"issues":[],"hotspots":[]}\\n200'
+`,
     );
     chmodSync(curl, 0o755);
     spawnSync('bash', [SCRIPT, 'K'], {
@@ -159,8 +232,11 @@ test('SONAR_TOKEN があれば認証を付けて呼ぶ', () => {
       cwd: dir,
       env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, SONAR_TOKEN: 'tok123' },
     });
-    const calls = spawnSync('cat', [log], { encoding: 'utf8' }).stdout;
-    assert.match(calls, /-u tok123:/, 'SONAR_TOKEN が curl に渡っていない');
+    const argv = spawnSync('cat', [argvLog], { encoding: 'utf8' }).stdout;
+    const stdin = spawnSync('cat', [stdinLog], { encoding: 'utf8' }).stdout;
+    assert.match(stdin, /user = "tok123:"/, 'SONAR_TOKEN が curl に渡っていない');
+    // argv に載せると `ps` / /proc/<pid>/cmdline から平文で読める。
+    assert.doesNotMatch(argv, /tok123/, 'トークンがコマンドライン引数に露出している');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
