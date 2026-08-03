@@ -164,6 +164,29 @@ export interface ImportAllPhaseEvent {
  * バックチャネル。`externalSessionsToAnalyze` は SessionImporter が import に成功した session
  * 集合を Phase 6 (analyze_behavior) で再利用するためのもの。
  */
+/**
+ * importAll のフェーズ関数が共通で受け取る実行文脈。
+ *
+ * 既存の `importAllPhase*`（resolve_releases 等）は positional 引数のまま残している。
+ * それらの引数整理は importAll 自体のシグネチャ変更（引数 7 個のオブジェクト化）と
+ * 同じ単位で扱うほうが安全なため、本コンテキストは新設のフェーズ関数にだけ適用する。
+ */
+interface ImportAllPhaseContext {
+  readonly onProgress: ((message: string, increment?: number) => void) | undefined;
+  readonly onPhase: ((event: ImportAllPhaseEvent) => void) | undefined;
+  readonly yieldForUi: () => Promise<void>;
+  readonly phasesToSkip: ReadonlySet<ImportAllPhase>;
+}
+
+/** importAll が扱うセッション単位の入力（main JSONL + subagent JSONL 群）。 */
+interface ImportAllSessionDir {
+  sid: string;
+  mainFile: string;
+  subagentFiles: string[];
+  repoName: string;
+  source: 'claude_code' | 'codex';
+}
+
 export interface ImportAllLepOptions {
   /** LEP 側で処理する phase 集合。importAll() 本体ではスキップする */
   phasesToSkip?: ReadonlySet<ImportAllPhase>;
@@ -6500,8 +6523,8 @@ export class TrailDatabase {
     projectDirs: string[],
     projectsDir: string,
     UUID_RE: RegExp,
-  ): Array<{ sid: string; mainFile: string; subagentFiles: string[]; repoName: string; source: 'claude_code' | 'codex' }> {
-    const sessionDirs: Array<{ sid: string; mainFile: string; subagentFiles: string[]; repoName: string; source: 'claude_code' | 'codex' }> = [];
+  ): ImportAllSessionDir[] {
+    const sessionDirs: ImportAllSessionDir[] = [];
     for (const projectName of projectDirs) {
       const projectPath = path.join(projectsDir, projectName);
       try {
@@ -6534,8 +6557,8 @@ export class TrailDatabase {
     codexSessionsDir: string,
     gitRoot: string | undefined,
     repoName: string,
-  ): Array<{ sid: string; mainFile: string; subagentFiles: string[]; repoName: string; source: 'claude_code' | 'codex' }> {
-    const sessionDirs: Array<{ sid: string; mainFile: string; subagentFiles: string[]; repoName: string; source: 'claude_code' | 'codex' }> = [];
+  ): ImportAllSessionDir[] {
+    const sessionDirs: ImportAllSessionDir[] = [];
     try {
       const codexFiles = collectJsonlFilesRecursive(codexSessionsDir).filter((f: string) =>
         path.basename(f).startsWith('rollout-'),
@@ -6735,48 +6758,52 @@ export class TrailDatabase {
     return messageCommitsBackfilled;
   }
 
-  async importAll(
-    onProgress?: (message: string, increment?: number) => void,
-    gitRoots?: readonly string[],
-    excludePatterns?: readonly string[],
-    analyzeFn?: AnalyzeFunction,
-    onPhase?: (event: ImportAllPhaseEvent) => void,
-    lepOpts?: ImportAllLepOptions,
-  ): Promise<{ imported: number; skipped: number; commitsResolved: number; releasesResolved: number; releasesAnalyzed: number; coverageImported: number; currentCoverageImported: number; messageCommitsBackfilled: number }> {
-    const projectsDir = path.join(os.homedir(), '.claude', 'projects');
-    const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
-    // 主リポジトリは gitRoots[0] とみなす（コード解析・Codex セッションのフィルタに使う既存挙動の互換）
-    const gitRoot = gitRoots?.[0];
-    const repoName = gitRoot ? path.basename(gitRoot) : '';
-    const watched = (gitRoots ?? []).map((r) => ({ gitRoot: r, repoName: path.basename(r) }));
-    const phasesToSkip = lepOpts?.phasesToSkip ?? new Set<ImportAllPhase>();
-    let imported = lepOpts?.externalCounters?.imported ?? 0;
-    let skipped = lepOpts?.externalCounters?.skipped ?? 0;
-    let commitsResolved = lepOpts?.externalCounters?.commitsResolved ?? 0;
-
-    // phasesToSkip に import_sessions が含まれる場合、projects dir のスキャン自体を丸ごとスキップする。
-    const skipImportSessions = phasesToSkip.has('import_sessions');
-
-    let projectDirs: string[];
-    if (skipImportSessions) {
-      projectDirs = [];
-    } else {
-      try {
-        projectDirs = fs.readdirSync(projectsDir);
-      } catch {
-        return { imported, skipped, commitsResolved, releasesResolved: 0, releasesAnalyzed: 0, coverageImported: 0, currentCoverageImported: 0, messageCommitsBackfilled: 0 };
-      }
+  /**
+   * skip 判定 → start → 本体 → finish（例外時は error）だけの定型フェーズを実行する。
+   *
+   * `rebuild_costs` / `rebuild_counts` のように、`phasesToSkip` 以外の実行条件を持たない
+   * フェーズ専用。gitRoot の有無で `skip` イベントを出し分けるフェーズ
+   * （`resolve_releases` 等）は条件が異なるため、個別の `importAllPhase*` に残す。
+   */
+  private async runGuardedPhase(
+    phase: ImportAllPhase,
+    ctx: ImportAllPhaseContext,
+    body: () => void,
+  ): Promise<void> {
+    if (ctx.phasesToSkip.has(phase)) return;
+    ctx.onPhase?.({ phase, action: 'start' });
+    await ctx.yieldForUi();
+    try {
+      body();
+      ctx.onPhase?.({ phase, action: 'finish' });
+    } catch (e) {
+      ctx.onPhase?.({ phase, action: 'error', message: e instanceof Error ? e.message : String(e) });
     }
+    await ctx.yieldForUi();
+  }
 
-    // Pre-load imported file paths + sizes for fast skip
-    const importedFiles = this.getImportedFileMap();
-    const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
+  /**
+   * Phase 1: セッション JSONL の取り込み（main + subagents）。
+   *
+   * セッション単位でスキップ判定し、トランザクションをバッチ境界で区切りながら取り込む。
+   * トランザクションの開始と解放はこのメソッド内で完結させる（途中 return を作らない）。
+   */
+  private async importAllPhaseImportSessions(
+    ctx: ImportAllPhaseContext,
+    input: {
+      sessionDirs: readonly ImportAllSessionDir[];
+      watched: ReadonlyArray<{ gitRoot: string; repoName: string }>;
+      importedFiles: ReturnType<TrailDatabase['getImportedFileMap']>;
+      skipImportSessions: boolean;
+      initial: { imported: number; skipped: number; commitsResolved: number };
+    },
+  ): Promise<{ imported: number; skipped: number; commitsResolved: number; sessionsToAnalyze: Set<string> }> {
+    const { sessionDirs, watched, importedFiles, skipImportSessions, initial } = input;
+    const { onProgress, onPhase, yieldForUi } = ctx;
 
-    // Collect files per session directory (main + subagents grouped)
-    const sessionDirs = [
-      ...this.collectClaudeCodeSessionDirs(projectDirs, projectsDir, UUID_RE),
-      ...(skipImportSessions ? [] : this.collectCodexSessionDirs(codexSessionsDir, gitRoot, repoName)),
-    ];
+    let imported = initial.imported;
+    let skipped = initial.skipped;
+    let commitsResolved = initial.commitsResolved;
 
     const totalSessions = sessionDirs.length;
     const totalFiles = sessionDirs.reduce((s, d) => s + 1 + d.subagentFiles.length, 0);
@@ -6803,11 +6830,25 @@ export class TrailDatabase {
       `Claude Code ${processedBySource.claude_code}/${claudeFiles} skipped ${skippedBySource.claude_code}, ` +
       `Codex ${processedBySource.codex}/${codexFiles} skipped ${skippedBySource.codex}`;
 
-    // UI (OllamaProvider tree) が phase 遷移を per-phase でレンダリングできるよう、
-    // onPhase emit 直後に event loop へ yield する。短い phase が同期連続すると
-    // _onDidChangeTreeData.fire() の処理が後回しになり中間状態が見えなくなるため。
-    const yieldForUi = async (): Promise<void> => {
-      if (onPhase) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const resolveCommitsForWatched = (sid: string, context: string): void => {
+      for (const w of watched) {
+        if (this.isCommitResolutionDone(sid, w.repoName)) continue;
+        try {
+          commitsResolved += this.resolveCommits(sid, w.gitRoot, w.repoName);
+        } catch (e) {
+          this.logger.error(`resolveCommits failed${context}: ${sid} repo=${w.repoName}`, e);
+        }
+      }
+    };
+
+    const commitBatch = (): void => {
+      const db = this.ensureDb();
+      try {
+        db.run('COMMIT');
+      } catch (e) {
+        this.logger.error('COMMIT failed, rolling back', e);
+        try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('ROLLBACK also failed', error_); }
+      }
     };
 
     if (!skipImportSessions) {
@@ -6835,10 +6876,7 @@ export class TrailDatabase {
           skippedBySource[dir.source] += sessionFileTotal;
           processedFiles += sessionFileTotal;
           processedBySource[dir.source] += sessionFileTotal;
-          for (const w of watched) {
-            if (this.isCommitResolutionDone(dir.sid, w.repoName)) continue;
-            try { commitsResolved += this.resolveCommits(dir.sid, w.gitRoot, w.repoName); } catch (e) { this.logger.error(`resolveCommits failed (skipped session): ${dir.sid} repo=${w.repoName}`, e); }
-          }
+          resolveCommitsForWatched(dir.sid, ' (skipped session)');
           continue;
         }
       }
@@ -6873,15 +6911,12 @@ export class TrailDatabase {
       }
 
       // Resolve commits after all files for this session — once per watched repo
-      for (const w of watched) {
-        if (this.isCommitResolutionDone(dir.sid, w.repoName)) continue;
-        try { commitsResolved += this.resolveCommits(dir.sid, w.gitRoot, w.repoName); } catch (e) { this.logger.error(`resolveCommits failed: ${dir.sid} repo=${w.repoName}`, e); }
-      }
+      resolveCommitsForWatched(dir.sid, '');
 
       // Commit at session boundary when limits exceeded
       if (batchMessageCount >= BATCH_MESSAGE_LIMIT || batchFileCount >= BATCH_FILE_LIMIT) {
         if (inTransaction) {
-          try { db.run('COMMIT'); } catch (e) { this.logger.error('COMMIT failed, rolling back', e); try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('ROLLBACK also failed', error_); } }
+          commitBatch();
           inTransaction = false;
         }
         onProgress?.(formatProgress(), 0);
@@ -6891,8 +6926,7 @@ export class TrailDatabase {
 
     // Commit remaining batch
     if (inTransaction) {
-      const db = this.ensureDb();
-      try { db.run('COMMIT'); } catch (e) { this.logger.error('COMMIT failed, rolling back', e); try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('ROLLBACK also failed', error_); } }
+      commitBatch();
       onProgress?.(formatProgress(), 0);
     }
     if (!skipImportSessions) {
@@ -6900,9 +6934,78 @@ export class TrailDatabase {
       await yieldForUi();
     }
 
+    return { imported, skipped, commitsResolved, sessionsToAnalyze };
+  }
+
+  async importAll(
+    onProgress?: (message: string, increment?: number) => void,
+    gitRoots?: readonly string[],
+    excludePatterns?: readonly string[],
+    analyzeFn?: AnalyzeFunction,
+    onPhase?: (event: ImportAllPhaseEvent) => void,
+    lepOpts?: ImportAllLepOptions,
+  ): Promise<{ imported: number; skipped: number; commitsResolved: number; releasesResolved: number; releasesAnalyzed: number; coverageImported: number; currentCoverageImported: number; messageCommitsBackfilled: number }> {
+    const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+    const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
+    // 主リポジトリは gitRoots[0] とみなす（コード解析・Codex セッションのフィルタに使う既存挙動の互換）
+    const gitRoot = gitRoots?.[0];
+    const repoName = gitRoot ? path.basename(gitRoot) : '';
+    const watched = (gitRoots ?? []).map((r) => ({ gitRoot: r, repoName: path.basename(r) }));
+    const phasesToSkip = lepOpts?.phasesToSkip ?? new Set<ImportAllPhase>();
+    const externalCounters = lepOpts?.externalCounters;
+
+    // phasesToSkip に import_sessions が含まれる場合、projects dir のスキャン自体を丸ごとスキップする。
+    const skipImportSessions = phasesToSkip.has('import_sessions');
+
+    let projectDirs: string[];
+    if (skipImportSessions) {
+      projectDirs = [];
+    } else {
+      try {
+        projectDirs = fs.readdirSync(projectsDir);
+      } catch {
+        // projects dir が読めない環境ではフェーズを 1 つも発火させずに即返す（既存挙動）。
+        return {
+          imported: externalCounters?.imported ?? 0,
+          skipped: externalCounters?.skipped ?? 0,
+          commitsResolved: externalCounters?.commitsResolved ?? 0,
+          releasesResolved: 0, releasesAnalyzed: 0,
+          coverageImported: 0, currentCoverageImported: 0, messageCommitsBackfilled: 0,
+        };
+      }
+    }
+
+    // Pre-load imported file paths + sizes for fast skip
+    const importedFiles = this.getImportedFileMap();
+    const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
+
+    // Collect files per session directory (main + subagents grouped)
+    const sessionDirs = [
+      ...this.collectClaudeCodeSessionDirs(projectDirs, projectsDir, UUID_RE),
+      ...(skipImportSessions ? [] : this.collectCodexSessionDirs(codexSessionsDir, gitRoot, repoName)),
+    ];
+
+    // UI (OllamaProvider tree) が phase 遷移を per-phase でレンダリングできるよう、
+    // onPhase emit 直後に event loop へ yield する。短い phase が同期連続すると
+    // _onDidChangeTreeData.fire() の処理が後回しになり中間状態が見えなくなるため。
+    const yieldForUi = async (): Promise<void> => {
+      if (onPhase) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    };
+    const ctx: ImportAllPhaseContext = { onProgress, onPhase, yieldForUi, phasesToSkip };
+
+    const { imported, skipped, commitsResolved, sessionsToAnalyze } =
+      await this.importAllPhaseImportSessions(ctx, {
+        sessionDirs, watched, importedFiles, skipImportSessions,
+        initial: {
+          imported: externalCounters?.imported ?? 0,
+          skipped: externalCounters?.skipped ?? 0,
+          commitsResolved: externalCounters?.commitsResolved ?? 0,
+        },
+      });
+
     const releasesResolved = await this.importAllPhaseResolveReleases(
       onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot,
-      lepOpts?.externalCounters?.releasesResolved ?? 0,
+      externalCounters?.releasesResolved ?? 0,
     );
 
     const releasesAnalyzed = await this.importAllPhaseAnalyzeReleases(
@@ -6911,24 +7014,16 @@ export class TrailDatabase {
 
     const { coverageImported, currentCoverageImported } = await this.importAllPhaseImportCoverage(
       onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot,
-      lepOpts?.externalCounters?.coverageImported ?? 0,
-      lepOpts?.externalCounters?.currentCoverageImported ?? 0,
+      externalCounters?.coverageImported ?? 0,
+      externalCounters?.currentCoverageImported ?? 0,
     );
 
     // Rebuild session_costs from messages
-    if (!phasesToSkip.has('rebuild_costs')) {
-      onPhase?.({ phase: 'rebuild_costs', action: 'start' });
-      await yieldForUi();
-      try {
-        onProgress?.('Rebuilding session costs...', 0);
-        this.rebuildSessionCosts();
-        onProgress?.('Session costs rebuilt', 0);
-        onPhase?.({ phase: 'rebuild_costs', action: 'finish' });
-      } catch (e) {
-        onPhase?.({ phase: 'rebuild_costs', action: 'error', message: e instanceof Error ? e.message : String(e) });
-      }
-      await yieldForUi();
-    }
+    await this.runGuardedPhase('rebuild_costs', ctx, () => {
+      onProgress?.('Rebuilding session costs...', 0);
+      this.rebuildSessionCosts();
+      onProgress?.('Session costs rebuilt', 0);
+    });
 
     // Analyze Claude Code behavior only for sessions that were (re)imported in this run.
     // Sessions skipped above had no new messages, so message_tool_calls is already current.
@@ -6937,22 +7032,14 @@ export class TrailDatabase {
     await this.importAllPhaseAnalyzeBehavior(onProgress, onPhase, yieldForUi, phasesToSkip, effectiveSessionsToAnalyze);
 
     // Rebuild daily_counts (6 kinds) after message_tool_calls is populated, then session_stats
-    if (!phasesToSkip.has('rebuild_counts')) {
-      onPhase?.({ phase: 'rebuild_counts', action: 'start' });
-      await yieldForUi();
-      try {
-        onProgress?.('Rebuilding daily counts...', 0);
-        this.rebuildDailyCounts();
-        onProgress?.('Daily counts rebuilt', 0);
-        onProgress?.('Rebuilding session stats...', 0);
-        this.rebuildSessionStats();
-        onProgress?.('Session stats rebuilt', 0);
-        onPhase?.({ phase: 'rebuild_counts', action: 'finish' });
-      } catch (e) {
-        onPhase?.({ phase: 'rebuild_counts', action: 'error', message: e instanceof Error ? e.message : String(e) });
-      }
-      await yieldForUi();
-    }
+    await this.runGuardedPhase('rebuild_counts', ctx, () => {
+      onProgress?.('Rebuilding daily counts...', 0);
+      this.rebuildDailyCounts();
+      onProgress?.('Daily counts rebuilt', 0);
+      onProgress?.('Rebuilding session stats...', 0);
+      this.rebuildSessionStats();
+      onProgress?.('Session stats rebuilt', 0);
+    });
 
     const messageCommitsBackfilled = await this.importAllPhaseBackfill(
       onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot,
