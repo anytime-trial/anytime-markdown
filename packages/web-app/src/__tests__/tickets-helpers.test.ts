@@ -37,3 +37,24 @@ describe("sanitizeExtras", () => {
     expect(sanitizeExtras("str")).toEqual({});
   });
 });
+
+describe("sanitizeExtras: プロトタイプ差し替えにならないこと", () => {
+  // SAFE_EXTRA_KEY_RE（^[A-Za-z_][\w-]*$）は `__proto__` を通す。素のオブジェクト
+  // リテラルへ代入すると「そのキーの値」ではなくプロトタイプの差し替えになり、
+  // 未知キーが自身のプロパティとして残らない＝往復保存で黙って消える。
+  // tickets-core の parseTicketMarkdown 側は Object.create(null) 化済みなので、
+  // ここだけ literal のままだと API 経由の更新でキーが失われ、経路で挙動が食い違う。
+  it("__proto__ キーを自身のプロパティとして保持する", () => {
+    // オブジェクトリテラルの `__proto__:` は入力側のプロトタイプ差し替えになり、
+    // own key にならない。JSON.parse は setter を通さず自身のプロパティとして作る。
+    const out = sanitizeExtras(JSON.parse('{"__proto__":["polluted"]}'));
+    expect(Object.hasOwn(out, "__proto__")).toBe(true);
+    expect(out["__proto__"]).toEqual(["polluted"]);
+    expect(Array.isArray(Object.getPrototypeOf(out))).toBe(false);
+  });
+
+  it("Object.prototype を汚さない", () => {
+    sanitizeExtras(JSON.parse('{"__proto__":{"polluted":"yes"}}'));
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
