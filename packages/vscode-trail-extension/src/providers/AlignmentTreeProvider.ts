@@ -12,7 +12,7 @@ export interface AlignmentNode {
   readonly children?: readonly AlignmentNode[];
   /** spec / file ノードが開くファイルの絶対パス */
   readonly resourcePath?: string;
-  readonly status?: 'stale' | 'undocumented';
+  readonly status?: 'stale' | 'undocumented' | 'unknown';
 }
 
 const ICON_BY_KIND: Record<AlignmentNodeKind, string> = {
@@ -124,6 +124,9 @@ function buildElementNode(
   const changedFiles = [...new Set(findings.flatMap((f) => f.changedFiles))]
     .sort((left, right) => left.localeCompare(right));
   const undocumented = findings.some((f) => f.status === 'undocumented');
+  const unknownSpecPaths = [...new Set(
+    findings.filter((f) => f.status === 'unknown' && f.specPath).map((f) => f.specPath as string),
+  )].sort((left, right) => left.localeCompare(right));
 
   const children: AlignmentNode[] = [];
 
@@ -138,6 +141,21 @@ function buildElementNode(
         description: path.dirname(specPath),
         resourcePath: path.join(docsRepoRoot, specPath),
         status: 'stale' as const,
+      })),
+    });
+  }
+
+  if (unknownSpecPaths.length > 0) {
+    children.push({
+      kind: 'group',
+      label: '判定できない設計書（コミット未取込）',
+      description: `${unknownSpecPaths.length}`,
+      children: unknownSpecPaths.map((specPath) => ({
+        kind: 'spec' as const,
+        label: path.basename(specPath),
+        description: path.dirname(specPath),
+        resourcePath: path.join(docsRepoRoot, specPath),
+        status: 'unknown' as const,
       })),
     });
   }
@@ -165,9 +183,23 @@ function buildElementNode(
   return {
     kind: 'element',
     label: elementId,
-    description: undocumented && specPaths.length === 0
-      ? 'undocumented'
-      : `stale ${specPaths.length}`,
+    description: describeElement(specPaths.length, unknownSpecPaths.length, undocumented),
     children,
   };
+}
+
+/**
+ * 要素ノードの description。stale / unknown は別カウントで並べる（取込欠落を
+ * 更新漏れとして数えると件数が実態を映さない）。
+ */
+function describeElement(
+  staleCount: number,
+  unknownCount: number,
+  undocumented: boolean,
+): string {
+  const parts: string[] = [];
+  if (staleCount > 0) parts.push(`stale ${staleCount}`);
+  if (unknownCount > 0) parts.push(`unknown ${unknownCount}`);
+  if (parts.length > 0) return parts.join(' / ');
+  return undocumented ? 'undocumented' : 'stale 0';
 }

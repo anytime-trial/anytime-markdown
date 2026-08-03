@@ -20,6 +20,34 @@ describe('AlignmentDiagnosticsProvider', () => {
     (languages.createDiagnosticCollection as unknown as jest.Mock).mockClear();
   });
 
+  it('counts unknown findings separately from stale and reports them as information', () => {
+    const provider = new AlignmentDiagnosticsProvider(WORKSPACE_ROOT);
+
+    const summary = provider.render(buildReport([
+      {
+        status: 'unknown',
+        elementId: 'pkg_trail-core',
+        specPath: 'spec/31.trail/trail-core.ja.md',
+        changedFiles: ['packages/trail-core/src/a.ts'],
+        reason: 'commits missing from trail.db',
+      },
+    ]));
+
+    expect(summary).toEqual({
+      checkedFiles: 3,
+      staleSpecs: 0,
+      staleElements: 0,
+      undocumentedElements: 0,
+      unknownElements: 1,
+    });
+
+    const [, diagnostics] = lastCollection().entries()[0];
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].severity).toBe(DiagnosticSeverity.Information);
+    expect(diagnostics[0].code).toBe('alignment.unknown');
+    expect(diagnostics[0].message).toContain('未取込');
+  });
+
   it('reports stale findings as warnings on every changed code file', () => {
     const provider = new AlignmentDiagnosticsProvider(WORKSPACE_ROOT);
 
@@ -38,6 +66,7 @@ describe('AlignmentDiagnosticsProvider', () => {
       staleSpecs: 1,
       staleElements: 1,
       undocumentedElements: 0,
+      unknownElements: 0,
     });
 
     const entries = lastCollection().entries();
@@ -100,6 +129,7 @@ describe('AlignmentDiagnosticsProvider', () => {
       staleSpecs: 1,
       staleElements: 1,
       undocumentedElements: 1,
+      unknownElements: 0,
     });
 
     const [, diagnostics] = lastCollection().entries()[0];
@@ -129,6 +159,7 @@ describe('AlignmentDiagnosticsProvider', () => {
       staleSpecs: 0,
       staleElements: 0,
       undocumentedElements: 0,
+      unknownElements: 0,
     });
     expect(lastCollection().entries()).toEqual([]);
   });
