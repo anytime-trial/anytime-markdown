@@ -179,9 +179,13 @@ describe('routes without prior HTTP coverage', () => {
     fs.rmSync(distDir, { recursive: true, force: true });
   });
 
-  it('GET /api/alignment is routed', async () => {
+  it('GET /api/alignment reaches the alignment handler', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/alignment`);
-    expect(res.status).not.toBe(404);
+    // gitRoot 未設定のテスト構成では 409 + JSON 本文を返す。ルータの 404（本文・
+    // Content-Type なし）と区別できる形で、ハンドラまで到達したことを確認する。
+    expect(res.status).toBe(409);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toHaveProperty('error');
   });
 
   it('POST /api/trail/refresh reaches importAll', async () => {
