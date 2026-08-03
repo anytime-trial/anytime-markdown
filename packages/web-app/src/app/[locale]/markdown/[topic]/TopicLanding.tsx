@@ -6,7 +6,7 @@ import { Link } from '../../../../i18n/navigation';
 import type { Locale } from '../../../../i18n/routing';
 import { localeHref } from '../../../../lib/localeAlternates';
 import { BreadcrumbJsonLd, FaqJsonLd, type QandA } from '../structuredData';
-import { TOPIC_SLUGS, TOPICS, type TopicSlug, topicPath } from '../topics';
+import { TOPIC_SLUGS, topicPath,TOPICS, type TopicSlug } from '../topics';
 import { TopicCtaButton } from './TopicCtaButton';
 
 /**
