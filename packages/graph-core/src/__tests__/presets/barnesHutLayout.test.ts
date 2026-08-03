@@ -131,7 +131,14 @@ function measureMedian(n: number, runs = 3): Metrics {
  */
 const ENFORCE_TIME_BUDGET = !process.env.CI;
 
-function expectMetrics(metrics: Metrics, timeLimit: number): void {
+/**
+ * 予算を外れた指標を人が読める文字列で返す（満たしていれば空配列）。
+ *
+ * 判定を投げずに返すのは、アサーションを `it` 本体へ置くためである。ヘルパの中で
+ * `throw` すると、テスト本体からはアサーションが 1 つも見えず「アサーションのない
+ * テスト」（Sonar S2699）として扱われる。失敗時の diff もアサーション経由でないと出ない。
+ */
+function metricFailures(metrics: Metrics, timeLimit: number): string[] {
   const failures: string[] = [];
   if (!ENFORCE_TIME_BUDGET) {
     console.info(
@@ -147,9 +154,8 @@ function expectMetrics(metrics: Metrics, timeLimit: number): void {
   if (metrics.minClearance < -1e-7) failures.push(`minClearance=${metrics.minClearance.toFixed(3)}`);
   if (metrics.structureRatio > 0.25) failures.push(`structureRatio=${metrics.structureRatio.toFixed(3)} > 0.25`);
   if (metrics.controlRatio < 0.6) failures.push(`controlRatio=${metrics.controlRatio.toFixed(3)} < 0.6`);
-  if (failures.length > 0) {
-    throw new Error(`metrics failed: ${failures.join(', ')}; measured=${JSON.stringify(metrics)}`);
-  }
+  if (failures.length === 0) return failures;
+  return [...failures, `measured=${JSON.stringify(metrics)}`];
 }
 
 describe('barnesHutLayout', () => {
@@ -175,12 +181,12 @@ describe('barnesHutLayout', () => {
     // 実測中央値は約 509ms（9 回計測で 490〜570 に分布）。500 は実性能の真下に
     // あり、中央値化しても恒常的に落ちる。劣化の検出力を保ちつつ緑にするため、
     // 中央値に約 37% の余裕を持たせた値へ改める。
-    expectMetrics(metrics, 700);
+    expect(metricFailures(metrics, 700)).toEqual([]);
   });
 
   it('keeps the 2,000-word cooccurrence fixture compact, separated, structured, and fast', () => {
     const metrics = measureMedian(2000);
     if (process.env.PRINT_BARNES_HUT_METRICS === '1') console.info('barnesHutLayout 2000', metrics);
-    expectMetrics(metrics, 1700);
+    expect(metricFailures(metrics, 1700)).toEqual([]);
   });
 });
