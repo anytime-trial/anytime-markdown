@@ -43,6 +43,16 @@ describe("HTML_SANITIZE_CONFIG", () => {
     expect(out).toContain("srcset=");
   });
 
+  it("crossorigin を保持する（別オリジンの字幕トラックが読めるように）", () => {
+    // track タグだけ許可して crossorigin を許可しないと、要素は出るのに外部 VTT が
+    // 無言で読み込まれない＝機能が半分だけ動く状態になる。
+    const out = sanitize(
+      '<video crossorigin="anonymous" src="https://example.test/v.mp4">' +
+        '<track kind="captions" src="https://cdn.example.test/c.vtt" srclang="ja"></video>',
+    );
+    expect(out).toContain('crossorigin="anonymous"');
+  });
+
   it("スクリプト実行経路は許可しない", () => {
     const out = sanitize(
       '<video src="x" onerror="alert(1)" onloadstart="alert(2)"></video>' +
