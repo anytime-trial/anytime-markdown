@@ -10,6 +10,24 @@
     if (key) map[key] = (map[key] || 0) + 1;
   };
   const label = (el) => (el.textContent || '').trim().slice(0, MAX_TEXT);
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    // 画面外へ退避されたもの（skip-link 等）は描画されない
+    return r.width > 0 && r.height > 0 && r.left > -1000;
+  };
+  // 要素の color が実際に画面へ出るか。配下のテキストが自分の色を継承していれば出る。
+  // カード全体を包む <a> のように子が色を上書きする場合は出ない（存在しない色をトークン化しないため）。
+  const paintsOwnColor = (el) => {
+    const color = getComputedStyle(el).color;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walker.nextNode())) {
+      if (!n.textContent.trim()) continue;
+      const p = n.parentElement;
+      if (p && visible(p) && getComputedStyle(p).color === color) return true;
+    }
+    return false;
+  };
 
   // 1) :root の CSS カスタムプロパティ（変数名も設計思想の一部として収集）
   const customProps = {};
@@ -52,7 +70,6 @@
     if (rect.width === 0 || rect.height === 0) continue;
     visited++;
     const cs = getComputedStyle(el);
-    count(histograms.colors, cs.color);
     if (cs.backgroundColor !== 'rgba(0, 0, 0, 0)') count(histograms.bgColors, cs.backgroundColor);
     count(histograms.fontFamilies, cs.fontFamily);
     count(histograms.fontSizes, cs.fontSize);
@@ -75,6 +92,21 @@
     }
   }
 
+  // 2b) 実際に描画される文字色。テキストノードの親要素の色を数える。
+  // 要素を走査して color を数えると、テキストを持たないラッパーの色まで拾ってしまう。
+  {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let n;
+    let counted = 0;
+    while ((n = walker.nextNode()) && counted < MAX_ELEMENTS * 2) {
+      if (!n.textContent.trim()) continue;
+      const p = n.parentElement;
+      if (!p || !visible(p)) continue;
+      counted++;
+      count(histograms.colors, getComputedStyle(p).color);
+    }
+  }
+
   // 3) 役割別スタイル（DESIGN.md の typography トークンは役割名で引くため、頻度表とは別に取る）
   const ROLES = {
     h1: 'h1',
@@ -94,13 +126,12 @@
   // 先頭採用だと、本文 <p> の代表がヘッダー内の小さな <p> になるなど実際に取り違える。
   const roleStyles = {};
   for (const [role, selector] of Object.entries(ROLES)) {
-    const els = [...document.querySelectorAll(selector)]
-      .filter((n) => {
-        const r = n.getBoundingClientRect();
-        return r.width > 0 && r.height > 0;
-      })
-      .slice(0, 200);
-    if (!els.length) continue;
+    const shown = [...document.querySelectorAll(selector)].filter(visible).slice(0, 200);
+    if (!shown.length) continue;
+    // 自分の色が画面に出るものを優先。無ければ全件で代用し textOwner: false を立てる
+    const owners = shown.filter(paintsOwnColor);
+    const els = owners.length ? owners : shown;
+    const textOwner = owners.length > 0;
     const tally = new Map();
     for (const el of els) {
       const cs = getComputedStyle(el);
@@ -122,10 +153,13 @@
       radius: cs.borderRadius,
       padding: cs.padding,
       border: cs.border,
-      visibleCount: els.length,
+      visibleCount: shown.length,
+      textOwnerCount: owners.length,
       dominantCount: count,
       // 支配率が低い役割は 1 つの代表値にまとめられない（複数系統が同居している）
       variantCount: ranked.length,
+      // false のとき、この color は子要素に上書きされ画面には現れない（色トークンに採らないこと）
+      textOwner,
     };
   }
 
