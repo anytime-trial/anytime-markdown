@@ -53,7 +53,11 @@ describe("sanitizeExtras: プロトタイプ差し替えにならないこと", 
     expect(Array.isArray(Object.getPrototypeOf(out))).toBe(false);
   });
 
-  it("Object.prototype を汚さない", () => {
+  // 注意: このアサーションは修正前でも通る（恒真）。`obj["__proto__"] = v` は
+  // setter 経由の prototype 差し替えであって Object.prototype への書き込みではない。
+  // 回帰ガードは上の「__proto__ を自身のプロパティとして保持する」側だけが担う。
+  // ここは「この経路はグローバル汚染には至らない」という到達範囲の明文化として残す。
+  it("Object.prototype には到達しない（範囲の明文化・恒真）", () => {
     sanitizeExtras(JSON.parse('{"__proto__":{"polluted":"yes"}}'));
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });

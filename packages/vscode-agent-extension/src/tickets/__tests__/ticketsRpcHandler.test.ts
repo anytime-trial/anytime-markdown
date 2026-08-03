@@ -293,7 +293,7 @@ describe('handleTicketsRpc', () => {
     });
 
     const arg = (provider.update as jest.Mock).mock.calls[0][0];
+    // 実効的な回帰ガードはこの 1 行（リテラルへ戻すとキーが消えて落ちる）。
     expect(arg.content).toContain('__proto__: kept');
-    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });
