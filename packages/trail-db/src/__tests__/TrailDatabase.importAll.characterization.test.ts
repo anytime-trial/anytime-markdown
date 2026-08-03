@@ -89,12 +89,13 @@ interface RunResult {
 async function runImportAll(
   db: TrailDatabase,
   lepOpts?: Parameters<TrailDatabase['importAll']>[5],
+  gitRoots?: readonly string[],
 ): Promise<RunResult> {
   const phases: ImportAllPhaseEvent[] = [];
   const progress: string[] = [];
   const counters = await db.importAll(
     (message) => { progress.push(message); },
-    undefined,
+    gitRoots,
     undefined,
     undefined,
     (event) => { phases.push(event); },
@@ -246,6 +247,205 @@ describe('TrailDatabase.importAll — phase sequence golden master', () => {
     });
 
     expect(phases).toContainEqual({ phase: 'analyze_behavior', action: 'start', count: 1 });
+  });
+
+  // ------------------------------------------------------------------
+  //  gitRoot を伴うフェーズのイベント契約
+  //
+  //  変異注入で実測したところ、gitRoot ありの経路は既存テストが 1 本も通っておらず、
+  //  「失敗した段があっても finish を出す」「2 段目以降の失敗でも error を出す」
+  //  「コミット解決数の加算を落とす」がいずれも素通りしていた。ここで固定する。
+  // ------------------------------------------------------------------
+  describe('gitRoot ありの多段フェーズ', () => {
+    /** git を実行させないよう、gitRoot を要求するフェーズの中身はすべて差し替える。 */
+    function stubGitRootPhases(over: {
+      resolveReleases?: () => number;
+      resolveReleaseTimes?: () => number;
+      importCoverage?: () => number;
+      importCurrentCoverage?: () => number;
+    } = {}): void {
+      jest.spyOn(db, 'resolveReleases').mockImplementation(over.resolveReleases ?? (() => 2));
+      jest.spyOn(db, 'resolveReleaseTimes').mockImplementation(over.resolveReleaseTimes ?? (() => 1));
+      jest.spyOn(db, 'importCoverage').mockImplementation(over.importCoverage ?? (() => 3));
+      jest.spyOn(db, 'importCurrentCoverage').mockImplementation(over.importCurrentCoverage ?? (() => 4));
+      // 既定ではコミット解決を「済み」にして実 git の起動を避ける。
+      // 解決件数を検証するテストだけが明示的に上書きする。
+      jest.spyOn(db, 'isCommitResolutionDone').mockReturnValue(true);
+    }
+
+    function phaseEvents(phases: ImportAllPhaseEvent[], phase: string): ImportAllPhaseEvent[] {
+      return phases.filter((p) => p.phase === phase);
+    }
+
+    it('全段が成功したら start → finish で、finish の count は合計', async () => {
+      stubGitRootPhases();
+      const { phases, counters } = await runImportAll(db, undefined, ['/repo-a']);
+
+      expect(phaseEvents(phases, 'import_coverage')).toEqual([
+        { phase: 'import_coverage', action: 'start' },
+        { phase: 'import_coverage', action: 'finish', count: 7 },
+      ]);
+      expect(counters.coverageImported).toBe(3);
+      expect(counters.currentCoverageImported).toBe(4);
+      expect(counters.releasesResolved).toBe(2);
+    });
+
+    it('1 段目が失敗したら error は 1 度だけで finish を出さない', async () => {
+      stubGitRootPhases({
+        importCoverage: () => { throw new Error('boom-1'); },
+      });
+      const { phases } = await runImportAll(db, undefined, ['/repo-a']);
+
+      expect(phaseEvents(phases, 'import_coverage')).toEqual([
+        { phase: 'import_coverage', action: 'start' },
+        { phase: 'import_coverage', action: 'error', message: 'boom-1' },
+      ]);
+    });
+
+    it('2 段目だけ失敗した場合も error は 1 度で finish は出ない', async () => {
+      stubGitRootPhases({
+        importCurrentCoverage: () => { throw new Error('boom-2'); },
+      });
+      const { phases, counters } = await runImportAll(db, undefined, ['/repo-a']);
+
+      expect(phaseEvents(phases, 'import_coverage')).toEqual([
+        { phase: 'import_coverage', action: 'start' },
+        { phase: 'import_coverage', action: 'error', message: 'boom-2' },
+      ]);
+      // 1 段目の結果は残る（2 段目の失敗で巻き戻さない）
+      expect(counters.coverageImported).toBe(3);
+    });
+
+    it('両方の段が失敗しても error は最初の 1 度だけ', async () => {
+      stubGitRootPhases({
+        resolveReleases: () => { throw new Error('first'); },
+        resolveReleaseTimes: () => { throw new Error('second'); },
+      });
+      const { phases } = await runImportAll(db, undefined, ['/repo-a']);
+
+      expect(phaseEvents(phases, 'resolve_releases')).toEqual([
+        { phase: 'resolve_releases', action: 'start' },
+        { phase: 'resolve_releases', action: 'error', message: 'first' },
+      ]);
+    });
+
+    it('phasesToSkip に入っているフェーズはイベントを一切出さない', async () => {
+      stubGitRootPhases();
+      const { phases } = await runImportAll(
+        db,
+        { phasesToSkip: new Set(['resolve_releases', 'import_coverage'] as const) },
+        ['/repo-a'],
+      );
+
+      // gitRoot があっても skip 指定が優先される。skip イベントすら出ない。
+      expect(phaseEvents(phases, 'resolve_releases')).toEqual([]);
+      expect(phaseEvents(phases, 'import_coverage')).toEqual([]);
+    });
+
+    it('セッションごとに解決したコミット数を合計して返す', async () => {
+      stubGitRootPhases();
+      jest.spyOn(db, 'isCommitResolutionDone').mockReturnValue(false);
+      jest.spyOn(db, 'resolveCommits').mockReturnValue(5);
+
+      const { counters } = await runImportAll(db, undefined, ['/repo-a']);
+
+      // セッション 2 本 × watched 1 repo × 5 件
+      expect(counters.commitsResolved).toBe(10);
+    });
+
+    it('取り込みを飛ばしたセッションでもコミット解決は走り、件数に乗る', async () => {
+      stubGitRootPhases();
+      jest.spyOn(db, 'isCommitResolutionDone').mockReturnValue(false);
+      const resolveSpy = jest.spyOn(db, 'resolveCommits').mockReturnValue(1);
+
+      await runImportAll(db, undefined, ['/repo-a']);
+      resolveSpy.mockClear();
+      const second = await runImportAll(db, undefined, ['/repo-a']);
+
+      expect(second.counters.skipped).toBe(3);
+      expect(resolveSpy).toHaveBeenCalledTimes(2);
+      expect(second.counters.commitsResolved).toBe(2);
+    });
+  });
+
+  // yieldForUi の回数は UI の応答性そのもの。イベント列には現れないため、
+  // 変異注入では「末尾の yieldForUi を落とす」が全スイートを素通りした。
+  // 4 経路の回数をここで直接固定する。
+  describe('runGitRootPhase の yieldForUi 回数', () => {
+    interface PhaseRunner {
+      runGitRootPhase: (
+        phase: string,
+        ctx: {
+          onProgress: undefined;
+          onPhase: (e: ImportAllPhaseEvent) => void;
+          yieldForUi: () => Promise<void>;
+          phasesToSkip: ReadonlySet<string>;
+        },
+        spec: { gitRoot: string | undefined; steps: readonly ((gitRoot: string) => void)[]; finishCount: () => number },
+      ) => Promise<void>;
+    }
+
+    async function run(
+      opts: { skip?: boolean; gitRoot?: string; throwAt?: number },
+    ): Promise<{ yields: number; events: ImportAllPhaseEvent[] }> {
+      let yields = 0;
+      const events: ImportAllPhaseEvent[] = [];
+      const steps = [0, 1].map((i) => () => {
+        if (opts.throwAt === i) throw new Error(`step-${i}`);
+      });
+      await (db as unknown as PhaseRunner).runGitRootPhase(
+        'import_coverage',
+        {
+          onProgress: undefined,
+          onPhase: (e) => { events.push(e); },
+          yieldForUi: async () => { yields++; },
+          phasesToSkip: new Set(opts.skip ? ['import_coverage'] : []),
+        },
+        { gitRoot: opts.gitRoot, steps, finishCount: () => 42 },
+      );
+      return { yields, events };
+    }
+
+    it('skip 指定なら 1 回・イベントは出さない', async () => {
+      expect(await run({ skip: true, gitRoot: '/x' })).toEqual({ yields: 1, events: [] });
+    });
+
+    it('gitRoot が無ければ 1 回・skip イベントだけ', async () => {
+      expect(await run({})).toEqual({
+        yields: 1,
+        events: [{ phase: 'import_coverage', action: 'skip', message: 'no gitRoot' }],
+      });
+    });
+
+    it('実行して成功したら 2 回（start の前後）', async () => {
+      expect(await run({ gitRoot: '/x' })).toEqual({
+        yields: 2,
+        events: [
+          { phase: 'import_coverage', action: 'start' },
+          { phase: 'import_coverage', action: 'finish', count: 42 },
+        ],
+      });
+    });
+
+    it('段が失敗しても 2 回のまま', async () => {
+      expect(await run({ gitRoot: '/x', throwAt: 0 })).toEqual({
+        yields: 2,
+        events: [
+          { phase: 'import_coverage', action: 'start' },
+          { phase: 'import_coverage', action: 'error', message: 'step-0' },
+        ],
+      });
+    });
+  });
+
+  it('取り込みに失敗したファイルも処理済み件数に数える', async () => {
+    jest.spyOn(db, 'importSession').mockImplementation(() => { throw new Error('boom'); });
+
+    const { counters, progress } = await runImportAll(db);
+
+    expect(counters.imported).toBe(0);
+    // 進捗の分子は「処理を試みたファイル数」。成功数（0/3）ではない。
+    expect(progress.some((m) => m.includes('(3/3, skipped 0)'))).toBe(true);
   });
 
   it('returns zeroed counters when the projects directory does not exist', async () => {

@@ -178,13 +178,13 @@ interface ImportAllPhaseContext {
   readonly phasesToSkip: ReadonlySet<ImportAllPhase>;
 }
 
-/** importAll が扱うセッション単位の入力（main JSONL + subagent JSONL 群）。 */
-interface ImportAllSessionDir {
-  sid: string;
-  mainFile: string;
-  subagentFiles: string[];
-  repoName: string;
-  source: 'claude_code' | 'codex';
+/** 既に取り込み済みのセッションファイルについて、再取り込みの要否を決めるのに使う情報。 */
+interface ImportedFileInfo {
+  sessionId: string;
+  fileSize: number;
+  commitsResolved: boolean;
+  hasMessages: boolean;
+  hasUsableCostData: boolean;
 }
 
 export interface ImportAllLepOptions {
@@ -212,8 +212,9 @@ import { normalizeCodexRecords } from './codexNormalize';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 import { ExecFileGitService } from './ExecFileGitService';
 import { JsonlSessionReader } from './JsonlSessionReader';
-import type { RawContentBlock, RawLine } from './rawLine';
-import { extractSessionMetaFromLines, parseJsonlLines, type SessionRowMeta } from './sessionImport';
+import type { RawLine } from './rawLine';
+import { collectClaudeCodeSessionDirs, type ImportAllSessionDir } from './sessionDirs';
+import { buildMessageInsertParams, extractAgentInfo, extractSessionMetaFromLines, parseJsonlLines, type SessionRowMeta } from './sessionImport';
 export type { ReleaseCoverageRow, ReleaseFileRow, ReleaseRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
@@ -309,6 +310,13 @@ function collectMembersForCommunity(
     if (n.community === communityId) out.add(n.id);
   }
   return out;
+}
+
+/** テーブルが実在するか。新規 DB と移行済み DB を見分けるための判定に使う。 */
+function tableExists(db: Database, table: string): boolean {
+  return Boolean(
+    db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values?.length,
+  );
 }
 
 /**
@@ -774,27 +782,6 @@ export const INSERT_MESSAGE = `INSERT OR REPLACE INTO messages
 //  Helpers
 // ---------------------------------------------------------------------------
 
-function extractTextContent(
-  content: string | readonly RawContentBlock[] | undefined,
-): string | null {
-  if (typeof content === 'string') return content;
-  if (!Array.isArray(content)) return null;
-  const texts = (content as RawContentBlock[])
-    .filter((b) => b.type === 'text' && typeof b.text === 'string')
-    .map((b) => b.text as string);
-  return texts.length > 0 ? texts.join('\n') : null;
-}
-
-function extractToolCalls(
-  content: string | readonly RawContentBlock[] | undefined,
-): string | null {
-  if (typeof content === 'string' || !Array.isArray(content)) return null;
-  const calls = (content as RawContentBlock[])
-    .filter((b) => b.type === 'tool_use')
-    .map((b) => ({ id: b.id ?? '', name: b.name ?? '', input: b.input ?? {} }));
-  return calls.length > 0 ? JSON.stringify(calls) : null;
-}
-
 function collectJsonlFilesRecursive(rootDir: string): string[] {
   const results: string[] = [];
   function walk(dir: string): void {
@@ -815,27 +802,6 @@ function collectJsonlFilesRecursive(rootDir: string): string[] {
   return results;
 }
 
-/**
- * Extract Agent tool call description and model from tool_calls JSON.
- * Returns the first Agent call found (most messages have at most one).
- */
-function extractAgentInfo(
-  toolCallsJson: string | null,
-): { description: string | null; model: string | null; subagentType: string | null } {
-  if (!toolCallsJson) return { description: null, model: null, subagentType: null };
-  try {
-    const calls = JSON.parse(toolCallsJson) as { name?: string; input?: Record<string, unknown> }[];
-    const agentCall = calls.find((c) => c.name === 'Agent');
-    if (!agentCall?.input) return { description: null, model: null, subagentType: null };
-    return {
-      description: (agentCall.input.description as string) ?? null,
-      model: (agentCall.input.model as string) ?? null,
-      subagentType: (agentCall.input.subagent_type as string) ?? null,
-    };
-  } catch {
-    return { description: null, model: null, subagentType: null };
-  }
-}
 
 /**
  * サブエージェント JSONL に隣接する `agent-{agentId}.meta.json` から `agentType` を読む。
@@ -853,15 +819,6 @@ function readSubagentTypeFromMeta(jsonlPath: string): string | null {
 }
 
 // extractSkillName imported from trail-core (see import at top of file)
-
-/**
- * Estimate token count from a string.
- * Uses a rough heuristic of 1 token per 4 characters.
- */
-function estimateTokenCount(text: string | null): number | null {
-  if (!text) return null;
-  return Math.ceil(text.length / 4);
-}
 
 // ---------------------------------------------------------------------------
 //  Cost classification helpers
@@ -2138,6 +2095,41 @@ export class TrailDatabase {
     { table: 'release_function_analysis', oldTagCol: 'release_tag' },
   ];
 
+  /** 子テーブルのうち 1 つでも旧スキーマ（tag 参照）のまま残っているか。 */
+  private static releaseChildrenNeedFlip(db: Database): boolean {
+    return TrailDatabase.RELEASE_CHILD_FLIP.some(
+      ({ table, oldTagCol }) => tableExists(db, table) && columnExists(db, table, oldTagCol),
+    );
+  }
+
+  /**
+   * flip 前に releases へ `repo_id` / `release_id` を用意して埋める。
+   * init の additive backfill が未走の DB でも flip できるようにするための保険。
+   */
+  private static prepareReleasesForFlip(db: Database): void {
+    if (!columnExists(db, 'releases', 'repo_id')) {
+      db.run('ALTER TABLE releases ADD COLUMN repo_id INTEGER');
+    }
+    if (!columnExists(db, 'releases', 'release_id')) {
+      db.run('ALTER TABLE releases ADD COLUMN release_id INTEGER');
+    }
+    db.run('UPDATE releases SET release_id = rowid WHERE release_id IS NULL');
+    db.run(
+      `UPDATE releases
+         SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = releases.repo_name)
+       WHERE repo_id IS NULL`,
+    );
+  }
+
+  /** 旧スキーマのまま残っている子テーブルだけを 12-step で再構築する。 */
+  private rebuildReleaseChildrenForFlip(db: Database): void {
+    for (const { table, oldTagCol } of TrailDatabase.RELEASE_CHILD_FLIP) {
+      if (!tableExists(db, table)) continue;
+      if (!columnExists(db, table, oldTagCol)) continue;
+      this.rebuildReleaseChildForFlip(db, table);
+    }
+  }
+
   /**
    * Phase B-2b-iii flip: 既存 DB の releases を代理キー (release_id PRIMARY KEY) 化し、
    * 子 7 テーブルの FK を tag/release_tag → release_id へ張替える破壊的マイグレーション。
@@ -2154,35 +2146,14 @@ export class TrailDatabase {
    */
   private migrateReleasesFlip(db: Database): void {
     // releases が無ければ新規 DB。CREATE_* が新スキーマを作るので何もしない。
-    const releasesExists =
-      db.exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='releases'")[0]?.values
-        ?.length;
-    if (!releasesExists) return;
+    if (!tableExists(db, 'releases')) return;
 
     const releasesNeedsFlip = columnExists(db, 'releases', 'prev_tag');
-    const childNeedsFlip = TrailDatabase.RELEASE_CHILD_FLIP.some(
-      ({ table, oldTagCol }) =>
-        db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
-          ?.length && columnExists(db, table, oldTagCol),
-    );
-    if (!releasesNeedsFlip && !childNeedsFlip) return; // 既に flip 済 (冪等)
+    if (!releasesNeedsFlip && !TrailDatabase.releaseChildrenNeedFlip(db)) return; // 既に flip 済 (冪等)
 
     try {
       // ── pre: backfill を保証 (init の additive backfill が未走でも flip 可能にする) ──
-      if (releasesNeedsFlip) {
-        if (!columnExists(db, 'releases', 'repo_id')) {
-          db.run('ALTER TABLE releases ADD COLUMN repo_id INTEGER');
-        }
-        if (!columnExists(db, 'releases', 'release_id')) {
-          db.run('ALTER TABLE releases ADD COLUMN release_id INTEGER');
-        }
-        db.run('UPDATE releases SET release_id = rowid WHERE release_id IS NULL');
-        db.run(
-          `UPDATE releases
-             SET repo_id = (SELECT repo_id FROM repos WHERE repos.repo_name = releases.repo_name)
-           WHERE repo_id IS NULL`,
-        );
-      }
+      if (releasesNeedsFlip) TrailDatabase.prepareReleasesForFlip(db);
       this.backfillReleaseChildrenPreFlip(db);
 
       // ── view / trigger を全件退避 (テーブル再作成中の検証エラーを防ぐ) ──
@@ -2202,14 +2173,7 @@ export class TrailDatabase {
         if (releasesNeedsFlip) {
           this.rebuildReleasesTableForFlip(db);
         }
-        for (const { table, oldTagCol } of TrailDatabase.RELEASE_CHILD_FLIP) {
-          const tExists =
-            db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='${table}'`)[0]?.values
-              ?.length;
-          if (!tExists) continue;
-          if (!columnExists(db, table, oldTagCol)) continue;
-          this.rebuildReleaseChildForFlip(db, table);
-        }
+        this.rebuildReleaseChildrenForFlip(db);
         db.run('COMMIT');
       } catch (e) {
         db.run('ROLLBACK');
@@ -4513,6 +4477,29 @@ export class TrailDatabase {
     return metaUpdated;
   }
 
+  /**
+   * 1 件の親メッセージについて、`tool_calls` から `subagent_type` を読み出して書き戻す。
+   * 行が無い / `tool_calls` が空 / Agent 呼び出しでない場合は何も書かず `false` を返す。
+   */
+  private applyParentSubagentType(
+    selectStmt: SqlJsCompatStatement,
+    updateParent: SqlJsCompatStatement,
+    uuid: string,
+  ): boolean {
+    selectStmt.bind([uuid]);
+    try {
+      if (!selectStmt.step()) return false;
+      const toolCalls = selectStmt.get()[0] as string | null;
+      if (!toolCalls) return false;
+      const info = extractAgentInfo(toolCalls);
+      if (!info.subagentType) return false;
+      updateParent.run([info.subagentType, uuid]);
+      return true;
+    } finally {
+      selectStmt.reset();
+    }
+  }
+
   /** Step 3 of backfillSubagentType: UPDATE parent messages that contain Agent tool_use calls. */
   private backfillSubagentTypeForParents(db: Database, candidateUuids: string[]): number {
     let parentUpdated = 0;
@@ -4524,22 +4511,7 @@ export class TrailDatabase {
       try {
         for (let i = 0; i < candidateUuids.length; i++) {
           const uuid = candidateUuids[i];
-          selectStmt.bind([uuid]);
-          try {
-            if (selectStmt.step()) {
-              const row = selectStmt.get();
-              const toolCalls = row[0] as string | null;
-              if (toolCalls) {
-                const info = extractAgentInfo(toolCalls);
-                if (info.subagentType) {
-                  updateParent.run([info.subagentType, uuid]);
-                  parentUpdated++;
-                }
-              }
-            }
-          } finally {
-            selectStmt.reset();
-          }
+          if (this.applyParentSubagentType(selectStmt, updateParent, uuid)) parentUpdated++;
           if ((i + 1) % 500 === 0) {
             this.logger.info(`[Migration] subagent_type_backfill_v1: parent ${i + 1}/${candidateUuids.length} processed`);
           }
@@ -5781,7 +5753,7 @@ export class TrailDatabase {
    * - LEP `SessionImporter` (Step 2b) が file-size skip 判定で使用する。
    * - LEP 移行前は `importAll()` 内の Phase 1 が同じく内部利用していた。
    */
-  getImportedFileMap(): Map<string, { sessionId: string; fileSize: number; commitsResolved: boolean; hasMessages: boolean; hasUsableCostData: boolean }> {
+  getImportedFileMap(): Map<string, ImportedFileInfo> {
     const db = this.ensureDb();
     const result = db.exec(
       `SELECT s.id, s.file_path, s.file_size, s.commits_resolved_at,
@@ -6137,61 +6109,6 @@ export class TrailDatabase {
     this.ensureDb().run('ROLLBACK');
   }
 
-  private buildMessageInsertParams(
-    raw: RawLine,
-    sessionId: string,
-    isSubagent: boolean,
-    fileSubagentType: string | null,
-  ): unknown[] {
-    const textContent = raw.type === 'assistant'
-      ? extractTextContent(raw.message?.content) : null;
-    const userMessageContent = typeof raw.message?.content === 'string' ? raw.message.content : null;
-    const userContent = raw.type === 'user' ? userMessageContent : null;
-    const toolCalls = raw.type === 'assistant' ? extractToolCalls(raw.message?.content) : null;
-
-    // tool_use_result: ユーザーメッセージの content から tool_result ブロックを抽出する。
-    let toolUseResult: string | null = null;
-    if (raw.type === 'user' && Array.isArray(raw.message?.content)) {
-      const toolResults = (raw.message.content as unknown[]).filter(
-        (b) => typeof b === 'object' && b !== null && (b as Record<string, unknown>).type === 'tool_result',
-      );
-      if (toolResults.length > 0) toolUseResult = JSON.stringify(toolResults);
-    }
-    if (!toolUseResult && raw.toolUseResult != null) {
-      toolUseResult = typeof raw.toolUseResult === 'string'
-        ? raw.toolUseResult : JSON.stringify(raw.toolUseResult);
-    }
-
-    const durationMs = raw.durationMs ?? null;
-    const toolResultSize = estimateTokenCount(toolUseResult);
-    const agentInfo = extractAgentInfo(toolCalls);
-    const permMode = raw.permissionMode ?? null;
-    const skill = extractSkillName(toolCalls);
-    const agentId = raw.agentId ?? null;
-    const sourceToolAssistantUUID = raw.sourceToolAssistantUUID ?? null;
-    const sourceToolUseID = raw.sourceToolUseID ?? null;
-    const systemCommandInner = raw.subtype === 'local_command' ? '/clear' : null;
-    const systemCommand = raw.subtype === 'compact_boundary' ? '/compact' : systemCommandInner;
-    // 主セッションでは Agent tool_use を持つ親メッセージのみ subagent_type を持つ（呼び出し意図記録）。
-    // サブエージェント JSONL では全メッセージが meta.json 由来の subagent_type を持つ。
-    const subagentType = isSubagent ? fileSubagentType : agentInfo.subagentType;
-
-    return [
-      raw.uuid ?? '', sessionId, raw.parentUuid ?? null,
-      raw.type ?? '', raw.subtype ?? null,
-      textContent, userContent, toolCalls, toolUseResult,
-      raw.message?.model ?? null, raw.requestId ?? null, raw.message?.stop_reason ?? null,
-      raw.message?.usage?.input_tokens ?? 0, raw.message?.usage?.output_tokens ?? 0,
-      raw.message?.usage?.cache_read_input_tokens ?? 0, raw.message?.usage?.cache_creation_input_tokens ?? 0,
-      raw.message?.usage?.service_tier ?? null, raw.message?.usage?.speed ?? null,
-      toUTC(raw.timestamp ?? ''), raw.isSidechain ? 1 : 0, raw.isMeta ? 1 : 0,
-      raw.cwd ?? null, raw.gitBranch ?? null,
-      durationMs, toolResultSize, agentInfo.description, agentInfo.model,
-      permMode, skill, agentId, sourceToolAssistantUUID, sourceToolUseID,
-      systemCommand, subagentType,
-    ];
-  }
-
   /** @returns number of messages imported */
   importSession(filePath: string, repoName: string, isSubagent = false, externalTransaction = false): number {
     const db = this.ensureDb();
@@ -6234,7 +6151,7 @@ export class TrailDatabase {
       // Insert messages
       const msgStmt = db.prepare(INSERT_MESSAGE);
       for (const raw of meta.messagesToInsert) {
-        const params = this.buildMessageInsertParams(raw, sessionId, isSubagent, fileSubagentType);
+        const params = buildMessageInsertParams(raw, { sessionId, isSubagent, fileSubagentType });
         msgStmt.run(params);
       }
       msgStmt.free();
@@ -6277,39 +6194,6 @@ export class TrailDatabase {
     ]);
   }
 
-  private collectClaudeCodeSessionDirs(
-    projectDirs: string[],
-    projectsDir: string,
-    UUID_RE: RegExp,
-  ): ImportAllSessionDir[] {
-    const sessionDirs: ImportAllSessionDir[] = [];
-    for (const projectName of projectDirs) {
-      const projectPath = path.join(projectsDir, projectName);
-      try {
-        if (!fs.statSync(projectPath).isDirectory()) continue;
-      } catch { continue; }
-
-      let entries: string[];
-      try { entries = fs.readdirSync(projectPath); } catch { continue; }
-
-      for (const entry of entries) {
-        if (!entry.endsWith('.jsonl')) continue;
-        const sid = entry.slice(0, -6);
-        if (!UUID_RE.test(sid)) continue;
-        const mainFile = path.join(projectPath, entry);
-        const subagentDir = path.join(projectPath, sid, 'subagents');
-        const subagentFiles: string[] = [];
-        try {
-          for (const sf of fs.readdirSync(subagentDir)) {
-            if (sf.endsWith('.jsonl')) subagentFiles.push(path.join(subagentDir, sf));
-          }
-        } catch { /* no subagents dir */ }
-        const derivedRepoName = extractRepoNameFromJsonl(mainFile) ?? projectName.replace(/^-+/, '');
-        sessionDirs.push({ sid, mainFile, subagentFiles, repoName: derivedRepoName, source: 'claude_code' });
-      }
-    }
-    return sessionDirs;
-  }
 
   private collectCodexSessionDirs(
     codexSessionsDir: string,
@@ -6337,43 +6221,84 @@ export class TrailDatabase {
     return sessionDirs;
   }
 
+  /**
+   * フェーズの各段を順に実行する。各段は独立に try し、**最初に失敗した段だけ**
+   * `error` イベントを出す。1 段でも失敗したら `true` を返す。
+   */
+  private runPhaseSteps(
+    phase: ImportAllPhase,
+    ctx: ImportAllPhaseContext,
+    spec: { steps: readonly ((gitRoot: string) => void)[]; gitRoot: string },
+  ): boolean {
+    let failed = false;
+    for (const step of spec.steps) {
+      try {
+        step(spec.gitRoot);
+      } catch (e) {
+        if (!failed) {
+          ctx.onPhase?.({ phase, action: 'error', message: e instanceof Error ? e.message : String(e) });
+          failed = true;
+        }
+      }
+    }
+    return failed;
+  }
+
+  /**
+   * gitRoot を要する多段フェーズを走らせる。
+   *
+   * - `phasesToSkip` に入っていればイベントを一切出さない
+   * - gitRoot が無ければ start も出さず `skip` イベントだけを出す
+   * - 各段は独立に try し、**最初に失敗した段だけ** `error` イベントを出す
+   * - 1 段でも失敗したら `finish` は出さない
+   *
+   * `yieldForUi` の回数は経路によって変わる（実行時のみ 2 回、それ以外は 1 回）。
+   * UI の応答性がこの回数に依存しているため、経路ごとの回数を変えないこと。
+   */
+  private async runGitRootPhase(
+    phase: ImportAllPhase,
+    ctx: ImportAllPhaseContext,
+    spec: {
+      gitRoot: string | undefined;
+      steps: readonly ((gitRoot: string) => void)[];
+      finishCount: () => number;
+    },
+  ): Promise<void> {
+    const skip = ctx.phasesToSkip.has(phase);
+    const gitRoot = spec.gitRoot;
+    if (!skip && gitRoot) {
+      ctx.onPhase?.({ phase, action: 'start' });
+      await ctx.yieldForUi();
+      const failed = this.runPhaseSteps(phase, ctx, { steps: spec.steps, gitRoot });
+      if (!failed) ctx.onPhase?.({ phase, action: 'finish', count: spec.finishCount() });
+    } else if (!skip) {
+      ctx.onPhase?.({ phase, action: 'skip', message: 'no gitRoot' });
+    }
+    await ctx.yieldForUi();
+  }
+
   private async importAllPhaseResolveReleases(
-    onProgress: ((msg: string, inc?: number) => void) | undefined,
-    onPhase: ((e: ImportAllPhaseEvent) => void) | undefined,
-    yieldForUi: () => Promise<void>,
-    phasesToSkip: ReadonlySet<ImportAllPhase>,
+    ctx: ImportAllPhaseContext,
     gitRoot: string | undefined,
     initialCount: number,
   ): Promise<number> {
     let releasesResolved = initialCount;
-    const skip = phasesToSkip.has('resolve_releases');
-    if (!skip && gitRoot) {
-      onPhase?.({ phase: 'resolve_releases', action: 'start' });
-      await yieldForUi();
-      let failed = false;
-      try {
-        onProgress?.('Resolving releases from version tags...', 0);
-        releasesResolved = this.resolveReleases(gitRoot);
-        onProgress?.(`Releases resolved: ${releasesResolved}`, 0);
-      } catch (e) {
-        failed = true;
-        onPhase?.({ phase: 'resolve_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
-      }
-      try {
-        onProgress?.('Resolving release times...', 0);
-        const timesResolved = this.resolveReleaseTimes();
-        onProgress?.(`Release times resolved: ${timesResolved}`, 0);
-      } catch (e) {
-        if (!failed) {
-          onPhase?.({ phase: 'resolve_releases', action: 'error', message: e instanceof Error ? e.message : String(e) });
-          failed = true;
-        }
-      }
-      if (!failed) onPhase?.({ phase: 'resolve_releases', action: 'finish', count: releasesResolved });
-    } else if (!skip) {
-      onPhase?.({ phase: 'resolve_releases', action: 'skip', message: 'no gitRoot' });
-    }
-    await yieldForUi();
+    await this.runGitRootPhase('resolve_releases', ctx, {
+      gitRoot,
+      steps: [
+        (root) => {
+          ctx.onProgress?.('Resolving releases from version tags...', 0);
+          releasesResolved = this.resolveReleases(root);
+          ctx.onProgress?.(`Releases resolved: ${releasesResolved}`, 0);
+        },
+        () => {
+          ctx.onProgress?.('Resolving release times...', 0);
+          const timesResolved = this.resolveReleaseTimes();
+          ctx.onProgress?.(`Release times resolved: ${timesResolved}`, 0);
+        },
+      ],
+      finishCount: () => releasesResolved,
+    });
     return releasesResolved;
   }
 
@@ -6409,44 +6334,28 @@ export class TrailDatabase {
   }
 
   private async importAllPhaseImportCoverage(
-    onProgress: ((msg: string, inc?: number) => void) | undefined,
-    onPhase: ((e: ImportAllPhaseEvent) => void) | undefined,
-    yieldForUi: () => Promise<void>,
-    phasesToSkip: ReadonlySet<ImportAllPhase>,
+    ctx: ImportAllPhaseContext,
     gitRoot: string | undefined,
-    initialCoverage: number,
-    initialCurrentCoverage: number,
+    initial: { coverage: number; currentCoverage: number },
   ): Promise<{ coverageImported: number; currentCoverageImported: number }> {
-    let coverageImported = initialCoverage;
-    let currentCoverageImported = initialCurrentCoverage;
-    const skip = phasesToSkip.has('import_coverage');
-    if (!skip && gitRoot) {
-      onPhase?.({ phase: 'import_coverage', action: 'start' });
-      await yieldForUi();
-      let failed = false;
-      try {
-        onProgress?.('Importing coverage data...', 0);
-        coverageImported = this.importCoverage(gitRoot);
-        onProgress?.(`Coverage imported: ${coverageImported} entries`, 0);
-      } catch (e) {
-        failed = true;
-        onPhase?.({ phase: 'import_coverage', action: 'error', message: e instanceof Error ? e.message : String(e) });
-      }
-      try {
-        onProgress?.('Importing current coverage snapshot...', 0);
-        currentCoverageImported = this.importCurrentCoverage(gitRoot, path.basename(gitRoot));
-        onProgress?.(`Current coverage imported: ${currentCoverageImported} entries`, 0);
-      } catch (e) {
-        if (!failed) {
-          onPhase?.({ phase: 'import_coverage', action: 'error', message: e instanceof Error ? e.message : String(e) });
-          failed = true;
-        }
-      }
-      if (!failed) onPhase?.({ phase: 'import_coverage', action: 'finish', count: coverageImported + currentCoverageImported });
-    } else if (!skip) {
-      onPhase?.({ phase: 'import_coverage', action: 'skip', message: 'no gitRoot' });
-    }
-    await yieldForUi();
+    let coverageImported = initial.coverage;
+    let currentCoverageImported = initial.currentCoverage;
+    await this.runGitRootPhase('import_coverage', ctx, {
+      gitRoot,
+      steps: [
+        (root) => {
+          ctx.onProgress?.('Importing coverage data...', 0);
+          coverageImported = this.importCoverage(root);
+          ctx.onProgress?.(`Coverage imported: ${coverageImported} entries`, 0);
+        },
+        (root) => {
+          ctx.onProgress?.('Importing current coverage snapshot...', 0);
+          currentCoverageImported = this.importCurrentCoverage(root, path.basename(root));
+          ctx.onProgress?.(`Current coverage imported: ${currentCoverageImported} entries`, 0);
+        },
+      ],
+      finishCount: () => coverageImported + currentCoverageImported,
+    });
     return { coverageImported, currentCoverageImported };
   }
 
@@ -6481,37 +6390,46 @@ export class TrailDatabase {
     await yieldForUi();
   }
 
+  /**
+   * commit_files のバックフィル。gitRoot が無ければ何もしない。
+   * 失敗したらフェーズの `error` イベントを出し、`true`（＝このフェーズは失敗）を返す。
+   */
+  private backfillCommitFilesForPhase(ctx: ImportAllPhaseContext, gitRoot: string | undefined): boolean {
+    if (!gitRoot) return false;
+    try {
+      this.backfillCommitFiles(gitRoot, (msg) => ctx.onProgress?.(msg, 0));
+      return false;
+    } catch (e) {
+      ctx.onPhase?.({ phase: 'backfill', action: 'error', message: e instanceof Error ? e.message : String(e) });
+      return true;
+    }
+  }
+
+  /** subagent_type のバックフィル。フェーズ全体を落とさないよう、失敗は warn ログに留める。 */
+  private backfillSubagentTypeNonFatal(): void {
+    try {
+      this.backfillSubagentType();
+    } catch (e) {
+      this.logger.warn(`backfillSubagentType failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   private async importAllPhaseBackfill(
-    onProgress: ((msg: string, inc?: number) => void) | undefined,
-    onPhase: ((e: ImportAllPhaseEvent) => void) | undefined,
-    yieldForUi: () => Promise<void>,
-    phasesToSkip: ReadonlySet<ImportAllPhase>,
+    ctx: ImportAllPhaseContext,
     gitRoot: string | undefined,
   ): Promise<number> {
-    let messageCommitsBackfilled = 0;
-    if (!phasesToSkip.has('backfill')) {
-      onPhase?.({ phase: 'backfill', action: 'start' });
-      await yieldForUi();
-      let backfillFailed = false;
-      if (gitRoot) {
-        try {
-          this.backfillCommitFiles(gitRoot, (msg) => onProgress?.(msg, 0));
-        } catch (e) {
-          backfillFailed = true;
-          onPhase?.({ phase: 'backfill', action: 'error', message: e instanceof Error ? e.message : String(e) });
-        }
-      }
-      onProgress?.('Backfilling subagent_type...', 0);
-      try {
-        this.backfillSubagentType();
-      } catch (e) {
-        this.logger.warn(`backfillSubagentType failed (non-fatal): ${e instanceof Error ? e.message : String(e)}`);
-      }
-      onProgress?.('Backfilling message_commits...', 0);
-      messageCommitsBackfilled = this.backfillMessageCommits((msg) => onProgress?.(msg, 0));
-      if (!backfillFailed) {
-        onPhase?.({ phase: 'backfill', action: 'finish', count: messageCommitsBackfilled });
-      }
+    if (ctx.phasesToSkip.has('backfill')) return 0;
+
+    ctx.onPhase?.({ phase: 'backfill', action: 'start' });
+    await ctx.yieldForUi();
+
+    const backfillFailed = this.backfillCommitFilesForPhase(ctx, gitRoot);
+    ctx.onProgress?.('Backfilling subagent_type...', 0);
+    this.backfillSubagentTypeNonFatal();
+    ctx.onProgress?.('Backfilling message_commits...', 0);
+    const messageCommitsBackfilled = this.backfillMessageCommits((msg) => ctx.onProgress?.(msg, 0));
+    if (!backfillFailed) {
+      ctx.onPhase?.({ phase: 'backfill', action: 'finish', count: messageCommitsBackfilled });
     }
     return messageCommitsBackfilled;
   }
@@ -6538,6 +6456,88 @@ export class TrailDatabase {
       ctx.onPhase?.({ phase, action: 'error', message: e instanceof Error ? e.message : String(e) });
     }
     await ctx.yieldForUi();
+  }
+
+  /**
+   * セッションを取り込むか、丸ごと飛ばすかを判定する。
+   *
+   * - `import`: 未取り込み、またはメッセージ / コスト情報が欠けている（前回の失敗の残骸）、
+   *   あるいは main ファイルが前回より大きくなっている
+   * - `unchanged`: main ファイルのサイズが前回以下。session 全体（main + subagents）を飛ばす
+   * - `stat_failed`: main ファイルの stat に失敗。**この 1 ファイルだけ**を飛ばす
+   */
+  private classifySessionForImport(
+    dir: ImportAllSessionDir,
+    existing: ImportedFileInfo | undefined,
+  ): 'import' | 'unchanged' | 'stat_failed' {
+    // A session row with zero messages is a leftover from a previously-failed
+    // import and must be re-processed.
+    if (!existing?.hasMessages || !existing.hasUsableCostData) return 'import';
+    let currentFileSize = 0;
+    try {
+      currentFileSize = fs.statSync(dir.mainFile).size;
+    } catch (e) {
+      this.logger.error(`statSync failed: ${dir.mainFile}`, e);
+      return 'stat_failed';
+    }
+    return currentFileSize <= existing.fileSize ? 'unchanged' : 'import';
+  }
+
+  /**
+   * watched な repo それぞれについてコミット解決を試み、解決できた件数の合計を返す。
+   * 個々の失敗はログのみで握り、他の repo の解決は続ける。
+   */
+  private resolveCommitsForWatchedRepos(
+    sid: string,
+    watched: ReadonlyArray<{ gitRoot: string; repoName: string }>,
+    context: string,
+  ): number {
+    let resolved = 0;
+    for (const w of watched) {
+      if (this.isCommitResolutionDone(sid, w.repoName)) continue;
+      try {
+        resolved += this.resolveCommits(sid, w.gitRoot, w.repoName);
+      } catch (e) {
+        this.logger.error(`resolveCommits failed${context}: ${sid} repo=${w.repoName}`, e);
+      }
+    }
+    return resolved;
+  }
+
+  /**
+   * 1 セッション分のファイル（main + subagents）を 1 つの走行中トランザクションへ取り込む。
+   * ファイル単位の失敗はログのみで握り、同じセッションの残りのファイルは取り込む。
+   */
+  private importSessionFiles(dir: ImportAllSessionDir): { importedFiles: number; importedMessages: number } {
+    const filesToImport = [
+      { filePath: dir.mainFile, isSubagent: false },
+      ...dir.subagentFiles.map((f) => ({ filePath: f, isSubagent: true })),
+    ];
+    let importedFiles = 0;
+    let importedMessages = 0;
+    for (const file of filesToImport) {
+      try {
+        importedMessages += this.importSession(file.filePath, dir.repoName, file.isSubagent, true);
+        importedFiles++;
+      } catch (e) {
+        this.logger.error(`importSession failed: ${file.filePath}`, e);
+      }
+    }
+    return { importedFiles, importedMessages };
+  }
+
+  /**
+   * 取り込みバッチを COMMIT する。失敗したら ROLLBACK まで試みる。
+   * どちらもログのみで握る（1 バッチの失敗で取り込み全体を止めない）。
+   */
+  private commitImportBatch(): void {
+    const db = this.ensureDb();
+    try {
+      db.run('COMMIT');
+    } catch (e) {
+      this.logger.error('COMMIT failed, rolling back', e);
+      try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('ROLLBACK also failed', error_); }
+    }
   }
 
   /**
@@ -6588,27 +6588,6 @@ export class TrailDatabase {
       `Claude Code ${processedBySource.claude_code}/${claudeFiles} skipped ${skippedBySource.claude_code}, ` +
       `Codex ${processedBySource.codex}/${codexFiles} skipped ${skippedBySource.codex}`;
 
-    const resolveCommitsForWatched = (sid: string, context: string): void => {
-      for (const w of watched) {
-        if (this.isCommitResolutionDone(sid, w.repoName)) continue;
-        try {
-          commitsResolved += this.resolveCommits(sid, w.gitRoot, w.repoName);
-        } catch (e) {
-          this.logger.error(`resolveCommits failed${context}: ${sid} repo=${w.repoName}`, e);
-        }
-      }
-    };
-
-    const commitBatch = (): void => {
-      const db = this.ensureDb();
-      try {
-        db.run('COMMIT');
-      } catch (e) {
-        this.logger.error('COMMIT failed, rolling back', e);
-        try { db.run('ROLLBACK'); } catch (error_) { this.logger.error('ROLLBACK also failed', error_); }
-      }
-    };
-
     if (!skipImportSessions) {
       onProgress?.(
         `Found ${totalSessions} sessions (${totalFiles} files): ` +
@@ -6622,21 +6601,19 @@ export class TrailDatabase {
 
     for (const dir of sessionDirs) {
       const sessionFileTotal = 1 + dir.subagentFiles.length;
-      // Skip entire session (main + all subagents) if main file size unchanged
-      // and the existing row actually has messages. A session row with zero messages
-      // is a leftover from a previously-failed import and must be re-processed.
-      const existing = importedFiles.get(dir.mainFile);
-      if (existing && existing.hasMessages && existing.hasUsableCostData) {
-        let currentFileSize = 0;
-        try { currentFileSize = fs.statSync(dir.mainFile).size; } catch (e) { this.logger.error(`statSync failed: ${dir.mainFile}`, e); skipped++; skippedBySource[dir.source]++; continue; }
-        if (currentFileSize <= existing.fileSize) {
-          skipped += sessionFileTotal;
-          skippedBySource[dir.source] += sessionFileTotal;
-          processedFiles += sessionFileTotal;
-          processedBySource[dir.source] += sessionFileTotal;
-          resolveCommitsForWatched(dir.sid, ' (skipped session)');
-          continue;
-        }
+      const verdict = this.classifySessionForImport(dir, importedFiles.get(dir.mainFile));
+      if (verdict === 'stat_failed') {
+        skipped++;
+        skippedBySource[dir.source]++;
+        continue;
+      }
+      if (verdict === 'unchanged') {
+        skipped += sessionFileTotal;
+        skippedBySource[dir.source] += sessionFileTotal;
+        processedFiles += sessionFileTotal;
+        processedBySource[dir.source] += sessionFileTotal;
+        commitsResolved += this.resolveCommitsForWatchedRepos(dir.sid, watched, ' (skipped session)');
+        continue;
       }
 
       sessionsToAnalyze.add(dir.sid);
@@ -6650,31 +6627,21 @@ export class TrailDatabase {
         batchFileCount = 0;
       }
 
-      const filesToImport = [
-        { filePath: dir.mainFile, isSubagent: false },
-        ...dir.subagentFiles.map((f) => ({ filePath: f, isSubagent: true })),
-      ];
-
-      for (const file of filesToImport) {
-        try {
-          const msgCount = this.importSession(file.filePath, dir.repoName, file.isSubagent, true);
-          imported++;
-          batchMessageCount += msgCount;
-          batchFileCount++;
-        } catch (e) {
-          this.logger.error(`importSession failed: ${file.filePath}`, e);
-        }
-        processedFiles++;
-        processedBySource[dir.source]++;
-      }
+      const batch = this.importSessionFiles(dir);
+      imported += batch.importedFiles;
+      batchMessageCount += batch.importedMessages;
+      batchFileCount += batch.importedFiles;
+      // 失敗したファイルも「処理済み」に数える（進捗表示は残件数を示すため）
+      processedFiles += sessionFileTotal;
+      processedBySource[dir.source] += sessionFileTotal;
 
       // Resolve commits after all files for this session — once per watched repo
-      resolveCommitsForWatched(dir.sid, '');
+      commitsResolved += this.resolveCommitsForWatchedRepos(dir.sid, watched, '');
 
       // Commit at session boundary when limits exceeded
       if (batchMessageCount >= BATCH_MESSAGE_LIMIT || batchFileCount >= BATCH_FILE_LIMIT) {
         if (inTransaction) {
-          commitBatch();
+          this.commitImportBatch();
           inTransaction = false;
         }
         onProgress?.(formatProgress(), 0);
@@ -6684,7 +6651,7 @@ export class TrailDatabase {
 
     // Commit remaining batch
     if (inTransaction) {
-      commitBatch();
+      this.commitImportBatch();
       onProgress?.(formatProgress(), 0);
     }
     if (!skipImportSessions) {
@@ -6739,7 +6706,7 @@ export class TrailDatabase {
 
     // Collect files per session directory (main + subagents grouped)
     const sessionDirs = [
-      ...this.collectClaudeCodeSessionDirs(projectDirs, projectsDir, UUID_RE),
+      ...collectClaudeCodeSessionDirs(projectDirs, projectsDir, UUID_RE),
       ...(skipImportSessions ? [] : this.collectCodexSessionDirs(codexSessionsDir, gitRoot, repoName)),
     ];
 
@@ -6762,8 +6729,7 @@ export class TrailDatabase {
       });
 
     const releasesResolved = await this.importAllPhaseResolveReleases(
-      onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot,
-      externalCounters?.releasesResolved ?? 0,
+      ctx, gitRoot, externalCounters?.releasesResolved ?? 0,
     );
 
     const releasesAnalyzed = await this.importAllPhaseAnalyzeReleases(
@@ -6771,9 +6737,10 @@ export class TrailDatabase {
     );
 
     const { coverageImported, currentCoverageImported } = await this.importAllPhaseImportCoverage(
-      onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot,
-      externalCounters?.coverageImported ?? 0,
-      externalCounters?.currentCoverageImported ?? 0,
+      ctx, gitRoot, {
+        coverage: externalCounters?.coverageImported ?? 0,
+        currentCoverage: externalCounters?.currentCoverageImported ?? 0,
+      },
     );
 
     // Rebuild session_costs from messages
@@ -6799,9 +6766,7 @@ export class TrailDatabase {
       onProgress?.('Session stats rebuilt', 0);
     });
 
-    const messageCommitsBackfilled = await this.importAllPhaseBackfill(
-      onProgress, onPhase, yieldForUi, phasesToSkip, gitRoot,
-    );
+    const messageCommitsBackfilled = await this.importAllPhaseBackfill(ctx, gitRoot);
 
     this.save();
     return {
@@ -12884,6 +12849,39 @@ export class TrailDatabase {
     };
   }
 
+  /**
+   * `IN (...)` のバインド上限を避けるための一時テーブルへ対象パスを流し込む。
+   * 呼び出し側はクエリ実行後に `DROP TABLE IF EXISTS _hotspot_paths` する責任を持つ。
+   */
+  private fillHotspotPathsTempTable(db: Database, filePathsIn: ReadonlyArray<string>): void {
+    db.run('DROP TABLE IF EXISTS _hotspot_paths');
+    db.run('CREATE TEMP TABLE _hotspot_paths (file_path TEXT PRIMARY KEY)');
+    const stmt = db.prepare('INSERT OR IGNORE INTO _hotspot_paths VALUES (?)');
+    try {
+      for (const p of filePathsIn) stmt.run([p]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /**
+   * 活動トレンドのクエリを実行し、`committedAt` / `filePath` / `subagentType` の 3 列へ写す。
+   * 一時テーブルを使った場合は、結果を読み終えてから後片付けする。
+   */
+  private runActivityTrendQuery(
+    db: Database,
+    query: { sql: string; bindings: DbScalar[]; useTempTable: boolean },
+  ): ReadonlyArray<{ readonly committedAt: string; readonly filePath: string; readonly subagentType?: string | null }> {
+    const res = db.exec(query.sql, query.bindings);
+    if (query.useTempTable) db.run('DROP TABLE IF EXISTS _hotspot_paths');
+    if (!res.length) return [];
+    return res[0].values.map((row) => ({
+      committedAt: String(row[0]),
+      filePath: String(row[1]),
+      subagentType: row[2] == null ? null : asText(row[2]),
+    }));
+  }
+
   fetchActivityTrendRows(params: {
     from: string;
     to: string;
@@ -12900,16 +12898,7 @@ export class TrailDatabase {
     if (filePathsIn.length === 0) return [];
 
     const useTempTable = filePathsIn.length > 900;
-    if (useTempTable) {
-      db.run('DROP TABLE IF EXISTS _hotspot_paths');
-      db.run('CREATE TEMP TABLE _hotspot_paths (file_path TEXT PRIMARY KEY)');
-      const stmt = db.prepare('INSERT OR IGNORE INTO _hotspot_paths VALUES (?)');
-      try {
-        for (const p of filePathsIn) stmt.run([p]);
-      } finally {
-        stmt.free();
-      }
-    }
+    if (useTempTable) this.fillHotspotPathsTempTable(db, filePathsIn);
 
     const inClause = useTempTable
       ? `(SELECT file_path FROM _hotspot_paths)`
@@ -12937,14 +12926,7 @@ export class TrailDatabase {
         ORDER BY sc.committed_at
       `;
       const bindings = useTempTable ? [from, to] : [from, to, ...filePathsIn];
-      const res = db.exec(sql, bindings);
-      if (useTempTable) db.run('DROP TABLE IF EXISTS _hotspot_paths');
-      if (!res.length) return [];
-      return res[0].values.map((row) => ({
-        committedAt: String(row[0]),
-        filePath: String(row[1]),
-        subagentType: row[2] == null ? null : asText(row[2]),
-      }));
+      return this.runActivityTrendQuery(db, { sql, bindings, useTempTable });
     }
 
     if (granularity === 'commit') {
@@ -12957,14 +12939,7 @@ export class TrailDatabase {
         ORDER BY sc.committed_at
       `;
       const bindings: DbScalar[] = useTempTable ? [from, to] : [from, to, ...filePathsIn];
-      const res = db.exec(sql, bindings);
-      if (useTempTable) db.run('DROP TABLE IF EXISTS _hotspot_paths');
-      if (!res.length) return [];
-      return res[0].values.map((row) => ({
-        committedAt: String(row[0]),
-        filePath: String(row[1]),
-        subagentType: row[2] == null ? null : asText(row[2]),
-      }));
+      return this.runActivityTrendQuery(db, { sql, bindings, useTempTable });
     }
     return this.fetchActivityTrendSessionRows(db, { from, to, sessionMode, filePathsIn, useTempTable });
   }
