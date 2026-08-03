@@ -59,6 +59,11 @@ const MARKDOWN_PREVIEW_HEIGHT = 'clamp(300px, 42vh, 520px)';
  *   と書込後のノード / エッジ差分検査）は稼働。テスト時の本番 DB 書込ガードが部分実装
  * - trail20: ODD 境界解決・カバレッジゲート（shadow mode）・接地判断の並走記録は稼働だが、
  *   説明文の主機能である ODD 内の自律承認が未着手のため planned に据え置く
+ * - trail27〜29: ロードマップにありながら未掲載だった要件を製品価値の粒度でまとめたもの。
+ *   trail27 は「未実装の時間軸要件」の Trace Waterfall / Sequence Numbering / Particle
+ *   Animation と組み合わせ要件の Runtime Hotspot / Static-Runtime Drift Detection、
+ *   trail28 は機体側 §3.3 Self-Diagnostics、trail29 は Phase 未割当の Architectural Drift
+ *   Detection と組み合わせ要件の Architectural Alignment with Runtime Verification に対応する
  */
 const ROADMAP_ENTRIES: readonly RoadmapEntry[] = [
   { key: 'trail14', status: 'planned' },
@@ -74,6 +79,9 @@ const ROADMAP_ENTRIES: readonly RoadmapEntry[] = [
   { key: 'trail24', status: 'shipped' },
   { key: 'trail25', status: 'planned' },
   { key: 'trail26', status: 'planned' },
+  { key: 'trail27', status: 'planned' },
+  { key: 'trail28', status: 'planned' },
+  { key: 'trail29', status: 'planned' },
 ];
 
 export function PressBody() {
