@@ -95,7 +95,7 @@ interface CreateFileOpsControllerOptions {
 }
 
 /** {@link createFileOpsController} の戻り値。 */
-interface FileOpsController {
+export interface FileOpsController {
   /** フロントマター付き全文（保存・コピー用）。 */
   getFullMarkdown(): string;
   openFile(): Promise<void>;
