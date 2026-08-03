@@ -1005,7 +1005,7 @@
     "trail28Title": "Self-detect Degraded Judgment — self-diagnostics",
     "trail28Body": "Continuously aggregate tool failure rates, repeated responses, and context saturation so the AI itself detects declining judgment quality from hallucination or an oversaturated context. Contradictions and staleness across skills and memory are checked alongside, and degradation is reported to the control tower.",
     "trail29Title": "Detect Design–Implementation Divergence — structural drift visualization",
-    "trail29Body": "Compare the intended C4 logical boundaries against implementation communities extracted mechanically from the code to pinpoint dependency clusters that have drifted from the design. Runtime reachability corroborates each finding, clarifying whether the design or the implementation should change.",
+    "trail29Body": "Advance the community overlay from visual inspection to automatic judgment: divergence from the C4 logical boundaries is detected mechanically and raised as drift. Runtime reachability corroborates each finding, indicating whether the design or the implementation should change.",
     "trailViewerLinkDescription": "View in full viewer",
     "trailViewerLinkLabel": "Open Trail Viewer",
     "markdownEditorLinkDescription": "Try in full editor",
