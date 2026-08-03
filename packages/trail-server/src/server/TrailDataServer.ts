@@ -75,6 +75,7 @@ import { sendServerError } from './errorResponse';
 import { handleGetLogs, handlePostLogs } from './logsApi';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
+import { ANY_METHOD, createRouteContext, type RouteDescriptor, RouteTable } from './routing';
 import type { ClientMessage, ServerMessage } from './types';
 import { readWorkspaceTickets } from './workspaceTickets';
 
@@ -629,11 +630,39 @@ export class TrailDataServer {
   //  HTTP handler
   // -------------------------------------------------------------------------
 
-  private handleHttp(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-  ): void {
-    // Rate limiting
+  /**
+   * ルートテーブル。初回リクエスト時に遅延生成する（コンストラクタのフィールド初期化順に
+   * 依存させないため）。
+   */
+  private routeTable?: RouteTable;
+
+  private getRoutes(): RouteTable {
+    if (this.routeTable) return this.routeTable;
+    const table = new RouteTable();
+    this.registerStaticRoutes(table);
+    this.registerTrailRoutes(table);
+    this.registerAnalyzeRoutes(table);
+    this.registerRecordRoutes(table);
+    this.registerEmergencyRoutes(table);
+    this.registerOpsRoutes(table);
+    this.registerC4ModelRoutes(table);
+    this.registerC4AnalysisRoutes(table);
+    this.registerC4ManualRoutes(table);
+    this.registerCodeGraphRoutes(table);
+    this.registerInsightRoutes(table);
+    this.registerMemoryDriftRoutes(table);
+    this.registerMemoryInsightRoutes(table);
+    this.routeTable = table;
+    return table;
+  }
+
+  /** @internal 登録済みルートの台帳。ゴールデンマスターテストの検査対象。 */
+  listRoutes(): readonly RouteDescriptor[] {
+    return this.getRoutes().list();
+  }
+
+  /** レートリミット。上限超過時に 429 を返して false を返す。 */
+  private allowRequest(res: http.ServerResponse): boolean {
     const now = Date.now();
     if (now > this.rateLimitReset) {
       this.rateLimitCount = 0;
@@ -643,750 +672,401 @@ export class TrailDataServer {
     if (this.rateLimitCount > RATE_LIMIT_MAX) {
       res.writeHead(429, { 'Retry-After': '1' });
       res.end('Too Many Requests');
-      return;
+      return false;
     }
+    return true;
+  }
 
-    // CORS: localhost only
+  /** CORS: localhost のみ許可する。 */
+  private applyCors(req: http.IncomingMessage, res: http.ServerResponse): void {
     const origin = req.headers.origin;
     if (origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
     }
     res.setHeader('Vary', 'Origin');
+  }
 
-    const rawUrl = req.url ?? '';
-    const parsed = new URL(rawUrl, `http://${BIND_HOST}`);
-    const pathname = parsed.pathname;
+  private handleHttp(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): void {
+    if (!this.allowRequest(res)) return;
+    this.applyCors(req, res);
+
+    const url = new URL(req.url ?? '', `http://${BIND_HOST}`);
     const method = req.method ?? 'GET';
 
-    // Static routes
-    if (pathname === '/') {
-      this.serveStandaloneHtml(res);
-      return;
-    }
-    if (pathname === '/trailstandalone.js' || pathname === '/trailstandalone.js.map') {
-      this.serveStaticFile(res, pathname.slice(1));
+    const matched = this.getRoutes().match(method, url.pathname);
+    if (!matched) {
+      res.writeHead(404);
+      res.end();
       return;
     }
 
-    // API routes
-    if (pathname === '/api/trail/sessions' && method === 'GET') {
-      this.handleGetSessions(res, parsed.searchParams);
-      return;
-    }
-    if (pathname === '/api/trail/search' && method === 'GET') {
-      this.handleSearch(res, parsed.searchParams.get('q') ?? '');
-      return;
-    }
-    if (pathname === '/api/trail/refresh' && method === 'POST') {
-      this.handleRefresh(res);
-      return;
-    }
+    matched.handler(createRouteContext({ req, res, url, method, params: matched.params }));
+  }
 
-    if (pathname === '/api/analyze/current' && method === 'POST') {
-      this.handleAnalyzeCurrent(req, res);
-      return;
-    }
-    if (pathname === '/api/analyze/release' && method === 'POST') {
-      this.handleAnalyzeRelease(req, res);
-      return;
-    }
-    if (pathname === '/api/analyze/all' && method === 'POST') {
-      this.handleAnalyzeAll(req, res);
-      return;
-    }
-    if (pathname === '/api/analyze/status' && method === 'GET') {
-      this.handleAnalyzeStatus(res);
-      return;
-    }
+  // -------------------------------------------------------------------------
+  //  Route registration
+  //
+  //  ルートは判定種別ごとに 3 レイヤー（完全一致 / パターン / 前方一致）へ登録する。
+  //  評価順序と衝突しない前提は routing.ts のクラスコメントを参照。
+  // -------------------------------------------------------------------------
 
-    if (pathname === '/api/analyze-all/pause' && method === 'POST') {
-      this.handleAnalyzeAllPause(req, res);
-      return;
-    }
-    if (pathname === '/api/analyze-all/resume' && method === 'POST') {
-      this.handleAnalyzeAllResume(res);
-      return;
-    }
-    if (pathname === '/api/analyze-all/status' && method === 'GET') {
-      this.handleAnalyzeAllStatus(res);
-      return;
-    }
+  /** 静的配信。現行の分岐がメソッドを見ていないため ANY_METHOD で登録する。 */
+  private registerStaticRoutes(t: RouteTable): void {
+    t.exact(ANY_METHOD, '/', ({ res }) => this.serveStandaloneHtml(res));
+    t.exact(ANY_METHOD, '/trailstandalone.js', ({ res }) => this.serveStaticFile(res, 'trailstandalone.js'));
+    t.exact(ANY_METHOD, '/trailstandalone.js.map', ({ res }) => this.serveStaticFile(res, 'trailstandalone.js.map'));
+  }
 
-    if (pathname === '/api/logs' && method === 'POST') {
-      this.handlePostLogsRoute(req, res);
-      return;
-    }
-    if (pathname === '/api/logs' && method === 'GET') {
-      this.handleGetLogsRoute(res, parsed.searchParams);
-      return;
-    }
+  private registerTrailRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/trail/sessions', ({ res, url }) => this.handleGetSessions(res, url.searchParams));
+    t.exact('GET', '/api/trail/search', (ctx) => this.handleSearch(ctx.res, ctx.query('q', '')));
+    t.exact('POST', '/api/trail/refresh', ({ res }) => this.handleRefresh(res));
+    t.exact('GET', '/api/trail/prompts', ({ res }) => this.promptsApi.handleGet(res));
+    t.exact('GET', '/api/trail/analytics', ({ res }) => this.handleGetAnalytics(res));
+    t.exact('GET', '/api/trail/cost-optimization', ({ res }) => this.handleGetCostOptimization(res));
+    t.exact('GET', '/api/trail/releases', ({ res }) => this.handleGetReleases(res));
+    t.exact('GET', '/api/trail/combined', ({ res, url }) => this.handleGetCombined(res, url.searchParams));
+    t.exact('GET', '/api/trail/quality-metrics', ({ res, url }) => this.handleGetQualityMetrics(res, url.searchParams));
+    t.exact('GET', '/api/trail/deployment-frequency', ({ res, url }) => this.handleGetDeploymentFrequency(res, url.searchParams));
+    t.exact('GET', '/api/trail/deployment-frequency-quality', ({ res, url }) => this.handleGetDeploymentFrequencyQuality(res, url.searchParams));
 
-    if (pathname === '/api/trail/token-budget' && method === 'POST') {
-      this.handleTokenBudget(req, res);
-      return;
-    }
+    // パターン経路は登録順に評価する。`sessions/:id` より前に配下の経路を置く。
+    t.pattern('GET', /^\/api\/trail\/sessions\/([^/]+)\/commits$/, ({ res, params }) =>
+      this.handleGetSessionCommits(res, decodeURIComponent(params[0])));
+    t.pattern('GET', /^\/api\/trail\/sessions\/([^/]+)\/tool-metrics$/, ({ res, params }) =>
+      this.handleGetSessionToolMetrics(res, decodeURIComponent(params[0])));
+    t.pattern('GET', /^\/api\/trail\/days\/([^/]+)\/tool-metrics$/, ({ res, params }) =>
+      this.handleGetDayToolMetrics(res, decodeURIComponent(params[0])));
+    t.pattern('GET', /^\/api\/trail\/sessions\/([^/]+)$/, ({ res, params }) =>
+      this.handleGetSession(res, decodeURIComponent(params[0])));
+  }
 
-    if (pathname === '/api/trail/safe-points' && method === 'POST') {
-      this.handleRecordSafePoint(req, res);
-      return;
-    }
+  private registerAnalyzeRoutes(t: RouteTable): void {
+    t.exact('POST', '/api/analyze/current', ({ req, res }) => this.handleAnalyzeCurrent(req, res));
+    t.exact('POST', '/api/analyze/release', ({ req, res }) => this.handleAnalyzeRelease(req, res));
+    t.exact('POST', '/api/analyze/all', ({ req, res }) => this.handleAnalyzeAll(req, res));
+    t.exact('GET', '/api/analyze/status', ({ res }) => this.handleAnalyzeStatus(res));
+    t.exact('POST', '/api/analyze-all/pause', ({ req, res }) => this.handleAnalyzeAllPause(req, res));
+    t.exact('POST', '/api/analyze-all/resume', ({ res }) => this.handleAnalyzeAllResume(res));
+    t.exact('GET', '/api/analyze-all/status', ({ res }) => this.handleAnalyzeAllStatus(res));
+  }
 
-    if (pathname === '/api/trail/safe-points' && method === 'GET') {
-      this.handleListSafePoints(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/trail/emergency-log' && method === 'POST') {
-      this.handleRecordEmergencyEvent(req, res);
-      return;
-    }
-
-    if (pathname === '/api/trail/emergency-log' && method === 'GET') {
-      this.handleListEmergencyEvents(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/trail/flight-reviews' && method === 'POST') {
-      this.handleRecordFlightReview(req, res);
-      return;
-    }
-
-    if (pathname === '/api/trail/flight-reviews' && method === 'GET') {
-      this.handleListFlightReviews(res, parsed.searchParams);
-      return;
-    }
-
-    const flightReviewPatchMatch = /^\/api\/trail\/flight-reviews\/([^/]+)$/.exec(pathname);
-    if (flightReviewPatchMatch && method === 'PATCH') {
-      this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(flightReviewPatchMatch[1] ?? ''));
-      return;
-    }
-
-    if (pathname === '/api/trail/user-feedback' && method === 'POST') {
-      this.handleRecordUserFeedback(req, res);
-      return;
-    }
-
-    if (pathname === '/api/trail/user-feedback' && method === 'GET') {
-      this.handleListUserFeedback(res, parsed.searchParams);
-      return;
-    }
-
+  /** セッション記録系（安全点・緊急ログ・運航後レビュー・ユーザーフィードバック・受入台帳）。 */
+  private registerRecordRoutes(t: RouteTable): void {
+    t.exact('POST', '/api/trail/token-budget', ({ req, res }) => this.handleTokenBudget(req, res));
+    t.exact('POST', '/api/trail/safe-points', ({ req, res }) => this.handleRecordSafePoint(req, res));
+    t.exact('GET', '/api/trail/safe-points', ({ res, url }) => this.handleListSafePoints(res, url.searchParams));
+    t.exact('POST', '/api/trail/emergency-log', ({ req, res }) => this.handleRecordEmergencyEvent(req, res));
+    t.exact('GET', '/api/trail/emergency-log', ({ res, url }) => this.handleListEmergencyEvents(res, url.searchParams));
+    t.exact('POST', '/api/trail/flight-reviews', ({ req, res }) => this.handleRecordFlightReview(req, res));
+    t.exact('GET', '/api/trail/flight-reviews', ({ res, url }) => this.handleListFlightReviews(res, url.searchParams));
+    t.pattern('PATCH', /^\/api\/trail\/flight-reviews\/([^/]+)$/, ({ req, res, params }) =>
+      this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(params[0] ?? '')));
+    t.exact('POST', '/api/trail/user-feedback', ({ req, res }) => this.handleRecordUserFeedback(req, res));
+    t.exact('GET', '/api/trail/user-feedback', ({ res, url }) => this.handleListUserFeedback(res, url.searchParams));
     // 自律受入基盤 S5: 受入台帳（farm と人手記録の書き込み・retro の参照経路）
-    if (pathname === '/api/trail/acceptance' && method === 'POST') {
-      this.handleUpsertAcceptanceRecord(req, res);
-      return;
-    }
-
-    if (pathname === '/api/trail/acceptance' && method === 'GET') {
-      this.handleListAcceptanceRecords(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/trail/acceptance/miss-rate' && method === 'GET') {
-      this.handleAcceptanceMissRate(res, parsed.searchParams);
-      return;
-    }
-
-    // Phase 5 S5: trail-viewer の EmergencyPanel 経路。変更系は EmergencyApiHandler 側で
-    // Origin allowlist + カスタムヘッダ + Content-Type を検証する（localhost バインドは
-    // クロスオリジン送信そのものを防げないため、CSRF 対策をハンドラ内に閉じて持つ）。
-    if (pathname === '/api/trail/emergency-state' && method === 'GET') {
-      this.emergencyApi.handleGetState(req, res);
-      return;
-    }
-
-    if (pathname === '/api/trail/emergency/kill-switch' && method === 'POST') {
-      void this.emergencyApi.handleKillSwitch(req, res);
-      return;
-    }
-
-    if (pathname === '/api/trail/emergency/release' && method === 'POST') {
-      void this.emergencyApi.handleRelease(req, res);
-      return;
-    }
-
-    if (pathname === '/api/trail/emergency/rollback' && method === 'POST') {
-      void this.emergencyApi.handleRollback(req, res);
-      return;
-    }
-
-    if (pathname === '/api/message-commits' && method === 'POST') {
-      if (!this.requireJsonContentType(req, res)) {
-        return;
-      }
+    t.exact('POST', '/api/trail/acceptance', ({ req, res }) => this.handleUpsertAcceptanceRecord(req, res));
+    t.exact('GET', '/api/trail/acceptance', ({ res, url }) => this.handleListAcceptanceRecords(res, url.searchParams));
+    t.exact('GET', '/api/trail/acceptance/miss-rate', ({ res, url }) => this.handleAcceptanceMissRate(res, url.searchParams));
+    t.exact('POST', '/api/message-commits', ({ req, res }) => {
+      if (!this.requireJsonContentType(req, res)) return;
       this.handleInsertMessageCommit(req, res);
-      return;
-    }
+    });
+  }
 
-    if (pathname === '/api/trail/prompts' && method === 'GET') {
-      this.promptsApi.handleGet(res);
-      return;
-    }
+  /**
+   * Phase 5 S5: trail-viewer の EmergencyPanel 経路。変更系は EmergencyApiHandler 側で
+   * Origin allowlist + カスタムヘッダ + Content-Type を検証する（localhost バインドは
+   * クロスオリジン送信そのものを防げないため、CSRF 対策をハンドラ内に閉じて持つ）。
+   */
+  private registerEmergencyRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/trail/emergency-state', ({ req, res }) => this.emergencyApi.handleGetState(req, res));
+    t.exact('POST', '/api/trail/emergency/kill-switch', ({ req, res }) => void this.emergencyApi.handleKillSwitch(req, res));
+    t.exact('POST', '/api/trail/emergency/release', ({ req, res }) => void this.emergencyApi.handleRelease(req, res));
+    t.exact('POST', '/api/trail/emergency/rollback', ({ req, res }) => void this.emergencyApi.handleRollback(req, res));
+  }
 
-    if (pathname === '/api/trail/analytics' && method === 'GET') {
-      this.handleGetAnalytics(res);
-      return;
-    }
-
-    if (pathname === '/api/trail/cost-optimization' && method === 'GET') {
-      this.handleGetCostOptimization(res);
-      return;
-    }
-
-    if (pathname === '/api/trail/releases' && method === 'GET') {
-      this.handleGetReleases(res);
-      return;
-    }
-
-    if (pathname === '/api/trail/combined' && method === 'GET') {
-      this.handleGetCombined(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/trail/quality-metrics' && method === 'GET') {
-      this.handleGetQualityMetrics(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/trail/deployment-frequency' && method === 'GET') {
-      this.handleGetDeploymentFrequency(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/trail/deployment-frequency-quality' && method === 'GET') {
-      this.handleGetDeploymentFrequencyQuality(res, parsed.searchParams);
-      return;
-    }
-
-
-    const commitsMatch = /^\/api\/trail\/sessions\/([^/]+)\/commits$/.exec(pathname);
-    if (commitsMatch && method === 'GET') {
-      this.handleGetSessionCommits(res, decodeURIComponent(commitsMatch[1]));
-      return;
-    }
-
-    const toolMetricsMatch = /^\/api\/trail\/sessions\/([^/]+)\/tool-metrics$/.exec(pathname);
-    if (toolMetricsMatch && method === 'GET') {
-      this.handleGetSessionToolMetrics(res, decodeURIComponent(toolMetricsMatch[1]));
-      return;
-    }
-
-    const dayToolMetricsMatch = /^\/api\/trail\/days\/([^/]+)\/tool-metrics$/.exec(pathname);
-    if (dayToolMetricsMatch && method === 'GET') {
-      this.handleGetDayToolMetrics(res, decodeURIComponent(dayToolMetricsMatch[1]));
-      return;
-    }
-
-    const sessionMatch = /^\/api\/trail\/sessions\/([^/]+)$/.exec(pathname);
-    if (sessionMatch && method === 'GET') {
-      this.handleGetSession(res, decodeURIComponent(sessionMatch[1]));
-      return;
-    }
-
-    if (pathname === '/api/c4/releases' && method === 'GET') {
-      void this.handleC4ReleasesEndpoint(res);
-      return;
-    }
-
-    if (pathname === '/api/c4/model' && method === 'GET') {
-      const releaseId = parsed.searchParams.get('release') ?? 'current';
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.handleC4ModelEndpoint(res, releaseId, repo);
-      return;
-    }
-    if (pathname === '/api/c4/communities' && method === 'GET') {
-      this.c4ManualApi.listCommunities(res, parsed);
-      return;
-    }
-    if (pathname === '/api/c4/communities/upsert-summaries' && method === 'POST') {
-      if (!this.requireJsonContentType(req, res)) {
-        return;
-      }
-      void this.c4ManualApi.upsertCommunitySummaries(req, res, parsed);
-      return;
-    }
-    if (pathname === '/api/c4/communities/upsert-mappings' && method === 'POST') {
-      if (!this.requireJsonContentType(req, res)) {
-        return;
-      }
-      void this.c4ManualApi.upsertCommunityMappings(req, res, parsed);
-      return;
-    }
-    if (pathname === '/api/c4/dsm' && method === 'GET') {
-      const releaseId = parsed.searchParams.get('release') ?? 'current';
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      this.handleC4DsmEndpoint(res, releaseId, repo);
-      return;
-    }
-    if (pathname === '/api/c4/tree' && method === 'GET') {
-      void this.handleC4TreeEndpoint(res);
-      return;
-    }
-    if (pathname === '/api/c4/doc-links' && method === 'GET') {
-      this.docsApi.handleListDocLinks(res);
-      return;
-    }
-    if (pathname === '/api/docs-index' && method === 'GET') {
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.docsApi.handleDocsIndex(res, repo);
-      return;
-    }
-    if (pathname === '/api/c4/coverage' && method === 'GET') {
-      const releaseId = parsed.searchParams.get('release') ?? 'current';
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.handleC4CoverageEndpoint(res, releaseId, repo);
-      return;
-    }
-    if (pathname === '/api/c4/file-analysis' && method === 'GET') {
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      const tag = parsed.searchParams.get('tag') ?? 'current';
-      void this.handleC4FileAnalysisEndpoint(res, tag, repo);
-      return;
-    }
-    if (pathname === '/api/c4/function-analysis' && method === 'GET') {
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      const tag = parsed.searchParams.get('tag') ?? 'current';
-      void this.handleC4FunctionAnalysisEndpoint(res, tag, repo);
-      return;
-    }
-
-    if (pathname === '/api/c4/complexity' && method === 'GET') {
-      // Complexity は累積指標のため release パラメータは受け取らない
-      // (古いクライアントが付与しても無視する)
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.handleC4ComplexityEndpoint(res, repo);
-      return;
-    }
-
-    if (pathname === '/api/c4/exports' && method === 'GET') {
-      const componentId = parsed.searchParams.get('componentId') ?? '';
-      void this.handleC4ExportsEndpoint(res, componentId);
-      return;
-    }
-
-    if (pathname === '/api/c4/functions' && method === 'GET') {
-      const elementId = parsed.searchParams.get('elementId') ?? '';
-      void this.handleC4FunctionsEndpoint(res, elementId);
-      return;
-    }
-
-    if (pathname === '/api/c4/flowchart' && method === 'GET') {
-      const componentId = parsed.searchParams.get('componentId') ?? '';
-      const symbolId = parsed.searchParams.get('symbolId') ?? '';
-      const type = (parsed.searchParams.get('type') ?? 'control') as 'control' | 'call';
-      void this.handleC4FlowchartEndpoint(res, componentId, symbolId, type);
-      return;
-    }
-
-    if (pathname === '/api/c4/sequence' && method === 'GET') {
-      const elementId = parsed.searchParams.get('elementId') ?? '';
-      void this.handleC4SequenceEndpoint(res, elementId);
-      return;
-    }
-
-    if (pathname === '/api/c4/function-graph' && method === 'GET') {
-      const elementId = parsed.searchParams.get('elementId') ?? '';
-      void this.handleC4FunctionGraphEndpoint(res, elementId);
-      return;
-    }
-
-    if (pathname === '/api/c4/call-hierarchy' && method === 'GET') {
-      const file = parsed.searchParams.get('file') ?? '';
-      const fn = parsed.searchParams.get('fn') ?? '';
-      const direction = parsed.searchParams.get('direction') ?? 'callees';
-      const depth = parsed.searchParams.get('depth');
-      const line = parsed.searchParams.get('line');
-      const scope = parsed.searchParams.get('scope') ?? 'project';
-      const excludeTests = parsed.searchParams.get('excludeTests') === 'true';
-      void this.handleCallHierarchyEndpoint(res, {
-        file,
-        fn,
-        direction,
-        depthParam: depth,
-        lineParam: line,
-        scope,
-        excludeTests,
-      });
-      return;
-    }
-
-    if (method === 'POST' && pathname === '/api/c4/manual-elements') {
-      if (!this.requireJsonContentType(req, res)) {
-        return;
-      }
-      void this.c4ManualApi.createElement(req, res, parsed);
-      return;
-    }
-    const elemMatch = /^\/api\/c4\/manual-elements\/([^/]+)$/.exec(pathname);
-    if (elemMatch && method === 'PATCH') {
-      void this.c4ManualApi.updateElement(req, res, parsed, elemMatch[1]);
-      return;
-    }
-    if (elemMatch && method === 'DELETE') {
-      this.c4ManualApi.deleteElement(res, parsed, elemMatch[1]);
-      return;
-    }
-    if (method === 'GET' && pathname === '/api/c4/manual-relationships') {
-      this.c4ManualApi.listRelationships(res, parsed);
-      return;
-    }
-    if (method === 'POST' && pathname === '/api/c4/manual-relationships') {
-      void this.c4ManualApi.createRelationship(req, res, parsed);
-      return;
-    }
-    const relMatch = /^\/api\/c4\/manual-relationships\/([^/]+)$/.exec(pathname);
-    if (relMatch && method === 'DELETE') {
-      this.c4ManualApi.deleteRelationship(res, parsed, relMatch[1]);
-      return;
-    }
-    if (method === 'GET' && pathname === '/api/c4/manual-groups') {
-      this.c4ManualApi.listGroups(res, parsed);
-      return;
-    }
-    if (method === 'POST' && pathname === '/api/c4/manual-groups') {
-      void this.c4ManualApi.createGroup(req, res, parsed);
-      return;
-    }
-    const groupMatch = /^\/api\/c4\/manual-groups\/([^/]+)$/.exec(pathname);
-    if (groupMatch && method === 'PATCH') {
-      void this.c4ManualApi.updateGroup(req, res, parsed, groupMatch[1]);
-      return;
-    }
-    if (groupMatch && method === 'DELETE') {
-      this.c4ManualApi.deleteGroup(res, parsed, groupMatch[1]);
-      return;
-    }
-
-    if (pathname === '/api/code-graph' && method === 'GET') {
-      const releaseId = parsed.searchParams.get('release') ?? 'current';
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.codeGraphApi.handleGet(res, releaseId, repo);
-      return;
-    }
-    if (pathname === '/api/code-graph/query' && method === 'GET') {
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      const depthRaw = parsed.searchParams.get('depth');
-      const depth = depthRaw === null ? undefined : clampInt(depthRaw, 0, 0, 3);
-      void this.codeGraphApi.handleQuery(res, parsed.searchParams.get('q') ?? '', repo, depth);
-      return;
-    }
-    if (pathname === '/api/code-graph/explain' && method === 'GET') {
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.codeGraphApi.handleExplain(res, parsed.searchParams.get('id') ?? '', repo);
-      return;
-    }
-    if (pathname === '/api/code-graph/path' && method === 'GET') {
-      const repo = parsed.searchParams.get('repo') ?? undefined;
-      void this.codeGraphApi.handlePath(
-        res,
-        parsed.searchParams.get('from') ?? '',
-        parsed.searchParams.get('to') ?? '',
-        repo,
-      );
-      return;
-    }
-    if (pathname === '/api/temporal-coupling' && method === 'GET') {
-      this.handleTemporalCoupling(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/defect-risk' && method === 'GET') {
-      this.handleDefectRisk(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/bus-factor' && method === 'GET') {
-      void this.handleBusFactor(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/hotspot' && method === 'GET') {
-      this.handleHotspot(res, parsed.searchParams);
-      return;
-    }
-    if (pathname === '/api/alignment' && method === 'GET') {
-      void this.alignmentApi.handle(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/activity-heatmap' && method === 'GET') {
-      this.handleActivityHeatmap(res, parsed.searchParams);
-      return;
-    }
-    if (pathname === '/api/activity-trend' && method === 'GET') {
-      this.handleActivityTrend(res, parsed.searchParams);
-      return;
-    }
-
-    if (pathname === '/api/trace/list' && method === 'GET') {
-      this.handleTraceList(res);
-      return;
-    }
-    if (pathname === '/api/trace/file' && method === 'GET') {
-      this.handleTraceFile(res, parsed.searchParams.get('name') ?? '');
-      return;
-    }
-
-    if (pathname === '/api/config/commit-categories' && method === 'GET') {
+  /** ログ・設定・トレースファイル。 */
+  private registerOpsRoutes(t: RouteTable): void {
+    t.exact('POST', '/api/logs', ({ req, res }) => this.handlePostLogsRoute(req, res));
+    t.exact('GET', '/api/logs', ({ res, url }) => this.handleGetLogsRoute(res, url.searchParams));
+    t.exact('GET', '/api/trace/list', ({ res }) => this.handleTraceList(res));
+    t.exact('GET', '/api/trace/file', (ctx) => this.handleTraceFile(ctx.res, ctx.query('name', '')));
+    t.exact('GET', '/api/config/commit-categories', ({ res }) =>
       this.respondCategories(res, this.options?.configPaths?.commitCategories,
-        loadCommitCategories, loadCommitCategoriesFromFile, loadCommitCategoryLabels, loadCommitCategoryLabelsFromFile);
-      return;
-    }
-
-    if (pathname === '/api/config/tool-categories' && method === 'GET') {
+        loadCommitCategories, loadCommitCategoriesFromFile, loadCommitCategoryLabels, loadCommitCategoryLabelsFromFile));
+    t.exact('GET', '/api/config/tool-categories', ({ res }) =>
       this.respondCategories(res, this.options?.configPaths?.toolCategories,
-        loadToolCategories, loadToolCategoriesFromFile, loadToolCategoryLabels, loadToolCategoryLabelsFromFile);
-      return;
-    }
-
-    if (pathname === '/api/config/skill-categories' && method === 'GET') {
+        loadToolCategories, loadToolCategoriesFromFile, loadToolCategoryLabels, loadToolCategoryLabelsFromFile));
+    t.exact('GET', '/api/config/skill-categories', ({ res }) =>
       this.respondCategories(res, this.options?.configPaths?.skillCategories,
-        loadSkillCategories, loadSkillCategoriesFromFile, loadSkillCategoryLabels, loadSkillCategoryLabelsFromFile);
-      return;
-    }
+        loadSkillCategories, loadSkillCategoriesFromFile, loadSkillCategoryLabels, loadSkillCategoryLabelsFromFile));
+  }
 
-    // -------------------------------------------------------------------------
-    //  Memory API endpoints
-    // -------------------------------------------------------------------------
-    if (pathname === '/api/memory/rationale' && method === 'GET') {
-      const sessionId = parsed.searchParams.get('sessionId');
+  /** C4 モデル本体（リリース・モデル・DSM・ツリー・ドキュメント紐付け・カバレッジ）。 */
+  private registerC4ModelRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/c4/releases', ({ res }) => void this.handleC4ReleasesEndpoint(res));
+    t.exact('GET', '/api/c4/model', (ctx) =>
+      void this.handleC4ModelEndpoint(ctx.res, ctx.query('release', 'current'), ctx.queryOpt('repo')));
+    t.exact('GET', '/api/c4/communities', ({ res, url }) => this.c4ManualApi.listCommunities(res, url));
+    t.exact('GET', '/api/c4/dsm', (ctx) =>
+      this.handleC4DsmEndpoint(ctx.res, ctx.query('release', 'current'), ctx.queryOpt('repo')));
+    t.exact('GET', '/api/c4/tree', ({ res }) => void this.handleC4TreeEndpoint(res));
+    t.exact('GET', '/api/c4/doc-links', ({ res }) => this.docsApi.handleListDocLinks(res));
+    t.exact('GET', '/api/docs-index', (ctx) => void this.docsApi.handleDocsIndex(ctx.res, ctx.queryOpt('repo')));
+    t.exact('GET', '/api/c4/coverage', (ctx) =>
+      void this.handleC4CoverageEndpoint(ctx.res, ctx.query('release', 'current'), ctx.queryOpt('repo')));
+  }
+
+  /** C4 解析系（ファイル・関数・複雑度・呼び出し関係）。 */
+  private registerC4AnalysisRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/c4/file-analysis', (ctx) =>
+      void this.handleC4FileAnalysisEndpoint(ctx.res, ctx.query('tag', 'current'), ctx.queryOpt('repo')));
+    t.exact('GET', '/api/c4/function-analysis', (ctx) =>
+      void this.handleC4FunctionAnalysisEndpoint(ctx.res, ctx.query('tag', 'current'), ctx.queryOpt('repo')));
+    // Complexity は累積指標のため release パラメータは受け取らない
+    // (古いクライアントが付与しても無視する)
+    t.exact('GET', '/api/c4/complexity', (ctx) => void this.handleC4ComplexityEndpoint(ctx.res, ctx.queryOpt('repo')));
+    t.exact('GET', '/api/c4/exports', (ctx) => void this.handleC4ExportsEndpoint(ctx.res, ctx.query('componentId', '')));
+    t.exact('GET', '/api/c4/functions', (ctx) => void this.handleC4FunctionsEndpoint(ctx.res, ctx.query('elementId', '')));
+    t.exact('GET', '/api/c4/flowchart', (ctx) =>
+      void this.handleC4FlowchartEndpoint(
+        ctx.res,
+        ctx.query('componentId', ''),
+        ctx.query('symbolId', ''),
+        ctx.query('type', 'control') as 'control' | 'call',
+      ));
+    t.exact('GET', '/api/c4/sequence', (ctx) => void this.handleC4SequenceEndpoint(ctx.res, ctx.query('elementId', '')));
+    t.exact('GET', '/api/c4/function-graph', (ctx) =>
+      void this.handleC4FunctionGraphEndpoint(ctx.res, ctx.query('elementId', '')));
+    t.exact('GET', '/api/c4/call-hierarchy', (ctx) =>
+      void this.handleCallHierarchyEndpoint(ctx.res, {
+        file: ctx.query('file', ''),
+        fn: ctx.query('fn', ''),
+        direction: ctx.query('direction', 'callees'),
+        depthParam: ctx.url.searchParams.get('depth'),
+        lineParam: ctx.url.searchParams.get('line'),
+        scope: ctx.query('scope', 'project'),
+        excludeTests: ctx.query('excludeTests', '') === 'true',
+      }));
+  }
+
+  /** 手動 C4（要素・関係・グループ・コミュニティ要約）。書き込み系は Content-Type を検証する。 */
+  private registerC4ManualRoutes(t: RouteTable): void {
+    t.exact('POST', '/api/c4/communities/upsert-summaries', ({ req, res, url }) => {
+      if (!this.requireJsonContentType(req, res)) return;
+      void this.c4ManualApi.upsertCommunitySummaries(req, res, url);
+    });
+    t.exact('POST', '/api/c4/communities/upsert-mappings', ({ req, res, url }) => {
+      if (!this.requireJsonContentType(req, res)) return;
+      void this.c4ManualApi.upsertCommunityMappings(req, res, url);
+    });
+    t.exact('POST', '/api/c4/manual-elements', ({ req, res, url }) => {
+      if (!this.requireJsonContentType(req, res)) return;
+      void this.c4ManualApi.createElement(req, res, url);
+    });
+    // ID は percent-decode せずに渡す（現行の挙動を保つ）。
+    t.pattern('PATCH', /^\/api\/c4\/manual-elements\/([^/]+)$/, ({ req, res, url, params }) =>
+      void this.c4ManualApi.updateElement(req, res, url, params[0]));
+    t.pattern('DELETE', /^\/api\/c4\/manual-elements\/([^/]+)$/, ({ res, url, params }) =>
+      this.c4ManualApi.deleteElement(res, url, params[0]));
+    t.exact('GET', '/api/c4/manual-relationships', ({ res, url }) => this.c4ManualApi.listRelationships(res, url));
+    t.exact('POST', '/api/c4/manual-relationships', ({ req, res, url }) =>
+      void this.c4ManualApi.createRelationship(req, res, url));
+    t.pattern('DELETE', /^\/api\/c4\/manual-relationships\/([^/]+)$/, ({ res, url, params }) =>
+      this.c4ManualApi.deleteRelationship(res, url, params[0]));
+    t.exact('GET', '/api/c4/manual-groups', ({ res, url }) => this.c4ManualApi.listGroups(res, url));
+    t.exact('POST', '/api/c4/manual-groups', ({ req, res, url }) => void this.c4ManualApi.createGroup(req, res, url));
+    t.pattern('PATCH', /^\/api\/c4\/manual-groups\/([^/]+)$/, ({ req, res, url, params }) =>
+      void this.c4ManualApi.updateGroup(req, res, url, params[0]));
+    t.pattern('DELETE', /^\/api\/c4\/manual-groups\/([^/]+)$/, ({ res, url, params }) =>
+      this.c4ManualApi.deleteGroup(res, url, params[0]));
+  }
+
+  private registerCodeGraphRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/code-graph', (ctx) =>
+      void this.codeGraphApi.handleGet(ctx.res, ctx.query('release', 'current'), ctx.queryOpt('repo')));
+    t.exact('GET', '/api/code-graph/query', (ctx) => {
+      const depthRaw = ctx.url.searchParams.get('depth');
+      const depth = depthRaw === null ? undefined : clampInt(depthRaw, 0, 0, 3);
+      void this.codeGraphApi.handleQuery(ctx.res, ctx.query('q', ''), ctx.queryOpt('repo'), depth);
+    });
+    t.exact('GET', '/api/code-graph/explain', (ctx) =>
+      void this.codeGraphApi.handleExplain(ctx.res, ctx.query('id', ''), ctx.queryOpt('repo')));
+    t.exact('GET', '/api/code-graph/path', (ctx) =>
+      void this.codeGraphApi.handlePath(ctx.res, ctx.query('from', ''), ctx.query('to', ''), ctx.queryOpt('repo')));
+  }
+
+  /** リポジトリ分析（結合・欠陥リスク・バス係数・ホットスポット・整合・活動量）。 */
+  private registerInsightRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/temporal-coupling', ({ res, url }) => this.handleTemporalCoupling(res, url.searchParams));
+    t.exact('GET', '/api/defect-risk', ({ res, url }) => this.handleDefectRisk(res, url.searchParams));
+    t.exact('GET', '/api/bus-factor', ({ res, url }) => void this.handleBusFactor(res, url.searchParams));
+    t.exact('GET', '/api/hotspot', ({ res, url }) => this.handleHotspot(res, url.searchParams));
+    t.exact('GET', '/api/alignment', ({ res, url }) => void this.alignmentApi.handle(res, url.searchParams));
+    t.exact('GET', '/api/activity-heatmap', ({ res, url }) => this.handleActivityHeatmap(res, url.searchParams));
+    t.exact('GET', '/api/activity-trend', ({ res, url }) => this.handleActivityTrend(res, url.searchParams));
+  }
+
+  /**
+   * Memory API の定型応答: 解決値を 200 + JSON、失敗はログ出力のうえ 500（本文なし）。
+   * 応答形状がこの型から外れる経路（400 の事前検証・404 分岐・500 に本文を載せるもの）は
+   * 個別のハンドラに残す。
+   */
+  private respondMemoryJson(res: http.ServerResponse, label: string, promise: Promise<unknown>): void {
+    void promise.then((data) => {
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(data));
+    }).catch((err: unknown) => {
+      this.logger.error(`[${label}] ${String(err)}`);
+      res.writeHead(500); res.end();
+    });
+  }
+
+  /** Memory API: 状態・根拠・ドリフト。 */
+  private registerMemoryDriftRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/memory/rationale', (ctx) => {
+      const sessionId = ctx.queryOpt('sessionId');
       if (!sessionId) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'sessionId required' }));
+        ctx.res.writeHead(400, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ error: 'sessionId required' }));
         return;
       }
       void this.memoryApi.listRationaleNodes({ sessionId }).then((rationale) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ rationale }));
+        ctx.res.writeHead(200, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ rationale }));
       });
-      return;
-    }
+    });
 
-    if (pathname === '/api/memory/status' && method === 'GET') {
-      void this.memoryApi.handleStatus().then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/status] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+    t.exact('GET', '/api/memory/status', ({ res }) =>
+      this.respondMemoryJson(res, '/api/memory/status', this.memoryApi.handleStatus()));
 
-    if (pathname === '/api/memory/drift/by-day' && method === 'GET') {
-      const p = parsed.searchParams;
+    t.exact('GET', '/api/memory/drift/by-day', (ctx) => {
       void this.memoryApi.listDriftHistoryByDay({
-        since: p.get('since') ?? undefined,
-        until: p.get('until') ?? undefined,
-        driftType: p.get('driftType') ?? undefined,
-        severity: p.get('severity') ?? undefined,
+        since: ctx.queryOpt('since'),
+        until: ctx.queryOpt('until'),
+        driftType: ctx.queryOpt('driftType'),
+        severity: ctx.queryOpt('severity'),
       }).then((points) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ points }));
+        ctx.res.writeHead(200, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ points }));
       }).catch((err: unknown) => {
         this.logger.error(`[/api/memory/drift/by-day] ${String(err)}`);
-        res.writeHead(500, JSON_HEADERS);
-        res.end(JSON.stringify({ error: String(err) }));
+        ctx.res.writeHead(500, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ error: String(err) }));
       });
-      return;
-    }
+    });
 
-    if (pathname === '/api/memory/drift/events' && method === 'GET') {
-      const p = parsed.searchParams;
-      void this.memoryApi.listDriftEvents({
-        unresolvedOnly: p.get('unresolvedOnly') === 'true',
-        severity: p.get('severity') ?? undefined,
-        driftType: p.get('driftType') ?? undefined,
-        since: p.get('since') ?? undefined,
-        limit: clampInt(p.get('limit'), 50, 1, 200),
-      }).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/drift/events] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+    t.exact('GET', '/api/memory/drift/events', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/drift/events', this.memoryApi.listDriftEvents({
+        unresolvedOnly: ctx.query('unresolvedOnly', '') === 'true',
+        severity: ctx.queryOpt('severity'),
+        driftType: ctx.queryOpt('driftType'),
+        since: ctx.queryOpt('since'),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
+      })));
 
-    if (pathname.startsWith('/api/memory/drift/events/') && method === 'GET') {
-      const eventId = decodePathParam(pathname, '/api/memory/drift/events/');
+    t.prefix('GET', '/api/memory/drift/events/', (ctx) => {
+      const eventId = decodePathParam(ctx.pathname, '/api/memory/drift/events/');
       void this.memoryApi.getDriftEventDetail(eventId).then((data) => {
-        if (!data) { res.writeHead(404); res.end(); return; }
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
+        if (!data) { ctx.res.writeHead(404); ctx.res.end(); return; }
+        ctx.res.writeHead(200, JSON_HEADERS);
+        ctx.res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
         this.logger.error(`[/api/memory/drift/events/:id] ${String(err)}`);
-        res.writeHead(500); res.end();
+        ctx.res.writeHead(500); ctx.res.end();
       });
-      return;
-    }
+    });
 
-    if (pathname.startsWith('/api/memory/drift/events/') && method === 'POST') {
-      if (!this.requireJsonContentType(req, res)) {
-        return;
-      }
-      const eventId = decodePathParam(pathname, '/api/memory/drift/events/', '/resolve');
-      void this.readJsonBody(req).then(async (body) => {
+    t.prefix('POST', '/api/memory/drift/events/', (ctx) => {
+      if (!this.requireJsonContentType(ctx.req, ctx.res)) return;
+      const eventId = decodePathParam(ctx.pathname, '/api/memory/drift/events/', '/resolve');
+      void this.readJsonBody(ctx.req).then(async (body) => {
         const note = typeof (body as Record<string, unknown>)['resolutionNote'] === 'string'
           ? (body as Record<string, string>)['resolutionNote']
           : '';
         const data = await this.memoryApi.resolveDriftEvent(eventId, note);
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
+        ctx.res.writeHead(200, JSON_HEADERS);
+        ctx.res.end(JSON.stringify(data));
       }).catch((err: unknown) => {
         this.logger.error(`[/api/memory/drift/events/:id POST] ${String(err)}`);
-        res.writeHead(500); res.end();
+        ctx.res.writeHead(500); ctx.res.end();
       });
-      return;
-    }
+    });
+  }
 
-    if (pathname === '/api/memory/bugs/recurring' && method === 'GET') {
-      const p = parsed.searchParams;
-      void this.memoryApi.listRecurringBugs({
-        package: p.get('pkg') ?? undefined,
-        windowDays: p.get('windowDays') ? clampInt(p.get('windowDays'), 90, 1, 365) : undefined,
-        limit: clampInt(p.get('limit'), 20, 1, 200),
-      }).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/bugs/recurring] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+  /** Memory API: 不具合・レビュー・パイプライン・エンティティ。 */
+  private registerMemoryInsightRoutes(t: RouteTable): void {
+    t.exact('GET', '/api/memory/bugs/recurring', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/bugs/recurring', this.memoryApi.listRecurringBugs({
+        package: ctx.queryOpt('pkg'),
+        windowDays: ctx.queryOpt('windowDays')
+          ? clampInt(ctx.url.searchParams.get('windowDays'), 90, 1, 365)
+          : undefined,
+        limit: clampInt(ctx.url.searchParams.get('limit'), 20, 1, 200),
+      })));
 
-    if (pathname === '/api/memory/bugs/history' && method === 'GET') {
-      const p = parsed.searchParams;
-      void this.memoryApi.getBugHistory({
-        package: p.get('pkg') ?? undefined,
-        filePath: p.get('filePath') ?? undefined,
-        category: p.get('category') ?? undefined,
-        limit: clampInt(p.get('limit'), 50, 1, 200),
-      }).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/bugs/history] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+    t.exact('GET', '/api/memory/bugs/history', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/bugs/history', this.memoryApi.getBugHistory({
+        package: ctx.queryOpt('pkg'),
+        filePath: ctx.queryOpt('filePath'),
+        category: ctx.queryOpt('category'),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
+      })));
 
-    if (pathname === '/api/memory/bugs/causal' && method === 'GET') {
-      const bugEntityId = parsed.searchParams.get('bugEntityId');
+    t.exact('GET', '/api/memory/bugs/causal', (ctx) => {
+      const bugEntityId = ctx.queryOpt('bugEntityId');
       if (!bugEntityId) {
-        res.writeHead(400, JSON_HEADERS);
-        res.end(JSON.stringify({ error: 'bugEntityId required' }));
+        ctx.res.writeHead(400, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ error: 'bugEntityId required' }));
         return;
       }
-      void this.memoryApi.getBugCausalInfo(bugEntityId).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/bugs/causal] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+      this.respondMemoryJson(ctx.res, '/api/memory/bugs/causal', this.memoryApi.getBugCausalInfo(bugEntityId));
+    });
 
-    if (pathname === '/api/memory/reviews/unaddressed' && method === 'GET') {
-      const p = parsed.searchParams;
-      void this.memoryApi.listUnaddressedReviewFindings({
-        category: p.get('category') ?? undefined,
-        severity: p.get('severity') ?? undefined,
-        daysSinceMin: p.get('daysSinceMin') ? clampInt(p.get('daysSinceMin'), 0, 0, 365) : undefined,
-        limit: clampInt(p.get('limit'), 50, 1, 200),
-      }).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/reviews/unaddressed] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+    t.exact('GET', '/api/memory/reviews/unaddressed', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/reviews/unaddressed', this.memoryApi.listUnaddressedReviewFindings({
+        category: ctx.queryOpt('category'),
+        severity: ctx.queryOpt('severity'),
+        daysSinceMin: ctx.queryOpt('daysSinceMin')
+          ? clampInt(ctx.url.searchParams.get('daysSinceMin'), 0, 0, 365)
+          : undefined,
+        limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
+      })));
 
-    if (pathname === '/api/memory/reviews/history' && method === 'GET') {
-      const p = parsed.searchParams;
-      void this.memoryApi.getReviewHistory({
-        targetFilePath: p.get('targetFilePath') ?? undefined,
-        package: p.get('pkg') ?? undefined,
-        limit: clampInt(p.get('limit'), 50, 1, 200),
-      }).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/reviews/history] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+    t.exact('GET', '/api/memory/reviews/history', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/reviews/history', this.memoryApi.getReviewHistory({
+        targetFilePath: ctx.queryOpt('targetFilePath'),
+        package: ctx.queryOpt('pkg'),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
+      })));
 
-    if (pathname === '/api/memory/pipeline/runs/by-day' && method === 'GET') {
-      const p = parsed.searchParams;
-      void this.memoryApi.listPipelineRunStatsByDay({
-        scope: p.get('scope') ?? undefined,
-        since: p.get('since') ?? undefined,
-      }).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/pipeline/runs/by-day] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+    t.exact('GET', '/api/memory/pipeline/runs/by-day', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs/by-day', this.memoryApi.listPipelineRunStatsByDay({
+        scope: ctx.queryOpt('scope'),
+        since: ctx.queryOpt('since'),
+      })));
 
-    if (pathname === '/api/memory/pipeline/failed' && method === 'GET') {
-      const p = parsed.searchParams;
-      void this.memoryApi.listFailedItems({
-        scope: p.get('scope') ?? undefined,
-        limit: clampInt(p.get('limit'), 50, 1, 200),
-      }).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/pipeline/failed] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+    t.exact('GET', '/api/memory/pipeline/failed', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/failed', this.memoryApi.listFailedItems({
+        scope: ctx.queryOpt('scope'),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
+      })));
 
-    if (pathname === '/api/memory/entities/top' && method === 'GET') {
-      const p = parsed.searchParams;
-      void this.memoryApi.listTopEntities({
-        type: p.get('type') ?? undefined,
-        limit: clampInt(p.get('limit'), 20, 1, 200),
-      }).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/entities/top] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
+    t.exact('GET', '/api/memory/entities/top', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/entities/top', this.memoryApi.listTopEntities({
+        type: ctx.queryOpt('type'),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 20, 1, 200),
+      })));
 
-    if (pathname === '/api/memory/edges/invalidations' && method === 'GET') {
-      const p = parsed.searchParams;
-      void this.memoryApi.listInvalidations({
-        since: p.get('since') ?? undefined,
-        limit: clampInt(p.get('limit'), 50, 1, 200),
-      }).then((data) => {
-        res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify(data));
-      }).catch((err: unknown) => {
-        this.logger.error(`[/api/memory/edges/invalidations] ${String(err)}`);
-        res.writeHead(500); res.end();
-      });
-      return;
-    }
-
-    res.writeHead(404);
-    res.end();
+    t.exact('GET', '/api/memory/edges/invalidations', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/edges/invalidations', this.memoryApi.listInvalidations({
+        since: ctx.queryOpt('since'),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
+      })));
   }
 
   // -------------------------------------------------------------------------
