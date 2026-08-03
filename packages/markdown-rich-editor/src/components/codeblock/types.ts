@@ -24,6 +24,9 @@ export const HTML_SANITIZE_CONFIG = {
     // media 要素の再生制御・ソース指定。`on*` は allowlist 方式なので自動的に落ちる。
     "controls", "muted", "loop", "autoplay", "playsinline", "preload", "poster",
     "srcset", "sizes", "media", "kind", "srclang", "label", "default",
+    // 別オリジンの字幕トラックは crossorigin が無いと読み込まれない。track だけ許可して
+    // これを落とすと、要素は出るのに字幕が出ない「半分だけ動く」状態になる。
+    "crossorigin",
   ],
   ALLOW_DATA_ATTR: false,
 };

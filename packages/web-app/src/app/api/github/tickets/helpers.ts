@@ -57,7 +57,11 @@ function hasControlChars(value: string | string[]): boolean {
 
 /** クライアント由来の未知キーを FrontmatterValue に絞り込む（型不明値・frontmatter 注入の混入防止） */
 export function sanitizeExtras(raw: unknown): Record<string, FrontmatterValue> {
-  const extras: Record<string, FrontmatterValue> = {};
+  // キーはクライアント由来で、SAFE_EXTRA_KEY_RE は `__proto__` を通す。オブジェクト
+  // リテラルへ代入するとプロトタイプの差し替えとして解釈され、そのキーだけが黙って
+  // 消える（tickets-core のパーサは Object.create(null) 化済みなので、ここが literal
+  // のままだと API 経由の更新でだけキーが失われ、経路によって挙動が食い違う）。
+  const extras: Record<string, FrontmatterValue> = Object.create(null);
   if (typeof raw !== "object" || raw === null) {
     return extras;
   }
