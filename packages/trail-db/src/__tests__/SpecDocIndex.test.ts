@@ -225,6 +225,9 @@ describe('SpecDocIndex.wasUpdatedIn', () => {
     `).run('session-1', 'docs-commit-1', '2026-07-13T16:00:00.000Z', 9);
     db.prepare('INSERT INTO commit_files(commit_hash, file_path, repo_id) VALUES (?, ?, ?)')
       .run('docs-commit-1', 'spec/a.md', 9);
+    // 範囲終端（2026-07-13T17:00Z）より後に解決が走っている＝範囲全体が走査済み
+    db.prepare('INSERT INTO session_commit_resolutions(session_id, repo_id, resolved_at) VALUES (?, ?, ?)')
+      .run('session-1', 9, '2026-07-13T18:00:00.000Z');
 
     const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
 

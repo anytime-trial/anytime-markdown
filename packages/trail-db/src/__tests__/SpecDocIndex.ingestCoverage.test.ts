@@ -63,9 +63,13 @@ function insertDocsCommit(db: Database.Database, hash: string, committedAt: stri
   }
 }
 
-function markResolved(db: Database.Database, sessionId: string): void {
+function markResolved(
+  db: Database.Database,
+  sessionId: string,
+  resolvedAt = '2026-07-14T00:00:00.000Z',
+): void {
   db.prepare('INSERT INTO session_commit_resolutions(session_id, repo_id, resolved_at) VALUES (?, ?, ?)')
-    .run(sessionId, DOCS_REPO_ID, '2026-07-14T00:00:00.000Z');
+    .run(sessionId, DOCS_REPO_ID, resolvedAt);
 }
 
 describe('SpecDocIndex.wasUpdatedIn — 取込カバレッジ', () => {
@@ -136,7 +140,7 @@ describe('SpecDocIndex.wasUpdatedIn — 取込カバレッジ', () => {
       return { fromRef, toRef };
     }
 
-    it('docs の取込済みコミットが 1 件も無ければ unknown を返す', async () => {
+    it('commit 解決が一度も走っていなければ unknown を返す', async () => {
       const { fromRef, toRef } = initCodeRepo();
       const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
 
@@ -144,9 +148,11 @@ describe('SpecDocIndex.wasUpdatedIn — 取込カバレッジ', () => {
         .resolves.toBe('unknown');
     });
 
-    it('取込済みコミットが範囲開始より前で止まっていれば unknown を返す', async () => {
+    it('最後の解決が範囲終端に届いていなければ unknown を返す（範囲後半が未走査）', async () => {
       const { fromRef, toRef } = initCodeRepo();
-      insertDocsCommit(db, 'docs-old', '2026-05-23T05:35:24.000Z', 'spec/other.md');
+      // 範囲は 00:00〜02:00。解決は 01:00 までしか走っていない。
+      markResolved(db, 'session-1', '2026-07-14T01:00:00.000Z');
+      insertDocsCommit(db, 'docs-old', '2026-07-14T00:30:00.000Z', 'spec/other.md');
 
       const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
 
@@ -154,8 +160,20 @@ describe('SpecDocIndex.wasUpdatedIn — 取込カバレッジ', () => {
         .resolves.toBe('unknown');
     });
 
-    it('取込が範囲を跨いでいれば not-updated / updated を区別する', async () => {
+    it('範囲後半が未走査でも、一致が見つかれば updated は確定する', async () => {
       const { fromRef, toRef } = initCodeRepo();
+      markResolved(db, 'session-1', '2026-07-14T01:00:00.000Z');
+      insertDocsCommit(db, 'docs-in-range', '2026-07-14T00:30:00.000Z', 'spec/a.md');
+
+      const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
+
+      await expect(index.wasUpdatedIn('spec/a.md', { scope: 'range', fromRef, toRef }))
+        .resolves.toBe('updated');
+    });
+
+    it('解決が範囲終端を越えていれば not-updated / updated を区別する', async () => {
+      const { fromRef, toRef } = initCodeRepo();
+      markResolved(db, 'session-1', '2026-07-14T03:00:00.000Z');
       insertDocsCommit(db, 'docs-in-range', '2026-07-14T01:00:00.000Z', 'spec/a.md');
 
       const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
@@ -163,6 +181,19 @@ describe('SpecDocIndex.wasUpdatedIn — 取込カバレッジ', () => {
       await expect(index.wasUpdatedIn('spec/a.md', { scope: 'range', fromRef, toRef }))
         .resolves.toBe('updated');
       await expect(index.wasUpdatedIn('spec/b.md', { scope: 'range', fromRef, toRef }))
+        .resolves.toBe('not-updated');
+    });
+
+    it('設計書を更新していない真の stale を unknown に化けさせない', async () => {
+      // 退行防止: カバレッジ基準を resolved_at ではなく committed_at にすると、
+      // docs の最新コミットが範囲終端より前になる通常のケースで stale が全滅する。
+      const { fromRef, toRef } = initCodeRepo();
+      markResolved(db, 'session-1', '2026-07-14T03:00:00.000Z');
+      insertDocsCommit(db, 'docs-old', '2026-07-14T00:30:00.000Z', 'spec/other.md');
+
+      const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
+
+      await expect(index.wasUpdatedIn('spec/a.md', { scope: 'range', fromRef, toRef }))
         .resolves.toBe('not-updated');
     });
   });

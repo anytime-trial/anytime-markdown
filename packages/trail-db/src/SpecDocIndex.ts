@@ -45,7 +45,7 @@ export class SpecDocIndex implements ISpecDocIndex {
   private indexByElementId: Map<string, SpecDocRef[]> | null = null;
   private worktreeChanges: ReadonlySet<string> | null = null;
   /** 未解決は undefined、解決済みで未取込は null（キャッシュと「未取込」を区別する） */
-  private docsIngestedThrough: string | null | undefined = undefined;
+  private docsSweepWatermark: string | null | undefined = undefined;
   private warnedMissingResolutionTable = false;
   private readonly gitCommitTimeByRef = new Map<string, string | null>();
 
@@ -140,10 +140,6 @@ export class SpecDocIndex implements ISpecDocIndex {
 
     const [startTime, endTime] = fromTime <= toTime ? [fromTime, toTime] : [toTime, fromTime];
 
-    // 取込済みコミットが範囲より前で止まっていれば、範囲内の行が無いのは取込欠落による。
-    const ingestedThrough = this.getDocsIngestedThrough();
-    if (!ingestedThrough || ingestedThrough < startTime) return 'unknown';
-
     const rows = this.requireDb('range').prepare(`
       SELECT cf.file_path FROM commit_files cf
       JOIN session_commits sc
@@ -152,7 +148,18 @@ export class SpecDocIndex implements ISpecDocIndex {
         AND sc.committed_at >= ? AND sc.committed_at <= ?
     `).all(this.getDocsRepoId(), startTime, endTime) as FilePathRow[];
 
-    return hasMatchingGitPath(rows, specPath) ? 'updated' : 'not-updated';
+    // 一致が見つかれば取込が途中でも「更新された」は確定する（部分カバレッジでも偽陽性にならない）。
+    if (hasMatchingGitPath(rows, specPath)) return 'updated';
+
+    // 一致が無い場合だけカバレッジを問う。基準は「取り込まれたコミットの時刻」ではなく
+    // 「取込が走った時刻」（sweep の watermark）。前者を使うと、設計書を実際に更新して
+    // いない真の stale が常に unknown へ化ける（docs の最新コミットは範囲終端より前に
+    // なるのが普通のため）。watermark が範囲終端に届いていなければ、終端側のコミットは
+    // まだ走査されておらず判定できない。
+    const sweptThrough = this.getDocsSweepWatermark();
+    if (!sweptThrough || sweptThrough < endTime) return 'unknown';
+
+    return 'not-updated';
   }
 
   /**
@@ -180,16 +187,32 @@ export class SpecDocIndex implements ISpecDocIndex {
     return row !== undefined;
   }
 
-  /** 設計書リポジトリで取り込み済みの最新コミット時刻（未取込なら null）。 */
-  private getDocsIngestedThrough(): string | null {
-    if (this.docsIngestedThrough !== undefined) return this.docsIngestedThrough;
+  /**
+   * 設計書リポジトリの commit 解決が最後に走った時刻（一度も走っていなければ null）。
+   *
+   * 解決が時刻 T に走ったなら、その時点で存在した設計書コミットは走査済みとみなせる。
+   * これを範囲終端と比べることで「範囲全体を検査し終えたか」を問う。
+   */
+  private getDocsSweepWatermark(): string | null {
+    if (this.docsSweepWatermark !== undefined) return this.docsSweepWatermark;
+
+    if (!this.hasTable('session_commit_resolutions')) {
+      if (!this.warnedMissingResolutionTable) {
+        this.warnedMissingResolutionTable = true;
+        this.logger.warn(
+          'session_commit_resolutions table is missing; cannot verify spec commit ingestion coverage',
+        );
+      }
+      this.docsSweepWatermark = null;
+      return null;
+    }
 
     const row = this.requireDb('range').prepare(
-      'SELECT MAX(committed_at) AS latest FROM session_commits WHERE repo_id = ?',
+      'SELECT MAX(resolved_at) AS latest FROM session_commit_resolutions WHERE repo_id = ?',
     ).get(this.getDocsRepoId()) as { latest: string | null } | undefined;
 
-    this.docsIngestedThrough = row?.latest ?? null;
-    return this.docsIngestedThrough;
+    this.docsSweepWatermark = row?.latest ?? null;
+    return this.docsSweepWatermark;
   }
 
   private hasTable(tableName: string): boolean {
