@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as ts from 'typescript';
 
@@ -79,7 +80,7 @@ describe('trace-agent-node の実行時依存', () => {
     });
 
     it('検出ロジック自体が値 import・複数行 import・require を捕まえる', () => {
-        const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'trace-guard-'));
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trace-guard-'));
         try {
             const cases: Record<string, string> = {
                 'single.ts': `import { CURRENT_TRACE_VERSION } from '${FORBIDDEN_PREFIX}';\n`,
