@@ -46,12 +46,13 @@ export async function generateMetadata({ params }: TopicParams): Promise<Metadat
 export default async function MarkdownTopicPage({ params }: TopicParams) {
   const { locale: rawLocale, topic } = await params;
   // `[topic]` は任意の文字列を受け取る。レジストリに無い slug で薄いページを
-  // 量産しないよう 404 ページへ落とす。
+  // 量産しないよう 404 にする。
   //
-  // 既知の制約: この経路の HTTP ステータスは 200 になる（実測。`/report/<未知>` も同じで、
-  // `[locale]` 配下で notFound() を呼ぶ全ルートに共通する既存の挙動）。next-intl の
-  // middleware が rewrite した先の 404 がステータスとして伝わらない。`dynamicParams = false`
-  // でも変わらないことを実測済み。ソフト 404 の解消はルーティング全体の課題として別に扱う。
+  // notFound() は描画開始より前（このページ関数が JSX を返す前）に呼ぶ必要がある。
+  // 上位に Suspense 境界があるとシェルがステータス 200 で送出済みになり、あとから
+  // ステータスを変えられない（かつて `app/[locale]/loading.tsx` がその境界を作っており、
+  // この経路は 404 ページを描画しながら 200 を返していた）。ステータスの退行は
+  // `e2e/http-status.spec.ts` が実測で押さえる。
   if (!isTopicSlug(topic)) notFound();
 
   return (

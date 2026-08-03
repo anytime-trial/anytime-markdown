@@ -120,6 +120,10 @@ export default async function ReportDetailPage({ params }: Readonly<Props>) {
   // でも null を返すため、設定不備や供給元の障害が「全記事が存在しない」に化ける。一覧を
   // 引けたときだけ「無い」と断定し、引けなかったときは従来どおりエラー表示（200）へ落とす。
   //
+  // frontmatter が壊れた記事もここで 404 になるが、これは矛盾しない。`listReports` が
+  // 同じスキーマで検証して落とすため、そうした記事は一覧にも sitemap にも現れない
+  // （どこからも案内していない URL に「無い」と答えることになる）。
+  //
   // notFound() はここ（描画開始前）で呼ぶ必要がある。上位に Suspense 境界があると
   // シェルが 200 で送出済みになり、ステータスを変えられない（ソフト 404）。
   if (!report && sourceReachable) {

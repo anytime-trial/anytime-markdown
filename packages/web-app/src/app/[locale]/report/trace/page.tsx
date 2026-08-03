@@ -71,6 +71,9 @@ async function TraceList() {
 }
 
 export default function TraceListPage() {
+  // フォールバックは `FullPageLoader` ではなく素の DOM。この画面は Anytime Trail 側の
+  // 内部ツールで MUI を使わずインライン style だけで組んであり、`[file]` 側の
+  // フォールバックとも揃えている。
   return (
     <Suspense fallback={<main style={{ padding: '2rem' }}>Loading...</main>}>
       <TraceList />
