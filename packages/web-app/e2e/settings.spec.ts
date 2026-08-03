@@ -1,4 +1,5 @@
 import { test, expect } from "./coverage.fixture";
+import { localePath } from "./helpers";
 
 /**
  * 設定パネルを開くヘルパー
@@ -15,7 +16,7 @@ async function openSettingsPanel(page: import("@playwright/test").Page) {
 test.describe("Settings", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
-    await page.goto("/markdown");
+    await page.goto(localePath("/markdown"));
     await page.locator(".tiptap").waitFor({ state: "visible" });
   });
 

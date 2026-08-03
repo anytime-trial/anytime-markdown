@@ -1,9 +1,9 @@
 import { test, expect } from "./coverage.fixture";
-import { openEmptyEditor } from "./helpers";
+import { localePath, openEmptyEditor } from "./helpers";
 
 test.describe("Editor Basic", () => {
   test("page loads with editor and toolbar", async ({ page }) => {
-    await page.goto("/markdown");
+    await page.goto(localePath("/markdown"));
     await page.locator(".tiptap").waitFor({ state: "visible" });
     // ツールバーが表示される
     await expect(page.getByRole("toolbar", { name: /editor/i })).toBeVisible();

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { localePath } from "./helpers";
 
 /**
  * /tickets の E2E（プロバイダ抽象のサーバールート /api/tickets を route interception でモック）。
@@ -97,7 +98,7 @@ async function openTicketsPage(page: Page, options?: { putStatus?: number }) {
     }
     await route.fulfill({ json: TICKETS_DATA });
   });
-  await page.goto("/tickets");
+  await page.goto(localePath("/tickets"));
   await expect(page.locator(".tk-board")).toBeVisible();
 }
 

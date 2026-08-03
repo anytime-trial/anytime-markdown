@@ -1,4 +1,5 @@
 import { test, expect } from "./coverage.fixture";
+import { localePath } from "./helpers";
 
 test.describe("Console Errors", () => {
   test.afterEach(async ({ page }) => {
@@ -22,7 +23,7 @@ test.describe("Console Errors", () => {
       }
     });
 
-    await page.goto("/");
+    await page.goto(localePath("/"));
     // ページの描画完了を待機
     await page.getByRole("heading", { level: 1 }).first().waitFor({ state: "visible" });
     // hydration 後のエラーも捕捉するため少し待つ
@@ -44,7 +45,7 @@ test.describe("Console Errors", () => {
       }
     });
 
-    await page.goto("/markdown");
+    await page.goto(localePath("/markdown"));
     // ウェルカムコンテンツの読み込みを待機
     await page.locator(".tiptap").waitFor({ state: "visible" });
     await page.waitForTimeout(1000);

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { localePath } from "./helpers";
 
 /**
  * MUI 削減（Phase3a）の視覚回帰(VR)基準。
@@ -45,7 +46,7 @@ async function openChrome(
     },
     { contentKey: CONTENT_KEY, modeKey: MODE_KEY, presetKey: PRESET_KEY, modeVal: mode, presetVal: preset },
   );
-  await page.goto("/markdown");
+  await page.goto(localePath("/markdown"));
   await page.locator(".tiptap").waitFor({ state: "visible" });
   const editBtn = page.getByRole("button", { name: /^edit$/i });
   if (await editBtn.isVisible()) {
