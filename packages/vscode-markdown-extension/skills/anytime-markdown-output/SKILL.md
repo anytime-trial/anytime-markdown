@@ -86,11 +86,16 @@ excerpt: "ドキュメントの要約。200文字以内。"
 ### 2.3. `c4Scope`（`type: "spec"` 専用）
 
 `type` が `spec` のドキュメントには `c4Scope` フィールドを付与する。\
-C4モデルの要素選択時に関連ドキュメントを自動表示するために使用する。
+C4 モデルの要素選択時に関連ドキュメントを自動表示するためと、`check_alignment`（設計書追随チェック）が「この要素のコードが変わったのに設計書が更新されていない」を検知するために使う。
 
-- 値は C4モデルの要素ID（`sys_`・`pkg_` プレフィックス付き）の YAML 配列
-- 設計書の記載対象に応じたレベルの要素IDを指定する
-- 要素IDは C4 モデル API（`packages/web-app/src/app/api/c4/model/route.ts` が返す `model.elements`）から取得する
+**使える値は次の 2 種類だけ**である。C4 要素は `WorkspaceC4ElementProvider` がワークスペース構成から導出しており、手動 C4（`c4_manual_elements`）は実運用で 0 件だからである。
+
+| レベル | ID | 用途 |
+| --- | --- | --- |
+| システム | `sys_<リポジトリ名>`（例 `sys_anytime-markdown`） | システム全体の設計書。`check_alignment` の対象にはならない |
+| コンテナ | `pkg_<packages 直下のディレクトリ名>`（例 `pkg_web-app`） | パッケージ単位の設計書。`check_alignment` の対象 |
+
+コンポーネント ID（`pkg_graph-core/engine` 形式）は**使わない**。ライブ C4 モデルのコンポーネント要素は `community_<n>` 形式であり、`/api/docs-index` の repo フィルタは「要素 ID がスコープの子であるか」で判定するため、宣言するとその設計書がインデックスから外れて C4 ビューアから消える。
 
 ```yaml
 ---
@@ -98,18 +103,30 @@ title: "graph-core 設計書"
 type: "spec"
 c4Scope:
     - "pkg_graph-core"
-    - "pkg_graph-core/engine"
 ---
 ```
 
-| レベル | ID 例 | 用途 |
-| --- | --- | --- |
-| システム | `sys_anytime-markdown` | システム全体の設計書 |
-| コンテナ | `pkg_web-app` | パッケージ単位の設計書 |
-| コンポーネント | `pkg_graph-core/engine` | パッケージ内モジュールの設計書 |
+#### 宣言してよい要素の条件
+
+`check_alignment` の逆引きは**要素 ID の完全一致**であり、その要素を宣言した設計書は 1 本残らず finding になる。実装の裏付けがない宣言は、そのパッケージを触るたびに恒常的な警報を出し、本当の更新漏れを埋没させる。次のいずれかを満たす要素だけを宣言する。
+
+- **所在** — 設計書がそのパッケージのフォルダ配下にある（`spec/33.graph/05.cooccurrence-viewer/**` → `pkg_cooccurrence-viewer`）
+- **正本** — ファイル名がパッケージ名と一致する（`trail-server.ja.md` → `pkg_trail-server`）
+- **実装参照** — 本文が `packages/<pkg>` を参照している
+- **機能実装** — 設計書のスラグ（例 `flight-review`）に対応する実装がそのパッケージのソースに存在する
+- **希少識別子** — 本文の識別子（出現パッケージが 3 以下のもの）がそのパッケージの実装に一致する
+
+単に言及している・連携先である・利用しているだけの関係は `c4Scope` に入れず、`related` で表す。
+
+#### 注意
+
+- **`c4Scope` を空配列にしない。** `/api/docs-index` のパーサは空を「フロントマター不正」として `null` を返し、その設計書が一覧から消える。宣言すべき `pkg_` が無い設計書には `sys_<リポジトリ名>` を残す
+- **他リポジトリを対象とする設計書は `c4Scope` フィールド自体を持たない。** 「該当なし」等のプレースホルダを値に置くと、パーサが要素 ID として扱って壊れる
+- **パッケージを改名したら宣言も追随させる。** 旧名は要素として存在しないため、黙って `undocumented` に化ける
+- 要素 ID の一覧は C4 モデル API（`packages/web-app/src/app/api/c4/model/route.ts` が返す `model.elements`）から取得できる
 
 > [!NOTE]
-> 要素を選択すると、完全一致に加え子パス前方一致（`pkg_graph-core` 選択時に `pkg_graph-core/engine` も表示）でドキュメントが検索される。
+> C4 ビューアの要素選択では、完全一致に加え子パス前方一致でドキュメントが検索される（`matchesDocScope`）。ただし上記のとおり、子パス側の ID を宣言に使うと docs-index の段階で落ちるため利用できない。
 
 
 ## 3. 構文仕様
