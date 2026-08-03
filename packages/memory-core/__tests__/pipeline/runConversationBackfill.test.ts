@@ -584,6 +584,12 @@ describe('runConversationBackfill', () => {
     expect(state[0]?.values?.[0]?.[1]).toBe('');
     expect(String(state[0]?.values?.[0]?.[2])).toContain('injected fatal');
 
+    // finalizePipelineRun へ渡した status を直接 pin する（変更したのはこの引数）。
+    const run = memDb.exec(
+      `SELECT status FROM memory_pipeline_runs WHERE scope = 'conversation_backfill'`
+    );
+    expect(run[0]?.values?.[0]?.[0]).toBe('error');
+
     trailDb.close();
     memDb.close();
   }, 30000);

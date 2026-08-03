@@ -14,12 +14,13 @@ describe("HTML_SANITIZE_CONFIG", () => {
 
   it("video 要素と再生制御属性を保持する", () => {
     const out = sanitize(
-      '<video controls muted loop playsinline preload="auto" poster="https://example.test/p.jpg" src="https://example.test/v.mp4"></video>',
+      '<video controls muted loop autoplay playsinline preload="auto" poster="https://example.test/p.jpg" src="https://example.test/v.mp4"></video>',
     );
     expect(out).toContain("<video");
     expect(out).toContain("controls");
     expect(out).toContain("muted");
     expect(out).toContain("loop");
+    expect(out).toContain("autoplay");
     expect(out).toContain("playsinline");
     expect(out).toContain('preload="auto"');
     expect(out).toContain('poster="https://example.test/p.jpg"');
