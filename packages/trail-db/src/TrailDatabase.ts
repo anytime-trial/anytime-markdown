@@ -208,10 +208,12 @@ import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity 
 import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
 
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
-import { codexMessageUuid, extractCodexSessionId } from './codexMessageUuid';
+import { normalizeCodexRecords } from './codexNormalize';
 import { type DbLogger, noopDbLogger } from './DbLogger';
 import { ExecFileGitService } from './ExecFileGitService';
 import { JsonlSessionReader } from './JsonlSessionReader';
+import type { RawContentBlock, RawLine } from './rawLine';
+import { extractSessionMetaFromLines, parseJsonlLines, type SessionImportMeta } from './sessionImport';
 export type { ReleaseCoverageRow, ReleaseFileRow, ReleaseRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
@@ -455,12 +457,6 @@ function ensureCommunityMappingsJsonColumn(db: Database, table: 'current_code_gr
     db.run(`ALTER TABLE ${table} ADD COLUMN mappings_json TEXT`);
   }
 }
-
-const SKIP_TYPES = new Set([
-  'file-history-snapshot',
-  'last-prompt',
-  'queue-operation',
-]);
 
 const TEMPORAL_COUPLING_EXCLUDE_PATTERNS: readonly RegExp[] = [
   /\.lock$/,
@@ -732,54 +728,6 @@ interface CombinedData {
 }
 
 
-interface RawLine {
-  uuid?: string;
-  parentUuid?: string | null;
-  type?: string;
-  subtype?: string;
-  timestamp?: string;
-  sessionId?: string;
-  version?: string;
-  gitBranch?: string;
-  cwd?: string;
-  slug?: string;
-  entrypoint?: string;
-  userType?: string;
-  isSidechain?: boolean;
-  isMeta?: boolean;
-  permissionMode?: string;
-  promptId?: string;
-  requestId?: string;
-  toolUseResult?: unknown;
-  sourceToolAssistantUUID?: string;
-  sourceToolUseID?: string;
-  agentId?: string;
-  durationMs?: number;
-  message?: {
-    role?: string;
-    model?: string;
-    content?: string | readonly RawContentBlock[];
-    stop_reason?: string;
-    usage?: {
-      input_tokens?: number;
-      output_tokens?: number;
-      cache_read_input_tokens?: number;
-      cache_creation_input_tokens?: number;
-      service_tier?: string;
-      speed?: string;
-    };
-  };
-  payload?: Record<string, unknown>;
-  call_id?: string;
-}
-
-interface RawContentBlock {
-  type: string;
-  text?: string;
-  id?: string;
-  name?: string;
-  input?: Record<string, unknown>;
-}
 
 // ---------------------------------------------------------------------------
 //  SQL statements
@@ -847,33 +795,6 @@ function extractToolCalls(
   return calls.length > 0 ? JSON.stringify(calls) : null;
 }
 
-function extractCodexText(content: unknown): string | null {
-  if (!Array.isArray(content)) return null;
-  const texts: string[] = [];
-  for (const block of content) {
-    if (!block || typeof block !== 'object') continue;
-    const text = (block as Record<string, unknown>).text;
-    if (typeof text === 'string' && text.trim()) texts.push(text);
-  }
-  return texts.length > 0 ? texts.join('\n') : null;
-}
-
-function normalizeCodexTokenUsage(last: Record<string, unknown>): {
-  input_tokens: number;
-  output_tokens: number;
-  cache_read_input_tokens: number;
-  cache_creation_input_tokens: number;
-} {
-  const totalInputTokens = Number(last.input_tokens ?? 0);
-  const cachedInputTokens = Number(last.cached_input_tokens ?? 0);
-  return {
-    input_tokens: Math.max(0, totalInputTokens - cachedInputTokens),
-    output_tokens: Number(last.output_tokens ?? 0),
-    cache_read_input_tokens: cachedInputTokens,
-    cache_creation_input_tokens: 0,
-  };
-}
-
 function collectJsonlFilesRecursive(rootDir: string): string[] {
   const results: string[] = [];
   function walk(dir: string): void {
@@ -892,168 +813,6 @@ function collectJsonlFilesRecursive(rootDir: string): string[] {
   }
   walk(rootDir);
   return results;
-}
-
-function applyCodexTokenCountToNormalized(
-  payload: Record<string, unknown>,
-  normalized: RawLine[],
-): void {
-  if (!payload.info || typeof payload.info !== 'object') return;
-  const info = payload.info as Record<string, unknown>;
-  const last = info.last_token_usage as Record<string, unknown> | undefined;
-  if (!last || normalized.length === 0) return;
-  for (let i = normalized.length - 1; i >= 0; i--) {
-    const candidate = normalized[i];
-    if (candidate.type !== 'assistant') continue;
-    candidate.message = {
-      ...(candidate.message),
-      usage: normalizeCodexTokenUsage(last),
-    };
-    break;
-  }
-}
-
-function normalizeCodexEventMsg(
-  payload: Record<string, unknown>,
-  normalized: RawLine[],
-  seq: number,
-  sessionId: string,
-  timestamp: string,
-): { lines: RawLine[]; newSeq: number } {
-  if (payload.type === 'task_started') return { lines: [], newSeq: seq };
-  if (payload.type === 'token_count') {
-    applyCodexTokenCountToNormalized(payload, normalized);
-    return { lines: [], newSeq: seq };
-  }
-  if (payload.type === 'agent_message' && typeof payload.message === 'string') {
-    return {
-      lines: [{
-        uuid: codexMessageUuid(sessionId, seq),
-        sessionId,
-        type: 'assistant',
-        timestamp,
-        message: { content: payload.message },
-      }],
-      newSeq: seq + 1,
-    };
-  }
-  return { lines: [], newSeq: seq };
-}
-
-function normalizeCodexResponseItem(
-  payload: Record<string, unknown>,
-  payloadType: string,
-  sessionId: string,
-  timestamp: string,
-  seq: number,
-  normalized: RawLine[],
-): { lines: RawLine[]; newSeq: number } {
-  if (payloadType === 'message') {
-    const role = typeof payload.role === 'string' ? payload.role : '';
-    if (role !== 'user' && role !== 'assistant' && role !== 'developer' && role !== 'system') {
-      return { lines: [], newSeq: seq };
-    }
-    const text = extractCodexText(payload.content);
-    const normalizedTypeInner: 'assistant' | 'system' = role === 'assistant' ? 'assistant' : 'system';
-    const normalizedType: 'user' | 'assistant' | 'system' = role === 'user' ? 'user' : normalizedTypeInner;
-    return {
-      lines: [{
-        uuid: codexMessageUuid(sessionId, seq),
-        sessionId,
-        type: normalizedType,
-        subtype: role,
-        timestamp,
-        message: { content: text ?? '' },
-      }],
-      newSeq: seq + 1,
-    };
-  }
-  if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
-    const id = typeof payload.call_id === 'string' ? payload.call_id : `codex-call-${seq}`;
-    const name = typeof payload.name === 'string' ? payload.name : 'tool';
-    const rawInput = payloadType === 'function_call' ? payload.arguments : payload.input;
-    let parsedInput: Record<string, unknown> = {};
-    if (typeof rawInput === 'string' && rawInput.trim()) {
-      try { parsedInput = JSON.parse(rawInput) as Record<string, unknown>; } catch { parsedInput = { raw: rawInput }; }
-    } else if (rawInput && typeof rawInput === 'object') {
-      parsedInput = rawInput as Record<string, unknown>;
-    }
-    return {
-      lines: [{
-        uuid: codexMessageUuid(sessionId, seq),
-        sessionId,
-        type: 'assistant',
-        timestamp,
-        message: { content: [{ type: 'tool_use', id, name, input: parsedInput }] },
-      }],
-      newSeq: seq + 1,
-    };
-  }
-  if (payloadType === 'function_call_output' || payloadType === 'custom_tool_call_output') {
-    const id = typeof payload.call_id === 'string' ? payload.call_id : '';
-    const output = typeof payload.output === 'string'
-      ? payload.output
-      : JSON.stringify(payload.output ?? '');
-    return {
-      lines: [{
-        uuid: codexMessageUuid(sessionId, seq),
-        sessionId,
-        type: 'user',
-        timestamp,
-        message: {
-          content: [{
-            type: 'tool_result',
-            tool_use_id: id,
-            content: output,
-            is_error: false,
-          }] as unknown as readonly RawContentBlock[],
-        },
-      }],
-      newSeq: seq + 1,
-    };
-  }
-  if (payloadType === 'token_count') {
-    applyCodexTokenCountToNormalized(payload, normalized);
-  }
-  return { lines: [], newSeq: seq };
-}
-
-function normalizeCodexRecords(records: readonly RawLine[], fallbackSessionId: string): {
-  normalized: RawLine[];
-  sessionId: string;
-  version: string;
-  source: 'codex';
-} {
-  const normalized: RawLine[] = [];
-  let seq = 0;
-  // sessionId はループ前に確定させる。ループ中に session_meta で更新する形だと、
-  // session_meta より前に現れたレコードだけ fallback 値で採番され、同一レコードが
-  // JsonlSessionReader 側（先に全走査して解決する）と別 uuid になる。
-  let sessionId = extractCodexSessionId(records) ?? fallbackSessionId;
-  let version = '';
-
-  for (const record of records) {
-    const timestamp = typeof record.timestamp === 'string' ? record.timestamp : '';
-    if (record.type === 'session_meta' && record.payload && typeof record.payload === 'object') {
-      const payload = record.payload;
-      const cliVersion = payload.cli_version;
-      if (typeof cliVersion === 'string' && cliVersion) version = cliVersion;
-      continue;
-    }
-    if (record.type === 'event_msg' && record.payload && typeof record.payload === 'object') {
-      const { lines, newSeq } = normalizeCodexEventMsg(record.payload, normalized, seq, sessionId, timestamp);
-      normalized.push(...lines);
-      seq = newSeq;
-      continue;
-    }
-    if (record.type !== 'response_item' || !record.payload || typeof record.payload !== 'object') continue;
-    const payload = record.payload;
-    const payloadType = typeof payload.type === 'string' ? payload.type : '';
-    const { lines, newSeq } = normalizeCodexResponseItem(payload, payloadType, sessionId, timestamp, seq, normalized);
-    normalized.push(...lines);
-    seq = newSeq;
-  }
-  return { normalized, sessionId, version, source: 'codex' };
 }
 
 /**
@@ -3922,6 +3681,15 @@ export class TrailDatabase {
 
   private createTables(): void {
     const db = this.ensureDb();
+    this.createRepoSessionAndAnalysisTables(db);
+    this.createC4AndReviewTables(db);
+    this.createOperationsTables(db);
+    this.applyLegacyColumnsAndBackfills(db);
+  }
+
+  /** repos / current_* / sessions / commits / releases / file analysis の作成とインデックス。
+   * Phase A〜H の flip マイグレーションを CREATE TABLE より先に走らせる順序に依存する。 */
+  private createRepoSessionAndAnalysisTables(db: Database): void {
     // FK 強制は init() で OFF にしている。sql.js 時代の `db.run('PRAGMA
     // foreign_keys = ON')` は WASM 側で no-op だったため、ここで ON にすると
     // 既存挙動 (FK 未強制) と乖離してテスト fixture (orphan FK 値を含むもの)
@@ -4059,6 +3827,10 @@ export class TrailDatabase {
     // Hotspot / activity map 集計用 (trail-time-axis-requirements 3.2)
     db.run('CREATE INDEX IF NOT EXISTS idx_messages_subagent_type ON messages(subagent_type)');
     db.run('CREATE INDEX IF NOT EXISTS idx_message_tool_calls_tool_name_file_path ON message_tool_calls(tool_name, file_path)');
+  }
+
+  /** c4_manual 系・derived 系・PR レビュー系・cross source correlations の作成とインデックス。 */
+  private createC4AndReviewTables(db: Database): void {
     // Phase E flip: 既存 DB の c4_manual 系 3 テーブルを repo_id PK + 複合 FK スキーマへ再構築する。
     // CREATE TABLE IF NOT EXISTS は既存テーブルに無効なため、CREATE_C4_MANUAL_* の実行前に呼ぶ。
     // 新規 DB / flip 済 DB では no-op。repos を self-seed してから backfill する。
@@ -4099,6 +3871,10 @@ export class TrailDatabase {
     for (const idx of CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES) {
       db.run(idx);
     }
+  }
+
+  /** Emergency Protocol / Flight Review / User Feedback / 受入 / ドクトリン判断 / 境界ドリフトの作成。 */
+  private createOperationsTables(db: Database): void {
     // Phase 5 S1 (Emergency Protocol)。新規テーブルのみ。
     db.run(CREATE_SAFE_POINTS);
     db.run(CREATE_EMERGENCY_LOG);
@@ -4145,6 +3921,10 @@ export class TrailDatabase {
     }
     // 既存 DB 向け: UNIQUE 制約をインデックスとして追加（新規 DB は CREATE TABLE の UNIQUE 制約で対応済み）
     this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
+  }
+
+  /** 既存 DB 向けの列追加・既定値シード・バックフィル。新規 DB では大半が no-op。 */
+  private applyLegacyColumnsAndBackfills(db: Database): void {
 
     this.migrateMessageCommitsSchema(db);
 
@@ -4224,6 +4004,7 @@ export class TrailDatabase {
     // save() を呼ばないと _migrations フラグが保存されず、次回起動で再実行される。
     this.save();
   }
+
 
   /**
    * 既存 row の session_commits.repo_name / commit_files.repo_name を sessions.repo_name から
@@ -6411,21 +6192,12 @@ export class TrailDatabase {
   importSession(filePath: string, repoName: string, isSubagent = false, externalTransaction = false): number {
     const db = this.ensureDb();
     const content = fs.readFileSync(filePath, 'utf-8');
-    const lines = content.split('\n').filter((l) => l.trim() !== '');
 
     // サブエージェント JSONL の場合は隣接 meta.json から subagent_type を取得し、
     // この JSONL 内の全メッセージに付与する。古いセッションは meta.json なし → NULL のまま。
     const fileSubagentType = isSubagent ? readSubagentTypeFromMeta(filePath) : null;
 
-    const parsedRaw: RawLine[] = [];
-    for (const line of lines) {
-      try {
-        parsedRaw.push(JSON.parse(line) as RawLine);
-      } catch {
-        // Skip malformed lines
-      }
-    }
-
+    const parsedRaw = parseJsonlLines(content);
     if (parsedRaw.length === 0) return 0;
 
     const fallbackSessionId = path.basename(filePath).replace(/\.jsonl$/i, '');
@@ -6437,37 +6209,10 @@ export class TrailDatabase {
     const source: 'claude_code' | 'codex' = isCodex ? 'codex' : 'claude_code';
     if (parsed.length === 0) return 0;
 
-    // Extract session metadata
-    let sessionId = '';
-    let slug = '';
-    let version = '';
-    let model = '';
-    let entrypoint = '';
-    let startTime = '';
-    let endTime = '';
-    let messageCount = 0;
-
-    // Collect messages to insert
-    const messagesToInsert: RawLine[] = [];
-
-    for (const raw of parsed) {
-      if (!raw.type || SKIP_TYPES.has(raw.type)) continue;
-      if (raw.isMeta === true) continue;
-
-      if (!sessionId && raw.sessionId) sessionId = raw.sessionId;
-      if (!slug && raw.slug) slug = raw.slug;
-      if (!version && raw.version) version = raw.version;
-      if (!entrypoint && raw.entrypoint) entrypoint = raw.entrypoint;
-      if (!model && raw.message?.model) model = raw.message.model;
-      if (!startTime && raw.timestamp) startTime = toUTC(raw.timestamp);
-      if (raw.timestamp) endTime = toUTC(raw.timestamp);
-
-      messagesToInsert.push(raw);
-      messageCount++;
-    }
-
-    if (!sessionId) sessionId = codexNormalized?.sessionId || fallbackSessionId;
-    if (!version && codexNormalized?.version) version = codexNormalized.version;
+    const meta = extractSessionMetaFromLines(parsed);
+    // セッション ID / version は行から取れなければ Codex の session_meta、それも無ければファイル名由来。
+    const sessionId = meta.sessionId || codexNormalized?.sessionId || fallbackSessionId;
+    const version = meta.version || codexNormalized?.version || '';
 
     const fileSize = fs.statSync(filePath).size;
     const importedAt = new Date().toISOString();
@@ -6476,38 +6221,56 @@ export class TrailDatabase {
     try {
       // Insert/update session metadata only for main session files
       if (!isSubagent) {
-        // start_time / end_time が空のままだと daily_counts 集計で
-        // DATE('') が NULL を返し JS String(null) === 'null' で CHECK 違反になる。
-        // 空はそもそも意味のあるタイムスタンプではないため NULL に正規化する。
-        const startTimeOrNull: string | null = startTime || null;
-        const endTimeOrNull: string | null = endTime || null;
-        if (!startTime) {
-          this.logger.warn(`importSession: ${filePath} has no parseable timestamp; storing start_time as NULL`);
-        }
-        // Phase D: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して保存する。
-        // Phase H-4: repo_name 列は撤去済。repo 帰属は repo_id のみで保存する。
-        const repoId = this.repoIdForName(repoName);
-        db.run(INSERT_SESSION, [
-          sessionId, slug, repoId, version,
-          entrypoint, model, startTimeOrNull, endTimeOrNull, messageCount,
-          filePath, fileSize, importedAt, source,
-        ]);
+        this.insertSessionRow(
+          { ...meta, sessionId, version },
+          { filePath, repoName, source, fileSize, importedAt },
+        );
       }
 
       // Insert messages
       const msgStmt = db.prepare(INSERT_MESSAGE);
-      for (const raw of messagesToInsert) {
+      for (const raw of meta.messagesToInsert) {
         const params = this.buildMessageInsertParams(raw, sessionId, isSubagent, fileSubagentType);
         msgStmt.run(params);
       }
       msgStmt.free();
 
       if (!externalTransaction) db.run('COMMIT');
-      return messageCount;
+      return meta.messageCount;
     } catch (err) {
       if (!externalTransaction) db.run('ROLLBACK');
       throw err;
     }
+  }
+
+  /** `sessions` 行の INSERT OR REPLACE。メイン（非サブエージェント）セッションのみが対象。 */
+  private insertSessionRow(
+    meta: SessionImportMeta,
+    file: {
+      filePath: string;
+      repoName: string;
+      source: 'claude_code' | 'codex';
+      fileSize: number;
+      importedAt: string;
+    },
+  ): void {
+    const db = this.ensureDb();
+    // start_time / end_time が空のままだと daily_counts 集計で
+    // DATE('') が NULL を返し JS String(null) === 'null' で CHECK 違反になる。
+    // 空はそもそも意味のあるタイムスタンプではないため NULL に正規化する。
+    const startTimeOrNull: string | null = meta.startTime || null;
+    const endTimeOrNull: string | null = meta.endTime || null;
+    if (!meta.startTime) {
+      this.logger.warn(`importSession: ${file.filePath} has no parseable timestamp; storing start_time as NULL`);
+    }
+    // Phase D: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して保存する。
+    // Phase H-4: repo_name 列は撤去済。repo 帰属は repo_id のみで保存する。
+    const repoId = this.repoIdForName(file.repoName);
+    db.run(INSERT_SESSION, [
+      meta.sessionId, meta.slug, repoId, meta.version,
+      meta.entrypoint, meta.model, startTimeOrNull, endTimeOrNull, meta.messageCount,
+      file.filePath, file.fileSize, file.importedAt, file.source,
+    ]);
   }
 
   private collectClaudeCodeSessionDirs(
