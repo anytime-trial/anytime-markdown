@@ -26,8 +26,11 @@ export interface SessionImportMeta {
   /** 最後に現れたタイムスタンプ（UTC 正規化済み）。 */
   endTime: string;
   messageCount: number;
-  messagesToInsert: RawLine[];
+  messagesToInsert: readonly RawLine[];
 }
+
+/** `sessions` 行の組み立てに要る分だけ。メッセージ本体は含めない。 */
+export type SessionRowMeta = Omit<SessionImportMeta, 'messagesToInsert'>;
 
 /** JSONL の本文を 1 行ずつパースする。壊れた行は捨て、残りの取り込みは続ける。 */
 export function parseJsonlLines(content: string): RawLine[] {
@@ -54,7 +57,8 @@ function keepFirst(current: string, candidate: string | undefined): string {
  * メタ情報は「最初に現れた非空の値」を採る。ただし `endTime` だけは最後の値で上書きする。
  */
 export function extractSessionMetaFromLines(parsed: readonly RawLine[]): SessionImportMeta {
-  const meta: SessionImportMeta = {
+  const messagesToInsert: RawLine[] = [];
+  const meta = {
     sessionId: '',
     slug: '',
     version: '',
@@ -63,7 +67,6 @@ export function extractSessionMetaFromLines(parsed: readonly RawLine[]): Session
     startTime: '',
     endTime: '',
     messageCount: 0,
-    messagesToInsert: [],
   };
 
   for (const raw of parsed) {
@@ -79,9 +82,9 @@ export function extractSessionMetaFromLines(parsed: readonly RawLine[]): Session
     meta.startTime = keepFirst(meta.startTime, utc);
     if (raw.timestamp) meta.endTime = utc;
 
-    meta.messagesToInsert.push(raw);
+    messagesToInsert.push(raw);
     meta.messageCount++;
   }
 
-  return meta;
+  return { ...meta, messagesToInsert };
 }

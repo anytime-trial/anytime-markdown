@@ -213,7 +213,7 @@ import { type DbLogger, noopDbLogger } from './DbLogger';
 import { ExecFileGitService } from './ExecFileGitService';
 import { JsonlSessionReader } from './JsonlSessionReader';
 import type { RawContentBlock, RawLine } from './rawLine';
-import { extractSessionMetaFromLines, parseJsonlLines, type SessionImportMeta } from './sessionImport';
+import { extractSessionMetaFromLines, parseJsonlLines, type SessionRowMeta } from './sessionImport';
 export type { ReleaseCoverageRow, ReleaseFileRow, ReleaseRow } from '@anytime-markdown/trail-core';
 
 declare const __non_webpack_require__: (id: string) => unknown;
@@ -3923,7 +3923,11 @@ export class TrailDatabase {
     this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
   }
 
-  /** 既存 DB 向けの列追加・既定値シード・バックフィル。新規 DB では大半が no-op。 */
+  /**
+   * 既存 DB 向けの列追加・既定値シード・バックフィル。新規 DB では大半が no-op。
+   * 最後に `save()` を呼び、ALTER / backfill と `_migrations` フラグをディスクへ永続化する
+   * （保存しないと次回起動でマイグレーションが再実行される）。
+   */
   private applyLegacyColumnsAndBackfills(db: Database): void {
 
     this.migrateMessageCommitsSchema(db);
@@ -6245,7 +6249,7 @@ export class TrailDatabase {
 
   /** `sessions` 行の INSERT OR REPLACE。メイン（非サブエージェント）セッションのみが対象。 */
   private insertSessionRow(
-    meta: SessionImportMeta,
+    meta: SessionRowMeta,
     file: {
       filePath: string;
       repoName: string;

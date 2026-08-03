@@ -80,12 +80,22 @@ export function normalizeCodexEventMsg(
   return { lines: [], newSeq: seq };
 }
 
+/**
+ * 1 行を組み立てるのに要るセッション側の文脈。
+ *
+ * `sessionId` と `timestamp` は同じ string で、位置引数で並べると取り違えても型が落ちない。
+ * uuid が別採番になる / timestamp に別の文字列が入るという静かな壊れ方をするため、名前で束ねる。
+ */
+interface CodexLineContext {
+  sessionId: string;
+  timestamp: string;
+  seq: number;
+}
+
 /** `response_item` の `message` を 1 行へ変換する。role が想定外なら null（＝行を作らない）。 */
 function buildCodexMessageLine(
   payload: Record<string, unknown>,
-  sessionId: string,
-  timestamp: string,
-  seq: number,
+  ctx: CodexLineContext,
 ): RawLine | null {
   const role = typeof payload.role === 'string' ? payload.role : '';
   if (role !== 'user' && role !== 'assistant' && role !== 'developer' && role !== 'system') {
@@ -95,11 +105,11 @@ function buildCodexMessageLine(
   const normalizedTypeInner: 'assistant' | 'system' = role === 'assistant' ? 'assistant' : 'system';
   const normalizedType: 'user' | 'assistant' | 'system' = role === 'user' ? 'user' : normalizedTypeInner;
   return {
-    uuid: codexMessageUuid(sessionId, seq),
-    sessionId,
+    uuid: codexMessageUuid(ctx.sessionId, ctx.seq),
+    sessionId: ctx.sessionId,
     type: normalizedType,
     subtype: role,
-    timestamp,
+    timestamp: ctx.timestamp,
     message: { content: text ?? '' },
   };
 }
@@ -121,18 +131,16 @@ function parseCodexToolInput(rawInput: unknown): Record<string, unknown> {
 function buildCodexToolUseLine(
   payload: Record<string, unknown>,
   payloadType: string,
-  sessionId: string,
-  timestamp: string,
-  seq: number,
+  ctx: CodexLineContext,
 ): RawLine {
-  const id = typeof payload.call_id === 'string' ? payload.call_id : `codex-call-${seq}`;
+  const id = typeof payload.call_id === 'string' ? payload.call_id : `codex-call-${ctx.seq}`;
   const name = typeof payload.name === 'string' ? payload.name : 'tool';
   const rawInput = payloadType === 'function_call' ? payload.arguments : payload.input;
   return {
-    uuid: codexMessageUuid(sessionId, seq),
-    sessionId,
+    uuid: codexMessageUuid(ctx.sessionId, ctx.seq),
+    sessionId: ctx.sessionId,
     type: 'assistant',
-    timestamp,
+    timestamp: ctx.timestamp,
     message: { content: [{ type: 'tool_use', id, name, input: parseCodexToolInput(rawInput) }] },
   };
 }
@@ -140,19 +148,17 @@ function buildCodexToolUseLine(
 /** `function_call_output` / `custom_tool_call_output` を tool_result ブロック 1 個の user 行へ変換する。 */
 function buildCodexToolResultLine(
   payload: Record<string, unknown>,
-  sessionId: string,
-  timestamp: string,
-  seq: number,
+  ctx: CodexLineContext,
 ): RawLine {
   const id = typeof payload.call_id === 'string' ? payload.call_id : '';
   const output = typeof payload.output === 'string'
     ? payload.output
     : JSON.stringify(payload.output ?? '');
   return {
-    uuid: codexMessageUuid(sessionId, seq),
-    sessionId,
+    uuid: codexMessageUuid(ctx.sessionId, ctx.seq),
+    sessionId: ctx.sessionId,
     type: 'user',
-    timestamp,
+    timestamp: ctx.timestamp,
     message: {
       content: [{
         type: 'tool_result',
@@ -172,21 +178,16 @@ export function normalizeCodexResponseItem(
   seq: number,
   normalized: RawLine[],
 ): { lines: RawLine[]; newSeq: number } {
+  const ctx: CodexLineContext = { sessionId, timestamp, seq };
   if (payloadType === 'message') {
-    const line = buildCodexMessageLine(payload, sessionId, timestamp, seq);
+    const line = buildCodexMessageLine(payload, ctx);
     return line ? { lines: [line], newSeq: seq + 1 } : { lines: [], newSeq: seq };
   }
   if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
-    return {
-      lines: [buildCodexToolUseLine(payload, payloadType, sessionId, timestamp, seq)],
-      newSeq: seq + 1,
-    };
+    return { lines: [buildCodexToolUseLine(payload, payloadType, ctx)], newSeq: seq + 1 };
   }
   if (payloadType === 'function_call_output' || payloadType === 'custom_tool_call_output') {
-    return {
-      lines: [buildCodexToolResultLine(payload, sessionId, timestamp, seq)],
-      newSeq: seq + 1,
-    };
+    return { lines: [buildCodexToolResultLine(payload, ctx)], newSeq: seq + 1 };
   }
   if (payloadType === 'token_count') {
     applyCodexTokenCountToNormalized(payload, normalized);

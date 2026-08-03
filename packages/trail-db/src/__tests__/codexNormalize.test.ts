@@ -363,16 +363,20 @@ describe("normalizeCodexRecords", () => {
   });
 
   it("payload が無い / オブジェクトでないレコードは飛ばす", () => {
+    const notAnObject = "str" as unknown as Record<string, unknown>;
     const result = normalizeCodexRecords(
       [
         { type: "response_item" },
         { type: "event_msg" },
         { type: "session_meta" },
+        { type: "response_item", payload: notAnObject },
+        { type: "session_meta", payload: notAnObject },
         record("response_item", { type: "message", role: "user", content: [{ text: "q" }] }),
       ],
       "fallback",
     );
     expect(result.normalized).toHaveLength(1);
+    expect(result.sessionId).toBe("fallback");
   });
 
   it("response_item / event_msg / session_meta 以外の型は飛ばす", () => {
