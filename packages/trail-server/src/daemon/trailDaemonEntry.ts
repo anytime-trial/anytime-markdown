@@ -291,6 +291,7 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
     statePath: cfg.statePath,
     trailDb,
     gitRoots: cfg.gitRoots,
+    commitWatchRoots: cfg.commitWatchRoots,
     claudeProjectsDir: cfg.claudeProjectsDir,
     codexSessionsDir: cfg.codexSessionsDir,
     memoryCoreService: memoryCoreService ?? undefined,

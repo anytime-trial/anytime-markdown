@@ -91,6 +91,22 @@ function getWatchedGitRoots(lepGitRoots: readonly string[]): string[] {
 	return resolved.map((r) => r.gitRoot);
 }
 
+/**
+ * コミット取込だけを行う追加リポジトリを解決する（lep.json sources.docs.root）。
+ *
+ * 設計書リポジトリはコード解析の対象ではないが、check_alignment が「設計書が更新
+ * されたか」を判定するには commit 取込が要る。gitRoots へ同じパスを二重に書かせず
+ * ここで導出する（未設定 / 不在 / 非 git は空配列）。
+ */
+function getCommitWatchRoots(docsRoot: string): string[] {
+	const root = docsRoot.trim();
+	if (!root) return [];
+	return resolveWatchedRepos({
+		gitRoots: [root],
+		logger: { warn: (msg) => TrailLogger.warn(msg) },
+	}).map((r) => r.gitRoot);
+}
+
 function applyDocsPathConfig(): void {
 	if (httpClient) {
 		httpClient.setDocsPath(lepWorkspaceDocsPath || undefined).catch((err) => {
@@ -172,11 +188,17 @@ async function runCheckAlignmentCommand(
 		tree.update(report);
 		TrailLogger.info(
 			`[alignment] checkedFiles=${summary.checkedFiles} staleSpecs=${summary.staleSpecs} ` +
-				`staleElements=${summary.staleElements} undocumentedElements=${summary.undocumentedElements}`,
+				`staleElements=${summary.staleElements} undocumentedElements=${summary.undocumentedElements} ` +
+				`unknownElements=${summary.unknownElements}`,
 		);
+		// unknown は取込欠落で判定できなかった分。0 のときは表示しない（常時表示すると
+		// 正常系のノイズになる）。
+		const unknownSuffix = summary.unknownElements > 0
+			? ` / 判定不能 ${summary.unknownElements} 要素（設計書リポジトリのコミット未取込）`
+			: '';
 		vscode.window.showInformationMessage(
 			`設計書追随チェック: 変更 ${summary.checkedFiles} ファイル / 未追随の設計書 ${summary.staleSpecs} 本` +
-				`（${summary.staleElements} 要素）/ 設計書なし ${summary.undocumentedElements} 要素`,
+				`（${summary.staleElements} 要素）/ 設計書なし ${summary.undocumentedElements} 要素${unknownSuffix}`,
 		);
 	} catch (err) {
 		TrailLogger.error('[alignment] check failed', err);
@@ -627,6 +649,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					trailDbPath,
 					gitRoot: wsRootForDb,
 					gitRoots: getWatchedGitRoots(lepConfig.sources.gitRoots),
+					commitWatchRoots: getCommitWatchRoots(lepConfig.sources.docs.root),
 					claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
 					codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
 					stage: lepStage,

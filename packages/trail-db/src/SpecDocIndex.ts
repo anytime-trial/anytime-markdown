@@ -6,6 +6,7 @@ import type {
   AlignmentInput,
   ISpecDocIndex,
   SpecDocRef,
+  SpecUpdateStatus,
 } from '@anytime-markdown/trail-core';
 import type Database from 'better-sqlite3';
 
@@ -43,6 +44,9 @@ export class SpecDocIndex implements ISpecDocIndex {
   private docsRepoId: number | null = null;
   private indexByElementId: Map<string, SpecDocRef[]> | null = null;
   private worktreeChanges: ReadonlySet<string> | null = null;
+  /** 未解決は undefined、解決済みで未取込は null（キャッシュと「未取込」を区別する） */
+  private docsSweepWatermark: string | null | undefined = undefined;
+  private warnedMissingResolutionTable = false;
   private readonly gitCommitTimeByRef = new Map<string, string | null>();
 
   constructor(options: SpecDocIndexOptions) {
@@ -62,13 +66,13 @@ export class SpecDocIndex implements ISpecDocIndex {
     return this.indexByElementId.get(elementId) ?? [];
   }
 
-  async wasUpdatedIn(specPath: string, input: AlignmentInput): Promise<boolean> {
+  async wasUpdatedIn(specPath: string, input: AlignmentInput): Promise<SpecUpdateStatus> {
     if (input.scope === 'session') {
       return this.wasUpdatedInSession(specPath, input.sessionId);
     }
 
     if (input.scope === 'worktree') {
-      return this.listWorktreeChanges().has(specPath);
+      return this.listWorktreeChanges().has(specPath) ? 'updated' : 'not-updated';
     }
 
     return this.wasUpdatedInRange(specPath, input.fromRef, input.toRef);
@@ -112,7 +116,12 @@ export class SpecDocIndex implements ISpecDocIndex {
     }
   }
 
-  private wasUpdatedInSession(specPath: string, sessionId: string): boolean {
+  private wasUpdatedInSession(specPath: string, sessionId: string): SpecUpdateStatus {
+    // 取込カバレッジの検査を先に行う。設計書リポジトリの commit 解決が当該セッションで
+    // 一度も走っていなければ、行が無いのは「更新していない」からではなく「取り込んで
+    // いない」からであり、判定できない。
+    if (!this.isDocsCommitResolutionDone(sessionId)) return 'unknown';
+
     const rows = this.requireDb('session').prepare(`
       SELECT cf.file_path FROM commit_files cf
       JOIN session_commits sc
@@ -120,13 +129,14 @@ export class SpecDocIndex implements ISpecDocIndex {
       WHERE sc.session_id = ? AND cf.repo_id = ?
     `).all(sessionId, this.getDocsRepoId()) as FilePathRow[];
 
-    return hasMatchingGitPath(rows, specPath);
+    return hasMatchingGitPath(rows, specPath) ? 'updated' : 'not-updated';
   }
 
-  private wasUpdatedInRange(specPath: string, fromRef: string, toRef: string): boolean {
+  private wasUpdatedInRange(specPath: string, fromRef: string, toRef: string): SpecUpdateStatus {
     const fromTime = this.resolveGitCommitTime(fromRef);
     const toTime = this.resolveGitCommitTime(toRef);
-    if (!fromTime || !toTime) return false;
+    // ref を解決できなければ範囲そのものが確定しない（未更新の証拠ではない）。
+    if (!fromTime || !toTime) return 'unknown';
 
     const [startTime, endTime] = fromTime <= toTime ? [fromTime, toTime] : [toTime, fromTime];
 
@@ -138,7 +148,87 @@ export class SpecDocIndex implements ISpecDocIndex {
         AND sc.committed_at >= ? AND sc.committed_at <= ?
     `).all(this.getDocsRepoId(), startTime, endTime) as FilePathRow[];
 
-    return hasMatchingGitPath(rows, specPath);
+    // 一致が見つかれば取込が途中でも「更新された」は確定する（部分カバレッジでも偽陽性にならない）。
+    if (hasMatchingGitPath(rows, specPath)) return 'updated';
+
+    // 一致が無い場合だけカバレッジを問う。基準は「取り込まれたコミットの時刻」ではなく
+    // 「取込が走った時刻」（sweep の watermark）。前者を使うと、設計書を実際に更新して
+    // いない真の stale が常に unknown へ化ける（docs の最新コミットは範囲終端より前に
+    // なるのが普通のため）。watermark が範囲終端に届いていなければ、終端側のコミットは
+    // まだ走査されておらず判定できない。
+    const sweptThrough = this.getDocsSweepWatermark();
+    if (!sweptThrough || sweptThrough < endTime) return 'unknown';
+
+    return 'not-updated';
+  }
+
+  /**
+   * 設計書リポジトリの commit 解決が当該セッションで実行済みか。
+   *
+   * `session_commit_resolutions` を持たない旧スキーマの DB では判定材料が無いため
+   * 未解決（= `unknown` 側）として扱い、警告を 1 度だけ残す。
+   */
+  private isDocsCommitResolutionDone(sessionId: string): boolean {
+    const db = this.requireDb('session');
+    if (!this.hasTable('session_commit_resolutions')) {
+      if (!this.warnedMissingResolutionTable) {
+        this.warnedMissingResolutionTable = true;
+        this.logger.warn(
+          'session_commit_resolutions table is missing; cannot verify spec commit ingestion coverage',
+        );
+      }
+      return false;
+    }
+
+    const row = db.prepare(
+      'SELECT 1 AS present FROM session_commit_resolutions WHERE session_id = ? AND repo_id = ? LIMIT 1',
+    ).get(sessionId, this.getDocsRepoId()) as { present: number } | undefined;
+
+    return row !== undefined;
+  }
+
+  /**
+   * 設計書リポジトリの commit 解決が最後に走った時刻（一度も走っていなければ null）。
+   *
+   * 解決が時刻 T に走ったなら、その時点で存在した設計書コミットは走査済みとみなせる。
+   * これを範囲終端と比べることで「範囲全体を検査し終えたか」を問う。
+   *
+   * SHORTCUT: 取込カバレッジを sweep の壁時計時刻で近似する. ceiling: `resolveCommits` は
+   * セッションの時間ウィンドウ内の `git log` に限定されるため、どの Claude セッションの
+   * ウィンドウにも重ならない設計書コミットは取り込まれない。watermark は無関係な
+   * セッションの解決でも進むので、その種のコミットはいずれ unknown でなく not-updated
+   * (= stale) へ倒れる. upgrade: `commitWatchRoots` の repo を run ごとに
+   * `git log --since=<最終スイープ時刻>` で線形スイープする処理を CommitResolver へ足したら、
+   * watermark が「その時刻までの全コミットを見た」ことを保証できるので本近似を外す.
+   */
+  private getDocsSweepWatermark(): string | null {
+    if (this.docsSweepWatermark !== undefined) return this.docsSweepWatermark;
+
+    if (!this.hasTable('session_commit_resolutions')) {
+      if (!this.warnedMissingResolutionTable) {
+        this.warnedMissingResolutionTable = true;
+        this.logger.warn(
+          'session_commit_resolutions table is missing; cannot verify spec commit ingestion coverage',
+        );
+      }
+      this.docsSweepWatermark = null;
+      return null;
+    }
+
+    const row = this.requireDb('range').prepare(
+      'SELECT MAX(resolved_at) AS latest FROM session_commit_resolutions WHERE repo_id = ?',
+    ).get(this.getDocsRepoId()) as { latest: string | null } | undefined;
+
+    this.docsSweepWatermark = row?.latest ?? null;
+    return this.docsSweepWatermark;
+  }
+
+  private hasTable(tableName: string): boolean {
+    const row = this.requireDb('session').prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+    ).get(tableName) as { present: number } | undefined;
+
+    return row !== undefined;
   }
 
   private buildIndex(): Map<string, SpecDocRef[]> {
