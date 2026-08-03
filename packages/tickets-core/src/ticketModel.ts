@@ -113,7 +113,9 @@ export function parseTicketMarkdown(text: string): ParsedTicketFile | null {
   if (!match) {
     return null;
   }
-  const frontmatter: Record<string, FrontmatterValue> = {};
+  // キーは frontmatter 由来でリテラルではない。オブジェクトリテラルに `__proto__` を代入すると
+  // 「そのキーの値」ではなくプロトタイプの差し替えとして解釈され、未知キーが黙って消える。
+  const frontmatter: Record<string, FrontmatterValue> = Object.create(null);
   let pendingArrayKey: string | null = null;
   for (const line of match[1].split(/\r?\n/)) {
     const item = /^\s+-\s+(.+)$/.exec(line);
@@ -219,7 +221,9 @@ export function validateTicketFrontmatter(raw: Record<string, unknown>): TicketV
   if (errors.length > 0) {
     return { ok: false, errors };
   }
-  const extras: Record<string, FrontmatterValue> = {};
+  // 未知キーはそのまま書き戻すため、`__proto__` を含めて自身のプロパティとして保持する
+  // （オブジェクトリテラルだとプロトタイプ差し替えになり、書き戻し時にキーが失われる）。
+  const extras: Record<string, FrontmatterValue> = Object.create(null);
   for (const [key, value] of Object.entries(raw)) {
     if (!KNOWN_KEYS.has(key) && value !== undefined) {
       extras[key] = value as FrontmatterValue;

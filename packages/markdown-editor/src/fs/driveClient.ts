@@ -26,8 +26,11 @@ const CREATE_BOUNDARY_BASE = "anytimeMarkdownDriveBoundary";
  */
 function resolveBoundary(content: string): string {
   let boundary = CREATE_BOUNDARY_BASE;
-  for (let suffix = 1; content.includes(`--${boundary}`); suffix += 1) {
+  let suffix = 1;
+  // `for` の増分（suffix）と停止条件（boundary の衝突）が別変数になるため while で書く。
+  while (content.includes(`--${boundary}`)) {
     boundary = `${CREATE_BOUNDARY_BASE}-${suffix}`;
+    suffix += 1;
   }
   return boundary;
 }

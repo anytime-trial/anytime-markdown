@@ -496,3 +496,42 @@ describe('countSubtasks', () => {
     expect(countSubtasks('本文のみ')).toEqual({ done: 0, total: 0 });
   });
 });
+
+describe('frontmatter のキーがプロトタイプへ届かないこと', () => {
+  const POLLUTED_DOC = [
+    '---',
+    'id: T-9',
+    'title: "proto"',
+    'status: up_next',
+    'priority: high',
+    'created_at: 2026-08-03T00:00:00.000Z',
+    'updated_at: 2026-08-03T00:00:00.000Z',
+    '__proto__:',
+    '  - polluted',
+    '---',
+    '',
+    'body',
+    '',
+  ].join('\n');
+
+  it('__proto__ キーはプロトタイプを差し替えず自身のプロパティになる', () => {
+    const parsed = parseTicketMarkdown(POLLUTED_DOC);
+    expect(parsed).not.toBeNull();
+    const frontmatter = parsed!.frontmatter;
+    // 通常のオブジェクトリテラルだと `frontmatter['__proto__'] = []` が prototype 差し替えに
+    // 化け、キーが自身のプロパティとして残らない（未知キーが黙って消える）。
+    expect(Object.hasOwn(frontmatter, '__proto__')).toBe(true);
+    expect(frontmatter['__proto__']).toEqual(['polluted']);
+    expect(Array.isArray(Object.getPrototypeOf(frontmatter))).toBe(false);
+  });
+
+  it('__proto__ キーは extras へ落ち、プロトタイプを汚さない', () => {
+    const parsed = parseTicketMarkdown(POLLUTED_DOC);
+    const result = validateTicketFrontmatter(parsed!.frontmatter);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Object.hasOwn(result.extras, '__proto__')).toBe(true);
+    expect(Array.isArray(Object.getPrototypeOf(result.extras))).toBe(false);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});

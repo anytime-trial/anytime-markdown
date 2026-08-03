@@ -11,6 +11,9 @@ export const HTML_SANITIZE_CONFIG = {
     "details", "summary", "blockquote", "figure", "figcaption",
     "nav", "header", "footer", "main", "section", "article", "aside",
     "dl", "dt", "dd",
+    // HTML5 の埋め込みコンテンツ。`iframe` / `object` / `embed` / `script` は外部文書と
+    // スクリプトを持ち込むため入れない（media 要素は再生するだけで実行経路を持たない）。
+    "video", "audio", "source", "track", "picture",
   ],
   ALLOWED_ATTR: [
     "class", "style", "id",
@@ -18,6 +21,9 @@ export const HTML_SANITIZE_CONFIG = {
     "type", "name", "value", "placeholder", "for",
     "colspan", "rowspan", "width", "height",
     "rows", "open",
+    // media 要素の再生制御・ソース指定。`on*` は allowlist 方式なので自動的に落ちる。
+    "controls", "muted", "loop", "autoplay", "playsinline", "preload", "poster",
+    "srcset", "sizes", "media", "kind", "srclang", "label", "default",
   ],
   ALLOW_DATA_ATTR: false,
 };

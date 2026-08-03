@@ -462,9 +462,9 @@ export async function runConversationFailedItemsRetry(opts: {
       status: 'error',
       error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
-    finalizePipelineRun(db, rId, startedAt, 'error', totals);
+    finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
     return {
-      status: 'error',
+      status: finalStatus,
       items_retried: totals.items_processed,
       items_recovered: recoveredCount,
       items_failed: totals.items_failed,
