@@ -8,6 +8,8 @@
 
 Anytime Database opens `.db` / `.sqlite` / `.sqlite3` / `.db3` files in a Custom Editor with a paginated table grid, a per-tab SQL editor, and an interactive ER diagram. It also pairs with the [Anytime Trail](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-trail) extension to expose your local Trail database and remote Supabase / PostgreSQL backends from the Activity Bar.
 
+**[Try the online viewer](https://www.anytime-trial.com/database)**
+
 
 ## 1. SQLite Custom Editor
 

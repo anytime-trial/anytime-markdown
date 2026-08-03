@@ -6,6 +6,8 @@
 
 Manage repositories, stage changes, view the commit graph, and browse file history — without leaving VS Code.
 
+**[See the project site](https://www.anytime-trial.com)**
+
 
 ## Repository
 

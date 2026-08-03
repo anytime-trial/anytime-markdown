@@ -10,6 +10,8 @@ When you run several Claude Code sessions across worktrees and branches, it is h
 
 Anytime Agent adds an Activity Bar panel that surfaces every Claude Code session, hands off a bloated session to a fresh one with its context preserved, and shares visual context with AI through AI Notes.
 
+**[See the project site](https://www.anytime-trial.com)**
+
 
 ## 1. What You Can Do
 
