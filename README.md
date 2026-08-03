@@ -12,6 +12,13 @@ WYSIWYG Markdown editing with diff review, real-time TypeScript architecture vis
 
 [**Visit the website**](https://www.anytime-trial.com)
 
+Or open the [browser-based Markdown editor](https://www.anytime-trial.com/en/markdown) — no install, no sign-up. Syntax guides:
+[Mermaid](https://www.anytime-trial.com/en/markdown/mermaid) ·
+[PlantUML](https://www.anytime-trial.com/en/markdown/plantuml) ·
+[KaTeX](https://www.anytime-trial.com/en/markdown/katex) ·
+[Diff](https://www.anytime-trial.com/en/markdown/diff) ·
+[Tables](https://www.anytime-trial.com/en/markdown/table)
+
 
 ## Three VS Code Extensions
 

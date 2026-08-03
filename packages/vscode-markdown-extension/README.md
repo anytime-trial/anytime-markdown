@@ -25,6 +25,14 @@ Anytime Markdown gives you a WYSIWYG editor with rich rendering, plus **collabor
 - **Document search and Note Graph** — search across your entire documentation repository and visualize how documents connect to each other
 - **History and commit comparison** — compare past commit content against the current version from the Timeline view
 
+Syntax guides, each with worked examples you can paste straight into the editor:
+
+- [Mermaid](https://www.anytime-trial.com/en/markdown/mermaid) — flowcharts and sequence diagrams
+- [PlantUML](https://www.anytime-trial.com/en/markdown/plantuml) — class and deployment diagrams
+- [KaTeX](https://www.anytime-trial.com/en/markdown/katex) — LaTeX math notation
+- [Diff and merge](https://www.anytime-trial.com/en/markdown/diff) — compare two revisions side by side
+- [Tables](https://www.anytime-trial.com/en/markdown/table) — build tables without counting pipes
+
 
 ## 2. Getting Started
 

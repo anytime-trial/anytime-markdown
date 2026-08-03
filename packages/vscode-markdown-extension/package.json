@@ -9,6 +9,7 @@
     "type": "git",
     "url": "https://github.com/anytime-trial/anytime-markdown.git"
   },
+  "homepage": "https://www.anytime-trial.com/markdown",
   "engines": {
     "vscode": "^1.109.0"
   },

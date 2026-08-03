@@ -2,15 +2,17 @@ import type { MetadataRoute } from "next";
 
 import { routing } from "../i18n/routing";
 import { localeHref } from "../lib/localeAlternates";
+import { STATIC_ROUTE_PATHS } from "../lib/staticRoutes";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.anytime-trial.com";
 
 /**
- * 検索エンジンへ公開するルート。sitemap.ts の静的ページと 1 対 1 で対応させる。
+ * 検索エンジンへ公開するルート。sitemap.ts と同じ `lib/staticRoutes` から導出する
+ * （両者へ別々にリテラルを置くと、片方だけ更新しても壊れないまま乖離する）。
  * sitemap は 1 ルートを全ロケール分の URL へ展開するため、こちらも同じ展開をかける
  * （ja は非プレフィックス・en は /en 配下）。
  */
-const PUBLIC_PATHS = ["/", "/markdown", "/report", "/privacy", "/privacy/services"].flatMap(
+const PUBLIC_PATHS = STATIC_ROUTE_PATHS.flatMap(
   (path) => routing.locales.map((locale) => localeHref(path, locale)),
 );
 
