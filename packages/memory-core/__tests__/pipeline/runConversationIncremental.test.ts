@@ -599,4 +599,44 @@ describe('runConversationIncremental', () => {
     trailDb.close();
     memDb.close();
   }, 30000);
+
+  // ── T-fatal: セッション反復中の致命エラー → error で確定し cursor は据え置き ──
+  test('T-fatal: 反復中の例外 → status=error・pipeline_state に error_detail・cursor 不変', async () => {
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+
+    insertSession(trailDb, 'sessX');
+    insertMessage(trailDb, 'x1', 'sessX', 'user', '2026-01-01T00:00:00.000Z', 'boom');
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const ollama = makeValidOllama();
+    const errors: unknown[] = [];
+    const result = await runConversationIncremental({
+      db: memDb,
+      ollama,
+      logger: { info: () => {}, error: (_msg, err) => { errors.push(err); } },
+      // 反復ループの内側から投げ、外側 catch（致命エラー経路）へ到達させる。
+      shouldStop: () => { throw new Error('injected fatal'); },
+    });
+
+    expect(result.status).toBe('error');
+    expect(result.items_processed).toBe(0);
+    expect(errors).toHaveLength(1);
+
+    const state = memDb.exec(
+      `SELECT status, last_processed_at, error_detail FROM memory_pipeline_state WHERE scope = 'conversation_incremental'`
+    );
+    expect(state[0]?.values?.[0]?.[0]).toBe('error');
+    // カーソルは前進しない（次 run が未処理セッションを取りこぼさないため）。
+    expect(state[0]?.values?.[0]?.[1]).toBe('');
+    expect(String(state[0]?.values?.[0]?.[2])).toContain('injected fatal');
+
+    const run = memDb.exec(
+      `SELECT status FROM memory_pipeline_runs WHERE scope = 'conversation_incremental'`
+    );
+    expect(run[0]?.values?.[0]?.[0]).toBe('error');
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
 });
