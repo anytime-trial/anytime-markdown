@@ -157,6 +157,21 @@ describe('codeGraphPanel: Author Heatmap の配色セレクタと凡例', () => 
     handle.destroy();
   });
 
+  it('凡例に並ぶセッションはパレット数（8）で打ち切る（配色と凡例をずらさない）', () => {
+    const many = Array.from({ length: 12 }, (_, i) => `sess${String(i).padStart(4, '0')}-xxxx`);
+    const { select, handle, legendText } = mount(
+      baseProps({
+        authorHeatmap: { entries, topSessions: many, coveredNodes: 2, totalNodes: 3 },
+      }),
+    );
+    selectColorBy(select, 'lastEditor');
+    const text = legendText();
+    expect(text).toContain('sess0007');
+    expect(text).not.toContain('sess0008');
+    expect(text).toContain('その他');
+    handle.destroy();
+  });
+
   it('被覆率は応答の値から算出して表示する', () => {
     const { select, handle, legendText } = mount(
       baseProps({

@@ -24,6 +24,7 @@ import {
   otherSessionColor,
   selectEmphasizedNodes,
   SESSION_COLORS,
+  visibleTopSessions,
 } from './authorHeatmapColors';
 import {
   isOverrideColorBy,
@@ -241,9 +242,9 @@ export function mountCodeGraphPanel(
     const isDark = props.isDark ?? false;
 
     if (colorBy === 'lastEditor') {
-      const topSessions = data?.topSessions ?? [];
+      const topSessions = visibleTopSessions(data?.topSessions ?? []);
       topSessions.forEach((sessionId, i) => {
-        appendLegendItem(SESSION_COLORS[i % SESSION_COLORS.length], shortSessionId(sessionId));
+        appendLegendItem(SESSION_COLORS[i], shortSessionId(sessionId));
       });
       if (topSessions.length > 0) {
         appendLegendItem(otherSessionColor(isDark), tr('codeGraph.authorHeatmap.other'));

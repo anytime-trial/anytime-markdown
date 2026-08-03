@@ -97,6 +97,20 @@ describe('codeGraphCanvas: Author Heatmap 配色', () => {
       expect(g.getNodeAttribute('r:noData', 'baseColor')).toBe(noDataColor(true));
     });
 
+    it('パレット数を超えるセッションは同色にせず「その他」へ落とす', () => {
+      // サーバーは topSessions を最大 32 まで返し得るが、パレットは 8 色しかない。
+      // 剰余で循環させると 9 番目が 1 番目と同色になり「同じ編集者」と誤読される。
+      const many = Array.from({ length: 12 }, (_, i) => `s${i}`);
+      const manyEntries = many.map((s, i) => entry(`r:n${i}`, s, 1, 1));
+      const map = buildLastEditorColorMap(manyEntries, many, true);
+      expect(map.get('r:n0')).toBe(SESSION_COLORS[0]);
+      expect(map.get('r:n7')).toBe(SESSION_COLORS[7]);
+      expect(map.get('r:n8')).toBe(otherSessionColor(true));
+      expect(map.get('r:n11')).toBe(otherSessionColor(true));
+      const unique = new Set([...map.values()].filter((c) => c !== otherSessionColor(true)));
+      expect(unique.size).toBe(SESSION_COLORS.length);
+    });
+
     it('ダークとライトで中立色・その他色が切り替わる', () => {
       expect(noDataColor(true)).not.toBe(noDataColor(false));
       expect(otherSessionColor(true)).not.toBe(otherSessionColor(false));

@@ -69,8 +69,20 @@ export function frequencyColor(step: FrequencyStepId, isDark: boolean): string {
 }
 
 /**
+ * 固有色を与えられるセッションだけを残す。
+ *
+ * サーバーの `topSessions` は最大 32 まで返し得るが、パレットは 8 色しかない。
+ * 剰余で循環させると別セッションが同色になり「同じ編集者」と誤読されるため、
+ * パレット数を超える分は「その他」へ落とす。凡例も同じ関数を通す（凡例と
+ * 実際の配色がずれると凡例が嘘になる）。
+ */
+export function visibleTopSessions(topSessions: readonly string[]): string[] {
+  return topSessions.slice(0, SESSION_COLORS.length);
+}
+
+/**
  * 最終編集セッションごとの色を割り当てる。
- * `topSessions` に含まれるセッションは並び順で固有色、それ以外は「その他」色。
+ * 固有色を持つのは `visibleTopSessions` が残したセッションのみで、それ以外は「その他」色。
  */
 export function buildLastEditorColorMap(
   entries: readonly AuthorHeatmapEntry[],
@@ -78,8 +90,8 @@ export function buildLastEditorColorMap(
   isDark: boolean,
 ): Map<string, string> {
   const colorBySession = new Map<string, string>();
-  topSessions.forEach((sessionId, i) => {
-    colorBySession.set(sessionId, SESSION_COLORS[i % SESSION_COLORS.length]);
+  visibleTopSessions(topSessions).forEach((sessionId, i) => {
+    colorBySession.set(sessionId, SESSION_COLORS[i]);
   });
   const other = otherSessionColor(isDark);
 
