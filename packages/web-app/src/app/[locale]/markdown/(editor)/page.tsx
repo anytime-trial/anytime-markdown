@@ -11,20 +11,20 @@ import { useSession } from 'next-auth/react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Suspense, useEffect, useMemo } from 'react';
 
-import { CommitMessageDialog } from '../../../components/CommitMessageDialog';
-import { DiscardDraftDialog } from '../../../components/DiscardDraftDialog';
-import { DriveConflictDialog } from '../../../components/DriveConflictDialog';
-import { DriveSaveAsDialog } from '../../../components/DriveSaveAsDialog';
-import { resolveConnectedProviders } from '../../../lib/connectedProviders';
-import { downloadMarkdownBlob } from '../../../lib/webImportProvider';
-import LandingHeader from '../components/LandingHeader';
-import { useLocaleSwitch } from '../LocaleProvider';
-import { usePreset, useThemeMode } from '../providers';
-import { EmbedProvidersBoundary } from '../providers/EmbedProvidersBoundary';
-import { useDiscardDraftConfirm } from './useDiscardDraftConfirm';
-import { useEditorPage } from './useEditorPage';
-import { useGitHubPicker } from './useGitHubPicker';
-import { useNoteGraphSlot } from './useNoteGraphSlot';
+import { CommitMessageDialog } from '../../../../components/CommitMessageDialog';
+import { DiscardDraftDialog } from '../../../../components/DiscardDraftDialog';
+import { DriveConflictDialog } from '../../../../components/DriveConflictDialog';
+import { DriveSaveAsDialog } from '../../../../components/DriveSaveAsDialog';
+import { resolveConnectedProviders } from '../../../../lib/connectedProviders';
+import { downloadMarkdownBlob } from '../../../../lib/webImportProvider';
+import LandingHeader from '../../components/LandingHeader';
+import { useLocaleSwitch } from '../../LocaleProvider';
+import { usePreset, useThemeMode } from '../../providers';
+import { EmbedProvidersBoundary } from '../../providers/EmbedProvidersBoundary';
+import { useDiscardDraftConfirm } from '../useDiscardDraftConfirm';
+import { useEditorPage } from '../useEditorPage';
+import { useGitHubPicker } from '../useGitHubPicker';
+import { useNoteGraphSlot } from '../useNoteGraphSlot';
 
 function EditorLoading() {
   const t = useTranslations('Common');
@@ -36,13 +36,13 @@ function EditorLoading() {
 }
 
 const GitHubRepoBrowser = dynamic(
-  () => import('../../../components/GitHubRepoBrowser').then((m) => ({ default: m.GitHubRepoBrowser })),
+  () => import('../../../../components/GitHubRepoBrowser').then((m) => ({ default: m.GitHubRepoBrowser })),
   { ssr: false },
 );
 
 // 脱React G4: vanilla orchestrator（rich codeblock 注入版）へ一本化
 const VanillaRichMarkdownEditor = dynamic(
-  () => import('../components/VanillaRichMarkdownEditor'),
+  () => import('../../components/VanillaRichMarkdownEditor'),
   { ssr: false, loading: () => <EditorLoading /> },
 );
 

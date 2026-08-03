@@ -1,6 +1,10 @@
 import { Box, Container, Divider, Stack, Typography } from '@mui/material';
 import { getTranslations } from 'next-intl/server';
 
+import { Link } from '../../../i18n/navigation';
+import { FaqJsonLd, type QandA } from './structuredData';
+import { TOPIC_SLUGS, topicPath } from './topics';
+
 /**
  * `/markdown` の本文セクション（server component）。
  *
@@ -28,39 +32,11 @@ const STEP_KEYS = ['open', 'write', 'save'] as const;
 
 const FAQ_KEYS = ['signup', 'storage', 'syntax', 'vscode'] as const;
 
-interface QandA {
-  question: string;
-  answer: string;
-}
-
-/**
- * FAQ の JSON-LD。
- *
- * 引数は表示に使うものと同じ配列でなければならない。構造化データにだけ存在して
- * 画面に出ていない Q&A は検索エンジンのガイドライン違反になるため、呼び出し側で
- * 配列を 1 本だけ作り、描画とここへ同じものを渡す。
- */
-function FaqJsonLd({ items }: Readonly<{ items: readonly QandA[] }>) {
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: items.map((item) => ({
-      '@type': 'Question',
-      name: item.question,
-      acceptedAnswer: { '@type': 'Answer', text: item.answer },
-    })),
-  };
-
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-    />
-  );
-}
-
 export async function MarkdownGuide() {
   const t = await getTranslations('Editor');
+  // 記法別 LP は sitemap にしか経路が無いと孤立ページになる。本サイトで最も
+  // 強いページであるここから辿れるようにする
+  const tTopics = await getTranslations('EditorTopics');
 
   const faqItems: QandA[] = FAQ_KEYS.map((key) => ({
     question: t(`guide.faq.${key}.question`),
@@ -99,6 +75,24 @@ export async function MarkdownGuide() {
                   <Typography variant="body2" color="text.secondary">
                     {t(`guide.features.${key}.body`)}
                   </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+
+          <Divider />
+
+          <Box component="section">
+            <Typography variant="h2" sx={{ fontSize: '1.5rem', fontWeight: 600, mb: 2 }}>
+              {t('guide.topicsHeading')}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {t('guide.topicsLead')}
+            </Typography>
+            <Stack component="ul" spacing={1} sx={{ pl: 3, m: 0 }}>
+              {TOPIC_SLUGS.map((slug) => (
+                <Box component="li" key={slug}>
+                  <Link href={topicPath(slug)}>{tTopics(`${slug}.linkLabel`)}</Link>
                 </Box>
               ))}
             </Stack>

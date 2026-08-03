@@ -7,6 +7,8 @@ import { ticketsMessagesJa } from '@anytime-markdown/tickets-viewer/i18n/ja';
 
 import authErrorEnMessages from '../app/[locale]/auth/error/i18n/en.json';
 import authErrorJaMessages from '../app/[locale]/auth/error/i18n/ja.json';
+import editorTopicsEnMessages from '../app/[locale]/markdown/[topic]/i18n/en.json';
+import editorTopicsJaMessages from '../app/[locale]/markdown/[topic]/i18n/ja.json';
 import editorEnMessages from '../app/[locale]/markdown/i18n/en.json';
 import editorJaMessages from '../app/[locale]/markdown/i18n/ja.json';
 import pressEnMessages from '../app/[locale]/press/i18n/en.json';
@@ -35,6 +37,7 @@ const mergedJa = {
   ...markdownCoreJaMessages,
   AuthError: authErrorJaMessages,
   Editor: editorJaMessages,
+  EditorTopics: editorTopicsJaMessages,
   press: pressJaMessages,
   PrivacyServices: privacyServicesJaMessages,
   Report: reportJaMessages,
@@ -44,6 +47,7 @@ const mergedEn = {
   ...markdownCoreEnMessages,
   AuthError: authErrorEnMessages,
   Editor: editorEnMessages,
+  EditorTopics: editorTopicsEnMessages,
   press: pressEnMessages,
   PrivacyServices: privacyServicesEnMessages,
   Report: reportEnMessages,
