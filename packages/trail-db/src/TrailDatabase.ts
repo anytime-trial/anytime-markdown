@@ -312,10 +312,6 @@ function collectMembersForCommunity(
   return out;
 }
 
-/**
- * テーブルに指定列が存在するか判定する。古いスキーマの DB（migration 未実行）への
- * 後方互換性を保つために使う。
- */
 /** テーブルが実在するか。新規 DB と移行済み DB を見分けるための判定に使う。 */
 function tableExists(db: Database, table: string): boolean {
   return Boolean(
@@ -323,6 +319,10 @@ function tableExists(db: Database, table: string): boolean {
   );
 }
 
+/**
+ * テーブルに指定列が存在するか判定する。古いスキーマの DB（migration 未実行）への
+ * 後方互換性を保つために使う。
+ */
 function columnExists(db: Database, table: string, column: string): boolean {
   const cols = db.exec(`PRAGMA table_info(${table})`)[0]?.values ?? [];
   return cols.some((c) => String(c[1]) === column);
@@ -820,10 +820,6 @@ function readSubagentTypeFromMeta(jsonlPath: string): string | null {
 
 // extractSkillName imported from trail-core (see import at top of file)
 
-/**
- * Estimate token count from a string.
- * Uses a rough heuristic of 1 token per 4 characters.
- */
 // ---------------------------------------------------------------------------
 //  Cost classification helpers
 // ---------------------------------------------------------------------------
@@ -2099,20 +2095,6 @@ export class TrailDatabase {
     { table: 'release_function_analysis', oldTagCol: 'release_tag' },
   ];
 
-  /**
-   * Phase B-2b-iii flip: 既存 DB の releases を代理キー (release_id PRIMARY KEY) 化し、
-   * 子 7 テーブルの FK を tag/release_tag → release_id へ張替える破壊的マイグレーション。
-   *
-   * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
-   * - CREATE_RELEASES 実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は既存テーブルへ無効なため)。
-   * - 新規 DB (releases 不在) は no-op。CREATE_* が新スキーマを直接作る。
-   * - 既に flip 済 (releases に prev_tag 無し かつ 全子に release_tag/tag 無し) なら no-op (冪等)。
-   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
-   *
-   * backfill 済の release_id / repo_id を使うが、念のため migration 内でも release_id を rowid から、
-   * 子の release_id を旧 tag 列経由で補完してから新テーブルへ INSERT...SELECT する。
-   * prev_release_id は旧 prev_tag → releases.release_id で解決する。
-   */
   /** 子テーブルのうち 1 つでも旧スキーマ（tag 参照）のまま残っているか。 */
   private static releaseChildrenNeedFlip(db: Database): boolean {
     return TrailDatabase.RELEASE_CHILD_FLIP.some(
@@ -2148,6 +2130,20 @@ export class TrailDatabase {
     }
   }
 
+  /**
+   * Phase B-2b-iii flip: 既存 DB の releases を代理キー (release_id PRIMARY KEY) 化し、
+   * 子 7 テーブルの FK を tag/release_tag → release_id へ張替える破壊的マイグレーション。
+   *
+   * `~/.claude/rules/sqlite-table-definition.md` の 12-step テーブル再作成パターンに従う。
+   * - CREATE_RELEASES 実行前に呼ぶ (CREATE TABLE IF NOT EXISTS は既存テーブルへ無効なため)。
+   * - 新規 DB (releases 不在) は no-op。CREATE_* が新スキーマを直接作る。
+   * - 既に flip 済 (releases に prev_tag 無し かつ 全子に release_tag/tag 無し) なら no-op (冪等)。
+   * - PRAGMA foreign_keys は init() で OFF のため踏襲。view/trigger を退避→再作成する。
+   *
+   * backfill 済の release_id / repo_id を使うが、念のため migration 内でも release_id を rowid から、
+   * 子の release_id を旧 tag 列経由で補完してから新テーブルへ INSERT...SELECT する。
+   * prev_release_id は旧 prev_tag → releases.release_id で解決する。
+   */
   private migrateReleasesFlip(db: Database): void {
     // releases が無ければ新規 DB。CREATE_* が新スキーマを作るので何もしない。
     if (!tableExists(db, 'releases')) return;
@@ -4481,7 +4477,6 @@ export class TrailDatabase {
     return metaUpdated;
   }
 
-  /** Step 3 of backfillSubagentType: UPDATE parent messages that contain Agent tool_use calls. */
   /**
    * 1 件の親メッセージについて、`tool_calls` から `subagent_type` を読み出して書き戻す。
    * 行が無い / `tool_calls` が空 / Agent 呼び出しでない場合は何も書かず `false` を返す。
@@ -4505,6 +4500,7 @@ export class TrailDatabase {
     }
   }
 
+  /** Step 3 of backfillSubagentType: UPDATE parent messages that contain Agent tool_use calls. */
   private backfillSubagentTypeForParents(db: Database, candidateUuids: string[]): number {
     let parentUpdated = 0;
     if (candidateUuids.length === 0) return parentUpdated;

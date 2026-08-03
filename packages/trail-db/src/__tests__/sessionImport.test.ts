@@ -7,6 +7,7 @@
  * どちらを採るか**を固定していなかった。分割で「最初の値」が「最後の値」に化けても
  * 検知できない状態だったため、その条件を明示的に置く。
  */
+import { INSERT_MESSAGE } from "../TrailDatabase";
 import { buildMessageInsertParams, extractSessionMetaFromLines, parseJsonlLines } from "../sessionImport";
 import type { RawLine } from "../rawLine";
 
@@ -178,6 +179,15 @@ describe("extractSessionMetaFromLines — 時刻", () => {
  */
 describe("buildMessageInsertParams", () => {
   const SESSION = { sessionId: "s1", isSubagent: false, fileSubagentType: null };
+
+  // buildMessageInsertParams（sessionImport.ts）と INSERT_MESSAGE（TrailDatabase.ts）は
+  // 別モジュールに分かれており、両者を結ぶのはコメントだけ。列数がずれても
+  // sql.js は不足分を NULL 扱いにして例外を出さないため、ここで直接突き合わせる。
+  it("要素数が INSERT_MESSAGE のプレースホルダ数と一致する", () => {
+    const placeholders = (INSERT_MESSAGE.match(/\?/g) ?? []).length;
+    expect(placeholders).toBeGreaterThan(0);
+    expect(buildMessageInsertParams({ type: "user" }, SESSION)).toHaveLength(placeholders);
+  });
 
   /** 列順そのものが振る舞い（INSERT_MESSAGE と 1 対 1）なので、代表 1 件は配列全体を固定する。 */
   it("assistant メッセージの列を並び順ごと固定する", () => {

@@ -4,6 +4,7 @@ import { createTestTrailDatabase } from './support/createTestDb';
 
 type SqlJsDb = {
   run: (sql: string, params?: ReadonlyArray<unknown>) => void;
+  exec: (sql: string, params?: ReadonlyArray<unknown>) => { values: unknown[][] }[];
 };
 
 const inner = (db: TrailDatabase): SqlJsDb => (db as unknown as { db: SqlJsDb }).db;
@@ -252,5 +253,25 @@ describe('TrailDatabase.fetchActivityTrendRows', () => {
     });
     expect(rows).toHaveLength(1);
     expect(rows[0].subagentType).toBe('codex');
+  });
+  // 900 件超のパスは IN (...) のバインド上限を避けて一時テーブル経由になる。
+  // 変異注入で「後片付けを落とす」が全スイートを素通りしたため、ここで固定する。
+  test('900 件超のパスで使った一時テーブルを残さない', () => {
+    insertSessionCommit(db, 's-tmp', 'h-tmp', '2026-04-25T10:00:00.000Z');
+    insertCommitFile(db, 'h-tmp', 'a.ts');
+    const filePathsIn = ['a.ts', ...Array.from({ length: 950 }, (_, i) => `pad/f${i}.ts`)];
+
+    const rows = db.fetchActivityTrendRows({
+      from: '2026-04-25T00:00:00.000Z',
+      to: '2026-04-26T00:00:00.000Z',
+      granularity: 'commit',
+      filePathsIn,
+    });
+
+    expect(rows).toHaveLength(1);
+    const left = inner(db).exec(
+      "SELECT name FROM sqlite_temp_master WHERE type='table' AND name='_hotspot_paths'",
+    );
+    expect(left.flatMap((r) => r.values)).toEqual([]);
   });
 });
