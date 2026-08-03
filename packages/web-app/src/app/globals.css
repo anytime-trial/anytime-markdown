@@ -14,19 +14,35 @@ html, body {
   display: none; /* Chrome/Safari */
 }
 
-/* エディタページのみビューポート固定（ランディング/docsページは通常スクロール） */
+/* エディタページ: エディタ本体はビューポートを占め、その下の解説セクションへは
+   スクロールで到達できるようにする。
+   以前は html/body を overflow:hidden + height:100vh で固定していたが、その状態で
+   エディタの下に本文を置くと、HTML には存在するのに利用者が到達できない
+   （＝隠しテキストと同じ）状態になる。横方向だけ固定し、縦は伸ばす。 */
 html:has(body.editor-page),
 body.editor-page {
-  overflow: hidden !important;
-  height: 100vh !important;
-  max-height: 100vh !important;
+  overflow-x: hidden !important;
+  /* overflow-y に !important を付けない。MUI の Modal は開くとき body へ
+     inline で overflow:hidden を当ててスクロールを止めるが、!important 付きの
+     author スタイルはその inline に勝ってしまい、モーダル表示中に背景が
+     スクロールする（実測で確認）。 */
+  overflow-y: auto;
+  height: auto !important;
+  min-height: 100vh !important;
+  max-height: none !important;
 }
 
-/* エディタページのアプリラッパーのスクロールバーを抑制 & padding 除去 */
-body.editor-page > #main-content,
+/* エディタページのアプリラッパーのスクロールバーを抑制 & padding 除去。
+   #main-content は解説セクションも含むため縦は伸ばす（overflow:hidden を残すと
+   本文が切り落とされる）。横方向のはみ出しだけ抑える。 */
+body.editor-page > #main-content {
+  overflow-x: hidden !important;
+}
 body.editor-page > #main-content > .MuiBox-root,
 body.editor-page > #main-content > .MuiBox-root > .MuiBox-root {
   overflow: hidden !important;
+  /* エディタ内スクロールの端で body へ連鎖させない（編集中にページが動くのを防ぐ） */
+  overscroll-behavior: contain;
 }
 body.editor-page > #main-content > .MuiBox-root > .MuiBox-root > #main-content {
   padding-bottom: 0 !important;

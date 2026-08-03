@@ -1,4 +1,77 @@
 {
   "metaDescription": "Free WYSIWYG Markdown editor with Mermaid diagrams, PlantUML preview, KaTeX math, diff comparison, merge, and table editor. No sign-up required.",
-  "socialDescription": "Free WYSIWYG Markdown editor with Mermaid, PlantUML, KaTeX, diff, merge, table editor. No sign-up required."
+  "socialDescription": "Free WYSIWYG Markdown editor with Mermaid, PlantUML, KaTeX, diff, merge, table editor. No sign-up required.",
+  "guide": {
+    "heading": "A Markdown editor that runs in your browser",
+    "lead": "Nothing to install, nothing to sign up for — opening this page is the whole setup. What you write stays plain Markdown, and you can take it with you whenever you like.",
+    "featuresHeading": "What you can do",
+    "features": {
+      "wysiwyg": {
+        "title": "Write with the formatting visible",
+        "body": "Headings, bold text and lists appear the way they will read, without your having to memorise the syntax. What you write comes back out as plain Markdown."
+      },
+      "diagram": {
+        "title": "Draw diagrams from code blocks",
+        "body": "Mermaid turns a code block into a flowchart or a sequence diagram; PlantUML turns one into a class or deployment diagram."
+      },
+      "math": {
+        "title": "Typeset mathematics",
+        "body": "Write KaTeX notation and it becomes typeset mathematics where you wrote it."
+      },
+      "table": {
+        "title": "Edit tables as tables",
+        "body": "Add rows and columns by working in the cells, instead of counting pipe characters."
+      },
+      "gfm": {
+        "title": "Use the syntax GitHub uses",
+        "body": "Task lists and strikethrough are supported, so your document survives the trip to GitHub intact."
+      },
+      "code": {
+        "title": "Colour your code",
+        "body": "Code blocks are recognised by language and highlighted accordingly."
+      },
+      "diff": {
+        "title": "See what changed",
+        "body": "Put two versions side by side, with only the changed lines coloured — then merge one into the other."
+      },
+      "sync": {
+        "title": "Move between GitHub and Google Drive",
+        "body": "Open a file straight from a repository or a drive, and put it back where it came from when you are done."
+      }
+    },
+    "howtoHeading": "How to use it",
+    "steps": {
+      "open": {
+        "title": "Open",
+        "body": "There is nothing to configure. This page is the editor."
+      },
+      "write": {
+        "title": "Write",
+        "body": "A copy of your work is kept in the browser as you go. Close the tab and you can pick up where you left off."
+      },
+      "save": {
+        "title": "Take it with you",
+        "body": "Download it as a Markdown file, or save it to GitHub or Google Drive."
+      }
+    },
+    "faqHeading": "Frequently asked questions",
+    "faq": {
+      "signup": {
+        "question": "Do I need an account?",
+        "answer": "No. You only authorise a connection when you choose to save to GitHub or Google Drive."
+      },
+      "storage": {
+        "question": "Where is my writing stored?",
+        "answer": "By default, only in your browser's local storage. Nothing is sent to a server until you choose where to save it."
+      },
+      "syntax": {
+        "question": "Which syntax is supported?",
+        "answer": "Standard Markdown, plus tables, task lists and strikethrough. You can also embed Mermaid, PlantUML and KaTeX in the body."
+      },
+      "vscode": {
+        "question": "Can I use it in Visual Studio Code?",
+        "answer": "Yes. There is an extension that opens the same editor inside Visual Studio Code."
+      }
+    }
+  }
 }

@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { buildAlternates, localeHref, toLocale } from '../../../lib/localeAlternates';
 import { socialTitle } from '../../../lib/siteMetadata';
+import { MarkdownGuide } from './MarkdownGuide';
 
 const TITLE = 'Editor';
 /** openGraph / twitter は title.template が効かないため、同じ文言から完全形を導出する */
@@ -36,5 +37,12 @@ export async function generateMetadata({
 }
 
 export default function MarkdownLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return children;
+  // 本文はここ（server component）で描画する。page.tsx は 'use client' のため、
+  // そこからでは server component の本文を SSR できない。
+  return (
+    <>
+      {children}
+      <MarkdownGuide />
+    </>
+  );
 }
