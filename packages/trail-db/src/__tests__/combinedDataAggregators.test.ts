@@ -1,7 +1,13 @@
 import {
-  aggregateQualityRates,
-  aggregateCommitPrefixStats,
   aggregateCommitPrefixBaseline,
+  aggregateCommitPrefixStats,
+  aggregateErrorsByPeriod,
+  aggregateQualityRates,
+  aggregateToolCounts,
+  attachCommitFiles,
+  buildCombinedDataSqlFragments,
+  countRegressionFixesByPeriod,
+  resolveWorkspaceScope,
 } from '../combinedDataAggregators';
 
 // ---------------------------------------------------------------------------
@@ -292,5 +298,297 @@ describe('aggregateCommitPrefixBaseline', () => {
     expect(result.perPrefix).toHaveLength(1);
     expect(result.perPrefix[0]!.prefix).toBe('other');
     expect(result.totalCount).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getCombinedData から切り出した集計（変異注入で既存の統合テストが検知しなかった経路を含む）
+// ---------------------------------------------------------------------------
+
+const toText = (v: unknown): string => (v == null ? '' : String(v));
+
+describe('resolveWorkspaceScope', () => {
+  const normalizeName = (n: string): string => n.replace(/\/\.worktrees\/.*$/, '');
+
+  it('選択肢は「対象期間に活動があった repo」だけに絞る', () => {
+    const scope = resolveWorkspaceScope({
+      repoRows: [
+        [1, 'active-repo'],
+        [2, 'idle-repo'],
+      ],
+      activeRepoIds: new Set([1]),
+      workspace: undefined,
+      normalizeName,
+      toText,
+    });
+    expect(scope.workspaces).toEqual(['active-repo']);
+  });
+
+  it('正規化後に空になる repo_name は捨てる', () => {
+    const scope = resolveWorkspaceScope({
+      repoRows: [[1, '']],
+      activeRepoIds: new Set([1]),
+      workspace: undefined,
+      normalizeName,
+      toText,
+    });
+    expect(scope.workspaces).toEqual([]);
+  });
+
+  it('フィルタ対象は活動の有無に依らず解決する（worktree 由来も親名で拾う）', () => {
+    const scope = resolveWorkspaceScope({
+      repoRows: [
+        [1, 'repo-a'],
+        [2, 'repo-a/.worktrees/feature'],
+        [3, 'repo-b'],
+      ],
+      activeRepoIds: new Set([1]),
+      workspace: 'repo-a',
+      normalizeName,
+      toText,
+    });
+    expect(scope.hasWorkspaceFilter).toBe(true);
+    expect(scope.repoIdList).toBe('1,2');
+  });
+
+  it('選択中のワークスペースは期間外でも選択肢に残す', () => {
+    const scope = resolveWorkspaceScope({
+      repoRows: [
+        [1, 'selected'],
+        [2, 'other'],
+      ],
+      activeRepoIds: new Set([2]),
+      workspace: 'selected',
+      normalizeName,
+      toText,
+    });
+    expect(scope.workspaces).toEqual(['other', 'selected']);
+  });
+
+  it('該当 repo が無ければ IN 句は常偽の -1', () => {
+    const scope = resolveWorkspaceScope({
+      repoRows: [[1, 'repo-a']],
+      activeRepoIds: new Set([1]),
+      workspace: 'no-such-workspace',
+      normalizeName,
+      toText,
+    });
+    expect(scope.repoIdList).toBe('-1');
+  });
+
+  it('空文字のワークスペース指定はフィルタ無効', () => {
+    const scope = resolveWorkspaceScope({
+      repoRows: [[1, 'repo-a']],
+      activeRepoIds: new Set([1]),
+      workspace: '',
+      normalizeName,
+      toText,
+    });
+    expect(scope.hasWorkspaceFilter).toBe(false);
+  });
+});
+
+describe('buildCombinedDataSqlFragments', () => {
+  it('フィルタ無効時は SQL 断片が空文字（WHERE 句を変えない）', () => {
+    const f = buildCombinedDataSqlFragments(
+      { hasWorkspaceFilter: false, repoIdList: '-1' },
+      'day',
+      '+09:00',
+    );
+    expect(f.sessionRepoFilter).toBe('');
+    expect(f.commitBareRepoFilter).toBe('');
+  });
+
+  it('sessions を JOIN していないクエリ用の断片は session_id 経由で同じ条件を表す', () => {
+    const f = buildCombinedDataSqlFragments(
+      { hasWorkspaceFilter: true, repoIdList: '1,2' },
+      'day',
+      '+09:00',
+    );
+    expect(f.sessionRepoFilter).toBe(' AND s.repo_id IN (1,2)');
+    expect(f.commitBareRepoFilter).toBe(
+      ' AND session_id IN (SELECT id FROM sessions WHERE repo_id IN (1,2))',
+    );
+  });
+
+  it('week 指定では期間式が週キーになる', () => {
+    const day = buildCombinedDataSqlFragments(
+      { hasWorkspaceFilter: false, repoIdList: '-1' },
+      'day',
+      '+09:00',
+    );
+    const week = buildCombinedDataSqlFragments(
+      { hasWorkspaceFilter: false, repoIdList: '-1' },
+      'week',
+      '+09:00',
+    );
+    expect(day.sessionStartPeriodExpr).toContain('DATE(s.start_time');
+    expect(week.sessionStartPeriodExpr).toContain("strftime('%Y-W%W'");
+    expect(week.commitPeriodExpr).toContain('committed_at');
+  });
+});
+
+describe('attachCommitFiles', () => {
+  const commit = (repoName: string, hash: string): { repoName: string; hash: string; files: string[] } => ({
+    repoName,
+    hash,
+    files: [],
+  });
+
+  it('同じハッシュでもリポジトリが違えば別のコミットとして割り当てる', () => {
+    const rows = [commit('repo-a', 'abc'), commit('repo-b', 'abc')];
+    attachCommitFiles(
+      rows,
+      [
+        ['repo-a', 'abc', 'a.ts'],
+        ['repo-b', 'abc', 'b.ts'],
+      ],
+      toText,
+    );
+    expect(rows[0].files).toEqual(['a.ts']);
+    expect(rows[1].files).toEqual(['b.ts']);
+  });
+
+  it('同じコミットの複数ファイルを順に積む', () => {
+    const rows = [commit('repo-a', 'abc')];
+    attachCommitFiles(
+      rows,
+      [
+        ['repo-a', 'abc', 'a.ts'],
+        ['repo-a', 'abc', 'b.ts'],
+      ],
+      toText,
+    );
+    expect(rows[0].files).toEqual(['a.ts', 'b.ts']);
+  });
+
+  it('対応する行が無いコミットは空配列のまま', () => {
+    const rows = [commit('repo-a', 'abc')];
+    attachCommitFiles(rows, [['repo-a', 'zzz', 'z.ts']], toText);
+    expect(rows[0].files).toEqual([]);
+  });
+
+  it('ファイル行が空でも落ちない', () => {
+    const rows = [commit('repo-a', 'abc')];
+    attachCommitFiles(rows, [], toText);
+    expect(rows[0].files).toEqual([]);
+  });
+});
+
+describe('aggregateToolCounts', () => {
+  it('同じ (period, tool) を合算する', () => {
+    const result = aggregateToolCounts(
+      [
+        { period: '2026-05-01', tool: 'Bash', count: 2, duration_ms: 10, tokens: 100 },
+        { period: '2026-05-01', tool: 'Bash', count: 3, duration_ms: 5, tokens: 50 },
+      ],
+      toText,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ period: '2026-05-01', tool: 'Bash', count: 5, durationMs: 15 });
+  });
+
+  it('観測できなかったターンの分だけトークンを外挿する', () => {
+    const result = aggregateToolCounts(
+      [
+        {
+          period: '2026-05-01',
+          tool: 'Read',
+          tokens: 100,
+          token_total_turns: 10,
+          token_missing_turns: 5,
+        },
+      ],
+      toText,
+    );
+    // 観測 5 ターンで 100 トークン → 全 10 ターン相当は 200
+    expect(result[0].tokens).toBe(200);
+    expect(result[0].tokenMissingRate).toBe(0.5);
+  });
+
+  it('観測ターンが 0 なら外挿しない（等倍）', () => {
+    const result = aggregateToolCounts(
+      [
+        {
+          period: '2026-05-01',
+          tool: 'Read',
+          tokens: 100,
+          token_total_turns: 4,
+          token_missing_turns: 4,
+        },
+      ],
+      toText,
+    );
+    expect(result[0].tokens).toBe(100);
+    expect(result[0].tokenMissingRate).toBe(1);
+  });
+
+  it('ツール名に区切り文字が含まれても period と tool を復元できる', () => {
+    const result = aggregateToolCounts(
+      [{ period: '2026-W18', tool: 'mcp__trail__query|graph', count: 1 }],
+      toText,
+    );
+    expect(result[0].period).toBe('2026-W18');
+    expect(result[0].tool).toBe('mcp__trail__query|graph');
+  });
+});
+
+describe('countRegressionFixesByPeriod', () => {
+  it('fix(...regression...) の件名だけを期間ごとに数える', () => {
+    const result = countRegressionFixesByPeriod(
+      [
+        { period: '2026-05-01', subject: 'fix(app/regression): 直す' },
+        { period: '2026-05-01', subject: 'fix(app/logic): 別の修正' },
+        { period: '2026-05-02', subject: 'fix(regression): また直す' },
+      ],
+      '2026-05-31',
+    );
+    expect(result).toEqual([
+      { period: '2026-05-01', count: 1 },
+      { period: '2026-05-02', count: 1 },
+    ]);
+  });
+
+  it('集計末尾より後ろの期間は落とす（分母が未確定のため）', () => {
+    const result = countRegressionFixesByPeriod(
+      [
+        { period: '2026-05-01', subject: 'fix(app/regression): 直す' },
+        { period: '2026-06-01', subject: 'fix(app/regression): 未来' },
+      ],
+      '2026-05-31',
+    );
+    expect(result).toEqual([{ period: '2026-05-01', count: 1 }]);
+  });
+
+  it('期間順に並べて返す', () => {
+    const result = countRegressionFixesByPeriod(
+      [
+        { period: '2026-05-03', subject: 'fix(regression): c' },
+        { period: '2026-05-01', subject: 'fix(regression): a' },
+      ],
+      '2026-05-31',
+    );
+    expect(result.map((r) => r.period)).toEqual(['2026-05-01', '2026-05-03']);
+  });
+});
+
+describe('aggregateErrorsByPeriod', () => {
+  it('期間ごとにツール別のエラー件数を積む', () => {
+    const result = aggregateErrorsByPeriod(
+      [
+        { period: '2026-05-01', tool: 'Bash', err_count: 2 },
+        { period: '2026-05-01', tool: 'Edit', err_count: 1 },
+        { period: '2026-05-01', tool: 'Bash', err_count: 3 },
+      ],
+      toText,
+    );
+    expect(result).toEqual([
+      { period: '2026-05-01', rate: 0, byTool: { Bash: 5, Edit: 1 } },
+    ]);
+  });
+
+  it('件数 0 の行は期間ごと作らない', () => {
+    expect(aggregateErrorsByPeriod([{ period: '2026-05-01', tool: 'Bash', err_count: 0 }], toText))
+      .toEqual([]);
   });
 });

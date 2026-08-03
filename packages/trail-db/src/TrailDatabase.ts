@@ -224,6 +224,20 @@ import { DatabaseIntegrityMonitor, type IntegrityAlert } from './DatabaseIntegri
 import { FileKnowledgeBaseSnapshotter } from './KnowledgeBaseSnapshotter';
 import { FileTrailStorage,ITrailStorage } from './ITrailStorage';
 import {
+  aggregateErrorsByPeriod,
+  aggregateToolCounts,
+  attachCommitFiles,
+  countRegressionFixesByPeriod,
+  buildCombinedDataSqlFragments,
+  resolveWorkspaceScope,
+  toCommitRows,
+} from './combinedDataAggregators';
+import {
+  analyzeSessionToolCallRows,
+  type SessionToolCallStats,
+} from './sessionToolCallStats';
+import { asText } from './sqlValue';
+import {
   extractRepoNameFromJsonl,
   extractRepoNameFromProjectDirPath,
   normalizeWorkspaceName,
@@ -481,28 +495,6 @@ export function stripWorktreePrefix(relPath: string): string {
 }
 
 /**
- * SQL 行から読み出した値 (sql.js の `unknown` / `SqlValue` 相当) を安全に文字列化する。
- *
- * `String(v ?? '')` は `v` が `Uint8Array` (BLOB) や object のとき
- * `[object Object]` 等の既定文字列化になりうる (SonarCloud S6551)。本ヘルパーは
- * 型を絞り込んでから変換するため S6551 を発火させず、TEXT 列の想定外 BLOB も
- * `TextDecoder` で実テキストに復元する。
- *
- * - `null` / `undefined` → `''`
- * - `string` → そのまま
- * - `number` / `bigint` / `boolean` → `String(v)` (object でないため S6551 対象外)
- * - `Uint8Array` (BLOB) → UTF-8 デコード
- * - その他 object → JSON 文字列 (最終フォールバック)
- */
-function asText(v: unknown): string {
-  if (v == null) return '';
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'bigint' || typeof v === 'boolean') return String(v);
-  if (v instanceof Uint8Array) return new TextDecoder().decode(v);
-  return JSON.stringify(v);
-}
-
-/**
  * SQL から読み出した category 値を FileAnalysisRow.category 型へ正規化する。
  * 想定外の値は 'logic' にフォールバックする。
  */
@@ -739,7 +731,6 @@ interface CombinedData {
   readonly commitRegressionByPeriod?: readonly { period: string; count: number }[];
 }
 
-const COMMIT_REGRESSION_FIX_RE = /^fix\([^)]*regression[^)]*\)/i;
 
 interface RawLine {
   uuid?: string;
@@ -10019,55 +10010,9 @@ export class TrailDatabase {
    * Compute tool-call-based metrics (Retry Rate, Build/Test Fail Rate).
    * If sessionId is provided, scopes to that session only.
    */
-  private analyzeSessionToolCallRows(
-    rows: unknown[][],
-  ): {
-    totalEdits: number; totalRetries: number;
-    totalBuildRuns: number; totalBuildFails: number;
-    totalTestRuns: number; totalTestFails: number;
-  } {
-    const BUILD_RE = /\b(npm run build|npx tsc|tsc\b|webpack|vite build|esbuild|rollup)\b/;
-    const TEST_RE = /\b(jest|vitest|npm run test|npm test|npx jest)\b/;
-    const FAIL_RE = /ERR!|exit code [1-9]|non-zero exit|Command failed/i;
-    let totalEdits = 0; let totalRetries = 0;
-    let totalBuildRuns = 0; let totalBuildFails = 0;
-    let totalTestRuns = 0; let totalTestFails = 0;
-    const editsBySession = new Map<string, Map<string, number>>();
-
-    for (const row of rows) {
-      const sessId = String(row[0]);
-      const toolCallsJson = String(row[1]);
-      const toolResultStr = row[2] == null ? null : asText(row[2]);
-      let calls: { name: string; input: Record<string, unknown> }[];
-      try {
-        calls = JSON.parse(toolCallsJson);
-      } catch { continue; }
-      if (!Array.isArray(calls)) continue;
-
-      for (const call of calls) {
-        if (call.name === 'Edit' || call.name === 'Write') {
-          totalEdits++;
-          const filePath = typeof call.input?.file_path === 'string' ? call.input.file_path : '';
-          if (filePath) {
-            let fileMap = editsBySession.get(sessId);
-            if (!fileMap) { fileMap = new Map(); editsBySession.set(sessId, fileMap); }
-            fileMap.set(filePath, (fileMap.get(filePath) ?? 0) + 1);
-          }
-        }
-        if (call.name === 'Bash') {
-          const cmd = typeof call.input?.command === 'string' ? call.input.command : '';
-          const isFailed = toolResultStr != null && FAIL_RE.test(toolResultStr);
-          if (BUILD_RE.test(cmd)) { totalBuildRuns++; if (isFailed) totalBuildFails++; }
-          if (TEST_RE.test(cmd)) { totalTestRuns++; if (isFailed) totalTestFails++; }
-        }
-      }
-    }
-    for (const fileMap of editsBySession.values()) {
-      for (const count of fileMap.values()) {
-        if (count > 1) totalRetries += count - 1;
-      }
-    }
-    return { totalEdits, totalRetries, totalBuildRuns, totalBuildFails, totalTestRuns, totalTestFails };
+  /** セッションの tool_calls 行の集計（実体は sessionToolCallStats の純粋関数）。 */
+  private analyzeSessionToolCallRows(rows: unknown[][]): SessionToolCallStats {
+    return analyzeSessionToolCallRows(rows);
   }
 
   private fetchSessionModelUsage(db: Database, sessionId: string): { model: string; count: number; tokens: number; durationMs: number }[] | undefined {
@@ -10796,41 +10741,21 @@ export class TrailDatabase {
     const activeRepoIds = new Set<number>(
       (activeRepoIdsResult[0]?.values ?? []).map((r) => Number(r[0])),
     );
-    const workspaceNames = new Set<string>();
-    const filterRepoIds: number[] = [];
-    for (const row of repoRowsResult[0]?.values ?? []) {
-      const repoId = Number(row[0]);
-      const name = normalizeWorkspaceName(asText(row[1] ?? ''));
-      if (name === '') continue;
-      if (activeRepoIds.has(repoId)) workspaceNames.add(name);
-      // フィルタ対象は活動有無に依らず解決する（worktree 由来の repo も親名で拾う）。
-      if (workspace !== undefined && name === workspace) filterRepoIds.push(repoId);
-    }
-    const hasWorkspaceFilter = workspace !== undefined && workspace !== '';
-    // 選択中のワークスペースは、期間を狭めて活動が範囲外になっても一覧に残す
-    // （select の表示値が選択肢に無い状態＝空欄表示になるのを防ぐ）。
-    if (hasWorkspaceFilter && filterRepoIds.length > 0) workspaceNames.add(workspace);
-    const workspaces = [...workspaceNames].sort((a, b) => a.localeCompare(b));
-    // IN 句へ埋め込む repo_id 列。Number() 経由のため SQL 安全。該当なしは常偽の -1。
-    const repoIdList = filterRepoIds.length > 0 ? filterRepoIds.join(',') : '-1';
-    // s = sessions（セッションの属する repo で絞る）/ sc・c = session_commits（コミット先の repo で絞る）
-    const sessionRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
-    // コミットの絞り込みも「打ったセッションの repo」で行う（一覧の活動判定と同じ基準）。
-    // コミット先 repo で絞ると、docs や ~/.claude のような「ワークスペースでない宛先」への
-    // コミットがどのワークスペースを選んでも現れず、各ワークスペースの合計が全体と一致しなく
-    // なる。セッション基準なら「そのワークスペースで作業していた間に打ったコミット」で揃う。
-    const commitScRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
-    const commitCRepoFilter = hasWorkspaceFilter ? ` AND s.repo_id IN (${repoIdList})` : '';
-    // sessions を JOIN していないクエリ用（session_id 経由で同じ条件を表す）。
-    const commitBareRepoFilter = hasWorkspaceFilter
-      ? ` AND session_id IN (SELECT id FROM sessions WHERE repo_id IN (${repoIdList}))`
-      : '';
-    const sessionStartPeriodExpr = period === 'week'
-      ? `strftime('%Y-W%W', s.start_time, '${tzOffset}')`
-      : `DATE(s.start_time, '${tzOffset}')`;
-    const commitPeriodExpr = period === 'week'
-      ? `strftime('%Y-W%W', committed_at, '${tzOffset}')`
-      : `DATE(committed_at, '${tzOffset}')`;
+    const { workspaces, hasWorkspaceFilter, repoIdList } = resolveWorkspaceScope({
+      repoRows: repoRowsResult[0]?.values ?? [],
+      activeRepoIds,
+      workspace,
+      normalizeName: normalizeWorkspaceName,
+      toText: asText,
+    });
+    const {
+      sessionRepoFilter,
+      commitScRepoFilter,
+      commitCRepoFilter,
+      commitBareRepoFilter,
+      sessionStartPeriodExpr,
+      commitPeriodExpr,
+    } = buildCombinedDataSqlFragments({ hasWorkspaceFilter, repoIdList }, period, tzOffset);
 
     const toRows = (result: ReturnType<typeof db.exec>): Record<string, unknown>[] => {
       if (!result[0]) return [];
@@ -10845,41 +10770,7 @@ export class TrailDatabase {
       allowedSessionIds = new Set((sessionIdResult[0]?.values ?? []).map((r) => asText(r[0] ?? '')));
     }
     const toolRawRows = this.aggregateToolUsageByMessageDateCutoff(rangeDays, period, tzOffset, allowedSessionIds);
-    // JS 側で (period, tool) 単位に集約し factor を適用する
-    type ToolAggEntry = { count: number; durationMs: number; adjustedTokens: number; totalTurns: number; missingTurns: number };
-    const toolAggMap = new Map<string, ToolAggEntry>();
-    for (const r of toolRawRows) {
-      const p = asText(r['period'] ?? '');
-      const tool = asText(r['tool'] ?? '');
-      const totalTurns = Number(r['token_total_turns'] ?? 0);
-      const missingTurns = Number(r['token_missing_turns'] ?? 0);
-      const observedTurns = totalTurns - missingTurns;
-      const factor = observedTurns > 0 ? totalTurns / observedTurns : 1;
-      const rawTokens = Number(r['tokens'] ?? 0);
-      const k = `${p}|${tool}`;
-      const cur = toolAggMap.get(k) ?? { count: 0, durationMs: 0, adjustedTokens: 0, totalTurns: 0, missingTurns: 0 };
-      cur.count += Number(r['count'] ?? 0);
-      cur.durationMs += Number(r['duration_ms'] ?? 0);
-      cur.adjustedTokens += rawTokens * factor;
-      cur.totalTurns += totalTurns;
-      cur.missingTurns += missingTurns;
-      toolAggMap.set(k, cur);
-    }
-    const toolCounts = [...toolAggMap.entries()].map(([k, e]) => {
-      const sep = k.indexOf('|');
-      const period = k.slice(0, sep);
-      const tool = k.slice(sep + 1);
-      return {
-        period,
-        tool,
-        count: e.count,
-        tokens: Math.round(e.adjustedTokens),
-        durationMs: e.durationMs,
-        tokenMissingRate: e.totalTurns > 0 ? e.missingTurns / e.totalTurns : 0,
-        tokenTotalTurns: e.totalTurns,
-        tokenMissingTurns: e.missingTurns,
-      };
-    });
+    const toolCounts = aggregateToolCounts(toolRawRows, asText);
 
     // エラー集計: session start_time 基準（daily_counts の timestamp 基準と一致させる）
     const errResult = db.exec(
@@ -10896,19 +10787,7 @@ export class TrailDatabase {
          AND DATE(s.start_time, '${tzOffset}') >= DATE('now', '${tzOffset}', '-${rangeDays} days')${sessionRepoFilter}
        GROUP BY period, tool`,
     );
-    const errByPeriod = new Map<string, { byTool: Record<string, number> }>();
-    for (const r of toRows(errResult)) {
-      const p = asText(r['period'] ?? '');
-      const tool = asText(r['tool'] ?? '');
-      const errCount = Number(r['err_count'] ?? 0);
-      if (errCount === 0) continue;
-      const e = errByPeriod.get(p) ?? { byTool: {} };
-      e.byTool[tool] = (e.byTool[tool] ?? 0) + errCount;
-      errByPeriod.set(p, e);
-    }
-    const errorRate = [...errByPeriod.entries()].map(([p, v]) => ({
-      period: p, rate: 0, byTool: v.byTool,
-    }));
+    const errorRate = aggregateErrorsByPeriod(toRows(errResult), asText);
 
     // skill 集計: 全体表示は事前集計 daily_counts（kind='skill'）を使う。daily_counts は
     // repo 次元を持たないため、workspace 絞り込み時のみ生成元と同じ message_tool_calls
@@ -11013,28 +10892,7 @@ export class TrailDatabase {
          AND sc.committed_at <= DATETIME('now', '+${commitWindowSec} seconds')${commitScRepoFilter}
        GROUP BY sc.session_id, sc.repo_id, sc.commit_hash`,
     );
-    type CommitRow = {
-      period: string;
-      repoName: string;
-      hash: string;
-      subject: string;
-      committed_at: string;
-      is_ai_assisted: boolean;
-      linesAdded: number;
-      linesDeleted: number;
-      files: string[];
-    };
-    const commitRows: CommitRow[] = toRows(commitResult).map(r => ({
-      period: asText(r['period'] ?? ''),
-      repoName: asText(r['repo_name'] ?? ''),
-      hash: asText(r['commit_hash'] ?? ''),
-      subject: asText(r['commit_message'] ?? '').split('\n')[0],
-      committed_at: asText(r['committed_at'] ?? ''),
-      is_ai_assisted: Number(r['is_ai_assisted'] ?? 0) === 1,
-      linesAdded: Number(r['lines_added'] ?? 0),
-      linesDeleted: Number(r['lines_deleted'] ?? 0),
-      files: [],
-    }));
+    const commitRows = toCommitRows(toRows(commitResult), asText);
 
     // Batch-fetch commit_files for all commit hashes in the window
     if (commitRows.length > 0) {
@@ -11048,19 +10906,7 @@ export class TrailDatabase {
          WHERE cf.commit_hash IN (${hashPlaceholders})`,
         commitRows.map(c => c.hash),
       );
-      if (filesResult[0]) {
-        const byHash = new Map<string, string[]>();
-        for (const row of filesResult[0].values) {
-          const h = `${asText(row[0] ?? '')}:${asText(row[1] ?? '')}`;
-          const p = asText(row[2] ?? '');
-          const list = byHash.get(h);
-          if (list) list.push(p);
-          else byHash.set(h, [p]);
-        }
-        for (const c of commitRows) {
-          c.files = byHash.get(`${c.repoName}:${c.hash}`) ?? [];
-        }
-      }
+      attachCommitFiles(commitRows, filesResult[0]?.values ?? [], asText);
     }
 
     // Commit prefix stats: 期間内のコミットだけを集計 (period はセッション開始日基準)
@@ -11070,15 +10916,7 @@ export class TrailDatabase {
     const commitPrefixStats = aggregateCommitPrefixStats(commitRows, todayPeriod);
 
     // Per-period regression count: 累積モードの右軸退行率計算に使う。
-    const regressionMap = new Map<string, number>();
-    for (const c of commitRows) {
-      if (c.period > todayPeriod) continue;
-      if (!COMMIT_REGRESSION_FIX_RE.test(c.subject)) continue;
-      regressionMap.set(c.period, (regressionMap.get(c.period) ?? 0) + 1);
-    }
-    const commitRegressionByPeriod = [...regressionMap.entries()]
-      .map(([period, count]) => ({ period, count }))
-      .sort((a, b) => a.period.localeCompare(b.period));
+    const commitRegressionByPeriod = countRegressionFixesByPeriod(commitRows, todayPeriod);
 
     // Commit baseline: 表示期間 cutoff より前の全 commit を category 別に集計 (累積モード用)。
     // commit_hash で DISTINCT し、同一 commit が複数 session に紐づく重複を排除する。
