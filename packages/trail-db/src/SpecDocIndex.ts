@@ -6,6 +6,7 @@ import type {
   AlignmentInput,
   ISpecDocIndex,
   SpecDocRef,
+  SpecUpdateStatus,
 } from '@anytime-markdown/trail-core';
 import type Database from 'better-sqlite3';
 
@@ -43,6 +44,9 @@ export class SpecDocIndex implements ISpecDocIndex {
   private docsRepoId: number | null = null;
   private indexByElementId: Map<string, SpecDocRef[]> | null = null;
   private worktreeChanges: ReadonlySet<string> | null = null;
+  /** 未解決は undefined、解決済みで未取込は null（キャッシュと「未取込」を区別する） */
+  private docsIngestedThrough: string | null | undefined = undefined;
+  private warnedMissingResolutionTable = false;
   private readonly gitCommitTimeByRef = new Map<string, string | null>();
 
   constructor(options: SpecDocIndexOptions) {
@@ -62,13 +66,13 @@ export class SpecDocIndex implements ISpecDocIndex {
     return this.indexByElementId.get(elementId) ?? [];
   }
 
-  async wasUpdatedIn(specPath: string, input: AlignmentInput): Promise<boolean> {
+  async wasUpdatedIn(specPath: string, input: AlignmentInput): Promise<SpecUpdateStatus> {
     if (input.scope === 'session') {
       return this.wasUpdatedInSession(specPath, input.sessionId);
     }
 
     if (input.scope === 'worktree') {
-      return this.listWorktreeChanges().has(specPath);
+      return this.listWorktreeChanges().has(specPath) ? 'updated' : 'not-updated';
     }
 
     return this.wasUpdatedInRange(specPath, input.fromRef, input.toRef);
@@ -112,7 +116,12 @@ export class SpecDocIndex implements ISpecDocIndex {
     }
   }
 
-  private wasUpdatedInSession(specPath: string, sessionId: string): boolean {
+  private wasUpdatedInSession(specPath: string, sessionId: string): SpecUpdateStatus {
+    // 取込カバレッジの検査を先に行う。設計書リポジトリの commit 解決が当該セッションで
+    // 一度も走っていなければ、行が無いのは「更新していない」からではなく「取り込んで
+    // いない」からであり、判定できない。
+    if (!this.isDocsCommitResolutionDone(sessionId)) return 'unknown';
+
     const rows = this.requireDb('session').prepare(`
       SELECT cf.file_path FROM commit_files cf
       JOIN session_commits sc
@@ -120,15 +129,20 @@ export class SpecDocIndex implements ISpecDocIndex {
       WHERE sc.session_id = ? AND cf.repo_id = ?
     `).all(sessionId, this.getDocsRepoId()) as FilePathRow[];
 
-    return hasMatchingGitPath(rows, specPath);
+    return hasMatchingGitPath(rows, specPath) ? 'updated' : 'not-updated';
   }
 
-  private wasUpdatedInRange(specPath: string, fromRef: string, toRef: string): boolean {
+  private wasUpdatedInRange(specPath: string, fromRef: string, toRef: string): SpecUpdateStatus {
     const fromTime = this.resolveGitCommitTime(fromRef);
     const toTime = this.resolveGitCommitTime(toRef);
-    if (!fromTime || !toTime) return false;
+    // ref を解決できなければ範囲そのものが確定しない（未更新の証拠ではない）。
+    if (!fromTime || !toTime) return 'unknown';
 
     const [startTime, endTime] = fromTime <= toTime ? [fromTime, toTime] : [toTime, fromTime];
+
+    // 取込済みコミットが範囲より前で止まっていれば、範囲内の行が無いのは取込欠落による。
+    const ingestedThrough = this.getDocsIngestedThrough();
+    if (!ingestedThrough || ingestedThrough < startTime) return 'unknown';
 
     const rows = this.requireDb('range').prepare(`
       SELECT cf.file_path FROM commit_files cf
@@ -138,7 +152,52 @@ export class SpecDocIndex implements ISpecDocIndex {
         AND sc.committed_at >= ? AND sc.committed_at <= ?
     `).all(this.getDocsRepoId(), startTime, endTime) as FilePathRow[];
 
-    return hasMatchingGitPath(rows, specPath);
+    return hasMatchingGitPath(rows, specPath) ? 'updated' : 'not-updated';
+  }
+
+  /**
+   * 設計書リポジトリの commit 解決が当該セッションで実行済みか。
+   *
+   * `session_commit_resolutions` を持たない旧スキーマの DB では判定材料が無いため
+   * 未解決（= `unknown` 側）として扱い、警告を 1 度だけ残す。
+   */
+  private isDocsCommitResolutionDone(sessionId: string): boolean {
+    const db = this.requireDb('session');
+    if (!this.hasTable('session_commit_resolutions')) {
+      if (!this.warnedMissingResolutionTable) {
+        this.warnedMissingResolutionTable = true;
+        this.logger.warn(
+          'session_commit_resolutions table is missing; cannot verify spec commit ingestion coverage',
+        );
+      }
+      return false;
+    }
+
+    const row = db.prepare(
+      'SELECT 1 AS present FROM session_commit_resolutions WHERE session_id = ? AND repo_id = ? LIMIT 1',
+    ).get(sessionId, this.getDocsRepoId()) as { present: number } | undefined;
+
+    return row !== undefined;
+  }
+
+  /** 設計書リポジトリで取り込み済みの最新コミット時刻（未取込なら null）。 */
+  private getDocsIngestedThrough(): string | null {
+    if (this.docsIngestedThrough !== undefined) return this.docsIngestedThrough;
+
+    const row = this.requireDb('range').prepare(
+      'SELECT MAX(committed_at) AS latest FROM session_commits WHERE repo_id = ?',
+    ).get(this.getDocsRepoId()) as { latest: string | null } | undefined;
+
+    this.docsIngestedThrough = row?.latest ?? null;
+    return this.docsIngestedThrough;
+  }
+
+  private hasTable(tableName: string): boolean {
+    const row = this.requireDb('session').prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+    ).get(tableName) as { present: number } | undefined;
+
+    return row !== undefined;
   }
 
   private buildIndex(): Map<string, SpecDocRef[]> {

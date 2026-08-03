@@ -10,11 +10,16 @@ import type {
   ChangedFile,
   IFileChangeResolver,
 } from '../port/IFileChangeResolver';
-import type { ISpecDocIndex } from '../port/ISpecDocIndex';
+import type { ISpecDocIndex, SpecUpdateStatus } from '../port/ISpecDocIndex';
 
 const DEFAULT_MIN_ADDED_LINES = 20;
 
-export type AlignmentStatus = 'stale' | 'ok' | 'undocumented';
+/**
+ * `unknown` は設計書リポジトリのコミットが trail.db へ取り込まれておらず、更新の
+ * 有無を判定できない状態。`stale`（更新漏れ）と混同すると、取込が止まっている間
+ * 全件が警報になり警報自体が無意味になるため別状態として報告する。
+ */
+export type AlignmentStatus = 'stale' | 'ok' | 'undocumented' | 'unknown';
 
 export interface AlignmentFinding {
   readonly status: AlignmentStatus;
@@ -83,15 +88,13 @@ export async function checkArchitecturalAlignment(
     }
 
     for (const spec of specs) {
-      const wasUpdated = await deps.specs.wasUpdatedIn(spec.specPath, input);
+      const updateStatus = await deps.specs.wasUpdatedIn(spec.specPath, input);
       findings.push({
-        status: wasUpdated ? 'ok' : 'stale',
+        status: toAlignmentStatus(updateStatus),
         elementId: mappedElement.elementId,
         specPath: spec.specPath,
         changedFiles: mappedFiles,
-        reason: wasUpdated
-          ? `Spec document ${spec.specPath} was updated in this ${input.scope}.`
-          : `Spec document ${spec.specPath} was not updated in this ${input.scope}.`,
+        reason: describeUpdateStatus(updateStatus, spec.specPath, input.scope),
       });
     }
   }
@@ -102,6 +105,28 @@ export async function checkArchitecturalAlignment(
     skippedMinor,
     findings: sortFindings(findings),
   };
+}
+
+function toAlignmentStatus(updateStatus: SpecUpdateStatus): AlignmentStatus {
+  if (updateStatus === 'updated') return 'ok';
+  if (updateStatus === 'unknown') return 'unknown';
+  return 'stale';
+}
+
+function describeUpdateStatus(
+  updateStatus: SpecUpdateStatus,
+  specPath: string,
+  scope: AlignmentScope,
+): string {
+  if (updateStatus === 'updated') {
+    return `Spec document ${specPath} was updated in this ${scope}.`;
+  }
+  if (updateStatus === 'unknown') {
+    return `Cannot tell whether spec document ${specPath} was updated in this ${scope}: `
+      + 'the spec repository commits covering it are missing from trail.db '
+      + '(add the spec repository to commit ingestion and re-run the import).';
+  }
+  return `Spec document ${specPath} was not updated in this ${scope}.`;
 }
 
 function isExcludedPath(filePath: string): boolean {
