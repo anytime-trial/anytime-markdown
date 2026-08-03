@@ -56,6 +56,8 @@ import { EDITOR_CODE_VARS_CHANGED_EVENT } from "../utils/editorCodeCssVars";
 import { installContentFileDrop } from "./chrome/contentFileDrop";
 import { installEditorDomShortcuts, installGlobalShortcuts } from "./chrome/editorShortcuts";
 import { installEditorZoom } from "./chrome/editorZoom";
+import { createLiveUpdate } from "./chrome/liveUpdate";
+import { installSidebarPanels } from "./chrome/sidebarPanels";
 import { installSectionLocks } from "./chrome/sectionLocks";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
 import {
@@ -108,8 +110,6 @@ import { createEditorMenuPopovers } from "../components-vanilla/EditorMenuPopove
 import { createEditorSettingsPanel } from "../components-vanilla/EditorSettingsPanel";
 import { createEditorSideToolbar } from "../components-vanilla/EditorSideToolbar";
 import { createSearchReplaceBar } from "../components-vanilla/SearchReplaceBar";
-import { createOutlinePanel } from "../components-vanilla/OutlinePanel";
-import { createCommentPanel } from "../components-vanilla/CommentPanel";
 import { createMarkdownMinimap } from "../components-vanilla/MarkdownMinimap";
 import {
   setLinkedMdProvider,
@@ -1105,67 +1105,23 @@ export function mountVanillaMarkdownEditor(
       disposers.push(() => sectionLocks.dispose());
 
       // === sidebar パネル（Outline / Comment）の toggle マウント ===============
-      const OUTLINE_WIDTH = 240;
-      let outlinePanel: { el: HTMLElement; destroy: () => void } | null = null;
-      let commentPanel: { el: HTMLElement; destroy: () => void } | null = null;
-      const syncOutlinePanel = (): void => {
-        if (modeState.outlineOpen && !outlinePanel) {
-          outlinePanel = createOutlinePanel({
-            editor,
-            t,
-            outlineWidth: OUTLINE_WIDTH,
-            editorHeight: contentEl.clientHeight || 600,
-            onOutlineClick: (pos) => editor.chain().focus().setTextSelection(pos).run(),
-            hideResize: true,
-            getSectionLocks: () => sectionLocks.getUi(),
-            onToggleSectionLock: (headingIndex) => sectionLocks.toggle(headingIndex),
-            canToggleSectionLock: () => !readonlyNow() && modeState.reviewMode !== true,
-          });
-          sidebarSlot.appendChild(outlinePanel.el);
-        } else if (!modeState.outlineOpen && outlinePanel) {
-          outlinePanel.destroy();
-          outlinePanel.el.remove();
-          outlinePanel = null;
-        }
-      };
-      const syncCommentPanel = (): void => {
-        if (modeState.commentOpen && !commentPanel) {
-          commentPanel = createCommentPanel({ editor, t });
-          sidebarSlot.appendChild(commentPanel.el);
-        } else if (!modeState.commentOpen && commentPanel) {
-          commentPanel.destroy();
-          commentPanel.el.remove();
-          commentPanel = null;
-        }
-      };
-      // ノート網パネル（ホスト所有 element のスロット表示。中身は関知しない）。
-      let noteGraphMounted = false;
-      const syncNoteGraphPanel = (): void => {
-        const slot = current.noteGraph;
-        if (!slot) return;
-        if (modeState.noteGraphOpen && !noteGraphMounted) {
-          sidebarSlot.appendChild(slot.element);
-          noteGraphMounted = true;
-          slot.onOpen?.();
-        } else if (!modeState.noteGraphOpen && noteGraphMounted) {
-          slot.element.remove();
-          noteGraphMounted = false;
-          slot.onClose?.();
-        }
-      };
-      disposers.push(() => {
-        outlinePanel?.destroy();
-        commentPanel?.destroy();
-        if (noteGraphMounted) {
-          current.noteGraph?.element.remove();
-          current.noteGraph?.onClose?.();
-        }
+      const sidebarPanels = installSidebarPanels({
+        editor,
+        t,
+        sidebarSlot,
+        contentEl,
+        isOutlineOpen: () => modeState.outlineOpen === true,
+        isCommentOpen: () => modeState.commentOpen === true,
+        isNoteGraphOpen: () => modeState.noteGraphOpen === true,
+        noteGraphSlot: () => current.noteGraph,
+        getSectionLocks: () => sectionLocks.getUi(),
+        onToggleSectionLock: (headingIndex) => sectionLocks.toggle(headingIndex),
+        canToggleSectionLock: () => !readonlyNow() && modeState.reviewMode !== true,
       });
+      disposers.push(() => sidebarPanels.dispose());
 
       // === merge（比較）モード state（useMergeMode 相当・パネルは syncMergeView） ==
       let compareFileContent: string | null = null;
-      // update() 経由で最後に適用した externalCompareContent（遷移検知用。null=外部比較なし）。
-      let lastExternalCompareContent: string | null = null;
       let editorMarkdown = "";
       let clearDiffTimer: ReturnType<typeof setTimeout> | null = null;
       const notifyCompareMode = (): void =>
@@ -1251,9 +1207,9 @@ export function mountVanillaMarkdownEditor(
         frontmatterHiddenByMode =
           modeState.readonlyMode === true || modeState.sourceMode === true;
         syncFrontmatterView();
-        syncOutlinePanel();
-        syncCommentPanel();
-        syncNoteGraphPanel();
+        sidebarPanels.syncOutline();
+        sidebarPanels.syncComment();
+        sidebarPanels.syncNoteGraph();
         notifyMode();
       };
 
@@ -1731,61 +1687,33 @@ export function mountVanillaMarkdownEditor(
       }
 
       // === live update（handle.update → ここで反映） ============================
-      applyLivePatch = (patch) => {
-        if (patch.readOnly !== undefined) {
-          current.readOnly = patch.readOnly;
-          modeState.hostReadOnly = patch.readOnly;
+      const liveUpdate = createLiveUpdate({
+        applyReadOnly: (next) => {
+          current.readOnly = next;
+          modeState.hostReadOnly = next;
           modeState.readonlyMode = sourceController?.getMode() === "readonly";
           editor.setEditable(!readonlyNow() && sourceController?.getMode() !== "review");
           remakeBubble();
           refreshToolbarMode();
-        }
-        if (patch.autoReload !== undefined) {
-          autoReloadController.set(patch.autoReload);
-        }
-        if (patch.settings) {
-          settings = { ...settings, ...patch.settings };
-        }
-        // themeMode はコンテンツ CSS（ダーク/ライト埋め込み色）と背景・文字色変数に影響する。
-        if (patch.settings || patch.themeMode !== undefined) {
-          applyAllSettings();
-        }
-        if (patch.themeMode !== undefined) {
-          viewerToolbar?.syncTheme(current.themeMode ?? "light");
-        }
-        // fileName の採用（adoptExternalFile）は onSaveTargetChange を発火させ、そこで宛先種別を
-        // 読み直す。ホストが Drive へ保存先を移した直後の patch を取りこぼさないよう先に反映する。
-        if ("externalSaveKind" in patch) {
-          applyExternalSaveKind(patch.externalSaveKind);
-        }
-        if (patch.fileName !== undefined) {
-          // fileOps 経由で採用する（notifyState → onFileStateChange が statusBar へ反映する）。
-          // 表示更新だけでなく永続化の副作用を伴う: localStorage の保存済みファイル名を上書きし、
-          // null のときはネイティブファイルハンドル（IndexedDB）も破棄する。
-          fileOps.adoptExternalFile(patch.fileName);
-        }
-        // externalCompareContent は遷移（値の変化）でのみ反映する。Mount ラッパは live patch の
-        // たびに現値（null 含む）を相乗りさせるため、無変化の null で閉じたり同値を再適用しない。
-        // 非 null → null の遷移は「compare モードを閉じる」信号として扱う。
-        if (
-          patch.externalCompareContent !== undefined &&
-          patch.externalCompareContent !== lastExternalCompareContent
-        ) {
-          lastExternalCompareContent = patch.externalCompareContent;
-          if (patch.externalCompareContent === null) {
-            setInlineMergeOpen(false);
-          } else {
-            applyExternalCompareContent(patch.externalCompareContent);
-          }
-        }
-        // themeMode / presetName は SettingsPanel open 時に current から読むため保持のみ。
-      };
+        },
+        setAutoReload: (next) => autoReloadController.set(next),
+        mergeSettings: (patch) => { settings = { ...settings, ...patch }; },
+        applyAllSettings,
+        syncViewerTheme: () => viewerToolbar?.syncTheme(current.themeMode ?? "light"),
+        applyExternalSaveKind,
+        // 表示更新だけでなく永続化の副作用を伴う: localStorage の保存済みファイル名を上書きし、
+        // null のときはネイティブファイルハンドル（IndexedDB）も破棄する。
+        adoptExternalFile: (fileName) => fileOps.adoptExternalFile(fileName),
+        openCompare: (content) => applyExternalCompareContent(content),
+        closeCompare: () => setInlineMergeOpen(false),
+      });
+      applyLivePatch = (patch) => liveUpdate.apply(patch);
       disposers.push(() => {
         applyLivePatch = null;
       });
 
       // 初期 externalCompareContent（mount 直後に比較モードを開く）。
-      lastExternalCompareContent = current.externalCompareContent ?? null;
+      liveUpdate.primeCompareContent(current.externalCompareContent ?? null);
       if (current.externalCompareContent != null) {
         applyExternalCompareContent(current.externalCompareContent);
       }
