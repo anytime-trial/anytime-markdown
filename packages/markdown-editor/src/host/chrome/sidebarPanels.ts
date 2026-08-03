@@ -4,6 +4,7 @@ import { createCommentPanel } from "../../components-vanilla/CommentPanel";
 import { createOutlinePanel } from "../../components-vanilla/OutlinePanel";
 import type { SectionLockUiEntry } from "../../extensions/sectionLockPlugin";
 import type { TranslationFn } from "../../types";
+import type { NoteGraphSlot } from "../vanillaMarkdownEditor";
 
 /**
  * サイドバーパネル（Outline / Comment / ノート網）の toggle マウント。
@@ -15,13 +16,6 @@ import type { TranslationFn } from "../../types";
  */
 
 const OUTLINE_WIDTH = 240;
-
-/** ホストが所有するノート網スロット（中身には関知しない）。 */
-export interface NoteGraphSlot {
-  element: HTMLElement;
-  onOpen?: () => void;
-  onClose?: () => void;
-}
 
 export interface SidebarPanelsOptions {
   readonly editor: Editor;
