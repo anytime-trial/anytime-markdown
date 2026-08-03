@@ -11,25 +11,36 @@ import React from "react";
 
 import jaMessages from "../app/[locale]/markdown/i18n/ja.json";
 import enMessages from "../app/[locale]/markdown/i18n/en.json";
+import topicJaMessages from "../app/[locale]/markdown/[topic]/i18n/ja.json";
+import topicEnMessages from "../app/[locale]/markdown/[topic]/i18n/en.json";
 
 type Messages = typeof jaMessages;
 
 let activeMessages: Messages = jaMessages;
+let activeTopics: typeof topicJaMessages = topicJaMessages;
 
+// 名前空間ごとに別の辞書を返す。単一の辞書で済ませると、名前空間を取り違えた実装でも
+// 素通りする（EditorTopics のキーが Editor から引けてしまう）。
 jest.mock("next-intl/server", () => ({
-  getTranslations: async () => (key: string) =>
-    key
-      .split(".")
-      .reduce<unknown>(
-        (acc, seg) => (acc as Record<string, unknown> | undefined)?.[seg],
-        activeMessages as unknown,
-      ) as string,
+  getTranslations: async (arg: string | { namespace?: string }) => {
+    const namespace = typeof arg === "string" ? arg : arg?.namespace;
+    const root: unknown = namespace === "EditorTopics" ? activeTopics : activeMessages;
+    return (key: string) =>
+      key
+        .split(".")
+        .reduce<unknown>(
+          (acc, seg) => (acc as Record<string, unknown> | undefined)?.[seg],
+          root,
+        ) as string;
+  },
 }));
 
 import { MarkdownGuide } from "../app/[locale]/markdown/MarkdownGuide";
+import { TOPIC_SLUGS, topicPath } from "../app/[locale]/markdown/topics";
 
 async function renderGuide(messages: Messages) {
   activeMessages = messages;
+  activeTopics = messages === enMessages ? topicEnMessages : topicJaMessages;
   const element = await MarkdownGuide();
   return render(element);
 }
@@ -57,6 +68,7 @@ function visibleText(container: HTMLElement): string {
 describe("MarkdownGuide", () => {
   afterEach(() => {
     activeMessages = jaMessages;
+    activeTopics = topicJaMessages;
   });
 
   it("renders all three sections as readable text", async () => {
@@ -77,8 +89,19 @@ describe("MarkdownGuide", () => {
     // h1 が欠けると、支援技術にも検索エンジンにもページの主題が伝わらない。
     expect(h1s).toHaveLength(1);
     expect(h1s[0].textContent).toBe(jaMessages.guide.heading);
-    // 3 セクションの見出しは h1 の下位に来る
-    expect(container.querySelectorAll("h2")).toHaveLength(3);
+    // できること / 記法別 LP への導線 / 使い方 / FAQ の 4 セクションは h1 の下位に来る
+    expect(container.querySelectorAll("h2")).toHaveLength(4);
+  });
+
+  it("links to every topic landing page", async () => {
+    const { container } = await renderGuide(jaMessages);
+    const hrefs = [...container.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+
+    // LP は sitemap にしか経路が無いと孤立ページになる。最も強いこのページからの
+    // 内部リンクが施策の前提なので、全トピック分あることを固定する
+    for (const slug of TOPIC_SLUGS) {
+      expect(hrefs).toContain(topicPath(slug));
+    }
   });
 
   it("renders every feature, step and question", async () => {

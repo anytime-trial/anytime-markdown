@@ -13,12 +13,13 @@ jest.mock("../lib/reportClient", () => ({
 import { fetchLayoutData } from "../lib/s3Client";
 import { listReports } from "../lib/reportClient";
 import sitemap from "../app/sitemap";
+import { TOPIC_SLUGS, topicPath } from "../app/[locale]/markdown/topics";
 
 const mockFetchLayoutData = fetchLayoutData as jest.MockedFunction<typeof fetchLayoutData>;
 const mockListReports = listReports as jest.MockedFunction<typeof listReports>;
 
-/** 静的ルート数（/ /markdown /report /privacy /privacy/services） */
-const STATIC_ROUTE_COUNT = 5;
+/** 静的ルート数（/ /markdown /report /privacy /privacy/services ＋ 記法別 LP） */
+const STATIC_ROUTE_COUNT = 5 + TOPIC_SLUGS.length;
 /** 対応ロケール数（ja / en）。各ルートはロケール分だけ URL を持つ */
 const LOCALE_COUNT = 2;
 const STATIC_PAGE_COUNT = STATIC_ROUTE_COUNT * LOCALE_COUNT;
@@ -93,6 +94,19 @@ describe("sitemap", () => {
     expect(urls).toContain("https://www.anytime-trial.com/en");
     expect(urls).toContain("https://www.anytime-trial.com/markdown");
     expect(urls).toContain("https://www.anytime-trial.com/en/markdown");
+  });
+
+  it("lists every topic landing page in both locales", async () => {
+    mockFetchLayoutData.mockResolvedValue(LAYOUT_FIXTURE);
+    mockListReports.mockResolvedValue(REPORT_FIXTURE);
+
+    const result = await sitemap();
+    const urls = result.map((entry) => entry.url);
+    // ページを足して sitemap を忘れると、クロールの経路が内部リンクだけになる
+    for (const slug of TOPIC_SLUGS) {
+      expect(urls).toContain(`https://www.anytime-trial.com${topicPath(slug)}`);
+      expect(urls).toContain(`https://www.anytime-trial.com/en${topicPath(slug)}`);
+    }
   });
 
   it("lists single-source content under one URL only", async () => {

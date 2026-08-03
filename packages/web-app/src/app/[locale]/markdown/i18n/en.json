@@ -39,6 +39,8 @@
         "body": "Open a file straight from a repository or a drive, and put it back where it came from when you are done."
       }
     },
+    "topicsHeading": "Guides for each syntax",
+    "topicsLead": "Diagrams, math, tables and comparisons each have a guide with the syntax and worked examples.",
     "howtoHeading": "How to use it",
     "steps": {
       "open": {
