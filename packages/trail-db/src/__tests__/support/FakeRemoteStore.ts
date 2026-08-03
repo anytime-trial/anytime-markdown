@@ -38,16 +38,16 @@ export class FakeRemoteStore implements IRemoteTrailStore {
   /** 1 セッションあたりリモートへ届くメッセージ数の上限（チャンク部分失敗を再現する）。 */
   maxMessagesPerSession: number | null = null;
 
-  async connect(): Promise<void> {}
-  async close(): Promise<void> {}
+  async connect(): Promise<void> { /* no-op: 接続を持たない fake なので何もしない */ }
+  async close(): Promise<void> { /* no-op: 接続を持たない fake なので何もしない */ }
   async unsafeClearAll(): Promise<void> {
     this.sessionRows = [];
     this.messageRows = [];
   }
   async getExistingSessionIds(): Promise<readonly string[]> { return []; }
   async getExistingSyncedAt(): Promise<ReadonlyMap<string, string>> { return new Map(); }
-  async upsertRepos(): Promise<void> {}
-  async unsafeClearRepos(): Promise<void> {}
+  async upsertRepos(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearRepos(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
 
   async upsertSessions(rows: readonly SessionRow[]): Promise<void> {
     for (const row of rows) {
@@ -70,53 +70,53 @@ export class FakeRemoteStore implements IRemoteTrailStore {
   async upsertCommits(rows: readonly unknown[]): Promise<void> {
     this.commitRows.push(...rows);
   }
-  async upsertCommitFiles(): Promise<void> {}
-  async upsertReleases(): Promise<void> {}
-  async upsertReleaseFiles(): Promise<void> {}
-  async upsertSessionCosts(): Promise<void> {}
+  async upsertCommitFiles(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertReleases(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertReleaseFiles(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertSessionCosts(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
 
   async upsertAllSessionCosts(rows: readonly SessionCostRow[]): Promise<void> {
     this.sessionCostRows.push(...rows);
   }
 
-  async upsertDailyCounts(): Promise<void> {}
-  async unsafeClearCurrentGraphs(): Promise<void> {}
-  async unsafeClearReleaseGraphs(): Promise<void> {}
-  async upsertCurrentGraph(_repoId: number, _graphJson: string, _commitId: string): Promise<void> {}
-  async upsertReleaseGraph(_releaseId: number, _graphJson: string): Promise<void> {}
+  async upsertDailyCounts(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearCurrentGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearReleaseGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertCurrentGraph(_repoId: number, _graphJson: string, _commitId: string): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertReleaseGraph(_releaseId: number, _graphJson: string): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async unsafeClearMessageToolCalls(): Promise<void> { this.toolCallRows = []; }
 
   async upsertMessageToolCalls(rows: readonly ToolCallRow[]): Promise<void> {
     this.toolCallRows.push(...rows);
   }
 
-  async unsafeClearCurrentCoverage(): Promise<void> {}
-  async upsertCurrentCoverage(): Promise<void> {}
-  async unsafeClearReleaseCoverage(): Promise<void> {}
-  async upsertReleaseCoverage(): Promise<void> {}
-  async unsafeClearCurrentFileAnalysis(): Promise<void> {}
-  async upsertCurrentFileAnalysis(): Promise<void> {}
-  async unsafeClearReleaseFileAnalysis(): Promise<void> {}
-  async upsertReleaseFileAnalysis(): Promise<void> {}
-  async unsafeClearCurrentFunctionAnalysis(): Promise<void> {}
-  async upsertCurrentFunctionAnalysis(): Promise<void> {}
-  async unsafeClearReleaseFunctionAnalysis(): Promise<void> {}
-  async upsertReleaseFunctionAnalysis(): Promise<void> {}
-  async unsafeClearCurrentCodeGraphs(): Promise<void> {}
-  async upsertCurrentCodeGraphs(): Promise<void> {}
-  async upsertCurrentCodeGraphCommunities(): Promise<void> {}
-  async unsafeClearReleaseCodeGraphs(): Promise<void> {}
-  async upsertReleaseCodeGraphs(): Promise<void> {}
-  async upsertReleaseCodeGraphCommunities(): Promise<void> {}
+  async unsafeClearCurrentCoverage(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertCurrentCoverage(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearReleaseCoverage(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertReleaseCoverage(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearCurrentFileAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertCurrentFileAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearReleaseFileAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertReleaseFileAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearCurrentFunctionAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertCurrentFunctionAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearReleaseFunctionAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertReleaseFunctionAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearCurrentCodeGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertCurrentCodeGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertCurrentCodeGraphCommunities(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async unsafeClearReleaseCodeGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertReleaseCodeGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async upsertReleaseCodeGraphCommunities(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
 
   async listManualElements(): Promise<readonly ManualElement[]> { return this.elements; }
   async upsertManualElement(_repoId: number, e: ManualElement): Promise<void> { this.elements.push(e); }
-  async deleteManualElement(): Promise<void> {}
+  async deleteManualElement(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async listManualRelationships(): Promise<readonly ManualRelationship[]> { return this.relationships; }
   async upsertManualRelationship(_repoId: number, r: ManualRelationship): Promise<void> { this.relationships.push(r); }
-  async deleteManualRelationship(): Promise<void> {}
+  async deleteManualRelationship(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async listManualGroups(): Promise<readonly ManualGroup[]> { return this.groups; }
   async upsertManualGroup(_repoId: number, g: ManualGroup): Promise<void> { this.groups.push(g); }
-  async deleteManualGroup(): Promise<void> {}
-  async refreshMaterializedViews(): Promise<void> {}
+  async deleteManualGroup(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
+  async refreshMaterializedViews(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
 }
