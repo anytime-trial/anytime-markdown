@@ -9,6 +9,8 @@
 Anytime Database は `.db` / `.sqlite` / `.sqlite3` / `.db3` ファイルを Custom Editor で開き、ページング対応のテーブルグリッド・タブごとの SQL エディタ・対話型 ER 図を提供します。\
 [Anytime Trail](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-trail) 拡張機能と連携することで、ローカル Trail DB やリモートの Supabase / PostgreSQL を Activity Bar から確認することもできます。
 
+[**オンラインビューアで試す**](https://www.anytime-trial.com/database)
+
 
 ## 1. SQLite Custom Editor
 
