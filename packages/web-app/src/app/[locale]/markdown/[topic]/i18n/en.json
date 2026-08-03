@@ -1,0 +1,242 @@
+{
+  "common": {
+    "samplesHeading": "How to write it",
+    "featuresHeading": "What this editor gives you",
+    "faqHeading": "Frequently asked questions",
+    "ctaLead": "You can try this syntax right now.",
+    "ctaLabel": "Open the editor",
+    "relatedHeading": "Other syntaxes",
+    "breadcrumbHome": "Home",
+    "breadcrumbEditor": "Markdown editor"
+  },
+  "mermaid": {
+    "linkLabel": "Draw diagrams with Mermaid",
+    "metaTitle": "Online Mermaid editor",
+    "metaDescription": "Write Mermaid flowcharts and sequence diagrams in your browser and see them rendered as you type. No install, no sign-up, and the file stays plain Markdown.",
+    "socialDescription": "Write Mermaid in your browser and see the diagram as you type. No install, no sign-up.",
+    "heading": "Write Mermaid in your browser and see the diagram as you type",
+    "lead": "Mermaid describes diagrams as text. A code block turns into a flowchart or a sequence diagram exactly as written, so you never drag shapes around. This editor does that in the browser, with nothing to install and no account to create.",
+    "samples": {
+      "flowchart": {
+        "caption": "Flowchart",
+        "note": "`flowchart TD` runs top to bottom. `-->` is an arrow, `{ }` is a decision, `[ ]` is a step. A label placed on an arrow (`-- yes -->`) is drawn as the branch condition."
+      },
+      "sequence": {
+        "caption": "Sequence diagram",
+        "note": "`participant` declares who takes part, `->>` is a solid call and `-->>` a dashed reply. The order of the declarations decides the left-to-right order in the diagram."
+      }
+    },
+    "features": {
+      "inline": {
+        "title": "The diagram lives in the document",
+        "body": "A diagram is a code block inside the Markdown, not a separate file. Prose and picture travel together, so neither one quietly goes stale."
+      },
+      "local": {
+        "title": "Rendered inside your browser",
+        "body": "Mermaid rendering happens locally. Your diagram code is not sent to any server to be drawn."
+      },
+      "portable": {
+        "title": "Still plain Markdown when you leave",
+        "body": "What you get back is ordinary Markdown containing a `mermaid` code block. Download it, or push it to GitHub or Google Drive — the syntax never turns into a proprietary format."
+      }
+    },
+    "faq": {
+      "install": {
+        "question": "Do I need to install anything?",
+        "answer": "No. You can start writing the moment this page loads, and no account is required."
+      },
+      "github": {
+        "question": "Will GitHub render the diagram too?",
+        "answer": "Yes. GitHub renders `mermaid` code blocks as diagrams, so what you write here can be pasted straight into a README or an issue."
+      },
+      "types": {
+        "question": "Which diagram types can I write?",
+        "answer": "Flowcharts and sequence diagrams, plus the other types Mermaid supports. For class or deployment diagrams, PlantUML is often easier — you can switch to a PlantUML code block in the same document."
+      }
+    }
+  },
+  "plantuml": {
+    "linkLabel": "Draw diagrams with PlantUML",
+    "metaTitle": "Online PlantUML editor",
+    "metaDescription": "Write PlantUML class and sequence diagrams in your browser with no Java and no drawing tool. Diagram code is only sent to the rendering server after you agree.",
+    "socialDescription": "Write PlantUML in your browser. No Java, no drawing tool, and external rendering asks first.",
+    "heading": "Write PlantUML in your browser, with nothing to install",
+    "lead": "PlantUML describes structural diagrams — classes, components, deployments — as text. You can write and render them here without installing Java or a drawing tool.",
+    "samples": {
+      "class": {
+        "caption": "Class diagram",
+        "note": "Everything between `@startuml` and `@enduml` is one diagram. `o--` is aggregation and `\"1\"` / `\"*\"` are multiplicities. Attributes and methods go inside the class braces."
+      },
+      "sequence": {
+        "caption": "Sequence diagram",
+        "note": "`->` is a solid call and `-->` a dashed reply. Only names declared with `actor` are drawn as stick figures; the rest are drawn as boxes."
+      }
+    },
+    "features": {
+      "inline": {
+        "title": "The diagram lives in the document",
+        "body": "A diagram is a `plantuml` code block inside your Markdown, kept in the same file as the prose around it."
+      },
+      "consent": {
+        "title": "Nothing leaves without your say-so",
+        "body": "PlantUML is rendered by an external server (plantuml.com). You are asked before the diagram code is sent, so the decision stays yours."
+      },
+      "portable": {
+        "title": "Still plain Markdown when you leave",
+        "body": "The file is ordinary Markdown. Run it through your own PlantUML installation later and you get the same diagram."
+      }
+    },
+    "faq": {
+      "install": {
+        "question": "Do I need Java or a drawing tool?",
+        "answer": "No. A browser is enough."
+      },
+      "server": {
+        "question": "Where is the diagram rendered?",
+        "answer": "On an external server (plantuml.com). Because the diagram code travels over the internet, you are asked to confirm before anything is sent, and nothing is sent until you do."
+      },
+      "mermaid": {
+        "question": "Should I use PlantUML or Mermaid?",
+        "answer": "PlantUML is the better fit when the structure has to be precise, such as class or deployment diagrams. Mermaid is quicker for flows and conversations. Both can sit in the same document."
+      }
+    }
+  },
+  "katex": {
+    "linkLabel": "Typeset math with KaTeX",
+    "metaTitle": "Online KaTeX math editor",
+    "metaDescription": "Write LaTeX math notation and see it typeset by KaTeX as you type. No TeX distribution to install, no sign-up, and the file stays plain Markdown.",
+    "socialDescription": "Write LaTeX math notation and see it typeset instantly. No TeX install, no sign-up.",
+    "heading": "Write LaTeX math notation and see it typeset instantly",
+    "lead": "KaTeX typesets LaTeX math notation in the browser. You get the rendered formula without installing a TeX distribution, and the file keeps the notation you typed.",
+    "samples": {
+      "inline": {
+        "caption": "Inline math",
+        "note": "A single `$` on each side puts the formula in the flow of the sentence, with the line height kept close to the surrounding text."
+      },
+      "block": {
+        "caption": "Display math",
+        "note": "Double `$$` gives the formula a line of its own. Tall symbols such as integrals and fractions are set more legibly this way."
+      }
+    },
+    "features": {
+      "inline": {
+        "title": "Typeset while you type",
+        "body": "The formula appears as soon as the notation is complete. There is no separate preview pane to switch to."
+      },
+      "local": {
+        "title": "Typeset inside your browser",
+        "body": "KaTeX runs locally. Your formulas are not sent to a server to be rendered."
+      },
+      "portable": {
+        "title": "The file keeps the notation",
+        "body": "What is saved is the `$`-delimited LaTeX you wrote, so any other tool that understands the same notation can read it."
+      }
+    },
+    "faq": {
+      "latex": {
+        "question": "Is all of LaTeX supported?",
+        "answer": "Everything KaTeX supports. Math notation is broadly covered, but document-level LaTeX — macros and packages that typeset a whole paper — is out of scope."
+      },
+      "install": {
+        "question": "Do I need a TeX distribution?",
+        "answer": "No. Typesetting happens in the browser."
+      },
+      "export": {
+        "question": "Can I take my formulas elsewhere?",
+        "answer": "Yes. The file contains the `$`-delimited LaTeX notation itself, so any tool that reads the same notation can open it unchanged."
+      }
+    }
+  },
+  "diff": {
+    "linkLabel": "Compare two revisions",
+    "metaTitle": "Compare Markdown files online",
+    "metaDescription": "Put two revisions of a Markdown document side by side, see only what changed, and pull changes across. It runs in the browser, so nothing is uploaded.",
+    "socialDescription": "Compare two Markdown revisions side by side. Runs in the browser — nothing is uploaded.",
+    "heading": "Put two Markdown revisions side by side and see what changed",
+    "lead": "Rereading a rewritten document rarely tells you what actually moved. Place the two revisions next to each other, let the changed lines show up in colour, and pull across only the changes you want to keep.",
+    "samples": {
+      "before": {
+        "caption": "The earlier revision",
+        "note": "This is the baseline. It can be a file you already have, or the document you are currently editing."
+      },
+      "after": {
+        "caption": "The rewritten revision",
+        "note": "Here line 1 gained a qualifier and line 3 is new. The comparison leaves the untouched lines alone and marks only those two places."
+      }
+    },
+    "features": {
+      "sideBySide": {
+        "title": "Only the changes stand out",
+        "body": "The two revisions sit side by side with additions and deletions in distinct colours. Unchanged lines stay aligned, so your eye does not lose its place."
+      },
+      "merge": {
+        "title": "Pull a change across",
+        "body": "Choose which changes to take while you read the comparison. There is no need to retype anything by hand."
+      },
+      "local": {
+        "title": "The text is not uploaded",
+        "body": "The comparison runs in the browser. Nothing reaches a server until you pick a place to save."
+      }
+    },
+    "faq": {
+      "upload": {
+        "question": "How do I load the two documents?",
+        "answer": "Compare the document open in the editor against a downloaded file or one stored in GitHub or Google Drive. Two pasted passages work just as well."
+      },
+      "privacy": {
+        "question": "Is the compared text sent to a server?",
+        "answer": "No. The comparison happens in the browser, and by default the only storage used is your browser's local storage."
+      },
+      "format": {
+        "question": "Can I compare something other than Markdown?",
+        "answer": "Any line-based text can be compared. The result is displayed as Markdown, so text that reads as Markdown is the easiest to follow."
+      }
+    }
+  },
+  "table": {
+    "linkLabel": "Build Markdown tables",
+    "metaTitle": "Online Markdown table editor",
+    "metaDescription": "Build Markdown tables by editing cells instead of counting pipe characters. The saved file uses the standard GitHub Flavored Markdown table syntax.",
+    "socialDescription": "Build Markdown tables by editing cells, not by counting pipes. Saves as standard GFM.",
+    "heading": "Build Markdown tables without counting pipe characters",
+    "lead": "A Markdown table is pipes and a separator row. Adding one column means adding a pipe to every single row, and that falls apart as the table grows. Here you edit the table as a table, and the standard syntax is written out when you save.",
+    "samples": {
+      "pipe": {
+        "caption": "A basic table",
+        "note": "The first row is the header and the `---` row separates it from the body. The number of columns is set by the dashes in that separator row."
+      },
+      "align": {
+        "caption": "Setting column alignment",
+        "note": "Colons in the separator row control alignment: `:---` is left, `---:` is right and `:---:` is centre. Right-aligning numeric columns lines the digits up."
+      }
+    },
+    "features": {
+      "cells": {
+        "title": "Edit the cells directly",
+        "body": "Type into a cell instead of typing pipes. Rows and columns can be added in place, so a late extra column does not mean rewriting the table."
+      },
+      "gfm": {
+        "title": "Saved as GitHub's table syntax",
+        "body": "The output is a GitHub Flavored Markdown table. Nothing proprietary, so it renders as a table when pasted into GitHub."
+      },
+      "portable": {
+        "title": "Travels with the document",
+        "body": "The table is part of the body text. Download it as a Markdown file, or save it straight to GitHub or Google Drive."
+      }
+    },
+    "faq": {
+      "syntax": {
+        "question": "Do I need to learn the table syntax?",
+        "answer": "Not to edit one — you can work in the cells. The syntax is shown above for when you want to read or edit the saved file directly."
+      },
+      "github": {
+        "question": "Will the table render on GitHub?",
+        "answer": "Yes. The output is the standard GitHub Flavored Markdown table syntax."
+      },
+      "install": {
+        "question": "Do I need to install anything?",
+        "answer": "No. You can build a table the moment this page loads, and no account is required."
+      }
+    }
+  }
+}

@@ -1,9 +1,18 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 
-import { buildAlternates, localeHref, toLocale } from '../../../lib/localeAlternates';
-import { socialTitle } from '../../../lib/siteMetadata';
-import { MarkdownGuide } from './MarkdownGuide';
+import { buildAlternates, localeHref, toLocale } from '../../../../lib/localeAlternates';
+import { socialTitle } from '../../../../lib/siteMetadata';
+import { MarkdownGuide } from '../MarkdownGuide';
+
+/**
+ * `/markdown`（エディタ本体）専用の layout。
+ *
+ * `(editor)` はルートグループなので URL には現れない（パスは `/markdown` のまま）。
+ * この 1 段を挟んでいるのは、下の `MarkdownGuide` と metadata を **`/markdown` だけ**へ
+ * 閉じ込めるため。`markdown/layout.tsx` に置くと `/markdown/mermaid` 等の LP へも継承され、
+ * 全 LP の下に同じ解説本文が出て（重複コンテンツ）、canonical も `/markdown` に固定される。
+ */
 
 const TITLE = 'Editor';
 /** openGraph / twitter は title.template が効かないため、同じ文言から完全形を導出する */
@@ -36,7 +45,7 @@ export async function generateMetadata({
   };
 }
 
-export default function MarkdownLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function MarkdownEditorLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // 本文はここ（server component）で描画する。page.tsx は 'use client' のため、
   // そこからでは server component の本文を SSR できない。
   return (

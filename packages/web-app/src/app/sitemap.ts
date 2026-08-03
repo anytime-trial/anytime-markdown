@@ -4,6 +4,7 @@ import { routing } from "../i18n/routing";
 import { localeHref } from "../lib/localeAlternates";
 import { listReports } from "../lib/reportClient";
 import { fetchLayoutData } from "../lib/s3Client";
+import { TOPIC_SLUGS, topicPath } from "./[locale]/markdown/topics";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.anytime-trial.com";
@@ -22,6 +23,12 @@ const DEPLOYED_AT = new Date();
 const STATIC_ROUTES = [
   { path: "/", changeFrequency: "monthly" as const, priority: 1 },
   { path: "/markdown", changeFrequency: "monthly" as const, priority: 0.9 },
+  // 記法別 LP。ja / en の両方に本文があるため expandLocales 経路で両ロケールを掲載する
+  ...TOPIC_SLUGS.map((slug) => ({
+    path: topicPath(slug),
+    changeFrequency: "monthly" as const,
+    priority: 0.7,
+  })),
   { path: "/report", changeFrequency: "weekly" as const, priority: 0.8 },
   { path: "/privacy", changeFrequency: "yearly" as const, priority: 0.3 },
   { path: "/privacy/services", changeFrequency: "yearly" as const, priority: 0.3 },
