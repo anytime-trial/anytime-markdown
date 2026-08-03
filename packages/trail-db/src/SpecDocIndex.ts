@@ -192,6 +192,14 @@ export class SpecDocIndex implements ISpecDocIndex {
    *
    * 解決が時刻 T に走ったなら、その時点で存在した設計書コミットは走査済みとみなせる。
    * これを範囲終端と比べることで「範囲全体を検査し終えたか」を問う。
+   *
+   * SHORTCUT: 取込カバレッジを sweep の壁時計時刻で近似する. ceiling: `resolveCommits` は
+   * セッションの時間ウィンドウ内の `git log` に限定されるため、どの Claude セッションの
+   * ウィンドウにも重ならない設計書コミットは取り込まれない。watermark は無関係な
+   * セッションの解決でも進むので、その種のコミットはいずれ unknown でなく not-updated
+   * (= stale) へ倒れる. upgrade: `commitWatchRoots` の repo を run ごとに
+   * `git log --since=<最終スイープ時刻>` で線形スイープする処理を CommitResolver へ足したら、
+   * watermark が「その時刻までの全コミットを見た」ことを保証できるので本近似を外す.
    */
   private getDocsSweepWatermark(): string | null {
     if (this.docsSweepWatermark !== undefined) return this.docsSweepWatermark;

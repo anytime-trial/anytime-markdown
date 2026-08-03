@@ -126,7 +126,10 @@ function describeUpdateStatus(
       + 'the spec repository commits covering it are missing from trail.db '
       + '(add the spec repository to commit ingestion and re-run the import).';
   }
-  return `Spec document ${specPath} was not updated in this ${scope}.`;
+  // 取込はセッション単位で走るため、どのセッションにも属さない設計書コミットは
+  // 取り込まれず、この判定に現れない。not-updated 側にも残る不確実性を隠さない。
+  return `Spec document ${specPath} was not updated in this ${scope} `
+    + '(spec commits made outside any recorded session are not ingested and cannot be seen here).';
 }
 
 function isExcludedPath(filePath: string): boolean {
