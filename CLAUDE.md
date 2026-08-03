@@ -1,10 +1,10 @@
 # CLAUDE.md（anytime-markdown プロジェクト固有）
 
-更新日: 2026-08-02
+更新日: 2026-08-03
 
 > 汎用の作業スタイル・Git 哲学・サブエージェント方針・応答ルールは `~/.claude/CLAUDE.md`（global）に従う。\
 > ツール中立な規約（リポジトリ構成・ドキュメント正本の位置づけ・出力先・モノレポ構造・Git 基本）は `AGENTS.md`（Claude / Codex 共通）に従う。\
-> 本ファイルは Claude 固有の補足（discovery 手順・Trail DB・並行セッション検知・スキル参照）のみを定義する。
+> 本ファイルは Claude 固有の補足（保存先・discovery 手順・Trail DB・並行セッション検知・スキル参照）のみを定義する。
 
 ## ツール中立規約は AGENTS.md を参照
 
@@ -16,6 +16,13 @@
 - 設計書（spec）・提案（proposal）・プラン（plan）・レビュー（review）・レポート（report）等のドキュメントは docsRoot 配下へ出力する（コード repo 内に置かない）。
 - スキル・ドキュメント内の `<docsRoot>` プレースホルダは本節の値に読み替える。スキル本文へ docs リポジトリの絶対パスを直接記載しない（保存先は本節が単一の正）。
 - `anytime-dev-cycle` の preflight.cjs は本節の `- docsRoot:` 行を自動解決する（`--docs-root` 指定時はそちらを優先）。
+
+## チケット保存先（ticketsRoot）
+
+- ticketsRoot: /Shared/anytime-ticket（独立した git リポジトリ・ブランチ `main`）。チケットの正本は `<ticketsRoot>/.tickets/*.md`、アーカイブは `<ticketsRoot>/.tickets/archive/`。VS Code の Anytime Tickets 拡張がこのリポジトリを指すよう設定されている。
+- **コードリポジトリ（`/anytime-markdown`）に `.tickets/` を作らない。** `anytime-loop-start` スキルと `tickets-core` の `TICKETS_DIR = '.tickets'` はワークスペース相対の記述だが、実際の設定先は上記の別リポジトリ。
+- **ID はリポジトリ全体で通番。** 起票前に既存の最大 ID を確認する（`tickets-core` の `nextTicketId` に既存 ID 配列を渡す）。ticketsRoot は複数ワークスペース共有で、対象は frontmatter の `workspace`（`anytime-markdown` / `anytime-trade` / `other`）が区別する。
+- 起票後は目視でなく実パーサで検証する（`npx tsx` で `tickets-core` の `parseTicketMarkdown` + `validateTicketFrontmatter` に全件通し、ID 重複と `dependencies` の実在も確認する）。
 
 ## Claude 固有のドキュメント参照
 
