@@ -2,7 +2,8 @@
   "metaDescription": "無料の WYSIWYG マークダウンエディタ。Mermaid / PlantUML 図解、KaTeX 数式、差分比較（diff）、マージ（merge）、表編集に対応。登録不要。",
   "socialDescription": "無料の WYSIWYG マークダウンエディタ。Mermaid・PlantUML・KaTeX・diff・merge・表編集に対応。登録不要。",
   "guide": {
-    "lead": "ブラウザだけで動く Markdown エディタです。インストールも登録も要りません — このページを開いた時点で書き始められます。",
+    "heading": "ブラウザで動く Markdown エディタ",
+    "lead": "インストールも登録も要りません — このページを開いた時点で書き始められます。書いたものは標準の Markdown のまま、いつでも手元へ取り出せます。",
     "featuresHeading": "できること",
     "features": {
       "wysiwyg": {

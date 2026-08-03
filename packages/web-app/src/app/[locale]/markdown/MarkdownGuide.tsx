@@ -72,9 +72,19 @@ export async function MarkdownGuide() {
       <FaqJsonLd items={faqItems} />
       <Container maxWidth="md">
         <Stack spacing={6}>
-          <Typography variant="body1" color="text.secondary">
-            {t('guide.lead')}
-          </Typography>
+          <Box>
+            {/* ページ唯一の h1。エディタ画面には見出しが無く、この本文が
+                文書のアウトラインの起点になる（h1 → h2 × 3 → h3）。 */}
+            <Typography
+              variant="h1"
+              sx={{ fontSize: { xs: '1.75rem', md: '2rem' }, fontWeight: 700, mb: 2 }}
+            >
+              {t('guide.heading')}
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              {t('guide.lead')}
+            </Typography>
+          </Box>
 
           <Box component="section">
             <Typography variant="h2" sx={{ fontSize: '1.5rem', fontWeight: 600, mb: 3 }}>

@@ -2,7 +2,8 @@
   "metaDescription": "Free WYSIWYG Markdown editor with Mermaid diagrams, PlantUML preview, KaTeX math, diff comparison, merge, and table editor. No sign-up required.",
   "socialDescription": "Free WYSIWYG Markdown editor with Mermaid, PlantUML, KaTeX, diff, merge, table editor. No sign-up required.",
   "guide": {
-    "lead": "A Markdown editor that runs entirely in your browser. Nothing to install, nothing to sign up for — opening this page is the whole setup.",
+    "heading": "A Markdown editor that runs in your browser",
+    "lead": "Nothing to install, nothing to sign up for — opening this page is the whole setup. What you write stays plain Markdown, and you can take it with you whenever you like.",
     "featuresHeading": "What you can do",
     "features": {
       "wysiwyg": {

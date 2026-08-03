@@ -69,6 +69,18 @@ describe("MarkdownGuide", () => {
     expect(text).toContain(jaMessages.guide.lead);
   });
 
+  it("provides the page's only h1 and keeps the outline below it", async () => {
+    const { container } = await renderGuide(jaMessages);
+    const h1s = container.querySelectorAll("h1");
+
+    // エディタ画面には見出しが無く、この本文がアウトラインの起点になる。
+    // h1 が欠けると、支援技術にも検索エンジンにもページの主題が伝わらない。
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0].textContent).toBe(jaMessages.guide.heading);
+    // 3 セクションの見出しは h1 の下位に来る
+    expect(container.querySelectorAll("h2")).toHaveLength(3);
+  });
+
   it("renders every feature, step and question", async () => {
     const { container } = await renderGuide(jaMessages);
     const text = visibleText(container);
@@ -79,6 +91,7 @@ describe("MarkdownGuide", () => {
     }
     for (const step of Object.values(jaMessages.guide.steps)) {
       expect(text).toContain(step.title);
+      expect(text).toContain(step.body);
     }
     for (const qa of Object.values(jaMessages.guide.faq)) {
       expect(text).toContain(qa.question);

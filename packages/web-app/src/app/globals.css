@@ -22,7 +22,11 @@ html, body {
 html:has(body.editor-page),
 body.editor-page {
   overflow-x: hidden !important;
-  overflow-y: auto !important;
+  /* overflow-y に !important を付けない。MUI の Modal は開くとき body へ
+     inline で overflow:hidden を当ててスクロールを止めるが、!important 付きの
+     author スタイルはその inline に勝ってしまい、モーダル表示中に背景が
+     スクロールする（実測で確認）。 */
+  overflow-y: auto;
   height: auto !important;
   min-height: 100vh !important;
   max-height: none !important;
