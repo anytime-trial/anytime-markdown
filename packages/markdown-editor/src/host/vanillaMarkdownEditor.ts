@@ -25,7 +25,6 @@ import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
 import { buildEditorExtensions } from "../buildEditorExtensions";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
-import { tryImportDroppedMdFile } from "../utils/editorImageHandlers";
 import { getEditorStorage, getMarkdownFromEditor, type HeadingItem, type TranslationFn } from "../types";
 import { DEFAULT_SETTINGS, type EditorSettings } from "../editorSettings";
 import { measureToCssMaxWidth } from "../utils/measurePreset";
@@ -44,21 +43,8 @@ import { readDraft, writeDraft } from "../utils/draftStorage";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 import type { FileSystemProvider } from "../types/fileSystem";
 import { createFileOpsController, type SaveTargetInfo } from "./fileOpsController";
-import { parseFrontmatter, prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
-import {
-  computeSectionHash,
-  listSections,
-  removeLockedSection,
-  upsertLockedSection,
-} from "@anytime-markdown/section-lock-core";
-import {
-  SECTION_LOCK_REFRESH_META,
-  computeSectionLockState,
-  createSectionLockPlugin,
-  ensureSectionLockStyles,
-  setContentBypassingSectionLock,
-  type SectionLockUiEntry,
-} from "../extensions/sectionLockPlugin";
+import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
+import { setContentBypassingSectionLock } from "../extensions/sectionLockPlugin";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
 import {
@@ -67,6 +53,10 @@ import {
   nextExternalSaveKind,
 } from "../utils/externalSaveKind";
 import { EDITOR_CODE_VARS_CHANGED_EVENT } from "../utils/editorCodeCssVars";
+import { installContentFileDrop } from "./chrome/contentFileDrop";
+import { installEditorDomShortcuts, installGlobalShortcuts } from "./chrome/editorShortcuts";
+import { installEditorZoom } from "./chrome/editorZoom";
+import { installSectionLocks } from "./chrome/sectionLocks";
 import { createVanillaEditorHost } from "./vanillaEditorHost";
 import {
   createAutoReloadController,
@@ -1105,85 +1095,14 @@ export function mountVanillaMarkdownEditor(
       };
 
       // === 確定セクションロック（Phase 5 S4・FR-S4-2） =========================
-      // 正本は frontmatter lockedSections。serialize 済み markdown から見出し
-      // インデックスへ対応づけ、Plugin（編集ブロック + 装飾）と OutlinePanel
-      // （ロック / 解除操作）が getter で都度参照する。
-      ensureSectionLockStyles(document);
-      let sectionLockUi: SectionLockUiEntry[] = [];
-      const currentFullMarkdown = (): string | null => {
-        const body = getMarkdownFromEditorSafe(editor);
-        if (body == null) return null;
-        return prependFrontmatter(body, frontmatter);
-      };
-      const computeSectionLockUi = (): SectionLockUiEntry[] => {
-        if (frontmatter === null || !frontmatter.includes("lockedSections")) return [];
-        const full = currentFullMarkdown();
-        if (full == null) return sectionLockUi;
-        return computeSectionLockState(full).ui;
-      };
-      const refreshSectionLocks = (): void => {
-        const next = computeSectionLockUi();
-        if (next.length === 0 && sectionLockUi.length === 0) return;
-        sectionLockUi = next;
-        // 装飾の再計算を促す（doc 不変のため meta で通知）
-        editor.view.dispatch(editor.state.tr.setMeta(SECTION_LOCK_REFRESH_META, true));
-      };
-      // 初期状態は dispatch せずに反映する。installChrome 実行中の dispatch は
-      // 'transaction' 購読（コメント dirty 追跡等）を初期化前の chrome（statusBar 等・TDZ）へ
-      // カスケードさせ、ロック付き文書を開いた瞬間に ReferenceError で mount が壊れる。
-      // registerPlugin の state.init が現在の sectionLockUi から装飾を構築するため
-      // 初期表示に dispatch は不要（S4 受入で顕在化した web-app の実障害）。
-      sectionLockUi = computeSectionLockUi();
-      editor.registerPlugin(createSectionLockPlugin(() => sectionLockUi));
-      // 見出しの増減・並び替えで headingIndex 対応が変わったときだけ再計算する
-      // （ロック節自体は Plugin が編集をブロックするため、通常の本文編集では不変）。
-      let headingSignature = "";
-      const computeHeadingSignature = (): string => {
-        const parts: string[] = [];
-        editor.state.doc.forEach((node) => {
-          if (node.type.name === "heading") {
-            parts.push(`${node.attrs.level as number}:${node.textContent}`);
-          }
-        });
-        return parts.join("\n");
-      };
-      headingSignature = computeHeadingSignature();
-      const onSectionLockTransaction = ({ transaction }: { transaction: { docChanged: boolean } }): void => {
-        if (!transaction.docChanged || sectionLockUi.length === 0) return;
-        const next = computeHeadingSignature();
-        if (next !== headingSignature) {
-          headingSignature = next;
-          refreshSectionLocks();
-        }
-      };
-      editor.on("transaction", onSectionLockTransaction);
-      disposers.push(() => editor.off("transaction", onSectionLockTransaction));
-      /** heading-only index のセクションをロック / 解除する（人間の明示操作）。 */
-      const toggleSectionLock = (headingIndex: number): void => {
-        const full = currentFullMarkdown();
-        if (full == null) return;
-        const sections = listSections(full);
-        const target = sections[headingIndex];
-        if (!target) return;
-        const existing = computeSectionLockState(full).ui.find(
-          (l) => l.headingIndex === headingIndex,
-        );
-        const nextFull = existing
-          ? removeLockedSection(full, existing.path, existing.occurrence)
-          : upsertLockedSection(full, {
-              path: target.path,
-              occurrence: target.occurrence,
-              hash: computeSectionHash(full, target),
-              lockedAt: new Date().toISOString(),
-              lockedBy: "human",
-            });
-        // ロック操作はユーザーの編集意図を伴わない frontmatter 更新のため、
-        // null → 値 遷移（lockedSections の新規作成）でもブロックを自動展開しない。
-        setFrontmatter(parseFrontmatter(nextFull).frontmatter, { autoExpand: false });
-        fileOps.markDirty();
-        saveContent(() => getMarkdownFromEditorSafe(editor));
-        refreshSectionLocks();
-      };
+      const sectionLocks = installSectionLocks({
+        editor,
+        getFrontmatter: () => frontmatter,
+        setFrontmatter,
+        markDirty: () => fileOps.markDirty(),
+        saveContent: (produce) => saveContent(produce),
+      });
+      disposers.push(() => sectionLocks.dispose());
 
       // === sidebar パネル（Outline / Comment）の toggle マウント ===============
       const OUTLINE_WIDTH = 240;
@@ -1198,8 +1117,8 @@ export function mountVanillaMarkdownEditor(
             editorHeight: contentEl.clientHeight || 600,
             onOutlineClick: (pos) => editor.chain().focus().setTextSelection(pos).run(),
             hideResize: true,
-            getSectionLocks: () => sectionLockUi,
-            onToggleSectionLock: toggleSectionLock,
+            getSectionLocks: () => sectionLocks.getUi(),
+            onToggleSectionLock: (headingIndex) => sectionLocks.toggle(headingIndex),
             canToggleSectionLock: () => !readonlyNow() && modeState.reviewMode !== true,
           });
           sidebarSlot.appendChild(outlinePanel.el);
@@ -1375,45 +1294,15 @@ export function mountVanillaMarkdownEditor(
       disposers.push(() => sourceController?.destroy());
 
       // === Ctrl/Cmd + ホイールで全体ズーム（本文テキスト + 図を一括拡縮） ==========
-      // 文字だけを変える settings.fontSize と直交する「ブラウザズーム」。wysiwyg/review は
-      // editor.view.dom（.tiptap）へ CSS zoom を掛け本文・画像・mermaid を一律スケールし、source は
-      // コントローラの zoom レイヤへ委譲する。step / bounds は VS Code のエディタズームに倣う。
-      // jsdom は zoom を computed へ反映しないため、観測用に root[data-am-zoom] も併記する。
-      const ZOOM_MIN = 0.5;
-      const ZOOM_MAX = 3;
-      const ZOOM_STEP = 0.1;
-      let zoomFactor = 1;
-      // 浮動小数の累積誤差（1.0999999…）を防ぐため小数第 2 位で丸める。
-      const round2 = (n: number): number => Math.round(n * 100) / 100;
-      const applyZoom = (): void => {
-        const rounded = round2(zoomFactor);
-        root.dataset.amZoom = String(rounded);
-        // wysiwyg/review 実体（source 中は display:none だが値は保持され復帰時に効く）。
-        editor.view.dom.style.zoom = rounded === 1 ? "" : String(rounded);
-        // source 実体（gutter + textarea を包む zoom レイヤ）。
-        sourceController?.setZoom(rounded);
-      };
-      const nudgeZoom = (delta: number): void => {
-        const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, round2(zoomFactor + delta)));
-        if (next === zoomFactor) return;
-        zoomFactor = next;
-        applyZoom();
-      };
-      const onWheelZoom = (event: WheelEvent): void => {
-        // 修飾なしは通常スクロール。Ctrl（win/linux）/ Cmd（mac）併用時のみズーム。
-        if (!(event.ctrlKey || event.metaKey)) return;
-        // 水平ホイール（deltaY===0）は else 側へ落ちてズームアウトするため対象外。
-        if (event.deltaY === 0) return;
-        // 比較（merge）モードは片ペインしかスケールできず中途半端になるため対象外
-        // （通常スクロールへ委ねる。zoomFactor は保持され比較終了後に効く）。
-        if (modeState.inlineMergeOpen) return;
-        event.preventDefault(); // ブラウザ既定のページズームを抑止し本文のみズームする
-        nudgeZoom(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
-      };
-      // contentEl は全モードで安定なスクロールコンテナ（source は配下に sourceWrap を append）。
-      contentEl.addEventListener("wheel", onWheelZoom, { passive: false });
-      disposers.push(() => contentEl.removeEventListener("wheel", onWheelZoom));
-      applyZoom(); // 初期倍率（1）を data 属性へ反映
+      disposers.push(
+        installEditorZoom({
+          root,
+          contentEl,
+          editor,
+          sourceZoomTarget: () => sourceController,
+          isMergeOpen: () => modeState.inlineMergeOpen === true,
+        }),
+      );
 
       const noteGraphPinned = (): boolean => current.noteGraph?.isPinned?.() ?? false;
 
@@ -1715,48 +1604,7 @@ export function mountVanillaMarkdownEditor(
       });
 
       // === 本文領域全体（[data-am-content]）への .md ドロップでファイルオープン ==========
-      // ProseMirror の handleDrop は .ProseMirror 上のドロップしか拾えないため、用紙余白や
-      // 短い文書の下など本文領域の空白に落とすと PM に届かず、ブラウザがファイルへ遷移して
-      // アプリが失われる。contentEl で Files ドラッグを preventDefault してナビゲーションを
-      // 抑止し、.md を fileOps.selectFile（importPlainRef 経由）で取り込む。
-      // モード非依存で「開く」に統一する: ソースモードでも .md は selectFile 経由で
-      // source テキストを置き換える（WYSIWYG と同一フロー）。.md 以外のファイルは
-      // preventDefault でブラウザ遷移だけ防ぎ、取り込みは行わず無視する（textarea への
-      // ネイティブ挿入も Files ドロップでは発生しないため挙動差はない）。
-      const isMarkdownFile = (f: File): boolean =>
-        f.name.endsWith(".md") || f.name.endsWith(".markdown") || f.type === "text/markdown";
-      const onContentDragOver = (e: DragEvent): void => {
-        if (!e.dataTransfer?.types?.includes("Files")) return;
-        // preventDefault しないと drop が発火せずブラウザが既定（ファイルを開く）を実行する。
-        e.preventDefault();
-        root.dataset.fileDragOver = "true";
-      };
-      const onContentDragLeave = (e: DragEvent): void => {
-        if (!contentEl.contains(e.relatedTarget as Node | null)) {
-          delete root.dataset.fileDragOver;
-        }
-      };
-      const onContentDrop = (e: DragEvent): void => {
-        // drop が来たらドラッグオーバー状態は必ず解除する（PM 側 DOM ハンドラと同じ不変条件）。
-        delete root.dataset.fileDragOver;
-        // .ProseMirror 内のドロップは PM の handleDrop が処理済み（preventDefault 済み）。
-        // 二重取り込みを避けるため、既に処理済みなら何もしない。
-        if (e.defaultPrevented) return;
-        const files = e.dataTransfer?.files;
-        if (!files?.length) return;
-        // Files ドロップは常に preventDefault してブラウザのファイル遷移を防ぐ（.md 以外は無視）。
-        e.preventDefault();
-        const md = Array.from(files).find(isMarkdownFile);
-        if (md) tryImportDroppedMdFile(md, e, importPlainRef);
-      };
-      contentEl.addEventListener("dragover", onContentDragOver);
-      contentEl.addEventListener("dragleave", onContentDragLeave);
-      contentEl.addEventListener("drop", onContentDrop);
-      disposers.push(() => {
-        contentEl.removeEventListener("dragover", onContentDragOver);
-        contentEl.removeEventListener("dragleave", onContentDragLeave);
-        contentEl.removeEventListener("drop", onContentDrop);
-      });
+      disposers.push(installContentFileDrop({ root, contentEl, importRef: importPlainRef }));
 
       // === ContextMenu（右クリック・mode 切替 / クリップボード） ================
       contextMenu = createEditorContextMenu({
@@ -1825,85 +1673,28 @@ export function mountVanillaMarkdownEditor(
       );
 
       // === shortcuts（editor.view.dom への keydown → intent） ===================
-      // React useEditorShortcuts のコア部分。mod+S=保存 / mod+K=リンク / mod+Alt+O=outline。
-      const onShortcutKeyDown = (e: KeyboardEvent): void => {
-        const mod = e.metaKey || e.ctrlKey;
-        if (!mod) return;
-        if (e.key === "s" || e.key === "S") {
-          e.preventDefault();
-          (fileHandlers.onSaveFile ?? fileHandlers.onDownload)();
-        } else if (e.key === "k" || e.key === "K") {
-          e.preventDefault();
-          dialogs.openLink();
-        } else if (e.altKey && (e.key === "o" || e.key === "O")) {
-          e.preventDefault();
-          modeHandlers.onToggleOutline();
-        }
-      };
-      editor.view.dom.addEventListener("keydown", onShortcutKeyDown);
-      disposers.push(() => editor.view.dom.removeEventListener("keydown", onShortcutKeyDown));
+      disposers.push(
+        installEditorDomShortcuts({
+          editor,
+          fileHandlers,
+          openLinkDialog: () => dialogs.openLink(),
+          toggleOutline: () => modeHandlers.onToggleOutline(),
+        }),
+      );
 
       // === shortcuts（document への keydown・旧 useEditorShortcuts のファイル/モード系） ===
-      // source モード（editor.view.dom 非表示）でも効かせるため document へ装着する。
-      // mod+Shift+S=名前を付けて保存 / mod+Shift+C=全文コピー / mod+O=開く /
-      // mod+Alt+S=4モード循環 / mod+Alt+M=merge 切替 / mod+Alt+N=クリア。
-      const copyAllMarkdown = (): void => {
-        const md = fileOps.getFullMarkdown();
-        void navigator.clipboard?.writeText(md).then(() => {
-          layout.liveRegion.textContent = t("copiedToClipboard");
-        });
-      };
-      const onGlobalShortcutKeyDown = (e: KeyboardEvent): void => {
-        if (!(e.ctrlKey || e.metaKey)) return;
-        const key = e.key.toLowerCase();
-        // mod+Shift 系（Alt なし）。
-        if (e.shiftKey && !e.altKey) {
-          if (key === "s") {
-            e.preventDefault();
-            fileHandlers.onSaveAsFile?.();
-          } else if (key === "c") {
-            e.preventDefault();
-            copyAllMarkdown();
-          }
-          return;
-        }
-        // mod+Alt 系（Shift なし）。
-        if (e.altKey && !e.shiftKey) {
-          if (key === "s") {
-            // 4 モード循環: Readonly → Review → Edit → Source → Readonly
-            // （旧実装と同一。Review/Readonly 切替が未配線なら Wysiwyg へフォールバック）。
-            // ホストが readOnly を課している間はツールバー同様モード切替そのものを封じる。
-            e.preventDefault();
-            if (current.readOnly) {
-              // no-op（ロック中）
-            } else if (modeState.readonlyMode) {
-              (modeHandlers.onSwitchToReview ?? modeHandlers.onSwitchToWysiwyg)();
-            } else if (modeState.reviewMode) {
-              modeHandlers.onSwitchToWysiwyg();
-            } else if (modeState.sourceMode) {
-              (modeHandlers.onSwitchToReadonly ?? modeHandlers.onSwitchToWysiwyg)();
-            } else {
-              modeHandlers.onSwitchToSource();
-            }
-          } else if (readonlyNow() || modeState.reviewMode) {
-            // readonly（ホスト強制・ユーザー選択いずれも）/ review では編集系（merge / clear）を無効化。
-          } else if (key === "m") {
-            e.preventDefault();
-            modeHandlers.onMerge();
-          } else if (key === "n") {
-            e.preventDefault();
-            void fileHandlers.onNewFile?.();
-          }
-          return;
-        }
-        // mod 単独系（Alt / Shift なし）。mod+S / mod+K は editor.view.dom 側で処理する。
-        if (!e.altKey && key === "o") {
-          e.preventDefault();
-          fileHandlers.onOpenFile?.();
-        }
-      };
-      document.addEventListener("keydown", onGlobalShortcutKeyDown);
-      disposers.push(() => document.removeEventListener("keydown", onGlobalShortcutKeyDown));
+      disposers.push(
+        installGlobalShortcuts({
+          t,
+          fileHandlers,
+          modeHandlers,
+          modeState,
+          isHostReadOnly: () => current.readOnly === true,
+          isReadonlyNow: readonlyNow,
+          getFullMarkdown: () => fileOps.getFullMarkdown(),
+          liveRegion: layout.liveRegion,
+        }),
+      );
 
       // === block overlay（gif/image/table の DialogHost 3 を vanilla 配線） =====
       // 表の全画面編集は consumer 上書き（onTableEdit）が無ければ内蔵ダイアログ
