@@ -25,7 +25,6 @@ import type { AnyExtension, Editor } from "@anytime-markdown/markdown-core";
 import { buildEditorExtensions } from "../buildEditorExtensions";
 import type { SlashCommandState } from "../extensions/slashCommandExtension";
 import { createEditorDOMHandlers } from "../hooks/useEditorDOMEvents";
-import { tryImportDroppedMdFile } from "../utils/editorImageHandlers";
 import { getEditorStorage, getMarkdownFromEditor, type HeadingItem, type TranslationFn } from "../types";
 import { DEFAULT_SETTINGS, type EditorSettings } from "../editorSettings";
 import { measureToCssMaxWidth } from "../utils/measurePreset";
@@ -44,21 +43,8 @@ import { readDraft, writeDraft } from "../utils/draftStorage";
 import { getMarkdownFromEditorSafe } from "../utils/markdownSerializer";
 import type { FileSystemProvider } from "../types/fileSystem";
 import { createFileOpsController, type SaveTargetInfo } from "./fileOpsController";
-import { parseFrontmatter, prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
-import {
-  computeSectionHash,
-  listSections,
-  removeLockedSection,
-  upsertLockedSection,
-} from "@anytime-markdown/section-lock-core";
-import {
-  SECTION_LOCK_REFRESH_META,
-  computeSectionLockState,
-  createSectionLockPlugin,
-  ensureSectionLockStyles,
-  setContentBypassingSectionLock,
-  type SectionLockUiEntry,
-} from "../extensions/sectionLockPlugin";
+import { prependFrontmatter, preprocessMarkdown } from "../utils/frontmatterHelpers";
+import { setContentBypassingSectionLock } from "../extensions/sectionLockPlugin";
 import { preserveBlankLines, sanitizeMarkdown } from "../utils/sanitizeMarkdown";
 import { setTrailingNewline } from "../utils/editorContentLoader";
 import {
