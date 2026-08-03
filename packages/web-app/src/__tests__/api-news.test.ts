@@ -13,7 +13,7 @@ const ORIGINAL_ENV = process.env;
 beforeEach(() => {
   jest.clearAllMocks();
   process.env = { ...ORIGINAL_ENV };
-  delete process.env.GUARDIAN_API_KEY;
+  process.env.GUARDIAN_API_KEY = 'test-key';
 });
 
 afterAll(() => {
@@ -105,6 +105,31 @@ describe('GET /api/news', () => {
 
     const result = (await GET()) as unknown as MockResponse;
     expect(result._status).toBe(502);
+  });
+
+  it.each([
+    ['未設定', undefined],
+    ['空文字', ''],
+    ['空白のみ', '   '],
+  ])('GUARDIAN_API_KEY が%sなら Guardian を呼ばず 503 を返す', async (_label, value) => {
+    if (value === undefined) {
+      delete process.env.GUARDIAN_API_KEY;
+    } else {
+      process.env.GUARDIAN_API_KEY = value;
+    }
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = (await GET()) as unknown as MockResponse;
+
+    // 設定不足を上流障害(502)と区別する
+    expect(result._status).toBe(503);
+    // 何を直せばよいかが分かるよう環境変数名を含める
+    expect(String(result._body.error)).toContain('GUARDIAN_API_KEY');
+    // 無効なキーで上流を叩かない
+    expect(fetchMock).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
   });
 
   it('returns 500 and error message when fetch throws', async () => {

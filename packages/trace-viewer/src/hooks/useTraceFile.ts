@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { TraceFile } from '@anytime-markdown/trace-core/types';
+import { migrateTraceFile } from '@anytime-markdown/trace-core/parse';
 
 export interface TraceFileSource {
     name: string;
@@ -26,11 +27,9 @@ export function useTraceFile(source: TraceFileSource | null): TraceFileState {
         source.load().then((text) => {
             if (cancelled) return;
             try {
-                const file = JSON.parse(text) as TraceFile;
-                if (file.version !== 1) {
-                    setState({ status: 'error', message: `Unsupported trace version: ${file.version}` });
-                    return;
-                }
+                // TRC-6: 旧バージョンの trace ファイルはマイグレータで現行スキーマへ移送する。
+                // 未知バージョンは migrateTraceFile が throw し、下の catch がエラー表示へ倒す。
+                const file = migrateTraceFile(JSON.parse(text));
                 setState({ status: 'loaded', file });
             } catch (err) {
                 setState({ status: 'error', message: err instanceof Error ? err.message : String(err) });

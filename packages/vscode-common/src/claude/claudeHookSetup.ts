@@ -22,8 +22,47 @@ exit 0
 `;
 }
 
-// safe-point.sh — Stop フック（セッション終了）で HEAD をセーフポイントとして trail サーバへ記録する。
-// Phase 5 S1 (Emergency Protocol)。git repo 外・detached HEAD・サーバ未起動は silent skip（常に exit 0）。
+// lib/stop-hook-spool.sh — Stop フック記録（flight-review / safe-point）のスプール追記。
+// 旧方式（デーモンへ curl 直接 POST・失敗を || true で握りつぶし）はデーモン停止中の記録を
+// 痕跡なく全損した（2026-07-22〜24 / 07-31 実測）。emergency spool（Phase 5 S2）と同じ
+// at-least-once 方式: `<git-common-dir>/anytime/stop-hook-spool.jsonl` へ 1 行追記し、
+// trail 拡張（stopHookSpoolDrain）が定期 drain して既存 API へ POST する。
+// 追記失敗・滞留上限は同ディレクトリの stop-hook.log へ時刻付きで残す（silent 破棄禁止）。
+// 行の形式は agent-core の StopHookSpoolEvent（{kind, payload}）と同一に保つ。
+const STOP_HOOK_SPOOL_LIB = `# stop-hook-spool.sh — append one Stop-hook record to <git-common-dir>/anytime/stop-hook-spool.jsonl
+# sourced by safe-point.sh / flight-review.sh
+# spool_stop_hook_event <cwd> <json-line> : 0=spooled (or dropped+logged), 1=no spool location (caller may fall back)
+SPOOL_MAX=2000
+LOG_MAX_BYTES=1048576
+spool_stop_hook_event() {
+  local cwd="\$1" line="\$2"
+  local common
+  common=$(git -C "\$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+  [ -z "\$common" ] && return 1
+  local dir="\$common/anytime"
+  local spool="\$dir/stop-hook-spool.jsonl"
+  local log="\$dir/stop-hook.log"
+  mkdir -p "\$dir" 2>/dev/null || return 1
+  # ログの単純ローテーション（1 MiB 超で .old へ退避。失敗イベント時のみ書くため通常は伸びない）
+  if [ -f "\$log" ] && [ "$(stat -c %s "\$log" 2>/dev/null || echo 0)" -gt "\$LOG_MAX_BYTES" ]; then
+    mv -f "\$log" "\$log.old" 2>/dev/null || true
+  fi
+  local ts
+  ts=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+  if [ -f "\$spool" ] && [ "$(wc -l < "\$spool" 2>/dev/null || echo 0)" -ge "\$SPOOL_MAX" ]; then
+    echo "[\$ts] [WARN] spool full (\$SPOOL_MAX); dropped: \${line:0:200}" >> "\$log" 2>/dev/null
+    return 0
+  fi
+  if ! printf '%s\\n' "\$line" >> "\$spool" 2>/dev/null; then
+    echo "[\$ts] [ERROR] spool append failed: \${line:0:200}" >> "\$log" 2>/dev/null
+  fi
+  return 0
+}
+`;
+
+// safe-point.sh — Stop フック（セッション終了）で HEAD をセーフポイントとしてスプールへ記録する。
+// Phase 5 S1 (Emergency Protocol)。git repo 外・detached HEAD は silent skip（常に exit 0）。
+// スプール先を解決できない異常時のみ旧方式の best-effort POST へ縮退する。
 function safePointScriptContent(port: number): string {
   return `#!/bin/bash
 PORT="\${ANYTIME_TRAIL_PORT:-${port}}"
@@ -38,18 +77,24 @@ BRANCH=$(git -C "\$CWD" rev-parse --abbrev-ref HEAD 2>/dev/null)
 [ "\$BRANCH" = "HEAD" ] && exit 0
 WORKTREE=$(git -C "\$CWD" rev-parse --show-toplevel 2>/dev/null)
 CREATED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
-PAYLOAD=$(node -e "process.stdout.write(JSON.stringify({createdAt:process.argv[1],commitHash:process.argv[2],branch:process.argv[3]||'',worktree:process.argv[4]||'',label:'',source:'stop_hook',sessionId:process.argv[5]||null}))" "\$CREATED_AT" "\$HEAD_SHA" "\$BRANCH" "\$WORKTREE" "\$SESSION_ID")
-curl -m 3 -s -X POST "http://127.0.0.1:\${PORT}/api/trail/safe-points" \\
-  -H "Content-Type: application/json" \\
-  -d "\$PAYLOAD" > /dev/null 2>&1 || true
+LINE=$(node -e "process.stdout.write(JSON.stringify({kind:'safe_point',payload:{createdAt:process.argv[1],commitHash:process.argv[2],branch:process.argv[3]||'',worktree:process.argv[4]||'',label:'',source:'stop_hook',sessionId:process.argv[5]||null}}))" "\$CREATED_AT" "\$HEAD_SHA" "\$BRANCH" "\$WORKTREE" "\$SESSION_ID")
+. ~/.claude/scripts/lib/stop-hook-spool.sh
+if ! spool_stop_hook_event "\$CWD" "\$LINE"; then
+  # スプール先の解決失敗（権限等）。記録を落とすよりは旧方式で最善努力する。
+  PAYLOAD=$(node -e "process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).payload))" "\$LINE")
+  curl -m 3 -s -X POST "http://127.0.0.1:\${PORT}/api/trail/safe-points" \\
+    -H "Content-Type: application/json" \\
+    -d "\$PAYLOAD" > /dev/null 2>&1 || true
+fi
 exit 0
 `;
 }
 
-// flight-review.sh — Stop フック（セッション終了）でデブリーフ記録を trail サーバへ依頼する。
-// Phase 6 S1 (Flight Review)。transcript の読取・集計はサーバー側（computeFlightOutcome）が行い、
-// フックは sessionId / transcriptPath / cwd / endedAt の薄い配線のみ。
-// サーバ未起動・タイムアウトは silent skip（常に exit 0・fail-open）。
+// flight-review.sh — Stop フック（セッション終了）でデブリーフ記録をスプールへ書く。
+// Phase 6 S1 (Flight Review)。transcript の読取・集計は drain 後のサーバー側
+// （computeFlightOutcome）が行い、フックは sessionId / transcriptPath / cwd / endedAt の
+// 薄い配線のみ。git repo 外はスプール先が無いため旧方式の best-effort POST へ縮退する
+// （常に exit 0・fail-open）。
 function flightReviewScriptContent(port: number): string {
   return `#!/bin/bash
 PORT="\${ANYTIME_TRAIL_PORT:-${port}}"
@@ -60,10 +105,15 @@ TRANSCRIPT_PATH=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data
 CWD=$(echo "\$STDIN_DATA" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).cwd||'')}catch{}})" 2>/dev/null)
 [ -z "\$CWD" ] && CWD="\$PWD"
 ENDED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
-PAYLOAD=$(node -e "process.stdout.write(JSON.stringify({sessionId:process.argv[1],transcriptPath:process.argv[2]||'',cwd:process.argv[3]||'',endedAt:process.argv[4]}))" "\$SESSION_ID" "\$TRANSCRIPT_PATH" "\$CWD" "\$ENDED_AT")
-curl -m 3 -s -X POST "http://127.0.0.1:\${PORT}/api/trail/flight-reviews" \\
-  -H "Content-Type: application/json" \\
-  -d "\$PAYLOAD" > /dev/null 2>&1 || true
+LINE=$(node -e "process.stdout.write(JSON.stringify({kind:'flight_review',payload:{sessionId:process.argv[1],transcriptPath:process.argv[2]||'',cwd:process.argv[3]||'',endedAt:process.argv[4]}}))" "\$SESSION_ID" "\$TRANSCRIPT_PATH" "\$CWD" "\$ENDED_AT")
+. ~/.claude/scripts/lib/stop-hook-spool.sh
+if ! spool_stop_hook_event "\$CWD" "\$LINE"; then
+  # git repo 外・スプール先の解決失敗。記録を落とすよりは旧方式で最善努力する。
+  PAYLOAD=$(node -e "process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).payload))" "\$LINE")
+  curl -m 3 -s -X POST "http://127.0.0.1:\${PORT}/api/trail/flight-reviews" \\
+    -H "Content-Type: application/json" \\
+    -d "\$PAYLOAD" > /dev/null 2>&1 || true
+fi
 exit 0
 `;
 }
@@ -864,6 +914,7 @@ export function setupClaudeHooks(workspaceRoot?: string, trailPort = 19841): boo
   // スクリプトファイルを作成/更新
   try {
     writeScript('lib/agent-home.sh', AGENT_HOME_LIB); // bash walk-up リゾルバ（3 script が source）
+    writeScript('lib/stop-hook-spool.sh', STOP_HOOK_SPOOL_LIB); // Stop フック記録の spool 追記（safe-point / flight-review が source）
     writeScript('agent-status-report.mjs', agentStatusReportContent()); // inline node hook 5 本を集約
     writeScript('token-budget.sh', tokenBudgetScriptContent(trailPort));
     writeScript('safe-point.sh', safePointScriptContent(trailPort));

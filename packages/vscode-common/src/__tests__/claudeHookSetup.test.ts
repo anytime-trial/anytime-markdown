@@ -371,10 +371,14 @@ describe('setupClaudeHooks', () => {
     expect(stop?.hooks[0].command).toBe(bashCmd('safe-point.sh'));
 
     const script = readScript('safe-point.sh');
-    expect(script).toContain('/api/trail/safe-points');
     expect(script).toContain('rev-parse HEAD');
     // detached HEAD は記録しない（ロールバック起点として不安定）
     expect(script).toContain('[ "$BRANCH" = "HEAD" ] && exit 0');
+    // 主経路はスプール追記（at-least-once）。curl 直接 POST はスプール先解決失敗時の縮退のみ
+    expect(script).toContain('stop-hook-spool.sh');
+    expect(script).toContain('spool_stop_hook_event');
+    expect(script).toContain("kind:'safe_point'");
+    expect(script).toContain('/api/trail/safe-points');
     // 再実行で重複登録しない
     setupClaudeHooks(tmpWorkspace);
     const again = readSettings().hooks.Stop.filter((e) =>
@@ -393,11 +397,15 @@ describe('setupClaudeHooks', () => {
     expect(stop?.hooks[0].command).toBe(bashCmd('flight-review.sh'));
 
     const script = readScript('flight-review.sh');
-    expect(script).toContain('/api/trail/flight-reviews');
     // transcript の集計はサーバー側。フックは transcript_path を渡すだけの薄い配線
     expect(script).toContain('transcript_path');
     // session_id が取れない場合は記録しない
     expect(script).toContain('[ -z "$SESSION_ID" ] && exit 0');
+    // 主経路はスプール追記（at-least-once）。curl 直接 POST は git repo 外の縮退のみ
+    expect(script).toContain('stop-hook-spool.sh');
+    expect(script).toContain('spool_stop_hook_event');
+    expect(script).toContain("kind:'flight_review'");
+    expect(script).toContain('/api/trail/flight-reviews');
     // サーバ未起動でもセッション終了を妨げない（fail-open）
     expect(script).toContain('|| true');
     expect(script.trimEnd().endsWith('exit 0')).toBe(true);
@@ -407,6 +415,53 @@ describe('setupClaudeHooks', () => {
       e.hooks?.[0]?.command?.includes('flight-review.sh'),
     );
     expect(again).toHaveLength(1);
+  });
+
+  test('generated Stop hook scripts spool records without a running daemon (regression: silent data loss)', () => {
+    const { setupClaudeHooks } = loadModule();
+    setupClaudeHooks(tmpWorkspace);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { execSync } = require('node:child_process') as typeof import('node:child_process');
+
+    // デーモンが立っていない一時 git repo で実行し、スプールへ記録が残ることを実測する。
+    // 旧方式（curl || true 直接 POST）ではこの状況の記録が痕跡なく全損した。
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-hook-repo-'));
+    try {
+      execSync('git init -q && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', {
+        cwd: repo,
+        shell: '/bin/bash',
+      });
+      const stdinJson = JSON.stringify({
+        session_id: 'sess-hook',
+        transcript_path: path.join(repo, 't.jsonl'),
+        cwd: repo,
+      });
+      for (const name of ['safe-point.sh', 'flight-review.sh']) {
+        execSync(`bash ${path.join(tmpHome, '.claude', 'scripts', name)}`, {
+          input: stdinJson,
+          cwd: repo,
+          // ANYTIME_TRAIL_PORT=1 で縮退経路の curl が実デーモンへ届かないことも固定する
+          env: { ...process.env, HOME: tmpHome, ANYTIME_TRAIL_PORT: '1' },
+        });
+      }
+
+      const spool = path.join(repo, '.git', 'anytime', 'stop-hook-spool.jsonl');
+      const lines = fs
+        .readFileSync(spool, 'utf8')
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as { kind: string; payload: Record<string, unknown> });
+      expect(lines.map((e) => e.kind).sort()).toEqual(['flight_review', 'safe_point']);
+      const sp = lines.find((e) => e.kind === 'safe_point');
+      expect(sp?.payload['sessionId']).toBe('sess-hook');
+      expect(sp?.payload['source']).toBe('stop_hook');
+      expect(typeof sp?.payload['commitHash']).toBe('string');
+      const fr = lines.find((e) => e.kind === 'flight_review');
+      expect(fr?.payload['sessionId']).toBe('sess-hook');
+      expect(fr?.payload['endedAt']).toBeTruthy();
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
   });
 
   test('UserPromptSubmit hook registers user-feedback.sh and writes the script (Phase 6 S2)', () => {

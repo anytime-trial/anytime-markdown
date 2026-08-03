@@ -1,0 +1,79 @@
+{
+  "metaDescription": "無料の WYSIWYG マークダウンエディタ。Mermaid / PlantUML 図解、KaTeX 数式、差分比較（diff）、マージ（merge）、表編集に対応。登録不要。",
+  "socialDescription": "無料の WYSIWYG マークダウンエディタ。Mermaid・PlantUML・KaTeX・diff・merge・表編集に対応。登録不要。",
+  "guide": {
+    "heading": "ブラウザで動く Markdown エディタ",
+    "lead": "インストールも登録も要りません — このページを開いた時点で書き始められます。書いたものは標準の Markdown のまま、いつでも手元へ取り出せます。",
+    "featuresHeading": "できること",
+    "features": {
+      "wysiwyg": {
+        "title": "書式が見えたまま書く",
+        "body": "見出しも太字もリストも、記法を覚えないまま整った形で画面に出ます。書き上がったものは標準の Markdown として取り出せます。"
+      },
+      "diagram": {
+        "title": "図をコードブロックから描く",
+        "body": "Mermaid でフローチャートやシーケンス図を、PlantUML でクラス図や配置図を、コードブロックに書いた記法から組み立てます。"
+      },
+      "math": {
+        "title": "数式を組版する",
+        "body": "KaTeX の記法をそのまま書くと、その場で組版された数式に変わります。"
+      },
+      "table": {
+        "title": "表を表として編集する",
+        "body": "パイプ記号を数える代わりに、セルを直接触って行と列を足します。"
+      },
+      "gfm": {
+        "title": "GitHub と同じ記法で書く",
+        "body": "タスクリストと取り消し線に対応します。GitHub へ持っていっても崩れません。"
+      },
+      "code": {
+        "title": "コードに色を付ける",
+        "body": "コードブロックは言語を見分けて色分けします。"
+      },
+      "diff": {
+        "title": "変わった箇所を確かめる",
+        "body": "2 つの版を並べ、変わった行だけを色で示します。そのまま片方へ取り込むこともできます。"
+      },
+      "sync": {
+        "title": "GitHub と Google Drive を行き来する",
+        "body": "リポジトリやドライブのファイルを直接開き、書き終えたら同じ場所へ戻します。"
+      }
+    },
+    "topicsHeading": "記法ごとの詳しい解説",
+    "topicsLead": "図・数式・表・差分については、記法の書き方と例をまとめた解説があります。",
+    "howtoHeading": "使い方",
+    "steps": {
+      "open": {
+        "title": "開く",
+        "body": "設定は要りません。このページがそのままエディタです。"
+      },
+      "write": {
+        "title": "書く",
+        "body": "書いたものはブラウザの中に自動で控えが残ります。閉じてしまっても、次に開いたときに続きから書けます。"
+      },
+      "save": {
+        "title": "持ち出す",
+        "body": "Markdown ファイルとしてダウンロードするか、GitHub か Google Drive へ保存します。"
+      }
+    },
+    "faqHeading": "よくある質問",
+    "faq": {
+      "signup": {
+        "question": "登録は必要ですか。",
+        "answer": "不要です。GitHub や Google Drive へ保存するときだけ、その接続をあなたが承認します。"
+      },
+      "storage": {
+        "question": "書いた内容はどこに保存されますか。",
+        "answer": "既定ではブラウザのローカルストレージだけです。保存先をあなたが選ぶまで、内容がサーバーへ送られることはありません。"
+      },
+      "syntax": {
+        "question": "どの記法に対応していますか。",
+        "answer": "Markdown の標準的な記法に加えて、表・タスクリスト・取り消し線に対応します。さらに Mermaid・PlantUML・KaTeX を本文へ埋め込めます。"
+      },
+      "vscode": {
+        "question": "Visual Studio Code でも使えますか。",
+        "answer": "拡張機能があります。同じエディタを Visual Studio Code の中で開けます。"
+      }
+    }
+  }
+}

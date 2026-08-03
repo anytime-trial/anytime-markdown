@@ -271,4 +271,29 @@ describe('handleTicketsRpc', () => {
       message: undefined,
     });
   });
+
+
+  it('save の extras に __proto__ が来てもプロトタイプ差し替えにならず書き戻される', async () => {
+    // RPC の JSON は `__proto__` を自身のプロパティとして持てる。素のオブジェクト
+    // リテラルへ代入するとプロトタイプの差し替えになり、そのキーだけが黙って消える
+    // （tickets-core のパーサ側は Object.create(null) 化済み。ここが literal のままだと
+    // 拡張 RPC 経由の更新でだけキーが失われ、経路によって挙動が食い違う）。
+    const provider = makeProvider();
+    await call(provider, {
+      type: 'rpc',
+      id: 'proto',
+      method: 'save',
+      params: {
+        path: record.path,
+        version: 'v1',
+        frontmatter: record.frontmatter,
+        extras: JSON.parse('{"__proto__":"kept"}'),
+        body: 'next',
+      },
+    });
+
+    const arg = (provider.update as jest.Mock).mock.calls[0][0];
+    // 実効的な回帰ガードはこの 1 行（リテラルへ戻すとキーが消えて落ちる）。
+    expect(arg.content).toContain('__proto__: kept');
+  });
 });

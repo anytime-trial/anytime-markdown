@@ -13,6 +13,14 @@ interface FlusherOptions {
     startedAt: string;
 }
 
+/**
+ * 出力するスキーマバージョン。trace-core の `CURRENT_TRACE_VERSION` を**値として** import しない
+ * （trace-core は TS ソースを配る型専用パッケージで、実行時 require は
+ * `node --require @anytime-markdown/trace-agent-node` を ERR_MODULE_NOT_FOUND で落とす）。
+ * 型を `TraceFile['version']` に固定しているため、スキーマが上がればここが型エラーになる。
+ */
+const OUTPUT_TRACE_VERSION: TraceFile['version'] = 2;
+
 export class Flusher {
     private readonly opts: FlusherOptions;
 
@@ -41,6 +49,8 @@ export class Flusher {
                     to: entry.lifelineId!,
                     fn: entry.fn!, args: (entry.args ?? []).map(a => safeSerialize(a)) as JsonValue[],
                     depth: entry.depth ?? 0,
+                    // TRC-5: ソースジャンプ先。行番号が取れなかった呼び出しでは undefined のまま落とす。
+                    ...(entry.loc ? { loc: entry.loc } : {}),
                 };
             }
             if (entry.type === 'return') {
@@ -82,7 +92,7 @@ export class Flusher {
         }
 
         const traceFile: TraceFile = {
-            version: 1,
+            version: OUTPUT_TRACE_VERSION,
             metadata: {
                 startedAt,
                 endedAt,

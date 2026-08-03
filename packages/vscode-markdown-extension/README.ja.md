@@ -25,6 +25,14 @@ Anytime Markdown なら、WYSIWYG エディタで Markdown をリッチに表示
 - **ドキュメント検索とノート網** — ドキュメントリポジトリ全体を横断検索し、文書同士のつながりをグラフで表示
 - **履歴とコミット比較** — Timeline ビューから過去のコミット時点の内容と差分比較
 
+記法ごとの解説（そのままエディタへ貼れる例つき）:
+
+- [Mermaid](https://www.anytime-trial.com/markdown/mermaid) — フローチャート・シーケンス図
+- [PlantUML](https://www.anytime-trial.com/markdown/plantuml) — クラス図・配置図
+- [KaTeX](https://www.anytime-trial.com/markdown/katex) — LaTeX 記法の数式
+- [差分・マージ](https://www.anytime-trial.com/markdown/diff) — 2 つの版を並べて比べる
+- [表](https://www.anytime-trial.com/markdown/table) — パイプ記号を数えずに表を作る
+
 
 ## 2. はじめかた
 

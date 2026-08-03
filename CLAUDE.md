@@ -1,10 +1,10 @@
 # CLAUDE.md（anytime-markdown プロジェクト固有）
 
-更新日: 2026-07-16
+更新日: 2026-08-03
 
 > 汎用の作業スタイル・Git 哲学・サブエージェント方針・応答ルールは `~/.claude/CLAUDE.md`（global）に従う。\
 > ツール中立な規約（リポジトリ構成・ドキュメント正本の位置づけ・出力先・モノレポ構造・Git 基本）は `AGENTS.md`（Claude / Codex 共通）に従う。\
-> 本ファイルは Claude 固有の補足（discovery 手順・Trail DB・並行セッション検知・スキル参照）のみを定義する。
+> 本ファイルは Claude 固有の補足（保存先・discovery 手順・Trail DB・並行セッション検知・スキル参照）のみを定義する。
 
 ## ツール中立規約は AGENTS.md を参照
 
@@ -16,6 +16,13 @@
 - 設計書（spec）・提案（proposal）・プラン（plan）・レビュー（review）・レポート（report）等のドキュメントは docsRoot 配下へ出力する（コード repo 内に置かない）。
 - スキル・ドキュメント内の `<docsRoot>` プレースホルダは本節の値に読み替える。スキル本文へ docs リポジトリの絶対パスを直接記載しない（保存先は本節が単一の正）。
 - `anytime-dev-cycle` の preflight.cjs は本節の `- docsRoot:` 行を自動解決する（`--docs-root` 指定時はそちらを優先）。
+
+## チケット保存先（ticketsRoot）
+
+- ticketsRoot: /Shared/anytime-ticket（独立した git リポジトリ・ブランチ `main`）。チケットの正本は `<ticketsRoot>/.tickets/*.md`、アーカイブは `<ticketsRoot>/.tickets/archive/`。VS Code の Anytime Tickets 拡張がこのリポジトリを指すよう設定されている。
+- **コードリポジトリ（`/anytime-markdown`）に `.tickets/` を作らない。** `anytime-loop-start` スキルと `tickets-core` の `TICKETS_DIR = '.tickets'` はワークスペース相対の記述だが、実際の設定先は上記の別リポジトリ。
+- **ID はリポジトリ全体で通番。** 起票前に既存の最大 ID を確認する（`tickets-core` の `nextTicketId` に既存 ID 配列を渡す）。ticketsRoot は複数ワークスペース共有で、対象は frontmatter の `workspace`（`anytime-markdown` / `anytime-trade` / `other`）が区別する。
+- 起票後は目視でなく実パーサで検証する（`npx tsx` で `tickets-core` の `parseTicketMarkdown` + `validateTicketFrontmatter` に全件通し、ID 重複と `dependencies` の実在も確認する）。
 
 ## Claude 固有のドキュメント参照
 
@@ -37,6 +44,16 @@
   **注意**: Trail 拡張のインポートラグ（数十分〜VS Code リロード）のため直近データは未取込の場合あり。
 
 - **discovery 順序（mcp-trail discovery ツール優先）**: 構造・依存・所在の探索は (1) どこから読むか＝`get_important_files`（filter: central/dead/barrel/risky）→ (2) 影響範囲＝`get_code_dependencies`（filePath 可・incoming/outgoing）/ シンボル所在＝`query_code_graph`（検索専用・既定 summary）/ 接続経路＝`find_code_path` / 共変更＝`get_cochange_partners` → Serena（本文）→ Read（編集箇所）の順（原則は global `~/.claude/CLAUDE.md`「discovery の順序」）。`current_code_graphs.graph_json` の丸読み（約43万トークン）と `list_relationships` の影響範囲用途は禁止（後者は手動 C4 専用。影響範囲は `get_code_dependencies` を使う）。TrailDataServer 稼働が前提（未起動時はエラー）。
+
+## ドクトリン接地判断の並走記録（D1）
+
+中間承認（What 承認）の一致率を実測するための並走記録。**承認フローは変えない**（承認は従来どおり人が行う）。正本は `<docsRoot>/spec/31.trail/16.doctrine-judgment/doctrine-judgment.ja.md`。
+
+1. 段2 等で What 承認の AskUserQuestion を出す**直前**に、mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。
+2. ユーザーの回答を受けた**直後**に `record_human_decision` で実際の判断（approve/reject/modified）を記録する。
+3. 記録失敗（TrailDataServer 未起動・DB 不在等）は承認フローを止めず、失敗した事実を応答に 1 行残す（silent skip 禁止）。
+4. session_id は airspace クレームファイル（`.git/anytime/claims/`）の自セッション ID を使う。
+5. 一致率・エスカレーション率の確認は `get_doctrine_agreement`（D2 昇格ゲートの判定材料）。
 
 ## 並行セッション検知（airspace）
 

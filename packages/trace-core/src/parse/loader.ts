@@ -1,27 +1,16 @@
 import * as fs from 'node:fs/promises';
 import type { TraceFile } from '../types';
+import { migrateTraceFile } from './migrate';
 
-const REQUIRED_METADATA_FIELDS = ['startedAt', 'endedAt', 'command', 'cwd', 'nodeVersion', 'depthLimit'] as const;
-
+/**
+ * Node 環境専用の trace ファイルローダ。読み込んだ JSON は `migrateTraceFile` を通すため、
+ * 旧バージョン（v1）のファイルも現行スキーマとして返る。
+ *
+ * `node:fs/promises` に依存するため、webview / ブラウザ向けの barrel からは公開しない
+ * （バンドラが Node 組み込みを解決できず落ちる）。移送規則が要る consumer は
+ * `migrateTraceFile` を直接 import する。
+ */
 export async function loadTraceFile(filePath: string): Promise<TraceFile> {
     const text = await fs.readFile(filePath, 'utf-8');
-    const data = JSON.parse(text);
-    if (data.version !== 1) {
-        throw new Error(`Unsupported trace version: ${data.version}`);
-    }
-    if (!data.metadata || typeof data.metadata !== 'object') {
-        throw new Error('Missing metadata');
-    }
-    for (const k of REQUIRED_METADATA_FIELDS) {
-        if (!(k in data.metadata)) {
-            throw new Error(`Missing metadata.${k}`);
-        }
-    }
-    if (!Array.isArray(data.lifelines)) {
-        throw new TypeError('lifelines must be array');
-    }
-    if (!Array.isArray(data.events)) {
-        throw new TypeError('events must be array');
-    }
-    return data as TraceFile;
+    return migrateTraceFile(JSON.parse(text));
 }

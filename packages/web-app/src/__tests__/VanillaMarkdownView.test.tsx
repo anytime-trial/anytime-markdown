@@ -23,7 +23,7 @@ jest.mock("@anytime-markdown/markdown-react-islands", () => ({
   ),
 }));
 
-import VanillaMarkdownView from "../app/components/VanillaMarkdownView";
+import VanillaMarkdownView from "../app/[locale]/components/VanillaMarkdownView";
 
 const mockT = (key: string) => key;
 

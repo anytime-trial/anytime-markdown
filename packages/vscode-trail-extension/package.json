@@ -2,13 +2,14 @@
   "name": "anytime-trail",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.40.1",
+  "version": "0.41.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
     "type": "git",
     "url": "https://github.com/anytime-trial/anytime-markdown.git"
   },
+  "homepage": "https://www.anytime-trial.com",
   "engines": {
     "vscode": "^1.109.0"
   },
@@ -22,6 +23,7 @@
     "analysis"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onView:anytimeTrail.dashboard"
   ],
   "icon": "images/anytime-control-256.png",

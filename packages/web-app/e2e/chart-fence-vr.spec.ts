@@ -13,6 +13,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { localePath } from "./helpers";
 
 /** markdown エディタに書き込む anytime-chart フェンスのサンプルコンテンツ。 */
 const CHART_FENCE_CONTENT = `\`\`\`anytime-chart
@@ -50,7 +51,7 @@ for (const mode of ["light", "dark"] as const) {
           modeVal: mode,
         },
       );
-      await page.goto("/markdown");
+      await page.goto(localePath("/markdown"));
       await page.locator(".tiptap").waitFor({ state: "visible" });
       // フォント読み込みと描画完了を待つ
       await page.evaluate(() => document.fonts.ready);

@@ -1,8 +1,11 @@
 import { z } from 'zod';
+import { workspacePathParam } from './workspaceParam';
 import { runReviewAgent, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
 import type { RunReviewAgentResult } from '@anytime-markdown/memory-core/query';
+import { resolveMemoryDbPath } from '../dbPath';
 
 export const RunReviewAgentInputSchema = z.object({
+  workspacePath: workspacePathParam,
   trigger_kind: z.literal('mcp').describe('Trigger kind (must be "mcp")'),
   target_kind: z.enum(['spec', 'code', 'package', 'mixed']).describe('Target type'),
   target_refs: z.array(z.string()).describe('List of target file paths or package names'),
@@ -13,7 +16,7 @@ export const RunReviewAgentInputSchema = z.object({
 export type RunReviewAgentInput = z.infer<typeof RunReviewAgentInputSchema>;
 
 export async function handleRunReviewAgent(input: RunReviewAgentInput): Promise<RunReviewAgentResult> {
-  const memHandle = await openMemoryCoreDb();
+  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return runReviewAgent({ db: memHandle.db, ...input, logger });

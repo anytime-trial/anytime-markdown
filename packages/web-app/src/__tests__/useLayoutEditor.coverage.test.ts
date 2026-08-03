@@ -19,7 +19,7 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-import { useLayoutEditor } from "../app/docs/edit/useLayoutEditor";
+import { useLayoutEditor } from "../app/[locale]/docs/edit/useLayoutEditor";
 
 const mockFiles = [
   { key: "docs/folder1/test.md", name: "test.md", lastModified: "2024-01-01", size: 100 },

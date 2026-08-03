@@ -2,13 +2,14 @@
   "name": "anytime-history",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.2.7",
+  "version": "0.3.0",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
     "type": "git",
     "url": "https://github.com/anytime-trial/anytime-markdown.git"
   },
+  "homepage": "https://www.anytime-trial.com",
   "engines": {
     "vscode": "^1.109.0"
   },

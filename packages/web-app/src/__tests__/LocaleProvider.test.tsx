@@ -23,12 +23,17 @@ jest.mock("@anytime-markdown/database-viewer", () => ({
   DatabaseI18nProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-import { LocaleProvider, useLocaleSwitch } from "../app/LocaleProvider";
+import { LocaleProvider, useLocaleSwitch } from "../app/[locale]/LocaleProvider";
+import {
+  __resetNavigationMock,
+  __setMockPathname,
+  mockRouter,
+} from "../__mocks__/i18nNavigation";
 
 describe("useLocaleSwitch (via LocaleProvider)", () => {
   beforeEach(() => {
+    __resetNavigationMock();
     localStorage.clear();
-    document.cookie = "NEXT_LOCALE=; max-age=0";
   });
 
   const createWrapper =
@@ -37,31 +42,40 @@ describe("useLocaleSwitch (via LocaleProvider)", () => {
       <LocaleProvider serverLocale={serverLocale}>{children}</LocaleProvider>
     );
 
-  test("localStorage が空の場合は serverLocale を使用する", () => {
+  test("URL 由来の serverLocale をそのまま使う", () => {
     const { result } = renderHook(() => useLocaleSwitch(), {
       wrapper: createWrapper("en"),
     });
     expect(result.current.locale).toBe("en");
   });
 
-  test("localStorage の値を serverLocale より優先する", () => {
+  test("localStorage は参照しない（URL がロケールの唯一の決定要因）", () => {
     localStorage.setItem("NEXT_LOCALE", "en");
     const { result } = renderHook(() => useLocaleSwitch(), {
       wrapper: createWrapper("ja"),
     });
-    expect(result.current.locale).toBe("en");
+    expect(result.current.locale).toBe("ja");
   });
 
-  test("デフォルトは ja", () => {
-    const langSpy = jest.spyOn(window.navigator, "language", "get").mockReturnValue("zh");
+  test("ブラウザ言語で自動切替しない", () => {
+    const langSpy = jest.spyOn(window.navigator, "language", "get").mockReturnValue("en-US");
+    const { result } = renderHook(() => useLocaleSwitch(), {
+      wrapper: createWrapper("ja"),
+    });
+    expect(result.current.locale).toBe("ja");
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    langSpy.mockRestore();
+  });
+
+  test("未知の serverLocale は既定ロケール（ja）へ縮退する", () => {
     const { result } = renderHook(() => useLocaleSwitch(), {
       wrapper: createWrapper("unknown"),
     });
     expect(result.current.locale).toBe("ja");
-    langSpy.mockRestore();
   });
 
-  test("setLocale でロケールを切替し localStorage に永続化する", () => {
+  test("setLocale は同じパスの対応ロケールへ遷移する", () => {
+    __setMockPathname("/markdown");
     const { result } = renderHook(() => useLocaleSwitch(), {
       wrapper: createWrapper("ja"),
     });
@@ -70,13 +84,37 @@ describe("useLocaleSwitch (via LocaleProvider)", () => {
       result.current.setLocale("en");
     });
 
-    expect(result.current.locale).toBe("en");
-    expect(localStorage.getItem("NEXT_LOCALE")).toBe("en");
-    expect(document.cookie).toContain("NEXT_LOCALE=en");
+    expect(mockRouter.replace).toHaveBeenCalledWith("/markdown", { locale: "en" });
+  });
+
+  test("クエリとハッシュを保持して遷移する", () => {
+    __setMockPathname("/report");
+    window.history.replaceState({}, "", "/report?page=2#latest");
+
+    const { result } = renderHook(() => useLocaleSwitch(), {
+      wrapper: createWrapper("ja"),
+    });
+
+    act(() => {
+      result.current.setLocale("en");
+    });
+
+    expect(mockRouter.replace).toHaveBeenCalledWith("/report?page=2#latest", { locale: "en" });
+  });
+
+  test("同じロケールを指定しても遷移しない", () => {
+    const { result } = renderHook(() => useLocaleSwitch(), {
+      wrapper: createWrapper("ja"),
+    });
+
+    act(() => {
+      result.current.setLocale("ja");
+    });
+
+    expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 
   test("不正なロケールは無視する", () => {
-    const langSpy = jest.spyOn(window.navigator, "language", "get").mockReturnValue("zh");
     const { result } = renderHook(() => useLocaleSwitch(), {
       wrapper: createWrapper("ja"),
     });
@@ -86,16 +124,7 @@ describe("useLocaleSwitch (via LocaleProvider)", () => {
     });
 
     expect(result.current.locale).toBe("ja");
-    langSpy.mockRestore();
-  });
-
-  test("localStorage が空の場合はブラウザ言語を検出する", () => {
-    const langSpy = jest.spyOn(window.navigator, "language", "get").mockReturnValue("en-US");
-    const { result } = renderHook(() => useLocaleSwitch(), {
-      wrapper: createWrapper("unknown"),
-    });
-    expect(result.current.locale).toBe("en");
-    langSpy.mockRestore();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 
   test("Provider 外で useLocaleSwitch を使うとエラー", () => {

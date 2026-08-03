@@ -15,13 +15,16 @@ jest.mock('../lib/api-helpers', () => ({
 
 jest.mock('next/server', () => ({
   NextResponse: {
-    json: jest.fn((body: unknown) => ({ _body: body })),
+    json: jest.fn((body: unknown, init?: { status?: number }) => ({ _body: body, _init: init })),
   },
 }));
 
 import { GET } from '../app/api/press-reports/route';
 
-type MockResponse = { _body: { daily: unknown; weekly: unknown } };
+type MockResponse = {
+  _body: { daily: unknown; weekly: unknown };
+  _init?: { status?: number };
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -50,14 +53,24 @@ describe('GET /api/press-reports', () => {
     expect(result._body.weekly).toBeNull();
   });
 
-  it('returns empty response on listReports error', async () => {
+  it('returns 503 with empty payload on listReports error', async () => {
     mockListReports.mockRejectedValue(new Error('s3 error'));
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     const result = (await GET()) as unknown as MockResponse;
+    // 形状は成功時と同じに保ち、クライアントの型を壊さない
     expect(result._body.daily).toBeNull();
     expect(result._body.weekly).toBeNull();
+    // 「0 件」と「取得失敗」をクライアントが区別できるよう status で表す
+    expect(result._init?.status).toBe(503);
     consoleSpy.mockRestore();
+  });
+
+  it('returns no error status on success', async () => {
+    mockListReports.mockResolvedValue([]);
+
+    const result = (await GET()) as unknown as MockResponse;
+    expect(result._init?.status).toBeUndefined();
   });
 
   it('handles reports with no category', async () => {

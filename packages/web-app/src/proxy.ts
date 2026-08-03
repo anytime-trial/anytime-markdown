@@ -1,13 +1,40 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import createMiddleware from "next-intl/middleware";
+
+import { routing } from "./i18n/routing";
+
+const handleI18nRouting = createMiddleware(routing);
+
+/**
+ * パスをロケールプレフィックスと残りへ分ける（`/en/docs/edit` → `/en` + `/docs/edit`）。
+ *
+ * Why not: 剥がした後のパスとの長さの差分でプレフィックスを逆算しない。
+ * `/en` → `/` のように長さが 1 対 1 で対応しない入力があり、算術が経路依存で壊れる。
+ */
+function splitLocalePrefix(pathname: string): { prefix: string; rest: string } {
+  for (const locale of routing.locales) {
+    if (pathname === `/${locale}`) return { prefix: `/${locale}`, rest: "/" };
+    if (pathname.startsWith(`/${locale}/`)) {
+      return { prefix: `/${locale}`, rest: pathname.slice(locale.length + 1) };
+    }
+  }
+  return { prefix: "", rest: pathname };
+}
 
 export function proxy(request: NextRequest) {
-  // 本番環境では /docs/edit へのアクセスを /docs/view にリダイレクト
+  // 本番環境では /docs/edit へのアクセスを /docs/view にリダイレクト。
+  // ロケールプレフィックス付き（/en/docs/edit）も同じ扱いにするためプレフィックスを剥がして判定し、
+  // リダイレクト先は同じロケールに留める。
+  const pathname = request.nextUrl.pathname;
+  const { prefix: localePrefix, rest: unprefixed } = splitLocalePrefix(pathname);
   if (
-    request.nextUrl.pathname.startsWith("/docs/edit") &&
+    unprefixed.startsWith("/docs/edit") &&
     process.env.NEXT_PUBLIC_ENABLE_DOCS_EDIT !== "true"
   ) {
-    return NextResponse.redirect(new URL("/docs/view", request.url));
+    // クエリは引き継ぐ（?key=... を落とすと閲覧側で対象ドキュメントを失う）
+    return NextResponse.redirect(
+      new URL(`${localePrefix}/docs/view${request.nextUrl.search}`, request.url),
+    );
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
@@ -45,9 +72,12 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", cspHeader);
 
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  // ロケール解決（rewrite / redirect）は next-intl に委ね、その応答へ CSP を載せる。
+  // NextResponse.next() を自前で返すとロケールの書き換えが打ち消されるため、
+  // x-nonce はヘッダを差し替えた Request として next-intl へ渡す。
+  const response = handleI18nRouting(
+    new NextRequest(request, { headers: requestHeaders }),
+  );
   response.headers.set("Content-Security-Policy", cspHeader);
 
   return response;
@@ -56,8 +86,15 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
+      // robots.txt / sitemap.xml / opengraph-image / twitter-image は app 直下の
+      // 特殊ファイルで、public/ 配下のアセット（icon.svg・images/**・sql/**.wasm）は
+      // ロケールを持たない。除外しないと next-intl がロケール配下へ書き換えてしまい
+      // 404 になる（middleware が rewrite する前は素通りしていたため、除外漏れが
+      // 実害になるのはロケール書き換えを足した以降）。
+      // Why not: 個別ファイル名を列挙しない。public/ にファイルを足すたびに再発する。
+      // 拡張子の一覧で一括除外する（コンテンツのパスは拡張子を持たないため衝突しない）。
       source:
-        "/((?!api|_next/static|_next/image|favicon\\.ico|icons|manifest\\.json|sw\\.js|swe-worker|workbox).*)",
+        "/((?!api|_next/static|_next/image|swe-worker|workbox|opengraph-image|twitter-image|.*\\.(?:ico|png|jpe?g|gif|svg|webp|avif|json|txt|xml|js|mjs|css|map|wasm|woff2?|ttf|md|webmanifest)$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

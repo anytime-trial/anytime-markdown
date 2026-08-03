@@ -1,4 +1,5 @@
 import { test, expect } from "./coverage.fixture";
+import { localePath } from "./helpers";
 
 const MARKDOWN_WITH_HEADINGS = `# First Heading
 
@@ -15,7 +16,7 @@ End text`;
 test.describe("Outline", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
-    await page.goto("/markdown");
+    await page.goto(localePath("/markdown"));
     await page.locator(".tiptap").waitFor({ state: "visible" });
 
     // ソースモードに切替えて見出し付きコンテンツを入力

@@ -1,5 +1,12 @@
 import { handleRunReviewAgent } from '../../tools/runReviewAgent';
 
+// resolveMemoryDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
+// openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
+jest.mock('../../dbPath', () => ({
+  ...jest.requireActual('../../dbPath'),
+  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/memory-core.db',
+}));
+
 jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
@@ -15,7 +22,9 @@ describe('handleRunReviewAgent', () => {
   });
 
   test('registers run and returns run_id immediately (E8)', async () => {
-    const { runReviewAgent: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { runReviewAgent: mockFn, openMemoryCoreDb: mockOpen } = jest.requireMock(
+      '@anytime-markdown/memory-core/query',
+    );
 
     const result = await handleRunReviewAgent({
       trigger_kind: 'mcp',
@@ -24,6 +33,8 @@ describe('handleRunReviewAgent', () => {
       prompt_kind: 'security',
     });
 
+    // 解決したパスが open へ渡っているか（書き込み系ツールでの配線切れの検知）
+    expect(mockOpen).toHaveBeenCalledWith('/tmp/mcp-trail-test/memory-core.db');
     expect(mockFn).toHaveBeenCalledWith(expect.objectContaining({
       trigger_kind: 'mcp',
       target_kind: 'code',

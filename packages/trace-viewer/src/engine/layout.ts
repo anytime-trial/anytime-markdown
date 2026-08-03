@@ -1,7 +1,7 @@
 import type { GraphNode, GraphEdge, NodeStyle, EdgeStyle } from '@anytime-markdown/graph-core';
 import type { CallNode } from '@anytime-markdown/trace-core/parse';
 import { extractLifelines, applyFilters } from '@anytime-markdown/trace-core/analyze';
-import type { TraceFile } from '@anytime-markdown/trace-core/types';
+import type { SourceLocation, TraceFile } from '@anytime-markdown/trace-core/types';
 
 export interface LayoutOptions {
     maxDepth?: number;
@@ -86,6 +86,8 @@ interface ActivationRecord {
     startTick: number;
     lifelineId: string;
     x: number;
+    /** 呼び出しのソース位置（TRC-5 ソースジャンプ先）。trace v1 由来では未設定。 */
+    loc?: SourceLocation;
 }
 
 export function buildSequenceLayout(
@@ -130,7 +132,12 @@ export function buildSequenceLayout(
             height: HEADER_HEIGHT,
             text: label,
             style: { ...styles.node },
-            metadata: { role: 'header', lifelineId: ll.id },
+            // ファイル lifeline のヘッダはファイル先頭へのジャンプ先を持つ（TRC-5）。
+            metadata: {
+                role: 'header',
+                lifelineId: ll.id,
+                ...(ll.kind === 'file' && ll.path ? { sourceFile: ll.path, sourceLine: 1 } : {}),
+            },
         };
         nodes.push(headerNode);
     }
@@ -204,7 +211,11 @@ export function buildSequenceLayout(
                     fontSize: 10,
                     fontFamily: 'sans-serif',
                 },
-                metadata: { role: 'activation', lifelineId: act.lifelineId },
+                metadata: {
+                    role: 'activation',
+                    lifelineId: act.lifelineId,
+                    ...(act.loc ? { sourceFile: act.loc.file, sourceLine: act.loc.line } : {}),
+                },
             });
         }
     }
@@ -241,7 +252,13 @@ function walkNode(
     tick.value += 1;
 
     const actId = uid('act');
-    activations.push({ nodeId: actId, startTick: callTick, lifelineId: node.lifelineId, x: toX });
+    activations.push({
+        nodeId: actId,
+        startTick: callTick,
+        lifelineId: node.lifelineId,
+        x: toX,
+        ...(node.loc ? { loc: node.loc } : {}),
+    });
 
     const isSelfCall = fromX !== null && Math.abs(fromX - toX) < 1;
 
@@ -264,7 +281,11 @@ function walkNode(
                 fontColor: styles.node.fontColor,
                 borderRadius: 4,
             },
-            metadata: { role: 'selfcall', depth: node.depth },
+            metadata: {
+                role: 'selfcall',
+                depth: node.depth,
+                ...(node.loc ? { sourceFile: node.loc.file, sourceLine: node.loc.line } : {}),
+            },
         });
     } else if (fromX !== null) {
         // Cross-lifeline call arrow

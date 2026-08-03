@@ -429,8 +429,8 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   server.onOpenDocLink = (docPath: string) => {
     sendEvent('openDocLink', { docPath });
   };
-  server.onOpenFile = (filePath: string) => {
-    sendEvent('openFile', { filePath });
+  server.onOpenFile = (filePath: string, line?: number) => {
+    sendEvent('openFile', line === undefined ? { filePath } : { filePath, line });
   };
   server.onAddNotePage = (payload) => {
     sendEvent('addNotePage', payload);
@@ -470,6 +470,9 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     const opts2: AnalyzeCurrentOpts = {
       analysisRoot,
       tsconfigPath: req.tsconfigPath,
+      // daemon はバンドル出力 (trail-daemon.js) で動くため常に解析子プロセスへ隔離する。
+      // HTTP request shape には analyzeChildPath が無く、module const の dist/analyze-child.js を使う。
+      compute: { kind: 'child', analyzeChildPath },
       trailDb: httpTrailDb,
       codeGraphService: httpCodeGraphService,
       callbacks: server,
@@ -662,7 +665,8 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
         analysisRoot: req.analysisRoot,
         excludeRoot: req.excludeRoot,
         tsconfigPath: req.tsconfigPath,
-        analyzeChildPath: req.analyzeChildPath,
+        // 呼び出し元 (extension) が渡した dist パスを優先し、無ければ daemon 自身の dist を使う。
+        compute: { kind: 'child', analyzeChildPath: req.analyzeChildPath ?? analyzeChildPath },
         trailDb: httpTrailDb,
         codeGraphService: httpCodeGraphService,
         callbacks: httpServer,

@@ -6,14 +6,18 @@ const lifelineMap = new Map<string, string>();
 let lifelineCounter = 0;
 
 export function __traceEnter(
-    file: string, fn: string, args: unknown[], _depth: number, _line: number
+    file: string, fn: string, args: unknown[], _depth: number, line: number
 ): number {
+    // line が 0 のときは AST から位置が取れなかったケース。0 行目という嘘の位置を
+    // 記録すると viewer が存在しない行へジャンプするため、loc ごと落とす。
+    const loc = line > 0 ? { file, line } : undefined;
     return globalRecorder.enter(
         fileToLifelineId(file),
         null,
         fn,
         args.map(a => safeSerialize(a) as unknown),
-        _depth
+        _depth,
+        loc
     );
 }
 

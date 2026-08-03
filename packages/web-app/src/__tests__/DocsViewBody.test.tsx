@@ -14,21 +14,21 @@ jest.mock("next/link", () => ({
   default: ({ children, ...props }: any) => <a {...props}>{children}</a>,
 }));
 
-jest.mock("../app/LocaleProvider", () => ({
+jest.mock("../app/[locale]/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "ja", setLocale: jest.fn() }),
 }));
 
-jest.mock("../app/components/LandingHeader", () => ({
+jest.mock("../app/[locale]/components/LandingHeader", () => ({
   __esModule: true,
   default: () => <div data-testid="landing-header" />,
 }));
 
-jest.mock("../app/components/SiteFooter", () => ({
+jest.mock("../app/[locale]/components/SiteFooter", () => ({
   __esModule: true,
   default: () => <div data-testid="site-footer" />,
 }));
 
-jest.mock("../app/components/MarkdownViewer", () => ({
+jest.mock("../app/[locale]/components/MarkdownViewer", () => ({
   __esModule: true,
   default: (props: any) => (
     <div
@@ -41,7 +41,7 @@ jest.mock("../app/components/MarkdownViewer", () => ({
   ),
 }));
 
-import DocsViewBody from "../app/docs/view/DocsViewBody";
+import DocsViewBody from "../app/[locale]/docs/view/DocsViewBody";
 
 describe("DocsViewBody", () => {
   it("renders MarkdownViewer when key is provided", () => {

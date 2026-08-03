@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-08-03
+
+### Added
+
+- Bundled the `anytime-reverse-doctrine` skill, which turns code, git history, design documents, and review records into explicit doctrine documents.
+
+### Fixed
+
+- Fixed the extension not activating unless the Trail view was opened, which left both the Stop-hook spool drain and the TrailDataServer down. Added `onStartupFinished` to `activationEvents` so record ingestion no longer depends on UI interaction. The spool mechanism removed total record loss but not ingestion latency; that latency was caused by this activation condition.
+- Moved Stop-hook records to a spool (`<git-common-dir>/anytime/stop-hook-spool.jsonl`) drained by the extension, instead of POSTing directly to the daemon and swallowing failures. Records made while the daemon was down were previously lost without a trace.
+- Delegation prompts now inline the rule text instead of pointing at an unresolvable `{repoRoot}/SKILL.md`.
+
+### Changed
+
+- Added `homepage` to the extension manifest so the Marketplace listing links back to the project site.
+
+### Trail Core (trail-core / trail-server / trail-viewer / trail-db / memory-core / mcp-trail)
+
+- ドクトリン接地判断の記録・照会ツール 3 点（D1）と、承認状態（canon / draft）の解決・集計を追加
+- ドクトリンカバレッジゲート（DCT-10〜12）を shadow mode で追加し、受け入れ確認インターフェース（DCT-13）を追加
+- 境界ドリフトの判定・記録（`boundary_drift_warnings`）と `list_boundary_drift` による照会を追加
+- mcp-trail のワークスペースルート解決を一元化し、全ツールへ注入して fail-closed 化
+- memory-core.db の解決を呼び出し側の責務にし、cwd 基準の暗黙フォールバックを廃止
+- `safe_points` の INSERT を内容キーで冪等化
+- trail-server の `handleHttp` をルートテーブル化し、解析方式を判別子にして HTTP 経路の縮退を型で封じた
+- `TrailDatabase` の認知的複雑度（S3776）超過を 15 件から 0 件へ
+- Python 解析で `node_modules` を常に除外（依存パッケージ同梱の `.py` による汚染を停止）
+
 ## [0.40.1] - 2026-08-01
 
 ### Changed

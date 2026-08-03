@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-08-03
+
+### Changed
+
+- Reduced the cognitive complexity of `installChrome` from 128 to 15 or below by extracting the live-update wiring, the sidebar panel, and the remaining self-contained sections into dedicated modules.
+- Replaced the duplicate `NoteGraphSlot` definition with a reference to the canonical one.
+- Rewrote the collision-avoidance loop in `resolveBoundary` as a `while` loop.
+
+### Fixed
+
+- Allowed HTML5 media elements (`video` / `audio` / `source` / `track` / `picture`) inside `html` fences. They were missing from the sanitizer allowlist and were silently stripped, so a `<video>` block rendered as nothing (issue #155).
+- Allowed the `crossorigin` attribute so cross-origin subtitle tracks (`<track>`) can be loaded.
+
 ## [1.19.0] - 2026-08-01
 
 ### Changed

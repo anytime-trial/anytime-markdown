@@ -5,6 +5,8 @@
 
 **All Anytime extensions in one install.**
 
+**[See the project site](https://www.anytime-trial.com)**
+
 This extension pack includes:
 
 | Extension | Description |

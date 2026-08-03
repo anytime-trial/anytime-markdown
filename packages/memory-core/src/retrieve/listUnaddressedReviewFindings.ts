@@ -34,7 +34,7 @@ export function listUnaddressedReviewFindings(input: {
     params.push(input.severity);
   }
   if (input.daysSinceMin != null) {
-    conditions.push(`rf.recorded_at <= datetime('now', '-' || ? || ' days')`);
+    conditions.push(`rf.recorded_at <= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')`);
     params.push(input.daysSinceMin);
   }
   if (input.target_file_path != null) {

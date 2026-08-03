@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-08-03
+
+### 変更
+
+- 拡張マニフェストに `homepage` を追加し、Marketplace のページからプロジェクトサイトへ辿れるようにした。
+- README にプロジェクトサイトと他の Anytime 拡張へのリンクを追加した。
+
+### Database Core (database-core / database-viewer)
+
+- 変更なし（バージョン同期のみ）
+
 ## [0.3.6] - 2026-08-01
 
 ### 変更

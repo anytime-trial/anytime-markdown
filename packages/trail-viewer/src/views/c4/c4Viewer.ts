@@ -1516,7 +1516,7 @@ export function mountC4Viewer(
 
     // filtered DSM
     let filteredDsm = dsmMatrix;
-    if (filteredDsm && c4Model) {
+    if (filteredDsm) {
       if (currentLevel === 1) filteredDsm = aggregateDsmToC4SystemLevel(filteredDsm, c4Model.elements);
       else if (currentLevel === 2) filteredDsm = aggregateDsmToC4ContainerLevel(filteredDsm, c4Model.elements);
       else if (currentLevel === 3) filteredDsm = aggregateDsmToC4ComponentLevel(filteredDsm, c4Model.elements);

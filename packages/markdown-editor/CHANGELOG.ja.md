@@ -7,6 +7,19 @@
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-08-03
+
+### 変更
+
+- `installChrome` の認知的複雑度を 128 から 15 以下へ下げた（live update 配線・サイドバーパネル・残る自己完結セクションを個別モジュールへ切り出し）。
+- `NoteGraphSlot` の重複定義をやめ、正本を参照するようにした。
+- `resolveBoundary` の衝突回避ループを `while` へ書き換えた。
+
+### 修正
+
+- `html` フェンス内の HTML5 media 要素（`video` / `audio` / `source` / `track` / `picture`）を描画できるようにした。サニタイザの allowlist に無く黙って除去されるため `<video>` が何も表示されない状態だった（issue #155）。
+- `crossorigin` 属性を許可し、別オリジンの字幕トラック（`<track>`）を読み込めるようにした。
+
 ## [1.19.0] - 2026-08-01
 
 ### 変更

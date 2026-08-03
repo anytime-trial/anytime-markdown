@@ -142,6 +142,19 @@ export {
   emergencySpoolPath,
 } from './status/emergencySpool';
 export type { EmergencySpoolEvent } from './status/emergencySpool';
+export {
+  STOP_HOOK_SPOOL_MAX,
+  appendStopHookSpool,
+  consolidateStopHookSpoolEvents,
+  drainStopHookSpool,
+  isStopHookSpoolEvent,
+  stopHookSpoolPath,
+} from './status/stopHookSpool';
+export type {
+  FlightReviewSpoolPayload,
+  SafePointSpoolPayload,
+  StopHookSpoolEvent,
+} from './status/stopHookSpool';
 export type {
   AgentSessionRow,
   AgentSessionEdit,

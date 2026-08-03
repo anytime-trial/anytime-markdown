@@ -10,15 +10,15 @@ jest.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }));
 
-jest.mock("../app/LocaleProvider", () => ({
+jest.mock("../app/[locale]/LocaleProvider", () => ({
   useLocaleSwitch: () => ({ locale: "en", setLocale: jest.fn() }),
 }));
 
-jest.mock("../app/providers", () => ({
+jest.mock("../app/[locale]/providers", () => ({
   useThemeMode: () => ({ themeMode: "light", setThemeMode: jest.fn() }),
 }));
 
-import LandingHeader from "../app/components/LandingHeader";
+import LandingHeader from "../app/[locale]/components/LandingHeader";
 
 describe("LandingHeader", () => {
   it("renders the wordmark", () => {

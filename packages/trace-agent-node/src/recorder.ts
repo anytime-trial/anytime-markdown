@@ -9,12 +9,20 @@ export class Recorder {
         this._depthLimit = opts.depthLimit;
     }
 
-    enter(lifelineId: string, fromLifelineId: string | null, fn: string, args: unknown[], depth: number): number {
+    enter(
+        lifelineId: string,
+        fromLifelineId: string | null,
+        fn: string,
+        args: unknown[],
+        depth: number,
+        loc?: { file: string; line: number },
+    ): number {
         if (depth > this._depthLimit) return -1;
         const id = ++this._counter;
         this._entries.push({
             id, type: 'call', ts: performance.now(),
             lifelineId, fromLifelineId, fn, args, depth,
+            ...(loc ? { loc } : {}),
         });
         return id;
     }

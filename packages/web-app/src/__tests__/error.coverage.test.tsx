@@ -9,7 +9,7 @@ jest.mock("next-intl", () => ({
   },
 }));
 
-import ErrorPage from "../app/error";
+import ErrorPage from "../app/[locale]/error";
 
 describe("ErrorPage", () => {
   it("renders error message and retry button", () => {

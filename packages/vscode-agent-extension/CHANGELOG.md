@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-08-03
+
+### Added
+
+- Bundled the `anytime-ux-archeologist` skill, which reverse-engineers the design system, the UI/UX design intent, and a usability report from a running web app without access to its source.
+- Added a 48-item heuristic evaluation checklist to the skill and implemented the four measurement perspectives that were declared but missing from `measure-ux.js`.
+
+### Fixed
+
+- Fixed the checklist section breakdown so the totals match the actual data.
+- Fixed unknown keys in `extras` being dropped when a ticket passes through the API / RPC layer.
+- Addressed eight pre-merge review findings in the bundled skill.
+
+### Changed
+
+- Added `homepage` to the extension manifest and links to the project site and the other Anytime extensions in the README.
+
 ## [1.11.0] - 2026-08-01
 
 ### Added

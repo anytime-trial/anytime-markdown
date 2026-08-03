@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { localePath } from "./helpers";
 
 const STORAGE_KEY = "markdown-editor-content";
 
@@ -19,7 +20,7 @@ test.describe("狭幅でのテーブル横スクロール", () => {
       },
       [STORAGE_KEY, WIDE_TABLE_MD] as const,
     );
-    await page.goto("/markdown");
+    await page.goto(localePath("/markdown"));
 
     const wrapper = page.locator(".tiptap .tableWrapper").first();
     await wrapper.waitFor({ state: "visible" });

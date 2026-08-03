@@ -516,7 +516,21 @@ describe('TrailDataServer — handleWsMessage: provider 不要のコマンド', 
     ws.send(JSON.stringify({ type: 'open-file', filePath: '/src/foo.ts' }));
     await new Promise((r) => setTimeout(r, 100));
 
-    expect(onOpenFile).toHaveBeenCalledWith('/src/foo.ts');
+    expect(onOpenFile).toHaveBeenCalledWith('/src/foo.ts', undefined);
+    await closeWs(ws);
+  });
+
+  it('open-file の line（TRC-5 ソースジャンプ）はコールバックへ素通しする', async () => {
+    const onOpenFile = jest.fn();
+    server.onOpenFile = onOpenFile;
+
+    const ws = await connectWs(port);
+    await new Promise((r) => setTimeout(r, 50));
+
+    ws.send(JSON.stringify({ type: 'open-file', filePath: '/src/foo.ts', line: 42 }));
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(onOpenFile).toHaveBeenCalledWith('/src/foo.ts', 42);
     await closeWs(ws);
   });
 

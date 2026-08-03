@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
+import { localePath } from "./helpers";
 
-const TRAIL_URL = '/trail';
+const TRAIL_URL = localePath('/trail');
 const RUNS = 5;
 
 interface RunResult {

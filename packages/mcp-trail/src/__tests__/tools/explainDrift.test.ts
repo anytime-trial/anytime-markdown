@@ -1,5 +1,12 @@
 import { handleExplainDrift } from '../../tools/explainDrift';
 
+// resolveMemoryDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
+// openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
+jest.mock('../../dbPath', () => ({
+  ...jest.requireActual('../../dbPath'),
+  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/memory-core.db',
+}));
+
 jest.mock('@anytime-markdown/memory-core/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
@@ -15,7 +22,7 @@ jest.mock('@anytime-markdown/memory-core/query', () => ({
     sources: [
       { source: 'conversation', items: [{ value: 'talked about X' }] },
       { source: 'spec', items: [{ rel_path: 'spec/feature.md', title: 'Feature Spec', summary: 'desc', line_hint: 5, value: 'spec says Y' }] },
-      { source: 'code', items: [{ file_path: 'src/feature.ts', fact_kind: 'function', fact_value: 'does Z', last_seen_at: '2026-05-01T00:00:00.000Z' }] },
+      { source: 'code', items: [{ file_path: 'src/feature.ts', fact_type: 'function', fact_value: 'does Z', recorded_at: '2026-05-01T00:00:00.000Z' }] },
     ],
   }),
 }));

@@ -10,7 +10,7 @@ jest.mock("next/link", () => ({
   default: ({ children, ...props }: any) => <a {...props}>{children}</a>,
 }));
 
-import SiteFooter from "../app/components/SiteFooter";
+import SiteFooter from "../app/[locale]/components/SiteFooter";
 
 describe("SiteFooter", () => {
   it("renders footer element", () => {

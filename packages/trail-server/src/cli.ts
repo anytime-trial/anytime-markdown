@@ -83,7 +83,10 @@ program
     // CLI は standalone（typescript 同梱）のため /api/trail/refresh の release 解析は
     // in-process `analyze` を analyzeReleaseFn として注入する（daemon は analyze-child へ委譲）。
     const { analyze } = await import('@anytime-markdown/trail-core/analyze');
-    const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0], undefined, undefined, analyze);
+    // memory-core.db は trail.db と同じ dbStorageDir に置かれる。ここで明示的に渡す
+    // （MemoryApiHandler 側の cwd 基準の暗黙解決を廃したため。解決結果は従来と同一）。
+    const memoryDbPath = join(dbStorageDir, 'memory-core.db');
+    const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0], memoryDbPath, undefined, analyze);
 
     // extension_logs 専用 DB を better-sqlite3 で開き、LogService を wire する。
     // trail.db とは別ファイルとし、WAL 競合と性能影響を避ける。
@@ -561,6 +564,11 @@ async function runCurrentCodeAnalysis(args: {
     analysisRoot,
     excludeRoot,
     tsconfigPath: resolvedTsconfig,
+    // standalone CLI は在来どおりホスト内で計算する（ソース起動時は computeAnalysis.js を解決できる）。
+    // FIXME: webpack バンドル (dist/cli.js) では webpackIgnore により computeAnalysis.js が
+    // 出力されないため、この経路はバンドル形態では失敗する（daemon の HTTP 経路と同じ欠陥）。
+    // 解消には analyze-child を trail-server の webpack entry に追加し kind:'child' へ切り替える。
+    compute: { kind: 'in-host' },
     trailDb,
     callbacks: server,
     codeGraphService,

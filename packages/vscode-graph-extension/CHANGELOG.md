@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-03
+
+### Changed
+
+- Added `homepage` to the extension manifest so the Marketplace listing links back to the project site.
+
+### Graph Core (graph-core)
+
+- テストのみの変更（挙動の変更なし）
+
 ## [1.0.0] - 2026-08-01
 
 ### Changed

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-08-03
+
+### Changed
+
+- Added `homepage` to the extension manifest so the Marketplace listing links back to the project site.
+- Rewrote the README, which was previously close to empty, with an overview, the feature list, and usage, plus links to the project site and the other Anytime extensions.
+
 ## [0.8.2] - 2026-08-01
 
 ### Changed

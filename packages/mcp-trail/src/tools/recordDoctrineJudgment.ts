@@ -1,0 +1,106 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import { z } from 'zod';
+import { workspacePathParam } from './workspaceParam';
+import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
+import { openTrailDb } from '../sqlite/openDb';
+import { resolveCitations, type ResolvedCitation } from '../doctrine/resolveCitations';
+import { evaluateCoverageGate, type CoverageGateResult } from '../doctrine/coverageGate';
+import { resolveOddConfig } from '../doctrine/oddRoots';
+import {
+  recordDoctrineJudgmentDirect,
+  type DoctrineJudgmentRecordResult,
+} from '../sqlite/doctrineJudgments';
+
+export const RecordDoctrineJudgmentInputSchema = z.object({
+  session_id: z.string().min(1).describe('Recording session ID (Claude Code session UUID)'),
+  subject: z
+    .string()
+    .min(1)
+    .describe('What approval this judgment is for (stable key; re-recording the same subject overwrites and resets the human decision)'),
+  judgment: z
+    .enum(['approve', 'reject', 'escalate'])
+    .describe('Agent judgment grounded in approved doctrine'),
+  coverage: z
+    .enum(['covered', 'silent', 'conflict', 'odd_out'])
+    .describe('Doctrine coverage: covered / silent (no clause) / conflict (clauses disagree) / odd_out (outside ODD)'),
+  citations: z
+    .array(
+      z.object({
+        doc_path: z.string().describe('Absolute path to the doctrine document'),
+        section: z.string().describe('Section heading the quote belongs to'),
+        quote: z.string().describe('Verbatim quote from the document (whitespace differences tolerated)'),
+      }),
+    )
+    .default([])
+    .describe('Grounding citations. Each is resolution-checked (file exists + quote matches) at record time'),
+  target_paths: z
+    .array(z.string())
+    .optional()
+    .describe('Absolute paths the decision affects. Omitted = ODD boundary undecidable, which the coverage gate treats as escalate (fail-closed)'),
+  severity: z
+    .enum(['low', 'medium', 'high'])
+    .optional()
+    .describe('Caller-declared severity. Omitted = undecidable, which the coverage gate treats as escalate (fail-closed)'),
+  judged_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
+  workspacePath: workspacePathParam,
+});
+
+export type RecordDoctrineJudgmentInput = z.infer<typeof RecordDoctrineJudgmentInputSchema>;
+
+export interface RecordDoctrineJudgmentResult extends DoctrineJudgmentRecordResult {
+  readonly citations: ReadonlyArray<ResolvedCitation>;
+  /** カバレッジゲートの判定 (D1 では記録のみ。承認フローは変えない) */
+  readonly gate: CoverageGateResult;
+}
+
+/** 判断記録は router (HTTP-first) を経由しない。better-sqlite3 のファイル直書きは
+ * SQLite のロックで並行安全であり、拡張側の HTTP ハンドラ追加・再配布を待たずに
+ * 記録を開始できることを優先する (D1 は計測段階で書込頻度も低い)。 */
+function readTextFile(path: string): string | null {
+  try {
+    return fs.readFileSync(path, 'utf8');
+  } catch {
+    // 不在・権限エラーは「解決不能」として扱う (呼び出し側が file_not_found / 既定値へ倒す)
+    return null;
+  }
+}
+
+export async function handleRecordDoctrineJudgment(
+  input: RecordDoctrineJudgmentInput,
+): Promise<RecordDoctrineJudgmentResult> {
+  const resolved = resolveCitations(
+    input.citations.map((c) => ({ docPath: c.doc_path, section: c.section, quote: c.quote })),
+    readTextFile,
+  );
+  // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
+  const workspacePath = resolveWorkspacePath(input.workspacePath).path;
+  const gate = evaluateCoverageGate({
+    coverage: input.coverage,
+    citations: resolved,
+    targetPaths: input.target_paths,
+    severity: input.severity,
+    odd: resolveOddConfig({
+      workspacePath: workspacePath ?? process.cwd(),
+      homeDir: os.homedir(),
+      readFile: readTextFile,
+    }),
+  });
+  const dbPath = resolveDbPath({ workspacePath });
+  const opened = await openTrailDb(dbPath, 'readwrite');
+  try {
+    const result = recordDoctrineJudgmentDirect(opened.db, {
+      sessionId: input.session_id,
+      subject: input.subject,
+      judgment: input.judgment,
+      coverage: input.coverage,
+      citations: resolved,
+      gate,
+      ...(input.judged_at === undefined ? {} : { judgedAt: input.judged_at }),
+    });
+    opened.save();
+    return { ...result, citations: resolved, gate };
+  } finally {
+    opened.close();
+  }
+}

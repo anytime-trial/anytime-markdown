@@ -61,6 +61,23 @@ describe('TrailDatabase emergency (safe_points / emergency_log)', () => {
     expect(points.some((p) => p.label === 'p501')).toBe(true);
   });
 
+  it('is idempotent for identical safe points (at-least-once drain resend is absorbed)', () => {
+    const input = safePoint({ sessionId: 'sess-sp', label: 'stop' });
+    db.recordSafePoint(input);
+    db.recordSafePoint(input); // 再送（spool drain の POST タイムアウト後の再試行を模擬）
+    expect(db.listSafePoints().filter((p) => p.sessionId === 'sess-sp')).toHaveLength(1);
+
+    // sessionId が null でも冪等（IS 比較で NULL 同士が一致すること）
+    const nullInput = safePoint({ sessionId: null, label: 'null-key' });
+    db.recordSafePoint(nullInput);
+    db.recordSafePoint(nullInput);
+    expect(db.listSafePoints().filter((p) => p.label === 'null-key')).toHaveLength(1);
+
+    // 内容が 1 列でも異なれば別のセーフポイントとして記録される
+    db.recordSafePoint(safePoint({ sessionId: 'sess-sp', label: 'stop', createdAt: '2026-07-16T12:00:00.000Z' }));
+    expect(db.listSafePoints().filter((p) => p.sessionId === 'sess-sp')).toHaveLength(2);
+  });
+
   it('rejects an invalid safe point source via CHECK constraint', () => {
     expect(() =>
       db.recordSafePoint(safePoint({ source: 'invalid' as never })),

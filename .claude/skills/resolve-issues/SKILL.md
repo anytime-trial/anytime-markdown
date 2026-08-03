@@ -50,15 +50,31 @@ GitHub Issues、Security Alerts、Dependabot Alerts、Code Scanning Alerts（Cod
 
 ```bash
 # GitHub Issues / Security Alerts / Dependabot Alerts / Code Scanning (CodeQL)
-bash .claude/skills/resolve-issues/scripts/fetch-github-issues.sh <owner/repo>
+# 統合済み JSON 配列は stdout、取得件数と失敗理由は stderr に出るので分けて受ける。
+bash .claude/skills/resolve-issues/scripts/fetch-github-issues.sh <owner/repo> \
+  > /tmp/gh-issues.json 2> /tmp/gh-issues.err
 
 # SonarCloud Issues + Security Hotspots（プロジェクトルートで実行）
-# fetch-sonar-issues.sh は Issues と Hotspots の両方を収集する
-cd <project-root> && bash .claude/skills/resolve-issues/scripts/fetch-sonar-issues.sh
+# fetch-sonar-issues.sh は Issues と Hotspots の両方を収集する。SONAR_TOKEN があれば使う。
+cd <project-root> && bash .claude/skills/resolve-issues/scripts/fetch-sonar-issues.sh \
+  > /tmp/sonar-issues.json 2> /tmp/sonar-issues.err
 ```
 
 > [!IMPORTANT]
-> Security Hotspot は別 API（`api/hotspots/search`）。`jq` 未インストール環境では curl + node で取得する。
+> **1 ソースの取得失敗はスクリプトを止めない**（PAT 権限不足の 403 等）。失敗したソースは 0 件になり、
+> `WARN: <ソース名> ...` が stderr に出る。**stderr を必ず読み、失敗したソースは
+> レポートの収集結果へ「取得不可」として残す**（0 件と取り違えない）。各ソースの取得件数も
+> `INFO:` 行に出る。
+>
+> 終了コードは両スクリプトとも「1 つ以上収集できた＝0」。`fetch-sonar-issues.sh` のみ、
+> **全ソースが失敗して成果ゼロのときは 1** を返す（0 件（正常）と区別するため）。
+
+> [!IMPORTANT]
+> Security Hotspot は別 API（`api/hotspots/search`）。上のスクリプトが両方収集するので通常は不要だが、
+> `jq` 未インストール環境では下記の curl + node で取得する。
+>
+> SonarCloud の検索 API は **先頭 10,000 件しか返さない**（`p * ps > 10000` はエラー）。
+> スクリプトは上限に達すると専用の WARN を出す。超えた場合は条件で絞って複数回に分ける。
 
 ```bash
 # Security Hotspots（TO_REVIEW を全件、ページング ps=500）

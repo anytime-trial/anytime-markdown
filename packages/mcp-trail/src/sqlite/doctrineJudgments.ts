@@ -1,0 +1,378 @@
+import type { Database } from 'better-sqlite3';
+import {
+  CREATE_DOCTRINE_JUDGMENTS,
+  CREATE_DOCTRINE_JUDGMENT_INDEXES,
+} from '@anytime-markdown/trail-core';
+import type { ResolvedCitation } from '../doctrine/resolveCitations';
+import type { CoverageGateResult } from '../doctrine/coverageGate';
+
+export type AgentJudgment = 'approve' | 'reject' | 'escalate';
+export type Coverage = 'covered' | 'silent' | 'conflict' | 'odd_out';
+export type HumanDecision = 'approve' | 'reject' | 'modified';
+
+export interface DoctrineJudgmentInput {
+  readonly sessionId: string;
+  readonly subject: string;
+  readonly judgment: AgentJudgment;
+  readonly coverage: Coverage;
+  readonly citations: ReadonlyArray<ResolvedCitation>;
+  readonly judgedAt?: string;
+  /** カバレッジゲートの判定 (DCT-10〜12)。未評価なら省略し、列は NULL のままにする */
+  readonly gate?: CoverageGateResult;
+}
+
+export interface DoctrineJudgmentRecordResult {
+  readonly id: number;
+  readonly citationCount: number;
+  readonly resolvedCount: number;
+}
+
+export interface HumanDecisionResult {
+  /** escalate 判断は一致率の分母外のため null */
+  readonly agreement: boolean | null;
+  readonly agentJudgment: AgentJudgment;
+}
+
+export interface DoctrineAgreementMetrics {
+  readonly total: number;
+  readonly decided: number;
+  readonly pending: number;
+  /** covered かつ人の判断記録済み かつ agent != escalate を分母とする一致率 */
+  readonly agreementRate: number | null;
+  /** escalate または coverage != covered の割合（分母 = total） */
+  readonly escalationRate: number | null;
+  /** 解決検査を通過した引用の割合 */
+  readonly citationResolutionRate: number | null;
+  /**
+   * canon 接地率 (DCT-3)。covered 判断のうち、承認済み条項 (canon) または明文規約
+   * (canon_by_document) の引用を 1 件以上持つものの割合。一致率が高くても未承認条項に
+   * 依存した判断は代行根拠にならないため、D2 昇格ゲートは本指標を併せて見る。
+   */
+  readonly canonGroundedRate: number | null;
+  /**
+   * 代行可能率 (DCT-10〜12)。カバレッジゲートが `delegable` と判定した割合。分母は
+   * ゲート判定を持つレコードのみ (ゲート導入前のレコードは判定していないため除く)。
+   * D2 昇格時に「どれだけの What 承認が代行に置き換わるか」の見積りになる。
+   */
+  readonly delegableRate: number | null;
+}
+
+/**
+ * テーブルは拡張 (TrailDatabase) 側でも作成されるが、拡張の再ビルド・再配布より
+ * 先に本ツールが動けるよう、書込前に冪等作成する (DDL は trail-core が単一の正)。
+ */
+/**
+ * テーブル本体より後に追加した列。既存 DB には ALTER TABLE で足す (純追加・既存行は
+ * NULL のまま)。DDL は trail-core の CREATE 文と同じ制約を書き写す。
+ */
+const ADDED_COLUMNS: ReadonlyArray<{ readonly name: string; readonly ddl: string }> = [
+  {
+    name: 'gate_verdict',
+    ddl: `ALTER TABLE doctrine_judgments ADD COLUMN gate_verdict TEXT CHECK (gate_verdict IS NULL OR gate_verdict IN ('delegable', 'escalate'))`,
+  },
+  {
+    name: 'gate_reasons_json',
+    ddl: `ALTER TABLE doctrine_judgments ADD COLUMN gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json))`,
+  },
+];
+
+export function ensureDoctrineJudgmentsTable(db: Database): void {
+  db.exec(CREATE_DOCTRINE_JUDGMENTS);
+  for (const idx of CREATE_DOCTRINE_JUDGMENT_INDEXES) {
+    db.exec(idx);
+  }
+  const columns = db.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{
+    name: string;
+  }>;
+  const existing = new Set(columns.map((column) => column.name));
+  for (const column of ADDED_COLUMNS) {
+    if (!existing.has(column.name)) {
+      db.exec(column.ddl);
+    }
+  }
+}
+
+export function recordDoctrineJudgmentDirect(
+  db: Database,
+  input: DoctrineJudgmentInput,
+): DoctrineJudgmentRecordResult {
+  if (input.coverage === 'covered' && input.citations.length === 0) {
+    // DCT-9: covered は「ドクトリンが判断根拠を与える」状態であり、根拠引用なしの
+    // covered を許すと一致率だけが増え引用解決率を測れないレコードになる
+    throw new Error("coverage='covered' requires at least one citation (DCT-9)");
+  }
+  ensureDoctrineJudgmentsTable(db);
+  const now = new Date().toISOString();
+  const judgedAt = input.judgedAt ?? now;
+  const citationCount = input.citations.length;
+  const resolvedCount = input.citations.filter((c) => c.resolved).length;
+  // 同一 (session, subject) の再記録は最新判断で上書きし、既存の人の判断は無効化する
+  // (判断が変わった後の突合は成立しないため)。
+  db.prepare(
+    `INSERT INTO doctrine_judgments (
+       session_id, subject, agent_judgment, coverage, citations_json,
+       citation_count, resolved_count, gate_verdict, gate_reasons_json,
+       judged_at, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(session_id, subject) DO UPDATE SET
+       agent_judgment = excluded.agent_judgment,
+       coverage = excluded.coverage,
+       citations_json = excluded.citations_json,
+       citation_count = excluded.citation_count,
+       resolved_count = excluded.resolved_count,
+       gate_verdict = excluded.gate_verdict,
+       gate_reasons_json = excluded.gate_reasons_json,
+       judged_at = excluded.judged_at,
+       human_decision = NULL,
+       decided_at = NULL,
+       updated_at = excluded.updated_at`,
+  ).run(
+    input.sessionId,
+    input.subject,
+    input.judgment,
+    input.coverage,
+    JSON.stringify(input.citations),
+    citationCount,
+    resolvedCount,
+    input.gate === undefined ? null : input.gate.verdict,
+    input.gate === undefined ? null : JSON.stringify(input.gate.reasons),
+    judgedAt,
+    now,
+    now,
+  );
+  const row = db
+    .prepare(`SELECT id FROM doctrine_judgments WHERE session_id = ? AND subject = ?`)
+    .get(input.sessionId, input.subject) as { id: number };
+  return { id: row.id, citationCount, resolvedCount };
+}
+
+export function recordHumanDecisionDirect(
+  db: Database,
+  args: {
+    readonly id?: number;
+    readonly sessionId?: string;
+    readonly subject?: string;
+    readonly decision: HumanDecision;
+    readonly decidedAt?: string;
+  },
+): HumanDecisionResult {
+  ensureDoctrineJudgmentsTable(db);
+  let row: { id: number; agent_judgment: AgentJudgment } | undefined;
+  let keyLabel: string;
+  if (args.id !== undefined) {
+    // record_doctrine_judgment が返す id が最も安定した突合キー (subject は表記揺れし得る)
+    row = db
+      .prepare(`SELECT id, agent_judgment FROM doctrine_judgments WHERE id = ?`)
+      .get(args.id) as typeof row;
+    keyLabel = `id=${args.id}`;
+  } else if (args.sessionId !== undefined && args.subject !== undefined) {
+    row = db
+      .prepare(
+        `SELECT id, agent_judgment FROM doctrine_judgments WHERE session_id = ? AND subject = ?`,
+      )
+      .get(args.sessionId, args.subject) as typeof row;
+    keyLabel = `session_id=${args.sessionId}, subject=${args.subject}`;
+  } else {
+    throw new Error('recordHumanDecisionDirect requires id or (sessionId + subject)');
+  }
+  if (row === undefined) {
+    throw new Error(`doctrine judgment not found (${keyLabel}); record_doctrine_judgment first`);
+  }
+  const now = new Date().toISOString();
+  db.prepare(
+    `UPDATE doctrine_judgments SET human_decision = ?, decided_at = ?, updated_at = ? WHERE id = ?`,
+  ).run(args.decision, args.decidedAt ?? now, now, row.id);
+  const agreement =
+    row.agent_judgment === 'escalate'
+      ? null
+      : (row.agent_judgment === 'approve' && args.decision === 'approve') ||
+        (row.agent_judgment === 'reject' && args.decision === 'reject');
+  return { agreement, agentJudgment: row.agent_judgment };
+}
+
+/**
+ * 受け入れ確認 (DCT-13) の提示物 1・2・4 の供給元。JSON 列のパース失敗は当該
+ * レコードを落とさず parseError へ落とす (1 件の破損で提示物全体を失わせない)。
+ */
+export interface DoctrineJudgmentView {
+  readonly id: number;
+  readonly sessionId: string;
+  readonly subject: string;
+  readonly agentJudgment: AgentJudgment;
+  readonly coverage: Coverage;
+  readonly citations: ReadonlyArray<ResolvedCitation>;
+  /** ゲート未評価 (導入前の記録) は null。delegable として扱わない */
+  readonly gateVerdict: 'delegable' | 'escalate' | null;
+  readonly gateReasons: readonly string[];
+  readonly humanDecision: HumanDecision | null;
+  readonly judgedAt: string;
+  readonly decidedAt: string | null;
+  /** JSON 列のパース失敗理由。成功時は null */
+  readonly parseError: string | null;
+}
+
+interface JsonParseOutcome<T> {
+  readonly value: T;
+  readonly error: string | null;
+}
+
+/**
+ * JSON 列を配列として読む。json_valid の CHECK があってもパース後の「形」までは
+ * 保証されないため (`'"str"'` は valid JSON)、配列かどうかを別に検査する。
+ */
+function parseJsonArrayColumn<T>(column: string, raw: string | null): JsonParseOutcome<T[]> {
+  if (raw === null) {
+    return { value: [], error: null };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    return {
+      value: [],
+      error: `${column}: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  if (!Array.isArray(parsed)) {
+    return { value: [], error: `${column}: expected an array, got ${typeof parsed}` };
+  }
+  return { value: parsed as T[], error: null };
+}
+
+function tableColumns(db: Database, table: string): Set<string> {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return new Set(rows.map((row) => row.name));
+}
+
+/**
+ * 受け入れ確認 (DCT-13) の読み出し。**書込・DDL を行わない** (ensure を呼ばない)。
+ * 提示のためだけに本番 DB のスキーマを変えないため、テーブル不在は空配列、
+ * 後付け列 (gate_*) の不在は NULL として扱う。
+ */
+export function listDoctrineJudgmentsBySession(
+  db: Database,
+  sessionId: string,
+): DoctrineJudgmentView[] {
+  const columns = tableColumns(db, 'doctrine_judgments');
+  if (columns.size === 0) {
+    return [];
+  }
+  const gateVerdictExpr = columns.has('gate_verdict') ? 'gate_verdict' : 'NULL AS gate_verdict';
+  const gateReasonsExpr = columns.has('gate_reasons_json')
+    ? 'gate_reasons_json'
+    : 'NULL AS gate_reasons_json';
+  const rows = db
+    .prepare(
+      `SELECT id, session_id, subject, agent_judgment, coverage, citations_json,
+              ${gateVerdictExpr}, ${gateReasonsExpr}, human_decision, judged_at, decided_at
+         FROM doctrine_judgments
+        WHERE session_id = ?
+        ORDER BY judged_at ASC, id ASC`,
+    )
+    .all(sessionId) as Array<{
+    id: number;
+    session_id: string;
+    subject: string;
+    agent_judgment: AgentJudgment;
+    coverage: Coverage;
+    citations_json: string | null;
+    gate_verdict: 'delegable' | 'escalate' | null;
+    gate_reasons_json: string | null;
+    human_decision: HumanDecision | null;
+    judged_at: string;
+    decided_at: string | null;
+  }>;
+
+  return rows.map((row) => {
+    const citations = parseJsonArrayColumn<ResolvedCitation>('citations_json', row.citations_json);
+    const reasons = parseJsonArrayColumn<string>('gate_reasons_json', row.gate_reasons_json);
+    const errors = [citations.error, reasons.error].filter((e): e is string => e !== null);
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      subject: row.subject,
+      agentJudgment: row.agent_judgment,
+      coverage: row.coverage,
+      citations: citations.value,
+      gateVerdict: row.gate_verdict,
+      gateReasons: reasons.value,
+      humanDecision: row.human_decision,
+      judgedAt: row.judged_at,
+      decidedAt: row.decided_at,
+      parseError: errors.length === 0 ? null : errors.join('; '),
+    };
+  });
+}
+
+/**
+ * 承認済み条項 (canon) または明文規約 (canon_by_document) の引用を 1 件以上持つか。
+ * 本機能より前に記録されたレコードは approval を持たないため canon 接地なしと数える
+ * (記録時点で承認状態を検査していないものを遡って canon 扱いにしない)。
+ */
+function hasCanonCitation(citationsJson: string): boolean {
+  const citations = JSON.parse(citationsJson) as ReadonlyArray<{ approval?: string }>;
+  return citations.some((c) => c.approval === 'canon' || c.approval === 'canon_by_document');
+}
+
+export function getDoctrineAgreementDirect(
+  db: Database,
+  range: { readonly since?: string; readonly until?: string } = {},
+): DoctrineAgreementMetrics {
+  ensureDoctrineJudgmentsTable(db);
+  // 件数規模は高々セッションあたり数件のため、範囲スキャン + JS 集計で足りる。
+  const conditions: string[] = [];
+  const params: string[] = [];
+  if (range.since !== undefined) {
+    conditions.push('judged_at >= ?');
+    params.push(range.since);
+  }
+  if (range.until !== undefined) {
+    conditions.push('judged_at <= ?');
+    params.push(range.until);
+  }
+  const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
+  const rows = db
+    .prepare(
+      `SELECT agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, gate_verdict FROM doctrine_judgments${where}`,
+    )
+    .all(...params) as Array<{
+    agent_judgment: AgentJudgment;
+    coverage: Coverage;
+    human_decision: HumanDecision | null;
+    citation_count: number;
+    resolved_count: number;
+    citations_json: string;
+    gate_verdict: 'delegable' | 'escalate' | null;
+  }>;
+
+  const total = rows.length;
+  const decided = rows.filter((r) => r.human_decision !== null).length;
+  const agreementTargets = rows.filter(
+    (r) => r.coverage === 'covered' && r.human_decision !== null && r.agent_judgment !== 'escalate',
+  );
+  const matched = agreementTargets.filter(
+    (r) =>
+      (r.agent_judgment === 'approve' && r.human_decision === 'approve') ||
+      (r.agent_judgment === 'reject' && r.human_decision === 'reject'),
+  ).length;
+  const escalations = rows.filter(
+    (r) => r.agent_judgment === 'escalate' || r.coverage !== 'covered',
+  ).length;
+  const citationTotal = rows.reduce((sum, r) => sum + r.citation_count, 0);
+  const citationResolved = rows.reduce((sum, r) => sum + r.resolved_count, 0);
+  const coveredRows = rows.filter((r) => r.coverage === 'covered');
+  const canonGrounded = coveredRows.filter((r) => hasCanonCitation(r.citations_json)).length;
+  const gatedRows = rows.filter((r) => r.gate_verdict !== null);
+  const delegable = gatedRows.filter((r) => r.gate_verdict === 'delegable').length;
+
+  return {
+    total,
+    decided,
+    pending: total - decided,
+    agreementRate: agreementTargets.length > 0 ? matched / agreementTargets.length : null,
+    escalationRate: total > 0 ? escalations / total : null,
+    citationResolutionRate: citationTotal > 0 ? citationResolved / citationTotal : null,
+    canonGroundedRate: coveredRows.length > 0 ? canonGrounded / coveredRows.length : null,
+    delegableRate: gatedRows.length > 0 ? delegable / gatedRows.length : null,
+  };
+}

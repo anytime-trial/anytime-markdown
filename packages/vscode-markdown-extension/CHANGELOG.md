@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-08-03
+
+### Changed
+
+- Added `homepage` to the extension manifest so the Marketplace listing links back to the project site.
+- Added links to the project site and the other Anytime extensions in the README.
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- `html` フェンス内の HTML5 media 要素（`video` / `audio` / `source` / `track` / `picture`）と `crossorigin` を許可（issue #155）
+- `installChrome` を分割し認知的複雑度を 128 から 15 以下へ
+
 ## [1.19.0] - 2026-08-01
 
 ### Changed

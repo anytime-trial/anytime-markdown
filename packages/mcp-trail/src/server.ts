@@ -31,6 +31,11 @@ import { handleListReviewTargetHints,ListReviewTargetHintsInputSchema } from './
 import { handleListUnaddressedReviewFindings,ListUnaddressedReviewFindingsInputSchema } from './tools/listUnaddressedReviewFindings.js';
 import { toCodeGraphNodeId } from './tools/nodeId.js';
 import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift.js';
+import { handleRecordDoctrineJudgment, RecordDoctrineJudgmentInputSchema } from './tools/recordDoctrineJudgment.js';
+import { handleRecordHumanDecision, RecordHumanDecisionInputSchema } from './tools/recordHumanDecision.js';
+import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './tools/getDoctrineAgreement.js';
+import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
+import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
 import { handleSearchDocs,SearchDocsInputSchema } from './tools/searchDocs.js';
 import { handleSearchMemory,SearchMemoryInputSchema } from './tools/searchMemory.js';
@@ -404,6 +409,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       subject_id: DetectDriftInputSchema.shape.subject_id,
       since: DetectDriftInputSchema.shape.since,
       limit: DetectDriftInputSchema.shape.limit,
+      workspacePath: DetectDriftInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleDetectDrift(args);
@@ -413,7 +419,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'explain_drift',
-    { description: 'Return the 5-source (conversation/spec/code/bug_history/review) evidence for a specific drift event', inputSchema: { event_id: ExplainDriftInputSchema.shape.event_id } },
+    { description: 'Return the 5-source (conversation/spec/code/bug_history/review) evidence for a specific drift event', inputSchema: { event_id: ExplainDriftInputSchema.shape.event_id, workspacePath: ExplainDriftInputSchema.shape.workspacePath } },
     async (args) => {
       const result = await handleExplainDrift(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
@@ -426,9 +432,93 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       event_id: ResolveDriftInputSchema.shape.event_id,
       resolution_note: ResolveDriftInputSchema.shape.resolution_note,
       resolved_at: ResolveDriftInputSchema.shape.resolved_at,
+      workspacePath: ResolveDriftInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleResolveDrift(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Doctrine judgment tools (D1 並走記録: trail.db 直書き)
+  // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'record_doctrine_judgment',
+    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) also evaluates whether the judgment would have been delegable under D2 and stores the verdict — it does NOT change the approval flow (shadow mode); omitting target_paths or severity makes the verdict escalate (fail-closed). Re-recording the same session_id + subject overwrites and resets any recorded human decision.', inputSchema: {
+      session_id: RecordDoctrineJudgmentInputSchema.shape.session_id,
+      subject: RecordDoctrineJudgmentInputSchema.shape.subject,
+      judgment: RecordDoctrineJudgmentInputSchema.shape.judgment,
+      coverage: RecordDoctrineJudgmentInputSchema.shape.coverage,
+      citations: RecordDoctrineJudgmentInputSchema.shape.citations,
+      target_paths: RecordDoctrineJudgmentInputSchema.shape.target_paths,
+      severity: RecordDoctrineJudgmentInputSchema.shape.severity,
+      judged_at: RecordDoctrineJudgmentInputSchema.shape.judged_at,
+      workspacePath: RecordDoctrineJudgmentInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleRecordDoctrineJudgment(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'record_human_decision',
+    { description: "Record the human's actual decision for a previously recorded doctrine judgment (lookup by id, or by session_id + subject) and return the agreement result. Errors if no matching judgment exists.", inputSchema: {
+      id: RecordHumanDecisionInputSchema.shape.id,
+      session_id: RecordHumanDecisionInputSchema.shape.session_id,
+      subject: RecordHumanDecisionInputSchema.shape.subject,
+      decision: RecordHumanDecisionInputSchema.shape.decision,
+      decided_at: RecordHumanDecisionInputSchema.shape.decided_at,
+      workspacePath: RecordHumanDecisionInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleRecordHumanDecision(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_doctrine_agreement',
+    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), and pending (undecided) count. Gate metrics for D2 promotion.', inputSchema: {
+      since: GetDoctrineAgreementInputSchema.shape.since,
+      until: GetDoctrineAgreementInputSchema.shape.until,
+      workspacePath: GetDoctrineAgreementInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleGetDoctrineAgreement(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_acceptance_review',
+    { description: 'Assemble the acceptance-review material for a session (DCT-13): the delegated judgments, the doctrine clauses each judgment cited (verbatim quote + approval state + resolution result), the artifact diff, and the escalations with their reasons. Returns both structured data and a Markdown rendering meant to be pasted into the completion report. Read-only. The diff is taken from git directly (not the lagging session_commits import); a git failure degrades to available=false with a reason instead of failing the whole call.', inputSchema: {
+      session_id: GetAcceptanceReviewInputSchema.shape.session_id,
+      base_ref: GetAcceptanceReviewInputSchema.shape.base_ref,
+      head_ref: GetAcceptanceReviewInputSchema.shape.head_ref,
+      include_diff: GetAcceptanceReviewInputSchema.shape.include_diff,
+      workspacePath: GetAcceptanceReviewInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleGetAcceptanceReview(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'list_boundary_drift',
+    { description: 'List architectural boundary drift warnings: communities that span many packages (boundary_spanning) or packages split across many communities (package_fragmentation). Sorted by severity. Defaults to each repository latest detection run. An empty result carries a reason: no-warnings (analyzed and healthy) vs no-detection (never analyzed).', inputSchema: {
+      repoName: ListBoundaryDriftInputSchema.shape.repoName,
+      kind: ListBoundaryDriftInputSchema.shape.kind,
+      minSeverity: ListBoundaryDriftInputSchema.shape.minSeverity,
+      includeHistory: ListBoundaryDriftInputSchema.shape.includeHistory,
+      limit: ListBoundaryDriftInputSchema.shape.limit,
+      workspacePath: ListBoundaryDriftInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleListBoundaryDrift(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -445,6 +535,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       target_refs: RunReviewAgentInputSchema.shape.target_refs,
       prompt_kind: RunReviewAgentInputSchema.shape.prompt_kind,
       model: RunReviewAgentInputSchema.shape.model,
+      workspacePath: RunReviewAgentInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleRunReviewAgent(args);
@@ -454,7 +545,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_review_run_status',
-    { description: 'Get the status of a review agent run by run_id', inputSchema: { run_id: GetReviewRunStatusInputSchema.shape.run_id } },
+    { description: 'Get the status of a review agent run by run_id', inputSchema: { run_id: GetReviewRunStatusInputSchema.shape.run_id, workspacePath: GetReviewRunStatusInputSchema.shape.workspacePath } },
     async (args) => {
       const result = await handleGetReviewRunStatus(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
@@ -470,6 +561,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       model: ListReviewRunsInputSchema.shape.model,
       since: ListReviewRunsInputSchema.shape.since,
       limit: ListReviewRunsInputSchema.shape.limit,
+      workspacePath: ListReviewRunsInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleListReviewRuns(args);
@@ -479,7 +571,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'list_review_target_hints',
-    { description: 'List prioritized review target candidates based on drift events, recent bug fixes, and unreviewed files', inputSchema: { limit: ListReviewTargetHintsInputSchema.shape.limit } },
+    { description: 'List prioritized review target candidates based on drift events, recent bug fixes, and unreviewed files', inputSchema: { limit: ListReviewTargetHintsInputSchema.shape.limit, workspacePath: ListReviewTargetHintsInputSchema.shape.workspacePath } },
     async (args) => {
       const result = await handleListReviewTargetHints(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
@@ -498,6 +590,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       caused_by_entity_id: ListRecurringBugsInputSchema.shape.caused_by_entity_id,
       windowDays: ListRecurringBugsInputSchema.shape.windowDays,
       minCount: ListRecurringBugsInputSchema.shape.minCount,
+      workspacePath: ListRecurringBugsInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleListRecurringBugs(args);
@@ -512,6 +605,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       file_path: GetBugHistoryInputSchema.shape.file_path,
       category: GetBugHistoryInputSchema.shape.category,
       limit: GetBugHistoryInputSchema.shape.limit,
+      workspacePath: GetBugHistoryInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleGetBugHistory(args);
@@ -532,6 +626,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       category: ListUnaddressedReviewFindingsInputSchema.shape.category,
       checklist_ref: ListUnaddressedReviewFindingsInputSchema.shape.checklist_ref,
       limit: ListUnaddressedReviewFindingsInputSchema.shape.limit,
+      workspacePath: ListUnaddressedReviewFindingsInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleListUnaddressedReviewFindings(args);
@@ -547,6 +642,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       category: GetReviewHistoryInputSchema.shape.category,
       include_precedes_bugs: GetReviewHistoryInputSchema.shape.include_precedes_bugs,
       limit: GetReviewHistoryInputSchema.shape.limit,
+      workspacePath: GetReviewHistoryInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleGetReviewHistory(args);
@@ -561,6 +657,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       commit_sha: LinkReviewToCommitInputSchema.shape.commit_sha,
       addressed_at: LinkReviewToCommitInputSchema.shape.addressed_at,
       override_auto: LinkReviewToCommitInputSchema.shape.override_auto,
+      workspacePath: LinkReviewToCommitInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleLinkReviewToCommit(args);
@@ -600,6 +697,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       since: SearchMemoryInputSchema.shape.since,
       limit: SearchMemoryInputSchema.shape.limit,
       hops: SearchMemoryInputSchema.shape.hops,
+      workspacePath: SearchMemoryInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleSearchMemory(args);

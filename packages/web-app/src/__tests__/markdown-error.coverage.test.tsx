@@ -9,7 +9,7 @@ jest.mock("next-intl", () => ({
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
-import MarkdownError from "../app/markdown/error";
+import MarkdownError from "../app/[locale]/markdown/(editor)/error";
 
 describe("MarkdownError", () => {
   it("renders error message and retry button", () => {

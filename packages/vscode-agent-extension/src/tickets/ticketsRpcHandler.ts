@@ -190,13 +190,17 @@ function readTicketPriority(source: Record<string, unknown>, errors: string[]): 
 function readExtras(source: Record<string, unknown>, errors: string[]): Record<string, FrontmatterValue> {
   const raw = source.extras;
   if (raw === undefined) {
-    return {};
+    return Object.create(null);
   }
   if (!isRecord(raw)) {
     errors.push('extras はオブジェクトである必要があります');
-    return {};
+    return Object.create(null);
   }
-  const result: Record<string, FrontmatterValue> = {};
+  // キーは RPC ペイロード由来。オブジェクトリテラルへ代入すると `__proto__` が
+  // プロトタイプの差し替えとして解釈され、そのキーだけが黙って消える
+  // （tickets-core のパーサは Object.create(null) 化済み。ここが literal のままだと
+  // 拡張 RPC 経由の更新でだけキーが失われ、経路によって挙動が食い違う）。
+  const result: Record<string, FrontmatterValue> = Object.create(null);
   for (const [key, value] of Object.entries(raw)) {
     if (isFrontmatterValue(value)) {
       result[key] = value;

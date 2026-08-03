@@ -10,6 +10,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { localePath } from "./helpers";
 
 test.describe("Sheet Chart — チャート作成と canvas 描画", () => {
   test.beforeEach(async ({ page }) => {
@@ -17,7 +18,7 @@ test.describe("Sheet Chart — チャート作成と canvas 描画", () => {
     await page.addInitScript(() => {
       localStorage.removeItem("anytime-sheet-charts");
     });
-    await page.goto("/sheet");
+    await page.goto(localePath("/sheet"));
     // スプレッドシートエディタが描画されるまで待つ
     await page.locator(".sv-root").first().waitFor({ state: "visible" });
   });
@@ -64,7 +65,7 @@ test.describe("Sheet Chart — チャート作成と canvas 描画", () => {
       localStorage.setItem("anytime-sheet-charts", charts);
     }, dummyCharts);
 
-    await page.goto("/sheet");
+    await page.goto(localePath("/sheet"));
     await page.locator(".sv-root").first().waitFor({ state: "visible" });
 
     // localStorage の値が保持されていることを確認
