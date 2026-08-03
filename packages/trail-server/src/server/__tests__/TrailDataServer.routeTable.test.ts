@@ -111,6 +111,7 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "GET", kind: "exact", path: "/api/alignment" },
   { method: "GET", kind: "exact", path: "/api/activity-heatmap" },
   { method: "GET", kind: "exact", path: "/api/activity-trend" },
+  { method: "GET", kind: "exact", path: "/api/author-heatmap" },
   { method: "GET", kind: "exact", path: "/api/memory/rationale" },
   { method: "GET", kind: "exact", path: "/api/memory/status" },
   { method: "GET", kind: "exact", path: "/api/memory/drift/by-day" },

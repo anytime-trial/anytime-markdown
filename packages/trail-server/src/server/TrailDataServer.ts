@@ -30,7 +30,9 @@ import {
   buildIndex as buildCallHierarchyIndex,
   traverse as traverseCallHierarchy,
 } from '@anytime-markdown/trail-core/c4/callHierarchy';
+import { computeAuthorHeatmap, selectTopSessions } from '@anytime-markdown/trail-core/authorHeatmap';
 import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
+import { toCodeGraphNodeId } from '@anytime-markdown/trail-core/codeGraphNodeId';
 import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
 import {
   loadCommitCategories,
@@ -909,6 +911,7 @@ export class TrailDataServer {
     t.exact('GET', '/api/alignment', ({ res, url }) => void this.alignmentApi.handle(res, url.searchParams));
     t.exact('GET', '/api/activity-heatmap', ({ res, url }) => this.handleActivityHeatmap(res, url.searchParams));
     t.exact('GET', '/api/activity-trend', ({ res, url }) => this.handleActivityTrend(res, url.searchParams));
+    t.exact('GET', '/api/author-heatmap', ({ res, url }) => this.handleAuthorHeatmap(res, url.searchParams));
   }
 
   /**
@@ -1445,6 +1448,61 @@ export class TrailDataServer {
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       this.logger.error(`/api/bus-factor failed: ${err.message}\n${err.stack ?? ''}`);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  /**
+   * Author Heatmap: コードグラフのノードごとの最終編集セッション・編集頻度・属人度。
+   *
+   * コードグラフのノード集合で集計を絞る（グラフに無いファイルの行を返しても viewer が
+   * 使えないうえ、被覆率の分母が狂う）。repo 未指定・コードグラフ未生成は 200 + 空で返す。
+   * ここを 4xx にすると、まだ解析していないだけのワークスペースでグラフ描画ごと壊れる。
+   */
+  private handleAuthorHeatmap(res: http.ServerResponse, params: URLSearchParams): void {
+    const repo = params.get('repo') ?? '';
+    const topSessions = clampInt(params.get('topSessions'), 8, 1, 32);
+
+    try {
+      const graph = repo ? this.trailDb.getCurrentCodeGraph(repo) : null;
+      if (!graph) {
+        if (repo) {
+          this.logger.warn(`/api/author-heatmap: no current code graph for repo=${repo}`);
+        }
+        res.writeHead(200, JSON_HEADERS);
+        res.end(
+          JSON.stringify({
+            entries: [],
+            topSessions: [],
+            coveredNodes: 0,
+            totalNodes: 0,
+            computedAt: new Date().toISOString(),
+          }),
+        );
+        return;
+      }
+
+      const nodeIds = new Set(graph.nodes.map((n) => n.id));
+      const rows = this.trailDb.fetchFileSessionCommits({ repo });
+      const entries = computeAuthorHeatmap(rows, {
+        toNodeId: (filePath) => toCodeGraphNodeId(repo, filePath),
+        isKnownNode: (nodeId) => nodeIds.has(nodeId),
+      });
+
+      res.writeHead(200, JSON_HEADERS);
+      res.end(
+        JSON.stringify({
+          entries,
+          topSessions: selectTopSessions(entries, topSessions),
+          coveredNodes: entries.length,
+          totalNodes: nodeIds.size,
+          computedAt: new Date().toISOString(),
+        }),
+      );
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      this.logger.error(`/api/author-heatmap failed: ${err.message}\n${err.stack ?? ''}`);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err.message }));
     }
