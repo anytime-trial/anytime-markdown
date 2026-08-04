@@ -2,6 +2,7 @@
 jest.mock('sigma', () => ({ __esModule: true, default: class {} }));
 jest.mock('sigma/rendering', () => ({ __esModule: true, EdgeArrowProgram: class {} }));
 
+import { openOptions } from './comboboxTestUtils';
 import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import {
   CURRENT_RELEASE,
@@ -182,11 +183,9 @@ describe('codeGraphPanel: スクラバのズーム（リリース ⇄ コミッ�
 
   it('コミット粒度では最終編集者・編集頻度の配色を選べない（現在のノード集合の集計であるため）', () => {
     const { container, handle } = mount(commitProps());
-    const options = Array.from(container.querySelectorAll('option'));
-    const lastEditor = options.find((o) => o.value === 'lastEditor') as HTMLOptionElement;
-    const editFrequency = options.find((o) => o.value === 'editFrequency') as HTMLOptionElement;
-    expect(lastEditor.disabled).toBe(true);
-    expect(editFrequency.disabled).toBe(true);
+    const options = openOptions(container, 'code-graph-color-by');
+    expect(options.find((o) => o.label === '最終編集者')?.disabled).toBe(true);
+    expect(options.find((o) => o.label === '編集頻度')?.disabled).toBe(true);
     handle.destroy();
   });
 
