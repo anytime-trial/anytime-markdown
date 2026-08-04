@@ -182,6 +182,49 @@ describe('TrailDatabase deleteCurrentCodeGraphs / deleteReleaseCodeGraphs', () =
   it('deleteReleaseCodeGraphs is a no-op when nothing saved', () => {
     expect(() => db.deleteReleaseCodeGraphs()).not.toThrow();
   });
+
+  // 部分洗い替え。タグ指定の遡及生成（直近 N 本・オンデマンド）で、対象外のキャッシュを
+  // 巻き込んで消さないことが要件。
+  it('deleteReleaseCodeGraphsForTags removes only the given tags', () => {
+    insertRelease(db, 'v2.0.0');
+    insertRelease(db, 'v2.1.0');
+    insertRelease(db, 'v2.2.0');
+    db.saveReleaseCodeGraph('v2.0.0', makeCodeGraph());
+    db.saveReleaseCodeGraph('v2.1.0', makeCodeGraph());
+    db.saveReleaseCodeGraph('v2.2.0', makeCodeGraph());
+
+    db.deleteReleaseCodeGraphsForTags(['v2.1.0']);
+
+    expect(db.getReleaseCodeGraph('v2.1.0')).toBeNull();
+    expect(db.getReleaseCodeGraph('v2.0.0')).not.toBeNull();
+    expect(db.getReleaseCodeGraph('v2.2.0')).not.toBeNull();
+  });
+
+  it('deleteReleaseCodeGraphsForTags removes the communities of the given tags only', () => {
+    insertRelease(db, 'v2.0.0');
+    insertRelease(db, 'v2.1.0');
+    db.saveReleaseCodeGraph('v2.0.0', makeCodeGraph());
+    db.saveReleaseCodeGraph('v2.1.0', makeCodeGraph());
+
+    db.deleteReleaseCodeGraphsForTags(['v2.1.0']);
+
+    // communities は graph の一部として復元されるため、残ったタグ側で健在であることを見る
+    expect(db.getReleaseCodeGraph('v2.0.0')?.communities).toEqual({ 0: 'Community A', 1: 'Community B' });
+    const raws = db.getAllReleaseCodeGraphCommunityRaws();
+    expect(raws.every((r) => r.release_tag !== 'v2.1.0')).toBe(true);
+    expect(raws.some((r) => r.release_tag === 'v2.0.0')).toBe(true);
+  });
+
+  it('deleteReleaseCodeGraphsForTags は空配列・未知タグで何も消さない', () => {
+    insertRelease(db, 'v2.0.0');
+    db.saveReleaseCodeGraph('v2.0.0', makeCodeGraph());
+
+    db.deleteReleaseCodeGraphsForTags([]);
+    expect(db.getReleaseCodeGraph('v2.0.0')).not.toBeNull();
+
+    expect(() => db.deleteReleaseCodeGraphsForTags(['v9.9.9'])).not.toThrow();
+    expect(db.getReleaseCodeGraph('v2.0.0')).not.toBeNull();
+  });
 });
 
 describe('TrailDatabase getAllReleaseCodeGraphRaws / getAllReleaseCodeGraphCommunityRaws', () => {

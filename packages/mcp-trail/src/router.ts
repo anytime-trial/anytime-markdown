@@ -293,7 +293,10 @@ async function invokeHttp(
         args,
       );
     case 'analyze_release_code':
-      return httpClient.analyzeReleaseCode(serverUrl);
+      return httpClient.analyzeReleaseCode(
+        serverUrl,
+        args as { tags?: readonly string[] },
+      );
     case 'analyze_all':
       return httpClient.analyzeAll(serverUrl);
     case 'get_analyze_status':

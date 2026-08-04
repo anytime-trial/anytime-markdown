@@ -111,6 +111,11 @@ export interface SerializableAnalyzeCurrentCodeRequest {
 export interface SerializableAnalyzeReleaseCodeRequest {
   /** リリース解析のベースとなる git リポジトリのルートの絶対パス。 */
   readonly gitRoot: string;
+  /**
+   * 対象タグ。省略時は全量洗い替え、指定時はそのタグのみ削除・再生成する。
+   * 空配列は「全量」ではなく「対象 0 件」を意味する。
+   */
+  readonly tags?: readonly string[];
 }
 
 /**

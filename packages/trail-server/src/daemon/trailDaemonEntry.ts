@@ -31,6 +31,7 @@ import type { Logger } from '../runtime/Logger';
 import {
   runAnalyzeCurrentCodePipeline,
   runAnalyzeReleaseCodePipeline,
+  toAnalyzeReleaseScope,
 } from '../analyze/AnalyzePipeline';
 import type { AnalyzeCurrentOpts, AnalyzeReleaseOpts } from '../analyze/AnalyzePipeline';
 
@@ -483,9 +484,9 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     return runAnalyzeCurrentCodePipeline(opts2);
   };
 
-  // HTTP request shape (webview → TrailDataServer): パラメータなし (gitRoot は opts から取得)。
+  // HTTP request shape (webview → TrailDataServer): tags のみ (gitRoot は opts から取得)。
   // IPC dispatch 'analyzeReleaseCode' arm は SerializableAnalyzeReleaseCodeRequest で gitRoot を受ける。
-  server.onAnalyzeReleaseCode = async () => {
+  server.onAnalyzeReleaseCode = async (req) => {
     if (httpTrailDb === null || httpCodeGraphService === null) {
       throw new Error('http server state not ready');
     }
@@ -498,6 +499,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       gitRoot: opts.gitRoot,
       // daemon はバンドル環境なので TS 解析は必ず子プロセスへ隔離する。
       compute: { kind: 'child', analyzeChildPath },
+      scope: toAnalyzeReleaseScope(req.tags),
       logger: daemonLoggerAsLogger,
       onProgress: emitAnalyzeReleaseProgress,
     };
@@ -691,6 +693,7 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
         // daemon はバンドル環境なので TS 解析は必ず子プロセスへ隔離する。
         // request shape に analyzeChildPath は無く、module const の dist/analyze-child.js を使う。
         compute: { kind: 'child', analyzeChildPath },
+        scope: toAnalyzeReleaseScope(req.tags),
         logger: daemonLoggerAsLogger,
         onProgress: emitAnalyzeReleaseProgress,
       };

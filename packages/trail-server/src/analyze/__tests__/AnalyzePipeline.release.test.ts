@@ -104,6 +104,7 @@ describe('runAnalyzeReleaseCodePipeline', () => {
       codeGraphService: makeCodeGraphServiceStub(seen),
       gitRoot: repoDir,
       compute: { kind: 'in-host' },
+      scope: { kind: 'all' },
       logger: makeLogger(warns),
     });
     expect(result.releaseCount).toBe(0);
@@ -120,6 +121,7 @@ describe('runAnalyzeReleaseCodePipeline', () => {
       codeGraphService: makeCodeGraphServiceStub(seen),
       gitRoot: repoDir,
       compute: { kind: 'in-host' },
+      scope: { kind: 'all' },
       logger: makeLogger(warns),
     });
 
@@ -145,6 +147,7 @@ describe('runAnalyzeReleaseCodePipeline', () => {
       codeGraphService: makeCodeGraphServiceStub(seen),
       gitRoot: repoDir,
       compute: { kind: 'in-host' },
+      scope: { kind: 'all' },
       logger: makeLogger(warns),
     });
     expect(fs.existsSync(seen[0].repositories[0].path)).toBe(false);
@@ -160,10 +163,85 @@ describe('runAnalyzeReleaseCodePipeline', () => {
       codeGraphService: makeCodeGraphServiceStub(seen),
       gitRoot: repoDir,
       compute: { kind: 'in-host' },
+      scope: { kind: 'all' },
       logger: makeLogger(warns),
     });
     expect(result.releaseCount).toBe(0);
     expect(warns.some((m) => m.includes('no-such-tag'))).toBe(true);
+  });
+
+  // scope: tags — 直近 N 本の生成（供給方針 手順 3）とオンデマンド生成（手順 4）の土台。
+  // 「対象外のタグを巻き込んで消さない」ことが要点で、ここが壊れるとオンデマンド生成の
+  // たびに既存キャッシュが飛ぶ。
+  describe('scope: tags', () => {
+    it('指定したタグだけを解析し、他タグは対象にしない', async () => {
+      insertRelease(db, 'v1.0.0');
+      insertRelease(db, 'v0.9.0');
+      const seen: Override[] = [];
+      const result = await runAnalyzeReleaseCodePipeline({
+        trailDb: db,
+        codeGraphService: makeCodeGraphServiceStub(seen),
+        gitRoot: repoDir,
+        compute: { kind: 'in-host' },
+        scope: { kind: 'tags', tags: ['v1.0.0'] },
+        logger: makeLogger(warns),
+      });
+      expect(result.releaseCount).toBe(1);
+      expect(seen).toHaveLength(1);
+      expect(seen[0].repositories[0].path).toContain('trail-cg-release-v1.0.0');
+    });
+
+    it('対象外タグの既存グラフを消さない', async () => {
+      insertRelease(db, 'v1.0.0');
+      insertRelease(db, 'v0.9.0');
+      db.saveReleaseCodeGraph('v0.9.0', makeCodeGraph());
+
+      const seen: Override[] = [];
+      await runAnalyzeReleaseCodePipeline({
+        trailDb: db,
+        codeGraphService: makeCodeGraphServiceStub(seen),
+        gitRoot: repoDir,
+        compute: { kind: 'in-host' },
+        scope: { kind: 'tags', tags: ['v1.0.0'] },
+        logger: makeLogger(warns),
+      });
+      // 対象タグは再生成され、対象外は残る
+      expect(db.getReleaseCodeGraph('v1.0.0')).not.toBeNull();
+      expect(db.getReleaseCodeGraph('v0.9.0')).not.toBeNull();
+    });
+
+    it('releases に無いタグは warn に残す', async () => {
+      insertRelease(db, 'v1.0.0');
+      const seen: Override[] = [];
+      const result = await runAnalyzeReleaseCodePipeline({
+        trailDb: db,
+        codeGraphService: makeCodeGraphServiceStub(seen),
+        gitRoot: repoDir,
+        compute: { kind: 'in-host' },
+        scope: { kind: 'tags', tags: ['v1.0.0', 'v9.9.9'] },
+        logger: makeLogger(warns),
+      });
+      expect(result.releaseCount).toBe(1);
+      expect(warns.some((m) => m.includes('v9.9.9'))).toBe(true);
+    });
+
+    it('空配列は「対象 0 件」であり、全量洗い替えに落ちない', async () => {
+      insertRelease(db, 'v1.0.0');
+      db.saveReleaseCodeGraph('v1.0.0', makeCodeGraph());
+
+      const seen: Override[] = [];
+      const result = await runAnalyzeReleaseCodePipeline({
+        trailDb: db,
+        codeGraphService: makeCodeGraphServiceStub(seen),
+        gitRoot: repoDir,
+        compute: { kind: 'in-host' },
+        scope: { kind: 'tags', tags: [] },
+        logger: makeLogger(warns),
+      });
+      expect(result.releaseCount).toBe(0);
+      expect(seen).toHaveLength(0);
+      expect(db.getReleaseCodeGraph('v1.0.0')).not.toBeNull();
+    });
   });
 
   it('既存 release_code_graphs を洗い替える', async () => {
@@ -177,6 +255,7 @@ describe('runAnalyzeReleaseCodePipeline', () => {
       codeGraphService: makeCodeGraphServiceStub(seen),
       gitRoot: repoDir,
       compute: { kind: 'in-host' },
+      scope: { kind: 'all' },
       logger: makeLogger(warns),
     });
     // 削除 → 再生成の順で、最終的に 1 件保存されている

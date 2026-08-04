@@ -567,6 +567,79 @@ describe('POST /api/analyze/current — handler registered', () => {
   });
 });
 
+// tags はここで落とすと「黙って全量洗い替え」になり、オンデマンド生成が既存キャッシュを
+// 消す事故に化ける。ボディ → ハンドラ引数の受け渡しを固定する。
+describe('POST /api/analyze/release — tags', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+  });
+
+  it('body の tags をハンドラへ渡す', async () => {
+    const handler = jest.fn().mockResolvedValue({ releaseCount: 1, durationMs: 1 });
+    server.onAnalyzeReleaseCode = handler;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/release`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tags: ['v1.19.1', 'v1.19.0'] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(handler).toHaveBeenCalledWith({ tags: ['v1.19.1', 'v1.19.0'] });
+  });
+
+  it('body 無しなら tags は undefined（＝全量洗い替え）', async () => {
+    const handler = jest.fn().mockResolvedValue({ releaseCount: 0, durationMs: 1 });
+    server.onAnalyzeReleaseCode = handler;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/release`, { method: 'POST' });
+
+    expect(res.status).toBe(200);
+    expect(handler).toHaveBeenCalledWith({ tags: undefined });
+  });
+
+  it('tags が配列でなければ 400 で弾き、ハンドラを呼ばない', async () => {
+    const handler = jest.fn().mockResolvedValue({ releaseCount: 0, durationMs: 1 });
+    server.onAnalyzeReleaseCode = handler;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/release`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tags: 'v1.19.1' }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('tags の要素に文字列以外・空文字が混ざれば 400 で弾く', async () => {
+    const handler = jest.fn().mockResolvedValue({ releaseCount: 0, durationMs: 1 });
+    server.onAnalyzeReleaseCode = handler;
+
+    for (const tags of [['v1.19.1', 42], ['v1.19.1', '']]) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze/release`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tags }),
+      });
+      expect(res.status).toBe(400);
+    }
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
 describe('GET /api/analyze-all/* — runner not registered', () => {
   let server: TrailDataServer;
   let db: TrailDatabase;

@@ -273,9 +273,12 @@ export class TrailDataServer {
   onAnalyzeCurrentCode:
     | ((req: { workspacePath?: string; tsconfigPath?: string }) => Promise<AnalyzeCurrentResult>)
     | undefined;
-  /** POST /api/analyze/release ハンドラ */
+  /**
+   * POST /api/analyze/release ハンドラ。
+   * `tags` 省略時は全量洗い替え、指定時はそのタグのみ削除・再生成する。
+   */
   onAnalyzeReleaseCode:
-    | (() => Promise<AnalyzeReleaseResult>)
+    | ((req: { tags?: readonly string[] }) => Promise<AnalyzeReleaseResult>)
     | undefined;
   /** POST /api/analyze/all ハンドラ */
   onAnalyzeAll:
@@ -3777,7 +3780,7 @@ export class TrailDataServer {
   }
 
   private async handleAnalyzeRelease(
-    _req: http.IncomingMessage,
+    req: http.IncomingMessage,
     res: http.ServerResponse,
   ): Promise<void> {
     if (!this.onAnalyzeReleaseCode) {
@@ -3790,9 +3793,21 @@ export class TrailDataServer {
       res.end(JSON.stringify({ error: 'analysis in progress', current: this.analysisInProgress }));
       return;
     }
+    // tags は外部入力。文字列配列でなければ「指定なし（全量）」ではなく 400 で弾く。
+    // 型を取り違えた要求を黙って全量洗い替えへ落とすと、既存グラフを消してしまう。
+    let tags: readonly string[] | undefined;
+    const parsed = (await this.readJsonBody(req).catch(() => ({}))) as Record<string, unknown>;
+    if (parsed.tags !== undefined) {
+      if (!Array.isArray(parsed.tags) || parsed.tags.some((t) => typeof t !== 'string' || t === '')) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'tags must be an array of non-empty strings' }));
+        return;
+      }
+      tags = parsed.tags as string[];
+    }
     this.analysisInProgress = { kind: 'release', startedAt: Date.now() };
     try {
-      const result = await this.onAnalyzeReleaseCode();
+      const result = await this.onAnalyzeReleaseCode({ tags });
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
     } catch (err) {

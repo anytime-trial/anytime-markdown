@@ -7731,6 +7731,27 @@ export class TrailDatabase {
     this.save();
   }
 
+  /**
+   * 指定タグ分の release コードグラフだけを削除する（部分洗い替え）。
+   *
+   * 遡及生成をタグ指定で走らせるとき、`deleteReleaseCodeGraphs`（全削除）を使うと
+   * 1 本生成するたびに他タグのキャッシュが消える。`releases` に無いタグは解決できず
+   * 対象外になるため、渡しても no-op で済む。
+   */
+  deleteReleaseCodeGraphsForTags(tags: readonly string[]): void {
+    const db = this.ensureDb();
+    if (tags.length === 0) return;
+    // 部分削除なので Shrink Audit の対象にはしない（意図した縮小である）。snapshot のみ。
+    this.maybeSnapshotKb('release_code_graphs');
+    for (const tag of tags) {
+      const releaseId = this.releaseIdForTag(db, tag);
+      if (releaseId == null) continue;
+      db.run('DELETE FROM release_code_graph_communities WHERE release_id = ?', [releaseId]);
+      db.run('DELETE FROM release_code_graphs WHERE release_id = ?', [releaseId]);
+    }
+    this.save();
+  }
+
 
   /**
    * 互換ラッパー: id='current' なら current_graphs、それ以外は release_graphs から取得する。

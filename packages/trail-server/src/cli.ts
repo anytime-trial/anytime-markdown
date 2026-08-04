@@ -39,6 +39,7 @@ import {
   hasPythonFiles,
   runAnalyzeCurrentCodePipeline,
   runAnalyzeReleaseCodePipeline,
+  toAnalyzeReleaseScope,
 } from './analyze/AnalyzePipeline';
 
 const TRAIL_HOME = getTrailHome(process.cwd());
@@ -222,13 +223,14 @@ program
           logger,
         });
 
-      server.onAnalyzeReleaseCode = async () => {
+      server.onAnalyzeReleaseCode = async (req) => {
         return runAnalyzeReleaseCodePipeline({
           trailDb,
           codeGraphService,
           gitRoot: primaryGitRoot,
           // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
           compute: { kind: 'in-host' },
+          scope: toAnalyzeReleaseScope(req.tags),
           logger,
         });
       };
