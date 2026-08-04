@@ -3,6 +3,7 @@ jest.mock('sigma', () => ({ __esModule: true, default: class {} }));
 jest.mock('sigma/rendering', () => ({ __esModule: true, EdgeArrowProgram: class {} }));
 
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import { chooseOption } from './comboboxTestUtils';
 import {
   mountCodeGraphPanel,
   type CodeGraphPanelProps,
@@ -54,7 +55,7 @@ function mount(props: CodeGraphPanelProps) {
     container,
     handle,
     toggle: () => q<HTMLButtonElement>('code-graph-playback-toggle'),
-    speed: () => q<HTMLSelectElement>('code-graph-playback-speed'),
+    speed: () => q<HTMLButtonElement>('code-graph-playback-speed'),
     status: () => q<HTMLElement>('code-graph-playback-status'),
     slider: () => container.querySelector('input[type="range"]') as HTMLInputElement,
   };
@@ -125,8 +126,7 @@ describe('codeGraphPanel: Auto Playback', () => {
   it('速度セレクタの変更を通知する', () => {
     const seen: string[] = [];
     const view = mount(baseProps({ onPlaybackSpeedChange: (s) => seen.push(s) }));
-    view.speed().value = '4x';
-    view.speed().dispatchEvent(new Event('change'));
+    chooseOption(view.container, 'code-graph-playback-speed', '4x');
     expect(seen).toEqual(['4x']);
   });
 

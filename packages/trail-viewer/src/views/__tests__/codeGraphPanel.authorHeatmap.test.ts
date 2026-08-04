@@ -6,6 +6,7 @@ jest.mock('sigma/rendering', () => ({ __esModule: true, EdgeArrowProgram: class 
 
 import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-core/authorHeatmap';
+import { chooseOption, openOptions } from './comboboxTestUtils';
 import { mountCodeGraphPanel, type CodeGraphPanelProps } from '../codeGraphPanel';
 
 function node(id: string): CodeGraphNode {
@@ -71,13 +72,13 @@ function baseProps(overrides: Partial<CodeGraphPanelProps> = {}): CodeGraphPanel
 function mount(props: CodeGraphPanelProps): {
   container: HTMLElement;
   handle: ReturnType<typeof mountCodeGraphPanel>;
-  select: HTMLSelectElement;
+  select: HTMLElement;
   legendText: () => string;
 } {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const handle = mountCodeGraphPanel(container, props);
-  const select = container.querySelector('[data-testid="code-graph-color-by"]') as HTMLSelectElement;
+  const select = container;
   // 凡例は testid で引く。スタイル文字列（0.65rem）で引くと Time Scrubber の凡例など
   // 同じ字送りの別要素を先に拾ってしまう。
   const legend = () =>
@@ -85,9 +86,17 @@ function mount(props: CodeGraphPanelProps): {
   return { container, handle, select, legendText: legend };
 }
 
-function selectColorBy(select: HTMLSelectElement, value: string): void {
-  select.value = value;
-  select.dispatchEvent(new Event('change'));
+function selectColorBy(container: HTMLElement, value: string): void {
+  const labels: Record<string, string> = {
+    community: 'コミュニティ',
+    layer: '層',
+    lastEditor: '最終編集者',
+    editFrequency: '編集頻度',
+    diff: '前版との差分',
+  };
+  const label = labels[value];
+  if (!label) throw new Error(`unknown colorBy: ${value}`);
+  chooseOption(container, 'code-graph-color-by', label);
 }
 
 describe('codeGraphPanel: Author Heatmap の配色セレクタと凡例', () => {
@@ -97,13 +106,13 @@ describe('codeGraphPanel: Author Heatmap の配色セレクタと凡例', () => 
 
   it('配色セレクタに 5 つの選択肢が並ぶ', () => {
     const { select, handle } = mount(baseProps());
-    expect([...select.options].map((o) => o.value)).toEqual([
-      'community',
-      'layer',
-      'lastEditor',
-      'editFrequency',
+    expect(openOptions(select, 'code-graph-color-by').map((o) => o.label)).toEqual([
+      'コミュニティ',
+      '層',
+      '最終編集者',
+      '編集頻度',
       // State Replay（前版との差分）。ベースラインが無い間は disabled で並ぶ。
-      'diff',
+      '前版との差分',
     ]);
     handle.destroy();
   });
@@ -220,8 +229,8 @@ describe('codeGraphPanel: Author Heatmap の配色セレクタと凡例', () => 
     const { select, handle } = mount(
       baseProps({ t: (key) => (key === 'codeGraph.colorBy.lastEditor' ? 'Last editor' : key) }),
     );
-    const option = [...select.options].find((o) => o.value === 'lastEditor');
-    expect(option?.textContent).toBe('Last editor');
+    const labels = openOptions(select, 'code-graph-color-by').map((o) => o.label);
+    expect(labels).toContain('Last editor');
     handle.destroy();
   });
 });
