@@ -19,6 +19,7 @@ import {
   buildSigmaGraph,
   DEFAULT_NEUTRAL_COLOR_DARK,
   DEFAULT_NEUTRAL_COLOR_LIGHT,
+  needsGraphRebuild,
   nodeColor,
   type CodeGraphCanvasViewProps,
   type CodeGraphColorBy,
@@ -140,18 +141,7 @@ export function mountCodeGraphCanvas(
   return {
     update(next) {
       if (destroyed) return;
-      const graphChanged =
-        next.graph !== props.graph ||
-        next.isDark !== props.isDark ||
-        next.ghostEdges !== props.ghostEdges ||
-        next.ghostEdgeGranularity !== props.ghostEdgeGranularity ||
-        next.riskMap !== props.riskMap ||
-        next.colorBy !== props.colorBy ||
-        next.nodeColorOverrides !== props.nodeColorOverrides ||
-        next.emphasizedNodes !== props.emphasizedNodes ||
-        next.neutralColor !== props.neutralColor ||
-        next.onNodeClick !== props.onNodeClick;
-
+      const graphChanged = needsGraphRebuild(props, next);
       const highlightChanged = next.highlightedNodes !== props.highlightedNodes;
       props = next;
 

@@ -591,6 +591,21 @@ export function mountCodeGraphPanel(
   }
 
   function appendBaselineGenerateButton(tag: string): void {
+    const gen = props.generateState ?? { status: 'idle' as const };
+    // 解析は 1 本ずつしか走らない。実行中は押しても 409 で弾かれるだけなので、
+    // 押せるように見せない（Time Scrubber の生成ボタンと同じ扱い）。
+    const running = gen.status === 'running';
+
+    if (gen.status === 'error' && gen.tag === tag) {
+      appendLegendNote(`${tr('codeGraph.scrubber.generateFailed')}: ${gen.message}`);
+    }
+
+    if (running) {
+      const percent = gen.percent === undefined ? '' : ` ${gen.percent}%`;
+      appendLegendNote(`${tr('codeGraph.scrubber.generating')}${percent}`);
+      return;
+    }
+
     // 既存の Time Scrubber の生成ボタンと同じ素 button で揃える（ui-core の createButton は
     // ハンドルを返すため、凡例のインライン要素として扱うにはこちらが素直）。
     const btn = document.createElement('button');

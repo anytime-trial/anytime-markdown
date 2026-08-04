@@ -204,6 +204,43 @@ describe('codeGraphPanel — State Replay', () => {
     handle.destroy();
   });
 
+  it('replaces the baseline generate button with progress while a generation runs', () => {
+    const { select, container, legend, handle } = mount(
+      baseProps({
+        baseline: { ...BASELINE, hasGraph: false },
+        diff: null,
+        generateState: { status: 'running', tag: 'v1.18.0', percent: 40 },
+      }),
+    );
+    selectDiff(select());
+
+    // 解析は 1 本ずつしか走らないため、実行中は押せるように見せない。
+    expect(
+      container.querySelector('[data-testid="code-graph-diff-generate-baseline"]'),
+    ).toBeNull();
+    expect(legend().textContent).toContain('40%');
+
+    handle.destroy();
+  });
+
+  it('shows why the baseline generation failed and lets it be retried', () => {
+    const { select, container, legend, handle } = mount(
+      baseProps({
+        baseline: { ...BASELINE, hasGraph: false },
+        diff: null,
+        generateState: { status: 'error', tag: 'v1.18.0', message: 'HTTP 500' },
+      }),
+    );
+    selectDiff(select());
+
+    expect(legend().textContent).toContain('HTTP 500');
+    expect(
+      container.querySelector('[data-testid="code-graph-diff-generate-baseline"]'),
+    ).not.toBeNull();
+
+    handle.destroy();
+  });
+
   it('hides the generate button once the baseline has a graph', () => {
     const { select, container, handle } = mount(baseProps());
     selectDiff(select());

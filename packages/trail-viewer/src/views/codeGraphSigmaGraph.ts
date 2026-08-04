@@ -92,6 +92,38 @@ export interface CodeGraphCanvasViewProps {
   readonly showRemovedNodes?: boolean;
 }
 
+/**
+ * 再構築を要さない prop。描画済みグラフの属性を書き換えるだけで済むもの。
+ *
+ * 検索ハイライトは `applyHighlight` が色を差し替えるだけなので、sigma を作り直す必要がない。
+ */
+const HIGHLIGHT_ONLY_PROPS: ReadonlySet<string> = new Set(['highlightedNodes']);
+
+/**
+ * props の変化が sigma グラフの再構築を要するか。
+ *
+ * **判定は「除外リスト方式」にしてある。** 以前は再構築を要する prop を列挙する方式だったが、
+ * `diff` / `showRemovedNodes` を足したときに列挙側の更新が漏れ、**新しい prop を渡しても
+ * 描画が一切変わらない**欠陥が入った（マージ前レビューで検出）。列挙漏れは「エラーにならず
+ * 描画が静かに古いまま」という形で出るため、既定を「再構築する」側へ倒す。
+ */
+export function needsGraphRebuild(
+  prev: CodeGraphCanvasViewProps,
+  next: CodeGraphCanvasViewProps,
+): boolean {
+  const keys = new Set([...Object.keys(prev), ...Object.keys(next)]);
+  for (const key of keys) {
+    if (HIGHLIGHT_ONLY_PROPS.has(key)) continue;
+    if (
+      prev[key as keyof CodeGraphCanvasViewProps] !==
+      next[key as keyof CodeGraphCanvasViewProps]
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** @internal 配色方式に応じたノード色を返す（layer は node.layer から、未付与は utility 色）。 */
 export function nodeColor(
   colorBy: CodeGraphColorBy,

@@ -1,6 +1,10 @@
 import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import { diffCodeGraphs } from '@anytime-markdown/trail-core/codeGraphDiff';
-import { buildSigmaGraph, type CodeGraphCanvasViewProps } from '../codeGraphSigmaGraph';
+import {
+  buildSigmaGraph,
+  needsGraphRebuild,
+  type CodeGraphCanvasViewProps,
+} from '../codeGraphSigmaGraph';
 import { diffNodeColor } from '../stateReplayColors';
 import { communityColor } from '../../components/communityColors';
 
@@ -44,12 +48,15 @@ const baseline = graph(
 );
 const target = graph([node('keep'), node('touch'), node('fresh')], [['touch', 'fresh']]);
 
+// 同一性で比較する箇所（needsGraphRebuild）があるため、差分は 1 度だけ作って使い回す。
+const DIFF = diffCodeGraphs(baseline, target);
+
 function props(over: Partial<CodeGraphCanvasViewProps> = {}): CodeGraphCanvasViewProps {
   return {
     graph: target,
     colorBy: 'diff',
     isDark: true,
-    diff: diffCodeGraphs(baseline, target),
+    diff: DIFF,
     ...over,
   };
 }
@@ -129,5 +136,65 @@ describe('buildSigmaGraph — State Replay (colorBy: diff)', () => {
 
     expect(g.getNodeAttribute('fresh', 'color')).toBe(diffNodeColor('added', false));
     expect(diffNodeColor('added', false)).not.toBe(diffNodeColor('added', true));
+  });
+});
+
+/**
+ * `mountCodeGraphCanvas.update()` は再構築の要否をこの判定に委ねている。
+ * 判定から漏れた prop は「エラーにならず描画が古いまま」という形で壊れるため、
+ * 新しい prop が既定で再構築側に入ることをここで固定する。
+ */
+describe('needsGraphRebuild', () => {
+  it('rebuilds when the diff arrives after the baseline fetch settles', () => {
+    // 差分表示を選んだ直後はベースライン未取得で diff は null。後から届いたときに
+    // 再構築しないと、差分着色もゴーストも永久に出ない（マージ前レビューで検出した欠陥）。
+    const before = props({ diff: null });
+    const after = props();
+
+    expect(needsGraphRebuild(before, after)).toBe(true);
+  });
+
+  it('rebuilds when the removed-node toggle changes', () => {
+    expect(needsGraphRebuild(props({ showRemovedNodes: true }), props({ showRemovedNodes: false })))
+      .toBe(true);
+  });
+
+  it('does not rebuild for a search-highlight change alone', () => {
+    // ハイライトは描画済みノードの色を差し替えるだけで済む（sigma を作り直すと重い）。
+    const before = props({ highlightedNodes: new Set(['keep']) });
+    const after = props({ highlightedNodes: new Set(['fresh']) });
+
+    expect(needsGraphRebuild(before, after)).toBe(false);
+  });
+
+  it('does not rebuild when nothing changed', () => {
+    const same = props();
+
+    expect(needsGraphRebuild(same, same)).toBe(false);
+  });
+
+  it('rebuilds for every prop other than the highlight set', () => {
+    // 列挙方式へ戻した場合にここが落ちる。prop を足したのに判定へ入れ忘れる欠陥を、
+    // 個別のテストを書き足さなくても検出できるようにする。
+    const base = props();
+    const changed: Array<Partial<CodeGraphCanvasViewProps>> = [
+      { graph: { ...target, generatedAt: '2026-08-05T00:00:00.000Z' } },
+      { isDark: false },
+      { colorBy: 'community' },
+      { neutralColor: '#123456' },
+      { riskMap: new Map() },
+      { nodeColorOverrides: new Map() },
+      { emphasizedNodes: new Set<string>() },
+      { ghostEdges: [] },
+      { ghostEdgeGranularity: 'session' },
+      { onNodeClick: () => {} },
+      { diff: null },
+      { showRemovedNodes: false },
+    ];
+
+    for (const over of changed) {
+      const key = Object.keys(over)[0];
+      expect([key, needsGraphRebuild(base, props(over))]).toEqual([key, true]);
+    }
   });
 });
