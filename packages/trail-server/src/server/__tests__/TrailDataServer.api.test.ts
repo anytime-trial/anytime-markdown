@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
+import { UnknownRepoError } from '../../analyze/AnalyzePipeline';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
@@ -1134,6 +1135,32 @@ describe('Snapshot per Commit の API', () => {
     });
     expect(res.status).toBe(200);
     expect(seen).toEqual([{ sha: 'abc1234', repo: 'anytime-markdown' }]);
+  });
+
+  // 構成に無い repo は要求側の誤りで、再試行しても成功しない。サーバ障害と混ぜない。
+  it('POST /api/analyze/commit は構成に無い repo を 400 で断る（500 にしない）', async () => {
+    server.onAnalyzeCommitCode = async (req) => {
+      throw new UnknownRepoError(req.repo);
+    };
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sha: 'abc1234', repo: 'not-configured' }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('not-configured');
+  });
+
+  it('POST /api/analyze/commit は解析そのものの失敗は 500 のまま返す', async () => {
+    server.onAnalyzeCommitCode = async () => {
+      throw new Error('tsconfig not found at that commit');
+    };
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sha: 'abc1234', repo: 'anytime-markdown' }),
+    });
+    expect(res.status).toBe(500);
   });
 });
 

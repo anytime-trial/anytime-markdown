@@ -226,6 +226,11 @@ describe('TrailDatabase commit code graphs', () => {
       expect(db.listCommitCodeGraphAvailability(TEST_REPO, 'v9.9.9', 'v1.0.0')).toEqual([]);
     });
 
+    // 下端の打ち間違いを「下限なし」へ縮退させると、区間でなくリポジトリ全体が返る。
+    it('returns nothing for an unknown lower-bound tag (does not widen to the oldest)', () => {
+      expect(db.listCommitCodeGraphAvailability(TEST_REPO, 'v1.1.0', 'v0.0.0-typo')).toEqual([]);
+    });
+
     it('returns nothing for an unknown repository', () => {
       expect(db.listCommitCodeGraphAvailability('never-seen', 'v1.1.0')).toEqual([]);
     });

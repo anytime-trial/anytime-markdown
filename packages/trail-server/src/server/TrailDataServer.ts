@@ -66,6 +66,7 @@ import type {
   AnalyzeCurrentResult,
   AnalyzeReleaseResult,
 } from '../analyze/AnalyzePipeline';
+import { UnknownRepoError } from '../analyze/AnalyzePipeline';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
 import { runC4SourceAnalyze } from '../analyze/runC4SourceAnalyze';
 import type { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
@@ -3911,6 +3912,14 @@ export class TrailDataServer {
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
     } catch (err) {
+      // 構成に無い repo は要求側の誤りで、再試行しても成功しない。サーバ障害（500）と
+      // 区別して 400 で返す（UI が「別の解析が走っている」等と誤って案内しないため）。
+      if (err instanceof UnknownRepoError) {
+        this.logger.warn(`[/api/analyze/commit] unknown repo: ${repo}`);
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: `unknown repo: ${repo}` }));
+        return;
+      }
       this.logger.error('handleAnalyzeCommit failed', err);
       sendServerError(res, 'analyze commit failed');
     } finally {

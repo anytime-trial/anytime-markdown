@@ -7822,7 +7822,8 @@ export class TrailDatabase {
    * 名寄せ）はコミット粒度では効かない. upgrade: コミットスナップショットにも名前付き
    * コミュニティを出すことになったら release 側と同じ 2 テーブル構成へ移す.
    *
-   * @param retentionPerRepo リポジトリあたりの保持本数。超過分は `generated_at` の古い順に削除する
+   * @param retentionPerRepo リポジトリあたりの保持本数。超過分は行の書き込み時刻（`updated_at`）が
+   *   古い順に削除する。0 以下・非有限値は「上限なし（1 本も削除しない）」を意味する
    */
   saveCommitCodeGraph(
     sha: string,
@@ -7844,7 +7845,7 @@ export class TrailDatabase {
   }
 
   /**
-   * 保持上限を超えたコミットスナップショットを `generated_at` の古い順に落とす。
+   * 保持上限を超えたコミットスナップショットを、行の書き込み時刻が古い順に落とす。
    *
    * 参照時刻ではなく生成時刻で落とす（LRU にしない）。LRU は読み取り経路に書き込みを
    * 持ち込むため。よく見るコミットでも古ければ消える点は仕様 §10 に既知の穴として記載。
@@ -7888,8 +7889,12 @@ export class TrailDatabase {
    * コミットは目盛りに出ない**（仕様 §10 の既知の穴）。
    *
    * 区間は `released_at` で切る（タグの到達可能性ではない）。`fromTag` を省略すると
-   * 最古から `toTag` までになる。`toTag` が `releases` に無ければ空配列を返す
+   * 最古から `toTag` までになる。`toTag` / `fromTag` が `releases` に無ければ空配列を返す
    * （「全件」へ広げると、打ち間違いが数千件の目盛りとして現れる）。
+   *
+   * 境界は ISO 8601 文字列の比較で判定する。`committed_at` / `released_at` の CHECK は
+   * ミリ秒あり・なしの双方を許すため、同一秒内で桁が異なると（`...:00Z` と `...:00.500Z`）
+   * 文字列順が実時刻と逆転しうる。実データは双方ミリ秒付きで書かれる前提に依存している。
    */
   listCommitCodeGraphAvailability(
     repoName: string,
@@ -7900,7 +7905,14 @@ export class TrailDatabase {
     const repoId = this.repoIdForNameReadonly(repoName);
     const toAt = this.releasedAtForRepoTag(db, repoId, toTag);
     if (toAt == null) return [];
-    const fromAt = fromTag == null ? null : this.releasedAtForRepoTag(db, repoId, fromTag);
+    let fromAt: string | null = null;
+    if (fromTag != null) {
+      fromAt = this.releasedAtForRepoTag(db, repoId, fromTag);
+      // 指定された下端が引けないなら区間が決まらない。下限なし（最古から）へ縮退させると、
+      // タグの打ち間違いが「区間の全コミット」でなく「リポジトリの全コミット」を返す。
+      // 上端が引けないときに空を返すのと同じ扱いにする。
+      if (fromAt == null) return [];
+    }
 
     const params: Array<string | number> = [repoId, toAt];
     let lowerBound = '';

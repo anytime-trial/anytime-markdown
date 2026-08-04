@@ -8,6 +8,7 @@ import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 
 import {
   DEFAULT_COMMIT_CODE_GRAPH_RETENTION,
+  resolveGitRootForRepo,
   runAnalyzeCommitCodePipeline,
   runAnalyzeReleaseCodePipeline,
 } from '../AnalyzePipeline';
@@ -251,5 +252,25 @@ describe('runAnalyzeCommitCodePipeline', () => {
     ).rejects.toThrow();
 
     expect(fs.existsSync(worktreeRoot)).toBe(false);
+  });
+});
+
+describe('resolveGitRootForRepo', () => {
+  // 保存先は repo が決めるのに解析対象は gitRoot が決めるため、検証せず primary を渡すと
+  // 別リポジトリ名で primary の断面が commit_code_graphs に残る。
+  it('picks the root whose basename matches the requested repo', () => {
+    const roots = ['/work/anytime-markdown', '/work/anytime-trade'];
+
+    expect(resolveGitRootForRepo(roots, 'anytime-trade')).toBe('/work/anytime-trade');
+  });
+
+  it('returns null for a repo that is not configured (does not fall back to the primary)', () => {
+    const roots = ['/work/anytime-markdown', '/work/anytime-trade'];
+
+    expect(resolveGitRootForRepo(roots, 'not-configured')).toBeNull();
+  });
+
+  it('returns null when no roots are configured', () => {
+    expect(resolveGitRootForRepo([], 'anytime-markdown')).toBeNull();
   });
 });

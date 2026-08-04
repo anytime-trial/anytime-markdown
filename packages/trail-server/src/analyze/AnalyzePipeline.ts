@@ -731,6 +731,33 @@ export async function runAnalyzeReleaseCodePipeline(
 /** リポジトリあたりのコミットスナップショット保持本数の既定。約 60 MB 相当。 */
 export const DEFAULT_COMMIT_CODE_GRAPH_RETENTION = 30;
 
+/** 要求された `repo` に対応する git root が構成に無いことを表す。呼び元は 400 で断る。 */
+export class UnknownRepoError extends Error {
+  constructor(readonly repoName: string) {
+    super(`unknown repo: ${repoName}`);
+    this.name = 'UnknownRepoError';
+  }
+}
+
+/**
+ * `repo` 名から解析対象の git root を選ぶ。
+ *
+ * リポジトリ ID は git root の basename で作られている（`CodeGraphService` の
+ * `repositories`）。**渡された `repo` を検証せず primary の git root で解析すると、
+ * 別リポジトリ名で primary の断面が `commit_code_graphs` に残る**（保存先は `repo` が
+ * 決めるのに、解析対象は gitRoot が決めるため）。一致が無ければ null を返し、
+ * 呼び元が要求を拒否する。
+ */
+export function resolveGitRootForRepo(
+  gitRoots: readonly string[],
+  repoName: string,
+): string | null {
+  for (const root of gitRoots) {
+    if (path.basename(root) === repoName) return root;
+  }
+  return null;
+}
+
 export interface AnalyzeCommitOpts {
   trailDb: TrailDatabase;
   codeGraphService: CodeGraphService;

@@ -37,10 +37,12 @@ import { CodeGraphService } from './analyze/CodeGraphService';
 import {
   findTsconfigCandidates,
   hasPythonFiles,
+  resolveGitRootForRepo,
   runAnalyzeCurrentCodePipeline,
   runAnalyzeCommitCodePipeline,
   runAnalyzeReleaseCodePipeline,
   toAnalyzeReleaseScope,
+  UnknownRepoError,
 } from './analyze/AnalyzePipeline';
 
 const TRAIL_HOME = getTrailHome(process.cwd());
@@ -238,10 +240,14 @@ program
 
       // Snapshot per Commit: 1 コミット分のみ生成する。
       server.onAnalyzeCommitCode = async (req) => {
+        // 保存先は req.repo が決めるので、解析対象の git root も req.repo から引く。
+        // primary をそのまま渡すと、別リポジトリ名で primary の断面を保存し得る。
+        const commitGitRoot = resolveGitRootForRepo(effectiveGitRoots, req.repo);
+        if (!commitGitRoot) throw new UnknownRepoError(req.repo);
         return runAnalyzeCommitCodePipeline({
           trailDb,
           codeGraphService,
-          gitRoot: primaryGitRoot,
+          gitRoot: commitGitRoot,
           sha: req.sha,
           repoName: req.repo,
           // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
