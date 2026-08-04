@@ -83,6 +83,14 @@ const COLOR_BY_FALLBACK: Record<string, string> = {
   'codeGraph.diff.baselineMissing': '1 つ前の時点のグラフが未生成です。',
   'codeGraph.diff.generateBaseline': 'ベースラインのグラフを生成',
   'codeGraph.diff.noBaseline': '最古の時点には前版がありません',
+  'codeGraph.scrubber.zoomToCommits': 'コミットへズーム',
+  'codeGraph.scrubber.zoomToReleases': 'リリースへ戻す',
+  'codeGraph.scrubber.zoomUnavailable': '「現在」からはズームできません。リリースを選んでください。',
+  'codeGraph.scrubber.granularityRelease': 'リリース粒度',
+  'codeGraph.scrubber.granularityCommit': 'コミット粒度',
+  'codeGraph.scrubber.rangeOldest': '最古',
+  'codeGraph.scrubber.generateCommit': 'このコミットのグラフを生成',
+  'codeGraph.scrubber.commitsEmpty': 'この区間に Trail が把握しているコミットはありません。',
 };
 
 /** 「現在のスナップショット」を表す予約タグ。`/api/code-graph` の release パラメタと同値。 */
@@ -135,6 +143,26 @@ export interface CodeGraphPanelProps {
   /** 未生成タグの生成要求。明示操作でのみ呼ばれる（スライダー操作では呼ばない）。 */
   readonly onGenerateRelease?: (tag: string) => void;
   /**
+   * スクラバの粒度（Snapshot per Commit）。既定はリリース粒度。
+   * コミット粒度では目盛りが `commits` に切り替わり、「現在」の目盛りは並ばない
+   * （コミット粒度は `前のリリース..選択リリース` の閉じた区間である）。
+   */
+  readonly granularity?: CodeGraphScrubberGranularity;
+  /** コミット粒度の目盛り。`committed_at` 昇順で渡す（並べ替えはサーバの責務）。 */
+  readonly commits?: readonly CodeGraphCommitTick[];
+  /** 選択中のコミット SHA。コミット粒度でのみ使う。 */
+  readonly selectedCommit?: string | null;
+  /** ズーム中の区間。`fromTag` が null なら最古から。粒度ラベルに出す。 */
+  readonly commitRange?: { readonly fromTag: string | null; readonly toTag: string } | null;
+  /** コミット粒度へのズーム要求。 */
+  readonly onZoomToCommits?: () => void;
+  /** リリース粒度への復帰要求。 */
+  readonly onZoomToReleases?: () => void;
+  /** コミット目盛りを確定したときの通知（ドラッグ中は発火しない）。 */
+  readonly onCommitChange?: (sha: string) => void;
+  /** 未生成コミットの生成要求。明示操作でのみ呼ばれる。 */
+  readonly onGenerateCommit?: (sha: string) => void;
+  /**
    * State Replay の差分（`colorBy: 'diff'` で使用）。ベースライン取得前・取得失敗時は null。
    * 計算は React ラッパが `diffCodeGraphs` で行う（描画層は結果だけ受け取る）。
    */
@@ -143,14 +171,38 @@ export interface CodeGraphPanelProps {
    * 差分のベースライン（1 つ前の目盛り）。null は「前版が無い」＝最古の時点、または一覧が空。
    * `hasGraph` が false ならグラフ未生成で、生成を要求できる。
    */
-  readonly baseline?: CodeGraphReleaseTick | null;
+  readonly baseline?: CodeGraphBaselineTick | null;
 }
+
+/** スクラバの粒度。 */
+export type CodeGraphScrubberGranularity = 'release' | 'commit';
 
 /** Time Scrubber の目盛り 1 件。 */
 export interface CodeGraphReleaseTick {
   readonly tag: string;
   readonly releasedAt: string;
   readonly hasGraph: boolean;
+}
+
+/** コミット粒度の目盛り 1 件（`GET /api/code-graph/commits` の応答要素）。 */
+export interface CodeGraphCommitTick {
+  readonly sha: string;
+  readonly shortSha: string;
+  readonly committedAt: string;
+  readonly subject: string;
+  readonly hasGraph: boolean;
+}
+
+/**
+ * 差分のベースラインとなる時点。
+ *
+ * `tag` は生成要求に使う識別子（リリース粒度ではタグ、コミット粒度では完全な SHA）。
+ * 表示は `label` を優先する（40 文字の SHA をそのまま凡例へ出さないため）。
+ */
+export interface CodeGraphBaselineTick {
+  readonly tag: string;
+  readonly hasGraph: boolean;
+  readonly label?: string;
 }
 
 /** オンデマンド生成の状態。`tag` は要求中・失敗中のタグ。 */
@@ -227,6 +279,29 @@ export function mountCodeGraphPanel(
   scrubberValue.setAttribute('data-testid', 'code-graph-scrubber-value');
   scrubberValue.style.cssText = 'font-size:0.75rem;font-variant-numeric:tabular-nums;flex-shrink:0;';
   scrubberRow.appendChild(scrubberValue);
+
+  // 粒度（リリース / コミット）の切替と区間表示。スライダーの行とは分ける
+  // （ズーム操作は目盛りを選ぶ操作とは別の軸で、同じ行に混ぜると押し間違える）。
+  const zoomRow = document.createElement('div');
+  zoomRow.setAttribute('data-testid', 'code-graph-scrubber-zoom');
+  zoomRow.style.cssText =
+    'display:flex;align-items:center;gap:8px;font-size:0.7rem;color:var(--am-color-text-secondary);';
+  scrubberEl.appendChild(zoomRow);
+
+  const zoomButton = document.createElement('button');
+  zoomButton.style.cssText =
+    'padding:2px 8px;border:1px solid var(--am-color-divider);border-radius:4px;' +
+    'background:transparent;color:inherit;cursor:pointer;font-size:0.7rem;flex-shrink:0;';
+  zoomButton.addEventListener('click', () => {
+    if (zoomButton.disabled) return;
+    if (granularity() === 'commit') props.onZoomToReleases?.();
+    else props.onZoomToCommits?.();
+  });
+  zoomRow.appendChild(zoomButton);
+
+  const zoomLabel = document.createElement('span');
+  zoomLabel.setAttribute('data-testid', 'code-graph-scrubber-granularity');
+  zoomRow.appendChild(zoomLabel);
 
   const scrubberLegend = document.createElement('div');
   scrubberLegend.setAttribute('data-testid', 'code-graph-scrubber-legend');
@@ -396,8 +471,33 @@ export function mountCodeGraphPanel(
     readonly hasGraph: boolean;
   }
 
-  /** 目盛り列。右端は常に「現在」。並べ替えはしない（サーバの released_at 昇順をそのまま使う）。 */
+  function granularity(): CodeGraphScrubberGranularity {
+    return props.granularity ?? 'release';
+  }
+
+  /** コミットの subject は 1 行でも長い。目盛りラベルとして読める長さで切る。 */
+  const COMMIT_SUBJECT_MAX = 40;
+
+  function commitTickLabel(c: CodeGraphCommitTick): string {
+    const subject =
+      c.subject.length > COMMIT_SUBJECT_MAX ? `${c.subject.slice(0, COMMIT_SUBJECT_MAX)}…` : c.subject;
+    return subject ? `${c.shortSha} ${subject}` : c.shortSha;
+  }
+
+  /**
+   * 目盛り列。並べ替えはしない（サーバの昇順をそのまま使う）。
+   *
+   * リリース粒度の右端は常に「現在」。コミット粒度では「現在」を並べない
+   * （区間が `前のリリース..選択リリース` で閉じており、その外側だから）。
+   */
   function scrubberTicks(): ScrubberTick[] {
+    if (granularity() === 'commit') {
+      return (props.commits ?? []).map((c) => ({
+        tag: c.sha,
+        label: commitTickLabel(c),
+        hasGraph: c.hasGraph,
+      }));
+    }
     const ticks: ScrubberTick[] = (props.releases ?? []).map((r) => ({
       tag: r.tag,
       // 日付は UTC の日付部分だけを出す（時刻まで出すと目盛りラベルが読めない）。
@@ -409,9 +509,13 @@ export function mountCodeGraphPanel(
   }
 
   function selectedTickIndex(ticks: readonly ScrubberTick[]): number {
-    const selected = props.selectedRelease ?? CURRENT_RELEASE;
+    const selected =
+      granularity() === 'commit'
+        ? (props.selectedCommit ?? '')
+        : (props.selectedRelease ?? CURRENT_RELEASE);
     const index = ticks.findIndex((t) => t.tag === selected);
-    // 一覧から消えたタグを選んだままにしない（機能仕様書 §4.2）。右端＝現在へ戻す。
+    // 一覧から消えたタグを選んだままにしない（機能仕様書 §4.2）。右端へ寄せる
+    // （リリース粒度では「現在」、コミット粒度では区間の上端＝選択リリースに最も近い側）。
     return index >= 0 ? index : ticks.length - 1;
   }
 
@@ -469,15 +573,51 @@ export function mountCodeGraphPanel(
     }
   }
 
+  /** ズーム行（粒度の切替ボタンと区間ラベル）。 */
+  function renderZoomRow(): void {
+    const isCommit = granularity() === 'commit';
+    zoomButton.textContent = tr(
+      isCommit ? 'codeGraph.scrubber.zoomToReleases' : 'codeGraph.scrubber.zoomToCommits',
+    );
+    // 「現在」は特定のリリースではないため区間の上端にできない。押せるように見せない。
+    const zoomable = isCommit || (props.selectedRelease ?? CURRENT_RELEASE) !== CURRENT_RELEASE;
+    zoomButton.disabled = !zoomable;
+    zoomButton.style.opacity = zoomable ? '1' : '0.5';
+    zoomButton.style.cursor = zoomable ? 'pointer' : 'not-allowed';
+    zoomButton.title = zoomable ? '' : tr('codeGraph.scrubber.zoomUnavailable');
+
+    if (!isCommit) {
+      zoomLabel.textContent = tr('codeGraph.scrubber.granularityRelease');
+      return;
+    }
+    const range = props.commitRange ?? null;
+    const from = range?.fromTag ?? tr('codeGraph.scrubber.rangeOldest');
+    const to = range?.toTag ?? '';
+    zoomLabel.textContent = `${tr('codeGraph.scrubber.granularityCommit')}: ${from} → ${to}`;
+  }
+
   function renderScrubber(): void {
-    const releases = props.releases ?? [];
-    if (releases.length === 0) {
+    const isCommit = granularity() === 'commit';
+    const ticks = scrubberTicks();
+    if (!isCommit && (props.releases ?? []).length === 0) {
       // 一覧が取れないときはスクラバを出さない。グラフ描画自体は生かす（§受け入れ基準 12）。
       scrubberEl.style.display = 'none';
       return;
     }
     scrubberEl.style.display = 'flex';
-    const ticks = scrubberTicks();
+    renderZoomRow();
+
+    // コミット粒度で区間が空でも、スクラバごと消すと「リリースへ戻す」手段まで消える。
+    // 目盛りだけを畳み、戻る導線は残す。
+    const empty = ticks.length === 0;
+    sliderWrap.style.display = empty ? 'none' : '';
+    if (empty) {
+      scrubberLabel.textContent = tr('codeGraph.scrubber.label');
+      scrubberValue.textContent = tr('codeGraph.scrubber.commitsEmpty');
+      scrubberLegend.replaceChildren();
+      return;
+    }
+
     const index = selectedTickIndex(ticks);
     slider.max = String(ticks.length - 1);
     slider.value = String(index);
@@ -486,7 +626,7 @@ export function mountCodeGraphPanel(
     applyScrubberValueText(ticks, index);
     renderTickStrip(ticks);
     renderScrubberLegend();
-    if (ticks[index]?.tag !== CURRENT_RELEASE) {
+    if (isCommit || ticks[index]?.tag !== CURRENT_RELEASE) {
       const note = document.createElement('span');
       note.textContent = tr('codeGraph.scrubber.heatmapDisabled');
       scrubberLegend.appendChild(note);
@@ -501,8 +641,19 @@ export function mountCodeGraphPanel(
   slider.addEventListener('change', () => {
     const ticks = scrubberTicks();
     const tick = ticks[Number(slider.value)];
-    if (tick) props.onReleaseChange?.(tick.tag);
+    if (!tick) return;
+    if (granularity() === 'commit') props.onCommitChange?.(tick.tag);
+    else props.onReleaseChange?.(tick.tag);
   });
+
+  /**
+   * 未生成の時点の生成要求。粒度で宛先が変わる（リリースはタグ、コミットは SHA）。
+   * 描画層は「どの時点か」だけを返し、どのエンドポイントを叩くかはラッパが決める。
+   */
+  function requestGenerate(id: string): void {
+    if (granularity() === 'commit') props.onGenerateCommit?.(id);
+    else props.onGenerateRelease?.(id);
+  }
 
   /**
    * 配色マップのメモ化。
@@ -614,7 +765,7 @@ export function mountCodeGraphPanel(
     btn.style.cssText =
       'padding:2px 8px;background:var(--am-color-primary-main);color:#fff;border:none;' +
       'border-radius:4px;cursor:pointer;font-size:0.7rem;';
-    btn.addEventListener('click', () => props.onGenerateRelease?.(tag));
+    btn.addEventListener('click', () => requestGenerate(tag));
     legendEl.appendChild(btn);
   }
 
@@ -624,7 +775,7 @@ export function mountCodeGraphPanel(
     const baseline = props.baseline ?? null;
 
     if (baseline) {
-      appendLegendNote(`${tr('codeGraph.diff.baseline')}: ${baseline.tag}`);
+      appendLegendNote(`${tr('codeGraph.diff.baseline')}: ${baseline.label ?? baseline.tag}`);
     }
 
     // 色を読めなくても差分の規模が分かるよう、区分ごとに件数を数値で出す（仕様 §4.4）。
@@ -723,7 +874,7 @@ export function mountCodeGraphPanel(
    * 生成は明示操作でのみ行う（スライダー操作で自動生成しない）。実行中は
    * 他の時点を選べるようスクラバは残したまま、この領域だけを差し替える。
    */
-  function renderMissingRelease(tag: string): void {
+  function renderMissingRelease(tag: string, label = tag): void {
     clearCanvas();
     const el = document.createElement('div');
     el.setAttribute('data-testid', 'code-graph-missing-release');
@@ -739,11 +890,11 @@ export function mountCodeGraphPanel(
     const message = document.createElement('div');
     if (runningThisTag) {
       const percent = gen.status === 'running' && typeof gen.percent === 'number' ? ` ${gen.percent}%` : '';
-      message.textContent = `${tr('codeGraph.scrubber.generating')}: ${tag}${percent}`;
+      message.textContent = `${tr('codeGraph.scrubber.generating')}: ${label}${percent}`;
     } else if (running) {
-      message.textContent = `${tag} — ${tr('codeGraph.scrubber.generatingOther')}`;
+      message.textContent = `${label} — ${tr('codeGraph.scrubber.generatingOther')}`;
     } else {
-      message.textContent = `${tag} — ${tr('codeGraph.scrubber.notGenerated')}`;
+      message.textContent = `${label} — ${tr('codeGraph.scrubber.notGenerated')}`;
     }
     el.appendChild(message);
 
@@ -757,11 +908,13 @@ export function mountCodeGraphPanel(
     if (!running) {
       const btn = document.createElement('button');
       btn.setAttribute('data-testid', 'code-graph-generate-release');
-      btn.textContent = tr('codeGraph.scrubber.generate');
+      btn.textContent = tr(
+        granularity() === 'commit' ? 'codeGraph.scrubber.generateCommit' : 'codeGraph.scrubber.generate',
+      );
       btn.style.cssText =
         'padding:4px 12px;background:var(--am-color-primary-main);color:#fff;border:none;' +
         'border-radius:4px;cursor:pointer;font-size:0.875rem;';
-      btn.addEventListener('click', () => props.onGenerateRelease?.(tag));
+      btn.addEventListener('click', () => requestGenerate(tag));
       el.appendChild(btn);
     }
 
@@ -779,8 +932,9 @@ export function mountCodeGraphPanel(
     renderScrubber();
 
     // Author Heatmap は現在のグラフのノード集合に対する集計なので、過去の時点では成立しない。
-    // 選択中だった場合は community へ戻す（§4.5）。
-    const isCurrentRelease = (props.selectedRelease ?? CURRENT_RELEASE) === CURRENT_RELEASE;
+    // 選択中だった場合は community へ戻す（§4.5）。コミット粒度は定義上すべて過去の時点。
+    const isCurrentRelease =
+      granularity() === 'release' && (props.selectedRelease ?? CURRENT_RELEASE) === CURRENT_RELEASE;
     optLastEditor.disabled = !isCurrentRelease;
     optEditFrequency.disabled = !isCurrentRelease;
     if (!isCurrentRelease && isOverrideColorBy(colorBy)) {
@@ -854,8 +1008,17 @@ export function mountCodeGraphPanel(
     }
 
     if (state.status === 'no-graph') {
+      if (granularity() === 'commit') {
+        const sha = props.selectedCommit ?? '';
+        // 区間が空・未選択のときは「未生成」ではなく素の未生成表示へ落とす（生成対象が無い）。
+        if (sha) {
+          const tick = (props.commits ?? []).find((c) => c.sha === sha);
+          renderMissingRelease(sha, tick ? commitTickLabel(tick) : sha.slice(0, 8));
+          return;
+        }
+      }
       const selected = props.selectedRelease ?? CURRENT_RELEASE;
-      if (selected !== CURRENT_RELEASE) {
+      if (granularity() === 'release' && selected !== CURRENT_RELEASE) {
         renderMissingRelease(selected);
         return;
       }

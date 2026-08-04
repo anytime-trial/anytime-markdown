@@ -13,7 +13,12 @@ export interface UseCodeGraphOptions {
   readonly enabled?: boolean;
   /** リリースタグ（'current' で最新スナップショット）。デフォルト 'current' */
   readonly release?: string;
-  /** リポジトリ名。release !== 'current' のとき releases.repo_name による帰属確認に使用 */
+  /**
+   * コミット SHA（Snapshot per Commit）。指定すると `release` より優先し、`release` は送らない。
+   * サーバは `commit` と `release` の同時指定を 400 で断るため、ここで排他にする。
+   */
+  readonly commit?: string;
+  /** リポジトリ名。release !== 'current' / commit 指定のとき帰属確認に使用（commit では必須） */
   readonly repo?: string;
 }
 
@@ -21,7 +26,7 @@ export function useCodeGraph(
   serverUrl: string,
   options: UseCodeGraphOptions = {},
 ): UseCodeGraphResult {
-  const { enabled = true, release = 'current', repo } = options;
+  const { enabled = true, release = 'current', commit, repo } = options;
   const [graph, setGraph] = useState<CodeGraph | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +44,8 @@ export function useCodeGraph(
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (release && release !== 'current') params.set('release', release);
+      if (commit) params.set('commit', commit);
+      else if (release && release !== 'current') params.set('release', release);
       if (repo) params.set('repo', repo);
       const qs = params.toString();
       const url = `${serverUrl}/api/code-graph${qs ? `?${qs}` : ''}`;
@@ -59,7 +65,7 @@ export function useCodeGraph(
     } finally {
       if (!isStale()) setLoading(false);
     }
-  }, [serverUrl, enabled, release, repo]);
+  }, [serverUrl, enabled, release, commit, repo]);
 
   useEffect(() => {
     if (!enabled) return;

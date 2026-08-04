@@ -305,6 +305,14 @@ export interface TrailI18n {
   'codeGraph.scrubber.generatingOther': string;
   'codeGraph.scrubber.busy': string;
   'codeGraph.scrubber.heatmapDisabled': string;
+  'codeGraph.scrubber.zoomToCommits': string;
+  'codeGraph.scrubber.zoomToReleases': string;
+  'codeGraph.scrubber.zoomUnavailable': string;
+  'codeGraph.scrubber.granularityRelease': string;
+  'codeGraph.scrubber.granularityCommit': string;
+  'codeGraph.scrubber.rangeOldest': string;
+  'codeGraph.scrubber.generateCommit': string;
+  'codeGraph.scrubber.commitsEmpty': string;
   'codeGraph.colorBy.diff': string;
   'codeGraph.diff.added': string;
   'codeGraph.diff.removed': string;
