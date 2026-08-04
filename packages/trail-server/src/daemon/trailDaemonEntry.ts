@@ -30,6 +30,7 @@ import type { EmbedFn } from '@anytime-markdown/doc-core';
 import type { Logger } from '../runtime/Logger';
 import {
   runAnalyzeCurrentCodePipeline,
+  runAnalyzeCommitCodePipeline,
   runAnalyzeReleaseCodePipeline,
   toAnalyzeReleaseScope,
 } from '../analyze/AnalyzePipeline';
@@ -504,6 +505,27 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       onProgress: emitAnalyzeReleaseProgress,
     };
     return runAnalyzeReleaseCodePipeline(opts3);
+  };
+
+  // Snapshot per Commit: 1 コミット分のみ生成する。release と違い全量ループは持たない。
+  server.onAnalyzeCommitCode = async (req) => {
+    if (httpTrailDb === null || httpCodeGraphService === null) {
+      throw new Error('http server state not ready');
+    }
+    if (!opts.gitRoot) {
+      throw new Error('gitRoot not configured; pass gitRoot to startHttpServer first');
+    }
+    return runAnalyzeCommitCodePipeline({
+      trailDb: httpTrailDb,
+      codeGraphService: httpCodeGraphService,
+      gitRoot: opts.gitRoot,
+      sha: req.sha,
+      repoName: req.repo,
+      // daemon はバンドル環境なので TS 解析は必ず子プロセスへ隔離する。
+      compute: { kind: 'child', analyzeChildPath },
+      logger: daemonLoggerAsLogger,
+      onProgress: emitAnalyzeReleaseProgress,
+    });
   };
 
   server.onAnalyzeAll = async () => {

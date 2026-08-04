@@ -38,6 +38,7 @@ import {
   findTsconfigCandidates,
   hasPythonFiles,
   runAnalyzeCurrentCodePipeline,
+  runAnalyzeCommitCodePipeline,
   runAnalyzeReleaseCodePipeline,
   toAnalyzeReleaseScope,
 } from './analyze/AnalyzePipeline';
@@ -231,6 +232,20 @@ program
           // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
           compute: { kind: 'in-host' },
           scope: toAnalyzeReleaseScope(req.tags),
+          logger,
+        });
+      };
+
+      // Snapshot per Commit: 1 コミット分のみ生成する。
+      server.onAnalyzeCommitCode = async (req) => {
+        return runAnalyzeCommitCodePipeline({
+          trailDb,
+          codeGraphService,
+          gitRoot: primaryGitRoot,
+          sha: req.sha,
+          repoName: req.repo,
+          // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
+          compute: { kind: 'in-host' },
           logger,
         });
       };
