@@ -624,6 +624,37 @@ describe('POST /api/analyze/release — tags', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  // マージ前レビュー（Claude / Codex 双方が独立に指摘）: 壊れた JSON を空ボディと同一視すると
+  // 「tags を送ったが壊れていた」要求が全量洗い替えとして実行され、既存グラフを全部消す。
+  it('壊れた JSON ボディは 400 で弾き、全量洗い替えへ落とさない', async () => {
+    const handler = jest.fn().mockResolvedValue({ releaseCount: 0, durationMs: 1 });
+    server.onAnalyzeReleaseCode = handler;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/release`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"tags": ["v1.19.1"',
+    });
+
+    expect(res.status).toBe(400);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('JSON オブジェクトでないボディ（配列・スカラ）も 400 で弾く', async () => {
+    const handler = jest.fn().mockResolvedValue({ releaseCount: 0, durationMs: 1 });
+    server.onAnalyzeReleaseCode = handler;
+
+    for (const body of ['["v1.19.1"]', '"v1.19.1"', 'null']) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze/release`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+      });
+      expect(res.status).toBe(400);
+    }
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('tags の要素に文字列以外・空文字が混ざれば 400 で弾く', async () => {
     const handler = jest.fn().mockResolvedValue({ releaseCount: 0, durationMs: 1 });
     server.onAnalyzeReleaseCode = handler;
