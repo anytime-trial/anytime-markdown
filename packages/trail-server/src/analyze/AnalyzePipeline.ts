@@ -565,6 +565,7 @@ export async function runAnalyzeReleaseCodePipeline(
   const { trailDb, codeGraphService, gitRoot, compute, onProgress } = opts;
   const logger = opts.logger ?? NOOP_LOGGER;
   const repoLabel = opts.repoLabel || path.basename(gitRoot);
+  const git = new ExecFileGitService(gitRoot);
   const startedAt = Date.now();
 
   onProgress?.('Clearing release code graphs...');
@@ -582,10 +583,20 @@ export async function runAnalyzeReleaseCodePipeline(
       if (fs.existsSync(worktreeRoot)) {
         cleanupWorktree(gitRoot, worktreeRoot, logger);
       }
-      execFileSync(resolveGitExecutable(), ['worktree', 'add', '--detach', worktreeRoot, tag], {
+      // タグ名を直接渡さず commit hash へ解決してから worktree を作る。タグと同名の
+      // ブランチが存在すると ref 解決が曖昧になり、意図しない断面を解析しうる。
+      const commitHash = git.getTagCommitHash(tag);
+      execFileSync(resolveGitExecutable(), ['worktree', 'add', '--detach', worktreeRoot, commitHash], {
         cwd: gitRoot,
         stdio: 'pipe',
       });
+
+      // worktree へ node_modules を symlink しない（旧実装は張っていた）。
+      // main の node_modules には `@anytime-markdown/*` → 現在の packages/ という
+      // symlink が含まれるため、張ると**過去タグの解析が現在のソースで汚染される**。
+      // コードグラフは import 関係の抽出であり外部型定義の完全解決を必要としない
+      // （v0.0.2 実測で nodes=82 / edges=151）。外部型に強く依存するタグで解析が
+      // 痩せる可能性は残るため、量産時に他タグでの再現性を確認する。
 
       const trailGraph = await analyzeReleaseWorktree({
         worktreeRoot,

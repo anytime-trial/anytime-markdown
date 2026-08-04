@@ -206,7 +206,7 @@ export interface ImportAllLepOptions {
 import type { FileSessionCommitRow } from '@anytime-markdown/trail-core/authorHeatmap';
 import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import { buildFeatureMatrixFromCommunities } from '@anytime-markdown/trail-core/c4';
-import { type CodeGraph, type CodeGraphRepository, composeCodeGraph, splitCodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
+import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
 import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
 
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
