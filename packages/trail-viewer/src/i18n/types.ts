@@ -305,6 +305,17 @@ export interface TrailI18n {
   'codeGraph.scrubber.generatingOther': string;
   'codeGraph.scrubber.busy': string;
   'codeGraph.scrubber.heatmapDisabled': string;
+  'codeGraph.colorBy.diff': string;
+  'codeGraph.diff.added': string;
+  'codeGraph.diff.removed': string;
+  'codeGraph.diff.changed': string;
+  'codeGraph.diff.unchanged': string;
+  'codeGraph.diff.baseline': string;
+  'codeGraph.diff.showRemoved': string;
+  'codeGraph.diff.ghostNote': string;
+  'codeGraph.diff.baselineMissing': string;
+  'codeGraph.diff.generateBaseline': string;
+  'codeGraph.diff.noBaseline': string;
   'c4.overlay.groupStructure': string;
   'c4.overlay.functionRoles': string;
   'c4.overlayHelp.functionRoles': string;

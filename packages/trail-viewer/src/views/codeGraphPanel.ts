@@ -33,6 +33,8 @@ import {
   type CodeGraphGhostEdge,
   type CodeGraphGhostEdgeGranularity,
 } from './codeGraphCanvas';
+import type { CodeGraphDiff, CodeGraphNodeDiffStatus } from '@anytime-markdown/trail-core/codeGraphDiff';
+import { diffNodeColor } from './stateReplayColors';
 
 /** t 未注入時の日本語フォールバック（パネルは元来 JP ハードコード）。 */
 const COLOR_BY_FALLBACK: Record<string, string> = {
@@ -70,6 +72,17 @@ const COLOR_BY_FALLBACK: Record<string, string> = {
   'codeGraph.scrubber.generatingOther': '別の時点を生成中です。完了までお待ちください。',
   'codeGraph.scrubber.busy': '別の解析が実行中です。完了後に再試行してください。',
   'codeGraph.scrubber.heatmapDisabled': '過去の時点では最終編集者・編集頻度の配色は使えません',
+  'codeGraph.colorBy.diff': '前版との差分',
+  'codeGraph.diff.added': '追加',
+  'codeGraph.diff.removed': '削除',
+  'codeGraph.diff.changed': '依存変化',
+  'codeGraph.diff.unchanged': '変化なし',
+  'codeGraph.diff.baseline': 'ベースライン',
+  'codeGraph.diff.showRemoved': '削除を表示',
+  'codeGraph.diff.ghostNote': '削除ノードの位置はベースライン時点のもので、現在の配置とは一致しません',
+  'codeGraph.diff.baselineMissing': '1 つ前の時点のグラフが未生成です。',
+  'codeGraph.diff.generateBaseline': 'ベースラインのグラフを生成',
+  'codeGraph.diff.noBaseline': '最古の時点には前版がありません',
 };
 
 /** 「現在のスナップショット」を表す予約タグ。`/api/code-graph` の release パラメタと同値。 */
@@ -121,6 +134,16 @@ export interface CodeGraphPanelProps {
   readonly onReleaseChange?: (release: string) => void;
   /** 未生成タグの生成要求。明示操作でのみ呼ばれる（スライダー操作では呼ばない）。 */
   readonly onGenerateRelease?: (tag: string) => void;
+  /**
+   * State Replay の差分（`colorBy: 'diff'` で使用）。ベースライン取得前・取得失敗時は null。
+   * 計算は React ラッパが `diffCodeGraphs` で行う（描画層は結果だけ受け取る）。
+   */
+  readonly diff?: CodeGraphDiff | null;
+  /**
+   * 差分のベースライン（1 つ前の目盛り）。null は「前版が無い」＝最古の時点、または一覧が空。
+   * `hasGraph` が false ならグラフ未生成で、生成を要求できる。
+   */
+  readonly baseline?: CodeGraphReleaseTick | null;
 }
 
 /** Time Scrubber の目盛り 1 件。 */
@@ -262,13 +285,16 @@ export function mountCodeGraphPanel(
   optLastEditor.value = 'lastEditor';
   const optEditFrequency = document.createElement('option');
   optEditFrequency.value = 'editFrequency';
-  colorBySelect.append(optCommunity, optLayer, optLastEditor, optEditFrequency);
+  const optDiff = document.createElement('option');
+  optDiff.value = 'diff';
+  colorBySelect.append(optCommunity, optLayer, optLastEditor, optEditFrequency, optDiff);
 
   const COLOR_BY_VALUES: readonly CodeGraphColorBy[] = [
     'community',
     'layer',
     'lastEditor',
     'editFrequency',
+    'diff',
   ];
   colorBySelect.addEventListener('change', () => {
     const selected = COLOR_BY_VALUES.find((v) => v === colorBySelect.value) ?? 'community';
@@ -524,6 +550,84 @@ export function mountCodeGraphPanel(
     optLayer.textContent = tr('codeGraph.colorBy.layer');
     optLastEditor.textContent = tr('codeGraph.colorBy.lastEditor');
     optEditFrequency.textContent = tr('codeGraph.colorBy.editFrequency');
+    optDiff.textContent = tr('codeGraph.colorBy.diff');
+  }
+
+  // -------------------------------------------------------------------------
+  //  State Replay（前版との差分）
+  // -------------------------------------------------------------------------
+
+  /** 削除ノードをゴーストとして描くか。既定 ON（削除が見えないと差分表示が成立しない）。 */
+  let showRemovedNodes = true;
+
+  const DIFF_LEGEND_ORDER: readonly CodeGraphNodeDiffStatus[] = [
+    'added',
+    'removed',
+    'changed',
+    'unchanged',
+  ];
+  const DIFF_LEGEND_KEYS: Record<CodeGraphNodeDiffStatus, string> = {
+    added: 'codeGraph.diff.added',
+    removed: 'codeGraph.diff.removed',
+    changed: 'codeGraph.diff.changed',
+    unchanged: 'codeGraph.diff.unchanged',
+  };
+
+  function appendShowRemovedToggle(): void {
+    const wrap = document.createElement('label');
+    wrap.style.cssText = 'display:inline-flex;align-items:center;gap:3px;cursor:pointer;';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = showRemovedNodes;
+    box.setAttribute('data-testid', 'code-graph-diff-show-removed');
+    box.addEventListener('change', () => {
+      showRemovedNodes = box.checked;
+      renderState();
+    });
+    const txt = document.createElement('span');
+    txt.textContent = tr('codeGraph.diff.showRemoved');
+    wrap.append(box, txt);
+    legendEl.appendChild(wrap);
+  }
+
+  function appendBaselineGenerateButton(tag: string): void {
+    // 既存の Time Scrubber の生成ボタンと同じ素 button で揃える（ui-core の createButton は
+    // ハンドルを返すため、凡例のインライン要素として扱うにはこちらが素直）。
+    const btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'code-graph-diff-generate-baseline');
+    btn.textContent = tr('codeGraph.diff.generateBaseline');
+    btn.style.cssText =
+      'padding:2px 8px;background:var(--am-color-primary-main);color:#fff;border:none;' +
+      'border-radius:4px;cursor:pointer;font-size:0.7rem;';
+    btn.addEventListener('click', () => props.onGenerateRelease?.(tag));
+    legendEl.appendChild(btn);
+  }
+
+  function renderDiffLegend(): void {
+    legendEl.replaceChildren();
+    const isDark = props.isDark ?? false;
+    const baseline = props.baseline ?? null;
+
+    if (baseline) {
+      appendLegendNote(`${tr('codeGraph.diff.baseline')}: ${baseline.tag}`);
+    }
+
+    // 色を読めなくても差分の規模が分かるよう、区分ごとに件数を数値で出す（仕様 §4.4）。
+    const counts = props.diff?.counts ?? null;
+    for (const status of DIFF_LEGEND_ORDER) {
+      const label = tr(DIFF_LEGEND_KEYS[status]);
+      const text = counts ? `${label}: ${counts[status]}` : label;
+      appendLegendItem(diffNodeColor(status, isDark), text, status === 'changed');
+    }
+
+    appendShowRemovedToggle();
+    appendLegendNote(tr('codeGraph.diff.ghostNote'));
+
+    // ベースラインが未生成なら差分は出せない。何が足りないかと復旧手段を同時に出す。
+    if (baseline && !baseline.hasGraph) {
+      appendLegendNote(tr('codeGraph.diff.baselineMissing'));
+      appendBaselineGenerateButton(baseline.tag);
+    }
   }
 
   // --- Hint alert ---
@@ -669,6 +773,15 @@ export function mountCodeGraphPanel(
       props.onColorByChange?.(colorBy);
     }
 
+    // 最古の時点には前版が無いので差分を取りようがない（§4.1）。
+    const hasBaseline = (props.baseline ?? null) !== null;
+    optDiff.disabled = !hasBaseline;
+    optDiff.title = hasBaseline ? '' : tr('codeGraph.diff.noBaseline');
+    if (!hasBaseline && colorBy === 'diff') {
+      colorBy = 'community';
+      props.onColorByChange?.(colorBy);
+    }
+
     // Color-by toggle / layer legend
     refreshColorByLabels();
     colorBySelect.value = colorBy;
@@ -677,6 +790,9 @@ export function mountCodeGraphPanel(
       legendEl.style.display = 'flex';
     } else if (isOverrideColorBy(colorBy)) {
       renderAuthorHeatmapLegend();
+      legendEl.style.display = 'flex';
+    } else if (colorBy === 'diff') {
+      renderDiffLegend();
       legendEl.style.display = 'flex';
     } else {
       legendEl.style.display = 'none';
@@ -756,6 +872,8 @@ export function mountCodeGraphPanel(
       nodeColorOverrides: visual?.overrides ?? null,
       emphasizedNodes: visual?.emphasized ?? null,
       neutralColor: noDataColor(isDark),
+      diff: colorBy === 'diff' ? (props.diff ?? null) : null,
+      showRemovedNodes,
     };
 
     if (!canvasHandle) {

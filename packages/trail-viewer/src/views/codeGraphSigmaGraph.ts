@@ -8,7 +8,9 @@
 import Graph from 'graphology';
 import type { ArchitectureLayer, CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { CouplingDirection } from '@anytime-markdown/trail-core';
+import type { CodeGraphDiff } from '@anytime-markdown/trail-core/codeGraphDiff';
 import { COMMUNITY_COLORS, communityColor, layerColor } from '../components/communityColors';
+import { DIFF_LABEL_PREFIX, diffEdgeColor, diffNodeColor } from './stateReplayColors';
 import {
   GHOST_EDGE_COMMIT_DARK,
   GHOST_EDGE_COMMIT_LIGHT,
@@ -53,8 +55,9 @@ export function riskColor(score: number, dark: boolean): string {
  * - `layer` = アーキテクチャ層
  * - `lastEditor` / `editFrequency` = Author Heatmap。色はノード属性から導けないため
  *   `nodeColorOverrides` で外から与える（未収録ノードは中立色のまま残る）。
+ * - `diff` = State Replay。1 つ前の時点との差分。色は `diff` prop から導く。
  */
-export type CodeGraphColorBy = 'community' | 'layer' | 'lastEditor' | 'editFrequency';
+export type CodeGraphColorBy = 'community' | 'layer' | 'lastEditor' | 'editFrequency' | 'diff';
 
 /** Author Heatmap 系の配色方式か（ノード属性ではなく外部の対応表で着色する）。 */
 export function isOverrideColorBy(colorBy: CodeGraphColorBy): boolean {
@@ -80,6 +83,13 @@ export interface CodeGraphCanvasViewProps {
   readonly emphasizedNodes?: ReadonlySet<string> | null;
   /** override 系配色でデータを持たないノードの中立色。 */
   readonly neutralColor?: string;
+  /**
+   * `colorBy: 'diff'` のときの差分（State Replay）。ベースラインと対象時点の比較結果。
+   * null / 未指定なら差分着色は行わない（ベースライン取得前・取得失敗時）。
+   */
+  readonly diff?: CodeGraphDiff | null;
+  /** 削除ノードをゴーストとして描くか（既定 true）。仕様 §4.3。 */
+  readonly showRemovedNodes?: boolean;
 }
 
 /** @internal 配色方式に応じたノード色を返す（layer は node.layer から、未付与は utility 色）。 */
@@ -101,6 +111,58 @@ export const DEFAULT_NEUTRAL_COLOR_LIGHT = '#D5D1C8';
 // ---------------------------------------------------------------------------
 // Graph builder helper
 // ---------------------------------------------------------------------------
+
+/**
+ * State Replay の差分をグラフへ反映する。
+ *
+ * 削除ノードは対象時点のグラフに存在しないため、ベースラインの座標を借りて足す
+ * （借りた座標はレイアウトが別計算である以上あくまで近傍の目安で、位置の一致は保証しない。
+ * 仕様 §4.3）。`showRemovedNodes` が false なら足さない。
+ */
+function applyDiff(
+  g: InstanceType<typeof Graph>,
+  diff: CodeGraphDiff,
+  isDark: boolean,
+  showRemovedNodes: boolean,
+): void {
+  if (showRemovedNodes) {
+    for (const node of diff.removedNodes) {
+      if (g.hasNode(node.id)) continue;
+      g.addNode(node.id, {
+        label: node.label,
+        x: Number.isFinite(node.x) ? node.x : 0,
+        y: Number.isFinite(node.y) ? node.y : 0,
+        size: Math.max(3, Math.min((node.size ?? 0) + 4, 20)),
+        color: diffNodeColor('removed', isDark),
+        community: Number.isFinite(node.community) ? node.community : 0,
+        layer: node.layer,
+      });
+    }
+    for (const edge of diff.removedEdges) {
+      if (!g.hasNode(edge.source) || !g.hasNode(edge.target)) continue;
+      if (g.hasEdge(edge.source, edge.target)) continue;
+      g.addEdge(edge.source, edge.target, { color: diffEdgeColor('removed', isDark) });
+    }
+  }
+
+  for (const edge of diff.addedEdges) {
+    if (!g.hasEdge(edge.source, edge.target)) continue;
+    g.setEdgeAttribute(edge.source, edge.target, 'color', diffEdgeColor('added', isDark));
+  }
+
+  g.forEachNode((nodeId) => {
+    const status = diff.status.get(nodeId);
+    if (status === undefined) return;
+    g.setNodeAttribute(nodeId, 'color', diffNodeColor(status, isDark));
+    g.setNodeAttribute(nodeId, 'diffStatus', status);
+    const prefix = DIFF_LABEL_PREFIX[status];
+    if (prefix) {
+      g.setNodeAttribute(nodeId, 'label', prefix + String(g.getNodeAttribute(nodeId, 'label')));
+    }
+    // 色以外の手掛かり: 依存が変わったノードだけ輪郭を出す（仕様 §4.4）。
+    if (status === 'changed') g.setNodeAttribute(nodeId, 'highlighted', true);
+  });
+}
 
 /**
  * props から sigma へ渡す graphology グラフを組み立てる。
@@ -225,6 +287,12 @@ export function buildSigmaGraph(props: CodeGraphCanvasViewProps): { g: InstanceT
     g.forEachNode((nodeId) => {
       if (emphasizedNodes.has(nodeId)) g.setNodeAttribute(nodeId, 'highlighted', true);
     });
+  }
+
+  // 差分着色は riskMap / nodeColorOverrides より後に置く。'diff' を選んでいる間は
+  // 差分が読みたいのであって、他の上書きに勝たれると区分が読めなくなる。
+  if (colorBy === 'diff' && props.diff) {
+    applyDiff(g, props.diff, isDark ?? false, props.showRemovedNodes ?? true);
   }
 
   // 検索ハイライトの復帰色として確定色を控える。ここで控えないと applyHighlight が
