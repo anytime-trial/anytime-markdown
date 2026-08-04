@@ -401,6 +401,36 @@ describe('CodeGraphService.generate() — per-call repositories 上書き', () =
     expect(analyze).not.toHaveBeenCalled();
   });
 
+  // release 遡及生成（analyzeReleaseCodeGraphsForce）は過去タグの worktree を解析する。
+  // その結果を current_code_graphs へ書くと「現在のグラフ」を過去版で汚染するため、
+  // 生成だけ行って保存は呼び出し側（saveReleaseCodeGraph）に委ねられる必要がある。
+  it('persist: false を渡すと生成はするが current_code_graphs へ保存しない', async () => {
+    const db = makeTrailDbStub();
+    const svc = new CodeGraphService({
+      repositories: [makeRepo({ id: 'configured', label: 'configured', path: '/tmp/should-not-be-used' })],
+      trailDb: db as never,
+    });
+
+    const releaseGraph: TrailGraph = {
+      nodes: [
+        { id: 'file::packages/r/src/y.ts', label: 'y', type: 'file', filePath: 'packages/r/src/y.ts', line: 1 },
+      ],
+      edges: [],
+      metadata: { projectRoot: tmpDir, analyzedAt: '2026-01-01', fileCount: 1 },
+    };
+
+    const graphs = await svc.generate(undefined, {
+      repositories: [{ id: 'release-repo', label: 'release-repo', path: tmpDir }],
+      trailGraphByRepoId: { 'release-repo': releaseGraph },
+      persist: false,
+    });
+
+    expect(db.saveCurrentCodeGraph).not.toHaveBeenCalled();
+    // 否定形だけだと生成そのものが失敗しても通ってしまうため、成果物も検証する。
+    expect(graphs).toHaveLength(1);
+    expect(graphs[0].nodes.map((n) => n.id)).toContain('release-repo:packages/r/src/y');
+  });
+
   it('override 省略時は従来どおり config.repositories を生成・保存する（リグレッション保護）', async () => {
     const db = makeTrailDbStub();
     const svc = new CodeGraphService({

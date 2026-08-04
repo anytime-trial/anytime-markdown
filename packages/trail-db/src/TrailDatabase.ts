@@ -205,7 +205,7 @@ export interface ImportAllLepOptions {
 import type { FileSessionCommitRow } from '@anytime-markdown/trail-core/authorHeatmap';
 import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import { buildFeatureMatrixFromCommunities } from '@anytime-markdown/trail-core/c4';
-import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
+import { type CodeGraph, type CodeGraphRepository, composeCodeGraph, splitCodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
 import type { FileAnalysisRow, FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
 
 import { ClaudeCodeBehaviorAnalyzer } from './ClaudeCodeBehaviorAnalyzer';
@@ -7731,14 +7731,33 @@ export class TrailDatabase {
   }
 
   analyzeReleaseCodeGraphsForce(opts: {
-    codeGraphService: { generate: (onProgress?: (phase: string, percent: number) => void) => Promise<CodeGraph[]> };
+    /**
+     * 解析対象は `override.repositories` で **タグごとの worktree を明示的に渡す**。
+     * 渡さないと service 構築時に束縛された現在のチェックアウトが解析され、
+     * 全リリースに同じ（＝現在の）グラフが保存される。
+     */
+    codeGraphService: {
+      generate: (
+        onProgress?: (phase: string, percent: number) => void,
+        override?: {
+          repositories: readonly CodeGraphRepository[];
+          // CodeGraphService.generate と同じ型にする。ここを Record<string, unknown> に
+          // 広げると引数の反変性で CodeGraphService が代入不能になる。
+          trailGraphByRepoId?: Record<string, TrailGraph | undefined>;
+          persist?: boolean;
+        },
+      ) => Promise<CodeGraph[]>;
+    };
     gitRoot: string;
+    /** グラフ内のリポジトリ名。省略時は gitRoot の basename を使う。 */
+    repoLabel?: string;
     onProgress?: (msg: string) => void;
   }): Promise<number> {
     const releases = this.getReleases();
     if (releases.length === 0) return Promise.resolve(0);
 
     const git = new ExecFileGitService(opts.gitRoot);
+    const repoLabel = opts.repoLabel || path.basename(opts.gitRoot);
     let count = 0;
 
     const runNext = async (i: number): Promise<number> => {
@@ -7764,7 +7783,19 @@ export class TrailDatabase {
         // generate() は per-repo の CodeGraph 配列を返す。release_code_graphs は
         // tag 単位（リポジトリ単位ではない）に 1 グラフを保存する設計のため、
         // 先頭リポジトリのグラフを採用する。空配列ならこの tag はスキップする。
-        const graphs = await opts.codeGraphService.generate();
+        //
+        // - repositories: この tag の worktree を明示する（省略すると現在の
+        //   チェックアウトが解析され、全リリースが同じグラフになる）。
+        // - trailGraphByRepoId: 空を明示して trailGraphProvider へのフォールバックを
+        //   断つ（provider は「現在の」TrailGraph を返すため、過去タグの解析に
+        //   混入させない）。
+        // - persist: false で current_code_graphs を過去版で汚さない。保存は下の
+        //   saveReleaseCodeGraph が行う。
+        const graphs = await opts.codeGraphService.generate(undefined, {
+          repositories: [{ id: repoLabel, label: repoLabel, path: tmpDir }],
+          trailGraphByRepoId: {},
+          persist: false,
+        });
         const graph = graphs[0];
         if (!graph) {
           opts.onProgress?.(`Skipping ${tag}: no code graph generated`);
@@ -7774,12 +7805,26 @@ export class TrailDatabase {
         count++;
         opts.onProgress?.(`Release ${tag}: code graph saved`);
       } catch (e) {
-        opts.onProgress?.(`Skipping ${tag}: ${e instanceof Error ? e.message : String(e)}`);
+        // onProgress は進捗ストリームへ流れるだけで永続化されない。解析対象を
+        // 各タグの worktree にした結果、古いタグが正当に失敗する（tsconfig 欠如・
+        // 当時の依存構成など）ケースが現実に起こる。戻り値は成功件数しか持たない
+        // ため、どのタグがなぜ落ちたかはログにしか残せない。
+        const reason = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`[analyzeReleaseCodeGraphsForce] skipped tag=${tag}: ${reason}`);
+        opts.onProgress?.(`Skipping ${tag}: ${reason}`);
       } finally {
         try {
           execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], { cwd: opts.gitRoot, stdio: 'pipe' });
         } catch {
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+          try {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+          } catch (e) {
+            // 後片付けの失敗は解析結果に影響しないので処理は続けるが、
+            // tmpdir に worktree の残骸が残るため痕跡は残す。
+            this.logger.warn(
+              `[analyzeReleaseCodeGraphsForce] failed to clean up worktree ${tmpDir}: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
         }
       }
       return runNext(i + 1);
