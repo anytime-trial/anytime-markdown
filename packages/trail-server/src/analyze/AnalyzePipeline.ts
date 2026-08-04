@@ -1,5 +1,9 @@
+import { execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { ExecFileGitService } from '@anytime-markdown/trail-db';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
@@ -471,6 +475,14 @@ export interface AnalyzeReleaseOpts {
   trailDb: TrailDatabase;
   codeGraphService: CodeGraphService;
   gitRoot: string;
+  /**
+   * TS 解析の実行方式。current 解析と同じ判別子ユニオンを使い、省略不可とする。
+   * 省略可能にすると「渡し忘れ＝黙って縮退」が型でも実行時でも検出できない。
+   */
+  compute: AnalyzeComputeMode;
+  /** グラフ内のリポジトリ名。省略時は gitRoot の basename を使う。 */
+  repoLabel?: string;
+  logger?: Logger;
   onProgress?: (msg: string) => void;
 }
 
@@ -480,8 +492,69 @@ export interface AnalyzeReleaseResult {
 }
 
 /**
- * release 別 C4 / コードグラフ解析パイプライン。
+ * タグの worktree を TS 解析して TrailGraph を得る。tsconfig.json が無ければ undefined。
+ *
+ * `CodeGraphService` は TypeScript を解析しない（言語レジストリは Python のみ登録し、
+ * TS は analyze-child へ一本化されている）。そのため TS リポジトリのコードグラフは
+ * ここで得た TrailGraph を `generate()` の override へ渡して初めて成立する。
+ */
+async function analyzeReleaseWorktree(args: {
+  worktreeRoot: string;
+  compute: AnalyzeComputeMode;
+  pythonWasmPath: string | undefined;
+  logger: Logger;
+}): Promise<TrailGraph | undefined> {
+  const tsconfigPath = path.join(args.worktreeRoot, 'tsconfig.json');
+  if (!fs.existsSync(tsconfigPath)) return undefined;
+
+  const request = {
+    analysisRoot: args.worktreeRoot,
+    // 過去タグの除外設定はそのタグの worktree 内のものを使う。
+    excludeRoot: args.worktreeRoot,
+    tsconfigPath,
+    pythonWasmPath: args.pythonWasmPath,
+    // decision comment の永続化は current 解析だけの責務（memory-core への中継）。
+    // 過去タグの抽出結果で現在のテーブルを上書きしない。
+    includeDecisionComments: false,
+  };
+
+  if (args.compute.kind === 'child') {
+    const { AnalyzeChildRunner } = await import('./AnalyzeChildRunner.js');
+    const runner = new AnalyzeChildRunner(args.compute.analyzeChildPath, { logger: args.logger });
+    return (await runner.run(request)).graph;
+  }
+  const { computeAnalysis } = await import(/* webpackIgnore: true */ './computeAnalysis.js');
+  return (await computeAnalysis(request)).graph;
+}
+
+/** `git worktree` の後片付け。remove が失敗しても rmSync で残骸を消す。 */
+function cleanupWorktree(gitRoot: string, worktreeRoot: string, logger: Logger): void {
+  try {
+    execFileSync(resolveGitExecutable(), ['worktree', 'remove', worktreeRoot, '--force'], {
+      cwd: gitRoot,
+      stdio: 'pipe',
+    });
+    return;
+  } catch {
+    // remove に失敗した場合だけ実体を消す（未登録・破損時のフォールバック）。
+  }
+  try {
+    fs.rmSync(worktreeRoot, { recursive: true, force: true });
+  } catch (e) {
+    // 後片付けの失敗は解析結果に影響しないので続行するが、tmpdir に残骸が残るため痕跡を残す。
+    logger.warn(
+      `[runAnalyzeReleaseCodePipeline] failed to clean up worktree ${worktreeRoot}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
+/**
+ * release 別コードグラフ解析パイプライン。
  * 既存 release_code_graphs を全削除して再生成する（洗い替え方式）。
+ *
+ * タグごとに worktree を切り、**その worktree を解析対象として** TrailGraph を作り、
+ * `generate()` の override へ渡す。`persist: false` により current_code_graphs は汚さない
+ * （保存は `saveReleaseCodeGraph` が行う）。
  *
  * TODO: release_file_analysis / release_function_analysis への保存は将来タスクで対応する。
  * リリースごとの dead code 解析は現時点では未実装（Task 13 スコープ外）。
@@ -489,18 +562,78 @@ export interface AnalyzeReleaseResult {
 export async function runAnalyzeReleaseCodePipeline(
   opts: AnalyzeReleaseOpts,
 ): Promise<AnalyzeReleaseResult> {
-  const { trailDb, codeGraphService, gitRoot, onProgress } = opts;
+  const { trailDb, codeGraphService, gitRoot, compute, onProgress } = opts;
+  const logger = opts.logger ?? NOOP_LOGGER;
+  const repoLabel = opts.repoLabel || path.basename(gitRoot);
+  const git = new ExecFileGitService(gitRoot);
   const startedAt = Date.now();
 
   onProgress?.('Clearing release code graphs...');
   trailDb.deleteReleaseCodeGraphs();
 
   onProgress?.('Analyzing release code...');
-  const releaseCount = await trailDb.analyzeReleaseCodeGraphsForce({
-    codeGraphService,
-    gitRoot,
-    onProgress: (msg) => onProgress?.(msg),
-  });
+  const releases = trailDb.getReleases();
+  let releaseCount = 0;
+
+  for (const release of releases) {
+    const tag = release.tag;
+    const worktreeRoot = path.join(os.tmpdir(), `trail-cg-release-${tag.replaceAll('/', '-')}`);
+    try {
+      onProgress?.(`Generating code graph for release ${tag}...`);
+      if (fs.existsSync(worktreeRoot)) {
+        cleanupWorktree(gitRoot, worktreeRoot, logger);
+      }
+      // タグ名を直接渡さず commit hash へ解決してから worktree を作る。タグと同名の
+      // ブランチが存在すると ref 解決が曖昧になり、意図しない断面を解析しうる。
+      const commitHash = git.getTagCommitHash(tag);
+      execFileSync(resolveGitExecutable(), ['worktree', 'add', '--detach', worktreeRoot, commitHash], {
+        cwd: gitRoot,
+        stdio: 'pipe',
+      });
+
+      // worktree へ node_modules を symlink しない（旧実装は張っていた）。
+      // main の node_modules には `@anytime-markdown/*` → 現在の packages/ という
+      // symlink が含まれるため、張ると**過去タグの解析が現在のソースで汚染される**。
+      // コードグラフは import 関係の抽出であり外部型定義の完全解決を必要としない
+      // （v0.0.2 実測で nodes=82 / edges=151）。外部型に強く依存するタグで解析が
+      // 痩せる可能性は残るため、量産時に他タグでの再現性を確認する。
+
+      const trailGraph = await analyzeReleaseWorktree({
+        worktreeRoot,
+        compute,
+        pythonWasmPath: codeGraphService.getPythonWasmPath(),
+        logger,
+      });
+
+      // repositories でこのタグの worktree を明示する（省略すると service 構築時に
+      // 束縛された現在のチェックアウトが解析され、全リリースが同じグラフになる）。
+      // trailGraphByRepoId は TS 解析結果を渡す。undefined を渡すと trailGraphProvider
+      // （現在の TrailGraph を返す）へフォールバックしてしまうため、無い場合も空を明示する。
+      const graphs = await codeGraphService.generate(undefined, {
+        repositories: [{ id: repoLabel, label: repoLabel, path: worktreeRoot }],
+        trailGraphByRepoId: trailGraph ? { [repoLabel]: trailGraph } : {},
+        persist: false,
+      });
+      const graph = graphs[0];
+      if (!graph) {
+        onProgress?.(`Skipping ${tag}: no code graph generated`);
+        continue;
+      }
+      trailDb.saveReleaseCodeGraph(tag, graph);
+      releaseCount++;
+      onProgress?.(`Release ${tag}: code graph saved`);
+    } catch (e) {
+      // onProgress は進捗ストリームへ流れるだけで永続化されない。解析対象がタグごとの
+      // worktree である以上、古いタグが正当に失敗する（tsconfig 欠如・当時の依存構成など）
+      // ことは現実に起こる。戻り値は成功件数しか持たないため、どのタグがなぜ落ちたかは
+      // ログにしか残せない。
+      const reason = e instanceof Error ? e.message : String(e);
+      logger.warn(`[runAnalyzeReleaseCodePipeline] skipped tag=${tag}: ${reason}`);
+      onProgress?.(`Skipping ${tag}: ${reason}`);
+    } finally {
+      cleanupWorktree(gitRoot, worktreeRoot, logger);
+    }
+  }
 
   return {
     releaseCount,

@@ -227,6 +227,9 @@ program
           trailDb,
           codeGraphService,
           gitRoot: primaryGitRoot,
+          // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
+          compute: { kind: 'in-host' },
+          logger,
         });
       };
 
