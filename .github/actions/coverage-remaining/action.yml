@@ -37,7 +37,10 @@ runs:
         ALL="cms-core mcp-cms mcp-cms-remote mcp-graph mcp-markdown mcp-trail \
              spreadsheet-core trace-core trail-core trail-db memory-core \
              trail-server database-core database-viewer agent-core \
-             markdown-eval-core review-agent ollama-core"
+             markdown-eval-core review-agent ollama-core \
+             chart-core code-analysis-core code-analysis-python \
+             code-analysis-typescript doc-core markdown-react-islands \
+             section-lock-core tickets-core"
         for p in $ALL; do
           case " $EXCLUDE " in
             *" $p "*)
