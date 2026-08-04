@@ -1,18 +1,18 @@
 ---
 name: anytime-analysis
-description: 分析と分析結果の出力。対象を調査・分析し、結果を提案書（RFC / ADR / 軽量提案）または共起グラフ（.cooc.json）として出力する。「分析して」「提案書を作成」「proposalを作成」「改善提案」「技術選定の提案」「RFCを書いて」「ADRを書いて」「設計判断を記録」「再発防止策をまとめて」で使用する。「〜を調査して共起グラフを作って」「共起ネットワークを作成」「cooc にまとめて」では提案書を生成せず共起グラフ出力モード（§9。既存 .cooc.json への追記にも使用）。実装手順（How）ではなく「やるべきか（Why/What）」を扱う。`--deep` / 「反証付きで」で並列サブエージェントの検証・反証モード、`--help` でヘルプを表示する。株価・相場の変動要因を共起グラフにする場合は anytime-stock-cooccurrence を使う。
+description: 分析と分析結果の出力。対象を調査・分析し、結果を提案書（RFC / ADR / 軽量提案）または共起グラフ（.cooc.json）として出力する。「分析して」「提案書を作成」「proposalを作成」「改善提案」「技術選定の提案」「RFCを書いて」「ADRを書いて」「設計判断を記録」「再発防止策をまとめて」で使用する。「〜を調査して共起グラフを作って」「共起ネットワークを作成」「cooc にまとめて」では提案書を生成せず共起グラフ出力モード（§9。既存 .cooc.json への追記にも使用）。実装手順（How）ではなく「やるべきか（Why/What）」を扱う。`--deep` / 「反証付きで」で並列サブエージェントの検証・反証モード、`--help` でヘルプを表示する。
 ---
 
 # 分析と分析結果の出力（anytime-analysis）
 
-更新日: 2026-08-01
+更新日: 2026-08-04
 
 ## Overview
 
 対象を調査・分析し、分析結果を次のいずれかの形で出力する（旧名 `anytime-proposal`。2026-07-30 に共起グラフ出力を統合し分析スキルへ再定義）。
 
 - **提案書**: RFC / ADR / 軽量提案の 3 形式を使い分けて生成し、プロジェクト規約の `proposal/` に保存する（§1〜§8）。proposal は **「やるべきか（Why / What）」** を扱う意思決定の材料・記録である。実装手順（How）は対象外で、採用後に `plan`（または superpowers `writing-plans`）が担う
-- **共起グラフ**: 調査・分析で抽出した用語と共起関係を `.cooc.json` として出力し、共起ビューアで可視化する（§9）。株価・相場の変動要因は専用の `anytime-stock-cooccurrence` スキルが担う
+- **共起グラフ**: 調査・分析で抽出した用語と共起関係を `.cooc.json` として出力し、共起ビューアで可視化する（§9）
 
 出力は `anytime-markdown-output` スキル（`type: proposal`）に準拠する。\
 テンプレ構造は OSS の RFC / ADR 慣行を流用し、frontmatter・出力先のみ本プロジェクト規約に合わせる。\
@@ -45,8 +45,6 @@ anytime-analysis — 分析し、結果を提案書(RFC / ADR / 軽量)または
 ■ 共起グラフモード (§9)
   「〜を調査して共起グラフを作って」「cooc にまとめて」→ 提案書を生成せず
   調査結果を .cooc.json (共起ビューアで開ける) に出力する
-  株価・相場の変動要因は anytime-stock-cooccurrence (調査項目・因果の向き・営業日
-  スライス・誤読の型まで具体化) を使う
 
 ■ 出力
   <docsベース>/proposal/[YYYYMMDD]-[topic].[lang].md   (frontmatter type: proposal / 既定 lang=ja)
@@ -262,8 +260,6 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
 
 テーマを調査し、抽出した用語と共起関係を mcp-graph の `write_cooccurrence` で `.cooc.json` に出力する。成果物は cooccurrence-viewer（VS Code / web-app）で開ける。
 
-> **株価・相場の変動要因を扱う場合は `anytime-stock-cooccurrence` スキルを使う。** 調査項目（指数・騰落銘柄数・寄与度・海外市場・為替）、因果の向きを付けてよい経路、営業日スライス、相場特有の誤読の型まで具体化してある。本節は株価以外のテーマ向けの一般形。
-
 使う場面（2 通り）:
 
 - **単独モード**: 「〜を調査して共起グラフを作って」等の指示。**提案書は生成せず**本節のみ実行する
@@ -320,7 +316,7 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
 
 ### 9.6 サブエージェントへ委譲する場合
 
-委任プロンプトに本スキルの §9（`.claude/skills/anytime-analysis/SKILL.md` の該当節を Read して従う）と、鉄則 1〜3 を明記する（サブエージェントは CLAUDE.md / rules を継承しない）。株価テーマなら `anytime-stock-cooccurrence` を指定する。
+委任プロンプトに本スキルの §9（`.claude/skills/anytime-analysis/SKILL.md` の該当節を Read して従う）と、鉄則 1〜3 を明記する（サブエージェントは CLAUDE.md / rules を継承しない）。
 
 
 ## 補足: proposal と plan / brainstorming の関係

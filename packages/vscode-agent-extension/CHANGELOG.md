@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Removed
+
+- Dropped the `anytime-stock-cooccurrence` skill from the bundled set. Copies already installed in a workspace are deleted on the next activation; the generic co-occurrence graph mode remains in `anytime-analysis` §9.
+
 ## [1.12.0] - 2026-08-03
 
 ### Added

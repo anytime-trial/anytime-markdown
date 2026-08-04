@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 削除
+
+- `anytime-stock-cooccurrence` スキルを同梱から外した。配置済みコピーは次回 activate 時に削除される。汎用の共起グラフ出力モードは `anytime-analysis` §9 に残る。
+
 ## [1.12.0] - 2026-08-03
 
 ### 追加
