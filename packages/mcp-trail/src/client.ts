@@ -171,9 +171,15 @@ export async function analyzeCurrentCode(
 
 /**
  * `Anytime Trail: リリース別コード解析` 相当を HTTP 経由で起動する。
+ *
+ * `tags` 省略時は全リリースを洗い替える。指定時はそのタグのみ削除・再生成するため、
+ * 既存の他タグのグラフは残る（オンデマンド生成・部分的な追加生成の用途）。
  */
-export async function analyzeReleaseCode(serverUrl: string): Promise<AnalyzeReleaseResult> {
-  return request(serverUrl, '/api/analyze/release', 'POST', {});
+export async function analyzeReleaseCode(
+  serverUrl: string,
+  body: { tags?: readonly string[] } = {},
+): Promise<AnalyzeReleaseResult> {
+  return request(serverUrl, '/api/analyze/release', 'POST', body);
 }
 
 /**

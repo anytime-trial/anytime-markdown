@@ -471,6 +471,29 @@ export async function runAnalyzeCurrentCodePipeline(
   };
 }
 
+/**
+ * 遡及生成の対象範囲。`tags` 指定時は生成も削除もそのタグ集合に限定する。
+ *
+ * 省略可能な `tags?: string[]` にしない。渡し忘れが「黙って全量洗い替え」になり、
+ * オンデマンド生成のたびに既存キャッシュを消してしまう事故が型でも実行時でも
+ * 検出できないためである（同じ形の欠陥が `analyze_current_code` で実際に起きた）。
+ */
+export type AnalyzeReleaseScope =
+  | { kind: 'all' }
+  | { kind: 'tags'; tags: readonly string[] };
+
+/**
+ * 外部境界（HTTP body / IPC request）の省略可能な `tags` を `scope` へ正規化する。
+ *
+ * 空配列は「全量」ではなく「対象 0 件」と解釈する。破壊的な側（全量削除）へ縮退させない
+ * ため、all になるのは `undefined`（そもそも指定が無い）のときだけとする。
+ */
+export function toAnalyzeReleaseScope(
+  tags: readonly string[] | undefined,
+): AnalyzeReleaseScope {
+  return tags === undefined ? { kind: 'all' } : { kind: 'tags', tags };
+}
+
 export interface AnalyzeReleaseOpts {
   trailDb: TrailDatabase;
   codeGraphService: CodeGraphService;
@@ -480,6 +503,8 @@ export interface AnalyzeReleaseOpts {
    * 省略可能にすると「渡し忘れ＝黙って縮退」が型でも実行時でも検出できない。
    */
   compute: AnalyzeComputeMode;
+  /** 対象範囲。全量洗い替えか、タグ指定か。省略不可（上記 AnalyzeReleaseScope 参照）。 */
+  scope: AnalyzeReleaseScope;
   /** グラフ内のリポジトリ名。省略時は gitRoot の basename を使う。 */
   repoLabel?: string;
   logger?: Logger;
@@ -549,8 +574,35 @@ function cleanupWorktree(gitRoot: string, worktreeRoot: string, logger: Logger):
 }
 
 /**
+ * `scope` に従って対象の release を選ぶ。
+ *
+ * `releases` に無いタグ（未リリース・別リポのタグ・打ち間違い）は対象から外れるが、
+ * 戻り値の件数だけでは「指定したのに生成されなかった」ことが呼び出し元に伝わらないため
+ * warn に残す。
+ */
+function selectReleases<T extends { tag: string }>(
+  releases: readonly T[],
+  scope: AnalyzeReleaseScope,
+  logger: Logger,
+): readonly T[] {
+  if (scope.kind === 'all') return releases;
+  const wanted = new Set(scope.tags);
+  const selected = releases.filter((r) => wanted.has(r.tag));
+  const found = new Set(selected.map((r) => r.tag));
+  const unknown = [...wanted].filter((t) => !found.has(t));
+  if (unknown.length > 0) {
+    logger.warn(
+      `[runAnalyzeReleaseCodePipeline] tags not found in releases (skipped): ${unknown.join(', ')}`,
+    );
+  }
+  return selected;
+}
+
+/**
  * release 別コードグラフ解析パイプライン。
- * 既存 release_code_graphs を全削除して再生成する（洗い替え方式）。
+ * `scope` の範囲について、既存 release_code_graphs を削除してから再生成する。
+ * `{kind:'all'}` は従来どおりの全量洗い替え、`{kind:'tags'}` は対象タグのみを
+ * 入れ替える（オンデマンド生成で既存キャッシュを消さないため）。
  *
  * タグごとに worktree を切り、**その worktree を解析対象として** TrailGraph を作り、
  * `generate()` の override へ渡す。`persist: false` により current_code_graphs は汚さない
@@ -562,17 +614,25 @@ function cleanupWorktree(gitRoot: string, worktreeRoot: string, logger: Logger):
 export async function runAnalyzeReleaseCodePipeline(
   opts: AnalyzeReleaseOpts,
 ): Promise<AnalyzeReleaseResult> {
-  const { trailDb, codeGraphService, gitRoot, compute, onProgress } = opts;
+  const { trailDb, codeGraphService, gitRoot, compute, scope, onProgress } = opts;
   const logger = opts.logger ?? NOOP_LOGGER;
   const repoLabel = opts.repoLabel || path.basename(gitRoot);
   const git = new ExecFileGitService(gitRoot);
   const startedAt = Date.now();
 
-  onProgress?.('Clearing release code graphs...');
-  trailDb.deleteReleaseCodeGraphs();
-
   onProgress?.('Analyzing release code...');
-  const releases = trailDb.getReleases();
+  const allReleases = trailDb.getReleases();
+  const releases = selectReleases(allReleases, scope, logger);
+
+  onProgress?.('Clearing release code graphs...');
+  if (scope.kind === 'all') {
+    trailDb.deleteReleaseCodeGraphs();
+  } else {
+    // 対象タグのみを消す。全削除にするとオンデマンド生成のたびに既存キャッシュが飛ぶ。
+    // 解析に失敗したタグの古いグラフも消える（洗い替えの意味論を範囲内で維持する）。
+    trailDb.deleteReleaseCodeGraphsForTags(scope.tags);
+  }
+
   let releaseCount = 0;
 
   for (const release of releases) {

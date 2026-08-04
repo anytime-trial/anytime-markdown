@@ -271,10 +271,20 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'analyze_release_code',
-    { description: 'Run release-grouped C4 / code graph analysis (deletes existing release_code_graphs and regenerates). Equivalent to "Anytime Trail: リリース別コード解析" command.', inputSchema: { ...commonParams } },
-    async ({ serverUrl }) => {
+    {
+      description:
+        'Run release-grouped C4 / code graph analysis. Without "tags" this deletes ALL existing release_code_graphs and regenerates every release. With "tags" only those releases are deleted and regenerated, leaving other cached graphs intact. Equivalent to "Anytime Trail: リリース別コード解析" command.',
+      inputSchema: {
+        ...commonParams,
+        tags: z
+          .array(z.string().min(1))
+          .optional()
+          .describe('Release tags to regenerate (e.g. ["v1.19.1"]). Omit to rewash all releases.'),
+      },
+    },
+    async ({ serverUrl, tags }) => {
       const opts = buildRouteOpts({ serverUrl }, options);
-      const result = await route('analyze_release_code', {}, opts);
+      const result = await route('analyze_release_code', { tags }, opts);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

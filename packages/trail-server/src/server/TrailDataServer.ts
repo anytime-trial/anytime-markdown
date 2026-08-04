@@ -273,9 +273,12 @@ export class TrailDataServer {
   onAnalyzeCurrentCode:
     | ((req: { workspacePath?: string; tsconfigPath?: string }) => Promise<AnalyzeCurrentResult>)
     | undefined;
-  /** POST /api/analyze/release ハンドラ */
+  /**
+   * POST /api/analyze/release ハンドラ。
+   * `tags` 省略時は全量洗い替え、指定時はそのタグのみ削除・再生成する。
+   */
   onAnalyzeReleaseCode:
-    | (() => Promise<AnalyzeReleaseResult>)
+    | ((req: { tags?: readonly string[] }) => Promise<AnalyzeReleaseResult>)
     | undefined;
   /** POST /api/analyze/all ハンドラ */
   onAnalyzeAll:
@@ -3777,7 +3780,7 @@ export class TrailDataServer {
   }
 
   private async handleAnalyzeRelease(
-    _req: http.IncomingMessage,
+    req: http.IncomingMessage,
     res: http.ServerResponse,
   ): Promise<void> {
     if (!this.onAnalyzeReleaseCode) {
@@ -3790,9 +3793,32 @@ export class TrailDataServer {
       res.end(JSON.stringify({ error: 'analysis in progress', current: this.analysisInProgress }));
       return;
     }
+    // tags は外部入力。文字列配列でなければ「指定なし（全量）」ではなく 400 で弾く。
+    // 型を取り違えた要求を黙って全量洗い替えへ落とすと、既存グラフを消してしまう。
+    // 壊れた JSON も同じ理由で 400 にする（空ボディだけが「指定なし」を意味する）。
+    let tags: readonly string[] | undefined;
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = await this.readJsonObjectBodyAllowEmpty(req);
+    } catch (err) {
+      this.logger.warn(
+        `[/api/analyze/release] invalid JSON body: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'invalid JSON body' }));
+      return;
+    }
+    if (parsed.tags !== undefined) {
+      if (!Array.isArray(parsed.tags) || parsed.tags.some((t) => typeof t !== 'string' || t === '')) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'tags must be an array of non-empty strings' }));
+        return;
+      }
+      tags = parsed.tags as string[];
+    }
     this.analysisInProgress = { kind: 'release', startedAt: Date.now() };
     try {
-      const result = await this.onAnalyzeReleaseCode();
+      const result = await this.onAnalyzeReleaseCode({ tags });
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
     } catch (err) {
@@ -3927,6 +3953,42 @@ export class TrailDataServer {
     res.writeHead(result.status, headers);
     if (result.body) res.end(result.body);
     else res.end();
+  }
+
+  /**
+   * ボディを JSON オブジェクトとして読む。**空ボディは `{}`、非空でパースできなければ throw** する。
+   *
+   * `readJsonBody` は `JSON.parse('')` が投げるため空ボディも reject し、呼び出し側は
+   * `.catch(() => ({}))` で「指定が無い」と「壊れた指定」を同一視せざるを得ない。既定が
+   * 破壊的な側（全量洗い替え）に倒れるエンドポイントでは、その同一視が事故経路になる。
+   */
+  private readJsonObjectBodyAllowEmpty(
+    req: http.IncomingMessage,
+  ): Promise<Record<string, unknown>> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (c) => chunks.push(c as Buffer));
+      req.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf-8').trim();
+        if (raw.length === 0) {
+          resolve({});
+          return;
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch (e) {
+          reject(e);
+          return;
+        }
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          reject(new Error('body must be a JSON object'));
+          return;
+        }
+        resolve(parsed as Record<string, unknown>);
+      });
+      req.on('error', reject);
+    });
   }
 
   private readJsonBody(req: http.IncomingMessage): Promise<unknown> {

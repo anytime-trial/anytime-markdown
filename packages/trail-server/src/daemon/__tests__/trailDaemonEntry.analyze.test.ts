@@ -17,6 +17,10 @@ jest.mock('../../analyze/AnalyzePipeline', () => ({
     releaseCount: 1,
     durationMs: 5,
   })),
+  // scope の正規化はモックせず実体と同じ挙動を持たせる（undefined→all / 配列→tags）。
+  // ここを jest.fn() で潰すと、daemon が scope を渡していなくてもテストが通ってしまう。
+  toAnalyzeReleaseScope: (tags: readonly string[] | undefined) =>
+    tags === undefined ? { kind: 'all' } : { kind: 'tags', tags },
 }));
 
 // TrailDatabase / TrailDataServer / CodeGraphService は重い native dep を持つため
@@ -220,8 +224,24 @@ describe('trailDaemonEntry.dispatch — analyzeReleaseCode', () => {
     // daemon 保有の非シリアライズ要素が含まれているか
     expect(calledOpts.trailDb).toBeDefined();
     expect(calledOpts.codeGraphService).toBeDefined();
+    // tags 未指定は全量洗い替え
+    expect(calledOpts.scope).toEqual({ kind: 'all' });
     // 戻り値が呼び出し元に伝播しているか
     expect((result as { releaseCount: number }).releaseCount).toBe(1);
+  });
+
+  // IPC 層で tags を落とすと、部分生成の要求が全量洗い替えとして実行される。
+  it('analyzeReleaseCode は request の tags を scope へ通す', async () => {
+    await dispatch('configure', MINIMAL_CFG);
+    await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
+
+    await dispatch('analyzeReleaseCode', {
+      gitRoot: '/tmp/repo',
+      tags: ['v1.19.1'],
+    });
+
+    const calledOpts = (runAnalyzeReleaseCodePipeline as jest.Mock).mock.calls[0][0];
+    expect(calledOpts.scope).toEqual({ kind: 'tags', tags: ['v1.19.1'] });
   });
 });
 
