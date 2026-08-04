@@ -1,15 +1,17 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { assertNotProductionWriteDuringTests } from '../TrailDatabase.guard';
 
 describe('assertNotProductionWriteDuringTests', () => {
   // The test suite always runs under JEST_WORKER_ID or NODE_ENV=test, so
-  // isTest is always true here. We verify both the "protected" and "safe" cases.
+  // isTest is always true here. The guard is an allowlist: only the test
+  // sandbox (os.tmpdir()) is writable, everything else throws.
 
   it('throws when targeting ~/.claude in test environment', () => { // test-safety-allow: ガードの検証自体に保護パスが要る
     const protectedPath = path.join(os.homedir(), '.claude', 'trail', 'trail.db'); // test-safety-allow: 同上
     expect(() => assertNotProductionWriteDuringTests(protectedPath)).toThrow(
-      /Refusing to write to protected path/,
+      /Refusing to write outside the test sandbox/,
     );
   });
 
@@ -24,7 +26,25 @@ describe('assertNotProductionWriteDuringTests', () => {
       'data.db',
     );
     expect(() => assertNotProductionWriteDuringTests(protectedPath)).toThrow(
-      /Refusing to write to protected path/,
+      /Refusing to write outside the test sandbox/,
+    );
+  });
+
+  // 回帰: 本番 DB の保存先は拡張設定に依存し、既定ではワークスペース配下の
+  // `.anytime/trail/db` に置かれる。deny リスト方式（ホーム配下のみ列挙）では
+  // ここが素通りしていた。
+  it('throws when targeting the workspace-local production DB directory', () => {
+    const productionLike = path.join(process.cwd(), '.anytime', 'trail', 'db', 'trail.db');
+    expect(() => assertNotProductionWriteDuringTests(productionLike)).toThrow(
+      /Refusing to write outside the test sandbox/,
+    );
+  });
+
+  it('throws for an arbitrary directory outside the sandbox', () => {
+    // 旧実装はここを「安全」として通していた。保存先が列挙外なら黙って
+    // 書けてしまうため、allowlist では拒否する。
+    expect(() => assertNotProductionWriteDuringTests('/workspaces/project/test.db')).toThrow(
+      /Refusing to write outside the test sandbox/,
     );
   });
 
@@ -33,9 +53,26 @@ describe('assertNotProductionWriteDuringTests', () => {
     expect(() => assertNotProductionWriteDuringTests(safePath)).not.toThrow();
   });
 
-  it('does NOT throw for an arbitrary safe directory', () => {
-    const safePath = '/workspaces/project/test.db';
-    expect(() => assertNotProductionWriteDuringTests(safePath)).not.toThrow();
+  it('does NOT throw for a mkdtempSync sandbox under tmpdir', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trail-guard-'));
+    try {
+      expect(() => assertNotProductionWriteDuringTests(path.join(dir, 'trail.db'))).not.toThrow();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves relative paths before judging (a relative path is not a sandbox path)', () => {
+    expect(() => assertNotProductionWriteDuringTests('trail.db')).toThrow(
+      /Refusing to write outside the test sandbox/,
+    );
+  });
+
+  it('does NOT treat a sibling directory sharing the tmpdir prefix as inside the sandbox', () => {
+    // `${tmpdir}-evil` は文字列前方一致では tmpdir 配下に見えるが、別ディレクトリである。
+    expect(() => assertNotProductionWriteDuringTests(`${os.tmpdir()}-evil/trail.db`)).toThrow(
+      /Refusing to write outside the test sandbox/,
+    );
   });
 
   it('does NOT throw when NODE_ENV is not test (simulated via env override)', () => {
