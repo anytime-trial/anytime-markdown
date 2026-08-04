@@ -220,7 +220,7 @@ describe('codeGraphPanel: Time Scrubber', () => {
     const { container, handle } = mount(
       baseProps({ releases: RELEASES, onColorByChange: (v) => seen.push(v) }),
     );
-    const select = container.querySelector('select') as HTMLSelectElement;
+    const select = container.querySelector('[data-testid="code-graph-color-by"]') as HTMLSelectElement;
     select.value = 'lastEditor';
     select.dispatchEvent(new Event('change'));
     expect(seen).toEqual(['lastEditor']);

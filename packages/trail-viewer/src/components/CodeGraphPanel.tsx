@@ -15,11 +15,30 @@ import {
   type CodeGraphPanelProps as VanillaProps,
   type CodeGraphScrubberGranularity,
 } from '../views/codeGraphPanel';
+import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import {
+  buildPlaybackList,
+  canPlay,
+  nextPlaybackIndex,
+  playbackStartIndex,
+  shouldStopOnFailures,
+  DEFAULT_PLAYBACK_SPEED,
+  PLAYBACK_MIN_DWELL_MS,
+  type CodeGraphPlaybackSpeed,
+} from '../views/codeGraphPlayback';
+import type { CodeGraphPlaybackResult } from '../views/codeGraphPanel';
 import { useCodeGraphReleases } from '../hooks/useCodeGraphReleases';
 import { useCodeGraphCommits } from '../hooks/useCodeGraphCommits';
 import { diffCodeGraphs } from '@anytime-markdown/trail-core/codeGraphDiff';
 import { useTrailI18n } from '../i18n';
 import type { TrailI18n } from '../i18n';
+
+/**
+ * ベースライン再利用のために保持する時点グラフの本数。
+ * 1 本 2 MB あるため小さく保つ。連続再生に必要なのは直前の 1 本だけで、
+ * 手動で行き来したときの往復に少しだけ余裕を持たせている。
+ */
+const GRAPH_CACHE_SIZE = 3;
 
 const DEFAULT_TC_VALUE: TemporalCouplingControlsValue = {
   enabled: false,
@@ -111,7 +130,7 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
 
   const activeCommit = isCommitGranularity ? selectedCommit : null;
 
-  const { graph, loading, error, refetch } = useCodeGraph(serverUrl, {
+  const { graph, graphKey, loading, error, refetch } = useCodeGraph(serverUrl, {
     repo: repoName,
     enabled: !!repoName && (!isCommitGranularity || !!activeCommit),
     release: selectedRelease,
@@ -175,12 +194,48 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
 
   // ベースラインのグラフは差分表示を選んでいる間だけ取る（1 本 2 MB あるため）。
   const baselineId = baseline?.hasGraph ? baseline.tag : null;
-  const { graph: baselineGraph, graphKey: baselineGraphKey } = useCodeGraph(serverUrl, {
+
+  /**
+   * 直近に取得した時点のグラフを少数だけ保持する（Auto Playback のベースライン再利用）。
+   *
+   * 順方向の連続再生では、フレーム N の選択版がフレーム N+1 のベースラインになる。
+   * 再利用しないとフレームごとに 2 本（約 4 MB）を取ることになり、速度プリセットが
+   * 意味を失う。**主グラフの取得経路には触れない**（あちらは「保持しているグラフが今の
+   * 時点のものか」を graphKey で守っており、キャッシュを差し込むとその防御と衝突する）。
+   *
+   * 「現在」は時間とともに中身が変わるため保持しない。ベースラインが `current` になる
+   * 経路も無い（`baseline` はタグか SHA を返す）。
+   *
+   * キャッシュは **state ではなく ref** に置く。state にすると、保持したこと自体が再レンダー
+   * を呼び、そのレンダーが取得フックの `enabled` とベースラインの同一性を揺らして
+   * 取得 → 保持 → 再レンダー → 取得のループになる（実測: `CodeGraphPanel.stateReplay` の
+   * テストがヒープを 4 GB まで食って落ちた）。保持しても描画は変わらないので、
+   * 再レンダーを呼ぶ必要は無い。読むのは次に `baselineId` が変わったレンダーで足りる。
+   */
+  const graphCacheRef = useRef(new Map<string, CodeGraph>());
+  useEffect(() => {
+    if (!graph || !graphKey || graphKey === CURRENT_RELEASE) return;
+    const cache = graphCacheRef.current;
+    if (cache.get(graphKey) === graph) return;
+    cache.delete(graphKey);
+    cache.set(graphKey, graph);
+    while (cache.size > GRAPH_CACHE_SIZE) {
+      const oldest = cache.keys().next().value;
+      if (oldest === undefined) break;
+      cache.delete(oldest);
+    }
+  }, [graph, graphKey]);
+
+  const cachedBaselineGraph = baselineId ? (graphCacheRef.current.get(baselineId) ?? null) : null;
+  const { graph: fetchedBaselineGraph, graphKey: fetchedBaselineKey } = useCodeGraph(serverUrl, {
     repo: repoName,
-    enabled: !!repoName && colorBy === 'diff' && !!baselineId,
+    enabled: !!repoName && colorBy === 'diff' && !!baselineId && !cachedBaselineGraph,
     release: isCommitGranularity ? CURRENT_RELEASE : (baselineId ?? CURRENT_RELEASE),
     commit: isCommitGranularity ? (baselineId ?? undefined) : undefined,
   });
+  const baselineGraph = cachedBaselineGraph ?? fetchedBaselineGraph;
+  // キャッシュから採ったときの鍵は引いた ID そのもの。取得フック側の鍵と混ぜない。
+  const baselineGraphKey = cachedBaselineGraph ? baselineId : fetchedBaselineKey;
 
   const diff = useMemo<VanillaProps['diff']>(() => {
     if (colorBy !== 'diff' || !graph || !baselineGraph) return null;
@@ -418,6 +473,184 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     return { status: 'ready', graph };
   }, [loading, error, repoName, graph, isCommitGranularity, activeCommit, commitsLoading]);
 
+  // --- Auto Playback（機能仕様書 spec/31.trail/02.trail-viewer/auto-playback） ---
+
+  const [playbackPlaying, setPlaybackPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<CodeGraphPlaybackSpeed>(DEFAULT_PLAYBACK_SPEED);
+  const [playbackIndex, setPlaybackIndex] = useState(0);
+  const [playbackFailed, setPlaybackFailed] = useState(0);
+  const [playbackResult, setPlaybackResult] = useState<CodeGraphPlaybackResult | null>(null);
+  // 送りの判定はレンダー間に挟まるため、state のスナップショットではなく ref を見る
+  // （生成状態が同じ理由で ref を持っているのと同じ）。
+  const playingRef = useRef(false);
+  const playbackIndexRef = useRef(0);
+  const playbackFailedRef = useRef(0);
+  const consecutiveFailuresRef = useRef(0);
+  /** 失敗を目盛りごとに 1 回だけ数えるための印（同じ状態で effect が再実行されるため）。 */
+  const handledFailureRef = useRef<string | null>(null);
+
+  const playbackList = useMemo(
+    () =>
+      buildPlaybackList({
+        granularity,
+        releases,
+        commits,
+        currentId: CURRENT_RELEASE,
+        currentLabel: t('codeGraph.scrubber.current'),
+      }),
+    [granularity, releases, commits, t],
+  );
+  const playbackListRef = useRef(playbackList);
+  playbackListRef.current = playbackList;
+
+  const activeTickId = isCommitGranularity ? selectedCommit : selectedRelease;
+
+  const selectTick = useCallback(
+    (id: string) => {
+      if (isCommitGranularity) setSelectedCommit(id);
+      else setSelectedRelease(id);
+    },
+    [isCommitGranularity],
+  );
+
+  const stopPlayback = useCallback((reason: CodeGraphPlaybackResult['reason']) => {
+    if (!playingRef.current) return;
+    playingRef.current = false;
+    setPlaybackPlaying(false);
+    const list = playbackListRef.current;
+    setPlaybackResult({
+      reason,
+      position: Math.min(playbackIndexRef.current + 1, list.ticks.length),
+      total: list.ticks.length,
+      skipped: list.skipped,
+      failed: playbackFailedRef.current,
+    });
+  }, []);
+
+  const handlePlaybackToggle = useCallback(() => {
+    if (playingRef.current) {
+      stopPlayback('paused');
+      return;
+    }
+    if (!canPlay(playbackList)) return;
+    const start = playbackStartIndex(playbackList, activeTickId);
+    const tick = playbackList.ticks[start];
+    if (!tick) return;
+    consecutiveFailuresRef.current = 0;
+    handledFailureRef.current = null;
+    playbackFailedRef.current = 0;
+    playbackIndexRef.current = start;
+    playingRef.current = true;
+    setPlaybackFailed(0);
+    setPlaybackResult(null);
+    setPlaybackIndex(start);
+    setPlaybackPlaying(true);
+    selectTick(tick.id);
+  }, [playbackList, activeTickId, selectTick, stopPlayback]);
+
+  /**
+   * 送りの本体。1 フレームは「取得完了 → 描画完了 → 最小滞在時間の経過」で閉じる
+   * （機能仕様書 §4.3）。固定間隔で送ると、間隔が描画コストを下回った時点で要求が
+   * 積み上がり、速度を上げるほど滞留する。
+   *
+   * 描画完了は専用の通知ではなく effect の順序で見る。`VanillaIsland` は `useEffect` で
+   * 描画層の `update()` を呼び、`mountCodeGraphCanvas` はその中で sigma を同期に組み直す。
+   * 子の effect は親より先に走るため、この effect が動く時点で描画は終わっている。
+   */
+  useEffect(() => {
+    if (!playbackPlaying) return;
+    const tick = playbackList.ticks[playbackIndex];
+    if (!tick) {
+      stopPlayback('completed');
+      return;
+    }
+    // 目標の目盛りがまだ選択へ反映されていない間は待つ。
+    if (activeTickId !== tick.id) return;
+
+    const advance = (): void => {
+      const next = nextPlaybackIndex(playbackListRef.current, playbackIndexRef.current);
+      if (next.done) {
+        stopPlayback('completed');
+        return;
+      }
+      const nextTick = playbackListRef.current.ticks[next.index];
+      if (!nextTick) {
+        stopPlayback('completed');
+        return;
+      }
+      playbackIndexRef.current = next.index;
+      setPlaybackIndex(next.index);
+      selectTick(nextTick.id);
+    };
+
+    // 1 本の失敗で再生全体を止めない。ただし連続 3 本で止める（サーバ障害を叩き続けない）。
+    if (graphState.status === 'error' || graphState.status === 'no-graph') {
+      if (handledFailureRef.current === tick.id) return;
+      handledFailureRef.current = tick.id;
+      playbackFailedRef.current += 1;
+      consecutiveFailuresRef.current += 1;
+      setPlaybackFailed(playbackFailedRef.current);
+      if (shouldStopOnFailures(consecutiveFailuresRef.current)) {
+        stopPlayback('failed');
+        return;
+      }
+      const retryTimer = setTimeout(advance, 0);
+      return () => clearTimeout(retryTimer);
+    }
+
+    // `graphKey` が目標と一致して初めて「その時点の絵」である。status だけで進むと、
+    // 前の時点のグラフを新しい時点のものとして数えてしまう。
+    if (graphState.status !== 'ready' || graphKey !== tick.id) return;
+    consecutiveFailuresRef.current = 0;
+    handledFailureRef.current = null;
+    const dwellTimer = setTimeout(advance, PLAYBACK_MIN_DWELL_MS[playbackSpeed]);
+    return () => clearTimeout(dwellTimer);
+  }, [
+    playbackPlaying,
+    playbackIndex,
+    playbackList,
+    activeTickId,
+    graphState.status,
+    graphKey,
+    playbackSpeed,
+    selectTick,
+    stopPlayback,
+  ]);
+
+  // 粒度・リポジトリが変わると再生列そのものが入れ替わる。位置を持ち越さず停止する
+  // （機能仕様書 §4.6）。配色の変更では止めない。
+  const playbackResetKey = `${repoName ?? ''}|${granularity}`;
+  const playbackResetRef = useRef(playbackResetKey);
+  useEffect(() => {
+    if (playbackResetRef.current === playbackResetKey) return;
+    playbackResetRef.current = playbackResetKey;
+    stopPlayback('paused');
+  }, [playbackResetKey, stopPlayback]);
+
+  // アンマウント時に再生を畳む。滞在タイマーは effect の後片付けが外す。
+  useEffect(
+    () => () => {
+      playingRef.current = false;
+    },
+    [],
+  );
+
+  const playbackView = useMemo<VanillaProps['playback']>(() => {
+    if (!canPlay(playbackList)) return { status: 'unavailable' };
+    if (playbackPlaying) {
+      return {
+        status: 'playing',
+        speed: playbackSpeed,
+        position: playbackIndex + 1,
+        total: playbackList.ticks.length,
+        skipped: playbackList.skipped,
+        failed: playbackFailed,
+      };
+    }
+    if (playbackResult) return { status: 'idle', speed: playbackSpeed, result: playbackResult };
+    return { status: 'idle', speed: playbackSpeed };
+  }, [playbackList, playbackPlaying, playbackSpeed, playbackIndex, playbackFailed, playbackResult]);
+
   const viewProps: VanillaProps = {
     graphState,
     highlightedNodes,
@@ -452,6 +685,9 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     onCommitChange: setSelectedCommit,
     onGenerateCommit: handleGenerateCommit,
     onRefetchCommits: refetchCommits,
+    playback: playbackView,
+    onPlaybackToggle: handlePlaybackToggle,
+    onPlaybackSpeedChange: setPlaybackSpeed,
   };
 
   return <VanillaIsland mount={mountCodeGraphPanel} props={viewProps} />;

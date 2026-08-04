@@ -316,6 +316,16 @@ export interface TrailI18n {
   'codeGraph.scrubber.commitsLoading': string;
   'codeGraph.scrubber.commitsError': string;
   'codeGraph.scrubber.retry': string;
+  'codeGraph.playback.play': string;
+  'codeGraph.playback.pause': string;
+  'codeGraph.playback.speed': string;
+  'codeGraph.playback.unavailable': string;
+  'codeGraph.playback.progress': string;
+  'codeGraph.playback.skipped': string;
+  'codeGraph.playback.failed': string;
+  'codeGraph.playback.doneCompleted': string;
+  'codeGraph.playback.donePaused': string;
+  'codeGraph.playback.doneFailed': string;
   'codeGraph.colorBy.diff': string;
   'codeGraph.diff.added': string;
   'codeGraph.diff.removed': string;
