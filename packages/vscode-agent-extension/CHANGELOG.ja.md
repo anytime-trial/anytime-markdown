@@ -8,7 +8,7 @@
 
 ### 削除
 
-- `anytime-stock-cooccurrence` スキルを同梱から外した。配置済みコピーは次回 activate 時に削除される。汎用の共起グラフ出力モードは `anytime-analysis` §9 に残る。
+- `anytime-stock-cooccurrence` スキルを同梱から外した（株価特化の規約は別プロジェクト固有のスキルへ移した）。移設先での誤削除を避けるため自動 cleanup は登録していないので、配置済みコピーは手動で削除する。汎用の共起グラフ出力モードは `anytime-analysis` §9 に残る。
 
 ## [1.12.0] - 2026-08-03
 

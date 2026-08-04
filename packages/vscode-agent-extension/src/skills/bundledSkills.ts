@@ -45,13 +45,12 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   { name: 'anytime-impl-test-design' },
   // 2026-07-30 に anytime-proposal からリネーム（提案書の生成から「分析と分析結果の出力
   // （提案書 / 共起グラフ .cooc.json）」へ再定義し、共起グラフ出力モード §9 を統合）。
-  // oldNames の anytime-stock-cooccurrence は 2026-08-04 に配布を取りやめた株価特化の共起グラフ
-  // 規約（さらにその旧名が anytime-cooccurrence）。汎用形の §9 が残る本スキルへ cleanup を寄せて、
-  // 配置済みコピーが各ワークスペースに残り続けるのを防ぐ。
-  {
-    name: 'anytime-analysis',
-    oldNames: ['anytime-proposal', 'anytime-stock-cooccurrence', 'anytime-cooccurrence'],
-  },
+  { name: 'anytime-analysis', oldNames: ['anytime-proposal'] },
+  // 2026-08-04 に配布を取りやめた anytime-stock-cooccurrence（旧名 anytime-cooccurrence）は、
+  // どの skill の oldNames にも入れない。株価特化の共起グラフ規約は別プロジェクト固有のスキルへ
+  // 移したため、cleanup を登録すると移設先ワークスペースで activate するたびに
+  // installStaticSkillDir が .claude/skills/<name>/ を rmSync で消す（git 追跡でも消える）。
+  // 代償として、本スキルの配布を受けていたワークスペースには配置済みコピーが残る。
   // チケット駆動自動実行（tick 自身が cron を自己確保する）。web-app /tickets とフォーマット正本を共有する。
   // 2026-07-17 に anytime-ticket-loop からリネーム（start / stop の対で名前を揃えた）。
   { name: 'anytime-loop-start', oldNames: ['anytime-ticket-loop'] },
