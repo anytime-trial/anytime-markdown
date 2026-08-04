@@ -1,4 +1,9 @@
 
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
@@ -407,6 +412,68 @@ describe('TrailDatabase analyzeReleaseCodeGraphsForce (empty releases)', () => {
       gitRoot: '/tmp/fake-repo',
     });
     expect(count).toBe(0);
+  });
+});
+
+describe('TrailDatabase analyzeReleaseCodeGraphsForce (解析対象の貫通)', () => {
+  let db: TrailDatabase;
+  let repoDir: string;
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trail-release-repo-'));
+    const git = (...args: string[]): void => {
+      execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...args], {
+        cwd: repoDir,
+        stdio: 'pipe',
+      });
+    };
+    git('init', '-q');
+    fs.writeFileSync(path.join(repoDir, 'a.ts'), 'export const a = 1;\n');
+    git('add', 'a.ts');
+    git('commit', '-q', '-m', 'init');
+    git('tag', 'v1.0.0');
+    insertRelease(db, 'v1.0.0');
+  });
+
+  afterEach(() => {
+    db.close();
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  // 回帰: 過去タグの worktree を作っておきながら generate() へ渡しておらず、
+  // 全リリースに「現在のコード」のグラフが保存されていた。解析対象が worktree を
+  // 指していること、および current_code_graphs を汚さないことを固定する。
+  it('generate() へ worktree のパスを渡し、current へは保存させない', async () => {
+    type Override = {
+      repositories: readonly { path: string }[];
+      trailGraphByRepoId?: Record<string, unknown>;
+      persist?: boolean;
+    };
+    const seen: Override[] = [];
+    const count = await db.analyzeReleaseCodeGraphsForce({
+      codeGraphService: {
+        generate: async (_onProgress?: unknown, override?: never) => {
+          const o = override as unknown as Override | undefined;
+          if (o) seen.push(o);
+          return [makeCodeGraph()];
+        },
+      } as never,
+      gitRoot: repoDir,
+    });
+
+    expect(count).toBe(1);
+    expect(seen).toHaveLength(1);
+    // 解析対象は gitRoot（現在のチェックアウト）ではなく、その tag の worktree である
+    expect(seen[0].repositories[0].path).not.toBe(repoDir);
+    expect(seen[0].repositories[0].path).toContain('trail-cg-release-v1.0.0');
+    // release 用の生成なので current_code_graphs へは保存させない
+    expect(seen[0].persist).toBe(false);
+    // trailGraphProvider（現在の TrailGraph を返す）へのフォールバックを断つ。
+    // 空を明示しないと、過去タグの解析に現在のグラフが混入する。
+    expect(seen[0].trailGraphByRepoId).toEqual({});
+    // 生成結果が release 側へ保存されている
+    expect(db.getReleaseCodeGraph('v1.0.0')).not.toBeNull();
   });
 });
 
