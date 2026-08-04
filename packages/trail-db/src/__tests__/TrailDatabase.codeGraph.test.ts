@@ -508,3 +508,81 @@ describe('TrailDatabase getDayToolMetrics', () => {
     expect(Array.isArray(result!.skillUsage)).toBe(true);
   });
 });
+
+describe('TrailDatabase listReleaseCodeGraphAvailability', () => {
+  let db: TrailDatabase;
+
+  /** repos → releases の順で投入する（可用性一覧は repo_name で絞るため repo_id が要る）。 */
+  const seed = (
+    rows: ReadonlyArray<{ tag: string; releasedAt: string; withGraph: boolean }>,
+    repoName = 'anytime-markdown',
+    repoId = 1,
+  ): void => {
+    inner(db).run(
+      `INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)`,
+      [repoId, repoName, '2026-01-01T00:00:00.000Z'],
+    );
+    for (const r of rows) {
+      inner(db).run(
+        `INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)`,
+        [r.tag, r.releasedAt, repoId],
+      );
+      if (r.withGraph) db.saveReleaseCodeGraph(r.tag, makeCodeGraph());
+    }
+  };
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+  });
+
+  it('released_at 昇順で返す（release_id 昇順とは一致しない）', () => {
+    // 本番実測の再現: 後から採番された v1.14.0 の方が released_at は早い。
+    seed([
+      { tag: 'v1.15.0', releasedAt: '2026-07-17T21:46:09.000Z', withGraph: true },
+      { tag: 'v1.14.0', releasedAt: '2026-07-17T07:38:41.000Z', withGraph: true },
+    ]);
+    const list = db.listReleaseCodeGraphAvailability('anytime-markdown');
+    expect(list.map((r) => r.tag)).toEqual(['v1.14.0', 'v1.15.0']);
+  });
+
+  it('在庫の有無を hasGraph で区別する', () => {
+    seed([
+      { tag: 'v1.0.0', releasedAt: '2026-03-01T00:00:00.000Z', withGraph: false },
+      { tag: 'v1.1.0', releasedAt: '2026-03-02T00:00:00.000Z', withGraph: true },
+    ]);
+    const list = db.listReleaseCodeGraphAvailability('anytime-markdown');
+    expect(list).toEqual([
+      { tag: 'v1.0.0', releasedAt: '2026-03-01T00:00:00.000Z', hasGraph: false },
+      { tag: 'v1.1.0', releasedAt: '2026-03-02T00:00:00.000Z', hasGraph: true },
+    ]);
+  });
+
+  it('グラフ本体を応答に含めない', () => {
+    seed([{ tag: 'v1.1.0', releasedAt: '2026-03-02T00:00:00.000Z', withGraph: true }]);
+    const list = db.listReleaseCodeGraphAvailability('anytime-markdown');
+    expect(Object.keys(list[0]).sort()).toEqual(['hasGraph', 'releasedAt', 'tag']);
+  });
+
+  it('同時刻はタグ名で安定させる', () => {
+    seed([
+      { tag: 'v2.0.0', releasedAt: '2026-04-01T00:00:00.000Z', withGraph: false },
+      { tag: 'v1.9.0', releasedAt: '2026-04-01T00:00:00.000Z', withGraph: false },
+    ]);
+    expect(db.listReleaseCodeGraphAvailability('anytime-markdown').map((r) => r.tag)).toEqual([
+      'v1.9.0',
+      'v2.0.0',
+    ]);
+  });
+
+  it('他リポジトリのリリースを混ぜない', () => {
+    seed([{ tag: 'v1.0.0', releasedAt: '2026-03-01T00:00:00.000Z', withGraph: false }]);
+    seed([{ tag: 'docs-v1', releasedAt: '2026-03-05T00:00:00.000Z', withGraph: false }], 'other-repo', 2);
+    expect(db.listReleaseCodeGraphAvailability('anytime-markdown').map((r) => r.tag)).toEqual(['v1.0.0']);
+    expect(db.listReleaseCodeGraphAvailability('other-repo').map((r) => r.tag)).toEqual(['docs-v1']);
+  });
+
+  it('未知の repo_name は空配列を返す', () => {
+    seed([{ tag: 'v1.0.0', releasedAt: '2026-03-01T00:00:00.000Z', withGraph: false }]);
+    expect(db.listReleaseCodeGraphAvailability('unknown')).toEqual([]);
+  });
+});

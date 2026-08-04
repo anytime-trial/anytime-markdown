@@ -37,6 +37,7 @@ export type {
   CrossSourceCorrelationRow,
   CrossSourceAKind,
   CrossSourceBKind,
+  ReleaseCodeGraphAvailability,
 } from './TrailDatabase';
 export { SyncService } from './SyncService';
 export { SupabaseTrailStore } from './SupabaseTrailStore';

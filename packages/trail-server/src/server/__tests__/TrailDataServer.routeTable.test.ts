@@ -101,6 +101,7 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "PATCH", kind: "pattern", path: "^\\/api\\/c4\\/manual-groups\\/([^/]+)$" },
   { method: "DELETE", kind: "pattern", path: "^\\/api\\/c4\\/manual-groups\\/([^/]+)$" },
   { method: "GET", kind: "exact", path: "/api/code-graph" },
+  { method: "GET", kind: "exact", path: "/api/code-graph/releases" },
   { method: "GET", kind: "exact", path: "/api/code-graph/query" },
   { method: "GET", kind: "exact", path: "/api/code-graph/explain" },
   { method: "GET", kind: "exact", path: "/api/code-graph/path" },

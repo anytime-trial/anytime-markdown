@@ -896,3 +896,65 @@ describe('GET /api/trace/list — traceDir 注入 (gitRoot 非依存)', () => {
     expect(body.some((t) => t.name === 'sample.json')).toBe(true);
   });
 });
+
+describe('GET /api/code-graph/releases', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+
+  /** sql.js の生ハンドルへ直接投入する（公開 API に releases の書き込み口が無いため）。 */
+  const rawRun = (sql: string, params: ReadonlyArray<unknown>): void => {
+    (db as unknown as { db: { run: (s: string, p?: ReadonlyArray<unknown>) => void } }).db.run(sql, params);
+  };
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    rawRun('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+      1, 'anytime-markdown', '2026-01-01T00:00:00.000Z',
+    ]);
+    // released_at 昇順と release_id 昇順が食い違う実データを再現する。
+    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+      'v1.15.0', '2026-07-17T21:46:09.000Z', 1,
+    ]);
+    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+      'v1.14.0', '2026-07-17T07:38:41.000Z', 1,
+    ]);
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+  });
+
+  it('repo 指定で released_at 昇順のリリース一覧を返す', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph/releases?repo=anytime-markdown`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { releases: Array<{ tag: string; releasedAt: string; hasGraph: boolean }> };
+    expect(body.releases.map((r) => r.tag)).toEqual(['v1.14.0', 'v1.15.0']);
+    expect(body.releases.every((r) => r.hasGraph === false)).toBe(true);
+  });
+
+  it('repo 省略時は全リポジトリを混ぜず空配列を返す', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph/releases`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { releases: unknown[] };
+    expect(body.releases).toEqual([]);
+  });
+
+  it('未知の repo は 200 と空配列を返す（グラフ描画を壊さない）', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph/releases?repo=unknown`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { releases: unknown[] };
+    expect(body.releases).toEqual([]);
+  });
+
+  it('グラフ本体を応答に含めない', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph/releases?repo=anytime-markdown`);
+    const text = await res.text();
+    expect(text).not.toContain('graph_json');
+    expect(text).not.toContain('"nodes"');
+  });
+});

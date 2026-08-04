@@ -80,6 +80,34 @@ export class CodeGraphApiHandler {
   }
 
   // -------------------------------------------------------------------------
+  //  GET /api/code-graph/releases?repo=<name>
+  // -------------------------------------------------------------------------
+
+  /**
+   * Time Scrubber の目盛り一覧。リリースと履歴版グラフの在庫有無だけを返す
+   * （グラフ本体は 1 本 2 MB あるため含めない）。
+   *
+   * `repo` 省略は全リポジトリの混合ではなく空配列とする。目盛りはリポジトリ単位の
+   * 時間軸であり、混ぜると別リポジトリのタグが同じ軸に並んでしまう。
+   */
+  handleGetReleases(res: http.ServerResponse, repo?: string): void {
+    if (!repo) {
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ releases: [] }));
+      return;
+    }
+    try {
+      const releases = this.trailDb.listReleaseCodeGraphAvailability(repo);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ releases }));
+    } catch (err) {
+      this.logger.error(`[CodeGraphApiHandler] failed to list releases for repo=${repo}`, err);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to list code graph releases' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
   //  GET /api/code-graph/query?q=...
   // -------------------------------------------------------------------------
 

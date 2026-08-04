@@ -58,7 +58,20 @@ const COLOR_BY_FALLBACK: Record<string, string> = {
   'c4.layer.presentationUi': 'UI',
   'c4.layer.presentationExtension': '拡張',
   'c4.layer.utility': 'ユーティリティ',
+  'codeGraph.scrubber.label': '時点',
+  'codeGraph.scrubber.current': '現在',
+  'codeGraph.scrubber.viewing': '表示中',
+  'codeGraph.scrubber.legendAvailable': '生成済み',
+  'codeGraph.scrubber.legendMissing': '未生成',
+  'codeGraph.scrubber.notGenerated': 'この時点のグラフはまだ生成されていません。',
+  'codeGraph.scrubber.generate': 'このリリースのグラフを生成',
+  'codeGraph.scrubber.generating': '生成中',
+  'codeGraph.scrubber.generateFailed': '生成に失敗しました',
+  'codeGraph.scrubber.heatmapDisabled': '過去の時点では最終編集者・編集頻度の配色は使えません',
 };
+
+/** 「現在のスナップショット」を表す予約タグ。`/api/code-graph` の release パラメタと同値。 */
+export const CURRENT_RELEASE = 'current';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -93,7 +106,33 @@ export interface CodeGraphPanelProps {
   readonly authorHeatmap?: AuthorHeatmapViewData | null;
   /** 配色方式が変わったときの通知（ラッパが集計取得の要否を判断する）。 */
   readonly onColorByChange?: (colorBy: CodeGraphColorBy) => void;
+  /**
+   * Time Scrubber の目盛り。`released_at` 昇順で渡す（並べ替えはサーバの責務）。
+   * 空配列のときスクラバは表示しない。
+   */
+  readonly releases?: readonly CodeGraphReleaseTick[];
+  /** 選択中の時点。`CURRENT_RELEASE` または `releases` に含まれるタグ。 */
+  readonly selectedRelease?: string;
+  /** 履歴版グラフのオンデマンド生成の状態。 */
+  readonly generateState?: CodeGraphGenerateState;
+  /** 目盛りを動かして確定したときの通知（ドラッグ中は発火しない）。 */
+  readonly onReleaseChange?: (release: string) => void;
+  /** 未生成タグの生成要求。明示操作でのみ呼ばれる（スライダー操作では呼ばない）。 */
+  readonly onGenerateRelease?: (tag: string) => void;
 }
+
+/** Time Scrubber の目盛り 1 件。 */
+export interface CodeGraphReleaseTick {
+  readonly tag: string;
+  readonly releasedAt: string;
+  readonly hasGraph: boolean;
+}
+
+/** オンデマンド生成の状態。`tag` は要求中・失敗中のタグ。 */
+export type CodeGraphGenerateState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'running'; readonly tag: string; readonly percent?: number }
+  | { readonly status: 'error'; readonly tag: string; readonly message: string };
 
 /** Author Heatmap の描画に必要な集計（`/api/author-heatmap` の応答から作る）。 */
 export interface AuthorHeatmapViewData {
@@ -122,6 +161,53 @@ export function mountCodeGraphPanel(
   const root = document.createElement('div');
   root.style.cssText = 'display:flex;flex-direction:column;height:100%;';
   container.appendChild(root);
+
+  // --- Time Scrubber ---
+  // ツールバーとは別の行に置く。ツールバーは ready のときだけ表示するが、スクラバは
+  // 未生成の時点を選んでいる間も残らないと「選んだ瞬間に戻る手段が消える」ため、
+  // 可視性の制御を分ける（機能仕様書 §4.4）。
+  const scrubberEl = document.createElement('div');
+  scrubberEl.setAttribute('data-testid', 'code-graph-scrubber');
+  scrubberEl.style.cssText =
+    'padding:8px;display:none;flex-direction:column;gap:4px;' +
+    'border-bottom:1px solid var(--am-color-divider);flex-shrink:0;';
+  root.appendChild(scrubberEl);
+
+  const scrubberRow = document.createElement('div');
+  scrubberRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
+  scrubberEl.appendChild(scrubberRow);
+
+  const scrubberLabel = document.createElement('span');
+  scrubberLabel.style.cssText = 'font-size:0.75rem;color:var(--am-color-text-secondary);flex-shrink:0;';
+  scrubberRow.appendChild(scrubberLabel);
+
+  const sliderWrap = document.createElement('div');
+  sliderWrap.style.cssText = 'position:relative;flex:1;min-width:160px;';
+  scrubberRow.appendChild(sliderWrap);
+
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = '0';
+  slider.step = '1';
+  slider.style.cssText = 'width:100%;display:block;';
+  sliderWrap.appendChild(slider);
+
+  // 在庫の有無を示す目盛り帯。スライダーと同じ 0〜N の等間隔で並べる。
+  const tickStrip = document.createElement('div');
+  tickStrip.setAttribute('aria-hidden', 'true');
+  tickStrip.style.cssText = 'position:relative;height:6px;margin:0 8px;';
+  sliderWrap.appendChild(tickStrip);
+
+  const scrubberValue = document.createElement('span');
+  scrubberValue.setAttribute('data-testid', 'code-graph-scrubber-value');
+  scrubberValue.style.cssText = 'font-size:0.75rem;font-variant-numeric:tabular-nums;flex-shrink:0;';
+  scrubberRow.appendChild(scrubberValue);
+
+  const scrubberLegend = document.createElement('div');
+  scrubberLegend.setAttribute('data-testid', 'code-graph-scrubber-legend');
+  scrubberLegend.style.cssText =
+    'display:flex;gap:12px;align-items:center;font-size:0.65rem;color:var(--am-color-text-secondary);';
+  scrubberEl.appendChild(scrubberLegend);
 
   // --- Search toolbar ---
   const toolbar = document.createElement('div');
@@ -194,6 +280,7 @@ export function mountCodeGraphPanel(
 
   // --- Layer legend (shown only when colorBy === 'layer') ---
   const legendEl = document.createElement('div');
+  legendEl.setAttribute('data-testid', 'code-graph-legend');
   legendEl.style.cssText =
     'display:none;gap:8px;align-items:center;flex-wrap:wrap;font-size:0.65rem;' +
     'color:var(--am-color-text-secondary);';
@@ -270,6 +357,119 @@ export function mountCodeGraphPanel(
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  //  Time Scrubber
+  // -------------------------------------------------------------------------
+
+  interface ScrubberTick {
+    readonly tag: string;
+    readonly label: string;
+    readonly hasGraph: boolean;
+  }
+
+  /** 目盛り列。右端は常に「現在」。並べ替えはしない（サーバの released_at 昇順をそのまま使う）。 */
+  function scrubberTicks(): ScrubberTick[] {
+    const ticks: ScrubberTick[] = (props.releases ?? []).map((r) => ({
+      tag: r.tag,
+      // 日付は UTC の日付部分だけを出す（時刻まで出すと目盛りラベルが読めない）。
+      label: `${r.tag} (${r.releasedAt.slice(0, 10)})`,
+      hasGraph: r.hasGraph,
+    }));
+    ticks.push({ tag: CURRENT_RELEASE, label: tr('codeGraph.scrubber.current'), hasGraph: true });
+    return ticks;
+  }
+
+  function selectedTickIndex(ticks: readonly ScrubberTick[]): number {
+    const selected = props.selectedRelease ?? CURRENT_RELEASE;
+    const index = ticks.findIndex((t) => t.tag === selected);
+    // 一覧から消えたタグを選んだままにしない（機能仕様書 §4.2）。右端＝現在へ戻す。
+    return index >= 0 ? index : ticks.length - 1;
+  }
+
+  function applyScrubberValueText(ticks: readonly ScrubberTick[], index: number): void {
+    const tick = ticks[index];
+    if (!tick) return;
+    const isCurrent = tick.tag === CURRENT_RELEASE;
+    // 過去の時点を現在と取り違えないよう、選択中は常にタグと日付を出す（§4.5）。
+    scrubberValue.textContent = isCurrent
+      ? tick.label
+      : `${tr('codeGraph.scrubber.viewing')}: ${tick.label}`;
+    slider.setAttribute('aria-valuetext', tick.label);
+  }
+
+  function renderTickStrip(ticks: readonly ScrubberTick[]): void {
+    tickStrip.replaceChildren();
+    const last = ticks.length - 1;
+    if (last <= 0) return;
+    ticks.forEach((tick, i) => {
+      const mark = document.createElement('span');
+      const color = tick.hasGraph
+        ? 'var(--am-color-primary-main)'
+        : 'var(--am-color-text-secondary)';
+      mark.style.cssText =
+        `position:absolute;top:0;left:${(i / last) * 100}%;transform:translateX(-50%);` +
+        `width:4px;height:4px;border-radius:50%;` +
+        (tick.hasGraph ? `background:${color};` : `background:transparent;border:1px solid ${color};`);
+      tickStrip.appendChild(mark);
+    });
+  }
+
+  function renderScrubberLegend(): void {
+    scrubberLegend.replaceChildren();
+    const items: ReadonlyArray<{ filled: boolean; key: string }> = [
+      { filled: true, key: 'codeGraph.scrubber.legendAvailable' },
+      { filled: false, key: 'codeGraph.scrubber.legendMissing' },
+    ];
+    for (const item of items) {
+      const wrap = document.createElement('span');
+      wrap.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+      const sw = document.createElement('span');
+      const color = item.filled ? 'var(--am-color-primary-main)' : 'var(--am-color-text-secondary)';
+      sw.style.cssText =
+        'width:6px;height:6px;border-radius:50%;flex-shrink:0;' +
+        (item.filled ? `background:${color};` : `border:1px solid ${color};`);
+      const txt = document.createElement('span');
+      txt.textContent = tr(item.key);
+      wrap.append(sw, txt);
+      scrubberLegend.appendChild(wrap);
+    }
+  }
+
+  function renderScrubber(): void {
+    const releases = props.releases ?? [];
+    if (releases.length === 0) {
+      // 一覧が取れないときはスクラバを出さない。グラフ描画自体は生かす（§受け入れ基準 12）。
+      scrubberEl.style.display = 'none';
+      return;
+    }
+    scrubberEl.style.display = 'flex';
+    const ticks = scrubberTicks();
+    const index = selectedTickIndex(ticks);
+    slider.max = String(ticks.length - 1);
+    slider.value = String(index);
+    slider.setAttribute('aria-label', tr('codeGraph.scrubber.label'));
+    scrubberLabel.textContent = tr('codeGraph.scrubber.label');
+    applyScrubberValueText(ticks, index);
+    renderTickStrip(ticks);
+    renderScrubberLegend();
+    if (ticks[index]?.tag !== CURRENT_RELEASE) {
+      const note = document.createElement('span');
+      note.textContent = tr('codeGraph.scrubber.heatmapDisabled');
+      scrubberLegend.appendChild(note);
+    }
+  }
+
+  // ドラッグ中（input）はラベルだけ更新し、確定（change）で初めて取得を要求する。
+  // input で通知すると端から端へ滑らせただけで目盛りの数だけ fetch が走る。
+  slider.addEventListener('input', () => {
+    applyScrubberValueText(scrubberTicks(), Number(slider.value));
+  });
+  slider.addEventListener('change', () => {
+    const ticks = scrubberTicks();
+    const tick = ticks[Number(slider.value)];
+    if (tick) props.onReleaseChange?.(tick.tag);
+  });
 
   /**
    * 配色マップのメモ化。
@@ -391,11 +591,71 @@ export function mountCodeGraphPanel(
     placeholderEl = el;
   }
 
+  /**
+   * 未生成のリリースを選んでいるときの表示。
+   *
+   * 生成は明示操作でのみ行う（スライダー操作で自動生成しない）。実行中は
+   * 他の時点を選べるようスクラバは残したまま、この領域だけを差し替える。
+   */
+  function renderMissingRelease(tag: string): void {
+    clearCanvas();
+    const el = document.createElement('div');
+    el.setAttribute('data-testid', 'code-graph-missing-release');
+    el.style.cssText = 'padding:24px;font-size:0.875rem;display:flex;flex-direction:column;gap:8px;align-items:flex-start;';
+
+    const gen = props.generateState ?? { status: 'idle' as const };
+    const running = gen.status === 'running' && gen.tag === tag;
+    const failed = gen.status === 'error' && gen.tag === tag;
+
+    const message = document.createElement('div');
+    if (running) {
+      const percent = gen.status === 'running' && typeof gen.percent === 'number' ? ` ${gen.percent}%` : '';
+      message.textContent = `${tr('codeGraph.scrubber.generating')}: ${tag}${percent}`;
+    } else {
+      message.textContent = `${tag} — ${tr('codeGraph.scrubber.notGenerated')}`;
+    }
+    el.appendChild(message);
+
+    if (failed) {
+      const err = document.createElement('div');
+      err.style.cssText = 'color:var(--am-color-error-main);';
+      err.textContent = `${tr('codeGraph.scrubber.generateFailed')}: ${gen.message}`;
+      el.appendChild(err);
+    }
+
+    if (!running) {
+      const btn = document.createElement('button');
+      btn.setAttribute('data-testid', 'code-graph-generate-release');
+      btn.textContent = tr('codeGraph.scrubber.generate');
+      btn.style.cssText =
+        'padding:4px 12px;background:var(--am-color-primary-main);color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:0.875rem;';
+      btn.addEventListener('click', () => props.onGenerateRelease?.(tag));
+      el.appendChild(btn);
+    }
+
+    canvasPane.appendChild(el);
+    placeholderEl = el;
+  }
+
   function renderState(): void {
     if (destroyed) return;
 
     // Hint
     hintEl.style.display = props.showSubagentDirectionalHint ? 'flex' : 'none';
+
+    // Time Scrubber（ツールバーの可視性とは独立に描く）
+    renderScrubber();
+
+    // Author Heatmap は現在のグラフのノード集合に対する集計なので、過去の時点では成立しない。
+    // 選択中だった場合は community へ戻す（§4.5）。
+    const isCurrentRelease = (props.selectedRelease ?? CURRENT_RELEASE) === CURRENT_RELEASE;
+    optLastEditor.disabled = !isCurrentRelease;
+    optEditFrequency.disabled = !isCurrentRelease;
+    if (!isCurrentRelease && isOverrideColorBy(colorBy)) {
+      colorBy = 'community';
+      props.onColorByChange?.(colorBy);
+    }
 
     // Color-by toggle / layer legend
     refreshColorByLabels();
@@ -451,6 +711,11 @@ export function mountCodeGraphPanel(
     }
 
     if (state.status === 'no-graph') {
+      const selected = props.selectedRelease ?? CURRENT_RELEASE;
+      if (selected !== CURRENT_RELEASE) {
+        renderMissingRelease(selected);
+        return;
+      }
       showPlaceholder(
         '<div>グラフがまだ生成されていません。</div>',
       );

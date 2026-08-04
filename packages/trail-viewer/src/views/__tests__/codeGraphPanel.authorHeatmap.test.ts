@@ -78,12 +78,10 @@ function mount(props: CodeGraphPanelProps): {
   document.body.appendChild(container);
   const handle = mountCodeGraphPanel(container, props);
   const select = container.querySelector('select') as HTMLSelectElement;
-  const legend = () => {
-    const spans = [...container.querySelectorAll('div')].find((d) =>
-      d.style.cssText.includes('0.65rem'),
-    );
-    return spans?.textContent ?? '';
-  };
+  // 凡例は testid で引く。スタイル文字列（0.65rem）で引くと Time Scrubber の凡例など
+  // 同じ字送りの別要素を先に拾ってしまう。
+  const legend = () =>
+    container.querySelector<HTMLElement>('[data-testid="code-graph-legend"]')?.textContent ?? '';
   return { container, handle, select, legendText: legend };
 }
 
@@ -129,9 +127,7 @@ describe('codeGraphPanel: Author Heatmap の配色セレクタと凡例', () => 
 
   it('community 配色では凡例を出さない', () => {
     const { container, handle } = mount(baseProps());
-    const legend = [...container.querySelectorAll('div')].find((d) =>
-      d.style.cssText.includes('0.65rem'),
-    );
+    const legend = container.querySelector<HTMLElement>('[data-testid="code-graph-legend"]');
     expect(legend?.style.display).toBe('none');
     handle.destroy();
   });
@@ -213,9 +209,7 @@ describe('codeGraphPanel: Author Heatmap の配色セレクタと凡例', () => 
     );
     selectColorBy(select, 'lastEditor');
     selectColorBy(select, 'community');
-    const legend = [...container.querySelectorAll('div')].find((d) =>
-      d.style.cssText.includes('0.65rem'),
-    );
+    const legend = container.querySelector<HTMLElement>('[data-testid="code-graph-legend"]');
     expect(legend?.style.display).toBe('none');
     handle.destroy();
   });

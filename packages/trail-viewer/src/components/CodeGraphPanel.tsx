@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import { type CodeGraphGhostEdge } from './CodeGraphCanvas';
 import { toCodeGraphNodeId } from '@anytime-markdown/trail-core/codeGraphNodeId';
@@ -8,7 +8,13 @@ import { isOverrideColorBy, type CodeGraphColorBy } from '../views/codeGraphCanv
 import { useTemporalCoupling } from '../c4/hooks/useTemporalCoupling';
 import type { TemporalCouplingControlsValue } from '../c4/components/overlays/TemporalCouplingControls';
 import { VanillaIsland } from '../shared/vanillaIsland';
-import { mountCodeGraphPanel, type CodeGraphPanelProps as VanillaProps } from '../views/codeGraphPanel';
+import {
+  CURRENT_RELEASE,
+  mountCodeGraphPanel,
+  type CodeGraphGenerateState,
+  type CodeGraphPanelProps as VanillaProps,
+} from '../views/codeGraphPanel';
+import { useCodeGraphReleases } from '../hooks/useCodeGraphReleases';
 import { useTrailI18n } from '../i18n';
 import type { TrailI18n } from '../i18n';
 
@@ -31,9 +37,21 @@ interface CodeGraphPanelProps {
 }
 
 export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoName }: Readonly<CodeGraphPanelProps>): React.ReactElement {
+  const [selectedRelease, setSelectedRelease] = useState<string>(CURRENT_RELEASE);
+  const [generateState, setGenerateState] = useState<CodeGraphGenerateState>({ status: 'idle' });
+
+  const { releases, refetch: refetchReleases } = useCodeGraphReleases(serverUrl, repoName);
+
+  // リリース集合はリポジトリごとに異なるため、切替時に前の選択を持ち越さない（仕様 §4.2）。
+  useEffect(() => {
+    setSelectedRelease(CURRENT_RELEASE);
+    setGenerateState({ status: 'idle' });
+  }, [repoName]);
+
   const { graph, loading, error, refetch } = useCodeGraph(serverUrl, {
     repo: repoName,
     enabled: !!repoName,
+    release: selectedRelease,
   });
   const [highlightedNodes, setHighlightedNodes] = useState<ReadonlySet<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<CodeGraphNode | null>(null);
@@ -43,7 +61,8 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
   const tcValue = tcValueProp ?? DEFAULT_TC_VALUE;
 
   const { data: authorHeatmapData } = useAuthorHeatmap({
-    enabled: isOverrideColorBy(colorBy),
+    // 集計は現在のグラフのノード集合に対するものなので、過去の時点では取得しない（仕様 §4.5）。
+    enabled: isOverrideColorBy(colorBy) && selectedRelease === CURRENT_RELEASE,
     serverUrl,
     repo: repoName,
   });
@@ -137,6 +156,59 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     }
   }, [serverUrl]);
 
+  /**
+   * 未生成リリースのオンデマンド生成。明示操作（生成ボタン）からのみ呼ばれる。
+   *
+   * `POST /api/analyze/release` は生成完了まで応答を返さない同期エンドポイントなので、
+   * 待っている間の進捗は WebSocket の `code-graph-progress` から拾う。
+   * 完了後は在庫一覧とグラフの双方を取り直す（在庫フラグが変わるため）。
+   */
+  const handleGenerateRelease = useCallback(async (tag: string) => {
+    setGenerateState({ status: 'running', tag });
+    const WSCtor = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+    let ws: WebSocket | undefined;
+    if (WSCtor) {
+      try {
+        ws = new WSCtor(serverUrl.replace(/^http/, 'ws'));
+        ws.addEventListener('message', (event: MessageEvent) => {
+          try {
+            const raw = typeof event.data === 'string' ? event.data : String(event.data);
+            const msg = JSON.parse(raw) as { type?: string; percent?: number };
+            if (msg.type === 'code-graph-progress' && typeof msg.percent === 'number') {
+              setGenerateState({ status: 'running', tag, percent: Math.round(msg.percent) });
+            }
+          } catch (err) {
+            console.error('[CodeGraphPanel] progress message parse failed', err);
+          }
+        });
+      } catch (err) {
+        // 進捗が取れなくても生成自体は続行する（表示が粗くなるだけ）。
+        console.error('[CodeGraphPanel] progress socket failed', err);
+        ws = undefined;
+      }
+    }
+    try {
+      const res = await fetch(`${serverUrl}/api/analyze/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: [tag] }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setGenerateState({ status: 'idle' });
+      refetchReleases();
+      refetch();
+    } catch (e) {
+      console.error('[CodeGraphPanel] generate release failed', e);
+      setGenerateState({ status: 'error', tag, message: String(e) });
+    } finally {
+      try {
+        ws?.close();
+      } catch (err) {
+        console.error('[CodeGraphPanel] progress socket close failed', err);
+      }
+    }
+  }, [serverUrl, refetch, refetchReleases]);
+
   // Build graphState for vanilla view
   const graphState = useMemo<VanillaProps['graphState']>(() => {
     if (loading) return { status: 'loading' };
@@ -165,6 +237,11 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     t,
     authorHeatmap,
     onColorByChange: setColorBy,
+    releases,
+    selectedRelease,
+    generateState,
+    onReleaseChange: setSelectedRelease,
+    onGenerateRelease: (tag) => void handleGenerateRelease(tag),
   };
 
   return <VanillaIsland mount={mountCodeGraphPanel} props={viewProps} />;
