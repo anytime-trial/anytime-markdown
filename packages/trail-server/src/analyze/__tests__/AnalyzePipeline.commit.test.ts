@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { TrailDatabase, InMemoryTrailStorage } from '@anytime-markdown/trail-db';
+import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 
+import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import {
   DEFAULT_COMMIT_CODE_GRAPH_RETENTION,
   resolveGitRootForRepo,
@@ -67,14 +68,12 @@ function makeLogger(warns: string[]): never {
 }
 
 async function makeDb(warns: string[]): Promise<TrailDatabase> {
-  const db = new TrailDatabase('/tmp', new InMemoryTrailStorage(), undefined, {
+  return createTestTrailDatabase({
     info: () => {},
     warn: (msg: string) => warns.push(msg),
     error: () => {},
     debugSql: () => {},
   });
-  await db.init();
-  return db;
 }
 
 const TEST_REPO = 'anytime-markdown';
