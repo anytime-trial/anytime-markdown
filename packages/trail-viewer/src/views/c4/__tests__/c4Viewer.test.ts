@@ -26,6 +26,7 @@ jest.mock('sigma/rendering', () => ({
   EdgeArrowProgram: class MockEdgeArrowProgram {},
 }));
 
+import { act } from '@testing-library/react';
 import { mountC4Viewer, computeMatrixGridOptions } from '../c4Viewer';
 import type { C4ViewerViewProps } from '../c4Viewer';
 import type { C4Model, CoverageMatrix } from '@anytime-markdown/trail-core/c4';
@@ -244,6 +245,56 @@ describe('mountC4Viewer', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(container.querySelector('[role="dialog"][aria-label="Code graph panel"]')).toBeNull();
+
+    handle.destroy();
+  });
+
+  /**
+   * 回帰防止（2026-08-05）: コードグラフポップアップの props 供給元が 2 つあり、実際に
+   * マウントされる c4Viewer 側が releases / playback / authorHeatmap を渡していなかったため、
+   * Time Scrubber・State Replay・Snapshot per Commit・Auto Playback・Author Heatmap の
+   * 5 機能が実行時に到達できなかった（リリース済み）。パネルを直接マウントするテストは
+   * 全て緑だったので、**実際のマウント点を通す**この検査でしか捕まらない。
+   */
+  it('コードグラフポップアップに Time Scrubber と再生ボタンが出る', async () => {
+    const releases = [
+      { tag: 'v1.18.0', releasedAt: '2026-08-01T00:00:00.000Z', hasGraph: true },
+      { tag: 'v1.19.1', releasedAt: '2026-08-03T00:00:00.000Z', hasGraph: true },
+    ];
+    globalThis.fetch = jest.fn((input: unknown) => {
+      const url = String(input);
+      if (url.includes('/api/code-graph/releases')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ releases }),
+        });
+      }
+      return Promise.reject(new Error('no server'));
+    }) as unknown as typeof fetch;
+
+    const handle = mountC4Viewer(
+      container,
+      makeProps({ serverUrl: 'http://x', selectedRepo: 'anytime-markdown' }),
+    );
+    const btn = container.querySelector<HTMLButtonElement>('button[aria-label="c4.graph.title"]');
+    expect(btn).toBeTruthy();
+
+    await act(async () => {
+      btn!.click();
+      await Promise.resolve();
+    });
+    // 島の描画と releases の取得が落ち着くまで流す。
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const scrubber = container.querySelector<HTMLElement>('[data-testid="code-graph-scrubber"]');
+    expect(scrubber).toBeTruthy();
+    // releases が渡っていないと renderScrubber が行ごと畳む。畳まれていないことを見る。
+    expect(scrubber!.style.display).not.toBe('none');
+    expect(container.querySelector('[data-testid="code-graph-playback-toggle"]')).toBeTruthy();
 
     handle.destroy();
   });
