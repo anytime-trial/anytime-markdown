@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { createHash } from 'node:crypto';
 
 import type { Database as BetterSqlite3Database } from 'better-sqlite3';
@@ -4343,7 +4344,7 @@ export class TrailDatabase {
       let skipped = 0;
       for (const { hash, repoId } of commits) {
         try {
-          const out = execFileSync('git', [
+          const out = execFileSync(resolveGitExecutable(), [
             'show', '--format=', '--numstat', hash,
           ], { encoding: 'utf-8', timeout: 5_000, cwd: gitRoot });
           for (const line of out.split('\n')) {
@@ -5915,7 +5916,7 @@ export class TrailDatabase {
     // Phase A: Session-Id trailer exact match
     try {
       const grepPattern = `^Session-Id: ${sessionId}$`;
-      const phaseAOutput = execFileSync('git', [
+      const phaseAOutput = execFileSync(resolveGitExecutable(), [
         'log', '--all',
         '--extended-regexp', `--grep=${grepPattern}`,
         `--format=${logFormat}`,
@@ -5931,7 +5932,7 @@ export class TrailDatabase {
     let logOutput = '';
     const useBranch = gitBranch && gitBranch.trim() !== '';
     try {
-      logOutput = execFileSync('git', [
+      logOutput = execFileSync(resolveGitExecutable(), [
         'log', useBranch ? gitBranch : '--all',
         `--after=${startTime}`,
         `--before=${bufferedEnd}`,
@@ -5940,7 +5941,7 @@ export class TrailDatabase {
       ], { ...execOpts, cwd: gitRoot });
     } catch {
       try {
-        logOutput = execFileSync('git', [
+        logOutput = execFileSync(resolveGitExecutable(), [
           'log', '--all',
           `--after=${startTime}`,
           `--before=${bufferedEnd}`,
@@ -6005,7 +6006,7 @@ export class TrailDatabase {
     let linesDeleted = 0;
     const filePaths: string[] = [];
     try {
-      const numstat = execFileSync('git', [
+      const numstat = execFileSync(resolveGitExecutable(), [
         'diff', '--numstat', `${hash}^..${hash}`,
       ], { ...execOpts, cwd: gitRoot });
       for (const line of numstat.split('\n')) {
@@ -7750,13 +7751,13 @@ export class TrailDatabase {
         opts.onProgress?.(`Generating code graph for release ${tag}...`);
         if (fs.existsSync(tmpDir)) {
           try {
-            execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], { cwd: opts.gitRoot, stdio: 'pipe' });
+            execFileSync(resolveGitExecutable(), ['worktree', 'remove', tmpDir, '--force'], { cwd: opts.gitRoot, stdio: 'pipe' });
           } catch {
             try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
           }
         }
         const commitHash = git.getTagCommitHash(tag);
-        execFileSync('git', ['worktree', 'add', '--detach', tmpDir, commitHash], { cwd: opts.gitRoot, stdio: 'pipe' });
+        execFileSync(resolveGitExecutable(), ['worktree', 'add', '--detach', tmpDir, commitHash], { cwd: opts.gitRoot, stdio: 'pipe' });
         const worktreeNodeModules = path.join(tmpDir, 'node_modules');
         if (!fs.existsSync(worktreeNodeModules)) {
           fs.symlinkSync(path.join(opts.gitRoot, 'node_modules'), worktreeNodeModules, 'dir');
@@ -7777,7 +7778,7 @@ export class TrailDatabase {
         opts.onProgress?.(`Skipping ${tag}: ${e instanceof Error ? e.message : String(e)}`);
       } finally {
         try {
-          execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], { cwd: opts.gitRoot, stdio: 'pipe' });
+          execFileSync(resolveGitExecutable(), ['worktree', 'remove', tmpDir, '--force'], { cwd: opts.gitRoot, stdio: 'pipe' });
         } catch {
           try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
         }
@@ -11920,7 +11921,7 @@ export class TrailDatabase {
   /** Remove a git worktree directory, falling back to fs.rmSync on error. */
   private removeWorktreeDir(tmpDir: string, gitRoot: string): void {
     try {
-      execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], { cwd: gitRoot, stdio: 'pipe' });
+      execFileSync(resolveGitExecutable(), ['worktree', 'remove', tmpDir, '--force'], { cwd: gitRoot, stdio: 'pipe' });
     } catch {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
     }
@@ -11942,7 +11943,7 @@ export class TrailDatabase {
     if (fs.existsSync(tmpDir)) this.removeWorktreeDir(tmpDir, gitRoot);
 
     const commitHash = git.getTagCommitHash(tag);
-    execFileSync('git', ['worktree', 'add', '--detach', tmpDir, commitHash], { cwd: gitRoot, stdio: 'pipe' });
+    execFileSync(resolveGitExecutable(), ['worktree', 'add', '--detach', tmpDir, commitHash], { cwd: gitRoot, stdio: 'pipe' });
 
     const worktreeTsconfig = path.join(tmpDir, 'tsconfig.json');
     if (!fs.existsSync(worktreeTsconfig)) {

@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 
@@ -148,7 +149,7 @@ export class WorktreeOwnershipProvider implements vscode.TreeDataProvider<Worktr
   }
 
   private _git(args: readonly string[]): string {
-    return execFileSync('git', [...args], {
+    return execFileSync(resolveGitExecutable(), [...args], {
       cwd: this.repoRoot ?? process.cwd(),
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],

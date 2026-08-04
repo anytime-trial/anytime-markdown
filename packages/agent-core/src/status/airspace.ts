@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import {
   existsSync,
   mkdirSync,
@@ -40,7 +41,7 @@ interface ProcessStat {
 
 export function resolveAirspaceDir(cwd: string): string | null {
   try {
-    const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    const commonDir = execFileSync(resolveGitExecutable(), ['rev-parse', '--git-common-dir'], {
       cwd,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],

@@ -7,6 +7,7 @@ import type {
 } from '@anytime-markdown/trail-core';
 import { isCodeFile } from '@anytime-markdown/trail-core';
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -161,7 +162,7 @@ export class ExecFileGitService implements IGitService {
 
     let logOutput = '';
     try {
-      logOutput = execFileSync('git', [
+      logOutput = execFileSync(resolveGitExecutable(), [
         'log', '--merges', '--all',
         `--format=${logFormat}`,
       ], { ...execOpts, cwd: this.gitRoot });
@@ -190,7 +191,7 @@ export class ExecFileGitService implements IGitService {
 
   getCommitsInRange(base: string, head: string): readonly string[] {
     try {
-      const output = execFileSync('git', [
+      const output = execFileSync(resolveGitExecutable(), [
         'log', `${base}..${head}`,
         '--no-merges',
         '--format=%H',
@@ -207,7 +208,7 @@ export class ExecFileGitService implements IGitService {
 
   getVersionTags(): readonly string[] {
     try {
-      const output = execFileSync('git', [
+      const output = execFileSync(resolveGitExecutable(), [
         'tag', '-l', 'v*', '--sort=-version:refname',
       ], { encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot });
       return output.split('\n').map((s) => s.trim()).filter((s) => s.length > 0);
@@ -218,7 +219,7 @@ export class ExecFileGitService implements IGitService {
 
   getTagCommitHash(tag: string): string {
     try {
-      const output = execFileSync('git', [
+      const output = execFileSync(resolveGitExecutable(), [
         'rev-list', '-1', tag,
       ], { encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot });
       return output.trim();
@@ -229,7 +230,7 @@ export class ExecFileGitService implements IGitService {
 
   getTagsAtCommit(commitHash: string): readonly string[] {
     try {
-      const output = execFileSync('git', [
+      const output = execFileSync(resolveGitExecutable(), [
         'tag', '--points-at', commitHash,
       ], { encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot });
       return output.split('\n').map((s) => s.trim()).filter((s) => s.length > 0);
@@ -240,7 +241,7 @@ export class ExecFileGitService implements IGitService {
 
   getTagDate(tag: string): string {
     try {
-      const output = execFileSync('git', [
+      const output = execFileSync(resolveGitExecutable(), [
         'log', '-1', '--format=%aI', tag,
       ], { encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot });
       return toUTC(output.trim());
@@ -251,7 +252,7 @@ export class ExecFileGitService implements IGitService {
 
   getCommitSubjects(fromTag: string, toTag: string): readonly string[] {
     try {
-      const output = execFileSync('git', [
+      const output = execFileSync(resolveGitExecutable(), [
         'log', '--format=%s', `${fromTag}..${toTag}`,
       ], { encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot });
       return output.split('\n').map((s) => s.trim()).filter((s) => s.length > 0);
@@ -262,7 +263,7 @@ export class ExecFileGitService implements IGitService {
 
   getDiffStats(fromTag: string, toTag: string): { filesChanged: number; linesAdded: number; linesDeleted: number } {
     try {
-      const output = execFileSync('git', [
+      const output = execFileSync(resolveGitExecutable(), [
         'diff', '--shortstat', fromTag, toTag,
       ], { encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot });
       // Example: " 10 files changed, 500 insertions(+), 200 deletions(-)"
@@ -285,7 +286,7 @@ export class ExecFileGitService implements IGitService {
 
     // 行数集計
     try {
-      const numstat = execFileSync('git', [
+      const numstat = execFileSync(resolveGitExecutable(), [
         'diff', '--numstat', fromTag, toTag,
       ], { ...execOpts, cwd: this.gitRoot });
       applyNumstatToMap(numstat, fileMap);
@@ -295,7 +296,7 @@ export class ExecFileGitService implements IGitService {
 
     // 変更種別（A/M/D/R）
     try {
-      const nameStatus = execFileSync('git', [
+      const nameStatus = execFileSync(resolveGitExecutable(), [
         'diff', '--name-status', fromTag, toTag,
       ], { ...execOpts, cwd: this.gitRoot });
       applyNameStatusToMap(nameStatus, fileMap, false);
@@ -312,7 +313,7 @@ export class ExecFileGitService implements IGitService {
 
     const worktreeRoot = fs.mkdtempSync(path.join(os.tmpdir(), `trail-snapshot-${tag.replaceAll('/', '-')}-`));
     try {
-      execFileSync('git', ['worktree', 'add', '--detach', worktreeRoot, commitHash], {
+      execFileSync(resolveGitExecutable(), ['worktree', 'add', '--detach', worktreeRoot, commitHash], {
         encoding: 'utf-8',
         timeout: 30_000,
         cwd: this.gitRoot,
@@ -323,7 +324,7 @@ export class ExecFileGitService implements IGitService {
       return 0;
     } finally {
       try {
-        execFileSync('git', ['worktree', 'remove', worktreeRoot, '--force'], {
+        execFileSync(resolveGitExecutable(), ['worktree', 'remove', worktreeRoot, '--force'], {
           encoding: 'utf-8',
           timeout: 30_000,
           cwd: this.gitRoot,
@@ -341,7 +342,7 @@ export class ExecFileGitService implements IGitService {
 
   getHeadCommit(): string {
     try {
-      const output = execFileSync('git', ['rev-parse', 'HEAD'], {
+      const output = execFileSync(resolveGitExecutable(), ['rev-parse', 'HEAD'], {
         encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot,
       });
       return output.trim();
@@ -352,7 +353,7 @@ export class ExecFileGitService implements IGitService {
 
   getChangedPackages(fromTag: string, toTag: string): readonly string[] {
     try {
-      const output = execFileSync('git', [
+      const output = execFileSync(resolveGitExecutable(), [
         'diff', '--name-only', fromTag, toTag,
       ], { encoding: 'utf-8', timeout: 10_000, cwd: this.gitRoot });
       const packages = new Set<string>();
@@ -372,7 +373,7 @@ export class ExecFileGitService implements IGitService {
 
     for (const hash of commitHashes) {
       try {
-        const numstat = execFileSync('git', [
+        const numstat = execFileSync(resolveGitExecutable(), [
           'diff', '--numstat', `${hash}^..${hash}`,
         ], { ...execOpts, cwd: this.gitRoot });
         applyNumstatToMap(numstat, fileMap);
@@ -381,7 +382,7 @@ export class ExecFileGitService implements IGitService {
       }
 
       try {
-        const nameStatus = execFileSync('git', [
+        const nameStatus = execFileSync(resolveGitExecutable(), [
           'diff', '--name-status', `${hash}^..${hash}`,
         ], { ...execOpts, cwd: this.gitRoot });
         applyNameStatusToMap(nameStatus, fileMap, true);

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { gitExec } from '../../utils/gitExec';
 
 export interface SpecDocsGitOpsHost {
@@ -90,7 +91,7 @@ export async function cloneRepository(host: SpecDocsGitOpsHost): Promise<void> {
 		async () => {
 			const { execFile } = await import('node:child_process');
 			await new Promise<void>((resolve, reject) => {
-				execFile('git', ['clone', url, clonePath], (error) => {
+				execFile(resolveGitExecutable(), ['clone', url, clonePath], (error) => {
 					if (error) {
 						reject(error);
 					} else {

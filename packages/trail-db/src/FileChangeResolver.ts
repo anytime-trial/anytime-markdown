@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -185,7 +186,7 @@ export class FileChangeResolver implements IFileChangeResolver {
 
   private hasHead(): boolean {
     try {
-      execFileSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], {
+      execFileSync(resolveGitExecutable(), ['rev-parse', '--verify', '--quiet', 'HEAD'], {
         cwd: this.gitRepoRoot,
         encoding: 'utf-8',
         timeout: 30_000,
@@ -275,7 +276,7 @@ export class FileChangeResolver implements IFileChangeResolver {
 
   private runGit(args: readonly string[]): string | null {
     try {
-      return execFileSync('git', [...args], {
+      return execFileSync(resolveGitExecutable(), [...args], {
         cwd: this.gitRepoRoot,
         encoding: 'utf-8',
         timeout: 30_000,

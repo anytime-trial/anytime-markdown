@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -104,7 +105,7 @@ export class SpecDocIndex implements ISpecDocIndex {
 
   private runGitInDocs(args: readonly string[]): string | null {
     try {
-      return execFileSync('git', [...args], {
+      return execFileSync(resolveGitExecutable(), [...args], {
         cwd: this.docsRepoRoot,
         encoding: 'utf-8',
         timeout: 30_000,
@@ -292,7 +293,7 @@ export class SpecDocIndex implements ISpecDocIndex {
     }
 
     try {
-      const output = execFileSync('git', ['show', '-s', '--format=%cI', ref], {
+      const output = execFileSync(resolveGitExecutable(), ['show', '-s', '--format=%cI', ref], {
         cwd: this.gitRepoRoot,
         encoding: 'utf-8',
         timeout: 30_000,

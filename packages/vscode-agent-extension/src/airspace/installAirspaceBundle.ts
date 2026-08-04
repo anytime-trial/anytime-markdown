@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 
@@ -13,7 +14,7 @@ export function installAirspaceBundle(
 ): boolean {
   let commonDir: string;
   try {
-    const raw = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    const raw = execFileSync(resolveGitExecutable(), ['rev-parse', '--git-common-dir'], {
       cwd: workspaceRoot,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],

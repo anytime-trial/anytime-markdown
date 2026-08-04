@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -26,7 +27,7 @@ export interface ResolveWatchedReposOpts {
 
 const defaultIsGitWorkingTree = (cwd: string): boolean => {
   try {
-    execFileSync('git', ['rev-parse', '--git-dir'], {
+    execFileSync(resolveGitExecutable(), ['rev-parse', '--git-dir'], {
       cwd,
       encoding: 'utf-8',
       timeout: 3_000,
