@@ -313,6 +313,9 @@ export interface TrailI18n {
   'codeGraph.scrubber.rangeOldest': string;
   'codeGraph.scrubber.generateCommit': string;
   'codeGraph.scrubber.commitsEmpty': string;
+  'codeGraph.scrubber.commitsLoading': string;
+  'codeGraph.scrubber.commitsError': string;
+  'codeGraph.scrubber.retry': string;
   'codeGraph.colorBy.diff': string;
   'codeGraph.diff.added': string;
   'codeGraph.diff.removed': string;

@@ -89,7 +89,12 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
 
   const isCommitGranularity = granularity === 'commit';
 
-  const { commits, loading: commitsLoading, refetch: refetchCommits } = useCodeGraphCommits(serverUrl, {
+  const {
+    commits,
+    loading: commitsLoading,
+    error: commitsError,
+    refetch: refetchCommits,
+  } = useCodeGraphCommits(serverUrl, {
     enabled: isCommitGranularity && !!repoName && !!commitRange,
     repo: repoName,
     to: commitRange?.toTag,
@@ -170,7 +175,7 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
 
   // ベースラインのグラフは差分表示を選んでいる間だけ取る（1 本 2 MB あるため）。
   const baselineId = baseline?.hasGraph ? baseline.tag : null;
-  const { graph: baselineGraph } = useCodeGraph(serverUrl, {
+  const { graph: baselineGraph, graphKey: baselineGraphKey } = useCodeGraph(serverUrl, {
     repo: repoName,
     enabled: !!repoName && colorBy === 'diff' && !!baselineId,
     release: isCommitGranularity ? CURRENT_RELEASE : (baselineId ?? CURRENT_RELEASE),
@@ -179,8 +184,13 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
 
   const diff = useMemo<VanillaProps['diff']>(() => {
     if (colorBy !== 'diff' || !graph || !baselineGraph) return null;
+    // 保持しているベースラインが**今のベースライン**のものか確かめる。粒度を切り替えると
+    // 新しいベースラインは未生成（`hasGraph:false` → 取得しない）のことが多く、フックは
+    // 直前のグラフを保持し続ける。突き合わせないと、凡例には新しいベースラインを出しながら
+    // 実際は前の時点との差分を描く（「選んだ時点と違う絵」）。
+    if (!baselineId || baselineGraphKey !== baselineId) return null;
     return diffCodeGraphs(baselineGraph, graph);
-  }, [colorBy, graph, baselineGraph]);
+  }, [colorBy, graph, baselineGraph, baselineGraphKey, baselineId]);
 
   const tcRepoId = useMemo<string | null>(() => {
     if (!graph || graph.repositories.length === 0) return null;
@@ -433,12 +443,15 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     diff,
     granularity,
     commits,
+    commitsLoading,
+    commitsError,
     selectedCommit,
     commitRange,
     onZoomToCommits: handleZoomToCommits,
     onZoomToReleases: handleZoomToReleases,
     onCommitChange: setSelectedCommit,
     onGenerateCommit: handleGenerateCommit,
+    onRefetchCommits: refetchCommits,
   };
 
   return <VanillaIsland mount={mountCodeGraphPanel} props={viewProps} />;

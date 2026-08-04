@@ -107,7 +107,9 @@ describe('CodeGraphPanel: コミット粒度へのズーム', () => {
     useCodeGraphMock.mockReset();
     useCodeGraphReleasesMock.mockReset();
     useCodeGraphCommitsMock.mockReset();
-    useCodeGraphMock.mockReturnValue({ graph: null, loading: false, error: null, refetch: jest.fn() });
+    useCodeGraphMock.mockReturnValue({
+      graph: null, graphKey: null, loading: false, error: null, refetch: jest.fn(),
+    });
     useCodeGraphReleasesMock.mockReturnValue({
       releases: RELEASES, loading: false, error: null, refetch: jest.fn(),
     });
@@ -257,6 +259,39 @@ describe('CodeGraphPanel: コミット粒度へのズーム', () => {
     rerender(panel());
     await waitFor(() => expect(lastViewProps.granularity).toBe('release'));
     expect(lastGraphOptions().release).toBe('current');
+  });
+
+  // 粒度を切り替えるとベースラインは未生成（hasGraph:false）のことが多く、フックは
+  // 直前のグラフを保持し続ける。突き合わせないと前の時点との差分を今の差分として描く。
+  it('保持しているベースラインが今のベースラインでなければ差分を出さない', async () => {
+    const staleGraph = {
+      generatedAt: '2026-08-01T00:00:00.000Z',
+      repositories: [], nodes: [], edges: [], communities: {}, godNodes: [],
+    };
+    // 本体・ベースラインとも「前のリリースのグラフを保持したまま」の状態を模す。
+    useCodeGraphMock.mockReturnValue({
+      graph: staleGraph, graphKey: 'v1.15.0', loading: false, error: null, refetch: jest.fn(),
+    });
+    const { rerender } = render(panel());
+    act(() => (lastViewProps.onReleaseChange as (r: string) => void)('v1.15.0'));
+    zoomIn();
+    // 1 つ前のコミットは未生成（hasGraph:false）なので、ベースラインの取得は走らない。
+    setCommits([COMMITS[0], { ...COMMITS[0], sha: SHA_B, shortSha: 'bbbbbbbb', hasGraph: false }]);
+    rerender(panel());
+    await waitFor(() => expect(lastViewProps.selectedCommit).toBe(SHA_B));
+    act(() => (lastViewProps.onColorByChange as (c: string) => void)('diff'));
+
+    expect(lastViewProps.diff).toBeNull();
+  });
+
+  it('コミット一覧の取得失敗を描画層へ伝える（空と区別させる）', () => {
+    useCodeGraphCommitsMock.mockReturnValue({
+      commits: [], loading: false, error: 'Error: HTTP 500', refetch: refetchCommitsMock,
+    });
+    render(panel());
+    act(() => (lastViewProps.onReleaseChange as (r: string) => void)('v1.15.0'));
+    zoomIn();
+    expect(lastViewProps.commitsError).toBe('Error: HTTP 500');
   });
 
   it('コミット生成は repo と sha を送り、完了後にコミット一覧を取り直す', async () => {

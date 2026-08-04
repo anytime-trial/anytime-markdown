@@ -202,6 +202,34 @@ describe('codeGraphPanel: スクラバのズーム（リリース ⇄ コミッ�
     handle.destroy();
   });
 
+  it('取得中は「コミットが無い」と断定しない', () => {
+    const { container, handle } = mount(
+      commitProps({ commits: [], selectedCommit: null, commitsLoading: true }),
+    );
+    const value = container.querySelector<HTMLElement>('[data-testid="code-graph-scrubber-value"]');
+    expect(value?.textContent).toContain('取得中');
+    handle.destroy();
+  });
+
+  it('取得に失敗したときは失敗と分かる文言と再試行を出す', () => {
+    const onRefetchCommits = jest.fn();
+    const { container, q, handle } = mount(
+      commitProps({ commits: [], selectedCommit: null, commitsError: 'HTTP 500', onRefetchCommits }),
+    );
+    const value = container.querySelector<HTMLElement>('[data-testid="code-graph-scrubber-value"]');
+    expect(value?.textContent).toContain('取得できませんでした');
+    q<HTMLButtonElement>('code-graph-commits-retry')?.click();
+    expect(onRefetchCommits).toHaveBeenCalledTimes(1);
+    handle.destroy();
+  });
+
+  it('本当に区間が空のときだけ「コミットはありません」と出す', () => {
+    const { container, handle } = mount(commitProps({ commits: [], selectedCommit: null }));
+    const value = container.querySelector<HTMLElement>('[data-testid="code-graph-scrubber-value"]');
+    expect(value?.textContent).toContain('ありません');
+    handle.destroy();
+  });
+
   it('リリース粒度へ戻すと目盛りもリリースへ戻る', () => {
     const { slider, handle } = mount(commitProps());
     expect(slider().max).toBe('1');

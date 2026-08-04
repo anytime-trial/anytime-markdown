@@ -101,12 +101,15 @@ describe('CodeGraphPanel: State Replay の状態管理', () => {
     lastViewProps = {};
     useCodeGraphMock.mockReset();
     useCodeGraphReleasesMock.mockReset();
-    useCodeGraphMock.mockReturnValue({
+    // graphKey は「保持しているグラフがどの時点のものか」。ラッパはこれを今のベースラインと
+    // 突き合わせて差分の可否を決めるため、素の release/commit をそのまま返す実物に合わせる。
+    useCodeGraphMock.mockImplementation((_url: string, opts: { release?: string; commit?: string }) => ({
       graph: graph(['keep']),
+      graphKey: opts.commit ?? opts.release ?? 'current',
       loading: false,
       error: null,
       refetch: jest.fn(),
-    });
+    }));
     useCodeGraphReleasesMock.mockReturnValue({
       releases: RELEASES,
       loading: false,
@@ -198,6 +201,7 @@ describe('CodeGraphPanel: State Replay の状態管理', () => {
     // 1 本目（対象）と 2 本目（ベースライン）で別のグラフを返す。
     useCodeGraphMock.mockImplementation((_url: string, opts: { release?: string }) => ({
       graph: opts.release === 'v1.15.0' ? graph(['keep', 'gone']) : graph(['keep', 'fresh']),
+      graphKey: opts.release ?? 'current',
       loading: false,
       error: null,
       refetch: jest.fn(),
@@ -213,6 +217,7 @@ describe('CodeGraphPanel: State Replay の状態管理', () => {
   it('passes no diff when the baseline graph has not arrived yet', () => {
     useCodeGraphMock.mockImplementation((_url: string, opts: { release?: string }) => ({
       graph: opts.release === 'v1.15.0' ? null : graph(['keep']),
+      graphKey: opts.release ?? 'current',
       loading: false,
       error: null,
       refetch: jest.fn(),

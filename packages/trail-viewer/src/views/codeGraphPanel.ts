@@ -91,6 +91,9 @@ const COLOR_BY_FALLBACK: Record<string, string> = {
   'codeGraph.scrubber.rangeOldest': '最古',
   'codeGraph.scrubber.generateCommit': 'このコミットのグラフを生成',
   'codeGraph.scrubber.commitsEmpty': 'この区間に Trail が把握しているコミットはありません。',
+  'codeGraph.scrubber.commitsLoading': 'コミット一覧を取得中です。',
+  'codeGraph.scrubber.commitsError': 'コミット一覧を取得できませんでした。',
+  'codeGraph.scrubber.retry': '再試行',
 };
 
 /** 「現在のスナップショット」を表す予約タグ。`/api/code-graph` の release パラメタと同値。 */
@@ -162,6 +165,12 @@ export interface CodeGraphPanelProps {
   readonly onCommitChange?: (sha: string) => void;
   /** 未生成コミットの生成要求。明示操作でのみ呼ばれる。 */
   readonly onGenerateCommit?: (sha: string) => void;
+  /** コミット一覧を取得中か。目盛りが空の理由を「取得中」と「本当に空」で区別するために要る。 */
+  readonly commitsLoading?: boolean;
+  /** コミット一覧の取得失敗。null は失敗していない。空の理由を「取得できなかった」と区別する。 */
+  readonly commitsError?: string | null;
+  /** コミット一覧の再取得要求（取得失敗時の再試行）。 */
+  readonly onRefetchCommits?: () => void;
   /**
    * State Replay の差分（`colorBy: 'diff'` で使用）。ベースライン取得前・取得失敗時は null。
    * 計算は React ラッパが `diffCodeGraphs` で行う（描画層は結果だけ受け取る）。
@@ -596,6 +605,26 @@ export function mountCodeGraphPanel(
     zoomLabel.textContent = `${tr('codeGraph.scrubber.granularityCommit')}: ${from} → ${to}`;
   }
 
+  /** コミット粒度で目盛りが空のときの表示。取得失敗 / 取得中 / 本当に空を区別する。 */
+  function renderEmptyCommitsNotice(): void {
+    scrubberLegend.replaceChildren();
+    if (props.commitsError) {
+      scrubberValue.textContent = tr('codeGraph.scrubber.commitsError');
+      const retry = document.createElement('button');
+      retry.setAttribute('data-testid', 'code-graph-commits-retry');
+      retry.textContent = tr('codeGraph.scrubber.retry');
+      retry.style.cssText =
+        'padding:2px 8px;border:1px solid var(--am-color-divider);border-radius:4px;' +
+        'background:transparent;color:inherit;cursor:pointer;font-size:0.65rem;';
+      retry.addEventListener('click', () => props.onRefetchCommits?.());
+      scrubberLegend.appendChild(retry);
+      return;
+    }
+    scrubberValue.textContent = tr(
+      props.commitsLoading ? 'codeGraph.scrubber.commitsLoading' : 'codeGraph.scrubber.commitsEmpty',
+    );
+  }
+
   function renderScrubber(): void {
     const isCommit = granularity() === 'commit';
     const ticks = scrubberTicks();
@@ -613,8 +642,9 @@ export function mountCodeGraphPanel(
     sliderWrap.style.display = empty ? 'none' : '';
     if (empty) {
       scrubberLabel.textContent = tr('codeGraph.scrubber.label');
-      scrubberValue.textContent = tr('codeGraph.scrubber.commitsEmpty');
-      scrubberLegend.replaceChildren();
+      // 目盛りが無い理由は 3 つある（取得失敗 / 取得中 / 本当に空）。同じ断定的な文言に
+      // 潰すと、取得できなかっただけの状態が「コミットが無い」という誤った事実になる。
+      renderEmptyCommitsNotice();
       return;
     }
 
