@@ -475,6 +475,30 @@ describe('TrailDatabase analyzeReleaseCodeGraphsForce (解析対象の貫通)', 
     // 生成結果が release 側へ保存されている
     expect(db.getReleaseCodeGraph('v1.0.0')).not.toBeNull();
   });
+
+  // 解析対象を各タグの worktree にしたことで、古いタグが正当に失敗する経路が
+  // 現実に生じる。戻り値は成功件数しか持たないため、失敗の痕跡がログに残ること
+  // を固定する（進捗通知は永続化されない）。
+  it('タグごとの失敗をログに残す', async () => {
+    const warns: string[] = [];
+    const logged = await createTestTrailDatabase({
+      info: () => {},
+      warn: (msg: string) => warns.push(msg),
+      error: () => {},
+      debugSql: () => {},
+    });
+    try {
+      insertRelease(logged, 'no-such-tag');
+      const count = await logged.analyzeReleaseCodeGraphsForce({
+        codeGraphService: { generate: async () => [makeCodeGraph()] } as never,
+        gitRoot: repoDir,
+      });
+      expect(count).toBe(0);
+      expect(warns.some((m) => m.includes('no-such-tag'))).toBe(true);
+    } finally {
+      logged.close();
+    }
+  });
 });
 
 describe('TrailDatabase getCurrentTsconfigPath', () => {

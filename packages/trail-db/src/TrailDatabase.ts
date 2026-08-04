@@ -7805,12 +7805,26 @@ export class TrailDatabase {
         count++;
         opts.onProgress?.(`Release ${tag}: code graph saved`);
       } catch (e) {
-        opts.onProgress?.(`Skipping ${tag}: ${e instanceof Error ? e.message : String(e)}`);
+        // onProgress は進捗ストリームへ流れるだけで永続化されない。解析対象を
+        // 各タグの worktree にした結果、古いタグが正当に失敗する（tsconfig 欠如・
+        // 当時の依存構成など）ケースが現実に起こる。戻り値は成功件数しか持たない
+        // ため、どのタグがなぜ落ちたかはログにしか残せない。
+        const reason = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`[analyzeReleaseCodeGraphsForce] skipped tag=${tag}: ${reason}`);
+        opts.onProgress?.(`Skipping ${tag}: ${reason}`);
       } finally {
         try {
           execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], { cwd: opts.gitRoot, stdio: 'pipe' });
         } catch {
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+          try {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+          } catch (e) {
+            // 後片付けの失敗は解析結果に影響しないので処理は続けるが、
+            // tmpdir に worktree の残骸が残るため痕跡は残す。
+            this.logger.warn(
+              `[analyzeReleaseCodeGraphsForce] failed to clean up worktree ${tmpDir}: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
         }
       }
       return runNext(i + 1);
