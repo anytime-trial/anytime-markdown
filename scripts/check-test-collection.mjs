@@ -80,14 +80,25 @@ export function collectTestFiles(dir, repoRoot, acc = []) {
   return acc;
 }
 
-/** jest 設定を持つパッケージのディレクトリと設定ファイルを返す。 */
-export function findJestPackages(repoRoot) {
+/** `packages/` 直下のパッケージを返す。**jest 設定の有無で絞らない。** */
+export function findPackageDirs(repoRoot) {
   const packagesDir = join(repoRoot, 'packages');
   if (!existsSync(packagesDir)) return [];
+  return readdirSync(packagesDir)
+    .sort()
+    .map((name) => join(packagesDir, name))
+    .filter((dir) => statSync(dir).isDirectory());
+}
+
+/**
+ * jest 設定を持つパッケージのディレクトリと設定ファイルを返す。
+ *
+ * 走査対象の母集合には使わない。設定を持たないパッケージのテストこそ
+ * 「どの設定にも収集されない」状態そのものであり、ここで絞ると検出できなくなる。
+ */
+export function findJestPackages(repoRoot) {
   const found = [];
-  for (const name of readdirSync(packagesDir).sort()) {
-    const pkgDir = join(packagesDir, name);
-    if (!statSync(pkgDir).isDirectory()) continue;
+  for (const pkgDir of findPackageDirs(repoRoot)) {
     const configName = JEST_CONFIG_NAMES.find((c) => existsSync(join(pkgDir, c)));
     if (!configName) continue;
     found.push({ pkgDir, configPath: join(pkgDir, configName) });
@@ -117,36 +128,37 @@ function listCollected(configPath, repoRoot) {
 
 function main() {
   const repoRoot = process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..');
-  const packages = findJestPackages(repoRoot);
-  if (packages.length === 0) {
+  const packageDirs = findPackageDirs(repoRoot);
+  const jestPackages = findJestPackages(repoRoot);
+  if (jestPackages.length === 0) {
     console.error('[check-test-collection] jest 設定を持つパッケージが 1 つも見つからない');
     process.exit(1);
   }
 
-  const problems = [];
+  // 実在するテストは packages 全体から集める。jest 設定を持つパッケージだけを見ると、
+  // 設定ごと無いパッケージのテスト（まさに収集されない状態）が対象外になって素通りする。
+  const actual = packageDirs.flatMap((dir) => collectTestFiles(dir, repoRoot));
+
+  // 収集済み集合は全設定の合算。ある設定の rootDir が別パッケージを含む構成でも取りこぼさない。
+  const collected = [];
   const failures = [];
-  for (const { pkgDir, configPath } of packages) {
-    const actual = collectTestFiles(pkgDir, repoRoot);
-    if (actual.length === 0) continue;
-    let listed;
+  for (const { configPath } of jestPackages) {
     try {
-      listed = listCollected(configPath, repoRoot);
+      collected.push(...listCollected(configPath, repoRoot));
     } catch (err) {
       // 収集自体が失敗したら「漏れ 0 件」と同じ扱いにしない（silent な緑を作らない）。
       failures.push({ configPath: relative(repoRoot, configPath), message: String(err).slice(0, 300) });
-      continue;
-    }
-    for (const path of selectUncollected(actual, listed)) {
-      problems.push({ pkg: relative(repoRoot, pkgDir), path });
     }
   }
+
+  const problems = selectUncollected(actual, collected);
 
   for (const f of failures) {
     console.error(`[check-test-collection] 収集に失敗: ${f.configPath}\n  ${f.message}`);
   }
   if (problems.length > 0) {
     console.error('[check-test-collection] どの jest 設定にも収集されないテストファイル:');
-    for (const p of problems) console.error(`  ${p.path}  (${p.pkg})`);
+    for (const path of problems) console.error(`  ${path}`);
     console.error(
       '\n収集漏れは「失敗」ではなく「実行されない」形で沈黙する。\n' +
         '当該パッケージの testMatch を直すか、別ランナーが動かすものなら\n' +
@@ -154,7 +166,10 @@ function main() {
     );
   }
   if (problems.length > 0 || failures.length > 0) process.exit(1);
-  console.log(`[check-test-collection] OK — ${packages.length} パッケージに収集漏れなし`);
+  console.log(
+    `[check-test-collection] OK — ${packageDirs.length} パッケージ / テスト ${actual.length} 件に収集漏れなし` +
+      `（jest 設定 ${jestPackages.length} 件）`,
+  );
 }
 
 if (process.argv[1] && process.argv[1].endsWith('check-test-collection.mjs')) main();

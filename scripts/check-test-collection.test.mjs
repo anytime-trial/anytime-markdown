@@ -7,6 +7,7 @@ import {
   ALLOWLIST,
   collectTestFiles,
   findJestPackages,
+  findPackageDirs,
   isAllowlisted,
   parseListTestsOutput,
   selectUncollected,
@@ -83,7 +84,26 @@ test('走査は node_modules / dist を除外し .tsx も拾う', () => {
   }
 });
 
-test('jest 設定を持つパッケージだけを対象にする', () => {
+test('走査の母集合は jest 設定の有無で絞らない（設定ごと無いパッケージこそ収集漏れ）', () => {
+  const root = mkdtempSync(join(tmpdir(), 'check-test-collection-all-'));
+  try {
+    mkdirSync(join(root, 'packages/withConfig'), { recursive: true });
+    mkdirSync(join(root, 'packages/noConfig/src/__tests__'), { recursive: true });
+    writeFileSync(join(root, 'packages/withConfig/jest.config.js'), 'module.exports = {};');
+    writeFileSync(join(root, 'packages/noConfig/src/__tests__/orphan.test.ts'), '');
+
+    const dirs = findPackageDirs(root).map((d) => d.replace(root + '/', ''));
+    assert.deepEqual(dirs, ['packages/noConfig', 'packages/withConfig']);
+
+    // 母集合から集めれば、設定を持たないパッケージのテストも漏れとして挙がる。
+    const actual = dirs.flatMap((d) => collectTestFiles(join(root, d), root));
+    assert.deepEqual(selectUncollected(actual, [], []), ['packages/noConfig/src/__tests__/orphan.test.ts']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('jest 設定を持つパッケージだけを --listTests の対象にする', () => {
   const root = mkdtempSync(join(tmpdir(), 'check-test-collection-pkg-'));
   try {
     mkdirSync(join(root, 'packages/withConfig'), { recursive: true });
