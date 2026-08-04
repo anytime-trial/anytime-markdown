@@ -36,6 +36,8 @@ export const CREATE_RELEASE_INDEXES = [
   // Phase C-2 flip: current_code_graph_communities の PK が repo_id 化されたため先頭列を repo_id へ。
   "CREATE INDEX IF NOT EXISTS idx_ccgc_stable_key ON current_code_graph_communities(repo_id, stable_key) WHERE stable_key != ''",
   "CREATE INDEX IF NOT EXISTS idx_rcgc_stable_key ON release_code_graph_communities(release_id, stable_key) WHERE stable_key != ''",
+  // Snapshot per Commit の保持上限超過削除（generated_at の古い順に落とす）で引く。
+  'CREATE INDEX IF NOT EXISTS idx_commit_code_graphs_repo_id_generated_at ON commit_code_graphs(repo_id, generated_at)',
 ];
 
 export const CREATE_CURRENT_COVERAGE_INDEXES = [

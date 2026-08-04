@@ -71,6 +71,7 @@ import {
   CREATE_PR_REVIEW_INDEXES,
   CREATE_PR_REVIEWS,
   CREATE_RELEASE_CODE_GRAPH_COMMUNITIES,
+  CREATE_COMMIT_CODE_GRAPHS,
   CREATE_RELEASE_CODE_GRAPHS,
   CREATE_RELEASE_COVERAGE,
   CREATE_RELEASE_FILE_ANALYSIS,
@@ -264,6 +265,20 @@ export interface ReleaseCodeGraphAvailability {
   readonly tag: string;
   /** UTC ISO 8601。目盛りの並び順の基準（release_id 順ではない）。 */
   readonly releasedAt: string;
+  readonly hasGraph: boolean;
+}
+
+/**
+ * Time Scrubber をコミット粒度へズームしたときの目盛り 1 件。
+ * こちらもグラフ本体は含めない（区間に数百件並ぶため）。
+ */
+export interface CommitCodeGraphAvailability {
+  readonly sha: string;
+  readonly shortSha: string;
+  /** UTC ISO 8601。目盛りの並び順の基準。 */
+  readonly committedAt: string;
+  /** コミットメッセージの 1 行目。 */
+  readonly subject: string;
   readonly hasGraph: boolean;
 }
 
@@ -3752,6 +3767,7 @@ export class TrailDatabase {
     this.migrateTrailGraphsTable(db);
     db.run(CREATE_CURRENT_CODE_GRAPHS);
     db.run(CREATE_RELEASE_CODE_GRAPHS);
+    db.run(CREATE_COMMIT_CODE_GRAPHS);
     db.run(CREATE_CODE_DECISION_COMMENTS);
     db.run(CREATE_CURRENT_CODE_GRAPH_COMMUNITIES);
     db.run(CREATE_RELEASE_CODE_GRAPH_COMMUNITIES);
@@ -7778,6 +7794,151 @@ export class TrailDatabase {
       releasedAt: asText(row[1] ?? ''),
       hasGraph: Number(row[2] ?? 0) === 1,
     }));
+  }
+
+  /**
+   * 任意コミット時点のコードグラフを取得する（Snapshot per Commit）。
+   *
+   * `repoName` は省略可能にしない。`commit_code_graphs` の PK は `(repo_id, commit_sha)` で、
+   * repo を渡し忘れると別リポジトリのグラフを掴み得る（release 側で同じ欠陥を出した）。
+   */
+  getCommitCodeGraph(sha: string, repoName: string): CodeGraph | null {
+    const db = this.ensureDb();
+    const repoId = this.repoIdForNameReadonly(repoName);
+    const result = db.exec(
+      'SELECT graph_json FROM commit_code_graphs WHERE repo_id = ? AND commit_sha = ?',
+      [repoId, sha],
+    );
+    const json = result[0]?.values?.[0]?.[0];
+    if (typeof json !== 'string') return null;
+    return JSON.parse(json) as CodeGraph;
+  }
+
+  /**
+   * コミット時点のコードグラフを保存し、保持上限を超えた分を古い順に落とす。
+   *
+   * SHORTCUT: communities を別テーブルへ分けず graph_json へ丸ごと入れる.
+   * ceiling: release / current 側が持つ AI 生成コミュニティ名の引き継ぎ（stable_key による
+   * 名寄せ）はコミット粒度では効かない. upgrade: コミットスナップショットにも名前付き
+   * コミュニティを出すことになったら release 側と同じ 2 テーブル構成へ移す.
+   *
+   * @param retentionPerRepo リポジトリあたりの保持本数。超過分は `generated_at` の古い順に削除する
+   */
+  saveCommitCodeGraph(
+    sha: string,
+    repoName: string,
+    graph: CodeGraph,
+    retentionPerRepo: number,
+  ): void {
+    const db = this.ensureDb();
+    this.maybeSnapshotKb('commit_code_graphs');
+    const repoId = this.repoIdForName(repoName);
+    db.run(
+      `INSERT OR REPLACE INTO commit_code_graphs
+         (repo_id, commit_sha, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+      [repoId, sha, JSON.stringify(graph), graph.generatedAt],
+    );
+    this.evictCommitCodeGraphs(db, repoId, repoName, retentionPerRepo);
+    this.save();
+  }
+
+  /**
+   * 保持上限を超えたコミットスナップショットを `generated_at` の古い順に落とす。
+   *
+   * 参照時刻ではなく生成時刻で落とす（LRU にしない）。LRU は読み取り経路に書き込みを
+   * 持ち込むため。よく見るコミットでも古ければ消える点は仕様 §10 に既知の穴として記載。
+   * 削除は件数と sha をログに残す（黙って消さない）。
+   */
+  private evictCommitCodeGraphs(
+    db: Database,
+    repoId: number,
+    repoName: string,
+    retentionPerRepo: number,
+  ): void {
+    if (!Number.isFinite(retentionPerRepo) || retentionPerRepo <= 0) return;
+    const result = db.exec(
+      `SELECT commit_sha FROM commit_code_graphs
+        WHERE repo_id = ?
+        ORDER BY generated_at DESC, commit_sha DESC
+        LIMIT -1 OFFSET ?`,
+      [repoId, retentionPerRepo],
+    );
+    const evicted = (result[0]?.values ?? []).map((row) => asText(row[0] ?? ''));
+    if (evicted.length === 0) return;
+    const stmt = db.prepare('DELETE FROM commit_code_graphs WHERE repo_id = ? AND commit_sha = ?');
+    for (const sha of evicted) stmt.run([repoId, sha]);
+    stmt.free();
+    this.logger.info(
+      `[saveCommitCodeGraph] evicted ${evicted.length} commit code graph(s) for repo=${repoName} ` +
+        `(retention=${retentionPerRepo}): ${evicted.join(', ')}`,
+    );
+  }
+
+  /**
+   * リリース区間内のコミットを、コミットスナップショットの在庫有無つきで列挙する。
+   *
+   * 母集合は `session_commits`（Trail が把握しているコミット）で、git は叩かない。
+   * サーバが作業ツリーの状態に依存しないようにするためで、**Trail が把握していない
+   * コミットは目盛りに出ない**（仕様 §10 の既知の穴）。
+   *
+   * 区間は `released_at` で切る（タグの到達可能性ではない）。`fromTag` を省略すると
+   * 最古から `toTag` までになる。`toTag` が `releases` に無ければ空配列を返す
+   * （「全件」へ広げると、打ち間違いが数千件の目盛りとして現れる）。
+   */
+  listCommitCodeGraphAvailability(
+    repoName: string,
+    toTag: string,
+    fromTag?: string,
+  ): CommitCodeGraphAvailability[] {
+    const db = this.ensureDb();
+    const repoId = this.repoIdForNameReadonly(repoName);
+    const toAt = this.releasedAtForRepoTag(db, repoId, toTag);
+    if (toAt == null) return [];
+    const fromAt = fromTag == null ? null : this.releasedAtForRepoTag(db, repoId, fromTag);
+
+    const params: Array<string | number> = [repoId, toAt];
+    let lowerBound = '';
+    if (fromAt != null) {
+      lowerBound = ' AND sc.committed_at > ?';
+      params.push(fromAt);
+    }
+    const result = db.exec(
+      `SELECT sc.commit_hash,
+              MIN(sc.committed_at) AS committed_at,
+              MIN(sc.commit_message) AS commit_message,
+              MAX(g.commit_sha IS NOT NULL) AS has_graph
+         FROM session_commits sc
+         LEFT JOIN commit_code_graphs g
+                ON g.repo_id = sc.repo_id AND g.commit_sha = sc.commit_hash
+        WHERE sc.repo_id = ?
+          AND sc.committed_at IS NOT NULL
+          AND sc.committed_at != ''
+          AND sc.committed_at <= ?${lowerBound}
+        GROUP BY sc.commit_hash
+        ORDER BY committed_at ASC, sc.commit_hash ASC`,
+      params,
+    );
+    return (result[0]?.values ?? []).map((row) => {
+      const sha = asText(row[0] ?? '');
+      return {
+        sha,
+        shortSha: sha.slice(0, 8),
+        committedAt: asText(row[1] ?? ''),
+        subject: asText(row[2] ?? '').split('\n')[0] ?? '',
+        hasGraph: Number(row[3] ?? 0) === 1,
+      };
+    });
+  }
+
+  /** `releases` から `released_at` を引く。repo 内でタグは一意（UNIQUE (repo_id, tag)）。 */
+  private releasedAtForRepoTag(db: Database, repoId: number, tag: string): string | null {
+    const result = db.exec(
+      'SELECT released_at FROM releases WHERE repo_id = ? AND tag = ?',
+      [repoId, tag],
+    );
+    const value = result[0]?.values?.[0]?.[0];
+    return typeof value === 'string' && value !== '' ? value : null;
   }
 
   deleteCurrentCodeGraphs(): void {

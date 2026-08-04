@@ -384,6 +384,25 @@ export const CREATE_RELEASE_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS release_co
   updated_at   TEXT CHECK (updated_at IS NULL OR updated_at = '' OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`;
 
+// 任意コミット時点のコードグラフ（Snapshot per Commit）。State Replay をコミット粒度で
+// 動かすためのスナップショット置き場。
+//
+// release_code_graphs と違い release_id を FK にできない。`releases` はタグを持つコミット
+// しか持たず、本テーブルの対象は「タグの付いていない任意のコミット」だからである。
+// repo_id だけを FK に持ち、commit_sha は文字列として保持する。
+//
+// 全量遡及はしない（2026-08-04 実測: repo_id=1 で 5,102 コミット × 約 2 MB ≒ 10 GB）。
+// 生成はオンデマンドのみで、リポジトリあたりの保持本数に上限を設けて generated_at の
+// 古い順に落とす。仕様は spec/31.trail/02.trail-viewer/state-replay/state-replay.ja.md §5.3。
+export const CREATE_COMMIT_CODE_GRAPHS = `CREATE TABLE IF NOT EXISTS commit_code_graphs (
+  repo_id      INTEGER NOT NULL REFERENCES repos(repo_id) ON DELETE CASCADE,
+  commit_sha   TEXT NOT NULL,
+  graph_json   TEXT NOT NULL CHECK (json_valid(graph_json)),
+  generated_at TEXT NOT NULL CHECK (generated_at GLOB ${TS_GLOB_MS} OR generated_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at   TEXT CHECK (updated_at IS NULL OR updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS}),
+  PRIMARY KEY (repo_id, commit_sha)
+) STRICT`;
+
 // current code から抽出した意思決定コメント（WHY/RATIONALE/理由）。analyze-child が
 // ts.Program 走査で抽出し、memory-core が trail-db 経由で読んで Decision entity 化する
 // （memory-core から typescript を排除するための中継テーブル）。repo 単位 wash-away。
