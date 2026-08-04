@@ -37,6 +37,7 @@ export type {
   CrossSourceCorrelationRow,
   CrossSourceAKind,
   CrossSourceBKind,
+  CommitCodeGraphAvailability,
   ReleaseCodeGraphAvailability,
 } from './TrailDatabase';
 export { SyncService } from './SyncService';

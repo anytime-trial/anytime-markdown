@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
+import { UnknownRepoError } from '../../analyze/AnalyzePipeline';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
@@ -971,6 +972,195 @@ describe('GET /api/code-graph/releases', () => {
     const text = JSON.stringify(body);
     expect(text).not.toContain('graph_json');
     expect(text).not.toContain('"nodes"');
+  });
+});
+
+describe('Snapshot per Commit の API', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+
+  const rawRun = (sql: string, params: ReadonlyArray<unknown>): void => {
+    (db as unknown as { db: { run: (s: string, p?: ReadonlyArray<unknown>) => void } }).db.run(sql, params);
+  };
+
+  const graph = {
+    generatedAt: '2026-08-04T00:00:00.000Z',
+    repositories: [{ id: 'r', label: 'r', path: '/tmp/r' }],
+    nodes: [{
+      id: 'r:a', label: 'a', repo: 'r', package: 'p', fileType: 'code' as const,
+      community: 0, communityLabel: 'c', x: 0, y: 0, size: 1,
+    }],
+    edges: [],
+    communities: { 0: 'c' },
+    godNodes: [],
+  };
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    rawRun('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+      1, 'anytime-markdown', '2026-01-01T00:00:00.000Z',
+    ]);
+    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+      'v1.0.0', '2026-07-01T00:00:00.000Z', 1,
+    ]);
+    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+      'v1.1.0', '2026-07-10T00:00:00.000Z', 1,
+    ]);
+    rawRun("INSERT OR IGNORE INTO sessions (id, start_time) VALUES ('s1', '2026-01-01T00:00:00.000Z')", []);
+    rawRun(
+      `INSERT OR IGNORE INTO session_commits
+         (session_id, commit_hash, commit_message, author, committed_at, repo_id)
+       VALUES ('s1', 'abc1234', 'work', 'a', '2026-07-05T00:00:00.000Z', 1)`,
+      [],
+    );
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+  });
+
+  it('GET /api/code-graph?commit= はそのコミットのグラフを返す', async () => {
+    db.saveCommitCodeGraph('abc1234', 'anytime-markdown', graph, 30);
+    const res = await fetch(
+      `http://127.0.0.1:${port}/api/code-graph?commit=abc1234&repo=anytime-markdown`,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json() as { nodes: Array<{ id: string }> };
+    expect(body.nodes.map((n) => n.id)).toEqual(['r:a']);
+  });
+
+  it('未生成のコミットは 404 を返す', async () => {
+    const res = await fetch(
+      `http://127.0.0.1:${port}/api/code-graph?commit=abc1234&repo=anytime-markdown`,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  // repo 省略を「どれでもよい」と解釈すると別リポジトリのグラフを返し得る。
+  it('commit 指定で repo 省略は 400', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph?commit=abc1234`);
+    expect(res.status).toBe(400);
+  });
+
+  it('release と commit の同時指定は 400', async () => {
+    const res = await fetch(
+      `http://127.0.0.1:${port}/api/code-graph?commit=abc1234&release=v1.0.0&repo=anytime-markdown`,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('commit も release も無ければ従来どおり current を返す', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph`);
+    // current のグラフは未生成なので 404。400 にはならない（既存の振る舞い）。
+    expect(res.status).toBe(404);
+  });
+
+  it('GET /api/code-graph/commits は区間のコミットを在庫つきで返す', async () => {
+    const res = await fetch(
+      `http://127.0.0.1:${port}/api/code-graph/commits?repo=anytime-markdown&to=v1.1.0&from=v1.0.0`,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json() as { commits: Array<{ sha: string; hasGraph: boolean; subject: string }> };
+    expect(body.commits.map((c) => c.sha)).toEqual(['abc1234']);
+    expect(body.commits[0]?.hasGraph).toBe(false);
+    expect(body.commits[0]?.subject).toBe('work');
+  });
+
+  it('GET /api/code-graph/commits はグラフ本体を含めない', async () => {
+    db.saveCommitCodeGraph('abc1234', 'anytime-markdown', graph, 30);
+    const res = await fetch(
+      `http://127.0.0.1:${port}/api/code-graph/commits?repo=anytime-markdown&to=v1.1.0&from=v1.0.0`,
+    );
+    const body = await res.json() as { commits: Array<{ hasGraph: boolean }> };
+    expect(body.commits[0]?.hasGraph).toBe(true);
+    expect(JSON.stringify(body)).not.toContain('"nodes"');
+  });
+
+  it('GET /api/code-graph/commits は repo / to 欠落を 400 で断る', async () => {
+    const noRepo = await fetch(`http://127.0.0.1:${port}/api/code-graph/commits?to=v1.1.0`);
+    const noTo = await fetch(`http://127.0.0.1:${port}/api/code-graph/commits?repo=anytime-markdown`);
+    expect(noRepo.status).toBe(400);
+    expect(noTo.status).toBe(400);
+  });
+
+  it('POST /api/analyze/commit はハンドラ未登録なら 503', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sha: 'abc1234', repo: 'anytime-markdown' }),
+    });
+    expect(res.status).toBe(503);
+  });
+
+  it('POST /api/analyze/commit は sha / repo を必須にする', async () => {
+    server.onAnalyzeCommitCode = async () => ({ sha: 'x', nodeCount: 0, edgeCount: 0, durationMs: 0 });
+    for (const body of [{}, { sha: 'abc1234' }, { repo: 'anytime-markdown' }, { sha: '', repo: 'r' }]) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze/commit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      expect([JSON.stringify(body), res.status]).toEqual([JSON.stringify(body), 400]);
+    }
+  });
+
+  // sha は git へそのまま渡り worktree のパスにもなる。
+  it('POST /api/analyze/commit は 16 進でない sha を断る', async () => {
+    server.onAnalyzeCommitCode = async () => ({ sha: 'x', nodeCount: 0, edgeCount: 0, durationMs: 0 });
+    for (const sha of ['--upload-pack=evil', '../../etc', 'HEAD', 'zzzzzzz']) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/analyze/commit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sha, repo: 'anytime-markdown' }),
+      });
+      expect([sha, res.status]).toEqual([sha, 400]);
+    }
+  });
+
+  it('POST /api/analyze/commit は登録済みハンドラへ sha と repo を渡す', async () => {
+    const seen: Array<{ sha: string; repo: string }> = [];
+    server.onAnalyzeCommitCode = async (req) => {
+      seen.push(req);
+      return { sha: req.sha, nodeCount: 1, edgeCount: 0, durationMs: 1 };
+    };
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sha: 'abc1234', repo: 'anytime-markdown' }),
+    });
+    expect(res.status).toBe(200);
+    expect(seen).toEqual([{ sha: 'abc1234', repo: 'anytime-markdown' }]);
+  });
+
+  // 構成に無い repo は要求側の誤りで、再試行しても成功しない。サーバ障害と混ぜない。
+  it('POST /api/analyze/commit は構成に無い repo を 400 で断る（500 にしない）', async () => {
+    server.onAnalyzeCommitCode = async (req) => {
+      throw new UnknownRepoError(req.repo);
+    };
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sha: 'abc1234', repo: 'not-configured' }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('not-configured');
+  });
+
+  it('POST /api/analyze/commit は解析そのものの失敗は 500 のまま返す', async () => {
+    server.onAnalyzeCommitCode = async () => {
+      throw new Error('tsconfig not found at that commit');
+    };
+    const res = await fetch(`http://127.0.0.1:${port}/api/analyze/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sha: 'abc1234', repo: 'anytime-markdown' }),
+    });
+    expect(res.status).toBe(500);
   });
 });
 

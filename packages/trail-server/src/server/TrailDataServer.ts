@@ -61,7 +61,12 @@ import { MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
 import { type WebSocket,WebSocketServer } from 'ws';
 
 import type { C4SourceFileInput } from '../analyze/analyzeChildProtocol';
-import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
+import type {
+  AnalyzeCommitResult,
+  AnalyzeCurrentResult,
+  AnalyzeReleaseResult,
+} from '../analyze/AnalyzePipeline';
+import { UnknownRepoError } from '../analyze/AnalyzePipeline';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
 import { runC4SourceAnalyze } from '../analyze/runC4SourceAnalyze';
 import type { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
@@ -280,13 +285,21 @@ export class TrailDataServer {
   onAnalyzeReleaseCode:
     | ((req: { tags?: readonly string[] }) => Promise<AnalyzeReleaseResult>)
     | undefined;
+  /**
+   * POST /api/analyze/commit ハンドラ。1 コミット分のスナップショットだけを生成する。
+   * `sha` / `repo` はいずれも必須で、省略可能にしない（渡し忘れが別リポジトリへの
+   * 書き込みや「現在の断面を過去として保存」に化ける）。
+   */
+  onAnalyzeCommitCode:
+    | ((req: { sha: string; repo: string }) => Promise<AnalyzeCommitResult>)
+    | undefined;
   /** POST /api/analyze/all ハンドラ */
   onAnalyzeAll:
     | (() => Promise<AnalyzeAllPipelineResult>)
     | undefined;
 
   /** 現在進行中の解析タスク種別。並行実行時の 409 判定に使う */
-  private analysisInProgress: { kind: 'current' | 'release' | 'all'; startedAt: number } | null = null;
+  private analysisInProgress: { kind: 'current' | 'release' | 'commit' | 'all'; startedAt: number } | null = null;
   private tokenBudgetConfig: { dailyLimitTokens: number | null; sessionLimitTokens: number | null; alertThresholdPct: number } = {
     dailyLimitTokens: null,
     sessionLimitTokens: null,
@@ -752,6 +765,7 @@ export class TrailDataServer {
   private registerAnalyzeRoutes(t: RouteTable): void {
     t.exact('POST', '/api/analyze/current', ({ req, res }) => this.handleAnalyzeCurrent(req, res));
     t.exact('POST', '/api/analyze/release', ({ req, res }) => this.handleAnalyzeRelease(req, res));
+    t.exact('POST', '/api/analyze/commit', ({ req, res }) => this.handleAnalyzeCommit(req, res));
     t.exact('POST', '/api/analyze/all', ({ req, res }) => this.handleAnalyzeAll(req, res));
     t.exact('GET', '/api/analyze/status', ({ res }) => this.handleAnalyzeStatus(res));
     t.exact('POST', '/api/analyze-all/pause', ({ req, res }) => this.handleAnalyzeAllPause(req, res));
@@ -892,10 +906,27 @@ export class TrailDataServer {
   }
 
   private registerCodeGraphRoutes(t: RouteTable): void {
-    t.exact('GET', '/api/code-graph', (ctx) =>
-      void this.codeGraphApi.handleGet(ctx.res, ctx.query('release', 'current'), ctx.queryOpt('repo')));
+    t.exact('GET', '/api/code-graph', (ctx) => {
+      const commit = ctx.queryOpt('commit');
+      const release = ctx.queryOpt('release');
+      // release と commit の同時指定は「どちらを優先しても指定と違う時点の絵が出る」形で
+      // しか現れないため、優先順位を決めずに断る。
+      if (commit !== undefined && release !== undefined) {
+        ctx.res.writeHead(400, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ error: 'release and commit are mutually exclusive' }));
+        return;
+      }
+      if (commit !== undefined) {
+        this.codeGraphApi.handleGetCommit(ctx.res, commit, ctx.queryOpt('repo'));
+        return;
+      }
+      void this.codeGraphApi.handleGet(ctx.res, release ?? 'current', ctx.queryOpt('repo'));
+    });
     t.exact('GET', '/api/code-graph/releases', (ctx) =>
       this.codeGraphApi.handleGetReleases(ctx.res, ctx.queryOpt('repo')));
+    t.exact('GET', '/api/code-graph/commits', (ctx) =>
+      this.codeGraphApi.handleGetCommits(
+        ctx.res, ctx.queryOpt('repo'), ctx.queryOpt('to'), ctx.queryOpt('from')));
     t.exact('GET', '/api/code-graph/query', (ctx) => {
       const depthRaw = ctx.url.searchParams.get('depth');
       const depth = depthRaw === null ? undefined : clampInt(depthRaw, 0, 0, 3);
@@ -3826,6 +3857,71 @@ export class TrailDataServer {
     } catch (err) {
       this.logger.error('handleAnalyzeRelease failed', err);
       sendServerError(res, 'analyze release failed');
+    } finally {
+      this.analysisInProgress = null;
+    }
+  }
+
+  /**
+   * POST /api/analyze/commit — 1 コミット分のコードグラフを生成する。
+   *
+   * `sha` / `repo` はどちらも必須。省略を「現在の断面」や「既定リポジトリ」へ縮退させない
+   * （release 側で同種の縮退が既存キャッシュの全消去を招いた）。
+   */
+  private async handleAnalyzeCommit(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    if (!this.onAnalyzeCommitCode) {
+      res.writeHead(503, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'analyze handler not registered' }));
+      return;
+    }
+    if (this.analysisInProgress) {
+      res.writeHead(409, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'analysis in progress', current: this.analysisInProgress }));
+      return;
+    }
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = await this.readJsonObjectBodyAllowEmpty(req);
+    } catch (err) {
+      this.logger.warn(
+        `[/api/analyze/commit] invalid JSON body: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'invalid JSON body' }));
+      return;
+    }
+    const { sha, repo } = parsed;
+    if (typeof sha !== 'string' || sha === '' || typeof repo !== 'string' || repo === '') {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'sha and repo must be non-empty strings' }));
+      return;
+    }
+    // sha は git へそのまま渡り worktree のパスにもなる。オプション風の文字列やパス区切りを
+    // 通すと ref 解決とパス生成の双方で意図しない挙動になるため、16 進の commit hash に限る。
+    if (!/^[0-9a-f]{7,40}$/.test(sha)) {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'sha must be a hexadecimal commit hash' }));
+      return;
+    }
+    this.analysisInProgress = { kind: 'commit', startedAt: Date.now() };
+    try {
+      const result = await this.onAnalyzeCommitCode({ sha, repo });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      // 構成に無い repo は要求側の誤りで、再試行しても成功しない。サーバ障害（500）と
+      // 区別して 400 で返す（UI が「別の解析が走っている」等と誤って案内しないため）。
+      if (err instanceof UnknownRepoError) {
+        this.logger.warn(`[/api/analyze/commit] unknown repo: ${repo}`);
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: `unknown repo: ${repo}` }));
+        return;
+      }
+      this.logger.error('handleAnalyzeCommit failed', err);
+      sendServerError(res, 'analyze commit failed');
     } finally {
       this.analysisInProgress = null;
     }

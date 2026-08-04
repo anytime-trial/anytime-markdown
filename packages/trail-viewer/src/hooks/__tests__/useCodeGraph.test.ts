@@ -95,4 +95,22 @@ describe('useCodeGraph (WS subscribe)', () => {
     expect((globalThis.fetch as jest.Mock).mock.calls.length).toBe(0);
     expect(createdSockets.length).toBe(0);
   });
+
+  it('commit 指定でコミット時点のスナップショットを要求する', async () => {
+    renderHook(() => useCodeGraph('http://x', { commit: 'abc123', repo: 'repo' }));
+    await waitFor(() => {
+      expect((globalThis.fetch as jest.Mock).mock.calls.length).toBe(1);
+    });
+    expect((globalThis.fetch as jest.Mock).mock.calls[0][0]).toBe(
+      'http://x/api/code-graph?commit=abc123&repo=repo',
+    );
+  });
+
+  it('commit と release を同時に渡されても release は送らない（サーバは同時指定を 400 で断る）', async () => {
+    renderHook(() => useCodeGraph('http://x', { commit: 'abc123', release: 'v1.0.0', repo: 'repo' }));
+    await waitFor(() => {
+      expect((globalThis.fetch as jest.Mock).mock.calls.length).toBe(1);
+    });
+    expect(String((globalThis.fetch as jest.Mock).mock.calls[0][0])).not.toContain('release=');
+  });
 });

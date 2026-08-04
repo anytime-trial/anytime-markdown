@@ -7,7 +7,10 @@ export type KnowledgeBaseWriteTrigger =
   | 'current_code_graphs'
   | 'current_code_graph_communities'
   | 'release_graphs'
-  | 'release_code_graphs';
+  | 'release_code_graphs'
+  // Snapshot per Commit。グラフ系テーブルへの破壊的書込（保持上限超過の削除を伴う）のため
+  // 他のグラフ表と同じく Pre-write Snapshot の対象に入れる。
+  | 'commit_code_graphs';
 
 export interface KnowledgeBaseSnapshotResult {
   /** 実際に世代ファイルを作成した場合 true（デバウンス skip / fail-open 時 false） */
