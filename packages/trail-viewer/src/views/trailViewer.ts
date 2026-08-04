@@ -395,6 +395,7 @@ export function mountTrailViewer(
         }
       },
       t: props.t,
+      locale: props.locale,
     };
   }
 
