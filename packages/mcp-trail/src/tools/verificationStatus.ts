@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { promisify } from 'node:util';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
 import { resolveWorkspacePath } from '../dbPath';
@@ -67,8 +68,8 @@ export async function handleGetVerificationStatus(
     return { commitHash: null, treeState: null, verified: {}, needsRun: kinds, reason: 'no-db' };
   }
 
-  const { stdout: head } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: ws });
-  const { stdout: porcelain } = await execFileAsync('git', ['status', '--porcelain'], { cwd: ws });
+  const { stdout: head } = await execFileAsync(resolveGitExecutable(), ['rev-parse', 'HEAD'], { cwd: ws });
+  const { stdout: porcelain } = await execFileAsync(resolveGitExecutable(), ['status', '--porcelain'], { cwd: ws });
   const commitHash = head.trim();
   const treeState: 'clean' | 'dirty' = porcelain.trim() === '' ? 'clean' : 'dirty';
   if (treeState === 'dirty') {

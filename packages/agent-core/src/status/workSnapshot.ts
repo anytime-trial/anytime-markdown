@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { copyFileSync, existsSync, rmSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
@@ -37,7 +38,7 @@ export interface CreateWorkSnapshotResult {
  * `add`（一時 index 側）・`write-tree`・`commit-tree`・`update-ref` は必須ロックを使うため影響を受けない。
  */
 function git(repoRoot: string, args: readonly string[], env?: NodeJS.ProcessEnv): string {
-  return execFileSync('git', ['--no-optional-locks', ...args], {
+  return execFileSync(resolveGitExecutable(), ['--no-optional-locks', ...args], {
     cwd: repoRoot,
     encoding: 'utf8',
     env: env ? { ...process.env, ...env } : process.env,

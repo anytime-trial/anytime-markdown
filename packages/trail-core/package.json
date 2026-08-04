@@ -14,6 +14,7 @@
     "./transform": "./src/transform/index.ts",
     "./model": "./src/model/index.ts",
     "./formatDate": "./src/formatDate.ts",
+    "./gitExecutable": "./src/gitExecutable.ts",
     "./domain": "./src/domain/index.ts",
     "./domain/model": "./src/domain/model/index.ts",
     "./domain/model/commitPrefix": "./src/domain/model/commitPrefix.ts",

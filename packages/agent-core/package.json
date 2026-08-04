@@ -12,7 +12,8 @@
   "dependencies": {
     "@anytime-markdown/llm-core": "*",
     "@anytime-markdown/ollama-core": "*",
-    "@anytime-markdown/section-lock-core": "*"
+    "@anytime-markdown/section-lock-core": "*",
+    "@anytime-markdown/trail-core": "*"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",
