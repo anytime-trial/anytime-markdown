@@ -13,8 +13,10 @@ import {
   mountCodeGraphPanel,
   type CodeGraphGenerateState,
   type CodeGraphPanelProps as VanillaProps,
+  type CodeGraphScrubberGranularity,
 } from '../views/codeGraphPanel';
 import { useCodeGraphReleases } from '../hooks/useCodeGraphReleases';
+import { useCodeGraphCommits } from '../hooks/useCodeGraphCommits';
 import { diffCodeGraphs } from '@anytime-markdown/trail-core/codeGraphDiff';
 import { useTrailI18n } from '../i18n';
 import type { TrailI18n } from '../i18n';
@@ -39,6 +41,11 @@ interface CodeGraphPanelProps {
 
 export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoName }: Readonly<CodeGraphPanelProps>): React.ReactElement {
   const [selectedRelease, setSelectedRelease] = useState<string>(CURRENT_RELEASE);
+  // スクラバの粒度。コミット粒度の間も selectedRelease は保持する（「リリースへ戻す」で
+  // 元のリリースへ戻すため。仕様 §5.1）。
+  const [granularity, setGranularity] = useState<CodeGraphScrubberGranularity>('release');
+  const [commitRange, setCommitRange] = useState<{ fromTag: string | null; toTag: string } | null>(null);
+  const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
   const [generateState, setGenerateState] = useState<CodeGraphGenerateState>({ status: 'idle' });
   // 生成は非同期で、判定（二重要求の抑止・進捗の採否）はレンダー間に挟まる。state は
   // 再レンダーまで古い値を返すため、判定には ref を使う。
@@ -57,9 +64,13 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
   const { releases, refetch: refetchReleases } = useCodeGraphReleases(serverUrl, repoName);
 
   // リリース集合はリポジトリごとに異なるため、切替時に前の選択を持ち越さない（仕様 §4.2）。
+  // コミット粒度のズームも同じ理由で解除する（区間は元のリポジトリのタグで定義されている）。
   useEffect(() => {
     setSelectedRelease(CURRENT_RELEASE);
     setGenerateState({ status: 'idle' });
+    setGranularity('release');
+    setCommitRange(null);
+    setSelectedCommit(null);
   }, [repoName]);
 
   // 選択中のタグが一覧から消えたら現在へ戻す（仕様 §4.2）。ビュー側の目盛り丸めは表示だけの
@@ -68,13 +79,38 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
   useEffect(() => {
     if (selectedRelease === CURRENT_RELEASE) return;
     if (releases.length === 0) return;
-    if (!releases.some((r) => r.tag === selectedRelease)) setSelectedRelease(CURRENT_RELEASE);
+    if (releases.some((r) => r.tag === selectedRelease)) return;
+    setSelectedRelease(CURRENT_RELEASE);
+    // 区間の上端が消えたのでズームも維持できない。リリース粒度へ戻す。
+    setGranularity('release');
+    setCommitRange(null);
+    setSelectedCommit(null);
   }, [releases, selectedRelease]);
+
+  const isCommitGranularity = granularity === 'commit';
+
+  const { commits, loading: commitsLoading, refetch: refetchCommits } = useCodeGraphCommits(serverUrl, {
+    enabled: isCommitGranularity && !!repoName && !!commitRange,
+    repo: repoName,
+    to: commitRange?.toTag,
+    from: commitRange?.fromTag,
+  });
+
+  // ズーム直後は選択が未定。一覧が届いたら区間の上端（＝選択リリースに最も近いコミット）を選ぶ。
+  // 一覧が入れ替わって選択中の SHA が消えた場合も同じ扱いにする。
+  useEffect(() => {
+    if (!isCommitGranularity || commits.length === 0) return;
+    if (selectedCommit && commits.some((c) => c.sha === selectedCommit)) return;
+    setSelectedCommit(commits[commits.length - 1]?.sha ?? null);
+  }, [isCommitGranularity, commits, selectedCommit]);
+
+  const activeCommit = isCommitGranularity ? selectedCommit : null;
 
   const { graph, loading, error, refetch } = useCodeGraph(serverUrl, {
     repo: repoName,
-    enabled: !!repoName,
+    enabled: !!repoName && (!isCommitGranularity || !!activeCommit),
     release: selectedRelease,
+    commit: activeCommit ?? undefined,
   });
   const [highlightedNodes, setHighlightedNodes] = useState<ReadonlySet<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<CodeGraphNode | null>(null);
@@ -85,7 +121,8 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
 
   const { data: authorHeatmapData } = useAuthorHeatmap({
     // 集計は現在のグラフのノード集合に対するものなので、過去の時点では取得しない（仕様 §4.5）。
-    enabled: isOverrideColorBy(colorBy) && selectedRelease === CURRENT_RELEASE,
+    // コミット粒度は定義上すべて過去の時点なので、選択に関わらず取得しない。
+    enabled: isOverrideColorBy(colorBy) && !isCommitGranularity && selectedRelease === CURRENT_RELEASE,
     serverUrl,
     repo: repoName,
   });
@@ -108,6 +145,16 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
    * 過去の時点では在庫の有無に関わらず直前の目盛りを採る（未生成なら生成を要求できる）。
    */
   const baseline = useMemo<VanillaProps['baseline']>(() => {
+    // コミット粒度のベースラインは 1 つ前のコミット（仕様 §5.1）。区間の先頭には前版が無い。
+    if (isCommitGranularity) {
+      if (!selectedCommit) return null;
+      const index = commits.findIndex((c) => c.sha === selectedCommit);
+      if (index <= 0) return null;
+      const prev = commits[index - 1];
+      if (!prev) return null;
+      // tag は生成要求に使うため完全な SHA、表示は短縮 SHA（40 文字を凡例へ貼らない）。
+      return { tag: prev.sha, label: prev.shortSha, hasGraph: prev.hasGraph };
+    }
     if (releases.length === 0) return null;
     if (selectedRelease === CURRENT_RELEASE) {
       for (let i = releases.length - 1; i >= 0; i--) {
@@ -119,13 +166,15 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     const index = releases.findIndex((r) => r.tag === selectedRelease);
     if (index <= 0) return null;
     return releases[index - 1] ?? null;
-  }, [releases, selectedRelease]);
+  }, [isCommitGranularity, commits, selectedCommit, releases, selectedRelease]);
 
   // ベースラインのグラフは差分表示を選んでいる間だけ取る（1 本 2 MB あるため）。
+  const baselineId = baseline?.hasGraph ? baseline.tag : null;
   const { graph: baselineGraph } = useCodeGraph(serverUrl, {
     repo: repoName,
-    enabled: !!repoName && colorBy === 'diff' && !!baseline?.hasGraph,
-    release: baseline?.tag ?? CURRENT_RELEASE,
+    enabled: !!repoName && colorBy === 'diff' && !!baselineId,
+    release: isCommitGranularity ? CURRENT_RELEASE : (baselineId ?? CURRENT_RELEASE),
+    commit: isCommitGranularity ? (baselineId ?? undefined) : undefined,
   });
 
   const diff = useMemo<VanillaProps['diff']>(() => {
@@ -213,14 +262,20 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
   }, [serverUrl]);
 
   /**
-   * 未生成リリースのオンデマンド生成。明示操作（生成ボタン）からのみ呼ばれる。
+   * 未生成の時点（リリース / コミット）のオンデマンド生成。明示操作からのみ呼ばれる。
    *
-   * `POST /api/analyze/release` は生成完了まで応答を返さない同期エンドポイントなので、
+   * `POST /api/analyze/{release,commit}` は生成完了まで応答を返さない同期エンドポイントなので、
    * 待っている間の進捗は WebSocket の `code-graph-progress` から拾う。
    * 完了後は在庫一覧とグラフの双方を取り直す（在庫フラグが変わるため）。
+   *
+   * `tag` は進捗・失敗の表示に使う識別子で、リリース粒度ではタグ、コミット粒度では SHA。
    */
-  const handleGenerateRelease = useCallback(async (tag: string) => {
-    // 実行中はどのタグでも受け付けない。サーバは解析中に 409 を返すため、二重要求は
+  const runGeneration = useCallback(async (
+    tag: string,
+    request: () => Promise<Response>,
+    onSucceeded: () => void,
+  ) => {
+    // 実行中はどの時点でも受け付けない。サーバは解析中に 409 を返すため、二重要求は
     // 必ず失敗する上、単一の generateState を上書きして先行要求の帰結を UI から消す。
     // ボタン側でも抑止しているが、再レンダー前の連打はここでしか止まらない。
     if (generateStateRef.current.status === 'running') return;
@@ -264,11 +319,7 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
       }
     };
     try {
-      const res = await fetch(`${serverUrl}/api/analyze/release`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tags: [tag] }),
-      });
+      const res = await request();
       closeSocket();
       if (res.status === 409) {
         // 他の解析が走っているだけで、後で再試行すれば成功する。恒久的な失敗と書かない。
@@ -280,24 +331,82 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
       generateStateRef.current = { status: 'idle' };
       if (!mountedRef.current) return;
       setGenerateState({ status: 'idle' });
-      refetchReleases();
-      refetch();
+      onSucceeded();
     } catch (e) {
-      console.error('[CodeGraphPanel] generate release failed', e);
+      console.error('[CodeGraphPanel] generate snapshot failed', e);
       closeSocket();
       generateStateRef.current = { status: 'idle' };
       if (mountedRef.current) setGenerateState({ status: 'error', tag, message: String(e) });
     }
-  }, [serverUrl, refetch, refetchReleases, t]);
+  }, [serverUrl, t]);
+
+  const handleGenerateRelease = useCallback((tag: string) => {
+    void runGeneration(
+      tag,
+      () => fetch(`${serverUrl}/api/analyze/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: [tag] }),
+      }),
+      () => {
+        refetchReleases();
+        refetch();
+      },
+    );
+  }, [runGeneration, serverUrl, refetch, refetchReleases]);
+
+  /**
+   * コミット時点のグラフ生成。`repo` はサーバ側で必須（省略を「既定リポジトリ」へ縮退させない）
+   * なので、リポジトリ未選択では要求しない。
+   */
+  const handleGenerateCommit = useCallback((sha: string) => {
+    if (!repoName) return;
+    void runGeneration(
+      sha,
+      () => fetch(`${serverUrl}/api/analyze/commit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo: repoName, sha }),
+      }),
+      () => {
+        refetchCommits();
+        refetch();
+      },
+    );
+  }, [runGeneration, serverUrl, repoName, refetch, refetchCommits]);
+
+  /**
+   * コミット粒度へのズーム。区間は `前のリリース..選択リリース`（仕様 §5.1）。
+   * 「現在」は特定のリリースではないため区間の上端にできず、ズームしない。
+   */
+  const handleZoomToCommits = useCallback(() => {
+    const index = releases.findIndex((r) => r.tag === selectedRelease);
+    if (index < 0) return;
+    setCommitRange({ toTag: selectedRelease, fromTag: releases[index - 1]?.tag ?? null });
+    setSelectedCommit(null);
+    setGranularity('commit');
+  }, [releases, selectedRelease]);
+
+  /** リリース粒度へ戻す。選択は元のリリースのまま（ズーム中も持ち越していた）。 */
+  const handleZoomToReleases = useCallback(() => {
+    setGranularity('release');
+    setCommitRange(null);
+    setSelectedCommit(null);
+  }, []);
 
   // Build graphState for vanilla view
   const graphState = useMemo<VanillaProps['graphState']>(() => {
+    if (!repoName) return { status: 'no-repo' };
+    // ズーム直後（一覧取得中・区間が空）は直前のリリースのグラフを出さない。
+    // 選んだ時点と違う絵をそのまま残すと、差分の読みが狂う。
+    if (isCommitGranularity && !activeCommit) {
+      return commitsLoading ? { status: 'loading' } : { status: 'no-graph' };
+    }
     if (loading) return { status: 'loading' };
     if (error) return { status: 'error', message: error };
-    if (!repoName) return { status: 'no-repo' };
     if (!graph) return { status: 'no-graph' };
     return { status: 'ready', graph };
-  }, [loading, error, repoName, graph]);
+  }, [loading, error, repoName, graph, isCommitGranularity, activeCommit, commitsLoading]);
 
   const viewProps: VanillaProps = {
     graphState,
@@ -319,9 +428,17 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     selectedRelease,
     generateState,
     onReleaseChange: setSelectedRelease,
-    onGenerateRelease: (tag) => void handleGenerateRelease(tag),
+    onGenerateRelease: handleGenerateRelease,
     baseline,
     diff,
+    granularity,
+    commits,
+    selectedCommit,
+    commitRange,
+    onZoomToCommits: handleZoomToCommits,
+    onZoomToReleases: handleZoomToReleases,
+    onCommitChange: setSelectedCommit,
+    onGenerateCommit: handleGenerateCommit,
   };
 
   return <VanillaIsland mount={mountCodeGraphPanel} props={viewProps} />;
