@@ -2090,6 +2090,25 @@ export class TrailDatabase {
    * 未知 tag は null。flip 後は子テーブルの FK は release_id なので、tag を受ける外部 API は
    * 必ずこのヘルパで release_id へ変換してから子テーブルへ書き込む / フィルタする。
    */
+  /**
+   * repo 名 + tag から release_id を引く。
+   *
+   * `releases` の一意制約は `UNIQUE (repo_id, tag)` なので、**tag だけでは一意に定まらない**
+   * （別リポジトリが同じ `v1.0.0` を持てる）。リポジトリを跨いで取り違えると「選んだのと違う
+   * リポジトリの履歴グラフが出る」形で現れ、エラーにならない。repo が分かる経路では必ず
+   * こちらを使う。
+   */
+  private releaseIdForRepoTag(db: Database, repoName: string, tag: string): number | null {
+    const res = db.exec(
+      `SELECT r.release_id FROM releases r
+         JOIN repos repo ON repo.repo_id = r.repo_id
+        WHERE repo.repo_name = ? AND r.tag = ? LIMIT 1`,
+      [repoName, tag],
+    );
+    const id = res[0]?.values?.[0]?.[0];
+    return id == null ? null : Number(id);
+  }
+
   private releaseIdForTag(db: Database, tag: string): number | null {
     const res = db.exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
     const id = res[0]?.values?.[0]?.[0];
@@ -7698,9 +7717,16 @@ export class TrailDatabase {
     this.save();
   }
 
-  getReleaseCodeGraph(tag: string): CodeGraph | null {
+  /**
+   * リリース時点の履歴版コードグラフを取得する。
+   *
+   * `repoName` は省略可能にしない。tag だけでは別リポジトリの同名タグと区別できず
+   * （`releaseIdForRepoTag` 参照）、渡し忘れが「別リポジトリのグラフが出る」形で
+   * 静かに現れるため、型で塞ぐ。
+   */
+  getReleaseCodeGraph(tag: string, repoName: string): CodeGraph | null {
     const db = this.ensureDb();
-    const releaseId = this.releaseIdForTag(db, tag);
+    const releaseId = this.releaseIdForRepoTag(db, repoName, tag);
     if (releaseId == null) return null;
     const graphResult = db.exec(
       'SELECT graph_json FROM release_code_graphs WHERE release_id = ?',
@@ -7731,6 +7757,10 @@ export class TrailDatabase {
    * 並びは `released_at` 昇順で固定する。`release_id` 昇順とは一致せず（実測で v1.15.0 が
    * v1.14.0 より若い ID を持つ）、ID 順に並べると時間軸が逆行する目盛りができる。
    * 同時刻はタグ名で安定させる。
+   *
+   * `releases.repo_id` は nullable（repos 行が消えると `ON DELETE SET NULL`）で、内部結合の
+   * ため **repo_id が NULL のリリースは目盛りから落ちる**。エラーにはならず「そのリリースは
+   * 無い」ように見えるので、件数が想定と合わないときは NULL 行を疑う。
    */
   listReleaseCodeGraphAvailability(repoName: string): ReleaseCodeGraphAvailability[] {
     const db = this.ensureDb();

@@ -63,10 +63,18 @@ async function makeDb(warns: string[]): Promise<TrailDatabase> {
   return db;
 }
 
+const TEST_REPO = 'anytime-markdown';
+
+// 履歴版グラフの read は repo 名を必須で受ける（タグは repo 内でしか一意でない）。
+// fixture 側も repos 行と repo_id を持たせる。
 const insertRelease = (db: TrailDatabase, tag: string): void => {
-  (db as unknown as { db: { run: (sql: string, p?: unknown[]) => void } }).db.run(
-    'INSERT OR IGNORE INTO releases (tag, released_at) VALUES (?, ?)',
-    [tag, '2026-01-01T00:00:00.000Z'],
+  const raw = (db as unknown as { db: { run: (sql: string, p?: unknown[]) => void } }).db;
+  raw.run('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+    1, TEST_REPO, '2026-01-01T00:00:00.000Z',
+  ]);
+  raw.run(
+    'INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)',
+    [tag, '2026-01-01T00:00:00.000Z', 1],
   );
 };
 
@@ -136,7 +144,7 @@ describe('runAnalyzeReleaseCodePipeline', () => {
     // trailGraphProvider（現在の TrailGraph を返す）へフォールバックさせない。
     expect(seen[0].trailGraphByRepoId).toEqual({});
     // 生成結果は release 側へ保存される
-    expect(db.getReleaseCodeGraph('v1.0.0')).not.toBeNull();
+    expect(db.getReleaseCodeGraph('v1.0.0', TEST_REPO)).not.toBeNull();
   });
 
   it('worktree を後片付けする', async () => {
@@ -206,8 +214,8 @@ describe('runAnalyzeReleaseCodePipeline', () => {
         logger: makeLogger(warns),
       });
       // 対象タグは再生成され、対象外は残る
-      expect(db.getReleaseCodeGraph('v1.0.0')).not.toBeNull();
-      expect(db.getReleaseCodeGraph('v0.9.0')).not.toBeNull();
+      expect(db.getReleaseCodeGraph('v1.0.0', TEST_REPO)).not.toBeNull();
+      expect(db.getReleaseCodeGraph('v0.9.0', TEST_REPO)).not.toBeNull();
     });
 
     it('releases に無いタグは warn に残す', async () => {
@@ -240,14 +248,14 @@ describe('runAnalyzeReleaseCodePipeline', () => {
       });
       expect(result.releaseCount).toBe(0);
       expect(seen).toHaveLength(0);
-      expect(db.getReleaseCodeGraph('v1.0.0')).not.toBeNull();
+      expect(db.getReleaseCodeGraph('v1.0.0', TEST_REPO)).not.toBeNull();
     });
   });
 
   it('既存 release_code_graphs を洗い替える', async () => {
     insertRelease(db, 'v1.0.0');
     db.saveReleaseCodeGraph('v1.0.0', makeCodeGraph());
-    expect(db.getReleaseCodeGraph('v1.0.0')).not.toBeNull();
+    expect(db.getReleaseCodeGraph('v1.0.0', TEST_REPO)).not.toBeNull();
 
     const seen: Override[] = [];
     await runAnalyzeReleaseCodePipeline({
@@ -259,6 +267,6 @@ describe('runAnalyzeReleaseCodePipeline', () => {
       logger: makeLogger(warns),
     });
     // 削除 → 再生成の順で、最終的に 1 件保存されている
-    expect(db.getReleaseCodeGraph('v1.0.0')).not.toBeNull();
+    expect(db.getReleaseCodeGraph('v1.0.0', TEST_REPO)).not.toBeNull();
   });
 });

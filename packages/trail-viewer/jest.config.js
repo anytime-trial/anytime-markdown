@@ -13,7 +13,9 @@ const config = {
   transform: {
     "^.+\\.tsx?$": "ts-jest",
   },
-  testMatch: ["<rootDir>/src/**/__tests__/**/*.test.ts"],
+  // .tsx も拾う。以前は .test.ts だけを見ており、JSX を含むテストは「失敗」ではなく
+  // 「そもそも収集されない」形で静かに未実行になっていた（実測 2 ファイル）。
+  testMatch: ["<rootDir>/src/**/__tests__/**/*.test.ts", "<rootDir>/src/**/__tests__/**/*.test.tsx"],
   moduleFileExtensions: ["tsx", "ts", "js", "json"],
   // node_modules のワークスペース symlink は worktree ではメインの packages/ を指すため、
   // 兄弟ソースへ明示マップする。マップは各パッケージの exports から導出し、手書きの

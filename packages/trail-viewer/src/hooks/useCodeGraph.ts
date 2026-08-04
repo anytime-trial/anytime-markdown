@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 
 export interface UseCodeGraphResult {
@@ -26,8 +26,15 @@ export function useCodeGraph(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Time Scrubber で release が高頻度に切り替わるようになったため、後着した古い応答で
+  // 新しい選択を上書きしないよう世代を持つ。応答は 1 本 2 MB あり、目盛りを続けて確定
+  // させると後発の要求が先に返る（スライダーの指す時点と描画が食い違う）。
+  const generationRef = useRef(0);
+
   const load = useCallback(async () => {
     if (!enabled) return;
+    const generation = ++generationRef.current;
+    const isStale = (): boolean => generation !== generationRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -37,17 +44,20 @@ export function useCodeGraph(
       const qs = params.toString();
       const url = `${serverUrl}/api/code-graph${qs ? `?${qs}` : ''}`;
       const res = await fetch(url);
+      if (isStale()) return;
       if (res.status === 404) {
         setGraph(null);
         return;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as CodeGraph;
+      if (isStale()) return;
       setGraph(data);
     } catch (e) {
+      if (isStale()) return;
       setError(String(e));
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }, [serverUrl, enabled, release, repo]);
 

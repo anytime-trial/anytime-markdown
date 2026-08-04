@@ -47,15 +47,23 @@ export class CodeGraphApiHandler {
 
   async handleGet(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
     if (releaseId !== 'current') {
-      // 特定リリース: release_code_graphs から取得（repo 指定時は releases.repo_name で帰属確認）
+      // 特定リリース: release_code_graphs から取得する。
+      // タグはリポジトリ内でしか一意でない（`UNIQUE (repo_id, tag)`）ため、repo 無しでは
+      // 「どのリポジトリの v1.0.0 か」が決まらない。省略を「どれでもよい」と解釈すると
+      // 別リポジトリのグラフを返し得るので、決められない要求として 400 で断る。
+      if (!repo) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'repo is required when release is specified' }));
+        return;
+      }
       const releaseTagBelongsToRepo = this.trailDb.getReleases()
-        .some((r) => r.tag === releaseId && (!repo || r.repo_name === repo));
+        .some((r) => r.tag === releaseId && r.repo_name === repo);
       if (!releaseTagBelongsToRepo) {
         res.writeHead(404, JSON_HEADERS);
         res.end('{}');
         return;
       }
-      const graph = this.trailDb.getReleaseCodeGraph(releaseId);
+      const graph = this.trailDb.getReleaseCodeGraph(releaseId, repo);
       if (!graph) {
         res.writeHead(404, JSON_HEADERS);
         res.end('{}');

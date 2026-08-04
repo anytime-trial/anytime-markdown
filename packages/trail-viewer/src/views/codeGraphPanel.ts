@@ -67,6 +67,8 @@ const COLOR_BY_FALLBACK: Record<string, string> = {
   'codeGraph.scrubber.generate': 'このリリースのグラフを生成',
   'codeGraph.scrubber.generating': '生成中',
   'codeGraph.scrubber.generateFailed': '生成に失敗しました',
+  'codeGraph.scrubber.generatingOther': '別の時点を生成中です。完了までお待ちください。',
+  'codeGraph.scrubber.busy': '別の解析が実行中です。完了後に再試行してください。',
   'codeGraph.scrubber.heatmapDisabled': '過去の時点では最終編集者・編集頻度の配色は使えません',
 };
 
@@ -395,7 +397,12 @@ export function mountCodeGraphPanel(
     scrubberValue.textContent = isCurrent
       ? tick.label
       : `${tr('codeGraph.scrubber.viewing')}: ${tick.label}`;
-    slider.setAttribute('aria-valuetext', tick.label);
+    // 在庫の有無は目盛り帯の形と色だけで表しており、帯は aria-hidden である。
+    // 読み上げ利用者が選ぶ前に生成済みか判別できるよう、読み上げ値へ載せる。
+    slider.setAttribute(
+      'aria-valuetext',
+      tick.hasGraph ? tick.label : `${tick.label} — ${tr('codeGraph.scrubber.legendMissing')}`,
+    );
   }
 
   function renderTickStrip(ticks: readonly ScrubberTick[]): void {
@@ -604,13 +611,18 @@ export function mountCodeGraphPanel(
     el.style.cssText = 'padding:24px;font-size:0.875rem;display:flex;flex-direction:column;gap:8px;align-items:flex-start;';
 
     const gen = props.generateState ?? { status: 'idle' as const };
-    const running = gen.status === 'running' && gen.tag === tag;
+    // 実行中はタグを問わずボタンを出さない。解析は 1 本ずつしか走らず（サーバは 409 を返す）、
+    // 別タグの要求は必ず失敗した上に先行要求の帰結を上書きして消す。
+    const running = gen.status === 'running';
+    const runningThisTag = running && gen.tag === tag;
     const failed = gen.status === 'error' && gen.tag === tag;
 
     const message = document.createElement('div');
-    if (running) {
+    if (runningThisTag) {
       const percent = gen.status === 'running' && typeof gen.percent === 'number' ? ` ${gen.percent}%` : '';
       message.textContent = `${tr('codeGraph.scrubber.generating')}: ${tag}${percent}`;
+    } else if (running) {
+      message.textContent = `${tag} — ${tr('codeGraph.scrubber.generatingOther')}`;
     } else {
       message.textContent = `${tag} — ${tr('codeGraph.scrubber.notGenerated')}`;
     }

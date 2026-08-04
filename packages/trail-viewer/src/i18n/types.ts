@@ -302,6 +302,8 @@ export interface TrailI18n {
   'codeGraph.scrubber.generate': string;
   'codeGraph.scrubber.generating': string;
   'codeGraph.scrubber.generateFailed': string;
+  'codeGraph.scrubber.generatingOther': string;
+  'codeGraph.scrubber.busy': string;
   'codeGraph.scrubber.heatmapDisabled': string;
   'c4.overlay.groupStructure': string;
   'c4.overlay.functionRoles': string;

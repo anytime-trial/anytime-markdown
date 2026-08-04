@@ -44,6 +44,9 @@ export function useCodeGraphReleases(serverUrl: string, repo?: string): UseCodeG
     if (!repo) {
       setReleases([]);
       setError(null);
+      // 直前の取得が abort された場合、その finally は aborted ガードで setLoading(false) を
+      // 飛ばす。ここで落とさないと loading が true のまま固定される。
+      setLoading(false);
       return;
     }
     const controller = new AbortController();

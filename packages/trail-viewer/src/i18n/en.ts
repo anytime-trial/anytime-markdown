@@ -442,6 +442,8 @@ export const en: TrailI18n = {
   'codeGraph.scrubber.generate': 'Generate graph for this release',
   'codeGraph.scrubber.generating': 'Generating',
   'codeGraph.scrubber.generateFailed': 'Generation failed',
+  'codeGraph.scrubber.generatingOther': 'Another point in time is being generated. Please wait.',
+  'codeGraph.scrubber.busy': 'Another analysis is running. Retry after it finishes.',
   'codeGraph.scrubber.heatmapDisabled': 'Author heatmap colors are unavailable for past releases',
   'c4.overlay.groupStructure': 'Structure',
   'c4.overlay.functionRoles': 'Function Roles (4 quadrants)',

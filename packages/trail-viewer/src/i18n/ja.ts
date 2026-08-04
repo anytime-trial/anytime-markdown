@@ -442,6 +442,8 @@ export const ja: TrailI18n = {
   'codeGraph.scrubber.generate': 'このリリースのグラフを生成',
   'codeGraph.scrubber.generating': '生成中',
   'codeGraph.scrubber.generateFailed': '生成に失敗しました',
+  'codeGraph.scrubber.generatingOther': '別の時点を生成中です。完了までお待ちください。',
+  'codeGraph.scrubber.busy': '別の解析が実行中です。完了後に再試行してください。',
   'codeGraph.scrubber.heatmapDisabled': '過去の時点では最終編集者・編集頻度の配色は使えません',
   'c4.overlay.groupStructure': '構造',
   'c4.overlay.functionRoles': '関数役割 (4 象限)',

@@ -242,3 +242,41 @@ describe('codeGraphPanel: Time Scrubber', () => {
     expect(CURRENT_RELEASE).toBe('current');
   });
 });
+
+describe('codeGraphPanel: Time Scrubber の生成抑止と読み上げ', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it('別タグを生成中なら生成ボタンを出さない（解析は 1 本ずつしか走らない）', () => {
+    const { container, handle } = mount(
+      baseProps({
+        graphState: { status: 'no-graph' },
+        releases: RELEASES,
+        selectedRelease: 'v1.15.0',
+        generateState: { status: 'running', tag: 'v1.14.0' },
+      }),
+    );
+    expect(container.querySelector('[data-testid="code-graph-generate-release"]')).toBeNull();
+    const box = container.querySelector('[data-testid="code-graph-missing-release"]');
+    expect(box?.textContent).toContain('別の時点を生成中');
+    handle.destroy();
+  });
+
+  it('未生成の目盛りは読み上げ値にも「未生成」が載る', () => {
+    const { slider, handle } = mount(
+      baseProps({ releases: RELEASES, selectedRelease: 'v1.15.0' }),
+    );
+    expect(slider().getAttribute('aria-valuetext')).toContain('未生成');
+    handle.destroy();
+  });
+
+  it('生成済みの目盛りには「未生成」を付けない', () => {
+    const { slider, handle } = mount(
+      baseProps({ releases: RELEASES, selectedRelease: 'v1.14.0' }),
+    );
+    expect(slider().getAttribute('aria-valuetext')).not.toContain('未生成');
+    expect(slider().getAttribute('aria-valuetext')).toContain('v1.14.0');
+    handle.destroy();
+  });
+});

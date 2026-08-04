@@ -23,13 +23,19 @@ const makeCodeGraph = (overrides: Partial<CodeGraph> = {}): CodeGraph => ({
   ...overrides,
 });
 
-// Phase H-5: releases.repo_name 列は撤去済。本テストは code graph の FK/CRUD (release_id ベース) を
-// 検証するだけで repo 識別に依存しないため repo_id は省略 (NULL) のままにする。
+const TEST_REPO = 'anytime-markdown';
+
+// タグはリポジトリ内でしか一意でないため、release 系の read は repo 名を必須で受ける。
+// 従って fixture も repos 行と repo_id を持たせる。
 const insertRelease = (db: TrailDatabase, tag: string): void => {
   inner(db).run(
-    `INSERT OR IGNORE INTO releases (tag, released_at)
-     VALUES (?, ?)`,
-    [tag, '2026-01-01T00:00:00.000Z'],
+    `INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)`,
+    [1, TEST_REPO, '2026-01-01T00:00:00.000Z'],
+  );
+  inner(db).run(
+    `INSERT OR IGNORE INTO releases (tag, released_at, repo_id)
+     VALUES (?, ?, ?)`,
+    [tag, '2026-01-01T00:00:00.000Z', 1],
   );
 };
 
@@ -131,7 +137,7 @@ describe('TrailDatabase CodeGraph CRUD', () => {
       db.saveReleaseCodeGraph('v1.0.0', graph);
 
       // 保存できていることを確認
-      const before = db.getReleaseCodeGraph('v1.0.0');
+      const before = db.getReleaseCodeGraph('v1.0.0', TEST_REPO);
       expect(before).not.toBeNull();
 
       // sql.js の db.export() は PRAGMA foreign_keys をリセットするため再設定
@@ -139,7 +145,7 @@ describe('TrailDatabase CodeGraph CRUD', () => {
       // releases から削除 → CASCADE で release_code_graphs も削除
       inner(db).run('DELETE FROM releases WHERE tag = ?', ['v1.0.0']);
 
-      const after = db.getReleaseCodeGraph('v1.0.0');
+      const after = db.getReleaseCodeGraph('v1.0.0', TEST_REPO);
       expect(after).toBeNull();
     });
   });
@@ -172,11 +178,11 @@ describe('TrailDatabase deleteCurrentCodeGraphs / deleteReleaseCodeGraphs', () =
     insertRelease(db, 'v2.1.0');
     db.saveReleaseCodeGraph('v2.0.0', makeCodeGraph());
     db.saveReleaseCodeGraph('v2.1.0', makeCodeGraph());
-    expect(db.getReleaseCodeGraph('v2.0.0')).not.toBeNull();
+    expect(db.getReleaseCodeGraph('v2.0.0', TEST_REPO)).not.toBeNull();
 
     db.deleteReleaseCodeGraphs();
-    expect(db.getReleaseCodeGraph('v2.0.0')).toBeNull();
-    expect(db.getReleaseCodeGraph('v2.1.0')).toBeNull();
+    expect(db.getReleaseCodeGraph('v2.0.0', TEST_REPO)).toBeNull();
+    expect(db.getReleaseCodeGraph('v2.1.0', TEST_REPO)).toBeNull();
   });
 
   it('deleteReleaseCodeGraphs is a no-op when nothing saved', () => {
@@ -195,9 +201,9 @@ describe('TrailDatabase deleteCurrentCodeGraphs / deleteReleaseCodeGraphs', () =
 
     db.deleteReleaseCodeGraphsForTags(['v2.1.0']);
 
-    expect(db.getReleaseCodeGraph('v2.1.0')).toBeNull();
-    expect(db.getReleaseCodeGraph('v2.0.0')).not.toBeNull();
-    expect(db.getReleaseCodeGraph('v2.2.0')).not.toBeNull();
+    expect(db.getReleaseCodeGraph('v2.1.0', TEST_REPO)).toBeNull();
+    expect(db.getReleaseCodeGraph('v2.0.0', TEST_REPO)).not.toBeNull();
+    expect(db.getReleaseCodeGraph('v2.2.0', TEST_REPO)).not.toBeNull();
   });
 
   it('deleteReleaseCodeGraphsForTags removes the communities of the given tags only', () => {
@@ -209,7 +215,7 @@ describe('TrailDatabase deleteCurrentCodeGraphs / deleteReleaseCodeGraphs', () =
     db.deleteReleaseCodeGraphsForTags(['v2.1.0']);
 
     // communities は graph の一部として復元されるため、残ったタグ側で健在であることを見る
-    expect(db.getReleaseCodeGraph('v2.0.0')?.communities).toEqual({ 0: 'Community A', 1: 'Community B' });
+    expect(db.getReleaseCodeGraph('v2.0.0', TEST_REPO)?.communities).toEqual({ 0: 'Community A', 1: 'Community B' });
     const raws = db.getAllReleaseCodeGraphCommunityRaws();
     expect(raws.every((r) => r.release_tag !== 'v2.1.0')).toBe(true);
     expect(raws.some((r) => r.release_tag === 'v2.0.0')).toBe(true);
@@ -220,10 +226,10 @@ describe('TrailDatabase deleteCurrentCodeGraphs / deleteReleaseCodeGraphs', () =
     db.saveReleaseCodeGraph('v2.0.0', makeCodeGraph());
 
     db.deleteReleaseCodeGraphsForTags([]);
-    expect(db.getReleaseCodeGraph('v2.0.0')).not.toBeNull();
+    expect(db.getReleaseCodeGraph('v2.0.0', TEST_REPO)).not.toBeNull();
 
     expect(() => db.deleteReleaseCodeGraphsForTags(['v9.9.9'])).not.toThrow();
-    expect(db.getReleaseCodeGraph('v2.0.0')).not.toBeNull();
+    expect(db.getReleaseCodeGraph('v2.0.0', TEST_REPO)).not.toBeNull();
   });
 });
 
