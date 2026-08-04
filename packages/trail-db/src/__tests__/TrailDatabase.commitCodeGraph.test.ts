@@ -130,6 +130,18 @@ describe('TrailDatabase commit code graphs', () => {
       expect(db.getCommitCodeGraph('c3', TEST_REPO)).not.toBeNull();
     });
 
+    // 回帰: 削除順を generated_at で決めていたため、同じ generatedAt を持つ 2 本が並ぶと
+    // 順序が sha の辞書順へ落ち、新しく入れた方が消えることがあった。
+    it('drops by write order even when the graphs report the same generatedAt', () => {
+      const sameStamp = '2026-08-04T00:00:00.000Z';
+      // 辞書順で「後に保存した方」が小さくなる並びを明示的に作る。
+      db.saveCommitCodeGraph('zzz-old', TEST_REPO, makeCodeGraph('n', sameStamp), 1);
+      db.saveCommitCodeGraph('aaa-new', TEST_REPO, makeCodeGraph('n', sameStamp), 1);
+
+      expect(db.getCommitCodeGraph('zzz-old', TEST_REPO)).toBeNull();
+      expect(db.getCommitCodeGraph('aaa-new', TEST_REPO)).not.toBeNull();
+    });
+
     it('does not touch release snapshots', () => {
       insertRelease(db, 'v1.0.0', '2026-07-01T00:00:00.000Z');
       db.saveReleaseCodeGraph('v1.0.0', makeCodeGraph('rel', '2026-07-01T00:00:00.000Z'));

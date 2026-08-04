@@ -7849,6 +7849,11 @@ export class TrailDatabase {
    * 参照時刻ではなく生成時刻で落とす（LRU にしない）。LRU は読み取り経路に書き込みを
    * 持ち込むため。よく見るコミットでも古ければ消える点は仕様 §10 に既知の穴として記載。
    * 削除は件数と sha をログに残す（黙って消さない）。
+   *
+   * 順序は `generated_at` ではなく **`updated_at`（行の書き込み時刻）と rowid** で決める。
+   * `generated_at` はグラフ自身が名乗る生成時刻で、同じ値を持つ 2 本が並ぶと順序が
+   * sha の辞書順に落ちる（どちらが古いかと無関係に消える）。`updated_at` は保存時に
+   * DB 側の時計で入れ、同一ミリ秒の同着は挿入順（rowid）で解く。
    */
   private evictCommitCodeGraphs(
     db: Database,
@@ -7860,7 +7865,7 @@ export class TrailDatabase {
     const result = db.exec(
       `SELECT commit_sha FROM commit_code_graphs
         WHERE repo_id = ?
-        ORDER BY generated_at DESC, commit_sha DESC
+        ORDER BY updated_at DESC, rowid DESC
         LIMIT -1 OFFSET ?`,
       [repoId, retentionPerRepo],
     );

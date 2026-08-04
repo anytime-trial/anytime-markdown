@@ -45,6 +45,34 @@ export class CodeGraphApiHandler {
   //  GET /api/code-graph?release=<id|current>&repo=<name>
   // -------------------------------------------------------------------------
 
+  /**
+   * `?commit=<sha>` 指定でコミット時点のスナップショットを返す（Snapshot per Commit）。
+   *
+   * `release` との同時指定は 400 で断る。どちらを優先しても、指定した側と違う時点の
+   * グラフが返ることになり、UI 側では「選んだ時点と違う絵が出る」形でしか現れない。
+   */
+  handleGetCommit(res: http.ServerResponse, sha: string, repo?: string): void {
+    if (!repo) {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'repo is required when commit is specified' }));
+      return;
+    }
+    try {
+      const graph = this.trailDb.getCommitCodeGraph(sha, repo);
+      if (!graph) {
+        res.writeHead(404, JSON_HEADERS);
+        res.end('{}');
+        return;
+      }
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(graph));
+    } catch (err) {
+      this.logger.error(`[CodeGraphApiHandler] failed to read commit graph sha=${sha}`, err);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to read commit code graph' }));
+    }
+  }
+
   async handleGet(res: http.ServerResponse, releaseId: string, repo?: string): Promise<void> {
     if (releaseId !== 'current') {
       // 特定リリース: release_code_graphs から取得する。
@@ -112,6 +140,34 @@ export class CodeGraphApiHandler {
       this.logger.error(`[CodeGraphApiHandler] failed to list releases for repo=${repo}`, err);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: 'Failed to list code graph releases' }));
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  //  GET /api/code-graph/commits?repo=<name>&to=<tag>&from=<tag>
+  // -------------------------------------------------------------------------
+
+  /**
+   * Time Scrubber をコミット粒度へズームしたときの目盛り一覧。
+   *
+   * `repo` と `to`（区間の上端タグ）は必須。`from` を省略すると最古からになる。
+   * `releases` に無い `to` は空配列になる（`listCommitCodeGraphAvailability` 参照）。
+   * グラフ本体は含めない（区間には実測 17〜304 件並ぶ）。
+   */
+  handleGetCommits(res: http.ServerResponse, repo?: string, to?: string, from?: string): void {
+    if (!repo || !to) {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'repo and to are required' }));
+      return;
+    }
+    try {
+      const commits = this.trailDb.listCommitCodeGraphAvailability(repo, to, from);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ commits }));
+    } catch (err) {
+      this.logger.error(`[CodeGraphApiHandler] failed to list commits for repo=${repo}`, err);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'Failed to list code graph commits' }));
     }
   }
 

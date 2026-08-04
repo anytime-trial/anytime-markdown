@@ -7,6 +7,7 @@ import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable
 import { ExecFileGitService } from '@anytime-markdown/trail-db';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
 import type { FileCategory } from '@anytime-markdown/trail-core/classify';
 
@@ -574,6 +575,56 @@ function cleanupWorktree(gitRoot: string, worktreeRoot: string, logger: Logger):
 }
 
 /**
+ * 指定コミットの worktree を切って、その時点のコードグラフを 1 本作る。
+ *
+ * release 遡及生成とコミット単位のオンデマンド生成が共有する本体。**振る舞いは
+ * release 経路から動かしていない**（ref を tag から解決するか sha を直接使うかだけが違う）。
+ *
+ * `persist: false` により `current_code_graphs` は汚さない。保存は呼び出し元が行う。
+ * `trailGraphByRepoId` に空オブジェクトを明示するのは、undefined だと `trailGraphProvider`
+ * （現在の TrailGraph を返す）へフォールバックし、過去の断面に現在のグラフが混入するため。
+ *
+ * @returns 生成できたグラフ。`codeGraphService` が 1 本も返さなければ null
+ */
+async function generateCodeGraphAtCommit(args: {
+  codeGraphService: CodeGraphService;
+  gitRoot: string;
+  commitHash: string;
+  worktreeRoot: string;
+  compute: AnalyzeComputeMode;
+  repoLabel: string;
+  logger: Logger;
+}): Promise<CodeGraph | null> {
+  const { gitRoot, worktreeRoot, repoLabel, logger } = args;
+  if (fs.existsSync(worktreeRoot)) {
+    cleanupWorktree(gitRoot, worktreeRoot, logger);
+  }
+  execFileSync(
+    resolveGitExecutable(),
+    ['worktree', 'add', '--detach', worktreeRoot, args.commitHash],
+    { cwd: gitRoot, stdio: 'pipe' },
+  );
+
+  // worktree へ node_modules を symlink しない（旧実装は張っていた）。
+  // main の node_modules には `@anytime-markdown/*` → 現在の packages/ という
+  // symlink が含まれるため、張ると**過去の断面の解析が現在のソースで汚染される**。
+
+  const trailGraph = await analyzeReleaseWorktree({
+    worktreeRoot,
+    compute: args.compute,
+    pythonWasmPath: args.codeGraphService.getPythonWasmPath(),
+    logger,
+  });
+
+  const graphs = await args.codeGraphService.generate(undefined, {
+    repositories: [{ id: repoLabel, label: repoLabel, path: worktreeRoot }],
+    trailGraphByRepoId: trailGraph ? { [repoLabel]: trailGraph } : {},
+    persist: false,
+  });
+  return graphs[0] ?? null;
+}
+
+/**
  * `scope` に従って対象の release を選ぶ。
  *
  * `releases` に無いタグ（未リリース・別リポのタグ・打ち間違い）は対象から外れるが、
@@ -640,41 +691,17 @@ export async function runAnalyzeReleaseCodePipeline(
     const worktreeRoot = path.join(os.tmpdir(), `trail-cg-release-${tag.replaceAll('/', '-')}`);
     try {
       onProgress?.(`Generating code graph for release ${tag}...`);
-      if (fs.existsSync(worktreeRoot)) {
-        cleanupWorktree(gitRoot, worktreeRoot, logger);
-      }
       // タグ名を直接渡さず commit hash へ解決してから worktree を作る。タグと同名の
       // ブランチが存在すると ref 解決が曖昧になり、意図しない断面を解析しうる。
-      const commitHash = git.getTagCommitHash(tag);
-      execFileSync(resolveGitExecutable(), ['worktree', 'add', '--detach', worktreeRoot, commitHash], {
-        cwd: gitRoot,
-        stdio: 'pipe',
-      });
-
-      // worktree へ node_modules を symlink しない（旧実装は張っていた）。
-      // main の node_modules には `@anytime-markdown/*` → 現在の packages/ という
-      // symlink が含まれるため、張ると**過去タグの解析が現在のソースで汚染される**。
-      // コードグラフは import 関係の抽出であり外部型定義の完全解決を必要としない
-      // （v0.0.2 実測で nodes=82 / edges=151）。外部型に強く依存するタグで解析が
-      // 痩せる可能性は残るため、量産時に他タグでの再現性を確認する。
-
-      const trailGraph = await analyzeReleaseWorktree({
+      const graph = await generateCodeGraphAtCommit({
+        codeGraphService,
+        gitRoot,
+        commitHash: git.getTagCommitHash(tag),
         worktreeRoot,
         compute,
-        pythonWasmPath: codeGraphService.getPythonWasmPath(),
+        repoLabel,
         logger,
       });
-
-      // repositories でこのタグの worktree を明示する（省略すると service 構築時に
-      // 束縛された現在のチェックアウトが解析され、全リリースが同じグラフになる）。
-      // trailGraphByRepoId は TS 解析結果を渡す。undefined を渡すと trailGraphProvider
-      // （現在の TrailGraph を返す）へフォールバックしてしまうため、無い場合も空を明示する。
-      const graphs = await codeGraphService.generate(undefined, {
-        repositories: [{ id: repoLabel, label: repoLabel, path: worktreeRoot }],
-        trailGraphByRepoId: trailGraph ? { [repoLabel]: trailGraph } : {},
-        persist: false,
-      });
-      const graph = graphs[0];
       if (!graph) {
         onProgress?.(`Skipping ${tag}: no code graph generated`);
         continue;
@@ -699,4 +726,80 @@ export async function runAnalyzeReleaseCodePipeline(
     releaseCount,
     durationMs: Date.now() - startedAt,
   };
+}
+
+/** リポジトリあたりのコミットスナップショット保持本数の既定。約 60 MB 相当。 */
+export const DEFAULT_COMMIT_CODE_GRAPH_RETENTION = 30;
+
+export interface AnalyzeCommitOpts {
+  trailDb: TrailDatabase;
+  codeGraphService: CodeGraphService;
+  gitRoot: string;
+  /** 対象コミット。省略可能にしない（渡し忘れが「現在の断面を過去として保存」に化ける）。 */
+  sha: string;
+  /** 保存先リポジトリ名。`commit_code_graphs` の PK 構成列で、省略すると別リポへ書き得る。 */
+  repoName: string;
+  /** TS 解析の実行方式。release 経路と同じく省略不可。 */
+  compute: AnalyzeComputeMode;
+  /** グラフ内のリポジトリ名。省略時は gitRoot の basename を使う。 */
+  repoLabel?: string;
+  /** リポジトリあたりの保持本数。既定 30。 */
+  retentionPerRepo?: number;
+  logger?: Logger;
+  onProgress?: (msg: string) => void;
+}
+
+export interface AnalyzeCommitResult {
+  sha: string;
+  nodeCount: number;
+  edgeCount: number;
+  durationMs: number;
+}
+
+/**
+ * 指定コミット 1 本のコードグラフを生成して保存する（Snapshot per Commit）。
+ *
+ * **1 コミットのみ。** 複数指定も全量遡及も受けない（実測 5,102 コミット × 約 2 MB ≒ 10 GB）。
+ * 指定 sha 以外のスナップショットは消さない。保持上限の超過分だけが古い順に落ちる。
+ *
+ * 失敗（tsconfig 欠如・当時の依存構成・不正な sha）は握りつぶさず throw する。release 経路は
+ * 全量ループなので 1 タグの失敗を warn で流して続行するが、こちらは 1 件の要求に対する
+ * 1 件の応答であり、失敗を成功と区別できないと UI が「生成したのに出ない」状態になる。
+ */
+export async function runAnalyzeCommitCodePipeline(
+  opts: AnalyzeCommitOpts,
+): Promise<AnalyzeCommitResult> {
+  const { trailDb, codeGraphService, gitRoot, sha, repoName, compute, onProgress } = opts;
+  const logger = opts.logger ?? NOOP_LOGGER;
+  const repoLabel = opts.repoLabel || path.basename(gitRoot);
+  const retentionPerRepo = opts.retentionPerRepo ?? DEFAULT_COMMIT_CODE_GRAPH_RETENTION;
+  const startedAt = Date.now();
+  // sha はそのままパスへ入るため、worktree 名に使う前にパス区切りを潰す。
+  const worktreeRoot = path.join(os.tmpdir(), `trail-cg-commit-${sha.replaceAll('/', '-')}`);
+
+  onProgress?.(`Generating code graph for commit ${sha.slice(0, 8)}...`);
+  try {
+    const graph = await generateCodeGraphAtCommit({
+      codeGraphService,
+      gitRoot,
+      commitHash: sha,
+      worktreeRoot,
+      compute,
+      repoLabel,
+      logger,
+    });
+    if (!graph) {
+      throw new Error(`no code graph generated for commit ${sha}`);
+    }
+    trailDb.saveCommitCodeGraph(sha, repoName, graph, retentionPerRepo);
+    onProgress?.(`Commit ${sha.slice(0, 8)}: code graph saved`);
+    return {
+      sha,
+      nodeCount: graph.nodes.length,
+      edgeCount: graph.edges.length,
+      durationMs: Date.now() - startedAt,
+    };
+  } finally {
+    cleanupWorktree(gitRoot, worktreeRoot, logger);
+  }
 }
