@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.19.2] - 2026-08-04
+
+### Added
+
+- Landing-page i18n strings for three roadmap items: runtime call tracing, self-diagnosis of decision quality, and structural drift visualization.
+
 ## [1.19.1] - 2026-08-03
 
 ### Changed

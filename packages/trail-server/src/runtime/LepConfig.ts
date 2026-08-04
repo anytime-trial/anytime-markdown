@@ -1179,7 +1179,7 @@ export function serializeLepConfigWithComments(config: LepConfig): string {
       },
       docs: {
         _comment:
-          'ドキュメント検索(doc-core)の取込元ルート。例 /Shared/anytime-markdown-docs。空文字=無効(既定オフ)。設定すると daemon が spec を ingest し doc-core.db(構造/FTS/embedding)を作る。',
+          'ドキュメント検索(doc-core)の取込元ルート。例 /Shared/anytime-markdown-docs。空文字=無効(既定オフ)。設定すると daemon が spec を ingest し doc-core.db(構造/FTS/embedding)を作る。git リポジトリなら commit 取込の監視対象にもなる(check_alignment の設計書更新判定に必要。gitRoots へ二重に書かない)。',
         ...config.sources.docs,
       },
       gitRoots: [...config.sources.gitRoots],

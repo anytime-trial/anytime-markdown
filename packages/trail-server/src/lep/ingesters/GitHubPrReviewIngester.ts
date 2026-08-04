@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { createHash } from 'node:crypto';
 
 import type {
@@ -206,7 +207,7 @@ function errMsg(err: unknown): string {
 export const defaultGitRemoteReader: GitRemoteReader = {
   getRemoteUrl(gitRoot: string): string | null {
     try {
-      const out = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      const out = execFileSync(resolveGitExecutable(), ['remote', 'get-url', 'origin'], {
         encoding: 'utf-8',
         timeout: 10_000,
         cwd: gitRoot,

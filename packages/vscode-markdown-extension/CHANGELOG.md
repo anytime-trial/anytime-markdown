@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.19.2] - 2026-08-04
+
+### Changed
+
+- Updated the bundled `anytime-markdown-output` skill to v6: it now documents which element IDs are usable for `c4Scope` and restates the criterion as "were you the primary implementer".
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- Added landing-page i18n strings for three roadmap items.
+
 ## [1.19.1] - 2026-08-03
 
 ### Changed

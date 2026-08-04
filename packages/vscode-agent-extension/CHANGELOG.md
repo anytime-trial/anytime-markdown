@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-08-04
+
+### Changed
+
+- Updated the bundled `anytime-analysis` skill to v10: the delegation notes pointing at `anytime-stock-cooccurrence` are gone, and the co-occurrence graph mode is back to its general form.
+
+### Fixed
+
+- The airspace bundle installer and the worktree ownership provider now launch git via an absolute path instead of a PATH lookup (SonarCloud S4036).
+
+### Removed
+
+- Dropped the `anytime-stock-cooccurrence` skill from the bundled set; the market-specific conventions moved to a project-local skill in another project. No automatic cleanup is registered, so that the destination workspace is not wiped on activation — remove any already-installed copy by hand. The generic co-occurrence graph mode remains in `anytime-analysis` §9.
+
 ## [1.12.0] - 2026-08-03
 
 ### Added

@@ -1,8 +1,13 @@
+import { execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { ExecFileGitService } from '@anytime-markdown/trail-db';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
 import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
 import type { FileCategory } from '@anytime-markdown/trail-core/classify';
 
@@ -467,10 +472,43 @@ export async function runAnalyzeCurrentCodePipeline(
   };
 }
 
+/**
+ * 遡及生成の対象範囲。`tags` 指定時は生成も削除もそのタグ集合に限定する。
+ *
+ * 省略可能な `tags?: string[]` にしない。渡し忘れが「黙って全量洗い替え」になり、
+ * オンデマンド生成のたびに既存キャッシュを消してしまう事故が型でも実行時でも
+ * 検出できないためである（同じ形の欠陥が `analyze_current_code` で実際に起きた）。
+ */
+export type AnalyzeReleaseScope =
+  | { kind: 'all' }
+  | { kind: 'tags'; tags: readonly string[] };
+
+/**
+ * 外部境界（HTTP body / IPC request）の省略可能な `tags` を `scope` へ正規化する。
+ *
+ * 空配列は「全量」ではなく「対象 0 件」と解釈する。破壊的な側（全量削除）へ縮退させない
+ * ため、all になるのは `undefined`（そもそも指定が無い）のときだけとする。
+ */
+export function toAnalyzeReleaseScope(
+  tags: readonly string[] | undefined,
+): AnalyzeReleaseScope {
+  return tags === undefined ? { kind: 'all' } : { kind: 'tags', tags };
+}
+
 export interface AnalyzeReleaseOpts {
   trailDb: TrailDatabase;
   codeGraphService: CodeGraphService;
   gitRoot: string;
+  /**
+   * TS 解析の実行方式。current 解析と同じ判別子ユニオンを使い、省略不可とする。
+   * 省略可能にすると「渡し忘れ＝黙って縮退」が型でも実行時でも検出できない。
+   */
+  compute: AnalyzeComputeMode;
+  /** 対象範囲。全量洗い替えか、タグ指定か。省略不可（上記 AnalyzeReleaseScope 参照）。 */
+  scope: AnalyzeReleaseScope;
+  /** グラフ内のリポジトリ名。省略時は gitRoot の basename を使う。 */
+  repoLabel?: string;
+  logger?: Logger;
   onProgress?: (msg: string) => void;
 }
 
@@ -480,8 +518,146 @@ export interface AnalyzeReleaseResult {
 }
 
 /**
- * release 別 C4 / コードグラフ解析パイプライン。
- * 既存 release_code_graphs を全削除して再生成する（洗い替え方式）。
+ * タグの worktree を TS 解析して TrailGraph を得る。tsconfig.json が無ければ undefined。
+ *
+ * `CodeGraphService` は TypeScript を解析しない（言語レジストリは Python のみ登録し、
+ * TS は analyze-child へ一本化されている）。そのため TS リポジトリのコードグラフは
+ * ここで得た TrailGraph を `generate()` の override へ渡して初めて成立する。
+ */
+async function analyzeReleaseWorktree(args: {
+  worktreeRoot: string;
+  compute: AnalyzeComputeMode;
+  pythonWasmPath: string | undefined;
+  logger: Logger;
+}): Promise<TrailGraph | undefined> {
+  const tsconfigPath = path.join(args.worktreeRoot, 'tsconfig.json');
+  if (!fs.existsSync(tsconfigPath)) return undefined;
+
+  const request = {
+    analysisRoot: args.worktreeRoot,
+    // 過去タグの除外設定はそのタグの worktree 内のものを使う。
+    excludeRoot: args.worktreeRoot,
+    tsconfigPath,
+    pythonWasmPath: args.pythonWasmPath,
+    // decision comment の永続化は current 解析だけの責務（memory-core への中継）。
+    // 過去タグの抽出結果で現在のテーブルを上書きしない。
+    includeDecisionComments: false,
+  };
+
+  if (args.compute.kind === 'child') {
+    const { AnalyzeChildRunner } = await import('./AnalyzeChildRunner.js');
+    const runner = new AnalyzeChildRunner(args.compute.analyzeChildPath, { logger: args.logger });
+    return (await runner.run(request)).graph;
+  }
+  const { computeAnalysis } = await import(/* webpackIgnore: true */ './computeAnalysis.js');
+  return (await computeAnalysis(request)).graph;
+}
+
+/** `git worktree` の後片付け。remove が失敗しても rmSync で残骸を消す。 */
+function cleanupWorktree(gitRoot: string, worktreeRoot: string, logger: Logger): void {
+  try {
+    execFileSync(resolveGitExecutable(), ['worktree', 'remove', worktreeRoot, '--force'], {
+      cwd: gitRoot,
+      stdio: 'pipe',
+    });
+    return;
+  } catch {
+    // remove に失敗した場合だけ実体を消す（未登録・破損時のフォールバック）。
+  }
+  try {
+    fs.rmSync(worktreeRoot, { recursive: true, force: true });
+  } catch (e) {
+    // 後片付けの失敗は解析結果に影響しないので続行するが、tmpdir に残骸が残るため痕跡を残す。
+    logger.warn(
+      `[runAnalyzeReleaseCodePipeline] failed to clean up worktree ${worktreeRoot}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
+/**
+ * 指定コミットの worktree を切って、その時点のコードグラフを 1 本作る。
+ *
+ * release 遡及生成とコミット単位のオンデマンド生成が共有する本体。**振る舞いは
+ * release 経路から動かしていない**（ref を tag から解決するか sha を直接使うかだけが違う）。
+ *
+ * `persist: false` により `current_code_graphs` は汚さない。保存は呼び出し元が行う。
+ * `trailGraphByRepoId` に空オブジェクトを明示するのは、undefined だと `trailGraphProvider`
+ * （現在の TrailGraph を返す）へフォールバックし、過去の断面に現在のグラフが混入するため。
+ *
+ * @returns 生成できたグラフ。`codeGraphService` が 1 本も返さなければ null
+ */
+async function generateCodeGraphAtCommit(args: {
+  codeGraphService: CodeGraphService;
+  gitRoot: string;
+  commitHash: string;
+  worktreeRoot: string;
+  compute: AnalyzeComputeMode;
+  repoLabel: string;
+  logger: Logger;
+}): Promise<CodeGraph | null> {
+  const { gitRoot, worktreeRoot, repoLabel, logger } = args;
+  if (fs.existsSync(worktreeRoot)) {
+    cleanupWorktree(gitRoot, worktreeRoot, logger);
+  }
+  execFileSync(
+    resolveGitExecutable(),
+    ['worktree', 'add', '--detach', worktreeRoot, args.commitHash],
+    { cwd: gitRoot, stdio: 'pipe' },
+  );
+
+  // worktree へ node_modules を symlink しない（旧実装は張っていた）。
+  // main の node_modules には `@anytime-markdown/*` → 現在の packages/ という
+  // symlink が含まれるため、張ると**過去の断面の解析が現在のソースで汚染される**。
+
+  const trailGraph = await analyzeReleaseWorktree({
+    worktreeRoot,
+    compute: args.compute,
+    pythonWasmPath: args.codeGraphService.getPythonWasmPath(),
+    logger,
+  });
+
+  const graphs = await args.codeGraphService.generate(undefined, {
+    repositories: [{ id: repoLabel, label: repoLabel, path: worktreeRoot }],
+    trailGraphByRepoId: trailGraph ? { [repoLabel]: trailGraph } : {},
+    persist: false,
+  });
+  return graphs[0] ?? null;
+}
+
+/**
+ * `scope` に従って対象の release を選ぶ。
+ *
+ * `releases` に無いタグ（未リリース・別リポのタグ・打ち間違い）は対象から外れるが、
+ * 戻り値の件数だけでは「指定したのに生成されなかった」ことが呼び出し元に伝わらないため
+ * warn に残す。
+ */
+function selectReleases<T extends { tag: string }>(
+  releases: readonly T[],
+  scope: AnalyzeReleaseScope,
+  logger: Logger,
+): readonly T[] {
+  if (scope.kind === 'all') return releases;
+  const wanted = new Set(scope.tags);
+  const selected = releases.filter((r) => wanted.has(r.tag));
+  const found = new Set(selected.map((r) => r.tag));
+  const unknown = [...wanted].filter((t) => !found.has(t));
+  if (unknown.length > 0) {
+    logger.warn(
+      `[runAnalyzeReleaseCodePipeline] tags not found in releases (skipped): ${unknown.join(', ')}`,
+    );
+  }
+  return selected;
+}
+
+/**
+ * release 別コードグラフ解析パイプライン。
+ * `scope` の範囲について、既存 release_code_graphs を削除してから再生成する。
+ * `{kind:'all'}` は従来どおりの全量洗い替え、`{kind:'tags'}` は対象タグのみを
+ * 入れ替える（オンデマンド生成で既存キャッシュを消さないため）。
+ *
+ * タグごとに worktree を切り、**その worktree を解析対象として** TrailGraph を作り、
+ * `generate()` の override へ渡す。`persist: false` により current_code_graphs は汚さない
+ * （保存は `saveReleaseCodeGraph` が行う）。
  *
  * TODO: release_file_analysis / release_function_analysis への保存は将来タスクで対応する。
  * リリースごとの dead code 解析は現時点では未実装（Task 13 スコープ外）。
@@ -489,21 +665,168 @@ export interface AnalyzeReleaseResult {
 export async function runAnalyzeReleaseCodePipeline(
   opts: AnalyzeReleaseOpts,
 ): Promise<AnalyzeReleaseResult> {
-  const { trailDb, codeGraphService, gitRoot, onProgress } = opts;
+  const { trailDb, codeGraphService, gitRoot, compute, scope, onProgress } = opts;
+  const logger = opts.logger ?? NOOP_LOGGER;
+  const repoLabel = opts.repoLabel || path.basename(gitRoot);
+  const git = new ExecFileGitService(gitRoot);
   const startedAt = Date.now();
 
-  onProgress?.('Clearing release code graphs...');
-  trailDb.deleteReleaseCodeGraphs();
-
   onProgress?.('Analyzing release code...');
-  const releaseCount = await trailDb.analyzeReleaseCodeGraphsForce({
-    codeGraphService,
-    gitRoot,
-    onProgress: (msg) => onProgress?.(msg),
-  });
+  const allReleases = trailDb.getReleases();
+  const releases = selectReleases(allReleases, scope, logger);
+
+  onProgress?.('Clearing release code graphs...');
+  if (scope.kind === 'all') {
+    trailDb.deleteReleaseCodeGraphs();
+  } else {
+    // 対象タグのみを消す。全削除にするとオンデマンド生成のたびに既存キャッシュが飛ぶ。
+    // 解析に失敗したタグの古いグラフも消える（洗い替えの意味論を範囲内で維持する）。
+    trailDb.deleteReleaseCodeGraphsForTags(scope.tags);
+  }
+
+  let releaseCount = 0;
+
+  for (const release of releases) {
+    const tag = release.tag;
+    const worktreeRoot = path.join(os.tmpdir(), `trail-cg-release-${tag.replaceAll('/', '-')}`);
+    try {
+      onProgress?.(`Generating code graph for release ${tag}...`);
+      // タグ名を直接渡さず commit hash へ解決してから worktree を作る。タグと同名の
+      // ブランチが存在すると ref 解決が曖昧になり、意図しない断面を解析しうる。
+      const graph = await generateCodeGraphAtCommit({
+        codeGraphService,
+        gitRoot,
+        commitHash: git.getTagCommitHash(tag),
+        worktreeRoot,
+        compute,
+        repoLabel,
+        logger,
+      });
+      if (!graph) {
+        onProgress?.(`Skipping ${tag}: no code graph generated`);
+        continue;
+      }
+      trailDb.saveReleaseCodeGraph(tag, graph);
+      releaseCount++;
+      onProgress?.(`Release ${tag}: code graph saved`);
+    } catch (e) {
+      // onProgress は進捗ストリームへ流れるだけで永続化されない。解析対象がタグごとの
+      // worktree である以上、古いタグが正当に失敗する（tsconfig 欠如・当時の依存構成など）
+      // ことは現実に起こる。戻り値は成功件数しか持たないため、どのタグがなぜ落ちたかは
+      // ログにしか残せない。
+      const reason = e instanceof Error ? e.message : String(e);
+      logger.warn(`[runAnalyzeReleaseCodePipeline] skipped tag=${tag}: ${reason}`);
+      onProgress?.(`Skipping ${tag}: ${reason}`);
+    } finally {
+      cleanupWorktree(gitRoot, worktreeRoot, logger);
+    }
+  }
 
   return {
     releaseCount,
     durationMs: Date.now() - startedAt,
   };
+}
+
+/** リポジトリあたりのコミットスナップショット保持本数の既定。約 60 MB 相当。 */
+export const DEFAULT_COMMIT_CODE_GRAPH_RETENTION = 30;
+
+/** 要求された `repo` に対応する git root が構成に無いことを表す。呼び元は 400 で断る。 */
+export class UnknownRepoError extends Error {
+  constructor(readonly repoName: string) {
+    super(`unknown repo: ${repoName}`);
+    this.name = 'UnknownRepoError';
+  }
+}
+
+/**
+ * `repo` 名から解析対象の git root を選ぶ。
+ *
+ * リポジトリ ID は git root の basename で作られている（`CodeGraphService` の
+ * `repositories`）。**渡された `repo` を検証せず primary の git root で解析すると、
+ * 別リポジトリ名で primary の断面が `commit_code_graphs` に残る**（保存先は `repo` が
+ * 決めるのに、解析対象は gitRoot が決めるため）。一致が無ければ null を返し、
+ * 呼び元が要求を拒否する。
+ */
+export function resolveGitRootForRepo(
+  gitRoots: readonly string[],
+  repoName: string,
+): string | null {
+  for (const root of gitRoots) {
+    if (path.basename(root) === repoName) return root;
+  }
+  return null;
+}
+
+export interface AnalyzeCommitOpts {
+  trailDb: TrailDatabase;
+  codeGraphService: CodeGraphService;
+  gitRoot: string;
+  /** 対象コミット。省略可能にしない（渡し忘れが「現在の断面を過去として保存」に化ける）。 */
+  sha: string;
+  /** 保存先リポジトリ名。`commit_code_graphs` の PK 構成列で、省略すると別リポへ書き得る。 */
+  repoName: string;
+  /** TS 解析の実行方式。release 経路と同じく省略不可。 */
+  compute: AnalyzeComputeMode;
+  /** グラフ内のリポジトリ名。省略時は gitRoot の basename を使う。 */
+  repoLabel?: string;
+  /** リポジトリあたりの保持本数。既定 30。 */
+  retentionPerRepo?: number;
+  logger?: Logger;
+  onProgress?: (msg: string) => void;
+}
+
+export interface AnalyzeCommitResult {
+  sha: string;
+  nodeCount: number;
+  edgeCount: number;
+  durationMs: number;
+}
+
+/**
+ * 指定コミット 1 本のコードグラフを生成して保存する（Snapshot per Commit）。
+ *
+ * **1 コミットのみ。** 複数指定も全量遡及も受けない（実測 5,102 コミット × 約 2 MB ≒ 10 GB）。
+ * 指定 sha 以外のスナップショットは消さない。保持上限の超過分だけが古い順に落ちる。
+ *
+ * 失敗（tsconfig 欠如・当時の依存構成・不正な sha）は握りつぶさず throw する。release 経路は
+ * 全量ループなので 1 タグの失敗を warn で流して続行するが、こちらは 1 件の要求に対する
+ * 1 件の応答であり、失敗を成功と区別できないと UI が「生成したのに出ない」状態になる。
+ */
+export async function runAnalyzeCommitCodePipeline(
+  opts: AnalyzeCommitOpts,
+): Promise<AnalyzeCommitResult> {
+  const { trailDb, codeGraphService, gitRoot, sha, repoName, compute, onProgress } = opts;
+  const logger = opts.logger ?? NOOP_LOGGER;
+  const repoLabel = opts.repoLabel || path.basename(gitRoot);
+  const retentionPerRepo = opts.retentionPerRepo ?? DEFAULT_COMMIT_CODE_GRAPH_RETENTION;
+  const startedAt = Date.now();
+  // sha はそのままパスへ入るため、worktree 名に使う前にパス区切りを潰す。
+  const worktreeRoot = path.join(os.tmpdir(), `trail-cg-commit-${sha.replaceAll('/', '-')}`);
+
+  onProgress?.(`Generating code graph for commit ${sha.slice(0, 8)}...`);
+  try {
+    const graph = await generateCodeGraphAtCommit({
+      codeGraphService,
+      gitRoot,
+      commitHash: sha,
+      worktreeRoot,
+      compute,
+      repoLabel,
+      logger,
+    });
+    if (!graph) {
+      throw new Error(`no code graph generated for commit ${sha}`);
+    }
+    trailDb.saveCommitCodeGraph(sha, repoName, graph, retentionPerRepo);
+    onProgress?.(`Commit ${sha.slice(0, 8)}: code graph saved`);
+    return {
+      sha,
+      nodeCount: graph.nodes.length,
+      edgeCount: graph.edges.length,
+      durationMs: Date.now() - startedAt,
+    };
+  } finally {
+    cleanupWorktree(gitRoot, worktreeRoot, logger);
+  }
 }

@@ -9,7 +9,7 @@ export type {
   ChangedFile,
   IFileChangeResolver,
 } from './domain/port/IFileChangeResolver';
-export type { ISpecDocIndex, SpecDocRef } from './domain/port/ISpecDocIndex';
+export type { ISpecDocIndex, SpecDocRef, SpecUpdateStatus } from './domain/port/ISpecDocIndex';
 
 // Domain layer
 export * from './domain';

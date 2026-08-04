@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import { createHash } from 'node:crypto';
 
 import type { Database as BetterSqlite3Database } from 'better-sqlite3';
@@ -70,6 +71,7 @@ import {
   CREATE_PR_REVIEW_INDEXES,
   CREATE_PR_REVIEWS,
   CREATE_RELEASE_CODE_GRAPH_COMMUNITIES,
+  CREATE_COMMIT_CODE_GRAPHS,
   CREATE_RELEASE_CODE_GRAPHS,
   CREATE_RELEASE_COVERAGE,
   CREATE_RELEASE_FILE_ANALYSIS,
@@ -202,6 +204,7 @@ export interface ImportAllLepOptions {
     currentCoverageImported?: number;
   };
 }
+import type { FileSessionCommitRow } from '@anytime-markdown/trail-core/authorHeatmap';
 import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
 import { buildFeatureMatrixFromCommunities } from '@anytime-markdown/trail-core/c4';
 import { type CodeGraph, composeCodeGraph, splitCodeGraph, type StoredCommunity } from '@anytime-markdown/trail-core/codeGraph';
@@ -254,6 +257,31 @@ export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
  * 永続化層は 1 テーブルに正規化するため指標列を null 許容の平坦な形で持つ。
  * kind と指標の整合は CREATE TABLE の CHECK が担保する。
  */
+/**
+ * Time Scrubber の目盛り 1 件。リリースと、その時点の履歴版コードグラフの在庫有無。
+ * グラフ本体は含めない（`listReleaseCodeGraphAvailability` の docstring を参照）。
+ */
+export interface ReleaseCodeGraphAvailability {
+  readonly tag: string;
+  /** UTC ISO 8601。目盛りの並び順の基準（release_id 順ではない）。 */
+  readonly releasedAt: string;
+  readonly hasGraph: boolean;
+}
+
+/**
+ * Time Scrubber をコミット粒度へズームしたときの目盛り 1 件。
+ * こちらもグラフ本体は含めない（区間に数百件並ぶため）。
+ */
+export interface CommitCodeGraphAvailability {
+  readonly sha: string;
+  readonly shortSha: string;
+  /** UTC ISO 8601。目盛りの並び順の基準。 */
+  readonly committedAt: string;
+  /** コミットメッセージの 1 行目。 */
+  readonly subject: string;
+  readonly hasGraph: boolean;
+}
+
 export interface BoundaryDriftWarningRow {
   readonly id: number;
   readonly repoId: number;
@@ -2077,6 +2105,25 @@ export class TrailDatabase {
    * 未知 tag は null。flip 後は子テーブルの FK は release_id なので、tag を受ける外部 API は
    * 必ずこのヘルパで release_id へ変換してから子テーブルへ書き込む / フィルタする。
    */
+  /**
+   * repo 名 + tag から release_id を引く。
+   *
+   * `releases` の一意制約は `UNIQUE (repo_id, tag)` なので、**tag だけでは一意に定まらない**
+   * （別リポジトリが同じ `v1.0.0` を持てる）。リポジトリを跨いで取り違えると「選んだのと違う
+   * リポジトリの履歴グラフが出る」形で現れ、エラーにならない。repo が分かる経路では必ず
+   * こちらを使う。
+   */
+  private releaseIdForRepoTag(db: Database, repoName: string, tag: string): number | null {
+    const res = db.exec(
+      `SELECT r.release_id FROM releases r
+         JOIN repos repo ON repo.repo_id = r.repo_id
+        WHERE repo.repo_name = ? AND r.tag = ? LIMIT 1`,
+      [repoName, tag],
+    );
+    const id = res[0]?.values?.[0]?.[0];
+    return id == null ? null : Number(id);
+  }
+
   private releaseIdForTag(db: Database, tag: string): number | null {
     const res = db.exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
     const id = res[0]?.values?.[0]?.[0];
@@ -3720,6 +3767,7 @@ export class TrailDatabase {
     this.migrateTrailGraphsTable(db);
     db.run(CREATE_CURRENT_CODE_GRAPHS);
     db.run(CREATE_RELEASE_CODE_GRAPHS);
+    db.run(CREATE_COMMIT_CODE_GRAPHS);
     db.run(CREATE_CODE_DECISION_COMMENTS);
     db.run(CREATE_CURRENT_CODE_GRAPH_COMMUNITIES);
     db.run(CREATE_RELEASE_CODE_GRAPH_COMMUNITIES);
@@ -4342,7 +4390,7 @@ export class TrailDatabase {
       let skipped = 0;
       for (const { hash, repoId } of commits) {
         try {
-          const out = execFileSync('git', [
+          const out = execFileSync(resolveGitExecutable(), [
             'show', '--format=', '--numstat', hash,
           ], { encoding: 'utf-8', timeout: 5_000, cwd: gitRoot });
           for (const line of out.split('\n')) {
@@ -5914,7 +5962,7 @@ export class TrailDatabase {
     // Phase A: Session-Id trailer exact match
     try {
       const grepPattern = `^Session-Id: ${sessionId}$`;
-      const phaseAOutput = execFileSync('git', [
+      const phaseAOutput = execFileSync(resolveGitExecutable(), [
         'log', '--all',
         '--extended-regexp', `--grep=${grepPattern}`,
         `--format=${logFormat}`,
@@ -5930,7 +5978,7 @@ export class TrailDatabase {
     let logOutput = '';
     const useBranch = gitBranch && gitBranch.trim() !== '';
     try {
-      logOutput = execFileSync('git', [
+      logOutput = execFileSync(resolveGitExecutable(), [
         'log', useBranch ? gitBranch : '--all',
         `--after=${startTime}`,
         `--before=${bufferedEnd}`,
@@ -5939,7 +5987,7 @@ export class TrailDatabase {
       ], { ...execOpts, cwd: gitRoot });
     } catch {
       try {
-        logOutput = execFileSync('git', [
+        logOutput = execFileSync(resolveGitExecutable(), [
           'log', '--all',
           `--after=${startTime}`,
           `--before=${bufferedEnd}`,
@@ -6004,7 +6052,7 @@ export class TrailDatabase {
     let linesDeleted = 0;
     const filePaths: string[] = [];
     try {
-      const numstat = execFileSync('git', [
+      const numstat = execFileSync(resolveGitExecutable(), [
         'diff', '--numstat', `${hash}^..${hash}`,
       ], { ...execOpts, cwd: gitRoot });
       for (const line of numstat.split('\n')) {
@@ -7685,9 +7733,16 @@ export class TrailDatabase {
     this.save();
   }
 
-  getReleaseCodeGraph(tag: string): CodeGraph | null {
+  /**
+   * リリース時点の履歴版コードグラフを取得する。
+   *
+   * `repoName` は省略可能にしない。tag だけでは別リポジトリの同名タグと区別できず
+   * （`releaseIdForRepoTag` 参照）、渡し忘れが「別リポジトリのグラフが出る」形で
+   * 静かに現れるため、型で塞ぐ。
+   */
+  getReleaseCodeGraph(tag: string, repoName: string): CodeGraph | null {
     const db = this.ensureDb();
-    const releaseId = this.releaseIdForTag(db, tag);
+    const releaseId = this.releaseIdForRepoTag(db, repoName, tag);
     if (releaseId == null) return null;
     const graphResult = db.exec(
       'SELECT graph_json FROM release_code_graphs WHERE release_id = ?',
@@ -7711,6 +7766,198 @@ export class TrailDatabase {
     return composeCodeGraph(stored, communities);
   }
 
+  /**
+   * Time Scrubber の目盛り用に、リリースと履歴版コードグラフの在庫有無を列挙する。
+   *
+   * `graph_json` は読まない（1 本 2 MB あり、98 本を載せると応答が 200 MB になる）。
+   * 並びは `released_at` 昇順で固定する。`release_id` 昇順とは一致せず（実測で v1.15.0 が
+   * v1.14.0 より若い ID を持つ）、ID 順に並べると時間軸が逆行する目盛りができる。
+   * 同時刻はタグ名で安定させる。
+   *
+   * `releases.repo_id` は nullable（repos 行が消えると `ON DELETE SET NULL`）で、内部結合の
+   * ため **repo_id が NULL のリリースは目盛りから落ちる**。エラーにはならず「そのリリースは
+   * 無い」ように見えるので、件数が想定と合わないときは NULL 行を疑う。
+   */
+  listReleaseCodeGraphAvailability(repoName: string): ReleaseCodeGraphAvailability[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT r.tag, r.released_at, (g.release_id IS NOT NULL) AS has_graph
+         FROM releases r
+         JOIN repos repo ON repo.repo_id = r.repo_id
+         LEFT JOIN release_code_graphs g ON g.release_id = r.release_id
+        WHERE repo.repo_name = ?
+        ORDER BY r.released_at ASC, r.tag ASC`,
+      [repoName],
+    );
+    return (result[0]?.values ?? []).map((row) => ({
+      tag: asText(row[0] ?? ''),
+      releasedAt: asText(row[1] ?? ''),
+      hasGraph: Number(row[2] ?? 0) === 1,
+    }));
+  }
+
+  /**
+   * 任意コミット時点のコードグラフを取得する（Snapshot per Commit）。
+   *
+   * `repoName` は省略可能にしない。`commit_code_graphs` の PK は `(repo_id, commit_sha)` で、
+   * repo を渡し忘れると別リポジトリのグラフを掴み得る（release 側で同じ欠陥を出した）。
+   */
+  getCommitCodeGraph(sha: string, repoName: string): CodeGraph | null {
+    const db = this.ensureDb();
+    const repoId = this.repoIdForNameReadonly(repoName);
+    const result = db.exec(
+      'SELECT graph_json FROM commit_code_graphs WHERE repo_id = ? AND commit_sha = ?',
+      [repoId, sha],
+    );
+    const json = result[0]?.values?.[0]?.[0];
+    if (typeof json !== 'string') return null;
+    return JSON.parse(json) as CodeGraph;
+  }
+
+  /**
+   * コミット時点のコードグラフを保存し、保持上限を超えた分を古い順に落とす。
+   *
+   * SHORTCUT: communities を別テーブルへ分けず graph_json へ丸ごと入れる.
+   * ceiling: release / current 側が持つ AI 生成コミュニティ名の引き継ぎ（stable_key による
+   * 名寄せ）はコミット粒度では効かない. upgrade: コミットスナップショットにも名前付き
+   * コミュニティを出すことになったら release 側と同じ 2 テーブル構成へ移す.
+   *
+   * @param retentionPerRepo リポジトリあたりの保持本数。超過分は行の書き込み時刻（`updated_at`）が
+   *   古い順に削除する。0 以下・非有限値は「上限なし（1 本も削除しない）」を意味する
+   */
+  saveCommitCodeGraph(
+    sha: string,
+    repoName: string,
+    graph: CodeGraph,
+    retentionPerRepo: number,
+  ): void {
+    const db = this.ensureDb();
+    this.maybeSnapshotKb('commit_code_graphs');
+    const repoId = this.repoIdForName(repoName);
+    db.run(
+      `INSERT OR REPLACE INTO commit_code_graphs
+         (repo_id, commit_sha, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+      [repoId, sha, JSON.stringify(graph), graph.generatedAt],
+    );
+    this.evictCommitCodeGraphs(db, repoId, repoName, retentionPerRepo);
+    this.save();
+  }
+
+  /**
+   * 保持上限を超えたコミットスナップショットを、行の書き込み時刻が古い順に落とす。
+   *
+   * 参照時刻ではなく生成時刻で落とす（LRU にしない）。LRU は読み取り経路に書き込みを
+   * 持ち込むため。よく見るコミットでも古ければ消える点は仕様 §10 に既知の穴として記載。
+   * 削除は件数と sha をログに残す（黙って消さない）。
+   *
+   * 順序は `generated_at` ではなく **`updated_at`（行の書き込み時刻）と rowid** で決める。
+   * `generated_at` はグラフ自身が名乗る生成時刻で、同じ値を持つ 2 本が並ぶと順序が
+   * sha の辞書順に落ちる（どちらが古いかと無関係に消える）。`updated_at` は保存時に
+   * DB 側の時計で入れ、同一ミリ秒の同着は挿入順（rowid）で解く。
+   */
+  private evictCommitCodeGraphs(
+    db: Database,
+    repoId: number,
+    repoName: string,
+    retentionPerRepo: number,
+  ): void {
+    if (!Number.isFinite(retentionPerRepo) || retentionPerRepo <= 0) return;
+    const result = db.exec(
+      `SELECT commit_sha FROM commit_code_graphs
+        WHERE repo_id = ?
+        ORDER BY updated_at DESC, rowid DESC
+        LIMIT -1 OFFSET ?`,
+      [repoId, retentionPerRepo],
+    );
+    const evicted = (result[0]?.values ?? []).map((row) => asText(row[0] ?? ''));
+    if (evicted.length === 0) return;
+    const stmt = db.prepare('DELETE FROM commit_code_graphs WHERE repo_id = ? AND commit_sha = ?');
+    for (const sha of evicted) stmt.run([repoId, sha]);
+    stmt.free();
+    this.logger.info(
+      `[saveCommitCodeGraph] evicted ${evicted.length} commit code graph(s) for repo=${repoName} ` +
+        `(retention=${retentionPerRepo}): ${evicted.join(', ')}`,
+    );
+  }
+
+  /**
+   * リリース区間内のコミットを、コミットスナップショットの在庫有無つきで列挙する。
+   *
+   * 母集合は `session_commits`（Trail が把握しているコミット）で、git は叩かない。
+   * サーバが作業ツリーの状態に依存しないようにするためで、**Trail が把握していない
+   * コミットは目盛りに出ない**（仕様 §10 の既知の穴）。
+   *
+   * 区間は `released_at` で切る（タグの到達可能性ではない）。`fromTag` を省略すると
+   * 最古から `toTag` までになる。`toTag` / `fromTag` が `releases` に無ければ空配列を返す
+   * （「全件」へ広げると、打ち間違いが数千件の目盛りとして現れる）。
+   *
+   * 境界は ISO 8601 文字列の比較で判定する。`committed_at` / `released_at` の CHECK は
+   * ミリ秒あり・なしの双方を許すため、同一秒内で桁が異なると（`...:00Z` と `...:00.500Z`）
+   * 文字列順が実時刻と逆転しうる。実データは双方ミリ秒付きで書かれる前提に依存している。
+   */
+  listCommitCodeGraphAvailability(
+    repoName: string,
+    toTag: string,
+    fromTag?: string,
+  ): CommitCodeGraphAvailability[] {
+    const db = this.ensureDb();
+    const repoId = this.repoIdForNameReadonly(repoName);
+    const toAt = this.releasedAtForRepoTag(db, repoId, toTag);
+    if (toAt == null) return [];
+    let fromAt: string | null = null;
+    if (fromTag != null) {
+      fromAt = this.releasedAtForRepoTag(db, repoId, fromTag);
+      // 指定された下端が引けないなら区間が決まらない。下限なし（最古から）へ縮退させると、
+      // タグの打ち間違いが「区間の全コミット」でなく「リポジトリの全コミット」を返す。
+      // 上端が引けないときに空を返すのと同じ扱いにする。
+      if (fromAt == null) return [];
+    }
+
+    const params: Array<string | number> = [repoId, toAt];
+    let lowerBound = '';
+    if (fromAt != null) {
+      lowerBound = ' AND sc.committed_at > ?';
+      params.push(fromAt);
+    }
+    const result = db.exec(
+      `SELECT sc.commit_hash,
+              MIN(sc.committed_at) AS committed_at,
+              MIN(sc.commit_message) AS commit_message,
+              MAX(g.commit_sha IS NOT NULL) AS has_graph
+         FROM session_commits sc
+         LEFT JOIN commit_code_graphs g
+                ON g.repo_id = sc.repo_id AND g.commit_sha = sc.commit_hash
+        WHERE sc.repo_id = ?
+          AND sc.committed_at IS NOT NULL
+          AND sc.committed_at != ''
+          AND sc.committed_at <= ?${lowerBound}
+        GROUP BY sc.commit_hash
+        ORDER BY committed_at ASC, sc.commit_hash ASC`,
+      params,
+    );
+    return (result[0]?.values ?? []).map((row) => {
+      const sha = asText(row[0] ?? '');
+      return {
+        sha,
+        shortSha: sha.slice(0, 8),
+        committedAt: asText(row[1] ?? ''),
+        subject: asText(row[2] ?? '').split('\n')[0] ?? '',
+        hasGraph: Number(row[3] ?? 0) === 1,
+      };
+    });
+  }
+
+  /** `releases` から `released_at` を引く。repo 内でタグは一意（UNIQUE (repo_id, tag)）。 */
+  private releasedAtForRepoTag(db: Database, repoId: number, tag: string): string | null {
+    const result = db.exec(
+      'SELECT released_at FROM releases WHERE repo_id = ? AND tag = ?',
+      [repoId, tag],
+    );
+    const value = result[0]?.values?.[0]?.[0];
+    return typeof value === 'string' && value !== '' ? value : null;
+  }
+
   deleteCurrentCodeGraphs(): void {
     const db = this.ensureDb();
     // 意図的な全消去のため Shrink Audit は掛けない（常に誤警報になる）。snapshot のみ。
@@ -7729,62 +7976,27 @@ export class TrailDatabase {
     this.save();
   }
 
-  analyzeReleaseCodeGraphsForce(opts: {
-    codeGraphService: { generate: (onProgress?: (phase: string, percent: number) => void) => Promise<CodeGraph[]> };
-    gitRoot: string;
-    onProgress?: (msg: string) => void;
-  }): Promise<number> {
-    const releases = this.getReleases();
-    if (releases.length === 0) return Promise.resolve(0);
-
-    const git = new ExecFileGitService(opts.gitRoot);
-    let count = 0;
-
-    const runNext = async (i: number): Promise<number> => {
-      if (i >= releases.length) return count;
-      const release = releases[i];
-      const tag = release.tag;
-      const tmpDir = path.join(os.tmpdir(), `trail-cg-release-${tag.replaceAll('/', '-')}`);
-      try {
-        opts.onProgress?.(`Generating code graph for release ${tag}...`);
-        if (fs.existsSync(tmpDir)) {
-          try {
-            execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], { cwd: opts.gitRoot, stdio: 'pipe' });
-          } catch {
-            try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
-          }
-        }
-        const commitHash = git.getTagCommitHash(tag);
-        execFileSync('git', ['worktree', 'add', '--detach', tmpDir, commitHash], { cwd: opts.gitRoot, stdio: 'pipe' });
-        const worktreeNodeModules = path.join(tmpDir, 'node_modules');
-        if (!fs.existsSync(worktreeNodeModules)) {
-          fs.symlinkSync(path.join(opts.gitRoot, 'node_modules'), worktreeNodeModules, 'dir');
-        }
-        // generate() は per-repo の CodeGraph 配列を返す。release_code_graphs は
-        // tag 単位（リポジトリ単位ではない）に 1 グラフを保存する設計のため、
-        // 先頭リポジトリのグラフを採用する。空配列ならこの tag はスキップする。
-        const graphs = await opts.codeGraphService.generate();
-        const graph = graphs[0];
-        if (!graph) {
-          opts.onProgress?.(`Skipping ${tag}: no code graph generated`);
-          return runNext(i + 1);
-        }
-        this.saveReleaseCodeGraph(tag, graph);
-        count++;
-        opts.onProgress?.(`Release ${tag}: code graph saved`);
-      } catch (e) {
-        opts.onProgress?.(`Skipping ${tag}: ${e instanceof Error ? e.message : String(e)}`);
-      } finally {
-        try {
-          execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], { cwd: opts.gitRoot, stdio: 'pipe' });
-        } catch {
-          try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
-        }
-      }
-      return runNext(i + 1);
-    };
-    return runNext(0);
+  /**
+   * 指定タグ分の release コードグラフだけを削除する（部分洗い替え）。
+   *
+   * 遡及生成をタグ指定で走らせるとき、`deleteReleaseCodeGraphs`（全削除）を使うと
+   * 1 本生成するたびに他タグのキャッシュが消える。`releases` に無いタグは解決できず
+   * 対象外になるため、渡しても no-op で済む。
+   */
+  deleteReleaseCodeGraphsForTags(tags: readonly string[]): void {
+    const db = this.ensureDb();
+    if (tags.length === 0) return;
+    // 部分削除なので Shrink Audit の対象にはしない（意図した縮小である）。snapshot のみ。
+    this.maybeSnapshotKb('release_code_graphs');
+    for (const tag of tags) {
+      const releaseId = this.releaseIdForTag(db, tag);
+      if (releaseId == null) continue;
+      db.run('DELETE FROM release_code_graph_communities WHERE release_id = ?', [releaseId]);
+      db.run('DELETE FROM release_code_graphs WHERE release_id = ?', [releaseId]);
+    }
+    this.save();
   }
+
 
   /**
    * 互換ラッパー: id='current' なら current_graphs、それ以外は release_graphs から取得する。
@@ -8167,6 +8379,45 @@ export class TrailDatabase {
         commitHash: asText(r[2] ?? ''),
       }))
       .filter((r) => r.filePath && r.author && r.commitHash);
+  }
+
+  /**
+   * ファイル×セッション×コミットの生行を返す（Author Heatmap 算出の入力）。
+   *
+   * `fetchFileAuthorCommits` との違いは著者の単位で、git author ではなく `session_id` を返す。
+   * 一意化と最終編集の決定は computeAuthorHeatmap 側で行うため重複を許して返す。
+   *
+   * commit_files との結合に `repo_id` を含める: commit_files の主キーは
+   * (repo_id, commit_hash, file_path) で、同一 commit_hash が複数リポに存在し得る。
+   * 結合条件を commit_hash だけにすると他リポのファイルが混ざる。
+   */
+  fetchFileSessionCommits(options: { repo?: string }): FileSessionCommitRow[] {
+    const db = this.ensureDb();
+    const { repo } = options;
+    const conditions: string[] = ["sc.session_id <> ''"];
+    const args: (string | number)[] = [];
+    if (repo) {
+      // 純粋 read のため repoIdForNameReadonly で解決 (未登録は -1 → 空結果)。
+      conditions.push('sc.repo_id = ?');
+      args.push(this.repoIdForNameReadonly(repo));
+    }
+    const result = db.exec(
+      `SELECT cf.file_path, sc.session_id, sc.commit_hash, sc.committed_at
+       FROM session_commits sc
+       JOIN commit_files cf
+         ON cf.commit_hash = sc.commit_hash AND cf.repo_id = sc.repo_id
+       WHERE ${conditions.join(' AND ')}`,
+      args,
+    );
+    const values = result[0]?.values ?? [];
+    return values
+      .map((r) => ({
+        filePath: asText(r[0] ?? ''),
+        sessionId: asText(r[1] ?? ''),
+        commitHash: asText(r[2] ?? ''),
+        committedAt: asText(r[3] ?? ''),
+      }))
+      .filter((r) => r.filePath && r.sessionId && r.commitHash);
   }
 
   /**
@@ -11880,7 +12131,7 @@ export class TrailDatabase {
   /** Remove a git worktree directory, falling back to fs.rmSync on error. */
   private removeWorktreeDir(tmpDir: string, gitRoot: string): void {
     try {
-      execFileSync('git', ['worktree', 'remove', tmpDir, '--force'], { cwd: gitRoot, stdio: 'pipe' });
+      execFileSync(resolveGitExecutable(), ['worktree', 'remove', tmpDir, '--force'], { cwd: gitRoot, stdio: 'pipe' });
     } catch {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
     }
@@ -11902,7 +12153,7 @@ export class TrailDatabase {
     if (fs.existsSync(tmpDir)) this.removeWorktreeDir(tmpDir, gitRoot);
 
     const commitHash = git.getTagCommitHash(tag);
-    execFileSync('git', ['worktree', 'add', '--detach', tmpDir, commitHash], { cwd: gitRoot, stdio: 'pipe' });
+    execFileSync(resolveGitExecutable(), ['worktree', 'add', '--detach', tmpDir, commitHash], { cwd: gitRoot, stdio: 'pipe' });
 
     const worktreeTsconfig = path.join(tmpDir, 'tsconfig.json');
     if (!fs.existsSync(worktreeTsconfig)) {

@@ -25,9 +25,7 @@ import { ProgressRule } from './components/ProgressRule';
 import { PullQuote } from './components/PullQuote';
 import { SpotifyCharts } from './components/SpotifyCharts';
 import { Ticker } from './components/Ticker';
-import { TodaysNews } from './components/TodaysNews';
 import { WeatherForecast } from './components/WeatherForecast';
-import { WsjNews } from './components/WsjNews';
 import { bodoni, jetbrains, shippori, yujiBoku } from './fonts';
 import styles from './press.module.css';
 
@@ -49,16 +47,29 @@ const MarkdownViewerEmbed = dynamic(
 const MARKDOWN_PREVIEW_HEIGHT = 'clamp(300px, 42vh, 520px)';
 
 /**
- * ロードマップ項目の実装状況。実装が進んだら status を更新する（最終突合: 2026-07-14）。
+ * ロードマップ項目の実装状況。実装が進んだら status を更新する（最終突合: 2026-08-03）。
  * partial は「説明文の主要機能の一部のみ稼働」を指す。
- * - trail16: 衝突検知は稼働。事前申告制の飛行計画は未実装
- * - trail18: 5 層防御のうち pre-commit フックと CI ゲートのみ稼働
+ * - trail16: 衝突検知（airspace クレーム台帳）と Section Lock は稼働。事前申告制の飛行計画は
+ *   未着手だが、原案要素（file_locks / worktree_registry / 自動 WorktreeAllocator・Locking・
+ *   Priority Control）は 2026-08-02 に棄却済みで、実装予定として残っているわけではない
+ * - trail17: Kill Switch の手動 / 自動発動（ループ検知 10 連続）・セーフポイント・非破壊
+ *   ロールバックは稼働（Phase 5 S1〜S5・実機受入合格）。ODD 逸脱と自己診断失敗を条件とする
+ *   MRM 自律発動と管制通知は Phase 7 で未実装（trail-aircraft-requirements.ja.md §3.4）
+ * - trail18: 型シグネチャ・テスト規約・pre-commit フック・ランタイム監視（Pre-write Snapshot
+ *   と書込後のノード / エッジ差分検査）は稼働。テスト時の本番 DB 書込ガードが部分実装
+ * - trail20: ODD 境界解決・カバレッジゲート（shadow mode）・接地判断の並走記録は稼働だが、
+ *   説明文の主機能である ODD 内の自律承認が未着手のため planned に据え置く
+ * - trail27〜29: ロードマップにありながら未掲載だった要件を製品価値の粒度でまとめたもの。
+ *   trail27 は「未実装の時間軸要件」の Trace Waterfall / Sequence Numbering / Particle
+ *   Animation と組み合わせ要件の Runtime Hotspot / Static-Runtime Drift Detection、
+ *   trail28 は機体側 §3.3 Self-Diagnostics、trail29 は Phase 未割当の Architectural Drift
+ *   Detection と組み合わせ要件の Architectural Alignment with Runtime Verification に対応する
  */
 const ROADMAP_ENTRIES: readonly RoadmapEntry[] = [
   { key: 'trail14', status: 'planned' },
   { key: 'trail15', status: 'shipped' },
   { key: 'trail16', status: 'partial' },
-  { key: 'trail17', status: 'planned' },
+  { key: 'trail17', status: 'partial' },
   { key: 'trail18', status: 'partial' },
   { key: 'trail19', status: 'planned' },
   { key: 'trail20', status: 'planned' },
@@ -68,6 +79,9 @@ const ROADMAP_ENTRIES: readonly RoadmapEntry[] = [
   { key: 'trail24', status: 'shipped' },
   { key: 'trail25', status: 'planned' },
   { key: 'trail26', status: 'planned' },
+  { key: 'trail27', status: 'planned' },
+  { key: 'trail28', status: 'planned' },
+  { key: 'trail29', status: 'planned' },
 ];
 
 export function PressBody() {
@@ -161,8 +175,6 @@ export function PressBody() {
         }
       />
       <PullQuote />
-      <TodaysNews />
-      <WsjNews />
       <PressReports />
       <GithubTrending />
       <SpotifyCharts />

@@ -35,10 +35,13 @@ function makeDeps(params: {
   readonly files: readonly ChangedFile[];
   readonly specsByElement?: Readonly<Record<string, readonly SpecDocRef[]>>;
   readonly updatedSpecPaths?: readonly string[];
+  /** 取込欠落で判定できない設計書（wasUpdatedIn が 'unknown' を返す） */
+  readonly unknownSpecPaths?: readonly string[];
   readonly c4Elements?: readonly C4Element[];
 }): AlignmentDeps {
   const specsByElement = params.specsByElement ?? {};
   const updatedSpecPaths = new Set(params.updatedSpecPaths ?? []);
+  const unknownSpecPaths = new Set(params.unknownSpecPaths ?? []);
 
   return {
     c4Elements: params.c4Elements ?? defaultElements,
@@ -47,7 +50,10 @@ function makeDeps(params: {
     },
     specs: {
       findByC4Element: async (elementId: string) => specsByElement[elementId] ?? [],
-      wasUpdatedIn: async (specPath: string) => updatedSpecPaths.has(specPath),
+      wasUpdatedIn: async (specPath: string) => {
+        if (unknownSpecPaths.has(specPath)) return 'unknown';
+        return updatedSpecPaths.has(specPath) ? 'updated' : 'not-updated';
+      },
     },
   };
 }
@@ -128,6 +134,34 @@ describe('checkArchitecturalAlignment', () => {
         specPath,
         changedFiles: ['packages/trail-core/src/domain/usecase/Foo.ts'],
         reason: expect.any(String),
+      },
+    ]);
+  });
+
+  it('reports unknown (not stale) when the spec repository commits are not ingested', async () => {
+    const specPath = 'spec/31.trail/02.trail-core/trail-core.ja.md';
+    const report = await checkArchitecturalAlignment(
+      makeDeps({
+        files: [
+          changedFile('packages/trail-core/src/domain/usecase/Foo.ts', {
+            addedExportLines: 1,
+          }),
+        ],
+        specsByElement: {
+          'pkg_trail-core': [{ specPath, c4Scope: ['pkg_trail-core'] }],
+        },
+        unknownSpecPaths: [specPath],
+      }),
+      sessionInput,
+    );
+
+    expect(report.findings).toEqual([
+      {
+        status: 'unknown',
+        elementId: 'pkg_trail-core',
+        specPath,
+        changedFiles: ['packages/trail-core/src/domain/usecase/Foo.ts'],
+        reason: expect.stringContaining('missing from trail.db'),
       },
     ]);
   });

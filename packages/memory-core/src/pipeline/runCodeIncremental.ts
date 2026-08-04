@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { fromTrailGraph } from '../ingest/code/fromTrailGraph';
 import { ingestAstFacts, type AstFactInput } from '../ingest/code/astFunctionLevel';
@@ -176,7 +177,7 @@ export async function runCodeIncremental(opts: {
   // ── 4. git rev-parse HEAD ────────────────────────────────────────────────
   let commitSha: string | null = null;
   try {
-    commitSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: gitRoot, encoding: 'utf8' }).trim();
+    commitSha = execFileSync(resolveGitExecutable(), ['rev-parse', 'HEAD'], { cwd: gitRoot, encoding: 'utf8' }).trim();
   } catch (err) {
     logger.error(`[anytime-memory] runCodeIncremental: failed to resolve HEAD commit`, err);
   }

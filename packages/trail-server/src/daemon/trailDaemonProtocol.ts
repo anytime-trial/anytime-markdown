@@ -47,6 +47,11 @@ export interface SerializableAnalyzeAllConfig {
   readonly gitRoot: string;
   readonly statePath?: string;
   readonly gitRoots?: readonly string[];
+  /**
+   * コミット取込だけを行う追加リポジトリ (設計書リポジトリ等)。コードグラフ・カバレッジ・
+   * リリース解析の対象には含めない。詳細は `AnalyzeAllRunnerOptions.commitWatchRoots`。
+   */
+  readonly commitWatchRoots?: readonly string[];
   readonly claudeProjectsDir?: string;
   readonly codexSessionsDir?: string;
   readonly stage: 'disabled' | 'sources' | 'primary' | 'memory' | 'primary+memory' | 'all';
@@ -106,6 +111,11 @@ export interface SerializableAnalyzeCurrentCodeRequest {
 export interface SerializableAnalyzeReleaseCodeRequest {
   /** リリース解析のベースとなる git リポジトリのルートの絶対パス。 */
   readonly gitRoot: string;
+  /**
+   * 対象タグ。省略時は全量洗い替え、指定時はそのタグのみ削除・再生成する。
+   * 空配列は「全量」ではなく「対象 0 件」を意味する。
+   */
+  readonly tags?: readonly string[];
 }
 
 /**

@@ -2,7 +2,7 @@
   "name": "anytime-history",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -445,6 +445,7 @@
     "test": "jest --maxWorkers=1"
   },
   "dependencies": {
+    "@anytime-markdown/trail-core": "*",
     "@anytime-markdown/vscode-common": "*",
     "typescript": "6.0.3"
   },

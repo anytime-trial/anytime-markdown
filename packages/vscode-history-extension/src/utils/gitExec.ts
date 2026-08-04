@@ -1,5 +1,6 @@
 import { execFile, type ExecFileOptions } from 'node:child_process';
 import { promisify } from 'node:util';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 
 const execFileP = promisify(execFile);
 
@@ -35,7 +36,7 @@ export async function gitExec(
 ): Promise<GitExecResult> {
   const { encoding = 'utf-8', maxBuffer = 10 * 1024 * 1024, ...rest } = options;
   try {
-    const { stdout, stderr } = await execFileP('git', args as string[], {
+    const { stdout, stderr } = await execFileP(resolveGitExecutable(), args as string[], {
       ...rest,
       encoding,
       maxBuffer,

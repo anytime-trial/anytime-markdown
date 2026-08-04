@@ -33,7 +33,7 @@ describe('fetchApiJson', () => {
     });
     mockFetch.mockResolvedValue({ ok: false, status: 404, json });
 
-    await expect(fetchApiJson('/api/news')).rejects.toThrow('/api/news: HTTP 404');
+    await expect(fetchApiJson('/api/weather')).rejects.toThrow('/api/weather: HTTP 404');
     expect(json).not.toHaveBeenCalled();
   });
 

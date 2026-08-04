@@ -128,6 +128,16 @@ export class CodeGraphService {
     override?: {
       repositories: readonly CodeGraphRepository[];
       trailGraphByRepoId?: Record<string, TrailGraph | undefined>;
+      /**
+       * `false` なら `current_code_graphs` へ保存せず、キャッシュも更新しない
+       * （生成のみ行い、保存先は呼び出し側が決める）。
+       *
+       * release 遡及生成は過去タグの worktree を解析するため、その結果を
+       * current へ書くと「現在のグラフ」を過去版で汚染する。呼び出し側は
+       * 生成結果を `saveReleaseCodeGraph(tag, graph)` へ渡す。
+       * 既定は `true`（従来どおり current へ保存する）。
+       */
+      persist?: boolean;
     },
   ): Promise<CodeGraph[]> {
     const repos = override?.repositories ?? this.config.repositories;
@@ -152,11 +162,13 @@ export class CodeGraphService {
 
       const codeGraph = await this.generateForRepo(repo, trailGraphCache, repoProgress);
 
-      onProgress?.('保存中', Math.round(base + span * 0.97));
-      this.save(repo, codeGraph);
-      // cache キーは save() / defaultRepoName() と同じ解決規則（label 優先、空なら basename）。
-      const repoKey = repo.label || path.basename(repo.path);
-      this.cached.set(repoKey, codeGraph);
+      if (override?.persist !== false) {
+        onProgress?.('保存中', Math.round(base + span * 0.97));
+        this.save(repo, codeGraph);
+        // cache キーは save() / defaultRepoName() と同じ解決規則（label 優先、空なら basename）。
+        const repoKey = repo.label || path.basename(repo.path);
+        this.cached.set(repoKey, codeGraph);
+      }
       results.push(codeGraph);
     }
 

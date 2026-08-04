@@ -33,6 +33,7 @@ function createDb(): Database.Database {
       repo_id INTEGER
     );
     CREATE TABLE commit_files(commit_hash TEXT, file_path TEXT, repo_id INTEGER);
+    CREATE TABLE session_commit_resolutions(session_id TEXT, repo_id INTEGER, resolved_at TEXT);
   `);
   db.prepare('INSERT INTO repos(repo_id, repo_name) VALUES (?, ?)').run(9, 'anytime-markdown-docs');
   return db;
@@ -164,15 +165,17 @@ describe('SpecDocIndex.wasUpdatedIn', () => {
         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id
       ) VALUES (?, ?, '', '', ?, 0, 0, 0, 0, ?)
     `).run('session-1', 'docs-commit-1', '2026-07-14T00:00:00.000Z', 9);
+    db.prepare('INSERT INTO session_commit_resolutions(session_id, repo_id, resolved_at) VALUES (?, ?, ?)')
+      .run('session-1', 9, '2026-07-14T00:00:00.000Z');
     db.prepare('INSERT INTO commit_files(commit_hash, file_path, repo_id) VALUES (?, ?, ?)')
       .run('docs-commit-1', 'spec/a.md', 9);
 
     const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
 
     await expect(index.wasUpdatedIn('spec/a.md', { scope: 'session', sessionId: 'session-1' }))
-      .resolves.toBe(true);
+      .resolves.toBe('updated');
     await expect(index.wasUpdatedIn('spec/b.md', { scope: 'session', sessionId: 'session-1' }))
-      .resolves.toBe(false);
+      .resolves.toBe('not-updated');
   });
 
   it('detects session updates when commit_files stores a quoted non-ASCII git path', async () => {
@@ -182,6 +185,8 @@ describe('SpecDocIndex.wasUpdatedIn', () => {
         is_ai_assisted, files_changed, lines_added, lines_deleted, repo_id
       ) VALUES (?, ?, '', '', ?, 0, 0, 0, 0, ?)
     `).run('session-1', 'docs-commit-1', '2026-07-14T00:00:00.000Z', 9);
+    db.prepare('INSERT INTO session_commit_resolutions(session_id, repo_id, resolved_at) VALUES (?, ?, ?)')
+      .run('session-1', 9, '2026-07-14T00:00:00.000Z');
     db.prepare('INSERT INTO commit_files(commit_hash, file_path, repo_id) VALUES (?, ?, ?)')
       .run('docs-commit-1', quotedJapaneseSpecPath, 9);
 
@@ -190,7 +195,7 @@ describe('SpecDocIndex.wasUpdatedIn', () => {
     await expect(index.wasUpdatedIn(plainJapaneseSpecPath, {
       scope: 'session',
       sessionId: 'session-1',
-    })).resolves.toBe(true);
+    })).resolves.toBe('updated');
   });
 
   it('detects spec updates between code refs by normalized commit time', async () => {
@@ -220,13 +225,16 @@ describe('SpecDocIndex.wasUpdatedIn', () => {
     `).run('session-1', 'docs-commit-1', '2026-07-13T16:00:00.000Z', 9);
     db.prepare('INSERT INTO commit_files(commit_hash, file_path, repo_id) VALUES (?, ?, ?)')
       .run('docs-commit-1', 'spec/a.md', 9);
+    // 範囲終端（2026-07-13T17:00Z）より後に解決が走っている＝範囲全体が走査済み
+    db.prepare('INSERT INTO session_commit_resolutions(session_id, repo_id, resolved_at) VALUES (?, ?, ?)')
+      .run('session-1', 9, '2026-07-13T18:00:00.000Z');
 
     const index = new SpecDocIndex({ db, docsRepoRoot: docsRoot, gitRepoRoot: codeRoot });
 
     await expect(index.wasUpdatedIn('spec/a.md', { scope: 'range', fromRef, toRef }))
-      .resolves.toBe(true);
+      .resolves.toBe('updated');
     await expect(index.wasUpdatedIn('spec/b.md', { scope: 'range', fromRef, toRef }))
-      .resolves.toBe(false);
+      .resolves.toBe('not-updated');
   });
 
   it('does not throw when a range ref cannot be resolved', async () => {
@@ -249,7 +257,7 @@ describe('SpecDocIndex.wasUpdatedIn', () => {
       scope: 'range',
       fromRef: 'missing-from',
       toRef: 'missing-to',
-    })).resolves.toBe(false);
+    })).resolves.toBe('unknown');
     expect(warnings.some((message) => message.includes('missing-from'))).toBe(true);
   });
 });

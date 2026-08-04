@@ -29,8 +29,12 @@ import { createOllamaClient } from '@anytime-markdown/agent-core';
 import type { EmbedFn } from '@anytime-markdown/doc-core';
 import type { Logger } from '../runtime/Logger';
 import {
+  resolveGitRootForRepo,
   runAnalyzeCurrentCodePipeline,
+  runAnalyzeCommitCodePipeline,
   runAnalyzeReleaseCodePipeline,
+  toAnalyzeReleaseScope,
+  UnknownRepoError,
 } from '../analyze/AnalyzePipeline';
 import type { AnalyzeCurrentOpts, AnalyzeReleaseOpts } from '../analyze/AnalyzePipeline';
 
@@ -291,6 +295,7 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
     statePath: cfg.statePath,
     trailDb,
     gitRoots: cfg.gitRoots,
+    commitWatchRoots: cfg.commitWatchRoots,
     claudeProjectsDir: cfg.claudeProjectsDir,
     codexSessionsDir: cfg.codexSessionsDir,
     memoryCoreService: memoryCoreService ?? undefined,
@@ -482,9 +487,9 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     return runAnalyzeCurrentCodePipeline(opts2);
   };
 
-  // HTTP request shape (webview → TrailDataServer): パラメータなし (gitRoot は opts から取得)。
+  // HTTP request shape (webview → TrailDataServer): tags のみ (gitRoot は opts から取得)。
   // IPC dispatch 'analyzeReleaseCode' arm は SerializableAnalyzeReleaseCodeRequest で gitRoot を受ける。
-  server.onAnalyzeReleaseCode = async () => {
+  server.onAnalyzeReleaseCode = async (req) => {
     if (httpTrailDb === null || httpCodeGraphService === null) {
       throw new Error('http server state not ready');
     }
@@ -495,9 +500,38 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       trailDb: httpTrailDb,
       codeGraphService: httpCodeGraphService,
       gitRoot: opts.gitRoot,
+      // daemon はバンドル環境なので TS 解析は必ず子プロセスへ隔離する。
+      compute: { kind: 'child', analyzeChildPath },
+      scope: toAnalyzeReleaseScope(req.tags),
+      logger: daemonLoggerAsLogger,
       onProgress: emitAnalyzeReleaseProgress,
     };
     return runAnalyzeReleaseCodePipeline(opts3);
+  };
+
+  // Snapshot per Commit: 1 コミット分のみ生成する。release と違い全量ループは持たない。
+  server.onAnalyzeCommitCode = async (req) => {
+    if (httpTrailDb === null || httpCodeGraphService === null) {
+      throw new Error('http server state not ready');
+    }
+    if (!opts.gitRoot) {
+      throw new Error('gitRoot not configured; pass gitRoot to startHttpServer first');
+    }
+    // 保存先は req.repo が決めるので、解析対象の git root も req.repo から引く。
+    // primary をそのまま渡すと、別リポジトリ名で primary の断面を保存し得る。
+    const gitRoot = resolveGitRootForRepo([opts.gitRoot], req.repo);
+    if (!gitRoot) throw new UnknownRepoError(req.repo);
+    return runAnalyzeCommitCodePipeline({
+      trailDb: httpTrailDb,
+      codeGraphService: httpCodeGraphService,
+      gitRoot,
+      sha: req.sha,
+      repoName: req.repo,
+      // daemon はバンドル環境なので TS 解析は必ず子プロセスへ隔離する。
+      compute: { kind: 'child', analyzeChildPath },
+      logger: daemonLoggerAsLogger,
+      onProgress: emitAnalyzeReleaseProgress,
+    });
   };
 
   server.onAnalyzeAll = async () => {
@@ -684,6 +718,11 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
         trailDb: httpTrailDb,
         codeGraphService: httpCodeGraphService,
         gitRoot: req.gitRoot,
+        // daemon はバンドル環境なので TS 解析は必ず子プロセスへ隔離する。
+        // request shape に analyzeChildPath は無く、module const の dist/analyze-child.js を使う。
+        compute: { kind: 'child', analyzeChildPath },
+        scope: toAnalyzeReleaseScope(req.tags),
+        logger: daemonLoggerAsLogger,
         onProgress: emitAnalyzeReleaseProgress,
       };
       return await runAnalyzeReleaseCodePipeline(opts);

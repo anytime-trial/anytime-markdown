@@ -1,6 +1,6 @@
 {
   "name": "@anytime-markdown/trail-core",
-  "version": "0.41.0",
+  "version": "0.42.0",
   "license": "MIT",
   "private": true,
   "main": "src/index.ts",
@@ -14,6 +14,7 @@
     "./transform": "./src/transform/index.ts",
     "./model": "./src/model/index.ts",
     "./formatDate": "./src/formatDate.ts",
+    "./gitExecutable": "./src/gitExecutable.ts",
     "./domain": "./src/domain/index.ts",
     "./domain/model": "./src/domain/model/index.ts",
     "./domain/model/commitPrefix": "./src/domain/model/commitPrefix.ts",
@@ -27,6 +28,9 @@
     "./c4/services": "./src/c4/services/catalog.ts",
     "./c4/callHierarchy": "./src/c4/callHierarchy/index.ts",
     "./codeGraph": "./src/codeGraph.ts",
+    "./codeGraphDiff": "./src/codeGraphDiff.ts",
+    "./codeGraphNodeId": "./src/codeGraphNodeId.ts",
+    "./authorHeatmap": "./src/authorHeatmap/index.ts",
     "./deadCode": "./src/deadCode/index.ts",
     "./analyzeExclude": "./src/analyzeExclude/index.ts",
     "./commitCategories": {

@@ -18,6 +18,38 @@ function childrenOf(provider: AlignmentTreeProvider, node?: AlignmentNode): read
 }
 
 describe('AlignmentTreeProvider', () => {
+  it('shows unknown specs in their own group, separate from stale', () => {
+    const provider = createProvider();
+    provider.update(buildReport([
+      {
+        status: 'stale',
+        elementId: 'pkg_trail-core',
+        specPath: 'spec/31.trail/03.trail-core/trail-core.ja.md',
+        changedFiles: ['packages/trail-core/src/a.ts'],
+        reason: 'not updated',
+      },
+      {
+        status: 'unknown',
+        elementId: 'pkg_trail-core',
+        specPath: 'spec/00.requirements/trail-roadmap.ja.md',
+        changedFiles: ['packages/trail-core/src/a.ts'],
+        reason: 'commits missing from trail.db',
+      },
+    ]));
+
+    const [element] = childrenOf(provider);
+    expect(element.description).toBe('stale 1 / unknown 1');
+
+    const groups = childrenOf(provider, element);
+    const unknownGroup = groups.find((g) => g.label.includes('判定できない'));
+    expect(unknownGroup?.description).toBe('1');
+    expect(unknownGroup?.children?.[0]).toMatchObject({
+      kind: 'spec',
+      status: 'unknown',
+      resourcePath: `${DOCS_ROOT}/spec/00.requirements/trail-roadmap.ja.md`,
+    });
+  });
+
   it('groups findings under one node per C4 element, with specs and changed files below', () => {
     const provider = createProvider();
     provider.update(buildReport([

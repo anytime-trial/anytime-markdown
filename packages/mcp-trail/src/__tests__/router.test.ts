@@ -290,7 +290,14 @@ describe('ANALYZE tools: probe alive → HTTP', () => {
   test('analyze_release_code → httpClient.analyzeReleaseCode', async () => {
     const spy = jest.spyOn(httpClient, 'analyzeReleaseCode').mockResolvedValue({ status: 'started' } as never);
     await route('analyze_release_code', {}, BASE_OPTS);
-    expect(spy).toHaveBeenCalledWith(SERVER_URL);
+    expect(spy).toHaveBeenCalledWith(SERVER_URL, {});
+  });
+
+  // tags をここで落とすと、部分生成のつもりの要求が全量洗い替えとしてサーバーへ届く。
+  test('analyze_release_code は tags を透過する', async () => {
+    const spy = jest.spyOn(httpClient, 'analyzeReleaseCode').mockResolvedValue({ status: 'started' } as never);
+    await route('analyze_release_code', { tags: ['v1.19.1'] }, BASE_OPTS);
+    expect(spy).toHaveBeenCalledWith(SERVER_URL, { tags: ['v1.19.1'] });
   });
 
   test('analyze_all → httpClient.analyzeAll', async () => {

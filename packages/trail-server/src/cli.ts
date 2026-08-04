@@ -37,8 +37,12 @@ import { CodeGraphService } from './analyze/CodeGraphService';
 import {
   findTsconfigCandidates,
   hasPythonFiles,
+  resolveGitRootForRepo,
   runAnalyzeCurrentCodePipeline,
+  runAnalyzeCommitCodePipeline,
   runAnalyzeReleaseCodePipeline,
+  toAnalyzeReleaseScope,
+  UnknownRepoError,
 } from './analyze/AnalyzePipeline';
 
 const TRAIL_HOME = getTrailHome(process.cwd());
@@ -222,11 +226,33 @@ program
           logger,
         });
 
-      server.onAnalyzeReleaseCode = async () => {
+      server.onAnalyzeReleaseCode = async (req) => {
         return runAnalyzeReleaseCodePipeline({
           trailDb,
           codeGraphService,
           gitRoot: primaryGitRoot,
+          // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
+          compute: { kind: 'in-host' },
+          scope: toAnalyzeReleaseScope(req.tags),
+          logger,
+        });
+      };
+
+      // Snapshot per Commit: 1 コミット分のみ生成する。
+      server.onAnalyzeCommitCode = async (req) => {
+        // 保存先は req.repo が決めるので、解析対象の git root も req.repo から引く。
+        // primary をそのまま渡すと、別リポジトリ名で primary の断面を保存し得る。
+        const commitGitRoot = resolveGitRootForRepo(effectiveGitRoots, req.repo);
+        if (!commitGitRoot) throw new UnknownRepoError(req.repo);
+        return runAnalyzeCommitCodePipeline({
+          trailDb,
+          codeGraphService,
+          gitRoot: commitGitRoot,
+          sha: req.sha,
+          repoName: req.repo,
+          // standalone CLI は非バンドル環境なので computeAnalysis.js を解決できる。
+          compute: { kind: 'in-host' },
+          logger,
         });
       };
 
@@ -322,6 +348,10 @@ program
       gitRoot: memoryCorePrimaryGitRoot,
       trailDb,
       gitRoots: effectiveGitRoots,
+      // 設計書リポジトリはコード解析の対象ではないが、check_alignment が
+      // 「設計書が更新されたか」を判定するために commit 取込は必要。gitRoots へ
+      // 二重に書かせず sources.docs.root から導出する。
+      commitWatchRoots: resolveDocsCommitWatchRoots(lepConfig.sources.docs.root, logger),
       claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
       codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
       memoryCoreService,
@@ -612,4 +642,26 @@ function makeTrailLoggerAdapter(logger: Logger): TrailLoggerLike {
     warn: (msg) => logger.warn(msg),
     error: (msg, err) => logger.error(msg, err),
   };
+}
+
+/**
+ * lep.json `sources.docs.root`（設計書リポジトリ）を commit 取込専用の監視対象へ変換する。
+ *
+ * 未設定・不在・git working tree でない場合は空配列を返す（警告は残す）。コード解析側
+ * （コードグラフ / カバレッジ / リリース）の対象には入れない。
+ */
+export function resolveDocsCommitWatchRoots(docsRoot: string, logger: Logger): readonly string[] {
+  const root = docsRoot.trim();
+  if (root === '') return [];
+
+  if (!existsSync(root)) {
+    logger.warn('sources.docs.root does not exist; spec commit ingestion disabled', { root });
+    return [];
+  }
+  if (!existsSync(join(root, '.git'))) {
+    logger.warn('sources.docs.root is not a git repository; spec commit ingestion disabled', { root });
+    return [];
+  }
+
+  return [root];
 }

@@ -52,7 +52,8 @@ const NOOP_LOGGER = {
 function makeTrailDbStub(releases: Array<{ tag: string; repo_name: string }>, graphByTag: Record<string, CodeGraph | null>) {
   return {
     getReleases: () => releases,
-    getReleaseCodeGraph: (tag: string) => graphByTag[tag] ?? null,
+    // repo 名も受ける（タグは repo 内でしか一意でない）。stub では帰属確認済みの前提で tag だけ引く。
+    getReleaseCodeGraph: (tag: string, _repoName: string) => graphByTag[tag] ?? null,
   } as unknown as TrailDatabase;
 }
 
@@ -61,12 +62,23 @@ function makeTrailDbStub(releases: Array<{ tag: string; repo_name: string }>, gr
 // ---------------------------------------------------------------------------
 
 describe('CodeGraphApiHandler.handleGet — release mode', () => {
+  it('returns 400 when release is specified without repo', async () => {
+    // タグは repo 内でしか一意でないため、repo 無しでは対象が決まらない。
+    // 「どれでもよい」と解釈して別リポジトリのグラフを返さない。
+    const db = makeTrailDbStub([{ tag: 'v1.0.0', repo_name: 'my-repo' }], { 'v1.0.0': makeGraph('my-repo') });
+    const handler = new CodeGraphApiHandler(db, NOOP_LOGGER as never);
+    handler.setCodeGraphService(makeEmptyService());
+    const res = makeRes();
+    await handler.handleGet(res as never, 'v1.0.0');
+    expect(res.status).toBe(400);
+  });
+
   it('returns 404 when release tag does not belong to any release', async () => {
     const db = makeTrailDbStub([], {});
     const handler = new CodeGraphApiHandler(db, NOOP_LOGGER as never);
     handler.setCodeGraphService(makeEmptyService());
     const res = makeRes();
-    await handler.handleGet(res as never, 'v1.0.0');
+    await handler.handleGet(res as never, 'v1.0.0', 'my-repo');
     expect(res.status).toBe(404);
   });
 
@@ -75,7 +87,7 @@ describe('CodeGraphApiHandler.handleGet — release mode', () => {
     const handler = new CodeGraphApiHandler(db, NOOP_LOGGER as never);
     handler.setCodeGraphService(makeEmptyService());
     const res = makeRes();
-    await handler.handleGet(res as never, 'v1.0.0');
+    await handler.handleGet(res as never, 'v1.0.0', 'my-repo');
     expect(res.status).toBe(404);
   });
 
@@ -85,7 +97,7 @@ describe('CodeGraphApiHandler.handleGet — release mode', () => {
     const handler = new CodeGraphApiHandler(db, NOOP_LOGGER as never);
     handler.setCodeGraphService(makeEmptyService());
     const res = makeRes();
-    await handler.handleGet(res as never, 'v1.0.0');
+    await handler.handleGet(res as never, 'v1.0.0', 'my-repo');
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body).repositories[0].label).toBe('my-repo');
   });

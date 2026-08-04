@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-08-04
+
+### Added
+
+- Pure functions that compute the difference between two code-graph snapshots (added / removed / changed nodes and edges).
+- Per-node edit aggregation and a shared node-ID generator derived from file paths.
+- A utility that resolves the git executable to an absolute path, so git is launched without relying on a PATH lookup.
+
+### Fixed
+
+- A design-document repository whose commits have not been ingested yet is now reported as undetermined (`unknown`) instead of being conflated with `stale`.
+
 ## [0.41.0] - 2026-08-03
 
 ### Added

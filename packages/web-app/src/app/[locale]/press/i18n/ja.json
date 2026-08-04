@@ -112,16 +112,6 @@
     "text": "速い道具は、書き手を迷子にする。隊商の歩幅で、文字を運ぶ。",
     "attr": "— editorial · 巻頭言 · vol.iii"
   },
-  "news": {
-    "label": "DISPATCH · 速報",
-    "heading": "本日のニュース",
-    "poweredBy": "via The Guardian"
-  },
-  "wsj": {
-    "label": "BUSINESS · TODAY",
-    "heading": "本日のビジネスニュース",
-    "poweredBy": "via The Wall Street Journal"
-  },
   "weather": {
     "label": "WEATHER · 気象",
     "heading": "世界の天気",

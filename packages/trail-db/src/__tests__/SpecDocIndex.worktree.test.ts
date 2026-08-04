@@ -46,7 +46,7 @@ describe('SpecDocIndex.wasUpdatedIn (worktree scope)', () => {
   it('reports false when the spec document is unchanged in the docs working tree', async () => {
     await expect(
       index.wasUpdatedIn('spec/31.trail/trail-core.ja.md', { scope: 'worktree' }),
-    ).resolves.toBe(false);
+    ).resolves.toBe('not-updated');
   });
 
   it('reports true when the spec document has uncommitted modifications', async () => {
@@ -54,7 +54,7 @@ describe('SpecDocIndex.wasUpdatedIn (worktree scope)', () => {
 
     await expect(
       index.wasUpdatedIn('spec/31.trail/trail-core.ja.md', { scope: 'worktree' }),
-    ).resolves.toBe(true);
+    ).resolves.toBe('updated');
   });
 
   it('reports true for a brand-new untracked spec document', async () => {
@@ -62,14 +62,14 @@ describe('SpecDocIndex.wasUpdatedIn (worktree scope)', () => {
 
     await expect(
       index.wasUpdatedIn('spec/31.trail/new-spec.ja.md', { scope: 'worktree' }),
-    ).resolves.toBe(true);
+    ).resolves.toBe('updated');
   });
 
   it('matches spec documents whose paths git records in quoted form', async () => {
     const japanesePath = 'spec/31.trail/設計書.ja.md';
     writeSpec(docsRoot, japanesePath, '"pkg_trail-core"');
 
-    await expect(index.wasUpdatedIn(japanesePath, { scope: 'worktree' })).resolves.toBe(true);
+    await expect(index.wasUpdatedIn(japanesePath, { scope: 'worktree' })).resolves.toBe('updated');
   });
 
   it('does not require the docs repository to exist in the repos table', async () => {
@@ -77,6 +77,6 @@ describe('SpecDocIndex.wasUpdatedIn (worktree scope)', () => {
 
     await expect(
       index.wasUpdatedIn('spec/31.trail/trail-core.ja.md', { scope: 'worktree' }),
-    ).resolves.toBe(true);
+    ).resolves.toBe('updated');
   });
 });

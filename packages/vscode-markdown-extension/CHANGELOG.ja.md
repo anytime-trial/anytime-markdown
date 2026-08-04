@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.19.2] - 2026-08-04
+
+### 変更
+
+- 同梱スキル `anytime-markdown-output` を v6 へ更新しました（c4Scope の宣言基準と使える要素 ID を反映し、判定基準を「一次実装者か」へ改めました）。
+
+### Editor Core (markdown-editor / markdown-rich-editor)
+
+- ランディング用の i18n にロードマップ要件 3 件の文言を追加しました。
+
 ## [1.19.1] - 2026-08-03
 
 ### 変更

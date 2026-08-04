@@ -30,7 +30,9 @@ import {
   buildIndex as buildCallHierarchyIndex,
   traverse as traverseCallHierarchy,
 } from '@anytime-markdown/trail-core/c4/callHierarchy';
+import { computeAuthorHeatmap, selectTopSessions } from '@anytime-markdown/trail-core/authorHeatmap';
 import type { ClassifiedFunction } from '@anytime-markdown/trail-core/centrality';
+import { toCodeGraphNodeId } from '@anytime-markdown/trail-core/codeGraphNodeId';
 import { aggregateCentralityToC4, aggregateRolesToC4 } from '@anytime-markdown/trail-core/centrality';
 import {
   loadCommitCategories,
@@ -59,7 +61,12 @@ import { MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
 import { type WebSocket,WebSocketServer } from 'ws';
 
 import type { C4SourceFileInput } from '../analyze/analyzeChildProtocol';
-import type { AnalyzeCurrentResult, AnalyzeReleaseResult } from '../analyze/AnalyzePipeline';
+import type {
+  AnalyzeCommitResult,
+  AnalyzeCurrentResult,
+  AnalyzeReleaseResult,
+} from '../analyze/AnalyzePipeline';
+import { UnknownRepoError } from '../analyze/AnalyzePipeline';
 import type { CodeGraphService } from '../analyze/CodeGraphService';
 import { runC4SourceAnalyze } from '../analyze/runC4SourceAnalyze';
 import type { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
@@ -271,9 +278,20 @@ export class TrailDataServer {
   onAnalyzeCurrentCode:
     | ((req: { workspacePath?: string; tsconfigPath?: string }) => Promise<AnalyzeCurrentResult>)
     | undefined;
-  /** POST /api/analyze/release ハンドラ */
+  /**
+   * POST /api/analyze/release ハンドラ。
+   * `tags` 省略時は全量洗い替え、指定時はそのタグのみ削除・再生成する。
+   */
   onAnalyzeReleaseCode:
-    | (() => Promise<AnalyzeReleaseResult>)
+    | ((req: { tags?: readonly string[] }) => Promise<AnalyzeReleaseResult>)
+    | undefined;
+  /**
+   * POST /api/analyze/commit ハンドラ。1 コミット分のスナップショットだけを生成する。
+   * `sha` / `repo` はいずれも必須で、省略可能にしない（渡し忘れが別リポジトリへの
+   * 書き込みや「現在の断面を過去として保存」に化ける）。
+   */
+  onAnalyzeCommitCode:
+    | ((req: { sha: string; repo: string }) => Promise<AnalyzeCommitResult>)
     | undefined;
   /** POST /api/analyze/all ハンドラ */
   onAnalyzeAll:
@@ -281,7 +299,7 @@ export class TrailDataServer {
     | undefined;
 
   /** 現在進行中の解析タスク種別。並行実行時の 409 判定に使う */
-  private analysisInProgress: { kind: 'current' | 'release' | 'all'; startedAt: number } | null = null;
+  private analysisInProgress: { kind: 'current' | 'release' | 'commit' | 'all'; startedAt: number } | null = null;
   private tokenBudgetConfig: { dailyLimitTokens: number | null; sessionLimitTokens: number | null; alertThresholdPct: number } = {
     dailyLimitTokens: null,
     sessionLimitTokens: null,
@@ -747,6 +765,7 @@ export class TrailDataServer {
   private registerAnalyzeRoutes(t: RouteTable): void {
     t.exact('POST', '/api/analyze/current', ({ req, res }) => this.handleAnalyzeCurrent(req, res));
     t.exact('POST', '/api/analyze/release', ({ req, res }) => this.handleAnalyzeRelease(req, res));
+    t.exact('POST', '/api/analyze/commit', ({ req, res }) => this.handleAnalyzeCommit(req, res));
     t.exact('POST', '/api/analyze/all', ({ req, res }) => this.handleAnalyzeAll(req, res));
     t.exact('GET', '/api/analyze/status', ({ res }) => this.handleAnalyzeStatus(res));
     t.exact('POST', '/api/analyze-all/pause', ({ req, res }) => this.handleAnalyzeAllPause(req, res));
@@ -887,8 +906,27 @@ export class TrailDataServer {
   }
 
   private registerCodeGraphRoutes(t: RouteTable): void {
-    t.exact('GET', '/api/code-graph', (ctx) =>
-      void this.codeGraphApi.handleGet(ctx.res, ctx.query('release', 'current'), ctx.queryOpt('repo')));
+    t.exact('GET', '/api/code-graph', (ctx) => {
+      const commit = ctx.queryOpt('commit');
+      const release = ctx.queryOpt('release');
+      // release と commit の同時指定は「どちらを優先しても指定と違う時点の絵が出る」形で
+      // しか現れないため、優先順位を決めずに断る。
+      if (commit !== undefined && release !== undefined) {
+        ctx.res.writeHead(400, JSON_HEADERS);
+        ctx.res.end(JSON.stringify({ error: 'release and commit are mutually exclusive' }));
+        return;
+      }
+      if (commit !== undefined) {
+        this.codeGraphApi.handleGetCommit(ctx.res, commit, ctx.queryOpt('repo'));
+        return;
+      }
+      void this.codeGraphApi.handleGet(ctx.res, release ?? 'current', ctx.queryOpt('repo'));
+    });
+    t.exact('GET', '/api/code-graph/releases', (ctx) =>
+      this.codeGraphApi.handleGetReleases(ctx.res, ctx.queryOpt('repo')));
+    t.exact('GET', '/api/code-graph/commits', (ctx) =>
+      this.codeGraphApi.handleGetCommits(
+        ctx.res, ctx.queryOpt('repo'), ctx.queryOpt('to'), ctx.queryOpt('from')));
     t.exact('GET', '/api/code-graph/query', (ctx) => {
       const depthRaw = ctx.url.searchParams.get('depth');
       const depth = depthRaw === null ? undefined : clampInt(depthRaw, 0, 0, 3);
@@ -909,6 +947,7 @@ export class TrailDataServer {
     t.exact('GET', '/api/alignment', ({ res, url }) => void this.alignmentApi.handle(res, url.searchParams));
     t.exact('GET', '/api/activity-heatmap', ({ res, url }) => this.handleActivityHeatmap(res, url.searchParams));
     t.exact('GET', '/api/activity-trend', ({ res, url }) => this.handleActivityTrend(res, url.searchParams));
+    t.exact('GET', '/api/author-heatmap', ({ res, url }) => this.handleAuthorHeatmap(res, url.searchParams));
   }
 
   /**
@@ -1445,6 +1484,61 @@ export class TrailDataServer {
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       this.logger.error(`/api/bus-factor failed: ${err.message}\n${err.stack ?? ''}`);
+      res.writeHead(500, JSON_HEADERS);
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  /**
+   * Author Heatmap: コードグラフのノードごとの最終編集セッション・編集頻度・属人度。
+   *
+   * コードグラフのノード集合で集計を絞る（グラフに無いファイルの行を返しても viewer が
+   * 使えないうえ、被覆率の分母が狂う）。repo 未指定・コードグラフ未生成は 200 + 空で返す。
+   * ここを 4xx にすると、まだ解析していないだけのワークスペースでグラフ描画ごと壊れる。
+   */
+  private handleAuthorHeatmap(res: http.ServerResponse, params: URLSearchParams): void {
+    const repo = params.get('repo') ?? '';
+    const topSessions = clampInt(params.get('topSessions'), 8, 1, 32);
+
+    try {
+      const graph = repo ? this.trailDb.getCurrentCodeGraph(repo) : null;
+      if (!graph) {
+        if (repo) {
+          this.logger.warn(`/api/author-heatmap: no current code graph for repo=${repo}`);
+        }
+        res.writeHead(200, JSON_HEADERS);
+        res.end(
+          JSON.stringify({
+            entries: [],
+            topSessions: [],
+            coveredNodes: 0,
+            totalNodes: 0,
+            computedAt: new Date().toISOString(),
+          }),
+        );
+        return;
+      }
+
+      const nodeIds = new Set(graph.nodes.map((n) => n.id));
+      const rows = this.trailDb.fetchFileSessionCommits({ repo });
+      const entries = computeAuthorHeatmap(rows, {
+        toNodeId: (filePath) => toCodeGraphNodeId(repo, filePath),
+        isKnownNode: (nodeId) => nodeIds.has(nodeId),
+      });
+
+      res.writeHead(200, JSON_HEADERS);
+      res.end(
+        JSON.stringify({
+          entries,
+          topSessions: selectTopSessions(entries, topSessions),
+          coveredNodes: entries.length,
+          totalNodes: nodeIds.size,
+          computedAt: new Date().toISOString(),
+        }),
+      );
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      this.logger.error(`/api/author-heatmap failed: ${err.message}\n${err.stack ?? ''}`);
       res.writeHead(500, JSON_HEADERS);
       res.end(JSON.stringify({ error: err.message }));
     }
@@ -3719,7 +3813,7 @@ export class TrailDataServer {
   }
 
   private async handleAnalyzeRelease(
-    _req: http.IncomingMessage,
+    req: http.IncomingMessage,
     res: http.ServerResponse,
   ): Promise<void> {
     if (!this.onAnalyzeReleaseCode) {
@@ -3732,14 +3826,102 @@ export class TrailDataServer {
       res.end(JSON.stringify({ error: 'analysis in progress', current: this.analysisInProgress }));
       return;
     }
+    // tags は外部入力。文字列配列でなければ「指定なし（全量）」ではなく 400 で弾く。
+    // 型を取り違えた要求を黙って全量洗い替えへ落とすと、既存グラフを消してしまう。
+    // 壊れた JSON も同じ理由で 400 にする（空ボディだけが「指定なし」を意味する）。
+    let tags: readonly string[] | undefined;
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = await this.readJsonObjectBodyAllowEmpty(req);
+    } catch (err) {
+      this.logger.warn(
+        `[/api/analyze/release] invalid JSON body: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'invalid JSON body' }));
+      return;
+    }
+    if (parsed.tags !== undefined) {
+      if (!Array.isArray(parsed.tags) || parsed.tags.some((t) => typeof t !== 'string' || t === '')) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'tags must be an array of non-empty strings' }));
+        return;
+      }
+      tags = parsed.tags as string[];
+    }
     this.analysisInProgress = { kind: 'release', startedAt: Date.now() };
     try {
-      const result = await this.onAnalyzeReleaseCode();
+      const result = await this.onAnalyzeReleaseCode({ tags });
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify(result));
     } catch (err) {
       this.logger.error('handleAnalyzeRelease failed', err);
       sendServerError(res, 'analyze release failed');
+    } finally {
+      this.analysisInProgress = null;
+    }
+  }
+
+  /**
+   * POST /api/analyze/commit — 1 コミット分のコードグラフを生成する。
+   *
+   * `sha` / `repo` はどちらも必須。省略を「現在の断面」や「既定リポジトリ」へ縮退させない
+   * （release 側で同種の縮退が既存キャッシュの全消去を招いた）。
+   */
+  private async handleAnalyzeCommit(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    if (!this.onAnalyzeCommitCode) {
+      res.writeHead(503, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'analyze handler not registered' }));
+      return;
+    }
+    if (this.analysisInProgress) {
+      res.writeHead(409, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'analysis in progress', current: this.analysisInProgress }));
+      return;
+    }
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = await this.readJsonObjectBodyAllowEmpty(req);
+    } catch (err) {
+      this.logger.warn(
+        `[/api/analyze/commit] invalid JSON body: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'invalid JSON body' }));
+      return;
+    }
+    const { sha, repo } = parsed;
+    if (typeof sha !== 'string' || sha === '' || typeof repo !== 'string' || repo === '') {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'sha and repo must be non-empty strings' }));
+      return;
+    }
+    // sha は git へそのまま渡り worktree のパスにもなる。オプション風の文字列やパス区切りを
+    // 通すと ref 解決とパス生成の双方で意図しない挙動になるため、16 進の commit hash に限る。
+    if (!/^[0-9a-f]{7,40}$/.test(sha)) {
+      res.writeHead(400, JSON_HEADERS);
+      res.end(JSON.stringify({ error: 'sha must be a hexadecimal commit hash' }));
+      return;
+    }
+    this.analysisInProgress = { kind: 'commit', startedAt: Date.now() };
+    try {
+      const result = await this.onAnalyzeCommitCode({ sha, repo });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      // 構成に無い repo は要求側の誤りで、再試行しても成功しない。サーバ障害（500）と
+      // 区別して 400 で返す（UI が「別の解析が走っている」等と誤って案内しないため）。
+      if (err instanceof UnknownRepoError) {
+        this.logger.warn(`[/api/analyze/commit] unknown repo: ${repo}`);
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: `unknown repo: ${repo}` }));
+        return;
+      }
+      this.logger.error('handleAnalyzeCommit failed', err);
+      sendServerError(res, 'analyze commit failed');
     } finally {
       this.analysisInProgress = null;
     }
@@ -3869,6 +4051,42 @@ export class TrailDataServer {
     res.writeHead(result.status, headers);
     if (result.body) res.end(result.body);
     else res.end();
+  }
+
+  /**
+   * ボディを JSON オブジェクトとして読む。**空ボディは `{}`、非空でパースできなければ throw** する。
+   *
+   * `readJsonBody` は `JSON.parse('')` が投げるため空ボディも reject し、呼び出し側は
+   * `.catch(() => ({}))` で「指定が無い」と「壊れた指定」を同一視せざるを得ない。既定が
+   * 破壊的な側（全量洗い替え）に倒れるエンドポイントでは、その同一視が事故経路になる。
+   */
+  private readJsonObjectBodyAllowEmpty(
+    req: http.IncomingMessage,
+  ): Promise<Record<string, unknown>> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (c) => chunks.push(c as Buffer));
+      req.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf-8').trim();
+        if (raw.length === 0) {
+          resolve({});
+          return;
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch (e) {
+          reject(e);
+          return;
+        }
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          reject(new Error('body must be a JSON object'));
+          return;
+        }
+        resolve(parsed as Record<string, unknown>);
+      });
+      req.on('error', reject);
+    });
   }
 
   private readJsonBody(req: http.IncomingMessage): Promise<unknown> {

@@ -11,6 +11,8 @@ export interface AlignmentDiagnosticsSummary {
   readonly staleElements: number;
   /** 設計書がまったく無い C4 要素の数 */
   readonly undocumentedElements: number;
+  /** 設計書リポジトリのコミット未取込で判定できなかった C4 要素の数 */
+  readonly unknownElements: number;
 }
 
 interface FindingGroup {
@@ -44,6 +46,7 @@ export class AlignmentDiagnosticsProvider implements vscode.Disposable {
     const staleSpecs = new Set<string>();
     const staleElements = new Set<string>();
     const undocumentedElements = new Set<string>();
+    const unknownElements = new Set<string>();
 
     for (const finding of report.findings) {
       if (finding.status === 'ok') continue;
@@ -51,6 +54,9 @@ export class AlignmentDiagnosticsProvider implements vscode.Disposable {
       if (finding.status === 'stale') {
         staleElements.add(finding.elementId);
         if (finding.specPath) staleSpecs.add(finding.specPath);
+      } else if (finding.status === 'unknown') {
+        // 取込欠落は更新漏れではない。stale に混ぜると警報が実態を映さなくなる。
+        unknownElements.add(finding.elementId);
       } else {
         undocumentedElements.add(finding.elementId);
       }
@@ -76,6 +82,7 @@ export class AlignmentDiagnosticsProvider implements vscode.Disposable {
       staleSpecs: staleSpecs.size,
       staleElements: staleElements.size,
       undocumentedElements: undocumentedElements.size,
+      unknownElements: unknownElements.size,
     };
   }
 
@@ -104,6 +111,12 @@ function buildMessage(group: FindingGroup): string {
   const listed = group.specPaths.slice(0, MAX_LISTED_SPECS).join(', ');
   const rest = group.specPaths.length - MAX_LISTED_SPECS;
   const suffix = rest > 0 ? ` ほか ${rest} 本` : '';
+
+  if (group.status === 'unknown') {
+    return `${group.elementId} の設計書 ${group.specPaths.length} 本は追随を判定できません`
+      + `（設計書リポジトリのコミットが trail.db へ未取込）: ${listed}${suffix}`;
+  }
+
   return `${group.elementId} の設計書 ${group.specPaths.length} 本が追随していません: ${listed}${suffix}`;
 }
 

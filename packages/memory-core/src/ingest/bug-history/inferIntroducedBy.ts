@@ -1,4 +1,5 @@
 import * as child_process from 'node:child_process';
+import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import { parseFixCommit } from './parseFixCommit';
@@ -69,7 +70,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
   for (const filePath of affectedFilePaths) {
     let diffOutput: string;
     try {
-      diffOutput = execFileSync('git', [
+      diffOutput = execFileSync(resolveGitExecutable(), [
         'diff', `${fixCommitSha}^`, fixCommitSha, '--', filePath, '--unified=0',
       ], repoRoot);
     } catch (err) {
@@ -85,7 +86,7 @@ export function inferIntroducedBy(input: InferIntroducedByInput): InferIntroduce
     for (const lineNum of lineNums) {
       let blameOutput: string;
       try {
-        blameOutput = execFileSync('git', [
+        blameOutput = execFileSync(resolveGitExecutable(), [
           'blame', '-L', `${lineNum},${lineNum}`, `${fixCommitSha}^`, '--', filePath, '--porcelain',
         ], repoRoot);
       } catch (err) {

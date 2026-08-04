@@ -57,15 +57,10 @@ const config = {
     "^next-auth(.*)$": "<rootDir>/src/__mocks__/next-auth.js",
   },
   maxWorkers: 2,
-  collectCoverageFrom: [
-    "src/**/*.{ts,tsx}",
-    "!src/__tests__/**",
-    "!src/__mocks__/**",
-    "!src/i18n/**",
-    "!src/types/**",
-    "!src/app/**/page.tsx",
-    "!src/app/**/layout.tsx",
-    "!src/app/sw.ts",
-  ],
+  // page.tsx / layout.tsx / i18n / types を除外していた頃は lcov から消えるだけで、
+  // SonarQube 側は変わらず 0% で計上していた（ローカルだけが実態より高く見える）。
+  // 除外は sonar-project.properties の sonar.coverage.exclusions に一本化し、
+  // ここでは全ソースを対象にする。
+  collectCoverageFrom: [...base.collectCoverageFrom],
 };
 module.exports = config;

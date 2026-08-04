@@ -271,10 +271,20 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'analyze_release_code',
-    { description: 'Run release-grouped C4 / code graph analysis (deletes existing release_code_graphs and regenerates). Equivalent to "Anytime Trail: リリース別コード解析" command.', inputSchema: { ...commonParams } },
-    async ({ serverUrl }) => {
+    {
+      description:
+        'Run release-grouped C4 / code graph analysis. Without "tags" this deletes ALL existing release_code_graphs and regenerates every release. With "tags" only those releases are deleted and regenerated, leaving other cached graphs intact. Equivalent to "Anytime Trail: リリース別コード解析" command.',
+      inputSchema: {
+        ...commonParams,
+        tags: z
+          .array(z.string().min(1))
+          .optional()
+          .describe('Release tags to regenerate (e.g. ["v1.19.1"]). Omit to rewash all releases.'),
+      },
+    },
+    async ({ serverUrl, tags }) => {
       const opts = buildRouteOpts({ serverUrl }, options);
-      const result = await route('analyze_release_code', {}, opts);
+      const result = await route('analyze_release_code', { tags }, opts);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -803,7 +813,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'check_alignment',
     {
       description:
-        'Check whether spec documents kept up with code changes (Architectural Alignment). Maps changed files to C4 elements, reverse-looks-up the spec documents that declare those elements in c4Scope, and reports whether those specs were updated in the same change unit. Returns { scope, checkedFiles, skippedMinor, findings[] } where each finding is { status: stale|ok|undocumented, elementId, specPath, changedFiles, reason }. stale = code changed but its spec did not. undocumented = no spec declares that element. scope: worktree (default; uncommitted changes) | session (sessionId required) | range (fromRef/toRef required). Repository paths come from the server (gitRoot and lep.json sources.docs.root) and cannot be passed in.',
+        'Check whether spec documents kept up with code changes (Architectural Alignment). Maps changed files to C4 elements, reverse-looks-up the spec documents that declare those elements in c4Scope, and reports whether those specs were updated in the same change unit. Returns { scope, checkedFiles, skippedMinor, findings[] } where each finding is { status: stale|ok|undocumented|unknown, elementId, specPath, changedFiles, reason }. stale = code changed but its spec did not. undocumented = no spec declares that element. unknown = the spec repository commits needed for the judgement are not ingested into trail.db, so staleness cannot be determined (do not read this as an update omission; fix ingestion instead). scope: worktree (default; uncommitted changes) | session (sessionId required) | range (fromRef/toRef required). Repository paths come from the server (gitRoot and lep.json sources.docs.root) and cannot be passed in.',
       inputSchema: {
         scope: z
           .enum(['worktree', 'session', 'range'])
