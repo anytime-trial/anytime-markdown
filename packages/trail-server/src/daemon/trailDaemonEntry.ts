@@ -496,6 +496,9 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       trailDb: httpTrailDb,
       codeGraphService: httpCodeGraphService,
       gitRoot: opts.gitRoot,
+      // daemon はバンドル環境なので TS 解析は必ず子プロセスへ隔離する。
+      compute: { kind: 'child', analyzeChildPath },
+      logger: daemonLoggerAsLogger,
       onProgress: emitAnalyzeReleaseProgress,
     };
     return runAnalyzeReleaseCodePipeline(opts3);
@@ -685,6 +688,10 @@ export async function dispatch(method: MethodName | string, params: unknown): Pr
         trailDb: httpTrailDb,
         codeGraphService: httpCodeGraphService,
         gitRoot: req.gitRoot,
+        // daemon はバンドル環境なので TS 解析は必ず子プロセスへ隔離する。
+        // request shape に analyzeChildPath は無く、module const の dist/analyze-child.js を使う。
+        compute: { kind: 'child', analyzeChildPath },
+        logger: daemonLoggerAsLogger,
         onProgress: emitAnalyzeReleaseProgress,
       };
       return await runAnalyzeReleaseCodePipeline(opts);
