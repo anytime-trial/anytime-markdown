@@ -130,11 +130,15 @@ describe('codeGraphPanel: Auto Playback', () => {
     expect(seen).toEqual(['4x']);
   });
 
-  it('再生中にスライダーを手で動かすと一時停止を要求する', () => {
+  it('再生中にスライダーを手で動かすと停止を要求する（トグルではない）', () => {
+    let stopped = 0;
     let toggled = 0;
     const view = mount(
       baseProps({
         playback: { status: 'playing', speed: '1x', position: 1, total: 3, skipped: 1, failed: 0 },
+        onPlaybackStop: () => {
+          stopped += 1;
+        },
         onPlaybackToggle: () => {
           toggled += 1;
         },
@@ -142,21 +146,46 @@ describe('codeGraphPanel: Auto Playback', () => {
     );
     view.slider().value = '0';
     view.slider().dispatchEvent(new Event('input'));
-    expect(toggled).toBe(1);
+    expect(stopped).toBe(1);
+    // トグルを呼ぶと、props が更新される前の 2 回目で「開始」と解釈され得る。
+    expect(toggled).toBe(0);
   });
 
-  it('停止中のスライダー操作では一時停止を要求しない', () => {
+  it('ドラッグ中に input が連続しても停止要求のままで、再生要求へ転じない', () => {
+    let stopped = 0;
     let toggled = 0;
+    // props は据え置き（React が再レンダーするまで描画層は再生中のままに見える）。
     const view = mount(
       baseProps({
+        playback: { status: 'playing', speed: '1x', position: 1, total: 3, skipped: 1, failed: 0 },
+        onPlaybackStop: () => {
+          stopped += 1;
+        },
         onPlaybackToggle: () => {
           toggled += 1;
         },
       }),
     );
+    for (const value of ['0', '1', '2']) {
+      view.slider().value = value;
+      view.slider().dispatchEvent(new Event('input'));
+    }
+    expect(stopped).toBe(3);
+    expect(toggled).toBe(0);
+  });
+
+  it('停止中のスライダー操作では停止を要求しない', () => {
+    let stopped = 0;
+    const view = mount(
+      baseProps({
+        onPlaybackStop: () => {
+          stopped += 1;
+        },
+      }),
+    );
     view.slider().value = '0';
     view.slider().dispatchEvent(new Event('input'));
-    expect(toggled).toBe(0);
+    expect(stopped).toBe(0);
   });
 
   it('再生中は未生成の時点の生成を要求しない', () => {

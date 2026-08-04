@@ -527,6 +527,15 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     });
   }, []);
 
+  /**
+   * 停止専用（スライダーの手動操作から呼ばれる）。トグルにしないのは、描画層が持つ `props` が
+   * 再レンダーまで古く、古い状態からトグルを呼ぶと停止の次が開始と解釈され得るため。
+   * `stopPlayback` は再生中でなければ何もしないので、多重呼び出しはべき等である。
+   */
+  const handlePlaybackStop = useCallback(() => {
+    stopPlayback('paused');
+  }, [stopPlayback]);
+
   const handlePlaybackToggle = useCallback(() => {
     if (playingRef.current) {
       stopPlayback('paused');
@@ -687,6 +696,7 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     onRefetchCommits: refetchCommits,
     playback: playbackView,
     onPlaybackToggle: handlePlaybackToggle,
+    onPlaybackStop: handlePlaybackStop,
     onPlaybackSpeedChange: setPlaybackSpeed,
   };
 

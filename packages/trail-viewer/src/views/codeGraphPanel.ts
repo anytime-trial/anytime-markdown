@@ -194,8 +194,17 @@ export interface CodeGraphPanelProps {
   readonly baseline?: CodeGraphBaselineTick | null;
   /** Auto Playback の状態。未指定なら再生 UI を出さない。 */
   readonly playback?: CodeGraphPlaybackViewState;
-  /** 再生 / 一時停止の要求。 */
+  /** 再生 / 一時停止の要求（再生ボタン専用）。 */
   readonly onPlaybackToggle?: () => void;
+  /**
+   * 再生の停止要求（トグルではない）。
+   *
+   * スライダー操作のような「止めたいだけ」の経路はトグルを使わない。描画層が見る `props` は
+   * React が再レンダーして `update()` を呼ぶまで古く、古い `props` からトグルを呼ぶと
+   * 「停止 → 次の呼び出しが開始と解釈される」非対称が出る。停止専用なら多重呼び出しは
+   * べき等になる。
+   */
+  readonly onPlaybackStop?: () => void;
   /** 再生速度の変更要求。再生中でも受け付け、次のフレームから効く。 */
   readonly onPlaybackSpeedChange?: (speed: CodeGraphPlaybackSpeed) => void;
 }
@@ -828,7 +837,8 @@ export function mountCodeGraphPanel(
   slider.addEventListener('input', () => {
     // 手で目盛りを動かしたら再生を止める。再生が選択を奪い返すと操作できない
     // （機能仕様書 §4.6）。確定（change）ではなく最初の移動で止める。
-    if (isPlaying()) props.onPlaybackToggle?.();
+    // ドラッグ中は `input` が連続発火するため、トグルではなく停止専用の経路を呼ぶ。
+    if (isPlaying()) props.onPlaybackStop?.();
     applyScrubberValueText(scrubberTicks(), Number(slider.value));
   });
   slider.addEventListener('change', () => {
