@@ -78,7 +78,7 @@ function mount(props: CodeGraphPanelProps): {
   return {
     container,
     handle,
-    select: () => container.querySelector('select') as HTMLSelectElement,
+    select: () => container.querySelector('[data-testid="code-graph-color-by"]') as HTMLSelectElement,
     legend: () =>
       container.querySelector('[data-testid="code-graph-legend"]') as HTMLElement,
   };

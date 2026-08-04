@@ -34,6 +34,7 @@ import {
   type CodeGraphGhostEdgeGranularity,
 } from './codeGraphCanvas';
 import type { CodeGraphDiff, CodeGraphNodeDiffStatus } from '@anytime-markdown/trail-core/codeGraphDiff';
+import { PLAYBACK_SPEEDS, type CodeGraphPlaybackSpeed } from './codeGraphPlayback';
 import { diffNodeColor } from './stateReplayColors';
 
 /** t 未注入時の日本語フォールバック（パネルは元来 JP ハードコード）。 */
@@ -94,6 +95,16 @@ const COLOR_BY_FALLBACK: Record<string, string> = {
   'codeGraph.scrubber.commitsLoading': 'コミット一覧を取得中です。',
   'codeGraph.scrubber.commitsError': 'コミット一覧を取得できませんでした。',
   'codeGraph.scrubber.retry': '再試行',
+  'codeGraph.playback.play': '自動再生',
+  'codeGraph.playback.pause': '一時停止',
+  'codeGraph.playback.speed': '再生速度',
+  'codeGraph.playback.unavailable': '再生できる時点が 2 つ未満です',
+  'codeGraph.playback.progress': '再生中',
+  'codeGraph.playback.skipped': '未生成を除外',
+  'codeGraph.playback.failed': '取得失敗',
+  'codeGraph.playback.doneCompleted': '再生が末尾まで到達しました',
+  'codeGraph.playback.donePaused': '再生を停止しました',
+  'codeGraph.playback.doneFailed': '取得に連続して失敗したため再生を停止しました',
 };
 
 /** 「現在のスナップショット」を表す予約タグ。`/api/code-graph` の release パラメタと同値。 */
@@ -181,6 +192,21 @@ export interface CodeGraphPanelProps {
    * `hasGraph` が false ならグラフ未生成で、生成を要求できる。
    */
   readonly baseline?: CodeGraphBaselineTick | null;
+  /** Auto Playback の状態。未指定なら再生 UI を出さない。 */
+  readonly playback?: CodeGraphPlaybackViewState;
+  /** 再生 / 一時停止の要求（再生ボタン専用）。 */
+  readonly onPlaybackToggle?: () => void;
+  /**
+   * 再生の停止要求（トグルではない）。
+   *
+   * スライダー操作のような「止めたいだけ」の経路はトグルを使わない。描画層が見る `props` は
+   * React が再レンダーして `update()` を呼ぶまで古く、古い `props` からトグルを呼ぶと
+   * 「停止 → 次の呼び出しが開始と解釈される」非対称が出る。停止専用なら多重呼び出しは
+   * べき等になる。
+   */
+  readonly onPlaybackStop?: () => void;
+  /** 再生速度の変更要求。再生中でも受け付け、次のフレームから効く。 */
+  readonly onPlaybackSpeedChange?: (speed: CodeGraphPlaybackSpeed) => void;
 }
 
 /** スクラバの粒度。 */
@@ -212,6 +238,39 @@ export interface CodeGraphBaselineTick {
   readonly tag: string;
   readonly hasGraph: boolean;
   readonly label?: string;
+}
+
+/**
+ * Auto Playback の表示状態（機能仕様書 §4.1）。
+ *
+ * `unavailable` は再生対象が 2 本未満で送る先が無い状態。ボタンを不活性にする。
+ */
+export type CodeGraphPlaybackViewState =
+  | { readonly status: 'unavailable' }
+  | {
+      readonly status: 'idle';
+      readonly speed: CodeGraphPlaybackSpeed;
+      /** 直前の再生の帰結。停止時にだけ読み上げへ出す（§4.7）。 */
+      readonly result?: CodeGraphPlaybackResult;
+    }
+  | {
+      readonly status: 'playing';
+      readonly speed: CodeGraphPlaybackSpeed;
+      /** 再生列の何本目か（1 始まり）。 */
+      readonly position: number;
+      readonly total: number;
+      /** 在庫が無く再生列から外した目盛りの数。 */
+      readonly skipped: number;
+      /** 取得に失敗して飛ばした目盛りの数。 */
+      readonly failed: number;
+    };
+
+export interface CodeGraphPlaybackResult {
+  readonly reason: 'completed' | 'paused' | 'failed';
+  readonly position: number;
+  readonly total: number;
+  readonly skipped: number;
+  readonly failed: number;
 }
 
 /** オンデマンド生成の状態。`tag` は要求中・失敗中のタグ。 */
@@ -289,6 +348,50 @@ export function mountCodeGraphPanel(
   scrubberValue.style.cssText = 'font-size:0.75rem;font-variant-numeric:tabular-nums;flex-shrink:0;';
   scrubberRow.appendChild(scrubberValue);
 
+  // --- Auto Playback ---
+  const playbackWrap = document.createElement('div');
+  playbackWrap.setAttribute('data-testid', 'code-graph-playback');
+  playbackWrap.style.cssText = 'display:none;align-items:center;gap:4px;flex-shrink:0;';
+  scrubberRow.appendChild(playbackWrap);
+
+  const playButton = document.createElement('button');
+  playButton.setAttribute('data-testid', 'code-graph-playback-toggle');
+  playButton.style.cssText =
+    'padding:2px 8px;border:1px solid var(--am-color-divider);border-radius:4px;' +
+    'background:transparent;color:inherit;cursor:pointer;font-size:0.7rem;flex-shrink:0;';
+  playButton.addEventListener('click', () => {
+    if (playButton.disabled) return;
+    props.onPlaybackToggle?.();
+  });
+  playbackWrap.appendChild(playButton);
+
+  const speedSelect = document.createElement('select');
+  speedSelect.setAttribute('data-testid', 'code-graph-playback-speed');
+  speedSelect.style.cssText =
+    'padding:2px 4px;border:1px solid var(--am-color-divider);border-radius:4px;' +
+    'background:transparent;color:inherit;font-size:0.7rem;flex-shrink:0;';
+  for (const speed of PLAYBACK_SPEEDS) {
+    const option = document.createElement('option');
+    option.value = speed;
+    option.textContent = speed;
+    speedSelect.appendChild(option);
+  }
+  speedSelect.addEventListener('change', () => {
+    props.onPlaybackSpeedChange?.(speedSelect.value as CodeGraphPlaybackSpeed);
+  });
+  playbackWrap.appendChild(speedSelect);
+
+  /**
+   * 再生の帰結を出す行。フレームごとには読み上げず、停止時にだけ出す（機能仕様書 §4.7）。
+   * 1 秒間隔の読み上げは操作を妨げるため、再生中の位置は slider の aria-valuetext に任せる。
+   */
+  const playbackStatus = document.createElement('div');
+  playbackStatus.setAttribute('data-testid', 'code-graph-playback-status');
+  playbackStatus.setAttribute('role', 'status');
+  playbackStatus.style.cssText =
+    'font-size:0.65rem;color:var(--am-color-text-secondary);min-height:0;';
+  scrubberEl.appendChild(playbackStatus);
+
   // 粒度（リリース / コミット）の切替と区間表示。スライダーの行とは分ける
   // （ズーム操作は目盛りを選ぶ操作とは別の軸で、同じ行に混ぜると押し間違える）。
   const zoomRow = document.createElement('div');
@@ -358,6 +461,8 @@ export function mountCodeGraphPanel(
   const colorByLabel = document.createElement('span');
   colorByWrap.appendChild(colorByLabel);
   const colorBySelect = document.createElement('select');
+  // 再生速度セレクタが同じスクラバ行に増えたため、位置ではなく識別子で引けるようにする。
+  colorBySelect.setAttribute('data-testid', 'code-graph-color-by');
   colorBySelect.style.cssText =
     'font-size:0.75rem;padding:2px 4px;background:transparent;color:inherit;' +
     'border:1px solid var(--am-color-divider);border-radius:4px;';
@@ -582,6 +687,69 @@ export function mountCodeGraphPanel(
     }
   }
 
+  function isPlaying(): boolean {
+    return props.playback?.status === 'playing';
+  }
+
+  /** 再生ボタン・速度セレクタ・進捗・帰結（機能仕様書 §4.1・§4.7）。 */
+  function renderPlayback(): void {
+    const playback = props.playback;
+    if (!playback) {
+      playbackWrap.style.display = 'none';
+      playbackStatus.textContent = '';
+      return;
+    }
+    playbackWrap.style.display = 'flex';
+
+    const playing = playback.status === 'playing';
+    const unavailable = playback.status === 'unavailable';
+    const label = tr(playing ? 'codeGraph.playback.pause' : 'codeGraph.playback.play');
+    playButton.textContent = label;
+    playButton.setAttribute('aria-label', label);
+    playButton.disabled = unavailable;
+    playButton.style.opacity = unavailable ? '0.5' : '1';
+    playButton.style.cursor = unavailable ? 'not-allowed' : 'pointer';
+    playButton.title = unavailable ? tr('codeGraph.playback.unavailable') : '';
+
+    speedSelect.disabled = unavailable;
+    speedSelect.setAttribute('aria-label', tr('codeGraph.playback.speed'));
+    if (playback.status !== 'unavailable') speedSelect.value = playback.speed;
+
+    if (playing) {
+      // 除外件数は再生中も常に見せる。飛ばした事実が見えないと、目盛りが等間隔なぶん
+      // 「連続して見えるのに連続していない」誤読になる（機能仕様書 §4.2）。
+      playbackStatus.textContent = playbackCounters(
+        `${tr('codeGraph.playback.progress')} ${playback.position} / ${playback.total}`,
+        playback.skipped,
+        playback.failed,
+      );
+      return;
+    }
+    const result = playback.status === 'idle' ? playback.result : undefined;
+    if (!result) {
+      playbackStatus.textContent = '';
+      return;
+    }
+    const reasonKey =
+      result.reason === 'completed'
+        ? 'codeGraph.playback.doneCompleted'
+        : result.reason === 'failed'
+          ? 'codeGraph.playback.doneFailed'
+          : 'codeGraph.playback.donePaused';
+    playbackStatus.textContent = playbackCounters(
+      `${tr(reasonKey)}（${result.position} / ${result.total}）`,
+      result.skipped,
+      result.failed,
+    );
+  }
+
+  function playbackCounters(head: string, skipped: number, failed: number): string {
+    const parts = [head];
+    if (skipped > 0) parts.push(`${tr('codeGraph.playback.skipped')} ${skipped}`);
+    if (failed > 0) parts.push(`${tr('codeGraph.playback.failed')} ${failed}`);
+    return parts.join(' / ');
+  }
+
   /** ズーム行（粒度の切替ボタンと区間ラベル）。 */
   function renderZoomRow(): void {
     const isCommit = granularity() === 'commit';
@@ -635,6 +803,7 @@ export function mountCodeGraphPanel(
     }
     scrubberEl.style.display = 'flex';
     renderZoomRow();
+    renderPlayback();
 
     // コミット粒度で区間が空でも、スクラバごと消すと「リリースへ戻す」手段まで消える。
     // 目盛りだけを畳み、戻る導線は残す。
@@ -666,6 +835,10 @@ export function mountCodeGraphPanel(
   // ドラッグ中（input）はラベルだけ更新し、確定（change）で初めて取得を要求する。
   // input で通知すると端から端へ滑らせただけで目盛りの数だけ fetch が走る。
   slider.addEventListener('input', () => {
+    // 手で目盛りを動かしたら再生を止める。再生が選択を奪い返すと操作できない
+    // （機能仕様書 §4.6）。確定（change）ではなく最初の移動で止める。
+    // ドラッグ中は `input` が連続発火するため、トグルではなく停止専用の経路を呼ぶ。
+    if (isPlaying()) props.onPlaybackStop?.();
     applyScrubberValueText(scrubberTicks(), Number(slider.value));
   });
   slider.addEventListener('change', () => {
@@ -681,6 +854,9 @@ export function mountCodeGraphPanel(
    * 描画層は「どの時点か」だけを返し、どのエンドポイントを叩くかはラッパが決める。
    */
   function requestGenerate(id: string): void {
+    // 再生中は生成を受け付けない（機能仕様書 §4.6）。再生は在庫のみを回るため、
+    // 再生中に未生成の時点へ止まることは無い。押せる状態に見えるのは誤りである。
+    if (isPlaying()) return;
     if (granularity() === 'commit') props.onGenerateCommit?.(id);
     else props.onGenerateRelease?.(id);
   }

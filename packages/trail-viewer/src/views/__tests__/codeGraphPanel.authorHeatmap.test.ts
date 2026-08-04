@@ -77,7 +77,7 @@ function mount(props: CodeGraphPanelProps): {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const handle = mountCodeGraphPanel(container, props);
-  const select = container.querySelector('select') as HTMLSelectElement;
+  const select = container.querySelector('[data-testid="code-graph-color-by"]') as HTMLSelectElement;
   // 凡例は testid で引く。スタイル文字列（0.65rem）で引くと Time Scrubber の凡例など
   // 同じ字送りの別要素を先に拾ってしまう。
   const legend = () =>
