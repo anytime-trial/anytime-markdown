@@ -15,6 +15,7 @@ import {
   type CodeGraphPanelProps as VanillaProps,
 } from '../views/codeGraphPanel';
 import { useCodeGraphReleases } from '../hooks/useCodeGraphReleases';
+import { diffCodeGraphs } from '@anytime-markdown/trail-core/codeGraphDiff';
 import { useTrailI18n } from '../i18n';
 import type { TrailI18n } from '../i18n';
 
@@ -98,6 +99,39 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
       totalNodes: authorHeatmapData.totalNodes,
     };
   }, [authorHeatmapData]);
+
+  /**
+   * State Replay のベースライン＝ 1 つ前の目盛り（仕様 §4.2）。
+   *
+   * 「現在」を選んでいるときは在庫のある最新のリリースを採る。目盛り上の直前が未生成だと
+   * 「現在」の差分が常に出せなくなるため、ここだけ在庫のあるものまで遡る。
+   * 過去の時点では在庫の有無に関わらず直前の目盛りを採る（未生成なら生成を要求できる）。
+   */
+  const baseline = useMemo<VanillaProps['baseline']>(() => {
+    if (releases.length === 0) return null;
+    if (selectedRelease === CURRENT_RELEASE) {
+      for (let i = releases.length - 1; i >= 0; i--) {
+        const tick = releases[i];
+        if (tick?.hasGraph) return tick;
+      }
+      return null;
+    }
+    const index = releases.findIndex((r) => r.tag === selectedRelease);
+    if (index <= 0) return null;
+    return releases[index - 1] ?? null;
+  }, [releases, selectedRelease]);
+
+  // ベースラインのグラフは差分表示を選んでいる間だけ取る（1 本 2 MB あるため）。
+  const { graph: baselineGraph } = useCodeGraph(serverUrl, {
+    repo: repoName,
+    enabled: !!repoName && colorBy === 'diff' && !!baseline?.hasGraph,
+    release: baseline?.tag ?? CURRENT_RELEASE,
+  });
+
+  const diff = useMemo<VanillaProps['diff']>(() => {
+    if (colorBy !== 'diff' || !graph || !baselineGraph) return null;
+    return diffCodeGraphs(baselineGraph, graph);
+  }, [colorBy, graph, baselineGraph]);
 
   const tcRepoId = useMemo<string | null>(() => {
     if (!graph || graph.repositories.length === 0) return null;
@@ -286,6 +320,8 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     generateState,
     onReleaseChange: setSelectedRelease,
     onGenerateRelease: (tag) => void handleGenerateRelease(tag),
+    baseline,
+    diff,
   };
 
   return <VanillaIsland mount={mountCodeGraphPanel} props={viewProps} />;

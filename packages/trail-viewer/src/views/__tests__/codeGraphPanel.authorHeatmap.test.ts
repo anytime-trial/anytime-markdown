@@ -95,13 +95,15 @@ describe('codeGraphPanel: Author Heatmap の配色セレクタと凡例', () => 
     document.body.replaceChildren();
   });
 
-  it('配色セレクタに 4 つの選択肢が並ぶ', () => {
+  it('配色セレクタに 5 つの選択肢が並ぶ', () => {
     const { select, handle } = mount(baseProps());
     expect([...select.options].map((o) => o.value)).toEqual([
       'community',
       'layer',
       'lastEditor',
       'editFrequency',
+      // State Replay（前版との差分）。ベースラインが無い間は disabled で並ぶ。
+      'diff',
     ]);
     handle.destroy();
   });

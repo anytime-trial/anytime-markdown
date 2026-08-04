@@ -210,7 +210,8 @@ describe('codeGraphPanel: Time Scrubber', () => {
     );
     const options = [...container.querySelectorAll('option')];
     const disabled = options.filter((o) => o.disabled).map((o) => o.value);
-    expect(disabled.sort()).toEqual(['editFrequency', 'lastEditor']);
+    // diff は baseline 未指定のため不活性（State Replay。最古の時点と同じ扱い）。
+    expect(disabled.sort()).toEqual(['diff', 'editFrequency', 'lastEditor']);
     handle.destroy();
   });
 

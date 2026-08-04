@@ -51,11 +51,23 @@ const RELEASES = [
   { tag: 'v1.15.0', releasedAt: '2026-07-17T21:46:09.000Z', hasGraph: false },
 ];
 
-/** useCodeGraph が受け取った options（release の実値）を返す。 */
+/**
+ * 本体グラフ取得が受け取った options（release の実値）を返す。
+ *
+ * State Replay の追加で `useCodeGraph` は 1 レンダーにつき 2 回呼ばれるようになった
+ * （1 回目 = 表示するグラフ、2 回目 = 差分のベースライン）。フック呼び出しの順序は
+ * React が保証するため、最後のレンダーの 1 回目を本体として取る。末尾を取ると
+ * ベースライン側の release を本体と取り違える。
+ */
+const USE_CODE_GRAPH_CALLS_PER_RENDER = 2;
+
 function lastRequestedRelease(): string | undefined {
   const calls = useCodeGraphMock.mock.calls;
-  const last = calls[calls.length - 1];
-  return (last?.[1] as { release?: string } | undefined)?.release;
+  // 呼び出し数が 1 レンダー 2 回でなくなったら、以降このヘルパは別の呼び出しを
+  // 検査し続けて何も守らなくなる。前提が崩れたことを黙らせず、ここで落とす。
+  expect(calls.length % USE_CODE_GRAPH_CALLS_PER_RENDER).toBe(0);
+  const main = calls[calls.length - USE_CODE_GRAPH_CALLS_PER_RENDER];
+  return (main?.[1] as { release?: string } | undefined)?.release;
 }
 
 describe('CodeGraphPanel: Time Scrubber の状態管理', () => {
