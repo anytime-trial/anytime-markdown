@@ -75,6 +75,20 @@ describe('assertNotProductionWriteDuringTests', () => {
     );
   });
 
+  // 回帰: サンドボックスのルートをモジュール初期化時に固定すると、テストが
+  // 実行時に tmpdir を差し替えた場合に旧ルートだけを許可し続け、正当な書き込みを
+  // 拒否してしまう。呼び出しごとに評価していることを確かめる。
+  it('re-evaluates the sandbox root on every call', () => {
+    const spy = jest.spyOn(os, 'tmpdir').mockReturnValue('/sandbox-switched-at-runtime');
+    try {
+      expect(() =>
+        assertNotProductionWriteDuringTests('/sandbox-switched-at-runtime/trail.db'),
+      ).not.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('does NOT throw when NODE_ENV is not test (simulated via env override)', () => {
     // Temporarily remove both test indicators to simulate a non-test environment.
     // This covers the early-return branch.

@@ -18,9 +18,22 @@ import os from 'node:os';
  *
  * 検出条件:
  *   - NODE_ENV === 'test' または JEST_WORKER_ID が定義済み
- *   - 書き込み先が ALLOWED_TEST_WRITE_ROOTS のいずれの配下でもない
+ *   - 書き込み先が {@link allowedTestWriteRoots} のいずれの配下でもない
  */
-const ALLOWED_TEST_WRITE_ROOTS: readonly string[] = [os.tmpdir()];
+
+/**
+ * テスト用サンドボックスのルート集合。**呼び出しごとに評価する**
+ * （モジュール初期化時に固定すると、テストが実行時に tmpdir を差し替えたとき
+ * 旧ルートだけを許可し続け、正当な書き込みを拒否してしまう）。
+ *
+ * symlink は解決しない。macOS の `os.tmpdir()` は `/var/folders/...` を返し
+ * `/var` は `/private/var` への symlink だが、CI（ubuntu-latest）もローカルも
+ * Linux で、realpath を解決してから本ガードへ渡す経路も存在しない。macOS を
+ * 対象に含めるときは realpath 解決したルートも許可へ加える。
+ */
+function allowedTestWriteRoots(): readonly string[] {
+  return [path.resolve(os.tmpdir())];
+}
 
 /**
  * `target` が `root` の配下かを判定する。
@@ -37,7 +50,7 @@ export function assertNotProductionWriteDuringTests(targetPath: string): void {
   // 相対パスは cwd 基準で解決してから判定する（未解決のまま比べると
   // サンドボックス外を通しうる）。
   const resolved = path.resolve(targetPath);
-  if (ALLOWED_TEST_WRITE_ROOTS.some((root) => isUnder(resolved, path.resolve(root)))) {
+  if (allowedTestWriteRoots().some((root) => isUnder(resolved, root))) {
     return;
   }
   throw new Error(
