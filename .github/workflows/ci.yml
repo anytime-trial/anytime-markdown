@@ -86,6 +86,15 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: node scripts/check-readme-package-graph.mjs
 
+      # 本番コードが `git` をコマンド名のまま child_process へ渡していないか検証する。
+      # 名前渡しは探索を OS に委ね、Windows では cwd(= 任意のユーザーリポジトリ)を PATH より
+      # 先に探すため、リポジトリにコミットされた git.exe が実行され得る(SonarCloud S4036)。
+      # 移行漏れは「エラー」ではなく「従来どおり動く」形で残り、テストもビルドも緑のまま
+      # 素通りする(初回移行で 5 箇所を取りこぼした)。専用ゲートでしか検出できない。
+      - name: Check no bare git executable invocation
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+        run: node scripts/check-bare-git-exec.mjs
+
       # 拡張同梱スキル(packages/*/skills/<name>/SKILL.md)が canonical(.claude/skills)と
       # byte 一致しているか検証する。手動複製ゆえ canonical 更新時の追随漏れを検出する。
       - name: Check bundled skills are in sync

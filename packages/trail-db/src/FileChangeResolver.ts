@@ -185,8 +185,10 @@ export class FileChangeResolver implements IFileChangeResolver {
   }
 
   private hasHead(): boolean {
+    // 解決は try の外。中に入れると git 実行ファイル不在が「初回コミット前」に化ける。
+    const gitExecutable = resolveGitExecutable();
     try {
-      execFileSync(resolveGitExecutable(), ['rev-parse', '--verify', '--quiet', 'HEAD'], {
+      execFileSync(gitExecutable, ['rev-parse', '--verify', '--quiet', 'HEAD'], {
         cwd: this.gitRepoRoot,
         encoding: 'utf-8',
         timeout: 30_000,
@@ -275,8 +277,9 @@ export class FileChangeResolver implements IFileChangeResolver {
   }
 
   private runGit(args: readonly string[]): string | null {
+    const gitExecutable = resolveGitExecutable();
     try {
-      return execFileSync(resolveGitExecutable(), [...args], {
+      return execFileSync(gitExecutable, [...args], {
         cwd: this.gitRepoRoot,
         encoding: 'utf-8',
         timeout: 30_000,

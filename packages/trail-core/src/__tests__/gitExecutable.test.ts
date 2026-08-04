@@ -5,6 +5,8 @@ import {
   findGitExecutable,
   resolveGitExecutable,
   resetGitExecutableCacheForTest,
+  GitExecutableNotFoundError,
+  GIT_PATH_ENV,
 } from '../gitExecutable';
 
 /** 与えた集合だけを実行可能ファイルとみなす差し替え。 */
@@ -79,24 +81,29 @@ describe('findGitExecutable', () => {
       pathValue: 'C:\\Windows\\system32;C:\\Program Files\\Git\\cmd',
     };
 
-    it('PATHEXT の拡張子を順に試す', () => {
+    it('.COM → .EXE の順に試す', () => {
       expect(
         findGitExecutable({
           ...win32,
-          pathExtValue: '.COM;.EXE;.BAT;.CMD',
-          isExecutableFile: executableSet(['C:\\Program Files\\Git\\cmd\\git.EXE']),
+          isExecutableFile: executableSet([
+            'C:\\Program Files\\Git\\cmd\\git.COM',
+            'C:\\Program Files\\Git\\cmd\\git.EXE',
+          ]),
         }),
-      ).toBe('C:\\Program Files\\Git\\cmd\\git.EXE');
+      ).toBe('C:\\Program Files\\Git\\cmd\\git.COM');
     });
 
-    it('PATHEXT が未設定なら既定の拡張子集合を使う', () => {
+    it('バッチファイル（.CMD / .BAT）を候補にしない', () => {
+      // Node は shell なしでバッチを起動できない。拾うと「見つかったのに実行できない」になる。
       expect(
         findGitExecutable({
           ...win32,
-          pathExtValue: undefined,
-          isExecutableFile: executableSet(['C:\\Program Files\\Git\\cmd\\git.CMD']),
+          isExecutableFile: executableSet([
+            'C:\\Program Files\\Git\\cmd\\git.CMD',
+            'C:\\Program Files\\Git\\cmd\\git.BAT',
+          ]),
         }),
-      ).toBe('C:\\Program Files\\Git\\cmd\\git.CMD');
+      ).toBeNull();
     });
 
     it('引用符付きの PATH エントリを剥がして解決する', () => {
@@ -104,7 +111,6 @@ describe('findGitExecutable', () => {
         findGitExecutable({
           platform: 'win32',
           pathValue: '"C:\\Program Files\\Git\\cmd"',
-          pathExtValue: '.EXE',
           isExecutableFile: executableSet(['C:\\Program Files\\Git\\cmd\\git.EXE']),
         }),
       ).toBe('C:\\Program Files\\Git\\cmd\\git.EXE');
@@ -116,17 +122,15 @@ describe('findGitExecutable', () => {
         findGitExecutable({
           platform: 'win32',
           pathValue: '.;C:\\Windows\\system32',
-          pathExtValue: '.EXE',
           isExecutableFile: () => true,
         }),
-      ).toBe('C:\\Windows\\system32\\git.EXE');
+      ).toBe('C:\\Windows\\system32\\git.COM');
     });
 
     it('拡張子なしの git は候補にしない', () => {
       expect(
         findGitExecutable({
           ...win32,
-          pathExtValue: '.EXE',
           isExecutableFile: executableSet(['C:\\Program Files\\Git\\cmd\\git']),
         }),
       ).toBeNull();
@@ -173,8 +177,16 @@ describe('findGitExecutable（既定の実行ファイル判定）', () => {
 });
 
 describe('resolveGitExecutable', () => {
+  const savedEnv = { ...process.env };
+
+  beforeEach(() => {
+    // 実行環境の ANYTIME_GIT_PATH / PATH に結果が左右されないようにする。
+    delete process.env[GIT_PATH_ENV];
+  });
+
   afterEach(() => {
     resetGitExecutableCacheForTest();
+    process.env = { ...savedEnv };
   });
 
   it('環境変数 ANYTIME_GIT_PATH の絶対パスを最優先で使う', () => {
@@ -183,7 +195,7 @@ describe('resolveGitExecutable', () => {
         platform: 'linux',
         gitPathOverride: '/opt/git/bin/git',
         pathValue: '/usr/bin',
-        isExecutableFile: executableSet(['/usr/bin/git']),
+        isExecutableFile: executableSet(['/opt/git/bin/git', '/usr/bin/git']),
       }),
     ).toBe('/opt/git/bin/git');
   });
@@ -199,6 +211,18 @@ describe('resolveGitExecutable', () => {
     ).toThrow(/ANYTIME_GIT_PATH/);
   });
 
+  it('ANYTIME_GIT_PATH が実行ファイルを指していなければ拒否する', () => {
+    // 実在確認を怠ると、以後すべての git 実行が呼び出し側の catch で ENOENT として散る。
+    expect(() =>
+      resolveGitExecutable({
+        platform: 'linux',
+        gitPathOverride: '/opt/git/bin/git',
+        pathValue: '/usr/bin',
+        isExecutableFile: executableSet(['/usr/bin/git']),
+      }),
+    ).toThrow(/does not point to an executable file/);
+  });
+
   it('解決できなければ例外を投げる（cwd の git へフォールバックしない）', () => {
     expect(() =>
       resolveGitExecutable({
@@ -206,16 +230,41 @@ describe('resolveGitExecutable', () => {
         pathValue: '/usr/bin',
         isExecutableFile: executableSet([]),
       }),
-    ).toThrow(/git executable/);
+    ).toThrow(GitExecutableNotFoundError);
   });
 
-  it('2 回目以降は探索し直さない', () => {
-    const isExecutableFile = jest.fn(executableSet(['/usr/bin/git']));
-    const options = { platform: 'linux' as NodeJS.Platform, pathValue: '/usr/bin', isExecutableFile };
-    expect(resolveGitExecutable(options)).toBe('/usr/bin/git');
-    const callsAfterFirst = isExecutableFile.mock.calls.length;
-    expect(resolveGitExecutable(options)).toBe('/usr/bin/git');
-    expect(isExecutableFile.mock.calls.length).toBe(callsAfterFirst);
+  it('プロセス既定での解決は 2 回目以降キャッシュを使う', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'git-executable-cache-'));
+    try {
+      const exe = join(dir, 'git');
+      writeFileSync(exe, '');
+      chmodSync(exe, 0o755);
+      process.env[GIT_PATH_ENV] = exe;
+      expect(resolveGitExecutable()).toBe(exe);
+      // キャッシュが効いていれば、環境変数を消しても同じ値が返る。
+      delete process.env[GIT_PATH_ENV];
+      expect(resolveGitExecutable()).toBe(exe);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('解決入力を差し替えた呼び出しはキャッシュを共有しない', () => {
+    // 最初の呼び出しの文脈が以後すべてを固定してしまうのを防ぐ。
+    expect(
+      resolveGitExecutable({
+        platform: 'linux',
+        pathValue: '/usr/bin',
+        isExecutableFile: executableSet(['/usr/bin/git']),
+      }),
+    ).toBe('/usr/bin/git');
+    expect(
+      resolveGitExecutable({
+        platform: 'linux',
+        pathValue: '/opt/bin',
+        isExecutableFile: executableSet(['/opt/bin/git']),
+      }),
+    ).toBe('/opt/bin/git');
   });
 
   it('失敗はキャッシュしない（PATH 修正後に回復できる）', () => {

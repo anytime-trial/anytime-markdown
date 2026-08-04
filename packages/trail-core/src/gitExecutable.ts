@@ -17,8 +17,15 @@
 import path from 'node:path';
 import { accessSync, constants, statSync } from 'node:fs';
 
-/** PATHEXT 未設定時に試す拡張子（Windows の既定に合わせる）。 */
-const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD';
+/**
+ * Windows で試す拡張子。
+ *
+ * Why not PATHEXT をそのまま使わない: PATHEXT には `.BAT` / `.CMD` が含まれるが、Node の
+ * `execFile` / `spawn` は `shell` なしでバッチファイルを起動できない（Node 18.20 / 20.12 以降は
+ * 明示的に拒否される）。PATHEXT 順で `.CMD` を先に拾うと、実行できない候補を「見つかった」と
+ * 返してしまう。git 本体は常に `git.exe` なので、実行可能な形式だけに絞る。
+ */
+const WIN32_EXECUTABLE_EXTENSIONS = ['.COM', '.EXE'] as const;
 
 /** 実行ファイル名の基底（拡張子は Windows でのみ付与する）。 */
 const GIT_BASENAME = 'git';
@@ -26,13 +33,21 @@ const GIT_BASENAME = 'git';
 /** 絶対パス指定で git を差し替えるための環境変数名。 */
 export const GIT_PATH_ENV = 'ANYTIME_GIT_PATH';
 
+/**
+ * git 実行ファイルを解決できなかったことを表す。
+ *
+ * git 自体の実行失敗（非ゼロ終了・HEAD 不在など、呼び出し側が正常系として扱うもの）と
+ * 区別できるようにするための専用型。`catch` で握り潰す前に `instanceof` で弾くこと。
+ */
+export class GitExecutableNotFoundError extends Error {
+  override readonly name = 'GitExecutableNotFoundError';
+}
+
 export interface GitExecutableLookupOptions {
   /** 既定は `process.platform`。テストと Windows 挙動の検証のために注入可能にしている。 */
   readonly platform?: NodeJS.Platform;
   /** 既定は `process.env.PATH`。 */
   readonly pathValue?: string;
-  /** 既定は `process.env.PATHEXT`（Windows のみ意味を持つ）。 */
-  readonly pathExtValue?: string;
   /** 既定は stat + X_OK による判定。 */
   readonly isExecutableFile?: (candidate: string) => boolean;
 }
@@ -46,9 +61,10 @@ function platformPath(platform: NodeJS.Platform): path.PlatformPath {
   return platform === 'win32' ? path.win32 : path.posix;
 }
 
-function defaultIsExecutableFile(candidate: string): boolean {
+function defaultIsExecutableFile(candidate: string, platform: NodeJS.Platform): boolean {
   if (!statSync(candidate, { throwIfNoEntry: false })?.isFile()) return false;
-  if (process.platform === 'win32') return true;
+  // Windows に実行ビットは無い。拡張子が実行形式であることは候補生成側で保証している。
+  if (platform === 'win32') return true;
   try {
     accessSync(candidate, constants.X_OK);
     return true;
@@ -65,14 +81,9 @@ function stripQuotes(entry: string): string {
     : entry;
 }
 
-function candidateNames(platform: NodeJS.Platform, pathExtValue: string | undefined): string[] {
+function candidateNames(platform: NodeJS.Platform): readonly string[] {
   if (platform !== 'win32') return [GIT_BASENAME];
-  const raw = pathExtValue === undefined || pathExtValue.trim() === '' ? DEFAULT_PATHEXT : pathExtValue;
-  return raw
-    .split(';')
-    .map((ext) => ext.trim())
-    .filter((ext) => ext !== '')
-    .map((ext) => `${GIT_BASENAME}${ext}`);
+  return WIN32_EXECUTABLE_EXTENSIONS.map((ext) => `${GIT_BASENAME}${ext}`);
 }
 
 /**
@@ -88,8 +99,9 @@ export function findGitExecutable(options: GitExecutableLookupOptions = {}): str
   if (pathValue === undefined || pathValue === '') return null;
 
   const p = platformPath(platform);
-  const isExecutableFile = options.isExecutableFile ?? defaultIsExecutableFile;
-  const names = candidateNames(platform, options.pathExtValue ?? process.env.PATHEXT);
+  const isExecutableFile =
+    options.isExecutableFile ?? ((candidate: string) => defaultIsExecutableFile(candidate, platform));
+  const names = candidateNames(platform);
 
   for (const rawEntry of pathValue.split(p.delimiter)) {
     const dir = stripQuotes(rawEntry.trim());
@@ -104,35 +116,64 @@ export function findGitExecutable(options: GitExecutableLookupOptions = {}): str
 
 let cachedGitExecutable: string | undefined;
 
+/** どの解決入力も差し替えていない＝プロセス既定での解決か。 */
+function usesProcessDefaults(options: GitExecutableResolveOptions): boolean {
+  return (
+    options.platform === undefined &&
+    options.pathValue === undefined &&
+    options.isExecutableFile === undefined &&
+    options.gitPathOverride === undefined
+  );
+}
+
 /**
- * git の絶対パスを返す（プロセス内でキャッシュする）。
+ * git の絶対パスを返す。
  *
  * `ANYTIME_GIT_PATH` が絶対パスで与えられていればそれを最優先する。
  * 解決できない場合はフォールバックせずに throw する（fail-closed）。
  *
- * @throws 解決できなかった場合
+ * **キャッシュはプロセス既定での解決にのみ効く。** 解決入力を差し替えた呼び出しは毎回
+ * 解決し直す（キャッシュを共有すると、最初の呼び出しの文脈が以後すべてを固定してしまう）。
+ *
+ * @throws {GitExecutableNotFoundError} 解決できなかった場合
  */
 export function resolveGitExecutable(options: GitExecutableResolveOptions = {}): string {
-  if (cachedGitExecutable !== undefined) return cachedGitExecutable;
+  const cacheable = usesProcessDefaults(options);
+  if (cacheable && cachedGitExecutable !== undefined) return cachedGitExecutable;
 
   const platform = options.platform ?? process.platform;
+  const resolved = resolveOnce(options, platform);
+  // 失敗はキャッシュしない（throw で抜けるため、ここには成功時しか来ない）。
+  if (cacheable) cachedGitExecutable = resolved;
+  return resolved;
+}
+
+function resolveOnce(options: GitExecutableResolveOptions, platform: NodeJS.Platform): string {
   const override = options.gitPathOverride ?? process.env[GIT_PATH_ENV];
   if (override !== undefined && override !== '') {
     if (!platformPath(platform).isAbsolute(override)) {
-      throw new Error(`${GIT_PATH_ENV} must be an absolute path: ${JSON.stringify(override)}`);
+      throw new GitExecutableNotFoundError(
+        `${GIT_PATH_ENV} must be an absolute path: ${JSON.stringify(override)}`,
+      );
     }
-    cachedGitExecutable = override;
+    const isExecutableFile =
+      options.isExecutableFile ?? ((candidate: string) => defaultIsExecutableFile(candidate, platform));
+    // 実在確認までここで行う。しないと、以後すべての git 実行が ENOENT になる原因が
+    // 呼び出し側の catch に散らばって「git が壊れた」ようにしか見えなくなる。
+    if (!isExecutableFile(override)) {
+      throw new GitExecutableNotFoundError(
+        `${GIT_PATH_ENV} does not point to an executable file: ${JSON.stringify(override)}`,
+      );
+    }
     return override;
   }
 
   const found = findGitExecutable(options);
   if (found === null) {
-    // 失敗はキャッシュしない。PATH を直せば次回に回復する。
-    throw new Error(
+    throw new GitExecutableNotFoundError(
       `git executable not found in PATH (absolute entries only). Set ${GIT_PATH_ENV} to an absolute path.`,
     );
   }
-  cachedGitExecutable = found;
   return found;
 }
 

@@ -104,8 +104,9 @@ export class SpecDocIndex implements ISpecDocIndex {
   }
 
   private runGitInDocs(args: readonly string[]): string | null {
+    const gitExecutable = resolveGitExecutable();
     try {
-      return execFileSync(resolveGitExecutable(), [...args], {
+      return execFileSync(gitExecutable, [...args], {
         cwd: this.docsRepoRoot,
         encoding: 'utf-8',
         timeout: 30_000,
