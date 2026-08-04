@@ -5,7 +5,7 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src', '<rootDir>/skills'],
-  testMatch: ['**/__tests__/**/*.test.ts', '**/*.meta.test.ts', '**/skills/**/*.test.cjs'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx', '**/*.meta.test.ts', '**/skills/**/*.test.cjs'],
   moduleNameMapper: {
     '^vscode$': '<rootDir>/src/__mocks__/vscode.ts',
     // ビルド成果物 (out/) ではなくソースを直接見る（graph 拡張と同じ方針）。

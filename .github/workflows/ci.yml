@@ -97,6 +97,9 @@ jobs:
 
       # 拡張同梱スキル(packages/*/skills/<name>/SKILL.md)が canonical(.claude/skills)と
       # byte 一致しているか検証する。手動複製ゆえ canonical 更新時の追随漏れを検出する。
+      # 併せて check-test-collection.mjs が「テストファイルが存在するのに、どの jest 設定
+      # にも収集されていない」状態を検出する。収集漏れは失敗でなく「スイートが起動しない」
+      # 形で沈黙し、総数が減るだけなのでサマリでは気づけない。
       - name: Check bundled skills are in sync
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
         run: npm run check-skills
