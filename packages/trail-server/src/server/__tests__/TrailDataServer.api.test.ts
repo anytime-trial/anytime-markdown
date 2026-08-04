@@ -896,3 +896,155 @@ describe('GET /api/trace/list — traceDir 注入 (gitRoot 非依存)', () => {
     expect(body.some((t) => t.name === 'sample.json')).toBe(true);
   });
 });
+
+describe('GET /api/code-graph/releases', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+
+  /** sql.js の生ハンドルへ直接投入する（公開 API に releases の書き込み口が無いため）。 */
+  const rawRun = (sql: string, params: ReadonlyArray<unknown>): void => {
+    (db as unknown as { db: { run: (s: string, p?: ReadonlyArray<unknown>) => void } }).db.run(sql, params);
+  };
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    rawRun('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+      1, 'anytime-markdown', '2026-01-01T00:00:00.000Z',
+    ]);
+    // released_at 昇順と release_id 昇順が食い違う実データを再現する。
+    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+      'v1.15.0', '2026-07-17T21:46:09.000Z', 1,
+    ]);
+    rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+      'v1.14.0', '2026-07-17T07:38:41.000Z', 1,
+    ]);
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+  });
+
+  it('repo 指定で released_at 昇順のリリース一覧を返す', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph/releases?repo=anytime-markdown`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { releases: Array<{ tag: string; releasedAt: string; hasGraph: boolean }> };
+    expect(body.releases.map((r) => r.tag)).toEqual(['v1.14.0', 'v1.15.0']);
+    expect(body.releases.every((r) => r.hasGraph === false)).toBe(true);
+  });
+
+  it('repo 省略時は全リポジトリを混ぜず空配列を返す', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph/releases`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { releases: unknown[] };
+    expect(body.releases).toEqual([]);
+  });
+
+  it('未知の repo は 200 と空配列を返す（グラフ描画を壊さない）', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph/releases?repo=unknown`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { releases: unknown[] };
+    expect(body.releases).toEqual([]);
+  });
+
+  it('グラフ本体を応答に含めない', async () => {
+    // 在庫が 0 件だと SELECT に graph_json を足しても応答に現れず、検知力が消える。
+    // 実際に 1 本保存してから検査する。
+    db.saveReleaseCodeGraph('v1.14.0', {
+      generatedAt: '2026-07-17T07:38:41.000Z',
+      repositories: [{ id: 'r', label: 'r', path: '/tmp/r' }],
+      nodes: [{
+        id: 'r:a', label: 'a', repo: 'r', package: 'p', fileType: 'code',
+        community: 0, communityLabel: 'c', x: 0, y: 0, size: 1,
+      }],
+      edges: [],
+      communities: { 0: 'c' },
+      godNodes: [],
+    });
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph/releases?repo=anytime-markdown`);
+    const body = await res.json() as { releases: Array<{ tag: string; hasGraph: boolean }> };
+    expect(body.releases.find((r) => r.tag === 'v1.14.0')?.hasGraph).toBe(true);
+    const text = JSON.stringify(body);
+    expect(text).not.toContain('graph_json');
+    expect(text).not.toContain('"nodes"');
+  });
+});
+
+describe('GET /api/code-graph?release= のリポジトリ帰属', () => {
+  let server: TrailDataServer;
+  let db: TrailDatabase;
+  let port: number;
+
+  const rawRun = (sql: string, params: ReadonlyArray<unknown>): void => {
+    (db as unknown as { db: { run: (s: string, p?: ReadonlyArray<unknown>) => void } }).db.run(sql, params);
+  };
+
+  beforeEach(async () => {
+    db = await createTestTrailDatabase();
+    for (const [id, name] of [[1, 'repo-a'], [2, 'repo-b']] as Array<[number, string]>) {
+      rawRun('INSERT OR IGNORE INTO repos (repo_id, repo_name, created_at) VALUES (?, ?, ?)', [
+        id, name, '2026-01-01T00:00:00.000Z',
+      ]);
+      // タグは repo をまたいで衝突し得る（releases の一意制約は UNIQUE (repo_id, tag)）。
+      rawRun('INSERT OR IGNORE INTO releases (tag, released_at, repo_id) VALUES (?, ?, ?)', [
+        'v1.0.0', '2026-03-01T00:00:00.000Z', id,
+      ]);
+    }
+    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    await server.start(0);
+    port = server.port;
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    db.close();
+  });
+
+  it('repo 省略で release を指定したら 400 を返す（どのリポジトリか決まらない）', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/code-graph?release=v1.0.0`);
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toMatch(/repo is required/i);
+  });
+
+  it('同名タグでも指定した repo のグラフだけを返す', async () => {
+    const nodeFor = (id: string) => ({
+      id, label: id, repo: 'r', package: 'p', fileType: 'code' as const,
+      community: 0, communityLabel: 'c', x: 0, y: 0, size: 1,
+    });
+    // repo-b 側にだけ在庫を作る。tag だけで解決すると repo-a の release_id を掴んで 404 になる。
+    const bId = (db as unknown as { db: { exec: (s: string, p?: ReadonlyArray<unknown>) => Array<{ values: unknown[][] }> } })
+      .db.exec('SELECT r.release_id FROM releases r JOIN repos p ON p.repo_id = r.repo_id WHERE p.repo_name = ?', ['repo-b']);
+    expect(bId[0]?.values?.[0]?.[0]).toBeDefined();
+    rawRun(
+      `INSERT OR REPLACE INTO release_code_graphs (release_id, graph_json, generated_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      [
+        Number(bId[0].values[0][0]),
+        JSON.stringify({
+          generatedAt: '2026-03-01T00:00:00.000Z',
+          repositories: [{ id: 'r', label: 'r', path: '/tmp/r' }],
+          nodes: [nodeFor('r:only-in-b')],
+          edges: [],
+          communities: {},
+          godNodes: [],
+        }),
+        '2026-03-01T00:00:00.000Z',
+        '2026-03-01T00:00:00.000Z',
+      ],
+    );
+
+    const inB = await fetch(`http://127.0.0.1:${port}/api/code-graph?release=v1.0.0&repo=repo-b`);
+    expect(inB.status).toBe(200);
+    const graph = await inB.json() as { nodes: Array<{ id: string }> };
+    expect(graph.nodes.map((n) => n.id)).toEqual(['r:only-in-b']);
+
+    // repo-a には在庫が無い。tag だけで解決していると repo-b のグラフが漏れる。
+    const inA = await fetch(`http://127.0.0.1:${port}/api/code-graph?release=v1.0.0&repo=repo-a`);
+    expect(inA.status).toBe(404);
+  });
+});

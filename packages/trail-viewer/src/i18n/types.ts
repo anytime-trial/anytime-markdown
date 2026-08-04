@@ -293,6 +293,18 @@ export interface TrailI18n {
   'codeGraph.authorHeatmap.frequency.low': string;
   'codeGraph.authorHeatmap.frequency.mid': string;
   'codeGraph.authorHeatmap.frequency.high': string;
+  'codeGraph.scrubber.label': string;
+  'codeGraph.scrubber.current': string;
+  'codeGraph.scrubber.viewing': string;
+  'codeGraph.scrubber.legendAvailable': string;
+  'codeGraph.scrubber.legendMissing': string;
+  'codeGraph.scrubber.notGenerated': string;
+  'codeGraph.scrubber.generate': string;
+  'codeGraph.scrubber.generating': string;
+  'codeGraph.scrubber.generateFailed': string;
+  'codeGraph.scrubber.generatingOther': string;
+  'codeGraph.scrubber.busy': string;
+  'codeGraph.scrubber.heatmapDisabled': string;
   'c4.overlay.groupStructure': string;
   'c4.overlay.functionRoles': string;
   'c4.overlayHelp.functionRoles': string;

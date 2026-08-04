@@ -894,6 +894,8 @@ export class TrailDataServer {
   private registerCodeGraphRoutes(t: RouteTable): void {
     t.exact('GET', '/api/code-graph', (ctx) =>
       void this.codeGraphApi.handleGet(ctx.res, ctx.query('release', 'current'), ctx.queryOpt('repo')));
+    t.exact('GET', '/api/code-graph/releases', (ctx) =>
+      this.codeGraphApi.handleGetReleases(ctx.res, ctx.queryOpt('repo')));
     t.exact('GET', '/api/code-graph/query', (ctx) => {
       const depthRaw = ctx.url.searchParams.get('depth');
       const depth = depthRaw === null ? undefined : clampInt(depthRaw, 0, 0, 3);

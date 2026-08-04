@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import { type CodeGraphGhostEdge } from './CodeGraphCanvas';
 import { toCodeGraphNodeId } from '@anytime-markdown/trail-core/codeGraphNodeId';
@@ -8,7 +8,13 @@ import { isOverrideColorBy, type CodeGraphColorBy } from '../views/codeGraphCanv
 import { useTemporalCoupling } from '../c4/hooks/useTemporalCoupling';
 import type { TemporalCouplingControlsValue } from '../c4/components/overlays/TemporalCouplingControls';
 import { VanillaIsland } from '../shared/vanillaIsland';
-import { mountCodeGraphPanel, type CodeGraphPanelProps as VanillaProps } from '../views/codeGraphPanel';
+import {
+  CURRENT_RELEASE,
+  mountCodeGraphPanel,
+  type CodeGraphGenerateState,
+  type CodeGraphPanelProps as VanillaProps,
+} from '../views/codeGraphPanel';
+import { useCodeGraphReleases } from '../hooks/useCodeGraphReleases';
 import { useTrailI18n } from '../i18n';
 import type { TrailI18n } from '../i18n';
 
@@ -31,9 +37,43 @@ interface CodeGraphPanelProps {
 }
 
 export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoName }: Readonly<CodeGraphPanelProps>): React.ReactElement {
+  const [selectedRelease, setSelectedRelease] = useState<string>(CURRENT_RELEASE);
+  const [generateState, setGenerateState] = useState<CodeGraphGenerateState>({ status: 'idle' });
+  // 生成は非同期で、判定（二重要求の抑止・進捗の採否）はレンダー間に挟まる。state は
+  // 再レンダーまで古い値を返すため、判定には ref を使う。
+  const generateStateRef = useRef<CodeGraphGenerateState>({ status: 'idle' });
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const { t: translate } = useTrailI18n();
+  const t = useCallback((key: string): string => translate(key as keyof TrailI18n), [translate]);
+
+  const { releases, refetch: refetchReleases } = useCodeGraphReleases(serverUrl, repoName);
+
+  // リリース集合はリポジトリごとに異なるため、切替時に前の選択を持ち越さない（仕様 §4.2）。
+  useEffect(() => {
+    setSelectedRelease(CURRENT_RELEASE);
+    setGenerateState({ status: 'idle' });
+  }, [repoName]);
+
+  // 選択中のタグが一覧から消えたら現在へ戻す（仕様 §4.2）。ビュー側の目盛り丸めは表示だけの
+  // フォールバックで、取得に使うタグは戻らない。状態の正はここにあるのでリセットもここで行う。
+  // 一覧が空のときは戻さない（取得失敗の縮退で選択を壊さないため）。
+  useEffect(() => {
+    if (selectedRelease === CURRENT_RELEASE) return;
+    if (releases.length === 0) return;
+    if (!releases.some((r) => r.tag === selectedRelease)) setSelectedRelease(CURRENT_RELEASE);
+  }, [releases, selectedRelease]);
+
   const { graph, loading, error, refetch } = useCodeGraph(serverUrl, {
     repo: repoName,
     enabled: !!repoName,
+    release: selectedRelease,
   });
   const [highlightedNodes, setHighlightedNodes] = useState<ReadonlySet<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<CodeGraphNode | null>(null);
@@ -43,7 +83,8 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
   const tcValue = tcValueProp ?? DEFAULT_TC_VALUE;
 
   const { data: authorHeatmapData } = useAuthorHeatmap({
-    enabled: isOverrideColorBy(colorBy),
+    // 集計は現在のグラフのノード集合に対するものなので、過去の時点では取得しない（仕様 §4.5）。
+    enabled: isOverrideColorBy(colorBy) && selectedRelease === CURRENT_RELEASE,
     serverUrl,
     repo: repoName,
   });
@@ -137,6 +178,84 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     }
   }, [serverUrl]);
 
+  /**
+   * 未生成リリースのオンデマンド生成。明示操作（生成ボタン）からのみ呼ばれる。
+   *
+   * `POST /api/analyze/release` は生成完了まで応答を返さない同期エンドポイントなので、
+   * 待っている間の進捗は WebSocket の `code-graph-progress` から拾う。
+   * 完了後は在庫一覧とグラフの双方を取り直す（在庫フラグが変わるため）。
+   */
+  const handleGenerateRelease = useCallback(async (tag: string) => {
+    // 実行中はどのタグでも受け付けない。サーバは解析中に 409 を返すため、二重要求は
+    // 必ず失敗する上、単一の generateState を上書きして先行要求の帰結を UI から消す。
+    // ボタン側でも抑止しているが、再レンダー前の連打はここでしか止まらない。
+    if (generateStateRef.current.status === 'running') return;
+    setGenerateState({ status: 'running', tag });
+    generateStateRef.current = { status: 'running', tag };
+    const WSCtor = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+    let ws: WebSocket | undefined;
+    if (WSCtor) {
+      try {
+        ws = new WSCtor(serverUrl.replace(/^http/, 'ws'));
+        ws.addEventListener('message', (event: MessageEvent) => {
+          try {
+            const raw = typeof event.data === 'string' ? event.data : String(event.data);
+            const msg = JSON.parse(raw) as { type?: string; percent?: number };
+            // SHORTCUT: 進捗をタグで絞らず、実行中の要求へそのまま当てる.
+            // ceiling: サーバの code-graph-progress は phase と percent だけでタグ・repo を
+            // 持たないため、current 解析など無関係な進捗も混じり得る（解析は 1 本ずつしか
+            // 走らないので実害は「別の解析の割合が出る」に留まる）.
+            // upgrade: ServerMessage に tag を載せたら一致するものだけ採用する.
+            if (msg.type === 'code-graph-progress' && typeof msg.percent === 'number') {
+              if (!mountedRef.current) return;
+              if (generateStateRef.current.status !== 'running') return;
+              setGenerateState({ status: 'running', tag, percent: Math.round(msg.percent) });
+            }
+          } catch (err) {
+            console.error('[CodeGraphPanel] progress message parse failed', err);
+          }
+        });
+      } catch (err) {
+        // 進捗が取れなくても生成自体は続行する（表示が粗くなるだけ）。
+        console.error('[CodeGraphPanel] progress socket failed', err);
+        ws = undefined;
+      }
+    }
+    /** 進捗の後着で running へ巻き戻らないよう、状態を確定させる前に購読を切る。 */
+    const closeSocket = (): void => {
+      try {
+        ws?.close();
+      } catch (err) {
+        console.error('[CodeGraphPanel] progress socket close failed', err);
+      }
+    };
+    try {
+      const res = await fetch(`${serverUrl}/api/analyze/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: [tag] }),
+      });
+      closeSocket();
+      if (res.status === 409) {
+        // 他の解析が走っているだけで、後で再試行すれば成功する。恒久的な失敗と書かない。
+        generateStateRef.current = { status: 'idle' };
+        if (mountedRef.current) setGenerateState({ status: 'error', tag, message: t('codeGraph.scrubber.busy') });
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      generateStateRef.current = { status: 'idle' };
+      if (!mountedRef.current) return;
+      setGenerateState({ status: 'idle' });
+      refetchReleases();
+      refetch();
+    } catch (e) {
+      console.error('[CodeGraphPanel] generate release failed', e);
+      closeSocket();
+      generateStateRef.current = { status: 'idle' };
+      if (mountedRef.current) setGenerateState({ status: 'error', tag, message: String(e) });
+    }
+  }, [serverUrl, refetch, refetchReleases, t]);
+
   // Build graphState for vanilla view
   const graphState = useMemo<VanillaProps['graphState']>(() => {
     if (loading) return { status: 'loading' };
@@ -145,9 +264,6 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     if (!graph) return { status: 'no-graph' };
     return { status: 'ready', graph };
   }, [loading, error, repoName, graph]);
-
-  const { t: translate } = useTrailI18n();
-  const t = useCallback((key: string): string => translate(key as keyof TrailI18n), [translate]);
 
   const viewProps: VanillaProps = {
     graphState,
@@ -165,6 +281,11 @@ export function CodeGraphPanel({ serverUrl, isDark, tcValue: tcValueProp, repoNa
     t,
     authorHeatmap,
     onColorByChange: setColorBy,
+    releases,
+    selectedRelease,
+    generateState,
+    onReleaseChange: setSelectedRelease,
+    onGenerateRelease: (tag) => void handleGenerateRelease(tag),
   };
 
   return <VanillaIsland mount={mountCodeGraphPanel} props={viewProps} />;

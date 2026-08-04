@@ -256,6 +256,17 @@ export type { IntegrityAlert } from './DatabaseIntegrityMonitor';
  * 永続化層は 1 テーブルに正規化するため指標列を null 許容の平坦な形で持つ。
  * kind と指標の整合は CREATE TABLE の CHECK が担保する。
  */
+/**
+ * Time Scrubber の目盛り 1 件。リリースと、その時点の履歴版コードグラフの在庫有無。
+ * グラフ本体は含めない（`listReleaseCodeGraphAvailability` の docstring を参照）。
+ */
+export interface ReleaseCodeGraphAvailability {
+  readonly tag: string;
+  /** UTC ISO 8601。目盛りの並び順の基準（release_id 順ではない）。 */
+  readonly releasedAt: string;
+  readonly hasGraph: boolean;
+}
+
 export interface BoundaryDriftWarningRow {
   readonly id: number;
   readonly repoId: number;
@@ -2079,6 +2090,25 @@ export class TrailDatabase {
    * 未知 tag は null。flip 後は子テーブルの FK は release_id なので、tag を受ける外部 API は
    * 必ずこのヘルパで release_id へ変換してから子テーブルへ書き込む / フィルタする。
    */
+  /**
+   * repo 名 + tag から release_id を引く。
+   *
+   * `releases` の一意制約は `UNIQUE (repo_id, tag)` なので、**tag だけでは一意に定まらない**
+   * （別リポジトリが同じ `v1.0.0` を持てる）。リポジトリを跨いで取り違えると「選んだのと違う
+   * リポジトリの履歴グラフが出る」形で現れ、エラーにならない。repo が分かる経路では必ず
+   * こちらを使う。
+   */
+  private releaseIdForRepoTag(db: Database, repoName: string, tag: string): number | null {
+    const res = db.exec(
+      `SELECT r.release_id FROM releases r
+         JOIN repos repo ON repo.repo_id = r.repo_id
+        WHERE repo.repo_name = ? AND r.tag = ? LIMIT 1`,
+      [repoName, tag],
+    );
+    const id = res[0]?.values?.[0]?.[0];
+    return id == null ? null : Number(id);
+  }
+
   private releaseIdForTag(db: Database, tag: string): number | null {
     const res = db.exec('SELECT release_id FROM releases WHERE tag = ? LIMIT 1', [tag]);
     const id = res[0]?.values?.[0]?.[0];
@@ -7687,9 +7717,16 @@ export class TrailDatabase {
     this.save();
   }
 
-  getReleaseCodeGraph(tag: string): CodeGraph | null {
+  /**
+   * リリース時点の履歴版コードグラフを取得する。
+   *
+   * `repoName` は省略可能にしない。tag だけでは別リポジトリの同名タグと区別できず
+   * （`releaseIdForRepoTag` 参照）、渡し忘れが「別リポジトリのグラフが出る」形で
+   * 静かに現れるため、型で塞ぐ。
+   */
+  getReleaseCodeGraph(tag: string, repoName: string): CodeGraph | null {
     const db = this.ensureDb();
-    const releaseId = this.releaseIdForTag(db, tag);
+    const releaseId = this.releaseIdForRepoTag(db, repoName, tag);
     if (releaseId == null) return null;
     const graphResult = db.exec(
       'SELECT graph_json FROM release_code_graphs WHERE release_id = ?',
@@ -7711,6 +7748,36 @@ export class TrailDatabase {
       stableKey: hasStableKey ? asText(row[4] ?? '') : '',
     }));
     return composeCodeGraph(stored, communities);
+  }
+
+  /**
+   * Time Scrubber の目盛り用に、リリースと履歴版コードグラフの在庫有無を列挙する。
+   *
+   * `graph_json` は読まない（1 本 2 MB あり、98 本を載せると応答が 200 MB になる）。
+   * 並びは `released_at` 昇順で固定する。`release_id` 昇順とは一致せず（実測で v1.15.0 が
+   * v1.14.0 より若い ID を持つ）、ID 順に並べると時間軸が逆行する目盛りができる。
+   * 同時刻はタグ名で安定させる。
+   *
+   * `releases.repo_id` は nullable（repos 行が消えると `ON DELETE SET NULL`）で、内部結合の
+   * ため **repo_id が NULL のリリースは目盛りから落ちる**。エラーにはならず「そのリリースは
+   * 無い」ように見えるので、件数が想定と合わないときは NULL 行を疑う。
+   */
+  listReleaseCodeGraphAvailability(repoName: string): ReleaseCodeGraphAvailability[] {
+    const db = this.ensureDb();
+    const result = db.exec(
+      `SELECT r.tag, r.released_at, (g.release_id IS NOT NULL) AS has_graph
+         FROM releases r
+         JOIN repos repo ON repo.repo_id = r.repo_id
+         LEFT JOIN release_code_graphs g ON g.release_id = r.release_id
+        WHERE repo.repo_name = ?
+        ORDER BY r.released_at ASC, r.tag ASC`,
+      [repoName],
+    );
+    return (result[0]?.values ?? []).map((row) => ({
+      tag: asText(row[0] ?? ''),
+      releasedAt: asText(row[1] ?? ''),
+      hasGraph: Number(row[2] ?? 0) === 1,
+    }));
   }
 
   deleteCurrentCodeGraphs(): void {
