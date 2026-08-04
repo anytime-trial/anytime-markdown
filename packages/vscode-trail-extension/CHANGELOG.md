@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-08-04
+
+### Added
+
+- The alignment tree and its diagnostics now show undetermined results (`unknown`) separately from `stale`.
+
+### Fixed
+
+- Alignment coverage is now judged against the ingest run time, so a design-document repository with un-ingested commits is no longer misreported as `stale`.
+
+### Trail Core (trail-core / trail-server / trail-viewer)
+
+- The code graph tab gained a Time Scrubber and Auto Playback, and State Replay can now be driven at commit granularity.
+- Added a table and generation API for per-commit code graphs, including backfill from release tags.
+- The code graph tab gained a diff view against the previous snapshot and coloring by last editor / edit frequency (`GET /api/author-heatmap`).
+- Migrated every git invocation to an absolute path instead of a PATH lookup, with a CI gate to prevent regressions (SonarCloud S4036).
+
 ## [0.41.0] - 2026-08-03
 
 ### Added

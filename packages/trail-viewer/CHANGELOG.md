@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- The code graph tab gained a Time Scrubber and Auto Playback, so State Replay can be driven at commit granularity. Ticks are fetched per commit and the scrubber zooms.
+- The code graph tab gained a diff view against the previous snapshot.
+- The code graph can be colored by last editor or edit frequency.
+
+### Fixed
+
+- Stopping playback now goes through a dedicated stop path instead of the toggle.
+- The sigma graph is rebuilt when the diff prop changes.
+- Fixed a swapped baseline and the degenerate rendering of the commit list.
+- Session colors are now capped at the palette size.
+
+### Added
+
 - Analytics tab: the token chart gained a LOC (lines-of-code) mode alongside Tokens / Cost, rendering daily added/removed LOC as a stacked bar on the same timeline as token consumption.
 
 ### Changed

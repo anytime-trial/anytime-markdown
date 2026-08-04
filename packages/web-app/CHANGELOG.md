@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-08-04
+
+### Added
+
+- Three roadmap items that were missing from the landing page: runtime call tracing, self-diagnosis of decision quality, and drift detection between design boundaries and implementation structure.
+- Tests for previously uncovered Route Handlers and the rendering engine.
+
+### Changed
+
+- Reconciled the roadmap's implementation status against measurements taken on 2026-08-03.
+- Aligned the SonarCloud coverage scope with reality, and added CI detection for tests that are never collected.
+
+### Removed
+
+- The two news sections on the landing page and their dedicated APIs (`/api/news`, `/api/news/wsj`).
+
 ## [0.45.0] - 2026-08-03
 
 ### Added
