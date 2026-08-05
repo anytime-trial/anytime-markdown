@@ -1,11 +1,11 @@
 import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
+import { normalizeTargetPath } from './normalizeTargetPath';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type LinkAddressesInput = {
   db: MemoryDbConnection;
-  repoName: string;
   windowDays?: number; // default 30
   logger: { warn: (msg: string) => void };
 };
@@ -98,9 +98,21 @@ type FindingRow = {
   id: string;
   finding_entity_id: string;
   target_file_path: string;
+  /** 実在検査で解決済みの対象リポジトリ（resolveTargetRepo が埋める）。 */
+  target_repo: string;
   finding_text: string;
   reviewed_at: string;
 };
+
+/**
+ * 受理スコアの下限。
+ *
+ * ディレクトリ指定はファイル指定より特定性が低く、前方一致で候補コミットが桁違いに
+ * 増える。同じ閾値のままだと、ありふれた語が偶然当たっただけの無関係なコミットが
+ * 受理されてしまうため 1 段上げて補償する。
+ */
+const SCORE_THRESHOLD_FILE = 2;
+const SCORE_THRESHOLD_DIRECTORY = 3;
 
 // ── Per-finding helper ─────────────────────────────────────────────────────────
 
@@ -111,33 +123,52 @@ type FindingRow = {
 function linkOneFinding(
   db: MemoryDbConnection,
   finding: FindingRow,
-  repoName: string,
   effectiveWindowDays: number,
 ): { edgeInserted: boolean } | null {
+  // 対象がファイルかディレクトリかは、格納済みの正規化パスから判定する。
+  const normalized = normalizeTargetPath(finding.target_file_path);
+  if (normalized === null) return null;
+  const isDirectory = normalized.kind === 'directory';
+
+  // リポジトリは finding.target_repo で絞る。かつては呼び出し元の単一 repoName で
+  // 絞っており、他ワークスペースの指摘が永久にリンクできず、かつリポジトリ名を
+  // 含まない相対パスが別リポジトリの同名ファイルへ誤リンクし得た。
+  //
   // Phase H-4: trail.session_commits / commit_files から repo_name 列を撤去した。
   // 窓の下限は `committed_at >= reviewed_at`（同時刻の即時修正＝同一セッション内の対処も拾う）。
   // 兄弟 linkPrecedesBugs は後続バグを探すため `> reviewed_at`（厳密大なり）で、境界差は意図的。
+  //
+  // ディレクトリ指定は前方一致。`|| '/'` を挟んでセグメント境界を守る
+  // （`packages/markdown-viewer` が `packages/markdown-viewer-extra/...` に当たらないように）。
+  const pathPredicate = isDirectory ? `cf.file_path LIKE ? || '/%'` : `cf.file_path = ?`;
   const commitResult = db.exec(
-    `SELECT sc.commit_hash, sc.commit_message, sc.committed_at
+    `SELECT DISTINCT sc.commit_hash, sc.commit_message, sc.committed_at
      FROM trail.session_commits sc
      JOIN trail.commit_files cf ON cf.commit_hash = sc.commit_hash
                                 AND cf.repo_id = sc.repo_id
      JOIN trail.repos r ON r.repo_id = sc.repo_id
-     WHERE cf.file_path = ?
+     WHERE ${pathPredicate}
        AND r.repo_name = ?
        AND sc.committed_at >= ?
        AND sc.committed_at <= datetime(?, '+' || ? || ' days')
      ORDER BY sc.committed_at ASC`,
-    [finding.target_file_path, repoName, finding.reviewed_at, finding.reviewed_at, effectiveWindowDays]
+    [
+      finding.target_file_path,
+      finding.target_repo,
+      finding.reviewed_at,
+      finding.reviewed_at,
+      effectiveWindowDays,
+    ],
   );
 
   const commitRows = commitResult[0];
   if (!commitRows) return null;
 
+  const threshold = isDirectory ? SCORE_THRESHOLD_DIRECTORY : SCORE_THRESHOLD_FILE;
   let acceptedCommit: { commit_hash: string; committed_at: string } | null = null;
   for (const row of commitRows.values) {
     const score = scoreCommit(String(row[1]), finding.finding_text);
-    if (score >= 2) {
+    if (score >= threshold) {
       acceptedCommit = { commit_hash: String(row[0]), committed_at: String(row[2]) };
       break;
     }
@@ -177,7 +208,7 @@ function linkOneFinding(
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
-  const { db, repoName, windowDays = 30, logger } = input;
+  const { db, windowDays = 30, logger } = input;
   const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 30;
 
   let findings: FindingRow[];
@@ -187,13 +218,17 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
     // memory_review_findings.recorded_at は ingest 時刻なので、一括 re-ingest 後に
     // 全 finding が「今日」付けとなり、reviewed_at 直後の修正コミットを取りこぼす（誤り）。
     // linkPrecedesBugs と同じ修正。
+    // target_repo が NULL の行は照合対象から外す（fail-closed）。NULL は
+    // 「対象がどのリポジトリのものか確認できなかった」を意味し、ここで単一の
+    // repoName を仮定して照合すると別リポジトリの同名ファイルへ誤リンクする。
     const result = db.exec(`
-      SELECT mrf.id, mrf.finding_entity_id, mrf.target_file_path,
+      SELECT mrf.id, mrf.finding_entity_id, mrf.target_file_path, mrf.target_repo,
              mrf.finding_text, r.reviewed_at
       FROM memory_review_findings mrf
       JOIN memory_reviews r ON r.id = mrf.review_id
       WHERE mrf.addressed_at IS NULL
         AND mrf.target_file_path IS NOT NULL
+        AND mrf.target_repo IS NOT NULL
         AND mrf.severity != 'info'
     `);
 
@@ -206,8 +241,9 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
       id: String(r[0]),
       finding_entity_id: String(r[1]),
       target_file_path: String(r[2]),
-      finding_text: String(r[3]),
-      reviewed_at: String(r[4]),
+      target_repo: String(r[3]),
+      finding_text: String(r[4]),
+      reviewed_at: String(r[5]),
     }));
   } catch (err) {
     logger.warn(
@@ -221,7 +257,7 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
 
   for (const finding of findings) {
     try {
-      const result = linkOneFinding(db, finding, repoName, effectiveWindowDays);
+      const result = linkOneFinding(db, finding, effectiveWindowDays);
       if (result !== null) {
         findingsLinked += 1;
         if (result.edgeInserted) edgesInserted += 1;

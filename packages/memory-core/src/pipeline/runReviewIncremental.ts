@@ -6,6 +6,7 @@ import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import { refineCategories } from '../ingest/review/extractFindings';
 import { upsertReviewDoc, upsertReviewSession } from '../ingest/review/persist';
+import { resolveReviewTargets } from '../ingest/review/resolveReviewTargets';
 import { linkAddresses } from '../ingest/review/linkAddresses';
 import { linkPrecedesBugs } from '../ingest/review/linkPrecedesBugs';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
@@ -385,12 +386,34 @@ export async function runReviewIncremental(input: {
     itemsFailed += 1;
   }
 
-  // ── Post-processing: linkAddresses + linkPrecedesBugs ─────────────────────
+  // ── Post-processing: resolveReviewTargets → linkAddresses + linkPrecedesBugs ──
+  //
+  // 対象パスの正規化とリポジトリ解決は linkAddresses より **前** に置く。
+  // linkAddresses は target_repo を照合キーに使うため、解決前に走らせると
+  // 今回取り込んだ指摘が 1 サイクル遅れてしかリンクされない。
+
+  try {
+    const resolveResult = resolveReviewTargets({
+      db,
+      defaultWorkspace: repoName,
+      logger: {
+        warn: (msg: string) => logger.info(msg),
+        error: (msg: string, err?: unknown) => logger.error(msg, err),
+        info: (msg: string) => logger.info(msg),
+      },
+    });
+    logger.info(
+      `[anytime-memory] runReviewIncremental: resolveReviewTargets ` +
+        `workspaces=${resolveResult.workspacesFilled} targets=${resolveResult.targetsResolved} ` +
+        `normalized=${resolveResult.pathsNormalized} rejected=${resolveResult.pathsRejected}`,
+    );
+  } catch (err) {
+    logger.error(`[anytime-memory] runReviewIncremental: resolveReviewTargets failed`, err);
+  }
 
   try {
     const linkResult = linkAddresses({
       db,
-      repoName,
       windowDays: 30,
       logger: {
         warn: (msg: string) => logger.info(msg),

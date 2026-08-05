@@ -11,7 +11,7 @@
  * `trail.commit_files` に実在するかどうかだけで判定する。判定できない場合は
  * null を返して照合対象から外す（fail-closed）。誤ったリンクは無いリンクより悪い。
  */
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { MemoryDbConnection } from '../../db/connection/types';
 import type { NormalizedTargetPath } from './normalizeTargetPath';
 
 export interface ResolvedTargetRepo {
