@@ -24,6 +24,8 @@ jest.mock('../MemoryApiHandler', () => {
     listUnaddressedReviewFindings: jest.fn().mockResolvedValue([{ id: 'rf-1' }]),
     getReviewHistory: jest.fn().mockResolvedValue([{ id: 'rf-1' }]),
     listPipelineRunStatsByDay: jest.fn().mockResolvedValue([{ day: '2026-05-01', worstStatus: 'success' }]),
+    listPipelineRuns: jest.fn().mockResolvedValue([{ id: 'run-1', status: 'success' }]),
+    listPipelineRunLogs: jest.fn().mockResolvedValue([{ id: 1, message: 'started' }]),
     listFailedItems: jest.fn().mockResolvedValue([{ itemKey: 'item-1' }]),
     listTopEntities: jest.fn().mockResolvedValue([{ id: 'ent-1' }]),
     listInvalidations: jest.fn().mockResolvedValue([{ id: 'inv-1', reason: 'superseded' }]),
@@ -174,6 +176,20 @@ describe('Memory API HTTP endpoints via TrailDataServer (routing tests)', () => 
   it('GET /api/memory/pipeline/runs/by-day supports scope and since params', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/memory/pipeline/runs/by-day?scope=drift&since=2026-01-01T00:00:00.000Z`);
     expect(res.status).toBe(200);
+  });
+
+  it('GET /api/memory/pipeline/runs returns 200 with pipeline runs', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/memory/pipeline/runs?wave=memory&status=error&limit=10`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as unknown[];
+    expect(Array.isArray(body)).toBe(true);
+  });
+
+  it('GET /api/memory/pipeline/runs/:runId/logs returns 200 with run logs', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/memory/pipeline/runs/run-1/logs?limit=10`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as unknown[];
+    expect(Array.isArray(body)).toBe(true);
   });
 
   it('GET /api/memory/pipeline/failed returns 200 with failed items', async () => {

@@ -164,10 +164,36 @@ export type MemoryPipelineRunStatus = 'error' | 'partial' | 'success' | 'running
 export interface MemoryPipelineRunStatsByDayRow {
   readonly day: string;
   readonly scope: string;
+  readonly wave: string;
   readonly runs: number;
   readonly durationSec: number;
   readonly itemsProcessed: number;
   readonly worstStatus: MemoryPipelineRunStatus;
+}
+
+export interface MemoryPipelineRunRow {
+  readonly id: string;
+  readonly scope: string;
+  readonly wave: string;
+  readonly tier: number;
+  readonly status: string;
+  readonly startedAt: string;
+  readonly finishedAt: string | null;
+  readonly durationMs: number;
+  readonly itemsProcessed: number;
+  readonly itemsFailed: number;
+  readonly errorDetail: string;
+}
+
+export interface MemoryPipelineRunLogRow {
+  readonly id: number;
+  readonly timestamp: string;
+  readonly level: string;
+  readonly source: string;
+  readonly component: string;
+  readonly message: string;
+  readonly metadata: string | null;
+  readonly stack: string | null;
 }
 
 export interface MemoryFailedItemRow {
@@ -175,6 +201,7 @@ export interface MemoryFailedItemRow {
   readonly itemKey: string;
   readonly failedAt: string;
   readonly reason: string;
+  readonly detail: string;
   readonly attemptCount: number;
 }
 

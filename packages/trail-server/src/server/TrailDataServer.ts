@@ -1063,6 +1063,20 @@ export class TrailDataServer {
         since: ctx.queryOpt('since'),
       })));
 
+    t.exact('GET', '/api/memory/pipeline/runs', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs', this.memoryApi.listPipelineRuns({
+        since: ctx.queryOpt('since'),
+        wave: ctx.queryOpt('wave'),
+        status: ctx.queryOpt('status'),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 100, 1, 200),
+      })));
+
+    t.pattern('GET', /^\/api\/memory\/pipeline\/runs\/([^/]+)\/logs$/, (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs/:runId/logs', this.memoryApi.listPipelineRunLogs({
+        runId: decodeURIComponent(ctx.params[0] ?? ''),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 200, 1, 200),
+      })));
+
     t.exact('GET', '/api/memory/pipeline/failed', (ctx) =>
       this.respondMemoryJson(ctx.res, '/api/memory/pipeline/failed', this.memoryApi.listFailedItems({
         scope: ctx.queryOpt('scope'),

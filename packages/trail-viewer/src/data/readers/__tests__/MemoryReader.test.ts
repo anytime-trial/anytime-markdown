@@ -126,11 +126,41 @@ describe('MemoryReader.getReviewHistory', () => {
 
 describe('MemoryReader.listPipelineRunStatsByDay', () => {
   it('returns aggregated stats array and targets /by-day endpoint', async () => {
-    const data = [{ day: '2026-05-16', scope: 'drift', runs: 3, durationSec: 120, itemsProcessed: 10, worstStatus: 'success' }];
+    const data = [{ day: '2026-05-16', scope: 'drift', wave: 'memory', runs: 3, durationSec: 120, itemsProcessed: 10, worstStatus: 'success' }];
     const mock = mockFetch(200, data);
     expect(await new MemoryReader(BASE).listPipelineRunStatsByDay({ since: '2026-04-16T00:00:00.000Z' })).toEqual(data);
     expect((mock.mock.calls[0] as [string])[0]).toContain('/api/memory/pipeline/runs/by-day');
     expect((mock.mock.calls[0] as [string])[0]).toContain('since=');
+  });
+});
+
+describe('MemoryReader.listPipelineRuns', () => {
+  it('returns runs and sends filters', async () => {
+    const data = [{ id: 'run-1', wave: 'memory', status: 'error' }];
+    const mock = mockFetch(200, data);
+    expect(await new MemoryReader(BASE).listPipelineRuns({
+      since: '2026-04-16T00:00:00.000Z',
+      wave: 'memory',
+      status: 'error',
+      limit: 10,
+    })).toEqual(data);
+    const url = (mock.mock.calls[0] as [string])[0];
+    expect(url).toContain('/api/memory/pipeline/runs?');
+    expect(url).toContain('since=');
+    expect(url).toContain('wave=memory');
+    expect(url).toContain('status=error');
+    expect(url).toContain('limit=10');
+  });
+});
+
+describe('MemoryReader.listPipelineRunLogs', () => {
+  it('returns logs and encodes run id', async () => {
+    const data = [{ id: 1, message: 'started', metadata: '{"step":1}' }];
+    const mock = mockFetch(200, data);
+    expect(await new MemoryReader(BASE).listPipelineRunLogs({ runId: 'run/1', limit: 20 })).toEqual(data);
+    const url = (mock.mock.calls[0] as [string])[0];
+    expect(url).toContain('/api/memory/pipeline/runs/run%2F1/logs?');
+    expect(url).toContain('limit=20');
   });
 });
 
