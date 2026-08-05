@@ -20,11 +20,11 @@ import type { MemoryReader } from '../../data/readers/MemoryReader';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 
 /**
- * workspace が未解決（''）の行に出すラベル。
- * 取込側のワークスペースで埋めてしまうと「別ワークスペースの指摘」を
- * 自分のものとして誤表示するため、DB 側は '' のまま残している。
+ * 未解決ワークスペースを表すフィルタ値。**表示ラベルと兼用しない**。
+ * 兼用すると i18n 化した瞬間に比較キーが言語依存になり、UI 言語を切り替えると
+ * 絞り込みが効かなくなる。空文字は「All」に使われているので別の番兵を置く。
  */
-const UNKNOWN_WORKSPACE = '(unknown)';
+const UNRESOLVED_WORKSPACE_KEY = '\u0000unresolved';
 
 // MUI Chip color → CSS 変数マッピング
 const SEVERITY_COLOR_VAR: Record<string, string> = {
@@ -171,7 +171,7 @@ export function mountReviewPanel(
   wsSelectWrap.style.cssText = 'min-width:160px;';
   const wsSelect = createSelect<string>({
     value: '',
-    options: [{ value: '', label: 'All' }],
+    options: [{ value: '', label: props.t('memory.review.filterAll') }],
     ariaLabel: props.t('memory.review.filterWorkspace'),
     onChange: (v) => {
       workspaceFilter = v;
@@ -221,7 +221,7 @@ export function mountReviewPanel(
       if (categoryFilter && r.category !== categoryFilter) return false;
       if (statusFilter === 'addressed' && !r.addressedCommitSha) return false;
       if (statusFilter === 'notAddressed' && r.addressedCommitSha) return false;
-      if (workspaceFilter && (r.workspace || UNKNOWN_WORKSPACE) !== workspaceFilter) return false;
+      if (workspaceFilter && (r.workspace || UNRESOLVED_WORKSPACE_KEY) !== workspaceFilter) return false;
       return true;
     });
   }
@@ -338,7 +338,7 @@ export function mountReviewPanel(
       // 値が無い('')のは「セッションのリポジトリを引けなかった」であって
       // 「anytime-markdown」ではない。既定値で埋めず未解決として表示する。
       const wsCell = td('color:var(--am-color-text-secondary);white-space:nowrap;');
-      wsCell.textContent = row.workspace || UNKNOWN_WORKSPACE;
+      wsCell.textContent = row.workspace || props.t('memory.review.workspaceUnresolved');
       if (!row.workspace) {
         wsCell.style.fontStyle = 'italic';
       }
@@ -419,9 +419,16 @@ export function mountReviewPanel(
   }
 
   function updateWorkspaceOptions(): void {
-    const workspaces = [...new Set(history.map((r) => r.workspace || UNKNOWN_WORKSPACE))].sort();
+    const workspaces = [...new Set(history.map((r) => r.workspace || UNRESOLVED_WORKSPACE_KEY))].sort();
     wsSelect.update({
-      options: [{ value: '', label: 'All' }, ...workspaces.map((w) => ({ value: w, label: w }))],
+      options: [
+        { value: '', label: props.t('memory.review.filterAll') },
+        ...workspaces.map((w) => ({
+          value: w,
+          // キーは言語非依存のまま、表示だけ翻訳する。
+          label: w === UNRESOLVED_WORKSPACE_KEY ? props.t('memory.review.workspaceUnresolved') : w,
+        })),
+      ],
       value: workspaceFilter,
     });
   }

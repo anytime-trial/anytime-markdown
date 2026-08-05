@@ -139,6 +139,8 @@ async function processRouteADoc(opts: {
   force: boolean;
   ollama: OllamaClient;
   model: string;
+  /** 取込を実行しているワークスペースの repo_name。自分が書いた行にだけ設定する。 */
+  workspace: string;
   logger: MemoryLogger;
 }): Promise<RouteADocResult> {
   const { db, filePath, relPath, recordedAt, force, ollama, model, logger } = opts;
@@ -189,6 +191,13 @@ async function processRouteADoc(opts: {
     doc.findings.splice(0, doc.findings.length, ...refined.findings);
 
     const result = upsertReviewDoc(db, doc, relPath, sha1, recordedAt, logger);
+    // 取込側のワークスペースが自明なのは「いま自分が書いた行」だけ。
+    // 未解決行を一括で埋めると他ワークスペース由来の行まで刻印してしまう。
+    db.run(
+      `UPDATE memory_reviews SET workspace = ?
+        WHERE source_kind = 'review_doc' AND source_ref = ? AND workspace = ''`,
+      [opts.workspace, relPath],
+    );
     return {
       outcome: 'processed',
       is_new: result.is_new,
@@ -275,7 +284,8 @@ export async function runReviewIncremental(input: {
       }
 
       const docResult = await processRouteADoc({
-        db, filePath, relPath, reviewDir, recordedAt, force, ollama, model, logger,
+        db, filePath, relPath, reviewDir, recordedAt, force, ollama, model,
+        workspace: repoName, logger,
       });
 
       if (docResult.outcome === 'skipped') {
@@ -395,7 +405,6 @@ export async function runReviewIncremental(input: {
   try {
     const resolveResult = resolveReviewTargets({
       db,
-      defaultWorkspace: repoName,
       logger: {
         warn: (msg: string) => logger.info(msg),
         error: (msg: string, err?: unknown) => logger.error(msg, err),

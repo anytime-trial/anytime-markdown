@@ -2,6 +2,7 @@ import type { MemoryDbConnection, SqlValue } from '../../db/connection/types';
 import { toUint8ArrayOrNull } from '../../db/connection/blobUtil';
 import { AgentReviewInputSchema } from '../../types/AgentReviewInput';
 import { entityId } from '../../canonical/entityId';
+import { resolveReviewTargets } from './resolveReviewTargets';
 import { maxSeverity } from './findingHelpers';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import type { MemoryLogger } from '../../logger';
@@ -196,6 +197,13 @@ export async function ingestAgentReviewResult(input: {
   db: MemoryDbConnection;
   input: unknown;
   ollama: OllamaClient;
+  /**
+   * 取込を実行しているワークスペースの repo_name。
+   * optional にしない: 渡し忘れると workspace が '' のまま残り、findings の
+   * target_repo が解決できず linkAddresses の対象から恒久的に外れる。しかも症状は
+   * エラーではなく「対処済みにならない指摘が増える」だけなので気づけない。
+   */
+  workspace: string;
   logger: MemoryLogger;
 }): Promise<IngestAgentReviewResult> {
   const { db, ollama, logger } = input;
@@ -312,6 +320,11 @@ export async function ingestAgentReviewResult(input: {
     ],
   );
 
+  db.run(`UPDATE memory_reviews SET workspace = ? WHERE id = ? AND workspace = ''`, [
+    input.workspace,
+    reviewEntityId,
+  ]);
+
   // ── Step 6: Insert findings with F21 merge ────────────────────────────────
 
   let findingsInserted = 0;
@@ -348,9 +361,14 @@ export async function ingestAgentReviewResult(input: {
     ],
   );
 
+  // agent 経路は runReviewIncremental を通らないため、後段の解決パスをここで自分で回す。
+  // 回さないと target_repo が NULL のまま残り、linkAddresses の対象から恒久的に外れる。
+  const resolved = resolveReviewTargets({ db, logger });
+
   logger.info(
     `[anytime-memory] ingestAgentReviewResult: done run_id=${parsed.run_id} status=${finalStatus} ` +
-      `findings_inserted=${findingsInserted} findings_merged=${findingsMerged}`,
+      `findings_inserted=${findingsInserted} findings_merged=${findingsMerged} ` +
+      `targets_resolved=${resolved.targetsResolved}`,
   );
 
   return {

@@ -34,21 +34,34 @@ export interface ResolveReviewTargetsResult {
   readonly pathsNormalized: number;
   /** 正規化に失敗し NULL へ落とした行数（パスとして成立しなかったもの）。 */
   readonly pathsRejected: number;
+  /**
+   * 処理中に発生した失敗の件数。
+   *
+   * 0 件と失敗を区別するために持つ。すべて 0 の戻り値は「解決すべき行が無かった」と
+   * 「attach 未成立やスキーマ不整合で全件失敗した」のどちらでも生じ、集計行だけを見る
+   * 運用では後者が正常運転として通過してしまう。
+   */
+  readonly failures: number;
 }
 
 /**
- * `memory_reviews.workspace` が未設定（''）の行を埋める。
+ * `source_kind='session'` のレビューについて、source_ref 先頭の session_id から
+ * trail.sessions → trail.repos を辿って実際のワークスペースを引く。
  *
- * `source_kind='session'` は source_ref 先頭の session_id から trail.sessions →
- * trail.repos を辿って実際のワークスペースを引く。それ以外（review_doc / agent /
- * pr_comment）は取込を実行しているワークスペースを使う。
+ * **既定値による一括フォールバックは持たない**。`WHERE workspace = ''` だけで絞ると
+ * DB 内の未解決行**全部**が対象になり、複数ワークスペースを集約している
+ * memory-core.db では他ワークスペース由来の行まで取込側のワークスペースとして
+ * 刻印される。その値は resolveFindingTargets が同名ファイルの優先先として使うため、
+ * 本変更が塞ごうとしている誤リンクを別経路から再導入することになる。
+ * 取込側のワークスペースが自明な経路（review_doc / agent）は、その経路の
+ * 取込処理が自分の書いた行に対してだけ workspace を設定する。
  */
 export function resolveReviewWorkspaces(
   db: MemoryDbConnection,
-  defaultWorkspace: string,
   logger: MemoryLogger,
-): number {
+): { filled: number; failures: number } {
   let filled = 0;
+  let failures = 0;
 
   // 読み（trail 参照）と書きを必ず分ける。attach ガードは `trail.` を含む書き込み SQL を
   // 一律に拒否するため、相関サブクエリ付き UPDATE は subquery が読み取りだけでも失敗する。
@@ -71,6 +84,7 @@ export function resolveReviewWorkspaces(
       workspace: String(row[1]),
     }));
   } catch (err) {
+    failures += 1;
     warn(
       logger,
       `[anytime-memory] resolveReviewWorkspaces: session workspace lookup failed: ${String(err)}`,
@@ -82,6 +96,7 @@ export function resolveReviewWorkspaces(
       db.run(`UPDATE memory_reviews SET workspace = ? WHERE id = ?`, [row.workspace, row.id]);
       filled += 1;
     } catch (err) {
+      failures += 1;
       warn(
         logger,
         `[anytime-memory] resolveReviewWorkspaces: review=${row.id} update failed: ${String(err)}`,
@@ -89,23 +104,7 @@ export function resolveReviewWorkspaces(
     }
   }
 
-  // 既定値で埋めてよいのは session **以外**だけ。session レビューのワークスペースは
-  // セッションの実リポジトリが唯一の正解であり、引けなかったものを取込側の
-  // ワークスペースで埋めると「別ワークスペースの指摘」を自分のものとして誤表示する。
-  // 引けないものは '' のまま残し、後続の実行で再試行させる。
-  try {
-    db.run(`UPDATE memory_reviews SET workspace = ? WHERE workspace = '' AND source_kind != 'session'`, [
-      defaultWorkspace,
-    ]);
-    filled += db.getRowsModified();
-  } catch (err) {
-    warn(
-      logger,
-      `[anytime-memory] resolveReviewWorkspaces: default workspace fill failed: ${String(err)}`,
-    );
-  }
-
-  return filled;
+  return { filled, failures };
 }
 
 interface PendingFinding {
@@ -124,7 +123,10 @@ interface PendingFinding {
 export function resolveFindingTargets(
   db: MemoryDbConnection,
   logger: MemoryLogger,
-): Pick<ResolveReviewTargetsResult, 'targetsResolved' | 'pathsNormalized' | 'pathsRejected'> {
+): Pick<
+  ResolveReviewTargetsResult,
+  'targetsResolved' | 'pathsNormalized' | 'pathsRejected' | 'failures'
+> {
   let pending: PendingFinding[];
 
   try {
@@ -146,12 +148,13 @@ export function resolveFindingTargets(
     warn(logger,
       `[anytime-memory] resolveFindingTargets: failed to query pending findings: ${String(err)}`,
     );
-    return { targetsResolved: 0, pathsNormalized: 0, pathsRejected: 0 };
+    return { targetsResolved: 0, pathsNormalized: 0, pathsRejected: 0, failures: 1 };
   }
 
   let targetsResolved = 0;
   let pathsNormalized = 0;
   let pathsRejected = 0;
+  let failures = 0;
 
   for (const finding of pending) {
     try {
@@ -190,23 +193,27 @@ export function resolveFindingTargets(
         targetsResolved += 1;
       }
     } catch (err) {
+      failures += 1;
       warn(logger,
         `[anytime-memory] resolveFindingTargets: finding=${finding.id} failed: ${String(err)}`,
       );
     }
   }
 
-  return { targetsResolved, pathsNormalized, pathsRejected };
+  return { targetsResolved, pathsNormalized, pathsRejected, failures };
 }
 
 /** ワークスペース解決 → 対象リポジトリ解決をまとめて実行する。 */
 export function resolveReviewTargets(input: {
   db: MemoryDbConnection;
-  defaultWorkspace: string;
   logger: MemoryLogger;
 }): ResolveReviewTargetsResult {
-  const { db, defaultWorkspace, logger } = input;
-  const workspacesFilled = resolveReviewWorkspaces(db, defaultWorkspace, logger);
+  const { db, logger } = input;
+  const workspaces = resolveReviewWorkspaces(db, logger);
   const findings = resolveFindingTargets(db, logger);
-  return { workspacesFilled, ...findings };
+  return {
+    ...findings,
+    workspacesFilled: workspaces.filled,
+    failures: workspaces.failures + findings.failures,
+  };
 }

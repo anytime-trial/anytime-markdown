@@ -9,7 +9,19 @@
  * ここで生き残った値は `resolveTargetRepo` がリポジトリ実在性まで検査する。
  */
 
-export type TargetPathKind = 'file' | 'directory';
+/**
+ * `unknown` は「拡張子の有無ではファイルかディレクトリか決められない」形。
+ *
+ * この monorepo は連番＋ドットのディレクトリ名（`spec/92.doctrine`）と拡張子なしの
+ * 実行ファイル（`scripts/ticket-hooks/post-commit`）の双方を常用しており、
+ * 拡張子ヒューリスティックだけで二分すると、どちらも必ず 0 件になる述語へ落ちる。
+ * 判定は推測せず DB の実在に委ねる（`resolveTargetRepo` が両方式で照合する）。
+ */
+export type TargetPathKind = 'file' | 'directory' | 'unknown';
+
+/** 実在が確実な拡張子（これらは常にファイルとして扱ってよい）。 */
+const KNOWN_FILE_EXT_RE =
+  /\.(?:tsx?|jsx?|mts|cts|mjs|cjs|md|sql|json|jsonc|ya?ml|css|scss|html?|txt|sh|py|rs|go|toml|lock|svg|png|jpe?g|gif|ico|vsix|cjs)$/i;
 
 export interface NormalizedTargetPath {
   readonly path: string;
@@ -36,8 +48,8 @@ const MAX_PATH_LENGTH = 255;
  */
 const LINE_SUFFIX_RE = /:\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)*$/;
 
-/** 拡張子を持つ最終セグメント（= ファイル）の判定。 */
-const FILE_EXT_RE = /\.[A-Za-z0-9]+$/;
+/** ドットを含む最終セグメント。既知拡張子でなければ `unknown` に倒す。 */
+const DOTTED_TAIL_RE = /\.[A-Za-z0-9]+$/;
 
 /** 囲み文字（バッククォート・引用符）を 1 重だけ剥がす。 */
 function stripEnclosing(value: string): string {
@@ -97,8 +109,13 @@ export function normalizeTargetPath(raw: string | null | undefined): NormalizedT
 
   // ディレクトリ区切りも拡張子も持たない単語（`node` / `レビュー対象`）はパスではない。
   const hasSeparator = value.includes('/');
-  const isFile = FILE_EXT_RE.test(value);
-  if (!hasSeparator && !isFile) return null;
+  const dotted = DOTTED_TAIL_RE.test(value);
+  if (!hasSeparator && !dotted) return null;
 
-  return { path: value, kind: isFile ? 'file' : 'directory', absolute };
+  // 既知拡張子ならファイル確定。ドットは在るが既知拡張子でない（`spec/92.doctrine`）、
+  // またはドットが無い（`scripts/post-commit` / `packages/markdown-viewer`）ものは
+  // 断定できないので `unknown` にして、照合側で両方式を試させる。
+  const kind: TargetPathKind = KNOWN_FILE_EXT_RE.test(value) ? 'file' : 'unknown';
+
+  return { path: value, kind, absolute };
 }

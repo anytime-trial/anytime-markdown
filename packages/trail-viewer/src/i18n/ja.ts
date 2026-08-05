@@ -583,6 +583,8 @@ export const ja: TrailI18n = {
   'memory.review.filterCategory': 'カテゴリ',
   'memory.review.filterStatus': 'ステータス',
   'memory.review.filterWorkspace': 'ワークスペース',
+  'memory.review.filterAll': 'すべて',
+  'memory.review.workspaceUnresolved': '(未解決)',
   'memory.review.column.workspace': 'ワークスペース',
   'memory.review.openInMessages': 'メッセージを開く',
   'memory.review.flow.addressed': '対応済み',

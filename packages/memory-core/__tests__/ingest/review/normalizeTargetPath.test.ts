@@ -5,7 +5,13 @@ import { normalizeTargetPath } from '../../../src/ingest/review/normalizeTargetP
  * 採取した。想像で作った入力ではないため、ここを緩めると実データが再び通り抜ける。
  */
 const file = (path: string) => ({ path, kind: 'file', absolute: false });
-const dir = (path: string) => ({ path, kind: 'directory', absolute: false });
+/**
+ * 既知拡張子でも明らかなファイルでもない形は `unknown`。
+ * 拡張子ヒューリスティックで file/directory を二分すると、
+ * `spec/92.doctrine`（ドット入りディレクトリ）と `scripts/post-commit`
+ * （拡張子なしファイル）が必ず 0 件になる述語へ落ちる。
+ */
+const unknown = (path: string) => ({ path, kind: 'unknown', absolute: false });
 
 describe('normalizeTargetPath', () => {
   describe('正常系: リポジトリ相対のファイルパス', () => {
@@ -20,13 +26,18 @@ describe('normalizeTargetPath', () => {
     });
   });
 
-  describe('正常系: ディレクトリ指定', () => {
+  describe('正常系: 断定できない形は unknown（照合側で両方式を試す）', () => {
     it.each([
       ['packages/markdown-viewer', 'packages/markdown-viewer'],
       ['packages/trail-viewer/src', 'packages/trail-viewer/src'],
       ['packages/trail-viewer/src/', 'packages/trail-viewer/src'],
-    ])('%s をディレクトリとして返す', (raw, expected) => {
-      expect(normalizeTargetPath(raw)).toEqual(dir(expected));
+      // 連番＋ドットのディレクトリ名（この monorepo の docs 構成で常用）
+      ['spec/92.doctrine', 'spec/92.doctrine'],
+      ['spec/31.trail/16.doctrine-judgment', 'spec/31.trail/16.doctrine-judgment'],
+      // 拡張子なしの実ファイル
+      ['scripts/ticket-hooks/post-commit', 'scripts/ticket-hooks/post-commit'],
+    ])('%s を unknown として返す', (raw, expected) => {
+      expect(normalizeTargetPath(raw)).toEqual(unknown(expected));
     });
   });
 

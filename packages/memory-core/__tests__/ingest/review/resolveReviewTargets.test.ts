@@ -125,22 +125,39 @@ describe('resolveReviewTargets', () => {
       reviews: [{ id: 'r1', sourceKind: 'session', sourceRef: 'sess-1#msg-1', findings: [{ id: 'f1', targetFilePath: 'src/y.ts' }] }],
     });
 
-    const result = resolveReviewTargets({ db: fixture.db, defaultWorkspace: 'anytime-markdown', logger: makeLogger() });
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
 
     expect(readWorkspace(fixture.db, 'r1')).toBe('anytime-trade');
     expect(readFinding(fixture.db, 'f1')).toEqual({ path: 'src/y.ts', repo: 'anytime-trade' });
     expect(result.targetsResolved).toBe(1);
   });
 
-  it('session 以外は取込を実行しているワークスペースを使う', async () => {
+  // 退行防止: 未解決行を既定値で一括フォールバックしてはならない。
+  // `WHERE workspace = ''` だけで絞ると DB 内の未解決行全部が対象になり、
+  // 複数ワークスペースを集約している memory-core.db では他ワークスペース由来の
+  // 行まで取込側のワークスペースとして刻印される。その値は同名ファイルの
+  // 優先先に使われるため、塞いだはずの誤リンクを別経路から再導入する。
+  // 取込側のワークスペースが自明な経路(review_doc / agent)は取込処理が
+  // 自分の書いた行にだけ設定する責務を持つ。
+  it('session 以外の未解決行を既定値で一括フォールバックしない', async () => {
     fixture = await buildFixture({
       repos: { 'anytime-markdown': ['packages/a/src/x.ts'] },
       reviews: [{ id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', findings: [{ id: 'f1', targetFilePath: 'packages/a/src/x.ts' }] }],
     });
 
-    resolveReviewTargets({ db: fixture.db, defaultWorkspace: 'anytime-markdown', logger: makeLogger() });
+    resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
 
-    expect(readWorkspace(fixture.db, 'r1')).toBe('anytime-markdown');
+    expect(readWorkspace(fixture.db, 'r1')).toBe('');
+  });
+
+  it('workspace が設定済みの review_doc はその値で解決する', async () => {
+    fixture = await buildFixture({
+      repos: { 'anytime-markdown': ['packages/a/src/x.ts'] },
+      reviews: [{ id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', workspace: 'anytime-markdown', findings: [{ id: 'f1', targetFilePath: 'packages/a/src/x.ts' }] }],
+    });
+
+    resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
+
     expect(readFinding(fixture.db, 'f1').repo).toBe('anytime-markdown');
   });
 
@@ -154,7 +171,7 @@ describe('resolveReviewTargets', () => {
       reviews: [{ id: 'r1', sourceKind: 'session', sourceRef: 'unknown-sess#msg-1', findings: [] }],
     });
 
-    resolveReviewTargets({ db: fixture.db, defaultWorkspace: 'anytime-markdown', logger: makeLogger() });
+    resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
 
     expect(readWorkspace(fixture.db, 'r1')).toBe('');
   });
@@ -165,7 +182,7 @@ describe('resolveReviewTargets', () => {
       reviews: [{ id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', findings: [{ id: 'f1', targetFilePath: 'packages/a/src/x.ts:24, 48' }] }],
     });
 
-    const result = resolveReviewTargets({ db: fixture.db, defaultWorkspace: 'anytime-markdown', logger: makeLogger() });
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
 
     expect(readFinding(fixture.db, 'f1')).toEqual({ path: 'packages/a/src/x.ts', repo: 'anytime-markdown' });
     expect(result.pathsNormalized).toBe(1);
@@ -177,7 +194,7 @@ describe('resolveReviewTargets', () => {
       reviews: [{ id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', findings: [{ id: 'f1', targetFilePath: '/Shared/anytime-markdown-docs/proposal/y.ja.md' }] }],
     });
 
-    resolveReviewTargets({ db: fixture.db, defaultWorkspace: 'anytime-markdown', logger: makeLogger() });
+    resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
 
     expect(readFinding(fixture.db, 'f1')).toEqual({ path: 'proposal/y.ja.md', repo: 'anytime-markdown-docs' });
   });
@@ -188,7 +205,7 @@ describe('resolveReviewTargets', () => {
       reviews: [{ id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', findings: [{ id: 'f1', targetFilePath: 'node --test scripts/x.test.mjs' }] }],
     });
 
-    const result = resolveReviewTargets({ db: fixture.db, defaultWorkspace: 'anytime-markdown', logger: makeLogger() });
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
 
     expect(readFinding(fixture.db, 'f1')).toEqual({ path: null, repo: null });
     expect(result.pathsRejected).toBe(1);
@@ -200,7 +217,7 @@ describe('resolveReviewTargets', () => {
       reviews: [{ id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', findings: [{ id: 'f1', targetFilePath: 'packages/a/src/never-committed.ts:9' }] }],
     });
 
-    const result = resolveReviewTargets({ db: fixture.db, defaultWorkspace: 'anytime-markdown', logger: makeLogger() });
+    const result = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
 
     expect(readFinding(fixture.db, 'f1')).toEqual({ path: 'packages/a/src/never-committed.ts', repo: null });
     expect(result.targetsResolved).toBe(0);
@@ -212,9 +229,9 @@ describe('resolveReviewTargets', () => {
       reviews: [{ id: 'r1', sourceKind: 'review_doc', sourceRef: 'review/x.md', findings: [{ id: 'f1', targetFilePath: 'packages/a/src/x.ts:24' }] }],
     });
 
-    resolveReviewTargets({ db: fixture.db, defaultWorkspace: 'anytime-markdown', logger: makeLogger() });
+    resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
     const first = readFinding(fixture.db, 'f1');
-    const second = resolveReviewTargets({ db: fixture.db, defaultWorkspace: 'anytime-markdown', logger: makeLogger() });
+    const second = resolveReviewTargets({ db: fixture.db, logger: makeLogger() });
 
     expect(readFinding(fixture.db, 'f1')).toEqual(first);
     // 解決済みの行は再処理されない。

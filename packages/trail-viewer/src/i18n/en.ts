@@ -584,6 +584,8 @@ export const en: TrailI18n = {
   'memory.review.filterCategory': 'Category',
   'memory.review.filterStatus': 'Status',
   'memory.review.filterWorkspace': 'Workspace',
+  'memory.review.filterAll': 'All',
+  'memory.review.workspaceUnresolved': '(unresolved)',
   'memory.review.column.workspace': 'Workspace',
   'memory.review.openInMessages': 'Open messages',
   'memory.review.flow.addressed': 'Addressed',

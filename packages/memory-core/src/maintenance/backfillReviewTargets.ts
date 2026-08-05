@@ -62,7 +62,6 @@ export function collectReviewTargetStats(db: MemoryDbConnection): ReviewTargetSt
 
 export function backfillReviewTargets(input: {
   db: MemoryDbConnection;
-  defaultWorkspace: string;
   /** true のときだけ実際に書き込む。既定は dry-run（統計のみ）。 */
   apply?: boolean;
   /** 解決後に linkAddresses を再実行するか。既定 true。 */
@@ -70,7 +69,7 @@ export function backfillReviewTargets(input: {
   windowDays?: number;
   logger: MemoryLogger;
 }): BackfillReviewTargetsResult {
-  const { db, defaultWorkspace, apply = false, relink = true, windowDays = 30, logger } = input;
+  const { db, apply = false, relink = true, windowDays = 30, logger } = input;
 
   const before = collectReviewTargetStats(db);
 
@@ -84,7 +83,7 @@ export function backfillReviewTargets(input: {
     return { applied: false, before, after: before, resolve: null, linkedFindings: 0, linkedEdges: 0 };
   }
 
-  const resolve = resolveReviewTargets({ db, defaultWorkspace, logger });
+  const resolve = resolveReviewTargets({ db, logger });
 
   let linkedFindings = 0;
   let linkedEdges = 0;
@@ -106,7 +105,7 @@ export function backfillReviewTargets(input: {
     `[anytime-memory] backfillReviewTargets: applied ` +
       `workspacesFilled=${resolve.workspacesFilled} targetsResolved=${resolve.targetsResolved} ` +
       `pathsNormalized=${resolve.pathsNormalized} pathsRejected=${resolve.pathsRejected} ` +
-      `linkedFindings=${linkedFindings} ` +
+      `failures=${resolve.failures} linkedFindings=${linkedFindings} ` +
       `addressed=${before.findingsAddressed}→${after.findingsAddressed}`,
   );
 

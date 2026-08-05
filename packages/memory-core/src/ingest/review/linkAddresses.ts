@@ -1,6 +1,7 @@
 import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import { normalizeTargetPath } from './normalizeTargetPath';
+import { escapeLike } from './resolveTargetRepo';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -126,9 +127,11 @@ function linkOneFinding(
   effectiveWindowDays: number,
 ): { edgeInserted: boolean } | null {
   // 対象がファイルかディレクトリかは、格納済みの正規化パスから判定する。
+  // 'unknown'（既知拡張子でも明らかなディレクトリでもない形）は両方式を試す。
   const normalized = normalizeTargetPath(finding.target_file_path);
   if (normalized === null) return null;
-  const isDirectory = normalized.kind === 'directory';
+  const predicates: ReadonlyArray<'exact' | 'prefix'> =
+    normalized.kind === 'file' ? ['exact'] : normalized.kind === 'directory' ? ['prefix'] : ['exact', 'prefix'];
 
   // リポジトリは finding.target_repo で絞る。かつては呼び出し元の単一 repoName で
   // 絞っており、他ワークスペースの指摘が永久にリンクできず、かつリポジトリ名を
@@ -140,38 +143,42 @@ function linkOneFinding(
   //
   // ディレクトリ指定は前方一致。`|| '/'` を挟んでセグメント境界を守る
   // （`packages/markdown-viewer` が `packages/markdown-viewer-extra/...` に当たらないように）。
-  const pathPredicate = isDirectory ? `cf.file_path LIKE ? || '/%'` : `cf.file_path = ?`;
-  const commitResult = db.exec(
-    `SELECT DISTINCT sc.commit_hash, sc.commit_message, sc.committed_at
-     FROM trail.session_commits sc
-     JOIN trail.commit_files cf ON cf.commit_hash = sc.commit_hash
-                                AND cf.repo_id = sc.repo_id
-     JOIN trail.repos r ON r.repo_id = sc.repo_id
-     WHERE ${pathPredicate}
-       AND r.repo_name = ?
-       AND sc.committed_at >= ?
-       AND sc.committed_at <= datetime(?, '+' || ? || ' days')
-     ORDER BY sc.committed_at ASC`,
-    [
-      finding.target_file_path,
-      finding.target_repo,
-      finding.reviewed_at,
-      finding.reviewed_at,
-      effectiveWindowDays,
-    ],
-  );
-
-  const commitRows = commitResult[0];
-  if (!commitRows) return null;
-
-  const threshold = isDirectory ? SCORE_THRESHOLD_DIRECTORY : SCORE_THRESHOLD_FILE;
   let acceptedCommit: { commit_hash: string; committed_at: string } | null = null;
-  for (const row of commitRows.values) {
-    const score = scoreCommit(String(row[1]), finding.finding_text);
-    if (score >= threshold) {
-      acceptedCommit = { commit_hash: String(row[0]), committed_at: String(row[2]) };
-      break;
+
+  for (const predicate of predicates) {
+    const isPrefix = predicate === 'prefix';
+    const commitResult = db.exec(
+      `SELECT DISTINCT sc.commit_hash, sc.commit_message, sc.committed_at
+       FROM trail.session_commits sc
+       JOIN trail.commit_files cf ON cf.commit_hash = sc.commit_hash
+                                  AND cf.repo_id = sc.repo_id
+       JOIN trail.repos r ON r.repo_id = sc.repo_id
+       WHERE ${isPrefix ? `cf.file_path LIKE ? || '/%' ESCAPE '\\'` : `cf.file_path = ?`}
+         AND r.repo_name = ?
+         AND sc.committed_at >= ?
+         AND sc.committed_at <= datetime(?, '+' || ? || ' days')
+       ORDER BY sc.committed_at ASC`,
+      [
+        isPrefix ? escapeLike(finding.target_file_path) : finding.target_file_path,
+        finding.target_repo,
+        finding.reviewed_at,
+        finding.reviewed_at,
+        effectiveWindowDays,
+      ],
+    );
+
+    const commitRows = commitResult[0];
+    if (!commitRows) continue;
+
+    const threshold = isPrefix ? SCORE_THRESHOLD_DIRECTORY : SCORE_THRESHOLD_FILE;
+    for (const row of commitRows.values) {
+      const score = scoreCommit(String(row[1]), finding.finding_text);
+      if (score >= threshold) {
+        acceptedCommit = { commit_hash: String(row[0]), committed_at: String(row[2]) };
+        break;
+      }
     }
+    if (acceptedCommit) break;
   }
   if (!acceptedCommit) return null;
 
