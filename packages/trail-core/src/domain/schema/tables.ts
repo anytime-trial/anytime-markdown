@@ -831,8 +831,17 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
   -- 中間に挿入すると新規 DB と移行 DB で列順が食い違う
   gate_verdict TEXT CHECK (gate_verdict IS NULL OR gate_verdict IN ('delegable', 'escalate')),
   gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json)),
+  -- D2: ゲートが delegable と判定した What 承認をエージェントが代行した時刻。
+  -- human_decision が NULL のまま「人の判断待ち」に見えるのを防ぐために分ける
+  delegated_at TEXT CHECK (delegated_at IS NULL OR delegated_at GLOB ${TS_GLOB_MS} OR delegated_at GLOB ${TS_GLOB_NO_MS}),
   UNIQUE (session_id, subject)
 ) STRICT`;
+
+/**
+ * 既存 DB へ `delegated_at` を足す ALTER。CHECK 制約を CREATE 側と同一に保つため、
+ * GLOB 定義を共有するここで組み立てる（手書きすると新規 DB と移行 DB で制約が食い違う）。
+ */
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT = `ALTER TABLE doctrine_judgments ADD COLUMN delegated_at TEXT CHECK (delegated_at IS NULL OR delegated_at GLOB ${TS_GLOB_MS} OR delegated_at GLOB ${TS_GLOB_NO_MS})`;
 
 export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON doctrine_judgments(judged_at)`,

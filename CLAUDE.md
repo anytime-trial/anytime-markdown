@@ -1,6 +1,6 @@
 # CLAUDE.md（anytime-markdown プロジェクト固有）
 
-更新日: 2026-08-03
+更新日: 2026-08-05
 
 > 汎用の作業スタイル・Git 哲学・サブエージェント方針・応答ルールは `~/.claude/CLAUDE.md`（global）に従う。\
 > ツール中立な規約（リポジトリ構成・ドキュメント正本の位置づけ・出力先・モノレポ構造・Git 基本）は `AGENTS.md`（Claude / Codex 共通）に従う。\
@@ -45,15 +45,25 @@
 
 - **discovery 順序（mcp-trail discovery ツール優先）**: 構造・依存・所在の探索は (1) どこから読むか＝`get_important_files`（filter: central/dead/barrel/risky）→ (2) 影響範囲＝`get_code_dependencies`（filePath 可・incoming/outgoing）/ シンボル所在＝`query_code_graph`（検索専用・既定 summary）/ 接続経路＝`find_code_path` / 共変更＝`get_cochange_partners` → Serena（本文）→ Read（編集箇所）の順（原則は global `~/.claude/CLAUDE.md`「discovery の順序」）。`current_code_graphs.graph_json` の丸読み（約43万トークン）と `list_relationships` の影響範囲用途は禁止（後者は手動 C4 専用。影響範囲は `get_code_dependencies` を使う）。TrailDataServer 稼働が前提（未起動時はエラー）。
 
-## ドクトリン接地判断の並走記録（D1）
+## ドクトリン接地判断と What 承認の代行（D2・2026-08-05 昇格）
 
-中間承認（What 承認）の一致率を実測するための並走記録。**承認フローは変えない**（承認は従来どおり人が行う）。正本は `<docsRoot>/spec/31.trail/16.doctrine-judgment/doctrine-judgment.ja.md`。
+中間承認（What 承認）をドクトリンへ接地した判断へ段階移行する。**2026-08-05 に人の承認で D2（低重大度・高可逆な What 承認の代行）へ昇格した**（昇格時の実測: 母数 27 件・一致率 93.3%・引用解決率 97.1%・代行可能率 41.7%）。正本は `<docsRoot>/spec/31.trail/16.doctrine-judgment/doctrine-judgment.ja.md` と `<docsRoot>/spec/31.trail/18.coverage-gate/coverage-gate.ja.md`。
 
-1. 段2 等で What 承認の AskUserQuestion を出す**直前**に、mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。
-2. ユーザーの回答を受けた**直後**に `record_human_decision` で実際の判断（approve/reject/modified）を記録する。
-3. 記録失敗（TrailDataServer 未起動・DB 不在等）は承認フローを止めず、失敗した事実を応答に 1 行残す（silent skip 禁止）。
-4. session_id は airspace クレームファイル（`.git/anytime/claims/`）の自セッション ID を使う。
-5. 一致率・エスカレーション率の確認は `get_doctrine_agreement`（D2 昇格ゲートの判定材料）。
+**手順**
+
+1. What 承認が要る場面で、AskUserQuestion を出す**前**に mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。**`severity` と `target_paths` を必ず申告する**（未申告はカバレッジゲートが fail-closed で `escalate` に倒すため、代行は成立しない）。
+2. 戻り値の `gate.verdict` で分岐する。
+    - **`delegable` かつ自分の判断が `approve`** → **人に聞かずに進める**。直後に `record_delegated_approval` で代行を記録し、応答に「何を代行したか」と接地した条項を 1 行残す（無言で進めない）。
+    - **それ以外**（`escalate` / 自分の判断が `reject` / `escalate`）→ 従来どおり AskUserQuestion で人へ聞き、回答の**直後**に `record_human_decision` で実際の判断（approve/reject/modified）を記録する。
+3. **ゲートの判定にかかわらず常に人へ聞く操作**（global `~/.claude/CLAUDE.md`「承認の対象」の例外項目。ゲートはパス基準の判定なので操作種別は捕捉できない）: パッケージの追加・更新、破壊的操作（`git reset --hard` / `clean -f` 等・永続データ書込）、リモート push・本番リリース。
+4. 記録失敗（TrailDataServer 未起動・DB 不在等）は承認フローを止めず、失敗した事実を応答に 1 行残す（silent skip 禁止）。**ただし代行の記録に失敗した場合は代行しない**（記録の無い代行は監査できないため、人へ聞く側へ倒す）。
+5. session_id は airspace クレームファイル（`.git/anytime/claims/`）の自セッション ID を使う。
+
+**監視と差し戻し**
+
+- 指標の確認は `get_doctrine_agreement`（`agreementRate` / `delegableRate` / `delegated` / `delegatedAudited` / `pending`）。`pending` は「人へ聞いたが未記録」だけを数え、代行済みは `delegated` へ分かれる。
+- **`agreementRate` が 0.9 を下回ったら D2 を止めて D1（全件を人へ聞く）へ戻す**。判断材料と差し戻しの可否はユーザーへ提示する。
+- 代行した判断は人が後から `record_human_decision` で判断でき（抜き取り監査）、その結果は一致率へ入る。`delegatedAudited` が監査の実施件数。
 
 ## 並行セッション検知（airspace）
 
