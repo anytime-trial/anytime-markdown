@@ -18,6 +18,7 @@
  *   - セッション単位の振り返り・訂正（retrospectiveView）は詳細ペインの中に残す。
  *     成否の訂正はセッション単位の記録であり、指示単位へ畳むと出所の優先順位が壊れる。
  */
+import { createSelect } from '@anytime-markdown/ui-core';
 import { escapeHtml } from '../shared/escapeHtml';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import type { FlightReviewOutcome, FlightReviewStore } from '../data/flightReviewStore';
@@ -71,11 +72,13 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
 }
 [data-am-flight-toolbar] { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
 [data-am-flight-toolbar] label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: ${c.textSecondary}; }
-[data-am-flight-toolbar] select, [data-am-flight-toolbar] input {
+[data-am-flight-toolbar] input {
   padding: 6px 8px; font-size: 13px; background: ${c.sectionBg}; color: ${c.textPrimary};
   border: 1px solid ${c.border}; border-radius: 4px;
 }
-[data-am-flight-toolbar] button {
+/* 成否フィルタは ui-core Select（combobox ボタン）で、配色は Select 自身が持つ。
+   button セレクタを広く当てると意図が読みにくくなるため、CSV ボタンだけに絞る。 */
+[data-am-flight-toolbar] button[data-am-flight-export] {
   padding: 7px 14px; border-radius: 4px; font-size: 13px; cursor: pointer;
   border: 1px solid ${c.border}; background: ${c.sectionBg}; color: ${c.textPrimary};
 }
@@ -171,7 +174,7 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
 [data-am-retro-events] dd { margin: 0; }
 [data-am-retro-empty] { font-size: 12px; color: ${c.textSecondary}; margin: 0; }
 [data-am-retro-edit] label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: ${c.textSecondary}; margin-bottom: 8px; }
-[data-am-retro-edit] select, [data-am-retro-edit] input, [data-am-retro-edit] textarea {
+[data-am-retro-edit] input, [data-am-retro-edit] textarea {
   padding: 6px 8px; font-size: 13px; background: ${c.charcoal}; color: ${c.textPrimary};
   border: 1px solid ${c.border}; border-radius: 4px; font-family: inherit;
 }
@@ -192,11 +195,7 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
 [data-am-confidence-badge] { color: ${c.textSecondary}; margin: 0 4px; }
 [data-am-rationale-controls] { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-bottom: 8px; }
 [data-am-rationale-controls] label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: ${c.textSecondary}; }
-[data-am-rationale-controls] select {
-  padding: 6px 8px; font-size: 13px; background: ${c.charcoal}; color: ${c.textPrimary};
-  border: 1px solid ${c.border}; border-radius: 4px;
-}
-[data-am-rationale-controls] button {
+[data-am-rationale-controls] button[data-am-audit-save] {
   padding: 7px 14px; border-radius: 4px; font-size: 13px; cursor: pointer;
   border: 1px solid ${c.border}; background: ${c.sectionBg}; color: ${c.textPrimary};
 }
@@ -266,10 +265,7 @@ export function mountFlightRecordPanel(
   toolbar.dataset['amFlightToolbar'] = '';
   toolbar.innerHTML = `
     <label><span data-am-flight-label="filter.outcome"></span>
-      <select data-am-flight-filter-outcome>
-        <option value=""></option>
-        ${OUTCOME_VALUES.map((o) => `<option value="${o}"></option>`).join('')}
-      </select>
+      <span data-am-flight-filter-outcome></span>
     </label>
     <label><span data-am-flight-label="filter.since"></span>
       <input type="date" data-am-flight-filter-since />
@@ -299,10 +295,41 @@ export function mountFlightRecordPanel(
   body.appendChild(detailRegion);
   root.appendChild(body);
 
-  const outcomeSelect = toolbar.querySelector<HTMLSelectElement>('[data-am-flight-filter-outcome]');
   const sinceInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-since]');
   const untilInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-until]');
   const tagInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-tag]');
+
+  // 成否フィルタの選択値はここで保持する（生の `<select>` の value を正本にしない）。
+  let outcomeFilter: OutcomeFilterValue = '';
+
+  function outcomeOptions(): ReadonlyArray<{ value: OutcomeFilterValue; label: string }> {
+    const { t } = props;
+    return [
+      { value: '', label: t('flightRecord.filter.outcomeAll') },
+      ...OUTCOME_VALUES.map((o) => ({ value: o as OutcomeFilterValue, label: t(`flightRecord.outcome.${o}`) })),
+    ];
+  }
+
+  /**
+   * 生の `<select>` を使わないのは、ネイティブの popup が OS 既定の背景色で描かれ、
+   * ダークテーマでは白地に白文字になって選択肢が読めないため。
+   * createSelect は button + ポータル listbox で、配色は `--am-color-*` に追従する。
+   */
+  const outcomeSelect = createSelect<OutcomeFilterValue>({
+    value: outcomeFilter,
+    options: outcomeOptions(),
+    ariaLabel: props.t('flightRecord.filter.outcome'),
+    fullWidth: false,
+    minWidth: 132,
+    onChange: (value) => {
+      outcomeFilter = value;
+      applyFilter();
+    },
+  });
+  let outcomeLabelsKey = outcomeOptions()
+    .map((o) => o.label)
+    .join(' ');
+  toolbar.querySelector<HTMLElement>('[data-am-flight-filter-outcome]')?.appendChild(outcomeSelect.el);
 
   /** ラベル・option・aria-label を最新の props.t で更新する（入力値・リスナーは維持）。 */
   function updateToolbarLabels(): void {
@@ -310,12 +337,13 @@ export function mountFlightRecordPanel(
     for (const span of toolbar.querySelectorAll<HTMLElement>('[data-am-flight-label]')) {
       span.textContent = t(`flightRecord.${span.dataset['amFlightLabel'] ?? ''}`);
     }
-    if (outcomeSelect) {
-      outcomeSelect.setAttribute('aria-label', t('flightRecord.filter.outcome'));
-      for (const option of outcomeSelect.options) {
-        option.textContent =
-          option.value === '' ? t('flightRecord.filter.outcomeAll') : t(`flightRecord.outcome.${option.value}`);
-      }
+    // 文言が変わったときだけ差し替える。render() は store の通知（ポーリング）ごとに走るため、
+    // 無条件に update すると開いている listbox が閉じて開き直される。
+    const options = outcomeOptions();
+    const labelsKey = options.map((o) => o.label).join(' ');
+    if (labelsKey !== outcomeLabelsKey) {
+      outcomeLabelsKey = labelsKey;
+      outcomeSelect.update({ options, ariaLabel: t('flightRecord.filter.outcome') });
     }
     sinceInput?.setAttribute('aria-label', t('flightRecord.filter.since'));
     untilInput?.setAttribute('aria-label', t('flightRecord.filter.until'));
@@ -325,7 +353,7 @@ export function mountFlightRecordPanel(
   }
 
   function applyFilter(): void {
-    const outcome = (outcomeSelect?.value ?? '') as OutcomeFilterValue;
+    const outcome = outcomeFilter;
     const tag = (tagInput?.value ?? '').trim();
     props.store.setFilter({
       ...(outcome === '' ? {} : { outcome }),
@@ -335,7 +363,6 @@ export function mountFlightRecordPanel(
     });
   }
 
-  outcomeSelect?.addEventListener('change', applyFilter);
   sinceInput?.addEventListener('change', applyFilter);
   untilInput?.addEventListener('change', applyFilter);
   tagInput?.addEventListener('change', applyFilter);
@@ -645,6 +672,9 @@ export function mountFlightRecordPanel(
       destroyed = true;
       unsubscribe();
       unsubscribeReview();
+      // Select は open 中の overlay を document.body へ出しているため、destroy しないと
+      // パネルを閉じても listbox / backdrop が残る。
+      outcomeSelect.destroy();
       detailHandle?.destroy();
       detailHandle = null;
       root.remove();

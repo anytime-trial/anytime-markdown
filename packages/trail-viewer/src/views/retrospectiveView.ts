@@ -8,6 +8,7 @@
  *   - S2 項目（未解決・学習候補・user feedback）が空でも空状態表示で成立する（FR-18）。
  *   - 保存の成否は視覚フィードバックで返す（成功 / サーバーの理由付き失敗）。
  */
+import { createSelect } from '@anytime-markdown/ui-core';
 import { escapeHtml } from '../shared/escapeHtml';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import type {
@@ -112,6 +113,42 @@ export function mountRetrospectiveView(
   root.dataset['amRetroRoot'] = '';
   container.appendChild(root);
 
+  // 再描画（innerHTML の差し替え）のたびに Select を作り直すため、前回分は必ず destroy する。
+  // open 中の overlay（backdrop + listbox）は document.body 側にあり、スロット要素を捨てても残る。
+  let selectHandles: { destroy: () => void }[] = [];
+
+  function destroySelects(): void {
+    for (const handle of selectHandles) handle.destroy();
+    selectHandles = [];
+  }
+
+  /**
+   * スロット要素へ ui-core Select を差し込む。
+   *
+   * 生の `<select>` を使わないのは、ネイティブの popup が OS 既定の背景色で描かれ、
+   * ダークテーマでは白地に白文字になって選択肢が読めないため（2026-08-05 実測）。
+   * `createSelect` は button + ポータル listbox で、配色は `--am-color-*` に追従する。
+   */
+  function mountSelect<T extends string>(
+    slotAttr: string,
+    opts: {
+      value: T;
+      options: ReadonlyArray<{ value: T; label: string }>;
+      ariaLabel: string;
+      minWidth: number;
+      onChange: (value: T) => void;
+    },
+  ): void {
+    const slot = root.querySelector<HTMLElement>(`[${slotAttr}]`);
+    if (slot === null) {
+      console.warn(`[retrospectiveView] select slot not found: ${slotAttr}`);
+      return;
+    }
+    const handle = createSelect<T>({ ...opts, fullWidth: false });
+    slot.appendChild(handle.el);
+    selectHandles.push(handle);
+  }
+
   function markManualTouched(): void {
     if (manualTouched) return;
     manualTouched = true;
@@ -173,20 +210,10 @@ export function mountRetrospectiveView(
         <h4>${escapeHtml(t('flightRecord.rationale.title'))}</h4>
         <div data-am-rationale-controls>
           <label>${escapeHtml(t('flightRecord.rationale.confidenceFilter'))}
-            <select data-am-rationale-filter>
-              <option value="">${escapeHtml(t('flightRecord.rationale.filterAll'))}</option>
-              ${CONFIDENCE_LABELS.map(
-                (label) => `<option value="${label}"${rationaleFilter === label ? ' selected' : ''}>${label}</option>`,
-              ).join('')}
-            </select>
+            <span data-am-rationale-filter></span>
           </label>
           <label>${escapeHtml(t('flightRecord.audit.label'))}
-            <select data-am-audit-status>
-              ${AUDIT_STATUSES.map(
-                (status) =>
-                  `<option value="${status}"${formAuditStatus === status ? ' selected' : ''}>${escapeHtml(t(`flightRecord.audit.${auditStatusKey(status)}`))}</option>`,
-              ).join('')}
-            </select>
+            <span data-am-audit-status></span>
           </label>
           <button type="button" data-am-audit-save ${props.saving ? 'disabled' : ''}>${escapeHtml(t('flightRecord.audit.save'))}</button>
         </div>
@@ -215,6 +242,7 @@ export function mountRetrospectiveView(
     const concerns = parseJsonArray<string>(review.nextConcerns, 'nextConcerns');
     const lessons = parseJsonArray<LessonCandidateDto>(review.lessonCandidates, 'lessonCandidates');
 
+    destroySelects();
     root.innerHTML = `
       <header data-am-retro-header>
         <h3>${escapeHtml(t('flightRecord.detail.title'))} — ${escapeHtml(review.sessionId)}</h3>
@@ -250,13 +278,7 @@ export function mountRetrospectiveView(
         <h4>${escapeHtml(t('flightRecord.edit.title'))}</h4>
         <label>
           ${escapeHtml(t('flightRecord.edit.outcome'))}
-          <select data-am-retro-outcome-select>
-            <option value="">${escapeHtml(t('flightRecord.edit.keepCurrent'))}</option>
-            ${MANUAL_OUTCOMES.map(
-              (o) =>
-                `<option value="${o}"${formOutcome === o ? ' selected' : ''}>${escapeHtml(t(`flightRecord.outcome.${o}`))}</option>`,
-            ).join('')}
-          </select>
+          <span data-am-retro-outcome-select></span>
         </label>
         <label>
           ${escapeHtml(t('flightRecord.edit.tags'))}
@@ -280,16 +302,21 @@ export function mountRetrospectiveView(
     `;
 
     // フォーム値はローカル状態から復元する（innerHTML 再構築で失わない）
-    const outcomeSelect = root.querySelector<HTMLSelectElement>('[data-am-retro-outcome-select]');
     const tagsInput = root.querySelector<HTMLInputElement>('[data-am-retro-tags]');
     const notesInput = root.querySelector<HTMLTextAreaElement>('[data-am-retro-notes]');
-    if (outcomeSelect) {
-      outcomeSelect.value = formOutcome;
-      outcomeSelect.addEventListener('change', () => {
-        formOutcome = (outcomeSelect.value as ManualOutcome | '') ?? '';
+    mountSelect<ManualOutcome | ''>('data-am-retro-outcome-select', {
+      value: formOutcome,
+      options: [
+        { value: '', label: t('flightRecord.edit.keepCurrent') },
+        ...MANUAL_OUTCOMES.map((o) => ({ value: o as ManualOutcome | '', label: t(`flightRecord.outcome.${o}`) })),
+      ],
+      ariaLabel: t('flightRecord.edit.outcome'),
+      minWidth: 148,
+      onChange: (value) => {
+        formOutcome = value;
         markManualTouched();
-      });
-    }
+      },
+    });
     if (tagsInput) {
       tagsInput.value = formTags;
       tagsInput.addEventListener('input', () => {
@@ -304,15 +331,35 @@ export function mountRetrospectiveView(
         markManualTouched();
       });
     }
-    const rationaleFilterSelect = root.querySelector<HTMLSelectElement>('[data-am-rationale-filter]');
-    rationaleFilterSelect?.addEventListener('change', () => {
-      rationaleFilter = (rationaleFilterSelect.value as RationaleNodeDto['confidenceLabel'] | '') ?? '';
-      render();
+    mountSelect<RationaleNodeDto['confidenceLabel'] | ''>('data-am-rationale-filter', {
+      value: rationaleFilter,
+      options: [
+        { value: '', label: t('flightRecord.rationale.filterAll') },
+        // confidence ラベルは enum の表示値そのものが仕様（訳さない）
+        ...CONFIDENCE_LABELS.map((label) => ({ value: label as RationaleNodeDto['confidenceLabel'] | '', label })),
+      ],
+      ariaLabel: t('flightRecord.rationale.confidenceFilter'),
+      minWidth: 148,
+      onChange: (value) => {
+        rationaleFilter = value;
+        render();
+        // 再描画で Select 要素ごと差し替わりフォーカスが外れる。同じスロットの新しい
+        // combobox へ戻す（キーボード操作の連続性）。
+        root.querySelector<HTMLElement>('[data-am-rationale-filter] [role="combobox"]')?.focus();
+      },
     });
-    const auditSelect = root.querySelector<HTMLSelectElement>('[data-am-audit-status]');
-    auditSelect?.addEventListener('change', () => {
-      formAuditStatus = (auditSelect.value as RationaleAuditStatusDto) ?? 'unaudited';
-      markAuditTouched();
+    mountSelect<RationaleAuditStatusDto>('data-am-audit-status', {
+      value: formAuditStatus,
+      options: AUDIT_STATUSES.map((status) => ({
+        value: status,
+        label: t(`flightRecord.audit.${auditStatusKey(status)}`),
+      })),
+      ariaLabel: t('flightRecord.audit.label'),
+      minWidth: 132,
+      onChange: (value) => {
+        formAuditStatus = value;
+        markAuditTouched();
+      },
     });
     root.querySelector<HTMLButtonElement>('[data-am-audit-save]')?.addEventListener('click', () => void handleAuditSave());
     root.querySelector<HTMLButtonElement>('[data-am-retro-save]')?.addEventListener('click', () => void handleSave());
@@ -341,6 +388,7 @@ export function mountRetrospectiveView(
     },
     destroy() {
       destroyed = true;
+      destroySelects();
       root.remove();
     },
   };

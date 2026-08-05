@@ -93,6 +93,23 @@ async function settle(): Promise<void> {
   for (let i = 0; i < 20; i++) await Promise.resolve();
 }
 
+/**
+ * ui-core Select（combobox ボタン + ポータル listbox）の選択肢をラベルで選ぶ。
+ * mousedown で開き、listbox は portalTarget = document.body へ出る。見つからない場合は
+ * throw する ——「操作できなかった」を黙って通すと、UI が壊れてもテストが緑のままになる。
+ */
+function chooseOption(host: Element | null | undefined, label: string): void {
+  const combo = host?.querySelector<HTMLButtonElement>('[role="combobox"]') ?? null;
+  if (combo === null) throw new Error('combobox が見つからない');
+  combo.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  const options = [...document.body.querySelectorAll<HTMLElement>('[role="listbox"] [role="option"]')];
+  const target = options.find((o) => (o.textContent ?? '').trim() === label);
+  if (target === undefined) {
+    throw new Error(`option "${label}" が見つからない（候補: ${options.map((o) => o.textContent).join(' / ')}）`);
+  }
+  target.click();
+}
+
 describe('flightRecordPanel', () => {
   const originalFetch = globalThis.fetch;
   let container: HTMLElement;
@@ -250,6 +267,19 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
 
+    // ネイティブ `<select>` の popup は OS 既定の配色で描かれる。要素側の color は option の
+    // 文字色にだけ効くため、ダークテーマでは白背景 × 白文字になり選択肢が読めない。
+    // popup の描画色は jsdom では測れないので、症状ではなく原因（生の `<select>` が
+    // DOM に無いこと）を検査する。
+    it('フィルタに生の <select> を使わない（ダークテーマで popup が白地に白文字になる）', async () => {
+      stubList([record()]);
+      const handle = await mountAndSettle([]);
+
+      expect(container.querySelectorAll('select')).toHaveLength(0);
+      expect(container.querySelector('[data-am-flight-filter-outcome] [role="combobox"]')).not.toBeNull();
+      handle.destroy();
+    });
+
     it('取得失敗は空一覧と別の表示になる', async () => {
       stubFetch(() => jsonResponse({}, 500));
       const handle = await mountAndSettle([]);
@@ -272,10 +302,7 @@ describe('flightRecordPanel', () => {
       const { calls } = stubList([]);
       const handle = await mountAndSettle([]);
 
-      const select = container.querySelector<HTMLSelectElement>('[data-am-flight-filter-outcome]');
-      expect(select).not.toBeNull();
-      select!.value = 'achieved';
-      select!.dispatchEvent(new Event('change'));
+      chooseOption(container.querySelector('[data-am-flight-filter-outcome]'), '達成');
       await settle();
 
       const last = calls.filter((c) => c.url.includes('/api/trail/instructions?')).at(-1);
@@ -423,10 +450,7 @@ describe('flightRecordPanel', () => {
       container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
       await settle();
 
-      const outcomeSelect = container.querySelector<HTMLSelectElement>('[data-am-retro-outcome-select]');
-      expect(outcomeSelect).not.toBeNull();
-      outcomeSelect!.value = 'achieved';
-      outcomeSelect!.dispatchEvent(new Event('change'));
+      chooseOption(container.querySelector('[data-am-retro-outcome-select]'), '達成');
       container.querySelector<HTMLButtonElement>('[data-am-retro-save]')?.click();
       await settle();
 
@@ -489,9 +513,7 @@ describe('flightRecordPanel', () => {
       });
       await settle();
 
-      const select = container.querySelector<HTMLSelectElement>('[data-am-flight-filter-outcome]');
-      select!.value = 'partial';
-      select!.dispatchEvent(new Event('change'));
+      chooseOption(container.querySelector('[data-am-flight-filter-outcome]'), '部分達成');
       await settle();
 
       const last = calls.at(-1);
