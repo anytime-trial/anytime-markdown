@@ -2629,8 +2629,12 @@ export class TrailDataServer {
           this.onTokenBudgetExceeded?.(status);
         }
 
+        // 応答に観測値を載せるのは、フック（~/.claude/scripts/session-hygiene.sh）が同じ値で
+        // 衛生の閾値判定をするため。値を JSONL から二重に数え直すと、集計条件のずれが
+        // 「viewer とフックで違う数字が出る」形で表面化する（T-17 / proposal
+        // 20260805-session-hygiene-delegation-decay）。ok は既存クライアント互換のため残す。
         res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ ok: true }));
+        res.end(JSON.stringify({ ok: true, ...status }));
       } catch (err) {
         this.logger.warn(`[handleTokenBudget] non-critical error, returning ok anyway: ${err instanceof Error ? err.message : String(err)}`);
         res.writeHead(200, JSON_HEADERS);
