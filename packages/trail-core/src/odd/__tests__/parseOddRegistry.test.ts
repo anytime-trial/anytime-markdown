@@ -62,9 +62,26 @@ describe('parseOddRegistry', () => {
     ['operations の値が不正', valid({ operations: { code_change: 'maybe' } })],
     ['narrowing.state が不正', valid({ narrowing: { state: 'frozen' } })],
     ['閾値が範囲外', valid({ impact: { godNodePercentile: 0 } })],
+    ['roots が相対パス', JSON.stringify({ version: 1, roots: ['..'], restricted: [] })],
+    [
+      'restricted の prefix が相対パス',
+      valid({ restricted: [{ kind: 'prefix', value: 'packages' }] }),
+    ],
   ])('%s は error を返し、既定値で埋めない', (_label, content) => {
     const result = parseOddRegistry(content);
     expect(result.kind).toBe('error');
+  });
+
+  it('相対 root は cwd 基準で解決され ODD が実行環境依存になるため error にする', () => {
+    const result = parseOddRegistry(
+      JSON.stringify({ version: 1, roots: ['..'], restricted: [] }),
+    );
+    expect(result).toEqual({ kind: 'error', reason: "roots must be absolute paths (got '..')" });
+  });
+
+  it('restricted の pattern は相対でも許す（パス断片であって前置ではない）', () => {
+    const result = parseOddRegistry(valid({ restricted: [{ kind: 'pattern', value: '/.env' }] }));
+    expect(result.kind).toBe('ok');
   });
 
   it('未知の操作種別を黙って捨てない（綴り違いのポリシーが効かない状態を防ぐ）', () => {

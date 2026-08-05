@@ -6,13 +6,23 @@ import {
   type RestrictedEntry,
 } from '@anytime-markdown/trail-core';
 
+/**
+ * ファイル読取の結果。**「不在」と「読めなかった」を分ける。**
+ * 両者を `null` にまとめると、権限エラーで読めなかったレジストリが「レジストリ
+ * 未導入」として既定へ縮退し、保護を消す方向へ倒れる。
+ */
+export type FileRead =
+  | { readonly kind: 'missing' }
+  | { readonly kind: 'ok'; readonly content: string }
+  | { readonly kind: 'error'; readonly reason: string };
+
 export interface OddConfigInput {
   /** ワークスペースルート（対象リポジトリ） */
   readonly workspacePath: string;
   /** ユーザーのホームディレクトリ（永続データ領域の解決基準） */
   readonly homeDir: string;
-  /** ファイル読取（不在は null）。テスト隔離のため注入する */
-  readonly readFile: (path: string) => string | null;
+  /** ファイル読取。テスト隔離のため注入する */
+  readonly readFile: (path: string) => FileRead;
 }
 
 /** docsRoot の単一の正はプロジェクト CLAUDE.md の `- docsRoot:` 行（preflight と同じ解決） */
@@ -28,7 +38,9 @@ const REGISTRY_RELATIVE_PATH = path.join('.anytime', 'trail', 'odd.json');
 function deriveRegistry(input: OddConfigInput): OddRegistry {
   const roots = [input.workspacePath];
   const claudeMd = input.readFile(path.join(input.workspacePath, 'CLAUDE.md'));
-  const docsRoot = claudeMd === null ? null : DOCS_ROOT_PATTERN.exec(claudeMd);
+  // CLAUDE.md が読めない場合は docsRoot を足さない。ルートが減る方向なので
+  // ODD は狭まる側へ倒れる（レジストリ本体と違い fail-closed の必要はない）
+  const docsRoot = claudeMd.kind === 'ok' ? DOCS_ROOT_PATTERN.exec(claudeMd.content) : null;
   if (docsRoot !== null) {
     roots.push(docsRoot[1]);
   }
@@ -60,23 +72,26 @@ function deriveRegistry(input: OddConfigInput): OddRegistry {
 /**
  * ODD 境界（全体要件 §3.2）を解決する（Phase 7-A: ODD Policy Registry）。
  *
- * **「ファイルが無い」と「ファイルが壊れている」を同じに扱わない。**
+ * **「ファイルが無い」と「ファイルが読めない・壊れている」を同じに扱わない。**
  *
  * | 状態 | 結果 |
  * | --- | --- |
  * | レジストリ不在 | `derived`（Phase 7-A 導入前と同一の導出既定） |
  * | レジストリが妥当 | `registry` |
- * | レジストリが壊れている | `invalid`（既定へ戻さない） |
+ * | レジストリが読めない・壊れている | `invalid`（既定へ戻さない） |
  *
  * 3 行目が要点である。読み込み失敗を握り潰して既定へ戻すと、**保護を足そうと
  * した変更が保護を消す**方向に働く。
  */
 export function resolveOddConfig(input: OddConfigInput): OddResolution {
-  const content = input.readFile(path.join(input.workspacePath, REGISTRY_RELATIVE_PATH));
-  if (content === null) {
+  const read = input.readFile(path.join(input.workspacePath, REGISTRY_RELATIVE_PATH));
+  if (read.kind === 'missing') {
     return { kind: 'derived', registry: deriveRegistry(input) };
   }
-  const parsed = parseOddRegistry(content);
+  if (read.kind === 'error') {
+    return { kind: 'invalid', reason: `registry unreadable: ${read.reason}` };
+  }
+  const parsed = parseOddRegistry(read.content);
   if (parsed.kind === 'error') {
     return { kind: 'invalid', reason: parsed.reason };
   }

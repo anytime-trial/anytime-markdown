@@ -7,6 +7,7 @@ import { openTrailDb } from '../sqlite/openDb';
 import { resolveCitations, type ResolvedCitation } from '../doctrine/resolveCitations';
 import { evaluateCoverageGate, type CoverageGateResult } from '../doctrine/coverageGate';
 import { resolveOddConfig } from '../doctrine/oddRoots';
+import { readFileTyped } from '../doctrine/readFile';
 import {
   recordDoctrineJudgmentDirect,
   type DoctrineJudgmentRecordResult,
@@ -95,7 +96,7 @@ export async function handleRecordDoctrineJudgment(
     odd: resolveOddConfig({
       workspacePath: workspacePath ?? process.cwd(),
       homeDir: os.homedir(),
-      readFile: readTextFile,
+      readFile: readFileTyped,
     }),
   });
   const dbPath = resolveDbPath({ workspacePath });

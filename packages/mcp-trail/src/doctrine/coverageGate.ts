@@ -1,5 +1,5 @@
-import * as path from 'node:path';
-import type { OddRegistry, OddResolution, OperationKind } from '@anytime-markdown/trail-core';
+import { evaluateOddBoundary } from '@anytime-markdown/trail-core';
+import type { OddResolution, OperationKind } from '@anytime-markdown/trail-core';
 import type { CitationApproval } from './resolveCitations';
 
 export type { OperationKind };
@@ -62,45 +62,6 @@ function escalate(reason: GateReason): CoverageGateResult {
   return { verdict: 'escalate', reasons: [reason] };
 }
 
-function isWithin(target: string, root: string): boolean {
-  const relative = path.relative(root, target);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
-/**
- * ODD 境界の判定 (DCT-12)。制限領域は ODD 内であっても代行対象外のため、
- * 対象リポジトリ内かどうかより先に判定する。
- */
-function evaluateOdd(
-  targetPaths: ReadonlyArray<string> | undefined,
-  odd: OddRegistry,
-): GateReason | null {
-  // 空文字列は path.resolve で cwd (＝ワークスペース内) へ解決してしまい ODD 判定を
-  // すり抜けるため、申告の欠落として扱う
-  if (
-    targetPaths === undefined ||
-    targetPaths.length === 0 ||
-    targetPaths.some((target) => target.trim() === '')
-  ) {
-    return 'odd_unknown';
-  }
-  // 前方一致の前に正規化する。`..` を含むパスをそのまま比較すると境界をすり抜ける
-  const normalized = targetPaths.map((target) => path.resolve(target));
-  if (
-    normalized.some((target) =>
-      odd.restricted.some((entry) =>
-        entry.kind === 'prefix' ? isWithin(target, entry.value) : target.includes(entry.value),
-      ),
-    )
-  ) {
-    return 'restricted_area';
-  }
-  if (normalized.some((target) => !odd.roots.some((root) => isWithin(target, root)))) {
-    return 'odd_out';
-  }
-  return null;
-}
-
 function hasCanonGrounding(citations: ReadonlyArray<GateCitation>): boolean {
   // 未解決 (幻覚) の引用は承認状態を論じないため canon 接地として数えない
   return citations.some(
@@ -126,7 +87,7 @@ export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResu
     // 無効化されていた」状態が黙って代行を許す (Phase 7-A 仕様 §3.3)
     return escalate('odd_registry_invalid');
   }
-  const oddReason = evaluateOdd(input.targetPaths, input.odd.registry);
+  const oddReason = evaluateOddBoundary(input.odd.registry, input.targetPaths);
   if (oddReason !== null) {
     return escalate(oddReason);
   }

@@ -65,9 +65,12 @@ export {
 } from './busFactor';
 
 export {
+  ALWAYS_RESTRICTED_PATTERNS,
   OPERATION_KINDS,
   evaluateApprovalPolicy,
+  evaluateOddBoundary,
   parseOddRegistry,
+  type OddBoundaryReason,
   type ApprovalEvaluation,
   type ApprovalReason,
   type ApprovalRequest,

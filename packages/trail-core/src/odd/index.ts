@@ -12,3 +12,8 @@ export type {
 export { OPERATION_KINDS } from './types';
 export { parseOddRegistry, type OddRegistryParseResult } from './parseOddRegistry';
 export { evaluateApprovalPolicy } from './evaluateApprovalPolicy';
+export {
+  evaluateOddBoundary,
+  ALWAYS_RESTRICTED_PATTERNS,
+  type OddBoundaryReason,
+} from './oddBoundary';

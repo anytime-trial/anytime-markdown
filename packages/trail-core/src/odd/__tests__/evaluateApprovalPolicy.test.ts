@@ -66,6 +66,16 @@ describe('evaluateApprovalPolicy', () => {
     expect(result.reasons).toEqual([reason]);
   });
 
+  it('ODD レジストリ自身は restricted が空でも常に制限領域（承認境界の自己保護）', () => {
+    // レジストリを代行で書き換えられると、以降のあらゆる制限を自分で外せる
+    const result = evaluateApprovalPolicy(
+      resolved({ restricted: [] }),
+      request({ targetPaths: ['/anytime-markdown/.anytime/trail/odd.json'] }),
+    );
+    expect(result.verdict).toBe('confirm');
+    expect(result.reasons).toEqual(['restricted_area']);
+  });
+
   it('`..` を含むパスは正規化してから境界を判定する', () => {
     const result = evaluateApprovalPolicy(
       resolved(),

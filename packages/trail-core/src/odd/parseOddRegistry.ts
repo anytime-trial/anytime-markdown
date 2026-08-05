@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import type {
   ApprovalVerdict,
   NarrowingState,
@@ -50,6 +51,11 @@ function parseRestricted(value: unknown): readonly RestrictedEntry[] | string {
     const entryValue = raw['value'];
     if (typeof entryValue !== 'string' || entryValue.trim() === '') {
       return `restricted[${index}].value must be a non-empty string`;
+    }
+    if (kind === 'prefix' && !path.isAbsolute(entryValue)) {
+      // 相対パスは isWithin が process.cwd() 基準で解釈するため、判定が
+      // 実行環境依存になる（同じ設定でプロセスによって境界が変わる）
+      return `restricted[${index}].value must be an absolute path when kind is 'prefix'`;
     }
     const note = raw['note'];
     if (note !== undefined && typeof note !== 'string') {
@@ -152,6 +158,12 @@ export function parseOddRegistry(content: string): OddRegistryParseResult {
     // ルート 0 件は「ODD が空」であり、すべての判断が odd_out になる。設定ミスと
     // 区別できないため設定エラーとして扱う
     return { kind: 'error', reason: 'roots must not be empty' };
+  }
+  const relativeRoot = roots.find((root) => !path.isAbsolute(root));
+  if (relativeRoot !== undefined) {
+    // 相対 root は process.cwd() 基準で解決されるため、`".."` を書くと MCP プロセスの
+    // 起動場所次第で ODD がワークスペース外へ広がる
+    return { kind: 'error', reason: `roots must be absolute paths (got '${relativeRoot}')` };
   }
 
   const restricted = parseRestricted(raw['restricted']);

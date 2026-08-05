@@ -1,4 +1,3 @@
-import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { z } from 'zod';
 import {
@@ -10,6 +9,7 @@ import {
 import { workspacePathParam } from './workspaceParam';
 import { resolveWorkspacePath } from '../dbPath';
 import { resolveOddConfig } from '../doctrine/oddRoots';
+import { readFileTyped } from '../doctrine/readFile';
 
 const OPERATION_KIND_VALUES = OPERATION_KINDS as unknown as [string, ...string[]];
 
@@ -38,21 +38,12 @@ export const EvaluateApprovalPolicyInputSchema = z.object({
 export type GetOddPolicyInput = z.infer<typeof GetOddPolicyInputSchema>;
 export type EvaluateApprovalPolicyInput = z.infer<typeof EvaluateApprovalPolicyInputSchema>;
 
-function readTextFile(path: string): string | null {
-  try {
-    return fs.readFileSync(path, 'utf8');
-  } catch {
-    // 不在・権限エラーは「解決不能」として扱う (呼び出し側が既定値へ倒す)
-    return null;
-  }
-}
-
 function resolve(workspacePathArg: string | undefined): OddResolution {
   const workspacePath = resolveWorkspacePath(workspacePathArg).path;
   return resolveOddConfig({
     workspacePath: workspacePath ?? process.cwd(),
     homeDir: os.homedir(),
-    readFile: readTextFile,
+    readFile: readFileTyped,
   });
 }
 

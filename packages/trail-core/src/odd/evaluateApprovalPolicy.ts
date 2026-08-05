@@ -1,4 +1,3 @@
-import * as path from 'node:path';
 import type {
   ApprovalEvaluation,
   ApprovalReason,
@@ -8,6 +7,7 @@ import type {
   OddResolution,
   OperationKind,
 } from './types';
+import { evaluateOddBoundary } from './oddBoundary';
 
 /** リリース凍結中に allow を落とす種別 */
 const FROZEN_BY_RELEASE_FREEZE: ReadonlySet<OperationKind> = new Set<OperationKind>([
@@ -16,11 +16,6 @@ const FROZEN_BY_RELEASE_FREEZE: ReadonlySet<OperationKind> = new Set<OperationKi
   'dependency_change',
 ]);
 
-function isWithin(target: string, root: string): boolean {
-  const relative = path.relative(root, target);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
 function result(
   verdict: ApprovalVerdict,
   reasons: readonly ApprovalReason[],
@@ -28,31 +23,6 @@ function result(
   source: OddResolution['kind'],
 ): ApprovalEvaluation {
   return { verdict, reasons, declaredVerdict, source };
-}
-
-/** ODD 境界の判定。制限領域は ODD 内でも対象外のため、ルート判定より先に見る */
-function evaluateOddBoundary(
-  registry: OddRegistry,
-  targetPaths: readonly string[],
-): ApprovalReason | null {
-  // 空文字列は path.resolve が cwd (＝ワークスペース内) へ解決し境界をすり抜ける
-  if (targetPaths.length === 0 || targetPaths.some((target) => target.trim() === '')) {
-    return 'odd_unknown';
-  }
-  // `..` を含むパスをそのまま比較すると境界をすり抜けるため正規化してから比べる
-  const normalized = targetPaths.map((target) => path.resolve(target));
-  const restricted = normalized.some((target) =>
-    registry.restricted.some((entry) =>
-      entry.kind === 'prefix' ? isWithin(target, entry.value) : target.includes(entry.value),
-    ),
-  );
-  if (restricted) {
-    return 'restricted_area';
-  }
-  if (normalized.some((target) => !registry.roots.some((root) => isWithin(target, root)))) {
-    return 'odd_out';
-  }
-  return null;
 }
 
 function narrowingReason(registry: OddRegistry, kind: OperationKind): ApprovalReason | null {
