@@ -786,7 +786,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			// daemon 内で TrailDataServer + CodeGraphService + ChatBridge + LogService +
 			// RebuildScheduler を起動する。httpReady イベントで URL を受け取る。
 			const budgetConfig = vscode.workspace.getConfiguration('anytimeAgent.budget');
-			const extensionLogsDbPath = dbStorageDir ? path.join(dbStorageDir, 'extension-logs.db') : undefined;
 			const rebuildIntervalMin = lepConfig.memory.fts.rebuildIntervalMinutes;
 			try {
 				await httpClient.start({
@@ -813,9 +812,8 @@ export async function activate(context: vscode.ExtensionContext) {
 								},
 							}
 						: undefined,
-					logService: extensionLogsDbPath
+					logService: memoryDbPathForServer
 						? {
-								extensionLogsDbPath,
 								nativeBinding: memoryCoreNativeBinding,
 							}
 						: undefined,

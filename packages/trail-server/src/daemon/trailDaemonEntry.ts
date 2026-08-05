@@ -8,13 +8,9 @@
 
 import * as path from 'node:path';
 
-import { BetterSqlite3MemoryDb, openMemoryCoreDb, type MemoryCoreDb } from '@anytime-markdown/memory-core';
+import { openMemoryCoreDb, type MemoryCoreDb } from '@anytime-markdown/memory-core';
 import { MemoryCoreService, PipelineRunLedger } from '@anytime-markdown/memory-core/pipeline';
 import { makeChildAnalyzeFn } from '../analyze/childAnalyzeFn';
-import {
-  CREATE_EXTENSION_LOGS,
-  CREATE_EXTENSION_LOGS_INDEXES,
-} from '@anytime-markdown/trail-core/domain/schema';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { checkLlmAvailability } from '../lep/LlmAvailability';
@@ -178,8 +174,6 @@ function emitAnalyzeReleaseProgress(message: string): void {
 let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
 /** startHttpServer() で構築した ChatBridge。dispose() で SQLite WAL をフラッシュする。 */
 let httpChatBridge: ChatBridge | null = null;
-/** startHttpServer() で構築した extensionLogsDb。 */
-let httpExtensionLogsDb: BetterSqlite3MemoryDb | null = null;
 /** startHttpServer() で構築した LogService 用 memory-core.db 接続。 */
 let httpLogLedgerDb: MemoryCoreDb | null = null;
 
@@ -195,7 +189,6 @@ export function _resetForTest(): void {
   httpPort = null;
   httpRebuildSchedulerDisposable = null;
   httpChatBridge = null;
-  httpExtensionLogsDb = null;
   httpLogLedgerDb = null;
 }
 
@@ -397,10 +390,6 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     }
     const nativeBinding =
       lsCfg.nativeBinding ?? path.join(opts.distPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
-    const extensionLogsDb = new BetterSqlite3MemoryDb({ filePath: lsCfg.extensionLogsDbPath, nativeBinding });
-    extensionLogsDb.run(CREATE_EXTENSION_LOGS);
-    for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
-    extensionLogsDb.run('PRAGMA journal_mode=WAL');
     const logLedgerCoreDb = await openMemoryCoreDb(opts.memoryDbPath, { nativeBinding });
     const logLedgerDb = logLedgerCoreDb.conn ?? logLedgerCoreDb.db;
     const systemRunLedger = new PipelineRunLedger({
@@ -413,7 +402,6 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     const systemRunId = systemRunLedger.start();
     const logService = new LogService(logLedgerDb, server, systemRunId);
     server.setLogService(logService);
-    httpExtensionLogsDb = extensionLogsDb;
     httpLogLedgerDb = logLedgerCoreDb;
     daemonLogger.info(`[daemon] LogService wired: ${opts.memoryDbPath}`);
   }
@@ -663,14 +651,6 @@ async function disposeAll(): Promise<void> {
       daemonLogger.error(`[daemon] HTTP server stop error: ${formatError(err)}`);
     }
     httpServer = null;
-  }
-  if (httpExtensionLogsDb) {
-    try {
-      httpExtensionLogsDb.close();
-    } catch (err) {
-      daemonLogger.error(`[daemon] extensionLogsDb close error: ${formatError(err)}`);
-    }
-    httpExtensionLogsDb = null;
   }
   if (httpLogLedgerDb) {
     try {

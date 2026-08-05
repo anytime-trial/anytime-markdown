@@ -4,10 +4,9 @@ import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { MemoryCoreService, PipelineRunLedger } from '@anytime-markdown/memory-core/pipeline';
-import { type MemoryCoreLogSink, type LepStage, type PipelineRunLedgerFactory, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome, openMemoryCoreDb } from '@anytime-markdown/memory-core';
+import { type MemoryCoreLogSink, type LepStage, type PipelineRunLedgerFactory, getMemoryCoreDbPath, getTrailHome, openMemoryCoreDb } from '@anytime-markdown/memory-core';
 import { ChatBridge } from './memory-chat/chatBridge';
 import { RebuildScheduler } from './memory-chat/rebuildScheduler';
-import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
 import { TrailDataServer } from './server/TrailDataServer';
 import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
@@ -92,10 +91,6 @@ program
     const memoryDbPath = join(dbStorageDir, 'memory-core.db');
     const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0], memoryDbPath, undefined, analyze);
 
-    // extension_logs 専用 DB は Phase 3 まで残す。LogService の保存先は
-    // memory-core.db の pipeline_run_logs へ移行済み。
-    // trail.db とは別ファイルとし、WAL 競合と性能影響を避ける。
-    //
     // nativeBinding: webpack-bundled 実行時は bindings package の getFileName が
     // call stack を辿って .node のパスを推測できず crash する。__dirname
     // (= dist/) から native binary の絶対パスを組み立てて回避する
@@ -108,15 +103,6 @@ program
       'Release',
       'better_sqlite3.node',
     );
-    const extensionLogsDbPath = join(dbStorageDir, 'extension-logs.db');
-    const extensionLogsDb = new BetterSqlite3MemoryDb({
-      filePath: extensionLogsDbPath,
-      ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
-    });
-    extensionLogsDb.run(CREATE_EXTENSION_LOGS);
-    for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
-    extensionLogsDb.run('PRAGMA journal_mode=WAL');
-    logger.info('extension logs db opened for compatibility', { dbPath: extensionLogsDbPath });
 
     // gitRoots の bootstrap (鶏卵回避): CLI --git-roots → home-tier ~/.anytime/trail/lep.json
     // の gitRoots → 空。workspace lep.json は gitRoots 解決後でないと読めないため home-tier を使う。
@@ -476,7 +462,6 @@ program
         const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
         if (typeof closeFn === 'function') await closeFn.call(trailDb);
       } catch (err) { logger.error('trail db close failed', err); }
-      try { extensionLogsDb.close(); } catch (err) { logger.error('extension-logs.db close failed', err); }
       try { ledgerCoreDb.close(); } catch (err) { logger.error('pipeline run ledger db close failed', err); }
       process.exit(0);
     };

@@ -216,11 +216,10 @@ export interface SerializableChatBridgeConfig {
 }
 
 /**
- * daemon が LogService 用 BetterSqlite3MemoryDb を構築するのに必要なシリアライズ可能な設定。
+ * daemon が LogService を構築するのに必要なシリアライズ可能な設定。
  * db handle と broadcaster (TrailDataServer) は daemon 側で wire する。
  */
 export interface SerializableLogServiceConfig {
-  readonly extensionLogsDbPath: string;
   /** better-sqlite3 native binding への絶対パス。省略時は distPath から導出する。 */
   readonly nativeBinding?: string;
 }
