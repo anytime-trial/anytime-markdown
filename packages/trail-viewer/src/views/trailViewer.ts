@@ -29,6 +29,8 @@ import { mountC4Viewer } from './c4/c4Viewer';
 import type { C4ViewerViewProps } from './c4/c4Viewer';
 import { mountMemoryPanel } from './memory/memoryPanel';
 import type { MemoryPanelViewProps } from './memory/memoryPanel';
+import { mountChatPanel } from './memory/chatPanel';
+import type { ChatPanelProps } from './memory/chatPanel';
 import { mountFlightRecordPanel, type FlightRecordPanelProps } from './flightRecordPanel';
 import { createFlightReviewStore, type FlightReviewStore } from '../data/flightReviewStore';
 import { createInstructionStore, type InstructionStore } from '../data/instructionStore';
@@ -92,7 +94,7 @@ export interface TrailViewerViewProps extends TrailViewerCoreProps {
   readonly toolCategory: ToolCategoryContextValue;
   readonly skillCategory: SkillCategoryContextValue;
   readonly commitCategory: CommitCategoryContextValue;
-  /** Optional chat bridge for MemoryPanel (no-op bridge created if absent) */
+  /** Optional chat bridge for the Chat tab (no-op bridge created if absent) */
   readonly bridge?: ChatBridge;
 }
 
@@ -224,6 +226,7 @@ export function mountTrailViewer(
   let c4Handle: ReturnType<typeof mountC4Viewer> | null = null;
   let memoryHandle: ReturnType<typeof mountMemoryPanel> | null = null;
   let flightRecordHandle: ReturnType<typeof mountFlightRecordPanel> | null = null;
+  let chatHandle: ReturnType<typeof mountChatPanel> | null = null;
   let flightReviewStore: FlightReviewStore | null = null;
   let instructionStore: InstructionStore | null = null;
   let flightRecordStoreUrl: string | null = null;
@@ -418,7 +421,6 @@ export function mountTrailViewer(
       tokens: props.tokens,
       isDark: props.isDark ?? true,
       t: props.t,
-      bridge: props.bridge ?? makeNoopBridge(),
       onOpenSessionMessages: (sessionId: string) => {
         const allSessions = props.allSessions ?? props.sessions;
         const session = allSessions.find((s) => s.id === sessionId);
@@ -431,6 +433,16 @@ export function mountTrailViewer(
         props.onSelectSession(sessionId);
         openMessagesPopup();
       },
+    };
+  }
+
+  // ── Derive ChatPanel props ──
+  // Chat は Memory のサブタブから独立したトップレベルタブ（value 10）へ移した。
+  // bridge は Chat タブ初回訪問時にホスト側（trailViewerApp）が生成する。
+  function buildChatProps(): ChatPanelProps {
+    return {
+      t: props.t,
+      bridge: props.bridge ?? makeNoopBridge(),
     };
   }
 
@@ -817,6 +829,12 @@ export function mountTrailViewer(
         }
         break;
       }
+      case 10: {
+        if (!chatHandle) {
+          chatHandle = mountChatPanel(panelEl, buildChatProps());
+        }
+        break;
+      }
     }
   }
 
@@ -875,6 +893,9 @@ export function mountTrailViewer(
     if (flightRecordHandle) {
       flightRecordHandle.update(buildFlightRecordProps());
     }
+    if (chatHandle) {
+      chatHandle.update(buildChatProps());
+    }
     if (callHierarchyHandle) {
       callHierarchyHandle.update(buildCallHierarchyProps());
     }
@@ -912,6 +933,8 @@ export function mountTrailViewer(
     flightReviewStore = null;
     instructionStore?.dispose();
     instructionStore = null;
+    chatHandle?.destroy();
+    chatHandle = null;
     callHierarchyHandle?.destroy();
     traceIsland?.destroy();
     traceIsland = null;

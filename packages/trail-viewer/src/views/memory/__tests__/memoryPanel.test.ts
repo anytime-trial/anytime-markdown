@@ -8,7 +8,6 @@
  */
 import { mountMemoryPanel, type MemoryPanelViewProps } from '../memoryPanel';
 import type { TrailThemeTokens } from '../../../theme/designTokens';
-import type { ChatBridge } from '../../../hooks/useChatBridge';
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -20,16 +19,6 @@ async function flush(n = 4): Promise<void> {
   for (let i = 0; i < n; i++) await Promise.resolve();
 }
 
-function makeBridge(status: 'ready' | 'unavailable' | 'unknown' = 'unavailable'): ChatBridge {
-  return {
-    status,
-    subscribe: () => () => {},
-    send: () => {},
-    abort: () => {},
-    recheck: () => {},
-  };
-}
-
 // Minimal tokens stub — only isDark matters for sub-views
 const tokens = { isDark: false } as unknown as TrailThemeTokens;
 
@@ -39,7 +28,6 @@ function baseProps(over: Partial<MemoryPanelViewProps> = {}): MemoryPanelViewPro
     tokens,
     isDark: false,
     t,
-    bridge: makeBridge(),
     ...over,
   };
 }
@@ -136,12 +124,12 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     expect(c.querySelector('[role="tablist"]')).not.toBeNull();
   });
 
-  it('タブバーに5つのタブボタンが存在する', async () => {
+  it('タブバーに4つのタブボタンが存在する（Chat はトップレベルタブへ移設）', async () => {
     const c = document.createElement('div');
     mountMemoryPanel(c, baseProps());
     await flush(8);
     const tabs = c.querySelectorAll('[role="tab"]');
-    expect(tabs.length).toBe(5);
+    expect(tabs.length).toBe(4);
   });
 
   it('タブ名（i18n キー）がすべてタブバーに含まれる', async () => {
@@ -153,7 +141,14 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     expect(tablist?.textContent).toContain('memory.bug.tab');
     expect(tablist?.textContent).toContain('memory.review.tab');
     expect(tablist?.textContent).toContain('memory.runs.tab');
-    expect(tablist?.textContent).toContain('memory.chat.tab');
+  });
+
+  it('Chat サブタブは残っていない（トップレベルタブへ移設済み）', async () => {
+    const c = document.createElement('div');
+    mountMemoryPanel(c, baseProps());
+    await flush(8);
+    expect(c.querySelector('[aria-label="chat-panel"]')).toBeNull();
+    expect(c.querySelector('[data-memory-tab-host="chat"]')).toBeNull();
   });
 
   it('初期タブ（drift）のサブビューがマウントされる', async () => {
@@ -213,19 +208,6 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     await flush(4);
 
     expect(c.querySelector('[aria-label="pipeline-runs"]')).not.toBeNull();
-  });
-
-  it('chat タブをクリックするとサブビューが切り替わる', async () => {
-    const c = document.createElement('div');
-    mountMemoryPanel(c, baseProps());
-    await flush(8);
-
-    const tabs = c.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    const chatTab = [...tabs].find((t) => t.textContent?.includes('memory.chat.tab'));
-    chatTab?.click();
-    await flush(4);
-
-    expect(c.querySelector('[aria-label="chat-panel"]')).not.toBeNull();
   });
 
   it('タブ切替でその前のサブビューが除去される', async () => {

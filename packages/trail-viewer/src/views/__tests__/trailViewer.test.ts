@@ -209,6 +209,35 @@ describe('mountTrailViewer', () => {
     h.destroy();
   });
 
+  it('initialTab=10 で Chat パネルをトップレベルにマウントする', () => {
+    const container = document.createElement('div');
+    const h = mountTrailViewer(container, makeBaseProps({ initialTab: 10 }));
+
+    // Chat は Memory サブタブではなく trail-panel-10 直下にマウントされる
+    const chatPanel = container.querySelector('#trail-panel-10');
+    expect(chatPanel).not.toBeNull();
+    expect(chatPanel?.querySelector('[aria-label="chat-panel"]')).not.toBeNull();
+    // Memory パネル（tab 6）は訪問していないのでマウントされない
+    expect(container.querySelector('#trail-panel-6')).toBeNull();
+
+    h.destroy();
+    expect(container.querySelector('[aria-label="chat-panel"]')).toBeNull();
+  });
+
+  it('Chat タブは Flight Record の右隣に置かれる', () => {
+    const container = document.createElement('div');
+    const h = mountTrailViewer(container, makeBaseProps({ initialTab: 0 }));
+
+    // ui-core createTabs は id / aria-controls を描画しないため data-value で順序を見る
+    const tabValues = [...container.querySelectorAll('[role="tab"]')].map((el) =>
+      el.getAttribute('data-value'),
+    );
+    expect(tabValues.at(-2)).toBe('9');
+    expect(tabValues.at(-1)).toBe('10');
+
+    h.destroy();
+  });
+
   it('initialTab=1でmessagesPopupを自動で開く', () => {
     const container = document.createElement('div');
     // Tab 1 (messages) triggers popup — should not throw

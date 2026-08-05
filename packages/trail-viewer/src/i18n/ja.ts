@@ -616,7 +616,6 @@ export const ja: TrailI18n = {
   'memory.runs.status.success': '成功',
   'memory.runs.status.partial': '部分成功',
   'memory.runs.status.error': 'エラー',
-  'memory.chat.tab': 'Chat',
   'memory.chat.placeholder': '質問を入力 (Enter で送信、Shift+Enter で改行、Esc で停止)',
   'memory.chat.send': '送信',
   'memory.chat.abort': '停止',
@@ -683,6 +682,8 @@ export const ja: TrailI18n = {
     '状態を取得できません（Trail サーバー停止の可能性）。VS Code コマンド「Anytime Trail: Kill Switch」からも操作できます。',
   // flightReview (Phase 6 S3: Flight Review UI)
   'viewer.tab.flightRecord': 'Flight Record',
+  // chat (Flight Record の右のトップレベルタブ。旧 Memory サブタブ)
+  'viewer.tab.chat': 'Chat',
   'flightRecord.filter.outcome': '成否',
   'flightRecord.filter.outcomeAll': 'すべて',
   'flightRecord.filter.since': '開始日',

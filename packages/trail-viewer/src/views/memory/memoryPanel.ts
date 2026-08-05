@@ -1,13 +1,14 @@
 /**
  * MemoryPanel の vanilla DOM 版。
  *
+ * Chat は本パネルから独立したトップレベルタブ（trailViewer の case 10）へ移した。
  * サブタブ状態・hash routing・MemoryReader・dbExists probe・driftRows・
  * pendingBugFilter / pendingReviewFilter を所有し、対応する vanilla サブビューを
  * 直接マウントする（React の `.tsx` ラッパは経由しない）。
  *
  * 呼び出し側（components/MemoryPanel.tsx）は thin React wrapper として
- * useTrailTheme / useTrailI18n / useChatBridge を解決し、
- * tokens / isDark / t / bridge を props に含めてこのビューに渡す。
+ * useTrailTheme / useTrailI18n を解決し、
+ * tokens / isDark / t を props に含めてこのビューに渡す。
  */
 import { createTabs } from '@anytime-markdown/ui-core';
 import type { TrailThemeTokens } from '../../theme/designTokens';
@@ -15,13 +16,11 @@ import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import { MEMORY_TAB_DEFS, type MemoryTabValue } from '../../components/memoryTabs';
 import { MemoryReader } from '../../data/readers/MemoryReader';
 import type { MemoryDriftEventRow } from '../../data/types';
-import type { ChatBridge } from '../../hooks/useChatBridge';
 import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
 import { mountDriftPanel } from './driftPanel';
 import { mountBugHistoryPanel } from './bugHistoryPanel';
 import { mountReviewPanel } from './reviewPanel';
 import { mountPipelineRunsPanel } from './pipelineRunsPanel';
-import { mountChatPanel } from './chatPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,7 +31,6 @@ export interface MemoryPanelViewProps {
   readonly tokens: TrailThemeTokens;
   readonly isDark: boolean;
   readonly t: (key: string) => string;
-  readonly bridge: ChatBridge;
   readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
@@ -41,7 +39,7 @@ export interface MemoryPanelViewProps {
 // ---------------------------------------------------------------------------
 
 function parseHashSubTab(hash: string): MemoryTabValue | null {
-  const match = /^#memory\/(drift|bug|review|runs|chat)/.exec(hash);
+  const match = /^#memory\/(drift|bug|review|runs)/.exec(hash);
   if (!match) return null;
   return match[1] as MemoryTabValue;
 }
@@ -139,8 +137,8 @@ export function mountMemoryPanel(
   panelHost.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;';
 
   // --- Sub-view handles ------------------------------------------------------
-  // 旧 MemoryPanel.tsx は 5 サブパネルを常時マウントし CSS display のみで切替えて
-  // 下位のローカル UI 状態（Chat 入力・展開行・スクロール位置）を保持していた。
+  // 旧 MemoryPanel.tsx は全サブパネルを常時マウントし CSS display のみで切替えて
+  // 下位のローカル UI 状態（展開行・スクロール位置）を保持していた。
   // vanilla でも初回訪問で mount したパネルは保持し、切替は display で行う（毎回破棄しない）。
   const subHosts = new Map<MemoryTabValue, HTMLElement>();
   const subHandles = new Map<MemoryTabValue, SubHandle>();
@@ -177,17 +175,11 @@ export function mountMemoryPanel(
         pendingReviewFilter,
       }) as SubHandle;
     }
-    if (tab === 'runs') {
-      return mountPipelineRunsPanel(host, {
-        t: tStr,
-        reader,
-        isDark: props.isDark,
-      }) as SubHandle;
-    }
-    // chat
-    return mountChatPanel(host, {
+    // runs
+    return mountPipelineRunsPanel(host, {
       t: tStr,
-      bridge: props.bridge,
+      reader,
+      isDark: props.isDark,
     }) as SubHandle;
   }
 
@@ -221,16 +213,11 @@ export function mountMemoryPanel(
         onOpenPrecedingBugs: handleOpenPrecedingBugs,
         pendingReviewFilter,
       });
-    } else if (tab === 'runs') {
+    } else {
       (handle as VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>).update({
         t: tStr,
         reader,
         isDark: props.isDark,
-      });
-    } else {
-      (handle as VanillaViewHandle<Parameters<typeof mountChatPanel>[1]>).update({
-        t: tStr,
-        bridge: props.bridge,
       });
     }
   }

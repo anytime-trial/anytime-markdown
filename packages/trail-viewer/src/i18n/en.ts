@@ -617,7 +617,6 @@ export const en: TrailI18n = {
   'memory.runs.status.success': 'Success',
   'memory.runs.status.partial': 'Partial',
   'memory.runs.status.error': 'Error',
-  'memory.chat.tab': 'Chat',
   'memory.chat.placeholder': 'Ask the memory (Enter to send, Shift+Enter for newline, Esc to stop)',
   'memory.chat.send': 'Send',
   'memory.chat.abort': 'Stop',
@@ -684,6 +683,8 @@ export const en: TrailI18n = {
     'Cannot read the status (the Trail server may be stopped). You can also use the VS Code command "Anytime Trail: Kill Switch".',
   // flightReview (Phase 6 S3: Flight Review UI)
   'viewer.tab.flightRecord': 'Flight Record',
+  // chat (top-level tab to the right of Flight Record; formerly a Memory sub-tab)
+  'viewer.tab.chat': 'Chat',
   'flightRecord.filter.outcome': 'Outcome',
   'flightRecord.filter.outcomeAll': 'All',
   'flightRecord.filter.since': 'From',

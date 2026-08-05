@@ -605,7 +605,6 @@ export interface TrailI18n {
   'memory.runs.status.error': string;
 
   // memory > chat
-  'memory.chat.tab': string;
   'memory.chat.placeholder': string;
   'memory.chat.send': string;
   'memory.chat.abort': string;
@@ -689,6 +688,7 @@ export interface TrailI18n {
   'emergency.unknown.notice': string;
   // flightReview (Phase 6 S3: Flight Review UI)
   'viewer.tab.flightRecord': string;
+  'viewer.tab.chat': string;
   'flightRecord.filter.outcome': string;
   'flightRecord.filter.outcomeAll': string;
   'flightRecord.filter.since': string;

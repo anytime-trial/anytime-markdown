@@ -1,6 +1,6 @@
 import type { TrailI18n } from '../i18n/types';
 
-export type TrailViewerTabValue = 0 | 4 | 5 | 6 | 7 | 9;
+export type TrailViewerTabValue = 0 | 4 | 5 | 6 | 7 | 9 | 10;
 
 export interface TrailViewerTabDef {
   readonly value: TrailViewerTabValue;
@@ -35,6 +35,7 @@ export function getTrailViewerTabDefs({
 
   tabs.push({ value: 6, id: 'trail-tab-6', panelId: 'trail-panel-6', i18nKey: 'viewer.tab.memory' });
   tabs.push({ value: 9, id: 'trail-tab-9', panelId: 'trail-panel-9', i18nKey: 'viewer.tab.flightRecord' });
+  tabs.push({ value: 10, id: 'trail-tab-10', panelId: 'trail-panel-10', i18nKey: 'viewer.tab.chat' });
 
   return tabs;
 }
@@ -56,7 +57,7 @@ export function isC4RelatedTab(tab: number): boolean {
   return tab === 4 || tab === 5 || tab === 7;
 }
 
-/** Memory タブ（value 6）かどうか。ChatBridge の遅延生成トリガに使う。 */
-export function isMemoryTab(tab: number): boolean {
-  return tab === 6;
+/** Chat タブ（value 10）かどうか。ChatBridge の遅延生成トリガに使う。 */
+export function isChatTab(tab: number): boolean {
+  return tab === 10;
 }
