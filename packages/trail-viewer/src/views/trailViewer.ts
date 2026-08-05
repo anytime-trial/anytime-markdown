@@ -29,11 +29,9 @@ import { mountC4Viewer } from './c4/c4Viewer';
 import type { C4ViewerViewProps } from './c4/c4Viewer';
 import { mountMemoryPanel } from './memory/memoryPanel';
 import type { MemoryPanelViewProps } from './memory/memoryPanel';
-import { mountLogsTab } from './logs/logsTab';
 import { mountFlightRecordPanel, type FlightRecordPanelProps } from './flightRecordPanel';
 import { createFlightReviewStore, type FlightReviewStore } from '../data/flightReviewStore';
 import { createInstructionStore, type InstructionStore } from '../data/instructionStore';
-import type { LogsTabProps } from './logs/logsTab';
 import { mountFilterBar } from './filterBar';
 import type { FilterBarProps } from './filterBar';
 import { mountSessionList } from './sessionList';
@@ -52,7 +50,6 @@ import { mountCallHierarchyPanel } from './c4/panels/callHierarchyPanel';
 import type { CallHierarchyPanelVanillaProps } from './c4/panels/callHierarchyPanel';
 import { getC4Colors } from '../theme/c4Tokens';
 import type { ChatBridge } from '../hooks/useChatBridge';
-import type { WsSubscribe } from '../hooks/useLogsDataSource';
 
 // ---------------------------------------------------------------------------
 // Inline category context value shapes (mirror analyticsPanel.ts)
@@ -226,7 +223,6 @@ export function mountTrailViewer(
   let analyticsHandle: ReturnType<typeof mountAnalyticsPanel> | null = null;
   let c4Handle: ReturnType<typeof mountC4Viewer> | null = null;
   let memoryHandle: ReturnType<typeof mountMemoryPanel> | null = null;
-  let logsHandle: ReturnType<typeof mountLogsTab> | null = null;
   let flightRecordHandle: ReturnType<typeof mountFlightRecordPanel> | null = null;
   let flightReviewStore: FlightReviewStore | null = null;
   let instructionStore: InstructionStore | null = null;
@@ -267,10 +263,6 @@ export function mountTrailViewer(
   let promptsPopupHost: HTMLDivElement | null = null;
   let messagesPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
   let messagesPopupHost: HTMLDivElement | null = null;
-
-  // ── Stable WebSocket subscribe reference for LogsTab ──
-  let stableSubscribeToLogs: WsSubscribe | null = null;
-  let stableSubscribeUrl: string | null = null;
 
   // ── Tab bar (created once) ──
   let tabsHandle: ReturnType<typeof createTabs> | null = null;
@@ -468,37 +460,6 @@ export function mountTrailViewer(
       t: props.t,
       store: instructionStore,
       reviewStore: flightReviewStore,
-    };
-  }
-
-  // ── Derive LogsTab props ──
-  function buildLogsProps(): LogsTabProps {
-    const serverUrl = props.serverUrl ?? '';
-    // Recreate subscribe fn only when serverUrl actually changes
-    if (stableSubscribeToLogs === null || serverUrl !== stableSubscribeUrl) {
-      stableSubscribeUrl = serverUrl;
-      stableSubscribeToLogs = (handler) => {
-        if (!serverUrl) return () => {};
-        const wsUrl = serverUrl.replace(/^http/, 'ws');
-        const ws = new WebSocket(wsUrl);
-        ws.addEventListener('message', (ev) => {
-          try {
-            const data = typeof ev.data === 'string' ? ev.data : '';
-            const msg = JSON.parse(data) as { type?: string };
-            if (msg && msg.type === 'log-batch') {
-              handler(msg as never);
-            }
-          } catch {
-            /* noop */
-          }
-        });
-        return () => ws.close();
-      };
-    }
-    return {
-      baseUrl: serverUrl,
-      subscribe: stableSubscribeToLogs,
-      t: props.t,
     };
   }
 
@@ -850,12 +811,6 @@ export function mountTrailViewer(
         }
         break;
       }
-      case 8: {
-        if (!logsHandle && props.serverUrl) {
-          logsHandle = mountLogsTab(panelEl, buildLogsProps());
-        }
-        break;
-      }
       case 9: {
         if (!flightRecordHandle && props.serverUrl) {
           flightRecordHandle = mountFlightRecordPanel(panelEl, buildFlightRecordProps());
@@ -917,9 +872,6 @@ export function mountTrailViewer(
     if (memoryHandle) {
       memoryHandle.update(buildMemoryProps());
     }
-    if (logsHandle) {
-      logsHandle.update(buildLogsProps());
-    }
     if (flightRecordHandle) {
       flightRecordHandle.update(buildFlightRecordProps());
     }
@@ -954,7 +906,6 @@ export function mountTrailViewer(
     analyticsHandle?.destroy();
     c4Handle?.destroy();
     memoryHandle?.destroy();
-    logsHandle?.destroy();
     flightRecordHandle?.destroy();
     flightRecordHandle = null;
     flightReviewStore?.dispose();
