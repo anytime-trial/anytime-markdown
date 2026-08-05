@@ -3,8 +3,11 @@ import * as os from 'node:os';
 import {
   type ApprovalEvaluation,
   evaluateApprovalPolicy,
+  type OddRegistry,
+  type OddRegistryFile,
   type OddResolution,
   OPERATION_KINDS,
+  serializeOddRegistry,
 } from '@anytime-markdown/trail-core';
 import { z } from 'zod';
 
@@ -47,8 +50,33 @@ function resolve(workspacePathArg: string | undefined): OddResolution {
   });
 }
 
-export function handleGetOddPolicy(input: GetOddPolicyInput): OddResolution {
-  return resolve(input.workspacePath);
+/**
+ * `get_odd_policy` の戻り。解決済みの内部形（`registry`）に加えて、そのまま
+ * `odd.json` として書ける形（`registrySource`）を返す。
+ *
+ * 内部形とファイル形式は `narrowing` と `godNodePercentile` の 2 箇所で形が違う。
+ * 出力を雛形として使う運用は自然に発生するが、内部形をコピーすると前者は `invalid`
+ * になり（既定へ縮退しないので全判断が `escalate` に倒れる）、後者は黙って既定値へ
+ * 戻る。往復可能な形を最初から返して、その経路を塞ぐ。
+ */
+export type GetOddPolicyResult =
+  | {
+      readonly kind: 'registry' | 'derived';
+      readonly registry: OddRegistry;
+      readonly registrySource: OddRegistryFile;
+    }
+  | { readonly kind: 'invalid'; readonly reason: string };
+
+export function handleGetOddPolicy(input: GetOddPolicyInput): GetOddPolicyResult {
+  const resolution = resolve(input.workspacePath);
+  if (resolution.kind === 'invalid') {
+    return resolution;
+  }
+  return {
+    kind: resolution.kind,
+    registry: resolution.registry,
+    registrySource: serializeOddRegistry(resolution.registry),
+  };
 }
 
 export function handleEvaluateApprovalPolicy(

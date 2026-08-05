@@ -46,6 +46,45 @@ describe('ODD policy MCP ハンドラ', () => {
     expect(result.kind).toBe('registry');
   });
 
+  // derived の出力を雛形にして odd.json を作る運用は自然に発生する。内部形をそのまま
+  // 書くと narrowing で invalid になり（全判断が escalate へ倒れる）、godNodePercentile は
+  // 黙って既定へ戻るため、書き戻せる形を返していること自体を実ファイル経由で固定する。
+  it.each([
+    ['derived', undefined],
+    [
+      'registry',
+      JSON.stringify({
+        version: 1,
+        roots: ['/somewhere'],
+        restricted: [{ kind: 'pattern', value: '/.env' }],
+        languages: ['typescript'],
+        operations: { code_change: 'allow' },
+        narrowing: { state: 'incident' },
+        impact: { godNodePercentile: 42 },
+      }),
+    ],
+  ])('%s の registrySource は odd.json として書き戻せる', (_label, content) => {
+    if (content !== undefined) writeRegistry(ws.path, content);
+
+    const first = handleGetOddPolicy({ workspacePath: ws.path });
+    expect(first.kind).not.toBe('invalid');
+    if (first.kind === 'invalid') return;
+
+    // 出力を odd.json へ書き戻して再解決しても、同じポリシーが registry として読める
+    writeRegistry(ws.path, JSON.stringify(first.registrySource));
+    const second = handleGetOddPolicy({ workspacePath: ws.path });
+    expect(second.kind).toBe('registry');
+    if (second.kind === 'invalid') return;
+    expect(second.registry).toEqual(first.registry);
+  });
+
+  it('invalid には registrySource を付けない（書き戻せる内容が無い）', () => {
+    writeRegistry(ws.path, '{ broken');
+    const result = handleGetOddPolicy({ workspacePath: ws.path });
+    expect(result.kind).toBe('invalid');
+    expect(result).not.toHaveProperty('registrySource');
+  });
+
   it('壊れたレジストリは invalid になり、評価は confirm へ倒れる', () => {
     writeRegistry(ws.path, '{ broken');
     expect(handleGetOddPolicy({ workspacePath: ws.path }).kind).toBe('invalid');

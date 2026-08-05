@@ -499,7 +499,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_odd_policy',
-    { description: "Resolve the ODD (Operational Design Domain) policy registry for the workspace and report where it came from: 'registry' (.anytime/trail/odd.json parsed), 'derived' (no registry file — built-in default, identical to pre-registry behaviour), or 'invalid' (the file exists but is broken). An invalid registry is NOT silently replaced by the default: a protection someone tried to add must not disappear because of a syntax error.", inputSchema: {
+    { description: "Resolve the ODD (Operational Design Domain) policy registry for the workspace and report where it came from: 'registry' (.anytime/trail/odd.json parsed), 'derived' (no registry file — built-in default, identical to pre-registry behaviour), or 'invalid' (the file exists but is broken). An invalid registry is NOT silently replaced by the default: a protection someone tried to add must not disappear because of a syntax error. Returns both `registry` (the resolved internal shape) and `registrySource` (the same policy in odd.json file format). Use `registrySource` — not `registry` — when seeding or editing .anytime/trail/odd.json: the internal shape differs at `narrowing` and `godNodePercentile`, and copying it produces a registry that is either rejected as invalid or silently falls back to the default percentile.", inputSchema: {
       workspacePath: GetOddPolicyInputSchema.shape.workspacePath,
     }, },
     async (args) => {

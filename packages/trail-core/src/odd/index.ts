@@ -5,6 +5,7 @@ export {
   type OddBoundaryReason,
 } from './oddBoundary';
 export { type OddRegistryParseResult,parseOddRegistry } from './parseOddRegistry';
+export { type OddRegistryFile,serializeOddRegistry } from './serializeOddRegistry';
 export type {
   ApprovalEvaluation,
   ApprovalReason,
