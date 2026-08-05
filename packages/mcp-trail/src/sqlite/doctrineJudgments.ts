@@ -1,5 +1,6 @@
 import type { Database } from 'better-sqlite3';
 import {
+  ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT,
   CREATE_DOCTRINE_JUDGMENTS,
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
 } from '@anytime-markdown/trail-core';
@@ -27,6 +28,13 @@ export interface DoctrineJudgmentRecordResult {
   readonly resolvedCount: number;
 }
 
+export interface DelegatedApprovalResult {
+  readonly id: number;
+  readonly delegatedAt: string;
+  /** 既に代行済みで、今回の呼び出しでは何も更新していない（最初の記録を返した） */
+  readonly alreadyDelegated: boolean;
+}
+
 export interface HumanDecisionResult {
   /** escalate 判断は一致率の分母外のため null */
   readonly agreement: boolean | null;
@@ -35,8 +43,21 @@ export interface HumanDecisionResult {
 
 export interface DoctrineAgreementMetrics {
   readonly total: number;
+  /**
+   * 人の判断が記録されている件数。**代行後の抜き取り監査を含む**ため `delegated` と
+   * 重なる。`decided + pending = total` は成り立たない
+   * （`total = decided + delegated - delegatedAudited + pending`）。
+   */
   readonly decided: number;
+  /**
+   * 人の判断も代行の記録も無い件数。代行済み (D2) を含めると「人が答えていない」件数と
+   * 「人に聞かなかった」件数が混ざり、どちらの意味でも読めなくなるため分ける。
+   */
   readonly pending: number;
+  /** D2 でエージェントが代行した件数 */
+  readonly delegated: number;
+  /** 代行のうち、人が後から抜き取り監査で判断した件数（一致率の入力になる） */
+  readonly delegatedAudited: number;
   /** covered かつ人の判断記録済み かつ agent != escalate を分母とする一致率 */
   readonly agreementRate: number | null;
   /** escalate または coverage != covered の割合（分母 = total） */
@@ -73,6 +94,10 @@ const ADDED_COLUMNS: ReadonlyArray<{ readonly name: string; readonly ddl: string
   {
     name: 'gate_reasons_json',
     ddl: `ALTER TABLE doctrine_judgments ADD COLUMN gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json))`,
+  },
+  {
+    name: 'delegated_at',
+    ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT,
   },
 ];
 
@@ -125,6 +150,7 @@ export function recordDoctrineJudgmentDirect(
        judged_at = excluded.judged_at,
        human_decision = NULL,
        decided_at = NULL,
+       delegated_at = NULL,
        updated_at = excluded.updated_at`,
   ).run(
     input.sessionId,
@@ -157,27 +183,7 @@ export function recordHumanDecisionDirect(
   },
 ): HumanDecisionResult {
   ensureDoctrineJudgmentsTable(db);
-  let row: { id: number; agent_judgment: AgentJudgment } | undefined;
-  let keyLabel: string;
-  if (args.id !== undefined) {
-    // record_doctrine_judgment が返す id が最も安定した突合キー (subject は表記揺れし得る)
-    row = db
-      .prepare(`SELECT id, agent_judgment FROM doctrine_judgments WHERE id = ?`)
-      .get(args.id) as typeof row;
-    keyLabel = `id=${args.id}`;
-  } else if (args.sessionId !== undefined && args.subject !== undefined) {
-    row = db
-      .prepare(
-        `SELECT id, agent_judgment FROM doctrine_judgments WHERE session_id = ? AND subject = ?`,
-      )
-      .get(args.sessionId, args.subject) as typeof row;
-    keyLabel = `session_id=${args.sessionId}, subject=${args.subject}`;
-  } else {
-    throw new Error('recordHumanDecisionDirect requires id or (sessionId + subject)');
-  }
-  if (row === undefined) {
-    throw new Error(`doctrine judgment not found (${keyLabel}); record_doctrine_judgment first`);
-  }
+  const row = findJudgmentRow(db, args);
   const now = new Date().toISOString();
   db.prepare(
     `UPDATE doctrine_judgments SET human_decision = ?, decided_at = ?, updated_at = ? WHERE id = ?`,
@@ -188,6 +194,92 @@ export function recordHumanDecisionDirect(
       : (row.agent_judgment === 'approve' && args.decision === 'approve') ||
         (row.agent_judgment === 'reject' && args.decision === 'reject');
   return { agreement, agentJudgment: row.agent_judgment };
+}
+
+interface JudgmentLookupRow {
+  readonly id: number;
+  readonly agent_judgment: AgentJudgment;
+  readonly gate_verdict: 'delegable' | 'escalate' | null;
+  readonly human_decision: HumanDecision | null;
+  readonly delegated_at: string | null;
+}
+
+/**
+ * id もしくは (sessionId + subject) で判断レコードを引く。
+ * record_doctrine_judgment が返す id が最も安定した突合キー (subject は表記揺れし得る)。
+ */
+function findJudgmentRow(
+  db: Database,
+  key: { readonly id?: number; readonly sessionId?: string; readonly subject?: string },
+): JudgmentLookupRow {
+  const columns = `id, agent_judgment, gate_verdict, human_decision, delegated_at`;
+  let row: JudgmentLookupRow | undefined;
+  let keyLabel: string;
+  if (key.id !== undefined) {
+    row = db
+      .prepare(`SELECT ${columns} FROM doctrine_judgments WHERE id = ?`)
+      .get(key.id) as JudgmentLookupRow | undefined;
+    keyLabel = `id=${key.id}`;
+  } else if (key.sessionId !== undefined && key.subject !== undefined) {
+    row = db
+      .prepare(`SELECT ${columns} FROM doctrine_judgments WHERE session_id = ? AND subject = ?`)
+      .get(key.sessionId, key.subject) as JudgmentLookupRow | undefined;
+    keyLabel = `session_id=${key.sessionId}, subject=${key.subject}`;
+  } else {
+    throw new Error('doctrine judgment lookup requires id or (sessionId + subject)');
+  }
+  if (row === undefined) {
+    throw new Error(`doctrine judgment not found (${keyLabel}); record_doctrine_judgment first`);
+  }
+  return row;
+}
+
+/**
+ * D2: カバレッジゲートが `delegable` と判定した What 承認をエージェントが代行したことを記録する。
+ *
+ * 代行してよい条件を機構側でも検査し、満たさないものは記録せず例外にする (fail-closed)。
+ * 「代行した」という記録が後から作れてしまうと、一致率も代行率も監査に使えなくなる。
+ */
+export function recordDelegatedApprovalDirect(
+  db: Database,
+  args: {
+    readonly id?: number;
+    readonly sessionId?: string;
+    readonly subject?: string;
+    /**
+     * 記録時刻。**MCP ツールからは渡せない**（外から任意の時刻を入れられると代行を
+     * 遡って記録でき、監査に使えなくなる）。テストで時刻を固定するための注入点。
+     */
+    readonly delegatedAt?: string;
+  },
+): DelegatedApprovalResult {
+  ensureDoctrineJudgmentsTable(db);
+  const row = findJudgmentRow(db, args);
+  if (row.gate_verdict !== 'delegable') {
+    throw new Error(
+      `cannot delegate: gate verdict is ${row.gate_verdict ?? 'unevaluated'} (only 'delegable' may be delegated)`,
+    );
+  }
+  if (row.agent_judgment !== 'approve') {
+    throw new Error(
+      `cannot delegate: agent judgment is '${row.agent_judgment}' (D2 delegates What approvals only)`,
+    );
+  }
+  if (row.human_decision !== null) {
+    throw new Error('cannot delegate: human decision already recorded for this judgment');
+  }
+  if (row.delegated_at !== null) {
+    // 最初の記録が勝つ。再呼び出しを例外にせず no-op にするのは、記録の再送 (通信断後の
+    // リトライ等) を通したいため。ただし時刻は上書きしない — 上書きできると代行時刻を
+    // 後から任意に付け替えられ、監査ログとして使えなくなる
+    return { id: row.id, delegatedAt: row.delegated_at, alreadyDelegated: true };
+  }
+  const now = new Date().toISOString();
+  const delegatedAt = args.delegatedAt ?? now;
+  db.prepare(
+    `UPDATE doctrine_judgments SET delegated_at = ?, updated_at = ? WHERE id = ?`,
+  ).run(delegatedAt, now, row.id);
+  return { id: row.id, delegatedAt, alreadyDelegated: false };
 }
 
 /**
@@ -207,6 +299,8 @@ export interface DoctrineJudgmentView {
   readonly humanDecision: HumanDecision | null;
   readonly judgedAt: string;
   readonly decidedAt: string | null;
+  /** D2 で代行した時刻。人へ聞いたものは null */
+  readonly delegatedAt: string | null;
   /** JSON 列のパース失敗理由。成功時は null */
   readonly parseError: string | null;
 }
@@ -261,10 +355,12 @@ export function listDoctrineJudgmentsBySession(
   const gateReasonsExpr = columns.has('gate_reasons_json')
     ? 'gate_reasons_json'
     : 'NULL AS gate_reasons_json';
+  const delegatedAtExpr = columns.has('delegated_at') ? 'delegated_at' : 'NULL AS delegated_at';
   const rows = db
     .prepare(
       `SELECT id, session_id, subject, agent_judgment, coverage, citations_json,
-              ${gateVerdictExpr}, ${gateReasonsExpr}, human_decision, judged_at, decided_at
+              ${gateVerdictExpr}, ${gateReasonsExpr}, human_decision, judged_at, decided_at,
+              ${delegatedAtExpr}
          FROM doctrine_judgments
         WHERE session_id = ?
         ORDER BY judged_at ASC, id ASC`,
@@ -281,6 +377,7 @@ export function listDoctrineJudgmentsBySession(
     human_decision: HumanDecision | null;
     judged_at: string;
     decided_at: string | null;
+    delegated_at: string | null;
   }>;
 
   return rows.map((row) => {
@@ -299,6 +396,7 @@ export function listDoctrineJudgmentsBySession(
       humanDecision: row.human_decision,
       judgedAt: row.judged_at,
       decidedAt: row.decided_at,
+      delegatedAt: row.delegated_at,
       parseError: errors.length === 0 ? null : errors.join('; '),
     };
   });
@@ -333,7 +431,7 @@ export function getDoctrineAgreementDirect(
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
   const rows = db
     .prepare(
-      `SELECT agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, gate_verdict FROM doctrine_judgments${where}`,
+      `SELECT agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, gate_verdict, delegated_at FROM doctrine_judgments${where}`,
     )
     .all(...params) as Array<{
     agent_judgment: AgentJudgment;
@@ -343,10 +441,16 @@ export function getDoctrineAgreementDirect(
     resolved_count: number;
     citations_json: string;
     gate_verdict: 'delegable' | 'escalate' | null;
+    delegated_at: string | null;
   }>;
 
   const total = rows.length;
   const decided = rows.filter((r) => r.human_decision !== null).length;
+  const delegatedRows = rows.filter((r) => r.delegated_at !== null);
+  const delegatedAudited = delegatedRows.filter((r) => r.human_decision !== null).length;
+  const pending = rows.filter(
+    (r) => r.human_decision === null && r.delegated_at === null,
+  ).length;
   const agreementTargets = rows.filter(
     (r) => r.coverage === 'covered' && r.human_decision !== null && r.agent_judgment !== 'escalate',
   );
@@ -368,7 +472,9 @@ export function getDoctrineAgreementDirect(
   return {
     total,
     decided,
-    pending: total - decided,
+    pending,
+    delegated: delegatedRows.length,
+    delegatedAudited,
     agreementRate: agreementTargets.length > 0 ? matched / agreementTargets.length : null,
     escalationRate: total > 0 ? escalations / total : null,
     citationResolutionRate: citationTotal > 0 ? citationResolved / citationTotal : null,

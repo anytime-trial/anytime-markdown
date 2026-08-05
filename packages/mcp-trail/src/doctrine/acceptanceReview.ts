@@ -27,8 +27,10 @@ export interface AcceptanceReviewSummary {
   readonly draftGroundedCount: number;
   /** 解決検査に失敗した引用の件数 */
   readonly unresolvedCitationCount: number;
-  /** 人の判断が未記録の判断の件数 */
+  /** 人へ聞いたが判断がまだ記録されていない件数（D2 で代行したものは含まない） */
   readonly pendingDecisionCount: number;
+  /** D2 で代行し、人へ聞かなかった判断の件数 */
+  readonly delegatedCount: number;
   /** カバレッジゲート未評価（導入前の記録）の件数 */
   readonly ungatedCount: number;
   /** 記録の読み取りに失敗した判断の件数 */
@@ -146,7 +148,12 @@ function summarize(
       (sum, judgment) => sum + judgment.citations.filter((citation) => !citation.resolved).length,
       0,
     ),
-    pendingDecisionCount: judgments.filter((judgment) => judgment.humanDecision === null).length,
+    // D2 で代行した判断は「人に聞かなかった」ものであり、「人がまだ答えていない」ものと
+    // 混ぜると注意行が常時点灯して読み飛ばされる (仕様 §3.2)
+    pendingDecisionCount: judgments.filter(
+      (judgment) => judgment.humanDecision === null && judgment.delegatedAt === null,
+    ).length,
+    delegatedCount: judgments.filter((judgment) => judgment.delegatedAt !== null).length,
     ungatedCount: judgments.filter((judgment) => judgment.gateVerdict === null).length,
     parseErrorCount: judgments.filter((judgment) => judgment.parseError !== null).length,
     changedFileCount: diff.files.length,
@@ -177,6 +184,18 @@ function renderNotice(summary: AcceptanceReviewSummary, diff: GitDiffSummary): s
   return notes.length === 0 ? [] : [`**注意**: ${notes.join(' / ')}`, ''];
 }
 
+/**
+ * 人の判断欄。D2 で代行したものは「未確定」ではなく「代行」と出す。
+ * 代行後に人が抜き取り監査で判断した場合はその判断を出し、代行済みである旨を併記する。
+ */
+function renderDecisionCell(judgment: DoctrineJudgmentView): string {
+  if (judgment.humanDecision !== null) {
+    const label = DECISION_LABELS[judgment.humanDecision];
+    return judgment.delegatedAt === null ? label : `${label}（代行後の監査）`;
+  }
+  return judgment.delegatedAt === null ? '未確定' : '代行（人へ聞いていない）';
+}
+
 function renderJudgmentTable(judgments: readonly DoctrineJudgmentView[]): string[] {
   if (judgments.length === 0) {
     return ['代行判断なし（本セッションでドクトリン接地判断は記録されていない）。', ''];
@@ -188,8 +207,7 @@ function renderJudgmentTable(judgments: readonly DoctrineJudgmentView[]): string
         : judgment.gateVerdict === 'delegable'
           ? '代行可'
           : 'エスカレーション';
-    const decision =
-      judgment.humanDecision === null ? '未確定' : DECISION_LABELS[judgment.humanDecision];
+    const decision = renderDecisionCell(judgment);
     return `| ${judgment.id} | ${escapeTableCell(judgment.subject)} | ${JUDGMENT_LABELS[judgment.agentJudgment]} | ${judgment.coverage} | ${gate} | ${decision} |`;
   });
   return [
@@ -289,7 +307,7 @@ export function renderAcceptanceReviewMarkdown(
   const lines: string[] = [
     '## 受け入れ確認',
     '',
-    `セッション \`${review.sessionId}\` / 代行判断 ${summary.judgmentCount} 件 / エスカレーション ${summary.escalationCount} 件 / 変更 ${summary.changedFileCount} ファイル`,
+    `セッション \`${review.sessionId}\` / 接地判断 ${summary.judgmentCount} 件（うち代行 ${summary.delegatedCount} 件） / エスカレーション ${summary.escalationCount} 件 / 変更 ${summary.changedFileCount} ファイル`,
     '',
     ...renderNotice(summary, diff),
     '### 1. 代行した判断',

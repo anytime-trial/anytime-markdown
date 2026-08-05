@@ -33,6 +33,7 @@ import { toCodeGraphNodeId } from './tools/nodeId.js';
 import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift.js';
 import { handleRecordDoctrineJudgment, RecordDoctrineJudgmentInputSchema } from './tools/recordDoctrineJudgment.js';
 import { handleRecordHumanDecision, RecordHumanDecisionInputSchema } from './tools/recordHumanDecision.js';
+import { handleRecordDelegatedApproval, RecordDelegatedApprovalInputSchema } from './tools/recordDelegatedApproval.js';
 import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './tools/getDoctrineAgreement.js';
 import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
@@ -456,7 +457,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'record_doctrine_judgment',
-    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) also evaluates whether the judgment would have been delegable under D2 and stores the verdict — it does NOT change the approval flow (shadow mode); omitting target_paths or severity makes the verdict escalate (fail-closed). Re-recording the same session_id + subject overwrites and resets any recorded human decision.', inputSchema: {
+    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) evaluates whether the judgment may be delegated and stores the verdict; omitting target_paths, severity or operation_kind makes the verdict escalate (fail-closed), so always declare all three. D2 is ACTIVE (since 2026-08-05): act on the returned gate.verdict — if it is "delegable" AND your judgment is "approve", proceed WITHOUT asking the human and immediately call record_delegated_approval; otherwise ask the human and then call record_human_decision. Package add/update, destructive operations, remote push and production release always escalate — declare them via operation_kind so the gate enforces it rather than relying on prose. Re-recording the same session_id + subject overwrites and resets any recorded human decision and delegation.', inputSchema: {
       session_id: RecordDoctrineJudgmentInputSchema.shape.session_id,
       subject: RecordDoctrineJudgmentInputSchema.shape.subject,
       judgment: RecordDoctrineJudgmentInputSchema.shape.judgment,
@@ -464,6 +465,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       citations: RecordDoctrineJudgmentInputSchema.shape.citations,
       target_paths: RecordDoctrineJudgmentInputSchema.shape.target_paths,
       severity: RecordDoctrineJudgmentInputSchema.shape.severity,
+      operation_kind: RecordDoctrineJudgmentInputSchema.shape.operation_kind,
       judged_at: RecordDoctrineJudgmentInputSchema.shape.judged_at,
       workspacePath: RecordDoctrineJudgmentInputSchema.shape.workspacePath,
     }, },
@@ -490,8 +492,22 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   server.registerTool(
+    'record_delegated_approval',
+    { description: "Record that the agent delegated (auto-approved) a What approval under D2, instead of asking the human. Refuses unless the stored coverage gate verdict is 'delegable', the agent judgment is 'approve', and no human decision exists yet — a delegation record that could be fabricated after the fact would make both the agreement rate and the delegation rate useless for audit. The timestamp is always server-side now and cannot be supplied by the caller. Calling again on an already-delegated judgment is a no-op that returns the original timestamp (alreadyDelegated: true). A human may still record a decision afterwards as a sampling audit.", inputSchema: {
+      id: RecordDelegatedApprovalInputSchema.shape.id,
+      session_id: RecordDelegatedApprovalInputSchema.shape.session_id,
+      subject: RecordDelegatedApprovalInputSchema.shape.subject,
+      workspacePath: RecordDelegatedApprovalInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleRecordDelegatedApproval(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
     'get_doctrine_agreement',
-    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), and pending (undecided) count. Gate metrics for D2 promotion.', inputSchema: {
+    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), delegated / delegatedAudited counts (D2 delegations and their sampling audits), and pending (neither decided nor delegated) count.', inputSchema: {
       since: GetDoctrineAgreementInputSchema.shape.since,
       until: GetDoctrineAgreementInputSchema.shape.until,
       workspacePath: GetDoctrineAgreementInputSchema.shape.workspacePath,

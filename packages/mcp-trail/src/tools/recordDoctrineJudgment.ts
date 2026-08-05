@@ -42,6 +42,17 @@ export const RecordDoctrineJudgmentInputSchema = z.object({
     .enum(['low', 'medium', 'high'])
     .optional()
     .describe('Caller-declared severity. Omitted = undecidable, which the coverage gate treats as escalate (fail-closed)'),
+  operation_kind: z
+    .enum([
+      'code_change',
+      'dependency_change',
+      'destructive_git',
+      'remote_push',
+      'production_release',
+      'persistent_data_write',
+    ])
+    .optional()
+    .describe('What kind of operation this approval covers. Omitted = undecidable, which the coverage gate treats as escalate (fail-closed). Everything except code_change always goes to the human: the gate is path-based and cannot see push / release / destructive git in target_paths'),
   judged_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
   workspacePath: workspacePathParam,
 });
@@ -50,7 +61,7 @@ export type RecordDoctrineJudgmentInput = z.infer<typeof RecordDoctrineJudgmentI
 
 export interface RecordDoctrineJudgmentResult extends DoctrineJudgmentRecordResult {
   readonly citations: ReadonlyArray<ResolvedCitation>;
-  /** カバレッジゲートの判定 (D1 では記録のみ。承認フローは変えない) */
+  /** カバレッジゲートの判定。D2 では delegable + approve が代行の根拠になる */
   readonly gate: CoverageGateResult;
 }
 
@@ -80,6 +91,7 @@ export async function handleRecordDoctrineJudgment(
     citations: resolved,
     targetPaths: input.target_paths,
     severity: input.severity,
+    operationKind: input.operation_kind,
     odd: resolveOddConfig({
       workspacePath: workspacePath ?? process.cwd(),
       homeDir: os.homedir(),

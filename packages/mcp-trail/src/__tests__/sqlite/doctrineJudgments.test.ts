@@ -3,6 +3,7 @@ import {
   ensureDoctrineJudgmentsTable,
   recordDoctrineJudgmentDirect,
   recordHumanDecisionDirect,
+  recordDelegatedApprovalDirect,
   getDoctrineAgreementDirect,
   listDoctrineJudgmentsBySession,
   type DoctrineJudgmentInput,
@@ -225,6 +226,132 @@ describe('doctrineJudgments', () => {
     expect(getDoctrineAgreementDirect(db).delegableRate).toBe(1);
   });
 
+  describe('recordDelegatedApprovalDirect（D2 代行の記録）', () => {
+    function delegableJudgment(subject: string): DoctrineJudgmentInput {
+      return { ...judgment({ subject }), gate: { verdict: 'delegable', reasons: [] } };
+    }
+
+    it('ゲートが delegable かつ approve 判断なら代行として記録する', () => {
+      const { id } = recordDoctrineJudgmentDirect(db, delegableJudgment('代行した'));
+      const result = recordDelegatedApprovalDirect(db, {
+        id,
+        delegatedAt: '2026-08-05T00:00:00.000Z',
+      });
+      expect(result).toEqual({
+        id,
+        delegatedAt: '2026-08-05T00:00:00.000Z',
+        alreadyDelegated: false,
+      });
+      const row = db
+        .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
+        .get(id) as { delegated_at: string };
+      expect(row.delegated_at).toBe('2026-08-05T00:00:00.000Z');
+    });
+
+    it('(sessionId + subject) でも突合できる', () => {
+      recordDoctrineJudgmentDirect(db, delegableJudgment('キー突合'));
+      const result = recordDelegatedApprovalDirect(db, {
+        sessionId: 'session-1',
+        subject: 'キー突合',
+      });
+      expect(result.delegatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+
+    it('ゲートが escalate の判断は代行として記録できない（fail-closed）', () => {
+      const { id } = recordDoctrineJudgmentDirect(db, {
+        ...judgment({ subject: 'エスカレーション' }),
+        gate: { verdict: 'escalate', reasons: ['severity_high'] },
+      });
+      expect(() => recordDelegatedApprovalDirect(db, { id })).toThrow(/gate verdict/);
+      const row = db
+        .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
+        .get(id) as { delegated_at: string | null };
+      expect(row.delegated_at).toBeNull();
+    });
+
+    it('ゲート未評価（旧レコード）は代行として記録できない', () => {
+      const { id } = recordDoctrineJudgmentDirect(db, judgment({ subject: 'ゲートなし' }));
+      expect(() => recordDelegatedApprovalDirect(db, { id })).toThrow(/gate verdict/);
+    });
+
+    it('approve 以外の判断は代行として記録できない（代行対象は What 承認のみ）', () => {
+      const { id } = recordDoctrineJudgmentDirect(db, {
+        ...judgment({ subject: '却下判断' }),
+        judgment: 'reject',
+        gate: { verdict: 'delegable', reasons: [] },
+      });
+      expect(() => recordDelegatedApprovalDirect(db, { id })).toThrow(/agent judgment/);
+    });
+
+    it('人の判断が既にある判断は代行として記録できない', () => {
+      const { id } = recordDoctrineJudgmentDirect(db, delegableJudgment('人が判断済み'));
+      recordHumanDecisionDirect(db, { id, decision: 'approve' });
+      expect(() => recordDelegatedApprovalDirect(db, { id })).toThrow(/human decision/);
+    });
+
+    it('代行済みの再記録は時刻を上書きせず、最初の記録を返す（監査ログの不変性）', () => {
+      const { id } = recordDoctrineJudgmentDirect(db, delegableJudgment('再送'));
+      recordDelegatedApprovalDirect(db, { id, delegatedAt: '2026-08-05T00:00:00.000Z' });
+
+      const again = recordDelegatedApprovalDirect(db, {
+        id,
+        delegatedAt: '2026-01-01T00:00:00.000Z',
+      });
+      expect(again).toEqual({
+        id,
+        delegatedAt: '2026-08-05T00:00:00.000Z',
+        alreadyDelegated: true,
+      });
+      const row = db
+        .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
+        .get(id) as { delegated_at: string };
+      expect(row.delegated_at).toBe('2026-08-05T00:00:00.000Z');
+    });
+
+    it('対応レコードがない代行記録はエラー（黙って新規作成しない）', () => {
+      expect(() => recordDelegatedApprovalDirect(db, { id: 9999 })).toThrow(/not found/);
+    });
+
+    it('判断の再記録は代行の記録も無効化する（判断が変われば代行の根拠も失われる）', () => {
+      const { id } = recordDoctrineJudgmentDirect(db, delegableJudgment('再記録'));
+      recordDelegatedApprovalDirect(db, { id });
+      recordDoctrineJudgmentDirect(db, delegableJudgment('再記録'));
+      const row = db
+        .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
+        .get(id) as { delegated_at: string | null };
+      expect(row.delegated_at).toBeNull();
+    });
+
+    it('代行済みは未突合（pending）から外し、代行件数として数える', () => {
+      recordDoctrineJudgmentDirect(db, delegableJudgment('代行済み'));
+      recordDoctrineJudgmentDirect(db, judgment({ subject: '人待ち' }));
+      recordDelegatedApprovalDirect(db, { sessionId: 'session-1', subject: '代行済み' });
+
+      const metrics = getDoctrineAgreementDirect(db);
+      expect(metrics.total).toBe(2);
+      expect(metrics.delegated).toBe(1);
+      expect(metrics.pending).toBe(1);
+    });
+
+    it('代行後に人が抜き取り監査で判断すると一致率へ反映される', () => {
+      const { id } = recordDoctrineJudgmentDirect(db, delegableJudgment('抜き取り監査'));
+      recordDelegatedApprovalDirect(db, { id });
+      const audit = recordHumanDecisionDirect(db, { id, decision: 'reject' });
+      expect(audit.agreement).toBe(false);
+
+      const metrics = getDoctrineAgreementDirect(db);
+      expect(metrics.agreementRate).toBe(0);
+      expect(metrics.delegated).toBe(1);
+      expect(metrics.delegatedAudited).toBe(1);
+      expect(metrics.pending).toBe(0);
+      // decided は代行後の監査を含むため delegated と重なる。
+      // `decided + pending = total` は成り立たない
+      expect(
+        metrics.decided + metrics.delegated - metrics.delegatedAudited + metrics.pending,
+      ).toBe(metrics.total);
+    });
+  });
+
   it('gate 列を持たない旧スキーマの DB へ冪等に列追加する', () => {
     const legacy = new BetterSqlite3(':memory:');
     legacy.exec(`CREATE TABLE doctrine_judgments (
@@ -256,7 +383,9 @@ describe('doctrineJudgments', () => {
     const columns = (
       legacy.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>
     ).map((c) => c.name);
-    expect(columns).toEqual(expect.arrayContaining(['gate_verdict', 'gate_reasons_json']));
+    expect(columns).toEqual(
+      expect.arrayContaining(['gate_verdict', 'gate_reasons_json', 'delegated_at']),
+    );
     // 新規 DB と移行 DB で列順まで一致させる（ALTER は必ず末尾へ足すため、CREATE 側も
     // 追加列を末尾に置く。食い違うと SELECT * の列位置が経路で変わる）
     const fresh = new BetterSqlite3(':memory:');
@@ -266,8 +395,15 @@ describe('doctrineJudgments', () => {
     ).map((c) => c.name);
     expect(columns).toEqual(freshColumns);
     fresh.close();
-    const rows = legacy.prepare(`SELECT subject, gate_verdict FROM doctrine_judgments`).all();
-    expect(rows).toEqual([{ subject: '旧行', gate_verdict: null }]);
+    const rows = legacy
+      .prepare(`SELECT subject, gate_verdict, delegated_at FROM doctrine_judgments`)
+      .all();
+    expect(rows).toEqual([{ subject: '旧行', gate_verdict: null, delegated_at: null }]);
+    // 列名・列順だけでなく制約も見る。ALTER 側の CHECK 式が CREATE 側から
+    // 剥がれると、移行 DB だけが不正な値を受理する状態になる
+    expect(() =>
+      legacy.exec(`UPDATE doctrine_judgments SET delegated_at = 'garbage'`),
+    ).toThrow(/CHECK constraint failed/);
     legacy.close();
   });
 

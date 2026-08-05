@@ -1,4 +1,5 @@
 import { resolveOddConfig } from '../../doctrine/oddRoots';
+import { evaluateCoverageGate } from '../../doctrine/coverageGate';
 
 const CLAUDE_MD = [
   '# CLAUDE.md（anytime-markdown プロジェクト固有）',
@@ -60,6 +61,35 @@ describe('resolveOddConfig', () => {
       homeDir: '/home/user',
       readFile: reader({}),
     });
-    expect(config.restrictedPatterns).toEqual(['/.github/workflows/', '/.env']);
+    expect(config.restrictedPatterns).toEqual(
+      expect.arrayContaining(['/.github/', '/.env']),
+    );
+  });
+
+  it.each([
+    '/anytime-markdown/package.json',
+    '/anytime-markdown/packages/mcp-trail/package.json',
+    '/anytime-markdown/package-lock.json',
+    '/anytime-markdown/.mcp.json',
+    '/anytime-markdown/.claude/settings.local.json',
+    '/anytime-markdown/.git/config',
+    '/anytime-markdown/.github/dependabot.yml',
+  ])('ワークスペース内の設定・依存マニフェスト %s は制限領域として escalate する', (target) => {
+    // ホーム基準の restrictedPrefixes では捕まらない ODD 内の保護対象。
+    // ここが漏れると「パッケージの追加・更新」等が機構上そのまま代行可能になる
+    const odd = resolveOddConfig({
+      workspacePath: '/anytime-markdown',
+      homeDir: '/home/user',
+      readFile: reader({}),
+    });
+    const result = evaluateCoverageGate({
+      coverage: 'covered',
+      citations: [{ resolved: true, approval: 'canon' }],
+      targetPaths: [target],
+      severity: 'low',
+      operationKind: 'code_change',
+      odd,
+    });
+    expect(result).toEqual({ verdict: 'escalate', reasons: ['restricted_area'] });
   });
 });
