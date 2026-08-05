@@ -35,6 +35,9 @@ import {
   renderFindingTable,
   wireFindingLinks,
 } from './flightReviewFindingsView';
+import { MemoryReader } from '../data/readers/MemoryReader';
+import type { MemoryBugHistoryRow } from '../data/types';
+import { mountBugHistoryPanel } from './memory/bugHistoryPanel';
 import { buildFlightRecordCsv, downloadCsv } from '../data/flightReviewCsv';
 import { formatDurationSeconds, mountRetrospectiveView, type RetrospectiveViewProps } from './retrospectiveView';
 import type { TrailThemeTokens } from '../theme/designTokens';
@@ -55,12 +58,24 @@ export interface FlightRecordPanelProps {
    * 渡されない環境ではファイルパスをテキストとして出す（押せないボタンを出さない）。
    */
   readonly onOpenFile?: (filePath: string) => void;
+  /**
+   * memory-core の API 基点。Bug Fixed サブタブが `MemoryReader` を作るために要る。
+   * 空文字ならバグ履歴は取りに行かず、空状態を出す（押せない画面を出さない）。
+   */
+  readonly serverUrl: string;
+  /** バグ行から該当セッションの会話を開く。webview の host だけが実行できる。 */
+  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
-/** Flight Record のサブタブ。指示（運航記録）と Review（指摘）を切り替える。 */
-export type FlightRecordTabValue = 'instruction' | 'review';
+/**
+ * Flight Record のサブタブ。指示（運航記録）・Bug Fixed（バグ修正履歴）・Review（指摘）。
+ *
+ * Bug Fixed は 2026-08-05 に Memory から移設した。「どの指示が何を潰したか」は運航記録の
+ * 関心であり、指摘（Review）との相互リンクも同一パネル内で閉じる。
+ */
+export type FlightRecordTabValue = 'instruction' | 'bugfix' | 'review';
 
-const FLIGHT_TAB_VALUES: readonly FlightRecordTabValue[] = ['instruction', 'review'];
+const FLIGHT_TAB_VALUES: readonly FlightRecordTabValue[] = ['instruction', 'bugfix', 'review'];
 
 const STYLE_ID = 'am-flight-record-style';
 
@@ -99,6 +114,30 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
   color: ${c.textPrimary}; border-bottom-color: ${c.info}; font-weight: 600;
 }
 [data-am-flight-review] { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* Bug Fixed サブタブ。中身は memory 由来のバグ履歴パネルがそのまま描く。 */
+[data-am-flight-bugfix] { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* 詳細ペインの Bug Fixed 節。指示が潰したバグを行で並べ、クリックでタブへ送る。 */
+[data-am-bugfix-list] { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+[data-am-bugfix-list] li { padding: 2px 0; }
+button[data-am-bugfix-row] {
+  display: flex; gap: 6px; align-items: baseline; width: 100%; text-align: left; cursor: pointer;
+  border: none; background: transparent; color: ${c.textPrimary}; padding: 2px 4px; border-radius: 4px;
+  font-size: 12px; font-family: inherit;
+}
+button[data-am-bugfix-row]:hover { background: ${c.charcoal}; }
+[data-am-bugfix-category] {
+  flex: 0 0 auto; padding: 1px 6px; border-radius: 4px; font-size: 10px; border: 1px solid ${c.border};
+  color: ${c.textSecondary};
+}
+[data-am-bugfix-category][data-category="regression"] { color: ${c.error}; border-color: ${c.error}; }
+[data-am-bugfix-category][data-category="spec"] { color: ${c.info}; border-color: ${c.info}; }
+[data-am-bugfix-category][data-category="logic"] { color: ${c.warning}; border-color: ${c.warning}; }
+[data-am-bugfix-sha] { flex: 0 0 auto; font-family: ui-monospace, monospace; color: ${c.textSecondary}; }
+[data-am-bugfix-summary] { flex: 1 1 auto; min-width: 0; word-break: break-word; }
+button[data-am-bugfix-all] {
+  margin-top: 6px; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;
+  border: 1px solid ${c.border}; background: transparent; color: ${c.textPrimary};
+}
 /* レビュー指摘。severity は色 + テキストの冗長表現（色のみで情報を伝えない）。 */
 [data-am-finding-note] { margin: 0 0 8px; font-size: 11px; color: ${c.textSecondary}; }
 [data-am-finding-table] { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -324,6 +363,22 @@ export function mountFlightRecordPanel(
   let detailHandle: VanillaViewHandle<RetrospectiveViewProps> | null = null;
   let detailSessionId: string | null = null;
 
+  // ── Bug Fixed サブタブの状態 ──
+  // reader は serverUrl ごとに作り直す（接続先が変わったら前の接続の結果を混ぜない）。
+  let bugReader: MemoryReader | null = props.serverUrl === '' ? null : new MemoryReader(props.serverUrl);
+  let bugPanelHandle: VanillaViewHandle<Parameters<typeof mountBugHistoryPanel>[1]> | null = null;
+  /** 一覧を特定のバグ集合へ絞る（詳細ペイン・「同じ原因の過去バグ」からの遷移）。 */
+  let pendingBugFilter: { bugEntityIds: readonly string[] } | null = null;
+  /** Review サブタブを特定の指摘へ絞る（バグ行の「事前指摘」からの遷移）。 */
+  let pendingFindingFilter: { findingEntityIds: readonly string[] } | null = null;
+
+  // ── 詳細ペインの Bug Fixed 節（選択中の指示が潰したバグ） ──
+  /** 取得済みの行。null は「まだ引いていない」で、空配列（0 件）とは別の状態。 */
+  let detailBugs: readonly MemoryBugHistoryRow[] | null = null;
+  let detailBugsFailed = false;
+  /** 取得済みの対象キー。同じキーでは引き直さない（描画のたびの再取得を止める）。 */
+  let detailBugsKey: string | null = null;
+
   ensureStyle(container.ownerDocument, props.tokens);
 
   const root = document.createElement('div');
@@ -347,6 +402,9 @@ export function mountFlightRecordPanel(
       activeTab = next;
       // Review タブを開いた時点でまだ取れていなければ取りに行く（開くまで引かない）
       if (next === 'review') void props.findingStore.refresh();
+      // 手で切り替えたときは前の遷移で置いた絞り込みを解く（絞られた理由が画面に無いため）
+      if (next === 'bugfix') pendingBugFilter = null;
+      if (next === 'review') pendingFindingFilter = null;
       render();
     });
   }
@@ -398,6 +456,16 @@ export function mountFlightRecordPanel(
   reviewRegion.hidden = true;
   applyThinScrollbar(reviewRegion);
   root.appendChild(reviewRegion);
+
+  // Bug Fixed サブタブ（バグ修正履歴）。中身は memory 由来のパネルを再利用し、
+  // 初回に開いた時だけマウントする（開かないタブのために memory-core を叩かない）。
+  const bugfixRegion = document.createElement('div');
+  bugfixRegion.dataset['amFlightBugfix'] = '';
+  bugfixRegion.id = 'flight-panel-bugfix';
+  bugfixRegion.setAttribute('role', 'tabpanel');
+  bugfixRegion.setAttribute('aria-labelledby', 'flight-tab-bugfix');
+  bugfixRegion.hidden = true;
+  root.appendChild(bugfixRegion);
 
   const sinceInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-since]');
   const untilInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-until]');
@@ -598,6 +666,79 @@ export function mountFlightRecordPanel(
     return `<ul data-am-deliverable-list>${items}</ul>`;
   }
 
+  /**
+   * 選択中の指示に属するセッション ID。
+   *
+   * 宣言の無いセッションは暗黙グループで `/sessions` が空を返すため、指示 ID 自身を
+   * セッションとして扱う（instructionStore.select と同じ規則）。
+   */
+  function selectedSessionIds(): readonly string[] {
+    const state = props.store.getState();
+    if (state.selectedSessions.length > 0) return state.selectedSessions.map((s) => s.sessionId);
+    return state.selectedInstructionId === null ? [] : [state.selectedInstructionId];
+  }
+
+  /**
+   * 詳細ペイン用のバグ履歴を取りに行く。
+   *
+   * 絞り込みはサーバ側で行う（クライアントで最新 N 件から選ぶと、上限に入らない
+   * 古い指示のバグが「0 件」に化けて、無いのか出ていないのか区別できなくなる）。
+   */
+  function ensureDetailBugs(): void {
+    const sessionIds = selectedSessionIds();
+    const key = sessionIds.join(',');
+    if (key === detailBugsKey) return;
+    detailBugsKey = key;
+    detailBugs = null;
+    detailBugsFailed = false;
+    const reader = bugReader;
+    if (reader === null || sessionIds.length === 0) {
+      detailBugs = [];
+      return;
+    }
+    void reader
+      .getBugHistoryStrict({ sessionIds })
+      .then((rows) => {
+        if (destroyed || detailBugsKey !== key) return;
+        detailBugs = rows;
+        render();
+      })
+      .catch((err: unknown) => {
+        if (destroyed || detailBugsKey !== key) return;
+        // サーバ不達を「バグ 0 件」に見せない（障害と実績を区別する）
+        console.warn(`[flightRecord] failed to load bug history for ${key}: ${String(err)}`);
+        detailBugsFailed = true;
+        render();
+      });
+  }
+
+  /** 詳細ペインの Bug Fixed 節。この指示が潰したバグを行で並べる。 */
+  function renderBugFixedSection(): string {
+    const { t } = props;
+    if (detailBugsFailed) {
+      return `<p data-am-finding-load-failed>${escapeHtml(t('flightRecord.loadFailed'))}</p>`;
+    }
+    if (detailBugs === null) {
+      return `<p data-am-retro-empty>${escapeHtml(t('flightRecord.loading'))}</p>`;
+    }
+    if (detailBugs.length === 0) {
+      return `<p data-am-retro-empty>${escapeHtml(t('flightRecord.detail.none'))}</p>`;
+    }
+    const items = detailBugs
+      .map(
+        (b) => `<li>
+          <button type="button" data-am-bugfix-row data-bug-entity-id="${escapeHtml(b.bugEntityId)}">
+            <span data-am-bugfix-category data-category="${escapeHtml(b.category)}">${escapeHtml(b.category)}</span>
+            <span data-am-bugfix-sha>${escapeHtml(b.commitSha.slice(0, 7))}</span>
+            <span data-am-bugfix-summary>${escapeHtml(b.subjectSummary)}</span>
+          </button>
+        </li>`,
+      )
+      .join('');
+    return `<ul data-am-bugfix-list>${items}</ul>
+      <button type="button" data-am-bugfix-all>${escapeHtml(t('flightRecord.detail.bugFixedAll'))}</button>`;
+  }
+
   function renderTokenUsage(usage: InstructionTokenUsageDto): string {
     const { t } = props;
     if (!usage.imported) {
@@ -660,6 +801,8 @@ export function mountFlightRecordPanel(
       </dl>
       <h4>${escapeHtml(t('flightRecord.detail.deliverables'))}</h4>
       ${renderDeliverables(record)}
+      <h4>${escapeHtml(t('flightRecord.detail.bugFixed'))}</h4>
+      ${renderBugFixedSection()}
       <h4>${escapeHtml(t('flightRecord.detail.tokenUsage'))}</h4>
       ${renderTokenUsage(record.tokenUsage)}
       <h4>${escapeHtml(t('flightRecord.findings.title'))}</h4>
@@ -683,13 +826,53 @@ export function mountFlightRecordPanel(
     return record.summary === '' ? instructionId.slice(0, 8) : record.summary;
   }
 
+  /** Bug Fixed サブタブへ、指定のバグだけを出した状態で移る。 */
+  function openBugFixed(bugEntityIds: readonly string[]): void {
+    pendingBugFilter = { bugEntityIds };
+    activeTab = 'bugfix';
+    render();
+  }
+
+  /** Review サブタブへ、指定の指摘だけを出した状態で移る（バグ行の「事前指摘」）。 */
+  function openPrecedingFindings(findingEntityIds: readonly string[]): void {
+    pendingFindingFilter = { findingEntityIds };
+    activeTab = 'review';
+    void props.findingStore.refresh();
+    render();
+  }
+
+  function bugPanelProps(): Parameters<typeof mountBugHistoryPanel>[1] {
+    return {
+      t: props.t,
+      reader: bugReader,
+      onOpenSessionMessages: props.onOpenSessionMessages,
+      onOpenPrecedingReviews: openPrecedingFindings,
+      onOpenSiblingBugs: openBugFixed,
+      pendingBugFilter,
+    };
+  }
+
+  /** Bug Fixed サブタブ。初回に開いた時だけマウントし、以降は update で更新する。 */
+  function renderBugfixTab(): void {
+    if (bugPanelHandle === null) {
+      bugPanelHandle = mountBugHistoryPanel(bugfixRegion, bugPanelProps());
+      return;
+    }
+    bugPanelHandle.update(bugPanelProps());
+  }
+
   /** Review サブタブ。全指示の指摘をフラットに出し、行から指示を選び直せるようにする。 */
   function renderReviewTab(): void {
     const { t } = props;
     const state = props.findingStore.getState();
+    // バグ行から来たときは、その `precedes` が指す指摘だけに絞る。
+    const pendingIds = pendingFindingFilter?.findingEntityIds ?? null;
+    const findings = pendingIds === null
+      ? state.findings
+      : state.findings.filter((f) => pendingIds.includes(f.findingEntityId));
     reviewRegion.innerHTML = renderFindingTable({
       t,
-      findings: state.findings,
+      findings,
       loadFailed: state.loadFailed,
       linkable: props.onOpenFile !== undefined,
       labelOf: instructionLabel,
@@ -720,6 +903,8 @@ export function mountFlightRecordPanel(
       return;
     }
     detailRegion.hidden = false;
+    // 選択が変わっていれば、この指示のバグ履歴を取り直す（同じ対象では引き直さない）
+    ensureDetailBugs();
 
     // 上段（指示の要約）は毎回描き直し、下段（セッション単位の振り返り）は別の器へ
     // マウントして生かす。1 つの innerHTML で両方描くと、retrospectiveView の
@@ -746,6 +931,16 @@ export function mountFlightRecordPanel(
         props.store.selectSession(button.dataset['amSessionPick'] ?? null);
       });
     }
+    for (const button of headerEl.querySelectorAll<HTMLButtonElement>('[data-am-bugfix-row]')) {
+      button.addEventListener('click', () => {
+        const bugEntityId = button.dataset['bugEntityId'] ?? '';
+        if (bugEntityId === '') return;
+        openBugFixed([bugEntityId]);
+      });
+    }
+    headerEl.querySelector<HTMLButtonElement>('[data-am-bugfix-all]')?.addEventListener('click', () => {
+      openBugFixed((detailBugs ?? []).map((b) => b.bugEntityId));
+    });
 
     renderSessionRetrospective(retroEl);
   }
@@ -806,6 +1001,7 @@ export function mountFlightRecordPanel(
     toolbar.hidden = activeTab !== 'instruction';
     body.hidden = activeTab !== 'instruction';
     reviewRegion.hidden = activeTab !== 'review';
+    bugfixRegion.hidden = activeTab !== 'bugfix';
   }
 
   function render(): void {
@@ -815,6 +1011,8 @@ export function mountFlightRecordPanel(
     if (activeTab === 'instruction') {
       renderList();
       renderDetail();
+    } else if (activeTab === 'bugfix') {
+      renderBugfixTab();
     } else {
       renderReviewTab();
     }
@@ -833,8 +1031,16 @@ export function mountFlightRecordPanel(
       const prevStore = props.store;
       const prevReviewStore = props.reviewStore;
       const prevFindingStore = props.findingStore;
+      const prevServerUrl = props.serverUrl;
       props = next;
       ensureStyle(container.ownerDocument, next.tokens);
+      if (next.serverUrl !== prevServerUrl) {
+        // 接続先が変わったら reader を作り直し、前の接続先で取った結果を捨てる
+        bugReader = next.serverUrl === '' ? null : new MemoryReader(next.serverUrl);
+        detailBugs = null;
+        detailBugsFailed = false;
+        detailBugsKey = null;
+      }
       if (next.store !== prevStore) {
         // serverUrl 変更などで store が再生成された場合は購読を張り替えて取り直す
         unsubscribe();
@@ -862,6 +1068,8 @@ export function mountFlightRecordPanel(
       outcomeSelect.destroy();
       detailHandle?.destroy();
       detailHandle = null;
+      bugPanelHandle?.destroy();
+      bugPanelHandle = null;
       root.remove();
     },
   };

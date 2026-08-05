@@ -2,9 +2,12 @@
  * MemoryPanel の vanilla DOM 版。
  *
  * Chat は本パネルから独立したトップレベルタブ（trailViewer の case 10）へ移した。
- * サブタブ状態・hash routing・MemoryReader・dbExists probe・driftRows・
- * pendingBugFilter / pendingReviewFilter を所有し、対応する vanilla サブビューを
- * 直接マウントする（React の `.tsx` ラッパは経由しない）。
+ * サブタブ状態・hash routing・MemoryReader・dbExists probe・driftRows を所有し、
+ * 対応する vanilla サブビューを直接マウントする（React の `.tsx` ラッパは経由しない）。
+ *
+ * バグ修正履歴（旧 Bugs）とレビュー指摘（旧 Reviews）は 2026-08-05 に Flight Record へ
+ * 移設した。指摘 ⇄ バグの相互リンクも移設先のパネル内で完結するため、ここには
+ * cross-tab の pending フィルタを持たない。
  *
  * 呼び出し側（components/MemoryPanel.tsx）は thin React wrapper として
  * useTrailTheme / useTrailI18n を解決し、
@@ -18,8 +21,6 @@ import { MemoryReader } from '../../data/readers/MemoryReader';
 import type { MemoryDriftEventRow } from '../../data/types';
 import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
 import { mountDriftPanel } from './driftPanel';
-import { mountBugHistoryPanel } from './bugHistoryPanel';
-import { mountReviewPanel } from './reviewPanel';
 import { mountPipelineRunsPanel } from './pipelineRunsPanel';
 
 // ---------------------------------------------------------------------------
@@ -31,7 +32,6 @@ export interface MemoryPanelViewProps {
   readonly tokens: TrailThemeTokens;
   readonly isDark: boolean;
   readonly t: (key: string) => string;
-  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -39,7 +39,9 @@ export interface MemoryPanelViewProps {
 // ---------------------------------------------------------------------------
 
 function parseHashSubTab(hash: string): MemoryTabValue | null {
-  const match = /^#memory\/(drift|bug|review|runs)/.exec(hash);
+  // 旧 `#memory/bug` `#memory/review` は Flight Record へ移設したため解決しない。
+  // 未知値は呼び出し側で既定タブ（drift）へフォールバックする。
+  const match = /^#memory\/(drift|runs)/.exec(hash);
   if (!match) return null;
   return match[1] as MemoryTabValue;
 }
@@ -63,8 +65,6 @@ export function mountMemoryPanel(
   let dbExists: boolean | null = null;
   let driftRows: readonly MemoryDriftEventRow[] = [];
   let driftHistory: readonly DriftHistoryPoint[] = [];
-  let pendingBugFilter: { bugEntityIds: readonly string[] } | null = null;
-  let pendingReviewFilter: { findingEntityIds: readonly string[] } | null = null;
 
   const reader = new MemoryReader(props.serverUrl);
   let currentServerUrl = props.serverUrl;
@@ -156,25 +156,6 @@ export function mountMemoryPanel(
         onLoadDetail: (id) => reader.getDriftEventDetail(id),
       }) as SubHandle;
     }
-    if (tab === 'bug') {
-      return mountBugHistoryPanel(host, {
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingReviews: handleOpenPrecedingReviews,
-        onOpenSiblingBugs: handleOpenPrecedingBugs,
-        pendingBugFilter,
-      }) as SubHandle;
-    }
-    if (tab === 'review') {
-      return mountReviewPanel(host, {
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingBugs: handleOpenPrecedingBugs,
-        pendingReviewFilter,
-      }) as SubHandle;
-    }
     // runs
     return mountPipelineRunsPanel(host, {
       t: tStr,
@@ -195,23 +176,6 @@ export function mountMemoryPanel(
         isDark: props.isDark,
         onResolve: handleResolve,
         onLoadDetail: (id) => reader.getDriftEventDetail(id),
-      });
-    } else if (tab === 'bug') {
-      (handle as VanillaViewHandle<Parameters<typeof mountBugHistoryPanel>[1]>).update({
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingReviews: handleOpenPrecedingReviews,
-        onOpenSiblingBugs: handleOpenPrecedingBugs,
-        pendingBugFilter,
-      });
-    } else if (tab === 'review') {
-      (handle as VanillaViewHandle<Parameters<typeof mountReviewPanel>[1]>).update({
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingBugs: handleOpenPrecedingBugs,
-        pendingReviewFilter,
       });
     } else {
       (handle as VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>).update({
@@ -261,9 +225,6 @@ export function mountMemoryPanel(
   // --- Tab switch ------------------------------------------------------------
   function switchTab(tab: MemoryTabValue, updateHash = true): void {
     activeTab = tab;
-    pendingBugFilter = null;
-    pendingReviewFilter = null;
-
     tabs.update({ value: tab });
 
     if (updateHash && typeof globalThis.history !== 'undefined') {
@@ -272,33 +233,6 @@ export function mountMemoryPanel(
 
     if (dbExists === true) {
       mountSubForTab(tab);
-    }
-  }
-
-  // --- Cross-tab filter callbacks --------------------------------------------
-  function handleOpenPrecedingBugs(bugEntityIds: readonly string[]): void {
-    pendingBugFilter = { bugEntityIds };
-    pendingReviewFilter = null;
-    activeTab = 'bug';
-    tabs.update({ value: 'bug' });
-    if (typeof globalThis.history !== 'undefined') {
-      globalThis.history.replaceState(null, '', '#memory/bug');
-    }
-    if (dbExists === true) {
-      mountSubForTab('bug');
-    }
-  }
-
-  function handleOpenPrecedingReviews(findingEntityIds: readonly string[]): void {
-    pendingReviewFilter = { findingEntityIds };
-    pendingBugFilter = null;
-    activeTab = 'review';
-    tabs.update({ value: 'review' });
-    if (typeof globalThis.history !== 'undefined') {
-      globalThis.history.replaceState(null, '', '#memory/review');
-    }
-    if (dbExists === true) {
-      mountSubForTab('review');
     }
   }
 

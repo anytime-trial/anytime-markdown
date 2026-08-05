@@ -56,6 +56,11 @@ function buildTestDb(dbPath: string): void {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ['bf-1', 'abc123', 'ent-1', 'trail-viewer', 'logic', 'Fix null ref', TS, TS],
   );
+  run(
+    `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, related_session_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['bf-2', 'def456', 'ent-1', 'trail-server', 'spec', 'Fix aggregation boundary', TS, TS, 'sess-1'],
+  );
 
   // Seed: reviews and findings
   run(
@@ -210,7 +215,7 @@ describe('MemoryApiHandler', () => {
 
   describe('getBugHistory', () => {
     it('returns bug fix records', async () => {
-      const rows = await handler.getBugHistory({});
+      const rows = await handler.getBugHistory({ package: 'trail-viewer' });
       expect(rows.length).toBe(1);
       expect(rows[0]?.commitSha).toBe('abc123');
       expect(rows[0]?.package).toBe('trail-viewer');
@@ -219,6 +224,23 @@ describe('MemoryApiHandler', () => {
     it('filters by package', async () => {
       const rows = await handler.getBugHistory({ package: 'no-such' });
       expect(rows).toEqual([]);
+    });
+
+    it('filters by sessionIds (Flight Record の指示単位の絞り込み)', async () => {
+      const rows = await handler.getBugHistory({ sessionIds: ['sess-1'] });
+      expect(rows.map((r) => r.commitSha)).toEqual(['def456']);
+    });
+
+    // 空配列は「絞り込み対象が 0 件」。条件を落として全件返すと、セッション不明の指示が
+    // 全バグを自分の成果として表示してしまう。
+    it('sessionIds が空配列なら 0 件を返す（絞り込み無しに退行しない）', async () => {
+      const rows = await handler.getBugHistory({ sessionIds: [] });
+      expect(rows).toEqual([]);
+    });
+
+    it('sessionIds 未指定なら絞り込まない', async () => {
+      const rows = await handler.getBugHistory({});
+      expect(rows.length).toBe(2);
     });
   });
 

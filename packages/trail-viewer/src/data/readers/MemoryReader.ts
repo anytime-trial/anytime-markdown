@@ -106,14 +106,43 @@ export class MemoryReader {
     pkg?: string;
     filePath?: string;
     category?: string;
+    /**
+     * 指示に属するセッションで絞る。空配列は「該当 0 件」としてサーバへ伝える
+     * （パラメータを落とすと絞り込み無しになり、全バグが 1 指示の成果に見える）。
+     */
+    sessionIds?: readonly string[];
     limit?: number;
   } = {}): Promise<readonly MemoryBugHistoryRow[]> {
     const q = new URLSearchParams();
     if (params.pkg) q.set('pkg', params.pkg);
     if (params.filePath) q.set('filePath', params.filePath);
     if (params.category) q.set('category', params.category);
+    if (params.sessionIds !== undefined) q.set('sessionIds', params.sessionIds.join(','));
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryBugHistoryRow[]>(`/api/memory/bugs/history?${q}`);
+  }
+
+  /**
+   * `getBugHistory` の失敗を投げる版。
+   *
+   * `fetchJson` は取得失敗を空配列で返すため、呼び出し側からは「0 件」と「取れなかった」が
+   * 区別できない。Flight Record の詳細ペインは障害を実績 0 件として見せてはならないので、
+   * こちらを使って失敗を表に出す。既存パネルの空表示の挙動は変えない。
+   */
+  async getBugHistoryStrict(params: {
+    pkg?: string;
+    category?: string;
+    sessionIds?: readonly string[];
+    limit?: number;
+  } = {}): Promise<readonly MemoryBugHistoryRow[]> {
+    const q = new URLSearchParams();
+    if (params.pkg) q.set('pkg', params.pkg);
+    if (params.category) q.set('category', params.category);
+    if (params.sessionIds !== undefined) q.set('sessionIds', params.sessionIds.join(','));
+    if (params.limit !== undefined) q.set('limit', String(params.limit));
+    const res = await fetch(`${this.serverUrl}/api/memory/bugs/history?${q}`);
+    if (!res.ok) throw new Error(`GET /api/memory/bugs/history failed: ${res.status}`);
+    return await res.json() as MemoryBugHistoryRow[];
   }
 
   async getBugCausalInfo(bugEntityId: string): Promise<MemoryBugCausalInfo | null> {

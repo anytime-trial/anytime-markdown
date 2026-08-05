@@ -416,6 +416,23 @@ export function mountTrailViewer(
     };
   }
 
+  /**
+   * セッション ID から Messages を開く。Bug Fixed の行から会話へ辿るために使う
+   * （旧 Memory の Bugs / Reviews が持っていた導線を Flight Record 側へ引き継いだ）。
+   */
+  function openSessionMessages(sessionId: string): void {
+    const allSessions = props.allSessions ?? props.sessions;
+    const session = allSessions.find((s) => s.id === sessionId);
+    const query = session?.slug || sessionId;
+    props.onFilterChange({
+      ...props.filter,
+      ...(session?.workspace ? { workspace: session.workspace } : {}),
+      searchText: query,
+    });
+    props.onSelectSession(sessionId);
+    openMessagesPopup();
+  }
+
   // ── Derive MemoryPanel props ──
   function buildMemoryProps(): MemoryPanelViewProps {
     return {
@@ -423,18 +440,6 @@ export function mountTrailViewer(
       tokens: props.tokens,
       isDark: props.isDark ?? true,
       t: props.t,
-      onOpenSessionMessages: (sessionId: string) => {
-        const allSessions = props.allSessions ?? props.sessions;
-        const session = allSessions.find((s) => s.id === sessionId);
-        const query = session?.slug || sessionId;
-        props.onFilterChange({
-          ...props.filter,
-          ...(session?.workspace ? { workspace: session.workspace } : {}),
-          searchText: query,
-        });
-        props.onSelectSession(sessionId);
-        openMessagesPopup();
-      },
     };
   }
 
@@ -480,6 +485,9 @@ export function mountTrailViewer(
       store: instructionStore,
       reviewStore: flightReviewStore,
       findingStore: flightFindingStore,
+      // Bug Fixed サブタブは memory-core を直接読む（指示 store とは別経路）
+      serverUrl,
+      onOpenSessionMessages: openSessionMessages,
       // 指摘の対象ファイルを開けるのは host（VS Code 拡張）が居るときだけ。配線は C4 の
       // 「ファイルを開く」と同じ props.c4.onOpenFile を共有する（経路を二重に持たない）。
       // 未配線ならリンクにせずテキストで出す（押せないボタンを出さない）。

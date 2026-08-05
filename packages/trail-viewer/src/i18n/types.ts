@@ -502,8 +502,6 @@ export interface TrailI18n {
   'memory.noDb': string;
   'memory.noDb.description': string;
   'memory.drift.tab': string;
-  'memory.bug.tab': string;
-  'memory.review.tab': string;
   'memory.runs.tab': string;
   // drift sub-tab
   'memory.drift.empty': string;
@@ -539,41 +537,26 @@ export interface TrailI18n {
   'memory.drift.fixTarget.spec': string;
   'memory.drift.fixTarget.conv': string;
   // bug sub-tab
-  'memory.bug.empty': string;
-  'memory.bug.recurring': string;
-  'memory.bug.history': string;
-  'memory.bug.filterPackage': string;
-  'memory.bug.filterCategory': string;
-  'memory.bug.causedBy.title': string;
-  'memory.bug.causedBy.empty': string;
-  'memory.bug.openInMessages': string;
-  'memory.bug.precededByCount': string;
-  'memory.bug.causal.thisBug': string;
-  'memory.bug.causal.sibling': string;
-  'memory.bug.causal.sibling.tooltip': string;
-  'memory.bug.causal.preceding': string;
-  'memory.bug.causal.introducedBy': string;
-  'memory.bug.causal.affectedFiles': string;
-  'memory.bug.causal.rootCauses': string;
-  'memory.bug.causal.noCauses': string;
-  'memory.bug.causal.bugsUnit': string;
-  'memory.bug.causal.findingsUnit': string;
-  'memory.review.precedesBugCount': string;
+  'flightRecord.bugfix.empty': string;
+  'flightRecord.bugfix.recurring': string;
+  'flightRecord.bugfix.history': string;
+  'flightRecord.bugfix.filterPackage': string;
+  'flightRecord.bugfix.filterCategory': string;
+  'flightRecord.bugfix.causedBy.title': string;
+  'flightRecord.bugfix.causedBy.empty': string;
+  'flightRecord.bugfix.openInMessages': string;
+  'flightRecord.bugfix.precededByCount': string;
+  'flightRecord.bugfix.causal.thisBug': string;
+  'flightRecord.bugfix.causal.sibling': string;
+  'flightRecord.bugfix.causal.sibling.tooltip': string;
+  'flightRecord.bugfix.causal.preceding': string;
+  'flightRecord.bugfix.causal.introducedBy': string;
+  'flightRecord.bugfix.causal.affectedFiles': string;
+  'flightRecord.bugfix.causal.rootCauses': string;
+  'flightRecord.bugfix.causal.noCauses': string;
+  'flightRecord.bugfix.causal.bugsUnit': string;
+  'flightRecord.bugfix.causal.findingsUnit': string;
   // review sub-tab
-  'memory.review.empty': string;
-  'memory.review.unaddressed': string;
-  'memory.review.history': string;
-  'memory.review.filterFile': string;
-  'memory.review.filterSeverity': string;
-  'memory.review.filterCategory': string;
-  'memory.review.filterStatus': string;
-  'memory.review.filterWorkspace': string;
-  'memory.review.filterAll': string;
-  'memory.review.workspaceUnresolved': string;
-  'memory.review.column.workspace': string;
-  'memory.review.openInMessages': string;
-  'memory.review.flow.addressed': string;
-  'memory.review.flow.notAddressed': string;
   // pipeline sub-tab
   'memory.runs.empty': string;
   'memory.runs.filterScope': string;
@@ -696,6 +679,7 @@ export interface TrailI18n {
   'flightRecord.filter.tag': string;
   'flightRecord.exportCsv': string;
   'flightRecord.loadFailed': string;
+  'flightRecord.loading': string;
   'flightRecord.empty': string;
   'flightRecord.outcome.achieved': string;
   'flightRecord.outcome.partial': string;
@@ -716,6 +700,8 @@ export interface TrailI18n {
   'flightRecord.detail.startedAt': string;
   'flightRecord.detail.deliverables': string;
   'flightRecord.detail.uncommitted': string;
+  'flightRecord.detail.bugFixed': string;
+  'flightRecord.detail.bugFixedAll': string;
   'flightRecord.detail.tokenUsage': string;
   'flightRecord.detail.sessions': string;
   'flightRecord.token.model': string;
@@ -735,6 +721,7 @@ export interface TrailI18n {
   'flightRecord.column.findings': string;
   'flightRecord.tab.instruction': string;
   'flightRecord.tab.review': string;
+  'flightRecord.tab.bugfix': string;
   'flightRecord.findings.title': string;
   'flightRecord.findings.none': string;
   'flightRecord.findings.loadFailed': string;

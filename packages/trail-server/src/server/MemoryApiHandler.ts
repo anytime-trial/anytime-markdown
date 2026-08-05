@@ -103,6 +103,12 @@ export interface ReviewHistoryRow {
  */
 export interface FlightReviewFindingRow {
   id: string;
+  /**
+   * memory_edges の `precedes` が指すのは finding の **entity id** であり行 id ではない。
+   * バグ側の「事前指摘」チップから指摘へ絞り込むには両者を同じキーで揃える必要があるため、
+   * 行 id と併せて entity id も返す。
+   */
+  findingEntityId: string;
   reviewId: string;
   instructionId: string;
   sessionId: string;
@@ -522,6 +528,12 @@ export class MemoryApiHandler {
     package?: string;
     filePath?: string;
     category?: string;
+    /**
+     * 指示に属するセッションで絞る。Flight Record の詳細ペインは「この指示が潰したバグ」を
+     * 出すため、クライアント側で最新 N 件を絞るのではなくここで絞る（limit で先に切られると
+     * 古い指示のバグが「0 件」に化けて、無いのか出ていないのか区別できなくなる）。
+     */
+    sessionIds?: readonly string[];
     limit?: number;
   }): Promise<BugHistoryRow[]> {
     const db = this.openReadOnly();
@@ -537,6 +549,13 @@ export class MemoryApiHandler {
       if (params.category) {
         conditions.push('bf.category = ?');
         bindValues.push(params.category);
+      }
+      if (params.sessionIds !== undefined) {
+        // 空配列は「絞り込み対象が 0 件」であって「絞り込み無し」ではない。ここで
+        // 条件を落とすと全バグが返り、セッション不明の指示が全件を自分の成果に見せる。
+        if (params.sessionIds.length === 0) return [];
+        conditions.push(`bf.related_session_id IN (${params.sessionIds.map(() => '?').join(',')})`);
+        bindValues.push(...params.sessionIds);
       }
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
@@ -857,7 +876,7 @@ export class MemoryApiHandler {
                      f.session_id
                    ) AS instruction_id
             FROM (
-              SELECT rf.id, rf.review_id, rf.target_file_path, rf.target_repo,
+              SELECT rf.id, rf.finding_entity_id, rf.review_id, rf.target_file_path, rf.target_repo,
                      rf.category, rf.severity, rf.finding_text,
                      rf.addressed_commit_sha, rf.addressed_at,
                      r.title, r.reviewer, r.reviewed_at, r.workspace,
@@ -946,6 +965,7 @@ export class MemoryApiHandler {
         const r = mapRow<Record<string, unknown>>(columns, row);
         return {
           id: toStr(r['id']),
+          findingEntityId: toStr(r['finding_entity_id']),
           reviewId: toStr(r['review_id']),
           instructionId: toStr(r['instruction_id']),
           sessionId: toStr(r['session_id']),

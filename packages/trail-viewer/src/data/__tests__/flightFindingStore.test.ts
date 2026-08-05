@@ -4,6 +4,7 @@ import type { MemoryFlightReviewFindingRow } from '../types';
 function finding(overrides: Partial<MemoryFlightReviewFindingRow> = {}): MemoryFlightReviewFindingRow {
   return {
     id: 'rf-1',
+    findingEntityId: 'finding:rf-1',
     reviewId: 'rev-1',
     instructionId: 'inst-1',
     sessionId: 'sess-1',

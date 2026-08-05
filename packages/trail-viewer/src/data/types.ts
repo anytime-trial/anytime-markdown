@@ -169,6 +169,8 @@ export interface MemoryReviewHistoryRow {
  */
 export interface MemoryFlightReviewFindingRow {
   readonly id: string;
+  /** `precedes` エッジ（バグ → 事前指摘）が指すキー。行 id とは別物。 */
+  readonly findingEntityId: string;
   readonly reviewId: string;
   readonly instructionId: string;
   readonly sessionId: string;

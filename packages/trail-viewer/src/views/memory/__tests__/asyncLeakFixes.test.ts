@@ -7,7 +7,6 @@
  *  2. renderTable() leaks Tooltip/IconButton handles on filter change
  */
 import { mountBugHistoryPanel, type BugHistoryPanelProps } from '../bugHistoryPanel';
-import { mountReviewPanel, type ReviewPanelProps } from '../reviewPanel';
 import { mountPipelineRunsPanel, type PipelineRunsPanelProps } from '../pipelineRunsPanel';
 import type { MemoryReader } from '../../../data/readers/MemoryReader';
 import type {
@@ -127,31 +126,6 @@ describe('mountBugHistoryPanel — Fix A: destroy guard', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Fix A: mountReviewPanel — late async does not mutate after destroy
-// ---------------------------------------------------------------------------
-
-describe('mountReviewPanel — Fix A: destroy guard', () => {
-  it('late-resolving load() does not mutate container after destroy()', async () => {
-    const { promise, resolve } = deferred<readonly MemoryReviewHistoryRow[]>();
-    const reader = makeReader({
-      getReviewHistory: () => promise,
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    } as Partial<MemoryReader>);
-
-    const c = document.createElement('div');
-    const handle = mountReviewPanel(c, { t, reader } as ReviewPanelProps);
-
-    handle.destroy();
-    expect(c.childElementCount).toBe(0);
-
-    resolve([makeReviewRow()]);
-    await flush();
-
-    expect(c.childElementCount).toBe(0);
-    expect(c.querySelector('[aria-label="review-history-table"]')).toBeNull();
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Fix A: mountPipelineRunsPanel — late async does not mutate after destroy
@@ -268,46 +242,3 @@ describe('mountBugHistoryPanel — Fix B: row handle cleanup', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Fix B: mountReviewPanel — renderTable does not accumulate row handles
-// ---------------------------------------------------------------------------
-
-describe('mountReviewPanel — Fix B: row handle cleanup', () => {
-  it('tooltip/iconButton handles are destroyed on re-render and destroy()', async () => {
-    const row1 = makeReviewRow({ id: 'r1', findingEntityId: 'f1', sessionId: 'sess-1', precedesBugEntityIds: ['b1'] });
-    const row2 = makeReviewRow({ id: 'r2', findingEntityId: 'f2', severity: 'error' });
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve([row1, row2]),
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    } as Partial<MemoryReader>);
-
-    const c = document.createElement('div');
-    const props: ReviewPanelProps = {
-      t,
-      reader,
-      onOpenSessionMessages: () => {},
-      onOpenPrecedingBugs: () => {},
-    };
-    const handle = mountReviewPanel(c, props);
-    await flush();
-
-    expect(c.querySelector('[aria-label="review-history-table"]')).not.toBeNull();
-
-    // Trigger re-render via filter (pending filter for f1 only)
-    handle.update({ ...props, pendingReviewFilter: { findingEntityIds: ['f1'] } });
-    await flush();
-
-    let trs = c.querySelectorAll('[aria-label="review-history-table"] tbody tr');
-    expect(trs.length).toBe(1);
-
-    // Clear filter — second re-render, must not throw
-    handle.update({ ...props });
-    await flush();
-
-    trs = c.querySelectorAll('[aria-label="review-history-table"] tbody tr');
-    expect(trs.length).toBe(2);
-
-    // Destroy must not throw even with accumulated handles from multiple renders
-    expect(() => handle.destroy()).not.toThrow();
-  });
-});
