@@ -218,8 +218,9 @@ describe('flightRecordPanel', () => {
       return globalThis.getComputedStyle(el).display;
     };
 
-    // 指示タブ: バグ / Review の器は描画されない
+    // 指示タブ: バグ / Review / Drift の器は描画されない
     expect(displayOf('[data-am-flight-bugfix]')).toBe('none');
+    expect(displayOf('[data-am-flight-drift]')).toBe('none');
 
     container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
     await settle();
@@ -907,9 +908,12 @@ describe('flightRecordPanel', () => {
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="drift"]')?.click();
       await settle();
 
-      const driftRegion = container.querySelector('[data-am-flight-drift]');
-      expect(driftRegion?.hasAttribute('hidden')).toBe(false);
-      expect(container.querySelector('[data-am-flight-body]')?.hasAttribute('hidden')).toBe(true);
+      const driftRegion = container.querySelector<HTMLElement>('[data-am-flight-drift]');
+      // 属性ではなく描画結果で見る（インライン display は [hidden] の打ち消しに勝つため、
+      // hasAttribute だけでは「隠したはずの器が残る」破れを素通りさせる）。
+      expect(driftRegion === null ? 'none' : globalThis.getComputedStyle(driftRegion).display).not.toBe('none');
+      const bodyEl = container.querySelector<HTMLElement>('[data-am-flight-body]');
+      expect(bodyEl === null ? 'none' : globalThis.getComputedStyle(bodyEl).display).toBe('none');
       expect(driftRegion?.textContent).toContain('Foo');
       expect(driftRegion?.textContent).toContain('spec_vs_code');
       handle.destroy();
@@ -922,8 +926,8 @@ describe('flightRecordPanel', () => {
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="instruction"]')?.click();
       await settle();
 
-      const driftRegion = container.querySelector('[data-am-flight-drift]');
-      expect(driftRegion?.hasAttribute('hidden')).toBe(true);
+      const driftRegion = container.querySelector<HTMLElement>('[data-am-flight-drift]');
+      expect(driftRegion === null ? '' : globalThis.getComputedStyle(driftRegion).display).toBe('none');
       expect(driftRegion?.textContent).toContain('Foo');
       handle.destroy();
     });

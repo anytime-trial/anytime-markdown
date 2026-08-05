@@ -116,6 +116,10 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
   color: ${c.textPrimary}; border-bottom-color: ${c.info}; font-weight: 600;
 }
 [data-am-flight-review] { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* Drift サブタブ。中身は memory 由来のドリフト一覧がそのまま描く。器の寸法はインラインで
+   置かず注入スタイルへ寄せる（インラインの display は末尾の [hidden] 打ち消しにも勝ってしまい、
+   「隠したはずの Drift が他タブの上に残る」形で現れる）。 */
+[data-am-flight-drift] { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 /* Bug Fixed サブタブ。中身は memory 由来のバグ履歴パネルがそのまま描く。 */
 [data-am-flight-bugfix] { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 /* 詳細ペインの Bug Fixed 節。指示が潰したバグを行で並べ、クリックでタブへ送る。 */
@@ -321,6 +325,7 @@ button[data-am-finding-open] {
 [data-am-flight-toolbar][hidden],
 [data-am-flight-body][hidden],
 [data-am-flight-bugfix][hidden],
+[data-am-flight-drift][hidden],
 [data-am-flight-review][hidden] { display: none; }
 `;
   doc.head.appendChild(style);
@@ -487,7 +492,6 @@ export function mountFlightRecordPanel(
   driftRegion.setAttribute('role', 'tabpanel');
   driftRegion.setAttribute('aria-labelledby', 'flight-tab-drift');
   driftRegion.hidden = true;
-  driftRegion.style.cssText = 'flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;';
   root.appendChild(driftRegion);
 
   let driftHandle: VanillaViewHandle<DriftSectionProps> | null = null;
