@@ -1130,6 +1130,11 @@ export class MemoryApiHandler {
   }
 
   // ---- edge invalidations ----
+  // 現在 UI の消費者は無い（2026-08-05 に Runs パネルから撤去）。将来のグラフ表示で
+  // 失効エッジの重畳・時点指定に使うため意図的に残す。消費者ゼロを根拠に撤去しないこと。
+  // 失効エッジは valid_to が入って現在断面のグラフから外れるため、この経路以外に
+  // 「何がいつ何に置き換わったか」の供給元が無い。
+  // 経緯: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-memory.ja.md §7.1
 
   async listInvalidations(params: {
     since?: string;

@@ -1109,6 +1109,7 @@ export class TrailDataServer {
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
 
+    // 消費者は将来のグラフ表示。撤去可否は MemoryApiHandler.listInvalidations のコメント参照
     t.exact('GET', '/api/memory/edges/invalidations', (ctx) =>
       this.respondMemoryJson(ctx.res, '/api/memory/edges/invalidations', this.memoryApi.listInvalidations({
         since: ctx.queryOpt('since'),

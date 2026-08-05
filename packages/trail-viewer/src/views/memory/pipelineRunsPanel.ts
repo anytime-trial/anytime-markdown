@@ -393,7 +393,6 @@ export function mountPipelineRunsPanel(
   let timelineMount: HTMLElement | null = null;
   let runsBody: HTMLElement | null = null;
   let failedItemsBody: HTMLElement | null = null;
-  let emptyEl: HTMLElement | null = null;
 
   function renderEmpty(): void {
     root.replaceChildren();
@@ -406,7 +405,6 @@ export function mountPipelineRunsPanel(
       'padding:24px;display:flex;align-items:center;justify-content:center;font-size:0.875rem;color:var(--am-color-text-secondary);';
     msg.textContent = props.t('memory.runs.empty');
     root.appendChild(msg);
-    emptyEl = msg;
   }
 
   function renderSections(): void {
@@ -418,7 +416,6 @@ export function mountPipelineRunsPanel(
     // Build layout on first render
     if (!timelineBody) {
       root.replaceChildren();
-      emptyEl = null;
 
       // Section 1: Timeline
       const { wrap: wrap1, body: body1 } = makeSection(props.t('memory.runs.timeline'));
