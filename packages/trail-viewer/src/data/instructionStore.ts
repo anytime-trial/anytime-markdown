@@ -25,6 +25,22 @@ export interface InstructionDeliverableDto {
   readonly commitHash: string;
 }
 
+export type VerificationKindDto = 'unit' | 'build' | 'next-build' | 'typecheck' | 'lint' | 'e2e' | 'manual';
+
+/** trail-core の InstructionVerificationRun の DTO（kind ごとに最新 1 件）。 */
+export interface InstructionVerificationRunDto {
+  readonly kind: VerificationKindDto;
+  readonly package: string;
+  readonly command: string;
+  readonly status: 'pass' | 'fail' | 'error';
+  readonly durationMs: number;
+  readonly commitHash: string;
+  readonly treeState: 'clean' | 'dirty';
+  /** null は dirty なツリーでの実行。「このコミットで検証済み」の根拠にはならない。 */
+  readonly codeStateHash: string | null;
+  readonly startedAt: string;
+}
+
 export interface InstructionTokenUsageByModelDto {
   readonly model: string;
   readonly inputTokens: number;
@@ -65,6 +81,7 @@ export interface InstructionRecordDto {
   readonly closedAt: string | null;
   readonly tokenUsage: InstructionTokenUsageDto;
   readonly deliverables: readonly InstructionDeliverableDto[];
+  readonly verifications: readonly InstructionVerificationRunDto[];
 }
 
 export interface InstructionSessionDto {

@@ -96,6 +96,7 @@ function instructionRecord(overrides: Partial<InstructionRecordDto> = {}): Instr
       byModel: [],
     },
     deliverables: [],
+    verifications: [],
     ...overrides,
   };
 }

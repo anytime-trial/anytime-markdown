@@ -6,6 +6,7 @@ import type {
   FlightReview,
   Instruction,
   InstructionDeliverable,
+  InstructionVerificationRun,
   InstructionTokenUsage,
 } from '../../model';
 
@@ -59,6 +60,7 @@ function assemble(reviews: FlightReview[], extra?: {
   sessionCount?: number;
   tokenUsage?: InstructionTokenUsage;
   deliverables?: InstructionDeliverable[];
+  verifications?: InstructionVerificationRun[];
 }) {
   return assembleInstructionRecord({
     instruction: INSTRUCTION,
@@ -66,10 +68,32 @@ function assemble(reviews: FlightReview[], extra?: {
     sessionCount: extra?.sessionCount ?? reviews.length,
     tokenUsage: extra?.tokenUsage ?? EMPTY_TOKENS,
     deliverables: extra?.deliverables ?? [],
+    verifications: extra?.verifications ?? [],
   });
 }
 
 describe('assembleInstructionRecord', () => {
+  it('検証実行をそのまま 1 行へ引き継ぐ（指示タブの検証列の入力）', () => {
+    const verifications: InstructionVerificationRun[] = [
+      {
+        kind: 'unit',
+        package: 'trail-db',
+        command: 'npx jest packages/trail-db',
+        status: 'pass',
+        durationMs: 1200,
+        commitHash: 'abc12345',
+        treeState: 'clean',
+        codeStateHash: 'abc12345',
+        startedAt: '2026-08-05T01:00:00.000Z',
+      },
+    ];
+    const record = assemble([review({ sessionId: 's1', endedAt: '2026-08-05T01:00:00.000Z' })], { verifications });
+
+    expect(record.verifications).toHaveLength(1);
+    expect(record.verifications[0]?.kind).toBe('unit');
+    expect(record.verifications[0]?.status).toBe('pass');
+  });
+
   it('指示のメタ情報をそのまま 1 行へ引き継ぐ', () => {
     const record = assemble([review({ sessionId: 's1', endedAt: '2026-08-05T01:00:00.000Z' })]);
 

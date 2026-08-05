@@ -25,6 +25,7 @@ import type { FlightReviewOutcome, FlightReviewStore } from '../data/flightRevie
 import type {
   InstructionDeliverableDto,
   InstructionRecordDto,
+  InstructionVerificationRunDto,
   InstructionStore,
   InstructionTokenUsageDto,
 } from '../data/instructionStore';
@@ -269,6 +270,19 @@ button[data-am-finding-open] {
 }
 [data-am-deliverable-badge][data-committed="false"] { color: ${c.warning}; border-color: ${c.warning}; }
 [data-am-deliverable-badge][data-committed="true"] { color: ${c.textSecondary}; }
+[data-am-verify-badges] { display: flex; flex-wrap: wrap; gap: 3px; }
+[data-am-verify-badge] {
+  padding: 1px 6px; border-radius: 4px; font-size: 10px; border: 1px solid transparent; white-space: nowrap;
+}
+[data-am-verify-badge][data-status="pass"] { background: ${c.successBg}; color: ${c.success}; }
+[data-am-verify-badge][data-status="fail"] { background: ${c.errorBg}; color: ${c.error}; }
+[data-am-verify-badge][data-status="error"] { background: ${c.errorBg}; color: ${c.error}; }
+/* dirty なツリーでの実行は「このコミットで検証済み」の根拠にならないので破線で区別する */
+[data-am-verify-badge][data-stale="true"] { border-style: dashed; border-color: currentColor; }
+[data-am-verify-list] { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+[data-am-verify-list] li { display: flex; gap: 6px; align-items: baseline; padding: 2px 0; }
+[data-am-verify-command] { font-family: ui-monospace, monospace; word-break: break-all; }
+[data-am-verify-meta] { color: ${c.textSecondary}; font-size: 11px; white-space: nowrap; }
 [data-am-token-table] { width: 100%; border-collapse: collapse; font-size: 11px; }
 [data-am-token-table] th, [data-am-token-table] td {
   text-align: right; padding: 3px 6px; border-bottom: 1px solid ${c.border};
@@ -364,6 +378,22 @@ function deliverableCounts(deliverables: readonly InstructionDeliverableDto[]): 
     else code += 1;
   }
   return { docs, code };
+}
+
+/**
+ * 一覧の検証列。実施済みの kind をバッジで並べる（コマンド全文は詳細ペインが担う）。
+ *
+ * kind 名は種別の識別子で、i18n の対象にしない — `npm run verify:<kind>` や run-verified の
+ * 引数としてそのまま打つ値であり、訳すと画面とコマンドが一致しなくなる。
+ */
+function verificationBadges(runs: readonly InstructionVerificationRunDto[]): string {
+  if (runs.length === 0) return '<span data-am-verify-none>—</span>';
+  return `<span data-am-verify-badges>${runs
+    .map(
+      (r) =>
+        `<span data-am-verify-badge data-status="${r.status}" data-kind="${escapeHtml(r.kind)}" data-stale="${r.codeStateHash === null}">${escapeHtml(r.kind)}</span>`,
+    )
+    .join('')}</span>`;
 }
 
 /** トークンの総量。input / output / cache を合算した「動かした量」を 1 列で示す。 */
@@ -637,6 +667,7 @@ export function mountFlightRecordPanel(
           <td><span data-am-source-badge data-source="${r.outcomeSource}">${escapeHtml(t(`flightRecord.source.${r.outcomeSource}`))}</span></td>
           <td>${r.sessionCount}</td>
           <td>${escapeHtml(deliverableLabel)}</td>
+          <td data-am-verify-cell>${verificationBadges(r.verifications)}</td>
           <td>${escapeHtml(tokens)}</td>
           <td>${escapeHtml(cost)}</td>
           <td>${r.reworkCount}</td>
@@ -662,6 +693,7 @@ export function mountFlightRecordPanel(
             <th>${escapeHtml(t('flightRecord.column.source'))}</th>
             <th>${escapeHtml(t('flightRecord.column.sessions'))}</th>
             <th>${escapeHtml(t('flightRecord.column.deliverables'))}</th>
+            <th>${escapeHtml(t('flightRecord.column.verifications'))}</th>
             <th>${escapeHtml(t('flightRecord.column.tokens'))}</th>
             <th>${escapeHtml(t('flightRecord.column.cost'))}</th>
             <th>${escapeHtml(t('flightRecord.column.rework'))}</th>
@@ -706,6 +738,27 @@ export function mountFlightRecordPanel(
       })
       .join('');
     return `<ul data-am-deliverable-list>${items}</ul>`;
+  }
+
+  function renderVerifications(record: InstructionRecordDto): string {
+    const { t } = props;
+    if (record.verifications.length === 0) {
+      return `<p data-am-retro-empty>${escapeHtml(t('flightRecord.detail.none'))}</p>`;
+    }
+    const items = record.verifications
+      .map((v) => {
+        // dirty 実行は「そのコミットで検証済み」と読めないため、コミットの代わりに明示する
+        const at = v.codeStateHash === null
+          ? t('flightRecord.verification.dirtyTree')
+          : v.commitHash.slice(0, 8);
+        return `<li>
+          <span data-am-verify-badge data-status="${v.status}" data-kind="${escapeHtml(v.kind)}" data-stale="${v.codeStateHash === null}">${escapeHtml(v.kind)}</span>
+          <span data-am-verify-command>${escapeHtml(v.command)}</span>
+          <span data-am-verify-meta>${escapeHtml(`${v.package} · ${at} · ${formatDateTime(v.startedAt)}`)}</span>
+        </li>`;
+      })
+      .join('');
+    return `<ul data-am-verify-list>${items}</ul>`;
   }
 
   /**
@@ -843,6 +896,8 @@ export function mountFlightRecordPanel(
       </dl>
       <h4>${escapeHtml(t('flightRecord.detail.deliverables'))}</h4>
       ${renderDeliverables(record)}
+      <h4>${escapeHtml(t('flightRecord.detail.verifications'))}</h4>
+      ${renderVerifications(record)}
       <h4>${escapeHtml(t('flightRecord.detail.bugFixed'))}</h4>
       ${renderBugFixedSection()}
       <h4>${escapeHtml(t('flightRecord.detail.tokenUsage'))}</h4>

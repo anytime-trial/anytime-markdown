@@ -62,6 +62,8 @@ import {
   CREATE_INSTRUCTION_SESSIONS,
   CREATE_INSTRUCTIONS,
   CREATE_INDEXES,
+  CREATE_VERIFICATION_RUN_INDEXES,
+  CREATE_VERIFICATION_RUNS,
   CREATE_USER_FEEDBACK_ENTRIES,
   CREATE_USER_FEEDBACK_INDEXES,
   CREATE_MESSAGE_COMMITS,
@@ -100,7 +102,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, assembleInstructionRecord, computeDefectRisk, foldInstructionDeliverables, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type Instruction, type InstructionContinueInput, type InstructionDeliverable, type InstructionOpenInput, type InstructionRecord, type InstructionRecordFilter, type InstructionSession, type InstructionTokenUsage, type InstructionTokenUsageByModel, type RationaleAuditStatus, type IC4ModelStore,
+import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, assembleInstructionRecord, computeDefectRisk, foldInstructionDeliverables, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type Instruction, type InstructionContinueInput, type InstructionDeliverable, type InstructionOpenInput, type InstructionRecord, type InstructionRecordFilter, type InstructionSession, type InstructionTokenUsage, type InstructionTokenUsageByModel, type InstructionVerificationRun, VERIFICATION_KINDS, type VerificationKind, type VerificationRunStatus, type RationaleAuditStatus, type IC4ModelStore,
   type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -4082,6 +4084,12 @@ export class TrailDatabase {
     db.run(CREATE_INSTRUCTIONS);
     db.run(CREATE_INSTRUCTION_SESSIONS);
     for (const idx of CREATE_INSTRUCTION_INDEXES) {
+      db.run(idx);
+    }
+    // 検証実施台帳。writer は scripts/run-verified.mjs（別プロセス）で、拡張が先に作る保証は無い
+    // ため双方が CREATE TABLE IF NOT EXISTS を持つ。新規テーブルのみ。
+    db.run(CREATE_VERIFICATION_RUNS);
+    for (const idx of CREATE_VERIFICATION_RUN_INDEXES) {
       db.run(idx);
     }
     // 自律受入基盤 S5 (受入台帳)。新規テーブルのみ。
@@ -9762,6 +9770,7 @@ export class TrailDatabase {
           sessionCount: sessionIds.length,
           tokenUsage: EMPTY_TOKEN_USAGE,
           deliverables: [],
+          verifications: [],
         }),
       );
     }
@@ -9784,6 +9793,7 @@ export class TrailDatabase {
           sessionCount: 1,
           tokenUsage: EMPTY_TOKEN_USAGE,
           deliverables: [],
+          verifications: [],
         }),
       );
     }
@@ -9797,6 +9807,7 @@ export class TrailDatabase {
         ...record,
         tokenUsage: this.instructionTokenUsage(sessionIds),
         deliverables: this.instructionDeliverables(sessionIds),
+        verifications: this.instructionVerifications(sessionIds),
       };
     });
   }
@@ -9918,6 +9929,42 @@ export class TrailDatabase {
 
     // 2 本のクエリが同一パスを返しうる（コミット済みのファイルを編集した痕跡が残る）
     return foldInstructionDeliverables(deliverables);
+  }
+
+  /**
+   * 指示に属する検証実行を kind ごとに最新 1 件へ畳んで返す（scripts/run-verified.mjs が書く）。
+   *
+   * 結合キーは session_id のみ。宣言済みの指示では instruction_sessions が渡す所属セッション、
+   * 暗黙グループでは指示 ID = セッション ID なので、どちらも同じ IN 句で引ける。
+   */
+  private instructionVerifications(sessionIds: readonly string[]): InstructionVerificationRun[] {
+    if (sessionIds.length === 0) return [];
+    const db = this.ensureDb();
+    const placeholders = sessionIds.map(() => '?').join(', ');
+    const res = db.exec(
+      `SELECT kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, started_at
+       FROM verification_runs
+       WHERE session_id IN (${placeholders})
+       ORDER BY started_at`,
+      [...sessionIds],
+    );
+    // 昇順走査なので同一 kind は最後の代入が最新になる
+    const latest = new Map<string, InstructionVerificationRun>();
+    for (const row of res[0]?.values ?? []) {
+      const kind = row[0] as VerificationKind;
+      latest.set(kind, {
+        kind,
+        package: row[1] as string,
+        command: row[2] as string,
+        status: row[3] as VerificationRunStatus,
+        durationMs: row[4] as number,
+        commitHash: row[5] as string,
+        treeState: row[6] as 'clean' | 'dirty',
+        codeStateHash: (row[7] as string | null) ?? null,
+        startedAt: row[8] as string,
+      });
+    }
+    return [...latest.values()].sort((a, b) => VERIFICATION_KINDS.indexOf(a.kind) - VERIFICATION_KINDS.indexOf(b.kind));
   }
 
   markMessageCommitsResolved(sessionId: string, resolvedAt: string): void {

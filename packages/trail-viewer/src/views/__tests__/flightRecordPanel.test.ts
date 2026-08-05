@@ -41,6 +41,7 @@ function record(overrides: Partial<InstructionRecordDto> = {}): InstructionRecor
       byModel: [],
     },
     deliverables: [],
+    verifications: [],
     ...overrides,
   };
 }
@@ -200,6 +201,54 @@ describe('flightRecordPanel', () => {
     for (const sel of ['[data-am-flight-root]', '[data-am-flight-body]', '[data-am-flight-list]', '[data-am-flight-detail]']) {
       expect(ruleBody(css, sel)).toContain('min-height: 0');
     }
+    handle.destroy();
+  });
+
+  // ── 検証の実施状況（指示 : 検証実行の結合が画面へ出ているか） ──
+  //
+  // 台帳（trail.db の verification_runs）は session_id でしか指示へ畳めない。DB 側の結合が
+  // 落ちると列は静かに空になるため、「バッジが出ること」まで検査する。
+  it('指示一覧の検証列と詳細に、実施済みの検証が kind 別に出る', async () => {
+    const verifications = [
+      {
+        kind: 'unit' as const,
+        package: 'trail-db',
+        command: 'npx jest packages/trail-db',
+        status: 'pass' as const,
+        durationMs: 1200,
+        commitHash: 'abc1234567',
+        treeState: 'clean' as const,
+        codeStateHash: 'abc1234567',
+        startedAt: '2026-08-05T01:00:00.000Z',
+      },
+      {
+        kind: 'next-build' as const,
+        package: 'web-app',
+        command: 'npm run build -w @anytime-markdown/web-app',
+        status: 'fail' as const,
+        durationMs: 46000,
+        commitHash: 'abc1234567',
+        treeState: 'dirty' as const,
+        codeStateHash: null,
+        startedAt: '2026-08-05T02:00:00.000Z',
+      },
+    ];
+    stubList([record({ verifications })]);
+    const handle = await mountAndSettle([record({ verifications })]);
+
+    const cell = document.querySelector('[data-am-verify-cell]');
+    expect(cell).not.toBeNull();
+    const badges = Array.from(cell?.querySelectorAll('[data-am-verify-badge]') ?? []);
+    expect(badges.map((b) => b.getAttribute('data-kind'))).toEqual(['unit', 'next-build']);
+    expect(badges.map((b) => b.getAttribute('data-status'))).toEqual(['pass', 'fail']);
+    // dirty 実行は「このコミットで検証済み」の根拠にならないので区別が要る
+    expect(badges.map((b) => b.getAttribute('data-stale'))).toEqual(['false', 'true']);
+
+    // 詳細は行を選択して初めて描画される
+    document.querySelector<HTMLTableRowElement>('tbody tr[data-instruction-id]')?.click();
+    const detail = document.querySelector('[data-am-verify-list]');
+    expect(detail?.textContent).toContain('npx jest packages/trail-db');
+    expect(detail?.textContent).toContain('npm run build -w @anytime-markdown/web-app');
     handle.destroy();
   });
 

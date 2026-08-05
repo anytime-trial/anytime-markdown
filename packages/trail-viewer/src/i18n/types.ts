@@ -691,6 +691,7 @@ export interface TrailI18n {
   'flightRecord.column.workspace': string;
   'flightRecord.column.sessions': string;
   'flightRecord.column.deliverables': string;
+  'flightRecord.column.verifications': string;
   'flightRecord.column.tokens': string;
   'flightRecord.column.cost': string;
   'flightRecord.undeclared': string;
@@ -698,6 +699,8 @@ export interface TrailI18n {
   'flightRecord.deliverableCounts': string;
   'flightRecord.detail.startedAt': string;
   'flightRecord.detail.deliverables': string;
+  'flightRecord.detail.verifications': string;
+  'flightRecord.verification.dirtyTree': string;
   'flightRecord.detail.uncommitted': string;
   'flightRecord.detail.bugFixed': string;
   'flightRecord.detail.bugFixedAll': string;

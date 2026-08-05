@@ -140,6 +140,60 @@ describe('TrailDatabase instructions (Flight Record)', () => {
   });
 
   describe('指示単位の一覧', () => {
+    // 検証実行（trail.db の verification_runs）は session_id だけで指示へ畳む。宣言済みでも
+    // 暗黙グループでも同じキーで引けることが、指示タブの検証列の前提。
+    function insertRun(sessionId: string, kind: string, overrides: Record<string, string | number | null> = {}) {
+      rawRun(
+        db,
+        `INSERT INTO verification_runs
+         (session_id, workspace_path, kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, environment, started_at, finished_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          sessionId,
+          '/anytime-markdown',
+          kind,
+          overrides['package'] ?? 'trail-db',
+          overrides['command'] ?? `npm run verify:${kind}`,
+          overrides['status'] ?? 'pass',
+          1000,
+          'abc1234567',
+          overrides['tree_state'] ?? 'clean',
+          overrides['code_state_hash'] === undefined ? 'abc1234567' : overrides['code_state_hash'],
+          null,
+          overrides['started_at'] ?? '2026-08-05T03:00:00.000Z',
+          '2026-08-05T03:00:01.000Z',
+        ],
+      );
+    }
+
+    it('宣言済み指示は所属セッション全部の検証実行を集め、kind ごとに最新だけ残す', () => {
+      db.upsertFlightReviewFromMachine(machineInput('s1', '2026-08-05T01:00:00.000Z'));
+      db.upsertFlightReviewFromMachine(machineInput('s2', '2026-08-05T04:00:00.000Z'));
+      db.openInstruction(openInput('inst-1', 's1'));
+      db.continueInstruction({ instructionId: 'inst-1', sessionId: 's2', declaredAt: '2026-08-05T02:00:00.000Z' });
+      insertRun('s1', 'unit', { status: 'fail', started_at: '2026-08-05T03:00:00.000Z' });
+      insertRun('s2', 'unit', { started_at: '2026-08-05T05:00:00.000Z' });
+      insertRun('s2', 'lint');
+
+      const record = db.listInstructionRecords().find((r) => r.instructionId === 'inst-1');
+
+      expect(record?.verifications.map((v) => v.kind)).toEqual(['unit', 'lint']);
+      // 同じ kind は後の実行が勝つ（fail → pass の順で回したら pass が現状）
+      expect(record?.verifications.find((v) => v.kind === 'unit')?.status).toBe('pass');
+    });
+
+    it('宣言の無いセッションでも session_id で検証実行が紐づく（暗黙グループ）', () => {
+      db.upsertFlightReviewFromMachine(machineInput('solo', '2026-08-05T04:00:00.000Z'));
+      insertRun('solo', 'next-build', { tree_state: 'dirty', code_state_hash: null });
+
+      const record = db.listInstructionRecords().find((r) => r.instructionId === 'solo');
+
+      expect(record?.verifications).toHaveLength(1);
+      expect(record?.verifications[0]?.kind).toBe('next-build');
+      // dirty 実行は「そのコミットで検証済み」の根拠にしない
+      expect(record?.verifications[0]?.codeStateHash).toBeNull();
+    });
+
     it('複数セッションを 1 行へ畳み、時間と件数を合算する', () => {
       db.upsertFlightReviewFromMachine(machineInput('s1', '2026-08-05T01:00:00.000Z', { durationSeconds: 600, toolFailureCount: 1 }));
       db.upsertFlightReviewFromMachine(machineInput('s2', '2026-08-05T04:00:00.000Z', { durationSeconds: 1200, toolFailureCount: 2 }));
