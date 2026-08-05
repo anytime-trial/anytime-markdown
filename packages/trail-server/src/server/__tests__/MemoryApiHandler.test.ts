@@ -89,6 +89,7 @@ function buildTestDb(dbPath: string): void {
     target_refs_json TEXT NOT NULL DEFAULT '[]',
     title TEXT NOT NULL,
     reviewer TEXT NOT NULL DEFAULT '',
+    workspace TEXT NOT NULL DEFAULT '',
     reviewed_at TEXT NOT NULL,
     recorded_at TEXT NOT NULL
   ) STRICT`);
@@ -99,6 +100,7 @@ function buildTestDb(dbPath: string): void {
     finding_entity_id TEXT NOT NULL,
     finding_index INTEGER NOT NULL,
     target_file_path TEXT,
+    target_repo TEXT,
     category TEXT NOT NULL DEFAULT 'other',
     severity TEXT NOT NULL DEFAULT 'info',
     finding_text TEXT NOT NULL,

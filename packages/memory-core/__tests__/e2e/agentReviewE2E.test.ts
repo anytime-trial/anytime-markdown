@@ -93,6 +93,7 @@ test('Case 1: 3 findings → success, review_runs + reviews + findings rows', as
         ],
       }),
       ollama: noEmbeddingOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
 
@@ -154,6 +155,7 @@ test('Case 2: invalid severity → status=error + failed_items row', async () =>
         ],
       }),
       ollama: noEmbeddingOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
 
@@ -194,6 +196,7 @@ test('Case 3: external endpoint → rejected_external_endpoint, no findings', as
         ],
       }),
       ollama: noEmbeddingOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
 
@@ -281,6 +284,7 @@ test('Case 4: F21 merge — cosine ≥ 0.85 → merged_into set, findings_merged
         ],
       }),
       ollama: mergingOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
 
@@ -349,6 +353,7 @@ test('Case 5: stale run → watchdog error/timeout, then new ingest succeeds ind
         ],
       }),
       ollama: noEmbeddingOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
 

@@ -50,6 +50,8 @@ async function buildSetup(opts: {
   repoName?: string;
   reviewedAt?: string;
   findingRecordedAt?: string;
+  /** finding に記録する対象リポジトリ。null なら未解決（照合対象外）を表す。 */
+  targetRepo?: string | null;
 }): Promise<SetupResult> {
   const {
     findingText,
@@ -62,6 +64,7 @@ async function buildSetup(opts: {
     repoName = REPO_NAME,
     reviewedAt = TS_BASE,
     findingRecordedAt = TS_BASE,
+    targetRepo = repoName ?? REPO_NAME,
   } = opts;
 
   const tmpPath = makeTmpPath();
@@ -146,17 +149,17 @@ async function buildSetup(opts: {
     db.run(
       `INSERT OR IGNORE INTO memory_review_findings
          (id, review_id, finding_entity_id, finding_index,
-          target_file_path, severity, finding_text, recorded_at, addressed_at, addressed_commit_sha)
-       VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, 'already-addressed-sha')`,
-      [findingId, reviewId, findingEntityId, targetFilePath, severity, findingText, TS_BASE, addressedAt]
+          target_file_path, target_repo, severity, finding_text, recorded_at, addressed_at, addressed_commit_sha)
+       VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'already-addressed-sha')`,
+      [findingId, reviewId, findingEntityId, targetFilePath, targetRepo, severity, findingText, TS_BASE, addressedAt]
     );
   } else {
     db.run(
       `INSERT OR IGNORE INTO memory_review_findings
          (id, review_id, finding_entity_id, finding_index,
-          target_file_path, severity, finding_text, recorded_at)
-       VALUES (?, ?, ?, 0, ?, ?, ?, ?)`,
-      [findingId, reviewId, findingEntityId, targetFilePath, severity, findingText, findingRecordedAt]
+          target_file_path, target_repo, severity, finding_text, recorded_at)
+       VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+      [findingId, reviewId, findingEntityId, targetFilePath, targetRepo, severity, findingText, findingRecordedAt]
     );
   }
 
@@ -189,7 +192,7 @@ describe('linkAddresses', () => {
     });
 
     const logger = makeLogger();
-    const result = linkAddresses({ db, repoName: REPO_NAME, logger });
+    const result = linkAddresses({ db, logger });
 
     expect(result.findings_linked).toBe(1);
     expect(result.edges_inserted).toBe(1);
@@ -243,7 +246,7 @@ describe('linkAddresses', () => {
     });
 
     const logger = makeLogger();
-    const result = linkAddresses({ db, repoName: REPO_NAME, logger });
+    const result = linkAddresses({ db, logger });
 
     expect(result.findings_linked).toBe(0);
     expect(result.edges_inserted).toBe(0);
@@ -270,7 +273,7 @@ describe('linkAddresses', () => {
     });
 
     const logger = makeLogger();
-    const result = linkAddresses({ db, repoName: REPO_NAME, windowDays: 30, logger });
+    const result = linkAddresses({ db, windowDays: 30, logger });
 
     expect(result.findings_linked).toBe(0);
     expect(result.edges_inserted).toBe(0);
@@ -301,7 +304,7 @@ describe('linkAddresses', () => {
     });
 
     const logger = makeLogger();
-    const result = linkAddresses({ db, repoName: REPO_NAME, windowDays: 30, logger });
+    const result = linkAddresses({ db, windowDays: 30, logger });
 
     // recorded_at アンカーのバグでは window=[02-01, 03-03] となり 01-02 のコミットを取りこぼし 0 になる。
     expect(result.findings_linked).toBe(1);
@@ -327,7 +330,7 @@ describe('linkAddresses', () => {
     });
 
     const logger = makeLogger();
-    const result = linkAddresses({ db, repoName: REPO_NAME, logger });
+    const result = linkAddresses({ db, logger });
 
     expect(result.findings_linked).toBe(0);
     expect(result.edges_inserted).toBe(0);
@@ -347,7 +350,7 @@ describe('linkAddresses', () => {
     });
 
     const logger = makeLogger();
-    const result = linkAddresses({ db, repoName: REPO_NAME, logger });
+    const result = linkAddresses({ db, logger });
 
     expect(result.findings_linked).toBe(0);
     expect(result.edges_inserted).toBe(0);
@@ -368,7 +371,7 @@ describe('linkAddresses', () => {
     });
 
     const logger = makeLogger();
-    const result = linkAddresses({ db, repoName: REPO_NAME, logger });
+    const result = linkAddresses({ db, logger });
 
     expect(result.findings_linked).toBe(0);
     expect(result.edges_inserted).toBe(0);
@@ -407,7 +410,7 @@ describe('linkAddresses', () => {
       commitAt: TS_PLUS_1,
     });
 
-    const result = linkAddresses({ db, repoName: REPO_NAME, logger: makeLogger() });
+    const result = linkAddresses({ db, logger: makeLogger() });
     expect(result.findings_linked).toBe(1);
 
     const rows = db.exec(
@@ -434,13 +437,120 @@ describe('linkAddresses', () => {
       commitAt: TS_PLUS_1,
     });
 
-    const result = linkAddresses({ db, repoName: REPO_NAME, logger: makeLogger() });
+    const result = linkAddresses({ db, logger: makeLogger() });
     expect(result.findings_linked).toBe(0);
     expect(result.edges_inserted).toBe(0);
 
     const rows = db.exec(
       `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
       [findingId]
+    );
+    expect(rows[0]?.values[0][0]).toBeNull();
+
+    close();
+  }, 30000);
+
+  // ── 誤リンク防止（本変更の中核）────────────────────────────────────────────
+  //
+  // memory-core.db は複数ワークスペースのレビューを集約している。かつては
+  // 呼び出し元の単一 repoName で照合していたため、リポジトリ名を含まない相対パス
+  // (src/hooks/useHydrated.ts 等) は別リポジトリの同名ファイルを触ったコミットへ
+  // 誤リンクし得た。target_repo で絞ることで塞ぐ。
+
+  test('別リポジトリの同名ファイルを触ったコミットへ誤リンクしない', async () => {
+    const { db, findingId, close } = await buildSetup({
+      findingText: 'border 1px fix needed for the button element',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      // コミットは anytime-markdown 側にある
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(css): border 1px に変更',
+      commitAt: TS_PLUS_1,
+      repoName: REPO_NAME,
+      // 指摘の対象は別リポジトリ（anytime-trade）の同名ファイル
+      targetRepo: 'anytime-trade',
+    });
+
+    const result = linkAddresses({ db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(0);
+    const rows = db.exec(
+      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      [findingId],
+    );
+    expect(rows[0]?.values[0][0]).toBeNull();
+
+    close();
+  }, 30000);
+
+  test('target_repo が未解決(NULL)の finding は照合対象から外れる', async () => {
+    const { db, findingId, close } = await buildSetup({
+      findingText: 'border 1px fix needed for the button element',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: 'fix(css): border 1px に変更',
+      commitAt: TS_PLUS_1,
+      targetRepo: null,
+    });
+
+    const result = linkAddresses({ db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(0);
+    const rows = db.exec(
+      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      [findingId],
+    );
+    expect(rows[0]?.values[0][0]).toBeNull();
+
+    close();
+  }, 30000);
+
+  // ── ディレクトリ指定 ────────────────────────────────────────────────────────
+  //
+  // 実データの 107 件がディレクトリ指定で、完全一致では永久に当たらなかった。
+  // 前方一致で拾うが、特定性が低いぶん受理スコアの閾値を 1 段上げている。
+
+  test('ディレクトリ指定は配下ファイルのコミットに前方一致でリンクする', async () => {
+    const { db, findingId, close } = await buildSetup({
+      // スコア 3 に届く本文（20 文字の抜粋がコミットメッセージに含まれる）
+      findingText: 'border 1px fix needed for the button element',
+      severity: 'warn',
+      targetFilePath: 'packages/markdown-viewer',
+      commitFile: 'packages/markdown-viewer/src/index.ts',
+      commitMessage: 'fix(css): border 1px fix ne needed border button element',
+      commitAt: TS_PLUS_1,
+    });
+
+    const result = linkAddresses({ db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(1);
+    const rows = db.exec(
+      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      [findingId],
+    );
+    expect(rows[0]?.values[0][0]).not.toBeNull();
+
+    close();
+  }, 30000);
+
+  test('ディレクトリ指定の前方一致がセグメント境界を越えない', async () => {
+    const { db, findingId, close } = await buildSetup({
+      findingText: 'border 1px fix needed for the button element',
+      severity: 'warn',
+      targetFilePath: 'packages/markdown-viewer',
+      // 別パッケージ（markdown-viewer-extra）のファイル
+      commitFile: 'packages/markdown-viewer-extra/src/index.ts',
+      commitMessage: 'fix(css): border 1px fix needed for the button element',
+      commitAt: TS_PLUS_1,
+    });
+
+    const result = linkAddresses({ db, logger: makeLogger() });
+
+    expect(result.findings_linked).toBe(0);
+    const rows = db.exec(
+      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      [findingId],
     );
     expect(rows[0]?.values[0][0]).toBeNull();
 
