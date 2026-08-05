@@ -9,7 +9,10 @@
 
 export { runCodeIncremental } from './pipeline/runCodeIncremental';
 export { PipelineRunLedger } from './pipeline/PipelineRunLedger';
-export { createPipelineRunLedgerFactory } from './pipeline/createPipelineRunLedgerFactory';
+export {
+  createPipelineRunLedgerFactory,
+  type CreatePipelineRunLedgerFactoryOptions,
+} from './pipeline/createPipelineRunLedgerFactory';
 export { ingestDecisionComments } from './ingest/code/extractComments';
 export { MemoryCoreService, defaultStatePath } from './service/MemoryCoreService';
 export { MemoryDbSession } from './service/MemoryDbSession';

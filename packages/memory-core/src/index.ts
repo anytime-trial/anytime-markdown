@@ -171,7 +171,6 @@ export {
   stageIncludesMemory,
   topoSortByDependsOn,
 } from './lep';
-export type { CreatePipelineRunLedgerFactoryOptions } from './pipeline/createPipelineRunLedgerFactory';
 export type {
   PipelineRunLedgerFactory,
   AnalyzerEvent,

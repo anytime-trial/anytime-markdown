@@ -1,12 +1,18 @@
 import type { MemoryDbConnection } from '../db/connection/types';
 import type { PipelineRunLedgerFactory } from '../lep/LepOrchestrator';
-import { type MemoryLogger, noopLogger } from '../logger';
+import type { MemoryLogger } from '../logger';
 import { PipelineRunLedger } from './PipelineRunLedger';
 
 export interface CreatePipelineRunLedgerFactoryOptions {
   /** Wave 3 のセッションと同じ memory-core.db 接続。migration はここで走らせない。 */
   readonly db: MemoryDbConnection;
-  readonly logger?: MemoryLogger;
+  /**
+   * 必須。台帳生成は fail-open で null を返すため、logger を省略可能にすると
+   * 「pipeline_runs へ 1 行も残らないのにエラーもログも出ない」状態を作れてしまう
+   * （本ファイルが塞いでいる配線漏れと同じ失敗形）。無音にしたい呼び出し元は
+   * `noopLogger` を明示的に渡し、その判断をコードへ残すこと。
+   */
+  readonly logger: MemoryLogger;
 }
 
 /**
@@ -24,8 +30,7 @@ export interface CreatePipelineRunLedgerFactoryOptions {
 export function createPipelineRunLedgerFactory(
   options: CreatePipelineRunLedgerFactoryOptions,
 ): PipelineRunLedgerFactory {
-  const { db } = options;
-  const logger = options.logger ?? noopLogger;
+  const { db, logger } = options;
 
   const hasPipelineRunsTable = (): boolean => {
     try {

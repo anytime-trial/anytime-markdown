@@ -696,6 +696,10 @@ async function disposeAll(): Promise<void> {
     }
     httpLogLedgerDb = null;
   }
+  // ファクトリは上の接続をクロージャで掴んでいるため、接続と同時に手放す。残すと次の
+  // startHttpServer() が閉じた接続の台帳を注入し、runLedgerEnabled が true を返したまま
+  // 記録は 1 行も残らない（配線漏れを観測するための getter が嘘をつく）。
+  httpPipelineRunLedgerFactory = null;
   httpCodeGraphService = null;
   httpTrailDb = null;
   httpPort = null;

@@ -234,6 +234,24 @@ describe('trailDaemonEntry.dispatch — Wave 1/2/4 実行台帳の配線', () =>
     await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
     expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(false);
   });
+
+  // dispose は接続を閉じるがプロセスは終わらない。ファクトリを残すと、次の
+  // startHttpServer (logService 無し) が閉じた接続の台帳を注入し、runLedgerEnabled が
+  // true を返したまま 1 行も記録されない = 配線検査用の getter が嘘をつく。
+  it('dispose 後に再起動すると台帳の配線も落ちる (閉じた接続を持ち越さない)', async () => {
+    await dispatch('configure', CFG);
+    await dispatch('startHttpServer', {
+      ...MINIMAL_HTTP_OPTS,
+      memoryDbPath: join(dir, 'memory-core.db'),
+      logService: { nativeBinding: BETTER_SQLITE3_BINDING },
+    });
+    expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(true);
+
+    await dispatch('dispose', {});
+    await dispatch('configure', CFG);
+    await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
+    expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(false);
+  });
 });
 
 describe('trailDaemonEntry.dispatch — analyzeReleaseCode', () => {
