@@ -516,6 +516,26 @@ function airspaceVerdict(mode, input, cwd) {
   return null;
 }
 
+// Flight Record: セッション開始時に「どの指示に属すか」を宣言させる。
+//
+// Flight Record の行は指示単位で、指示 : セッションの対応はこの宣言だけが作る
+// （先頭プロンプトの文面から推測はしない）。未宣言のセッションは 1 セッション 1 指示の
+// 暗黙グループになるため、宣言忘れは記録の欠落ではなく行の分裂として現れる。
+//
+// 候補そのものはここでは引かない。trail.db を読むには sqlite のネイティブ束縛が要り、
+// セッション開始のたびに失敗し得る依存を入口へ持ち込むことになるため、DB 読取は
+// MCP ツール（list_open_instructions）へ委ね、ここは経路の提示だけを行う。
+function instructionPrompt() {
+  return [
+    'Flight Record: このセッションがどの指示に属するかを宣言してください。',
+    '1. mcp-trail の list_open_instructions で未完了の指示（継続候補）を取得する。',
+    '2. 続きの作業なら record_instruction({ mode: "continue", instruction_id, session_id })、',
+    '   新しい依頼なら record_instruction({ mode: "new", session_id, summary, origin_prompt })。',
+    '「進めて」「次を」など短い継続指示で始まった場合はほぼ確実に continue です。',
+    '宣言しないと同じ作業が Flight Record 上で別々の行に分かれます。',
+  ].join('\\n');
+}
+
 // Phase 5 S2: ループ検知（PostToolUse・全ツール）。exit code を返す（0=通常 / 2=Mayday 警告）。
 // 判定・状態・spool の実装は airspace.cjs バンドル側（agent-core）。ここでは配線のみ行う。
 function loopCheck(input, cwd) {
@@ -764,9 +784,26 @@ async function main() {
   }
 
   // 1) airspace ゲート（ワーカー非依存）
+  //
+  // SessionStart だけは airspace の判定に関わらず Flight Record の宣言依頼を必ず出す。
+  // airspace は「他セッションと衝突したときだけ」助言するため、そこへ相乗りさせると
+  // 単独作業のセッション（大多数）で宣言依頼が 1 度も出ない。
   try {
     const verdict = airspaceVerdict(mode, input, cwd);
-    if (verdict !== null) process.stdout.write(JSON.stringify(verdict));
+    if (mode === 'session-start') {
+      const parts = [];
+      const airspaceReason = verdict && verdict.hookSpecificOutput && verdict.hookSpecificOutput.additionalContext;
+      if (airspaceReason) parts.push(airspaceReason);
+      parts.push(instructionPrompt());
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: parts.join('\\n\\n'),
+        },
+      }));
+    } else if (verdict !== null) {
+      process.stdout.write(JSON.stringify(verdict));
+    }
   } catch (err) {
     // ゲートの失敗でツール実行を止めない（fail-open）。
     warn(\`gate failed: \${err.message}\`);

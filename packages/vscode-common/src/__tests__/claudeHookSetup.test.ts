@@ -622,6 +622,19 @@ describe('setupClaudeHooks', () => {
       expect(entry?.hooks[0].command).toBe(reportCmd('session-start'));
     });
 
+    test('SessionStart は airspace の衝突有無に関わらず Flight Record の宣言依頼を出す', () => {
+      const { setupClaudeHooks } = loadModule();
+      setupClaudeHooks(tmpWorkspace);
+
+      const mjs = readScript('agent-status-report.mjs');
+      // 単独作業（airspace が助言を返さない）でも宣言依頼が出るよう、airspace の
+      // verdict に相乗りせず session-start 側で必ず組み立てている
+      expect(mjs).toContain('list_open_instructions');
+      expect(mjs).toContain('record_instruction');
+      expect(mjs).toContain("hookEventName: 'SessionStart'");
+      expect(mjs).toContain('parts.push(instructionPrompt())');
+    });
+
     test('SessionStart フックが重複登録されない（再実行しても 1 本）', () => {
       const { setupClaudeHooks } = loadModule();
       setupClaudeHooks(tmpWorkspace);

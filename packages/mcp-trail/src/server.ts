@@ -33,6 +33,12 @@ import { toCodeGraphNodeId } from './tools/nodeId.js';
 import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift.js';
 import { handleRecordDoctrineJudgment, RecordDoctrineJudgmentInputSchema } from './tools/recordDoctrineJudgment.js';
 import { handleRecordHumanDecision, RecordHumanDecisionInputSchema } from './tools/recordHumanDecision.js';
+import {
+  handleListOpenInstructions,
+  handleRecordInstruction,
+  ListOpenInstructionsInputSchema,
+  RecordInstructionInputSchema,
+} from './tools/recordInstruction.js';
 import { handleRecordDelegatedApproval, RecordDelegatedApprovalInputSchema } from './tools/recordDelegatedApproval.js';
 import {
   handleGetOddPolicy,
@@ -477,6 +483,38 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = await handleRecordDoctrineJudgment(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Flight Record: 指示（instruction）の宣言
+  // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'list_open_instructions',
+    { description: 'List instructions that are still open in this workspace, newest first. Call this at the start of a session, BEFORE record_instruction, to see whether the work you are about to do continues an existing instruction (a "keep going" / "next one" style prompt almost always does). Returns instruction_id, its one-line summary, the human\'s opening prompt and how many sessions it already spans.', inputSchema: {
+      limit: ListOpenInstructionsInputSchema.shape.limit,
+      workspacePath: ListOpenInstructionsInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleListOpenInstructions(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'record_instruction',
+    { description: 'Declare which instruction (unit of work the human asked for) this session belongs to. Flight Record groups its rows by instruction, not by session, and ONLY this declaration creates that grouping — nothing infers it from the prompt text. Call it once per session, before doing the work: mode="continue" with the instruction_id from list_open_instructions when the session carries on earlier work, otherwise mode="new" with a one-line summary of what was asked. A session that never declares is shown as its own single-session instruction, so forgetting splits the work across rows rather than losing it. Use mode="close" when the instruction is finished so it stops being offered as a candidate. One session belongs to exactly one instruction; re-declaring moves it.', inputSchema: {
+      mode: RecordInstructionInputSchema.shape.mode,
+      session_id: RecordInstructionInputSchema.shape.session_id,
+      instruction_id: RecordInstructionInputSchema.shape.instruction_id,
+      summary: RecordInstructionInputSchema.shape.summary,
+      origin_prompt: RecordInstructionInputSchema.shape.origin_prompt,
+      workspacePath: RecordInstructionInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleRecordInstruction(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

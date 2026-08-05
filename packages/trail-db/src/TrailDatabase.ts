@@ -58,6 +58,9 @@ import {
   CREATE_FILE_ANALYSIS_INDEXES,
   CREATE_FLIGHT_REVIEW_INDEXES,
   CREATE_FLIGHT_REVIEWS,
+  CREATE_INSTRUCTION_INDEXES,
+  CREATE_INSTRUCTION_SESSIONS,
+  CREATE_INSTRUCTIONS,
   CREATE_INDEXES,
   CREATE_USER_FEEDBACK_ENTRIES,
   CREATE_USER_FEEDBACK_INDEXES,
@@ -97,7 +100,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type RationaleAuditStatus, type IC4ModelStore,
+import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, assembleInstructionRecord, computeDefectRisk, foldInstructionDeliverables, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type Instruction, type InstructionContinueInput, type InstructionDeliverable, type InstructionOpenInput, type InstructionRecord, type InstructionRecordFilter, type InstructionSession, type InstructionTokenUsage, type InstructionTokenUsageByModel, type RationaleAuditStatus, type IC4ModelStore,
   type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -552,6 +555,91 @@ const ACTIVITY_TREND_READ_TOOLS: readonly string[] = [
 
 /** subagent 粒度集計で codex 委任セッションを表すラベル。 */
 export const CODEX_SUBAGENT_TYPE = 'codex';
+
+/**
+ * Flight Record の成果物抽出で「ドキュメントを書いた」と見なすツール名。
+ *
+ * 未列挙のツールは黙って除外され「そのツールで書いたドキュメントは成果物に出ない」という
+ * 形で現れる（機能未実装に見える）。書き込み系ツールを増やしたらここへ追加する。
+ * 引数キーは file_path（Claude 標準）/ relative_path（serena）/ path（mcp-markdown）の順で解決する。
+ */
+const DOC_WRITE_TOOL_NAMES: readonly string[] = [
+  'Write',
+  'Edit',
+  'NotebookEdit',
+  'mcp__serena__replace_content',
+  'mcp__serena__replace_in_files',
+  'mcp__serena__replace_symbol_body',
+  'mcp__serena__insert_after_symbol',
+  'mcp__serena__insert_before_symbol',
+  'mcp__mcp-markdown__write_markdown',
+  'mcp__mcp-markdown__update_section',
+  'mcp__mcp-markdown__update_frontmatter',
+  'mcp__mcp-markdown__format_markdown',
+];
+
+/** ドキュメント成果物と見なす拡張子。コードとの二分に使う。 */
+function isDocPath(filePath: string): boolean {
+  return filePath.toLowerCase().endsWith('.md');
+}
+
+function toInstruction(row: readonly unknown[]): Instruction {
+  return {
+    id: row[0] as string,
+    workspacePath: row[1] as string,
+    workspaceName: row[2] as string,
+    summary: row[3] as string,
+    originPrompt: row[4] as string,
+    originSessionId: row[5] as string,
+    startedAt: row[6] as string,
+    closedAt: (row[7] as string | null) ?? null,
+    createdAt: row[8] as string,
+    updatedAt: row[9] as string,
+  };
+}
+
+/**
+ * 宣言の無いセッションを 1 セッション = 1 指示の暗黙グループとして扱うための擬似 Instruction。
+ * id にセッション ID を使うのは、一覧の行を選んだときに所属セッションを引き直せるようにするため。
+ * summary は空にする（推測した見出しを人が書いた指示概要と同じ顔で出さない）。
+ */
+function implicitInstructionFromReview(review: FlightReview): Instruction {
+  return {
+    id: review.sessionId,
+    workspacePath: review.workspacePath,
+    workspaceName: path.basename(review.workspacePath),
+    summary: '',
+    originPrompt: '',
+    originSessionId: review.sessionId,
+    startedAt: review.startedAt ?? review.endedAt,
+    closedAt: null,
+    createdAt: review.createdAt,
+    updatedAt: review.updatedAt,
+  };
+}
+
+/** 畳んだ 1 行に対する絞り込み。セッション単位ではなく指示単位の値で判定する。 */
+function matchesInstructionFilter(record: InstructionRecord, filter: InstructionRecordFilter): boolean {
+  if (filter.outcome !== undefined && record.outcome !== filter.outcome) return false;
+  if (filter.tag !== undefined && filter.tag !== '' && !record.tags.includes(filter.tag)) return false;
+  // endedAt が無い（flight_reviews 未記録）行は期間指定では絞り込めないため、
+  // 期間が指定されたときだけ落とす（指定が無ければ進行中の指示として残す）。
+  if (filter.since !== undefined && filter.since !== '') {
+    if (record.endedAt === null || record.endedAt < filter.since) return false;
+  }
+  if (filter.until !== undefined && filter.until !== '') {
+    if (record.endedAt === null || record.endedAt > filter.until) return false;
+  }
+  return true;
+}
+
+/** endedAt 降順。未記録（null）は末尾へ回す。 */
+function compareEndedAtDesc(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a > b ? -1 : 1;
+}
 
 export type FetchTemporalCouplingOptions = {
   repoName: string;
@@ -3913,6 +4001,12 @@ export class TrailDatabase {
     // Phase 6 S4 (Rationale Audit)。列ごと独立 columnExists（S2 と同方針）。
     if (!columnExists(db, 'flight_reviews', 'rationale_audit_status')) {
       db.run(`ALTER TABLE flight_reviews ADD COLUMN rationale_audit_status TEXT NOT NULL DEFAULT 'unaudited' CHECK (rationale_audit_status IN ('unaudited', 'valid', 'needs_fix', 'rejected'))`);
+    }
+    // Flight Record (指示単位の運航記録)。新規テーブルのみ。
+    db.run(CREATE_INSTRUCTIONS);
+    db.run(CREATE_INSTRUCTION_SESSIONS);
+    for (const idx of CREATE_INSTRUCTION_INDEXES) {
+      db.run(idx);
     }
     // 自律受入基盤 S5 (受入台帳)。新規テーブルのみ。
     db.run(CREATE_ACCEPTANCE_RECORDS);
@@ -9397,6 +9491,337 @@ export class TrailDatabase {
       matchedPattern: row[4] as string,
       createdAt: row[5] as string,
     }));
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Flight Record: 指示（instructions / instruction_sessions）
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 副作用: instructions へ INSERT + instruction_sessions へ起点セッションを紐付け。
+   * 永続化は呼び出し側の save() 契約に従う。
+   * 同一 id の再送は上書きしない（宣言は 1 回きり。冪等に無視して既存の指示を守る）。
+   */
+  openInstruction(input: InstructionOpenInput): void {
+    const db = this.ensureDb();
+    const now = new Date().toISOString();
+    const stmt = db.prepare(
+      `INSERT INTO instructions (
+         id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id,
+         started_at, closed_at, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+       ON CONFLICT(id) DO NOTHING`,
+    );
+    try {
+      stmt.run([
+        input.id,
+        input.workspacePath,
+        input.workspaceName,
+        input.summary,
+        input.originPrompt,
+        input.sessionId,
+        input.startedAt,
+        now,
+        now,
+      ]);
+    } finally {
+      stmt.free();
+    }
+    this.linkInstructionSession(input.id, input.sessionId, input.startedAt);
+  }
+
+  /**
+   * 副作用: instruction_sessions へ UPSERT（セッションの所属替えを含む）。
+   * 対象の指示が存在しなければ false を返し、何も書かない
+   * （存在しない指示 ID への継続宣言を黙って通すと、行の無いグループへセッションが消える）。
+   */
+  continueInstruction(input: InstructionContinueInput): boolean {
+    const db = this.ensureDb();
+    const exists = db.exec('SELECT 1 FROM instructions WHERE id = ? LIMIT 1', [input.instructionId]);
+    if (!exists[0] || exists[0].values.length === 0) return false;
+    this.linkInstructionSession(input.instructionId, input.sessionId, input.declaredAt);
+    return true;
+  }
+
+  /** sequence は指示内の最大 + 1。所属替え時は既存行を上書きする（1 セッション 1 指示）。 */
+  private linkInstructionSession(instructionId: string, sessionId: string, declaredAt: string): void {
+    const db = this.ensureDb();
+    const maxRes = db.exec(
+      'SELECT COALESCE(MAX(sequence), 0) FROM instruction_sessions WHERE instruction_id = ?',
+      [instructionId],
+    );
+    const nextSequence = ((maxRes[0]?.values[0]?.[0] as number | undefined) ?? 0) + 1;
+    const stmt = db.prepare(
+      `INSERT INTO instruction_sessions (session_id, instruction_id, sequence, declared_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(session_id) DO UPDATE SET
+         instruction_id = excluded.instruction_id,
+         sequence = excluded.sequence,
+         declared_at = excluded.declared_at`,
+    );
+    try {
+      stmt.run([sessionId, instructionId, nextSequence, declaredAt]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /**
+   * 副作用: instructions.closed_at を設定。永続化は呼び出し側の save() 契約に従う。
+   * 対象が無ければ false（行の新規作成はしない）。
+   */
+  closeInstruction(instructionId: string, closedAt: string): boolean {
+    const db = this.ensureDb();
+    const exists = db.exec('SELECT 1 FROM instructions WHERE id = ? LIMIT 1', [instructionId]);
+    if (!exists[0] || exists[0].values.length === 0) return false;
+    const stmt = db.prepare('UPDATE instructions SET closed_at = ?, updated_at = ? WHERE id = ?');
+    try {
+      stmt.run([closedAt, new Date().toISOString(), instructionId]);
+    } finally {
+      stmt.free();
+    }
+    return true;
+  }
+
+  /** 未完了（closed_at IS NULL）の指示。継続宣言の候補提示に使う。started_at 降順。 */
+  listOpenInstructions(workspacePath?: string, limit = 10): Instruction[] {
+    const db = this.ensureDb();
+    const params: (string | number)[] = [];
+    let where = 'WHERE closed_at IS NULL';
+    if (workspacePath !== undefined && workspacePath !== '') {
+      where += ' AND workspace_path = ?';
+      params.push(workspacePath);
+    }
+    params.push(limit);
+    const res = db.exec(
+      `SELECT id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id,
+              started_at, closed_at, created_at, updated_at
+       FROM instructions ${where} ORDER BY started_at DESC LIMIT ?`,
+      params,
+    );
+    return (res[0]?.values ?? []).map(toInstruction);
+  }
+
+  /** 指示に属するセッション（sequence 昇順）。 */
+  listInstructionSessions(instructionId: string): InstructionSession[] {
+    const db = this.ensureDb();
+    const res = db.exec(
+      `SELECT session_id, instruction_id, sequence, declared_at
+       FROM instruction_sessions WHERE instruction_id = ? ORDER BY sequence`,
+      [instructionId],
+    );
+    return (res[0]?.values ?? []).map((row) => ({
+      sessionId: row[0] as string,
+      instructionId: row[1] as string,
+      sequence: row[2] as number,
+      declaredAt: row[3] as string,
+    }));
+  }
+
+  /**
+   * 指示単位の一覧（Flight Record）。ended_at 降順。
+   *
+   * 宣言のあった指示に加え、どの指示にも属さないセッションを「1 セッション = 1 指示」の
+   * 暗黙グループとして併せて返す。宣言機構の導入前に記録された flight_reviews が
+   * 一覧から消えないようにするため（宣言忘れも同じ経路で拾われる）。
+   *
+   * SHORTCUT: 畳み込みと絞り込みを JS 側で行う単純実装. ceiling: instructions と
+   * flight_reviews を limit の 10 倍まで読む前提（現状 116 行）. upgrade: flight_reviews が
+   * 数万行規模になったら指示単位の集計を SQL 側（GROUP BY instruction_id）へ移す.
+   */
+  listInstructionRecords(filter: InstructionRecordFilter = {}): InstructionRecord[] {
+    const db = this.ensureDb();
+    const limit = filter.limit ?? 100;
+    const scanLimit = limit * 10;
+
+    const instructionParams: (string | number)[] = [];
+    let instructionWhere = '';
+    if (filter.workspacePath !== undefined && filter.workspacePath !== '') {
+      instructionWhere = 'WHERE workspace_path = ?';
+      instructionParams.push(filter.workspacePath);
+    }
+    instructionParams.push(scanLimit);
+    const instructionRes = db.exec(
+      `SELECT id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id,
+              started_at, closed_at, created_at, updated_at
+       FROM instructions ${instructionWhere} ORDER BY started_at DESC LIMIT ?`,
+      instructionParams,
+    );
+    const instructions = (instructionRes[0]?.values ?? []).map(toInstruction);
+
+    // 所属セッション（宣言済み）
+    const sessionsByInstruction = new Map<string, string[]>();
+    const instructionBySession = new Map<string, string>();
+    const linkRes = db.exec(
+      'SELECT instruction_id, session_id FROM instruction_sessions ORDER BY instruction_id, sequence',
+    );
+    for (const row of linkRes[0]?.values ?? []) {
+      const instructionId = row[0] as string;
+      const sessionId = row[1] as string;
+      const list = sessionsByInstruction.get(instructionId);
+      if (list === undefined) sessionsByInstruction.set(instructionId, [sessionId]);
+      else list.push(sessionId);
+      instructionBySession.set(sessionId, instructionId);
+    }
+
+    const reviews = this.listFlightReviews({ limit: scanLimit });
+    const reviewsBySession = new Map<string, FlightReview>();
+    for (const r of reviews) reviewsBySession.set(r.sessionId, r);
+
+    const records: InstructionRecord[] = [];
+
+    for (const instruction of instructions) {
+      const sessionIds = sessionsByInstruction.get(instruction.id) ?? [];
+      const memberReviews = sessionIds
+        .map((id) => reviewsBySession.get(id))
+        .filter((r): r is FlightReview => r !== undefined);
+      records.push(
+        assembleInstructionRecord({
+          instruction,
+          reviews: memberReviews,
+          sessionCount: sessionIds.length,
+          tokenUsage: this.instructionTokenUsage(sessionIds),
+          deliverables: [],
+        }),
+      );
+    }
+
+    // 宣言の無いセッションは 1 セッション = 1 指示の暗黙グループにする
+    for (const review of reviews) {
+      if (instructionBySession.has(review.sessionId)) continue;
+      if (
+        filter.workspacePath !== undefined &&
+        filter.workspacePath !== '' &&
+        review.workspacePath !== filter.workspacePath
+      ) {
+        continue;
+      }
+      records.push(
+        assembleInstructionRecord({
+          instruction: implicitInstructionFromReview(review),
+          reviews: [review],
+          sessionCount: 1,
+          tokenUsage: this.instructionTokenUsage([review.sessionId]),
+          deliverables: [],
+        }),
+      );
+    }
+
+    const filtered = records.filter((r) => matchesInstructionFilter(r, filter));
+    filtered.sort((a, b) => compareEndedAtDesc(a.endedAt, b.endedAt));
+    const page = filtered.slice(0, limit);
+    // 成果物はページ確定後にだけ引く（全件分を引くとコミット × ファイルの結合が効いてくる）
+    return page.map((record) => ({
+      ...record,
+      deliverables: this.instructionDeliverables(this.sessionIdsForRecord(record, sessionsByInstruction)),
+    }));
+  }
+
+  /** 明示指示なら台帳の所属セッション、暗黙グループなら指示 ID がセッション ID 自身。 */
+  private sessionIdsForRecord(
+    record: InstructionRecord,
+    sessionsByInstruction: Map<string, string[]>,
+  ): string[] {
+    return sessionsByInstruction.get(record.instructionId) ?? [record.instructionId];
+  }
+
+  /** session_costs をモデル別に畳む。行が 1 件も無ければ imported=false（0 と区別する）。 */
+  private instructionTokenUsage(sessionIds: readonly string[]): InstructionTokenUsage {
+    const empty: InstructionTokenUsage = {
+      imported: false,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      estimatedCostUsd: 0,
+      byModel: [],
+    };
+    if (sessionIds.length === 0) return empty;
+    const db = this.ensureDb();
+    const placeholders = sessionIds.map(() => '?').join(', ');
+    const res = db.exec(
+      `SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens),
+              SUM(cache_creation_tokens), SUM(estimated_cost_usd)
+       FROM session_costs WHERE session_id IN (${placeholders})
+       GROUP BY model ORDER BY SUM(estimated_cost_usd) DESC`,
+      [...sessionIds],
+    );
+    const rows = res[0]?.values ?? [];
+    if (rows.length === 0) return empty;
+    const byModel: InstructionTokenUsageByModel[] = rows.map((row) => ({
+      model: row[0] as string,
+      inputTokens: (row[1] as number | null) ?? 0,
+      outputTokens: (row[2] as number | null) ?? 0,
+      cacheReadTokens: (row[3] as number | null) ?? 0,
+      cacheCreationTokens: (row[4] as number | null) ?? 0,
+      estimatedCostUsd: (row[5] as number | null) ?? 0,
+    }));
+    return {
+      imported: true,
+      inputTokens: byModel.reduce((s, m) => s + m.inputTokens, 0),
+      outputTokens: byModel.reduce((s, m) => s + m.outputTokens, 0),
+      cacheReadTokens: byModel.reduce((s, m) => s + m.cacheReadTokens, 0),
+      cacheCreationTokens: byModel.reduce((s, m) => s + m.cacheCreationTokens, 0),
+      estimatedCostUsd: byModel.reduce((s, m) => s + m.estimatedCostUsd, 0),
+      byModel,
+    };
+  }
+
+  /**
+   * 成果物。コードはコミット済みのみ、ドキュメント（.md）は未コミットも含む。
+   *
+   * 未コミット分は message_tool_calls.file_path ではなく messages.tool_calls の JSON から採る。
+   * file_path 列は取込時の extractFilePath が Read/Edit/Write/Glob/Grep しか埋めておらず、
+   * 本プロジェクトで多用する serena（relative_path）・mcp-markdown（path）経由の編集が
+   * 1 件も残らないため。抽出器を広げても既存行は埋まらず（再取込が要る）、file_path を
+   * 参照する既存メトリクス（ファイル活動・ホットスポットの session 起点）の値も動くため、
+   * ここでは取込済みデータから直接読む。
+   */
+  private instructionDeliverables(sessionIds: readonly string[]): InstructionDeliverable[] {
+    if (sessionIds.length === 0) return [];
+    const db = this.ensureDb();
+    const placeholders = sessionIds.map(() => '?').join(', ');
+    const deliverables: InstructionDeliverable[] = [];
+
+    const committed = db.exec(
+      `SELECT DISTINCT cf.file_path, sc.commit_hash
+       FROM session_commits sc
+       JOIN commit_files cf ON cf.commit_hash = sc.commit_hash AND cf.repo_id = sc.repo_id
+       WHERE sc.session_id IN (${placeholders})
+       ORDER BY cf.file_path`,
+      [...sessionIds],
+    );
+    for (const row of committed[0]?.values ?? []) {
+      const filePath = row[0] as string;
+      deliverables.push({
+        kind: isDocPath(filePath) ? 'doc' : 'code',
+        filePath,
+        committed: true,
+        commitHash: (row[1] as string).slice(0, 8),
+      });
+    }
+
+    const edited = db.exec(
+      `SELECT DISTINCT COALESCE(
+                json_extract(call.value, '$.input.file_path'),
+                json_extract(call.value, '$.input.relative_path'),
+                json_extract(call.value, '$.input.path')
+              ) AS target
+       FROM messages m, json_each(m.tool_calls) AS call
+       WHERE m.session_id IN (${placeholders})
+         AND m.tool_calls IS NOT NULL AND json_valid(m.tool_calls)
+         AND json_extract(call.value, '$.name') IN (${DOC_WRITE_TOOL_NAMES.map(() => '?').join(', ')})
+         AND target IS NOT NULL AND target LIKE '%.md'
+       ORDER BY target`,
+      [...sessionIds, ...DOC_WRITE_TOOL_NAMES],
+    );
+    for (const row of edited[0]?.values ?? []) {
+      const filePath = row[0] as string;
+      deliverables.push({ kind: 'doc', filePath, committed: false, commitHash: '' });
+    }
+
+    // 2 本のクエリが同一パスを返しうる（コミット済みのファイルを編集した痕跡が残る）
+    return foldInstructionDeliverables(deliverables);
   }
 
   markMessageCommitsResolved(sessionId: string, resolvedAt: string): void {

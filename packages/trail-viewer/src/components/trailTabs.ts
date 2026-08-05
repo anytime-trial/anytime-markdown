@@ -34,7 +34,7 @@ export function getTrailViewerTabDefs({
   }
 
   tabs.push({ value: 6, id: 'trail-tab-6', panelId: 'trail-panel-6', i18nKey: 'viewer.tab.memory' });
-  tabs.push({ value: 9, id: 'trail-tab-9', panelId: 'trail-panel-9', i18nKey: 'viewer.tab.flightReview' });
+  tabs.push({ value: 9, id: 'trail-tab-9', panelId: 'trail-panel-9', i18nKey: 'viewer.tab.flightRecord' });
   tabs.push({ value: 8, id: 'trail-tab-8', panelId: 'trail-panel-8', i18nKey: 'viewer.tab.logs' });
 
   return tabs;

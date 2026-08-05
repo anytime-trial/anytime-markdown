@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import { type AcceptanceDecidedBy, type AcceptanceRoute, type AcceptanceVerdict, computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Model, C4ModelPayload, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
@@ -784,6 +785,13 @@ export class TrailDataServer {
     t.exact('GET', '/api/trail/flight-reviews', ({ res, url }) => this.handleListFlightReviews(res, url.searchParams));
     t.pattern('PATCH', /^\/api\/trail\/flight-reviews\/([^/]+)$/, ({ req, res, params }) =>
       this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(params[0] ?? '')));
+    // Flight Record: 指示単位の運航記録。/open は :id パターンより先に登録する
+    // （後だと 'open' が指示 ID として食われる）。
+    t.exact('GET', '/api/trail/instructions/open', ({ res, url }) => this.handleListOpenInstructions(res, url.searchParams));
+    t.exact('GET', '/api/trail/instructions', ({ res, url }) => this.handleListInstructionRecords(res, url.searchParams));
+    t.exact('POST', '/api/trail/instructions', ({ req, res }) => this.handleDeclareInstruction(req, res));
+    t.pattern('GET', /^\/api\/trail\/instructions\/([^/]+)\/sessions$/, ({ res, params }) =>
+      this.handleListInstructionSessions(res, decodeURIComponent(params[0] ?? '')));
     t.exact('POST', '/api/trail/user-feedback', ({ req, res }) => this.handleRecordUserFeedback(req, res));
     t.exact('GET', '/api/trail/user-feedback', ({ res, url }) => this.handleListUserFeedback(res, url.searchParams));
     // 自律受入基盤 S5: 受入台帳（farm と人手記録の書き込み・retro の参照経路）
@@ -3080,6 +3088,173 @@ export class TrailDataServer {
       this.logger.error('handleListFlightReviews failed', e);
       sendServerError(res, 'Failed to list flight reviews');
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Flight Record: 指示（instructions）
+  // ---------------------------------------------------------------------------
+
+  private static readonly INSTRUCTION_SUMMARY_MAX_CHARS = 500;
+
+  private static readonly INSTRUCTION_PROMPT_MAX_CHARS = 2000;
+
+  private handleListInstructionRecords(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const outcomeParam = params.get('outcome');
+      if (outcomeParam !== null && !TrailDataServer.FLIGHT_REVIEW_FILTER_OUTCOMES.includes(outcomeParam)) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'invalid outcome' }));
+        return;
+      }
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const instructions = this.trailDb.listInstructionRecords({
+        since: params.get('since') ?? undefined,
+        until: params.get('until') ?? undefined,
+        outcome: (outcomeParam as FlightOutcome | null) ?? undefined,
+        tag: params.get('tag') ?? undefined,
+        workspacePath: params.get('workspacePath') ?? undefined,
+        limit: Number.isNaN(limit) ? 100 : limit,
+      });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ instructions }));
+    } catch (e) {
+      this.logger.error('handleListInstructionRecords failed', e);
+      sendServerError(res, 'Failed to list instruction records');
+    }
+  }
+
+  /** 継続宣言の候補（未完了の指示）。 */
+  private handleListOpenInstructions(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const limit = Number.parseInt(params.get('limit') ?? '10', 10);
+      const instructions = this.trailDb.listOpenInstructions(
+        params.get('workspacePath') ?? undefined,
+        Number.isNaN(limit) ? 10 : limit,
+      );
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ instructions }));
+    } catch (e) {
+      this.logger.error('handleListOpenInstructions failed', e);
+      sendServerError(res, 'Failed to list open instructions');
+    }
+  }
+
+  private handleListInstructionSessions(res: http.ServerResponse, instructionId: string): void {
+    try {
+      const sessions = this.trailDb.listInstructionSessions(instructionId);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ sessions }));
+    } catch (e) {
+      this.logger.error('handleListInstructionSessions failed', e);
+      sendServerError(res, 'Failed to list instruction sessions');
+    }
+  }
+
+  /**
+   * 指示の宣言（mode=new / continue / close）。
+   * 検証はサーバー側が正 — MCP ツールの zod スキーマを境界と見なさない（flight-reviews と同方針）。
+   */
+  private handleDeclareInstruction(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const mode = parsed['mode'];
+        if (mode !== 'new' && mode !== 'continue' && mode !== 'close') {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'mode must be one of new|continue|close' }));
+          return;
+        }
+        const now = new Date().toISOString();
+
+        if (mode === 'close') {
+          const instructionId = parsed['instructionId'];
+          if (typeof instructionId !== 'string' || instructionId === '') {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'instructionId required' }));
+            return;
+          }
+          if (!this.trailDb.closeInstruction(instructionId, now)) {
+            res.writeHead(404, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'instruction not found' }));
+            return;
+          }
+          this.trailDb.save();
+          res.writeHead(200, JSON_HEADERS);
+          res.end(JSON.stringify({ ok: true, instructionId }));
+          return;
+        }
+
+        const sessionId = parsed['sessionId'];
+        if (typeof sessionId !== 'string' || sessionId === '') {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'sessionId required' }));
+          return;
+        }
+
+        if (mode === 'continue') {
+          const instructionId = parsed['instructionId'];
+          if (typeof instructionId !== 'string' || instructionId === '') {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'instructionId required' }));
+            return;
+          }
+          if (!this.trailDb.continueInstruction({ instructionId, sessionId, declaredAt: now })) {
+            // 存在しない指示を黙って新規作成しない（取り違えた ID がそのまま台帳に増える）
+            res.writeHead(404, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'instruction not found' }));
+            return;
+          }
+          this.trailDb.save();
+          res.writeHead(200, JSON_HEADERS);
+          res.end(JSON.stringify({ ok: true, instructionId }));
+          return;
+        }
+
+        const summary = parsed['summary'];
+        if (typeof summary !== 'string' || summary.trim() === '') {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'summary required' }));
+          return;
+        }
+        const workspacePath = typeof parsed['workspacePath'] === 'string' ? parsed['workspacePath'] : '';
+        const providedId = parsed['instructionId'];
+        const instructionId =
+          typeof providedId === 'string' && providedId !== '' ? providedId : randomUUID();
+        this.trailDb.openInstruction({
+          id: instructionId,
+          sessionId,
+          workspacePath,
+          workspaceName:
+            typeof parsed['workspaceName'] === 'string' && parsed['workspaceName'] !== ''
+              ? parsed['workspaceName']
+              : path.basename(workspacePath),
+          summary: summary.slice(0, TrailDataServer.INSTRUCTION_SUMMARY_MAX_CHARS),
+          originPrompt:
+            typeof parsed['originPrompt'] === 'string'
+              ? parsed['originPrompt'].slice(0, TrailDataServer.INSTRUCTION_PROMPT_MAX_CHARS)
+              : '',
+          startedAt: now,
+        });
+        this.trailDb.save();
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true, instructionId }));
+      } catch (e) {
+        this.logger.error('handleDeclareInstruction failed', e);
+        sendServerError(res, 'Failed to declare instruction');
+      }
+    });
   }
 
   /** GET フィルタで受け付ける outcome（unknown を含む全 enum。手動訂正の入力とは別物）。 */

@@ -136,8 +136,8 @@ export function mountRetrospectiveView(
     // 監査 select に未保存の変更が残っていれば保留を張り直す（saveManual 成功は editing を解除するため）
     if (result.ok && auditTouched) props.onEditingChange(true);
     feedbackMessage = result.ok
-      ? { kind: 'success', text: props.t('flightReview.edit.saveSuccess') }
-      : { kind: 'error', text: `${props.t('flightReview.edit.saveError')}: ${result.error ?? ''}` };
+      ? { kind: 'success', text: props.t('flightRecord.edit.saveSuccess') }
+      : { kind: 'error', text: `${props.t('flightRecord.edit.saveError')}: ${result.error ?? ''}` };
     render();
   }
 
@@ -148,8 +148,8 @@ export function mountRetrospectiveView(
     // 手動訂正フォームに未保存の編集が残っていれば保留を張り直す
     if (result.ok && manualTouched) props.onEditingChange(true);
     auditMessage = result.ok
-      ? { kind: 'success', text: props.t('flightReview.audit.saveSuccess') }
-      : { kind: 'error', text: `${props.t('flightReview.audit.saveError')}: ${result.error ?? ''}` };
+      ? { kind: 'success', text: props.t('flightRecord.audit.saveSuccess') }
+      : { kind: 'error', text: `${props.t('flightRecord.audit.saveError')}: ${result.error ?? ''}` };
     render();
   }
 
@@ -158,7 +158,7 @@ export function mountRetrospectiveView(
     const filtered = rationaleFilter === '' ? rationale : rationale.filter((n) => n.confidenceLabel === rationaleFilter);
     const list =
       filtered.length === 0
-        ? `<p data-am-retro-empty>${escapeHtml(rationale.length === 0 ? t('flightReview.rationale.empty') : t('flightReview.detail.none'))}</p>`
+        ? `<p data-am-retro-empty>${escapeHtml(rationale.length === 0 ? t('flightRecord.rationale.empty') : t('flightRecord.detail.none'))}</p>`
         : `<ul data-am-rationale-list>${filtered
             .map(
               (n) => `<li>
@@ -170,25 +170,25 @@ export function mountRetrospectiveView(
             .join('')}</ul>`;
     return `
       <section data-am-retro-rationale>
-        <h4>${escapeHtml(t('flightReview.rationale.title'))}</h4>
+        <h4>${escapeHtml(t('flightRecord.rationale.title'))}</h4>
         <div data-am-rationale-controls>
-          <label>${escapeHtml(t('flightReview.rationale.confidenceFilter'))}
+          <label>${escapeHtml(t('flightRecord.rationale.confidenceFilter'))}
             <select data-am-rationale-filter>
-              <option value="">${escapeHtml(t('flightReview.rationale.filterAll'))}</option>
+              <option value="">${escapeHtml(t('flightRecord.rationale.filterAll'))}</option>
               ${CONFIDENCE_LABELS.map(
                 (label) => `<option value="${label}"${rationaleFilter === label ? ' selected' : ''}>${label}</option>`,
               ).join('')}
             </select>
           </label>
-          <label>${escapeHtml(t('flightReview.audit.label'))}
+          <label>${escapeHtml(t('flightRecord.audit.label'))}
             <select data-am-audit-status>
               ${AUDIT_STATUSES.map(
                 (status) =>
-                  `<option value="${status}"${formAuditStatus === status ? ' selected' : ''}>${escapeHtml(t(`flightReview.audit.${auditStatusKey(status)}`))}</option>`,
+                  `<option value="${status}"${formAuditStatus === status ? ' selected' : ''}>${escapeHtml(t(`flightRecord.audit.${auditStatusKey(status)}`))}</option>`,
               ).join('')}
             </select>
           </label>
-          <button type="button" data-am-audit-save ${props.saving ? 'disabled' : ''}>${escapeHtml(t('flightReview.audit.save'))}</button>
+          <button type="button" data-am-audit-save ${props.saving ? 'disabled' : ''}>${escapeHtml(t('flightRecord.audit.save'))}</button>
         </div>
         ${
           auditMessage
@@ -203,7 +203,7 @@ export function mountRetrospectiveView(
     const { t } = props;
     const body =
       items.length === 0
-        ? `<p data-am-retro-empty>${escapeHtml(t('flightReview.detail.none'))}</p>`
+        ? `<p data-am-retro-empty>${escapeHtml(t('flightRecord.detail.none'))}</p>`
         : `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
     return `<section><h4>${escapeHtml(title)}</h4>${body}</section>`;
   }
@@ -217,58 +217,58 @@ export function mountRetrospectiveView(
 
     root.innerHTML = `
       <header data-am-retro-header>
-        <h3>${escapeHtml(t('flightReview.detail.title'))} — ${escapeHtml(review.sessionId)}</h3>
-        <button type="button" data-am-retro-close aria-label="${escapeHtml(t('flightReview.detail.close'))}">✕</button>
+        <h3>${escapeHtml(t('flightRecord.detail.title'))} — ${escapeHtml(review.sessionId)}</h3>
+        <button type="button" data-am-retro-close aria-label="${escapeHtml(t('flightRecord.detail.close'))}">✕</button>
       </header>
       <div data-am-retro-outcome>
-        <span data-am-outcome-badge data-outcome="${review.outcome}">${escapeHtml(t(`flightReview.outcome.${review.outcome}`))}</span>
-        <span data-am-source-badge data-source="${review.outcomeSource}">${escapeHtml(t(`flightReview.source.${review.outcomeSource}`))}</span>
-        <span data-am-audit-badge data-audit="${review.rationaleAuditStatus}">${escapeHtml(t(`flightReview.audit.${auditStatusKey(review.rationaleAuditStatus)}`))}</span>
+        <span data-am-outcome-badge data-outcome="${review.outcome}">${escapeHtml(t(`flightRecord.outcome.${review.outcome}`))}</span>
+        <span data-am-source-badge data-source="${review.outcomeSource}">${escapeHtml(t(`flightRecord.source.${review.outcomeSource}`))}</span>
+        <span data-am-audit-badge data-audit="${review.rationaleAuditStatus}">${escapeHtml(t(`flightRecord.audit.${auditStatusKey(review.rationaleAuditStatus)}`))}</span>
       </div>
       <section>
-        <h4>${escapeHtml(t('flightReview.detail.keyEvents'))}</h4>
+        <h4>${escapeHtml(t('flightRecord.detail.keyEvents'))}</h4>
         <dl data-am-retro-events>
-          <dt>${escapeHtml(t('flightReview.column.endedAt'))}</dt><dd>${escapeHtml(formatDateTime(review.endedAt))}</dd>
-          <dt>${escapeHtml(t('flightReview.column.duration'))}</dt><dd>${escapeHtml(formatDurationSeconds(review.durationSeconds))}</dd>
-          <dt>${escapeHtml(t('flightReview.detail.toolCalls'))}</dt><dd>${review.toolCallCount}</dd>
-          <dt>${escapeHtml(t('flightReview.column.toolFailures'))}</dt><dd>${review.toolFailureCount}</dd>
-          <dt>${escapeHtml(t('flightReview.column.rework'))}</dt><dd>${review.reworkCount}</dd>
+          <dt>${escapeHtml(t('flightRecord.column.endedAt'))}</dt><dd>${escapeHtml(formatDateTime(review.endedAt))}</dd>
+          <dt>${escapeHtml(t('flightRecord.column.duration'))}</dt><dd>${escapeHtml(formatDurationSeconds(review.durationSeconds))}</dd>
+          <dt>${escapeHtml(t('flightRecord.detail.toolCalls'))}</dt><dd>${review.toolCallCount}</dd>
+          <dt>${escapeHtml(t('flightRecord.column.toolFailures'))}</dt><dd>${review.toolFailureCount}</dd>
+          <dt>${escapeHtml(t('flightRecord.column.rework'))}</dt><dd>${review.reworkCount}</dd>
         </dl>
       </section>
-      ${renderListSection(t('flightReview.detail.unresolved'), unresolved)}
-      ${renderListSection(t('flightReview.detail.nextConcerns'), concerns)}
+      ${renderListSection(t('flightRecord.detail.unresolved'), unresolved)}
+      ${renderListSection(t('flightRecord.detail.nextConcerns'), concerns)}
       ${renderListSection(
-        t('flightReview.detail.lessonCandidates'),
+        t('flightRecord.detail.lessonCandidates'),
         lessons.map((l) => `[${l.kind}] ${l.summary}`),
       )}
       ${renderListSection(
-        t('flightReview.detail.userFeedback'),
+        t('flightRecord.detail.userFeedback'),
         feedback.map((f) => `${formatDateTime(f.occurredAt)} — ${f.promptExcerpt}`),
       )}
       ${renderRationaleSection()}
       <section data-am-retro-edit>
-        <h4>${escapeHtml(t('flightReview.edit.title'))}</h4>
+        <h4>${escapeHtml(t('flightRecord.edit.title'))}</h4>
         <label>
-          ${escapeHtml(t('flightReview.edit.outcome'))}
+          ${escapeHtml(t('flightRecord.edit.outcome'))}
           <select data-am-retro-outcome-select>
-            <option value="">${escapeHtml(t('flightReview.edit.keepCurrent'))}</option>
+            <option value="">${escapeHtml(t('flightRecord.edit.keepCurrent'))}</option>
             ${MANUAL_OUTCOMES.map(
               (o) =>
-                `<option value="${o}"${formOutcome === o ? ' selected' : ''}>${escapeHtml(t(`flightReview.outcome.${o}`))}</option>`,
+                `<option value="${o}"${formOutcome === o ? ' selected' : ''}>${escapeHtml(t(`flightRecord.outcome.${o}`))}</option>`,
             ).join('')}
           </select>
         </label>
         <label>
-          ${escapeHtml(t('flightReview.edit.tags'))}
-          <input type="text" data-am-retro-tags placeholder="${escapeHtml(t('flightReview.edit.tagsPlaceholder'))}" />
+          ${escapeHtml(t('flightRecord.edit.tags'))}
+          <input type="text" data-am-retro-tags placeholder="${escapeHtml(t('flightRecord.edit.tagsPlaceholder'))}" />
         </label>
         <label>
-          ${escapeHtml(t('flightReview.edit.notes'))}
+          ${escapeHtml(t('flightRecord.edit.notes'))}
           <textarea data-am-retro-notes rows="3" maxlength="2000"></textarea>
         </label>
         <div data-am-retro-actions>
           <button type="button" data-am-retro-save ${saving ? 'disabled' : ''}>
-            ${escapeHtml(saving ? t('flightReview.edit.saving') : t('flightReview.edit.save'))}
+            ${escapeHtml(saving ? t('flightRecord.edit.saving') : t('flightRecord.edit.save'))}
           </button>
         </div>
         ${
