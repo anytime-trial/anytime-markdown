@@ -457,7 +457,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'record_doctrine_judgment',
-    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) also evaluates whether the judgment would have been delegable under D2 and stores the verdict — it does NOT change the approval flow (shadow mode); omitting target_paths or severity makes the verdict escalate (fail-closed). Re-recording the same session_id + subject overwrites and resets any recorded human decision.', inputSchema: {
+    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) evaluates whether the judgment may be delegated and stores the verdict; omitting target_paths or severity makes the verdict escalate (fail-closed), so always declare both. D2 is ACTIVE (since 2026-08-05): act on the returned gate.verdict — if it is "delegable" AND your judgment is "approve", proceed WITHOUT asking the human and immediately call record_delegated_approval; otherwise ask the human and then call record_human_decision. Package add/update, destructive operations, remote push and production release always go to the human regardless of the verdict (the gate is path-based and cannot see the operation kind). Re-recording the same session_id + subject overwrites and resets any recorded human decision and delegation.', inputSchema: {
       session_id: RecordDoctrineJudgmentInputSchema.shape.session_id,
       subject: RecordDoctrineJudgmentInputSchema.shape.subject,
       judgment: RecordDoctrineJudgmentInputSchema.shape.judgment,
@@ -492,11 +492,10 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'record_delegated_approval',
-    { description: "Record that the agent delegated (auto-approved) a What approval under D2, instead of asking the human. Refuses unless the stored coverage gate verdict is 'delegable', the agent judgment is 'approve', and no human decision exists yet — a delegation record that could be fabricated after the fact would make both the agreement rate and the delegation rate useless for audit. A human may still record a decision afterwards as a sampling audit.", inputSchema: {
+    { description: "Record that the agent delegated (auto-approved) a What approval under D2, instead of asking the human. Refuses unless the stored coverage gate verdict is 'delegable', the agent judgment is 'approve', and no human decision exists yet — a delegation record that could be fabricated after the fact would make both the agreement rate and the delegation rate useless for audit. The timestamp is always server-side now and cannot be supplied by the caller. Calling again on an already-delegated judgment is a no-op that returns the original timestamp (alreadyDelegated: true). A human may still record a decision afterwards as a sampling audit.", inputSchema: {
       id: RecordDelegatedApprovalInputSchema.shape.id,
       session_id: RecordDelegatedApprovalInputSchema.shape.session_id,
       subject: RecordDelegatedApprovalInputSchema.shape.subject,
-      delegated_at: RecordDelegatedApprovalInputSchema.shape.delegated_at,
       workspacePath: RecordDelegatedApprovalInputSchema.shape.workspacePath,
     }, },
     async (args) => {

@@ -23,7 +23,8 @@ export const RecordDelegatedApprovalInputSchema = z.object({
     .min(1)
     .optional()
     .describe('Subject key used when the judgment was recorded (required with session_id when id is omitted)'),
-  delegated_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
+  // delegated_at は意図的に受け付けない。外から時刻を指定できると代行を遡って記録でき、
+  // 「いつ人へ聞かずに進めたか」の監査ログとして成立しなくなる。時刻は常にサーバー側の now。
   workspacePath: workspacePathParam,
 });
 
@@ -44,7 +45,6 @@ export async function handleRecordDelegatedApproval(
       ...(input.id === undefined ? {} : { id: input.id }),
       ...(input.session_id === undefined ? {} : { sessionId: input.session_id }),
       ...(input.subject === undefined ? {} : { subject: input.subject }),
-      ...(input.delegated_at === undefined ? {} : { delegatedAt: input.delegated_at }),
     });
     opened.save();
     return result;

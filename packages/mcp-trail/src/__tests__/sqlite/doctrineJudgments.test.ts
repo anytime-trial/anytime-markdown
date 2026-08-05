@@ -237,7 +237,11 @@ describe('doctrineJudgments', () => {
         id,
         delegatedAt: '2026-08-05T00:00:00.000Z',
       });
-      expect(result).toEqual({ id, delegatedAt: '2026-08-05T00:00:00.000Z' });
+      expect(result).toEqual({
+        id,
+        delegatedAt: '2026-08-05T00:00:00.000Z',
+        alreadyDelegated: false,
+      });
       const row = db
         .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
         .get(id) as { delegated_at: string };
@@ -283,6 +287,25 @@ describe('doctrineJudgments', () => {
       const { id } = recordDoctrineJudgmentDirect(db, delegableJudgment('人が判断済み'));
       recordHumanDecisionDirect(db, { id, decision: 'approve' });
       expect(() => recordDelegatedApprovalDirect(db, { id })).toThrow(/human decision/);
+    });
+
+    it('代行済みの再記録は時刻を上書きせず、最初の記録を返す（監査ログの不変性）', () => {
+      const { id } = recordDoctrineJudgmentDirect(db, delegableJudgment('再送'));
+      recordDelegatedApprovalDirect(db, { id, delegatedAt: '2026-08-05T00:00:00.000Z' });
+
+      const again = recordDelegatedApprovalDirect(db, {
+        id,
+        delegatedAt: '2026-01-01T00:00:00.000Z',
+      });
+      expect(again).toEqual({
+        id,
+        delegatedAt: '2026-08-05T00:00:00.000Z',
+        alreadyDelegated: true,
+      });
+      const row = db
+        .prepare(`SELECT delegated_at FROM doctrine_judgments WHERE id = ?`)
+        .get(id) as { delegated_at: string };
+      expect(row.delegated_at).toBe('2026-08-05T00:00:00.000Z');
     });
 
     it('対応レコードがない代行記録はエラー（黙って新規作成しない）', () => {

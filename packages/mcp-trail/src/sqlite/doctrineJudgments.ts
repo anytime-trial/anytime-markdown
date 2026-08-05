@@ -31,6 +31,8 @@ export interface DoctrineJudgmentRecordResult {
 export interface DelegatedApprovalResult {
   readonly id: number;
   readonly delegatedAt: string;
+  /** 既に代行済みで、今回の呼び出しでは何も更新していない（最初の記録を返した） */
+  readonly alreadyDelegated: boolean;
 }
 
 export interface HumanDecisionResult {
@@ -239,6 +241,10 @@ export function recordDelegatedApprovalDirect(
     readonly id?: number;
     readonly sessionId?: string;
     readonly subject?: string;
+    /**
+     * 記録時刻。**MCP ツールからは渡せない**（外から任意の時刻を入れられると代行を
+     * 遡って記録でき、監査に使えなくなる）。テストで時刻を固定するための注入点。
+     */
     readonly delegatedAt?: string;
   },
 ): DelegatedApprovalResult {
@@ -257,12 +263,18 @@ export function recordDelegatedApprovalDirect(
   if (row.human_decision !== null) {
     throw new Error('cannot delegate: human decision already recorded for this judgment');
   }
+  if (row.delegated_at !== null) {
+    // 最初の記録が勝つ。再呼び出しを例外にせず no-op にするのは、記録の再送 (通信断後の
+    // リトライ等) を通したいため。ただし時刻は上書きしない — 上書きできると代行時刻を
+    // 後から任意に付け替えられ、監査ログとして使えなくなる
+    return { id: row.id, delegatedAt: row.delegated_at, alreadyDelegated: true };
+  }
   const now = new Date().toISOString();
   const delegatedAt = args.delegatedAt ?? now;
   db.prepare(
     `UPDATE doctrine_judgments SET delegated_at = ?, updated_at = ? WHERE id = ?`,
   ).run(delegatedAt, now, row.id);
-  return { id: row.id, delegatedAt };
+  return { id: row.id, delegatedAt, alreadyDelegated: false };
 }
 
 /**
