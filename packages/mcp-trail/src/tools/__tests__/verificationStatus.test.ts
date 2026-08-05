@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { handleGetVerificationStatus } from '../verificationStatus';
 
-// スキーマ正本は scripts/verification-db.mjs。テスト fixture 用の複製(列は読取対象のみ揃える)。
+// スキーマ正本は packages/trail-core の CREATE_VERIFICATION_RUNS。テスト fixture 用の複製(列は読取対象のみ揃える)。
 const FIXTURE_DDL = `
 CREATE TABLE verification_runs (
   id INTEGER PRIMARY KEY,
@@ -50,7 +50,7 @@ describe('handleGetVerificationStatus', () => {
   });
 
   function seedDb(rows: Array<{ kind: string; status: string; codeStateHash: string | null }>): void {
-    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'verification.db');
+    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'trail.db');
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     const db = new DatabaseSync(dbPath);
     db.exec(FIXTURE_DDL);
@@ -118,7 +118,7 @@ describe('handleGetVerificationStatus', () => {
   });
 
   it('DB ファイルはあるがテーブルが無ければ needsRun (reason: no-table)', async () => {
-    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'verification.db');
+    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'trail.db');
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     new DatabaseSync(dbPath).close(); // テーブル未作成の空 DB
     const result = await handleGetVerificationStatus({ package: 'demo-pkg', workspacePath: workDir });

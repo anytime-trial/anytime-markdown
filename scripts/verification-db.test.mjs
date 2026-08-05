@@ -1,12 +1,13 @@
 import { test, beforeEach, afterEach } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   VERIFICATION_KINDS,
-  resolveVerificationDbPath,
-  openVerificationDb,
+  resolveTrailDbPath,
+  openVerificationLedger,
   recordRun,
   queryVerifiedKinds,
   listRuns,
@@ -37,27 +38,45 @@ const baseRun = {
   finishedAt: '2026-07-06T00:00:01.234Z',
 };
 
-test('resolveVerificationDbPath: TRAIL_HOME を優先し db/verification.db を返す', () => {
+test('resolveTrailDbPath: TRAIL_HOME を優先し db/trail.db を返す（指示と同じ DB ファイル）', () => {
   process.env.TRAIL_HOME = path.join(tmpDir, 'trail');
-  assert.equal(resolveVerificationDbPath(), path.join(tmpDir, 'trail', 'db', 'verification.db'));
+  assert.equal(resolveTrailDbPath(), path.join(tmpDir, 'trail', 'db', 'trail.db'));
 });
 
-test('resolveVerificationDbPath: 保護領域 (.claude) を指す TRAIL_HOME は throw', () => {
+// 回帰: worktree から検証を回したとき、worktree 側に空の trail.db を作らせない。
+// 指示台帳は本体の trail.db にしかないため、書き先が分かれると 1 件も紐づかない。
+test('resolveTrailDbPath: worktree からでも本体（git common dir の親）の trail.db を返す', () => {
+  const repo = path.join(tmpDir, 'repo');
+  fs.mkdirSync(repo, { recursive: true });
+  const git = (args, cwd) => execFileSync('git', args, { cwd, encoding: 'utf8' });
+  git(['init', '-q', '-b', 'main'], repo);
+  git(['config', 'user.email', 't@example.com'], repo);
+  git(['config', 'user.name', 'tester'], repo);
+  fs.writeFileSync(path.join(repo, 'a.txt'), 'a');
+  git(['add', 'a.txt'], repo);
+  git(['commit', '-qm', 'init'], repo);
+  const wt = path.join(tmpDir, 'wt');
+  git(['worktree', 'add', '-q', wt, '-b', 'feature'], repo);
+
+  assert.equal(resolveTrailDbPath(wt), path.join(fs.realpathSync(repo), '.anytime', 'trail', 'db', 'trail.db'));
+});
+
+test('resolveTrailDbPath: 保護領域 (.claude) を指す TRAIL_HOME は throw', () => {
   process.env.TRAIL_HOME = path.join(os.homedir(), '.claude', 'trail');
-  assert.throws(() => resolveVerificationDbPath(), /refusing protected path/);
+  assert.throws(() => resolveTrailDbPath(), /refusing protected path/);
 });
 
-test('openVerificationDb: 二重 open してもマイグレーションは冪等', () => {
-  const dbPath = path.join(tmpDir, 'db', 'verification.db');
-  openVerificationDb(dbPath).close();
-  const db = openVerificationDb(dbPath);
+test('openVerificationLedger: 二重 open しても DDL は冪等', () => {
+  const dbPath = path.join(tmpDir, 'db', 'trail.db');
+  openVerificationLedger(dbPath).close();
+  const db = openVerificationLedger(dbPath);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all();
   assert.ok(tables.some((t) => t.name === 'verification_runs'));
   db.close();
 });
 
 test('recordRun: clean は code_state_hash=commit、dirty は NULL', () => {
-  const db = openVerificationDb(':memory:');
+  const db = openVerificationLedger(':memory:');
   recordRun(db, baseRun);
   recordRun(db, { ...baseRun, kind: 'build', treeState: 'dirty' });
   const rows = db.prepare('SELECT kind, code_state_hash FROM verification_runs ORDER BY id').all();
@@ -67,13 +86,13 @@ test('recordRun: clean は code_state_hash=commit、dirty は NULL', () => {
 });
 
 test('recordRun: 不正な kind は throw', () => {
-  const db = openVerificationDb(':memory:');
+  const db = openVerificationLedger(':memory:');
   assert.throws(() => recordRun(db, { ...baseRun, kind: 'nosuch' }), /unknown kind/);
   db.close();
 });
 
 test('queryVerifiedKinds: pass のみ・kind ごとに最新を返す', () => {
-  const db = openVerificationDb(':memory:');
+  const db = openVerificationLedger(':memory:');
   recordRun(db, { ...baseRun, status: 'fail', startedAt: '2026-07-06T00:00:00.000Z' });
   recordRun(db, { ...baseRun, startedAt: '2026-07-06T01:00:00.000Z' });
   recordRun(db, { ...baseRun, startedAt: '2026-07-06T02:00:00.000Z' });
@@ -85,7 +104,7 @@ test('queryVerifiedKinds: pass のみ・kind ごとに最新を返す', () => {
 });
 
 test('listRuns: commit / 期間でフィルタする', () => {
-  const db = openVerificationDb(':memory:');
+  const db = openVerificationLedger(':memory:');
   recordRun(db, baseRun);
   recordRun(db, { ...baseRun, commitHash: 'def456', startedAt: '2026-07-07T00:00:00.000Z' });
   assert.equal(listRuns(db, { commitHash: 'abc123' }).length, 1);

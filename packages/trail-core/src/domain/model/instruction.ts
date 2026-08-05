@@ -83,6 +83,29 @@ export interface InstructionDeliverable {
   commitHash: string;
 }
 
+/** 検証コマンドの種別。スキーマ側の CHECK 制約（CREATE_VERIFICATION_RUNS）と対の定義。 */
+export const VERIFICATION_KINDS = ['unit', 'build', 'next-build', 'typecheck', 'lint', 'e2e', 'manual'] as const;
+export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
+
+export type VerificationRunStatus = 'pass' | 'fail' | 'error';
+
+/**
+ * 指示に属する検証コマンドの実行 1 件（kind ごとに最新 1 件へ畳んだもの）。
+ * `codeStateHash` が null の実行は dirty なツリーでの実行で、「このコミットで検証済み」の
+ * 根拠にはならない（表示はするが実施済み判定には使わない）。
+ */
+export interface InstructionVerificationRun {
+  kind: VerificationKind;
+  package: string;
+  command: string;
+  status: VerificationRunStatus;
+  durationMs: number;
+  commitHash: string;
+  treeState: 'clean' | 'dirty';
+  codeStateHash: string | null;
+  startedAt: string;
+}
+
 /** モデル別のトークン内訳（session_costs をモデルで畳んだもの）。 */
 export interface InstructionTokenUsageByModel {
   model: string;
@@ -131,6 +154,8 @@ export interface InstructionRecord {
   closedAt: string | null;
   tokenUsage: InstructionTokenUsage;
   deliverables: InstructionDeliverable[];
+  /** 所属セッションが実行した検証コマンド（kind ごとに最新 1 件）。 */
+  verifications: InstructionVerificationRun[];
 }
 
 export interface InstructionRecordFilter {

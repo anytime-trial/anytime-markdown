@@ -1,9 +1,14 @@
 /**
- * verification.db — 検証実施台帳の共有アクセス層（writer 正本）。
- * スキーマの所有者は本ファイル。読み取り側（packages/mcp-trail/src/tools/verificationStatus.ts）は
- * SELECT のみでスキーマを作成しない。読取クエリを変える場合は両者を同時に更新すること。
+ * 検証実施台帳（trail.db の verification_runs）の共有アクセス層（writer 正本）。
+ *
+ * 保存先は trail.db — Flight Record の指示（instructions / instruction_sessions）と同じ DB に
+ * 置くことで、session_id 経由で「どの指示で何を検証したか」を結合できる。
+ * スキーマの正本は packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS で、
+ * 本ファイルはその **ミラー**（.mjs から TS を import できないため）。片方だけ変えないこと。
+ * 読み取り側（packages/mcp-trail/src/tools/verificationStatus.ts）は SELECT のみで作成しない。
  * 提案: /Shared/anytime-markdown-docs/proposal/20260706-verification-run-db.ja.md
  */
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -23,25 +28,50 @@ export const RUN_STATUSES = Object.freeze(['pass', 'fail', 'error']);
 // 永続データ保護: dev スクリプトはユーザー永続領域へ書かない（~/.claude / vscode-server 等）。
 const PROTECTED_ROOT_PATTERNS = [/\/vscode-server\//, /\/\.vscode\b/, /\/\.claude\b/];
 
-/** TRAIL_HOME 規約（env → <workspaceRoot>/.anytime/trail）で verification.db のパスを解決する。 */
-export function resolveVerificationDbPath(workspaceRoot) {
-  const home = process.env.TRAIL_HOME ?? path.join(workspaceRoot ?? process.cwd(), '.anytime', 'trail');
+/**
+ * 検証を実行した場所から「台帳のあるワークスペース根」を解く。
+ *
+ * 基点は `git rev-parse --git-common-dir` の親であって `--show-toplevel` ではない。worktree
+ * では toplevel が worktree 自身を指すため、そこを根にすると **worktree ごとに空の trail.db が
+ * 新規作成され**、指示（instructions / instruction_sessions）のある本体の台帳には 1 行も
+ * 入らない。検証を回したセッションは本体の指示に属するので、書き先も本体へ寄せる。
+ * git 管理下でなければ与えられた根（既定 cwd）へ縮退する。
+ */
+function resolveWorkspaceRootForLedger(startDir) {
+  const cwd = startDir ?? process.cwd();
+  try {
+    const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8' }).trim();
+    if (commonDir === '') return cwd;
+    return path.dirname(path.resolve(cwd, commonDir));
+  } catch (err) {
+    console.warn(
+      `[verification-db] git root の解決に失敗したため cwd を使う (cwd=${cwd}): ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return cwd;
+  }
+}
+
+/** TRAIL_HOME 規約（env → <workspaceRoot>/.anytime/trail）で trail.db のパスを解決する。 */
+export function resolveTrailDbPath(workspaceRoot) {
+  const home = process.env.TRAIL_HOME ?? path.join(resolveWorkspaceRootForLedger(workspaceRoot), '.anytime', 'trail');
   if (PROTECTED_ROOT_PATTERNS.some((p) => p.test(home))) {
     throw new Error(
       `[verification-db] refusing protected path "${home}". Set TRAIL_HOME to a workspace-local dir or pass workspaceRoot.`,
     );
   }
-  return path.join(home, 'db', 'verification.db');
+  return path.join(home, 'db', 'trail.db');
 }
 
+// packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS のミラー。
+// trail.db 側の _migrations（key TEXT PRIMARY KEY）は使わない — verification.db 時代の
+// (version INTEGER, applied_at TEXT) とは形が非互換で、触ると拡張のマイグレーション記録を壊す。
+// 追記のみ・冪等な DDL なのでバージョン管理表を持たずに済む。
 // SHORTCUT: 保持期間 prune 未実装. ceiling: 1 検証=1 行の追記のみで増加は緩やか. upgrade: フェーズ2 の dev-retro 連携導入時に保持方針を決めて prune を実装.
-const MIGRATIONS = [
-  {
-    version: 1,
-    sql: `
-CREATE TABLE verification_runs (
+const SCHEMA_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS verification_runs (
   id INTEGER PRIMARY KEY,
-  session_id TEXT,
+  session_id TEXT NOT NULL DEFAULT '',
+  workspace_path TEXT NOT NULL DEFAULT '',
   kind TEXT NOT NULL CHECK (kind IN ('unit','build','next-build','typecheck','lint','e2e','manual')),
   package TEXT NOT NULL,
   command TEXT NOT NULL,
@@ -53,35 +83,27 @@ CREATE TABLE verification_runs (
   environment TEXT CHECK (environment IS NULL OR json_valid(environment)),
   started_at TEXT NOT NULL CHECK (started_at GLOB '*-*-*T*:*:*Z'),
   finished_at TEXT NOT NULL CHECK (finished_at GLOB '*-*-*T*:*:*Z')
-) STRICT;
-CREATE INDEX idx_verification_runs_pkg_hash ON verification_runs (package, code_state_hash);
-CREATE INDEX idx_verification_runs_session ON verification_runs (session_id);
-CREATE INDEX idx_verification_runs_started ON verification_runs (started_at);
-`,
-  },
+) STRICT`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_session ON verification_runs(session_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON verification_runs(package, code_state_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_started ON verification_runs(started_at)`,
 ];
 
-/** verification.db を開いてマイグレーション適用済みのコネクションを返す。`:memory:` はテスト用。 */
-export function openVerificationDb(dbPath) {
+/**
+ * trail.db を開いて verification_runs を用意したコネクションを返す。`:memory:` はテスト用。
+ *
+ * journal_mode は設定しない: trail.db は拡張が WAL で開いている共有 DB で、モード変更は
+ * 他プロセスの接続を巻き込む。foreign_keys は node:sqlite の既定が ON だが、trail.db は
+ * OFF 前提（宣言のみの FK がある）なので明示的に落とす。
+ */
+export function openVerificationLedger(dbPath) {
   if (dbPath !== ':memory:') {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   }
-  const db = new DatabaseSync(dbPath);
-  db.exec('PRAGMA journal_mode = WAL');
+  const db = new DatabaseSync(dbPath, { enableForeignKeyConstraints: false });
   db.exec('PRAGMA busy_timeout = 5000');
-  runMigrations(db);
+  for (const sql of SCHEMA_STATEMENTS) db.exec(sql);
   return db;
-}
-
-function runMigrations(db) {
-  db.exec('CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL) STRICT');
-  const applied = new Set(db.prepare('SELECT version FROM _migrations').all().map((r) => r.version));
-  const insert = db.prepare('INSERT INTO _migrations (version, applied_at) VALUES (?, ?)');
-  for (const m of MIGRATIONS) {
-    if (applied.has(m.version)) continue;
-    db.exec(m.sql);
-    insert.run(m.version, new Date().toISOString());
-  }
 }
 
 /**
@@ -98,15 +120,19 @@ export function recordRun(db, run) {
   const codeStateHash = run.treeState === 'clean' ? run.commitHash : null;
   db.prepare(
     `INSERT INTO verification_runs
-     (session_id, kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, environment, started_at, finished_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (session_id, workspace_path, kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, environment, started_at, finished_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
-    run.sessionId ?? null,
+    // 空文字＝帰属不明（CLAUDE_CODE_SESSION_ID の無い手動実行）。NULL にしないのは STRICT +
+    // NOT NULL の列で、指示への結合を IN 句 1 本で書けるようにするため。
+    run.sessionId ?? '',
+    run.workspacePath ?? '',
     run.kind,
     run.package,
     run.command,
     run.status,
-    run.durationMs,
+    // STRICT なので INTEGER でない値は INSERT ごと落ちる（Date 差分は常に整数だが防御的に丸める）
+    Math.round(run.durationMs),
     run.commitHash,
     run.treeState,
     codeStateHash,

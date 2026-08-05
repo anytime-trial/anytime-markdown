@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * generate-test-report — verification.db の台帳から提出用テスト結果書（Markdown）を生成する。
+ * generate-test-report — trail.db の検証実施台帳から提出用テスト結果書（Markdown）を生成する。
  *
  * 使い方:
  *   node scripts/generate-test-report.mjs --commit <hash> [--label "<対象名>"] [--out <path>]
@@ -10,7 +10,7 @@
  */
 import * as fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { VERIFICATION_KINDS, listRuns, openVerificationDb, resolveVerificationDbPath } from './verification-db.mjs';
+import { VERIFICATION_KINDS, listRuns, openVerificationLedger, resolveTrailDbPath } from './verification-db.mjs';
 
 const TIME_ZONE = 'Asia/Tokyo';
 
@@ -76,7 +76,7 @@ type: "report"
 lang: "ja"
 author: "generate-test-report.mjs"
 category: "test-report"
-excerpt: "verification.db の検証実施台帳から自動生成したテスト結果書（対象: ${targetLabel}、run 数 ${runs.length}）。"
+excerpt: "trail.db の検証実施台帳から自動生成したテスト結果書（対象: ${targetLabel}、run 数 ${runs.length}）。"
 ---
 
 # テスト結果書: ${targetLabel}
@@ -129,7 +129,7 @@ function parseCliArgs(argv) {
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const args = parseCliArgs(process.argv.slice(2));
-    const db = openVerificationDb(resolveVerificationDbPath());
+    const db = openVerificationLedger(resolveTrailDbPath());
     let runs;
     try {
       runs = listRuns(db, args);

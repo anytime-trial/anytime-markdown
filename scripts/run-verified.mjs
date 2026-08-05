@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * run-verified — 検証コマンドを実行し結果を verification.db に記録するラッパー。
+ * run-verified — 検証コマンドを実行し結果を trail.db (verification_runs) に記録するラッパー。
  *
  * 使い方:
  *   node scripts/run-verified.mjs <package> <kind> -- <command...>
@@ -13,9 +13,9 @@ import { pathToFileURL } from 'node:url';
 import {
   VERIFICATION_KINDS,
   RUN_STATUSES,
-  openVerificationDb,
+  openVerificationLedger,
   recordRun,
-  resolveVerificationDbPath,
+  resolveTrailDbPath,
 } from './verification-db.mjs';
 
 const USAGE = `usage:
@@ -79,10 +79,14 @@ export function runVerified(argv, { cwd = process.cwd() } = {}) {
   }
   const finishedAt = new Date().toISOString();
 
-  const db = openVerificationDb(resolveVerificationDbPath(cwd));
+  // Claude Code が実際に渡すのは CLAUDE_CODE_SESSION_ID（scripts/git-activity-report.mjs と同じ）。
+  // この ID が Flight Record の指示への唯一の結合キーで、空だと指示へ畳まれない。
+  const sessionId = process.env.CLAUDE_CODE_SESSION_ID ?? '';
+  const db = openVerificationLedger(resolveTrailDbPath(cwd));
   try {
     recordRun(db, {
-      sessionId: process.env.CLAUDE_SESSION_ID ?? null,
+      sessionId,
+      workspacePath: cwd,
       kind: parsed.kind,
       package: parsed.packageName,
       command,
@@ -100,6 +104,11 @@ export function runVerified(argv, { cwd = process.cwd() } = {}) {
   console.log(
     `[${finishedAt}] [INFO] run-verified: ${parsed.packageName}/${parsed.kind} ${status} (${treeState}@${commitHash.slice(0, 8)})`,
   );
+  if (sessionId === '') {
+    console.warn(
+      `[${finishedAt}] [WARN] run-verified: CLAUDE_CODE_SESSION_ID が空のため Flight Record の指示へ紐づきません（記録は残ります）`,
+    );
+  }
   return exitCode;
 }
 

@@ -924,3 +924,36 @@ export const CREATE_INSTRUCTION_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_instructions_workspace_open ON instructions(workspace_path, closed_at)`,
   `CREATE INDEX IF NOT EXISTS idx_instruction_sessions_instruction ON instruction_sessions(instruction_id, sequence)`,
 ];
+
+// 検証実施台帳: 1 行 = 検証コマンド 1 回の実行（scripts/run-verified.mjs が書く）。
+// 本定義がスキーマの正本で、writer 側（scripts/verification-db.mjs）はこれを CREATE TABLE IF
+// NOT EXISTS のミラーとして持つ（.mjs から TS を import できないため。verificationStatus.ts が
+// 定数をミラーしているのと同じ方針）。writer は trail.db 側の _migrations（key TEXT PRIMARY KEY）
+// を使わない — 形が非互換で、触ると拡張側のマイグレーション記録を壊すため。
+//
+// session_id は「どの指示の検証か」を解く唯一のキー。instruction_id は非正規化しない:
+// 宣言が無いセッションは instruction_sessions に行を持たず、その場合の指示 ID は session_id
+// そのもの（1 セッション = 1 指示の暗黙グループ）なので、読み出し側で COALESCE すれば足りる。
+// 帰属不明（CLAUDE_CODE_SESSION_ID の無い手動実行）は '' で記録し、指示へは畳まれない。
+export const CREATE_VERIFICATION_RUNS = `CREATE TABLE IF NOT EXISTS verification_runs (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL DEFAULT '',
+  workspace_path TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL CHECK (kind IN ('unit','build','next-build','typecheck','lint','e2e','manual')),
+  package TEXT NOT NULL,
+  command TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pass','fail','error')),
+  duration_ms INTEGER NOT NULL CHECK (duration_ms >= 0),
+  commit_hash TEXT NOT NULL,
+  tree_state TEXT NOT NULL CHECK (tree_state IN ('clean','dirty')),
+  code_state_hash TEXT,
+  environment TEXT CHECK (environment IS NULL OR json_valid(environment)),
+  started_at TEXT NOT NULL CHECK (started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
+  finished_at TEXT NOT NULL CHECK (finished_at GLOB ${TS_GLOB_MS} OR finished_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_VERIFICATION_RUN_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_session ON verification_runs(session_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON verification_runs(package, code_state_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_started ON verification_runs(started_at)`,
+];

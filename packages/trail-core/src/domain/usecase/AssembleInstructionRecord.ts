@@ -16,6 +16,7 @@ import type {
   InstructionDeliverable,
   InstructionRecord,
   InstructionTokenUsage,
+  InstructionVerificationRun,
 } from '../model/instruction';
 
 export interface AssembleInstructionRecordInput {
@@ -26,6 +27,12 @@ export interface AssembleInstructionRecordInput {
   sessionCount: number;
   tokenUsage: InstructionTokenUsage;
   deliverables: readonly InstructionDeliverable[];
+  /**
+   * 所属セッションの検証実行（kind ごとに最新 1 件へ畳み済み）。
+   * 省略可にしない: 渡し忘れが「検証を 1 つも実施していない指示」として画面に出てしまい、
+   * 縮退と実データの区別がつかなくなるため。
+   */
+  verifications: readonly InstructionVerificationRun[];
 }
 
 /** JSON 配列文字列からタグ配列へ。壊れていれば空（他セッションのタグは残す）。 */
@@ -101,7 +108,7 @@ export function foldInstructionDeliverables(deliverables: readonly InstructionDe
 }
 
 export function assembleInstructionRecord(input: AssembleInstructionRecordInput): InstructionRecord {
-  const { instruction, reviews, sessionCount, tokenUsage, deliverables } = input;
+  const { instruction, reviews, sessionCount, tokenUsage, deliverables, verifications } = input;
 
   const sorted = [...reviews].sort((a, b) => (a.endedAt < b.endedAt ? -1 : a.endedAt > b.endedAt ? 1 : 0));
 
@@ -140,5 +147,6 @@ export function assembleInstructionRecord(input: AssembleInstructionRecordInput)
     closedAt: instruction.closedAt,
     tokenUsage,
     deliverables: foldInstructionDeliverables(deliverables),
+    verifications: [...verifications],
   };
 }

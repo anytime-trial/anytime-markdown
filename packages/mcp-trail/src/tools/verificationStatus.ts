@@ -1,7 +1,8 @@
 /**
- * get_verification_status — verification.db（検証実施台帳）の読み取り。
+ * get_verification_status — trail.db の verification_runs（検証実施台帳）の読み取り。
  * 台帳は「何が実施済みか」を答えるだけで実行を決めない。判定不能・記録なしは常に needsRun へ倒す。
- * スキーマ正本は scripts/verification-db.mjs（本ファイルは SELECT のみでスキーマを作成しない）。
+ * スキーマ正本は packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS
+ * （writer のミラーは scripts/verification-db.mjs）。本ファイルは SELECT のみで作成しない。
  */
 
 import { execFile } from 'node:child_process';
@@ -16,7 +17,7 @@ import { resolveWorkspacePath } from '../dbPath';
 
 const execFileAsync = promisify(execFile);
 
-/** scripts/verification-db.mjs の VERIFICATION_KINDS のミラー（reader は .mjs を import できないため）。 */
+/** trail-core の VERIFICATION_KINDS のミラー（mcp-trail は trail-core に依存しないため）。 */
 export const VERIFICATION_KINDS = ['unit', 'build', 'next-build', 'typecheck', 'lint', 'e2e', 'manual'] as const;
 export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
 
@@ -48,6 +49,11 @@ export interface VerificationStatusResult {
  */
 const PROTECTED_ROOT_PATTERNS = [/\/vscode-server\//, /\/\.vscode\b/, /\/\.claude\b/];
 
+/**
+ * 共有の `../dbPath` の `resolveDbPath` を使わないのは、あちらが trail.db 不在で throw する
+ * fail-closed だから。本ツールは「台帳が無い＝needsRun」へ倒す fail-open の契約なので、
+ * 不在を例外にせず呼び出し側へ `reason: 'no-db'` として返す必要がある。
+ */
 function resolveDbPath(workspacePath: string): string {
   const home = process.env.TRAIL_HOME ?? path.join(workspacePath, '.anytime', 'trail');
   if (PROTECTED_ROOT_PATTERNS.some((p) => p.test(home))) {
@@ -55,7 +61,7 @@ function resolveDbPath(workspacePath: string): string {
       `[get_verification_status] refusing protected path "${home}". Set TRAIL_HOME to a workspace-local dir or pass workspacePath.`,
     );
   }
-  return path.join(home, 'db', 'verification.db');
+  return path.join(home, 'db', 'trail.db');
 }
 
 export async function handleGetVerificationStatus(
