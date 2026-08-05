@@ -5,6 +5,7 @@ import {
   BaseRunner,
   EventBus,
   LepOrchestrator,
+  type PipelineRunLedgerFactory,
   PipelineStatusWriter,
   PIPELINE_SCOPES,
   stageIncludesMemory,
@@ -110,6 +111,11 @@ export interface AnalyzeAllRunnerOptions {
   codexSessionsDir?: string;
   /** memory-core ingest pipeline を実行する service (省略時は memory-core ステップをスキップ) */
   memoryCoreService?: MemoryCoreService;
+  /**
+   * Wave 1/2/4 の analyzer 実行を `pipeline_runs` へ記録するファクトリ。
+   * 未指定なら記録しない (既存の呼び出し元は挙動不変)。
+   */
+  openPipelineRunLedger?: PipelineRunLedgerFactory;
   /**
    * 実行する Wave 範囲を決める stage (設計書 9 章)。省略時 `'primary+memory'`
    * (旧 analyzeAll enabled=true 相当)。`disabled` なら何も実行しない。
@@ -390,10 +396,17 @@ export class AnalyzeAllRunner extends BaseRunner {
 
     this.registeredAnalyzerIds = analyzers.map((a) => a.id);
 
-    this.orchestrator = new LepOrchestrator(bus, analyzers, {
-      info: (msg) => this.log(msg),
-      error: (msg) => this.log(`[ERROR] ${msg}`),
-    });
+    this.orchestrator = new LepOrchestrator(
+      bus,
+      analyzers,
+      {
+        info: (msg) => this.log(msg),
+        error: (msg) => this.log(`[ERROR] ${msg}`),
+      },
+      // Wave 1/2/4 の実行台帳。DB 接続の生存期間は daemon が持つため、ここでは
+      // 開かずに注入されたファクトリを渡すだけにする (trailDb / memoryCoreService と同じ方針)。
+      opts.openPipelineRunLedger,
+    );
 
     this.onAfterRun = opts.onAfterRun;
   }

@@ -1,4 +1,5 @@
 import type { MemoryDbConnection } from '../db/connection/types';
+import { PipelineRunLedger } from './PipelineRunLedger';
 import {
   upsertEntityFts,
   upsertEpisodeFts,
@@ -66,10 +67,14 @@ export async function runRagFtsRebuild(
   );
 
   // runs テーブルに running 行を作成
-  db.run(
-    `INSERT INTO memory_pipeline_runs(id, scope, started_at, status) VALUES (?, ?, ?, 'running')`,
-    [runId, 'rag_fts_rebuild', startedAt],
-  );
+  const ledger = new PipelineRunLedger({
+    db,
+    scope: 'rag_fts_rebuild',
+    wave: 'memory',
+    tier: 3,
+    logger: { info: (m: string) => log('INFO', m), error: (m: string) => log('ERROR', m) },
+  });
+  ledger.start(startedAt);
 
   let processed = 0;
   try {
@@ -126,12 +131,7 @@ export async function runRagFtsRebuild(
          WHERE scope = 'rag_fts_rebuild'`,
       [finishedAt],
     );
-    db.run(
-      `UPDATE memory_pipeline_runs
-         SET finished_at = ?, status = 'success', items_processed = ?, duration_ms = ?
-         WHERE id = ?`,
-      [finishedAt, processed, durationMs, runId],
-    );
+    ledger.finish('success', { items_processed: processed });
     log('INFO', 'success', { trigger, processed, durationMs });
     return { status: 'success', processed };
   } catch (error) {
@@ -146,12 +146,7 @@ export async function runRagFtsRebuild(
          WHERE scope = 'rag_fts_rebuild'`,
       [detail],
     );
-    db.run(
-      `UPDATE memory_pipeline_runs
-         SET finished_at = ?, status = 'error', items_processed = ?, duration_ms = ?, error_detail = ?
-         WHERE id = ?`,
-      [finishedAt, processed, durationMs, detail, runId],
-    );
+    ledger.finish('error', { items_processed: processed }, detail);
     log('ERROR', 'failed', { trigger, processed, error: errMsg });
     return { status: 'failed', processed, error: errMsg };
   }

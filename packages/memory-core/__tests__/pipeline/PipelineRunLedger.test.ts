@@ -1,0 +1,225 @@
+import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { runMigrations } from '../../src/db/migrations/runner';
+import { PipelineRunLedger } from '../../src/pipeline/PipelineRunLedger';
+import type { MemoryLogger } from '../../src/logger';
+
+const silentLogger: MemoryLogger = {
+  info: () => {},
+  error: () => {},
+};
+
+function makeMemoryDb(): BetterSqlite3MemoryDb {
+  const db = BetterSqlite3MemoryDb.openInMemory();
+  db.run('PRAGMA foreign_keys = ON');
+  runMigrations(db);
+  return db;
+}
+
+function readRun(db: BetterSqlite3MemoryDb, id: string): Record<string, unknown> {
+  const stmt = db.prepare(`SELECT * FROM pipeline_runs WHERE id = ?`);
+  try {
+    const row = stmt.get(id);
+    if (!row) throw new Error(`run ${id} not found`);
+    return row as Record<string, unknown>;
+  } finally {
+    stmt.free?.();
+  }
+}
+
+describe('PipelineRunLedger', () => {
+  let db: BetterSqlite3MemoryDb;
+
+  beforeEach(() => {
+    db = makeMemoryDb();
+  });
+
+  afterEach(() => {
+    db.close?.();
+  });
+
+  it('start() は running の run を作り heartbeat を started_at で種付けする', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+    const row = readRun(db, runId);
+
+    expect(row['status']).toBe('running');
+    expect(row['scope']).toBe('conversation_incremental');
+    expect(row['wave']).toBe('memory');
+    expect(row['tier']).toBe(3);
+    expect(row['started_at']).toBe('2026-08-05T00:00:00.000Z');
+    expect(row['last_heartbeat_at']).toBe('2026-08-05T00:00:00.000Z');
+  });
+
+  it('Wave 1/2/4 の scope も同じ台帳へ記録できる', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'GitIngester',
+      wave: 'sources',
+      tier: 1,
+      logger: silentLogger,
+    });
+
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+    const row = readRun(db, runId);
+
+    expect(row['wave']).toBe('sources');
+    expect(row['tier']).toBe(1);
+  });
+
+  it('同一ミリ秒の連続実行でも run ID が衝突しない', () => {
+    // リグレッション: scope + started_at だけの決定論的 ID は、1 プロセス内で
+    // 連続実行が同一ミリ秒へ着地したとき主キー衝突を起こす（better-sqlite3
+    // 移行時に発生した実績あり）。
+    const makeLedger = (): PipelineRunLedger =>
+      new PipelineRunLedger({
+        db,
+        scope: 'conversation_incremental',
+        wave: 'memory',
+        tier: 3,
+        logger: silentLogger,
+      });
+
+    const first = makeLedger().start('2026-08-05T00:00:00.000Z');
+    const second = makeLedger().start('2026-08-05T00:00:00.000Z');
+
+    expect(first).not.toBe(second);
+    expect(readRun(db, first)['status']).toBe('running');
+    expect(readRun(db, second)['status']).toBe('running');
+  });
+
+  it('heartbeat() は last_heartbeat_at と途中集計を更新する', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'code_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+
+    ledger.heartbeat({ items_processed: 7, entities_inserted: 3 });
+    const row = readRun(db, runId);
+
+    expect(row['items_processed']).toBe(7);
+    expect(row['entities_inserted']).toBe(3);
+    expect(row['last_heartbeat_at']).not.toBe('2026-08-05T00:00:00.000Z');
+    expect(row['status']).toBe('running');
+  });
+
+  it('finish() は status と集計と duration_ms を確定する', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'spec_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+
+    ledger.finish('success', { items_processed: 12, edges_inserted: 5 });
+    const row = readRun(db, runId);
+
+    expect(row['status']).toBe('success');
+    expect(row['items_processed']).toBe(12);
+    expect(row['edges_inserted']).toBe(5);
+    expect(row['finished_at']).toEqual(expect.any(String));
+    expect(Number(row['duration_ms'])).toBeGreaterThanOrEqual(0);
+  });
+
+  it('finish("error", ..., detail) は error_detail を run 行へ書く', () => {
+    // リグレッション: 旧 finalizePipelineRun は UPDATE 文に error_detail を含めず、
+    // error 行の中身が常に空だった。scope 単位の memory_pipeline_state は毎回
+    // 上書きされるため、過去の失敗理由はどこにも残らなかった。
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'review_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+
+    ledger.finish('error', { items_failed: 2 }, 'boom: upstream unavailable');
+    const row = readRun(db, runId);
+
+    expect(row['status']).toBe('error');
+    expect(row['error_detail']).toBe('boom: upstream unavailable');
+  });
+
+  it('fail() は Error の stack を error_detail へ残す', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'drift_detection',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+
+    const err = new Error('drift detector exploded');
+    ledger.fail(err, { items_failed: 1 });
+    const row = readRun(db, runId);
+
+    expect(row['status']).toBe('error');
+    expect(String(row['error_detail'])).toContain('drift detector exploded');
+    expect(row['items_failed']).toBe(1);
+  });
+
+  it('fail() は Error 以外の throw 値も文字列として残す', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'drift_detection',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    ledger.start('2026-08-05T00:00:00.000Z');
+
+    ledger.fail('plain string failure');
+    const runId = ledger.runId;
+    expect(runId).not.toBeNull();
+    const row = readRun(db, runId as string);
+
+    expect(String(row['error_detail'])).toContain('plain string failure');
+  });
+
+  it('台帳の書き込み失敗は呼び出し元へ伝播させない（fail-open）', () => {
+    // 台帳は補助機構であり、記録に失敗しても ingest 本体を止めない。
+    const errors: string[] = [];
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: { info: () => {}, error: (msg: string) => errors.push(msg) },
+    });
+    ledger.start('2026-08-05T00:00:00.000Z');
+
+    db.run('DROP TABLE pipeline_runs');
+
+    expect(() => ledger.heartbeat({ items_processed: 1 })).not.toThrow();
+    expect(() => ledger.finish('success', {})).not.toThrow();
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('start() 前の heartbeat / finish は無視される', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+
+    expect(() => ledger.heartbeat({ items_processed: 1 })).not.toThrow();
+    expect(() => ledger.finish('success', {})).not.toThrow();
+    expect(ledger.runId).toBeNull();
+  });
+});

@@ -105,7 +105,7 @@ describe('runConversationIncremental', () => {
     expect(state[0]?.values?.[0]?.[0]).toBe('');
 
     const run = memDb.exec(
-      `SELECT status FROM memory_pipeline_runs WHERE scope = 'conversation_incremental'`
+      `SELECT status FROM pipeline_runs WHERE scope = 'conversation_incremental'`
     );
     expect(run[0]?.values?.[0]?.[0]).toBe('partial');
 
@@ -196,7 +196,7 @@ describe('runConversationIncremental', () => {
 
     // pipeline_run row should exist with status=success
     const runRows = memDb.exec(
-      `SELECT status FROM memory_pipeline_runs WHERE scope = 'conversation_incremental'`
+      `SELECT status FROM pipeline_runs WHERE scope = 'conversation_incremental'`
     );
     expect(runRows[0]?.values[0]?.[0]).toBe('success');
 
@@ -365,7 +365,7 @@ describe('runConversationIncremental', () => {
     const snapshots: Snapshot[] = [];
     const save = (): void => {
       const runRows = memDb.exec(
-        `SELECT items_processed FROM memory_pipeline_runs
+        `SELECT items_processed FROM pipeline_runs
          WHERE scope = 'conversation_incremental'
          ORDER BY started_at DESC LIMIT 1`
       );
@@ -536,7 +536,7 @@ describe('runConversationIncremental', () => {
 
     const rows = memDb.exec(
       `SELECT started_at, last_heartbeat_at
-         FROM memory_pipeline_runs
+         FROM pipeline_runs
         WHERE scope = 'conversation_incremental'`
     );
     expect(rows[0]?.values).toHaveLength(1);
@@ -632,7 +632,7 @@ describe('runConversationIncremental', () => {
     expect(String(state[0]?.values?.[0]?.[2])).toContain('injected fatal');
 
     const run = memDb.exec(
-      `SELECT status FROM memory_pipeline_runs WHERE scope = 'conversation_incremental'`
+      `SELECT status FROM pipeline_runs WHERE scope = 'conversation_incremental'`
     );
     expect(run[0]?.values?.[0]?.[0]).toBe('error');
 

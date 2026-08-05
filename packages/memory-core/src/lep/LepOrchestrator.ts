@@ -1,6 +1,7 @@
 import type { EventBus } from './EventBus';
 import type { Analyzer, AnalyzerContext, LepStage } from './types';
 import { noopLogger, type MemoryLogger } from '../logger';
+import type { PipelineRunLedger } from '../pipeline/PipelineRunLedger';
 import type { RunReason } from '../runner/types';
 
 export interface LepRunOnceOptions {
@@ -17,6 +18,16 @@ export interface LepRunOnceResult {
   /** analyzer.id → 発生した Error (onRunStart / onRunEnd / onEvent いずれか) */
   readonly errors: ReadonlyMap<string, Error>;
 }
+
+/**
+ * Wave 1/2/4 の analyzer 実行を `pipeline_runs` へ記録するためのファクトリ。
+ * null を返すと当該実行は記録しない（memory-core.db 不在時など）。
+ */
+export type PipelineRunLedgerFactory = (
+  scope: string,
+  wave: WaveName,
+  tier: Tier,
+) => PipelineRunLedger | null;
 
 /**
  * LEP の Wave 1 → 2 → 3 → 4 順次実行 orchestrator。
@@ -43,13 +54,16 @@ export interface LepRunOnceResult {
  */
 export class LepOrchestrator {
   private readonly logger: MemoryLogger;
+  private readonly openLedger: PipelineRunLedgerFactory | null;
 
   constructor(
     private readonly bus: EventBus,
     private readonly analyzers: readonly Analyzer[],
     logger?: MemoryLogger,
+    openLedger?: PipelineRunLedgerFactory,
   ) {
     this.logger = logger ?? noopLogger;
+    this.openLedger = openLedger ?? null;
   }
 
   /** 指定 tier の全 analyzer のライフサイクルフックを順次実行し、例外を errors に集約する。 */
@@ -63,12 +77,29 @@ export class LepOrchestrator {
       if (a.tier !== tier) continue;
       const fn = a[hook];
       if (!fn) continue;
+      // 台帳は実作業 (`onRunEnd`) だけを対象にする。`onRunStart` は初期化で、
+      // Wave ループより前に一括実行されるため Wave 実行時間として意味を持たない。
+      // tier 3 は memory-core の run*Incremental が自分で run 行を書くため、
+      // ここで包むと 1 実行が二重計上される。
+      const ledger = hook === 'onRunEnd' ? this.startLedger(a.id, tier) : null;
       try {
         await fn.call(a, ctx);
+        ledger?.finish('success');
       } catch (err) {
-        errors.set(a.id, toError(err));
+        const error = toError(err);
+        errors.set(a.id, error);
+        ledger?.fail(error);
       }
     }
+  }
+
+  private startLedger(analyzerId: string, tier: Tier): PipelineRunLedger | null {
+    if (!this.openLedger || tier === 3) return null;
+    const wave = WAVES.find(([t]) => t === tier)?.[1];
+    if (!wave) return null;
+    const ledger = this.openLedger(analyzerId, wave, tier);
+    ledger?.start();
+    return ledger;
   }
 
   async runOnce(opts: LepRunOnceOptions): Promise<LepRunOnceResult> {

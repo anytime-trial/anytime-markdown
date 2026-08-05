@@ -169,6 +169,7 @@ export {
   topoSortByDependsOn,
 } from './lep';
 export type {
+  PipelineRunLedgerFactory,
   AnalyzerEvent,
   Analyzer,
   AnalyzerContext,

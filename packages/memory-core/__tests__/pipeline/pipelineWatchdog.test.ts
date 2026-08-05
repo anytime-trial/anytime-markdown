@@ -17,7 +17,7 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 function insertRunningRun(db: BetterSqlite3MemoryDb, id: string, scope: string, startedAt: string): void {
   db.run(
-    `INSERT INTO memory_pipeline_runs
+    `INSERT INTO pipeline_runs
        (id, scope, started_at, status,
         items_processed, entities_inserted, entities_updated,
         edges_inserted, edges_invalidated, drifts_detected,
@@ -29,7 +29,7 @@ function insertRunningRun(db: BetterSqlite3MemoryDb, id: string, scope: string, 
 
 function setHeartbeat(db: BetterSqlite3MemoryDb, id: string, heartbeatAt: string): void {
   db.run(
-    `UPDATE memory_pipeline_runs SET last_heartbeat_at = ? WHERE id = ?`,
+    `UPDATE pipeline_runs SET last_heartbeat_at = ? WHERE id = ?`,
     [heartbeatAt, id],
   );
 }
@@ -51,7 +51,7 @@ describe('runPipelineWatchdog', () => {
     const result = runPipelineWatchdog({ db, timeoutMinutes: 10, logger: silentLogger });
 
     expect(result.stale_runs).toBe(0);
-    const rows = db.exec(`SELECT status FROM memory_pipeline_runs WHERE id = 'run_fresh'`);
+    const rows = db.exec(`SELECT status FROM pipeline_runs WHERE id = 'run_fresh'`);
     expect(rows[0]?.values[0]?.[0]).toBe('running');
 
     db.close();
@@ -66,7 +66,7 @@ describe('runPipelineWatchdog', () => {
 
     expect(result.stale_runs).toBe(1);
     const rows = db.exec(
-      `SELECT status, error_detail, finished_at, duration_ms FROM memory_pipeline_runs WHERE id = 'run_stale'`,
+      `SELECT status, error_detail, finished_at, duration_ms FROM pipeline_runs WHERE id = 'run_stale'`,
     );
     const row = rows[0]?.values[0];
     expect(row?.[0]).toBe('error');
@@ -80,7 +80,7 @@ describe('runPipelineWatchdog', () => {
   test('W3: orphan running state (no matching run) is reset to idle', async () => {
     const db = await makeMemoryDb();
     insertRunningState(db, 'conversation_backfill');
-    // No matching memory_pipeline_runs row.
+    // No matching pipeline_runs row.
 
     const result = runPipelineWatchdog({ db, timeoutMinutes: 10, logger: silentLogger });
 
@@ -108,7 +108,7 @@ describe('runPipelineWatchdog', () => {
     );
     expect(stateRows[0]?.values[0]?.[0]).toBe('running');
     const runRows = db.exec(
-      `SELECT status FROM memory_pipeline_runs WHERE id = 'run_live'`,
+      `SELECT status FROM pipeline_runs WHERE id = 'run_live'`,
     );
     expect(runRows[0]?.values[0]?.[0]).toBe('running');
 
@@ -127,7 +127,7 @@ describe('runPipelineWatchdog', () => {
     const result = runPipelineWatchdog({ db, timeoutMinutes: 10, logger: silentLogger });
 
     expect(result.stale_runs).toBe(0);
-    const rows = db.exec(`SELECT status FROM memory_pipeline_runs WHERE id = 'run_alive'`);
+    const rows = db.exec(`SELECT status FROM pipeline_runs WHERE id = 'run_alive'`);
     expect(rows[0]?.values[0]?.[0]).toBe('running');
 
     db.close();
@@ -145,7 +145,7 @@ describe('runPipelineWatchdog', () => {
 
     expect(result.stale_runs).toBe(1);
     const rows = db.exec(
-      `SELECT status, error_detail FROM memory_pipeline_runs WHERE id = 'run_dead'`,
+      `SELECT status, error_detail FROM pipeline_runs WHERE id = 'run_dead'`,
     );
     const row = rows[0]?.values[0];
     expect(row?.[0]).toBe('error');
@@ -165,7 +165,7 @@ describe('runPipelineWatchdog', () => {
     expect(result.stale_runs).toBe(1);
     expect(result.stale_states).toBe(1);
 
-    const runRow = db.exec(`SELECT status FROM memory_pipeline_runs WHERE id = 'run_stale'`);
+    const runRow = db.exec(`SELECT status FROM pipeline_runs WHERE id = 'run_stale'`);
     expect(runRow[0]?.values[0]?.[0]).toBe('error');
 
     const stateRow = db.exec(

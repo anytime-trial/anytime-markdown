@@ -1,5 +1,6 @@
 import type { MemoryDbConnection } from '../db/connection/types';
 import type { MemoryLogger } from '../logger';
+import { PipelineRunLedger } from './PipelineRunLedger';
 import { randomUUID } from 'node:crypto';
 
 import { detectThreeSourceDrifts } from '../drift/compare';
@@ -27,23 +28,8 @@ export async function runDriftDetection(input: {
 }): Promise<DriftDetectionResult> {
   const { db, logger } = input;
   const startedAt = new Date().toISOString();
-  const runId = randomUUID();
-
-  try {
-    db.run(
-      `INSERT INTO memory_pipeline_runs
-         (id, scope, started_at, status,
-          items_processed, entities_inserted, entities_updated,
-          edges_inserted, edges_invalidated, drifts_detected,
-          items_failed, duration_ms)
-       VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
-      [runId, SCOPE, startedAt],
-    );
-  } catch (err) {
-    logger.error(
-      `[runDriftDetection] pipeline_run insert failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`,
-    );
-  }
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
+  ledger.start(startedAt);
 
   const candidates: DriftEventInput[] = [];
   let hasPartialError = false;
@@ -123,24 +109,15 @@ export async function runDriftDetection(input: {
     hasPartialError = true;
   }
 
-  const finishedAt = new Date().toISOString();
   const durationMs = Date.now() - new Date(startedAt).getTime();
   const status = hasPartialError ? 'partial' : 'success';
   const totalDrifts = reportResult.events_inserted + reportResult.events_updated;
 
-  try {
-    db.run(
-      `UPDATE memory_pipeline_runs SET
-         finished_at    = ?,
-         status         = ?,
-         drifts_detected = ?,
-         duration_ms    = ?
-       WHERE id = ?`,
-      [finishedAt, status, totalDrifts, durationMs, runId],
-    );
-  } catch (err) {
-    logger.error(`[runDriftDetection] finalize pipeline_run failed: ${String(err)}`);
-  }
+  ledger.finish(
+    status,
+    { drifts_detected: totalDrifts },
+    hasPartialError ? 'postProcessF22 or report step failed (see logs)' : '',
+  );
 
   return {
     status,

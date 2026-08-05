@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { MemoryDbConnection } from '../db/connection/types';
+import { PipelineRunLedger } from './PipelineRunLedger';
 import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import { refineCategories } from '../ingest/review/extractFindings';
@@ -57,48 +58,6 @@ function upsertPipelineState(
        END,
        error_detail = excluded.error_detail`,
     [scope, opts.status, opts.last_processed_at ?? '', opts.error_detail ?? ''],
-  );
-}
-
-function insertPipelineRun(db: MemoryDbConnection, id: string, scope: string, startedAt: string): void {
-  db.run(
-    `INSERT INTO memory_pipeline_runs
-       (id, scope, started_at, status,
-        items_processed, entities_inserted, entities_updated,
-        edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
-    [id, scope, startedAt],
-  );
-}
-
-function finalizePipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string,
-  status: 'success' | 'partial' | 'error',
-  totals: { items_processed: number; entities_inserted: number; edges_inserted: number },
-): void {
-  const finishedAt = new Date().toISOString();
-  const durationMs = Date.now() - new Date(startedAt).getTime();
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       finished_at       = ?,
-       status            = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       edges_inserted    = ?,
-       duration_ms       = ?
-     WHERE id = ?`,
-    [
-      finishedAt,
-      status,
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.edges_inserted,
-      durationMs,
-      id,
-    ],
   );
 }
 
@@ -231,12 +190,8 @@ export async function runReviewIncremental(input: {
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
 
-  const runIdHash = createHash('sha1')
-    .update(`${SCOPE_DOC}:${startedAt}`)
-    .digest('hex')
-    .slice(0, 16);
-
-  insertPipelineRun(db, runIdHash, SCOPE_DOC, startedAt);
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE_DOC, wave: 'memory', tier: 3, logger });
+  ledger.start(startedAt);
   upsertPipelineState(db, SCOPE_DOC, { status: 'running' });
 
   const totals = {
@@ -421,7 +376,11 @@ export async function runReviewIncremental(input: {
     itemsFailed > 0 && totals.items_processed === itemsFailed ? 'error' : partialOrSuccess;
 
   upsertPipelineState(db, SCOPE_DOC, { status: 'idle' });
-  finalizePipelineRun(db, runIdHash, startedAt, finalStatus, totals);
+  ledger.finish(
+    finalStatus,
+    totals,
+    itemsFailed > 0 ? `${itemsFailed} item(s) failed to ingest` : '',
+  );
 
   const durationMs = Date.now() - startMs;
 

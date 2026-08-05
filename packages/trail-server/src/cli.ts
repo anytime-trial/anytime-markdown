@@ -3,8 +3,8 @@ import { Command } from 'commander';
 import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
-import { type MemoryCoreLogSink, type LepStage, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
+import { MemoryCoreService, PipelineRunLedger } from '@anytime-markdown/memory-core/pipeline';
+import { type MemoryCoreLogSink, type LepStage, type PipelineRunLedgerFactory, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
 import { ChatBridge } from './memory-chat/chatBridge';
 import { RebuildScheduler } from './memory-chat/rebuildScheduler';
 import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
@@ -342,6 +342,30 @@ program
     // (= VS Code 拡張の anytime-trail.analyzeAll コマンドと同じデータフロー)。
     // メモリ取込が import より先に走ってしまうレースを避けるため 1 runner に統合済。
     // pause/resume は AnalyzeAllRunner が一元管理する (旧 memory-core 側の pause は使われない)。
+    // Wave 1/2/4 の実行台帳。Wave 3 のセッションと同じ memory-core.db を共有するため
+    // WAL で開き、migration はここで走らせない (スキーマの所有は memory-core 側)。
+    // memory-core.db が未作成の間は pipeline_runs が無いので記録を諦める (null 返し)。
+    const ledgerDb = new BetterSqlite3MemoryDb({
+      filePath: memoryDbPath,
+      ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
+    });
+    ledgerDb.run('PRAGMA journal_mode=WAL');
+    const hasPipelineRunsTable = (): boolean => {
+      try {
+        const rows = ledgerDb.exec(
+          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pipeline_runs'`,
+        );
+        return (rows[0]?.values.length ?? 0) > 0;
+      } catch (err) {
+        logger.error('pipeline_runs table probe failed', err);
+        return false;
+      }
+    };
+    const openPipelineRunLedger: PipelineRunLedgerFactory = (scope, wave, tier) =>
+      hasPipelineRunsTable()
+        ? new PipelineRunLedger({ db: ledgerDb, scope, wave, tier, logger: memoryLogger })
+        : null;
+
     const analyzeAllRunner = new AnalyzeAllRunner({
       logSink: { appendLine: (msg: string) => logger.info(msg) },
       statePath: join(TRAIL_HOME, 'analyze-all-runner.json'),
@@ -371,6 +395,7 @@ program
       // stage が memory を含まない run 後に memory scope を skipped 記録する宛先。
       pipelineStatusFilePath: join(dbStorageDir, 'pipeline-status.json'),
       shouldDeferScheduled: () => throttleGovernor.shouldDeferScheduled(),
+      openPipelineRunLedger,
     });
     server.setAnalyzeAllRunner(analyzeAllRunner);
     logger.info('analyze-all runner wired', {
@@ -442,6 +467,7 @@ program
         if (typeof closeFn === 'function') await closeFn.call(trailDb);
       } catch (err) { logger.error('trail db close failed', err); }
       try { extensionLogsDb.close(); } catch (err) { logger.error('extension-logs.db close failed', err); }
+      try { ledgerDb.close(); } catch (err) { logger.error('pipeline run ledger db close failed', err); }
       process.exit(0);
     };
     process.on('SIGTERM', () => void shutdown('SIGTERM'));

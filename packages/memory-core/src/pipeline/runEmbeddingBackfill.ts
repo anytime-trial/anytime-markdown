@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { encodeEmbedding } from '../embedding/codec';
 import { noopLogger, type MemoryLogger } from '../logger';
+import { PipelineRunLedger } from './PipelineRunLedger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 const SCOPE = 'embedding_backfill';
@@ -13,13 +13,6 @@ export interface EmbeddingBackfillResult {
   items_processed: number;
   items_skipped: number;
   items_failed: number;
-}
-
-function runId(startedAt: string): string {
-  return createHash('sha1')
-    .update(`${SCOPE}:${startedAt}`)
-    .digest('hex')
-    .slice(0, 16);
 }
 
 function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
@@ -54,7 +47,7 @@ export async function runEmbeddingBackfill(opts: {
   const progress = opts.progress;
 
   const startedAt = new Date().toISOString();
-  const id = runId(startedAt);
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
 
   // Count totals for logging
   const totalRows = db.exec('SELECT COUNT(*) FROM memory_entities WHERE embedding IS NULL');
@@ -68,14 +61,7 @@ export async function runEmbeddingBackfill(opts: {
   if (onTotal) onTotal(totalNull);
 
   // Start pipeline run
-  db.run(
-    `INSERT INTO memory_pipeline_runs
-       (id, scope, status, started_at, finished_at, duration_ms,
-        items_processed, items_failed,
-        entities_inserted, entities_updated, edges_inserted, edges_invalidated)
-     VALUES (?, ?, 'running', ?, NULL, 0, 0, 0, 0, 0, 0, 0)`,
-    [id, SCOPE, startedAt]
-  );
+  ledger.start(startedAt);
 
   const counters = { processed: 0, failed: 0 };
 
@@ -116,15 +102,10 @@ export async function runEmbeddingBackfill(opts: {
   const status: EmbeddingBackfillResult['status'] =
     counters.failed === 0 ? 'success' : partialOrError;
 
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       status          = ?,
-       finished_at     = ?,
-       duration_ms     = ?,
-       items_processed = ?,
-       items_failed    = ?
-     WHERE id = ?`,
-    [status, finishedAt, durationMs, counters.processed, counters.failed, id]
+  ledger.finish(
+    status,
+    { items_processed: counters.processed, items_failed: counters.failed },
+    counters.failed > 0 ? `${counters.failed} entity embedding(s) failed` : '',
   );
 
   logger.info(

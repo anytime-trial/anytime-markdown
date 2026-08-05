@@ -25,6 +25,7 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 13, file: '013_rag_fts.sql', requiresFts5: true },
   { version: 14, file: '014_spec_doc_reference_type.sql' },
   { version: 15, file: '015_checklist_ref.sql' },
+  { version: 16, file: '016_pipeline_run_ledger.sql' },
 ]
 
 /**

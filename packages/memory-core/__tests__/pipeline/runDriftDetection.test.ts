@@ -141,12 +141,12 @@ describe('runDriftDetection', () => {
   }, 30000);
 
   // D2: pipeline_runs row is created with scope='drift_detection'
-  test('D2: memory_pipeline_runs row created with scope=drift_detection and status=success', async () => {
+  test('D2: pipeline_runs row created with scope=drift_detection and status=success', async () => {
     const { db, close } = await openTestDb();
     try {
       await runDriftDetection({ db, logger: noopLogger });
       const rows = db.exec(
-        `SELECT scope, status FROM memory_pipeline_runs WHERE scope = 'drift_detection'`,
+        `SELECT scope, status FROM pipeline_runs WHERE scope = 'drift_detection'`,
       );
       expect(rows[0]?.values).toHaveLength(1);
       expect(rows[0]?.values[0][0]).toBe('drift_detection');

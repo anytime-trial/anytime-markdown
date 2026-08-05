@@ -118,11 +118,11 @@ describe('runRagFtsRebuild', () => {
     expect(result.status).toBe('skipped');
   });
 
-  test('完了時に memory_pipeline_runs に 1 行 success で記録される', async () => {
+  test('完了時に pipeline_runs に 1 行 success で記録される', async () => {
     insertEntity(db, 'e1', 'fn', 'Fn', '', null);
     await runRagFtsRebuild({ db, trigger: 'manual' });
     const runs = db.exec(
-      `SELECT scope, status FROM memory_pipeline_runs WHERE scope = 'rag_fts_rebuild'`,
+      `SELECT scope, status FROM pipeline_runs WHERE scope = 'rag_fts_rebuild'`,
     );
     expect(runs[0]?.values).toHaveLength(1);
     expect(runs[0]?.values[0][1]).toBe('success');
@@ -163,7 +163,7 @@ describe('runRagFtsRebuild', () => {
 
     // pipeline_runs row should be 'error'
     const runs = db.exec(
-      `SELECT status FROM memory_pipeline_runs WHERE scope = 'rag_fts_rebuild'`,
+      `SELECT status FROM pipeline_runs WHERE scope = 'rag_fts_rebuild'`,
     );
     expect(runs[0]?.values[0][0]).toBe('error');
   });

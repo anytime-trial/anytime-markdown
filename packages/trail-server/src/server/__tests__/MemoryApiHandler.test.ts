@@ -112,7 +112,7 @@ function buildTestDb(dbPath: string): void {
     model TEXT NOT NULL DEFAULT ''
   ) STRICT`);
 
-  run(`CREATE TABLE memory_pipeline_runs (
+  run(`CREATE TABLE pipeline_runs (
     id TEXT PRIMARY KEY,
     scope TEXT NOT NULL,
     started_at TEXT NOT NULL,
@@ -209,25 +209,25 @@ function buildTestDb(dbPath: string): void {
 
   // Seed: pipeline runs (multi-day, multi-scope for stats aggregation)
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
+    `INSERT INTO pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ['run-1', 'drift', TS, TS2, 'success', 5, 3_600_000],
   );
   // Same day, same scope, different status (partial) — worst_status should remain 'partial' (>success)
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
+    `INSERT INTO pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ['run-2', 'drift', '2026-05-09T12:00:00.000Z', '2026-05-09T12:30:00.000Z', 'partial', 3, 1_800_000],
   );
   // Same day, different scope (review) — separate aggregation row
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
+    `INSERT INTO pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ['run-3', 'review', '2026-05-09T13:00:00.000Z', '2026-05-09T13:15:00.000Z', 'success', 10, 900_000],
   );
   // Different day, drift scope with error — worst status for that day
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
+    `INSERT INTO pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ['run-4', 'drift', '2026-05-10T09:00:00.000Z', '2026-05-10T09:45:00.000Z', 'error', 0, 2_700_000],
   );

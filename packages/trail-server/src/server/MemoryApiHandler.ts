@@ -818,7 +818,7 @@ export class MemoryApiHandler {
                       WHEN 'running' THEN 0
                       ELSE 0
                     END) AS worst_rank
-         FROM memory_pipeline_runs
+         FROM pipeline_runs
          ${where}
          GROUP BY day, scope
          ORDER BY day DESC, scope ASC`,

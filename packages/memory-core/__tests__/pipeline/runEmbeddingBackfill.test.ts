@@ -52,7 +52,7 @@ async function makeDb() {
     ) STRICT
   `);
   db.run(`
-    CREATE TABLE memory_pipeline_runs (
+    CREATE TABLE pipeline_runs (
       id                 TEXT PRIMARY KEY,
       scope              TEXT NOT NULL,
       status             TEXT NOT NULL,
