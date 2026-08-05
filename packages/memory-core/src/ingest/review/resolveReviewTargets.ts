@@ -50,33 +50,57 @@ export function resolveReviewWorkspaces(
 ): number {
   let filled = 0;
 
+  // 読み（trail 参照）と書きを必ず分ける。attach ガードは `trail.` を含む書き込み SQL を
+  // 一律に拒否するため、相関サブクエリ付き UPDATE は subquery が読み取りだけでも失敗する。
+  // 1 文にまとめると本番で毎回失敗し、下の既定値フォールバックが全 session レビューへ
+  // 誤ったワークスペースを書き込む（fail-open）。
+  let sessionRows: Array<{ id: string; workspace: string }> = [];
   try {
-    // session 経路: 実際のセッションのリポジトリを引く。
-    db.run(
-      `UPDATE memory_reviews
-          SET workspace = COALESCE((
-                SELECT rp.repo_name
-                  FROM trail.sessions s
-                  JOIN trail.repos rp ON rp.repo_id = s.repo_id
-                 WHERE s.id = substr(memory_reviews.source_ref, 1, instr(memory_reviews.source_ref, '#') - 1)
-              ), '')
-        WHERE workspace = ''
-          AND source_kind = 'session'
-          AND instr(source_ref, '#') > 1`,
-      [],
+    const result = db.exec(
+      `SELECT r.id, rp.repo_name
+         FROM memory_reviews r
+         JOIN trail.sessions s
+           ON s.id = substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
+         JOIN trail.repos rp ON rp.repo_id = s.repo_id
+        WHERE r.workspace = ''
+          AND r.source_kind = 'session'
+          AND instr(r.source_ref, '#') > 1`,
     );
-    filled += db.getRowsModified();
+    sessionRows = (result[0]?.values ?? []).map((row) => ({
+      id: String(row[0]),
+      workspace: String(row[1]),
+    }));
   } catch (err) {
-    warn(logger,
-      `[anytime-memory] resolveReviewWorkspaces: session workspace resolution failed: ${String(err)}`,
+    warn(
+      logger,
+      `[anytime-memory] resolveReviewWorkspaces: session workspace lookup failed: ${String(err)}`,
     );
   }
 
+  for (const row of sessionRows) {
+    try {
+      db.run(`UPDATE memory_reviews SET workspace = ? WHERE id = ?`, [row.workspace, row.id]);
+      filled += 1;
+    } catch (err) {
+      warn(
+        logger,
+        `[anytime-memory] resolveReviewWorkspaces: review=${row.id} update failed: ${String(err)}`,
+      );
+    }
+  }
+
+  // 既定値で埋めてよいのは session **以外**だけ。session レビューのワークスペースは
+  // セッションの実リポジトリが唯一の正解であり、引けなかったものを取込側の
+  // ワークスペースで埋めると「別ワークスペースの指摘」を自分のものとして誤表示する。
+  // 引けないものは '' のまま残し、後続の実行で再試行させる。
   try {
-    db.run(`UPDATE memory_reviews SET workspace = ? WHERE workspace = ''`, [defaultWorkspace]);
+    db.run(`UPDATE memory_reviews SET workspace = ? WHERE workspace = '' AND source_kind != 'session'`, [
+      defaultWorkspace,
+    ]);
     filled += db.getRowsModified();
   } catch (err) {
-    warn(logger,
+    warn(
+      logger,
       `[anytime-memory] resolveReviewWorkspaces: default workspace fill failed: ${String(err)}`,
     );
   }
