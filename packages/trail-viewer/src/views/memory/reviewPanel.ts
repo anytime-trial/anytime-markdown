@@ -19,6 +19,13 @@ import type { MemoryReviewHistoryRow, MemoryUnaddressedReviewFindingRow } from '
 import type { MemoryReader } from '../../data/readers/MemoryReader';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 
+/**
+ * 未解決ワークスペースを表すフィルタ値。**表示ラベルと兼用しない**。
+ * 兼用すると i18n 化した瞬間に比較キーが言語依存になり、UI 言語を切り替えると
+ * 絞り込みが効かなくなる。空文字は「All」に使われているので別の番兵を置く。
+ */
+const UNRESOLVED_WORKSPACE_KEY = '\u0000unresolved';
+
 // MUI Chip color → CSS 変数マッピング
 const SEVERITY_COLOR_VAR: Record<string, string> = {
   info: 'var(--am-color-info-main)',
@@ -85,6 +92,7 @@ export function mountReviewPanel(
   let severityFilter = '';
   let categoryFilter = '';
   let statusFilter: '' | 'addressed' | 'notAddressed' = '';
+  let workspaceFilter = '';
 
   // --- root 構造 ---
   const root = document.createElement('div');
@@ -156,7 +164,23 @@ export function mountReviewPanel(
   });
   statusSelectWrap.appendChild(statusSelect.el);
 
-  filterBar.append(filterLabel, sevSelectWrap, catSelectWrap, statusSelectWrap);
+  // Workspace select
+  // memory-core.db は複数ワークスペースのレビューを集約しているため、
+  // 絞り込みが無いと別ワークスペースの指摘が同じ一覧に混ざって見える。
+  const wsSelectWrap = document.createElement('div');
+  wsSelectWrap.style.cssText = 'min-width:160px;';
+  const wsSelect = createSelect<string>({
+    value: '',
+    options: [{ value: '', label: props.t('memory.review.filterAll') }],
+    ariaLabel: props.t('memory.review.filterWorkspace'),
+    onChange: (v) => {
+      workspaceFilter = v;
+      renderTable();
+    },
+  });
+  wsSelectWrap.appendChild(wsSelect.el);
+
+  filterBar.append(filterLabel, sevSelectWrap, catSelectWrap, statusSelectWrap, wsSelectWrap);
 
   // Table pane
   const tablePane = document.createElement('div');
@@ -197,6 +221,7 @@ export function mountReviewPanel(
       if (categoryFilter && r.category !== categoryFilter) return false;
       if (statusFilter === 'addressed' && !r.addressedCommitSha) return false;
       if (statusFilter === 'notAddressed' && r.addressedCommitSha) return false;
+      if (workspaceFilter && (r.workspace || UNRESOLVED_WORKSPACE_KEY) !== workspaceFilter) return false;
       return true;
     });
   }
@@ -226,6 +251,7 @@ export function mountReviewPanel(
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
     headRow.append(
+      th(props.t('memory.review.column.workspace')),
       th('File'),
       th('Package'),
       th('Category'),
@@ -308,6 +334,15 @@ export function mountReviewPanel(
       const reviewedCell = td('color:var(--am-color-text-secondary);white-space:nowrap;');
       reviewedCell.textContent = row.reviewedAt.slice(0, 10);
 
+      // Workspace
+      // 値が無い('')のは「セッションのリポジトリを引けなかった」であって
+      // 「anytime-markdown」ではない。既定値で埋めず未解決として表示する。
+      const wsCell = td('color:var(--am-color-text-secondary);white-space:nowrap;');
+      wsCell.textContent = row.workspace || props.t('memory.review.workspaceUnresolved');
+      if (!row.workspace) {
+        wsCell.style.fontStyle = 'italic';
+      }
+
       // Reviewer (truncated with tooltip)
       const reviewerText = formatReviewer(row);
       const reviewerCell = td('max-width:160px;color:var(--am-color-text-secondary);overflow:hidden;');
@@ -357,6 +392,7 @@ export function mountReviewPanel(
       }
 
       tr.append(
+        wsCell,
         fileCell,
         pkgCell,
         catCell,
@@ -379,6 +415,21 @@ export function mountReviewPanel(
     catSelect.update({
       options: [{ value: '', label: 'All' }, ...categories.map((c) => ({ value: c, label: c }))],
       value: categoryFilter,
+    });
+  }
+
+  function updateWorkspaceOptions(): void {
+    const workspaces = [...new Set(history.map((r) => r.workspace || UNRESOLVED_WORKSPACE_KEY))].sort();
+    wsSelect.update({
+      options: [
+        { value: '', label: props.t('memory.review.filterAll') },
+        ...workspaces.map((w) => ({
+          value: w,
+          // キーは言語非依存のまま、表示だけ翻訳する。
+          label: w === UNRESOLVED_WORKSPACE_KEY ? props.t('memory.review.workspaceUnresolved') : w,
+        })),
+      ],
+      value: workspaceFilter,
     });
   }
 
@@ -406,6 +457,7 @@ export function mountReviewPanel(
 
     renderUnaddressed();
     updateCategoryOptions();
+    updateWorkspaceOptions();
     renderTable();
   }
 
@@ -444,6 +496,7 @@ export function mountReviewPanel(
       sevSelect.destroy();
       catSelect.destroy();
       statusSelect.destroy();
+      wsSelect.destroy();
       root.remove();
     },
   };

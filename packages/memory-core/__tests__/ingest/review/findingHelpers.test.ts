@@ -4,6 +4,7 @@ import {
   inferSeverityFromHeading,
   inferSeverity,
   extractTargetFromFinding,
+  extractBacktickPaths,
   maxSeverity,
   parseSeverityMarker,
   parseChecklistRefMarker,
@@ -307,6 +308,69 @@ describe('extractTargetFromFinding', () => {
 
   test('returns null on empty text', () => {
     expect(extractTargetFromFinding('')).toBeNull();
+  });
+
+  // ── 退行防止: バッククォート内容を丸ごと積む欠陥 ─────────────────────────────
+  //
+  // 旧実装は `PATH_TOKEN_RE.test(inner)` が真なら inner 全体を候補に積んでいた。
+  // そのためバッククォート内の複数行シェル実行ログが丸ごと target_file_path として
+  // 保存されていた（本番 memory-core.db に実在）。マッチした部分文字列だけを採る。
+
+  test('複数行のシェル実行ログからパス部分だけを取り出す', () => {
+    const text = [
+      '実行結果:',
+      '```',
+      '$ node scripts/check-skill-manifest-bump.mjs 8191c2b8e',
+      '[check-skill-manifest-bump] manifest の版数バンプが漏れています:',
+      'exit 1',
+      '```',
+    ].join('\n');
+    const result = extractTargetFromFinding(text);
+    expect(result).not.toContain('\n');
+    expect(result).not.toContain(' ');
+  });
+
+  test('バッククォート内にパスと散文が混在しても散文を含めない', () => {
+    const text = '`該当は packages/foo/src/bar.ts のあたり`';
+    expect(extractTargetFromFinding(text)).toBe('packages/foo/src/bar.ts');
+  });
+
+  test('URL を target として返さない', () => {
+    const text = '参考: `https://github.com/owner/repo/blob/feature/foo/docs/design.md`';
+    expect(extractTargetFromFinding(text)).toBeNull();
+  });
+
+  test('グロブを target として返さない', () => {
+    expect(extractTargetFromFinding('`packages/*/src/i18n/navigation.ts` が対象')).toBeNull();
+  });
+});
+
+describe('extractBacktickPaths', () => {
+  test('パスとして成立する値だけを返す', () => {
+    const line = 'レビュー対象: `packages/markdown-viewer` `packages/foo/src/bar.ts`';
+    expect(extractBacktickPaths(line)).toEqual([
+      'packages/markdown-viewer',
+      'packages/foo/src/bar.ts',
+    ]);
+  });
+
+  // 退行防止: 旧実装はバッククォート内容を無検証で全部返していたため、
+  // `レビュー対象:` 行やセッションの user prompt にある散文・コマンド・URL が
+  // そのまま target_refs と既定 target になっていた。
+  test('散文・コマンド・URL を除外する', () => {
+    const line =
+      '`レビュー対象` `node --test scripts/x.test.mjs` `https://example.com/a.ts` `packages/foo/src/bar.ts`';
+    expect(extractBacktickPaths(line)).toEqual(['packages/foo/src/bar.ts']);
+  });
+
+  test('行番号サフィックスを落として重複を畳む', () => {
+    const line = '`packages/foo/src/bar.ts:10` と `packages/foo/src/bar.ts:20`';
+    expect(extractBacktickPaths(line)).toEqual(['packages/foo/src/bar.ts']);
+  });
+
+  test('絶対パスは剥がさずそのまま返す', () => {
+    const line = '`/anytime-trade/docs/specs/x.md`';
+    expect(extractBacktickPaths(line)).toEqual(['/anytime-trade/docs/specs/x.md']);
   });
 });
 

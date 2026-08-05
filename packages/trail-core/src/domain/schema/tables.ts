@@ -885,3 +885,42 @@ export const CREATE_BOUNDARY_DRIFT_INDEXES = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_warnings_key ON boundary_drift_warnings(repo_id, detected_at, kind, target_key)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_runs_key ON boundary_drift_runs(repo_id, detected_at)`,
 ];
+
+// Flight Record: 「指示（instruction）」の台帳と、指示 : セッションの対応。
+//
+// 指示は人が出した 1 つの作業依頼で、1 指示は複数セッションにまたがりうる。対応付けは
+// エージェントの明示宣言（MCP record_instruction）だけが作る — 先頭プロンプトの継続表現から
+// 自動判定する方式は「進めて」で始まる新規指示と継続を原理的に区別できないため採らない。
+//
+// sessions への FK を張らない: 宣言はセッション取込（import ラグ数十分）より先行して届く
+// （flight_reviews / user_feedback_entries / acceptance_records と同方針）。表示側は欠損に耐える。
+export const CREATE_INSTRUCTIONS = `CREATE TABLE IF NOT EXISTS instructions (
+  id TEXT PRIMARY KEY,
+  workspace_path TEXT NOT NULL DEFAULT '',
+  workspace_name TEXT NOT NULL DEFAULT '',
+  summary TEXT NOT NULL DEFAULT '',
+  origin_prompt TEXT NOT NULL DEFAULT '',
+  origin_session_id TEXT NOT NULL,
+  started_at TEXT NOT NULL CHECK (started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
+  closed_at TEXT CHECK (closed_at IS NULL OR closed_at GLOB ${TS_GLOB_MS} OR closed_at GLOB ${TS_GLOB_NO_MS}),
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+// session_id は PK 単独: 1 セッションは 1 指示にしか属さない。所属替えは UPSERT で上書きする
+// （2 つの指示へ同時に属せると、時間・トークンが二重計上され合計が実測と合わなくなる）。
+// instruction_id の FK は宣言のみで、参照整合は DB では強制されない — trail.db は
+// foreign_keys=OFF で開くため。指示を削除する経路を足す場合、instruction_sessions の
+// 掃除はアプリ側の責務になる（DDL の ON DELETE CASCADE に頼れない）。
+export const CREATE_INSTRUCTION_SESSIONS = `CREATE TABLE IF NOT EXISTS instruction_sessions (
+  session_id TEXT PRIMARY KEY,
+  instruction_id TEXT NOT NULL REFERENCES instructions(id) ON DELETE CASCADE,
+  sequence INTEGER NOT NULL CHECK (sequence >= 1),
+  declared_at TEXT NOT NULL CHECK (declared_at GLOB ${TS_GLOB_MS} OR declared_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_INSTRUCTION_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_instructions_started_at ON instructions(started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_instructions_workspace_open ON instructions(workspace_path, closed_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_instruction_sessions_instruction ON instruction_sessions(instruction_id, sequence)`,
+];

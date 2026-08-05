@@ -55,6 +55,11 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "POST", kind: "exact", path: "/api/trail/flight-reviews" },
   { method: "GET", kind: "exact", path: "/api/trail/flight-reviews" },
   { method: "PATCH", kind: "pattern", path: "^\\/api\\/trail\\/flight-reviews\\/([^/]+)$" },
+  // Flight Record: /open は :id パターンより先（後だと 'open' が指示 ID として食われる）
+  { method: "GET", kind: "exact", path: "/api/trail/instructions/open" },
+  { method: "GET", kind: "exact", path: "/api/trail/instructions" },
+  { method: "POST", kind: "exact", path: "/api/trail/instructions" },
+  { method: "GET", kind: "pattern", path: "^\\/api\\/trail\\/instructions\\/([^/]+)\\/sessions$" },
   { method: "POST", kind: "exact", path: "/api/trail/user-feedback" },
   { method: "GET", kind: "exact", path: "/api/trail/user-feedback" },
   { method: "POST", kind: "exact", path: "/api/trail/acceptance" },

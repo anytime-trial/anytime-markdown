@@ -7,6 +7,7 @@ import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import { refineCategories } from '../ingest/review/extractFindings';
 import { upsertReviewDoc, upsertReviewSession } from '../ingest/review/persist';
+import { resolveReviewTargets } from '../ingest/review/resolveReviewTargets';
 import { linkAddresses } from '../ingest/review/linkAddresses';
 import { linkPrecedesBugs } from '../ingest/review/linkPrecedesBugs';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
@@ -97,6 +98,8 @@ async function processRouteADoc(opts: {
   force: boolean;
   ollama: OllamaClient;
   model: string;
+  /** 取込を実行しているワークスペースの repo_name。自分が書いた行にだけ設定する。 */
+  workspace: string;
   logger: MemoryLogger;
 }): Promise<RouteADocResult> {
   const { db, filePath, relPath, recordedAt, force, ollama, model, logger } = opts;
@@ -147,6 +150,13 @@ async function processRouteADoc(opts: {
     doc.findings.splice(0, doc.findings.length, ...refined.findings);
 
     const result = upsertReviewDoc(db, doc, relPath, sha1, recordedAt, logger);
+    // 取込側のワークスペースが自明なのは「いま自分が書いた行」だけ。
+    // 未解決行を一括で埋めると他ワークスペース由来の行まで刻印してしまう。
+    db.run(
+      `UPDATE memory_reviews SET workspace = ?
+        WHERE source_kind = 'review_doc' AND source_ref = ? AND workspace = ''`,
+      [opts.workspace, relPath],
+    );
     return {
       outcome: 'processed',
       is_new: result.is_new,
@@ -229,7 +239,8 @@ export async function runReviewIncremental(input: {
       }
 
       const docResult = await processRouteADoc({
-        db, filePath, relPath, reviewDir, recordedAt, force, ollama, model, logger,
+        db, filePath, relPath, reviewDir, recordedAt, force, ollama, model,
+        workspace: repoName, logger,
       });
 
       if (docResult.outcome === 'skipped') {
@@ -340,12 +351,33 @@ export async function runReviewIncremental(input: {
     itemsFailed += 1;
   }
 
-  // ── Post-processing: linkAddresses + linkPrecedesBugs ─────────────────────
+  // ── Post-processing: resolveReviewTargets → linkAddresses + linkPrecedesBugs ──
+  //
+  // 対象パスの正規化とリポジトリ解決は linkAddresses より **前** に置く。
+  // linkAddresses は target_repo を照合キーに使うため、解決前に走らせると
+  // 今回取り込んだ指摘が 1 サイクル遅れてしかリンクされない。
+
+  try {
+    const resolveResult = resolveReviewTargets({
+      db,
+      logger: {
+        warn: (msg: string) => logger.info(msg),
+        error: (msg: string, err?: unknown) => logger.error(msg, err),
+        info: (msg: string) => logger.info(msg),
+      },
+    });
+    logger.info(
+      `[anytime-memory] runReviewIncremental: resolveReviewTargets ` +
+        `workspaces=${resolveResult.workspacesFilled} targets=${resolveResult.targetsResolved} ` +
+        `normalized=${resolveResult.pathsNormalized} rejected=${resolveResult.pathsRejected}`,
+    );
+  } catch (err) {
+    logger.error(`[anytime-memory] runReviewIncremental: resolveReviewTargets failed`, err);
+  }
 
   try {
     const linkResult = linkAddresses({
       db,
-      repoName,
       windowDays: 30,
       logger: {
         warn: (msg: string) => logger.info(msg),

@@ -38,6 +38,8 @@ const REVIEW_HISTORY: readonly MemoryReviewHistoryRow[] = Array.from({ length: 8
   model: null,
   sessionId: `sess-${i}`,
   reviewedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
+  workspace: 'anytime-markdown',
+  targetRepo: 'anytime-markdown',
   targetFilePath: i % 2 === 0 ? `src/file${i}.ts` : null,
   category: i < 4 ? 'security' : 'performance',
   severity: i < 2 ? 'error' : i < 6 ? 'warn' : 'info',

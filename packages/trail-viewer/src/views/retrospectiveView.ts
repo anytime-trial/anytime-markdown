@@ -8,6 +8,7 @@
  *   - S2 項目（未解決・学習候補・user feedback）が空でも空状態表示で成立する（FR-18）。
  *   - 保存の成否は視覚フィードバックで返す（成功 / サーバーの理由付き失敗）。
  */
+import { createSelect } from '@anytime-markdown/ui-core';
 import { escapeHtml } from '../shared/escapeHtml';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import type {
@@ -112,6 +113,42 @@ export function mountRetrospectiveView(
   root.dataset['amRetroRoot'] = '';
   container.appendChild(root);
 
+  // 再描画（innerHTML の差し替え）のたびに Select を作り直すため、前回分は必ず destroy する。
+  // open 中の overlay（backdrop + listbox）は document.body 側にあり、スロット要素を捨てても残る。
+  let selectHandles: { destroy: () => void }[] = [];
+
+  function destroySelects(): void {
+    for (const handle of selectHandles) handle.destroy();
+    selectHandles = [];
+  }
+
+  /**
+   * スロット要素へ ui-core Select を差し込む。
+   *
+   * 生の `<select>` を使わないのは、ネイティブの popup が OS 既定の背景色で描かれ、
+   * ダークテーマでは白地に白文字になって選択肢が読めないため（2026-08-05 実測）。
+   * `createSelect` は button + ポータル listbox で、配色は `--am-color-*` に追従する。
+   */
+  function mountSelect<T extends string>(
+    slotAttr: string,
+    opts: {
+      value: T;
+      options: ReadonlyArray<{ value: T; label: string }>;
+      ariaLabel: string;
+      minWidth: number;
+      onChange: (value: T) => void;
+    },
+  ): void {
+    const slot = root.querySelector<HTMLElement>(`[${slotAttr}]`);
+    if (slot === null) {
+      console.warn(`[retrospectiveView] select slot not found: ${slotAttr}`);
+      return;
+    }
+    const handle = createSelect<T>({ ...opts, fullWidth: false });
+    slot.appendChild(handle.el);
+    selectHandles.push(handle);
+  }
+
   function markManualTouched(): void {
     if (manualTouched) return;
     manualTouched = true;
@@ -136,8 +173,8 @@ export function mountRetrospectiveView(
     // 監査 select に未保存の変更が残っていれば保留を張り直す（saveManual 成功は editing を解除するため）
     if (result.ok && auditTouched) props.onEditingChange(true);
     feedbackMessage = result.ok
-      ? { kind: 'success', text: props.t('flightReview.edit.saveSuccess') }
-      : { kind: 'error', text: `${props.t('flightReview.edit.saveError')}: ${result.error ?? ''}` };
+      ? { kind: 'success', text: props.t('flightRecord.edit.saveSuccess') }
+      : { kind: 'error', text: `${props.t('flightRecord.edit.saveError')}: ${result.error ?? ''}` };
     render();
   }
 
@@ -148,8 +185,8 @@ export function mountRetrospectiveView(
     // 手動訂正フォームに未保存の編集が残っていれば保留を張り直す
     if (result.ok && manualTouched) props.onEditingChange(true);
     auditMessage = result.ok
-      ? { kind: 'success', text: props.t('flightReview.audit.saveSuccess') }
-      : { kind: 'error', text: `${props.t('flightReview.audit.saveError')}: ${result.error ?? ''}` };
+      ? { kind: 'success', text: props.t('flightRecord.audit.saveSuccess') }
+      : { kind: 'error', text: `${props.t('flightRecord.audit.saveError')}: ${result.error ?? ''}` };
     render();
   }
 
@@ -158,7 +195,7 @@ export function mountRetrospectiveView(
     const filtered = rationaleFilter === '' ? rationale : rationale.filter((n) => n.confidenceLabel === rationaleFilter);
     const list =
       filtered.length === 0
-        ? `<p data-am-retro-empty>${escapeHtml(rationale.length === 0 ? t('flightReview.rationale.empty') : t('flightReview.detail.none'))}</p>`
+        ? `<p data-am-retro-empty>${escapeHtml(rationale.length === 0 ? t('flightRecord.rationale.empty') : t('flightRecord.detail.none'))}</p>`
         : `<ul data-am-rationale-list>${filtered
             .map(
               (n) => `<li>
@@ -170,25 +207,15 @@ export function mountRetrospectiveView(
             .join('')}</ul>`;
     return `
       <section data-am-retro-rationale>
-        <h4>${escapeHtml(t('flightReview.rationale.title'))}</h4>
+        <h4>${escapeHtml(t('flightRecord.rationale.title'))}</h4>
         <div data-am-rationale-controls>
-          <label>${escapeHtml(t('flightReview.rationale.confidenceFilter'))}
-            <select data-am-rationale-filter>
-              <option value="">${escapeHtml(t('flightReview.rationale.filterAll'))}</option>
-              ${CONFIDENCE_LABELS.map(
-                (label) => `<option value="${label}"${rationaleFilter === label ? ' selected' : ''}>${label}</option>`,
-              ).join('')}
-            </select>
+          <label>${escapeHtml(t('flightRecord.rationale.confidenceFilter'))}
+            <span data-am-rationale-filter></span>
           </label>
-          <label>${escapeHtml(t('flightReview.audit.label'))}
-            <select data-am-audit-status>
-              ${AUDIT_STATUSES.map(
-                (status) =>
-                  `<option value="${status}"${formAuditStatus === status ? ' selected' : ''}>${escapeHtml(t(`flightReview.audit.${auditStatusKey(status)}`))}</option>`,
-              ).join('')}
-            </select>
+          <label>${escapeHtml(t('flightRecord.audit.label'))}
+            <span data-am-audit-status></span>
           </label>
-          <button type="button" data-am-audit-save ${props.saving ? 'disabled' : ''}>${escapeHtml(t('flightReview.audit.save'))}</button>
+          <button type="button" data-am-audit-save ${props.saving ? 'disabled' : ''}>${escapeHtml(t('flightRecord.audit.save'))}</button>
         </div>
         ${
           auditMessage
@@ -203,7 +230,7 @@ export function mountRetrospectiveView(
     const { t } = props;
     const body =
       items.length === 0
-        ? `<p data-am-retro-empty>${escapeHtml(t('flightReview.detail.none'))}</p>`
+        ? `<p data-am-retro-empty>${escapeHtml(t('flightRecord.detail.none'))}</p>`
         : `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
     return `<section><h4>${escapeHtml(title)}</h4>${body}</section>`;
   }
@@ -215,60 +242,55 @@ export function mountRetrospectiveView(
     const concerns = parseJsonArray<string>(review.nextConcerns, 'nextConcerns');
     const lessons = parseJsonArray<LessonCandidateDto>(review.lessonCandidates, 'lessonCandidates');
 
+    destroySelects();
     root.innerHTML = `
       <header data-am-retro-header>
-        <h3>${escapeHtml(t('flightReview.detail.title'))} — ${escapeHtml(review.sessionId)}</h3>
-        <button type="button" data-am-retro-close aria-label="${escapeHtml(t('flightReview.detail.close'))}">✕</button>
+        <h3>${escapeHtml(t('flightRecord.detail.title'))} — ${escapeHtml(review.sessionId)}</h3>
+        <button type="button" data-am-retro-close aria-label="${escapeHtml(t('flightRecord.detail.close'))}">✕</button>
       </header>
       <div data-am-retro-outcome>
-        <span data-am-outcome-badge data-outcome="${review.outcome}">${escapeHtml(t(`flightReview.outcome.${review.outcome}`))}</span>
-        <span data-am-source-badge data-source="${review.outcomeSource}">${escapeHtml(t(`flightReview.source.${review.outcomeSource}`))}</span>
-        <span data-am-audit-badge data-audit="${review.rationaleAuditStatus}">${escapeHtml(t(`flightReview.audit.${auditStatusKey(review.rationaleAuditStatus)}`))}</span>
+        <span data-am-outcome-badge data-outcome="${review.outcome}">${escapeHtml(t(`flightRecord.outcome.${review.outcome}`))}</span>
+        <span data-am-source-badge data-source="${review.outcomeSource}">${escapeHtml(t(`flightRecord.source.${review.outcomeSource}`))}</span>
+        <span data-am-audit-badge data-audit="${review.rationaleAuditStatus}">${escapeHtml(t(`flightRecord.audit.${auditStatusKey(review.rationaleAuditStatus)}`))}</span>
       </div>
       <section>
-        <h4>${escapeHtml(t('flightReview.detail.keyEvents'))}</h4>
+        <h4>${escapeHtml(t('flightRecord.detail.keyEvents'))}</h4>
         <dl data-am-retro-events>
-          <dt>${escapeHtml(t('flightReview.column.endedAt'))}</dt><dd>${escapeHtml(formatDateTime(review.endedAt))}</dd>
-          <dt>${escapeHtml(t('flightReview.column.duration'))}</dt><dd>${escapeHtml(formatDurationSeconds(review.durationSeconds))}</dd>
-          <dt>${escapeHtml(t('flightReview.detail.toolCalls'))}</dt><dd>${review.toolCallCount}</dd>
-          <dt>${escapeHtml(t('flightReview.column.toolFailures'))}</dt><dd>${review.toolFailureCount}</dd>
-          <dt>${escapeHtml(t('flightReview.column.rework'))}</dt><dd>${review.reworkCount}</dd>
+          <dt>${escapeHtml(t('flightRecord.column.endedAt'))}</dt><dd>${escapeHtml(formatDateTime(review.endedAt))}</dd>
+          <dt>${escapeHtml(t('flightRecord.column.duration'))}</dt><dd>${escapeHtml(formatDurationSeconds(review.durationSeconds))}</dd>
+          <dt>${escapeHtml(t('flightRecord.detail.toolCalls'))}</dt><dd>${review.toolCallCount}</dd>
+          <dt>${escapeHtml(t('flightRecord.column.toolFailures'))}</dt><dd>${review.toolFailureCount}</dd>
+          <dt>${escapeHtml(t('flightRecord.column.rework'))}</dt><dd>${review.reworkCount}</dd>
         </dl>
       </section>
-      ${renderListSection(t('flightReview.detail.unresolved'), unresolved)}
-      ${renderListSection(t('flightReview.detail.nextConcerns'), concerns)}
+      ${renderListSection(t('flightRecord.detail.unresolved'), unresolved)}
+      ${renderListSection(t('flightRecord.detail.nextConcerns'), concerns)}
       ${renderListSection(
-        t('flightReview.detail.lessonCandidates'),
+        t('flightRecord.detail.lessonCandidates'),
         lessons.map((l) => `[${l.kind}] ${l.summary}`),
       )}
       ${renderListSection(
-        t('flightReview.detail.userFeedback'),
+        t('flightRecord.detail.userFeedback'),
         feedback.map((f) => `${formatDateTime(f.occurredAt)} — ${f.promptExcerpt}`),
       )}
       ${renderRationaleSection()}
       <section data-am-retro-edit>
-        <h4>${escapeHtml(t('flightReview.edit.title'))}</h4>
+        <h4>${escapeHtml(t('flightRecord.edit.title'))}</h4>
         <label>
-          ${escapeHtml(t('flightReview.edit.outcome'))}
-          <select data-am-retro-outcome-select>
-            <option value="">${escapeHtml(t('flightReview.edit.keepCurrent'))}</option>
-            ${MANUAL_OUTCOMES.map(
-              (o) =>
-                `<option value="${o}"${formOutcome === o ? ' selected' : ''}>${escapeHtml(t(`flightReview.outcome.${o}`))}</option>`,
-            ).join('')}
-          </select>
+          ${escapeHtml(t('flightRecord.edit.outcome'))}
+          <span data-am-retro-outcome-select></span>
         </label>
         <label>
-          ${escapeHtml(t('flightReview.edit.tags'))}
-          <input type="text" data-am-retro-tags placeholder="${escapeHtml(t('flightReview.edit.tagsPlaceholder'))}" />
+          ${escapeHtml(t('flightRecord.edit.tags'))}
+          <input type="text" data-am-retro-tags placeholder="${escapeHtml(t('flightRecord.edit.tagsPlaceholder'))}" />
         </label>
         <label>
-          ${escapeHtml(t('flightReview.edit.notes'))}
+          ${escapeHtml(t('flightRecord.edit.notes'))}
           <textarea data-am-retro-notes rows="3" maxlength="2000"></textarea>
         </label>
         <div data-am-retro-actions>
           <button type="button" data-am-retro-save ${saving ? 'disabled' : ''}>
-            ${escapeHtml(saving ? t('flightReview.edit.saving') : t('flightReview.edit.save'))}
+            ${escapeHtml(saving ? t('flightRecord.edit.saving') : t('flightRecord.edit.save'))}
           </button>
         </div>
         ${
@@ -280,16 +302,21 @@ export function mountRetrospectiveView(
     `;
 
     // フォーム値はローカル状態から復元する（innerHTML 再構築で失わない）
-    const outcomeSelect = root.querySelector<HTMLSelectElement>('[data-am-retro-outcome-select]');
     const tagsInput = root.querySelector<HTMLInputElement>('[data-am-retro-tags]');
     const notesInput = root.querySelector<HTMLTextAreaElement>('[data-am-retro-notes]');
-    if (outcomeSelect) {
-      outcomeSelect.value = formOutcome;
-      outcomeSelect.addEventListener('change', () => {
-        formOutcome = (outcomeSelect.value as ManualOutcome | '') ?? '';
+    mountSelect<ManualOutcome | ''>('data-am-retro-outcome-select', {
+      value: formOutcome,
+      options: [
+        { value: '', label: t('flightRecord.edit.keepCurrent') },
+        ...MANUAL_OUTCOMES.map((o) => ({ value: o as ManualOutcome | '', label: t(`flightRecord.outcome.${o}`) })),
+      ],
+      ariaLabel: t('flightRecord.edit.outcome'),
+      minWidth: 148,
+      onChange: (value) => {
+        formOutcome = value;
         markManualTouched();
-      });
-    }
+      },
+    });
     if (tagsInput) {
       tagsInput.value = formTags;
       tagsInput.addEventListener('input', () => {
@@ -304,15 +331,35 @@ export function mountRetrospectiveView(
         markManualTouched();
       });
     }
-    const rationaleFilterSelect = root.querySelector<HTMLSelectElement>('[data-am-rationale-filter]');
-    rationaleFilterSelect?.addEventListener('change', () => {
-      rationaleFilter = (rationaleFilterSelect.value as RationaleNodeDto['confidenceLabel'] | '') ?? '';
-      render();
+    mountSelect<RationaleNodeDto['confidenceLabel'] | ''>('data-am-rationale-filter', {
+      value: rationaleFilter,
+      options: [
+        { value: '', label: t('flightRecord.rationale.filterAll') },
+        // confidence ラベルは enum の表示値そのものが仕様（訳さない）
+        ...CONFIDENCE_LABELS.map((label) => ({ value: label as RationaleNodeDto['confidenceLabel'] | '', label })),
+      ],
+      ariaLabel: t('flightRecord.rationale.confidenceFilter'),
+      minWidth: 148,
+      onChange: (value) => {
+        rationaleFilter = value;
+        render();
+        // 再描画で Select 要素ごと差し替わりフォーカスが外れる。同じスロットの新しい
+        // combobox へ戻す（キーボード操作の連続性）。
+        root.querySelector<HTMLElement>('[data-am-rationale-filter] [role="combobox"]')?.focus();
+      },
     });
-    const auditSelect = root.querySelector<HTMLSelectElement>('[data-am-audit-status]');
-    auditSelect?.addEventListener('change', () => {
-      formAuditStatus = (auditSelect.value as RationaleAuditStatusDto) ?? 'unaudited';
-      markAuditTouched();
+    mountSelect<RationaleAuditStatusDto>('data-am-audit-status', {
+      value: formAuditStatus,
+      options: AUDIT_STATUSES.map((status) => ({
+        value: status,
+        label: t(`flightRecord.audit.${auditStatusKey(status)}`),
+      })),
+      ariaLabel: t('flightRecord.audit.label'),
+      minWidth: 132,
+      onChange: (value) => {
+        formAuditStatus = value;
+        markAuditTouched();
+      },
     });
     root.querySelector<HTMLButtonElement>('[data-am-audit-save]')?.addEventListener('click', () => void handleAuditSave());
     root.querySelector<HTMLButtonElement>('[data-am-retro-save]')?.addEventListener('click', () => void handleSave());
@@ -341,6 +388,7 @@ export function mountRetrospectiveView(
     },
     destroy() {
       destroyed = true;
+      destroySelects();
       root.remove();
     },
   };
