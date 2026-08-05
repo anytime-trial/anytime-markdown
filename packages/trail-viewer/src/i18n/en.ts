@@ -564,7 +564,7 @@ export const en: TrailI18n = {
   'flightRecord.bugfix.precededByCount': 'Preceded by findings',
   'flightRecord.bugfix.causal.thisBug': 'This bug',
   'flightRecord.bugfix.causal.sibling': 'Past bugs with same cause',
-  'flightRecord.bugfix.causal.sibling.tooltip': 'Click to jump to Bugs tab filtered to these',
+  'flightRecord.bugfix.causal.sibling.tooltip': 'Click to jump to the Bug Fixed tab filtered to these',
   'flightRecord.bugfix.causal.preceding': 'Preceding findings',
   'flightRecord.bugfix.causal.introducedBy': 'Introduced by commit',
   'flightRecord.bugfix.causal.affectedFiles': 'Affected files',

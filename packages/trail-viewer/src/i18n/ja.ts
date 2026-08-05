@@ -563,7 +563,7 @@ export const ja: TrailI18n = {
   'flightRecord.bugfix.precededByCount': '事前指摘あり',
   'flightRecord.bugfix.causal.thisBug': 'このバグ',
   'flightRecord.bugfix.causal.sibling': '同じ原因の過去バグ',
-  'flightRecord.bugfix.causal.sibling.tooltip': 'クリックで Bug タブにジャンプし対象行を絞り込む',
+  'flightRecord.bugfix.causal.sibling.tooltip': 'クリックで Bug Fixed タブにジャンプし対象行を絞り込む',
   'flightRecord.bugfix.causal.preceding': '事前指摘 (precedes)',
   'flightRecord.bugfix.causal.introducedBy': '混入コミット (introduced_by)',
   'flightRecord.bugfix.causal.affectedFiles': '影響ファイル',
