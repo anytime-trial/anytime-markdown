@@ -502,7 +502,6 @@ export interface TrailI18n {
   'memory.noDb': string;
   'memory.noDb.description': string;
   'flightRecord.tab.drift': string;
-  'memory.runs.tab': string;
   // drift sub-tab
   'flightRecord.drift.empty': string;
   'flightRecord.drift.history.title': string;

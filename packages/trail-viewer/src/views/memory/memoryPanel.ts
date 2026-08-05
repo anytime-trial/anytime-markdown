@@ -1,22 +1,21 @@
 /**
- * MemoryPanel の vanilla DOM 版。
+ * MemoryPanel（表示名 Trail Pipeline）の vanilla DOM 版。
  *
- * Chat は本パネルから独立したトップレベルタブ（trailViewer の case 10）へ移した。
- * サブタブ状態・hash routing・MemoryReader・dbExists probe を所有し、対応する vanilla
- * サブビューを直接マウントする（React の `.tsx` ラッパは経由しない）。
+ * 中身は pipeline runs の 1 枚だけである。かつては Drift / Bugs / Reviews / Chat をサブタブで
+ * 切り替えていたが、2026-08-05 に Chat をトップレベルタブへ、残り 3 つを Flight Record へ移設し、
+ * 同日サブタブバーも畳んだ。選択肢が 1 つしかないタブバーは操作の余地が無く、押しても何も
+ * 変わらないコントロールを画面に残すだけになるため。
  *
- * バグ修正履歴（旧 Bugs）・レビュー指摘（旧 Reviews）・ドリフト（旧 Drift）は 2026-08-05 に
- * すべて Flight Record へ移設した。残るのは pipeline runs のみで、タブの表示名も
- * Trail Pipeline へ改めた（i18n キー・モジュール名は据え置き）。
+ * したがって本パネルが持つのは `MemoryReader` と DB 存在プローブ（loading / noDb / 本体の
+ * 3 状態）だけで、サブタブ状態・hash routing・サブビューの出し分けは持たない。
+ * `#memory/<tab>` の hash も解釈しない（対応する選択肢が無い）。
  *
  * 呼び出し側（components/MemoryPanel.tsx）は thin React wrapper として
  * useTrailTheme / useTrailI18n を解決し、
  * tokens / isDark / t を props に含めてこのビューに渡す。
  */
-import { createTabs } from '@anytime-markdown/ui-core';
 import type { TrailThemeTokens } from '../../theme/designTokens';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
-import { MEMORY_TAB_DEFS, type MemoryTabValue } from '../../components/memoryTabs';
 import { MemoryReader } from '../../data/readers/MemoryReader';
 import { mountPipelineRunsPanel } from './pipelineRunsPanel';
 
@@ -31,24 +30,7 @@ export interface MemoryPanelViewProps {
   readonly t: (key: string) => string;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** 既定サブタブはタブ定義の先頭から導く（定義から要素を外しても消えたタブを指さない）。 */
-const DEFAULT_MEMORY_TAB: MemoryTabValue = MEMORY_TAB_DEFS[0]!.value;
-
-/**
- * `#memory/<tab>` を解釈する。移設済みの `#memory/{drift,bug,review}` はここで解決せず、
- * 呼び出し側が既定タブへフォールバックする。
- */
-export function parseHashSubTab(hash: string): MemoryTabValue | null {
-  const match = /^#memory\/(runs)/.exec(hash);
-  if (!match) return null;
-  return match[1] as MemoryTabValue;
-}
-
-type SubHandle = VanillaViewHandle<unknown> | null;
+type RunsHandle = VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>;
 
 // ---------------------------------------------------------------------------
 // Mount
@@ -62,8 +44,6 @@ export function mountMemoryPanel(
   let destroyed = false;
 
   // --- State -----------------------------------------------------------------
-  let activeTab: MemoryTabValue =
-    parseHashSubTab(globalThis.location?.hash ?? '') ?? DEFAULT_MEMORY_TAB;
   let dbExists: boolean | null = null;
 
   const reader = new MemoryReader(props.serverUrl);
@@ -112,105 +92,24 @@ export function mountMemoryPanel(
   noDbDesc.textContent = props.t('memory.noDb.description');
   noDbEl.append(noDbTitle, noDbDesc);
 
-  // --- Tab bar ---------------------------------------------------------------
-  const tabBarWrap = document.createElement('div');
-  tabBarWrap.style.cssText =
-    'border-bottom:1px solid var(--am-color-divider);flex-shrink:0;';
-
-  const tabs = createTabs({
-    value: activeTab,
-    tabs: MEMORY_TAB_DEFS.map((d) => ({
-      value: d.value,
-      label: props.t(d.i18nKey),
-      id: d.id,
-      ariaControls: d.panelId,
-    })),
-    ariaLabel: 'memory sub-tabs',
-    onChange: (v) => {
-      switchTab(v as MemoryTabValue);
-    },
-  });
-  tabBarWrap.appendChild(tabs.el);
-
   // --- Panel host ------------------------------------------------------------
+  // 一度マウントしたら破棄しない（展開行・スクロール位置などの下位 UI 状態を保つ）。
   const panelHost = document.createElement('div');
   panelHost.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;';
+  panelHost.dataset['memoryPanelHost'] = 'runs';
 
-  // --- Sub-view handles ------------------------------------------------------
-  // 旧 MemoryPanel.tsx は全サブパネルを常時マウントし CSS display のみで切替えて
-  // 下位のローカル UI 状態（展開行・スクロール位置）を保持していた。
-  // vanilla でも初回訪問で mount したパネルは保持し、切替は display で行う（毎回破棄しない）。
-  const subHosts = new Map<MemoryTabValue, HTMLElement>();
-  const subHandles = new Map<MemoryTabValue, SubHandle>();
-  let mountedTab: MemoryTabValue | null = null;
+  let runsHandle: RunsHandle | null = null;
 
-  function buildSubForTab(_tab: MemoryTabValue, host: HTMLElement): SubHandle {
-    // 残るサブタブは runs のみ（他は Flight Record へ移設済み）。
-    return mountPipelineRunsPanel(host, {
-      t: props.t,
-      reader,
-      isDark: props.isDark,
-    }) as SubHandle;
+  function runsProps(): Parameters<typeof mountPipelineRunsPanel>[1] {
+    return { t: props.t, reader, isDark: props.isDark };
   }
 
-  function updateSubForTab(tab: MemoryTabValue): void {
-    const handle = subHandles.get(tab);
-    if (!handle) return;
-    (handle as VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>).update({
-      t: props.t,
-      reader,
-      isDark: props.isDark,
-    });
-  }
-
-  function destroySub(): void {
-    for (const handle of subHandles.values()) {
-      if (handle) (handle as VanillaViewHandle<unknown>).destroy();
+  function mountRuns(): void {
+    if (runsHandle === null) {
+      runsHandle = mountPipelineRunsPanel(panelHost, runsProps());
+      return;
     }
-    subHandles.clear();
-    subHosts.clear();
-    mountedTab = null;
-    panelHost.replaceChildren();
-  }
-
-  /** 初回はマウント、以降は display 切替で表示する（状態保持）。 */
-  function mountSubForTab(tab: MemoryTabValue): void {
-    let host = subHosts.get(tab);
-    const fresh = !host;
-    if (!host) {
-      host = document.createElement('div');
-      host.style.cssText = 'flex:1;overflow:hidden;flex-direction:column;';
-      host.setAttribute('data-memory-tab-host', tab);
-      panelHost.appendChild(host);
-      subHosts.set(tab, host);
-      subHandles.set(tab, buildSubForTab(tab, host));
-    }
-    for (const [k, h] of subHosts) {
-      h.style.display = k === tab ? 'flex' : 'none';
-    }
-    mountedTab = tab;
-    // 既マウントのタブへ切替える場合は最新 props / pending filter（cross-tab 遷移）を反映する。
-    // 新規マウント時は build 時点で反映済みのため不要。
-    if (!fresh) updateSubForTab(tab);
-  }
-
-  function updateSub(): void {
-    // マウント済みの全サブパネルを最新 props で更新する（旧: 全マウントで全 re-render）。
-    for (const tab of subHandles.keys()) updateSubForTab(tab);
-  }
-
-  // --- Tab switch ------------------------------------------------------------
-  function switchTab(tab: MemoryTabValue, updateHash = true): void {
-    activeTab = tab;
-    tabs.update({ value: tab });
-
-    if (updateHash && typeof globalThis.history !== 'undefined') {
-      globalThis.history.replaceState(null, '', `#memory/${tab}`);
-    }
-
-    if (dbExists === true) {
-      mountSubForTab(tab);
-    }
+    runsHandle.update(runsProps());
   }
 
   // --- Root render -----------------------------------------------------------
@@ -232,8 +131,8 @@ export function mountMemoryPanel(
     }
 
     // dbExists === true
-    root.append(tabBarWrap, panelHost);
-    mountSubForTab(activeTab);
+    root.appendChild(panelHost);
+    mountRuns();
   }
 
   // --- Probe on mount --------------------------------------------------------
@@ -252,21 +151,10 @@ export function mountMemoryPanel(
       const urlChanged = next.serverUrl !== currentServerUrl;
       props = next;
 
-      // Update tab labels in case t() changed
-      tabs.update({
-        tabs: MEMORY_TAB_DEFS.map((d) => ({
-          value: d.value,
-          label: props.t(d.i18nKey),
-          id: d.id,
-          ariaControls: d.panelId,
-        })),
-        value: activeTab,
-      });
-
       if (urlChanged) {
         // serverUrl changed: re-probe with new reader is not worth the complexity;
         // the React wrapper recreates the whole island if serverUrl changes.
-        // For now reflect only t/isDark/bridge changes to the active sub-view.
+        // For now reflect only t/isDark changes to the mounted panel.
         currentServerUrl = next.serverUrl;
       }
 
@@ -275,13 +163,12 @@ export function mountMemoryPanel(
       noDbTitle.textContent = props.t('memory.noDb');
       noDbDesc.textContent = props.t('memory.noDb.description');
 
-      // Propagate to current sub-view
-      updateSub();
+      if (runsHandle !== null) runsHandle.update(runsProps());
     },
     destroy() {
       destroyed = true;
-      destroySub();
-      tabs.destroy();
+      runsHandle?.destroy();
+      runsHandle = null;
       root.remove();
     },
   };

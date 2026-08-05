@@ -1,8 +1,8 @@
 /**
  * views/memory/memoryPanel — vanilla DOM ユニットテスト（jsdom）
  *
- * - mount でサブタブバーを構築する
- * - タブ切替でサブビューをマウント・破棄する
+ * - probe の 3 状態（loading / noDb / 本体）を出し分ける
+ * - サブタブバーを持たない（2026-08-05 に畳んだ。Runs 単独のため）
  * - update() / destroy() が正しく動作する
  * - MemoryReader.probe() は no-throw（jsdom: no real server）
  */
@@ -97,97 +97,61 @@ describe('mountMemoryPanel', () => {
 });
 
 // ---------------------------------------------------------------------------
-// tab bar (simulated dbExists=true by injecting state via postMessage / direct)
+// 本体（probe が true のとき）。サブタブバーは持たない。
 // ---------------------------------------------------------------------------
 
-describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
-  // We monkey-patch MemoryReader.prototype.probe to resolve true
-  // so we can test the tab bar without a real server.
+describe('mountMemoryPanel – probe が true のとき', () => {
   beforeEach(() => {
-    const { MemoryReader } = require('../../../data/readers/MemoryReader') as { MemoryReader: { prototype: { probe: () => Promise<boolean>; listDriftEvents: () => Promise<[]> } } };
+    const { MemoryReader } = require('../../../data/readers/MemoryReader') as {
+      MemoryReader: { prototype: { probe: () => Promise<boolean> } };
+    };
     MemoryReader.prototype.probe = async () => true;
-    MemoryReader.prototype.listDriftEvents = async () => [];
   });
 
   afterEach(() => {
-    // restore by deleting the override (original is on prototype chain)
-    const { MemoryReader } = require('../../../data/readers/MemoryReader') as { MemoryReader: { prototype: Record<string, unknown> } };
+    const { MemoryReader } = require('../../../data/readers/MemoryReader') as {
+      MemoryReader: { prototype: Record<string, unknown> };
+    };
     delete MemoryReader.prototype.probe;
-    delete MemoryReader.prototype.listDriftEvents;
     document.body.querySelectorAll('[data-am-dialog-backdrop]').forEach((el) => el.remove());
   });
 
-  it('probe が true を返したらタブバーを表示する', async () => {
+  it('サブタブバーを描画しない（選択肢が 1 つしかないため畳んだ）', async () => {
     const c = document.createElement('div');
     mountMemoryPanel(c, baseProps());
     await flush(8);
-    expect(c.querySelector('[role="tablist"]')).not.toBeNull();
+    expect(c.querySelector('[role="tablist"]')).toBeNull();
+    expect(c.querySelector('[role="tab"]')).toBeNull();
   });
 
-  it('タブバーは Runs だけになる（Chat / Bugs / Reviews / Drift は移設済み）', async () => {
-    const c = document.createElement('div');
-    mountMemoryPanel(c, baseProps());
-    await flush(8);
-    const tabs = c.querySelectorAll('[role="tab"]');
-    expect(tabs.length).toBe(1);
-  });
-
-  it('タブ名（i18n キー）がすべてタブバーに含まれる', async () => {
-    const c = document.createElement('div');
-    mountMemoryPanel(c, baseProps());
-    await flush(8);
-    const tablist = c.querySelector('[role="tablist"]');
-    expect(tablist?.textContent).toContain('memory.runs.tab');
-    // Bugs / Reviews / Drift は Flight Record へ移設済み（Memory には残らない）
-    expect(tablist?.textContent).not.toContain('flightRecord.tab.bugfix');
-    expect(tablist?.textContent).not.toContain('memory.review.tab');
-    expect(tablist?.textContent).not.toContain('flightRecord.tab.drift');
-  });
-
-  it('Chat サブタブは残っていない（トップレベルタブへ移設済み）', async () => {
-    const c = document.createElement('div');
-    mountMemoryPanel(c, baseProps());
-    await flush(8);
-    expect(c.querySelector('[aria-label="chat-panel"]')).toBeNull();
-    expect(c.querySelector('[data-memory-tab-host="chat"]')).toBeNull();
-  });
-
-  it('初期タブ（runs）のサブビューがマウントされる', async () => {
+  it('Runs パネルを直接マウントする', async () => {
     const c = document.createElement('div');
     mountMemoryPanel(c, baseProps());
     await flush(8);
     expect(c.querySelector('[aria-label="pipeline-runs"]')).not.toBeNull();
   });
 
-  it('Bugs / Reviews / Drift サブタブは残っていない（Flight Record へ移設済み）', async () => {
+  it('移設済みサブビューはどれも現れない', async () => {
     const c = document.createElement('div');
     mountMemoryPanel(c, baseProps());
     await flush(8);
-
-    const tabs = c.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    expect([...tabs].some((t) => t.textContent?.includes('flightRecord.tab.bugfix'))).toBe(false);
-    expect([...tabs].some((t) => t.textContent?.includes('memory.review.tab'))).toBe(false);
     expect(c.querySelector('[aria-label="bug-history"]')).toBeNull();
     expect(c.querySelector('[aria-label="review-panel"]')).toBeNull();
-    expect(c.querySelector('[data-memory-tab-host="bug"]')).toBeNull();
-    expect(c.querySelector('[data-memory-tab-host="review"]')).toBeNull();
-    expect(c.querySelector('[data-memory-tab-host="drift"]')).toBeNull();
+    expect(c.querySelector('[aria-label="chat-panel"]')).toBeNull();
+    expect(c.textContent).not.toContain('flightRecord.drift.');
   });
 
-  it('runs タブをクリックするとサブビューが切り替わる', async () => {
+  it('update() の t() が本体にも反映される', async () => {
     const c = document.createElement('div');
-    mountMemoryPanel(c, baseProps());
+    const handle = mountMemoryPanel(c, baseProps({ t: (_k) => 'OLD' }));
     await flush(8);
 
-    const tabs = c.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    const runsTab = [...tabs].find((t) => t.textContent?.includes('memory.runs.tab'));
-    runsTab?.click();
+    handle.update(baseProps({ t: (k) => `NEW:${k}` }));
     await flush(4);
-
-    expect(c.querySelector('[aria-label="pipeline-runs"]')).not.toBeNull();
+    expect(c.textContent).toContain('NEW:');
   });
 
-  it('destroy() でサブビューも破棄される', async () => {
+  it('destroy() で本体も破棄される', async () => {
     const c = document.createElement('div');
     const handle = mountMemoryPanel(c, baseProps());
     await flush(8);
@@ -195,19 +159,5 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     expect(c.childElementCount).toBeGreaterThan(0);
     handle.destroy();
     expect(c.childElementCount).toBe(0);
-  });
-
-  it('update() を probe 後に呼ぶとサブビューが更新される', async () => {
-    // Reset hash so activeTab starts at the default tab
-    globalThis.history?.replaceState(null, '', '#');
-    const c = document.createElement('div');
-    const handle = mountMemoryPanel(c, baseProps({ t: (_k) => 'OLD' }));
-    await flush(8);
-
-    handle.update(baseProps({ t: (k) => `NEW:${k}` }));
-    // t() が反映されているのでタブバーのラベルに NEW: プレフィクスが付く
-    expect(c.textContent).toContain('NEW:memory.runs.tab');
-    // サブビューの内容にも t() が反映されている
-    expect(c.querySelector('[role="tablist"]')).not.toBeNull();
   });
 });

@@ -519,7 +519,6 @@ export const ja: TrailI18n = {
   'memory.noDb': 'memory-core.db が見つかりません',
   'memory.noDb.description': 'Anytime Memory が起動すると自動的にデータが表示されます。',
   'flightRecord.tab.drift': 'Drift',
-  'memory.runs.tab': 'Runs',
   'flightRecord.drift.empty': 'ドリフトイベントはありません',
   'flightRecord.drift.history.title': 'ドリフト件数の推移（日次・JST）',
   'flightRecord.drift.history.detected': '検知',

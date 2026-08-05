@@ -520,7 +520,6 @@ export const en: TrailI18n = {
   'memory.noDb': 'memory-core.db not found',
   'memory.noDb.description': 'Data will appear automatically once Anytime Memory is running.',
   'flightRecord.tab.drift': 'Drift',
-  'memory.runs.tab': 'Runs',
   'flightRecord.drift.empty': 'No drift events',
   'flightRecord.drift.history.title': 'Drift count over time (daily, JST)',
   'flightRecord.drift.history.detected': 'Detected',
