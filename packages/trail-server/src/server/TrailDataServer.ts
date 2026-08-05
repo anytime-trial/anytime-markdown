@@ -1083,6 +1083,22 @@ export class TrailDataServer {
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
 
+    // Flight Record（指示単位）へ畳んだレビュー指摘。件数は一覧の列に出すため、
+    // limit で欠ける一覧クエリではなく SQL 集計の専用ルートから取る。
+    t.exact('GET', '/api/memory/reviews/flight-counts', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/reviews/flight-counts',
+        this.memoryApi.getFlightReviewFindingCounts()));
+
+    t.exact('GET', '/api/memory/reviews/flight-findings', (ctx) => {
+      const raw = ctx.queryOpt('instructionIds');
+      const instructionIds = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+      this.respondMemoryJson(ctx.res, '/api/memory/reviews/flight-findings',
+        this.memoryApi.getFlightReviewFindings({
+          instructionIds,
+          limit: clampInt(ctx.url.searchParams.get('limit'), 200, 1, 1000),
+        }));
+    });
+
     t.exact('GET', '/api/memory/pipeline/runs/by-day', (ctx) =>
       this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs/by-day', this.memoryApi.listPipelineRunStatsByDay({
         scope: ctx.queryOpt('scope'),

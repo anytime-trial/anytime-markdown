@@ -1,4 +1,5 @@
 import { mountFlightRecordPanel, type FlightRecordPanelProps } from '../flightRecordPanel';
+import { createFlightFindingStore, type FlightFindingStore } from '../../data/flightFindingStore';
 import { getTokens } from '../../theme/designTokens';
 import { createTrailI18n } from '../../i18n/createTrailI18n';
 import {
@@ -115,6 +116,7 @@ describe('flightRecordPanel', () => {
   let container: HTMLElement;
   let store: InstructionStore | null = null;
   let reviewStore: FlightReviewStore | null = null;
+  let findingStore: FlightFindingStore | null = null;
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -126,17 +128,26 @@ describe('flightRecordPanel', () => {
     store = null;
     reviewStore?.dispose();
     reviewStore = null;
+    findingStore?.dispose();
+    findingStore = null;
     container.remove();
     globalThis.fetch = originalFetch;
   });
 
-  function mountWith(s: InstructionStore, rs: FlightReviewStore): ReturnType<typeof mountFlightRecordPanel> {
+  function mountWith(
+    s: InstructionStore,
+    rs: FlightReviewStore,
+    overrides: Partial<FlightRecordPanelProps> = {},
+  ): ReturnType<typeof mountFlightRecordPanel> {
+    findingStore ??= createFlightFindingStore('http://x');
     const props: FlightRecordPanelProps = {
       isDark: true,
       tokens: getTokens(true),
       t: createTrailI18n('ja'),
       store: s,
       reviewStore: rs,
+      findingStore,
+      ...overrides,
     };
     return mountFlightRecordPanel(container, props);
   }
@@ -147,6 +158,7 @@ describe('flightRecordPanel', () => {
       if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions });
       if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
       if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+      if (url.includes('/api/memory/reviews/flight-')) return jsonResponse([]);
       return jsonResponse({});
     });
   }
@@ -491,6 +503,7 @@ describe('flightRecordPanel', () => {
         t: createTrailI18n('en'),
         store: store!,
         reviewStore: reviewStore!,
+        findingStore: findingStore!,
       });
 
       const label = container.querySelector<HTMLElement>('[data-am-flight-label="filter.outcome"]');
@@ -510,6 +523,7 @@ describe('flightRecordPanel', () => {
         t: createTrailI18n('ja'),
         store: store2,
         reviewStore: reviewStore!,
+        findingStore: findingStore!,
       });
       await settle();
 
@@ -536,5 +550,144 @@ describe('flightRecordPanel', () => {
 
     expect(createObjectURL).toHaveBeenCalled();
     handle.destroy();
+  });
+
+  // ── レビュー指摘（Flight Record へ畳んだ memory_reviews の session 経路） ──
+  describe('レビュー指摘', () => {
+    const FINDING = {
+      id: 'rf-1',
+      reviewId: 'rev-1',
+      instructionId: 'inst-0001-abcd',
+      sessionId: 'sess-0001-abcd',
+      title: 'Session review sess-0001',
+      reviewer: 'pr-review-toolkit:code-reviewer',
+      reviewedAt: '2026-08-05T02:00:00.000Z',
+      workspace: 'anytime-markdown',
+      targetFilePath: 'packages/trail-viewer/src/a.ts',
+      targetRepo: 'anytime-markdown',
+      category: 'logic',
+      severity: 'error',
+      findingText: '条件が反転している',
+      addressedCommitSha: null,
+      addressedAt: null,
+    };
+
+    /** 指摘つきの応答。件数と一覧の両方を返す。 */
+    function stubWithFindings(instructions: InstructionRecordDto[]) {
+      return stubFetch((url) => {
+        if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions });
+        if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
+        if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+        if (url.includes('flight-counts')) {
+          return jsonResponse([{ instructionId: 'inst-0001-abcd', error: 1, warn: 2, info: 0, total: 3 }]);
+        }
+        if (url.includes('flight-findings')) return jsonResponse([FINDING]);
+        return jsonResponse({});
+      });
+    }
+
+    async function mountWithFindings(overrides: Partial<FlightRecordPanelProps> = {}) {
+      stubWithFindings([record()]);
+      store = createInstructionStore('http://x');
+      reviewStore = createFlightReviewStore('http://x');
+      const handle = mountWith(store, reviewStore, overrides);
+      await settle();
+      return handle;
+    }
+
+    it('サブタブで指示と Review を切り替える', async () => {
+      const handle = await mountWithFindings();
+
+      const tabs = container.querySelectorAll('[data-am-flight-tabs] button');
+      expect(tabs).toHaveLength(2);
+      expect(container.querySelector('[data-am-flight-review]')?.hasAttribute('hidden')).toBe(true);
+
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="review"]')?.click();
+      await settle();
+
+      expect(container.querySelector('[data-am-flight-review]')?.hasAttribute('hidden')).toBe(false);
+      expect(container.querySelector('[data-am-flight-body]')?.hasAttribute('hidden')).toBe(true);
+      expect(container.querySelectorAll('[data-am-finding-row]')).toHaveLength(1);
+      handle.destroy();
+    });
+
+    it('一覧に severity 別の件数列を出す', async () => {
+      const handle = await mountWithFindings();
+
+      const cell = container.querySelector('[data-am-finding-count-cell]');
+      expect(cell?.querySelector('[data-state="error"]')?.textContent).toBe('1');
+      expect(cell?.querySelector('[data-state="warn"]')?.textContent).toBe('2');
+      handle.destroy();
+    });
+
+    it('件数が取得できないときは 0 件と別の表示にする', async () => {
+      stubFetch((url) => {
+        if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
+        if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
+        if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+        if (url.includes('/api/memory/reviews/flight-')) return jsonResponse(null, 500);
+        return jsonResponse({});
+      });
+      store = createInstructionStore('http://x');
+      reviewStore = createFlightReviewStore('http://x');
+      const handle = mountWith(store, reviewStore);
+      await settle();
+
+      const cell = container.querySelector('[data-am-finding-count-cell]');
+      expect(cell?.querySelector('[data-state="unknown"]')).not.toBeNull();
+      expect(cell?.querySelector('[data-state="none"]')).toBeNull();
+      handle.destroy();
+    });
+
+    it('詳細ペインに当該指示の指摘を出す', async () => {
+      const handle = await mountWithFindings();
+      container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
+      await settle();
+
+      const items = container.querySelectorAll('[data-am-finding-item]');
+      expect(items).toHaveLength(1);
+      expect(items[0].querySelector('[data-am-finding-text]')?.textContent).toContain('条件が反転している');
+      expect(items[0].querySelector('[data-am-finding-severity]')?.textContent).toBe('error');
+      handle.destroy();
+    });
+
+    it('対象ファイルのリンクを押すと onOpenFile が呼ばれる', async () => {
+      const onOpenFile = jest.fn();
+      const handle = await mountWithFindings({ onOpenFile });
+      container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
+      await settle();
+
+      container.querySelector<HTMLButtonElement>('[data-am-finding-open]')?.click();
+
+      expect(onOpenFile).toHaveBeenCalledWith('packages/trail-viewer/src/a.ts');
+      handle.destroy();
+    });
+
+    it('onOpenFile が無ければ押せないボタンを出さずテキストで示す', async () => {
+      const handle = await mountWithFindings();
+      container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
+      await settle();
+
+      expect(container.querySelector('[data-am-finding-open]')).toBeNull();
+      expect(container.querySelector('[data-am-finding-target]')?.textContent).toBe(
+        'packages/trail-viewer/src/a.ts',
+      );
+      handle.destroy();
+    });
+
+    it('Review タブの行を押すと指示タブへ戻り、その指示を選択する', async () => {
+      const handle = await mountWithFindings();
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="review"]')?.click();
+      await settle();
+
+      container.querySelector<HTMLElement>('[data-am-finding-row]')?.click();
+      await settle();
+
+      expect(container.querySelector('[data-am-flight-review]')?.hasAttribute('hidden')).toBe(true);
+      expect(
+        container.querySelector('[data-am-flight-table] tbody tr')?.getAttribute('aria-selected'),
+      ).toBe('true');
+      handle.destroy();
+    });
   });
 });

@@ -28,6 +28,13 @@ import type {
   InstructionStore,
   InstructionTokenUsageDto,
 } from '../data/instructionStore';
+import type { FlightFindingStore } from '../data/flightFindingStore';
+import {
+  findingCountCell,
+  renderFindingSection,
+  renderFindingTable,
+  wireFindingLinks,
+} from './flightReviewFindingsView';
 import { buildFlightRecordCsv, downloadCsv } from '../data/flightReviewCsv';
 import { formatDurationSeconds, mountRetrospectiveView, type RetrospectiveViewProps } from './retrospectiveView';
 import type { TrailThemeTokens } from '../theme/designTokens';
@@ -41,7 +48,19 @@ export interface FlightRecordPanelProps {
   readonly store: InstructionStore;
   /** セッション単位の振り返り・訂正（詳細ペイン内）。 */
   readonly reviewStore: FlightReviewStore;
+  /** 指示単位へ畳んだレビュー指摘（件数列・詳細の指摘節・Review サブタブ）。 */
+  readonly findingStore: FlightFindingStore;
+  /**
+   * 指摘の対象ファイルを開く。webview の host（VS Code 拡張）だけが実行できるため、
+   * 渡されない環境ではファイルパスをテキストとして出す（押せないボタンを出さない）。
+   */
+  readonly onOpenFile?: (filePath: string) => void;
 }
+
+/** Flight Record のサブタブ。指示（運航記録）と Review（指摘）を切り替える。 */
+export type FlightRecordTabValue = 'instruction' | 'review';
+
+const FLIGHT_TAB_VALUES: readonly FlightRecordTabValue[] = ['instruction', 'review'];
 
 const STYLE_ID = 'am-flight-record-style';
 
@@ -70,6 +89,57 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
   display: flex; flex-direction: column; gap: 12px; padding: 12px; color: ${c.textPrimary};
   flex: 1 1 auto; min-height: 0; box-sizing: border-box; overflow: hidden;
 }
+/* サブタブ（指示 / Review）。選択は色だけでなく下線と aria-selected でも示す。 */
+[data-am-flight-tabs] { display: flex; gap: 4px; border-bottom: 1px solid ${c.border}; }
+[data-am-flight-tabs] button {
+  padding: 6px 14px; font-size: 13px; cursor: pointer; background: transparent;
+  border: none; border-bottom: 2px solid transparent; color: ${c.textSecondary};
+}
+[data-am-flight-tabs] button[aria-selected="true"] {
+  color: ${c.textPrimary}; border-bottom-color: ${c.info}; font-weight: 600;
+}
+[data-am-flight-review] { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* レビュー指摘。severity は色 + テキストの冗長表現（色のみで情報を伝えない）。 */
+[data-am-finding-note] { margin: 0 0 8px; font-size: 11px; color: ${c.textSecondary}; }
+[data-am-finding-table] { width: 100%; border-collapse: collapse; font-size: 12px; }
+[data-am-finding-table] th, [data-am-finding-table] td {
+  text-align: left; padding: 6px 8px; border-bottom: 1px solid ${c.border}; vertical-align: top;
+}
+[data-am-finding-table] th { color: ${c.textSecondary}; font-weight: 600; white-space: nowrap; }
+[data-am-finding-table] tbody tr { cursor: pointer; }
+[data-am-finding-table] tbody tr:hover { background: ${c.sectionBg}; }
+[data-am-finding-table] td[data-am-finding-text-cell] { white-space: normal; min-width: 240px; max-width: 520px; }
+[data-am-finding-list] { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+[data-am-finding-item] { border: 1px solid ${c.border}; border-radius: 4px; padding: 8px; }
+[data-am-finding-head] { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+[data-am-finding-text] { margin: 6px 0 0; font-size: 12px; white-space: pre-wrap; }
+[data-am-finding-severity] {
+  display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
+}
+[data-am-finding-severity][data-severity="error"] { background: ${c.errorBg}; color: ${c.error}; }
+[data-am-finding-severity][data-severity="warn"] { background: ${c.warningBg}; color: ${c.warning}; }
+[data-am-finding-severity][data-severity="info"] { background: ${c.infoBg}; color: ${c.info}; }
+[data-am-finding-category] { font-size: 11px; color: ${c.textSecondary}; }
+[data-am-finding-target] { font-size: 11px; color: ${c.textSecondary}; word-break: break-all; }
+[data-am-finding-target][data-unresolved="true"] { font-style: italic; }
+button[data-am-finding-open] {
+  font-size: 11px; padding: 2px 6px; border-radius: 4px; cursor: pointer; word-break: break-all;
+  border: 1px solid ${c.border}; background: ${c.sectionBg}; color: ${c.textPrimary}; text-align: left;
+}
+[data-am-finding-status] { font-size: 11px; }
+[data-am-finding-status][data-addressed="true"] { color: ${c.success}; }
+[data-am-finding-status][data-addressed="false"] { color: ${c.textSecondary}; }
+[data-am-finding-count] {
+  display: inline-block; min-width: 18px; margin-right: 4px; padding: 1px 6px;
+  border-radius: 10px; font-size: 11px; font-weight: 600; text-align: center;
+}
+[data-am-finding-count][data-state="error"] { background: ${c.errorBg}; color: ${c.error}; }
+[data-am-finding-count][data-state="warn"] { background: ${c.warningBg}; color: ${c.warning}; }
+[data-am-finding-count][data-state="info"] { background: ${c.infoBg}; color: ${c.info}; }
+[data-am-finding-count][data-state="none"] { color: ${c.textSecondary}; }
+/* 取得できていない状態は 0 件と別の顔にする（レビュー漏れを「指摘なし」と読ませない）。 */
+[data-am-finding-count][data-state="unknown"] { color: ${c.textSecondary}; font-style: italic; }
+[data-am-finding-empty], [data-am-finding-load-failed] { font-size: 12px; color: ${c.textSecondary}; }
 [data-am-flight-toolbar] { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
 [data-am-flight-toolbar] label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: ${c.textSecondary}; }
 [data-am-flight-toolbar] input {
@@ -260,6 +330,27 @@ export function mountFlightRecordPanel(
   root.dataset['amFlightRoot'] = '';
   container.appendChild(root);
 
+  // ── サブタブ（指示 / Review）。静的 DOM で作り、文言だけ render() で更新する ──
+  let activeTab: FlightRecordTabValue = 'instruction';
+  const tablist = document.createElement('div');
+  tablist.dataset['amFlightTabs'] = '';
+  tablist.setAttribute('role', 'tablist');
+  tablist.innerHTML = FLIGHT_TAB_VALUES.map(
+    (value) => `<button type="button" role="tab" id="flight-tab-${value}"
+      aria-controls="flight-panel-${value}" data-am-flight-tab="${value}" aria-selected="false"></button>`,
+  ).join('');
+  root.appendChild(tablist);
+  for (const button of tablist.querySelectorAll<HTMLButtonElement>('[data-am-flight-tab]')) {
+    button.addEventListener('click', () => {
+      const next = button.dataset['amFlightTab'] as FlightRecordTabValue | undefined;
+      if (!next || next === activeTab) return;
+      activeTab = next;
+      // Review タブを開いた時点でまだ取れていなければ取りに行く（開くまで引かない）
+      if (next === 'review') void props.findingStore.refresh();
+      render();
+    });
+  }
+
   // ── フィルタバー（静的 DOM。値・リスナーは維持し、文言のみ render() で更新） ──
   const toolbar = document.createElement('div');
   toolbar.dataset['amFlightToolbar'] = '';
@@ -293,7 +384,20 @@ export function mountFlightRecordPanel(
   applyThinScrollbar(detailRegion);
   body.appendChild(listRegion);
   body.appendChild(detailRegion);
+  body.id = 'flight-panel-instruction';
+  body.setAttribute('role', 'tabpanel');
+  body.setAttribute('aria-labelledby', 'flight-tab-instruction');
   root.appendChild(body);
+
+  // Review サブタブ（全指示横断の指摘一覧）。指示タブとは別の器で、切替は hidden で行う。
+  const reviewRegion = document.createElement('div');
+  reviewRegion.dataset['amFlightReview'] = '';
+  reviewRegion.id = 'flight-panel-review';
+  reviewRegion.setAttribute('role', 'tabpanel');
+  reviewRegion.setAttribute('aria-labelledby', 'flight-tab-review');
+  reviewRegion.hidden = true;
+  applyThinScrollbar(reviewRegion);
+  root.appendChild(reviewRegion);
 
   const sinceInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-since]');
   const untilInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-until]');
@@ -369,7 +473,11 @@ export function mountFlightRecordPanel(
   toolbar.querySelector<HTMLButtonElement>('[data-am-flight-export]')?.addEventListener('click', () => {
     const instructions = props.store.getState().instructions;
     const stamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(container.ownerDocument, `flight-records-${stamp}.csv`, buildFlightRecordCsv(instructions));
+    downloadCsv(
+      container.ownerDocument,
+      `flight-records-${stamp}.csv`,
+      buildFlightRecordCsv(instructions, props.findingStore.getState().counts),
+    );
   });
 
   function selectRow(instructionId: string): void {
@@ -423,6 +531,11 @@ export function mountFlightRecordPanel(
           <td>${escapeHtml(cost)}</td>
           <td>${r.reworkCount}</td>
           <td>${r.toolFailureCount}</td>
+          <td data-am-finding-count-cell>${findingCountCell(
+            t,
+            props.findingStore.countsFor(r.instructionId),
+            props.findingStore.getState().loadFailed,
+          )}</td>
           <td>${tags}</td>
         </tr>`;
       })
@@ -443,6 +556,7 @@ export function mountFlightRecordPanel(
             <th>${escapeHtml(t('flightRecord.column.cost'))}</th>
             <th>${escapeHtml(t('flightRecord.column.rework'))}</th>
             <th>${escapeHtml(t('flightRecord.column.toolFailures'))}</th>
+            <th>${escapeHtml(t('flightRecord.column.findings'))}</th>
             <th>${escapeHtml(t('flightRecord.column.tags'))}</th>
           </tr>
         </thead>
@@ -548,9 +662,49 @@ export function mountFlightRecordPanel(
       ${renderDeliverables(record)}
       <h4>${escapeHtml(t('flightRecord.detail.tokenUsage'))}</h4>
       ${renderTokenUsage(record.tokenUsage)}
+      <h4>${escapeHtml(t('flightRecord.findings.title'))}</h4>
+      ${renderFindingSection({
+        t,
+        findings: props.findingStore.findingsFor(record.instructionId),
+        loadFailed: props.findingStore.getState().loadFailed,
+        linkable: props.onOpenFile !== undefined,
+      })}
       <h4>${escapeHtml(t('flightRecord.detail.sessions'))}</h4>
       ${switchButtons}
     `;
+  }
+
+  /** 指示 ID → 一覧に出す名前。宣言が無ければ ID 先頭 8 桁（推測した見出しを作らない）。 */
+  function instructionLabel(instructionId: string): string {
+    const record = props.store
+      .getState()
+      .instructions.find((r) => r.instructionId === instructionId);
+    if (record === undefined) return instructionId.slice(0, 8);
+    return record.summary === '' ? instructionId.slice(0, 8) : record.summary;
+  }
+
+  /** Review サブタブ。全指示の指摘をフラットに出し、行から指示を選び直せるようにする。 */
+  function renderReviewTab(): void {
+    const { t } = props;
+    const state = props.findingStore.getState();
+    reviewRegion.innerHTML = renderFindingTable({
+      t,
+      findings: state.findings,
+      loadFailed: state.loadFailed,
+      linkable: props.onOpenFile !== undefined,
+      labelOf: instructionLabel,
+    });
+    const onOpenFile = props.onOpenFile;
+    if (onOpenFile) wireFindingLinks(reviewRegion, onOpenFile);
+    for (const tr of reviewRegion.querySelectorAll<HTMLTableRowElement>('[data-am-finding-row]')) {
+      tr.addEventListener('click', () => {
+        const instructionId = tr.dataset['instructionId'] ?? '';
+        if (instructionId === '') return;
+        activeTab = 'instruction';
+        selectRow(instructionId);
+        render();
+      });
+    }
   }
 
   function renderDetail(): void {
@@ -582,6 +736,8 @@ export function mountFlightRecordPanel(
     if (headerEl === null || retroEl === null) return;
 
     headerEl.innerHTML = renderInstructionHeader(selected);
+    const onOpenFile = props.onOpenFile;
+    if (onOpenFile) wireFindingLinks(headerEl, onOpenFile);
     headerEl.querySelector<HTMLButtonElement>('[data-am-instruction-close]')?.addEventListener('click', () => {
       void props.store.select(null);
     });
@@ -638,22 +794,45 @@ export function mountFlightRecordPanel(
     detailHandle.update(detailProps);
   }
 
+  /** サブタブのラベルと選択状態、表示中の器を最新化する。 */
+  function renderTabs(): void {
+    const { t } = props;
+    for (const button of tablist.querySelectorAll<HTMLButtonElement>('[data-am-flight-tab]')) {
+      const value = button.dataset['amFlightTab'] as FlightRecordTabValue | undefined;
+      if (!value) continue;
+      button.textContent = t(`flightRecord.tab.${value}`);
+      button.setAttribute('aria-selected', String(value === activeTab));
+    }
+    toolbar.hidden = activeTab !== 'instruction';
+    body.hidden = activeTab !== 'instruction';
+    reviewRegion.hidden = activeTab !== 'review';
+  }
+
   function render(): void {
     if (destroyed) return;
     updateToolbarLabels();
-    renderList();
-    renderDetail();
+    renderTabs();
+    if (activeTab === 'instruction') {
+      renderList();
+      renderDetail();
+    } else {
+      renderReviewTab();
+    }
   }
 
   let unsubscribe = props.store.subscribe(render);
   let unsubscribeReview = props.reviewStore.subscribe(render);
+  let unsubscribeFinding = props.findingStore.subscribe(render);
   render();
   void props.store.refresh();
+  // 件数列は指示タブの一覧に出るため、Review タブを開く前から必要になる
+  void props.findingStore.refresh();
 
   return {
     update(next) {
       const prevStore = props.store;
       const prevReviewStore = props.reviewStore;
+      const prevFindingStore = props.findingStore;
       props = next;
       ensureStyle(container.ownerDocument, next.tokens);
       if (next.store !== prevStore) {
@@ -666,12 +845,18 @@ export function mountFlightRecordPanel(
         unsubscribeReview();
         unsubscribeReview = next.reviewStore.subscribe(render);
       }
+      if (next.findingStore !== prevFindingStore) {
+        unsubscribeFinding();
+        unsubscribeFinding = next.findingStore.subscribe(render);
+        void next.findingStore.refresh();
+      }
       render();
     },
     destroy() {
       destroyed = true;
       unsubscribe();
       unsubscribeReview();
+      unsubscribeFinding();
       // Select は open 中の overlay を document.body へ出しているため、destroy しないと
       // パネルを閉じても listbox / backdrop が残る。
       outcomeSelect.destroy();

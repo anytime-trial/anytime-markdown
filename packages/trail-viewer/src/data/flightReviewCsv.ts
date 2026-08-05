@@ -6,6 +6,7 @@
  */
 import type { FlightReviewDto } from './flightReviewStore';
 import type { InstructionRecordDto } from './instructionStore';
+import type { MemoryFlightReviewFindingCountRow } from './types';
 
 const HEADER = [
   'sessionId',
@@ -81,15 +82,28 @@ const RECORD_HEADER = [
   'toolCallCount',
   'toolFailureCount',
   'reworkCount',
+  'findingErrors',
+  'findingWarns',
+  'findingTotal',
   'tags',
 ] as const;
 
 /**
  * Flight Record（指示単位）の CSV。列は一覧の列に起点プロンプトとトークン内訳を加えたもの。
  * トークンが未取込のときは 0 ではなく空欄にする（表計算側で 0 と平均されないため）。
+ *
+ * 指摘件数も同様に、未取得（counts に行が無い・取得失敗）は 0 ではなく空欄にする。
+ * 「指摘が無い」と「引けていない」を CSV 上で同じ 0 にすると、集計側で取り違える。
  */
-export function buildFlightRecordCsv(records: readonly InstructionRecordDto[]): string {
+export function buildFlightRecordCsv(
+  records: readonly InstructionRecordDto[],
+  findingCounts: readonly MemoryFlightReviewFindingCountRow[] = [],
+): string {
+  const countsById = new Map(findingCounts.map((c) => [c.instructionId, c]));
   const rows = records.map((r) => {
+    const counts = countsById.get(r.instructionId) ?? null;
+    const countField = (value: number | undefined): string =>
+      counts === null || value === undefined ? '' : toField(value);
     const docs = r.deliverables.filter((d) => d.kind === 'doc').length;
     const code = r.deliverables.length - docs;
     const usage = r.tokenUsage;
@@ -115,6 +129,9 @@ export function buildFlightRecordCsv(records: readonly InstructionRecordDto[]): 
       toField(r.toolCallCount),
       toField(r.toolFailureCount),
       toField(r.reworkCount),
+      countField(counts?.error),
+      countField(counts?.warn),
+      countField(counts?.total),
       // tags は JSON 配列文字列で出す（区切り文字 join は tag 内の同文字と衝突して非可逆）
       toField(JSON.stringify(r.tags)),
     ].join(',');

@@ -5,6 +5,8 @@ import type {
   MemoryDriftEventDetail,
   MemoryDriftEventRow,
   MemoryFailedItemRow,
+  MemoryFlightReviewFindingCountRow,
+  MemoryFlightReviewFindingRow,
   MemoryInvalidationRow,
   MemoryPipelineRunLogRow,
   MemoryPipelineRunRow,
@@ -148,6 +150,23 @@ export class MemoryReader {
     if (params.pkg) q.set('pkg', params.pkg);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryReviewHistoryRow[]>(`/api/memory/reviews/history?${q}`);
+  }
+
+  /** 指示単位の指摘件数。一覧の列に出すため、件数は専用の集計ルートから取る。 */
+  async getFlightReviewFindingCounts(): Promise<readonly MemoryFlightReviewFindingCountRow[]> {
+    return this.fetchJson<MemoryFlightReviewFindingCountRow[]>('/api/memory/reviews/flight-counts');
+  }
+
+  async getFlightReviewFindings(params: {
+    instructionIds?: readonly string[];
+    limit?: number;
+  } = {}): Promise<readonly MemoryFlightReviewFindingRow[]> {
+    const q = new URLSearchParams();
+    if (params.instructionIds && params.instructionIds.length > 0) {
+      q.set('instructionIds', params.instructionIds.join(','));
+    }
+    if (params.limit !== undefined) q.set('limit', String(params.limit));
+    return this.fetchJson<MemoryFlightReviewFindingRow[]>(`/api/memory/reviews/flight-findings?${q}`);
   }
 
   async listPipelineRunStatsByDay(params: {

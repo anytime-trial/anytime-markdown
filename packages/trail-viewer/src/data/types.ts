@@ -163,6 +163,37 @@ export interface MemoryReviewHistoryRow {
   readonly precedesBugEntityIds: readonly string[];
 }
 
+/**
+ * Flight Record（指示単位）へ畳んだレビュー指摘 1 件。
+ * `instructionId` は明示宣言があればその指示 ID、無ければセッション ID（暗黙グループ）。
+ */
+export interface MemoryFlightReviewFindingRow {
+  readonly id: string;
+  readonly reviewId: string;
+  readonly instructionId: string;
+  readonly sessionId: string;
+  readonly title: string;
+  readonly reviewer: string;
+  readonly reviewedAt: string;
+  readonly workspace: string;
+  readonly targetFilePath: string | null;
+  readonly targetRepo: string | null;
+  readonly category: string;
+  readonly severity: string;
+  readonly findingText: string;
+  readonly addressedCommitSha: string | null;
+  readonly addressedAt: string | null;
+}
+
+/** 指示単位の指摘件数（SQL 集計。一覧の limit で欠けない）。 */
+export interface MemoryFlightReviewFindingCountRow {
+  readonly instructionId: string;
+  readonly error: number;
+  readonly warn: number;
+  readonly info: number;
+  readonly total: number;
+}
+
 export type MemoryPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
 
 export interface MemoryPipelineRunStatsByDayRow {
