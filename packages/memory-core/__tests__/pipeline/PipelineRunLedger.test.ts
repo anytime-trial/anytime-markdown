@@ -26,6 +26,18 @@ function readRun(db: BetterSqlite3MemoryDb, id: string): Record<string, unknown>
   }
 }
 
+function readRunLogs(db: BetterSqlite3MemoryDb, runId?: string): Record<string, unknown>[] {
+  const sql = runId
+    ? `SELECT * FROM pipeline_run_logs WHERE run_id = ? ORDER BY id`
+    : `SELECT * FROM pipeline_run_logs ORDER BY id`;
+  const stmt = db.prepare(sql);
+  try {
+    return (runId ? stmt.all(runId) : stmt.all()) as Record<string, unknown>[];
+  } finally {
+    stmt.free?.();
+  }
+}
+
 describe('PipelineRunLedger', () => {
   let db: BetterSqlite3MemoryDb;
 
@@ -221,5 +233,119 @@ describe('PipelineRunLedger', () => {
     expect(() => ledger.heartbeat({ items_processed: 1 })).not.toThrow();
     expect(() => ledger.finish('success', {})).not.toThrow();
     expect(ledger.runId).toBeNull();
+  });
+
+  it('appendLog() は run に紐づくログ行を書く', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+
+    ledger.appendLog(
+      'warn',
+      'conversation-ingest',
+      'chunk skipped',
+      { itemKey: 'thread-1', retryable: false },
+      'Error: chunk skipped',
+    );
+    const rows = readRunLogs(db, runId);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]['run_id']).toBe(runId);
+    expect(rows[0]['level']).toBe('warn');
+    expect(rows[0]['component']).toBe('conversation-ingest');
+    expect(rows[0]['message']).toBe('chunk skipped');
+    expect(JSON.parse(rows[0]['metadata'] as string)).toEqual({
+      itemKey: 'thread-1',
+      retryable: false,
+    });
+    expect(rows[0]['stack']).toBe('Error: chunk skipped');
+  });
+
+  it('appendLog() は metadata 省略時に NULL を書く', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+
+    ledger.appendLog('info', 'pipeline', 'started');
+    const rows = readRunLogs(db, runId);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]['metadata']).toBeNull();
+    expect(rows[0]['stack']).toBeNull();
+  });
+
+  it('appendLog() は source 指定時に extension を書く', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+
+    ledger.appendLog('info', 'extension', 'posted from extension', undefined, null, 'extension');
+    const rows = readRunLogs(db, runId);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]['source']).toBe('extension');
+  });
+
+  it('start() 前の appendLog() は無視される', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+
+    expect(() => ledger.appendLog('debug', 'pipeline', 'before start')).not.toThrow();
+    expect(readRunLogs(db)).toHaveLength(0);
+  });
+
+  it('pipeline_runs の行を削除すると対応するログ行も削除される', () => {
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+    ledger.appendLog('info', 'pipeline', 'first');
+    ledger.appendLog('error', 'pipeline', 'second');
+
+    expect(readRunLogs(db, runId)).toHaveLength(2);
+    db.run(`DELETE FROM pipeline_runs WHERE id = ?`, [runId]);
+
+    expect(readRunLogs(db, runId)).toHaveLength(0);
+  });
+
+  it('appendLog() の書き込み失敗は呼び出し元へ伝播させない（fail-open）', () => {
+    const errors: string[] = [];
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: { info: () => {}, error: (msg: string) => errors.push(msg) },
+    });
+    ledger.start('2026-08-05T00:00:00.000Z');
+
+    db.run('DROP TABLE pipeline_run_logs');
+
+    expect(() => ledger.appendLog('error', 'pipeline', 'lost log')).not.toThrow();
+    expect(errors.length).toBeGreaterThan(0);
   });
 });

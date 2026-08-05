@@ -8,8 +8,8 @@
 
 import * as path from 'node:path';
 
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
-import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
+import { BetterSqlite3MemoryDb, openMemoryCoreDb, type MemoryCoreDb } from '@anytime-markdown/memory-core';
+import { MemoryCoreService, PipelineRunLedger } from '@anytime-markdown/memory-core/pipeline';
 import { makeChildAnalyzeFn } from '../analyze/childAnalyzeFn';
 import {
   CREATE_EXTENSION_LOGS,
@@ -180,6 +180,8 @@ let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
 let httpChatBridge: ChatBridge | null = null;
 /** startHttpServer() で構築した extensionLogsDb。 */
 let httpExtensionLogsDb: BetterSqlite3MemoryDb | null = null;
+/** startHttpServer() で構築した LogService 用 memory-core.db 接続。 */
+let httpLogLedgerDb: MemoryCoreDb | null = null;
 
 /** テスト用: 状態リセット。 */
 export function _resetForTest(): void {
@@ -194,6 +196,7 @@ export function _resetForTest(): void {
   httpRebuildSchedulerDisposable = null;
   httpChatBridge = null;
   httpExtensionLogsDb = null;
+  httpLogLedgerDb = null;
 }
 
 /** テスト用: 現在の AnalyzeAllRunner を返す (import パイプライン配線の検証用)。 */
@@ -389,16 +392,30 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   // LogService
   if (opts.logService) {
     const lsCfg = opts.logService;
+    if (!opts.memoryDbPath) {
+      throw new Error('logService requires memoryDbPath');
+    }
     const nativeBinding =
       lsCfg.nativeBinding ?? path.join(opts.distPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
     const extensionLogsDb = new BetterSqlite3MemoryDb({ filePath: lsCfg.extensionLogsDbPath, nativeBinding });
     extensionLogsDb.run(CREATE_EXTENSION_LOGS);
     for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
     extensionLogsDb.run('PRAGMA journal_mode=WAL');
-    const logService = new LogService(extensionLogsDb, server);
+    const logLedgerCoreDb = await openMemoryCoreDb(opts.memoryDbPath, { nativeBinding });
+    const logLedgerDb = logLedgerCoreDb.conn ?? logLedgerCoreDb.db;
+    const systemRunLedger = new PipelineRunLedger({
+      db: logLedgerDb,
+      scope: 'daemon_session',
+      wave: 'system',
+      tier: 0,
+      logger: daemonLoggerAsLogger,
+    });
+    const systemRunId = systemRunLedger.start();
+    const logService = new LogService(logLedgerDb, server, systemRunId);
     server.setLogService(logService);
     httpExtensionLogsDb = extensionLogsDb;
-    daemonLogger.info(`[daemon] LogService wired: ${lsCfg.extensionLogsDbPath}`);
+    httpLogLedgerDb = logLedgerCoreDb;
+    daemonLogger.info(`[daemon] LogService wired: ${opts.memoryDbPath}`);
   }
 
   // ChatBridge
@@ -654,6 +671,14 @@ async function disposeAll(): Promise<void> {
       daemonLogger.error(`[daemon] extensionLogsDb close error: ${formatError(err)}`);
     }
     httpExtensionLogsDb = null;
+  }
+  if (httpLogLedgerDb) {
+    try {
+      httpLogLedgerDb.close();
+    } catch (err) {
+      daemonLogger.error(`[daemon] log ledger db close error: ${formatError(err)}`);
+    }
+    httpLogLedgerDb = null;
   }
   httpCodeGraphService = null;
   httpTrailDb = null;

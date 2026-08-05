@@ -1,19 +1,15 @@
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
-import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
 import { LogService } from '../LogService';
 import { LogSink, combineLoggers } from '../LogSink';
 import type { Logger } from '../../runtime/Logger';
+import { makeLogService } from './logServiceTestUtils';
 
 function makeService(): LogService {
-  const db = BetterSqlite3MemoryDb.openInMemory();
-  db.run(CREATE_EXTENSION_LOGS);
-  for (const idx of CREATE_EXTENSION_LOGS_INDEXES) db.run(idx);
   const broadcaster = { notifyLog: jest.fn() };
-  return new LogService(db, broadcaster);
+  return makeLogService(broadcaster);
 }
 
 describe('LogSink', () => {
-  it('persists info/warn/error logs to extension_logs', () => {
+  it('persists info/warn/error logs to pipeline_run_logs', () => {
     const svc = makeService();
     const insertSpy = jest.spyOn(svc, 'insertBatch');
     const sink = new LogSink({ service: svc, scope: 'TestScope' });

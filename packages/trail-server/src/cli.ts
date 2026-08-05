@@ -4,7 +4,7 @@ import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 import { MemoryCoreService, PipelineRunLedger } from '@anytime-markdown/memory-core/pipeline';
-import { type MemoryCoreLogSink, type LepStage, type PipelineRunLedgerFactory, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
+import { type MemoryCoreLogSink, type LepStage, type PipelineRunLedgerFactory, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome, openMemoryCoreDb } from '@anytime-markdown/memory-core';
 import { ChatBridge } from './memory-chat/chatBridge';
 import { RebuildScheduler } from './memory-chat/rebuildScheduler';
 import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
@@ -92,7 +92,8 @@ program
     const memoryDbPath = join(dbStorageDir, 'memory-core.db');
     const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0], memoryDbPath, undefined, analyze);
 
-    // extension_logs 専用 DB を better-sqlite3 で開き、LogService を wire する。
+    // extension_logs 専用 DB は Phase 3 まで残す。LogService の保存先は
+    // memory-core.db の pipeline_run_logs へ移行済み。
     // trail.db とは別ファイルとし、WAL 競合と性能影響を避ける。
     //
     // nativeBinding: webpack-bundled 実行時は bindings package の getFileName が
@@ -115,9 +116,7 @@ program
     extensionLogsDb.run(CREATE_EXTENSION_LOGS);
     for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
     extensionLogsDb.run('PRAGMA journal_mode=WAL');
-    const logService = new LogService(extensionLogsDb, server);
-    server.setLogService(logService);
-    logger.info('log streaming service wired', { dbPath: extensionLogsDbPath });
+    logger.info('extension logs db opened for compatibility', { dbPath: extensionLogsDbPath });
 
     // gitRoots の bootstrap (鶏卵回避): CLI --git-roots → home-tier ~/.anytime/trail/lep.json
     // の gitRoots → 空。workspace lep.json は gitRoots 解決後でないと読めないため home-tier を使う。
@@ -345,11 +344,10 @@ program
     // Wave 1/2/4 の実行台帳。Wave 3 のセッションと同じ memory-core.db を共有するため
     // WAL で開き、migration はここで走らせない (スキーマの所有は memory-core 側)。
     // memory-core.db が未作成の間は pipeline_runs が無いので記録を諦める (null 返し)。
-    const ledgerDb = new BetterSqlite3MemoryDb({
-      filePath: memoryDbPath,
+    const ledgerCoreDb = await openMemoryCoreDb(memoryDbPath, {
       ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
     });
-    ledgerDb.run('PRAGMA journal_mode=WAL');
+    const ledgerDb = ledgerCoreDb.conn ?? ledgerCoreDb.db;
     const hasPipelineRunsTable = (): boolean => {
       try {
         const rows = ledgerDb.exec(
@@ -365,6 +363,18 @@ program
       hasPipelineRunsTable()
         ? new PipelineRunLedger({ db: ledgerDb, scope, wave, tier, logger: memoryLogger })
         : null;
+
+    const systemRunLedger = new PipelineRunLedger({
+      db: ledgerDb,
+      scope: 'daemon_session',
+      wave: 'system',
+      tier: 0,
+      logger: memoryLogger,
+    });
+    const systemRunId = systemRunLedger.start();
+    const logService = new LogService(ledgerDb, server, systemRunId);
+    server.setLogService(logService);
+    logger.info('log streaming service wired', { dbPath: memoryDbPath, runId: systemRunId });
 
     const analyzeAllRunner = new AnalyzeAllRunner({
       logSink: { appendLine: (msg: string) => logger.info(msg) },
@@ -467,7 +477,7 @@ program
         if (typeof closeFn === 'function') await closeFn.call(trailDb);
       } catch (err) { logger.error('trail db close failed', err); }
       try { extensionLogsDb.close(); } catch (err) { logger.error('extension-logs.db close failed', err); }
-      try { ledgerDb.close(); } catch (err) { logger.error('pipeline run ledger db close failed', err); }
+      try { ledgerCoreDb.close(); } catch (err) { logger.error('pipeline run ledger db close failed', err); }
       process.exit(0);
     };
     process.on('SIGTERM', () => void shutdown('SIGTERM'));

@@ -86,8 +86,6 @@ import { ANY_METHOD, createRouteContext, type RouteDescriptor, RouteTable } from
 import type { ClientMessage, ServerMessage } from './types';
 import { readWorkspaceTickets } from './workspaceTickets';
 
-const LOG_CLEANUP_INTERVAL_MS = 24 * 3600 * 1000;
-
 // ---------------------------------------------------------------------------
 //  Constants
 // ---------------------------------------------------------------------------
@@ -311,7 +309,6 @@ export class TrailDataServer {
   private readonly memoryApi: MemoryApiHandler;
   private chatBridge: import('../memory-chat/chatBridge').ChatBridge | undefined;
   private logService: LogService | undefined;
-  private logCleanupTimer: NodeJS.Timeout | null = null;
   private dailyTokensCache: { value: number; expiresAt: number } | null = null;
   private readonly promptsApi: PromptsApiHandler;
   private readonly c4ManualApi: C4ManualApiHandler;
@@ -456,9 +453,9 @@ export class TrailDataServer {
   }
 
   /**
-   * extension_logs ストリーミング用の LogService を wire する。設定後は
+   * pipeline_run_logs ストリーミング用の LogService を wire する。設定後は
    * `POST /api/logs` と `GET /api/logs` が有効化され、内部 logger が
-   * composite (OutputChannel + extension_logs) に置き換わる。未設定のうちは 503 を返す。
+   * composite (OutputChannel + pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
    *
    * `TRAIL_LOGS_MIN_LEVEL` 環境変数で LogSink の閾値を制御できる ('info'/'warn'/'error'/'debug')。
    */
@@ -532,34 +529,11 @@ export class TrailDataServer {
           reject(err);
         }
       });
-      server.listen(port, BIND_HOST, () => {
-        this.startLogCleanupTimer();
-        resolve();
-      });
+      server.listen(port, BIND_HOST, () => resolve());
     });
   }
 
-  private startLogCleanupTimer(): void {
-    if (this.logCleanupTimer) return;
-    // 起動直後 1 回 + 24h 周期で cleanup
-    this.runLogCleanup();
-    this.logCleanupTimer = setInterval(() => this.runLogCleanup(), LOG_CLEANUP_INTERVAL_MS);
-  }
-
-  private runLogCleanup(): void {
-    if (!this.logService) return;
-    try {
-      this.logService.cleanup();
-    } catch (err) {
-      this.logger.error('log cleanup failed', err);
-    }
-  }
-
   async stop(): Promise<void> {
-    if (this.logCleanupTimer) {
-      clearInterval(this.logCleanupTimer);
-      this.logCleanupTimer = null;
-    }
     this.memoryApi.dispose();
     for (const ws of this.clients) {
       ws.close();

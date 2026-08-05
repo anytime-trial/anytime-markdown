@@ -36,18 +36,17 @@ export interface QueryResult {
   nextCursor: string | null;
 }
 
-const HARD_LIMIT = 1_000_000;
-
 export class LogService {
   private readonly insertStmt: MemoryDbStatement;
 
   constructor(
     private readonly db: MemoryDbConnection,
     private readonly broadcaster: LogBroadcaster,
+    private readonly systemRunId: string,
   ) {
     this.insertStmt = this.db.prepare(`
-      INSERT INTO extension_logs (timestamp, level, source, component, message, metadata, stack)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
   }
 
@@ -58,6 +57,7 @@ export class LogService {
     try {
       for (const e of logs) {
         const result = this.insertStmt.run(
+          this.systemRunId,
           e.timestamp,
           e.level,
           source,
@@ -117,7 +117,7 @@ export class LogService {
     const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
     const sql = `
       SELECT id, timestamp, level, source, component, message, metadata, stack
-      FROM extension_logs
+      FROM pipeline_run_logs
       ${where}
       ORDER BY timestamp DESC, id DESC
       LIMIT ?
@@ -147,32 +147,5 @@ export class LogService {
     const last = sliced.at(-1);
     const nextCursor = hasMore && last ? `${String(last.timestamp)}_${Number(last.id)}` : null;
     return { logs, nextCursor };
-  }
-
-  cleanup(now: Date = new Date()): void {
-    const debugCutoff = new Date(now.getTime() - 3 * 24 * 3600 * 1000).toISOString();
-    const infoCutoff = new Date(now.getTime() - 30 * 24 * 3600 * 1000).toISOString();
-    const errCutoff = new Date(now.getTime() - 90 * 24 * 3600 * 1000).toISOString();
-    this.db.run(`DELETE FROM extension_logs WHERE level = 'debug' AND timestamp < ?`, [debugCutoff]);
-    this.db.run(`DELETE FROM extension_logs WHERE level = 'info' AND timestamp < ?`, [infoCutoff]);
-    this.db.run(`DELETE FROM extension_logs WHERE level IN ('warn','error') AND timestamp < ?`, [errCutoff]);
-
-    const countStmt = this.db.prepare(`SELECT COUNT(*) AS n FROM extension_logs`);
-    let n = 0;
-    try {
-      const row = countStmt.get();
-      n = Number(row?.n ?? 0);
-    } finally {
-      countStmt.free?.();
-    }
-    if (n > HARD_LIMIT) {
-      const excess = n - HARD_LIMIT;
-      this.db.run(
-        `DELETE FROM extension_logs WHERE id IN (
-          SELECT id FROM extension_logs ORDER BY timestamp ASC, id ASC LIMIT ?
-        )`,
-        [excess],
-      );
-    }
   }
 }

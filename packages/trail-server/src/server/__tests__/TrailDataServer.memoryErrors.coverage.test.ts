@@ -197,12 +197,9 @@ describe('GET /api/logs — response with body', () => {
 
   it('returns 400 with JSON body when log service registered and invalid level filter', async () => {
     const { LogService } = await import('../../services/LogService');
-    const { BetterSqlite3MemoryDb } = await import('@anytime-markdown/memory-core');
-    const { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } = await import('@anytime-markdown/trail-core/domain/schema');
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
-    memDb.run(CREATE_EXTENSION_LOGS);
-    for (const idx of CREATE_EXTENSION_LOGS_INDEXES) memDb.run(idx);
-    const logSvc = new LogService(memDb, { notifyLog: jest.fn() });
+    const { makeLogDb, SYSTEM_RUN_ID } = await import('../../services/__tests__/logServiceTestUtils');
+    const memDb = makeLogDb();
+    const logSvc = new LogService(memDb, { notifyLog: jest.fn() }, SYSTEM_RUN_ID);
     server.setLogService(logSvc);
     // invalid level → 400 with body (exercises the res.end(result.body) branch)
     const res = await fetch(`http://127.0.0.1:${port}/api/logs?level=badlevel`);

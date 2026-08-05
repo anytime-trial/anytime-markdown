@@ -1,23 +1,14 @@
 /**
- * Additional coverage for LogService.queryLogs filters and cleanup().
+ * Additional coverage for LogService.queryLogs filters.
  * Complements the existing LogService.test.ts.
  */
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
-import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
 import { LogService, type LogEntry } from '../LogService';
-
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
-  db.run(CREATE_EXTENSION_LOGS);
-  for (const idx of CREATE_EXTENSION_LOGS_INDEXES) db.run(idx);
-  return db;
-}
+import { makeLogService } from './logServiceTestUtils';
 
 const broadcaster = { notifyLog: jest.fn() };
 
 function makeSvc(): LogService {
-  const db = makeDb();
-  return new LogService(db, broadcaster);
+  return makeLogService(broadcaster);
 }
 
 function entry(
@@ -144,53 +135,5 @@ describe('LogService.queryLogs — additional filter coverage', () => {
     const { logs } = svc.queryLogs({});
     expect(logs[0].metadata).toBeNull();
     expect(logs[0].stack).toBeNull();
-  });
-});
-
-describe('LogService.cleanup', () => {
-  beforeEach(() => broadcaster.notifyLog.mockClear());
-
-  it('deletes debug logs older than 3 days', () => {
-    const svc = makeSvc();
-    const old = new Date('2020-01-01T00:00:00.000Z').toISOString();
-    svc.insertBatch([{ timestamp: old, level: 'debug', component: 'C', message: 'old debug' }], 'extension');
-    svc.insertBatch([{ timestamp: new Date().toISOString(), level: 'debug', component: 'C', message: 'recent debug' }], 'extension');
-
-    svc.cleanup(new Date());
-    const { logs } = svc.queryLogs({ level: ['debug'] });
-    // The very old log should be deleted, recent one stays
-    expect(logs.some((l) => l.message === 'old debug')).toBe(false);
-    expect(logs.some((l) => l.message === 'recent debug')).toBe(true);
-  });
-
-  it('deletes info logs older than 30 days', () => {
-    const svc = makeSvc();
-    const old = new Date('2020-01-01T00:00:00.000Z').toISOString();
-    svc.insertBatch([{ timestamp: old, level: 'info', component: 'C', message: 'old info' }], 'extension');
-
-    svc.cleanup(new Date());
-    const { logs } = svc.queryLogs({ level: ['info'] });
-    expect(logs.some((l) => l.message === 'old info')).toBe(false);
-  });
-
-  it('deletes warn/error logs older than 90 days', () => {
-    const svc = makeSvc();
-    const old = new Date('2020-01-01T00:00:00.000Z').toISOString();
-    svc.insertBatch([{ timestamp: old, level: 'warn', component: 'C', message: 'old warn' }], 'extension');
-    svc.insertBatch([{ timestamp: old, level: 'error', component: 'C', message: 'old error' }], 'extension');
-
-    svc.cleanup(new Date());
-    const { logs } = svc.queryLogs({ level: ['warn', 'error'] });
-    expect(logs).toHaveLength(0);
-  });
-
-  it('does not delete recent logs', () => {
-    const svc = makeSvc();
-    const now = new Date().toISOString();
-    svc.insertBatch([{ timestamp: now, level: 'error', component: 'C', message: 'recent error' }], 'extension');
-
-    svc.cleanup(new Date());
-    const { logs } = svc.queryLogs({ level: ['error'] });
-    expect(logs).toHaveLength(1);
   });
 });

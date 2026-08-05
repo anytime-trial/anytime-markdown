@@ -150,6 +150,42 @@ export class PipelineRunLedger {
   }
 
   /**
+   * 進行中の run へ自由文ログを 1 行追記する。`metadata` は JSON として保存し、
+   * 後続の調査で run 単位に読み戻せるようにする。
+   */
+  appendLog(
+    level: 'debug' | 'info' | 'warn' | 'error',
+    component: string,
+    message: string,
+    metadata?: unknown,
+    stack?: string | null,
+    source: 'extension' | 'daemon' = 'daemon',
+  ): void {
+    const runId = this.currentRunId;
+    if (!runId) return;
+
+    const metadataJson = metadata == null ? null : (JSON.stringify(metadata) ?? null);
+
+    this.write('appendLog', () => {
+      this.db.run(
+        `INSERT INTO pipeline_run_logs
+           (run_id, timestamp, level, source, component, message, metadata, stack)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          runId,
+          new Date().toISOString(),
+          level,
+          source,
+          component,
+          message,
+          metadataJson,
+          stack ?? null,
+        ],
+      );
+    });
+  }
+
+  /**
    * run を確定する。`errorDetail` は status に関わらず記録するため、部分成功の
    * 理由も残せる。旧実装は UPDATE 文に error_detail を含めておらず、error 行の
    * 中身が常に空だった（scope 単位の memory_pipeline_state は毎回上書きされる

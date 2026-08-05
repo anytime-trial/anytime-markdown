@@ -1,14 +1,12 @@
 import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
-import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
 import { LogService } from '../../services/LogService';
+import { makeLogDb, SYSTEM_RUN_ID } from '../../services/__tests__/logServiceTestUtils';
 import { handlePostLogs, handleGetLogs } from '../logsApi';
 
 function makeService(): { svc: LogService; db: BetterSqlite3MemoryDb; broadcaster: { notifyLog: jest.Mock } } {
-  const db = BetterSqlite3MemoryDb.openInMemory();
-  db.run(CREATE_EXTENSION_LOGS);
-  for (const idx of CREATE_EXTENSION_LOGS_INDEXES) db.run(idx);
+  const db = makeLogDb();
   const broadcaster = { notifyLog: jest.fn() };
-  return { svc: new LogService(db, broadcaster), db, broadcaster };
+  return { svc: new LogService(db, broadcaster, SYSTEM_RUN_ID), db, broadcaster };
 }
 
 describe('handlePostLogs', () => {
@@ -19,7 +17,7 @@ describe('handlePostLogs', () => {
     };
     const res = handlePostLogs(JSON.stringify(body), svc);
     expect(res.status).toBe(204);
-    const result = db.exec('SELECT COUNT(*) AS n FROM extension_logs');
+    const result = db.exec('SELECT COUNT(*) AS n FROM pipeline_run_logs');
     expect(result[0]?.values[0]?.[0]).toBe(1);
   });
 
