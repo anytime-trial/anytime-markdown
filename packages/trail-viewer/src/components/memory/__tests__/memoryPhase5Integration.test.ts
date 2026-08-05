@@ -52,6 +52,7 @@ const PIPELINE_STATS: readonly MemoryPipelineRunStatsByDayRow[] = ['drift', 'spe
   Array.from({ length: 4 }, (_, i) => ({
     day: `2026-01-${String(si * 4 + i + 1).padStart(2, '0')}`,
     scope,
+    wave: 'memory',
     runs: 1,
     durationSec: 10 + i,
     itemsProcessed: 5 + i,

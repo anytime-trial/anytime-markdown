@@ -15,6 +15,8 @@ import type {
   MemoryRecurringBugRow,
   MemoryReviewHistoryRow,
   MemoryUnaddressedReviewFindingRow,
+  MemoryPipelineRunLogRow,
+  MemoryPipelineRunRow,
   MemoryPipelineRunStatsByDayRow,
   MemoryTopEntityRow,
   MemoryInvalidationRow,
@@ -87,6 +89,8 @@ function makeReader(overrides: Partial<MemoryReader> = {}): MemoryReader {
     getReviewHistory: () => Promise.resolve([] as readonly MemoryReviewHistoryRow[]),
     listPipelineRunStatsByDay: () =>
       Promise.resolve([] as readonly MemoryPipelineRunStatsByDayRow[]),
+    listPipelineRuns: () => Promise.resolve([] as readonly MemoryPipelineRunRow[]),
+    listPipelineRunLogs: () => Promise.resolve([] as readonly MemoryPipelineRunLogRow[]),
     listTopEntities: () => Promise.resolve([] as readonly MemoryTopEntityRow[]),
     listInvalidations: () => Promise.resolve([] as readonly MemoryInvalidationRow[]),
     listFailedItems: () => Promise.resolve([] as readonly MemoryFailedItemRow[]),
