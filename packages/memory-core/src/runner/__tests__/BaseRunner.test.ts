@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { BaseRunner } from '../BaseRunner';
+import { defaultState, writeState } from '../state';
 import type { RunReason, RunnerStatus } from '../types';
 
 function nextTick(): Promise<void> {
@@ -189,6 +190,69 @@ describe('BaseRunner', () => {
     r.start(60_000, { runOnStart: false, startupDelayMs: 10 });
     await new Promise<void>((resolve) => setTimeout(resolve, 30));
     expect(r.calls).toHaveLength(0);
+    r.stop();
+  });
+
+  // 回帰: start() が毎回 setInterval を張り直すだけで永続 lastRunAt を見ていなかったため、
+  // 拡張の activate (= VS Code リロードごとの daemon 再起動) が 30 分カウントダウンを
+  // 巻き戻し、リロード間隔が interval 未満だと periodic tick が永久に来なかった
+  // (2026-08-05: 11:59 の完走以降 80 分どの Wave も走らず)。次回期日は lastRunAt 起点で決める。
+  function seedLastRunAt(msAgo: number): void {
+    writeState(join(dir, 'state.json'), {
+      ...defaultState(),
+      lastRunAt: new Date(Date.now() - msAgo).toISOString(),
+      lastReason: 'periodic',
+      ticksRun: 1,
+    });
+  }
+
+  it('runOnStart=false でも lastRunAt からの残り時間だけ待って periodic を発火する', async () => {
+    seedLastRunAt(300);
+    const r = makeRunner();
+    r.start(400, { runOnStart: false, startupDelayMs: 5 });
+    await new Promise<void>((resolve) => setTimeout(resolve, 40));
+    expect(r.calls).toHaveLength(0); // 残り 100ms 前なのでまだ
+    await new Promise<void>((resolve) => setTimeout(resolve, 180));
+    expect(r.calls).toHaveLength(1);
+    expect(r.calls[0].reason).toBe('periodic');
+    r.stop();
+  });
+
+  it('start の再呼び出し (再起動) が次回期日を巻き戻さない', async () => {
+    seedLastRunAt(200);
+    const r = makeRunner();
+    r.start(300, { runOnStart: false, startupDelayMs: 5 });
+    await new Promise<void>((resolve) => setTimeout(resolve, 60));
+    r.start(300, { runOnStart: false, startupDelayMs: 5 }); // リロード相当の再 start
+    await new Promise<void>((resolve) => setTimeout(resolve, 160));
+    expect(r.calls).toHaveLength(1); // 期日 (lastRunAt+300ms) は動かない
+    r.stop();
+  });
+
+  it('期日を過ぎていれば startupDelay 後に catch-up 実行する', async () => {
+    seedLastRunAt(120_000);
+    const r = makeRunner();
+    r.start(60_000, { runOnStart: false, startupDelayMs: 10 });
+    await new Promise<void>((resolve) => setTimeout(resolve, 40));
+    expect(r.calls).toHaveLength(1);
+    expect(r.calls[0].reason).toBe('periodic');
+    r.stop();
+  });
+
+  it('lastRunAt が無ければ従来どおり interval 全体を待つ', async () => {
+    const r = makeRunner();
+    r.start(200, { runOnStart: false, startupDelayMs: 5 });
+    await new Promise<void>((resolve) => setTimeout(resolve, 60));
+    expect(r.calls).toHaveLength(0);
+    r.stop();
+  });
+
+  it('catch-up 後も periodic が継続する', async () => {
+    seedLastRunAt(120_000);
+    const r = makeRunner();
+    r.start(80, { runOnStart: false, startupDelayMs: 5 });
+    await new Promise<void>((resolve) => setTimeout(resolve, 260));
+    expect(r.calls.length).toBeGreaterThanOrEqual(2);
     r.stop();
   });
 
