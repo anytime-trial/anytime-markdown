@@ -1,5 +1,9 @@
 // Flight Record: 指示台帳（instructions / instruction_sessions）と指示単位の一覧の外部仕様。
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import { createTestTrailDatabase } from './support/createTestDb';
 import type { TrailDatabase } from '../TrailDatabase';
 
@@ -151,6 +155,57 @@ describe('TrailDatabase instructions (Flight Record)', () => {
       expect(record?.toolFailureCount).toBe(3);
       expect(record?.endedAt).toBe('2026-08-05T04:00:00.000Z');
       expect(record?.workspaceName).toBe('anytime-markdown');
+    });
+
+    describe('ワークスペース名', () => {
+      // flight_reviews.workspace_path はセッションの cwd 由来で、ワークスペース直下とは
+      // 限らない（実測: /anytime-markdown/.anytime/trail/db → 基準名が 'db' になる）
+      let wsRoot: string;
+
+      beforeEach(() => {
+        wsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-ws-'));
+        fs.mkdirSync(path.join(wsRoot, '.git'), { recursive: true });
+        fs.mkdirSync(path.join(wsRoot, '.anytime', 'trail', 'db'), { recursive: true });
+      });
+
+      afterEach(() => {
+        fs.rmSync(wsRoot, { recursive: true, force: true });
+      });
+
+      it('cwd がワークスペース配下の深い階層でもワークスペース名を出す', () => {
+        db.upsertFlightReviewFromMachine(
+          machineInput('deep', '2026-08-05T01:00:00.000Z', {
+            workspacePath: path.join(wsRoot, '.anytime', 'trail', 'db'),
+          }),
+        );
+
+        const record = db.listInstructionRecords()[0];
+        expect(record?.workspaceName).toBe(path.basename(wsRoot));
+        // 記録値そのものは残す（原因を追えるように）
+        expect(record?.workspacePath).toBe(path.join(wsRoot, '.anytime', 'trail', 'db'));
+      });
+
+      it('存在しないパスは記録値の基準名へ縮退する（推測で書き換えない）', () => {
+        db.upsertFlightReviewFromMachine(
+          machineInput('gone', '2026-08-05T01:00:00.000Z', { workspacePath: '/nonexistent/somewhere/deep' }),
+        );
+
+        expect(db.listInstructionRecords()[0]?.workspaceName).toBe('deep');
+      });
+
+      it('宣言済み指示も同じ規則でワークスペース名を揃える', () => {
+        db.upsertFlightReviewFromMachine(
+          machineInput('s1', '2026-08-05T01:00:00.000Z', { workspacePath: wsRoot }),
+        );
+        db.openInstruction(
+          openInput('inst-1', 's1', {
+            workspacePath: path.join(wsRoot, 'packages', 'trail-viewer'),
+            workspaceName: 'trail-viewer',
+          }),
+        );
+
+        expect(db.listInstructionRecords()[0]?.workspaceName).toBe(path.basename(wsRoot));
+      });
     });
 
     it('宣言の無いセッションは 1 セッション = 1 指示の暗黙グループとして残る', () => {

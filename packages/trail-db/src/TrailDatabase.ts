@@ -599,15 +599,48 @@ function toInstruction(row: readonly unknown[]): Instruction {
 }
 
 /**
+ * `flight_reviews.workspace_path` はセッションの cwd 由来で、ワークスペース直下とは限らない。
+ * 実測（2026-08-05）では `/anytime-markdown/.anytime/trail/db` や
+ * `/anytime-markdown/packages/trail-viewer` が記録されており、基準名をそのまま出すと
+ * ワークスペース名が `db` / `trail-viewer` になってしまう。
+ *
+ * `.git` を持つ最も近い祖先までさかのぼってワークスペース根を決める（worktree は `.git` が
+ * ファイルなので存在判定のみで見る）。到達できないパスは記録値のまま返す — 消えた
+ * ディレクトリを推測で書き換えるより、記録どおりを見せるほうが原因を追える。
+ */
+function resolveWorkspaceRoot(recorded: string, cache: Map<string, string>): string {
+  const cached = cache.get(recorded);
+  if (cached !== undefined) return cached;
+  let current = recorded;
+  for (;;) {
+    try {
+      if (current !== '' && fs.existsSync(path.join(current, '.git'))) break;
+    } catch {
+      // 権限エラー等でも探索を止めるだけにする（一覧表示を失敗させない）
+      current = recorded;
+      break;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      current = recorded;
+      break;
+    }
+    current = parent;
+  }
+  cache.set(recorded, current);
+  return current;
+}
+
+/**
  * 宣言の無いセッションを 1 セッション = 1 指示の暗黙グループとして扱うための擬似 Instruction。
  * id にセッション ID を使うのは、一覧の行を選んだときに所属セッションを引き直せるようにするため。
  * summary は空にする（推測した見出しを人が書いた指示概要と同じ顔で出さない）。
  */
-function implicitInstructionFromReview(review: FlightReview): Instruction {
+function implicitInstructionFromReview(review: FlightReview, workspaceRoot: string): Instruction {
   return {
     id: review.sessionId,
     workspacePath: review.workspacePath,
-    workspaceName: path.basename(review.workspacePath),
+    workspaceName: path.basename(workspaceRoot),
     summary: '',
     originPrompt: '',
     originSessionId: review.sessionId,
@@ -9708,6 +9741,8 @@ export class TrailDatabase {
     const recentReviews = this.listFlightReviews({ limit: scanLimit });
 
     const records: InstructionRecord[] = [];
+    // workspace_path → ワークスペース根の解決結果。同じパスを何度も fs で辿らない。
+    const workspaceRootCache = new Map<string, string>();
     // 成果物・トークンを引くための所属セッション。record からは辿れない（暗黙グループと
     // 明示指示で意味の違う ID を同じ型に同居させないため）ので、ここで対応表を持つ。
     const sessionIdsByRecord = new Map<string, string[]>();
@@ -9718,9 +9753,11 @@ export class TrailDatabase {
         .map((id) => reviewsBySession.get(id))
         .filter((r): r is FlightReview => r !== undefined);
       sessionIdsByRecord.set(instruction.id, sessionIds);
+      // 宣言側が渡した workspace_name も cwd 由来になりうるので、暗黙グループと同じ規則で揃える
+      const declaredRoot = resolveWorkspaceRoot(instruction.workspacePath, workspaceRootCache);
       records.push(
         assembleInstructionRecord({
-          instruction,
+          instruction: { ...instruction, workspaceName: path.basename(declaredRoot) },
           reviews: memberReviews,
           sessionCount: sessionIds.length,
           tokenUsage: EMPTY_TOKEN_USAGE,
@@ -9742,7 +9779,7 @@ export class TrailDatabase {
       sessionIdsByRecord.set(review.sessionId, [review.sessionId]);
       records.push(
         assembleInstructionRecord({
-          instruction: implicitInstructionFromReview(review),
+          instruction: implicitInstructionFromReview(review, resolveWorkspaceRoot(review.workspacePath, workspaceRootCache)),
           reviews: [review],
           sessionCount: 1,
           tokenUsage: EMPTY_TOKEN_USAGE,
