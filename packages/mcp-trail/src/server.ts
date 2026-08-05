@@ -821,7 +821,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'get_verification_status',
     {
       description:
-        'Check the verification ledger (verification.db): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
+        'Check the verification ledger (trail.db, table verification_runs): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
       inputSchema: {
         package: GetVerificationStatusInputSchema.shape.package,
         kinds: GetVerificationStatusInputSchema.shape.kinds,
