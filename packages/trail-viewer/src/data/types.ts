@@ -150,7 +150,11 @@ export interface MemoryReviewHistoryRow {
   readonly model: string | null;
   readonly sessionId: string | null;
   readonly reviewedAt: string;
+  /** レビューが行われたワークスペース（repo_name）。'' は未解決。 */
+  readonly workspace: string;
   readonly targetFilePath: string | null;
+  /** 実在検査で解決した指摘対象のリポジトリ。null は未解決。 */
+  readonly targetRepo: string | null;
   readonly category: string;
   readonly severity: string;
   readonly findingText: string;

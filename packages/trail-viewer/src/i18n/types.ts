@@ -568,6 +568,8 @@ export interface TrailI18n {
   'memory.review.filterSeverity': string;
   'memory.review.filterCategory': string;
   'memory.review.filterStatus': string;
+  'memory.review.filterWorkspace': string;
+  'memory.review.column.workspace': string;
   'memory.review.openInMessages': string;
   'memory.review.flow.addressed': string;
   'memory.review.flow.notAddressed': string;

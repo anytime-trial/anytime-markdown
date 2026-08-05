@@ -736,8 +736,8 @@ export class MemoryApiHandler {
                     THEN substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
                   ELSE NULL
                 END AS session_id,
-                r.reviewed_at,
-                rf.target_file_path, rf.category, rf.severity, rf.finding_text,
+                r.reviewed_at, r.workspace,
+                rf.target_file_path, rf.target_repo, rf.category, rf.severity, rf.finding_text,
                 rf.addressed_commit_sha, rf.addressed_at,
                 (SELECT GROUP_CONCAT(e.object_entity_id)
                  FROM memory_edges e
@@ -766,7 +766,9 @@ export class MemoryApiHandler {
           model: toNullStr(r['model']),
           sessionId: toNullStr(r['session_id']),
           reviewedAt: toStr(r['reviewed_at']),
+          workspace: toStr(r['workspace']),
           targetFilePath: toNullStr(r['target_file_path']),
+          targetRepo: toNullStr(r['target_repo']),
           category: toStr(r['category']),
           severity: toStr(r['severity']),
           findingText: toStr(r['finding_text']),

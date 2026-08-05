@@ -19,6 +19,13 @@ import type { MemoryReviewHistoryRow, MemoryUnaddressedReviewFindingRow } from '
 import type { MemoryReader } from '../../data/readers/MemoryReader';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 
+/**
+ * workspace が未解決（''）の行に出すラベル。
+ * 取込側のワークスペースで埋めてしまうと「別ワークスペースの指摘」を
+ * 自分のものとして誤表示するため、DB 側は '' のまま残している。
+ */
+const UNKNOWN_WORKSPACE = '(unknown)';
+
 // MUI Chip color → CSS 変数マッピング
 const SEVERITY_COLOR_VAR: Record<string, string> = {
   info: 'var(--am-color-info-main)',
@@ -85,6 +92,7 @@ export function mountReviewPanel(
   let severityFilter = '';
   let categoryFilter = '';
   let statusFilter: '' | 'addressed' | 'notAddressed' = '';
+  let workspaceFilter = '';
 
   // --- root 構造 ---
   const root = document.createElement('div');
@@ -156,7 +164,23 @@ export function mountReviewPanel(
   });
   statusSelectWrap.appendChild(statusSelect.el);
 
-  filterBar.append(filterLabel, sevSelectWrap, catSelectWrap, statusSelectWrap);
+  // Workspace select
+  // memory-core.db は複数ワークスペースのレビューを集約しているため、
+  // 絞り込みが無いと別ワークスペースの指摘が同じ一覧に混ざって見える。
+  const wsSelectWrap = document.createElement('div');
+  wsSelectWrap.style.cssText = 'min-width:160px;';
+  const wsSelect = createSelect<string>({
+    value: '',
+    options: [{ value: '', label: 'All' }],
+    ariaLabel: props.t('memory.review.filterWorkspace'),
+    onChange: (v) => {
+      workspaceFilter = v;
+      renderTable();
+    },
+  });
+  wsSelectWrap.appendChild(wsSelect.el);
+
+  filterBar.append(filterLabel, sevSelectWrap, catSelectWrap, statusSelectWrap, wsSelectWrap);
 
   // Table pane
   const tablePane = document.createElement('div');
@@ -197,6 +221,7 @@ export function mountReviewPanel(
       if (categoryFilter && r.category !== categoryFilter) return false;
       if (statusFilter === 'addressed' && !r.addressedCommitSha) return false;
       if (statusFilter === 'notAddressed' && r.addressedCommitSha) return false;
+      if (workspaceFilter && (r.workspace || UNKNOWN_WORKSPACE) !== workspaceFilter) return false;
       return true;
     });
   }
@@ -226,6 +251,7 @@ export function mountReviewPanel(
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
     headRow.append(
+      th(props.t('memory.review.column.workspace')),
       th('File'),
       th('Package'),
       th('Category'),
@@ -308,6 +334,15 @@ export function mountReviewPanel(
       const reviewedCell = td('color:var(--am-color-text-secondary);white-space:nowrap;');
       reviewedCell.textContent = row.reviewedAt.slice(0, 10);
 
+      // Workspace
+      // 値が無い('')のは「セッションのリポジトリを引けなかった」であって
+      // 「anytime-markdown」ではない。既定値で埋めず未解決として表示する。
+      const wsCell = td('color:var(--am-color-text-secondary);white-space:nowrap;');
+      wsCell.textContent = row.workspace || UNKNOWN_WORKSPACE;
+      if (!row.workspace) {
+        wsCell.style.fontStyle = 'italic';
+      }
+
       // Reviewer (truncated with tooltip)
       const reviewerText = formatReviewer(row);
       const reviewerCell = td('max-width:160px;color:var(--am-color-text-secondary);overflow:hidden;');
@@ -357,6 +392,7 @@ export function mountReviewPanel(
       }
 
       tr.append(
+        wsCell,
         fileCell,
         pkgCell,
         catCell,
@@ -379,6 +415,14 @@ export function mountReviewPanel(
     catSelect.update({
       options: [{ value: '', label: 'All' }, ...categories.map((c) => ({ value: c, label: c }))],
       value: categoryFilter,
+    });
+  }
+
+  function updateWorkspaceOptions(): void {
+    const workspaces = [...new Set(history.map((r) => r.workspace || UNKNOWN_WORKSPACE))].sort();
+    wsSelect.update({
+      options: [{ value: '', label: 'All' }, ...workspaces.map((w) => ({ value: w, label: w }))],
+      value: workspaceFilter,
     });
   }
 
@@ -406,6 +450,7 @@ export function mountReviewPanel(
 
     renderUnaddressed();
     updateCategoryOptions();
+    updateWorkspaceOptions();
     renderTable();
   }
 
@@ -444,6 +489,7 @@ export function mountReviewPanel(
       sevSelect.destroy();
       catSelect.destroy();
       statusSelect.destroy();
+      wsSelect.destroy();
       root.remove();
     },
   };

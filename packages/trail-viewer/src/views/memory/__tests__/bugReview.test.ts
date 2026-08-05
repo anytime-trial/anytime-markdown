@@ -86,6 +86,8 @@ function makeReviewRow(over: Partial<MemoryReviewHistoryRow> = {}): MemoryReview
     model: 'claude-sonnet-4',
     sessionId: 'sess-2',
     reviewedAt: '2026-01-15T00:00:00.000Z',
+    workspace: 'anytime-markdown',
+    targetRepo: 'anytime-markdown',
     targetFilePath: 'packages/trail-viewer/src/foo.ts',
     category: 'logic',
     severity: 'warn',
