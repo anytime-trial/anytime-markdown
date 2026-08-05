@@ -22,6 +22,6 @@ export function makeLogDb(): BetterSqlite3MemoryDb {
   return db;
 }
 
-export function makeLogService(broadcaster: { notifyLog: jest.Mock }): LogService {
-  return new LogService(makeLogDb(), broadcaster, SYSTEM_RUN_ID);
+export function makeLogService(): LogService {
+  return new LogService(makeLogDb(), SYSTEM_RUN_ID);
 }

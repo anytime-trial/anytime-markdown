@@ -403,7 +403,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     });
     const systemRunId = systemRunLedger.start();
     httpSystemRunLedger = systemRunLedger;
-    const logService = new LogService(logLedgerDb, server, systemRunId);
+    const logService = new LogService(logLedgerDb, systemRunId);
     server.setLogService(logService);
     httpLogLedgerDb = logLedgerCoreDb;
     daemonLogger.info(`[daemon] LogService wired: ${opts.memoryDbPath}`);

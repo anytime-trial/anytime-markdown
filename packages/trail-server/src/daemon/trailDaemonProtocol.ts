@@ -180,7 +180,7 @@ export interface SerializableHttpServerOptions {
   /**
    * LogService 構築設定。指定時に daemon 内で BetterSqlite3MemoryDb + LogService を構築し
    * setLogService で wire する。
-   * 非シリアライズ要素 (broadcaster = TrailDataServer instance) は daemon 側で wire する。
+   * 非シリアライズ要素 (db handle) は daemon 側で wire する。
    */
   readonly logService?: SerializableLogServiceConfig;
   /**
@@ -217,7 +217,7 @@ export interface SerializableChatBridgeConfig {
 
 /**
  * daemon が LogService を構築するのに必要なシリアライズ可能な設定。
- * db handle と broadcaster (TrailDataServer) は daemon 側で wire する。
+ * db handle は daemon 側で wire する。
  */
 export interface SerializableLogServiceConfig {
   /** better-sqlite3 native binding への絶対パス。省略時は distPath から導出する。 */

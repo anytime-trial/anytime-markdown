@@ -71,7 +71,6 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "POST", kind: "exact", path: "/api/trail/emergency/release" },
   { method: "POST", kind: "exact", path: "/api/trail/emergency/rollback" },
   { method: "POST", kind: "exact", path: "/api/logs" },
-  { method: "GET", kind: "exact", path: "/api/logs" },
   { method: "GET", kind: "exact", path: "/api/trace/list" },
   { method: "GET", kind: "exact", path: "/api/trace/file" },
   { method: "GET", kind: "exact", path: "/api/config/commit-categories" },

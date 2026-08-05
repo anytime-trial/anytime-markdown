@@ -11,7 +11,7 @@ import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { LogService, PersistedLogEntry } from '../../services/LogService';
+import type { LogService } from '../../services/LogService';
 import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
 
 const mockedFetchC4Model = fetchC4Model as jest.MockedFunction<typeof fetchC4Model>;
@@ -35,7 +35,6 @@ describe('setLogService + /api/logs', () => {
 
   const mockLogService = {
     insertBatch: jest.fn(),
-    queryLogs: jest.fn().mockReturnValue({ logs: [], nextCursor: null }),
     cleanup: jest.fn(),
   } as unknown as LogService;
 
@@ -44,11 +43,6 @@ describe('setLogService + /api/logs', () => {
     server.setLogService(mockLogService);
   });
   afterEach(async () => { await server.stop(); db.close(); });
-
-  it('GET /api/logs returns 200 when service registered', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/logs`);
-    expect([200, 204]).toContain(res.status);
-  });
 
   it('POST /api/logs returns valid status when service registered', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/logs`, {
@@ -60,34 +54,6 @@ describe('setLogService + /api/logs', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// notifyLog
-// ---------------------------------------------------------------------------
-
-describe('TrailDataServer.notifyLog', () => {
-  let server: TrailDataServer;
-  let db: TrailDatabase;
-  let port: number;
-
-  beforeEach(async () => { ({ server, db, port } = await makeServer()); });
-  afterEach(async () => { await server.stop(); db.close(); });
-
-  it('notifyLog does not throw with no clients', () => {
-    const entries: PersistedLogEntry[] = [{
-      id: 1,
-      level: 'info',
-      message: 'hello',
-      timestamp: new Date().toISOString(),
-      component: 'test',
-      source: 'extension',
-    }];
-    expect(() => server.notifyLog(entries)).not.toThrow();
-  });
-
-  it('notifyLog does not throw with empty entries', () => {
-    expect(() => server.notifyLog([])).not.toThrow();
-  });
-});
 
 // ---------------------------------------------------------------------------
 // setDocsPath + scanDocLinks

@@ -72,7 +72,7 @@ import type { CodeGraphService } from '../analyze/CodeGraphService';
 import { runC4SourceAnalyze } from '../analyze/runC4SourceAnalyze';
 import type { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
 import type { Logger, LogLevel } from '../runtime/Logger';
-import type { LogService, PersistedLogEntry } from '../services/LogService';
+import type { LogService } from '../services/LogService';
 import { combineLoggers,LogSink } from '../services/LogSink';
 import { AlignmentApiHandler } from './AlignmentApiHandler';
 import { EmergencyApiHandler } from './EmergencyApiHandler';
@@ -80,7 +80,7 @@ import { C4ManualApiHandler } from './C4ManualApiHandler';
 import { CodeGraphApiHandler } from './CodeGraphApiHandler';
 import { DocsApiHandler } from './DocsApiHandler';
 import { sendServerError } from './errorResponse';
-import { handleGetLogs, handlePostLogs } from './logsApi';
+import { handlePostLogs } from './logsApi';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
 import { ANY_METHOD, createRouteContext, type RouteDescriptor, RouteTable } from './routing';
@@ -457,8 +457,8 @@ export class TrailDataServer {
   }
 
   /**
-   * pipeline_run_logs ストリーミング用の LogService を wire する。設定後は
-   * `POST /api/logs` と `GET /api/logs` が有効化され、内部 logger が
+   * pipeline_run_logs 永続化用の LogService を wire する。設定後は
+   * `POST /api/logs` が有効化され、内部 logger が
    * composite (OutputChannel + pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
    *
    * `TRAIL_LOGS_MIN_LEVEL` 環境変数で LogSink の閾値を制御できる ('info'/'warn'/'error'/'debug')。
@@ -473,17 +473,6 @@ export class TrailDataServer {
       this.logger,
       new LogSink({ service, scope: 'TrailDataServer', minLevel }),
     );
-  }
-
-  /** Broadcast log-batch to all connected WebSocket clients. */
-  notifyLog(entries: PersistedLogEntry[]): void {
-    if (this.clients.size === 0 || entries.length === 0) return;
-    const payload = JSON.stringify({ type: 'log-batch', logs: entries });
-    for (const ws of this.clients) {
-      if (ws.readyState === 1 /* OPEN */) {
-        ws.send(payload);
-      }
-    }
   }
 
   // -------------------------------------------------------------------------
@@ -823,7 +812,6 @@ export class TrailDataServer {
   /** ログ・設定・トレースファイル。 */
   private registerOpsRoutes(t: RouteTable): void {
     t.exact('POST', '/api/logs', ({ req, res }) => this.handlePostLogsRoute(req, res));
-    t.exact('GET', '/api/logs', ({ res, url }) => this.handleGetLogsRoute(res, url.searchParams));
     t.exact('GET', '/api/trace/list', ({ res }) => this.handleTraceList(res));
     t.exact('GET', '/api/trace/file', (ctx) => this.handleTraceFile(ctx.res, ctx.query('name', '')));
     t.exact('GET', '/api/config/commit-categories', ({ res }) =>
@@ -4238,19 +4226,6 @@ export class TrailDataServer {
         // best-effort
       }
     });
-  }
-
-  private handleGetLogsRoute(res: http.ServerResponse, params: URLSearchParams): void {
-    if (!this.logService) {
-      res.writeHead(503, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'log service not registered' }));
-      return;
-    }
-    const result = handleGetLogs(params, this.logService);
-    const headers = result.headers ?? {};
-    res.writeHead(result.status, headers);
-    if (result.body) res.end(result.body);
-    else res.end();
   }
 
   /**

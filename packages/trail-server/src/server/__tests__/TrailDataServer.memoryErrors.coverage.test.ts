@@ -182,29 +182,3 @@ describe('GET /trailstandalone.js — file exists', () => {
     expect([200, 404]).toContain(res.status);
   });
 });
-
-// ---------------------------------------------------------------------------
-// handleGetLogsRoute — result.body path (GET /api/logs with registered service)
-// ---------------------------------------------------------------------------
-
-describe('GET /api/logs — response with body', () => {
-  let server: TrailDataServer;
-  let db: TrailDatabase;
-  let port: number;
-
-  beforeEach(async () => { ({ server, db, port } = await makeServer()); });
-  afterEach(async () => { await server.stop(); db.close(); });
-
-  it('returns 400 with JSON body when log service registered and invalid level filter', async () => {
-    const { LogService } = await import('../../services/LogService');
-    const { makeLogDb, SYSTEM_RUN_ID } = await import('../../services/__tests__/logServiceTestUtils');
-    const memDb = makeLogDb();
-    const logSvc = new LogService(memDb, { notifyLog: jest.fn() }, SYSTEM_RUN_ID);
-    server.setLogService(logSvc);
-    // invalid level → 400 with body (exercises the res.end(result.body) branch)
-    const res = await fetch(`http://127.0.0.1:${port}/api/logs?level=badlevel`);
-    expect([400, 200]).toContain(res.status);
-    const text = await res.text();
-    expect(text.length).toBeGreaterThan(0);
-  });
-});

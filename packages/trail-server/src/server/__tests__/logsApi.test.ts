@@ -1,12 +1,11 @@
 import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
 import { LogService } from '../../services/LogService';
 import { makeLogDb, SYSTEM_RUN_ID } from '../../services/__tests__/logServiceTestUtils';
-import { handlePostLogs, handleGetLogs } from '../logsApi';
+import { handlePostLogs } from '../logsApi';
 
-function makeService(): { svc: LogService; db: BetterSqlite3MemoryDb; broadcaster: { notifyLog: jest.Mock } } {
+function makeService(): { svc: LogService; db: BetterSqlite3MemoryDb } {
   const db = makeLogDb();
-  const broadcaster = { notifyLog: jest.fn() };
-  return { svc: new LogService(db, broadcaster, SYSTEM_RUN_ID), db, broadcaster };
+  return { svc: new LogService(db, SYSTEM_RUN_ID), db };
 }
 
 describe('handlePostLogs', () => {
@@ -50,55 +49,6 @@ describe('handlePostLogs', () => {
   it('returns 400 when JSON is malformed', () => {
     const { svc } = makeService();
     const res = handlePostLogs('{not json', svc);
-    expect(res.status).toBe(400);
-  });
-});
-
-describe('handleGetLogs', () => {
-  it('returns logs filtered by level', () => {
-    const { svc } = makeService();
-    svc.insertBatch([
-      { timestamp: '2026-05-13T12:00:00.000Z', level: 'info', component: 'C', message: 'a' },
-      { timestamp: '2026-05-13T12:00:01.000Z', level: 'error', component: 'C', message: 'b' },
-    ], 'extension');
-    const res = handleGetLogs(new URLSearchParams('level=error'), svc);
-    expect(res.status).toBe(200);
-    const body = JSON.parse(res.body ?? '{}');
-    expect(body.logs).toHaveLength(1);
-    expect(body.logs[0].level).toBe('error');
-  });
-
-  it('returns nextCursor when more rows exist', () => {
-    const { svc } = makeService();
-    for (let i = 0; i < 5; i++) {
-      svc.insertBatch([{
-        timestamp: `2026-05-13T12:00:0${i}.000Z`,
-        level: 'info',
-        component: 'C',
-        message: `m${i}`,
-      }], 'extension');
-    }
-    const res = handleGetLogs(new URLSearchParams('limit=2'), svc);
-    const body = JSON.parse(res.body ?? '{}');
-    expect(body.logs).toHaveLength(2);
-    expect(body.nextCursor).toBeTruthy();
-  });
-
-  it('supports LIKE search via q', () => {
-    const { svc } = makeService();
-    svc.insertBatch([
-      { timestamp: '2026-05-13T12:00:00.000Z', level: 'info', component: 'C', message: 'memory pause' },
-      { timestamp: '2026-05-13T12:00:01.000Z', level: 'info', component: 'C', message: 'commit done' },
-    ], 'extension');
-    const res = handleGetLogs(new URLSearchParams('q=memory'), svc);
-    const body = JSON.parse(res.body ?? '{}');
-    expect(body.logs).toHaveLength(1);
-    expect(body.logs[0].message).toContain('memory');
-  });
-
-  it('returns 400 for invalid level', () => {
-    const { svc } = makeService();
-    const res = handleGetLogs(new URLSearchParams('level=trace'), svc);
     expect(res.status).toBe(400);
   });
 });

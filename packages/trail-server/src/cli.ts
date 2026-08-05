@@ -358,7 +358,7 @@ program
       logger: memoryLogger,
     });
     const systemRunId = systemRunLedger.start();
-    const logService = new LogService(ledgerDb, server, systemRunId);
+    const logService = new LogService(ledgerDb, systemRunId);
     server.setLogService(logService);
     logger.info('log streaming service wired', { dbPath: memoryDbPath, runId: systemRunId });
 

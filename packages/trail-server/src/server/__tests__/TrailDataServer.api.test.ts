@@ -705,7 +705,7 @@ describe('GET /api/analyze-all/* — runner not registered', () => {
   });
 });
 
-describe('GET /api/logs — service not registered', () => {
+describe('POST /api/logs — service not registered', () => {
   let server: TrailDataServer;
   let db: TrailDatabase;
   let port: number;
@@ -720,11 +720,6 @@ describe('GET /api/logs — service not registered', () => {
   afterEach(async () => {
     await server.stop();
     db.close();
-  });
-
-  it('returns 503 for GET /api/logs when log service not set', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/logs`);
-    expect(res.status).toBe(503);
   });
 
   it('returns 503 for POST /api/logs when log service not set', async () => {

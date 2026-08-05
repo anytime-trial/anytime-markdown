@@ -4,8 +4,7 @@ import type { Logger } from '../../runtime/Logger';
 import { makeLogService } from './logServiceTestUtils';
 
 function makeService(): LogService {
-  const broadcaster = { notifyLog: jest.fn() };
-  return makeLogService(broadcaster);
+  return makeLogService();
 }
 
 describe('LogSink', () => {
