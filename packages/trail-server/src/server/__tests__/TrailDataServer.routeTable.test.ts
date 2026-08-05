@@ -130,6 +130,8 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "GET", kind: "exact", path: "/api/memory/bugs/causal" },
   { method: "GET", kind: "exact", path: "/api/memory/reviews/unaddressed" },
   { method: "GET", kind: "exact", path: "/api/memory/reviews/history" },
+  { method: "GET", kind: "exact", path: "/api/memory/reviews/flight-counts" },
+  { method: "GET", kind: "exact", path: "/api/memory/reviews/flight-findings" },
   { method: "GET", kind: "exact", path: "/api/memory/pipeline/runs/by-day" },
   { method: "GET", kind: "exact", path: "/api/memory/pipeline/runs" },
   { method: "GET", kind: "pattern", path: "^\\/api\\/memory\\/pipeline\\/runs\\/([^/]+)\\/logs$" },

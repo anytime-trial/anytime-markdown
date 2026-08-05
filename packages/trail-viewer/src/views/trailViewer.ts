@@ -34,6 +34,7 @@ import type { ChatPanelProps } from './memory/chatPanel';
 import { mountFlightRecordPanel, type FlightRecordPanelProps } from './flightRecordPanel';
 import { createFlightReviewStore, type FlightReviewStore } from '../data/flightReviewStore';
 import { createInstructionStore, type InstructionStore } from '../data/instructionStore';
+import { createFlightFindingStore, type FlightFindingStore } from '../data/flightFindingStore';
 import { mountFilterBar } from './filterBar';
 import type { FilterBarProps } from './filterBar';
 import { mountSessionList } from './sessionList';
@@ -229,6 +230,7 @@ export function mountTrailViewer(
   let chatHandle: ReturnType<typeof mountChatPanel> | null = null;
   let flightReviewStore: FlightReviewStore | null = null;
   let instructionStore: InstructionStore | null = null;
+  let flightFindingStore: FlightFindingStore | null = null;
   let flightRecordStoreUrl: string | null = null;
   let callHierarchyHandle: ReturnType<typeof mountCallHierarchyPanel> | null = null;
 
@@ -457,6 +459,8 @@ export function mountTrailViewer(
       flightReviewStore = null;
       instructionStore?.dispose();
       instructionStore = null;
+      flightFindingStore?.dispose();
+      flightFindingStore = null;
     }
     if (instructionStore === null) {
       instructionStore = createInstructionStore(serverUrl, { enabled: true });
@@ -465,6 +469,9 @@ export function mountTrailViewer(
       // セッション詳細は行選択のたびに取り直すため、こちらはポーリングしない
       flightReviewStore = createFlightReviewStore(serverUrl);
     }
+    if (flightFindingStore === null) {
+      flightFindingStore = createFlightFindingStore(serverUrl);
+    }
     flightRecordStoreUrl = serverUrl;
     return {
       isDark: props.isDark ?? true,
@@ -472,6 +479,11 @@ export function mountTrailViewer(
       t: props.t,
       store: instructionStore,
       reviewStore: flightReviewStore,
+      findingStore: flightFindingStore,
+      // 指摘の対象ファイルを開けるのは host（VS Code 拡張）が居るときだけ。配線は C4 の
+      // 「ファイルを開く」と同じ props.c4.onOpenFile を共有する（経路を二重に持たない）。
+      // 未配線ならリンクにせずテキストで出す（押せないボタンを出さない）。
+      ...(props.c4?.onOpenFile ? { onOpenFile: props.c4.onOpenFile } : {}),
     };
   }
 
@@ -933,6 +945,8 @@ export function mountTrailViewer(
     flightReviewStore = null;
     instructionStore?.dispose();
     instructionStore = null;
+    flightFindingStore?.dispose();
+    flightFindingStore = null;
     chatHandle?.destroy();
     chatHandle = null;
     callHierarchyHandle?.destroy();
