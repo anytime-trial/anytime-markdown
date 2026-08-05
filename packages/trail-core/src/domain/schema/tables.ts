@@ -813,6 +813,12 @@ export const CREATE_ACCEPTANCE_INDEXES = [
 // ドクトリン接地判断の並走記録 (D1)。中間承認の直前のエージェント判断と人の判断を
 // 突合し一致率を計測する。session_id は sessions(id) への FK を張らない
 // (セッション取込は import ラグで数十分遅延し、判断記録が先行するため)。
+/**
+ * `delegated_at` の CHECK 式。CREATE と ALTER の**両方**がこの 1 つを参照する。
+ * 式を二重に書くと、片方だけ直したときに新規 DB と移行 DB で受理される値が食い違う。
+ */
+const DELEGATED_AT_CHECK = `CHECK (delegated_at IS NULL OR delegated_at GLOB ${TS_GLOB_MS} OR delegated_at GLOB ${TS_GLOB_NO_MS})`;
+
 export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_judgments (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL,
@@ -833,7 +839,7 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
   gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json)),
   -- D2: ゲートが delegable と判定した What 承認をエージェントが代行した時刻。
   -- human_decision が NULL のまま「人の判断待ち」に見えるのを防ぐために分ける
-  delegated_at TEXT CHECK (delegated_at IS NULL OR delegated_at GLOB ${TS_GLOB_MS} OR delegated_at GLOB ${TS_GLOB_NO_MS}),
+  delegated_at TEXT ${DELEGATED_AT_CHECK},
   UNIQUE (session_id, subject)
 ) STRICT`;
 
@@ -841,7 +847,7 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
  * 既存 DB へ `delegated_at` を足す ALTER。CHECK 制約を CREATE 側と同一に保つため、
  * GLOB 定義を共有するここで組み立てる（手書きすると新規 DB と移行 DB で制約が食い違う）。
  */
-export const ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT = `ALTER TABLE doctrine_judgments ADD COLUMN delegated_at TEXT CHECK (delegated_at IS NULL OR delegated_at GLOB ${TS_GLOB_MS} OR delegated_at GLOB ${TS_GLOB_NO_MS})`;
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT = `ALTER TABLE doctrine_judgments ADD COLUMN delegated_at TEXT ${DELEGATED_AT_CHECK}`;
 
 export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON doctrine_judgments(judged_at)`,

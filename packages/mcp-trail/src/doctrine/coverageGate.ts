@@ -7,6 +7,8 @@ export type GateReason =
   | 'odd_unknown'
   | 'odd_out'
   | 'restricted_area'
+  | 'operation_kind_unknown'
+  | 'always_human_operation'
   | 'severity_unknown'
   | 'severity_high'
   | 'doctrine_conflict'
@@ -15,6 +17,30 @@ export type GateReason =
 
 export type GateCoverage = 'covered' | 'silent' | 'conflict' | 'odd_out';
 export type GateSeverity = 'low' | 'medium' | 'high';
+
+/**
+ * 操作種別。**パスに現れない操作**（push・リリース・破壊的 git）は `targetPaths` では
+ * 原理的に表現できないため、呼び出し側が別軸で申告する。
+ */
+export type OperationKind =
+  | 'code_change'
+  | 'dependency_change'
+  | 'destructive_git'
+  | 'remote_push'
+  | 'production_release'
+  | 'persistent_data_write';
+
+/**
+ * ゲートの判定によらず必ず人へ聞く操作種別。global `CLAUDE.md`「承認の対象」が
+ * 都度承認を要求する例外項目と対応する。
+ */
+const ALWAYS_HUMAN: ReadonlySet<OperationKind> = new Set<OperationKind>([
+  'dependency_change',
+  'destructive_git',
+  'remote_push',
+  'production_release',
+  'persistent_data_write',
+]);
 
 /** ODD（Operational Design Domain）の境界定義。全体要件 §3.2 を機械判定へ落としたもの */
 export interface OddConfig {
@@ -38,6 +64,8 @@ export interface CoverageGateInput {
   readonly targetPaths?: ReadonlyArray<string> | undefined;
   /** 呼び出し側の重大度申告。未指定は判定不能として escalate */
   readonly severity?: GateSeverity | undefined;
+  /** 呼び出し側の操作種別申告。未指定は判定不能として escalate */
+  readonly operationKind?: OperationKind | undefined;
   readonly odd: OddConfig;
 }
 
@@ -113,6 +141,15 @@ export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResu
   const oddReason = evaluateOdd(input.targetPaths, input.odd);
   if (oddReason !== null) {
     return escalate(oddReason);
+  }
+  // 操作種別はパスに現れない軸なので、targetPaths の判定を通っても別途評価する。
+  // ここを「申告が無ければ素通り」にすると、push・リリース・破壊的 git が
+  // 「判定していない＝代行可」として通る (この軸だけ fail-open になる)
+  if (input.operationKind === undefined) {
+    return escalate('operation_kind_unknown');
+  }
+  if (ALWAYS_HUMAN.has(input.operationKind)) {
+    return escalate('always_human_operation');
   }
   if (input.severity === undefined) {
     return escalate('severity_unknown');

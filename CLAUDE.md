@@ -51,11 +51,11 @@
 
 **手順**
 
-1. What 承認が要る場面で、AskUserQuestion を出す**前**に mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。**`severity` と `target_paths` を必ず申告する**（未申告はカバレッジゲートが fail-closed で `escalate` に倒すため、代行は成立しない）。
+1. What 承認が要る場面で、AskUserQuestion を出す**前**に mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。**`severity` / `target_paths` / `operation_kind` の 3 つを必ず申告する**（いずれかが未申告ならカバレッジゲートは fail-closed で `escalate` に倒し、代行は成立しない）。
 2. 戻り値の `gate.verdict` で分岐する。
     - **`delegable` かつ自分の判断が `approve`** → **人に聞かずに進める**。直後に `record_delegated_approval` で代行を記録し、応答に「何を代行したか」と接地した条項を 1 行残す（無言で進めない）。
     - **それ以外**（`escalate` / 自分の判断が `reject` / `escalate`）→ 従来どおり AskUserQuestion で人へ聞き、回答の**直後**に `record_human_decision` で実際の判断（approve/reject/modified）を記録する。
-3. **ゲートの判定にかかわらず常に人へ聞く操作**（global `~/.claude/CLAUDE.md`「承認の対象」の例外項目。ゲートはパス基準の判定なので操作種別は捕捉できない）: パッケージの追加・更新、破壊的操作（`git reset --hard` / `clean -f` 等・永続データ書込）、リモート push・本番リリース。
+3. **常に人へ聞く操作は `operation_kind` でゲートに申告する**（global `~/.claude/CLAUDE.md`「承認の対象」の例外項目）。`code_change` 以外（`dependency_change` / `destructive_git` / `remote_push` / `production_release` / `persistent_data_write`）はゲートが `always_human_operation` で必ず `escalate` する。**これらを散文の遵守に頼らないのは、パッケージ追加・push・リリース・破壊的 git がパスに現れず `target_paths` では原理的に表現できないため**である。ワークスペース内の設定・依存マニフェスト（`package.json` / `package-lock.json` / `.mcp.json` / `.claude/settings*` / `.git/` / `.github/`）はパスで表現できるので制限領域として `restricted_area` で escalate する。
 4. 記録失敗（TrailDataServer 未起動・DB 不在等）は承認フローを止めず、失敗した事実を応答に 1 行残す（silent skip 禁止）。**ただし代行の記録に失敗した場合は代行しない**（記録の無い代行は監査できないため、人へ聞く側へ倒す）。
 5. session_id は airspace クレームファイル（`.git/anytime/claims/`）の自セッション ID を使う。
 

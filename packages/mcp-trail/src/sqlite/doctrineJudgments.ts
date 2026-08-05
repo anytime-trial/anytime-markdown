@@ -43,6 +43,11 @@ export interface HumanDecisionResult {
 
 export interface DoctrineAgreementMetrics {
   readonly total: number;
+  /**
+   * 人の判断が記録されている件数。**代行後の抜き取り監査を含む**ため `delegated` と
+   * 重なる。`decided + pending = total` は成り立たない
+   * （`total = decided + delegated - delegatedAudited + pending`）。
+   */
   readonly decided: number;
   /**
    * 人の判断も代行の記録も無い件数。代行済み (D2) を含めると「人が答えていない」件数と

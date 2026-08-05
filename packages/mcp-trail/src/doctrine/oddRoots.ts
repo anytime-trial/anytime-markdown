@@ -36,6 +36,16 @@ export function resolveOddConfig(input: OddConfigInput): OddConfig {
       path.join(input.homeDir, '.config'),
       path.join(input.homeDir, '.local', 'share'),
     ],
-    restrictedPatterns: ['/.github/workflows/', '/.env'],
+    // ODD 内（ワークスペース配下）にありながら代行対象外の領域。ホーム基準の
+    // restrictedPrefixes では捕まらないため、パス断片で列挙する。
+    restrictedPatterns: [
+      '/.github/', // CI 定義（workflows に限らない）
+      '/.env', // シークレット
+      '/package.json', // 依存マニフェスト（パッケージ追加・更新は常時人の承認）
+      '/package-lock.json',
+      '/.mcp.json', // MCP サーバ定義
+      '/.claude/settings', // settings.json / settings.local.json（フック・権限）
+      '/.git/', // git 内部（config・hooks）
+    ],
   };
 }

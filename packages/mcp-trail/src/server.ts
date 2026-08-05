@@ -457,7 +457,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'record_doctrine_judgment',
-    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) evaluates whether the judgment may be delegated and stores the verdict; omitting target_paths or severity makes the verdict escalate (fail-closed), so always declare both. D2 is ACTIVE (since 2026-08-05): act on the returned gate.verdict — if it is "delegable" AND your judgment is "approve", proceed WITHOUT asking the human and immediately call record_delegated_approval; otherwise ask the human and then call record_human_decision. Package add/update, destructive operations, remote push and production release always go to the human regardless of the verdict (the gate is path-based and cannot see the operation kind). Re-recording the same session_id + subject overwrites and resets any recorded human decision and delegation.', inputSchema: {
+    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) evaluates whether the judgment may be delegated and stores the verdict; omitting target_paths, severity or operation_kind makes the verdict escalate (fail-closed), so always declare all three. D2 is ACTIVE (since 2026-08-05): act on the returned gate.verdict — if it is "delegable" AND your judgment is "approve", proceed WITHOUT asking the human and immediately call record_delegated_approval; otherwise ask the human and then call record_human_decision. Package add/update, destructive operations, remote push and production release always escalate — declare them via operation_kind so the gate enforces it rather than relying on prose. Re-recording the same session_id + subject overwrites and resets any recorded human decision and delegation.', inputSchema: {
       session_id: RecordDoctrineJudgmentInputSchema.shape.session_id,
       subject: RecordDoctrineJudgmentInputSchema.shape.subject,
       judgment: RecordDoctrineJudgmentInputSchema.shape.judgment,
@@ -465,6 +465,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       citations: RecordDoctrineJudgmentInputSchema.shape.citations,
       target_paths: RecordDoctrineJudgmentInputSchema.shape.target_paths,
       severity: RecordDoctrineJudgmentInputSchema.shape.severity,
+      operation_kind: RecordDoctrineJudgmentInputSchema.shape.operation_kind,
       judged_at: RecordDoctrineJudgmentInputSchema.shape.judged_at,
       workspacePath: RecordDoctrineJudgmentInputSchema.shape.workspacePath,
     }, },

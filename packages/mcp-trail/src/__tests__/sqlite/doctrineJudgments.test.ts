@@ -344,6 +344,11 @@ describe('doctrineJudgments', () => {
       expect(metrics.delegated).toBe(1);
       expect(metrics.delegatedAudited).toBe(1);
       expect(metrics.pending).toBe(0);
+      // decided は代行後の監査を含むため delegated と重なる。
+      // `decided + pending = total` は成り立たない
+      expect(
+        metrics.decided + metrics.delegated - metrics.delegatedAudited + metrics.pending,
+      ).toBe(metrics.total);
     });
   });
 
@@ -394,6 +399,11 @@ describe('doctrineJudgments', () => {
       .prepare(`SELECT subject, gate_verdict, delegated_at FROM doctrine_judgments`)
       .all();
     expect(rows).toEqual([{ subject: '旧行', gate_verdict: null, delegated_at: null }]);
+    // 列名・列順だけでなく制約も見る。ALTER 側の CHECK 式が CREATE 側から
+    // 剥がれると、移行 DB だけが不正な値を受理する状態になる
+    expect(() =>
+      legacy.exec(`UPDATE doctrine_judgments SET delegated_at = 'garbage'`),
+    ).toThrow(/CHECK constraint failed/);
     legacy.close();
   });
 

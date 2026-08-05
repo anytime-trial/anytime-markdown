@@ -16,6 +16,7 @@ function input(overrides: Partial<CoverageGateInput> = {}): CoverageGateInput {
     citations: [{ resolved: true, approval: 'canon' }],
     targetPaths: ['/anytime-markdown/packages/mcp-trail/src/server.ts'],
     severity: 'low',
+    operationKind: 'code_change',
     odd: ODD,
     ...overrides,
   };
@@ -24,6 +25,23 @@ function input(overrides: Partial<CoverageGateInput> = {}): CoverageGateInput {
 describe('evaluateCoverageGate', () => {
   it('ODD 内・低重大度・covered・canon 引用ありは delegable', () => {
     expect(evaluateCoverageGate(input())).toEqual({ verdict: 'delegable', reasons: [] });
+  });
+
+  it('operationKind 未指定は operation_kind_unknown で escalate（fail-closed）', () => {
+    const result = evaluateCoverageGate(input({ operationKind: undefined }));
+    expect(result).toEqual({ verdict: 'escalate', reasons: ['operation_kind_unknown'] });
+  });
+
+  it.each([
+    'dependency_change',
+    'destructive_git',
+    'remote_push',
+    'production_release',
+    'persistent_data_write',
+  ] as const)('%s は他の条件を満たしても always_human_operation で escalate', (kind) => {
+    // パスに現れない操作種別。targetPaths の判定を通っても代行させない
+    const result = evaluateCoverageGate(input({ operationKind: kind }));
+    expect(result).toEqual({ verdict: 'escalate', reasons: ['always_human_operation'] });
   });
 
   it('targetPaths 未指定は odd_unknown で escalate（fail-closed）', () => {
