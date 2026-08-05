@@ -382,4 +382,68 @@ describe('linkAddresses', () => {
 
     close();
   }, 30000);
+  // ── commit_message のフルメッセージ化に伴う境界 ──────────────────────────────
+  //
+  // session_commits.commit_message は件名 1 行からフルメッセージ（件名＋本文）へ
+  // 変わった。照合対象が数百文字へ広がるため、「トップ 3 キーワードのうち 1 語でも
+  // 当たれば +2（受理閾値）」だと無関係なコミットまでリンクされる。一致数に比例する
+  // 配点でその境界を固定する。
+  //
+  // topKeywords は `[^a-z0-9\s]` を除去するため、キーワード規則は ASCII の指摘でしか
+  // 発火しない。この境界を検査するテストは必ず ASCII で書く（日本語で書くと
+  // キーワード一致が常に 0 件になり、配点を変えても落ちない fail-open なテストになる）。
+
+  test('本文に指摘のキーワードが 2 語以上そろえばリンクされる', async () => {
+    const { db, findingId, close } = await buildSetup({
+      findingText: 'cache invalidation condition is inverted',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: [
+        'fix(core/logic): rework the cache guard',
+        '',
+        'The invalidation branch was inverted so the cache was always refetched.',
+      ].join('\n'),
+      commitAt: TS_PLUS_1,
+    });
+
+    const result = linkAddresses({ db, repoName: REPO_NAME, logger: makeLogger() });
+    expect(result.findings_linked).toBe(1);
+
+    const rows = db.exec(
+      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      [findingId]
+    );
+    expect(rows[0]?.values[0][0]).toBe('abc123def456');
+
+    close();
+  }, 30000);
+
+  test('本文にキーワードが 1 語しか一致しないコミットはリンクされない', async () => {
+    const { db, findingId, close } = await buildSetup({
+      findingText: 'cache invalidation condition is inverted',
+      severity: 'warn',
+      targetFilePath: 'src/foo.ts',
+      commitFile: 'src/foo.ts',
+      commitMessage: [
+        'refactor(ui): align the button padding',
+        '',
+        'The layout condition was wrong for narrow screens, so the padding',
+        'differed per page. Unrelated to the finding above.',
+      ].join('\n'),
+      commitAt: TS_PLUS_1,
+    });
+
+    const result = linkAddresses({ db, repoName: REPO_NAME, logger: makeLogger() });
+    expect(result.findings_linked).toBe(0);
+    expect(result.edges_inserted).toBe(0);
+
+    const rows = db.exec(
+      `SELECT addressed_commit_sha FROM memory_review_findings WHERE id = ?`,
+      [findingId]
+    );
+    expect(rows[0]?.values[0][0]).toBeNull();
+
+    close();
+  }, 30000);
 });

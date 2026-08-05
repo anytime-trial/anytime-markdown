@@ -75,12 +75,13 @@ function scoreCommit(commitMessage: string, findingText: string): number {
     score += 3;
   }
 
-  // +2: top 3 keywords appear in commit message
+  // +1 per matching keyword (top 3). 一致数に比例させるのは、照合対象が件名 1 行から
+  // フルメッセージ（件名＋本文）へ広がったため。以前は「3 語のうち 1 語でも当たれば +2」
+  // で、それだけで受理閾値（>= 2）に届いた。数百文字の本文が相手ではありふれた 1 語が
+  // ほぼ必ず当たるので、この配点のままだと指摘とコミットが無関係でもリンクされる。
   const keywords = topKeywords(findingText, 3);
   const keywordHits = keywords.filter((kw) => lowerMsg.includes(kw));
-  if (keywordHits.length > 0) {
-    score += 2;
-  }
+  score += keywordHits.length;
 
   // +1: chapter title proxy appears in commit message
   const titleProxy = extractChapterTitleProxy(findingText).toLowerCase();

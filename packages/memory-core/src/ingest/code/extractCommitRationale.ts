@@ -44,7 +44,50 @@ const RATIONALE_PATTERN =
  * Extract the rationale text from a commit message body (subject line excluded).
  * Returns null when no matching section is found.
  */
-function extractRationaleText(message: string): string | null {
+/**
+ * git のトレーラ行に使われるキー。本文段落の判定で「根拠ではない」と切り分ける。
+ * 固定の集合で判定するのは、`^[A-Za-z-]+:` のような形だけで落とすと本文中の
+ * 「1. languages: [] を宣言しても」のような行まで巻き込むため。
+ */
+const TRAILER_KEYS: ReadonlySet<string> = new Set([
+  'session-id',
+  'co-authored-by',
+  'signed-off-by',
+  'reviewed-by',
+  'acked-by',
+  'tested-by',
+  'change-id',
+  'refs',
+  'closes',
+  'fixes',
+  'see-also',
+  'cc',
+  'bug',
+]);
+
+const TRAILER_LINE = /^([A-Za-z][A-Za-z0-9-]*)\s*:\s*\S/;
+
+function isTrailerOnlyParagraph(paragraph: string): boolean {
+  const lines = paragraph.split('\n').map((l) => l.trim()).filter((l) => l !== '');
+  if (lines.length === 0) return true;
+  return lines.every((line) => {
+    const m = TRAILER_LINE.exec(line);
+    return m !== null && TRAILER_KEYS.has(m[1].toLowerCase());
+  });
+}
+
+export interface ExtractedRationale {
+  readonly text: string;
+  /**
+   * `EXTRACTED` は `Rationale:` 等のラベルで書き手が明示的に宣言した根拠、
+   * `INFERRED` は本文から推定した根拠。監査 UI の信頼度フィルタはこの区別を
+   * 人が確認するためにある。両者を同じラベルで記録すると、監査者が「宣言された
+   * 根拠」と「機械が推定した根拠」を区別できず、監査の意味が失われる。
+   */
+  readonly confidenceLabel: 'EXTRACTED' | 'INFERRED';
+}
+
+function extractRationaleText(message: string): ExtractedRationale | null {
   // Split off the subject line (first line); operate only on body
   const newlineIdx = message.indexOf('\n');
   if (newlineIdx === -1) {
@@ -55,10 +98,19 @@ function extractRationaleText(message: string): string | null {
   if (!body) return null;
 
   const match = RATIONALE_PATTERN.exec(body);
-  if (!match) return null;
+  if (match) {
+    const text = match[1].trim();
+    if (text) return { text, confidenceLabel: 'EXTRACTED' };
+  }
 
-  const text = match[1].trim();
-  return text || null;
+  // ラベルが無い本文からの推定。コミット規約（本文に Why を書く）に従って書かれた
+  // 本文はラベルを持たないため、ラベル一致だけでは実測で 1 件も抽出できなかった。
+  for (const paragraph of body.split(/\n\s*\n/)) {
+    const trimmed = paragraph.trim();
+    if (trimmed === '' || isTrailerOnlyParagraph(trimmed)) continue;
+    return { text: trimmed, confidenceLabel: 'INFERRED' };
+  }
+  return null;
 }
 
 // ── Per-commit ingestion helper ───────────────────────────────────────────────
@@ -72,13 +124,15 @@ function ingestCommitRationale(
   opts: {
     commitHash: string;
     rationaleText: string;
+    confidenceLabel: ExtractedRationale['confidenceLabel'];
     repoName: string;
     committedAt: string;
     recordedAt: string;
     logger: MemoryLogger;
   },
 ): { decisionInserted: boolean; edgeInserted: boolean } | null {
-  const { commitHash, rationaleText, repoName, committedAt, recordedAt, logger } = opts;
+  const { commitHash, rationaleText, confidenceLabel, repoName, committedAt, recordedAt, logger } =
+    opts;
   const text = rationaleText;
 
   const commitId = entityId('Commit', commitHash);
@@ -139,9 +193,13 @@ function ingestCommitRationale(
          (id, subject_entity_id, predicate, object_entity_id,
           valid_from, recorded_at, source_type, source_ref,
           confidence, confidence_label, modality)
-       VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, 1.0, 'EXTRACTED', 'asserted')
+       VALUES (?, ?, 'rationale_for', ?, ?, ?, 'code', ?, ?, ?, 'asserted')
        ON CONFLICT(id) DO NOTHING`,
-      [edgeId, decisionId, commitId, committedAt, recordedAt, sourceRef]
+      [
+        edgeId, decisionId, commitId, committedAt, recordedAt, sourceRef,
+        confidenceLabel === 'EXTRACTED' ? 1.0 : 0.5,
+        confidenceLabel,
+      ]
     );
     edgeInserted = db.getRowsModified() > 0;
   } catch (err) {
@@ -217,8 +275,8 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
       stats.commits_processed += 1;
 
       // ── 2. Extract rationale from commit body ─────────────────────────────
-      const rationaleText = extractRationaleText(commitMessage);
-      if (rationaleText === null) continue;
+      const rationale = extractRationaleText(commitMessage);
+      if (rationale === null) continue;
 
       // ── 3-5. Upsert Commit, Decision, and edge ────────────────────────────
       // INSERT OR IGNORE (not REPLACE): Commit data is immutable. INSERT OR REPLACE
@@ -226,7 +284,10 @@ export function extractCommitRationale(input: ExtractRationaleInput): ExtractRat
       // memory_edges.object_entity_id and then violates a NOT NULL constraint on
       // re-runs that already have edges pointing to this Commit entity.
       const result = ingestCommitRationale(db, {
-        commitHash, rationaleText, repoName, committedAt, recordedAt, logger,
+        commitHash,
+        rationaleText: rationale.text,
+        confidenceLabel: rationale.confidenceLabel,
+        repoName, committedAt, recordedAt, logger,
       });
       if (result === null) continue;
       if (result.decisionInserted) stats.decisions_inserted += 1;

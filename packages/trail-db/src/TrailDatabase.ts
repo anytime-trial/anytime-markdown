@@ -6124,8 +6124,19 @@ export class TrailDatabase {
       const { filesChanged, linesAdded, linesDeleted, filePaths } =
         this.parseNumstat(hash, execOpts, gitRoot);
 
+      // commit_message はフルメッセージ（件名＋空行＋本文）を保持する。件名だけを
+      // 格納すると、本文から決定根拠を取り出す extractCommitRationale が「本文なし」
+      // として全件 skip し、Rationale Audit の監査対象が恒久的に 0 件になる。
+      // 件名を取り出す消費側（MetricsReader / *CommitPrefixChart / runBugHistoryIncremental
+      // 等）は split('\n')[0] を通すので影響を受けない。ただし全文を照合する消費側は
+      // 挙動が変わる: memory-core の linkAddresses はメッセージ全体を小文字化して
+      // レビュー指摘と突き合わせるため、照合対象が本文まで広がる。過剰リンクに倒れない
+      // よう、同 PR でキーワード配点を一致数比例へ変更してある。
+      const trimmedBody = body.trimEnd();
+      const fullMessage = trimmedBody === '' ? subject : `${subject}\n\n${trimmedBody}`;
+
       insertStmt.run([
-        sessionId, hash, subject, author, committedAt,
+        sessionId, hash, fullMessage, author, committedAt,
         isAiAssisted, filesChanged, linesAdded, linesDeleted, repoId,
       ]);
 
