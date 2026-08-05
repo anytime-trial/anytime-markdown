@@ -1,11 +1,11 @@
 ---
-name: anytime-debrief
+name: anytime-session-exit
 description: セッションの作業を締めて完了報告を書く時、タスクの完了・部分完了・未達を報告する時、「デブリーフ」「debrief」「振り返りブロック」の指示があった時に使用する。最終応答に構造化デブリーフブロック（達成度・未解決事項・次回の懸念点）を出力し、Trail の運航後レビュー（flight_reviews）へ自己評価として取り込ませる。
 ---
 
-# anytime-debrief — セッション終了時の構造化自己評価
+# anytime-session-exit — セッション終了時の構造化自己評価
 
-更新日: 2026-07-17
+更新日: 2026-08-05
 
 ## Overview
 
