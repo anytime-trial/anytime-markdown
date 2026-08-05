@@ -1,9 +1,14 @@
-import * as path from 'node:path';
+import type { OddResolution, OperationKind } from '@anytime-markdown/trail-core';
+import { ALWAYS_HUMAN_OPERATIONS, evaluateOddBoundary } from '@anytime-markdown/trail-core';
+
 import type { CitationApproval } from './resolveCitations';
+
+export type { OperationKind };
 
 export type GateVerdict = 'delegable' | 'escalate';
 
 export type GateReason =
+  | 'odd_registry_invalid'
   | 'odd_unknown'
   | 'odd_out'
   | 'restricted_area'
@@ -18,39 +23,6 @@ export type GateReason =
 export type GateCoverage = 'covered' | 'silent' | 'conflict' | 'odd_out';
 export type GateSeverity = 'low' | 'medium' | 'high';
 
-/**
- * 操作種別。**パスに現れない操作**（push・リリース・破壊的 git）は `targetPaths` では
- * 原理的に表現できないため、呼び出し側が別軸で申告する。
- */
-export type OperationKind =
-  | 'code_change'
-  | 'dependency_change'
-  | 'destructive_git'
-  | 'remote_push'
-  | 'production_release'
-  | 'persistent_data_write';
-
-/**
- * ゲートの判定によらず必ず人へ聞く操作種別。global `CLAUDE.md`「承認の対象」が
- * 都度承認を要求する例外項目と対応する。
- */
-const ALWAYS_HUMAN: ReadonlySet<OperationKind> = new Set<OperationKind>([
-  'dependency_change',
-  'destructive_git',
-  'remote_push',
-  'production_release',
-  'persistent_data_write',
-]);
-
-/** ODD（Operational Design Domain）の境界定義。全体要件 §3.2 を機械判定へ落としたもの */
-export interface OddConfig {
-  /** 自律運航が許容される対象リポジトリのルート（絶対パス） */
-  readonly roots: readonly string[];
-  /** ODD 内でも代行対象外の領域（絶対パス前置） */
-  readonly restrictedPrefixes: readonly string[];
-  /** ODD 内でも代行対象外のパス断片（CI 定義・シークレット等） */
-  readonly restrictedPatterns: readonly string[];
-}
 
 export interface GateCitation {
   readonly resolved: boolean;
@@ -66,7 +38,8 @@ export interface CoverageGateInput {
   readonly severity?: GateSeverity | undefined;
   /** 呼び出し側の操作種別申告。未指定は判定不能として escalate */
   readonly operationKind?: OperationKind | undefined;
-  readonly odd: OddConfig;
+  /** ODD Policy Registry の解決結果（Phase 7-A）。`invalid` は判定不能として escalate */
+  readonly odd: OddResolution;
 }
 
 export interface CoverageGateResult {
@@ -77,45 +50,6 @@ export interface CoverageGateResult {
 
 function escalate(reason: GateReason): CoverageGateResult {
   return { verdict: 'escalate', reasons: [reason] };
-}
-
-function isWithin(target: string, root: string): boolean {
-  const relative = path.relative(root, target);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
-/**
- * ODD 境界の判定 (DCT-12)。制限領域は ODD 内であっても代行対象外のため、
- * 対象リポジトリ内かどうかより先に判定する。
- */
-function evaluateOdd(
-  targetPaths: ReadonlyArray<string> | undefined,
-  odd: OddConfig,
-): GateReason | null {
-  // 空文字列は path.resolve で cwd (＝ワークスペース内) へ解決してしまい ODD 判定を
-  // すり抜けるため、申告の欠落として扱う
-  if (
-    targetPaths === undefined ||
-    targetPaths.length === 0 ||
-    targetPaths.some((target) => target.trim() === '')
-  ) {
-    return 'odd_unknown';
-  }
-  // 前方一致の前に正規化する。`..` を含むパスをそのまま比較すると境界をすり抜ける
-  const normalized = targetPaths.map((target) => path.resolve(target));
-  if (
-    normalized.some(
-      (target) =>
-        odd.restrictedPrefixes.some((prefix) => isWithin(target, prefix)) ||
-        odd.restrictedPatterns.some((pattern) => target.includes(pattern)),
-    )
-  ) {
-    return 'restricted_area';
-  }
-  if (normalized.some((target) => !odd.roots.some((root) => isWithin(target, root)))) {
-    return 'odd_out';
-  }
-  return null;
 }
 
 function hasCanonGrounding(citations: ReadonlyArray<GateCitation>): boolean {
@@ -138,7 +72,12 @@ function hasCanonGrounding(citations: ReadonlyArray<GateCitation>): boolean {
  * D1 の段階では判定結果を記録・集計するのみで、承認フローは変更しない。
  */
 export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResult {
-  const oddReason = evaluateOdd(input.targetPaths, input.odd);
+  if (input.odd.kind === 'invalid') {
+    // 壊れたレジストリを既定へ縮退させると、「制限領域を足したつもりが構文エラーで
+    // 無効化されていた」状態が黙って代行を許す (Phase 7-A 仕様 §3.3)
+    return escalate('odd_registry_invalid');
+  }
+  const oddReason = evaluateOddBoundary(input.odd.registry, input.targetPaths);
   if (oddReason !== null) {
     return escalate(oddReason);
   }
@@ -148,7 +87,7 @@ export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResu
   if (input.operationKind === undefined) {
     return escalate('operation_kind_unknown');
   }
-  if (ALWAYS_HUMAN.has(input.operationKind)) {
+  if (ALWAYS_HUMAN_OPERATIONS.has(input.operationKind)) {
     return escalate('always_human_operation');
   }
   if (input.severity === undefined) {

@@ -1,5 +1,6 @@
-import type { GitDiffSummary } from './gitDiffSummary';
 import type { DoctrineJudgmentView } from '../sqlite/doctrineJudgments';
+import type { GateReason } from './coverageGate';
+import type { GitDiffSummary } from './gitDiffSummary';
 
 /**
  * 受け入れ確認インターフェース (DCT-13)。判断記録と差分から、人が判断過程を
@@ -55,11 +56,21 @@ export interface AcceptanceReviewInput {
   readonly diff: GitDiffSummary;
 }
 
-/** ゲート理由コードの日本語説明。内部コードの読解を人へ要求しないため (仕様 §6) */
-const GATE_REASON_LABELS: Readonly<Record<string, string>> = {
+/**
+ * ゲート理由コードの日本語説明。内部コードの読解を人へ要求しないため (仕様 §6)。
+ *
+ * `Record<GateReason, string>` にしているのは網羅性を型で強制するため。
+ * `Record<string, string>` だと理由コードを足しても型エラーにならず、受入レビュー
+ * 本文に生コードだけが出る（フォールバックが働いて気づけない）。
+ */
+const GATE_REASON_LABELS: Readonly<Record<GateReason, string>> = {
+  odd_registry_invalid: 'ODD レジストリ（odd.json）が壊れており ODD を判定できない',
   odd_unknown: '対象パスの申告がなく ODD 内と判定できない',
   odd_out: '対象が ODD（自律運航が許容される範囲）の外にある',
   restricted_area: '対象が制限領域（CI 定義・シークレット・本番設定等）にある',
+  operation_kind_unknown: '操作種別の申告がなく判定できない',
+  always_human_operation:
+    '常に人の承認が要る操作である（パッケージ追加・破壊的操作・push・リリース・永続データ書込）',
   severity_unknown: '重大度の申告がなく判定できない',
   severity_high: '高重大度の変更である',
   doctrine_conflict: '複数の条項が矛盾する判断を与える',
@@ -110,7 +121,9 @@ function renderQuoteBlock(quote: string, indent: string): string[] {
 }
 
 function describeGateReason(code: string): string {
-  const label = GATE_REASON_LABELS[code];
+  // DB に保存された過去の理由コードは現在の GateReason に無いことがあるため、
+  // 未知コードは生のまま出す（表示のために記録を落とさない）
+  const label = (GATE_REASON_LABELS as Readonly<Record<string, string | undefined>>)[code];
   return label === undefined ? code : `${code}（${label}）`;
 }
 

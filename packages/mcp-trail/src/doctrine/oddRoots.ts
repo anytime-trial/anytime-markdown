@@ -1,51 +1,100 @@
 import * as path from 'node:path';
-import type { OddConfig } from './coverageGate';
+
+import {
+  type OddRegistry,
+  type OddResolution,
+  parseOddRegistry,
+  type RestrictedEntry,
+} from '@anytime-markdown/trail-core';
+
+/**
+ * ファイル読取の結果。**「不在」と「読めなかった」を分ける。**
+ * 両者を `null` にまとめると、権限エラーで読めなかったレジストリが「レジストリ
+ * 未導入」として既定へ縮退し、保護を消す方向へ倒れる。
+ */
+export type FileRead =
+  | { readonly kind: 'missing' }
+  | { readonly kind: 'ok'; readonly content: string }
+  | { readonly kind: 'error'; readonly reason: string };
 
 export interface OddConfigInput {
   /** ワークスペースルート（対象リポジトリ） */
   readonly workspacePath: string;
   /** ユーザーのホームディレクトリ（永続データ領域の解決基準） */
   readonly homeDir: string;
-  /** ファイル読取（不在は null）。テスト隔離のため注入する */
-  readonly readFile: (path: string) => string | null;
+  /** ファイル読取。テスト隔離のため注入する */
+  readonly readFile: (path: string) => FileRead;
 }
 
 /** docsRoot の単一の正はプロジェクト CLAUDE.md の `- docsRoot:` 行（preflight と同じ解決） */
 const DOCS_ROOT_PATTERN = /^- docsRoot:\s*(\S+)\s*$/m;
 
+/** ODD Policy Registry の配置。Trail の他の資産（`.anytime/trail/db/`）と同じ階層 */
+const REGISTRY_RELATIVE_PATH = path.join('.anytime', 'trail', 'odd.json');
+
 /**
- * ODD 境界（全体要件 §3.2）を解決する。対象リポジトリのルートはハードコードせず、
- * ワークスペースと CLAUDE.md の docsRoot から導出する。
- *
- * SHORTCUT: ODD を CLAUDE.md 由来の 2 ルート + 固定の制限領域で表現する.
- * ceiling: 言語・FW 条件や リポジトリ横断の ODD は表現できない.
- * upgrade: Phase 7 の ODD Policy Registry (.anytime-trail/odd.yaml) を導入したら
- * 本関数の中身をその読み込みへ差し替える (差し替え点はこの 1 関数に閉じている).
+ * レジストリ不在時の導出既定。**Phase 7-A 導入前と同一**で、広がりも狭まりも
+ * しない。レジストリ未導入のワークスペースで既存の判定を壊さないため。
  */
-export function resolveOddConfig(input: OddConfigInput): OddConfig {
+function deriveRegistry(input: OddConfigInput): OddRegistry {
   const roots = [input.workspacePath];
   const claudeMd = input.readFile(path.join(input.workspacePath, 'CLAUDE.md'));
-  const docsRoot = claudeMd === null ? null : DOCS_ROOT_PATTERN.exec(claudeMd);
+  // CLAUDE.md が読めない場合は docsRoot を足さない。ルートが減る方向なので
+  // ODD は狭まる側へ倒れる（レジストリ本体と違い fail-closed の必要はない）
+  const docsRoot = claudeMd.kind === 'ok' ? DOCS_ROOT_PATTERN.exec(claudeMd.content) : null;
   if (docsRoot !== null) {
     roots.push(docsRoot[1]);
   }
-  return {
-    roots,
-    restrictedPrefixes: [
-      path.join(input.homeDir, '.claude'),
-      path.join(input.homeDir, '.config'),
-      path.join(input.homeDir, '.local', 'share'),
-    ],
+  const restricted: RestrictedEntry[] = [
+    { kind: 'prefix', value: path.join(input.homeDir, '.claude'), note: 'ユーザー永続データ領域' },
+    { kind: 'prefix', value: path.join(input.homeDir, '.config') },
+    { kind: 'prefix', value: path.join(input.homeDir, '.local', 'share') },
     // ODD 内（ワークスペース配下）にありながら代行対象外の領域。ホーム基準の
-    // restrictedPrefixes では捕まらないため、パス断片で列挙する。
-    restrictedPatterns: [
-      '/.github/', // CI 定義（workflows に限らない）
-      '/.env', // シークレット
-      '/package.json', // 依存マニフェスト（パッケージ追加・更新は常時人の承認）
-      '/package-lock.json',
-      '/.mcp.json', // MCP サーバ定義
-      '/.claude/settings', // settings.json / settings.local.json（フック・権限）
-      '/.git/', // git 内部（config・hooks）
-    ],
+    // prefix では捕まらないため、パス断片で列挙する
+    { kind: 'pattern', value: '/.github/', note: 'CI 定義' },
+    { kind: 'pattern', value: '/.env', note: 'シークレット' },
+    { kind: 'pattern', value: '/package.json', note: '依存マニフェスト' },
+    { kind: 'pattern', value: '/package-lock.json' },
+    { kind: 'pattern', value: '/.mcp.json', note: 'MCP サーバ定義' },
+    { kind: 'pattern', value: '/.claude/settings', note: 'フック・権限設定' },
+    { kind: 'pattern', value: '/.git/', note: 'git 内部' },
+  ];
+  return {
+    version: 1,
+    roots,
+    restricted,
+    languages: null,
+    operations: {},
+    narrowing: 'normal',
+    godNodePercentile: 5,
   };
+}
+
+/**
+ * ODD 境界（全体要件 §3.2）を解決する（Phase 7-A: ODD Policy Registry）。
+ *
+ * **「ファイルが無い」と「ファイルが読めない・壊れている」を同じに扱わない。**
+ *
+ * | 状態 | 結果 |
+ * | --- | --- |
+ * | レジストリ不在 | `derived`（Phase 7-A 導入前と同一の導出既定） |
+ * | レジストリが妥当 | `registry` |
+ * | レジストリが読めない・壊れている | `invalid`（既定へ戻さない） |
+ *
+ * 3 行目が要点である。読み込み失敗を握り潰して既定へ戻すと、**保護を足そうと
+ * した変更が保護を消す**方向に働く。
+ */
+export function resolveOddConfig(input: OddConfigInput): OddResolution {
+  const read = input.readFile(path.join(input.workspacePath, REGISTRY_RELATIVE_PATH));
+  if (read.kind === 'missing') {
+    return { kind: 'derived', registry: deriveRegistry(input) };
+  }
+  if (read.kind === 'error') {
+    return { kind: 'invalid', reason: `registry unreadable: ${read.reason}` };
+  }
+  const parsed = parseOddRegistry(read.content);
+  if (parsed.kind === 'error') {
+    return { kind: 'invalid', reason: parsed.reason };
+  }
+  return { kind: 'registry', registry: parsed.registry };
 }

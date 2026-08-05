@@ -34,6 +34,12 @@ import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift
 import { handleRecordDoctrineJudgment, RecordDoctrineJudgmentInputSchema } from './tools/recordDoctrineJudgment.js';
 import { handleRecordHumanDecision, RecordHumanDecisionInputSchema } from './tools/recordHumanDecision.js';
 import { handleRecordDelegatedApproval, RecordDelegatedApprovalInputSchema } from './tools/recordDelegatedApproval.js';
+import {
+  handleGetOddPolicy,
+  handleEvaluateApprovalPolicy,
+  GetOddPolicyInputSchema,
+  EvaluateApprovalPolicyInputSchema,
+} from './tools/oddPolicy.js';
 import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './tools/getDoctrineAgreement.js';
 import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
@@ -487,6 +493,32 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = await handleRecordHumanDecision(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_odd_policy',
+    { description: "Resolve the ODD (Operational Design Domain) policy registry for the workspace and report where it came from: 'registry' (.anytime/trail/odd.json parsed), 'derived' (no registry file — built-in default, identical to pre-registry behaviour), or 'invalid' (the file exists but is broken). An invalid registry is NOT silently replaced by the default: a protection someone tried to add must not disappear because of a syntax error.", inputSchema: {
+      workspacePath: GetOddPolicyInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = handleGetOddPolicy(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'evaluate_approval_policy',
+    { description: "Evaluate whether an operation is allow / confirm / deny under the ODD policy registry (Phase 7-A Approval Rule Engine). Rules, in order: broken registry, ODD boundary / restricted area, language outside ODD, dynamic narrowing (release freeze / incident), God Node impact, then the declared per-operation policy. An operation kind with no declared policy resolves to confirm, never allow. declaredVerdict reports what the registry said even when a higher rule overrode it.", inputSchema: {
+      operation_kind: EvaluateApprovalPolicyInputSchema.shape.operation_kind,
+      target_paths: EvaluateApprovalPolicyInputSchema.shape.target_paths,
+      language: EvaluateApprovalPolicyInputSchema.shape.language,
+      is_god_node: EvaluateApprovalPolicyInputSchema.shape.is_god_node,
+      workspacePath: EvaluateApprovalPolicyInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = handleEvaluateApprovalPolicy(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
