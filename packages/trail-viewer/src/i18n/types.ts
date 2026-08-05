@@ -580,10 +580,8 @@ export interface TrailI18n {
   'memory.runs.filterStatus': string;
   'memory.runs.filterWave': string;
   'memory.runs.failedItems': string;
-  'memory.runs.topEntities': string;
   'memory.runs.timeline': string;
   'memory.runs.runList': string;
-  'memory.runs.invalidations': string;
   'memory.runs.errorDetail': string;
   'memory.runs.logs': string;
   'memory.runs.wave.all': string;

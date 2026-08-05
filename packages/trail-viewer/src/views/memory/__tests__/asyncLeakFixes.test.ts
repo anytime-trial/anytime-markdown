@@ -18,7 +18,6 @@ import type {
   MemoryPipelineRunLogRow,
   MemoryPipelineRunRow,
   MemoryPipelineRunStatsByDayRow,
-  MemoryTopEntityRow,
   MemoryInvalidationRow,
   MemoryFailedItemRow,
 } from '../../../data/types';
@@ -93,7 +92,6 @@ function makeReader(overrides: Partial<MemoryReader> = {}): MemoryReader {
       Promise.resolve([] as readonly MemoryPipelineRunStatsByDayRow[]),
     listPipelineRuns: () => Promise.resolve([] as readonly MemoryPipelineRunRow[]),
     listPipelineRunLogs: () => Promise.resolve([] as readonly MemoryPipelineRunLogRow[]),
-    listTopEntities: () => Promise.resolve([] as readonly MemoryTopEntityRow[]),
     listInvalidations: () => Promise.resolve([] as readonly MemoryInvalidationRow[]),
     listFailedItems: () => Promise.resolve([] as readonly MemoryFailedItemRow[]),
     ...overrides,

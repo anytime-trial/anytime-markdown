@@ -130,14 +130,6 @@ describe('Memory API error paths', () => {
     expect([200, 500]).toContain(res.status);
   });
 
-  it('GET /api/memory/entities/top returns 500 when handler throws', async () => {
-    const memApi = getMemoryApi(server);
-    jest.spyOn(memApi, 'listTopEntities').mockRejectedValue(new Error('top entities error'));
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/entities/top`);
-    await new Promise<void>((r) => setTimeout(r, 50));
-    expect([200, 500]).toContain(res.status);
-  });
-
   it('GET /api/memory/edges/invalidations returns 500 when handler throws', async () => {
     const memApi = getMemoryApi(server);
     jest.spyOn(memApi, 'listInvalidations').mockRejectedValue(new Error('invalidations error'));

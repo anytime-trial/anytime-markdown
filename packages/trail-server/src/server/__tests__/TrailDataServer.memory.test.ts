@@ -27,7 +27,6 @@ jest.mock('../MemoryApiHandler', () => {
     listPipelineRuns: jest.fn().mockResolvedValue([{ id: 'run-1', status: 'success' }]),
     listPipelineRunLogs: jest.fn().mockResolvedValue([{ id: 1, message: 'started' }]),
     listFailedItems: jest.fn().mockResolvedValue([{ itemKey: 'item-1' }]),
-    listTopEntities: jest.fn().mockResolvedValue([{ id: 'ent-1' }]),
     listInvalidations: jest.fn().mockResolvedValue([{ id: 'inv-1', reason: 'superseded' }]),
     dispose: jest.fn(),
   };
@@ -199,16 +198,9 @@ describe('Memory API HTTP endpoints via TrailDataServer (routing tests)', () => 
     expect(Array.isArray(body)).toBe(true);
   });
 
-  it('GET /api/memory/entities/top returns 200 with entities', async () => {
+  it('GET /api/memory/entities/top は撤去済みで 404 を返す', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/memory/entities/top`);
-    expect(res.status).toBe(200);
-    const body = await res.json() as unknown[];
-    expect(Array.isArray(body)).toBe(true);
-  });
-
-  it('GET /api/memory/entities/top supports type and limit params', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/entities/top?type=Package&limit=5`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
   });
 
   it('GET /api/memory/edges/invalidations returns 200 with invalidations', async () => {

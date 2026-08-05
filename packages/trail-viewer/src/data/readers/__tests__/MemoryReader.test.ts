@@ -172,14 +172,6 @@ describe('MemoryReader.listFailedItems', () => {
   });
 });
 
-describe('MemoryReader.listTopEntities', () => {
-  it('returns entity array', async () => {
-    const data = [{ id: 'e1', canonicalName: 'trail-viewer' }];
-    mockFetch(200, data);
-    expect(await new MemoryReader(BASE).listTopEntities({})).toEqual(data);
-  });
-});
-
 describe('MemoryReader.listInvalidations', () => {
   it('returns invalidation array', async () => {
     const data = [{ id: 'inv1', reason: 'rule_exclusive' }];

@@ -359,15 +359,6 @@ describe('MemoryApiHandler', () => {
     });
   });
 
-  describe('listTopEntities', () => {
-    it('returns entities ordered by last_updated_at desc', async () => {
-      const rows = await handler.listTopEntities({});
-      expect(rows.length).toBe(1);
-      expect(rows[0]?.id).toBe('ent-1');
-      expect(rows[0]?.canonicalName).toBe('trail-viewer');
-    });
-  });
-
   describe('listInvalidations', () => {
     it('returns edge invalidation records', async () => {
       const rows = await handler.listInvalidations({});

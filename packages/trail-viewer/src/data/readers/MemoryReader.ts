@@ -11,7 +11,6 @@ import type {
   MemoryPipelineRunStatsByDayRow,
   MemoryRecurringBugRow,
   MemoryReviewHistoryRow,
-  MemoryTopEntityRow,
   MemoryUnaddressedReviewFindingRow,
 } from '../types';
 
@@ -193,16 +192,10 @@ export class MemoryReader {
     return this.fetchJson<MemoryFailedItemRow[]>(`/api/memory/pipeline/failed?${q}`);
   }
 
-  async listTopEntities(params: {
-    type?: string;
-    limit?: number;
-  } = {}): Promise<readonly MemoryTopEntityRow[]> {
-    const q = new URLSearchParams();
-    if (params.type) q.set('type', params.type);
-    if (params.limit !== undefined) q.set('limit', String(params.limit));
-    return this.fetchJson<MemoryTopEntityRow[]>(`/api/memory/entities/top?${q}`);
-  }
-
+  /**
+   * エッジ無効化履歴。現在は描画するパネルが無いが、グラフ表示（失効エッジの重畳・
+   * 時点指定）で必要になるためデータ経路として残す。
+   */
   async listInvalidations(params: {
     since?: string;
     limit?: number;
