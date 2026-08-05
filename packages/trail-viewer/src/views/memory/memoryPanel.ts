@@ -96,7 +96,6 @@ export function mountMemoryPanel(
   // 一度マウントしたら破棄しない（展開行・スクロール位置などの下位 UI 状態を保つ）。
   const panelHost = document.createElement('div');
   panelHost.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;';
-  panelHost.dataset['memoryPanelHost'] = 'runs';
 
   let runsHandle: RunsHandle | null = null;
 

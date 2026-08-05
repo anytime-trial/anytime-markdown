@@ -9,6 +9,29 @@
 import { mountMemoryPanel, type MemoryPanelViewProps } from '../memoryPanel';
 import type { TrailThemeTokens } from '../../../theme/designTokens';
 
+/**
+ * 破棄の実効性を測るためのラッパ。`root.remove()` は親から切り離すだけで子孫の破棄を
+ * 保証しないため、childElementCount だけを見ると「子ハンドルの destroy 呼び忘れ」を
+ * 素通りさせる。実体は本物のまま、destroy の呼び出しだけを記録する。
+ */
+const mockRunsDestroy = jest.fn();
+jest.mock('../pipelineRunsPanel', () => {
+  const actual = jest.requireActual('../pipelineRunsPanel');
+  return {
+    ...actual,
+    mountPipelineRunsPanel: (host: HTMLElement, panelProps: unknown) => {
+      const handle = actual.mountPipelineRunsPanel(host, panelProps);
+      return {
+        ...handle,
+        destroy: () => {
+          mockRunsDestroy();
+          handle.destroy();
+        },
+      };
+    },
+  };
+});
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
@@ -151,7 +174,8 @@ describe('mountMemoryPanel – probe が true のとき', () => {
     expect(c.textContent).toContain('NEW:');
   });
 
-  it('destroy() で本体も破棄される', async () => {
+  it('destroy() で本体パネルの destroy まで呼ぶ（DOM 除去だけで済ませない）', async () => {
+    mockRunsDestroy.mockClear();
     const c = document.createElement('div');
     const handle = mountMemoryPanel(c, baseProps());
     await flush(8);
@@ -159,5 +183,7 @@ describe('mountMemoryPanel – probe が true のとき', () => {
     expect(c.childElementCount).toBeGreaterThan(0);
     handle.destroy();
     expect(c.childElementCount).toBe(0);
+    // root.remove() は子孫の後始末をしないので、子ハンドルの destroy 到達を直接見る
+    expect(mockRunsDestroy).toHaveBeenCalledTimes(1);
   });
 });
