@@ -1,3 +1,5 @@
+import { normalizeTargetPath } from './normalizeTargetPath';
+
 // ── Shared types ──────────────────────────────────────────────────────────────
 
 export type ParsedFinding = {
@@ -106,13 +108,22 @@ export function inferSeverity(chapterBody: string): ParsedFinding['severity'] {
 
 /**
  * Extract backtick-enclosed paths from a line.
+ *
+ * バッククォート内容を無検証で返してはならない。`レビュー対象:` 行とセッションの
+ * user prompt から呼ばれるため、無検証だと散文・コマンド行・URL がそのまま
+ * `target_refs` と既定 target になる（本番 memory-core.db にその実例が残っている）。
+ * `normalizeTargetPath` を通し、パスとして成立するものだけを返す。
  */
 export function extractBacktickPaths(line: string): string[] {
   const paths: string[] = [];
+  const seen = new Set<string>();
   const re = /`([^`]+)`/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(line)) !== null) {
-    paths.push(m[1]);
+    const normalized = normalizeTargetPath(m[1]);
+    if (normalized === null || seen.has(normalized.path)) continue;
+    seen.add(normalized.path);
+    paths.push(normalized.path);
   }
   return paths;
 }
@@ -403,8 +414,27 @@ const PATH_TOKEN_RE = new RegExp(
   'g',
 );
 
-function stripLineSuffix(p: string): string {
-  return p.replace(/:\d+(?:-\d+)?$/, '');
+/**
+ * 候補文字列を正規化して積む。`normalizeTargetPath` が拒否した値は積まない。
+ */
+function pushCandidate(candidates: string[], raw: string): void {
+  const normalized = normalizeTargetPath(raw);
+  if (normalized !== null) candidates.push(normalized.path);
+}
+
+/**
+ * URL とグロブを空白で潰してから部分文字列マッチにかける。
+ *
+ * PATH_TOKEN_RE は部分文字列にマッチするため、潰さずに走らせると
+ * `https://github.com/owner/repo/blob/feature/foo/docs/design.md` から `docs/design.md` が、
+ * `packages/*​/src/i18n/navigation.ts` から `src/i18n/navigation.ts` が取れてしまう。
+ * どちらも「実在しそうな別のパス」であり、拒否されるより質が悪い（誤リンクの原因になる）。
+ * 正規化は部分文字列を受け取った時点で文脈を失うので、ここで先に落とす。
+ */
+function maskNonPathTokens(text: string): string {
+  return text
+    .replace(/\b[a-zA-Z][a-zA-Z0-9+.-]*:\/\/\S*/g, ' ')
+    .replace(/\S*[*?]\S*/g, ' ');
 }
 
 export function extractTargetFromFinding(text: string): string | null {
@@ -412,22 +442,26 @@ export function extractTargetFromFinding(text: string): string | null {
 
   const candidates: string[] = [];
 
-  // 1. backtick で囲まれたパス全部
+  // 1. backtick で囲まれた中の「パスにマッチした部分」だけを積む。
+  //    かつては inner 全体を積んでいたため、パスを 1 個含むだけの複数行シェル実行ログが
+  //    丸ごと target_file_path として保存されていた（本番 DB に実在）。
   const btRe = /`([^`]+)`/g;
   let m: RegExpExecArray | null;
   while ((m = btRe.exec(text)) !== null) {
-    const inner = m[1].trim();
-    if (PATH_TOKEN_RE.test(inner)) {
-      PATH_TOKEN_RE.lastIndex = 0;
-      candidates.push(stripLineSuffix(inner));
+    const inner = maskNonPathTokens(m[1].trim());
+    PATH_TOKEN_RE.lastIndex = 0;
+    let hit: RegExpExecArray | null;
+    while ((hit = PATH_TOKEN_RE.exec(inner)) !== null) {
+      pushCandidate(candidates, hit[0]);
     }
   }
 
   // 2. 本文中のパス（backtick 外）
+  const masked = maskNonPathTokens(text);
   PATH_TOKEN_RE.lastIndex = 0;
   let n: RegExpExecArray | null;
-  while ((n = PATH_TOKEN_RE.exec(text)) !== null) {
-    candidates.push(stripLineSuffix(n[0]));
+  while ((n = PATH_TOKEN_RE.exec(masked)) !== null) {
+    pushCandidate(candidates, n[0]);
   }
 
   if (candidates.length === 0) return null;

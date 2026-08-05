@@ -66,6 +66,7 @@ test('U16: remote ollama_endpoint → rejected_external_endpoint', async () => {
       db,
       input: makeValidInput({ ollama_endpoint: 'http://remote.example.com:11434' }),
       ollama: defaultMockOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
 
@@ -107,6 +108,7 @@ test('U17: invalid severity enum → zod error, status=error, failed_items row',
         ],
       }),
       ollama: defaultMockOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
 
@@ -198,6 +200,7 @@ test('U18: cosine 0.92 → merged_into set, findings_merged++', async () => {
         ],
       }),
       ollama: mergingMockOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
 
@@ -244,6 +247,7 @@ test('I22: valid 1-finding run → success, memory_review_runs + memory_reviews 
         ],
       }),
       ollama: defaultMockOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
 
@@ -312,6 +316,7 @@ test('idempotency: same run_id submitted twice → second is no-op', async () =>
         ],
       }),
       ollama: defaultMockOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
     expect(firstResult.findings_inserted).toBe(1);
@@ -336,6 +341,7 @@ test('idempotency: same run_id submitted twice → second is no-op', async () =>
         ],
       }),
       ollama: defaultMockOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
     // Second run: INSERT OR IGNORE on review_runs, reviews, entities, findings — all no-ops
@@ -368,6 +374,7 @@ test.each([
         findings: [],
       }),
       ollama: defaultMockOllama,
+      workspace: 'anytime-markdown',
       logger: noopLogger,
     });
     expect(result.status).toBe('success');
