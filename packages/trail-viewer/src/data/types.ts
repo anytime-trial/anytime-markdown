@@ -240,14 +240,6 @@ export interface MemoryFailedItemRow {
   readonly attemptCount: number;
 }
 
-export interface MemoryTopEntityRow {
-  readonly id: string;
-  readonly type: string;
-  readonly canonicalName: string;
-  readonly displayName: string;
-  readonly lastUpdatedAt: string;
-}
-
 export interface MemoryInvalidationRow {
   readonly id: string;
   readonly edgeId: string;

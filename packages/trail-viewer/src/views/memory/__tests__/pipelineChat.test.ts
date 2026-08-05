@@ -15,7 +15,6 @@ import type {
   MemoryPipelineRunLogRow,
   MemoryPipelineRunRow,
   MemoryPipelineRunStatsByDayRow,
-  MemoryTopEntityRow,
   MemoryInvalidationRow,
   MemoryFailedItemRow,
 } from '../../../data/types';
@@ -53,7 +52,6 @@ function makeReader(
     listPipelineRunStatsByDay: (opts: { since: string }) => Promise<readonly MemoryPipelineRunStatsByDayRow[]>;
     listPipelineRuns: (opts: { since: string; wave?: string; status?: string; limit?: number }) => Promise<readonly MemoryPipelineRunRow[]>;
     listPipelineRunLogs: (opts: { runId: string; limit?: number }) => Promise<readonly MemoryPipelineRunLogRow[]>;
-    listTopEntities: (opts: { limit: number }) => Promise<readonly MemoryTopEntityRow[]>;
     listInvalidations: (opts: { limit: number }) => Promise<readonly MemoryInvalidationRow[]>;
     listFailedItems: (opts: { limit: number }) => Promise<readonly MemoryFailedItemRow[]>;
   }> = {},
@@ -63,7 +61,6 @@ function makeReader(
     listPipelineRunStatsByDay: overrides.listPipelineRunStatsByDay ?? (() => Promise.resolve([])),
     listPipelineRuns: overrides.listPipelineRuns ?? (() => Promise.resolve([])),
     listPipelineRunLogs: overrides.listPipelineRunLogs ?? (() => Promise.resolve([])),
-    listTopEntities: overrides.listTopEntities ?? (() => Promise.resolve([])),
     listInvalidations: overrides.listInvalidations ?? (() => Promise.resolve([])),
     listFailedItems: overrides.listFailedItems ?? (() => Promise.resolve([])),
     listDriftEvents: () => Promise.resolve([]),
@@ -211,33 +208,22 @@ describe('mountPipelineRunsPanel', () => {
     expect(c.textContent).toContain('worker failed');
   });
 
-  it('top entities が返ってきたら topEntities セクションのラベルを含む', async () => {
-    const entities: MemoryTopEntityRow[] = [
-      { id: 'e1', type: 'function', canonicalName: 'foo', displayName: 'foo', lastUpdatedAt: '2026-06-01' },
-    ];
-    const c = document.createElement('div');
-    mountPipelineRunsPanel(c, {
-      t,
-      reader: makeReader({ listTopEntities: () => Promise.resolve(entities) }),
-    });
-    await flush();
-    expect(c.textContent).toContain('memory.runs.topEntities');
-    expect(c.textContent).toContain('foo');
-  });
-
-  it('invalidations が返ってきたら一覧テーブルを描画する', async () => {
+  // 無効化履歴はグラフ表示側へ寄せるため画面から外した。データ経路（reader/API/DB）は
+  // 残すので、「reader に生えている＝描画される」の退行を検知する。
+  it('無効化履歴は取得も描画もしない', async () => {
     const invs: MemoryInvalidationRow[] = [
       { id: 'i1', edgeId: 'edge-1', invalidatedAt: '2026-06-01T00:00:00Z', reason: 'stale', supersedingEdgeId: 'edge-2' },
     ];
+    const listInvalidations = jest.fn(() => Promise.resolve(invs));
     const c = document.createElement('div');
     mountPipelineRunsPanel(c, {
       t,
-      reader: makeReader({ listInvalidations: () => Promise.resolve(invs) }),
+      reader: makeReader({ listInvalidations }),
     });
     await flush();
-    expect(c.textContent).toContain('stale');
-    // supersedingEdgeId の先頭8文字
-    expect(c.textContent).toContain('edge-2'.slice(0, 8));
+    expect(listInvalidations).not.toHaveBeenCalled();
+    expect(c.textContent).not.toContain('stale');
+    expect(c.textContent).not.toContain('edge-2');
   });
 
   it('failed items が返ってきたら一覧テーブルを描画する', async () => {
@@ -298,8 +284,8 @@ describe('mountPipelineRunsPanel', () => {
     expect(c.textContent).toContain('memory.runs.empty');
 
     const reader2 = makeReader({
-      listTopEntities: () => Promise.resolve([
-        { id: 'e2', type: 'class', canonicalName: 'Bar', displayName: 'Bar', lastUpdatedAt: '2026-06-02' },
+      listFailedItems: () => Promise.resolve([
+        { scope: 'spec', itemKey: 'Bar', failedAt: '2026-06-02T00:00:00.000Z', reason: 'parse_error', detail: '', attemptCount: 1 },
       ]),
     });
     handle.update({ t, reader: reader2 });

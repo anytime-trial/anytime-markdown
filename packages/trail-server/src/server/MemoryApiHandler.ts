@@ -174,14 +174,6 @@ export interface FailedItemRow {
   attemptCount: number;
 }
 
-export interface TopEntityRow {
-  id: string;
-  type: string;
-  canonicalName: string;
-  displayName: string;
-  lastUpdatedAt: string;
-}
-
 export interface InvalidationRow {
   id: string;
   edgeId: string;
@@ -1260,52 +1252,6 @@ export class MemoryApiHandler {
     }
   }
 
-  // ---- top entities ----
-
-  async listTopEntities(params: {
-    type?: string;
-    limit?: number;
-  }): Promise<TopEntityRow[]> {
-    const db = this.openReadOnly();
-    if (!db) return [];
-    try {
-      const limit = clampLimit(params.limit, 20);
-      const conditions: string[] = [];
-      const bindValues: unknown[] = [];
-      if (params.type) {
-        conditions.push('type = ?');
-        bindValues.push(params.type);
-      }
-      const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      bindValues.push(limit);
-      const result = db.exec(
-        `SELECT id, type, canonical_name, COALESCE(display_name, canonical_name) AS display_name, last_updated_at
-         FROM memory_entities
-         ${where}
-         ORDER BY last_updated_at DESC
-         LIMIT ?`,
-        toBindParams(bindValues),
-      );
-      if (!result[0]) return [];
-      const { columns, values } = result[0];
-      return values.map((row) => {
-        const r = mapRow<Record<string, unknown>>(columns, row);
-        return {
-          id: toStr(r['id']),
-          type: toStr(r['type']),
-          canonicalName: toStr(r['canonical_name']),
-          displayName: toStr(r['display_name']),
-          lastUpdatedAt: toStr(r['last_updated_at']),
-        };
-      });
-    } catch (err) {
-      this.logger.error(`[MemoryApiHandler.listTopEntities] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
-      return [];
-    } finally {
-      this.close(db);
-    }
-  }
-
   /**
    * Phase 6 S4 (Rationale Audit): セッションのコミットに紐付く決定根拠ノードを返す。
    * memory.db の rationale_for エッジ（Decision → Commit）を、attach 済み trail.session_commits で
@@ -1350,6 +1296,11 @@ export class MemoryApiHandler {
   }
 
   // ---- edge invalidations ----
+  // 現在 UI の消費者は無い（2026-08-05 に Runs パネルから撤去）。将来のグラフ表示で
+  // 失効エッジの重畳・時点指定に使うため意図的に残す。消費者ゼロを根拠に撤去しないこと。
+  // 失効エッジは valid_to が入って現在断面のグラフから外れるため、この経路以外に
+  // 「何がいつ何に置き換わったか」の供給元が無い。
+  // 経緯: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-memory.ja.md §7.1
 
   async listInvalidations(params: {
     since?: string;

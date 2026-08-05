@@ -1,20 +1,17 @@
 /**
  * PipelineRunsPanel の vanilla DOM 版。
- * pipeline 実行統計の4セクション（timeline / top entities / invalidations / failed items）を表示する。
+ * pipeline 実行統計の3セクション（timeline / run list / failed items）を表示する。
  */
 import { createChip } from '@anytime-markdown/ui-core';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import type { MemoryReader } from '../../data/readers/MemoryReader';
 import type {
   MemoryFailedItemRow,
-  MemoryInvalidationRow,
   MemoryPipelineRunLogRow,
   MemoryPipelineRunRow,
   MemoryPipelineRunStatsByDayRow,
-  MemoryTopEntityRow,
 } from '../../data/types';
 import { mountPipelineRunsTimeline } from './pipelineRunsTimeline';
-import { mountTopEntitiesTable } from './topEntitiesTable';
 
 export interface PipelineRunsPanelProps {
   readonly t: (key: string) => string;
@@ -40,56 +37,6 @@ function makeSection(label: string, borderBottom = true): { wrap: HTMLElement; b
   const body = document.createElement('div');
   wrap.appendChild(body);
   return { wrap, body };
-}
-
-function buildInvalidationsTable(
-  invalidations: readonly MemoryInvalidationRow[],
-): HTMLElement {
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'max-height:280px;overflow:auto;margin-top:4px;';
-
-  const table = document.createElement('table');
-  table.style.cssText = 'width:100%;border-collapse:collapse;font-size:0.7rem;';
-
-  const thead = document.createElement('thead');
-  const headRow = document.createElement('tr');
-  for (const label of ['Date', 'Reason', 'Superseded by']) {
-    const th = document.createElement('th');
-    th.style.cssText = HEAD_CSS;
-    th.textContent = label;
-    headRow.appendChild(th);
-  }
-  thead.appendChild(headRow);
-  table.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
-  for (const inv of invalidations) {
-    const tr = document.createElement('tr');
-    tr.addEventListener('mouseenter', () => {
-      tr.style.backgroundColor = 'var(--am-color-action-hover)';
-    });
-    tr.addEventListener('mouseleave', () => {
-      tr.style.backgroundColor = '';
-    });
-
-    const tdDate = document.createElement('td');
-    tdDate.style.cssText = `${CELL_CSS}font-size:0.7rem;color:var(--am-color-text-secondary);white-space:nowrap;`;
-    tdDate.textContent = inv.invalidatedAt.slice(0, 10);
-
-    const tdReason = document.createElement('td');
-    tdReason.style.cssText = `${CELL_CSS}font-size:0.7rem;color:var(--am-color-text-primary);`;
-    tdReason.textContent = inv.reason;
-
-    const tdSup = document.createElement('td');
-    tdSup.style.cssText = `${CELL_CSS}font-size:0.7rem;color:var(--am-color-text-secondary);font-family:monospace;`;
-    tdSup.textContent = inv.supersedingEdgeId?.slice(0, 8) ?? '—';
-
-    tr.append(tdDate, tdReason, tdSup);
-    tbody.appendChild(tr);
-  }
-  table.appendChild(tbody);
-  wrap.appendChild(table);
-  return wrap;
 }
 
 function formatDateTime(value: string): string {
@@ -431,8 +378,6 @@ export function mountPipelineRunsPanel(
   let selectedWave: WaveFilter = 'all';
   let runStats: readonly MemoryPipelineRunStatsByDayRow[] = [];
   let pipelineRuns: readonly MemoryPipelineRunRow[] = [];
-  let entities: readonly MemoryTopEntityRow[] = [];
-  let invalidations: readonly MemoryInvalidationRow[] = [];
   let failedItems: readonly MemoryFailedItemRow[] = [];
 
   const root = document.createElement('div');
@@ -442,31 +387,24 @@ export function mountPipelineRunsPanel(
 
   // Sections are mounted lazily in render()
   let timelineHandle: VanillaViewHandle<Parameters<typeof mountPipelineRunsTimeline>[1]> | null = null;
-  let topEntitiesHandle: VanillaViewHandle<Parameters<typeof mountTopEntitiesTable>[1]> | null = null;
 
   // section DOM refs
-  let sec1Body: HTMLElement | null = null;
+  let timelineBody: HTMLElement | null = null;
   let timelineMount: HTMLElement | null = null;
-  let secRunsBody: HTMLElement | null = null;
-  let sec2Body: HTMLElement | null = null;
-  let sec3Body: HTMLElement | null = null;
-  let sec4Body: HTMLElement | null = null;
-  let emptyEl: HTMLElement | null = null;
+  let runsBody: HTMLElement | null = null;
+  let failedItemsBody: HTMLElement | null = null;
 
   function renderEmpty(): void {
     root.replaceChildren();
     timelineHandle?.destroy();
     timelineHandle = null;
-    topEntitiesHandle?.destroy();
-    topEntitiesHandle = null;
-    sec1Body = timelineMount = secRunsBody = sec2Body = sec3Body = sec4Body = null;
+    timelineBody = timelineMount = runsBody = failedItemsBody = null;
 
     const msg = document.createElement('div');
     msg.style.cssText =
       'padding:24px;display:flex;align-items:center;justify-content:center;font-size:0.875rem;color:var(--am-color-text-secondary);';
     msg.textContent = props.t('memory.runs.empty');
     root.appendChild(msg);
-    emptyEl = msg;
   }
 
   function renderSections(): void {
@@ -476,9 +414,8 @@ export function mountPipelineRunsPanel(
     }
 
     // Build layout on first render
-    if (!sec1Body) {
+    if (!timelineBody) {
       root.replaceChildren();
-      emptyEl = null;
 
       // Section 1: Timeline
       const { wrap: wrap1, body: body1 } = makeSection(props.t('memory.runs.timeline'));
@@ -489,88 +426,56 @@ export function mountPipelineRunsPanel(
         rows: runStats,
         isDark: props.isDark,
       });
-      sec1Body = body1;
+      timelineBody = body1;
       root.appendChild(wrap1);
 
       // Section 2: Run list
       const { wrap: wrapRuns, body: bodyRuns } = makeSection(props.t('memory.runs.runList'));
-      secRunsBody = bodyRuns;
+      runsBody = bodyRuns;
       root.appendChild(wrapRuns);
 
-      // Section 3: Top entities
-      const { wrap: wrap2, body: body2 } = makeSection(props.t('memory.runs.topEntities'));
-      const entityWrap = document.createElement('div');
-      entityWrap.style.marginTop = '4px';
-      topEntitiesHandle = mountTopEntitiesTable(entityWrap, {
-        t: props.t,
-        entities,
-      });
-      body2.appendChild(entityWrap);
-      sec2Body = body2;
-      root.appendChild(wrap2);
-
-      // Section 4: Invalidations
-      const { wrap: wrap3, body: body3 } = makeSection(props.t('memory.runs.invalidations'));
-      sec3Body = body3;
-      root.appendChild(wrap3);
-
-      // Section 5: Failed items
-      const { wrap: wrap4, body: body4 } = makeSection(props.t('memory.runs.failedItems'), false);
-      sec4Body = body4;
-      root.appendChild(wrap4);
+      // Section 3: Failed items
+      const { wrap: wrapFailed, body: bodyFailed } = makeSection(props.t('memory.runs.failedItems'), false);
+      failedItemsBody = bodyFailed;
+      root.appendChild(wrapFailed);
     }
 
     // Update sub-handles
-    if (sec1Body && timelineMount) {
-      sec1Body.replaceChildren();
-      sec1Body.appendChild(buildWaveFilter(props.t, selectedWave, (wave) => {
+    if (timelineBody && timelineMount) {
+      timelineBody.replaceChildren();
+      timelineBody.appendChild(buildWaveFilter(props.t, selectedWave, (wave) => {
         if (selectedWave === wave) return;
         selectedWave = wave;
         loadData();
       }));
-      sec1Body.appendChild(timelineMount);
+      timelineBody.appendChild(timelineMount);
     }
     timelineHandle?.update({ t: props.t, rows: runStats, isDark: props.isDark });
-    topEntitiesHandle?.update({ t: props.t, entities });
 
-    if (secRunsBody) {
-      secRunsBody.replaceChildren();
+    if (runsBody) {
+      runsBody.replaceChildren();
       if (pipelineRuns.length === 0) {
         const dash = document.createElement('span');
         dash.style.cssText = 'display:block;font-size:0.75rem;color:var(--am-color-text-secondary);margin-top:4px;';
         dash.textContent = '—';
-        secRunsBody.appendChild(dash);
+        runsBody.appendChild(dash);
       } else {
-        secRunsBody.appendChild(buildPipelineRunsTable(pipelineRuns, props.t, async (runId) => {
+        runsBody.appendChild(buildPipelineRunsTable(pipelineRuns, props.t, async (runId) => {
           if (!props.reader) return [];
           return props.reader.listPipelineRunLogs({ runId, limit: 100 });
         }));
       }
     }
 
-    // Section 3: invalidations
-    if (sec3Body) {
-      sec3Body.replaceChildren();
-      if (invalidations.length === 0) {
-        const dash = document.createElement('span');
-        dash.style.cssText = 'display:block;font-size:0.75rem;color:var(--am-color-text-secondary);margin-top:4px;';
-        dash.textContent = '—';
-        sec3Body.appendChild(dash);
-      } else {
-        sec3Body.appendChild(buildInvalidationsTable(invalidations));
-      }
-    }
-
-    // Section 4: failed items
-    if (sec4Body) {
-      sec4Body.replaceChildren();
+    if (failedItemsBody) {
+      failedItemsBody.replaceChildren();
       if (failedItems.length === 0) {
         const dash = document.createElement('span');
         dash.style.cssText = 'display:block;font-size:0.75rem;color:var(--am-color-text-secondary);margin-top:4px;';
         dash.textContent = '—';
-        sec4Body.appendChild(dash);
+        failedItemsBody.appendChild(dash);
       } else {
-        sec4Body.appendChild(buildFailedItemsTable(failedItems, props.t));
+        failedItemsBody.appendChild(buildFailedItemsTable(failedItems, props.t));
       }
     }
   }
@@ -601,16 +506,6 @@ export function mountPipelineRunsPanel(
       pipelineRuns = rows;
       renderSections();
     });
-    void reader.listTopEntities({ limit: 20 }).then((rows) => {
-      if (destroyed || token !== loadToken) return;
-      entities = rows;
-      renderSections();
-    });
-    void reader.listInvalidations({ limit: 50 }).then((rows) => {
-      if (destroyed || token !== loadToken) return;
-      invalidations = rows;
-      renderSections();
-    });
     void reader.listFailedItems({ limit: 50 }).then((rows) => {
       if (destroyed || token !== loadToken) return;
       failedItems = rows;
@@ -626,15 +521,11 @@ export function mountPipelineRunsPanel(
       props = next;
       if (readerChanged) {
         // Reset section refs so we rebuild from scratch
-        sec1Body = timelineMount = secRunsBody = sec2Body = sec3Body = sec4Body = null;
+        timelineBody = timelineMount = runsBody = failedItemsBody = null;
         timelineHandle?.destroy();
         timelineHandle = null;
-        topEntitiesHandle?.destroy();
-        topEntitiesHandle = null;
         runStats = [];
         pipelineRuns = [];
-        entities = [];
-        invalidations = [];
         failedItems = [];
         loadData();
       } else {
@@ -644,7 +535,6 @@ export function mountPipelineRunsPanel(
     destroy() {
       destroyed = true;
       timelineHandle?.destroy();
-      topEntitiesHandle?.destroy();
       root.remove();
     },
   };

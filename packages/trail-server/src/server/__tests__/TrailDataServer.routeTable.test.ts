@@ -136,7 +136,7 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "GET", kind: "exact", path: "/api/memory/pipeline/runs" },
   { method: "GET", kind: "pattern", path: "^\\/api\\/memory\\/pipeline\\/runs\\/([^/]+)\\/logs$" },
   { method: "GET", kind: "exact", path: "/api/memory/pipeline/failed" },
-  { method: "GET", kind: "exact", path: "/api/memory/entities/top" },
+  // UI の消費者が無くても撤去しない経路。理由は MemoryApiHandler.listInvalidations のコメント参照
   { method: "GET", kind: "exact", path: "/api/memory/edges/invalidations" },
 ];
 

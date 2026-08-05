@@ -351,23 +351,6 @@ describe('MemoryApiHandler — additional coverage', () => {
     });
   });
 
-  describe('listTopEntities', () => {
-    it('returns empty when db not available', async () => {
-      const h = new MemoryApiHandler(makeMockLogger(), path.join(tmpDir, 'no-such.db'));
-      expect(await h.listTopEntities({})).toEqual([]);
-    });
-
-    it('filters by type', async () => {
-      const rows = await handler.listTopEntities({ type: 'Package' });
-      expect(rows.every((r) => r.type === 'Package')).toBe(true);
-    });
-
-    it('respects limit', async () => {
-      const rows = await handler.listTopEntities({ limit: 1 });
-      expect(rows.length).toBeLessThanOrEqual(1);
-    });
-  });
-
   describe('listInvalidations', () => {
     it('returns empty when db not available', async () => {
       const h = new MemoryApiHandler(makeMockLogger(), path.join(tmpDir, 'no-such.db'));
