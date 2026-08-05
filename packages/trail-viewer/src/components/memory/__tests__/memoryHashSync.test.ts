@@ -1,16 +1,10 @@
-import type { MemoryTabValue } from '../../memoryTabs';
-
-function parseHashSubTab(hash: string): MemoryTabValue | null {
-  const match = /^#memory\/(drift|bug|review|runs)/.exec(hash);
-  if (!match) return null;
-  return match[1] as MemoryTabValue;
-}
+/**
+ * `#memory/<tab>` の解釈。実装（memoryPanel の export）をそのまま検査する。
+ * ここで正規表現を書き写すと、実装だけ変わってもテストが通り続ける（検査しないテストになる）。
+ */
+import { parseHashSubTab } from '../../../views/memory/memoryPanel';
 
 describe('parseHashSubTab', () => {
-  it('returns drift for #memory/drift', () => {
-    expect(parseHashSubTab('#memory/drift')).toBe('drift');
-  });
-
   it('returns bug for #memory/bug', () => {
     expect(parseHashSubTab('#memory/bug')).toBe('bug');
   });
@@ -21,6 +15,10 @@ describe('parseHashSubTab', () => {
 
   it('returns runs for #memory/runs', () => {
     expect(parseHashSubTab('#memory/runs')).toBe('runs');
+  });
+
+  it('returns null for #memory/drift（Flight Record へ移設済み。既定タブへ落とす）', () => {
+    expect(parseHashSubTab('#memory/drift')).toBeNull();
   });
 
   it('returns null for empty hash', () => {
@@ -36,6 +34,6 @@ describe('parseHashSubTab', () => {
   });
 
   it('ignores query params after tab name', () => {
-    expect(parseHashSubTab('#memory/drift?foo=bar')).toBe('drift');
+    expect(parseHashSubTab('#memory/bug?foo=bar')).toBe('bug');
   });
 });

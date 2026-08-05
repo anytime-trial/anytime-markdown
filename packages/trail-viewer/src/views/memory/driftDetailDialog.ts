@@ -74,7 +74,7 @@ export function mountDriftDetailDialog(
   let resolving = false;
 
   // --- Dialog scaffold ---
-  const titleEl = createDialogTitle({ children: props.t('memory.drift.detail') });
+  const titleEl = createDialogTitle({ children: props.t('flightRecord.drift.detail') });
   const contentEl = createDialogContent();
   const actionsEl = createDialogActions();
 
@@ -91,7 +91,7 @@ export function mountDriftDetailDialog(
   const noteField = createTextField({
     fullWidth: true,
     size: 'small',
-    label: props.t('memory.drift.resolutionNote'),
+    label: props.t('flightRecord.drift.resolutionNote'),
     value: note,
     multiline: true,
     minRows: 2,
@@ -109,7 +109,7 @@ export function mountDriftDetailDialog(
   // Close / Cancel button
   const closeBtn = createButton({
     size: 'small',
-    label: props.t('memory.drift.detail'),
+    label: props.t('flightRecord.drift.detail'),
     onClick: () => props.onClose(),
   });
   closeBtn.el.style.fontSize = '0.75rem';
@@ -118,7 +118,7 @@ export function mountDriftDetailDialog(
   const resolveBtn = createButton({
     size: 'small',
     variant: 'contained',
-    label: props.t('memory.drift.resolve'),
+    label: props.t('flightRecord.drift.resolve'),
     onClick: () => void handleResolve(),
   });
   resolveBtn.el.style.cssText += ';font-size:0.75rem;background-color:var(--am-color-primary-main);';
@@ -148,7 +148,7 @@ export function mountDriftDetailDialog(
   function renderTitle(): void {
     titleEl.el.textContent = detail
       ? (detail.subjectDisplayName || detail.subjectEntityId)
-      : props.t('memory.drift.detail');
+      : props.t('flightRecord.drift.detail');
   }
 
   function renderContent(): void {
@@ -167,7 +167,7 @@ export function mountDriftDetailDialog(
     detailBody.replaceChildren();
     detailBody.appendChild(makeDetailRow('Type', detail.driftType));
     detailBody.appendChild(makeDetailRow('Predicate', detail.predicate));
-    detailBody.appendChild(makeDetailRow(props.t('memory.drift.filterSeverity'), severityChip(detail.severity)));
+    detailBody.appendChild(makeDetailRow(props.t('flightRecord.drift.filterSeverity'), severityChip(detail.severity)));
     detailBody.appendChild(makeDetailRow('Detected', detail.detectedAt.slice(0, 10)));
     if (detail.conversationValue != null) {
       detailBody.appendChild(makeDetailRow('Conversation', detail.conversationValue));
@@ -198,7 +198,7 @@ export function mountDriftDetailDialog(
       resolvedBox.replaceChildren();
       const resolvedText = document.createElement('span');
       resolvedText.style.cssText = 'font-size:0.75rem;color:var(--am-color-text-secondary);';
-      resolvedText.textContent = `${props.t('memory.drift.resolved')} — ${detail.resolvedAt.slice(0, 10)}`;
+      resolvedText.textContent = `${props.t('flightRecord.drift.resolved')} — ${detail.resolvedAt.slice(0, 10)}`;
       resolvedBox.appendChild(resolvedText);
       if (detail.resolutionNote) {
         const noteText = document.createElement('span');
@@ -209,7 +209,7 @@ export function mountDriftDetailDialog(
       }
       detailBody.appendChild(resolvedBox);
     } else {
-      noteField.update({ value: note, label: props.t('memory.drift.resolutionNote') });
+      noteField.update({ value: note, label: props.t('flightRecord.drift.resolutionNote') });
       detailBody.appendChild(noteField.el);
     }
 
@@ -227,7 +227,7 @@ export function mountDriftDetailDialog(
         const sp = createSpinner({ size: 14, color: 'inherit' });
         resolveBtn.el.replaceChildren(sp.el);
       } else {
-        resolveBtn.update({ label: props.t('memory.drift.resolve') });
+        resolveBtn.update({ label: props.t('flightRecord.drift.resolve') });
       }
       (resolveBtn.el as HTMLButtonElement).disabled = resolving;
     }

@@ -37,23 +37,23 @@ const FIX_TARGET_COLOR_VAR: Record<FixTarget, string> = {
 };
 
 const FIX_TARGET_I18N_KEYS: Record<FixTarget, string> = {
-  code: 'memory.drift.fixTarget.code',
-  spec: 'memory.drift.fixTarget.spec',
-  conv: 'memory.drift.fixTarget.conv',
+  code: 'flightRecord.drift.fixTarget.code',
+  spec: 'flightRecord.drift.fixTarget.spec',
+  conv: 'flightRecord.drift.fixTarget.conv',
 };
 
 const DRIFT_TYPE_HELP_ROWS: ReadonlyArray<readonly [string, string]> = [
-  ['spec_vs_code', 'memory.drift.typeDescription.spec_vs_code'],
-  ['conv_vs_code', 'memory.drift.typeDescription.conv_vs_code'],
-  ['conv_vs_spec', 'memory.drift.typeDescription.conv_vs_spec'],
-  ['three_way', 'memory.drift.typeDescription.three_way'],
-  ['regression_cluster', 'memory.drift.typeDescription.regression_cluster'],
-  ['spec_violation_cluster', 'memory.drift.typeDescription.spec_violation_cluster'],
-  ['recurring_root_cause', 'memory.drift.typeDescription.recurring_root_cause'],
-  ['review_unfixed', 'memory.drift.typeDescription.review_unfixed'],
-  ['review_vs_code', 'memory.drift.typeDescription.review_vs_code'],
-  ['recurring_review_finding', 'memory.drift.typeDescription.recurring_review_finding'],
-  ['spec_clarification_recurring', 'memory.drift.typeDescription.spec_clarification_recurring'],
+  ['spec_vs_code', 'flightRecord.drift.typeDescription.spec_vs_code'],
+  ['conv_vs_code', 'flightRecord.drift.typeDescription.conv_vs_code'],
+  ['conv_vs_spec', 'flightRecord.drift.typeDescription.conv_vs_spec'],
+  ['three_way', 'flightRecord.drift.typeDescription.three_way'],
+  ['regression_cluster', 'flightRecord.drift.typeDescription.regression_cluster'],
+  ['spec_violation_cluster', 'flightRecord.drift.typeDescription.spec_violation_cluster'],
+  ['recurring_root_cause', 'flightRecord.drift.typeDescription.recurring_root_cause'],
+  ['review_unfixed', 'flightRecord.drift.typeDescription.review_unfixed'],
+  ['review_vs_code', 'flightRecord.drift.typeDescription.review_vs_code'],
+  ['recurring_review_finding', 'flightRecord.drift.typeDescription.recurring_review_finding'],
+  ['spec_clarification_recurring', 'flightRecord.drift.typeDescription.spec_clarification_recurring'],
 ];
 
 export interface DriftPanelProps {
@@ -104,7 +104,7 @@ export function mountDriftPanel(
   // Unresolved-only switch + label
   const switchHandle = createSwitch({
     checked: unresolvedOnly,
-    ariaLabel: props.t('memory.drift.unresolvedOnly'),
+    ariaLabel: props.t('flightRecord.drift.unresolvedOnly'),
     onChange: (checked) => {
       unresolvedOnly = checked;
       renderBody();
@@ -114,22 +114,22 @@ export function mountDriftPanel(
   switchLabel.style.cssText = 'display:inline-flex;align-items:center;gap:4px;cursor:pointer;';
   const switchLabelText = document.createElement('span');
   switchLabelText.style.cssText = 'font-size:0.75rem;color:var(--am-color-text-secondary);';
-  switchLabelText.textContent = props.t('memory.drift.unresolvedOnly');
+  switchLabelText.textContent = props.t('flightRecord.drift.unresolvedOnly');
   switchLabel.append(switchHandle.el, switchLabelText);
 
   // Severity select
   function buildSeverityOptions(): SelectOption<string>[] {
     return [
       { value: '', label: 'All' },
-      { value: 'info', label: props.t('memory.drift.severity.info') },
-      { value: 'warn', label: props.t('memory.drift.severity.warn') },
-      { value: 'error', label: props.t('memory.drift.severity.error') },
+      { value: 'info', label: props.t('flightRecord.drift.severity.info') },
+      { value: 'warn', label: props.t('flightRecord.drift.severity.warn') },
+      { value: 'error', label: props.t('flightRecord.drift.severity.error') },
     ];
   }
   const severitySelect = createSelect<string>({
     value: severityFilter,
     options: buildSeverityOptions(),
-    ariaLabel: props.t('memory.drift.filterSeverity'),
+    ariaLabel: props.t('flightRecord.drift.filterSeverity'),
     fullWidth: false,
     onChange: (v) => {
       severityFilter = v;
@@ -150,7 +150,7 @@ export function mountDriftPanel(
   const typeSelect = createSelect<string>({
     value: typeFilter,
     options: buildTypeOptions(),
-    ariaLabel: props.t('memory.drift.filterType'),
+    ariaLabel: props.t('flightRecord.drift.filterType'),
     fullWidth: false,
     onChange: (v) => {
       typeFilter = v;
@@ -164,15 +164,15 @@ export function mountDriftPanel(
   function buildFixTargetOptions(): SelectOption<string>[] {
     return [
       { value: '', label: 'All' },
-      { value: 'code', label: props.t('memory.drift.fixTarget.code') },
-      { value: 'spec', label: props.t('memory.drift.fixTarget.spec') },
-      { value: 'conv', label: props.t('memory.drift.fixTarget.conv') },
+      { value: 'code', label: props.t('flightRecord.drift.fixTarget.code') },
+      { value: 'spec', label: props.t('flightRecord.drift.fixTarget.spec') },
+      { value: 'conv', label: props.t('flightRecord.drift.fixTarget.conv') },
     ];
   }
   const fixTargetSelect = createSelect<string>({
     value: fixTargetFilter,
     options: buildFixTargetOptions(),
-    ariaLabel: props.t('memory.drift.fixTarget'),
+    ariaLabel: props.t('flightRecord.drift.fixTarget'),
     fullWidth: false,
     onChange: (v) => {
       fixTargetFilter = v;
@@ -234,8 +234,8 @@ export function mountDriftPanel(
   headerRow.append(
     makeHeaderCell('Subject'),
     makeHeaderCell(typeHeaderInner),
-    makeHeaderCell(props.t('memory.drift.fixTarget')),
-    makeHeaderCell(props.t('memory.drift.filterSeverity')),
+    makeHeaderCell(props.t('flightRecord.drift.fixTarget')),
+    makeHeaderCell(props.t('flightRecord.drift.filterSeverity')),
     makeHeaderCell('Detected'),
     makeHeaderCell(''),
   );
@@ -269,7 +269,7 @@ export function mountDriftPanel(
     });
 
     if (props.rows.length === 0) {
-      emptyText.textContent = props.t('memory.drift.empty');
+      emptyText.textContent = props.t('flightRecord.drift.empty');
       bodyHost.replaceChildren(emptyEl);
       return;
     }
@@ -339,14 +339,14 @@ export function mountDriftPanel(
       actionCell.style.cssText = 'padding:4px 8px;text-align:right;white-space:nowrap;';
 
       if (row.resolvedAt) {
-        const resolvedChip = createChip({ label: props.t('memory.drift.resolved'), size: 'small' });
+        const resolvedChip = createChip({ label: props.t('flightRecord.drift.resolved'), size: 'small' });
         resolvedChip.el.style.cssText += ';font-size:0.65rem;height:18px;';
         actionCell.appendChild(resolvedChip.el);
         rowHandles.push(resolvedChip);
       } else {
         const { el: detailBtn } = createButton({
           size: 'small',
-          label: props.t('memory.drift.detail'),
+          label: props.t('flightRecord.drift.detail'),
           onClick: () => openDetail(row.id),
         });
         detailBtn.style.cssText += ';font-size:0.65rem;padding:0;min-width:0;color:var(--am-color-primary-main);';
@@ -397,11 +397,11 @@ export function mountDriftPanel(
     update(next) {
       props = next;
       // Update filter selects with fresh options (rows may have changed)
-      severitySelect.update({ options: buildSeverityOptions(), ariaLabel: props.t('memory.drift.filterSeverity') });
-      typeSelect.update({ options: buildTypeOptions(), ariaLabel: props.t('memory.drift.filterType') });
-      fixTargetSelect.update({ options: buildFixTargetOptions(), ariaLabel: props.t('memory.drift.fixTarget') });
-      switchLabelText.textContent = props.t('memory.drift.unresolvedOnly');
-      switchHandle.update({ ariaLabel: props.t('memory.drift.unresolvedOnly') });
+      severitySelect.update({ options: buildSeverityOptions(), ariaLabel: props.t('flightRecord.drift.filterSeverity') });
+      typeSelect.update({ options: buildTypeOptions(), ariaLabel: props.t('flightRecord.drift.filterType') });
+      fixTargetSelect.update({ options: buildFixTargetOptions(), ariaLabel: props.t('flightRecord.drift.fixTarget') });
+      switchLabelText.textContent = props.t('flightRecord.drift.unresolvedOnly');
+      switchHandle.update({ ariaLabel: props.t('flightRecord.drift.unresolvedOnly') });
       helpTooltip.update({ title: buildTypeHelpTooltip() });
       historyChart.update({
         t: props.t,

@@ -36,6 +36,7 @@ import {
   wireFindingLinks,
 } from './flightReviewFindingsView';
 import { buildFlightRecordCsv, downloadCsv } from '../data/flightReviewCsv';
+import { mountDriftSection, type DriftSectionProps } from './memory/driftSection';
 import { formatDurationSeconds, mountRetrospectiveView, type RetrospectiveViewProps } from './retrospectiveView';
 import type { TrailThemeTokens } from '../theme/designTokens';
 import { applyThinScrollbar } from '../theme/thinScrollbar';
@@ -44,6 +45,8 @@ export interface FlightRecordPanelProps {
   readonly isDark: boolean;
   readonly tokens: TrailThemeTokens;
   readonly t: (key: string) => string;
+  /** Drift サブタブのデータ取得先（memory-core API）。空文字なら Drift は取得を行わない。 */
+  readonly serverUrl: string;
   /** 指示単位の一覧・所属セッション。 */
   readonly store: InstructionStore;
   /** セッション単位の振り返り・訂正（詳細ペイン内）。 */
@@ -57,10 +60,14 @@ export interface FlightRecordPanelProps {
   readonly onOpenFile?: (filePath: string) => void;
 }
 
-/** Flight Record のサブタブ。指示（運航記録）と Review（指摘）を切り替える。 */
-export type FlightRecordTabValue = 'instruction' | 'review';
+/**
+ * Flight Record のサブタブ。指示（運航記録）・Review（指摘）・Drift（会話 / 設計書 / コードの乖離）。
+ * Drift は指示単位ではなく全体の乖離一覧だが、「作業の結果として何がずれたか」という
+ * 同じ関心にあるため運航記録側へ置く（2026-08-05 に Memory タブから移設）。
+ */
+export type FlightRecordTabValue = 'instruction' | 'review' | 'drift';
 
-const FLIGHT_TAB_VALUES: readonly FlightRecordTabValue[] = ['instruction', 'review'];
+const FLIGHT_TAB_VALUES: readonly FlightRecordTabValue[] = ['instruction', 'review', 'drift'];
 
 const STYLE_ID = 'am-flight-record-style';
 
@@ -398,6 +405,32 @@ export function mountFlightRecordPanel(
   reviewRegion.hidden = true;
   applyThinScrollbar(reviewRegion);
   root.appendChild(reviewRegion);
+
+  // Drift サブタブ。開くまでマウントしない（開かないタブのために memory-core API を叩かない）。
+  // 一度マウントしたら破棄せず hidden で切り替える（フィルタ・スクロール位置を保持する）。
+  const driftRegion = document.createElement('div');
+  driftRegion.dataset['amFlightDrift'] = '';
+  driftRegion.id = 'flight-panel-drift';
+  driftRegion.setAttribute('role', 'tabpanel');
+  driftRegion.setAttribute('aria-labelledby', 'flight-tab-drift');
+  driftRegion.hidden = true;
+  driftRegion.style.cssText = 'flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;';
+  root.appendChild(driftRegion);
+
+  let driftHandle: VanillaViewHandle<DriftSectionProps> | null = null;
+
+  function driftSectionProps(): DriftSectionProps {
+    return { serverUrl: props.serverUrl, t: props.t, isDark: props.isDark };
+  }
+
+  /** Drift タブが可視になった時点で初回マウントし、以降は最新 props を流す。 */
+  function renderDriftTab(): void {
+    if (driftHandle === null) {
+      driftHandle = mountDriftSection(driftRegion, driftSectionProps());
+      return;
+    }
+    driftHandle.update(driftSectionProps());
+  }
 
   const sinceInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-since]');
   const untilInput = toolbar.querySelector<HTMLInputElement>('[data-am-flight-filter-until]');
@@ -806,6 +839,7 @@ export function mountFlightRecordPanel(
     toolbar.hidden = activeTab !== 'instruction';
     body.hidden = activeTab !== 'instruction';
     reviewRegion.hidden = activeTab !== 'review';
+    driftRegion.hidden = activeTab !== 'drift';
   }
 
   function render(): void {
@@ -815,8 +849,14 @@ export function mountFlightRecordPanel(
     if (activeTab === 'instruction') {
       renderList();
       renderDetail();
-    } else {
+    } else if (activeTab === 'review') {
       renderReviewTab();
+    } else {
+      renderDriftTab();
+    }
+    // マウント済みなら非表示中も props（テーマ・言語）を流す。再表示時に古い文言で出さない。
+    if (activeTab !== 'drift' && driftHandle !== null) {
+      driftHandle.update(driftSectionProps());
     }
   }
 
@@ -862,6 +902,8 @@ export function mountFlightRecordPanel(
       outcomeSelect.destroy();
       detailHandle?.destroy();
       detailHandle = null;
+      driftHandle?.destroy();
+      driftHandle = null;
       root.remove();
     },
   };

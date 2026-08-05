@@ -477,6 +477,8 @@ export function mountTrailViewer(
       isDark: props.isDark ?? true,
       tokens: props.tokens,
       t: props.t,
+      // Drift サブタブは store を介さず memory-core API を直接読むため URL を渡す
+      serverUrl,
       store: instructionStore,
       reviewStore: flightReviewStore,
       findingStore: flightFindingStore,

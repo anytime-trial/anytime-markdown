@@ -1,6 +1,7 @@
 import type { TrailI18n } from '../i18n/types';
 
-export type MemoryTabValue = 'drift' | 'bug' | 'review' | 'runs';
+/** Drift は 2026-08-05 に Flight Record のサブタブへ移設した（ここには戻さない）。 */
+export type MemoryTabValue = 'bug' | 'review' | 'runs';
 
 export interface MemoryTabDef {
   readonly value: MemoryTabValue;
@@ -10,7 +11,6 @@ export interface MemoryTabDef {
 }
 
 export const MEMORY_TAB_DEFS: ReadonlyArray<MemoryTabDef> = [
-  { value: 'drift',  id: 'memory-tab-drift',  panelId: 'memory-panel-drift',  i18nKey: 'memory.drift.tab' },
   { value: 'bug',    id: 'memory-tab-bug',    panelId: 'memory-panel-bug',    i18nKey: 'memory.bug.tab' },
   { value: 'review', id: 'memory-tab-review', panelId: 'memory-panel-review', i18nKey: 'memory.review.tab' },
   { value: 'runs',   id: 'memory-tab-runs',   panelId: 'memory-panel-runs',   i18nKey: 'memory.runs.tab' },

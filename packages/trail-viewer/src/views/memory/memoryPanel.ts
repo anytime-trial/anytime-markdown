@@ -1,8 +1,9 @@
 /**
  * MemoryPanel の vanilla DOM 版。
  *
- * Chat は本パネルから独立したトップレベルタブ（trailViewer の case 10）へ移した。
- * サブタブ状態・hash routing・MemoryReader・dbExists probe・driftRows・
+ * Chat は本パネルから独立したトップレベルタブ（trailViewer の case 10）へ、
+ * Drift は Flight Record のサブタブへ移した（2026-08-05）。
+ * サブタブ状態・hash routing・MemoryReader・dbExists probe・
  * pendingBugFilter / pendingReviewFilter を所有し、対応する vanilla サブビューを
  * 直接マウントする（React の `.tsx` ラッパは経由しない）。
  *
@@ -15,9 +16,6 @@ import type { TrailThemeTokens } from '../../theme/designTokens';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import { MEMORY_TAB_DEFS, type MemoryTabValue } from '../../components/memoryTabs';
 import { MemoryReader } from '../../data/readers/MemoryReader';
-import type { MemoryDriftEventRow } from '../../data/types';
-import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
-import { mountDriftPanel } from './driftPanel';
 import { mountBugHistoryPanel } from './bugHistoryPanel';
 import { mountReviewPanel } from './reviewPanel';
 import { mountPipelineRunsPanel } from './pipelineRunsPanel';
@@ -38,8 +36,15 @@ export interface MemoryPanelViewProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function parseHashSubTab(hash: string): MemoryTabValue | null {
-  const match = /^#memory\/(drift|bug|review|runs)/.exec(hash);
+/** 既定サブタブはタブ定義の先頭から導く（定義から要素を外しても消えたタブを指さない）。 */
+const DEFAULT_MEMORY_TAB: MemoryTabValue = MEMORY_TAB_DEFS[0]!.value;
+
+/**
+ * `#memory/<tab>` を解釈する。`#memory/drift` は Flight Record へ移設済みのため
+ * ここでは一致せず null（＝既定タブ）へ落ちる。
+ */
+export function parseHashSubTab(hash: string): MemoryTabValue | null {
+  const match = /^#memory\/(bug|review|runs)/.exec(hash);
   if (!match) return null;
   return match[1] as MemoryTabValue;
 }
@@ -59,10 +64,8 @@ export function mountMemoryPanel(
 
   // --- State -----------------------------------------------------------------
   let activeTab: MemoryTabValue =
-    parseHashSubTab(globalThis.location?.hash ?? '') ?? 'drift';
+    parseHashSubTab(globalThis.location?.hash ?? '') ?? DEFAULT_MEMORY_TAB;
   let dbExists: boolean | null = null;
-  let driftRows: readonly MemoryDriftEventRow[] = [];
-  let driftHistory: readonly DriftHistoryPoint[] = [];
   let pendingBugFilter: { bugEntityIds: readonly string[] } | null = null;
   let pendingReviewFilter: { findingEntityIds: readonly string[] } | null = null;
 
@@ -146,16 +149,6 @@ export function mountMemoryPanel(
 
   function buildSubForTab(tab: MemoryTabValue, host: HTMLElement): SubHandle {
     const tStr = props.t;
-    if (tab === 'drift') {
-      return mountDriftPanel(host, {
-        t: tStr,
-        rows: driftRows,
-        historyPoints: driftHistory,
-        isDark: props.isDark,
-        onResolve: handleResolve,
-        onLoadDetail: (id) => reader.getDriftEventDetail(id),
-      }) as SubHandle;
-    }
     if (tab === 'bug') {
       return mountBugHistoryPanel(host, {
         t: tStr,
@@ -187,16 +180,7 @@ export function mountMemoryPanel(
     const handle = subHandles.get(tab);
     if (!handle) return;
     const tStr = props.t;
-    if (tab === 'drift') {
-      (handle as VanillaViewHandle<Parameters<typeof mountDriftPanel>[1]>).update({
-        t: tStr,
-        rows: driftRows,
-        historyPoints: driftHistory,
-        isDark: props.isDark,
-        onResolve: handleResolve,
-        onLoadDetail: (id) => reader.getDriftEventDetail(id),
-      });
-    } else if (tab === 'bug') {
+    if (tab === 'bug') {
       (handle as VanillaViewHandle<Parameters<typeof mountBugHistoryPanel>[1]>).update({
         t: tStr,
         reader,
@@ -302,21 +286,6 @@ export function mountMemoryPanel(
     }
   }
 
-  // --- Resolve drift event ---------------------------------------------------
-  async function handleResolve(id: string, note: string): Promise<void> {
-    await reader.resolveDriftEvent(id, note);
-    const [updated, points] = await Promise.all([
-      reader.listDriftEvents({ unresolvedOnly: false, limit: 200 }),
-      reader.getDriftHistoryByDay(),
-    ]);
-    if (destroyed) return;
-    driftRows = updated;
-    driftHistory = points;
-    if (mountedTab === 'drift') {
-      updateSub();
-    }
-  }
-
   // --- Root render -----------------------------------------------------------
   function render(): void {
     root.replaceChildren();
@@ -344,27 +313,6 @@ export function mountMemoryPanel(
   void reader.probe().then((exists) => {
     if (destroyed) return;
     dbExists = exists;
-
-    if (exists) {
-      // Load drift rows immediately
-      void reader.listDriftEvents({ unresolvedOnly: false, limit: 200 }).then((rows) => {
-        if (destroyed) return;
-        driftRows = rows;
-        // If drift tab is already visible, update it
-        if (mountedTab === 'drift') {
-          updateSub();
-        }
-      });
-      // Phase 6 S5-C: 推移は一覧（limit 200）と別経路のサーバ側集計から取る
-      void reader.getDriftHistoryByDay().then((points) => {
-        if (destroyed) return;
-        driftHistory = points;
-        if (mountedTab === 'drift') {
-          updateSub();
-        }
-      });
-    }
-
     render();
   });
 

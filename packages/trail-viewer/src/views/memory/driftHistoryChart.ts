@@ -28,19 +28,19 @@ export function buildDriftHistorySpec(props: DriftHistoryChartProps): ChartSpec 
     categories: points.map((p) => p.date),
     series: [
       {
-        name: props.t('memory.drift.history.detected'),
+        name: props.t('flightRecord.drift.history.detected'),
         color: SERIES_COLORS.detected,
         connectNulls: true,
         values: points.map((p) => p.detectedCount),
       },
       {
-        name: props.t('memory.drift.history.resolved'),
+        name: props.t('flightRecord.drift.history.resolved'),
         color: SERIES_COLORS.resolved,
         connectNulls: true,
         values: points.map((p) => p.resolvedCount),
       },
       {
-        name: props.t('memory.drift.history.unresolved'),
+        name: props.t('flightRecord.drift.history.unresolved'),
         color: SERIES_COLORS.unresolved,
         connectNulls: true,
         values: points.map((p) => p.unresolvedCumulative),
@@ -48,7 +48,7 @@ export function buildDriftHistorySpec(props: DriftHistoryChartProps): ChartSpec 
     ],
     options: {
       legend: 'bottom',
-      yAxis: { label: props.t('memory.drift.history.count') },
+      yAxis: { label: props.t('flightRecord.drift.history.count') },
     },
   };
 }
@@ -62,7 +62,7 @@ export function mountDriftHistoryChart(
   let emptyMsg: HTMLElement | null = null;
 
   const root = document.createElement('div');
-  root.setAttribute('aria-label', props.t('memory.drift.history.title'));
+  root.setAttribute('aria-label', props.t('flightRecord.drift.history.title'));
   root.style.cssText = 'padding:8px 16px;box-sizing:border-box;';
   container.appendChild(root);
 
@@ -77,7 +77,7 @@ export function mountDriftHistoryChart(
         'padding:8px;font-size:0.75rem;color:var(--am-color-text-secondary);';
       root.appendChild(emptyMsg);
     }
-    emptyMsg.textContent = props.t('memory.drift.history.empty');
+    emptyMsg.textContent = props.t('flightRecord.drift.history.empty');
   }
 
   function render(): void {

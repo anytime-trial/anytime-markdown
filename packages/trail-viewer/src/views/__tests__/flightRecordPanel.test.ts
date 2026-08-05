@@ -144,6 +144,7 @@ describe('flightRecordPanel', () => {
       isDark: true,
       tokens: getTokens(true),
       t: createTrailI18n('ja'),
+      serverUrl: 'http://x',
       store: s,
       reviewStore: rs,
       findingStore,
@@ -501,6 +502,7 @@ describe('flightRecordPanel', () => {
         isDark: true,
         tokens: getTokens(true),
         t: createTrailI18n('en'),
+        serverUrl: 'http://x',
         store: store!,
         reviewStore: reviewStore!,
         findingStore: findingStore!,
@@ -521,6 +523,7 @@ describe('flightRecordPanel', () => {
         isDark: true,
         tokens: getTokens(true),
         t: createTrailI18n('ja'),
+        serverUrl: 'http://x',
         store: store2,
         reviewStore: reviewStore!,
         findingStore: findingStore!,
@@ -599,7 +602,7 @@ describe('flightRecordPanel', () => {
       const handle = await mountWithFindings();
 
       const tabs = container.querySelectorAll('[data-am-flight-tabs] button');
-      expect(tabs).toHaveLength(2);
+      expect(tabs).toHaveLength(3);
       expect(container.querySelector('[data-am-flight-review]')?.hasAttribute('hidden')).toBe(true);
 
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="review"]')?.click();
@@ -687,6 +690,95 @@ describe('flightRecordPanel', () => {
       expect(
         container.querySelector('[data-am-flight-table] tbody tr')?.getAttribute('aria-selected'),
       ).toBe('true');
+      handle.destroy();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Drift サブタブ（2026-08-05 に Memory タブから移設）
+  // -------------------------------------------------------------------------
+  describe('Drift サブタブ', () => {
+    const DRIFT_ROW = {
+      id: 'drift:entity/foo:implements:spec_vs_code',
+      subjectEntityId: 'entity/foo',
+      subjectDisplayName: 'Foo',
+      predicate: 'implements',
+      driftType: 'spec_vs_code',
+      severity: 'error',
+      conversationValue: null,
+      specValue: 'a',
+      codeValue: 'b',
+      detectedAt: '2026-08-01T00:00:00.000Z',
+      resolvedAt: null,
+      resolutionNote: '',
+    };
+
+    /** drift 系エンドポイントだけ実データを返す stub。他は既定の空応答。 */
+    function stubWithDrift() {
+      return stubFetch((url) => {
+        if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
+        if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
+        if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+        if (url.includes('/api/memory/drift/by-day')) return jsonResponse({ points: [] });
+        if (url.includes('/api/memory/drift/events')) return jsonResponse([DRIFT_ROW]);
+        if (url.includes('flight-counts')) return jsonResponse([]);
+        if (url.includes('flight-findings')) return jsonResponse([]);
+        return jsonResponse([]);
+      });
+    }
+
+    async function mountForDrift() {
+      stubWithDrift();
+      store = createInstructionStore('http://x');
+      reviewStore = createFlightReviewStore('http://x');
+      const handle = mountWith(store, reviewStore);
+      await settle();
+      return handle;
+    }
+
+    it('Drift タブのボタンがある', async () => {
+      const handle = await mountForDrift();
+      expect(container.querySelector('[data-am-flight-tab="drift"]')).not.toBeNull();
+      handle.destroy();
+    });
+
+    it('開くまで drift をマウントせず memory-core も叩かない', async () => {
+      const { calls } = stubWithDrift();
+      store = createInstructionStore('http://x');
+      reviewStore = createFlightReviewStore('http://x');
+      const handle = mountWith(store, reviewStore);
+      await settle();
+
+      expect(container.querySelector('[data-am-flight-drift]')?.hasAttribute('hidden')).toBe(true);
+      expect(calls.some((c) => c.url.includes('/api/memory/drift/'))).toBe(false);
+      handle.destroy();
+    });
+
+    it('Drift タブを開くと後から届いた行が表示される（空のまま固まらない）', async () => {
+      const handle = await mountForDrift();
+
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="drift"]')?.click();
+      await settle();
+
+      const driftRegion = container.querySelector('[data-am-flight-drift]');
+      expect(driftRegion?.hasAttribute('hidden')).toBe(false);
+      expect(container.querySelector('[data-am-flight-body]')?.hasAttribute('hidden')).toBe(true);
+      // driftPanel の一覧に subject と drift_type が出る
+      expect(driftRegion?.textContent).toContain('Foo');
+      expect(driftRegion?.textContent).toContain('spec_vs_code');
+      handle.destroy();
+    });
+
+    it('指示タブへ戻しても drift は破棄されない（再取得しない）', async () => {
+      const handle = await mountForDrift();
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="drift"]')?.click();
+      await settle();
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="instruction"]')?.click();
+      await settle();
+
+      const driftRegion = container.querySelector('[data-am-flight-drift]');
+      expect(driftRegion?.hasAttribute('hidden')).toBe(true);
+      expect(driftRegion?.textContent).toContain('Foo');
       handle.destroy();
     });
   });
