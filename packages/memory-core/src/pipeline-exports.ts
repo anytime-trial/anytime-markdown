@@ -8,6 +8,7 @@
 // (型は erase され runtime 汚染しないため)、型のみ必要な consumer は root のままでよい。
 
 export { runCodeIncremental } from './pipeline/runCodeIncremental';
+export { PipelineRunLedger } from './pipeline/PipelineRunLedger';
 export { ingestDecisionComments } from './ingest/code/extractComments';
 export { MemoryCoreService, defaultStatePath } from './service/MemoryCoreService';
 export { MemoryDbSession } from './service/MemoryDbSession';

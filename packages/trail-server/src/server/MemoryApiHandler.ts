@@ -99,10 +99,36 @@ export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
 export interface PipelineRunStatsByDayRow {
   day: string;
   scope: string;
+  wave: string;
   runs: number;
   durationSec: number;
   itemsProcessed: number;
   worstStatus: PipelineRunStatus;
+}
+
+export interface PipelineRunRow {
+  id: string;
+  scope: string;
+  wave: string;
+  tier: number;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number;
+  itemsProcessed: number;
+  itemsFailed: number;
+  errorDetail: string;
+}
+
+export interface PipelineRunLogRow {
+  id: number;
+  timestamp: string;
+  level: string;
+  source: string;
+  component: string;
+  message: string;
+  metadata: string | null;
+  stack: string | null;
 }
 
 export interface FailedItemRow {
@@ -110,6 +136,7 @@ export interface FailedItemRow {
   itemKey: string;
   failedAt: string;
   reason: string;
+  detail: string;
   attemptCount: number;
 }
 
@@ -810,6 +837,7 @@ export class MemoryApiHandler {
       const result = db.exec(
         `SELECT substr(started_at, 1, 10) AS day,
                 scope,
+                wave,
                 COUNT(*) AS runs,
                 COALESCE(SUM(duration_ms), 0) / 1000 AS duration_sec,
                 COALESCE(SUM(items_processed), 0) AS items_processed,
@@ -820,10 +848,10 @@ export class MemoryApiHandler {
                       WHEN 'running' THEN 0
                       ELSE 0
                     END) AS worst_rank
-         FROM memory_pipeline_runs
+         FROM pipeline_runs
          ${where}
-         GROUP BY day, scope
-         ORDER BY day DESC, scope ASC`,
+         GROUP BY day, scope, wave
+         ORDER BY day DESC, scope ASC, wave ASC`,
         toBindParams(bindValues),
       );
       if (!result[0]) return [];
@@ -838,6 +866,7 @@ export class MemoryApiHandler {
         return {
           day: toStr(r['day']),
           scope: toStr(r['scope']),
+          wave: toStr(r['wave']),
           runs: toNum(r['runs']),
           durationSec: toNum(r['duration_sec']),
           itemsProcessed: toNum(r['items_processed']),
@@ -846,6 +875,106 @@ export class MemoryApiHandler {
       });
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.listPipelineRunStatsByDay] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  async listPipelineRuns(params: {
+    since?: string;
+    wave?: string;
+    status?: string;
+    limit?: number;
+  }): Promise<PipelineRunRow[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      const limit = clampLimit(params.limit, 100);
+      const conditions: string[] = [];
+      const bindValues: unknown[] = [];
+      if (params.since) {
+        conditions.push('started_at >= ?');
+        bindValues.push(params.since);
+      }
+      if (params.wave) {
+        conditions.push('wave = ?');
+        bindValues.push(params.wave);
+      }
+      if (params.status) {
+        conditions.push('status = ?');
+        bindValues.push(params.status);
+      }
+      bindValues.push(limit);
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const result = db.exec(
+        `SELECT id, scope, wave, tier, status, started_at, finished_at, duration_ms,
+                items_processed, items_failed, error_detail
+         FROM pipeline_runs
+         ${where}
+         ORDER BY started_at DESC
+         LIMIT ?`,
+        toBindParams(bindValues),
+      );
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return {
+          id: toStr(r['id']),
+          scope: toStr(r['scope']),
+          wave: toStr(r['wave']),
+          tier: toNum(r['tier']),
+          status: toStr(r['status']),
+          startedAt: toStr(r['started_at']),
+          finishedAt: toNullStr(r['finished_at']),
+          durationMs: toNum(r['duration_ms']),
+          itemsProcessed: toNum(r['items_processed']),
+          itemsFailed: toNum(r['items_failed']),
+          errorDetail: toStr(r['error_detail']),
+        };
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.listPipelineRuns] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  async listPipelineRunLogs(params: {
+    runId: string;
+    limit?: number;
+  }): Promise<PipelineRunLogRow[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      const limit = clampLimit(params.limit, 200);
+      const result = db.exec(
+        `SELECT id, timestamp, level, source, component, message, metadata, stack
+         FROM pipeline_run_logs
+         WHERE run_id = ?
+         ORDER BY timestamp ASC, id ASC
+         LIMIT ?`,
+        toBindParams([params.runId, limit]),
+      );
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return {
+          id: toNum(r['id']),
+          timestamp: toStr(r['timestamp']),
+          level: toStr(r['level']),
+          source: toStr(r['source']),
+          component: toStr(r['component']),
+          message: toStr(r['message']),
+          metadata: toNullStr(r['metadata']),
+          stack: toNullStr(r['stack']),
+        };
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.listPipelineRunLogs] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       this.close(db);
@@ -937,7 +1066,7 @@ export class MemoryApiHandler {
       }
       bindValues.push(limit);
       const result = db.exec(
-        `SELECT scope, item_key, failed_at, reason, attempt_count
+        `SELECT scope, item_key, failed_at, reason, detail, attempt_count
          FROM memory_failed_items
          WHERE ${conditions.join(' AND ')}
          ORDER BY failed_at DESC
@@ -953,6 +1082,7 @@ export class MemoryApiHandler {
           itemKey: toStr(r['item_key']),
           failedAt: toStr(r['failed_at']),
           reason: toStr(r['reason']),
+          detail: toStr(r['detail']),
           attemptCount: toNum(r['attempt_count']),
         };
       });

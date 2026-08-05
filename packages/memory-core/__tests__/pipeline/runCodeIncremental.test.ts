@@ -176,7 +176,7 @@ function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
 }
 
 function countPipelineRuns(db: BetterSqlite3MemoryDb): number {
-  const result = db.exec(`SELECT COUNT(*) FROM memory_pipeline_runs WHERE scope = 'code_incremental'`);
+  const result = db.exec(`SELECT COUNT(*) FROM pipeline_runs WHERE scope = 'code_incremental'`);
   return (result[0]?.values[0][0] as number) ?? 0;
 }
 
@@ -273,7 +273,7 @@ describe('runCodeIncremental', () => {
 
       expect(countPipelineRuns(memDb)).toBe(1);
       const runRows = memDb.exec(
-        `SELECT status FROM memory_pipeline_runs WHERE scope = 'code_incremental'`
+        `SELECT status FROM pipeline_runs WHERE scope = 'code_incremental'`
       );
       expect(runRows[0]?.values[0][0]).toBe('success');
     });

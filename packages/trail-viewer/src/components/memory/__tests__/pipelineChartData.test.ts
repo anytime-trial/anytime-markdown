@@ -5,6 +5,7 @@ function row(overrides: Partial<MemoryPipelineRunStatsByDayRow>): MemoryPipeline
   return {
     day: '2026-05-16',
     scope: 'drift',
+    wave: 'memory',
     runs: 1,
     durationSec: 10,
     itemsProcessed: 1,

@@ -6,6 +6,8 @@ import type {
   MemoryDriftEventRow,
   MemoryFailedItemRow,
   MemoryInvalidationRow,
+  MemoryPipelineRunLogRow,
+  MemoryPipelineRunRow,
   MemoryPipelineRunStatsByDayRow,
   MemoryRecurringBugRow,
   MemoryReviewHistoryRow,
@@ -156,6 +158,29 @@ export class MemoryReader {
     if (params.scope) q.set('scope', params.scope);
     if (params.since) q.set('since', params.since);
     return this.fetchJson<MemoryPipelineRunStatsByDayRow[]>(`/api/memory/pipeline/runs/by-day?${q}`);
+  }
+
+  async listPipelineRuns(params: {
+    since?: string;
+    wave?: string;
+    status?: string;
+    limit?: number;
+  } = {}): Promise<readonly MemoryPipelineRunRow[]> {
+    const q = new URLSearchParams();
+    if (params.since) q.set('since', params.since);
+    if (params.wave) q.set('wave', params.wave);
+    if (params.status) q.set('status', params.status);
+    if (params.limit !== undefined) q.set('limit', String(params.limit));
+    return this.fetchJson<MemoryPipelineRunRow[]>(`/api/memory/pipeline/runs?${q}`);
+  }
+
+  async listPipelineRunLogs(params: {
+    runId: string;
+    limit?: number;
+  }): Promise<readonly MemoryPipelineRunLogRow[]> {
+    const q = new URLSearchParams();
+    if (params.limit !== undefined) q.set('limit', String(params.limit));
+    return this.fetchJson<MemoryPipelineRunLogRow[]>(`/api/memory/pipeline/runs/${encodeURIComponent(params.runId)}/logs?${q}`);
   }
 
   async listFailedItems(params: {

@@ -12,12 +12,16 @@ import { mountSourcesPanel } from '../sourcesPanel';
 import { mountSetupGuide } from '../setupGuide';
 import type { MemoryReader } from '../../../data/readers/MemoryReader';
 import type {
+  MemoryPipelineRunLogRow,
+  MemoryPipelineRunRow,
   MemoryPipelineRunStatsByDayRow,
   MemoryTopEntityRow,
   MemoryInvalidationRow,
   MemoryFailedItemRow,
 } from '../../../data/types';
 import type { ChatBridge } from '../../../hooks/useChatBridge';
+import { ja } from '../../../i18n/ja';
+import { en } from '../../../i18n/en';
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -32,6 +36,14 @@ async function flush(): Promise<void> {
   await Promise.resolve();
 }
 
+async function waitForText(el: HTMLElement, text: string): Promise<void> {
+  for (let i = 0; i < 10; i++) {
+    if (el.textContent?.includes(text)) return;
+    await flush();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // MemoryReader mock
 // ---------------------------------------------------------------------------
@@ -39,6 +51,8 @@ async function flush(): Promise<void> {
 function makeReader(
   overrides: Partial<{
     listPipelineRunStatsByDay: (opts: { since: string }) => Promise<readonly MemoryPipelineRunStatsByDayRow[]>;
+    listPipelineRuns: (opts: { since: string; wave?: string; status?: string; limit?: number }) => Promise<readonly MemoryPipelineRunRow[]>;
+    listPipelineRunLogs: (opts: { runId: string; limit?: number }) => Promise<readonly MemoryPipelineRunLogRow[]>;
     listTopEntities: (opts: { limit: number }) => Promise<readonly MemoryTopEntityRow[]>;
     listInvalidations: (opts: { limit: number }) => Promise<readonly MemoryInvalidationRow[]>;
     listFailedItems: (opts: { limit: number }) => Promise<readonly MemoryFailedItemRow[]>;
@@ -47,6 +61,8 @@ function makeReader(
   return {
     probe: () => Promise.resolve(true),
     listPipelineRunStatsByDay: overrides.listPipelineRunStatsByDay ?? (() => Promise.resolve([])),
+    listPipelineRuns: overrides.listPipelineRuns ?? (() => Promise.resolve([])),
+    listPipelineRunLogs: overrides.listPipelineRunLogs ?? (() => Promise.resolve([])),
     listTopEntities: overrides.listTopEntities ?? (() => Promise.resolve([])),
     listInvalidations: overrides.listInvalidations ?? (() => Promise.resolve([])),
     listFailedItems: overrides.listFailedItems ?? (() => Promise.resolve([])),
@@ -112,12 +128,87 @@ describe('mountPipelineRunsPanel', () => {
 
   it('pipeline stats が返ってきたらタイムラインセクションのラベルを含む', async () => {
     const rows: MemoryPipelineRunStatsByDayRow[] = [
-      { day: '2026-06-01', scope: 'episode', runs: 5, durationSec: 10, itemsProcessed: 100, worstStatus: 'success' },
+      { day: '2026-06-01', scope: 'episode', wave: 'memory', runs: 5, durationSec: 10, itemsProcessed: 100, worstStatus: 'success' },
     ];
     const c = document.createElement('div');
     mountPipelineRunsPanel(c, { t, reader: makeReader({ listPipelineRunStatsByDay: () => Promise.resolve(rows) }) });
     await flush();
     expect(c.textContent).toContain('memory.runs.timeline');
+  });
+
+  it('Wave フィルタでタイムラインと実行一覧を絞り込む', async () => {
+    const statsSpy = jest.fn((opts: { since: string }) => Promise.resolve([
+      { day: '2026-06-01', scope: 'episode', wave: 'memory', runs: 5, durationSec: 10, itemsProcessed: 100, worstStatus: 'success' },
+      { day: '2026-06-01', scope: 'system', wave: 'system', runs: 1, durationSec: 4, itemsProcessed: 2, worstStatus: 'success' },
+    ] as MemoryPipelineRunStatsByDayRow[]));
+    const runsSpy = jest.fn((opts: { since: string; wave?: string; limit?: number }) => Promise.resolve([]));
+    const c = document.createElement('div');
+    mountPipelineRunsPanel(c, {
+      t,
+      reader: makeReader({
+        listPipelineRunStatsByDay: statsSpy,
+        listPipelineRuns: runsSpy,
+      }),
+    });
+    await flush();
+
+    const systemChip = [...c.querySelectorAll('[role="button"]')]
+      .find((el) => el.textContent === 'system') as HTMLElement | undefined;
+    expect(systemChip).toBeDefined();
+    systemChip?.click();
+    await flush();
+
+    expect(runsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ wave: 'system' }));
+    expect(statsSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('error 行のクリックで errorDetail とログを展開する', async () => {
+    const runs: MemoryPipelineRunRow[] = [
+      {
+        id: 'run-1',
+        scope: 'episode',
+        wave: 'memory',
+        tier: 1,
+        status: 'error',
+        startedAt: '2026-06-01T00:00:00.000Z',
+        finishedAt: '2026-06-01T00:00:01.000Z',
+        durationMs: 1000,
+        itemsProcessed: 10,
+        itemsFailed: 1,
+        errorDetail: 'full error detail text',
+      },
+    ];
+    const logs: MemoryPipelineRunLogRow[] = [
+      {
+        id: 1,
+        timestamp: '2026-06-01T00:00:00.500Z',
+        level: 'error',
+        source: 'pipeline',
+        component: 'worker',
+        message: 'worker failed',
+        metadata: null,
+        stack: null,
+      },
+    ];
+    const logsSpy = jest.fn(() => Promise.resolve(logs));
+    const c = document.createElement('div');
+    mountPipelineRunsPanel(c, {
+      t,
+      reader: makeReader({
+        listPipelineRuns: () => Promise.resolve(runs),
+        listPipelineRunLogs: logsSpy,
+      }),
+    });
+    await flush();
+
+    const errorCell = [...c.querySelectorAll('td')].find((td) => td.textContent === 'memory.runs.status.error');
+    expect(errorCell).toBeDefined();
+    errorCell?.parentElement?.click();
+    await waitForText(c, 'worker failed');
+
+    expect(logsSpy).toHaveBeenCalledWith({ runId: 'run-1', limit: 100 });
+    expect(c.textContent).toContain('full error detail text');
+    expect(c.textContent).toContain('worker failed');
   });
 
   it('top entities が返ってきたら topEntities セクションのラベルを含む', async () => {
@@ -151,7 +242,7 @@ describe('mountPipelineRunsPanel', () => {
 
   it('failed items が返ってきたら一覧テーブルを描画する', async () => {
     const items: MemoryFailedItemRow[] = [
-      { scope: 'episode', itemKey: 'item-key-123', failedAt: '2026-06-01', reason: 'timeout', attemptCount: 3 },
+      { scope: 'episode', itemKey: 'item-key-123', failedAt: '2026-06-01', reason: 'timeout', detail: 'socket timed out after retry', attemptCount: 3 },
     ];
     const c = document.createElement('div');
     mountPipelineRunsPanel(c, {
@@ -161,7 +252,37 @@ describe('mountPipelineRunsPanel', () => {
     await flush();
     expect(c.textContent).toContain('item-key-123');
     expect(c.textContent).toContain('timeout');
+    expect(c.textContent).toContain('socket timed out after retry');
     expect(c.textContent).toContain('3');
+  });
+
+  it('追加した memory.runs i18n キーが ja/en の両方に存在する', () => {
+    const keys = [
+      'memory.runs.filterWave',
+      'memory.runs.runList',
+      'memory.runs.errorDetail',
+      'memory.runs.logs',
+      'memory.runs.wave.all',
+      'memory.runs.column.startedAt',
+      'memory.runs.column.timestamp',
+      'memory.runs.column.scope',
+      'memory.runs.column.wave',
+      'memory.runs.column.status',
+      'memory.runs.column.duration',
+      'memory.runs.column.itemsProcessed',
+      'memory.runs.column.level',
+      'memory.runs.column.component',
+      'memory.runs.column.message',
+      'memory.runs.column.key',
+      'memory.runs.column.attempts',
+      'memory.runs.column.reason',
+      'memory.runs.column.detail',
+    ] as const;
+
+    for (const key of keys) {
+      expect(ja[key]).toBeTruthy();
+      expect(en[key]).toBeTruthy();
+    }
   });
 
   it('destroy で DOM が除去される', () => {

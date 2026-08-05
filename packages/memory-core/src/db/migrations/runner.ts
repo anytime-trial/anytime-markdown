@@ -26,6 +26,9 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 14, file: '014_spec_doc_reference_type.sql' },
   { version: 15, file: '015_checklist_ref.sql' },
   { version: 16, file: '016_review_workspace.sql' },
+  { version: 17, file: '017_pipeline_run_ledger.sql' },
+  { version: 18, file: '018_pipeline_run_logs.sql' },
+  { version: 19, file: '019_pipeline_run_logs_source.sql' },
 ]
 
 /**

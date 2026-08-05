@@ -7,10 +7,10 @@ export interface PipelineWatchdogResult {
 }
 
 /**
- * Cleans up stale entries in memory_pipeline_runs / memory_pipeline_state that
+ * Cleans up stale entries in pipeline_runs / memory_pipeline_state that
  * a previous pipeline left behind after a crash, VS Code reload, or OS shutdown.
  *
- * - memory_pipeline_runs rows with status='running' older than `timeoutMinutes`
+ * - pipeline_runs rows with status='running' older than `timeoutMinutes`
  *   are flipped to status='error' (error_detail='timeout').
  * - memory_pipeline_state rows with status='running' that no longer have a
  *   matching running run are flipped to status='idle' (last_processed_at is
@@ -30,16 +30,22 @@ export function runPipelineWatchdog(input: {
   // last_heartbeat_at if the pipeline has reported progress, otherwise started_at.
   // This lets long-running backfills (hours) survive the 10-minute timeout
   // as long as they keep updating last_heartbeat_at.
+  //
+  // wave='system' は除外する。daemon プロセスの生存期間を表す run で、進捗を刻む
+  // 対象を持たないため heartbeat が進まない。同じ条件で失効させると、正常稼働中の
+  // daemon が起動 10 分後に必ず 'timeout' で失敗扱いになり、台帳に偽のエラーが
+  // 積み上がる。system run の終了は daemon 自身が shutdown 時に finish() で記録する。
   const staleRunRows = db.exec(
-    `SELECT id FROM memory_pipeline_runs
+    `SELECT id FROM pipeline_runs
      WHERE status = 'running'
+       AND wave != 'system'
        AND julianday(COALESCE(last_heartbeat_at, started_at)) < julianday(?) - CAST(? AS REAL) / 1440.0`,
     [now, timeoutMinutes],
   );
   const runIds = (staleRunRows[0]?.values ?? []).map((r) => r[0] as string);
   for (const id of runIds) {
     db.run(
-      `UPDATE memory_pipeline_runs
+      `UPDATE pipeline_runs
        SET status       = 'error',
            finished_at  = ?,
            error_detail = 'timeout',
@@ -54,7 +60,7 @@ export function runPipelineWatchdog(input: {
     `SELECT s.scope FROM memory_pipeline_state s
      WHERE s.status = 'running'
        AND NOT EXISTS (
-         SELECT 1 FROM memory_pipeline_runs r
+         SELECT 1 FROM pipeline_runs r
          WHERE r.scope = s.scope AND r.status = 'running'
        )`,
   );

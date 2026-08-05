@@ -36,6 +36,7 @@ export interface QueryResult {
   nextCursor: string | null;
 }
 
+/** system run に溜まる live ログの総件数上限。超過分を古い順に落とす。 */
 const HARD_LIMIT = 1_000_000;
 
 export class LogService {
@@ -44,10 +45,11 @@ export class LogService {
   constructor(
     private readonly db: MemoryDbConnection,
     private readonly broadcaster: LogBroadcaster,
+    private readonly systemRunId: string,
   ) {
     this.insertStmt = this.db.prepare(`
-      INSERT INTO extension_logs (timestamp, level, source, component, message, metadata, stack)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
   }
 
@@ -58,6 +60,7 @@ export class LogService {
     try {
       for (const e of logs) {
         const result = this.insertStmt.run(
+          this.systemRunId,
           e.timestamp,
           e.level,
           source,
@@ -117,7 +120,7 @@ export class LogService {
     const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
     const sql = `
       SELECT id, timestamp, level, source, component, message, metadata, stack
-      FROM extension_logs
+      FROM pipeline_run_logs
       ${where}
       ORDER BY timestamp DESC, id DESC
       LIMIT ?
@@ -149,29 +152,52 @@ export class LogService {
     return { logs, nextCursor };
   }
 
+  /**
+   * live ログ（daemon / 拡張本体の垂れ流し）だけを刈り込む。
+   *
+   * 保持ポリシーを `run_id = systemRunId` に限定するのが要点。analyzer の run に
+   * 紐づく調査用ログは run 件数で自然に上限が付き、かつ「あとから失敗理由を追う」
+   * という本機能の目的そのものなので消さない。一方 system run は daemon が動いて
+   * いる限り全ログを集約し続けるため、無制限だと memory-core.db と /api/logs の
+   * クエリ負荷が悪化する（旧 extension_logs が保持期限を持っていた理由）。
+   */
   cleanup(now: Date = new Date()): void {
-    const debugCutoff = new Date(now.getTime() - 3 * 24 * 3600 * 1000).toISOString();
-    const infoCutoff = new Date(now.getTime() - 30 * 24 * 3600 * 1000).toISOString();
-    const errCutoff = new Date(now.getTime() - 90 * 24 * 3600 * 1000).toISOString();
-    this.db.run(`DELETE FROM extension_logs WHERE level = 'debug' AND timestamp < ?`, [debugCutoff]);
-    this.db.run(`DELETE FROM extension_logs WHERE level = 'info' AND timestamp < ?`, [infoCutoff]);
-    this.db.run(`DELETE FROM extension_logs WHERE level IN ('warn','error') AND timestamp < ?`, [errCutoff]);
+    const cutoff = (days: number): string =>
+      new Date(now.getTime() - days * 24 * 3600 * 1000).toISOString();
 
-    const countStmt = this.db.prepare(`SELECT COUNT(*) AS n FROM extension_logs`);
-    let n = 0;
+    this.db.run(
+      `DELETE FROM pipeline_run_logs
+       WHERE run_id = ? AND level = 'debug' AND timestamp < ?`,
+      [this.systemRunId, cutoff(3)],
+    );
+    this.db.run(
+      `DELETE FROM pipeline_run_logs
+       WHERE run_id = ? AND level = 'info' AND timestamp < ?`,
+      [this.systemRunId, cutoff(30)],
+    );
+    this.db.run(
+      `DELETE FROM pipeline_run_logs
+       WHERE run_id = ? AND level IN ('warn','error') AND timestamp < ?`,
+      [this.systemRunId, cutoff(90)],
+    );
+
+    const countStmt = this.db.prepare(
+      `SELECT COUNT(*) AS n FROM pipeline_run_logs WHERE run_id = ?`,
+    );
+    let total = 0;
     try {
-      const row = countStmt.get();
-      n = Number(row?.n ?? 0);
+      const row = countStmt.get(this.systemRunId);
+      total = Number(row?.n ?? 0);
     } finally {
       countStmt.free?.();
     }
-    if (n > HARD_LIMIT) {
-      const excess = n - HARD_LIMIT;
+    if (total > HARD_LIMIT) {
       this.db.run(
-        `DELETE FROM extension_logs WHERE id IN (
-          SELECT id FROM extension_logs ORDER BY timestamp ASC, id ASC LIMIT ?
+        `DELETE FROM pipeline_run_logs WHERE id IN (
+          SELECT id FROM pipeline_run_logs WHERE run_id = ?
+          ORDER BY timestamp ASC, id ASC LIMIT ?
         )`,
-        [excess],
+        [this.systemRunId, total - HARD_LIMIT],
       );
     }
   }

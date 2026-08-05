@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
+import { PipelineRunLedger } from './PipelineRunLedger';
 import { splitEpisodes, type Message } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
@@ -32,13 +32,6 @@ function resolveExtractConcurrency(): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 1) return DEFAULT_EXTRACT_CONCURRENCY;
   return Math.floor(n);
-}
-
-function runId(startedAt: string): string {
-  return createHash('sha1')
-    .update(`${RETRY_SCOPE}:${startedAt}`)
-    .digest('hex')
-    .slice(0, 16);
 }
 
 interface FailedItemRow {
@@ -163,46 +156,6 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(db: MemoryDbConnection, id: string, startedAt: string): void {
-  db.run(
-    `INSERT INTO memory_pipeline_runs
-       (id, scope, started_at, status,
-        items_processed, entities_inserted, entities_updated,
-        edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms, last_heartbeat_at)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0, ?)`,
-    [id, RETRY_SCOPE, startedAt, startedAt]
-  );
-}
-
-function updateHeartbeatAndProgress(
-  db: MemoryDbConnection,
-  id: string,
-  totals: PersistStats & { items_processed: number; items_failed: number },
-): void {
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       last_heartbeat_at = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       entities_updated  = ?,
-       edges_inserted    = ?,
-       edges_invalidated = ?,
-       items_failed      = ?
-     WHERE id = ?`,
-    [
-      new Date().toISOString(),
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.entities_updated,
-      totals.edges_inserted,
-      totals.edges_invalidated,
-      totals.items_failed,
-      id,
-    ]
-  );
-}
-
 type PartialReturnPayload = {
   status: 'partial';
   items_retried: number;
@@ -216,8 +169,7 @@ type PartialReturnPayload = {
  */
 function enterQuarantine(
   db: MemoryDbConnection,
-  rId: string,
-  startedAt: string,
+  ledger: PipelineRunLedger,
   errorDetail: string,
   totals: PersistStats & { items_processed: number; items_failed: number },
   recoveredCount: number,
@@ -227,49 +179,13 @@ function enterQuarantine(
     `[anytime-memory] failed-items retry: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
   );
   upsertPipelineState(db, { status: 'quarantine', error_detail: errorDetail });
-  finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+  ledger.finish('partial', totals, errorDetail);
   return {
     status: 'partial',
     items_retried: totals.items_processed,
     items_recovered: recoveredCount,
     items_failed: totals.items_failed,
   };
-}
-
-function finalizePipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string,
-  status: PipelineStatus,
-  totals: PersistStats & { items_processed: number; items_failed: number },
-): void {
-  const finishedAt = new Date().toISOString();
-  const durationMs = Date.now() - new Date(startedAt).getTime();
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       finished_at       = ?,
-       status            = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       entities_updated  = ?,
-       edges_inserted    = ?,
-       edges_invalidated = ?,
-       items_failed      = ?,
-       duration_ms       = ?
-     WHERE id = ?`,
-    [
-      finishedAt,
-      status,
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.entities_updated,
-      totals.edges_inserted,
-      totals.edges_invalidated,
-      totals.items_failed,
-      durationMs,
-      id,
-    ]
-  );
 }
 
 export interface FailedItemsRetryResult {
@@ -319,9 +235,9 @@ export async function runConversationFailedItemsRetry(opts: {
   const extractConcurrency = resolveExtractConcurrency();
 
   const startedAt = new Date().toISOString();
-  const rId = runId(startedAt);
+  const ledger = new PipelineRunLedger({ db, scope: RETRY_SCOPE, wave: 'memory', tier: 3, logger });
 
-  insertPipelineRun(db, rId, startedAt);
+  ledger.start(startedAt);
   upsertPipelineState(db, { status: 'running' });
 
   const items = loadFailedItems(db, sourceScopes, maxAttempts);
@@ -342,7 +258,7 @@ export async function runConversationFailedItemsRetry(opts: {
       `[anytime-memory] failed-items retry: no items to retry (source=${sourceLabel}, maxAttempts=${maxAttempts})`
     );
     upsertPipelineState(db, { status: 'idle' });
-    finalizePipelineRun(db, rId, startedAt, 'success', totals);
+    ledger.finish('success', totals);
     return { status: 'success', items_retried: 0, items_recovered: 0, items_failed: 0 };
   }
 
@@ -392,7 +308,7 @@ export async function runConversationFailedItemsRetry(opts: {
           logger.info(
             `[anytime-memory] failed-items retry progress: ${totals.items_processed}/${items.length}`
           );
-          updateHeartbeatAndProgress(db, rId, totals);
+          ledger.heartbeat(totals);
           save?.();
         }
 
@@ -403,7 +319,7 @@ export async function runConversationFailedItemsRetry(opts: {
           recordFailedItem(db, item.scope, item.item_key, 'episode_not_found',
             `episode not reconstructed from trail.db for ${item.item_key}`);
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-            return enterQuarantine(db, rId, startedAt,
+            return enterQuarantine(db, ledger,
               `${QUARANTINE_THRESHOLD} consecutive failures`, totals, recoveredCount, logger);
           }
           continue;
@@ -416,7 +332,7 @@ export async function runConversationFailedItemsRetry(opts: {
           recordFailedItem(db, item.scope, item.item_key, 'extraction_failed',
             `retry attempt ${item.attempt_count + 1} failed`);
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-            return enterQuarantine(db, rId, startedAt,
+            return enterQuarantine(db, ledger,
               `${QUARANTINE_THRESHOLD} consecutive extraction failures`, totals, recoveredCount, logger);
           }
           continue;
@@ -462,7 +378,7 @@ export async function runConversationFailedItemsRetry(opts: {
       status: 'error',
       error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
-    finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+    ledger.fail(err, totals);
     return {
       status: finalStatus,
       items_retried: totals.items_processed,
@@ -472,7 +388,7 @@ export async function runConversationFailedItemsRetry(opts: {
   }
 
   upsertPipelineState(db, { status: 'idle' });
-  finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+  ledger.finish(finalStatus, totals);
 
   return {
     status: finalStatus,

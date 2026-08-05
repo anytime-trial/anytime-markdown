@@ -573,29 +573,6 @@ export const CREATE_FILE_ANALYSIS_INDEXES = [
     ON current_file_analysis (repo_id, centrality_score DESC)`,
 ];
 
-// Extension and daemon logs for live streaming and history search.
-// Persisted to trail.db, inserted by daemon via LogService, broadcast via WebSocket.
-export const CREATE_EXTENSION_LOGS = `CREATE TABLE IF NOT EXISTS extension_logs (
-  id INTEGER PRIMARY KEY,
-  timestamp TEXT NOT NULL
-    CHECK (timestamp GLOB ${TS_GLOB_MS} OR timestamp GLOB ${TS_GLOB_NO_MS}),
-  level TEXT NOT NULL
-    CHECK (level IN ('debug', 'info', 'warn', 'error')),
-  source TEXT NOT NULL
-    CHECK (source IN ('extension', 'daemon')),
-  component TEXT NOT NULL DEFAULT '',
-  message TEXT NOT NULL,
-  metadata TEXT
-    CHECK (metadata IS NULL OR json_valid(metadata)),
-  stack TEXT
-) STRICT`;
-
-export const CREATE_EXTENSION_LOGS_INDEXES = [
-  `CREATE INDEX IF NOT EXISTS idx_extension_logs_timestamp ON extension_logs(timestamp)`,
-  `CREATE INDEX IF NOT EXISTS idx_extension_logs_level_timestamp ON extension_logs(level, timestamp)`,
-  `CREATE INDEX IF NOT EXISTS idx_extension_logs_source ON extension_logs(source)`,
-];
-
 // LEP Layer 4 (Aggregator): DORA 指標の月次集計。`DoraMetricsAggregator` が
 // 既存 trail.db データ (releases / session_commits) のみから算出して書き込む。
 // 本 Step で算出するのは deployment frequency (期間内 release 件数) と

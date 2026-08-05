@@ -457,9 +457,9 @@ export class TrailDataServer {
   }
 
   /**
-   * extension_logs ストリーミング用の LogService を wire する。設定後は
+   * pipeline_run_logs ストリーミング用の LogService を wire する。設定後は
    * `POST /api/logs` と `GET /api/logs` が有効化され、内部 logger が
-   * composite (OutputChannel + extension_logs) に置き換わる。未設定のうちは 503 を返す。
+   * composite (OutputChannel + pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
    *
    * `TRAIL_LOGS_MIN_LEVEL` 環境変数で LogSink の閾値を制御できる ('info'/'warn'/'error'/'debug')。
    */
@@ -540,6 +540,10 @@ export class TrailDataServer {
     });
   }
 
+  /**
+   * live ログの刈り込みタイマー。刈るのは system run（daemon / 拡張の垂れ流し）に
+   * 限られ、analyzer の run に紐づく調査用ログは対象外（LogService.cleanup 参照）。
+   */
   private startLogCleanupTimer(): void {
     if (this.logCleanupTimer) return;
     // 起動直後 1 回 + 24h 周期で cleanup
@@ -1095,6 +1099,20 @@ export class TrailDataServer {
       this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs/by-day', this.memoryApi.listPipelineRunStatsByDay({
         scope: ctx.queryOpt('scope'),
         since: ctx.queryOpt('since'),
+      })));
+
+    t.exact('GET', '/api/memory/pipeline/runs', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs', this.memoryApi.listPipelineRuns({
+        since: ctx.queryOpt('since'),
+        wave: ctx.queryOpt('wave'),
+        status: ctx.queryOpt('status'),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 100, 1, 200),
+      })));
+
+    t.pattern('GET', /^\/api\/memory\/pipeline\/runs\/([^/]+)\/logs$/, (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs/:runId/logs', this.memoryApi.listPipelineRunLogs({
+        runId: decodeURIComponent(ctx.params[0] ?? ''),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 200, 1, 200),
       })));
 
     t.exact('GET', '/api/memory/pipeline/failed', (ctx) =>

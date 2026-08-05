@@ -15,7 +15,7 @@ export interface LogSinkOptions {
 }
 
 /**
- * daemon 内部 logger を `extension_logs` テーブルへ永続化する Logger sink.
+ * daemon 内部 logger を `pipeline_run_logs` テーブルへ永続化する Logger sink.
  * insertBatch が失敗しても呼び出し元には伝播させず best-effort で続行する。
  */
 export class LogSink implements Logger {

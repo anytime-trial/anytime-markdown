@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
+import { PipelineRunLedger } from './PipelineRunLedger';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
@@ -42,14 +42,6 @@ export interface BackfillResult {
   items_failed: number;
 }
 
-function runId(startedAt: string): string {
-  const nonce = process.hrtime.bigint().toString(36);
-  return createHash('sha1')
-    .update(`${SCOPE}:${startedAt}:${nonce}`)
-    .digest('hex')
-    .slice(0, 16);
-}
-
 function upsertPipelineState(
   db: MemoryDbConnection,
   opts: {
@@ -74,52 +66,6 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string
-): void {
-  // last_heartbeat_at is initialized to started_at so pipelineWatchdog has a
-  // valid signal from the very first moment of the run.
-  db.run(
-    `INSERT INTO memory_pipeline_runs
-       (id, scope, started_at, status,
-        items_processed, entities_inserted, entities_updated,
-        edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms, last_heartbeat_at)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0, ?)`,
-    [id, SCOPE, startedAt, startedAt]
-  );
-}
-
-function updateHeartbeatAndProgress(
-  db: MemoryDbConnection,
-  id: string,
-  totals: PersistStats & { items_processed: number; items_failed: number }
-): void {
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       last_heartbeat_at = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       entities_updated  = ?,
-       edges_inserted    = ?,
-       edges_invalidated = ?,
-       items_failed      = ?
-     WHERE id = ?`,
-    [
-      new Date().toISOString(),
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.entities_updated,
-      totals.edges_inserted,
-      totals.edges_invalidated,
-      totals.items_failed,
-      id,
-    ]
-  );
-}
-
 function computeSinceISO(db: MemoryDbConnection, sinceDays: number): string {
   const sinceFromDays = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
   const rows = db.exec(
@@ -135,42 +81,6 @@ function computeSinceISO(db: MemoryDbConnection, sinceDays: number): string {
     return lastProcessedAt;
   }
   return sinceFromDays;
-}
-
-function finalizePipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string,
-  status: 'success' | 'partial' | 'error',
-  totals: PersistStats & { items_processed: number; items_failed: number }
-): void {
-  const finishedAt = new Date().toISOString();
-  const durationMs = Date.now() - new Date(startedAt).getTime();
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       finished_at       = ?,
-       status            = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       entities_updated  = ?,
-       edges_inserted    = ?,
-       edges_invalidated = ?,
-       items_failed      = ?,
-       duration_ms       = ?
-     WHERE id = ?`,
-    [
-      finishedAt,
-      status,
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.entities_updated,
-      totals.edges_inserted,
-      totals.edges_invalidated,
-      totals.items_failed,
-      durationMs,
-      id,
-    ]
-  );
 }
 
 function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
@@ -296,7 +206,7 @@ export async function runConversationBackfill(opts: {
   const extractConcurrency = resolveExtractConcurrency();
 
   const startedAt = new Date().toISOString();
-  const rId = runId(startedAt);
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
 
   // ── 1. Compute sinceISO: max(sinceDays前, last_processed_at) ─────────────
   // Resume from last_processed_at when it's set, so re-runs after VS Code
@@ -304,7 +214,7 @@ export async function runConversationBackfill(opts: {
   const sinceISO = computeSinceISO(db, sinceDays);
 
   // ── 2. Insert pipeline_run + mark state as running ───────────────────────
-  insertPipelineRun(db, rId, startedAt);
+  ledger.start(startedAt);
   upsertPipelineState(db, { status: 'running' });
 
   // Accumulators
@@ -358,7 +268,7 @@ export async function runConversationBackfill(opts: {
   // convTotalEstimate は user メッセージ全件カウントで膨張するため、UI 表示は
   // この値で上書きする想定。
   onTotal?.(toProcess);
-  updateHeartbeatAndProgress(db, rId, totals);
+  ledger.heartbeat(totals);
   save?.();
 
   let sessionIdx = 0;
@@ -369,7 +279,7 @@ export async function runConversationBackfill(opts: {
       logger.info(
         `[anytime-memory] backfill: session ${sessionIdx}/${totalSessions} — ${session_id.slice(0, 12)} (${episodes.length} episodes)`
       );
-      updateHeartbeatAndProgress(db, rId, totals);
+      ledger.heartbeat(totals);
       save?.();
 
       // Partition episodes into skipped (already in DB) and to-extract.
@@ -442,7 +352,7 @@ export async function runConversationBackfill(opts: {
           // Progress log every PROGRESS_LOG_INTERVAL episodes
           if (totals.items_processed % PROGRESS_LOG_INTERVAL === 0) {
             logger.info(`[anytime-memory] backfill progress: ${totals.items_processed}/${toProcess} episodes processed (${totals.items_skipped} skipped)`);
-            updateHeartbeatAndProgress(db, rId, totals);
+            ledger.heartbeat(totals);
             save?.();
           }
 
@@ -459,7 +369,7 @@ export async function runConversationBackfill(opts: {
               last_processed_at: episodeResult.quarantineCursor,
               error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
             });
-            finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+            ledger.finish('partial', totals, `${QUARANTINE_THRESHOLD} consecutive extraction failures`);
             return { status: 'partial', ...totals };
           }
 
@@ -500,7 +410,7 @@ export async function runConversationBackfill(opts: {
       status: 'error',
       error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
-    finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+    ledger.fail(err, totals);
     return { status: finalStatus, ...totals };
   }
 
@@ -514,7 +424,7 @@ export async function runConversationBackfill(opts: {
         `(processed=${totals.items_processed}, failed=${totals.items_failed}), cursor unchanged`
     );
     upsertPipelineState(db, { status: 'idle', last_processed_at: '' });
-    finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+    ledger.finish('partial', totals, 'throttle COOLING — stopped early, cursor unchanged');
     return { status: 'partial', ...totals };
   }
 
@@ -542,7 +452,7 @@ export async function runConversationBackfill(opts: {
     [nextSince]
   );
 
-  finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+  ledger.finish(finalStatus, totals);
 
   return { status: finalStatus, ...totals };
 }

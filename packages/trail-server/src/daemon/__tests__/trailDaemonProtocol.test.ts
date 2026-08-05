@@ -332,7 +332,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
         distPath: '/ext/dist',
         trailDbPath: '/ext/dist/trail.db',
         logService: {
-          extensionLogsDbPath: '/home/user/.vscode-server/data/extension-logs.db',
+          nativeBinding: '/ext/dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
         },
       } satisfies SerializableHttpServerOptions,
     };

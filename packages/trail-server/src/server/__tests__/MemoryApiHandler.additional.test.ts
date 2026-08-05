@@ -112,7 +112,7 @@ function buildMinimalDb(dbPath: string): void {
     model TEXT NOT NULL DEFAULT ''
   ) STRICT`);
 
-  run(`CREATE TABLE memory_pipeline_runs (
+  run(`CREATE TABLE pipeline_runs (
     id TEXT PRIMARY KEY,
     scope TEXT NOT NULL,
     started_at TEXT NOT NULL,

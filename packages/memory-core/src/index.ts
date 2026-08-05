@@ -1,6 +1,9 @@
 export { searchMemory, vectorTopK } from './retrieve/searchMemory';
 export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from './retrieve/searchMemory';
 export { openMemoryCoreDb } from './db/connection';
+// テストが実 migration でスキーマを組めるようにする（手書き DDL だと
+// migration 側の変更に追随せず、乖離を検知できないまま緑になる）。
+export { runMigrations } from './db/migrations/runner';
 export type { MemoryCoreDb, OpenMemoryCoreDbOptions } from './db/connection';
 export { getMemoryCoreDbPath, getTrailHome } from './db/paths';
 export { attachTrailDbReadOnly, attachTrailDbFromHandle } from './db/attach';
@@ -169,6 +172,7 @@ export {
   topoSortByDependsOn,
 } from './lep';
 export type {
+  PipelineRunLedgerFactory,
   AnalyzerEvent,
   Analyzer,
   AnalyzerContext,
