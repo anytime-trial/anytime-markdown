@@ -8,8 +8,16 @@
 
 import * as path from 'node:path';
 
-import { openMemoryCoreDb, type MemoryCoreDb } from '@anytime-markdown/memory-core';
-import { MemoryCoreService, PipelineRunLedger } from '@anytime-markdown/memory-core/pipeline';
+import {
+  openMemoryCoreDb,
+  type MemoryCoreDb,
+  type PipelineRunLedgerFactory,
+} from '@anytime-markdown/memory-core';
+import {
+  MemoryCoreService,
+  PipelineRunLedger,
+  createPipelineRunLedgerFactory,
+} from '@anytime-markdown/memory-core/pipeline';
 import { makeChildAnalyzeFn } from '../analyze/childAnalyzeFn';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 
@@ -178,6 +186,11 @@ let httpChatBridge: ChatBridge | null = null;
 let httpLogLedgerDb: MemoryCoreDb | null = null;
 /** daemon の生存期間を表す wave='system' の run。disposeAll() で閉じる。 */
 let httpSystemRunLedger: PipelineRunLedger | null = null;
+/**
+ * Wave 1/2/4 の実行台帳ファクトリ。LogService と同じ memory-core.db 接続を共有するため
+ * startHttpServer() で確定し、その後の rebuildAnalyzeAllRunner() が LepOrchestrator へ注入する。
+ */
+let httpPipelineRunLedgerFactory: PipelineRunLedgerFactory | null = null;
 
 /** テスト用: 状態リセット。 */
 export function _resetForTest(): void {
@@ -192,6 +205,7 @@ export function _resetForTest(): void {
   httpRebuildSchedulerDisposable = null;
   httpChatBridge = null;
   httpLogLedgerDb = null;
+  httpPipelineRunLedgerFactory = null;
 }
 
 /** テスト用: 現在の AnalyzeAllRunner を返す (import パイプライン配線の検証用)。 */
@@ -315,6 +329,8 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
     githubPrReview: undefined,
     importAllStatusFilePath: cfg.importAllStatusFilePath,
     pipelineStatusFilePath: cfg.pipelineStatusFilePath,
+    // startHttpServer() 後に呼び直される再構築で確定する (LogService と同じ接続)。
+    openPipelineRunLedger: httpPipelineRunLedgerFactory ?? undefined,
     onImportProgress: (message: string) => sendEvent('progress', { message }),
     // typescript を引き込む同期 `analyze` の代わりに analyze-child へ fork する非同期
     // 実装を注入する。release 解析は TrailGraph のみ使うため child の graph を返す。
@@ -406,6 +422,13 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     const logService = new LogService(logLedgerDb, systemRunId);
     server.setLogService(logService);
     httpLogLedgerDb = logLedgerCoreDb;
+    // Wave 1/2/4 の台帳も同じ接続を使う。CLI 経路 (cli.ts) だけがこれを注入しており、
+    // production 経路である daemon では落ちていたため sources / primary / derived の run が
+    // 1 行も残っていなかった。
+    httpPipelineRunLedgerFactory = createPipelineRunLedgerFactory({
+      db: logLedgerDb,
+      logger: daemonLoggerAsLogger,
+    });
     daemonLogger.info(`[daemon] LogService wired: ${opts.memoryDbPath}`);
   }
 

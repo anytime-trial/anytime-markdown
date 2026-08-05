@@ -3,8 +3,8 @@ import { Command } from 'commander';
 import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { MemoryCoreService, PipelineRunLedger } from '@anytime-markdown/memory-core/pipeline';
-import { type MemoryCoreLogSink, type LepStage, type PipelineRunLedgerFactory, getMemoryCoreDbPath, getTrailHome, openMemoryCoreDb } from '@anytime-markdown/memory-core';
+import { MemoryCoreService, PipelineRunLedger, createPipelineRunLedgerFactory } from '@anytime-markdown/memory-core/pipeline';
+import { type MemoryCoreLogSink, type LepStage, getMemoryCoreDbPath, getTrailHome, openMemoryCoreDb } from '@anytime-markdown/memory-core';
 import { ChatBridge } from './memory-chat/chatBridge';
 import { RebuildScheduler } from './memory-chat/rebuildScheduler';
 import { TrailDataServer } from './server/TrailDataServer';
@@ -334,21 +334,10 @@ program
       ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
     });
     const ledgerDb = ledgerCoreDb.conn ?? ledgerCoreDb.db;
-    const hasPipelineRunsTable = (): boolean => {
-      try {
-        const rows = ledgerDb.exec(
-          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pipeline_runs'`,
-        );
-        return (rows[0]?.values.length ?? 0) > 0;
-      } catch (err) {
-        logger.error('pipeline_runs table probe failed', err);
-        return false;
-      }
-    };
-    const openPipelineRunLedger: PipelineRunLedgerFactory = (scope, wave, tier) =>
-      hasPipelineRunsTable()
-        ? new PipelineRunLedger({ db: ledgerDb, scope, wave, tier, logger: memoryLogger })
-        : null;
+    const openPipelineRunLedger = createPipelineRunLedgerFactory({
+      db: ledgerDb,
+      logger: memoryLogger,
+    });
 
     const systemRunLedger = new PipelineRunLedger({
       db: ledgerDb,

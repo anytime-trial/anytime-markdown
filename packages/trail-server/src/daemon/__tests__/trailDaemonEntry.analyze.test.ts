@@ -71,6 +71,10 @@ jest.mock('../../analyze/CodeGraphService', () => ({
   })),
 }));
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { _getAnalyzeAllRunnerForTest, _resetForTest, dispatch } from '../trailDaemonEntry';
 import { runAnalyzeCurrentCodePipeline, runAnalyzeReleaseCodePipeline } from '../../analyze/AnalyzePipeline';
 import { TrailDataServer } from '../../server/TrailDataServer';
@@ -86,6 +90,12 @@ const MINIMAL_CFG = {
   pipelineStatusFilePath: '/tmp/pipeline-status.json',
   memoryCore: null,
 };
+
+/**
+ * better-sqlite3 の native binding。既定値は `distPath/node_modules/...` を指すが、
+ * テストの distPath は実在しないため repo の実体を明示的に渡す。
+ */
+const BETTER_SQLITE3_BINDING = require.resolve('better-sqlite3/build/Release/better_sqlite3.node');
 
 /** startHttpServer() を成功させるための最小オプション。 */
 const MINIMAL_HTTP_OPTS = {
@@ -186,6 +196,43 @@ describe('trailDaemonEntry.dispatch — import pipeline wiring (trailDb)', () =>
     await dispatch('configure', CFG);
     await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
     expect(_getAnalyzeAllRunnerForTest()?.importEnabled).toBe(true);
+  });
+});
+
+describe('trailDaemonEntry.dispatch — Wave 1/2/4 実行台帳の配線', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    _resetForTest();
+    dir = mkdtempSync(join(tmpdir(), 'daemon-run-ledger-'));
+  });
+  afterEach(async () => {
+    // memory-core.db の接続を閉じてから temp dir を消す (WAL が残ると後続で開けない)。
+    await dispatch('dispose', {});
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // 回帰: Wave 1/2/4 を pipeline_runs へ記録する openPipelineRunLedger は cli.ts でしか
+  // 注入されておらず、production 経路である daemon では落ちていた。Wave は走るのに台帳は
+  // wave='memory' と 'system' しか埋まらず、Trail Pipeline の Runs 画面では sources /
+  // primary / derived が恒久的に空 = 「パイプラインが動作していない」に見えた (2026-08-05)。
+  // 台帳の書き込みは fail-open で失敗しても ingest が成功するため、配線の有無を直接検査する。
+  const CFG = { ...MINIMAL_CFG, stage: 'primary' as const };
+
+  it('logService 付き startHttpServer 後に実行台帳が配線される', async () => {
+    await dispatch('configure', CFG);
+    await dispatch('startHttpServer', {
+      ...MINIMAL_HTTP_OPTS,
+      memoryDbPath: join(dir, 'memory-core.db'),
+      logService: { nativeBinding: BETTER_SQLITE3_BINDING },
+    });
+    expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(true);
+  });
+
+  it('logService 無しでは配線されない (memory-core.db 接続が無いため)', async () => {
+    await dispatch('configure', CFG);
+    await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
+    expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(false);
   });
 });
 

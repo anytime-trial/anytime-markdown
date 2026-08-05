@@ -229,6 +229,7 @@ export class AnalyzeAllRunner extends BaseRunner {
   private readonly importPipelineEnabled: boolean;
   private readonly pipelineStatusFilePath: string | undefined;
   private readonly shouldDeferScheduled: (() => boolean) | undefined;
+  private readonly openPipelineRunLedger: PipelineRunLedgerFactory | undefined;
 
   // Layer 3 (memory) analyzer (7 個) の error 集約に使う id 一覧。
   // Wave 3 完了後に provider.closeIfOpen() を呼ぶ。
@@ -393,6 +394,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     this.stage = opts.stage ?? 'primary+memory';
     this.pipelineStatusFilePath = opts.pipelineStatusFilePath;
     this.shouldDeferScheduled = opts.shouldDeferScheduled;
+    this.openPipelineRunLedger = opts.openPipelineRunLedger;
 
     this.registeredAnalyzerIds = analyzers.map((a) => a.id);
 
@@ -405,7 +407,7 @@ export class AnalyzeAllRunner extends BaseRunner {
       },
       // Wave 1/2/4 の実行台帳。DB 接続の生存期間は daemon が持つため、ここでは
       // 開かずに注入されたファクトリを渡すだけにする (trailDb / memoryCoreService と同じ方針)。
-      opts.openPipelineRunLedger,
+      this.openPipelineRunLedger,
     );
 
     this.onAfterRun = opts.onAfterRun;
@@ -558,6 +560,15 @@ export class AnalyzeAllRunner extends BaseRunner {
    */
   get importEnabled(): boolean {
     return this.importPipelineEnabled;
+  }
+
+  /**
+   * Wave 1/2/4 の実行を `pipeline_runs` へ記録する台帳が配線されているか。
+   * `importEnabled` と同じく、ホスト (CLI / daemon) 側の注入漏れを検証するために公開する
+   * (台帳は fail-open で、落ちていても ingest は成功したように見えるため外から観測できない)。
+   */
+  get runLedgerEnabled(): boolean {
+    return this.openPipelineRunLedger !== undefined;
   }
 
   /**
