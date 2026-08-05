@@ -17,6 +17,7 @@ import type { FlightReviewOutcome, FlightReviewStore } from '../data/flightRevie
 import { buildFlightReviewCsv, downloadCsv } from '../data/flightReviewCsv';
 import { formatDurationSeconds, mountRetrospectiveView, type RetrospectiveViewProps } from './retrospectiveView';
 import type { TrailThemeTokens } from '../theme/designTokens';
+import { applyThinScrollbar } from '../theme/thinScrollbar';
 
 export interface FlightReviewPanelProps {
   readonly isDark: boolean;
@@ -40,7 +41,15 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
   style.id = STYLE_ID;
   const c = tokens.colors;
   style.textContent = `
-[data-am-flight-root] { display: flex; flex-direction: column; gap: 12px; padding: 12px; color: ${c.textPrimary}; }
+/* タブパネルの器（trailViewer の getPanelContainer）は overflow:hidden で、シェル側にも
+   スクロール領域が無い。パネル自身が内部スクロールを持たないと、はみ出した一覧は
+   どこにもスクロールできず切り落とされる。root → body → list/detail の各段に
+   min-height:0 を置くのは、flex アイテムの既定 min-height:auto が中身の高さを
+   下限にしてしまい、親が縮まらず overflow が発火しないため。 */
+[data-am-flight-root] {
+  display: flex; flex-direction: column; gap: 12px; padding: 12px; color: ${c.textPrimary};
+  flex: 1 1 auto; min-height: 0; box-sizing: border-box; overflow: hidden;
+}
 [data-am-flight-toolbar] { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
 [data-am-flight-toolbar] label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: ${c.textSecondary}; }
 [data-am-flight-toolbar] select, [data-am-flight-toolbar] input {
@@ -51,8 +60,8 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
   padding: 7px 14px; border-radius: 4px; font-size: 13px; cursor: pointer;
   border: 1px solid ${c.border}; background: ${c.sectionBg}; color: ${c.textPrimary};
 }
-[data-am-flight-body] { display: flex; gap: 16px; align-items: flex-start; }
-[data-am-flight-list] { flex: 1 1 55%; min-width: 0; }
+[data-am-flight-body] { display: flex; gap: 16px; align-items: stretch; flex: 1 1 auto; min-height: 0; }
+[data-am-flight-list] { flex: 1 1 55%; min-width: 0; min-height: 0; overflow-y: auto; }
 [data-am-flight-table] { width: 100%; border-collapse: collapse; font-size: 12px; }
 [data-am-flight-table] th, [data-am-flight-table] td {
   text-align: left; padding: 6px 8px; border-bottom: 1px solid ${c.border}; white-space: nowrap;
@@ -83,6 +92,7 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
 [data-am-flight-detail] {
   flex: 1 1 45%; min-width: 280px; background: ${c.sectionBg};
   border: 1px solid ${c.border}; border-radius: 8px; padding: 16px;
+  min-height: 0; overflow-y: auto;
 }
 [data-am-flight-detail] h3 { margin: 0; font-size: 14px; }
 [data-am-flight-detail] h4 { margin: 16px 0 6px; font-size: 12px; color: ${c.textSecondary}; }
@@ -201,6 +211,10 @@ export function mountFlightReviewPanel(
   const detailRegion = document.createElement('div');
   detailRegion.dataset['amFlightDetail'] = '';
   detailRegion.hidden = true;
+  // 一覧・詳細はそれぞれ独立にスクロールする。スクロールバーの意匠はテーマ変数追従の
+  // 共有スタイルへ寄せる（ダーク／ライトのどちらでも同じ経路で色が決まる）。
+  applyThinScrollbar(listRegion);
+  applyThinScrollbar(detailRegion);
   body.appendChild(listRegion);
   body.appendChild(detailRegion);
   root.appendChild(body);

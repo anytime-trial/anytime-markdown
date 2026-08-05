@@ -84,6 +84,58 @@ describe('flightReviewPanel', () => {
     return mountFlightReviewPanel(container, props);
   }
 
+  // ── 内部スクロール（タブパネルの器が overflow:hidden なので、パネル自身が持たないと切れる） ──
+  //
+  // jsdom はレイアウトを計算しないため「実際にスクロールできるか」は測れない。症状ではなく
+  // 原因（スクロール領域の宣言と、flex の min-height:0 の連鎖）を検査する。実ブラウザでの
+  // 確認は別途必要。
+
+  function panelStyleText(): string {
+    return Array.from(document.head.querySelectorAll('style'))
+      .map((el) => el.textContent ?? '')
+      .join('\n');
+  }
+
+  /** セレクタのルール本体を取り出す（宣言の有無を個別に検査するため）。 */
+  function ruleBody(css: string, selector: string): string {
+    const idx = css.indexOf(selector + ' ');
+    const start = css.indexOf('{', idx < 0 ? css.indexOf(selector) : idx);
+    return start < 0 ? '' : css.slice(start, css.indexOf('}', start));
+  }
+
+  it('一覧と詳細が内部スクロール領域を持ち、flex の min-height:0 が連鎖している', async () => {
+    stubFetch(() => jsonResponse({ flightReviews: [review()] }));
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await Promise.resolve();
+
+    const css = panelStyleText();
+    expect(ruleBody(css, '[data-am-flight-list]')).toContain('overflow-y: auto');
+    expect(ruleBody(css, '[data-am-flight-detail]')).toContain('overflow-y: auto');
+
+    // min-height:auto（flex の既定）のままだと中身の高さが下限になり親が縮まず、
+    // overflow-y:auto を書いても発火しない。root → body → list/detail の全段で必要。
+    for (const sel of ['[data-am-flight-root]', '[data-am-flight-body]', '[data-am-flight-list]', '[data-am-flight-detail]']) {
+      expect(ruleBody(css, sel)).toContain('min-height: 0');
+    }
+
+    handle.destroy();
+  });
+
+  it('スクロール領域にテーマ追従の細身スクロールバーが適用される（ダーク/ライト共通経路）', async () => {
+    stubFetch(() => jsonResponse({ flightReviews: [review()] }));
+    store = createFlightReviewStore('http://x');
+    const handle = mountWithStore(store);
+    await Promise.resolve();
+
+    const list = container.querySelector('[data-am-flight-list]');
+    const detail = container.querySelector('[data-am-flight-detail]');
+    expect(list?.classList.contains('am-thin-scrollbar')).toBe(true);
+    expect(detail?.classList.contains('am-thin-scrollbar')).toBe(true);
+
+    handle.destroy();
+  });
+
   it('一覧を表示し outcome は色 + テキストの冗長表示になる（FR-16）', async () => {
     stubFetch(() => jsonResponse({ flightReviews: [review({ outcome: 'achieved', outcomeSource: 'self' })] }));
     store = createFlightReviewStore('http://x');
