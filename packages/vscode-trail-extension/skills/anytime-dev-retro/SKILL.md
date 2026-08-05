@@ -82,6 +82,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | top15 セッションのコスト集中 `totals.top15SessionsCostSharePct` | session_costs | 上昇 |
 | 直近 7d コスト `trend.last7dCost`（対 `prior7dCost`） | session_costs+sessions | 上昇 |
 | 高コスト×compact 未使用 `hygiene.expensiveNoCompact` | join | 上昇 |
+| 衛生行動の減衰 `hygiene.windows`（高コストセッションの `avgSubAgents` / `avgCompacts` を 3 期間 last7d / prior7to30d / prior30to60d で比較） | join | 直近窓が古い窓より低下（`avgMessages` が横ばいのまま低下しているときだけ「畳む行動が消えた」と読む） |
 | 超長大×compact 未使用 `hygiene.longNoCompact` | sessions | 上昇 |
 | 高コストセッション数 `hygiene.expensiveSessions` | session_costs | 上昇 |
 | 料金表未登録モデル `unknownPricingModels`（既定単価で推計中） | session_costs | 1 件以上（trail-core `pricing.ts` の現行化トリガ。レポートで必ず言及する） |
@@ -123,6 +124,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - `hotspots` に前回スナップショットに無い cc>200 の新規関数が出現。
 - `costWindow30d.opusCostSharePct`（30 日窓）が前回比 +5pt 以上、または `costWindow30d.cacheReadSharePct` が 99% 超で `costWindow30d.sessionsOver1000Msgs`（30 日窓）が増加。累積の `cost.*` では機械的に発火するため窓値で判定する。
 - **コスト詳細（セッション粒度・`grounding.token-budget.cjs`）**: `totals.opusCostSharePct` が 90% 超かつ前回比 +3pt 以上（Opus 偏重の進行）、または `trend.last7dCost` が `trend.prior7dCost` の +30% 以上（コスト急増）、または `hygiene.expensiveNoCompact` が前回比 +5 以上／高コストセッションの過半が compact 未使用、または `topSessions` に前回スナップショットに無い `hygieneFlag='expensive-no-compact'` の新規セッションが出現、または `totals.top15SessionsCostSharePct` が前回比 +5pt 以上（少数セッションへの集中）。提案の方向は RC2 の恒久/暫定対策（モデル委譲徹底・セッション衛生通知・retention）に紐付ける。
+- **衛生行動の減衰**: `hygiene.windows` で `avgSubAgents` または `avgCompacts` が `prior30to60d` → `prior7to30d` → `last7d` と単調に低下し、かつ `avgMessages` が横ばい（最大窓比 ±20% 以内）。セッションが小さくなった結果ではなく畳む行動が消えたことを意味する。件数が 20 未満の窓を含む場合は判定しない（少数標本）。
 - `techDebt.noTriggerMarkers` が前回比 +5 以上、または `techDebt.noTriggerSharePct` が 50% 超（昇格経路なき簡略化が支配的）。
 - `skillHealth.brokenRefs` が 1 以上（参照切れの放置）、または `staleOver90` が前回比増かつ `unused30d` が総数の過半（棚卸し要否の判断材料）。
 - **スキル改訂が効いていない**: 前回スナップショットと比べ `manifestVersions` の版数が上がったスキルの発火（`usageWindows.n30`）が prev30 比で半減以下、または同梱スキルが 30 日発火ゼロのまま → description / 本文の改訂候補として提案（発火記録は `messages.skill` の名前空間付き・旧名記録を含むため、末尾名で突合して誤判定を避ける）。
