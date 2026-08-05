@@ -82,8 +82,13 @@ export function runVerified(argv, { cwd = process.cwd() } = {}) {
   // Claude Code が実際に渡すのは CLAUDE_CODE_SESSION_ID（scripts/git-activity-report.mjs と同じ）。
   // この ID が Flight Record の指示への唯一の結合キーで、空だと指示へ畳まれない。
   const sessionId = process.env.CLAUDE_CODE_SESSION_ID ?? '';
-  const db = openVerificationLedger(resolveTrailDbPath(cwd));
+  // 記録は副作用であって検証の合否ではない。trail.db は拡張が WAL で同時利用する共有 DB な
+  // ので open / INSERT は競合・保護パス・ディスク枯渇で失敗しうるが、そこで例外を上へ抜くと
+  // トップレベルの catch が exit 2 を返し、**成功した検証コマンドが失敗として伝わる**。
+  // 失敗は握りつぶさずログに出し、終了コードは検証コマンドのものを透過する。
+  let db;
   try {
+    db = openVerificationLedger(resolveTrailDbPath(cwd));
     recordRun(db, {
       sessionId,
       workspacePath: cwd,
@@ -98,8 +103,12 @@ export function runVerified(argv, { cwd = process.cwd() } = {}) {
       startedAt,
       finishedAt,
     });
+  } catch (err) {
+    console.error(
+      `[${finishedAt}] [ERROR] run-verified: 台帳への記録に失敗（検証結果 ${status} はそのまま透過する）: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+    );
   } finally {
-    db.close();
+    db?.close();
   }
   console.log(
     `[${finishedAt}] [INFO] run-verified: ${parsed.packageName}/${parsed.kind} ${status} (${treeState}@${commitHash.slice(0, 8)})`,

@@ -54,8 +54,8 @@ const PROTECTED_ROOT_PATTERNS = [/\/vscode-server\//, /\/\.vscode\b/, /\/\.claud
  * fail-closed だから。本ツールは「台帳が無い＝needsRun」へ倒す fail-open の契約なので、
  * 不在を例外にせず呼び出し側へ `reason: 'no-db'` として返す必要がある。
  */
-function resolveDbPath(workspacePath: string): string {
-  const home = process.env.TRAIL_HOME ?? path.join(workspacePath, '.anytime', 'trail');
+function resolveDbPath(workspaceRoot: string): string {
+  const home = process.env.TRAIL_HOME ?? path.join(workspaceRoot, '.anytime', 'trail');
   if (PROTECTED_ROOT_PATTERNS.some((p) => p.test(home))) {
     throw new Error(
       `[get_verification_status] refusing protected path "${home}". Set TRAIL_HOME to a workspace-local dir or pass workspacePath.`,
@@ -64,12 +64,36 @@ function resolveDbPath(workspacePath: string): string {
   return path.join(home, 'db', 'trail.db');
 }
 
+/**
+ * 台帳のあるワークスペース根を解く。writer（scripts/verification-db.mjs の
+ * resolveWorkspaceRootForLedger）と**同じ規則**でなければならない。
+ *
+ * worktree から検証を回すと記録は本体（git common dir の親）の trail.db に入る。ここで
+ * worktree のパスをそのまま使うと、実施済みでも `no-db` / needsRun に落ちて読み書きが噛み合わない。
+ * git 管理外なら渡された値へ縮退する（fail-open の契約を壊さない）。
+ */
+async function resolveLedgerWorkspaceRoot(workspacePath: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync(resolveGitExecutable(), ['rev-parse', '--git-common-dir'], {
+      cwd: workspacePath,
+    });
+    const commonDir = stdout.trim();
+    if (commonDir === '') return workspacePath;
+    return path.dirname(path.resolve(workspacePath, commonDir));
+  } catch (err) {
+    console.warn(
+      `[get_verification_status] git root の解決に失敗したため workspacePath を使う (path=${workspacePath}): ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return workspacePath;
+  }
+}
+
 export async function handleGetVerificationStatus(
   input: GetVerificationStatusInput,
 ): Promise<VerificationStatusResult> {
   const ws = resolveWorkspacePath(input.workspacePath).path;
   const kinds: string[] = input.kinds ? [...input.kinds] : [...VERIFICATION_KINDS];
-  const dbPath = resolveDbPath(ws);
+  const dbPath = resolveDbPath(await resolveLedgerWorkspaceRoot(ws));
   if (!fs.existsSync(dbPath)) {
     return { commitHash: null, treeState: null, verified: {}, needsRun: kinds, reason: 'no-db' };
   }

@@ -8,6 +8,7 @@ import {
   VERIFICATION_KINDS,
   resolveTrailDbPath,
   openVerificationLedger,
+  SCHEMA_STATEMENTS,
   recordRun,
   queryVerifiedKinds,
   listRuns,
@@ -111,6 +112,26 @@ test('listRuns: commit / 期間でフィルタする', () => {
   assert.equal(listRuns(db, { sinceIso: '2026-07-07T00:00:00.000Z' }).length, 1);
   assert.equal(listRuns(db).length, 2);
   db.close();
+});
+
+// 回帰: writer の DDL は trail-core の正本のミラー。CREATE TABLE IF NOT EXISTS は先に作った側が
+// 勝つため、CHECK が緩い方が先に走るとテーブルがその制約で固定される。文字列で突合して守る。
+test('SCHEMA_STATEMENTS: verification_runs の DDL が trail-core の正本と一致する', () => {
+  const canonicalSrc = fs.readFileSync(
+    path.join(import.meta.dirname, '..', 'packages', 'trail-core', 'src', 'domain', 'schema', 'tables.ts'),
+    'utf8',
+  );
+  const globs = Object.fromEntries(
+    [...canonicalSrc.matchAll(/const (TS_GLOB_MS|TS_GLOB_NO_MS) = `([^`]*)`/g)].map((m) => [m[1], m[2]]),
+  );
+  assert.ok(globs['TS_GLOB_MS'] && globs['TS_GLOB_NO_MS'], '正本から timestamp glob を取り出せなかった');
+
+  const declared = /export const CREATE_VERIFICATION_RUNS = `([\s\S]*?)`;/.exec(canonicalSrc);
+  assert.ok(declared, '正本に CREATE_VERIFICATION_RUNS が見つからない');
+  const canonical = declared[1].replace(/\$\{(TS_GLOB_MS|TS_GLOB_NO_MS)\}/g, (_, k) => globs[k]);
+
+  const normalize = (sql) => sql.replace(/IF NOT EXISTS /, '').replace(/\s+/g, ' ').trim();
+  assert.equal(normalize(SCHEMA_STATEMENTS[0]), normalize(canonical));
 });
 
 test('VERIFICATION_KINDS: RFC の 7 種別', () => {

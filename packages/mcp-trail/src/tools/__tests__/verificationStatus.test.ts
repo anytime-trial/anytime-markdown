@@ -49,6 +49,21 @@ describe('handleGetVerificationStatus', () => {
     fs.rmSync(workDir, { recursive: true, force: true });
   });
 
+  // 回帰: writer（run-verified）は git common dir の親へ記録する。reader が workspacePath を
+  // そのまま使うと、worktree からの照会が別の（存在しない）DB を見て実施済みを取りこぼす。
+  it('worktree から照会しても本体リポジトリの台帳を読む', async () => {
+    delete process.env.TRAIL_HOME; // 台帳パスの解決規則そのものを検査する
+    const head = git(['rev-parse', 'HEAD']);
+    const worktree = path.join(workDir, 'wt');
+    git(['worktree', 'add', '-q', worktree, '-b', 'feature-x']);
+    seedDb([{ kind: 'unit', status: 'pass', codeStateHash: head }]);
+
+    const result = await handleGetVerificationStatus({ package: 'demo-pkg', workspacePath: worktree });
+
+    expect(result.reason).toBeUndefined();
+    expect(result.verified['unit']?.status).toBe('pass');
+  });
+
   function seedDb(rows: Array<{ kind: string; status: string; codeStateHash: string | null }>): void {
     const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'trail.db');
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });

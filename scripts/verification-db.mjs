@@ -62,12 +62,18 @@ export function resolveTrailDbPath(workspaceRoot) {
   return path.join(home, 'db', 'trail.db');
 }
 
+// tables.ts の TS_GLOB_MS / TS_GLOB_NO_MS と同値。CHECK まで含めて一致していないと、
+// CREATE TABLE IF NOT EXISTS の「先に作った側が勝つ」性質により、writer が先に走ったときだけ
+// 緩い制約でテーブルが固定される。値の一致は verification-db.test.mjs が正本と突合して守る。
+const TS_GLOB_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9].[0-9][0-9][0-9]Z'`;
+const TS_GLOB_NO_MS = `'[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z'`;
+
 // packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS のミラー。
 // trail.db 側の _migrations（key TEXT PRIMARY KEY）は使わない — verification.db 時代の
 // (version INTEGER, applied_at TEXT) とは形が非互換で、触ると拡張のマイグレーション記録を壊す。
 // 追記のみ・冪等な DDL なのでバージョン管理表を持たずに済む。
 // SHORTCUT: 保持期間 prune 未実装. ceiling: 1 検証=1 行の追記のみで増加は緩やか. upgrade: フェーズ2 の dev-retro 連携導入時に保持方針を決めて prune を実装.
-const SCHEMA_STATEMENTS = [
+export const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS verification_runs (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL DEFAULT '',
@@ -81,8 +87,8 @@ const SCHEMA_STATEMENTS = [
   tree_state TEXT NOT NULL CHECK (tree_state IN ('clean','dirty')),
   code_state_hash TEXT,
   environment TEXT CHECK (environment IS NULL OR json_valid(environment)),
-  started_at TEXT NOT NULL CHECK (started_at GLOB '*-*-*T*:*:*Z'),
-  finished_at TEXT NOT NULL CHECK (finished_at GLOB '*-*-*T*:*:*Z')
+  started_at TEXT NOT NULL CHECK (started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
+  finished_at TEXT NOT NULL CHECK (finished_at GLOB ${TS_GLOB_MS} OR finished_at GLOB ${TS_GLOB_NO_MS})
 ) STRICT`,
   `CREATE INDEX IF NOT EXISTS idx_verification_runs_session ON verification_runs(session_id, started_at)`,
   `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON verification_runs(package, code_state_hash)`,
