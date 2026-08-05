@@ -203,6 +203,41 @@ describe('flightRecordPanel', () => {
     handle.destroy();
   });
 
+  // ── サブタブ切替の実効性（属性ではなく描画で検査する） ──
+  //
+  // `[hidden]` は UA スタイル由来のため、author スタイルで `display` を宣言した器には負ける。
+  // 属性の有無だけを見るアサーションはこの破れを素通りさせ、Bug Fixed タブを開いても
+  // 指示のフィルタバーと一覧が上に残る状態が実機でだけ現れた。
+  it('サブタブを切り替えると非表示側の器が実際に描画されない', async () => {
+    stubList([record()]);
+    const handle = await mountAndSettle([record()]);
+
+    const displayOf = (selector: string): string => {
+      const el = container.querySelector<HTMLElement>(selector);
+      if (el === null) throw new Error(`${selector} が見つからない`);
+      return globalThis.getComputedStyle(el).display;
+    };
+
+    // 指示タブ: バグ / Review の器は描画されない
+    expect(displayOf('[data-am-flight-bugfix]')).toBe('none');
+
+    container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
+    await settle();
+
+    // Bug Fixed タブ: 指示のフィルタバーと一覧・詳細の器は描画されない
+    expect(displayOf('[data-am-flight-toolbar]')).toBe('none');
+    expect(displayOf('[data-am-flight-body]')).toBe('none');
+    expect(displayOf('[data-am-flight-bugfix]')).not.toBe('none');
+
+    container.querySelector<HTMLButtonElement>('[data-am-flight-tab="review"]')?.click();
+    await settle();
+
+    expect(displayOf('[data-am-flight-toolbar]')).toBe('none');
+    expect(displayOf('[data-am-flight-body]')).toBe('none');
+    expect(displayOf('[data-am-flight-bugfix]')).toBe('none');
+    handle.destroy();
+  });
+
   describe('一覧', () => {
     it('行の単位が指示になり、指示概要と起点プロンプトを示す', async () => {
       stubList([record()]);

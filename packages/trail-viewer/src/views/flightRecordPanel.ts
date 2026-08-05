@@ -310,6 +310,16 @@ button[data-am-finding-open] {
 }
 [data-am-rationale-list] { margin: 0; padding-left: 18px; font-size: 12px; }
 [data-am-rationale-list] code { font-family: ui-monospace, monospace; font-size: 11px; }
+/* hidden 属性は UA スタイルの display:none でしかなく、author スタイルで display を
+   宣言した器には負ける。サブタブの切替は hidden 属性で行うため、display を明示する器へは
+   打ち消しを併記しないと「隠したつもりの指示一覧が Bug Fixed の上に残る」形で現れる。
+   詳細度でも記述順でも勝てるよう、宣言はスタイルシートの末尾に置く（jsdom のカスケードは
+   詳細度を見ず記述順で決めるため、前方に置くとテストだけが実機と食い違う）。
+   属性の有無を見るテストはこの破れを素通りさせるので、切替の検査は描画結果で行う。 */
+[data-am-flight-toolbar][hidden],
+[data-am-flight-body][hidden],
+[data-am-flight-bugfix][hidden],
+[data-am-flight-review][hidden] { display: none; }
 `;
   doc.head.appendChild(style);
 }
