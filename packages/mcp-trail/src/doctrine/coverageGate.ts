@@ -1,5 +1,6 @@
-import { evaluateOddBoundary } from '@anytime-markdown/trail-core';
 import type { OddResolution, OperationKind } from '@anytime-markdown/trail-core';
+import { ALWAYS_HUMAN_OPERATIONS, evaluateOddBoundary } from '@anytime-markdown/trail-core';
+
 import type { CitationApproval } from './resolveCitations';
 
 export type { OperationKind };
@@ -22,17 +23,6 @@ export type GateReason =
 export type GateCoverage = 'covered' | 'silent' | 'conflict' | 'odd_out';
 export type GateSeverity = 'low' | 'medium' | 'high';
 
-/**
- * ゲートの判定によらず必ず人へ聞く操作種別。global `CLAUDE.md`「承認の対象」が
- * 都度承認を要求する例外項目と対応する。
- */
-const ALWAYS_HUMAN: ReadonlySet<OperationKind> = new Set<OperationKind>([
-  'dependency_change',
-  'destructive_git',
-  'remote_push',
-  'production_release',
-  'persistent_data_write',
-]);
 
 export interface GateCitation {
   readonly resolved: boolean;
@@ -97,7 +87,7 @@ export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResu
   if (input.operationKind === undefined) {
     return escalate('operation_kind_unknown');
   }
-  if (ALWAYS_HUMAN.has(input.operationKind)) {
+  if (ALWAYS_HUMAN_OPERATIONS.has(input.operationKind)) {
     return escalate('always_human_operation');
   }
   if (input.severity === undefined) {

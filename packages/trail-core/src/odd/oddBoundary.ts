@@ -1,18 +1,35 @@
 import * as path from 'node:path';
+
 import type { OddRegistry } from './types';
 
 export type OddBoundaryReason = 'odd_unknown' | 'restricted_area' | 'odd_out';
 
 /**
- * レジストリの設定にかかわらず常に制限領域として扱うパス断片。
+ * レジストリの設定にかかわらず常に制限領域として扱うパス断片（**上書き不能な床**）。
  *
- * **ODD レジストリ自身が最重要の対象である。** レジストリは承認境界を決める
- * 制御プレーンであり、これを代行で書き換えられると、以降のあらゆる制限を
- * 自分で外せてしまう。ユーザー設定に依存する `registry.restricted` に任せず、
- * 判定側の固定ルールとして持つ。
+ * レジストリは `restricted` を丸ごと置き換えるため、作者が既定の一覧を再掲し
+ * なければ保護が静かに消える。「不在」「壊れている」に加えて **「妥当だが保護が
+ * 抜けている」** という 3 つ目の状態があり、これは検証では検出できない
+ * （構文としては妥当なため）。したがって最低限の保護は判定側が固定で持つ。
+ *
+ * **最重要は ODD レジストリ自身**である。承認境界を決める制御プレーンなので、
+ * これを代行で書き換えられると以降のあらゆる制限を自分で外せてしまう。
+ *
+ * SHORTCUT: 境界判定を path.resolve の正規化だけで行う.
+ * ceiling: 純粋層のため realpath を取れず、ODD 内に置かれたシンボリックリンク
+ * 経由の外部書き込みは ODD 内と判定される.
+ * upgrade: I/O を持つ呼び出し側で realpath 解決を前段に入れたら本注記を外す.
  */
 export const ALWAYS_RESTRICTED_PATTERNS: readonly string[] = [
-  '/.anytime/trail/odd.json',
+  '/.anytime/trail/odd.json', // ODD レジストリ自身（承認境界の制御プレーン）
+  '/CLAUDE.md', // ODD ルートの導出元・運用規約
+  '/.claude/settings', // フック・権限設定
+  '/.mcp.json', // MCP サーバ定義
+  '/.git/', // git 内部（config・hooks）
+  '/.github/', // CI 定義
+  '/package.json', // 依存マニフェスト
+  '/package-lock.json',
+  '/.env', // シークレット
 ];
 
 function isWithin(target: string, root: string): boolean {

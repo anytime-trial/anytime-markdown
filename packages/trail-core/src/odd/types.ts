@@ -10,22 +10,31 @@
  * 操作種別。**パスに現れない操作** (push・リリース・破壊的 git) は変更対象パスでは
  * 原理的に表現できないため、呼び出し側が別軸で申告する。
  */
-export type OperationKind =
-  | 'code_change'
-  | 'dependency_change'
-  | 'destructive_git'
-  | 'remote_push'
-  | 'production_release'
-  | 'persistent_data_write';
-
-export const OPERATION_KINDS: readonly OperationKind[] = [
+export const OPERATION_KINDS = [
   'code_change',
   'dependency_change',
   'destructive_git',
   'remote_push',
   'production_release',
   'persistent_data_write',
-];
+] as const;
+
+export type OperationKind = (typeof OPERATION_KINDS)[number];
+
+/**
+ * ポリシーの宣言によらず必ず人へ聞く操作種別。global `CLAUDE.md`「承認の対象」の
+ * 例外項目に対応する。
+ *
+ * **代行可否（カバレッジゲート）と操作可否（承認ルール）の両方がこの 1 つを見る。**
+ * 片方にしか無いと、機体がもう片方を信じたときに規約が機構上バイパスされる。
+ */
+export const ALWAYS_HUMAN_OPERATIONS: ReadonlySet<OperationKind> = new Set<OperationKind>([
+  'dependency_change',
+  'destructive_git',
+  'remote_push',
+  'production_release',
+  'persistent_data_write',
+]);
 
 export type ApprovalVerdict = 'allow' | 'confirm' | 'deny';
 
@@ -51,7 +60,15 @@ export interface OddRegistry {
   /** 操作種別ごとの承認ポリシー。書かれていない種別は confirm (§4.2 規則 8) */
   readonly operations: Readonly<Partial<Record<OperationKind, ApprovalVerdict>>>;
   readonly narrowing: NarrowingState;
-  /** 影響度ベース承認の閾値 (中心性スコアの上位パーセンタイル) */
+  /**
+   * 影響度ベース承認の閾値 (中心性スコアの上位パーセンタイル)。
+   *
+   * SHORTCUT: 値を保持するだけで評価器は読まない.
+   * ceiling: God Node 判定は呼び出し側が渡す `isGodNode` で決まり、閾値を変えても
+   * 挙動は変わらない.
+   * upgrade: 中心性スコアから `isGodNode` を導く経路 (packages/trail-core/src/centrality)
+   * を接続したら、この閾値をその導出で消費する.
+   */
   readonly godNodePercentile: number;
 }
 
@@ -73,6 +90,8 @@ export type ApprovalReason =
   | 'odd_out'
   | 'restricted_area'
   | 'language_out_of_odd'
+  | 'language_unknown'
+  | 'always_human_operation'
   | 'narrowed_release_freeze'
   | 'narrowed_incident'
   | 'god_node_impact'
@@ -92,7 +111,13 @@ export interface ApprovalEvaluation {
 
 export interface ApprovalRequest {
   readonly operationKind: OperationKind;
-  /** 影響する変更対象 (絶対パス)。空・未指定は ODD 判定不能 */
+  /**
+   * 影響する変更対象 (絶対パス)。空・未指定は ODD 判定不能。
+   *
+   * **パスを申告できない操作 (push・リリース) は常に `odd_unknown` で `confirm` に
+   * なる。** これらは `ALWAYS_HUMAN_OPERATIONS` でもあるため結論は変わらないが、
+   * 「`allow` を宣言しても到達しない組み合わせがある」ことは意図した挙動である。
+   */
   readonly targetPaths: readonly string[];
   /** 対象言語。未指定 (null) は言語判定を行わない */
   readonly language: string | null;

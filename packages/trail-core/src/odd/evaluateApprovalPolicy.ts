@@ -1,3 +1,4 @@
+import { evaluateOddBoundary } from './oddBoundary';
 import type {
   ApprovalEvaluation,
   ApprovalReason,
@@ -7,10 +8,21 @@ import type {
   OddResolution,
   OperationKind,
 } from './types';
-import { evaluateOddBoundary } from './oddBoundary';
+import { ALWAYS_HUMAN_OPERATIONS } from './types';
 
-/** リリース凍結中に allow を落とす種別 */
+/**
+ * リリース凍結中に allow を落とす種別。
+ *
+ * `code_change` を含めるのは、**`ALWAYS_HUMAN_OPERATIONS` によって `code_change`
+ * 以外はもともと常に `confirm` になるため**である。含めないと `release_freeze` は
+ * 観測可能な効果を持たない状態になる。リリースを切っている最中に自律編集が入る
+ * のを止める、という凍結の目的にも合う。
+ *
+ * `incident` との違いは理由コード（`narrowed_release_freeze` / `narrowed_incident`）
+ * に残る。判定結果は同じでも、なぜ止めたかは監査で区別できる必要がある。
+ */
 const FROZEN_BY_RELEASE_FREEZE: ReadonlySet<OperationKind> = new Set<OperationKind>([
+  'code_change',
   'remote_push',
   'production_release',
   'dependency_change',
@@ -60,16 +72,24 @@ export function evaluateApprovalPolicy(
   if (boundary !== null) {
     return result('confirm', [boundary], declared, source);
   }
-  if (
-    registry.languages !== null &&
-    request.language !== null &&
-    !registry.languages.includes(request.language)
-  ) {
-    return result('confirm', ['language_out_of_odd'], declared, source);
+  if (registry.languages !== null) {
+    // 言語制限が宣言されているのに対象言語が不明なら判定不能として confirm へ倒す。
+    // 「省略できる入力を省くだけで言語 ODD が無効化される」経路を塞ぐ
+    if (request.language === null) {
+      return result('confirm', ['language_unknown'], declared, source);
+    }
+    if (!registry.languages.includes(request.language)) {
+      return result('confirm', ['language_out_of_odd'], declared, source);
+    }
   }
   const narrowed = narrowingReason(registry, request.operationKind);
   if (narrowed !== null) {
     return result('confirm', [narrowed], declared, source);
+  }
+  // ポリシーの宣言によらず必ず人へ聞く操作。カバレッジゲートと同じ集合を見る
+  // （片方にしか無いと、機体がもう片方を信じたときに規約がバイパスされる）
+  if (ALWAYS_HUMAN_OPERATIONS.has(request.operationKind)) {
+    return result('confirm', ['always_human_operation'], declared, source);
   }
   if (request.isGodNode === true) {
     return result('confirm', ['god_node_impact'], declared, source);

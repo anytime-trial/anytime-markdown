@@ -1,17 +1,17 @@
 import * as os from 'node:os';
-import { z } from 'zod';
+
 import {
-  evaluateApprovalPolicy,
-  OPERATION_KINDS,
   type ApprovalEvaluation,
+  evaluateApprovalPolicy,
   type OddResolution,
+  OPERATION_KINDS,
 } from '@anytime-markdown/trail-core';
-import { workspacePathParam } from './workspaceParam';
+import { z } from 'zod';
+
 import { resolveWorkspacePath } from '../dbPath';
 import { resolveOddConfig } from '../doctrine/oddRoots';
 import { readFileTyped } from '../doctrine/readFile';
-
-const OPERATION_KIND_VALUES = OPERATION_KINDS as unknown as [string, ...string[]];
+import { workspacePathParam } from './workspaceParam';
 
 export const GetOddPolicyInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -19,7 +19,7 @@ export const GetOddPolicyInputSchema = z.object({
 
 export const EvaluateApprovalPolicyInputSchema = z.object({
   operation_kind: z
-    .enum(OPERATION_KIND_VALUES)
+    .enum(OPERATION_KINDS)
     .describe('Operation being evaluated. Everything except code_change is treated as always-human unless the registry says otherwise'),
   target_paths: z
     .array(z.string())
@@ -55,11 +55,9 @@ export function handleEvaluateApprovalPolicy(
   input: EvaluateApprovalPolicyInput,
 ): ApprovalEvaluation {
   return evaluateApprovalPolicy(resolve(input.workspacePath), {
-    operationKind: input.operation_kind as ApprovalRequestKind,
+    operationKind: input.operation_kind,
     targetPaths: input.target_paths,
     language: input.language ?? null,
     isGodNode: input.is_god_node ?? null,
   });
 }
-
-type ApprovalRequestKind = Parameters<typeof evaluateApprovalPolicy>[1]['operationKind'];

@@ -66,6 +66,7 @@ export {
 
 export {
   ALWAYS_RESTRICTED_PATTERNS,
+  ALWAYS_HUMAN_OPERATIONS,
   OPERATION_KINDS,
   evaluateApprovalPolicy,
   evaluateOddBoundary,

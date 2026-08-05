@@ -101,7 +101,10 @@ describe('evaluateApprovalPolicy', () => {
   });
 
   it('未定義の操作種別は allow ではなく confirm（fail-closed）', () => {
-    const result = evaluateApprovalPolicy(resolved(), request({ operationKind: 'remote_push' }));
+    const result = evaluateApprovalPolicy(
+      resolved({ operations: {} }),
+      request({ operationKind: 'code_change' }),
+    );
     expect(result).toEqual({
       verdict: 'confirm',
       reasons: ['policy_unspecified'],
@@ -112,8 +115,8 @@ describe('evaluateApprovalPolicy', () => {
 
   it('deny 指定は deny を返す', () => {
     const result = evaluateApprovalPolicy(
-      resolved(),
-      request({ operationKind: 'persistent_data_write' }),
+      resolved({ operations: { code_change: 'deny' } }),
+      request({ operationKind: 'code_change' }),
     );
     expect(result.verdict).toBe('deny');
     expect(result.reasons).toEqual(['policy_deny']);
@@ -121,16 +124,36 @@ describe('evaluateApprovalPolicy', () => {
 
   it('deny 指定が上位規則で confirm に上書きされても declaredVerdict に残る', () => {
     const result = evaluateApprovalPolicy(
-      resolved(),
-      request({ operationKind: 'persistent_data_write', targetPaths: ['/etc/hosts'] }),
+      resolved({ operations: { code_change: 'deny' } }),
+      request({ operationKind: 'code_change', targetPaths: ['/etc/hosts'] }),
     );
     expect(result.verdict).toBe('confirm');
     expect(result.reasons).toEqual(['odd_out']);
     expect(result.declaredVerdict).toBe('deny');
   });
 
+  describe('常に人へ聞く操作（ALWAYS_HUMAN_OPERATIONS）', () => {
+    it.each([
+      'dependency_change',
+      'destructive_git',
+      'remote_push',
+      'production_release',
+      'persistent_data_write',
+    ] as const)('%s は allow を宣言しても confirm へ倒す', (kind) => {
+      // カバレッジゲート（代行可否）と同じ集合を見る。片方にしか無いと、機体が
+      // もう片方を信じたときに「常に人へ聞く」規約が機構上バイパスされる
+      const result = evaluateApprovalPolicy(
+        resolved({ operations: { [kind]: 'allow' } }),
+        request({ operationKind: kind }),
+      );
+      expect(result.verdict).toBe('confirm');
+      expect(result.reasons).toEqual(['always_human_operation']);
+      expect(result.declaredVerdict).toBe('allow');
+    });
+  });
+
   describe('動的 ODD 縮小', () => {
-    it.each(['remote_push', 'production_release', 'dependency_change'] as const)(
+    it.each(['code_change', 'remote_push', 'production_release', 'dependency_change'] as const)(
       'release_freeze は %s を confirm へ落とす',
       (kind) => {
         const result = evaluateApprovalPolicy(
@@ -143,8 +166,8 @@ describe('evaluateApprovalPolicy', () => {
       },
     );
 
-    it('release_freeze は code_change を落とさない', () => {
-      const result = evaluateApprovalPolicy(resolved({ narrowing: 'release_freeze' }), request());
+    it('normal では code_change が宣言どおり allow になる（凍結の対照）', () => {
+      const result = evaluateApprovalPolicy(resolved({ narrowing: 'normal' }), request());
       expect(result.verdict).toBe('allow');
     });
 
@@ -152,6 +175,29 @@ describe('evaluateApprovalPolicy', () => {
       const result = evaluateApprovalPolicy(resolved({ narrowing: 'incident' }), request());
       expect(result.verdict).toBe('confirm');
       expect(result.reasons).toEqual(['narrowed_incident']);
+    });
+
+    it('縮小の理由コードは release_freeze と incident を区別する（監査のため）', () => {
+      const freeze = evaluateApprovalPolicy(resolved({ narrowing: 'release_freeze' }), request());
+      const incident = evaluateApprovalPolicy(resolved({ narrowing: 'incident' }), request());
+      expect(freeze.reasons).not.toEqual(incident.reasons);
+    });
+  });
+
+  describe('言語の判定', () => {
+    it('languages 指定時に言語が未申告なら confirm へ倒す（省略で無効化させない）', () => {
+      // 省略可能な入力を省くだけで言語 ODD を無効化できる経路を塞ぐ
+      const result = evaluateApprovalPolicy(
+        resolved({ languages: [] }),
+        request({ language: null }),
+      );
+      expect(result.verdict).toBe('confirm');
+      expect(result.reasons).toEqual(['language_unknown']);
+    });
+
+    it('languages が未指定（制限しない）なら言語未申告でも通過する', () => {
+      const result = evaluateApprovalPolicy(resolved({ languages: null }), request({ language: null }));
+      expect(result.verdict).toBe('allow');
     });
   });
 

@@ -1,8 +1,9 @@
 import * as path from 'node:path';
+
 import {
-  parseOddRegistry,
   type OddRegistry,
   type OddResolution,
+  parseOddRegistry,
   type RestrictedEntry,
 } from '@anytime-markdown/trail-core';
 
