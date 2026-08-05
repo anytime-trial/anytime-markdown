@@ -1,13 +1,22 @@
-import {
-  evaluateCoverageGate,
-  type CoverageGateInput,
-  type OddConfig,
-} from '../../doctrine/coverageGate';
+import { evaluateCoverageGate, type CoverageGateInput } from '../../doctrine/coverageGate';
+import type { OddResolution } from '@anytime-markdown/trail-core';
 
-const ODD: OddConfig = {
-  roots: ['/anytime-markdown', '/Shared/anytime-markdown-docs'],
-  restrictedPrefixes: ['/home/user/.claude', '/home/user/.config'],
-  restrictedPatterns: ['/.github/workflows/', '/.env'],
+const ODD: OddResolution = {
+  kind: 'derived',
+  registry: {
+    version: 1,
+    roots: ['/anytime-markdown', '/Shared/anytime-markdown-docs'],
+    restricted: [
+      { kind: 'prefix', value: '/home/user/.claude' },
+      { kind: 'prefix', value: '/home/user/.config' },
+      { kind: 'pattern', value: '/.github/workflows/' },
+      { kind: 'pattern', value: '/.env' },
+    ],
+    languages: null,
+    operations: {},
+    narrowing: 'normal',
+    godNodePercentile: 5,
+  },
 };
 
 function input(overrides: Partial<CoverageGateInput> = {}): CoverageGateInput {

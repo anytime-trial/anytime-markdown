@@ -63,3 +63,19 @@ export {
   type ComputeBusFactorOptions,
   type FileAuthorCommitRow,
 } from './busFactor';
+
+export {
+  OPERATION_KINDS,
+  evaluateApprovalPolicy,
+  parseOddRegistry,
+  type ApprovalEvaluation,
+  type ApprovalReason,
+  type ApprovalRequest,
+  type ApprovalVerdict,
+  type NarrowingState,
+  type OddRegistry,
+  type OddRegistryParseResult,
+  type OddResolution,
+  type OperationKind,
+  type RestrictedEntry,
+} from './odd';

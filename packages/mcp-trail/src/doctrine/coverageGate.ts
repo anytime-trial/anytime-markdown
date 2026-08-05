@@ -1,9 +1,13 @@
 import * as path from 'node:path';
+import type { OddRegistry, OddResolution, OperationKind } from '@anytime-markdown/trail-core';
 import type { CitationApproval } from './resolveCitations';
+
+export type { OperationKind };
 
 export type GateVerdict = 'delegable' | 'escalate';
 
 export type GateReason =
+  | 'odd_registry_invalid'
   | 'odd_unknown'
   | 'odd_out'
   | 'restricted_area'
@@ -19,18 +23,6 @@ export type GateCoverage = 'covered' | 'silent' | 'conflict' | 'odd_out';
 export type GateSeverity = 'low' | 'medium' | 'high';
 
 /**
- * 操作種別。**パスに現れない操作**（push・リリース・破壊的 git）は `targetPaths` では
- * 原理的に表現できないため、呼び出し側が別軸で申告する。
- */
-export type OperationKind =
-  | 'code_change'
-  | 'dependency_change'
-  | 'destructive_git'
-  | 'remote_push'
-  | 'production_release'
-  | 'persistent_data_write';
-
-/**
  * ゲートの判定によらず必ず人へ聞く操作種別。global `CLAUDE.md`「承認の対象」が
  * 都度承認を要求する例外項目と対応する。
  */
@@ -41,16 +33,6 @@ const ALWAYS_HUMAN: ReadonlySet<OperationKind> = new Set<OperationKind>([
   'production_release',
   'persistent_data_write',
 ]);
-
-/** ODD（Operational Design Domain）の境界定義。全体要件 §3.2 を機械判定へ落としたもの */
-export interface OddConfig {
-  /** 自律運航が許容される対象リポジトリのルート（絶対パス） */
-  readonly roots: readonly string[];
-  /** ODD 内でも代行対象外の領域（絶対パス前置） */
-  readonly restrictedPrefixes: readonly string[];
-  /** ODD 内でも代行対象外のパス断片（CI 定義・シークレット等） */
-  readonly restrictedPatterns: readonly string[];
-}
 
 export interface GateCitation {
   readonly resolved: boolean;
@@ -66,7 +48,8 @@ export interface CoverageGateInput {
   readonly severity?: GateSeverity | undefined;
   /** 呼び出し側の操作種別申告。未指定は判定不能として escalate */
   readonly operationKind?: OperationKind | undefined;
-  readonly odd: OddConfig;
+  /** ODD Policy Registry の解決結果（Phase 7-A）。`invalid` は判定不能として escalate */
+  readonly odd: OddResolution;
 }
 
 export interface CoverageGateResult {
@@ -90,7 +73,7 @@ function isWithin(target: string, root: string): boolean {
  */
 function evaluateOdd(
   targetPaths: ReadonlyArray<string> | undefined,
-  odd: OddConfig,
+  odd: OddRegistry,
 ): GateReason | null {
   // 空文字列は path.resolve で cwd (＝ワークスペース内) へ解決してしまい ODD 判定を
   // すり抜けるため、申告の欠落として扱う
@@ -104,10 +87,10 @@ function evaluateOdd(
   // 前方一致の前に正規化する。`..` を含むパスをそのまま比較すると境界をすり抜ける
   const normalized = targetPaths.map((target) => path.resolve(target));
   if (
-    normalized.some(
-      (target) =>
-        odd.restrictedPrefixes.some((prefix) => isWithin(target, prefix)) ||
-        odd.restrictedPatterns.some((pattern) => target.includes(pattern)),
+    normalized.some((target) =>
+      odd.restricted.some((entry) =>
+        entry.kind === 'prefix' ? isWithin(target, entry.value) : target.includes(entry.value),
+      ),
     )
   ) {
     return 'restricted_area';
@@ -138,7 +121,12 @@ function hasCanonGrounding(citations: ReadonlyArray<GateCitation>): boolean {
  * D1 の段階では判定結果を記録・集計するのみで、承認フローは変更しない。
  */
 export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResult {
-  const oddReason = evaluateOdd(input.targetPaths, input.odd);
+  if (input.odd.kind === 'invalid') {
+    // 壊れたレジストリを既定へ縮退させると、「制限領域を足したつもりが構文エラーで
+    // 無効化されていた」状態が黙って代行を許す (Phase 7-A 仕様 §3.3)
+    return escalate('odd_registry_invalid');
+  }
+  const oddReason = evaluateOdd(input.targetPaths, input.odd.registry);
   if (oddReason !== null) {
     return escalate(oddReason);
   }
