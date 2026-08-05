@@ -53,3 +53,31 @@ describe('C4 popup i18n keys exist (regression)', () => {
     expect(jaVal).not.toBe(key);
   });
 });
+
+/**
+ * 2026-08-05: Memory > Bugs を Flight Record > Bug Fixed へ移設した際、i18n キーを
+ * `memory.bug.*` → `flightRecord.bugfix.*` へ一括改名した。パネル側の `t` は引数が
+ * `string` 型のため、改名漏れがあっても tsc / jest は通り、実機だけ生キー表示になる。
+ * ソースの `t('...')` リテラルを走査し、en / ja 双方に実在することを機械で固定する。
+ */
+describe('移設パネルが参照する i18n キーは実在する', () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+
+  const targets = [
+    '../../views/flightRecordPanel.ts',
+    '../../views/memory/bugHistoryPanel.ts',
+    '../../views/memory/bugCausalPanel.ts',
+  ];
+
+  it.each(targets)('%s の参照キーが en / ja に揃っている', (relative) => {
+    const source = fs.readFileSync(path.join(__dirname, relative), 'utf8');
+    const keys = [...source.matchAll(/\bt\(\s*'([a-zA-Z0-9_.]+)'\s*\)/g)].map((m) => m[1]);
+    // 走査そのものが空振りしていないことを先に確かめる（0 件は「全部 OK」ではない）
+    expect(keys.length).toBeGreaterThan(0);
+    const missing = keys.filter(
+      (k) => !(k in (en as unknown as Record<string, string>)) || !(k in (ja as unknown as Record<string, string>)),
+    );
+    expect(missing).toEqual([]);
+  });
+});

@@ -144,10 +144,10 @@ describe('flightRecordPanel', () => {
       isDark: true,
       tokens: getTokens(true),
       t: createTrailI18n('ja'),
-      serverUrl: 'http://x',
       store: s,
       reviewStore: rs,
       findingStore,
+      serverUrl: '',
       ...overrides,
     };
     return mountFlightRecordPanel(container, props);
@@ -502,10 +502,10 @@ describe('flightRecordPanel', () => {
         isDark: true,
         tokens: getTokens(true),
         t: createTrailI18n('en'),
-        serverUrl: 'http://x',
         store: store!,
         reviewStore: reviewStore!,
         findingStore: findingStore!,
+        serverUrl: '',
       });
 
       const label = container.querySelector<HTMLElement>('[data-am-flight-label="filter.outcome"]');
@@ -523,10 +523,10 @@ describe('flightRecordPanel', () => {
         isDark: true,
         tokens: getTokens(true),
         t: createTrailI18n('ja'),
-        serverUrl: 'http://x',
         store: store2,
         reviewStore: reviewStore!,
         findingStore: findingStore!,
+        serverUrl: '',
       });
       await settle();
 
@@ -602,7 +602,7 @@ describe('flightRecordPanel', () => {
       const handle = await mountWithFindings();
 
       const tabs = container.querySelectorAll('[data-am-flight-tabs] button');
-      expect(tabs).toHaveLength(3);
+      expect(tabs).toHaveLength(4); // 指示 / Bug Fixed / Review / Drift
       expect(container.querySelector('[data-am-flight-review]')?.hasAttribute('hidden')).toBe(true);
 
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="review"]')?.click();
@@ -693,7 +693,121 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
   });
+  // ── Bug Fixed サブタブ（2026-08-05 に Memory から移設） ──
+  describe('Bug Fixed', () => {
+    function bugRow(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'bugfix-1',
+        commitSha: '89754a1c0abcdef',
+        bugEntityId: 'bug:89754a1',
+        package: 'trail-viewer',
+        category: 'logic',
+        subjectSummary: 'テーマ変数の解決順を直す',
+        sessionId: 'sess-0001-abcd',
+        committedAt: '2026-08-05T02:00:00.000Z',
+        precededByFindingIds: [],
+        ...overrides,
+      };
+    }
 
+    /** memory-core 側も応答する stub。バグ履歴は sessionIds の有無で出し分ける。 */
+    function stubWithBugs(options: { bugs?: unknown[]; historyFails?: boolean } = {}) {
+      const bugs = options.bugs ?? [bugRow()];
+      return stubFetch((url) => {
+        if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
+        if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
+        if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+        if (url.includes('/api/memory/reviews/flight-')) return jsonResponse([]);
+        if (url.includes('/api/memory/bugs/recurring')) return jsonResponse([]);
+        if (url.includes('/api/memory/bugs/history')) {
+          return options.historyFails ? jsonResponse(null, 500) : jsonResponse(bugs);
+        }
+        return jsonResponse({});
+      });
+    }
+
+    async function mountWithBugs(options: { bugs?: unknown[]; historyFails?: boolean } = {}) {
+      const stub = stubWithBugs(options);
+      store = createInstructionStore('http://x');
+      reviewStore = createFlightReviewStore('http://x');
+      const handle = mountWith(store, reviewStore, { serverUrl: 'http://mem' });
+      await settle();
+      return { handle, stub };
+    }
+
+    it('サブタブを開くとバグ履歴パネルがマウントされる', async () => {
+      const { handle } = await mountWithBugs();
+
+      expect(container.querySelector('[data-am-flight-bugfix]')?.hasAttribute('hidden')).toBe(true);
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
+      await settle();
+
+      expect(container.querySelector('[data-am-flight-bugfix]')?.hasAttribute('hidden')).toBe(false);
+      expect(container.querySelector('[data-am-flight-body]')?.hasAttribute('hidden')).toBe(true);
+      expect(container.querySelector('[aria-label="bug-history"]')).not.toBeNull();
+      handle.destroy();
+    });
+
+    it('詳細ペインに当該指示のバグ修正を出し、絞り込みはサーバへ渡す', async () => {
+      const { handle, stub } = await mountWithBugs();
+
+      container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
+      await settle();
+
+      const rows = container.querySelectorAll('[data-am-bugfix-row]');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.textContent).toContain('テーマ変数の解決順を直す');
+      expect(rows[0]?.textContent).toContain('89754a1');
+
+      // 一覧の上限で欠けさせないため、絞り込みはクライアントでなくサーバで行う
+      const historyCall = stub.calls.find((c) => c.url.includes('/api/memory/bugs/history'));
+      expect(historyCall?.url).toContain('sessionIds=inst-0001-abcd');
+      handle.destroy();
+    });
+
+    it('詳細の行を押すと Bug Fixed タブへ移り、そのバグだけに絞る', async () => {
+      const { handle } = await mountWithBugs({
+        bugs: [bugRow(), bugRow({ id: 'bugfix-2', bugEntityId: 'bug:other', subjectSummary: '別のバグ' })],
+      });
+
+      container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
+      await settle();
+      container.querySelector<HTMLButtonElement>('[data-am-bugfix-row]')?.click();
+      await settle();
+
+      expect(container.querySelector('[data-am-flight-bugfix]')?.hasAttribute('hidden')).toBe(false);
+      const bugTableRows = container.querySelectorAll('[aria-label="bug-history-table"] tbody tr');
+      expect(bugTableRows).toHaveLength(1);
+      expect(bugTableRows[0]?.textContent).toContain('テーマ変数の解決順を直す');
+      handle.destroy();
+    });
+
+    it('バグ履歴が取得できないときは 0 件と別の表示にする', async () => {
+      const { handle } = await mountWithBugs({ historyFails: true });
+
+      container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
+      await settle();
+
+      expect(container.querySelector('[data-am-finding-load-failed]')).not.toBeNull();
+      expect(container.querySelectorAll('[data-am-bugfix-row]')).toHaveLength(0);
+      handle.destroy();
+    });
+
+    it('serverUrl が無ければ memory-core を叩かず空のまま出す', async () => {
+      const stub = stubWithBugs();
+      store = createInstructionStore('http://x');
+      reviewStore = createFlightReviewStore('http://x');
+      const handle = mountWith(store, reviewStore);
+      await settle();
+
+      container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
+      await settle();
+
+      expect(stub.calls.some((c) => c.url.includes('/api/memory/bugs/'))).toBe(false);
+      expect(container.querySelectorAll('[data-am-bugfix-row]')).toHaveLength(0);
+      handle.destroy();
+    });
+  });
   // -------------------------------------------------------------------------
   // Drift サブタブ（2026-08-05 に Memory タブから移設）
   // -------------------------------------------------------------------------
@@ -713,7 +827,7 @@ describe('flightRecordPanel', () => {
       resolutionNote: '',
     };
 
-    /** drift 系エンドポイントだけ実データを返す stub。他は既定の空応答。 */
+    /** drift 系エンドポイントだけ実データを返す stub。他は空応答。 */
     function stubWithDrift() {
       return stubFetch((url) => {
         if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
@@ -721,8 +835,6 @@ describe('flightRecordPanel', () => {
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
         if (url.includes('/api/memory/drift/by-day')) return jsonResponse({ points: [] });
         if (url.includes('/api/memory/drift/events')) return jsonResponse([DRIFT_ROW]);
-        if (url.includes('flight-counts')) return jsonResponse([]);
-        if (url.includes('flight-findings')) return jsonResponse([]);
         return jsonResponse([]);
       });
     }
@@ -731,7 +843,7 @@ describe('flightRecordPanel', () => {
       stubWithDrift();
       store = createInstructionStore('http://x');
       reviewStore = createFlightReviewStore('http://x');
-      const handle = mountWith(store, reviewStore);
+      const handle = mountWith(store, reviewStore, { serverUrl: 'http://mem' });
       await settle();
       return handle;
     }
@@ -742,11 +854,11 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
 
-    it('開くまで drift をマウントせず memory-core も叩かない', async () => {
+    it('開くまで drift をマウントせず memory-core の drift API も叩かない', async () => {
       const { calls } = stubWithDrift();
       store = createInstructionStore('http://x');
       reviewStore = createFlightReviewStore('http://x');
-      const handle = mountWith(store, reviewStore);
+      const handle = mountWith(store, reviewStore, { serverUrl: 'http://mem' });
       await settle();
 
       expect(container.querySelector('[data-am-flight-drift]')?.hasAttribute('hidden')).toBe(true);
@@ -763,7 +875,6 @@ describe('flightRecordPanel', () => {
       const driftRegion = container.querySelector('[data-am-flight-drift]');
       expect(driftRegion?.hasAttribute('hidden')).toBe(false);
       expect(container.querySelector('[data-am-flight-body]')?.hasAttribute('hidden')).toBe(true);
-      // driftPanel の一覧に subject と drift_type が出る
       expect(driftRegion?.textContent).toContain('Foo');
       expect(driftRegion?.textContent).toContain('spec_vs_code');
       handle.destroy();

@@ -92,7 +92,7 @@ export function mountBugCausalPanel(
       const msg = document.createElement('div');
       msg.style.cssText =
         'height:100%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:var(--am-color-text-secondary);';
-      msg.textContent = props.t('memory.bug.causedBy.empty');
+      msg.textContent = props.t('flightRecord.bugfix.causedBy.empty');
       root.appendChild(msg);
       return;
     }
@@ -110,7 +110,7 @@ export function mountBugCausalPanel(
 
     // このバグ
     {
-      const { wrap, body } = makeSection(`📌 ${props.t('memory.bug.causal.thisBug')}`);
+      const { wrap, body } = makeSection(`📌 ${props.t('flightRecord.bugfix.causal.thisBug')}`);
       const subject = document.createElement('div');
       subject.style.cssText =
         'font-size:0.8rem;font-weight:500;color:var(--am-color-text-primary);margin-bottom:4px;';
@@ -137,22 +137,22 @@ export function mountBugCausalPanel(
 
     // 同じ原因の過去バグ
     if (info.siblingBugEntityIds.length > 0) {
-      const { wrap, body } = makeSection(`🔁 ${props.t('memory.bug.causal.sibling')}`);
+      const { wrap, body } = makeSection(`🔁 ${props.t('flightRecord.bugfix.causal.sibling')}`);
       const chipEl = styledChip(
-        `${info.siblingBugEntityIds.length} ${props.t('memory.bug.causal.bugsUnit')}`,
+        `${info.siblingBugEntityIds.length} ${props.t('flightRecord.bugfix.causal.bugsUnit')}`,
         'var(--am-color-warning-main)',
         props.onOpenSiblingBugs ? () => props.onOpenSiblingBugs!(info.siblingBugEntityIds) : undefined,
       );
-      createTooltip({ reference: chipEl as HTMLElement, title: props.t('memory.bug.causal.sibling.tooltip') });
+      createTooltip({ reference: chipEl as HTMLElement, title: props.t('flightRecord.bugfix.causal.sibling.tooltip') });
       body.appendChild(chipEl);
       root.appendChild(wrap);
     }
 
     // 事前指摘
     if (info.precedingFindings.length > 0) {
-      const { wrap, body } = makeSection(`⚠ ${props.t('memory.bug.causal.preceding')}`);
+      const { wrap, body } = makeSection(`⚠ ${props.t('flightRecord.bugfix.causal.preceding')}`);
       const chipEl = styledChip(
-        `${info.precedingFindings.length} ${props.t('memory.bug.causal.findingsUnit')}`,
+        `${info.precedingFindings.length} ${props.t('flightRecord.bugfix.causal.findingsUnit')}`,
         'var(--am-color-info-main)',
         props.onOpenPrecedingReviews
           ? () => props.onOpenPrecedingReviews!(info.precedingFindings.map((f) => f.findingEntityId))
@@ -184,7 +184,7 @@ export function mountBugCausalPanel(
 
     // 混入コミット
     if (info.introducedByCommitSha) {
-      const { wrap, body } = makeSection(`🔧 ${props.t('memory.bug.causal.introducedBy')}`);
+      const { wrap, body } = makeSection(`🔧 ${props.t('flightRecord.bugfix.causal.introducedBy')}`);
       const shaEl = document.createElement('div');
       shaEl.style.cssText =
         'font-size:0.75rem;color:var(--am-color-text-secondary);font-family:monospace;';
@@ -202,7 +202,7 @@ export function mountBugCausalPanel(
     // 影響ファイル
     if (info.affectedFilePaths.length > 0) {
       const { wrap, body } = makeSection(
-        `📁 ${props.t('memory.bug.causal.affectedFiles')} (${info.affectedFilePaths.length})`,
+        `📁 ${props.t('flightRecord.bugfix.causal.affectedFiles')} (${info.affectedFilePaths.length})`,
       );
       const ul = document.createElement('ul');
       ul.style.cssText = 'margin:0;padding-left:16px;';
@@ -226,7 +226,7 @@ export function mountBugCausalPanel(
 
     // 根本原因
     if (info.rootCauses.length > 0) {
-      const { wrap, body } = makeSection(`🧩 ${props.t('memory.bug.causal.rootCauses')}`);
+      const { wrap, body } = makeSection(`🧩 ${props.t('flightRecord.bugfix.causal.rootCauses')}`);
       const col = document.createElement('div');
       col.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
       for (const rc of info.rootCauses) {
@@ -249,7 +249,7 @@ export function mountBugCausalPanel(
     ) {
       const msg = document.createElement('div');
       msg.style.cssText = 'font-size:0.75rem;color:var(--am-color-text-secondary);font-style:italic;';
-      msg.textContent = props.t('memory.bug.causal.noCauses');
+      msg.textContent = props.t('flightRecord.bugfix.causal.noCauses');
       root.appendChild(msg);
     }
   }

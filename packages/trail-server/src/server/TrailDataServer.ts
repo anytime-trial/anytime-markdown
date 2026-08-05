@@ -1048,13 +1048,21 @@ export class TrailDataServer {
         limit: clampInt(ctx.url.searchParams.get('limit'), 20, 1, 200),
       })));
 
-    t.exact('GET', '/api/memory/bugs/history', (ctx) =>
+    t.exact('GET', '/api/memory/bugs/history', (ctx) => {
+      // sessionIds は「指定なし（絞り込み無し）」と「指定したが 0 件」を区別する。
+      // パラメータ自体が無いときだけ undefined にする（空文字は 0 件の絞り込み）。
+      const rawSessionIds = ctx.queryOpt('sessionIds');
+      const sessionIds = rawSessionIds === undefined
+        ? undefined
+        : rawSessionIds.split(',').map((s) => s.trim()).filter(Boolean);
       this.respondMemoryJson(ctx.res, '/api/memory/bugs/history', this.memoryApi.getBugHistory({
         package: ctx.queryOpt('pkg'),
         filePath: ctx.queryOpt('filePath'),
         category: ctx.queryOpt('category'),
+        sessionIds,
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
-      })));
+      }));
+    });
 
     t.exact('GET', '/api/memory/bugs/causal', (ctx) => {
       const bugEntityId = ctx.queryOpt('bugEntityId');

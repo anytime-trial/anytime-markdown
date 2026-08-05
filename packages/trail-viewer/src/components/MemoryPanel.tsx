@@ -9,10 +9,9 @@ import {
 
 export interface MemoryPanelProps {
   readonly serverUrl: string;
-  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
-export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<MemoryPanelProps>) {
+export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
   const { t } = useTrailI18n();
   const tokens = useTrailTheme();
   const { isDark } = tokens;
@@ -24,7 +23,6 @@ export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<Memor
     tokens,
     isDark,
     t: tStr,
-    onOpenSessionMessages,
   };
 
   return <VanillaIsland mount={mountMemoryPanel} props={viewProps} />;

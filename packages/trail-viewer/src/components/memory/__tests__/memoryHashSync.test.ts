@@ -5,21 +5,16 @@
 import { parseHashSubTab } from '../../../views/memory/memoryPanel';
 
 describe('parseHashSubTab', () => {
-  it('returns bug for #memory/bug', () => {
-    expect(parseHashSubTab('#memory/bug')).toBe('bug');
-  });
-
-  it('returns review for #memory/review', () => {
-    expect(parseHashSubTab('#memory/review')).toBe('review');
-  });
-
   it('returns runs for #memory/runs', () => {
     expect(parseHashSubTab('#memory/runs')).toBe('runs');
   });
 
-  it('returns null for #memory/drift（Flight Record へ移設済み。既定タブへ落とす）', () => {
-    expect(parseHashSubTab('#memory/drift')).toBeNull();
-  });
+  it.each(['#memory/drift', '#memory/bug', '#memory/review'])(
+    'returns null for %s（Flight Record へ移設済み。既定タブへ落とす）',
+    (hash) => {
+      expect(parseHashSubTab(hash)).toBeNull();
+    },
+  );
 
   it('returns null for empty hash', () => {
     expect(parseHashSubTab('')).toBeNull();
@@ -34,6 +29,6 @@ describe('parseHashSubTab', () => {
   });
 
   it('ignores query params after tab name', () => {
-    expect(parseHashSubTab('#memory/bug?foo=bar')).toBe('bug');
+    expect(parseHashSubTab('#memory/runs?foo=bar')).toBe('runs');
   });
 });

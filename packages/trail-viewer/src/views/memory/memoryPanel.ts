@@ -1,11 +1,13 @@
 /**
  * MemoryPanel の vanilla DOM 版。
  *
- * Chat は本パネルから独立したトップレベルタブ（trailViewer の case 10）へ、
- * Drift は Flight Record のサブタブへ移した（2026-08-05）。
- * サブタブ状態・hash routing・MemoryReader・dbExists probe・
- * pendingBugFilter / pendingReviewFilter を所有し、対応する vanilla サブビューを
- * 直接マウントする（React の `.tsx` ラッパは経由しない）。
+ * Chat は本パネルから独立したトップレベルタブ（trailViewer の case 10）へ移した。
+ * サブタブ状態・hash routing・MemoryReader・dbExists probe を所有し、対応する vanilla
+ * サブビューを直接マウントする（React の `.tsx` ラッパは経由しない）。
+ *
+ * バグ修正履歴（旧 Bugs）・レビュー指摘（旧 Reviews）・ドリフト（旧 Drift）は 2026-08-05 に
+ * すべて Flight Record へ移設した。残るのは pipeline runs のみで、タブの表示名も
+ * Trail Pipeline へ改めた（i18n キー・モジュール名は据え置き）。
  *
  * 呼び出し側（components/MemoryPanel.tsx）は thin React wrapper として
  * useTrailTheme / useTrailI18n を解決し、
@@ -16,8 +18,6 @@ import type { TrailThemeTokens } from '../../theme/designTokens';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import { MEMORY_TAB_DEFS, type MemoryTabValue } from '../../components/memoryTabs';
 import { MemoryReader } from '../../data/readers/MemoryReader';
-import { mountBugHistoryPanel } from './bugHistoryPanel';
-import { mountReviewPanel } from './reviewPanel';
 import { mountPipelineRunsPanel } from './pipelineRunsPanel';
 
 // ---------------------------------------------------------------------------
@@ -29,7 +29,6 @@ export interface MemoryPanelViewProps {
   readonly tokens: TrailThemeTokens;
   readonly isDark: boolean;
   readonly t: (key: string) => string;
-  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -40,11 +39,11 @@ export interface MemoryPanelViewProps {
 const DEFAULT_MEMORY_TAB: MemoryTabValue = MEMORY_TAB_DEFS[0]!.value;
 
 /**
- * `#memory/<tab>` を解釈する。`#memory/drift` は Flight Record へ移設済みのため
- * ここでは一致せず null（＝既定タブ）へ落ちる。
+ * `#memory/<tab>` を解釈する。移設済みの `#memory/{drift,bug,review}` はここで解決せず、
+ * 呼び出し側が既定タブへフォールバックする。
  */
 export function parseHashSubTab(hash: string): MemoryTabValue | null {
-  const match = /^#memory\/(bug|review|runs)/.exec(hash);
+  const match = /^#memory\/(runs)/.exec(hash);
   if (!match) return null;
   return match[1] as MemoryTabValue;
 }
@@ -66,8 +65,6 @@ export function mountMemoryPanel(
   let activeTab: MemoryTabValue =
     parseHashSubTab(globalThis.location?.hash ?? '') ?? DEFAULT_MEMORY_TAB;
   let dbExists: boolean | null = null;
-  let pendingBugFilter: { bugEntityIds: readonly string[] } | null = null;
-  let pendingReviewFilter: { findingEntityIds: readonly string[] } | null = null;
 
   const reader = new MemoryReader(props.serverUrl);
   let currentServerUrl = props.serverUrl;
@@ -147,30 +144,10 @@ export function mountMemoryPanel(
   const subHandles = new Map<MemoryTabValue, SubHandle>();
   let mountedTab: MemoryTabValue | null = null;
 
-  function buildSubForTab(tab: MemoryTabValue, host: HTMLElement): SubHandle {
-    const tStr = props.t;
-    if (tab === 'bug') {
-      return mountBugHistoryPanel(host, {
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingReviews: handleOpenPrecedingReviews,
-        onOpenSiblingBugs: handleOpenPrecedingBugs,
-        pendingBugFilter,
-      }) as SubHandle;
-    }
-    if (tab === 'review') {
-      return mountReviewPanel(host, {
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingBugs: handleOpenPrecedingBugs,
-        pendingReviewFilter,
-      }) as SubHandle;
-    }
-    // runs
+  function buildSubForTab(_tab: MemoryTabValue, host: HTMLElement): SubHandle {
+    // 残るサブタブは runs のみ（他は Flight Record へ移設済み）。
     return mountPipelineRunsPanel(host, {
-      t: tStr,
+      t: props.t,
       reader,
       isDark: props.isDark,
     }) as SubHandle;
@@ -179,31 +156,11 @@ export function mountMemoryPanel(
   function updateSubForTab(tab: MemoryTabValue): void {
     const handle = subHandles.get(tab);
     if (!handle) return;
-    const tStr = props.t;
-    if (tab === 'bug') {
-      (handle as VanillaViewHandle<Parameters<typeof mountBugHistoryPanel>[1]>).update({
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingReviews: handleOpenPrecedingReviews,
-        onOpenSiblingBugs: handleOpenPrecedingBugs,
-        pendingBugFilter,
-      });
-    } else if (tab === 'review') {
-      (handle as VanillaViewHandle<Parameters<typeof mountReviewPanel>[1]>).update({
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingBugs: handleOpenPrecedingBugs,
-        pendingReviewFilter,
-      });
-    } else {
-      (handle as VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>).update({
-        t: tStr,
-        reader,
-        isDark: props.isDark,
-      });
-    }
+    (handle as VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>).update({
+      t: props.t,
+      reader,
+      isDark: props.isDark,
+    });
   }
 
   function destroySub(): void {
@@ -245,9 +202,6 @@ export function mountMemoryPanel(
   // --- Tab switch ------------------------------------------------------------
   function switchTab(tab: MemoryTabValue, updateHash = true): void {
     activeTab = tab;
-    pendingBugFilter = null;
-    pendingReviewFilter = null;
-
     tabs.update({ value: tab });
 
     if (updateHash && typeof globalThis.history !== 'undefined') {
@@ -256,33 +210,6 @@ export function mountMemoryPanel(
 
     if (dbExists === true) {
       mountSubForTab(tab);
-    }
-  }
-
-  // --- Cross-tab filter callbacks --------------------------------------------
-  function handleOpenPrecedingBugs(bugEntityIds: readonly string[]): void {
-    pendingBugFilter = { bugEntityIds };
-    pendingReviewFilter = null;
-    activeTab = 'bug';
-    tabs.update({ value: 'bug' });
-    if (typeof globalThis.history !== 'undefined') {
-      globalThis.history.replaceState(null, '', '#memory/bug');
-    }
-    if (dbExists === true) {
-      mountSubForTab('bug');
-    }
-  }
-
-  function handleOpenPrecedingReviews(findingEntityIds: readonly string[]): void {
-    pendingReviewFilter = { findingEntityIds };
-    pendingBugFilter = null;
-    activeTab = 'review';
-    tabs.update({ value: 'review' });
-    if (typeof globalThis.history !== 'undefined') {
-      globalThis.history.replaceState(null, '', '#memory/review');
-    }
-    if (dbExists === true) {
-      mountSubForTab('review');
     }
   }
 

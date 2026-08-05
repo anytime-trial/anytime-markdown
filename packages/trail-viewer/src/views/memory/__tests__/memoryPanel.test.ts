@@ -124,12 +124,12 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     expect(c.querySelector('[role="tablist"]')).not.toBeNull();
   });
 
-  it('タブバーに3つのタブボタンが存在する（Chat / Drift は移設済み）', async () => {
+  it('タブバーは Runs だけになる（Chat / Bugs / Reviews / Drift は移設済み）', async () => {
     const c = document.createElement('div');
     mountMemoryPanel(c, baseProps());
     await flush(8);
     const tabs = c.querySelectorAll('[role="tab"]');
-    expect(tabs.length).toBe(3);
+    expect(tabs.length).toBe(1);
   });
 
   it('タブ名（i18n キー）がすべてタブバーに含まれる', async () => {
@@ -137,18 +137,11 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     mountMemoryPanel(c, baseProps());
     await flush(8);
     const tablist = c.querySelector('[role="tablist"]');
-    expect(tablist?.textContent).toContain('memory.bug.tab');
-    expect(tablist?.textContent).toContain('memory.review.tab');
     expect(tablist?.textContent).toContain('memory.runs.tab');
-  });
-
-  it('Drift サブタブは残っていない（Flight Record へ移設済み）', async () => {
-    const c = document.createElement('div');
-    mountMemoryPanel(c, baseProps());
-    await flush(8);
-    expect(c.querySelector('[data-memory-tab-host="drift"]')).toBeNull();
-    expect(c.textContent).not.toContain('flightRecord.drift.');
-    expect(c.querySelector('[role="tablist"]')?.textContent).not.toContain('drift');
+    // Bugs / Reviews / Drift は Flight Record へ移設済み（Memory には残らない）
+    expect(tablist?.textContent).not.toContain('flightRecord.tab.bugfix');
+    expect(tablist?.textContent).not.toContain('memory.review.tab');
+    expect(tablist?.textContent).not.toContain('flightRecord.tab.drift');
   });
 
   it('Chat サブタブは残っていない（トップレベルタブへ移設済み）', async () => {
@@ -159,43 +152,26 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     expect(c.querySelector('[data-memory-tab-host="chat"]')).toBeNull();
   });
 
-  it('初期タブ（bug）のサブビューがマウントされる', async () => {
+  it('初期タブ（runs）のサブビューがマウントされる', async () => {
     const c = document.createElement('div');
     mountMemoryPanel(c, baseProps());
     await flush(8);
-    expect(c.querySelector('[aria-label="bug-history"]')).not.toBeNull();
+    expect(c.querySelector('[aria-label="pipeline-runs"]')).not.toBeNull();
   });
 
-  it('review タブへ切り替えても bug サブビューは破棄されず残る（状態保持）', async () => {
+  it('Bugs / Reviews / Drift サブタブは残っていない（Flight Record へ移設済み）', async () => {
     const c = document.createElement('div');
     mountMemoryPanel(c, baseProps());
     await flush(8);
 
     const tabs = c.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    const reviewTab = [...tabs].find((t) => t.textContent?.includes('memory.review.tab'));
-    expect(reviewTab).toBeDefined();
-    reviewTab?.click();
-    await flush(4);
-
-    // 状態保持: 旧 React 同様、切替後も前のサブパネルは破棄されず display:none で残る
-    const reviewHost = c.querySelector('[data-memory-tab-host="review"]') as HTMLElement | null;
-    const bugHost = c.querySelector('[data-memory-tab-host="bug"]') as HTMLElement | null;
-    expect(reviewHost?.style.display).toBe('flex');
-    expect(bugHost).not.toBeNull(); // 破棄されず残存
-    expect(bugHost?.style.display).toBe('none');
-  });
-
-  it('review タブをクリックするとサブビューが切り替わる', async () => {
-    const c = document.createElement('div');
-    mountMemoryPanel(c, baseProps());
-    await flush(8);
-
-    const tabs = c.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    const reviewTab = [...tabs].find((t) => t.textContent?.includes('memory.review.tab'));
-    reviewTab?.click();
-    await flush(4);
-
-    expect(c.querySelector('[aria-label="review-panel"]')).not.toBeNull();
+    expect([...tabs].some((t) => t.textContent?.includes('flightRecord.tab.bugfix'))).toBe(false);
+    expect([...tabs].some((t) => t.textContent?.includes('memory.review.tab'))).toBe(false);
+    expect(c.querySelector('[aria-label="bug-history"]')).toBeNull();
+    expect(c.querySelector('[aria-label="review-panel"]')).toBeNull();
+    expect(c.querySelector('[data-memory-tab-host="bug"]')).toBeNull();
+    expect(c.querySelector('[data-memory-tab-host="review"]')).toBeNull();
+    expect(c.querySelector('[data-memory-tab-host="drift"]')).toBeNull();
   });
 
   it('runs タブをクリックするとサブビューが切り替わる', async () => {
@@ -209,23 +185,6 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     await flush(4);
 
     expect(c.querySelector('[aria-label="pipeline-runs"]')).not.toBeNull();
-  });
-
-  it('タブ切替で前のサブビューは非表示になる（可視は 1 つだけ）', async () => {
-    const c = document.createElement('div');
-    mountMemoryPanel(c, baseProps());
-    await flush(8);
-
-    const tabs = c.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    const runsTab = [...tabs].find((t) => t.textContent?.includes('memory.runs.tab'));
-    runsTab?.click();
-    await flush(4);
-
-    const visible = [...c.querySelectorAll<HTMLElement>('[data-memory-tab-host]')].filter(
-      (el) => el.style.display !== 'none',
-    );
-    expect(visible).toHaveLength(1);
-    expect(visible[0]?.getAttribute('data-memory-tab-host')).toBe('runs');
   });
 
   it('destroy() でサブビューも破棄される', async () => {
@@ -247,7 +206,7 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
 
     handle.update(baseProps({ t: (k) => `NEW:${k}` }));
     // t() が反映されているのでタブバーのラベルに NEW: プレフィクスが付く
-    expect(c.textContent).toContain('NEW:memory.bug.tab');
+    expect(c.textContent).toContain('NEW:memory.runs.tab');
     // サブビューの内容にも t() が反映されている
     expect(c.querySelector('[role="tablist"]')).not.toBeNull();
   });
