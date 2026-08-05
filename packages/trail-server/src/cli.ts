@@ -462,6 +462,9 @@ program
         const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
         if (typeof closeFn === 'function') await closeFn.call(trailDb);
       } catch (err) { logger.error('trail db close failed', err); }
+      // daemon の生存期間を表す system run を正常終了として閉じる。閉じないと
+      // status='running' のまま残る（watchdog は system wave を失効させないため）。
+      try { systemRunLedger.finish('success'); } catch (err) { logger.error('system run finish failed', err); }
       try { ledgerCoreDb.close(); } catch (err) { logger.error('pipeline run ledger db close failed', err); }
       process.exit(0);
     };

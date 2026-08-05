@@ -176,6 +176,8 @@ let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
 let httpChatBridge: ChatBridge | null = null;
 /** startHttpServer() で構築した LogService 用 memory-core.db 接続。 */
 let httpLogLedgerDb: MemoryCoreDb | null = null;
+/** daemon の生存期間を表す wave='system' の run。disposeAll() で閉じる。 */
+let httpSystemRunLedger: PipelineRunLedger | null = null;
 
 /** テスト用: 状態リセット。 */
 export function _resetForTest(): void {
@@ -400,6 +402,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       logger: daemonLoggerAsLogger,
     });
     const systemRunId = systemRunLedger.start();
+    httpSystemRunLedger = systemRunLedger;
     const logService = new LogService(logLedgerDb, server, systemRunId);
     server.setLogService(logService);
     httpLogLedgerDb = logLedgerCoreDb;
@@ -651,6 +654,16 @@ async function disposeAll(): Promise<void> {
       daemonLogger.error(`[daemon] HTTP server stop error: ${formatError(err)}`);
     }
     httpServer = null;
+  }
+  if (httpSystemRunLedger) {
+    // system run を正常終了として閉じる。閉じないと status='running' のまま残る
+    // （watchdog は system wave を失効させないため自動では回収されない）。
+    try {
+      httpSystemRunLedger.finish('success');
+    } catch (err) {
+      daemonLogger.error(`[daemon] system run finish error: ${formatError(err)}`);
+    }
+    httpSystemRunLedger = null;
   }
   if (httpLogLedgerDb) {
     try {

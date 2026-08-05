@@ -30,9 +30,15 @@ export function runPipelineWatchdog(input: {
   // last_heartbeat_at if the pipeline has reported progress, otherwise started_at.
   // This lets long-running backfills (hours) survive the 10-minute timeout
   // as long as they keep updating last_heartbeat_at.
+  //
+  // wave='system' は除外する。daemon プロセスの生存期間を表す run で、進捗を刻む
+  // 対象を持たないため heartbeat が進まない。同じ条件で失効させると、正常稼働中の
+  // daemon が起動 10 分後に必ず 'timeout' で失敗扱いになり、台帳に偽のエラーが
+  // 積み上がる。system run の終了は daemon 自身が shutdown 時に finish() で記録する。
   const staleRunRows = db.exec(
     `SELECT id FROM pipeline_runs
      WHERE status = 'running'
+       AND wave != 'system'
        AND julianday(COALESCE(last_heartbeat_at, started_at)) < julianday(?) - CAST(? AS REAL) / 1440.0`,
     [now, timeoutMinutes],
   );

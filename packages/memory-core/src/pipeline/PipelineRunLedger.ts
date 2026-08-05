@@ -212,6 +212,12 @@ export class PipelineRunLedger {
         [finishedAt, status, durationMs, errorDetail, ...this.totalValues(), runId],
       );
     });
+
+    // 確定した run を指したままにしない。使い回されたインスタンスの二重 finish や
+    // finish 後の heartbeat が、既に閉じた行を静かに再 UPDATE するのを防ぐ。
+    // 書き込みは fail-open で例外を出さないため、状態側で塞いでおく必要がある。
+    this.currentRunId = null;
+    this.startedAt = null;
   }
 
   /** 例外で終わった run を `error` として確定し、stack を error_detail へ残す。 */

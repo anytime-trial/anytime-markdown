@@ -192,12 +192,12 @@ describe('PipelineRunLedger', () => {
       tier: 3,
       logger: silentLogger,
     });
-    ledger.start('2026-08-05T00:00:00.000Z');
+    // runId は start() の戻り値で受ける。finish()/fail() 後は currentRunId が
+    // null に戻る仕様のため、確定後に getter から取ることはできない。
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
 
     ledger.fail('plain string failure');
-    const runId = ledger.runId;
-    expect(runId).not.toBeNull();
-    const row = readRun(db, runId as string);
+    const row = readRun(db, runId);
 
     expect(String(row['error_detail'])).toContain('plain string failure');
   });
@@ -347,5 +347,29 @@ describe('PipelineRunLedger', () => {
 
     expect(() => ledger.appendLog('error', 'pipeline', 'lost log')).not.toThrow();
     expect(errors.length).toBeGreaterThan(0);
+  });
+  it('finish() 後は run を指さず、二重 finish / heartbeat が既存行を書き換えない', () => {
+    // リグレッション: finish() が currentRunId を保持したままだと、使い回された
+    // インスタンスの二重 finish や finish 後の heartbeat が、確定済みの行を静かに
+    // 再 UPDATE する。書き込みは fail-open で例外を出さないため状態側で塞ぐ。
+    const ledger = new PipelineRunLedger({
+      db,
+      scope: 'conversation_incremental',
+      wave: 'memory',
+      tier: 3,
+      logger: silentLogger,
+    });
+    const runId = ledger.start('2026-08-05T00:00:00.000Z');
+    ledger.finish('success', { items_processed: 5 });
+
+    expect(ledger.runId).toBeNull();
+
+    ledger.finish('error', { items_processed: 999 }, 'should not be written');
+    ledger.heartbeat({ items_processed: 999 });
+
+    const row = readRun(db, runId);
+    expect(row['status']).toBe('success');
+    expect(row['items_processed']).toBe(5);
+    expect(row['error_detail']).toBe('');
   });
 });
