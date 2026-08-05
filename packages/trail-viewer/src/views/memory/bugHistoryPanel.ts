@@ -104,7 +104,7 @@ export function mountBugHistoryPanel(
   const pkgSelect = createSelect<string>({
     value: '',
     options: [{ value: '', label: 'All' }],
-    ariaLabel: props.t('memory.bug.filterPackage'),
+    ariaLabel: props.t('flightRecord.bugfix.filterPackage'),
     onChange: (v) => {
       pkgFilter = v;
       renderTable();
@@ -118,7 +118,7 @@ export function mountBugHistoryPanel(
   const catSelect = createSelect<string>({
     value: '',
     options: [{ value: '', label: 'All' }],
-    ariaLabel: props.t('memory.bug.filterCategory'),
+    ariaLabel: props.t('flightRecord.bugfix.filterCategory'),
     onChange: (v) => {
       categoryFilter = v;
       renderTable();
@@ -173,7 +173,7 @@ export function mountBugHistoryPanel(
     const label = document.createElement('div');
     label.style.cssText =
       'font-size:0.75rem;font-weight:600;color:var(--am-color-text-secondary);margin-bottom:4px;';
-    label.textContent = props.t('memory.bug.recurring');
+    label.textContent = props.t('flightRecord.bugfix.recurring');
     const chips = document.createElement('div');
     chips.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;';
     for (const r of recurring.slice(0, 10)) {
@@ -205,7 +205,7 @@ export function mountBugHistoryPanel(
       const empty = document.createElement('div');
       empty.style.cssText =
         'padding:24px;display:flex;align-items:center;justify-content:center;color:var(--am-color-text-secondary);font-size:0.875rem;';
-      empty.textContent = props.t('memory.bug.empty');
+      empty.textContent = props.t('flightRecord.bugfix.empty');
       empty.setAttribute('aria-label', 'bug-history-empty');
       tablePane.appendChild(empty);
       return;
@@ -292,7 +292,7 @@ export function mountBugHistoryPanel(
       if (props.onOpenSessionMessages && row.sessionId) {
         const iconBtnHandle = createIconButton({
           size: 'small',
-          ariaLabel: props.t('memory.bug.openInMessages'),
+          ariaLabel: props.t('flightRecord.bugfix.openInMessages'),
           onClick: (e?: MouseEvent) => {
             e?.stopPropagation();
             props.onOpenSessionMessages!(row.sessionId!);
@@ -302,7 +302,7 @@ export function mountBugHistoryPanel(
         const { el: iconBtn } = iconBtnHandle;
         const { el: icon } = OpenInNew({ fontSize: 'small', color: 'action' });
         iconBtn.appendChild(icon);
-        const tooltipHandle = createTooltip({ reference: iconBtn, title: props.t('memory.bug.openInMessages') });
+        const tooltipHandle = createTooltip({ reference: iconBtn, title: props.t('flightRecord.bugfix.openInMessages') });
         rowHandles.push(tooltipHandle);
         openCell.appendChild(iconBtn);
       }
@@ -322,7 +322,7 @@ export function mountBugHistoryPanel(
         );
         const precededTooltip = createTooltip({
           reference: precededChip as HTMLElement,
-          title: `${props.t('memory.bug.precededByCount')}: ${row.precededByFindingIds.length}`,
+          title: `${props.t('flightRecord.bugfix.precededByCount')}: ${row.precededByFindingIds.length}`,
         });
         rowHandles.push(precededTooltip);
         precededCell.appendChild(precededChip);
@@ -350,8 +350,8 @@ export function mountBugHistoryPanel(
   }
 
   function renderAll(): void {
-    filterLabel.textContent = props.t('memory.bug.history');
-    causalTitle.textContent = props.t('memory.bug.causedBy.title');
+    filterLabel.textContent = props.t('flightRecord.bugfix.history');
+    causalTitle.textContent = props.t('flightRecord.bugfix.causedBy.title');
 
     if (!props.reader) {
       root.style.display = 'flex';
@@ -360,7 +360,7 @@ export function mountBugHistoryPanel(
       root.replaceChildren();
       const empty = document.createElement('div');
       empty.style.cssText = 'font-size:0.875rem;color:var(--am-color-text-secondary);';
-      empty.textContent = props.t('memory.bug.empty');
+      empty.textContent = props.t('flightRecord.bugfix.empty');
       root.appendChild(empty);
       return;
     }

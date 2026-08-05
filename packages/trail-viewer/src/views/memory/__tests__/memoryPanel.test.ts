@@ -124,12 +124,12 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     expect(c.querySelector('[role="tablist"]')).not.toBeNull();
   });
 
-  it('タブバーに4つのタブボタンが存在する（Chat はトップレベルタブへ移設）', async () => {
+  it('タブバーに2つのタブボタンが存在する（Chat / Bugs / Reviews は移設済み）', async () => {
     const c = document.createElement('div');
     mountMemoryPanel(c, baseProps());
     await flush(8);
     const tabs = c.querySelectorAll('[role="tab"]');
-    expect(tabs.length).toBe(4);
+    expect(tabs.length).toBe(2);
   });
 
   it('タブ名（i18n キー）がすべてタブバーに含まれる', async () => {
@@ -138,9 +138,10 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     await flush(8);
     const tablist = c.querySelector('[role="tablist"]');
     expect(tablist?.textContent).toContain('memory.drift.tab');
-    expect(tablist?.textContent).toContain('memory.bug.tab');
-    expect(tablist?.textContent).toContain('memory.review.tab');
     expect(tablist?.textContent).toContain('memory.runs.tab');
+    // Bugs / Reviews は Flight Record へ移設済み（Memory には残らない）
+    expect(tablist?.textContent).not.toContain('flightRecord.tab.bugfix');
+    expect(tablist?.textContent).not.toContain('memory.review.tab');
   });
 
   it('Chat サブタブは残っていない（トップレベルタブへ移設済み）', async () => {
@@ -159,42 +160,18 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     expect(c.textContent).toContain('memory.drift.empty');
   });
 
-  it('bugタブをクリックするとサブビューが切り替わる', async () => {
+  it('Bugs / Reviews サブタブは残っていない（Flight Record へ移設済み）', async () => {
     const c = document.createElement('div');
     mountMemoryPanel(c, baseProps());
     await flush(8);
 
     const tabs = c.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    const bugTab = [...tabs].find((t) => t.textContent?.includes('memory.bug.tab'));
-    expect(bugTab).toBeDefined();
-    bugTab?.click();
-    await flush(4);
-
-    // bug tab のサブビューが存在する（bug-history aria-label）
-    const bugPanel = c.querySelector('[aria-label="bug-history"]');
-    expect(bugPanel).not.toBeNull();
-
-    // 状態保持: 旧 React 同様、切替後も drift サブパネルは破棄されず display:none で残る
-    // （下位のローカル UI 状態を保持するための仕様変更）。drift host は非表示・bug host は表示。
-    const bugHost = c.querySelector('[data-memory-tab-host="bug"]') as HTMLElement | null;
-    const driftHost = c.querySelector('[data-memory-tab-host="drift"]') as HTMLElement | null;
-    expect(bugHost?.style.display).toBe('flex');
-    expect(driftHost).not.toBeNull(); // 破棄されず残存
-    expect(driftHost?.style.display).toBe('none');
-    expect(c.textContent).toContain('memory.drift.empty'); // 保持された drift の内容も残る
-  });
-
-  it('review タブをクリックするとサブビューが切り替わる', async () => {
-    const c = document.createElement('div');
-    mountMemoryPanel(c, baseProps());
-    await flush(8);
-
-    const tabs = c.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    const reviewTab = [...tabs].find((t) => t.textContent?.includes('memory.review.tab'));
-    reviewTab?.click();
-    await flush(4);
-
-    expect(c.querySelector('[aria-label="review-panel"]')).not.toBeNull();
+    expect([...tabs].some((t) => t.textContent?.includes('flightRecord.tab.bugfix'))).toBe(false);
+    expect([...tabs].some((t) => t.textContent?.includes('memory.review.tab'))).toBe(false);
+    expect(c.querySelector('[aria-label="bug-history"]')).toBeNull();
+    expect(c.querySelector('[aria-label="review-panel"]')).toBeNull();
+    expect(c.querySelector('[data-memory-tab-host="bug"]')).toBeNull();
+    expect(c.querySelector('[data-memory-tab-host="review"]')).toBeNull();
   });
 
   it('runs タブをクリックするとサブビューが切り替わる', async () => {
@@ -219,7 +196,7 @@ describe('mountMemoryPanel – tab rendering (mocked probe)', () => {
     expect(c.querySelector('[aria-label="bug-history"]')).toBeNull();
 
     const tabs = c.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>;
-    const bugTab = [...tabs].find((t) => t.textContent?.includes('memory.bug.tab'));
+    const bugTab = [...tabs].find((t) => t.textContent?.includes('flightRecord.tab.bugfix'));
     bugTab?.click();
     await flush(4);
 
