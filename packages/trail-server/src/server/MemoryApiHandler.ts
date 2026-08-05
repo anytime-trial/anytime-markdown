@@ -94,6 +94,40 @@ export interface ReviewHistoryRow {
   precedesBugEntityIds: string[];
 }
 
+/**
+ * Flight Record（指示単位の運航記録）へ畳んだレビュー指摘 1 件。
+ *
+ * `instructionId` は明示宣言（trail.instruction_sessions）があればその指示 ID、無ければ
+ * セッション ID そのもの。後者は TrailDatabase が「1 セッション = 1 指示」の暗黙グループへ
+ * セッション ID を指示 ID として使うため、同じ値で突き合わせられる。
+ */
+export interface FlightReviewFindingRow {
+  id: string;
+  reviewId: string;
+  instructionId: string;
+  sessionId: string;
+  title: string;
+  reviewer: string;
+  reviewedAt: string;
+  workspace: string;
+  targetFilePath: string | null;
+  targetRepo: string | null;
+  category: string;
+  severity: string;
+  findingText: string;
+  addressedCommitSha: string | null;
+  addressedAt: string | null;
+}
+
+/** 指示単位の指摘件数。一覧の列に出すため SQL 側で集計する（limit で欠けさせない）。 */
+export interface FlightReviewFindingCountRow {
+  instructionId: string;
+  error: number;
+  warn: number;
+  info: number;
+  total: number;
+}
+
 export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
 
 export interface PipelineRunStatsByDayRow {
@@ -152,8 +186,12 @@ export interface InvalidationRow {
 //  Helper
 // ---------------------------------------------------------------------------
 
-function clampLimit(limit: number | undefined, def: number): number {
-  return Math.min(limit ?? def, 200);
+/**
+ * 上限は呼び出し側が決める。既定 200 を固定値で埋め込んでいたため、ルートが 1000 まで
+ * 許した指定も無音で 200 へ丸められていた（一覧が欠けても呼び出し側には見えない）。
+ */
+function clampLimit(limit: number | undefined, def: number, max = 200): number {
+  return Math.min(limit ?? def, max);
 }
 
 function toBindParams(arr: unknown[]): SqlValue[] {
@@ -798,6 +836,134 @@ export class MemoryApiHandler {
       });
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.getReviewHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  /**
+   * session 経路のレビューを指示（Flight Record の行の単位）へ畳む副問い合わせ。
+   *
+   * `review_doc` / `agent` 経路は session_id を持たないため対象外。SQLite は WHERE 句で
+   * SELECT のエイリアスを参照できないので、instruction_id は必ずこの副問い合わせの
+   * 外側で絞り込む。
+   */
+  private flightFindingSourceSql(): string {
+    return `SELECT f.*,
+                   COALESCE(
+                     (SELECT i.instruction_id FROM trail.instruction_sessions i
+                       WHERE i.session_id = f.session_id),
+                     f.session_id
+                   ) AS instruction_id
+            FROM (
+              SELECT rf.id, rf.review_id, rf.target_file_path, rf.target_repo,
+                     rf.category, rf.severity, rf.finding_text,
+                     rf.addressed_commit_sha, rf.addressed_at,
+                     r.title, r.reviewer, r.reviewed_at, r.workspace,
+                     substr(r.source_ref, 1, instr(r.source_ref, '#') - 1) AS session_id
+              FROM memory_review_findings rf
+              JOIN memory_reviews r ON r.id = rf.review_id
+              WHERE r.source_kind = 'session' AND instr(r.source_ref, '#') > 1
+            ) f`;
+  }
+
+  /**
+   * 指示単位の指摘件数。instructionIds 未指定なら全件を返す。
+   *
+   * trail.db が ATTACH できていないときは結合キー（instruction_sessions）が引けないため
+   * 空配列を返す。呼び出し側が「0 件」と「引けなかった」を区別できるよう、理由をログへ残す。
+   */
+  async getFlightReviewFindingCounts(): Promise<FlightReviewFindingCountRow[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      if (!this.trailDbAttached) {
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindingCounts] trail.db not attached; cannot resolve instruction ids');
+        return [];
+      }
+      const result = db.exec(
+        `SELECT instruction_id,
+                SUM(CASE WHEN severity = 'error' THEN 1 ELSE 0 END) AS error_count,
+                SUM(CASE WHEN severity = 'warn'  THEN 1 ELSE 0 END) AS warn_count,
+                SUM(CASE WHEN severity = 'info'  THEN 1 ELSE 0 END) AS info_count,
+                COUNT(*) AS total_count
+         FROM (${this.flightFindingSourceSql()})
+         GROUP BY instruction_id`,
+      );
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return {
+          instructionId: toStr(r['instruction_id']),
+          error: toNum(r['error_count']),
+          warn: toNum(r['warn_count']),
+          info: toNum(r['info_count']),
+          total: toNum(r['total_count']),
+        };
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.getFlightReviewFindingCounts] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  /** 指示単位のレビュー指摘一覧。instructionIds を渡すとその指示だけに絞る。 */
+  async getFlightReviewFindings(params: {
+    instructionIds?: readonly string[];
+    limit?: number;
+  }): Promise<FlightReviewFindingRow[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      if (!this.trailDbAttached) {
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindings] trail.db not attached; cannot resolve instruction ids');
+        return [];
+      }
+      // Review タブは全指示横断の一覧なので、他 API より大きい上限を許す（ルートの
+      // clampInt と同じ 1000）。ここを 200 に固定すると、件数（集計・上限なし）とだけ
+      // 食い違い、詳細ペインが「指摘なし」・件数列が非ゼロという矛盾表示になる。
+      const limit = clampLimit(params.limit, 500, 1000);
+      const ids = params.instructionIds ?? [];
+      const bindValues: unknown[] = [...ids];
+      const where = ids.length > 0
+        ? `WHERE instruction_id IN (${ids.map(() => '?').join(',')})`
+        : '';
+      bindValues.push(limit);
+      const result = db.exec(
+        `SELECT * FROM (${this.flightFindingSourceSql()})
+         ${where}
+         ORDER BY reviewed_at DESC, id ASC
+         LIMIT ?`,
+        toBindParams(bindValues),
+      );
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return {
+          id: toStr(r['id']),
+          reviewId: toStr(r['review_id']),
+          instructionId: toStr(r['instruction_id']),
+          sessionId: toStr(r['session_id']),
+          title: toStr(r['title']),
+          reviewer: toStr(r['reviewer']),
+          reviewedAt: toStr(r['reviewed_at']),
+          workspace: toStr(r['workspace']),
+          targetFilePath: toNullStr(r['target_file_path']),
+          targetRepo: toNullStr(r['target_repo']),
+          category: toStr(r['category']),
+          severity: toStr(r['severity']),
+          findingText: toStr(r['finding_text']),
+          addressedCommitSha: toNullStr(r['addressed_commit_sha']),
+          addressedAt: toNullStr(r['addressed_at']),
+        };
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.getFlightReviewFindings] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       this.close(db);
