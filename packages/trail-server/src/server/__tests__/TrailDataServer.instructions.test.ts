@@ -90,6 +90,19 @@ describe('/api/trail/instructions', () => {
     expect(res.status).toBe(404);
   });
 
+  it('別ワークスペースの指示への継続宣言は 404', async () => {
+    const opened = await declare({
+      mode: 'new', sessionId: 's1', summary: '別ワークスペースの作業', workspacePath: '/anytime-trade',
+    });
+    const { instructionId } = (await opened.json()) as { instructionId: string };
+
+    const res = await declare({
+      mode: 'continue', sessionId: 's2', instructionId, workspacePath: '/anytime-markdown',
+    });
+
+    expect(res.status).toBe(404);
+  });
+
   it('mode=new で summary が無ければ 400', async () => {
     const res = await declare({ mode: 'new', sessionId: 's1', workspacePath: '/ws' });
     expect(res.status).toBe(400);

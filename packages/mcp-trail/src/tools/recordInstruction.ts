@@ -68,6 +68,7 @@ export async function handleRecordInstruction(
       const result = continueInstructionDirect(opened.db, {
         sessionId: input.session_id as string,
         instructionId: input.instruction_id as string,
+        workspacePath,
       });
       opened.save();
       return result;

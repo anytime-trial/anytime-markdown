@@ -80,6 +80,20 @@ describe('TrailDatabase instructions (Flight Record)', () => {
       expect(db.listInstructionSessions('missing')).toHaveLength(0);
     });
 
+    it('ワークスペースをまたぐ継続宣言は拒否する', () => {
+      db.openInstruction(openInput('inst-other', 's1', { workspacePath: '/anytime-trade' }));
+
+      const ok = db.continueInstruction({
+        instructionId: 'inst-other',
+        sessionId: 's2',
+        declaredAt: '2026-08-05T02:00:00.000Z',
+        workspacePath: '/anytime-markdown',
+      });
+
+      expect(ok).toBe(false);
+      expect(db.listInstructionSessions('inst-other').map((s) => s.sessionId)).toEqual(['s1']);
+    });
+
     it('1 セッションは 1 指示にしか属さない（所属替えは上書き）', () => {
       db.openInstruction(openInput('inst-1', 's1'));
       db.openInstruction(openInput('inst-2', 's2', { summary: '別の指示' }));
@@ -169,6 +183,35 @@ describe('TrailDatabase instructions (Flight Record)', () => {
 
       expect(db.listInstructionRecords({ outcome: 'achieved' })).toHaveLength(1);
       expect(db.listInstructionRecords({ outcome: 'unachieved' })).toHaveLength(0);
+    });
+
+    it('進行中（記録がまだ無い指示）は末尾に回されず先頭へ出る', () => {
+      // 走査窓を 1 件に絞っても、宣言直後の進行中指示が切り落とされないこと
+      db.upsertFlightReviewFromMachine(machineInput('done', '2026-08-05T04:00:00.000Z'));
+      db.openInstruction(openInput('inst-running', 'not-yet-recorded', { summary: '進行中の指示' }));
+
+      const records = db.listInstructionRecords({ limit: 1 });
+      expect(records).toHaveLength(1);
+      expect(records[0]?.instructionId).toBe('inst-running');
+      expect(records[0]?.endedAt).toBeNull();
+    });
+
+    it('走査窓から外れた古いセッションも所属メンバーとして合算する', () => {
+      // 新しい記録を多数入れて古い s-old を「最新 N 件」から押し出す
+      db.upsertFlightReviewFromMachine(machineInput('s-old', '2026-01-01T00:00:00.000Z', { durationSeconds: 600 }));
+      // s-old より新しく s-new より古い記録で走査窓（scanLimit = limit * 10）を埋める
+      for (let i = 0; i < 12; i += 1) {
+        db.upsertFlightReviewFromMachine(machineInput(`noise-${i}`, `2026-07-${String(i + 10).padStart(2, '0')}T00:00:00.000Z`));
+      }
+      db.upsertFlightReviewFromMachine(machineInput('s-new', '2026-08-05T04:00:00.000Z', { durationSeconds: 1200 }));
+      db.openInstruction(openInput('inst-1', 's-old'));
+      db.continueInstruction({ instructionId: 'inst-1', sessionId: 's-new', declaredAt: '2026-08-05T02:00:00.000Z' });
+
+      // limit=1 → scanLimit=10 で s-old は走査窓の外に落ちる
+      const record = db.listInstructionRecords({ limit: 1 }).find((r) => r.instructionId === 'inst-1');
+      expect(record?.sessionCount).toBe(2);
+      // 欠落していれば 1200 になる（セッション数だけ正しく所要が小さい行）
+      expect(record?.durationSeconds).toBe(1800);
     });
 
     it('ended_at 降順で並ぶ', () => {

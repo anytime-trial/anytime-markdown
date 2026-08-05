@@ -788,25 +788,31 @@ async function main() {
   // SessionStart だけは airspace の判定に関わらず Flight Record の宣言依頼を必ず出す。
   // airspace は「他セッションと衝突したときだけ」助言するため、そこへ相乗りさせると
   // 単独作業のセッション（大多数）で宣言依頼が 1 度も出ない。
+  let airspaceReason = null;
   try {
     const verdict = airspaceVerdict(mode, input, cwd);
     if (mode === 'session-start') {
-      const parts = [];
-      const airspaceReason = verdict && verdict.hookSpecificOutput && verdict.hookSpecificOutput.additionalContext;
-      if (airspaceReason) parts.push(airspaceReason);
-      parts.push(instructionPrompt());
-      process.stdout.write(JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: 'SessionStart',
-          additionalContext: parts.join('\\n\\n'),
-        },
-      }));
+      airspaceReason = (verdict && verdict.hookSpecificOutput && verdict.hookSpecificOutput.additionalContext) || null;
     } else if (verdict !== null) {
       process.stdout.write(JSON.stringify(verdict));
     }
   } catch (err) {
     // ゲートの失敗でツール実行を止めない（fail-open）。
     warn(\`gate failed: \${err.message}\`);
+  }
+
+  // 宣言依頼は airspace の try の外で組み立てる。中に置くと、クレーム書込や
+  // プロセス走査が投げたときに「単独作業でも必ず出す」という意図が黙って崩れる。
+  if (mode === 'session-start') {
+    const parts = [];
+    if (airspaceReason) parts.push(airspaceReason);
+    parts.push(instructionPrompt());
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'SessionStart',
+        additionalContext: parts.join('\\n\\n'),
+      },
+    }));
   }
 
   // SessionStart はワーカーへ送る状態を持たない。

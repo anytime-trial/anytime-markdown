@@ -932,7 +932,9 @@ export const CREATE_INSTRUCTIONS = `CREATE TABLE IF NOT EXISTS instructions (
 
 // session_id は PK 単独: 1 セッションは 1 指示にしか属さない。所属替えは UPSERT で上書きする
 // （2 つの指示へ同時に属せると、時間・トークンが二重計上され合計が実測と合わなくなる）。
-// instruction_id は instructions への FK を張る（こちらは同一 DB 内で取込ラグが無い）。
+// instruction_id の FK は宣言のみで、参照整合は DB では強制されない — trail.db は
+// foreign_keys=OFF で開くため。指示を削除する経路を足す場合、instruction_sessions の
+// 掃除はアプリ側の責務になる（DDL の ON DELETE CASCADE に頼れない）。
 export const CREATE_INSTRUCTION_SESSIONS = `CREATE TABLE IF NOT EXISTS instruction_sessions (
   session_id TEXT PRIMARY KEY,
   instruction_id TEXT NOT NULL REFERENCES instructions(id) ON DELETE CASCADE,

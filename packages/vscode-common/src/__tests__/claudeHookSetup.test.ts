@@ -633,6 +633,11 @@ describe('setupClaudeHooks', () => {
       expect(mjs).toContain('record_instruction');
       expect(mjs).toContain("hookEventName: 'SessionStart'");
       expect(mjs).toContain('parts.push(instructionPrompt())');
+      // airspace の try の外で組み立てる（クレーム書込やプロセス走査が投げても案内は出る）
+      const gateTryStart = mjs.indexOf('const verdict = airspaceVerdict(mode, input, cwd);');
+      const gateCatchEnd = mjs.indexOf('gate failed:', gateTryStart);
+      expect(gateTryStart).toBeGreaterThan(-1);
+      expect(mjs.indexOf('parts.push(instructionPrompt())')).toBeGreaterThan(gateCatchEnd);
     });
 
     test('SessionStart フックが重複登録されない（再実行しても 1 本）', () => {

@@ -633,12 +633,55 @@ function matchesInstructionFilter(record: InstructionRecord, filter: Instruction
   return true;
 }
 
-/** endedAt 降順。未記録（null）は末尾へ回す。 */
-function compareEndedAtDesc(a: string | null, b: string | null): number {
-  if (a === b) return 0;
-  if (a === null) return 1;
-  if (b === null) return -1;
-  return a > b ? -1 : 1;
+/**
+ * 進行中（終了日時なし）を先頭、以降は終了日時の降順。
+ *
+ * 未終了行を末尾へ回すと、既存行が limit に達した時点で「宣言した直後の、いま作業中の
+ * 指示」が一覧から落ちる。取込ラグは数十分単位あるため、宣言直後に Flight Record を
+ * 開いて確認するという主要な導線がそこに当たる。
+ */
+function compareInstructionRecords(a: InstructionRecord, b: InstructionRecord): number {
+  if (a.endedAt === null && b.endedAt === null) return 0;
+  if (a.endedAt === null) return -1;
+  if (b.endedAt === null) return 1;
+  if (a.endedAt === b.endedAt) return 0;
+  return a.endedAt > b.endedAt ? -1 : 1;
+}
+
+/** session_costs をまだ引いていない状態。imported=false で「0 件」と区別する。 */
+const EMPTY_TOKEN_USAGE: InstructionTokenUsage = {
+  imported: false,
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheCreationTokens: 0,
+  estimatedCostUsd: 0,
+  byModel: [],
+};
+
+/** flight_reviews の 1 行。列順は listFlightReviews / flightReviewsBySessionIds で共有する。 */
+function toFlightReview(row: readonly unknown[]): FlightReview {
+  return {
+    id: row[0] as number,
+    sessionId: row[1] as string,
+    workspacePath: row[2] as string,
+    startedAt: (row[3] as string | null) ?? null,
+    endedAt: row[4] as string,
+    durationSeconds: (row[5] as number | null) ?? null,
+    outcome: row[6] as FlightReview['outcome'],
+    outcomeSource: row[7] as FlightReview['outcomeSource'],
+    toolCallCount: row[8] as number,
+    toolFailureCount: row[9] as number,
+    reworkCount: row[10] as number,
+    unresolvedItems: row[11] as string,
+    nextConcerns: row[12] as string,
+    lessonCandidates: row[13] as string,
+    tags: row[14] as string,
+    notes: row[15] as string,
+    rationaleAuditStatus: row[16] as FlightReview['rationaleAuditStatus'],
+    createdAt: row[17] as string,
+    updatedAt: row[18] as string,
+  };
 }
 
 export type FetchTemporalCouplingOptions = {
@@ -9323,27 +9366,7 @@ export class TrailDatabase {
       params,
     );
     if (!res[0]) return [];
-    return res[0].values.map((row) => ({
-      id: row[0] as number,
-      sessionId: row[1] as string,
-      workspacePath: row[2] as string,
-      startedAt: (row[3] as string | null) ?? null,
-      endedAt: row[4] as string,
-      durationSeconds: (row[5] as number | null) ?? null,
-      outcome: row[6] as FlightReview['outcome'],
-      outcomeSource: row[7] as FlightReview['outcomeSource'],
-      toolCallCount: row[8] as number,
-      toolFailureCount: row[9] as number,
-      reworkCount: row[10] as number,
-      unresolvedItems: row[11] as string,
-      nextConcerns: row[12] as string,
-      lessonCandidates: row[13] as string,
-      tags: row[14] as string,
-      notes: row[15] as string,
-      rationaleAuditStatus: row[16] as FlightReview['rationaleAuditStatus'],
-      createdAt: row[17] as string,
-      updatedAt: row[18] as string,
-    }));
+    return res[0].values.map(toFlightReview);
   }
 
   /**
@@ -9537,8 +9560,14 @@ export class TrailDatabase {
    */
   continueInstruction(input: InstructionContinueInput): boolean {
     const db = this.ensureDb();
-    const exists = db.exec('SELECT 1 FROM instructions WHERE id = ? LIMIT 1', [input.instructionId]);
-    if (!exists[0] || exists[0].values.length === 0) return false;
+    const found = db.exec('SELECT workspace_path FROM instructions WHERE id = ? LIMIT 1', [input.instructionId]);
+    const row = found[0]?.values[0];
+    if (row === undefined) return false;
+    // ワークスペースをまたぐ継続は拒否する。通すとそのセッションの時間・トークン・コミットが
+    // 別ワークスペースの行へ合算され、一覧のワークスペース絞り込みでも落とせない。
+    if (input.workspacePath !== undefined && input.workspacePath !== '' && (row[0] as string) !== input.workspacePath) {
+      return false;
+    }
     this.linkInstructionSession(input.instructionId, input.sessionId, input.declaredAt);
     return true;
   }
@@ -9619,15 +9648,23 @@ export class TrailDatabase {
   }
 
   /**
-   * 指示単位の一覧（Flight Record）。ended_at 降順。
+   * 指示単位の一覧（Flight Record）。進行中（終了日時なし）を先頭、以降は ended_at 降順。
    *
    * 宣言のあった指示に加え、どの指示にも属さないセッションを「1 セッション = 1 指示」の
    * 暗黙グループとして併せて返す。宣言機構の導入前に記録された flight_reviews が
    * 一覧から消えないようにするため（宣言忘れも同じ経路で拾われる）。
    *
-   * SHORTCUT: 畳み込みと絞り込みを JS 側で行う単純実装. ceiling: instructions と
-   * flight_reviews を limit の 10 倍まで読む前提（現状 116 行）. upgrade: flight_reviews が
-   * 数万行規模になったら指示単位の集計を SQL 側（GROUP BY instruction_id）へ移す.
+   * 宣言済み指示のメンバー記録は所属セッション ID で直接引く。最新 N 件の走査窓に
+   * 頼ると、窓から外れた古いセッションの分だけ所要時間・件数が欠けた行になり、
+   * 「セッション 3 件・所要 20 分」のように**欠落と判別できない小さすぎる値**になる。
+   *
+   * トークンと成果物はページ確定後にだけ引く。絞り込み前の全件で引くと、1 回の一覧取得
+   * あたり最大 scanLimit 本のクエリが出る（viewer は 30 秒ごとにポーリングする）。
+   *
+   * SHORTCUT: 畳み込みと絞り込みを JS 側で行う単純実装. ceiling: instructions を limit の
+   * 10 倍まで、暗黙グループ用の flight_reviews も同数まで読む前提（現状 116 行）.
+   * upgrade: flight_reviews が数万行規模になったら指示単位の集計を SQL 側
+   * （GROUP BY instruction_id）へ移す.
    */
   listInstructionRecords(filter: InstructionRecordFilter = {}): InstructionRecord[] {
     const db = this.ensureDb();
@@ -9664,30 +9701,36 @@ export class TrailDatabase {
       instructionBySession.set(sessionId, instructionId);
     }
 
-    const reviews = this.listFlightReviews({ limit: scanLimit });
-    const reviewsBySession = new Map<string, FlightReview>();
-    for (const r of reviews) reviewsBySession.set(r.sessionId, r);
+    // 宣言済みのメンバーは走査窓に依存せず ID 指定で取る
+    const linkedSessionIds = instructions.flatMap((i) => sessionsByInstruction.get(i.id) ?? []);
+    const reviewsBySession = this.flightReviewsBySessionIds(linkedSessionIds);
+    // 暗黙グループは「最近の flight_reviews のうち宣言の無いもの」なので走査窓で足りる
+    const recentReviews = this.listFlightReviews({ limit: scanLimit });
 
     const records: InstructionRecord[] = [];
+    // 成果物・トークンを引くための所属セッション。record からは辿れない（暗黙グループと
+    // 明示指示で意味の違う ID を同じ型に同居させないため）ので、ここで対応表を持つ。
+    const sessionIdsByRecord = new Map<string, string[]>();
 
     for (const instruction of instructions) {
       const sessionIds = sessionsByInstruction.get(instruction.id) ?? [];
       const memberReviews = sessionIds
         .map((id) => reviewsBySession.get(id))
         .filter((r): r is FlightReview => r !== undefined);
+      sessionIdsByRecord.set(instruction.id, sessionIds);
       records.push(
         assembleInstructionRecord({
           instruction,
           reviews: memberReviews,
           sessionCount: sessionIds.length,
-          tokenUsage: this.instructionTokenUsage(sessionIds),
+          tokenUsage: EMPTY_TOKEN_USAGE,
           deliverables: [],
         }),
       );
     }
 
     // 宣言の無いセッションは 1 セッション = 1 指示の暗黙グループにする
-    for (const review of reviews) {
+    for (const review of recentReviews) {
       if (instructionBySession.has(review.sessionId)) continue;
       if (
         filter.workspacePath !== undefined &&
@@ -9696,33 +9739,49 @@ export class TrailDatabase {
       ) {
         continue;
       }
+      sessionIdsByRecord.set(review.sessionId, [review.sessionId]);
       records.push(
         assembleInstructionRecord({
           instruction: implicitInstructionFromReview(review),
           reviews: [review],
           sessionCount: 1,
-          tokenUsage: this.instructionTokenUsage([review.sessionId]),
+          tokenUsage: EMPTY_TOKEN_USAGE,
           deliverables: [],
         }),
       );
     }
 
     const filtered = records.filter((r) => matchesInstructionFilter(r, filter));
-    filtered.sort((a, b) => compareEndedAtDesc(a.endedAt, b.endedAt));
+    filtered.sort(compareInstructionRecords);
     const page = filtered.slice(0, limit);
-    // 成果物はページ確定後にだけ引く（全件分を引くとコミット × ファイルの結合が効いてくる）
-    return page.map((record) => ({
-      ...record,
-      deliverables: this.instructionDeliverables(this.sessionIdsForRecord(record, sessionsByInstruction)),
-    }));
+    return page.map((record) => {
+      const sessionIds = sessionIdsByRecord.get(record.instructionId) ?? [];
+      return {
+        ...record,
+        tokenUsage: this.instructionTokenUsage(sessionIds),
+        deliverables: this.instructionDeliverables(sessionIds),
+      };
+    });
   }
 
-  /** 明示指示なら台帳の所属セッション、暗黙グループなら指示 ID がセッション ID 自身。 */
-  private sessionIdsForRecord(
-    record: InstructionRecord,
-    sessionsByInstruction: Map<string, string[]>,
-  ): string[] {
-    return sessionsByInstruction.get(record.instructionId) ?? [record.instructionId];
+  /** 指定セッションの flight_reviews を 1 本のクエリで引く（走査窓に依存しない）。 */
+  private flightReviewsBySessionIds(sessionIds: readonly string[]): Map<string, FlightReview> {
+    const byId = new Map<string, FlightReview>();
+    if (sessionIds.length === 0) return byId;
+    const db = this.ensureDb();
+    const placeholders = sessionIds.map(() => '?').join(', ');
+    const res = db.exec(
+      `SELECT id, session_id, workspace_path, started_at, ended_at, duration_seconds,
+              outcome, outcome_source, tool_call_count, tool_failure_count, rework_count,
+              unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status,
+              created_at, updated_at
+       FROM flight_reviews WHERE session_id IN (${placeholders})`,
+      [...sessionIds],
+    );
+    for (const row of res[0]?.values ?? []) {
+      byId.set(row[1] as string, toFlightReview(row));
+    }
+    return byId;
   }
 
   /** session_costs をモデル別に畳む。行が 1 件も無ければ imported=false（0 と区別する）。 */

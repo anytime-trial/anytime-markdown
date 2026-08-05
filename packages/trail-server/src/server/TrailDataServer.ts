@@ -3210,10 +3210,17 @@ export class TrailDataServer {
             res.end(JSON.stringify({ error: 'instructionId required' }));
             return;
           }
-          if (!this.trailDb.continueInstruction({ instructionId, sessionId, declaredAt: now })) {
-            // 存在しない指示を黙って新規作成しない（取り違えた ID がそのまま台帳に増える）
+          const declaredWorkspace = typeof parsed['workspacePath'] === 'string' ? parsed['workspacePath'] : '';
+          if (!this.trailDb.continueInstruction({
+            instructionId,
+            sessionId,
+            declaredAt: now,
+            ...(declaredWorkspace === '' ? {} : { workspacePath: declaredWorkspace }),
+          })) {
+            // 存在しない指示・別ワークスペースの指示を黙って受け入れない
+            // （取り違えた ID がそのまま台帳に増え、混入行は絞り込みでも落とせない）
             res.writeHead(404, JSON_HEADERS);
-            res.end(JSON.stringify({ error: 'instruction not found' }));
+            res.end(JSON.stringify({ error: 'instruction not found in this workspace' }));
             return;
           }
           this.trailDb.save();

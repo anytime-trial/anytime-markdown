@@ -23,6 +23,8 @@ export interface ContinueInstructionInput {
   readonly sessionId: string;
   readonly instructionId: string;
   readonly declaredAt?: string;
+  /** 宣言側のワークスペース。対象指示と不一致なら拒否する。 */
+  readonly workspacePath?: string;
 }
 
 export interface InstructionDeclarationResult {
@@ -95,12 +97,23 @@ export function continueInstructionDirect(
 ): InstructionDeclarationResult {
   ensureTables(db);
   const row = db
-    .prepare('SELECT summary FROM instructions WHERE id = ?')
-    .get(input.instructionId) as { summary: string } | undefined;
+    .prepare('SELECT summary, workspace_path FROM instructions WHERE id = ?')
+    .get(input.instructionId) as { summary: string; workspace_path: string } | undefined;
   if (row === undefined) {
     // 存在しない ID を黙って新規作成しない — 取り違えた宣言がそのまま台帳に増え、
     // 継続したはずのセッションが元の指示から抜ける
     throw new Error(`instruction not found: ${input.instructionId}`);
+  }
+  // ワークスペースをまたぐ継続は拒否する。通すとそのセッションの時間・トークン・コミットが
+  // 別ワークスペースの行へ合算され、一覧のワークスペース絞り込みでも落とせない。
+  if (
+    input.workspacePath !== undefined &&
+    input.workspacePath !== '' &&
+    row.workspace_path !== input.workspacePath
+  ) {
+    throw new Error(
+      `instruction ${input.instructionId} belongs to another workspace (${row.workspace_path})`,
+    );
   }
   const declaredAt = input.declaredAt ?? new Date().toISOString();
   const sequence = linkSession(db, input.instructionId, input.sessionId, declaredAt);
