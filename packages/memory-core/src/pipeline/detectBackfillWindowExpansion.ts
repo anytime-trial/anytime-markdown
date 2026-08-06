@@ -1,4 +1,5 @@
 import type { MemoryDbConnection } from '../db/connection/types';
+import { ingestableMessageSql } from '../ingest/conversation/messageFilter';
 
 export interface DetectBackfillWindowExpansionInput {
   /** memory-core.db への接続。trail DB が "trail" として ATTACH 済みであること。 */
@@ -54,13 +55,20 @@ export function detectBackfillWindowExpansion(
     };
   }
 
-  // 拡張区間 [desired_start, earliest) に未処理 user メッセージがあるか
+  // 拡張区間 [desired_start, earliest) に未処理 user メッセージがあるか。
+  //
+  // 数える条件は「エピソードになり得るか」で ingestableMessageSql に揃える。
+  // 取込対象でないメッセージ（sidechain・本文ゼロ）を数えると、拡張 → カーソル
+  // reset → 再 backfill してもエピソードが 1 件も増えず earliest が動かない →
+  // 次回も同じ判定、という空転になる。実測で user 行 352,212 件中 328,662 件は
+  // tool_result の入れ物で本文が空なので、この区間は珍しくない。
   const countRows = db.exec(
     `SELECT COUNT(*) AS c
        FROM trail.messages
       WHERE timestamp >= ?
         AND timestamp < ?
-        AND type = 'user'`,
+        AND type = 'user'
+        AND ${ingestableMessageSql()}`,
     [desiredStart, earliest],
   );
   const unprocessedCount = (countRows[0]?.values?.[0]?.[0] as number) ?? 0;
@@ -68,7 +76,7 @@ export function detectBackfillWindowExpansion(
   if (unprocessedCount === 0) {
     return {
       shouldExpand: false,
-      reason: `no unprocessed user messages in [${desiredStart}, ${earliest})`,
+      reason: `no ingestable user messages in [${desiredStart}, ${earliest})`,
     };
   }
 

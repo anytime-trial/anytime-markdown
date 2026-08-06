@@ -27,7 +27,8 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
   ) STRICT`);
   db.run(`CREATE TABLE messages (
     uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT
+    type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT,
+    is_sidechain INTEGER NOT NULL DEFAULT 0
   ) STRICT`);
   return db;
 }

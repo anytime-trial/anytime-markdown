@@ -41,7 +41,8 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
     type            TEXT NOT NULL,
     timestamp       TEXT,
     text_content    TEXT,
-    user_content    TEXT
+    user_content    TEXT,
+    is_sidechain    INTEGER NOT NULL DEFAULT 0
   ) STRICT`);
   return db;
 }

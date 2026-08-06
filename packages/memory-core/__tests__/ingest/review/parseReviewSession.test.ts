@@ -39,7 +39,8 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
       text_content TEXT,
       tool_calls TEXT,
       subagent_type TEXT,
-      skill TEXT
+      skill TEXT,
+      is_sidechain INTEGER NOT NULL DEFAULT 0
     )
   `);
   return db;
@@ -54,13 +55,14 @@ type InsertMsgOpts = {
   tool_calls?: string | null;
   subagent_type?: string | null;
   skill?: string | null;
+  is_sidechain?: number;
 };
 
 function insertMsg(trailDb: BetterSqlite3MemoryDb, opts: InsertMsgOpts): void {
   trailDb.run(
     `INSERT INTO messages
-      (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill, is_sidechain)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       opts.uuid,
       opts.session_id,
@@ -70,6 +72,7 @@ function insertMsg(trailDb: BetterSqlite3MemoryDb, opts: InsertMsgOpts): void {
       opts.tool_calls ?? null,
       opts.subagent_type ?? null,
       opts.skill ?? null,
+      opts.is_sidechain ?? 0,
     ],
   );
 }
@@ -128,6 +131,48 @@ describe('parseReviewSessions', () => {
     });
 
     expect(results).toHaveLength(1);
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  // 会話取込は is_sidechain=1 を除外するが、レビュー取込は **除外してはならない**。
+  // code-reviewer subagent の往復はすべて sidechain として記録されるため、
+  // ここへ同じ条件が混入すると findings が 1 件も取り込まれなくなる。
+  // messageFilter.ts の警告コメントを、実際に落ちる検査へ変換したもの。
+  test('sidechain(is_sidechain=1) の code-reviewer メッセージを取り込む', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    insertMsg(trailDb, {
+      uuid: 'sc-1',
+      session_id: 'sess-sidechain',
+      type: 'user',
+      timestamp: '2026-03-01T10:00:00.000Z',
+      text_content: 'レビューをお願いします',
+      subagent_type: 'code-reviewer',
+      is_sidechain: 1,
+    });
+    insertMsg(trailDb, {
+      uuid: 'sc-2',
+      session_id: 'sess-sidechain',
+      type: 'assistant',
+      timestamp: '2026-03-01T10:01:00.000Z',
+      text_content: 'レビュー結果です',
+      subagent_type: 'code-reviewer',
+      is_sidechain: 1,
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].session_id).toBe('sess-sidechain');
 
     mainDb.close();
     trailDb.close();

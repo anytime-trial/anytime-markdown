@@ -1,5 +1,6 @@
 import type { MemoryDbConnection } from '../../db/connection/types';
 import type { Message } from '../../canonical/splitEpisodes';
+import { mainThreadOnlySql } from './messageFilter';
 
 /**
  * Lists session_ids in **chronological order by their earliest qualifying
@@ -27,6 +28,7 @@ export function listSessionIdsSince(
      WHERE m.timestamp IS NOT NULL
        AND m.timestamp >= ?
        AND m.type IN ('user', 'assistant', 'system')
+       AND ${mainThreadOnlySql('m')}
      GROUP BY m.session_id
      ORDER BY min_ts, m.session_id`
   );
@@ -66,6 +68,7 @@ export function readMessagesForSession(
        AND m.timestamp IS NOT NULL
        AND m.timestamp >= ?
        AND m.type IN ('user', 'assistant', 'system')
+       AND ${mainThreadOnlySql('m')}
      ORDER BY m.timestamp`
   );
   try {

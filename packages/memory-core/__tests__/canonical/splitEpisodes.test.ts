@@ -96,6 +96,50 @@ describe('splitEpisodes', () => {
     expect(Buffer.byteLength(episode.raw_excerpt, 'utf8')).toBeLessThanOrEqual(4096);
   });
 
+  it('drops empty text_excerpts instead of emitting bare separators', () => {
+    // trail.messages の user 行 352,212 件中 328,662 件は tool_result の入れ物で
+    // user_content が空。これを join すると "\n---\n" だけの raw_excerpt になる。
+    const messages: Message[] = [
+      msg('1', 's1', 'user', '', '2024-01-01T00:00:01.000Z'),
+      msg('2', 's1', 'assistant', 'answer', '2024-01-01T00:00:02.000Z'),
+      msg('3', 's1', 'assistant', '', '2024-01-01T00:00:03.000Z'),
+    ];
+    const [episode] = splitEpisodes(messages);
+    expect(episode.raw_excerpt).toBe('answer');
+    // uuid 範囲はブロック全体を指したまま（本文の有無で範囲を変えない）
+    expect(episode.message_uuid_start).toBe('1');
+    expect(episode.message_uuid_end).toBe('3');
+  });
+
+  it('skips an episode whose messages are all empty', () => {
+    const messages: Message[] = [
+      msg('1', 's1', 'user', '', '2024-01-01T00:00:01.000Z'),
+      msg('2', 's1', 'assistant', '', '2024-01-01T00:00:02.000Z'),
+    ];
+    expect(splitEpisodes(messages)).toEqual([]);
+  });
+
+  it('skips only the empty blocks, keeping the ones with content', () => {
+    const messages: Message[] = [
+      msg('1', 's1', 'user', '', '2024-01-01T00:00:01.000Z'),
+      msg('2', 's1', 'assistant', '', '2024-01-01T00:00:02.000Z'),
+      msg('3', 's1', 'user', 'q2', '2024-01-01T00:00:03.000Z'),
+      msg('4', 's1', 'assistant', 'a2', '2024-01-01T00:00:04.000Z'),
+    ];
+    const episodes = splitEpisodes(messages);
+    expect(episodes).toHaveLength(1);
+    expect(episodes[0].message_uuid_start).toBe('3');
+    expect(episodes[0].raw_excerpt).toBe('q2\n---\na2');
+  });
+
+  it('treats whitespace-only excerpts as empty', () => {
+    const messages: Message[] = [
+      msg('1', 's1', 'user', '   ', '2024-01-01T00:00:01.000Z'),
+      msg('2', 's1', 'assistant', '\n\t', '2024-01-01T00:00:02.000Z'),
+    ];
+    expect(splitEpisodes(messages)).toEqual([]);
+  });
+
   it('session boundary also splits a block mid-flow (not crossing sessions)', () => {
     const messages: Message[] = [
       msg('1', 's1', 'user', 'q1', '2024-01-01T00:00:01.000Z'),
