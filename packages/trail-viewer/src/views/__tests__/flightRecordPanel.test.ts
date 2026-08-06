@@ -789,6 +789,7 @@ describe('flightRecordPanel', () => {
         category: 'logic',
         subjectSummary: 'テーマ変数の解決順を直す',
         sessionId: 'sess-0001-abcd',
+        instructionId: 'inst-0001-abcd',
         committedAt: '2026-08-05T02:00:00.000Z',
         precededByFindingIds: [],
         ...overrides,
@@ -830,6 +831,25 @@ describe('flightRecordPanel', () => {
       expect(container.querySelector('[data-am-flight-bugfix]')?.hasAttribute('hidden')).toBe(false);
       expect(container.querySelector('[data-am-flight-body]')?.hasAttribute('hidden')).toBe(true);
       expect(container.querySelector('[aria-label="bug-history"]')).not.toBeNull();
+      handle.destroy();
+    });
+
+    it('Bug Fixed の指示名を押すと指示タブへ移り、その指示を選択する', async () => {
+      const { handle } = await mountWithBugs();
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
+      await settle();
+
+      const cell = container.querySelector<HTMLElement>('[data-am-bug-instruction]');
+      expect(cell).not.toBeNull();
+      // 指示 ID の生表示ではなく、指示一覧と同じ概要が出る
+      expect(cell?.textContent).toBe('Flight Review を指示単位にする');
+      cell?.click();
+      await settle();
+
+      expect(container.querySelector('[data-am-flight-bugfix]')?.hasAttribute('hidden')).toBe(true);
+      expect(
+        container.querySelector('[data-am-flight-table] tbody tr')?.getAttribute('aria-selected'),
+      ).toBe('true');
       handle.destroy();
     });
 

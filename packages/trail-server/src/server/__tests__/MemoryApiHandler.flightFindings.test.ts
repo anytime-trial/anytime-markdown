@@ -66,6 +66,18 @@ function seedMemoryDb(dbPath: string): void {
   insertReview('rev-doc', 'review/r1.md', 'review_doc', TS);
   insertFinding('rf-doc', 'rev-doc', 0, 'error', 'packages/trail-viewer/src/c.ts');
 
+  // Bug Fixed 一覧の指示名列も同じ畳み方（宣言済み / 暗黙 / セッション不明）を通る
+  const insertBugFix = (id: string, sha: string, sessionId: string | null): void => {
+    run(
+      `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, related_session_id)
+       VALUES (?, ?, 'ent-1', 'trail-viewer', 'logic', ?, ?, ?, ?)`,
+      [id, sha, `bug ${id}`, TS, TS, sessionId],
+    );
+  };
+  insertBugFix('bf-declared', 'sha-declared', DECLARED_SESSION);
+  insertBugFix('bf-implicit', 'sha-implicit', IMPLICIT_SESSION);
+  insertBugFix('bf-orphan', 'sha-orphan', null);
+
   db.close();
 }
 
@@ -128,6 +140,15 @@ describe('MemoryApiHandler flight review findings', () => {
   it('session を持たない経路（review_doc）は返さない', async () => {
     const rows = await handler.getFlightReviewFindings({});
     expect(rows.map((r) => r.id).sort()).toEqual(['rf-d1', 'rf-d2', 'rf-i1']);
+  });
+
+  // Bug Fixed 一覧は指示名を出すため、指摘と同じ規則で instruction_id を解決する必要がある。
+  it('バグ修正も指示 ID へ畳む（宣言済み → 指示 ID / 宣言なし → セッション ID / 不明 → null）', async () => {
+    const rows = await handler.getBugHistory({});
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    expect(byId.get('bf-declared')?.instructionId).toBe(INSTRUCTION_ID);
+    expect(byId.get('bf-implicit')?.instructionId).toBe(IMPLICIT_SESSION);
+    expect(byId.get('bf-orphan')?.instructionId).toBeNull();
   });
 
   it('件数は指示単位で severity 別に集計する', async () => {

@@ -47,6 +47,12 @@ export interface BugHistoryRow {
   category: string;
   subjectSummary: string;
   sessionId: string | null;
+  /**
+   * 関連セッションが属する指示 ID。宣言があればその指示 ID、無ければセッション ID
+   * （`flightFindingSourceSql` の暗黙グループと同じ規則）。セッション不明、または
+   * trail.db が ATTACH できていない構成では null。
+   */
+  instructionId: string | null;
   precededByFindingIds: string[];
   committedAt: string;
 }
@@ -559,9 +565,20 @@ export class MemoryApiHandler {
       }
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
+      // 指示 ID は Review タブ（flightFindingSourceSql）と同じ規則で解決する。trail.db を
+      // ATTACH できていない構成では instruction_sessions が引けないので、行全体を落とさず
+      // セッション ID へフォールバックする（バグ一覧そのものは memory-core だけで引ける）。
+      const instructionIdExpr = this.trailDbAttached
+        ? `COALESCE(
+             (SELECT i.instruction_id FROM trail.instruction_sessions i
+               WHERE i.session_id = bf.related_session_id),
+             bf.related_session_id
+           )`
+        : 'bf.related_session_id';
       const result = db.exec(
         `SELECT bf.id, bf.commit_sha, bf.bug_entity_id, bf.package, bf.category,
                 bf.subject_summary, bf.related_session_id, bf.committed_at,
+                ${instructionIdExpr} AS instruction_id,
                 (SELECT GROUP_CONCAT(e.subject_entity_id)
                  FROM memory_edges e
                  WHERE e.predicate='precedes' AND e.valid_to IS NULL
@@ -585,6 +602,7 @@ export class MemoryApiHandler {
           category: toStr(r['category']),
           subjectSummary: toStr(r['subject_summary']),
           sessionId: toNullStr(r['related_session_id']),
+          instructionId: toNullStr(r['instruction_id']),
           precededByFindingIds: precededByRaw ? precededByRaw.split(',').filter(Boolean) : [],
           committedAt: toStr(r['committed_at']),
         };

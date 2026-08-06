@@ -541,9 +541,11 @@ export interface TrailI18n {
   'flightRecord.bugfix.history': string;
   'flightRecord.bugfix.filterPackage': string;
   'flightRecord.bugfix.filterCategory': string;
+  'flightRecord.bugfix.column.summary': string;
+  'flightRecord.bugfix.column.date': string;
+  'flightRecord.bugfix.column.category': string;
   'flightRecord.bugfix.causedBy.title': string;
   'flightRecord.bugfix.causedBy.empty': string;
-  'flightRecord.bugfix.openInMessages': string;
   'flightRecord.bugfix.precededByCount': string;
   'flightRecord.bugfix.causal.thisBug': string;
   'flightRecord.bugfix.causal.sibling': string;

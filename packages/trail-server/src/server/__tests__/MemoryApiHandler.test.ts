@@ -242,6 +242,16 @@ describe('MemoryApiHandler', () => {
       const rows = await handler.getBugHistory({});
       expect(rows.length).toBe(2);
     });
+
+    // trail.db が ATTACH できない構成でも一覧そのものは memory-core だけで引ける。
+    // instruction_sessions を引けないことを理由に行を落とすと、Bug Fixed タブが丸ごと空になる。
+    it('trail.db が無ければ指示 ID をセッション ID へフォールバックし、行は落とさない', async () => {
+      const rows = await handler.getBugHistory({});
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      expect(byId.get('bf-2')?.instructionId).toBe('sess-1');
+      // related_session_id を持たないバグは指示不明（null）。セッション ID を捏造しない
+      expect(byId.get('bf-1')?.instructionId).toBeNull();
+    });
   });
 
   describe('listUnaddressedReviewFindings', () => {

@@ -108,6 +108,12 @@ export interface MemoryBugHistoryRow {
   readonly category: string;
   readonly subjectSummary: string;
   readonly sessionId: string | null;
+  /**
+   * このバグを潰したセッションが属する指示 ID。宣言があればその指示 ID、無ければセッション ID
+   * （Review タブの `MemoryFlightReviewFindingRow.instructionId` と同じ暗黙グループの規則）。
+   * セッション不明のバグ、または trail.db を引けない構成では null。
+   */
+  readonly instructionId: string | null;
   readonly committedAt: string;
   readonly precededByFindingIds: readonly string[];
 }

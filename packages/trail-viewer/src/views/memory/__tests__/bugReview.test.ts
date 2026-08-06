@@ -39,6 +39,7 @@ function makeBugRow(over: Partial<MemoryBugHistoryRow> = {}): MemoryBugHistoryRo
     category: 'regression',
     subjectSummary: 'Something broke',
     sessionId: 'sess-1',
+    instructionId: 'inst-1',
     committedAt: '2026-01-10T00:00:00.000Z',
     precededByFindingIds: [],
     ...over,
@@ -319,9 +320,9 @@ describe('mountBugHistoryPanel', () => {
     await flush();
     const table = c.querySelector('[aria-label="bug-history-table"]');
     expect(table).not.toBeNull();
-    expect(table?.textContent).toContain('trail-viewer');
+    expect(table?.textContent).toContain('Something broke');
+    expect(table?.textContent).toContain('2026-01-10');
     expect(table?.textContent).toContain('regression');
-    expect(table?.textContent).toContain('abc1234'.slice(0, 7));
   });
 
   it('バグ履歴が空なら empty メッセージを表示する', async () => {
@@ -390,25 +391,65 @@ describe('mountBugHistoryPanel', () => {
     expect(trs.length).toBe(1);
   });
 
-  it('openInMessages ボタンクリックで onOpenSessionMessages を呼ぶ', async () => {
+  it('列は Summary / Date / Category / 指示 の順で、Package・Commit を出さない', async () => {
     const c = document.createElement('div');
-    let openedId: string | null = null;
     const reader = makeReader({
-      getBugHistory: () => Promise.resolve([makeBugRow({ sessionId: 'sess-42' })]),
+      getBugHistory: () => Promise.resolve([makeBugRow({ package: 'trail-viewer', commitSha: 'deadbeef123' })]),
+      listRecurringBugs: () => Promise.resolve([]),
+    });
+    mountBugHistoryPanel(c, baseProps({ reader }));
+    await flush();
+
+    const heads = [...c.querySelectorAll('[aria-label="bug-history-table"] thead th')]
+      .map((el) => el.textContent);
+    expect(heads.slice(0, 4)).toEqual([
+      'flightRecord.bugfix.column.summary',
+      'flightRecord.bugfix.column.date',
+      'flightRecord.bugfix.column.category',
+      'flightRecord.column.instruction',
+    ]);
+
+    const rowText = c.querySelector('[aria-label="bug-history-table"] tbody tr')?.textContent ?? '';
+    expect(rowText).not.toContain('trail-viewer');
+    expect(rowText).not.toContain('deadbeef');
+  });
+
+  it('指示名セルのクリックで onSelectInstruction を呼び、行選択は起きない', async () => {
+    const c = document.createElement('div');
+    let selectedInstructionId: string | null = null;
+    const reader = makeReader({
+      getBugHistory: () => Promise.resolve([makeBugRow({ instructionId: 'inst-42' })]),
       listRecurringBugs: () => Promise.resolve([]),
     });
     mountBugHistoryPanel(
       c,
-      baseProps({ reader, onOpenSessionMessages: (id) => { openedId = id; } }),
+      baseProps({
+        reader,
+        labelOf: (id) => `label:${id}`,
+        onSelectInstruction: (id) => { selectedInstructionId = id; },
+      }),
     );
     await flush();
 
-    const openBtn = c.querySelector(
-      `[aria-label="${t('flightRecord.bugfix.openInMessages')}"]`,
-    ) as HTMLElement | null;
-    expect(openBtn).not.toBeNull();
-    openBtn!.click();
-    expect(openedId).toBe('sess-42');
+    const cell = c.querySelector('[data-am-bug-instruction]') as HTMLElement | null;
+    expect(cell).not.toBeNull();
+    expect(cell!.textContent).toBe('label:inst-42');
+    cell!.click();
+    expect(selectedInstructionId).toBe('inst-42');
+    // 行クリック（バグ選択）へは伝播させない
+    const row = c.querySelector('[aria-label="bug-history-table"] tbody tr') as HTMLElement;
+    expect(row.getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('instructionId が無い行は押せない指示名を出さない', async () => {
+    const c = document.createElement('div');
+    const reader = makeReader({
+      getBugHistory: () => Promise.resolve([makeBugRow({ instructionId: null })]),
+      listRecurringBugs: () => Promise.resolve([]),
+    });
+    mountBugHistoryPanel(c, baseProps({ reader, onSelectInstruction: () => {} }));
+    await flush();
+    expect(c.querySelector('[data-am-bug-instruction]')).toBeNull();
   });
 
   it('precededByFindingIds チップクリックで onOpenPrecedingReviews を呼ぶ', async () => {

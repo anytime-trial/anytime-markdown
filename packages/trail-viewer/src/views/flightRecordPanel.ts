@@ -65,8 +65,6 @@ export interface FlightRecordPanelProps {
    * 渡されない環境ではファイルパスをテキストとして出す（押せないボタンを出さない）。
    */
   readonly onOpenFile?: (filePath: string) => void;
-  /** バグ行から該当セッションの会話を開く。webview の host だけが実行できる。 */
-  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
 /**
@@ -938,13 +936,22 @@ export function mountFlightRecordPanel(
     render();
   }
 
+  /** 指示タブへ移り、その指示を選択状態にする（Review / Bug Fixed の指示名から辿る導線）。 */
+  function openInstruction(instructionId: string): void {
+    if (instructionId === '') return;
+    activeTab = 'instruction';
+    selectRow(instructionId);
+    render();
+  }
+
   function bugPanelProps(): Parameters<typeof mountBugHistoryPanel>[1] {
     return {
       t: props.t,
       reader: bugReader,
-      onOpenSessionMessages: props.onOpenSessionMessages,
       onOpenPrecedingReviews: openPrecedingFindings,
       onOpenSiblingBugs: openBugFixed,
+      labelOf: instructionLabel,
+      onSelectInstruction: openInstruction,
       pendingBugFilter,
     };
   }
@@ -978,11 +985,7 @@ export function mountFlightRecordPanel(
     if (onOpenFile) wireFindingLinks(reviewRegion, onOpenFile);
     for (const tr of reviewRegion.querySelectorAll<HTMLTableRowElement>('[data-am-finding-row]')) {
       tr.addEventListener('click', () => {
-        const instructionId = tr.dataset['instructionId'] ?? '';
-        if (instructionId === '') return;
-        activeTab = 'instruction';
-        selectRow(instructionId);
-        render();
+        openInstruction(tr.dataset['instructionId'] ?? '');
       });
     }
   }
