@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
- * recurring_root_cause の drift イベントと、その入力だった会話由来 `caused_by` エッジを
- * memory-core.db から削除する 1 回限りのメンテナンススクリプト。
+ * recurring_root_cause の drift イベントと、`caused_by` 述語のエッジを memory-core.db から
+ * 削除する 1 回限りのメンテナンススクリプト。
+ *
+ * エッジ側の削除条件は `predicate = 'caused_by'` の**全件**であり、recurring_root_cause の
+ * 入力になったものだけではない。述語そのものを抽出スキーマから外した（もう生成されない）ため
+ * 全廃が意図。実測時点では 83,494 件すべてが source_type='conversation' だったが、将来
+ * bug_history 由来など別系統の caused_by が在れば、それも巻き込む。
  *
  * 背景: 会話本文から LLM に根本原因を特定させる経路は接地しなかった（File 型の根本原因
  * 1,493 件のうちリポジトリに実在したのは 40 件 = 2.7%）。検出処理は本ブランチで削除済み。
