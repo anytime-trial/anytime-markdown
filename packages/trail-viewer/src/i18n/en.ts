@@ -733,6 +733,9 @@ export const en: TrailI18n = {
   'flightRecord.findings.openFile': 'Open file',
   'flightRecord.findings.addressed': 'Addressed',
   'flightRecord.findings.notAddressed': 'Not addressed',
+  'flightRecord.findings.notLinkable': 'Not tracked',
+  'flightRecord.findings.notLinkableHint':
+    'Severity is info, or the target file/repository could not be resolved, so this finding cannot be matched against a fixing commit. It does not mean the finding was left unfixed.',
   'flightRecord.findings.scopeNote': 'Shows only findings recorded in flights (sessions) that appear in Flight Record.',
   'flightRecord.findings.severity.error': 'error',
   'flightRecord.findings.severity.warn': 'warn',

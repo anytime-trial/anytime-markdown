@@ -825,7 +825,18 @@ describe('flightRecordPanel', () => {
         chooseOption(container.querySelector('[data-am-review-filter-status]'), '未対処');
         await settle();
 
-        expect(rowIds()).toEqual(['rf-1', 'rf-3']);
+        // rf-3 は severity=info で自動判定の対象外。未対処へ混ぜない。
+        expect(rowIds()).toEqual(['rf-1']);
+        handle.destroy();
+      });
+
+      it('状態（判定対象外）で絞る', async () => {
+        const handle = await openReviewTab();
+
+        chooseOption(container.querySelector('[data-am-review-filter-status]'), '判定対象外');
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-3']);
         handle.destroy();
       });
 
