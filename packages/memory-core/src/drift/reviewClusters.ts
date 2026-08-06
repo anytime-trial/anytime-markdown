@@ -22,11 +22,13 @@ export function detectReviewUnfixed(input: {
   let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
-      `SELECT id, finding_entity_id, target_file_path, severity, recorded_at
-       FROM memory_review_findings
-       WHERE addressed_at IS NULL
-         AND severity IN (${placeholders})
-         AND recorded_at <= datetime('now', '-' || ? || ' days')`,
+      `SELECT f.id, f.finding_entity_id, f.target_file_path, f.severity, f.recorded_at,
+              COALESCE(r.workspace, '') AS workspace
+       FROM memory_review_findings f
+       LEFT JOIN memory_reviews r ON r.id = f.review_id
+       WHERE f.addressed_at IS NULL
+         AND f.severity IN (${placeholders})
+         AND f.recorded_at <= datetime('now', '-' || ? || ' days')`,
       [...severities, daysOld],
     );
   } catch (err) {
@@ -52,6 +54,7 @@ export function detectReviewUnfixed(input: {
       code_value: null,
       drift_type: 'review_unfixed',
       severity,
+      workspace: (row[5] as string | null) ?? '',
       detail: {
         finding_id: findingId,
         target_file_path: filePath,
@@ -112,6 +115,9 @@ export function detectReviewVsCode(input: {
       code_value: codeV,
       drift_type: 'review_vs_code',
       severity,
+      // memory_edges はワークスペースを持たない（source_ref は review_finding# / spec_doc# 等の
+      // 出所参照で、そこからリポジトリは一意に決まらない）。推測で埋めず未解決のままにする。
+      workspace: '',
       detail: { review_value: revV, code_value: codeV, spec_vs_code_overlap: hasSpecVsCode },
     });
   }
@@ -137,13 +143,18 @@ export function detectRecurringReviewFindings(input: {
   let rows: ReturnType<MemoryDbConnection['exec']>;
   try {
     rows = db.exec(
-      `SELECT target_file_path, category, COUNT(*) AS cnt,
-              GROUP_CONCAT(id) AS finding_ids
-       FROM memory_review_findings
-       WHERE category NOT IN (${placeholders})
-         AND target_file_path IS NOT NULL
-         AND recorded_at >= datetime('now', '-' || ? || ' days')
-       GROUP BY target_file_path, category
+      // workspace はクラスタを構成する指摘が 1 つのワークスペースへ収束するときだけ確定する
+      // （grouping key に足せない理由は recurringBugs.ts と同じ — UNIQUE キーが衝突する）。
+      `SELECT f.target_file_path, f.category, COUNT(*) AS cnt,
+              GROUP_CONCAT(f.id) AS finding_ids,
+              CASE WHEN COUNT(DISTINCT r.workspace) = 1
+                   THEN MIN(r.workspace) ELSE '' END AS workspace
+       FROM memory_review_findings f
+       LEFT JOIN memory_reviews r ON r.id = f.review_id
+       WHERE f.category NOT IN (${placeholders})
+         AND f.target_file_path IS NOT NULL
+         AND f.recorded_at >= datetime('now', '-' || ? || ' days')
+       GROUP BY f.target_file_path, f.category
        HAVING cnt >= ?`,
       [...excludeCategories, windowDays, minCount],
     );
@@ -169,6 +180,7 @@ export function detectRecurringReviewFindings(input: {
       code_value: null,
       drift_type: 'recurring_review_finding',
       severity: 'warn',
+      workspace: (row[4] as string | null) ?? '',
       detail: { file_path: filePath, category, cnt, finding_ids: findingIds, windowDays },
     });
   }

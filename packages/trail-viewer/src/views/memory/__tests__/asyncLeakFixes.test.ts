@@ -51,6 +51,7 @@ function makeBugRow(over: Partial<MemoryBugHistoryRow> = {}): MemoryBugHistoryRo
     sessionId: 'sess-1',
     committedAt: '2026-01-10T00:00:00.000Z',
     precededByFindingIds: [],
+    workspace: '',
     ...over,
   };
 }
@@ -210,6 +211,7 @@ describe('mountBugHistoryPanel — Fix B: row handle cleanup', () => {
     const props: BugHistoryPanelProps = {
       t,
       reader,
+      workspace: '',
       onOpenSessionMessages: () => {},
       onOpenPrecedingReviews: () => {},
     };

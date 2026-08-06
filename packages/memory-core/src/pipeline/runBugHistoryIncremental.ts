@@ -78,6 +78,36 @@ interface CommitRow {
   session_id: string | null;
 }
 
+/**
+ * `memory_bug_fixes.workspace` が空（列追加前に取り込まれた行）を、trail.db 側の
+ * コミット所属リポジトリから埋める。
+ *
+ * 既に埋まっている行は触らない（`WHERE workspace = ''`）ので、毎回走らせても
+ * 実質 1 度きりで、以降は 0 件更新になる。失敗しても取込本体は続ける
+ * （選択肢の欠けは表示の劣化であって、取込を止める理由にならない）。
+ */
+function backfillBugFixWorkspace(db: MemoryDbConnection, repoName: string, logger: MemoryLogger): void {
+  try {
+    db.run(
+      `UPDATE memory_bug_fixes
+         SET workspace = ?
+       WHERE workspace = ''
+         AND commit_sha IN (
+           SELECT sc.commit_hash
+           FROM trail.session_commits sc
+           JOIN trail.repos r ON r.repo_id = sc.repo_id
+           WHERE r.repo_name = ?
+         )`,
+      [repoName, repoName],
+    );
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] backfillBugFixWorkspace failed for repo=${repoName}: ${String(err)}, ` +
+        `Stack: ${err instanceof Error ? err.stack : ''}`,
+    );
+  }
+}
+
 export async function runBugHistoryIncremental(opts: {
   db: MemoryDbConnection;
   repoName: string;
@@ -88,6 +118,13 @@ export async function runBugHistoryIncremental(opts: {
   const logger = opts.logger ?? noopLogger;
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
+
+  // ── 0. workspace 列の backfill ───────────────────────────────────────────
+  // 020_workspace_scope.sql で足した列を既存行へ埋める。増分取込は last_processed_at より
+  // 新しいコミットしか見ないため、ここで埋めないと過去分（実測 1,361 件）は永久に未解決の
+  // ままになり、Flight Record でどのワークスペースを選んでも Bug Fixed が 0 件になる。
+  // 埋めるのはこの repo のコミットに紐づく行だけ（他リポジトリの行には触らない）。
+  backfillBugFixWorkspace(db, repoName, logger);
 
   // ── 1. Read last_processed_at ────────────────────────────────────────────
   const lastProcessedAt = readPipelineState(db);
@@ -231,6 +268,7 @@ export async function runBugHistoryIncremental(opts: {
         recordedAt,
         sessionId,
         introducedCommitSha: introResult.introduced_commit_sha,
+        workspace: row.repo_name,
       });
 
       // h. Link root cause episode

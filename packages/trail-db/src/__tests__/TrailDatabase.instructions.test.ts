@@ -262,6 +262,100 @@ describe('TrailDatabase instructions (Flight Record)', () => {
       });
     });
 
+    describe('ワークスペースでの絞り込みと選択肢', () => {
+      // 記録される workspace_path は宣言時の cwd 由来で `.worktrees/<name>` 等に散るため、
+      // 絞り込み・選択肢とも解決済みのワークスペース名（一覧の列に出ている値）で扱う。
+      let wsA: string;
+      let wsB: string;
+
+      beforeEach(() => {
+        wsA = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-ws-a-'));
+        wsB = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-ws-b-'));
+        for (const ws of [wsA, wsB]) {
+          fs.mkdirSync(path.join(ws, '.git'), { recursive: true });
+          fs.mkdirSync(path.join(ws, 'packages', 'app'), { recursive: true });
+        }
+      });
+
+      afterEach(() => {
+        for (const ws of [wsA, wsB]) fs.rmSync(ws, { recursive: true, force: true });
+      });
+
+      it('workspaceName で絞ると別ワークスペースの行が落ちる', () => {
+        db.upsertFlightReviewFromMachine(
+          machineInput('sa', '2026-08-05T01:00:00.000Z', { workspacePath: wsA }),
+        );
+        db.upsertFlightReviewFromMachine(
+          machineInput('sb', '2026-08-05T02:00:00.000Z', { workspacePath: wsB }),
+        );
+
+        const records = db.listInstructionRecords({ workspaceName: path.basename(wsA) });
+
+        expect(records.map((r) => r.instructionId)).toEqual(['sa']);
+      });
+
+      it('cwd がワークスペース配下の深い階層でも同じワークスペースとして絞り込まれる', () => {
+        db.upsertFlightReviewFromMachine(
+          machineInput('root', '2026-08-05T01:00:00.000Z', { workspacePath: wsA }),
+        );
+        db.upsertFlightReviewFromMachine(
+          machineInput('deep', '2026-08-05T02:00:00.000Z', {
+            workspacePath: path.join(wsA, 'packages', 'app'),
+          }),
+        );
+
+        const records = db.listInstructionRecords({ workspaceName: path.basename(wsA) });
+
+        expect(records.map((r) => r.instructionId).sort()).toEqual(['deep', 'root']);
+      });
+
+      it('空文字の workspaceName は絞り込みなし（すべて）として扱う', () => {
+        db.upsertFlightReviewFromMachine(
+          machineInput('sa', '2026-08-05T01:00:00.000Z', { workspacePath: wsA }),
+        );
+        db.upsertFlightReviewFromMachine(
+          machineInput('sb', '2026-08-05T02:00:00.000Z', { workspacePath: wsB }),
+        );
+
+        expect(db.listInstructionRecords({ workspaceName: '' })).toHaveLength(2);
+      });
+
+      it('選択肢は宣言済み指示と宣言の無いセッションの両方から集める', () => {
+        db.upsertFlightReviewFromMachine(
+          machineInput('sa', '2026-08-05T01:00:00.000Z', { workspacePath: wsA }),
+        );
+        db.openInstruction(
+          openInput('inst-b', 'sa', {
+            workspacePath: path.join(wsB, 'packages', 'app'),
+            workspaceName: 'app',
+          }),
+        );
+
+        const names = db.listInstructionWorkspaces().map((w) => w.name);
+
+        expect(names).toContain(path.basename(wsA));
+        expect(names).toContain(path.basename(wsB));
+      });
+
+      it('選択肢は件数の多い順に並ぶ', () => {
+        db.upsertFlightReviewFromMachine(
+          machineInput('sa1', '2026-08-05T01:00:00.000Z', { workspacePath: wsA }),
+        );
+        db.upsertFlightReviewFromMachine(
+          machineInput('sa2', '2026-08-05T02:00:00.000Z', { workspacePath: wsA }),
+        );
+        db.upsertFlightReviewFromMachine(
+          machineInput('sb1', '2026-08-05T03:00:00.000Z', { workspacePath: wsB }),
+        );
+
+        const workspaces = db.listInstructionWorkspaces();
+
+        expect(workspaces[0]?.name).toBe(path.basename(wsA));
+        expect(workspaces[0]?.count).toBe(2);
+        expect(workspaces[1]?.name).toBe(path.basename(wsB));
+      });
+    });
+
     it('宣言の無いセッションは 1 セッション = 1 指示の暗黙グループとして残る', () => {
       db.upsertFlightReviewFromMachine(machineInput('lonely', '2026-08-05T01:00:00.000Z'));
 

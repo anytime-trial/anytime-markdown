@@ -42,6 +42,13 @@ export interface BugHistoryPanelProps {
   onOpenPrecedingReviews?: (findingIds: readonly string[]) => void;
   onOpenSiblingBugs?: (bugEntityIds: readonly string[]) => void;
   pendingBugFilter?: { bugEntityIds: readonly string[] } | null;
+  /**
+   * ワークスペース（repo_name）でバグ履歴・再発クラスタを絞る。空文字は「すべて」。
+   *
+   * サーバー側で絞るのは、取得の上限が絞り込み前に効くと、選んだワークスペースのバグが
+   * 窓から溢れて「0 件」に見えるため。
+   */
+  workspace: string;
 }
 
 /** chip を色付きボーダー（outlined 風）で装飾するヘルパー。 */
@@ -389,10 +396,13 @@ export function mountBugHistoryPanel(
       renderAll();
       return;
     }
+    const generation = props.reader;
     void Promise.all([
-      props.reader.listRecurringBugs({}),
-      props.reader.getBugHistory({}),
+      props.reader.listRecurringBugs({ workspace: props.workspace }),
+      props.reader.getBugHistory({ workspace: props.workspace }),
     ]).then(([rec, hist]) => {
+      // 取得中に接続先が差し替わったら旧世代の応答は捨てる（別接続の結果を混ぜない）
+      if (props.reader !== generation) return;
       if (destroyed) return;
       recurring = rec;
       history = hist;
@@ -405,8 +415,11 @@ export function mountBugHistoryPanel(
   return {
     update(next) {
       const readerChanged = next.reader !== props.reader;
+      const workspaceChanged = next.workspace !== props.workspace;
       props = next;
-      if (readerChanged) {
+      if (readerChanged || workspaceChanged) {
+        // 絞り込みが変わったら取り直す。前の結果を残すと「別のワークスペースの行」を
+        // 今の選択の結果として見せることになる。
         load();
       } else {
         renderAll();

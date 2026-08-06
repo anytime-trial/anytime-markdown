@@ -102,7 +102,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, assembleInstructionRecord, computeDefectRisk, foldInstructionDeliverables, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type Instruction, type InstructionContinueInput, type InstructionDeliverable, type InstructionOpenInput, type InstructionRecord, type InstructionRecordFilter, type InstructionSession, type InstructionTokenUsage, type InstructionTokenUsageByModel, type InstructionVerificationRun, VERIFICATION_KINDS, type VerificationKind, type VerificationRunStatus, type RationaleAuditStatus, type IC4ModelStore,
+import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, assembleInstructionRecord, computeDefectRisk, foldInstructionDeliverables, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type Instruction, type InstructionContinueInput, type InstructionDeliverable, type InstructionOpenInput, type InstructionRecord, type InstructionRecordFilter, type InstructionSession, type InstructionWorkspace, type InstructionTokenUsage, type InstructionTokenUsageByModel, type InstructionVerificationRun, VERIFICATION_KINDS, type VerificationKind, type VerificationRunStatus, type RationaleAuditStatus, type IC4ModelStore,
   type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -657,6 +657,15 @@ function implicitInstructionFromReview(review: FlightReview, workspaceRoot: stri
 function matchesInstructionFilter(record: InstructionRecord, filter: InstructionRecordFilter): boolean {
   if (filter.outcome !== undefined && record.outcome !== filter.outcome) return false;
   if (filter.tag !== undefined && filter.tag !== '' && !record.tags.includes(filter.tag)) return false;
+  // ワークスペース名は組み立て済み record 側で判定する。SQL の workspace_path 一致では
+  // cwd 由来の差（.worktrees/<name> 等）で同一ワークスペースの行が分裂するため。
+  if (
+    filter.workspaceName !== undefined &&
+    filter.workspaceName !== '' &&
+    record.workspaceName !== filter.workspaceName
+  ) {
+    return false;
+  }
   // endedAt が無い（flight_reviews 未記録）行は期間指定では絞り込めないため、
   // 期間が指定されたときだけ落とす（指定が無ければ進行中の指示として残す）。
   if (filter.since !== undefined && filter.since !== '') {
@@ -9810,6 +9819,39 @@ export class TrailDatabase {
         verifications: this.instructionVerifications(sessionIds),
       };
     });
+  }
+
+  /**
+   * Flight Record のワークスペース選択肢。
+   *
+   * 一覧（`listInstructionRecords`）の結果から作らないのは、一覧が limit と絞り込みの
+   * 影響を受けるため。表示窓に出ていないワークスペースが選択肢から消えると、
+   * 「そのワークスペースの記録が無い」と読めてしまう。
+   */
+  listInstructionWorkspaces(): InstructionWorkspace[] {
+    const db = this.ensureDb();
+    const cache = new Map<string, string>();
+    const counts = new Map<string, number>();
+
+    const add = (workspacePath: string, count: number): void => {
+      const name = path.basename(resolveWorkspaceRoot(workspacePath, cache));
+      if (name === '') return;
+      counts.set(name, (counts.get(name) ?? 0) + count);
+    };
+
+    for (const sql of [
+      'SELECT workspace_path, COUNT(*) FROM instructions GROUP BY workspace_path',
+      // 宣言の無いセッション（暗黙グループ）も一覧に出るため、こちらも選択肢に要る
+      'SELECT workspace_path, COUNT(*) FROM flight_reviews GROUP BY workspace_path',
+    ]) {
+      for (const row of db.exec(sql)[0]?.values ?? []) {
+        add(row[0] as string, (row[1] as number | null) ?? 0);
+      }
+    }
+
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name));
   }
 
   /** 指定セッションの flight_reviews を 1 本のクエリで引く（走査窓に依存しない）。 */

@@ -85,6 +85,8 @@ export interface MemoryDriftEventRow {
   readonly detectedAt: string;
   readonly resolvedAt: string | null;
   readonly resolutionNote: string;
+  /** 出所ワークスペース（repo_name）。'' は未解決。 */
+  readonly workspace: string;
 }
 
 export interface MemoryDriftEventDetail extends MemoryDriftEventRow {
@@ -110,6 +112,8 @@ export interface MemoryBugHistoryRow {
   readonly sessionId: string | null;
   readonly committedAt: string;
   readonly precededByFindingIds: readonly string[];
+  /** 取込元リポジトリ（repo_name）。'' は未解決。 */
+  readonly workspace: string;
 }
 
 export interface MemoryBugCausalInfo {

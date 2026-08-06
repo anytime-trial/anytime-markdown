@@ -50,11 +50,18 @@ function buildTestDb(dbPath: string): void {
     ['drift-3', 'ent-1', 'prefers', 'regression_cluster', 'error', TS],
   );
 
+  // Seed: workspace 付きの drift / bug（ワークスペース絞り込みの検査用）
+  run(
+    `INSERT INTO memory_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, '', '{}', ?)`,
+    ['drift-ws', 'ent-1', 'uses', 'review_unfixed', 'warn', TS, 'anytime-trade'],
+  );
+
   // Seed: bug fixes
   run(
-    `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ['bf-1', 'abc123', 'ent-1', 'trail-viewer', 'logic', 'Fix null ref', TS, TS],
+    `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['bf-1', 'abc123', 'ent-1', 'trail-viewer', 'logic', 'Fix null ref', TS, TS, 'anytime-markdown'],
   );
   run(
     `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, related_session_id)
@@ -64,9 +71,9 @@ function buildTestDb(dbPath: string): void {
 
   // Seed: reviews and findings
   run(
-    `INSERT INTO memory_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ['rev-1', 'review_doc', 'doc/r1.md', 'ent-1', 'code', 'Code Review 1', TS, TS],
+    `INSERT INTO memory_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['rev-1', 'review_doc', 'doc/r1.md', 'ent-1', 'code', 'Code Review 1', TS, TS, 'anytime-lab'],
   );
   run(
     `INSERT INTO memory_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, addressed_at, recorded_at)
@@ -175,7 +182,18 @@ describe('MemoryApiHandler', () => {
 
     it('returns all events when unresolvedOnly=false', async () => {
       const rows = await handler.listDriftEvents({ unresolvedOnly: false });
-      expect(rows.length).toBe(3);
+      expect(rows.length).toBe(4);
+    });
+
+    it('workspace で絞ると他ワークスペースの乖離が落ちる', async () => {
+      const rows = await handler.listDriftEvents({ unresolvedOnly: false, workspace: 'anytime-trade' });
+      expect(rows.map((r) => r.id)).toEqual(['drift-ws']);
+    });
+
+    it('workspace 未指定なら絞り込まない（未解決の行も混在したまま返る）', async () => {
+      const rows = await handler.listDriftEvents({ unresolvedOnly: false });
+      expect(rows.map((r) => r.workspace)).toContain('anytime-trade');
+      expect(rows.map((r) => r.workspace)).toContain('');
     });
 
     it('filters by severity', async () => {
@@ -241,6 +259,31 @@ describe('MemoryApiHandler', () => {
     it('sessionIds 未指定なら絞り込まない', async () => {
       const rows = await handler.getBugHistory({});
       expect(rows.length).toBe(2);
+    });
+
+    it('workspace で絞ると他ワークスペースのバグが落ちる', async () => {
+      const rows = await handler.getBugHistory({ workspace: 'anytime-markdown' });
+      expect(rows.map((r) => r.commitSha)).toEqual(['abc123']);
+    });
+
+    it('未解決（workspace 空文字）の行は workspace 指定で落ちる', async () => {
+      const rows = await handler.getBugHistory({ workspace: 'anytime-trade' });
+      expect(rows).toEqual([]);
+    });
+  });
+
+  describe('listWorkspaces', () => {
+    it('レビュー・バグ・乖離の 3 テーブルから統合して重複なく返す', async () => {
+      expect(await handler.listWorkspaces()).toEqual(['anytime-lab', 'anytime-markdown', 'anytime-trade']);
+    });
+
+    it('未解決（空文字）は選択肢に出さない', async () => {
+      expect(await handler.listWorkspaces()).not.toContain('');
+    });
+
+    it('DB が無ければ空配列を返す', async () => {
+      const h = new MemoryApiHandler(makeMockLogger(), path.join(tmpDir, 'no-such.db'));
+      expect(await h.listWorkspaces()).toEqual([]);
     });
   });
 

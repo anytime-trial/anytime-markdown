@@ -30,6 +30,7 @@ import type {
   InstructionTokenUsageDto,
 } from '../data/instructionStore';
 import type { FlightFindingStore } from '../data/flightFindingStore';
+import { createWorkspaceStore, type WorkspaceStore } from '../data/workspaceStore';
 import {
   findingCountCell,
   renderFindingSection,
@@ -107,6 +108,12 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
   display: flex; flex-direction: column; gap: 12px; padding: 12px; color: ${c.textPrimary};
   flex: 1 1 auto; min-height: 0; box-sizing: border-box; overflow: hidden;
 }
+/* ワークスペース選択。サブタブの上に置き、4 タブすべての絞り込みを兼ねる（1 つの選択が
+   一覧・バグ・指摘・乖離のどれにも同じように効くことを、位置で示す）。 */
+[data-am-flight-scope] {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: ${c.textSecondary};
+}
+[data-am-flight-scope] [data-am-flight-scope-note] { color: ${c.warning}; }
 /* サブタブ（指示 / Review）。選択は色だけでなく下線と aria-selected でも示す。 */
 [data-am-flight-tabs] { display: flex; gap: 4px; border-bottom: 1px solid ${c.border}; }
 [data-am-flight-tabs] button {
@@ -432,6 +439,58 @@ export function mountFlightRecordPanel(
   root.dataset['amFlightRoot'] = '';
   container.appendChild(root);
 
+  // ── ワークスペース選択（サブタブの上）──
+  // 4 サブタブに共通の絞り込み。memory-core.db / trail.db がいずれも複数ワークスペースの
+  // 記録を 1 つに集約しているため、これが無いと他ワークスペースの行が混ざったまま出る。
+  /** 選択中のワークスペース名。空文字は「すべて」（絞り込みなし）。 */
+  let workspaceFilter = '';
+  let workspaceStore: WorkspaceStore = createWorkspaceStore(props.serverUrl);
+
+  const scopeBar = document.createElement('div');
+  scopeBar.dataset['amFlightScope'] = '';
+  scopeBar.innerHTML = `
+    <span data-am-flight-label="filter.workspace"></span>
+    <span data-am-flight-scope-select></span>
+    <span data-am-flight-scope-note hidden></span>
+  `;
+  root.appendChild(scopeBar);
+
+  /**
+   * 選択肢。取得済みの一覧に「すべて」を足す。選択中の値が一覧に無くても選択肢へ残すのは、
+   * 消すと「絞り込みが外れた」ように見えて、実際には絞られたままの表を見ることになるため。
+   */
+  function workspaceOptions(): ReadonlyArray<{ value: string; label: string }> {
+    const { t } = props;
+    const names = [...workspaceStore.getState().workspaces];
+    if (workspaceFilter !== '' && !names.includes(workspaceFilter)) names.push(workspaceFilter);
+    return [
+      { value: '', label: t('flightRecord.filter.workspaceAll') },
+      ...names.map((name) => ({ value: name, label: name })),
+    ];
+  }
+
+  const workspaceSelect = createSelect<string>({
+    value: workspaceFilter,
+    options: workspaceOptions(),
+    ariaLabel: props.t('flightRecord.filter.workspace'),
+    fullWidth: false,
+    minWidth: 176,
+    onChange: (value) => {
+      if (value === workspaceFilter) return;
+      workspaceFilter = value;
+      applyWorkspace();
+    },
+  });
+  let workspaceOptionsKey = workspaceOptions().map((o) => o.label).join(' ');
+  scopeBar.querySelector<HTMLElement>('[data-am-flight-scope-select]')?.appendChild(workspaceSelect.el);
+
+  /** 選択の変更を 4 タブすべてへ流す（指示一覧・指摘はサーバー側で絞り、残り 2 つは props 経由）。 */
+  function applyWorkspace(): void {
+    applyFilter();
+    void props.findingStore.setWorkspace(workspaceFilter);
+    render();
+  }
+
   // ── サブタブ（指示 / Review）。静的 DOM で作り、文言だけ render() で更新する ──
   let activeTab: FlightRecordTabValue = 'instruction';
   const tablist = document.createElement('div');
@@ -527,7 +586,7 @@ export function mountFlightRecordPanel(
   let driftHandle: VanillaViewHandle<DriftSectionProps> | null = null;
 
   function driftSectionProps(): DriftSectionProps {
-    return { serverUrl: props.serverUrl, t: props.t, isDark: props.isDark };
+    return { serverUrl: props.serverUrl, t: props.t, isDark: props.isDark, workspace: workspaceFilter };
   }
 
   /** Drift タブが可視になった時点で初回マウントし、以降は最新 props を流す。 */
@@ -578,7 +637,8 @@ export function mountFlightRecordPanel(
   /** ラベル・option・aria-label を最新の props.t で更新する（入力値・リスナーは維持）。 */
   function updateToolbarLabels(): void {
     const { t } = props;
-    for (const span of toolbar.querySelectorAll<HTMLElement>('[data-am-flight-label]')) {
+    // ワークスペース選択はツールバーの外（サブタブの上）に在るため root から拾う
+    for (const span of root.querySelectorAll<HTMLElement>('[data-am-flight-label]')) {
       span.textContent = t(`flightRecord.${span.dataset['amFlightLabel'] ?? ''}`);
     }
     // 文言が変わったときだけ差し替える。render() は store の通知（ポーリング）ごとに走るため、
@@ -604,6 +664,7 @@ export function mountFlightRecordPanel(
       since: dateInputToIso(sinceInput?.value ?? '', false),
       until: dateInputToIso(untilInput?.value ?? '', true),
       ...(tag === '' ? {} : { tag }),
+      ...(workspaceFilter === '' ? {} : { workspace: workspaceFilter }),
     });
   }
 
@@ -946,6 +1007,7 @@ export function mountFlightRecordPanel(
       onOpenPrecedingReviews: openPrecedingFindings,
       onOpenSiblingBugs: openBugFixed,
       pendingBugFilter,
+      workspace: workspaceFilter,
     };
   }
 
@@ -1086,6 +1148,38 @@ export function mountFlightRecordPanel(
     detailHandle.update(detailProps);
   }
 
+  /**
+   * ワークスペース選択の文言・選択肢・注記を最新化する。
+   *
+   * 選択肢は変わったときだけ差し替える。render() は store の通知（ポーリング）ごとに走るため、
+   * 無条件に update すると開いている listbox が閉じて開き直される（成否フィルタと同じ理由）。
+   */
+  function renderWorkspaceScope(): void {
+    const { t } = props;
+    const options = workspaceOptions();
+    const key = `${workspaceFilter}\u0000${options.map((o) => o.label).join(' ')}`;
+    if (key !== workspaceOptionsKey) {
+      workspaceOptionsKey = key;
+      workspaceSelect.update({
+        value: workspaceFilter,
+        options,
+        ariaLabel: t('flightRecord.filter.workspace'),
+      });
+    }
+    // 取得に失敗した／片方の DB しか読めなかったことを黙って空の選択肢にしない
+    const state = workspaceStore.getState();
+    const note = scopeBar.querySelector<HTMLElement>('[data-am-flight-scope-note]');
+    if (note) {
+      const message = state.loadFailed
+        ? t('flightRecord.filter.workspaceLoadFailed')
+        : state.partial
+          ? t('flightRecord.filter.workspacePartial')
+          : '';
+      note.textContent = message;
+      note.hidden = message === '';
+    }
+  }
+
   /** サブタブのラベルと選択状態、表示中の器を最新化する。 */
   function renderTabs(): void {
     const { t } = props;
@@ -1105,6 +1199,7 @@ export function mountFlightRecordPanel(
   function render(): void {
     if (destroyed) return;
     updateToolbarLabels();
+    renderWorkspaceScope();
     renderTabs();
     if (activeTab === 'instruction') {
       renderList();
@@ -1125,7 +1220,11 @@ export function mountFlightRecordPanel(
   let unsubscribe = props.store.subscribe(render);
   let unsubscribeReview = props.reviewStore.subscribe(render);
   let unsubscribeFinding = props.findingStore.subscribe(render);
+  // 購読は器がすべて出来てから張る。refresh() は同期に loading を通知するため、
+  // 早く張ると render() がまだ生成されていない DOM を触る。
+  let unsubscribeWorkspace = workspaceStore.subscribe(render);
   render();
+  void workspaceStore.refresh();
   void props.store.refresh();
   // 件数列は指示タブの一覧に出るため、Review タブを開く前から必要になる
   void props.findingStore.refresh();
@@ -1144,6 +1243,12 @@ export function mountFlightRecordPanel(
         detailBugs = null;
         detailBugsFailed = false;
         detailBugsKey = null;
+        // 選択肢も接続先ごとに違う。前の接続先の一覧を残すと、選べるのに 0 件になる。
+        unsubscribeWorkspace();
+        workspaceStore.dispose();
+        workspaceStore = createWorkspaceStore(next.serverUrl);
+        unsubscribeWorkspace = workspaceStore.subscribe(render);
+        void workspaceStore.refresh();
       }
       if (next.store !== prevStore) {
         // serverUrl 変更などで store が再生成された場合は購読を張り替えて取り直す
@@ -1167,9 +1272,12 @@ export function mountFlightRecordPanel(
       unsubscribe();
       unsubscribeReview();
       unsubscribeFinding();
+      unsubscribeWorkspace();
+      workspaceStore.dispose();
       // Select は open 中の overlay を document.body へ出しているため、destroy しないと
       // パネルを閉じても listbox / backdrop が残る。
       outcomeSelect.destroy();
+      workspaceSelect.destroy();
       detailHandle?.destroy();
       detailHandle = null;
       bugPanelHandle?.destroy();

@@ -676,6 +676,11 @@ export interface TrailI18n {
   'flightRecord.filter.since': string;
   'flightRecord.filter.until': string;
   'flightRecord.filter.tag': string;
+  /** サブタブ上のワークスペース選択（4 タブ共通の絞り込み）。 */
+  'flightRecord.filter.workspace': string;
+  'flightRecord.filter.workspaceAll': string;
+  'flightRecord.filter.workspacePartial': string;
+  'flightRecord.filter.workspaceLoadFailed': string;
   'flightRecord.exportCsv': string;
   'flightRecord.loadFailed': string;
   'flightRecord.loading': string;

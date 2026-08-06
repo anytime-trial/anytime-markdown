@@ -42,6 +42,7 @@ function makeCandidate(
     code_value: 'redux',
     drift_type: 'spec_vs_code',
     severity: 'error',
+    workspace: '',
     detail: { active_edges: [] },
     ...overrides,
   };

@@ -34,6 +34,12 @@ export interface FlightFindingStore {
   getState(): FlightFindingViewState;
   subscribe(listener: () => void): () => void;
   refresh(): Promise<void>;
+  /**
+   * ワークスペース絞り込みを差し替えて取り直す。空文字は絞り込み無し。
+   * クライアント側で `findings` を filter しないのは、一覧の limit が絞り込み前に効くため
+   * （選んだワークスペースの指摘が窓から溢れて「0 件」に見える）。
+   */
+  setWorkspace(workspace: string): Promise<void>;
   /** 指定した指示の指摘だけを返す（取得済み配列の絞り込み。追加取得はしない）。 */
   findingsFor(instructionId: string): readonly MemoryFlightReviewFindingRow[];
   /** 指定した指示の件数。未取得・0 件はいずれも null ではなく 0 件行を返さないため呼び出し側が区別する。 */
@@ -60,6 +66,7 @@ export function createFlightFindingStore(
 
   let disposed = false;
   let warnedOnce = false;
+  let workspaceFilter = '';
   let state: FlightFindingViewState = {
     loading: false,
     loadFailed: false,
@@ -90,9 +97,14 @@ export function createFlightFindingStore(
     if (disposed) return;
     setState({ loading: true });
     try {
+      const workspaceQuery = workspaceFilter === ''
+        ? ''
+        : `&workspace=${encodeURIComponent(workspaceFilter)}`;
       const [countsRes, findingsRes] = await Promise.all([
+        // 件数は指示 ID で突き合わせるため絞り込まない（一覧側が既にワークスペースで
+        // 絞られており、余分な行は突合で落ちる）。
         request('/api/memory/reviews/flight-counts'),
-        request(`/api/memory/reviews/flight-findings?limit=${limit}`),
+        request(`/api/memory/reviews/flight-findings?limit=${limit}${workspaceQuery}`),
       ]);
       if (disposed) return;
       if (!countsRes.ok || !findingsRes.ok) {
@@ -133,6 +145,11 @@ export function createFlightFindingStore(
       return () => listeners.delete(listener);
     },
     refresh,
+    async setWorkspace(workspace) {
+      if (workspace === workspaceFilter) return;
+      workspaceFilter = workspace;
+      await refresh();
+    },
     findingsFor(instructionId) {
       return state.findings.filter((f) => f.instructionId === instructionId);
     },
