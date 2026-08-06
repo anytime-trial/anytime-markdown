@@ -763,6 +763,190 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
 
+    // ── Review タブの絞り込み（重要度 / カテゴリ / 状態） ──
+    describe('絞り込み', () => {
+      const FINDINGS = [
+        { ...FINDING, id: 'rf-1', severity: 'error', category: 'logic', addressedCommitSha: null },
+        { ...FINDING, id: 'rf-2', severity: 'warn', category: 'a11y', addressedCommitSha: 'deadbee' },
+        { ...FINDING, id: 'rf-3', severity: 'info', category: 'logic', addressedCommitSha: null },
+      ];
+
+      /** Review タブを開いた状態で返す（絞り込みの操作対象はこのタブにしかない）。 */
+      async function openReviewTab() {
+        stubFetch((url) => {
+          if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
+          if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
+          if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+          if (url.includes('flight-counts')) {
+            return jsonResponse([{ instructionId: 'inst-0001-abcd', error: 1, warn: 1, info: 1, total: 3 }]);
+          }
+          if (url.includes('flight-findings')) return jsonResponse(FINDINGS);
+          return jsonResponse({});
+        });
+        store = createInstructionStore('http://x');
+        reviewStore = createFlightReviewStore('http://x');
+        const handle = mountWith(store, reviewStore);
+        await settle();
+        container.querySelector<HTMLButtonElement>('[data-am-flight-tab="review"]')?.click();
+        await settle();
+        return handle;
+      }
+
+      function rowIds(): string[] {
+        return [...container.querySelectorAll<HTMLElement>('[data-am-finding-row]')].map(
+          (tr) => tr.dataset['findingId'] ?? '',
+        );
+      }
+
+      it('重要度で絞る', async () => {
+        const handle = await openReviewTab();
+        expect(rowIds()).toHaveLength(3);
+
+        chooseOption(container.querySelector('[data-am-review-filter-severity]'), 'warn');
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-2']);
+        handle.destroy();
+      });
+
+      it('カテゴリの選択肢は取得済みの指摘から作る', async () => {
+        const handle = await openReviewTab();
+
+        chooseOption(container.querySelector('[data-am-review-filter-category]'), 'a11y');
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-2']);
+        handle.destroy();
+      });
+
+      it('状態（未対処）で絞る', async () => {
+        const handle = await openReviewTab();
+
+        chooseOption(container.querySelector('[data-am-review-filter-status]'), '未対処');
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-1', 'rf-3']);
+        handle.destroy();
+      });
+
+      it('絞り込みは AND で効き、表示件数と総件数を出す', async () => {
+        const handle = await openReviewTab();
+
+        chooseOption(container.querySelector('[data-am-review-filter-severity]'), 'info');
+        await settle();
+        chooseOption(container.querySelector('[data-am-review-filter-category]'), 'logic');
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-3']);
+        expect(container.querySelector('[data-am-finding-shown]')?.textContent).toBe('1 / 3');
+        handle.destroy();
+      });
+
+      it('絞り込みで 0 件になったら「指摘なし」と別の文言を出す', async () => {
+        const handle = await openReviewTab();
+
+        chooseOption(container.querySelector('[data-am-review-filter-severity]'), 'error');
+        await settle();
+        chooseOption(container.querySelector('[data-am-review-filter-category]'), 'a11y');
+        await settle();
+
+        expect(rowIds()).toHaveLength(0);
+        expect(container.querySelector('[data-am-finding-empty-filtered]')).not.toBeNull();
+        expect(container.querySelector('[data-am-finding-empty]')).toBeNull();
+        handle.destroy();
+      });
+
+      it('事前指摘からの遷移では、表示件数の分母をそのスコープに合わせる', async () => {
+        // 分母を取得済み全件にすると、フィルタバーを触っていないのに「1 / 3」と出て、
+        // 事前指摘スコープで外れた指摘までバーが隠したように読める。
+        stubFetch((url) => {
+          if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
+          if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
+          if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+          if (url.includes('flight-counts')) {
+            return jsonResponse([{ instructionId: 'inst-0001-abcd', error: 1, warn: 1, info: 1, total: 3 }]);
+          }
+          if (url.includes('flight-findings')) {
+            return jsonResponse(FINDINGS.map((f, i) => ({ ...f, findingEntityId: `finding:${f.id}`, id: f.id ?? `rf-${i}` })));
+          }
+          if (url.includes('/api/memory/bugs/recurring')) return jsonResponse([]);
+          if (url.includes('/api/memory/bugs/causal')) {
+            return jsonResponse({
+              bugEntityId: 'bug:89754a1',
+              subject: 'テーマ変数の解決順を直す',
+              category: 'logic',
+              commitSha: '89754a1c0abcdef',
+              committedAt: '2026-08-05T02:00:00.000Z',
+              affectedFilePaths: [],
+              rootCauses: [],
+              siblingBugEntityIds: [],
+              precedingFindings: [{ findingEntityId: 'finding:rf-2', targetFilePath: null, severity: 'warn' }],
+              introducedByCommitSha: null,
+            });
+          }
+          if (url.includes('/api/memory/bugs/history')) {
+            return jsonResponse([
+              {
+                id: 'bugfix-1',
+                commitSha: '89754a1c0abcdef',
+                bugEntityId: 'bug:89754a1',
+                package: 'trail-viewer',
+                category: 'logic',
+                subjectSummary: 'テーマ変数の解決順を直す',
+                sessionId: 'sess-0001-abcd',
+                committedAt: '2026-08-05T02:00:00.000Z',
+                precededByFindingIds: ['finding:rf-2'],
+              },
+            ]);
+          }
+          return jsonResponse({});
+        });
+        store = createInstructionStore('http://x');
+        reviewStore = createFlightReviewStore('http://x');
+        const handle = mountWith(store, reviewStore, { serverUrl: 'http://mem' });
+        await settle();
+
+        // Bug Fixed タブの「事前指摘」チップ（↩ N）から Review タブへ送る
+        container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
+        await settle();
+        // チップ自身（子要素を持たない最内要素）を押す。祖先を押すと行の選択へ流れてしまう。
+        const chip = [...container.querySelectorAll<HTMLElement>('[aria-label="bug-history-table"] *')].find(
+          (el) => el.children.length === 0 && (el.textContent ?? '').trim() === '↩ 1',
+        );
+        expect(chip).toBeDefined();
+        chip?.click();
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-2']);
+        // 1 件へ絞られた母数がそのまま分母（取得済み全件の 3 ではない）
+        expect(container.querySelector('[data-am-finding-shown]')?.textContent).toBe('1 / 1');
+        handle.destroy();
+      });
+
+      it('絞り込みバーは表の再描画で作り直されない（選択が消えない）', async () => {
+        const handle = await openReviewTab();
+        const before = container.querySelector('[data-testid="flight-review-filter-severity"]');
+
+        chooseOption(container.querySelector('[data-am-review-filter-severity]'), 'warn');
+        await settle();
+        // store の通知（ポーリング）を模して再描画させる
+        handle.update({
+          isDark: true,
+          tokens: getTokens(true),
+          t: createTrailI18n('ja'),
+          store: store!,
+          reviewStore: reviewStore!,
+          findingStore: findingStore!,
+          serverUrl: '',
+        });
+        await settle();
+
+        expect(container.querySelector('[data-testid="flight-review-filter-severity"]')).toBe(before);
+        expect(rowIds()).toEqual(['rf-2']);
+        handle.destroy();
+      });
+    });
+
     it('Review タブの行を押すと指示タブへ戻り、その指示を選択する', async () => {
       const handle = await mountWithFindings();
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="review"]')?.click();
@@ -789,6 +973,7 @@ describe('flightRecordPanel', () => {
         category: 'logic',
         subjectSummary: 'テーマ変数の解決順を直す',
         sessionId: 'sess-0001-abcd',
+        instructionId: 'inst-0001-abcd',
         committedAt: '2026-08-05T02:00:00.000Z',
         precededByFindingIds: [],
         ...overrides,
@@ -830,6 +1015,25 @@ describe('flightRecordPanel', () => {
       expect(container.querySelector('[data-am-flight-bugfix]')?.hasAttribute('hidden')).toBe(false);
       expect(container.querySelector('[data-am-flight-body]')?.hasAttribute('hidden')).toBe(true);
       expect(container.querySelector('[aria-label="bug-history"]')).not.toBeNull();
+      handle.destroy();
+    });
+
+    it('Bug Fixed の指示名を押すと指示タブへ移り、その指示を選択する', async () => {
+      const { handle } = await mountWithBugs();
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
+      await settle();
+
+      const cell = container.querySelector<HTMLElement>('[data-am-bug-instruction]');
+      expect(cell).not.toBeNull();
+      // 指示 ID の生表示ではなく、指示一覧と同じ概要が出る
+      expect(cell?.textContent).toBe('Flight Review を指示単位にする');
+      cell?.click();
+      await settle();
+
+      expect(container.querySelector('[data-am-flight-bugfix]')?.hasAttribute('hidden')).toBe(true);
+      expect(
+        container.querySelector('[data-am-flight-table] tbody tr')?.getAttribute('aria-selected'),
+      ).toBe('true');
       handle.destroy();
     });
 
