@@ -107,7 +107,7 @@ export async function handleGetVerificationStatus(
   }
 
   const db = new DatabaseSync(dbPath, { readOnly: true });
-  // run-verified.mjs (writer) の書込直後に読むと SQLITE_BUSY で即失敗し得るため待機を入れる（doc-core と同値）。
+  // run-verified.mjs (writer) の書込直後に読むと SQLITE_BUSY で即失敗し得るため待機を入れる。
   db.exec('PRAGMA busy_timeout = 5000');
   try {
     const rows = db
