@@ -56,6 +56,8 @@ export type { AgentReviewInput, AgentReviewFinding } from './types/AgentReviewIn
 
 export { runSpecIncremental } from './pipeline/runSpecIncremental';
 export type { SpecIncrementalResult } from './pipeline/runSpecIncremental';
+export { runSpecReconciliation } from './pipeline/runSpecReconciliation';
+export type { SpecReconciliationResult } from './pipeline/runSpecReconciliation';
 
 export { listRecurringBugs } from './retrieve/listRecurringBugs';
 export type { RecurringBugGroup, BugFixSummary } from './retrieve/listRecurringBugs';
