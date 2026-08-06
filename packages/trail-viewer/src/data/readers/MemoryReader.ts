@@ -35,6 +35,8 @@ export class MemoryReader {
     severity?: string;
     driftType?: string;
     since?: string;
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   } = {}): Promise<readonly MemoryDriftEventRow[]> {
     const q = new URLSearchParams();
@@ -42,6 +44,7 @@ export class MemoryReader {
     if (params.severity) q.set('severity', params.severity);
     if (params.driftType) q.set('driftType', params.driftType);
     if (params.since) q.set('since', params.since);
+    if (params.workspace) q.set('workspace', params.workspace);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryDriftEventRow[]>(`/api/memory/drift/events?${q}`);
   }
@@ -93,11 +96,14 @@ export class MemoryReader {
   async listRecurringBugs(params: {
     pkg?: string;
     windowDays?: number;
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   } = {}): Promise<readonly MemoryRecurringBugRow[]> {
     const q = new URLSearchParams();
     if (params.pkg) q.set('pkg', params.pkg);
     if (params.windowDays !== undefined) q.set('windowDays', String(params.windowDays));
+    if (params.workspace) q.set('workspace', params.workspace);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryRecurringBugRow[]>(`/api/memory/bugs/recurring?${q}`);
   }
@@ -111,6 +117,8 @@ export class MemoryReader {
      * （パラメータを落とすと絞り込み無しになり、全バグが 1 指示の成果に見える）。
      */
     sessionIds?: readonly string[];
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   } = {}): Promise<readonly MemoryBugHistoryRow[]> {
     const q = new URLSearchParams();
@@ -118,6 +126,7 @@ export class MemoryReader {
     if (params.filePath) q.set('filePath', params.filePath);
     if (params.category) q.set('category', params.category);
     if (params.sessionIds !== undefined) q.set('sessionIds', params.sessionIds.join(','));
+    if (params.workspace) q.set('workspace', params.workspace);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryBugHistoryRow[]>(`/api/memory/bugs/history?${q}`);
   }
@@ -133,12 +142,15 @@ export class MemoryReader {
     pkg?: string;
     category?: string;
     sessionIds?: readonly string[];
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   } = {}): Promise<readonly MemoryBugHistoryRow[]> {
     const q = new URLSearchParams();
     if (params.pkg) q.set('pkg', params.pkg);
     if (params.category) q.set('category', params.category);
     if (params.sessionIds !== undefined) q.set('sessionIds', params.sessionIds.join(','));
+    if (params.workspace) q.set('workspace', params.workspace);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     const res = await fetch(`${this.serverUrl}/api/memory/bugs/history?${q}`);
     if (!res.ok) throw new Error(`GET /api/memory/bugs/history failed: ${res.status}`);

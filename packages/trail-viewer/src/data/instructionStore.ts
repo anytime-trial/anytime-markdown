@@ -96,6 +96,11 @@ export interface InstructionFilterState {
   readonly since?: string;
   readonly until?: string;
   readonly tag?: string;
+  /**
+   * 一覧の「ワークスペース」列に出ている解決済みの名前で絞る。
+   * 記録された workspace_path（cwd 由来で `.worktrees/<name>` 等に散る）ではないことに注意。
+   */
+  readonly workspace?: string;
 }
 
 export interface InstructionViewState {
@@ -183,11 +188,12 @@ export function createInstructionStore(
 
   function buildListQuery(): string {
     const params = new URLSearchParams();
-    const { outcome, since, until, tag } = state.filter;
+    const { outcome, since, until, tag, workspace } = state.filter;
     if (outcome !== undefined) params.set('outcome', outcome);
     if (since !== undefined && since !== '') params.set('since', since);
     if (until !== undefined && until !== '') params.set('until', until);
     if (tag !== undefined && tag !== '') params.set('tag', tag);
+    if (workspace !== undefined && workspace !== '') params.set('workspace', workspace);
     params.set('limit', String(LIST_LIMIT));
     return `?${params.toString()}`;
   }

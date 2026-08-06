@@ -77,7 +77,8 @@ describe('detectRecurringRootCauses - SQL エラーパス', () => {
     });
 
     expect(result).toEqual([]);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toContain('[detectRecurringRootCauses]');
+    // trail.db の ATTACH 判定（PRAGMA）が先に落ちるため、検出器自身の失敗ログは
+    // 先頭とは限らない。順番ではなく「検出器が自分の失敗を報告したか」で見る。
+    expect(errors.some((m) => m.includes('[detectRecurringRootCauses]'))).toBe(true);
   });
 });

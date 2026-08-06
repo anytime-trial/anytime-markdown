@@ -45,6 +45,37 @@ describe('/api/trail/instructions', () => {
     });
   }
 
+  it('workspace クエリで一覧を絞り込む（一覧の列に出ている名前で指定する）', async () => {
+    recordSession('s-mk', '2026-08-05T01:00:00.000Z');
+    db.upsertFlightReviewFromMachine({
+      sessionId: 's-other',
+      workspacePath: '/nonexistent/anytime-trade',
+      startedAt: null,
+      endedAt: '2026-08-05T02:00:00.000Z',
+      durationSeconds: 600,
+      toolCallCount: 3,
+      toolFailureCount: 0,
+      reworkCount: 0,
+    });
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/instructions?workspace=anytime-trade`);
+    const { instructions } = (await res.json()) as { instructions: Array<{ instructionId: string }> };
+
+    expect(instructions.map((i) => i.instructionId)).toEqual(['s-other']);
+  });
+
+  it('GET /api/trail/workspaces は選択肢を返す', async () => {
+    recordSession('s-mk', '2026-08-05T01:00:00.000Z');
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/workspaces`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { workspaces: string[]; partial: boolean };
+
+    expect(body.workspaces).toContain('anytime-markdown');
+    // memory-core.db が無い環境でも trail.db 側だけで応答する（選択肢を空にしない）
+    expect(Array.isArray(body.workspaces)).toBe(true);
+  });
+
   it('mode=new で指示を開き、一覧へ 1 行として現れる', async () => {
     recordSession('s1', '2026-08-05T01:00:00.000Z');
 

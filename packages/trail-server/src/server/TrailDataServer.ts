@@ -780,6 +780,9 @@ export class TrailDataServer {
       this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(params[0] ?? '')));
     // Flight Record: 指示単位の運航記録。/open は :id パターンより先に登録する
     // （後だと 'open' が指示 ID として食われる）。
+    // Flight Record のワークスペース選択肢。trail.db（指示・運航記録）と memory-core
+    // （バグ修正・レビュー・乖離）は別 DB なので、両方の distinct を統合して 1 本で返す。
+    t.exact('GET', '/api/trail/workspaces', ({ res }) => void this.handleListWorkspaces(res));
     t.exact('GET', '/api/trail/instructions/open', ({ res, url }) => this.handleListOpenInstructions(res, url.searchParams));
     t.exact('GET', '/api/trail/instructions', ({ res, url }) => this.handleListInstructionRecords(res, url.searchParams));
     t.exact('POST', '/api/trail/instructions', ({ req, res }) => this.handleDeclareInstruction(req, res));
@@ -1005,6 +1008,7 @@ export class TrailDataServer {
         severity: ctx.queryOpt('severity'),
         driftType: ctx.queryOpt('driftType'),
         since: ctx.queryOpt('since'),
+        workspace: ctx.queryOpt('workspace'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
 
@@ -1045,6 +1049,7 @@ export class TrailDataServer {
         windowDays: ctx.queryOpt('windowDays')
           ? clampInt(ctx.url.searchParams.get('windowDays'), 90, 1, 365)
           : undefined,
+        workspace: ctx.queryOpt('workspace'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 20, 1, 200),
       })));
 
@@ -1060,6 +1065,7 @@ export class TrailDataServer {
         filePath: ctx.queryOpt('filePath'),
         category: ctx.queryOpt('category'),
         sessionIds,
+        workspace: ctx.queryOpt('workspace'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       }));
     });
@@ -1103,6 +1109,7 @@ export class TrailDataServer {
       this.respondMemoryJson(ctx.res, '/api/memory/reviews/flight-findings',
         this.memoryApi.getFlightReviewFindings({
           instructionIds,
+          workspace: ctx.queryOpt('workspace'),
           limit: clampInt(ctx.url.searchParams.get('limit'), 200, 1, 1000),
         }));
     });
@@ -3127,6 +3134,33 @@ export class TrailDataServer {
 
   private static readonly INSTRUCTION_PROMPT_MAX_CHARS = 2000;
 
+  /**
+   * Flight Record のワークスペース選択肢（4 サブタブ共通）。
+   *
+   * trail.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、memory-core 側は
+   * 取込時に記録した repo_name。どちらもリポジトリ名なので同じ名前空間として統合する。
+   * 片方の DB が読めなくても残りを返す（選択肢が空になると絞り込み自体ができなくなるため、
+   * 部分的な結果でも出す）。
+   */
+  private async handleListWorkspaces(res: http.ServerResponse): Promise<void> {
+    const names = new Set<string>();
+    let partial = false;
+    try {
+      for (const w of this.trailDb.listInstructionWorkspaces()) names.add(w.name);
+    } catch (e) {
+      this.logger.error('handleListWorkspaces: trail.db side failed', e);
+      partial = true;
+    }
+    try {
+      for (const name of await this.memoryApi.listWorkspaces()) names.add(name);
+    } catch (e) {
+      this.logger.error('handleListWorkspaces: memory-core side failed', e);
+      partial = true;
+    }
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify({ workspaces: [...names].sort((a, b) => a.localeCompare(b)), partial }));
+  }
+
   private handleListInstructionRecords(res: http.ServerResponse, params: URLSearchParams): void {
     try {
       const outcomeParam = params.get('outcome');
@@ -3142,6 +3176,7 @@ export class TrailDataServer {
         outcome: (outcomeParam as FlightOutcome | null) ?? undefined,
         tag: params.get('tag') ?? undefined,
         workspacePath: params.get('workspacePath') ?? undefined,
+        workspaceName: params.get('workspace') ?? undefined,
         limit: Number.isNaN(limit) ? 100 : limit,
       });
       res.writeHead(200, JSON_HEADERS);

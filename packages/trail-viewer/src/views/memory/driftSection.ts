@@ -26,6 +26,13 @@ export interface DriftSectionProps {
   readonly serverUrl: string;
   readonly t: (key: string) => string;
   readonly isDark: boolean;
+  /**
+   * ワークスペース（repo_name）で乖離を絞る。空文字は「すべて」。
+   *
+   * サーバー側で絞るのは、`DRIFT_ROW_LIMIT` が絞り込み前に効くと、選んだワークスペースの
+   * 乖離が窓から溢れて「0 件」に見えるため。
+   */
+  readonly workspace: string;
 }
 
 export function mountDriftSection(
@@ -56,17 +63,25 @@ export function mountDriftSection(
 
   const panel = mountDriftPanel(host, buildPanelProps());
 
-  /** 現行 reader 世代の応答だけを受け付ける（破棄後・接続先変更後の着弾を捨てる）。 */
-  function isCurrent(generation: MemoryReader): boolean {
-    return !destroyed && generation === reader;
+  /**
+   * 取得の世代。`reader` の同一性では足りない — reader が作り直されるのは serverUrl 変更時だけで、
+   * ワークスペースを A→B と続けて切り替えると同じ reader のまま 2 本走り、A の応答が
+   * 遅れて着弾すると B の結果として表示される（ドロップダウンは B のまま）。
+   */
+  let loadSeq = 0;
+
+  /** 現行世代の応答だけを受け付ける（破棄後・接続先変更後・絞り込み変更後の着弾を捨てる）。 */
+  function isCurrent(seq: number): boolean {
+    return !destroyed && seq === loadSeq;
   }
 
   function load(): void {
+    const seq = ++loadSeq;
     const generation = reader;
     void generation
-      .listDriftEvents({ unresolvedOnly: false, limit: DRIFT_ROW_LIMIT })
+      .listDriftEvents({ unresolvedOnly: false, workspace: props.workspace, limit: DRIFT_ROW_LIMIT })
       .then((next) => {
-        if (!isCurrent(generation)) return;
+        if (!isCurrent(seq)) return;
         rows = next;
         panel.update(buildPanelProps());
       })
@@ -76,7 +91,7 @@ export function mountDriftSection(
     void generation
       .getDriftHistoryByDay()
       .then((points) => {
-        if (!isCurrent(generation)) return;
+        if (!isCurrent(seq)) return;
         historyPoints = points;
         panel.update(buildPanelProps());
       })
@@ -86,13 +101,14 @@ export function mountDriftSection(
   }
 
   async function handleResolve(id: string, note: string): Promise<void> {
+    const seq = ++loadSeq;
     const generation = reader;
     await generation.resolveDriftEvent(id, note);
     const [nextRows, nextPoints] = await Promise.all([
-      generation.listDriftEvents({ unresolvedOnly: false, limit: DRIFT_ROW_LIMIT }),
+      generation.listDriftEvents({ unresolvedOnly: false, workspace: props.workspace, limit: DRIFT_ROW_LIMIT }),
       generation.getDriftHistoryByDay(),
     ]);
-    if (!isCurrent(generation)) return;
+    if (!isCurrent(seq)) return;
     rows = nextRows;
     historyPoints = nextPoints;
     panel.update(buildPanelProps());
@@ -103,12 +119,18 @@ export function mountDriftSection(
   return {
     update(next) {
       const serverUrlChanged = next.serverUrl !== props.serverUrl;
+      const workspaceChanged = next.workspace !== props.workspace;
       props = next;
       if (serverUrlChanged) {
         // 接続先が変わったら reader ごと作り直し、旧世代の応答は捨てて取り直す。
         reader = new MemoryReader(props.serverUrl);
         rows = [];
         historyPoints = [];
+        load();
+      } else if (workspaceChanged) {
+        // 絞り込みが変わったら取り直す。前の結果を残すと「別のワークスペースの行」を
+        // 今の選択の結果として見せることになる。
+        rows = [];
         load();
       }
       panel.update(buildPanelProps());
