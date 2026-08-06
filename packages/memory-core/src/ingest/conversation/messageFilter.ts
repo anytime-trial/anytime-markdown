@@ -8,33 +8,44 @@ export type MessagesAlias = 'm';
 
 const mainThreadOnly = (p: string): string => `${p}is_sidechain = 0`;
 
+const humanInput = (p: string): string => `${p}type = 'user'`;
+
 const hasText = (p: string): string => `TRIM(COALESCE(${p}text_content, ${p}user_content, '')) <> ''`;
 
 /**
- * メインスレッドだけに絞る条件。
+ * 会話取込の対象行。メインスレッドの **user 行だけ**（人間の入力だけ）。
  *
- * trail.messages にはサブエージェント（Task/Agent ツールで起動した子）の往復も
- * 同じ session_id で入っており、`is_sidechain = 1` でのみ区別できる。2026-08-06
- * 実測で assistant 556,431 件中 155,195 件・user 352,212 件中 107,222 件が
- * sidechain だった。これを知識グラフへ入れると、エピソードの 34.5%・会話由来
- * エッジの 31.4% を占めながら、専有して供給するエンティティ 5,919 件の 77% が
- * File / Commit / Bug / Task の言及ノートで、Decision は 14 件・Rule は 25 件
- * しかなかった。判断はメインスレッドで下るため、調査の中間過程は取り込まない。
+ * エージェントの応答を取り込まないのは、その内容が最終的にコード・ドキュメント・
+ * コミットログへ落ちるためである（2026-08-06 ユーザー判断）。実測でも裏付けがある。
  *
- * 除外してよい根拠として、価値が確立している経路は別系統で守られている:
- * code-reviewer subagent の findings は review_session_incremental が
- * `ingest/review/parseReviewSession.ts` 経由で memory_reviews へ入れる。
- * **そちらは sidechain を読む必要があるため、この条件を適用してはならない。**
- * その不変条件は `__tests__/ingest/review/parseReviewSession.test.ts` の
- * 「is_sidechain=1 の code-reviewer メッセージから findings を取り込む」テストが
- * 検査している（コメントだけに頼らない）。
+ * - 保持エピソード 30,234 件のうち 25,163 件（83%）は人間の入力を 1 行も含まず、
+ *   私の応答だけで構成されていた。会話由来エッジ 25,659 本のうち 21,311 本（83%）が
+ *   そこから出ている。
+ * - その 21,311 本はコード・バグ履歴由来のノードと **ほとんど接続していない**。
+ *   File の一致は 178/7,802（2.3%）、Commit・Bug・Decision は 0 件。応答の本文が
+ *   短縮 SHA や basename を使うため、正規化後の id が権威ソースと一致しない。
+ * - Why の主供給源は既にコミットログ側にある（Decision エンティティは commit 由来
+ *   3,940 件に対し会話由来 341 件）。
+ *
+ * サブエージェント（`is_sidechain = 1`）も同じ理由で落とす。子の往復は同じ
+ * session_id で入っており is_sidechain でしか区別できない。**ただしレビュー取込
+ * (`ingest/review/parseReviewSession.ts`) は sidechain を読む必要があるため、この
+ * 条件を適用してはならない。** その不変条件は
+ * `__tests__/ingest/review/parseReviewSession.test.ts` の「is_sidechain=1 の
+ * code-reviewer メッセージから findings を取り込む」テストが検査している。
+ *
+ * assistant / system 行を落とすと splitEpisodes のブロックは user 行 1 件ずつになり、
+ * `message_uuid_start === message_uuid_end` になる。episode id は
+ * `episodeId(session_id, message_uuid_start)` なので、既存エピソードの id は変わらず、
+ * 再取込時は existingIds で冪等に skip される。
  */
-export function mainThreadOnlySql(alias?: MessagesAlias): string {
-  return mainThreadOnly(alias ? `${alias}.` : '');
+export function ingestTargetSql(alias?: MessagesAlias): string {
+  const prefix = alias ? `${alias}.` : '';
+  return `${humanInput(prefix)} AND ${mainThreadOnly(prefix)}`;
 }
 
 /**
- * 「エピソードになり得る」メッセージに絞る条件。メインスレッドかつ本文が空でない。
+ * 「エピソードになり得る」メッセージに絞る条件。取込対象かつ本文が空でない。
  *
  * **件数を数えるクエリ専用**で、取込本体（readMessages）には使わない。
  * splitEpisodes はブロック境界を user 行の出現で決めるため、本文が空の user 行を
@@ -43,5 +54,5 @@ export function mainThreadOnlySql(alias?: MessagesAlias): string {
  */
 export function ingestableMessageSql(alias?: MessagesAlias): string {
   const prefix = alias ? `${alias}.` : '';
-  return `${mainThreadOnly(prefix)} AND ${hasText(prefix)}`;
+  return `${ingestTargetSql(alias)} AND ${hasText(prefix)}`;
 }

@@ -158,7 +158,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
       // ETA の分母は「エピソードになり得る user 行」で数える（取込側と同じ定義）。
       const c = memDb.db.prepare(
         `SELECT COUNT(*) AS c FROM trail.messages
-          WHERE timestamp >= ? AND type = 'user' AND ${ingestableMessageSql()}`,
+          WHERE timestamp >= ? AND ${ingestableMessageSql()}`,
       );
       const countRow = c.get(lastProcessedAt || '1970-01-01T00:00:00.000Z');
       convTotalEstimate = (countRow?.['c'] as number) ?? 0;
