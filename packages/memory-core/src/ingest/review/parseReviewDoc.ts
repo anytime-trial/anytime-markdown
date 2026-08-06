@@ -9,6 +9,7 @@ import {
   extractProblemSuggestionPairs,
   extractNumberedFindings,
   extractTargetFromFinding,
+  parseTargetMarker,
   parseChecklistRefMarker,
 } from './findingHelpers';
 
@@ -91,8 +92,12 @@ export function parseReviewDoc(input: {
     severity: ParsedFinding['severity'],
     is_category_inferred: boolean,
     checklistRef: string | null,
+    markerTarget: string | null,
   ): void {
+    // 明示された `- **対象**:` を最優先。次に本文からの推測、最後にレビュー全体の
+    // 既定対象。推測を先に置くと、コード例に現れる実在しないパスが明示指定に勝つ。
     const localTarget =
+      markerTarget ??
       extractTargetFromFinding(heading + '\n' + findingText + '\n' + suggestionText);
     findings.push({
       finding_index: findingIndex++,
@@ -121,12 +126,13 @@ export function parseReviewDoc(input: {
     const severity = bodyBasedSeverity === 'info' ? headingSeverity : bodyBasedSeverity;
     // 観点キー（severity と同じ chapter 粒度。マーカー無しは null＝未記録）
     const checklistRef = parseChecklistRefMarker(chapterBody);
+    const markerTarget = parseTargetMarker(chapterBody);
 
     // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
     const pairs = extractProblemSuggestionPairs(chapter.lines);
     if (pairs.length > 0) {
       for (const [findingText, suggestionText] of pairs) {
-        pushFinding(findingText, suggestionText, chapter.heading, category, severity, is_category_inferred, checklistRef);
+        pushFinding(findingText, suggestionText, chapter.heading, category, severity, is_category_inferred, checklistRef, markerTarget);
       }
       continue;
     }
@@ -135,7 +141,7 @@ export function parseReviewDoc(input: {
     const numbered = extractNumberedFindings(chapter.lines);
     for (const nf of numbered) {
       const findingText = nf.title + (nf.finding ? `\n\n${nf.finding}` : '');
-      pushFinding(findingText, nf.suggestion, chapter.heading, category, severity, is_category_inferred, checklistRef);
+      pushFinding(findingText, nf.suggestion, chapter.heading, category, severity, is_category_inferred, checklistRef, markerTarget);
     }
   }
 

@@ -8,6 +8,7 @@ import {
   maxSeverity,
   parseSeverityMarker,
   parseChecklistRefMarker,
+  parseTargetMarker,
 } from '../../../src/ingest/review/findingHelpers';
 
 describe('maxSeverity', () => {
@@ -537,5 +538,36 @@ describe('parseChecklistRefMarker', () => {
 
   test('first marker wins when multiple findings concatenated', () => {
     expect(parseChecklistRefMarker('- 観点: §8\n本文\n- 観点: none')).toBe('§8');
+  });
+});
+
+describe('parseTargetMarker', () => {
+  test('スキル書式のメタデータ行からパスを取る', () => {
+    expect(parseTargetMarker('- **対象**: `packages/trail-viewer/src/a.ts:12`')).toBe(
+      'packages/trail-viewer/src/a.ts',
+    );
+  });
+
+  test('bullet・bold・全角コロンの揺れを許容する', () => {
+    expect(parseTargetMarker('**対象**：`packages/x/src/b.ts`')).toBe('packages/x/src/b.ts');
+    expect(parseTargetMarker('対象: `packages/x/src/c.ts`')).toBe('packages/x/src/c.ts');
+    expect(parseTargetMarker('- target: `packages/x/src/d.ts`')).toBe('packages/x/src/d.ts');
+  });
+
+  test('ディレクトリ指定も受ける（ファイル拡張子を要求しない）', () => {
+    expect(parseTargetMarker('- **対象**: `packages/markdown-viewer`')).toBe('packages/markdown-viewer');
+  });
+
+  test('バッククォート無しの素の値も受ける', () => {
+    expect(parseTargetMarker('- **対象**: packages/x/src/e.ts:3-9')).toBe('packages/x/src/e.ts');
+  });
+
+  test('パスとして成立しない値は null（本文推測へ委ねる）', () => {
+    expect(parseTargetMarker('- **対象**: 全体')).toBeNull();
+    expect(parseTargetMarker('- **重大度**: error')).toBeNull();
+  });
+
+  test('コードブロック内の 対象: は拾わない', () => {
+    expect(parseTargetMarker('```\n対象: `packages/x/src/f.ts`\n```')).toBeNull();
   });
 });

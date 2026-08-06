@@ -394,6 +394,33 @@ export function parseChecklistRefMarker(body: string): string | null {
   return null;
 }
 
+/**
+ * anytime-trail-review スキルのメタデータ 3 行目 `- **対象**: \`packages/x/y.ts:12\`` を解析する。
+ *
+ * このマーカーはスキルが「必須・順序固定」と宣言しているのに、長らくどのパーサも
+ * 読んでいなかった。対象は 問題/提案 本文からの推測（`extractTargetFromFinding`）だけで
+ * 決まっており、メタデータ行は heading と `**問題:**` の間にあるため本文に含まれない。
+ * 結果として、書式どおり対象を書いたレビューでも `target_file_path` が NULL になり、
+ * 対処コミットの自動リンク（`linkAddresses`）の母集合から外れていた。
+ *
+ * 見つからない・パスとして成立しない値は null を返し、呼び出し側の本文推測へ委ねる。
+ */
+const TARGET_MARKER_RE = new RegExp(
+  String.raw`^${BULLET_PREFIX}\*{0,2}(?:対象|target)\*{0,2}\s*[：:]\s*(.+)$`,
+  'im',
+);
+
+export function parseTargetMarker(body: string): string | null {
+  const m = TARGET_MARKER_RE.exec(body.replace(FENCED_BLOCK_RE, ''));
+  if (!m) return null;
+  const value = m[1].trim();
+  // バッククォート内を優先する。書式は `path:line` を想定しており、
+  // 素の値には「〜の周辺」のような散文が続くことがある。
+  const backticked = extractBacktickPaths(value);
+  if (backticked.length > 0) return backticked[0];
+  return normalizeTargetPath(value)?.path ?? null;
+}
+
 // ── Target file path extraction from finding body ────────────────────────────
 
 /**

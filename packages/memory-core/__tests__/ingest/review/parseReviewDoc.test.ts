@@ -23,6 +23,25 @@ describe('parseReviewDoc', () => {
     expect(result!.targetRefs).toHaveLength(1);
   });
 
+  // スキルが「必須・順序固定」と宣言している `- **対象**:` を実際に読むこと。
+  // かつてはどのパーサも読まず、問題/提案 本文からの推測だけで対象を決めていた。
+  test('メタデータ行の 対象 を target_file_path に採る', () => {
+    const content =
+      reviewFm() +
+      `\n# テストレビュー\n\n## レビュー指摘事項\n\n### 1. NULL 参照\n\n- **重大度**: error\n- **カテゴリ**: logic\n- **対象**: \`packages/trail-viewer/src/views/a.ts:12\`\n- **観点**: §8\n\n**問題:** null になり得る。\n\n**提案:** optional chaining を使う。\n`;
+    const result = parseReviewDoc({ rel_path: 'review/test.md', content });
+    expect(result!.findings[0].target_file_path).toBe('packages/trail-viewer/src/views/a.ts');
+  });
+
+  test('メタデータ行の 対象 は本文中のパス推測より優先する', () => {
+    // 本文のコード例に現れるパスは実在しないことが多い（実測: src/foo.ts 等）。
+    const content =
+      reviewFm() +
+      `\n# テストレビュー\n\n## レビュー指摘事項\n\n### 1. NULL 参照\n\n- **重大度**: error\n- **カテゴリ**: logic\n- **対象**: \`packages/trail-viewer/src/views/a.ts\`\n\n**問題:** \`src/foo.ts\` のような例を書いている。\n\n**提案:** 直す。\n`;
+    const result = parseReviewDoc({ rel_path: 'review/test.md', content });
+    expect(result!.findings[0].target_file_path).toBe('packages/trail-viewer/src/views/a.ts');
+  });
+
   // Test 2: chapter '### 1.2 CTA カラーのコントラスト比未検証' → category=a11y, severity=info
   test('infers category=a11y for コントラスト in chapter title, severity=info by default', () => {
     const content =
