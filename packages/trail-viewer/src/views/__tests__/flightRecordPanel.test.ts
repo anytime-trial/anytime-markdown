@@ -856,6 +856,73 @@ describe('flightRecordPanel', () => {
         handle.destroy();
       });
 
+      it('事前指摘からの遷移では、表示件数の分母をそのスコープに合わせる', async () => {
+        // 分母を取得済み全件にすると、フィルタバーを触っていないのに「1 / 3」と出て、
+        // 事前指摘スコープで外れた指摘までバーが隠したように読める。
+        stubFetch((url) => {
+          if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
+          if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
+          if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+          if (url.includes('flight-counts')) {
+            return jsonResponse([{ instructionId: 'inst-0001-abcd', error: 1, warn: 1, info: 1, total: 3 }]);
+          }
+          if (url.includes('flight-findings')) {
+            return jsonResponse(FINDINGS.map((f, i) => ({ ...f, findingEntityId: `finding:${f.id}`, id: f.id ?? `rf-${i}` })));
+          }
+          if (url.includes('/api/memory/bugs/recurring')) return jsonResponse([]);
+          if (url.includes('/api/memory/bugs/causal')) {
+            return jsonResponse({
+              bugEntityId: 'bug:89754a1',
+              subject: 'テーマ変数の解決順を直す',
+              category: 'logic',
+              commitSha: '89754a1c0abcdef',
+              committedAt: '2026-08-05T02:00:00.000Z',
+              affectedFilePaths: [],
+              rootCauses: [],
+              siblingBugEntityIds: [],
+              precedingFindings: [{ findingEntityId: 'finding:rf-2', targetFilePath: null, severity: 'warn' }],
+              introducedByCommitSha: null,
+            });
+          }
+          if (url.includes('/api/memory/bugs/history')) {
+            return jsonResponse([
+              {
+                id: 'bugfix-1',
+                commitSha: '89754a1c0abcdef',
+                bugEntityId: 'bug:89754a1',
+                package: 'trail-viewer',
+                category: 'logic',
+                subjectSummary: 'テーマ変数の解決順を直す',
+                sessionId: 'sess-0001-abcd',
+                committedAt: '2026-08-05T02:00:00.000Z',
+                precededByFindingIds: ['finding:rf-2'],
+              },
+            ]);
+          }
+          return jsonResponse({});
+        });
+        store = createInstructionStore('http://x');
+        reviewStore = createFlightReviewStore('http://x');
+        const handle = mountWith(store, reviewStore, { serverUrl: 'http://mem' });
+        await settle();
+
+        // Bug Fixed タブの「事前指摘」チップ（↩ N）から Review タブへ送る
+        container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
+        await settle();
+        // チップ自身（子要素を持たない最内要素）を押す。祖先を押すと行の選択へ流れてしまう。
+        const chip = [...container.querySelectorAll<HTMLElement>('[aria-label="bug-history-table"] *')].find(
+          (el) => el.children.length === 0 && (el.textContent ?? '').trim() === '↩ 1',
+        );
+        expect(chip).toBeDefined();
+        chip?.click();
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-2']);
+        // 1 件へ絞られた母数がそのまま分母（取得済み全件の 3 ではない）
+        expect(container.querySelector('[data-am-finding-shown]')?.textContent).toBe('1 / 1');
+        handle.destroy();
+      });
+
       it('絞り込みバーは表の再描画で作り直されない（選択が消えない）', async () => {
         const handle = await openReviewTab();
         const before = container.querySelector('[data-testid="flight-review-filter-severity"]');

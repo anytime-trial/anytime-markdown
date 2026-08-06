@@ -1235,7 +1235,10 @@ export function mountFlightRecordPanel(
       linkable: props.onOpenFile !== undefined,
       labelOf: instructionLabel,
       filterActive,
-      totalCount: state.findings.length,
+      // 分母はフィルタバーで動かせる母数（= pendingIds で限定した後の集合）。取得済み全件を
+      // 分母にすると、バーを一度も触っていないのに「2 / 87」と出て、事前指摘スコープで
+      // 外れた指摘までバーが隠したように読める。
+      totalCount: scoped.length,
     });
     const onOpenFile = props.onOpenFile;
     if (onOpenFile) wireFindingLinks(reviewTableHost, onOpenFile);
