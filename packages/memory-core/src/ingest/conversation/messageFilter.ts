@@ -34,6 +34,11 @@ const hasText = (p: string): string => `TRIM(COALESCE(${p}text_content, ${p}user
  * `__tests__/ingest/review/parseReviewSession.test.ts` の「is_sidechain=1 の
  * code-reviewer メッセージから findings を取り込む」テストが検査している。
  *
+ * **この条件は今後の取込にだけ効く。** 既に永続化済みのエージェント応答由来の
+ * エピソードとエッジ（上記の 25,163 件 / 21,311 本）は `existingIds` による冪等
+ * skip があるため再取込でも上書きされず、そのまま残る。削除は永続データの破棄に
+ * あたるため人の判断で別途実施する。
+ *
  * assistant / system 行を落とすと splitEpisodes のブロックは user 行 1 件ずつになり、
  * `message_uuid_start === message_uuid_end` になる。episode id は
  * `episodeId(session_id, message_uuid_start)` なので、既存エピソードの id は変わらず、

@@ -54,7 +54,6 @@ const RelationSchema = z.object({
     'affects',
     'introduced_by',
     'asked_by',
-    'answered_in',
   ]),
   object: RelationEndpointSchema,
   valid_from: z.string().nullable().optional(),
@@ -75,7 +74,6 @@ const QuestionSchema = z.object({
   target_spec_path: z.string().nullable().optional(),
   target_symbol: z.string().nullable().optional(),
   asked_by: z.string().optional(),
-  answered_in: z.boolean().optional(),
 });
 
 const ExtractionResultSchema = z.object({

@@ -22,7 +22,7 @@ const SYSTEM_PROMPT_CORE = `あなたは Claude Code / Codex のセッション�
 リレーション述語: prefers, dislikes, depends_on, replaces, relates_to,
               mentioned_in, authored_by, works_on, uses, fixes,
               affects, introduced_by,
-              asked_by, answered_in
+              asked_by
 
 不具合分析が登場した場合は Bug entity を抽出してください。根本原因の推定
 (caused_by) は述語一覧から外してあるので出力しないでください。

@@ -305,27 +305,8 @@ export function persistEpisodeFacts(opts: {
     });
     stats.edges_invalidated += invAsked.length;
 
-    // answered_in edge: Question → session_id (object_literal)
-    const answeredInId = edgeId(qId, 'answered_in', sessionId, msgStart);
-    try {
-      db.run(
-        `INSERT INTO memory_edges
-           (id, subject_entity_id, predicate, object_literal,
-            valid_from, recorded_at, source_type, source_ref,
-            confidence, confidence_label, modality)
-         VALUES (?, ?, 'answered_in', ?, ?, ?, 'conversation', ?, 1.0, 'EXTRACTED', 'asserted')
-         ON CONFLICT(id) DO NOTHING`,
-        [answeredInId, qId, sessionId, validFrom, recordedAt, epId]
-      );
-      stats.edges_inserted += 1;
-    } catch (err) {
-      logger.error(`[anytime-memory] persist: failed to insert answered_in edge for question qId=${qId}`, err);
-    }
-    // answered_in is multiple_active — no invalidation expected, rule is no-op
-    applySingleActiveRule(db, {
-      id: answeredInId, subject_entity_id: qId, predicate: 'answered_in',
-      object_literal: sessionId, recorded_at: recordedAt,
-    });
+    // answered_in エッジは書かない。取込対象が人間の発言だけになり、回答が episode
+    // 内に存在しなくなったため、この述語は構造上ぜったいに真にならない（2026-08-06）。
   }
 
   return stats;
