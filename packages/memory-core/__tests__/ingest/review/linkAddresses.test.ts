@@ -556,4 +556,87 @@ describe('linkAddresses', () => {
 
     close();
   }, 30000);
+
+  // 除外の可観測化。母集合から外れた指摘を黙って捨てると、Flight Record 上の
+  // 「未対処」が対処漏れなのか記録漏れなのか区別できない。
+  describe('除外件数の集計', () => {
+    test('severity=info は severity_info として数える（母集合には入れない）', async () => {
+      const { db, close } = await buildSetup({
+        findingText: 'ここは info の指摘',
+        severity: 'info',
+        targetFilePath: 'src/foo.ts',
+      });
+
+      const result = linkAddresses({ db, logger: makeLogger() });
+
+      expect(result.candidates).toBe(0);
+      expect(result.skipped).toEqual({ severity_info: 1, no_target_path: 0, unresolved_repo: 0 });
+
+      close();
+    }, 30000);
+
+    test('対象パスの欠落と対象リポジトリ未解決を別々に数える', async () => {
+      const noPath = await buildSetup({
+        findingText: '対象が書かれていない指摘',
+        severity: 'error',
+        targetFilePath: null,
+      });
+      expect(linkAddresses({ db: noPath.db, logger: makeLogger() }).skipped).toEqual({
+        severity_info: 0,
+        no_target_path: 1,
+        unresolved_repo: 0,
+      });
+      noPath.close();
+
+      const noRepo = await buildSetup({
+        findingText: 'パスはあるがリポジトリが解決できない指摘',
+        severity: 'error',
+        targetFilePath: 'src/foo.ts',
+        targetRepo: null,
+      });
+      expect(linkAddresses({ db: noRepo.db, logger: makeLogger() }).skipped).toEqual({
+        severity_info: 0,
+        no_target_path: 0,
+        unresolved_repo: 1,
+      });
+      noRepo.close();
+    }, 30000);
+
+    test('母集合に入ったが一致コミットが無い指摘は no_matching_commit で数える', async () => {
+      const { db, close } = await buildSetup({
+        findingText: 'border 1px fix needed for the button element',
+        severity: 'warn',
+        targetFilePath: 'src/foo.ts',
+        commitFile: 'src/foo.ts',
+        commitMessage: 'chore: 無関係なコミット',
+        commitAt: TS_PLUS_1,
+      });
+
+      const result = linkAddresses({ db, logger: makeLogger() });
+
+      expect(result.candidates).toBe(1);
+      expect(result.findings_linked).toBe(0);
+      expect(result.no_matching_commit).toBe(1);
+      expect(result.skipped).toEqual({ severity_info: 0, no_target_path: 0, unresolved_repo: 0 });
+
+      close();
+    }, 30000);
+
+    test('集計結果をログへ 1 行残す', async () => {
+      const { db, close } = await buildSetup({
+        findingText: 'ここは info の指摘',
+        severity: 'info',
+        targetFilePath: 'src/foo.ts',
+      });
+
+      const logger = makeLogger();
+      linkAddresses({ db, logger });
+
+      const summary = logger.warn.mock.calls.map((c) => String(c[0])).find((m) => m.includes('candidates='));
+      expect(summary).toContain('candidates=0');
+      expect(summary).toContain('info=1');
+
+      close();
+    }, 30000);
+  });
 });
