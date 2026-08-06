@@ -747,6 +747,13 @@ export interface TrailI18n {
   'flightRecord.findings.column.finding': string;
   'flightRecord.findings.column.reviewedAt': string;
   'flightRecord.findings.column.status': string;
+  'flightRecord.findings.noneFiltered': string;
+  'flightRecord.findings.filter.severity': string;
+  'flightRecord.findings.filter.severityAll': string;
+  'flightRecord.findings.filter.category': string;
+  'flightRecord.findings.filter.categoryAll': string;
+  'flightRecord.findings.filter.status': string;
+  'flightRecord.findings.filter.statusAll': string;
   'flightRecord.detail.title': string;
   'flightRecord.detail.close': string;
   'flightRecord.detail.keyEvents': string;
