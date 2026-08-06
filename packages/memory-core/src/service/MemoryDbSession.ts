@@ -367,14 +367,29 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
         recordedAt: new Date().toISOString(),
         logger,
       });
+      // 掃除の失敗を握り潰さない。ログ 1 行に留めると、specRoot が読めない状態が
+      // 何か月続いてもパイプラインは success を報告し続け、観測面に現れない。
+      const scopeStatus = reconResult.status === 'error' ? 'error' : specResult.status;
       if (reconResult.status === 'error') {
         logger.error(
-          `[${new Date().toISOString()}] [ERROR] [anytime-memory] runSpec: reconciliation skipped — ${reconResult.error_detail}`,
+          `[${new Date().toISOString()}] [ERROR] [anytime-memory] runSpec: reconciliation failed — ${reconResult.error_detail}`,
         );
       }
-      this.status?.finish('spec_incremental', specResult.status, specResult.items_processed, 0);
+      this.status?.finish(
+        'spec_incremental',
+        scopeStatus,
+        specResult.items_processed,
+        0,
+        reconResult.status === 'error' ? reconResult.error_detail : undefined,
+      );
       this.save();
-      return { scope: 'spec_incremental', status: specResult.status, itemsProcessed: specResult.items_processed, itemsFailed: 0 };
+      return {
+        scope: 'spec_incremental',
+        status: scopeStatus,
+        itemsProcessed: specResult.items_processed,
+        itemsFailed: 0,
+        ...(reconResult.status === 'error' ? { error: reconResult.error_detail } : {}),
+      };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.status?.finish('spec_incremental', 'error', 0, 0, msg);

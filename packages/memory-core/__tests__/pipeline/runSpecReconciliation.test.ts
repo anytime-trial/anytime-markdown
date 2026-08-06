@@ -35,10 +35,42 @@ function insertSpecDoc(db: BetterSqlite3MemoryDb, docId: string, relPath: string
      VALUES (?, ?, 'spec', ?, '[]', ?, 'hash', '', ?)`,
     [docId, relPath, relPath, AT, AT],
   );
-  insertEntity(db, entityId, 'Concept', relPath);
+  // upsertSpecDoc と同じ attributes_json（kind=spec_doc）を再現する
+  db.run(
+    `INSERT INTO memory_entities
+       (id, type, canonical_name, display_name, attributes_json, first_seen_at, last_updated_at, recorded_at)
+     VALUES (?, 'Concept', ?, ?, ?, ?, ?, ?)`,
+    [entityId, relPath, relPath, JSON.stringify({ kind: 'spec_doc', rel_path: relPath }), AT, AT, AT],
+  );
   db.run(
     `INSERT INTO memory_spec_doc_entities (spec_doc_id, entity_id, line_hint) VALUES (?, ?, NULL)`,
     [docId, entityId],
+  );
+}
+
+/** linkByC4Scope が作る形: C4 要素 entity を spec_doc_entities へ、edge は接頭辞なし source_ref */
+function linkC4Entity(
+  db: BetterSqlite3MemoryDb,
+  docId: string,
+  specEntityId: string,
+  c4EntityId: string,
+): void {
+  db.run(
+    `INSERT OR IGNORE INTO memory_entities
+       (id, type, canonical_name, display_name, attributes_json, first_seen_at, last_updated_at, recorded_at)
+     VALUES (?, 'Package', ?, ?, '{}', ?, ?, ?)`,
+    [c4EntityId, c4EntityId, c4EntityId, AT, AT, AT],
+  );
+  db.run(
+    `INSERT INTO memory_edges
+       (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at,
+        source_type, source_ref, confidence, confidence_label, modality, attributes_json)
+     VALUES (?, ?, 'mentioned_in', ?, ?, ?, 'spec', ?, 1.0, 'EXTRACTED', 'asserted', '{}')`,
+    [`edge-c4-${docId}`, specEntityId, c4EntityId, AT, AT, docId],
+  );
+  db.run(
+    `INSERT OR IGNORE INTO memory_spec_doc_entities (spec_doc_id, entity_id, line_hint) VALUES (?, ?, NULL)`,
+    [docId, c4EntityId],
   );
 }
 
@@ -207,6 +239,100 @@ describe('runSpecReconciliation', () => {
     expect(result.status).toBe('error');
     expect(result.removed_docs).toBe(0);
     expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_documents').get()?.['n']).toBe(1);
+
+    db.close();
+  });
+
+  test('linkByC4Scope 由来の C4 entity は排他リンクでも根拠があれば残す', () => {
+    const db = makeDb();
+    writeSpec(specRoot, 'live.ja.md');
+    insertSpecDoc(db, 'doc-live', 'live.ja.md', 'ent-live');
+    insertSpecDoc(db, 'doc-gone', 'gone.ja.md', 'ent-gone');
+    // 消えた doc の c4Scope にしか出てこないが、コード由来の生きた edge を持つ
+    linkC4Entity(db, 'doc-gone', 'ent-gone', 'pkg-core');
+    insertEntity(db, 'file-x', 'File', 'src/x.ts');
+    db.run(
+      `INSERT INTO memory_edges
+         (id, subject_entity_id, predicate, object_entity_id, valid_from, recorded_at,
+          source_type, source_ref, confidence, confidence_label, modality, attributes_json)
+       VALUES ('edge-code', 'pkg-core', 'depends_on', 'file-x', ?, ?, 'code', 'code_graph', 1.0, 'EXTRACTED', 'asserted', '{}')`,
+      [AT, AT],
+    );
+
+    const result = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
+
+    expect(result.soft_deleted_doc_entities).toBe(1); // ent-gone だけ
+    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('pkg-core')?.['valid_until']).toBeNull();
+
+    db.close();
+  });
+
+  test('接頭辞なし source_ref（linkByC4Scope 形式）の edge も閉じる', () => {
+    const db = makeDb();
+    writeSpec(specRoot, 'live.ja.md');
+    insertSpecDoc(db, 'doc-live', 'live.ja.md', 'ent-live');
+    insertSpecDoc(db, 'doc-gone', 'gone.ja.md', 'ent-gone');
+    linkC4Entity(db, 'doc-gone', 'ent-gone', 'pkg-orphan');
+
+    const result = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
+
+    expect(result.invalidated_edges).toBe(1);
+    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get('edge-c4-doc-gone')?.['valid_to']).toBe(NOW);
+    // 根拠を失った C4 entity は孤立として無効化される
+    expect(db.prepare('SELECT valid_until FROM memory_entities WHERE id = ?').get('pkg-orphan')?.['valid_until']).toBe(NOW);
+
+    db.close();
+  });
+
+  test('消失率が半分を超えるときは allowBulkRemoval なしでは中断する', () => {
+    const db = makeDb();
+    writeSpec(specRoot, 'live.ja.md');
+    insertSpecDoc(db, 'doc-live', 'live.ja.md', 'ent-live');
+    insertSpecDoc(db, 'doc-gone1', 'gone1.ja.md', 'ent-gone1');
+    insertSpecDoc(db, 'doc-gone2', 'gone2.ja.md', 'ent-gone2');
+
+    const blocked = runSpecReconciliation({ db, specRoot, recordedAt: NOW });
+    expect(blocked.status).toBe('error');
+    expect(blocked.removed_docs).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_documents').get()?.['n']).toBe(3);
+
+    const allowed = runSpecReconciliation({ db, specRoot, recordedAt: NOW, allowBulkRemoval: true });
+    expect(allowed.status).toBe('success');
+    expect(allowed.removed_docs).toBe(2);
+
+    db.close();
+  });
+
+  test('無効化しても last_updated_at は書き換えない', () => {
+    const db = makeDb();
+    writeSpec(specRoot, 'live.ja.md');
+    insertSpecDoc(db, 'doc-live', 'live.ja.md', 'ent-live');
+    insertSpecDoc(db, 'doc-gone', 'gone.ja.md', 'ent-gone');
+
+    runSpecReconciliation({ db, specRoot, recordedAt: NOW });
+
+    expect(db.prepare('SELECT last_updated_at FROM memory_entities WHERE id = ?').get('ent-gone')?.['last_updated_at']).toBe(AT);
+
+    db.close();
+  });
+
+  test('途中で失敗したら 1 件も適用せず error を返す', () => {
+    const db = makeDb();
+    writeSpec(specRoot, 'live.ja.md');
+    insertSpecDoc(db, 'doc-live', 'live.ja.md', 'ent-live');
+    insertSpecDoc(db, 'doc-gone', 'gone.ja.md', 'ent-gone');
+    insertEntity(db, 'claim-a', 'Concept', 'claim-a');
+    insertEntity(db, 'claim-b', 'Concept', 'claim-b');
+    insertSpecEdge(db, 'edge-gone', 'doc-gone', 'claim-a', 'claim-b');
+
+    // recordedAt が timestamp の CHECK 制約に違反する → 途中で例外
+    const result = runSpecReconciliation({ db, specRoot, recordedAt: 'not-a-timestamp' });
+
+    expect(result.status).toBe('error');
+    expect(result.removed_docs).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) n FROM memory_spec_documents').get()?.['n']).toBe(2);
+    expect(db.prepare('SELECT valid_to FROM memory_edges WHERE id = ?').get('edge-gone')?.['valid_to']).toBeNull();
+    expect(db.prepare('SELECT COUNT(*) n FROM memory_edge_invalidations').get()?.['n']).toBe(0);
 
     db.close();
   });
