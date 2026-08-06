@@ -14,13 +14,7 @@
  * フィルタリングはローカル状態で保持する。
  * selectedBugEntityId は presentational な選択状態としてここで保持する。
  */
-import {
-  createChip,
-  createIconButton,
-  createSelect,
-  createTooltip,
-  OpenInNew,
-} from '@anytime-markdown/ui-core';
+import { createChip, createSelect, createTooltip } from '@anytime-markdown/ui-core';
 import type { MemoryBugHistoryRow, MemoryRecurringBugRow } from '../../data/types';
 import type { MemoryReader } from '../../data/readers/MemoryReader';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
@@ -38,9 +32,12 @@ const CATEGORY_COLOR_VAR: Record<string, string> = {
 export interface BugHistoryPanelProps {
   t: (key: string) => string;
   reader: MemoryReader | null;
-  onOpenSessionMessages?: (sessionId: string) => void;
   onOpenPrecedingReviews?: (findingIds: readonly string[]) => void;
   onOpenSiblingBugs?: (bugEntityIds: readonly string[]) => void;
+  /** instructionId → 一覧に出す指示名。未配線ならセル自体を出さない（生 ID を見せない）。 */
+  labelOf?: (instructionId: string) => string;
+  /** 指示名クリックで指示タブへ移り、その指示を選択状態にする（Review タブの行クリックと同じ）。 */
+  onSelectInstruction?: (instructionId: string) => void;
   pendingBugFilter?: { bugEntityIds: readonly string[] } | null;
   /**
    * ワークスペース（repo_name）でバグ履歴・再発クラスタを絞る。空文字は「すべて」。
@@ -212,6 +209,34 @@ export function mountBugHistoryPanel(
 
   const rowHandles: Array<{ destroy(): void }> = [];
 
+  /**
+   * 指示名セル。押すと指示タブへ移りその指示を選択する（Review タブの行クリックと同じ）。
+   *
+   * 遷移先の配線（`onSelectInstruction`）と表示名の解決（`labelOf`）が両方揃ったときだけ
+   * ボタンを出す。片方でも欠けたら押せないボタンや生の指示 ID を見せず、セルを空にする。
+   */
+  function instructionButton(instructionId: string | null): HTMLButtonElement | null {
+    const { labelOf, onSelectInstruction } = props;
+    if (!instructionId) return null;
+    if (labelOf === undefined || onSelectInstruction === undefined) return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset['amBugInstruction'] = instructionId;
+    // UA 既定（buttonface 背景・2px ボーダー・中央寄せ）を打ち消す。`all:unset` は
+    // フォーカスリングまで消してキーボード操作を見えなくするので、個別に上書きする。
+    button.style.cssText =
+      'display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
+      'background:none;border:none;padding:0;margin:0;font:inherit;font-size:0.75rem;' +
+      'text-align:left;cursor:pointer;color:var(--am-color-primary-main);text-decoration:underline;';
+    button.textContent = labelOf(instructionId);
+    button.addEventListener('click', (e) => {
+      // 行クリック（バグ選択・因果ペイン更新）へは伝播させない
+      e.stopPropagation();
+      onSelectInstruction(instructionId);
+    });
+    return button;
+  }
+
   function renderTable(): void {
     for (const h of rowHandles) h.destroy();
     rowHandles.length = 0;
@@ -235,12 +260,10 @@ export function mountBugHistoryPanel(
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
     headRow.append(
-      th('Package'),
-      th('Category'),
-      th('Commit'),
-      th('Summary'),
-      th('Date'),
-      th(''),
+      th(props.t('flightRecord.bugfix.column.summary')),
+      th(props.t('flightRecord.bugfix.column.date')),
+      th(props.t('flightRecord.bugfix.column.category')),
+      th(props.t('flightRecord.column.instruction')),
       th(''),
     );
     thead.appendChild(headRow);
@@ -280,19 +303,6 @@ export function mountBugHistoryPanel(
         renderTable();
       });
 
-      // Package
-      const pkgCell = td('color:var(--am-color-text-secondary);');
-      pkgCell.textContent = row.package;
-
-      // Category chip
-      const catCell = td();
-      const catColorVar = CATEGORY_COLOR_VAR[row.category] ?? 'var(--am-color-text-secondary)';
-      catCell.appendChild(styledChip(row.category, catColorVar));
-
-      // Commit SHA
-      const shaCell = td('color:var(--am-color-text-secondary);font-family:monospace;');
-      shaCell.textContent = row.commitSha.slice(0, 7);
-
       // Summary
       const summaryCell = td('max-width:280px;color:var(--am-color-text-primary);overflow:hidden;');
       const summaryInner = document.createElement('div');
@@ -304,25 +314,15 @@ export function mountBugHistoryPanel(
       const dateCell = td('color:var(--am-color-text-secondary);white-space:nowrap;');
       dateCell.textContent = row.committedAt.slice(0, 10);
 
-      // Open in messages icon button
-      const openCell = td('padding:2px 4px;text-align:right;');
-      if (props.onOpenSessionMessages && row.sessionId) {
-        const iconBtnHandle = createIconButton({
-          size: 'small',
-          ariaLabel: props.t('flightRecord.bugfix.openInMessages'),
-          onClick: (e?: MouseEvent) => {
-            e?.stopPropagation();
-            props.onOpenSessionMessages!(row.sessionId!);
-          },
-        });
-        rowHandles.push(iconBtnHandle);
-        const { el: iconBtn } = iconBtnHandle;
-        const { el: icon } = OpenInNew({ fontSize: 'small', color: 'action' });
-        iconBtn.appendChild(icon);
-        const tooltipHandle = createTooltip({ reference: iconBtn, title: props.t('flightRecord.bugfix.openInMessages') });
-        rowHandles.push(tooltipHandle);
-        openCell.appendChild(iconBtn);
-      }
+      // Category chip
+      const catCell = td();
+      const catColorVar = CATEGORY_COLOR_VAR[row.category] ?? 'var(--am-color-text-secondary)';
+      catCell.appendChild(styledChip(row.category, catColorVar));
+
+      // 指示名（クリックで指示タブへ遷移してその指示を選択）
+      const instructionCell = td('max-width:220px;overflow:hidden;');
+      const instructionCellContent = instructionButton(row.instructionId);
+      if (instructionCellContent !== null) instructionCell.appendChild(instructionCellContent);
 
       // Preceded by chip
       const precededCell = td('padding:2px 4px;text-align:right;white-space:nowrap;');
@@ -345,7 +345,7 @@ export function mountBugHistoryPanel(
         precededCell.appendChild(precededChip);
       }
 
-      tr.append(pkgCell, catCell, shaCell, summaryCell, dateCell, openCell, precededCell);
+      tr.append(summaryCell, dateCell, catCell, instructionCell, precededCell);
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);

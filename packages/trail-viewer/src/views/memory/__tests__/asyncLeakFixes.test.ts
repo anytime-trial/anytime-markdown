@@ -49,6 +49,7 @@ function makeBugRow(over: Partial<MemoryBugHistoryRow> = {}): MemoryBugHistoryRo
     category: 'regression',
     subjectSummary: 'Something broke',
     sessionId: 'sess-1',
+    instructionId: 'inst-1',
     committedAt: '2026-01-10T00:00:00.000Z',
     precededByFindingIds: [],
     workspace: '',
@@ -243,8 +244,9 @@ describe('mountBugHistoryPanel — Fix B: row handle cleanup', () => {
       t,
       reader,
       workspace: '',
-      onOpenSessionMessages: () => {},
       onOpenPrecedingReviews: () => {},
+      labelOf: (id) => id,
+      onSelectInstruction: () => {},
     };
     const handle = mountBugHistoryPanel(c, props);
     await flush();
