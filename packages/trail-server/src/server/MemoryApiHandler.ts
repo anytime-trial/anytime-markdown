@@ -24,6 +24,8 @@ export interface DriftEventRow {
   detectedAt: string;
   resolvedAt: string | null;
   resolutionNote: string;
+  /** 出所ワークスペースの repo_name。'' は未解決（020_workspace_scope.sql）。 */
+  workspace: string;
 }
 
 export interface DriftEventDetail extends DriftEventRow {
@@ -55,6 +57,8 @@ export interface BugHistoryRow {
   instructionId: string | null;
   precededByFindingIds: string[];
   committedAt: string;
+  /** 取込元リポジトリの repo_name。'' は未解決（020_workspace_scope.sql）。 */
+  workspace: string;
 }
 
 export interface BugCausalInfo {
@@ -343,11 +347,47 @@ export class MemoryApiHandler {
 
   // ---- drift events ----
 
+  /**
+   * memory-core が保持するワークスペース（repo_name）の一覧。
+   *
+   * Flight Record のワークスペース選択肢に使う。一覧 API の結果から作らないのは、
+   * limit と絞り込みで縮んだ窓に出てこないワークスペースが選択肢から消え、
+   * 「そのワークスペースの記録が無い」と読めてしまうため。
+   * '' （未解決）は選択肢にしない — 絞り込みの対象ではなく取込側の欠損だから。
+   */
+  async listWorkspaces(): Promise<string[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      const names = new Set<string>();
+      for (const sql of [
+        "SELECT DISTINCT workspace FROM memory_reviews WHERE workspace != ''",
+        "SELECT DISTINCT workspace FROM memory_bug_fixes WHERE workspace != ''",
+        "SELECT DISTINCT workspace FROM memory_drift_events WHERE workspace != ''",
+      ]) {
+        const result = db.exec(sql);
+        for (const row of result[0]?.values ?? []) names.add(String(row[0]));
+      }
+      return [...names].sort((a, b) => a.localeCompare(b));
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.listWorkspaces] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
   async listDriftEvents(params: {
     unresolvedOnly?: boolean;
     severity?: string;
     driftType?: string;
     since?: string;
+    /**
+     * ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。
+     * memory-core.db は複数ワークスペースを 1 DB に集約するため、これが無いと
+     * Flight Record の Drift タブに他ワークスペースの乖離が混ざる。
+     */
+    workspace?: string;
     limit?: number;
   }): Promise<DriftEventRow[]> {
     const db = this.openReadOnly();
@@ -372,6 +412,10 @@ export class MemoryApiHandler {
         conditions.push('de.detected_at >= ?');
         bindValues.push(params.since);
       }
+      if (params.workspace) {
+        conditions.push('de.workspace = ?');
+        bindValues.push(params.workspace);
+      }
 
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
@@ -380,7 +424,7 @@ export class MemoryApiHandler {
         SELECT de.id, de.subject_entity_id, COALESCE(e.display_name, e.canonical_name, '') AS subject_display_name,
                de.predicate, de.drift_type, de.severity,
                de.conversation_value, de.spec_value, de.code_value,
-               de.detected_at, de.resolved_at, de.resolution_note
+               de.detected_at, de.resolved_at, de.resolution_note, de.workspace
         FROM memory_drift_events de
         LEFT JOIN memory_entities e ON e.id = de.subject_entity_id
         ${where}
@@ -406,6 +450,7 @@ export class MemoryApiHandler {
           detectedAt: toStr(r['detected_at']),
           resolvedAt: toNullStr(r['resolved_at']),
           resolutionNote: toStr(r['resolution_note']),
+          workspace: toStr(r['workspace']),
         };
       });
     } catch (err) {
@@ -424,7 +469,7 @@ export class MemoryApiHandler {
         `SELECT de.id, de.subject_entity_id, COALESCE(e.display_name, e.canonical_name, '') AS subject_display_name,
                 de.predicate, de.drift_type, de.severity,
                 de.conversation_value, de.spec_value, de.code_value,
-                de.detected_at, de.resolved_at, de.resolution_note, de.detail_json
+                de.detected_at, de.resolved_at, de.resolution_note, de.detail_json, de.workspace
          FROM memory_drift_events de
          LEFT JOIN memory_entities e ON e.id = de.subject_entity_id
          WHERE de.id = ?`,
@@ -452,6 +497,7 @@ export class MemoryApiHandler {
         detectedAt: toStr(r['detected_at']),
         resolvedAt: toNullStr(r['resolved_at']),
         resolutionNote: toStr(r['resolution_note']),
+        workspace: toStr(r['workspace']),
         detailJson,
       };
     } catch (err) {
@@ -481,6 +527,8 @@ export class MemoryApiHandler {
   async listRecurringBugs(params: {
     package?: string;
     windowDays?: number;
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   }): Promise<RecurringBugRow[]> {
     const db = this.openReadOnly();
@@ -495,6 +543,10 @@ export class MemoryApiHandler {
       if (params.windowDays) {
         conditions.push(`de.detected_at >= datetime('now', '-' || ? || ' days')`);
         bindValues.push(params.windowDays);
+      }
+      if (params.workspace) {
+        conditions.push('de.workspace = ?');
+        bindValues.push(params.workspace);
       }
       bindValues.push(limit);
       const result = db.exec(
@@ -540,6 +592,8 @@ export class MemoryApiHandler {
      * 古い指示のバグが「0 件」に化けて、無いのか出ていないのか区別できなくなる）。
      */
     sessionIds?: readonly string[];
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   }): Promise<BugHistoryRow[]> {
     const db = this.openReadOnly();
@@ -555,6 +609,10 @@ export class MemoryApiHandler {
       if (params.category) {
         conditions.push('bf.category = ?');
         bindValues.push(params.category);
+      }
+      if (params.workspace) {
+        conditions.push('bf.workspace = ?');
+        bindValues.push(params.workspace);
       }
       if (params.sessionIds !== undefined) {
         // 空配列は「絞り込み対象が 0 件」であって「絞り込み無し」ではない。ここで
@@ -577,7 +635,7 @@ export class MemoryApiHandler {
         : 'bf.related_session_id';
       const result = db.exec(
         `SELECT bf.id, bf.commit_sha, bf.bug_entity_id, bf.package, bf.category,
-                bf.subject_summary, bf.related_session_id, bf.committed_at,
+                bf.subject_summary, bf.related_session_id, bf.committed_at, bf.workspace,
                 ${instructionIdExpr} AS instruction_id,
                 (SELECT GROUP_CONCAT(e.subject_entity_id)
                  FROM memory_edges e
@@ -605,6 +663,7 @@ export class MemoryApiHandler {
           instructionId: toNullStr(r['instruction_id']),
           precededByFindingIds: precededByRaw ? precededByRaw.split(',').filter(Boolean) : [],
           committedAt: toStr(r['committed_at']),
+          workspace: toStr(r['workspace']),
         };
       });
     } catch (err) {
@@ -951,6 +1010,8 @@ export class MemoryApiHandler {
   /** 指示単位のレビュー指摘一覧。instructionIds を渡すとその指示だけに絞る。 */
   async getFlightReviewFindings(params: {
     instructionIds?: readonly string[];
+    /** レビューが行われたワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   }): Promise<FlightReviewFindingRow[]> {
     const db = this.openReadOnly();
@@ -966,9 +1027,13 @@ export class MemoryApiHandler {
       const limit = clampLimit(params.limit, 500, 1000);
       const ids = params.instructionIds ?? [];
       const bindValues: unknown[] = [...ids];
-      const where = ids.length > 0
-        ? `WHERE instruction_id IN (${ids.map(() => '?').join(',')})`
-        : '';
+      const conditions: string[] = [];
+      if (ids.length > 0) conditions.push(`instruction_id IN (${ids.map(() => '?').join(',')})`);
+      if (params.workspace) {
+        conditions.push('workspace = ?');
+        bindValues.push(params.workspace);
+      }
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
       const result = db.exec(
         `SELECT * FROM (${this.flightFindingSourceSql()})

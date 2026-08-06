@@ -15,6 +15,7 @@ function makeRow(overrides: Partial<MemoryDriftEventRow>): MemoryDriftEventRow {
     detectedAt: '2026-01-01T00:00:00.000Z',
     resolvedAt: null,
     resolutionNote: '',
+    workspace: '',
     ...overrides,
   };
 }

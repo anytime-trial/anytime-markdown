@@ -52,6 +52,7 @@ function makeBugRow(over: Partial<MemoryBugHistoryRow> = {}): MemoryBugHistoryRo
     instructionId: 'inst-1',
     committedAt: '2026-01-10T00:00:00.000Z',
     precededByFindingIds: [],
+    workspace: '',
     ...over,
   };
 }
@@ -124,6 +125,37 @@ describe('mountBugHistoryPanel — Fix A: destroy guard', () => {
     // Container must remain empty — no DOM mutation after destroy
     expect(c.childElementCount).toBe(0);
     expect(c.querySelector('[aria-label="bug-history-table"]')).toBeNull();
+  });
+});
+
+
+describe('mountBugHistoryPanel — ワークスペース切替の世代ガード', () => {
+  // reader の同一性で世代を判定すると、reader が変わらないワークスペース切替を取りこぼす。
+  // A→B と切り替えたあとに A の応答が遅れて着弾すると、B を選んでいるのに A の行が並ぶ。
+  it('切替前のワークスペースの応答が遅れて届いても表示に反映しない', async () => {
+    const slowA = deferred<readonly MemoryBugHistoryRow[]>();
+    const reader = makeReader({
+      listRecurringBugs: () => Promise.resolve([]),
+      getBugHistory: (params?: { workspace?: string }) =>
+        params?.workspace === 'ws-a'
+          ? slowA.promise
+          : Promise.resolve([makeBugRow({ id: 'b-new', subjectSummary: 'B の結果' })]),
+    } as Partial<MemoryReader>);
+
+    const c = document.createElement('div');
+    const handle = mountBugHistoryPanel(c, { t, reader, workspace: 'ws-a' } as BugHistoryPanelProps);
+    handle.update({ t, reader, workspace: 'ws-b' } as BugHistoryPanelProps);
+    await flush();
+
+    expect(c.textContent).toContain('B の結果');
+
+    // ここで A（切替前）の応答が着弾する
+    slowA.resolve([makeBugRow({ id: 'b-old', subjectSummary: 'A の結果' })]);
+    await flush();
+
+    expect(c.textContent).not.toContain('A の結果');
+    expect(c.textContent).toContain('B の結果');
+    handle.destroy();
   });
 });
 
@@ -211,6 +243,7 @@ describe('mountBugHistoryPanel — Fix B: row handle cleanup', () => {
     const props: BugHistoryPanelProps = {
       t,
       reader,
+      workspace: '',
       onOpenPrecedingReviews: () => {},
       labelOf: (id) => id,
       onSelectInstruction: () => {},

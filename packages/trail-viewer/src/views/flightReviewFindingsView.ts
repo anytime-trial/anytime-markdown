@@ -16,6 +16,54 @@ export type FindingsTranslate = (key: string) => string;
 /** severity の並び順。重い順に見せる（error → warn → info）。 */
 const SEVERITY_ORDER: Record<string, number> = { error: 0, warn: 1, info: 2 };
 
+/** 絞り込みの対処状態。空文字は「すべて」（絞り込みなし）。 */
+export type FindingStatusFilter = '' | 'addressed' | 'unaddressed';
+
+/**
+ * Review サブタブの絞り込み条件。各値の空文字は「すべて」で、複数指定は AND で効く。
+ * severity / category は列挙を型で固定しない — severity は memory-core が取り込んだ
+ * 文字列がそのまま入り（未知値も表に出る）、category はレビュー側が自由に付けるため。
+ */
+export interface FindingFilter {
+  readonly severity: string;
+  readonly category: string;
+  readonly status: FindingStatusFilter;
+}
+
+/**
+ * 対処済みかどうか。表の状態セルと絞り込みが同じ述語を使うための単一の正本。
+ * 空文字の SHA は「対処コミットが分からない」であって対処済みではない。
+ */
+function isAddressed(row: MemoryFlightReviewFindingRow): boolean {
+  return row.addressedCommitSha !== null && row.addressedCommitSha !== '';
+}
+
+/** 絞り込み。該当なしは空配列（呼び出し側が「絞って 0 件」を区別できるようにする）。 */
+export function filterFindings(
+  findings: readonly MemoryFlightReviewFindingRow[],
+  filter: FindingFilter,
+): readonly MemoryFlightReviewFindingRow[] {
+  return findings.filter((row) => {
+    if (filter.severity !== '' && row.severity !== filter.severity) return false;
+    if (filter.category !== '' && row.category !== filter.category) return false;
+    if (filter.status === 'addressed' && !isAddressed(row)) return false;
+    if (filter.status === 'unaddressed' && isAddressed(row)) return false;
+    return true;
+  });
+}
+
+/**
+ * カテゴリの選択肢。取得済みの指摘から作る（固定リストを持たない — カテゴリはレビュー側が
+ * 自由に付けるため、列挙をコードへ焼くと新しいカテゴリが絞り込みから消える）。
+ */
+export function findingCategories(findings: readonly MemoryFlightReviewFindingRow[]): readonly string[] {
+  const set = new Set<string>();
+  for (const row of findings) {
+    if (row.category !== '') set.add(row.category);
+  }
+  return [...set].sort((a, b) => (a < b ? -1 : 1));
+}
+
 export function sortFindings(
   findings: readonly MemoryFlightReviewFindingRow[],
 ): readonly MemoryFlightReviewFindingRow[] {
@@ -50,7 +98,7 @@ function targetCell(t: FindingsTranslate, row: MemoryFlightReviewFindingRow, lin
 }
 
 function statusCell(t: FindingsTranslate, row: MemoryFlightReviewFindingRow): string {
-  if (row.addressedCommitSha) {
+  if (isAddressed(row)) {
     return `<span data-am-finding-status data-addressed="true">${escapeHtml(t('flightRecord.findings.addressed'))}</span>`;
   }
   return `<span data-am-finding-status data-addressed="false">${escapeHtml(t('flightRecord.findings.notAddressed'))}</span>`;
@@ -105,7 +153,14 @@ export function renderFindingSection(input: {
   return `<ul data-am-finding-list>${items}</ul>`;
 }
 
-/** Review サブタブの全指示横断表。 */
+/**
+ * Review サブタブの全指示横断表。
+ *
+ * 列順は「指摘 → 状態 → レビュー日 → 重大度 → カテゴリ → 対象 → 指示」。指摘本文を先頭に
+ * 置くのは、この表を読む目的が「何を指摘されたか」であって、どの指示に属するかは
+ * 絞り込み・行クリックで辿る二次情報のため。thead と tbody は同じ順で並べる
+ * （片方だけ替えると値が別の列へ入り、件数を見るテストでは捕まらない）。
+ */
 export function renderFindingTable(input: {
   t: FindingsTranslate;
   findings: readonly MemoryFlightReviewFindingRow[];
@@ -113,39 +168,51 @@ export function renderFindingTable(input: {
   linkable: boolean;
   /** instructionId → 一覧に出す指示名（未宣言はセッション ID 先頭 8 桁）。 */
   labelOf: (instructionId: string) => string;
+  /** 絞り込みが効いているか。0 件の意味（指摘なし / 絞って消えた）を書き分けるために要る。 */
+  filterActive?: boolean;
+  /** 絞り込み前の総件数。渡されたときだけ「表示 / 総数」を出す。 */
+  totalCount?: number;
 }): string {
   const { t, loadFailed, linkable, labelOf } = input;
   if (loadFailed) {
     return `<p data-am-finding-load-failed role="status">${escapeHtml(t('flightRecord.findings.loadFailed'))}</p>`;
   }
   if (input.findings.length === 0) {
+    // 「絞って消えた」を「指摘なし」と同じ顔で出すと、レビュー漏れを見落とす。
+    if (input.filterActive === true) {
+      return `<p data-am-finding-empty-filtered role="status">${escapeHtml(t('flightRecord.findings.noneFiltered'))}</p>`;
+    }
     return `<p data-am-finding-empty>${escapeHtml(t('flightRecord.findings.none'))}</p>`;
   }
   const rows = sortFindings(input.findings)
     .map(
       (row) => `<tr data-am-finding-row data-finding-id="${escapeHtml(row.id)}"
         data-instruction-id="${escapeHtml(row.instructionId)}">
-        <td>${escapeHtml(labelOf(row.instructionId))}</td>
-        <td>${severityChip(t, row.severity)}</td>
-        <td>${escapeHtml(row.category)}</td>
-        <td>${targetCell(t, row, linkable)}</td>
         <td data-am-finding-text-cell>${escapeHtml(row.findingText)}</td>
-        <td>${escapeHtml(row.reviewedAt.slice(0, 10))}</td>
-        <td>${statusCell(t, row)}</td>
+        <td data-am-finding-nowrap-cell>${statusCell(t, row)}</td>
+        <td data-am-finding-nowrap-cell>${escapeHtml(row.reviewedAt.slice(0, 10))}</td>
+        <td data-am-finding-nowrap-cell>${severityChip(t, row.severity)}</td>
+        <td data-am-finding-nowrap-cell>${escapeHtml(row.category)}</td>
+        <td data-am-finding-target-cell>${targetCell(t, row, linkable)}</td>
+        <td>${escapeHtml(labelOf(row.instructionId))}</td>
       </tr>`,
     )
     .join('');
+  const shown =
+    input.totalCount === undefined
+      ? ''
+      : `<span data-am-finding-shown>${input.findings.length} / ${input.totalCount}</span>`;
   return `
-    <p data-am-finding-note>${escapeHtml(t('flightRecord.findings.scopeNote'))}</p>
+    <p data-am-finding-note>${escapeHtml(t('flightRecord.findings.scopeNote'))}${shown}</p>
     <table data-am-finding-table aria-label="${escapeHtml(t('flightRecord.tab.review'))}">
       <thead><tr>
-        <th>${escapeHtml(t('flightRecord.column.instruction'))}</th>
+        <th>${escapeHtml(t('flightRecord.findings.column.finding'))}</th>
+        <th>${escapeHtml(t('flightRecord.findings.column.status'))}</th>
+        <th>${escapeHtml(t('flightRecord.findings.column.reviewedAt'))}</th>
         <th>${escapeHtml(t('flightRecord.findings.column.severity'))}</th>
         <th>${escapeHtml(t('flightRecord.findings.column.category'))}</th>
         <th>${escapeHtml(t('flightRecord.findings.column.target'))}</th>
-        <th>${escapeHtml(t('flightRecord.findings.column.finding'))}</th>
-        <th>${escapeHtml(t('flightRecord.findings.column.reviewedAt'))}</th>
-        <th>${escapeHtml(t('flightRecord.findings.column.status'))}</th>
+        <th>${escapeHtml(t('flightRecord.column.instruction'))}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;

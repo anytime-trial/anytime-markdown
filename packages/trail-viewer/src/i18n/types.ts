@@ -678,6 +678,11 @@ export interface TrailI18n {
   'flightRecord.filter.since': string;
   'flightRecord.filter.until': string;
   'flightRecord.filter.tag': string;
+  /** サブタブ上のワークスペース選択（4 タブ共通の絞り込み）。 */
+  'flightRecord.filter.workspace': string;
+  'flightRecord.filter.workspaceAll': string;
+  'flightRecord.filter.workspacePartial': string;
+  'flightRecord.filter.workspaceLoadFailed': string;
   'flightRecord.exportCsv': string;
   'flightRecord.loadFailed': string;
   'flightRecord.loading': string;
@@ -744,6 +749,13 @@ export interface TrailI18n {
   'flightRecord.findings.column.finding': string;
   'flightRecord.findings.column.reviewedAt': string;
   'flightRecord.findings.column.status': string;
+  'flightRecord.findings.noneFiltered': string;
+  'flightRecord.findings.filter.severity': string;
+  'flightRecord.findings.filter.severityAll': string;
+  'flightRecord.findings.filter.category': string;
+  'flightRecord.findings.filter.categoryAll': string;
+  'flightRecord.findings.filter.status': string;
+  'flightRecord.findings.filter.statusAll': string;
   'flightRecord.detail.title': string;
   'flightRecord.detail.close': string;
   'flightRecord.detail.keyEvents': string;

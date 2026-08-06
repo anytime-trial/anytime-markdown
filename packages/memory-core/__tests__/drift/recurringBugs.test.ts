@@ -1,3 +1,6 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import {
@@ -40,6 +43,7 @@ function insertBugFix(
     category: string;
     affectedPaths?: string[];
     committedAt?: string;
+    workspace?: string;
   },
 ): void {
   const id = opts.id ?? `bf-${opts.commitSha}`;
@@ -47,10 +51,17 @@ function insertBugFix(
   const committedAt = opts.committedAt ?? TS;
   db.run(
     `INSERT INTO memory_bug_fixes
-       (id, commit_sha, bug_entity_id, package, category, subject_summary, affected_file_paths_json, committed_at, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, opts.commitSha, opts.bugEntityId, opts.package ?? 'web-app', opts.category, 'summary', paths, committedAt, TS],
+       (id, commit_sha, bug_entity_id, package, category, subject_summary, affected_file_paths_json, committed_at, recorded_at, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, opts.commitSha, opts.bugEntityId, opts.package ?? 'web-app', opts.category, 'summary', paths, committedAt, TS, opts.workspace ?? ''],
   );
+}
+
+/** 直近（ウィンドウ内）の committed_at。 */
+function recentIso(daysAgo = 10): string {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().replace(/\.\d{3}Z$/, '.000Z');
 }
 
 describe('detectRegressionClusters', () => {
@@ -186,5 +197,209 @@ describe('detectRecurringRootCauses', () => {
 
     const results = detectRecurringRootCauses({ db, minBugs: 2, logger: silentLogger });
     expect(results).toHaveLength(0);
+  });
+});
+
+describe('ワークスペースの解決', () => {
+  it('regression クラスタのバグが 1 ワークスペースへ収束すれば workspace が付く', () => {
+    const db = makeDb();
+    const e1 = insertEntity(db);
+    const e2 = insertEntity(db);
+    const recent = recentIso();
+
+    insertBugFix(db, { commitSha: 'ws-sha1', bugEntityId: e1, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-trade' });
+    insertBugFix(db, { commitSha: 'ws-sha2', bugEntityId: e2, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-trade' });
+
+    const results = detectRegressionClusters({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-trade');
+  });
+
+  // '' は「別のワークスペース」ではなく「未解決」。数に入れると、未解決が 1 件混ざった
+  // だけでクラスタ全体が未解決へ落ち、そのワークスペースで絞ったとき画面から消える。
+  it('未解決（空文字）が混ざっても解決済みのワークスペースへ寄せる', () => {
+    const db = makeDb();
+    const e1 = insertEntity(db);
+    const e2 = insertEntity(db);
+    const recent = recentIso();
+
+    insertBugFix(db, { commitSha: 'blank-sha1', bugEntityId: e1, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-trade' });
+    insertBugFix(db, { commitSha: 'blank-sha2', bugEntityId: e2, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: '' });
+
+    const results = detectRegressionClusters({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-trade');
+  });
+
+  it('regression クラスタが 2 ワークスペースに跨るなら workspace は未解決のまま', () => {
+    const db = makeDb();
+    const e1 = insertEntity(db);
+    const e2 = insertEntity(db);
+    const recent = recentIso();
+
+    insertBugFix(db, { commitSha: 'mix-sha1', bugEntityId: e1, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-trade' });
+    insertBugFix(db, { commitSha: 'mix-sha2', bugEntityId: e2, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-markdown' });
+
+    const results = detectRegressionClusters({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('');
+  });
+
+  it('spec_violation クラスタは対象パッケージのバグから workspace を引く', () => {
+    const db = makeDb();
+    const recent = recentIso();
+    for (let i = 0; i < 3; i++) {
+      const e = insertEntity(db, `ws-spec-bug-${i}`);
+      insertBugFix(db, { commitSha: `ws-spec-sha${i}`, bugEntityId: e, package: 'web-app', category: 'spec', affectedPaths: [], committedAt: recent, workspace: 'anytime-lab' });
+    }
+
+    const results = detectSpecViolationClusters({ db, windowDays: 90, minCount: 3, minRatio: 0.3, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-lab');
+  });
+
+  it('recurring_root_cause は紐づくバグ修正から workspace を引く', () => {
+    const db = makeDb();
+    const rootCause = insertEntity(db, 'ws-root-concept');
+    const bug1 = insertEntity(db, 'ws-bug-entity-1');
+    const bug2 = insertEntity(db, 'ws-bug-entity-2');
+
+    insertBugFix(db, { commitSha: 'ws-rc-sha1', bugEntityId: bug1, category: 'logic', workspace: 'anytime-trade' });
+    insertBugFix(db, { commitSha: 'ws-rc-sha2', bugEntityId: bug2, category: 'logic', workspace: 'anytime-trade' });
+
+    for (const [edgeId, bug] of [['ws-edge-1', bug1], ['ws-edge-2', bug2]] as const) {
+      db.run(
+        `INSERT INTO memory_edges
+           (id, subject_entity_id, predicate, object_entity_id, source_type, source_ref, confidence, confidence_label, modality, valid_from, recorded_at)
+         VALUES (?, ?, 'caused_by', ?, 'bug_history', ?, 0.8, 'EXTRACTED', 'asserted', ?, ?)`,
+        [edgeId, bug, rootCause, `ref-${edgeId}`, TS, TS],
+      );
+    }
+
+    const results = detectRecurringRootCauses({ db, minBugs: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-trade');
+  });
+});
+
+/**
+ * 会話由来の caused_by エッジ（実データではこれがほぼ全件）は memory-core 単独では
+ * ワークスペースを決められず、episode → セッション → リポジトリの解決に trail.db が要る。
+ * ここでは最小の trail スキーマを ATTACH して、その経路が効くことを確かめる。
+ */
+describe('detectRecurringRootCauses（trail.db ATTACH 時）', () => {
+  const tmpFiles: string[] = [];
+
+  afterAll(() => {
+    for (const f of tmpFiles) {
+      try { fs.rmSync(f, { force: true }); } catch { /* 後片付けの失敗はテスト結果に影響しない */ }
+    }
+  });
+
+  function makeTrailDb(rows: ReadonlyArray<{ sessionId: string; repoName: string }>): string {
+    const file = path.join(os.tmpdir(), `drift-trail-${process.pid}-${tmpFiles.length}-${Math.random()}.db`);
+    tmpFiles.push(file);
+    const trail = new BetterSqlite3MemoryDb({ filePath: file });
+    trail.run('CREATE TABLE repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL)');
+    trail.run('CREATE TABLE sessions (id TEXT PRIMARY KEY, repo_id INTEGER)');
+    const repoIds = new Map<string, number>();
+    for (const r of rows) {
+      if (!repoIds.has(r.repoName)) {
+        const id = repoIds.size + 1;
+        repoIds.set(r.repoName, id);
+        trail.run('INSERT INTO repos (repo_id, repo_name) VALUES (?, ?)', [id, r.repoName]);
+      }
+      trail.run('INSERT INTO sessions (id, repo_id) VALUES (?, ?)', [r.sessionId, repoIds.get(r.repoName)!]);
+    }
+    trail.close();
+    return file;
+  }
+
+  function insertEpisode(db: BetterSqlite3MemoryDb, id: string, sessionId: string): string {
+    db.run(
+      `INSERT INTO memory_episodes
+         (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model, valid_from, recorded_at, raw_excerpt)
+       VALUES (?, ?, 'u1', 'u2', 'claude_code', 'opus', ?, ?, '')`,
+      [id, sessionId, TS, TS],
+    );
+    return id;
+  }
+
+  function insertCausedByEdge(
+    db: BetterSqlite3MemoryDb,
+    opts: { id: string; bugEntityId: string; rootCause: string; episodeId: string },
+  ): void {
+    db.run(
+      `INSERT INTO memory_edges
+         (id, subject_entity_id, predicate, object_entity_id, source_type, source_ref, confidence, confidence_label, modality, valid_from, recorded_at)
+       VALUES (?, ?, 'caused_by', ?, 'conversation', ?, 0.8, 'EXTRACTED', 'asserted', ?, ?)`,
+      [opts.id, opts.bugEntityId, opts.rootCause, opts.episodeId, TS, TS],
+    );
+  }
+
+  it('会話由来のエッジでも episode → セッション → リポジトリで workspace を解決する', () => {
+    const db = makeDb();
+    const trailPath = makeTrailDb([
+      { sessionId: 'sess-a', repoName: 'anytime-trade' },
+      { sessionId: 'sess-b', repoName: 'anytime-trade' },
+    ]);
+    db.attach(trailPath, 'trail', true);
+
+    const rootCause = insertEntity(db, 'conv-root-1');
+    const bug1 = insertEntity(db, 'conv-bug-1');
+    const bug2 = insertEntity(db, 'conv-bug-2');
+    insertEpisode(db, 'ep-a', 'sess-a');
+    insertEpisode(db, 'ep-b', 'sess-b');
+    insertCausedByEdge(db, { id: 'ce-1', bugEntityId: bug1, rootCause, episodeId: 'ep-a' });
+    insertCausedByEdge(db, { id: 'ce-2', bugEntityId: bug2, rootCause, episodeId: 'ep-b' });
+
+    const results = detectRecurringRootCauses({ db, minBugs: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-trade');
+  });
+
+  it('根本原因が 2 ワークスペースに跨るなら未解決のまま', () => {
+    const db = makeDb();
+    const trailPath = makeTrailDb([
+      { sessionId: 'sess-a', repoName: 'anytime-trade' },
+      { sessionId: 'sess-b', repoName: 'anytime-markdown' },
+    ]);
+    db.attach(trailPath, 'trail', true);
+
+    const rootCause = insertEntity(db, 'conv-root-2');
+    const bug1 = insertEntity(db, 'conv-bug-3');
+    const bug2 = insertEntity(db, 'conv-bug-4');
+    insertEpisode(db, 'ep-c', 'sess-a');
+    insertEpisode(db, 'ep-d', 'sess-b');
+    insertCausedByEdge(db, { id: 'ce-3', bugEntityId: bug1, rootCause, episodeId: 'ep-c' });
+    insertCausedByEdge(db, { id: 'ce-4', bugEntityId: bug2, rootCause, episodeId: 'ep-d' });
+
+    const results = detectRecurringRootCauses({ db, minBugs: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('');
+  });
+
+  // trail.db が無い文脈（memory-core 単独・ユニットテスト）で trail. を参照すると
+  // クエリごと落ちて検出結果が 0 件になる。参照しないことを結果で確かめる。
+  it('trail.db が ATTACH されていなくても検出自体は動く（未解決になるだけ）', () => {
+    const db = makeDb();
+    const rootCause = insertEntity(db, 'conv-root-3');
+    const bug1 = insertEntity(db, 'conv-bug-5');
+    const bug2 = insertEntity(db, 'conv-bug-6');
+    insertEpisode(db, 'ep-e', 'sess-x');
+    insertCausedByEdge(db, { id: 'ce-5', bugEntityId: bug1, rootCause, episodeId: 'ep-e' });
+    insertCausedByEdge(db, { id: 'ce-6', bugEntityId: bug2, rootCause, episodeId: 'ep-e' });
+
+    const results = detectRecurringRootCauses({ db, minBugs: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('');
   });
 });

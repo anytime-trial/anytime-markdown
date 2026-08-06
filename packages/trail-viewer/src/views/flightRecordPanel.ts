@@ -30,11 +30,16 @@ import type {
   InstructionTokenUsageDto,
 } from '../data/instructionStore';
 import type { FlightFindingStore } from '../data/flightFindingStore';
+import { createWorkspaceStore, type WorkspaceStore } from '../data/workspaceStore';
 import {
+  filterFindings,
+  findingCategories,
   findingCountCell,
   renderFindingSection,
   renderFindingTable,
   wireFindingLinks,
+  type FindingFilter,
+  type FindingStatusFilter,
 } from './flightReviewFindingsView';
 import { MemoryReader } from '../data/readers/MemoryReader';
 import type { MemoryBugHistoryRow } from '../data/types';
@@ -85,6 +90,21 @@ const OUTCOME_VALUES: readonly FlightReviewOutcome[] = ['achieved', 'partial', '
 /** 成否フィルタの値。空文字は「すべて」（絞り込みなし）。 */
 type OutcomeFilterValue = FlightReviewOutcome | '';
 
+/** Review サブタブの重要度フィルタの選択肢。表示は t('flightRecord.findings.severity.*') に従う。 */
+const FINDING_SEVERITY_VALUES: readonly string[] = ['error', 'warn', 'info'];
+
+/** Review サブタブの状態フィルタの選択肢。 */
+const FINDING_STATUS_VALUES: readonly Exclude<FindingStatusFilter, ''>[] = ['addressed', 'unaddressed'];
+
+/**
+ * 状態フィルタの表示文言。表の状態セルと同じキーを使う（別の文言を当てると、
+ * 絞り込みで選んだ状態と表に出る状態が違う言葉になる）。
+ */
+const FINDING_STATUS_LABEL_KEY: Record<Exclude<FindingStatusFilter, ''>, string> = {
+  addressed: 'flightRecord.findings.addressed',
+  unaddressed: 'flightRecord.findings.notAddressed',
+};
+
 /**
  * スタイルは 1 度だけ注入する。状態色は data-* 属性 + 注入スタイルシートが正本
  * （インラインは注入スタイルを上書きして状態表現を壊す）。
@@ -105,6 +125,12 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
   display: flex; flex-direction: column; gap: 12px; padding: 12px; color: ${c.textPrimary};
   flex: 1 1 auto; min-height: 0; box-sizing: border-box; overflow: hidden;
 }
+/* ワークスペース選択。サブタブの上に置き、4 タブすべての絞り込みを兼ねる（1 つの選択が
+   一覧・バグ・指摘・乖離のどれにも同じように効くことを、位置で示す）。 */
+[data-am-flight-scope] {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: ${c.textSecondary};
+}
+[data-am-flight-scope] [data-am-flight-scope-note] { color: ${c.warning}; }
 /* サブタブ（指示 / Review）。選択は色だけでなく下線と aria-selected でも示す。 */
 [data-am-flight-tabs] { display: flex; gap: 4px; border-bottom: 1px solid ${c.border}; }
 [data-am-flight-tabs] button {
@@ -114,7 +140,19 @@ function ensureStyle(doc: Document, tokens: TrailThemeTokens): void {
 [data-am-flight-tabs] button[aria-selected="true"] {
   color: ${c.textPrimary}; border-bottom-color: ${c.info}; font-weight: 600;
 }
-[data-am-flight-review] { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* Review サブタブ。フィルタバーは固定し、表だけを内部スクロールさせる（フィルタを
+   探して上へ戻る操作を要らなくする）。min-height:0 は flex アイテムの既定 auto を
+   打ち消すためで、無いと表が縮まらずスクロールが発火しない。 */
+[data-am-flight-review] { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+[data-am-review-toolbar] {
+  flex: 0 0 auto; display: flex; gap: 8px; align-items: end; flex-wrap: wrap; padding-bottom: 8px;
+}
+[data-am-review-toolbar] label {
+  display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: ${c.textSecondary};
+}
+[data-am-review-table-host] { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* 絞り込み後の表示件数。総件数と並べて「絞って消えた」を読み取れるようにする。 */
+[data-am-finding-shown] { margin-left: 8px; font-variant-numeric: tabular-nums; }
 /* Drift サブタブ。中身は memory 由来のドリフト一覧がそのまま描く。器の寸法はインラインで
    置かず注入スタイルへ寄せる（インラインの display は末尾の [hidden] 打ち消しにも勝ってしまい、
    「隠したはずの Drift が他タブの上に残る」形で現れる）。 */
@@ -153,6 +191,12 @@ button[data-am-bugfix-all] {
 [data-am-finding-table] tbody tr { cursor: pointer; }
 [data-am-finding-table] tbody tr:hover { background: ${c.sectionBg}; }
 [data-am-finding-table] td[data-am-finding-text-cell] { white-space: normal; min-width: 240px; max-width: 520px; }
+/* 状態・レビュー日・重大度・カテゴリは短い値なので折り返さない（「対処済み」が 2 行に
+   割れると、状態列を目で追えなくなる）。折り返してよいのは指摘本文と対象パスだけ。 */
+[data-am-finding-table] td[data-am-finding-nowrap-cell] { white-space: nowrap; }
+/* 対象パスは break-all で折り返すため、幅の下限を与えないと狭い webview で 1 文字ずつ
+   縦積みになり、行の高さが数百 px まで伸びる。足りない分は表を横スクロールさせる。 */
+[data-am-finding-table] td[data-am-finding-target-cell] { min-width: 160px; }
 [data-am-finding-list] { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 [data-am-finding-item] { border: 1px solid ${c.border}; border-radius: 4px; padding: 8px; }
 [data-am-finding-head] { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -183,7 +227,9 @@ button[data-am-finding-open] {
 [data-am-finding-count][data-state="none"] { color: ${c.textSecondary}; }
 /* 取得できていない状態は 0 件と別の顔にする（レビュー漏れを「指摘なし」と読ませない）。 */
 [data-am-finding-count][data-state="unknown"] { color: ${c.textSecondary}; font-style: italic; }
-[data-am-finding-empty], [data-am-finding-load-failed] { font-size: 12px; color: ${c.textSecondary}; }
+[data-am-finding-empty], [data-am-finding-empty-filtered], [data-am-finding-load-failed] {
+  font-size: 12px; color: ${c.textSecondary};
+}
 [data-am-flight-toolbar] { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
 [data-am-flight-toolbar] label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: ${c.textSecondary}; }
 [data-am-flight-toolbar] input {
@@ -430,6 +476,66 @@ export function mountFlightRecordPanel(
   root.dataset['amFlightRoot'] = '';
   container.appendChild(root);
 
+  // ── ワークスペース選択（サブタブの上）──
+  // 4 サブタブに共通の絞り込み。memory-core.db / trail.db がいずれも複数ワークスペースの
+  // 記録を 1 つに集約しているため、これが無いと他ワークスペースの行が混ざったまま出る。
+  /** 選択中のワークスペース名。空文字は「すべて」（絞り込みなし）。 */
+  let workspaceFilter = '';
+  let workspaceStore: WorkspaceStore = createWorkspaceStore(props.serverUrl);
+
+  const scopeBar = document.createElement('div');
+  scopeBar.dataset['amFlightScope'] = '';
+  scopeBar.innerHTML = `
+    <span data-am-flight-label="filter.workspace"></span>
+    <span data-am-flight-scope-select></span>
+    <span data-am-flight-scope-note role="status" hidden></span>
+  `;
+  root.appendChild(scopeBar);
+
+  /**
+   * 選択肢。取得済みの一覧に「すべて」を足す。選択中の値が一覧に無くても選択肢へ残すのは、
+   * 消すと「絞り込みが外れた」ように見えて、実際には絞られたままの表を見ることになるため。
+   */
+  function workspaceOptions(): ReadonlyArray<{ value: string; label: string }> {
+    const { t } = props;
+    const names = [...workspaceStore.getState().workspaces];
+    if (workspaceFilter !== '' && !names.includes(workspaceFilter)) names.push(workspaceFilter);
+    return [
+      { value: '', label: t('flightRecord.filter.workspaceAll') },
+      ...names.map((name) => ({ value: name, label: name })),
+    ];
+  }
+
+  const workspaceSelect = createSelect<string>({
+    value: workspaceFilter,
+    options: workspaceOptions(),
+    ariaLabel: props.t('flightRecord.filter.workspace'),
+    fullWidth: false,
+    minWidth: 176,
+    onChange: (value) => {
+      if (value === workspaceFilter) return;
+      workspaceFilter = value;
+      applyWorkspace();
+    },
+  });
+  /**
+   * 選択肢の差し替え要否を判定するキー。生成箇所が 2 つに分かれると、形式のずれで
+   * 「毎回不一致 → 毎 render で update」に静かに退行する（開いている listbox が閉じる）。
+   */
+  function workspaceOptionsKeyOf(options: ReadonlyArray<{ value: string; label: string }>): string {
+    return `${workspaceFilter}\u0000${options.map((o) => o.label).join(' ')}`;
+  }
+
+  let workspaceOptionsKey = workspaceOptionsKeyOf(workspaceOptions());
+  scopeBar.querySelector<HTMLElement>('[data-am-flight-scope-select]')?.appendChild(workspaceSelect.el);
+
+  /** 選択の変更を 4 タブすべてへ流す（指示一覧・指摘はサーバー側で絞り、残り 2 つは props 経由）。 */
+  function applyWorkspace(): void {
+    applyFilter();
+    void props.findingStore.setWorkspace(workspaceFilter);
+    render();
+  }
+
   // ── サブタブ（指示 / Review）。静的 DOM で作り、文言だけ render() で更新する ──
   let activeTab: FlightRecordTabValue = 'instruction';
   const tablist = document.createElement('div');
@@ -499,8 +605,30 @@ export function mountFlightRecordPanel(
   reviewRegion.setAttribute('role', 'tabpanel');
   reviewRegion.setAttribute('aria-labelledby', 'flight-tab-review');
   reviewRegion.hidden = true;
-  applyThinScrollbar(reviewRegion);
   root.appendChild(reviewRegion);
+
+  // 指摘の絞り込みバー。静的 DOM として一度だけ作る（表と同じ innerHTML で描くと、
+  // store の通知ごとに Select が作り直されて選択・開いている listbox が消える）。
+  const reviewToolbar = document.createElement('div');
+  reviewToolbar.dataset['amReviewToolbar'] = '';
+  reviewToolbar.innerHTML = `
+    <label><span data-am-review-label="severity"></span>
+      <span data-am-review-filter-severity></span>
+    </label>
+    <label><span data-am-review-label="category"></span>
+      <span data-am-review-filter-category></span>
+    </label>
+    <label><span data-am-review-label="status"></span>
+      <span data-am-review-filter-status></span>
+    </label>
+  `;
+  reviewRegion.appendChild(reviewToolbar);
+
+  // 表だけを内部スクロールさせる器。描画は毎回この innerHTML を差し替える。
+  const reviewTableHost = document.createElement('div');
+  reviewTableHost.dataset['amReviewTableHost'] = '';
+  applyThinScrollbar(reviewTableHost);
+  reviewRegion.appendChild(reviewTableHost);
 
   // Bug Fixed サブタブ（バグ修正履歴）。中身は memory 由来のパネルを再利用し、
   // 初回に開いた時だけマウントする（開かないタブのために memory-core を叩かない）。
@@ -525,7 +653,7 @@ export function mountFlightRecordPanel(
   let driftHandle: VanillaViewHandle<DriftSectionProps> | null = null;
 
   function driftSectionProps(): DriftSectionProps {
-    return { serverUrl: props.serverUrl, t: props.t, isDark: props.isDark };
+    return { serverUrl: props.serverUrl, t: props.t, isDark: props.isDark, workspace: workspaceFilter };
   }
 
   /** Drift タブが可視になった時点で初回マウントし、以降は最新 props を流す。 */
@@ -576,7 +704,8 @@ export function mountFlightRecordPanel(
   /** ラベル・option・aria-label を最新の props.t で更新する（入力値・リスナーは維持）。 */
   function updateToolbarLabels(): void {
     const { t } = props;
-    for (const span of toolbar.querySelectorAll<HTMLElement>('[data-am-flight-label]')) {
+    // ワークスペース選択はツールバーの外（サブタブの上）に在るため root から拾う
+    for (const span of root.querySelectorAll<HTMLElement>('[data-am-flight-label]')) {
       span.textContent = t(`flightRecord.${span.dataset['amFlightLabel'] ?? ''}`);
     }
     // 文言が変わったときだけ差し替える。render() は store の通知（ポーリング）ごとに走るため、
@@ -594,6 +723,128 @@ export function mountFlightRecordPanel(
     if (exportButton) exportButton.textContent = t('flightRecord.exportCsv');
   }
 
+  // ── Review サブタブの絞り込み（重要度 / カテゴリ / 状態） ──
+  // 選択値はここが正本。表は描画のたびに作り直すため、DOM を状態の置き場にしない。
+  let findingFilter: FindingFilter = { severity: '', category: '', status: '' };
+
+  function severityFilterOptions(): ReadonlyArray<{ value: string; label: string }> {
+    const { t } = props;
+    return [
+      { value: '', label: t('flightRecord.findings.filter.severityAll') },
+      ...FINDING_SEVERITY_VALUES.map((s) => ({ value: s, label: t(`flightRecord.findings.severity.${s}`) })),
+    ];
+  }
+
+  /**
+   * カテゴリの選択肢は取得済みの指摘から作る（固定リストを持たない）。取得前は「すべて」だけ。
+   * 選択中のカテゴリが選択肢から消えた場合（接続先変更・再取得）は「すべて」へ戻す —
+   * 残すと表示ラベルが空のまま 0 件になり、絞られている理由が画面から読めない。
+   */
+  function categoryFilterOptions(): ReadonlyArray<{ value: string; label: string }> {
+    const { t } = props;
+    return [
+      { value: '', label: t('flightRecord.findings.filter.categoryAll') },
+      ...findingCategories(props.findingStore.getState().findings).map((c) => ({ value: c, label: c })),
+    ];
+  }
+
+  function statusFilterOptions(): ReadonlyArray<{ value: FindingStatusFilter; label: string }> {
+    const { t } = props;
+    return [
+      { value: '', label: t('flightRecord.findings.filter.statusAll') },
+      ...FINDING_STATUS_VALUES.map((s) => ({ value: s, label: t(FINDING_STATUS_LABEL_KEY[s]) })),
+    ];
+  }
+
+  function setFindingFilter(patch: Partial<FindingFilter>): void {
+    findingFilter = { ...findingFilter, ...patch };
+    render();
+  }
+
+  const severitySelect = createSelect<string>({
+    value: findingFilter.severity,
+    options: severityFilterOptions(),
+    ariaLabel: props.t('flightRecord.findings.filter.severity'),
+    fullWidth: false,
+    minWidth: 132,
+    onChange: (value) => setFindingFilter({ severity: value }),
+  });
+  severitySelect.el.setAttribute('data-testid', 'flight-review-filter-severity');
+  reviewToolbar.querySelector<HTMLElement>('[data-am-review-filter-severity]')?.appendChild(severitySelect.el);
+
+  const categorySelect = createSelect<string>({
+    value: findingFilter.category,
+    options: categoryFilterOptions(),
+    ariaLabel: props.t('flightRecord.findings.filter.category'),
+    fullWidth: false,
+    minWidth: 160,
+    onChange: (value) => setFindingFilter({ category: value }),
+  });
+  categorySelect.el.setAttribute('data-testid', 'flight-review-filter-category');
+  reviewToolbar.querySelector<HTMLElement>('[data-am-review-filter-category]')?.appendChild(categorySelect.el);
+
+  const statusSelect = createSelect<FindingStatusFilter>({
+    value: findingFilter.status,
+    options: statusFilterOptions(),
+    ariaLabel: props.t('flightRecord.findings.filter.status'),
+    fullWidth: false,
+    minWidth: 132,
+    onChange: (value) => setFindingFilter({ status: value }),
+  });
+  statusSelect.el.setAttribute('data-testid', 'flight-review-filter-status');
+  reviewToolbar.querySelector<HTMLElement>('[data-am-review-filter-status]')?.appendChild(statusSelect.el);
+
+  /** 選択肢の差し替えは中身が変わったときだけ（開いている listbox を閉じさせない）。 */
+  function optionsKey(options: ReadonlyArray<{ value: string; label: string }>): string {
+    return options.map((o) => `${o.value}${o.label}`).join('');
+  }
+  let severityOptionsKey = optionsKey(severityFilterOptions());
+  let categoryOptionsKey = optionsKey(categoryFilterOptions());
+  let statusOptionsKey = optionsKey(statusFilterOptions());
+
+  /** ラベル・選択肢を最新の props.t / 取得済みデータで更新する（選択値は維持）。 */
+  function updateReviewToolbar(): void {
+    const { t } = props;
+    for (const span of reviewToolbar.querySelectorAll<HTMLElement>('[data-am-review-label]')) {
+      span.textContent = t(`flightRecord.findings.filter.${span.dataset['amReviewLabel'] ?? ''}`);
+    }
+
+    const severityOptions = severityFilterOptions();
+    const nextSeverityKey = optionsKey(severityOptions);
+    if (nextSeverityKey !== severityOptionsKey) {
+      severityOptionsKey = nextSeverityKey;
+      severitySelect.update({
+        options: severityOptions,
+        ariaLabel: t('flightRecord.findings.filter.severity'),
+      });
+    }
+
+    const categoryOptions = categoryFilterOptions();
+    // 選択中のカテゴリが消えたら「すべて」へ戻す（画面と絞り込みの食い違いを残さない）
+    if (findingFilter.category !== '' && !categoryOptions.some((o) => o.value === findingFilter.category)) {
+      findingFilter = { ...findingFilter, category: '' };
+      categorySelect.update({ value: '' });
+    }
+    const nextCategoryKey = optionsKey(categoryOptions);
+    if (nextCategoryKey !== categoryOptionsKey) {
+      categoryOptionsKey = nextCategoryKey;
+      categorySelect.update({
+        options: categoryOptions,
+        ariaLabel: t('flightRecord.findings.filter.category'),
+      });
+    }
+
+    const statusOptions = statusFilterOptions();
+    const nextStatusKey = optionsKey(statusOptions);
+    if (nextStatusKey !== statusOptionsKey) {
+      statusOptionsKey = nextStatusKey;
+      statusSelect.update({
+        options: statusOptions,
+        ariaLabel: t('flightRecord.findings.filter.status'),
+      });
+    }
+  }
+
   function applyFilter(): void {
     const outcome = outcomeFilter;
     const tag = (tagInput?.value ?? '').trim();
@@ -602,6 +853,7 @@ export function mountFlightRecordPanel(
       since: dateInputToIso(sinceInput?.value ?? '', false),
       until: dateInputToIso(untilInput?.value ?? '', true),
       ...(tag === '' ? {} : { tag }),
+      ...(workspaceFilter === '' ? {} : { workspace: workspaceFilter }),
     });
   }
 
@@ -953,6 +1205,7 @@ export function mountFlightRecordPanel(
       labelOf: instructionLabel,
       onSelectInstruction: openInstruction,
       pendingBugFilter,
+      workspace: workspaceFilter,
     };
   }
 
@@ -971,19 +1224,32 @@ export function mountFlightRecordPanel(
     const state = props.findingStore.getState();
     // バグ行から来たときは、その `precedes` が指す指摘だけに絞る。
     const pendingIds = pendingFindingFilter?.findingEntityIds ?? null;
-    const findings = pendingIds === null
+    const scoped = pendingIds === null
       ? state.findings
       : state.findings.filter((f) => pendingIds.includes(f.findingEntityId));
-    reviewRegion.innerHTML = renderFindingTable({
+    const findings = filterFindings(scoped, findingFilter);
+    // 絞り込みが効いているかは「0 件」の意味を分けるために渡す。バグ行からの遷移
+    // （pendingIds）も絞り込みの一種なので、同じ扱いにする。
+    const filterActive =
+      pendingIds !== null ||
+      findingFilter.severity !== '' ||
+      findingFilter.category !== '' ||
+      findingFilter.status !== '';
+    reviewTableHost.innerHTML = renderFindingTable({
       t,
       findings,
       loadFailed: state.loadFailed,
       linkable: props.onOpenFile !== undefined,
       labelOf: instructionLabel,
+      filterActive,
+      // 分母はフィルタバーで動かせる母数（= pendingIds で限定した後の集合）。取得済み全件を
+      // 分母にすると、バーを一度も触っていないのに「2 / 87」と出て、事前指摘スコープで
+      // 外れた指摘までバーが隠したように読める。
+      totalCount: scoped.length,
     });
     const onOpenFile = props.onOpenFile;
-    if (onOpenFile) wireFindingLinks(reviewRegion, onOpenFile);
-    for (const tr of reviewRegion.querySelectorAll<HTMLTableRowElement>('[data-am-finding-row]')) {
+    if (onOpenFile) wireFindingLinks(reviewTableHost, onOpenFile);
+    for (const tr of reviewTableHost.querySelectorAll<HTMLTableRowElement>('[data-am-finding-row]')) {
       tr.addEventListener('click', () => {
         openInstruction(tr.dataset['instructionId'] ?? '');
       });
@@ -1089,6 +1355,38 @@ export function mountFlightRecordPanel(
     detailHandle.update(detailProps);
   }
 
+  /**
+   * ワークスペース選択の文言・選択肢・注記を最新化する。
+   *
+   * 選択肢は変わったときだけ差し替える。render() は store の通知（ポーリング）ごとに走るため、
+   * 無条件に update すると開いている listbox が閉じて開き直される（成否フィルタと同じ理由）。
+   */
+  function renderWorkspaceScope(): void {
+    const { t } = props;
+    const options = workspaceOptions();
+    const key = workspaceOptionsKeyOf(options);
+    if (key !== workspaceOptionsKey) {
+      workspaceOptionsKey = key;
+      workspaceSelect.update({
+        value: workspaceFilter,
+        options,
+        ariaLabel: t('flightRecord.filter.workspace'),
+      });
+    }
+    // 取得に失敗した／片方の DB しか読めなかったことを黙って空の選択肢にしない
+    const state = workspaceStore.getState();
+    const note = scopeBar.querySelector<HTMLElement>('[data-am-flight-scope-note]');
+    if (note) {
+      const message = state.loadFailed
+        ? t('flightRecord.filter.workspaceLoadFailed')
+        : state.partial
+          ? t('flightRecord.filter.workspacePartial')
+          : '';
+      note.textContent = message;
+      note.hidden = message === '';
+    }
+  }
+
   /** サブタブのラベルと選択状態、表示中の器を最新化する。 */
   function renderTabs(): void {
     const { t } = props;
@@ -1108,6 +1406,8 @@ export function mountFlightRecordPanel(
   function render(): void {
     if (destroyed) return;
     updateToolbarLabels();
+    updateReviewToolbar();
+    renderWorkspaceScope();
     renderTabs();
     if (activeTab === 'instruction') {
       renderList();
@@ -1128,7 +1428,11 @@ export function mountFlightRecordPanel(
   let unsubscribe = props.store.subscribe(render);
   let unsubscribeReview = props.reviewStore.subscribe(render);
   let unsubscribeFinding = props.findingStore.subscribe(render);
+  // 購読は器がすべて出来てから張る。refresh() は同期に loading を通知するため、
+  // 早く張ると render() がまだ生成されていない DOM を触る。
+  let unsubscribeWorkspace = workspaceStore.subscribe(render);
   render();
+  void workspaceStore.refresh();
   void props.store.refresh();
   // 件数列は指示タブの一覧に出るため、Review タブを開く前から必要になる
   void props.findingStore.refresh();
@@ -1147,6 +1451,12 @@ export function mountFlightRecordPanel(
         detailBugs = null;
         detailBugsFailed = false;
         detailBugsKey = null;
+        // 選択肢も接続先ごとに違う。前の接続先の一覧を残すと、選べるのに 0 件になる。
+        unsubscribeWorkspace();
+        workspaceStore.dispose();
+        workspaceStore = createWorkspaceStore(next.serverUrl);
+        unsubscribeWorkspace = workspaceStore.subscribe(render);
+        void workspaceStore.refresh();
       }
       if (next.store !== prevStore) {
         // serverUrl 変更などで store が再生成された場合は購読を張り替えて取り直す
@@ -1170,9 +1480,15 @@ export function mountFlightRecordPanel(
       unsubscribe();
       unsubscribeReview();
       unsubscribeFinding();
+      unsubscribeWorkspace();
+      workspaceStore.dispose();
       // Select は open 中の overlay を document.body へ出しているため、destroy しないと
       // パネルを閉じても listbox / backdrop が残る。
       outcomeSelect.destroy();
+      severitySelect.destroy();
+      categorySelect.destroy();
+      statusSelect.destroy();
+      workspaceSelect.destroy();
       detailHandle?.destroy();
       detailHandle = null;
       bugPanelHandle?.destroy();

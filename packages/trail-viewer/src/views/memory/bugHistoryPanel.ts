@@ -39,6 +39,13 @@ export interface BugHistoryPanelProps {
   /** 指示名クリックで指示タブへ移り、その指示を選択状態にする（Review タブの行クリックと同じ）。 */
   onSelectInstruction?: (instructionId: string) => void;
   pendingBugFilter?: { bugEntityIds: readonly string[] } | null;
+  /**
+   * ワークスペース（repo_name）でバグ履歴・再発クラスタを絞る。空文字は「すべて」。
+   *
+   * サーバー側で絞るのは、取得の上限が絞り込み前に効くと、選んだワークスペースのバグが
+   * 窓から溢れて「0 件」に見えるため。
+   */
+  workspace: string;
 }
 
 /** chip を色付きボーダー（outlined 風）で装飾するヘルパー。 */
@@ -74,6 +81,11 @@ export function mountBugHistoryPanel(
 ): VanillaViewHandle<BugHistoryPanelProps> {
   let props = initial;
   let destroyed = false;
+  /**
+   * 取得の世代。reader の同一性では足りない — reader は serverUrl 変更でしか作り直されず、
+   * ワークスペースを続けて切り替えると同じ reader のまま複数本走る。
+   */
+  let loadSeq = 0;
   let recurring: readonly MemoryRecurringBugRow[] = [];
   let history: readonly MemoryBugHistoryRow[] = [];
   let pkgFilter = '';
@@ -389,10 +401,14 @@ export function mountBugHistoryPanel(
       renderAll();
       return;
     }
+    const seq = ++loadSeq;
     void Promise.all([
-      props.reader.listRecurringBugs({}),
-      props.reader.getBugHistory({}),
+      props.reader.listRecurringBugs({ workspace: props.workspace }),
+      props.reader.getBugHistory({ workspace: props.workspace }),
     ]).then(([rec, hist]) => {
+      // 取得中に接続先・絞り込みが差し替わったら旧世代の応答は捨てる。
+      // reader の同一性で判定すると、reader が変わらないワークスペース切替を取りこぼす。
+      if (seq !== loadSeq || destroyed) return;
       if (destroyed) return;
       recurring = rec;
       history = hist;
@@ -405,8 +421,11 @@ export function mountBugHistoryPanel(
   return {
     update(next) {
       const readerChanged = next.reader !== props.reader;
+      const workspaceChanged = next.workspace !== props.workspace;
       props = next;
-      if (readerChanged) {
+      if (readerChanged || workspaceChanged) {
+        // 絞り込みが変わったら取り直す。前の結果を残すと「別のワークスペースの行」を
+        // 今の選択の結果として見せることになる。
         load();
       } else {
         renderAll();
