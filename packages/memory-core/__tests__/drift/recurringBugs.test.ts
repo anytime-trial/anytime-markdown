@@ -216,6 +216,23 @@ describe('ワークスペースの解決', () => {
     expect(results[0].workspace).toBe('anytime-trade');
   });
 
+  // '' は「別のワークスペース」ではなく「未解決」。数に入れると、未解決が 1 件混ざった
+  // だけでクラスタ全体が未解決へ落ち、そのワークスペースで絞ったとき画面から消える。
+  it('未解決（空文字）が混ざっても解決済みのワークスペースへ寄せる', () => {
+    const db = makeDb();
+    const e1 = insertEntity(db);
+    const e2 = insertEntity(db);
+    const recent = recentIso();
+
+    insertBugFix(db, { commitSha: 'blank-sha1', bugEntityId: e1, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-trade' });
+    insertBugFix(db, { commitSha: 'blank-sha2', bugEntityId: e2, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: '' });
+
+    const results = detectRegressionClusters({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-trade');
+  });
+
   it('regression クラスタが 2 ワークスペースに跨るなら workspace は未解決のまま', () => {
     const db = makeDb();
     const e1 = insertEntity(db);

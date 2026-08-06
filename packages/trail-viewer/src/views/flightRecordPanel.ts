@@ -451,7 +451,7 @@ export function mountFlightRecordPanel(
   scopeBar.innerHTML = `
     <span data-am-flight-label="filter.workspace"></span>
     <span data-am-flight-scope-select></span>
-    <span data-am-flight-scope-note hidden></span>
+    <span data-am-flight-scope-note role="status" hidden></span>
   `;
   root.appendChild(scopeBar);
 
@@ -481,7 +481,15 @@ export function mountFlightRecordPanel(
       applyWorkspace();
     },
   });
-  let workspaceOptionsKey = workspaceOptions().map((o) => o.label).join(' ');
+  /**
+   * 選択肢の差し替え要否を判定するキー。生成箇所が 2 つに分かれると、形式のずれで
+   * 「毎回不一致 → 毎 render で update」に静かに退行する（開いている listbox が閉じる）。
+   */
+  function workspaceOptionsKeyOf(options: ReadonlyArray<{ value: string; label: string }>): string {
+    return `${workspaceFilter}\u0000${options.map((o) => o.label).join(' ')}`;
+  }
+
+  let workspaceOptionsKey = workspaceOptionsKeyOf(workspaceOptions());
   scopeBar.querySelector<HTMLElement>('[data-am-flight-scope-select]')?.appendChild(workspaceSelect.el);
 
   /** 選択の変更を 4 タブすべてへ流す（指示一覧・指摘はサーバー側で絞り、残り 2 つは props 経由）。 */
@@ -1157,7 +1165,7 @@ export function mountFlightRecordPanel(
   function renderWorkspaceScope(): void {
     const { t } = props;
     const options = workspaceOptions();
-    const key = `${workspaceFilter}\u0000${options.map((o) => o.label).join(' ')}`;
+    const key = workspaceOptionsKeyOf(options);
     if (key !== workspaceOptionsKey) {
       workspaceOptionsKey = key;
       workspaceSelect.update({

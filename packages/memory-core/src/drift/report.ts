@@ -170,10 +170,15 @@ export function reportDriftEvents(input: {
     if (existing) {
       // severity・detail_json・workspace のみ更新（detected_at は変えない）。
       // workspace を更新対象に含めるのは、列追加前に作られた既存行（'' のまま）が
-      // 再検出で埋まるようにするため。
+      // 再検出で埋まるようにするため。ただし埋める方向にだけ効かせる:
+      // 候補側の '' は「今回は解決できなかった」であって「未所属になった」ではない。
+      // 無条件に書くと、trail.db が ATTACH されていない 1 回の実行で解決済みの行が
+      // 一斉に '' へ落ち、どのワークスペースで絞っても画面から消える。
       try {
         db.run(
-          `UPDATE memory_drift_events SET severity = ?, detail_json = ?, workspace = ? WHERE id = ?`,
+          `UPDATE memory_drift_events
+              SET severity = ?, detail_json = ?, workspace = COALESCE(NULLIF(?, ''), workspace)
+            WHERE id = ?`,
           [candidate.severity, detailJson, candidate.workspace, existing.id],
         );
         result.events_updated++;

@@ -385,6 +385,32 @@ describe('ワークスペースの解決', () => {
     expect(results[0].workspace).toBe('');
   });
 
+  it('未解決（空文字）の指摘が混ざっても解決済みのワークスペースへ寄せる', () => {
+    const db = makeDb();
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - 5);
+    const recent = recentDate.toISOString().replace(/\.\d{3}Z$/, '.000Z');
+
+    const reviewA = insertReview(db, 'ws-rev-blank-a', 'anytime-trade');
+    const reviewB = insertReview(db, 'ws-rev-blank-b', '');
+    for (const [id, reviewId] of [['ws-rf-ba', reviewA], ['ws-rf-bb', reviewB]] as const) {
+      const entity = insertEntity(db, `ws-fe-${id}`, 'ReviewFinding');
+      insertReviewFinding(db, {
+        id,
+        reviewId,
+        findingEntityId: entity,
+        targetFilePath: 'src/blank.ts',
+        category: 'perf',
+        recordedAt: recent,
+      });
+    }
+
+    const results = detectRecurringReviewFindings({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-trade');
+  });
+
   it('recurring_review_finding は指摘が単一ワークスペースなら確定する', () => {
     const db = makeDb();
     const recentDate = new Date();

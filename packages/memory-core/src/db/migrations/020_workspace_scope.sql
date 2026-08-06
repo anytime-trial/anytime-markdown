@@ -47,7 +47,8 @@ WHERE workspace = ''
 -- もう片方のワークスペースからこの乖離が消える)。
 UPDATE memory_drift_events
 SET workspace = COALESCE((
-  SELECT CASE WHEN COUNT(DISTINCT r.workspace) = 1 THEN MIN(r.workspace) ELSE '' END
+  SELECT CASE WHEN COUNT(DISTINCT NULLIF(r.workspace, '')) = 1
+              THEN MIN(NULLIF(r.workspace, '')) ELSE '' END
   FROM json_each(memory_drift_events.detail_json, '$.finding_ids') je
   JOIN memory_review_findings f ON f.id = je.value
   JOIN memory_reviews r ON r.id = f.review_id

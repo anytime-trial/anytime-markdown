@@ -276,3 +276,69 @@ describe('reportDriftEvents', () => {
     expect(rows[0]?.values[0]?.[0]).toBe(TS);
   });
 });
+
+describe('reportDriftEvents — workspace', () => {
+  function workspaceOf(db: BetterSqlite3MemoryDb, eventId: string): string {
+    const res = db.exec('SELECT workspace FROM memory_drift_events WHERE id = ?', [eventId]);
+    return String(res[0]?.values[0]?.[0] ?? '<missing>');
+  }
+
+  function idOfOnlyEvent(db: BetterSqlite3MemoryDb): string {
+    const res = db.exec('SELECT id FROM memory_drift_events');
+    expect(res[0]?.values.length).toBe(1);
+    return String(res[0]!.values[0]![0]);
+  }
+
+  it('INSERT で workspace を書く', () => {
+    const db = makeDb();
+    const subject = insertEntity(db);
+
+    reportDriftEvents({
+      db,
+      candidates: [makeCandidate(subject, { workspace: 'anytime-trade' })],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    expect(workspaceOf(db, idOfOnlyEvent(db))).toBe('anytime-trade');
+  });
+
+  it('再検出で未解決だった行が埋まる', () => {
+    const db = makeDb();
+    const subject = insertEntity(db);
+    const candidates = [makeCandidate(subject, { workspace: '' })];
+    reportDriftEvents({ db, candidates, recordedAt: TS, logger: silentLogger });
+    expect(workspaceOf(db, idOfOnlyEvent(db))).toBe('');
+
+    reportDriftEvents({
+      db,
+      candidates: [makeCandidate(subject, { workspace: 'anytime-markdown' })],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    expect(workspaceOf(db, idOfOnlyEvent(db))).toBe('anytime-markdown');
+  });
+
+  // 候補側の '' は「今回は解決できなかった」であって「未所属になった」ではない。
+  // 上書きすると、trail.db 未 ATTACH の 1 回の実行で解決済みの行が一斉に消える。
+  it('解決済みの行は workspace 未解決の候補で上書きされない', () => {
+    const db = makeDb();
+    const subject = insertEntity(db);
+    reportDriftEvents({
+      db,
+      candidates: [makeCandidate(subject, { workspace: 'anytime-trade' })],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    reportDriftEvents({
+      db,
+      candidates: [makeCandidate(subject, { workspace: '' })],
+      recordedAt: TS,
+      logger: silentLogger,
+    });
+
+    expect(workspaceOf(db, idOfOnlyEvent(db))).toBe('anytime-trade');
+  });
+});

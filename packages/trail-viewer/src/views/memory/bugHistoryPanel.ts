@@ -84,6 +84,11 @@ export function mountBugHistoryPanel(
 ): VanillaViewHandle<BugHistoryPanelProps> {
   let props = initial;
   let destroyed = false;
+  /**
+   * 取得の世代。reader の同一性では足りない — reader は serverUrl 変更でしか作り直されず、
+   * ワークスペースを続けて切り替えると同じ reader のまま複数本走る。
+   */
+  let loadSeq = 0;
   let recurring: readonly MemoryRecurringBugRow[] = [];
   let history: readonly MemoryBugHistoryRow[] = [];
   let pkgFilter = '';
@@ -396,13 +401,14 @@ export function mountBugHistoryPanel(
       renderAll();
       return;
     }
-    const generation = props.reader;
+    const seq = ++loadSeq;
     void Promise.all([
       props.reader.listRecurringBugs({ workspace: props.workspace }),
       props.reader.getBugHistory({ workspace: props.workspace }),
     ]).then(([rec, hist]) => {
-      // 取得中に接続先が差し替わったら旧世代の応答は捨てる（別接続の結果を混ぜない）
-      if (props.reader !== generation) return;
+      // 取得中に接続先・絞り込みが差し替わったら旧世代の応答は捨てる。
+      // reader の同一性で判定すると、reader が変わらないワークスペース切替を取りこぼす。
+      if (seq !== loadSeq || destroyed) return;
       if (destroyed) return;
       recurring = rec;
       history = hist;

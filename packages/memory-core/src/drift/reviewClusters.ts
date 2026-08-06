@@ -147,8 +147,8 @@ export function detectRecurringReviewFindings(input: {
       // （grouping key に足せない理由は recurringBugs.ts と同じ — UNIQUE キーが衝突する）。
       `SELECT f.target_file_path, f.category, COUNT(*) AS cnt,
               GROUP_CONCAT(f.id) AS finding_ids,
-              CASE WHEN COUNT(DISTINCT r.workspace) = 1
-                   THEN MIN(r.workspace) ELSE '' END AS workspace
+              CASE WHEN COUNT(DISTINCT NULLIF(r.workspace, '')) = 1
+                   THEN MIN(NULLIF(r.workspace, '')) ELSE '' END AS workspace
        FROM memory_review_findings f
        LEFT JOIN memory_reviews r ON r.id = f.review_id
        WHERE f.category NOT IN (${placeholders})

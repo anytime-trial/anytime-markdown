@@ -41,10 +41,12 @@ export function detectRegressionClusters(input: {
       // 跨っていたら '' （未解決）。ワークスペースを grouping key に足さないのは
       // memory_drift_events が UNIQUE(subject_entity_id, predicate, drift_type) を持ち、
       // 同じファイルパスが 2 ワークスペースに在ると 2 候補が同じキーで衝突するため。
+      // NULLIF で '' を判定から外すのは、'' が「別のワークスペース」ではなく「未解決」だから。
+      // 数に入れると、未解決が 1 件混ざっただけでクラスタ全体が未解決へ落ちる。
       `SELECT json_each.value AS file_path, COUNT(*) AS cnt,
               GROUP_CONCAT(memory_bug_fixes.id) AS bug_fix_ids,
-              CASE WHEN COUNT(DISTINCT memory_bug_fixes.workspace) = 1
-                   THEN MIN(memory_bug_fixes.workspace) ELSE '' END AS workspace
+              CASE WHEN COUNT(DISTINCT NULLIF(memory_bug_fixes.workspace, '')) = 1
+                   THEN MIN(NULLIF(memory_bug_fixes.workspace, '')) ELSE '' END AS workspace
        FROM memory_bug_fixes, json_each(affected_file_paths_json)
        WHERE category = 'regression'
          AND committed_at >= datetime('now', '-' || ? || ' days')
@@ -106,8 +108,8 @@ export function detectSpecViolationClusters(input: {
        ),
        pkg_spec AS (
          SELECT package, COUNT(*) AS spec_cnt,
-                CASE WHEN COUNT(DISTINCT workspace) = 1
-                     THEN MIN(workspace) ELSE '' END AS workspace
+                CASE WHEN COUNT(DISTINCT NULLIF(workspace, '')) = 1
+                     THEN MIN(NULLIF(workspace, '')) ELSE '' END AS workspace
          FROM memory_bug_fixes
          WHERE category = 'spec'
            AND committed_at >= datetime('now', '-' || ? || ' days')
@@ -160,11 +162,12 @@ export function detectRecurringRootCauses(input: {
   // ほぼ全件を占めるため、trail.db が ATTACH されていない文脈では大半が未解決になる。
   // 複数ワークスペースに跨る根本原因は '' （未解決）にする — 片方へ寄せると、
   // もう片方のワークスペースで絞ったときにこの乖離が消える。
+  // 判定は 1 度だけ。式と JOIN は必ず同じ判定から導く（片方だけ変えると
+  // 「r.repo_name を参照しているのに JOIN が無い」形で SQL ごと落ちる）。
+  const trailAttached = hasTrailAttached(db, logger);
   const bugWorkspace = "NULLIF(bf.workspace, '')";
-  const workspaceExpr = hasTrailAttached(db, logger)
-    ? `COALESCE(r.repo_name, ${bugWorkspace})`
-    : bugWorkspace;
-  const trailJoins = hasTrailAttached(db, logger)
+  const workspaceExpr = trailAttached ? `COALESCE(r.repo_name, ${bugWorkspace})` : bugWorkspace;
+  const trailJoins = trailAttached
     ? `LEFT JOIN memory_episodes ep ON ep.id = e.source_ref
        LEFT JOIN trail.sessions s ON s.id = ep.session_id
        LEFT JOIN trail.repos r ON r.repo_id = s.repo_id`

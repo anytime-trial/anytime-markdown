@@ -67,6 +67,11 @@ export function createFlightFindingStore(
   let disposed = false;
   let warnedOnce = false;
   let workspaceFilter = '';
+  /**
+   * 取得の世代。ワークスペースを A→B と続けて切り替えると 2 本走り、A の応答が遅れて
+   * 着弾すると B の結果として表示される（ドロップダウンは B のまま）。
+   */
+  let refreshSeq = 0;
   let state: FlightFindingViewState = {
     loading: false,
     loadFailed: false,
@@ -95,6 +100,8 @@ export function createFlightFindingStore(
 
   async function refresh(): Promise<void> {
     if (disposed) return;
+    const seq = ++refreshSeq;
+    const isStale = (): boolean => disposed || seq !== refreshSeq;
     setState({ loading: true });
     try {
       const workspaceQuery = workspaceFilter === ''
@@ -106,14 +113,14 @@ export function createFlightFindingStore(
         request('/api/memory/reviews/flight-counts'),
         request(`/api/memory/reviews/flight-findings?limit=${limit}${workspaceQuery}`),
       ]);
-      if (disposed) return;
+      if (isStale()) return;
       if (!countsRes.ok || !findingsRes.ok) {
         setState({ loading: false, loadFailed: true });
         return;
       }
       const counts = (await countsRes.json()) as unknown;
       const findings = (await findingsRes.json()) as unknown;
-      if (disposed) return;
+      if (isStale()) return;
       // 形が違う応答（旧サーバー・プロキシのエラーページ）を空配列へ丸めない。
       // 丸めると「指摘なし」と区別が付かなくなる。
       if (!Array.isArray(counts) || !Array.isArray(findings)) {
@@ -128,7 +135,7 @@ export function createFlightFindingStore(
         findings: findings as MemoryFlightReviewFindingRow[],
       });
     } catch (err) {
-      if (disposed) return;
+      if (isStale()) return;
       // サーバー停止は運用上ありふれる。毎回警告を積まない（silent にはしない）
       if (!warnedOnce) {
         warnedOnce = true;
