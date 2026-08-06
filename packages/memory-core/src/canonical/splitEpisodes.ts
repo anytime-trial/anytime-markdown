@@ -32,10 +32,16 @@ function truncateToBytes(str: string, maxBytes: number): string {
  *
  * Blocks whose messages carry no text at all are dropped. trail.messages keeps
  * tool results in 'user' rows with an empty user_content (328,662 of 352,212
- * user rows as of 2026-08-06), and assistant rows that only issued tool calls
- * have an empty text_content. Joining those produced episodes whose
+ * user rows as of 2026-08-06). Joining those produced episodes whose
  * raw_excerpt was nothing but '\n---\n' separators — 84,365 of 126,101 stored
  * episodes (67%) — which the LLM extractor then had to read and reject.
+ *
+ * **現在の唯一の呼び出し経路（`readMessagesSince` / `reconstructEpisode`）は
+ * user 行しか渡さない**（`ingest/conversation/messageFilter.ts` の
+ * `ingestTargetSql`）。そのためブロックは 1 メッセージずつになり、
+ * `message_uuid_start === message_uuid_end` が成り立つ。assistant / system を
+ * 扱う分岐と `Message.type` の union はその形状を型で禁じていないだけで、本番
+ * では到達しない。上の件数はいずれも user 行のみへ絞る前の実測値である。
  */
 export function splitEpisodes(messages: Message[]): Episode[] {
   const episodes: Episode[] = [];

@@ -7,7 +7,9 @@ export interface EpisodeInput {
 }
 
 const SYSTEM_PROMPT_CORE = `あなたは Claude Code / Codex のセッションログから事実を抽出するアナリストです。
-以下のスキーマに従い、ブロック内に登場する事実を JSON で返してください。
+入力は**人間がエージェントへ与えた発言だけ**です（エージェントの応答は含まれません。
+その内容は最終的にコード・ドキュメント・コミットログへ落ちるため取り込まない）。
+発言者が明示していないことを補完せず、書かれている事実だけを JSON で返してください。
 
 【厳守ルール】
 1. summary は必ず日本語で記述してください。英語や中国語は禁止です。
@@ -20,13 +22,13 @@ const SYSTEM_PROMPT_CORE = `あなたは Claude Code / Codex のセッション�
 リレーション述語: prefers, dislikes, depends_on, replaces, relates_to,
               mentioned_in, authored_by, works_on, uses, fixes,
               affects, introduced_by,
-              asked_by, answered_in
+              asked_by
 
 不具合分析が登場した場合は Bug entity を抽出してください。根本原因の推定
 (caused_by) は述語一覧から外してあるので出力しないでください。
 confidence は LLM 推論なので 0.6〜0.85 の範囲で付与してください。`;
 
-const QUESTION_EXTRACTION_INSTRUCTIONS = `ブロック内のユーザーメッセージに疑問符が 1 つ以上含まれており、かつ
+const QUESTION_EXTRACTION_INSTRUCTIONS = `本文に疑問符が 1 つ以上含まれており、かつ
 仕様 / 設計 / 実装の確認意図がある場合（「〜は…でしょうか？」「〜に含まれていますか？」
 「どう動きますか？」等）は、Question entity を抽出してください:
   - text: 質問文（要約せず原文ベース、200 文字以内）
@@ -34,7 +36,6 @@ const QUESTION_EXTRACTION_INSTRUCTIONS = `ブロック内のユーザーメッ�
                      最も関連する spec doc の rel_path、無ければ null
   - target_symbol: 関連する関数名 / クラス名 / ファイル名があれば、無ければ null
   - asked_by: ユーザーの canonical_name（既知なら "ueda" 等）
-  - answered_in: この episode 内で回答が完結したら true、続く episode に持ち越すなら false
 
 雑談や AI への単純指示（「〜して」「〜お願い」）は Question として抽出しません。
 疑問符が含まれていても回答が不要な修辞疑問・確認発話（「いいですか？」「OK?」等）は除外します。`;

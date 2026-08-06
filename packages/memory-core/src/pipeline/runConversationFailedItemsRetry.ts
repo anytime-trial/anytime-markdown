@@ -3,7 +3,7 @@ import { PipelineRunLedger } from './PipelineRunLedger';
 import { splitEpisodes, type Message } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
-import { mainThreadOnlySql } from '../ingest/conversation/messageFilter';
+import { ingestTargetSql } from '../ingest/conversation/messageFilter';
 import { noopLogger, type MemoryLogger } from '../logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
@@ -120,8 +120,7 @@ function reconstructEpisode(
                      '') AS text_excerpt
      FROM trail.messages m
      WHERE m.session_id = ? AND m.timestamp IS NOT NULL
-       AND m.type IN ('user', 'assistant', 'system')
-       AND ${mainThreadOnlySql('m')}
+       AND ${ingestTargetSql('m')}
      ORDER BY m.timestamp`,
     [session_id]
   );

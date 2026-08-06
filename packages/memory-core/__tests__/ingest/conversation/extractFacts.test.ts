@@ -60,7 +60,6 @@ describe('extractFactsFromEpisode', () => {
           target_spec_path: null,
           target_symbol: null,
           asked_by: 'ueda',
-          answered_in: true,
         },
       ],
     });

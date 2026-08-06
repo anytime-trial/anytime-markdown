@@ -67,7 +67,6 @@ export function detectBackfillWindowExpansion(
        FROM trail.messages
       WHERE timestamp >= ?
         AND timestamp < ?
-        AND type = 'user'
         AND ${ingestableMessageSql()}`,
     [desiredStart, earliest],
   );

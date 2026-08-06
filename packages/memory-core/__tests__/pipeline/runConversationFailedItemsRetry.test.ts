@@ -264,6 +264,35 @@ describe('runConversationFailedItemsRetry', () => {
     memDb.close();
   }, 30000);
 
+  // ── F4c: 本文が空の user 行のキーも out_of_scope として台帳から落とす ────────
+  test('F4c: 本文ゼロの user 行由来のキーは attempt_count を増やさず削除される', async () => {
+    // 旧実装では後続 assistant の本文で episode 化されていたキーが、user 行のみ
+    // 取り込む新実装では episode にならない。これは失敗ではなく取込対象外。
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'sess_empty');
+    trailDb.run(
+      `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
+       VALUES ('msg_empty', 'sess_empty', 'user', '2026-05-10T10:00:00.000Z', NULL, '', 0)`,
+    );
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    insertFailedItem(memDb, 'conversation_backfill', 'sess_empty:msg_empty', 1);
+
+    const result = await runConversationFailedItemsRetry({
+      db: memDb,
+      ollama: makeValidOllama(),
+      logger: silentLogger,
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.items_failed).toBe(0);
+    expect(getFailedItem(memDb, 'conversation_backfill', 'sess_empty:msg_empty')).toBeNull();
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
   // ── F4: episode missing from trail.db → recorded as episode_not_found ──────
   test('F4: missing trail.db episode is recorded as episode_not_found', async () => {
     const memDb = await makeMemoryDb();
