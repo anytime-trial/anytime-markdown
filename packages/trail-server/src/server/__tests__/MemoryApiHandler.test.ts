@@ -226,7 +226,7 @@ describe('MemoryApiHandler', () => {
       const rows = await handler.listRecurringBugs({});
       expect(rows.length).toBeGreaterThanOrEqual(1);
       const types = new Set(rows.map((r) => r.driftType));
-      const allowed = new Set(['regression_cluster', 'spec_violation_cluster', 'recurring_root_cause']);
+      const allowed = new Set(['regression_cluster', 'spec_violation_cluster']);
       for (const t of types) expect(allowed.has(t)).toBe(true);
     });
   });

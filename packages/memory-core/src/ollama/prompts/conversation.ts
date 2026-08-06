@@ -13,26 +13,17 @@ const SYSTEM_PROMPT_CORE = `あなたは Claude Code / Codex のセッション�
 1. summary は必ず日本語で記述してください。英語や中国語は禁止です。
 2. relations の subject / object は、必ず entities[] で先に列挙した (type, name) を参照してください。entities[] にない概念を relation の subject/object に使わないでください。
 3. 同じ (subject.type, subject.name, predicate, object.type, object.name) の組み合わせは 1 回だけ出力してください。重複や類似の繰り返しは禁止です。
-4. caused_by edge:
-   - subject は必ず Bug 型のエンティティに限定してください。
-   - object は本文中に具体的な path / name / sha が現れている
-     File / Package / Library / Tool / Commit / Bug のいずれかに限定してください。
-   - 「不適切な〜」「〜不足」「〜違反」等の一般化された抽象概念
-     (Concept / Decision / Rule / Person / Project / Question / Task / Skill 型)
-     を caused_by の object にすることは禁止です。
-   - 具体的な原因 entity が本文から特定できない場合は、その caused_by relation を出力しないでください。
-5. relations の subject.name / object.name に "undefined"、null、空文字、placeholder 値を含めないでください。relation を構成する 2 つのエンティティが本文から具体的に抽出できない場合は、その relation を出力しないでください。
+4. relations の subject.name / object.name に "undefined"、null、空文字、placeholder 値を含めないでください。relation を構成する 2 つのエンティティが本文から具体的に抽出できない場合は、その relation を出力しないでください。
 
 エンティティ型: Person, Project, Package, File, Library, Tool, Concept,
                 Decision, Bug, Task, Skill, Rule, Commit, Question
 リレーション述語: prefers, dislikes, depends_on, replaces, relates_to,
               mentioned_in, authored_by, works_on, uses, fixes,
-              affects, caused_by, introduced_by,
+              affects, introduced_by,
               asked_by, answered_in
 
-不具合分析が登場した場合は、Bug entity と、特定可能な具体的根本原因
-(File / Package / Library / Tool / Commit / Bug) への caused_by edge を抽出してください。
-抽象概念 (Concept / Decision / Rule) を root cause にすることは禁止です。
+不具合分析が登場した場合は Bug entity を抽出してください。根本原因の推定
+(caused_by) は述語一覧から外してあるので出力しないでください。
 confidence は LLM 推論なので 0.6〜0.85 の範囲で付与してください。`;
 
 const QUESTION_EXTRACTION_INSTRUCTIONS = `ブロック内のユーザーメッセージに疑問符が 1 つ以上含まれており、かつ

@@ -5,7 +5,6 @@ export type DriftType =
   | 'three_way'
   | 'regression_cluster'
   | 'spec_violation_cluster'
-  | 'recurring_root_cause'
   | 'review_unfixed'
   | 'review_vs_code'
   | 'recurring_review_finding'
@@ -20,7 +19,6 @@ export const DEFAULT_SEVERITY: Record<DriftType, Severity> = {
   three_way: 'error',
   regression_cluster: 'error',
   spec_violation_cluster: 'warn',
-  recurring_root_cause: 'warn',
   review_unfixed: 'warn',
   review_vs_code: 'warn',
   recurring_review_finding: 'warn',
@@ -39,9 +37,6 @@ export const THRESHOLDS = {
   specViolationWindowDays: 90,
   specViolationMinCount: 3,
   specViolationMinRatio: 0.3,
-
-  // recurring_root_cause
-  recurringRootCauseMinBugs: 2,
 
   // review_unfixed
   reviewUnfixedDays: 30,

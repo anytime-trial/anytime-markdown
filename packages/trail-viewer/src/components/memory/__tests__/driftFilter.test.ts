@@ -33,7 +33,6 @@ describe('computeFixTarget', () => {
     ['three_way', 'code'],
     ['regression_cluster', 'code'],
     ['spec_violation_cluster', 'code'],
-    ['recurring_root_cause', 'code'],
     ['review_unfixed', 'code'],
     ['review_vs_code', 'code'],
     ['recurring_review_finding', 'code'],

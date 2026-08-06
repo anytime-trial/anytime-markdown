@@ -526,7 +526,6 @@ export interface TrailI18n {
   'flightRecord.drift.typeDescription.three_way': string;
   'flightRecord.drift.typeDescription.regression_cluster': string;
   'flightRecord.drift.typeDescription.spec_violation_cluster': string;
-  'flightRecord.drift.typeDescription.recurring_root_cause': string;
   'flightRecord.drift.typeDescription.review_unfixed': string;
   'flightRecord.drift.typeDescription.review_vs_code': string;
   'flightRecord.drift.typeDescription.recurring_review_finding': string;

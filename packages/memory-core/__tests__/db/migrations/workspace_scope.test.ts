@@ -182,8 +182,8 @@ describe('020_workspace_scope migration', () => {
       insertDriftEvent(db, {
         id: 'drift-4',
         subjectEntityId: 'subj-4',
-        driftType: 'recurring_root_cause',
-        detail: { root_cause_entity_id: 'x', bug_cnt: 2, bug_entity_ids: ['a', 'b'] },
+        driftType: 'regression_cluster',
+        detail: { file_path: 'src/x.ts', bug_fix_ids: ['a', 'b'], cnt: 2 },
       });
 
       for (const stmt of backfillStatements()) db.run(stmt);

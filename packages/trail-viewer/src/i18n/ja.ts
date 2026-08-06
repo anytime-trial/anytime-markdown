@@ -542,7 +542,6 @@ export const ja: TrailI18n = {
   'flightRecord.drift.typeDescription.three_way': '会話・設計書・コードが 3 つともバラバラ',
   'flightRecord.drift.typeDescription.regression_cluster': '同一ファイルで regression 修正が 90 日以内に複数回',
   'flightRecord.drift.typeDescription.spec_violation_cluster': '仕様違反バグが 90 日以内に多発',
-  'flightRecord.drift.typeDescription.recurring_root_cause': '同じ根本原因のバグが複数件',
   'flightRecord.drift.typeDescription.review_unfixed': 'レビュー指摘が 30 日以上未対応',
   'flightRecord.drift.typeDescription.review_vs_code': 'レビュー指摘がコードに反映されていない',
   'flightRecord.drift.typeDescription.recurring_review_finding': '同種カテゴリの指摘が 90 日以内に再発',

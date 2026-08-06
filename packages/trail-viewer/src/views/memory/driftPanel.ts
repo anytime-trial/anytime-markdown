@@ -49,7 +49,6 @@ const DRIFT_TYPE_HELP_ROWS: ReadonlyArray<readonly [string, string]> = [
   ['three_way', 'flightRecord.drift.typeDescription.three_way'],
   ['regression_cluster', 'flightRecord.drift.typeDescription.regression_cluster'],
   ['spec_violation_cluster', 'flightRecord.drift.typeDescription.spec_violation_cluster'],
-  ['recurring_root_cause', 'flightRecord.drift.typeDescription.recurring_root_cause'],
   ['review_unfixed', 'flightRecord.drift.typeDescription.review_unfixed'],
   ['review_vs_code', 'flightRecord.drift.typeDescription.review_vs_code'],
   ['recurring_review_finding', 'flightRecord.drift.typeDescription.recurring_review_finding'],

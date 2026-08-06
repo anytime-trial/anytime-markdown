@@ -4,7 +4,7 @@ import { PipelineRunLedger } from './PipelineRunLedger';
 import { randomUUID } from 'node:crypto';
 
 import { detectThreeSourceDrifts } from '../drift/compare';
-import { detectRegressionClusters, detectSpecViolationClusters, detectRecurringRootCauses } from '../drift/recurringBugs';
+import { detectRegressionClusters, detectSpecViolationClusters } from '../drift/recurringBugs';
 import { detectReviewUnfixed, detectReviewVsCode, detectRecurringReviewFindings } from '../drift/reviewClusters';
 import { detectRecurringQuestions } from '../drift/recurringQuestions';
 import { reportDriftEvents } from '../drift/report';
@@ -68,10 +68,6 @@ export async function runDriftDetection(input: {
     () => {
       try { return detectSpecViolationClusters({ db, logger }); }
       catch (err) { logger.error(`[runDriftDetection] detectSpecViolationClusters: ${String(err)}`); hasPartialError = true; return []; }
-    },
-    () => {
-      try { return detectRecurringRootCauses({ db, logger }); }
-      catch (err) { logger.error(`[runDriftDetection] detectRecurringRootCauses: ${String(err)}`); hasPartialError = true; return []; }
     },
     () => {
       try { return detectReviewUnfixed({ db, logger }); }

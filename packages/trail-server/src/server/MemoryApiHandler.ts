@@ -530,7 +530,7 @@ export class MemoryApiHandler {
     try {
       const limit = clampLimit(params.limit, 50);
       const conditions: string[] = [
-        `de.drift_type IN ('regression_cluster','spec_violation_cluster','recurring_root_cause')`,
+        `de.drift_type IN ('regression_cluster','spec_violation_cluster')`,
         `de.resolved_at IS NULL`,
       ];
       const bindValues: unknown[] = [];

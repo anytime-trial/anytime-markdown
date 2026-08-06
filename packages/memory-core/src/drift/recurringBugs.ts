@@ -3,24 +3,6 @@ import type { MemoryLogger } from '../logger';
 import type { DriftEventInput } from './report';
 import { THRESHOLDS } from './policy';
 
-/**
- * `trail` スキーマが ATTACH されているか。
- *
- * 会話由来の `caused_by` エッジ（実測 83,009 件すべて）は memory-core 側だけでは
- * ワークスペースを決められず、episode → セッション → リポジトリの解決に trail.db が要る。
- * ATTACH されていない文脈（ユニットテスト・memory-core 単独利用）で trail. を参照すると
- * クエリ全体が落ちて検出結果が 0 件になるため、参照する前にここで判定する。
- */
-function hasTrailAttached(db: MemoryDbConnection, logger: MemoryLogger): boolean {
-  try {
-    const rows = db.exec('PRAGMA database_list')[0]?.values ?? [];
-    return rows.some((row) => String(row[1]) === 'trail');
-  } catch (err) {
-    logger.error(`[recurringBugs] PRAGMA database_list failed: ${String(err)}`);
-    return false;
-  }
-}
-
 export function detectRegressionClusters(input: {
   db: MemoryDbConnection;
   windowDays?: number;
@@ -150,72 +132,3 @@ export function detectSpecViolationClusters(input: {
   return results;
 }
 
-export function detectRecurringRootCauses(input: {
-  db: MemoryDbConnection;
-  minBugs?: number;
-  logger: MemoryLogger;
-}): DriftEventInput[] {
-  const { db, minBugs = THRESHOLDS.recurringRootCauseMinBugs, logger } = input;
-
-  // workspace の出所は 2 つ。バグ修正コミット由来なら memory_bug_fixes.workspace、
-  // 会話由来なら episode → セッション → リポジトリ（trail.db）。実データでは後者が
-  // ほぼ全件を占めるため、trail.db が ATTACH されていない文脈では大半が未解決になる。
-  // 複数ワークスペースに跨る根本原因は '' （未解決）にする — 片方へ寄せると、
-  // もう片方のワークスペースで絞ったときにこの乖離が消える。
-  // 判定は 1 度だけ。式と JOIN は必ず同じ判定から導く（片方だけ変えると
-  // 「r.repo_name を参照しているのに JOIN が無い」形で SQL ごと落ちる）。
-  const trailAttached = hasTrailAttached(db, logger);
-  const bugWorkspace = "NULLIF(bf.workspace, '')";
-  const workspaceExpr = trailAttached ? `COALESCE(r.repo_name, ${bugWorkspace})` : bugWorkspace;
-  const trailJoins = trailAttached
-    ? `LEFT JOIN memory_episodes ep ON ep.id = e.source_ref
-       LEFT JOIN trail.sessions s ON s.id = ep.session_id
-       LEFT JOIN trail.repos r ON r.repo_id = s.repo_id`
-    : '';
-  const sql = `SELECT e.object_entity_id AS root_cause,
-              COUNT(DISTINCT e.subject_entity_id) AS bug_cnt,
-              GROUP_CONCAT(DISTINCT e.subject_entity_id) AS bugs,
-              CASE WHEN COUNT(DISTINCT ${workspaceExpr}) = 1
-                   THEN MIN(${workspaceExpr}) ELSE '' END AS workspace
-       FROM memory_edges e
-       LEFT JOIN memory_bug_fixes bf ON bf.bug_entity_id = e.subject_entity_id
-       ${trailJoins}
-       WHERE e.predicate = 'caused_by'
-         AND e.valid_to IS NULL
-         AND e.confidence_label != 'AMBIGUOUS'
-       GROUP BY e.object_entity_id
-       HAVING bug_cnt >= ?`;
-
-  let rows: ReturnType<MemoryDbConnection['exec']>;
-  try {
-    rows = db.exec(
-      sql,
-      [minBugs],
-    );
-  } catch (err) {
-    logger.error(
-      `[detectRecurringRootCauses] SQL failed: ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`,
-    );
-    return [];
-  }
-
-  const results: DriftEventInput[] = [];
-  for (const row of rows[0]?.values ?? []) {
-    const rootCause = row[0] as string;
-    const bugCnt = row[1] as number;
-    const bugs = (row[2] as string).split(',');
-
-    results.push({
-      subject_entity_id: rootCause,
-      predicate: 'caused_by',
-      conversation_value: null,
-      spec_value: null,
-      code_value: null,
-      drift_type: 'recurring_root_cause',
-      severity: 'warn',
-      workspace: (row[3] as string | null) ?? '',
-      detail: { root_cause_entity_id: rootCause, bug_cnt: bugCnt, bug_entity_ids: bugs },
-    });
-  }
-  return results;
-}

@@ -76,7 +76,7 @@ function ensureEntity(
  *   既存の実 File/Package entity に**連結**する（無ければ正準スキームで作成）。
  * - `spec_clarification:` は対応する実 entity が無いので、接頭辞付き id をそのまま Question entity として
  *   確保する（canonical_name も接頭辞付きで実 Question と衝突しない）。
- * - 接頭辞無し（recurring_root_cause 等の実 entity id）はそのまま返す（既存なら no-op）。
+ * - 接頭辞無し（review_unfixed 等の実 entity id）はそのまま返す（既存なら no-op）。
  */
 function resolveSubjectEntity(db: MemoryDbConnection, subjectId: string, recordedAt: string): string {
   if (subjectId.startsWith('file:')) {

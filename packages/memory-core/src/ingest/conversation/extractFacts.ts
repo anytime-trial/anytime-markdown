@@ -52,7 +52,6 @@ const RelationSchema = z.object({
     'uses',
     'fixes',
     'affects',
-    'caused_by',
     'introduced_by',
     'asked_by',
     'answered_in',
@@ -62,28 +61,14 @@ const RelationSchema = z.object({
   confidence: z.number().min(0).max(1).optional().default(0.8),
 });
 
-/**
- * Defense in depth for the prompt change: even when the LLM ignores the
- * "concrete root cause only" instruction, drop caused_by relations whose
- * object is an abstract bucket (Concept / Decision / Rule and other
- * non-technical types). These produced 956 recurring_root_cause drifts
- * from a single source dataset because every "不適切な条件分岐" style
- * tag aggregated 50–100+ unrelated bugs under one entity.
+/*
+ * `caused_by` は述語一覧から外してある（2026-08-06）。会話本文だけから根本原因を
+ * 特定させる試みは、プロンプトで「具体的な path / name / sha に限定」と縛り、抽象型を
+ * 事後フィルタで落としてもなお接地しなかった — 実測で File 型の根本原因 1,493 件のうち
+ * リポジトリに実在したのは 40 件（2.7%）で、残りは `specific_file` / `/path/to/file` /
+ * `src/main/java/com/example/...` のような LLM の穴埋め文字列だった。
+ * enum に無い述語は下の `.catch(null)` が黙って落とすので、LLM が出力しても永続化されない。
  */
-const ABSTRACT_CAUSED_BY_OBJECT_TYPES: ReadonlySet<string> = new Set([
-  'Concept',
-  'Decision',
-  'Rule',
-  'Person',
-  'Project',
-  'Question',
-  'Task',
-  'Skill',
-]);
-
-export function isAbstractRootCause(predicate: string, objectType: string): boolean {
-  return predicate === 'caused_by' && ABSTRACT_CAUSED_BY_OBJECT_TYPES.has(objectType);
-}
 
 const QuestionSchema = z.object({
   text: z.string(),
@@ -103,8 +88,7 @@ const ExtractionResultSchema = z.object({
   relations: z.array(RelationSchema.catch(null as unknown as z.infer<typeof RelationSchema>))
     .optional().default([])
     .transform(arr => arr
-      .filter((x): x is z.infer<typeof RelationSchema> => x !== null)
-      .filter((r) => !isAbstractRootCause(r.predicate, r.object.type))),
+      .filter((x): x is z.infer<typeof RelationSchema> => x !== null)),
   questions: z.array(QuestionSchema).optional().default([]),
 });
 

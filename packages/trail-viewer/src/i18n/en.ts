@@ -543,7 +543,6 @@ export const en: TrailI18n = {
   'flightRecord.drift.typeDescription.three_way': 'Conversation, spec, and code all disagree',
   'flightRecord.drift.typeDescription.regression_cluster': 'Regression fixes for the same file within 90 days',
   'flightRecord.drift.typeDescription.spec_violation_cluster': 'Spec-violation bugs occurring frequently within 90 days',
-  'flightRecord.drift.typeDescription.recurring_root_cause': 'Multiple bugs sharing the same root cause',
   'flightRecord.drift.typeDescription.review_unfixed': 'Review finding unaddressed for 30+ days',
   'flightRecord.drift.typeDescription.review_vs_code': 'Review finding not reflected in code',
   'flightRecord.drift.typeDescription.recurring_review_finding': 'Same-category findings recurring within 90 days',
