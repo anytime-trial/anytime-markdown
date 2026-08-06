@@ -123,6 +123,27 @@ export function upsertReviewFinding(
 }
 
 /**
+ * summary / body_excerpt の空欄だけを埋める。
+ *
+ * 列ごとに CASE で閉じるのは、OR 条件でヒットした行の「既に埋まっている方」を
+ * 空文字で潰さないため（frontmatter に excerpt が無い .md で summary が消える）。
+ */
+function backfillReviewBody(
+  db: MemoryDbConnection,
+  reviewId: string,
+  summary: string,
+  bodyExcerpt: string,
+): void {
+  db.run(
+    `UPDATE memory_reviews
+        SET summary      = CASE WHEN summary = '' THEN ? ELSE summary END,
+            body_excerpt = CASE WHEN body_excerpt = '' THEN ? ELSE body_excerpt END
+      WHERE id = ? AND (summary = '' OR body_excerpt = '')`,
+    [summary, bodyExcerpt, reviewId],
+  );
+}
+
+/**
  * Upsert a review document into memory_reviews + memory_entities + findings + edges.
  */
 export function upsertReviewDoc(
@@ -159,17 +180,23 @@ export function upsertReviewDoc(
       [doc.frontmatter.title ?? relPath, recordedAt, reviewEntityId],
     );
 
-    // Check existing source_hash
+    // Check existing source_hash（本文列の欠落も同時に見る）
     const existingRows = db.exec(
-      `SELECT source_hash FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?`,
+      `SELECT source_hash, summary, body_excerpt FROM memory_reviews
+        WHERE source_kind='review_doc' AND source_ref=?`,
       [relPath],
     );
-    const existingHash =
-      existingRows[0]?.values?.[0]?.[0] == null
-        ? null
-        : String(existingRows[0].values[0][0]);
+    const existingRow = existingRows[0]?.values?.[0];
+    const existingHash = existingRow?.[0] == null ? null : String(existingRow[0]);
+    // 本文列は後から追加したため、内容が変わっていない既存行は空のまま残っている。
+    // ハッシュ一致で早期 return すると永久に埋まらないので、補完だけ行って返す。
+    const needsBodyBackfill =
+      existingRow !== undefined && (String(existingRow[1] ?? '') === '' || String(existingRow[2] ?? '') === '');
 
     if (existingHash !== null && existingHash === sourceHash) {
+      if (needsBodyBackfill) {
+        backfillReviewBody(db, reviewEntityId, doc.frontmatter.excerpt ?? '', doc.bodyExcerpt ?? '');
+      }
       return { review_id: reviewEntityId, is_new: false, findings_inserted: 0, edges_inserted: 0 };
     }
 
@@ -329,13 +356,9 @@ export function upsertReviewSession(
     const reviewInserted = db.getRowsModified() > 0;
 
     // 既存行（INSERT OR IGNORE で素通りしたもの）にも本文を補う。
-    // 本文列は後から追加されたため、既存行は空のまま残っている。
+    // カーソルより古い行はここに来ないため、その是正は runReviewBackfill が担う。
     if (!reviewInserted) {
-      db.run(
-        `UPDATE memory_reviews SET summary = ?, body_excerpt = ?
-          WHERE id = ? AND (summary = '' OR body_excerpt = '')`,
-        [session.summary ?? '', session.body_excerpt ?? '', reviewEntityId],
-      );
+      backfillReviewBody(db, reviewEntityId, session.summary ?? '', session.body_excerpt ?? '');
     }
 
     // Insert findings

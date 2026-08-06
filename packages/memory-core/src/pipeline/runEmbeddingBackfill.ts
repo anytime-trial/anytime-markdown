@@ -39,28 +39,34 @@ const EMBEDDING_TARGETS: readonly EmbeddingTarget[] = [
     name: 'entities',
     table: 'memory_entities',
     // 無効化済み（valid_until IS NOT NULL）は検索対象外なので埋めない
-    selectSql: `SELECT id,
-                       CASE WHEN summary <> '' THEN type || ': ' || display_name || '. ' || summary
-                            ELSE type || ': ' || display_name END AS text
-                  FROM memory_entities
-                 WHERE embedding IS NULL AND valid_until IS NULL`,
+    selectSql: `SELECT id, text FROM (
+                  SELECT id,
+                         CASE WHEN summary <> '' THEN type || ': ' || display_name || '. ' || summary
+                              ELSE type || ': ' || display_name END AS text
+                    FROM memory_entities
+                   WHERE embedding IS NULL AND valid_until IS NULL
+                ) WHERE TRIM(text) <> ''`,
   },
   {
     name: 'episodes',
     table: 'memory_episodes',
-    selectSql: `SELECT id,
-                       CASE WHEN summary <> '' THEN summary || '\n' || raw_excerpt
-                            ELSE raw_excerpt END AS text
-                  FROM memory_episodes
-                 WHERE embedding IS NULL`,
+    selectSql: `SELECT id, text FROM (
+                  SELECT id,
+                         CASE WHEN summary <> '' THEN summary || '\n' || raw_excerpt
+                              ELSE raw_excerpt END AS text
+                    FROM memory_episodes
+                   WHERE embedding IS NULL
+                ) WHERE TRIM(text) <> ''`,
   },
   {
     name: 'spec_documents',
     table: 'memory_spec_documents',
-    selectSql: `SELECT id,
-                       CASE WHEN summary <> '' THEN title || '\n' || summary ELSE title END AS text
-                  FROM memory_spec_documents
-                 WHERE embedding IS NULL`,
+    selectSql: `SELECT id, text FROM (
+                  SELECT id,
+                         CASE WHEN summary <> '' THEN title || '\n' || summary ELSE title END AS text
+                    FROM memory_spec_documents
+                   WHERE embedding IS NULL
+                ) WHERE TRIM(text) <> ''`,
   },
 ];
 
@@ -118,6 +124,11 @@ export async function runEmbeddingBackfill(opts: {
   // Start pipeline run
   ledger.start(startedAt);
 
+  // item_key の旧形式（テーブル修飾なしの裸 id）を掃除する。
+  // 修飾を入れた後は DELETE が新形式しか消さないため、放置すると embedding が
+  // 埋まった行の失敗記録が「直っているのに失敗のまま」残り続ける。
+  db.run(`DELETE FROM memory_failed_items WHERE scope = ? AND item_key NOT LIKE '%:%'`, [SCOPE]);
+
   const counters = { processed: 0, failed: 0 };
   const processedByTarget: Record<EmbeddingTargetName, number> = {
     entities: 0,
@@ -135,12 +146,6 @@ export async function runEmbeddingBackfill(opts: {
       // テーブルをまたぐと衝突しうるため（memory_failed_items の主キーは scope+item_key）。
       const itemKey = `${target.name}:${rowId}`;
       const text = (rawText ?? '').slice(0, MAX_EMBED_CHARS);
-      if (text.trim().length === 0) {
-        // 空テキストを埋め込んでもゼロ距離のノイズにしかならない
-        recordFailedItem(db, itemKey, 'empty_text', `${target.table} row has no embeddable text`);
-        counters.failed++;
-        continue;
-      }
 
       try {
         const { embedding } = await ollama.embeddings({ model: embedModel, prompt: text });

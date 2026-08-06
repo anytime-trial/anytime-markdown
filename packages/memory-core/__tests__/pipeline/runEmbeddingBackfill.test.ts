@@ -196,16 +196,34 @@ describe('runEmbeddingBackfill', () => {
     expect(row[0].values[0][0]).toBeNull();
   });
 
-  it('本文が空の行は embedding を作らず failed_items に残す', async () => {
+  it('本文が空の行は対象から外す（失敗として数えない）', async () => {
     const db = await makeDb();
     insertEpisode(db, 'ep-blank', '   ');
 
     const result = await runEmbeddingBackfill({ db, ollama: mockOllama(() => makeVec(1)) });
 
     expect(result.items_processed).toBe(0);
-    expect(result.items_failed).toBe(1);
-    const failed = db.exec("SELECT item_key, reason FROM memory_failed_items WHERE scope='embedding_backfill'");
-    expect(failed[0].values[0]).toEqual(['episodes:ep-blank', 'empty_text']);
+    // 次回も空のままなので「失敗」に数えると status が恒久的に劣化する
+    expect(result.items_failed).toBe(0);
+    expect(result.status).toBe('success');
+    const failed = db.exec("SELECT COUNT(*) FROM memory_failed_items WHERE scope='embedding_backfill'");
+    expect(failed[0].values[0][0]).toBe(0);
+  });
+
+  it('旧形式（テーブル修飾なし）の失敗記録を掃除する', async () => {
+    const db = await makeDb();
+    insertEntity(db, 'e1', 'TypeScript');
+    db.run(
+      `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+       VALUES ('embedding_backfill', 'legacy-id', '2026-05-12T00:00:00.000Z', 'embedding_failed', '', 1),
+              ('conversation_incremental', 'other-id', '2026-05-12T00:00:00.000Z', 'extraction_failed', '', 1)`,
+      []
+    );
+
+    await runEmbeddingBackfill({ db, ollama: mockOllama(() => makeVec(1)) });
+
+    const remaining = db.exec('SELECT scope, item_key FROM memory_failed_items ORDER BY scope');
+    expect(remaining[0].values).toEqual([['conversation_incremental', 'other-id']]);
   });
 
   it('embed テキストは type + display_name + summary で構成される', async () => {
