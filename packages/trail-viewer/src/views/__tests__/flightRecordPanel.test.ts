@@ -763,6 +763,123 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
 
+    // ── Review タブの絞り込み（重要度 / カテゴリ / 状態） ──
+    describe('絞り込み', () => {
+      const FINDINGS = [
+        { ...FINDING, id: 'rf-1', severity: 'error', category: 'logic', addressedCommitSha: null },
+        { ...FINDING, id: 'rf-2', severity: 'warn', category: 'a11y', addressedCommitSha: 'deadbee' },
+        { ...FINDING, id: 'rf-3', severity: 'info', category: 'logic', addressedCommitSha: null },
+      ];
+
+      /** Review タブを開いた状態で返す（絞り込みの操作対象はこのタブにしかない）。 */
+      async function openReviewTab() {
+        stubFetch((url) => {
+          if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
+          if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
+          if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+          if (url.includes('flight-counts')) {
+            return jsonResponse([{ instructionId: 'inst-0001-abcd', error: 1, warn: 1, info: 1, total: 3 }]);
+          }
+          if (url.includes('flight-findings')) return jsonResponse(FINDINGS);
+          return jsonResponse({});
+        });
+        store = createInstructionStore('http://x');
+        reviewStore = createFlightReviewStore('http://x');
+        const handle = mountWith(store, reviewStore);
+        await settle();
+        container.querySelector<HTMLButtonElement>('[data-am-flight-tab="review"]')?.click();
+        await settle();
+        return handle;
+      }
+
+      function rowIds(): string[] {
+        return [...container.querySelectorAll<HTMLElement>('[data-am-finding-row]')].map(
+          (tr) => tr.dataset['findingId'] ?? '',
+        );
+      }
+
+      it('重要度で絞る', async () => {
+        const handle = await openReviewTab();
+        expect(rowIds()).toHaveLength(3);
+
+        chooseOption(container.querySelector('[data-am-review-filter-severity]'), 'warn');
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-2']);
+        handle.destroy();
+      });
+
+      it('カテゴリの選択肢は取得済みの指摘から作る', async () => {
+        const handle = await openReviewTab();
+
+        chooseOption(container.querySelector('[data-am-review-filter-category]'), 'a11y');
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-2']);
+        handle.destroy();
+      });
+
+      it('状態（未対処）で絞る', async () => {
+        const handle = await openReviewTab();
+
+        chooseOption(container.querySelector('[data-am-review-filter-status]'), '未対処');
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-1', 'rf-3']);
+        handle.destroy();
+      });
+
+      it('絞り込みは AND で効き、表示件数と総件数を出す', async () => {
+        const handle = await openReviewTab();
+
+        chooseOption(container.querySelector('[data-am-review-filter-severity]'), 'info');
+        await settle();
+        chooseOption(container.querySelector('[data-am-review-filter-category]'), 'logic');
+        await settle();
+
+        expect(rowIds()).toEqual(['rf-3']);
+        expect(container.querySelector('[data-am-finding-shown]')?.textContent).toBe('1 / 3');
+        handle.destroy();
+      });
+
+      it('絞り込みで 0 件になったら「指摘なし」と別の文言を出す', async () => {
+        const handle = await openReviewTab();
+
+        chooseOption(container.querySelector('[data-am-review-filter-severity]'), 'error');
+        await settle();
+        chooseOption(container.querySelector('[data-am-review-filter-category]'), 'a11y');
+        await settle();
+
+        expect(rowIds()).toHaveLength(0);
+        expect(container.querySelector('[data-am-finding-empty-filtered]')).not.toBeNull();
+        expect(container.querySelector('[data-am-finding-empty]')).toBeNull();
+        handle.destroy();
+      });
+
+      it('絞り込みバーは表の再描画で作り直されない（選択が消えない）', async () => {
+        const handle = await openReviewTab();
+        const before = container.querySelector('[data-testid="flight-review-filter-severity"]');
+
+        chooseOption(container.querySelector('[data-am-review-filter-severity]'), 'warn');
+        await settle();
+        // store の通知（ポーリング）を模して再描画させる
+        handle.update({
+          isDark: true,
+          tokens: getTokens(true),
+          t: createTrailI18n('ja'),
+          store: store!,
+          reviewStore: reviewStore!,
+          findingStore: findingStore!,
+          serverUrl: '',
+        });
+        await settle();
+
+        expect(container.querySelector('[data-testid="flight-review-filter-severity"]')).toBe(before);
+        expect(rowIds()).toEqual(['rf-2']);
+        handle.destroy();
+      });
+    });
+
     it('Review タブの行を押すと指示タブへ戻り、その指示を選択する', async () => {
       const handle = await mountWithFindings();
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="review"]')?.click();
