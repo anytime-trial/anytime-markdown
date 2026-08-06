@@ -6,6 +6,7 @@
  * 並べ替えると値が別の列へ入るが、件数や文字列の存在だけを見るテストは素通りする。
  */
 import {
+  deriveFindingStatus,
   filterFindings,
   findingCategories,
   renderFindingTable,
@@ -62,19 +63,59 @@ describe('filterFindings', () => {
     expect(filterFindings(rows, { ...NO_FILTER, status: 'addressed' }).map((r) => r.id)).toEqual(['b']);
   });
 
-  it('状態（未対処）は空文字の SHA も未対処として扱う', () => {
-    // 空文字は「対処コミットが分からない」であって「対処済み」ではない。
-    // 表の状態セルと同じ判定にしないと、絞り込んだ結果と表示が食い違う。
-    expect(filterFindings(rows, { ...NO_FILTER, status: 'unaddressed' }).map((r) => r.id)).toEqual(['a', 'c']);
+  it('状態（未対処）は判定対象の指摘だけを返す', () => {
+    // 'c' は severity=info で自動判定の対象外。未対処へ混ぜると、本当に対処されていない
+    // 指摘（'a'）が対象外の指摘に埋もれる。
+    expect(filterFindings(rows, { ...NO_FILTER, status: 'unaddressed' }).map((r) => r.id)).toEqual(['a']);
+  });
+
+  it('状態（判定対象外）で絞る', () => {
+    expect(filterFindings(rows, { ...NO_FILTER, status: 'notLinkable' }).map((r) => r.id)).toEqual(['c']);
   });
 
   it('複数条件は AND で効く', () => {
-    const result = filterFindings(rows, { severity: 'info', category: 'logic', status: 'unaddressed' });
+    const result = filterFindings(rows, { severity: 'info', category: 'logic', status: 'notLinkable' });
     expect(result.map((r) => r.id)).toEqual(['c']);
   });
 
   it('該当なしは空配列（元配列を返さない）', () => {
     expect(filterFindings(rows, { ...NO_FILTER, category: 'perf' })).toEqual([]);
+  });
+});
+
+describe('deriveFindingStatus', () => {
+  it('対処コミットがあれば対処済み', () => {
+    expect(deriveFindingStatus(finding({ addressedCommitSha: 'deadbee' }))).toBe('addressed');
+  });
+
+  it('空文字の SHA は対処済みにしない', () => {
+    // 空文字は「対処コミットが分からない」であって「対処済み」ではない。
+    expect(deriveFindingStatus(finding({ addressedCommitSha: '' }))).toBe('unaddressed');
+  });
+
+  it('severity=info は判定対象外（linkAddresses が母集合から外す）', () => {
+    expect(deriveFindingStatus(finding({ severity: 'info' }))).toBe('notLinkable');
+  });
+
+  it('対象ファイルが無い指摘は判定対象外', () => {
+    expect(deriveFindingStatus(finding({ targetFilePath: null }))).toBe('notLinkable');
+    expect(deriveFindingStatus(finding({ targetFilePath: '' }))).toBe('notLinkable');
+  });
+
+  it('対象リポジトリが解決できていない指摘は判定対象外', () => {
+    // パスがあってもリポジトリ未解決ならコミット照合が走らない（実測 947 件中 864 件）。
+    expect(deriveFindingStatus(finding({ targetRepo: null }))).toBe('notLinkable');
+    expect(deriveFindingStatus(finding({ targetRepo: '' }))).toBe('notLinkable');
+  });
+
+  it('判定対象で対処コミットが無ければ未対処', () => {
+    expect(deriveFindingStatus(finding())).toBe('unaddressed');
+  });
+
+  it('対処済みの判定は severity・対象の欠落より優先する', () => {
+    // 手動リンク（link_review_to_commit）は自動判定の母集合外の指摘にも付く。
+    const row = finding({ severity: 'info', targetFilePath: null, targetRepo: null, addressedCommitSha: 'cafe' });
+    expect(deriveFindingStatus(row)).toBe('addressed');
   });
 });
 
@@ -136,6 +177,23 @@ describe('renderFindingTable', () => {
     expect(cells[4]).toBe('logic');
     expect(cells[5]).toContain('data-am-finding-target');
     expect(cells[6]).toBe('指示ラベル');
+  });
+
+  it('状態セルは 3 値を data-status で出し、判定対象外には理由を title で添える', () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderFindingTable({ ...input, findings: [finding({ severity: 'info' })] });
+    const cell = host.querySelector('[data-am-finding-status]');
+    expect(cell?.getAttribute('data-status')).toBe('notLinkable');
+    expect(cell?.getAttribute('title')).toBe('flightRecord.findings.notLinkableHint');
+    expect(cell?.textContent).toBe('flightRecord.findings.notLinkable');
+  });
+
+  it('未対処の状態セルには title を付けない（説明が要るのは対象外だけ）', () => {
+    const host = document.createElement('div');
+    host.innerHTML = renderFindingTable(input);
+    const cell = host.querySelector('[data-am-finding-status]');
+    expect(cell?.getAttribute('data-status')).toBe('unaddressed');
+    expect(cell?.getAttribute('title')).toBeNull();
   });
 
   it('絞り込みで 0 件になった場合は「指摘なし」と別の器で出す', () => {

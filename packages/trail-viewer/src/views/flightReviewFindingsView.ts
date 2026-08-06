@@ -16,8 +16,17 @@ export type FindingsTranslate = (key: string) => string;
 /** severity の並び順。重い順に見せる（error → warn → info）。 */
 const SEVERITY_ORDER: Record<string, number> = { error: 0, warn: 1, info: 2 };
 
+/**
+ * 指摘の対処状態。
+ *
+ * `notLinkable` は「対処コミットの自動判定にかけられない」指摘で、未対処とは別物。
+ * この 2 つを同じ「未対処」で出すと、実測 947 件中 889 件（94%）が判定対象外なのに
+ * 全部が放置扱いに見え、本当に対処されていない指摘が埋もれる。
+ */
+export type FindingStatus = 'addressed' | 'unaddressed' | 'notLinkable';
+
 /** 絞り込みの対処状態。空文字は「すべて」（絞り込みなし）。 */
-export type FindingStatusFilter = '' | 'addressed' | 'unaddressed';
+export type FindingStatusFilter = '' | FindingStatus;
 
 /**
  * Review サブタブの絞り込み条件。各値の空文字は「すべて」で、複数指定は AND で効く。
@@ -38,6 +47,26 @@ function isAddressed(row: MemoryFlightReviewFindingRow): boolean {
   return row.addressedCommitSha !== null && row.addressedCommitSha !== '';
 }
 
+/** null と空文字を同じ「未解決」として扱う（DB は経路によってどちらも入る）。 */
+function isBlank(value: string | null): boolean {
+  return value === null || value === '';
+}
+
+/**
+ * 表示する対処状態を決める。
+ *
+ * `notLinkable` の条件は memory-core の `linkAddresses`（対処コミットの自動リンク）が
+ * 母集合を絞る条件と**同じもの**を写している: severity=info は対象外、対象ファイルパスと
+ * 解決済みリポジトリの両方が揃っていなければ照合できない。片方だけ変えると、
+ * 「判定対象なのに永久に未対処」あるいは「対象外なのに未対処表示」が生まれる。
+ */
+export function deriveFindingStatus(row: MemoryFlightReviewFindingRow): FindingStatus {
+  if (isAddressed(row)) return 'addressed';
+  if (row.severity === 'info') return 'notLinkable';
+  if (isBlank(row.targetFilePath) || isBlank(row.targetRepo)) return 'notLinkable';
+  return 'unaddressed';
+}
+
 /** 絞り込み。該当なしは空配列（呼び出し側が「絞って 0 件」を区別できるようにする）。 */
 export function filterFindings(
   findings: readonly MemoryFlightReviewFindingRow[],
@@ -46,8 +75,7 @@ export function filterFindings(
   return findings.filter((row) => {
     if (filter.severity !== '' && row.severity !== filter.severity) return false;
     if (filter.category !== '' && row.category !== filter.category) return false;
-    if (filter.status === 'addressed' && !isAddressed(row)) return false;
-    if (filter.status === 'unaddressed' && isAddressed(row)) return false;
+    if (filter.status !== '' && deriveFindingStatus(row) !== filter.status) return false;
     return true;
   });
 }
@@ -97,11 +125,23 @@ function targetCell(t: FindingsTranslate, row: MemoryFlightReviewFindingRow, lin
     title="${escapeHtml(t('flightRecord.findings.openFile'))}">${path}</button>`;
 }
 
+/** 状態値 → 表示文言の i18n キー。表と絞り込みで同じ文言を使うための単一の正本。 */
+export const FINDING_STATUS_LABEL_KEY: Record<FindingStatus, string> = {
+  addressed: 'flightRecord.findings.addressed',
+  unaddressed: 'flightRecord.findings.notAddressed',
+  notLinkable: 'flightRecord.findings.notLinkable',
+};
+
 function statusCell(t: FindingsTranslate, row: MemoryFlightReviewFindingRow): string {
-  if (isAddressed(row)) {
-    return `<span data-am-finding-status data-addressed="true">${escapeHtml(t('flightRecord.findings.addressed'))}</span>`;
-  }
-  return `<span data-am-finding-status data-addressed="false">${escapeHtml(t('flightRecord.findings.notAddressed'))}</span>`;
+  const status = deriveFindingStatus(row);
+  // 判定対象外は理由が自明でないので title で補う（色だけ・語だけでは伝わらない）。
+  const hint =
+    status === 'notLinkable'
+      ? ` title="${escapeHtml(t('flightRecord.findings.notLinkableHint'))}"`
+      : '';
+  return `<span data-am-finding-status data-status="${status}"${hint}>${escapeHtml(
+    t(FINDING_STATUS_LABEL_KEY[status]),
+  )}</span>`;
 }
 
 /** 一覧の件数セル。未取得（loadFailed）は 0 件と書かない。 */

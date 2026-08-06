@@ -738,6 +738,8 @@ export interface TrailI18n {
   'flightRecord.findings.openFile': string;
   'flightRecord.findings.addressed': string;
   'flightRecord.findings.notAddressed': string;
+  'flightRecord.findings.notLinkable': string;
+  'flightRecord.findings.notLinkableHint': string;
   'flightRecord.findings.scopeNote': string;
   'flightRecord.findings.severity.error': string;
   'flightRecord.findings.severity.warn': string;

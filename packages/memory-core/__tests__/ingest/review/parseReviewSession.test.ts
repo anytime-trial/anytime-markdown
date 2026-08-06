@@ -561,6 +561,50 @@ describe('parseReviewSessions', () => {
     trailDb.close();
   }, 30000);
 
+  // session 経路（code-reviewer subagent 出力）でもメタデータ行の 対象 を読む。
+  // これを読まないと、書式どおり対象を書いたレビューでも target_file_path が NULL になり、
+  // 対処コミットの自動リンク（linkAddresses）の母集合から外れる。
+  test('メタデータ行の 対象 を target_file_path に採る（本文推測より優先）', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    const reviewText = `## レビュー指摘事項
+
+### 1. NULL 参照
+
+- **重大度**: error
+- **カテゴリ**: logic
+- **対象**: \`packages/trail-viewer/src/views/a.ts:12\`
+- **観点**: §8
+
+**問題:** \`src/foo.ts\` のようなコード例を含む本文。
+
+**提案:** optional chaining を使う。
+`;
+
+    insertMsg(trailDb, {
+      uuid: 'target-marker-uuid',
+      session_id: 'sess-target-marker',
+      type: 'assistant',
+      timestamp: '2026-04-25T11:00:00.000Z',
+      text_content: reviewText,
+      subagent_type: 'code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results[0].findings[0].target_file_path).toBe('packages/trail-viewer/src/views/a.ts');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
   // reviewer はブロックのラベル(subagent_type)になる。旧実装は 'unknown' 固定で、
   // memory_reviews.reviewer が全件空になっていた(RC1)。
   test('sets reviewer from subagent_type label', async () => {

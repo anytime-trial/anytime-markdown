@@ -732,6 +732,9 @@ export const ja: TrailI18n = {
   'flightRecord.findings.openFile': 'ファイルを開く',
   'flightRecord.findings.addressed': '対処済み',
   'flightRecord.findings.notAddressed': '未対処',
+  'flightRecord.findings.notLinkable': '判定対象外',
+  'flightRecord.findings.notLinkableHint':
+    '重大度 info、または対象ファイル・リポジトリを特定できないため、対処コミットの自動判定にかけられない指摘です。対処されていないという意味ではありません。',
   'flightRecord.findings.scopeNote': 'Flight Record に載っているフライト（セッション）で記録された指摘だけを表示します。',
   'flightRecord.findings.severity.error': 'error',
   'flightRecord.findings.severity.warn': 'warn',

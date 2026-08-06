@@ -38,7 +38,9 @@ import {
   renderFindingSection,
   renderFindingTable,
   wireFindingLinks,
+  FINDING_STATUS_LABEL_KEY,
   type FindingFilter,
+  type FindingStatus,
   type FindingStatusFilter,
 } from './flightReviewFindingsView';
 import { MemoryReader } from '../data/readers/MemoryReader';
@@ -93,17 +95,12 @@ type OutcomeFilterValue = FlightReviewOutcome | '';
 /** Review サブタブの重要度フィルタの選択肢。表示は t('flightRecord.findings.severity.*') に従う。 */
 const FINDING_SEVERITY_VALUES: readonly string[] = ['error', 'warn', 'info'];
 
-/** Review サブタブの状態フィルタの選択肢。 */
-const FINDING_STATUS_VALUES: readonly Exclude<FindingStatusFilter, ''>[] = ['addressed', 'unaddressed'];
-
 /**
- * 状態フィルタの表示文言。表の状態セルと同じキーを使う（別の文言を当てると、
- * 絞り込みで選んだ状態と表に出る状態が違う言葉になる）。
+ * Review サブタブの状態フィルタの選択肢。
+ * 表示文言（FINDING_STATUS_LABEL_KEY）は表の状態セルと共有する — 別の文言を当てると、
+ * 絞り込みで選んだ状態と表に出る状態が違う言葉になる。
  */
-const FINDING_STATUS_LABEL_KEY: Record<Exclude<FindingStatusFilter, ''>, string> = {
-  addressed: 'flightRecord.findings.addressed',
-  unaddressed: 'flightRecord.findings.notAddressed',
-};
+const FINDING_STATUS_VALUES: readonly FindingStatus[] = ['addressed', 'unaddressed', 'notLinkable'];
 
 /**
  * スタイルは 1 度だけ注入する。状態色は data-* 属性 + 注入スタイルシートが正本
@@ -215,8 +212,10 @@ button[data-am-finding-open] {
   border: 1px solid ${c.border}; background: ${c.sectionBg}; color: ${c.textPrimary}; text-align: left;
 }
 [data-am-finding-status] { font-size: 11px; }
-[data-am-finding-status][data-addressed="true"] { color: ${c.success}; }
-[data-am-finding-status][data-addressed="false"] { color: ${c.textSecondary}; }
+[data-am-finding-status][data-status="addressed"] { color: ${c.success}; }
+/* 未対処だけを目立たせる。判定対象外は件数が多く、同じ強さで出すと未対処が埋もれる。 */
+[data-am-finding-status][data-status="unaddressed"] { color: ${c.warning}; }
+[data-am-finding-status][data-status="notLinkable"] { color: ${c.textSecondary}; }
 [data-am-finding-count] {
   display: inline-block; min-width: 18px; margin-right: 4px; padding: 1px 6px;
   border-radius: 10px; font-size: 11px; font-weight: 600; text-align: center;

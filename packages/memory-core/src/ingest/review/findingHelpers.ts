@@ -394,6 +394,33 @@ export function parseChecklistRefMarker(body: string): string | null {
   return null;
 }
 
+/**
+ * anytime-trail-review スキルのメタデータ 3 行目 `- **対象**: \`packages/x/y.ts:12\`` を解析する。
+ *
+ * このマーカーはスキルが「必須・順序固定」と宣言しているのに、長らくどのパーサも
+ * 読んでいなかった。対象は 問題/提案 本文からの推測（`extractTargetFromFinding`）だけで
+ * 決まっており、メタデータ行は heading と `**問題:**` の間にあるため本文に含まれない。
+ * 結果として、書式どおり対象を書いたレビューでも `target_file_path` が NULL になり、
+ * 対処コミットの自動リンク（`linkAddresses`）の母集合から外れていた。
+ *
+ * 見つからない・パスとして成立しない値は null を返し、呼び出し側の本文推測へ委ねる。
+ */
+const TARGET_MARKER_RE = new RegExp(
+  String.raw`^${BULLET_PREFIX}\*{0,2}(?:対象|target)\*{0,2}\s*[：:]\s*(.+)$`,
+  'im',
+);
+
+export function parseTargetMarker(body: string): string | null {
+  const m = TARGET_MARKER_RE.exec(body.replace(FENCED_BLOCK_RE, ''));
+  if (!m) return null;
+  const value = m[1].trim();
+  // バッククォート内を優先する。書式は `path:line` を想定しており、
+  // 素の値には「〜の周辺」のような散文が続くことがある。
+  const backticked = extractBacktickPaths(value);
+  if (backticked.length > 0) return backticked[0];
+  return normalizeTargetPath(value)?.path ?? null;
+}
+
 // ── Target file path extraction from finding body ────────────────────────────
 
 /**
@@ -472,4 +499,35 @@ export function extractTargetFromFinding(text: string): string | null {
   const srcCand = candidates.find((c) => c.startsWith('src/'));
   if (srcCand) return srcCand;
   return candidates[0];
+}
+
+/**
+ * finding 1 件の対象パスを決める。Route A / Route B の共通ロジック。
+ *
+ * 優先順位:
+ * 1. その finding 自身の本文にある `- **対象**:`
+ * 2. チャプター先頭のマーカー — ただし**そのチャプターが finding を 1 件しか生まないとき
+ *    に限る**
+ * 3. 本文からのパス推測（`extractTargetFromFinding`）
+ *
+ * 2 の条件を付けるのは、`### N.` 見出しを使わない形式（絵文字＋`**N. タイトル**` 等）だと
+ * 複数の finding が 1 チャプターに同居するため。先頭のマーカーを全件へ流用すると、
+ * 2 件目以降が別ファイルの指摘でも同じ対象を持ち、`linkAddresses` が無関係なコミットを
+ * addressed として確定させる。severity / category もチャプター粒度で共有しているが、
+ * それらの取り違えは表示の誤りで済むのに対し、target の取り違えは誤リンクという
+ * 取り消しにくい記録を生む。影響が非対称なので、ここだけ粒度を厳しくする（fail-closed）。
+ */
+export function resolveFindingTarget(input: {
+  /** この finding 自身のテキスト（見出し＋問題本文＋提案本文）。 */
+  readonly ownText: string;
+  /** チャプター全体から取れた `- **対象**:` の値。無ければ null。 */
+  readonly chapterTarget: string | null;
+  /** 同じチャプターから生まれる finding の件数。 */
+  readonly chapterFindingCount: number;
+}): string | null {
+  return (
+    parseTargetMarker(input.ownText) ??
+    (input.chapterFindingCount === 1 ? input.chapterTarget : null) ??
+    extractTargetFromFinding(input.ownText)
+  );
 }

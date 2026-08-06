@@ -11,9 +11,32 @@ export type LinkAddressesInput = {
   logger: { warn: (msg: string) => void };
 };
 
+/**
+ * 自動リンクの母集合から外れた指摘の件数（理由別・排他）。
+ *
+ * この内訳を返すのは、対象外の指摘が Flight Record 上で「未対処」と読まれるため。
+ * 実測（2026-08-06）では session 経路 947 件のうち 889 件が母集合外で、その大半が
+ * 対象パス欠落だった。件数を出さないと「レビュー指摘がほとんど放置されている」に
+ * 見えるが、実際に追跡できていないのは記録の側。
+ */
+export type LinkAddressesSkipCounts = {
+  /** severity=info（設計上リンク対象外）。 */
+  severity_info: number;
+  /** 対象ファイルパスが記録されていない。 */
+  no_target_path: number;
+  /** パスはあるがリポジトリを実在検査で解決できない。 */
+  unresolved_repo: number;
+};
+
 export type LinkAddressesResult = {
   findings_linked: number;
   edges_inserted: number;
+  /** 照合を試みた指摘（母集合）の件数。 */
+  candidates: number;
+  /** 母集合に入ったが窓内に一致するコミットが無かった指摘。 */
+  no_matching_commit: number;
+  /** 理由別の除外件数。集計に失敗したときは null（0 件と区別する）。 */
+  skipped: LinkAddressesSkipCounts | null;
 };
 
 // ── Stop words ────────────────────────────────────────────────────────────────
@@ -214,9 +237,54 @@ function linkOneFinding(
 
 // ── Main function ─────────────────────────────────────────────────────────────
 
+/**
+ * 未リンクの指摘が母集合から外れた理由を数える。
+ *
+ * 理由は排他（severity → パス → リポジトリの順に 1 つだけ数える）。重複して数えると
+ * 合計が母数と合わず、「どこを直せば追跡できるようになるか」の判断に使えなくなる。
+ * 集計に失敗しても本処理は止めない（可観測性の欠落は照合の失敗ではない）。
+ * ただし 0 件で埋めずに null を返す — 「除外なし」と「数えられなかった」は別物。
+ */
+function countSkips(
+  db: MemoryDbConnection,
+  logger: { warn: (msg: string) => void },
+): LinkAddressesSkipCounts | null {
+  try {
+    const result = db.exec(`
+      SELECT
+        SUM(CASE WHEN severity = 'info' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN severity != 'info' AND target_file_path IS NULL THEN 1 ELSE 0 END),
+        SUM(CASE WHEN severity != 'info' AND target_file_path IS NOT NULL
+                  AND target_repo IS NULL THEN 1 ELSE 0 END)
+      FROM memory_review_findings
+      WHERE addressed_at IS NULL
+    `);
+    const row = result[0]?.values[0];
+    if (!row) return { severity_info: 0, no_target_path: 0, unresolved_repo: 0 };
+    return {
+      severity_info: Number(row[0] ?? 0),
+      no_target_path: Number(row[1] ?? 0),
+      unresolved_repo: Number(row[2] ?? 0),
+    };
+  } catch (err) {
+    logger.warn(`[anytime-memory] linkAddresses: failed to count skipped findings: ${String(err)}`);
+    return null;
+  }
+}
+
 export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
   const { db, windowDays = 30, logger } = input;
   const effectiveWindowDays = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 30;
+  const skipped = countSkips(db, logger);
+
+  /** 母集合を作れなかったときの戻り値。除外内訳だけは残す（調査の起点になる）。 */
+  const emptyResult: LinkAddressesResult = {
+    findings_linked: 0,
+    edges_inserted: 0,
+    candidates: 0,
+    no_matching_commit: 0,
+    skipped,
+  };
 
   let findings: FindingRow[];
 
@@ -241,7 +309,7 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
 
     const rows = result[0];
     if (!rows) {
-      return { findings_linked: 0, edges_inserted: 0 };
+      return emptyResult;
     }
 
     findings = rows.values.map((r) => ({
@@ -256,7 +324,7 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
     logger.warn(
       `[anytime-memory] linkAddresses: failed to query review findings: ${String(err)}`
     );
-    return { findings_linked: 0, edges_inserted: 0 };
+    return emptyResult;
   }
 
   let findingsLinked = 0;
@@ -276,5 +344,22 @@ export function linkAddresses(input: LinkAddressesInput): LinkAddressesResult {
     }
   }
 
-  return { findings_linked: findingsLinked, edges_inserted: edgesInserted };
+  const skipText =
+    skipped === null
+      ? 'unavailable'
+      : `info=${skipped.severity_info} noPath=${skipped.no_target_path} noRepo=${skipped.unresolved_repo}`;
+  // レビュー指摘が「追跡できていない」量を毎回ログへ残す。件数を出さないと、
+  // Flight Record 上の「未対処」が対処漏れなのか記録漏れなのか区別できない。
+  logger.warn(
+    `[anytime-memory] linkAddresses: candidates=${findings.length} linked=${findingsLinked} ` +
+      `noMatch=${findings.length - findingsLinked} skipped(${skipText})`,
+  );
+
+  return {
+    findings_linked: findingsLinked,
+    edges_inserted: edgesInserted,
+    candidates: findings.length,
+    no_matching_commit: findings.length - findingsLinked,
+    skipped,
+  };
 }
