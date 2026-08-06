@@ -8,7 +8,7 @@ import {
   runConversationBackfill,
 } from '../pipeline/runConversationBackfill';
 import { detectBackfillWindowExpansion } from '../pipeline/detectBackfillWindowExpansion';
-import { mainThreadOnlySql } from '../ingest/conversation/messageFilter';
+import { ingestableMessageSql } from '../ingest/conversation/messageFilter';
 import { runConversationIncremental } from '../pipeline/runConversationIncremental';
 import { runConversationFailedItemsRetry } from '../pipeline/runConversationFailedItemsRetry';
 import { runCodeIncremental } from '../pipeline/runCodeIncremental';
@@ -155,15 +155,21 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
 
     let convTotalEstimate = 0;
     try {
+      // ETA の分母は「エピソードになり得る user 行」で数える（取込側と同じ定義）。
       const c = memDb.db.prepare(
         `SELECT COUNT(*) AS c FROM trail.messages
-          WHERE timestamp >= ? AND type = 'user' AND ${mainThreadOnlySql()}`,
+          WHERE timestamp >= ? AND type = 'user' AND ${ingestableMessageSql()}`,
       );
       const countRow = c.get(lastProcessedAt || '1970-01-01T00:00:00.000Z');
       convTotalEstimate = (countRow?.['c'] as number) ?? 0;
       c.free?.();
-    } catch {
-      // ignore — pre-count は概算 ETA 用なので失敗しても処理続行
+    } catch (err) {
+      // 概算 ETA 用なので処理は続行するが、無言で 0 に縮退させない。
+      // trail.db のスキーマ不整合（列欠落）はここが最初に踏む場所になり得る。
+      logger.error(
+        '[anytime-memory] conversation pre-count failed — ETA 分母を 0 として続行する',
+        err,
+      );
     }
 
     this.status?.start('conversation_incremental', convTotalEstimate || undefined);
