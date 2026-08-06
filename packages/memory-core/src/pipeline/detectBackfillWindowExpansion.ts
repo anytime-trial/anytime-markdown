@@ -1,4 +1,5 @@
 import type { MemoryDbConnection } from '../db/connection/types';
+import { mainThreadOnlySql } from '../ingest/conversation/messageFilter';
 
 export interface DetectBackfillWindowExpansionInput {
   /** memory-core.db への接続。trail DB が "trail" として ATTACH 済みであること。 */
@@ -60,7 +61,8 @@ export function detectBackfillWindowExpansion(
        FROM trail.messages
       WHERE timestamp >= ?
         AND timestamp < ?
-        AND type = 'user'`,
+        AND type = 'user'
+        AND ${mainThreadOnlySql()}`,
     [desiredStart, earliest],
   );
   const unprocessedCount = (countRows[0]?.values?.[0]?.[0] as number) ?? 0;

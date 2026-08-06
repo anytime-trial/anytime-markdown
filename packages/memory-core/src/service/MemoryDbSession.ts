@@ -8,6 +8,7 @@ import {
   runConversationBackfill,
 } from '../pipeline/runConversationBackfill';
 import { detectBackfillWindowExpansion } from '../pipeline/detectBackfillWindowExpansion';
+import { mainThreadOnlySql } from '../ingest/conversation/messageFilter';
 import { runConversationIncremental } from '../pipeline/runConversationIncremental';
 import { runConversationFailedItemsRetry } from '../pipeline/runConversationFailedItemsRetry';
 import { runCodeIncremental } from '../pipeline/runCodeIncremental';
@@ -155,7 +156,8 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
     let convTotalEstimate = 0;
     try {
       const c = memDb.db.prepare(
-        `SELECT COUNT(*) AS c FROM trail.messages WHERE timestamp >= ? AND type = 'user'`,
+        `SELECT COUNT(*) AS c FROM trail.messages
+          WHERE timestamp >= ? AND type = 'user' AND ${mainThreadOnlySql()}`,
       );
       const countRow = c.get(lastProcessedAt || '1970-01-01T00:00:00.000Z');
       convTotalEstimate = (countRow?.['c'] as number) ?? 0;
