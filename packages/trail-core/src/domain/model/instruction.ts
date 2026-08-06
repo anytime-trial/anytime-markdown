@@ -166,5 +166,20 @@ export interface InstructionRecordFilter {
   until?: string;
   tag?: string;
   workspacePath?: string;
+  /**
+   * 解決済みワークスペース名（`InstructionRecord.workspaceName` と同じ値）で絞る。
+   *
+   * `workspacePath` と別に持つのは、記録された `workspace_path` が宣言時の cwd 由来で
+   * `.worktrees/<name>` や `packages/<pkg>` に散るため。生パス一致で絞ると同一
+   * ワークスペースの行が分裂する。UI の「ワークスペース」列に出ている値はこちら。
+   */
+  workspaceName?: string;
   limit?: number;
+}
+
+/** ワークスペース選択肢 1 件。`name` は `InstructionRecord.workspaceName` と同じ規則で解決済み。 */
+export interface InstructionWorkspace {
+  name: string;
+  /** その名前へ解決された指示・運航記録の件数（多い順に並べるために持つ）。 */
+  count: number;
 }

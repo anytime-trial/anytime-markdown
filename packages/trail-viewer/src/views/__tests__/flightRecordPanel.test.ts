@@ -1098,4 +1098,146 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
   });
+
+  // ── ワークスペース選択（サブタブの上・4 タブ共通の絞り込み） ──
+  describe('ワークスペース選択', () => {
+    function stubWithWorkspaces(workspaces: string[], partial = false, ok = true) {
+      return stubFetch((url) => {
+        if (url.includes('/api/trail/workspaces')) {
+          return ok ? jsonResponse({ workspaces, partial }) : jsonResponse({}, 500);
+        }
+        if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
+        if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
+        if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
+        if (url.includes('/api/memory/')) return jsonResponse([]);
+        return jsonResponse({});
+      });
+    }
+
+    async function mountForWorkspace(workspaces: string[], partial = false, ok = true) {
+      const stub = stubWithWorkspaces(workspaces, partial, ok);
+      store = createInstructionStore('http://x');
+      reviewStore = createFlightReviewStore('http://x');
+      findingStore = createFlightFindingStore('http://mem');
+      const handle = mountWith(store, reviewStore, { serverUrl: 'http://mem' });
+      await settle();
+      return { handle, stub };
+    }
+
+    it('ドロップダウンはサブタブより上に置かれる', async () => {
+      const { handle } = await mountForWorkspace(['anytime-markdown']);
+
+      const root = container.querySelector('[data-am-flight-root]');
+      const children = [...(root?.children ?? [])];
+      const scopeIndex = children.findIndex((el) => el.hasAttribute('data-am-flight-scope'));
+      const tabsIndex = children.findIndex((el) => el.hasAttribute('data-am-flight-tabs'));
+
+      expect(scopeIndex).toBeGreaterThanOrEqual(0);
+      expect(tabsIndex).toBeGreaterThanOrEqual(0);
+      expect(scopeIndex).toBeLessThan(tabsIndex);
+      handle.destroy();
+    });
+
+    it('選択肢はサーバーの一覧から作り、先頭に「すべて」を置く', async () => {
+      const { handle } = await mountForWorkspace(['anytime-markdown', 'anytime-trade']);
+
+      const scope = container.querySelector('[data-am-flight-scope]');
+      const combo = scope?.querySelector<HTMLButtonElement>('[role="combobox"]');
+      combo?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      const labels = [...document.body.querySelectorAll<HTMLElement>('[role="listbox"] [role="option"]')]
+        .map((o) => (o.textContent ?? '').trim());
+
+      expect(labels[0]).toBe('すべてのワークスペース');
+      expect(labels).toContain('anytime-markdown');
+      expect(labels).toContain('anytime-trade');
+      handle.destroy();
+    });
+
+    it('選択すると指示一覧の取得に workspace が付く', async () => {
+      const { handle, stub } = await mountForWorkspace(['anytime-trade']);
+
+      chooseOption(container.querySelector('[data-am-flight-scope]'), 'anytime-trade');
+      await settle();
+
+      const listCalls = stub.calls.filter((c) => c.url.includes('/api/trail/instructions?'));
+      expect(listCalls.at(-1)?.url).toContain('workspace=anytime-trade');
+      handle.destroy();
+    });
+
+    it('選択は Review タブの指摘取得へも伝わる', async () => {
+      const { handle, stub } = await mountForWorkspace(['anytime-trade']);
+
+      chooseOption(container.querySelector('[data-am-flight-scope]'), 'anytime-trade');
+      await settle();
+
+      const findingCalls = stub.calls.filter((c) => c.url.includes('/api/memory/reviews/flight-findings'));
+      expect(findingCalls.at(-1)?.url).toContain('workspace=anytime-trade');
+      handle.destroy();
+    });
+
+    it('選択は Bug Fixed タブのバグ履歴取得へも伝わる', async () => {
+      const { handle, stub } = await mountForWorkspace(['anytime-trade']);
+
+      chooseOption(container.querySelector('[data-am-flight-scope]'), 'anytime-trade');
+      await settle();
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
+      await settle();
+
+      const bugCalls = stub.calls.filter((c) => c.url.includes('/api/memory/bugs/history'));
+      expect(bugCalls.length).toBeGreaterThan(0);
+      expect(bugCalls.at(-1)?.url).toContain('workspace=anytime-trade');
+      handle.destroy();
+    });
+
+    it('選択は Drift タブの乖離取得へも伝わる', async () => {
+      const { handle, stub } = await mountForWorkspace(['anytime-trade']);
+
+      chooseOption(container.querySelector('[data-am-flight-scope]'), 'anytime-trade');
+      await settle();
+      container.querySelector<HTMLButtonElement>('[data-am-flight-tab="drift"]')?.click();
+      await settle();
+
+      const driftCalls = stub.calls.filter((c) => c.url.includes('/api/memory/drift/events'));
+      expect(driftCalls.length).toBeGreaterThan(0);
+      expect(driftCalls.at(-1)?.url).toContain('workspace=anytime-trade');
+      handle.destroy();
+    });
+
+    it('タブを切り替えてもドロップダウンは出したままにする（4 タブ共通の絞り込みのため）', async () => {
+      const { handle } = await mountForWorkspace(['anytime-markdown']);
+
+      for (const tab of ['bugfix', 'review', 'drift', 'instruction']) {
+        container.querySelector<HTMLButtonElement>(`[data-am-flight-tab="${tab}"]`)?.click();
+        await settle();
+        const scope = container.querySelector<HTMLElement>('[data-am-flight-scope]');
+        expect(scope === null ? 'none' : globalThis.getComputedStyle(scope).display).not.toBe('none');
+      }
+      handle.destroy();
+    });
+
+    it('一覧の取得に失敗したら注記を出す（選択肢が空なのを黙って見せない）', async () => {
+      const { handle } = await mountForWorkspace([], false, false);
+
+      const note = container.querySelector<HTMLElement>('[data-am-flight-scope-note]');
+      expect(note?.hidden).toBe(false);
+      expect(note?.textContent).toBe('ワークスペース一覧を取得できませんでした');
+      handle.destroy();
+    });
+
+    it('片方の記録元しか読めなかったら注記を出す', async () => {
+      const { handle } = await mountForWorkspace(['anytime-markdown'], true);
+
+      const note = container.querySelector<HTMLElement>('[data-am-flight-scope-note]');
+      expect(note?.hidden).toBe(false);
+      expect(note?.textContent).toContain('選択肢が欠けている');
+      handle.destroy();
+    });
+
+    it('取得できていれば注記は出さない', async () => {
+      const { handle } = await mountForWorkspace(['anytime-markdown']);
+
+      expect(container.querySelector<HTMLElement>('[data-am-flight-scope-note]')?.hidden).toBe(true);
+      handle.destroy();
+    });
+  });
 });

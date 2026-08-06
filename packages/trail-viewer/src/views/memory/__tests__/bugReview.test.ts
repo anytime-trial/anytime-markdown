@@ -41,6 +41,7 @@ function makeBugRow(over: Partial<MemoryBugHistoryRow> = {}): MemoryBugHistoryRo
     sessionId: 'sess-1',
     committedAt: '2026-01-10T00:00:00.000Z',
     precededByFindingIds: [],
+    workspace: '',
     ...over,
   };
 }
@@ -300,7 +301,7 @@ describe('mountBugCausalPanel', () => {
 
 describe('mountBugHistoryPanel', () => {
   function baseProps(over: Partial<BugHistoryPanelProps> = {}): BugHistoryPanelProps {
-    return { t, reader: null, ...over };
+    return { t, reader: null, workspace: '', ...over };
   }
 
   it('reader が null なら empty メッセージを表示する', () => {

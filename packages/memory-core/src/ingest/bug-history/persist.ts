@@ -59,17 +59,24 @@ export function upsertBugFix(
     recordedAt: string;
     sessionId: string | null;
     introducedCommitSha: string | null;
+    /**
+     * 取込元リポジトリの repo_name。memory-core.db は複数ワークスペースを 1 つの DB へ
+     * 集約するため、これが無いと Flight Record で他ワークスペースのバグが混ざる。
+     * '' は未解決（推測で埋めない。016_review_workspace.sql と同じ規約）。
+     */
+    workspace: string;
   }
 ): void {
   db.run(
     `INSERT INTO memory_bug_fixes
        (id, commit_sha, bug_entity_id, package, category, subject_summary,
         affected_file_paths_json, related_session_id, introduced_commit_sha,
-        committed_at, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        committed_at, recorded_at, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        affected_file_paths_json = excluded.affected_file_paths_json,
-       introduced_commit_sha    = excluded.introduced_commit_sha`,
+       introduced_commit_sha    = excluded.introduced_commit_sha,
+       workspace                = excluded.workspace`,
     [
       opts.id,
       opts.commitSha,
@@ -82,6 +89,7 @@ export function upsertBugFix(
       opts.introducedCommitSha,
       opts.committedAt,
       opts.recordedAt,
+      opts.workspace,
     ]
   );
 }

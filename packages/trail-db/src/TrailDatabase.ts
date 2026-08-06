@@ -102,7 +102,7 @@ import {
   resolvePricingModelName,
   trailToC4,
 } from '@anytime-markdown/trail-core';
-import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, assembleInstructionRecord, computeDefectRisk, foldInstructionDeliverables, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type Instruction, type InstructionContinueInput, type InstructionDeliverable, type InstructionOpenInput, type InstructionRecord, type InstructionRecordFilter, type InstructionSession, type InstructionTokenUsage, type InstructionTokenUsageByModel, type InstructionVerificationRun, VERIFICATION_KINDS, type VerificationKind, type VerificationRunStatus, type RationaleAuditStatus, type IC4ModelStore,
+import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, assembleInstructionRecord, computeDefectRisk, foldInstructionDeliverables, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type Instruction, type InstructionContinueInput, type InstructionDeliverable, type InstructionOpenInput, type InstructionRecord, type InstructionRecordFilter, type InstructionSession, type InstructionWorkspace, type InstructionTokenUsage, type InstructionTokenUsageByModel, type InstructionVerificationRun, VERIFICATION_KINDS, type VerificationKind, type VerificationRunStatus, type RationaleAuditStatus, type IC4ModelStore,
   type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
@@ -634,15 +634,51 @@ function resolveWorkspaceRoot(recorded: string, cache: Map<string, string>): str
 }
 
 /**
+ * ワークスペース名の**正本**はセッションが属するリポジトリ名（`repos.repo_name`）。
+ *
+ * `workspace_path` からの基準名解決（{@link resolveWorkspaceRoot}）は worktree で破綻する。
+ * worktree の `.git` は**ファイル**として実在するため探索がそこで止まり、
+ * `/anytime-markdown/.worktrees/flight-record` は `anytime-markdown` ではなく
+ * `flight-record` になる。memory-core 側（バグ・レビュー・乖離）は `repos.repo_name` を
+ * 書いているので、この差のままだと同じワークスペースを指す 2 つの名前が並び、
+ * 片方のタブが必ず 0 件になる。
+ *
+ * 実測（2026-08-05）: `flight_reviews` 129 件はすべて `anytime-markdown` へ解決され、
+ * パス由来の解決が返していた `flight-record` / `ui-vanilla` 等 6 種類は消える。
+ *
+ * セッションが `sessions` に無い（取込前・machine 記録のみ）行はパス由来へ縮退する
+ * （行を落とさない。名前が分裂するのは名前が無いより軽い）。
+ */
+function repoNamesBySessionIds(
+  db: { exec(sql: string, params?: unknown[]): { values: unknown[][] }[] },
+  sessionIds: readonly string[],
+): Map<string, string> {
+  const byId = new Map<string, string>();
+  if (sessionIds.length === 0) return byId;
+  const placeholders = sessionIds.map(() => '?').join(', ');
+  const res = db.exec(
+    `SELECT s.id, r.repo_name
+       FROM sessions s JOIN repos r ON r.repo_id = s.repo_id
+      WHERE s.id IN (${placeholders})`,
+    [...sessionIds],
+  );
+  for (const row of res[0]?.values ?? []) {
+    const name = row[1] as string | null;
+    if (name !== null && name !== '') byId.set(row[0] as string, name);
+  }
+  return byId;
+}
+
+/**
  * 宣言の無いセッションを 1 セッション = 1 指示の暗黙グループとして扱うための擬似 Instruction。
  * id にセッション ID を使うのは、一覧の行を選んだときに所属セッションを引き直せるようにするため。
  * summary は空にする（推測した見出しを人が書いた指示概要と同じ顔で出さない）。
  */
-function implicitInstructionFromReview(review: FlightReview, workspaceRoot: string): Instruction {
+function implicitInstructionFromReview(review: FlightReview, workspaceName: string): Instruction {
   return {
     id: review.sessionId,
     workspacePath: review.workspacePath,
-    workspaceName: path.basename(workspaceRoot),
+    workspaceName,
     summary: '',
     originPrompt: '',
     originSessionId: review.sessionId,
@@ -657,6 +693,15 @@ function implicitInstructionFromReview(review: FlightReview, workspaceRoot: stri
 function matchesInstructionFilter(record: InstructionRecord, filter: InstructionRecordFilter): boolean {
   if (filter.outcome !== undefined && record.outcome !== filter.outcome) return false;
   if (filter.tag !== undefined && filter.tag !== '' && !record.tags.includes(filter.tag)) return false;
+  // ワークスペース名は組み立て済み record 側で判定する。SQL の workspace_path 一致では
+  // cwd 由来の差（.worktrees/<name> 等）で同一ワークスペースの行が分裂するため。
+  if (
+    filter.workspaceName !== undefined &&
+    filter.workspaceName !== '' &&
+    record.workspaceName !== filter.workspaceName
+  ) {
+    return false;
+  }
   // endedAt が無い（flight_reviews 未記録）行は期間指定では絞り込めないため、
   // 期間が指定されたときだけ落とす（指定が無ければ進行中の指示として残す）。
   if (filter.since !== undefined && filter.since !== '') {
@@ -9751,6 +9796,13 @@ export class TrailDatabase {
     const records: InstructionRecord[] = [];
     // workspace_path → ワークスペース根の解決結果。同じパスを何度も fs で辿らない。
     const workspaceRootCache = new Map<string, string>();
+    // ワークスペース名の正本はセッションのリポジトリ名。取れなければパス由来へ縮退する。
+    const repoNames = repoNamesBySessionIds(db, [
+      ...instructions.map((i) => i.originSessionId),
+      ...recentReviews.map((r) => r.sessionId),
+    ]);
+    const workspaceNameOf = (sessionId: string, recordedPath: string): string =>
+      repoNames.get(sessionId) ?? path.basename(resolveWorkspaceRoot(recordedPath, workspaceRootCache));
     // 成果物・トークンを引くための所属セッション。record からは辿れない（暗黙グループと
     // 明示指示で意味の違う ID を同じ型に同居させないため）ので、ここで対応表を持つ。
     const sessionIdsByRecord = new Map<string, string[]>();
@@ -9762,10 +9814,12 @@ export class TrailDatabase {
         .filter((r): r is FlightReview => r !== undefined);
       sessionIdsByRecord.set(instruction.id, sessionIds);
       // 宣言側が渡した workspace_name も cwd 由来になりうるので、暗黙グループと同じ規則で揃える
-      const declaredRoot = resolveWorkspaceRoot(instruction.workspacePath, workspaceRootCache);
       records.push(
         assembleInstructionRecord({
-          instruction: { ...instruction, workspaceName: path.basename(declaredRoot) },
+          instruction: {
+            ...instruction,
+            workspaceName: workspaceNameOf(instruction.originSessionId, instruction.workspacePath),
+          },
           reviews: memberReviews,
           sessionCount: sessionIds.length,
           tokenUsage: EMPTY_TOKEN_USAGE,
@@ -9788,7 +9842,10 @@ export class TrailDatabase {
       sessionIdsByRecord.set(review.sessionId, [review.sessionId]);
       records.push(
         assembleInstructionRecord({
-          instruction: implicitInstructionFromReview(review, resolveWorkspaceRoot(review.workspacePath, workspaceRootCache)),
+          instruction: implicitInstructionFromReview(
+            review,
+            workspaceNameOf(review.sessionId, review.workspacePath),
+          ),
           reviews: [review],
           sessionCount: 1,
           tokenUsage: EMPTY_TOKEN_USAGE,
@@ -9810,6 +9867,51 @@ export class TrailDatabase {
         verifications: this.instructionVerifications(sessionIds),
       };
     });
+  }
+
+  /**
+   * Flight Record のワークスペース選択肢。
+   *
+   * 一覧（`listInstructionRecords`）の結果から作らないのは、一覧が limit と絞り込みの
+   * 影響を受けるため。表示窓に出ていないワークスペースが選択肢から消えると、
+   * 「そのワークスペースの記録が無い」と読めてしまう。
+   */
+  listInstructionWorkspaces(): InstructionWorkspace[] {
+    const db = this.ensureDb();
+    const cache = new Map<string, string>();
+    const counts = new Map<string, number>();
+
+    const add = (repoName: string | null, workspacePath: string, count: number): void => {
+      // 一覧の行と同じ規則で名前を決める（リポジトリ名が正本、無ければパス由来へ縮退）。
+      // ここだけ規則がずれると、選択肢に在るのに 1 行も一致しない値が並ぶ。
+      const name = repoName !== null && repoName !== ''
+        ? repoName
+        : path.basename(resolveWorkspaceRoot(workspacePath, cache));
+      if (name === '') return;
+      counts.set(name, (counts.get(name) ?? 0) + count);
+    };
+
+    for (const sql of [
+      `SELECT r.repo_name, i.workspace_path, COUNT(*)
+         FROM instructions i
+         LEFT JOIN sessions s ON s.id = i.origin_session_id
+         LEFT JOIN repos r ON r.repo_id = s.repo_id
+        GROUP BY r.repo_name, i.workspace_path`,
+      // 宣言の無いセッション（暗黙グループ）も一覧に出るため、こちらも選択肢に要る
+      `SELECT r.repo_name, fr.workspace_path, COUNT(*)
+         FROM flight_reviews fr
+         LEFT JOIN sessions s ON s.id = fr.session_id
+         LEFT JOIN repos r ON r.repo_id = s.repo_id
+        GROUP BY r.repo_name, fr.workspace_path`,
+    ]) {
+      for (const row of db.exec(sql)[0]?.values ?? []) {
+        add(row[0] as string | null, row[1] as string, (row[2] as number | null) ?? 0);
+      }
+    }
+
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name));
   }
 
   /** 指定セッションの flight_reviews を 1 本のクエリで引く（走査窓に依存しない）。 */
