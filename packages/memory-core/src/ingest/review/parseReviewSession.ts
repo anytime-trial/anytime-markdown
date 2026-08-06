@@ -25,6 +25,8 @@ export type ParsedReviewSession = {
   target_kind: 'spec' | 'code' | 'package' | 'release' | 'mixed';
   target_refs: string[];
   body_excerpt: string;
+  /** 機械生成の要約（指摘の内訳）。LLM は使わない。 */
+  summary: string;
   findings: ParsedFinding[];
   reviewed_at: string;
 };
@@ -198,6 +200,15 @@ type ReviewBlock = {
 };
 
 /**
+ * 同一ラベルでも、これ以上間隔が空いたら別のレビュー実行とみなす。
+ *
+ * ラベル一致だけで連続とみなすと、1 セッション内で午前と午後に行った別々の
+ * レビューが 1 ブロックへ融合する（実測で最大 47 時間・60 分超が 58 ブロック）。
+ * 融合すると review 行が 1 件に潰れ、指摘も出典も混ざる。
+ */
+const REVIEW_BLOCK_GAP_MS = 30 * 60 * 1000;
+
+/**
  * Group messages into contiguous review blocks.
  *
  * Block boundary rules:
@@ -208,6 +219,9 @@ type ReviewBlock = {
  *   `skill='superpowers:requesting-code-review'` will produce 2 separate blocks.
  *   This is intentional: they represent distinct review invocations even though
  *   they share a session.
+ * - A new block also starts when the gap from the previous message exceeds
+ *   {@link REVIEW_BLOCK_GAP_MS}. 走査対象はレビュー関連行だけに絞り込まれている
+ *   ため、「連続」は時系列上の近接を意味しない。
  */
 function groupIntoBlocks(
   rows: MsgRow[],
@@ -217,6 +231,7 @@ function groupIntoBlocks(
 
   let currentSession: string | null = null;
   let currentLabel: string | null = null;
+  let previousTimestamp: number | null = null;
   let currentBlock: MsgRow[] = [];
 
   function flushBlock(): void {
@@ -238,14 +253,20 @@ function groupIntoBlocks(
 
   for (const row of rows) {
     const label = row.subagent_type ?? row.skill ?? null;
+    const timestamp = Date.parse(row.timestamp);
+    const gapExceeded =
+      previousTimestamp !== null &&
+      Number.isFinite(timestamp) &&
+      timestamp - previousTimestamp > REVIEW_BLOCK_GAP_MS;
 
-    if (row.session_id !== currentSession || label !== currentLabel) {
+    if (row.session_id !== currentSession || label !== currentLabel || gapExceeded) {
       flushBlock();
       currentSession = row.session_id;
       currentLabel = label;
     }
 
     currentBlock.push(row);
+    previousTimestamp = Number.isFinite(timestamp) ? timestamp : previousTimestamp;
   }
 
   flushBlock();
@@ -283,6 +304,8 @@ function buildSessionFromBlock(
   // 'superpowers:requesting-code-review'。どちらも無ければ 'unknown'。
   const reviewer = firstRow.subagent_type ?? firstRow.skill ?? 'unknown';
 
+  const findings = extractFindings(fullBody);
+
   return {
     session_id: block.session_id,
     message_uuid_start: firstRow.uuid,
@@ -292,9 +315,27 @@ function buildSessionFromBlock(
     target_kind: inferTargetKind(target_refs),
     target_refs,
     body_excerpt,
-    findings: extractFindings(fullBody),
+    summary: summarizeFindings(findings, fullBody.length),
+    findings,
     reviewed_at: firstRow.timestamp,
   };
+}
+
+/**
+ * 指摘の内訳を決定論的に 1 行へまとめる。LLM を使わないのは、要約の生成失敗が
+ * レビュー取込を止める理由にならないため。
+ *
+ * 指摘 0 件でも本文長を残す。「レビューしたが指摘なし」と「本文を取り込めていない」
+ * を一覧上で区別できるようにするため（空文字だと後者と見分けられない）。
+ */
+function summarizeFindings(findings: ParsedFinding[], bodyLength: number): string {
+  const counts = { error: 0, warn: 0, info: 0 };
+  for (const finding of findings) counts[finding.severity]++;
+  if (findings.length === 0) return `指摘なし（本文 ${bodyLength} 文字）`;
+  return (
+    `指摘 ${findings.length} 件（error ${counts.error} / warn ${counts.warn} / info ${counts.info}）` +
+    `・本文 ${bodyLength} 文字`
+  );
 }
 
 export function parseReviewSessions(input: {
@@ -338,18 +379,15 @@ export function parseReviewSessions(input: {
   const blocks = groupIntoBlocks(allRows, logger);
 
   // 3. Build ParsedReviewSession for each block
+  //    本文が 1 文字も無いブロックは登録しない。スキル起動のメッセージ列
+  //    （`skill='superpowers:requesting-code-review'` 等）は allowlist に一致する
+  //    ものの、レビュー結果ではなく起動の痕跡でしかなく、本文ゼロのまま
+  //    memory_reviews へ入って「タイトルだけの殻」を量産していた（実測 293 件）。
   const results: ParsedReviewSession[] = [];
-  let blockIndexInSession = 0;
-  let lastSessionId: string | null = null;
-
   for (const block of blocks) {
-    if (block.session_id === lastSessionId) {
-      blockIndexInSession++;
-    } else {
-      blockIndexInSession = 0;
-      lastSessionId = block.session_id;
-    }
-    results.push(buildSessionFromBlock(block, logger));
+    const session = buildSessionFromBlock(block, logger);
+    if (session.body_excerpt.length === 0) continue;
+    results.push(session);
   }
 
   return results;

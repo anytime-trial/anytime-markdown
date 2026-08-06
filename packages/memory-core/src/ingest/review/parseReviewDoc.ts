@@ -28,7 +28,12 @@ export type ParsedReviewDoc = {
   };
   targetRefs: string[];
   findings: ParsedFinding[];
+  /** 本文の保存・表示用（先頭 BODY_EXCERPT_MAX 文字）。指摘抽出には全文を使う。 */
+  bodyExcerpt: string;
 };
+
+/** memory_reviews.body_excerpt に入れる本文の上限（parseReviewSession と揃える）。 */
+const BODY_EXCERPT_MAX = 4096;
 
 export function parseReviewDoc(input: {
   rel_path: string;
@@ -172,5 +177,7 @@ export function parseReviewDoc(input: {
     },
     targetRefs: allTargetRefs,
     findings,
+    bodyExcerpt:
+      fm.content.length > BODY_EXCERPT_MAX ? fm.content.slice(0, BODY_EXCERPT_MAX) : fm.content,
   };
 }

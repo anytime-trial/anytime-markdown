@@ -2,6 +2,7 @@ import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3Memo
 import { runEmbeddingBackfill } from '../../src/pipeline/runEmbeddingBackfill';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { encodeEmbedding } from '../../src/embedding/codec';
+import { runMigrations } from '../../src/db/migrations/runner';
 
 function makeVec(seed: number): Float32Array {
   const v = new Float32Array(1024);
@@ -22,59 +23,45 @@ function mockOllama(
   };
 }
 
+/**
+ * 実マイグレーションでスキーマを作る。手書きの最小スキーマは実テーブルの列
+ * （valid_until など）が抜けて、本番でだけ落ちる差分を作る。
+ */
 async function makeDb() {
   const db = BetterSqlite3MemoryDb.openInMemory();
-  db.run(`
-    CREATE TABLE memory_entities (
-      id             TEXT PRIMARY KEY,
-      type           TEXT NOT NULL,
-      canonical_name TEXT NOT NULL,
-      display_name   TEXT NOT NULL,
-      summary        TEXT NOT NULL DEFAULT '',
-      embedding      BLOB,
-      first_seen_at  TEXT NOT NULL DEFAULT '2026-01-01T00:00:00.000Z',
-      last_updated_at TEXT NOT NULL DEFAULT '2026-01-01T00:00:00.000Z',
-      recorded_at    TEXT NOT NULL DEFAULT '2026-01-01T00:00:00.000Z',
-      aliases_json   TEXT NOT NULL DEFAULT '[]',
-      tags_json      TEXT NOT NULL DEFAULT '[]',
-      attributes_json TEXT NOT NULL DEFAULT '{}'
-    ) STRICT
-  `);
-  db.run(`
-    CREATE TABLE memory_failed_items (
-      scope         TEXT NOT NULL,
-      item_key      TEXT NOT NULL,
-      failed_at     TEXT NOT NULL DEFAULT '2026-01-01T00:00:00.000Z',
-      reason        TEXT NOT NULL,
-      detail        TEXT NOT NULL DEFAULT '',
-      attempt_count INTEGER NOT NULL DEFAULT 1,
-      PRIMARY KEY (scope, item_key)
-    ) STRICT
-  `);
-  db.run(`
-    CREATE TABLE pipeline_runs (
-      id                 TEXT PRIMARY KEY,
-      scope              TEXT NOT NULL,
-      status             TEXT NOT NULL,
-      started_at         TEXT NOT NULL DEFAULT '2026-01-01T00:00:00.000Z',
-      finished_at        TEXT,
-      duration_ms        INTEGER NOT NULL DEFAULT 0,
-      items_processed    INTEGER NOT NULL DEFAULT 0,
-      items_failed       INTEGER NOT NULL DEFAULT 0,
-      entities_inserted  INTEGER NOT NULL DEFAULT 0,
-      entities_updated   INTEGER NOT NULL DEFAULT 0,
-      edges_inserted     INTEGER NOT NULL DEFAULT 0,
-      edges_invalidated  INTEGER NOT NULL DEFAULT 0
-    ) STRICT
-  `);
+  db.run('PRAGMA foreign_keys = ON');
+  runMigrations(db);
   return db;
 }
 
+const AT = '2026-01-01T00:00:00.000Z';
+
 function insertEntity(db: BetterSqlite3MemoryDb, id: string, displayName: string, summary = '', embedding?: Float32Array) {
   db.run(
-    `INSERT INTO memory_entities (id, type, canonical_name, display_name, summary, embedding)
-     VALUES (?, 'Concept', ?, ?, ?, ?)`,
-    [id, displayName, displayName, summary, embedding ? encodeEmbedding(embedding) : null]
+    `INSERT INTO memory_entities
+       (id, type, canonical_name, display_name, summary, embedding,
+        first_seen_at, last_updated_at, recorded_at)
+     VALUES (?, 'Concept', ?, ?, ?, ?, ?, ?, ?)`,
+    [id, displayName, displayName, summary, embedding ? encodeEmbedding(embedding) : null, AT, AT, AT]
+  );
+}
+
+function insertEpisode(db: BetterSqlite3MemoryDb, id: string, excerpt: string, summary = '') {
+  db.run(
+    `INSERT INTO memory_episodes
+       (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model,
+        valid_from, recorded_at, raw_excerpt, summary)
+     VALUES (?, 'sess-1', ?, ?, 'claude_code', 'test-model', ?, ?, ?, ?)`,
+    [id, `${id}-start`, `${id}-end`, AT, AT, excerpt, summary]
+  );
+}
+
+function insertSpecDoc(db: BetterSqlite3MemoryDb, id: string, title: string, summary = '') {
+  db.run(
+    `INSERT INTO memory_spec_documents
+       (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, summary, recorded_at)
+     VALUES (?, ?, 'spec', ?, '[]', ?, 'hash', ?, ?)`,
+    [id, `${id}.ja.md`, title, AT, summary, AT]
   );
 }
 
@@ -134,9 +121,10 @@ describe('runEmbeddingBackfill', () => {
     expect(result.items_processed).toBe(1);
     expect(result.status).toBe('partial');
 
+    // item_key はテーブル名で修飾する（id はテーブルをまたぐと衝突しうるため）
     const failed = db.exec("SELECT item_key FROM memory_failed_items WHERE scope='embedding_backfill'");
     expect(failed[0].values.length).toBe(1);
-    expect(failed[0].values[0][0]).toBe('e1');
+    expect(failed[0].values[0][0]).toBe('entities:e1');
   });
 
   it('entity が 0 件のとき items_processed=0 で success を返す', async () => {
@@ -153,8 +141,8 @@ describe('runEmbeddingBackfill', () => {
     insertEntity(db, 'e2', 'React');
     db.run(
       `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
-       VALUES ('embedding_backfill', 'e1', '2026-05-12T00:00:00.000Z', 'embedding_failed', 'ollama_unreachable', 1),
-              ('embedding_backfill', 'e2', '2026-05-12T00:00:00.000Z', 'embedding_failed', 'ollama_unreachable', 1),
+       VALUES ('embedding_backfill', 'entities:e1', '2026-05-12T00:00:00.000Z', 'embedding_failed', 'ollama_unreachable', 1),
+              ('embedding_backfill', 'entities:e2', '2026-05-12T00:00:00.000Z', 'embedding_failed', 'ollama_unreachable', 1),
               ('conversation_incremental', 'e1', '2026-05-12T00:00:00.000Z', 'extraction_failed', '', 1)`,
       []
     );
@@ -165,6 +153,59 @@ describe('runEmbeddingBackfill', () => {
       "SELECT scope, item_key FROM memory_failed_items ORDER BY scope, item_key"
     );
     expect(remaining[0].values).toEqual([['conversation_incremental', 'e1']]);
+  });
+
+  it('episode と spec_document の embedding も生成する', async () => {
+    const db = await makeDb();
+    insertEntity(db, 'e1', 'TypeScript');
+    insertEpisode(db, 'ep1', 'ユーザーの発話', '要約');
+    insertSpecDoc(db, 'doc1', '設計書タイトル', '設計書の要約');
+
+    const result = await runEmbeddingBackfill({ db, ollama: mockOllama(() => makeVec(7)) });
+
+    expect(result.items_processed).toBe(3);
+    expect(result.processed_by_target).toEqual({ entities: 1, episodes: 1, spec_documents: 1 });
+    for (const table of ['memory_entities', 'memory_episodes', 'memory_spec_documents']) {
+      const rows = db.exec(`SELECT embedding FROM ${table}`);
+      expect(rows[0].values[0][0]).not.toBeNull();
+      expect((rows[0].values[0][0] as Uint8Array).byteLength).toBe(4096);
+    }
+  });
+
+  it('episode の embed テキストは summary + raw_excerpt', async () => {
+    const db = await makeDb();
+    insertEpisode(db, 'ep1', 'マージして', 'develop へのマージ依頼');
+    const prompts: string[] = [];
+    await runEmbeddingBackfill({
+      db,
+      ollama: mockOllama((prompt) => { prompts.push(prompt); return makeVec(1); }),
+    });
+    expect(prompts).toEqual(['develop へのマージ依頼\nマージして']);
+  });
+
+  it('無効化済み entity は embedding を生成しない', async () => {
+    const db = await makeDb();
+    insertEntity(db, 'e1', 'Alive');
+    insertEntity(db, 'e2', 'Removed');
+    db.run("UPDATE memory_entities SET valid_until = '2026-05-12T00:00:00.000Z' WHERE id = 'e2'");
+
+    const result = await runEmbeddingBackfill({ db, ollama: mockOllama(() => makeVec(1)) });
+
+    expect(result.processed_by_target.entities).toBe(1);
+    const row = db.exec("SELECT embedding FROM memory_entities WHERE id = 'e2'");
+    expect(row[0].values[0][0]).toBeNull();
+  });
+
+  it('本文が空の行は embedding を作らず failed_items に残す', async () => {
+    const db = await makeDb();
+    insertEpisode(db, 'ep-blank', '   ');
+
+    const result = await runEmbeddingBackfill({ db, ollama: mockOllama(() => makeVec(1)) });
+
+    expect(result.items_processed).toBe(0);
+    expect(result.items_failed).toBe(1);
+    const failed = db.exec("SELECT item_key, reason FROM memory_failed_items WHERE scope='embedding_backfill'");
+    expect(failed[0].values[0]).toEqual(['episodes:ep-blank', 'empty_text']);
   });
 
   it('embed テキストは type + display_name + summary で構成される', async () => {

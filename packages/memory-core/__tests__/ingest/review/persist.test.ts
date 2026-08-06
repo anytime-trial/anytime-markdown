@@ -88,6 +88,7 @@ function makeSession(overrides: Partial<ParsedReviewSession> = {}): ParsedReview
     target_kind: 'code',
     target_refs: ['src/bar.ts'],
     body_excerpt: 'review body',
+    summary: '指摘 1 件（error 0 / warn 0 / info 1）・本文 11 文字',
     reviewed_at: TS,
     findings: [makeFinding({ finding_index: 0 })],
     ...overrides,

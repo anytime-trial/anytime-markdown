@@ -178,10 +178,10 @@ export function upsertReviewDoc(
       `INSERT OR IGNORE INTO memory_reviews
          (id, source_kind, source_ref, source_hash, review_entity_id,
           target_kind, target_refs_json, title, reviewer, severity_overall,
-          reviewed_at, recorded_at)
+          summary, body_excerpt, reviewed_at, recorded_at)
        VALUES (?, 'review_doc', ?, ?, ?,
                ?, ?, ?, ?, ?,
-               ?, ?)`,
+               ?, ?, ?, ?)`,
       [
         reviewEntityId,
         relPath,
@@ -193,6 +193,8 @@ export function upsertReviewDoc(
         doc.frontmatter.reviewer ?? '',
         // frontmatter.severity を優先し、無ければ指摘群の最大重大度を採用。
         doc.frontmatter.severity ?? maxSeverity(doc.findings),
+        doc.frontmatter.excerpt ?? '',
+        doc.bodyExcerpt ?? '',
         reviewedAt,
         recordedAt,
       ],
@@ -204,6 +206,15 @@ export function upsertReviewDoc(
       db.run(
         `UPDATE memory_reviews SET source_hash=? WHERE source_kind='review_doc' AND source_ref=?`,
         [sourceHash, relPath],
+      );
+    }
+
+    // 本文列は後から追加されたため、既存行は空のまま残っている。再 ingest で補う。
+    if (!reviewInserted) {
+      db.run(
+        `UPDATE memory_reviews SET summary = ?, body_excerpt = ?
+          WHERE id = ? AND (summary = '' OR body_excerpt = '')`,
+        [doc.frontmatter.excerpt ?? '', doc.bodyExcerpt, reviewEntityId],
       );
     }
 
@@ -296,10 +307,10 @@ export function upsertReviewSession(
       `INSERT OR IGNORE INTO memory_reviews
          (id, source_kind, source_ref, source_hash, review_entity_id,
           target_kind, target_refs_json, title, reviewer, severity_overall,
-          reviewed_at, recorded_at)
+          summary, body_excerpt, reviewed_at, recorded_at)
        VALUES (?, 'session', ?, '', ?,
                ?, ?, ?, ?, ?,
-               ?, ?)`,
+               ?, ?, ?, ?)`,
       [
         reviewEntityId,
         sourceRef,
@@ -309,11 +320,23 @@ export function upsertReviewSession(
         `Session review ${session.session_id.slice(0, 8)}`,
         session.reviewer,
         maxSeverity(session.findings),
+        session.summary ?? '',
+        session.body_excerpt ?? '',
         session.reviewed_at,
         recordedAt,
       ],
     );
     const reviewInserted = db.getRowsModified() > 0;
+
+    // 既存行（INSERT OR IGNORE で素通りしたもの）にも本文を補う。
+    // 本文列は後から追加されたため、既存行は空のまま残っている。
+    if (!reviewInserted) {
+      db.run(
+        `UPDATE memory_reviews SET summary = ?, body_excerpt = ?
+          WHERE id = ? AND (summary = '' OR body_excerpt = '')`,
+        [session.summary ?? '', session.body_excerpt ?? '', reviewEntityId],
+      );
+    }
 
     // Insert findings
     for (const finding of session.findings) {

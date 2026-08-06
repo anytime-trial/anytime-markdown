@@ -715,16 +715,18 @@ describe('MemoryDbSession', () => {
       const session = makeSession(memDb, trailDb);
 
       mockRunEmbeddingBackfill.mockResolvedValue({
-        status: 'ok',
+        status: 'success',
         items_processed: 10,
         items_failed: 1,
+        items_skipped: 0,
+        processed_by_target: { entities: 10, episodes: 0, spec_documents: 0 },
       });
 
       const result = await session.runEmbeddingBackfill();
 
       expect(mockRunEmbeddingBackfill).toHaveBeenCalledTimes(1);
       expect(result.scope).toBe('embedding_backfill');
-      expect(result.status).toBe('ok');
+      expect(result.status).toBe('success');
       expect(result.itemsProcessed).toBe(10);
       expect(result.itemsFailed).toBe(1);
       expect(memDb.save).toHaveBeenCalled();
@@ -744,7 +746,7 @@ describe('MemoryDbSession', () => {
         embedModel: 'my-embed-model',
       });
 
-      mockRunEmbeddingBackfill.mockResolvedValue({ status: 'ok', items_processed: 0, items_failed: 0 });
+      mockRunEmbeddingBackfill.mockResolvedValue({ status: 'success', items_processed: 0, items_failed: 0, items_skipped: 0, processed_by_target: { entities: 0, episodes: 0, spec_documents: 0 } });
 
       await session.runEmbeddingBackfill();
 
@@ -1075,7 +1077,13 @@ describe('MemoryDbSession', () => {
       mockRunEmbeddingBackfill.mockImplementation(async (opts) => {
         opts.onTotal?.(5);
         opts.progress?.(2, 0);
-        return { status: 'ok', items_processed: 2, items_failed: 0 };
+        return {
+          status: 'success',
+          items_processed: 2,
+          items_failed: 0,
+          items_skipped: 0,
+          processed_by_target: { entities: 2, episodes: 0, spec_documents: 0 },
+        };
       });
 
       await session.runEmbeddingBackfill();
