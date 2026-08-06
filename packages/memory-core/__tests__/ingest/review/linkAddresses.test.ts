@@ -622,6 +622,48 @@ describe('linkAddresses', () => {
       close();
     }, 30000);
 
+    test('candidates と skipped の合計が未対処の総件数と一致する（不変条件）', async () => {
+      // countSkips は母集合クエリと別の SELECT で、条件が独立に保守されている。
+      // 片方だけ変えると合計が母数と合わなくなるので、その不整合をここで捕まえる。
+      const { db, findingId, close } = await buildSetup({
+        findingText: 'border 1px fix needed for the button element',
+        severity: 'warn',
+        targetFilePath: 'src/foo.ts',
+      });
+
+      const extras: ReadonlyArray<[string, string, string | null, string | null]> = [
+        ['rf-extra-info', 'info', 'src/foo.ts', REPO_NAME],
+        ['rf-extra-nopath', 'error', null, null],
+        ['rf-extra-norepo', 'error', 'src/bar.ts', null],
+      ];
+      const base = db.exec(`SELECT review_id, finding_entity_id FROM memory_review_findings WHERE id = ?`, [findingId]);
+      const reviewId = String(base[0].values[0][0]);
+      const entityId = String(base[0].values[0][1]);
+      let index = 1;
+      for (const [id, severity, path, repo] of extras) {
+        db.run(
+          `INSERT INTO memory_review_findings
+             (id, review_id, finding_entity_id, finding_index,
+              target_file_path, target_repo, severity, finding_text, recorded_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'x', '2026-04-20T00:00:00.000Z')`,
+          [id, reviewId, entityId, index++, path, repo, severity],
+        );
+      }
+
+      const result = linkAddresses({ db, logger: makeLogger() });
+      // linkAddresses はリンクした指摘へ addressed_at を書くため、母数は残数 + リンク数。
+      const totalRow = db.exec(`SELECT COUNT(*) FROM memory_review_findings WHERE addressed_at IS NULL`);
+      const remaining = Number(totalRow[0].values[0][0]);
+      const skipped = result.skipped!;
+      expect(result.candidates + skipped.severity_info + skipped.no_target_path + skipped.unresolved_repo).toBe(
+        remaining + result.findings_linked,
+      );
+      expect(skipped).toEqual({ severity_info: 1, no_target_path: 1, unresolved_repo: 1 });
+      expect(result.candidates).toBe(1);
+
+      close();
+    }, 30000);
+
     test('集計結果をログへ 1 行残す', async () => {
       const { db, close } = await buildSetup({
         findingText: 'ここは info の指摘',

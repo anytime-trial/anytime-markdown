@@ -500,3 +500,34 @@ export function extractTargetFromFinding(text: string): string | null {
   if (srcCand) return srcCand;
   return candidates[0];
 }
+
+/**
+ * finding 1 件の対象パスを決める。Route A / Route B の共通ロジック。
+ *
+ * 優先順位:
+ * 1. その finding 自身の本文にある `- **対象**:`
+ * 2. チャプター先頭のマーカー — ただし**そのチャプターが finding を 1 件しか生まないとき
+ *    に限る**
+ * 3. 本文からのパス推測（`extractTargetFromFinding`）
+ *
+ * 2 の条件を付けるのは、`### N.` 見出しを使わない形式（絵文字＋`**N. タイトル**` 等）だと
+ * 複数の finding が 1 チャプターに同居するため。先頭のマーカーを全件へ流用すると、
+ * 2 件目以降が別ファイルの指摘でも同じ対象を持ち、`linkAddresses` が無関係なコミットを
+ * addressed として確定させる。severity / category もチャプター粒度で共有しているが、
+ * それらの取り違えは表示の誤りで済むのに対し、target の取り違えは誤リンクという
+ * 取り消しにくい記録を生む。影響が非対称なので、ここだけ粒度を厳しくする（fail-closed）。
+ */
+export function resolveFindingTarget(input: {
+  /** この finding 自身のテキスト（見出し＋問題本文＋提案本文）。 */
+  readonly ownText: string;
+  /** チャプター全体から取れた `- **対象**:` の値。無ければ null。 */
+  readonly chapterTarget: string | null;
+  /** 同じチャプターから生まれる finding の件数。 */
+  readonly chapterFindingCount: number;
+}): string | null {
+  return (
+    parseTargetMarker(input.ownText) ??
+    (input.chapterFindingCount === 1 ? input.chapterTarget : null) ??
+    extractTargetFromFinding(input.ownText)
+  );
+}

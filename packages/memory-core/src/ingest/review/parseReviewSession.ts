@@ -10,8 +10,8 @@ import {
   splitIntoChapters,
   extractProblemSuggestionPairs,
   extractNumberedFindings,
-  extractTargetFromFinding,
   parseTargetMarker,
+  resolveFindingTarget,
 } from './findingHelpers';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -153,15 +153,18 @@ function extractFindings(bodyText: string): ParsedFinding[] {
     const checklistRef = parseChecklistRefMarker(chapterBody);
     // 明示された `- **対象**:` を最優先。本文からの推測はコード例に現れる
     // 実在しないパス（`src/foo.ts` 等）を拾うため、書かれている方を信用する。
-    const markerTarget = parseTargetMarker(chapterBody);
+    // チャプターに複数 finding が同居する場合の扱いは resolveFindingTarget を参照。
+    const chapterTarget = parseTargetMarker(chapterBody);
 
     // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
     const pairs = extractProblemSuggestionPairs(chapter.lines);
     if (pairs.length > 0) {
       for (const [findingText, suggestionText] of pairs) {
-        const target =
-          markerTarget ??
-          extractTargetFromFinding(chapter.heading + '\n' + findingText + '\n' + suggestionText);
+        const target = resolveFindingTarget({
+          ownText: chapter.heading + '\n' + findingText + '\n' + suggestionText,
+          chapterTarget,
+          chapterFindingCount: pairs.length,
+        });
         findings.push(makeFinding(findingIndex++, target, category, severity, findingText, suggestionText, chapter.heading, is_category_inferred, checklistRef));
       }
       continue;
@@ -171,7 +174,11 @@ function extractFindings(bodyText: string): ParsedFinding[] {
     const numbered = extractNumberedFindings(chapter.lines);
     for (const nf of numbered) {
       const findingText = nf.title + (nf.finding ? `\n\n${nf.finding}` : '');
-      const target = markerTarget ?? extractTargetFromFinding(findingText + '\n' + nf.suggestion);
+      const target = resolveFindingTarget({
+        ownText: findingText + '\n' + nf.suggestion,
+        chapterTarget,
+        chapterFindingCount: numbered.length,
+      });
       findings.push(makeFinding(findingIndex++, target, category, severity, findingText, nf.suggestion, chapter.heading, is_category_inferred, checklistRef));
     }
   }

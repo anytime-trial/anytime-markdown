@@ -9,6 +9,7 @@ import {
   parseSeverityMarker,
   parseChecklistRefMarker,
   parseTargetMarker,
+  resolveFindingTarget,
 } from '../../../src/ingest/review/findingHelpers';
 
 describe('maxSeverity', () => {
@@ -569,5 +570,39 @@ describe('parseTargetMarker', () => {
 
   test('コードブロック内の 対象: は拾わない', () => {
     expect(parseTargetMarker('```\n対象: `packages/x/src/f.ts`\n```')).toBeNull();
+  });
+});
+
+describe('resolveFindingTarget', () => {
+  const own = '### 1. NULL 参照\n`src/foo.ts` を例に説明する。';
+
+  test('finding 自身のマーカーが最優先', () => {
+    expect(
+      resolveFindingTarget({
+        ownText: '- **対象**: `packages/a/src/own.ts`\n' + own,
+        chapterTarget: 'packages/a/src/chapter.ts',
+        chapterFindingCount: 3,
+      }),
+    ).toBe('packages/a/src/own.ts');
+  });
+
+  test('チャプターに finding が 1 件だけならチャプターのマーカーを使う', () => {
+    expect(
+      resolveFindingTarget({ ownText: own, chapterTarget: 'packages/a/src/chapter.ts', chapterFindingCount: 1 }),
+    ).toBe('packages/a/src/chapter.ts');
+  });
+
+  test('複数 finding が同居するチャプターではチャプターのマーカーを流用しない', () => {
+    // 流用すると 2 件目以降が別ファイルの指摘でも同じ対象を持ち、linkAddresses が
+    // 無関係なコミットを addressed として確定させる。本文推測へ落とす（fail-closed）。
+    expect(
+      resolveFindingTarget({ ownText: own, chapterTarget: 'packages/a/src/chapter.ts', chapterFindingCount: 2 }),
+    ).toBe('src/foo.ts');
+  });
+
+  test('マーカーも本文のパスも無ければ null', () => {
+    expect(
+      resolveFindingTarget({ ownText: '対象の書かれていない指摘', chapterTarget: null, chapterFindingCount: 1 }),
+    ).toBeNull();
   });
 });
