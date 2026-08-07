@@ -15,6 +15,7 @@ import { runCodeIncremental } from '../pipeline/runCodeIncremental';
 import { runCodeReconciliation } from '../pipeline/runCodeReconciliation';
 import { runBugHistoryIncremental } from '../pipeline/runBugHistoryIncremental';
 import { runReviewIncremental } from '../pipeline/runReviewIncremental';
+import { runReviewBackfill } from '../pipeline/runReviewBackfill';
 import { runSpecIncremental } from '../pipeline/runSpecIncremental';
 import { runSpecReconciliation } from '../pipeline/runSpecReconciliation';
 import { runDriftDetection } from '../pipeline/runDriftDetection';
@@ -325,6 +326,52 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
   }
 
   // ── review ──────────────────────────────────────────────────────────────────
+  /**
+   * runReviewBackfill を 1 回だけ実行する。
+   *
+   * 完了印は memory_pipeline_state の専用スコープに置く。毎回走らせないのは、
+   * 全期間のメッセージ再走査が数十秒かかるため。失敗しても取込本体は止めない
+   * （是正は次回に持ち越せる）。
+   */
+  private runReviewBackfillOnce(): void {
+    const { memDb } = this.deps;
+    const scope = 'review_body_backfill';
+    const stmt = memDb.db.prepare('SELECT status FROM memory_pipeline_state WHERE scope = ?');
+    let done = false;
+    try {
+      done = stmt.get(scope)?.['status'] === 'done';
+    } finally {
+      stmt.free?.();
+    }
+    if (done) return;
+
+    const recordedAt = new Date().toISOString();
+    try {
+      const result = runReviewBackfill({ db: memDb.db, recordedAt, logger: this.logger });
+      if (result.status !== 'success') {
+        this.logger.error(
+          `[${recordedAt}] [ERROR] [anytime-memory] runReviewBackfillOnce: ${result.error_detail}`,
+        );
+        return;
+      }
+      memDb.db.run(
+        `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
+         VALUES (?, 'done', ?, '')
+         ON CONFLICT(scope) DO UPDATE SET status = 'done', last_processed_at = excluded.last_processed_at`,
+        [scope, recordedAt],
+      );
+      this.logger.info(
+        `[${recordedAt}] [INFO] [anytime-memory] runReviewBackfillOnce: ` +
+          `bodies_filled=${result.bodies_filled} shells_removed=${result.shells_removed}`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `[${recordedAt}] [ERROR] [anytime-memory] runReviewBackfillOnce: 失敗（取込は継続）`,
+        err,
+      );
+    }
+  }
+
   async runReview(): Promise<ScopeResult> {
     const { memDb, ollama } = this.deps;
     const logger = this.logger;
@@ -332,6 +379,11 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
     const model = this.deps.chatModel ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';
     this.status?.start('review_incremental');
     try {
+      // カーソルより古い session review 行の是正。runReviewIncremental は
+      // last_processed_at 以降しか読まないため、過去行はこの経路でしか埋まらない。
+      // 1 回で収束するので、完了を pipeline_state に記録して以後は走らせない。
+      this.runReviewBackfillOnce();
+
       const reviewResult = await runReviewIncremental({
         db: memDb.db,
         repoName: this.repoName,
