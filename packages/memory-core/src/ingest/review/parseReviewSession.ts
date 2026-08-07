@@ -27,6 +27,11 @@ export type ParsedReviewSession = {
   body_excerpt: string;
   /** 機械生成の要約（指摘の内訳）。LLM は使わない。 */
   summary: string;
+  /**
+   * 切り詰め前の本文全体。保存はしない（DB へ入るのは body_excerpt）が、
+   * LLM 再抽出（runReviewFindingExtraction）は全文を読む必要があるため公開する。
+   */
+  full_body: string;
   findings: ParsedFinding[];
   reviewed_at: string;
 };
@@ -315,6 +320,7 @@ function buildSessionFromBlock(
     target_kind: inferTargetKind(target_refs),
     target_refs,
     body_excerpt,
+    full_body: fullBody,
     summary: summarizeFindings(findings, fullBody.length),
     findings,
     reviewed_at: firstRow.timestamp,

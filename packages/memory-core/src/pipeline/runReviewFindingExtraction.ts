@@ -92,7 +92,8 @@ const PROMPT_TEMPLATE = `あなたはコードレビュー記録の構造化を�
 各指摘について次を返す。
 
 - title: 30 文字以内の要約
-- quote: **本文からの逐語引用**（24 文字以上・改変禁止）。その指摘を述べている箇所をそのままコピーする。総合評価や良い点のセクションから引用してはならない
+- quote: **本文からの逐語引用**（24〜200 文字・改変禁止）。その指摘を述べている**地の文を 1 行だけ**コピーする。総合評価や良い点のセクションから引用してはならない。
+  **コードブロック・バッククォート 3 連・改行を含めてはならない**（JSON が壊れるため）
 - finding_text: 何が問題かの説明
 - suggestion_text: 修正案（本文に無ければ空文字）
 - severity: error / warn / info のいずれか（判断できなければその指摘を出さない）
@@ -100,6 +101,8 @@ const PROMPT_TEMPLATE = `あなたはコードレビュー記録の構造化を�
 - target_file_path: 対象ファイルのパス（本文に書かれていなければ空文字）
 
 指摘が 1 件も無ければ findings を空配列にする。**本文に書かれていないことを足さない。**
+
+すべての値は 1 行の文字列にする。改行・コードブロックを値へ入れない。
 
 出力形式:
 {"findings":[{"title":"...","quote":"...","finding_text":"...","suggestion_text":"...","severity":"warn","category":"logic","target_file_path":"..."}]}
@@ -147,6 +150,42 @@ function findingSectionsOf(body: string): string {
 }
 
 /**
+ * JSON 文字列リテラルの内側にある**裸の改行だけ**を `\n` へ置き換える。
+ *
+ * `"` の内外を 1 文字ずつ追跡し、エスケープ済みの `\"` は状態を反転させない。
+ * 構造（`{}` `[]` `,`）には触れないので、壊れ方が改行以外なら parse は失敗したままになる
+ * （推測で修復すると、モデルが途中で切った出力を「完全な結果」として登録してしまう）。
+ */
+function escapeRawNewlinesInStrings(json: string): string {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (const ch of json) {
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      out += ch;
+      continue;
+    }
+    if (inString && (ch === '\n' || ch === '\r')) {
+      out += ch === '\n' ? '\\n' : '\\r';
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/**
  * LLM 応答から findings 配列を取り出す。
  *
  * `format: 'json'` を指定しても思考ブロックや前置きが混ざるモデルがあるため、
@@ -168,15 +207,23 @@ function parseFindings(
     );
     return null;
   }
+  const jsonText = responseText.slice(start, end + 1);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(responseText.slice(start, end + 1));
-  } catch (err) {
-    logger.warn?.(
-      `[anytime-memory] runReviewFindingExtraction: JSON parse 失敗 review=${reviewId} ` +
-        `err=${err instanceof Error ? err.message : String(err)} head="${head}"`,
-    );
-    return null;
+    parsed = JSON.parse(jsonText);
+  } catch (firstErr) {
+    // 実測で支配的な壊れ方は「値の中に生の改行が入る」（コードブロックを引用したとき）。
+    // 文字列リテラル内の裸の改行だけをエスケープして 1 度だけ復旧を試みる。
+    // これで直らないものは捨てる（壊れた JSON を推測で埋めない）。
+    try {
+      parsed = JSON.parse(escapeRawNewlinesInStrings(jsonText));
+    } catch {
+      logger.warn?.(
+        `[anytime-memory] runReviewFindingExtraction: JSON parse 失敗 review=${reviewId} ` +
+          `err=${firstErr instanceof Error ? firstErr.message : String(firstErr)} head="${head}"`,
+      );
+      return null;
+    }
   }
   if (typeof parsed !== 'object' || parsed === null) {
     logger.warn?.(
