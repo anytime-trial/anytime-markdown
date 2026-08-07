@@ -88,9 +88,12 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
     source TEXT NOT NULL DEFAULT 'claude_code'
       CHECK (source IN ('claude_code','codex','gemini','cursor','other'))
   ) STRICT`);
+  // 本番 trail.messages と同じ列を持たせる。レビュー取込は tool_calls /
+  // subagent_type / skill を SELECT するため、欠けると SQL エラーで経路ごと死ぬ。
   db.run(`CREATE TABLE messages (
     uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT,
+    tool_calls TEXT, subagent_type TEXT, skill TEXT,
     is_sidechain INTEGER NOT NULL DEFAULT 0
   ) STRICT`);
   return db;
@@ -535,6 +538,34 @@ describe('MemoryDbSession', () => {
       expect(result.status).toBe('ok');
       expect(result.itemsProcessed).toBe(2);
       expect(memDb.save).toHaveBeenCalled();
+
+      trailDb.close();
+    });
+
+    // runReviewBackfillOnce の失敗は「取込は継続」の設計で握り潰されるため、
+    // 完了印が残ったかを見ないと壊れていても気づけない（実測: scope の CHECK 制約に
+    // 新スコープが無く、印の書き込みが毎回例外になっていた）。
+    it('review_body_backfill の完了印を残し、2 回目は走らせない', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+      mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 0 });
+
+      await session.runReview();
+
+      const first = memDb.db.exec(
+        "SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+      );
+      const firstAt = String(first[0]?.values?.[0]?.[0] ?? '');
+      expect(firstAt).not.toBe('');
+
+      await session.runReview();
+
+      const second = memDb.db.exec(
+        "SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+      );
+      // 印が更新されていない = 2 回目は backfill 本体を実行していない
+      expect(String(second[0]?.values?.[0]?.[0] ?? '')).toBe(firstAt);
 
       trailDb.close();
     });

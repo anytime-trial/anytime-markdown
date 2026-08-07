@@ -335,11 +335,16 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
    */
   private runReviewBackfillOnce(): void {
     const { memDb } = this.deps;
+    // 完了は last_processed_at が非空であることで表す（他スコープと同じ規約）。
+    // status に専用の値を足さないのは、CHECK が idle/running/quarantine/error に
+    // 限られているため。scope 自体は migration 021 で CHECK へ追加済み。
     const scope = 'review_body_backfill';
-    const stmt = memDb.db.prepare('SELECT status FROM memory_pipeline_state WHERE scope = ?');
+    const stmt = memDb.db.prepare(
+      'SELECT last_processed_at FROM memory_pipeline_state WHERE scope = ?',
+    );
     let done = false;
     try {
-      done = stmt.get(scope)?.['status'] === 'done';
+      done = String(stmt.get(scope)?.['last_processed_at'] ?? '') !== '';
     } finally {
       stmt.free?.();
     }
@@ -356,8 +361,8 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
       }
       memDb.db.run(
         `INSERT INTO memory_pipeline_state (scope, status, last_processed_at, error_detail)
-         VALUES (?, 'done', ?, '')
-         ON CONFLICT(scope) DO UPDATE SET status = 'done', last_processed_at = excluded.last_processed_at`,
+         VALUES (?, 'idle', ?, '')
+         ON CONFLICT(scope) DO UPDATE SET last_processed_at = excluded.last_processed_at`,
         [scope, recordedAt],
       );
       this.logger.info(
