@@ -2,26 +2,41 @@ jest.mock('ws', () => ({
   WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })),
 }));
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
-import type { TrailDatabase } from '@anytime-markdown/trail-db';
+import { FlightRecordDatabase, type TrailDatabase } from '@anytime-markdown/trail-db';
 
 describe('/api/trail/instructions', () => {
   let server: TrailDataServer;
   let db: TrailDatabase;
   let port: number;
+  let dbDir: string;
+  let flightDb: FlightRecordDatabase;
 
   beforeEach(async () => {
     db = await createTestTrailDatabase();
-    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-'));
+    const memoryDbPath = path.join(dbDir, 'memory-core.db');
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
     await server.start(0);
     port = server.port;
+    // Flight Record は memory-core.db 側（server 内部の flightRecordDb と同一ファイル）。
+    // シード専用の別接続で upsertFlightReviewFromMachine を叩く（server 内部インスタンスへは
+    // アクセスできないため）。
+    flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+    flightDb.init();
   });
 
   afterEach(async () => {
     await server.stop();
     db.close();
+    flightDb.close();
+    fs.rmSync(dbDir, { recursive: true, force: true });
   });
 
   function declare(payload: Record<string, unknown>): Promise<Response> {
@@ -33,7 +48,7 @@ describe('/api/trail/instructions', () => {
   }
 
   function recordSession(sessionId: string, endedAt: string): void {
-    db.upsertFlightReviewFromMachine({
+    flightDb.upsertFlightReviewFromMachine({
       sessionId,
       workspacePath: '/anytime-markdown',
       startedAt: null,
@@ -47,7 +62,7 @@ describe('/api/trail/instructions', () => {
 
   it('workspace クエリで一覧を絞り込む（一覧の列に出ている名前で指定する）', async () => {
     recordSession('s-mk', '2026-08-05T01:00:00.000Z');
-    db.upsertFlightReviewFromMachine({
+    flightDb.upsertFlightReviewFromMachine({
       sessionId: 's-other',
       workspacePath: '/nonexistent/anytime-trade',
       startedAt: null,

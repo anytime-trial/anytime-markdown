@@ -1,4 +1,5 @@
 // Flight Record: 指示台帳（instructions / instruction_sessions）への直書き。
+// 保存先は memory-core.db（2026-08-07 に trail.db から移設。openMemoryDb で開く）。
 // TrailDataServer を経由しないのは、宣言がセッション開始直後に走り、
 // デーモン未起動でも記録が落ちてはならないため（doctrine_judgments と同方針）。
 

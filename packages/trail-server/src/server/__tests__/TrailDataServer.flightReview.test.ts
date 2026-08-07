@@ -9,7 +9,7 @@ import path from 'node:path';
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
-import type { TrailDatabase } from '@anytime-markdown/trail-db';
+import { FlightRecordDatabase, type TrailDatabase } from '@anytime-markdown/trail-db';
 
 function transcriptLine(opts: {
   type?: string;
@@ -28,10 +28,13 @@ describe('/api/trail/flight-reviews', () => {
   let db: TrailDatabase;
   let port: number;
   let tmpDir: string;
+  let dbDir: string;
 
   beforeEach(async () => {
     db = await createTestTrailDatabase();
-    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-'));
+    const memoryDbPath = path.join(dbDir, 'memory-core.db');
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
     await server.start(0);
     port = server.port;
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-review-test-'));
@@ -41,6 +44,7 @@ describe('/api/trail/flight-reviews', () => {
     await server.stop();
     db.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(dbDir, { recursive: true, force: true });
   });
 
   function postReview(payload: Record<string, unknown>): Promise<Response> {
@@ -315,21 +319,32 @@ describe('/api/trail/flight-reviews/:sessionId PATCH (Phase 6 S3 manual)', () =>
   let server: TrailDataServer;
   let db: TrailDatabase;
   let port: number;
+  let dbDir: string;
+  let flightDb: FlightRecordDatabase;
 
   beforeEach(async () => {
     db = await createTestTrailDatabase();
-    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-'));
+    const memoryDbPath = path.join(dbDir, 'memory-core.db');
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
     await server.start(0);
     port = server.port;
+    // Flight Record は memory-core.db 側（server 内部の flightRecordDb と同一ファイル）。
+    // シード専用の別接続で upsertFlightReviewFromMachine を叩く（server 内部インスタンスへは
+    // アクセスできないため）。
+    flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+    flightDb.init();
   });
 
   afterEach(async () => {
     await server.stop();
     db.close();
+    flightDb.close();
+    fs.rmSync(dbDir, { recursive: true, force: true });
   });
 
   function seed(sessionId: string, endedAt = '2026-07-17T10:00:00.000Z'): void {
-    db.upsertFlightReviewFromMachine({
+    flightDb.upsertFlightReviewFromMachine({
       sessionId,
       workspacePath: '/ws',
       startedAt: null,
@@ -444,21 +459,29 @@ describe('/api/trail/flight-reviews/:sessionId PATCH rationaleAuditStatus (Phase
   let server: TrailDataServer;
   let db: TrailDatabase;
   let port: number;
+  let dbDir: string;
+  let flightDb: FlightRecordDatabase;
 
   beforeEach(async () => {
     db = await createTestTrailDatabase();
-    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-'));
+    const memoryDbPath = path.join(dbDir, 'memory-core.db');
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
     await server.start(0);
     port = server.port;
+    flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+    flightDb.init();
   });
 
   afterEach(async () => {
     await server.stop();
     db.close();
+    flightDb.close();
+    fs.rmSync(dbDir, { recursive: true, force: true });
   });
 
   function seed(sessionId: string): void {
-    db.upsertFlightReviewFromMachine({
+    flightDb.upsertFlightReviewFromMachine({
       sessionId,
       workspacePath: '/ws',
       startedAt: null,

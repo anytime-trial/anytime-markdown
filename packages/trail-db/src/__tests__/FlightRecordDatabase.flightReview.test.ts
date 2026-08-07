@@ -1,14 +1,16 @@
-import { createTestTrailDatabase } from './support/createTestDb';
-import type { TrailDatabase } from '../TrailDatabase';
+import { createTestFlightRecordDatabase } from './support/createTestFlightRecordDb';
+import type { FlightRecordTestContext } from './support/createTestFlightRecordDb';
+import type { FlightRecordDatabase } from '../FlightRecordDatabase';
 
 const TS = '2026-07-17T10:00:00.000Z';
 
-function rawRun(db: TrailDatabase, sql: string): void {
-  const inner = (db as unknown as { ensureDb(): { run(sql: string, params?: unknown[]): void } }).ensureDb();
-  inner.run(sql);
+// flight_reviews は memory-core.db 側（FlightRecordDatabase が主接続として持つ）にあるため、
+// 生 SQL による直接検証は ctx.memoryRun で流す。
+function rawRun(ctx: FlightRecordTestContext, sql: string): void {
+  ctx.memoryRun(sql);
 }
 
-function machineInput(overrides: Partial<Parameters<TrailDatabase['upsertFlightReviewFromMachine']>[0]> = {}) {
+function machineInput(overrides: Partial<Parameters<FlightRecordDatabase['upsertFlightReviewFromMachine']>[0]> = {}) {
   return {
     sessionId: 'sess-1',
     workspacePath: '/ws',
@@ -22,15 +24,17 @@ function machineInput(overrides: Partial<Parameters<TrailDatabase['upsertFlightR
   };
 }
 
-describe('TrailDatabase flight reviews (flight_reviews)', () => {
-  let db: TrailDatabase;
+describe('FlightRecordDatabase flight reviews (flight_reviews)', () => {
+  let ctx: FlightRecordTestContext;
+  let db: FlightRecordDatabase;
 
-  beforeEach(async () => {
-    db = await createTestTrailDatabase();
+  beforeEach(() => {
+    ctx = createTestFlightRecordDatabase();
+    db = ctx.db;
   });
 
   afterEach(() => {
-    db.close();
+    ctx.cleanup();
   });
 
   it('機械集計行を outcome=unknown / outcome_source=machine の既定値で記録する', () => {
@@ -64,7 +68,7 @@ describe('TrailDatabase flight reviews (flight_reviews)', () => {
     db.upsertFlightReviewFromMachine(machineInput());
     // S3 の手動訂正を模擬（直接 UPDATE）
     rawRun(
-      db,
+      ctx,
       `UPDATE flight_reviews SET outcome = 'achieved', outcome_source = 'manual', tags = '["release"]', notes = 'ok' WHERE session_id = 'sess-1'`,
     );
     db.upsertFlightReviewFromMachine(machineInput({ toolCallCount: 20 }));
@@ -89,7 +93,7 @@ describe('TrailDatabase flight reviews (flight_reviews)', () => {
   it('不正な outcome 値は CHECK 制約で拒否される（STRICT + CHECK の担保確認）', () => {
     db.upsertFlightReviewFromMachine(machineInput());
     expect(() =>
-      rawRun(db, `UPDATE flight_reviews SET outcome = 'great' WHERE session_id = 'sess-1'`),
+      rawRun(ctx, `UPDATE flight_reviews SET outcome = 'great' WHERE session_id = 'sess-1'`),
     ).toThrow();
   });
 
@@ -108,15 +112,22 @@ describe('TrailDatabase flight reviews (flight_reviews)', () => {
   });
 });
 
-describe('TrailDatabase flight reviews S2 (self assessment / lesson candidates / user feedback)', () => {
-  let db: TrailDatabase;
+describe('FlightRecordDatabase flight reviews S2 (self assessment / lesson candidates)', () => {
+  // NOTE: 旧 TrailDatabase.flightReview.test.ts の S2 ブロックには user_feedback_entries
+  // （recordUserFeedbackEntry / listUserFeedbackEntries）のテストも含まれていたが、この
+  // テーブルは Flight Record 3 テーブル（instructions / instruction_sessions /
+  // flight_reviews）の移設対象に含まれておらず、FlightRecordDatabase にメソッドが無い
+  // （TrailDatabase 側に残る）。当該 1 件は移行できないため対象外とした。
+  let ctx: FlightRecordTestContext;
+  let db: FlightRecordDatabase;
 
-  beforeEach(async () => {
-    db = await createTestTrailDatabase();
+  beforeEach(() => {
+    ctx = createTestFlightRecordDatabase();
+    db = ctx.db;
   });
 
   afterEach(() => {
-    db.close();
+    ctx.cleanup();
   });
 
   const assessment = {
@@ -139,7 +150,7 @@ describe('TrailDatabase flight reviews S2 (self assessment / lesson candidates /
   it('outcome_source=manual の行は self が上書きしない（FR-8）', () => {
     db.upsertFlightReviewFromMachine(machineInput());
     rawRun(
-      db,
+      ctx,
       `UPDATE flight_reviews SET outcome = 'unachieved', outcome_source = 'manual' WHERE session_id = 'sess-1'`,
     );
     db.applySelfAssessmentToFlightReview('sess-1', assessment);
@@ -171,34 +182,19 @@ describe('TrailDatabase flight reviews S2 (self assessment / lesson candidates /
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.kind).toBe('tool_failure_chain');
   });
-
-  it('user feedback は内容キーで冪等（再送で重複しない。FR-9）', () => {
-    const input = {
-      sessionId: 'sess-1',
-      occurredAt: '2026-07-17T10:00:00.000Z',
-      promptExcerpt: 'A ではなく B で実装して',
-      matchedPattern: 'ではなく',
-    };
-    db.recordUserFeedbackEntry(input);
-    db.recordUserFeedbackEntry(input);
-    db.recordUserFeedbackEntry({ ...input, occurredAt: '2026-07-17T11:00:00.000Z' });
-
-    const entries = db.listUserFeedbackEntries({ sessionId: 'sess-1' });
-    expect(entries).toHaveLength(2);
-    // occurred_at 降順
-    expect(entries[0]?.occurredAt).toBe('2026-07-17T11:00:00.000Z');
-  });
 });
 
-describe('TrailDatabase flight reviews S3 (manual update / filter extension)', () => {
-  let db: TrailDatabase;
+describe('FlightRecordDatabase flight reviews S3 (manual update / filter extension)', () => {
+  let ctx: FlightRecordTestContext;
+  let db: FlightRecordDatabase;
 
-  beforeEach(async () => {
-    db = await createTestTrailDatabase();
+  beforeEach(() => {
+    ctx = createTestFlightRecordDatabase();
+    db = ctx.db;
   });
 
   afterEach(() => {
-    db.close();
+    ctx.cleanup();
   });
 
   it('手動訂正で outcome / tags / notes が更新され outcome_source=manual になる（FR-13）', () => {
@@ -313,15 +309,17 @@ describe('TrailDatabase flight reviews S3 (manual update / filter extension)', (
   });
 });
 
-describe('TrailDatabase flight reviews S4 (rationale audit)', () => {
-  let db: TrailDatabase;
+describe('FlightRecordDatabase flight reviews S4 (rationale audit)', () => {
+  let ctx: FlightRecordTestContext;
+  let db: FlightRecordDatabase;
 
-  beforeEach(async () => {
-    db = await createTestTrailDatabase();
+  beforeEach(() => {
+    ctx = createTestFlightRecordDatabase();
+    db = ctx.db;
   });
 
   afterEach(() => {
-    db.close();
+    ctx.cleanup();
   });
 
   it('既定の rationale_audit_status は unaudited で一覧に含まれる（FR-20）', () => {
@@ -364,7 +362,7 @@ describe('TrailDatabase flight reviews S4 (rationale audit)', () => {
   it('不正なステータス値は CHECK 制約で拒否される', () => {
     db.upsertFlightReviewFromMachine(machineInput());
     expect(() =>
-      rawRun(db, `UPDATE flight_reviews SET rationale_audit_status = 'great' WHERE session_id = 'sess-1'`),
+      rawRun(ctx, `UPDATE flight_reviews SET rationale_audit_status = 'great' WHERE session_id = 'sess-1'`),
     ).toThrow();
   });
 

@@ -107,7 +107,7 @@ export interface ReviewHistoryRow {
 /**
  * Flight Record（指示単位の運航記録）へ畳んだレビュー指摘 1 件。
  *
- * `instructionId` は明示宣言（trail.instruction_sessions）があればその指示 ID、無ければ
+ * `instructionId` は明示宣言（instruction_sessions・memory-core.db 内）があればその指示 ID、無ければ
  * セッション ID そのもの。後者は TrailDatabase が「1 セッション = 1 指示」の暗黙グループへ
  * セッション ID を指示 ID として使うため、同じ値で突き合わせられる。
  */
@@ -252,6 +252,13 @@ export class MemoryApiHandler {
   private trailDbAttached = false;
 
   /**
+   * memory-core.db に instruction_sessions が在るか（指示 ID 解決用）。
+   * Flight Record は memory-core.db へ移設済み（2026-08-07）だが、移行前の DB や
+   * FlightRecordDatabase 初期化前はテーブルが無いため、実在を見て縮退を決める。
+   */
+  private instructionSessionsAvailable = false;
+
+  /**
    * better-sqlite3 の native binary 絶対パス。webpack-bundled VS Code 拡張で
    * bindings package が call stack から `.node` を推測できず crash する問題の
    * 回避策 (memory-core / TrailDatabase と同パターン)。
@@ -303,6 +310,15 @@ export class MemoryApiHandler {
         readOnly: true,
         ...(this.nativeBinding ? { nativeBinding: this.nativeBinding } : {}),
       });
+      try {
+        const probe = this.cachedReadOnlyDb.exec(
+          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'instruction_sessions'`,
+        );
+        this.instructionSessionsAvailable = (probe[0]?.values.length ?? 0) > 0;
+      } catch (err) {
+        this.instructionSessionsAvailable = false;
+        this.logger.warn(`[MemoryApiHandler.openReadOnly] instruction_sessions probe failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
       const trailDbPath = path.join(path.dirname(this.dbPath), 'trail.db');
       if (fs.existsSync(trailDbPath)) {
         // attachTrailDbReadOnly は async。同期 try/catch では reject を捕捉できない (S4822) ため
@@ -623,12 +639,12 @@ export class MemoryApiHandler {
       }
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
-      // 指示 ID は Review タブ（flightFindingSourceSql）と同じ規則で解決する。trail.db を
-      // ATTACH できていない構成では instruction_sessions が引けないので、行全体を落とさず
-      // セッション ID へフォールバックする（バグ一覧そのものは memory-core だけで引ける）。
-      const instructionIdExpr = this.trailDbAttached
+      // 指示 ID は Review タブ（flightFindingSourceSql）と同じ規則で解決する。
+      // instruction_sessions は memory-core.db 内（2026-08-07 移設）。未移行 DB では
+      // テーブルが無いので、行全体を落とさずセッション ID へフォールバックする。
+      const instructionIdExpr = this.instructionSessionsAvailable
         ? `COALESCE(
-             (SELECT i.instruction_id FROM trail.instruction_sessions i
+             (SELECT i.instruction_id FROM instruction_sessions i
                WHERE i.session_id = bf.related_session_id),
              bf.related_session_id
            )`
@@ -948,7 +964,7 @@ export class MemoryApiHandler {
   private flightFindingSourceSql(): string {
     return `SELECT f.*,
                    COALESCE(
-                     (SELECT i.instruction_id FROM trail.instruction_sessions i
+                     (SELECT i.instruction_id FROM instruction_sessions i
                        WHERE i.session_id = f.session_id),
                      f.session_id
                    ) AS instruction_id
@@ -974,8 +990,8 @@ export class MemoryApiHandler {
     const db = this.openReadOnly();
     if (!db) return [];
     try {
-      if (!this.trailDbAttached) {
-        this.logger.error('[MemoryApiHandler.getFlightReviewFindingCounts] trail.db not attached; cannot resolve instruction ids');
+      if (!this.instructionSessionsAvailable) {
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindingCounts] instruction_sessions table missing in memory-core.db; cannot resolve instruction ids');
         return [];
       }
       const result = db.exec(
@@ -1017,8 +1033,8 @@ export class MemoryApiHandler {
     const db = this.openReadOnly();
     if (!db) return [];
     try {
-      if (!this.trailDbAttached) {
-        this.logger.error('[MemoryApiHandler.getFlightReviewFindings] trail.db not attached; cannot resolve instruction ids');
+      if (!this.instructionSessionsAvailable) {
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindings] instruction_sessions table missing in memory-core.db; cannot resolve instruction ids');
         return [];
       }
       // Review タブは全指示横断の一覧なので、他 API より大きい上限を許す（ルートの

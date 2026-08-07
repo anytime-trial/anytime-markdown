@@ -58,7 +58,7 @@ import {
 // typescript を引く `analyze` は DI（analyzeReleaseFn）に置換済みのため import しない。
 import type { AnalyzeFunction } from '@anytime-markdown/trail-db';
 import type { AnalyticsData, CostOptimizationData,MessageRow, SessionCommitRow, SessionRow, TrailDatabase } from '@anytime-markdown/trail-db';
-import { MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
+import { FlightRecordDatabase, MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
 import { type WebSocket,WebSocketServer } from 'ws';
 
 import type { C4SourceFileInput } from '../analyze/analyzeChildProtocol';
@@ -320,6 +320,12 @@ export class TrailDataServer {
   private readonly docsApi: DocsApiHandler;
   private readonly alignmentApi: AlignmentApiHandler;
   private readonly emergencyApi: EmergencyApiHandler;
+  /**
+   * Flight Record（flight_reviews / instructions / instruction_sessions）の永続化層。
+   * 保存先は memory-core.db（2026-08-07 移設）のため memoryDbPath 未注入の構成では null になり、
+   * flight 系エンドポイントはエラーを返す（暗黙の trail.db フォールバックはしない）。
+   */
+  private readonly flightRecordDb: FlightRecordDatabase | null = null;
 
   constructor(
     private readonly distPath: string,
@@ -371,6 +377,34 @@ export class TrailDataServer {
       memoryDbPath ?? null,
       fs.existsSync(nativeBinding) ? nativeBinding : undefined,
     );
+    // Flight Record ストア（memory-core.db 主接続 + trail.db ATTACH）。
+    // 初期化失敗・移行失敗は fail-open（他エンドポイントを巻き込まない）。移行は毎起動の
+    // 冪等実行で、trail.db 側に旧テーブルが残っていればコピー検証後に回収する。
+    if (memoryDbPath !== undefined && memoryDbPath !== '') {
+      const flightLogger = this.logger.child('FlightRecordDatabase');
+      const flightDbLogger = {
+        info: (msg: string) => flightLogger.info(msg),
+        warn: (msg: string) => flightLogger.warn(msg),
+        error: (msg: string, err?: unknown) => flightLogger.error(msg, err),
+        debugSql: () => {},
+      };
+      try {
+        const flightDb = new FlightRecordDatabase(
+          memoryDbPath,
+          path.join(path.dirname(memoryDbPath), 'trail.db'),
+          flightDbLogger,
+        );
+        flightDb.init();
+        this.flightRecordDb = flightDb;
+        try {
+          flightDb.migrateFromTrailDb();
+        } catch (e) {
+          flightLogger.error('flight record migration from trail.db failed (will retry on next start)', e);
+        }
+      } catch (e) {
+        flightLogger.error('FlightRecordDatabase init failed; flight record endpoints will be unavailable', e);
+      }
+    }
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
     this.c4ManualApi = new C4ManualApiHandler(
       this.trailDb,
@@ -555,6 +589,7 @@ export class TrailDataServer {
       this.logCleanupTimer = null;
     }
     this.memoryApi.dispose();
+    this.flightRecordDb?.close();
     for (const ws of this.clients) {
       ws.close();
     }
@@ -2836,6 +2871,14 @@ export class TrailDataServer {
   /** transcript 読取の上限。超過時は集計せず最小行に縮退する（Stop フックの fail-open を保つ）。 */
   private static readonly FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES = 50 * 1024 * 1024;
 
+  /** flight record ストア。memoryDbPath 未注入・init 失敗時は明示エラー（暗黙の trail.db フォールバック禁止）。 */
+  private requireFlightRecordDb(): FlightRecordDatabase {
+    if (this.flightRecordDb === null) {
+      throw new Error('flight record store unavailable (memoryDbPath not configured or init failed)');
+    }
+    return this.flightRecordDb;
+  }
+
   private handleRecordFlightReview(req: http.IncomingMessage, res: http.ServerResponse): void {
     if (!this.requireJsonContentType(req, res)) {
       return;
@@ -2863,7 +2906,8 @@ export class TrailDataServer {
         const workspacePath = typeof parsed['cwd'] === 'string' ? parsed['cwd'] : '';
         const lines = this.readFlightTranscriptLines(transcriptPath);
         const aggregate = computeFlightOutcome(lines);
-        this.trailDb.upsertFlightReviewFromMachine({
+        const flightDb = this.requireFlightRecordDb();
+        flightDb.upsertFlightReviewFromMachine({
           sessionId,
           workspacePath,
           startedAt: aggregate.startedAt,
@@ -2878,12 +2922,13 @@ export class TrailDataServer {
         try {
           const assessment = extractSelfAssessment(lines);
           if (assessment !== null) {
-            this.trailDb.applySelfAssessmentToFlightReview(sessionId, assessment);
+            flightDb.applySelfAssessmentToFlightReview(sessionId, assessment);
           }
+          // user_feedback_entries は trail.db 残留（移設対象は flight record 3 テーブルのみ）
           const feedbackEntries = this.trailDb.listUserFeedbackEntries({ sessionId });
           const candidates = extractLessonCandidates({ lines, feedbackEntries });
           if (candidates.length > 0) {
-            this.trailDb.saveFlightReviewLessonCandidates(sessionId, candidates);
+            flightDb.saveFlightReviewLessonCandidates(sessionId, candidates);
           }
         } catch (e) {
           this.logger.warn(`[handleRecordFlightReview] debrief enrichment failed for ${sessionId}: ${e instanceof Error ? e.message : String(e)}`);
@@ -3110,7 +3155,7 @@ export class TrailDataServer {
         return;
       }
       const limit = Number.parseInt(params.get('limit') ?? '100', 10);
-      const flightReviews = this.trailDb.listFlightReviews({
+      const flightReviews = this.requireFlightRecordDb().listFlightReviews({
         sessionId: params.get('sessionId') ?? undefined,
         since: params.get('since') ?? undefined,
         until: params.get('until') ?? undefined,
@@ -3146,9 +3191,9 @@ export class TrailDataServer {
     const names = new Set<string>();
     let partial = false;
     try {
-      for (const w of this.trailDb.listInstructionWorkspaces()) names.add(w.name);
+      for (const w of this.requireFlightRecordDb().listInstructionWorkspaces()) names.add(w.name);
     } catch (e) {
-      this.logger.error('handleListWorkspaces: trail.db side failed', e);
+      this.logger.error('handleListWorkspaces: flight record side failed', e);
       partial = true;
     }
     try {
@@ -3170,7 +3215,7 @@ export class TrailDataServer {
         return;
       }
       const limit = Number.parseInt(params.get('limit') ?? '100', 10);
-      const instructions = this.trailDb.listInstructionRecords({
+      const instructions = this.requireFlightRecordDb().listInstructionRecords({
         since: params.get('since') ?? undefined,
         until: params.get('until') ?? undefined,
         outcome: (outcomeParam as FlightOutcome | null) ?? undefined,
@@ -3191,7 +3236,7 @@ export class TrailDataServer {
   private handleListOpenInstructions(res: http.ServerResponse, params: URLSearchParams): void {
     try {
       const limit = Number.parseInt(params.get('limit') ?? '10', 10);
-      const instructions = this.trailDb.listOpenInstructions(
+      const instructions = this.requireFlightRecordDb().listOpenInstructions(
         params.get('workspacePath') ?? undefined,
         Number.isNaN(limit) ? 10 : limit,
       );
@@ -3205,7 +3250,7 @@ export class TrailDataServer {
 
   private handleListInstructionSessions(res: http.ServerResponse, instructionId: string): void {
     try {
-      const sessions = this.trailDb.listInstructionSessions(instructionId);
+      const sessions = this.requireFlightRecordDb().listInstructionSessions(instructionId);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ sessions }));
     } catch (e) {
@@ -3242,6 +3287,7 @@ export class TrailDataServer {
         }
         const now = new Date().toISOString();
 
+        const flightDb = this.requireFlightRecordDb();
         if (mode === 'close') {
           const instructionId = parsed['instructionId'];
           if (typeof instructionId !== 'string' || instructionId === '') {
@@ -3249,12 +3295,12 @@ export class TrailDataServer {
             res.end(JSON.stringify({ error: 'instructionId required' }));
             return;
           }
-          if (!this.trailDb.closeInstruction(instructionId, now)) {
+          if (!flightDb.closeInstruction(instructionId, now)) {
             res.writeHead(404, JSON_HEADERS);
             res.end(JSON.stringify({ error: 'instruction not found' }));
             return;
           }
-          this.trailDb.save();
+          flightDb.save();
           res.writeHead(200, JSON_HEADERS);
           res.end(JSON.stringify({ ok: true, instructionId }));
           return;
@@ -3275,7 +3321,7 @@ export class TrailDataServer {
             return;
           }
           const declaredWorkspace = typeof parsed['workspacePath'] === 'string' ? parsed['workspacePath'] : '';
-          if (!this.trailDb.continueInstruction({
+          if (!flightDb.continueInstruction({
             instructionId,
             sessionId,
             declaredAt: now,
@@ -3287,7 +3333,7 @@ export class TrailDataServer {
             res.end(JSON.stringify({ error: 'instruction not found in this workspace' }));
             return;
           }
-          this.trailDb.save();
+          flightDb.save();
           res.writeHead(200, JSON_HEADERS);
           res.end(JSON.stringify({ ok: true, instructionId }));
           return;
@@ -3303,7 +3349,7 @@ export class TrailDataServer {
         const providedId = parsed['instructionId'];
         const instructionId =
           typeof providedId === 'string' && providedId !== '' ? providedId : randomUUID();
-        this.trailDb.openInstruction({
+        flightDb.openInstruction({
           id: instructionId,
           sessionId,
           workspacePath,
@@ -3318,7 +3364,7 @@ export class TrailDataServer {
               : '',
           startedAt: now,
         });
-        this.trailDb.save();
+        flightDb.save();
         res.writeHead(200, JSON_HEADERS);
         res.end(JSON.stringify({ ok: true, instructionId }));
       } catch (e) {
@@ -3419,9 +3465,10 @@ export class TrailDataServer {
           res.end(JSON.stringify({ error: 'no updatable field (outcome / tags / notes / rationaleAuditStatus)' }));
           return;
         }
-        const manualOk = hasManualField ? this.trailDb.updateFlightReviewManual(sessionId, patch) : true;
+        const flightDb = this.requireFlightRecordDb();
+        const manualOk = hasManualField ? flightDb.updateFlightReviewManual(sessionId, patch) : true;
         const auditOk = auditStatus !== undefined
-          ? this.trailDb.markRationaleAudit(sessionId, auditStatus as RationaleAuditStatus)
+          ? flightDb.markRationaleAudit(sessionId, auditStatus as RationaleAuditStatus)
           : true;
         if (!manualOk || !auditOk) {
           res.writeHead(404, JSON_HEADERS);

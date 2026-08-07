@@ -4,12 +4,14 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { createTestTrailDatabase } from './support/createTestDb';
-import type { TrailDatabase } from '../TrailDatabase';
+import { createTestFlightRecordDatabase } from './support/createTestFlightRecordDb';
+import type { FlightRecordTestContext } from './support/createTestFlightRecordDb';
+import type { FlightRecordDatabase } from '../FlightRecordDatabase';
 
-function rawRun(db: TrailDatabase, sql: string, params: unknown[] = []): void {
-  const inner = (db as unknown as { ensureDb(): { run(sql: string, params?: unknown[]): void } }).ensureDb();
-  inner.run(sql, params);
+// セッション由来テーブル（sessions / repos / session_costs / session_commits / commit_files /
+// messages / verification_runs）は trail.db 側に残るため、生 SQL は ctx.trailRun で流す。
+function rawRun(ctx: FlightRecordTestContext, sql: string, params: unknown[] = []): void {
+  ctx.trailRun(sql, params);
 }
 
 function machineInput(sessionId: string, endedAt: string, overrides: Record<string, unknown> = {}) {
@@ -23,7 +25,7 @@ function machineInput(sessionId: string, endedAt: string, overrides: Record<stri
     toolFailureCount: 1,
     reworkCount: 0,
     ...overrides,
-  } as Parameters<TrailDatabase['upsertFlightReviewFromMachine']>[0];
+  } as Parameters<FlightRecordDatabase['upsertFlightReviewFromMachine']>[0];
 }
 
 function openInput(id: string, sessionId: string, overrides: Record<string, unknown> = {}) {
@@ -36,18 +38,20 @@ function openInput(id: string, sessionId: string, overrides: Record<string, unkn
     originPrompt: 'Flight Review を指示単位にして',
     startedAt: '2026-08-05T00:00:00.000Z',
     ...overrides,
-  } as Parameters<TrailDatabase['openInstruction']>[0];
+  } as Parameters<FlightRecordDatabase['openInstruction']>[0];
 }
 
-describe('TrailDatabase instructions (Flight Record)', () => {
-  let db: TrailDatabase;
+describe('FlightRecordDatabase instructions (Flight Record)', () => {
+  let ctx: FlightRecordTestContext;
+  let db: FlightRecordDatabase;
 
-  beforeEach(async () => {
-    db = await createTestTrailDatabase();
+  beforeEach(() => {
+    ctx = createTestFlightRecordDatabase();
+    db = ctx.db;
   });
 
   afterEach(() => {
-    db.close();
+    ctx.cleanup();
   });
 
   describe('宣言の記録', () => {
@@ -144,7 +148,7 @@ describe('TrailDatabase instructions (Flight Record)', () => {
     // 暗黙グループでも同じキーで引けることが、指示タブの検証列の前提。
     function insertRun(sessionId: string, kind: string, overrides: Record<string, string | number | null> = {}) {
       rawRun(
-        db,
+        ctx,
         `INSERT INTO verification_runs
          (session_id, workspace_path, kind, package, command, status, duration_ms, commit_hash, tree_state, code_state_hash, environment, started_at, finished_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -284,12 +288,12 @@ describe('TrailDatabase instructions (Flight Record)', () => {
       });
 
       function registerSession(sessionId: string, repoName: string): void {
-        rawRun(db, 'INSERT OR IGNORE INTO repos (repo_name, created_at) VALUES (?, ?)', [
+        rawRun(ctx, 'INSERT OR IGNORE INTO repos (repo_name, created_at) VALUES (?, ?)', [
           repoName,
           '2026-08-05T00:00:00.000Z',
         ]);
         rawRun(
-          db,
+          ctx,
           `INSERT INTO sessions (id, repo_id) VALUES (?, (SELECT repo_id FROM repos WHERE repo_name = ?))`,
           [sessionId, repoName],
         );
@@ -509,9 +513,9 @@ describe('TrailDatabase instructions (Flight Record)', () => {
       db.upsertFlightReviewFromMachine(machineInput('s2', '2026-08-05T04:00:00.000Z'));
       db.openInstruction(openInput('inst-1', 's1'));
       db.continueInstruction({ instructionId: 'inst-1', sessionId: 's2', declaredAt: '2026-08-05T02:00:00.000Z' });
-      rawRun(db, `INSERT INTO sessions (id) VALUES ('s1'), ('s2')`);
+      rawRun(ctx, `INSERT INTO sessions (id) VALUES ('s1'), ('s2')`);
       rawRun(
-        db,
+        ctx,
         `INSERT INTO session_costs (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
          VALUES ('s1', 'opus', 100, 200, 300, 400, 1.5), ('s2', 'opus', 10, 20, 30, 40, 0.5)`,
       );
@@ -535,14 +539,18 @@ describe('TrailDatabase instructions (Flight Record)', () => {
 
   describe('成果物', () => {
     beforeEach(() => {
+      // このテスト用ファクトリの trail.db 接続は FK 既定 ON（better-sqlite3 のビルド既定）。
+      // 旧 TrailDatabase.ensureDb() は init() で foreign_keys=OFF にしていたため、以下の
+      // repo_id=1 決め打ち INSERT（repos 行を用意しない）が通っていた。挙動を揃えるため合わせる。
+      rawRun(ctx, `PRAGMA foreign_keys = OFF`);
       db.upsertFlightReviewFromMachine(machineInput('s1', '2026-08-05T01:00:00.000Z'));
-      rawRun(db, `INSERT INTO sessions (id) VALUES ('s1')`);
+      rawRun(ctx, `INSERT INTO sessions (id) VALUES ('s1')`);
     });
 
     it('コミット済みは .md をドキュメント、それ以外をコードに分ける', () => {
-      rawRun(db, `INSERT INTO session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
+      rawRun(ctx, `INSERT INTO session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
       rawRun(
-        db,
+        ctx,
         `INSERT INTO commit_files (commit_hash, file_path, repo_id)
          VALUES ('abc1234567', 'spec/a.md', 1), ('abc1234567', 'src/b.ts', 1)`,
       );
@@ -558,7 +566,7 @@ describe('TrailDatabase instructions (Flight Record)', () => {
 
     it('未コミットのドキュメントを Write / Edit の記録から拾う', () => {
       rawRun(
-        db,
+        ctx,
         `INSERT INTO messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"Write","input":{"file_path":"/ws/spec/new.md"}}]')`,
       );
@@ -571,7 +579,7 @@ describe('TrailDatabase instructions (Flight Record)', () => {
 
     it('serena / mcp-markdown 経由の未コミット編集も拾う（file_path 列には残らないため）', () => {
       rawRun(
-        db,
+        ctx,
         `INSERT INTO messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"mcp__serena__replace_content","input":{"relative_path":"docs/x.md"}}]'),
                 ('m2', 's1', 'assistant', '[{"name":"mcp__mcp-markdown__update_section","input":{"path":"docs/y.md"}}]')`,
@@ -584,7 +592,7 @@ describe('TrailDatabase instructions (Flight Record)', () => {
 
     it('未コミットのコード編集は成果物に含めない（コードはコミット済みのみ）', () => {
       rawRun(
-        db,
+        ctx,
         `INSERT INTO messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"Edit","input":{"file_path":"src/draft.ts"}}]')`,
       );
@@ -594,10 +602,10 @@ describe('TrailDatabase instructions (Flight Record)', () => {
     });
 
     it('同一パスがコミット済みと未コミットの双方にあればコミット済みを採る', () => {
-      rawRun(db, `INSERT INTO session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
-      rawRun(db, `INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES ('abc1234567', 'spec/a.md', 1)`);
+      rawRun(ctx, `INSERT INTO session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
+      rawRun(ctx, `INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES ('abc1234567', 'spec/a.md', 1)`);
       rawRun(
-        db,
+        ctx,
         `INSERT INTO messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"Write","input":{"file_path":"spec/a.md"}}]')`,
       );
@@ -609,10 +617,10 @@ describe('TrailDatabase instructions (Flight Record)', () => {
 
     it('コミットの相対パスとツール呼出の絶対パスが同じファイルなら 1 件に畳む', () => {
       // 実データではコミット側が repo 相対、ツール呼出側が絶対パスで残る
-      rawRun(db, `INSERT INTO session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
-      rawRun(db, `INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES ('abc1234567', 'spec/a.md', 1)`);
+      rawRun(ctx, `INSERT INTO session_commits (session_id, commit_hash, repo_id) VALUES ('s1', 'abc1234567', 1)`);
+      rawRun(ctx, `INSERT INTO commit_files (commit_hash, file_path, repo_id) VALUES ('abc1234567', 'spec/a.md', 1)`);
       rawRun(
-        db,
+        ctx,
         `INSERT INTO messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', '[{"name":"Write","input":{"file_path":"/Shared/anytime-markdown-docs/spec/a.md"}}]')`,
       );
@@ -624,7 +632,7 @@ describe('TrailDatabase instructions (Flight Record)', () => {
 
     it('壊れた tool_calls の行があっても他の成果物を落とさない', () => {
       rawRun(
-        db,
+        ctx,
         `INSERT INTO messages (uuid, session_id, type, tool_calls)
          VALUES ('m1', 's1', 'assistant', 'not json'),
                 ('m2', 's1', 'assistant', '[{"name":"Write","input":{"file_path":"spec/ok.md"}}]')`,
