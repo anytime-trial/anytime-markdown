@@ -26,6 +26,7 @@ function input(overrides: Partial<CoverageGateInput> = {}): CoverageGateInput {
     targetPaths: ['/anytime-markdown/packages/mcp-trail/src/server.ts'],
     severity: 'low',
     operationKind: 'code_change',
+    underspecifiedPoints: [],
     odd: ODD,
     ...overrides,
   };
@@ -155,23 +156,34 @@ describe('evaluateCoverageGate', () => {
       expect(result).toEqual({ verdict: 'escalate', reasons: ['underspecified_instruction'] });
     });
 
-    it.each([[[] as string[]], [undefined]])(
-      '申告が空・未指定なら他の規則の判定を変えない（%p）',
-      (points) => {
-        const result = evaluateCoverageGate(input({ underspecifiedPoints: points }));
-        expect(result).toEqual({ verdict: 'delegable', reasons: [] });
+    it('空配列を明示したときだけ他の規則の判定を変えない', () => {
+      const result = evaluateCoverageGate(input({ underspecifiedPoints: [] }));
+      expect(result).toEqual({ verdict: 'delegable', reasons: [] });
+    });
+
+    it('未指定は underspecified_unknown で escalate（severity・operationKind と同じ fail-closed）', () => {
+      const result = evaluateCoverageGate(input({ underspecifiedPoints: undefined }));
+      expect(result).toEqual({ verdict: 'escalate', reasons: ['underspecified_unknown'] });
+    });
+
+    it.each([
+      ['odd_out', { targetPaths: ['/other-repo/a.ts'] }],
+      ['restricted_area', { targetPaths: ['/anytime-markdown/.github/workflows/ci.yml'] }],
+      ['always_human_operation', { operationKind: 'remote_push' as const }],
+      ['severity_high', { severity: 'high' as const }],
+    ])(
+      '指示を明確化しても代行できない軸（%s）は未確定論点より先に記録される',
+      (reason, overrides) => {
+        const result = evaluateCoverageGate(
+          input({ underspecifiedPoints: ['指示に無い設計の分岐'], ...overrides }),
+        );
+        expect(result.reasons).toEqual([reason]);
       },
     );
 
-    it('ODD・重大度・ドクトリン接地より先に評価する（何を作るかが定まっていないため）', () => {
+    it('ドクトリン接地の不足（silent）より先に評価する（何を作るかが先に定まる必要がある）', () => {
       const result = evaluateCoverageGate(
-        input({
-          underspecifiedPoints: ['指示に無い設計の分岐'],
-          targetPaths: ['/other-repo/a.ts'],
-          severity: 'high',
-          coverage: 'silent',
-          citations: [],
-        }),
+        input({ underspecifiedPoints: ['指示に無い設計の分岐'], coverage: 'silent', citations: [] }),
       );
       expect(result.reasons).toEqual(['underspecified_instruction']);
     });

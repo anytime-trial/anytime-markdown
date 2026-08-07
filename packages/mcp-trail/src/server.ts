@@ -577,7 +577,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'get_doctrine_agreement',
-    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), delegated / delegatedAudited counts (D2 delegations and their sampling audits), and pending (neither decided nor delegated) count.', inputSchema: {
+    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), delegated / delegatedAudited counts (D2 delegations and their sampling audits), and pending (neither decided nor delegated) count. Also instructionGapRate / underspecified (DCT-14 declarations of points the instruction did not determine; denominator = all judgments) and unreadableDeclarations. Judgments recorded before 2026-08-07 were backfilled as empty declarations and stay in the agreement-rate denominator, so pass since="2026-08-07" when reading instructionGapRate as a live signal. A non-zero unreadableDeclarations means the other two rates are not yet interpretable.', inputSchema: {
       since: GetDoctrineAgreementInputSchema.shape.since,
       until: GetDoctrineAgreementInputSchema.shape.until,
       workspacePath: GetDoctrineAgreementInputSchema.shape.workspacePath,

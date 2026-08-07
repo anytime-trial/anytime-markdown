@@ -9,6 +9,7 @@ export type GateVerdict = 'delegable' | 'escalate';
 
 export type GateReason =
   | 'odd_registry_invalid'
+  | 'underspecified_unknown'
   | 'underspecified_instruction'
   | 'odd_unknown'
   | 'odd_out'
@@ -43,7 +44,8 @@ export interface CoverageGateInput {
   readonly odd: OddResolution;
   /**
    * 指示から一意に定まらない論点の事前申告 (DCT-14)。非空は escalate。
-   * 省略は「申告なし = 空」と同義（既存呼び出しの互換のため）。
+   * **未指定は判定不能として escalate**（他 3 軸と同じ fail-closed）。空配列を
+   * 明示して初めて「指示から一意に定まる」という宣言になる。
    */
   readonly underspecifiedPoints?: ReadonlyArray<string> | undefined;
 }
@@ -83,12 +85,6 @@ export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResu
     // 無効化されていた」状態が黙って代行を許す (Phase 7-A 仕様 §3.3)
     return escalate('odd_registry_invalid');
   }
-  // DCT-14: 結論が指示から一意に定まらないなら、ODD も重大度もドクトリン接地も論じる前に
-  // 代行対象外。承認の可否が正しくても、承認した中身が人の意図と別物になりうる
-  // (この失敗は D1 差し戻しでは減らない — 全件人へ聞いても指示に無い情報は補われない)
-  if (input.underspecifiedPoints !== undefined && input.underspecifiedPoints.length > 0) {
-    return escalate('underspecified_instruction');
-  }
   const oddReason = evaluateOddBoundary(input.odd.registry, input.targetPaths);
   if (oddReason !== null) {
     return escalate(oddReason);
@@ -107,6 +103,18 @@ export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResu
   }
   if (input.severity === 'high') {
     return escalate('severity_high');
+  }
+  // DCT-14: ここまでの規則は「指示を明確化しても代行できない」絶対軸 (ODD 外・制限領域・
+  // 常に人へ聞く操作・高重大度) であり、それらを先に評価しないと理由コードから消える
+  // (verdict は同じ escalate でも、事後分析で「push だから人へ聞いた」事実が失われる)。
+  // 未確定論点は「明確化すれば代行できる」側なので、絶対軸の後・ドクトリン接地の前に置く。
+  if (input.underspecifiedPoints === undefined) {
+    // 他 3 軸と同じ fail-closed。省略を空扱いにすると、この軸だけ「言及しなかった」が
+    // 「一意に定まると宣言した」に化け、嘘をつかずにゲートを素通りできてしまう
+    return escalate('underspecified_unknown');
+  }
+  if (input.underspecifiedPoints.length > 0) {
+    return escalate('underspecified_instruction');
   }
   if (input.coverage === 'conflict') {
     return escalate('doctrine_conflict');

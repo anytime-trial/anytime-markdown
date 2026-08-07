@@ -78,6 +78,12 @@ export interface DoctrineAgreementMetrics {
   /** 未確定論点を申告した件数 (DCT-14) */
   readonly underspecified: number;
   /**
+   * 申告列を配列として読めなかった件数 (DCT-14)。0 でない間は `agreementRate` /
+   * `instructionGapRate` の解釈を保留する。破損行は「申告あり」に畳まず分母に残す
+   * ため一致率は下がる方向にしか動かないが、原因が破損か実態かは本件数でしか判らない。
+   */
+  readonly unreadableDeclarations: number;
+  /**
    * 指示不足率 (DCT-14)。未確定論点の申告が非空だった割合 (分母 = total)。
    * 高いときの是正は D1 差し戻しではなく、What 承認を出す前に不足論点を洗い出す運用の側。
    * 不自然に 0 へ張り付く場合は「代行したいから空で出す」申告の形骸化を疑う。
@@ -373,7 +379,17 @@ export function recordDoctrineJudgmentDirect(
        resolved_count = excluded.resolved_count,
        gate_verdict = excluded.gate_verdict,
        gate_reasons_json = excluded.gate_reasons_json,
-       underspecified_points_json = excluded.underspecified_points_json,
+       -- 申告はラチェット: 論点の追記は通すが、非空 → 空へは戻せない。
+       -- 再記録は human_decision / delegated_at もリセットするため、空で再記録できると
+       -- 「escalate された判断を空で上書きして代行のガードを全部通す」経路が成立し、
+       -- 最初の申告は行ごと消えて監査に残らない (DCT-14)。
+       -- 残る自由度は非空 → 別の非空 (部分削除) だが、どちらもゲートは escalate する
+       underspecified_points_json = CASE
+         WHEN json_array_length(underspecified_points_json) > 0
+          AND json_array_length(excluded.underspecified_points_json) = 0
+         THEN underspecified_points_json
+         ELSE excluded.underspecified_points_json
+       END,
        judged_at = excluded.judged_at,
        human_decision = NULL,
        decided_at = NULL,
@@ -723,24 +739,32 @@ export function mergeDoctrineAgreementRows(
 }
 
 /**
- * 未確定論点の申告が非空か (DCT-14)。パース不能な値は「申告あり」に倒す
- * (壊れた JSON を空扱いにすると、書き込みが壊れているときに一致率の分母が
- * 黙って膨らみ、指標が実態より良く出る)。
+ * 未確定論点の申告の読み取り結果 (DCT-14)。**破損を「申告あり」に畳まない**。
+ *
+ * 破損を申告ありに倒すと当該行が一致率の分母から外れ、**破損が起きるほど
+ * `agreementRate` が良く出る**（差し戻しを駆動する指標が壊れる方向に動く）。
+ * かといって空扱いにすると指示不足を較正の失敗として数えてしまう。
+ * どちらにも倒さず、分母には残しつつ (= 一致率は下がる方向にしか動かない)
+ * 別カウントで可視化する。
  */
-function hasUnderspecifiedPoints(row: DoctrineAgreementRow): boolean {
+type DeclarationState = 'empty' | 'declared' | 'unreadable';
+
+function readDeclaration(row: DoctrineAgreementRow): DeclarationState {
   const parsed = parseJsonArrayColumn<string>(
     'underspecified_points_json',
     row.underspecified_points_json,
   );
   if (parsed.error !== null) {
-    return true;
+    return 'unreadable';
   }
-  return parsed.value.length > 0;
+  return parsed.value.length > 0 ? 'declared' : 'empty';
 }
 
 export function aggregateDoctrineAgreement(rows: readonly DoctrineAgreementRow[]): DoctrineAgreementMetrics {
   const total = rows.length;
-  const underspecifiedRows = rows.filter(hasUnderspecifiedPoints);
+  const declarations = new Map(rows.map((r) => [r, readDeclaration(r)] as const));
+  const underspecifiedRows = rows.filter((r) => declarations.get(r) === 'declared');
+  const unreadableDeclarations = rows.filter((r) => declarations.get(r) === 'unreadable').length;
   const decided = rows.filter((r) => r.human_decision !== null).length;
   const delegatedRows = rows.filter((r) => r.delegated_at !== null);
   const delegatedAudited = delegatedRows.filter((r) => r.human_decision !== null).length;
@@ -752,7 +776,7 @@ export function aggregateDoctrineAgreement(rows: readonly DoctrineAgreementRow[]
       r.coverage === 'covered' &&
       r.human_decision !== null &&
       r.agent_judgment !== 'escalate' &&
-      !hasUnderspecifiedPoints(r),
+      declarations.get(r) !== 'declared',
   );
   const matched = agreementTargets.filter(
     (r) =>
@@ -777,6 +801,7 @@ export function aggregateDoctrineAgreement(rows: readonly DoctrineAgreementRow[]
     delegatedAudited,
     agreementRate: agreementTargets.length > 0 ? matched / agreementTargets.length : null,
     underspecified: underspecifiedRows.length,
+    unreadableDeclarations,
     instructionGapRate: total > 0 ? underspecifiedRows.length / total : null,
     escalationRate: total > 0 ? escalations / total : null,
     citationResolutionRate: citationTotal > 0 ? citationResolved / citationTotal : null,

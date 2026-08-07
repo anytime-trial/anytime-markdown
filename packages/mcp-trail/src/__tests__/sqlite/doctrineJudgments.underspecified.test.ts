@@ -96,10 +96,37 @@ describe('doctrine judgments: underspecified_points (DCT-14)', () => {
     expect(view?.parseError).toBeNull();
   });
 
-  it('同一 (session, subject) の再記録は申告も上書きする', () => {
-    recordDoctrineJudgmentDirect(db, judgment({ underspecifiedPoints: ['最初の論点'] }));
-    recordDoctrineJudgmentDirect(db, judgment());
-    expect(read('session-1', '何かの What 承認')).toBe('[]');
+  describe('再記録（申告はラチェット）', () => {
+    it('非空の申告は空で上書きできない（escalate を空で塗り潰して代行するのを塞ぐ）', () => {
+      recordDoctrineJudgmentDirect(db, judgment({ underspecifiedPoints: ['最初の論点'] }));
+      recordDoctrineJudgmentDirect(db, judgment({ underspecifiedPoints: [] }));
+      expect(read('session-1', '何かの What 承認')).toBe(JSON.stringify(['最初の論点']));
+    });
+
+    it('申告の省略でも消えない（未申告は保存側で空配列に落ちるため同じ経路）', () => {
+      recordDoctrineJudgmentDirect(db, judgment({ underspecifiedPoints: ['最初の論点'] }));
+      recordDoctrineJudgmentDirect(db, judgment());
+      expect(read('session-1', '何かの What 承認')).toBe(JSON.stringify(['最初の論点']));
+    });
+
+    it('論点の追記は通る', () => {
+      recordDoctrineJudgmentDirect(db, judgment({ underspecifiedPoints: ['最初の論点'] }));
+      recordDoctrineJudgmentDirect(
+        db,
+        judgment({ underspecifiedPoints: ['最初の論点', '2 つ目の論点'] }),
+      );
+      expect(read('session-1', '何かの What 承認')).toBe(
+        JSON.stringify(['最初の論点', '2 つ目の論点']),
+      );
+    });
+
+    it('空 → 非空は通る（後から不足に気づいた場合）', () => {
+      recordDoctrineJudgmentDirect(db, judgment({ underspecifiedPoints: [] }));
+      recordDoctrineJudgmentDirect(db, judgment({ underspecifiedPoints: ['後から気づいた論点'] }));
+      expect(read('session-1', '何かの What 承認')).toBe(
+        JSON.stringify(['後から気づいた論点']),
+      );
+    });
   });
 
   describe('一致率の分母', () => {
@@ -132,7 +159,7 @@ describe('doctrine judgments: underspecified_points (DCT-14)', () => {
       expect(metrics.instructionGapRate).toBe(0);
     });
 
-    it('申告列が壊れている行は「申告あり」に倒して分母から外す（指標が実態より良く出ない）', () => {
+    it('申告列が壊れている行は分母に残し、別カウントで可視化する（破損で一致率が良くならない）', () => {
       decided('s1', [], 'approve');
       decided('s2', [], 'modified');
       db.prepare(
@@ -140,8 +167,13 @@ describe('doctrine judgments: underspecified_points (DCT-14)', () => {
       ).run();
 
       const metrics = getDoctrineAgreementDirect(db);
-      expect(metrics.agreementRate).toBe(1);
-      expect(metrics.underspecified).toBe(1);
+      // 破損を「申告あり」に倒して分母から外すと 0.5 → 1.0 に改善してしまう。
+      // 差し戻しを駆動する指標が破損で良くなるのは、あってはならない方向
+      expect(metrics.agreementRate).toBe(0.5);
+      expect(metrics.unreadableDeclarations).toBe(1);
+      // 破損は「指示が不足していた」という主張ではないので指示不足率も汚さない
+      expect(metrics.underspecified).toBe(0);
+      expect(metrics.instructionGapRate).toBe(0);
     });
   });
 
