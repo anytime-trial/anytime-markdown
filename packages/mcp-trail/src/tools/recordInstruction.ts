@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveMemoryDbPath, resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
-import { openMemoryDb } from '../sqlite/openDb';
+import { resolveDbPath, resolveMemoryDbPath, resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { openMemoryDb, openTrailDb } from '../sqlite/openDb';
 import {
   closeInstructionDirect,
   continueInstructionDirect,
+  ensureAndMigrateInstructionTables,
   listOpenInstructionsDirect,
   openInstructionDirect,
   type InstructionDeclarationResult,
@@ -61,6 +62,9 @@ export async function handleRecordInstruction(
   const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
   const opened = await openMemoryDb(dbPath, 'readwrite');
   try {
+    // trail.db に旧台帳が残っていれば回収する（doctrine_judgments と同じ遅延移行。
+    // 回収しないと旧指示への continue が「not found」になり、一覧からも消える）
+    ensureAndMigrateInstructionTables(opened.db, dbPath);
     if (input.mode === 'close') {
       const result = closeInstructionDirect(opened.db, input.instruction_id as string);
       opened.save();
@@ -95,15 +99,53 @@ export const ListOpenInstructionsInputSchema = z.object({
 
 export type ListOpenInstructionsInput = z.infer<typeof ListOpenInstructionsInputSchema>;
 
+/**
+ * 継続宣言の候補一覧。**読み取り専用**（ensure・移行を起動しない）。
+ * 移行過渡期には旧指示が trail.db 側に残るため、memory + trail の両読みを id で
+ * memory 優先に重複排除して返す（get_doctrine_agreement と同方針。移行完了後は
+ * trail 側が常に空になり union は no-op）。
+ */
 export async function handleListOpenInstructions(
   input: ListOpenInstructionsInput,
 ): Promise<{ instructions: OpenInstructionRow[] }> {
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  const dbPath = resolveMemoryDbPath({ workspacePath });
-  const opened = await openMemoryDb(dbPath, 'readonly');
+  const limit = input.limit ?? 10;
+
+  let memoryRows: OpenInstructionRow[] = [];
   try {
-    return { instructions: listOpenInstructionsDirect(opened.db, workspacePath, input.limit ?? 10) };
-  } finally {
-    opened.close();
+    const dbPath = resolveMemoryDbPath({ workspacePath });
+    const opened = await openMemoryDb(dbPath, 'readonly');
+    try {
+      memoryRows = listOpenInstructionsDirect(opened.db, workspacePath, limit);
+    } finally {
+      opened.close();
+    }
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] list_open_instructions: memory-core.db read failed (workspace=${workspacePath}); falling back to trail.db`,
+      err instanceof Error ? err.stack : err,
+    );
   }
+
+  let trailRows: OpenInstructionRow[] = [];
+  try {
+    const trailDbPath = resolveDbPath({ workspacePath });
+    const openedTrail = await openTrailDb(trailDbPath, 'readonly');
+    try {
+      trailRows = listOpenInstructionsDirect(openedTrail.db, workspacePath, limit);
+    } finally {
+      openedTrail.close();
+    }
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] list_open_instructions: trail.db read failed (workspace=${workspacePath}); using memory-core.db rows only`,
+      err instanceof Error ? err.stack : err,
+    );
+  }
+
+  const seen = new Set(memoryRows.map((r) => r.id));
+  const merged = [...memoryRows, ...trailRows.filter((r) => !seen.has(r.id))]
+    .sort((a, b) => (a.startedAt > b.startedAt ? -1 : a.startedAt < b.startedAt ? 1 : 0))
+    .slice(0, limit);
+  return { instructions: merged };
 }
