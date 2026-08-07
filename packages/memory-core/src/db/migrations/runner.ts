@@ -31,6 +31,7 @@ const MIGRATIONS: MigrationDef[] = [
   { version: 19, file: '019_pipeline_run_logs_source.sql' },
   { version: 20, file: '020_workspace_scope.sql' },
   { version: 21, file: '021_review_body_backfill_scope.sql' },
+  { version: 22, file: '022_review_finding_extracted_by.sql' },
 ]
 
 /**
