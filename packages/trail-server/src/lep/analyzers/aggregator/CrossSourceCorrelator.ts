@@ -70,11 +70,14 @@ export class CrossSourceCorrelator implements Analyzer {
 
     try {
       if (!this.opts.memoryDb) {
-        // memory-core.db 未接続 (Step 5 移行後、memoryDbPath 未構成)。silent skip を避けて
-        // info ログを残した上で空で洗い替える。
-        this.opts.trailDb.replaceCrossSourceCorrelations([]);
+        // memory-core.db 未接続は「算出不能」であって「相関 0 件」ではない。ここで空の
+        // 洗い替えを行うと、設定漏れ・一時的な open 失敗の 1 run で既存の相関データが
+        // DELETE される（replaceCrossSourceCorrelations は全削除 + 再挿入）。既存行を
+        // 保持したまま info ログだけ残して抜ける。
         this.correlationsComputed = 0;
-        ctx.logger.info('[CrossSourceCorrelator] done (memory-core.db not configured, 0 correlations)');
+        ctx.logger.info(
+          '[CrossSourceCorrelator] skipped (memory-core.db not configured; existing correlations preserved)',
+        );
         return;
       }
 

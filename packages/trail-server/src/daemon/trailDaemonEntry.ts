@@ -319,7 +319,9 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
     disabledPrimaryAnalyzers: cfg.disabledMemoryAnalyzers,
     githubPrReview: undefined,
     memoryDbPath: cfg.memoryCore?.dbPath,
-    memoryDb: analyzeMemoryCoreDb ? (analyzeMemoryCoreDb.conn ?? analyzeMemoryCoreDb.db) : undefined,
+    // openMemoryCoreDb は conn と db に同一参照を入れる。?? で併記すると「2 つの供給元」に
+    // 誤読されるため db（常に存在する側）に一本化する
+    memoryDb: analyzeMemoryCoreDb ? analyzeMemoryCoreDb.db : undefined,
     importAllStatusFilePath: cfg.importAllStatusFilePath,
     pipelineStatusFilePath: cfg.pipelineStatusFilePath,
     // startHttpServer() 後に呼び直される再構築で確定する (LogService と同じ接続)。

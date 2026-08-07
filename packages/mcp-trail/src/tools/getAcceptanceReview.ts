@@ -47,40 +47,51 @@ function skippedDiff(baseRef: string, headRef: string): GitDiffSummary {
  * 1 回の呼び出しで返す。読み取り専用 (判断の記録・更新は行わない)。
  */
 /**
- * セッションの判断記録を読む。正は memory-core.db。memory 側にテーブルが無い
- * （移設前・遅延移行が未実行）場合のみ trail.db へ縮退する。
+ * セッションの判断記録を読む。正は memory-core.db（2026-08-07 移設）。
+ * 移行過渡期（遅延移行の未実行・失敗）には trail.db 側に旧レコードが残るため、
+ * **両方を読み subject の memory 優先で重複排除して結合**する — memory 側テーブルの
+ * 実在だけで打ち切ると、移行失敗時に trail 残存分が受け入れ確認から消える。
  */
 async function readJudgmentsForSession(
   workspacePath: string,
   sessionId: string,
 ): Promise<ReadonlyArray<DoctrineJudgmentView>> {
-  let memoryDbPath: string | null = null;
+  let memoryJudgments: ReadonlyArray<DoctrineJudgmentView> = [];
   try {
-    memoryDbPath = resolveMemoryDbPath({ workspacePath });
-  } catch {
-    // memory-core.db 未作成（拡張未起動の環境）。trail 側縮退へ
-  }
-  if (memoryDbPath !== null) {
+    const memoryDbPath = resolveMemoryDbPath({ workspacePath });
     const opened = await openMemoryDb(memoryDbPath, 'readonly');
     try {
-      const hasTable =
-        opened.db
-          .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'doctrine_judgments'`)
-          .get() !== undefined;
-      if (hasTable) {
-        return listDoctrineJudgmentsBySession(opened.db, sessionId);
-      }
+      // listDoctrineJudgmentsBySession はテーブル不在で空配列（読み取り専用の縮退耐性）
+      memoryJudgments = listDoctrineJudgmentsBySession(opened.db, sessionId);
     } finally {
       opened.close();
     }
+  } catch (err) {
+    // memory-core.db 未作成（拡張未起動の環境）等。trail 側だけで提示を成立させる
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_acceptance_review: memory-core.db read failed (workspace=${workspacePath}); falling back to trail.db`,
+      err instanceof Error ? err.stack : err,
+    );
   }
-  const trailDbPath = resolveDbPath({ workspacePath });
-  const openedTrail = await openTrailDb(trailDbPath, 'readonly');
+
+  let trailJudgments: ReadonlyArray<DoctrineJudgmentView> = [];
   try {
-    return listDoctrineJudgmentsBySession(openedTrail.db, sessionId);
-  } finally {
-    openedTrail.close();
+    const trailDbPath = resolveDbPath({ workspacePath });
+    const openedTrail = await openTrailDb(trailDbPath, 'readonly');
+    try {
+      trailJudgments = listDoctrineJudgmentsBySession(openedTrail.db, sessionId);
+    } finally {
+      openedTrail.close();
+    }
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_acceptance_review: trail.db read failed (workspace=${workspacePath}); using memory-core.db rows only`,
+      err instanceof Error ? err.stack : err,
+    );
   }
+
+  const seen = new Set(memoryJudgments.map((j) => j.subject));
+  return [...memoryJudgments, ...trailJudgments.filter((j) => !seen.has(j.subject))];
 }
 
 export async function handleGetAcceptanceReview(

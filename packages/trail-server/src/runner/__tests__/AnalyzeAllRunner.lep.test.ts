@@ -436,8 +436,9 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
 
     await runner.runOnce('manual');
 
-    expect(logSink.lines.join('\n')).toContain('[CrossSourceCorrelator] done (memory-core.db not configured, 0 correlations)');
-    expect(correlationWrites).toEqual([[]]);
+    expect(logSink.lines.join('\n')).toContain('[CrossSourceCorrelator] skipped (memory-core.db not configured; existing correlations preserved)');
+    // 未接続では洗い替え（= 既存行の DELETE）を行わない（設定漏れの 1 run がデータ削除にならない）
+    expect(correlationWrites).toEqual([]);
   });
 
   it('stage=primary+memory does NOT run Wave 4 (DoraMetricsAggregator skipped)', async () => {

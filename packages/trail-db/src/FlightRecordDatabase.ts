@@ -452,12 +452,34 @@ export class FlightRecordDatabase {
         db.run('ROLLBACK');
         throw e;
       }
-      missingRows['acceptance_records'] = Number(
+      // 検証はキー存在（アンチ結合）に加えて**衝突キーの全保存列の一致**を要求する。
+      // INSERT OR IGNORE は同一キーの既存 memory 行を残すため、存在だけで通すと trail 側の
+      // verdict / decided_by / notes 等の差分が退避テーブル以外から消える。どちらが正かを
+      // 機械決定できない不一致は DROP せず verification_failed で人の判断へ回す
+      const missing = Number(
         db.exec(
           `SELECT COUNT(*) FROM trail.acceptance_records t
            WHERE NOT EXISTS (SELECT 1 FROM acceptance_records m WHERE m.commit_sha = t.commit_sha AND m.route = t.route)`,
         )[0]?.values?.[0]?.[0] ?? 0,
       );
+      const conflicting = Number(
+        db.exec(
+          `SELECT COUNT(*) FROM trail.acceptance_records t JOIN acceptance_records m
+             ON m.commit_sha = t.commit_sha AND m.route = t.route
+           WHERE m.verdict != t.verdict OR m.decided_by != t.decided_by
+              OR COALESCE(m.decided_at, '') != COALESCE(t.decided_at, '')
+              OR m.repo_name != t.repo_name OR m.farm_run_ref != t.farm_run_ref
+              OR m.failed_tests != t.failed_tests OR m.vrt_diff != t.vrt_diff
+              OR m.quarantined_count != t.quarantined_count OR m.notes != t.notes`,
+        )[0]?.values?.[0]?.[0] ?? 0,
+      );
+      if (conflicting > 0) {
+        this.logger.error(
+          `[FlightRecordDatabase] acceptance_records migration: ${conflicting} row(s) conflict with existing memory-side rows on (commit_sha, route); keeping trail-side table for manual reconciliation`,
+          new Error('acceptance records migration column mismatch'),
+        );
+      }
+      missingRows['acceptance_records'] = missing + conflicting;
       if (missingRows['acceptance_records'] === 0) {
         this.backupAndDropTrailTable('acceptance_records');
       }

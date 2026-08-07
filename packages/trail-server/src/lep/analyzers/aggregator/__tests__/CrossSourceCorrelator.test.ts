@@ -61,14 +61,16 @@ describe('CrossSourceCorrelator', () => {
     expect(c.subscribes).toEqual(['wave_start']);
   });
 
-  it('skips with info log when memoryDb is not configured (no heavy reads)', async () => {
+  it('skips with info log when memoryDb is not configured (existing correlations preserved)', async () => {
     const { ds, written, commitFileQueries } = makeDs();
     const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
     const { ctx, logs } = makeCtx();
 
     await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
 
-    expect(written).toEqual([[]]);
+    // 未接続は「算出不能」であって「相関 0 件」ではない。空の洗い替え（= 既存行の DELETE）を
+    // 行わないこと（設定漏れの 1 run が既存データ削除にならない）
+    expect(written).toEqual([]);
     expect(commitFileQueries).toEqual([]); // commit_files は読まない
     expect(logs.join('\n')).toContain('memory-core.db not configured');
   });

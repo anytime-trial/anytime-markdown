@@ -139,6 +139,10 @@ export type DerivedEvent =
       body: string;
       /** 冪等判定用の body + comments ハッシュ (Importer が読んだ値をそのまま転送) */
       bodyHash: string;
+      // SHORTCUT: body 全文と全行コメントをイベントに直載せする. ceiling: 1 PR あたり
+      // コメント数百件・イベント数 MB 程度までを前提（現運用は opt-in 未使用で実データ 0 件）.
+      // upgrade: OOM またはコメント 1000 件超の PR を観測したら payload を reviewId のみにし
+      // PrReviewFindingAnalyzer が Ingester から再取得する方式へ.
       /** review に紐づく行コメント */
       comments: readonly {
         readonly path: string;

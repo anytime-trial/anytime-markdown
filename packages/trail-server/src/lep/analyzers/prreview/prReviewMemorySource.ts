@@ -1,41 +1,23 @@
-import type { MemoryDbConnection } from '@anytime-markdown/memory-core';
+import {
+  buildPrReviewSourceRef,
+  parsePrReviewSourceRef,
+  type MemoryDbConnection,
+  type ParsedPrReviewSourceRef,
+} from '@anytime-markdown/memory-core';
 import type { PrReviewFindingRow, PrReviewRow } from '@anytime-markdown/trail-db';
 
 /**
  * PR review 系 analyzer (`PrReviewImporter` / `PrReviewFindingAnalyzer` /
- * `CrossSourceCorrelator`) が共有する `memory_reviews.source_ref` の構築・分解、および
- * memory-core.db から `PrReviewRow` / `PrReviewFindingRow` 形状で読み出す薄いアダプタ。
+ * `CrossSourceCorrelator`) が memory-core.db から `PrReviewRow` / `PrReviewFindingRow`
+ * 形状で読み出す薄いアダプタ。
  *
- * `source_ref` の形式 `${repoName}#pr${prNumber}#${reviewId}` は
- * `memory-core/src/ingest/pr-review/ingestPrReview.ts` が構築する式と同一でなければならない
- * (Importer の冪等判定・CrossSourceCorrelator の逆引きが同じキーを指す必要があるため)。
- * ingestPrReview 側は変更禁止のため、本ファイルの式を変えるときは ingestPrReview 側も
- * 追随しているか必ず確認すること。
+ * `source_ref` の構築・分解は memory-core（ingestPrReview と同一モジュール）の
+ * buildPrReviewSourceRef / parsePrReviewSourceRef を re-export する。式の実体を
+ * 2 か所に持つと、ずれたときに「冪等判定が常に新規・逆引きが常に 0 件」という
+ * エラーの出ない壊れ方をするため、正は書き込み側 1 か所に置く。
  */
-
-export interface ParsedPrReviewSourceRef {
-  readonly repoName: string;
-  readonly prNumber: number;
-  readonly reviewId: string;
-}
-
-/** ingestPrReview と同一式で `source_ref` を組み立てる。 */
-export function buildPrReviewSourceRef(repoName: string, prNumber: number, reviewId: string): string {
-  return `${repoName}#pr${prNumber}#${reviewId}`;
-}
-
-// repoName / reviewId に `#` を含む可能性は低いが、貪欲マッチにして「最後に現れる
-// `#pr<数字>#`」を区切りとみなす (repoName 側に `#` が混じっても reviewId 側を優先して守る)。
-const SOURCE_REF_RE = /^(.+)#pr(\d+)#(.+)$/s;
-
-/** `source_ref` を repoName / prNumber / reviewId に分解する。想定外の形式は null。 */
-export function parsePrReviewSourceRef(sourceRef: string): ParsedPrReviewSourceRef | null {
-  const m = SOURCE_REF_RE.exec(sourceRef);
-  if (!m) return null;
-  const prNumber = Number(m[2]);
-  if (!Number.isFinite(prNumber)) return null;
-  return { repoName: m[1], prNumber, reviewId: m[3] };
-}
+export { buildPrReviewSourceRef, parsePrReviewSourceRef };
+export type { ParsedPrReviewSourceRef };
 
 /**
  * `PrReviewImporter` 用: memory_reviews.source_hash を読む

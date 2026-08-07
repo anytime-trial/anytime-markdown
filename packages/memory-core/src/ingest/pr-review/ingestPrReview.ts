@@ -37,6 +37,32 @@ export interface PrReviewIngestResult {
   readonly findingsCount: number;
 }
 
+// ── source_ref 規約（唯一の正）──────────────────────────────────────────────
+// 読み出し側（trail-server の prReviewMemorySource）も必ず本関数を import する。
+// 式を 2 か所に持つと、ずれたときに「冪等判定が常に新規・逆引きが常に 0 件」という
+// エラーの出ない壊れ方をするため、実体をここへ一本化する。
+
+/** PR レビューの memory_reviews.source_ref を構築する（source_kind='pr_comment' 用）。 */
+export function buildPrReviewSourceRef(repoName: string, prNumber: number, reviewId: string): string {
+  return `${repoName}#pr${prNumber}#${reviewId}`;
+}
+
+export interface ParsedPrReviewSourceRef {
+  readonly repoName: string;
+  readonly prNumber: number;
+  readonly reviewId: string;
+}
+
+/**
+ * {@link buildPrReviewSourceRef} の逆変換。形式不一致は null。
+ * repoName に `#` が混じっても最後の `#pr<数字>#` を区切りとみなす（貪欲マッチ）。
+ */
+export function parsePrReviewSourceRef(sourceRef: string): ParsedPrReviewSourceRef | null {
+  const m = /^(.+)#pr(\d+)#(.+)$/s.exec(sourceRef);
+  if (m === null) return null;
+  return { repoName: m[1], prNumber: Number(m[2]), reviewId: m[3] };
+}
+
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
 /**
@@ -83,9 +109,27 @@ function buildTargetRefsJson(findings: readonly PrReviewFindingInput[]): string 
   return JSON.stringify(refs);
 }
 
-/** memory_review_findings の洗い替え時に、旧 finding へ張られた flagged edge も併せて外す。 */
+/**
+ * memory_review_findings の洗い替え。
+ *
+ * finding の entity id は (review, finding_index) 由来で、コメントの増減により同じ id が
+ * 別内容を指し得る。旧 finding のエンティティと、それを指す**全** edge（flagged だけでなく
+ * addresses 等も）を併せて消す — 残すと「この指摘はこのコミットで対処した」リンクが
+ * 黙って別の指摘へ付け替わり、addresses / precedes の因果データを汚染する
+ * （リンクを失うのは正直な削除・付け替わりは無言の汚染なので、消す方を選ぶ）。
+ */
 function washAwayFindings(db: MemoryDbConnection, reviewRowId: string): void {
+  db.run(
+    `DELETE FROM memory_edges WHERE
+       subject_entity_id IN (SELECT finding_entity_id FROM memory_review_findings WHERE review_id=?)
+       OR object_entity_id IN (SELECT finding_entity_id FROM memory_review_findings WHERE review_id=?)`,
+    [reviewRowId, reviewRowId],
+  );
   db.run(`DELETE FROM memory_edges WHERE predicate='flagged' AND subject_entity_id=?`, [reviewRowId]);
+  db.run(
+    `DELETE FROM memory_entities WHERE id IN (SELECT finding_entity_id FROM memory_review_findings WHERE review_id=?)`,
+    [reviewRowId],
+  );
   db.run(`DELETE FROM memory_review_findings WHERE review_id=?`, [reviewRowId]);
 }
 
@@ -94,9 +138,14 @@ function washAwayFindings(db: MemoryDbConnection, reviewRowId: string): void {
 /**
  * GitHub PR レビュー 1 件を memory_reviews / memory_review_findings へ取り込む。
  *
- * source_kind='pr_comment'・source_ref=`${repoName}#pr${prNumber}#${reviewId}` の
- * UNIQUE キーで冪等 upsert する。source_hash（bodyHash）が既存行と一致すれば何もせず
- * skip（created:false）、不一致（レビュー本文の更新）なら findings を洗い替える。
+ * source_kind='pr_comment'・source_ref={@link buildPrReviewSourceRef} の UNIQUE キーで
+ * 冪等 upsert する。source_hash（bodyHash）が既存行と一致すれば何もせず skip
+ * （created:false）、不一致（レビュー本文の更新）なら findings を洗い替える。
+ *
+ * review 行（source_hash 含む）と findings は**同一トランザクション**で書く。分離すると
+ * findings 途中失敗の時点で source_hash だけが新値になり、次 run が hash 一致 skip して
+ * findings が恒久欠落する。失敗は ROLLBACK の上で**再送出**する（握って created:false を
+ * 返すと skip と失敗が同じ顔になり、呼び出し側が処理済みと誤認する）。
  */
 export function ingestPrReview(
   db: MemoryDbConnection,
@@ -104,12 +153,13 @@ export function ingestPrReview(
   logger: MemoryLogger = defaultLogger,
 ): PrReviewIngestResult {
   const recordedAt = new Date().toISOString();
-  const sourceRef = `${input.repoName}#pr${input.prNumber}#${input.reviewId}`;
+  const sourceRef = buildPrReviewSourceRef(input.repoName, input.prNumber, input.reviewId);
   const reviewRowId = entityId('Review', sourceRef);
   const reviewedAt = toReviewedAt(input.submittedAt);
   const workspace = input.workspace ?? input.repoName;
   const title = input.title ?? `PR #${input.prNumber} review by ${input.author}`;
 
+  db.execMany('BEGIN');
   try {
     // 1. Review entity を確保する（memory_reviews.review_entity_id の FK 先）。
     db.run(
@@ -139,6 +189,7 @@ export function ingestPrReview(
         [reviewRowId],
       );
       const findingsCount = Number(countRows[0]?.values?.[0]?.[0] ?? 0);
+      db.execMany('COMMIT');
       return { reviewRowId, created: false, findingsCount };
     }
 
@@ -202,12 +253,20 @@ export function ingestPrReview(
       }
     }
 
+    db.execMany('COMMIT');
     return { reviewRowId, created, findingsCount };
   } catch (err) {
+    try {
+      db.execMany('ROLLBACK');
+    } catch (rollbackErr) {
+      logger.error('[anytime-memory] ingestPrReview: rollback failed', rollbackErr);
+    }
     logger.error(
       `[anytime-memory] ingestPrReview: failed for repoName=${input.repoName} prNumber=${input.prNumber} reviewId=${input.reviewId}`,
       err,
     );
-    return { reviewRowId, created: false, findingsCount: 0 };
+    // 失敗を握って created:false を返すと skip と判別できず、source_hash 更新済みなら
+    // 次 run が恒久 skip する。ROLLBACK 済みなので再送出して pipeline error に載せる
+    throw err;
   }
 }

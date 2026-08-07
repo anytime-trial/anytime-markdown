@@ -152,21 +152,29 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
   if (!fs.existsSync(trailDbPath)) return null;
   db.prepare(`ATTACH DATABASE ? AS trail`).run(trailDbPath);
   try {
-    const has = db
-      .prepare(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = 'doctrine_judgments'`)
-      .get();
-    if (has === undefined) return null;
-    // 旧 DB は後付け列（gate_verdict 等）を持たない可能性があるため、両側の列の共通部分をコピーする
-    const trailCols = (db.prepare(`PRAGMA trail.table_info(doctrine_judgments)`).all() as Array<{ name: string }>).map((c) => c.name);
-    const memCols = new Set(
-      (db.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>).map((c) => c.name),
-    );
-    const cols = trailCols.filter((c) => memCols.has(c));
-    const colList = cols.join(', ');
-    const colListNoId = cols.filter((c) => c !== 'id').join(', ');
-    let copiedRows = 0;
-    db.exec('BEGIN');
+    // コピー〜検証〜退避〜DROP を単一トランザクションに置き、BEGIN IMMEDIATE で書込ロックを
+    // 先取りして移行を 1 プロセスに直列化する。トランザクション外に検証・退避・DROP を置くと、
+    // 並行 mcp-trail の同時実行で退避テーブルへの全行二重挿入・後続 DROP の no such table・
+    // 中断時の退避重複が起きる（airspace は複数セッション並走を常態として想定している）。
+    db.exec('BEGIN IMMEDIATE');
     try {
+      // 存在チェックはロック取得後に行う（TOCTOU 回避: 先行プロセスが DROP した直後でもここで抜ける）
+      const has = db
+        .prepare(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = 'doctrine_judgments'`)
+        .get();
+      if (has === undefined) {
+        db.exec('COMMIT');
+        return null;
+      }
+      // 旧 DB は後付け列（gate_verdict 等）を持たない可能性があるため、両側の列の共通部分をコピーする
+      const trailCols = (db.prepare(`PRAGMA trail.table_info(doctrine_judgments)`).all() as Array<{ name: string }>).map((c) => c.name);
+      const memCols = new Set(
+        (db.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>).map((c) => c.name),
+      );
+      const cols = trailCols.filter((c) => memCols.has(c));
+      const colList = cols.join(', ');
+      const colListNoId = cols.filter((c) => c !== 'id').join(', ');
+      let copiedRows = 0;
       copiedRows += db
         .prepare(`INSERT OR IGNORE INTO doctrine_judgments (${colList}) SELECT ${colList} FROM trail.doctrine_judgments`)
         .run().changes;
@@ -194,42 +202,96 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
              AND t.delegated_at IS NOT NULL AND doctrine_judgments.delegated_at IS NULL`,
         ).run();
       }
+      const trailCount = Number(
+        (db.prepare(`SELECT COUNT(*) c FROM trail.doctrine_judgments`).get() as { c: number }).c,
+      );
+      // (session_id, subject) 衝突で本体列（agent_judgment / coverage / citations 等）が入らなかった
+      // 行を可視化する（黙って捨てない）。全行は下の退避テーブルに残るため復旧は可能
+      const collided = trailCount - copiedRows;
+      if (collided > 0) {
+        const sampleKeys = db
+          .prepare(
+            `SELECT t.session_id, t.subject FROM trail.doctrine_judgments t
+             JOIN doctrine_judgments m ON m.session_id = t.session_id AND m.subject = t.subject LIMIT 5`,
+          )
+          .all() as Array<{ session_id: string; subject: string }>;
+        console.error(
+          `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration: ${collided} row(s) collided on (session_id, subject); trail-side judgment columns not adopted (full rows retained in doctrine_judgments__pre_move_backup). sample=${JSON.stringify(sampleKeys)}`,
+        );
+      }
+      // 検証: アンチ結合（存在）+ human_decision / delegated_at の保存確認（両者対称）
+      let missingRows = Number(
+        (db
+          .prepare(
+            `SELECT COUNT(*) c FROM trail.doctrine_judgments t
+             WHERE NOT EXISTS (SELECT 1 FROM doctrine_judgments m WHERE m.session_id = t.session_id AND m.subject = t.subject)`,
+          )
+          .get() as { c: number }).c,
+      );
+      if (cols.includes('human_decision')) {
+        missingRows += Number(
+          (db
+            .prepare(
+              `SELECT COUNT(*) c FROM trail.doctrine_judgments t JOIN doctrine_judgments m
+                 ON m.session_id = t.session_id AND m.subject = t.subject
+               WHERE t.human_decision IS NOT NULL AND m.human_decision IS NULL`,
+            )
+            .get() as { c: number }).c,
+        );
+      }
+      if (cols.includes('delegated_at')) {
+        missingRows += Number(
+          (db
+            .prepare(
+              `SELECT COUNT(*) c FROM trail.doctrine_judgments t JOIN doctrine_judgments m
+                 ON m.session_id = t.session_id AND m.subject = t.subject
+               WHERE t.delegated_at IS NOT NULL AND m.delegated_at IS NULL`,
+            )
+            .get() as { c: number }).c,
+        );
+      }
+      if (missingRows > 0) {
+        console.error(
+          `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration verification failed (rows not preserved: ${missingRows}); keeping trail-side table`,
+        );
+        // コピー分は保持して確定する（次回の再実行は冪等）。DROP はしない
+        db.exec('COMMIT');
+        return { status: 'verification_failed', copiedRows, missingRows };
+      }
+      // 退避 → DROP（同一トランザクション内。退避行数が元と一致しなければ確定しない）
+      const backupExists =
+        db
+          .prepare(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = 'doctrine_judgments__pre_move_backup'`)
+          .get() !== undefined;
+      let backedUp: number;
+      if (backupExists) {
+        backedUp = db
+          .prepare(`INSERT INTO trail.doctrine_judgments__pre_move_backup SELECT * FROM trail.doctrine_judgments`)
+          .run().changes;
+      } else {
+        db.exec(`CREATE TABLE trail.doctrine_judgments__pre_move_backup AS SELECT * FROM trail.doctrine_judgments`);
+        backedUp = Number(
+          (db.prepare(`SELECT COUNT(*) c FROM trail.doctrine_judgments__pre_move_backup`).get() as { c: number }).c,
+        );
+      }
+      if (backedUp !== trailCount) {
+        console.error(
+          `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration: backup row count mismatch (backup=${backedUp} trail=${trailCount}); rolling back`,
+        );
+        db.exec('ROLLBACK');
+        return { status: 'verification_failed', copiedRows: 0, missingRows: trailCount };
+      }
+      db.exec(`DROP TABLE IF EXISTS trail.doctrine_judgments`);
       db.exec('COMMIT');
+      return { status: 'migrated', copiedRows, missingRows: 0 };
     } catch (e) {
-      db.exec('ROLLBACK');
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // ROLLBACK 失敗は元例外を優先して伝播させる（ここで新例外を投げると原因が隠れる）
+      }
       throw e;
     }
-    const missingRows =
-      (db
-        .prepare(
-          `SELECT COUNT(*) c FROM trail.doctrine_judgments t
-           WHERE NOT EXISTS (SELECT 1 FROM doctrine_judgments m WHERE m.session_id = t.session_id AND m.subject = t.subject)`,
-        )
-        .get() as { c: number }).c +
-      (db
-        .prepare(
-          `SELECT COUNT(*) c FROM trail.doctrine_judgments t JOIN doctrine_judgments m
-             ON m.session_id = t.session_id AND m.subject = t.subject
-           WHERE t.human_decision IS NOT NULL AND m.human_decision IS NULL`,
-        )
-        .get() as { c: number }).c;
-    if (missingRows > 0) {
-      console.error(
-        `[mcp-trail] doctrine_judgments migration verification failed (rows not preserved: ${missingRows}); keeping trail-side table`,
-      );
-      return { status: 'verification_failed', copiedRows, missingRows };
-    }
-    const backupExists =
-      db
-        .prepare(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = 'doctrine_judgments__pre_move_backup'`)
-        .get() !== undefined;
-    if (backupExists) {
-      db.exec(`INSERT INTO trail.doctrine_judgments__pre_move_backup SELECT * FROM trail.doctrine_judgments`);
-    } else {
-      db.exec(`CREATE TABLE trail.doctrine_judgments__pre_move_backup AS SELECT * FROM trail.doctrine_judgments`);
-    }
-    db.exec(`DROP TABLE trail.doctrine_judgments`);
-    return { status: 'migrated', copiedRows, missingRows: 0 };
   } finally {
     db.exec('DETACH DATABASE trail');
   }
@@ -241,7 +303,17 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
  */
 export function ensureAndMigrateDoctrineJudgments(db: Database, memoryDbPath: string): void {
   ensureDoctrineJudgmentsTable(db);
-  destructiveMigrateDoctrineJudgmentsFromTrailDb(db, path.join(path.dirname(memoryDbPath), 'trail.db'));
+  // 移行は旧データ回収の副次目的であり、失敗（SQLITE_BUSY 等）が判断記録そのものを
+  // 止めてはならない（CLAUDE.md D2 §4「記録失敗は承認フローを止めない」と同方針）。
+  // 冪等なので次回呼び出しで再試行され、回収機会は失われない。
+  try {
+    destructiveMigrateDoctrineJudgmentsFromTrailDb(db, path.join(path.dirname(memoryDbPath), 'trail.db'));
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration failed (records continue to memory-core.db; will retry on next call)`,
+      err instanceof Error ? err.stack : err,
+    );
+  }
 }
 
 export function recordDoctrineJudgmentDirect(
@@ -539,12 +611,33 @@ function hasCanonCitation(citationsJson: string): boolean {
   return citations.some((c) => c.approval === 'canon' || c.approval === 'canon_by_document');
 }
 
-export function getDoctrineAgreementDirect(
+/** 一致率集計の入力行。(session_id, subject) は過渡期の memory / trail 重複排除キー。 */
+export interface DoctrineAgreementRow {
+  readonly session_id: string;
+  readonly subject: string;
+  readonly agent_judgment: AgentJudgment;
+  readonly coverage: Coverage;
+  readonly human_decision: HumanDecision | null;
+  readonly citation_count: number;
+  readonly resolved_count: number;
+  readonly citations_json: string;
+  readonly gate_verdict: 'delegable' | 'escalate' | null;
+  readonly delegated_at: string | null;
+}
+
+/**
+ * 一致率集計の入力行を読む（**読み取り専用**。ensure も DDL も行わない）。
+ * テーブル不在は空配列、後付け列（gate_verdict / delegated_at）の不在は NULL 扱い
+ * （listDoctrineJudgmentsBySession と同じ縮退耐性）。
+ */
+export function fetchDoctrineAgreementRows(
   db: Database,
   range: { readonly since?: string; readonly until?: string } = {},
-): DoctrineAgreementMetrics {
-  ensureDoctrineJudgmentsTable(db);
-  // 件数規模は高々セッションあたり数件のため、範囲スキャン + JS 集計で足りる。
+): DoctrineAgreementRow[] {
+  const columns = tableColumns(db, 'doctrine_judgments');
+  if (columns.size === 0) return [];
+  const gateVerdictExpr = columns.has('gate_verdict') ? 'gate_verdict' : 'NULL AS gate_verdict';
+  const delegatedAtExpr = columns.has('delegated_at') ? 'delegated_at' : 'NULL AS delegated_at';
   const conditions: string[] = [];
   const params: string[] = [];
   if (range.since !== undefined) {
@@ -556,21 +649,30 @@ export function getDoctrineAgreementDirect(
     params.push(range.until);
   }
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
-  const rows = db
+  return db
     .prepare(
-      `SELECT agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, gate_verdict, delegated_at FROM doctrine_judgments${where}`,
+      `SELECT session_id, subject, agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, ${gateVerdictExpr}, ${delegatedAtExpr} FROM doctrine_judgments${where}`,
     )
-    .all(...params) as Array<{
-    agent_judgment: AgentJudgment;
-    coverage: Coverage;
-    human_decision: HumanDecision | null;
-    citation_count: number;
-    resolved_count: number;
-    citations_json: string;
-    gate_verdict: 'delegable' | 'escalate' | null;
-    delegated_at: string | null;
-  }>;
+    .all(...params) as DoctrineAgreementRow[];
+}
 
+/**
+ * memory 側と trail 側（移行過渡期の残存）の行を (session_id, subject) で重複排除して結合する。
+ * memory 側優先 — 移設後の新規記録・マージ済みの人の判断が正のため。
+ */
+export function mergeDoctrineAgreementRows(
+  memoryRows: readonly DoctrineAgreementRow[],
+  trailRows: readonly DoctrineAgreementRow[],
+): DoctrineAgreementRow[] {
+  const seen = new Set(memoryRows.map((r) => `${r.session_id} ${r.subject}`));
+  const merged = [...memoryRows];
+  for (const row of trailRows) {
+    if (!seen.has(`${row.session_id} ${row.subject}`)) merged.push(row);
+  }
+  return merged;
+}
+
+export function aggregateDoctrineAgreement(rows: readonly DoctrineAgreementRow[]): DoctrineAgreementMetrics {
   const total = rows.length;
   const decided = rows.filter((r) => r.human_decision !== null).length;
   const delegatedRows = rows.filter((r) => r.delegated_at !== null);
@@ -608,4 +710,12 @@ export function getDoctrineAgreementDirect(
     canonGroundedRate: coveredRows.length > 0 ? canonGrounded / coveredRows.length : null,
     delegableRate: gatedRows.length > 0 ? delegable / gatedRows.length : null,
   };
+}
+
+/** 互換 API: 単一 DB の読み + 集計。**読み取り専用**（ensure・移行を行わない）。 */
+export function getDoctrineAgreementDirect(
+  db: Database,
+  range: { readonly since?: string; readonly until?: string } = {},
+): DoctrineAgreementMetrics {
+  return aggregateDoctrineAgreement(fetchDoctrineAgreementRows(db, range));
 }

@@ -294,6 +294,42 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
       );
     });
 
+    it('acceptance_records の衝突キーで列が不一致なら DROP せず verification_failed（機械マージしない）', () => {
+      withLegacyTables(
+        (trail) => {
+          trail.exec(ACCEPTANCE_DDL);
+          trail
+            .prepare(
+              `INSERT INTO acceptance_records (commit_sha, route, verdict, decided_by, decided_at, created_at, updated_at)
+               VALUES ('abc', 'machine', 'fail', 'farm', ?, ?, ?)`,
+            )
+            .run(TS, TS, TS);
+        },
+        (db, trailDbPath) => {
+          // memory 側に同一キーで verdict の異なる行を先に作る
+          db.upsertAcceptanceRecord({
+            commitSha: 'abc',
+            route: 'machine',
+            verdict: 'pass',
+            decidedBy: 'farm',
+            decidedAt: TS,
+          });
+          const result = db.destructiveMigrateFromTrailDb();
+          expect(result?.status).toBe('verification_failed');
+          expect(result?.missingRows['acceptance_records']).toBe(1);
+          // 非破壊: trail 側テーブルが残る（memory 側の行も上書きされない）
+          const Ctor = loadBetterSqlite3();
+          const trail = new Ctor(trailDbPath, { readonly: true });
+          try {
+            expect((trail.prepare(`SELECT COUNT(*) c FROM acceptance_records`).get() as { c: number }).c).toBe(1);
+          } finally {
+            trail.close();
+          }
+          expect(db.listAcceptanceRecords()[0]?.verdict).toBe('pass');
+        },
+      );
+    });
+
     it('pr_reviews 系は 0 行のときだけ回収され、行が在ると DROP されず verification_failed になる', () => {
       withLegacyTables(
         (trail) => {
