@@ -6,6 +6,7 @@
  * 両方を 1 つの結果に混ぜて返せるかが本質。
  */
 import { BetterSqlite3MemoryDb, runMigrations, type MemoryDbSqlValue } from '@anytime-markdown/memory-core';
+import { FlightRecordDatabase } from '@anytime-markdown/trail-db';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -81,22 +82,24 @@ function seedMemoryDb(dbPath: string): void {
   db.close();
 }
 
-function seedTrailDb(dbPath: string): void {
-  const db = new BetterSqlite3MemoryDb({ filePath: dbPath });
-  db.run(
-    `CREATE TABLE IF NOT EXISTS instruction_sessions (
-       instruction_id TEXT NOT NULL,
-       session_id TEXT NOT NULL,
-       sequence INTEGER NOT NULL,
-       declared_at TEXT NOT NULL,
-       PRIMARY KEY (instruction_id, session_id)
-     ) STRICT`,
-  );
-  db.run(
-    `INSERT INTO instruction_sessions (instruction_id, session_id, sequence, declared_at) VALUES (?, ?, 1, ?)`,
-    [INSTRUCTION_ID, DECLARED_SESSION, TS],
-  );
-  db.close();
+/**
+ * instruction_sessions は memory-core.db 側へ移設済み（2026-08-07）のため、trail.db では
+ * なく memoryDbPath へ FlightRecordDatabase 経由でシードする（openInstruction がテーブルを
+ * 冪等作成し、instruction_sessions へ起点セッションを紐付ける）。
+ */
+function seedInstructionSession(memoryDbPath: string): void {
+  const flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+  flightDb.init();
+  flightDb.openInstruction({
+    id: INSTRUCTION_ID,
+    sessionId: DECLARED_SESSION,
+    workspacePath: '/anytime-markdown',
+    workspaceName: 'anytime-markdown',
+    summary: 'seed instruction',
+    originPrompt: 'seed',
+    startedAt: TS,
+  });
+  flightDb.close();
 }
 
 describe('MemoryApiHandler flight review findings', () => {
@@ -107,7 +110,7 @@ describe('MemoryApiHandler flight review findings', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-flight-findings-'));
     const memoryDbPath = path.join(tmpDir, 'memory-core.db');
     seedMemoryDb(memoryDbPath);
-    seedTrailDb(path.join(tmpDir, 'trail.db'));
+    seedInstructionSession(memoryDbPath);
     handler = new MemoryApiHandler(makeMockLogger(), memoryDbPath);
     // trail.db の ATTACH は openReadOnly 内の非同期処理。最初の呼び出しで接続を張り、
     // ATTACH の解決を待ってから本検証に入る（待たないと trail.* が未解決のまま走る）。
@@ -176,7 +179,7 @@ describe('MemoryApiHandler flight review findings', () => {
     const manyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-flight-findings-many-'));
     const memoryDbPath = path.join(manyDir, 'memory-core.db');
     seedMemoryDb(memoryDbPath);
-    seedTrailDb(path.join(manyDir, 'trail.db'));
+    seedInstructionSession(memoryDbPath);
 
     const db = new BetterSqlite3MemoryDb({ filePath: memoryDbPath });
     db.run(

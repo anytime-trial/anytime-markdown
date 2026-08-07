@@ -6,13 +6,13 @@ description: 開発の実績データと事故から改善を還流させるふ�
 
 # anytime-dev-retro — 開発のふりかえり（定期分析＋インシデント要件化）
 
-更新日: 2026-07-18
+更新日: 2026-08-07
 
 Trail が蓄積する 3 つのローカル DB を横断分析し、**前回からの変化（デルタ）に基づく**健全性レポートを出力する。変化が閾値を超えたシグナルだけ改善提案に昇格させ、提案書に加えてチケットを起票する（毎回同じ指摘を繰り返さないのが本スキルの肝）。
 
 コスト面は**セッション粒度の LLM コスト分析**（Opus 占有率・cache_read 二乗膨張・「高コスト×compact 未使用」のセッション衛生・週次トレンド。旧 `anytime-token-budget` を 2026-07-18 に統合）を含む。実装は専用 grounding（`grounding.token-budget.cjs`）で、3DB 横断の grounding（`grounding.cjs`）と 2 本立てで実行する。リアルタイムのトークン予算監視（Stop フック `token-budget.sh` → viewer タブバー）は本スキルとは別機構で、統合対象外。
 
-- 分析対象 DB（read-only）: `<workspace>/.anytime/trail/db/{trail.db, memory-core.db, doc-core.db}`。コスト詳細は `trail.db` の `session_costs`（session×model 別・`estimated_cost_usd`）/ `sessions`（`message_count` / `peak_context_tokens` / `compact_count` / `sub_agent_count` / `git_branch`）を `grounding.token-budget.cjs` で集計する。
+- 分析対象 DB（read-only）: `<workspace>/.anytime/trail/db/{trail.db, memory-core.db, doc-core.db}`。Flight Record（`flight_reviews` / `instructions` / `instruction_sessions`）は 2026-08-07 に trail.db から memory-core.db へ移設した。grounding はテーブル実在で読み先を選ぶ（未移行 DB では trail.db 側フォールバック。`flightRecord.source` に読み先を出力する）。コスト詳細は `trail.db` の `session_costs`（session×model 別・`estimated_cost_usd`）/ `sessions`（`message_count` / `peak_context_tokens` / `compact_count` / `sub_agent_count` / `git_branch`）を `grounding.token-budget.cjs` で集計する。
 - 分析対象ソース（read-only 走査）: ワークスペース配下の `SHORTCUT:` 意図的簡略化マーカー（台帳化・`no-trigger` 検出。判定はスキル同梱 `shortcutMarkers.cjs` に一本化し、CI ゲート `scripts/check-shortcut-markers.mjs`＝`npm run check-skills` と同一実装）。規約は `~/.claude/rules/code-quality.md` 2.1。
 - 分析対象メモリ（read-only 走査）: プロジェクトメモリ（`~/.claude/projects/<project>/memory/*.md`）の再発シグナル（スキル同梱 `recurrence.cjs`）。「同種の罠 2 回再発で constraint 昇格」「スキル乖離 2 回でスキル本文反映」の昇格候補を機械提示する。**検出のみで自動書き込みはしない**（メモリ領域は保護領域。作成はユーザー承認後）。
 - 出力先: `<docsRoot>/`（`report/_signals/` ＝スナップショット、`report/` ＝健全性レポート、`proposal/` ＝閾値超の改善提案）
@@ -66,6 +66,11 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 委任成績(モデル別) `delegation.byModel`（実行系/モデル別の 採用/差し戻し/abstain） | docs(plan) | 特定モデルの差し戻し率の上昇 |
 | 見積り予実 `delegation.estimates.referenceClass`（カテゴリ×モデル別の 実測中央値・誤差比中央値） | docs(plan) | n≥5 の組で誤差比中央値が 2.0 超 or 0.5 未満（系統的な過小/過大見積り） |
 | 再発シグナル `recurrence.danglingClusters` / `recurrence.uncoveredBugFiles` | memory dir + memory | 新規クラスタ出現 / 増加 |
+| 未達成率 `flightRecord.reviews30d.unachievedSharePct`（自己/手動評価済みに占める partial+unachieved・30 日窓） | memory(flight record) | 上昇 |
+| 手戻り平均 `flightRecord.reviews30d.avgReworkCount`（30 日窓） | memory(flight record) | 上昇 |
+| ツール失敗率 `flightRecord.reviews30d.toolFailureRatePct`（30 日窓） | memory(flight record) | 上昇 |
+| 自己評価カバレッジ `flightRecord.reviews30d.selfAssessedPct`（30 日窓） | memory(flight record) | 低下（machine unknown のまま振り返れない行が増える） |
+| 滞留指示 `flightRecord.instructions.openOver7d`（7 日超オープン） | memory(flight record) | 上昇 |
 
 - **再発の「2 回」判定**: `recurrence.danglingClusters` は件数ではなく、同一 target の滞留サイクル数（初出 / 2 回目 / 3 回目以降）で扱う。同一 target が**前回スナップショットにも存在**していたら「2 回目」とみなし、R023（constraint メモリ昇格）の発火候補として §4 の提案へ昇格する。grounding はステートレスに現在値のみ出力するため、前回スナップショットとの突合で滞留サイクル数を数えるのは本デルタ比較の責務である。`skillHealth.brokenRefs` 対象の同一スキルが前回にも存在した場合は、R024（スキル本文反映）の発火候補として扱う。
 
@@ -107,6 +112,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **モデル別挙動プロファイル**（`modelBehavior.byModel`・30 日窓・記述的）: モデル（フル ID）ごとの冗長性（`avgOutputTokens`）・ツール失敗率（`toolErrorRatePct`）・平均実行時間（`avgTurnExecMs`）を現状値として表示する。委譲先の役割分担（`anytime-dev-cycle` §1・§3.1 モデル表）の見直し材料。**因果主張はしない**: タスク割当が非ランダム（性質でモデルを選んでいる）ため、モデル間差は「性格」でなく割当タスクの性質を含む交絡を持つ。`assistantMsgs` が `minSampleForJudgment`（5）未満のモデルは「標本不足・判定しない」と明記する。
 - **再発シグナル**（`recurrence.danglingClusters` / `recurrence.uncoveredBugFiles`）: dangling target は全件を滞留サイクル数（初出 / 2 回目 / 3 回目以降）付きで列挙する。参照元が 3 件以上の target は `priority: high` 相当として扱う。
 - **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 のいずれかへ必ず遷移させ、件数だけでなく状態を確定させる）。前回レトロが昇格した提案は次回レトロまでにこの 3 状態のいずれかへ置く。`ticketStatus: "unfiled"` の提案は滞留日数付きで全件再掲し、件数で丸めない。未判断が 2 回連続した提案は見送りに落として追跡対象から外し、その理由 1 行を当該提案書に残す。(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
+- **Flight Record**（`flightRecord`・30 日窓）: outcome 分布（achieved/partial/unachieved/unknown）・自己評価カバレッジ・手戻り平均・ツール失敗率・滞留指示（openOver7d）と、指示単位コスト上位 `topInstructionsByCost30d`（instruction_sessions × trail.session_costs の突合。セッション粒度のコスト分析を「1 指示にいくら掛かったか」の作業単位へ引き上げる）。`lessonCandidateReviews`（教訓候補を持つ振り返り）は再発シグナルの突合候補として件数を明記する。`source` が `trail(pre-migration)` の場合は移行未完了と明記する。
 - **grounding errors**（あれば）: 測定不能だったシグナル。
 - 末尾に「次アクション候補」を箇条書き（提案に昇格したものは proposal へのリンク）。
 
@@ -131,6 +137,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **委任テンプレの成績悪化**: `delegation.byVersion` の現行版数の差し戻し率が前回比 +20pt 以上または 50% 超 → `references/delegation.md`（anytime-dev-cycle）の契約書式改訂候補として提案。記録件数が 5 件未満の版は判定しない（少数標本の偽シグナル抑制）。
 - **委譲先の成績悪化（モデル別）**: `delegation.byModel` の特定モデル／実行系の差し戻し率が 50% 超（記録 5 件以上）→ そのモデルへの委譲を減らす／`anytime-dev-cycle` §1 委譲先選択・§3.1 モデル表の見直しを提案する。
 - **較正表の乖離（見積り予実）**: `delegation.estimates.referenceClass` のあるカテゴリ × モデルで **n≥5 かつ誤差比中央値（`medianErrorOut` または `medianErrorWall`）が 2.0 超 or 0.5 未満** → `references/delegation.md` §2.3 較正表の当該セルの改訂（実測中央値へ置換）を提案する。n<5 の組は判定しない。改訂が 2 回連続で誤差を縮めない場合は表の値でなく機構側（カテゴリ語彙の切り方・ペアリング規則）の改訂を提案する（メタ機構の健全性点検と同原則）。誤差評価は同一実行系内で閉じる（Claude 系とCodex のコスト単位は非互換のためモデル間比較しない）。`modelBehavior` は記述的シグナルであり**それ単独では提案昇格の閾値にしない**（交絡があり因果を主張できないため、あくまで役割分担議論の材料）。
+- **Flight Record の悪化**: `flightRecord.reviews30d.unachievedSharePct` が前回比 +10pt 以上（自己/手動評価済み n≥10 のときのみ判定）、または `flightRecord.instructions.openOver7d` が前回比 +5 以上（指示の塩漬け）、または `flightRecord.reviews30d.selfAssessedPct` が 2 回連続のレトロで低下（振り返り運用の減衰 = anytime-session-exit の発火低下とあわせて見る）。
 - `recurrence.danglingClusters` に前回スナップショットと同一の target が残存（2 回目の観測 = constraint メモリ昇格を提案）、または `recurrence.uncoveredBugFiles` に新規ファイルが出現（教訓化されていない再発バグ領域）。3 回目以降の dangling target は新しい個別メモリを「作成しない」判断を確定させ、参照元リンクの書き換え、または既存の索引メモリへ寄せる作業をタスク化する。提案には対象 target / referrers / ファイルを明記し、メモリ作成・書き換え自体はユーザー承認後に行う。
   - 完了済みの作業単位を指す target は、個別メモリを作らず既存の索引メモリへ寄せてよい。ただしメモリ領域は保護領域であり、作成・書き換えは必ずユーザー承認後に行う。
   - **作成前に `<docsRoot>/plan/` を検索する**。target が指す作業単位の本体がプランファイルとして既に存在することが多く、その場合は教訓を書き起こさず `type: reference` のポインタメモリ（本体パス＋要点 1〜2 行＋参照元リンク）で解消する（2026-08-01 実測: 参照元 3 件以上の dangling 2 件はいずれもプランファイルを本体に持っていた）。

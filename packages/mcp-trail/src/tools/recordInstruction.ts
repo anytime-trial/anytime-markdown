@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
-import { openTrailDb } from '../sqlite/openDb';
+import { resolveMemoryDbPath, resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { openMemoryDb } from '../sqlite/openDb';
 import {
   closeInstructionDirect,
   continueInstructionDirect,
@@ -56,8 +56,10 @@ export async function handleRecordInstruction(
     throw new Error('record_instruction requires summary for mode=new');
   }
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  const dbPath = resolveDbPath({ workspacePath });
-  const opened = await openTrailDb(dbPath, 'readwrite');
+  // Flight Record の台帳は memory-core.db（2026-08-07 に trail.db から移設）。
+  // 書き込みは ForWrite 解決: 拡張未起動で memory-core.db が無くても宣言を落とさない
+  const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
+  const opened = await openMemoryDb(dbPath, 'readwrite');
   try {
     if (input.mode === 'close') {
       const result = closeInstructionDirect(opened.db, input.instruction_id as string);
@@ -97,8 +99,8 @@ export async function handleListOpenInstructions(
   input: ListOpenInstructionsInput,
 ): Promise<{ instructions: OpenInstructionRow[] }> {
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  const dbPath = resolveDbPath({ workspacePath });
-  const opened = await openTrailDb(dbPath, 'readonly');
+  const dbPath = resolveMemoryDbPath({ workspacePath });
+  const opened = await openMemoryDb(dbPath, 'readonly');
   try {
     return { instructions: listOpenInstructionsDirect(opened.db, workspacePath, input.limit ?? 10) };
   } finally {

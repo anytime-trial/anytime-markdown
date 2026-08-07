@@ -1,3 +1,4 @@
+export { FlightRecordDatabase } from './FlightRecordDatabase';
 export {
   TrailDatabase,
   InMemoryTrailStorage,
