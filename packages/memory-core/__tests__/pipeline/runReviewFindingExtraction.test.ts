@@ -14,7 +14,7 @@ const BODY = [
   '',
   '## 良い点',
   '',
-  'テストが実挙動を検証している。',
+  'テストが実挙動を検証しており、モックによる偽陽性が無い点は評価できる。',
   '',
   '### 1. busy_timeout が無い',
   '',
@@ -115,7 +115,8 @@ describe('runReviewFindingExtraction', () => {
     });
 
     expect(result.findings_inserted).toBe(0);
-    expect(result.findings_rejected).toBe(1);
+    // 捏造は ungrounded として数える（形式不備・上限超過と混ぜない）
+    expect(result.rejected).toEqual({ ungrounded: 1, malformed: 0, overflow: 0 });
     expect(db.prepare('SELECT COUNT(*) n FROM memory_review_findings WHERE review_id = ?').get(reviewId)?.['n']).toBe(0);
 
     db.close();
@@ -164,7 +165,142 @@ describe('runReviewFindingExtraction', () => {
     });
 
     expect(result.findings_inserted).toBe(0);
-    expect(result.findings_rejected).toBe(1);
+    expect(result.rejected).toEqual({ ungrounded: 0, malformed: 1, overflow: 0 });
+
+    db.close();
+  });
+
+  test('総合評価・良い点から引用した指摘は捨てる（引用の実在 ≠ 指摘の実在）', async () => {
+    const db = makeDb();
+    insertReview(db, 'sess-praise#m1', BODY);
+
+    const result = await runReviewFindingExtraction({
+      db,
+      ollama: makeOllama({
+        findings: [
+          {
+            title: '捏造された指摘',
+            // 本文には実在するが「## 良い点」セクションの文
+            quote: 'テストが実挙動を検証しており、モックによる偽陽性が無い点は評価できる。',
+            finding_text: 'テストが不十分である',
+            severity: 'error',
+            category: 'logic',
+          },
+        ],
+      }),
+      resolveBody: () => BODY,
+      recordedAt: NOW,
+    });
+
+    expect(result.findings_inserted).toBe(0);
+    expect(result.rejected.ungrounded).toBe(1);
+
+    db.close();
+  });
+
+  test('重大度・カテゴリが不正なら既定値で埋めず捨てる', async () => {
+    const db = makeDb();
+    insertReview(db, 'sess-bad#m1', BODY);
+
+    const result = await runReviewFindingExtraction({
+      db,
+      ollama: makeOllama({
+        findings: [
+          {
+            title: 'x',
+            quote: 'daemon との同時書き込みで SQLITE_BUSY になる',
+            finding_text: '説明',
+            severity: 'CRITICAL',
+            category: 'logic',
+          },
+        ],
+      }),
+      resolveBody: () => BODY,
+      recordedAt: NOW,
+    });
+
+    // info で埋めると linkAddresses の skip 内訳（severity_info）を汚す
+    expect(result.findings_inserted).toBe(0);
+    expect(result.rejected.malformed).toBe(1);
+
+    db.close();
+  });
+
+  test('finding_index は実パーサの範囲と衝突しない', async () => {
+    const db = makeDb();
+    const reviewId = insertReview(db, 'sess-idx#m1', BODY);
+
+    await runReviewFindingExtraction({
+      db,
+      ollama: makeOllama({
+        findings: [
+          {
+            title: 'a', quote: 'daemon との同時書き込みで SQLITE_BUSY になる',
+            finding_text: '説明', severity: 'warn', category: 'logic',
+          },
+        ],
+      }),
+      resolveBody: () => BODY,
+      recordedAt: NOW,
+    });
+
+    const idx = db.prepare('SELECT finding_index FROM memory_review_findings WHERE review_id = ?').get(reviewId);
+    // 0 起点だと、後から書式準拠でパースし直した本物の指摘が
+    // UNIQUE(review_id, finding_index) + INSERT OR IGNORE で黙って捨てられる
+    expect(Number(idx?.['finding_index'])).toBeGreaterThanOrEqual(10000);
+
+    db.close();
+  });
+
+  test('review_doc は既定では対象にしない（書き直しで直せるため）', async () => {
+    const db = makeDb();
+    const reviewId = entityId('Review', 'review/a.md');
+    db.run(
+      `INSERT INTO memory_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'Review', 'review/a.md', 'doc', ?, ?, ?)`,
+      [reviewId, AT, AT, AT],
+    );
+    db.run(
+      `INSERT INTO memory_reviews
+         (id, source_kind, source_ref, source_hash, review_entity_id, target_kind, target_refs_json,
+          title, reviewer, severity_overall, summary, body_excerpt, reviewed_at, recorded_at)
+       VALUES (?, 'review_doc', 'review/a.md', 'h', ?, 'code', '[]', 'doc', '', 'info', '', ?, ?, ?)`,
+      [reviewId, reviewId, BODY, AT, AT],
+    );
+
+    const result = await runReviewFindingExtraction({
+      db,
+      ollama: makeOllama({ findings: [] }),
+      resolveBody: () => BODY,
+      recordedAt: NOW,
+    });
+
+    expect(result.reviews_scanned).toBe(0);
+
+    db.close();
+  });
+
+  test('dryRun では DB へ書かない', async () => {
+    const db = makeDb();
+    const reviewId = insertReview(db, 'sess-dry#m1', BODY);
+
+    const result = await runReviewFindingExtraction({
+      db,
+      ollama: makeOllama({
+        findings: [
+          {
+            title: 'a', quote: 'daemon との同時書き込みで SQLITE_BUSY になる',
+            finding_text: '説明', severity: 'warn', category: 'logic',
+          },
+        ],
+      }),
+      resolveBody: () => BODY,
+      recordedAt: NOW,
+      dryRun: true,
+    });
+
+    expect(result.findings_inserted).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) n FROM memory_review_findings WHERE review_id = ?').get(reviewId)?.['n']).toBe(0);
 
     db.close();
   });

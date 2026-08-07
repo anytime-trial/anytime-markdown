@@ -11,6 +11,8 @@ export type UnaddressedReviewFinding = {
   target_file_path: string | null;
   target_symbol: string | null;
   checklist_ref: string | null;
+  /** 抽出元。'' = 書式準拠のパーサ、'llm:<model>' = LLM 再抽出（精度が劣る） */
+  extracted_by: string;
   recorded_at: string;
 };
 
@@ -57,7 +59,8 @@ export function listUnaddressedReviewFindings(input: {
     rows = db.exec(
       `SELECT rf.id, rf.review_id, rf.category, rf.severity,
               rf.finding_text, rf.suggestion_text,
-              rf.target_file_path, rf.target_symbol, rf.checklist_ref, rf.recorded_at
+              rf.target_file_path, rf.target_symbol, rf.checklist_ref,
+              rf.extracted_by, rf.recorded_at
        FROM memory_review_findings rf
        WHERE ${where}
        ORDER BY rf.recorded_at ASC
@@ -81,6 +84,7 @@ export function listUnaddressedReviewFindings(input: {
     target_file_path: row[6] as string | null,
     target_symbol: row[7] as string | null,
     checklist_ref: row[8] as string | null,
-    recorded_at: row[9] as string,
+    extracted_by: (row[9] as string | null) ?? '',
+    recorded_at: row[10] as string,
   }));
 }

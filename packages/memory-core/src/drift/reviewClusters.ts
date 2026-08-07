@@ -28,6 +28,10 @@ export function detectReviewUnfixed(input: {
        LEFT JOIN memory_reviews r ON r.id = f.review_id
        WHERE f.addressed_at IS NULL
          AND f.severity IN (${placeholders})
+         -- LLM 再抽出（runReviewFindingExtraction）由来は drift の母集合に入れない。
+         -- 重大度・対象パスの精度が書式準拠の指摘に劣り、誤って拾った指摘は
+         -- 対処されないまま乖離イベントとして恒久的に残るため。
+         AND f.extracted_by = ''
          AND f.recorded_at <= datetime('now', '-' || ? || ' days')`,
       [...severities, daysOld],
     );
