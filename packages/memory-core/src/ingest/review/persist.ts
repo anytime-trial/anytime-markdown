@@ -128,7 +128,7 @@ export function upsertReviewFinding(
  * 列ごとに CASE で閉じるのは、OR 条件でヒットした行の「既に埋まっている方」を
  * 空文字で潰さないため（frontmatter に excerpt が無い .md で summary が消える）。
  */
-function backfillReviewBody(
+export function backfillReviewBody(
   db: MemoryDbConnection,
   reviewId: string,
   summary: string,

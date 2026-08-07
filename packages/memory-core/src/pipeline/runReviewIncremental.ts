@@ -4,9 +4,10 @@ import * as path from 'node:path';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { PipelineRunLedger } from './PipelineRunLedger';
 import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
+import { entityId } from '../canonical/entityId';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import { refineCategories } from '../ingest/review/extractFindings';
-import { upsertReviewDoc, upsertReviewSession } from '../ingest/review/persist';
+import { upsertReviewDoc, upsertReviewSession, backfillReviewBody } from '../ingest/review/persist';
 import { resolveReviewTargets } from '../ingest/review/resolveReviewTargets';
 import { linkAddresses } from '../ingest/review/linkAddresses';
 import { linkPrecedesBugs } from '../ingest/review/linkPrecedesBugs';
@@ -108,15 +109,35 @@ async function processRouteADoc(opts: {
     const sha1 = createHash('sha1').update(content).digest('hex').slice(0, 16);
 
     const existingRows = db.exec(
-      `SELECT source_hash FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?`,
+      `SELECT source_hash, summary, body_excerpt FROM memory_reviews
+        WHERE source_kind='review_doc' AND source_ref=?`,
       [relPath],
     );
-    const existingHash =
-      existingRows[0]?.values?.[0]?.[0] == null
-        ? null
-        : String(existingRows[0].values[0][0]);
+    const existingRow = existingRows[0]?.values?.[0];
+    const existingHash = existingRow?.[0] == null ? null : String(existingRow[0]);
+    // 本文列は後から追加したため、内容が変わっていない既存行は空のまま残っている。
+    // ハッシュ一致で skip すると永久に埋まらないので、本文だけ補ってから skip する。
+    // upsertReviewDoc 側にも同じ補完があるが、この関数はそれを呼ぶ前に return するため
+    // ここで塞がないと到達しない。
+    const needsBodyBackfill =
+      existingRow !== undefined &&
+      (String(existingRow[1] ?? '') === '' || String(existingRow[2] ?? '') === '');
 
     if (!force && existingHash !== null && existingHash === sha1) {
+      if (needsBodyBackfill) {
+        // LLM を使う refineCategories は通さない。埋めるのは本文列だけで、
+        // 指摘は既存行のものをそのまま使う。
+        const parsed = parseReviewDoc({ rel_path: relPath, content });
+        if (parsed !== null) {
+          backfillReviewBody(
+            db,
+            entityId('Review', relPath),
+            parsed.frontmatter.excerpt ?? '',
+            parsed.bodyExcerpt,
+          );
+          logger.info(`[anytime-memory] runReviewIncremental: backfilled body for unchanged file=${relPath}`);
+        }
+      }
       logger.info(`[anytime-memory] runReviewIncremental: skip unchanged file=${relPath}`);
       return { outcome: 'skipped' };
     }

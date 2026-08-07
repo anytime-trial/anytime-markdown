@@ -185,6 +185,39 @@ describe('runReviewIncremental', () => {
     }
   }, 30000);
 
+  // 本文列を後から足したため、内容が変わっていない既存行は空のまま残る。
+  // ハッシュ一致の skip はこの補完より手前にあるので、そこを塞がないと永久に埋まらない
+  // （upsertReviewDoc 側だけを直しても Route A からは到達しない）。
+  test('内容が変わらない review doc でも、本文列が空なら次回実行で埋まる', async () => {
+    const { dir, cleanup } = makeTmpReviewDir([
+      { name: 'sample.md', content: SAMPLE_REVIEW_DOC },
+    ]);
+    const { db, close } = await openTestDb();
+
+    try {
+      await runReviewIncremental({
+        db, repoName: REPO, reviewDir: dir, ollama: mockOllama, model: 'test', logger: noopLogger,
+      });
+      // 修正前の取込が作った状態（本文列が空・ハッシュは一致）を再現する
+      db.run("UPDATE memory_reviews SET summary = '', body_excerpt = '' WHERE source_kind = 'review_doc'");
+
+      const second = await runReviewIncremental({
+        db, repoName: REPO, reviewDir: dir, ollama: mockOllama, model: 'test', logger: noopLogger,
+      });
+
+      // ファイルは変わっていないので再取込は起きない
+      expect(second.reviews_inserted).toBe(0);
+      // それでも本文は埋まっている
+      const rows = db.exec(
+        "SELECT body_excerpt FROM memory_reviews WHERE source_kind='review_doc'",
+      );
+      expect(String(rows[0]?.values?.[0]?.[0] ?? '').length).toBeGreaterThan(0);
+    } finally {
+      close();
+      cleanup();
+    }
+  }, 30000);
+
   // I16 idempotency: same file twice → reviews_inserted=0 on second run
   test('I16 idempotency: same source_hash on 2nd run → reviews_inserted=0', async () => {
     const { dir, cleanup } = makeTmpReviewDir([
