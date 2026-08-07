@@ -65,6 +65,7 @@ export interface AcceptanceReviewInput {
  */
 const GATE_REASON_LABELS: Readonly<Record<GateReason, string>> = {
   odd_registry_invalid: 'ODD レジストリ（odd.json）が壊れており ODD を判定できない',
+  underspecified_instruction: '指示から一意に定まらない論点があり、承認する中身が確定していない',
   odd_unknown: '対象パスの申告がなく ODD 内と判定できない',
   odd_out: '対象が ODD（自律運航が許容される範囲）の外にある',
   restricted_area: '対象が制限領域（CI 定義・シークレット・本番設定等）にある',

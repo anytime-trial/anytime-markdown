@@ -55,6 +55,12 @@ export const RecordDoctrineJudgmentInputSchema = z.object({
     ])
     .optional()
     .describe('What kind of operation this approval covers. Omitted = undecidable, which the coverage gate treats as escalate (fail-closed). Everything except code_change always goes to the human: the gate is path-based and cannot see push / release / destructive git in target_paths'),
+  underspecified_points: z
+    .array(z.string())
+    .default([])
+    .describe(
+      'Points the human\'s instruction does NOT determine, declared BEFORE asking (DCT-14). An empty array is a positive claim that the instruction alone fixes the outcome — it is not a neutral default, and you cannot revise it afterwards. A non-empty array makes the gate escalate: what to build is not yet determined, so no amount of doctrine grounding makes it delegable. Declare here anything you are about to invent on the human\'s behalf (an unstated design fork, an unhandled case, a scope boundary the prompt is silent on)',
+    ),
   judged_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
   workspacePath: workspacePathParam,
 });
@@ -94,6 +100,7 @@ export async function handleRecordDoctrineJudgment(
     targetPaths: input.target_paths,
     severity: input.severity,
     operationKind: input.operation_kind,
+    underspecifiedPoints: input.underspecified_points,
     odd: resolveOddConfig({
       workspacePath: workspacePath ?? process.cwd(),
       homeDir: os.homedir(),
@@ -112,6 +119,7 @@ export async function handleRecordDoctrineJudgment(
       coverage: input.coverage,
       citations: resolved,
       gate,
+      underspecifiedPoints: input.underspecified_points,
       ...(input.judged_at === undefined ? {} : { judgedAt: input.judged_at }),
     });
     opened.save();

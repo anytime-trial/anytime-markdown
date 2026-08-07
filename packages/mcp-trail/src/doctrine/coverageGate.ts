@@ -9,6 +9,7 @@ export type GateVerdict = 'delegable' | 'escalate';
 
 export type GateReason =
   | 'odd_registry_invalid'
+  | 'underspecified_instruction'
   | 'odd_unknown'
   | 'odd_out'
   | 'restricted_area'
@@ -40,6 +41,11 @@ export interface CoverageGateInput {
   readonly operationKind?: OperationKind | undefined;
   /** ODD Policy Registry の解決結果（Phase 7-A）。`invalid` は判定不能として escalate */
   readonly odd: OddResolution;
+  /**
+   * 指示から一意に定まらない論点の事前申告 (DCT-14)。非空は escalate。
+   * 省略は「申告なし = 空」と同義（既存呼び出しの互換のため）。
+   */
+  readonly underspecifiedPoints?: ReadonlyArray<string> | undefined;
 }
 
 export interface CoverageGateResult {
@@ -76,6 +82,12 @@ export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResu
     // 壊れたレジストリを既定へ縮退させると、「制限領域を足したつもりが構文エラーで
     // 無効化されていた」状態が黙って代行を許す (Phase 7-A 仕様 §3.3)
     return escalate('odd_registry_invalid');
+  }
+  // DCT-14: 結論が指示から一意に定まらないなら、ODD も重大度もドクトリン接地も論じる前に
+  // 代行対象外。承認の可否が正しくても、承認した中身が人の意図と別物になりうる
+  // (この失敗は D1 差し戻しでは減らない — 全件人へ聞いても指示に無い情報は補われない)
+  if (input.underspecifiedPoints !== undefined && input.underspecifiedPoints.length > 0) {
+    return escalate('underspecified_instruction');
   }
   const oddReason = evaluateOddBoundary(input.odd.registry, input.targetPaths);
   if (oddReason !== null) {

@@ -146,4 +146,44 @@ describe('evaluateCoverageGate', () => {
     );
     expect(result.reasons).toEqual(['odd_out']);
   });
+
+  describe('未確定論点の事前申告（DCT-14）', () => {
+    it('申告が非空なら underspecified_instruction で escalate', () => {
+      const result = evaluateCoverageGate(
+        input({ underspecifiedPoints: ['workspace 列を持たないタブの扱い'] }),
+      );
+      expect(result).toEqual({ verdict: 'escalate', reasons: ['underspecified_instruction'] });
+    });
+
+    it.each([[[] as string[]], [undefined]])(
+      '申告が空・未指定なら他の規則の判定を変えない（%p）',
+      (points) => {
+        const result = evaluateCoverageGate(input({ underspecifiedPoints: points }));
+        expect(result).toEqual({ verdict: 'delegable', reasons: [] });
+      },
+    );
+
+    it('ODD・重大度・ドクトリン接地より先に評価する（何を作るかが定まっていないため）', () => {
+      const result = evaluateCoverageGate(
+        input({
+          underspecifiedPoints: ['指示に無い設計の分岐'],
+          targetPaths: ['/other-repo/a.ts'],
+          severity: 'high',
+          coverage: 'silent',
+          citations: [],
+        }),
+      );
+      expect(result.reasons).toEqual(['underspecified_instruction']);
+    });
+
+    it('レジストリが壊れている場合はゲート自体が信用できないので odd_registry_invalid が優先する', () => {
+      const result = evaluateCoverageGate(
+        input({
+          underspecifiedPoints: ['指示に無い設計の分岐'],
+          odd: { kind: 'invalid', reason: 'parse_error' } as CoverageGateInput['odd'],
+        }),
+      );
+      expect(result.reasons).toEqual(['odd_registry_invalid']);
+    });
+  });
 });

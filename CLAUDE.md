@@ -51,7 +51,8 @@
 
 **手順**
 
-1. What 承認が要る場面で、AskUserQuestion を出す**前**に mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。**`severity` / `target_paths` / `operation_kind` の 3 つを必ず申告する**（いずれかが未申告ならカバレッジゲートは fail-closed で `escalate` に倒し、代行は成立しない）。
+1. What 承認が要る場面で、AskUserQuestion を出す**前**に mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。**`severity` / `target_paths` / `operation_kind` / `underspecified_points` の 4 つを必ず申告する**（前 3 つはいずれかが未申告ならカバレッジゲートは fail-closed で `escalate` に倒し、代行は成立しない）。
+    - **`underspecified_points`（DCT-14・2026-08-07 追加）は「指示から一意に定まらない論点」の事前申告**。ユーザーの代わりに自分で決めようとしている点（指示に無い設計の分岐・扱いが書かれていないケース・指示が沈黙しているスコープ境界）をここへ書く。**空配列で出すことは「この指示だけで結論は一意に定まる」という積極的な宣言**であり、既定値ではない。非空ならゲートは `underspecified_instruction` で `escalate` する（何を作るかが定まっていない承認は、どれだけドクトリンに接地していても代行できない）。
 2. 戻り値の `gate.verdict` で分岐する。
     - **`delegable` かつ自分の判断が `approve`** → **人に聞かずに進める**。直後に `record_delegated_approval` で代行を記録し、応答に「何を代行したか」と接地した条項を 1 行残す（無言で進めない）。
     - **それ以外**（`escalate` / 自分の判断が `reject` / `escalate`）→ 従来どおり AskUserQuestion で人へ聞き、回答の**直後**に `record_human_decision` で実際の判断（approve/reject/modified）を記録する。
@@ -61,8 +62,9 @@
 
 **監視と差し戻し**
 
-- 指標の確認は `get_doctrine_agreement`（`agreementRate` / `delegableRate` / `delegated` / `delegatedAudited` / `pending`）。`pending` は「人へ聞いたが未記録」だけを数え、代行済みは `delegated` へ分かれる。
+- 指標の確認は `get_doctrine_agreement`（`agreementRate` / `instructionGapRate` / `delegableRate` / `delegated` / `delegatedAudited` / `pending`）。`pending` は「人へ聞いたが未記録」だけを数え、代行済みは `delegated` へ分かれる。
 - **`agreementRate` が 0.9 を下回ったら D2 を止めて D1（全件を人へ聞く）へ戻す**。判断材料と差し戻しの可否はユーザーへ提示する。
+- **差し戻しの対象は「較正の失敗」に限る**。未確定論点を申告した判断は `agreementRate` の分母に入らず `instructionGapRate` が数える。指示不足は D1 差し戻しでは減らない（全件人へ聞いても指示に無い情報は補われない）ので、是正は「What 承認を出す前に不足論点を洗い出す」運用側に置く。分母が薄い局面（20 件未満は 1 件で 5 ポイント以上動く）で閾値を機械適用しない。
 - 代行した判断は人が後から `record_human_decision` で判断でき（抜き取り監査）、その結果は一致率へ入る。`delegatedAudited` が監査の実施件数。
 
 ## 修正方針は 2 案を提示せずベストプラクティス案を自動選択する（2026-08-05 ユーザー指示）
