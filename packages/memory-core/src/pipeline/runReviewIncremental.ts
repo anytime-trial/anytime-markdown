@@ -4,9 +4,15 @@ import * as path from 'node:path';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { PipelineRunLedger } from './PipelineRunLedger';
 import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
+import { entityId } from '../canonical/entityId';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import { refineCategories } from '../ingest/review/extractFindings';
-import { upsertReviewDoc, upsertReviewSession } from '../ingest/review/persist';
+import {
+  upsertReviewDoc,
+  upsertReviewSession,
+  reconcileExistingReviewRow,
+  needsReviewRowReconcile,
+} from '../ingest/review/persist';
 import { resolveReviewTargets } from '../ingest/review/resolveReviewTargets';
 import { linkAddresses } from '../ingest/review/linkAddresses';
 import { linkPrecedesBugs } from '../ingest/review/linkPrecedesBugs';
@@ -108,15 +114,33 @@ async function processRouteADoc(opts: {
     const sha1 = createHash('sha1').update(content).digest('hex').slice(0, 16);
 
     const existingRows = db.exec(
-      `SELECT source_hash FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?`,
+      `SELECT source_hash, body_excerpt, workspace FROM memory_reviews
+        WHERE source_kind='review_doc' AND source_ref=?`,
       [relPath],
     );
-    const existingHash =
-      existingRows[0]?.values?.[0]?.[0] == null
-        ? null
-        : String(existingRows[0].values[0][0]);
+    const existingRow = existingRows[0]?.values?.[0];
+    const existingHash = existingRow?.[0] == null ? null : String(existingRow[0]);
+    // body_excerpt / summary / workspace は後から足した列で、内容が変わっていない
+    // 既存行は空のまま残っている。ハッシュ一致の skip はこの補完より手前にあるため、
+    // ここで塞がないと下流（upsertReviewDoc・:176 の workspace UPDATE）へ到達しない。
+    const needsReconcile =
+      existingRow !== undefined &&
+      needsReviewRowReconcile(String(existingRow[1] ?? ''), String(existingRow[2] ?? ''));
 
     if (!force && existingHash !== null && existingHash === sha1) {
+      if (needsReconcile) {
+        // LLM を使う refineCategories は通さない。埋めるのは後から足した列だけで、
+        // 指摘は既存行のものをそのまま使う。
+        const parsed = parseReviewDoc({ rel_path: relPath, content });
+        if (parsed !== null) {
+          reconcileExistingReviewRow(db, entityId('Review', relPath), {
+            summary: parsed.frontmatter.excerpt ?? '',
+            bodyExcerpt: parsed.bodyExcerpt,
+            workspace: opts.workspace,
+          });
+          logger.info(`[anytime-memory] runReviewIncremental: reconciled existing row file=${relPath}`);
+        }
+      }
       logger.info(`[anytime-memory] runReviewIncremental: skip unchanged file=${relPath}`);
       return { outcome: 'skipped' };
     }
