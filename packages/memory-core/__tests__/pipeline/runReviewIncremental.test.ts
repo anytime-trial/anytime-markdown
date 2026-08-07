@@ -138,6 +138,20 @@ date: "2026-01-01"
 **提案:** border: 1px solid を使う
 `;
 
+const SAMPLE_REVIEW_DOC_WITH_EXCERPT = `---
+title: "Excerpt Review"
+type: "review"
+date: "2026-01-02"
+excerpt: "frontmatter 由来の要約"
+---
+レビュー対象: \`packages/web-app/src/bar.ts\`
+
+## デザイン
+
+**問題:** color token を使っていない
+**提案:** var(--color-fg) を使う
+`;
+
 const NON_REVIEW_DOC = `---
 title: "Spec Doc"
 type: "spec"
@@ -185,33 +199,59 @@ describe('runReviewIncremental', () => {
     }
   }, 30000);
 
-  // 本文列を後から足したため、内容が変わっていない既存行は空のまま残る。
-  // ハッシュ一致の skip はこの補完より手前にあるので、そこを塞がないと永久に埋まらない
-  // （upsertReviewDoc 側だけを直しても Route A からは到達しない）。
-  test('内容が変わらない review doc でも、本文列が空なら次回実行で埋まる', async () => {
+  // 本文列・workspace を後から足したため、内容が変わっていない既存行は空のまま残る。
+  // ハッシュ一致の skip はこれらの補完より手前にあるので、そこを塞がないと永久に
+  // 埋まらない（upsertReviewDoc 側だけを直しても Route A からは到達しない）。
+  test('内容が変わらない review doc でも、空の列は次回実行で埋まり、その次は何もしない', async () => {
     const { dir, cleanup } = makeTmpReviewDir([
       { name: 'sample.md', content: SAMPLE_REVIEW_DOC },
+      { name: 'with-excerpt.md', content: SAMPLE_REVIEW_DOC_WITH_EXCERPT },
     ]);
     const { db, close } = await openTestDb();
+    const run = () =>
+      runReviewIncremental({
+        db, repoName: REPO, reviewDir: dir, ollama: mockOllama, model: 'test', logger: noopLogger,
+      });
+    const snapshot = () =>
+      JSON.stringify(
+        db.exec(
+          `SELECT source_ref, summary, body_excerpt, workspace FROM memory_reviews
+            WHERE source_kind='review_doc' ORDER BY source_ref`,
+        )[0]?.values ?? [],
+      );
 
     try {
-      await runReviewIncremental({
-        db, repoName: REPO, reviewDir: dir, ollama: mockOllama, model: 'test', logger: noopLogger,
-      });
-      // 修正前の取込が作った状態（本文列が空・ハッシュは一致）を再現する
-      db.run("UPDATE memory_reviews SET summary = '', body_excerpt = '' WHERE source_kind = 'review_doc'");
+      await run();
+      // 修正前の取込が作った状態（後から足した列が空・ハッシュは一致）を再現する
+      db.run(
+        "UPDATE memory_reviews SET summary='', body_excerpt='', workspace='' WHERE source_kind='review_doc'",
+      );
 
-      const second = await runReviewIncremental({
-        db, repoName: REPO, reviewDir: dir, ollama: mockOllama, model: 'test', logger: noopLogger,
-      });
+      const second = await run();
 
       // ファイルは変わっていないので再取込は起きない
       expect(second.reviews_inserted).toBe(0);
-      // それでも本文は埋まっている
+
       const rows = db.exec(
-        "SELECT body_excerpt FROM memory_reviews WHERE source_kind='review_doc'",
-      );
-      expect(String(rows[0]?.values?.[0]?.[0] ?? '').length).toBeGreaterThan(0);
+        `SELECT source_ref, summary, body_excerpt, workspace FROM memory_reviews
+          WHERE source_kind='review_doc' ORDER BY source_ref`,
+      )[0]?.values ?? [];
+      expect(rows.length).toBe(2);
+      for (const row of rows) {
+        // 本文と workspace は両方埋まる（workspace が空だと target_repo 解決が効かない）
+        expect(String(row[2] ?? '').length).toBeGreaterThan(0);
+        expect(row[3]).toBe(REPO);
+      }
+      // summary は frontmatter の excerpt がある doc だけ埋まる（無いのは異常ではない）
+      const withExcerpt = rows.find((r) => String(r[0]).includes('with-excerpt'));
+      const withoutExcerpt = rows.find((r) => String(r[0]).includes('sample'));
+      expect(withExcerpt?.[1]).toBe('frontmatter 由来の要約');
+      expect(withoutExcerpt?.[1]).toBe('');
+
+      // 3 回目は何も変わらない（excerpt を持たない doc で補完がループしないこと）
+      const before = snapshot();
+      await run();
+      expect(snapshot()).toBe(before);
     } finally {
       close();
       cleanup();
