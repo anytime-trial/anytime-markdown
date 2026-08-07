@@ -37,6 +37,13 @@ jest.mock('../../src/pipeline/runCodeReconciliation', () => ({
 jest.mock('../../src/pipeline/runBugHistoryIncremental', () => ({
   runBugHistoryIncremental: jest.fn(),
 }));
+// 既定では実装をそのまま通す（実 DB への出力で検証する本スイートの方針を保つ）。
+// jest.fn で包むのは呼び出し回数を数えるため。個々のテストで mockImplementation を
+// 差し替えれば、失敗・例外の握り潰し経路も検証できる。
+jest.mock('../../src/pipeline/runReviewBackfill', () => {
+  const actual = jest.requireActual('../../src/pipeline/runReviewBackfill');
+  return { runReviewBackfill: jest.fn((...args: unknown[]) => actual.runReviewBackfill(...args)) };
+});
 jest.mock('../../src/pipeline/runReviewIncremental', () => ({
   runReviewIncremental: jest.fn(),
 }));
@@ -60,6 +67,7 @@ import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
 import { runCodeReconciliation } from '../../src/pipeline/runCodeReconciliation';
 import { runBugHistoryIncremental } from '../../src/pipeline/runBugHistoryIncremental';
 import { runReviewIncremental } from '../../src/pipeline/runReviewIncremental';
+import { runReviewBackfill } from '../../src/pipeline/runReviewBackfill';
 import { runSpecIncremental } from '../../src/pipeline/runSpecIncremental';
 import { runDriftDetection } from '../../src/pipeline/runDriftDetection';
 import { runEmbeddingBackfill } from '../../src/pipeline/runEmbeddingBackfill';
@@ -72,6 +80,7 @@ const mockRunCodeIncremental = runCodeIncremental as jest.MockedFunction<typeof 
 const mockRunCodeReconciliation = runCodeReconciliation as jest.MockedFunction<typeof runCodeReconciliation>;
 const mockRunBugHistoryIncremental = runBugHistoryIncremental as jest.MockedFunction<typeof runBugHistoryIncremental>;
 const mockRunReviewIncremental = runReviewIncremental as jest.MockedFunction<typeof runReviewIncremental>;
+const mockRunReviewBackfill = runReviewBackfill as jest.MockedFunction<typeof runReviewBackfill>;
 const mockRunSpecIncremental = runSpecIncremental as jest.MockedFunction<typeof runSpecIncremental>;
 const mockRunDriftDetection = runDriftDetection as jest.MockedFunction<typeof runDriftDetection>;
 const mockRunEmbeddingBackfill = runEmbeddingBackfill as jest.MockedFunction<typeof runEmbeddingBackfill>;
@@ -88,8 +97,9 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
     source TEXT NOT NULL DEFAULT 'claude_code'
       CHECK (source IN ('claude_code','codex','gemini','cursor','other'))
   ) STRICT`);
-  // 本番 trail.messages と同じ列を持たせる。レビュー取込は tool_calls /
-  // subagent_type / skill を SELECT するため、欠けると SQL エラーで経路ごと死ぬ。
+  // レビュー取込が参照する列まで含めた最小 fixture（本番 trail.messages は 37 列）。
+  // tool_calls / subagent_type / skill が欠けると parseReviewSessions の SELECT が
+  // SQL エラーになり、失敗が catch で握り潰されて経路ごと黙って死ぬ。
   db.run(`CREATE TABLE messages (
     uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT,
@@ -543,29 +553,99 @@ describe('MemoryDbSession', () => {
     });
 
     // runReviewBackfillOnce の失敗は「取込は継続」の設計で握り潰されるため、
-    // 完了印が残ったかを見ないと壊れていても気づけない（実測: scope の CHECK 制約に
+    // 完了印と呼び出し回数を見ないと壊れていても気づけない（実測: scope の CHECK 制約に
     // 新スコープが無く、印の書き込みが毎回例外になっていた）。
-    it('review_body_backfill の完了印を残し、2 回目は走らせない', async () => {
+    it('review_body_backfill の完了印を残し、2 回目は本体を呼ばない', async () => {
       const memDb = await makeMemoryDb();
       const trailDb = makeTrailDb();
+      // 走査対象を 1 件用意する（0 件だと印を保留する仕様）。
+      // attach はハンドルの内容を取り込むため、**makeSession より前**に入れる。
+      trailDb.run("INSERT INTO sessions (id) VALUES ('s1')");
+      trailDb.run(
+        `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, subagent_type)
+         VALUES ('m1', 's1', 'assistant', '2026-03-02T00:00:00.000Z', 'レビュー本文', 'code-reviewer')`,
+      );
       const session = makeSession(memDb, trailDb);
       mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 0 });
 
       await session.runReview();
 
+      expect(mockRunReviewBackfill).toHaveBeenCalledTimes(1);
       const first = memDb.db.exec(
         "SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
       );
-      const firstAt = String(first[0]?.values?.[0]?.[0] ?? '');
-      expect(firstAt).not.toBe('');
+      expect(String(first[0]?.values?.[0]?.[0] ?? '')).not.toBe('');
 
       await session.runReview();
 
-      const second = memDb.db.exec(
-        "SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+      // 実行時間が 0ms でも成立するよう、時刻比較ではなく呼び出し回数で判定する
+      expect(mockRunReviewBackfill).toHaveBeenCalledTimes(1);
+
+      trailDb.close();
+    });
+
+    it('走査対象が 0 件のときは完了印を残さない（次回再試行できる）', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+      mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 0 });
+      // trail.messages が空 = 差し替え直後・取込ラグ中。何も是正できていない
+
+      await session.runReview();
+
+      const rows = memDb.db.exec(
+        "SELECT scope FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
       );
-      // 印が更新されていない = 2 回目は backfill 本体を実行していない
-      expect(String(second[0]?.values?.[0]?.[0] ?? '')).toBe(firstAt);
+      expect(rows[0]?.values ?? []).toEqual([]);
+
+      await session.runReview();
+      expect(mockRunReviewBackfill).toHaveBeenCalledTimes(2);
+
+      trailDb.close();
+    });
+
+    it('backfill が error を返したら印を残さずログを出す（取込は継続）', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const logger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() };
+      const session = makeSession(memDb, trailDb, { logger });
+      mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 0 });
+      mockRunReviewBackfill.mockReturnValueOnce({
+        status: 'error',
+        parsed_blocks: 0,
+        bodies_filled: 0,
+        shells_removed: 0,
+        shell_entities_invalidated: 0,
+        error_detail: 'boom',
+      });
+
+      const result = await session.runReview();
+
+      expect(result.status).toBe('success');
+      expect(logger.error).toHaveBeenCalled();
+      const rows = memDb.db.exec(
+        "SELECT scope FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+      );
+      expect(rows[0]?.values ?? []).toEqual([]);
+
+      trailDb.close();
+    });
+
+    it('backfill が例外を投げても取込は完走し、ログを出す', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const logger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() };
+      const session = makeSession(memDb, trailDb, { logger });
+      mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 3 });
+      mockRunReviewBackfill.mockImplementationOnce(() => {
+        throw new Error('CHECK constraint failed');
+      });
+
+      const result = await session.runReview();
+
+      expect(result.status).toBe('success');
+      expect(result.itemsProcessed).toBe(3);
+      expect(logger.error).toHaveBeenCalled();
 
       trailDb.close();
     });
