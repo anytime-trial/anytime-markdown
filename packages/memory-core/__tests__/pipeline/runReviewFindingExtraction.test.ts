@@ -305,6 +305,48 @@ describe('runReviewFindingExtraction', () => {
     db.close();
   });
 
+  test('値に生の改行が入って壊れた JSON を復旧する（コードブロックの引用）', async () => {
+    const db = makeDb();
+    insertReview(db, 'sess-raw#m1', BODY);
+
+    // モデルがコードブロックをそのまま値へ入れた形（実測で支配的な壊れ方）
+    const broken =
+      '{"findings":[{"title":"a","quote":"daemon との同時書き込みで SQLITE_BUSY になる",' +
+      '"finding_text":"次のコードが問題:\n```ts\nconst x = 1;\n```\n","severity":"warn","category":"logic"}]}';
+
+    const result = await runReviewFindingExtraction({
+      db,
+      ollama: makeOllama(broken),
+      resolveBody: () => BODY,
+      recordedAt: NOW,
+    });
+
+    expect(result.reviews_failed).toBe(0);
+    expect(result.findings_inserted).toBe(1);
+
+    db.close();
+  });
+
+  test('改行以外の壊れ方は推測で直さず捨てる', async () => {
+    const db = makeDb();
+    insertReview(db, 'sess-trunc#m1', BODY);
+
+    // 途中で切れた出力。埋めると「不完全な結果」を完全なものとして登録してしまう
+    const truncated = '{"findings":[{"title":"a","quote":"daemon との同時書き込みで SQLITE';
+
+    const result = await runReviewFindingExtraction({
+      db,
+      ollama: makeOllama(truncated),
+      resolveBody: () => BODY,
+      recordedAt: NOW,
+    });
+
+    expect(result.reviews_failed).toBe(1);
+    expect(result.findings_inserted).toBe(0);
+
+    db.close();
+  });
+
   test('既に指摘がある review は対象にしない', async () => {
     const db = makeDb();
     const reviewId = insertReview(db, 'sess-e#m1', BODY);
