@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
-import { openTrailDb } from '../sqlite/openDb';
-import { listDoctrineJudgmentsBySession } from '../sqlite/doctrineJudgments';
+import { resolveDbPath, resolveMemoryDbPath, resolveWorkspacePath } from '../dbPath';
+import { openMemoryDb, openTrailDb } from '../sqlite/openDb';
+import { listDoctrineJudgmentsBySession, type DoctrineJudgmentView } from '../sqlite/doctrineJudgments';
 import { summarizeGitDiff, type GitDiffSummary } from '../doctrine/gitDiffSummary';
 import { buildAcceptanceReview, type AcceptanceReview } from '../doctrine/acceptanceReview';
 
@@ -46,24 +46,67 @@ function skippedDiff(baseRef: string, headRef: string): GitDiffSummary {
  * 受け入れ確認インターフェース (DCT-13)。判断・接地条項・差分・エスカレーションを
  * 1 回の呼び出しで返す。読み取り専用 (判断の記録・更新は行わない)。
  */
+/**
+ * セッションの判断記録を読む。正は memory-core.db（2026-08-07 移設）。
+ * 移行過渡期（遅延移行の未実行・失敗）には trail.db 側に旧レコードが残るため、
+ * **両方を読み subject の memory 優先で重複排除して結合**する — memory 側テーブルの
+ * 実在だけで打ち切ると、移行失敗時に trail 残存分が受け入れ確認から消える。
+ */
+async function readJudgmentsForSession(
+  workspacePath: string,
+  sessionId: string,
+): Promise<ReadonlyArray<DoctrineJudgmentView>> {
+  let memoryJudgments: ReadonlyArray<DoctrineJudgmentView> = [];
+  try {
+    const memoryDbPath = resolveMemoryDbPath({ workspacePath });
+    const opened = await openMemoryDb(memoryDbPath, 'readonly');
+    try {
+      // listDoctrineJudgmentsBySession はテーブル不在で空配列（読み取り専用の縮退耐性）
+      memoryJudgments = listDoctrineJudgmentsBySession(opened.db, sessionId);
+    } finally {
+      opened.close();
+    }
+  } catch (err) {
+    // memory-core.db 未作成（拡張未起動の環境）等。trail 側だけで提示を成立させる
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_acceptance_review: memory-core.db read failed (workspace=${workspacePath}); falling back to trail.db`,
+      err instanceof Error ? err.stack : err,
+    );
+  }
+
+  let trailJudgments: ReadonlyArray<DoctrineJudgmentView> = [];
+  try {
+    const trailDbPath = resolveDbPath({ workspacePath });
+    const openedTrail = await openTrailDb(trailDbPath, 'readonly');
+    try {
+      trailJudgments = listDoctrineJudgmentsBySession(openedTrail.db, sessionId);
+    } finally {
+      openedTrail.close();
+    }
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_acceptance_review: trail.db read failed (workspace=${workspacePath}); using memory-core.db rows only`,
+      err instanceof Error ? err.stack : err,
+    );
+  }
+
+  const seen = new Set(memoryJudgments.map((j) => j.subject));
+  return [...memoryJudgments, ...trailJudgments.filter((j) => !seen.has(j.subject))];
+}
+
 export async function handleGetAcceptanceReview(
   input: GetAcceptanceReviewInput,
 ): Promise<AcceptanceReview> {
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  const dbPath = resolveDbPath({ workspacePath });
   const baseRef = input.base_ref ?? DEFAULT_BASE_REF;
   const headRef = input.head_ref ?? DEFAULT_HEAD_REF;
 
-  // 提示のためだけに本番 DB のスキーマを変えない。readonly で開き、テーブル・
-  // 後付け列の不在は listDoctrineJudgmentsBySession 側で縮退させる
-  const opened = await openTrailDb(dbPath, 'readonly');
-  let judgments;
-  try {
-    judgments = listDoctrineJudgmentsBySession(opened.db, input.session_id);
-  } finally {
-    opened.close();
-  }
+  // 保存先は memory-core.db（2026-08-07 に trail.db から移設）。提示のためだけに DB を
+  // 変えない方針は維持し readonly で開く（移行は書き込み系ツールが担う）。移行前 —
+  // memory 側にテーブルがまだ無い間に限り、trail.db 側へ縮退して読む（判断記録が
+  // 「移行待ちの間だけ受け入れ確認から消える」のを防ぐ）。
+  const judgments = await readJudgmentsForSession(workspacePath, input.session_id);
 
   const diff =
     input.include_diff === false

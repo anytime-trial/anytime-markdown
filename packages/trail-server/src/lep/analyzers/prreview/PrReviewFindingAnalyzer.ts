@@ -1,45 +1,43 @@
-import type {
-  Analyzer,
-  AnalyzerContext,
-  AnalyzerEvent,
+import {
+  ingestPrReview,
+  type Analyzer,
+  type AnalyzerContext,
+  type AnalyzerEvent,
+  type MemoryDbConnection,
+  type PrReviewIngestInput,
 } from '@anytime-markdown/memory-core';
-import type { PrReviewDetail, PrReviewFindingRow } from '@anytime-markdown/trail-db';
 
 import {
-  extractPrReviewFindings,
+  extractPrReviewFindingInputs,
   type PrReviewFindingClassifier,
 } from './extractPrReviewFindings';
 
-/** PrReviewFindingAnalyzer が trail.db に必要とする最小データソース (テストで fake 注入)。 */
-export interface PrReviewFindingDataSource {
-  getPrReviewDetail(reviewId: string): PrReviewDetail | null;
-  replacePrReviewFindings(reviewId: string, findings: readonly PrReviewFindingRow[]): void;
-}
-
 export interface PrReviewFindingAnalyzerOptions {
-  readonly trailDb: PrReviewFindingDataSource;
+  /** review + findings を同時永続化する memory-core.db への書込接続。 */
+  readonly memoryDb: MemoryDbConnection;
   /**
    * severity / category 分類フック (LLM 等)。任意。未指定なら raw コメントのみ保存し分類は skip。
    * これにより Ollama 不在環境でも finding 抽出は機能する (lep-step4 プラン §6.3.2 の「LLM 任意」)。
    */
   readonly classify?: PrReviewFindingClassifier;
-  /** created_at の注入口 (テスト用)。省略時は `new Date()`。 */
-  readonly now?: () => Date;
 }
 
 /**
  * `pr_review_imported` を購読し、PR review の body + コメントから finding を抽出して
- * **独立テーブル** `pr_review_findings` に書き込む (Step 4c)。
+ * `ingestPrReview`（memory-core）で **review 本体と同時に** `memory_reviews` /
+ * `memory_review_findings` へ書き込む (Step 5: trail.db から memory-core.db への付け替え)。
  *
- * - memory_review_findings には一切書かない (memory-core の source_type enum 不変)
- * - 既存 ReviewFindingMemoryAnalyzer (ローカル review .md / session 用) も変更しない。完全並走
- * - LLM 任意: `classify` 未指定なら severity / category は null (raw 保存のみ)
- *
- * 設計判断 (プラン Layer 3 案からの調整): pr_review_findings は trail.db のテーブルで
- * pr_reviews への FK を持つ。trail.db は Wave 2 末で PersistAnalyzer が save し Wave 3 では
- * read-only attach されるため、finding 書込は Wave 2 (tier=2) で行う。本 analyzer は
- * `pr_review_imported` (PrReviewImporter が Wave 1 の event chain で emit) を購読し、
- * onEvent で finding を書込む (PersistAnalyzer の save より前)。LLM 分類は任意フックで後付けする。
+ * - `ingestPrReview` は bodyHash 一致で即 skip する冪等 API のため、review 行を先に空
+ *   findings で作ってから findings だけを追い書きする 2 段呼び出しは成立しない
+ *   （PrReviewImporter のドキュメント参照）。そのため本 analyzer が
+ *   `pr_review_imported` イベント 1 件につき `ingestPrReview` を 1 回だけ呼び、
+ *   review メタデータ（author / state / submittedAt / bodyHash 等）と抽出済み findings を
+ *   同一呼び出しへまとめる。これにより severity_overall / target_refs_json も
+ *   findings の内容から正しく再計算される。
+ * - LLM 任意: `classify` 未指定なら severity / category は null (raw 保存のみ)。
+ * - 本 analyzer は tier=2 (Wave 2) で動く。`pr_review_imported` は PrReviewImporter が
+ *   Wave 1 の event chain で emit するため、onEvent で書込めば PersistAnalyzer の trail.db
+ *   save より前に完結する（trail.db 側への書込は無い）。
  */
 export class PrReviewFindingAnalyzer implements Analyzer {
   readonly id = 'PrReviewFindingAnalyzer';
@@ -60,16 +58,25 @@ export class PrReviewFindingAnalyzer implements Analyzer {
     if (e.kind !== 'pr_review_imported') return;
 
     try {
-      const detail = this.opts.trailDb.getPrReviewDetail(e.reviewId);
-      if (!detail) {
-        ctx.logger.warn?.(`[PrReviewFindingAnalyzer] review ${e.reviewId} not found, skipping`);
-        return;
-      }
-      const createdAt = (this.opts.now?.() ?? new Date()).toISOString();
-      const findings = extractPrReviewFindings(detail, createdAt, this.opts.classify);
-      this.opts.trailDb.replacePrReviewFindings(e.reviewId, findings);
+      const repoName = e.repo.includes('/') ? (e.repo.split('/').pop() ?? e.repo) : e.repo;
+      const findings = extractPrReviewFindingInputs(
+        { state: e.state, body: e.body, comments: e.comments },
+        this.opts.classify,
+      );
+      const input: PrReviewIngestInput = {
+        repoName,
+        prNumber: e.prNumber,
+        reviewId: e.reviewId,
+        author: e.author,
+        state: e.state,
+        submittedAt: e.submittedAt,
+        bodyHash: e.bodyHash,
+        bodyExcerpt: e.body,
+        findings,
+      };
+      const result = ingestPrReview(this.opts.memoryDb, input, ctx.logger);
       this.reviewsProcessed += 1;
-      this.findingsWritten += findings.length;
+      this.findingsWritten += result.findingsCount;
     } catch (err) {
       ctx.logger.error(
         `[PrReviewFindingAnalyzer] failed for review ${e.reviewId}: ${err instanceof Error ? err.message : String(err)}`,

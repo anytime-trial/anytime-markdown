@@ -1,14 +1,7 @@
-import type { PrReviewDetail } from '@anytime-markdown/trail-db';
+import { extractPrReviewFindingInputs, type PrReviewFindingSource } from '../extractPrReviewFindings';
 
-import { extractPrReviewFindings } from '../extractPrReviewFindings';
-
-const CREATED = '2026-05-20T00:00:00.000Z';
-
-function detail(over: Partial<PrReviewDetail> = {}): PrReviewDetail {
+function source(over: Partial<PrReviewFindingSource> = {}): PrReviewFindingSource {
   return {
-    reviewId: 'rev1',
-    repoName: 'widget',
-    prNumber: 7,
     state: 'COMMENTED',
     body: '',
     comments: [],
@@ -16,41 +9,74 @@ function detail(over: Partial<PrReviewDetail> = {}): PrReviewDetail {
   };
 }
 
-describe('extractPrReviewFindings', () => {
-  it('maps each comment to a finding with null severity/category by default', () => {
-    const d = detail({
+describe('extractPrReviewFindingInputs', () => {
+  it('maps each comment to a finding input with null severity/category by default', () => {
+    const s = source({
       comments: [
         { path: 'a.ts', line: 12, body: 'null check needed' },
         { path: 'b.ts', line: null, body: 'rename this' },
       ],
     });
-    const findings = extractPrReviewFindings(d, CREATED);
+    const findings = extractPrReviewFindingInputs(s);
     expect(findings).toEqual([
-      { findingId: 'rev1#c0', reviewId: 'rev1', filePath: 'a.ts', lineNumber: 12, severity: null, category: null, body: 'null check needed', createdAt: CREATED },
-      { findingId: 'rev1#c1', reviewId: 'rev1', filePath: 'b.ts', lineNumber: null, severity: null, category: null, body: 'rename this', createdAt: CREATED },
+      {
+        findingIndex: 0,
+        targetFilePath: 'a.ts',
+        targetLineStart: 12,
+        targetLineEnd: 12,
+        category: null,
+        severity: null,
+        findingText: 'null check needed',
+        suggestionText: '',
+      },
+      {
+        findingIndex: 1,
+        targetFilePath: 'b.ts',
+        targetLineStart: null,
+        targetLineEnd: null,
+        category: null,
+        severity: null,
+        findingText: 'rename this',
+        suggestionText: '',
+      },
     ]);
   });
 
   it('applies the optional classifier when provided', () => {
-    const d = detail({ comments: [{ path: 'a.ts', line: 1, body: 'security bug' }] });
-    const findings = extractPrReviewFindings(d, CREATED, () => ({ severity: 'error', category: 'security' }));
+    const s = source({ comments: [{ path: 'a.ts', line: 1, body: 'security bug' }] });
+    const findings = extractPrReviewFindingInputs(s, () => ({ severity: 'error', category: 'security' }));
     expect(findings[0]).toMatchObject({ severity: 'error', category: 'security' });
   });
 
+  it('falls back to null category when the classifier returns an unknown value', () => {
+    const s = source({ comments: [{ path: 'a.ts', line: 1, body: 'weird' }] });
+    const findings = extractPrReviewFindingInputs(s, () => ({ severity: 'warn', category: 'not-a-real-category' }));
+    expect(findings[0]).toMatchObject({ severity: 'warn', category: null });
+  });
+
   it('creates a single body finding for CHANGES_REQUESTED with no comments', () => {
-    const d = detail({ state: 'CHANGES_REQUESTED', body: 'please refactor', comments: [] });
-    const findings = extractPrReviewFindings(d, CREATED);
+    const s = source({ state: 'CHANGES_REQUESTED', body: 'please refactor', comments: [] });
+    const findings = extractPrReviewFindingInputs(s);
     expect(findings).toEqual([
-      { findingId: 'rev1#body', reviewId: 'rev1', filePath: '', lineNumber: null, severity: null, category: null, body: 'please refactor', createdAt: CREATED },
+      {
+        findingIndex: 0,
+        targetFilePath: null,
+        targetLineStart: null,
+        targetLineEnd: null,
+        category: null,
+        severity: null,
+        findingText: 'please refactor',
+        suggestionText: '',
+      },
     ]);
   });
 
   it('produces no findings for COMMENTED/APPROVED with no comments', () => {
-    expect(extractPrReviewFindings(detail({ state: 'COMMENTED', body: 'looks ok' }), CREATED)).toEqual([]);
-    expect(extractPrReviewFindings(detail({ state: 'APPROVED', body: 'lgtm' }), CREATED)).toEqual([]);
+    expect(extractPrReviewFindingInputs(source({ state: 'COMMENTED', body: 'looks ok' }))).toEqual([]);
+    expect(extractPrReviewFindingInputs(source({ state: 'APPROVED', body: 'lgtm' }))).toEqual([]);
   });
 
   it('produces no findings for an empty review', () => {
-    expect(extractPrReviewFindings(detail({ state: 'CHANGES_REQUESTED', body: '   ' }), CREATED)).toEqual([]);
+    expect(extractPrReviewFindingInputs(source({ state: 'CHANGES_REQUESTED', body: '   ' }))).toEqual([]);
   });
 });

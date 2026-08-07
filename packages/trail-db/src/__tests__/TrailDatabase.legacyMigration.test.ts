@@ -1366,24 +1366,23 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const repoIdViaName = (db as unknown as { repoIdForName(n: string): number }).repoIdForName('legacy-pr');
     const data = inner.exec("SELECT repo_id FROM pr_reviews WHERE review_id = 'rev-legacy'");
     expect(Number(data[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-    // read メソッドは依然 repoName を返す (契約不変)。
-    expect(db.getPrReviewDetail('rev-legacy')?.repoName).toBe('legacy-pr');
-    expect(db.getPrReviews().find((r) => r.reviewId === 'rev-legacy')?.repoName).toBe('legacy-pr');
+    // repo_name は repos JOIN で復元できる（read メソッドは memory_reviews 統合（2026-08-07）で
+    // 撤去済のため生 SQL で契約を確認する）。
+    const joined = inner.exec(
+      `SELECT r.repo_name FROM pr_reviews p JOIN repos r ON r.repo_id = p.repo_id WHERE p.review_id = 'rev-legacy'`,
+    );
+    expect(String(joined[0]?.values?.[0]?.[0])).toBe('legacy-pr');
 
     // 旧索引が撤去され、新 repo_id 先頭索引が張られている。
     const idx = inner.exec("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='pr_reviews'");
     const idxNames = (idx[0]?.values ?? []).map((r: ReadonlyArray<unknown>) => String(r[0]));
     expect(idxNames).not.toContain('idx_pr_reviews_repo_pr');
-    expect(idxNames).toContain('idx_pr_reviews_repo_id_pr');
+    // 新 repo_id 先頭索引は CREATE_PR_REVIEW_INDEXES が張っていたが、memory_reviews 統合
+    //（2026-08-07）で trail.db 側の DDL 適用を撤去したため作成されない（残存テーブルは
+    // FlightRecordDatabase の移行が回収する過渡期のみ存在する）。
 
-    // flip 後の高レベル API が repo_id を埋める (consumer 追従の検証)。
-    db.upsertPrReview({
-      reviewId: 'rev-new', repoName: 'legacy-pr', prNumber: 99, author: 'carol',
-      state: 'COMMENTED', submittedAt: '2026-05-23T00:00:00.000Z', body: 'nit', bodyHash: 'h2', comments: [],
-    });
-    const newRow = inner.exec("SELECT repo_id FROM pr_reviews WHERE review_id = 'rev-new'");
-    expect(Number(newRow[0]?.values?.[0]?.[0])).toBe(repoIdViaName);
-
+    // 書き込み API（upsertPrReview）は memory_reviews 統合（2026-08-07）で撤去済のため、
+    // ここでは additive migration の結果（列・索引・backfill）だけを検証する。
     db.close();
   });
 
@@ -1468,10 +1467,9 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(colsOf('dora_metrics')).toContain('repo_id');
     expect(colsOf('dora_metrics')).not.toContain('repo_name');
     expect(pkOf('dora_metrics')).toEqual(['period', 'repo_id']);
-    // pr_reviews / cross_source_correlations: repo_id 列を持つ (PK は不変)。Phase H-1: repo_name 列は無い。
-    expect(colsOf('pr_reviews')).toContain('repo_id');
-    expect(colsOf('pr_reviews')).not.toContain('repo_name');
-    expect(pkOf('pr_reviews')).toEqual(['review_id']);
+    // pr_reviews は memory_reviews 統合（2026-08-07）で新規 DB に作成されない。
+    expect(colsOf('pr_reviews')).toEqual([]);
+    // cross_source_correlations: repo_id 列を持つ (PK は不変)。Phase H-1: repo_name 列は無い。
     expect(colsOf('cross_source_correlations')).toContain('repo_id');
     expect(colsOf('cross_source_correlations')).not.toContain('repo_name');
     expect(pkOf('cross_source_correlations')).toEqual(['correlation_type', 'source_a_id', 'source_b_id']);
@@ -1566,8 +1564,11 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     expect(Number(inner.exec("SELECT repo_id FROM cross_source_correlations WHERE source_a_id = 'h1-a'")[0]?.values?.[0]?.[0])).toBe(repoId);
 
     // read メソッドは依然 repoName を返す (JOIN repos で復元・下流契約不変)。
-    expect(db.getPrReviewDetail('h1-rev')?.repoName).toBe('h1-repo');
-    expect(db.getPrReviews().find((r) => r.reviewId === 'h1-rev')?.repoName).toBe('h1-repo');
+    // pr_reviews の read メソッドは memory_reviews 統合（2026-08-07）で撤去済のため生 SQL で確認する。
+    const prJoined = inner.exec(
+      `SELECT r.repo_name FROM pr_reviews p JOIN repos r ON r.repo_id = p.repo_id WHERE p.review_id = 'h1-rev'`,
+    );
+    expect(String(prJoined[0]?.values?.[0]?.[0])).toBe('h1-repo');
     expect(db.getCrossSourceCorrelations().find((c) => c.sourceAId === 'h1-a')?.repoName).toBe('h1-repo');
 
     // 冪等: 再度 createTables を走らせても repo_name は無いまま例外なく完了する。

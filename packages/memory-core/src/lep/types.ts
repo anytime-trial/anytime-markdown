@@ -92,7 +92,8 @@ export type SourceEvent =
  * - `release_resolved`:        ReleaseResolver が release tag を 1 件解決
  * - `code_graph_built`:        release tag に対する code graph 構築完了
  * - `current_code_graph_built`: HEAD ベースの current code graph 構築完了
- * - `pr_review_imported`:      PrReviewImporter が GitHub PR review 1 件を trail.db へ取込完了 (Step 4c)
+ * - `pr_review_imported`:      PrReviewImporter が GitHub PR review 1 件の変更を検知し取込を
+ *                              PrReviewFindingAnalyzer へ引き継いだ (Step 4c → Step 5)
  * - `wave_start`:              Wave の開始 (tier analyzer 実行前に emit。Layer 3 の発火契機)
  * - `wave_complete`:           Wave の全 analyzer 実行完了 (barrier)
  * - `wave_skipped`:            Wave がスキップされた (例: memory-core が disabled)
@@ -120,13 +121,34 @@ export type DerivedEvent =
       edges: number;
     }
   | {
-      // PrReviewImporter (Step 4c) が GitHub PR review 1 件を trail.db に取込完了。
-      // PrReviewFindingAnalyzer の発火契機。
+      // PrReviewImporter (Step 4c) が memory_reviews.source_hash と突合し、変更ありと
+      // 判定した GitHub PR review 1 件。PrReviewImporter 自身は永続化しない (Step 5:
+      // memory-core.db 付け替えで ingestPrReview の bodyHash 一致 skip と衝突するため)。
+      // PrReviewFindingAnalyzer が findings 抽出とあわせて ingestPrReview を 1 回で呼ぶのに
+      // 必要な情報をここに積む。
       kind: 'pr_review_imported';
       repo: string;
       prNumber: number;
       reviewId: string;
       commentCount: number;
+      author: string;
+      state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED';
+      /** review 提出日時 (ISO 8601 + Z) */
+      submittedAt: string;
+      /** review 本文 (空文字可) */
+      body: string;
+      /** 冪等判定用の body + comments ハッシュ (Importer が読んだ値をそのまま転送) */
+      bodyHash: string;
+      // SHORTCUT: body 全文と全行コメントをイベントに直載せする. ceiling: 1 PR あたり
+      // コメント数百件・イベント数 MB 程度までを前提（現運用は opt-in 未使用で実データ 0 件）.
+      // upgrade: OOM またはコメント 1000 件超の PR を観測したら payload を reviewId のみにし
+      // PrReviewFindingAnalyzer が Ingester から再取得する方式へ.
+      /** review に紐づく行コメント */
+      comments: readonly {
+        readonly path: string;
+        readonly line: number | null;
+        readonly body: string;
+      }[];
     }
   | { kind: 'wave_start'; wave: 'sources' | 'primary' | 'memory' | 'derived' }
   | { kind: 'wave_complete'; wave: 'sources' | 'primary' | 'memory' | 'derived' }

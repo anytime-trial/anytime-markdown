@@ -16,7 +16,7 @@ export type PersistReviewStats = {
  * If already in ISO 8601 + Z format, returns as-is.
  * If YYYY-MM-DD, appends T00:00:00.000Z.
  */
-function toReviewedAt(dateStr: string): string {
+export function toReviewedAt(dateStr: string): string {
   if (!dateStr) {
     return new Date().toISOString();
   }

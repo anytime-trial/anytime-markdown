@@ -106,6 +106,24 @@ const childAnalyzeFn = makeChildAnalyzeFn(analyzeChildPath, {
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
 /**
+ * AnalyzeAllRunner の PR レビュー系（PrReviewImporter / PrReviewFindingAnalyzer /
+ * CrossSourceCorrelator の PR 相関）が読む memory-core.db 接続。PR レビューの永続化先を
+ * memory_reviews へ統合（2026-08-07）した配線で、LogService と同じ openMemoryCoreDb 前例。
+ * 接続の所有は daemon 側（rebuild ごとに開き直し、disposeAll で閉じる）。
+ */
+let analyzeMemoryCoreDb: MemoryCoreDb | null = null;
+
+function closeAnalyzeMemoryCoreDb(): void {
+  if (analyzeMemoryCoreDb) {
+    try {
+      analyzeMemoryCoreDb.close();
+    } catch (err) {
+      daemonLogger.error(`[daemon] analyze memory-core.db close error: ${formatError(err)}`);
+    }
+    analyzeMemoryCoreDb = null;
+  }
+}
+/**
  * 直近 configure() で受け取った import パイプライン設定。
  *
  * 拡張は configure() → startHttpServer() の順に呼ぶため、configure() 時点では httpTrailDb が
@@ -261,6 +279,19 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
   const cfg = lastAnalyzeAllCfg;
   if (!cfg) return;
 
+  // PR レビュー系 analyzer 用の memory-core.db 接続（開けない場合は analyzer 側が
+  // 「memoryDb connection 無し」の info ログを出して skip する — silent skip にしない）
+  closeAnalyzeMemoryCoreDb();
+  if (cfg.memoryCore) {
+    try {
+      analyzeMemoryCoreDb = await openMemoryCoreDb(cfg.memoryCore.dbPath, {
+        nativeBinding: cfg.memoryCore.nativeBinding,
+      });
+    } catch (err) {
+      daemonLogger.error(`[daemon] analyze memory-core.db open failed: ${formatError(err)}`);
+    }
+  }
+
   analyzeAllRunner = new AnalyzeAllRunner({
     logSink: { appendLine: (m: string) => daemonLogger.info(`[runner] ${m}`) },
     gitRoot: cfg.gitRoot,
@@ -287,6 +318,10 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
     // を区別せず disabledAnalyzerIds の結果)、Layer 2 toggle 用にも同じ全リストを流用する。
     disabledPrimaryAnalyzers: cfg.disabledMemoryAnalyzers,
     githubPrReview: undefined,
+    memoryDbPath: cfg.memoryCore?.dbPath,
+    // openMemoryCoreDb は conn と db に同一参照を入れる。?? で併記すると「2 つの供給元」に
+    // 誤読されるため db（常に存在する側）に一本化する
+    memoryDb: analyzeMemoryCoreDb ? analyzeMemoryCoreDb.db : undefined,
     importAllStatusFilePath: cfg.importAllStatusFilePath,
     pipelineStatusFilePath: cfg.pipelineStatusFilePath,
     // startHttpServer() 後に呼び直される再構築で確定する (LogService と同じ接続)。
@@ -604,6 +639,7 @@ async function disposeAll(): Promise<void> {
     await analyzeAllRunner.dispose();
     analyzeAllRunner = null;
   }
+  closeAnalyzeMemoryCoreDb();
   lastAnalyzeAllCfg = null;
   if (memoryCoreService) {
     await memoryCoreService.dispose();
