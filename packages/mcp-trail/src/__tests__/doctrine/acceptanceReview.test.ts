@@ -29,6 +29,7 @@ function judgmentView(overrides: Partial<DoctrineJudgmentView> = {}): DoctrineJu
     judgedAt: '2026-08-02T01:00:00.000Z',
     decidedAt: '2026-08-02T01:05:00.000Z',
     delegatedAt: null,
+    underspecifiedPoints: [],
     parseError: null,
     ...overrides,
   };

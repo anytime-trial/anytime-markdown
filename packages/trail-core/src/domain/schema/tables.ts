@@ -796,6 +796,17 @@ export const CREATE_ACCEPTANCE_INDEXES = [
  */
 const DELEGATED_AT_CHECK = `CHECK (delegated_at IS NULL OR delegated_at GLOB ${TS_GLOB_MS} OR delegated_at GLOB ${TS_GLOB_NO_MS})`;
 
+/**
+ * 「指示から一意に定まらない論点」の事前申告列の**列定義まるごと**。CREATE と ALTER の
+ * 両方がこれを参照する（CHECK だけ共有した `delegated_at` と違い、NOT NULL と DEFAULT も
+ * 揃っていないと意味が変わるため定義全体を共有する）。
+ *
+ * 他の後付け列と違い NULL 許容にしない。既存行へ ALTER の DEFAULT で `'[]'` を入れることで、
+ * 「申告が無い記録は空（＝指示から一意に定まると宣言した）」という扱いをスキーマの事実にする。
+ * NULL 許容にすると読み取り側ごとに「NULL は空か未申告か」の解釈が分岐する。
+ */
+const UNDERSPECIFIED_POINTS_COLUMN = `underspecified_points_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(underspecified_points_json))`;
+
 export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_judgments (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL,
@@ -817,6 +828,10 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
   -- D2: ゲートが delegable と判定した What 承認をエージェントが代行した時刻。
   -- human_decision が NULL のまま「人の判断待ち」に見えるのを防ぐために分ける
   delegated_at TEXT ${DELEGATED_AT_CHECK},
+  -- DCT-14: 判断を記録する時点で申告する「指示から一意に定まらない論点」(JSON 文字列配列)。
+  -- 空 = 「この指示だけで結論は一意に定まる」と言い切った宣言。事後に原因を分類させると
+  -- 測られる側が自分に有利な原因を選べるため、事前申告に倒して後から覆せなくする
+  ${UNDERSPECIFIED_POINTS_COLUMN},
   UNIQUE (session_id, subject)
 ) STRICT`;
 
@@ -825,6 +840,12 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
  * GLOB 定義を共有するここで組み立てる（手書きすると新規 DB と移行 DB で制約が食い違う）。
  */
 export const ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT = `ALTER TABLE doctrine_judgments ADD COLUMN delegated_at TEXT ${DELEGATED_AT_CHECK}`;
+
+/**
+ * 既存 DB へ `underspecified_points_json` を足す ALTER。NOT NULL + DEFAULT `'[]'` なので、
+ * **既存行はこの ALTER の時点で「空の申告」に確定する**（遡って原因を分類し直さない）。
+ */
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS = `ALTER TABLE doctrine_judgments ADD COLUMN ${UNDERSPECIFIED_POINTS_COLUMN}`;
 
 export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON doctrine_judgments(judged_at)`,

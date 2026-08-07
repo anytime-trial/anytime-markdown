@@ -55,6 +55,12 @@ export const RecordDoctrineJudgmentInputSchema = z.object({
     ])
     .optional()
     .describe('What kind of operation this approval covers. Omitted = undecidable, which the coverage gate treats as escalate (fail-closed). Everything except code_change always goes to the human: the gate is path-based and cannot see push / release / destructive git in target_paths'),
+  underspecified_points: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Points the human\'s instruction does NOT determine, declared BEFORE asking (DCT-14). Declare here anything you are about to invent on the human\'s behalf (an unstated design fork, an unhandled case, a scope boundary the prompt is silent on). Omitting the field is undecidable and escalates (underspecified_unknown), exactly like omitting severity or operation_kind — pass [] explicitly to claim that the instruction alone fixes the outcome. A non-empty array also escalates: what to build is not yet determined, so no amount of doctrine grounding makes it delegable. Re-recording can add points but cannot empty a non-empty declaration',
+    ),
   judged_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
   workspacePath: workspacePathParam,
 });
@@ -94,6 +100,7 @@ export async function handleRecordDoctrineJudgment(
     targetPaths: input.target_paths,
     severity: input.severity,
     operationKind: input.operation_kind,
+    underspecifiedPoints: input.underspecified_points,
     odd: resolveOddConfig({
       workspacePath: workspacePath ?? process.cwd(),
       homeDir: os.homedir(),
@@ -112,6 +119,8 @@ export async function handleRecordDoctrineJudgment(
       coverage: input.coverage,
       citations: resolved,
       gate,
+      // 列は NOT NULL。未申告はゲートが escalate 済みなので、保存側は空配列へ落とす
+      underspecifiedPoints: input.underspecified_points ?? [],
       ...(input.judged_at === undefined ? {} : { judgedAt: input.judged_at }),
     });
     opened.save();

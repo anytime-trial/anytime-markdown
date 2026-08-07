@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { Database } from 'better-sqlite3';
 import {
   ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT,
+  ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS,
   CREATE_DOCTRINE_JUDGMENTS,
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
 } from '@anytime-markdown/trail-core';
@@ -22,6 +23,11 @@ export interface DoctrineJudgmentInput {
   readonly judgedAt?: string;
   /** カバレッジゲートの判定 (DCT-10〜12)。未評価なら省略し、列は NULL のままにする */
   readonly gate?: CoverageGateResult;
+  /**
+   * 指示から一意に定まらない論点の事前申告 (DCT-14)。省略・空配列は
+   * 「この指示だけで結論は一意に定まる」という宣言として記録される。
+   */
+  readonly underspecifiedPoints?: ReadonlyArray<string>;
 }
 
 export interface DoctrineJudgmentRecordResult {
@@ -60,8 +66,29 @@ export interface DoctrineAgreementMetrics {
   readonly delegated: number;
   /** 代行のうち、人が後から抜き取り監査で判断した件数（一致率の入力になる） */
   readonly delegatedAudited: number;
-  /** covered かつ人の判断記録済み かつ agent != escalate を分母とする一致率 */
+  /**
+   * covered かつ人の判断記録済み かつ agent != escalate **かつ未確定論点の申告が空**を
+   * 分母とする一致率。
+   *
+   * 申告が非空の判断を分母から外すのは、そこでの不一致が「較正の失敗」ではなく
+   * 「指示の不足」だから (DCT-14)。両者を畳むと、D1 差し戻しでは減らない失敗を
+   * 理由に D1 へ戻すことになる。指示の不足側は `instructionGapRate` が測る。
+   */
   readonly agreementRate: number | null;
+  /** 未確定論点を申告した件数 (DCT-14) */
+  readonly underspecified: number;
+  /**
+   * 申告列を配列として読めなかった件数 (DCT-14)。0 でない間は `agreementRate` /
+   * `instructionGapRate` の解釈を保留する。破損行は「申告あり」に畳まず分母に残す
+   * ため一致率は下がる方向にしか動かないが、原因が破損か実態かは本件数でしか判らない。
+   */
+  readonly unreadableDeclarations: number;
+  /**
+   * 指示不足率 (DCT-14)。未確定論点の申告が非空だった割合 (分母 = total)。
+   * 高いときの是正は D1 差し戻しではなく、What 承認を出す前に不足論点を洗い出す運用の側。
+   * 不自然に 0 へ張り付く場合は「代行したいから空で出す」申告の形骸化を疑う。
+   */
+  readonly instructionGapRate: number | null;
   /** escalate または coverage != covered の割合（分母 = total） */
   readonly escalationRate: number | null;
   /** 解決検査を通過した引用の割合 */
@@ -100,6 +127,11 @@ const ADDED_COLUMNS: ReadonlyArray<{ readonly name: string; readonly ddl: string
   {
     name: 'delegated_at',
     ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT,
+  },
+  {
+    // 唯一 NOT NULL DEFAULT を持つ後付け列。既存行はこの ALTER で '[]' に確定する
+    name: 'underspecified_points_json',
+    ddl: ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS,
   },
 ];
 
@@ -337,8 +369,8 @@ export function recordDoctrineJudgmentDirect(
     `INSERT INTO doctrine_judgments (
        session_id, subject, agent_judgment, coverage, citations_json,
        citation_count, resolved_count, gate_verdict, gate_reasons_json,
-       judged_at, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       underspecified_points_json, judged_at, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(session_id, subject) DO UPDATE SET
        agent_judgment = excluded.agent_judgment,
        coverage = excluded.coverage,
@@ -347,6 +379,17 @@ export function recordDoctrineJudgmentDirect(
        resolved_count = excluded.resolved_count,
        gate_verdict = excluded.gate_verdict,
        gate_reasons_json = excluded.gate_reasons_json,
+       -- 申告はラチェット: 論点の追記は通すが、非空 → 空へは戻せない。
+       -- 再記録は human_decision / delegated_at もリセットするため、空で再記録できると
+       -- 「escalate された判断を空で上書きして代行のガードを全部通す」経路が成立し、
+       -- 最初の申告は行ごと消えて監査に残らない (DCT-14)。
+       -- 残る自由度は非空 → 別の非空 (部分削除) だが、どちらもゲートは escalate する
+       underspecified_points_json = CASE
+         WHEN json_array_length(underspecified_points_json) > 0
+          AND json_array_length(excluded.underspecified_points_json) = 0
+         THEN underspecified_points_json
+         ELSE excluded.underspecified_points_json
+       END,
        judged_at = excluded.judged_at,
        human_decision = NULL,
        decided_at = NULL,
@@ -362,6 +405,7 @@ export function recordDoctrineJudgmentDirect(
     resolvedCount,
     input.gate === undefined ? null : input.gate.verdict,
     input.gate === undefined ? null : JSON.stringify(input.gate.reasons),
+    JSON.stringify(input.underspecifiedPoints ?? []),
     judgedAt,
     now,
     now,
@@ -501,6 +545,8 @@ export interface DoctrineJudgmentView {
   readonly decidedAt: string | null;
   /** D2 で代行した時刻。人へ聞いたものは null */
   readonly delegatedAt: string | null;
+  /** 指示から一意に定まらないと事前申告した論点 (DCT-14)。空 = 一意に定まると宣言した */
+  readonly underspecifiedPoints: readonly string[];
   /** JSON 列のパース失敗理由。成功時は null */
   readonly parseError: string | null;
 }
@@ -556,11 +602,16 @@ export function listDoctrineJudgmentsBySession(
     ? 'gate_reasons_json'
     : 'NULL AS gate_reasons_json';
   const delegatedAtExpr = columns.has('delegated_at') ? 'delegated_at' : 'NULL AS delegated_at';
+  // 列を持たない旧 DB は「空の申告」に倒す（列の DEFAULT と同じ扱い。NULL を返すと
+  // 「未申告」という第 3 の状態が読み取り側に生まれる）
+  const underspecifiedExpr = columns.has('underspecified_points_json')
+    ? 'underspecified_points_json'
+    : `'[]' AS underspecified_points_json`;
   const rows = db
     .prepare(
       `SELECT id, session_id, subject, agent_judgment, coverage, citations_json,
               ${gateVerdictExpr}, ${gateReasonsExpr}, human_decision, judged_at, decided_at,
-              ${delegatedAtExpr}
+              ${delegatedAtExpr}, ${underspecifiedExpr}
          FROM doctrine_judgments
         WHERE session_id = ?
         ORDER BY judged_at ASC, id ASC`,
@@ -578,12 +629,19 @@ export function listDoctrineJudgmentsBySession(
     judged_at: string;
     decided_at: string | null;
     delegated_at: string | null;
+    underspecified_points_json: string | null;
   }>;
 
   return rows.map((row) => {
     const citations = parseJsonArrayColumn<ResolvedCitation>('citations_json', row.citations_json);
     const reasons = parseJsonArrayColumn<string>('gate_reasons_json', row.gate_reasons_json);
-    const errors = [citations.error, reasons.error].filter((e): e is string => e !== null);
+    const underspecified = parseJsonArrayColumn<string>(
+      'underspecified_points_json',
+      row.underspecified_points_json,
+    );
+    const errors = [citations.error, reasons.error, underspecified.error].filter(
+      (e): e is string => e !== null,
+    );
     return {
       id: row.id,
       sessionId: row.session_id,
@@ -597,6 +655,7 @@ export function listDoctrineJudgmentsBySession(
       judgedAt: row.judged_at,
       decidedAt: row.decided_at,
       delegatedAt: row.delegated_at,
+      underspecifiedPoints: underspecified.value,
       parseError: errors.length === 0 ? null : errors.join('; '),
     };
   });
@@ -624,6 +683,7 @@ export interface DoctrineAgreementRow {
   readonly citations_json: string;
   readonly gate_verdict: 'delegable' | 'escalate' | null;
   readonly delegated_at: string | null;
+  readonly underspecified_points_json: string;
 }
 
 /**
@@ -639,6 +699,11 @@ export function fetchDoctrineAgreementRows(
   if (columns.size === 0) return [];
   const gateVerdictExpr = columns.has('gate_verdict') ? 'gate_verdict' : 'NULL AS gate_verdict';
   const delegatedAtExpr = columns.has('delegated_at') ? 'delegated_at' : 'NULL AS delegated_at';
+  // 移行過渡期の trail.db 側は列を持たない。空の申告に倒すことで、旧レコードは
+  // 従来どおり一致率の分母に入る（遡って分母から外し、自分に有利に再計算しない）
+  const underspecifiedExpr = columns.has('underspecified_points_json')
+    ? 'underspecified_points_json'
+    : `'[]' AS underspecified_points_json`;
   const conditions: string[] = [];
   const params: string[] = [];
   if (range.since !== undefined) {
@@ -652,7 +717,7 @@ export function fetchDoctrineAgreementRows(
   const where = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
   return db
     .prepare(
-      `SELECT session_id, subject, agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, ${gateVerdictExpr}, ${delegatedAtExpr} FROM doctrine_judgments${where}`,
+      `SELECT session_id, subject, agent_judgment, coverage, human_decision, citation_count, resolved_count, citations_json, ${gateVerdictExpr}, ${delegatedAtExpr}, ${underspecifiedExpr} FROM doctrine_judgments${where}`,
     )
     .all(...params) as DoctrineAgreementRow[];
 }
@@ -673,8 +738,33 @@ export function mergeDoctrineAgreementRows(
   return merged;
 }
 
+/**
+ * 未確定論点の申告の読み取り結果 (DCT-14)。**破損を「申告あり」に畳まない**。
+ *
+ * 破損を申告ありに倒すと当該行が一致率の分母から外れ、**破損が起きるほど
+ * `agreementRate` が良く出る**（差し戻しを駆動する指標が壊れる方向に動く）。
+ * かといって空扱いにすると指示不足を較正の失敗として数えてしまう。
+ * どちらにも倒さず、分母には残しつつ (= 一致率は下がる方向にしか動かない)
+ * 別カウントで可視化する。
+ */
+type DeclarationState = 'empty' | 'declared' | 'unreadable';
+
+function readDeclaration(row: DoctrineAgreementRow): DeclarationState {
+  const parsed = parseJsonArrayColumn<string>(
+    'underspecified_points_json',
+    row.underspecified_points_json,
+  );
+  if (parsed.error !== null) {
+    return 'unreadable';
+  }
+  return parsed.value.length > 0 ? 'declared' : 'empty';
+}
+
 export function aggregateDoctrineAgreement(rows: readonly DoctrineAgreementRow[]): DoctrineAgreementMetrics {
   const total = rows.length;
+  const declarations = new Map(rows.map((r) => [r, readDeclaration(r)] as const));
+  const underspecifiedRows = rows.filter((r) => declarations.get(r) === 'declared');
+  const unreadableDeclarations = rows.filter((r) => declarations.get(r) === 'unreadable').length;
   const decided = rows.filter((r) => r.human_decision !== null).length;
   const delegatedRows = rows.filter((r) => r.delegated_at !== null);
   const delegatedAudited = delegatedRows.filter((r) => r.human_decision !== null).length;
@@ -682,7 +772,11 @@ export function aggregateDoctrineAgreement(rows: readonly DoctrineAgreementRow[]
     (r) => r.human_decision === null && r.delegated_at === null,
   ).length;
   const agreementTargets = rows.filter(
-    (r) => r.coverage === 'covered' && r.human_decision !== null && r.agent_judgment !== 'escalate',
+    (r) =>
+      r.coverage === 'covered' &&
+      r.human_decision !== null &&
+      r.agent_judgment !== 'escalate' &&
+      declarations.get(r) !== 'declared',
   );
   const matched = agreementTargets.filter(
     (r) =>
@@ -706,6 +800,9 @@ export function aggregateDoctrineAgreement(rows: readonly DoctrineAgreementRow[]
     delegated: delegatedRows.length,
     delegatedAudited,
     agreementRate: agreementTargets.length > 0 ? matched / agreementTargets.length : null,
+    underspecified: underspecifiedRows.length,
+    unreadableDeclarations,
+    instructionGapRate: total > 0 ? underspecifiedRows.length / total : null,
     escalationRate: total > 0 ? escalations / total : null,
     citationResolutionRate: citationTotal > 0 ? citationResolved / citationTotal : null,
     canonGroundedRate: coveredRows.length > 0 ? canonGrounded / coveredRows.length : null,

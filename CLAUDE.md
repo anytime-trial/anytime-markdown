@@ -51,7 +51,8 @@
 
 **手順**
 
-1. What 承認が要る場面で、AskUserQuestion を出す**前**に mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。**`severity` / `target_paths` / `operation_kind` の 3 つを必ず申告する**（いずれかが未申告ならカバレッジゲートは fail-closed で `escalate` に倒し、代行は成立しない）。
+1. What 承認が要る場面で、AskUserQuestion を出す**前**に mcp-trail `record_doctrine_judgment` で自分の接地判断を記録する（判断 approve/reject/escalate・カバレッジ covered/silent/conflict/odd_out・承認済みドクトリン（`<docsRoot>/spec/92.doctrine/` ほか）への引用: 絶対パス + 節 + 逐語引用）。**`severity` / `target_paths` / `operation_kind` / `underspecified_points` の 4 つを必ず申告する**（前 3 つはいずれかが未申告ならカバレッジゲートは fail-closed で `escalate` に倒し、代行は成立しない）。
+    - **`underspecified_points`（DCT-14・2026-08-07 追加）は「指示から一意に定まらない論点」の事前申告**。ユーザーの代わりに自分で決めようとしている点（指示に無い設計の分岐・扱いが書かれていないケース・指示が沈黙しているスコープ境界）をここへ書く。**空配列で出すことは「この指示だけで結論は一意に定まる」という積極的な宣言**であり、省略はできない（未指定は `underspecified_unknown` で `escalate`）。非空ならゲートは `underspecified_instruction` で `escalate` する（何を作るかが定まっていない承認は、どれだけドクトリンに接地していても代行できない）。再記録はラチェットで、論点の追記は通るが**非空 → 空へは戻せない**。
 2. 戻り値の `gate.verdict` で分岐する。
     - **`delegable` かつ自分の判断が `approve`** → **人に聞かずに進める**。直後に `record_delegated_approval` で代行を記録し、応答に「何を代行したか」と接地した条項を 1 行残す（無言で進めない）。
     - **それ以外**（`escalate` / 自分の判断が `reject` / `escalate`）→ 従来どおり AskUserQuestion で人へ聞き、回答の**直後**に `record_human_decision` で実際の判断（approve/reject/modified）を記録する。
@@ -61,17 +62,18 @@
 
 **監視と差し戻し**
 
-- 指標の確認は `get_doctrine_agreement`（`agreementRate` / `delegableRate` / `delegated` / `delegatedAudited` / `pending`）。`pending` は「人へ聞いたが未記録」だけを数え、代行済みは `delegated` へ分かれる。
+- 指標の確認は `get_doctrine_agreement`（`agreementRate` / `instructionGapRate` / `delegableRate` / `delegated` / `delegatedAudited` / `pending`）。`pending` は「人へ聞いたが未記録」だけを数え、代行済みは `delegated` へ分かれる。
 - **`agreementRate` が 0.9 を下回ったら D2 を止めて D1（全件を人へ聞く）へ戻す**。判断材料と差し戻しの可否はユーザーへ提示する。
+- **差し戻しの対象は「較正の失敗」に限る**。未確定論点を申告した判断は `agreementRate` の分母に入らず `instructionGapRate` が数える。指示不足は D1 差し戻しでは減らない（全件人へ聞いても指示に無い情報は補われない）ので、是正は「What 承認を出す前に不足論点を洗い出す」運用側に置く。分母が薄い局面（20 件未満は 1 件で 5 ポイント以上動く）で閾値を機械適用しない。`instructionGapRate` を生きた信号として読むときは `since='2026-08-07'` を渡す（DCT-14 以前のレコードは空の申告として分母に入るため低く出る）。`unreadableDeclarations` が 0 でない間は両方の率の解釈を保留する。
 - 代行した判断は人が後から `record_human_decision` で判断でき（抜き取り監査）、その結果は一致率へ入る。`delegatedAudited` が監査の実施件数。
 
-## 修正方針は 2 案を提示せずベストプラクティス案を自動選択する（2026-08-05 ユーザー指示）
+## 修正方針の既定: ベストプラクティス案（2026-08-05 ユーザー指示）
 
-global `~/.claude/CLAUDE.md`「バグ修正時」は **ベストプラクティス案** と **安定性・既存挙動優先案** の 2 案提示とユーザー選択を求めるが、**本プロジェクトではこれを上書きし、ベストプラクティス案を自動選択して実装まで進める**。選択を仰ぐために止まらない。
+global `~/.claude/CLAUDE.md`「バグ修正時」は修正方針を**ユーザーへ提示せず、プロジェクトごとの既定に従う**ことを求める。**本プロジェクトの既定は「ベストプラクティス案」**（根本構造を整える方向）である。選択を仰ぐために止まらない。
 
 - 対象は「どちらの方針で直すか」の選択に限る。**パッケージの追加・更新、破壊的操作、リモート push・本番リリース、永続データ書込は従来どおり人へ聞く**（global「承認の対象」の例外と、ODD カバレッジゲートの `always_human_operation` が引き続き効く）。
-- 選択を省く代わりに**判断材料を残す**: 採った方針、却下した安定性優先案とその理由、想定される失敗シナリオを、実装後の応答またはコミット本文に 1 行以上記す（「承認だけ求めない」の対称で、「無言で決めない」）。
-- ベストプラクティス案が**明らかに割に合わない**場合（変更範囲が要求に対して不釣り合い、既存の受入合格済み機能を作り直す等）は自動選択せず、その理由を添えて人へ聞く。自動選択は既定であって義務ではない。
+- 提示を省く代わりに**判断材料を残す**: 採った方針、却下した安定性優先案とその理由、想定される失敗シナリオを、実装後の応答またはコミット本文に 1 行以上記す（「承認だけ求めない」の対称で、「無言で決めない」）。
+- ベストプラクティス案が**明らかに割に合わない**場合（変更範囲が要求に対して不釣り合い、既存の受入合格済み機能を作り直す等）は自動選択せず、その理由を添えて人へ聞く。既定は義務ではない。
 - リファクタリング・再設計・抽象化を伴ってよい。長期保守性・拡張性を既存挙動の温存より優先する。
 
 ## 並行セッション検知（airspace）

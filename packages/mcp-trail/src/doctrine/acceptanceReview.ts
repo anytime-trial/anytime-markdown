@@ -19,6 +19,13 @@ export interface AcceptanceEscalation {
   /** カバレッジゲートが escalate と判定した */
   readonly byGate: boolean;
   readonly gateReasons: readonly string[];
+  /**
+   * 指示から一意に定まらないと申告した論点 (DCT-14)。**理由コードだけでは
+   * 「何が定まっていなかったか」が人に見えない**ため本文へ出す。指示不足の是正は
+   * 運用側（What 承認を出す前に洗い出す）に置くと決めたので、人が読む面に論点が
+   * 出ないと洗い出しへ繋がらない。
+   */
+  readonly underspecifiedPoints: readonly string[];
 }
 
 export interface AcceptanceReviewSummary {
@@ -36,6 +43,8 @@ export interface AcceptanceReviewSummary {
   readonly ungatedCount: number;
   /** 記録の読み取りに失敗した判断の件数 */
   readonly parseErrorCount: number;
+  /** 指示から一意に定まらない論点を申告した判断の件数 (DCT-14) */
+  readonly underspecifiedCount: number;
   readonly changedFileCount: number;
 }
 
@@ -65,6 +74,8 @@ export interface AcceptanceReviewInput {
  */
 const GATE_REASON_LABELS: Readonly<Record<GateReason, string>> = {
   odd_registry_invalid: 'ODD レジストリ（odd.json）が壊れており ODD を判定できない',
+  underspecified_unknown: '未確定論点の申告がなく、指示から一意に定まるかを判定できない',
+  underspecified_instruction: '指示から一意に定まらない論点があり、承認する中身が確定していない',
   odd_unknown: '対象パスの申告がなく ODD 内と判定できない',
   odd_out: '対象が ODD（自律運航が許容される範囲）の外にある',
   restricted_area: '対象が制限領域（CI 定義・シークレット・本番設定等）にある',
@@ -145,6 +156,7 @@ function collectEscalations(
       byAgent: judgment.agentJudgment === 'escalate',
       byGate: judgment.gateVerdict === 'escalate',
       gateReasons: judgment.gateReasons,
+      underspecifiedPoints: judgment.underspecifiedPoints,
     }));
 }
 
@@ -169,6 +181,8 @@ function summarize(
     delegatedCount: judgments.filter((judgment) => judgment.delegatedAt !== null).length,
     ungatedCount: judgments.filter((judgment) => judgment.gateVerdict === null).length,
     parseErrorCount: judgments.filter((judgment) => judgment.parseError !== null).length,
+    underspecifiedCount: judgments.filter((judgment) => judgment.underspecifiedPoints.length > 0)
+      .length,
     changedFileCount: diff.files.length,
   };
 }
@@ -190,6 +204,9 @@ function renderNotice(summary: AcceptanceReviewSummary, diff: GitDiffSummary): s
   }
   if (summary.parseErrorCount > 0) {
     notes.push(`記録を読み取れなかった判断 ${summary.parseErrorCount} 件`);
+  }
+  if (summary.underspecifiedCount > 0) {
+    notes.push(`指示から一意に定まらない論点を申告した判断 ${summary.underspecifiedCount} 件`);
   }
   if (!diff.available) {
     notes.push('成果物の差分を取得できていない');
@@ -307,6 +324,9 @@ function renderEscalations(escalations: readonly AcceptanceEscalation[]): string
           ? '理由の記録なし'
           : escalation.gateReasons.map(describeGateReason).join(' / ');
       lines.push(`- カバレッジゲート: エスカレーション — ${reasons}`);
+    }
+    for (const point of escalation.underspecifiedPoints) {
+      lines.push(`  - 指示から定まらない論点: ${singleLine(point)}`);
     }
     lines.push('');
   }
