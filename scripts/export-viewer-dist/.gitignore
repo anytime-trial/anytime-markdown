@@ -1,0 +1,5 @@
+# build-*.sh の出力先。配布バンドルは MB 級（three.js 内包）のためコミットしない。
+# 出力先ディレクトリ名は対象パッケージ名。ここに無いパッケージを書き出したときは
+# git status に現れる（黙って無視されるより、気づける方に倒す）。
+/cooccurrence-viewer/
+/markdown-editor/
