@@ -44,6 +44,12 @@ export function upsertReviewFinding(
   finding: ParsedFinding,
   recordedAt: string,
   logger: MemoryLogger,
+  /**
+   * 抽出元。既定の '' は「書式準拠のパーサが抽出」を意味する。
+   * INSERT に含めるのは、後から UPDATE で刻むと失敗時に LLM 由来の行が
+   * 書式準拠を装って残り、一括取り消しが効かなくなるため。
+   */
+  extractedBy = '',
 ): { finding_entity_id: string; inserted: boolean } {
   const findingCanonicalName = `${reviewEntityId}:${finding.finding_index}`;
   const findingEntityId = entityId('ReviewFinding', findingCanonicalName);
@@ -72,8 +78,8 @@ export function upsertReviewFinding(
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, target_line_start, target_line_end,
           category, severity, finding_text, suggestion_text,
-          checklist_ref, recorded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          checklist_ref, extracted_by, recorded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         findingId,
         reviewEntityId,
@@ -88,6 +94,7 @@ export function upsertReviewFinding(
         finding.finding_text,
         finding.suggestion_text,
         finding.checklist_ref ?? null,
+        extractedBy,
         recordedAt,
       ],
     );
