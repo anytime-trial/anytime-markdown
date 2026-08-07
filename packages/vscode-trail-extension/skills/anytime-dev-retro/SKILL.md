@@ -71,6 +71,12 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | ツール失敗率 `flightRecord.reviews30d.toolFailureRatePct`（30 日窓） | memory(flight record) | 上昇 |
 | 自己評価カバレッジ `flightRecord.reviews30d.selfAssessedPct`（30 日窓） | memory(flight record) | 低下（machine unknown のまま振り返れない行が増える） |
 | 滞留指示 `flightRecord.instructions.openOver7d`（7 日超オープン） | memory(flight record) | 上昇 |
+| 具体化の取りこぼし `doctrineGap.missedByPromptShape`（指示の型別。申告が空なのに人が modified した判断） | memory(doctrine) | 同一 shape の再出現 / 増加 |
+| 指示不足の申告率 `doctrineGap.instructionGapRatePct` | memory(doctrine) | **0 へ張り付く**（申告の形骸化。上昇は正常） |
+| 申告の読み取り不能 `doctrineGap.unreadableDeclarations` | memory(doctrine) | 1 件以上（他 2 指標の解釈を保留する） |
+
+- **具体化観点（DCT-14）の読み方**: `doctrineGap` は**レビューでは拾えない失敗**を測る。主材料は `missedCount`（申告が空＝「この指示だけで結論は一意に定まる」と言い切ったのに、人が `modified` で覆した判断）で、`declaredCount`（申告できた側）は既に運用が働いた記録なので学ぶべきは取りこぼした側にある。`missedByPromptShape` の型は grounding が決定論で付ける**近似**（`terse`=15 文字以下の継続指示 / `question`=疑問符で終わる指示 / `other` / `undeclared`=指示台帳へ未紐付け）で、E-1〜E-3 への当てはめは `missedSamples` の `originPrompt` を読んで判断する。**`available: false`（列未マイグレーション）は 0 件ではなく測定不能**として扱う。正本は `<docsRoot>/proposal/20260807-elaboration-checklist.ja.md`。
+  - **修正方針の二択は取りこぼしに数えない**。方針の選択は自動選択規約の対象で、`underspecified_points` に書かないことが正しい（2026-08-07 判断）。`missedSamples` に方針選択が覆されただけの判断が混ざっていたら、観点昇格の候補から外す。
 
 - **再発の「2 回」判定**: `recurrence.danglingClusters` は件数ではなく、同一 target の滞留サイクル数（初出 / 2 回目 / 3 回目以降）で扱う。同一 target が**前回スナップショットにも存在**していたら「2 回目」とみなし、R023（constraint メモリ昇格）の発火候補として §4 の提案へ昇格する。grounding はステートレスに現在値のみ出力するため、前回スナップショットとの突合で滞留サイクル数を数えるのは本デルタ比較の責務である。`skillHealth.brokenRefs` 対象の同一スキルが前回にも存在した場合は、R024（スキル本文反映）の発火候補として扱う。
 
@@ -113,6 +119,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - **再発シグナル**（`recurrence.danglingClusters` / `recurrence.uncoveredBugFiles`）: dangling target は全件を滞留サイクル数（初出 / 2 回目 / 3 回目以降）付きで列挙する。参照元が 3 件以上の target は `priority: high` 相当として扱う。
 - **メタ機構の健全性**: 改善機構そのものが機能しているかの点検。(a) 前回レトロで昇格した提案の追跡（`proposal/` の該当ファイルと git 履歴から 採択 / 見送り / 未判断 のいずれかへ必ず遷移させ、件数だけでなく状態を確定させる）。前回レトロが昇格した提案は次回レトロまでにこの 3 状態のいずれかへ置く。`ticketStatus: "unfiled"` の提案は滞留日数付きで全件再掲し、件数で丸めない。未判断が 2 回連続した提案は見送りに落として追跡対象から外し、その理由 1 行を当該提案書に残す。(b) 前回レトロ以降に版数バンプされたスキル・委任テンプレのうち、§2 のスキル発火変化・委任成績で効果が確認できない / 悪化した対象の一覧。機械集計できない項目は「※要確認」で残す（沈黙させない）。
 - **Flight Record**（`flightRecord`・30 日窓）: outcome 分布（achieved/partial/unachieved/unknown）・自己評価カバレッジ・手戻り平均・ツール失敗率・滞留指示（openOver7d）と、指示単位コスト上位 `topInstructionsByCost30d`（instruction_sessions × trail.session_costs の突合。セッション粒度のコスト分析を「1 指示にいくら掛かったか」の作業単位へ引き上げる）。`lessonCandidateReviews`（教訓候補を持つ振り返り）は再発シグナルの突合候補として件数を明記する。`source` が `trail(pre-migration)` の場合は移行未完了と明記する。
+- **具体化観点の候補**（`doctrineGap`）: `missedCount` が 1 件以上なら `missedSamples` を**毎回列挙**する（subject / promptShape / originPrompt）。各件は「着手前に聞けたはずの論点」で、§4 の閾値を満たしたら具体化観点への昇格提案＋チケットへ回す。`available: false`（DCT-14 未マイグレーション）・`missedCount` が 0 のときもその旨を明記する（沈黙させない）。`unreadableDeclarations` が 1 件以上なら申告率の解釈を保留する旨を添える。
 - **grounding errors**（あれば）: 測定不能だったシグナル。
 - 末尾に「次アクション候補」を箇条書き（提案に昇格したものは proposal へのリンク）。
 
@@ -141,6 +148,9 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 - `recurrence.danglingClusters` に前回スナップショットと同一の target が残存（2 回目の観測 = constraint メモリ昇格を提案）、または `recurrence.uncoveredBugFiles` に新規ファイルが出現（教訓化されていない再発バグ領域）。3 回目以降の dangling target は新しい個別メモリを「作成しない」判断を確定させ、参照元リンクの書き換え、または既存の索引メモリへ寄せる作業をタスク化する。提案には対象 target / referrers / ファイルを明記し、メモリ作成・書き換え自体はユーザー承認後に行う。
   - 完了済みの作業単位を指す target は、個別メモリを作らず既存の索引メモリへ寄せてよい。ただしメモリ領域は保護領域であり、作成・書き換えは必ずユーザー承認後に行う。
   - **作成前に `<docsRoot>/plan/` を検索する**。target が指す作業単位の本体がプランファイルとして既に存在することが多く、その場合は教訓を書き起こさず `type: reference` のポインタメモリ（本体パス＋要点 1〜2 行＋参照元リンク）で解消する（2026-08-01 実測: 参照元 3 件以上の dangling 2 件はいずれもプランファイルを本体に持っていた）。
+- **具体化の取りこぼしの再発**: `doctrineGap.missedByPromptShape` に**前回スナップショットにも存在した shape** が残存（2 回目の観測）→ global スキル `elaboration-checklist`（具体化観点）への観点追加を提案・チケット起票する。観点には「気づくトリガ（指示側の兆候）」を必ず持たせ、**トリガを書けない項目は昇格させない**（当てはめようのない一般論を増やさない）。出典として `missedSamples` の subject と originPrompt を提案書へ引く。観点はレビュー観点（`code-review-checklist`）とは別立てで、混ぜない — 対象（成果物 / 指示）も時点（実装後 / 着手前）も是正の宛先も異なるため。**上限 15 項目**を超えたら統合か削除を先に提案する。
+  - 昇格の判定前に、当該 `missedSample` が「修正方針の二択が覆されただけ」でないかを確認する。方針の選択は自動選択規約の対象で観点化しない（2026-08-07 判断）。
+  - **3 か月連続で昇格候補が 0 件なら、具体化観点の機構自体を畳む提案を出す**（提案書の撤退条件）。母数が育たないなら機構を維持するコストに見合わない。
 - **観点の穴クラスタの残存**: `quality.checklistNoneClusters` に前回スナップショットと同一（カテゴリ×パッケージ）のクラスタが残存（2 回目の観測）→ global スキル `code-review-checklist` への観点追加を提案・チケット起票する。チケットには対象クラスタと出典 finding_id（`list_unaddressed_review_findings` の `checklist_ref='none'` で列挙）を明記し、条文化はチケット承認後に手動で行う（条文末尾に出典 finding_id をインライン記載）。
 - **条文が効いていない（メタ還流）**: 条文化・改訂した章の `quality.checklistByRef30d` が**条文化後 2 回連続のレトロ**で減少しない → 条文の再改訂でなく、条文の書き方（NG/OK 例の具体性）またはレビュー委任プロンプトへの観点注入方法の見直しを提案する（「改善機構の空回り」と同原則）。
 - **改善機構の空回り（メタ還流）**: 「スキル改訂が効いていない」または「委任テンプレの成績悪化」が**同一対象で 2 回連続のレトロ**にわたり発火した場合、対象本文の再改訂ではなく**機構側の改訂**（還流ルール＝global CLAUDE.md「メモリ運用」・本スキルの昇格閾値・委譲契約テンプレの書式）を提案対象にする。改訂を繰り返しても効かないのは直し方でなく直す仕組みの欠陥を示唆するため、改善手続き自体を改訂対象に含める（Hyperagents arXiv:2603.19461 の知見。固定されたメタ機構が改善の頭打ちを作る）。標本 5 件未満の版は判定しない規則はここでも維持する。

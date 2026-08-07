@@ -435,6 +435,108 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (trailOpened?.db) trailOpened.db.close();
 }
 
+// ── memory-core.db / trail.db(未移行): 具体化観点の採掘(DCT-14) ────────────────
+// 「指示から一意に定まらない論点」の事前申告と、その取りこぼしを集計する。
+// 主材料は **申告が空なのに人が modified した判断**（一意に定まると言い切ったのに覆された）で、
+// これが具体化観点(elaboration checklist)の昇格候補になる。申告できたもの(非空)は既に
+// 運用が働いた記録なので、学ぶべきは取りこぼした側にある。
+// 正本: <docsRoot>/proposal/20260807-elaboration-checklist.ja.md
+{
+  const hasTable = (db, name) =>
+    db != null && rows(q(db, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, [name])).length > 0;
+  const countRows = (db, table) =>
+    hasTable(db, table) ? Number(one(q(db, `SELECT COUNT(*) c FROM ${table}`))?.c ?? 0) : 0;
+  const memo = open('memory-core.db');
+  if (memo.error) snapshot.errors.push(memo.error);
+  const trailOpened = open('trail.db');
+  if (trailOpened.error) snapshot.errors.push(trailOpened.error);
+  // 読み先は flight record と同じく**行数**で選ぶ（空テーブルが常に作られるため実在判定では選べない）
+  const memoCount = countRows(memo.db, 'doctrine_judgments');
+  const trailCount = countRows(trailOpened.db, 'doctrine_judgments');
+  const djDb = memoCount > 0 ? memo.db : trailCount > 0 ? trailOpened.db : hasTable(memo.db, 'doctrine_judgments') ? memo.db : null;
+  const djSource = memoCount > 0 ? (trailCount > 0 ? 'both(migration incomplete)' : 'memory-core')
+    : trailCount > 0 ? 'trail(pre-migration)'
+      : djDb != null ? 'memory-core(empty)' : null;
+
+  if (djDb === null) {
+    snapshot.doctrineGap = null;
+  } else if (!rows(q(djDb, `PRAGMA table_info(doctrine_judgments)`)).some((c) => c.name === 'underspecified_points_json')) {
+    // DCT-14 未マイグレーション。0 件ではなく**測定不能**として出す
+    snapshot.doctrineGap = { source: djSource, available: false, reason: 'underspecified_points_json 列が無い(DCT-14 未マイグレーション)' };
+  } else {
+    // DCT-14 以前の行は ALTER の DEFAULT で空の申告に確定しているため、生きた信号は導入日以降に絞る。
+    // ここを全期間にすると指示不足率が構造的に低く出る（spec 16 §3.3 の注記と同じ理由）。
+    const SINCE = '2026-08-07';
+    const all = rows(
+      q(djDb, `SELECT id, session_id, subject, agent_judgment, human_decision, judged_at, underspecified_points_json points
+               FROM doctrine_judgments WHERE judged_at >= ? ORDER BY judged_at DESC`, [SINCE]),
+    );
+    // 申告の 3 状態。破損を空にも非空にも倒さない（[[metric-conflates-causes-with-different-remedies]]）
+    const declarationOf = (raw) => {
+      try {
+        const v = JSON.parse(raw);
+        if (!Array.isArray(v)) return { state: 'unreadable', points: [] };
+        return { state: v.length > 0 ? 'declared' : 'empty', points: v };
+      } catch {
+        return { state: 'unreadable', points: [] };
+      }
+    };
+    // 指示の型（決定論の近似。E-1/E-2/E-3 の分類は LLM が本文で精緻化する）
+    const promptShape = (prompt) => {
+      if (prompt == null) return 'undeclared';
+      const t = String(prompt).trim();
+      if (/[?？]\s*$/.test(t)) return 'question';
+      if ([...t].length <= 15) return 'terse';
+      return 'other';
+    };
+    // 指示の全文は同一 DB の instructions から引く（無ければ undeclared へ縮退）
+    const promptBySession = new Map();
+    if (hasTable(djDb, 'instruction_sessions') && hasTable(djDb, 'instructions')) {
+      for (const r of rows(
+        q(djDb, `SELECT s.session_id sid, i.origin_prompt prompt, i.summary summary
+                 FROM instruction_sessions s JOIN instructions i ON i.id = s.instruction_id`),
+      )) {
+        promptBySession.set(r.sid, { prompt: r.prompt, summary: r.summary });
+      }
+    }
+    const enriched = all.map((r) => {
+      const d = declarationOf(r.points);
+      const link = promptBySession.get(r.session_id) ?? null;
+      return { ...r, state: d.state, points: d.points, originPrompt: link?.prompt ?? null, promptShape: promptShape(link?.prompt ?? null) };
+    });
+    // 取りこぼし: escalate 以外（＝自分で決めた）で、申告が空なのに人が修正した判断
+    const missed = enriched.filter((r) => r.state === 'empty' && r.human_decision === 'modified' && r.agent_judgment !== 'escalate');
+    const declared = enriched.filter((r) => r.state === 'declared');
+    const unreadable = enriched.filter((r) => r.state === 'unreadable');
+    const byShape = { terse: 0, question: 0, other: 0, undeclared: 0 };
+    for (const r of missed) byShape[r.promptShape] += 1;
+    const sample = (r) => ({
+      subject: String(r.subject ?? '').slice(0, 100),
+      judgedAt: r.judged_at,
+      promptShape: r.promptShape,
+      originPrompt: r.originPrompt == null ? null : String(r.originPrompt).replace(/\s+/g, ' ').slice(0, 120),
+      points: r.points.map((p) => String(p).slice(0, 100)),
+    });
+    snapshot.doctrineGap = {
+      source: djSource,
+      available: true,
+      since: SINCE,
+      total: enriched.length,
+      declaredCount: declared.length,
+      missedCount: missed.length,
+      unreadableDeclarations: unreadable.length,
+      // 申告できた割合。0 へ張り付くのは「代行したいから空で出す」形骸化のサイン
+      instructionGapRatePct: pct(declared.length, enriched.length),
+      // 昇格判定の突合キー。同じ shape が前回スナップショットにも在れば「2 回目」
+      missedByPromptShape: byShape,
+      missedSamples: missed.slice(0, 5).map(sample),
+      declaredSamples: declared.slice(0, 5).map(sample),
+    };
+  }
+  if (memo.db) memo.db.close();
+  if (trailOpened.db) trailOpened.db.close();
+}
+
 // ── source: SHORTCUT 技術負債マーカー(read-only 走査) ──────────────────────────
 // DB 非依存。ソースの意図的簡略化マーカーを台帳化し no-trigger(昇格経路欠落)を高リスクとして数える。
 // 走査基点は cwd(ワークスペースルート。SKILL.md 記載の起動方法では cwd=workspace)。
