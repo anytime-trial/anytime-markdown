@@ -9,12 +9,19 @@ import { type DbLogger, noopDbLogger } from './DbLogger';
 import {
   assembleInstructionRecord,
   foldInstructionDeliverables,
+  CREATE_ACCEPTANCE_INDEXES,
+  CREATE_ACCEPTANCE_RECORDS,
   CREATE_FLIGHT_REVIEW_INDEXES,
   CREATE_FLIGHT_REVIEWS,
   CREATE_INSTRUCTION_INDEXES,
   CREATE_INSTRUCTION_SESSIONS,
   CREATE_INSTRUCTIONS,
   VERIFICATION_KINDS,
+  type AcceptanceMissRate,
+  type AcceptanceRecord,
+  type AcceptanceRecordFilter,
+  type AcceptanceRecordInput,
+  type AcceptanceRoute,
   type FlightReview,
   type FlightReviewFilter,
   type FlightReviewMachineInput,
@@ -309,6 +316,9 @@ export class FlightRecordDatabase {
     for (const idx of CREATE_INSTRUCTION_INDEXES) db.run(idx);
     db.run(CREATE_FLIGHT_REVIEWS);
     for (const idx of CREATE_FLIGHT_REVIEW_INDEXES) db.run(idx);
+    // 受入台帳（acceptance_records）も判断記録として memory-core.db 側で所有する（2026-08-07 移設）
+    db.run(CREATE_ACCEPTANCE_RECORDS);
+    for (const idx of CREATE_ACCEPTANCE_INDEXES) db.run(idx);
   }
 
   /**
@@ -341,7 +351,9 @@ export class FlightRecordDatabase {
     const db = this.ensureDb();
     if (!this.trailAttached) return null;
     const existing = db.exec(
-      `SELECT name FROM trail.sqlite_master WHERE type = 'table' AND name IN ('instructions', 'instruction_sessions', 'flight_reviews')`,
+      `SELECT name FROM trail.sqlite_master WHERE type = 'table' AND name IN
+         ('instructions', 'instruction_sessions', 'flight_reviews',
+          'acceptance_records', 'pr_reviews', 'pr_review_comments', 'pr_review_findings')`,
     );
     const present = new Set((existing[0]?.values ?? []).map((r) => r[0] as string));
     if (present.size === 0) return null;
@@ -417,33 +429,87 @@ export class FlightRecordDatabase {
       );
       missingRows['flight_reviews'] = (missingRows['flight_reviews'] ?? 0) + unmergedManual;
     }
+    // flight 群の検証結果。失敗しても acceptance / pr の処理は独立に続ける
+    // （1 群の失敗が他群の回収まで止めると、失敗が長引くほど二重管理の窓が広がる）。
+    const flightLost = Object.entries(missingRows).filter(([, n]) => n > 0);
+    if (flightLost.length === 0) {
+      for (const table of ['instruction_sessions', 'flight_reviews', 'instructions'] as const) {
+        if (present.has(table)) this.backupAndDropTrailTable(table);
+      }
+    }
+
+    // ── acceptance_records（受入台帳・2026-08-07 移設）─────────────────────────
+    if (present.has('acceptance_records')) {
+      db.run('BEGIN');
+      try {
+        db.run(
+          `INSERT OR IGNORE INTO acceptance_records (commit_sha, route, repo_name, verdict, decided_by, decided_at, farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at)
+           SELECT commit_sha, route, repo_name, verdict, decided_by, decided_at, farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at FROM trail.acceptance_records`,
+        );
+        copiedRows['acceptance_records'] = db.getRowsModified();
+        db.run('COMMIT');
+      } catch (e) {
+        db.run('ROLLBACK');
+        throw e;
+      }
+      missingRows['acceptance_records'] = Number(
+        db.exec(
+          `SELECT COUNT(*) FROM trail.acceptance_records t
+           WHERE NOT EXISTS (SELECT 1 FROM acceptance_records m WHERE m.commit_sha = t.commit_sha AND m.route = t.route)`,
+        )[0]?.values?.[0]?.[0] ?? 0,
+      );
+      if (missingRows['acceptance_records'] === 0) {
+        this.backupAndDropTrailTable('acceptance_records');
+      }
+    }
+
+    // ── pr_reviews 系（memory_reviews への意味統合・2026-08-07）────────────────
+    // memory 側に同型テーブルは無い（統合先はスキーマの異なる memory_reviews）ため、
+    // 自動のデータ変換はしない。**0 行のときだけ**テーブルを回収し、行が残る DB では
+    // DROP せず error ログで手動変換を促す（統合前の実データを黙って捨てない）。
+    for (const table of ['pr_review_findings', 'pr_review_comments', 'pr_reviews'] as const) {
+      if (!present.has(table)) continue;
+      const rows = Number(db.exec(`SELECT COUNT(*) FROM trail.${table}`)[0]?.values?.[0]?.[0] ?? 0);
+      if (rows === 0) {
+        db.run(`DROP TABLE IF EXISTS trail.${table}`);
+      } else {
+        missingRows[table] = rows;
+        this.logger.error(
+          `[FlightRecordDatabase] trail.${table} has ${rows} rows; not dropped. PR reviews were consolidated into memory_reviews (source_kind='pr_comment') — convert manually before removal`,
+          new Error('pr review tables require manual conversion'),
+        );
+      }
+    }
+
     const lost = Object.entries(missingRows).filter(([, n]) => n > 0);
     if (lost.length > 0) {
       this.logger.error(
-        `[FlightRecordDatabase] migration verification failed (rows not preserved): ${JSON.stringify(Object.fromEntries(lost))}; keeping trail-side tables`,
+        `[FlightRecordDatabase] migration verification failed (rows not preserved): ${JSON.stringify(Object.fromEntries(lost))}; keeping affected trail-side tables`,
         new Error('flight record migration anti-join mismatch'),
       );
       return { status: 'verification_failed', copiedRows, missingRows };
     }
-
-    // 退避 → DROP。退避テーブルが既に在る（過去の移行で作成済み）場合は追記する
-    // （CREATE で置き換えると初回退避を失う。重複は退避用途では許容）。
-    for (const table of ['instruction_sessions', 'flight_reviews', 'instructions'] as const) {
-      if (!present.has(table)) continue;
-      const backup = `${table}__pre_move_backup`;
-      const backupExists =
-        (db.exec(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = ?`, [backup])[0]?.values.length ?? 0) > 0;
-      if (backupExists) {
-        db.run(`INSERT INTO trail.${backup} SELECT * FROM trail.${table}`);
-      } else {
-        db.run(`CREATE TABLE trail.${backup} AS SELECT * FROM trail.${table}`);
-      }
-      db.run(`DROP TABLE IF EXISTS trail.${table}`);
-    }
     this.logger.info(
-      `[FlightRecordDatabase] migrated flight record tables from trail.db (copied rows): ${JSON.stringify(copiedRows)}`,
+      `[FlightRecordDatabase] migrated trail-side tables (copied rows): ${JSON.stringify(copiedRows)}`,
     );
     return { status: 'migrated', copiedRows, missingRows };
+  }
+
+  /**
+   * 退避 → DROP。退避テーブルが既に在る（過去の移行で作成済み）場合は追記する
+   * （CREATE で置き換えると初回退避を失う。重複は退避用途では許容）。
+   */
+  private backupAndDropTrailTable(table: string): void {
+    const db = this.ensureDb();
+    const backup = `${table}__pre_move_backup`;
+    const backupExists =
+      (db.exec(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = ?`, [backup])[0]?.values.length ?? 0) > 0;
+    if (backupExists) {
+      db.run(`INSERT INTO trail.${backup} SELECT * FROM trail.${table}`);
+    } else {
+      db.run(`CREATE TABLE trail.${backup} AS SELECT * FROM trail.${table}`);
+    }
+    db.run(`DROP TABLE IF EXISTS trail.${table}`);
   }
 
   // ---------------------------------------------------------------------------
@@ -944,6 +1010,257 @@ export class FlightRecordDatabase {
     return [...counts.entries()]
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name));
+  }
+
+  // ---------------------------------------------------------------------------
+  //  自律受入基盤 S5: 受入台帳 (acceptance_records)（trail.db から移設・2026-08-07）
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 副作用: acceptance_records へ UPSERT。
+   * (commit_sha, route) キーで冪等（farm の再実行・多重記録を吸収する）。
+   */
+  upsertAcceptanceRecord(input: AcceptanceRecordInput): void {
+    const db = this.ensureDb();
+    const now = new Date().toISOString();
+    const stmt = db.prepare(
+      `INSERT INTO acceptance_records (
+         commit_sha, route, repo_name, verdict, decided_by, decided_at,
+         farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(commit_sha, route) DO UPDATE SET
+         repo_name = excluded.repo_name,
+         verdict = excluded.verdict,
+         decided_by = excluded.decided_by,
+         decided_at = excluded.decided_at,
+         farm_run_ref = excluded.farm_run_ref,
+         failed_tests = excluded.failed_tests,
+         vrt_diff = excluded.vrt_diff,
+         quarantined_count = excluded.quarantined_count,
+         notes = excluded.notes,
+         updated_at = excluded.updated_at`,
+    );
+    try {
+      stmt.run([
+        input.commitSha,
+        input.route,
+        input.repoName ?? '',
+        input.verdict,
+        input.decidedBy,
+        input.decidedAt ?? null,
+        input.farmRunRef ?? '',
+        JSON.stringify(input.failedTests ?? []),
+        input.vrtDiff ? 1 : 0,
+        input.quarantinedCount ?? 0,
+        input.notes ?? '',
+        now,
+        now,
+      ]);
+    } finally {
+      stmt.free();
+    }
+  }
+
+  /** decided_at 降順（NULL は末尾）。filter 未指定は直近 100 件。 */
+  listAcceptanceRecords(filter: AcceptanceRecordFilter = {}): AcceptanceRecord[] {
+    const db = this.ensureDb();
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    if (filter.commitSha !== undefined) {
+      conditions.push('commit_sha = ?');
+      params.push(filter.commitSha);
+    }
+    if (filter.route !== undefined) {
+      conditions.push('route = ?');
+      params.push(filter.route);
+    }
+    if (filter.since !== undefined) {
+      conditions.push('decided_at >= ?');
+      params.push(filter.since);
+    }
+    if (filter.until !== undefined) {
+      conditions.push('decided_at <= ?');
+      params.push(filter.until);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(filter.limit ?? 100);
+    const res = db.exec(
+      `SELECT commit_sha, route, repo_name, verdict, decided_by, decided_at,
+              farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at
+       FROM acceptance_records ${where} ORDER BY decided_at DESC, updated_at DESC LIMIT ?`,
+      params,
+    );
+    if (!res[0]) return [];
+    return res[0].values.map((row) => ({
+      commitSha: row[0] as string,
+      route: row[1] as AcceptanceRecord['route'],
+      repoName: row[2] as string,
+      verdict: row[3] as AcceptanceRecord['verdict'],
+      decidedBy: row[4] as AcceptanceRecord['decidedBy'],
+      decidedAt: (row[5] as string | null) ?? null,
+      farmRunRef: row[6] as string,
+      failedTests: row[7] as string,
+      vrtDiff: (row[8] as number) === 1,
+      quarantinedCount: row[9] as number,
+      notes: row[10] as string,
+      createdAt: row[11] as string,
+      updatedAt: row[12] as string,
+    }));
+  }
+
+  /**
+   * regression 系 fix コミットか（Conventional Commits: `fix(<pkg>/regression):` / `fix(regression):`。
+   * 規約は git-workflow ルール）。見逃し率の突合対象を要件書 §5.2 の定義に限定する —
+   * `fix(typo)` / `fix(deps)` 等まで数えると経路別見逃し率が過大計上され、Level Gate の誤降格につながる。
+   */
+  private static isRegressionFixMessage(message: string): boolean {
+    return /^fix\(([^)]*\/)?regression\):/.test(message);
+  }
+
+  /**
+   * 経路別見逃し率の算出（読み取りのみ・近似指標）。
+   * 「合格コミットの変更ファイルと同じファイルに、合格後 windowDays 日以内の regression 系 fix
+   * コミット（別 SHA・同一リポジトリ）が触れた」件数を missed と数える。厳密な因果は問わない。
+   * コミット・リポジトリ情報は trail.db 残留テーブル（repos / session_commits / commit_files）を
+   * ATTACH 経由で読む。未 ATTACH では missed を判定できないため missRate=null に縮退する
+   * （0 と区別する。acceptedCount は memory 側だけで数えられるので返す）。
+   */
+  computeAcceptanceMissRate(windowDays = 14): AcceptanceMissRate[] {
+    const db = this.ensureDb();
+    const routes: AcceptanceRoute[] = ['auto', 'machine', 'human'];
+    const passRes = db.exec(
+      `SELECT commit_sha, route, decided_at, repo_name FROM acceptance_records
+       WHERE verdict = 'pass' AND decided_at IS NOT NULL`,
+    );
+    const passRows = (passRes[0]?.values ?? []).map((r) => ({
+      commitSha: r[0] as string,
+      route: r[1] as AcceptanceRoute,
+      decidedAt: r[2] as string,
+      repoName: r[3] as string,
+    }));
+    if (passRows.length === 0) {
+      return routes.map((route) => ({ route, acceptedCount: 0, missedCount: 0, missRate: null, windowDays }));
+    }
+    if (!this.trailAttached) {
+      const acceptedByRouteOnly = new Map<AcceptanceRoute, number>();
+      for (const pass of passRows) {
+        acceptedByRouteOnly.set(pass.route, (acceptedByRouteOnly.get(pass.route) ?? 0) + 1);
+      }
+      return routes.map((route) => ({
+        route,
+        acceptedCount: acceptedByRouteOnly.get(route) ?? 0,
+        missedCount: 0,
+        missRate: null,
+        windowDays,
+      }));
+    }
+
+    const repoIdByName = new Map<string, number>();
+    for (const row of db.exec(`SELECT repo_id, repo_name FROM trail.repos`)[0]?.values ?? []) {
+      repoIdByName.set(row[1] as string, row[0] as number);
+    }
+
+    const filesByCommit = this.commitFilesByHashes(passRows.map((r) => r.commitSha));
+
+    const minDecidedAt = passRows.reduce((min, r) => (r.decidedAt < min ? r.decidedAt : min), passRows[0].decidedAt);
+    const fixRes = db.exec(
+      `SELECT DISTINCT commit_hash, committed_at, repo_id, commit_message FROM trail.session_commits
+       WHERE commit_message GLOB 'fix*' AND committed_at IS NOT NULL AND committed_at >= ?`,
+      [minDecidedAt],
+    );
+    const fixCommits = (fixRes[0]?.values ?? [])
+      .map((r) => ({
+        commitHash: r[0] as string,
+        committedAt: r[1] as string,
+        repoId: r[2] as number,
+        message: r[3] as string,
+      }))
+      .filter((f) => FlightRecordDatabase.isRegressionFixMessage(f.message));
+    const fixFilesByCommit = this.commitFilesByHashes(fixCommits.map((f) => f.commitHash));
+
+    const filesFor = (
+      map: Map<string, Map<number, Set<string>>>,
+      hash: string,
+      repoId: number | null,
+    ): Set<string> => {
+      const byRepo = map.get(hash);
+      if (!byRepo) return new Set();
+      if (repoId !== null) return byRepo.get(repoId) ?? new Set();
+      const union = new Set<string>();
+      for (const set of byRepo.values()) {
+        for (const f of set) union.add(f);
+      }
+      return union;
+    };
+
+    const windowMs = windowDays * 24 * 60 * 60 * 1000;
+    const missedByRoute = new Map<AcceptanceRoute, number>();
+    const acceptedByRoute = new Map<AcceptanceRoute, number>();
+    for (const pass of passRows) {
+      acceptedByRoute.set(pass.route, (acceptedByRoute.get(pass.route) ?? 0) + 1);
+      const passRepoId = repoIdByName.get(pass.repoName) ?? null;
+      const passFiles = filesFor(filesByCommit, pass.commitSha, passRepoId);
+      if (passFiles.size === 0) continue;
+      const decidedMs = Date.parse(pass.decidedAt);
+      const missed = fixCommits.some((fix) => {
+        if (fix.commitHash === pass.commitSha) return false;
+        if (passRepoId !== null && fix.repoId !== passRepoId) return false;
+        const fixMs = Date.parse(fix.committedAt);
+        if (Number.isNaN(fixMs) || fixMs <= decidedMs || fixMs > decidedMs + windowMs) return false;
+        const fixFiles = filesFor(fixFilesByCommit, fix.commitHash, passRepoId !== null ? fix.repoId : null);
+        for (const f of fixFiles) {
+          if (passFiles.has(f)) return true;
+        }
+        return false;
+      });
+      if (missed) {
+        missedByRoute.set(pass.route, (missedByRoute.get(pass.route) ?? 0) + 1);
+      }
+    }
+    return routes.map((route) => {
+      const acceptedCount = acceptedByRoute.get(route) ?? 0;
+      const missedCount = missedByRoute.get(route) ?? 0;
+      return {
+        route,
+        acceptedCount,
+        missedCount,
+        missRate: acceptedCount === 0 ? null : missedCount / acceptedCount,
+        windowDays,
+      };
+    });
+  }
+
+  /** trail.commit_files をハッシュ集合で引き、hash → (repo_id → file_path 集合) の Map にする（IN 句はチャンク分割）。 */
+  private commitFilesByHashes(hashes: string[]): Map<string, Map<number, Set<string>>> {
+    const db = this.ensureDb();
+    const result = new Map<string, Map<number, Set<string>>>();
+    const unique = [...new Set(hashes)];
+    const CHUNK = 400;
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const chunk = unique.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(', ');
+      const res = db.exec(
+        `SELECT commit_hash, file_path, repo_id FROM trail.commit_files WHERE commit_hash IN (${placeholders})`,
+        chunk,
+      );
+      for (const row of res[0]?.values ?? []) {
+        const hash = row[0] as string;
+        const file = row[1] as string;
+        const repoId = row[2] as number;
+        let byRepo = result.get(hash);
+        if (!byRepo) {
+          byRepo = new Map();
+          result.set(hash, byRepo);
+        }
+        let set = byRepo.get(repoId);
+        if (!set) {
+          set = new Set();
+          byRepo.set(repoId, set);
+        }
+        set.add(file);
+      }
+    }
+    return result;
   }
 
   /** 指定セッションの flight_reviews を 1 本のクエリで引く（走査窓に依存しない）。 */

@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
-import { openTrailDb } from '../sqlite/openDb';
+import { resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { openMemoryDb } from '../sqlite/openDb';
 import {
+  ensureAndMigrateDoctrineJudgments,
   recordHumanDecisionDirect,
   type HumanDecisionResult,
 } from '../sqlite/doctrineJudgments';
@@ -32,9 +33,11 @@ export async function handleRecordHumanDecision(
   }
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  const dbPath = resolveDbPath({ workspacePath });
-  const opened = await openTrailDb(dbPath, 'readwrite');
+  // 保存先は memory-core.db（2026-08-07 に trail.db から移設。旧テーブルは遅延移行で回収）
+  const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
+  const opened = await openMemoryDb(dbPath, 'readwrite');
   try {
+    ensureAndMigrateDoctrineJudgments(opened.db, dbPath);
     const result = recordHumanDecisionDirect(opened.db, {
       ...(input.id === undefined ? {} : { id: input.id }),
       ...(input.session_id === undefined ? {} : { sessionId: input.session_id }),

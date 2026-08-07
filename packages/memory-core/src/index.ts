@@ -49,6 +49,12 @@ export { runReviewIncremental } from './pipeline/runReviewIncremental';
 export type { ReviewIncrementalResult } from './pipeline/runReviewIncremental';
 export { ingestAgentReviewResult } from './ingest/review/ingestAgentReviewResult';
 export type { IngestAgentReviewResult } from './ingest/review/ingestAgentReviewResult';
+export { ingestPrReview } from './ingest/pr-review/ingestPrReview';
+export type {
+  PrReviewIngestInput,
+  PrReviewIngestResult,
+  PrReviewFindingInput,
+} from './ingest/pr-review/ingestPrReview';
 export { runAgentRunWatchdog } from './ingest/review/agentRunWatchdog';
 export type { AgentRunWatchdogResult } from './ingest/review/agentRunWatchdog';
 export { AgentReviewInputSchema, AgentReviewFindingSchema } from './types/AgentReviewInput';

@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { Database } from 'better-sqlite3';
 import {
   ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT,
@@ -115,6 +117,131 @@ export function ensureDoctrineJudgmentsTable(db: Database): void {
       db.exec(column.ddl);
     }
   }
+}
+
+/** destructiveMigrateDoctrineJudgmentsFromTrailDb の判別可能な結果。 */
+export interface DoctrineMigrationResult {
+  readonly status: 'migrated' | 'verification_failed';
+  /** INSERT できた実行数（id 保持パス + 再採番パスの合計）。 */
+  readonly copiedRows: number;
+  /** アンチ結合検証で trail 側に残存と判定された行数（0 なら DROP 済み）。 */
+  readonly missingRows: number;
+}
+
+/**
+ * **副作用: 検証通過時に trail.db 側の doctrine_judgments を退避テーブルへ複製した上で DROP する。**
+ *
+ * doctrine_judgments の保存先移設（trail.db → memory-core.db・2026-08-07）の遅延移行。
+ * デーモン非依存で mcp-trail 自身が行う（判断記録はデーモン未起動でも落とせない —
+ * 記録経路と同じ理由で移行も同経路に置く）。全 doctrine 系ツールが ensure 直後に
+ * 冪等実行する。移行済み（trail 側テーブル不在）なら即 null を返す。
+ *
+ * 1. id を保持してコピー（INSERT OR IGNORE。過去セッションが持つ判断 id の突合を守る）
+ * 2. id 衝突で入らなかった行は (session_id, subject) 単位で id 再採番の第 2 パスでコピー
+ *    （移行前に memory 側へ新規記録が入った稀なケースの自己修復。再採番行の旧 id 参照は
+ *    (sessionId + subject) の代替キーで引ける）
+ * 3. 衝突キーで trail 側だけが human_decision / delegated_at を持つ場合は移送する
+ *    （人の判断・代行監査記録を機械上書きで失わない）
+ * 4. 検証は (session_id, subject) のアンチ結合 + 人の判断の保存確認。通過時のみ
+ *    trail.doctrine_judgments__pre_move_backup へ複製して DROP（復旧手段を残す）
+ */
+export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
+  db: Database,
+  trailDbPath: string,
+): DoctrineMigrationResult | null {
+  if (!fs.existsSync(trailDbPath)) return null;
+  db.prepare(`ATTACH DATABASE ? AS trail`).run(trailDbPath);
+  try {
+    const has = db
+      .prepare(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = 'doctrine_judgments'`)
+      .get();
+    if (has === undefined) return null;
+    // 旧 DB は後付け列（gate_verdict 等）を持たない可能性があるため、両側の列の共通部分をコピーする
+    const trailCols = (db.prepare(`PRAGMA trail.table_info(doctrine_judgments)`).all() as Array<{ name: string }>).map((c) => c.name);
+    const memCols = new Set(
+      (db.prepare(`PRAGMA table_info(doctrine_judgments)`).all() as Array<{ name: string }>).map((c) => c.name),
+    );
+    const cols = trailCols.filter((c) => memCols.has(c));
+    const colList = cols.join(', ');
+    const colListNoId = cols.filter((c) => c !== 'id').join(', ');
+    let copiedRows = 0;
+    db.exec('BEGIN');
+    try {
+      copiedRows += db
+        .prepare(`INSERT OR IGNORE INTO doctrine_judgments (${colList}) SELECT ${colList} FROM trail.doctrine_judgments`)
+        .run().changes;
+      copiedRows += db
+        .prepare(
+          `INSERT OR IGNORE INTO doctrine_judgments (${colListNoId})
+           SELECT ${colListNoId} FROM trail.doctrine_judgments t
+           WHERE NOT EXISTS (SELECT 1 FROM doctrine_judgments m WHERE m.session_id = t.session_id AND m.subject = t.subject)`,
+        )
+        .run().changes;
+      // マージ段も列存在で条件分岐する（後付け列を持たない旧 trail スキーマで prepare が落ちないため）
+      if (cols.includes('human_decision')) {
+        db.prepare(
+          `UPDATE doctrine_judgments SET human_decision = t.human_decision, decided_at = t.decided_at, updated_at = t.updated_at
+           FROM trail.doctrine_judgments t
+           WHERE doctrine_judgments.session_id = t.session_id AND doctrine_judgments.subject = t.subject
+             AND t.human_decision IS NOT NULL AND doctrine_judgments.human_decision IS NULL`,
+        ).run();
+      }
+      if (cols.includes('delegated_at')) {
+        db.prepare(
+          `UPDATE doctrine_judgments SET delegated_at = t.delegated_at, updated_at = t.updated_at
+           FROM trail.doctrine_judgments t
+           WHERE doctrine_judgments.session_id = t.session_id AND doctrine_judgments.subject = t.subject
+             AND t.delegated_at IS NOT NULL AND doctrine_judgments.delegated_at IS NULL`,
+        ).run();
+      }
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+    const missingRows =
+      (db
+        .prepare(
+          `SELECT COUNT(*) c FROM trail.doctrine_judgments t
+           WHERE NOT EXISTS (SELECT 1 FROM doctrine_judgments m WHERE m.session_id = t.session_id AND m.subject = t.subject)`,
+        )
+        .get() as { c: number }).c +
+      (db
+        .prepare(
+          `SELECT COUNT(*) c FROM trail.doctrine_judgments t JOIN doctrine_judgments m
+             ON m.session_id = t.session_id AND m.subject = t.subject
+           WHERE t.human_decision IS NOT NULL AND m.human_decision IS NULL`,
+        )
+        .get() as { c: number }).c;
+    if (missingRows > 0) {
+      console.error(
+        `[mcp-trail] doctrine_judgments migration verification failed (rows not preserved: ${missingRows}); keeping trail-side table`,
+      );
+      return { status: 'verification_failed', copiedRows, missingRows };
+    }
+    const backupExists =
+      db
+        .prepare(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = 'doctrine_judgments__pre_move_backup'`)
+        .get() !== undefined;
+    if (backupExists) {
+      db.exec(`INSERT INTO trail.doctrine_judgments__pre_move_backup SELECT * FROM trail.doctrine_judgments`);
+    } else {
+      db.exec(`CREATE TABLE trail.doctrine_judgments__pre_move_backup AS SELECT * FROM trail.doctrine_judgments`);
+    }
+    db.exec(`DROP TABLE trail.doctrine_judgments`);
+    return { status: 'migrated', copiedRows, missingRows: 0 };
+  } finally {
+    db.exec('DETACH DATABASE trail');
+  }
+}
+
+/**
+ * 全 doctrine 系ツール共通の前処理: memory-core.db 側にテーブルを冪等作成し、
+ * trail.db に旧テーブルが残っていれば遅延移行する（各ツールが open 直後に呼ぶ）。
+ */
+export function ensureAndMigrateDoctrineJudgments(db: Database, memoryDbPath: string): void {
+  ensureDoctrineJudgmentsTable(db);
+  destructiveMigrateDoctrineJudgmentsFromTrailDb(db, path.join(path.dirname(memoryDbPath), 'trail.db'));
 }
 
 export function recordDoctrineJudgmentDirect(

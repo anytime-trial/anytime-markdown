@@ -2,13 +2,14 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
-import { openTrailDb } from '../sqlite/openDb';
+import { resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { openMemoryDb } from '../sqlite/openDb';
 import { resolveCitations, type ResolvedCitation } from '../doctrine/resolveCitations';
 import { evaluateCoverageGate, type CoverageGateResult } from '../doctrine/coverageGate';
 import { resolveOddConfig } from '../doctrine/oddRoots';
 import { readFileTyped } from '../doctrine/readFile';
 import {
+  ensureAndMigrateDoctrineJudgments,
   recordDoctrineJudgmentDirect,
   type DoctrineJudgmentRecordResult,
 } from '../sqlite/doctrineJudgments';
@@ -99,9 +100,11 @@ export async function handleRecordDoctrineJudgment(
       readFile: readFileTyped,
     }),
   });
-  const dbPath = resolveDbPath({ workspacePath });
-  const opened = await openTrailDb(dbPath, 'readwrite');
+  // 保存先は memory-core.db（2026-08-07 に trail.db から移設。旧テーブルは遅延移行で回収）
+  const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
+  const opened = await openMemoryDb(dbPath, 'readwrite');
   try {
+    ensureAndMigrateDoctrineJudgments(opened.db, dbPath);
     const result = recordDoctrineJudgmentDirect(opened.db, {
       sessionId: input.session_id,
       subject: input.subject,

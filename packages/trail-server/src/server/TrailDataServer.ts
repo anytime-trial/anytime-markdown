@@ -3088,7 +3088,7 @@ export class TrailDataServer {
         }
         const notes = typeof parsed['notes'] === 'string' ? parsed['notes'].slice(0, TrailDataServer.ACCEPTANCE_NOTES_MAX_CHARS) : undefined;
         const quarantinedCountRaw = parsed['quarantinedCount'];
-        this.trailDb.upsertAcceptanceRecord({
+        this.requireFlightRecordDb().upsertAcceptanceRecord({
           commitSha,
           route: route as AcceptanceRoute,
           verdict: verdict as AcceptanceVerdict,
@@ -3119,7 +3119,7 @@ export class TrailDataServer {
         return;
       }
       const limit = Number.parseInt(params.get('limit') ?? '100', 10);
-      const acceptanceRecords = this.trailDb.listAcceptanceRecords({
+      const acceptanceRecords = this.requireFlightRecordDb().listAcceptanceRecords({
         commitSha: params.get('commitSha') ?? undefined,
         route: (routeParam as AcceptanceRoute | null) ?? undefined,
         since: params.get('since') ?? undefined,
@@ -3143,7 +3143,7 @@ export class TrailDataServer {
         res.end(JSON.stringify({ error: 'windowDays must be 1..365' }));
         return;
       }
-      const missRates = this.trailDb.computeAcceptanceMissRate(windowDays);
+      const missRates = this.requireFlightRecordDb().computeAcceptanceMissRate(windowDays);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ missRates }));
     } catch (e) {

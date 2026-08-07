@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
-import { openTrailDb } from '../sqlite/openDb';
+import { resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { openMemoryDb } from '../sqlite/openDb';
 import {
+  ensureAndMigrateDoctrineJudgments,
   getDoctrineAgreementDirect,
   type DoctrineAgreementMetrics,
 } from '../sqlite/doctrineJudgments';
@@ -20,10 +21,11 @@ export async function handleGetDoctrineAgreement(
 ): Promise<DoctrineAgreementMetrics> {
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  const dbPath = resolveDbPath({ workspacePath });
-  // ensure (CREATE TABLE IF NOT EXISTS) を含むため readwrite で開く
-  const opened = await openTrailDb(dbPath, 'readwrite');
+  // 保存先は memory-core.db（2026-08-07 移設）。ensure + 遅延移行を含むため readwrite で開く
+  const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
+  const opened = await openMemoryDb(dbPath, 'readwrite');
   try {
+    ensureAndMigrateDoctrineJudgments(opened.db, dbPath);
     return getDoctrineAgreementDirect(opened.db, {
       ...(input.since === undefined ? {} : { since: input.since }),
       ...(input.until === undefined ? {} : { until: input.until }),

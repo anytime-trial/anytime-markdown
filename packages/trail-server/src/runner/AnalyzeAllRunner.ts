@@ -12,6 +12,7 @@ import {
   topoSortByDependsOn,
   type LepStage,
   type MemoryCoreService,
+  type MemoryDbConnection,
   type RunReason,
   type RunnerLogSink,
   type Analyzer,
@@ -27,6 +28,8 @@ import { DoraMetricsAggregator, CrossSourceCorrelator } from '../lep/analyzers/a
 import {
   PrReviewImporter,
   PrReviewFindingAnalyzer,
+  createPrReviewMemorySource,
+  readPrReviewSourceHash,
 } from '../lep/analyzers/prreview';
 import {
   GitHubPrReviewIngester,
@@ -111,6 +114,18 @@ export interface AnalyzeAllRunnerOptions {
   codexSessionsDir?: string;
   /** memory-core ingest pipeline を実行する service (省略時は memory-core ステップをスキップ) */
   memoryCoreService?: MemoryCoreService;
+  /**
+   * memory-core.db パス (Step 5: PR review analyzer 群 (`PrReviewImporter` /
+   * `PrReviewFindingAnalyzer` / `CrossSourceCorrelator`) が memory_reviews /
+   * memory_review_findings へ読み書きするために使う)。ログ・診断専用で接続そのものは
+   * 開かない — 実接続は呼び出し側が `trailDaemonEntry` の LogService 配線
+   * (`openMemoryCoreDb(memoryDbPath, { nativeBinding })`) と同じ前例で開き、`memoryDb` に
+   * 渡す。片方だけの指定 (`memoryDbPath` のみ / `memoryDb` のみ) は未構成扱いにする。
+   * 両方省略時は PR review analyzer 群を生成せず info ログを残す (silent skip 禁止)。
+   */
+  memoryDbPath?: string;
+  /** {@link memoryDbPath} に対応する、呼び出し側が開いた memory-core.db 接続。 */
+  memoryDb?: MemoryDbConnection;
   /**
    * Wave 1/2/4 の analyzer 実行を `pipeline_runs` へ記録するファクトリ。
    * 未指定なら記録しない (既存の呼び出し元は挙動不変)。
@@ -302,10 +317,26 @@ export class AnalyzeAllRunner extends BaseRunner {
       });
       const costRebuilder = new CostRebuilder({ trailDb, onPhase, onProgress });
       const countsRebuilder = new CountsRebuilder({ trailDb, onPhase, onProgress });
-      // 新ソース取込 (Step 4c): github_pr_review → pr_reviews / pr_review_findings。
-      // GitHub source 未設定時は対応 event が来ないため no-op。PersistAnalyzer の save 前に書込む。
-      const prReviewImporter = new PrReviewImporter({ trailDb });
-      const prReviewFindingAnalyzer = new PrReviewFindingAnalyzer({ trailDb });
+      // Step 5: github_pr_review → memory_reviews / memory_review_findings (memory-core.db)。
+      // GitHub source 未設定時は対応 event が来ないため no-op。memoryDbPath / memoryDb が
+      // 揃っていない場合は analyzer 自体を生成しない (silent skip を避けて info ログ)。
+      let prReviewImporter: PrReviewImporter | null = null;
+      let prReviewFindingAnalyzer: PrReviewFindingAnalyzer | null = null;
+      if (opts.memoryDbPath && opts.memoryDb) {
+        const memoryDb = opts.memoryDb;
+        prReviewImporter = new PrReviewImporter({
+          memoryDb: {
+            getReviewSourceHash: (sourceRef) => readPrReviewSourceHash(memoryDb, sourceRef),
+          },
+        });
+        prReviewFindingAnalyzer = new PrReviewFindingAnalyzer({ memoryDb });
+      } else if (opts.memoryDbPath && !opts.memoryDb) {
+        this.log(
+          `[PrReview] memoryDbPath is set (${opts.memoryDbPath}) but no memoryDb connection was provided — skipping PrReviewImporter / PrReviewFindingAnalyzer`,
+        );
+      } else {
+        this.log('[PrReview] memoryDbPath not configured — skipping PrReviewImporter / PrReviewFindingAnalyzer');
+      }
       // PersistAnalyzer は tier=2 の最後に置く (他全 analyzer の DB 書込後に save)
       const persistAnalyzer = new PersistAnalyzer({ trailDb });
 
@@ -388,7 +419,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     // tier 4 は stage='all' でのみ実行される (LepOrchestrator の STAGE_TIERS)。
     // trailDb が無い場合 (daemon の memory-only 等) は DORA を算出できないため登録しない。
     if (opts.trailDb) {
-      this.registerAggregators(opts.trailDb, opts.disabledAggregators ?? [], bus, analyzers);
+      this.registerAggregators(opts.trailDb, opts.disabledAggregators ?? [], bus, analyzers, opts.memoryDb);
     }
 
     this.stage = opts.stage ?? 'primary+memory';
@@ -451,6 +482,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     disabledAggregators: readonly string[],
     bus: EventBus,
     analyzers: Analyzer[],
+    memoryDb?: MemoryDbConnection,
   ): void {
     if (!disabledAggregators.includes('DoraMetricsAggregator')) {
       const doraAggregator = new DoraMetricsAggregator({ trailDb });
@@ -458,7 +490,13 @@ export class AnalyzeAllRunner extends BaseRunner {
       analyzers.push(doraAggregator);
     }
     if (!disabledAggregators.includes('CrossSourceCorrelator')) {
-      const correlator = new CrossSourceCorrelator({ trailDb });
+      // memoryDb 未接続時は CrossSourceCorrelator 自身が info ログを出して PR review 相関を
+      // 空扱いにする (DoraMetricsAggregator と違い PR review 由来の相関は memory-core.db
+      // 前提のため、analyzer 自体は常に登録し内部で silent skip を避ける)。
+      const correlator = new CrossSourceCorrelator({
+        trailDb,
+        memoryDb: memoryDb ? createPrReviewMemorySource(memoryDb) : null,
+      });
       bus.subscribe(correlator);
       analyzers.push(correlator);
     }

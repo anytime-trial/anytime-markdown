@@ -231,4 +231,96 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  describe('acceptance_records / pr_reviews 系（2026-08-07 追加移設）', () => {
+    function withLegacyTables(
+      setup: (trail: import('better-sqlite3').Database) => void,
+      run: (db: FlightRecordDatabase, trailDbPath: string) => void,
+    ): void {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
+      const trailDbPath = path.join(tempDir, 'trail.db');
+      const Ctor = loadBetterSqlite3();
+      const trail = new Ctor(trailDbPath);
+      trail.pragma('foreign_keys = OFF');
+      setup(trail);
+      trail.close();
+      const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), trailDbPath);
+      standalone.init();
+      try {
+        run(standalone, trailDbPath);
+      } finally {
+        standalone.close();
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    }
+
+    const ACCEPTANCE_DDL = `CREATE TABLE acceptance_records (
+      commit_sha TEXT NOT NULL, route TEXT NOT NULL, repo_name TEXT NOT NULL DEFAULT '',
+      verdict TEXT NOT NULL, decided_by TEXT NOT NULL, decided_at TEXT,
+      farm_run_ref TEXT NOT NULL DEFAULT '', failed_tests TEXT NOT NULL DEFAULT '[]',
+      vrt_diff INTEGER NOT NULL DEFAULT 0, quarantined_count INTEGER NOT NULL DEFAULT 0,
+      notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      PRIMARY KEY (commit_sha, route))`;
+
+    it('acceptance_records は (commit_sha, route) キーでコピー・検証後に退避 → DROP される', () => {
+      withLegacyTables(
+        (trail) => {
+          trail.exec(ACCEPTANCE_DDL);
+          trail
+            .prepare(
+              `INSERT INTO acceptance_records (commit_sha, route, verdict, decided_by, decided_at, created_at, updated_at)
+               VALUES ('abc', 'machine', 'pass', 'farm', ?, ?, ?)`,
+            )
+            .run(TS, TS, TS);
+        },
+        (db, trailDbPath) => {
+          const result = db.destructiveMigrateFromTrailDb();
+          expect(result?.status).toBe('migrated');
+          expect(result?.copiedRows['acceptance_records']).toBe(1);
+          expect(db.listAcceptanceRecords()).toHaveLength(1);
+          expect(trailTables(trailDbPath)).toEqual([]);
+          // 退避テーブルの実在（trailTables は 3 プレフィクス限定のため直接確認）
+          const Ctor = loadBetterSqlite3();
+          const trail = new Ctor(trailDbPath, { readonly: true });
+          try {
+            const backup = trail
+              .prepare(`SELECT COUNT(*) c FROM acceptance_records__pre_move_backup`)
+              .get() as { c: number };
+            expect(backup.c).toBe(1);
+          } finally {
+            trail.close();
+          }
+        },
+      );
+    });
+
+    it('pr_reviews 系は 0 行のときだけ回収され、行が在ると DROP されず verification_failed になる', () => {
+      withLegacyTables(
+        (trail) => {
+          trail.exec(`CREATE TABLE pr_reviews (review_id TEXT PRIMARY KEY, body TEXT)`);
+          trail.exec(`CREATE TABLE pr_review_comments (review_id TEXT, comment_index INTEGER)`);
+          trail.exec(`CREATE TABLE pr_review_findings (finding_id TEXT PRIMARY KEY, review_id TEXT)`);
+          trail.prepare(`INSERT INTO pr_reviews (review_id, body) VALUES ('r1', 'レビュー本文')`).run();
+        },
+        (db, trailDbPath) => {
+          const result = db.destructiveMigrateFromTrailDb();
+          // 空の comments / findings は回収、行が残る pr_reviews は手動変換待ちで残る
+          expect(result?.status).toBe('verification_failed');
+          expect(result?.missingRows['pr_reviews']).toBe(1);
+          const Ctor = loadBetterSqlite3();
+          const trail = new Ctor(trailDbPath, { readonly: true });
+          try {
+            const names = (
+              trail
+                .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'pr_%' ORDER BY name`)
+                .all() as Array<{ name: string }>
+            ).map((r) => r.name);
+            expect(names).toEqual(['pr_reviews']);
+          } finally {
+            trail.close();
+          }
+        },
+      );
+    });
+  });
 });
