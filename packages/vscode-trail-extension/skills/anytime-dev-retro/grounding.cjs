@@ -311,14 +311,33 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     }
     return trailOpened.db;
   };
+  // 読み先は「テーブル実在」でなく**行数**で選ぶ。FlightRecordDatabase.ensureTables は
+  // 空テーブルを常に作るため、実在判定だと移行未完了（行は trail 側に残存）の DB で
+  // 空の memory-core 側を読み、0 件を測定不能でなく実測 0 として出してしまう。
+  const countRows = (db, table) =>
+    hasTable(db, table) ? Number(one(q(db, `SELECT COUNT(*) c FROM ${table}`))?.c ?? 0) : 0;
+  const memoFr = countRows(memo.db, 'flight_reviews');
+  const memoIns = countRows(memo.db, 'instructions');
+  const trailFr = countRows(openTrail(), 'flight_reviews');
+  const trailIns = countRows(trailOpened?.db ?? null, 'instructions');
   let frDb = null;
   let frSource = null;
-  if (hasTable(memo.db, 'flight_reviews')) {
+  let residualTrail = null;
+  if (memoFr + memoIns > 0) {
     frDb = memo.db;
-    frSource = 'memory-core';
-  } else if (hasTable(openTrail(), 'flight_reviews')) {
+    if (trailFr + trailIns > 0) {
+      // 両在は移行未完了の異常。合算はしない（AVG 系の二重計上を避け、異常として見せる）
+      frSource = 'both(migration incomplete)';
+      residualTrail = { flightReviews: trailFr, instructions: trailIns };
+    } else {
+      frSource = 'memory-core';
+    }
+  } else if (trailFr + trailIns > 0) {
     frDb = trailOpened.db;
     frSource = 'trail(pre-migration)';
+  } else if (hasTable(memo.db, 'flight_reviews')) {
+    frDb = memo.db;
+    frSource = 'memory-core(empty)';
   }
   if (frDb === null) {
     snapshot.flightRecord = null;
@@ -385,6 +404,8 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     }
     snapshot.flightRecord = {
       source: frSource,
+      // 移行未完了（both）のとき trail 側に残っている行数。null は残存なし
+      residualTrail,
       windowDays: WINDOW_DAYS,
       reviews30d: {
         total,
@@ -392,7 +413,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
         // 自己評価カバレッジ: machine のまま(unknown 固定)の行は成否を語れないため、
         // 未達成率は assessed(self/manual)を分母にする
         selfAssessedPct: pct(agg.assessed ?? 0, total),
-        unachievedSharePct: pct((outcomes.unachieved ?? 0) + (outcomes.partial ?? 0), (agg.assessed ?? 0) || 0),
+        unachievedSharePct: pct((outcomes.unachieved ?? 0) + (outcomes.partial ?? 0), agg.assessed ?? 0),
         avgReworkCount: agg.avgRework ?? null,
         toolFailureRatePct: pct(agg.failures ?? 0, agg.calls ?? 0),
         lessonCandidateReviews: agg.lessonReviews ?? 0,
@@ -670,7 +691,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       const round2 = (x) => Math.round(x * 100) / 100;
       const groups = {};
       for (const p of pairs) {
-        const k = `${p.category} ${p.model}`;
+        // 可逆な複合キー。単純連結だと区切り文字を含む値同士で別組が同一キーへ衝突する
+        // （かつ NUL 区切りはファイル全体を grep のバイナリ判定に落とす前科がある）
+        const k = JSON.stringify([p.category, p.model]);
         (groups[k] = groups[k] ?? []).push(p);
       }
       const referenceClass = Object.values(groups)

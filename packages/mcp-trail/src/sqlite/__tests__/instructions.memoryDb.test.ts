@@ -25,10 +25,24 @@ describe('openMemoryDb', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('ファイル不在は readwrite でも throw する（fail-closed。空 DB を黙って作らない）', async () => {
+  it('ファイル不在は readwrite でも throw する（fail-closed。trail.db も無い場所に空 DB を作らない）', async () => {
     const missing = path.join(tempDir, 'memory-core.db');
     await expect(openMemoryDb(missing, 'readwrite')).rejects.toThrow('memory-core.db not found');
     expect(fs.existsSync(missing)).toBe(false);
+  });
+
+  it('同ディレクトリに trail.db が実在すれば readwrite は新規作成する（宣言を落とさない既存環境の救済）', async () => {
+    fs.writeFileSync(path.join(tempDir, 'trail.db'), '');
+    const dbPath = path.join(tempDir, 'memory-core.db');
+    const opened = await openMemoryDb(dbPath, 'readwrite');
+    try {
+      expect(fs.existsSync(dbPath)).toBe(true);
+    } finally {
+      opened.close();
+    }
+    // readonly は trail.db が在っても不在 throw のまま（作成は write 経路だけ）
+    fs.rmSync(dbPath);
+    await expect(openMemoryDb(dbPath, 'readonly')).rejects.toThrow('memory-core.db not found');
   });
 
   it('readonly でファイル不在は throw する', async () => {

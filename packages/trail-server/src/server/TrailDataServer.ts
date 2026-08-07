@@ -397,7 +397,13 @@ export class TrailDataServer {
         flightDb.init();
         this.flightRecordDb = flightDb;
         try {
-          flightDb.migrateFromTrailDb();
+          const migration = flightDb.destructiveMigrateFromTrailDb();
+          if (migration?.status === 'verification_failed') {
+            flightLogger.error(
+              `flight record migration verification failed; trail-side tables kept (missing: ${JSON.stringify(migration.missingRows)})`,
+              new Error('flight record migration verification failed'),
+            );
+          }
         } catch (e) {
           flightLogger.error('flight record migration from trail.db failed (will retry on next start)', e);
         }

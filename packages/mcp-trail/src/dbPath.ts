@@ -66,3 +66,22 @@ export function resolveMemoryDbPath(opts: { workspacePath?: string }): string {
   }
   return dbPath;
 }
+
+/**
+ * Flight Record 直書き（record_instruction）用の memory-core.db 解決。
+ *
+ * 読み取り系の resolveMemoryDbPath と異なり、**同ディレクトリに trail.db が実在する
+ * 既存ワークスペースに限り、memory-core.db 未作成でもパスを返す**（作成は
+ * openMemoryDb の readwrite が行う）。拡張が memory-core.db を作るより先に
+ * セッション開始の宣言が届くと記録が落ちる、という移設起因の隙間を塞ぐ。
+ * trail.db も無いディレクトリは未初期化ワークスペースなので従来どおり throw する
+ * （場所違いに空 DB を作る偽陰性を防ぐ fail-closed は維持）。
+ */
+export function resolveMemoryDbPathForWrite(opts: { workspacePath?: string }): string {
+  const dbDir = path.join(resolveTrailHome(opts.workspacePath), 'db');
+  const dbPath = path.join(dbDir, 'memory-core.db');
+  if (!fs.existsSync(dbPath) && !fs.existsSync(path.join(dbDir, 'trail.db'))) {
+    throw new Error(`memory-core.db not found at ${dbPath} (and no trail.db beside it — workspace not initialized)`);
+  }
+  return dbPath;
+}

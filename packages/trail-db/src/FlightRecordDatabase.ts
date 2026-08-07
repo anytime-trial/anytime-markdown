@@ -39,8 +39,14 @@ import {
 
 type Database = SqlJsCompatDatabase;
 
-/** Flight Record 3 テーブル（本クラスが memory-core.db 側で所有する）。 */
-const FLIGHT_RECORD_TABLES = ['instructions', 'instruction_sessions', 'flight_reviews'] as const;
+/** destructiveMigrateFromTrailDb の判別可能な結果。成功と部分失敗を型で区別する。 */
+export interface FlightRecordMigrationResult {
+  readonly status: 'migrated' | 'verification_failed';
+  /** INSERT OR IGNORE で実際にコピーできた行数（getRowsModified 由来・テーブル別）。 */
+  readonly copiedRows: Record<string, number>;
+  /** アンチ結合検証で trail 側に残存と判定された行数（0 なら DROP 済み）。 */
+  readonly missingRows: Record<string, number>;
+}
 
 /**
  * Flight Record の成果物抽出で「ドキュメントを書いた」と見なすツール名。
@@ -219,7 +225,7 @@ function toFlightReview(row: readonly unknown[]): FlightReview {
  *
  * - trail.db が ATTACH できない構成では、トークン・成果物・検証・リポジトリ名解決が
  *   縮退する（行そのものは落とさない）。
- * - trail.* への書き込みは移行処理（migrateFromTrailDb）の DROP のみ。それ以外の
+ * - trail.* への書き込みは移行処理（destructiveMigrateFromTrailDb）の退避・DROP のみ。それ以外の
  *   メソッドは trail.* を SELECT でしか触らない（アプリ層規律。better-sqlite3 は
  *   ATTACH 単位の readonly を強制できないため）。
  * - スキーマ正本は trail-core の DDL 定数。writer が冪等 CREATE する方針は trail.db
@@ -247,8 +253,15 @@ export class FlightRecordDatabase {
     if (this.db) return;
     const Ctor = loadBetterSqlite3();
     const inner: BetterSqlite3Database = new Ctor(this.memoryDbPath);
-    // 拡張の memory pipeline / MemoryApiHandler と同一ファイルを共有するため、
-    // ロック競合は即時失敗ではなく待つ（WAL 前提で書き込みは短時間）。
+    // 拡張の memory pipeline / MemoryApiHandler と同一ファイルを共有するため WAL を保証する。
+    // openMemoryCoreDb（memory-core パッケージ）だけに任せると、本クラスが先に DB ファイルを
+    // 作った環境で既定の DELETE ジャーナルのまま読み書きが競合する（前提はコメントでなく
+    // 実装で担保する）。WAL にできないビルドは握りつぶさず警告する。
+    const journalMode = String(inner.pragma('journal_mode = WAL', { simple: true }));
+    if (journalMode.toLowerCase() !== 'wal') {
+      this.logger.warn(`[FlightRecordDatabase] journal_mode=WAL unavailable (got ${journalMode}); concurrent access may block`);
+    }
+    // ロック競合は即時失敗ではなく待つ（書き込みは短時間）。
     inner.pragma('busy_timeout = 5000');
     // trail.db 時代と同じく FK は強制しない（better-sqlite3 は既定 ON）。
     // instruction_sessions の FK は宣言のみの運用（tables.ts のコメント参照）で、
@@ -299,21 +312,32 @@ export class FlightRecordDatabase {
   }
 
   /**
+   * **副作用: 検証通過時に trail.db 側の 3 テーブルを退避テーブルへ複製した上で DROP する**
+   * （破壊的操作を含むため destructive プレフィクス。`~/.claude/rules/code-quality.md` §15）。
+   *
    * trail.db に残る旧テーブルから memory-core.db へデータを移設する（冪等・毎起動可）。
    *
-   * 1. trail 側に対象テーブルが実在する場合のみ、INSERT OR IGNORE で全行コピー
-   * 2. コピー後に「trail 側行数 ≦ memory 側行数」を全テーブルで検証
-   * 3. 検証を通過したときだけ trail 側の 3 テーブルを DROP
+   * 1. trail 側に対象テーブルが実在する場合のみコピーする
+   *    - 新規キーは INSERT OR IGNORE
+   *    - flight_reviews の同一 session_id 衝突は、trail 側が manual（人手訂正）で memory 側が
+   *      manual でない場合に限り trail 側の訂正列を採用する（manual > self > machine の
+   *      優先順位規約を移行経路にも通す。instructions の id は UUID で「同一 id = 同一宣言」の
+   *      ため内容差は生じず、マージ対象にしない）
+   * 2. 検証は件数比較ではなく**キー単位のアンチ結合**（trail 側の全キーが memory 側に実在）と
+   *    manual 訂正の保存確認で行う。INSERT OR IGNORE は UNIQUE 衝突だけでなく CHECK 制約違反も
+   *    黙って捨てるため、件数の大小では喪失を検知できない
+   * 3. 検証を通過したテーブルだけを、trail.db 内の退避テーブル `<name>__pre_move_backup` へ
+   *    複製してから DROP する（検証をすり抜けた場合の復旧手段を残す。退避の削除は人が行う）
    *
    * blind な drop マイグレーションを作らないのは、コピー前に drop が走る事故を
    * 構造的に不可能にするため。旧ビルドの mcp-trail が trail.db 側へテーブルを
    * 再作成しても、次回起動の本処理が回収して再 DROP する。
-   * 検証不一致時は DROP せず WARN を残して続行する（silent skip 禁止・fail-open:
+   * 検証不一致時は DROP せず error ログを残して継続する（silent skip 禁止・fail-open:
    * 移行が止まっても新規記録は memory-core.db 側で継続する）。
    *
-   * @returns 移行した行数（テーブル別）。trail 未 ATTACH・旧テーブル無しは null。
+   * @returns 判別可能な移行結果。trail 未 ATTACH・旧テーブル無しは null。
    */
-  migrateFromTrailDb(): Record<string, number> | null {
+  destructiveMigrateFromTrailDb(): FlightRecordMigrationResult | null {
     const db = this.ensureDb();
     if (!this.trailAttached) return null;
     const existing = db.exec(
@@ -322,7 +346,7 @@ export class FlightRecordDatabase {
     const present = new Set((existing[0]?.values ?? []).map((r) => r[0] as string));
     if (present.size === 0) return null;
 
-    const copied: Record<string, number> = {};
+    const copiedRows: Record<string, number> = {};
     db.run('BEGIN');
     try {
       if (present.has('instructions')) {
@@ -330,6 +354,7 @@ export class FlightRecordDatabase {
           `INSERT OR IGNORE INTO instructions (id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id, started_at, closed_at, created_at, updated_at)
            SELECT id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id, started_at, closed_at, created_at, updated_at FROM trail.instructions`,
         );
+        copiedRows['instructions'] = db.getRowsModified();
       }
       // instruction_sessions は instructions の後（参照整合を持つ接続でも成立する順序）
       if (present.has('instruction_sessions')) {
@@ -337,12 +362,31 @@ export class FlightRecordDatabase {
           `INSERT OR IGNORE INTO instruction_sessions (session_id, instruction_id, sequence, declared_at)
            SELECT session_id, instruction_id, sequence, declared_at FROM trail.instruction_sessions`,
         );
+        copiedRows['instruction_sessions'] = db.getRowsModified();
       }
       // id は移設先で採番し直す（AUTOINCREMENT 由来の欠番を持ち込まない）。冪等キーは session_id UNIQUE。
       if (present.has('flight_reviews')) {
         db.run(
           `INSERT OR IGNORE INTO flight_reviews (session_id, workspace_path, started_at, ended_at, duration_seconds, outcome, outcome_source, tool_call_count, tool_failure_count, rework_count, unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status, created_at, updated_at)
            SELECT session_id, workspace_path, started_at, ended_at, duration_seconds, outcome, outcome_source, tool_call_count, tool_failure_count, rework_count, unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status, created_at, updated_at FROM trail.flight_reviews`,
+        );
+        copiedRows['flight_reviews'] = db.getRowsModified();
+        // 衝突キーの manual 訂正を移送する（機械行が人手訂正に勝ったまま DROP しないため）
+        db.run(
+          `UPDATE flight_reviews SET
+             outcome = t.outcome, outcome_source = t.outcome_source, tags = t.tags, notes = t.notes,
+             unresolved_items = t.unresolved_items, next_concerns = t.next_concerns, updated_at = t.updated_at
+           FROM trail.flight_reviews t
+           WHERE flight_reviews.session_id = t.session_id
+             AND t.outcome_source = 'manual' AND flight_reviews.outcome_source != 'manual'`,
+        );
+        // 学習候補は「trail 側にだけ在る」場合に採用する（空の新行で上書きしない）
+        db.run(
+          `UPDATE flight_reviews SET lesson_candidates =
+             (SELECT t.lesson_candidates FROM trail.flight_reviews t WHERE t.session_id = flight_reviews.session_id)
+           WHERE lesson_candidates = '[]' AND EXISTS (
+             SELECT 1 FROM trail.flight_reviews t
+             WHERE t.session_id = flight_reviews.session_id AND t.lesson_candidates != '[]')`,
         );
       }
       db.run('COMMIT');
@@ -351,29 +395,55 @@ export class FlightRecordDatabase {
       throw e;
     }
 
-    // 検証: trail 側の全行が memory 側に存在してから DROP する
-    for (const table of FLIGHT_RECORD_TABLES) {
+    // 検証: キー単位のアンチ結合。INSERT OR IGNORE は CHECK 制約違反も黙って捨てるため、
+    // 件数の大小比較では「コピーできなかった行」を検知できない（移設後の新規行が件数を膨らませる）。
+    const missingRows: Record<string, number> = {};
+    const antiJoins: Array<[string, string]> = [
+      ['instructions', `SELECT COUNT(*) FROM trail.instructions t WHERE NOT EXISTS (SELECT 1 FROM instructions m WHERE m.id = t.id)`],
+      ['instruction_sessions', `SELECT COUNT(*) FROM trail.instruction_sessions t WHERE NOT EXISTS (SELECT 1 FROM instruction_sessions m WHERE m.session_id = t.session_id)`],
+      ['flight_reviews', `SELECT COUNT(*) FROM trail.flight_reviews t WHERE NOT EXISTS (SELECT 1 FROM flight_reviews m WHERE m.session_id = t.session_id)`],
+    ];
+    for (const [table, sql] of antiJoins) {
       if (!present.has(table)) continue;
-      const trailCount = Number(db.exec(`SELECT COUNT(*) FROM trail.${table}`)[0]?.values?.[0]?.[0] ?? 0);
-      const memoryCount = Number(db.exec(`SELECT COUNT(*) FROM ${table}`)[0]?.values?.[0]?.[0] ?? 0);
-      copied[table] = trailCount;
-      if (memoryCount < trailCount) {
-        this.logger.error(
-          `[FlightRecordDatabase] migration verification failed for ${table}: trail=${trailCount} memory=${memoryCount}; keeping trail-side table`,
-          new Error('flight record migration count mismatch'),
-        );
-        return copied;
-      }
+      missingRows[table] = Number(db.exec(sql)[0]?.values?.[0]?.[0] ?? 0);
     }
-    // instruction_sessions → flight_reviews → instructions の順は不要（trail.db は FK OFF 運用）だが、
-    // 参照される側を最後に落とす
+    // manual 訂正の保存確認（行の実在だけでなく優先順位規約の遵守も DROP の条件にする）
+    if (present.has('flight_reviews')) {
+      const unmergedManual = Number(
+        db.exec(
+          `SELECT COUNT(*) FROM trail.flight_reviews t JOIN flight_reviews m ON m.session_id = t.session_id
+           WHERE t.outcome_source = 'manual' AND m.outcome_source != 'manual'`,
+        )[0]?.values?.[0]?.[0] ?? 0,
+      );
+      missingRows['flight_reviews'] = (missingRows['flight_reviews'] ?? 0) + unmergedManual;
+    }
+    const lost = Object.entries(missingRows).filter(([, n]) => n > 0);
+    if (lost.length > 0) {
+      this.logger.error(
+        `[FlightRecordDatabase] migration verification failed (rows not preserved): ${JSON.stringify(Object.fromEntries(lost))}; keeping trail-side tables`,
+        new Error('flight record migration anti-join mismatch'),
+      );
+      return { status: 'verification_failed', copiedRows, missingRows };
+    }
+
+    // 退避 → DROP。退避テーブルが既に在る（過去の移行で作成済み）場合は追記する
+    // （CREATE で置き換えると初回退避を失う。重複は退避用途では許容）。
     for (const table of ['instruction_sessions', 'flight_reviews', 'instructions'] as const) {
-      if (present.has(table)) db.run(`DROP TABLE IF EXISTS trail.${table}`);
+      if (!present.has(table)) continue;
+      const backup = `${table}__pre_move_backup`;
+      const backupExists =
+        (db.exec(`SELECT 1 FROM trail.sqlite_master WHERE type = 'table' AND name = ?`, [backup])[0]?.values.length ?? 0) > 0;
+      if (backupExists) {
+        db.run(`INSERT INTO trail.${backup} SELECT * FROM trail.${table}`);
+      } else {
+        db.run(`CREATE TABLE trail.${backup} AS SELECT * FROM trail.${table}`);
+      }
+      db.run(`DROP TABLE IF EXISTS trail.${table}`);
     }
     this.logger.info(
-      `[FlightRecordDatabase] migrated flight record tables from trail.db: ${JSON.stringify(copied)}`,
+      `[FlightRecordDatabase] migrated flight record tables from trail.db (copied rows): ${JSON.stringify(copiedRows)}`,
     );
-    return copied;
+    return { status: 'migrated', copiedRows, missingRows };
   }
 
   // ---------------------------------------------------------------------------

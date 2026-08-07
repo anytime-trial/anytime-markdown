@@ -255,6 +255,9 @@ export class MemoryApiHandler {
    * memory-core.db に instruction_sessions が在るか（指示 ID 解決用）。
    * Flight Record は memory-core.db へ移設済み（2026-08-07）だが、移行前の DB や
    * FlightRecordDatabase 初期化前はテーブルが無いため、実在を見て縮退を決める。
+   * probe は openReadOnly の接続キャッシュ確立時に 1 回だけ走る。TrailDataServer の
+   * コンストラクタが FlightRecordDatabase.init()（= ensureTables）を同期完了させてから
+   * リスナを立てる配線順序が前提（並べ替えると初回リクエストで恒久 false になりうる）。
    */
   private instructionSessionsAvailable = false;
 

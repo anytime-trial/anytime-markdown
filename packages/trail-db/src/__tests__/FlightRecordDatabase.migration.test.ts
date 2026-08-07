@@ -1,6 +1,7 @@
-// migrateFromTrailDb（trail.db → memory-core.db のバックフィル + 検証 + DROP）の検証。
-// 一時ディレクトリに旧配置（trail.db 内に 3 テーブル）を作り、移行の冪等性・
-// 検証失敗時の非破壊（DROP しない）を確かめる。
+// destructiveMigrateFromTrailDb（trail.db → memory-core.db のコピー + アンチ結合検証 +
+// 退避 + DROP）の検証。一時ディレクトリに旧配置（trail.db 内に 3 テーブル）を作り、
+// 冪等性・manual 訂正の優先マージ・検証失敗時の非破壊（DROP しない）・退避テーブルの
+// 生成を確かめる。
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -53,22 +54,23 @@ function createLegacyTrailDb(): LegacyContext {
   return { tempDir, trailDbPath, memoryDbPath: path.join(tempDir, 'memory-core.db') };
 }
 
-function trailTables(trailDbPath: string): string[] {
+function trailTables(trailDbPath: string, like = ''): string[] {
   const Ctor = loadBetterSqlite3();
   const trail = new Ctor(trailDbPath, { readonly: true });
   try {
     return trail
       .prepare(
-        `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('instructions', 'instruction_sessions', 'flight_reviews') ORDER BY name`,
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ? ORDER BY name`,
       )
-      .all()
-      .map((r) => (r as { name: string }).name);
+      .all(`%${like}%`)
+      .map((r) => (r as { name: string }).name)
+      .filter((n) => n.startsWith('instructions') || n.startsWith('instruction_sessions') || n.startsWith('flight_reviews'));
   } finally {
     trail.close();
   }
 }
 
-describe('FlightRecordDatabase.migrateFromTrailDb', () => {
+describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
   let ctx: LegacyContext;
   let db: FlightRecordDatabase;
 
@@ -83,27 +85,33 @@ describe('FlightRecordDatabase.migrateFromTrailDb', () => {
     fs.rmSync(ctx.tempDir, { recursive: true, force: true });
   });
 
-  it('trail.db の旧 3 テーブルを memory-core.db へコピーし、検証後に trail.db 側を DROP する', () => {
-    const copied = db.migrateFromTrailDb();
-    expect(copied).toEqual({ instructions: 1, instruction_sessions: 1, flight_reviews: 1 });
+  it('trail.db の旧 3 テーブルをコピーし、検証後に退避テーブルへ複製してから DROP する', () => {
+    const result = db.destructiveMigrateFromTrailDb();
+    expect(result?.status).toBe('migrated');
+    expect(result?.copiedRows).toEqual({ instructions: 1, instruction_sessions: 1, flight_reviews: 1 });
+    expect(result?.missingRows).toEqual({ instructions: 0, instruction_sessions: 0, flight_reviews: 0 });
 
     // memory 側に読める
     expect(db.listOpenInstructions()).toHaveLength(1);
     expect(db.listFlightReviews()).toHaveLength(1);
     expect(db.listInstructionSessions('ins-1')).toHaveLength(1);
 
-    // trail 側は回収済み
-    expect(trailTables(ctx.trailDbPath)).toEqual([]);
+    // trail 側の生テーブルは回収済み・退避テーブルだけが残る
+    expect(trailTables(ctx.trailDbPath)).toEqual([
+      'flight_reviews__pre_move_backup',
+      'instruction_sessions__pre_move_backup',
+      'instructions__pre_move_backup',
+    ]);
   });
 
   it('再実行は no-op（冪等。旧テーブルが無ければ null を返す）', () => {
-    db.migrateFromTrailDb();
-    expect(db.migrateFromTrailDb()).toBeNull();
+    db.destructiveMigrateFromTrailDb();
+    expect(db.destructiveMigrateFromTrailDb()).toBeNull();
     expect(db.listFlightReviews()).toHaveLength(1);
   });
 
-  it('移行後の新規書き込みは memory-core.db 側へ入り、trail.db は再作成されない', () => {
-    db.migrateFromTrailDb();
+  it('移行後の新規書き込みは memory-core.db 側へ入り、trail.db に生テーブルは再作成されない', () => {
+    db.destructiveMigrateFromTrailDb();
     db.upsertFlightReviewFromMachine({
       sessionId: 'sess-2',
       workspacePath: '/ws',
@@ -115,11 +123,10 @@ describe('FlightRecordDatabase.migrateFromTrailDb', () => {
       reworkCount: 0,
     });
     expect(db.listFlightReviews()).toHaveLength(2);
-    expect(trailTables(ctx.trailDbPath)).toEqual([]);
+    expect(trailTables(ctx.trailDbPath).filter((n) => !n.endsWith('__pre_move_backup'))).toEqual([]);
   });
 
-  it('memory 側に既に同キーの行があっても重複せず、残余行は追加コピーされる', () => {
-    // 先に新配置側へ sess-1 と別内容の行を作る（旧テーブルの再コピーが上書きしないこと）
+  it('同キー衝突で双方 machine の場合は memory 側（新配置）の行が残る', () => {
     db.upsertFlightReviewFromMachine({
       sessionId: 'sess-1',
       workspacePath: '/ws-new',
@@ -130,11 +137,87 @@ describe('FlightRecordDatabase.migrateFromTrailDb', () => {
       toolFailureCount: 1,
       reworkCount: 1,
     });
-    db.migrateFromTrailDb();
+    const result = db.destructiveMigrateFromTrailDb();
+    expect(result?.status).toBe('migrated');
     const reviews = db.listFlightReviews();
     expect(reviews).toHaveLength(1);
-    // INSERT OR IGNORE のため既存（新配置側）の行が勝つ
     expect(reviews[0]?.workspacePath).toBe('/ws-new');
+  });
+
+  it('trail 側の manual 訂正は memory 側の機械行に勝つ（manual > self > machine を移行経路でも守る）', () => {
+    // trail 側の sess-1 行を人手訂正済みにする
+    const Ctor = loadBetterSqlite3();
+    const trail = new Ctor(ctx.trailDbPath);
+    trail
+      .prepare(
+        `UPDATE flight_reviews SET outcome = 'achieved', outcome_source = 'manual',
+           tags = '["手動タグ"]', notes = '人手のメモ', lesson_candidates = '[{"kind":"k"}]'
+         WHERE session_id = 'sess-1'`,
+      )
+      .run();
+    trail.close();
+    // memory 側には移設後の Stop フック再送に相当する機械行が先に在る
+    db.upsertFlightReviewFromMachine({
+      sessionId: 'sess-1',
+      workspacePath: '/ws-new',
+      startedAt: TS,
+      endedAt: '2026-07-18T00:00:00.000Z',
+      durationSeconds: 999,
+      toolCallCount: 5,
+      toolFailureCount: 1,
+      reworkCount: 1,
+    });
+
+    const result = db.destructiveMigrateFromTrailDb();
+    expect(result?.status).toBe('migrated');
+    const review = db.listFlightReviews()[0];
+    expect(review?.outcome).toBe('achieved');
+    expect(review?.outcomeSource).toBe('manual');
+    expect(review?.tags).toBe('["手動タグ"]');
+    expect(review?.notes).toBe('人手のメモ');
+    expect(review?.lessonCandidates).toBe('[{"kind":"k"}]');
+    // 機械集計列は memory 側（新しい機械値）を保持する
+    expect(review?.toolCallCount).toBe(5);
+  });
+
+  it('コピーできない行が残ると DROP せず verification_failed を返す（非破壊）', () => {
+    // CHECK 制約の無い自作 DDL で trail 側に「新スキーマへコピーできない行」を作る
+    // （INSERT OR IGNORE は CHECK 違反を黙って捨てる — その黙殺を検証が捕まえること）
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
+    const trailDbPath = path.join(tempDir, 'trail.db');
+    const Ctor = loadBetterSqlite3();
+    const trail = new Ctor(trailDbPath);
+    trail.exec(`CREATE TABLE flight_reviews (
+      id INTEGER PRIMARY KEY, session_id TEXT NOT NULL UNIQUE, workspace_path TEXT NOT NULL DEFAULT '',
+      started_at TEXT, ended_at TEXT NOT NULL, duration_seconds INTEGER,
+      outcome TEXT NOT NULL DEFAULT 'unknown', outcome_source TEXT NOT NULL DEFAULT 'machine',
+      tool_call_count INTEGER NOT NULL DEFAULT 0, tool_failure_count INTEGER NOT NULL DEFAULT 0,
+      rework_count INTEGER NOT NULL DEFAULT 0,
+      unresolved_items TEXT NOT NULL DEFAULT '[]', next_concerns TEXT NOT NULL DEFAULT '[]',
+      lesson_candidates TEXT NOT NULL DEFAULT '[]', tags TEXT NOT NULL DEFAULT '[]',
+      notes TEXT NOT NULL DEFAULT '', rationale_audit_status TEXT NOT NULL DEFAULT 'unaudited',
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`);
+    // outcome が列挙外 → 新スキーマの CHECK に弾かれ、INSERT OR IGNORE が黙って捨てる
+    trail
+      .prepare(
+        `INSERT INTO flight_reviews (session_id, ended_at, outcome, created_at, updated_at)
+         VALUES ('sess-bad', ?, 'bogus', ?, ?)`,
+      )
+      .run(TS, TS, TS);
+    trail.close();
+
+    const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), trailDbPath);
+    standalone.init();
+    try {
+      const result = standalone.destructiveMigrateFromTrailDb();
+      expect(result?.status).toBe('verification_failed');
+      expect(result?.missingRows['flight_reviews']).toBe(1);
+      // 非破壊: trail 側の生テーブルが残り、退避テーブルは作られない
+      expect(trailTables(trailDbPath)).toEqual(['flight_reviews']);
+    } finally {
+      standalone.close();
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('trail.db が無い構成では null を返す', () => {
@@ -142,7 +225,7 @@ describe('FlightRecordDatabase.migrateFromTrailDb', () => {
     const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), path.join(tempDir, 'trail.db'));
     standalone.init();
     try {
-      expect(standalone.migrateFromTrailDb()).toBeNull();
+      expect(standalone.destructiveMigrateFromTrailDb()).toBeNull();
     } finally {
       standalone.close();
       fs.rmSync(tempDir, { recursive: true, force: true });

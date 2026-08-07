@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveMemoryDbPath, resolveWorkspacePath } from '../dbPath';
+import { resolveMemoryDbPath, resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
 import { openMemoryDb } from '../sqlite/openDb';
 import {
   closeInstructionDirect,
@@ -56,8 +56,9 @@ export async function handleRecordInstruction(
     throw new Error('record_instruction requires summary for mode=new');
   }
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  // Flight Record の台帳は memory-core.db（2026-08-07 に trail.db から移設）
-  const dbPath = resolveMemoryDbPath({ workspacePath });
+  // Flight Record の台帳は memory-core.db（2026-08-07 に trail.db から移設）。
+  // 書き込みは ForWrite 解決: 拡張未起動で memory-core.db が無くても宣言を落とさない
+  const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
   const opened = await openMemoryDb(dbPath, 'readwrite');
   try {
     if (input.mode === 'close') {
