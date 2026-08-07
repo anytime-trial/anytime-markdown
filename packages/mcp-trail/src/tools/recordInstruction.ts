@@ -112,6 +112,7 @@ export async function handleListOpenInstructions(
   const limit = input.limit ?? 10;
 
   let memoryRows: OpenInstructionRow[] = [];
+  let memoryFailed: unknown = null;
   try {
     const dbPath = resolveMemoryDbPath({ workspacePath });
     const opened = await openMemoryDb(dbPath, 'readonly');
@@ -121,6 +122,7 @@ export async function handleListOpenInstructions(
       opened.close();
     }
   } catch (err) {
+    memoryFailed = err;
     console.error(
       `[${new Date().toISOString()}] [ERROR] [mcp-trail] list_open_instructions: memory-core.db read failed (workspace=${workspacePath}); falling back to trail.db`,
       err instanceof Error ? err.stack : err,
@@ -128,6 +130,7 @@ export async function handleListOpenInstructions(
   }
 
   let trailRows: OpenInstructionRow[] = [];
+  let trailFailed: unknown = null;
   try {
     const trailDbPath = resolveDbPath({ workspacePath });
     const openedTrail = await openTrailDb(trailDbPath, 'readonly');
@@ -137,9 +140,20 @@ export async function handleListOpenInstructions(
       openedTrail.close();
     }
   } catch (err) {
+    trailFailed = err;
     console.error(
       `[${new Date().toISOString()}] [ERROR] [mcp-trail] list_open_instructions: trail.db read failed (workspace=${workspacePath}); using memory-core.db rows only`,
       err instanceof Error ? err.stack : err,
+    );
+  }
+
+  // 「テーブルが無い = 宣言ゼロ」（空配列）と「両 DB とも読めない = 不明」を混同しない。
+  // 後者を空配列で返すと、進行中の指示を放置したまま新規宣言が積まれる偽陰性になる
+  if (memoryFailed !== null && trailFailed !== null) {
+    throw new Error(
+      `list_open_instructions: both memory-core.db and trail.db unreadable (workspace=${workspacePath}): ${String(
+        memoryFailed instanceof Error ? memoryFailed.message : memoryFailed,
+      )}`,
     );
   }
 

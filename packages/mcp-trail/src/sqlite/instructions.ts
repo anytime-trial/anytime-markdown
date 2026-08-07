@@ -61,10 +61,14 @@ const ensureTables = ensureInstructionTables;
  * list_open_instructions から消え、continue も成立しない。record_instruction の書込経路が
  * ensure 直後に冪等実行する（読み取り経路では起動しない）。
  *
- * コピー〜検証〜退避〜DROP は BEGIN IMMEDIATE の単一トランザクションで直列化する
- * （並行セッションの同時宣言は常態。存在チェックもロック取得後に行い TOCTOU を避ける）。
+ * BEGIN IMMEDIATE は**並行移行の直列化**のためであり（存在チェックもロック取得後に行い
+ * TOCTOU を避ける）、WAL 下ではファイル間（memory-core.db と ATTACH した trail.db）の
+ * コミットは原子的でない。クラッシュ耐性は退避テーブル `*__pre_move_backup`（DROP と
+ * 同一の trail.db 内にあり必ず同時確定する）が担保する — **退避を外してはならない**。
  * 検証は id / session_id のアンチ結合。id は UUID で「同一 id = 同一宣言」のため
- * 衝突時の本体マージは不要（INSERT OR IGNORE の先着が正）。
+ * 衝突時の本体マージは不要（INSERT OR IGNORE の先着が正）。session_id 衝突
+ * （移行前に同一セッションが memory 側で別指示へ再宣言された場合）は後勝ちの意味論で
+ * memory 側が正だが、黙って捨てず件数を error ログに出す（全行は退避に残る）。
  */
 export function destructiveMigrateInstructionTablesFromTrailDb(
   db: Database,
@@ -88,22 +92,40 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
         db.exec('COMMIT');
         return null;
       }
+      // コピー列は両側の交差から組み立てる（doctrine 版と同方式）。固定列挙だと旧 trail.db
+      // との列差 1 つで全体が throw → catch に落ち、旧指示が永久に回収されない
+      const intersectCols = (table: string): string[] => {
+        const trailCols = (db.prepare(`PRAGMA trail.table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name);
+        const memCols = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name));
+        return trailCols.filter((c) => memCols.has(c));
+      };
       let copiedRows = 0;
       if (present.has('instructions')) {
+        const cols = intersectCols('instructions').join(', ');
         copiedRows += db
-          .prepare(
-            `INSERT OR IGNORE INTO instructions (id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id, started_at, closed_at, created_at, updated_at)
-             SELECT id, workspace_path, workspace_name, summary, origin_prompt, origin_session_id, started_at, closed_at, created_at, updated_at FROM trail.instructions`,
-          )
+          .prepare(`INSERT OR IGNORE INTO instructions (${cols}) SELECT ${cols} FROM trail.instructions`)
           .run().changes;
       }
       if (present.has('instruction_sessions')) {
+        const cols = intersectCols('instruction_sessions').join(', ');
         copiedRows += db
-          .prepare(
-            `INSERT OR IGNORE INTO instruction_sessions (session_id, instruction_id, sequence, declared_at)
-             SELECT session_id, instruction_id, sequence, declared_at FROM trail.instruction_sessions`,
-          )
+          .prepare(`INSERT OR IGNORE INTO instruction_sessions (${cols}) SELECT ${cols} FROM trail.instruction_sessions`)
           .run().changes;
+        // session_id 衝突（memory 側で別指示へ再宣言済み）は後勝ちで memory が正だが、
+        // 旧リンクの置換を黙って通さず可視化する（復旧は退避テーブルから可能）
+        const superseded = Number(
+          (db
+            .prepare(
+              `SELECT COUNT(*) c FROM trail.instruction_sessions t JOIN instruction_sessions m
+                 ON m.session_id = t.session_id WHERE m.instruction_id <> t.instruction_id`,
+            )
+            .get() as { c: number }).c,
+        );
+        if (superseded > 0) {
+          console.error(
+            `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration: ${superseded} session link(s) superseded by memory-core side (old links retained in instruction_sessions__pre_move_backup)`,
+          );
+        }
       }
       let missingRows = 0;
       if (present.has('instructions')) {
@@ -173,10 +195,21 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
  * 残っていれば遅延移行する。移行失敗は宣言そのものを止めない（error ログの上で続行。
  * doctrine_judgments と同方針・次回呼び出しで冪等に再試行される）。
  */
+// 移行完了（trail 側テーブル不在 = null / migrated）を確認済みの trail.db パス。
+// 完了後も宣言のたびに ATTACH + BEGIN IMMEDIATE（trail.db への書込ロック）を繰り返さない
+// ためのプロセス内メモ化。verification_failed はメモ化せず次回再試行する。
+// プロセス再起動（/mcp reconnect）でリセットされ、再確認は 1 回だけ走る。
+const migratedTrailDbPaths = new Set<string>();
+
 export function ensureAndMigrateInstructionTables(db: Database, memoryDbPath: string): void {
   ensureInstructionTables(db);
+  const trailDbPath = path.join(path.dirname(memoryDbPath), 'trail.db');
+  if (migratedTrailDbPaths.has(trailDbPath)) return;
   try {
-    destructiveMigrateInstructionTablesFromTrailDb(db, path.join(path.dirname(memoryDbPath), 'trail.db'));
+    const result = destructiveMigrateInstructionTablesFromTrailDb(db, trailDbPath);
+    if (result === null || result.status === 'migrated') {
+      migratedTrailDbPaths.add(trailDbPath);
+    }
   } catch (err) {
     console.error(
       `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration failed (declarations continue to memory-core.db; will retry on next call)`,
@@ -279,9 +312,16 @@ export function listOpenInstructionsDirect(
   workspacePath: string,
   limit: number,
 ): OpenInstructionRow[] {
-  const hasTable =
-    db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'instructions'`).get() !== undefined;
-  if (!hasTable) return [];
+  // クエリは instruction_sessions も相関サブクエリで参照するため、両テーブルの実在を要求する
+  // （片方欠けは移行が片テーブルだけ回収した trail.db で起こり得る）
+  const tableCount = Number(
+    (db
+      .prepare(
+        `SELECT COUNT(*) c FROM sqlite_master WHERE type = 'table' AND name IN ('instructions', 'instruction_sessions')`,
+      )
+      .get() as { c: number }).c,
+  );
+  if (tableCount < 2) return [];
   const rows = db
     .prepare(
       `SELECT i.id, i.summary, i.origin_prompt, i.started_at, i.workspace_name,

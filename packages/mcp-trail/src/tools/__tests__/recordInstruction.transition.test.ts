@@ -90,6 +90,68 @@ describe('Flight Record 台帳の移設過渡期', () => {
     expect(summaries).toEqual(['移行前の旧指示', '移行後の新指示']);
   });
 
+  it('コピーできない行が残ると DROP せず verification_failed（非破壊）', async () => {
+    // CHECK 制約の無い自作 DDL で「新スキーマへコピーできない行」を trail 側に作る
+    // （INSERT OR IGNORE は CHECK 違反を黙って捨てる — その黙殺をアンチ結合検証が捕まえること）
+    const trail = new BetterSqlite3(path.join(ws.dbDir, 'trail.db'));
+    trail.exec(`DROP TABLE instruction_sessions`);
+    trail.exec(`DROP TABLE instructions`);
+    trail.exec(`CREATE TABLE instructions (
+      id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL DEFAULT '', workspace_name TEXT NOT NULL DEFAULT '',
+      summary TEXT NOT NULL DEFAULT '', origin_prompt TEXT NOT NULL DEFAULT '', origin_session_id TEXT NOT NULL,
+      started_at TEXT NOT NULL, closed_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`);
+    // started_at が新スキーマの TS GLOB CHECK に合わない行
+    trail
+      .prepare(
+        `INSERT INTO instructions (id, origin_session_id, started_at, created_at, updated_at)
+         VALUES ('bad-1', 's', 'not-a-timestamp', 'x', 'y')`,
+      )
+      .run();
+    trail.close();
+
+    await handleRecordInstruction({
+      mode: 'new',
+      session_id: 'sess-new',
+      summary: '移行トリガ',
+      workspacePath: ws.root,
+    });
+
+    // 非破壊: trail 側の生テーブルが残る（宣言そのものは成功している）
+    const check = new BetterSqlite3(path.join(ws.dbDir, 'trail.db'), { readonly: true });
+    try {
+      const names = (
+        check
+          .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name = 'instructions'`)
+          .all() as Array<{ name: string }>
+      ).map((r) => r.name);
+      expect(names).toEqual(['instructions']);
+    } finally {
+      check.close();
+    }
+  });
+
+  it('union の limit マージ: 両側に複数件あっても全体の started_at 上位 N を返す', async () => {
+    // memory 側にも宣言を作る（trail 側の旧指示より新しい started_at になる）
+    await handleRecordInstruction({
+      mode: 'new',
+      session_id: 'sess-new-a',
+      summary: '新しい指示 A',
+      workspacePath: ws.root,
+    });
+    // 移行済みなので trail 側は空。もう 1 件追加して limit=1 で最新のみが返ること
+    // （started_at は ms 精度のため、同一 ms での順序不定を避けて 5ms 空ける）
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await handleRecordInstruction({
+      mode: 'new',
+      session_id: 'sess-new-b',
+      summary: '新しい指示 B',
+      workspacePath: ws.root,
+    });
+    const { instructions } = await handleListOpenInstructions({ workspacePath: ws.root, limit: 1 });
+    expect(instructions).toHaveLength(1);
+    expect(instructions[0]?.summary).toBe('新しい指示 B');
+  });
+
   it('移行後は trail.db に残っていた旧指示へ continue できる', async () => {
     // 書き込みが遅延移行を起こす
     await handleRecordInstruction({

@@ -152,10 +152,11 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
   if (!fs.existsSync(trailDbPath)) return null;
   db.prepare(`ATTACH DATABASE ? AS trail`).run(trailDbPath);
   try {
-    // コピー〜検証〜退避〜DROP を単一トランザクションに置き、BEGIN IMMEDIATE で書込ロックを
-    // 先取りして移行を 1 プロセスに直列化する。トランザクション外に検証・退避・DROP を置くと、
-    // 並行 mcp-trail の同時実行で退避テーブルへの全行二重挿入・後続 DROP の no such table・
-    // 中断時の退避重複が起きる（airspace は複数セッション並走を常態として想定している）。
+    // BEGIN IMMEDIATE は**並行移行の直列化**のため（トランザクション外に検証・退避・DROP を
+    // 置くと、並行 mcp-trail の同時実行で退避テーブルへの全行二重挿入・後続 DROP の
+    // no such table・中断時の退避重複が起きる）。WAL 下ではファイル間（memory-core.db と
+    // ATTACH した trail.db）のコミットは原子的でない — クラッシュ耐性は退避テーブル
+    // `__pre_move_backup`（DROP と同一の trail.db 内で必ず同時確定）が担保する。退避を外さないこと。
     db.exec('BEGIN IMMEDIATE');
     try {
       // 存在チェックはロック取得後に行う（TOCTOU 回避: 先行プロセスが DROP した直後でもここで抜ける）
