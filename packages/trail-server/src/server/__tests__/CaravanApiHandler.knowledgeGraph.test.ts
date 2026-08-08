@@ -255,6 +255,51 @@ describe('CaravanApiHandler.getKnowledgeGraph — hub and spoke', () => {
     expect(linkedIndices.size).toBe(result?.nodes.length);
   });
 
+  it('builds the link query for a large node set (VALUES 句のバインド構築)', async () => {
+    // ノード数ぶんのバインドを 1 度だけ渡す形（sel CTE）が壊れていないことを見る。
+    // 旧実装は `IN (?,…) AND IN (?,…)` で 2N バインドし、N=16,384 で SQLite の
+    // 変数上限（32,766）を踏み抜いていた。
+    const dbPath = path.join(tmpDir, 'chain.db');
+    const chain = new BetterSqlite3(dbPath);
+    chain.exec(`CREATE TABLE caravan_entities (
+      id TEXT PRIMARY KEY, type TEXT NOT NULL, canonical_name TEXT NOT NULL,
+      display_name TEXT NOT NULL, valid_until TEXT, first_seen_at TEXT NOT NULL,
+      last_updated_at TEXT NOT NULL, recorded_at TEXT NOT NULL, UNIQUE (type, canonical_name)) STRICT`);
+    chain.exec(`CREATE TABLE caravan_edges (
+      id TEXT PRIMARY KEY, subject_entity_id TEXT NOT NULL, predicate TEXT NOT NULL,
+      object_entity_id TEXT, object_literal TEXT, valid_from TEXT NOT NULL,
+      valid_to TEXT, recorded_at TEXT NOT NULL) STRICT`);
+    chain.exec(`CREATE TABLE caravan_edge_invalidations (
+      id TEXT PRIMARY KEY, edge_id TEXT NOT NULL, invalidated_at TEXT NOT NULL, reason TEXT NOT NULL) STRICT`);
+    const ent = chain.prepare(
+      `INSERT INTO caravan_entities (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
+       VALUES (?, 'File', ?, ?, ?, ?, ?)`,
+    );
+    const lnk = chain.prepare(
+      `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, object_literal, valid_from, valid_to, recorded_at)
+       VALUES (?, ?, 'relates_to', ?, NULL, ?, NULL, ?)`,
+    );
+    const SIZE = 400;
+    const pad = (i: number): string => `n${String(i).padStart(4, '0')}`;
+    // 1 行ずつ commit すると fsync が 800 回走ってテストが 10 秒級になる
+    chain.transaction(() => {
+      for (let i = 0; i < SIZE; i += 1) ent.run(pad(i), pad(i), pad(i), TS, TS, TS);
+      for (let i = 0; i + 1 < SIZE; i += 1) lnk.run(`l${i}`, pad(i), pad(i + 1), TS, TS);
+    })();
+    chain.close();
+
+    const chainHandler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    try {
+      const result = await chainHandler.getKnowledgeGraph({ limit: SIZE });
+      expect(result?.nodes).toHaveLength(SIZE);
+      expect(result?.links).toHaveLength(SIZE - 1);
+      const linked = new Set(result?.links.flatMap((l) => [l.a, l.b]));
+      expect(linked.size).toBe(SIZE);
+    } finally {
+      chainHandler.dispose();
+    }
+  }, 30000);
+
   it('reports frequency as the global degree, not the degree inside the returned subgraph', async () => {
     const result = await handler.getKnowledgeGraph({ limit: 2 });
 

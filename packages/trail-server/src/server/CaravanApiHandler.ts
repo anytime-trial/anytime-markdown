@@ -239,11 +239,23 @@ function clampLimit(limit: number | undefined, def: number, max = 200): number {
 const KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER = 20;
 
 /**
- * 知識グラフが 1 応答で返すノード数の上限。ルート側の clamp（TrailDataServer）と
- * 揃える。制約はサーバではなく webview 側の同期レイアウト（`layoutWorkerCode` が
- * モノレポ内ソース参照では空スロットのため worker へ逃げられない）。
+ * 知識グラフが 1 応答で返すノード数の上限。ルート側の clamp（TrailDataServer）と揃える。
+ *
+ * 制約はサーバではなくクライアント。実測（Chromium 1400x900・実データ・同期レイアウト・
+ * 3〜4 秒のパン/ズーム連打でのフレーム時間）:
+ *
+ * | ノード | リンク | 初回描画 | フレーム p50 | p95 |
+ * | ---: | ---: | ---: | ---: | ---: |
+ * | 500 | 2,121 | 199ms | 16.7ms | 16.8ms |
+ * | 2,000 | 8,370 | 582ms | 16.7ms | 16.8ms |
+ * | 5,000 | 14,378 | 1,547ms | 16.8ms | 33.4ms |
+ * | 10,000 | 18,977 | 3,372ms | 49.9ms | 66.7ms |
+ * | 16,000 | 23,353 | 5,999ms | 83.3ms | 83.5ms |
+ *
+ * 5,000 までは操作が 60fps を保ち初回描画も 1.5 秒。10,000 で 20fps・3.4 秒へ落ちるため
+ * そこが実用の膝。SQL 側は上限要因ではない（本番 DB のコピーで limit=16,000 でも 400ms 未満）。
  */
-const KNOWLEDGE_GRAPH_MAX_NODES = 2000;
+const KNOWLEDGE_GRAPH_MAX_NODES = 5000;
 
 /**
  * 知識グラフのノード集合を、順位付け済みのエッジペア列から貪欲に組み立てる。
@@ -1545,9 +1557,6 @@ export class CaravanApiHandler {
     const db = this.openReadOnly();
     if (!db) return null;
     try {
-      // 上限 2000 は描画側の実測から決めた。SQL は上限側の制約ではない（本番 DB のコピー
-      // で limit=5000 でも 390ms）。効くのは webview 側の同期レイアウトで、2000 ノード /
-      // 8.4k リンクで約 0.3 秒、5000 ノード / 20k リンクで約 0.9 秒。
       const limit = Math.max(1, clampLimit(params.limit, 150, KNOWLEDGE_GRAPH_MAX_NODES));
       // 種別はバインドで渡すが、識別子形式に絞って未知の値（空文字・記号）を先に落とす
       const types = (params.types ?? []).filter((t) => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
@@ -1638,15 +1647,19 @@ export class CaravanApiHandler {
       const indexById = new Map<string, number>(nodeRows.map((row, i) => [row.id, i]));
       let links: { a: number; b: number; strength: number }[] = [];
       if (nodeRows.length > 0) {
-        const idPlaceholders = nodeRows.map(() => '?').join(',');
         const ids = nodeRows.map((row) => row.id);
+        // 選定 ID は CTE へ 1 回だけバインドし、両端の判定はそれを 2 度参照する。
+        // `IN (?,…) AND IN (?,…)` と書くとバインド数が 2N になり、SQLite の
+        // SQLITE_MAX_VARIABLE_NUMBER（32,766）を N=16,384 で踏み抜いて実行時エラーになる。
+        const selValues = ids.map(() => '(?)').join(',');
         const linkResult = db.exec(
-          `WITH ${activeCte}
+          `WITH ${activeCte},
+          sel(id) AS (VALUES ${selValues})
           SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
           FROM active
-          WHERE s IN (${idPlaceholders}) AND o IN (${idPlaceholders})
+          WHERE s IN (SELECT id FROM sel) AND o IN (SELECT id FROM sel)
           GROUP BY MIN(s, o), MAX(s, o)`,
-          toBindParams([...typeBinds, ...ids, ...ids]),
+          toBindParams([...typeBinds, ...ids]),
         );
         links = (linkResult[0]?.values ?? []).flatMap((row) => {
           const a = indexById.get(toStr(row[0]));
