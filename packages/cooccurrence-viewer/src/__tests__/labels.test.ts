@@ -118,18 +118,59 @@ describe('label placement', () => {
     expect(large?.width).toBeCloseTo(96, 5);
   });
 
-  it('keeps the same result as a brute-force scan on a dense field', () => {
-    // グリッドの取りこぼし（隣接セルを見落とす）を、総当たりとの一致で検査する
-    const nodes = Array.from({ length: 400 }, (_, i) =>
-      node(i, `label-${i}`, (i % 20) * 70 - 700, 400 - i));
-    const positioned = nodes.map((n, i) => ({ ...n, y: Math.floor(i / 20) * 45 - 450 }));
+  it('keeps a long label whose center is offscreen but whose text reaches the canvas', () => {
+    // 中心が画面外でも、中心揃えのラベルは半幅ぶん画面に出る。粗いカリングで落としてはいけない
+    const longLabel = 'a'.repeat(53);
+    const measure = (text: string, fontSize: number): number => text.length * 20 * (fontSize / 12);
+    const nodes = [{ ...node(0, longLabel, -250, 10), labelFontSize: 12 }];
+    const labels = selectVisibleLabels({
+      nodes, measure, viewport: { scale: 1, offsetX: 0, offsetY: 0 }, ...CANVAS,
+    });
+    // 幅 1060 の箱が中心 x=-250 に置かれ、右端は +280 で画面内
+    expect(labels).toHaveLength(1);
+    expect(labels[0]?.x).toBeLessThan(0);
+    expect((labels[0]?.x ?? 0) + (labels[0]?.width ?? 0)).toBeGreaterThan(0);
+  });
+
+  it('drops a label whose box misses the canvas entirely even if its center is near', () => {
+    const measure = (text: string, fontSize: number): number => text.length * 2 * (fontSize / 12);
+    // 中心 x=-1300（粗いカリングは通る）だが箱幅は 24 なので画面には掛からない
+    const nodes = [{ ...node(0, 'abcdefghijkl', -1300, 10), labelFontSize: 12 }];
+    const labels = selectVisibleLabels({
+      nodes, measure, viewport: { scale: 1, offsetX: 0, offsetY: 0 }, ...CANVAS,
+    });
+    expect(labels).toEqual([]);
+  });
+
+  it('clears the width cache instead of growing without bound', () => {
+    const widthCache = createLabelWidthCache();
+    const measure = (text: string, fontSize: number): number => text.length * fontSize;
+    // 上限（20,000）を跨ぐまで語彙を入れ替える。件数が単調増加しないことを見る
+    for (let round = 0; round < 3; round += 1) {
+      const nodes = Array.from({ length: 9000 }, (_, i) =>
+        node(i, `round-${round}-label-${i}`, (i % 90) * 15 - 675, 9000 - i));
+      selectVisibleLabels({
+        nodes, measure, widthCache, viewport: { scale: 1, offsetX: 700, offsetY: 450 }, ...CANVAS,
+      });
+    }
+    expect(widthCache.size).toBeLessThanOrEqual(20_000);
+  });
+
+  it('keeps the same result as a brute-force scan on a colliding field', () => {
+    // グリッドの取りこぼし（隣接セルを見落とす）を、総当たりとの一致で検査する。
+    // 箱（幅 62 / 高さ 20）より狭い間隔に置き、実際に競合を起こすことが前提。
     const measure = (text: string, fontSize: number): number => text.length * 6 * (fontSize / 12);
+    const positioned = Array.from({ length: 400 }, (_, i) => ({
+      ...node(i, `label-${i}`, (i % 20) * 40 - 400, 400 - i),
+      // セル境界（64px）を跨ぐ位置を混ぜる
+      y: Math.floor(i / 20) * 16 - 160 + (i % 3),
+    }));
     const viewport = { scale: 1, offsetX: 700, offsetY: 450 };
 
     const actual = selectVisibleLabels({ nodes: positioned, viewport, measure, ...CANVAS });
 
     const bruteForce: typeof actual = [];
-    for (const candidate of actual.length === 0 ? [] : [...positioned].sort((a, b) =>
+    for (const candidate of [...positioned].sort((a, b) =>
       (b.frequency - a.frequency) || (a.index - b.index))) {
       const fontSize = Math.max(10, candidate.labelFontSize * Math.sqrt(viewport.scale));
       const width = measure(candidate.label, fontSize) + 8;
@@ -144,6 +185,8 @@ describe('label placement', () => {
     }
 
     expect(actual.map((label) => label.nodeIndex)).toEqual(bruteForce.map((label) => label.nodeIndex));
+    // 競合が実際に起きていること（全採用なら重なり判定を素通りしていて検査になっていない）
+    expect(actual.length).toBeLessThan(positioned.length / 2);
     expect(actual.length).toBeGreaterThan(10);
   });
 });

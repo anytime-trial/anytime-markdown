@@ -33,6 +33,12 @@ const STYLE_ID = 'am-knowledge-graph-style';
 // CaravanApiHandler の KNOWLEDGE_GRAPH_MAX_NODES。既定を 150 に据え置くのは、10000 では
 // レイアウトの同期実行で初回描画が約 3.3 秒かかるため（操作自体は 1 フレーム 8.5ms で軽い）。
 const LIMIT_CHOICES = ['50', '150', '300', '500', '1000', '2000', '5000', '10000'] as const;
+/**
+ * これ以上を選ぶと初回描画に体感できる時間がかかる件数（実測: 5,000 で約 1.5 秒・
+ * 10,000 で約 3.3 秒。レイアウトが同期実行のため、その間 UI は固まる）。
+ * 選択肢に注記を出して、等価に見える選択肢の中でコストが跳ねる点を隠さない。
+ */
+const SLOW_LIMIT_THRESHOLD = 5000;
 const DEFAULT_LIMIT = '150';
 
 type LoadState = 'loading' | 'failed' | 'empty' | 'ready';
@@ -140,9 +146,15 @@ export function mountKnowledgeGraphPanel(
   });
   toolbar.querySelector<HTMLElement>('[data-am-kg-type-select]')?.appendChild(typeSelect.el);
 
+  const limitOptions = (t: KnowledgeGraphPanelProps['t']): Array<{ value: string; label: string }> =>
+    LIMIT_CHOICES.map((v) => ({
+      value: v,
+      label: Number(v) >= SLOW_LIMIT_THRESHOLD ? `${v}${t('knowledgeGraph.nodeLimitSlowSuffix')}` : v,
+    }));
+
   const limitSelect = createSelect<string>({
     value: limit,
-    options: LIMIT_CHOICES.map((v) => ({ value: v, label: v })),
+    options: limitOptions(props.t),
     ariaLabel: props.t('knowledgeGraph.nodeLimit'),
     fullWidth: false,
     minWidth: 88,
@@ -219,7 +231,7 @@ export function mountKnowledgeGraphPanel(
     const reload = toolbar.querySelector<HTMLButtonElement>('[data-am-kg-reload]');
     if (reload) reload.textContent = t('knowledgeGraph.reload');
     typeSelect.update({ options: typeOptions(), ariaLabel: t('knowledgeGraph.typeFilter'), value: typeFilter });
-    limitSelect.update({ ariaLabel: t('knowledgeGraph.nodeLimit'), value: limit });
+    limitSelect.update({ options: limitOptions(t), ariaLabel: t('knowledgeGraph.nodeLimit'), value: limit });
 
     const count = toolbar.querySelector<HTMLElement>('[data-am-kg-count]');
     if (count) {

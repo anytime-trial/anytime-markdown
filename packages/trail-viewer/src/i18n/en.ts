@@ -677,6 +677,7 @@ export const en: TrailI18n = {
   'knowledgeGraph.typeFilter': 'Type',
   'knowledgeGraph.typeAll': 'All types',
   'knowledgeGraph.nodeLimit': 'Node limit',
+  'knowledgeGraph.nodeLimitSlowSuffix': ' (slow)',
   'knowledgeGraph.shownCount': 'Showing {{shown}} of {{total}}',
   'flightRecord.filter.outcome': 'Outcome',
   'flightRecord.filter.outcomeAll': 'All',
