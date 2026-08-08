@@ -4,8 +4,10 @@
  * 画面設計書: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-knowledge-graph.ja.md
  *
  * 設計の要点:
- *   - 取得はタブ初回訪問時と操作（種別 / 件数 / 再読込）時のみ。ポーリングしない
- *     （知識グラフの更新は分〜時間単位で、常時ポーリングに見合わない。設計書 §3.2）。
+ *   - 取得はタブ初回訪問時と操作（種別 / 件数 / 再読込）時、および視野が落ち着いた時のみ。
+ *     ポーリングしない（知識グラフの更新は分〜時間単位で、常時ポーリングに見合わない。設計書 §3.2）。
+ *   - 視野駆動配信: サーバが座標を持つとき、パン / ズームが落ち着いたら「今見えている範囲」で
+ *     取り直す。取得中も現在の図を出したままにし、届いた図で視野を動かさない。
  *   - サーバー不達・DB 未設定（応答 null）は 0 件と別の顔で表示する（障害を「0 件」に見せない）。
  *   - 描画は cooccurrence-viewer に委ね、本パネルはツールバーと取得状態だけを持つ。
  *   - 色はテーマトークンから取り、要素側へインラインで置かない（ダーク / ライト両対応）。
@@ -19,6 +21,7 @@ import {
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import type { TrailThemeTokens } from '../theme/designTokens';
 import { buildKnowledgeGraphCoocFile, type KnowledgeGraphResponse } from './knowledgeGraphCoocFile';
+import { formatBboxParam, shouldRefetchForViewport, type ViewportBox } from './knowledgeGraphViewport';
 
 export interface KnowledgeGraphPanelProps {
   /** TrailDataServer の基点 URL。空文字は未接続（取得しない）。 */
@@ -99,6 +102,14 @@ export function mountKnowledgeGraphPanel(
   let controller: AbortController | null = null;
   /** 古い応答が新しい応答を上書きしないための世代番号。 */
   let fetchSeq = 0;
+  /** 直近の取得で使った視野。null は「視野指定なし（全体）」。 */
+  let fetchedBbox: ViewportBox | null = null;
+  /**
+   * 視野駆動の取り直しを行うか。サーバが座標を持たない構成（migration 未適用・
+   * レイアウト未計算）では bboxApplied=false が返るため、以後は視野で取り直さない
+   * （同じ全体グラフを何度も取り直すだけになるため）。
+   */
+  let viewportFetchEnabled = true;
 
   ensureStyle(container.ownerDocument, props.tokens);
 
@@ -170,25 +181,39 @@ export function mountKnowledgeGraphPanel(
     void refresh();
   });
 
-  function buildQuery(): string {
+  function buildQuery(bbox: ViewportBox | null): string {
     const params = new URLSearchParams();
     params.set('limit', limit);
     if (typeFilter !== '') params.set('types', typeFilter);
+    if (bbox) params.set('bbox', formatBboxParam(bbox));
     return `?${params.toString()}`;
   }
 
-  async function refresh(): Promise<void> {
+  /**
+   * データを取得して図へ反映する。
+   *
+   * @param bbox 取得する視野。null は全体（従来経路）。
+   * @param viewportDriven 視野の変化による取り直しか。true のときは取得中も現在の図を出したままにし、
+   *   届いた図でカメラを動かさない。false（操作・初回）のときは従来どおり読み込み表示へ切り替える。
+   */
+  async function refresh(bbox: ViewportBox | null = null, viewportDriven = false): Promise<void> {
     if (destroyed || props.serverUrl === '') return;
     controller?.abort();
     const ctrl = new AbortController();
     controller = ctrl;
     fetchSeq += 1;
     const seq = fetchSeq;
-    loadState = 'loading';
-    render();
+    if (!viewportDriven) {
+      // 視野駆動では読み込み表示に切り替えない。切り替えると図が消えて、パンのたびに
+      // 画面が白くなる（見えている図の上で差し替わるのが視野駆動の要件）。
+      loadState = 'loading';
+      render();
+    }
     try {
-      const res = await fetch(`${props.serverUrl}/api/caravan/knowledge-graph${buildQuery()}`, { signal: ctrl.signal });
-      if (destroyed || seq !== fetchSeq) return;
+      const res = await fetch(
+        `${props.serverUrl}/api/caravan/knowledge-graph${buildQuery(bbox)}`,
+        { signal: ctrl.signal },
+      );
       // 200 + null は「DB 未設定」（サーバ実装参照）。0 件の正常応答と区別して障害側へ倒す
       const json = res.ok ? ((await res.json()) as KnowledgeGraphResponse | null) : null;
       if (destroyed || seq !== fetchSeq) return;
@@ -196,22 +221,7 @@ export function mountKnowledgeGraphPanel(
         loadState = 'failed';
         data = null;
       } else {
-        data = json;
-        availableTypes = json.availableTypes;
-        loadState = json.nodes.length === 0 ? 'empty' : 'ready';
-        if (loadState === 'ready') {
-          const file = buildKnowledgeGraphCoocFile(json, new Date().toISOString());
-          if (viewerHandle) {
-            viewerHandle.update({ file });
-          } else {
-            viewerHandle = mountCooccurrenceViewer(viewerHost, {
-              file,
-              themeMode: props.isDark ? 'dark' : 'light',
-              createLayoutWorker: createInlineLayoutWorker,
-              showPanels: true,
-            });
-          }
-        }
+        applyResponse(json, bbox, viewportDriven);
       }
     } catch (err) {
       if (destroyed || seq !== fetchSeq) return;
@@ -221,6 +231,55 @@ export function mountKnowledgeGraphPanel(
       data = null;
     }
     render();
+  }
+
+  /** 取得できた応答を状態と図へ反映する。 */
+  function applyResponse(
+    json: KnowledgeGraphResponse,
+    bbox: ViewportBox | null,
+    viewportDriven: boolean,
+  ): void {
+    data = json;
+    availableTypes = json.availableTypes;
+    fetchedBbox = bbox;
+    // サーバが視野を無視した（座標が無い）なら、以後の視野駆動は無意味なので止める
+    if (bbox !== null && json.bboxApplied === false) viewportFetchEnabled = false;
+    loadState = json.nodes.length === 0 ? 'empty' : 'ready';
+    if (loadState !== 'ready') return;
+    syncViewer(buildKnowledgeGraphCoocFile(json, new Date().toISOString()), viewportDriven);
+  }
+
+  /** 図を差し替える（初回だけ mount、以後は update）。 */
+  function syncViewer(file: ReturnType<typeof buildKnowledgeGraphCoocFile>, viewportDriven: boolean): void {
+    if (viewerHandle) {
+      viewerHandle.update({ file, preserveViewport: viewportDriven });
+      return;
+    }
+    viewerHandle = mountCooccurrenceViewer(viewerHost, {
+      file,
+      themeMode: props.isDark ? 'dark' : 'light',
+      createLayoutWorker: createInlineLayoutWorker,
+      showPanels: true,
+      onViewportChange: handleViewportChange,
+    });
+  }
+
+  /**
+   * 視野が落ち着いたときの取り直し判定。
+   *
+   * 図が出ていない間（読み込み中・失敗）は取り直さない。取得直後に届く最初の通知は
+   * 全体表示に合わせた視野なので、`shouldRefetchForViewport` が「前回と同じ」と判定できるよう
+   * 記録だけして取得しない。
+   */
+  function handleViewportChange(bounds: ViewportBox): void {
+    if (destroyed || !viewportFetchEnabled || loadState !== 'ready') return;
+    if (fetchedBbox === null) {
+      // 全体取得の直後。今の視野を基準として記録するだけ（同じ内容の取り直しを避ける）
+      fetchedBbox = bounds;
+      return;
+    }
+    if (!shouldRefetchForViewport(fetchedBbox, bounds)) return;
+    void refresh(bounds, true);
   }
 
   function render(): void {
@@ -271,6 +330,9 @@ export function mountKnowledgeGraphPanel(
         viewerHandle?.destroy();
         viewerHandle = null;
         viewerHost.textContent = '';
+        // 座標を持つかは接続先ごとに違う。前の接続で無効化した判断を持ち越さない
+        viewportFetchEnabled = true;
+        fetchedBbox = null;
         void refresh();
         return;
       }

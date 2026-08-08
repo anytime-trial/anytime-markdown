@@ -32,6 +32,16 @@ export interface CooccurrenceViewerOptions {
   onRequestSave?: (file: CooccurrenceFile) => void;
   onFileChange?: (file: CooccurrenceFile) => void;
   onExportPng?: (blob: Blob) => void;
+  /**
+   * 視野（世界座標）が変わり、操作が落ち着いた後に 1 度だけ呼ぶ。
+   *
+   * 呼び出し側が「今見えている範囲」のデータだけを取り直すためのもの（視野駆動配信）。
+   * 操作 1 回ごとではなく落ち着いてから通知するのは、パン中に毎フレーム発火すると
+   * 取得要求がドラッグの回数だけ積み上がるため。遅延は {@link viewportChangeDelayMs}。
+   */
+  onViewportChange?: (bounds: ViewportBounds) => void;
+  /** {@link onViewportChange} を呼ぶまでの静止時間（ミリ秒）。既定 300。 */
+  viewportChangeDelayMs?: number;
   capabilities?: CooccurrenceViewerCapabilities;
   filter?: CooccurrenceFilterOptions;
   showPanels?: boolean;
@@ -40,7 +50,16 @@ export interface CooccurrenceViewerOptions {
 
 export type CooccurrenceViewerUpdate = Partial<
   Pick<CooccurrenceViewerOptions, 'file' | 'themeMode' | 'locale' | 'filter' | 'capabilities' | 'showPanels' | 'skin'>
->;
+> & {
+  /**
+   * `file` の差し替えで視野を合わせ直さない（既定は合わせ直す）。
+   *
+   * 視野駆動配信のように「同じ図の、今見えている部分だけ」を入れ替える用途で使う。
+   * 既定のまま差し替えると、届いた図にカメラが吸い寄せられて視野が変わり、
+   * その変化がまた取り直しを呼ぶ循環になる。
+   */
+  preserveViewport?: boolean;
+};
 
 export interface CooccurrenceViewerHandle {
   update(partial: CooccurrenceViewerUpdate): void;
@@ -148,6 +167,14 @@ export interface ViewportState {
   scale: number;
   offsetX: number;
   offsetY: number;
+}
+
+/** 世界座標の矩形。視野・グラフ全体の外接矩形の両方に使う。 */
+export interface ViewportBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
 }
 
 export interface ScreenPoint {

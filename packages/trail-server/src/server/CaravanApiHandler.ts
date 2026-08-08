@@ -94,6 +94,11 @@ export interface KnowledgeGraphResponse {
   truncated: boolean;
   /** 種別フィルタ UI の選択肢（DB に実在する全種別。フィルタの影響を受けない）。 */
   availableTypes: string[];
+  /**
+   * 要求された視野（bbox）で実際に絞ったか。座標が 1 件も無い DB では絞れないため false になる。
+   * クライアントはこれを見て「この視野は空」と「視野を無視して全体を返した」を区別する。
+   */
+  bboxApplied: boolean;
 }
 
 export interface UnaddressedReviewFindingRow {
@@ -291,6 +296,70 @@ function selectEdgeInducedNodeIds(
     if (selected.size >= limit) break;
   }
   return selected;
+}
+
+/**
+ * 知識グラフの「今見えている範囲」（`caravan_entity_layout` と同じ世界座標）。
+ * 4 辺すべてが有限値でなければ視野指定として扱わない（部分指定は片側が無限の帯になる）。
+ */
+export interface KnowledgeGraphBbox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/**
+ * 有効エッジの CTE を、種別フィルタと視野で絞って組み立てる。
+ *
+ * SQL とバインド値を 1 か所で作るのは、この CTE が 4 つのクエリへ埋め込まれるため。
+ * 条件の並びとバインドの並びが別々の場所にあると、片方だけ足した時に静かに値がずれる
+ * （SQLite は位置バインドなのでエラーにならず、違う条件で絞った結果が返る）。
+ */
+function buildActiveEdgesCte(params: {
+  types: readonly string[];
+  bbox: KnowledgeGraphBbox | null;
+}): { sql: string; binds: SqlValue[] } {
+  const { types, bbox } = params;
+  const binds: SqlValue[] = [];
+  // 視野は両端に課す。片端だけで絞ると画面外へ伸びる線の相手が選定に入り込み、
+  // 「見えている範囲の上位 N」という約束が崩れる。
+  let viewportFilter = '';
+  if (bbox) {
+    viewportFilter = `
+            AND EXISTS (
+              SELECT 1 FROM caravan_entity_layout ls
+               WHERE ls.entity_id = es.id AND ls.x BETWEEN ? AND ? AND ls.y BETWEEN ? AND ?)
+            AND EXISTS (
+              SELECT 1 FROM caravan_entity_layout lo
+               WHERE lo.entity_id = eo.id AND lo.x BETWEEN ? AND ? AND lo.y BETWEEN ? AND ?)`;
+    binds.push(bbox.minX, bbox.maxX, bbox.minY, bbox.maxY);
+    binds.push(bbox.minX, bbox.maxX, bbox.minY, bbox.maxY);
+  }
+  let typeFilter = '';
+  if (types.length > 0) {
+    typeFilter = `
+            AND es.type IN (${types.map(() => '?').join(',')})
+            AND eo.type IN (${types.map(() => '?').join(',')})`;
+    binds.push(...types, ...types);
+  }
+  const sql = `
+        active AS (
+          SELECT e.subject_entity_id AS s, e.object_entity_id AS o
+          FROM caravan_edges e
+          JOIN caravan_entities es ON es.id = e.subject_entity_id
+          JOIN caravan_entities eo ON eo.id = e.object_entity_id
+          WHERE e.object_entity_id IS NOT NULL
+            AND e.subject_entity_id != e.object_entity_id
+            AND e.valid_to IS NULL
+            AND NOT EXISTS (SELECT 1 FROM caravan_edge_invalidations i WHERE i.edge_id = e.id)
+            -- soft delete されたエンティティを端点から外す。runCodeReconciliation は
+            -- valid_until を立てるだけで辺を無効化しないため、ここで見ないと削除済み
+            -- シンボルがゴーストとして図と件数に残り続ける（剥がす経路が無い）。
+            AND es.valid_until IS NULL
+            AND eo.valid_until IS NULL${viewportFilter}${typeFilter}
+        )`;
+  return { sql, binds };
 }
 
 function toBindParams(arr: unknown[]): SqlValue[] {
@@ -1579,34 +1648,19 @@ export class CaravanApiHandler {
    *
    * DB 未設定・不在は null（「データ 0 件」と区別する。0 件は正常応答の空配列）。
    */
-  async getKnowledgeGraph(params: { limit?: number; types?: string[] }): Promise<KnowledgeGraphResponse | null> {
+  async getKnowledgeGraph(
+    params: { limit?: number; types?: string[]; bbox?: KnowledgeGraphBbox },
+  ): Promise<KnowledgeGraphResponse | null> {
     const db = this.openReadOnly();
     if (!db) return null;
     try {
       const limit = Math.max(1, clampLimit(params.limit, 150, KNOWLEDGE_GRAPH_MAX_NODES));
       // 種別はバインドで渡すが、識別子形式に絞って未知の値（空文字・記号）を先に落とす
       const types = (params.types ?? []).filter((t) => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
-      const typeFilter = types.length > 0
-        ? `AND es.type IN (${types.map(() => '?').join(',')}) AND eo.type IN (${types.map(() => '?').join(',')})`
-        : '';
-      const activeCte = `
-        active AS (
-          SELECT e.subject_entity_id AS s, e.object_entity_id AS o
-          FROM caravan_edges e
-          JOIN caravan_entities es ON es.id = e.subject_entity_id
-          JOIN caravan_entities eo ON eo.id = e.object_entity_id
-          WHERE e.object_entity_id IS NOT NULL
-            AND e.subject_entity_id != e.object_entity_id
-            AND e.valid_to IS NULL
-            AND NOT EXISTS (SELECT 1 FROM caravan_edge_invalidations i WHERE i.edge_id = e.id)
-            -- soft delete されたエンティティを端点から外す。runCodeReconciliation は
-            -- valid_until を立てるだけで辺を無効化しないため、ここで見ないと削除済み
-            -- シンボルがゴーストとして図と件数に残り続ける（剥がす経路が無い）。
-            AND es.valid_until IS NULL
-            AND eo.valid_until IS NULL
-            ${typeFilter}
-        )`;
-      const typeBinds = types.length > 0 ? [...types, ...types] : [];
+      // 座標が 1 件も無い DB では視野で絞れない。無視した事実は応答の bboxApplied で返す
+      // （黙って全体を返すと、クライアントは「この視野には何も無い」と読んでしまう）。
+      const bbox = this.entityLayoutAvailable ? (params.bbox ?? null) : null;
+      const { sql: activeCte, binds: activeBinds } = buildActiveEdgesCte({ types, bbox });
       const degCte = `
         deg AS (
           SELECT id, SUM(c) AS d FROM (
@@ -1636,7 +1690,7 @@ export class CaravanApiHandler {
         JOIN deg dg_b ON dg_b.id = p.b
         ORDER BY MIN(dg_a.d, dg_b.d) DESC, p.strength DESC, p.a, p.b
         LIMIT ?`,
-        toBindParams([...typeBinds, limit * KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER]),
+        toBindParams([...activeBinds, limit * KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER]),
       );
 
       const pairRows = pairResult[0]?.values ?? [];
@@ -1651,9 +1705,14 @@ export class CaravanApiHandler {
 
       // ペアが 1 つも収まらない場合（limit = 1・有効エッジ 0 本）だけ次数上位 N へ退避する。
       // 空集合を IN 句へ渡すと 0 件になり「データが無い」と区別できなくなる。
+      // 選定 ID は件数によらずバインド 1 個（JSON 配列）で渡す。`IN (?,…)` で並べると
+      // バインド数が選定件数そのものになり、SQLITE_MAX_VARIABLE_NUMBER（32,766）を
+      // 上限引き上げ時に踏み抜く。
+      const selectedIdsJson = JSON.stringify([...selectedIds]);
       const idFilter = selectedIds.size > 0
-        ? `WHERE en.id IN (${[...selectedIds].map(() => '?').join(',')})`
+        ? `WHERE en.id IN (SELECT value FROM json_each(?))`
         : '';
+      const idBinds = selectedIds.size > 0 ? [selectedIdsJson] : [];
       const layoutColumns = this.entityLayoutAvailable ? 'el.x, el.y' : 'NULL AS x, NULL AS y';
       const layoutJoin = this.entityLayoutAvailable
         ? 'LEFT JOIN caravan_entity_layout el ON el.entity_id = en.id'
@@ -1666,7 +1725,7 @@ export class CaravanApiHandler {
         ${idFilter}
         ORDER BY deg.d DESC, en.id
         LIMIT ?`,
-        toBindParams([...typeBinds, ...selectedIds, limit]),
+        toBindParams([...activeBinds, ...idBinds, limit]),
       );
       const nodeRows = (nodeResult[0]?.values ?? []).map((row) => {
         const x = row[4];
@@ -1685,18 +1744,17 @@ export class CaravanApiHandler {
       let links: { a: number; b: number; strength: number }[] = [];
       if (nodeRows.length > 0) {
         const ids = nodeRows.map((row) => row.id);
-        // 選定 ID は CTE へ 1 回だけバインドし、両端の判定はそれを 2 度参照する。
-        // `IN (?,…) AND IN (?,…)` と書くとバインド数が 2N になり、SQLite の
-        // SQLITE_MAX_VARIABLE_NUMBER（32,766）を N=16,384 で踏み抜いて実行時エラーになる。
-        const selValues = ids.map(() => '(?)').join(',');
+        // 選定 ID は件数によらずバインド 1 個（JSON 配列）で渡す。以前は `VALUES (?),…` で
+        // 1 件 1 バインドしており、SQLITE_MAX_VARIABLE_NUMBER（32,766）が実質的な
+        // ノード数上限になっていた。json_each なら上限はバインド数ではなく JSON の長さになる。
         const linkResult = db.exec(
           `WITH ${activeCte},
-          sel(id) AS (VALUES ${selValues})
+          sel(id) AS (SELECT value FROM json_each(?))
           SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
           FROM active
           WHERE s IN (SELECT id FROM sel) AND o IN (SELECT id FROM sel)
           GROUP BY MIN(s, o), MAX(s, o)`,
-          toBindParams([...typeBinds, ...ids]),
+          toBindParams([...activeBinds, JSON.stringify(ids)]),
         );
         links = (linkResult[0]?.values ?? []).flatMap((row) => {
           const a = indexById.get(toStr(row[0]));
@@ -1723,7 +1781,7 @@ export class CaravanApiHandler {
       const connectedResult = db.exec(
         `WITH ${activeCte}
         SELECT COUNT(*) FROM (SELECT s AS id FROM active UNION SELECT o FROM active)`,
-        toBindParams([...typeBinds]),
+        toBindParams([...activeBinds]),
       );
       const connectedEntityCount = Number(connectedResult[0]?.values[0]?.[0] ?? 0);
 
@@ -1735,8 +1793,11 @@ export class CaravanApiHandler {
         links,
         clusters: [...clustersByType.entries()].map(([label, members]) => ({ label, members })),
         totalEntityCount,
+        // 視野指定時は「その視野で繋がっているノード」が分母。truncated は
+        // 「この視野にまだ出せていないノードがある」を意味する。
         truncated: nodeRows.length < connectedEntityCount,
         availableTypes,
+        bboxApplied: bbox !== null,
       };
     } catch (err) {
       this.logger.error(`[CaravanApiHandler.getKnowledgeGraph] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);

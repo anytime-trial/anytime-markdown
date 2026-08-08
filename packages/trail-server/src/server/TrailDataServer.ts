@@ -101,6 +101,21 @@ const JSON_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
 };
 
+/**
+ * `minX,minY,maxX,maxY` 形式の視野を解釈する。
+ *
+ * 4 つすべてが有限値で、かつ min < max のときだけ視野として採る。1 つでも欠けた・逆転した
+ * 指定は視野として意味を成さないため、部分適用せず undefined（視野指定なし）へ倒す。
+ */
+export function parseBbox(value: string | null): { minX: number; minY: number; maxX: number; maxY: number } | undefined {
+  if (value === null || value === '') return undefined;
+  const parts = value.split(',').map((s) => Number(s));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return undefined;
+  const [minX, minY, maxX, maxY] = parts as [number, number, number, number];
+  if (!(minX < maxX) || !(minY < maxY)) return undefined;
+  return { minX, minY, maxX, maxY };
+}
+
 function clampInt(value: string | null, fallback: number, min: number, max: number): number {
   if (value === null || value === '') return fallback;
   const n = Number.parseInt(value, 10);
@@ -1027,6 +1042,8 @@ export class TrailDataServer {
         // 上限 10000 の根拠は CaravanApiHandler の KNOWLEDGE_GRAPH_MAX_NODES を参照
         limit: clampInt(ctx.url.searchParams.get('limit'), 150, 1, 10000),
         types: ctx.url.searchParams.get('types')?.split(',').filter((s) => s !== '') ?? undefined,
+        // 視野（世界座標 minX,minY,maxX,maxY）。指定時はその範囲の上位 N を返す
+        bbox: parseBbox(ctx.url.searchParams.get('bbox')),
       })));
 
     t.exact('GET', '/api/caravan/drift/by-day', (ctx) => {

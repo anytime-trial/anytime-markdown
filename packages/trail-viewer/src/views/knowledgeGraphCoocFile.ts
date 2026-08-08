@@ -42,6 +42,11 @@ export interface KnowledgeGraphResponse {
   readonly truncated: boolean;
   /** 種別フィルタ UI の選択肢（DB に実在する全種別。フィルタの影響を受けない）。 */
   readonly availableTypes: readonly string[];
+  /**
+   * 要求した視野（bbox）でサーバが実際に絞ったか。座標が 1 件も無い DB では絞れないため
+   * false になる。false のときに視野駆動の再取得を続けても結果は変わらない。
+   */
+  readonly bboxApplied?: boolean;
 }
 
 /**

@@ -255,10 +255,10 @@ describe('CaravanApiHandler.getKnowledgeGraph — hub and spoke', () => {
     expect(linkedIndices.size).toBe(result?.nodes.length);
   });
 
-  it('builds the link query for a large node set (VALUES 句のバインド構築)', async () => {
-    // ノード数ぶんのバインドを 1 度だけ渡す形（sel CTE）が壊れていないことを見る。
-    // 旧実装は `IN (?,…) AND IN (?,…)` で 2N バインドし、N=16,384 で SQLite の
-    // 変数上限（32,766）を踏み抜いていた。
+  it('builds the link query for a large node set (選定 ID を JSON 1 バインドで渡す)', async () => {
+    // 選定 ID をバインド 1 個（json_each）で渡す形が壊れていないことを見る。
+    // `IN (?,…)` で並べるとバインド数がノード数に比例し、SQLite の変数上限
+    // （32,766）がそのままノード数上限になる。
     const dbPath = path.join(tmpDir, 'chain.db');
     const chain = new BetterSqlite3(dbPath);
     chain.exec(`CREATE TABLE caravan_entities (
@@ -370,5 +370,65 @@ describe('CaravanApiHandler.getKnowledgeGraph — server-side layout', () => {
 
     expect(result?.nodes.length).toBe(4);
     expect(result?.nodes[0]?.x).toBeUndefined();
+  });
+
+  it('reports bboxApplied=false when no viewport was requested', async () => {
+    addLayoutTable(true);
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const result = await handler.getKnowledgeGraph({});
+
+    expect(result?.bboxApplied).toBe(false);
+  });
+
+  it('selects only the nodes whose stored coordinates fall inside the viewport', async () => {
+    // 座標: e1(10.5,-20.5) / e2(30,40) / e3(-5,5) / e4(1,2)。視野は e2 だけを外す
+    addLayoutTable(true);
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
+    });
+
+    expect(result?.bboxApplied).toBe(true);
+    // 両端が視野に入るエッジは e1-e3 / e1-e4 のみ（e1-e2 は相手が画面外）
+    expect(result?.nodes.map((n) => n.label).sort()).toEqual(['FTS crash', 'TrailDataServer', 'server.ts']);
+    expect(result?.nodes.find((n) => n.label === 'TrailDataServer')?.frequency).toBe(2);
+    expect(result?.links).toHaveLength(2);
+  });
+
+  it('drops links whose far endpoint is outside the viewport', async () => {
+    // e2 側だけを含む視野。e1-e2 は片端が外なので、e2 は繋がる相手を失って選ばれない
+    addLayoutTable(true);
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: 25, minY: 35, maxX: 35, maxY: 45 },
+    });
+
+    expect(result?.bboxApplied).toBe(true);
+    expect(result?.nodes).toEqual([]);
+    expect(result?.links).toEqual([]);
+    // 「絞った結果 0 件」であって「視野を無視した」ではないことが応答から分かる
+    expect(result?.truncated).toBe(false);
+  });
+
+  it('keeps the whole-graph denominator while the viewport narrows the result', async () => {
+    addLayoutTable(true);
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
+    });
+
+    // totalEntityCount は DB 全体のまま（視野は分子だけを絞る）
+    expect(result?.totalEntityCount).toBe(6);
+    expect(result?.availableTypes).toEqual(['Bug', 'Concept', 'File']);
+  });
+
+  it('ignores the viewport when the layout table is absent instead of returning an empty graph', async () => {
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
+    });
+
+    expect(result?.bboxApplied).toBe(false);
+    expect(result?.nodes.length).toBe(4);
   });
 });

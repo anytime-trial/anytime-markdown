@@ -27,6 +27,7 @@ import type {
   RenderNode,
   TimelineLayerState,
   TimelineViewState,
+  ViewportBounds,
   ViewportState,
 } from './types';
 import { evaluateLayoutCache } from './layout/cache';
@@ -89,10 +90,13 @@ import {
 } from './ui/tabModel';
 import { zoomViewportCenter } from './ui/minimapModel';
 import { ensureButtonBaseStyles } from './ui/buttonBaseStyle';
-import { fitBounds, pan, zoomAt } from './viewport/viewport';
+import { fitBounds, pan, screenToWorld, zoomAt } from './viewport/viewport';
 import { hitTestLink, hitTestNode } from './viewport/hitTest';
 
 const STYLE_ID = 'cooccurrence-viewer-style';
+
+/** 視野が落ち着いたと見なすまでの静止時間（ミリ秒）。 */
+const DEFAULT_VIEWPORT_CHANGE_DELAY_MS = 300;
 
 /** 画面下の注記を出した理由。枠が 1 つしかないため、消してよいかの判定に使う。 */
 type NoticeOwner = 'webgl' | 'edit';
@@ -188,6 +192,8 @@ export function mountCooccurrenceViewer(
   /** 直近の組み立てで使ったレーン。観測点と、レーン名の描画に使う。 */
   let clusterLanes: ClusterLanePlacement[] = [];
   let viewport: ViewportState = { scale: 1, offsetX: 0, offsetY: 0 };
+  /** onViewportChange のデバウンスタイマー。destroy で必ず止める。 */
+  let viewportChangeTimer: ReturnType<typeof setTimeout> | null = null;
   let notePopup: NotePopupHandle | null = null;
   /**
    * 編集モード。既定は切（閲覧専用）で、ファイルにもホストにも保存しない（要件書 §2.1）。
@@ -416,7 +422,16 @@ export function mountCooccurrenceViewer(
     exportPanel?.update(exportPanelState());
   }
 
-  function applyFileChange(nextFile: CooccurrenceFile, notifyHost: boolean): void {
+  /**
+   * @param preserveViewport true なら図の差し替えで視野を合わせ直さない。
+   *   視野駆動配信（見えている範囲だけを取り直す）で使う。合わせ直すと、届いた図に
+   *   カメラが吸い寄せられ → 視野が変わり → また取り直す、が止まらなくなる。
+   */
+  function applyFileChange(
+    nextFile: CooccurrenceFile,
+    notifyHost: boolean,
+    preserveViewport = false,
+  ): void {
     file = nextFile;
     options = { ...options, file };
     positions = file.layout?.positions ?? fallbackPositions(file);
@@ -428,7 +443,7 @@ export function mountCooccurrenceViewer(
     // 添字がずれるのはメモのポップアップと同じ。開いたままにすると相手を失った状態で
     // 登録でき、理由の無いエラーだけが出る。
     addPopup?.hide();
-    fitted = false;
+    if (!preserveViewport) fitted = false;
     syncCanvasLabel();
     if (notifyHost) options.onFileChange?.(file);
     beginLayoutIfNeeded();
@@ -1210,6 +1225,36 @@ export function mountCooccurrenceViewer(
     syncAddHandle();
     // ミニマップの枠は視野そのものを映す。ここで要求しないと、図だけが動いて枠が取り残される。
     minimapPanel?.refresh();
+    scheduleViewportChangeNotice();
+  }
+
+  /**
+   * 視野が落ち着いてから 1 度だけ `onViewportChange` を呼ぶ。
+   *
+   * 静止を待つのは、パン中の 1 フレームごとに呼ぶと購読側（視野駆動のデータ取得）が
+   * ドラッグの回数だけ要求を出すため。タイマーは destroy で必ず止める。
+   */
+  function scheduleViewportChangeNotice(): void {
+    if (!options.onViewportChange) return;
+    if (viewportChangeTimer !== null) clearTimeout(viewportChangeTimer);
+    viewportChangeTimer = setTimeout(() => {
+      viewportChangeTimer = null;
+      if (destroyed) return;
+      options.onViewportChange?.(visibleWorldBounds());
+    }, options.viewportChangeDelayMs ?? DEFAULT_VIEWPORT_CHANGE_DELAY_MS);
+  }
+
+  /** 今 canvas に映っている範囲を世界座標で返す。 */
+  function visibleWorldBounds(): ViewportBounds {
+    const { width, height } = canvasDisplaySize();
+    const topLeft = screenToWorld({ x: 0, y: 0 }, viewport);
+    const bottomRight = screenToWorld({ x: width, y: height }, viewport);
+    return {
+      minX: Math.min(topLeft.x, bottomRight.x),
+      minY: Math.min(topLeft.y, bottomRight.y),
+      maxX: Math.max(topLeft.x, bottomRight.x),
+      maxY: Math.max(topLeft.y, bottomRight.y),
+    };
   }
 
   /** 図の canvas の表示サイズ（CSS ピクセル）。バッキングストアには触れない。 */
@@ -1482,7 +1527,7 @@ export function mountCooccurrenceViewer(
       if (partial.file !== undefined) {
         // applyFileChange が内部で updatePanels() まで済ませる。ここで重ねて呼ぶと、同じ状態で
         // 一覧を 2 回作り直すだけになる。
-        applyFileChange(partial.file, false);
+        applyFileChange(partial.file, false, partial.preserveViewport === true);
       } else {
         rebuildGraph();
         updatePanels();
@@ -1493,6 +1538,10 @@ export function mountCooccurrenceViewer(
       if (destroyed) return;
       destroyed = true;
       currentJob?.abort();
+      if (viewportChangeTimer !== null) {
+        clearTimeout(viewportChangeTimer);
+        viewportChangeTimer = null;
+      }
       scheduler?.stop();
       resizeObserver?.disconnect();
       filterPanel?.destroy();
