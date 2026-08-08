@@ -37,7 +37,7 @@
 
   | 用途 | テーブル |
   | --- | --- |
-  | セッション・メッセージ | `messages`（`session_id` / `type` / `timestamp` / `skill` / `tool_calls`） |
+  | セッション・メッセージ | `activity_messages`（`session_id` / `type` / `timestamp` / `skill` / `tool_calls`） |
   | コミット調査 | `activity_session_commits` / `activity_commit_files` / `activity_message_commits` |
   | コードグラフ構造探索 | `activity_current_code_graphs.graph_json`（テキスト検索は Grep / Serena） |
 
