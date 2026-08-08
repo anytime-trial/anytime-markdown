@@ -121,7 +121,7 @@ export interface ReviewHistoryRow {
 }
 
 /**
- * Flight Record（指示単位の運航記録）へ畳んだレビュー指摘 1 件。
+ * Flight Record（指示単位の実行記録）へ畳んだレビュー指摘 1 件。
  *
  * `instructionId` は明示宣言（caravan_instruction_sessions・caravan-book.db 内）があればその指示 ID、無ければ
  * セッション ID そのもの。後者は TrailDatabase が「1 セッション = 1 指示」の暗黙グループへ

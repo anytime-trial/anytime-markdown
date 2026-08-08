@@ -813,9 +813,9 @@ export class TrailDataServer {
     t.exact('GET', '/api/trail/flight-reviews', ({ res, url }) => this.handleListFlightReviews(res, url.searchParams));
     t.pattern('PATCH', /^\/api\/trail\/flight-reviews\/([^/]+)$/, ({ req, res, params }) =>
       this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(params[0] ?? '')));
-    // Flight Record: 指示単位の運航記録。/open は :id パターンより先に登録する
+    // Flight Record: 指示単位の実行記録。/open は :id パターンより先に登録する
     // （後だと 'open' が指示 ID として食われる）。
-    // Flight Record のワークスペース選択肢。activity.db（指示・運航記録）と trail-caravan-book
+    // Flight Record のワークスペース選択肢。activity.db（指示・実行記録）と trail-caravan-book
     // （バグ修正・レビュー・乖離）は別 DB なので、両方の distinct を統合して 1 本で返す。
     t.exact('GET', '/api/trail/workspaces', ({ res }) => void this.handleListWorkspaces(res));
     t.exact('GET', '/api/trail/instructions/open', ({ res, url }) => this.handleListOpenInstructions(res, url.searchParams));

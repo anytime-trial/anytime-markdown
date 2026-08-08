@@ -1,4 +1,4 @@
-// Flight Record: 「指示（instruction）」単位の運航記録のドメイン型。
+// Flight Record: 「指示（instruction）」単位の実行記録のドメイン型。
 // DDL は domain/schema/tables.ts の CREATE_INSTRUCTIONS / CREATE_INSTRUCTION_SESSIONS が正本。
 //
 // 指示は人が出した 1 つの作業依頼で、1 指示は複数セッションにまたがりうる。
@@ -180,6 +180,6 @@ export interface InstructionRecordFilter {
 /** ワークスペース選択肢 1 件。`name` は `InstructionRecord.workspaceName` と同じ規則で解決済み。 */
 export interface InstructionWorkspace {
   name: string;
-  /** その名前へ解決された指示・運航記録の件数（多い順に並べるために持つ）。 */
+  /** その名前へ解決された指示・実行記録の件数（多い順に並べるために持つ）。 */
   count: number;
 }

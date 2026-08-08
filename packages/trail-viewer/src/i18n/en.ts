@@ -665,10 +665,10 @@ export const en: TrailI18n = {
   'emergency.unknown.notice':
     'Cannot read the status (the Trail server may be stopped). You can also use the VS Code command "Anytime Trail: Kill Switch".',
   // flightReview (Phase 6 S3: Flight Review UI)
-  'viewer.tab.flightRecord': 'Flight Record',
-  // chat (top-level tab to the right of Flight Record; formerly a Memory sub-tab)
+  'viewer.tab.flightRecord': 'CaravanBook',
+  // chat (top-level tab to the right of CaravanBook; formerly a Memory sub-tab)
   'viewer.tab.chat': 'Chat',
-  // knowledgeGraph (to the right of Flight Record; trail-caravan-book knowledge graph as a cooccurrence network)
+  // knowledgeGraph (to the right of CaravanBook; trail-caravan-book knowledge graph as a cooccurrence network)
   'viewer.tab.knowledgeGraph': 'Knowledge Graph',
   'knowledgeGraph.loading': 'Loading…',
   'knowledgeGraph.loadFailed': 'Failed to load the knowledge graph (the Trail server may be stopped)',
@@ -746,7 +746,7 @@ export const en: TrailI18n = {
   'flightRecord.findings.notLinkable': 'Not tracked',
   'flightRecord.findings.notLinkableHint':
     'Severity is info, or the target file/repository could not be resolved, so this finding cannot be matched against a fixing commit. It does not mean the finding was left unfixed.',
-  'flightRecord.findings.scopeNote': 'Shows only findings recorded in flights (sessions) that appear in Flight Record.',
+  'flightRecord.findings.scopeNote': 'Shows only findings recorded in flights (sessions) that appear in CaravanBook.',
   'flightRecord.findings.severity.error': 'error',
   'flightRecord.findings.severity.warn': 'warn',
   'flightRecord.findings.severity.info': 'info',
