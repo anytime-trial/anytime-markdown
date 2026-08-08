@@ -291,15 +291,15 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   const { db, error } = open(resolveDocDbPath());
   if (error) snapshot.errors.push(error);
 
-  const docs = num(q(db, 'SELECT COUNT(*) c FROM doc'), 'c');
-  const embeddings = num(q(db, 'SELECT COUNT(*) c FROM doc_embedding'), 'c');
+  const docs = num(q(db, 'SELECT COUNT(*) c FROM catalog_doc'), 'c');
+  const embeddings = num(q(db, 'SELECT COUNT(*) c FROM catalog_doc_embedding'), 'c');
   snapshot.docCore = {
     docs,
-    relations: num(q(db, 'SELECT COUNT(*) c FROM doc_relation'), 'c'),
+    relations: num(q(db, 'SELECT COUNT(*) c FROM catalog_doc_relation'), 'c'),
     embeddings,
     embeddingCoveragePct: pct(embeddings, docs),
     orphanDocs: num(
-      q(db, 'SELECT COUNT(*) c FROM doc WHERE path NOT IN (SELECT from_path FROM doc_relation UNION SELECT to_path FROM doc_relation)'),
+      q(db, 'SELECT COUNT(*) c FROM catalog_doc WHERE path NOT IN (SELECT from_path FROM catalog_doc_relation UNION SELECT to_path FROM catalog_doc_relation)'),
       'c',
     ),
   };

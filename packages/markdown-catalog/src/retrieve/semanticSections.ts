@@ -1,5 +1,5 @@
 /**
- * 節ベース意味検索（FR-5）。クエリを embed して全 doc_section_embedding と
+ * 節ベース意味検索（FR-5）。クエリを embed して全 catalog_doc_section_embedding と
  * cosine top-k（葉節数千件規模はブルートフォースで数 ms）。
  */
 
@@ -35,8 +35,8 @@ export async function searchSemanticSections(
   if (!Array.isArray(qVec) || qVec.length === 0) return [];
   const rows = (
     model === undefined
-      ? db.prepare('SELECT path, heading, level, vec FROM doc_section_embedding').all()
-      : db.prepare('SELECT path, heading, level, vec FROM doc_section_embedding WHERE model = ?').all(model)
+      ? db.prepare('SELECT path, heading, level, vec FROM catalog_doc_section_embedding').all()
+      : db.prepare('SELECT path, heading, level, vec FROM catalog_doc_section_embedding WHERE model = ?').all(model)
   ) as unknown as SecEmbRow[];
 
   const scored: SectionHit[] = rows.map((r) => ({

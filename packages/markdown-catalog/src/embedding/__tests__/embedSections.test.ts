@@ -23,7 +23,7 @@ function writeDoc(dir: string, rel: string, body: string): void {
 
 function sectionRows(db: DocDb, p: string): Array<{ section_idx: number; heading: string }> {
   return db
-    .prepare('SELECT section_idx, heading FROM doc_section_embedding WHERE path = ? ORDER BY section_idx')
+    .prepare('SELECT section_idx, heading FROM catalog_doc_section_embedding WHERE path = ? ORDER BY section_idx')
     .all(p) as unknown as Array<{ section_idx: number; heading: string }>;
 }
 
@@ -59,7 +59,7 @@ describe('embedSections', () => {
   test('doc の content_hash 変更でその doc だけ洗い替えられる (AC-2)', async () => {
     await embedSections(db, okEmbed, { model: 'test-model' });
     const beforeB = db
-      .prepare('SELECT content_hash FROM doc_section_embedding WHERE path = ?')
+      .prepare('SELECT content_hash FROM catalog_doc_section_embedding WHERE path = ?')
       .get(DOC_B) as unknown as { content_hash: string };
 
     // A のみ変更（節構成も変わる）して再 ingest → A だけ再埋め込み。
@@ -69,7 +69,7 @@ describe('embedSections', () => {
     expect(r.docsEmbedded).toBe(1);
     expect(sectionRows(db, DOC_A).map((s) => s.heading)).toEqual(['新章']);
     const afterB = db
-      .prepare('SELECT content_hash FROM doc_section_embedding WHERE path = ?')
+      .prepare('SELECT content_hash FROM catalog_doc_section_embedding WHERE path = ?')
       .get(DOC_B) as unknown as { content_hash: string };
     expect(afterB.content_hash).toBe(beforeB.content_hash);
   });
@@ -79,7 +79,7 @@ describe('embedSections', () => {
     const r = await embedSections(db, okEmbed, { model: 'model-v2' });
     expect(r.docsEmbedded).toBe(2);
     const models = db
-      .prepare('SELECT DISTINCT model FROM doc_section_embedding')
+      .prepare('SELECT DISTINCT model FROM catalog_doc_section_embedding')
       .all() as unknown as Array<{ model: string }>;
     expect(models.map((m) => m.model)).toEqual(['model-v2']);
   });

@@ -45,7 +45,7 @@ describe('markdown-catalog ingest + retrieve (integration)', () => {
     const r = await ingestDocs(db, dir, { updatedAt: '2026-06-20T00:00:00.000Z' });
     expect(r.scanned).toBe(4);
     expect(r.ingested).toBe(3); // skip.ja.md excluded
-    const count = (db.prepare('SELECT COUNT(*) AS n FROM doc').get() as { n: number }).n;
+    const count = (db.prepare('SELECT COUNT(*) AS n FROM catalog_doc').get() as { n: number }).n;
     expect(count).toBe(3);
   });
 

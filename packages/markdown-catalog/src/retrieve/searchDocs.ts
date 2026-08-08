@@ -27,7 +27,7 @@ export interface SearchDocsOptions {
   lang?: string;
   /** 最大件数（既定 8）。 */
   limit?: number;
-  /** snippet のトークン数（FTS5 snippet・既定 24・最大 64）。doc_fts は trigram のため約 N 文字相当。 */
+  /** snippet のトークン数（FTS5 snippet・既定 24・最大 64）。catalog_doc_fts は trigram のため約 N 文字相当。 */
   snippetTokens?: number;
 }
 
@@ -76,16 +76,16 @@ export function searchDocs(db: DocDb, opts: SearchDocsOptions = {}): DocHit[] {
     const match = toFtsMatch(opts.query);
     if (!match) return [];
     const facetSql = facetClauses.length ? `WHERE ${facetClauses.join(' AND ')}` : '';
-    // snippet(doc_fts, 3, ...) の列 index 3 = body（doc_fts(path,title,excerpt,body)）。
+    // snippet(catalog_doc_fts, 3, ...) の列 index 3 = body（catalog_doc_fts(path,title,excerpt,body)）。
     const rows = db
       .prepare(
         `SELECT d.path AS path, d.title AS title, d.category AS category, d.excerpt AS excerpt,
                 m.score AS score, m.snippet AS snippet
          FROM (
-           SELECT path, rank AS score, snippet(doc_fts, 3, '', '', '…', ?) AS snippet
-           FROM doc_fts WHERE doc_fts MATCH ? ORDER BY rank
+           SELECT path, rank AS score, snippet(catalog_doc_fts, 3, '', '', '…', ?) AS snippet
+           FROM catalog_doc_fts WHERE catalog_doc_fts MATCH ? ORDER BY rank
          ) AS m
-         JOIN doc AS d ON d.path = m.path
+         JOIN catalog_doc AS d ON d.path = m.path
          ${facetSql}
          ORDER BY m.score LIMIT ?`,
       )
@@ -98,7 +98,7 @@ export function searchDocs(db: DocDb, opts: SearchDocsOptions = {}): DocHit[] {
   const rows = db
     .prepare(
       `SELECT d.path AS path, d.title AS title, d.category AS category, d.excerpt AS excerpt
-       FROM doc AS d ${whereSql} ORDER BY d.path LIMIT ?`,
+       FROM catalog_doc AS d ${whereSql} ORDER BY d.path LIMIT ?`,
     )
     .all(...facetParams, limit) as unknown as Row[];
   return rows.map(toHit);

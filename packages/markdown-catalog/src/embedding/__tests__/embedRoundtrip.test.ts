@@ -36,7 +36,7 @@ describe('markdown-catalog embedding BLOB round-trip (node:sqlite)', () => {
     expect(r.embedded).toBe(1);
 
     const stored = db
-      .prepare('SELECT dim, vec FROM doc_embedding WHERE path = ?')
+      .prepare('SELECT dim, vec FROM catalog_doc_embedding WHERE path = ?')
       .get('spec/x.ja.md') as unknown as { dim: number; vec: Uint8Array };
     expect(stored.dim).toBe(3);
     expect(stored.vec.byteLength).toBe(12); // 3 × Float32
