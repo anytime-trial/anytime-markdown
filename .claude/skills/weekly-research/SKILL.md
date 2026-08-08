@@ -210,7 +210,7 @@ Trail は **エージェントによるソフトウェア開発プロセスそ�
 
 - コードグラフ生成・コミュニティ要約（`activity_current_code_graphs` / community mappings / reverse-spec）
 - セッション・コミット・レビューの記録と因果追跡（`messages` / `activity_session_commits` / `caravan_reviews`）
-- メモリグラフ検索（`search_memory`）。設計書検索（markdown-catalog: 構造 + FTS + embedding）は mcp-markdown 側のみ（trail 側の markdown-catalog は 2026-08-06 に廃止）
+- CaravanBook グラフ検索（`search_caravan_book`）。設計書検索（markdown-catalog: 構造 + FTS + embedding）は mcp-markdown 側のみ（trail 側の markdown-catalog は 2026-08-06 に廃止）
 - メモリ蒸留（auto memory）・drift 検知
 
 **生成手順:**

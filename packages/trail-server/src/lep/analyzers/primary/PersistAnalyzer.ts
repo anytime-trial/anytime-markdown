@@ -14,7 +14,7 @@ export interface PersistAnalyzerOptions {
  * sql.js の in-memory DB をディスクへ永続化する。
  *
  * **重要**: trail-caravan-book (Wave 3) は activity.db を **ディスクパスから read-only attach** する
- * (`defaultMemoryCorePipelineRunner.ts`)。そのため Wave 2 内 (wave_complete:primary が
+ * (`defaultCaravanBookPipelineRunner.ts`)。そのため Wave 2 内 (wave_complete:primary が
  * trail-caravan-book を起動する前) に save() を完了させる必要がある。旧 `importAll()` 末尾の
  * save() がこのタイミングを担っていたのを引き継ぐ。
  *

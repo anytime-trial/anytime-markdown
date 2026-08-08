@@ -7,9 +7,9 @@
 import { summarizeSpecDoc } from '../../../src/ingest/spec/summarizeSpecDoc';
 import { SPEC_SUMMARY_BODY_MAX_CHARS } from '../../../src/ollama/prompts/spec';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanLogger } from '../../../src/logger';
 
-function makeLogger(): MemoryLogger & { errors: unknown[]; warns: string[] } {
+function makeLogger(): CaravanLogger & { errors: unknown[]; warns: string[] } {
   const errors: unknown[] = [];
   const warns: string[] = [];
   return {

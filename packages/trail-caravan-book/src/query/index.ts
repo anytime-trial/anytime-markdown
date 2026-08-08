@@ -10,14 +10,14 @@
 // pipeline / ingest 由来のシンボルは絶対に re-export しないこと。
 
 // DB / logger
-export { openMemoryCoreDb } from '../db/connection';
-export type { MemoryCoreDb, OpenMemoryCoreDbOptions } from '../db/connection';
+export { openCaravanBookDb } from '../db/connection';
+export type { CaravanBookDb, OpenCaravanBookDbOptions } from '../db/connection';
 export { noopLogger } from '../logger';
-export type { MemoryLogger } from '../logger';
+export type { CaravanLogger } from '../logger';
 
 // 検索
-export { searchMemory, vectorTopK } from '../retrieve/searchMemory';
-export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from '../retrieve/searchMemory';
+export { searchCaravanBook, vectorTopK } from '../retrieve/searchCaravanBook';
+export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from '../retrieve/searchCaravanBook';
 
 // バグ履歴
 export { listRecurringBugs } from '../retrieve/listRecurringBugs';

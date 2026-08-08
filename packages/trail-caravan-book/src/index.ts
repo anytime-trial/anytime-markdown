@@ -1,25 +1,25 @@
-export { searchMemory, vectorTopK } from './retrieve/searchMemory';
-export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from './retrieve/searchMemory';
-export { openMemoryCoreDb } from './db/connection';
+export { searchCaravanBook, vectorTopK } from './retrieve/searchCaravanBook';
+export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from './retrieve/searchCaravanBook';
+export { openCaravanBookDb } from './db/connection';
 // テストが実 migration でスキーマを組めるようにする（手書き DDL だと
 // migration 側の変更に追随せず、乖離を検知できないまま緑になる）。
 export { runMigrations } from './db/migrations/runner';
-export type { MemoryCoreDb, OpenMemoryCoreDbOptions } from './db/connection';
-export { getMemoryCoreDbPath, getTrailHome } from './db/paths';
+export type { CaravanBookDb, OpenCaravanBookDbOptions } from './db/connection';
+export { getCaravanBookDbPath, getTrailHome } from './db/paths';
 export { attachTrailDbReadOnly, attachTrailDbFromHandle } from './db/attach';
-export { backupMemoryCoreDbFile } from './db/backup';
-export type { BackupMemoryCoreDbOptions } from './db/backup';
-export { BetterSqlite3MemoryDb } from './db/connection/BetterSqlite3MemoryDb';
-export type { BetterSqlite3MemoryDbOptions } from './db/connection/BetterSqlite3MemoryDb';
+export { backupCaravanBookDbFile } from './db/backup';
+export type { BackupCaravanBookDbOptions } from './db/backup';
+export { BetterSqlite3CaravanDb } from './db/connection/BetterSqlite3CaravanDb';
+export type { BetterSqlite3CaravanDbOptions } from './db/connection/BetterSqlite3CaravanDb';
 export type {
-  MemoryDbConnection,
-  MemoryDbStatement,
+  CaravanDbConnection,
+  CaravanDbStatement,
   ExecResultColumn,
   RowObject,
   RunResult,
-  SqlValue as MemoryDbSqlValue,
+  SqlValue as CaravanDbSqlValue,
 } from './db/connection/types';
-export type { MemoryLogger } from './logger';
+export type { CaravanLogger } from './logger';
 export { noopLogger } from './logger';
 export { runConversationIncremental } from './pipeline/runConversationIncremental';
 export type { IncrementalResult } from './pipeline/runConversationIncremental';
@@ -133,12 +133,12 @@ export {
 export { tokenizeForFts5 } from './rag/tokenizeForFts5';
 export { reciprocalRankFusion } from './rag/reciprocalRankFusion';
 export type { RankedItem, FusedItem, RankSource } from './rag/reciprocalRankFusion';
-export { hybridSearchMemory } from './rag/hybridSearchMemory';
+export { hybridSearchCaravanBook } from './rag/hybridSearchCaravanBook';
 export type {
   HybridSearchInput,
   HybridSearchOptions,
   HybridSearchResult,
-} from './rag/hybridSearchMemory';
+} from './rag/hybridSearchCaravanBook';
 
 export type { ChatMessage, ChatTurnInput, ChatChunk, ChatFilters } from './chat/types';
 export { buildPrompt } from './chat/promptBuilder';
@@ -147,20 +147,20 @@ export { CitationStreamParser } from './chat/citationParser';
 export { ChatService } from './chat/ChatService';
 export type { ChatServiceOptions } from './chat/ChatService';
 
-export type { MemoryCoreService } from './service/MemoryCoreService';
+export type { CaravanBookService } from './service/CaravanBookService';
 export type {
-  MemoryDbSession,
+  CaravanDbSession,
   ScopeResult,
-  MemoryCoreScopeRunner,
-  MemoryDbSessionDeps,
-} from './service/MemoryDbSession';
+  CaravanBookScopeRunner,
+  CaravanDbSessionDeps,
+} from './service/CaravanDbSession';
 export { defaultState, readState, writeState, STATE_SCHEMA_VERSION } from './service/state';
 export type { ReadStateOptions } from './service/state';
 export type {
-  MemoryCoreLogSink,
-  MemoryCoreServiceOptions,
-  MemoryCoreServiceStartOptions,
-  MemoryCoreServiceStatus,
+  CaravanBookLogSink,
+  CaravanBookServiceOptions,
+  CaravanBookServiceStartOptions,
+  CaravanBookServiceStatus,
   PipelineLogger,
   PipelineRunnerContext,
   RunReason,

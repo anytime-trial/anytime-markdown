@@ -1,4 +1,4 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import type { ParsedFinding } from './findingHelpers';
 import {
   inferCategory,
@@ -345,7 +345,7 @@ function summarizeFindings(findings: ParsedFinding[], bodyLength: number): strin
 }
 
 export function parseReviewSessions(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   sinceISO: string;
   logger: { warn: (msg: string) => void };
 }): ParsedReviewSession[] {

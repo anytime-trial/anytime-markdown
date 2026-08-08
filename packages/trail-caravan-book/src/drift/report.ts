@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 import type { DriftType, Severity } from './policy';
 import { entityId } from '../canonical/entityId';
 import { canonicalize } from '../canonical/canonicalize';
@@ -44,7 +44,7 @@ function eventId(subjectId: string, predicate: string, driftType: string): strin
 }
 
 function ensureEntity(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   id: string,
   type: string,
   canonicalName: string,
@@ -78,7 +78,7 @@ function ensureEntity(
  *   確保する（canonical_name も接頭辞付きで実 Question と衝突しない）。
  * - 接頭辞無し（review_unfixed 等の実 entity id）はそのまま返す（既存なら no-op）。
  */
-function resolveSubjectEntity(db: MemoryDbConnection, subjectId: string, recordedAt: string): string {
+function resolveSubjectEntity(db: CaravanDbConnection, subjectId: string, recordedAt: string): string {
   if (subjectId.startsWith('file:')) {
     const path = subjectId.slice('file:'.length);
     const canon = canonicalize(path);
@@ -103,11 +103,11 @@ function resolveSubjectEntity(db: MemoryDbConnection, subjectId: string, recorde
 }
 
 export function reportDriftEvents(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   candidates: DriftEventInput[];
   recordedAt: string;
   autoResolveStale?: boolean;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): ReportResult {
   const { db, candidates, recordedAt, autoResolveStale = true, logger } = input;
 

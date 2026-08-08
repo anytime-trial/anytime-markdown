@@ -1,9 +1,9 @@
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/trail-caravan-book';
+import { BetterSqlite3CaravanDb } from '@anytime-markdown/trail-caravan-book';
 import { LogService } from '../../services/LogService';
 import { makeLogDb, SYSTEM_RUN_ID } from '../../services/__tests__/logServiceTestUtils';
 import { handlePostLogs } from '../logsApi';
 
-function makeService(): { svc: LogService; db: BetterSqlite3MemoryDb } {
+function makeService(): { svc: LogService; db: BetterSqlite3CaravanDb } {
   const db = makeLogDb();
   return { svc: new LogService(db, SYSTEM_RUN_ID), db };
 }

@@ -1,6 +1,6 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { encodeEmbedding } from '../embedding/codec';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 import { PipelineRunLedger } from './PipelineRunLedger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
@@ -73,7 +73,7 @@ const EMBEDDING_TARGETS: readonly EmbeddingTarget[] = [
 /** 埋め込みへ渡すテキストの上限。長文エピソードで埋め込み生成が詰まるのを防ぐ。 */
 const MAX_EMBED_CHARS = 8000;
 
-function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
+function recordFailedItem(db: CaravanDbConnection, itemKey: string, reason: string, detail: string): void {
   const failedAt = new Date().toISOString();
   db.run(
     `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
@@ -92,10 +92,10 @@ function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: strin
  * Safe to run multiple times — already-embedded rows are skipped.
  */
 export async function runEmbeddingBackfill(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   ollama: OllamaClient;
   embedModel?: string;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
   /** 進捗 callback (total を初回・以降 processed/failed を更新) */
   onTotal?: (total: number) => void;
   progress?: (processed: number, failed: number) => void;

@@ -27,7 +27,7 @@ export interface PromptEntry {
  */
 type AddFileFn = (filePath: string, tags: string[]) => void;
 
-function scanMemoryFiles(projectsDir: string, addFile: AddFileFn): void {
+function scanCaravanFiles(projectsDir: string, addFile: AddFileFn): void {
   try {
     for (const proj of fs.readdirSync(projectsDir)) {
       const memDir = path.join(projectsDir, proj, 'memory');
@@ -146,7 +146,7 @@ export function scanPromptFiles(): PromptEntry[] {
   }
 
   // 4. Memory
-  scanMemoryFiles(path.join(claudeDir, 'projects'), addFile);
+  scanCaravanFiles(path.join(claudeDir, 'projects'), addFile);
 
   // 5. Skills (SKILL.md in each skill directory)
   scanSkillFiles(path.join(claudeDir, 'skills'), addFile);

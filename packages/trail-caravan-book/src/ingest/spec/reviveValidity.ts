@@ -1,8 +1,8 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { REMOVAL_DETAIL_PREFIX } from '../../pipeline/runSpecReconciliation';
 
 export interface ReviveSpecDocValidityInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   specDocId: string;
   specEntityId: string;
 }

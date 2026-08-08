@@ -298,9 +298,9 @@ export interface PipelineProviderOptions {
   /**
    * caravan-book.db の絶対パス。指定時、importAll phases と trail-caravan-book
    * pipelines の間に「memory backup」ジョブを表示し、
-   * `${memoryDbFilePath}.bak.1.gz` の存在/mtime/サイズから状態を導出する。
+   * `${caravanDbFilePath}.bak.1.gz` の存在/mtime/サイズから状態を導出する。
    */
-  memoryDbFilePath?: string;
+  caravanDbFilePath?: string;
   /**
    * importall-phase-status.json の絶対パス。指定時、デーモンが書き込む
    * importAll 各 phase の状態をポーリングして反映する。
@@ -333,14 +333,14 @@ export class PipelineProvider
   private _lastImportAllRunId: string | null = null;
   private readonly _statusFilePath: string | undefined;
   private readonly _dbFilePath: string | undefined;
-  private readonly _memoryDbFilePath: string | undefined;
+  private readonly _caravanDbFilePath: string | undefined;
   private readonly _importAllStatusFilePath: string | undefined;
   private readonly _importAllPhases = new Map<ImportAllPhase, ImportAllPhaseState>();
 
   constructor(options: PipelineProviderOptions = {}) {
     this._statusFilePath = options.statusFilePath;
     this._dbFilePath = options.dbFilePath;
-    this._memoryDbFilePath = options.memoryDbFilePath;
+    this._caravanDbFilePath = options.caravanDbFilePath;
     this._importAllStatusFilePath = options.importAllStatusFilePath;
     if (this._statusFilePath || this._importAllStatusFilePath) {
       this._startStatusFilePolling();
@@ -478,8 +478,8 @@ export class PipelineProvider
     // memory backup を Wave 3 の先頭に置くことで、trail-caravan-book pipelines が
     // caravan-book.db を書き換える直前の世代バックアップが論理的に対応する。
     const wave3: PipelineItem[] = [];
-    if (this._memoryDbFilePath) {
-      const memBackup = buildBackupDisplay(this._memoryDbFilePath);
+    if (this._caravanDbFilePath) {
+      const memBackup = buildBackupDisplay(this._caravanDbFilePath);
       wave3.push(
         new PipelineItem('pipeline', 'memory backup', {
           state: memBackup.state,

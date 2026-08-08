@@ -2,25 +2,25 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { runMigrations } from './migrations/runner';
 import { resolveDbWithLegacyRename } from './legacyDbRename';
-import { BetterSqlite3MemoryDb } from './connection/BetterSqlite3MemoryDb';
-import type { MemoryDbConnection } from './connection/types';
+import { BetterSqlite3CaravanDb } from './connection/BetterSqlite3CaravanDb';
+import type { CaravanDbConnection } from './connection/types';
 
-export interface MemoryCoreDb {
+export interface CaravanBookDb {
   /**
    * 新規コードはこちらを使う。`db` と同じ参照だが、命名で「新 IF」を明示する。
-   * テスト等で独自に MemoryCoreDb を生成する場合は省略可 (`db` を fallback とする)。
+   * テスト等で独自に CaravanBookDb を生成する場合は省略可 (`db` を fallback とする)。
    */
-  conn?: MemoryDbConnection;
+  conn?: CaravanDbConnection;
   /**
    * 旧 sql.js driver 時代のエイリアス。新規コードは `conn` を使うこと。
    */
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   /** better-sqlite3 はライブ commit のため no-op。旧呼出し互換のため残す。 */
   save(): void;
   close(): void;
 }
 
-export interface OpenMemoryCoreDbOptions {
+export interface OpenCaravanBookDbOptions {
   /**
    * better-sqlite3 の native binary (.node) への絶対パス。
    * VS Code 拡張のように bundled された環境で指定する
@@ -32,16 +32,16 @@ export interface OpenMemoryCoreDbOptions {
 /**
  * caravan-book.db を開く（不在なら作成しマイグレーションを流す）。
  *
- * `dbPath` は**必須**。省略時に `getMemoryCoreDbPath()`（= `process.cwd()` 基準）へ
+ * `dbPath` は**必須**。省略時に `getCaravanBookDbPath()`（= `process.cwd()` 基準）へ
  * フォールバックしていたが、本関数は解決先に `mkdirSync` + マイグレーションを行うため、
  * cwd がずれた場所から呼ぶとスキーマ完備の空 DB が生まれ、以降のクエリが一律 0 件を返す。
  * 呼び出し側からは「該当なし」と区別が付かない偽陰性になるため、解決は呼び出し側の責務と
  * する（`~/.claude/rules/code-quality.md` §15）。
  */
-export async function openMemoryCoreDb(
+export async function openCaravanBookDb(
   dbPath: string,
-  opts?: OpenMemoryCoreDbOptions,
-): Promise<MemoryCoreDb> {
+  opts?: OpenCaravanBookDbOptions,
+): Promise<CaravanBookDb> {
   const dir = path.dirname(dbPath);
   fs.mkdirSync(dir, { recursive: true });
 
@@ -58,15 +58,15 @@ export async function openMemoryCoreDb(
         }).path
       : dbPath;
 
-  const conn: MemoryDbConnection = new BetterSqlite3MemoryDb({
+  const conn: CaravanDbConnection = new BetterSqlite3CaravanDb({
     filePath,
     readOnly: false,
     nativeBinding: opts?.nativeBinding,
   });
 
   conn.run('PRAGMA foreign_keys = ON');
-  // 並行アクセス対応: 拡張ホスト内で複数モジュール (memoryCoreRunner /
-  // ChatBridge / RebuildScheduler / MemoryApiHandler) が同じ caravan-book.db を
+  // 並行アクセス対応: 拡張ホスト内で複数モジュール (caravanBookRunner /
+  // ChatBridge / RebuildScheduler / CaravanApiHandler) が同じ caravan-book.db を
   // 開く可能性があるため WAL モードに切り替える。あわせて busy_timeout=5000 で
   // ロック競合を 5 秒間リトライさせる。
   try {

@@ -1,8 +1,8 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import type { ParsedFinding } from '../ingest/review/findingHelpers';
 import { upsertReviewFinding } from '../ingest/review/persist';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ export interface ReviewFindingExtractionResult {
 }
 
 export interface ReviewFindingExtractionInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   ollama: OllamaClient;
   /** 抽出元の本文を review 行から解決する。呼び出し元が activity.db / ファイルから供給する */
   resolveBody: (review: { id: string; source_kind: string; source_ref: string }) => string | null;
@@ -41,7 +41,7 @@ export interface ReviewFindingExtractionInput {
   sourceKinds?: readonly string[];
   /** DB へ書かず件数だけ数える。LLM 呼び出しと照合は実行する */
   dryRun?: boolean;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ function escapeRawNewlinesInStrings(json: string): string {
 function parseFindings(
   responseText: string,
   reviewId: string,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): RawFinding[] | null {
   const head = responseText.slice(0, 200).replace(/\n/g, ' ');
   const start = responseText.indexOf('{');
@@ -317,7 +317,7 @@ function groundFindings(
  * （書き直した正しい指摘を LLM の近似が締め出さないようにするため）。
  *
  * **定期実行の pipeline ではない。** LLM 実行を伴う一回限りの救済で、
- * `MemoryDbSession` からは呼ばない。実行は `dryRun: true` で件数を確認してから行う。
+ * `CaravanDbSession` からは呼ばない。実行は `dryRun: true` で件数を確認してから行う。
  *
  * 登録した finding には `extracted_by = 'llm:<model>'` が入る（INSERT に含めるので
  * 刻印漏れは起きない）。`DELETE ... WHERE extracted_by LIKE 'llm:%'` で一括で戻せる。

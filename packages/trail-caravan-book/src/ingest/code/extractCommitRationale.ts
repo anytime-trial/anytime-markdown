@@ -1,17 +1,17 @@
 import { createHash } from 'node:crypto';
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ExtractRationaleInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   repoName: string;
   /** ISO 8601 UTC cursor for incremental runs. Pass null to process all commits. */
   sinceCommittedAt: string | null;
   recordedAt: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }
 
 export interface ExtractRationaleStats {
@@ -120,7 +120,7 @@ function extractRationaleText(message: string): ExtractedRationale | null {
  * Returns { decisionInserted, edgeInserted } or null if rationaleText is empty.
  */
 function ingestCommitRationale(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: {
     commitHash: string;
     rationaleText: string;
@@ -128,7 +128,7 @@ function ingestCommitRationale(
     repoName: string;
     committedAt: string;
     recordedAt: string;
-    logger: MemoryLogger;
+    logger: CaravanLogger;
   },
 ): { decisionInserted: boolean; edgeInserted: boolean } | null {
   const { commitHash, rationaleText, confidenceLabel, repoName, committedAt, recordedAt, logger } =

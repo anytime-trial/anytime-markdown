@@ -1,9 +1,9 @@
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { linkAffectedFiles } from '../../../src/ingest/bug-history/linkAffectedFiles';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { entityId } from '../../../src/canonical/entityId';
 import { noopLogger } from '../../../src/logger';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -16,12 +16,12 @@ async function buildTestDb(commitSha: string, filePaths: string[], repoName = 'a
   const tmpPath = makeTmpPath();
 
   // 1. Open trail-caravan-book DB
-  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
+  const { db, close: closeMain } = await openCaravanBookDb(tmpPath);
 
   // 2. Build trail DB in-memory using sql.js and attach via handle
   // Phase H-4: trail.activity_commit_files から repo_name 列を撤去した。repo 帰属は repo_id で表現し、
   // linkAffectedFiles は trail.activity_repos を JOIN して repo_name → repo_id を解決する。
-  const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+  const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
   trailHandle.run('PRAGMA foreign_keys = ON');
   trailHandle.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY,

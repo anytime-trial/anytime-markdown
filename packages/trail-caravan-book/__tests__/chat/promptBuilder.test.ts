@@ -15,14 +15,14 @@ function entitySource(id: string, name = id): PromptSource {
 describe('buildPrompt', () => {
   test('system + context + user の最小構成を生成', () => {
     const messages = buildPrompt({
-      query: 'searchMemory は何をする?',
+      query: 'searchCaravanBook は何をする?',
       history: [],
-      sources: [entitySource('e1', 'searchMemory')],
+      sources: [entitySource('e1', 'searchCaravanBook')],
     });
     expect(messages[0].role).toBe('system');
     expect(messages.some((m) => m.content.includes('<source id="entity:e1"'))).toBe(true);
     expect(messages.at(-1)?.role).toBe('user');
-    expect(messages.at(-1)?.content).toContain('searchMemory は何をする?');
+    expect(messages.at(-1)?.content).toContain('searchCaravanBook は何をする?');
   });
 
   test('source ブロックが sourceLimit で切り詰められる', () => {

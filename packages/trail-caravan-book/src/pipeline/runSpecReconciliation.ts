@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import type { MemoryDbConnection, MemoryDbStatement } from '../db/connection/types';
-import { noopLogger, type MemoryLogger } from '../logger';
+import type { CaravanDbConnection, CaravanDbStatement } from '../db/connection/types';
+import { noopLogger, type CaravanLogger } from '../logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ export interface SpecReconciliationResult {
 }
 
 export interface SpecReconciliationInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   /** discoverChangedSpecs と同一の走査起点でなければならない */
   specRoot: string;
   recordedAt: string;
@@ -33,7 +33,7 @@ export interface SpecReconciliationInput {
    * 呼び出し元は渡さない（初回の大掃除など、正当に超える場面でのみ true）。
    */
   allowBulkRemoval?: boolean;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ function specRootHasMarkdown(specRoot: string): boolean {
   return entries.some((e) => typeof e === 'string' && extname(e) === '.md');
 }
 
-function listSpecDocs(db: MemoryDbConnection): SpecDocRow[] {
+function listSpecDocs(db: CaravanDbConnection): SpecDocRow[] {
   const stmt = db.prepare('SELECT id, rel_path FROM caravan_spec_documents');
   try {
     return stmt.all().map((row) => ({
@@ -104,7 +104,7 @@ function listSpecDocs(db: MemoryDbConnection): SpecDocRow[] {
  * 限定し、それ以外は根拠チェック（hasRemainingEvidence）側へ委ねる。
  */
 function exclusiveSpecDocEntityIds(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   deadDocIds: ReadonlySet<string>,
 ): string[] {
   const stmt = db.prepare(
@@ -133,7 +133,7 @@ function exclusiveSpecDocEntityIds(
  * runCodeReconciliation と揃えるため、および last_updated_at の時間窓で絞る読み手
  * （drift/recurringQuestions 等）へ無効 entity を押し込まないため。
  */
-function softDeleteEntity(db: MemoryDbConnection, entityId: string, recordedAt: string): boolean {
+function softDeleteEntity(db: CaravanDbConnection, entityId: string, recordedAt: string): boolean {
   db.run('UPDATE caravan_entities SET valid_until = ? WHERE id = ? AND valid_until IS NULL', [
     recordedAt,
     entityId,
@@ -142,9 +142,9 @@ function softDeleteEntity(db: MemoryDbConnection, entityId: string, recordedAt: 
 }
 
 interface EvidenceStatements {
-  edge: MemoryDbStatement;
-  episode: MemoryDbStatement;
-  spec: MemoryDbStatement;
+  edge: CaravanDbStatement;
+  episode: CaravanDbStatement;
+  spec: CaravanDbStatement;
 }
 
 /** entity が spec 以外の根拠（有効 edge・会話・生存 spec リンク）を持つか */
@@ -164,7 +164,7 @@ function hasRemainingEvidence(stmts: EvidenceStatements, entityId: string): bool
  * 根拠として生き続ける。
  */
 function invalidateSpecEdges(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   deadDocs: ReadonlyMap<string, string>,
   recordedAt: string,
 ): { count: number; touchedEntityIds: Set<string> } {
@@ -207,7 +207,7 @@ function invalidateSpecEdges(
 }
 
 /** ドキュメント登録行を削除する（caravan_spec_doc_entities は ON DELETE CASCADE） */
-function removeSpecDocRows(db: MemoryDbConnection, deadDocIds: Iterable<string>): number {
+function removeSpecDocRows(db: CaravanDbConnection, deadDocIds: Iterable<string>): number {
   let removed = 0;
   for (const docId of deadDocIds) {
     db.run('DELETE FROM caravan_spec_documents WHERE id = ?', [docId]);
@@ -218,7 +218,7 @@ function removeSpecDocRows(db: MemoryDbConnection, deadDocIds: Iterable<string>)
 
 /** edge を失って根拠ゼロになった entity を無効化する */
 function softDeleteOrphanEntities(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   candidateIds: Iterable<string>,
   excludeIds: ReadonlySet<string>,
   recordedAt: string,
@@ -266,7 +266,7 @@ function softDeleteOrphanEntities(
  * （ingest/spec/reviveValidity.ts）が担う** — 不変条件がこの 2 ファイルに分かれて
  * いるので、片方だけ変更しないこと。
  *
- * FTS インデックス（caravan_entities_fts）には触れない。hybridSearchMemory が
+ * FTS インデックス（caravan_entities_fts）には触れない。hybridSearchCaravanBook が
  * MATCH の結果を `valid_until IS NULL` で絞るため無効化した entity は検索結果へ
  * 出ず、contentless FTS5 への大量 rowid 差分削除は DB を破損させた実績がある
  * （2026-08-06）。索引の掃除が要るなら全再構築（runRagFtsRebuild）で行う。

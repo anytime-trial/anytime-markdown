@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { resolveDbPath, resolveMemoryDbPath, resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { resolveDbPath, resolveCaravanDbPath, resolveCaravanDbPathForWrite, resolveWorkspacePath } from '../dbPath';
 
 describe('resolveDbPath', () => {
   let tmpDir: string;
@@ -73,7 +73,7 @@ describe('resolveDbPath', () => {
   });
 });
 
-describe('resolveMemoryDbPath', () => {
+describe('resolveCaravanDbPath', () => {
   let tmpDir: string;
   let savedEnv: NodeJS.ProcessEnv;
   let savedCwd: string;
@@ -105,14 +105,14 @@ describe('resolveMemoryDbPath', () => {
 
   it('workspacePath 配下の caravan-book.db を返す', () => {
     const dbFile = makeDb(tmpDir);
-    expect(resolveMemoryDbPath({ workspacePath: tmpDir })).toBe(dbFile);
+    expect(resolveCaravanDbPath({ workspacePath: tmpDir })).toBe(dbFile);
   });
 
   it('存在しない場合は throw し、ディレクトリも DB も作らない', () => {
     // 「無ければ作る」を選ぶと、スキーマ完備の空 DB ができて全クエリが 0 件を返す。
     // 呼び出し側からは「問題なし」と区別が付かない偽陰性になるため fail-closed とする。
     const ghost = path.join(tmpDir, 'ghost-ws');
-    expect(() => resolveMemoryDbPath({ workspacePath: ghost })).toThrow(
+    expect(() => resolveCaravanDbPath({ workspacePath: ghost })).toThrow(
       /caravan-book\.db not found at/,
     );
     expect(fs.existsSync(path.join(ghost, '.anytime'))).toBe(false);
@@ -124,13 +124,13 @@ describe('resolveMemoryDbPath', () => {
     const dbFile = path.join(dbDir, 'caravan-book.db');
     fs.writeFileSync(dbFile, '');
     process.env.TRAIL_HOME = path.join(tmpDir, 'custom-home');
-    expect(resolveMemoryDbPath({ workspacePath: path.join(tmpDir, 'unused') })).toBe(dbFile);
+    expect(resolveCaravanDbPath({ workspacePath: path.join(tmpDir, 'unused') })).toBe(dbFile);
   });
 
   it('workspacePath 省略時は process.cwd() をベースに解決する', () => {
     const dbFile = makeDb(tmpDir);
     process.chdir(tmpDir);
-    expect(resolveMemoryDbPath({})).toBe(dbFile);
+    expect(resolveCaravanDbPath({})).toBe(dbFile);
   });
 });
 
@@ -225,7 +225,7 @@ describe('DB パス解決への TRAIL_WORKSPACE_PATH 反映', () => {
     process.env.TRAIL_WORKSPACE_PATH = tmpDir;
 
     // cwd はリポジトリルートのまま。env が効いていなければ別の DB を指すか throw する。
-    expect(resolveMemoryDbPath({})).toBe(memDb);
+    expect(resolveCaravanDbPath({})).toBe(memDb);
     expect(resolveDbPath({})).toBe(trailDb);
   });
 
@@ -234,7 +234,7 @@ describe('DB パス解決への TRAIL_WORKSPACE_PATH 反映', () => {
     const memDb = makeDb(argRoot, 'caravan-book.db');
     process.env.TRAIL_WORKSPACE_PATH = path.join(tmpDir, 'env-ws');
 
-    expect(resolveMemoryDbPath({ workspacePath: argRoot })).toBe(memDb);
+    expect(resolveCaravanDbPath({ workspacePath: argRoot })).toBe(memDb);
   });
 });
 
@@ -267,22 +267,22 @@ describe('DB ファイル名変更のレガシーフォールバック（サイ�
     expect(resolveDbPath({ workspacePath: tmpDir })).toBe(current);
   });
 
-  it('resolveMemoryDbPath: caravan-book.db 不在で memory-core.db 実在なら旧名パスへ倒す', () => {
+  it('resolveCaravanDbPath: caravan-book.db 不在で memory-core.db 実在なら旧名パスへ倒す', () => {
     const legacy = path.join(dbDir, 'memory-core.db');
     fs.writeFileSync(legacy, '');
-    expect(resolveMemoryDbPath({ workspacePath: tmpDir })).toBe(legacy);
+    expect(resolveCaravanDbPath({ workspacePath: tmpDir })).toBe(legacy);
   });
 
-  it('resolveMemoryDbPathForWrite: 旧名の実 DB が残る間は旧名へ直書きする（台帳の split-brain 防止）', () => {
+  it('resolveCaravanDbPathForWrite: 旧名の実 DB が残る間は旧名へ直書きする（台帳の split-brain 防止）', () => {
     const legacy = path.join(dbDir, 'memory-core.db');
     fs.writeFileSync(legacy, '');
     fs.writeFileSync(path.join(dbDir, 'trail.db'), '');
-    expect(resolveMemoryDbPathForWrite({ workspacePath: tmpDir })).toBe(legacy);
+    expect(resolveCaravanDbPathForWrite({ workspacePath: tmpDir })).toBe(legacy);
   });
 
-  it('resolveMemoryDbPathForWrite: 旧名 trail.db しか無いワークスペースも初期化済みとして新名パスを返す', () => {
+  it('resolveCaravanDbPathForWrite: 旧名 trail.db しか無いワークスペースも初期化済みとして新名パスを返す', () => {
     fs.writeFileSync(path.join(dbDir, 'trail.db'), '');
-    expect(resolveMemoryDbPathForWrite({ workspacePath: tmpDir })).toBe(
+    expect(resolveCaravanDbPathForWrite({ workspacePath: tmpDir })).toBe(
       path.join(dbDir, 'caravan-book.db'),
     );
   });

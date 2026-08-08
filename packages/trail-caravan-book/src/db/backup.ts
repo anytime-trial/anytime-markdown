@@ -1,6 +1,6 @@
 import { FileBackupManager } from '@anytime-markdown/database-core/FileBackupManager';
 
-export interface BackupMemoryCoreDbOptions {
+export interface BackupCaravanBookDbOptions {
   /** 保持する世代数。0 以下でバックアップ無効。既定 1。 */
   readonly backupGenerations?: number;
   /**
@@ -22,9 +22,9 @@ export interface BackupMemoryCoreDbOptions {
  * @returns 実際に backup を作成した場合 true、throttled / 無効 / DB 不在で
  *          スキップした場合 false
  */
-export function backupMemoryCoreDbFile(
+export function backupCaravanBookDbFile(
   dbPath: string,
-  opts: BackupMemoryCoreDbOptions = {},
+  opts: BackupCaravanBookDbOptions = {},
 ): boolean {
   const generations = opts.backupGenerations ?? 1;
   const intervalDays = opts.backupIntervalDays ?? 1;

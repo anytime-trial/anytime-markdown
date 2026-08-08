@@ -30,7 +30,7 @@ function makeConfig(): SerializableAnalyzeAllConfig {
     ollamaBaseUrl: 'http://l',
     importAllStatusFilePath: '/i',
     pipelineStatusFilePath: '/p',
-    memoryCore: null,
+    caravanBook: null,
   };
 }
 

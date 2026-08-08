@@ -1,20 +1,20 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationBackfill } from '../../src/pipeline/runConversationBackfill';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE activity_messages (
@@ -30,12 +30,12 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
   return trailDb;
 }
 
-function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3CaravanDb, id: string): void {
   trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -51,7 +51,7 @@ function insertMessage(
   );
 }
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
@@ -85,7 +85,7 @@ describe('runConversationBackfill', () => {
 
   // ── T1: throttle 中断 — 即時 stop で何も処理せず partial・cursor 据え置き ──
   test('T1: shouldStop=true → 0 件処理・partial・generate 未呼出・cursor 不変', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_recent');
@@ -129,7 +129,7 @@ describe('runConversationBackfill', () => {
 
   // ── B1: 7-day window excludes old message ─────────────────────────────────
   test('B1: 7-day window excludes 8-day-old message, processes 6-day and 1-day → items_processed = 2', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // 3 separate sessions, 1 user message each
@@ -178,7 +178,7 @@ describe('runConversationBackfill', () => {
 
   // ── B2: idempotency — 2nd run inserts no new entities ─────────────────────
   test('B2: running backfill twice → 2nd run entities_inserted = 0 (idempotent upsert)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_mid');
@@ -217,7 +217,7 @@ describe('runConversationBackfill', () => {
 
   // ── B3: incremental cursor is advanced after backfill ─────────────────────
   test('B3: after backfill, pipeline_state scope=conversation_incremental last_processed_at is advanced', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_recent');
@@ -252,7 +252,7 @@ describe('runConversationBackfill', () => {
 
   // ── B4: progress log emitted every 10 episodes ────────────────────────────
   test('B4: progress log is emitted at 10-episode intervals', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // Insert 100 sessions each with 1 user message to trigger progress log
@@ -267,7 +267,7 @@ describe('runConversationBackfill', () => {
     attachTrailDbFromHandle(memDb, trailDb);
 
     const infoMessages: string[] = [];
-    const trackingLogger: MemoryLogger = {
+    const trackingLogger: CaravanLogger = {
       info: (msg: string) => { infoMessages.push(msg); },
       error: () => {},
     };
@@ -296,7 +296,7 @@ describe('runConversationBackfill', () => {
 
   // ── B6: last_heartbeat_at is updated during backfill ──────────────────────
   test('B6: last_heartbeat_at on caravan_pipeline_runs is non-null after backfill', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_recent');
@@ -330,7 +330,7 @@ describe('runConversationBackfill', () => {
 
   // ── B7: resumed run skips sessions older than last_processed_at ───────────
   test('B7: resumed backfill with last_processed_at uses it as sinceISO (skips older sessions)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // 6 days ago session — first run will process it
@@ -382,7 +382,7 @@ describe('runConversationBackfill', () => {
     const oldEnv = process.env.MEMORY_CORE_EXTRACT_CONCURRENCY;
     process.env.MEMORY_CORE_EXTRACT_CONCURRENCY = '4';
     try {
-      const memDb = await makeMemoryDb();
+      const memDb = await makeCaravanDb();
       const trailDb = makeTrailDb();
 
       // 1 session containing 8 user messages → splitEpisodes yields 8 episodes
@@ -440,7 +440,7 @@ describe('runConversationBackfill', () => {
 
   // ── B5: 3 consecutive failures → quarantine ───────────────────────────────
   test('B5: 3 consecutive LLM failures → pipeline_state.status = quarantine', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     for (let i = 1; i <= 3; i++) {
@@ -481,7 +481,7 @@ describe('runConversationBackfill', () => {
   // PipelineStatusWriter 経由の UI 表示は 0/N のまま動かなかった
   // (背景で items_processed は caravan_pipeline_runs に書き込まれていた)。
   test('B9: progress callback fires per episode during backfill', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // 5 session × 1 user msg → 5 episode
@@ -521,7 +521,7 @@ describe('runConversationBackfill', () => {
   // ── B10: onTotal callback fires with "to-process" count after pre-count
   // (existingIds 控除後の数字)、UI が正しい分母を表示できるようにする。
   test('B10: onTotal callback fires once with toProcess count', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     const recent = new Date(Date.now() - 2 * 86_400_000).toISOString();
@@ -555,7 +555,7 @@ describe('runConversationBackfill', () => {
 
   // ── T-fatal: セッション反復中の致命エラー → error で確定し cursor は据え置き ──
   test('T-fatal: 反復中の例外 → status=error・pipeline_state に error_detail・cursor 不変', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     const ts = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();

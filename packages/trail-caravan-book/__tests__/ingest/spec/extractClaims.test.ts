@@ -1,9 +1,9 @@
 import { extractClaims } from '../../../src/ingest/spec/extractClaims';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanLogger } from '../../../src/logger';
 import type { FilteredParagraph } from '../../../src/ingest/spec/preFilterClaims';
 
-const mockLogger: MemoryLogger = {
+const mockLogger: CaravanLogger = {
   info: jest.fn(),
   error: jest.fn(),
   warn: jest.fn(),

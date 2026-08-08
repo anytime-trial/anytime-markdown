@@ -1,10 +1,10 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { PipelineRunLedger } from './PipelineRunLedger';
 import { splitEpisodes, type Message } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
 import { ingestTargetSql } from '../ingest/conversation/messageFilter';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 type PipelineStatus = 'success' | 'partial' | 'error';
@@ -49,7 +49,7 @@ interface ReconstructedEpisode {
   raw_excerpt: string;
 }
 
-function loadFailedItems(db: MemoryDbConnection, sourceScopes: readonly string[], maxAttempts: number): FailedItemRow[] {
+function loadFailedItems(db: CaravanDbConnection, sourceScopes: readonly string[], maxAttempts: number): FailedItemRow[] {
   // Guard: an empty scope list would produce a syntactically invalid `scope IN ()`.
   if (sourceScopes.length === 0) return [];
   const placeholders = sourceScopes.map(() => '?').join(', ');
@@ -95,7 +95,7 @@ type ReconstructOutcome =
 
 /** 取込条件を外して当該メッセージが activity.db に実在するかを見る。 */
 function messageExistsIgnoringFilter(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   session_id: string,
   message_uuid_start: string,
 ): boolean {
@@ -107,7 +107,7 @@ function messageExistsIgnoringFilter(
 }
 
 function reconstructEpisode(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   session_id: string,
   message_uuid_start: string,
 ): ReconstructOutcome {
@@ -149,7 +149,7 @@ function reconstructEpisode(
   return found ? { kind: 'ok', episode: found } : notFoundOrOutOfScope();
 }
 
-function deleteFailedItem(db: MemoryDbConnection, scope: string, item_key: string): void {
+function deleteFailedItem(db: CaravanDbConnection, scope: string, item_key: string): void {
   db.run(
     `DELETE FROM caravan_failed_items WHERE scope = ? AND item_key = ?`,
     [scope, item_key]
@@ -157,7 +157,7 @@ function deleteFailedItem(db: MemoryDbConnection, scope: string, item_key: strin
 }
 
 function recordFailedItem(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   scope: string,
   item_key: string,
   reason: string,
@@ -177,7 +177,7 @@ function recordFailedItem(
 }
 
 function upsertPipelineState(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: { status: string; error_detail?: string },
 ): void {
   const { status, error_detail } = opts;
@@ -204,7 +204,7 @@ type PartialReturnPayload = {
  * Called when consecutiveFailures reaches QUARANTINE_THRESHOLD.
  */
 function enterQuarantine(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   ledger: PipelineRunLedger,
   errorDetail: string,
   totals: PersistStats & { items_processed: number; items_failed: number },
@@ -244,9 +244,9 @@ export interface FailedItemsRetryResult {
  * The ATTACHed activity.db must already be present as alias "trail" before calling.
  */
 export async function runConversationFailedItemsRetry(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   ollama: OllamaClient;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
   model?: string;
   maxAttempts?: number;
   /** Single source scope. Deprecated: prefer `sourceScopes`. */

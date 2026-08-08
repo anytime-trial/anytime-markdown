@@ -14,7 +14,7 @@ function makeTier2(
   };
 }
 
-function makeMemorySubscriber(
+function makeCaravanSubscriber(
   id: string,
   onPrimaryComplete: (ctx: AnalyzerContext) => Promise<void>,
 ): Analyzer {
@@ -74,7 +74,7 @@ describe('LepOrchestrator', () => {
     const bus = new EventBus();
     const order: string[] = [];
     const tier2 = makeTier2('I', { onRunEnd: async () => { order.push('importAll'); } });
-    const tier3 = makeMemorySubscriber('M', async () => {
+    const tier3 = makeCaravanSubscriber('M', async () => {
       order.push('trail-caravan-book');
     });
     bus.subscribe(tier3);
@@ -87,7 +87,7 @@ describe('LepOrchestrator', () => {
 
   it('collects errors thrown by onRunEnd without stopping the pipeline', async () => {
     const bus = new EventBus();
-    const sawMemory: { called: boolean } = { called: false };
+    const sawCaravan: { called: boolean } = { called: false };
     const tier2: Analyzer = {
       id: 'I',
       tier: 2,
@@ -96,8 +96,8 @@ describe('LepOrchestrator', () => {
         throw new Error('boom-import');
       },
     };
-    const tier3 = makeMemorySubscriber('M', async () => {
-      sawMemory.called = true;
+    const tier3 = makeCaravanSubscriber('M', async () => {
+      sawCaravan.called = true;
     });
     bus.subscribe(tier3);
 
@@ -105,12 +105,12 @@ describe('LepOrchestrator', () => {
     const result = await orch.runOnce({ runId: 'r1', reason: 'manual' });
 
     expect(result.errors.get('I')?.message).toBe('boom-import');
-    expect(sawMemory.called).toBe(true); // trail-caravan-book still ran via wave_complete:primary
+    expect(sawCaravan.called).toBe(true); // trail-caravan-book still ran via wave_complete:primary
   });
 
   it('collects errors thrown by onEvent subscribers via errorCollector', async () => {
     const bus = new EventBus();
-    const tier3 = makeMemorySubscriber('M', async () => {
+    const tier3 = makeCaravanSubscriber('M', async () => {
       throw new Error('boom-mem');
     });
     bus.subscribe(tier3);
@@ -131,7 +131,7 @@ describe('LepOrchestrator', () => {
         throw new Error('boom-import');
       },
     };
-    const tier3 = makeMemorySubscriber('M', async () => {
+    const tier3 = makeCaravanSubscriber('M', async () => {
       throw new Error('boom-mem');
     });
     bus.subscribe(tier3);

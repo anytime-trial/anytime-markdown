@@ -32,7 +32,7 @@ function runGroundingQuality(setup) {
 // grounding が参照する列のみ持つ最小 caravan-book.db を <ws>/.anytime/trail/db に作る。
 // 他の quality クエリはテーブル不在で失敗するが q() が errors に積んで続行する。
 // activity.db は DB_DIR 解決（activity.db の存在で候補ディレクトリを確定する）のために空で置く。
-function writeMemoryDb(ws, { withColumn, rows }) {
+function writeCaravanDb(ws, { withColumn, rows }) {
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
   new DatabaseSync(path.join(dbDir, 'activity.db')).close();
@@ -64,7 +64,7 @@ function writeMemoryDb(ws, { withColumn, rows }) {
 describe('grounding.cjs 観点キー集計', () => {
   test("checklist_ref='none' の 2 件以上のカテゴリ×パッケージ束だけがクラスタになる", () => {
     const quality = runGroundingQuality((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         rows: [
           { category: 'logic', file: 'packages/trail-caravan-book/src/a.ts', checklist_ref: 'none' },
@@ -100,7 +100,7 @@ describe('grounding.cjs 観点キー集計', () => {
 
   test("packages/*/* に一致しないパスと NULL パスは '(unknown)' に束ねる", () => {
     const quality = runGroundingQuality((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         rows: [
           { category: 'other', file: 'src/foo.ts', checklist_ref: 'none' },
@@ -115,7 +115,7 @@ describe('grounding.cjs 観点キー集計', () => {
 
   test('checklist_ref 列が無い（未マイグレーション）DB では null に縮退し誤った 0 を出さない', () => {
     const quality = runGroundingQuality((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: false,
         rows: [{ category: 'logic', file: 'packages/trail-caravan-book/src/a.ts' }],
       }),

@@ -130,7 +130,7 @@ Marketplace から導入すれば従来通り利用できます。\
 | `Anytime Trail: セーフポイントを記録` / `セーフポイントへロールバック` | HEAD をセーフポイントとして記録し、recover ブランチで復旧 |
 | `Anytime Trail: Kill Switch（Claude ツール実行を遮断）` / `Kill Switch 解除` | 暴走時に Claude のツール実行を緊急遮断・解除 |
 | `Anytime Trail: 知識ベーススナップショットを復元` | `activity.db` 全体をスナップショットから復元 |
-| `Anytime Trail: メモリインデックスを再構築` | trail-caravan-book の索引を作り直す |
+| `Anytime Trail: CaravanBook インデックスを再構築` | trail-caravan-book の索引を作り直す |
 | `Anytime Trail: MCP サーバーを登録` | `.mcp.json` に `mcp-trail` を書き出す |
 
 

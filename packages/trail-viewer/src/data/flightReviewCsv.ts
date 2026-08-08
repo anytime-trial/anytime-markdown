@@ -6,7 +6,7 @@
  */
 import type { FlightReviewDto } from './flightReviewStore';
 import type { InstructionRecordDto } from './instructionStore';
-import type { MemoryFlightReviewFindingCountRow } from './types';
+import type { CaravanFlightReviewFindingCountRow } from './types';
 
 const HEADER = [
   'sessionId',
@@ -97,7 +97,7 @@ const RECORD_HEADER = [
  */
 export function buildFlightRecordCsv(
   records: readonly InstructionRecordDto[],
-  findingCounts: readonly MemoryFlightReviewFindingCountRow[] = [],
+  findingCounts: readonly CaravanFlightReviewFindingCountRow[] = [],
 ): string {
   const countsById = new Map(findingCounts.map((c) => [c.instructionId, c]));
   const rows = records.map((r) => {

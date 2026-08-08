@@ -30,7 +30,7 @@ description: anytime-markdown の TypeScript コードを実装・修正・レ�
 
 ## 5. MCP ツール入力は zod スキーマ＋.describe()＋z.infer
 
-MCP サーバのツール入力は zod スキーマで宣言し、各フィールドに `.describe()` で LLM 向け説明を付与し、`z.infer` で型を導出する。バリデーションとツール説明を同一箇所で両立させる（例: `mcp-trail/src/tools/searchMemory.ts`）。
+MCP サーバのツール入力は zod スキーマで宣言し、各フィールドに `.describe()` で LLM 向け説明を付与し、`z.infer` で型を導出する。バリデーションとツール説明を同一箇所で両立させる（例: `mcp-trail/src/tools/searchCaravanBook.ts`）。
 
 ## 6. 一時リソースを使うテストは mkdtempSync で隔離
 

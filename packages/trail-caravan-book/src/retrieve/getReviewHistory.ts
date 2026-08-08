@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 
 export type ReviewFindingSummary = {
   finding_id: string;
@@ -29,13 +29,13 @@ export type ReviewHistoryEntry = {
 };
 
 export function getReviewHistory(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   target_file_path?: string;
   package?: string;
   category?: string;
   include_precedes_bugs?: boolean;
   limit?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): ReviewHistoryEntry[] {
   const { db, limit = 20, include_precedes_bugs = false, logger } = input;
 
@@ -54,7 +54,7 @@ export function getReviewHistory(input: {
 
   const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT r.id, r.source_kind, r.source_ref, r.target_kind,
@@ -126,7 +126,7 @@ export function getReviewHistory(input: {
     }
 
     for (const [findingId, entityId] of findingEntityIds) {
-      let edgeRows: ReturnType<MemoryDbConnection['exec']>;
+      let edgeRows: ReturnType<CaravanDbConnection['exec']>;
       try {
         edgeRows = db.exec(
           `SELECT object_entity_id FROM caravan_edges

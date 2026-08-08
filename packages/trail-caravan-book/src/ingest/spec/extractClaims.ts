@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { buildSpecPrompt } from '../../ollama/prompts/spec';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 import type { FilteredParagraph } from './preFilterClaims';
 
 // ── Re-exports ────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ export interface ExtractClaimsInput {
   c4Scope: string[];
   ollama: OllamaClient;
   model?: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }
 
 // ── Zod schema ────────────────────────────────────────────────────────────────

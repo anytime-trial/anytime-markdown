@@ -4,7 +4,7 @@
  * upsertSpecDoc, updateSpecDocSummary, upsertSpecClaims の
  * upsert・重複・更新・型マッピングを検証する。
  */
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import {
   upsertSpecDoc,
@@ -19,8 +19,8 @@ import type { Claim } from '../../../src/ingest/spec/extractClaims';
 
 const TS = '2026-05-01T00:00:00.000Z';
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;

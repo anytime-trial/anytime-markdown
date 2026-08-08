@@ -1,10 +1,10 @@
 import * as childProcess from 'child_process';
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { inferIntroducedBy } from '../../../src/ingest/bug-history/inferIntroducedBy';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { entityId } from '../../../src/canonical/entityId';
 import { noopLogger } from '../../../src/logger';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -32,7 +32,7 @@ function makeTmpPath() {
 }
 
 function makeTrailHandle(extraRows?: Array<{ commit_hash: string; commit_message: string; repo_name: string }>) {
-  const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+  const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
   trailHandle.run('PRAGMA foreign_keys = ON');
   trailHandle.run(`CREATE TABLE activity_session_commits (
     id INTEGER PRIMARY KEY,
@@ -54,9 +54,9 @@ function makeTrailHandle(extraRows?: Array<{ commit_hash: string; commit_message
   return trailHandle;
 }
 
-async function openTestDb(trailHandle?: BetterSqlite3MemoryDb) {
+async function openTestDb(trailHandle?: BetterSqlite3CaravanDb) {
   const tmpPath = makeTmpPath();
-  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
+  const { db, close: closeMain } = await openCaravanBookDb(tmpPath);
 
   const handle = trailHandle ?? makeTrailHandle();
 

@@ -12,8 +12,8 @@
  * ファイル操作をしないのは、「自動実行される機構に破壊的操作を組み込まない」
  * （事故防止機構が事故そのものになる）という規約に従うため。
  */
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 import { resolveReviewTargets, type ResolveReviewTargetsResult } from '../ingest/review/resolveReviewTargets';
 import { linkAddresses } from '../ingest/review/linkAddresses';
 
@@ -35,12 +35,12 @@ export interface BackfillReviewTargetsResult {
   readonly linkedEdges: number;
 }
 
-function count(db: MemoryDbConnection, sql: string): number {
+function count(db: CaravanDbConnection, sql: string): number {
   const result = db.exec(sql);
   return Number(result[0]?.values?.[0]?.[0] ?? 0);
 }
 
-export function collectReviewTargetStats(db: MemoryDbConnection): ReviewTargetStats {
+export function collectReviewTargetStats(db: CaravanDbConnection): ReviewTargetStats {
   return {
     reviews: count(db, `SELECT COUNT(*) FROM caravan_reviews`),
     reviewsWithWorkspace: count(db, `SELECT COUNT(*) FROM caravan_reviews WHERE workspace != ''`),
@@ -61,13 +61,13 @@ export function collectReviewTargetStats(db: MemoryDbConnection): ReviewTargetSt
 }
 
 export function backfillReviewTargets(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   /** true のときだけ実際に書き込む。既定は dry-run（統計のみ）。 */
   apply?: boolean;
   /** 解決後に linkAddresses を再実行するか。既定 true。 */
   relink?: boolean;
   windowDays?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): BackfillReviewTargetsResult {
   const { db, apply = false, relink = true, windowDays = 30, logger } = input;
 

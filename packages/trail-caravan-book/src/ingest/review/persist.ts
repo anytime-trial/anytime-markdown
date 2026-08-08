@@ -1,9 +1,9 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import { maxSeverity, type ParsedFinding } from './findingHelpers';
 import type { ParsedReviewDoc } from './parseReviewDoc';
 import type { ParsedReviewSession } from './parseReviewSession';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 export type PersistReviewStats = {
   reviews_inserted: number;
@@ -39,11 +39,11 @@ export function toReviewedAt(dateStr: string): string {
  * Upsert a ReviewFinding entity + caravan_review_findings row + flagged edge.
  */
 export function upsertReviewFinding(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   reviewEntityId: string,
   finding: ParsedFinding,
   recordedAt: string,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
   /**
    * 抽出元。既定の '' は「書式準拠のパーサが抽出」を意味する。
    * INSERT に含めるのは、後から UPDATE で刻むと失敗時に LLM 由来の行が
@@ -140,7 +140,7 @@ export function upsertReviewFinding(
  * 割れると、片方だけを直したときに「呼ばれるのに何も起きない」状態になる。
  */
 export function reconcileExistingReviewRow(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   reviewId: string,
   fields: { summary: string; bodyExcerpt: string; workspace?: string },
 ): void {
@@ -170,12 +170,12 @@ export function needsReviewRowReconcile(bodyExcerpt: string, workspace: string):
  * Upsert a review document into caravan_reviews + caravan_entities + findings + edges.
  */
 export function upsertReviewDoc(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   doc: ParsedReviewDoc,
   relPath: string,
   sourceHash: string,
   recordedAt: string,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): { review_id: string; is_new: boolean; findings_inserted: number; edges_inserted: number } {
   const reviewEntityId = entityId('Review', relPath);
   const reviewedAt = toReviewedAt(doc.frontmatter.date);
@@ -329,10 +329,10 @@ export function upsertReviewDoc(
  * Upsert a review session into caravan_reviews + caravan_entities + findings.
  */
 export function upsertReviewSession(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   session: ParsedReviewSession,
   recordedAt: string,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): { review_id: string; is_new: boolean; findings_inserted: number; edges_inserted: number } {
   const sourceRef = `${session.session_id}#${session.message_uuid_start}`;
   const reviewEntityId = entityId('Review', sourceRef);
@@ -384,7 +384,7 @@ export function upsertReviewSession(
 
     // 既存行（INSERT OR IGNORE で素通りしたもの）にも本文を補う。
     // カーソルより古い行はここに来ないため、その是正は runReviewBackfill が担う
-    // （MemoryDbSession.runReview から 1 回だけ起動する）。
+    // （CaravanDbSession.runReview から 1 回だけ起動する）。
     if (!reviewInserted) {
       reconcileExistingReviewRow(db, reviewEntityId, {
         summary: session.summary ?? '',

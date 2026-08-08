@@ -1,9 +1,9 @@
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
-import type { MemoryDbConnection } from '../../../src/db/connection/types';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
+import type { CaravanDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { linkAddresses } from '../../../src/ingest/review/linkAddresses';
 import { entityId } from '../../../src/canonical/entityId';
@@ -31,11 +31,11 @@ function makeLogger() {
 }
 
 type SetupResult = {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   findingId: string;
   findingEntityId: string;
   reviewEntityId: string;
-  trailHandle: BetterSqlite3MemoryDb;
+  trailHandle: BetterSqlite3CaravanDb;
   close: () => void;
 };
 
@@ -70,12 +70,12 @@ async function buildSetup(opts: {
   const tmpPath = makeTmpPath();
 
   // 1. Open trail-caravan-book DB
-  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
+  const { db, close: closeMain } = await openCaravanBookDb(tmpPath);
 
   // 2. Build trail DB in-memory
   // Phase H-4: trail.activity_session_commits / activity_commit_files から repo_name 列を撤去した。repo 帰属は repo_id で
   // 表現し、linkAddresses は trail.activity_repos を JOIN して repo_name → repo_id を解決する。
-  const trailHandle: BetterSqlite3MemoryDb = BetterSqlite3MemoryDb.openInMemory();
+  const trailHandle: BetterSqlite3CaravanDb = BetterSqlite3CaravanDb.openInCaravan();
   trailHandle.run('PRAGMA foreign_keys = ON');
   trailHandle.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY,

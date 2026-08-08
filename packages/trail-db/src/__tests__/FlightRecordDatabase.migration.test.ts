@@ -21,7 +21,7 @@ const TS = '2026-07-17T10:00:00.000Z';
 interface LegacyContext {
   tempDir: string;
   trailDbPath: string;
-  memoryDbPath: string;
+  caravanDbPath: string;
 }
 
 function createLegacyTrailDb(): LegacyContext {
@@ -55,7 +55,7 @@ function createLegacyTrailDb(): LegacyContext {
     )
     .run(TS, TS, TS, TS);
   trail.close();
-  return { tempDir, trailDbPath, memoryDbPath: path.join(tempDir, 'caravan-book.db') };
+  return { tempDir, trailDbPath, caravanDbPath: path.join(tempDir, 'caravan-book.db') };
 }
 
 function trailTables(trailDbPath: string, like = ''): string[] {
@@ -79,7 +79,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
 
   beforeEach(() => {
     ctx = createLegacyTrailDb();
-    db = new FlightRecordDatabase(ctx.memoryDbPath, { trailDbPath: ctx.trailDbPath });
+    db = new FlightRecordDatabase(ctx.caravanDbPath, { trailDbPath: ctx.trailDbPath });
     db.init();
   });
 

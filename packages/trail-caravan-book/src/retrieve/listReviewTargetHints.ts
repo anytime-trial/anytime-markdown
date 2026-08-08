@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 
 export type ReviewTargetHint = {
   target_ref: string;
@@ -21,9 +21,9 @@ const QUOTA_RATIO: Record<Priority, number> = { high: 0.5, medium: 0.35, low: 0.
 // 付かないため、境界の 1 秒内にあるミリ秒付きの行は文字列比較で「小さい」と判定され得る
 // （'.' < 'Z'）。日単位の窓では影響が無いため、既知の不精度として許容する。
 export function listReviewTargetHints(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   limit?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): ReviewTargetHint[] {
   const { db, limit: requestedLimit = 20, logger } = input;
   // 非整数・負値は枠計算（Math.floor(limit * ratio)）と slice を壊す。負値は枠が負に

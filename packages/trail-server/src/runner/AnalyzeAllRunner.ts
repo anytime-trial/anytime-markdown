@@ -11,8 +11,8 @@ import {
   stageIncludesMemory,
   topoSortByDependsOn,
   type LepStage,
-  type MemoryCoreService,
-  type MemoryDbConnection,
+  type CaravanBookService,
+  type CaravanDbConnection,
   type RunReason,
   type RunnerLogSink,
   type Analyzer,
@@ -21,14 +21,14 @@ import {
 import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail-db';
 
 import {
-  createMemoryAnalyzers,
-  type MemoryWaveSessionProvider,
-} from '../lep/analyzers/memory';
+  createCaravanAnalyzers,
+  type CaravanWaveSessionProvider,
+} from '../lep/analyzers/caravan';
 import { DoraMetricsAggregator, CrossSourceCorrelator } from '../lep/analyzers/aggregator';
 import {
   PrReviewImporter,
   PrReviewFindingAnalyzer,
-  createPrReviewMemorySource,
+  createPrReviewCaravanSource,
   readPrReviewSourceHash,
 } from '../lep/analyzers/prreview';
 import {
@@ -113,19 +113,19 @@ export interface AnalyzeAllRunnerOptions {
    */
   codexSessionsDir?: string;
   /** trail-caravan-book ingest pipeline を実行する service (省略時は trail-caravan-book ステップをスキップ) */
-  memoryCoreService?: MemoryCoreService;
+  caravanBookService?: CaravanBookService;
   /**
    * caravan-book.db パス (Step 5: PR review analyzer 群 (`PrReviewImporter` /
    * `PrReviewFindingAnalyzer` / `CrossSourceCorrelator`) が caravan_reviews /
    * caravan_review_findings へ読み書きするために使う)。ログ・診断専用で接続そのものは
    * 開かない — 実接続は呼び出し側が `trailDaemonEntry` の LogService 配線
-   * (`openMemoryCoreDb(memoryDbPath, { nativeBinding })`) と同じ前例で開き、`memoryDb` に
-   * 渡す。片方だけの指定 (`memoryDbPath` のみ / `memoryDb` のみ) は未構成扱いにする。
+   * (`openCaravanBookDb(caravanDbPath, { nativeBinding })`) と同じ前例で開き、`caravanDb` に
+   * 渡す。片方だけの指定 (`caravanDbPath` のみ / `caravanDb` のみ) は未構成扱いにする。
    * 両方省略時は PR review analyzer 群を生成せず info ログを残す (silent skip 禁止)。
    */
-  memoryDbPath?: string;
-  /** {@link memoryDbPath} に対応する、呼び出し側が開いた caravan-book.db 接続。 */
-  memoryDb?: MemoryDbConnection;
+  caravanDbPath?: string;
+  /** {@link caravanDbPath} に対応する、呼び出し側が開いた caravan-book.db 接続。 */
+  caravanDb?: CaravanDbConnection;
   /**
    * Wave 1/2/4 の analyzer 実行を `caravan_pipeline_runs` へ記録するファクトリ。
    * 未指定なら記録しない (既存の呼び出し元は挙動不変)。
@@ -137,7 +137,7 @@ export interface AnalyzeAllRunnerOptions {
    */
   stage?: LepStage;
   /**
-   * Wave 3 開始前の LLM Pre-flight チェッカ。`memoryCoreService` 指定時のみ有効。
+   * Wave 3 開始前の LLM Pre-flight チェッカ。`caravanBookService` 指定時のみ有効。
    * 省略時は LLM gating なし (全 memory analyzer を実行)。Ollama 不在時に LLM 依存 analyzer
    * (Conversation / Review / Spec / EmbeddingBackfill) を skip し、LLM 非依存 (Code /
    * BugHistory / Drift) は実行する。
@@ -146,10 +146,10 @@ export interface AnalyzeAllRunnerOptions {
   /** スキップ時ヒント用の Ollama baseUrl。 */
   ollamaBaseUrl?: string;
   /** lep.json で `enabled:false` の memory analyzer id。Wave 3 で登録・実行しない。 */
-  disabledMemoryAnalyzers?: readonly string[];
+  disabledCaravanAnalyzers?: readonly string[];
   /**
    * lep.json で `enabled:false` の aggregator (Layer 4) analyzer id。Wave 4 で登録・実行しない。
-   * 通常 `disabledMemoryAnalyzers` と同じ「全 disabled id」リストを渡してよい (id が一致した
+   * 通常 `disabledCaravanAnalyzers` と同じ「全 disabled id」リストを渡してよい (id が一致した
    * aggregator のみ skip される)。tier 4 は stage=all 選択時のみ実行される (opt-in)。
    */
   disabledAggregators?: readonly string[];
@@ -159,7 +159,7 @@ export interface AnalyzeAllRunnerOptions {
    * CommitFilesBackfiller / SubagentTypeBackfiller / MessageCommitMatcher)。
    * 核 analyzer (SessionImporter / CommitResolver / CostRebuilder / CountsRebuilder /
    * PersistAnalyzer / CodeGraphBuilder) は本リストに id があっても無視され、常時登録される。
-   * 通常 `disabledMemoryAnalyzers` と同じ「全 disabled id」リストを渡してよい。
+   * 通常 `disabledCaravanAnalyzers` と同じ「全 disabled id」リストを渡してよい。
    */
   disabledPrimaryAnalyzers?: readonly string[];
   /**
@@ -248,8 +248,8 @@ export class AnalyzeAllRunner extends BaseRunner {
 
   // Layer 3 (memory) analyzer (7 個) の error 集約に使う id 一覧。
   // Wave 3 完了後に provider.closeIfOpen() を呼ぶ。
-  private readonly memoryAnalyzerIds: readonly string[];
-  private readonly memorySessionProvider: MemoryWaveSessionProvider | null;
+  private readonly caravanAnalyzerIds: readonly string[];
+  private readonly caravanSessionProvider: CaravanWaveSessionProvider | null;
   private readonly stage: LepStage;
   /** 登録済み全 analyzer の id (toggle 反映後)。配線・無効化の検証用。 */
   private readonly registeredAnalyzerIds: readonly string[];
@@ -318,24 +318,24 @@ export class AnalyzeAllRunner extends BaseRunner {
       const costRebuilder = new CostRebuilder({ trailDb, onPhase, onProgress });
       const countsRebuilder = new CountsRebuilder({ trailDb, onPhase, onProgress });
       // Step 5: github_pr_review → caravan_reviews / caravan_review_findings (caravan-book.db)。
-      // GitHub source 未設定時は対応 event が来ないため no-op。memoryDbPath / memoryDb が
+      // GitHub source 未設定時は対応 event が来ないため no-op。caravanDbPath / caravanDb が
       // 揃っていない場合は analyzer 自体を生成しない (silent skip を避けて info ログ)。
       let prReviewImporter: PrReviewImporter | null = null;
       let prReviewFindingAnalyzer: PrReviewFindingAnalyzer | null = null;
-      if (opts.memoryDbPath && opts.memoryDb) {
-        const memoryDb = opts.memoryDb;
+      if (opts.caravanDbPath && opts.caravanDb) {
+        const caravanDb = opts.caravanDb;
         prReviewImporter = new PrReviewImporter({
-          memoryDb: {
-            getReviewSourceHash: (sourceRef) => readPrReviewSourceHash(memoryDb, sourceRef),
+          caravanDb: {
+            getReviewSourceHash: (sourceRef) => readPrReviewSourceHash(caravanDb, sourceRef),
           },
         });
-        prReviewFindingAnalyzer = new PrReviewFindingAnalyzer({ memoryDb });
-      } else if (opts.memoryDbPath && !opts.memoryDb) {
+        prReviewFindingAnalyzer = new PrReviewFindingAnalyzer({ caravanDb });
+      } else if (opts.caravanDbPath && !opts.caravanDb) {
         this.log(
-          `[PrReview] memoryDbPath is set (${opts.memoryDbPath}) but no memoryDb connection was provided — skipping PrReviewImporter / PrReviewFindingAnalyzer`,
+          `[PrReview] caravanDbPath is set (${opts.caravanDbPath}) but no caravanDb connection was provided — skipping PrReviewImporter / PrReviewFindingAnalyzer`,
         );
       } else {
-        this.log('[PrReview] memoryDbPath not configured — skipping PrReviewImporter / PrReviewFindingAnalyzer');
+        this.log('[PrReview] caravanDbPath not configured — skipping PrReviewImporter / PrReviewFindingAnalyzer');
       }
       // PersistAnalyzer は tier=2 の最後に置く (他全 analyzer の DB 書込後に save)
       const persistAnalyzer = new PersistAnalyzer({ trailDb });
@@ -393,15 +393,15 @@ export class AnalyzeAllRunner extends BaseRunner {
 
     // Layer 3 (memory): 7 個の memory analyzer を dependsOn topo 順で subscribe
     // (EventBus は subscribe 順に配信するため Drift は content の後・Embedding は最後)。
-    let memoryAnalyzerIds: readonly string[] = [];
-    let memorySessionProvider: MemoryWaveSessionProvider | null = null;
-    if (opts.memoryCoreService) {
-      const { analyzers: memAnalyzers, provider } = createMemoryAnalyzers(opts.memoryCoreService, {
+    let caravanAnalyzerIds: readonly string[] = [];
+    let caravanSessionProvider: CaravanWaveSessionProvider | null = null;
+    if (opts.caravanBookService) {
+      const { analyzers: memAnalyzers, provider } = createCaravanAnalyzers(opts.caravanBookService, {
         checkLlmAvailability: opts.checkLlmAvailability,
         ollamaBaseUrl: opts.ollamaBaseUrl,
-        disabledAnalyzerIds: opts.disabledMemoryAnalyzers,
+        disabledAnalyzerIds: opts.disabledCaravanAnalyzers,
         // throttle gate = run レベル defer と同じ「enabled かつ COOLING」判定を流用する。
-        // COOLING 中は ConversationMemoryAnalyzer が会話ループを中断し次 scope へ進む。
+        // COOLING 中は ConversationCaravanAnalyzer が会話ループを中断し次 scope へ進む。
         throttleGate: opts.shouldDeferScheduled,
       });
       const ordered = topoSortByDependsOn(memAnalyzers);
@@ -409,17 +409,17 @@ export class AnalyzeAllRunner extends BaseRunner {
         bus.subscribe(a);
         analyzers.push(a);
       }
-      memoryAnalyzerIds = ordered.map((a) => a.id);
-      memorySessionProvider = provider;
+      caravanAnalyzerIds = ordered.map((a) => a.id);
+      caravanSessionProvider = provider;
     }
-    this.memoryAnalyzerIds = memoryAnalyzerIds;
-    this.memorySessionProvider = memorySessionProvider;
+    this.caravanAnalyzerIds = caravanAnalyzerIds;
+    this.caravanSessionProvider = caravanSessionProvider;
 
     // Layer 4 (aggregator): activity.db を読んで横断指標を算出する tier=4 analyzer。
     // tier 4 は stage='all' でのみ実行される (LepOrchestrator の STAGE_TIERS)。
     // trailDb が無い場合 (daemon の memory-only 等) は DORA を算出できないため登録しない。
     if (opts.trailDb) {
-      this.registerAggregators(opts.trailDb, opts.disabledAggregators ?? [], bus, analyzers, opts.memoryDb);
+      this.registerAggregators(opts.trailDb, opts.disabledAggregators ?? [], bus, analyzers, opts.caravanDb);
     }
 
     this.stage = opts.stage ?? 'primary+memory';
@@ -437,7 +437,7 @@ export class AnalyzeAllRunner extends BaseRunner {
         error: (msg) => this.log(`[ERROR] ${msg}`),
       },
       // Wave 1/2/4 の実行台帳。DB 接続の生存期間は daemon が持つため、ここでは
-      // 開かずに注入されたファクトリを渡すだけにする (trailDb / memoryCoreService と同じ方針)。
+      // 開かずに注入されたファクトリを渡すだけにする (trailDb / caravanBookService と同じ方針)。
       this.openPipelineRunLedger,
     );
 
@@ -482,7 +482,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     disabledAggregators: readonly string[],
     bus: EventBus,
     analyzers: Analyzer[],
-    memoryDb?: MemoryDbConnection,
+    caravanDb?: CaravanDbConnection,
   ): void {
     if (!disabledAggregators.includes('DoraMetricsAggregator')) {
       const doraAggregator = new DoraMetricsAggregator({ trailDb });
@@ -490,12 +490,12 @@ export class AnalyzeAllRunner extends BaseRunner {
       analyzers.push(doraAggregator);
     }
     if (!disabledAggregators.includes('CrossSourceCorrelator')) {
-      // memoryDb 未接続時は CrossSourceCorrelator 自身が info ログを出して PR review 相関を
+      // caravanDb 未接続時は CrossSourceCorrelator 自身が info ログを出して PR review 相関を
       // 空扱いにする (DoraMetricsAggregator と違い PR review 由来の相関は caravan-book.db
       // 前提のため、analyzer 自体は常に登録し内部で silent skip を避ける)。
       const correlator = new CrossSourceCorrelator({
         trailDb,
-        memoryDb: memoryDb ? createPrReviewMemorySource(memoryDb) : null,
+        caravanDb: caravanDb ? createPrReviewCaravanSource(caravanDb) : null,
       });
       bus.subscribe(correlator);
       analyzers.push(correlator);
@@ -528,7 +528,7 @@ export class AnalyzeAllRunner extends BaseRunner {
       }
 
       // Layer 3 (memory) error 集約: 7 個の memory analyzer の id から errors を拾う。
-      const memErrors = this.memoryAnalyzerIds
+      const memErrors = this.caravanAnalyzerIds
         .map((id) => result.errors.get(id))
         .filter((e): e is Error => e != null);
       if (memErrors.length > 0) {
@@ -542,14 +542,14 @@ export class AnalyzeAllRunner extends BaseRunner {
     } finally {
       // Wave 3 で開いた trail-caravan-book セッションを必ず閉じる (共有 DB の close)。
       try {
-        this.memorySessionProvider?.closeIfOpen();
+        this.caravanSessionProvider?.closeIfOpen();
       } catch (err) {
         this.log(`[WARN] memory session close failed: ${err instanceof Error ? err.message : String(err)}`);
       }
       // stage が memory wave を含まない場合、Wave 3 が走らず status writer が初期化されない。
       // pipeline-status.json の memory scope を skipped で上書きし、UI が古い running/pending を
       // 表示し続けないようにする (memory を含む stage では Wave 3 側 writer に委ねるため書かない)。
-      this.markMemoryScopesSkippedIfExcluded();
+      this.markCaravanScopesSkippedIfExcluded();
       // 成功・失敗を問わず通知 (UI 更新)。例外吸収して runImpl の throw を妨げない。
       try {
         this.onAfterRun?.();
@@ -566,7 +566,7 @@ export class AnalyzeAllRunner extends BaseRunner {
    * `skipped` で記録する。Wave 3 が走らないと PipelineStatusWriter が初期化されず、UI が前回 run の
    * `running`/`pending` を表示し続けるのを防ぐ。例外は握り潰して run を妨げない。
    */
-  private markMemoryScopesSkippedIfExcluded(): void {
+  private markCaravanScopesSkippedIfExcluded(): void {
     if (!this.pipelineStatusFilePath) return;
     if (stageIncludesMemory(this.stage)) return;
     try {

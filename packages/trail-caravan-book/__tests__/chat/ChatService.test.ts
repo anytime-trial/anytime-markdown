@@ -1,8 +1,8 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../src/db/connection';
-import type { MemoryDbConnection } from '../../src/db/connection/types';
+import { openCaravanBookDb } from '../../src/db/connection';
+import type { CaravanDbConnection } from '../../src/db/connection/types';
 import { upsertEntityFts } from '../../src/rag/ftsSync';
 import { ChatService } from '../../src/chat/ChatService';
 import { encodeEmbedding } from '../../src/embedding/codec';
@@ -14,26 +14,26 @@ import type {
   HealthCheckResult,
 } from '@anytime-markdown/llm-core';
 import type { ChatChunk } from '../../src/chat/types';
-import { hybridSearchMemory } from '../../src/rag/hybridSearchMemory';
+import { hybridSearchCaravanBook } from '../../src/rag/hybridSearchCaravanBook';
 
 // NOTE: This mock applies to ALL tests in this file.
 // Any test that needs real search semantics must call
 // mockHybrid.mockResolvedValueOnce(...) to override for that test.
-jest.mock('../../src/rag/hybridSearchMemory', () => ({
-  hybridSearchMemory: jest.fn().mockResolvedValue({ entities: [], edges: [], episodes: [] }),
+jest.mock('../../src/rag/hybridSearchCaravanBook', () => ({
+  hybridSearchCaravanBook: jest.fn().mockResolvedValue({ entities: [], edges: [], episodes: [] }),
 }));
 
 function makeTmpDb(): string {
   return path.join(
     os.tmpdir(),
-    `memory-chatservice-${process.pid}-${Date.now()}-${Math.random()}.db`,
+    `caravan-chatservice-${process.pid}-${Date.now()}-${Math.random()}.db`,
   );
 }
 
 const TS = '2026-01-01T00:00:00.000Z';
 
 function insertEntity(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   id: string,
   display: string,
   summary: string,
@@ -77,13 +77,13 @@ class ErrorChatProvider implements ChatProvider {
 
 describe('ChatService.streamTurn', () => {
   const dbs: string[] = [];
-  let db: MemoryDbConnection;
+  let db: CaravanDbConnection;
   let close: () => void;
 
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    const opened = await openMemoryCoreDb(tmpDb);
+    const opened = await openCaravanBookDb(tmpDb);
     db = opened.db;
     close = opened.close;
   });
@@ -99,9 +99,9 @@ describe('ChatService.streamTurn', () => {
 
   test('sources → token+citation → done を yield', async () => {
     // Provide e1 via the mock so the search→sources path is verified end-to-end.
-    const mockHybrid = hybridSearchMemory as jest.MockedFunction<typeof hybridSearchMemory>;
+    const mockHybrid = hybridSearchCaravanBook as jest.MockedFunction<typeof hybridSearchCaravanBook>;
     mockHybrid.mockResolvedValueOnce({
-      entities: [{ id: 'e1', type: 'Function', display_name: 'searchMemory', summary: 'BM25+vec', score: 1, sources: [] }],
+      entities: [{ id: 'e1', type: 'Function', display_name: 'searchCaravanBook', summary: 'BM25+vec', score: 1, sources: [] }],
       edges: [],
       episodes: [],
     });
@@ -117,7 +117,7 @@ describe('ChatService.streamTurn', () => {
     });
 
     const chunks: ChatChunk[] = [];
-    for await (const c of service.streamTurn({ query: 'searchMemory', history: [] })) {
+    for await (const c of service.streamTurn({ query: 'searchCaravanBook', history: [] })) {
       chunks.push(c);
     }
 
@@ -206,16 +206,16 @@ describe('ChatService.streamTurn', () => {
   });
 });
 
-describe('ChatService rag limit options → hybridSearchMemory', () => {
+describe('ChatService rag limit options → hybridSearchCaravanBook', () => {
   const dbs: string[] = [];
-  let db: MemoryDbConnection;
+  let db: CaravanDbConnection;
   let close: () => void;
-  const mockHybrid = hybridSearchMemory as jest.MockedFunction<typeof hybridSearchMemory>;
+  const mockHybrid = hybridSearchCaravanBook as jest.MockedFunction<typeof hybridSearchCaravanBook>;
 
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    const opened = await openMemoryCoreDb(tmpDb);
+    const opened = await openCaravanBookDb(tmpDb);
     db = opened.db;
     close = opened.close;
     mockHybrid.mockClear();
@@ -230,7 +230,7 @@ describe('ChatService rag limit options → hybridSearchMemory', () => {
     }
   });
 
-  test('bm25Limit/vecLimit/rrfK を省略すると hybridSearchMemory の input に含まれない', async () => {
+  test('bm25Limit/vecLimit/rrfK を省略すると hybridSearchCaravanBook の input に含まれない', async () => {
     const service = new ChatService({
       db,
       ollama: createMockOllamaClient({ fixedEmbedding: Float32Array.from([1, 0, 0]) }),
@@ -247,7 +247,7 @@ describe('ChatService rag limit options → hybridSearchMemory', () => {
     expect(input).not.toHaveProperty('rrf_k');
   });
 
-  test('bm25Limit/vecLimit/rrfK を指定すると hybridSearchMemory の input に bm25_limit/vec_limit/rrf_k が渡る', async () => {
+  test('bm25Limit/vecLimit/rrfK を指定すると hybridSearchCaravanBook の input に bm25_limit/vec_limit/rrf_k が渡る', async () => {
     const service = new ChatService({
       db,
       ollama: createMockOllamaClient({ fixedEmbedding: Float32Array.from([1, 0, 0]) }),

@@ -1,9 +1,9 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { ingestableMessageSql } from '../ingest/conversation/messageFilter';
 
 export interface DetectBackfillWindowExpansionInput {
   /** caravan-book.db への接続。trail DB が "trail" として ATTACH 済みであること。 */
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   /** 現在 config が要求する backfill 期間 (日)。 */
   sinceDays: number;
 }

@@ -1,21 +1,21 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { PipelineRunLedger } from '../../src/pipeline/PipelineRunLedger';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
 
-function makeMemoryDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeCaravanDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function readRun(db: BetterSqlite3MemoryDb, id: string): Record<string, unknown> {
+function readRun(db: BetterSqlite3CaravanDb, id: string): Record<string, unknown> {
   const stmt = db.prepare(`SELECT * FROM caravan_pipeline_runs WHERE id = ?`);
   try {
     const row = stmt.get(id);
@@ -26,7 +26,7 @@ function readRun(db: BetterSqlite3MemoryDb, id: string): Record<string, unknown>
   }
 }
 
-function readRunLogs(db: BetterSqlite3MemoryDb, runId?: string): Record<string, unknown>[] {
+function readRunLogs(db: BetterSqlite3CaravanDb, runId?: string): Record<string, unknown>[] {
   const sql = runId
     ? `SELECT * FROM caravan_pipeline_run_logs WHERE run_id = ? ORDER BY id`
     : `SELECT * FROM caravan_pipeline_run_logs ORDER BY id`;
@@ -39,10 +39,10 @@ function readRunLogs(db: BetterSqlite3MemoryDb, runId?: string): Record<string, 
 }
 
 describe('PipelineRunLedger', () => {
-  let db: BetterSqlite3MemoryDb;
+  let db: BetterSqlite3CaravanDb;
 
   beforeEach(() => {
-    db = makeMemoryDb();
+    db = makeCaravanDb();
   });
 
   afterEach(() => {

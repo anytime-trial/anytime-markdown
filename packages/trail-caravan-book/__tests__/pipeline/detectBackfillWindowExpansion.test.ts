@@ -1,19 +1,19 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { detectBackfillWindowExpansion } from '../../src/pipeline/detectBackfillWindowExpansion';
 
 const DAY = 86_400_000;
 
-async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE activity_messages (
@@ -30,7 +30,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 function insertTrailUserMessage(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   uuid: string,
   sessionId: string,
   timestamp: string,
@@ -47,7 +47,7 @@ function insertTrailUserMessage(
 }
 
 function insertTrailMessageRaw(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   uuid: string,
   sessionId: string,
   timestamp: string,
@@ -62,7 +62,7 @@ function insertTrailMessageRaw(
 }
 
 function preInsertEpisode(
-  memDb: BetterSqlite3MemoryDb,
+  memDb: BetterSqlite3CaravanDb,
   sessionId: string,
   msgUuid: string,
   validFrom: string,
@@ -80,7 +80,7 @@ function preInsertEpisode(
 
 describe('detectBackfillWindowExpansion', () => {
   test('no persisted episodes (first run) → shouldExpand=false', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertTrailUserMessage(trailDb, 'm1', 's1', new Date(Date.now() - 5 * DAY).toISOString());
     attachTrailDbFromHandle(memDb, trailDb);
@@ -91,7 +91,7 @@ describe('detectBackfillWindowExpansion', () => {
   });
 
   test('desired_start >= earliest persisted → shouldExpand=false (window shrunk or equal)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     // 永続化済み: 30 日前から
     const ts30d = new Date(Date.now() - 30 * DAY).toISOString();
@@ -105,7 +105,7 @@ describe('detectBackfillWindowExpansion', () => {
   });
 
   test('desired_start < earliest but no unprocessed messages in gap → shouldExpand=false', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     // 永続化済み: 10 日前のみ。activity.db にも 10 日前のメッセージしかない
     // (ユーザーは 10 日前に install したばかり)。
@@ -121,7 +121,7 @@ describe('detectBackfillWindowExpansion', () => {
   });
 
   test('desired_start < earliest AND unprocessed messages exist → shouldExpand=true', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     // 永続化済みは 10 日前から。activity.db には 40 日前にも data あり。
     const ts40d = new Date(Date.now() - 40 * DAY).toISOString();
@@ -141,7 +141,7 @@ describe('detectBackfillWindowExpansion', () => {
   test('拡張区間が sidechain のみ → shouldExpand=false（カーソル reset の空転を防ぐ）', async () => {
     // sidechain は取り込まないので、reset して再 backfill してもエピソードは
     // 増えず earliest が動かない。拡張と判定すると毎 run 空転する。
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     const ts10d = new Date(Date.now() - 10 * DAY).toISOString();
     insertTrailMessageRaw(trailDb, 'sub1', 's-old', new Date(Date.now() - 40 * DAY).toISOString(), {
@@ -158,7 +158,7 @@ describe('detectBackfillWindowExpansion', () => {
 
   test('拡張区間が本文ゼロの user 行のみ → shouldExpand=false', async () => {
     // tool_result の入れ物（user_content 空）は episode にならない。
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     const ts10d = new Date(Date.now() - 10 * DAY).toISOString();
     insertTrailMessageRaw(trailDb, 'empty1', 's-old', new Date(Date.now() - 40 * DAY).toISOString(), {
@@ -176,7 +176,7 @@ describe('detectBackfillWindowExpansion', () => {
   });
 
   test('desired_start equal to earliest persisted → shouldExpand=false (no widening)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     const ts30d = new Date(Date.now() - 30 * DAY).toISOString();
     insertTrailUserMessage(trailDb, 'm1', 's1', ts30d);

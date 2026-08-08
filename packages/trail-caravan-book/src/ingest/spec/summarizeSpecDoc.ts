@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { buildSpecSummaryPrompt } from '../../ollama/prompts/spec';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 // 2〜3 文の要約に十分な出力長。長文化を防ぐため抑制する。
 const DEFAULT_NUM_PREDICT = 256;
@@ -15,7 +15,7 @@ export interface SummarizeSpecDocInput {
   body: string;
   ollama: OllamaClient;
   model?: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }
 
 /**

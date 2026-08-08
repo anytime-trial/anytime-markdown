@@ -1,4 +1,4 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { createHash } from 'node:crypto';
 
 export interface EdgeInput {
@@ -11,7 +11,7 @@ export interface EdgeInput {
 }
 
 export function applySingleActiveRule(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   newEdge: EdgeInput
 ): { invalidated_edge_ids: string[] } {
   // 1. Check cardinality of predicate

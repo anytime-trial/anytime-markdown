@@ -1,7 +1,7 @@
 /**
  * runDriftDetection — pipeline integration tests
  *
- * Strategy: use openMemoryCoreDb() for the full schema (all drift tables exist),
+ * Strategy: use openCaravanBookDb() for the full schema (all drift tables exist),
  * then seed caravan_edges / caravan_entities / caravan_bug_fixes etc. to exercise
  * each detector pathway. Ollama is not involved in drift detection.
  */
@@ -9,10 +9,10 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../src/db/connection';
-import type { MemoryDbConnection } from '../../src/db/connection/types';
+import { openCaravanBookDb } from '../../src/db/connection';
+import type { CaravanDbConnection } from '../../src/db/connection/types';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runDriftDetection } from '../../src/pipeline/runDriftDetection';
 import { noopLogger } from '../../src/logger';
 
@@ -24,10 +24,10 @@ function makeTmpPath() {
 
 async function openTestDb() {
   const tmpPath = makeTmpPath();
-  const { db, close } = await openMemoryCoreDb(tmpPath);
+  const { db, close } = await openCaravanBookDb(tmpPath);
 
   // Attach a minimal trail DB (drift detection may query trail via attach)
-  const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+  const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
   trailHandle.run(`CREATE TABLE activity_session_commits (
     id INTEGER PRIMARY KEY,
     commit_hash TEXT NOT NULL,
@@ -71,7 +71,7 @@ async function openTestDb() {
 const TS = '2026-01-01T00:00:00.000Z';
 const ENTITY_ID = 'ent_test_001';
 
-function insertEntity(db: MemoryDbConnection, id: string, name: string): void {
+function insertEntity(db: CaravanDbConnection, id: string, name: string): void {
   db.run(
     `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, summary, aliases_json, tags_json, attributes_json,
@@ -81,7 +81,7 @@ function insertEntity(db: MemoryDbConnection, id: string, name: string): void {
   );
 }
 
-function insertRelationType(db: MemoryDbConnection, predicate: string): void {
+function insertRelationType(db: CaravanDbConnection, predicate: string): void {
   db.run(
     `INSERT OR IGNORE INTO caravan_relation_types
        (predicate, cardinality, directionality, description)
@@ -91,7 +91,7 @@ function insertRelationType(db: MemoryDbConnection, predicate: string): void {
 }
 
 function insertEdge(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: {
     id: string;
     subject: string;

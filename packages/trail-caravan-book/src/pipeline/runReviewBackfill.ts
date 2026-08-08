@@ -1,7 +1,7 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import { entityId } from '../canonical/entityId';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,11 +19,11 @@ export interface ReviewBackfillResult {
 }
 
 export interface ReviewBackfillInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   recordedAt: string;
   /** 数えるだけで書き込まない（適用前の影響確認用） */
   dryRun?: boolean;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
 }
 
 const EPOCH = '1970-01-01T00:00:00.000Z';

@@ -1,24 +1,24 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationBackfill } from '../../src/pipeline/runConversationBackfill';
 import { episodeId } from '../../src/ingest/conversation/persist';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
 
-async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE activity_messages (
@@ -34,12 +34,12 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
   return trailDb;
 }
 
-function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3CaravanDb, id: string): void {
   trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertUserMessage(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   uuid: string,
   sessionId: string,
   timestamp: string,
@@ -53,7 +53,7 @@ function insertUserMessage(
 }
 
 function preInsertEpisode(
-  memDb: BetterSqlite3MemoryDb,
+  memDb: BetterSqlite3CaravanDb,
   sessionId: string,
   msgUuid: string,
   validFrom: string,
@@ -92,7 +92,7 @@ describe('runConversationBackfill resume', () => {
 
   // ── R1: all-skip path ────────────────────────────────────────────────────
   test('R1: 5 already-persisted episodes are all skipped, Ollama is not called', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     for (let i = 0; i < 5; i++) {
@@ -125,7 +125,7 @@ describe('runConversationBackfill resume', () => {
 
   // ── R2: mixed skip + process ─────────────────────────────────────────────
   test('R2: 5 already-persisted + 4 new episodes → 4 processed, 5 skipped, 4 Ollama calls', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // 5 already-persisted episodes
@@ -168,7 +168,7 @@ describe('runConversationBackfill resume', () => {
 
   // ── R3: maxTimestamp progresses even when all skipped ────────────────────
   test('R3: skip-only run still advances conversation_incremental.last_processed_at', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_a');
@@ -217,7 +217,7 @@ describe('runConversationBackfill resume', () => {
   // maxTimestamp to today, the cursor advanced to today, and older sessions
   // were SQL-excluded on every subsequent run.
   test('R4: alphabetically-first session with TODAY timestamps does not strand the older session', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // Session aaa-* has UUIDs that sort FIRST but messages from today.
@@ -275,7 +275,7 @@ describe('runConversationBackfill resume', () => {
   // 3 failing sessions in chronological order trigger quarantine, then a 4th
   // healthy session positioned AFTER them must still be processable.
   test('R5: quarantine cursor leaves later-chronological sessions visible', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     const ts5d = new Date(Date.now() - 5 * 86_400_000).toISOString();

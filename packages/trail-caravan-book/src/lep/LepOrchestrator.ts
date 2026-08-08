@@ -1,6 +1,6 @@
 import type { EventBus } from './EventBus';
 import type { Analyzer, AnalyzerContext, LepStage } from './types';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 import type { PipelineRunLedger } from '../pipeline/PipelineRunLedger';
 import type { RunReason } from '../runner/types';
 
@@ -53,13 +53,13 @@ export type PipelineRunLedgerFactory = (
  * 読み取り、最終的な例外メッセージを組み立てる。
  */
 export class LepOrchestrator {
-  private readonly logger: MemoryLogger;
+  private readonly logger: CaravanLogger;
   private readonly openLedger: PipelineRunLedgerFactory | null;
 
   constructor(
     private readonly bus: EventBus,
     private readonly analyzers: readonly Analyzer[],
-    logger?: MemoryLogger,
+    logger?: CaravanLogger,
     openLedger?: PipelineRunLedgerFactory,
   ) {
     this.logger = logger ?? noopLogger;

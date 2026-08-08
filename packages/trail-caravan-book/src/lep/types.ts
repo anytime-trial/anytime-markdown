@@ -1,4 +1,4 @@
-import type { MemoryLogger } from '../logger';
+import type { CaravanLogger } from '../logger';
 import type { RunReason } from '../runner/types';
 
 /**
@@ -212,7 +212,7 @@ export interface AnalyzerContext {
   /** runOnce を起動した契機 (RunReason: manual / startup / periodic / import) */
   readonly reason: RunReason;
   /** ログ出力口 (analyzer ID プレフィックスは呼び出し側で付与) */
-  readonly logger: MemoryLogger;
+  readonly logger: CaravanLogger;
   /** イベント発行口。新規 event を pub する場合に使用 */
   readonly bus: EventBusPublisher;
 }

@@ -130,7 +130,7 @@ Run these from the command palette (`Ctrl+Shift+P`).
 | `Anytime Trail: Record Safe Point` / `Rollback to Safe Point` | Record HEAD as a safe point, and restore it via a recovery branch |
 | `Anytime Trail: Kill Switch (Block Claude Tool Execution)` / `Release Kill Switch` | Emergency block or release of Claude's tool execution when it runs away |
 | `Anytime Trail: Restore Knowledge Base Snapshot` | Restore the entire `activity.db` from a snapshot |
-| `Anytime Trail: Rebuild Memory Index` | Rebuild the trail-caravan-book index |
+| `Anytime Trail: Rebuild CaravanBook Index` | Rebuild the trail-caravan-book index |
 | `Anytime Trail: Register MCP Server` | Write `mcp-trail` to `.mcp.json` |
 
 

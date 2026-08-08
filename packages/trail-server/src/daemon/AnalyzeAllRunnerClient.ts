@@ -13,7 +13,7 @@ export class AnalyzeAllRunnerClient {
     private readonly config: SerializableAnalyzeAllConfig,
   ) {}
 
-  /** daemon 内で MemoryCoreService + AnalyzeAllRunner を組み立てる。最初の一度だけ呼ぶ。 */
+  /** daemon 内で CaravanBookService + AnalyzeAllRunner を組み立てる。最初の一度だけ呼ぶ。 */
   async configure(): Promise<void> {
     await this.host.call('configure', this.config);
   }

@@ -6,10 +6,10 @@ import {
   detectRegressionClusters,
   detectSpecViolationClusters,
 } from '../../src/drift/recurringBugs';
-import type { MemoryLogger } from '../../src/logger';
-import type { MemoryDbConnection } from '../../src/db/connection/types';
+import type { CaravanLogger } from '../../src/logger';
+import type { CaravanDbConnection } from '../../src/db/connection/types';
 
-function makeBrokenDb(): MemoryDbConnection {
+function makeBrokenDb(): CaravanDbConnection {
   return {
     exec: () => { throw new Error('DB read failed'); },
     run: () => { throw new Error('DB write failed'); },
@@ -27,7 +27,7 @@ function makeBrokenDb(): MemoryDbConnection {
 describe('detectRegressionClusters - SQL エラーパス', () => {
   it('exec で例外が発生したとき空配列を返す', () => {
     const errors: string[] = [];
-    const logger: MemoryLogger = {
+    const logger: CaravanLogger = {
       info: () => {},
       error: (msg: string) => { errors.push(msg); },
     };
@@ -46,7 +46,7 @@ describe('detectRegressionClusters - SQL エラーパス', () => {
 describe('detectSpecViolationClusters - SQL エラーパス', () => {
   it('exec で例外が発生したとき空配列を返す', () => {
     const errors: string[] = [];
-    const logger: MemoryLogger = {
+    const logger: CaravanLogger = {
       info: () => {},
       error: (msg: string) => { errors.push(msg); },
     };

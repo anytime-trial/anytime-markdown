@@ -1,17 +1,17 @@
 /**
- * attach.ts の attachTrailDbFromHandle と非 BetterSqlite3MemoryDb エラーパスのテスト。
+ * attach.ts の attachTrailDbFromHandle と非 BetterSqlite3CaravanDb エラーパスのテスト。
  * attach.test.ts は attachTrailDbReadOnly のファイルパス経由 attach のみカバーしているため
  * 補完する。
  */
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { attachTrailDbReadOnly, attachTrailDbFromHandle } from '../../src/db/attach';
-import type { MemoryDbConnection } from '../../src/db/connection/types';
+import type { CaravanDbConnection } from '../../src/db/connection/types';
 
-// MemoryDbConnection の最小モック (BetterSqlite3MemoryDb 以外)
-function makeNonBetterDb(): MemoryDbConnection {
+// CaravanDbConnection の最小モック (BetterSqlite3CaravanDb 以外)
+function makeNonBetterDb(): CaravanDbConnection {
   return {
     exec: () => [],
     run: () => {},
@@ -26,11 +26,11 @@ function makeNonBetterDb(): MemoryDbConnection {
   };
 }
 
-describe('attachTrailDbReadOnly - 非 BetterSqlite3MemoryDb はエラー', () => {
-  it('BetterSqlite3MemoryDb 以外を渡すと例外が投げられる', async () => {
+describe('attachTrailDbReadOnly - 非 BetterSqlite3CaravanDb はエラー', () => {
+  it('BetterSqlite3CaravanDb 以外を渡すと例外が投げられる', async () => {
     const nonBetterDb = makeNonBetterDb();
     await expect(attachTrailDbReadOnly(nonBetterDb, '/some/path.db')).rejects.toThrow(
-      'only BetterSqlite3MemoryDb is supported',
+      'only BetterSqlite3CaravanDb is supported',
     );
   });
 });
@@ -38,9 +38,9 @@ describe('attachTrailDbReadOnly - 非 BetterSqlite3MemoryDb はエラー', () =>
 describe('attachTrailDbFromHandle', () => {
   it('in-memory trail handle を file 経由で attach して SELECT できる', () => {
     // main db
-    const db = BetterSqlite3MemoryDb.openInMemory();
+    const db = BetterSqlite3CaravanDb.openInCaravan();
     // trail handle (in-memory)
-    const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+    const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
     trailHandle.execMany(`
       CREATE TABLE trail_sessions (id TEXT PRIMARY KEY, label TEXT) STRICT;
       INSERT INTO trail_sessions VALUES ('s1', 'test-session');
@@ -57,8 +57,8 @@ describe('attachTrailDbFromHandle', () => {
   });
 
   it('一時ディレクトリは attach 直後に削除され /tmp に残留しない', () => {
-    const db = BetterSqlite3MemoryDb.openInMemory();
-    const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+    const db = BetterSqlite3CaravanDb.openInCaravan();
+    const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
     trailHandle.execMany(`
       CREATE TABLE trail_sessions (id TEXT PRIMARY KEY) STRICT;
       INSERT INTO trail_sessions VALUES ('s1');
@@ -80,8 +80,8 @@ describe('attachTrailDbFromHandle', () => {
   });
 
   it('attach 後に trail.* への書き込みは拒否される', () => {
-    const db = BetterSqlite3MemoryDb.openInMemory();
-    const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+    const db = BetterSqlite3CaravanDb.openInCaravan();
+    const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
     trailHandle.execMany(`
       CREATE TABLE trail_data (id TEXT PRIMARY KEY) STRICT;
     `);
@@ -94,31 +94,31 @@ describe('attachTrailDbFromHandle', () => {
     trailHandle.close();
   });
 
-  it('main db が BetterSqlite3MemoryDb 以外の場合はエラー', () => {
+  it('main db が BetterSqlite3CaravanDb 以外の場合はエラー', () => {
     const nonBetterDb = makeNonBetterDb();
-    const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+    const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
 
     expect(() => attachTrailDbFromHandle(nonBetterDb, trailHandle)).toThrow(
-      'only BetterSqlite3MemoryDb is supported for main db',
+      'only BetterSqlite3CaravanDb is supported for main db',
     );
 
     trailHandle.close();
   });
 
-  it('trail handle が BetterSqlite3MemoryDb 以外の場合はエラー', () => {
-    const db = BetterSqlite3MemoryDb.openInMemory();
+  it('trail handle が BetterSqlite3CaravanDb 以外の場合はエラー', () => {
+    const db = BetterSqlite3CaravanDb.openInCaravan();
     const nonBetterTrail = makeNonBetterDb();
 
     expect(() => attachTrailDbFromHandle(db, nonBetterTrail)).toThrow(
-      'only BetterSqlite3MemoryDb is supported for trailHandle',
+      'only BetterSqlite3CaravanDb is supported for trailHandle',
     );
 
     db.close();
   });
 
   it('一時ファイルが OS-secure なディレクトリ下に作成される (trailHandle serialize)', () => {
-    const db = BetterSqlite3MemoryDb.openInMemory();
-    const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+    const db = BetterSqlite3CaravanDb.openInCaravan();
+    const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
     trailHandle.execMany(`
       CREATE TABLE t (x INTEGER) STRICT;
       INSERT INTO t VALUES (42);

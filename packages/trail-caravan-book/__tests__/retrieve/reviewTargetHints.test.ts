@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { openMemoryCoreDb } from '../../src/db/connection';
-import type { MemoryLogger } from '../../src/logger';
+import { openCaravanBookDb } from '../../src/db/connection';
+import type { CaravanLogger } from '../../src/logger';
 import { listReviewTargetHints } from '../../src/retrieve/listReviewTargetHints';
 
 /**
@@ -14,9 +14,9 @@ import { listReviewTargetHints } from '../../src/retrieve/listReviewTargetHints'
  */
 describe('listReviewTargetHints の優先度配分', () => {
   let tmpDir: string;
-  let handle: Awaited<ReturnType<typeof openMemoryCoreDb>>;
+  let handle: Awaited<ReturnType<typeof openCaravanBookDb>>;
   let errors: string[];
-  let logger: MemoryLogger;
+  let logger: CaravanLogger;
 
   const now = new Date();
   const iso = (daysAgo: number): string =>
@@ -24,13 +24,13 @@ describe('listReviewTargetHints の優先度配分', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memcore-hints-'));
-    handle = await openMemoryCoreDb(path.join(tmpDir, 'caravan-book.db'));
+    handle = await openCaravanBookDb(path.join(tmpDir, 'caravan-book.db'));
     errors = [];
     logger = {
       info: () => {},
       warn: () => {},
       error: (msg: string) => { errors.push(msg); },
-    } as unknown as MemoryLogger;
+    } as unknown as CaravanLogger;
 
     handle.db.run(
       `INSERT INTO caravan_entities

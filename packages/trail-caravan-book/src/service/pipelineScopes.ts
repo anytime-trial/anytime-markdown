@@ -2,7 +2,7 @@
  * `pipeline-status.json` に記録する 9 scope (analyzer→scope は 1:N、conversation→2 等)。
  *
  * 重い依存 (sql.js / better-sqlite3 / agent-core) を一切持たない軽量モジュール。
- * index から static import してよい (openMemoryDbSession 経由だと遅延 require 対象の
+ * index から static import してよい (openCaravanDbSession 経由だと遅延 require 対象の
  * 重いモジュールを eager load してしまうため、scope 定義のみここに分離する)。
  */
 export const PIPELINE_SCOPES = [

@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 
 export type ReviewRunStatus = {
   run_id: string;
@@ -22,13 +22,13 @@ export type ReviewRunStatus = {
 };
 
 export function getReviewRunStatus(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   run_id: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): ReviewRunStatus | null {
   const { db, run_id, logger } = input;
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT id, trigger_kind, target_kind, target_refs_json, model, prompt_kind,

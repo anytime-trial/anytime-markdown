@@ -1,7 +1,7 @@
 import { linkRootCauseEpisode } from '../../../src/ingest/bug-history/linkRootCauseEpisode';
 import { entityId } from '../../../src/canonical/entityId';
 import { noopLogger } from '../../../src/logger';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -12,7 +12,7 @@ function makeTmpDb(): string {
 
 async function openTestDb() {
   const tmpPath = makeTmpDb();
-  const { db, close } = await openMemoryCoreDb(tmpPath);
+  const { db, close } = await openCaravanBookDb(tmpPath);
   return {
     db,
     close: () => {

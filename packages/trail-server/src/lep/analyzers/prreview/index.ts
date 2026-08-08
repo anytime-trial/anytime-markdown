@@ -16,7 +16,7 @@ export {
   buildPrReviewSourceRef,
   parsePrReviewSourceRef,
   readPrReviewSourceHash,
-  createPrReviewMemorySource,
+  createPrReviewCaravanSource,
   type ParsedPrReviewSourceRef,
-  type PrReviewMemorySource,
-} from './prReviewMemorySource';
+  type PrReviewCaravanSource,
+} from './prReviewCaravanSource';

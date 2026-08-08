@@ -5,7 +5,7 @@ import {
   buildConversationPromptNoQuestion,
   type EpisodeInput,
 } from '../../ollama/prompts/conversation';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 // Re-export EpisodeInput for consumers of this module
 export type { EpisodeInput };
@@ -127,7 +127,7 @@ export async function extractFactsFromEpisode(opts: {
   ollama: OllamaClient;
   episode: EpisodeInput;
   model?: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): Promise<ExtractionResult | null> {
   const { ollama, episode, logger } = opts;
   const model = opts.model ?? process.env['MEMORY_CORE_GEN_MODEL'] ?? 'qwen2.5:7b';

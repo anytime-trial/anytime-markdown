@@ -20,7 +20,7 @@ export type FlightReviewOutcomeSource = 'machine' | 'self' | 'manual';
 /** Rationale Audit の監査ステータス（Phase 6 S4）。 */
 export type RationaleAuditStatusDto = 'unaudited' | 'valid' | 'needs_fix' | 'rejected';
 
-/** GET /api/memory/rationale の 1 行（コミット紐付き決定根拠ノード・読み取り専用）。 */
+/** GET /api/caravan/rationale の 1 行（コミット紐付き決定根拠ノード・読み取り専用）。 */
 export interface RationaleNodeDto {
   readonly commitHash: string;
   readonly summary: string;
@@ -243,7 +243,7 @@ export function createFlightReviewStore(
 
   async function fetchRationale(sessionId: string): Promise<readonly RationaleNodeDto[]> {
     try {
-      const res = await request(`/api/memory/rationale?sessionId=${encodeURIComponent(sessionId)}`);
+      const res = await request(`/api/caravan/rationale?sessionId=${encodeURIComponent(sessionId)}`);
       if (!res.ok) return [];
       const json = (await res.json()) as { rationale?: RationaleNodeDto[] };
       return json.rationale ?? [];

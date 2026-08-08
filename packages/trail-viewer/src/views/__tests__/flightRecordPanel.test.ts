@@ -160,7 +160,7 @@ describe('flightRecordPanel', () => {
       if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions });
       if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
       if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-      if (url.includes('/api/memory/reviews/flight-')) return jsonResponse([]);
+      if (url.includes('/api/caravan/reviews/flight-')) return jsonResponse([]);
       return jsonResponse({});
     });
   }
@@ -422,7 +422,7 @@ describe('flightRecordPanel', () => {
           });
         }
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [review()] });
-        if (url.includes('/api/memory/rationale')) return jsonResponse({ rationale: [] });
+        if (url.includes('/api/caravan/rationale')) return jsonResponse({ rationale: [] });
         if (url.includes('/api/trail/user-feedback')) return jsonResponse({ userFeedback: [] });
         return jsonResponse({});
       });
@@ -713,7 +713,7 @@ describe('flightRecordPanel', () => {
         if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
         if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-        if (url.includes('/api/memory/reviews/flight-')) return jsonResponse(null, 500);
+        if (url.includes('/api/caravan/reviews/flight-')) return jsonResponse(null, 500);
         return jsonResponse({});
       });
       store = createInstructionStore('http://x');
@@ -880,8 +880,8 @@ describe('flightRecordPanel', () => {
           if (url.includes('flight-findings')) {
             return jsonResponse(FINDINGS.map((f, i) => ({ ...f, findingEntityId: `finding:${f.id}`, id: f.id ?? `rf-${i}` })));
           }
-          if (url.includes('/api/memory/bugs/recurring')) return jsonResponse([]);
-          if (url.includes('/api/memory/bugs/causal')) {
+          if (url.includes('/api/caravan/bugs/recurring')) return jsonResponse([]);
+          if (url.includes('/api/caravan/bugs/causal')) {
             return jsonResponse({
               bugEntityId: 'bug:89754a1',
               subject: 'テーマ変数の解決順を直す',
@@ -895,7 +895,7 @@ describe('flightRecordPanel', () => {
               introducedByCommitSha: null,
             });
           }
-          if (url.includes('/api/memory/bugs/history')) {
+          if (url.includes('/api/caravan/bugs/history')) {
             return jsonResponse([
               {
                 id: 'bugfix-1',
@@ -998,9 +998,9 @@ describe('flightRecordPanel', () => {
         if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
         if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-        if (url.includes('/api/memory/reviews/flight-')) return jsonResponse([]);
-        if (url.includes('/api/memory/bugs/recurring')) return jsonResponse([]);
-        if (url.includes('/api/memory/bugs/history')) {
+        if (url.includes('/api/caravan/reviews/flight-')) return jsonResponse([]);
+        if (url.includes('/api/caravan/bugs/recurring')) return jsonResponse([]);
+        if (url.includes('/api/caravan/bugs/history')) {
           return options.historyFails ? jsonResponse(null, 500) : jsonResponse(bugs);
         }
         return jsonResponse({});
@@ -1060,7 +1060,7 @@ describe('flightRecordPanel', () => {
       expect(rows[0]?.textContent).toContain('89754a1');
 
       // 一覧の上限で欠けさせないため、絞り込みはクライアントでなくサーバで行う
-      const historyCall = stub.calls.find((c) => c.url.includes('/api/memory/bugs/history'));
+      const historyCall = stub.calls.find((c) => c.url.includes('/api/caravan/bugs/history'));
       expect(historyCall?.url).toContain('sessionIds=inst-0001-abcd');
       handle.destroy();
     });
@@ -1103,7 +1103,7 @@ describe('flightRecordPanel', () => {
       container.querySelector<HTMLElement>('[data-am-flight-table] tbody tr')?.click();
       await settle();
 
-      expect(stub.calls.some((c) => c.url.includes('/api/memory/bugs/'))).toBe(false);
+      expect(stub.calls.some((c) => c.url.includes('/api/caravan/bugs/'))).toBe(false);
       expect(container.querySelectorAll('[data-am-bugfix-row]')).toHaveLength(0);
       handle.destroy();
     });
@@ -1133,8 +1133,8 @@ describe('flightRecordPanel', () => {
         if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
         if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-        if (url.includes('/api/memory/drift/by-day')) return jsonResponse({ points: [] });
-        if (url.includes('/api/memory/drift/events')) return jsonResponse([DRIFT_ROW]);
+        if (url.includes('/api/caravan/drift/by-day')) return jsonResponse({ points: [] });
+        if (url.includes('/api/caravan/drift/events')) return jsonResponse([DRIFT_ROW]);
         return jsonResponse([]);
       });
     }
@@ -1162,7 +1162,7 @@ describe('flightRecordPanel', () => {
       await settle();
 
       expect(container.querySelector('[data-am-flight-drift]')?.hasAttribute('hidden')).toBe(true);
-      expect(calls.some((c) => c.url.includes('/api/memory/drift/'))).toBe(false);
+      expect(calls.some((c) => c.url.includes('/api/caravan/drift/'))).toBe(false);
       handle.destroy();
     });
 
@@ -1207,7 +1207,7 @@ describe('flightRecordPanel', () => {
         if (url.includes('/api/trail/instructions?')) return jsonResponse({ instructions: [record()] });
         if (url.includes('/sessions')) return jsonResponse({ sessions: [] });
         if (url.includes('/api/trail/flight-reviews')) return jsonResponse({ flightReviews: [] });
-        if (url.includes('/api/memory/')) return jsonResponse([]);
+        if (url.includes('/api/caravan/')) return jsonResponse([]);
         return jsonResponse({});
       });
     }
@@ -1268,7 +1268,7 @@ describe('flightRecordPanel', () => {
       chooseOption(container.querySelector('[data-am-flight-scope]'), 'anytime-trade');
       await settle();
 
-      const findingCalls = stub.calls.filter((c) => c.url.includes('/api/memory/reviews/flight-findings'));
+      const findingCalls = stub.calls.filter((c) => c.url.includes('/api/caravan/reviews/flight-findings'));
       expect(findingCalls.at(-1)?.url).toContain('workspace=anytime-trade');
       handle.destroy();
     });
@@ -1281,7 +1281,7 @@ describe('flightRecordPanel', () => {
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="bugfix"]')?.click();
       await settle();
 
-      const bugCalls = stub.calls.filter((c) => c.url.includes('/api/memory/bugs/history'));
+      const bugCalls = stub.calls.filter((c) => c.url.includes('/api/caravan/bugs/history'));
       expect(bugCalls.length).toBeGreaterThan(0);
       expect(bugCalls.at(-1)?.url).toContain('workspace=anytime-trade');
       handle.destroy();
@@ -1295,7 +1295,7 @@ describe('flightRecordPanel', () => {
       container.querySelector<HTMLButtonElement>('[data-am-flight-tab="drift"]')?.click();
       await settle();
 
-      const driftCalls = stub.calls.filter((c) => c.url.includes('/api/memory/drift/events'));
+      const driftCalls = stub.calls.filter((c) => c.url.includes('/api/caravan/drift/events'));
       expect(driftCalls.length).toBeGreaterThan(0);
       expect(driftCalls.at(-1)?.url).toContain('workspace=anytime-trade');
       handle.destroy();

@@ -120,26 +120,26 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "GET", kind: "exact", path: "/api/activity-heatmap" },
   { method: "GET", kind: "exact", path: "/api/activity-trend" },
   { method: "GET", kind: "exact", path: "/api/author-heatmap" },
-  { method: "GET", kind: "exact", path: "/api/memory/rationale" },
-  { method: "GET", kind: "exact", path: "/api/memory/status" },
-  { method: "GET", kind: "exact", path: "/api/memory/knowledge-graph" },
-  { method: "GET", kind: "exact", path: "/api/memory/drift/by-day" },
-  { method: "GET", kind: "exact", path: "/api/memory/drift/events" },
-  { method: "GET", kind: "prefix", path: "/api/memory/drift/events/" },
-  { method: "POST", kind: "prefix", path: "/api/memory/drift/events/" },
-  { method: "GET", kind: "exact", path: "/api/memory/bugs/recurring" },
-  { method: "GET", kind: "exact", path: "/api/memory/bugs/history" },
-  { method: "GET", kind: "exact", path: "/api/memory/bugs/causal" },
-  { method: "GET", kind: "exact", path: "/api/memory/reviews/unaddressed" },
-  { method: "GET", kind: "exact", path: "/api/memory/reviews/history" },
-  { method: "GET", kind: "exact", path: "/api/memory/reviews/flight-counts" },
-  { method: "GET", kind: "exact", path: "/api/memory/reviews/flight-findings" },
-  { method: "GET", kind: "exact", path: "/api/memory/pipeline/runs/by-day" },
-  { method: "GET", kind: "exact", path: "/api/memory/pipeline/runs" },
-  { method: "GET", kind: "pattern", path: "^\\/api\\/memory\\/pipeline\\/runs\\/([^/]+)\\/logs$" },
-  { method: "GET", kind: "exact", path: "/api/memory/pipeline/failed" },
-  // UI の消費者が無くても撤去しない経路。理由は MemoryApiHandler.listInvalidations のコメント参照
-  { method: "GET", kind: "exact", path: "/api/memory/edges/invalidations" },
+  { method: "GET", kind: "exact", path: "/api/caravan/rationale" },
+  { method: "GET", kind: "exact", path: "/api/caravan/status" },
+  { method: "GET", kind: "exact", path: "/api/caravan/knowledge-graph" },
+  { method: "GET", kind: "exact", path: "/api/caravan/drift/by-day" },
+  { method: "GET", kind: "exact", path: "/api/caravan/drift/events" },
+  { method: "GET", kind: "prefix", path: "/api/caravan/drift/events/" },
+  { method: "POST", kind: "prefix", path: "/api/caravan/drift/events/" },
+  { method: "GET", kind: "exact", path: "/api/caravan/bugs/recurring" },
+  { method: "GET", kind: "exact", path: "/api/caravan/bugs/history" },
+  { method: "GET", kind: "exact", path: "/api/caravan/bugs/causal" },
+  { method: "GET", kind: "exact", path: "/api/caravan/reviews/unaddressed" },
+  { method: "GET", kind: "exact", path: "/api/caravan/reviews/history" },
+  { method: "GET", kind: "exact", path: "/api/caravan/reviews/flight-counts" },
+  { method: "GET", kind: "exact", path: "/api/caravan/reviews/flight-findings" },
+  { method: "GET", kind: "exact", path: "/api/caravan/pipeline/runs/by-day" },
+  { method: "GET", kind: "exact", path: "/api/caravan/pipeline/runs" },
+  { method: "GET", kind: "pattern", path: "^\\/api\\/caravan\\/pipeline\\/runs\\/([^/]+)\\/logs$" },
+  { method: "GET", kind: "exact", path: "/api/caravan/pipeline/failed" },
+  // UI の消費者が無くても撤去しない経路。理由は CaravanApiHandler.listInvalidations のコメント参照
+  { method: "GET", kind: "exact", path: "/api/caravan/edges/invalidations" },
 ];
 
 describe('TrailDataServer route table', () => {
@@ -163,9 +163,9 @@ describe('TrailDataServer route table', () => {
 
   it('keeps prefix routes reachable behind their exact sibling', () => {
     const table = server.listRoutes();
-    expect(table).toContainEqual({ method: 'GET', kind: 'exact', path: '/api/memory/drift/events' });
-    expect(table).toContainEqual({ method: 'GET', kind: 'prefix', path: '/api/memory/drift/events/' });
-    expect(table).toContainEqual({ method: 'POST', kind: 'prefix', path: '/api/memory/drift/events/' });
+    expect(table).toContainEqual({ method: 'GET', kind: 'exact', path: '/api/caravan/drift/events' });
+    expect(table).toContainEqual({ method: 'GET', kind: 'prefix', path: '/api/caravan/drift/events/' });
+    expect(table).toContainEqual({ method: 'POST', kind: 'prefix', path: '/api/caravan/drift/events/' });
   });
 });
 

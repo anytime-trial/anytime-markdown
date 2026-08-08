@@ -1,8 +1,8 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../src/db/connection';
+import { openCaravanBookDb } from '../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runBugHistoryIncremental } from '../../src/pipeline/runBugHistoryIncremental';
 import { noopLogger } from '../../src/logger';
@@ -27,9 +27,9 @@ interface TrailFile {
 
 async function openTestDb(commits: TrailCommit[], files: TrailFile[]) {
   const tmpPath = makeTmpPath();
-  const { db, close } = await openMemoryCoreDb(tmpPath);
+  const { db, close } = await openCaravanBookDb(tmpPath);
 
-  const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+  const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
   // Phase H-4: trail.activity_session_commits / activity_commit_files から repo_name 列を撤去した。repo 帰属は repo_id で
   // 表現し、消費側 (runBugHistoryIncremental / linkAffectedFiles) は trail.activity_repos を JOIN して解決する。
   trailHandle.run(`CREATE TABLE activity_repos (

@@ -32,7 +32,7 @@ function runGroundingDoctrineGap(setup) {
  * grounding が参照する列のみ持つ最小 caravan-book.db を <ws>/.anytime/trail/db に作る。
  * activity.db は DB_DIR 解決（activity.db の存在で候補ディレクトリを確定する）のために空で置く。
  */
-function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
+function writeCaravanDb(ws, { withColumn, judgments = [], instructions = [] }) {
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
   new DatabaseSync(path.join(dbDir, 'activity.db')).close();
@@ -68,7 +68,7 @@ function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
 describe('grounding doctrineGap (DCT-14)', () => {
   it('列が無い DB は 0 件でなく測定不能として出す', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, { withColumn: false, judgments: [{ sessionId: 's1', humanDecision: 'modified' }] }),
+      writeCaravanDb(ws, { withColumn: false, judgments: [{ sessionId: 's1', humanDecision: 'modified' }] }),
     );
     expect(gap.available).toBe(false);
     expect(gap.reason).toContain('DCT-14');
@@ -78,7 +78,7 @@ describe('grounding doctrineGap (DCT-14)', () => {
 
   it('申告が空 + modified + 非 escalate だけを取りこぼしに数える', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         judgments: [
           { sessionId: 'miss', humanDecision: 'modified', points: '[]' },
@@ -99,7 +99,7 @@ describe('grounding doctrineGap (DCT-14)', () => {
 
   it('破損した申告は空にも非空にも倒さず別カウントする', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         judgments: [
           { sessionId: 'broken', humanDecision: 'modified', points: '"not-an-array"' },
@@ -115,7 +115,7 @@ describe('grounding doctrineGap (DCT-14)', () => {
 
   it('指示の型を origin_prompt から決定論で分類する（昇格判定の突合キー）', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         judgments: [
           { sessionId: 's1', humanDecision: 'modified', points: '[]' },
@@ -136,7 +136,7 @@ describe('grounding doctrineGap (DCT-14)', () => {
 
   it('DCT-14 導入日より前の判断は分母に入れない（バックフィルの空申告で率が薄まらない）', () => {
     const gap = runGroundingDoctrineGap((ws) =>
-      writeMemoryDb(ws, {
+      writeCaravanDb(ws, {
         withColumn: true,
         judgments: [
           { sessionId: 'old', humanDecision: 'modified', points: '[]', judgedAt: '2026-08-01T00:00:00.000Z' },

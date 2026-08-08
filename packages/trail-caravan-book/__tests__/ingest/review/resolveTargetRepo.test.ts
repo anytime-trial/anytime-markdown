@@ -1,23 +1,23 @@
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
-import type { MemoryDbConnection } from '../../../src/db/connection/types';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
+import type { CaravanDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { resolveTargetRepo } from '../../../src/ingest/review/resolveTargetRepo';
 import { normalizeTargetPath } from '../../../src/ingest/review/normalizeTargetPath';
 
 type Fixture = {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   close: () => void;
 };
 
 /** repo_name → その repo のコミットに現れるファイルパス群。 */
 async function buildFixture(repos: Record<string, string[]>): Promise<Fixture> {
   const tmpPath = path.join(os.tmpdir(), `rtr-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
+  const { db, close: closeMain } = await openCaravanBookDb(tmpPath);
 
-  const trail = BetterSqlite3MemoryDb.openInMemory();
+  const trail = BetterSqlite3CaravanDb.openInCaravan();
   trail.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY,
     repo_name TEXT NOT NULL UNIQUE,

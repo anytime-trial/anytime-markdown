@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { MemoryDbConnection } from '../connection/types';
+import type { CaravanDbConnection } from '../connection/types';
 import { applyTablePrefix, applyTablePrefixFts } from './023_table_prefix';
 
 interface MigrationDef {
@@ -8,7 +8,7 @@ interface MigrationDef {
   /** SQL ファイル移行。apply とどちらか一方を必ず持つ。 */
   readonly file?: string;
   /** code 移行（存在ガード等、SQL だけで書けない冪等化が要る場合）。 */
-  readonly apply?: (conn: MemoryDbConnection) => void;
+  readonly apply?: (conn: CaravanDbConnection) => void;
   /** true なら FTS5 が無い SQLite ビルド (sql.js 既定 WASM 等) では skip する。 */
   readonly requiresFts5?: boolean;
 }
@@ -50,9 +50,9 @@ export const EXPECTED_MIGRATION_COUNTS: readonly [number, number] = [
   MIGRATIONS.length,
 ];
 
-let cachedFts5: WeakMap<MemoryDbConnection, boolean> | null = null;
+let cachedFts5: WeakMap<CaravanDbConnection, boolean> | null = null;
 
-export function hasFts5(conn: MemoryDbConnection): boolean {
+export function hasFts5(conn: CaravanDbConnection): boolean {
   cachedFts5 ??= new WeakMap();
   const cached = cachedFts5.get(conn);
   if (cached !== undefined) return cached;
@@ -69,7 +69,7 @@ export function hasFts5(conn: MemoryDbConnection): boolean {
   return supported;
 }
 
-export function runMigrations(conn: MemoryDbConnection): void {
+export function runMigrations(conn: CaravanDbConnection): void {
   conn.execMany(`CREATE TABLE IF NOT EXISTS _migrations (
     version    INTEGER PRIMARY KEY,
     applied_at TEXT NOT NULL

@@ -13,7 +13,7 @@ function encodeProjectDir(cwd) {
 }
 
 /** メモリ md から frontmatter の name / metadata.type と本文の [[リンク]] を抽出する(純粋関数)。 */
-function parseMemory(text) {
+function parseCaravan(text) {
   let name = null;
   let type = null;
   const fm = /^---\n([\s\S]*?)\n---/.exec(text);
@@ -72,7 +72,7 @@ function findUncoveredBugFiles(topBugFiles, memories, threshold = 2) {
  * メモリディレクトリを read-only 走査する。索引 MEMORY.md は除外。dir 不在は available:false。
  * 1 ファイルの読み取り失敗で全体を落とさず errors に記録して継続する(techDebt 走査と同パターン)。
  */
-function scanMemoryDir(dir) {
+function scanCaravanDir(dir) {
   if (!fs.existsSync(dir)) return { available: false, memories: [], errors: [] };
   const memories = [];
   const errors = [];
@@ -87,9 +87,9 @@ function scanMemoryDir(dir) {
       errors.push(`recurrence read failed ${path.join(dir, e.name)}: ${err.message}`);
       continue;
     }
-    memories.push({ ...parseMemory(text), fileBase: e.name.replace(/\.md$/, ''), text });
+    memories.push({ ...parseCaravan(text), fileBase: e.name.replace(/\.md$/, ''), text });
   }
   return { available: true, memories, errors };
 }
 
-module.exports = { encodeProjectDir, parseMemory, detectDanglingClusters, findUncoveredBugFiles, scanMemoryDir };
+module.exports = { encodeProjectDir, parseCaravan, detectDanglingClusters, findUncoveredBugFiles, scanCaravanDir };

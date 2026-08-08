@@ -846,21 +846,21 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
 // 検出のみで自動書き込みはしない(メモリ領域は保護領域)。
 {
   try {
-    const { encodeProjectDir, detectDanglingClusters, findUncoveredBugFiles, scanMemoryDir } = require('./recurrence.cjs');
-    const memoryDir = process.env.ANYTIME_MEMORY_DIR
+    const { encodeProjectDir, detectDanglingClusters, findUncoveredBugFiles, scanCaravanDir } = require('./recurrence.cjs');
+    const caravanDir = process.env.ANYTIME_MEMORY_DIR
       || path.join(os.homedir(), '.claude', 'projects', encodeProjectDir(process.cwd()), 'memory');
-    const { available, memories, errors } = scanMemoryDir(memoryDir);
+    const { available, memories, errors } = scanCaravanDir(caravanDir);
     snapshot.errors.push(...(errors ?? []));
     // dir 不在は測定不能 null(0 と区別し「候補なし」と誤読させない。skillHealth の brokenRefs と同原則)
     snapshot.recurrence = available
       ? {
-          memoryDir,
-          memoryCount: memories.length,
-          feedbackMemoryCount: memories.filter((m) => m.type === 'feedback').length,
+          caravanDir,
+          caravanCount: memories.length,
+          feedbackCaravanCount: memories.filter((m) => m.type === 'feedback').length,
           danglingClusters: detectDanglingClusters(memories).slice(0, 8),
           uncoveredBugFiles: findUncoveredBugFiles((snapshot.quality ?? {}).topBugFiles, memories).slice(0, 8),
         }
-      : { memoryDir, memoryCount: null, feedbackMemoryCount: null, danglingClusters: null, uncoveredBugFiles: null };
+      : { caravanDir, caravanCount: null, feedbackCaravanCount: null, danglingClusters: null, uncoveredBugFiles: null };
   } catch (e) {
     snapshot.errors.push(`recurrence scan failed: ${e.message}`);
   }

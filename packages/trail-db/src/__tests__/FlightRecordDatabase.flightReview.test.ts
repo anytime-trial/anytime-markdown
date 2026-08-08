@@ -5,9 +5,9 @@ import type { FlightRecordDatabase } from '../FlightRecordDatabase';
 const TS = '2026-07-17T10:00:00.000Z';
 
 // caravan_flight_reviews は caravan-book.db 側（FlightRecordDatabase が主接続として持つ）にあるため、
-// 生 SQL による直接検証は ctx.memoryRun で流す。
+// 生 SQL による直接検証は ctx.caravanRun で流す。
 function rawRun(ctx: FlightRecordTestContext, sql: string): void {
-  ctx.memoryRun(sql);
+  ctx.caravanRun(sql);
 }
 
 function machineInput(overrides: Partial<Parameters<FlightRecordDatabase['upsertFlightReviewFromMachine']>[0]> = {}) {

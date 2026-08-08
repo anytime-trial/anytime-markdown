@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { listReviewTargetHints, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import { listReviewTargetHints, openCaravanBookDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
 import type { ReviewTargetHint } from '@anytime-markdown/trail-caravan-book/query';
-import { resolveMemoryDbPath } from '../dbPath';
+import { resolveCaravanDbPath } from '../dbPath';
 
 export const ListReviewTargetHintsInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -12,7 +12,7 @@ export const ListReviewTargetHintsInputSchema = z.object({
 export type ListReviewTargetHintsInput = z.infer<typeof ListReviewTargetHintsInputSchema>;
 
 export async function handleListReviewTargetHints(input: ListReviewTargetHintsInput): Promise<ReviewTargetHint[]> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
+  const memHandle = await openCaravanBookDb(resolveCaravanDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return listReviewTargetHints({ db: memHandle.db, ...input, logger });

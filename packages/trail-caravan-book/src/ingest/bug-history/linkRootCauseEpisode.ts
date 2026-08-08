@@ -1,12 +1,12 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanDbConnection } from '../../db/connection/types';
+import type { CaravanLogger } from '../../logger';
 
 export interface LinkRootCauseInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   bugFixId: string;
   sessionId: string | null;
   committedAt: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }
 
 export interface LinkRootCauseResult {

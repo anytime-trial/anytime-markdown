@@ -88,7 +88,7 @@ const MINIMAL_CFG = {
   ollamaBaseUrl: 'http://localhost:11434',
   importAllStatusFilePath: '/tmp/import-status.json',
   pipelineStatusFilePath: '/tmp/pipeline-status.json',
-  memoryCore: null,
+  caravanBook: null,
 };
 
 /**
@@ -223,7 +223,7 @@ describe('trailDaemonEntry.dispatch — Wave 1/2/4 実行台帳の配線', () =>
     await dispatch('configure', CFG);
     await dispatch('startHttpServer', {
       ...MINIMAL_HTTP_OPTS,
-      memoryDbPath: join(dir, 'caravan-book.db'),
+      caravanDbPath: join(dir, 'caravan-book.db'),
       logService: { nativeBinding: BETTER_SQLITE3_BINDING },
     });
     expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(true);
@@ -242,7 +242,7 @@ describe('trailDaemonEntry.dispatch — Wave 1/2/4 実行台帳の配線', () =>
     await dispatch('configure', CFG);
     await dispatch('startHttpServer', {
       ...MINIMAL_HTTP_OPTS,
-      memoryDbPath: join(dir, 'caravan-book.db'),
+      caravanDbPath: join(dir, 'caravan-book.db'),
       logService: { nativeBinding: BETTER_SQLITE3_BINDING },
     });
     expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(true);

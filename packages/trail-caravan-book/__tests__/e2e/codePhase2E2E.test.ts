@@ -13,14 +13,14 @@
  */
 
 import * as fs from 'fs';
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import * as os from 'os';
 import * as path from 'path';
 // sql.js removed
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
 import { noopLogger } from '../../src/logger';
-import type { MemoryCoreDb } from '../../src/db/connection';
+import type { CaravanBookDb } from '../../src/db/connection';
 // runCodeIncremental は typescript 依存を撤去し activity_current_graphs（生 TrailGraph）から読むため、
 // E2E では analyze-child の役割を実 analyzeWithProgram で再現して activity_current_graphs をシードする。
 import { analyzeWithProgram } from '@anytime-markdown/trail-activity/analyze';
@@ -36,8 +36,8 @@ const TS_GLOB_NO_MS = '[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-
  *   - activity_session_commits with one commit containing "Rationale:" in the body
  *   - activity_current_code_graphs with one row for the given repoName
  */
-function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(repoName: string): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
 
   // sessions table (FK target for activity_session_commits)
@@ -146,7 +146,7 @@ function makeTrailDb(repoName: string): BetterSqlite3MemoryDb {
  *   - test-pkg-a: src/a/index.ts, src/a/utils.ts, src/a/types.ts
  *   - test-pkg-b: src/b/service.ts, src/b/helper.ts
  */
-function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string): void {
+function insertCodeGraph(trailDb: BetterSqlite3CaravanDb, repoName: string): void {
   const generatedAt = '2026-01-15T12:00:00.000Z';
   const graphJson = JSON.stringify({
     generatedAt,
@@ -230,7 +230,7 @@ function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string): void
  * analyze-child の役割（生 TrailGraph を activity_current_graphs に保存）を実 analyzeWithProgram で再現する。
  * runCodeIncremental は activity_current_graphs から graph を読んで ingestAstFacts に渡す。
  */
-function seedCurrentGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, tsconfigPath: string): void {
+function seedCurrentGraph(trailDb: BetterSqlite3CaravanDb, repoName: string, tsconfigPath: string): void {
   const { graph } = analyzeWithProgram({ tsconfigPath });
   const repoId = trailRepoId(trailDb, repoName);
   const analyzedAt = '2026-01-15T12:00:00.000Z';
@@ -242,7 +242,7 @@ function seedCurrentGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, tsco
 }
 
 /** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
-function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
+function trailRepoId(trailDb: BetterSqlite3CaravanDb, repoName: string): number {
   trailDb.run(
     `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
     [repoName, '2026-01-15T00:00:00.000Z']
@@ -257,8 +257,8 @@ function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
 }
 
 /** Opens an in-memory trail-caravan-book DB with Phase 1+2 migrations applied. */
-async function makeMemoryDb(): Promise<MemoryCoreDb> {
-  const rawDb = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<CaravanBookDb> {
+  const rawDb = BetterSqlite3CaravanDb.openInCaravan();
   rawDb.run('PRAGMA foreign_keys = ON');
 
   const { runMigrations } = await import('../../src/db/migrations/runner');
@@ -392,7 +392,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       const tsconfigPath = createTsFixture(tmpDir);
       const gitRoot = tmpDir; // no real git, commitSha will be null
 
-      const memDb = await makeMemoryDb();
+      const memDb = await makeCaravanDb();
       const trailDb = makeTrailDb(repoName);
       insertCodeGraph(trailDb, repoName);
       seedCurrentGraph(trailDb, repoName, tsconfigPath);
@@ -506,13 +506,13 @@ describe('E2E Phase 2: runCodeIncremental', () => {
     10000 // generous budget; pipeline itself must finish < 5s (asserted inside)
   );
 
-  // ── CP2: acceptance — search_memory('bar') → File entity + relates_to edge ─
+  // ── CP2: acceptance — search_caravan_book('bar') → File entity + relates_to edge ─
   /**
    * Scenario CP2 – §acceptance: searching for 'utils' after pipeline run
    * must surface the File entity for src/a/utils.ts and the Package→relates_to→File
    * edge sourced from 'code'.
    *
-   * searchMemory requires embeddings; File entities from Phase 2 don't have
+   * searchCaravanBook requires embeddings; File entities from Phase 2 don't have
    * embeddings (LLM not used), so the embedding similarity step returns nothing.
    * Instead we verify directly in the DB that:
    *   - A File entity with canonical_name containing 'utils' exists
@@ -528,7 +528,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       const tsconfigPath = createTsFixture(tmpDir);
       const gitRoot = tmpDir;
 
-      const memDb = await makeMemoryDb();
+      const memDb = await makeCaravanDb();
       const trailDb = makeTrailDb(repoName);
       insertCodeGraph(trailDb, repoName);
       seedCurrentGraph(trailDb, repoName, tsconfigPath);
@@ -583,7 +583,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
       const tsconfigPath = createTsFixture(tmpDir);
       const gitRoot = tmpDir;
 
-      const memDb = await makeMemoryDb();
+      const memDb = await makeCaravanDb();
       // Trail DB without any activity_current_code_graphs rows
       const trailDb2 = makeTrailDb('other-repo'); // different repo, no graph
       // Don't insertCodeGraph for repoName

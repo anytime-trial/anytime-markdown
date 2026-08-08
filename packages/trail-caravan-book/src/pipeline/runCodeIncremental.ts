@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { describeError, PipelineRunLedger } from './PipelineRunLedger';
 import { fromTrailGraph } from '../ingest/code/fromTrailGraph';
 import { ingestAstFacts, type AstFactInput } from '../ingest/code/astFunctionLevel';
 import { ingestDecisionComments, type DecisionCommentItem } from '../ingest/code/extractComments';
 import { extractCommitRationale } from '../ingest/code/extractCommitRationale';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 // typescript / analyzeWithProgram への依存は撤去。code graph は trail-db の activity_current_graphs、
 // decision comment は trail-db の activity_code_decision_comments（analyze-child が永続化）から読む。
 
@@ -23,7 +23,7 @@ export interface CodeIncrementalResult {
   current_entity_ids: Set<string>;
 }
 
-function readPipelineState(db: MemoryDbConnection): { last_processed_at: string } {
+function readPipelineState(db: CaravanDbConnection): { last_processed_at: string } {
   const stmt = db.prepare(
     `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`
   );
@@ -37,7 +37,7 @@ function readPipelineState(db: MemoryDbConnection): { last_processed_at: string 
 }
 
 function upsertPipelineState(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: { status: string; last_processed_at?: string; error_detail?: string }
 ): void {
   const { status, last_processed_at, error_detail } = opts;
@@ -68,11 +68,11 @@ function upsertPipelineState(
  * The trail DB must already be ATTACHed as "trail" on `db`.
  */
 export async function runCodeIncremental(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   repoName: string;
   tsconfigPath: string;
   gitRoot: string;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
 }): Promise<CodeIncrementalResult> {
   // tsconfigPath は opts に残すが本処理では未使用（TS 再解析を撤去したため）。
   const { db, repoName, gitRoot } = opts;
@@ -189,7 +189,7 @@ export async function runCodeIncremental(opts: {
 
   // ── 8. ingestDecisionComments（trail.activity_code_decision_comments を読む）─────────
   // decision comment の AST 走査は analyze-child へ移設済み。ここでは抽出済みデータを
-  // trail-db から読み memory DB へ ingest するのみ（typescript 非依存）。
+  // trail-db から読み caravan-book DB へ ingest するのみ（typescript 非依存）。
   try {
     const cStmt = db.prepare(
       `SELECT c.file_path, c.line, c.comment_text, c.symbol_name

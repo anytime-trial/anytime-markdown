@@ -1,12 +1,12 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { detectRecurringQuestions } from '../../src/drift/recurringQuestions';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
-const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
+const silentLogger: CaravanLogger = { info: () => {}, error: () => {} };
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -24,7 +24,7 @@ function makeEmbedding(values: [number, number, number, number]): Uint8Array {
 }
 
 function insertQuestion(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   opts: {
     id?: string;
     embedding: Uint8Array;

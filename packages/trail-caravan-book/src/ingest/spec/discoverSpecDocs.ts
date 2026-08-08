@@ -1,15 +1,15 @@
 import { closeSync, fstatSync, openSync, readdirSync, readSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
-import type { MemoryDbConnection } from '../../db/connection/types';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanDbConnection } from '../../db/connection/types';
+import type { CaravanLogger } from '../../logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DiscoverInput {
   specRoot: string;
-  db: MemoryDbConnection;
-  logger: MemoryLogger;
+  db: CaravanDbConnection;
+  logger: CaravanLogger;
 }
 
 export interface ChangedSpec {
@@ -21,7 +21,7 @@ export interface ChangedSpec {
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
-// memory ingestion 対象外のサブツリー (frontmatter type enum に無いカテゴリ)
+// caravan-book ingestion 対象外のサブツリー (frontmatter type enum に無いカテゴリ)
 const EXCLUDED_DIR_PREFIXES = ['90.skill/'];
 
 // ── File reading helper ───────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ const EXCLUDED_DIR_PREFIXES = ['90.skill/'];
  * TOCTOU race (stat-then-open). Returns null if the file should be skipped
  * (too large, unreadable, etc.).
  */
-function readFileContent(abs_path: string, logger: MemoryLogger): Buffer | null {
+function readFileContent(abs_path: string, logger: CaravanLogger): Buffer | null {
   let fd: number | null = null;
   try {
     try {

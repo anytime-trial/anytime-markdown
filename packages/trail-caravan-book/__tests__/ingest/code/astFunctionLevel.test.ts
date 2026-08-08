@@ -1,9 +1,9 @@
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { ingestAstFacts } from '../../../src/ingest/code/astFunctionLevel';
 import { entityId } from '../../../src/canonical/entityId';
 import { canonicalize } from '../../../src/canonical/canonicalize';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanLogger } from '../../../src/logger';
 
 // ── Types mirrored from TrailGraph ───────────────────────────────────────────
 
@@ -34,29 +34,29 @@ const RECORDED_AT = '2026-01-01T00:00:00.000Z';
 const COMMIT_SHA = 'abc123def456';
 const REPO = 'test-repo';
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
 
-async function makeDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function countFacts(db: BetterSqlite3MemoryDb): number {
+function countFacts(db: BetterSqlite3CaravanDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM caravan_code_facts`);
   return result[0]?.values[0][0] as number;
 }
 
-function countEdges(db: BetterSqlite3MemoryDb): number {
+function countEdges(db: BetterSqlite3CaravanDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
   return result[0]?.values[0][0] as number;
 }
 
-function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
+function countEntities(db: BetterSqlite3CaravanDb, type: string): number {
   const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_entities WHERE type = ?`);
   try {
     const row = stmt.get(type);

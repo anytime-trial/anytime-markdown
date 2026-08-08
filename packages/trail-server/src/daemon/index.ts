@@ -2,7 +2,7 @@
 //
 // extension (拡張ホスト) はこの subpath から TrailDaemonHost / AnalyzeAllRunnerClient /
 // TrailDaemonHttpClient とシリアライズ型のみを import する。typescript を引く実装
-// (MemoryCoreService / AnalyzeAllRunner) は daemon 内 (`trailDaemonEntry.ts` 経由でのみロード)
+// (CaravanBookService / AnalyzeAllRunner) は daemon 内 (`trailDaemonEntry.ts` 経由でのみロード)
 // に閉じこめる。
 
 export { TrailDaemonHost } from './TrailDaemonHost';
@@ -21,7 +21,7 @@ export type {
   RunReason,
   SerializableAnalyzeAllConfig,
   SerializableGitHubPrReviewConfig,
-  SerializableMemoryCoreConfig,
+  SerializableCaravanBookConfig,
   SerializableHttpServerOptions,
   SerializableChatBridgeConfig,
   SerializableLogServiceConfig,

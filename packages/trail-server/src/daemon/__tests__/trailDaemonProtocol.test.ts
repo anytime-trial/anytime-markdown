@@ -22,7 +22,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
         ollamaBaseUrl: 'http://l',
         importAllStatusFilePath: '/i',
         pipelineStatusFilePath: '/p',
-        memoryCore: null,
+        caravanBook: null,
       },
     };
     expect(JSON.parse(JSON.stringify(msg))).toEqual(msg);
@@ -137,7 +137,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
       distPath: '/ext/dist',
       trailDbPath: '/workspace/my-repo/.anytime/trail/db/activity.db',
       gitRoot: '/workspace/my-repo',
-      memoryDbPath: '/home/user/.anytime/memory.db',
+      caravanDbPath: '/home/user/.anytime/memory.db',
       preferredPort: 19841,
       pythonWasmPath: '/ext/dist/wasm/tree-sitter-python.wasm',
       configPaths: {
@@ -173,7 +173,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
     expect(roundTripped).toEqual(msg);
     // optional フィールドは JSON に現れない。
     expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('gitRoot');
-    expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('memoryDbPath');
+    expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('caravanDbPath');
     expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('preferredPort');
     expect((roundTripped.params as Record<string, unknown>)).not.toHaveProperty('pythonWasmPath');
   });
@@ -306,8 +306,8 @@ describe('trailDaemonProtocol JSON round-trip', () => {
         distPath: '/ext/dist',
         trailDbPath: '/ext/dist/activity.db',
         chatBridge: {
-          memoryDbPath: '/home/user/.anytime/memory.db',
-          memoryNativeBinding: '/ext/dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+          caravanDbPath: '/home/user/.anytime/memory.db',
+          caravanNativeBinding: '/ext/dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
           staticConfig: {
             baseUrl: 'http://localhost:11434',
             chatModel: 'llama3',
@@ -348,7 +348,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
         distPath: '/ext/dist',
         trailDbPath: '/ext/dist/activity.db',
         rebuildScheduler: {
-          memoryDbPath: '/home/user/.anytime/memory.db',
+          caravanDbPath: '/home/user/.anytime/memory.db',
           intervalMs: 3_600_000,
         },
       } satisfies SerializableHttpServerOptions,

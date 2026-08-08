@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { discoverChangedSpecs } from '../../../src/ingest/spec/discoverSpecDocs';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanLogger } from '../../../src/logger';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
@@ -11,7 +11,7 @@ function sha1(content: string | Buffer): string {
   return createHash('sha1').update(content).digest('hex');
 }
 
-function makeLogger(): MemoryLogger & { warns: string[]; infos: string[] } {
+function makeLogger(): CaravanLogger & { warns: string[]; infos: string[] } {
   const warns: string[] = [];
   const infos: string[] = [];
   return {
@@ -24,7 +24,7 @@ function makeLogger(): MemoryLogger & { warns: string[]; infos: string[] } {
 }
 
 /**
- * Make a minimal MemoryDbConnection mock.
+ * Make a minimal CaravanDbConnection mock.
  * rowResult: null means no row found; string means existing source_hash.
  */
 function makeDb(rowResult: string | null): {

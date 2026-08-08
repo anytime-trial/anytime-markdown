@@ -1,4 +1,4 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 
 export function aliasesJsonToText(aliasesJson: string | null | undefined): string {
   if (!aliasesJson) return '';
@@ -11,14 +11,14 @@ export function aliasesJsonToText(aliasesJson: string | null | undefined): strin
   }
 }
 
-function getRowid(conn: MemoryDbConnection, table: string, id: string): number | null {
+function getRowid(conn: CaravanDbConnection, table: string, id: string): number | null {
   const r = conn.exec(`SELECT rowid FROM ${table} WHERE id = ?`, [id]);
   const row = r[0]?.values[0];
   if (!row) return null;
   return row[0] as number;
 }
 
-export function upsertEntityFts(conn: MemoryDbConnection, entityId: string): void {
+export function upsertEntityFts(conn: CaravanDbConnection, entityId: string): void {
   const r = conn.exec(
     `SELECT rowid, display_name, summary, aliases_json
      FROM caravan_entities WHERE id = ?`,
@@ -40,13 +40,13 @@ export function upsertEntityFts(conn: MemoryDbConnection, entityId: string): voi
   );
 }
 
-export function deleteEntityFts(conn: MemoryDbConnection, entityId: string): void {
+export function deleteEntityFts(conn: CaravanDbConnection, entityId: string): void {
   const rowid = getRowid(conn, 'caravan_entities', entityId);
   if (rowid === null) return;
   conn.run(`DELETE FROM caravan_entities_fts WHERE rowid = ?`, [rowid]);
 }
 
-export function upsertEpisodeFts(conn: MemoryDbConnection, episodeId: string): void {
+export function upsertEpisodeFts(conn: CaravanDbConnection, episodeId: string): void {
   const r = conn.exec(
     `SELECT rowid, raw_excerpt FROM caravan_episodes WHERE id = ?`,
     [episodeId],
@@ -61,13 +61,13 @@ export function upsertEpisodeFts(conn: MemoryDbConnection, episodeId: string): v
   );
 }
 
-export function deleteEpisodeFts(conn: MemoryDbConnection, episodeId: string): void {
+export function deleteEpisodeFts(conn: CaravanDbConnection, episodeId: string): void {
   const rowid = getRowid(conn, 'caravan_episodes', episodeId);
   if (rowid === null) return;
   conn.run(`DELETE FROM caravan_episodes_fts WHERE rowid = ?`, [rowid]);
 }
 
-export function upsertDriftFts(conn: MemoryDbConnection, driftId: string): void {
+export function upsertDriftFts(conn: CaravanDbConnection, driftId: string): void {
   const r = conn.exec(
     `SELECT rowid, predicate, conversation_value, spec_value, code_value, resolution_note
      FROM caravan_drift_events WHERE id = ?`,
@@ -92,7 +92,7 @@ export function upsertDriftFts(conn: MemoryDbConnection, driftId: string): void 
   );
 }
 
-export function deleteDriftFts(conn: MemoryDbConnection, driftId: string): void {
+export function deleteDriftFts(conn: CaravanDbConnection, driftId: string): void {
   const rowid = getRowid(conn, 'caravan_drift_events', driftId);
   if (rowid === null) return;
   conn.run(`DELETE FROM caravan_drift_events_fts WHERE rowid = ?`, [rowid]);

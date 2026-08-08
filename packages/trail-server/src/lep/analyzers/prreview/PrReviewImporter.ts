@@ -4,7 +4,7 @@ import type {
   AnalyzerEvent,
 } from '@anytime-markdown/trail-caravan-book';
 
-import { buildPrReviewSourceRef } from './prReviewMemorySource';
+import { buildPrReviewSourceRef } from './prReviewCaravanSource';
 
 /** PrReviewImporter が caravan-book.db に必要とする最小データソース (テストで fake 注入)。 */
 export interface PrReviewImporterDataSource {
@@ -16,7 +16,7 @@ export interface PrReviewImporterDataSource {
 }
 
 export interface PrReviewImporterOptions {
-  readonly memoryDb: PrReviewImporterDataSource;
+  readonly caravanDb: PrReviewImporterDataSource;
 }
 
 /**
@@ -62,7 +62,7 @@ export class PrReviewImporter implements Analyzer {
     try {
       const repoName = e.repo.includes('/') ? (e.repo.split('/').pop() ?? e.repo) : e.repo;
       const sourceRef = buildPrReviewSourceRef(repoName, e.prNumber, e.reviewId);
-      const existing = this.opts.memoryDb.getReviewSourceHash(sourceRef);
+      const existing = this.opts.caravanDb.getReviewSourceHash(sourceRef);
       if (existing !== null && existing === e.bodyHash) {
         this.skipped += 1;
         return; // 未変更 → 冪等 skip (finding 再抽出も走らない)

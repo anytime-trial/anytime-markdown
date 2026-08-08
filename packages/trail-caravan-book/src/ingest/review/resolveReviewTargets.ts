@@ -11,16 +11,16 @@
  *
  * どちらの関数も「解決できたものだけ埋める」。推測で埋めない。
  */
-import type { MemoryDbConnection } from '../../db/connection/types';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanDbConnection } from '../../db/connection/types';
+import type { CaravanLogger } from '../../logger';
 import { normalizeTargetPath } from './normalizeTargetPath';
 import { resolveTargetRepo } from './resolveTargetRepo';
 
 /**
- * MemoryLogger の `warn` は optional なので、未実装なら `info` へ落とす。
+ * CaravanLogger の `warn` は optional なので、未実装なら `info` へ落とす。
  * `logger.warn?.(...)` だと未実装環境で警告が黙って消える（silent catch と同じ害）。
  */
-function warn(logger: MemoryLogger, message: string): void {
+function warn(logger: CaravanLogger, message: string): void {
   if (logger.warn) logger.warn(message);
   else logger.info(message);
 }
@@ -57,8 +57,8 @@ export interface ResolveReviewTargetsResult {
  * 取込処理が自分の書いた行に対してだけ workspace を設定する。
  */
 export function resolveReviewWorkspaces(
-  db: MemoryDbConnection,
-  logger: MemoryLogger,
+  db: CaravanDbConnection,
+  logger: CaravanLogger,
 ): { filled: number; failures: number } {
   let filled = 0;
   let failures = 0;
@@ -121,8 +121,8 @@ interface PendingFinding {
  * linkPrecedesBugs / review_unfixed 検知）が永久に空振りし続けるため。
  */
 export function resolveFindingTargets(
-  db: MemoryDbConnection,
-  logger: MemoryLogger,
+  db: CaravanDbConnection,
+  logger: CaravanLogger,
 ): Pick<
   ResolveReviewTargetsResult,
   'targetsResolved' | 'pathsNormalized' | 'pathsRejected' | 'failures'
@@ -205,8 +205,8 @@ export function resolveFindingTargets(
 
 /** ワークスペース解決 → 対象リポジトリ解決をまとめて実行する。 */
 export function resolveReviewTargets(input: {
-  db: MemoryDbConnection;
-  logger: MemoryLogger;
+  db: CaravanDbConnection;
+  logger: CaravanLogger;
 }): ResolveReviewTargetsResult {
   const { db, logger } = input;
   const workspaces = resolveReviewWorkspaces(db, logger);

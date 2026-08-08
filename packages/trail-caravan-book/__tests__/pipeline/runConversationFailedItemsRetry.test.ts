@@ -1,20 +1,20 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationFailedItemsRetry } from '../../src/pipeline/runConversationFailedItemsRetry';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE activity_messages (
@@ -30,12 +30,12 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
   return trailDb;
 }
 
-function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3CaravanDb, id: string): void {
   trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -51,7 +51,7 @@ function insertMessage(
 }
 
 function insertSidechainMessage(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -67,7 +67,7 @@ function insertSidechainMessage(
 }
 
 function insertFailedItem(
-  memDb: BetterSqlite3MemoryDb,
+  memDb: BetterSqlite3CaravanDb,
   scope: string,
   itemKey: string,
   attemptCount: number,
@@ -81,7 +81,7 @@ function insertFailedItem(
   );
 }
 
-function getFailedItem(memDb: BetterSqlite3MemoryDb, scope: string, itemKey: string): { attempt_count: number; reason: string } | null {
+function getFailedItem(memDb: BetterSqlite3CaravanDb, scope: string, itemKey: string): { attempt_count: number; reason: string } | null {
   const rows = memDb.exec(
     `SELECT attempt_count, reason FROM caravan_failed_items WHERE scope = ? AND item_key = ?`,
     [scope, itemKey]
@@ -91,7 +91,7 @@ function getFailedItem(memDb: BetterSqlite3MemoryDb, scope: string, itemKey: str
   return { attempt_count: row[0] as number, reason: row[1] as string };
 }
 
-const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
+const silentLogger: CaravanLogger = { info: () => {}, error: () => {} };
 
 function makeValidOllama(responseObj?: object) {
   const response = JSON.stringify(
@@ -124,7 +124,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F1: successful retry → persist + delete failed_items row ──────────────
   test('F1: successful retry persists facts and deletes the failed_items row', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // activity.db: 1 session with 1 user message
@@ -160,7 +160,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F2: extraction fails → attempt_count increments, row remains ──────────
   test('F2: extraction failure increments attempt_count and keeps the row', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_f2');
@@ -192,7 +192,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F3: items at or above maxAttempts are skipped entirely ─────────────────
   test('F3: items with attempt_count >= maxAttempts are not retried', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_f3');
@@ -230,7 +230,7 @@ describe('runConversationFailedItemsRetry', () => {
   test('F4b: sidechain 由来のキーは failed ではなく台帳削除で処理される', async () => {
     // 取込条件を狭めた（sidechain 除外）ため、過去の失敗キーは再構築できない。
     // これを失敗として数えると 3 件連続で quarantine に入り retry が止まる。
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess_sub');
     const ts = '2026-05-10T10:00:00.000Z';
@@ -268,7 +268,7 @@ describe('runConversationFailedItemsRetry', () => {
   test('F4c: 本文ゼロの user 行由来のキーは attempt_count を増やさず削除される', async () => {
     // 旧実装では後続 assistant の本文で episode 化されていたキーが、user 行のみ
     // 取り込む新実装では episode にならない。これは失敗ではなく取込対象外。
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess_empty');
     trailDb.run(
@@ -295,7 +295,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F4: episode missing from activity.db → recorded as episode_not_found ──────
   test('F4: missing activity.db episode is recorded as episode_not_found', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     // No session/message inserted — reconstruction will fail
     attachTrailDbFromHandle(memDb, trailDb);
@@ -324,7 +324,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F5: 3 consecutive failures triggers quarantine ────────────────────────
   test('F5: 3 consecutive extraction failures trigger quarantine', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     for (let i = 1; i <= 4; i++) {
@@ -357,7 +357,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F6: empty failed_items → success with zero counts ─────────────────────
   test('F6: empty failed_items returns success with zero counts', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     attachTrailDbFromHandle(memDb, trailDb);
 
@@ -382,7 +382,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F7: MEMORY_CORE_FAILED_RETRY_MAX env-var path ─────────────────────────
   test('F7: MEMORY_CORE_FAILED_RETRY_MAX env-var sets maxAttempts', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_env');
@@ -419,7 +419,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F8: MEMORY_CORE_FAILED_RETRY_MAX invalid value falls back to default ──
   test('F8: invalid MEMORY_CORE_FAILED_RETRY_MAX falls back to DEFAULT_MAX_ATTEMPTS=3', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_inv');
@@ -455,7 +455,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F9: MEMORY_CORE_EXTRACT_CONCURRENCY env-var ────────────────────────────
   test('F9: MEMORY_CORE_EXTRACT_CONCURRENCY env-var is parsed (valid number)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // 4 items — with concurrency=4 all processed in 1 batch
@@ -491,7 +491,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F10: save() callback fires at progress checkpoint ─────────────────────
   test('F10: save() callback fires every PROGRESS_LOG_INTERVAL (5) items', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // 6 items → PROGRESS_LOG_INTERVAL=5 fires once mid-run
@@ -524,7 +524,7 @@ describe('runConversationFailedItemsRetry', () => {
   // so conversation_incremental extraction_failed items were never reprocessed
   // and accumulated in caravan_failed_items forever.
   test('F12: conversation_incremental scope items are picked up and recovered', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_inc');
@@ -552,7 +552,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F13: both incremental and backfill scopes retried in one run ──────────
   test('F13: both conversation_incremental and conversation_backfill items are retried together', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess_both_i');
@@ -582,7 +582,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F14: empty sourceScopes is guarded (no invalid `scope IN ()` SQL) ─────
   test('F14: empty sourceScopes returns success with zero counts (no SQL error)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess_empty');
     insertMessage(trailDb, 'msg_empty', 'sess_empty', 'user', '2026-05-10T00:00:00.000Z', 'x');
@@ -607,7 +607,7 @@ describe('runConversationFailedItemsRetry', () => {
 
   // ── F11: malformed item_key (no colon) → episode_not_found ────────────────
   test('F11: malformed item_key with no colon → treated as episode_not_found', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     attachTrailDbFromHandle(memDb, trailDb);
 

@@ -43,11 +43,11 @@ import {
   type FindingStatus,
   type FindingStatusFilter,
 } from './flightReviewFindingsView';
-import { MemoryReader } from '../data/readers/MemoryReader';
-import type { MemoryBugHistoryRow } from '../data/types';
-import { mountBugHistoryPanel } from './memory/bugHistoryPanel';
+import { CaravanReader } from '../data/readers/CaravanReader';
+import type { CaravanBugHistoryRow } from '../data/types';
+import { mountBugHistoryPanel } from './caravan/bugHistoryPanel';
 import { buildFlightRecordCsv, downloadCsv } from '../data/flightReviewCsv';
-import { mountDriftSection, type DriftSectionProps } from './memory/driftSection';
+import { mountDriftSection, type DriftSectionProps } from './caravan/driftSection';
 import { formatDurationSeconds, mountRetrospectiveView, type RetrospectiveViewProps } from './retrospectiveView';
 import type { TrailThemeTokens } from '../theme/designTokens';
 import { applyThinScrollbar } from '../theme/thinScrollbar';
@@ -57,7 +57,7 @@ export interface FlightRecordPanelProps {
   readonly tokens: TrailThemeTokens;
   readonly t: (key: string) => string;
   /**
-   * trail-caravan-book の API 基点。Bug Fixed / Drift サブタブが `MemoryReader` を作るために要る。
+   * trail-caravan-book の API 基点。Bug Fixed / Drift サブタブが `CaravanReader` を作るために要る。
    * 空文字なら取りに行かず空状態を出す（押せない画面を出さない）。
    */
   readonly serverUrl: string;
@@ -455,7 +455,7 @@ export function mountFlightRecordPanel(
 
   // ── Bug Fixed サブタブの状態 ──
   // reader は serverUrl ごとに作り直す（接続先が変わったら前の接続の結果を混ぜない）。
-  let bugReader: MemoryReader | null = props.serverUrl === '' ? null : new MemoryReader(props.serverUrl);
+  let bugReader: CaravanReader | null = props.serverUrl === '' ? null : new CaravanReader(props.serverUrl);
   let bugPanelHandle: VanillaViewHandle<Parameters<typeof mountBugHistoryPanel>[1]> | null = null;
   /** 一覧を特定のバグ集合へ絞る（詳細ペイン・「同じ原因の過去バグ」からの遷移）。 */
   let pendingBugFilter: { bugEntityIds: readonly string[] } | null = null;
@@ -464,7 +464,7 @@ export function mountFlightRecordPanel(
 
   // ── 詳細ペインの Bug Fixed 節（選択中の指示が潰したバグ） ──
   /** 取得済みの行。null は「まだ引いていない」で、空配列（0 件）とは別の状態。 */
-  let detailBugs: readonly MemoryBugHistoryRow[] | null = null;
+  let detailBugs: readonly CaravanBugHistoryRow[] | null = null;
   let detailBugsFailed = false;
   /** 取得済みの対象キー。同じキーでは引き直さない（描画のたびの再取得を止める）。 */
   let detailBugsKey: string | null = null;
@@ -1446,7 +1446,7 @@ export function mountFlightRecordPanel(
       ensureStyle(container.ownerDocument, next.tokens);
       if (next.serverUrl !== prevServerUrl) {
         // 接続先が変わったら reader を作り直し、前の接続先で取った結果を捨てる
-        bugReader = next.serverUrl === '' ? null : new MemoryReader(next.serverUrl);
+        bugReader = next.serverUrl === '' ? null : new CaravanReader(next.serverUrl);
         detailBugs = null;
         detailBugsFailed = false;
         detailBugsKey = null;

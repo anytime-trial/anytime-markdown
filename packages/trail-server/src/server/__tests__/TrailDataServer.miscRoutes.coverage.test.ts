@@ -359,12 +359,12 @@ describe('TrailDataServer — notify methods (smoke)', () => {
 describe('decodePathParam', () => {
   it('decodes percent-encoded path params', async () => {
     const { decodePathParam } = await import('../TrailDataServer');
-    expect(decodePathParam('/api/memory/drift/events/drift%3Aentity%3Apkg', '/api/memory/drift/events/')).toBe('drift:entity:pkg');
+    expect(decodePathParam('/api/caravan/drift/events/drift%3Aentity%3Apkg', '/api/caravan/drift/events/')).toBe('drift:entity:pkg');
   });
 
   it('handles suffix stripping', async () => {
     const { decodePathParam } = await import('../TrailDataServer');
-    const result = decodePathParam('/api/memory/drift/events/my-id/resolve', '/api/memory/drift/events/', '/resolve');
+    const result = decodePathParam('/api/caravan/drift/events/my-id/resolve', '/api/caravan/drift/events/', '/resolve');
     expect(result).toBe('my-id');
   });
 });

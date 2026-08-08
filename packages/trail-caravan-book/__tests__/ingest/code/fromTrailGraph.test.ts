@@ -1,22 +1,22 @@
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { fromTrailGraph } from '../../../src/ingest/code/fromTrailGraph';
 import { entityId } from '../../../src/canonical/entityId';
 import { canonicalize } from '../../../src/canonical/canonicalize';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanLogger } from '../../../src/logger';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 const RECORDED_AT = '2026-01-01T00:00:00.000Z';
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
 
-async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -24,8 +24,8 @@ async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
 
 // Phase H-3: trail.activity_current_code_graphs から repo_name 列を撤去し repo_id PK にしたため、
 // fixture も repos + repo_id PK スキーマで作る。repo_name は repos 経由で JOIN 解決される。
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run(`
     CREATE TABLE activity_repos (
       repo_id    INTEGER PRIMARY KEY,
@@ -45,7 +45,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 /** repo_name から repo_id を取得する (未登録なら登録・冪等)。trail-db の repoIdForName 相当。 */
-function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
+function trailRepoId(trailDb: BetterSqlite3CaravanDb, repoName: string): number {
   trailDb.run(
     `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
     [repoName, RECORDED_AT]
@@ -73,7 +73,7 @@ interface MockNode {
 }
 
 function insertGraph(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   repoName: string,
   nodes: MockNode[]
 ): void {
@@ -108,7 +108,7 @@ function insertGraph(
   );
 }
 
-function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
+function countEntities(db: BetterSqlite3CaravanDb, type: string): number {
   // Use prepare/get because exec() with params is broken after
   // installTrailReadonlyGuard wraps db.exec (guard drops the params arg).
   const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_entities WHERE type = ?`);
@@ -120,7 +120,7 @@ function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
   }
 }
 
-function countEdges(db: BetterSqlite3MemoryDb): number {
+function countEdges(db: BetterSqlite3CaravanDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM caravan_edges`);
   return result[0]?.values[0][0] as number;
 }
@@ -130,7 +130,7 @@ function countEdges(db: BetterSqlite3MemoryDb): number {
 describe('fromTrailGraph', () => {
   // ── FTG-1: basic happy path ──────────────────────────────────────────────
   test('FTG-1: 3 code nodes across 2 packages → 2 Package + 3 File + 3 edges', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
@@ -163,7 +163,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-2: document nodes are excluded ───────────────────────────────────
   test('FTG-2: document nodes are excluded from Package/File entities', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
@@ -191,7 +191,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-3: idempotency — same graph inserted twice ────────────────────────
   test('FTG-3: running twice with same graph_json → entity/edge counts unchanged', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
@@ -234,7 +234,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-4: missing repo returns empty stats ───────────────────────────────
   test('FTG-4: repo_name not found → returns zero stats, no DB writes', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // Insert graph for a different repo
@@ -265,7 +265,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-5: entity IDs are deterministic ──────────────────────────────────
   test('FTG-5: Package entity ID matches entityId("Package", canonicalize(name))', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
@@ -303,7 +303,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-6: edge source_type = 'code' ─────────────────────────────────────
   test('FTG-6: edges have source_type = "code" and source_ref = "activity_current_code_graphs#<repo>"', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
@@ -334,7 +334,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-9: attributes_json populated correctly ────────────────────────────
   test('FTG-9: Package attributes_json has repo; File attributes_json has repo/package/label', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'my-repo', [
@@ -382,7 +382,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-10: valid_from uses graph.generatedAt ─────────────────────────────
   test('FTG-10: edges valid_from = graph.generatedAt when present and valid', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     const GENERATED_AT = '2025-12-01T08:00:00.000Z';
 
@@ -432,7 +432,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-7: all-document graph → zero entities ────────────────────────────
   test('FTG-7: graph with only document nodes → zero entities and edges', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'docs-repo', [
@@ -462,7 +462,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-8: multiple repos stored, only target repo is processed ───────────
   test('FTG-8: multiple repos in trail — only the requested repo is processed', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertGraph(trailDb, 'repo-a', [
@@ -499,7 +499,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-11: invalid graph_json → logger.error, returns zero stats ────────
   test('FTG-11: invalid JSON in graph_json → logger.error called, returns zero stats', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     trailDb.run(
@@ -511,7 +511,7 @@ describe('fromTrailGraph', () => {
     attachTrailDbFromHandle(memDb, trailDb);
 
     const errors: unknown[] = [];
-    const errLogger: MemoryLogger = {
+    const errLogger: CaravanLogger = {
       info: () => {},
       error: (_msg: string, err?: unknown) => { errors.push(err); },
     };
@@ -534,7 +534,7 @@ describe('fromTrailGraph', () => {
 
   // ── FTG-12: invalid generatedAt → fallback to recordedAt ─────────────────
   test('FTG-12: invalid generatedAt string → valid_from falls back to recordedAt', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     const graphJson = JSON.stringify({

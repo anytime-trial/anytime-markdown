@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { resolveOllamaBaseUrl } from '@anytime-markdown/agent-core';
-import { getMemoryCoreDbPath, getTrailHome, type LepStage } from '@anytime-markdown/trail-caravan-book';
+import { getCaravanBookDbPath, getTrailHome, type LepStage } from '@anytime-markdown/trail-caravan-book';
 import { checkArchitecturalAlignment } from '@anytime-markdown/trail-activity';
 import { seedAnalyzeExclude } from '@anytime-markdown/trail-activity/analyzeExclude';
 import {
@@ -24,7 +24,7 @@ import {
 	resolveGitHubSource,
 	resolveWorkspaceConfigPath,
 } from '@anytime-markdown/trail-server/config';
-// AnalyzeAllRunner / MemoryCoreService / TrailDataServer / CodeGraphService は
+// AnalyzeAllRunner / CaravanBookService / TrailDataServer / CodeGraphService は
 // trail-daemon child process が hosting する。
 // extension は各 IPC client (IPC proxy) 経由で操作し、typescript を引かない。
 import {
@@ -411,14 +411,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Phase 5 S3 (KB Persistence): Shrink Audit の警告を通知 + 復元導線へ配線
 	trailDb.setKbShrinkAlertHandler(notifyKbShrink);
 
-	// Anytime Memory output channel + native binding paths are needed by:
-	//   - MemoryCoreService (ingest pipeline ホスト)
+	// CaravanBook output channel + native binding paths are needed by:
+	//   - CaravanBookService (ingest pipeline ホスト)
 	//   - memory chat (ChatBridge / RebuildScheduler)
 	// なので拡張側の責務として早期に解決しておく。
-	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Anytime Memory');
+	const caravanBookOutputChannel = vscode.window.createOutputChannel('CaravanBook');
 	// パス構成の正本は trail-db の resolveBundledNativeBinding。実在しなければ undefined を配り、
 	// trail-caravan-book 側を better-sqlite3 の既定解決へ落とす（実在しないパスは open を必ず失敗させる）。
-	const memoryCoreNativeBinding = resolveBundledNativeBinding(extensionDistPath) ?? undefined;
+	const caravanBookNativeBinding = resolveBundledNativeBinding(extensionDistPath) ?? undefined;
 	trailDb.setIntegrityAlertHandler((alerts) => {
 		for (const a of alerts) {
 			TrailLogger.warn(
@@ -444,7 +444,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// --- 外部デーモン検出ここまで ---
 
 	const gitRoot = wsRootForDb;
-	const memoryDbPathForServer = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
+	const caravanDbPathForServer = wsRootForDb ? getCaravanBookDbPath(wsRootForDb) : undefined;
 
 	// TRAIL_HOME (trace dir 等の解決に使用)。
 	const trailHomeForConfig = wsRootForDb ? getTrailHome(wsRootForDb) : getTrailHome();
@@ -457,19 +457,19 @@ export async function activate(context: vscode.ExtensionContext) {
 	// ingest 生成モデルは env MEMORY_CORE_GEN_MODEL を最優先 (エスケープハッチ維持)。
 	const ingestGenModel = process.env['MEMORY_CORE_GEN_MODEL'] || lepOllama.models.chat;
 
-	// MemoryCoreService — ingest pipeline を周期実行する長寿命サービス。
+	// CaravanBookService — ingest pipeline を周期実行する長寿命サービス。
 	// useExternalDaemon=true かつ daemon が見つかった場合は二重実行防止のため
 	// 拡張側では起動しない (daemon が hosting する)。
 	// useExternalDaemon=true でも daemon 未検出時は fallback として拡張側で
 	// service を起動する (TrailPanel が local server URL を使うのと同じ paradigm)。
-	const hostMemoryCoreLocally = !(useExternalDaemon && externalDaemonInfo);
-	if (hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
-		// MemoryCoreService / ChatBridge / RebuildScheduler は trail-daemon child process が
+	const hostCaravanBookLocally = !(useExternalDaemon && externalDaemonInfo);
+	if (hostCaravanBookLocally && dbStorageDir && wsRootForDb) {
+		// CaravanBookService / ChatBridge / RebuildScheduler は trail-daemon child process が
 		// AnalyzeAllRunner と一体構築する (startHttpServer opts で設定を渡す)。
 		// extension 側ではここで instance を作らない (typescript を引かないため)。
-		TrailLogger.info('[MemoryCore] will be hosted by trail-daemon child process (orchestrated by AnalyzeAllRunner)');
+		TrailLogger.info('[CaravanBook] will be hosted by trail-daemon child process (orchestrated by AnalyzeAllRunner)');
 	} else if (useExternalDaemon && externalDaemonInfo) {
-		TrailLogger.info('[MemoryCore] hosted by external daemon, skipping local service');
+		TrailLogger.info('[CaravanBook] hosted by external daemon, skipping local service');
 	}
 
 	// TrailDaemonHttpClient — daemon 内の TrailDataServer を起動・操作する IPC プロキシ。
@@ -612,14 +612,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		// trail-daemon child process を spawn する。
 		// AnalyzeAllRunner + TrailDataServer + CodeGraphService + ChatBridge + LogService +
 		// RebuildScheduler はすべて daemon 内で構築する。extension 側は IPC client のみを使う。
-		if (!externalDaemonInfo && trailDb && hostMemoryCoreLocally && dbStorageDir && wsRootForDb) {
+		if (!externalDaemonInfo && trailDb && hostCaravanBookLocally && dbStorageDir && wsRootForDb) {
 			const daemonPath = path.join(extensionDistPath, 'trail-daemon.js');
 			trailDaemonHost = new TrailDaemonHost(daemonPath);
 			trailDaemonHost.start();
 
 			// IPC イベント: ログ・進捗・インポートフェーズ
 			trailDaemonHost.on('log', (p) => {
-				memoryCoreOutputChannel.appendLine(`[${p.level}] ${p.message}`);
+				caravanBookOutputChannel.appendLine(`[${p.level}] ${p.message}`);
 			});
 			trailDaemonHost.on('progress', (p) => TrailLogger.info(`[daemon] ${p.message}`));
 			trailDaemonHost.on('phase', (e) =>
@@ -650,15 +650,15 @@ export async function activate(context: vscode.ExtensionContext) {
 					codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
 					stage: lepStage,
 					ollamaBaseUrl: resolvedOllamaBaseUrl,
-					disabledMemoryAnalyzers: lepDisabledAnalyzers,
+					disabledCaravanAnalyzers: lepDisabledAnalyzers,
 					disabledAggregators: lepDisabledAnalyzers,
 					importAllStatusFilePath: path.join(dbStorageDir, 'importall-phase-status.json'),
 					pipelineStatusFilePath: path.join(dbStorageDir, 'pipeline-status.json'),
-					memoryCore: hostMemoryCoreLocally
+					caravanBook: hostCaravanBookLocally
 						? {
 								trailDbPath,
-								dbPath: getMemoryCoreDbPath(wsRootForDb),
-								nativeBinding: memoryCoreNativeBinding,
+								dbPath: getCaravanBookDbPath(wsRootForDb),
+								nativeBinding: caravanBookNativeBinding,
 								gitRoot: wsRootForDb,
 								backfillDays: lepConfig.memory.conversation.backfillDays,
 								llm: {
@@ -780,13 +780,13 @@ export async function activate(context: vscode.ExtensionContext) {
 					// activity.db パスを直接渡すことで stage='disabled' でも起動できる (上で導出した定数を共有)。
 					trailDbPath,
 					gitRoot: wsRootForDb,
-					memoryDbPath: memoryDbPathForServer,
+					caravanDbPath: caravanDbPathForServer,
 					preferredPort: trailPort,
 					pythonWasmPath: path.join(extensionDistPath, 'wasm', 'tree-sitter-python.wasm'),
-					chatBridge: memoryDbPathForServer
+					chatBridge: caravanDbPathForServer
 						? {
-								memoryDbPath: memoryDbPathForServer,
-								memoryNativeBinding: memoryCoreNativeBinding,
+								caravanDbPath: caravanDbPathForServer,
+								caravanNativeBinding: caravanBookNativeBinding,
 								staticConfig: {
 									baseUrl: resolvedOllamaBaseUrl,
 									chatModel: lepConfig.llm.providers.ollama.models.chat,
@@ -798,15 +798,15 @@ export async function activate(context: vscode.ExtensionContext) {
 								},
 							}
 						: undefined,
-					logService: memoryDbPathForServer
+					logService: caravanDbPathForServer
 						? {
-								nativeBinding: memoryCoreNativeBinding,
+								nativeBinding: caravanBookNativeBinding,
 							}
 						: undefined,
-					rebuildScheduler: memoryDbPathForServer
+					rebuildScheduler: caravanDbPathForServer
 						? {
-								memoryDbPath: memoryDbPathForServer,
-								memoryNativeBinding: memoryCoreNativeBinding,
+								caravanDbPath: caravanDbPathForServer,
+								caravanNativeBinding: caravanBookNativeBinding,
 								intervalMs: rebuildIntervalMin * 60 * 1000,
 							}
 						: undefined,
@@ -844,8 +844,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			// rebuildIndex コマンドを登録 (daemon IPC 経由で rebuildScheduler.runManual に相当する
 			// 機能は Phase 3-4 以降で追加予定。現時点は UI のみ登録し機能は no-op)。
 			context.subscriptions.push(
-				vscode.commands.registerCommand('anytime-trail.memory.rebuildIndex', () => {
-					void vscode.window.showInformationMessage('Memory index rebuild is managed by the trail-daemon process.');
+				vscode.commands.registerCommand('anytime-trail.caravanBook.rebuildIndex', () => {
+					void vscode.window.showInformationMessage('CaravanBook index rebuild is managed by the trail-daemon process.');
 				}),
 			);
 		} else if (externalDaemonInfo) {
@@ -1101,7 +1101,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Ollama ステータスパネルは vscode-agent-extension に移動済み (Phase 6/7)
 	// pipeline-status.json は DB と同じディレクトリ (${TRAIL_HOME}/db/) に置く。
-	// 書き手 (trail-caravan-book/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
+	// 書き手 (trail-caravan-book/defaultCaravanBookPipelineRunner.ts) が trailDbPath と
 	// 同じ dirname に出力するので、reader 側もそれに合わせる。
 	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
 	const dbFilePath = dbStorageDir ? path.join(dbStorageDir, 'activity.db') : undefined;
@@ -1110,11 +1110,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		: undefined;
 
 	// Pipelines パネル (backup / importAll 8 phases / trail-caravan-book pipelines)
-	const memoryDbFilePathForPanel = wsRootForDb ? getMemoryCoreDbPath(wsRootForDb) : undefined;
+	const caravanDbFilePathForPanel = wsRootForDb ? getCaravanBookDbPath(wsRootForDb) : undefined;
 	pipelineProvider = new PipelineProvider({
 		statusFilePath: pipelineStatusPath,
 		dbFilePath,
-		memoryDbFilePath: memoryDbFilePathForPanel,
+		caravanDbFilePath: caravanDbFilePathForPanel,
 		importAllStatusFilePath,
 	});
 	vscode.window.createTreeView('anytimeTrail.pipelines', {

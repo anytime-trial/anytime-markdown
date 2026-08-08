@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDbPath, resolveMemoryDbPath, resolveWorkspacePath } from '../dbPath';
-import { openMemoryDb, openTrailDb } from '../sqlite/openDb';
+import { resolveDbPath, resolveCaravanDbPath, resolveWorkspacePath } from '../dbPath';
+import { openCaravanDb, openTrailDb } from '../sqlite/openDb';
 import { listDoctrineJudgmentsBySession, type DoctrineJudgmentView } from '../sqlite/doctrineJudgments';
 import { summarizeGitDiff, type GitDiffSummary } from '../doctrine/gitDiffSummary';
 import { buildAcceptanceReview, type AcceptanceReview } from '../doctrine/acceptanceReview';
@@ -56,13 +56,13 @@ async function readJudgmentsForSession(
   workspacePath: string,
   sessionId: string,
 ): Promise<ReadonlyArray<DoctrineJudgmentView>> {
-  let memoryJudgments: ReadonlyArray<DoctrineJudgmentView> = [];
+  let caravanJudgments: ReadonlyArray<DoctrineJudgmentView> = [];
   try {
-    const memoryDbPath = resolveMemoryDbPath({ workspacePath });
-    const opened = await openMemoryDb(memoryDbPath, 'readonly');
+    const caravanDbPath = resolveCaravanDbPath({ workspacePath });
+    const opened = await openCaravanDb(caravanDbPath, 'readonly');
     try {
       // listDoctrineJudgmentsBySession はテーブル不在で空配列（読み取り専用の縮退耐性）
-      memoryJudgments = listDoctrineJudgmentsBySession(opened.db, sessionId);
+      caravanJudgments = listDoctrineJudgmentsBySession(opened.db, sessionId);
     } finally {
       opened.close();
     }
@@ -90,8 +90,8 @@ async function readJudgmentsForSession(
     );
   }
 
-  const seen = new Set(memoryJudgments.map((j) => j.subject));
-  return [...memoryJudgments, ...trailJudgments.filter((j) => !seen.has(j.subject))];
+  const seen = new Set(caravanJudgments.map((j) => j.subject));
+  return [...caravanJudgments, ...trailJudgments.filter((j) => !seen.has(j.subject))];
 }
 
 export async function handleGetAcceptanceReview(

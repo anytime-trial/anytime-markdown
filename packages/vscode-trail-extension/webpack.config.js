@@ -359,7 +359,7 @@ const analyzeChildConfig = {
 };
 
 /**
- * trail-daemon (trail-daemon.js)。MemoryCoreService + AnalyzeAllRunner を内部で
+ * trail-daemon (trail-daemon.js)。CaravanBookService + AnalyzeAllRunner を内部で
  * wire する長寿命 child process。extension は IPC client (TrailDaemonHost +
  * AnalyzeAllRunnerClient) でこの daemon を操作し、extension.js から typescript
  * を完全除去する設計 (plan: 20260528-trail-daemon-process-isolation)。

@@ -1,4 +1,4 @@
-import type { MemoryDbConnection, MemoryDbStatement } from '@anytime-markdown/trail-caravan-book';
+import type { CaravanDbConnection, CaravanDbStatement } from '@anytime-markdown/trail-caravan-book';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogSource = 'extension' | 'daemon';
@@ -16,10 +16,10 @@ export interface LogEntry {
 const HARD_LIMIT = 1_000_000;
 
 export class LogService {
-  private readonly insertStmt: MemoryDbStatement;
+  private readonly insertStmt: CaravanDbStatement;
 
   constructor(
-    private readonly db: MemoryDbConnection,
+    private readonly db: CaravanDbConnection,
     private readonly systemRunId: string,
   ) {
     this.insertStmt = this.db.prepare(`

@@ -1,8 +1,8 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../src/db/connection';
-import type { MemoryDbConnection } from '../../src/db/connection/types';
+import { openCaravanBookDb } from '../../src/db/connection';
+import type { CaravanDbConnection } from '../../src/db/connection/types';
 import {
   aliasesJsonToText,
   upsertEntityFts,
@@ -48,13 +48,13 @@ describe('aliasesJsonToText (pure function)', () => {
 
 describe('upsertEntityFts / deleteEntityFts', () => {
   const dbs: string[] = [];
-  let db: MemoryDbConnection;
+  let db: CaravanDbConnection;
   let close: () => void;
 
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    const opened = await openMemoryCoreDb(tmpDb);
+    const opened = await openCaravanBookDb(tmpDb);
     db = opened.db;
     close = opened.close;
     db.run(
@@ -122,13 +122,13 @@ describe('upsertEntityFts / deleteEntityFts', () => {
 
 describe('upsertEpisodeFts / deleteEpisodeFts', () => {
   const dbs: string[] = [];
-  let db: MemoryDbConnection;
+  let db: CaravanDbConnection;
   let close: () => void;
 
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    const opened = await openMemoryCoreDb(tmpDb);
+    const opened = await openCaravanBookDb(tmpDb);
     db = opened.db;
     close = opened.close;
     db.run(
@@ -167,13 +167,13 @@ describe('upsertEpisodeFts / deleteEpisodeFts', () => {
 
 describe('upsertDriftFts / deleteDriftFts', () => {
   const dbs: string[] = [];
-  let db: MemoryDbConnection;
+  let db: CaravanDbConnection;
   let close: () => void;
 
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    const opened = await openMemoryCoreDb(tmpDb);
+    const opened = await openCaravanBookDb(tmpDb);
     db = opened.db;
     close = opened.close;
     db.run(

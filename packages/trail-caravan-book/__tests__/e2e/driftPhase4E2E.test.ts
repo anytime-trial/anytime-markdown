@@ -8,14 +8,14 @@
  *   4. LLM calls = 0 (deterministic detection)
  */
 
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runDriftDetection } from '../../src/pipeline/runDriftDetection';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
-const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
+const silentLogger: CaravanLogger = { info: () => {}, error: () => {} };
 
-let db: BetterSqlite3MemoryDb;
+let db: BetterSqlite3CaravanDb;
 
 const NOW = new Date().toISOString().replace(/\.\d{3}Z$/, '.000Z');
 // 35 days ago — beyond the review_unfixed threshold (30 days)
@@ -36,7 +36,7 @@ function nextId(prefix: string): string {
   return `${prefix}-${++seq}`;
 }
 
-function insertEntity(d: BetterSqlite3MemoryDb, id: string, type = 'Package'): void {
+function insertEntity(d: BetterSqlite3CaravanDb, id: string, type = 'Package'): void {
   d.run(
     `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
@@ -46,7 +46,7 @@ function insertEntity(d: BetterSqlite3MemoryDb, id: string, type = 'Package'): v
 }
 
 function insertEdge(
-  d: BetterSqlite3MemoryDb,
+  d: BetterSqlite3CaravanDb,
   opts: {
     subject: string;
     predicate: string;
@@ -68,7 +68,7 @@ function insertEdge(
 }
 
 function insertBugFix(
-  d: BetterSqlite3MemoryDb,
+  d: BetterSqlite3CaravanDb,
   opts: {
     commitSha: string;
     bugEntityId: string;
@@ -89,7 +89,7 @@ function insertBugFix(
   );
 }
 
-function insertReview(d: BetterSqlite3MemoryDb): string {
+function insertReview(d: BetterSqlite3CaravanDb): string {
   const rid = nextId('rev');
   const rentId = nextId('rev-ent');
   insertEntity(d, rentId, 'Review');
@@ -103,7 +103,7 @@ function insertReview(d: BetterSqlite3MemoryDb): string {
 }
 
 function insertReviewFinding(
-  d: BetterSqlite3MemoryDb,
+  d: BetterSqlite3CaravanDb,
   opts: {
     reviewId: string;
     findingEntityId: string;
@@ -136,7 +136,7 @@ function makeEmbedding(values: [number, number, number, number]): Uint8Array {
 }
 
 function insertQuestion(
-  d: BetterSqlite3MemoryDb,
+  d: BetterSqlite3CaravanDb,
   opts: { embedding: Uint8Array; targetSpecPath: string; lastUpdatedAt?: string },
 ): void {
   const eid = nextId('q');
@@ -153,7 +153,7 @@ function insertQuestion(
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
 beforeAll(async () => {
-  db = BetterSqlite3MemoryDb.openInMemory();
+  db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
 

@@ -1,8 +1,8 @@
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { readMessagesSince } from '../../../src/ingest/conversation/readMessages';
 
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE activity_messages (
@@ -18,7 +18,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
   return trailDb;
 }
 
-function attachAsTrail(memDb: BetterSqlite3MemoryDb, trailDb: BetterSqlite3MemoryDb): void {
+function attachAsTrail(memDb: BetterSqlite3CaravanDb, trailDb: BetterSqlite3CaravanDb): void {
   // mkdtempSync で OS-secure な乱数ディレクトリを作成 (CodeQL `js/insecure-temporary-file`)
   const tempDir = require('node:fs').mkdtempSync(
     require('node:path').join(require('node:os').tmpdir(), 'readMessages-test-'),
@@ -28,12 +28,12 @@ function attachAsTrail(memDb: BetterSqlite3MemoryDb, trailDb: BetterSqlite3Memor
   memDb.attach(tempPath, 'trail', true);
 }
 
-function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3CaravanDb, id: string): void {
   trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertMsg(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   uuid: string,
   sessionId: string,
   type: 'user' | 'assistant' | 'system',
@@ -59,7 +59,7 @@ function insertMsg(
 
 describe('readMessagesSince', () => {
   test('returns empty when no messages match', () => {
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     attachAsTrail(memDb, trailDb);
     const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
@@ -67,7 +67,7 @@ describe('readMessagesSince', () => {
   });
 
   test('groups messages by session_id and orders by timestamp within session', () => {
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-a');
     insertSession(trailDb, 'sess-b');
@@ -89,7 +89,7 @@ describe('readMessagesSince', () => {
   });
 
   test('filters messages older than sinceISO', () => {
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-old');
     insertSession(trailDb, 'sess-new');
@@ -104,7 +104,7 @@ describe('readMessagesSince', () => {
 
   test('handles 100 sessions × 10 messages without materializing into a single Map', () => {
     // 10 件中 user は 5 件（偶数 index）。取込対象は user 行のみ。
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     for (let s = 0; s < 100; s++) {
       const sid = `sess-${String(s).padStart(3, '0')}`;
@@ -135,7 +135,7 @@ describe('readMessagesSince', () => {
     // iteration breaks this: a session whose UUID sorts first but contains
     // today's messages would jump maxTimestamp to today, causing backfill
     // resume to skip every older session via WHERE timestamp >= cursor.
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'zzz-newest');
     insertSession(trailDb, 'mmm-middle');
@@ -154,7 +154,7 @@ describe('readMessagesSince', () => {
   });
 
   test('chronological order survives even when older session has alphabetically-later UUID', () => {
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     // UUID 順と timestamp 順が真逆になるケース
     insertSession(trailDb, 'aaa-newest-uuid');
@@ -173,7 +173,7 @@ describe('readMessagesSince', () => {
   test('chronological order uses MIN timestamp per session (overlapping ranges)', () => {
     // 長期セッション A (MIN=4/20 MAX=5/15) と短期セッション B (MIN=4/21 MAX=4/22)
     // が混在しても、yield 順は MIN(timestamp) 昇順 → A, B。
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-A');
     insertSession(trailDb, 'sess-B');
@@ -190,7 +190,7 @@ describe('readMessagesSince', () => {
   test('取り込むのは user 行だけ（assistant / system は除外する）', () => {
     // エージェントの応答は最終的にコード・ドキュメント・コミットログへ落ちるため
     // 知識グラフへは取り込まない（2026-08-06 ユーザー判断）。
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-a');
     insertMsg(trailDb, 'u1', 'sess-a', 'user', '2026-05-10T10:00:00.000Z', 'これを直して');
@@ -206,7 +206,7 @@ describe('readMessagesSince', () => {
   });
 
   test('assistant 行しか無いセッションは yield しない', () => {
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-human');
     insertSession(trailDb, 'sess-agent-only');
@@ -219,7 +219,7 @@ describe('readMessagesSince', () => {
   });
 
   test('excludes every type other than user', () => {
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-mixed');
     insertMsg(trailDb, 'u1', 'sess-mixed', 'user', '2026-05-10T10:00:00.000Z', 'u');
@@ -240,7 +240,7 @@ describe('readMessagesSince', () => {
   test('excludes sidechain (subagent) messages from the same session', () => {
     // サブエージェントの往復はメインスレッドと同じ session_id を持ち、
     // is_sidechain=1 でのみ区別できる。知識グラフへはメインスレッドだけを入れる。
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-mixed');
     insertMsg(trailDb, 'main-u', 'sess-mixed', 'user', '2026-05-10T10:00:00.000Z', 'main question');
@@ -255,7 +255,7 @@ describe('readMessagesSince', () => {
   });
 
   test('drops a session that has only sidechain messages', () => {
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const memDb = BetterSqlite3CaravanDb.openInCaravan();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-main');
     insertSession(trailDb, 'sess-sub-only');

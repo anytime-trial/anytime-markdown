@@ -337,13 +337,13 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
  * 全 doctrine 系ツール共通の前処理: caravan-book.db 側にテーブルを冪等作成し、
  * activity.db に旧テーブルが残っていれば遅延移行する（各ツールが open 直後に呼ぶ）。
  */
-export function ensureAndMigrateDoctrineJudgments(db: Database, memoryDbPath: string): void {
+export function ensureAndMigrateDoctrineJudgments(db: Database, caravanDbPath: string): void {
   ensureDoctrineJudgmentsTable(db);
   // 移行は旧データ回収の副次目的であり、失敗（SQLITE_BUSY 等）が判断記録そのものを
   // 止めてはならない（CLAUDE.md D2 §4「記録失敗は承認フローを止めない」と同方針）。
   // 冪等なので次回呼び出しで再試行され、回収機会は失われない。
   try {
-    destructiveMigrateDoctrineJudgmentsFromTrailDb(db, path.join(path.dirname(memoryDbPath), 'activity.db'));
+    destructiveMigrateDoctrineJudgmentsFromTrailDb(db, path.join(path.dirname(caravanDbPath), 'activity.db'));
   } catch (err) {
     console.error(
       `[${new Date().toISOString()}] [ERROR] [mcp-trail] caravan_doctrine_judgments migration failed (records continue to caravan-book.db; will retry on next call)`,
@@ -730,11 +730,11 @@ export function fetchDoctrineAgreementRows(
  * memory 側優先 — 移設後の新規記録・マージ済みの人の判断が正のため。
  */
 export function mergeDoctrineAgreementRows(
-  memoryRows: readonly DoctrineAgreementRow[],
+  caravanRows: readonly DoctrineAgreementRow[],
   trailRows: readonly DoctrineAgreementRow[],
 ): DoctrineAgreementRow[] {
-  const seen = new Set(memoryRows.map((r) => `${r.session_id} ${r.subject}`));
-  const merged = [...memoryRows];
+  const seen = new Set(caravanRows.map((r) => `${r.session_id} ${r.subject}`));
+  const merged = [...caravanRows];
   for (const row of trailRows) {
     if (!seen.has(`${row.session_id} ${row.subject}`)) merged.push(row);
   }

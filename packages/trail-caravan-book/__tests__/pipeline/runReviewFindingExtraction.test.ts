@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runReviewFindingExtraction } from '../../src/pipeline/runReviewFindingExtraction';
 import { entityId } from '../../src/canonical/entityId';
@@ -22,14 +22,14 @@ const BODY = [
   '対象は packages/markdown-catalog/src/db/open.ts である。',
 ].join('\n');
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function insertReview(db: BetterSqlite3MemoryDb, id: string, bodyExcerpt: string): string {
+function insertReview(db: BetterSqlite3CaravanDb, id: string, bodyExcerpt: string): string {
   const reviewId = entityId('Review', id);
   db.run(
     `INSERT INTO caravan_entities

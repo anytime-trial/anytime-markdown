@@ -1,16 +1,16 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 import type { ReviewRunStatus } from './getReviewRunStatus';
 
 export function listReviewRuns(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   trigger_kind?: string;
   status?: string;
   target_kind?: string;
   model?: string;
   since?: string;
   limit?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): ReviewRunStatus[] {
   const { db, limit = 20, logger } = input;
 
@@ -41,7 +41,7 @@ export function listReviewRuns(input: {
 
   const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT id, trigger_kind, target_kind, target_refs_json, model, prompt_kind,

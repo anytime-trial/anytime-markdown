@@ -1,8 +1,8 @@
 import * as os from 'os';
-import type { MemoryDbConnection } from '../../../src/db/connection/types';
+import type { CaravanDbConnection } from '../../../src/db/connection/types';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import { EXPECTED_MIGRATION_COUNTS } from '../../../src/db/migrations/runner';
 
 function makeTmpDb(): string {
@@ -11,7 +11,7 @@ function makeTmpDb(): string {
 
 const TS = '2026-01-01T00:00:00.000Z';
 
-function insertEntity(db: MemoryDbConnection, id: string, canonicalName: string): void {
+function insertEntity(db: CaravanDbConnection, id: string, canonicalName: string): void {
   db.run(
     `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
@@ -21,7 +21,7 @@ function insertEntity(db: MemoryDbConnection, id: string, canonicalName: string)
 }
 
 function insertDriftEvent(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   id: string,
   entityId: string,
   driftType = 'spec_vs_code',
@@ -49,7 +49,7 @@ describe('Phase 4 migration (009_phase4)', () => {
   async function openFresh() {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    return openMemoryCoreDb(tmpDb);
+    return openCaravanBookDb(tmpDb);
   }
 
   // ── Table creation ──────────────────────────────────────────────────────────
@@ -69,11 +69,11 @@ describe('Phase 4 migration (009_phase4)', () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
 
-    const { save: save1, close: close1 } = await openMemoryCoreDb(tmpDb);
+    const { save: save1, close: close1 } = await openCaravanBookDb(tmpDb);
     save1();
     close1();
 
-    const { db: db2, close: close2 } = await openMemoryCoreDb(tmpDb);
+    const { db: db2, close: close2 } = await openCaravanBookDb(tmpDb);
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
     expect(EXPECTED_MIGRATION_COUNTS).toContain(count); // 件数は runner から導出（FTS5 非対応環境は 1 件少ない）

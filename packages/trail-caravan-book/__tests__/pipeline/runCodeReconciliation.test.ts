@@ -1,18 +1,18 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runCodeReconciliation } from '../../src/pipeline/runCodeReconciliation';
 
 const RECORDED_AT = '2026-05-12T00:00:00.000Z';
 
-async function makeDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
 function insertEntity(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   id: string,
   type: string,
   canon: string,

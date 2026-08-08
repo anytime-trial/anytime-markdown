@@ -1,6 +1,6 @@
-import type { MemoryDbConnection, SqlValue } from '../db/connection/types';
+import type { CaravanDbConnection, SqlValue } from '../db/connection/types';
 import { toUint8ArrayOrNull } from '../db/connection/blobUtil';
-import type { MemoryLogger } from '../logger';
+import type { CaravanLogger } from '../logger';
 import type { DriftEventInput } from './report';
 import { THRESHOLDS } from './policy';
 
@@ -76,11 +76,11 @@ function buildRecurringQuestionEvent(
 }
 
 export function detectRecurringQuestions(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   windowDays?: number;
   minCount?: number;
   cosineThreshold?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): DriftEventInput[] {
   const {
     db,
@@ -90,7 +90,7 @@ export function detectRecurringQuestions(input: {
     logger,
   } = input;
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT id, attributes_json, embedding

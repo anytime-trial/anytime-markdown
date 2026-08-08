@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { MemoryDbConnection, SqlValue } from '../db/connection/types';
-import { type MemoryLogger, noopLogger } from '../logger';
+import type { CaravanDbConnection, SqlValue } from '../db/connection/types';
+import { type CaravanLogger, noopLogger } from '../logger';
 
 /**
  * LEP の Wave 区分。`system` は analyzer に属さない daemon / 拡張本体の実行を指す。
@@ -22,13 +22,13 @@ export interface PipelineRunTotals {
 }
 
 export interface PipelineRunLedgerOptions {
-  readonly db: MemoryDbConnection;
+  readonly db: CaravanDbConnection;
   /** 実行単位の識別子。Wave 3 は既存 scope 名、他 Wave は analyzer id を使う。 */
   readonly scope: string;
   readonly wave: PipelineWave;
   /** LEP tier。`system` は analyzer 階層に属さないため 0。 */
   readonly tier: number;
-  readonly logger?: MemoryLogger;
+  readonly logger?: CaravanLogger;
 }
 
 const TOTAL_COLUMNS = [
@@ -70,11 +70,11 @@ export function describeError(err: unknown): string {
  * その解放は `pipelineWatchdog` が `last_heartbeat_at` を見て担う。
  */
 export class PipelineRunLedger {
-  private readonly db: MemoryDbConnection;
+  private readonly db: CaravanDbConnection;
   private readonly scope: string;
   private readonly wave: PipelineWave;
   private readonly tier: number;
-  private readonly logger: MemoryLogger;
+  private readonly logger: CaravanLogger;
 
   private currentRunId: string | null = null;
   private startedAt: string | null = null;

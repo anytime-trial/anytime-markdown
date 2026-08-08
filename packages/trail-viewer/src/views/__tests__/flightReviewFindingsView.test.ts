@@ -12,9 +12,9 @@ import {
   renderFindingTable,
   type FindingFilter,
 } from '../flightReviewFindingsView';
-import type { MemoryFlightReviewFindingRow } from '../../data/types';
+import type { CaravanFlightReviewFindingRow } from '../../data/types';
 
-function finding(overrides: Partial<MemoryFlightReviewFindingRow> = {}): MemoryFlightReviewFindingRow {
+function finding(overrides: Partial<CaravanFlightReviewFindingRow> = {}): CaravanFlightReviewFindingRow {
   return {
     id: 'rf-1',
     findingEntityId: 'finding:rf-1',

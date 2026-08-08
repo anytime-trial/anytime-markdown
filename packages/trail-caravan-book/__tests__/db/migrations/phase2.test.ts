@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import { EXPECTED_MIGRATION_COUNTS } from '../../../src/db/migrations/runner';
 
 function makeTmpDb(): string {
@@ -21,10 +21,10 @@ describe('Phase 2 migration', () => {
     }
   });
 
-  async function openFresh(): Promise<ReturnType<typeof openMemoryCoreDb>> {
+  async function openFresh(): Promise<ReturnType<typeof openCaravanBookDb>> {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    return openMemoryCoreDb(tmpDb);
+    return openCaravanBookDb(tmpDb);
   }
 
   test('creates caravan_code_facts table', async () => {
@@ -169,11 +169,11 @@ describe('Phase 2 migration', () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
 
-    const { db: db1, save: save1, close: close1 } = await openMemoryCoreDb(tmpDb);
+    const { db: db1, save: save1, close: close1 } = await openCaravanBookDb(tmpDb);
     save1();
     close1();
 
-    const { db: db2, close: close2 } = await openMemoryCoreDb(tmpDb);
+    const { db: db2, close: close2 } = await openCaravanBookDb(tmpDb);
     const result = db2.exec('SELECT COUNT(*) FROM _migrations');
     const count = result[0]?.values[0][0] as number;
     // migrations 1–7, each applied exactly once

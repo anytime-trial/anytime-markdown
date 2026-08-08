@@ -9,7 +9,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 
 const TS = '2026-01-01T00:00:00.000Z';
@@ -19,8 +19,8 @@ const MIGRATION_PATH = path.join(
   '../../../src/db/migrations/020_workspace_scope.sql',
 );
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -50,12 +50,12 @@ function backfillStatements(): string[] {
   return statements;
 }
 
-function columnNames(db: BetterSqlite3MemoryDb, table: string): string[] {
+function columnNames(db: BetterSqlite3CaravanDb, table: string): string[] {
   const res = db.exec(`PRAGMA table_info(${table})`);
   return (res[0]?.values ?? []).map((row) => String(row[1]));
 }
 
-function insertEntity(db: BetterSqlite3MemoryDb, id: string, type = 'Concept'): string {
+function insertEntity(db: BetterSqlite3CaravanDb, id: string, type = 'Concept'): string {
   db.run(
     `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
@@ -65,7 +65,7 @@ function insertEntity(db: BetterSqlite3MemoryDb, id: string, type = 'Concept'): 
   return id;
 }
 
-function insertReview(db: BetterSqlite3MemoryDb, id: string, workspace: string): string {
+function insertReview(db: BetterSqlite3CaravanDb, id: string, workspace: string): string {
   insertEntity(db, `rev-ent-${id}`, 'Review');
   db.run(
     `INSERT INTO caravan_reviews
@@ -77,7 +77,7 @@ function insertReview(db: BetterSqlite3MemoryDb, id: string, workspace: string):
 }
 
 function insertFinding(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   opts: { id: string; reviewId: string; index: number },
 ): string {
   insertEntity(db, `fe-${opts.id}`, 'ReviewFinding');
@@ -91,7 +91,7 @@ function insertFinding(
 }
 
 function insertDriftEvent(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   opts: { id: string; subjectEntityId: string; driftType: string; detail: unknown },
 ): void {
   db.run(
@@ -102,7 +102,7 @@ function insertDriftEvent(
   );
 }
 
-function workspaceOf(db: BetterSqlite3MemoryDb, driftId: string): string {
+function workspaceOf(db: BetterSqlite3CaravanDb, driftId: string): string {
   const res = db.exec('SELECT workspace FROM caravan_drift_events WHERE id = ?', [driftId]);
   return String(res[0]?.values[0]?.[0] ?? '<missing>');
 }

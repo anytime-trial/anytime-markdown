@@ -56,7 +56,7 @@ describe('C4 popup i18n keys exist (regression)', () => {
 
 /**
  * 2026-08-05: Memory > Bugs を Flight Record > Bug Fixed へ移設した際、i18n キーを
- * `memory.bug.*` → `flightRecord.bugfix.*` へ一括改名した。パネル側の `t` は引数が
+ * `caravan.bug.*` → `flightRecord.bugfix.*` へ一括改名した。パネル側の `t` は引数が
  * `string` 型のため、改名漏れがあっても tsc / jest は通り、実機だけ生キー表示になる。
  * ソースの `t('...')` リテラルを走査し、en / ja 双方に実在することを機械で固定する。
  */
@@ -66,8 +66,8 @@ describe('移設パネルが参照する i18n キーは実在する', () => {
 
   const targets = [
     '../../views/flightRecordPanel.ts',
-    '../../views/memory/bugHistoryPanel.ts',
-    '../../views/memory/bugCausalPanel.ts',
+    '../../views/caravan/bugHistoryPanel.ts',
+    '../../views/caravan/bugCausalPanel.ts',
   ];
 
   it.each(targets)('%s の参照キーが en / ja に揃っている', (relative) => {

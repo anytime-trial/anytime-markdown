@@ -1,13 +1,13 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 import type { DriftEventInput } from './report';
 import { THRESHOLDS, decideSeverity } from './policy';
 
 export function detectReviewUnfixed(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   daysOld?: number;
   minSeverity?: 'warn' | 'error';
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): DriftEventInput[] {
   const {
     db,
@@ -19,7 +19,7 @@ export function detectReviewUnfixed(input: {
   const severities = minSeverity === 'error' ? ['error'] : ['warn', 'error'];
   const placeholders = severities.map(() => '?').join(', ');
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT f.id, f.finding_entity_id, f.target_file_path, f.severity, f.recorded_at,
@@ -71,13 +71,13 @@ export function detectReviewUnfixed(input: {
 }
 
 export function detectReviewVsCode(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   existingSpecVsCodeKeys?: Set<string>;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): DriftEventInput[] {
   const { db, existingSpecVsCodeKeys = new Set(), logger } = input;
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT subject_entity_id, predicate,
@@ -129,10 +129,10 @@ export function detectReviewVsCode(input: {
 }
 
 export function detectRecurringReviewFindings(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   windowDays?: number;
   minCount?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): DriftEventInput[] {
   const {
     db,
@@ -144,7 +144,7 @@ export function detectRecurringReviewFindings(input: {
   const excludeCategories = THRESHOLDS.recurringReviewExcludeCategories as readonly string[];
   const placeholders = excludeCategories.map(() => '?').join(', ');
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       // workspace はクラスタを構成する指摘が 1 つのワークスペースへ収束するときだけ確定する

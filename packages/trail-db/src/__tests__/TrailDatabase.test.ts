@@ -106,11 +106,11 @@ describe('TrailDatabase.parseSessionIdFromBody', () => {
 describe('INSERT_MESSAGE statement', () => {
   it('has matching column count and placeholder count', async () => {
     const db = await createTestTrailDatabase();
-    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
+    const inCaravanDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
     // If the column list and placeholder count disagree, prepare() throws.
     // This guards against "N values for M columns" regressions.
-    const stmt = inMemoryDb.prepare(INSERT_MESSAGE);
+    const stmt = inCaravanDb.prepare(INSERT_MESSAGE);
     stmt.free();
     db.close();
   });
@@ -119,22 +119,22 @@ describe('INSERT_MESSAGE statement', () => {
 describe('TrailDatabase.getImportedFileMap', () => {
   it('flags hasMessages=false for sessions with message_count>0 but no messages rows', async () => {
     const db = await createTestTrailDatabase();
-    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
+    const inCaravanDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
     // Broken session: row inserted but messages silently dropped by a prior bug.
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES ('broken-sid', '', '', '', '', '', '', 10, '/tmp/broken.jsonl', 123, '')`,
     );
     // Healthy session with matching messages.
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES ('ok-sid', '', '', '', '', '', '', 1, '/tmp/ok.jsonl', 456, '')`,
     );
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_messages (uuid, session_id, type, timestamp)
        VALUES ('u1','ok-sid','assistant','2026-04-12T00:00:00Z')`,
     );
     // Empty-log session (message_count=0) is considered healthy — nothing to reimport.
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at) VALUES ('empty-sid', '', '', '', '', '', '', 0, '/tmp/empty.jsonl', 789, '')`,
     );
 
@@ -147,29 +147,29 @@ describe('TrailDatabase.getImportedFileMap', () => {
 
   it('flags imported Codex sessions with zero session costs for reimport', async () => {
     const db = await createTestTrailDatabase();
-    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
+    const inCaravanDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex-zero', '', '', '', '', '', '', 2, '/tmp/codex-zero.jsonl', 123, '', 'codex')`,
     );
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_messages (uuid, session_id, type, timestamp)
        VALUES ('codex-zero-m1','codex-zero','assistant','2026-04-12T00:00:00Z')`,
     );
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_session_costs
          (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
        VALUES ('codex-zero','',0,0,0,0,0)`,
     );
 
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_sessions (id, slug, version, entrypoint, model, start_time, end_time, message_count, file_path, file_size, imported_at, source) VALUES ('codex-ok', '', '', '', '', '', '', 2, '/tmp/codex-ok.jsonl', 456, '', 'codex')`,
     );
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_messages (uuid, session_id, type, timestamp)
        VALUES ('codex-ok-m1','codex-ok','assistant','2026-04-12T00:00:00Z')`,
     );
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_session_costs
          (session_id, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd)
        VALUES ('codex-ok','',100,20,50,0,0.001)`,
@@ -185,12 +185,12 @@ describe('TrailDatabase.getImportedFileMap', () => {
 describe('TrailDatabase.migrateDropSessionsProjectColumn', () => {
   it('drops the legacy project column while preserving rows with foreign-key references', async () => {
     const db = await createTestTrailDatabase();
-    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
+    const inCaravanDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
-    inMemoryDb.run('PRAGMA foreign_keys = OFF');
-    inMemoryDb.run('DROP TABLE IF EXISTS activity_session_costs');
-    inMemoryDb.run('DROP TABLE IF EXISTS activity_sessions');
-    inMemoryDb.run(`CREATE TABLE activity_sessions (
+    inCaravanDb.run('PRAGMA foreign_keys = OFF');
+    inCaravanDb.run('DROP TABLE IF EXISTS activity_session_costs');
+    inCaravanDb.run('DROP TABLE IF EXISTS activity_sessions');
+    inCaravanDb.run(`CREATE TABLE activity_sessions (
       id TEXT PRIMARY KEY,
       slug TEXT NOT NULL DEFAULT '',
       project TEXT NOT NULL DEFAULT '',
@@ -214,7 +214,7 @@ describe('TrailDatabase.migrateDropSessionsProjectColumn', () => {
       source TEXT NOT NULL DEFAULT 'claude_code',
       compact_count INTEGER
     )`);
-    inMemoryDb.run(`CREATE TABLE activity_session_costs (
+    inCaravanDb.run(`CREATE TABLE activity_session_costs (
       session_id TEXT NOT NULL,
       model TEXT NOT NULL,
       input_tokens INTEGER NOT NULL DEFAULT 0,
@@ -225,23 +225,23 @@ describe('TrailDatabase.migrateDropSessionsProjectColumn', () => {
       PRIMARY KEY (session_id, model),
       FOREIGN KEY (session_id) REFERENCES activity_sessions(id) ON DELETE CASCADE
     )`);
-    inMemoryDb.run('PRAGMA foreign_keys = ON');
-    inMemoryDb.run(
+    inCaravanDb.run('PRAGMA foreign_keys = ON');
+    inCaravanDb.run(
       `INSERT INTO activity_sessions (id, slug, project, repo_name, start_time, end_time, file_path, imported_at) VALUES ('s1', 'slug', 'legacy-project', 'repo', '2026-04-29T00:00:00.000Z', '2026-04-29T00:00:01.000Z', '/tmp/s1.jsonl', '2026-04-29T00:00:02.000Z')`,
     );
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_session_costs (session_id, model, input_tokens, output_tokens)
        VALUES ('s1', 'sonnet', 10, 2)`,
     );
 
-    (db as unknown as Record<string, (inner: import('sql.js').Database) => void>).migrateDropSessionsProjectColumn(inMemoryDb);
+    (db as unknown as Record<string, (inner: import('sql.js').Database) => void>).migrateDropSessionsProjectColumn(inCaravanDb);
 
-    const cols = inMemoryDb.exec('PRAGMA table_info(activity_sessions)')[0]?.values.map((r) => String(r[1])) ?? [];
+    const cols = inCaravanDb.exec('PRAGMA table_info(activity_sessions)')[0]?.values.map((r) => String(r[1])) ?? [];
     expect(cols).not.toContain('project');
     expect(cols).toContain('repo_name');
-    expect(inMemoryDb.exec(`SELECT repo_name FROM activity_sessions WHERE id = 's1'`)[0]?.values[0]?.[0]).toBe('repo');
-    expect(inMemoryDb.exec(`SELECT input_tokens FROM activity_session_costs WHERE session_id = 's1'`)[0]?.values[0]?.[0]).toBe(10);
-    expect(Number(inMemoryDb.exec('PRAGMA foreign_keys')[0]?.values[0]?.[0] ?? 0)).toBe(1);
+    expect(inCaravanDb.exec(`SELECT repo_name FROM activity_sessions WHERE id = 's1'`)[0]?.values[0]?.[0]).toBe('repo');
+    expect(inCaravanDb.exec(`SELECT input_tokens FROM activity_session_costs WHERE session_id = 's1'`)[0]?.values[0]?.[0]).toBe(10);
+    expect(Number(inCaravanDb.exec('PRAGMA foreign_keys')[0]?.values[0]?.[0] ?? 0)).toBe(1);
 
     db.close();
   });
@@ -250,8 +250,8 @@ describe('TrailDatabase.migrateDropSessionsProjectColumn', () => {
 describe('TrailDatabase releases schema', () => {
   it('includes total_lines column', async () => {
     const db = await createTestTrailDatabase();
-    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
-    const result = inMemoryDb.exec('PRAGMA table_info(activity_releases)');
+    const inCaravanDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
+    const result = inCaravanDb.exec('PRAGMA table_info(activity_releases)');
     const columns = (result[0]?.values ?? []).map((row) => String(row[1] ?? ''));
     expect(columns).toContain('total_lines');
     db.close();
@@ -412,7 +412,7 @@ describe('TrailDatabase.rebuildDailyCounts', () => {
 describe('TrailDatabase.getDayToolMetrics', () => {
   it('aggregates tool/skill/error/model rows for the given date', async () => {
     const db = await createTestTrailDatabase();
-    const inMemoryDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
+    const inCaravanDb = (db as unknown as Record<string, unknown>).db as import('sql.js').Database;
 
     // 仕様変更: 旧版は activity_daily_counts (timestamp 基準) から集計していたが、
     // 現実装は sessions.start_time (+540 分 = JST) で範囲を取り、
@@ -423,7 +423,7 @@ describe('TrailDatabase.getDayToolMetrics', () => {
     const OTHER_UTC = '2026-04-24T05:00:00Z'; // JST 2026-04-24
 
     // セッション作成
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_sessions (id, start_time, source) VALUES
          ('s-target', ?, 'claude_code'),
          ('s-other',  ?, 'claude_code')`,
@@ -431,7 +431,7 @@ describe('TrailDatabase.getDayToolMetrics', () => {
     );
 
     // assistant メッセージ（model + tokens を持つ）
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_messages (uuid, session_id, type, model, timestamp, input_tokens, output_tokens)
        VALUES
          ('m-target-1', 's-target', 'assistant', 'claude-opus-4-7', ?, 30000, 20000),
@@ -464,7 +464,7 @@ describe('TrailDatabase.getDayToolMetrics', () => {
     bulkCall.push("(?, ?, 0, 0, 'Bash', ?, 0)");
     bulkParams.push('s-other', 'm-other', OTHER_UTC);
 
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_message_tool_calls
          (session_id, message_uuid, turn_index, call_index, tool_name, timestamp, is_error)
        VALUES ${bulkCall.join(',')}`,
@@ -472,7 +472,7 @@ describe('TrailDatabase.getDayToolMetrics', () => {
     );
 
     // skill: design-md に紐付く tool_call を 2 件
-    inMemoryDb.run(
+    inCaravanDb.run(
       `INSERT INTO activity_message_tool_calls
          (session_id, message_uuid, turn_index, call_index, tool_name, skill_name, timestamp)
        VALUES

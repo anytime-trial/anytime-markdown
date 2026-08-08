@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 
 export type DriftSourceEvidence = {
   source: 'conversation' | 'spec' | 'code' | 'bug_history' | 'review';
@@ -16,10 +16,10 @@ export type ExplainDriftResult = {
 };
 
 function gatherConversationSource(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   subjectEntityId: string,
   convValue: string | null,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): DriftSourceEvidence | null {
   try {
     const epRows = db.exec(
@@ -46,10 +46,10 @@ function gatherConversationSource(
 }
 
 function gatherSpecSource(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   subjectEntityId: string,
   specValue: string | null,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): DriftSourceEvidence | null {
   try {
     const specRows = db.exec(
@@ -77,10 +77,10 @@ function gatherSpecSource(
 }
 
 function gatherCodeSource(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   subjectEntityId: string,
   codeValue: string | null,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): DriftSourceEvidence | null {
   try {
     const codeRows = db.exec(
@@ -117,9 +117,9 @@ function gatherCodeSource(
 }
 
 function gatherBugHistorySource(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   subjectEntityId: string,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): DriftSourceEvidence | null {
   try {
     const bugRows = db.exec(
@@ -143,9 +143,9 @@ function gatherBugHistorySource(
 }
 
 function gatherReviewSource(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   subjectEntityId: string,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): DriftSourceEvidence | null {
   try {
     const reviewRows = db.exec(
@@ -170,13 +170,13 @@ function gatherReviewSource(
 }
 
 export function explainDrift(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   event_id: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): ExplainDriftResult | null {
   const { db, event_id, logger } = input;
 
-  let eventRows: ReturnType<MemoryDbConnection['exec']>;
+  let eventRows: ReturnType<CaravanDbConnection['exec']>;
   try {
     eventRows = db.exec(
       `SELECT id, subject_entity_id, predicate, drift_type, severity,

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { PipelineRunLedger } from './PipelineRunLedger';
 import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
 import { entityId } from '../canonical/entityId';
@@ -17,7 +17,7 @@ import { resolveReviewTargets } from '../ingest/review/resolveReviewTargets';
 import { linkAddresses } from '../ingest/review/linkAddresses';
 import { linkPrecedesBugs } from '../ingest/review/linkPrecedesBugs';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 
 type PipelineStatus = 'success' | 'partial' | 'error';
 
@@ -38,7 +38,7 @@ export interface ReviewIncrementalResult {
 
 // ── Private helpers (same pattern as runBugHistoryIncremental.ts) ─────────────
 
-function readPipelineState(db: MemoryDbConnection, scope: string): string {
+function readPipelineState(db: CaravanDbConnection, scope: string): string {
   const stmt = db.prepare(`SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`);
   try {
     const row = stmt.get(scope);
@@ -50,7 +50,7 @@ function readPipelineState(db: MemoryDbConnection, scope: string): string {
 }
 
 function upsertPipelineState(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   scope: string,
   opts: { status: string; last_processed_at?: string; error_detail?: string },
 ): void {
@@ -69,7 +69,7 @@ function upsertPipelineState(
 }
 
 function recordFailedItem(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   scope: string,
   itemKey: string,
   reason: string,
@@ -96,7 +96,7 @@ type RouteADocResult =
  * Reads file, checks source_hash, parses, refines categories, upserts.
  */
 async function processRouteADoc(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   filePath: string;
   relPath: string;
   reviewDir: string;
@@ -106,7 +106,7 @@ async function processRouteADoc(opts: {
   model: string;
   /** 取込を実行しているワークスペースの repo_name。自分が書いた行にだけ設定する。 */
   workspace: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): Promise<RouteADocResult> {
   const { db, filePath, relPath, recordedAt, force, ollama, model, logger } = opts;
   try {
@@ -197,12 +197,12 @@ async function processRouteADoc(opts: {
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export async function runReviewIncremental(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   repoName: string;
   reviewDir?: string;
   ollama: OllamaClient;
   model?: string;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
   /**
    * true の場合、Route A の source_hash skip を bypass し全 review .md を再パースする。
    * 既存 finding は review_id ごとに DELETE してから再投入する。

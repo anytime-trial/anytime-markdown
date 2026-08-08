@@ -9,7 +9,7 @@
  * 色だけでなくテキストでも示す（色のみで情報を伝えない）。
  */
 import { escapeHtml } from '../shared/escapeHtml';
-import type { MemoryFlightReviewFindingRow } from '../data/types';
+import type { CaravanFlightReviewFindingRow } from '../data/types';
 
 export type FindingsTranslate = (key: string) => string;
 
@@ -43,7 +43,7 @@ export interface FindingFilter {
  * 対処済みかどうか。表の状態セルと絞り込みが同じ述語を使うための単一の正本。
  * 空文字の SHA は「対処コミットが分からない」であって対処済みではない。
  */
-function isAddressed(row: MemoryFlightReviewFindingRow): boolean {
+function isAddressed(row: CaravanFlightReviewFindingRow): boolean {
   return row.addressedCommitSha !== null && row.addressedCommitSha !== '';
 }
 
@@ -60,7 +60,7 @@ function isBlank(value: string | null): boolean {
  * 解決済みリポジトリの両方が揃っていなければ照合できない。片方だけ変えると、
  * 「判定対象なのに永久に未対処」あるいは「対象外なのに未対処表示」が生まれる。
  */
-export function deriveFindingStatus(row: MemoryFlightReviewFindingRow): FindingStatus {
+export function deriveFindingStatus(row: CaravanFlightReviewFindingRow): FindingStatus {
   if (isAddressed(row)) return 'addressed';
   if (row.severity === 'info') return 'notLinkable';
   if (isBlank(row.targetFilePath) || isBlank(row.targetRepo)) return 'notLinkable';
@@ -69,9 +69,9 @@ export function deriveFindingStatus(row: MemoryFlightReviewFindingRow): FindingS
 
 /** 絞り込み。該当なしは空配列（呼び出し側が「絞って 0 件」を区別できるようにする）。 */
 export function filterFindings(
-  findings: readonly MemoryFlightReviewFindingRow[],
+  findings: readonly CaravanFlightReviewFindingRow[],
   filter: FindingFilter,
-): readonly MemoryFlightReviewFindingRow[] {
+): readonly CaravanFlightReviewFindingRow[] {
   return findings.filter((row) => {
     if (filter.severity !== '' && row.severity !== filter.severity) return false;
     if (filter.category !== '' && row.category !== filter.category) return false;
@@ -84,7 +84,7 @@ export function filterFindings(
  * カテゴリの選択肢。取得済みの指摘から作る（固定リストを持たない — カテゴリはレビュー側が
  * 自由に付けるため、列挙をコードへ焼くと新しいカテゴリが絞り込みから消える）。
  */
-export function findingCategories(findings: readonly MemoryFlightReviewFindingRow[]): readonly string[] {
+export function findingCategories(findings: readonly CaravanFlightReviewFindingRow[]): readonly string[] {
   const set = new Set<string>();
   for (const row of findings) {
     if (row.category !== '') set.add(row.category);
@@ -93,8 +93,8 @@ export function findingCategories(findings: readonly MemoryFlightReviewFindingRo
 }
 
 export function sortFindings(
-  findings: readonly MemoryFlightReviewFindingRow[],
-): readonly MemoryFlightReviewFindingRow[] {
+  findings: readonly CaravanFlightReviewFindingRow[],
+): readonly CaravanFlightReviewFindingRow[] {
   return [...findings].sort((a, b) => {
     const sa = SEVERITY_ORDER[a.severity] ?? 9;
     const sb = SEVERITY_ORDER[b.severity] ?? 9;
@@ -115,7 +115,7 @@ function severityChip(t: FindingsTranslate, severity: string): string {
  * null は「対象を特定できなかった」であって「リポジトリ直下」ではないので、
  * 既定値で埋めず未解決として出す。
  */
-function targetCell(t: FindingsTranslate, row: MemoryFlightReviewFindingRow, linkable: boolean): string {
+function targetCell(t: FindingsTranslate, row: CaravanFlightReviewFindingRow, linkable: boolean): string {
   if (row.targetFilePath === null || row.targetFilePath === '') {
     return `<span data-am-finding-target data-unresolved="true">${escapeHtml(t('flightRecord.findings.targetUnresolved'))}</span>`;
   }
@@ -132,7 +132,7 @@ export const FINDING_STATUS_LABEL_KEY: Record<FindingStatus, string> = {
   notLinkable: 'flightRecord.findings.notLinkable',
 };
 
-function statusCell(t: FindingsTranslate, row: MemoryFlightReviewFindingRow): string {
+function statusCell(t: FindingsTranslate, row: CaravanFlightReviewFindingRow): string {
   const status = deriveFindingStatus(row);
   // 判定対象外は理由が自明でないので title で補う（色だけ・語だけでは伝わらない）。
   const hint =
@@ -166,7 +166,7 @@ export function findingCountCell(
 /** 詳細ペインの「この指示で出た指摘」節。 */
 export function renderFindingSection(input: {
   t: FindingsTranslate;
-  findings: readonly MemoryFlightReviewFindingRow[];
+  findings: readonly CaravanFlightReviewFindingRow[];
   loadFailed: boolean;
   linkable: boolean;
 }): string {
@@ -203,7 +203,7 @@ export function renderFindingSection(input: {
  */
 export function renderFindingTable(input: {
   t: FindingsTranslate;
-  findings: readonly MemoryFlightReviewFindingRow[];
+  findings: readonly CaravanFlightReviewFindingRow[];
   loadFailed: boolean;
   linkable: boolean;
   /** instructionId → 一覧に出す指示名（未宣言はセッション ID 先頭 8 桁）。 */

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { linkReviewToCommit, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import { linkReviewToCommit, openCaravanBookDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
 import type { LinkReviewToCommitResult } from '@anytime-markdown/trail-caravan-book/query';
-import { resolveMemoryDbPath } from '../dbPath';
+import { resolveCaravanDbPath } from '../dbPath';
 
 export const LinkReviewToCommitInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -15,7 +15,7 @@ export const LinkReviewToCommitInputSchema = z.object({
 export type LinkReviewToCommitInput = z.infer<typeof LinkReviewToCommitInputSchema>;
 
 export async function handleLinkReviewToCommit(input: LinkReviewToCommitInput): Promise<LinkReviewToCommitResult> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
+  const memHandle = await openCaravanBookDb(resolveCaravanDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return linkReviewToCommit({ db: memHandle.db, ...input, logger });

@@ -1,15 +1,15 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 import { randomUUID } from 'node:crypto';
 
 export type RunReviewAgentInput = {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   trigger_kind: 'mcp';
   target_kind: string;
   target_refs: string[];
   prompt_kind: string;
   model?: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 };
 
 export type RunReviewAgentResult = {

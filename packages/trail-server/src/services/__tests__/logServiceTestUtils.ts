@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb, runMigrations } from '@anytime-markdown/trail-caravan-book';
+import { BetterSqlite3CaravanDb, runMigrations } from '@anytime-markdown/trail-caravan-book';
 import { LogService } from '../LogService';
 
 export const SYSTEM_RUN_ID = 'system-run-for-log-service-tests';
@@ -10,8 +10,8 @@ export const SYSTEM_RUN_ID = 'system-run-for-log-service-tests';
  * 本番スキーマと乖離したままテストが緑になる。`caravan_pipeline_runs` の必須列を
  * 省いたスタブも同じ理由で使わない。
  */
-export function makeLogDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+export function makeLogDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   db.run(

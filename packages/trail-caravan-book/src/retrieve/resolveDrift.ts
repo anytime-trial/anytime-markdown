@@ -1,16 +1,16 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 
 export type ResolveDriftResult = {
   resolved: boolean;
 };
 
 export function resolveDrift(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   event_id: string;
   resolution_note: string;
   resolved_at?: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): ResolveDriftResult {
   const { db, event_id, resolution_note, logger } = input;
   const resolved_at = input.resolved_at ?? new Date().toISOString();
@@ -29,7 +29,7 @@ export function resolveDrift(input: {
     return { resolved: false };
   }
 
-  let changesRows: ReturnType<MemoryDbConnection['exec']>;
+  let changesRows: ReturnType<CaravanDbConnection['exec']>;
   try {
     changesRows = db.exec('SELECT changes()');
   } catch (err) {

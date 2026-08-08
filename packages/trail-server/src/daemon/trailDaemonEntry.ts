@@ -1,7 +1,7 @@
 // trail-daemon child process のエントリ。
 //
 // host (extension) から fork され、IPC で `HostRequest` を受けて `DaemonResponse` を返す。
-// 内部で MemoryCoreService + AnalyzeAllRunner を構築・管理する。
+// 内部で CaravanBookService + AnalyzeAllRunner を構築・管理する。
 //
 // バンドルは vscode-trail-extension/webpack.config.js の `trailDaemonConfig` 経由で
 // `dist/trail-daemon.js` として生成され、TrailDaemonHost が fork する。
@@ -9,12 +9,12 @@
 import * as path from 'node:path';
 
 import {
-  openMemoryCoreDb,
-  type MemoryCoreDb,
+  openCaravanBookDb,
+  type CaravanBookDb,
   type PipelineRunLedgerFactory,
 } from '@anytime-markdown/trail-caravan-book';
 import {
-  MemoryCoreService,
+  CaravanBookService,
   PipelineRunLedger,
   createPipelineRunLedgerFactory,
 } from '@anytime-markdown/trail-caravan-book/pipeline';
@@ -25,8 +25,8 @@ import { checkLlmAvailability } from '../lep/LlmAvailability';
 import { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
 import { TrailDataServer } from '../server/TrailDataServer';
 import { CodeGraphService } from '../analyze/CodeGraphService';
-import { ChatBridge } from '../memory-chat/chatBridge';
-import { RebuildScheduler } from '../memory-chat/rebuildScheduler';
+import { ChatBridge } from '../caravan-chat/chatBridge';
+import { RebuildScheduler } from '../caravan-chat/rebuildScheduler';
 import { LogService } from '../services/LogService';
 import { createOllamaClient } from '@anytime-markdown/agent-core';
 import type { Logger } from '../runtime/Logger';
@@ -84,7 +84,7 @@ function fail(id: string, err: unknown): void {
   send({ type: 'response', id, ok: false, error: e });
 }
 
-/** 構造化ロガー (log event ブリッジ)。MemoryCoreService / AnalyzeAllRunner の logSink から呼ばれる。 */
+/** 構造化ロガー (log event ブリッジ)。CaravanBookService / AnalyzeAllRunner の logSink から呼ばれる。 */
 export const daemonLogger = {
   debug: (m: string) =>
     sendEvent('log', { level: 'debug', message: m, timestamp: new Date().toISOString() }),
@@ -103,24 +103,24 @@ const childAnalyzeFn = makeChildAnalyzeFn(analyzeChildPath, {
   logger: daemonLogger,
 });
 
-let memoryCoreService: MemoryCoreService | null = null;
+let caravanBookService: CaravanBookService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
 /**
  * AnalyzeAllRunner の PR レビュー系（PrReviewImporter / PrReviewFindingAnalyzer /
  * CrossSourceCorrelator の PR 相関）が読む caravan-book.db 接続。PR レビューの永続化先を
- * caravan_reviews へ統合（2026-08-07）した配線で、LogService と同じ openMemoryCoreDb 前例。
+ * caravan_reviews へ統合（2026-08-07）した配線で、LogService と同じ openCaravanBookDb 前例。
  * 接続の所有は daemon 側（rebuild ごとに開き直し、disposeAll で閉じる）。
  */
-let analyzeMemoryCoreDb: MemoryCoreDb | null = null;
+let analyzeCaravanBookDb: CaravanBookDb | null = null;
 
-function closeAnalyzeMemoryCoreDb(): void {
-  if (analyzeMemoryCoreDb) {
+function closeAnalyzeCaravanBookDb(): void {
+  if (analyzeCaravanBookDb) {
     try {
-      analyzeMemoryCoreDb.close();
+      analyzeCaravanBookDb.close();
     } catch (err) {
       daemonLogger.error(`[daemon] analyze caravan-book.db close error: ${formatError(err)}`);
     }
-    analyzeMemoryCoreDb = null;
+    analyzeCaravanBookDb = null;
   }
 }
 /**
@@ -193,7 +193,7 @@ let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
 /** startHttpServer() で構築した ChatBridge。dispose() で SQLite WAL をフラッシュする。 */
 let httpChatBridge: ChatBridge | null = null;
 /** startHttpServer() で構築した LogService 用 caravan-book.db 接続。 */
-let httpLogLedgerDb: MemoryCoreDb | null = null;
+let httpLogLedgerDb: CaravanBookDb | null = null;
 /** daemon の生存期間を表す wave='system' の run。disposeAll() で閉じる。 */
 let httpSystemRunLedger: PipelineRunLedger | null = null;
 // daemon_session run の生存証明。これが止まったまま systemTimeoutMinutes を超えると
@@ -210,7 +210,7 @@ let httpPipelineRunLedgerFactory: PipelineRunLedgerFactory | null = null;
 
 /** テスト用: 状態リセット。 */
 export function _resetForTest(): void {
-  memoryCoreService = null;
+  caravanBookService = null;
   analyzeAllRunner = null;
   lastAnalyzeAllCfg = null;
   httpServer = null;
@@ -241,23 +241,23 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     await analyzeAllRunner.dispose();
     analyzeAllRunner = null;
   }
-  if (memoryCoreService) {
-    await memoryCoreService.dispose();
-    memoryCoreService = null;
+  if (caravanBookService) {
+    await caravanBookService.dispose();
+    caravanBookService = null;
   }
 
-  // MemoryCoreService (cfg.memoryCore が null なら memory pipeline をスキップ)
-  if (cfg.memoryCore) {
-    memoryCoreService = new MemoryCoreService({
+  // CaravanBookService (cfg.caravanBook が null なら memory pipeline をスキップ)
+  if (cfg.caravanBook) {
+    caravanBookService = new CaravanBookService({
       logSink: { appendLine: (m: string) => daemonLogger.info(`[mcs] ${m}`) },
-      trailDbPath: cfg.memoryCore.trailDbPath,
-      dbPath: cfg.memoryCore.dbPath,
-      nativeBinding: cfg.memoryCore.nativeBinding,
-      gitRoot: cfg.memoryCore.gitRoot,
-      backfillDays: cfg.memoryCore.backfillDays,
-      llm: cfg.memoryCore.llm,
-      backupGenerations: cfg.memoryCore.backupGenerations,
-      backupIntervalDays: cfg.memoryCore.backupIntervalDays,
+      trailDbPath: cfg.caravanBook.trailDbPath,
+      dbPath: cfg.caravanBook.dbPath,
+      nativeBinding: cfg.caravanBook.nativeBinding,
+      gitRoot: cfg.caravanBook.gitRoot,
+      backfillDays: cfg.caravanBook.backfillDays,
+      llm: cfg.caravanBook.llm,
+      backupGenerations: cfg.caravanBook.backupGenerations,
+      backupIntervalDays: cfg.caravanBook.backupIntervalDays,
     });
   }
 
@@ -286,12 +286,12 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
   if (!cfg) return;
 
   // PR レビュー系 analyzer 用の caravan-book.db 接続（開けない場合は analyzer 側が
-  // 「memoryDb connection 無し」の info ログを出して skip する — silent skip にしない）
-  closeAnalyzeMemoryCoreDb();
-  if (cfg.memoryCore) {
+  // 「caravanDb connection 無し」の info ログを出して skip する — silent skip にしない）
+  closeAnalyzeCaravanBookDb();
+  if (cfg.caravanBook) {
     try {
-      analyzeMemoryCoreDb = await openMemoryCoreDb(cfg.memoryCore.dbPath, {
-        nativeBinding: cfg.memoryCore.nativeBinding,
+      analyzeCaravanBookDb = await openCaravanBookDb(cfg.caravanBook.dbPath, {
+        nativeBinding: cfg.caravanBook.nativeBinding,
       });
     } catch (err) {
       daemonLogger.error(`[daemon] analyze caravan-book.db open failed: ${formatError(err)}`);
@@ -307,27 +307,27 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
     commitWatchRoots: cfg.commitWatchRoots,
     claudeProjectsDir: cfg.claudeProjectsDir,
     codexSessionsDir: cfg.codexSessionsDir,
-    memoryCoreService: memoryCoreService ?? undefined,
+    caravanBookService: caravanBookService ?? undefined,
     stage: cfg.stage,
-    checkLlmAvailability: cfg.memoryCore
+    checkLlmAvailability: cfg.caravanBook
       ? () =>
           checkLlmAvailability({
             baseUrl: cfg.ollamaBaseUrl,
-            chatModel: cfg.memoryCore!.llm.chatModel,
-            embedModel: cfg.memoryCore!.llm.embedModel,
+            chatModel: cfg.caravanBook!.llm.chatModel,
+            embedModel: cfg.caravanBook!.llm.embedModel,
           })
       : undefined,
     ollamaBaseUrl: cfg.ollamaBaseUrl,
-    disabledMemoryAnalyzers: cfg.disabledMemoryAnalyzers,
+    disabledCaravanAnalyzers: cfg.disabledCaravanAnalyzers,
     disabledAggregators: cfg.disabledAggregators,
-    // 拡張は disabledMemoryAnalyzers に「全 disabled id」を渡すため (memory/aggregator/primary
+    // 拡張は disabledCaravanAnalyzers に「全 disabled id」を渡すため (memory/aggregator/primary
     // を区別せず disabledAnalyzerIds の結果)、Layer 2 toggle 用にも同じ全リストを流用する。
-    disabledPrimaryAnalyzers: cfg.disabledMemoryAnalyzers,
+    disabledPrimaryAnalyzers: cfg.disabledCaravanAnalyzers,
     githubPrReview: undefined,
-    memoryDbPath: cfg.memoryCore?.dbPath,
-    // openMemoryCoreDb は conn と db に同一参照を入れる。?? で併記すると「2 つの供給元」に
+    caravanDbPath: cfg.caravanBook?.dbPath,
+    // openCaravanBookDb は conn と db に同一参照を入れる。?? で併記すると「2 つの供給元」に
     // 誤読されるため db（常に存在する側）に一本化する
-    memoryDb: analyzeMemoryCoreDb ? analyzeMemoryCoreDb.db : undefined,
+    caravanDb: analyzeCaravanBookDb ? analyzeCaravanBookDb.db : undefined,
     importAllStatusFilePath: cfg.importAllStatusFilePath,
     pipelineStatusFilePath: cfg.pipelineStatusFilePath,
     // startHttpServer() 後に呼び直される再構築で確定する (LogService と同じ接続)。
@@ -389,7 +389,7 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     trailDb,
     daemonLoggerAsLogger,
     opts.gitRoot,
-    opts.memoryDbPath,
+    opts.caravanDbPath,
     {
       configPaths: opts.configPaths,
       defaultRepoName: opts.defaultRepoName,
@@ -404,13 +404,13 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   // LogService
   if (opts.logService) {
     const lsCfg = opts.logService;
-    if (!opts.memoryDbPath) {
-      throw new Error('logService requires memoryDbPath');
+    if (!opts.caravanDbPath) {
+      throw new Error('logService requires caravanDbPath');
     }
-    // 実在確認込みで解決する。実在しないパスを渡すと openMemoryCoreDb は必ず失敗するため、
+    // 実在確認込みで解決する。実在しないパスを渡すと openCaravanBookDb は必ず失敗するため、
     // 見つからないときは undefined を渡して better-sqlite3 の既定解決へ落とす。
     const nativeBinding = lsCfg.nativeBinding ?? resolveBundledNativeBinding(opts.distPath) ?? undefined;
-    const logLedgerCoreDb = await openMemoryCoreDb(opts.memoryDbPath, { nativeBinding });
+    const logLedgerCoreDb = await openCaravanBookDb(opts.caravanDbPath, { nativeBinding });
     const logLedgerDb = logLedgerCoreDb.conn ?? logLedgerCoreDb.db;
     const systemRunLedger = new PipelineRunLedger({
       db: logLedgerDb,
@@ -440,15 +440,15 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
       db: logLedgerDb,
       logger: daemonLoggerAsLogger,
     });
-    daemonLogger.info(`[daemon] LogService wired: ${opts.memoryDbPath}`);
+    daemonLogger.info(`[daemon] LogService wired: ${opts.caravanDbPath}`);
   }
 
   // ChatBridge
   if (opts.chatBridge) {
     const cbCfg = opts.chatBridge;
     const chatBridge = new ChatBridge({
-      memoryDbPath: cbCfg.memoryDbPath,
-      memoryNativeBinding: cbCfg.memoryNativeBinding,
+      caravanDbPath: cbCfg.caravanDbPath,
+      caravanNativeBinding: cbCfg.caravanNativeBinding,
       getConfig: () => cbCfg.staticConfig,
       logger: daemonLoggerAsLogger.child('chatBridge'),
     });
@@ -461,8 +461,8 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   if (opts.rebuildScheduler) {
     const rsCfg = opts.rebuildScheduler;
     const rebuildScheduler = new RebuildScheduler({
-      memoryDbPath: rsCfg.memoryDbPath,
-      memoryNativeBinding: rsCfg.memoryNativeBinding,
+      caravanDbPath: rsCfg.caravanDbPath,
+      caravanNativeBinding: rsCfg.caravanNativeBinding,
       logger: daemonLoggerAsLogger.child('rebuildScheduler'),
     });
     const intervalMs = rsCfg.intervalMs ?? 60 * 60 * 1000; // default 60 min
@@ -655,11 +655,11 @@ async function disposeAll(): Promise<void> {
     await analyzeAllRunner.dispose();
     analyzeAllRunner = null;
   }
-  closeAnalyzeMemoryCoreDb();
+  closeAnalyzeCaravanBookDb();
   lastAnalyzeAllCfg = null;
-  if (memoryCoreService) {
-    await memoryCoreService.dispose();
-    memoryCoreService = null;
+  if (caravanBookService) {
+    await caravanBookService.dispose();
+    caravanBookService = null;
   }
   if (httpRebuildSchedulerDisposable) {
     httpRebuildSchedulerDisposable.dispose();
