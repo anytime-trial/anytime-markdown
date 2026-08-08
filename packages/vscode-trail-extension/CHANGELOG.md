@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-08-08
+
+### Fixed
+
+- Fixed Flight Record showing only "Cannot read flight records (the Trail server may be stopped)". When 0.43.0 moved Flight Record storage to memory-core.db, that connection alone was opened without an explicit native module path, so it always failed to initialise in the bundled extension. The server was in fact running; only the Flight Record APIs could not answer. Recording was broken for the same reason, so sessions that ended while 0.43.0 was running were never written.
+
+### Trail Core (trail-core / trail-server / trail-viewer)
+
+- Consolidated SQLite connection opening into a single entry point so the bundled native module path is resolved in one place instead of being copied into each class, and a missing bundled binary is now reported instead of failing silently.
+
 ## [0.43.0] - 2026-08-08
 
 ### Added
