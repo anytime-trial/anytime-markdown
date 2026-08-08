@@ -545,11 +545,18 @@ describe('ingestAstFacts', () => {
       [makeFileNode('src/foo.ts'), makeFunctionNode('src/foo.ts#bar', 'src/foo.ts')],
       [],
     );
+    const countDefines = (): number =>
+      db.exec(`SELECT COUNT(*) FROM caravan_edges WHERE predicate = 'defines'`)[0]
+        ?.values[0][0] as number;
+
     const opts = { db, repoName: REPO, graph, commitSha: COMMIT_SHA, logger: silentLogger };
     ingestAstFacts({ ...opts, recordedAt: RECORDED_AT });
+    // 総数だけを比較すると「defines 辺の生成が丸ごと消えた」回帰でも 0 === 0 で通る
+    expect(countDefines()).toBe(1);
     const afterFirst = countEdges(db);
     ingestAstFacts({ ...opts, recordedAt: '2026-01-02T00:00:00.000Z' });
 
+    expect(countDefines()).toBe(1);
     expect(countEdges(db)).toBe(afterFirst);
 
     db.close();

@@ -14,6 +14,7 @@ function buildKnowledgeGraphDb(dbPath: string): void {
     type TEXT NOT NULL,
     canonical_name TEXT NOT NULL,
     display_name TEXT NOT NULL,
+    valid_until TEXT,
     first_seen_at TEXT NOT NULL,
     last_updated_at TEXT NOT NULL,
     recorded_at TEXT NOT NULL,
@@ -45,6 +46,11 @@ function buildKnowledgeGraphDb(dbPath: string): void {
   entity.run('e3', 'File', 'server.ts', 'server.ts', TS, TS, TS);
   entity.run('e4', 'Bug', 'fts crash', 'FTS crash', TS, TS, TS);
   entity.run('e5', 'File', 'orphan.ts', 'orphan.ts', TS, TS, TS);
+  // soft delete 済み（ソースから消えたファイル）。辺は残っているが図には出さない
+  db.prepare(
+    `INSERT INTO caravan_entities (id, type, canonical_name, display_name, valid_until, first_seen_at, last_updated_at, recorded_at)
+     VALUES ('e6', 'File', 'deleted.ts', 'deleted.ts', ?, ?, ?, ?)`,
+  ).run(TS, TS, TS, TS);
 
   const edge = db.prepare(
     `INSERT INTO caravan_edges (id, subject_entity_id, predicate, object_entity_id, object_literal, valid_from, valid_to, recorded_at)
@@ -62,6 +68,8 @@ function buildKnowledgeGraphDb(dbPath: string): void {
   db.prepare(`INSERT INTO caravan_edge_invalidations (id, edge_id, invalidated_at, reason) VALUES ('i1', 'x2', ?, 'manual')`).run(TS);
   edge.run('x3', 'e1', null, 'literal value', TS, null, TS);
   edge.run('x4', 'e2', 'e2', null, TS, null, TS);
+  // soft delete 済みエンティティを端点に持つ辺（辺自体は失効していない）
+  edge.run('x5', 'e1', 'e6', null, TS, null, TS);
   db.close();
 }
 
@@ -77,6 +85,7 @@ function buildHubAndSpokeDb(dbPath: string): void {
     type TEXT NOT NULL,
     canonical_name TEXT NOT NULL,
     display_name TEXT NOT NULL,
+    valid_until TEXT,
     first_seen_at TEXT NOT NULL,
     last_updated_at TEXT NOT NULL,
     recorded_at TEXT NOT NULL,
@@ -139,7 +148,8 @@ describe('CaravanApiHandler.getKnowledgeGraph', () => {
     const result = await handler.getKnowledgeGraph({});
 
     expect(result).not.toBeNull();
-    // 次数: e1=4, e2=3, e3=2, e4=1（失効 x1・無効化 x2・リテラル x3・自己ループ x4 は数えない）
+    // 次数: e1=4, e2=3, e3=2, e4=1
+    // （失効 x1・無効化 x2・リテラル x3・自己ループ x4・soft delete 端点 x5 は数えない）
     expect(result?.nodes).toEqual([
       { label: 'TrailDataServer', type: 'Concept', frequency: 4 },
       { label: 'trail-caravan-book', type: 'Concept', frequency: 3 },
@@ -158,7 +168,7 @@ describe('CaravanApiHandler.getKnowledgeGraph', () => {
       { label: 'File', members: [2] },
       { label: 'Bug', members: [3] },
     ]);
-    expect(result?.totalEntityCount).toBe(5);
+    expect(result?.totalEntityCount).toBe(6);
     expect(result?.truncated).toBe(false);
     expect(result?.availableTypes).toEqual(['Bug', 'Concept', 'File']);
   });

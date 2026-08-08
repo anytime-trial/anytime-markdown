@@ -235,9 +235,15 @@ function upsertLibraryEntity(
   return eId;
 }
 
+/** 個別にエラーログを出す `defines` 辺の失敗件数の上限（超過分はサマリ 1 行へ畳む）。 */
+const DEFINES_ERROR_LOG_LIMIT = 3;
+
 /**
  * Insert the File → Function ownership edge. Idempotent via the deterministic
- * edge ID. Returns true when a new row was written.
+ * edge ID.
+ *
+ * `quiet` suppresses the per-node error log once the caller has already emitted
+ * enough of them; the caller still receives 'failed' and reports the total.
  */
 function insertDefinesEdge(
   db: CaravanDbConnection,
@@ -245,8 +251,8 @@ function insertDefinesEdge(
   functionEntityId: string,
   nodeId: string,
   recordedAt: string,
-  logger: CaravanLogger
-): boolean {
+  opts: { logger: CaravanLogger; quiet: boolean }
+): 'inserted' | 'duplicate' | 'failed' {
   const eId = astEdgeId(fileEntityId, 'defines', functionEntityId);
   try {
     db.run(
@@ -258,13 +264,15 @@ function insertDefinesEdge(
        ON CONFLICT(id) DO NOTHING`,
       [eId, fileEntityId, functionEntityId, recordedAt, recordedAt, `ast_node:${nodeId}`]
     );
-    return db.getRowsModified() > 0;
+    return db.getRowsModified() > 0 ? 'inserted' : 'duplicate';
   } catch (err) {
-    logger.error(
-      `[anytime-memory] astFunctionLevel: failed to insert defines edge node="${nodeId}"`,
-      err
-    );
-    return false;
+    if (!opts.quiet) {
+      opts.logger.error(
+        `[anytime-memory] astFunctionLevel: failed to insert defines edge node="${nodeId}"`,
+        err
+      );
+    }
+    return 'failed';
   }
 }
 
@@ -276,8 +284,12 @@ function insertDefinesEdge(
  * `inheritance` edges are folded up to file granularity — so it would be isolated
  * in the graph from the moment it is created.
  *
- * Mutates `currentEntityIds`: both the Function and its owning File must be in the
- * set or `runCodeReconciliation` soft-deletes them on the next pass.
+ * Mutates `currentEntityIds`. The Function must be in the set or
+ * `runCodeReconciliation` soft-deletes it on the next pass. The owning File is added
+ * defensively: File rows are written without `repo_name` by every ingest path today,
+ * and reconciliation scans `WHERE repo_name = ?`, so Files are currently out of its
+ * reach — but that is an accident of the writers, not a guarantee. Registering the id
+ * here means filling `repo_name` later cannot silently start deleting live Files.
  */
 function ingestSymbolNodes(input: {
   db: CaravanDbConnection;
@@ -289,6 +301,9 @@ function ingestSymbolNodes(input: {
 }): { function_entities_upserted: number; edges_inserted: number } {
   const { db, repoName, graph, recordedAt, logger, currentEntityIds } = input;
   const stats = { function_entities_upserted: 0, edges_inserted: 0 };
+  // 失敗要因はたいてい全ノード共通（migration 025 未適用で predicate の FK が全件 violate 等）
+  // なので、個別ログは先頭数件に絞り、残りは末尾のサマリ 1 行に畳む。
+  let definesFailed = 0;
 
   for (const node of graph.nodes) {
     if (node.type !== 'function' && node.type !== 'class' && node.type !== 'interface') {
@@ -309,9 +324,20 @@ function ingestSymbolNodes(input: {
     // file ノードがグラフに無い Function もあるため、ここで File も upsert する。
     const ownerFileId = upsertFileEntity(db, node.filePath, recordedAt, logger);
     currentEntityIds.add(ownerFileId);
-    if (insertDefinesEdge(db, ownerFileId, fnEntityId, node.id, recordedAt, logger)) {
-      stats.edges_inserted += 1;
-    }
+    const result = insertDefinesEdge(db, ownerFileId, fnEntityId, node.id, recordedAt, {
+      logger,
+      quiet: definesFailed >= DEFINES_ERROR_LOG_LIMIT,
+    });
+    if (result === 'inserted') stats.edges_inserted += 1;
+    if (result === 'failed') definesFailed += 1;
+  }
+
+  if (definesFailed > 0) {
+    logger.error(
+      `[anytime-memory] astFunctionLevel: defines edge insert failed for ${definesFailed} node(s) ` +
+        `(repo="${repoName}"). caravan_relation_types に 'defines' が無い（migration 025 未適用）可能性`,
+      new Error('defines edge insert failures'),
+    );
   }
 
   return stats;

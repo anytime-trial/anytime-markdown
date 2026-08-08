@@ -229,8 +229,12 @@ function clampLimit(limit: number | undefined, def: number, max = 200): number {
 /**
  * 知識グラフのノード選定で走査するエッジペア数の、ノード上限に対する倍率。
  * 貪欲選択は「limit に収まらないペア」を読み飛ばして次を見るため、limit と同数の
- * ペアだけでは埋まらないことがある。大きすぎると 1 リクエストの転送量が増えるだけなので
- * 実用上の充填率とコストの折衷値。
+ * ペアだけでは埋まらないことがある。
+ *
+ * SHORTCUT: ペア走査を limit * 20 で打ち切る貪欲選択.
+ * ceiling: 上位ペアが少数のノードへ集中する形状では、走査を使い切っても limit 未満の
+ * ノード数で終わる（応答からは「そもそも繋がっていない」と区別できない）.
+ * upgrade: 下の充填未達 warn ログを観測したら、倍率を上げるかカーソル継続へ切り替える.
  */
 const KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER = 20;
 
@@ -1550,6 +1554,11 @@ export class CaravanApiHandler {
             AND e.subject_entity_id != e.object_entity_id
             AND e.valid_to IS NULL
             AND NOT EXISTS (SELECT 1 FROM caravan_edge_invalidations i WHERE i.edge_id = e.id)
+            -- soft delete されたエンティティを端点から外す。runCodeReconciliation は
+            -- valid_until を立てるだけで辺を無効化しないため、ここで見ないと削除済み
+            -- シンボルがゴーストとして図と件数に残り続ける（剥がす経路が無い）。
+            AND es.valid_until IS NULL
+            AND eo.valid_until IS NULL
             ${typeFilter}
         )`;
       const typeBinds = types.length > 0 ? [...types, ...types] : [];
@@ -1585,7 +1594,15 @@ export class CaravanApiHandler {
         toBindParams([...typeBinds, limit * KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER]),
       );
 
-      const selectedIds = selectEdgeInducedNodeIds(pairResult[0]?.values ?? [], limit);
+      const pairRows = pairResult[0]?.values ?? [];
+      const selectedIds = selectEdgeInducedNodeIds(pairRows, limit);
+      // 走査を使い切ってなお枠が埋まらなかった＝ペア走査の打ち切りが効いた可能性がある。
+      // 応答からは「繋がっているノードがそれしか無い」と区別できないのでログへ残す。
+      if (selectedIds.size < limit && pairRows.length >= limit * KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER) {
+        this.logger.warn(
+          `[CaravanApiHandler.getKnowledgeGraph] pair scan exhausted: selected=${selectedIds.size} limit=${limit} scanned=${pairRows.length}`,
+        );
+      }
 
       // ペアが 1 つも収まらない場合（limit = 1・有効エッジ 0 本）だけ次数上位 N へ退避する。
       // 空集合を IN 句へ渡すと 0 件になり「データが無い」と区別できなくなる。
