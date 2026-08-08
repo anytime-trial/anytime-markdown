@@ -667,6 +667,16 @@ export const ja: TrailI18n = {
   'viewer.tab.flightRecord': 'Flight Record',
   // chat (Flight Record の右のトップレベルタブ。旧 Memory サブタブ)
   'viewer.tab.chat': 'Chat',
+  // knowledgeGraph (Flight Record の右隣。memory-core の知識グラフを共起ネットワークで表示)
+  'viewer.tab.knowledgeGraph': '知識グラフ',
+  'knowledgeGraph.loading': '読み込み中…',
+  'knowledgeGraph.loadFailed': '知識グラフを取得できません（Trail サーバー停止の可能性）',
+  'knowledgeGraph.empty': '知識グラフにデータがありません',
+  'knowledgeGraph.reload': '再読込',
+  'knowledgeGraph.typeFilter': '種別',
+  'knowledgeGraph.typeAll': '全種別',
+  'knowledgeGraph.nodeLimit': '表示件数',
+  'knowledgeGraph.shownCount': '表示 {{shown}} / 全 {{total}} 件',
   'flightRecord.filter.outcome': '成否',
   'flightRecord.filter.outcomeAll': 'すべて',
   'flightRecord.filter.since': '開始日',

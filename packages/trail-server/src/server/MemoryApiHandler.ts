@@ -75,6 +75,22 @@ export interface BugCausalInfo {
   introducedByCommitSubject: string | null;
 }
 
+/**
+ * 知識グラフの共起ネットワーク表示用応答（trail-viewer/src/views/knowledgeGraphCoocFile.ts とミラー）。
+ * links / clusters の数値は nodes の添字。
+ */
+export interface KnowledgeGraphResponse {
+  nodes: { label: string; type: string; frequency: number }[];
+  links: { a: number; b: number; strength: number }[];
+  clusters: { label: string; members: number[] }[];
+  /** 種別フィルタ適用後の全エンティティ数（表示が全体の一部であることを示す分母）。 */
+  totalEntityCount: number;
+  /** エッジを持つエンティティが limit を超えて残っているか。 */
+  truncated: boolean;
+  /** 種別フィルタ UI の選択肢（DB に実在する全種別。フィルタの影響を受けない）。 */
+  availableTypes: string[];
+}
+
 export interface UnaddressedReviewFindingRow {
   id: string;
   reviewId: string;
@@ -1463,6 +1479,126 @@ export class MemoryApiHandler {
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.listInvalidations] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  // ---- knowledge graph (共起ネットワーク表示用) ----
+
+  /**
+   * 知識グラフ（memory_entities / memory_edges）を共起ネットワーク描画用に集約して返す。
+   * 画面設計書: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-knowledge-graph.ja.md §2.2
+   *
+   * 全件（実測 2.9 万ノード）は描画できないため、有効エッジ次数の上位 `limit` 件だけを返す。
+   * 有効エッジ = エンティティ間（object_entity_id 非 NULL）・valid_to IS NULL・無効化記録なし。
+   * `types` を指定すると両端がその種別に含まれるエッジだけで次数を数える（片端だけ該当する
+   * エッジを残すと、絞り込んだはずの種別外ノードへの線が図に必要になってしまう）。
+   *
+   * DB 未設定・不在は null（「データ 0 件」と区別する。0 件は正常応答の空配列）。
+   */
+  async getKnowledgeGraph(params: { limit?: number; types?: string[] }): Promise<KnowledgeGraphResponse | null> {
+    const db = this.openReadOnly();
+    if (!db) return null;
+    try {
+      const limit = Math.max(1, clampLimit(params.limit, 150, 500));
+      // 種別はバインドで渡すが、識別子形式に絞って未知の値（空文字・記号）を先に落とす
+      const types = (params.types ?? []).filter((t) => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
+      const typeFilter = types.length > 0
+        ? `AND es.type IN (${types.map(() => '?').join(',')}) AND eo.type IN (${types.map(() => '?').join(',')})`
+        : '';
+      const activeCte = `
+        active AS (
+          SELECT e.subject_entity_id AS s, e.object_entity_id AS o
+          FROM memory_edges e
+          JOIN memory_entities es ON es.id = e.subject_entity_id
+          JOIN memory_entities eo ON eo.id = e.object_entity_id
+          WHERE e.object_entity_id IS NOT NULL
+            AND e.subject_entity_id != e.object_entity_id
+            AND e.valid_to IS NULL
+            AND NOT EXISTS (SELECT 1 FROM memory_edge_invalidations i WHERE i.edge_id = e.id)
+            ${typeFilter}
+        )`;
+      const typeBinds = types.length > 0 ? [...types, ...types] : [];
+
+      const nodeResult = db.exec(
+        `WITH ${activeCte},
+        deg AS (
+          SELECT id, SUM(c) AS d FROM (
+            SELECT s AS id, COUNT(*) AS c FROM active GROUP BY s
+            UNION ALL
+            SELECT o AS id, COUNT(*) AS c FROM active GROUP BY o
+          ) GROUP BY id
+        )
+        SELECT en.id, en.display_name, en.type, deg.d
+        FROM deg JOIN memory_entities en ON en.id = deg.id
+        ORDER BY deg.d DESC, en.id
+        LIMIT ?`,
+        toBindParams([...typeBinds, limit]),
+      );
+      const nodeRows = (nodeResult[0]?.values ?? []).map((row) => ({
+        id: toStr(row[0]),
+        label: toStr(row[1]),
+        type: toStr(row[2]),
+        frequency: Number(row[3] ?? 0),
+      }));
+
+      const indexById = new Map<string, number>(nodeRows.map((row, i) => [row.id, i]));
+      let links: { a: number; b: number; strength: number }[] = [];
+      if (nodeRows.length > 0) {
+        const idPlaceholders = nodeRows.map(() => '?').join(',');
+        const ids = nodeRows.map((row) => row.id);
+        const linkResult = db.exec(
+          `WITH ${activeCte}
+          SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
+          FROM active
+          WHERE s IN (${idPlaceholders}) AND o IN (${idPlaceholders})
+          GROUP BY MIN(s, o), MAX(s, o)`,
+          toBindParams([...typeBinds, ...ids, ...ids]),
+        );
+        links = (linkResult[0]?.values ?? []).flatMap((row) => {
+          const a = indexById.get(toStr(row[0]));
+          const b = indexById.get(toStr(row[1]));
+          if (a === undefined || b === undefined) return [];
+          return [{ a, b, strength: Number(row[2] ?? 0) }];
+        });
+      }
+
+      const clustersByType = new Map<string, number[]>();
+      nodeRows.forEach((row, i) => {
+        const members = clustersByType.get(row.type) ?? [];
+        members.push(i);
+        clustersByType.set(row.type, members);
+      });
+
+      const countFilter = types.length > 0 ? `WHERE type IN (${types.map(() => '?').join(',')})` : '';
+      const totalResult = db.exec(
+        `SELECT COUNT(*) FROM memory_entities ${countFilter}`,
+        toBindParams([...types]),
+      );
+      const totalEntityCount = Number(totalResult[0]?.values[0]?.[0] ?? 0);
+
+      const connectedResult = db.exec(
+        `WITH ${activeCte}
+        SELECT COUNT(*) FROM (SELECT s AS id FROM active UNION SELECT o FROM active)`,
+        toBindParams([...typeBinds]),
+      );
+      const connectedEntityCount = Number(connectedResult[0]?.values[0]?.[0] ?? 0);
+
+      const availableResult = db.exec(`SELECT DISTINCT type FROM memory_entities ORDER BY type`);
+      const availableTypes = (availableResult[0]?.values ?? []).map((row) => toStr(row[0]));
+
+      return {
+        nodes: nodeRows.map(({ label, type, frequency }) => ({ label, type, frequency })),
+        links,
+        clusters: [...clustersByType.entries()].map(([label, members]) => ({ label, members })),
+        totalEntityCount,
+        truncated: nodeRows.length < connectedEntityCount,
+        availableTypes,
+      };
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.getKnowledgeGraph] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return null;
     } finally {
       this.close(db);
     }

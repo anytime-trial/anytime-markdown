@@ -122,6 +122,7 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "GET", kind: "exact", path: "/api/author-heatmap" },
   { method: "GET", kind: "exact", path: "/api/memory/rationale" },
   { method: "GET", kind: "exact", path: "/api/memory/status" },
+  { method: "GET", kind: "exact", path: "/api/memory/knowledge-graph" },
   { method: "GET", kind: "exact", path: "/api/memory/drift/by-day" },
   { method: "GET", kind: "exact", path: "/api/memory/drift/events" },
   { method: "GET", kind: "prefix", path: "/api/memory/drift/events/" },

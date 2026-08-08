@@ -1021,6 +1021,13 @@ export class TrailDataServer {
     t.exact('GET', '/api/memory/status', ({ res }) =>
       this.respondMemoryJson(res, '/api/memory/status', this.memoryApi.handleStatus()));
 
+    // 知識グラフ（共起ネットワーク表示用）。DB 未設定・不在は 200 + null（0 件の空配列と区別する）
+    t.exact('GET', '/api/memory/knowledge-graph', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/knowledge-graph', this.memoryApi.getKnowledgeGraph({
+        limit: clampInt(ctx.url.searchParams.get('limit'), 150, 1, 500),
+        types: ctx.url.searchParams.get('types')?.split(',').filter((s) => s !== '') ?? undefined,
+      })));
+
     t.exact('GET', '/api/memory/drift/by-day', (ctx) => {
       void this.memoryApi.listDriftHistoryByDay({
         since: ctx.queryOpt('since'),
