@@ -668,6 +668,16 @@ export const en: TrailI18n = {
   'viewer.tab.flightRecord': 'Flight Record',
   // chat (top-level tab to the right of Flight Record; formerly a Memory sub-tab)
   'viewer.tab.chat': 'Chat',
+  // knowledgeGraph (to the right of Flight Record; memory-core knowledge graph as a cooccurrence network)
+  'viewer.tab.knowledgeGraph': 'Knowledge Graph',
+  'knowledgeGraph.loading': 'Loading…',
+  'knowledgeGraph.loadFailed': 'Failed to load the knowledge graph (the Trail server may be stopped)',
+  'knowledgeGraph.empty': 'No knowledge graph data',
+  'knowledgeGraph.reload': 'Reload',
+  'knowledgeGraph.typeFilter': 'Type',
+  'knowledgeGraph.typeAll': 'All types',
+  'knowledgeGraph.nodeLimit': 'Node limit',
+  'knowledgeGraph.shownCount': 'Showing {{shown}} of {{total}}',
   'flightRecord.filter.outcome': 'Outcome',
   'flightRecord.filter.outcomeAll': 'All',
   'flightRecord.filter.since': 'From',

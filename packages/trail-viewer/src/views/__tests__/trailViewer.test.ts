@@ -224,7 +224,7 @@ describe('mountTrailViewer', () => {
     expect(container.querySelector('[aria-label="chat-panel"]')).toBeNull();
   });
 
-  it('Chat タブは Flight Record の右隣に置かれる', () => {
+  it('知識グラフタブは Flight Record の右隣、Chat は末尾に置かれる', () => {
     const container = document.createElement('div');
     const h = mountTrailViewer(container, makeBaseProps({ initialTab: 0 }));
 
@@ -232,7 +232,8 @@ describe('mountTrailViewer', () => {
     const tabValues = [...container.querySelectorAll('[role="tab"]')].map((el) =>
       el.getAttribute('data-value'),
     );
-    expect(tabValues.at(-2)).toBe('9');
+    expect(tabValues.at(-3)).toBe('9');
+    expect(tabValues.at(-2)).toBe('11');
     expect(tabValues.at(-1)).toBe('10');
 
     h.destroy();

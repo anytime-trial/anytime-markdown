@@ -1,6 +1,6 @@
 import type { TrailI18n } from '../i18n/types';
 
-export type TrailViewerTabValue = 0 | 4 | 5 | 6 | 7 | 9 | 10;
+export type TrailViewerTabValue = 0 | 4 | 5 | 6 | 7 | 9 | 10 | 11;
 
 export interface TrailViewerTabDef {
   readonly value: TrailViewerTabValue;
@@ -35,6 +35,8 @@ export function getTrailViewerTabDefs({
 
   tabs.push({ value: 6, id: 'trail-tab-6', panelId: 'trail-panel-6', i18nKey: 'viewer.tab.memory' });
   tabs.push({ value: 9, id: 'trail-tab-9', panelId: 'trail-panel-9', i18nKey: 'viewer.tab.flightRecord' });
+  // 知識グラフは Flight Record の右隣（値は歴史順で 11。並び順は push 順が決める）
+  tabs.push({ value: 11, id: 'trail-tab-11', panelId: 'trail-panel-11', i18nKey: 'viewer.tab.knowledgeGraph' });
   tabs.push({ value: 10, id: 'trail-tab-10', panelId: 'trail-panel-10', i18nKey: 'viewer.tab.chat' });
 
   return tabs;

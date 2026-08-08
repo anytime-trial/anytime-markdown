@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anytime-markdown/chart-core": "*",
+    "@anytime-markdown/cooccurrence-viewer": "*",
     "@anytime-markdown/spreadsheet-viewer": "*",
     "@anytime-markdown/trace-viewer": "*",
     "@anytime-markdown/trail-core": "*",

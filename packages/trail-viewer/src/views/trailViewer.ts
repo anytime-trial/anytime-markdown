@@ -32,6 +32,7 @@ import type { MemoryPanelViewProps } from './memory/memoryPanel';
 import { mountChatPanel } from './memory/chatPanel';
 import type { ChatPanelProps } from './memory/chatPanel';
 import { mountFlightRecordPanel, type FlightRecordPanelProps } from './flightRecordPanel';
+import { mountKnowledgeGraphPanel, type KnowledgeGraphPanelProps } from './knowledgeGraphPanel';
 import { createFlightReviewStore, type FlightReviewStore } from '../data/flightReviewStore';
 import { createInstructionStore, type InstructionStore } from '../data/instructionStore';
 import { createFlightFindingStore, type FlightFindingStore } from '../data/flightFindingStore';
@@ -227,6 +228,7 @@ export function mountTrailViewer(
   let c4Handle: ReturnType<typeof mountC4Viewer> | null = null;
   let memoryHandle: ReturnType<typeof mountMemoryPanel> | null = null;
   let flightRecordHandle: ReturnType<typeof mountFlightRecordPanel> | null = null;
+  let knowledgeGraphHandle: ReturnType<typeof mountKnowledgeGraphPanel> | null = null;
   let chatHandle: ReturnType<typeof mountChatPanel> | null = null;
   let flightReviewStore: FlightReviewStore | null = null;
   let instructionStore: InstructionStore | null = null;
@@ -474,6 +476,16 @@ export function mountTrailViewer(
       // 「ファイルを開く」と同じ props.c4.onOpenFile を共有する（経路を二重に持たない）。
       // 未配線ならリンクにせずテキストで出す（押せないボタンを出さない）。
       ...(props.c4?.onOpenFile ? { onOpenFile: props.c4.onOpenFile } : {}),
+    };
+  }
+
+  // ── Derive KnowledgeGraphPanel props ──
+  function buildKnowledgeGraphProps(): KnowledgeGraphPanelProps {
+    return {
+      serverUrl: props.serverUrl ?? '',
+      isDark: props.isDark ?? true,
+      tokens: props.tokens,
+      t: props.t,
     };
   }
 
@@ -837,6 +849,12 @@ export function mountTrailViewer(
         }
         break;
       }
+      case 11: {
+        if (!knowledgeGraphHandle && props.serverUrl) {
+          knowledgeGraphHandle = mountKnowledgeGraphPanel(panelEl, buildKnowledgeGraphProps());
+        }
+        break;
+      }
     }
   }
 
@@ -895,6 +913,9 @@ export function mountTrailViewer(
     if (flightRecordHandle) {
       flightRecordHandle.update(buildFlightRecordProps());
     }
+    if (knowledgeGraphHandle) {
+      knowledgeGraphHandle.update(buildKnowledgeGraphProps());
+    }
     if (chatHandle) {
       chatHandle.update(buildChatProps());
     }
@@ -937,6 +958,8 @@ export function mountTrailViewer(
     instructionStore = null;
     flightFindingStore?.dispose();
     flightFindingStore = null;
+    knowledgeGraphHandle?.destroy();
+    knowledgeGraphHandle = null;
     chatHandle?.destroy();
     chatHandle = null;
     callHierarchyHandle?.destroy();
