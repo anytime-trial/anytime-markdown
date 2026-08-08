@@ -8,14 +8,14 @@ import { join } from 'node:path';
 const require = createRequire(import.meta.url);
 const {
   encodeProjectDir,
-  parseCaravan,
+  parseMemory,
   detectDanglingClusters,
   findUncoveredBugFiles,
-  scanCaravanDir,
+  scanMemoryDir,
 // git 正本(packages 側)から読む。.claude/skills/ は .gitignore された実行時コピーで CI には存在しない。
 } = require('../packages/vscode-trail-extension/skills/anytime-dev-retro/recurrence.cjs');
 
-const caravanMd = (name, type, body) =>
+const memoryMd = (name, type, body) =>
   `---\nname: ${name}\ndescription: d\nmetadata:\n  type: ${type}\n---\n\n${body}\n`;
 
 test('encodeProjectDir が cwd をメモリ格納ディレクトリ名へ変換する', () => {
@@ -23,15 +23,15 @@ test('encodeProjectDir が cwd をメモリ格納ディレクトリ名へ変換�
   assert.equal(encodeProjectDir('/home/user/my.repo'), '-home-user-my-repo');
 });
 
-test('parseCaravan が frontmatter name/type と本文 [[リンク]] を抽出する', () => {
-  const m = parseCaravan(caravanMd('foo-bar', 'feedback', 'text [[link-a]] and [[link-b]].'));
+test('parseMemory が frontmatter name/type と本文 [[リンク]] を抽出する', () => {
+  const m = parseMemory(memoryMd('foo-bar', 'feedback', 'text [[link-a]] and [[link-b]].'));
   assert.equal(m.name, 'foo-bar');
   assert.equal(m.type, 'feedback');
   assert.deepEqual(m.links, ['link-a', 'link-b']);
 });
 
-test('parseCaravan は frontmatter 欠落でも links を返し name/type は null', () => {
-  const m = parseCaravan('本文のみ [[x]]');
+test('parseMemory は frontmatter 欠落でも links を返し name/type は null', () => {
+  const m = parseMemory('本文のみ [[x]]');
   assert.equal(m.name, null);
   assert.equal(m.type, null);
   assert.deepEqual(m.links, ['x']);
@@ -72,29 +72,29 @@ test('findUncoveredBugFiles は閾値未満と feedback メモリ言及済みを
   );
 });
 
-test('scanCaravanDir は MEMORY.md 索引を除外し、dir 不在は available:false を返す', () => {
+test('scanMemoryDir は MEMORY.md 索引を除外し、dir 不在は available:false を返す', () => {
   const dir = mkdtempSync(join(tmpdir(), 'memory-'));
   try {
     writeFileSync(join(dir, 'MEMORY.md'), '- index');
-    writeFileSync(join(dir, 'one.md'), caravanMd('one', 'project', 'see [[two]]'));
-    const res = scanCaravanDir(dir);
+    writeFileSync(join(dir, 'one.md'), memoryMd('one', 'project', 'see [[two]]'));
+    const res = scanMemoryDir(dir);
     assert.equal(res.available, true);
     assert.equal(res.memories.length, 1);
     assert.equal(res.memories[0].fileBase, 'one');
     assert.deepEqual(res.memories[0].links, ['two']);
-    assert.equal(scanCaravanDir(join(dir, 'nope')).available, false);
+    assert.equal(scanMemoryDir(join(dir, 'nope')).available, false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('scanCaravanDir は 1 ファイルの読み取り失敗で全体を落とさず errors に記録して継続する', { skip: process.getuid?.() === 0 }, () => {
+test('scanMemoryDir は 1 ファイルの読み取り失敗で全体を落とさず errors に記録して継続する', { skip: process.getuid?.() === 0 }, () => {
   const dir = mkdtempSync(join(tmpdir(), 'memory-'));
   try {
-    writeFileSync(join(dir, 'ok.md'), caravanMd('ok', 'project', 'body'));
-    writeFileSync(join(dir, 'broken.md'), caravanMd('broken', 'project', 'body'));
+    writeFileSync(join(dir, 'ok.md'), memoryMd('ok', 'project', 'body'));
+    writeFileSync(join(dir, 'broken.md'), memoryMd('broken', 'project', 'body'));
     chmodSync(join(dir, 'broken.md'), 0o000);
-    const res = scanCaravanDir(dir);
+    const res = scanMemoryDir(dir);
     assert.equal(res.available, true);
     assert.equal(res.memories.length, 1);
     assert.equal(res.memories[0].fileBase, 'ok');
