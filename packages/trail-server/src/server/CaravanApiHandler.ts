@@ -239,6 +239,13 @@ function clampLimit(limit: number | undefined, def: number, max = 200): number {
 const KNOWLEDGE_GRAPH_PAIR_SCAN_MULTIPLIER = 20;
 
 /**
+ * 知識グラフが 1 応答で返すノード数の上限。ルート側の clamp（TrailDataServer）と
+ * 揃える。制約はサーバではなく webview 側の同期レイアウト（`layoutWorkerCode` が
+ * モノレポ内ソース参照では空スロットのため worker へ逃げられない）。
+ */
+const KNOWLEDGE_GRAPH_MAX_NODES = 2000;
+
+/**
  * 知識グラフのノード集合を、順位付け済みのエッジペア列から貪欲に組み立てる。
  * ペアの端点しか採らないので、返る ID はすべて少なくとも 1 本のリンクを持つ。
  *
@@ -1538,7 +1545,10 @@ export class CaravanApiHandler {
     const db = this.openReadOnly();
     if (!db) return null;
     try {
-      const limit = Math.max(1, clampLimit(params.limit, 150, 500));
+      // 上限 2000 は描画側の実測から決めた。SQL は上限側の制約ではない（本番 DB のコピー
+      // で limit=5000 でも 390ms）。効くのは webview 側の同期レイアウトで、2000 ノード /
+      // 8.4k リンクで約 0.3 秒、5000 ノード / 20k リンクで約 0.9 秒。
+      const limit = Math.max(1, clampLimit(params.limit, 150, KNOWLEDGE_GRAPH_MAX_NODES));
       // 種別はバインドで渡すが、識別子形式に絞って未知の値（空文字・記号）を先に落とす
       const types = (params.types ?? []).filter((t) => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
       const typeFilter = types.length > 0

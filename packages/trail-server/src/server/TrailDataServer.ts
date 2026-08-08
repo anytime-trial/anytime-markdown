@@ -1024,7 +1024,7 @@ export class TrailDataServer {
     // 知識グラフ（共起ネットワーク表示用）。DB 未設定・不在は 200 + null（0 件の空配列と区別する）
     t.exact('GET', '/api/caravan/knowledge-graph', (ctx) =>
       this.respondCaravanJson(ctx.res, '/api/caravan/knowledge-graph', this.caravanApi.getKnowledgeGraph({
-        limit: clampInt(ctx.url.searchParams.get('limit'), 150, 1, 500),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 150, 1, 2000),
         types: ctx.url.searchParams.get('types')?.split(',').filter((s) => s !== '') ?? undefined,
       })));
 

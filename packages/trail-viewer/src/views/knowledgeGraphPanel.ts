@@ -29,7 +29,9 @@ export interface KnowledgeGraphPanelProps {
 }
 
 const STYLE_ID = 'am-knowledge-graph-style';
-const LIMIT_CHOICES = ['50', '150', '300', '500'] as const;
+// 上限 2000 はサーバ側 clamp（TrailDataServer / CaravanApiHandler）と揃える。
+// 1000 以上はレイアウトが同期実行で 0.15〜0.3 秒ブロックするため、既定には置かず明示選択にする。
+const LIMIT_CHOICES = ['50', '150', '300', '500', '1000', '2000'] as const;
 const DEFAULT_LIMIT = '150';
 
 type LoadState = 'loading' | 'failed' | 'empty' | 'ready';
