@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-08-08
+
+### Changed
+
+- Setting descriptions and localized strings now refer to `activity.db`, following the Trail database rename.
+
 ## [0.3.7] - 2026-08-03
 
 ### Changed

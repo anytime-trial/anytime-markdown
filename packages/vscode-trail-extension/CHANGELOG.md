@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-08
+
+### Added
+
+- Flight Record gained a Knowledge Graph tab that renders the memory-core knowledge graph as a cooccurrence network.
+
+### Changed
+
+- Database files were renamed to `activity.db` (activity) and `caravan-book.db` (memory). Existing `trail.db` / `memory-core.db` are renamed automatically the first time the extension opens them.
+
+### Fixed
+
+- `daemon_session` rows stuck in the `running` state are now reclaimed by the watchdog, so a database swap no longer leaves the analysis pipeline skipping indefinitely.
+
+### Trail Core (trail-core / trail-server / trail-viewer / mcp-trail)
+
+- Ported the ADR threat taxonomy, detection prompts and schema into trail-core / mcp-trail.
+- Dropped release-scoped analysis and reclaimed the duplicate indexes and raw NUL bytes it left behind.
+- trail-server now serves the memory-core knowledge graph that backs the new tab.
+
 ## [0.43.1] - 2026-08-08
 
 ### Fixed

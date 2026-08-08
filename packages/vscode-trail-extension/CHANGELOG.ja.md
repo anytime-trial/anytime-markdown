@@ -6,6 +6,26 @@
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-08
+
+### 追加
+
+- Flight Record に「知識グラフ」タブを追加した。memory-core の知識グラフを共起ネットワークで表示する。
+
+### 変更
+
+- データベースファイル名を `activity.db`（活動）・`caravan-book.db`（記憶）へ改名した。既存の `trail.db` / `memory-core.db` は拡張が初めて開いた時点で自動的にリネームされる。
+
+### 修正
+
+- `running` のまま固まった `daemon_session` を watchdog が回収するようにした。DB 差し替え後に解析パイプラインが恒久的に skip し続ける状態が解消される。
+
+### Trail Core (trail-core / trail-server / trail-viewer / mcp-trail)
+
+- ADR の脅威分類・検知プロンプト・スキーマを trail-core / mcp-trail へ移植した。
+- リリース単位の解析を廃止し、残っていた重複インデックスと生 NUL バイトを回収した。
+- 新タブの土台となる memory-core 知識グラフを trail-server が配信するようにした。
+
 ## [0.43.1] - 2026-08-08
 
 ### 修正

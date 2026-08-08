@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-08-08
+
+### Changed
+
+- Renamed the document search database from `doc-core.db` to `catalog.db` and moved path resolution into a new `docDbPath` module. An existing `doc-core.db` is renamed automatically the first time the extension opens it.
+
 ## [1.19.2] - 2026-08-04
 
 ### Changed

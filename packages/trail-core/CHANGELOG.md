@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-08
+
+### Added
+
+- Ported the threat taxonomy, detection prompts and schema from ADR (uber/ADR).
+
+### Changed
+
+- Renamed the activity database from `trail.db` to `activity.db` and the memory database from `memory-core.db` to `caravan-book.db`. A database carrying the old name is renamed automatically the first time its owner opens it.
+
+### Removed
+
+- Dropped release-scoped analysis (`release_file` / `function_analysis`), together with the duplicate indexes and raw NUL bytes it left behind.
+
+### Fixed
+
+- `daemon_session` rows stuck in the `running` state are now reclaimed by the watchdog, so a database swap no longer leaves the pipeline skipping indefinitely.
+
 ## [0.43.0] - 2026-08-08
 
 ### Added

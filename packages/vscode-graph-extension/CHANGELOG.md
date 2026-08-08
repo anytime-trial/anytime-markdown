@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-08
+
+### Added
+
+- The cooccurrence network viewer gained a card skin. Nodes can be laid out as cards, and a toggle switches between the card and graph presentations.
+
 ## [1.0.1] - 2026-08-03
 
 ### Changed

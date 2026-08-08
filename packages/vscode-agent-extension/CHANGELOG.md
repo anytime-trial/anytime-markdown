@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-08-08
+
+### Changed
+
+- The emergency spool documentation and the bundled skills follow the Trail database rename to `activity.db`.
+
 ## [1.14.0] - 2026-08-08
 
 ### Added
