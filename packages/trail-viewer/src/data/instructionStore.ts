@@ -1,5 +1,5 @@
 /**
- * instructionStore — Flight Record（指示単位の運航記録）の一覧・詳細の状態管理。
+ * instructionStore — Flight Record（指示単位の実行記録）の一覧・詳細の状態管理。
  *
  * API surface:
  *   createInstructionStore(serverUrl, options?) → InstructionStore

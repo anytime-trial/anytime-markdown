@@ -307,7 +307,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (db) db.close();
 }
 
-// ── caravan-book.db / activity.db(未移行): Flight Record(運航記録・指示台帳) ────────
+// ── caravan-book.db / activity.db(未移行): Flight Record(実行記録・指示台帳) ────────
 // caravan_flight_reviews / instructions / caravan_instruction_sessions は 2026-08-07 に activity.db から
 // caravan-book.db へ移設した。移行前の DB(旧拡張・バックフィル未実行)では activity.db 側に
 // 残るため、テーブル実在で読み先を選ぶ。どちらにも無ければ null(測定不能。0 と区別する)。

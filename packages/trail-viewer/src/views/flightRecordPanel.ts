@@ -75,11 +75,11 @@ export interface FlightRecordPanelProps {
 }
 
 /**
- * Flight Record のサブタブ。指示（運航記録）・Bug Fixed（バグ修正履歴）・Review（指摘）・
+ * Flight Record のサブタブ。指示（実行記録）・Bug Fixed（バグ修正履歴）・Review（指摘）・
  * Drift（会話 / 設計書 / コードの乖離）。
  *
  * Bug Fixed / Drift は 2026-08-05 に Memory から移設した。「どの指示が何を潰したか」「何が
- * ずれたか」はいずれも運航記録の関心であり、指摘（Review）との相互リンクも同一パネル内で閉じる。
+ * ずれたか」はいずれも実行記録の関心であり、指摘（Review）との相互リンクも同一パネル内で閉じる。
  */
 export type FlightRecordTabValue = 'instruction' | 'bugfix' | 'review' | 'drift';
 

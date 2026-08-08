@@ -5,7 +5,7 @@ export const ja: TrailI18n = {
   'viewer.tab.messages': 'メッセージ',
   'viewer.tab.prompts': 'プロンプト',
   'viewer.tab.releases': 'リリース',
-  'viewer.tab.model': 'C4 Model',
+  'viewer.tab.model': 'C4モデル',
   'viewer.tab.matrix': 'Matrix',
   'viewer.tab.graph': 'Graph',
   'viewer.tab.scatter': '散布図',
@@ -514,7 +514,7 @@ export const ja: TrailI18n = {
   'c4.trend.seriesDefect': '不具合数',
 
   // memory tab
-  'viewer.tab.memory': 'Trail Pipeline',
+  'viewer.tab.memory': 'パイプライン',
   'memory.loading': 'メモリDBを読み込み中...',
   'memory.noDb': 'caravan-book.db が見つかりません',
   'memory.noDb.description': 'Anytime Memory が起動すると自動的にデータが表示されます。',
@@ -616,7 +616,7 @@ export const ja: TrailI18n = {
   'memory.chat.empty': '関連する記憶が見つかりませんでした',
   'memory.chat.error': 'エラー',
   'memory.chat.interrupted': '中断されました',
-  'c4.callHierarchy.empty': '関数が指定されていません。C4 Model タブの関数一覧から選択してください',
+  'c4.callHierarchy.empty': '関数が指定されていません。C4モデルタブの関数一覧から選択してください',
   'c4.callHierarchy.tab.callers': '呼び出し元',
   'c4.callHierarchy.tab.callees': '呼び出し先',
   'c4.callHierarchy.loading': '読み込み中...',
@@ -664,10 +664,10 @@ export const ja: TrailI18n = {
   'emergency.unknown.notice':
     '状態を取得できません（Trail サーバー停止の可能性）。VS Code コマンド「Anytime Trail: Kill Switch」からも操作できます。',
   // flightReview (Phase 6 S3: Flight Review UI)
-  'viewer.tab.flightRecord': 'Flight Record',
-  // chat (Flight Record の右のトップレベルタブ。旧 Memory サブタブ)
+  'viewer.tab.flightRecord': '実行記録',
+  // chat (実行記録 の右のトップレベルタブ。旧 Memory サブタブ)
   'viewer.tab.chat': 'Chat',
-  // knowledgeGraph (Flight Record の右隣。trail-caravan-book の知識グラフを共起ネットワークで表示)
+  // knowledgeGraph (実行記録 の右隣。trail-caravan-book の知識グラフを共起ネットワークで表示)
   'viewer.tab.knowledgeGraph': '知識グラフ',
   'knowledgeGraph.loading': '読み込み中…',
   'knowledgeGraph.loadFailed': '知識グラフを取得できません（Trail サーバー停止の可能性）',
@@ -687,9 +687,9 @@ export const ja: TrailI18n = {
   'flightRecord.filter.workspacePartial': '一部の記録元を読めず、選択肢が欠けている可能性があります',
   'flightRecord.filter.workspaceLoadFailed': 'ワークスペース一覧を取得できませんでした',
   'flightRecord.exportCsv': 'CSV エクスポート',
-  'flightRecord.loadFailed': '運航記録を取得できません（Trail サーバー停止の可能性）。',
+  'flightRecord.loadFailed': '実行記録を取得できません（Trail サーバー停止の可能性）。',
   'flightRecord.loading': '読み込み中...',
-  'flightRecord.empty': '運航記録がまだありません',
+  'flightRecord.empty': '実行記録がまだありません',
   'flightRecord.outcome.achieved': '達成',
   'flightRecord.outcome.partial': '部分達成',
   'flightRecord.outcome.unachieved': '未達成',
@@ -745,7 +745,7 @@ export const ja: TrailI18n = {
   'flightRecord.findings.notLinkable': '判定対象外',
   'flightRecord.findings.notLinkableHint':
     '重大度 info、または対象ファイル・リポジトリを特定できないため、対処コミットの自動判定にかけられない指摘です。対処されていないという意味ではありません。',
-  'flightRecord.findings.scopeNote': 'Flight Record に載っているフライト（セッション）で記録された指摘だけを表示します。',
+  'flightRecord.findings.scopeNote': '実行記録に載っているフライト（セッション）で記録された指摘だけを表示します。',
   'flightRecord.findings.severity.error': 'error',
   'flightRecord.findings.severity.warn': 'warn',
   'flightRecord.findings.severity.info': 'info',
