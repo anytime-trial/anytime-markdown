@@ -50,6 +50,12 @@ jest.mock('../../src/pipeline/runReviewIncremental', () => ({
 jest.mock('../../src/pipeline/runSpecIncremental', () => ({
   runSpecIncremental: jest.fn(),
 }));
+// runSpecIncremental とセットでモックする。実装は specRoot（既定は開発機の
+// /Shared/anytime-markdown-docs/spec）を実際に読むため、モックし忘れると
+// そのパスを持つ環境でだけ通り、持たない CI でだけ落ちる。
+jest.mock('../../src/pipeline/runSpecReconciliation', () => ({
+  runSpecReconciliation: jest.fn(),
+}));
 jest.mock('../../src/pipeline/runDriftDetection', () => ({
   runDriftDetection: jest.fn(),
 }));
@@ -69,6 +75,7 @@ import { runBugHistoryIncremental } from '../../src/pipeline/runBugHistoryIncrem
 import { runReviewIncremental } from '../../src/pipeline/runReviewIncremental';
 import { runReviewBackfill } from '../../src/pipeline/runReviewBackfill';
 import { runSpecIncremental } from '../../src/pipeline/runSpecIncremental';
+import { runSpecReconciliation } from '../../src/pipeline/runSpecReconciliation';
 import { runDriftDetection } from '../../src/pipeline/runDriftDetection';
 import { runEmbeddingBackfill } from '../../src/pipeline/runEmbeddingBackfill';
 
@@ -82,6 +89,19 @@ const mockRunBugHistoryIncremental = runBugHistoryIncremental as jest.MockedFunc
 const mockRunReviewIncremental = runReviewIncremental as jest.MockedFunction<typeof runReviewIncremental>;
 const mockRunReviewBackfill = runReviewBackfill as jest.MockedFunction<typeof runReviewBackfill>;
 const mockRunSpecIncremental = runSpecIncremental as jest.MockedFunction<typeof runSpecIncremental>;
+const mockRunSpecReconciliation = runSpecReconciliation as jest.MockedFunction<typeof runSpecReconciliation>;
+
+/** runSpecReconciliation の成功戻り値。件数はすべて 0（掃除対象なし）。 */
+const specReconciliationOk = {
+  status: 'success',
+  scanned: 0,
+  removed_docs: 0,
+  soft_deleted_doc_entities: 0,
+  invalidated_edges: 0,
+  soft_deleted_orphan_entities: 0,
+  error_detail: '',
+  duration_ms: 0,
+} as const;
 const mockRunDriftDetection = runDriftDetection as jest.MockedFunction<typeof runDriftDetection>;
 const mockRunEmbeddingBackfill = runEmbeddingBackfill as jest.MockedFunction<typeof runEmbeddingBackfill>;
 
@@ -145,6 +165,8 @@ describe('MemoryDbSession', () => {
       items_retried: 0,
       items_failed: 0,
     });
+    // デフォルト: spec の掃除は成功 no-op（失敗経路は個別テストで差し替える）
+    mockRunSpecReconciliation.mockReturnValue({ ...specReconciliationOk });
   });
 
   // ── close() ────────────────────────────────────────────────────────────
@@ -738,7 +760,31 @@ describe('MemoryDbSession', () => {
 
       const callArg = mockRunSpecIncremental.mock.calls[0]?.[0];
       expect(callArg?.specRoot).toBe('/custom/spec');
+      expect(mockRunSpecReconciliation.mock.calls[0]?.[0]?.specRoot).toBe('/custom/spec');
       delete process.env.MEMORY_CORE_SPEC_DIR;
+
+      trailDb.close();
+    });
+
+    // 掃除の失敗は取込が成功していても error として上げる。ここを緩めると
+    // specRoot が読めない状態が続いてもパイプラインは success を報告し続ける。
+    it('reports error when reconciliation fails even if the incremental run succeeded', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+
+      mockRunSpecIncremental.mockResolvedValue({ status: 'ok', items_processed: 3 });
+      mockRunSpecReconciliation.mockReturnValue({
+        ...specReconciliationOk,
+        status: 'error',
+        error_detail: 'specRoot unreadable',
+      });
+
+      const result = await session.runSpec();
+
+      expect(result.status).toBe('error');
+      expect(result.error).toBe('specRoot unreadable');
+      expect(result.itemsProcessed).toBe(3);
 
       trailDb.close();
     });
