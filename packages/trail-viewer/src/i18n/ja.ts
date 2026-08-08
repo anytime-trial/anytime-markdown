@@ -616,7 +616,7 @@ export const ja: TrailI18n = {
   'memory.chat.empty': '関連する記憶が見つかりませんでした',
   'memory.chat.error': 'エラー',
   'memory.chat.interrupted': '中断されました',
-  'c4.callHierarchy.empty': '関数が指定されていません。C4モデル タブの関数一覧から選択してください',
+  'c4.callHierarchy.empty': '関数が指定されていません。C4モデルタブの関数一覧から選択してください',
   'c4.callHierarchy.tab.callers': '呼び出し元',
   'c4.callHierarchy.tab.callees': '呼び出し先',
   'c4.callHierarchy.loading': '読み込み中...',
