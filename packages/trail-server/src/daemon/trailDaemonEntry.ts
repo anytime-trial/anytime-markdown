@@ -198,6 +198,8 @@ let httpLogLedgerDb: MemoryCoreDb | null = null;
 let httpSystemRunLedger: PipelineRunLedger | null = null;
 // daemon_session run の生存証明。これが止まったまま systemTimeoutMinutes を超えると
 // pipelineWatchdog が run をゴーストとして回収する（クラッシュ時の 'running' 恒久残留対策）。
+// 間隔は memory-core pipelineWatchdog の systemTimeoutMinutes 既定 30 分と結合しており、
+// 「間隔 × 3 <= 閾値」を割ると正常稼働中の daemon が偽 timeout になる。変更時は両方を見る。
 let httpSystemRunHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 const SYSTEM_RUN_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 /**

@@ -16,6 +16,9 @@ export interface PipelineWatchdogResult {
  *   the daemon advances last_heartbeat_at periodically, so a stale heartbeat
  *   means the daemon died without shutdown (crash / VS Code reload) and the
  *   row would otherwise stay 'running' forever (2026-08-08 監査: ゴースト 4 件).
+ *   上流 daemon の heartbeat 間隔は 5 分 (trail-server trailDaemonEntry.ts の
+ *   SYSTEM_RUN_HEARTBEAT_INTERVAL_MS)。本既定値 (30 分) は heartbeat を 3 回以上
+ *   取りこぼしても失効しない余裕を持たせており、それ未満へ下げないこと。
  * - memory_pipeline_state rows with status='running' that no longer have a
  *   matching running run are flipped to status='idle' (last_processed_at is
  *   preserved so the next run can resume from where it left off).

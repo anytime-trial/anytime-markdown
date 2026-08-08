@@ -3762,10 +3762,31 @@ export class TrailDatabase {
     if (hasAutoUniqueMtc) {
       db.run('DROP INDEX IF EXISTS idx_message_tool_calls_message_uuid_call_index');
     } else {
-      this.runAlterStatements(db, ['CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)']);
+      // runAlterStatements は「列が既に在る」を握り潰す専用ヘルパーのため使わない。
+      // この分岐では明示インデックスが一意性の唯一の担保なので、失敗は理由付きで残す。
+      try {
+        db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_message_tool_calls_message_uuid_call_index ON message_tool_calls(message_uuid, call_index)');
+      } catch (e) {
+        this.logger.warn(
+          `[TrailDatabase] message_tool_calls の UNIQUE インデックス作成に失敗（既存の重複行の可能性）: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
     // 旧命名世代の idx_mtc_* は現行の idx_message_tool_calls_* と定義が完全重複しており、
-    // 容量 (~150MB) と書込コストだけを消費していた (2026-08-08 監査で検出)。無条件に落とす。
+    // 書込コスト (全 INSERT が 18 インデックス更新) を消費していた (2026-08-08 監査で検出)。
+    // なお DROP INDEX はページを freelist へ返すだけでファイルは縮まない。ディスク容量の
+    // 回収まで要る場合は運用側で VACUUM する (init() では長時間ロックを避けるため行わない)。
+    // idx_mtc_unique だけは、一意性の代替 (テーブル制約 autoindex または明示 UNIQUE
+    // インデックス) の実在を実測してから落とす。作成が失敗した DB で無条件に落とすと、
+    // message_uuid + call_index の一意性が無言で消えるため。
+    const uniqueCoveredMtc =
+      hasAutoUniqueMtc ||
+      ((db.exec(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_message_tool_calls_message_uuid_call_index'",
+      )[0]?.values?.length ?? 0) > 0);
+    if (!uniqueCoveredMtc) {
+      this.logger.warn('[TrailDatabase] message_tool_calls の UNIQUE 索引を張替えられなかったため idx_mtc_unique を残置する');
+    }
     for (const legacyIdx of [
       'idx_mtc_session',
       'idx_mtc_tool_name',
@@ -3774,7 +3795,7 @@ export class TrailDatabase {
       'idx_mtc_is_error',
       'idx_mtc_turn',
       'idx_mtc_ts_turn',
-      'idx_mtc_unique',
+      ...(uniqueCoveredMtc ? ['idx_mtc_unique'] : []),
     ]) {
       db.run(`DROP INDEX IF EXISTS ${legacyIdx}`);
     }

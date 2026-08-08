@@ -1218,6 +1218,21 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     db.close();
   });
 
+  it('message_tool_calls の UNIQUE は autoindex に一本化され、旧命名 idx_mtc_* と冗長な明示 UNIQUE を持たない', async () => {
+    // 2026-08-08 監査: 本番 DB で旧命名 idx_mtc_* 8 本が現行 idx_message_tool_calls_* と
+    // 完全重複し、UNIQUE が autoindex 含め 3 重になっていた。新規 DB / init 済 DB では
+    // テーブル制約 (sqlite_autoindex) だけが一意性を担い、冗長インデックスは存在しないこと。
+    const db = await createTestTrailDatabase();
+    const inner = (db as unknown as { db: Database }).db;
+    const idx = (inner.exec(
+      "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='message_tool_calls'",
+    )[0]?.values ?? []).map((r) => String(r[0]));
+    expect(idx.filter((n) => n.startsWith('idx_mtc_'))).toEqual([]);
+    expect(idx).not.toContain('idx_message_tool_calls_message_uuid_call_index');
+    expect(idx.some((n) => n.startsWith('sqlite_autoindex_message_tool_calls'))).toBe(true);
+    db.close();
+  });
+
   it('createTables は新規 DB でも従来通り動作する (既存 *_code_graph_communities テーブル無し)', async () => {
     const db = await createTestTrailDatabase();
     const inner = (db as unknown as { db: Database }).db;

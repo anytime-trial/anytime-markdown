@@ -436,8 +436,20 @@ export function createC4DataStore(
     fileAnalysisController.abort();
     fileAnalysisController = new AbortController();
 
+    // release 分析は 2026-08-08 に廃止。リリース選択中に current の解析値を重ねると
+    // 「別時点の解析を当時のグラフに乗せる」誤読を生むため、オーバーレイは空にする
+    // （廃止前の可視挙動 = release テーブル 0 件 → 空、を維持する）。
+    if (selectedRelease !== 'current') {
+      importanceMatrix = null;
+      deadCodeMatrix = null;
+      centralityMatrix = null;
+      roleMatrix = null;
+      fileAnalysisEntries = [];
+      notify();
+      return;
+    }
+
     try {
-      // release 分析は 2026-08-08 に廃止。分析オーバーレイは選択リリースに関わらず current を参照する。
       const tag = 'current';
       const r = await fetchFileAnalysis(serverUrl, selectedRepo, tag, fileAnalysisController.signal);
       if (disposed) return;
@@ -471,8 +483,14 @@ export function createC4DataStore(
     functionAnalysisController.abort();
     functionAnalysisController = new AbortController();
 
+    // release 分析は 2026-08-08 に廃止。リリース選択中は空にする (runFileAnalysis と同方針)。
+    if (selectedRelease !== 'current') {
+      functionAnalysisEntries = [];
+      notify();
+      return;
+    }
+
     try {
-      // release 分析は 2026-08-08 に廃止。current 固定で取得する。
       const tag = 'current';
       const r = await fetchFunctionAnalysis(serverUrl, selectedRepo, tag, functionAnalysisController.signal);
       if (disposed) return;
@@ -497,8 +515,10 @@ export function createC4DataStore(
     selectedRelease = release;
     notify();
     void runInitialFetch();
-    // release 分析の廃止 (2026-08-08) 以降、file/function 解析は current 固定のため
-    // リリース切替での再取得は不要（repo 切替時のみ再実行する）。
+    // release 分析の廃止 (2026-08-08) 以降、リリース選択中は解析オーバーレイを空へ、
+    // current へ戻ったら再取得する（run* 側が selectedRelease を見て分岐する）。
+    void runFileAnalysis();
+    void runFunctionAnalysis();
   }
 
   function setSelectedRepo(repo: string): void {

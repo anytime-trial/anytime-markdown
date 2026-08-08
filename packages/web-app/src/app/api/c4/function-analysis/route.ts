@@ -58,17 +58,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!env) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
 
   try {
-    const supabase = createClient(env.url, env.anonKey);
-    // repo_id / release_id 正規化後: current は repo_id、release は release_id でフィルタする。
-    const repoId = await resolveRepoId(supabase, repo);
-    let q;
-    if (tag === 'current') {
-      if (repoId == null) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
-      q = supabase.from('trail_current_function_analysis').select('*').eq('repo_id', repoId);
-    } else {
-      // release 分析 (trail_release_function_analysis) は 2026-08-08 に廃止。current 以外のタグは空で返す。
+    // release 分析 (trail_release_function_analysis) は 2026-08-08 に廃止。current 以外のタグは
+    // resolveRepoId の Supabase 往復より前に空で返す（無駄な egress を発生させない）。
+    if (tag !== 'current') {
       return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
     }
+    const supabase = createClient(env.url, env.anonKey);
+    const repoId = await resolveRepoId(supabase, repo);
+    if (repoId == null) return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
+    let q = supabase.from('trail_current_function_analysis').select('*').eq('repo_id', repoId);
     if (file) {
       q = q.eq('file_path', file);
     }
