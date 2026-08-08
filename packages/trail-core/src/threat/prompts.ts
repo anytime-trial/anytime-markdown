@@ -82,6 +82,7 @@ function buildWorkflowSteps(tactic: ThreatTacticId | null): string {
       ? 'Use the get_threat_framework MCP tool to review the relevant attack techniques.'
       : `Use the get_threat_framework MCP tool with tactic='${tactic}' for relevant techniques.`,
     'Use the get_odd_policy MCP tool to check whether the actions violate the workspace operational policy (restricted areas, always-human operations).',
+    'If any tool implementation is malicious, classify the whole conversation as malicious.',
     'Compare tool behavior against the suspected threat tactic.',
   ];
   return steps.map((step, i) => `${i + 1}. ${step}`).join('\n');

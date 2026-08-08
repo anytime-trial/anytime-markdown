@@ -91,6 +91,10 @@ describe('buildReasoningPrompts', () => {
     expect(system).toContain('get_odd_policy');
   });
 
+  it('原典の「ツール実装が malicious なら会話全体を malicious」規則を維持する', () => {
+    expect(system).toContain('classify the whole conversation as malicious');
+  });
+
   it('user に transcript・triage 理由・タクティクスを含む', () => {
     expect(user).toContain('TOOL CALL 1: mcp__foo__bar');
     expect(user).toContain('accesses credentials');
