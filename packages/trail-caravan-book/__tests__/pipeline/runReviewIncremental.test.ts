@@ -1,8 +1,8 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../src/db/connection';
+import { openCaravanBookDb } from '../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runReviewIncremental } from '../../src/pipeline/runReviewIncremental';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
@@ -60,9 +60,9 @@ async function openTestDb(opts?: {
 }) {
   const tmpPath = makeTmpPath('.db');
 
-  const { db, close } = await openMemoryCoreDb(tmpPath);
+  const { db, close } = await openCaravanBookDb(tmpPath);
 
-  const trailHandle = BetterSqlite3MemoryDb.openInMemory();
+  const trailHandle = BetterSqlite3CaravanDb.openInCaravan();
 
   trailHandle.run(`CREATE TABLE activity_messages (
     uuid TEXT PRIMARY KEY,

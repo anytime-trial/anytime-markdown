@@ -1,16 +1,16 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 export interface LinkAffectedFilesInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   bugEntityId: string;
   commitSha: string;
   repoName: string;
   recordedAt: string;
   valid_from: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }
 
 export interface LinkAffectedFilesResult {

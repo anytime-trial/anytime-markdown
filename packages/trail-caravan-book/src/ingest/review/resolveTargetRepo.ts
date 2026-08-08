@@ -11,7 +11,7 @@
  * `trail.activity_commit_files` に実在するかどうかだけで判定する。判定できない場合は
  * null を返して照合対象から外す（fail-closed）。誤ったリンクは無いリンクより悪い。
  */
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import type { NormalizedTargetPath } from './normalizeTargetPath';
 
 export interface ResolvedTargetRepo {
@@ -22,7 +22,7 @@ export interface ResolvedTargetRepo {
 
 export interface ResolveTargetRepoInput {
   /** activity.db が attach 済みの trail-caravan-book 接続。 */
-  readonly db: MemoryDbConnection;
+  readonly db: CaravanDbConnection;
   readonly target: NormalizedTargetPath;
   /** レビューが行われたワークスペースの repo_name。同名衝突時の優先先になる。 */
   readonly workspaceRepo: string;
@@ -49,7 +49,7 @@ export function escapeLike(value: string): string {
  * 永久に解決できなくなる（症状は「解決できなかった行」に紛れて異常として現れない）。
  */
 function reposContaining(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   relativePath: string,
   kind: NormalizedTargetPath['kind'],
 ): string[] {
@@ -77,7 +77,7 @@ function reposContaining(
 }
 
 /** 既知のリポジトリ名一覧。 */
-function knownRepoNames(db: MemoryDbConnection): Set<string> {
+function knownRepoNames(db: CaravanDbConnection): Set<string> {
   const result = db.exec('SELECT repo_name FROM trail.activity_repos');
   return new Set((result[0]?.values ?? []).map((row) => String(row[0])));
 }
@@ -88,7 +88,7 @@ function knownRepoNames(db: MemoryDbConnection): Set<string> {
  * 双方（リポジトリ名が 1 段目・2 段目）を扱う。
  */
 function splitAbsolute(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   absolutePath: string,
 ): ReadonlyArray<ResolvedTargetRepo> {
   const known = knownRepoNames(db);

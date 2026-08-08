@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 
 export type BugFixSummary = {
   bug_fix_id: string;
@@ -25,13 +25,13 @@ function toBugFixSummary(row: readonly unknown[]): BugFixSummary {
 }
 
 function queryPackageBugs(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   pkg: string,
   windowDays: number,
   minCount: number,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): RecurringBugGroup | null {
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT id, commit_sha, subject_summary, committed_at
@@ -50,13 +50,13 @@ function queryPackageBugs(
 }
 
 function queryFilePathBugs(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   filePath: string,
   windowDays: number,
   minCount: number,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): RecurringBugGroup | null {
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT caravan_bug_fixes.id, commit_sha, subject_summary, committed_at
@@ -75,13 +75,13 @@ function queryFilePathBugs(
 }
 
 function queryCausedByBugs(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   causedByEntityId: string,
   windowDays: number,
   minCount: number,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): RecurringBugGroup | null {
-  let bugEntityRows: ReturnType<MemoryDbConnection['exec']>;
+  let bugEntityRows: ReturnType<CaravanDbConnection['exec']>;
   try {
     bugEntityRows = db.exec(
       `SELECT DISTINCT subject_entity_id
@@ -102,7 +102,7 @@ function queryCausedByBugs(
 
   const bugs: BugFixSummary[] = [];
   for (const bugEntityId of bugEntityIds) {
-    let fixRows: ReturnType<MemoryDbConnection['exec']>;
+    let fixRows: ReturnType<CaravanDbConnection['exec']>;
     try {
       fixRows = db.exec(
         `SELECT id, commit_sha, subject_summary, committed_at
@@ -126,13 +126,13 @@ function queryCausedByBugs(
 }
 
 export function listRecurringBugs(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   package?: string;
   file_path?: string;
   caused_by_entity_id?: string;
   windowDays?: number;
   minCount?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): RecurringBugGroup[] {
   const { db, windowDays = 90, minCount = 2, logger } = input;
   const results: RecurringBugGroup[] = [];

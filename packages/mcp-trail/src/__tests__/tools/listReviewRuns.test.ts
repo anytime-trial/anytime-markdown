@@ -1,15 +1,15 @@
 import { handleListReviewRuns } from '../../tools/listReviewRuns';
 
-// resolveMemoryDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
-// openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
+// resolveCaravanDbPath は実ファイルの存在を検査する（不在なら throw）。ここでは
+// openCaravanBookDb をモックしているため、パス解決も併せてモックする。
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),
-  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
+  resolveCaravanDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
 jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
-  openMemoryCoreDb: jest.fn().mockResolvedValue({
+  openCaravanBookDb: jest.fn().mockResolvedValue({
     db: {},
     close: jest.fn(),
   }),
@@ -72,11 +72,11 @@ describe('handleListReviewRuns', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
+    const { openCaravanBookDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleListReviewRuns({});
 
-    const handle = await openMemoryCoreDb.mock.results[0].value;
+    const handle = await openCaravanBookDb.mock.results[0].value;
     expect(handle.close).toHaveBeenCalledTimes(1);
   });
 });

@@ -8,7 +8,7 @@
  */
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { openMemoryCoreDb } from '../src/db/connection';
+import { openCaravanBookDb } from '../src/db/connection';
 import { attachTrailDbReadOnly } from '../src/db/attach';
 import { runReviewIncremental } from '../src/pipeline/runReviewIncremental';
 import { createOllamaClient } from '@anytime-markdown/agent-core';
@@ -18,12 +18,12 @@ if (!trailHome) {
   console.error('Usage: reingest-reviews.mts <TRAIL_HOME>');
   process.exit(1);
 }
-const memoryDbPath = path.join(trailHome, 'db', 'caravan-book.db');
+const caravanDbPath = path.join(trailHome, 'db', 'caravan-book.db');
 const trailDbPath = path.join(trailHome, 'db', 'activity.db');
 const reviewDir = process.env['MEMORY_CORE_REVIEW_DIR'] ?? '/Shared/anytime-markdown-docs/review';
 
-if (!fs.existsSync(memoryDbPath)) {
-  console.error(`caravan-book.db not found at ${memoryDbPath}`);
+if (!fs.existsSync(caravanDbPath)) {
+  console.error(`caravan-book.db not found at ${caravanDbPath}`);
   process.exit(1);
 }
 if (!fs.existsSync(trailDbPath)) {
@@ -31,11 +31,11 @@ if (!fs.existsSync(trailDbPath)) {
   process.exit(1);
 }
 
-console.log(`[reingest] trail-caravan-book: ${memoryDbPath}`);
+console.log(`[reingest] trail-caravan-book: ${caravanDbPath}`);
 console.log(`[reingest] trail: ${trailDbPath}`);
 console.log(`[reingest] reviewDir: ${reviewDir}`);
 
-const { db, close } = await openMemoryCoreDb(memoryDbPath);
+const { db, close } = await openCaravanBookDb(caravanDbPath);
 await attachTrailDbReadOnly(db, trailDbPath);
 
 const ollama = createOllamaClient({ baseUrl: 'http://host.docker.internal:11434' });

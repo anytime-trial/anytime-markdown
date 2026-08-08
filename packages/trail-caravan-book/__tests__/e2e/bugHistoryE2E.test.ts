@@ -14,13 +14,13 @@
  */
 
 import * as fs from 'fs';
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import * as os from 'os';
 import * as path from 'path';
 // sql.js removed
 import { attachTrailDbReadOnly } from '../../src/db/attach';
 import { runBugHistoryIncremental } from '../../src/pipeline/runBugHistoryIncremental';
-import type { MemoryCoreDb } from '../../src/db/connection';
+import type { CaravanBookDb } from '../../src/db/connection';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -129,8 +129,8 @@ const COMMITS: CommitSeed[] = [
  *   - activity_session_commits table (queried by runBugHistoryIncremental)
  *   - activity_commit_files table (queried by linkAffectedFiles)
  */
-function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
 
   // Phase H-4: trail.activity_sessions / activity_session_commits / activity_commit_files から repo_name 列を撤去した。repo 帰属は
@@ -214,8 +214,8 @@ function makeTrailDb(repoName: string, commits: CommitSeed[]): BetterSqlite3Memo
 }
 
 /** Opens an in-memory trail-caravan-book DB with all migrations applied. */
-async function makeMemoryDb(): Promise<MemoryCoreDb> {
-  const rawDb = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<CaravanBookDb> {
+  const rawDb = BetterSqlite3CaravanDb.openInCaravan();
   rawDb.run('PRAGMA foreign_keys = ON');
 
   const { runMigrations } = await import('../../src/db/migrations/runner');
@@ -231,7 +231,7 @@ async function makeMemoryDb(): Promise<MemoryCoreDb> {
 }
 
 /** Exports a BetterSqlite3 Database to a temp file and returns the file path. */
-function exportToTempFile(db: BetterSqlite3MemoryDb, tmpDir: string, filename: string): string {
+function exportToTempFile(db: BetterSqlite3CaravanDb, tmpDir: string, filename: string): string {
   const data = db.serialize();
   const filePath = path.join(tmpDir, filename);
   fs.writeFileSync(filePath, data);
@@ -281,7 +281,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
       const trailDbPath = exportToTempFile(trailDb, tmpDir, 'bug-e2e-bp1.db');
       trailDb.close();
 
-      const memDb = await makeMemoryDb();
+      const memDb = await makeCaravanDb();
       await attachTrailDbReadOnly(memDb.db, trailDbPath);
 
       try {
@@ -367,7 +367,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
       const trailDbPath = exportToTempFile(trailDb, tmpDir, 'bug-e2e-bp2.db');
       trailDb.close();
 
-      const memDb = await makeMemoryDb();
+      const memDb = await makeCaravanDb();
       await attachTrailDbReadOnly(memDb.db, trailDbPath);
 
       try {
@@ -412,7 +412,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
   /**
    * Scenario BP3 – §acceptance: web-app regression Bug entities exist.
    *
-   * Since searchMemory requires Ollama embeddings (not available here),
+   * Since searchCaravanBook requires Ollama embeddings (not available here),
    * we verify directly in the DB:
    *   - 2 Bug entities with category='regression' and package='web-app'
    *   - The shared file (SHARED_FILE) has >=2 'affects' edges, one per regression bug
@@ -427,7 +427,7 @@ describe('E2E Phase 2.5: runBugHistoryIncremental', () => {
       const trailDbPath = exportToTempFile(trailDb, tmpDir, 'bug-e2e-bp3.db');
       trailDb.close();
 
-      const memDb = await makeMemoryDb();
+      const memDb = await makeCaravanDb();
       await attachTrailDbReadOnly(memDb.db, trailDbPath);
 
       try {

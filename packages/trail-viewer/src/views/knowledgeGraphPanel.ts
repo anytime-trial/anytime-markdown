@@ -172,7 +172,7 @@ export function mountKnowledgeGraphPanel(
     loadState = 'loading';
     render();
     try {
-      const res = await fetch(`${props.serverUrl}/api/memory/knowledge-graph${buildQuery()}`, { signal: ctrl.signal });
+      const res = await fetch(`${props.serverUrl}/api/caravan/knowledge-graph${buildQuery()}`, { signal: ctrl.signal });
       if (destroyed || seq !== fetchSeq) return;
       // 200 + null は「DB 未設定」（サーバ実装参照）。0 件の正常応答と区別して障害側へ倒す
       const json = res.ok ? ((await res.json()) as KnowledgeGraphResponse | null) : null;

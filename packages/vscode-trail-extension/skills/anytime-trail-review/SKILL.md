@@ -166,7 +166,7 @@ target_refs:               # 任意。レビュー対象パス
 
 - **重大度**: error
 - **カテゴリ**: logic
-- **対象**: `packages/<pkg>/src/components/MemoryPanel.tsx:<line>`
+- **対象**: `packages/<pkg>/src/components/CaravanPanel.tsx:<line>`
 - **観点**: §8
 
 **問題:**
@@ -191,12 +191,12 @@ const name = reader.session.user.name;
 
 - **重大度**: warn
 - **カテゴリ**: naming
-- **対象**: `packages/<pkg>/src/components/memory/ReviewPanel.tsx:<line>`
+- **対象**: `packages/<pkg>/src/components/caravan/ReviewPanel.tsx:<line>`
 - **観点**: §17
 
 **問題:**
 
-`t('memory.review.openInMessages')` を呼んでいるが、`i18n/types.ts` に定義がない。
+`t('caravan.review.openInMessages')` を呼んでいるが、`i18n/types.ts` に定義がない。
 ビルドエラーにはならないが、表示時に key 文字列がそのまま出る。
 
 **提案:**

@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 // ── Subset of trail-activity CodeGraph types needed here ────────────────────────
 // (trail-activity is not a dependency of trail-caravan-book; types are inlined to avoid
@@ -46,15 +46,15 @@ function codeEdgeId(subjectId: string, predicate: string, objectId: string): str
 /**
  * Reads `trail.activity_current_code_graphs` for a given repo and upserts
  * Package / File entities plus Package→relates_to→File edges into
- * the memory DB.
+ * the caravan-book DB.
  *
  * Idempotent: re-running with the same graph_json does not change row counts.
  */
 export function fromTrailGraph(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   repoName: string;
   recordedAt: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): FromTrailGraphStats {
   const { db, repoName, recordedAt, logger } = opts;
 

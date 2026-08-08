@@ -1,5 +1,5 @@
 import { planTableRenames, type TableRename } from '@anytime-markdown/trail-activity';
-import type { MemoryDbConnection } from '../connection/types';
+import type { CaravanDbConnection } from '../connection/types';
 
 /**
  * 023/024: caravan-book.db の runner 管理テーブルを caravan_ 接頭辞へ改名する。
@@ -34,14 +34,14 @@ const CARAVAN_RUNNER_TABLE_RENAMES: readonly TableRename[] = [
   { from: 'pipeline_run_logs', to: 'caravan_pipeline_run_logs' },
 ];
 
-function listTables(conn: MemoryDbConnection): Set<string> {
+function listTables(conn: CaravanDbConnection): Set<string> {
   const result = conn.exec(
     `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`,
   );
   return new Set((result[0]?.values ?? []).map((r) => String(r[0])));
 }
 
-export function applyTablePrefix(conn: MemoryDbConnection): void {
+export function applyTablePrefix(conn: CaravanDbConnection): void {
   // FTS5 非対応ビルドで skip された v13 が残っていると、改名後に FTS5 対応ビルドで
   // 開いたとき v13 が再実行され、旧名 memory_pipeline_state 前提の 12-step 再作成が
   // no such table で落ちる（cross-review 指摘 2026-08-08）。v13 の非 FTS 部分
@@ -66,7 +66,7 @@ export function applyTablePrefix(conn: MemoryDbConnection): void {
 
 const FTS_TOKENIZE = `tokenize='unicode61 remove_diacritics 2'`;
 
-export function applyTablePrefixFts(conn: MemoryDbConnection): void {
+export function applyTablePrefixFts(conn: CaravanDbConnection): void {
   // 旧 FTS は contentless (content='') で中身を SELECT できないため、rename でなく
   // DROP → 新名 CREATE → ベーステーブルから全再構成する（contentless FTS への一括
   // rowid 差分操作は DB 破損の既知罠のため、再構築方式に固定）。新名側も DROP して

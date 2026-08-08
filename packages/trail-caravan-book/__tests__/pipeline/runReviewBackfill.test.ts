@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runReviewBackfill } from '../../src/pipeline/runReviewBackfill';
@@ -7,15 +7,15 @@ import { entityId } from '../../src/canonical/entityId';
 const AT = '2026-03-02T00:00:00.000Z';
 const NOW = '2026-03-03T00:00:00.000Z';
 
-function makeMainDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeMainDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run(`
     CREATE TABLE activity_messages (
       uuid TEXT PRIMARY KEY,
@@ -33,7 +33,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 function insertMsg(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   opts: { uuid: string; session: string; ts: string; text: string; subagent?: string; skill?: string },
 ): void {
   trailDb.run(
@@ -45,7 +45,7 @@ function insertMsg(
 
 /** 修正前の取込が作っていた行（本文列が空）を再現する */
 function insertLegacyReview(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   sourceRef: string,
   opts: { withFinding?: boolean } = {},
 ): string {

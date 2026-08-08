@@ -1,8 +1,8 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
 // typescript 依存は撤去済み。runCodeIncremental は trail-db の activity_current_graphs（生 TrailGraph）と
 // activity_code_decision_comments（analyze-child が永続化）から読むため、fixture でそれらを用意する。
@@ -29,20 +29,20 @@ const RAW_TRAIL_GRAPH = {
 const REPO = 'test-repo';
 const GRAPH_UPDATED_AT = '2026-01-02T00:00:00.000Z';
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
 
-function makeMemoryDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeCaravanDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run(`
     CREATE TABLE activity_repos (
       repo_id    INTEGER PRIMARY KEY,
@@ -104,7 +104,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
   return trailDb;
 }
 
-function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, updatedAt: string): void {
+function insertCodeGraph(trailDb: BetterSqlite3CaravanDb, repoName: string, updatedAt: string): void {
   const repoId = trailRepoId(trailDb, repoName);
   const codeGraphJson = JSON.stringify({
     generatedAt: updatedAt,
@@ -140,7 +140,7 @@ function insertCodeGraph(trailDb: BetterSqlite3MemoryDb, repoName: string, updat
 }
 
 function insertDecisionComment(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   repoName: string,
   comment: { filePath: string; line: number; text: string; symbolName: string | null }
 ): void {
@@ -161,7 +161,7 @@ function insertDecisionComment(
   );
 }
 
-function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
+function trailRepoId(trailDb: BetterSqlite3CaravanDb, repoName: string): number {
   trailDb.run(
     `INSERT INTO activity_repos (repo_name, created_at) VALUES (?, ?) ON CONFLICT(repo_name) DO NOTHING`,
     [repoName, '2026-01-01T00:00:00.000Z']
@@ -175,12 +175,12 @@ function trailRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
   }
 }
 
-function countPipelineRuns(db: BetterSqlite3MemoryDb): number {
+function countPipelineRuns(db: BetterSqlite3CaravanDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM caravan_pipeline_runs WHERE scope = 'code_incremental'`);
   return (result[0]?.values[0][0] as number) ?? 0;
 }
 
-function getPipelineState(db: BetterSqlite3MemoryDb): { status: string; last_processed_at: string } | null {
+function getPipelineState(db: BetterSqlite3CaravanDb): { status: string; last_processed_at: string } | null {
   const stmt = db.prepare(
     `SELECT status, last_processed_at FROM caravan_pipeline_state WHERE scope = 'code_incremental'`
   );
@@ -203,7 +203,7 @@ function getPipelineState(db: BetterSqlite3MemoryDb): { status: string; last_pro
 describe('runCodeIncremental', () => {
   describe('status=skipped when no code graph exists', () => {
     it('returns skipped and does not create a pipeline_run row', async () => {
-      const memDb = makeMemoryDb();
+      const memDb = makeCaravanDb();
       const trailDb = makeTrailDb(); // no code graph inserted
       attachTrailDbFromHandle(memDb, trailDb);
 
@@ -223,7 +223,7 @@ describe('runCodeIncremental', () => {
 
   describe('status=skipped when graph not updated', () => {
     it('returns skipped if updated_at <= last_processed_at', async () => {
-      const memDb = makeMemoryDb();
+      const memDb = makeCaravanDb();
       const trailDb = makeTrailDb();
       insertCodeGraph(trailDb, REPO, GRAPH_UPDATED_AT);
       attachTrailDbFromHandle(memDb, trailDb);
@@ -249,7 +249,7 @@ describe('runCodeIncremental', () => {
 
   describe('status=success on first run (no prior state)', () => {
     it('processes graph and advances pipeline_state', async () => {
-      const memDb = makeMemoryDb();
+      const memDb = makeCaravanDb();
       const trailDb = makeTrailDb();
       insertCodeGraph(trailDb, REPO, GRAPH_UPDATED_AT);
       attachTrailDbFromHandle(memDb, trailDb);
@@ -281,7 +281,7 @@ describe('runCodeIncremental', () => {
 
   describe('status=skipped on 2nd run when graph unchanged', () => {
     it('skips if updated_at has not changed since last run', async () => {
-      const memDb = makeMemoryDb();
+      const memDb = makeCaravanDb();
       const trailDb = makeTrailDb();
       insertCodeGraph(trailDb, REPO, GRAPH_UPDATED_AT);
       attachTrailDbFromHandle(memDb, trailDb);
@@ -309,7 +309,7 @@ describe('runCodeIncremental', () => {
 
   describe('decision comments ingested from trail.activity_code_decision_comments', () => {
     it('creates a Decision entity for each stored comment', async () => {
-      const memDb = makeMemoryDb();
+      const memDb = makeCaravanDb();
       const trailDb = makeTrailDb();
       insertCodeGraph(trailDb, REPO, GRAPH_UPDATED_AT);
       insertDecisionComment(trailDb, REPO, {

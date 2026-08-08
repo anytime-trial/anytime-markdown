@@ -3,11 +3,11 @@
  * - SQL query 失敗時の catch (L34-37)
  * - UPDATE 失敗時の catch (L62)
  */
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { postProcessF22 } from '../../src/drift/postProcessF22';
-import type { MemoryLogger } from '../../src/logger';
-import type { MemoryDbConnection, SqlValue } from '../../src/db/connection/types';
+import type { CaravanLogger } from '../../src/logger';
+import type { CaravanDbConnection, SqlValue } from '../../src/db/connection/types';
 import type { DriftEventInput } from '../../src/drift/report';
 
 const TS = '2026-01-01T00:00:00.000Z';
@@ -35,13 +35,13 @@ function makeDriftEvent(targetSpecPath: string | null): DriftEventInput {
 describe('postProcessF22 - SQL クエリ失敗パス', () => {
   it('exec が例外を投げたとき findings_suggested=0 を返しエラーをログする', () => {
     const errors: string[] = [];
-    const logger: MemoryLogger = {
+    const logger: CaravanLogger = {
       info: () => {},
       error: (msg: string) => { errors.push(msg); },
     };
 
     // exec が常に throw するモック DB
-    const brokenDb: MemoryDbConnection = {
+    const brokenDb: CaravanDbConnection = {
       exec: (_sql: string, _params?: ReadonlyArray<SqlValue>) => {
         throw new Error('query error');
       },
@@ -73,14 +73,14 @@ describe('postProcessF22 - SQL クエリ失敗パス', () => {
 describe('postProcessF22 - UPDATE 失敗パス', () => {
   it('UPDATE が例外を投げたとき findings_suggested が増えない', () => {
     const errors: string[] = [];
-    const logger: MemoryLogger = {
+    const logger: CaravanLogger = {
       info: () => {},
       error: (msg: string) => { errors.push(msg); },
     };
 
     // exec は rows を返すが run が失敗するモック DB
     let runCount = 0;
-    const db: MemoryDbConnection = {
+    const db: CaravanDbConnection = {
       exec: (_sql: string, _params?: ReadonlyArray<SqlValue>) => {
         // SELECT クエリ → finding を1件返す
         return [{
@@ -115,7 +115,7 @@ describe('postProcessF22 - UPDATE 失敗パス', () => {
   });
 
   it('attributes_json が "{}" の entity は正常に更新される (suggested_by フィールドが設定される)', () => {
-    const db = BetterSqlite3MemoryDb.openInMemory();
+    const db = BetterSqlite3CaravanDb.openInCaravan();
     db.run('PRAGMA foreign_keys = ON');
     runMigrations(db);
 
@@ -153,7 +153,7 @@ describe('postProcessF22 - UPDATE 失敗パス', () => {
       [`rf-${++seq}`, rev, entityId, seq, 'spec/attrs.md', 'other', TS],
     );
 
-    const logger: MemoryLogger = { info: () => {}, error: () => {} };
+    const logger: CaravanLogger = { info: () => {}, error: () => {} };
     const driftEvent = makeDriftEvent('spec/attrs.md');
     const result = postProcessF22({
       db,

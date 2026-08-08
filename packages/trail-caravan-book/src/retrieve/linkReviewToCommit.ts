@@ -1,14 +1,14 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 import { entityId } from '../canonical/entityId';
 
 export type LinkReviewToCommitInput = {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   finding_id: string;
   commit_sha: string;
   addressed_at?: string;
   override_auto?: boolean;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 };
 
 export type LinkReviewToCommitResult = {
@@ -20,7 +20,7 @@ export function linkReviewToCommit(input: LinkReviewToCommitInput): LinkReviewTo
   const { db, finding_id, commit_sha, override_auto = false, logger } = input;
   const addressed_at = input.addressed_at ?? new Date().toISOString();
 
-  let findingRows: ReturnType<MemoryDbConnection['exec']>;
+  let findingRows: ReturnType<CaravanDbConnection['exec']>;
   try {
     findingRows = db.exec(
       `SELECT addressed_commit_sha, finding_entity_id

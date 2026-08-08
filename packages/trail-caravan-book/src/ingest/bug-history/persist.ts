@@ -1,8 +1,8 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import type { BugEntityRow } from './buildBugEntity';
 import { entityId } from '../../canonical/entityId';
 
-export function upsertBugEntity(db: MemoryDbConnection, row: BugEntityRow): void {
+export function upsertBugEntity(db: CaravanDbConnection, row: BugEntityRow): void {
   // Use ON CONFLICT DO UPDATE (not INSERT OR REPLACE) to avoid CASCADE-deleting
   // edges that reference this entity's id.
   db.run(
@@ -31,7 +31,7 @@ export function upsertBugEntity(db: MemoryDbConnection, row: BugEntityRow): void
 }
 
 export function upsertCommitEntity(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: { commitSha: string; recordedAt: string }
 ): string {
   const commitId = entityId('Commit', opts.commitSha);
@@ -46,7 +46,7 @@ export function upsertCommitEntity(
 }
 
 export function upsertBugFix(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: {
     id: string;
     commitSha: string;
@@ -95,7 +95,7 @@ export function upsertBugFix(
 }
 
 export function insertFixesEdge(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: {
     commitId: string;
     bugEntityId: string;

@@ -1,32 +1,32 @@
 import { createHash } from 'crypto';
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { extractCommitRationale } from '../../../src/ingest/code/extractCommitRationale';
 import { entityId } from '../../../src/canonical/entityId';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanLogger } from '../../../src/logger';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const RECORDED_AT = '2026-01-01T00:00:00.000Z';
 const REPO = 'test-repo';
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   // Phase H-4: trail.activity_session_commits から repo_name 列を撤去した。repo 帰属は repo_id で表現し、
   // extractCommitRationale は trail.activity_repos を JOIN して repo_name → repo_id を解決する。
   trailDb.run(`CREATE TABLE activity_repos (
@@ -58,7 +58,7 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
 }
 
 /** Resolve repo_id from repos by name, seeding the row if it does not yet exist. */
-function resolveRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number {
+function resolveRepoId(trailDb: BetterSqlite3CaravanDb, repoName: string): number {
   const existing = trailDb.exec('SELECT repo_id FROM activity_repos WHERE repo_name = ?', [repoName]);
   const found = existing[0]?.values?.[0]?.[0];
   if (found !== undefined && found !== null) return Number(found);
@@ -70,7 +70,7 @@ function resolveRepoId(trailDb: BetterSqlite3MemoryDb, repoName: string): number
   return Number(row[0]?.values?.[0]?.[0] ?? 0);
 }
 
-function insertSession(trailDb: BetterSqlite3MemoryDb, sessionId: string): void {
+function insertSession(trailDb: BetterSqlite3CaravanDb, sessionId: string): void {
   trailDb.run(
     `INSERT INTO activity_sessions (id, started_at) VALUES (?, ?)`,
     [sessionId, RECORDED_AT]
@@ -78,7 +78,7 @@ function insertSession(trailDb: BetterSqlite3MemoryDb, sessionId: string): void 
 }
 
 function insertCommit(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   opts: {
     sessionId: string;
     commitHash: string;
@@ -101,7 +101,7 @@ function insertCommit(
   );
 }
 
-function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
+function countEntities(db: BetterSqlite3CaravanDb, type: string): number {
   const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_entities WHERE type = ?`);
   try {
     return ((stmt.get(type)?.['c'] as number) ?? 0);
@@ -110,7 +110,7 @@ function countEntities(db: BetterSqlite3MemoryDb, type: string): number {
   }
 }
 
-function countEdges(db: BetterSqlite3MemoryDb, predicate?: string): number {
+function countEdges(db: BetterSqlite3CaravanDb, predicate?: string): number {
   if (predicate) {
     const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_edges WHERE predicate = ?`);
     try {
@@ -128,7 +128,7 @@ function countEdges(db: BetterSqlite3MemoryDb, predicate?: string): number {
 describe('extractCommitRationale', () => {
   // ECR-1: Rationale: section in commit body → 1 Decision + 1 edge
   test('ECR-1: Rationale: section → 1 Decision + 1 Commit + 1 rationale_for edge', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
     insertCommit(trailDb, {
@@ -167,7 +167,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-2: Reason: pattern
   test('ECR-2: Reason: pattern → Decision extracted', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
     insertCommit(trailDb, {
@@ -200,7 +200,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-3: 理由: Japanese pattern
   test('ECR-3: 理由: pattern → Decision extracted', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
     insertCommit(trailDb, {
@@ -232,7 +232,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-4: full-width colon 全角コロン
   test('ECR-4: full-width colon 「Rationale：」 → Decision extracted', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
     insertCommit(trailDb, {
@@ -259,7 +259,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-5: subject-only Rationale: → NOT extracted (body-only rule)
   test('ECR-5: subject line with Rationale: only → no Decision (body-only rule)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
     insertCommit(trailDb, {
@@ -292,7 +292,7 @@ describe('extractCommitRationale', () => {
   // 「本文に Why を書く」であるため、実測で本文 2,708 件中 0 件しか抽出できず
   // Rationale Audit の監査対象が恒久的に空になっていた。
   test('ECR-6: ラベル無しの本文は INFERRED として抽出される', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
     insertCommit(trailDb, {
@@ -327,7 +327,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-7: idempotency — same commit processed twice → no-op on second run
   test('ECR-7: processing same commit twice → decisions/edges remain at 1 (idempotent)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
     insertCommit(trailDb, {
@@ -373,7 +373,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-8: sinceCommittedAt cursor filters older commits
   test('ECR-8: sinceCommittedAt cursor filters commits on or before the cutoff', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
 
@@ -414,7 +414,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-9: multiple commits → multiple Decisions
   test('ECR-9: 3 commits with Rationale sections → 3 Decisions + 3 edges', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
 
@@ -449,7 +449,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-10: Decision entity ID is deterministic
   test('ECR-10: Decision entity ID is deterministic from commit_hash', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     const commitHash = 'deterministic0';
     insertSession(trailDb, 'session-1');
@@ -491,7 +491,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-11: edge metadata is correct
   test('ECR-11: edge has source_type=code, source_ref=activity_session_commits#<hash>, confidence_label=EXTRACTED', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     const commitHash = 'edge0meta0000';
     insertSession(trailDb, 'session-1');
@@ -531,7 +531,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-12: edge direction is Decision → rationale_for → Commit
   test('ECR-12: edge subject is Decision, object is Commit', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
     insertCommit(trailDb, {
@@ -568,7 +568,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-13: write to trail.* is blocked by readonly guard
   test('ECR-13: guard blocks write to trail.activity_session_commits', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     attachTrailDbFromHandle(memDb, trailDb);
@@ -583,7 +583,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-14: sinceCommittedAt null processes all commits
   test('ECR-14: sinceCommittedAt=null processes all commits regardless of date', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
 
@@ -613,7 +613,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-16: multi-line rationale body is captured in full
   test('ECR-16: multi-line rationale body captured without truncation', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'session-1');
     insertCommit(trailDb, {
@@ -644,7 +644,7 @@ describe('extractCommitRationale', () => {
 
   // ECR-15: same commit_hash in multiple sessions → deduplicated by GROUP BY
   test('ECR-15: same commit_hash across multiple sessions → processed once', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
     // Same commit hash appears in two different sessions (common in activity.db)
     insertSession(trailDb, 'session-1');
@@ -688,14 +688,14 @@ describe('extractCommitRationale', () => {
 // confidence_label が EXTRACTED / INFERRED を持つのは、この「ラベルで宣言された
 // 根拠」と「本文から推定した根拠」を人が区別して監査するための設計である。
 
-function edgeConfidenceLabels(db: BetterSqlite3MemoryDb): string[] {
+function edgeConfidenceLabels(db: BetterSqlite3CaravanDb): string[] {
   const rows = db.exec(
     `SELECT confidence_label FROM caravan_edges WHERE predicate = 'rationale_for'`,
   );
   return (rows[0]?.values ?? []).map((r) => String(r[0]));
 }
 
-function decisionSummaries(db: BetterSqlite3MemoryDb): string[] {
+function decisionSummaries(db: BetterSqlite3CaravanDb): string[] {
   const rows = db.exec(`SELECT summary FROM caravan_entities WHERE type = 'Decision'`);
   return (rows[0]?.values ?? []).map((r) => String(r[0]));
 }
@@ -705,7 +705,7 @@ async function runWith(commitMessage: string): Promise<{
   labels: string[];
   summaries: string[];
 }> {
-  const memDb = await makeMemoryDb();
+  const memDb = await makeCaravanDb();
   const trailDb = makeTrailDb();
   insertSession(trailDb, 'session-inferred');
   insertCommit(trailDb, {

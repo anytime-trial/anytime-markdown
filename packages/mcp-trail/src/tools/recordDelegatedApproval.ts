@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
-import { openMemoryDb } from '../sqlite/openDb';
+import { resolveCaravanDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { openCaravanDb } from '../sqlite/openDb';
 import {
   ensureAndMigrateDoctrineJudgments,
   recordDelegatedApprovalDirect,
@@ -40,8 +40,8 @@ export async function handleRecordDelegatedApproval(
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
   // 保存先は caravan-book.db（2026-08-07 に activity.db から移設。旧テーブルは遅延移行で回収）
-  const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
-  const opened = await openMemoryDb(dbPath, 'readwrite');
+  const dbPath = resolveCaravanDbPathForWrite({ workspacePath });
+  const opened = await openCaravanDb(dbPath, 'readwrite');
   try {
     ensureAndMigrateDoctrineJudgments(opened.db, dbPath);
     const result = recordDelegatedApprovalDirect(opened.db, {

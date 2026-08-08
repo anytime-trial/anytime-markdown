@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { parseReviewSessions } from '../../../src/ingest/review/parseReviewSession';
 
@@ -8,8 +8,8 @@ import { parseReviewSessions } from '../../../src/ingest/review/parseReviewSessi
  * Create a minimal trail-caravan-book main DB (no migrations needed — we just need
  * the attach guard to work, which requires caravan_failed_items table).
  */
-function makeMainDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeMainDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   db.run(`
     CREATE TABLE IF NOT EXISTS caravan_failed_items (
@@ -28,8 +28,8 @@ function makeMainDb(): BetterSqlite3MemoryDb {
 /**
  * Create an in-memory trail DB with just the messages table.
  */
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run(`
     CREATE TABLE activity_messages (
       uuid TEXT PRIMARY KEY,
@@ -65,7 +65,7 @@ type InsertMsgOpts = {
  */
 const DEFAULT_TEXT = 'レビュー本文';
 
-function insertMsg(trailDb: BetterSqlite3MemoryDb, opts: InsertMsgOpts): void {
+function insertMsg(trailDb: BetterSqlite3CaravanDb, opts: InsertMsgOpts): void {
   trailDb.run(
     `INSERT INTO activity_messages
       (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill, is_sidechain)

@@ -67,8 +67,8 @@
     ],
     "commands": [
       {
-        "command": "anytime-trail.memory.rebuildIndex",
-        "title": "%command.memory.rebuildIndex%",
+        "command": "anytime-trail.caravanBook.rebuildIndex",
+        "title": "%command.caravanBook.rebuildIndex%",
         "category": "Anytime Trail"
       },
       {

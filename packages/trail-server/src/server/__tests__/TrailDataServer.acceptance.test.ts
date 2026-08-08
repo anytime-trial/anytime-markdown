@@ -22,7 +22,7 @@ describe('/api/trail/acceptance', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     // caravan_acceptance_records は caravan-book.db（FlightRecordDatabase）側（2026-08-07 移設）。
-    // TrailDataServer が memoryDbPath から構築するため一時ディレクトリを注入する
+    // TrailDataServer が caravanDbPath から構築するため一時ディレクトリを注入する
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trail-server-acceptance-'));
     server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, path.join(tempDir, 'caravan-book.db'));
     await server.start(0);

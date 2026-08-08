@@ -1,15 +1,15 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runSpecReconciliation } from '../../src/pipeline/runSpecReconciliation';
 
 const AT = '2026-05-12T00:00:00.000Z';
 const NOW = '2026-05-12T01:00:00.000Z';
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   db.run(
@@ -19,7 +19,7 @@ function makeDb(): BetterSqlite3MemoryDb {
   return db;
 }
 
-function insertEntity(db: BetterSqlite3MemoryDb, id: string, type: string, name: string): void {
+function insertEntity(db: BetterSqlite3CaravanDb, id: string, type: string, name: string): void {
   db.run(
     `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, first_seen_at, last_updated_at, recorded_at)
@@ -28,7 +28,7 @@ function insertEntity(db: BetterSqlite3MemoryDb, id: string, type: string, name:
   );
 }
 
-function insertSpecDoc(db: BetterSqlite3MemoryDb, docId: string, relPath: string, entityId: string): void {
+function insertSpecDoc(db: BetterSqlite3CaravanDb, docId: string, relPath: string, entityId: string): void {
   db.run(
     `INSERT INTO caravan_spec_documents
        (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, summary, recorded_at)
@@ -50,7 +50,7 @@ function insertSpecDoc(db: BetterSqlite3MemoryDb, docId: string, relPath: string
 
 /** linkByC4Scope が作る形: C4 要素 entity を spec_doc_entities へ、edge は接頭辞なし source_ref */
 function linkC4Entity(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   docId: string,
   specEntityId: string,
   c4EntityId: string,
@@ -75,7 +75,7 @@ function linkC4Entity(
 }
 
 function insertSpecEdge(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   edgeId: string,
   docId: string,
   subjectId: string,

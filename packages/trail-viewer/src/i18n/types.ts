@@ -497,10 +497,10 @@ export interface TrailI18n {
   'analytics.combined.missingRate': string;
 
   // memory tab
-  'viewer.tab.memory': string;
-  'memory.loading': string;
-  'memory.noDb': string;
-  'memory.noDb.description': string;
+  'viewer.tab.caravan': string;
+  'caravan.loading': string;
+  'caravan.noDb': string;
+  'caravan.noDb.description': string;
   'flightRecord.tab.drift': string;
   // drift sub-tab
   'flightRecord.drift.empty': string;
@@ -558,53 +558,53 @@ export interface TrailI18n {
   'flightRecord.bugfix.causal.findingsUnit': string;
   // review sub-tab
   // pipeline sub-tab
-  'memory.runs.empty': string;
-  'memory.runs.filterScope': string;
-  'memory.runs.filterStatus': string;
-  'memory.runs.filterWave': string;
-  'memory.runs.failedItems': string;
-  'memory.runs.timeline': string;
-  'memory.runs.runList': string;
-  'memory.runs.errorDetail': string;
-  'memory.runs.logs': string;
-  'memory.runs.wave.all': string;
-  'memory.runs.column.startedAt': string;
-  'memory.runs.column.timestamp': string;
-  'memory.runs.column.scope': string;
-  'memory.runs.column.wave': string;
-  'memory.runs.column.status': string;
-  'memory.runs.column.duration': string;
-  'memory.runs.column.itemsProcessed': string;
-  'memory.runs.column.level': string;
-  'memory.runs.column.component': string;
-  'memory.runs.column.message': string;
-  'memory.runs.column.key': string;
-  'memory.runs.column.attempts': string;
-  'memory.runs.column.reason': string;
-  'memory.runs.column.detail': string;
-  'memory.runs.status.running': string;
-  'memory.runs.status.success': string;
-  'memory.runs.status.partial': string;
-  'memory.runs.status.error': string;
+  'caravan.runs.empty': string;
+  'caravan.runs.filterScope': string;
+  'caravan.runs.filterStatus': string;
+  'caravan.runs.filterWave': string;
+  'caravan.runs.failedItems': string;
+  'caravan.runs.timeline': string;
+  'caravan.runs.runList': string;
+  'caravan.runs.errorDetail': string;
+  'caravan.runs.logs': string;
+  'caravan.runs.wave.all': string;
+  'caravan.runs.column.startedAt': string;
+  'caravan.runs.column.timestamp': string;
+  'caravan.runs.column.scope': string;
+  'caravan.runs.column.wave': string;
+  'caravan.runs.column.status': string;
+  'caravan.runs.column.duration': string;
+  'caravan.runs.column.itemsProcessed': string;
+  'caravan.runs.column.level': string;
+  'caravan.runs.column.component': string;
+  'caravan.runs.column.message': string;
+  'caravan.runs.column.key': string;
+  'caravan.runs.column.attempts': string;
+  'caravan.runs.column.reason': string;
+  'caravan.runs.column.detail': string;
+  'caravan.runs.status.running': string;
+  'caravan.runs.status.success': string;
+  'caravan.runs.status.partial': string;
+  'caravan.runs.status.error': string;
 
   // memory > chat
-  'memory.chat.placeholder': string;
-  'memory.chat.send': string;
-  'memory.chat.abort': string;
-  'memory.chat.rebuild': string;
-  'memory.chat.sources.title': string;
-  'memory.chat.sources.empty': string;
-  'memory.chat.filters.title': string;
-  'memory.chat.filters.allRepos': string;
-  'memory.chat.filters.currentRepo': string;
-  'memory.chat.setup.title': string;
-  'memory.chat.setup.step1': string;
-  'memory.chat.setup.step2': string;
-  'memory.chat.setup.step3': string;
-  'memory.chat.setup.recheck': string;
-  'memory.chat.empty': string;
-  'memory.chat.error': string;
-  'memory.chat.interrupted': string;
+  'caravan.chat.placeholder': string;
+  'caravan.chat.send': string;
+  'caravan.chat.abort': string;
+  'caravan.chat.rebuild': string;
+  'caravan.chat.sources.title': string;
+  'caravan.chat.sources.empty': string;
+  'caravan.chat.filters.title': string;
+  'caravan.chat.filters.allRepos': string;
+  'caravan.chat.filters.currentRepo': string;
+  'caravan.chat.setup.title': string;
+  'caravan.chat.setup.step1': string;
+  'caravan.chat.setup.step2': string;
+  'caravan.chat.setup.step3': string;
+  'caravan.chat.setup.recheck': string;
+  'caravan.chat.empty': string;
+  'caravan.chat.error': string;
+  'caravan.chat.interrupted': string;
 
   // metrics
   'metrics.deploymentFrequency.name': string;

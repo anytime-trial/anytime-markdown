@@ -4,11 +4,11 @@
  * Tests:
  *   1. Success: 3 spec docs processed, claims extracted, C4 scope linked
  *   2. Idempotency: 2nd run skips already-processed docs (source_hash match)
- *   3. searchMemory: sql.js entity/edge retrievable after pipeline
+ *   3. searchCaravanBook: sql.js entity/edge retrievable after pipeline
  */
 
 import * as fs from 'fs';
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
@@ -16,7 +16,7 @@ import { createHash } from 'crypto';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runSpecIncremental } from '../../src/pipeline/runSpecIncremental';
-import { searchMemory } from '../../src/retrieve/searchMemory';
+import { searchCaravanBook } from '../../src/retrieve/searchCaravanBook';
 import { noopLogger } from '../../src/logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
@@ -56,8 +56,8 @@ type: "proposal"
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
-let memDb: BetterSqlite3MemoryDb;
-let trailDb: BetterSqlite3MemoryDb;
+let memDb: BetterSqlite3CaravanDb;
+let trailDb: BetterSqlite3CaravanDb;
 let specRoot: string;
 
 const MOCK_CLAIMS_RESPONSE = JSON.stringify({
@@ -105,12 +105,12 @@ beforeAll(async () => {
   fs.writeFileSync(path.join(specRoot, 'proposal', 'bar.md'), PROPOSAL_MD);
 
   // 2. Create trail-caravan-book DB and apply migrations
-  memDb = BetterSqlite3MemoryDb.openInMemory();
+  memDb = BetterSqlite3CaravanDb.openInCaravan();
   memDb.run('PRAGMA foreign_keys = ON');
   runMigrations(memDb);
 
   // 4. Create synthetic trail DB with activity_c4_manual_elements
-  trailDb = BetterSqlite3MemoryDb.openInMemory();
+  trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run('PRAGMA foreign_keys = ON');
   trailDb.run(
     `CREATE TABLE activity_c4_manual_elements (
@@ -220,7 +220,7 @@ describe('runSpecIncremental E2E — Phase 3', () => {
     expect(result.duration_ms).toBeLessThan(5000);
   }, 60000);
 
-  it('searchMemory returns sql.js related data after pipeline', async () => {
+  it('searchCaravanBook returns sql.js related data after pipeline', async () => {
     // Directly verify that sql.js entity is in the DB with a display_name match
     const sqlJsEntityId = makeEntityId('Library', 'sql.js');
     const entityRows = memDb.exec(
@@ -238,10 +238,10 @@ describe('runSpecIncremental E2E — Phase 3', () => {
     );
     expect((edgeRows[0]?.values ?? []).length).toBeGreaterThanOrEqual(1);
 
-    // searchMemory requires embeddings; since mock returns UNIT_VEC and entities may not have
+    // searchCaravanBook requires embeddings; since mock returns UNIT_VEC and entities may not have
     // embeddings stored (upsertSpecClaims does not write embedding blob), we call it
     // with awareness that it may return [] entities but should not throw
-    const searchResult = await searchMemory({
+    const searchResult = await searchCaravanBook({
       db: memDb,
       ollama: mockOllama,
       input: { query: 'sql.js', limit: 10 },

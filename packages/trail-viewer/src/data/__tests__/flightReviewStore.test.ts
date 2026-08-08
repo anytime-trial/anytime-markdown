@@ -206,7 +206,7 @@ describe('flightReviewStore', () => {
 
   it('select で当該セッションの rationale ノードも取得する（FR-24）', async () => {
     const { calls } = stubFetch((url) => {
-      if (url.includes('/api/memory/rationale')) {
+      if (url.includes('/api/caravan/rationale')) {
         return jsonResponse({
           rationale: [
             { commitHash: 'abc123def456', summary: '単純さを優先', confidenceLabel: 'EXTRACTED', createdAt: '2026-07-17T09:00:00.000Z' },
@@ -219,7 +219,7 @@ describe('flightReviewStore', () => {
     const store = createFlightReviewStore('http://x');
     await store.select('sess-1');
 
-    expect(calls.some((c) => c.url.includes('/api/memory/rationale?sessionId=sess-1'))).toBe(true);
+    expect(calls.some((c) => c.url.includes('/api/caravan/rationale?sessionId=sess-1'))).toBe(true);
     expect(store.getState().selectedRationale).toHaveLength(1);
 
     await store.select(null);
@@ -229,7 +229,7 @@ describe('flightReviewStore', () => {
 
   it('rationale API 失敗は rationale のみ空で縮退する（FR-25）', async () => {
     stubFetch((url) => {
-      if (url.includes('/api/memory/rationale')) throw new Error('memory.db missing');
+      if (url.includes('/api/caravan/rationale')) throw new Error('caravan.db missing');
       if (url.includes('user-feedback')) return jsonResponse({ userFeedback: [] });
       return jsonResponse({ flightReviews: [] });
     });

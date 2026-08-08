@@ -1,16 +1,16 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import {
   detectReviewUnfixed,
   detectReviewVsCode,
   detectRecurringReviewFindings,
 } from '../../src/drift/reviewClusters';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
-const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
+const silentLogger: CaravanLogger = { info: () => {}, error: () => {} };
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -19,7 +19,7 @@ function makeDb(): BetterSqlite3MemoryDb {
 const TS = '2026-01-01T00:00:00.000Z';
 let seq = 0;
 
-function insertEntity(db: BetterSqlite3MemoryDb, id?: string, type = 'Bug'): string {
+function insertEntity(db: BetterSqlite3CaravanDb, id?: string, type = 'Bug'): string {
   const eid = id ?? `ent-${++seq}`;
   db.run(
     `INSERT INTO caravan_entities
@@ -30,7 +30,7 @@ function insertEntity(db: BetterSqlite3MemoryDb, id?: string, type = 'Bug'): str
   return eid;
 }
 
-function insertReview(db: BetterSqlite3MemoryDb, id?: string, workspace = ''): string {
+function insertReview(db: BetterSqlite3CaravanDb, id?: string, workspace = ''): string {
   const rid = id ?? `rev-${++seq}`;
   const reviewEntity = insertEntity(db, `rev-ent-${rid}`, 'Review');
   db.run(
@@ -43,7 +43,7 @@ function insertReview(db: BetterSqlite3MemoryDb, id?: string, workspace = ''): s
 }
 
 function insertReviewFinding(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   opts: {
     id?: string;
     reviewId: string;
@@ -79,7 +79,7 @@ function insertReviewFinding(
 }
 
 function insertEdge(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   opts: {
     id?: string;
     subjectEntityId: string;

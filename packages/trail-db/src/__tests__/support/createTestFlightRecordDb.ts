@@ -33,11 +33,11 @@ export interface FlightRecordTestContext {
   readonly db: FlightRecordDatabase;
   readonly tempDir: string;
   readonly trailDbPath: string;
-  readonly memoryDbPath: string;
+  readonly caravanDbPath: string;
   /** activity.db 側へ生 SQL を流す（sessions / repos / activity_session_costs 等のシード用）。 */
   trailRun(sql: string, params?: readonly unknown[]): void;
   /** caravan-book.db 側へ生 SQL を流す（caravan_flight_reviews / instructions の直接検証用）。 */
-  memoryRun(sql: string, params?: readonly unknown[]): void;
+  caravanRun(sql: string, params?: readonly unknown[]): void;
   cleanup(): void;
 }
 
@@ -63,9 +63,9 @@ function createSeedableTrailDb(trailDbPath: string): BetterSqlite3Database {
 export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordTestContext {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-db-'));
   const trailDbPath = path.join(tempDir, 'activity.db');
-  const memoryDbPath = path.join(tempDir, 'caravan-book.db');
+  const caravanDbPath = path.join(tempDir, 'caravan-book.db');
   const trail = createSeedableTrailDb(trailDbPath);
-  const db = new FlightRecordDatabase(memoryDbPath, { trailDbPath, logger });
+  const db = new FlightRecordDatabase(caravanDbPath, { trailDbPath, logger });
   db.init();
   const run = (handle: BetterSqlite3Database) =>
     (sql: string, params: readonly unknown[] = []): void => {
@@ -75,14 +75,14 @@ export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordT
       }
       handle.prepare(sql).run(...params);
     };
-  const memory = openBetterSqlite3(memoryDbPath);
+  const memory = openBetterSqlite3(caravanDbPath);
   return {
     db,
     tempDir,
     trailDbPath,
-    memoryDbPath,
+    caravanDbPath,
     trailRun: run(trail),
-    memoryRun: run(memory),
+    caravanRun: run(memory),
     cleanup(): void {
       db.close();
       trail.close();

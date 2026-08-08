@@ -1,21 +1,21 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { runPipelineWatchdog } from '../../src/pipeline/pipelineWatchdog';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
 
-async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function insertRunningRun(db: BetterSqlite3MemoryDb, id: string, scope: string, startedAt: string): void {
+function insertRunningRun(db: BetterSqlite3CaravanDb, id: string, scope: string, startedAt: string): void {
   db.run(
     `INSERT INTO caravan_pipeline_runs
        (id, scope, started_at, status,
@@ -27,14 +27,14 @@ function insertRunningRun(db: BetterSqlite3MemoryDb, id: string, scope: string, 
   );
 }
 
-function setHeartbeat(db: BetterSqlite3MemoryDb, id: string, heartbeatAt: string): void {
+function setHeartbeat(db: BetterSqlite3CaravanDb, id: string, heartbeatAt: string): void {
   db.run(
     `UPDATE caravan_pipeline_runs SET last_heartbeat_at = ? WHERE id = ?`,
     [heartbeatAt, id],
   );
 }
 
-function insertRunningState(db: BetterSqlite3MemoryDb, scope: string): void {
+function insertRunningState(db: BetterSqlite3CaravanDb, scope: string): void {
   db.run(
     `INSERT INTO caravan_pipeline_state (scope, status, last_processed_at, error_detail)
      VALUES (?, 'running', '', '')`,
@@ -44,7 +44,7 @@ function insertRunningState(db: BetterSqlite3MemoryDb, scope: string): void {
 
 describe('runPipelineWatchdog', () => {
   test('W1: fresh running run (5 min old) is not touched', async () => {
-    const db = await makeMemoryDb();
+    const db = await makeCaravanDb();
     const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
     insertRunningRun(db, 'run_fresh', 'conversation_backfill', fiveMinAgo);
 
@@ -58,7 +58,7 @@ describe('runPipelineWatchdog', () => {
   });
 
   test('W2: stale running run (15 min old) is flipped to error/timeout', async () => {
-    const db = await makeMemoryDb();
+    const db = await makeCaravanDb();
     const fifteenMinAgo = new Date(Date.now() - 15 * 60_000).toISOString();
     insertRunningRun(db, 'run_stale', 'conversation_backfill', fifteenMinAgo);
 
@@ -78,7 +78,7 @@ describe('runPipelineWatchdog', () => {
   });
 
   test('W3: orphan running state (no matching run) is reset to idle', async () => {
-    const db = await makeMemoryDb();
+    const db = await makeCaravanDb();
     insertRunningState(db, 'conversation_backfill');
     // No matching caravan_pipeline_runs row.
 
@@ -94,7 +94,7 @@ describe('runPipelineWatchdog', () => {
   });
 
   test('W4: running state with matching running run is left untouched', async () => {
-    const db = await makeMemoryDb();
+    const db = await makeCaravanDb();
     const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
     insertRunningState(db, 'conversation_backfill');
     insertRunningRun(db, 'run_live', 'conversation_backfill', fiveMinAgo);
@@ -116,7 +116,7 @@ describe('runPipelineWatchdog', () => {
   });
 
   test('W6: long-running run with fresh heartbeat is not flipped to error', async () => {
-    const db = await makeMemoryDb();
+    const db = await makeCaravanDb();
     // started_at is 2 hours ago (would be stale by started_at alone)
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000).toISOString();
     // but heartbeat was updated 1 minute ago — pipeline is alive
@@ -134,7 +134,7 @@ describe('runPipelineWatchdog', () => {
   });
 
   test('W7: long-running run with stale heartbeat is flipped to error/timeout', async () => {
-    const db = await makeMemoryDb();
+    const db = await makeCaravanDb();
     // started_at is 2 hours ago and heartbeat was 15 minutes ago — no progress
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000).toISOString();
     const fifteenMinAgo = new Date(Date.now() - 15 * 60_000).toISOString();
@@ -155,7 +155,7 @@ describe('runPipelineWatchdog', () => {
   });
 
   test('W5: stale run + orphan state for the same scope are both cleaned up', async () => {
-    const db = await makeMemoryDb();
+    const db = await makeCaravanDb();
     const fifteenMinAgo = new Date(Date.now() - 15 * 60_000).toISOString();
     insertRunningState(db, 'conversation_backfill');
     insertRunningRun(db, 'run_stale', 'conversation_backfill', fifteenMinAgo);
@@ -179,7 +179,7 @@ describe('runPipelineWatchdog', () => {
     // daemon の生存期間を表す system run は heartbeat 間隔が通常 run より粗い（5 分毎）。
     // 通常 run の timeoutMinutes (10 分) と同条件で失効させると、正常稼働中の daemon が
     // 偽 'timeout' になるため、長い systemTimeoutMinutes (既定 30 分) で判定する。
-    const db = await makeMemoryDb();
+    const db = await makeCaravanDb();
     const twentyMinAgo = new Date(Date.now() - 20 * 60_000).toISOString();
     db.run(
       `INSERT INTO caravan_pipeline_runs
@@ -209,7 +209,7 @@ describe('runPipelineWatchdog', () => {
     // リグレッション (2026-08-08 監査): shutdown の finish() を通らず死んだ daemon の
     // daemon_session run が 'running' のまま恒久残留していた（ゴースト 4 件）。
     // daemon は 5 分毎に heartbeat を打つため、長時間止まった run は死んだと判定できる。
-    const db = await makeMemoryDb();
+    const db = await makeCaravanDb();
     const twoHoursAgo = new Date(Date.now() - 120 * 60_000).toISOString();
     db.run(
       `INSERT INTO caravan_pipeline_runs

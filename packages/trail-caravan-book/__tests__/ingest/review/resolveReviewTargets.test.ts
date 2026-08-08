@@ -1,9 +1,9 @@
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
-import type { MemoryDbConnection } from '../../../src/db/connection/types';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
+import type { CaravanDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { resolveReviewTargets } from '../../../src/ingest/review/resolveReviewTargets';
 import { entityId } from '../../../src/canonical/entityId';
@@ -30,11 +30,11 @@ interface FixtureOptions {
   readonly reviews: ReadonlyArray<ReviewSpec>;
 }
 
-async function buildFixture(opts: FixtureOptions): Promise<{ db: MemoryDbConnection; close: () => void }> {
+async function buildFixture(opts: FixtureOptions): Promise<{ db: CaravanDbConnection; close: () => void }> {
   const tmpPath = path.join(os.tmpdir(), `rrt-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
+  const { db, close: closeMain } = await openCaravanBookDb(tmpPath);
 
-  const trail = BetterSqlite3MemoryDb.openInMemory();
+  const trail = BetterSqlite3CaravanDb.openInCaravan();
   trail.run(`CREATE TABLE activity_repos (
     repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL
   ) STRICT`);
@@ -102,20 +102,20 @@ async function buildFixture(opts: FixtureOptions): Promise<{ db: MemoryDbConnect
   };
 }
 
-function readFinding(db: MemoryDbConnection, id: string) {
+function readFinding(db: CaravanDbConnection, id: string) {
   const rows = db.exec(`SELECT target_file_path, target_repo FROM caravan_review_findings WHERE id = ?`, [id]);
   const value = rows[0]?.values?.[0] ?? [];
   return { path: value[0] === null || value[0] === undefined ? null : String(value[0]),
            repo: value[1] === null || value[1] === undefined ? null : String(value[1]) };
 }
 
-function readWorkspace(db: MemoryDbConnection, id: string): string {
+function readWorkspace(db: CaravanDbConnection, id: string): string {
   const rows = db.exec(`SELECT workspace FROM caravan_reviews WHERE id = ?`, [id]);
   return String(rows[0]?.values?.[0]?.[0] ?? '');
 }
 
 describe('resolveReviewTargets', () => {
-  let fixture: { db: MemoryDbConnection; close: () => void };
+  let fixture: { db: CaravanDbConnection; close: () => void };
   afterEach(() => fixture?.close());
 
   it('session レビューのワークスペースをセッションのリポジトリから解決する', async () => {

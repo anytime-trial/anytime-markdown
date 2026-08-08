@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import {
   ingestDecisionComments,
@@ -6,7 +6,7 @@ import {
 } from '../../../src/ingest/code/extractComments';
 import { entityId } from '../../../src/canonical/entityId';
 import { createHash } from 'crypto';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanLogger } from '../../../src/logger';
 
 // AST 走査（ts.Program 依存）は trail-server の scanDecisionComments へ移設済み。
 // 本テストは抽出済み DecisionCommentItem[] を受け取って memory DB へ ingest する
@@ -17,30 +17,30 @@ import type { MemoryLogger } from '../../../src/logger';
 const RECORDED_AT = '2026-01-01T00:00:00.000Z';
 const REPO = 'test-repo';
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function makeDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function ingest(db: BetterSqlite3MemoryDb, comments: DecisionCommentItem[]) {
+function ingest(db: BetterSqlite3CaravanDb, comments: DecisionCommentItem[]) {
   return ingestDecisionComments({ db, comments, repoName: REPO, recordedAt: RECORDED_AT, logger: silentLogger });
 }
 
-function countDecisions(db: BetterSqlite3MemoryDb): number {
+function countDecisions(db: BetterSqlite3CaravanDb): number {
   const result = db.exec(`SELECT COUNT(*) FROM caravan_entities WHERE type = 'Decision'`);
   return (result[0]?.values[0][0] as number) ?? 0;
 }
 
-function countEdges(db: BetterSqlite3MemoryDb, predicate?: string): number {
+function countEdges(db: BetterSqlite3CaravanDb, predicate?: string): number {
   if (predicate) {
     const stmt = db.prepare(`SELECT COUNT(*) AS c FROM caravan_edges WHERE predicate = ?`);
     try {

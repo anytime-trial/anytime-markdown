@@ -15,7 +15,7 @@ import {
   computeCrossSourceCorrelations,
   DEFAULT_WINDOW_DAYS,
 } from './computeCrossSourceCorrelations';
-import type { PrReviewMemorySource } from '../prreview/prReviewMemorySource';
+import type { PrReviewCaravanSource } from '../prreview/prReviewCaravanSource';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -31,10 +31,10 @@ export interface CrossSourceCorrelatorOptions {
   readonly trailDb: CrossSourceDataSource;
   /**
    * PR review (`caravan_reviews` / `caravan_review_findings`, source_kind='pr_comment') を
-   * 読む口。caravan-book.db 未接続 (Step 5 移行後、memoryDbPath 未構成)ならこの analyzer は
+   * 読む口。caravan-book.db 未接続 (Step 5 移行後、caravanDbPath 未構成)ならこの analyzer は
    * PR review 相関を空 (0 件) として扱う。
    */
-  readonly memoryDb?: PrReviewMemorySource | null;
+  readonly caravanDb?: PrReviewCaravanSource | null;
   /** 算出日時の注入口 (テスト用)。 */
   readonly now?: () => Date;
   /** 相関の時間窓 (日)。省略時 14。 */
@@ -69,7 +69,7 @@ export class CrossSourceCorrelator implements Analyzer {
     if (e.kind !== 'wave_start' || e.wave !== 'derived') return;
 
     try {
-      if (!this.opts.memoryDb) {
+      if (!this.opts.caravanDb) {
         // caravan-book.db 未接続は「算出不能」であって「相関 0 件」ではない。ここで空の
         // 洗い替えを行うと、設定漏れ・一時的な open 失敗の 1 run で既存の相関データが
         // DELETE される（replaceCrossSourceCorrelations は全削除 + 再挿入）。既存行を
@@ -81,7 +81,7 @@ export class CrossSourceCorrelator implements Analyzer {
         return;
       }
 
-      const reviews = this.opts.memoryDb.getPrReviews();
+      const reviews = this.opts.caravanDb.getPrReviews();
       if (reviews.length === 0) {
         // PR review が無ければ相関も無い。重い読込を避けて空で洗い替え。
         this.opts.trailDb.replaceCrossSourceCorrelations([]);
@@ -90,7 +90,7 @@ export class CrossSourceCorrelator implements Analyzer {
         return;
       }
 
-      const findings = this.opts.memoryDb.getPrReviewFindings();
+      const findings = this.opts.caravanDb.getPrReviewFindings();
       // review 提出の最古 - windowDays を下限に、時間窓外の古い session commit ロードを避ける
       const windowDays = this.opts.windowDays ?? DEFAULT_WINDOW_DAYS;
       const since = earliestSince(reviews, windowDays);

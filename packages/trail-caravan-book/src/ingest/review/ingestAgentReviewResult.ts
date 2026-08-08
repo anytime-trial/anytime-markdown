@@ -1,11 +1,11 @@
-import type { MemoryDbConnection, SqlValue } from '../../db/connection/types';
+import type { CaravanDbConnection, SqlValue } from '../../db/connection/types';
 import { toUint8ArrayOrNull } from '../../db/connection/blobUtil';
 import { AgentReviewInputSchema } from '../../types/AgentReviewInput';
 import { entityId } from '../../canonical/entityId';
 import { resolveReviewTargets } from './resolveReviewTargets';
 import { maxSeverity } from './findingHelpers';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 const ALLOWED_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 const MERGE_THRESHOLD = 0.85;
@@ -39,7 +39,7 @@ function blobToFloat32(blob: Uint8Array): Float32Array {
 }
 
 function recordFailedItem(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   scope: string,
   itemKey: string,
   reason: string,
@@ -61,7 +61,7 @@ async function computeMergeTarget(
   candidateRows: readonly (readonly SqlValue[])[],
   findingText: string,
   ollama: OllamaClient,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): Promise<string | null> {
   let newEmbedding: Float32Array;
   try {
@@ -88,9 +88,9 @@ async function computeMergeTarget(
 
 /** Insert one finding (entity + row + edge), returning whether it was inserted and/or merged. */
 async function ingestOneFinding(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   ollama: OllamaClient;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
   finding: {
     finding_index: number;
     target_file_path: string | null;
@@ -194,7 +194,7 @@ async function ingestOneFinding(opts: {
 }
 
 export async function ingestAgentReviewResult(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   input: unknown;
   ollama: OllamaClient;
   /**
@@ -204,7 +204,7 @@ export async function ingestAgentReviewResult(input: {
    * エラーではなく「対処済みにならない指摘が増える」だけなので気づけない。
    */
   workspace: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): Promise<IngestAgentReviewResult> {
   const { db, ollama, logger } = input;
   const recordedAt = new Date().toISOString();

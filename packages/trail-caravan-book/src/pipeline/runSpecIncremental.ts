@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { discoverChangedSpecs } from '../ingest/spec/discoverSpecDocs';
 import { parseFrontmatter } from '../ingest/spec/parseFrontmatter';
 import { preFilterClaims } from '../ingest/spec/preFilterClaims';
@@ -9,7 +9,7 @@ import type { ExtractResult } from '../ingest/spec/extractClaims';
 import { upsertSpecDoc, upsertSpecClaims, updateSpecDocSummary } from '../ingest/spec/persist';
 import { summarizeSpecDoc } from '../ingest/spec/summarizeSpecDoc';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 import { PipelineRunLedger } from './PipelineRunLedger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -25,11 +25,11 @@ export interface SpecIncrementalResult {
 }
 
 export interface SpecIncrementalInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   specRoot: string;
   ollama: OllamaClient;
   model?: string;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ const PROGRESS_LOG_INTERVAL = 50;
 // ── Private helpers ───────────────────────────────────────────────────────────
 
 function upsertPipelineState(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   scope: string,
   opts: { status: string; lastProcessedAt?: string; errorDetail?: string },
 ): void {
@@ -60,7 +60,7 @@ function upsertPipelineState(
 }
 
 function recordFailedItem(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   scope: string,
   itemKey: string,
   reason: string,
@@ -75,7 +75,7 @@ function recordFailedItem(
   );
 }
 
-function ensurePredicateExists(db: MemoryDbConnection, predicate: string): void {
+function ensurePredicateExists(db: CaravanDbConnection, predicate: string): void {
   db.run(
     `INSERT OR IGNORE INTO caravan_relation_types
       (predicate, cardinality, directionality, description)
@@ -89,7 +89,7 @@ function ensurePredicateExists(db: MemoryDbConnection, predicate: string): void 
  * Returns true when caller should break the loop (quarantine triggered).
  */
 function recordAndCheckQuarantine(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   scope: string;
   itemKey: string;
   reason: string;
@@ -97,7 +97,7 @@ function recordAndCheckQuarantine(opts: {
   recordedAt: string;
   consecutiveFailures: number;
   maxConsecutive: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): boolean {
   const { db, scope, itemKey, reason, detail, recordedAt, consecutiveFailures, maxConsecutive, logger } = opts;
   recordFailedItem(db, scope, itemKey, reason, detail, recordedAt);
@@ -113,7 +113,7 @@ function recordAndCheckQuarantine(opts: {
 /**
  * Incremental pipeline that discovers changed spec Markdown documents under
  * specRoot, extracts requirement claims via Ollama, and persists results into
- * the memory DB.
+ * the caravan-book DB.
  */
 export async function runSpecIncremental(
   input: SpecIncrementalInput,

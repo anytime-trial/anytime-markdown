@@ -8,12 +8,12 @@ import {
   detectReviewVsCode,
   detectRecurringReviewFindings,
 } from '../../src/drift/reviewClusters';
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
-import type { MemoryLogger } from '../../src/logger';
-import type { MemoryDbConnection } from '../../src/db/connection/types';
+import type { CaravanLogger } from '../../src/logger';
+import type { CaravanDbConnection } from '../../src/db/connection/types';
 
-function makeBrokenDb(): MemoryDbConnection {
+function makeBrokenDb(): CaravanDbConnection {
   return {
     exec: () => { throw new Error('DB exec failed'); },
     run: () => {},
@@ -28,12 +28,12 @@ function makeBrokenDb(): MemoryDbConnection {
   };
 }
 
-const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
+const silentLogger: CaravanLogger = { info: () => {}, error: () => {} };
 
 describe('detectReviewUnfixed - SQL エラーパス', () => {
   it('exec で例外が発生したとき空配列を返しエラーをログする', () => {
     const errors: string[] = [];
-    const logger: MemoryLogger = {
+    const logger: CaravanLogger = {
       info: () => {},
       error: (msg: string) => { errors.push(msg); },
     };
@@ -52,7 +52,7 @@ describe('detectReviewUnfixed - SQL エラーパス', () => {
 describe('detectReviewVsCode - SQL エラーパス', () => {
   it('exec で例外が発生したとき空配列を返しエラーをログする', () => {
     const errors: string[] = [];
-    const logger: MemoryLogger = {
+    const logger: CaravanLogger = {
       info: () => {},
       error: (msg: string) => { errors.push(msg); },
     };
@@ -68,7 +68,7 @@ describe('detectReviewVsCode - SQL エラーパス', () => {
   });
 
   it('existingSpecVsCodeKeys に一致するキーがあると spec_vs_code_overlap=true になる', () => {
-    const db = BetterSqlite3MemoryDb.openInMemory();
+    const db = BetterSqlite3CaravanDb.openInCaravan();
     db.run('PRAGMA foreign_keys = ON');
     runMigrations(db);
 
@@ -111,7 +111,7 @@ describe('detectReviewVsCode - SQL エラーパス', () => {
 describe('detectRecurringReviewFindings - SQL エラーパス', () => {
   it('exec で例外が発生したとき空配列を返しエラーをログする', () => {
     const errors: string[] = [];
-    const logger: MemoryLogger = {
+    const logger: CaravanLogger = {
       info: () => {},
       error: (msg: string) => { errors.push(msg); },
     };

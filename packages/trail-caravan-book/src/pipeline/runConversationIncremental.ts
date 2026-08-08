@@ -1,10 +1,10 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { PipelineRunLedger } from './PipelineRunLedger';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
 import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 type PipelineStatus = 'success' | 'partial' | 'error';
@@ -25,7 +25,7 @@ export interface IncrementalResult {
   items_failed: number;
 }
 
-function readPipelineState(db: MemoryDbConnection): {
+function readPipelineState(db: CaravanDbConnection): {
   last_processed_at: string;
   status: string;
 } {
@@ -47,7 +47,7 @@ function readPipelineState(db: MemoryDbConnection): {
 }
 
 function upsertPipelineState(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: {
     status: string;
     last_processed_at?: string;
@@ -70,7 +70,7 @@ function upsertPipelineState(
   );
 }
 
-function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
+function recordFailedItem(db: CaravanDbConnection, itemKey: string, reason: string, detail: string): void {
   const failedAt = new Date().toISOString();
   db.run(
     `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
@@ -95,7 +95,7 @@ type EpisodeProcessResult =
  * to quarantine without duplicating the quarantine-logic branching.
  */
 async function processEpisode(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   ollama: OllamaClient;
   episode: ReturnType<typeof splitEpisodes>[number];
   epId: string;
@@ -103,7 +103,7 @@ async function processEpisode(opts: {
   model: string | undefined;
   recordedAt: string;
   consecutiveFailures: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): Promise<EpisodeProcessResult> {
   const { db, ollama, episode, epId, existingIds, model, recordedAt, consecutiveFailures, logger } = opts;
 
@@ -174,9 +174,9 @@ async function processEpisode(opts: {
  * attachTrailDbFromHandle / attachTrailDbReadOnly before calling this function.
  */
 export async function runConversationIncremental(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   ollama: OllamaClient;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
   model?: string;
   /** 進捗チェックポイント時に呼ばれる save コールバック (sql.js memDb の disk 書き込み)。 */
   save?: () => void;

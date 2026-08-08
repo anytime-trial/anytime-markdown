@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { runSpecReconciliation } from '../../../src/pipeline/runSpecReconciliation';
 import { upsertSpecDoc, upsertSpecClaims } from '../../../src/ingest/spec/persist';
@@ -11,8 +11,8 @@ const AT = '2026-05-12T00:00:00.000Z';
 const REMOVED_AT = '2026-05-12T01:00:00.000Z';
 const REVIVED_AT = '2026-05-12T02:00:00.000Z';
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -32,7 +32,7 @@ function writeSpec(root: string, relPath: string): void {
   writeFileSync(abs, '---\ntype: spec\n---\n本文\n', 'utf-8');
 }
 
-function validUntil(db: BetterSqlite3MemoryDb, id: string): unknown {
+function validUntil(db: BetterSqlite3CaravanDb, id: string): unknown {
   return db.prepare('SELECT valid_until FROM caravan_entities WHERE id = ?').get(id)?.['valid_until'];
 }
 

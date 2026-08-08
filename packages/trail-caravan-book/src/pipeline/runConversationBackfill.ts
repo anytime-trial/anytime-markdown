@@ -1,10 +1,10 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { PipelineRunLedger } from './PipelineRunLedger';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
 import { episodeId, persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 type PipelineStatus = 'success' | 'partial' | 'error';
@@ -15,7 +15,7 @@ const QUARANTINE_THRESHOLD = 3;
  * 会話 backfill の既定期間 (日)。
  *
  * Single source of truth: trail-server/Config.ts と
- * trail-caravan-book/defaultMemoryCorePipelineRunner.ts はこの定数を import して
+ * trail-caravan-book/defaultCaravanBookPipelineRunner.ts はこの定数を import して
  * 使うこと。各所で別々に数値リテラルを書くと drift する (2026-05 に実際
  * 5 と 30 が混在した事故あり)。値を変えたいときはここだけ書き換える。
  */
@@ -43,7 +43,7 @@ export interface BackfillResult {
 }
 
 function upsertPipelineState(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: {
     status: string;
     last_processed_at?: string;
@@ -66,7 +66,7 @@ function upsertPipelineState(
   );
 }
 
-function computeSinceISO(db: MemoryDbConnection, sinceDays: number): string {
+function computeSinceISO(db: CaravanDbConnection, sinceDays: number): string {
   const sinceFromDays = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
   const rows = db.exec(
     `SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`,
@@ -83,7 +83,7 @@ function computeSinceISO(db: MemoryDbConnection, sinceDays: number): string {
   return sinceFromDays;
 }
 
-function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
+function recordFailedItem(db: CaravanDbConnection, itemKey: string, reason: string, detail: string): void {
   const failedAt = new Date().toISOString();
   db.run(
     `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
@@ -107,12 +107,12 @@ type BackfillEpisodeOutcome =
  * duplicating branching logic.
  */
 function persistBackfillEpisode(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   episode: ReturnType<typeof splitEpisodes>[number];
   ex: Awaited<ReturnType<typeof extractFactsFromEpisode>> | null;
   recordedAt: string;
   consecutiveFailures: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): BackfillEpisodeOutcome {
   const { db, episode, ex, recordedAt, consecutiveFailures, logger } = opts;
 
@@ -166,10 +166,10 @@ function persistBackfillEpisode(opts: {
  * attachTrailDbFromHandle / attachTrailDbReadOnly before calling this function.
  */
 export async function runConversationBackfill(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   ollama: OllamaClient;
   sinceDays?: number;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
   model?: string;
   /**
    * Persist the in-memory sql.js DB to the underlying file. Called at backfill

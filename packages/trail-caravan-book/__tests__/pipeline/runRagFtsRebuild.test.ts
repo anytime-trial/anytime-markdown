@@ -1,8 +1,8 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../src/db/connection';
-import type { MemoryDbConnection } from '../../src/db/connection/types';
+import { openCaravanBookDb } from '../../src/db/connection';
+import type { CaravanDbConnection } from '../../src/db/connection/types';
 import { runRagFtsRebuild } from '../../src/pipeline/runRagFtsRebuild';
 
 function makeTmpDb(): string {
@@ -15,7 +15,7 @@ function makeTmpDb(): string {
 const TS = '2026-01-01T00:00:00.000Z';
 
 function insertEntity(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   id: string,
   canonical: string,
   display: string,
@@ -31,7 +31,7 @@ function insertEntity(
   );
 }
 
-function insertEpisode(db: MemoryDbConnection, id: string, raw: string): void {
+function insertEpisode(db: CaravanDbConnection, id: string, raw: string): void {
   db.run(
     `INSERT INTO caravan_episodes
        (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model,
@@ -41,7 +41,7 @@ function insertEpisode(db: MemoryDbConnection, id: string, raw: string): void {
   );
 }
 
-function insertDrift(db: MemoryDbConnection, id: string, entityId: string, predicate: string): void {
+function insertDrift(db: CaravanDbConnection, id: string, entityId: string, predicate: string): void {
   db.run(
     `INSERT INTO caravan_drift_events
        (id, subject_entity_id, predicate, drift_type, severity, detected_at)
@@ -52,13 +52,13 @@ function insertDrift(db: MemoryDbConnection, id: string, entityId: string, predi
 
 describe('runRagFtsRebuild', () => {
   const dbs: string[] = [];
-  let db: MemoryDbConnection;
+  let db: CaravanDbConnection;
   let close: () => void;
 
   beforeEach(async () => {
     const tmpDb = makeTmpDb();
     dbs.push(tmpDb);
-    const opened = await openMemoryCoreDb(tmpDb);
+    const opened = await openCaravanBookDb(tmpDb);
     db = opened.db;
     close = opened.close;
   });

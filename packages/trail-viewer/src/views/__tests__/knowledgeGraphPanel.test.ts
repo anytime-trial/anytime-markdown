@@ -86,7 +86,7 @@ describe('mountKnowledgeGraphPanel', () => {
     await flush();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${SERVER_URL}/api/memory/knowledge-graph?limit=150`,
+      `${SERVER_URL}/api/caravan/knowledge-graph?limit=150`,
       expect.objectContaining({ signal: expect.anything() }),
     );
     expect(mountViewerMock).toHaveBeenCalledTimes(1);

@@ -1,15 +1,15 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import {
   detectRegressionClusters,
   detectSpecViolationClusters,
 } from '../../src/drift/recurringBugs';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
-const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
+const silentLogger: CaravanLogger = { info: () => {}, error: () => {} };
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -18,7 +18,7 @@ function makeDb(): BetterSqlite3MemoryDb {
 const TS = '2026-01-01T00:00:00.000Z';
 let seq = 0;
 
-function insertEntity(db: BetterSqlite3MemoryDb, id?: string): string {
+function insertEntity(db: BetterSqlite3CaravanDb, id?: string): string {
   const eid = id ?? `ent-${++seq}`;
   db.run(
     `INSERT INTO caravan_entities
@@ -30,7 +30,7 @@ function insertEntity(db: BetterSqlite3MemoryDb, id?: string): string {
 }
 
 function insertBugFix(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   opts: {
     id?: string;
     commitSha: string;

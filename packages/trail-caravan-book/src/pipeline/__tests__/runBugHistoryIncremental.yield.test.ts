@@ -1,4 +1,4 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 
 // 孤児化対策の yield (一定間隔で event loop へ譲る) を検証する。
 // ingest 系ヘルパと db は mock し、commit ループが YIELD_INTERVAL ごとに
@@ -38,7 +38,7 @@ interface FakeRow {
   session_id: string | null;
 }
 
-function makeDb(rowCount: number): MemoryDbConnection {
+function makeDb(rowCount: number): CaravanDbConnection {
   const rows: FakeRow[] = Array.from({ length: rowCount }, (_, i) => ({
     commit_hash: `hash${i}`,
     commit_message: `fix: change ${i}`,
@@ -63,7 +63,7 @@ function makeDb(rowCount: number): MemoryDbConnection {
       };
     },
     run: jest.fn(),
-  } as unknown as MemoryDbConnection;
+  } as unknown as CaravanDbConnection;
 }
 
 describe('runBugHistoryIncremental の event loop yield', () => {

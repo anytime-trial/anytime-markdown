@@ -18,7 +18,7 @@
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { openMemoryCoreDb } from '../src/db/connection';
+import { openCaravanBookDb } from '../src/db/connection';
 
 const ABSTRACT_OBJECT_TYPES = ['Concept', 'Decision', 'Rule', 'Person', 'Project', 'Question', 'Task', 'Skill'];
 // caravan_edge_invalidations.reason は CHECK 制約で
@@ -32,15 +32,15 @@ if (!trailHome) {
   console.error('Usage: purge-abstract-caused-by.mts <TRAIL_HOME>');
   process.exit(1);
 }
-const memoryDbPath = path.join(trailHome, 'db', 'caravan-book.db');
-if (!fs.existsSync(memoryDbPath)) {
-  console.error(`caravan-book.db not found at ${memoryDbPath}`);
+const caravanDbPath = path.join(trailHome, 'db', 'caravan-book.db');
+if (!fs.existsSync(caravanDbPath)) {
+  console.error(`caravan-book.db not found at ${caravanDbPath}`);
   process.exit(1);
 }
 
-console.log(`[purge] trail-caravan-book: ${memoryDbPath}`);
+console.log(`[purge] trail-caravan-book: ${caravanDbPath}`);
 
-const { db, close } = await openMemoryCoreDb(memoryDbPath);
+const { db, close } = await openCaravanBookDb(caravanDbPath);
 
 const placeholders = ABSTRACT_OBJECT_TYPES.map(() => '?').join(', ');
 

@@ -1,4 +1,4 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import type { Message } from '../../canonical/splitEpisodes';
 import { ingestTargetSql } from './messageFilter';
 
@@ -18,7 +18,7 @@ import { ingestTargetSql } from './messageFilter';
  * attachTrailDbFromHandle / attachTrailDbReadOnly.
  */
 export function listSessionIdsSince(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   sinceISO: string
 ): string[] {
   const stmt = db.prepare(
@@ -46,7 +46,7 @@ export function listSessionIdsSince(
  * attachTrailDbFromHandle / attachTrailDbReadOnly.
  */
 export function readMessagesForSession(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   sessionId: string,
   sinceISO: string
 ): Message[] {
@@ -110,7 +110,7 @@ export function readMessagesForSession(
  * attachTrailDbFromHandle / attachTrailDbReadOnly.
  */
 export function* readMessagesSince(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   sinceISO: string
 ): Generator<{ session_id: string; messages: Message[] }> {
   const sessionIds = listSessionIdsSince(db, sinceISO);

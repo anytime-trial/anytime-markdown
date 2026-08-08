@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../src/db/connection';
+import { openCaravanBookDb } from '../../src/db/connection';
 import { EXPECTED_MIGRATION_COUNTS } from '../../src/db/migrations/runner';
 
 const tmpDb = path.join(os.tmpdir(), `memory-test-${process.pid}-${Date.now()}.db`);
@@ -16,7 +16,7 @@ afterAll(() => {
 
 describe('migrations', () => {
   test('creates all Phase 1 tables', async () => {
-    const { db, close } = await openMemoryCoreDb(tmpDb);
+    const { db, close } = await openCaravanBookDb(tmpDb);
 
     const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
     const names = (tables[0]?.values ?? []).map((r) => r[0] as string);
@@ -36,7 +36,7 @@ describe('migrations', () => {
   }, 30000);
 
   test('seed data: 15 relation types inserted', async () => {
-    const { db, close } = await openMemoryCoreDb(tmpDb);
+    const { db, close } = await openCaravanBookDb(tmpDb);
 
     const result = db.exec('SELECT COUNT(*) FROM caravan_relation_types');
     const count = result[0]?.values[0][0] as number;
@@ -49,11 +49,11 @@ describe('migrations', () => {
   test('migrations are idempotent (run twice)', async () => {
     const tmpDb2 = path.join(os.tmpdir(), `memory-test-idempotent-${process.pid}-${Date.now()}.db`);
     try {
-      const { db: db1, save: save1, close: close1 } = await openMemoryCoreDb(tmpDb2);
+      const { db: db1, save: save1, close: close1 } = await openCaravanBookDb(tmpDb2);
       save1();
       close1();
 
-      const { db: db2, close: close2 } = await openMemoryCoreDb(tmpDb2);
+      const { db: db2, close: close2 } = await openCaravanBookDb(tmpDb2);
       const result = db2.exec('SELECT COUNT(*) FROM _migrations');
       const count = result[0]?.values[0][0] as number;
       // migrations 1–12 は無条件、13 (rag_fts) は FTS5 が無いビルドで skip。

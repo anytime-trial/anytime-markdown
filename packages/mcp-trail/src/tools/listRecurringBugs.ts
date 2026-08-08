@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { listRecurringBugs, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import { listRecurringBugs, openCaravanBookDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
 import type { RecurringBugGroup } from '@anytime-markdown/trail-caravan-book/query';
-import { resolveMemoryDbPath } from '../dbPath';
+import { resolveCaravanDbPath } from '../dbPath';
 
 export const ListRecurringBugsInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -16,7 +16,7 @@ export const ListRecurringBugsInputSchema = z.object({
 export type ListRecurringBugsInput = z.infer<typeof ListRecurringBugsInputSchema>;
 
 export async function handleListRecurringBugs(input: ListRecurringBugsInput): Promise<RecurringBugGroup[]> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
+  const memHandle = await openCaravanBookDb(resolveCaravanDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return listRecurringBugs({ db: memHandle.db, ...input, logger });

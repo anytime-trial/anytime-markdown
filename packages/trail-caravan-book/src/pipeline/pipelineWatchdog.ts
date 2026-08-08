@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 
 export interface PipelineWatchdogResult {
   stale_runs: number;
@@ -24,10 +24,10 @@ export interface PipelineWatchdogResult {
  *   preserved so the next run can resume from where it left off).
  */
 export function runPipelineWatchdog(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   timeoutMinutes?: number;
   systemTimeoutMinutes?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): PipelineWatchdogResult {
   const { db, logger } = input;
   const timeoutMinutes = input.timeoutMinutes ?? 10;

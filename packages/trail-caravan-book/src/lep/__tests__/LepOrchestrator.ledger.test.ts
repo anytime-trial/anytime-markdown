@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb } from '../../db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../db/migrations/runner';
 import { EventBus } from '../EventBus';
 import { LepOrchestrator, type PipelineRunLedgerFactory } from '../LepOrchestrator';
@@ -9,7 +9,7 @@ function makeAnalyzer(id: string, tier: 1 | 2 | 3 | 4, onRunEnd?: () => Promise<
   return { id, tier, subscribes: [], ...(onRunEnd ? { onRunEnd } : {}) };
 }
 
-function readRuns(db: BetterSqlite3MemoryDb): Array<Record<string, unknown>> {
+function readRuns(db: BetterSqlite3CaravanDb): Array<Record<string, unknown>> {
   const result = db.exec(
     `SELECT scope, wave, tier, status, error_detail FROM caravan_pipeline_runs ORDER BY scope`,
   );
@@ -21,11 +21,11 @@ function readRuns(db: BetterSqlite3MemoryDb): Array<Record<string, unknown>> {
 }
 
 describe('LepOrchestrator 台帳連携', () => {
-  let db: BetterSqlite3MemoryDb;
+  let db: BetterSqlite3CaravanDb;
   let openLedger: PipelineRunLedgerFactory;
 
   beforeEach(() => {
-    db = BetterSqlite3MemoryDb.openInMemory();
+    db = BetterSqlite3CaravanDb.openInCaravan();
     db.run('PRAGMA foreign_keys = ON');
     runMigrations(db);
     openLedger = (scope, wave, tier) =>
@@ -59,7 +59,7 @@ describe('LepOrchestrator 台帳連携', () => {
   it('tier 3 は二重計上を避けるため orchestrator 側では記録しない', async () => {
     // Wave 3 の analyzer は trail-caravan-book の run*Incremental が自分で run 行を書く。
     const bus = new EventBus();
-    const analyzers = [makeAnalyzer('ConversationMemoryAnalyzer', 3, async () => {})];
+    const analyzers = [makeAnalyzer('ConversationCaravanAnalyzer', 3, async () => {})];
     for (const a of analyzers) bus.subscribe(a);
 
     const orchestrator = new LepOrchestrator(bus, analyzers, undefined, openLedger);

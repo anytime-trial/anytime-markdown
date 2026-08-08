@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { readState, writeState, defaultState, STATE_SCHEMA_VERSION } from '../state';
-import type { MemoryCoreServiceStatus } from '../types';
+import type { CaravanBookServiceStatus } from '../types';
 
 describe('trail-caravan-book service state', () => {
   let dir: string;
@@ -66,7 +66,7 @@ describe('trail-caravan-book service state', () => {
 
     it('returns persisted state and forces running=false on load', () => {
       const path = join(dir, 'state.json');
-      const stored: MemoryCoreServiceStatus = {
+      const stored: CaravanBookServiceStatus = {
         schemaVersion: STATE_SCHEMA_VERSION,
         paused: true,
         pausedAt: '2026-05-13T10:00:00.000Z',
@@ -100,7 +100,7 @@ describe('trail-caravan-book service state', () => {
   describe('writeState', () => {
     it('writes JSON via atomic rename (no .tmp file remains)', () => {
       const path = join(dir, 'out.json');
-      const state: MemoryCoreServiceStatus = {
+      const state: CaravanBookServiceStatus = {
         ...defaultState(),
         paused: true,
         pausedBy: 'http-api',

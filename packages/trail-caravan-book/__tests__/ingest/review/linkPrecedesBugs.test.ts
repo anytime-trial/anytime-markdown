@@ -1,8 +1,8 @@
-import type { MemoryDbConnection } from '../../../src/db/connection/types';
+import type { CaravanDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import { linkPrecedesBugs } from '../../../src/ingest/review/linkPrecedesBugs';
 import { entityId } from '../../../src/canonical/entityId';
 
@@ -38,7 +38,7 @@ type SetupOpts = {
 };
 
 type SetupResult = {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   findingId: string;
   findingEntityId: string;
   bugId: string;
@@ -59,7 +59,7 @@ async function buildSetup(opts: SetupOpts = {}): Promise<SetupResult> {
 
   const tmpPath = makeTmpPath();
 
-  const { db, close: closeMain } = await openMemoryCoreDb(tmpPath);
+  const { db, close: closeMain } = await openCaravanBookDb(tmpPath);
 
   // ── 1. Bug entity ──────────────────────────────────────────────────────────
   const commitSha = 'abc123def456789a';

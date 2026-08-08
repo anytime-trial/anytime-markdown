@@ -3,10 +3,10 @@ import { Command } from 'commander';
 import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { MemoryCoreService, PipelineRunLedger, createPipelineRunLedgerFactory } from '@anytime-markdown/trail-caravan-book/pipeline';
-import { type MemoryCoreLogSink, type LepStage, getMemoryCoreDbPath, getTrailHome, openMemoryCoreDb } from '@anytime-markdown/trail-caravan-book';
-import { ChatBridge } from './memory-chat/chatBridge';
-import { RebuildScheduler } from './memory-chat/rebuildScheduler';
+import { CaravanBookService, PipelineRunLedger, createPipelineRunLedgerFactory } from '@anytime-markdown/trail-caravan-book/pipeline';
+import { type CaravanBookLogSink, type LepStage, getCaravanBookDbPath, getTrailHome, openCaravanBookDb } from '@anytime-markdown/trail-caravan-book';
+import { ChatBridge } from './caravan-chat/chatBridge';
+import { RebuildScheduler } from './caravan-chat/rebuildScheduler';
 import { TrailDataServer } from './server/TrailDataServer';
 import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
@@ -43,7 +43,7 @@ import {
 } from './analyze/AnalyzePipeline';
 
 const TRAIL_HOME = getTrailHome(process.cwd());
-const MEMORY_DB_PATH = getMemoryCoreDbPath(process.cwd());
+const MEMORY_DB_PATH = getCaravanBookDbPath(process.cwd());
 const VERSION = '0.18.0';
 
 const program = new Command();
@@ -85,14 +85,14 @@ program
     // in-process `analyze` を analyzeReleaseFn として注入する（daemon は analyze-child へ委譲）。
     const { analyze } = await import('@anytime-markdown/trail-activity/analyze');
     // caravan-book.db は activity.db と同じ dbStorageDir に置かれる。ここで明示的に渡す
-    // （MemoryApiHandler 側の cwd 基準の暗黙解決を廃したため。解決結果は従来と同一）。
-    const memoryDbPath = join(dbStorageDir, 'caravan-book.db');
-    const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0], memoryDbPath, undefined, analyze);
+    // （CaravanApiHandler 側の cwd 基準の暗黙解決を廃したため。解決結果は従来と同一）。
+    const caravanDbPath = join(dbStorageDir, 'caravan-book.db');
+    const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0], caravanDbPath, undefined, analyze);
 
     // nativeBinding: webpack-bundled 実行時は bindings package の getFileName が
     // call stack を辿って .node のパスを推測できず crash する。__dirname
     // (= dist/) から native binary の絶対パスを組み立てて回避する
-    // (vscode-trail-extension の memoryCoreNativeBinding と同等)。
+    // (vscode-trail-extension の caravanBookNativeBinding と同等)。
     const cliNativeBinding = join(
       __dirname,
       'node_modules',
@@ -262,20 +262,20 @@ program
     const url = `http://${opts.host}:${actualPort}`;
     logger.info('daemon listening', { url });
 
-    // MemoryCoreService — daemon は trail-caravan-book ingest pipeline をホストする。
+    // CaravanBookService — daemon は trail-caravan-book ingest pipeline をホストする。
     // pause/resume 状態は `${TRAIL_HOME}/trail-caravan-book-runner.json` に永続化され、
     // VS Code 拡張 reload 後・daemon 再起動後も保持される。
-    const memoryCoreLogSink: MemoryCoreLogSink = {
+    const caravanBookLogSink: CaravanBookLogSink = {
       appendLine: (msg: string) => logger.info(msg),
     };
-    const memoryCorePrimaryGitRoot = effectiveGitRoots[0];
-    const memoryCoreService = new MemoryCoreService({
-      logSink: memoryCoreLogSink,
+    const caravanBookPrimaryGitRoot = effectiveGitRoots[0];
+    const caravanBookService = new CaravanBookService({
+      logSink: caravanBookLogSink,
       trailDbPath: join(dbStorageDir, 'activity.db'),
-      ...(memoryCorePrimaryGitRoot ? { gitRoot: memoryCorePrimaryGitRoot } : {}),
+      ...(caravanBookPrimaryGitRoot ? { gitRoot: caravanBookPrimaryGitRoot } : {}),
       statePath: join(TRAIL_HOME, 'trail-caravan-book-runner.json'),
       backfillDays: lepConfig.memory.conversation.backfillDays,
-      // lep.json の llm を ingest パイプラインへ通す (baseUrl は openMemoryDbSession
+      // lep.json の llm を ingest パイプラインへ通す (baseUrl は openCaravanDbSession
       // が resolveOllamaBaseUrl で再解決するため raw 値を渡す)。
       llm: {
         baseUrl: lepOllama.baseUrl,
@@ -285,17 +285,17 @@ program
       ...(throttledOllamaFactory ? { ollamaFactory: throttledOllamaFactory } : {}),
     });
     logger.info('trail-caravan-book service constructed (orchestrated by AnalyzeAllRunner)', {
-      gitRoot: memoryCorePrimaryGitRoot ?? null,
+      gitRoot: caravanBookPrimaryGitRoot ?? null,
     });
 
-    const memoryLogger = {
+    const caravanLogger = {
       info: (msg: string, ctx?: Record<string, unknown>) =>
         logger.info(ctx ? `${msg} ${JSON.stringify(ctx)}` : msg),
       error: (msg: string, err?: unknown) => logger.error(msg, err),
     };
 
     const chatBridge = new ChatBridge({
-      memoryDbPath: MEMORY_DB_PATH,
+      caravanDbPath: MEMORY_DB_PATH,
       getConfig: () => ({
         baseUrl: resolvedOllamaBaseUrl,
         chatModel: lepOllama.models.chat,
@@ -305,14 +305,14 @@ program
         finalLimit: lepConfig.memory.rag.finalLimit,
         rrfK: lepConfig.memory.rag.rrfK,
       }),
-      logger: memoryLogger,
+      logger: caravanLogger,
     });
     server.setChatBridge(chatBridge);
-    logger.info('chat bridge wired', { memoryDbPath: MEMORY_DB_PATH });
+    logger.info('chat bridge wired', { caravanDbPath: MEMORY_DB_PATH });
 
     const rebuildScheduler = new RebuildScheduler({
-      memoryDbPath: MEMORY_DB_PATH,
-      logger: memoryLogger,
+      caravanDbPath: MEMORY_DB_PATH,
+      logger: caravanLogger,
     });
     const rebuildSchedulerDisposable = rebuildScheduler.start(
       lepConfig.memory.fts.rebuildIntervalMinutes * 60 * 1000,
@@ -328,13 +328,13 @@ program
     // Wave 1/2/4 の実行台帳。Wave 3 のセッションと同じ caravan-book.db を共有するため
     // WAL で開き、migration はここで走らせない (スキーマの所有は trail-caravan-book 側)。
     // caravan-book.db が未作成の間は caravan_pipeline_runs が無いので記録を諦める (null 返し)。
-    const ledgerCoreDb = await openMemoryCoreDb(memoryDbPath, {
+    const ledgerCoreDb = await openCaravanBookDb(caravanDbPath, {
       ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
     });
     const ledgerDb = ledgerCoreDb.conn ?? ledgerCoreDb.db;
     const openPipelineRunLedger = createPipelineRunLedgerFactory({
       db: ledgerDb,
-      logger: memoryLogger,
+      logger: caravanLogger,
     });
 
     const systemRunLedger = new PipelineRunLedger({
@@ -342,17 +342,17 @@ program
       scope: 'daemon_session',
       wave: 'system',
       tier: 0,
-      logger: memoryLogger,
+      logger: caravanLogger,
     });
     const systemRunId = systemRunLedger.start();
     const logService = new LogService(ledgerDb, systemRunId);
     server.setLogService(logService);
-    logger.info('log streaming service wired', { dbPath: memoryDbPath, runId: systemRunId });
+    logger.info('log streaming service wired', { dbPath: caravanDbPath, runId: systemRunId });
 
     const analyzeAllRunner = new AnalyzeAllRunner({
       logSink: { appendLine: (msg: string) => logger.info(msg) },
       statePath: join(TRAIL_HOME, 'analyze-all-runner.json'),
-      gitRoot: memoryCorePrimaryGitRoot,
+      gitRoot: caravanBookPrimaryGitRoot,
       trailDb,
       gitRoots: effectiveGitRoots,
       // 設計書リポジトリはコード解析の対象ではないが、check_alignment が
@@ -361,7 +361,7 @@ program
       commitWatchRoots: resolveDocsCommitWatchRoots(lepConfig.sources.docs.root, logger),
       claudeProjectsDir: lepConfig.sources.claude.projectsDir || undefined,
       codexSessionsDir: lepConfig.sources.codex.sessionsDir || undefined,
-      memoryCoreService,
+      caravanBookService,
       stage: lepStage,
       checkLlmAvailability: () =>
         checkLlmAvailability({
@@ -370,7 +370,7 @@ program
           embedModel: lepOllama.models.embedding,
         }),
       ollamaBaseUrl: resolvedOllamaBaseUrl,
-      disabledMemoryAnalyzers: lepDisabledAnalyzers,
+      disabledCaravanAnalyzers: lepDisabledAnalyzers,
       disabledAggregators: lepDisabledAnalyzers,
       githubPrReview,
       // VS Code 拡張 OllamaProvider が polling して per-phase 表示を更新する
@@ -417,7 +417,7 @@ program
       logger.info('shutdown requested', { signal });
       try { throttleStatusWriter?.stop(); } catch (err) { logger.error('throttle status writer stop failed', err); }
       try { await analyzeAllRunner.dispose(); } catch (err) { logger.error('analyze-all runner dispose failed', err); }
-      try { await memoryCoreService.dispose(); } catch (err) { logger.error('trail-caravan-book dispose failed', err); }
+      try { await caravanBookService.dispose(); } catch (err) { logger.error('trail-caravan-book dispose failed', err); }
       try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
       // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
       try { await chatBridge.dispose(); } catch (err) { logger.error('chat bridge dispose failed', err); }

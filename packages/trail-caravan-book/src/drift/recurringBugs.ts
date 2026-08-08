@@ -1,13 +1,13 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 import type { DriftEventInput } from './report';
 import { THRESHOLDS } from './policy';
 
 export function detectRegressionClusters(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   windowDays?: number;
   minCount?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): DriftEventInput[] {
   const {
     db,
@@ -16,7 +16,7 @@ export function detectRegressionClusters(input: {
     logger,
   } = input;
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       // workspace はクラスタを構成するバグが 1 つのワークスペースへ収束するときだけ確定する。
@@ -65,11 +65,11 @@ export function detectRegressionClusters(input: {
 }
 
 export function detectSpecViolationClusters(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   windowDays?: number;
   minCount?: number;
   minRatio?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): DriftEventInput[] {
   const {
     db,
@@ -79,7 +79,7 @@ export function detectSpecViolationClusters(input: {
     logger,
   } = input;
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `WITH pkg_total AS (

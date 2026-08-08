@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import type { ParsedSpec } from './parseFrontmatter';
 import type { Claim } from './extractClaims';
@@ -8,7 +8,7 @@ import { reviveSpecDocValidity } from './reviveValidity';
 // ── Type defs ────────────────────────────────────────────────────────────────
 
 export interface UpsertSpecDocInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   parsed: ParsedSpec;
   source_hash: string;
   recordedAt: string;
@@ -20,7 +20,7 @@ export interface UpsertSpecDocResult {
 }
 
 export interface UpsertSpecClaimsInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   specDocId: string;
   specEntityId: string;
   claims: Claim[];
@@ -135,7 +135,7 @@ export function upsertSpecDoc(input: UpsertSpecDocInput): UpsertSpecDocResult {
 /**
  * Update summary of a spec document.
  */
-export function updateSpecDocSummary(db: MemoryDbConnection, specDocId: string, summary: string): void {
+export function updateSpecDocSummary(db: CaravanDbConnection, specDocId: string, summary: string): void {
   db.run(`UPDATE caravan_spec_documents SET summary = ? WHERE id = ?`, [summary, specDocId]);
 }
 
@@ -167,7 +167,7 @@ export function upsertSpecClaims(input: UpsertSpecClaimsInput): UpsertSpecClaims
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [subjectId, subjectType, claim.subject.name, claim.subject.name, subjectAttr, recordedAt, recordedAt, recordedAt],
     );
-    // sql.js MemoryDbConnection.run() returns MemoryDbConnection, not { changes }. Use getRowsModified via cast.
+    // sql.js CaravanDbConnection.run() returns CaravanDbConnection, not { changes }. Use getRowsModified via cast.
     if ((db as unknown as { getRowsModified?: () => number }).getRowsModified?.() ?? 1 > 0) {
       entities_inserted++;
     }

@@ -1,5 +1,5 @@
 // Flight Record: 指示台帳（caravan_instructions / caravan_instruction_sessions）への直書き。
-// 保存先は caravan-book.db（2026-08-07 に activity.db から移設。openMemoryDb で開く）。
+// 保存先は caravan-book.db（2026-08-07 に activity.db から移設。openCaravanDb で開く）。
 // TrailDataServer を経由しないのは、宣言がセッション開始直後に走り、
 // デーモン未起動でも記録が落ちてはならないため（caravan_doctrine_judgments と同方針）。
 
@@ -235,9 +235,9 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
 // プロセス再起動（/mcp reconnect）でリセットされ、再確認は 1 回だけ走る。
 const migratedTrailDbPaths = new Set<string>();
 
-export function ensureAndMigrateInstructionTables(db: Database, memoryDbPath: string): void {
+export function ensureAndMigrateInstructionTables(db: Database, caravanDbPath: string): void {
   ensureInstructionTables(db);
-  const trailDbPath = path.join(path.dirname(memoryDbPath), 'activity.db');
+  const trailDbPath = path.join(path.dirname(caravanDbPath), 'activity.db');
   if (migratedTrailDbPaths.has(trailDbPath)) return;
   try {
     const result = destructiveMigrateInstructionTablesFromTrailDb(db, trailDbPath);

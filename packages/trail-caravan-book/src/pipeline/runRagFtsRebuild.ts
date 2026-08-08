@@ -1,4 +1,4 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { PipelineRunLedger } from './PipelineRunLedger';
 import {
   upsertEntityFts,
@@ -9,7 +9,7 @@ import {
 export type RunRagFtsRebuildTrigger = 'manual' | 'cron' | 'startup';
 
 export interface RunRagFtsRebuildInput {
-  readonly db: MemoryDbConnection;
+  readonly db: CaravanDbConnection;
   readonly trigger: RunRagFtsRebuildTrigger;
   readonly onProgress?: (info: {
     processed: number;
@@ -85,7 +85,7 @@ export async function runRagFtsRebuild(
     function rebuildPhase(
       ids: string[],
       phase: FtsPhase,
-      upsert: (db: MemoryDbConnection, id: string) => void,
+      upsert: (db: CaravanDbConnection, id: string) => void,
     ): void {
       for (let i = 0; i < ids.length; i++) {
         if (signal?.aborted) throw new Error('aborted');

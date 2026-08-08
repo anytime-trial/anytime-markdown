@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 import { PipelineRunLedger } from './PipelineRunLedger';
 import { randomUUID } from 'node:crypto';
 
@@ -23,8 +23,8 @@ export type DriftDetectionResult = {
 };
 
 export async function runDriftDetection(input: {
-  db: MemoryDbConnection;
-  logger: MemoryLogger;
+  db: CaravanDbConnection;
+  logger: CaravanLogger;
 }): Promise<DriftDetectionResult> {
   const { db, logger } = input;
   const startedAt = new Date().toISOString();

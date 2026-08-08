@@ -1,6 +1,6 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 import { maxSeverity, type ParsedFinding } from '../review/findingHelpers';
 import { upsertReviewFinding, toReviewedAt } from '../review/persist';
 
@@ -38,7 +38,7 @@ export interface PrReviewIngestResult {
 }
 
 // ── source_ref 規約（唯一の正）──────────────────────────────────────────────
-// 読み出し側（trail-server の prReviewMemorySource）も必ず本関数を import する。
+// 読み出し側（trail-server の prReviewCaravanSource）も必ず本関数を import する。
 // 式を 2 か所に持つと、ずれたときに「冪等判定が常に新規・逆引きが常に 0 件」という
 // エラーの出ない壊れ方をするため、実体をここへ一本化する。
 
@@ -69,7 +69,7 @@ export function parsePrReviewSourceRef(sourceRef: string): ParsedPrReviewSourceR
  * 委任元 (呼び出し側) はロガーを持たないため、既定はタイムスタンプ付き console.error に
  * フォールバックする（silent catch 禁止 — `~/.claude/rules/code-quality.md`「エラー処理」）。
  */
-const defaultLogger: MemoryLogger = {
+const defaultLogger: CaravanLogger = {
   info: () => {},
   error: (message: string, error?: unknown): void => {
     const stack = error instanceof Error ? error.stack : error;
@@ -118,7 +118,7 @@ function buildTargetRefsJson(findings: readonly PrReviewFindingInput[]): string 
  * 黙って別の指摘へ付け替わり、addresses / precedes の因果データを汚染する
  * （リンクを失うのは正直な削除・付け替わりは無言の汚染なので、消す方を選ぶ）。
  */
-function washAwayFindings(db: MemoryDbConnection, reviewRowId: string): void {
+function washAwayFindings(db: CaravanDbConnection, reviewRowId: string): void {
   db.run(
     `DELETE FROM caravan_edges WHERE
        subject_entity_id IN (SELECT finding_entity_id FROM caravan_review_findings WHERE review_id=?)
@@ -148,9 +148,9 @@ function washAwayFindings(db: MemoryDbConnection, reviewRowId: string): void {
  * 返すと skip と失敗が同じ顔になり、呼び出し側が処理済みと誤認する）。
  */
 export function ingestPrReview(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   input: PrReviewIngestInput,
-  logger: MemoryLogger = defaultLogger,
+  logger: CaravanLogger = defaultLogger,
 ): PrReviewIngestResult {
   const recordedAt = new Date().toISOString();
   const sourceRef = buildPrReviewSourceRef(input.repoName, input.prNumber, input.reviewId);

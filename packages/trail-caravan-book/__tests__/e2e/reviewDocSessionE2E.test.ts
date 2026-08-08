@@ -6,10 +6,10 @@
  */
 
 import * as fs from 'fs';
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import * as os from 'os';
 import * as path from 'path';
-import { openMemoryCoreDb } from '../../src/db/connection';
+import { openCaravanBookDb } from '../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runReviewIncremental } from '../../src/pipeline/runReviewIncremental';
 import { entityId } from '../../src/canonical/entityId';
@@ -101,7 +101,7 @@ function buildTrailDb(opts: {
   withFixCommit: boolean;
   reviewerMessages?: Array<{ uuid: string; sessionId: string; ts: string; text: string }>;
 }) {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
 
   db.run(`CREATE TABLE activity_sessions (
@@ -159,11 +159,11 @@ function buildTrailDb(opts: {
   return db;
 }
 
-// ── Memory DB factory ─────────────────────────────────────────────────────────
+// ── Caravan DB factory ─────────────────────────────────────────────────────────
 
 async function openFreshMemDb(tmpDir: string, suffix: string) {
   const dbPath = path.join(tmpDir, `mem-${suffix}.db`);
-  const { db, close } = await openMemoryCoreDb(dbPath);
+  const { db, close } = await openCaravanBookDb(dbPath);
   return {
     db,
     close: () => {

@@ -1,4 +1,4 @@
-// Phase 6 S4: GET /api/memory/rationale のルーティング + MemoryApiHandler.listRationaleNodes。
+// Phase 6 S4: GET /api/caravan/rationale のルーティング + CaravanApiHandler.listRationaleNodes。
 // fixture は extractCommitRationale.ts と同じ書込形（Commit の canonical_name = full hash、
 // Decision.summary = rationale テキスト、edge predicate='rationale_for'）で作る。
 jest.mock('ws', () => ({
@@ -17,7 +17,7 @@ import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 const TS = '2026-07-17T10:00:00.000Z';
 
-function buildMemoryDb(dbPath: string): void {
+function buildCaravanDb(dbPath: string): void {
   const db = new BetterSqlite3(dbPath);
   db.exec(`CREATE TABLE caravan_entities (
     id TEXT PRIMARY KEY,
@@ -81,7 +81,7 @@ function buildTrailDbFile(dbPath: string): void {
   db.close();
 }
 
-describe('GET /api/memory/rationale (Phase 6 S4)', () => {
+describe('GET /api/caravan/rationale (Phase 6 S4)', () => {
   let tmpDir: string;
   let server: TrailDataServer;
   let trailDb: TrailDatabase;
@@ -89,7 +89,7 @@ describe('GET /api/memory/rationale (Phase 6 S4)', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rationale-api-test-'));
-    buildMemoryDb(path.join(tmpDir, 'caravan-book.db'));
+    buildCaravanDb(path.join(tmpDir, 'caravan-book.db'));
     buildTrailDbFile(path.join(tmpDir, 'activity.db'));
     trailDb = await createTestTrailDatabase();
     server = new TrailDataServer('/tmp', trailDb, makeMockLogger(), undefined, path.join(tmpDir, 'caravan-book.db'));
@@ -104,7 +104,7 @@ describe('GET /api/memory/rationale (Phase 6 S4)', () => {
   });
 
   it('セッションのコミットに紐付く Decision ノードを confidence_label 付きで返す（FR-23）', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/rationale?sessionId=sess-with-rationale`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/caravan/rationale?sessionId=sess-with-rationale`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { rationale: Array<Record<string, unknown>> };
     expect(body.rationale).toHaveLength(1);
@@ -114,17 +114,17 @@ describe('GET /api/memory/rationale (Phase 6 S4)', () => {
   });
 
   it('コミットの無いセッション・未知セッションは空配列（FR-23）', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/rationale?sessionId=sess-none`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/caravan/rationale?sessionId=sess-none`);
     expect(res.status).toBe(200);
     expect(((await res.json()) as { rationale: unknown[] }).rationale).toHaveLength(0);
   });
 
   it('sessionId 欠落は 400', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/rationale`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/caravan/rationale`);
     expect(res.status).toBe(400);
   });
 
-  it('memory.db 不在は空配列で縮退する（FR-23）', async () => {
+  it('caravan.db 不在は空配列で縮退する（FR-23）', async () => {
     const server2 = new TrailDataServer(
       '/tmp',
       trailDb,
@@ -134,7 +134,7 @@ describe('GET /api/memory/rationale (Phase 6 S4)', () => {
     );
     await server2.start(0);
     try {
-      const res = await fetch(`http://127.0.0.1:${server2.port}/api/memory/rationale?sessionId=x`);
+      const res = await fetch(`http://127.0.0.1:${server2.port}/api/caravan/rationale?sessionId=x`);
       expect(res.status).toBe(200);
       expect(((await res.json()) as { rationale: unknown[] }).rationale).toHaveLength(0);
     } finally {

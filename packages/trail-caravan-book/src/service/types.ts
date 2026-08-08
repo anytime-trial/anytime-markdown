@@ -1,5 +1,5 @@
 /**
- * MemoryCoreService の型定義。
+ * CaravanBookService の型定義。
  *
  * 共通 Runner 型 (RunReason / RunnerStatus / RunnerStartOptions / RunnerLogSink)
  * は `../runner/types` に集約されている。trail-caravan-book 固有の options 型のみ
@@ -16,9 +16,9 @@ import type { OllamaClient } from '@anytime-markdown/agent-core';
 
 // 後方互換: 既存 import パスを維持するため alias で re-export する
 export type RunReason = BaseRunReason;
-export type MemoryCoreLogSink = BaseRunnerLogSink;
-export type MemoryCoreServiceStatus = BaseRunnerStatus;
-export type MemoryCoreServiceStartOptions = BaseRunnerStartOptions;
+export type CaravanBookLogSink = BaseRunnerLogSink;
+export type CaravanBookServiceStatus = BaseRunnerStatus;
+export type CaravanBookServiceStartOptions = BaseRunnerStartOptions;
 
 /**
  * 1 回分のパイプライン実行に渡されるコンテキスト。
@@ -30,7 +30,7 @@ export type MemoryCoreServiceStartOptions = BaseRunnerStartOptions;
  * health-check と同一の baseUrl / model を使う (split-brain 防止)。
  * 全フィールド省略可: 省略時は env / 内蔵既定にフォールバックする。
  */
-export interface MemoryLlmConfig {
+export interface CaravanLlmConfig {
   /** Ollama baseUrl (resolveOllamaBaseUrl の入力に使う lep.json 値)。 */
   baseUrl?: string;
   /** 生成モデル (env MEMORY_CORE_GEN_MODEL を畳み込んだ解決済み値)。 */
@@ -48,8 +48,8 @@ export interface PipelineRunnerContext {
   /** 初回 backfill 期間 (日)。省略時は runner 側 default (5)。 */
   backfillDays?: number;
   /** LLM 接続先・モデル (省略時は env / 内蔵既定)。 */
-  llm?: MemoryLlmConfig;
-  /** Ollama クライアント生成口 (省略時 openMemoryDbSession が createOllamaClient で生成)。 */
+  llm?: CaravanLlmConfig;
+  /** Ollama クライアント生成口 (省略時 openCaravanDbSession が createOllamaClient で生成)。 */
   ollamaFactory?: () => OllamaClient;
   /**
    * caravan-book.db の世代バックアップ設定。
@@ -66,9 +66,9 @@ export interface PipelineLogger {
   error(msg: string, err?: unknown): void;
 }
 
-export interface MemoryCoreServiceOptions {
+export interface CaravanBookServiceOptions {
   /** Pipeline ログの書き込み先 (拡張: OutputChannel, daemon: Logger ラッパ) */
-  logSink: MemoryCoreLogSink;
+  logSink: CaravanBookLogSink;
   /** activity.db 絶対パス */
   trailDbPath: string;
   /** caravan-book.db 絶対パス (省略時はデフォルト: <workspaceRoot>/.anytime/db/caravan-book.db) */
@@ -85,7 +85,7 @@ export interface MemoryCoreServiceOptions {
   /**
    * テスト用のシーム。実 pipeline を差し替えるための注入ポイント。
    * 省略時は trail-caravan-book 本体の全パイプラインを順次実行する
-   * defaultMemoryCorePipelineRunner が使われる。
+   * defaultCaravanBookPipelineRunner が使われる。
    */
   pipelineRunner?: (ctx: PipelineRunnerContext) => Promise<void>;
   /**
@@ -94,7 +94,7 @@ export interface MemoryCoreServiceOptions {
    */
   backfillDays?: number;
   /** LLM 接続先・モデル (lep.json から解決した値)。省略時は env / 内蔵既定。 */
-  llm?: MemoryLlmConfig;
+  llm?: CaravanLlmConfig;
   /** Ollama クライアント生成口。trail-server が throttle 用 decorator を注入する。 */
   ollamaFactory?: () => OllamaClient;
   /**

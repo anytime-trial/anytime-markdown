@@ -1,16 +1,16 @@
 import * as os from 'os';
-import type { MemoryDbConnection } from '../../../src/db/connection/types';
+import type { CaravanDbConnection } from '../../../src/db/connection/types';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import { runAgentRunWatchdog } from '../../../src/ingest/review/agentRunWatchdog';
 import { noopLogger } from '../../../src/logger';
 
 const TS = '2026-01-01T00:00:00.000Z';
 
-async function openFresh(): Promise<{ db: MemoryDbConnection; close: () => void }> {
+async function openFresh(): Promise<{ db: CaravanDbConnection; close: () => void }> {
   const tmpPath = path.join(os.tmpdir(), `watchdog-test-${process.pid}-${Date.now()}.db`);
-  const { db, close } = await openMemoryCoreDb(tmpPath);
+  const { db, close } = await openCaravanBookDb(tmpPath);
   return {
     db,
     close: () => {
@@ -21,7 +21,7 @@ async function openFresh(): Promise<{ db: MemoryDbConnection; close: () => void 
 }
 
 function insertRunRow(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   id: string,
   status: string,
   startedAt: string,

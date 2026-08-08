@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { listUnaddressedReviewFindings, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import { listUnaddressedReviewFindings, openCaravanBookDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
 import type { UnaddressedReviewFinding } from '@anytime-markdown/trail-caravan-book/query';
-import { resolveMemoryDbPath } from '../dbPath';
+import { resolveCaravanDbPath } from '../dbPath';
 
 export const ListUnaddressedReviewFindingsInputSchema = z.object({
   workspacePath: workspacePathParam,
@@ -19,7 +19,7 @@ export type ListUnaddressedReviewFindingsInput = z.infer<typeof ListUnaddressedR
 export async function handleListUnaddressedReviewFindings(
   input: ListUnaddressedReviewFindingsInput,
 ): Promise<UnaddressedReviewFinding[]> {
-  const memHandle = await openMemoryCoreDb(resolveMemoryDbPath({ workspacePath: input.workspacePath }));
+  const memHandle = await openCaravanBookDb(resolveCaravanDbPath({ workspacePath: input.workspacePath }));
   const logger = { info: noopLogger.info, error: console.error };
   try {
     return listUnaddressedReviewFindings({ db: memHandle.db, ...input, logger });

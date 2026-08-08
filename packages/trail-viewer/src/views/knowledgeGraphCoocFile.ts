@@ -1,5 +1,5 @@
 /**
- * `/api/memory/knowledge-graph` 応答 → CooccurrenceFile 変換（純粋関数）。
+ * `/api/caravan/knowledge-graph` 応答 → CooccurrenceFile 変換（純粋関数）。
  *
  * 画面設計書: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-knowledge-graph.ja.md §3.3
  */

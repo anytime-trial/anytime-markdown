@@ -1,15 +1,15 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 import type { DriftEventInput } from './report';
 
 function suggestSpecCategory(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   targetSpecPath: string,
   eventId: string,
   recordedAt: string,
-  logger: MemoryLogger,
+  logger: CaravanLogger,
 ): number {
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT e.id, e.attributes_json
@@ -55,10 +55,10 @@ function suggestSpecCategory(
 }
 
 export function postProcessF22(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   driftEvents: DriftEventInput[];
   recordedAt: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): { findings_suggested: number } {
   const { db, driftEvents, recordedAt, logger } = input;
 

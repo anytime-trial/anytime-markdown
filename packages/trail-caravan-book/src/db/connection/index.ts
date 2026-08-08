@@ -1,10 +1,10 @@
 export type {
   ExecResultColumn,
-  MemoryDbConnection,
-  MemoryDbStatement,
+  CaravanDbConnection,
+  CaravanDbStatement,
   RowObject,
   RunResult,
   SqlValue,
 } from './types';
-export { BetterSqlite3MemoryDb } from './BetterSqlite3MemoryDb';
-export type { BetterSqlite3MemoryDbOptions } from './BetterSqlite3MemoryDb';
+export { BetterSqlite3CaravanDb } from './BetterSqlite3CaravanDb';
+export type { BetterSqlite3CaravanDbOptions } from './BetterSqlite3CaravanDb';

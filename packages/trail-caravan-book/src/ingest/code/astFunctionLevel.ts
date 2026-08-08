@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 // ── Inlined TrailGraph types ─────────────────────────────────────────────────
 // trail-activity is not a runtime dependency of trail-caravan-book. Types are inlined to
@@ -56,12 +56,12 @@ interface TrailGraph {
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface AstFactInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   repoName: string;
   graph: TrailGraph;
   commitSha: string | null;
   recordedAt: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }
 
 export interface AstFactStats {
@@ -103,10 +103,10 @@ function astEdgeId(subjectId: string, predicate: string, objectId: string): stri
  * Upsert a caravan_entities row for a File entity and return its entity ID.
  */
 function upsertFileEntity(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   filePath: string,
   recordedAt: string,
-  logger: MemoryLogger
+  logger: CaravanLogger
 ): string {
   const canonName = canonicalize(filePath);
   const eId = entityId('File', canonName);
@@ -157,13 +157,13 @@ function computeFunctionHash(
  * Returns the entity ID (always defined, even on partial failure).
  */
 function upsertFunctionEntity(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   repoName: string,
   filePath: string,
   symbolName: string,
   parentId: string | undefined,
   recordedAt: string,
-  logger: MemoryLogger
+  logger: CaravanLogger
 ): string {
   const canonName = canonicalize(`${repoName}:${filePath}::${symbolName}`);
   const eId = entityId('Function', canonName);
@@ -208,10 +208,10 @@ function upsertFunctionEntity(
  * Upsert a caravan_entities row for a Library entity and return its entity ID.
  */
 function upsertLibraryEntity(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   moduleName: string,
   recordedAt: string,
-  logger: MemoryLogger
+  logger: CaravanLogger
 ): string {
   const canonName = canonicalize(moduleName);
   const eId = entityId('Library', canonName);

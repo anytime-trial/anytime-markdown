@@ -1,7 +1,7 @@
 import { extractFactsFromEpisode } from '../../../src/ingest/conversation/extractFacts';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanLogger } from '../../../src/logger';
 
-const mockLogger: MemoryLogger = {
+const mockLogger: CaravanLogger = {
   info: jest.fn(),
   error: jest.fn(),
 };

@@ -57,10 +57,10 @@ describe('validateLepConfigInput — additional warn branches', () => {
 
   it('warns when a known analyzer toggle has invalid format', () => {
     const { warnings } = validateLepConfigInput(
-      { analyzers: { ConversationMemoryAnalyzer: 'bad-format' } },
+      { analyzers: { ConversationCaravanAnalyzer: 'bad-format' } },
       'test',
     );
-    expect(warnings.some((w) => w.includes('ConversationMemoryAnalyzer'))).toBe(true);
+    expect(warnings.some((w) => w.includes('ConversationCaravanAnalyzer'))).toBe(true);
   });
 
   it('warns when sources is not a plain object', () => {

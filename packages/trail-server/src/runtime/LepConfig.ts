@@ -19,16 +19,16 @@ export const LEP_CONFIG_VERSION = 1;
 
 /** Step 3 で扱う Layer 3 (memory) analyzer 7 種の ID。 */
 export const MEMORY_ANALYZER_IDS = [
-  'ConversationMemoryAnalyzer',
-  'CodeMemoryAnalyzer',
-  'BugHistoryMemoryAnalyzer',
-  'ReviewFindingMemoryAnalyzer',
-  'SpecMemoryAnalyzer',
-  'DriftMemoryAnalyzer',
+  'ConversationCaravanAnalyzer',
+  'CodeCaravanAnalyzer',
+  'BugHistoryCaravanAnalyzer',
+  'ReviewFindingCaravanAnalyzer',
+  'SpecCaravanAnalyzer',
+  'DriftCaravanAnalyzer',
   'EmbeddingBackfillAnalyzer',
 ] as const;
 
-export type MemoryAnalyzerId = (typeof MEMORY_ANALYZER_IDS)[number];
+export type CaravanAnalyzerId = (typeof MEMORY_ANALYZER_IDS)[number];
 
 /**
  * Step 4 で扱う Layer 4 (aggregator) analyzer の ID。
@@ -98,7 +98,7 @@ export interface LepLlmConfig {
   providers: { ollama: LepOllamaProviderConfig };
 }
 
-/** ハイブリッド検索 (BM25 + ベクトル + RRF) のリミット。memory-chat / RAG が消費する。 */
+/** ハイブリッド検索 (BM25 + ベクトル + RRF) のリミット。caravan-chat / RAG が消費する。 */
 export interface LepRagConfig {
   bm25Limit: number;
   vecLimit: number;
@@ -116,8 +116,8 @@ export interface LepConversationConfig {
   backfillDays: number;
 }
 
-/** trail-caravan-book 取込・検索のパラメータ群 (旧 config.json `memory.*` から統合)。 */
-export interface LepMemoryConfig {
+/** trail-caravan-book 取込・検索のパラメータ群 (旧 config.json `caravan.*` から統合)。 */
+export interface LepCaravanConfig {
   rag: LepRagConfig;
   fts: LepFtsConfig;
   conversation: LepConversationConfig;
@@ -226,7 +226,7 @@ export interface LepConfig {
   stage: LepStage;
   schedule: LepScheduleConfig;
   llm: LepLlmConfig;
-  memory: LepMemoryConfig;
+  memory: LepCaravanConfig;
   analyzers: LepAnalyzersConfig;
   sources: LepSourcesConfig;
   database: LepDatabaseConfig;
@@ -331,7 +331,7 @@ export function resolveWorkspaceConfigPath(
 /**
  * `lep.json` の `analyzers.<id>.enabled === false` な analyzer id 一覧を返す
  * (primary / memory / aggregator を区別せず全 disabled id)。AnalyzeAllRunner の
- * `disabledPrimaryAnalyzers` / `disabledMemoryAnalyzers` / `disabledAggregators` の
+ * `disabledPrimaryAnalyzers` / `disabledCaravanAnalyzers` / `disabledAggregators` の
  * いずれにもそのまま渡してよい (各 layer で自分の id のみ照合される)。
  */
 export function disabledAnalyzerIds(config: LepConfig): string[] {
@@ -341,7 +341,7 @@ export function disabledAnalyzerIds(config: LepConfig): string[] {
 }
 
 /** @deprecated {@link disabledAnalyzerIds} を使う (memory に限らず全 disabled id を返す)。 */
-export const disabledMemoryAnalyzerIds = disabledAnalyzerIds;
+export const disabledCaravanAnalyzerIds = disabledAnalyzerIds;
 
 /** 部分指定 (ファイル中の override や migration の出力) を表す deep partial。 */
 export interface PartialLepConfig {
@@ -470,7 +470,7 @@ function validateLlmSection(
   return { providers: { ollama } };
 }
 
-function validateMemorySection(
+function validateCaravanSection(
   raw: unknown,
   sourceLabel: string,
   warnings: string[],
@@ -747,7 +747,7 @@ export function validateLepConfigInput(
   const llmResult = validateLlmSection(raw['llm']);
   if (llmResult !== undefined) value.llm = llmResult;
 
-  const memResult = validateMemorySection(raw['memory'], sourceLabel, warnings);
+  const memResult = validateCaravanSection(raw['memory'], sourceLabel, warnings);
   if (memResult !== undefined) value.memory = memResult;
 
   const analyzersResult = validateAnalyzersSection(raw['analyzers'], sourceLabel, warnings);
@@ -889,7 +889,7 @@ export function migrateLegacyToLepConfig(legacy: LegacyLepConfigInput): PartialL
 
   if (legacy.gitRoots && legacy.gitRoots.length > 0) out.sources = { gitRoots: legacy.gitRoots };
 
-  const memory = migrateLegacyMemory(legacy);
+  const memory = migrateLegacyCaravan(legacy);
   if (memory) out.memory = memory;
 
   return out;
@@ -918,7 +918,7 @@ function migrateLegacyLlm(
   return Object.keys(ollama).length > 0 ? { providers: { ollama } } : null;
 }
 
-function migrateLegacyMemory(
+function migrateLegacyCaravan(
   legacy: LegacyLepConfigInput,
 ): NonNullable<PartialLepConfig['memory']> | null {
   const memory: NonNullable<PartialLepConfig['memory']> = {};
@@ -1102,12 +1102,12 @@ const LEP_TOP_COMMENT = {
 
 /** analyzer ごとの注釈。`analyzers.<id>._comment` として埋め込む。 */
 const LEP_ANALYZER_COMMENTS: Record<string, string> = {
-  ConversationMemoryAnalyzer: 'Layer3 memory。会話→記憶抽出。LLM依存(未到達時はPre-flightでskip)。',
-  CodeMemoryAnalyzer: 'Layer3 memory。コードグラフ→記憶。LLM非依存。',
-  BugHistoryMemoryAnalyzer: 'Layer3 memory。バグ履歴→記憶。LLM非依存。',
-  ReviewFindingMemoryAnalyzer: 'Layer3 memory。レビュー指摘→記憶。LLM依存。',
-  SpecMemoryAnalyzer: 'Layer3 memory。仕様→記憶。LLM依存。',
-  DriftMemoryAnalyzer: 'Layer3 memory。drift→記憶。LLM非依存。',
+  ConversationCaravanAnalyzer: 'Layer3 memory。会話→記憶抽出。LLM依存(未到達時はPre-flightでskip)。',
+  CodeCaravanAnalyzer: 'Layer3 memory。コードグラフ→記憶。LLM非依存。',
+  BugHistoryCaravanAnalyzer: 'Layer3 memory。バグ履歴→記憶。LLM非依存。',
+  ReviewFindingCaravanAnalyzer: 'Layer3 memory。レビュー指摘→記憶。LLM依存。',
+  SpecCaravanAnalyzer: 'Layer3 memory。仕様→記憶。LLM依存。',
+  DriftCaravanAnalyzer: 'Layer3 memory。drift→記憶。LLM非依存。',
   EmbeddingBackfillAnalyzer: 'Layer3 memory。未ベクトル化レコードの embedding 補完。embedding依存。',
   DoraMetricsAggregator: "Layer4 derived。DORA 指標集計。stage='all' の時のみ実行(opt-in)。",
   CrossSourceCorrelator: "Layer4 derived。クロスソース相関(PR↔commit等)。stage='all' の時のみ実行(opt-in)。",

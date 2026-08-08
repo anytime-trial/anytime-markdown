@@ -69,10 +69,10 @@ export interface CommitDbRow {
 }
 
 // ---------------------------------------------------------------------------
-//  Memory API response types (mirrored from MemoryApiHandler in vscode-trail-extension)
+//  Caravan API response types (mirrored from CaravanApiHandler in vscode-trail-extension)
 // ---------------------------------------------------------------------------
 
-export interface MemoryDriftEventRow {
+export interface CaravanDriftEventRow {
   readonly id: string;
   readonly subjectEntityId: string;
   readonly subjectDisplayName: string;
@@ -89,11 +89,11 @@ export interface MemoryDriftEventRow {
   readonly workspace: string;
 }
 
-export interface MemoryDriftEventDetail extends MemoryDriftEventRow {
+export interface CaravanDriftEventDetail extends CaravanDriftEventRow {
   readonly detailJson: unknown;
 }
 
-export interface MemoryRecurringBugRow {
+export interface CaravanRecurringBugRow {
   readonly id: string;
   readonly subjectEntityId: string;
   readonly subjectDisplayName: string;
@@ -102,7 +102,7 @@ export interface MemoryRecurringBugRow {
   readonly detectedAt: string;
 }
 
-export interface MemoryBugHistoryRow {
+export interface CaravanBugHistoryRow {
   readonly id: string;
   readonly commitSha: string;
   readonly bugEntityId: string;
@@ -112,7 +112,7 @@ export interface MemoryBugHistoryRow {
   readonly sessionId: string | null;
   /**
    * このバグを潰したセッションが属する指示 ID。宣言があればその指示 ID、無ければセッション ID
-   * （Review タブの `MemoryFlightReviewFindingRow.instructionId` と同じ暗黙グループの規則）。
+   * （Review タブの `CaravanFlightReviewFindingRow.instructionId` と同じ暗黙グループの規則）。
    * セッション不明のバグ、または activity.db を引けない構成では null。
    */
   readonly instructionId: string | null;
@@ -122,7 +122,7 @@ export interface MemoryBugHistoryRow {
   readonly workspace: string;
 }
 
-export interface MemoryBugCausalInfo {
+export interface CaravanBugCausalInfo {
   readonly bugEntityId: string;
   readonly subject: string;
   readonly category: string;
@@ -140,7 +140,7 @@ export interface MemoryBugCausalInfo {
   readonly introducedByCommitSubject: string | null;
 }
 
-export interface MemoryUnaddressedReviewFindingRow {
+export interface CaravanUnaddressedReviewFindingRow {
   readonly id: string;
   readonly reviewId: string;
   readonly targetFilePath: string | null;
@@ -150,7 +150,7 @@ export interface MemoryUnaddressedReviewFindingRow {
   readonly recordedAt: string;
 }
 
-export interface MemoryReviewHistoryRow {
+export interface CaravanReviewHistoryRow {
   readonly id: string;
   readonly reviewId: string;
   readonly findingEntityId: string;
@@ -177,7 +177,7 @@ export interface MemoryReviewHistoryRow {
  * Flight Record（指示単位）へ畳んだレビュー指摘 1 件。
  * `instructionId` は明示宣言があればその指示 ID、無ければセッション ID（暗黙グループ）。
  */
-export interface MemoryFlightReviewFindingRow {
+export interface CaravanFlightReviewFindingRow {
   readonly id: string;
   /** `precedes` エッジ（バグ → 事前指摘）が指すキー。行 id とは別物。 */
   readonly findingEntityId: string;
@@ -198,7 +198,7 @@ export interface MemoryFlightReviewFindingRow {
 }
 
 /** 指示単位の指摘件数（SQL 集計。一覧の limit で欠けない）。 */
-export interface MemoryFlightReviewFindingCountRow {
+export interface CaravanFlightReviewFindingCountRow {
   readonly instructionId: string;
   readonly error: number;
   readonly warn: number;
@@ -206,19 +206,19 @@ export interface MemoryFlightReviewFindingCountRow {
   readonly total: number;
 }
 
-export type MemoryPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
+export type CaravanPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
 
-export interface MemoryPipelineRunStatsByDayRow {
+export interface CaravanPipelineRunStatsByDayRow {
   readonly day: string;
   readonly scope: string;
   readonly wave: string;
   readonly runs: number;
   readonly durationSec: number;
   readonly itemsProcessed: number;
-  readonly worstStatus: MemoryPipelineRunStatus;
+  readonly worstStatus: CaravanPipelineRunStatus;
 }
 
-export interface MemoryPipelineRunRow {
+export interface CaravanPipelineRunRow {
   readonly id: string;
   readonly scope: string;
   readonly wave: string;
@@ -232,7 +232,7 @@ export interface MemoryPipelineRunRow {
   readonly errorDetail: string;
 }
 
-export interface MemoryPipelineRunLogRow {
+export interface CaravanPipelineRunLogRow {
   readonly id: number;
   readonly timestamp: string;
   readonly level: string;
@@ -243,7 +243,7 @@ export interface MemoryPipelineRunLogRow {
   readonly stack: string | null;
 }
 
-export interface MemoryFailedItemRow {
+export interface CaravanFailedItemRow {
   readonly scope: string;
   readonly itemKey: string;
   readonly failedAt: string;
@@ -252,7 +252,7 @@ export interface MemoryFailedItemRow {
   readonly attemptCount: number;
 }
 
-export interface MemoryInvalidationRow {
+export interface CaravanInvalidationRow {
   readonly id: string;
   readonly edgeId: string;
   readonly invalidatedAt: string;

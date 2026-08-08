@@ -40,7 +40,7 @@ C4 モデル要素・関係・グループの CRUD と、コード解析パイ�
 | `TRAIL_HOME` | Trail 関連ファイル一式の格納ルート（既定: `<workspace>/.anytime/trail`） |
 | `TRAIL_WORKSPACE_PATH` | ワークスペースの絶対パス。`TRAIL_HOME` 未設定時の解決基点（`workspacePath` 引数の次に優先）と `repoName` 既定値（basename）に使用 |
 | `MCP_TRAIL_FORCE_DIRECT` | `1` で `TrailDataServer` 生存チェックを skip し、書き込みも常に SQLite 直書きにする（CI / バッチ向け） |
-| `OLLAMA_BASE_URL` | Ollama API のベース URL（`search_memory` のベクトル検索で使用。例: `http://localhost:11434`） |
+| `OLLAMA_BASE_URL` | Ollama API のベース URL（`search_caravan_book` のベクトル検索で使用。例: `http://localhost:11434`） |
 
 > [!NOTE]
 > `activity.db` / `caravan-book.db` の格納先は `${TRAIL_HOME}/db/` に統一されており、個別の `*_DB_PATH` 環境変数は廃止されています。
@@ -191,7 +191,7 @@ trail-caravan-book に蓄積されたエンティティ・関係・会話エピ�
 
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |
-| `search_memory` | `query` / `entity_types?` / `source_type?` / `since?` / `limit?` / `hops?` | メモリグラフでクエリに関連するエンティティ・関係・会話エピソードを検索する。`hops=1` でグラフ隣接ノードまで展開 |
+| `search_caravan_book` | `query` / `entity_types?` / `source_type?` / `since?` / `limit?` / `hops?` | メモリグラフでクエリに関連するエンティティ・関係・会話エピソードを検索する。`hops=1` でグラフ隣接ノードまで展開 |
 
 
 ### 4.12 コード構造 discovery（読み取り）

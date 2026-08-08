@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 
 export type UnaddressedReviewFinding = {
   finding_id: string;
@@ -17,14 +17,14 @@ export type UnaddressedReviewFinding = {
 };
 
 export function listUnaddressedReviewFindings(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   severity?: string;
   daysSinceMin?: number;
   target_file_path?: string;
   category?: string;
   checklist_ref?: string;
   limit?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): UnaddressedReviewFinding[] {
   const { db, limit = 50, logger } = input;
 
@@ -54,7 +54,7 @@ export function listUnaddressedReviewFindings(input: {
   params.push(limit);
 
   const where = conditions.join(' AND ');
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT rf.id, rf.review_id, rf.category, rf.severity,

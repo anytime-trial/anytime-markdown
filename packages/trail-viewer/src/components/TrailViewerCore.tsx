@@ -84,7 +84,7 @@ export interface TrailViewerCoreProps {
   readonly sendCommand?: (cmd: string, payload?: unknown) => void;
   /** WebSocket が接続済みか。usePerfReporter の queue flush 判定に使う。 */
   readonly wsConnected?: boolean;
-  /** TrailDataServer のベース URL（Memory パネルの /api/memory/* に使用）。 */
+  /** TrailDataServer のベース URL（Caravan パネルの /api/caravan/* に使用）。 */
   readonly serverUrl?: string;
   /** `.anytime/commit-categories.json` から読み込んだカテゴリマップ。省略時はデフォルトを使用。 */
   readonly commitCategories?: ReadonlyMap<string, number>;

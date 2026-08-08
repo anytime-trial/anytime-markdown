@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
 import type { Episode } from '../../canonical/splitEpisodes';
 import type { ExtractionResult } from './extractFacts';
 import { applySingleActiveRule } from '../../invalidate/ruleBased';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 export interface PersistStats {
   entities_inserted: number;
@@ -34,15 +34,15 @@ export function episodeId(sessionId: string, messageUuidStart: string): string {
 }
 
 /**
- * Persists a single episode's extracted facts into the memory DB.
+ * Persists a single episode's extracted facts into the caravan-book DB.
  * Returns counts of rows affected.
  */
 export function persistEpisodeFacts(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   episode: Episode;
   extracted: ExtractionResult;
   recordedAt: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): PersistStats {
   const { db, episode, extracted, recordedAt, logger } = opts;
   const stats: PersistStats = {

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDbPath, resolveMemoryDbPath, resolveWorkspacePath } from '../dbPath';
-import { openMemoryDb, openTrailDb } from '../sqlite/openDb';
+import { resolveDbPath, resolveCaravanDbPath, resolveWorkspacePath } from '../dbPath';
+import { openCaravanDb, openTrailDb } from '../sqlite/openDb';
 import {
   aggregateDoctrineAgreement,
   fetchDoctrineAgreementRows,
@@ -37,14 +37,14 @@ export async function handleGetDoctrineAgreement(
     ...(input.until === undefined ? {} : { until: input.until }),
   };
 
-  let memoryRows: DoctrineAgreementRow[] = [];
+  let caravanRows: DoctrineAgreementRow[] = [];
   try {
-    const memoryDbPath = resolveMemoryDbPath({ workspacePath });
-    const openedMemory = await openMemoryDb(memoryDbPath, 'readonly');
+    const caravanDbPath = resolveCaravanDbPath({ workspacePath });
+    const openedCaravan = await openCaravanDb(caravanDbPath, 'readonly');
     try {
-      memoryRows = fetchDoctrineAgreementRows(openedMemory.db, range);
+      caravanRows = fetchDoctrineAgreementRows(openedCaravan.db, range);
     } finally {
-      openedMemory.close();
+      openedCaravan.close();
     }
   } catch (err) {
     console.error(
@@ -70,5 +70,5 @@ export async function handleGetDoctrineAgreement(
     );
   }
 
-  return aggregateDoctrineAgreement(mergeDoctrineAgreementRows(memoryRows, trailRows));
+  return aggregateDoctrineAgreement(mergeDoctrineAgreementRows(caravanRows, trailRows));
 }

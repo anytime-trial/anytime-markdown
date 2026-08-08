@@ -83,8 +83,8 @@ export function createRouteContext(args: {
  * 評価順序は「完全一致 → パターン（登録順）→ 前方一致（登録順）」で固定する。
  *
  * 完全一致を最優先にできるのは、パターン・前方一致のいずれのキーにも一致する完全一致経路が
- * 存在しないことを実測で確認しているため（例: 前方一致キー `/api/memory/drift/events/` は
- * 末尾スラッシュを持ち、完全一致の `/api/memory/drift/events` とは衝突しない）。
+ * 存在しないことを実測で確認しているため（例: 前方一致キー `/api/caravan/drift/events/` は
+ * 末尾スラッシュを持ち、完全一致の `/api/caravan/drift/events` とは衝突しない）。
  * 新しいルートを足すときはこの前提を壊していないか確認する。
  */
 export class RouteTable {

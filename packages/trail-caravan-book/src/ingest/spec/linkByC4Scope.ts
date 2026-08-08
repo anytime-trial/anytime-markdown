@@ -1,14 +1,14 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 export type LinkC4ScopeInput = {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   specDocId: string;
   specEntityId: string;
   c4Scope: string[];
   recordedAt: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 };
 
 export type LinkC4ScopeResult = {

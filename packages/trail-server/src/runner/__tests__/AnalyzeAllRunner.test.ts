@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { AnalyzeAllRunner } from '../AnalyzeAllRunner';
-import { makeFakeScopeSession, makeMemoryCoreWithSession } from './fakeMemoryScopeSession';
+import { makeFakeScopeSession, makeCaravanBookWithSession } from './fakeCaravanScopeSession';
 
 function makeLogSink(): { lines: string[]; appendLine: (m: string) => void } {
   const lines: string[] = [];
@@ -54,7 +54,7 @@ describe('AnalyzeAllRunner', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
@@ -73,7 +73,7 @@ describe('AnalyzeAllRunner', () => {
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
@@ -88,7 +88,7 @@ describe('AnalyzeAllRunner', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     await runner.pause('cli');
@@ -109,7 +109,7 @@ describe('AnalyzeAllRunner', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     await runner.pause('cli');
@@ -130,7 +130,7 @@ describe('AnalyzeAllRunner', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
@@ -146,7 +146,7 @@ describe('AnalyzeAllRunner', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
@@ -162,7 +162,7 @@ describe('AnalyzeAllRunner', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     const status = await runner.runOnce('manual');
@@ -174,13 +174,13 @@ describe('AnalyzeAllRunner', () => {
   it('persists state across instantiation', async () => {
     const statePath = join(dir, 'analyze-all-runner.json');
     const fake = makeFakeScopeSession();
-    const memoryCore = makeMemoryCoreWithSession(dir, fake.session);
-    const r1 = new AnalyzeAllRunner({ logSink: makeLogSink(), statePath, memoryCoreService: memoryCore });
+    const caravanBook = makeCaravanBookWithSession(dir, fake.session);
+    const r1 = new AnalyzeAllRunner({ logSink: makeLogSink(), statePath, caravanBookService: caravanBook });
     await r1.pause('cli');
     await r1.runOnce('manual');
     await r1.dispose();
 
-    const r2 = new AnalyzeAllRunner({ logSink: makeLogSink(), statePath, memoryCoreService: memoryCore });
+    const r2 = new AnalyzeAllRunner({ logSink: makeLogSink(), statePath, caravanBookService: caravanBook });
     const s = r2.getStatus();
     expect(s.paused).toBe(true);
     expect(s.pausedBy).toBe('cli');
@@ -193,7 +193,7 @@ describe('AnalyzeAllRunner', () => {
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
     });
 
     runner.start(60_000, { runOnStart: true, startupDelayMs: 10 });
@@ -211,7 +211,7 @@ describe('AnalyzeAllRunner', () => {
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
-      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      caravanBookService: makeCaravanBookWithSession(dir, fake.session),
       onImportProgress: (m) => progressMsgs.push(m),
       onImportPhase: (e) => phaseEvents.push(e.phase),
       onAfterRun: () => {
@@ -228,13 +228,13 @@ describe('AnalyzeAllRunner', () => {
     expect(afterRunCalled).toBe(1);
   });
 
-  it('runs without memoryCoreService (useExternalDaemon mode)', async () => {
+  it('runs without caravanBookService (useExternalDaemon mode)', async () => {
     const save = jest.fn();
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(save),
-      // memoryCoreService omitted
+      // caravanBookService omitted
     });
     const status = await runner.runOnce('manual');
     expect(save).toHaveBeenCalledTimes(1);
@@ -246,12 +246,12 @@ describe('AnalyzeAllRunner', () => {
     // Step 3d: memory analyzer は openScopeSession を直接呼ぶため trail-caravan-book の
     // 内部 pause を参照しない。AnalyzeAllRunner 自身の pause のみが実行を制御する。
     const fake = makeFakeScopeSession();
-    const memoryCore = makeMemoryCoreWithSession(dir, fake.session);
-    await memoryCore.pause('internal-test'); // 影響しないことを確認
+    const caravanBook = makeCaravanBookWithSession(dir, fake.session);
+    await caravanBook.pause('internal-test'); // 影響しないことを確認
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
-      memoryCoreService: memoryCore,
+      caravanBookService: caravanBook,
     });
     expect(runner.getStatus().paused).toBe(false);
     const status = await runner.runOnce('periodic');

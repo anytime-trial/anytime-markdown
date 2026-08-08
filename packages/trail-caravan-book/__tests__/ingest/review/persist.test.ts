@@ -7,15 +7,15 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import {
   upsertReviewDoc,
   upsertReviewSession,
   upsertReviewFinding,
 } from '../../../src/ingest/review/persist';
 import { entityId } from '../../../src/canonical/entityId';
-import type { MemoryDbConnection } from '../../../src/db/connection/types';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanDbConnection } from '../../../src/db/connection/types';
+import type { CaravanLogger } from '../../../src/logger';
 import type { ParsedFinding } from '../../../src/ingest/review/findingHelpers';
 import type { ParsedReviewDoc } from '../../../src/ingest/review/parseReviewDoc';
 import type { ParsedReviewSession } from '../../../src/ingest/review/parseReviewSession';
@@ -24,7 +24,7 @@ import type { ParsedReviewSession } from '../../../src/ingest/review/parseReview
 
 const TS = '2026-05-01T00:00:00.000Z';
 
-function makeLogger(): MemoryLogger & { errors: unknown[]; warns: string[] } {
+function makeLogger(): CaravanLogger & { errors: unknown[]; warns: string[] } {
   const errors: unknown[] = [];
   const warns: string[] = [];
   return {
@@ -36,9 +36,9 @@ function makeLogger(): MemoryLogger & { errors: unknown[]; warns: string[] } {
   };
 }
 
-async function openFresh(): Promise<{ db: MemoryDbConnection; close: () => void }> {
+async function openFresh(): Promise<{ db: CaravanDbConnection; close: () => void }> {
   const tmpPath = path.join(os.tmpdir(), `review-persist-${process.pid}-${Date.now()}.db`);
-  const { db, close } = await openMemoryCoreDb(tmpPath);
+  const { db, close } = await openCaravanBookDb(tmpPath);
   return {
     db,
     close: () => {
@@ -104,7 +104,7 @@ function makeSession(overrides: Partial<ParsedReviewSession> = {}): ParsedReview
  */
 async function openFreshWithReview(
   relPath: string,
-): Promise<{ db: MemoryDbConnection; reviewEntityId: string; close: () => void }> {
+): Promise<{ db: CaravanDbConnection; reviewEntityId: string; close: () => void }> {
   const { db, close } = await openFresh();
   const reviewEntityId = entityId('Review', relPath);
 
@@ -162,7 +162,7 @@ describe('upsertReviewFinding', () => {
   });
 
   // P1 (観点キー): checklist_ref の永続化と checklist_ref フィルタ付き取得のラウンドトリップ。
-  // 015_checklist_ref.sql の列追加が openMemoryCoreDb のマイグレーションで効いていることも兼ねて検証する。
+  // 015_checklist_ref.sql の列追加が openCaravanBookDb のマイグレーションで効いていることも兼ねて検証する。
   test('persists checklist_ref and round-trips through listUnaddressedReviewFindings filter', async () => {
     const { db, reviewEntityId, close } = await openFreshWithReview('checklist-ref-review.md');
     try {

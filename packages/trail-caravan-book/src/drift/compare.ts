@@ -1,6 +1,6 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { canonicalize } from '../canonical/canonicalize';
-import type { MemoryLogger } from '../logger';
+import type { CaravanLogger } from '../logger';
 export type { DriftType } from './policy';
 
 export type DriftCandidate = {
@@ -38,10 +38,10 @@ function resolveDriftType(
  * Returns edges where at least two sources disagree after normalization.
  */
 export function detectThreeSourceDrifts(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   minConfidence?: number;
   excludePredicates?: string[];
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): DriftCandidate[] {
   const {
     db,

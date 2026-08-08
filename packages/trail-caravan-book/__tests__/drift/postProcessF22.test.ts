@@ -1,13 +1,13 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { postProcessF22 } from '../../src/drift/postProcessF22';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 import type { DriftEventInput } from '../../src/drift/report';
 
-const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
+const silentLogger: CaravanLogger = { info: () => {}, error: () => {} };
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -17,7 +17,7 @@ const TS = '2026-01-01T00:00:00.000Z';
 let seq = 0;
 
 function insertEntity(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   opts: {
     id?: string;
     type?: string;
@@ -34,7 +34,7 @@ function insertEntity(
   return eid;
 }
 
-function insertReview(db: BetterSqlite3MemoryDb, id?: string): string {
+function insertReview(db: BetterSqlite3CaravanDb, id?: string): string {
   const rid = id ?? `rev-${++seq}`;
   const reviewEntity = insertEntity(db, { id: `rev-ent-${rid}`, type: 'Review' });
   db.run(
@@ -47,7 +47,7 @@ function insertReview(db: BetterSqlite3MemoryDb, id?: string): string {
 }
 
 function insertReviewFinding(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   opts: {
     id?: string;
     reviewId: string;

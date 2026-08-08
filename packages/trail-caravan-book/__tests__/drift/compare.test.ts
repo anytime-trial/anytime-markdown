@@ -1,17 +1,17 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { detectThreeSourceDrifts } from '../../src/drift/compare';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -23,10 +23,10 @@ function edgeId(): string {
 }
 
 /**
- * Insert a synthetic memory_edge. Inserts a placeholder entity first if needed.
+ * Insert a synthetic caravan_edge. Inserts a placeholder entity first if needed.
  */
 function insertEdge(
-  db: BetterSqlite3MemoryDb,
+  db: BetterSqlite3CaravanDb,
   opts: {
     subject: string;
     predicate: string;

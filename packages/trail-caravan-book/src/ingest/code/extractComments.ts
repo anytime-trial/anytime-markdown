@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { canonicalize } from '../../canonical/canonicalize';
 import { entityId } from '../../canonical/entityId';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,12 +22,12 @@ export interface DecisionCommentItem {
 }
 
 export interface IngestDecisionCommentsInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   /** trail-db の activity_code_decision_comments から読んだ comment 群 */
   comments: ReadonlyArray<DecisionCommentItem>;
   repoName: string;
   recordedAt: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }
 
 export interface ExtractCommentsStats {
@@ -41,10 +41,10 @@ export interface ExtractCommentsStats {
  * Upsert a File entity and return its entity ID.
  */
 function upsertFileEntity(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   filePath: string,
   recordedAt: string,
-  logger: MemoryLogger
+  logger: CaravanLogger
 ): string {
   const canonName = canonicalize(filePath);
   const eId = entityId('File', canonName);
@@ -72,7 +72,7 @@ function upsertFileEntity(
 
 /**
  * trail-db から読んだ decision comment 群を Decision entity + `rationale_for` edge
- * （Decision → File）として memory DB に ingest する。
+ * （Decision → File）として caravan-book DB に ingest する。
  *
  * ソースの AST 走査（ts.Program 依存）は analyze-child 側の scanDecisionComments に
  * 移設済み。本関数は typescript に依存せず、抽出済みデータを受け取って永続化のみ行う。

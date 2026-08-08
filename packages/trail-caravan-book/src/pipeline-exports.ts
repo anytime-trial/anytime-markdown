@@ -14,6 +14,6 @@ export {
   type CreatePipelineRunLedgerFactoryOptions,
 } from './pipeline/createPipelineRunLedgerFactory';
 export { ingestDecisionComments } from './ingest/code/extractComments';
-export { MemoryCoreService, defaultStatePath } from './service/MemoryCoreService';
-export { MemoryDbSession } from './service/MemoryDbSession';
-export { runMemoryCorePipeline } from './service/defaultMemoryCorePipelineRunner';
+export { CaravanBookService, defaultStatePath } from './service/CaravanBookService';
+export { CaravanDbSession } from './service/CaravanDbSession';
+export { runCaravanBookPipeline } from './service/defaultCaravanBookPipelineRunner';

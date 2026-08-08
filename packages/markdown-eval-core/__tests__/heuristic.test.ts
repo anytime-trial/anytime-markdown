@@ -38,8 +38,8 @@ describe('tokenize', () => {
 
 describe('extractIdentifiers', () => {
   it('extracts CamelCase', () => {
-    const ids = extractIdentifiers('class MemoryPanel extends ReviewPanel');
-    expect(ids.has('memorypanel')).toBe(true);
+    const ids = extractIdentifiers('class CaravanPanel extends ReviewPanel');
+    expect(ids.has('caravanpanel')).toBe(true);
     expect(ids.has('reviewpanel')).toBe(true);
   });
 
@@ -135,7 +135,7 @@ describe('jaccardSimilarity', () => {
 
 describe('scoreHeuristic', () => {
   it('returns ~1.0 across all axes for identical content', () => {
-    const md = '# Title\n\nfoo bar baz with MemoryPanel and packages/foo.ts';
+    const md = '# Title\n\nfoo bar baz with CaravanPanel and packages/foo.ts';
     const s = scoreHeuristic(md, md);
     expect(s.intent).toBeCloseTo(1.0);
     expect(s.design).toBeCloseTo(1.0);

@@ -4990,7 +4990,7 @@ export class TrailDatabase {
 
   // PR review の永続化（旧 pr_reviews / pr_review_comments / pr_review_findings）は
   // caravan_reviews / caravan_review_findings（source_kind='pr_comment'）へ統合した（2026-08-07）。
-  // 取込は trail-caravan-book の ingestPrReview、読み出しは trail-server の prReviewMemorySource が担う。
+  // 取込は trail-caravan-book の ingestPrReview、読み出しは trail-server の prReviewCaravanSource が担う。
 
   /**
    * CrossSourceCorrelator (Step 4d) 用: committed_at が有効な activity_session_commits を返す。

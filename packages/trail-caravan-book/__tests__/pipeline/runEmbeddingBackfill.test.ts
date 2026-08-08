@@ -1,4 +1,4 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runEmbeddingBackfill } from '../../src/pipeline/runEmbeddingBackfill';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { encodeEmbedding } from '../../src/embedding/codec';
@@ -28,7 +28,7 @@ function mockOllama(
  * （valid_until など）が抜けて、本番でだけ落ちる差分を作る。
  */
 async function makeDb() {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -36,7 +36,7 @@ async function makeDb() {
 
 const AT = '2026-01-01T00:00:00.000Z';
 
-function insertEntity(db: BetterSqlite3MemoryDb, id: string, displayName: string, summary = '', embedding?: Float32Array) {
+function insertEntity(db: BetterSqlite3CaravanDb, id: string, displayName: string, summary = '', embedding?: Float32Array) {
   db.run(
     `INSERT INTO caravan_entities
        (id, type, canonical_name, display_name, summary, embedding,
@@ -46,7 +46,7 @@ function insertEntity(db: BetterSqlite3MemoryDb, id: string, displayName: string
   );
 }
 
-function insertEpisode(db: BetterSqlite3MemoryDb, id: string, excerpt: string, summary = '') {
+function insertEpisode(db: BetterSqlite3CaravanDb, id: string, excerpt: string, summary = '') {
   db.run(
     `INSERT INTO caravan_episodes
        (id, session_id, message_uuid_start, message_uuid_end, agent_runtime, model,
@@ -56,7 +56,7 @@ function insertEpisode(db: BetterSqlite3MemoryDb, id: string, excerpt: string, s
   );
 }
 
-function insertSpecDoc(db: BetterSqlite3MemoryDb, id: string, title: string, summary = '') {
+function insertSpecDoc(db: BetterSqlite3CaravanDb, id: string, title: string, summary = '') {
   db.run(
     `INSERT INTO caravan_spec_documents
        (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, summary, recorded_at)

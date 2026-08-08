@@ -35,10 +35,10 @@ export function getTrailHome(workspaceRoot?: string): string {
  * caravan-book.db の解決パスを返す。
  *
  * `${TRAIL_HOME}/db/caravan-book.db`（= `<workspaceRoot>/.anytime/trail/db/caravan-book.db`）を返す。
- * テスト等で任意のパスを使いたい場合は `openMemoryCoreDb(dbPath)` に直接渡す。
+ * テスト等で任意のパスを使いたい場合は `openCaravanBookDb(dbPath)` に直接渡す。
  *
  * workspaceRoot 未指定でフォールバック先が保護領域だった場合は throw する。
  */
-export function getMemoryCoreDbPath(workspaceRoot?: string): string {
+export function getCaravanBookDbPath(workspaceRoot?: string): string {
   return path.join(getTrailHome(workspaceRoot), 'db', 'caravan-book.db');
 }

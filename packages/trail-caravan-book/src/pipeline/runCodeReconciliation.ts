@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import { noopLogger, type MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import { noopLogger, type CaravanLogger } from '../logger';
 
 export interface CodeReconciliationResult {
   status: 'success' | 'error';
@@ -21,11 +21,11 @@ export interface CodeReconciliationResult {
  * rename detection (preserving edges) is deferred to a future phase.
  */
 export function runCodeReconciliation(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   repoName: string;
   currentEntityIds: Set<string>;
   recordedAt: string;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
 }): CodeReconciliationResult {
   const start = Date.now();
   const logger = opts.logger ?? noopLogger;

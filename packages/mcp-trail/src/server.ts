@@ -51,7 +51,7 @@ import { handleGetThreatFramework, GetThreatFrameworkInputSchema } from './tools
 import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
-import { handleSearchMemory,SearchMemoryInputSchema } from './tools/searchMemory.js';
+import { handleSearchCaravanBook,SearchCaravanBookInputSchema } from './tools/searchCaravanBook.js';
 import { GetVerificationStatusInputSchema, handleGetVerificationStatus } from './tools/verificationStatus.js';
 
 export interface McpTrailOptions {
@@ -793,22 +793,22 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Memory graph search (trail-caravan-book)
+  //  CaravanBook graph search (trail-caravan-book)
   // -------------------------------------------------------------------------
 
   server.registerTool(
-    'search_memory',
+    'search_caravan_book',
     { description: 'Search the memory graph for entities, relationships, and conversation episodes related to the query', inputSchema: {
-      query: SearchMemoryInputSchema.shape.query,
-      entity_types: SearchMemoryInputSchema.shape.entity_types,
-      source_type: SearchMemoryInputSchema.shape.source_type,
-      since: SearchMemoryInputSchema.shape.since,
-      limit: SearchMemoryInputSchema.shape.limit,
-      hops: SearchMemoryInputSchema.shape.hops,
-      workspacePath: SearchMemoryInputSchema.shape.workspacePath,
+      query: SearchCaravanBookInputSchema.shape.query,
+      entity_types: SearchCaravanBookInputSchema.shape.entity_types,
+      source_type: SearchCaravanBookInputSchema.shape.source_type,
+      since: SearchCaravanBookInputSchema.shape.since,
+      limit: SearchCaravanBookInputSchema.shape.limit,
+      hops: SearchCaravanBookInputSchema.shape.hops,
+      workspacePath: SearchCaravanBookInputSchema.shape.workspacePath,
     }, },
     async (args) => {
-      const result = await handleSearchMemory(args);
+      const result = await handleSearchCaravanBook(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

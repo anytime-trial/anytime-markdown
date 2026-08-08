@@ -1,14 +1,14 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanDbConnection } from '../../db/connection/types';
+import type { CaravanLogger } from '../../logger';
 
 export interface AgentRunWatchdogResult {
   stale_count: number;
 }
 
 export function runAgentRunWatchdog(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   timeoutMinutes?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): AgentRunWatchdogResult {
   const { db, logger } = input;
   const timeoutMinutes = input.timeoutMinutes ?? 10;

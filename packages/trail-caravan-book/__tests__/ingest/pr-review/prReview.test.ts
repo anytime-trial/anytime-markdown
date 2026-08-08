@@ -7,15 +7,15 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import { ingestPrReview, type PrReviewIngestInput } from '../../../src/ingest/pr-review/ingestPrReview';
-import type { MemoryDbConnection } from '../../../src/db/connection/types';
+import type { CaravanDbConnection } from '../../../src/db/connection/types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function openFresh(): Promise<{ db: MemoryDbConnection; close: () => void }> {
+async function openFresh(): Promise<{ db: CaravanDbConnection; close: () => void }> {
   const tmpPath = path.join(os.tmpdir(), `pr-review-ingest-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
-  const { db, close } = await openMemoryCoreDb(tmpPath);
+  const { db, close } = await openCaravanBookDb(tmpPath);
   return {
     db,
     close: () => {
@@ -58,7 +58,7 @@ function makeInput(overrides: Partial<PrReviewIngestInput> = {}): PrReviewIngest
   };
 }
 
-function selectReviewRow(db: MemoryDbConnection, reviewRowId: string) {
+function selectReviewRow(db: CaravanDbConnection, reviewRowId: string) {
   const rows = db.exec(
     `SELECT source_kind, source_ref, source_hash, severity_overall, target_refs_json, title, reviewer, workspace
        FROM caravan_reviews WHERE id=?`,
@@ -79,7 +79,7 @@ function selectReviewRow(db: MemoryDbConnection, reviewRowId: string) {
   };
 }
 
-function selectFindings(db: MemoryDbConnection, reviewRowId: string) {
+function selectFindings(db: CaravanDbConnection, reviewRowId: string) {
   const rows = db.exec(
     `SELECT finding_index, finding_text, severity, target_file_path
        FROM caravan_review_findings WHERE review_id=? ORDER BY finding_index`,
@@ -94,7 +94,7 @@ function selectFindings(db: MemoryDbConnection, reviewRowId: string) {
   }));
 }
 
-function countFlaggedEdges(db: MemoryDbConnection, reviewRowId: string): number {
+function countFlaggedEdges(db: CaravanDbConnection, reviewRowId: string): number {
   const rows = db.exec(
     `SELECT COUNT(*) FROM caravan_edges WHERE predicate='flagged' AND subject_entity_id=?`,
     [reviewRowId],

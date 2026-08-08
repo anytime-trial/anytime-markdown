@@ -27,7 +27,7 @@ describe('evaluateReverseSpec', () => {
   });
 
   it('pairs golden and candidate documents with heuristic scoring', async () => {
-    const content = '# 概要\n\nMemoryPanel handles things';
+    const content = '# 概要\n\nCaravanPanel handles things';
     writeFileSync(join(tmp, '01-system.ja.md'), content);
 
     const r = await evaluateReverseSpec({

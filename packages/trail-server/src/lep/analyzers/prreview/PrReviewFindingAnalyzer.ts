@@ -3,7 +3,7 @@ import {
   type Analyzer,
   type AnalyzerContext,
   type AnalyzerEvent,
-  type MemoryDbConnection,
+  type CaravanDbConnection,
   type PrReviewIngestInput,
 } from '@anytime-markdown/trail-caravan-book';
 
@@ -14,7 +14,7 @@ import {
 
 export interface PrReviewFindingAnalyzerOptions {
   /** review + findings を同時永続化する caravan-book.db への書込接続。 */
-  readonly memoryDb: MemoryDbConnection;
+  readonly caravanDb: CaravanDbConnection;
   /**
    * severity / category 分類フック (LLM 等)。任意。未指定なら raw コメントのみ保存し分類は skip。
    * これにより Ollama 不在環境でも finding 抽出は機能する (lep-step4 プラン §6.3.2 の「LLM 任意」)。
@@ -74,7 +74,7 @@ export class PrReviewFindingAnalyzer implements Analyzer {
         bodyExcerpt: e.body,
         findings,
       };
-      const result = ingestPrReview(this.opts.memoryDb, input, ctx.logger);
+      const result = ingestPrReview(this.opts.caravanDb, input, ctx.logger);
       this.reviewsProcessed += 1;
       this.findingsWritten += result.findingsCount;
     } catch (err) {

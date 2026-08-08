@@ -1,13 +1,13 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import type { ChatProvider } from '@anytime-markdown/llm-core';
-import { hybridSearchMemory } from '../rag/hybridSearchMemory';
+import { hybridSearchCaravanBook } from '../rag/hybridSearchCaravanBook';
 import { buildPrompt, type PromptSource } from './promptBuilder';
 import { CitationStreamParser } from './citationParser';
 import type { ChatTurnInput, ChatChunk } from './types';
 
 export interface ChatServiceOptions {
-  readonly db: MemoryDbConnection;
+  readonly db: CaravanDbConnection;
   readonly ollama: OllamaClient;
   readonly chatProvider: ChatProvider;
   readonly embedModel?: string;
@@ -36,11 +36,11 @@ function isAbortError(error: unknown): boolean {
 export class ChatService {
   constructor(private readonly opts: ChatServiceOptions) {}
 
-  /** hybridSearchMemory に渡す検索入力を構築する。 */
+  /** hybridSearchCaravanBook に渡す検索入力を構築する。 */
   private buildRetrievalInput(
     input: ChatTurnInput,
     retrieveLimit: number,
-  ): Parameters<typeof hybridSearchMemory>[0]['input'] {
+  ): Parameters<typeof hybridSearchCaravanBook>[0]['input'] {
     return {
       query: input.query,
       entity_types: input.filters?.entity_types
@@ -60,7 +60,7 @@ export class ChatService {
     const retrieveLimit = this.opts.retrieveLimit ?? 12;
 
     // 1. Hybrid retrieval
-    const search = await hybridSearchMemory({
+    const search = await hybridSearchCaravanBook({
       db: this.opts.db,
       ollama: this.opts.ollama,
       embedModel: this.opts.embedModel,

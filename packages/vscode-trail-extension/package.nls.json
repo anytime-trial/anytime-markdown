@@ -5,7 +5,7 @@
   "config.daemon.useExternalDaemon": "Use an externally-running trail-server daemon instead of starting one inside the extension. Requires `npx anytime-trail-server start` to be running first.",
   "config.analyzeAll.enabled": "Enable the AnalyzeAll pipeline (importAll + trail-caravan-book runOnce). When disabled (default), the Pipelines tree view is hidden and no automatic or manual runs are performed.",
   "config.lep.configPath": "Alternate path to `lep.json`. When set, only this file is read (the standard `.anytime/trail/lep.json` search is skipped). Reload Window to apply.",
-  "command.memory.rebuildIndex": "Rebuild Memory Index",
+  "command.caravanBook.rebuildIndex": "Rebuild CaravanBook Index",
   "command.analyzeAll.status": "Show AnalyzeAll Status",
   "command.analyzeCurrentCode": "Analyze Code",
   "command.analyzeCurrentCodePickTsconfig": "Analyze Code (Pick Tsconfig)",

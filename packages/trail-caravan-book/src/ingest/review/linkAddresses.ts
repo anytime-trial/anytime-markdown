@@ -1,4 +1,4 @@
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import { normalizeTargetPath } from './normalizeTargetPath';
 import { escapeLike } from './resolveTargetRepo';
@@ -6,7 +6,7 @@ import { escapeLike } from './resolveTargetRepo';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type LinkAddressesInput = {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   windowDays?: number; // default 30
   logger: { warn: (msg: string) => void };
 };
@@ -145,7 +145,7 @@ const SCORE_THRESHOLD_DIRECTORY = 3;
  * Returns { edgeInserted: boolean } on success, null if no commit matched.
  */
 function linkOneFinding(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   finding: FindingRow,
   effectiveWindowDays: number,
 ): { edgeInserted: boolean } | null {
@@ -246,7 +246,7 @@ function linkOneFinding(
  * ただし 0 件で埋めずに null を返す — 「除外なし」と「数えられなかった」は別物。
  */
 function countSkips(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   logger: { warn: (msg: string) => void },
 ): LinkAddressesSkipCounts | null {
   try {

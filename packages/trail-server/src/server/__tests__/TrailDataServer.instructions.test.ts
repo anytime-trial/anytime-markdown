@@ -21,14 +21,14 @@ describe('/api/trail/instructions', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-'));
-    const memoryDbPath = path.join(dbDir, 'caravan-book.db');
-    server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
+    const caravanDbPath = path.join(dbDir, 'caravan-book.db');
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, caravanDbPath);
     await server.start(0);
     port = server.port;
     // Flight Record は caravan-book.db 側（server 内部の flightRecordDb と同一ファイル）。
     // シード専用の別接続で upsertFlightReviewFromMachine を叩く（server 内部インスタンスへは
     // アクセスできないため）。
-    flightDb = new FlightRecordDatabase(memoryDbPath);
+    flightDb = new FlightRecordDatabase(caravanDbPath);
     flightDb.init();
   });
 

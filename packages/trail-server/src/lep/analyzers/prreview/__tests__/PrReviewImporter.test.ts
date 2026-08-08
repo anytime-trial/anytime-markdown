@@ -55,7 +55,7 @@ const REVIEW_EVENT = (over: Record<string, unknown> = {}): AnalyzerEvent => ({
 describe('PrReviewImporter', () => {
   it('exposes a tier=2 analyzer', () => {
     const { ds } = makeDs();
-    const imp = new PrReviewImporter({ memoryDb: ds });
+    const imp = new PrReviewImporter({ caravanDb: ds });
     expect(imp.id).toBe('PrReviewImporter');
     expect(imp.tier).toBe(2);
     expect(imp.subscribes).toEqual(['github_pr_review']);
@@ -64,7 +64,7 @@ describe('PrReviewImporter', () => {
 
   it('emits pr_review_imported with the full review payload when unseen (repo_name = name part)', async () => {
     const { ds, lookups } = makeDs();
-    const imp = new PrReviewImporter({ memoryDb: ds });
+    const imp = new PrReviewImporter({ caravanDb: ds });
     const { ctx, events } = makeCtx();
 
     await imp.onEvent(REVIEW_EVENT(), ctx);
@@ -90,7 +90,7 @@ describe('PrReviewImporter', () => {
 
   it('skips re-import when source_hash is unchanged (idempotent)', async () => {
     const { ds } = makeDs({ 'widget#pr7#100': 'hash-v1' });
-    const imp = new PrReviewImporter({ memoryDb: ds });
+    const imp = new PrReviewImporter({ caravanDb: ds });
     const { ctx, events } = makeCtx();
 
     await imp.onEvent(REVIEW_EVENT({ bodyHash: 'hash-v1' }), ctx);
@@ -101,7 +101,7 @@ describe('PrReviewImporter', () => {
 
   it('re-emits when source_hash changed', async () => {
     const { ds } = makeDs({ 'widget#pr7#100': 'hash-OLD' });
-    const imp = new PrReviewImporter({ memoryDb: ds });
+    const imp = new PrReviewImporter({ caravanDb: ds });
     const { ctx, events } = makeCtx();
 
     await imp.onEvent(REVIEW_EVENT({ bodyHash: 'hash-v2' }), ctx);
@@ -112,7 +112,7 @@ describe('PrReviewImporter', () => {
 
   it('ignores non-github_pr_review events', async () => {
     const { ds, lookups } = makeDs();
-    const imp = new PrReviewImporter({ memoryDb: ds });
+    const imp = new PrReviewImporter({ caravanDb: ds });
     const { ctx } = makeCtx();
     await imp.onEvent({ kind: 'session_imported', sessionId: 's', messageCount: 1, repoName: 'r' }, ctx);
     expect(lookups).toEqual([]);
@@ -122,7 +122,7 @@ describe('PrReviewImporter', () => {
     const ds: PrReviewImporterDataSource = {
       getReviewSourceHash: () => { throw new Error('locked'); },
     };
-    const imp = new PrReviewImporter({ memoryDb: ds });
+    const imp = new PrReviewImporter({ caravanDb: ds });
     const { ctx, events, logs } = makeCtx();
     await imp.onEvent(REVIEW_EVENT(), ctx);
     expect(events).toEqual([]);
@@ -133,7 +133,7 @@ describe('PrReviewImporter', () => {
     const ds: PrReviewImporterDataSource = {
       getReviewSourceHash: () => { throw 'db-gone'; },
     };
-    const imp = new PrReviewImporter({ memoryDb: ds });
+    const imp = new PrReviewImporter({ caravanDb: ds });
     const { ctx, logs } = makeCtx();
     await imp.onEvent(REVIEW_EVENT(), ctx);
     expect(logs.join('\n')).toContain('[PrReviewImporter] failed for review 100: db-gone');
@@ -141,7 +141,7 @@ describe('PrReviewImporter', () => {
 
   it('onRunEnd logs summary and resets counters', async () => {
     const { ds } = makeDs();
-    const imp = new PrReviewImporter({ memoryDb: ds });
+    const imp = new PrReviewImporter({ caravanDb: ds });
     const { ctx, logs } = makeCtx();
 
     await imp.onEvent(REVIEW_EVENT(), ctx);
@@ -155,7 +155,7 @@ describe('PrReviewImporter', () => {
 
   it('handles repo without slash (no-op split)', async () => {
     const { ds, lookups } = makeDs();
-    const imp = new PrReviewImporter({ memoryDb: ds });
+    const imp = new PrReviewImporter({ caravanDb: ds });
     const { ctx } = makeCtx();
     await imp.onEvent(REVIEW_EVENT({ repo: 'widget' }), ctx);
     expect(lookups).toEqual(['widget#pr7#100']);

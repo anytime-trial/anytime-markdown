@@ -1,12 +1,12 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { openCaravanBookDb } from '../../../src/db/connection';
 
 /**
  * 023/024: memory_* / pipeline_* → caravan_* 接頭辞移行。
  * レガシー DB（001〜022 適用済み・データ入り）を better-sqlite3 で直接構築し、
- * openMemoryCoreDb が 023/024 を適用してデータ温存のまま改名することを検証する。
+ * openCaravanBookDb が 023/024 を適用してデータ温存のまま改名することを検証する。
  */
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-test-table-prefix-'));
@@ -59,7 +59,7 @@ afterAll(() => {
 describe('migration 023/024 (table prefix)', () => {
   test('レガシー DB のデータを温存したまま caravan_ 接頭辞へ改名する', async () => {
     buildLegacyDb(legacyDb);
-    const { db, close } = await openMemoryCoreDb(legacyDb);
+    const { db, close } = await openCaravanBookDb(legacyDb);
 
     const names = (
       db.exec(
@@ -123,14 +123,14 @@ describe('migration 023/024 (table prefix)', () => {
 
     // 無 FTS ビルドの v23 実行を再現: applyTablePrefix を直接適用し、v23 だけ記帳する
     // （v24 は requiresFts5 のため無 FTS 環境では未適用のまま）。
-    const { BetterSqlite3MemoryDb } = await import('../../../src/db/connection/BetterSqlite3MemoryDb');
+    const { BetterSqlite3CaravanDb } = await import('../../../src/db/connection/BetterSqlite3CaravanDb');
     const { applyTablePrefix } = await import('../../../src/db/migrations/023_table_prefix');
-    const mid = new BetterSqlite3MemoryDb({ filePath: noFtsDb });
+    const mid = new BetterSqlite3CaravanDb({ filePath: noFtsDb });
     applyTablePrefix(mid);
     mid.run(`INSERT INTO _migrations (version, applied_at) VALUES (23, '2026-08-08T00:00:00Z')`);
     mid.close();
 
-    const { db: opened, close } = await openMemoryCoreDb(noFtsDb);
+    const { db: opened, close } = await openCaravanBookDb(noFtsDb);
     const names = (
       opened.exec(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -147,7 +147,7 @@ describe('migration 023/024 (table prefix)', () => {
 
   test('新規 DB（全 migration 一括適用）でも同じ最終状態に収束する', async () => {
     const freshDb = path.join(tmpDir, 'fresh.db');
-    const { db, close } = await openMemoryCoreDb(freshDb);
+    const { db, close } = await openCaravanBookDb(freshDb);
 
     const names = (
       db.exec(

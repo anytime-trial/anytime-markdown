@@ -8,16 +8,16 @@ import { handleGetReviewRunStatus } from '../../tools/getReviewRunStatus';
  * 返しても失敗として現れない（呼び出し側からは「該当なし」と区別が付かない）。
  * 解決関数をモックしているだけの既存テストでは、この配線は検査されない。
  */
-const mockResolveMemoryDbPath = jest.fn((_opts: { workspacePath?: string }) => '/tmp/mcp-trail-test/caravan-book.db');
+const mockResolveCaravanDbPath = jest.fn((_opts: { workspacePath?: string }) => '/tmp/mcp-trail-test/caravan-book.db');
 
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),
-  resolveMemoryDbPath: (opts: { workspacePath?: string }) => mockResolveMemoryDbPath(opts),
+  resolveCaravanDbPath: (opts: { workspacePath?: string }) => mockResolveCaravanDbPath(opts),
 }));
 
 jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
-  openMemoryCoreDb: jest.fn().mockResolvedValue({ db: {}, close: jest.fn() }),
+  openCaravanBookDb: jest.fn().mockResolvedValue({ db: {}, close: jest.fn() }),
   listReviewTargetHints: jest.fn().mockReturnValue([]),
   getReviewRunStatus: jest.fn().mockReturnValue(null),
 }));
@@ -30,18 +30,18 @@ describe('workspacePath の受け渡し', () => {
   test('読み取り系ツール（list_review_target_hints）が workspacePath を解決へ渡す', async () => {
     await handleListReviewTargetHints({ workspacePath: '/ws/alpha' });
 
-    expect(mockResolveMemoryDbPath).toHaveBeenCalledWith({ workspacePath: '/ws/alpha' });
+    expect(mockResolveCaravanDbPath).toHaveBeenCalledWith({ workspacePath: '/ws/alpha' });
   });
 
   test('別ツール（get_review_run_status）でも同じ経路で渡る', async () => {
     await handleGetReviewRunStatus({ run_id: 'run-1', workspacePath: '/ws/beta' });
 
-    expect(mockResolveMemoryDbPath).toHaveBeenCalledWith({ workspacePath: '/ws/beta' });
+    expect(mockResolveCaravanDbPath).toHaveBeenCalledWith({ workspacePath: '/ws/beta' });
   });
 
   test('省略時は undefined を渡し、解決側（resolveWorkspacePath）へ委ねる', async () => {
     await handleListReviewTargetHints({});
 
-    expect(mockResolveMemoryDbPath).toHaveBeenCalledWith({ workspacePath: undefined });
+    expect(mockResolveCaravanDbPath).toHaveBeenCalledWith({ workspacePath: undefined });
   });
 });

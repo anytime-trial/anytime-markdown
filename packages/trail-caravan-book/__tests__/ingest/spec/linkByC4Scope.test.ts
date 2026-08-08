@@ -5,13 +5,13 @@
  * テストでは attachTrailDbFromHandle を使い、同じ WASM モジュール内の
  * インメモリ trail DB を ATTACH する。
  */
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
-import { openMemoryCoreDb } from '../../../src/db/connection';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
+import { openCaravanBookDb } from '../../../src/db/connection';
 import { attachTrailDbFromHandle } from '../../../src/db/attach';
 import { linkByC4Scope } from '../../../src/ingest/spec/linkByC4Scope';
 import { entityId } from '../../../src/canonical/entityId';
-import type { MemoryLogger } from '../../../src/logger';
-import type { MemoryDbConnection } from '../../../src/db/connection/types';
+import type { CaravanLogger } from '../../../src/logger';
+import type { CaravanDbConnection } from '../../../src/db/connection/types';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -32,16 +32,16 @@ type TrailRow = { id: string; name: string };
  * attachTrailDbFromHandle で trail を ATTACH し、readonly ガードを設置する。
  */
 async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   mainPath: string;
-  trailDb: BetterSqlite3MemoryDb;
+  trailDb: BetterSqlite3CaravanDb;
   cleanup: () => void;
 }> {
   const mainPath = makeTmpPath('main');
-  const { db } = await openMemoryCoreDb(mainPath);
+  const { db } = await openCaravanBookDb(mainPath);
 
   // trail DB をメモリで作成（同じ WASM モジュール内のインスタンス）
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run(`
     CREATE TABLE activity_c4_manual_elements (
       id          TEXT PRIMARY KEY,
@@ -74,9 +74,9 @@ async function openFreshWithTrailRows(rows: TrailRow[]): Promise<{
 /**
  * caravan_spec_documents に必要な行を挿入する（FK 制約のために必要）。
  */
-function insertSpecDoc(db: MemoryDbConnection, specDocId: string): void {
+function insertSpecDoc(db: CaravanDbConnection, specDocId: string): void {
   // installTrailReadonlyGuard 後は db.run のラッパー経由。trail.* でないため通過する。
-  const run = (db as unknown as { run: BetterSqlite3MemoryDb['run'] }).run.bind(db);
+  const run = (db as unknown as { run: BetterSqlite3CaravanDb['run'] }).run.bind(db);
   run(
     `INSERT OR IGNORE INTO caravan_spec_documents
        (id, rel_path, type, title, c4_scope_json, updated_at, source_hash, recorded_at)
@@ -88,8 +88,8 @@ function insertSpecDoc(db: MemoryDbConnection, specDocId: string): void {
 /**
  * caravan_entities に specEntityId の Concept entity を挿入する（edges の FK 制約のために必要）。
  */
-function insertSpecEntity(db: MemoryDbConnection, specEntityId: string): void {
-  const run = (db as unknown as { run: BetterSqlite3MemoryDb['run'] }).run.bind(db);
+function insertSpecEntity(db: CaravanDbConnection, specEntityId: string): void {
+  const run = (db as unknown as { run: BetterSqlite3CaravanDb['run'] }).run.bind(db);
   run(
     `INSERT OR IGNORE INTO caravan_entities
        (id, type, canonical_name, display_name, attributes_json,
@@ -99,9 +99,9 @@ function insertSpecEntity(db: MemoryDbConnection, specEntityId: string): void {
   );
 }
 
-function makeLogger(): { logger: MemoryLogger; warns: string[] } {
+function makeLogger(): { logger: CaravanLogger; warns: string[] } {
   const warns: string[] = [];
-  const logger: MemoryLogger = {
+  const logger: CaravanLogger = {
     info: jest.fn(),
     error: jest.fn(),
     warn: jest.fn((msg: string) => { warns.push(msg); }),

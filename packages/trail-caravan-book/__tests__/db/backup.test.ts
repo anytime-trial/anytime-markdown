@@ -3,9 +3,9 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as zlib from 'node:zlib';
 
-import { backupMemoryCoreDbFile } from '../../src/db/backup';
+import { backupCaravanBookDbFile } from '../../src/db/backup';
 
-describe('backupMemoryCoreDbFile', () => {
+describe('backupCaravanBookDbFile', () => {
   let tmpDir: string;
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memcore-backup-'));
@@ -23,7 +23,7 @@ describe('backupMemoryCoreDbFile', () => {
     const payload = Buffer.from('SQLite DB body fixture');
     fs.writeFileSync(dbPath, payload);
 
-    const created = backupMemoryCoreDbFile(dbPath, { backupIntervalDays: 0 });
+    const created = backupCaravanBookDbFile(dbPath, { backupIntervalDays: 0 });
     expect(created).toBe(true);
 
     const bakPath = `${dbPath}.bak.1.gz`;
@@ -36,10 +36,10 @@ describe('backupMemoryCoreDbFile', () => {
     const dbPath = path.join(tmpDir, 'caravan-book.db');
     fs.writeFileSync(dbPath, Buffer.from('v1'));
 
-    expect(backupMemoryCoreDbFile(dbPath, { backupIntervalDays: 1 })).toBe(true);
+    expect(backupCaravanBookDbFile(dbPath, { backupIntervalDays: 1 })).toBe(true);
     // overwrite db; if a 2nd backup ran, we'd see v2 contents in .bak.1.gz
     fs.writeFileSync(dbPath, Buffer.from('v2'));
-    expect(backupMemoryCoreDbFile(dbPath, { backupIntervalDays: 1 })).toBe(false);
+    expect(backupCaravanBookDbFile(dbPath, { backupIntervalDays: 1 })).toBe(false);
 
     const bakPath = `${dbPath}.bak.1.gz`;
     const decompressed = zlib.gunzipSync(fs.readFileSync(bakPath));
@@ -49,10 +49,10 @@ describe('backupMemoryCoreDbFile', () => {
   test('rotates .bak.1.gz → .bak.2.gz when called with new content (interval=0)', () => {
     const dbPath = path.join(tmpDir, 'caravan-book.db');
     fs.writeFileSync(dbPath, Buffer.from('gen-A'));
-    backupMemoryCoreDbFile(dbPath, { backupGenerations: 2, backupIntervalDays: 0 });
+    backupCaravanBookDbFile(dbPath, { backupGenerations: 2, backupIntervalDays: 0 });
 
     fs.writeFileSync(dbPath, Buffer.from('gen-B'));
-    backupMemoryCoreDbFile(dbPath, { backupGenerations: 2, backupIntervalDays: 0 });
+    backupCaravanBookDbFile(dbPath, { backupGenerations: 2, backupIntervalDays: 0 });
 
     const bak1 = zlib.gunzipSync(fs.readFileSync(`${dbPath}.bak.1.gz`));
     const bak2 = zlib.gunzipSync(fs.readFileSync(`${dbPath}.bak.2.gz`));
@@ -62,14 +62,14 @@ describe('backupMemoryCoreDbFile', () => {
 
   test('missing db file does not throw and creates no backup', () => {
     const dbPath = path.join(tmpDir, 'nonexistent.db');
-    expect(() => backupMemoryCoreDbFile(dbPath, { backupIntervalDays: 0 })).not.toThrow();
+    expect(() => backupCaravanBookDbFile(dbPath, { backupIntervalDays: 0 })).not.toThrow();
     expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(false);
   });
 
   test('backupGenerations <= 0 disables backup', () => {
     const dbPath = path.join(tmpDir, 'caravan-book.db');
     fs.writeFileSync(dbPath, Buffer.from('data'));
-    const created = backupMemoryCoreDbFile(dbPath, { backupGenerations: 0 });
+    const created = backupCaravanBookDbFile(dbPath, { backupGenerations: 0 });
     expect(created).toBe(false);
     expect(fs.existsSync(`${dbPath}.bak.1.gz`)).toBe(false);
   });

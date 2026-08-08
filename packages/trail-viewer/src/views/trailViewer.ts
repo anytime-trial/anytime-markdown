@@ -27,10 +27,10 @@ import { mountAnalyticsPanel } from './analytics/analyticsPanel';
 import type { AnalyticsPanelViewProps } from './analytics/analyticsPanel';
 import { mountC4Viewer } from './c4/c4Viewer';
 import type { C4ViewerViewProps } from './c4/c4Viewer';
-import { mountMemoryPanel } from './memory/memoryPanel';
-import type { MemoryPanelViewProps } from './memory/memoryPanel';
-import { mountChatPanel } from './memory/chatPanel';
-import type { ChatPanelProps } from './memory/chatPanel';
+import { mountCaravanPanel } from './caravan/caravanPanel';
+import type { CaravanPanelViewProps } from './caravan/caravanPanel';
+import { mountChatPanel } from './caravan/chatPanel';
+import type { ChatPanelProps } from './caravan/chatPanel';
 import { mountFlightRecordPanel, type FlightRecordPanelProps } from './flightRecordPanel';
 import { mountKnowledgeGraphPanel, type KnowledgeGraphPanelProps } from './knowledgeGraphPanel';
 import { createFlightReviewStore, type FlightReviewStore } from '../data/flightReviewStore';
@@ -226,7 +226,7 @@ export function mountTrailViewer(
   // ── Sub-mount handles (keyed by tab number) ──
   let analyticsHandle: ReturnType<typeof mountAnalyticsPanel> | null = null;
   let c4Handle: ReturnType<typeof mountC4Viewer> | null = null;
-  let memoryHandle: ReturnType<typeof mountMemoryPanel> | null = null;
+  let caravanHandle: ReturnType<typeof mountCaravanPanel> | null = null;
   let flightRecordHandle: ReturnType<typeof mountFlightRecordPanel> | null = null;
   let knowledgeGraphHandle: ReturnType<typeof mountKnowledgeGraphPanel> | null = null;
   let chatHandle: ReturnType<typeof mountChatPanel> | null = null;
@@ -418,8 +418,8 @@ export function mountTrailViewer(
     };
   }
 
-  // ── Derive MemoryPanel props ──
-  function buildMemoryProps(): MemoryPanelViewProps {
+  // ── Derive CaravanPanel props ──
+  function buildCaravanProps(): CaravanPanelViewProps {
     return {
       serverUrl: props.serverUrl ?? '',
       tokens: props.tokens,
@@ -826,8 +826,8 @@ export function mountTrailViewer(
         break;
       }
       case 6: {
-        if (!memoryHandle) {
-          memoryHandle = mountMemoryPanel(panelEl, buildMemoryProps());
+        if (!caravanHandle) {
+          caravanHandle = mountCaravanPanel(panelEl, buildCaravanProps());
         }
         break;
       }
@@ -907,8 +907,8 @@ export function mountTrailViewer(
       const c4Props = buildC4Props();
       if (c4Props) c4Handle.update(c4Props);
     }
-    if (memoryHandle) {
-      memoryHandle.update(buildMemoryProps());
+    if (caravanHandle) {
+      caravanHandle.update(buildCaravanProps());
     }
     if (flightRecordHandle) {
       flightRecordHandle.update(buildFlightRecordProps());
@@ -949,7 +949,7 @@ export function mountTrailViewer(
 
     analyticsHandle?.destroy();
     c4Handle?.destroy();
-    memoryHandle?.destroy();
+    caravanHandle?.destroy();
     flightRecordHandle?.destroy();
     flightRecordHandle = null;
     flightReviewStore?.dispose();

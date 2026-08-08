@@ -1,4 +1,4 @@
-import type { MemoryDbConnection } from '../db/connection/types';
+import type { CaravanDbConnection } from '../db/connection/types';
 import { describeError, PipelineRunLedger } from './PipelineRunLedger';
 import { parseFixCommit } from '../ingest/bug-history/parseFixCommit';
 import { buildBugEntity } from '../ingest/bug-history/buildBugEntity';
@@ -7,7 +7,7 @@ import { inferIntroducedBy } from '../ingest/bug-history/inferIntroducedBy';
 import { linkRootCauseEpisode } from '../ingest/bug-history/linkRootCauseEpisode';
 import { upsertBugEntity, upsertCommitEntity, upsertBugFix, insertFixesEdge } from '../ingest/bug-history/persist';
 import { entityId } from '../canonical/entityId';
-import { noopLogger, type MemoryLogger } from '../logger';
+import { noopLogger, type CaravanLogger } from '../logger';
 
 const SCOPE = 'bug_history_incremental';
 const DEFAULT_SINCE = '1970-01-01T00:00:00.000Z';
@@ -29,7 +29,7 @@ export interface BugHistoryIncrementalResult {
   duration_ms: number;
 }
 
-function readPipelineState(db: MemoryDbConnection): string {
+function readPipelineState(db: CaravanDbConnection): string {
   const stmt = db.prepare(`SELECT last_processed_at FROM caravan_pipeline_state WHERE scope = ?`);
   try {
     const row = stmt.get(SCOPE);
@@ -41,7 +41,7 @@ function readPipelineState(db: MemoryDbConnection): string {
 }
 
 function upsertPipelineState(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   opts: { status: string; last_processed_at?: string; error_detail?: string }
 ): void {
   db.run(
@@ -58,7 +58,7 @@ function upsertPipelineState(
   );
 }
 
-function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
+function recordFailedItem(db: CaravanDbConnection, itemKey: string, reason: string, detail: string): void {
   db.run(
     `INSERT INTO caravan_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
      VALUES (?, ?, ?, ?, ?, 1)
@@ -86,7 +86,7 @@ interface CommitRow {
  * 実質 1 度きりで、以降は 0 件更新になる。失敗しても取込本体は続ける
  * （選択肢の欠けは表示の劣化であって、取込を止める理由にならない）。
  */
-function backfillBugFixWorkspace(db: MemoryDbConnection, repoName: string, logger: MemoryLogger): void {
+function backfillBugFixWorkspace(db: CaravanDbConnection, repoName: string, logger: CaravanLogger): void {
   try {
     db.run(
       `UPDATE caravan_bug_fixes
@@ -109,10 +109,10 @@ function backfillBugFixWorkspace(db: MemoryDbConnection, repoName: string, logge
 }
 
 export async function runBugHistoryIncremental(opts: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   repoName: string;
   repoRoot: string;
-  logger?: MemoryLogger;
+  logger?: CaravanLogger;
 }): Promise<BugHistoryIncrementalResult> {
   const { db, repoName, repoRoot } = opts;
   const logger = opts.logger ?? noopLogger;

@@ -1,15 +1,15 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { reportDriftEvents } from '../../src/drift/report';
 import type { DriftEventInput } from '../../src/drift/report';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 import { entityId } from '../../src/canonical/entityId';
 import { canonicalize } from '../../src/canonical/canonicalize';
 
-const silentLogger: MemoryLogger = { info: () => {}, error: () => {} };
+const silentLogger: CaravanLogger = { info: () => {}, error: () => {} };
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
@@ -19,7 +19,7 @@ const TS = '2026-01-01T00:00:00.000Z';
 const TS2 = '2026-01-02T00:00:00.000Z';
 
 let entitySeq = 0;
-function insertEntity(db: BetterSqlite3MemoryDb): string {
+function insertEntity(db: BetterSqlite3CaravanDb): string {
   const id = `ent-${++entitySeq}`;
   db.run(
     `INSERT INTO caravan_entities
@@ -278,12 +278,12 @@ describe('reportDriftEvents', () => {
 });
 
 describe('reportDriftEvents — workspace', () => {
-  function workspaceOf(db: BetterSqlite3MemoryDb, eventId: string): string {
+  function workspaceOf(db: BetterSqlite3CaravanDb, eventId: string): string {
     const res = db.exec('SELECT workspace FROM caravan_drift_events WHERE id = ?', [eventId]);
     return String(res[0]?.values[0]?.[0] ?? '<missing>');
   }
 
-  function idOfOnlyEvent(db: BetterSqlite3MemoryDb): string {
+  function idOfOnlyEvent(db: BetterSqlite3CaravanDb): string {
     const res = db.exec('SELECT id FROM caravan_drift_events');
     expect(res[0]?.values.length).toBe(1);
     return String(res[0]!.values[0]![0]);

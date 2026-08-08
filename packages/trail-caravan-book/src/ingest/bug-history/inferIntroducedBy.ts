@@ -1,19 +1,19 @@
 import * as child_process from 'node:child_process';
 import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
-import type { MemoryDbConnection } from '../../db/connection/types';
+import type { CaravanDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import { parseFixCommit } from './parseFixCommit';
-import type { MemoryLogger } from '../../logger';
+import type { CaravanLogger } from '../../logger';
 
 export interface InferIntroducedByInput {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   bugEntityId: string;
   fixCommitSha: string;
   affectedFilePaths: string[];
   repoRoot: string;
   recordedAt: string;
   valid_from: string;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }
 
 export interface InferIntroducedByResult {
@@ -47,7 +47,7 @@ function parseBlameSha(blameOutput: string): string | null {
   return sha.length === 40 ? sha : null;
 }
 
-function isFix(db: MemoryDbConnection, sha: string): boolean {
+function isFix(db: CaravanDbConnection, sha: string): boolean {
   try {
     const result = db.exec(
       `SELECT commit_message FROM trail.activity_session_commits WHERE commit_hash = ? LIMIT 1`,

@@ -54,7 +54,7 @@ export async function openTrailDb(
  * 拡張の memory pipeline / デーモンと同一ファイルを共有するため WAL を保証し、
  * busy_timeout を設定する（書き込みは短時間）。
  */
-export async function openMemoryDb(
+export async function openCaravanDb(
   dbPath: string,
   mode: 'readonly' | 'readwrite',
 ): Promise<OpenedDb> {

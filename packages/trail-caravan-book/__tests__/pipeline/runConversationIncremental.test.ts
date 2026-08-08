@@ -1,21 +1,21 @@
-import { BetterSqlite3MemoryDb } from '../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../src/db/migrations/runner';
 import { attachTrailDbFromHandle } from '../../src/db/attach';
 import { runConversationIncremental } from '../../src/pipeline/runConversationIncremental';
 import { episodeId } from '../../src/ingest/conversation/persist';
-import type { MemoryLogger } from '../../src/logger';
+import type { CaravanLogger } from '../../src/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function makeMemoryDb(): Promise<BetterSqlite3MemoryDb> {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+async function makeCaravanDb(): Promise<BetterSqlite3CaravanDb> {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeTrailDb(): BetterSqlite3MemoryDb {
-  const trailDb = BetterSqlite3MemoryDb.openInMemory();
+function makeTrailDb(): BetterSqlite3CaravanDb {
+  const trailDb = BetterSqlite3CaravanDb.openInCaravan();
   trailDb.run(`CREATE TABLE activity_sessions (id TEXT PRIMARY KEY) STRICT`);
   trailDb.run(
     `CREATE TABLE activity_messages (
@@ -31,12 +31,12 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
   return trailDb;
 }
 
-function insertSession(trailDb: BetterSqlite3MemoryDb, id: string): void {
+function insertSession(trailDb: BetterSqlite3CaravanDb, id: string): void {
   trailDb.run(`INSERT INTO activity_sessions VALUES (?)`, [id]);
 }
 
 function insertMessage(
-  trailDb: BetterSqlite3MemoryDb,
+  trailDb: BetterSqlite3CaravanDb,
   uuid: string,
   sessionId: string,
   type: string,
@@ -51,7 +51,7 @@ function insertMessage(
   );
 }
 
-const silentLogger: MemoryLogger = {
+const silentLogger: CaravanLogger = {
   info: () => {},
   error: () => {},
 };
@@ -80,7 +80,7 @@ describe('runConversationIncremental', () => {
 
   // ── T1: throttle 中断 — 即時 stop で何も処理せず partial・cursor 据え置き ──
   test('T1: shouldStop=true → 0 件処理・partial・generate 未呼出・cursor 不変', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess1');
@@ -116,7 +116,7 @@ describe('runConversationIncremental', () => {
 
   // ── T2: 途中中断 → 再 run が未処理 episode を取りこぼさない (cursor 据え置きの肝) ──
   test('T2: 1 件処理後 stop → 再 run で残りを処理 (既処理は existingIds で skip)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // 2 session → 2 episode。sessA(00:00) が先に iterate される。
@@ -165,7 +165,7 @@ describe('runConversationIncremental', () => {
 
   // ── I1: basic happy path ─────────────────────────────────────────────────
   test('I1: 1 session, 2 messages → entities_inserted ≥ 1, pipeline_state updated', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess1');
@@ -207,7 +207,7 @@ describe('runConversationIncremental', () => {
 
   // ── I2: idempotency — 2nd run inserts no new entities ───────────────────
   test('I2: running twice with same data → 2nd run entities_inserted = 0', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess1');
@@ -242,7 +242,7 @@ describe('runConversationIncremental', () => {
 
   // ── I3: LLM returns invalid JSON → failed_items recorded, continues ──────
   test('I3: first episode LLM returns invalid JSON → failed item recorded, no crash', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // Two sessions → two separate episodes (so second one can succeed)
@@ -291,7 +291,7 @@ describe('runConversationIncremental', () => {
 
   // ── I4: 3 consecutive failures → quarantine ──────────────────────────────
   test('I4: 3 consecutive LLM failures → pipeline_state.status = quarantine', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // Three sessions, each with one user message → three separate episodes
@@ -338,7 +338,7 @@ describe('runConversationIncremental', () => {
   // guarantee that an interrupted run can never silently skip unprocessed
   // sessions (existingIds preload is the authoritative skip on resume).
   test('I5: checkpoint persists items_processed before save() fires; cursor stays put', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // Seed an existing cursor so we can assert it doesn't move mid-run.
@@ -410,7 +410,7 @@ describe('runConversationIncremental', () => {
   // would have already persisted cursor = max(timestamps seen so far) which
   // jumps past sessions yet to be iterated.
   test('I9: cursor stays at initial during mid-run checkpoint (51 episodes)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     const initialCursor = '2026-01-01T00:00:00.000Z';
@@ -466,7 +466,7 @@ describe('runConversationIncremental', () => {
   // partial run re-fed every already-persisted episode to Ollama (idempotent
   // on the DB but wasted minutes of LLM time per episode).
   test('I6: pre-persisted episodes are skipped on resume, no Ollama call', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // 3 user messages in trail + matching caravan_episodes rows (as if a
@@ -518,7 +518,7 @@ describe('runConversationIncremental', () => {
   // (which falls back to started_at) keeps the orphan 'running' row alive for
   // the full 10-minute timeout window after a reload.
   test('I7: insertPipelineRun seeds last_heartbeat_at and progress checkpoints refresh it', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sess-hb');
@@ -558,7 +558,7 @@ describe('runConversationIncremental', () => {
   // mistake for the pipeline being stuck and trigger a reload that loses
   // partial work.
   test('I8: progress callback fires per episode (not every 50)', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     // 5 sessions × 1 user message each = 5 episodes.
@@ -603,7 +603,7 @@ describe('runConversationIncremental', () => {
 
   // ── T-fatal: セッション反復中の致命エラー → error で確定し cursor は据え置き ──
   test('T-fatal: 反復中の例外 → status=error・pipeline_state に error_detail・cursor 不変', async () => {
-    const memDb = await makeMemoryDb();
+    const memDb = await makeCaravanDb();
     const trailDb = makeTrailDb();
 
     insertSession(trailDb, 'sessX');

@@ -14,7 +14,7 @@ export interface RunResult {
   readonly lastInsertRowid: number | bigint;
 }
 
-export interface MemoryDbStatement {
+export interface CaravanDbStatement {
   all(...params: SqlValue[]): RowObject[];
   get(...params: SqlValue[]): RowObject | undefined;
   run(...params: SqlValue[]): RunResult;
@@ -22,11 +22,11 @@ export interface MemoryDbStatement {
   free?(): void;
 }
 
-export interface MemoryDbConnection {
+export interface CaravanDbConnection {
   exec(sql: string, params?: ReadonlyArray<SqlValue>): ExecResultColumn[];
   run(sql: string, params?: ReadonlyArray<SqlValue>): void;
   execMany(sql: string): void;
-  prepare(sql: string): MemoryDbStatement;
+  prepare(sql: string): CaravanDbStatement;
   getRowsModified(): number;
   pragma(name: string): unknown;
   attach(filePath: string, alias: string, readOnly?: boolean): void;

@@ -4,25 +4,25 @@
  * persistEpisodeFacts の entity upsert・edge 挿入・
  * questions 処理・エラーハンドリング・冪等性を検証する。
  */
-import { BetterSqlite3MemoryDb } from '../../../src/db/connection/BetterSqlite3MemoryDb';
+import { BetterSqlite3CaravanDb } from '../../../src/db/connection/BetterSqlite3CaravanDb';
 import { runMigrations } from '../../../src/db/migrations/runner';
 import { persistEpisodeFacts, episodeId } from '../../../src/ingest/conversation/persist';
 import type { Episode } from '../../../src/canonical/splitEpisodes';
 import type { ExtractionResult } from '../../../src/ingest/conversation/extractFacts';
-import type { MemoryLogger } from '../../../src/logger';
+import type { CaravanLogger } from '../../../src/logger';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const TS = '2026-05-01T00:00:00.000Z';
 
-function makeDb(): BetterSqlite3MemoryDb {
-  const db = BetterSqlite3MemoryDb.openInMemory();
+function makeDb(): BetterSqlite3CaravanDb {
+  const db = BetterSqlite3CaravanDb.openInCaravan();
   db.run('PRAGMA foreign_keys = ON');
   runMigrations(db);
   return db;
 }
 
-function makeLogger(): MemoryLogger & { errors: unknown[]; warns: string[] } {
+function makeLogger(): CaravanLogger & { errors: unknown[]; warns: string[] } {
   const errors: unknown[] = [];
   const warns: string[] = [];
   return {
@@ -55,7 +55,7 @@ function makeExtracted(overrides: Partial<ExtractionResult> = {}): ExtractionRes
   };
 }
 
-function countRows(db: BetterSqlite3MemoryDb, table: string): number {
+function countRows(db: BetterSqlite3CaravanDb, table: string): number {
   const result = db.exec(`SELECT COUNT(*) FROM ${table}`);
   return result[0]?.values[0][0] as number;
 }

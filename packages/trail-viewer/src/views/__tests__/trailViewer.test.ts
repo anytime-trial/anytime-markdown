@@ -204,8 +204,8 @@ describe('mountTrailViewer', () => {
     const container = document.createElement('div');
     const h = mountTrailViewer(container, makeBaseProps({ initialTab: 0 }));
     // Tab 6 (memory) should not have been mounted yet
-    const memoryPanel = container.querySelector('#trail-panel-6');
-    expect(memoryPanel).toBeNull();
+    const caravanPanel = container.querySelector('#trail-panel-6');
+    expect(caravanPanel).toBeNull();
     h.destroy();
   });
 
@@ -217,7 +217,7 @@ describe('mountTrailViewer', () => {
     const chatPanel = container.querySelector('#trail-panel-10');
     expect(chatPanel).not.toBeNull();
     expect(chatPanel?.querySelector('[aria-label="chat-panel"]')).not.toBeNull();
-    // Memory パネル（tab 6）は訪問していないのでマウントされない
+    // Caravan パネル（tab 6）は訪問していないのでマウントされない
     expect(container.querySelector('#trail-panel-6')).toBeNull();
 
     h.destroy();

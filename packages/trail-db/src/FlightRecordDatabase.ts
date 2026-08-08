@@ -240,7 +240,7 @@ function toFlightReview(row: readonly unknown[]): FlightReview {
  * セッションの生ログではなく「振り返りで読む蒸留データ」であり、レビュー・バグ修正・
  * 乖離と同じ caravan-book.db 側に置く。セッション由来の参照データ（sessions / repos /
  * activity_session_costs / activity_session_commits / activity_verification_runs 等）は activity.db に残るため、
- * activity.db を `trail` alias で ATTACH して読む（MemoryApiHandler と同型）。
+ * activity.db を `trail` alias で ATTACH して読む（CaravanApiHandler と同型）。
  *
  * - activity.db が ATTACH できない構成では、トークン・成果物・検証・リポジトリ名解決が
  *   縮退する（行そのものは落とさない）。
@@ -259,7 +259,7 @@ export class FlightRecordDatabase {
   private readonly distPath: string | null;
 
   constructor(
-    private readonly memoryDbPath: string,
+    private readonly caravanDbPath: string,
     options: FlightRecordDatabaseOptions = {},
   ) {
     this.trailDbPath = options.trailDbPath ?? null;
@@ -277,27 +277,27 @@ export class FlightRecordDatabase {
     // DB ファイル名変更（memory-core.db→caravan-book.db・2026-08-08）のレガシー移行。owner は
     // デーモン/拡張の open 経路のみ（mcp-trail 等のサイドカーは物理リネームしない）。
     // 任意パス（テスト・明示指定）を巻き込まないよう、新既定名を開くときだけ実施する。
-    const memoryDbPath =
-      path.basename(this.memoryDbPath) === 'caravan-book.db'
+    const caravanDbPath =
+      path.basename(this.caravanDbPath) === 'caravan-book.db'
         ? resolveDbWithLegacyRename({
-            dir: path.dirname(this.memoryDbPath),
+            dir: path.dirname(this.caravanDbPath),
             current: 'caravan-book.db',
             legacy: 'memory-core.db',
             warn: (m) => this.logger.warn(m),
           }).path
-        : this.memoryDbPath;
+        : this.caravanDbPath;
     // native binary の解決は openBetterSqlite3 に集約する。ここで `new Ctor(path)` を直に
     // 書くと、webpack-bundled 拡張で bindings が .node を推測できず init が必ず throw し、
     // flight 系エンドポイントが配布物でだけ全滅する（loadBetterSqlite3.ts の Why not 参照）。
-    const inner = openBetterSqlite3(memoryDbPath, {
+    const inner = openBetterSqlite3(caravanDbPath, {
       distPath: this.distPath,
       onBundledBindingMissing: (expected) =>
         this.logger.warn(
           `[FlightRecordDatabase] bundled better_sqlite3.node not found at ${expected}; falling back to bindings resolution (this fails in bundled builds)`,
         ),
     });
-    // 拡張の memory pipeline / MemoryApiHandler と同一ファイルを共有するため WAL を保証する。
-    // openMemoryCoreDb（trail-caravan-book パッケージ）だけに任せると、本クラスが先に DB ファイルを
+    // 拡張の memory pipeline / CaravanApiHandler と同一ファイルを共有するため WAL を保証する。
+    // openCaravanBookDb（trail-caravan-book パッケージ）だけに任せると、本クラスが先に DB ファイルを
     // 作った環境で既定の DELETE ジャーナルのまま読み書きが競合する（前提はコメントでなく
     // 実装で担保する）。WAL にできないビルドは握りつぶさず警告する。
     const journalMode = String(inner.pragma('journal_mode = WAL', { simple: true }));
@@ -310,7 +310,7 @@ export class FlightRecordDatabase {
     // caravan_instruction_sessions の FK は宣言のみの運用（tables.ts のコメント参照）で、
     // 孤児リンクを含む既存データのバックフィルを FK 違反で止めないため。
     inner.pragma('foreign_keys = OFF');
-    this.db = new SqlJsCompatDatabase(inner, memoryDbPath);
+    this.db = new SqlJsCompatDatabase(inner, caravanDbPath);
     // テーブル名接頭辞移行（2026-08-08）: 旧名（instructions 等）が残る DB を caravan_ へ改名する。
     // ensureTables() より先に走らせないと、IF NOT EXISTS が新名の空テーブルを作り、旧名側の
     // データと分裂する（split-brain）。FK は宣言のみ運用（上の pragma OFF）だが、REFERENCES 句の

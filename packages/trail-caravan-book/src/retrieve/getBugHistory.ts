@@ -1,5 +1,5 @@
-import type { MemoryDbConnection } from '../db/connection/types';
-import type { MemoryLogger } from '../logger';
+import type { CaravanDbConnection } from '../db/connection/types';
+import type { CaravanLogger } from '../logger';
 
 export type CausedByRef = {
   entity_id: string;
@@ -20,13 +20,13 @@ export type BugHistoryEntry = {
 };
 
 function queryByFilePath(
-  db: MemoryDbConnection,
+  db: CaravanDbConnection,
   filePath: string,
   pkg: string | undefined,
   category: string | undefined,
   limit: number,
-  logger: MemoryLogger,
-): ReturnType<MemoryDbConnection['exec']> | null {
+  logger: CaravanLogger,
+): ReturnType<CaravanDbConnection['exec']> | null {
   const fileConds: string[] = [];
   const fileParams: (string | number)[] = [filePath];
   if (pkg != null) { fileConds.push('bf.package = ?'); fileParams.push(pkg); }
@@ -51,12 +51,12 @@ function queryByFilePath(
 }
 
 export function getBugHistory(input: {
-  db: MemoryDbConnection;
+  db: CaravanDbConnection;
   package?: string;
   file_path?: string;
   category?: string;
   limit?: number;
-  logger: MemoryLogger;
+  logger: CaravanLogger;
 }): BugHistoryEntry[] {
   const { db, limit = 20, logger } = input;
 
@@ -73,7 +73,7 @@ export function getBugHistory(input: {
 
   const wherePart = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT bf.id, bf.commit_sha, bf.package, bf.category,
@@ -94,9 +94,9 @@ export function getBugHistory(input: {
 }
 
 function buildEntries(
-  db: MemoryDbConnection,
-  rows: ReturnType<MemoryDbConnection['exec']>,
-  logger: MemoryLogger,
+  db: CaravanDbConnection,
+  rows: ReturnType<CaravanDbConnection['exec']>,
+  logger: CaravanLogger,
 ): BugHistoryEntry[] {
   const entries: BugHistoryEntry[] = [];
   for (const row of rows[0]?.values ?? []) {
@@ -134,8 +134,8 @@ function buildEntries(
   return entries;
 }
 
-function fetchCausedBy(db: MemoryDbConnection, bugEntityId: string, logger: MemoryLogger): CausedByRef[] {
-  let rows: ReturnType<MemoryDbConnection['exec']>;
+function fetchCausedBy(db: CaravanDbConnection, bugEntityId: string, logger: CaravanLogger): CausedByRef[] {
+  let rows: ReturnType<CaravanDbConnection['exec']>;
   try {
     rows = db.exec(
       `SELECT me.object_entity_id, ent.display_name, me.confidence_label

@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { openMemoryCoreDb } from '../../src/db/connection';
-import type { MemoryLogger } from '../../src/logger';
+import { openCaravanBookDb } from '../../src/db/connection';
+import type { CaravanLogger } from '../../src/logger';
 import { detectDrift } from '../../src/retrieve/detectDrift';
 import { explainDrift } from '../../src/retrieve/explainDrift';
 import { getBugHistory } from '../../src/retrieve/getBugHistory';
@@ -27,13 +27,13 @@ import { listUnaddressedReviewFindings } from '../../src/retrieve/listUnaddresse
  */
 describe('retrieve クエリとスキーマの整合', () => {
   let tmpDir: string;
-  let handle: Awaited<ReturnType<typeof openMemoryCoreDb>>;
+  let handle: Awaited<ReturnType<typeof openCaravanBookDb>>;
   let errors: string[];
-  let logger: MemoryLogger;
+  let logger: CaravanLogger;
 
   beforeAll(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memcore-schema-'));
-    handle = await openMemoryCoreDb(path.join(tmpDir, 'caravan-book.db'));
+    handle = await openCaravanBookDb(path.join(tmpDir, 'caravan-book.db'));
   });
 
   afterAll(() => {
@@ -47,7 +47,7 @@ describe('retrieve クエリとスキーマの整合', () => {
       info: () => {},
       warn: () => {},
       error: (msg: string) => { errors.push(msg); },
-    } as unknown as MemoryLogger;
+    } as unknown as CaravanLogger;
   });
 
   it('listReviewTargetHints の全クエリがスキーマに通る', () => {
