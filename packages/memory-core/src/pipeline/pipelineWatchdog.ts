@@ -12,6 +12,10 @@ export interface PipelineWatchdogResult {
  *
  * - pipeline_runs rows with status='running' older than `timeoutMinutes`
  *   are flipped to status='error' (error_detail='timeout').
+ * - wave='system' (daemon_session) rows use the longer `systemTimeoutMinutes`:
+ *   the daemon advances last_heartbeat_at periodically, so a stale heartbeat
+ *   means the daemon died without shutdown (crash / VS Code reload) and the
+ *   row would otherwise stay 'running' forever (2026-08-08 監査: ゴースト 4 件).
  * - memory_pipeline_state rows with status='running' that no longer have a
  *   matching running run are flipped to status='idle' (last_processed_at is
  *   preserved so the next run can resume from where it left off).
@@ -19,10 +23,12 @@ export interface PipelineWatchdogResult {
 export function runPipelineWatchdog(input: {
   db: MemoryDbConnection;
   timeoutMinutes?: number;
+  systemTimeoutMinutes?: number;
   logger: MemoryLogger;
 }): PipelineWatchdogResult {
   const { db, logger } = input;
   const timeoutMinutes = input.timeoutMinutes ?? 10;
+  const systemTimeoutMinutes = input.systemTimeoutMinutes ?? 30;
   const now = new Date().toISOString();
 
   // 1. Timeout stale running pipeline_runs.
@@ -31,16 +37,16 @@ export function runPipelineWatchdog(input: {
   // This lets long-running backfills (hours) survive the 10-minute timeout
   // as long as they keep updating last_heartbeat_at.
   //
-  // wave='system' は除外する。daemon プロセスの生存期間を表す run で、進捗を刻む
-  // 対象を持たないため heartbeat が進まない。同じ条件で失効させると、正常稼働中の
-  // daemon が起動 10 分後に必ず 'timeout' で失敗扱いになり、台帳に偽のエラーが
-  // 積み上がる。system run の終了は daemon 自身が shutdown 時に finish() で記録する。
+  // wave='system' (daemon_session) は daemon プロセスの生存期間を表す run。daemon が
+  // 定期 heartbeat で last_heartbeat_at を進めるため、通常 run より長い systemTimeoutMinutes
+  // で失効判定する（正常稼働中の daemon を偽 timeout にしない）。heartbeat が止まったまま
+  // 閾値を超えた system run は、shutdown の finish() を通らずに死んだゴーストなので回収する。
   const staleRunRows = db.exec(
     `SELECT id FROM pipeline_runs
      WHERE status = 'running'
-       AND wave != 'system'
-       AND julianday(COALESCE(last_heartbeat_at, started_at)) < julianday(?) - CAST(? AS REAL) / 1440.0`,
-    [now, timeoutMinutes],
+       AND julianday(COALESCE(last_heartbeat_at, started_at))
+         < julianday(?) - (CASE WHEN wave = 'system' THEN CAST(? AS REAL) ELSE CAST(? AS REAL) END) / 1440.0`,
+    [now, systemTimeoutMinutes, timeoutMinutes],
   );
   const runIds = (staleRunRows[0]?.values ?? []).map((r) => r[0] as string);
   for (const id of runIds) {
