@@ -27,7 +27,7 @@ import {
 
 import { FlightRecordDatabase } from '../../FlightRecordDatabase';
 import type { DbLogger } from '../../DbLogger';
-import { loadBetterSqlite3 } from '../../internal/loadBetterSqlite3';
+import { openBetterSqlite3 } from '../../internal/loadBetterSqlite3';
 
 export interface FlightRecordTestContext {
   readonly db: FlightRecordDatabase;
@@ -43,8 +43,7 @@ export interface FlightRecordTestContext {
 
 /** trail.db 側に必要なセッション由来テーブルを作って開いたまま返す（シード用ハンドル）。 */
 function createSeedableTrailDb(trailDbPath: string): BetterSqlite3Database {
-  const Ctor = loadBetterSqlite3();
-  const trail = new Ctor(trailDbPath);
+  const trail = openBetterSqlite3(trailDbPath);
   // 本番の trail.db と同じ FK OFF（better-sqlite3 は既定 ON。repos を張らない部分シードを許す）
   trail.pragma('foreign_keys = OFF');
   for (const ddl of [
@@ -76,8 +75,7 @@ export function createTestFlightRecordDatabase(logger?: DbLogger): FlightRecordT
       }
       handle.prepare(sql).run(...params);
     };
-  const Ctor = loadBetterSqlite3();
-  const memory = new Ctor(memoryDbPath);
+  const memory = openBetterSqlite3(memoryDbPath);
   return {
     db,
     tempDir,

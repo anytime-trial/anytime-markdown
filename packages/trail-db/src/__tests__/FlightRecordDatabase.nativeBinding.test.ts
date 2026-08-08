@@ -59,7 +59,40 @@ describe('better-sqlite3 native binding resolution', () => {
 
   it('passes the resolved binding to better-sqlite3 (a broken .node must fail the open)', () => {
     const distPath = createFakeDist(tempDir, 'not-a-real-addon');
-    expect(() => openBetterSqlite3(path.join(tempDir, 'probe.db'), { distPath })).toThrow();
+    // 種類を問わない toThrow だと、将来 init が別の理由で落ちるようになったときに
+    // 「distPath が届いていない」欠陥を検知しないまま緑になる。対象 .node のパスで縛る。
+    expect(() => openBetterSqlite3(path.join(tempDir, 'probe.db'), { distPath })).toThrow(/better_sqlite3\.node/);
+  });
+
+  it('reports a missing bundled binding when distPath is given but the .node was not copied', () => {
+    const distPath = path.join(tempDir, 'dist-without-binary');
+    fs.mkdirSync(distPath, { recursive: true });
+    const missing: string[] = [];
+    const db = openBetterSqlite3(path.join(tempDir, 'reported.db'), {
+      distPath,
+      onBundledBindingMissing: (p) => missing.push(p),
+    });
+    try {
+      // 配置漏れは bindings の通常解決へ黙って落ちる。バンドル実行では必ず失敗する経路なので、
+      // 「未指定（テスト・ソース実行）」と区別できる信号を残す。
+      expect(missing).toEqual([
+        path.join(distPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('does not report anything when distPath is not given', () => {
+    const missing: string[] = [];
+    const db = openBetterSqlite3(path.join(tempDir, 'silent.db'), {
+      onBundledBindingMissing: (p) => missing.push(p),
+    });
+    try {
+      expect(missing).toEqual([]);
+    } finally {
+      db.close();
+    }
   });
 
   it('opens normally when distPath is not given', () => {
@@ -75,7 +108,7 @@ describe('better-sqlite3 native binding resolution', () => {
     const distPath = createFakeDist(tempDir, 'not-a-real-addon');
     const db = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { distPath });
     try {
-      expect(() => db.init()).toThrow();
+      expect(() => db.init()).toThrow(/better_sqlite3\.node/);
     } finally {
       db.close();
     }

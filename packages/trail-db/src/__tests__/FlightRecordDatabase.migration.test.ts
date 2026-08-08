@@ -14,7 +14,7 @@ import {
 } from '@anytime-markdown/trail-core';
 
 import { FlightRecordDatabase } from '../FlightRecordDatabase';
-import { loadBetterSqlite3 } from '../internal/loadBetterSqlite3';
+import { openBetterSqlite3 } from '../internal/loadBetterSqlite3';
 
 const TS = '2026-07-17T10:00:00.000Z';
 
@@ -27,8 +27,7 @@ interface LegacyContext {
 function createLegacyTrailDb(): LegacyContext {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
   const trailDbPath = path.join(tempDir, 'trail.db');
-  const Ctor = loadBetterSqlite3();
-  const trail = new Ctor(trailDbPath);
+  const trail = openBetterSqlite3(trailDbPath);
   trail.pragma('foreign_keys = OFF');
   trail.exec(CREATE_INSTRUCTIONS);
   trail.exec(CREATE_INSTRUCTION_SESSIONS);
@@ -55,8 +54,7 @@ function createLegacyTrailDb(): LegacyContext {
 }
 
 function trailTables(trailDbPath: string, like = ''): string[] {
-  const Ctor = loadBetterSqlite3();
-  const trail = new Ctor(trailDbPath, { readonly: true });
+  const trail = openBetterSqlite3(trailDbPath, { readonly: true });
   try {
     return trail
       .prepare(
@@ -146,8 +144,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
 
   it('trail 側の manual 訂正は memory 側の機械行に勝つ（manual > self > machine を移行経路でも守る）', () => {
     // trail 側の sess-1 行を人手訂正済みにする
-    const Ctor = loadBetterSqlite3();
-    const trail = new Ctor(ctx.trailDbPath);
+    const trail = openBetterSqlite3(ctx.trailDbPath);
     trail
       .prepare(
         `UPDATE flight_reviews SET outcome = 'achieved', outcome_source = 'manual',
@@ -185,8 +182,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     // （INSERT OR IGNORE は CHECK 違反を黙って捨てる — その黙殺を検証が捕まえること）
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
     const trailDbPath = path.join(tempDir, 'trail.db');
-    const Ctor = loadBetterSqlite3();
-    const trail = new Ctor(trailDbPath);
+    const trail = openBetterSqlite3(trailDbPath);
     trail.exec(`CREATE TABLE flight_reviews (
       id INTEGER PRIMARY KEY, session_id TEXT NOT NULL UNIQUE, workspace_path TEXT NOT NULL DEFAULT '',
       started_at TEXT, ended_at TEXT NOT NULL, duration_seconds INTEGER,
@@ -239,8 +235,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     ): void {
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
       const trailDbPath = path.join(tempDir, 'trail.db');
-      const Ctor = loadBetterSqlite3();
-      const trail = new Ctor(trailDbPath);
+      const trail = openBetterSqlite3(trailDbPath);
       trail.pragma('foreign_keys = OFF');
       setup(trail);
       trail.close();
@@ -280,8 +275,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
           expect(db.listAcceptanceRecords()).toHaveLength(1);
           expect(trailTables(trailDbPath)).toEqual([]);
           // 退避テーブルの実在（trailTables は 3 プレフィクス限定のため直接確認）
-          const Ctor = loadBetterSqlite3();
-          const trail = new Ctor(trailDbPath, { readonly: true });
+          const trail = openBetterSqlite3(trailDbPath, { readonly: true });
           try {
             const backup = trail
               .prepare(`SELECT COUNT(*) c FROM acceptance_records__pre_move_backup`)
@@ -318,8 +312,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
           expect(result?.status).toBe('verification_failed');
           expect(result?.missingRows['acceptance_records']).toBe(1);
           // 非破壊: trail 側テーブルが残る（memory 側の行も上書きされない）
-          const Ctor = loadBetterSqlite3();
-          const trail = new Ctor(trailDbPath, { readonly: true });
+          const trail = openBetterSqlite3(trailDbPath, { readonly: true });
           try {
             expect((trail.prepare(`SELECT COUNT(*) c FROM acceptance_records`).get() as { c: number }).c).toBe(1);
           } finally {
@@ -343,8 +336,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
           // 空の comments / findings は回収、行が残る pr_reviews は手動変換待ちで残る
           expect(result?.status).toBe('verification_failed');
           expect(result?.missingRows['pr_reviews']).toBe(1);
-          const Ctor = loadBetterSqlite3();
-          const trail = new Ctor(trailDbPath, { readonly: true });
+          const trail = openBetterSqlite3(trailDbPath, { readonly: true });
           try {
             const names = (
               trail

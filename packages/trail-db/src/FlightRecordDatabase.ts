@@ -274,7 +274,13 @@ export class FlightRecordDatabase {
     // native binary の解決は openBetterSqlite3 に集約する。ここで `new Ctor(path)` を直に
     // 書くと、webpack-bundled 拡張で bindings が .node を推測できず init が必ず throw し、
     // flight 系エンドポイントが配布物でだけ全滅する（loadBetterSqlite3.ts の Why not 参照）。
-    const inner = openBetterSqlite3(this.memoryDbPath, { distPath: this.distPath });
+    const inner = openBetterSqlite3(this.memoryDbPath, {
+      distPath: this.distPath,
+      onBundledBindingMissing: (expected) =>
+        this.logger.warn(
+          `[FlightRecordDatabase] bundled better_sqlite3.node not found at ${expected}; falling back to bindings resolution (this fails in bundled builds)`,
+        ),
+    });
     // 拡張の memory pipeline / MemoryApiHandler と同一ファイルを共有するため WAL を保証する。
     // openMemoryCoreDb（memory-core パッケージ）だけに任せると、本クラスが先に DB ファイルを
     // 作った環境で既定の DELETE ジャーナルのまま読み書きが競合する（前提はコメントでなく

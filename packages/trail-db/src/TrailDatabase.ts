@@ -1726,7 +1726,13 @@ export class TrailDatabase {
     if (filePath) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
     }
-    const inner = openBetterSqlite3(filePath ?? ':memory:', { distPath: this.distPath });
+    const inner = openBetterSqlite3(filePath ?? ':memory:', {
+      distPath: this.distPath,
+      onBundledBindingMissing: (expected) =>
+        this.logger.warn(
+          `[TrailDatabase] bundled better_sqlite3.node not found at ${expected}; falling back to bindings resolution (this fails in bundled builds)`,
+        ),
+    });
     // FK 制約は intentionally OFF。sql.js 時代は createTables() の
     // PRAGMA foreign_keys = ON が WASM 側で no-op だったため事実上 FK 未強制で
     // 動いており、既存テスト fixture / production 既存データはこれに依存している

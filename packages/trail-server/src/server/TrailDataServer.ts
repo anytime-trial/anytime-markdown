@@ -58,7 +58,7 @@ import {
 // typescript を引く `analyze` は DI（analyzeReleaseFn）に置換済みのため import しない。
 import type { AnalyzeFunction } from '@anytime-markdown/trail-db';
 import type { AnalyticsData, CostOptimizationData,MessageRow, SessionCommitRow, SessionRow, TrailDatabase } from '@anytime-markdown/trail-db';
-import { FlightRecordDatabase, MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
+import { FlightRecordDatabase, MetricsThresholdsLoader, resolveBundledNativeBinding } from '@anytime-markdown/trail-db';
 import { type WebSocket,WebSocketServer } from 'ws';
 
 import type { C4SourceFileInput } from '../analyze/analyzeChildProtocol';
@@ -358,24 +358,17 @@ export class TrailDataServer {
     private readonly analyzeReleaseFn?: AnalyzeFunction,
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
-    // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
+    // `.node` を推測できず crash するため、distPath 配下の絶対パスを
     // BetterSqlite3MemoryDb に渡す (memory-core / TrailDatabase と同パターン)。
-    const nativeBinding = path.join(
-      this.distPath,
-      'node_modules',
-      'better-sqlite3',
-      'build',
-      'Release',
-      'better_sqlite3.node',
-    );
-    // バンドル済み .node が distPath 配下に無い環境（テスト・ソース実行）では
-    // better-sqlite3 の既定解決へフォールバックする（実在しないパスを渡すと open が常に失敗する）。
+    // パス構成は trail-db の resolveBundledNativeBinding が唯一の正で、実在しない場合は
+    // null（= better-sqlite3 の既定解決へフォールバック。テスト・ソース実行）。
+    const nativeBinding = resolveBundledNativeBinding(this.distPath);
     this.memoryApi = new MemoryApiHandler(
       this.logger.child('MemoryApiHandler'),
       // 未指定は「未設定」として明示的に伝える。ハンドラ側で cwd 基準の暗黙解決を
       // させない（解決の責務は注入元にある）。
       memoryDbPath ?? null,
-      fs.existsSync(nativeBinding) ? nativeBinding : undefined,
+      nativeBinding ?? undefined,
     );
     // Flight Record ストア（memory-core.db 主接続 + trail.db ATTACH）。
     // 初期化失敗・移行失敗は fail-open（他エンドポイントを巻き込まない）。移行は毎起動の
