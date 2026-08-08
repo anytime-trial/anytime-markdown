@@ -71,6 +71,7 @@
     "clusters.listLabel": "Cluster list",
     "clusters.empty": "No clusters",
     "clusters.lanes": "Lay out lanes by cluster",
+    "clusters.laneUnavailableCard": "Cluster lanes are unavailable in card view",
     "clusters.laneGap": "Lane spacing",
     "clusters.unclustered": "Unclustered",
     "clusters.untitled": "Cluster {index}",
@@ -82,6 +83,7 @@
     "timeline.axisVertical": "Vertical (time flows down)",
     "timeline.gap": "Gap between layers",
     "timeline.showTimeLinks": "Connect the same word with a dotted line",
+    "timeline.unavailableCard": "Layer view is unavailable in card view",
     "timeline.slicesTitle": "Slices",
     "timeline.sliceLabel": "Slice name",
     "timeline.sliceDate": "Date (optional)",
@@ -98,6 +100,7 @@
     "note.totalFrequency": "Total frequency: {value}",
     "note.totalStrength": "Total strength: {value}",
     "toolbar.skinOz": "3D",
+    "toolbar.skinCard": "Card",
     "status.webglUnavailable": "WebGL is unavailable; staying in the 2D view",
     "minimap.unavailable3d": "Minimap is unavailable in the 3D view",
     "edit.mode": "Edit mode",
@@ -118,6 +121,7 @@
     "edit.errorNoSliceFrequency": "Enter a frequency for at least one slice.",
     "edit.errorNoSliceStrength": "Enter a strength for at least one slice.",
     "edit.add": "Add a word linked to this word",
-    "edit.unavailable3d": "Adding from the diagram is unavailable in 3D. Switch to the standard view."
+    "edit.unavailable3d": "Adding from the diagram is unavailable in 3D. Switch to the standard view.",
+    "edit.unavailableCard": "Adding from the diagram is unavailable in card view. Switch to the standard view."
   }
 }
