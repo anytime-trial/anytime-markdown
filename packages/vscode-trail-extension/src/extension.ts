@@ -810,6 +810,13 @@ export async function activate(context: vscode.ExtensionContext) {
 								intervalMs: rebuildIntervalMin * 60 * 1000,
 							}
 						: undefined,
+					// 知識グラフの座標事前計算。実行間隔は daemon 側の既定 (60 分) に任せる。
+					knowledgeGraphLayout: caravanDbPathForServer
+						? {
+								caravanDbPath: caravanDbPathForServer,
+								caravanNativeBinding: caravanBookNativeBinding,
+							}
+						: undefined,
 					tokenBudgetConfig: {
 						dailyLimitTokens: budgetConfig.get<number | null>('dailyLimitTokens', null),
 						sessionLimitTokens: budgetConfig.get<number | null>('sessionLimitTokens', null),

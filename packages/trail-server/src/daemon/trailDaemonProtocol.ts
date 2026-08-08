@@ -176,6 +176,11 @@ export interface SerializableHttpServerOptions {
    * 非シリアライズ要素 (logger instance) は daemon 側で生成する。
    */
   readonly rebuildScheduler?: SerializableRebuildSchedulerConfig;
+  /**
+   * 知識グラフのレイアウト事前計算の構築設定。指定時に daemon 内で DaemonScheduler へ job を
+   * 登録し定期実行を開始する。非シリアライズ要素 (logger instance) は daemon 側で生成する。
+   */
+  readonly knowledgeGraphLayout?: SerializableKnowledgeGraphLayoutConfig;
   /** トークン予算の初期設定。startHttpServer 完了後に setTokenBudgetConfig を呼ぶ。 */
   readonly tokenBudgetConfig?: SerializableTokenBudgetConfig;
   /** ドキュメントパスの初期設定。startHttpServer 完了後に setDocsPath を呼ぶ。 */
@@ -219,6 +224,17 @@ export interface SerializableRebuildSchedulerConfig {
   readonly caravanDbPath: string;
   readonly caravanNativeBinding?: string;
   /** FTS 再構築の実行間隔 (ミリ秒)。省略時は 60 分。 */
+  readonly intervalMs?: number;
+}
+
+/**
+ * daemon が知識グラフのレイアウト事前計算 job を構築するのに必要なシリアライズ可能な設定。
+ * logger は daemon 内で生成する (非シリアライズ)。
+ */
+export interface SerializableKnowledgeGraphLayoutConfig {
+  readonly caravanDbPath: string;
+  readonly caravanNativeBinding?: string;
+  /** レイアウト再計算の実行間隔 (ミリ秒)。省略時は 60 分。0 を渡すと job を起動しない。 */
   readonly intervalMs?: number;
 }
 
