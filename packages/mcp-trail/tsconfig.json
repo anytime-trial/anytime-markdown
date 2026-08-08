@@ -8,7 +8,7 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "paths": {
-      "@anytime-markdown/memory-core": ["../memory-core/src/index.ts"]
+      "@anytime-markdown/trail-caravan-book": ["../trail-caravan-book/src/index.ts"]
     }
   },
   "include": ["src/**/*"]

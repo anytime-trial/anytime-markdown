@@ -14,13 +14,13 @@
     ],
     "persistence": [
       "packages/trail-db/",
-      "packages/memory-core/",
+      "packages/trail-caravan-book/",
       "packages/database-core/",
-      "packages/doc-core/",
+      "packages/markdown-catalog/",
       "supabase/"
     ],
     "schema": [
-      "packages/trail-core/src/domain/schema/",
+      "packages/trail-activity/src/domain/schema/",
       "supabase/migrations/"
     ],
     "packages": [

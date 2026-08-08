@@ -6,7 +6,7 @@ import { createMemoryCoreRunner } from '../../../../trail-server/src/runtime/mem
 const runOnceMock = jest.fn();
 const constructorSpy = jest.fn();
 
-jest.mock('@anytime-markdown/memory-core/pipeline', () => {
+jest.mock('@anytime-markdown/trail-caravan-book/pipeline', () => {
   return {
     MemoryCoreService: jest.fn().mockImplementation((opts: unknown) => {
       constructorSpy(opts);

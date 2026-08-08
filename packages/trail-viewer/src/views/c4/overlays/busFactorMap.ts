@@ -1,4 +1,4 @@
-import type { BusFactorEntry } from '@anytime-markdown/trail-core';
+import type { BusFactorEntry } from '@anytime-markdown/trail-activity';
 
 /**
  * C4 要素単位の属人度エントリを ID 索引にする（Phase 6 S5-B）。

@@ -55,7 +55,7 @@ describe('classifyLayer', () => {
 
   it('classifies a SQLite module as data (strong)', () => {
     const r = classifyLayer({
-      name: '@anytime-markdown/memory-core',
+      name: '@anytime-markdown/trail-caravan-book',
       dependencies: { 'better-sqlite3': '11.0.0' },
     });
     expect(r.layer).toBe('data');
@@ -63,7 +63,7 @@ describe('classifyLayer', () => {
   });
 
   it('classifies a data *-core module by name with medium confidence', () => {
-    const r = classifyLayer({ name: '@anytime-markdown/trail-core' });
+    const r = classifyLayer({ name: '@anytime-markdown/trail-activity' });
     expect(r.layer).toBe('data');
     expect(r.confidence).toBe(0.6);
   });

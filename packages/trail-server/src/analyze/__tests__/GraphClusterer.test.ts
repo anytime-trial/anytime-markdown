@@ -1,6 +1,6 @@
 import Graph from 'graphology';
 import { GraphClusterer, buildCommunityLabels } from '../GraphClusterer';
-import type { C4Element } from '@anytime-markdown/trail-core/c4';
+import type { C4Element } from '@anytime-markdown/trail-activity/c4';
 
 interface NodeDef {
   readonly id: string;

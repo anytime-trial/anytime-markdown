@@ -2,7 +2,7 @@
  * vanilla 版 DailyActivityChart
  * (`components/analytics/charts/DailyActivityChart.tsx` の素 DOM 等価)。
  */
-import { toLocalDateKey } from '@anytime-markdown/trail-core/formatDate';
+import { toLocalDateKey } from '@anytime-markdown/trail-activity/formatDate';
 import type { AnalyticsData, CostOptimizationData } from '../../../domain/parser/types';
 import {
   groupByWeek,

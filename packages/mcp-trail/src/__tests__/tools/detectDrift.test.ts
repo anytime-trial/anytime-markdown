@@ -7,7 +7,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -45,7 +45,7 @@ describe('handleDetectDrift', () => {
   });
 
   test('calls detectDrift with unresolved_only=true by default', async () => {
-    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleDetectDrift({});
 
@@ -54,7 +54,7 @@ describe('handleDetectDrift', () => {
   });
 
   test('filters by severity', async () => {
-    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleDetectDrift({ severity: 'error' });
 
@@ -62,7 +62,7 @@ describe('handleDetectDrift', () => {
   });
 
   test('filters by drift_type and subject_id', async () => {
-    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { detectDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleDetectDrift({ drift_type: 'spec_vs_code', subject_id: 'ent-1' });
 
@@ -73,7 +73,7 @@ describe('handleDetectDrift', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleDetectDrift({});
 

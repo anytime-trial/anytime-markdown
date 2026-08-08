@@ -4,7 +4,7 @@
  * ここでは欠測補完をしない（欠測と 0 件の混同を避ける責務はサーバ側に置く）。
  */
 import type { ChartSpec } from '@anytime-markdown/chart-core';
-import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
+import type { DriftHistoryPoint } from '@anytime-markdown/trail-activity';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
 import { mountAnytimeChartView } from '../analytics/anytimeChartView';
 

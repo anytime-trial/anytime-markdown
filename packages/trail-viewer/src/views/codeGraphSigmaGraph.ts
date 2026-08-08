@@ -6,9 +6,9 @@
  * レンダラを持たない層へ分ける（canvas 側はここで組んだグラフを sigma へ渡すだけ）。
  */
 import Graph from 'graphology';
-import type { ArchitectureLayer, CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import type { CouplingDirection } from '@anytime-markdown/trail-core';
-import type { CodeGraphDiff } from '@anytime-markdown/trail-core/codeGraphDiff';
+import type { ArchitectureLayer, CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
+import type { CouplingDirection } from '@anytime-markdown/trail-activity';
+import type { CodeGraphDiff } from '@anytime-markdown/trail-activity/codeGraphDiff';
 import { COMMUNITY_COLORS, communityColor, layerColor } from '../components/communityColors';
 import { DIFF_LABEL_PREFIX, diffEdgeColor, diffNodeColor } from './stateReplayColors';
 import {

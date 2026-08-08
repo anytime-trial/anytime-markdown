@@ -12,7 +12,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: (...args: unknown[]) => mockOpenMemoryCoreDb(...args),
   searchMemory: (...args: unknown[]) => mockSearchMemoryFn(...args),

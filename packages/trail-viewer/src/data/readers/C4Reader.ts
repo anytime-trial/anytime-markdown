@@ -5,14 +5,14 @@
 // SupabaseC4ModelStore はこの Reader への薄いファサードとして残置される。
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { C4Model } from '@anytime-markdown/trail-core/c4';
-import { trailToC4 } from '@anytime-markdown/trail-core/transform';
-import type { TrailGraph } from '@anytime-markdown/trail-core/model';
+import type { C4Model } from '@anytime-markdown/trail-activity/c4';
+import { trailToC4 } from '@anytime-markdown/trail-activity/transform';
+import type { TrailGraph } from '@anytime-markdown/trail-activity/model';
 import type {
   C4ModelEntry,
   C4ModelResult,
   IC4ModelStore,
-} from '@anytime-markdown/trail-core/domain';
+} from '@anytime-markdown/trail-activity/domain';
 
 interface CurrentGraphRow {
   readonly commit_id: string;

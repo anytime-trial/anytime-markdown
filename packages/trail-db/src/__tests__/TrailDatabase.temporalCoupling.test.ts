@@ -56,7 +56,7 @@ describe('defaultTemporalCouplingPathFilter', () => {
   it('keeps regular source files', () => {
     const keeps = [
       'src/index.ts',
-      'packages/trail-core/src/analyze.ts',
+      'packages/trail-activity/src/analyze.ts',
       'README.md',
     ];
     for (const p of keeps) {

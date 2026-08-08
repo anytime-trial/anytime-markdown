@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { handleGetVerificationStatus } from '../verificationStatus';
 
-// スキーマ正本は packages/trail-core の CREATE_VERIFICATION_RUNS。テスト fixture 用の複製(列は読取対象のみ揃える)。
+// スキーマ正本は packages/trail-activity の CREATE_VERIFICATION_RUNS。テスト fixture 用の複製(列は読取対象のみ揃える)。
 const FIXTURE_DDL = `
 CREATE TABLE verification_runs (
   id INTEGER PRIMARY KEY,

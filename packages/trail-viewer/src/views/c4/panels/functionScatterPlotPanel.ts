@@ -6,7 +6,7 @@
 import { createButton } from '@anytime-markdown/ui-core';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 import type { COMPLEXITY_TIERS, ComplexityTier } from '../../../c4/components/panels/FunctionScatterPlot';
-import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
+import type { FunctionRole } from '@anytime-markdown/trail-activity/c4';
 
 type ViewMode = 'scatter' | 'galaxy' | 'city';
 

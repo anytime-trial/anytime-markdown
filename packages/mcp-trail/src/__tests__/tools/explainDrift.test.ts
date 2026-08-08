@@ -7,7 +7,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -33,7 +33,7 @@ describe('handleExplainDrift', () => {
   });
 
   test('returns 5-source explanation for an event', async () => {
-    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleExplainDrift({ event_id: 'ev-1' });
 
@@ -44,7 +44,7 @@ describe('handleExplainDrift', () => {
   });
 
   test('returns null for unknown event', async () => {
-    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { explainDrift: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
     mockFn.mockReturnValueOnce(null);
 
     const result = await handleExplainDrift({ event_id: 'nonexistent' });
@@ -53,7 +53,7 @@ describe('handleExplainDrift', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleExplainDrift({ event_id: 'ev-1' });
 

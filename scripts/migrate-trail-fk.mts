@@ -40,13 +40,13 @@ import {
   CREATE_RELEASE_FILE_ANALYSIS,
   CREATE_CURRENT_FUNCTION_ANALYSIS,
   CREATE_RELEASE_FUNCTION_ANALYSIS,
-} from '../packages/trail-core/src/domain/schema/tables.ts';
+} from '../packages/trail-activity/src/domain/schema/tables.ts';
 import {
   CREATE_INDEXES,
   CREATE_RELEASE_INDEXES,
   CREATE_CURRENT_COVERAGE_INDEXES,
   CREATE_MESSAGE_TOOL_CALLS_INDEXES,
-} from '../packages/trail-core/src/domain/schema/indexes.ts';
+} from '../packages/trail-activity/src/domain/schema/indexes.ts';
 
 // 順序: 親テーブルが先になるように並べる (再作成時の FK 検証ロールバックに有利)
 const TABLES: ReadonlyArray<{ name: string; ddl: string }> = [

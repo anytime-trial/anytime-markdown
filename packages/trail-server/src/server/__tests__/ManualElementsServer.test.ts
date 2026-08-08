@@ -1,7 +1,7 @@
 // Manual elements REST API integration tests
 
 jest.mock('ws', () => ({ WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })) }));
-jest.mock('@anytime-markdown/trail-core/c4', () => ({ fetchC4Model: jest.fn() }));
+jest.mock('@anytime-markdown/trail-activity/c4', () => ({ fetchC4Model: jest.fn() }));
 
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDatabase } from '@anytime-markdown/trail-db';

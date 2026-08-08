@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { ResolveDriftResult } from '@anytime-markdown/memory-core/query';
+import { resolveDrift, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { ResolveDriftResult } from '@anytime-markdown/trail-caravan-book/query';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const ResolveDriftInputSchema = z.object({

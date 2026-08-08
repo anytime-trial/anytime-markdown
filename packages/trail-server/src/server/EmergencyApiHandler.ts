@@ -11,7 +11,7 @@
 import { execFile } from 'node:child_process';
 import type * as http from 'node:http';
 import { promisify } from 'node:util';
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 
 import {
   clearEmergencyState,

@@ -7,9 +7,9 @@
 // すべて JSON シリアライズ可能であること (関数 / class instance / DB handle は含めない)。
 
 import type { ImportAllPhaseEvent } from '@anytime-markdown/trail-db';
-import type { RunnerStatus } from '@anytime-markdown/memory-core';
+import type { RunnerStatus } from '@anytime-markdown/trail-caravan-book';
 
-/** BaseRunner.runOnce の reason 引数 (memory-core の RunReason と一致)。 */
+/** BaseRunner.runOnce の reason 引数 (trail-caravan-book の RunReason と一致)。 */
 export type RunReason = 'startup' | 'periodic' | 'import' | 'manual';
 
 /** daemon が内部で MemoryCoreService を構築するのに必要なシリアライズ設定。 */

@@ -5,8 +5,8 @@
  * @see packages/graph-core/src/theme.ts (getCanvasColors pattern)
  */
 
-import { interpolateDsmColor } from '@anytime-markdown/trail-core/c4';
-import type { ArchitectureLayer } from '@anytime-markdown/trail-core/codeGraph';
+import { interpolateDsmColor } from '@anytime-markdown/trail-activity/c4';
+import type { ArchitectureLayer } from '@anytime-markdown/trail-activity/codeGraph';
 
 // ---------------------------------------------------------------------------
 // Mode-independent constants

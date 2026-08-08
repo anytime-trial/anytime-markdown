@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { listReviewTargetHints, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { ReviewTargetHint } from '@anytime-markdown/memory-core/query';
+import { listReviewTargetHints, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { ReviewTargetHint } from '@anytime-markdown/trail-caravan-book/query';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const ListReviewTargetHintsInputSchema = z.object({

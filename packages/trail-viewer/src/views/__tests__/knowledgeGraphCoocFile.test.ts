@@ -20,7 +20,7 @@ describe('buildKnowledgeGraphCoocFile', () => {
       makeResponse({
         nodes: [
           { label: 'TrailDataServer', type: 'Concept', frequency: 42 },
-          { label: 'memory-core', type: 'Package', frequency: 17 },
+          { label: 'trail-caravan-book', type: 'Package', frequency: 17 },
           { label: 'FTS5', type: 'Concept', frequency: 5 },
         ],
         links: [
@@ -40,7 +40,7 @@ describe('buildKnowledgeGraphCoocFile', () => {
     expect(file.meta).toEqual({ schemaVersion: 1, generatedAt: GENERATED_AT, origin: 'mcp' });
     expect(file.spec.nodes).toEqual([
       { label: 'TrailDataServer', frequency: 42 },
-      { label: 'memory-core', frequency: 17 },
+      { label: 'trail-caravan-book', frequency: 17 },
       { label: 'FTS5', frequency: 5 },
     ]);
     // 無向のため 3 要素タプル（第 4 要素の向きを持たせると schemaVersion 2 になる）

@@ -1,5 +1,5 @@
 import type { SessionRow, MessageRow, SessionCommitRow, ReleaseFileRow, ReleaseRow } from './TrailDatabase';
-import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-activity';
 
 export interface IRemoteTrailStore {
   connect(): Promise<void>;

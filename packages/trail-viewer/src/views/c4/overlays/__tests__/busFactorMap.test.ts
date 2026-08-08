@@ -1,7 +1,7 @@
 // Phase 6 S5-B: サーバーが返す C4 要素単位の属人度エントリを、オーバーレイ着色用へ整形する。
 // 集約そのもの（要素へ写してから合算し score を再計算する）はサーバー側の責務で、
 // packages/trail-server の TrailDataServer.busFactor.test.ts が検証する。
-import type { BusFactorEntry } from '@anytime-markdown/trail-core';
+import type { BusFactorEntry } from '@anytime-markdown/trail-activity';
 import { busFactorEntryMap, busFactorScoreMap } from '../busFactorMap';
 
 function entry(unitId: string, score: number | null): BusFactorEntry {
@@ -18,8 +18,8 @@ function entry(unitId: string, score: number | null): BusFactorEntry {
 
 describe('busFactorEntryMap', () => {
   test('unitId で索引する', () => {
-    const map = busFactorEntryMap([entry('pkg_trail-core', 0.8), entry('file::a.ts', 1)]);
-    expect(map.get('pkg_trail-core')?.score).toBe(0.8);
+    const map = busFactorEntryMap([entry('pkg_trail-activity', 0.8), entry('file::a.ts', 1)]);
+    expect(map.get('pkg_trail-activity')?.score).toBe(0.8);
     expect(map.get('file::a.ts')?.score).toBe(1);
   });
 

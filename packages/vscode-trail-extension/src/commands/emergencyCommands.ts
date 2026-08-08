@@ -8,7 +8,7 @@
 //   daemon 未起動時は主効果（台帳・ブランチ操作）を優先し、記録失敗は警告のみ。
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 
 import {
   clearEmergencyState,

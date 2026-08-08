@@ -473,7 +473,7 @@
   "dependencies": {
     "@anytime-markdown/agent-core": "*",
     "@anytime-markdown/tickets-core": "*",
-    "@anytime-markdown/trail-core": "*",
+    "@anytime-markdown/trail-activity": "*",
     "@anytime-markdown/vscode-common": "*",
     "next-intl": "4.12.0",
     "react": "19.2.4",

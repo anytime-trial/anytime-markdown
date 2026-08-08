@@ -1,4 +1,4 @@
-import type { MemoryDbSession, ScopeResult } from '@anytime-markdown/memory-core';
+import type { MemoryDbSession, ScopeResult } from '@anytime-markdown/trail-caravan-book';
 
 import { MemoryAnalyzerBase } from './MemoryAnalyzerBase';
 

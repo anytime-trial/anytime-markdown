@@ -7,7 +7,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -23,7 +23,7 @@ describe('handleRunReviewAgent', () => {
 
   test('registers run and returns run_id immediately (E8)', async () => {
     const { runReviewAgent: mockFn, openMemoryCoreDb: mockOpen } = jest.requireMock(
-      '@anytime-markdown/memory-core/query',
+      '@anytime-markdown/trail-caravan-book/query',
     );
 
     const result = await handleRunReviewAgent({
@@ -45,7 +45,7 @@ describe('handleRunReviewAgent', () => {
   });
 
   test('passes optional model override', async () => {
-    const { runReviewAgent: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { runReviewAgent: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleRunReviewAgent({
       trigger_kind: 'mcp',
@@ -59,7 +59,7 @@ describe('handleRunReviewAgent', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleRunReviewAgent({
       trigger_kind: 'mcp',

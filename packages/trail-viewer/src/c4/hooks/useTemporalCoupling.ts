@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type {
   ConfidenceCouplingEdge,
   TemporalCouplingEdge,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 import {
   fetchTemporalCouplingApi,

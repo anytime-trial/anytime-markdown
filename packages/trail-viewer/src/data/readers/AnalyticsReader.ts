@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AnalyticsData } from '@anytime-markdown/trail-core/domain';
+import type { AnalyticsData } from '@anytime-markdown/trail-activity/domain';
 
 export class AnalyticsReader {
   constructor(private readonly client: SupabaseClient) {}

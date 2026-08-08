@@ -9,7 +9,7 @@
 jest.mock('@anytime-markdown/code-analysis-typescript/analyze', () => ({
   analyze: jest.fn(() => ({ nodes: [], edges: [], metadata: { projectRoot: '/tmp/repo', analyzedAt: '2026-01-01', fileCount: 0 } })),
 }));
-jest.mock('@anytime-markdown/trail-core/analyzeExclude', () => ({
+jest.mock('@anytime-markdown/trail-activity/analyzeExclude', () => ({
   loadAnalyzeExclude: jest.fn(() => {
     // ignore パッケージ互換の空インスタンスを返す
     const ignore = require('ignore');
@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { CodeGraphService } from '../CodeGraphService';
 import type { CodeGraph, CodeGraphRepository } from '../CodeGraph.types';
-import type { TrailGraph } from '@anytime-markdown/trail-core';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
 
 // ---------------------------------------------------------------------------
 // ヘルパー
@@ -459,7 +459,7 @@ describe('CodeGraphService — excludeRoot', () => {
   });
 
   it('config.excludeRoot 指定時は repo.path ではなく excludeRoot から exclude を読む', async () => {
-    const { loadAnalyzeExclude } = require('@anytime-markdown/trail-core/analyzeExclude') as {
+    const { loadAnalyzeExclude } = require('@anytime-markdown/trail-activity/analyzeExclude') as {
       loadAnalyzeExclude: jest.Mock;
     };
     loadAnalyzeExclude.mockClear();
@@ -479,7 +479,7 @@ describe('CodeGraphService — excludeRoot', () => {
   });
 
   it('config.excludeRoot 省略時は従来どおり repo.path から exclude を読む', async () => {
-    const { loadAnalyzeExclude } = require('@anytime-markdown/trail-core/analyzeExclude') as {
+    const { loadAnalyzeExclude } = require('@anytime-markdown/trail-activity/analyzeExclude') as {
       loadAnalyzeExclude: jest.Mock;
     };
     loadAnalyzeExclude.mockClear();

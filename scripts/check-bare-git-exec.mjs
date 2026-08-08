@@ -4,7 +4,7 @@
 // Why: コマンド名だけを渡すと探索が OS 任せになる。Windows の CreateProcess はカレント
 // ディレクトリを PATH より先に探すため、信頼できないリポジトリを cwd にして git を起動すると、
 // そのリポジトリにコミットされた git.exe が実行され得る（SonarCloud S4036）。
-// 本番コードは trail-core の `resolveGitExecutable()` で絶対パスへ解決してから exec すること。
+// 本番コードは trail-activity の `resolveGitExecutable()` で絶対パスへ解決してから exec すること。
 //
 // Why このゲートが要るか: 移行漏れは「エラー」ではなく「従来どおり動く」形で残るため、
 // テストもビルドも緑のまま素通りする。実際に初回移行で 5 箇所を取りこぼした（非同期の
@@ -31,7 +31,7 @@ const EXT = new Set(['.ts', '.tsx']);
  *   信頼できないリポジトリを cwd にしない。
  * - `scripts/` は開発者が自分のリポジトリで手動実行するもので、配布物ではない。
  * - 拡張に同梱されて**ユーザーのワークスペースへ素で展開される** `.cjs` スキルスクリプトは
- *   trail-core を import できないため本ゲートの対象外。別途の対処が要る（未対応）。
+ *   trail-activity を import できないため本ゲートの対象外。別途の対処が要る（未対応）。
  */
 function isTargetFile(relPath) {
   if (!relPath.startsWith('packages/')) return false;
@@ -39,7 +39,7 @@ function isTargetFile(relPath) {
   if (relPath.includes('__tests__/')) return false;
   if (/\.(test|spec)\.tsx?$/.test(relPath)) return false;
   // 解決ユーティリティ本体は説明コメントで 'git' に言及する。
-  if (relPath.endsWith('packages/trail-core/src/gitExecutable.ts')) return false;
+  if (relPath.endsWith('packages/trail-activity/src/gitExecutable.ts')) return false;
   return true;
 }
 
@@ -85,7 +85,7 @@ function main() {
   }
   if (violations.length > 0) {
     console.error(
-      "  → @anytime-markdown/trail-core/gitExecutable の resolveGitExecutable() で絶対パスへ解決してから渡すこと",
+      "  → @anytime-markdown/trail-activity/gitExecutable の resolveGitExecutable() で絶対パスへ解決してから渡すこと",
     );
     process.exit(1);
   }

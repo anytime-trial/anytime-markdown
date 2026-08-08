@@ -12,12 +12,12 @@ import {
   openMemoryCoreDb,
   type MemoryCoreDb,
   type PipelineRunLedgerFactory,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import {
   MemoryCoreService,
   PipelineRunLedger,
   createPipelineRunLedgerFactory,
-} from '@anytime-markdown/memory-core/pipeline';
+} from '@anytime-markdown/trail-caravan-book/pipeline';
 import { makeChildAnalyzeFn } from '../analyze/childAnalyzeFn';
 import { resolveBundledNativeBinding, TrailDatabase } from '@anytime-markdown/trail-db';
 
@@ -198,7 +198,7 @@ let httpLogLedgerDb: MemoryCoreDb | null = null;
 let httpSystemRunLedger: PipelineRunLedger | null = null;
 // daemon_session run の生存証明。これが止まったまま systemTimeoutMinutes を超えると
 // pipelineWatchdog が run をゴーストとして回収する（クラッシュ時の 'running' 恒久残留対策）。
-// 間隔は memory-core pipelineWatchdog の systemTimeoutMinutes 既定 30 分と結合しており、
+// 間隔は trail-caravan-book pipelineWatchdog の systemTimeoutMinutes 既定 30 分と結合しており、
 // 「間隔 × 3 <= 閾値」を割ると正常稼働中の daemon が偽 timeout になる。変更時は両方を見る。
 let httpSystemRunHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 const SYSTEM_RUN_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
@@ -272,7 +272,7 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
  * import パイプラインの `AnalyzeAllRunner` を `lastAnalyzeAllCfg` から (再)構築する。
  *
  * `trailDb` を渡すと Layer 1/2 (取込・primary 解析) が有効化される。`undefined` の場合は
- * memory-core ステップのみ実行する。startHttpServer() が httpTrailDb を確定した後に本関数を
+ * trail-caravan-book ステップのみ実行する。startHttpServer() が httpTrailDb を確定した後に本関数を
  * trailDb 付きで呼び直すことで、Data Server と同一 TrailDatabase インスタンスを共有し、
  * 取込結果が即時に Data Server へ反映される (`bb0a0345` で configure から HTTP を切り離した際に
  * 落ちていた trailDb 配線の復旧)。

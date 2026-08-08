@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import { runAnalyzeReleaseCodePipeline } from '../AnalyzePipeline';

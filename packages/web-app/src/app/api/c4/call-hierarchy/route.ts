@@ -1,14 +1,14 @@
-import type { TrailGraph } from "@anytime-markdown/trail-core";
+import type { TrailGraph } from "@anytime-markdown/trail-activity";
 import type {
   CallHierarchyDirection,
   CallHierarchyScope,
-} from "@anytime-markdown/trail-core/c4/callHierarchy";
+} from "@anytime-markdown/trail-activity/c4/callHierarchy";
 import {
   buildCallHierarchyNodeFilter,
   buildIndex as buildCallHierarchyIndex,
   traverse as traverseCallHierarchy,
-} from "@anytime-markdown/trail-core/c4/callHierarchy";
-import type { TrailNode } from "@anytime-markdown/trail-core/model";
+} from "@anytime-markdown/trail-activity/c4/callHierarchy";
+import type { TrailNode } from "@anytime-markdown/trail-activity/model";
 import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";

@@ -3,7 +3,7 @@
 // コミット・リポジトリ情報（session_commits / commit_files / repos）は activity.db 残留の
 // ため ctx.trailRun でシードする。
 
-import type { AcceptanceRecordInput } from '@anytime-markdown/trail-core';
+import type { AcceptanceRecordInput } from '@anytime-markdown/trail-activity';
 
 import {
   createTestFlightRecordDatabase,

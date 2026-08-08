@@ -13,7 +13,7 @@
  * - 「記録なし」は低頻度と別の中立色にする。同色にすると「編集されていない安定領域」と
  *   誤読される（実測でノードの約 4 割が記録なし）。
  */
-import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-core/authorHeatmap';
+import type { AuthorHeatmapEntry } from '@anytime-markdown/trail-activity/authorHeatmap';
 
 /** セッションへ割り当てる質的配色（Okabe-Ito）。既定の topSessions=8 と同数。 */
 export const SESSION_COLORS: readonly string[] = [

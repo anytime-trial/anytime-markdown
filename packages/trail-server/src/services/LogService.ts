@@ -1,4 +1,4 @@
-import type { MemoryDbConnection, MemoryDbStatement } from '@anytime-markdown/memory-core';
+import type { MemoryDbConnection, MemoryDbStatement } from '@anytime-markdown/trail-caravan-book';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogSource = 'extension' | 'daemon';

@@ -29,7 +29,7 @@ jest.mock('sigma/rendering', () => ({
 import { act } from '@testing-library/react';
 import { mountC4Viewer, computeMatrixGridOptions } from '../c4Viewer';
 import type { C4ViewerViewProps } from '../c4Viewer';
-import type { C4Model, CoverageMatrix } from '@anytime-markdown/trail-core/c4';
+import type { C4Model, CoverageMatrix } from '@anytime-markdown/trail-activity/c4';
 
 // ── Minimal mock for canvas context (jsdom has no canvas ctx) ──
 const mockGetContext = jest.fn(() => null);

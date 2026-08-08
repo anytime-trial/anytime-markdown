@@ -3,7 +3,7 @@ import {
   CREATE_BOUNDARY_DRIFT_INDEXES,
   CREATE_BOUNDARY_DRIFT_RUNS,
   CREATE_BOUNDARY_DRIFT_WARNINGS,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 import { listBoundaryDriftDirect } from '../../sqlite/boundaryDrift';
 
@@ -97,7 +97,7 @@ describe('listBoundaryDriftDirect', () => {
   it('severity 降順で最新の検出回だけを返す', () => {
     insertSpanning(db, { detectedAt: OLD_RUN, target: '3', severity: 9 });
     insertSpanning(db, { target: '3', severity: 1.5 });
-    insertFragmentation(db, { target: 'trail-core', severity: 4 });
+    insertFragmentation(db, { target: 'trail-activity', severity: 4 });
 
     const result = listBoundaryDriftDirect(db);
 
@@ -119,14 +119,14 @@ describe('listBoundaryDriftDirect', () => {
 
   it('kind と minSeverity で絞り込める', () => {
     insertSpanning(db, { target: '3', severity: 1.5 });
-    insertFragmentation(db, { target: 'trail-core', severity: 4 });
+    insertFragmentation(db, { target: 'trail-activity', severity: 4 });
 
     expect(listBoundaryDriftDirect(db, { kind: 'boundary_spanning' }).warnings).toHaveLength(1);
     expect(
       listBoundaryDriftDirect(db, { kind: 'package_fragmentation', minSeverity: 2 }).warnings.map(
         (w) => w.target,
       ),
-    ).toEqual(['trail-core']);
+    ).toEqual(['trail-activity']);
   });
 
   it('kind 無しの minSeverity は拒否する（severity は kind 内でのみ比較可能）', () => {
@@ -139,7 +139,7 @@ describe('listBoundaryDriftDirect', () => {
   it('kind で絞っても最新回の特定は絞り込み前に行う', () => {
     // 最新回には fragmentation しか無い。spanning だけを見たとき、古い回へ遡らないこと。
     insertSpanning(db, { detectedAt: OLD_RUN, target: '3', severity: 9 });
-    insertFragmentation(db, { target: 'trail-core', severity: 4 });
+    insertFragmentation(db, { target: 'trail-activity', severity: 4 });
 
     const result = listBoundaryDriftDirect(db, { kind: 'boundary_spanning' });
 
@@ -158,7 +158,7 @@ describe('listBoundaryDriftDirect', () => {
 
   it('breakdown を JSON から復元し、kind ごとの指標だけを埋める', () => {
     insertSpanning(db, { target: '3', severity: 1.5 });
-    insertFragmentation(db, { target: 'trail-core', severity: 4 });
+    insertFragmentation(db, { target: 'trail-activity', severity: 4 });
 
     const { warnings } = listBoundaryDriftDirect(db);
     const fragmentation = warnings.find((w) => w.kind === 'package_fragmentation');

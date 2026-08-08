@@ -1,7 +1,7 @@
 /**
  * GitHub PR review 取込用の最小 REST クライアント (LEP Step 4b)。
  *
- * trail-server / trail-core に既存 GitHub クライアントは無く、web-app の API route は
+ * trail-server / trail-activity に既存 GitHub クライアントは無く、web-app の API route は
  * 別パッケージで再利用不可のため新規実装する。`gh` CLI には依存せず `fetch` + token 方式。
  * Ingester はこの interface に依存し、テストでは fake を注入して実 API 非依存にする。
  */

@@ -1,7 +1,7 @@
 import type {
   ConfidenceCouplingEdge,
   TemporalCouplingEdge,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 export type TemporalCouplingGranularity = 'commit' | 'session' | 'subagentType';
 

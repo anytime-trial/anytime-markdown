@@ -3,7 +3,7 @@ import type {
   AnalyzerContext,
   AnalyzerEvent,
   EventBusPublisher,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { DoraMetricRow } from '@anytime-markdown/trail-db';
 
 import { DoraMetricsAggregator, type DoraDataSource } from '../DoraMetricsAggregator';

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { listUnaddressedReviewFindings, openMemoryCoreDb, noopLogger } from '@anytime-markdown/memory-core/query';
-import type { UnaddressedReviewFinding } from '@anytime-markdown/memory-core/query';
+import { listUnaddressedReviewFindings, openMemoryCoreDb, noopLogger } from '@anytime-markdown/trail-caravan-book/query';
+import type { UnaddressedReviewFinding } from '@anytime-markdown/trail-caravan-book/query';
 import { resolveMemoryDbPath } from '../dbPath';
 
 export const ListUnaddressedReviewFindingsInputSchema = z.object({

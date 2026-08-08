@@ -15,7 +15,7 @@ let cached: typeof BetterSqlite3 | null = null;
  * externals 指定しておくことで、bundle 後の `require('better-sqlite3')` が
  * `dist/node_modules/better-sqlite3/` を解決する。
  *
- * memory-core の同名関数と同じパターン。
+ * trail-caravan-book の同名関数と同じパターン。
  *
  * export しないのは、`const Ctor = loadBetterSqlite3(); new Ctor(p)` という書き方が
  * コピー元として目に入ると nativeBinding の手当てごと落ちるため。接続を開く経路は

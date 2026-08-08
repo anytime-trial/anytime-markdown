@@ -79,7 +79,7 @@ When the extension activates, it places Trail's Claude Code skills into the work
 | `anytime-reverse-codegraph` | Uses AI to assign names and summaries to code graph communities, and determines the role of each C4 element |
 | `anytime-reverse-spec` | Generates a full set of basic design documents from the code graph, DB schema, external I/F, and screen definitions |
 | `anytime-dev-retro` | Cross-analyzes Trail's three DBs to generate a development health report and improvement proposals |
-| `anytime-trail-review` | Outputs review findings in a format memory-core can ingest |
+| `anytime-trail-review` | Outputs review findings in a format trail-caravan-book can ingest |
 
 > To reinstall the skills, run `Anytime Trail: Reinstall Skills` from the command palette.
 
@@ -130,7 +130,7 @@ Run these from the command palette (`Ctrl+Shift+P`).
 | `Anytime Trail: Record Safe Point` / `Rollback to Safe Point` | Record HEAD as a safe point, and restore it via a recovery branch |
 | `Anytime Trail: Kill Switch (Block Claude Tool Execution)` / `Release Kill Switch` | Emergency block or release of Claude's tool execution when it runs away |
 | `Anytime Trail: Restore Knowledge Base Snapshot` | Restore the entire `activity.db` from a snapshot |
-| `Anytime Trail: Rebuild Memory Index` | Rebuild the memory-core index |
+| `Anytime Trail: Rebuild Memory Index` | Rebuild the trail-caravan-book index |
 | `Anytime Trail: Register MCP Server` | Write `mcp-trail` to `.mcp.json` |
 
 
@@ -141,7 +141,7 @@ Run these from the command palette (`Ctrl+Shift+P`).
 | `anytimeTrail.workspace.path` | `""` | Absolute path of the workspace to analyze. Used by both Code Graph and C4 Model analysis. When empty, the workspace currently open in VS Code is used |
 | `anytimeTrail.viewer.port` | `19841` | Port number for the Trail Viewer server |
 | `anytimeTrail.daemon.useExternalDaemon` | `false` | Use an externally-running trail-server daemon. Requires `npx anytime-trail-server start` to be running first |
-| `anytimeTrail.analyzeAll.enabled` | `false` | Enable the AnalyzeAll pipeline (importAll + memory-core runOnce). When off, the Pipelines tree view is hidden and no automatic or manual runs are performed |
+| `anytimeTrail.analyzeAll.enabled` | `false` | Enable the AnalyzeAll pipeline (importAll + trail-caravan-book runOnce). When off, the Pipelines tree view is hidden and no automatic or manual runs are performed |
 | `anytimeTrail.lep.configPath` | `""` | Alternate path to `lep.json`. When set, only this file is read (the standard `.anytime/trail/lep.json` search is skipped). Reload Window to apply |
 
 > **About the DB storage location**: The storage location for `activity.db` and the other DBs is determined

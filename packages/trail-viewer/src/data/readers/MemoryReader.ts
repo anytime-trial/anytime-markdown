@@ -1,4 +1,4 @@
-import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
+import type { DriftHistoryPoint } from '@anytime-markdown/trail-activity';
 import type {
   MemoryBugCausalInfo,
   MemoryBugHistoryRow,

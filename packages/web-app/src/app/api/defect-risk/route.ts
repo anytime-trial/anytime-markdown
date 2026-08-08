@@ -1,5 +1,5 @@
-import type { CommitRiskRow } from '@anytime-markdown/trail-core';
-import { computeDefectRisk } from '@anytime-markdown/trail-core';
+import type { CommitRiskRow } from '@anytime-markdown/trail-activity';
+import { computeDefectRisk } from '@anytime-markdown/trail-activity';
 import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';

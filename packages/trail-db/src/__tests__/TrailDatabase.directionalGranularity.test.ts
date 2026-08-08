@@ -1,7 +1,7 @@
 
 import { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
-import type { ConfidenceCouplingEdge } from '@anytime-markdown/trail-core';
+import type { ConfidenceCouplingEdge } from '@anytime-markdown/trail-activity';
 import { noopDbLogger } from '../DbLogger';
 
 type SqlJsDb = {

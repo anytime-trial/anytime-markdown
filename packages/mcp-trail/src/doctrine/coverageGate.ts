@@ -1,5 +1,5 @@
-import type { OddResolution, OperationKind } from '@anytime-markdown/trail-core';
-import { ALWAYS_HUMAN_OPERATIONS, evaluateOddBoundary } from '@anytime-markdown/trail-core';
+import type { OddResolution, OperationKind } from '@anytime-markdown/trail-activity';
+import { ALWAYS_HUMAN_OPERATIONS, evaluateOddBoundary } from '@anytime-markdown/trail-activity';
 
 import type { CitationApproval } from './resolveCitations';
 

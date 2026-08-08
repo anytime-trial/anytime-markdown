@@ -8,8 +8,8 @@
  * 注: 本セクションは `updateElementInfoPanels` の再構築（host の innerHTML クリア後）の一部として
  * 呼ばれる前提のため、永続ハンドルを持たず host へ追記するだけの関数として提供する。
  */
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import type { FeatureMatrix } from '@anytime-markdown/trail-core/c4';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
+import type { FeatureMatrix } from '@anytime-markdown/trail-activity/c4';
 import { communityColor, layerColor, LAYER_LABEL_KEYS } from '../../../components/communityColors';
 import { COMMUNITY_ROLE_LABELS, getCommunityRoleBgColors } from '../../../c4/communityRoleColors';
 import { formatPct } from '../../../c4/utils/c4ViewerHelpers';

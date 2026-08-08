@@ -7,7 +7,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -40,7 +40,7 @@ describe('handleGetReviewRunStatus', () => {
   });
 
   test('returns run status (E8)', async () => {
-    const { getReviewRunStatus: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { getReviewRunStatus: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleGetReviewRunStatus({ run_id: 'test-run-id-123' });
 
@@ -50,7 +50,7 @@ describe('handleGetReviewRunStatus', () => {
   });
 
   test('returns null for unknown run_id', async () => {
-    const { getReviewRunStatus: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { getReviewRunStatus: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
     mockFn.mockReturnValueOnce(null);
 
     const result = await handleGetReviewRunStatus({ run_id: 'unknown' });
@@ -59,7 +59,7 @@ describe('handleGetReviewRunStatus', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleGetReviewRunStatus({ run_id: 'test-run-id-123' });
 

@@ -2,7 +2,7 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type {
   CorrelationCommitFile,
   CorrelationSessionCommit,

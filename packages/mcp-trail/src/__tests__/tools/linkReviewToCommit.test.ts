@@ -7,7 +7,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -22,7 +22,7 @@ describe('handleLinkReviewToCommit', () => {
   });
 
   test('calls linkReviewToCommit with correct input (E5)', async () => {
-    const { linkReviewToCommit: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { linkReviewToCommit: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleLinkReviewToCommit({ finding_id: 'rf-1', commit_sha: 'abc123' });
 
@@ -34,7 +34,7 @@ describe('handleLinkReviewToCommit', () => {
   });
 
   test('returns linked=false when called again without override (E5)', async () => {
-    const { linkReviewToCommit: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { linkReviewToCommit: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
     mockFn.mockReturnValueOnce({ linked: false, previous_commit: 'abc123' });
 
     const result = await handleLinkReviewToCommit({
@@ -48,7 +48,7 @@ describe('handleLinkReviewToCommit', () => {
   });
 
   test('passes override_auto=true through', async () => {
-    const { linkReviewToCommit: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { linkReviewToCommit: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleLinkReviewToCommit({ finding_id: 'rf-1', commit_sha: 'abc123', override_auto: true });
 
@@ -56,7 +56,7 @@ describe('handleLinkReviewToCommit', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleLinkReviewToCommit({ finding_id: 'rf-1', commit_sha: 'abc123' });
 

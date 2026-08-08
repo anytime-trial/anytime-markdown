@@ -57,7 +57,7 @@ export interface FlightRecordPanelProps {
   readonly tokens: TrailThemeTokens;
   readonly t: (key: string) => string;
   /**
-   * memory-core の API 基点。Bug Fixed / Drift サブタブが `MemoryReader` を作るために要る。
+   * trail-caravan-book の API 基点。Bug Fixed / Drift サブタブが `MemoryReader` を作るために要る。
    * 空文字なら取りに行かず空状態を出す（押せない画面を出さない）。
    */
   readonly serverUrl: string;
@@ -630,7 +630,7 @@ export function mountFlightRecordPanel(
   reviewRegion.appendChild(reviewTableHost);
 
   // Bug Fixed サブタブ（バグ修正履歴）。中身は memory 由来のパネルを再利用し、
-  // 初回に開いた時だけマウントする（開かないタブのために memory-core を叩かない）。
+  // 初回に開いた時だけマウントする（開かないタブのために trail-caravan-book を叩かない）。
   const bugfixRegion = document.createElement('div');
   bugfixRegion.dataset['amFlightBugfix'] = '';
   bugfixRegion.id = 'flight-panel-bugfix';

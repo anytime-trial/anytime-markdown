@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 import { AnalyzeAllRunner, defaultAnalyzeAllStatePath } from '../AnalyzeAllRunner';
 import { makeFakeScopeSession, makeMemoryCoreWithSession } from './fakeMemoryScopeSession';
-import type { MemoryDbSession } from '@anytime-markdown/memory-core';
+import type { MemoryDbSession } from '@anytime-markdown/trail-caravan-book';
 
 function makeLogSink(): { lines: string[]; appendLine: (m: string) => void } {
   const lines: string[] = [];

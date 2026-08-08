@@ -2,8 +2,8 @@
 jest.mock('sigma', () => ({ __esModule: true, default: class {} }));
 jest.mock('sigma/rendering', () => ({ __esModule: true, EdgeArrowProgram: class {} }));
 
-import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
-import { diffCodeGraphs } from '@anytime-markdown/trail-core/codeGraphDiff';
+import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-activity/codeGraph';
+import { diffCodeGraphs } from '@anytime-markdown/trail-activity/codeGraphDiff';
 import { chooseOption, comboboxLabel, openOptions } from './comboboxTestUtils';
 import {
   mountCodeGraphPanel,

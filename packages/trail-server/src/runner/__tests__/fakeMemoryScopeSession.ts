@@ -1,10 +1,10 @@
 import { join } from 'node:path';
 
-import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
-import type { MemoryDbSession, ScopeResult } from '@anytime-markdown/memory-core';
+import { MemoryCoreService } from '@anytime-markdown/trail-caravan-book/pipeline';
+import type { MemoryDbSession, ScopeResult } from '@anytime-markdown/trail-caravan-book';
 
 /**
- * テスト用 fake memory-core scope session ヘルパ (LEP Step 3d 以降)。
+ * テスト用 fake trail-caravan-book scope session ヘルパ (LEP Step 3d 以降)。
  *
  * legacy `MemoryCoreLegacyAnalyzer` 削除後、Layer 3 は `MemoryCoreService.openScopeSession()`
  * が返す {@link MemoryDbSession} の scope メソッドを呼ぶ。テストは実 DB を開かずに、
@@ -25,7 +25,7 @@ export interface FakeScopeSessionOptions {
   errorMessage?: string;
   /** scope 実行時に push する共有 order 配列 (save 順序検証用)。 */
   order?: string[];
-  /** order に push するラベル (既定 'memory-core')。最初の scope 実行時に 1 度だけ push。 */
+  /** order に push するラベル (既定 'trail-caravan-book')。最初の scope 実行時に 1 度だけ push。 */
   orderLabel?: string;
 }
 
@@ -41,7 +41,7 @@ export function makeFakeScopeSession(opts: FakeScopeSessionOptions = {}): FakeSc
       state.calls.push(name);
       if (opts.order && !orderPushed) {
         orderPushed = true;
-        opts.order.push(opts.orderLabel ?? 'memory-core');
+        opts.order.push(opts.orderLabel ?? 'trail-caravan-book');
       }
       if (opts.errorOnScope === name) {
         return { scope, status: 'error', itemsProcessed: 0, itemsFailed: 0, error: opts.errorMessage ?? 'scope boom' };
@@ -73,7 +73,7 @@ export function makeMemoryCoreWithSession(
     logSink: { appendLine: () => {} },
     trailDbPath: join(dir, 'activity.db'),
     dbPath: join(dir, 'caravan-book.db'),
-    statePath: join(dir, 'memory-core-runner.json'),
+    statePath: join(dir, 'trail-caravan-book-runner.json'),
     pipelineRunner: async () => undefined,
   });
   (mc as unknown as { openScopeSession: () => Promise<MemoryDbSession | null> }).openScopeSession =

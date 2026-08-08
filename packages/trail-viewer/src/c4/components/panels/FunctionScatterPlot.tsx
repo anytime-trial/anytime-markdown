@@ -5,7 +5,7 @@ import { GalaxyCanvas } from '../../canvas/GalaxyCanvas';
 import { CodeCityCanvas } from '../../canvas/CodeCityCanvas';
 import { TourMode } from '../../canvas/TourMode';
 import { selectTourTargets } from '../../canvas/tourTargets';
-import type { FunctionRole } from '@anytime-markdown/trail-core/c4';
+import type { FunctionRole } from '@anytime-markdown/trail-activity/c4';
 import type { FunctionAnalysisApiEntry } from '../../hooks/fetchFunctionAnalysisApi';
 import { useTrailTheme } from '../../../components/TrailThemeContext';
 import { VanillaIsland } from '../../../shared/vanillaIsland';

@@ -19,7 +19,7 @@ jest.mock('../lib/supabase-env', () => ({
   resolveSupabaseEnv: mockResolveSupabaseEnv,
 }));
 
-jest.mock('@anytime-markdown/trail-core/c4', () => ({
+jest.mock('@anytime-markdown/trail-activity/c4', () => ({
   fetchC4Model: mockFetchC4Model,
   buildFeatureMatrixFromCommunities: mockBuildFeatureMatrixFromCommunities,
   mergeManualIntoC4Model: mockMergeManualIntoC4Model,

@@ -1,6 +1,6 @@
 
-jest.mock('@anytime-markdown/memory-core', () => {
-  const actual = jest.requireActual('@anytime-markdown/memory-core');
+jest.mock('@anytime-markdown/trail-caravan-book', () => {
+  const actual = jest.requireActual('@anytime-markdown/trail-caravan-book');
   return {
     ...actual,
     resolveDrift: jest.fn(() => ({ resolved: true })),

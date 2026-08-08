@@ -49,12 +49,12 @@ describe('groupByCommunity', () => {
     const entries = [
       entry('packages/trail-viewer/src/A.ts'),
       entry('packages/trail-viewer/src/B.ts'),
-      entry('packages/memory-core/src/C.ts'),
+      entry('packages/trail-caravan-book/src/C.ts'),
     ];
     const groups = groupByCommunity(entries);
     expect(groups).toHaveLength(2);
     const tv = groups.find((g) => g.id === 'packages/trail-viewer');
-    const mc = groups.find((g) => g.id === 'packages/memory-core');
+    const mc = groups.find((g) => g.id === 'packages/trail-caravan-book');
     expect(tv?.entries).toHaveLength(2);
     expect(mc?.entries).toHaveLength(1);
   });

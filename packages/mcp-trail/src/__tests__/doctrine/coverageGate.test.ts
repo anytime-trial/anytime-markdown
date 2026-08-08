@@ -1,5 +1,5 @@
 import { evaluateCoverageGate, type CoverageGateInput } from '../../doctrine/coverageGate';
-import type { OddResolution } from '@anytime-markdown/trail-core';
+import type { OddResolution } from '@anytime-markdown/trail-activity';
 
 const ODD: OddResolution = {
   kind: 'derived',

@@ -3,7 +3,7 @@ import {
   parsePrReviewSourceRef,
   type MemoryDbConnection,
   type ParsedPrReviewSourceRef,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { PrReviewFindingRow, PrReviewRow } from '@anytime-markdown/trail-db';
 
 /**
@@ -11,7 +11,7 @@ import type { PrReviewFindingRow, PrReviewRow } from '@anytime-markdown/trail-db
  * `CrossSourceCorrelator`) が caravan-book.db から `PrReviewRow` / `PrReviewFindingRow`
  * 形状で読み出す薄いアダプタ。
  *
- * `source_ref` の構築・分解は memory-core（ingestPrReview と同一モジュール）の
+ * `source_ref` の構築・分解は trail-caravan-book（ingestPrReview と同一モジュール）の
  * buildPrReviewSourceRef / parsePrReviewSourceRef を re-export する。式の実体を
  * 2 か所に持つと、ずれたときに「冪等判定が常に新規・逆引きが常に 0 件」という
  * エラーの出ない壊れ方をするため、正は書き込み側 1 か所に置く。

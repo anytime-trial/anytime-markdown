@@ -11,7 +11,7 @@
 // 注: vscode.l10n.t は l10n バンドル未配線（package.json に "l10n" フィールドなし）のため
 // runtime メッセージは英語固定（既存 emergencyCommands.ts と同方針）。command title のみ nls で ja/en 対応。
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { KbShrinkAlert } from '@anytime-markdown/trail-core';
+import type { KbShrinkAlert } from '@anytime-markdown/trail-activity';
 import * as vscode from 'vscode';
 
 import { TrailLogger } from '../utils/TrailLogger';

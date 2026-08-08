@@ -5,8 +5,8 @@ import type {
   ISessionRepository,
   SessionStats,
   MessageCommitInput,
-} from '@anytime-markdown/trail-core';
-import type { TrailMessageCommit } from '@anytime-markdown/trail-core/domain';
+} from '@anytime-markdown/trail-activity';
+import type { TrailMessageCommit } from '@anytime-markdown/trail-activity/domain';
 
 export class SqliteSessionRepository implements ISessionRepository {
   constructor(private readonly db: Database) {}

@@ -1,0 +1,35 @@
+{
+  "name": "@anytime-markdown/trail-caravan-book",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./query": "./src/query/index.ts",
+    "./pipeline": "./src/pipeline-exports.ts"
+  },
+  "scripts": {
+    "test": "jest --maxWorkers=1"
+  },
+  "dependencies": {
+    "@anytime-markdown/agent-core": "*",
+    "@anytime-markdown/database-core": "*",
+    "@anytime-markdown/llm-core": "*",
+    "@anytime-markdown/trail-activity": "*",
+    "better-sqlite3": "12.4.1",
+    "gray-matter": "4.0.3",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "9.6.1",
+    "@stryker-mutator/jest-runner": "9.6.1",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/jest": "30.0.0",
+    "@types/node": "22.15.21",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.11",
+    "typescript": "6.0.3"
+  }
+}

@@ -28,7 +28,7 @@ describe('detectFrameworks', () => {
 
   it('excludes build tools (esbuild/webpack) from frameworks (PoC #2)', () => {
     const m: ModuleManifest = {
-      name: 'trail-core',
+      name: 'trail-activity',
       devDependencies: { esbuild: '0.20.0', webpack: '5.0.0', tsup: '8.0.0' },
     };
     expect(detectFrameworks(m)).toEqual([]);

@@ -2,7 +2,7 @@
 // daemon 内の実 AnalyzeAllRunner を操作する。BaseRunner の public API と互換性を持つ
 // (extension / TrailDataServer 両方の使用方法に追従)。
 
-import type { RunnerStatus } from '@anytime-markdown/memory-core';
+import type { RunnerStatus } from '@anytime-markdown/trail-caravan-book';
 
 import type { TrailDaemonHost } from './TrailDaemonHost';
 import type { RunReason, SerializableAnalyzeAllConfig } from './trailDaemonProtocol';

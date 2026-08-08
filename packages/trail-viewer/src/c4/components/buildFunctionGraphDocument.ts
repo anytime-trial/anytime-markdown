@@ -1,4 +1,4 @@
-import type { FunctionGraphResponse } from '@anytime-markdown/trail-core/c4';
+import type { FunctionGraphResponse } from '@anytime-markdown/trail-activity/c4';
 import { createDocument, createEdge, createNode } from '@anytime-markdown/graph-core';
 import type { GraphDocument, GraphEdge } from '@anytime-markdown/graph-core';
 import { computeHierarchicalLayout } from '@anytime-markdown/graph-core/engine';

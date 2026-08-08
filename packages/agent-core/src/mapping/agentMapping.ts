@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { AgentSource, MappingState, SessionMapping, WorktreeEntry, WorktreeMapping } from './types';
 
 // ---------------------------------------------------------------------------
-// Local AgentInfo-compatible type (trail-core has no dependency on vscode-common)
+// Local AgentInfo-compatible type (trail-activity has no dependency on vscode-common)
 // ---------------------------------------------------------------------------
 
 interface AgentInfoLike {

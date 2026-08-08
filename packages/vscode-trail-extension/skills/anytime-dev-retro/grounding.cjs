@@ -2,7 +2,7 @@
 /**
  * anytime-dev-retro: 決定論的 grounding。
  *
- * Trail の 3DB(memory-core / doc-core / trail)を read-only で集計し、開発健全性の
+ * Trail の 3DB(trail-caravan-book / markdown-catalog / trail)を read-only で集計し、開発健全性の
  * signals snapshot を JSON で **stdout に出力** する。LLM 非依存・MCP 非依存(node:sqlite)
  * なので headless `claude -p` / cron でも完走する。
  *
@@ -241,7 +241,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     ).map((r) => ({ file: r.file, count: r.c })),
     // 観点キー (P2): checklist_ref='none' はチェックリスト該当章なし＝観点の穴の候補。
     // カテゴリ×パッケージで束ね 2 件以上を昇格候補クラスタとして掲載する。
-    // 列は memory-core migration 015 で追加。未マイグレーション DB では null（測定不能）。
+    // 列は trail-caravan-book migration 015 で追加。未マイグレーション DB では null（測定不能）。
     ...(num(q(db, "SELECT COUNT(*) c FROM pragma_table_info('memory_review_findings') WHERE name = 'checklist_ref'"), 'c') > 0
       ? {
           checklistNone: num(q(db, "SELECT COUNT(*) c FROM memory_review_findings WHERE checklist_ref = 'none'"), 'c'),
@@ -326,7 +326,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   };
   // 読み先は「テーブル実在」でなく**行数**で選ぶ。FlightRecordDatabase.ensureTables は
   // 空テーブルを常に作るため、実在判定だと移行未完了（行は trail 側に残存）の DB で
-  // 空の memory-core 側を読み、0 件を測定不能でなく実測 0 として出してしまう。
+  // 空の trail-caravan-book 側を読み、0 件を測定不能でなく実測 0 として出してしまう。
   const countRows = (db, table) =>
     hasTable(db, table) ? Number(one(q(db, `SELECT COUNT(*) c FROM ${table}`))?.c ?? 0) : 0;
   const memoFr = countRows(memo.db, 'flight_reviews');
@@ -343,14 +343,14 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       frSource = 'both(migration incomplete)';
       residualTrail = { flightReviews: trailFr, instructions: trailIns };
     } else {
-      frSource = 'memory-core';
+      frSource = 'trail-caravan-book';
     }
   } else if (trailFr + trailIns > 0) {
     frDb = trailOpened.db;
     frSource = 'trail(pre-migration)';
   } else if (hasTable(memo.db, 'flight_reviews')) {
     frDb = memo.db;
-    frSource = 'memory-core(empty)';
+    frSource = 'trail-caravan-book(empty)';
   }
   if (frDb === null) {
     snapshot.flightRecord = null;
@@ -467,9 +467,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   const memoCount = countRows(memo.db, 'doctrine_judgments');
   const trailCount = countRows(trailOpened.db, 'doctrine_judgments');
   const djDb = memoCount > 0 ? memo.db : trailCount > 0 ? trailOpened.db : hasTable(memo.db, 'doctrine_judgments') ? memo.db : null;
-  const djSource = memoCount > 0 ? (trailCount > 0 ? 'both(migration incomplete)' : 'memory-core')
+  const djSource = memoCount > 0 ? (trailCount > 0 ? 'both(migration incomplete)' : 'trail-caravan-book')
     : trailCount > 0 ? 'trail(pre-migration)'
-      : djDb != null ? 'memory-core(empty)' : null;
+      : djDb != null ? 'trail-caravan-book(empty)' : null;
 
   if (djDb === null) {
     snapshot.doctrineGap = null;

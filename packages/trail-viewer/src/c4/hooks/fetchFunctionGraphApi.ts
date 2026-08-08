@@ -1,7 +1,7 @@
 // packages/trail-viewer/src/c4/hooks/fetchFunctionGraphApi.ts
-import type { FunctionGraphResponse } from '@anytime-markdown/trail-core/c4';
+import type { FunctionGraphResponse } from '@anytime-markdown/trail-activity/c4';
 
-export type { FunctionGraphResponse } from '@anytime-markdown/trail-core/c4';
+export type { FunctionGraphResponse } from '@anytime-markdown/trail-activity/c4';
 
 export function buildFunctionGraphUrl(serverUrl: string, elementId: string): string {
   const qs = new URLSearchParams({ elementId });

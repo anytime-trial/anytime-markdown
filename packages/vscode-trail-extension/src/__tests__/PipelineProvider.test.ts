@@ -60,7 +60,7 @@ async function getAllPipelines(provider: PipelineProvider): Promise<PipelineItem
   return out;
 }
 
-describe('PipelineProvider.getChildren() — memory-core pipelines (Wave 3)', () => {
+describe('PipelineProvider.getChildren() — trail-caravan-book pipelines (Wave 3)', () => {
   let provider: PipelineProvider;
 
   beforeEach(() => {
@@ -77,7 +77,7 @@ describe('PipelineProvider.getChildren() — memory-core pipelines (Wave 3)', ()
     expect(groups).toEqual([]);
   });
 
-  it('memory-core pipeline 表示: status ファイルを Wave 3 グループ配下に 3 行', async () => {
+  it('trail-caravan-book pipeline 表示: status ファイルを Wave 3 グループ配下に 3 行', async () => {
     const statusPath = '/fake/pipeline-status.json';
     mockExistsSync.mockImplementation((p: string) => p === statusPath);
     mockReadFileSync.mockReturnValue(JSON.stringify({
@@ -211,7 +211,7 @@ describe('PipelineProvider.getChildren() — Wave グルーピング', () => {
     expect(wave2[1].label).toBe('import_sessions');
   });
 
-  it('memory-core pipeline は Wave 3 グループ配下に並ぶ', async () => {
+  it('trail-caravan-book pipeline は Wave 3 グループ配下に並ぶ', async () => {
     const statusPath = '/fake/pipeline-status.json';
     mockExistsSync.mockImplementation((p: string) => p === statusPath);
     mockReadFileSync.mockReturnValue(JSON.stringify({

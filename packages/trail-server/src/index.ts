@@ -33,22 +33,22 @@ export type { MemoryCoreRunner, MemoryCoreOutputChannel } from './runtime/memory
 
 // MemoryCoreService / defaultStatePath の **値** は ts を引き込むため
 // `@anytime-markdown/trail-server/pipeline` subpath へ分離した (root は ts-free)。
-// 型のみ参照する thin client は root の `export type {...} from 'memory-core'`
+// 型のみ参照する thin client は root の `export type {...} from 'trail-caravan-book'`
 // (下記 type 専用ブロック) を経由する。
-export type { MemoryCoreService } from '@anytime-markdown/memory-core';
+export type { MemoryCoreService } from '@anytime-markdown/trail-caravan-book';
 export {
   defaultState as memoryCoreServiceDefaultState,
   readState as memoryCoreServiceReadState,
   writeState as memoryCoreServiceWriteState,
   STATE_SCHEMA_VERSION as MEMORY_CORE_SERVICE_STATE_SCHEMA_VERSION,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 export type {
   MemoryCoreLogSink,
   MemoryCoreServiceOptions,
   MemoryCoreServiceStartOptions,
   MemoryCoreServiceStatus,
   RunReason as MemoryCoreRunReason,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
 export type { Logger, LogLevel } from './runtime/Logger';
 export { ConsoleLogger, FileLogger } from './runtime/Logger';

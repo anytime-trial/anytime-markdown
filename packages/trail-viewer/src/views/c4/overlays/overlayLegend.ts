@@ -2,7 +2,7 @@
  * OverlayLegend — vanilla DOM view.
  * Thin port of c4/components/overlays/OverlayLegend.tsx.
  */
-import type { MetricOverlay } from '@anytime-markdown/trail-core/c4';
+import type { MetricOverlay } from '@anytime-markdown/trail-activity/c4';
 import type { VanillaViewHandle } from '../../../shared/vanillaIsland';
 import {
   COVERAGE_HIGH,

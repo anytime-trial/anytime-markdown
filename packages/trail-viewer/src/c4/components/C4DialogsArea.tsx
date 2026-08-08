@@ -1,4 +1,4 @@
-import type { C4Model } from '@anytime-markdown/trail-core/c4';
+import type { C4Model } from '@anytime-markdown/trail-activity/c4';
 
 import { AddElementDialog, AddRelationshipDialog } from './dialogs/C4EditDialogs';
 import type { C4ElementKind, ElementFormData, RelationshipFormData } from './dialogs/C4EditDialogs';

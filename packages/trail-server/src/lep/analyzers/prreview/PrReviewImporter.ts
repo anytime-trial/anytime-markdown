@@ -2,7 +2,7 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
 import { buildPrReviewSourceRef } from './prReviewMemorySource';
 
@@ -25,10 +25,10 @@ export interface PrReviewImporterOptions {
  * - tier=2 / subscribes=['github_pr_review'] / emits=['pr_review_imported']
  * - 冪等: `memory_reviews.source_hash`（source_kind='pr_comment'）が一致したら
  *   emit を skip（Ingester の再 emit 対策）
- * - 本 analyzer は**永続化しない**。ingestPrReview（memory-core）は bodyHash 一致で即座に
+ * - 本 analyzer は**永続化しない**。ingestPrReview（trail-caravan-book）は bodyHash 一致で即座に
  *   skip する冪等 API のため、ここで先に `findings: []` で ingestPrReview を呼んでしまうと
  *   同じ bodyHash を積んだ 2 度目の呼び出し（PrReviewFindingAnalyzer 側）が必ず skip 経路に
- *   入り、findings を一切書き込めなくなる（実測: memory-core の
+ *   入り、findings を一切書き込めなくなる（実測: trail-caravan-book の
  *   `__tests__/ingest/pr-review/prReview.test.ts` が単発呼び出しのみを契約として固定して
  *   いる）。そのため review 本文・コメント一式を `pr_review_imported` のペイロードへ積んで
  *   emit し、実際の永続化（review + findings 同時書込）は PrReviewFindingAnalyzer に一本化

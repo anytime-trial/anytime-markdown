@@ -15,7 +15,7 @@
 
 import { SyncService } from '../SyncService';
 import type { IRemoteTrailStore } from '../IRemoteTrailStore';
-import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-core';
+import type { ManualElement, ManualRelationship, ManualGroup } from '@anytime-markdown/trail-activity';
 import type { DbLogger } from '../DbLogger';
 import { createTestTrailDatabase } from './support/createTestDb';
 

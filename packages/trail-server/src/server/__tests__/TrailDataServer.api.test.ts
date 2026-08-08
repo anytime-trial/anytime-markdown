@@ -2,8 +2,8 @@
 jest.mock('ws', () => ({
   WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })),
 }));
-jest.mock('@anytime-markdown/trail-core/c4', () => {
-  const actual = jest.requireActual('@anytime-markdown/trail-core/c4');
+jest.mock('@anytime-markdown/trail-activity/c4', () => {
+  const actual = jest.requireActual('@anytime-markdown/trail-activity/c4');
   return { ...actual, fetchC4Model: jest.fn() };
 });
 
@@ -14,7 +14,7 @@ import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { UnknownRepoError } from '../../analyze/AnalyzePipeline';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
-import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
+import { fetchC4Model } from '@anytime-markdown/trail-activity/c4';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 describe('GET /api/trail/search', () => {

@@ -9,7 +9,7 @@
  */
 import Graph from 'graphology';
 import { GraphClusterer, buildCommunityLabels } from '../GraphClusterer';
-import type { C4Element } from '@anytime-markdown/trail-core/c4';
+import type { C4Element } from '@anytime-markdown/trail-activity/c4';
 
 function nodeAttrs(pkg: string) {
   return { package: pkg, repo: 'product', fileType: 'code', size: 0 } as const;

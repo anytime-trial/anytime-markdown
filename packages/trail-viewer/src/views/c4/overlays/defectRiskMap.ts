@@ -1,6 +1,6 @@
-import { buildC4ElementById, mapFileToC4Elements, rollupMaxToAncestors } from '@anytime-markdown/trail-core/c4';
-import type { C4Model } from '@anytime-markdown/trail-core/c4';
-import type { DefectRiskEntry } from '@anytime-markdown/trail-core';
+import { buildC4ElementById, mapFileToC4Elements, rollupMaxToAncestors } from '@anytime-markdown/trail-activity/c4';
+import type { C4Model } from '@anytime-markdown/trail-activity/c4';
+import type { DefectRiskEntry } from '@anytime-markdown/trail-activity';
 
 /**
  * ファイル単位の欠陥リスクを C4 要素単位へ集約する（Phase 6 S5-A）。

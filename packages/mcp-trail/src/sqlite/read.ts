@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3';
-import type { C4Model, ManualElement, ManualRelationship } from '@anytime-markdown/trail-core';
-import { codeGraphToC4, mergeManualIntoC4Model } from '@anytime-markdown/trail-core';
+import type { C4Model, ManualElement, ManualRelationship } from '@anytime-markdown/trail-activity';
+import { codeGraphToC4, mergeManualIntoC4Model } from '@anytime-markdown/trail-activity';
 import { all, get } from './sqlJsUtil';
 
 /**
@@ -13,7 +13,7 @@ function lookupRepoId(db: Database, repoName: string): number {
   return row ? Number(row.repo_id) : -1;
 }
 
-// current_code_graphs.graph_json は trail-core の StoredCodeGraph 形式。
+// current_code_graphs.graph_json は trail-activity の StoredCodeGraph 形式。
 // import 時の型衝突を避けるため runtime はそのまま JSON.parse、型は構造のみ参照。
 interface StoredCodeGraphJson {
   generatedAt: string;
@@ -65,7 +65,7 @@ export interface CommunityRow {
   /**
    * コミュニティ内ノード ID 集合のコンテンツハッシュ。
    * 古いスキーマ（stable_key 列未追加）の DB では空文字を返す。
-   * 詳細は `@anytime-markdown/trail-core/codeGraph` の computeStableKey 参照。
+   * 詳細は `@anytime-markdown/trail-activity/codeGraph` の computeStableKey 参照。
    */
   stableKey: string;
 }

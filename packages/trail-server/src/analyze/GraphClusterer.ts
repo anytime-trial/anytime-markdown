@@ -1,5 +1,5 @@
-import type { C4Element } from '@anytime-markdown/trail-core/c4';
-import { extractComponentName } from '@anytime-markdown/trail-core/transform';
+import type { C4Element } from '@anytime-markdown/trail-activity/c4';
+import { extractComponentName } from '@anytime-markdown/trail-activity/transform';
 import Graph from 'graphology';
 import louvain from 'graphology-communities-louvain';
 import seedrandom from 'seedrandom';
@@ -94,7 +94,7 @@ function resolveDisplayName(
 
 /**
  * ノード ID（`${repo}:${relativePath}` 形式）から component セグメントを取り出す。
- * trail-core/transform/toC4.ts の extractComponentName と regex を共有する。
+ * trail-activity/transform/toC4.ts の extractComponentName と regex を共有する。
  *
  * GraphClusterer は top-level "packages" も component とみなさない (community label の品質
  * 維持のため) ため、共通関数の戻り値を post-filter する。

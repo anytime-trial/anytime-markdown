@@ -1,4 +1,4 @@
-import type { BusFactorEntry } from '@anytime-markdown/trail-core';
+import type { BusFactorEntry } from '@anytime-markdown/trail-activity';
 
 export type BusFactorFetchParams = {
   windowDays?: number;

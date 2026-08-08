@@ -8,7 +8,7 @@ function defaultDbPath(workspaceRoot: string): string {
 /**
  * 検索側（mcp-markdown）と ingest 側で一致させる catalog.db パス解決。
  * 既定 `<workspace>/.anytime/markdown/catalog.db`。
- * doc-core を import しない軽量モジュール（extension.js / provider から参照するため）。
+ * markdown-catalog を import しない軽量モジュール（extension.js / provider から参照するため）。
  *
  * `configured`（`anytimeMarkdown.docSearch.dbPath`）はワークスペースルート配下に限定する。
  * 未信頼ワークスペースの `.vscode/settings.json` 経由で任意パスへ sqlite DB を作成/上書き

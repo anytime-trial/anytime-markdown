@@ -1,6 +1,6 @@
 import { createTestTrailDatabase } from './support/createTestDb';
 import type { TrailDatabase } from '../TrailDatabase';
-import type { FunctionAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
+import type { FunctionAnalysisRow } from '@anytime-markdown/trail-activity/deadCode';
 
 const sample = (
   filePath: string,

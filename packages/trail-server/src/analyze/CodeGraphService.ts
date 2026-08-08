@@ -2,9 +2,9 @@ import path from 'node:path';
 
 import { LanguageRegistry, analyzeRepo } from '@anytime-markdown/code-analysis-core';
 import { PythonLanguageAnalyzer } from '@anytime-markdown/code-analysis-python';
-import type { TrailGraph } from '@anytime-markdown/trail-core';
-import type { C4Element } from '@anytime-markdown/trail-core/c4';
-import { loadAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
+import type { C4Element } from '@anytime-markdown/trail-activity/c4';
+import { loadAnalyzeExclude } from '@anytime-markdown/trail-activity/analyzeExclude';
 
 import type { Logger } from '../runtime/Logger';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';

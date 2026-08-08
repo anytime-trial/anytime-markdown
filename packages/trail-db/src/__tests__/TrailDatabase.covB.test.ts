@@ -31,7 +31,7 @@
 
 import { createTestTrailDatabase } from './support/createTestDb';
 import type { TrailDatabase } from '../TrailDatabase';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
 
 // Minimal valid CodeGraph for tests that need to seed one
 function makeCodeGraph(overrides: Partial<CodeGraph> = {}): CodeGraph {

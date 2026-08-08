@@ -6,7 +6,7 @@ import type {
   Analyzer,
   AnalyzerContext,
   AnalyzerEvent,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
 const AGENT_META_RE = /^agent-(.+)\.meta\.json$/;
 

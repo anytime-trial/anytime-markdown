@@ -28,7 +28,7 @@ export const TRAIL_BUNDLED_SKILLS: readonly TrailBundledSkill[] = [
 	{ name: 'anytime-reverse-doctrine' },
 	// anytime-token-budget を統合（2026-07-18）。旧 dir は oldNames で配置済みコピーを掃除する。
 	{ name: 'anytime-dev-retro', oldNames: ['anytime-dev-health', 'anytime-token-budget'] },
-	// レビュー指摘書式（memory-core ingest パーサとの機械契約）。契約とパーサ実装を同じ
+	// レビュー指摘書式（trail-caravan-book ingest パーサとの機械契約）。契約とパーサ実装を同じ
 	// trail リリース単位に置くため trail 拡張が配布する。
 	{ name: 'anytime-trail-review', oldNames: ['anytime-review', 'review-finding-format'] },
 ];

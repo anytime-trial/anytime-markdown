@@ -7,7 +7,7 @@ jest.mock('../../dbPath', () => ({
   resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
-jest.mock('@anytime-markdown/memory-core/query', () => ({
+jest.mock('@anytime-markdown/trail-caravan-book/query', () => ({
   noopLogger: { info: () => {}, error: () => {}, warn: () => {} },
   openMemoryCoreDb: jest.fn().mockResolvedValue({
     db: {},
@@ -34,7 +34,7 @@ describe('handleGetBugHistory', () => {
   });
 
   test('calls getBugHistory with correct input', async () => {
-    const { getBugHistory: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { getBugHistory: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     const result = await handleGetBugHistory({ package: 'web-app', limit: 5 });
 
@@ -47,7 +47,7 @@ describe('handleGetBugHistory', () => {
   });
 
   test('passes file_path and category filters', async () => {
-    const { getBugHistory: mockFn } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { getBugHistory: mockFn } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleGetBugHistory({ file_path: 'src/foo.ts', category: 'logic' });
 
@@ -58,7 +58,7 @@ describe('handleGetBugHistory', () => {
   });
 
   test('closes db handle after call', async () => {
-    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/memory-core/query');
+    const { openMemoryCoreDb } = jest.requireMock('@anytime-markdown/trail-caravan-book/query');
 
     await handleGetBugHistory({});
 

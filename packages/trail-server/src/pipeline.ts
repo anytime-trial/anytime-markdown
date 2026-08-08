@@ -7,7 +7,7 @@
 export {
   MemoryCoreService,
   defaultStatePath as memoryCoreServiceDefaultStatePath,
-} from '@anytime-markdown/memory-core/pipeline';
+} from '@anytime-markdown/trail-caravan-book/pipeline';
 
 // memoryCoreRunner も MemoryCoreService 値を引くため pipeline 経路に閉じこめる。
 export { createMemoryCoreRunner } from './runtime/memoryCoreRunner';

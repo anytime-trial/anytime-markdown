@@ -359,7 +359,7 @@
     "webpack-cli": "6.0.1"
   },
   "dependencies": {
-    "@anytime-markdown/doc-core": "*",
+    "@anytime-markdown/markdown-catalog": "*",
     "@anytime-markdown/graph-core": "*",
     "@anytime-markdown/markdown-editor": "*",
     "@anytime-markdown/markdown-rich-editor": "*",

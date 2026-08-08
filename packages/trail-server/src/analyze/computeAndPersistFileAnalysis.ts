@@ -36,18 +36,18 @@ import {
   computeDeadCodeScore,
   computeNewlyActive,
   aggregateImportanceToFile,
-} from '@anytime-markdown/trail-core/deadCode';
+} from '@anytime-markdown/trail-activity/deadCode';
 import type {
   FileAnalysisRow,
   FunctionAnalysisRow,
   DeadCodeSignals,
   IgnoreRules,
-} from '@anytime-markdown/trail-core/deadCode';
-import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import { computeCentrality, classifyFunctionRoles } from '@anytime-markdown/trail-core/centrality';
-import type { FunctionRole } from '@anytime-markdown/trail-core/centrality';
-import type { FileCategory } from '@anytime-markdown/trail-core/classify';
+} from '@anytime-markdown/trail-activity/deadCode';
+import type { ScoredFunction } from '@anytime-markdown/trail-activity/importance';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
+import { computeCentrality, classifyFunctionRoles } from '@anytime-markdown/trail-activity/centrality';
+import type { FunctionRole } from '@anytime-markdown/trail-activity/centrality';
+import type { FileCategory } from '@anytime-markdown/trail-activity/classify';
 
 export interface ComputeAndPersistFileAnalysisOpts {
   /** ワークスペースの絶対パス。git リポジトリルートと一致することを想定。 */

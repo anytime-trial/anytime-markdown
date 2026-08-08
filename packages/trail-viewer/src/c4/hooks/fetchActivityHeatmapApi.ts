@@ -1,4 +1,4 @@
-import type { HeatmapAxis, HeatmapCell, TrendPeriod } from '@anytime-markdown/trail-core/c4';
+import type { HeatmapAxis, HeatmapCell, TrendPeriod } from '@anytime-markdown/trail-activity/c4';
 
 export type HeatmapMode = 'session-file';
 

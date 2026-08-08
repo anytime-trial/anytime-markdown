@@ -36,16 +36,16 @@ describe('TrailDatabase.fetchDefectRisk', () => {
   it('returns file-level risk entries', () => {
     const recent = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
     insertSessionCommit(db, 's1', 'h1', 'fix: crash', recent);
-    insertCommitFile(db, 'h1', 'packages/trail-core/src/foo.ts');
+    insertCommitFile(db, 'h1', 'packages/trail-activity/src/foo.ts');
     const result = db.fetchDefectRisk({ windowDays: 90, halfLifeDays: 90 });
     expect(result.length).toBeGreaterThan(0);
-    expect(result[0].filePath).toBe('packages/trail-core/src/foo.ts');
+    expect(result[0].filePath).toBe('packages/trail-activity/src/foo.ts');
     expect(result[0].fixCount).toBe(1);
   });
 
   it('excludes commits outside the window', () => {
     insertSessionCommit(db, 's1', 'h1', 'fix: old', '2020-01-01T00:00:00.000Z');
-    insertCommitFile(db, 'h1', 'packages/trail-core/src/foo.ts');
+    insertCommitFile(db, 'h1', 'packages/trail-activity/src/foo.ts');
     const result = db.fetchDefectRisk({ windowDays: 7, halfLifeDays: 90 });
     expect(result).toEqual([]);
   });

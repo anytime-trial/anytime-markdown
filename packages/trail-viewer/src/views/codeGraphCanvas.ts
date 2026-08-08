@@ -13,7 +13,7 @@
  */
 import Sigma from 'sigma';
 import { EdgeArrowProgram } from 'sigma/rendering';
-import type { ArchitectureLayer } from '@anytime-markdown/trail-core/codeGraph';
+import type { ArchitectureLayer } from '@anytime-markdown/trail-activity/codeGraph';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import {
   buildSigmaGraph,

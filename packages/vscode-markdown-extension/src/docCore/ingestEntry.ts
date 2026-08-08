@@ -1,6 +1,6 @@
 /**
- * doc-core ingest を行う node 子プロセスのエントリ（拡張ホストから spawn される）。
- * native module 不要（node:sqlite）。doc-core を取り込むのはこのバンドル(doc-ingest.js)のみ。
+ * markdown-catalog ingest を行う node 子プロセスのエントリ（拡張ホストから spawn される）。
+ * native module 不要（node:sqlite）。markdown-catalog を取り込むのはこのバンドル(doc-ingest.js)のみ。
  *
  * env:
  *   ANYTIME_MARKDOWN_DOC_DB     … catalog.db の物理パス（ingest モードで必須）
@@ -19,7 +19,7 @@ import {
   ingestThenIndex,
   generateDocsRootIndexes,
   resolveDbWithLegacyRename,
-} from '@anytime-markdown/doc-core';
+} from '@anytime-markdown/markdown-catalog';
 
 async function main(): Promise<void> {
   const docsRoot = process.env.ANYTIME_MARKDOWN_DOCS_ROOT;

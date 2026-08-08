@@ -175,7 +175,7 @@ describe('resolveWorktree', () => {
 
   test('file が main worktree path に前方一致', () => {
     const result = resolveWorktree(
-      '/anytime-markdown/packages/trail-core/src/index.ts',
+      '/anytime-markdown/packages/trail-activity/src/index.ts',
       'main',
       worktrees
     );
@@ -200,7 +200,7 @@ describe('resolveWorktree', () => {
       worktrees,
       undefined,
       [
-        { file: '/anytime-markdown/packages/trail-core/src/foo.ts', timestamp: '2026-05-04T00:00:00Z' },
+        { file: '/anytime-markdown/packages/trail-activity/src/foo.ts', timestamp: '2026-05-04T00:00:00Z' },
         { file: '/Shared/anytime-markdown-docs/spec/foo.md', timestamp: '2026-05-04T01:00:00Z' },
       ]
     );
@@ -250,7 +250,7 @@ describe('resolveWorktree', () => {
       '',
       'develop',  // ブランチは main と同じで誤マッチしうる値
       worktrees,
-      '/anytime-markdown/.worktrees/feature-b/packages/trail-core'
+      '/anytime-markdown/.worktrees/feature-b/packages/trail-activity'
     );
     expect(result?.path).toBe('/anytime-markdown/.worktrees/feature-b');
   });
@@ -270,7 +270,7 @@ describe('resolveWorktree', () => {
       '',
       'develop',
       worktrees,
-      '/anytime-markdown/packages/trail-core'
+      '/anytime-markdown/packages/trail-activity'
     );
     expect(result?.path).toBe('/anytime-markdown');
   });

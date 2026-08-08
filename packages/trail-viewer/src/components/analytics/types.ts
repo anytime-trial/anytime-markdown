@@ -18,8 +18,8 @@ import type {
   QualityMetrics,
   DateRange,
   ReleaseQualityBucket,
-} from '@anytime-markdown/trail-core/domain/metrics';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+} from '@anytime-markdown/trail-activity/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 
 export interface AnalyticsPanelProps {
   readonly releases?: readonly TrailRelease[];

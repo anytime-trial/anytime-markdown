@@ -22,9 +22,9 @@ describe('FileChangeResolver (worktree scope)', () => {
     runGit(['config', 'user.email', 'dev@example.com'], root);
     runGit(['config', 'user.name', 'Dev'], root);
 
-    fs.mkdirSync(path.join(root, 'packages', 'trail-core', 'src'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'packages', 'trail-activity', 'src'), { recursive: true });
     fs.writeFileSync(
-      path.join(root, 'packages', 'trail-core', 'src', 'api.ts'),
+      path.join(root, 'packages', 'trail-activity', 'src', 'api.ts'),
       'export const alpha = 1;\n',
     );
     runGit(['add', '.'], root);
@@ -43,7 +43,7 @@ describe('FileChangeResolver (worktree scope)', () => {
 
   it('reports uncommitted modifications with diff stats and export-line counts', async () => {
     fs.writeFileSync(
-      path.join(root, 'packages', 'trail-core', 'src', 'api.ts'),
+      path.join(root, 'packages', 'trail-activity', 'src', 'api.ts'),
       'export const alpha = 1;\nexport const beta = 2;\n',
     );
 
@@ -51,7 +51,7 @@ describe('FileChangeResolver (worktree scope)', () => {
 
     expect(changed).toEqual([
       {
-        filePath: 'packages/trail-core/src/api.ts',
+        filePath: 'packages/trail-activity/src/api.ts',
         linesAdded: 1,
         linesDeleted: 0,
         addedExportLines: 1,
@@ -62,7 +62,7 @@ describe('FileChangeResolver (worktree scope)', () => {
 
   it('includes untracked files, counting their whole content as added lines', async () => {
     fs.writeFileSync(
-      path.join(root, 'packages', 'trail-core', 'src', 'newFeature.ts'),
+      path.join(root, 'packages', 'trail-activity', 'src', 'newFeature.ts'),
       'export function added() {}\nconst helper = 1;\n',
     );
 
@@ -70,7 +70,7 @@ describe('FileChangeResolver (worktree scope)', () => {
 
     expect(changed).toEqual([
       {
-        filePath: 'packages/trail-core/src/newFeature.ts',
+        filePath: 'packages/trail-activity/src/newFeature.ts',
         linesAdded: 2,
         linesDeleted: 0,
         addedExportLines: 1,
@@ -99,9 +99,9 @@ describe('FileChangeResolver (worktree scope)', () => {
     runGit(['init'], fresh);
     runGit(['config', 'user.email', 'dev@example.com'], fresh);
     runGit(['config', 'user.name', 'Dev'], fresh);
-    fs.mkdirSync(path.join(fresh, 'packages', 'trail-core', 'src'), { recursive: true });
+    fs.mkdirSync(path.join(fresh, 'packages', 'trail-activity', 'src'), { recursive: true });
     fs.writeFileSync(
-      path.join(fresh, 'packages', 'trail-core', 'src', 'api.ts'),
+      path.join(fresh, 'packages', 'trail-activity', 'src', 'api.ts'),
       'export const alpha = 1;\nexport const beta = 2;\n',
     );
     runGit(['add', '.'], fresh);
@@ -111,7 +111,7 @@ describe('FileChangeResolver (worktree scope)', () => {
 
     expect(changed).toEqual([
       {
-        filePath: 'packages/trail-core/src/api.ts',
+        filePath: 'packages/trail-activity/src/api.ts',
         linesAdded: 2,
         linesDeleted: 0,
         addedExportLines: 2,
@@ -129,7 +129,7 @@ describe('FileChangeResolver (worktree scope)', () => {
   });
 
   it('does not touch the database (no repos row required)', async () => {
-    fs.writeFileSync(path.join(root, 'packages', 'trail-core', 'src', 'api.ts'), 'export const a = 9;\n');
+    fs.writeFileSync(path.join(root, 'packages', 'trail-activity', 'src', 'api.ts'), 'export const a = 9;\n');
 
     await expect(resolveWorktree()).resolves.toHaveLength(1);
   });

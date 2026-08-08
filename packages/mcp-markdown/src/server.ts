@@ -159,7 +159,7 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
     },
   );
 
-  // --- doc-core 検索（markdown 拡張が ingest した catalog.db を読む） ---
+  // --- markdown-catalog 検索（markdown 拡張が ingest した catalog.db を読む） ---
 
   registerTool(server, 'search_docs',
     'Search the document index (catalog.db) by keyword (FTS5) and/or frontmatter facets (category/type/lang). Returns path/title/excerpt (+ snippet for keyword) so you can judge relevance without opening files.',

@@ -1,7 +1,7 @@
 
 jest.mock('ws', () => ({ WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })) }));
-jest.mock('@anytime-markdown/trail-core/c4', () => {
-  const actual = jest.requireActual('@anytime-markdown/trail-core/c4');
+jest.mock('@anytime-markdown/trail-activity/c4', () => {
+  const actual = jest.requireActual('@anytime-markdown/trail-activity/c4');
   return { ...actual, fetchC4Model: jest.fn().mockResolvedValue(null) };
 });
 
@@ -9,7 +9,7 @@ import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { FileAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
+import type { FileAnalysisRow } from '@anytime-markdown/trail-activity/deadCode';
 
 const sampleRow = (filePath: string, importanceScore: number, deadCodeScore: number): FileAnalysisRow => ({
   repoName: 'myrepo',

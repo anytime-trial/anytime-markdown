@@ -2,7 +2,7 @@ import {
   getThreatFramework,
   THREAT_TACTIC_IDS,
   type ThreatFramework,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 import { z } from 'zod';
 
 export const GetThreatFrameworkInputSchema = z.object({
@@ -15,7 +15,7 @@ export const GetThreatFrameworkInputSchema = z.object({
 export type GetThreatFrameworkInput = z.infer<typeof GetThreatFrameworkInputSchema>;
 
 /**
- * ADR 由来の脅威分類（trail-core の静的定数）を返す。DB もネットワークも見ない。
+ * ADR 由来の脅威分類（trail-activity の静的定数）を返す。DB もネットワークも見ない。
  * 将来の外部脅威インテリジェンス連携はこのツールの置換ではなく別ツールとして
  * 設計する（静的データ返却であることが本ツールの契約）。
  */

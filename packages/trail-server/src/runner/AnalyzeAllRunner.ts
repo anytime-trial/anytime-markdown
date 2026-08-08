@@ -17,7 +17,7 @@ import {
   type RunnerLogSink,
   type Analyzer,
   getTrailHome,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 import type { ImportAllPhaseEvent, TrailDatabase } from '@anytime-markdown/trail-db';
 
 import {
@@ -112,7 +112,7 @@ export interface AnalyzeAllRunnerOptions {
    * 省略 / 空時は JsonlIngester 既定 (`os.homedir()/.codex/sessions`)。
    */
   codexSessionsDir?: string;
-  /** memory-core ingest pipeline を実行する service (省略時は memory-core ステップをスキップ) */
+  /** trail-caravan-book ingest pipeline を実行する service (省略時は trail-caravan-book ステップをスキップ) */
   memoryCoreService?: MemoryCoreService;
   /**
    * caravan-book.db パス (Step 5: PR review analyzer 群 (`PrReviewImporter` /
@@ -204,14 +204,14 @@ export interface AnalyzeAllRunnerOptions {
 
   /**
    * activity.db import パイプライン (Layer 1 Ingester + Layer 2 primary analyzer) を有効化するか。
-   * デフォルト `true`。`false` の場合、activity.db への取込・解析を一切行わず memory-core ステップのみ実行する
+   * デフォルト `true`。`false` の場合、activity.db への取込・解析を一切行わず trail-caravan-book ステップのみ実行する
    * (ファイル IO を避けたいテスト等)。
    */
   enableIngesters?: boolean;
 }
 
 /**
- * analyzeAll パイプライン (activity.db import → memory-core runOnce) の唯一の orchestrator。
+ * analyzeAll パイプライン (activity.db import → trail-caravan-book runOnce) の唯一の orchestrator。
  *
  * BaseRunner を継承し、pause/resume/state/ticks/lastRunAt を一元管理する。
  *
@@ -231,7 +231,7 @@ export interface AnalyzeAllRunnerOptions {
  *   - `CommitFilesBackfiller`   ← commit_resolved (旧 Phase 8-A)
  *   - `SubagentTypeBackfiller`  ← meta_json / self-read (旧 Phase 8-B)
  *   - `MessageCommitMatcher`    ← commit_resolved (旧 Phase 8-C)
- * - Layer 3 (memory):  7 個の memory analyzer が `wave_start:memory` に応答して memory-core の
+ * - Layer 3 (memory):  7 個の memory analyzer が `wave_start:memory` に応答して trail-caravan-book の
  *   各 scope を実行 (Conversation / Code / BugHistory / Review / Spec / Drift / EmbeddingBackfill)
  *
  * Wave 2 完了後に `trailDb.save()` を呼んで sql.js の in-memory DB をディスクへ永続化する
@@ -514,7 +514,7 @@ export class AnalyzeAllRunner extends BaseRunner {
       const result = await this.orchestrator.runOnce({ runId: randomUUID(), reason, stage: this.stage });
 
       // activity.db への永続化 (save) は PersistAnalyzer が Wave 2 末端で実施済み
-      // (memory-core が activity.db をディスクから attach するため Wave 3 より前である必要がある)。
+      // (trail-caravan-book が activity.db をディスクから attach するため Wave 3 より前である必要がある)。
       // ここでは counter を analyzer から集計するのみ。
       if (this.importPipelineEnabled) {
         this.lastImportResult = this.aggregateImportResult();
@@ -534,13 +534,13 @@ export class AnalyzeAllRunner extends BaseRunner {
       if (memErrors.length > 0) {
         const memMsg = memErrors.map((e) => e.message).join('; ');
         if (runError) {
-          runError = new Error(`${runError.message}; memory-core: ${memMsg}`);
+          runError = new Error(`${runError.message}; trail-caravan-book: ${memMsg}`);
         } else {
-          runError = new Error(`memory-core: ${memMsg}`);
+          runError = new Error(`trail-caravan-book: ${memMsg}`);
         }
       }
     } finally {
-      // Wave 3 で開いた memory-core セッションを必ず閉じる (共有 DB の close)。
+      // Wave 3 で開いた trail-caravan-book セッションを必ず閉じる (共有 DB の close)。
       try {
         this.memorySessionProvider?.closeIfOpen();
       } catch (err) {
@@ -593,7 +593,7 @@ export class AnalyzeAllRunner extends BaseRunner {
 
   /**
    * activity.db import パイプライン (Layer 1 ingester + Layer 2 primary analyzer) が有効か。
-   * `trailDb` 未指定 / `enableIngesters:false` の場合は false (memory-core ステップのみ実行)。
+   * `trailDb` 未指定 / `enableIngesters:false` の場合は false (trail-caravan-book ステップのみ実行)。
    * daemon の配線検証 (trailDb が runner に届いているか) に使う。
    */
   get importEnabled(): boolean {

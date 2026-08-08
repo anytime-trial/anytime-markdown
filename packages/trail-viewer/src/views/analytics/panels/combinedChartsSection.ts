@@ -14,8 +14,8 @@ import type {
   DateRange,
   QualityMetrics,
   ReleaseQualityBucket,
-} from '@anytime-markdown/trail-core/domain/metrics';
-import type { TrailRelease } from '@anytime-markdown/trail-core/domain';
+} from '@anytime-markdown/trail-activity/domain/metrics';
+import type { TrailRelease } from '@anytime-markdown/trail-activity/domain';
 import type {
   AgentMetric,
   BucketUnit,
@@ -42,7 +42,7 @@ import {
 } from '../charts/combined/combinedChartsContent';
 import { mountDailySessionList } from './dailySessionList';
 import { createTooltip, createSpinner, createSelect } from '@anytime-markdown/ui-core';
-import { normalizeWorkspaceName } from '@anytime-markdown/trail-core/domain';
+import { normalizeWorkspaceName } from '@anytime-markdown/trail-activity/domain';
 
 // メトリクストグルの説明ツールチップ i18n キー（value → key。旧 CombinedChartsSection の
 // 各 ToggleButton を包んでいた Tooltip title を復元する。value 名とキー名は一部非対称）。

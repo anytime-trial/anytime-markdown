@@ -3,15 +3,15 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 import { ExecFileGitService } from '@anytime-markdown/trail-db';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { TrailGraph } from '@anytime-markdown/trail-core';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
-import type { FileCategory } from '@anytime-markdown/trail-core/classify';
+import type { TrailGraph } from '@anytime-markdown/trail-activity';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
+import type { ScoredFunction } from '@anytime-markdown/trail-activity/importance';
+import type { FileCategory } from '@anytime-markdown/trail-activity/classify';
 
-import { loadAnalyzeExclude, seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
+import { loadAnalyzeExclude, seedAnalyzeExclude } from '@anytime-markdown/trail-activity/analyzeExclude';
 import { classifyPythonFiles } from '@anytime-markdown/code-analysis-python';
 
 import type { Logger } from '../runtime/Logger';
@@ -142,7 +142,7 @@ async function analyzeTypeScriptBranch(
     tsconfigPath,
     pythonWasmPath: codeGraphService.getPythonWasmPath(),
     // current 解析では decision comment を抽出して trail-db に永続化する
-    // （memory-core が typescript を持たず trail-db 経由で読むため）。
+    // （trail-caravan-book が typescript を持たず trail-db 経由で読むため）。
     includeDecisionComments: true,
   };
 
@@ -158,7 +158,7 @@ async function analyzeTypeScriptBranch(
     });
     computed = await runner.run(request);
   } else {
-    // computeAnalysis は trail-core/analyze (typescript) を引き込む。daemon バンドルは
+    // computeAnalysis は trail-activity/analyze (typescript) を引き込む。daemon バンドルは
     // 常に kind:'child' を渡すためこの分岐に到達しないが、webpack は静的に追跡して
     // typescript を同梱してしまう。webpackIgnore で追跡を止め、trail-daemon.js から
     // typescript を排除する。その代償として、バンドル出力に computeAnalysis.js は存在しない
@@ -173,7 +173,7 @@ async function analyzeTypeScriptBranch(
     `C4 analysis [${repoName}]: TrailGraph saved to current_graphs (repo=${repoName}, commit=${commitId || 'unknown'})`,
   );
 
-  // decision comment を trail-db へ洗い替え永続化（memory-core が読む中継）。
+  // decision comment を trail-db へ洗い替え永続化（trail-caravan-book が読む中継）。
   try {
     trailDb.saveDecisionComments(repoName, computed.decisionComments ?? [], {
       commitSha: commitId || null,
@@ -436,7 +436,7 @@ export async function runAnalyzeCurrentCodePipeline(
   // .anytime/dead-code-ignore をシードする（初回のみ作成）
   try {
     onProgress?.('Seeding dead-code-ignore...');
-    const { seedDeadCodeIgnore } = await import('@anytime-markdown/trail-core/deadCode');
+    const { seedDeadCodeIgnore } = await import('@anytime-markdown/trail-activity/deadCode');
     const seeded = seedDeadCodeIgnore(analysisRoot);
     if (seeded) {
       logger.info(`C4 analysis [${repoName}]: .anytime/dead-code-ignore created`);
@@ -539,7 +539,7 @@ async function analyzeReleaseWorktree(args: {
     excludeRoot: args.worktreeRoot,
     tsconfigPath,
     pythonWasmPath: args.pythonWasmPath,
-    // decision comment の永続化は current 解析だけの責務（memory-core への中継）。
+    // decision comment の永続化は current 解析だけの責務（trail-caravan-book への中継）。
     // 過去タグの抽出結果で現在のテーブルを上書きしない。
     includeDecisionComments: false,
   };

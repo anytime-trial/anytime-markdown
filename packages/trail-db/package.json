@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@anytime-markdown/database-core": "*",
-    "@anytime-markdown/trail-core": "*",
+    "@anytime-markdown/trail-activity": "*",
     "@supabase/supabase-js": "2.103.0",
     "better-sqlite3": "12.4.1",
     "ignore": "7.0.5",

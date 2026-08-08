@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import * as ts from 'typescript';
 import { scanDecisionComments } from '../scanDecisionComments';
 
-// memory-core/extractComments.test.ts から移設した AST 走査の検証。
+// trail-caravan-book/extractComments.test.ts から移設した AST 走査の検証。
 // ts.Program 上の WHY/RATIONALE/理由 コメントを正しく抽出するか確認する。
 
 function makeProgram(source: string, filename = 'fixture.ts'): { program: ts.Program; rootDir: string } {

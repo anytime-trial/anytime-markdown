@@ -449,7 +449,7 @@ describe('flightRecordPanel', () => {
     it('成果物をコミット済み / 未コミットの別つきで一覧する', async () => {
       const handle = await openFirstRow({
         deliverables: [
-          { kind: 'code', filePath: 'packages/trail-core/src/a.ts', committed: true, commitHash: 'abc12345' },
+          { kind: 'code', filePath: 'packages/trail-activity/src/a.ts', committed: true, commitHash: 'abc12345' },
           { kind: 'doc', filePath: 'spec/b.md', committed: false, commitHash: '' },
         ],
       });
@@ -991,7 +991,7 @@ describe('flightRecordPanel', () => {
       };
     }
 
-    /** memory-core 側も応答する stub。バグ履歴は sessionIds の有無で出し分ける。 */
+    /** trail-caravan-book 側も応答する stub。バグ履歴は sessionIds の有無で出し分ける。 */
     function stubWithBugs(options: { bugs?: unknown[]; historyFails?: boolean } = {}) {
       const bugs = options.bugs ?? [bugRow()];
       return stubFetch((url) => {
@@ -1093,7 +1093,7 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
 
-    it('serverUrl が無ければ memory-core を叩かず空のまま出す', async () => {
+    it('serverUrl が無ければ trail-caravan-book を叩かず空のまま出す', async () => {
       const stub = stubWithBugs();
       store = createInstructionStore('http://x');
       reviewStore = createFlightReviewStore('http://x');
@@ -1154,7 +1154,7 @@ describe('flightRecordPanel', () => {
       handle.destroy();
     });
 
-    it('開くまで drift をマウントせず memory-core の drift API も叩かない', async () => {
+    it('開くまで drift をマウントせず trail-caravan-book の drift API も叩かない', async () => {
       const { calls } = stubWithDrift();
       store = createInstructionStore('http://x');
       reviewStore = createFlightReviewStore('http://x');

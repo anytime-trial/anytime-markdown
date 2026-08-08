@@ -1,7 +1,7 @@
 ---
 name: anytime-dev-retro
 effort: medium
-description: 開発の実績データと事故から改善を還流させるふりかえり（retrospective）。Trail の 3DB(memory-core/doc-core/trail)を横断分析し、セッション粒度の LLM コスト分析（旧 anytime-token-budget を統合）も含めて、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案書＋チケットを生成する。「/anytime-dev-retro」「ふりかえり」「レトロ」「定期分析」「開発健全性」「dev health」「健全性レポート」「token budget」「トークン予算」「LLM コスト」「Opus コスト」「セッションコスト分析」の指示、または週次スケジュールからの起動で使用する。「インシデント分析」「ポストモーテム」「事故分析」「再発防止策をまとめて」の指示、または本番リリース後の障害発生時はインシデントモード（事故の要件化）を使用する。PC 環境・Claude Code 設定の診断（「セットアップ監査」「環境監査」「環境診断」）は anytime-dev-audit を使う。
+description: 開発の実績データと事故から改善を還流させるふりかえり（retrospective）。Trail の 3DB(trail-caravan-book/markdown-catalog/trail)を横断分析し、セッション粒度の LLM コスト分析（旧 anytime-token-budget を統合）も含めて、前回からのデルタに基づく開発健全性レポートと(閾値超なら)改善提案書＋チケットを生成する。「/anytime-dev-retro」「ふりかえり」「レトロ」「定期分析」「開発健全性」「dev health」「健全性レポート」「token budget」「トークン予算」「LLM コスト」「Opus コスト」「セッションコスト分析」の指示、または週次スケジュールからの起動で使用する。「インシデント分析」「ポストモーテム」「事故分析」「再発防止策をまとめて」の指示、または本番リリース後の障害発生時はインシデントモード（事故の要件化）を使用する。PC 環境・Claude Code 設定の診断（「セットアップ監査」「環境監査」「環境診断」）は anytime-dev-audit を使う。
 ---
 
 # anytime-dev-retro — 開発のふりかえり（定期分析＋インシデント要件化）
@@ -56,8 +56,8 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 観点の穴 `quality.checklistNone` / クラスタ `quality.checklistNoneClusters`（checklist_ref='none' のカテゴリ×パッケージ束・2 件以上） | memory | 新規クラスタ出現 / 増加（null は列未マイグレーション＝測定不能） |
 | 条文効果 `quality.checklistByRef30d`（章別・30 日窓の観点キー付き指摘件数） | memory | 条文化・改訂した章の件数が減らない（2 回連続はメタ還流対象） |
 | 未解決 drift（`drift.byType` から spec_vs_code を除いて算出。設計書ドリフトは dev-cycle 段5 へ移管） | memory | 上昇 / 新種別出現 |
-| embedding 充足率 `docCore.embeddingCoveragePct` | doc-core | 低下 |
-| 孤立 doc `docCore.orphanDocs` | doc-core | 上昇 |
+| embedding 充足率 `docCore.embeddingCoveragePct` | markdown-catalog | 低下 |
+| 孤立 doc `docCore.orphanDocs` | markdown-catalog | 上昇 |
 | cc>15 関数数 `hotspotOver15` と `hotspots` top | trail | 上昇 / 新規高 cc 関数 |
 | SHORTCUT 技術負債 `techDebt.shortcutMarkers` / `techDebt.noTriggerMarkers` | source | 上昇 / no-trigger 増 |
 | スキル健全性 `skillHealth.brokenRefs` / `staleOver90` / `unused30d` | source+trail | 上昇 |
@@ -96,7 +96,7 @@ node .claude/skills/anytime-dev-retro/grounding.token-budget.cjs > <docsRoot>/re
 | 衛生行動の減衰 `hygiene.windows`（高コストセッションの `avgSubAgents` / `avgCompacts` を 3 期間 last7d / prior7to30d / prior30to60d で比較） | join | 直近窓が古い窓より低下（`avgMessages` が横ばいのまま低下しているときだけ「畳む行動が消えた」と読む） |
 | 超長大×compact 未使用 `hygiene.longNoCompact` | sessions | 上昇 |
 | 高コストセッション数 `hygiene.expensiveSessions` | session_costs | 上昇 |
-| 料金表未登録モデル `unknownPricingModels`（既定単価で推計中） | session_costs | 1 件以上（trail-core `pricing.ts` の現行化トリガ。レポートで必ず言及する） |
+| 料金表未登録モデル `unknownPricingModels`（既定単価で推計中） | session_costs | 1 件以上（trail-activity `pricing.ts` の現行化トリガ。レポートで必ず言及する） |
 
 `topSessions` は前回スナップショットに無い `hygieneFlag='expensive-no-compact'` の新規セッションを特に注視する。`estimated_cost_usd` は推定値（サブスク枠の相対比較用）で、絶対額でなく**占有率・デルタ・集中度**で読む。
 

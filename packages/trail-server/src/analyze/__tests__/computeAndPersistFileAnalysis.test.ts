@@ -7,9 +7,9 @@
 
 import { computeAndPersistFileAnalysis } from '../computeAndPersistFileAnalysis';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { CodeGraph } from '@anytime-markdown/trail-core/codeGraph';
-import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
-import type { FileAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
+import type { CodeGraph } from '@anytime-markdown/trail-activity/codeGraph';
+import type { ScoredFunction } from '@anytime-markdown/trail-activity/importance';
+import type { FileAnalysisRow } from '@anytime-markdown/trail-activity/deadCode';
 
 // ---------------------------------------------------------------------------
 // ヘルパー型

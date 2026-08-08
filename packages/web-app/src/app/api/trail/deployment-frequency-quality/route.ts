@@ -1,4 +1,4 @@
-import type { ReleaseQualityBucket } from '@anytime-markdown/trail-core/domain/metrics';
+import type { ReleaseQualityBucket } from '@anytime-markdown/trail-activity/domain/metrics';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { trailReaderRoute } from '../../../../lib/api-helpers';

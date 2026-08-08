@@ -14,10 +14,10 @@ const CONFIDENCE_FALLBACK = 0.3;
 
 /** 永続化層として扱う *-core パッケージ（名前ベースの補強）。 */
 const DATA_CORE_NAMES: ReadonlySet<string> = new Set([
-  'doc-core',
-  'memory-core',
+  'markdown-catalog',
+  'trail-caravan-book',
   'database-core',
-  'trail-core',
+  'trail-activity',
   'cms-core',
 ]);
 

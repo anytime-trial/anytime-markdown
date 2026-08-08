@@ -57,7 +57,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	);
 
-	// doc-core: markdown 拡張専用 catalog.db を ingest（検索は mcp-markdown が読む）。
+	// markdown-catalog: markdown 拡張専用 catalog.db を ingest（検索は mcp-markdown が読む）。
 	// docsRoot 未設定なら無効（既定オフ）。DB ドライバは node:sqlite（native 不要）。
 	// 未信頼ワークスペースでは起動しない: 悪意ある `.vscode/settings.json` が docsRoot/dbPath を
 	// 任意パスへ向けると、フォルダを開いただけでワークスペース外の再帰読取 + DB 書込が成立するため。
@@ -87,7 +87,7 @@ export function activate(context: vscode.ExtensionContext) {
 	if (vscode.workspace.isTrusted) {
 		startDocIngest();
 	} else if (docsRoot && docWsRoot) {
-		MarkdownLogger.info('doc-core ingest スキップ: ワークスペース未信頼（信頼付与後に再評価）');
+		MarkdownLogger.info('markdown-catalog ingest スキップ: ワークスペース未信頼（信頼付与後に再評価）');
 	}
 
 	// 信頼が後から付与された場合（例: 「常に信頼する」を選択）に ingest を開始する。

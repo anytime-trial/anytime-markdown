@@ -8,7 +8,7 @@ import type {
   KnowledgeBaseSnapshotEntry,
   KnowledgeBaseSnapshotResult,
   KnowledgeBaseWriteTrigger,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 import type { DbLogger } from './DbLogger';
 import { assertNotProductionWriteDuringTests } from './TrailDatabase.guard';

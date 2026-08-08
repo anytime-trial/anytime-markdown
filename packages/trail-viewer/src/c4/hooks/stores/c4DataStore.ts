@@ -23,7 +23,7 @@ import type {
   ImportanceMatrix,
   ManualGroup,
   RoleMatrix,
-} from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
 
 import type { FileAnalysisApiEntry } from '../fetchFileAnalysisApi';
 import { fetchFileAnalysis } from '../fetchFileAnalysisApi';

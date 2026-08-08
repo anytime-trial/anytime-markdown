@@ -5,7 +5,7 @@
  * 明示宣言（trail.instruction_sessions）と暗黙グループ（1 セッション = 1 指示）の
  * 両方を 1 つの結果に混ぜて返せるかが本質。
  */
-import { BetterSqlite3MemoryDb, runMigrations, type MemoryDbSqlValue } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, runMigrations, type MemoryDbSqlValue } from '@anytime-markdown/trail-caravan-book';
 import { FlightRecordDatabase } from '@anytime-markdown/trail-db';
 import * as fs from 'node:fs';
 import * as os from 'node:os';

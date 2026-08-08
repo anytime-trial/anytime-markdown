@@ -27,7 +27,7 @@ const SERVER_URL = 'http://localhost:4707';
 const SAMPLE: KnowledgeGraphResponse = {
   nodes: [
     { label: 'TrailDataServer', type: 'Concept', frequency: 4 },
-    { label: 'memory-core', type: 'Package', frequency: 2 },
+    { label: 'trail-caravan-book', type: 'Package', frequency: 2 },
   ],
   links: [{ a: 0, b: 1, strength: 2 }],
   clusters: [
@@ -99,7 +99,7 @@ describe('mountKnowledgeGraphPanel', () => {
     expect(options.showPanels).toBe(true);
     expect(options.file.spec.nodes).toEqual([
       { label: 'TrailDataServer', frequency: 4 },
-      { label: 'memory-core', frequency: 2 },
+      { label: 'trail-caravan-book', frequency: 2 },
     ]);
     // 件数表示（表示 N / 全 M 件）が出る
     expect(container.querySelector('[data-am-kg-count]')?.textContent).toBe('表示 2 / 全 29695 件');

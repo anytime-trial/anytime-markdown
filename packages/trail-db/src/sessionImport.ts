@@ -5,7 +5,7 @@
  * 取りこぼしは「メッセージが数件少ない」「セッションの model が空」という静かな形でしか
  * 現れないため、単体で固定できるようにここへ分けている。
  */
-import { extractSkillName } from '@anytime-markdown/trail-core/domain/engine';
+import { extractSkillName } from '@anytime-markdown/trail-activity/domain/engine';
 
 import { toUTC } from './dateUtils';
 import type { RawContentBlock, RawLine } from './rawLine';

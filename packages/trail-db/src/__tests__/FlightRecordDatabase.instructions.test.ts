@@ -268,7 +268,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
 
     describe('ワークスペース名はセッションのリポジトリ名を正本にする', () => {
       // worktree の `.git` は**ファイル**として実在するため、パスを遡る解決は worktree で
-      // 止まり `anytime-markdown` ではなく worktree 名を返す。memory-core 側（バグ・レビュー・
+      // 止まり `anytime-markdown` ではなく worktree 名を返す。trail-caravan-book 側（バグ・レビュー・
       // 乖離）は repos.repo_name を書いているので、この差のままだと同じワークスペースを指す
       // 2 つの名前が並び、片方のタブが必ず 0 件になる。
       let wsRoot: string;

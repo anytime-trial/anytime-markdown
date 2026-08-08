@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import type { Ignore } from 'ignore';
-import type { ScoredFunction } from '@anytime-markdown/trail-core/importance';
+import type { ScoredFunction } from '@anytime-markdown/trail-activity/importance';
 
 export interface ComputeImportanceResult {
   scored: ScoredFunction[];
@@ -16,7 +16,7 @@ export async function computeImportance(
   exclude: Ignore | undefined,
   program: import('typescript').Program,
 ): Promise<ComputeImportanceResult | null> {
-  const { TypeScriptAdapter, ImportanceAnalyzer } = await import('@anytime-markdown/trail-core/importance');
+  const { TypeScriptAdapter, ImportanceAnalyzer } = await import('@anytime-markdown/trail-activity/importance');
   const adapter = TypeScriptAdapter.fromProgram(program);
   const resolvedDir = path.dirname(path.resolve(tsconfigPath));
   const isExcluded = (sf: { isDeclarationFile: boolean; fileName: string }): boolean => {

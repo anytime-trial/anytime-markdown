@@ -3,8 +3,8 @@ import { workspacePathParam } from './workspaceParam';
 import {
   searchMemory,
   openMemoryCoreDb,
-} from '@anytime-markdown/memory-core/query';
-import type { SearchResult } from '@anytime-markdown/memory-core/query';
+} from '@anytime-markdown/trail-caravan-book/query';
+import type { SearchResult } from '@anytime-markdown/trail-caravan-book/query';
 import { createOllamaClient } from '@anytime-markdown/agent-core';
 import { resolveMemoryDbPath } from '../dbPath';
 

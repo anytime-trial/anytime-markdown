@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { C4Element } from '@anytime-markdown/trail-core';
+import type { C4Element } from '@anytime-markdown/trail-activity';
 import type Database from 'better-sqlite3';
 
 import { type DbLogger, noopDbLogger } from './DbLogger';

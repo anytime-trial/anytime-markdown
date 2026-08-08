@@ -1,4 +1,4 @@
-import type { C4Model } from '@anytime-markdown/trail-core/c4';
+import type { C4Model } from '@anytime-markdown/trail-activity/c4';
 
 import {
   canShowManualContextActions,

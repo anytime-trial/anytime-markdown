@@ -3,11 +3,11 @@ import { buildActivityTrendUrl, fetchActivityTrendApi } from '../fetchActivityTr
 describe('buildActivityTrendUrl', () => {
   it('builds URL with elementId encoded', () => {
     const url = buildActivityTrendUrl('http://x', {
-      elementId: 'pkg_trail-core/hotspot',
+      elementId: 'pkg_trail-activity/hotspot',
       period: '30d',
       granularity: 'commit',
     });
-    expect(url).toContain('elementId=pkg_trail-core%2Fhotspot');
+    expect(url).toContain('elementId=pkg_trail-activity%2Fhotspot');
     expect(url).toContain('period=30d');
     expect(url).toContain('granularity=commit');
   });

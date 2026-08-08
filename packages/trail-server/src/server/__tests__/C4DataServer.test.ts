@@ -1,5 +1,5 @@
 // Mock dependencies that TrailDataServer imports but we don't need for type guard tests
-jest.mock('@anytime-markdown/trail-core/c4', () => ({}));
+jest.mock('@anytime-markdown/trail-activity/c4', () => ({}));
 jest.mock('ws', () => ({ WebSocketServer: jest.fn() }));
 
 import { isClientMessage } from '../TrailDataServer';

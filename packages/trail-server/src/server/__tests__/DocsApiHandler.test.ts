@@ -7,11 +7,11 @@ import { DocsApiHandler } from '../DocsApiHandler';
 import type { DocsApiNotifier, DocsApiC4Resolver } from '../DocsApiHandler';
 
 // fetchC4Model is used in handleDocsIndex — mock it so we don't need a real DB
-jest.mock('@anytime-markdown/trail-core/c4', () => ({
+jest.mock('@anytime-markdown/trail-activity/c4', () => ({
   fetchC4Model: jest.fn(),
 }));
 
-import { fetchC4Model } from '@anytime-markdown/trail-core/c4';
+import { fetchC4Model } from '@anytime-markdown/trail-activity/c4';
 const mockFetchC4Model = fetchC4Model as jest.Mock;
 
 function makeMockRes() {

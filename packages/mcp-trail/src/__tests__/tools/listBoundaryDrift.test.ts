@@ -7,7 +7,7 @@ import {
   CREATE_BOUNDARY_DRIFT_INDEXES,
   CREATE_BOUNDARY_DRIFT_RUNS,
   CREATE_BOUNDARY_DRIFT_WARNINGS,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 
 import { handleListBoundaryDrift } from '../../tools/listBoundaryDrift';
 

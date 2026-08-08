@@ -19,7 +19,7 @@ const config = {
   moduleFileExtensions: ["tsx", "ts", "js", "json"],
   // node_modules のワークスペース symlink は worktree ではメインの packages/ を指すため、
   // 兄弟ソースへ明示マップする。マップは各パッケージの exports から導出し、手書きの
-  // ワイルドカードで規約外 subpath（trail-core の ./c4/services 等）を取りこぼさない。
+  // ワイルドカードで規約外 subpath（trail-activity の ./c4/services 等）を取りこぼさない。
   moduleNameMapper: {
     ...buildModuleNameMapperFromExports({
       packageName: "@anytime-markdown/ui-core",
@@ -28,9 +28,9 @@ const config = {
       conditions: JSDOM_CONDITIONS,
     }),
     ...buildModuleNameMapperFromExports({
-      packageName: "@anytime-markdown/trail-core",
-      exports: require("../trail-core/package.json").exports,
-      rootToken: "<rootDir>/../trail-core",
+      packageName: "@anytime-markdown/trail-activity",
+      exports: require("../trail-activity/package.json").exports,
+      rootToken: "<rootDir>/../trail-activity",
       conditions: JSDOM_CONDITIONS,
     }),
   },

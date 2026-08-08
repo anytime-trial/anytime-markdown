@@ -6,7 +6,7 @@ import {
   ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS,
   CREATE_DOCTRINE_JUDGMENTS,
   CREATE_DOCTRINE_JUDGMENT_INDEXES,
-} from '@anytime-markdown/trail-core';
+} from '@anytime-markdown/trail-activity';
 import type { ResolvedCitation } from '../doctrine/resolveCitations';
 import type { CoverageGateResult } from '../doctrine/coverageGate';
 
@@ -109,11 +109,11 @@ export interface DoctrineAgreementMetrics {
 
 /**
  * テーブルは拡張 (TrailDatabase) 側でも作成されるが、拡張の再ビルド・再配布より
- * 先に本ツールが動けるよう、書込前に冪等作成する (DDL は trail-core が単一の正)。
+ * 先に本ツールが動けるよう、書込前に冪等作成する (DDL は trail-activity が単一の正)。
  */
 /**
  * テーブル本体より後に追加した列。既存 DB には ALTER TABLE で足す (純追加・既存行は
- * NULL のまま)。DDL は trail-core の CREATE 文と同じ制約を書き写す。
+ * NULL のまま)。DDL は trail-activity の CREATE 文と同じ制約を書き写す。
  */
 const ADDED_COLUMNS: ReadonlyArray<{ readonly name: string; readonly ddl: string }> = [
   {

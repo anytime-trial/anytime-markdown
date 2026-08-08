@@ -5,7 +5,7 @@ import type {
   C4Model,
   FeatureMatrix,
   ManualGroup,
-} from '@anytime-markdown/trail-core/c4';
+} from '@anytime-markdown/trail-activity/c4';
 
 import { isModelPayload, readJson } from './c4WsMessages';
 

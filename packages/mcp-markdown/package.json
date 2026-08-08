@@ -15,7 +15,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@anytime-markdown/doc-core": "*",
+    "@anytime-markdown/markdown-catalog": "*",
     "@anytime-markdown/markdown-editor": "*",
     "@anytime-markdown/section-lock-core": "*",
     "@modelcontextprotocol/sdk": "1.27.1",

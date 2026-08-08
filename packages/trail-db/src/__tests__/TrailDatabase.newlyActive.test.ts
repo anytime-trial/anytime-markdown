@@ -1,7 +1,7 @@
 // Phase 6 S5-D: newly_active 列の往復と、判定入力となる churn クエリ。
 import { TrailDatabase } from '../TrailDatabase';
 import { createTestTrailDatabase } from './support/createTestDb';
-import type { FileAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
+import type { FileAnalysisRow } from '@anytime-markdown/trail-activity/deadCode';
 
 type SqlJsDb = { run: (sql: string, params?: ReadonlyArray<unknown>) => void };
 

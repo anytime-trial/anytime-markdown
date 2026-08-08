@@ -1,6 +1,6 @@
 /**
  * /api/c4/call-hierarchy (GET) の characterization test
- * 外部依存 (supabase, trail-core) をすべてモックして境界値を検証する。
+ * 外部依存 (supabase, trail-activity) をすべてモックして境界値を検証する。
  */
 
 export {}; // tsc -b: module 化して top-level 宣言の global 衝突(TS2451/TS2393)を防ぐ
@@ -11,7 +11,7 @@ const mockBuildNodeFilter = jest.fn();
 const mockResolveSupabaseEnv = jest.fn();
 const mockCreateClient = jest.fn();
 
-jest.mock('@anytime-markdown/trail-core/c4/callHierarchy', () => ({
+jest.mock('@anytime-markdown/trail-activity/c4/callHierarchy', () => ({
   buildIndex: mockBuildIndex,
   traverse: mockTraverse,
   buildCallHierarchyNodeFilter: mockBuildNodeFilter,

@@ -1,6 +1,6 @@
 import { createTestTrailDatabase } from './support/createTestDb';
 import type { TrailDatabase } from '../TrailDatabase';
-import type { FileAnalysisRow } from '@anytime-markdown/trail-core/deadCode';
+import type { FileAnalysisRow } from '@anytime-markdown/trail-activity/deadCode';
 
 const sample = (filePath: string, deadCodeScore: number): FileAnalysisRow => ({
   repoName: 'repo',

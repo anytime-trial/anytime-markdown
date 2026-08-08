@@ -1,7 +1,7 @@
 // GitStateService.ts — track git HEAD per session to detect new commits after Bash tool use
 
 import { execFileSync } from 'node:child_process';
-import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
+import { resolveGitExecutable } from '@anytime-markdown/trail-activity/gitExecutable';
 import fs from 'node:fs';
 import path from 'node:path';
 

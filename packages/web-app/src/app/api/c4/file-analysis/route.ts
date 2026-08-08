@@ -1,5 +1,5 @@
-import { fetchC4Model } from "@anytime-markdown/trail-core/c4";
-import { aggregateScoresToC4 } from "@anytime-markdown/trail-core/deadCode";
+import { fetchC4Model } from "@anytime-markdown/trail-activity/c4";
+import { aggregateScoresToC4 } from "@anytime-markdown/trail-activity/deadCode";
 import { createClient } from '@supabase/supabase-js';
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";

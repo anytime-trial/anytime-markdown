@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 
-import { DEFAULT_CONVERSATION_BACKFILL_DAYS, LEP_STAGES, type LepStage } from '@anytime-markdown/memory-core';
+import { DEFAULT_CONVERSATION_BACKFILL_DAYS, LEP_STAGES, type LepStage } from '@anytime-markdown/trail-caravan-book';
 
 import type { Logger } from './Logger';
 
@@ -116,7 +116,7 @@ export interface LepConversationConfig {
   backfillDays: number;
 }
 
-/** memory-core 取込・検索のパラメータ群 (旧 config.json `memory.*` から統合)。 */
+/** trail-caravan-book 取込・検索のパラメータ群 (旧 config.json `memory.*` から統合)。 */
 export interface LepMemoryConfig {
   rag: LepRagConfig;
   fts: LepFtsConfig;

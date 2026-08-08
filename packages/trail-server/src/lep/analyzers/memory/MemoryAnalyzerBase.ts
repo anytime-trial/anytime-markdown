@@ -4,7 +4,7 @@ import type {
   AnalyzerEvent,
   MemoryDbSession,
   ScopeResult,
-} from '@anytime-markdown/memory-core';
+} from '@anytime-markdown/trail-caravan-book';
 
 import { evaluateLlmRequirement, ollamaUnavailableHint } from '../../LlmAvailability';
 import type { MemoryWaveSessionProvider } from './MemoryWaveSessionProvider';
@@ -12,9 +12,9 @@ import type { MemoryWaveSessionProvider } from './MemoryWaveSessionProvider';
 /**
  * Layer 3 (memory) analyzer の共通基底。
  *
- * 各 analyzer は memory-core の特定 scope を 1 つ担当する薄いラッパで、共有
+ * 各 analyzer は trail-caravan-book の特定 scope を 1 つ担当する薄いラッパで、共有
  * {@link MemoryWaveSessionProvider} からセッションを取得して scope メソッドを呼ぶ。
- * cursor 管理 (`memory_pipeline_state`) は memory-core 側 (run*Incremental) に閉じている。
+ * cursor 管理 (`memory_pipeline_state`) は trail-caravan-book 側 (run*Incremental) に閉じている。
  *
  * `wave_start:memory` を購読する (Wave 3 開始時に発火)。stage=memory の単独実行
  * (Wave 1/2 skip で `wave_complete:primary` が出ない) でも発火するため、stage に依存しない。
@@ -62,7 +62,7 @@ export abstract class MemoryAnalyzerBase implements Analyzer {
 
     const session = await this.provider.ensure();
     if (!session) {
-      ctx.logger.info(`[${this.id}] skip: memory-core session unavailable (activity.db missing)`);
+      ctx.logger.info(`[${this.id}] skip: trail-caravan-book session unavailable (activity.db missing)`);
       return;
     }
 

@@ -1,10 +1,10 @@
-import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, resolveDrift } from '@anytime-markdown/memory-core';
-import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/memory-core';
+import { BetterSqlite3MemoryDb, attachTrailDbReadOnly, resolveDrift } from '@anytime-markdown/trail-caravan-book';
+import type { MemoryDbConnection, MemoryDbSqlValue as SqlValue } from '@anytime-markdown/trail-caravan-book';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { aggregateDriftByDay } from '@anytime-markdown/trail-core';
-import type { DriftHistoryPoint, RationaleNode } from '@anytime-markdown/trail-core';
+import { aggregateDriftByDay } from '@anytime-markdown/trail-activity';
+import type { DriftHistoryPoint, RationaleNode } from '@anytime-markdown/trail-activity';
 import type { Logger } from '../runtime/Logger';
 
 // ---------------------------------------------------------------------------
@@ -280,7 +280,7 @@ export class MemoryApiHandler {
   /**
    * better-sqlite3 の native binary 絶対パス。webpack-bundled VS Code 拡張で
    * bindings package が call stack から `.node` を推測できず crash する問題の
-   * 回避策 (memory-core / TrailDatabase と同パターン)。
+   * 回避策 (trail-caravan-book / TrailDatabase と同パターン)。
    * 未指定なら bindings の通常解決 (= テスト・スタンドアロン用途) に任せる。
    */
   private readonly nativeBinding?: string;
@@ -383,7 +383,7 @@ export class MemoryApiHandler {
   // ---- drift events ----
 
   /**
-   * memory-core が保持するワークスペース（repo_name）の一覧。
+   * trail-caravan-book が保持するワークスペース（repo_name）の一覧。
    *
    * Flight Record のワークスペース選択肢に使う。一覧 API の結果から作らないのは、
    * limit と絞り込みで縮んだ窓に出てこないワークスペースが選択肢から消え、
@@ -1280,7 +1280,7 @@ export class MemoryApiHandler {
   /**
    * Phase 6 S5-C: ドリフト件数の日次推移を返す。
    * SQL は単純な範囲スキャンに留め、日次バケット化（JST 境界・0 埋め・未解決累計）は
-   * trail-core の純粋関数で行う（sql.js は CTE + window の組み合わせで性能が崩れるため）。
+   * trail-activity の純粋関数で行う（sql.js は CTE + window の組み合わせで性能が崩れるため）。
    */
   async listDriftHistoryByDay(params: {
     since?: string;

@@ -2,8 +2,8 @@
  * Matrix canvas vanilla factories — jsdom mount/update/destroy tests.
  * No pixel assertions. Verifies DOM creation, listener wiring, cleanup.
  */
-import type { CoverageMatrix, C4Model, DsmMatrix, FeatureMatrix, HeatmapMatrix } from '@anytime-markdown/trail-core/c4';
-import type { FlowGraph } from '@anytime-markdown/trail-core/analyzer';
+import type { CoverageMatrix, C4Model, DsmMatrix, FeatureMatrix, HeatmapMatrix } from '@anytime-markdown/trail-activity/c4';
+import type { FlowGraph } from '@anytime-markdown/trail-activity/analyzer';
 
 import { mountCoverageCanvas } from '../coverageCanvas';
 import { mountDsmCanvas } from '../dsmCanvas';

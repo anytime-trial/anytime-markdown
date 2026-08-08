@@ -151,7 +151,7 @@ describe('AnalyzeAllRunner', () => {
 
     const status = await runner.runOnce('manual');
     expect(save).toHaveBeenCalledTimes(1);
-    expect(status.lastError).toContain('memory-core: mem boom');
+    expect(status.lastError).toContain('trail-caravan-book: mem boom');
     expect(status.ticksRun).toBe(0);
   });
 
@@ -167,7 +167,7 @@ describe('AnalyzeAllRunner', () => {
 
     const status = await runner.runOnce('manual');
     expect(status.lastError).toContain('importAll: save boom');
-    expect(status.lastError).toContain('memory-core: mem boom');
+    expect(status.lastError).toContain('trail-caravan-book: mem boom');
     expect(status.ticksRun).toBe(0);
   });
 
@@ -242,8 +242,8 @@ describe('AnalyzeAllRunner', () => {
     expect(status.lastError).toBeNull();
   });
 
-  it('AnalyzeAllRunner pause is the only gate (memory-core internal pause is irrelevant)', async () => {
-    // Step 3d: memory analyzer は openScopeSession を直接呼ぶため memory-core の
+  it('AnalyzeAllRunner pause is the only gate (trail-caravan-book internal pause is irrelevant)', async () => {
+    // Step 3d: memory analyzer は openScopeSession を直接呼ぶため trail-caravan-book の
     // 内部 pause を参照しない。AnalyzeAllRunner 自身の pause のみが実行を制御する。
     const fake = makeFakeScopeSession();
     const memoryCore = makeMemoryCoreWithSession(dir, fake.session);
@@ -255,7 +255,7 @@ describe('AnalyzeAllRunner', () => {
     });
     expect(runner.getStatus().paused).toBe(false);
     const status = await runner.runOnce('periodic');
-    expect(fake.calls.length).toBe(7); // memory-core pause に関係なく走る
+    expect(fake.calls.length).toBe(7); // trail-caravan-book pause に関係なく走る
     expect(status.ticksRun).toBe(1);
     expect(status.lastError).toBeNull();
   });
