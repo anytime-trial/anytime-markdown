@@ -30,8 +30,21 @@ function resolveDbDir() {
 
 const DB_DIR = resolveDbDir();
 
+// catalog.db（ドキュメント検索・旧 doc-core.db）は trail DB 群と別系統で
+// <workspace>/.anytime/markdown に置かれる（owner は markdown 拡張の ingest）。
+// trail 側 DB_DIR から開くと通常環境で常に不在エラーになり docCore 指標が測定不能になる。
+// 移行前ワークスペース（旧名のみ実在）は旧名へフォールバックする。
+function resolveDocDbPath() {
+  const dir = path.join(process.cwd(), '.anytime', 'markdown');
+  const current = path.join(dir, 'catalog.db');
+  if (fs.existsSync(current)) return current;
+  const legacy = path.join(dir, 'doc-core.db');
+  if (fs.existsSync(legacy)) return legacy;
+  return current;
+}
+
 function open(file) {
-  const p = path.join(DB_DIR, file);
+  const p = path.isAbsolute(file) ? file : path.join(DB_DIR, file);
   try {
     return { db: new DatabaseSync(p, { readOnly: true }), error: null };
   } catch (e) {
@@ -275,7 +288,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
 
 // ── catalog.db: セマンティック検索充足 ────────────────────────────────────────
 {
-  const { db, error } = open('catalog.db');
+  const { db, error } = open(resolveDocDbPath());
   if (error) snapshot.errors.push(error);
 
   const docs = num(q(db, 'SELECT COUNT(*) c FROM doc'), 'c');

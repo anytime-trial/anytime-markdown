@@ -76,3 +76,78 @@ describe('resolveDbWithLegacyRename', () => {
     expect(warnings.some((m) => m.includes('failed to rename'))).toBe(true);
   });
 });
+
+describe('resolveDbWithLegacyRename: owner 間の並行 rename 排他', () => {
+  let dir: string;
+  let warnings: string[];
+  const warn = (m: string) => warnings.push(m);
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-db-rename-lock-'));
+    warnings = [];
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const touch = (name: string, body = 'x') => fs.writeFileSync(path.join(dir, name), body);
+
+  it('ロックが他プロセスに保持されている間は移行を見送り、実在する旧名を開く', () => {
+    touch('trail.db', 'base');
+    touch('activity.db.rename-lock');
+
+    const r = resolveDbWithLegacyRename({
+      dir,
+      current: 'activity.db',
+      legacy: 'trail.db',
+      warn,
+      lockWaitTotalMs: 100,
+    });
+
+    expect(r).toEqual({ path: path.join(dir, 'trail.db'), renamed: false });
+    expect(fs.existsSync(path.join(dir, 'trail.db'))).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'activity.db'))).toBe(false);
+    expect(warnings.some((m) => m.includes('rename lock busy'))).toBe(true);
+  });
+
+  it('stale なロック（60 秒超）は除去して移行を実施する', () => {
+    touch('trail.db', 'base');
+    const lock = path.join(dir, 'activity.db.rename-lock');
+    touch('activity.db.rename-lock');
+    const old = new Date(Date.now() - 120_000);
+    fs.utimesSync(lock, old, old);
+
+    const r = resolveDbWithLegacyRename({
+      dir,
+      current: 'activity.db',
+      legacy: 'trail.db',
+      warn,
+      lockWaitTotalMs: 500,
+    });
+
+    expect(r).toEqual({ path: path.join(dir, 'activity.db'), renamed: true });
+    expect(fs.existsSync(lock)).toBe(false);
+    expect(warnings.some((m) => m.includes('stale rename lock'))).toBe(true);
+  });
+
+  it('rename 失敗時に旧名が消え新名が実在すれば（他プロセスが移設済み）新名を返す', () => {
+    touch('trail.db', 'base');
+    const failingRename = () => {
+      // ロックを知らない他プロセス（旧ビルド等）が同瞬間に移設を完了した状況を再現する
+      fs.renameSync(path.join(dir, 'trail.db'), path.join(dir, 'activity.db'));
+      throw Object.assign(new Error('ENOENT (simulated)'), { code: 'ENOENT' });
+    };
+
+    const r = resolveDbWithLegacyRename({
+      dir,
+      current: 'activity.db',
+      legacy: 'trail.db',
+      warn,
+      renameFn: failingRename,
+    });
+
+    expect(r).toEqual({ path: path.join(dir, 'activity.db'), renamed: false });
+    expect(warnings.some((m) => m.includes('already migrated'))).toBe(true);
+  });
+});

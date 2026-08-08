@@ -51,7 +51,14 @@ function resolveWorkspaceRootForLedger(startDir) {
   }
 }
 
-/** TRAIL_HOME 規約（env → <workspaceRoot>/.anytime/trail）で activity.db のパスを解決する。 */
+/**
+ * TRAIL_HOME 規約（env → <workspaceRoot>/.anytime/trail）で activity.db のパスを解決する。
+ *
+ * DB ファイル名変更（trail.db→activity.db・2026-08-08）移行前のワークスペース（旧名のみ実在）
+ * では旧名へフォールバックする。本スクリプトはサイドカーであり物理リネームは owner
+ * （拡張・デーモン）に任せる — ここで新名の空 DB を作ると owner の移行が「新名実在」で
+ * skip され、既存台帳が旧名側に座礁する。
+ */
 export function resolveTrailDbPath(workspaceRoot) {
   const home = process.env.TRAIL_HOME ?? path.join(resolveWorkspaceRootForLedger(workspaceRoot), '.anytime', 'trail');
   if (PROTECTED_ROOT_PATTERNS.some((p) => p.test(home))) {
@@ -59,7 +66,11 @@ export function resolveTrailDbPath(workspaceRoot) {
       `[verification-db] refusing protected path "${home}". Set TRAIL_HOME to a workspace-local dir or pass workspaceRoot.`,
     );
   }
-  return path.join(home, 'db', 'activity.db');
+  const currentPath = path.join(home, 'db', 'activity.db');
+  if (fs.existsSync(currentPath)) return currentPath;
+  const legacyPath = path.join(home, 'db', 'trail.db');
+  if (fs.existsSync(legacyPath)) return legacyPath;
+  return currentPath;
 }
 
 // tables.ts の TS_GLOB_MS / TS_GLOB_NO_MS と同値。CHECK まで含めて一致していないと、
