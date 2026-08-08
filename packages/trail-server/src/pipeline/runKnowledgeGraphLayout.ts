@@ -84,6 +84,23 @@ function readStoredVersion(db: CaravanDbConnection): string | null {
   }
 }
 
+/**
+ * 有効エッジ次数。**多重度を数える**（同じ 2 点間に 2 本あれば両端とも 2 加算）。
+ *
+ * `Graph#degree` を使わないのは、`buildGraph` が平行辺を 1 本に畳むため値がずれるから。
+ * 配信側（`CaravanApiHandler` の `deg` CTE）はエッジ 1 行ごとに数えており、そちらが
+ * `frequency` の定義（画面設計書 §2.2）である。ここが食い違うと、同じノードの円の
+ * 大きさが視野の取り方で変わる。
+ */
+function computeDegrees(edges: readonly EdgeRow[]): Map<string, number> {
+  const degrees = new Map<string, number>();
+  for (const { s, o } of edges) {
+    degrees.set(s, (degrees.get(s) ?? 0) + 1);
+    degrees.set(o, (degrees.get(o) ?? 0) + 1);
+  }
+  return degrees;
+}
+
 function buildGraph(edges: readonly EdgeRow[]): Graph {
   const graph = new Graph({ type: 'undirected' });
   for (const { s, o } of edges) {
@@ -138,6 +155,7 @@ export function runKnowledgeGraphLayout(opts: {
     }
 
     const graph = buildGraph(edges);
+    const degrees = computeDegrees(edges);
     const { communities } = new GraphClusterer().cluster(graph);
     new GraphLayout().apply(graph, LAYOUT_ITERATIONS);
 
@@ -155,12 +173,13 @@ export function runKnowledgeGraphLayout(opts: {
         return;
       }
       db.run(
-        `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, graph_version, recorded_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, degree, graph_version, recorded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(entity_id) DO UPDATE SET
            x = excluded.x, y = excluded.y, community_id = excluded.community_id,
+           degree = excluded.degree,
            graph_version = excluded.graph_version, recorded_at = excluded.recorded_at`,
-        [nodeId, x, y, communities[nodeId] ?? 0, graphVersion, recordedAt],
+        [nodeId, x, y, communities[nodeId] ?? 0, degrees.get(nodeId) ?? 0, graphVersion, recordedAt],
       );
       stored += 1;
     });

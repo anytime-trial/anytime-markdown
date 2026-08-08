@@ -432,3 +432,109 @@ describe('CaravanApiHandler.getKnowledgeGraph — server-side layout', () => {
     expect(result?.nodes.length).toBe(4);
   });
 });
+
+
+/**
+ * migration 027 適用済み（`degree` 列あり）の DB。視野指定はここで索引駆動の高速経路へ入る。
+ * 遅い経路との差は `frequency` が全体次数か視野内次数かに出るので、そこで経路を見分ける。
+ */
+describe('CaravanApiHandler.getKnowledgeGraph — viewport fast path', () => {
+  let tmpDir: string;
+  let dbPath: string;
+  let handler: CaravanApiHandler;
+
+  function addLayoutTableWithDegree(): void {
+    const db = new BetterSqlite3(dbPath);
+    db.exec(`CREATE TABLE caravan_entity_layout (
+      entity_id TEXT PRIMARY KEY, x REAL NOT NULL, y REAL NOT NULL,
+      community_id INTEGER NOT NULL, graph_version TEXT NOT NULL, recorded_at TEXT NOT NULL,
+      degree INTEGER NOT NULL DEFAULT 0) STRICT`);
+    const ins = db.prepare(
+      `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, graph_version, recorded_at, degree)
+       VALUES (?, ?, ?, 0, 'v1', ?, ?)`,
+    );
+    // 全体次数: e1=4（e1-e2 ×2 / e1-e3 / e1-e4）, e2=3, e3=2, e4=1
+    ins.run('e1', 10.5, -20.5, TS, 4);
+    ins.run('e2', 30, 40, TS, 3);
+    ins.run('e3', -5, 5, TS, 2);
+    ins.run('e4', 1, 2, TS, 1);
+    db.close();
+  }
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-viewport-fast-'));
+    dbPath = path.join(tmpDir, 'caravan-book.db');
+    buildKnowledgeGraphDb(dbPath);
+    addLayoutTableWithDegree();
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+  });
+
+  afterEach(() => {
+    handler.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns the same in-view nodes as the scanning path, ranked by stored degree', async () => {
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
+    });
+
+    expect(result?.bboxApplied).toBe(true);
+    expect(result?.nodes.map((n) => n.label)).toEqual(['TrailDataServer', 'server.ts', 'FTS crash']);
+    // frequency は保存済みの**全体**次数。視野内次数（2）ではない — 拡大しても円の大きさが
+    // 変わらないことが視野駆動の前提（画面設計書 §2.2）
+    expect(result?.nodes[0]?.frequency).toBe(4);
+    expect(result?.links).toHaveLength(2);
+    expect(result?.truncated).toBe(false);
+  });
+
+  it('keeps the coordinates so the client can skip layout entirely', async () => {
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
+    });
+
+    expect(result?.nodes.map((n) => [n.x, n.y])).toEqual([[10.5, -20.5], [-5, 5], [1, 2]]);
+  });
+
+  it('never returns an in-view node whose only partners are outside the viewport', async () => {
+    // e2(30,40) と e4(1,2) は視野に入るが互いに繋がっていない。相手が画面外の点は描けない
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: 0, minY: 0, maxX: 35, maxY: 45 },
+    });
+
+    expect(result?.nodes).toEqual([]);
+    expect(result?.links).toEqual([]);
+    // 視野の中に繋がっているノードは在る（出せていないだけ）ことを隠さない
+    expect(result?.truncated).toBe(true);
+  });
+
+  it('filters by entity type inside the viewport', async () => {
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
+      types: ['Concept'],
+    });
+
+    // 視野内の Concept は e1 のみ。相手（e2）が視野外なのでリンクが引けず、選ばれない
+    expect(result?.nodes).toEqual([]);
+    expect(result?.availableTypes).toEqual(['Bug', 'Concept', 'File']);
+  });
+
+  it('honours the limit while keeping every returned node linked', async () => {
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
+      limit: 2,
+    });
+
+    expect(result?.nodes.map((n) => n.label)).toEqual(['TrailDataServer', 'server.ts']);
+    expect(result?.links).toEqual([{ a: 0, b: 1, strength: 1 }]);
+    expect(result?.truncated).toBe(true);
+  });
+
+  it('keeps the whole-database denominator', async () => {
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
+    });
+
+    expect(result?.totalEntityCount).toBe(6);
+  });
+});

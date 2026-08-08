@@ -75,6 +75,18 @@ describe('runKnowledgeGraphLayout', () => {
     expect(xs.size).toBeGreaterThan(1);
   });
 
+  it('stores the active-edge degree with multiplicity for every node', () => {
+    // 平行辺を足す。配信側（deg CTE）はエッジ 1 行ごとに数えるため、保存する次数も
+    // 多重度を数えなければ同じノードの円の大きさが経路で変わる
+    insertEdge(db, 'e6', 'a', 'b');
+    runKnowledgeGraphLayout({ db, recordedAt: TS });
+
+    const rows = db.exec(`SELECT entity_id, degree FROM caravan_entity_layout ORDER BY entity_id`);
+    expect(rows[0]?.values.map((r) => [String(r[0]), Number(r[1])])).toEqual([
+      ['a', 3], ['b', 3], ['c', 3], ['d', 1],
+    ]);
+  });
+
   it('skips recomputation while the edge set is unchanged', () => {
     const first = runKnowledgeGraphLayout({ db, recordedAt: TS });
     const second = runKnowledgeGraphLayout({ db, recordedAt: TS });
