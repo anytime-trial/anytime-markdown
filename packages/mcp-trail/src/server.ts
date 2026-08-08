@@ -47,6 +47,7 @@ import {
   EvaluateApprovalPolicyInputSchema,
 } from './tools/oddPolicy.js';
 import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './tools/getDoctrineAgreement.js';
+import { handleGetThreatFramework, GetThreatFrameworkInputSchema } from './tools/getThreatFramework.js';
 import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
@@ -542,6 +543,17 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = handleGetOddPolicy(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_threat_framework',
+    { description: "Return the agentic threat framework (5 tactics, 17 techniques ADR.T0001-T0017) ported from Uber's ADR (Apache-2.0). Read-only static data compiled into trail-core — no DB or network access. Use it to ground threat analysis of agent sessions: pass `tactic` to narrow to one tactic's techniques, omit it for the full framework. Each technique carries id / name / jaName / description.", inputSchema: {
+      tactic: GetThreatFrameworkInputSchema.shape.tactic,
+    }, },
+    async (args) => {
+      const result = handleGetThreatFramework(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
