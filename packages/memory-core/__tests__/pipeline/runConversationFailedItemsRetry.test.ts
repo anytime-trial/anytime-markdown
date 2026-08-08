@@ -127,7 +127,7 @@ describe('runConversationFailedItemsRetry', () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
 
-    // trail.db: 1 session with 1 user message
+    // activity.db: 1 session with 1 user message
     insertSession(trailDb, 'sess_f1');
     insertMessage(trailDb, 'msg_f1', 'sess_f1', 'user', '2026-05-10T00:00:00.000Z', 'retry me');
     attachTrailDbFromHandle(memDb, trailDb);
@@ -293,8 +293,8 @@ describe('runConversationFailedItemsRetry', () => {
     memDb.close();
   }, 30000);
 
-  // ── F4: episode missing from trail.db → recorded as episode_not_found ──────
-  test('F4: missing trail.db episode is recorded as episode_not_found', async () => {
+  // ── F4: episode missing from activity.db → recorded as episode_not_found ──────
+  test('F4: missing activity.db episode is recorded as episode_not_found', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
     // No session/message inserted — reconstruction will fail

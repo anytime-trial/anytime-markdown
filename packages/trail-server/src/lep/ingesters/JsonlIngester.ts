@@ -12,7 +12,7 @@ const UUID_RE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
 
 /**
  * Step 2b 以降の `SessionImporter` が「既にこの mainFile を import 済みか」を
- * 判定するための、当該 trail.db 行の現状値を返すフック。
+ * 判定するための、当該 activity.db 行の現状値を返すフック。
  */
 export type ImportedFilesProvider = (mainFile: string) => { fileSize: number; hasMessages: boolean; hasUsableCostData: boolean } | undefined;
 
@@ -22,7 +22,7 @@ export interface JsonlIngesterOptions {
   /** monitored repos (Codex 以外含む)。fallback repoName 解決に使用 */
   readonly repoName?: string;
   /**
-   * trail.db の既存 import 状態をルックアップする (省略可)。
+   * activity.db の既存 import 状態をルックアップする (省略可)。
    * Step 2a 時点で SessionImporter は未実装のため、未指定の場合は全件「未 import 扱い」で emit する。
    */
   readonly importedFilesProvider?: ImportedFilesProvider;

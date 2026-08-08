@@ -84,9 +84,9 @@ program
     // CLI は standalone（typescript 同梱）のため /api/trail/refresh の release 解析は
     // in-process `analyze` を analyzeReleaseFn として注入する（daemon は analyze-child へ委譲）。
     const { analyze } = await import('@anytime-markdown/trail-core/analyze');
-    // memory-core.db は trail.db と同じ dbStorageDir に置かれる。ここで明示的に渡す
+    // caravan-book.db は activity.db と同じ dbStorageDir に置かれる。ここで明示的に渡す
     // （MemoryApiHandler 側の cwd 基準の暗黙解決を廃したため。解決結果は従来と同一）。
-    const memoryDbPath = join(dbStorageDir, 'memory-core.db');
+    const memoryDbPath = join(dbStorageDir, 'caravan-book.db');
     const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0], memoryDbPath, undefined, analyze);
 
     // nativeBinding: webpack-bundled 実行時は bindings package の getFileName が
@@ -271,7 +271,7 @@ program
     const memoryCorePrimaryGitRoot = effectiveGitRoots[0];
     const memoryCoreService = new MemoryCoreService({
       logSink: memoryCoreLogSink,
-      trailDbPath: join(dbStorageDir, 'trail.db'),
+      trailDbPath: join(dbStorageDir, 'activity.db'),
       ...(memoryCorePrimaryGitRoot ? { gitRoot: memoryCorePrimaryGitRoot } : {}),
       statePath: join(TRAIL_HOME, 'memory-core-runner.json'),
       backfillDays: lepConfig.memory.conversation.backfillDays,
@@ -325,9 +325,9 @@ program
     // (= VS Code 拡張の anytime-trail.analyzeAll コマンドと同じデータフロー)。
     // メモリ取込が import より先に走ってしまうレースを避けるため 1 runner に統合済。
     // pause/resume は AnalyzeAllRunner が一元管理する (旧 memory-core 側の pause は使われない)。
-    // Wave 1/2/4 の実行台帳。Wave 3 のセッションと同じ memory-core.db を共有するため
+    // Wave 1/2/4 の実行台帳。Wave 3 のセッションと同じ caravan-book.db を共有するため
     // WAL で開き、migration はここで走らせない (スキーマの所有は memory-core 側)。
-    // memory-core.db が未作成の間は pipeline_runs が無いので記録を諦める (null 返し)。
+    // caravan-book.db が未作成の間は pipeline_runs が無いので記録を諦める (null 返し)。
     const ledgerCoreDb = await openMemoryCoreDb(memoryDbPath, {
       ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
     });
@@ -407,7 +407,7 @@ program
       version: VERSION,
       startedAt: new Date().toISOString(),
       startedBy: 'cli',
-      dbPath: join(dbStorageDir, 'trail.db'),
+      dbPath: join(dbStorageDir, 'activity.db'),
       gitRoots,
       viewerDistPath: distPath,
       pidStartTime: Date.now(),

@@ -24,6 +24,9 @@ export type { ServiceEntry } from './c4/services/catalog';
 // 専用 subpath '@anytime-markdown/trail-core/c4/services' からのみ import 可能とし、
 // main index からは値 export しない (共通 barrel に UI 用の重い定数を載せないため)。
 
+// ADR 由来の脅威検知資産（分類・プロンプト・パーサ）
+export * from './threat';
+
 export { computeTemporalCoupling } from './temporalCoupling/computeTemporalCoupling';
 export { computeSessionCoupling } from './temporalCoupling/computeSessionCoupling';
 export { computeSubagentTypeCoupling } from './temporalCoupling/computeSubagentTypeCoupling';

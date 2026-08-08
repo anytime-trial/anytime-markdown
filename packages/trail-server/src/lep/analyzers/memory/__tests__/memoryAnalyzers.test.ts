@@ -124,7 +124,7 @@ describe('memory analyzers', () => {
     await expect(new CodeMemoryAnalyzer(provider).onEvent(primaryEvent, makeCtx())).rejects.toThrow('CodeMemoryAnalyzer failed');
   });
 
-  it('skips silently when session factory returns null (trail.db missing)', async () => {
+  it('skips silently when session factory returns null (activity.db missing)', async () => {
     const provider = new MemoryWaveSessionProvider(async () => null);
     await expect(new CodeMemoryAnalyzer(provider).onEvent(primaryEvent, makeCtx())).resolves.toBeUndefined();
   });

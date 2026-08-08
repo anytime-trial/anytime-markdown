@@ -1,5 +1,5 @@
 /**
- * 抽出済みドキュメントを doc-core.db へ永続化する（doc / doc_relation / doc_fts）。
+ * 抽出済みドキュメントを catalog.db へ永続化する（doc / doc_relation / doc_fts）。
  * doc_relation・doc_fts は当該 path で洗い替え（DELETE→INSERT）して冪等にする。
  */
 

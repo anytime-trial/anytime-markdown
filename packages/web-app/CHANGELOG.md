@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.46.1] - 2026-08-08
+
+### Changed
+
+- The C4 file / function analysis APIs no longer query release-scoped analysis. A non-`current` tag returns empty before any Supabase round trip, so it no longer spends egress on a table that has been dropped.
+
 ## [0.46.0] - 2026-08-04
 
 ### Added

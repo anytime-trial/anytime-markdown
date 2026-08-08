@@ -168,23 +168,11 @@ export class SyncService {
       if (rows.length > 0) await this.store.upsertCurrentFileAnalysis(rows);
     }, 'Failed to sync current file analysis');
 
-    errors += await this.syncStep('Syncing release file analysis...', onProgress, async () => {
-      const rows = this.trailDb.getAllReleaseFileAnalysis();
-      await this.store.unsafeClearReleaseFileAnalysis();
-      if (rows.length > 0) await this.store.upsertReleaseFileAnalysis(rows);
-    }, 'Failed to sync release file analysis');
-
     errors += await this.syncStep('Syncing current function analysis...', onProgress, async () => {
       const rows = this.trailDb.getAllCurrentFunctionAnalysis();
       await this.store.unsafeClearCurrentFunctionAnalysis();
       if (rows.length > 0) await this.store.upsertCurrentFunctionAnalysis(rows);
     }, 'Failed to sync current function analysis');
-
-    errors += await this.syncStep('Syncing release function analysis...', onProgress, async () => {
-      const rows = this.trailDb.getAllReleaseFunctionAnalysis();
-      await this.store.unsafeClearReleaseFunctionAnalysis();
-      if (rows.length > 0) await this.store.upsertReleaseFunctionAnalysis(rows);
-    }, 'Failed to sync release function analysis');
 
     // Phase 5d/5e: messages の wash-away & insert 完了後に Materialized View を並列 refresh する。
     // CONCURRENTLY refresh のため import 中もアプリは古いデータで動作可能。

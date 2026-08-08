@@ -11,7 +11,7 @@ describe('MemoryCoreService — ollamaFactory plumbing', () => {
     });
     const svc = new MemoryCoreService({
       logSink: { appendLine: () => {} },
-      trailDbPath: join(tmpdir(), 'throttle-plumbing-trail.db'),
+      trailDbPath: join(tmpdir(), 'throttle-plumbing-activity.db'),
       statePath: join(tmpdir(), 'throttle-plumbing-state.json'),
       ollamaFactory: sentinel,
     });

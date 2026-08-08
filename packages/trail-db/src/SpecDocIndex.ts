@@ -269,7 +269,7 @@ export class SpecDocIndex implements ISpecDocIndex {
 
   private requireDb(scope: string): Database.Database {
     if (!this.db) {
-      throw new Error(`SpecDocIndex requires a trail.db handle for ${scope} scope`);
+      throw new Error(`SpecDocIndex requires a activity.db handle for ${scope} scope`);
     }
 
     return this.db;

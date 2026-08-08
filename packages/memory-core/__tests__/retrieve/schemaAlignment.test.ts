@@ -33,7 +33,7 @@ describe('retrieve クエリとスキーマの整合', () => {
 
   beforeAll(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memcore-schema-'));
-    handle = await openMemoryCoreDb(path.join(tmpDir, 'memory-core.db'));
+    handle = await openMemoryCoreDb(path.join(tmpDir, 'caravan-book.db'));
   });
 
   afterAll(() => {

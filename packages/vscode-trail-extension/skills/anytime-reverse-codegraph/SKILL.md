@@ -290,7 +290,7 @@ role 判定基準:
 
 | 保存先 | 内容 |
 | --- | --- |
-| `trail.db` の `current_code_graphs.graph_json` | コードグラフ本体（Step 1） |
-| `trail.db` の `current_code_graph_communities.name` / `summary` | コミュニティ名と要約（Step 2） |
-| `trail.db` の `current_code_graph_communities.mappings_json` | C4 要素 role マッピング（Step 3） |
+| `activity.db` の `current_code_graphs.graph_json` | コードグラフ本体（Step 1） |
+| `activity.db` の `current_code_graph_communities.name` / `summary` | コミュニティ名と要約（Step 2） |
+| `activity.db` の `current_code_graph_communities.mappings_json` | C4 要素 role マッピング（Step 3） |
 | `${workspaceFolder}/.anytime/.community_summary_cache.json` | コミュニティ要約のキャッシュ（再実行時の高速化用） |

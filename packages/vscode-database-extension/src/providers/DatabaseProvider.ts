@@ -11,7 +11,7 @@ interface DbFile {
   readonly relPath: string;
   /** storagePath 配下なら true */
   readonly isManaged: boolean;
-  /** Trail 拡張が初期化した trail.db 本体なら true */
+  /** Trail 拡張が初期化した activity.db 本体なら true */
   readonly isTrailDb: boolean;
 }
 
@@ -163,9 +163,9 @@ export class DatabaseProvider implements vscode.TreeDataProvider<AnyTreeItem> {
   private dbFiles: readonly DbFile[] = [];
 
   constructor(
-    /** Trail 拡張が管理する trail.db 用の BackupManager（trail.db ノード専用） */
+    /** Trail 拡張が管理する activity.db 用の BackupManager（activity.db ノード専用） */
     private readonly trailBackupManager: FileBackupManager | null,
-    /** Trail 拡張が管理する trail.db の絶対パス（管理判定用）。未指定なら全て flat */
+    /** Trail 拡張が管理する activity.db の絶対パス（管理判定用）。未指定なら全て flat */
     private readonly trailDbPath: string | null,
     /** storagePath の絶対パス（配下判定用）。未指定なら全て flat */
     private readonly storageDir: string | null,
@@ -277,7 +277,7 @@ export class DatabaseProvider implements vscode.TreeDataProvider<AnyTreeItem> {
   }
 
   /**
-   * 指定 DB パスの FileBackupManager を取得する。trail.db 本体は extension.ts 側で
+   * 指定 DB パスの FileBackupManager を取得する。activity.db 本体は extension.ts 側で
    * 構築済みの単一インスタンスを再利用する（書き込み状態 backupDone を共有するため）。
    * それ以外は listBackups だけが目的なので、その都度生成して問題ない。
    */

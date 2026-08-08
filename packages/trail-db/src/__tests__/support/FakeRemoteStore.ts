@@ -96,12 +96,8 @@ export class FakeRemoteStore implements IRemoteTrailStore {
   async upsertReleaseCoverage(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async unsafeClearCurrentFileAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async upsertCurrentFileAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
-  async unsafeClearReleaseFileAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
-  async upsertReleaseFileAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async unsafeClearCurrentFunctionAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async upsertCurrentFunctionAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
-  async unsafeClearReleaseFunctionAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
-  async upsertReleaseFunctionAnalysis(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async unsafeClearCurrentCodeGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async upsertCurrentCodeGraphs(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }
   async upsertCurrentCodeGraphCommunities(): Promise<void> { /* no-op: この fake は検証対象外の行を記録しない */ }

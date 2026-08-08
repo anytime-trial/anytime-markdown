@@ -31,12 +31,12 @@ function runGrounding(setup) {
   return runGroundingRaw(setup).delegation;
 }
 
-// modelBehavior 検証用の最小 trail.db を <ws>/.anytime/trail/db に作る。
+// modelBehavior 検証用の最小 activity.db を <ws>/.anytime/trail/db に作る。
 // grounding が参照する列のみ定義する(他クエリはテーブル不在でエラーになるが q() が握って続行する)。
 function writeTrailDb(ws, { sessions, messages, toolCalls }) {
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
-  const db = new DatabaseSync(path.join(dbDir, 'trail.db'));
+  const db = new DatabaseSync(path.join(dbDir, 'activity.db'));
   db.exec(`CREATE TABLE sessions (id TEXT PRIMARY KEY, start_time TEXT);
     CREATE TABLE messages (session_id TEXT, type TEXT, model TEXT, agent_model TEXT, output_tokens INTEGER);
     CREATE TABLE message_tool_calls (session_id TEXT, model TEXT, is_error INTEGER, has_thinking INTEGER, turn_exec_ms INTEGER);`);

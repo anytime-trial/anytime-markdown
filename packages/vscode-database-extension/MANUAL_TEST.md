@@ -72,9 +72,9 @@
 
 ### ゴールデンパス
 
-1. ワークスペースを開き、`trail.db` を更新して `FileBackupManager` で `.bak.1.gz` を生成
-2. Activity Bar `Anytime Database` → `trail.db` → `Backups` → `Generation 1` の右にある `$(cloud-upload)` をクリック
-3. 通知に `Uploading trail.db to S3` → `Uploaded s3://anytime-db-backup-test/anytime-database-backups/trail.db/<ISO>.bak.gz (<size> MB, <ms> ms)` が表示される
+1. ワークスペースを開き、`activity.db` を更新して `FileBackupManager` で `.bak.1.gz` を生成
+2. Activity Bar `Anytime Database` → `activity.db` → `Backups` → `Generation 1` の右にある `$(cloud-upload)` をクリック
+3. 通知に `Uploading activity.db to S3` → `Uploaded s3://anytime-db-backup-test/anytime-database-backups/activity.db/<ISO>.bak.gz (<size> MB, <ms> ms)` が表示される
 4. AWS Console S3 でオブジェクトが存在することを確認
 
 
@@ -84,7 +84,7 @@
 | --- | --- | --- |
 | S1 | 設定の `bucket` を空にして実行 | `S3 not configured: missing bucket` の error 通知 |
 | S2 | 設定の `accessKeyId` を空にして実行 | `S3 not configured: missing accessKeyId` の error 通知 |
-| S3 | `.bak.1.gz` がない状態で Command Palette から起動 | `Latest backup not yet created for trail.db` の warning 通知 |
+| S3 | `.bak.1.gz` がない状態で Command Palette から起動 | `Latest backup not yet created for activity.db` の warning 通知 |
 | S4 | 認証情報を不正値に書き換えて実行 | 5 秒後にリトライ後、`S3 upload failed: ...` の error 通知 |
 | S5 | `Generation 2` を右クリック | upload icon が表示されない（`when: viewItem == backupEntryLatest` で除外） |
 | S6 | OutputChannel `Anytime Database` で `accessKeyId` / `secretAccessKey` の文字列検索 | 一致なし（認証情報がログに出力されないこと） |

@@ -15,7 +15,7 @@ describe('FileTrailStorage', () => {
 
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trail-file-storage-'));
-    dbPath = path.join(dir, 'trail.db');
+    dbPath = path.join(dir, 'activity.db');
   });
 
   afterEach(() => {

@@ -4,7 +4,7 @@ import { handleRunReviewAgent } from '../../tools/runReviewAgent';
 // openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),
-  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/memory-core.db',
+  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
 jest.mock('@anytime-markdown/memory-core/query', () => ({
@@ -34,7 +34,7 @@ describe('handleRunReviewAgent', () => {
     });
 
     // 解決したパスが open へ渡っているか（書き込み系ツールでの配線切れの検知）
-    expect(mockOpen).toHaveBeenCalledWith('/tmp/mcp-trail-test/memory-core.db');
+    expect(mockOpen).toHaveBeenCalledWith('/tmp/mcp-trail-test/caravan-book.db');
     expect(mockFn).toHaveBeenCalledWith(expect.objectContaining({
       trigger_kind: 'mcp',
       target_kind: 'code',

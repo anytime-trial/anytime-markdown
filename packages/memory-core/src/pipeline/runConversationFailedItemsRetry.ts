@@ -88,12 +88,12 @@ function parseItemKey(item_key: string): { session_id: string; message_uuid_star
  */
 type ReconstructOutcome =
   | { readonly kind: 'ok'; readonly episode: ReconstructedEpisode }
-  /** trail.db に行はあるが、現在の取込条件では episode にならない（対象外）。 */
+  /** activity.db に行はあるが、現在の取込条件では episode にならない（対象外）。 */
   | { readonly kind: 'out_of_scope' }
-  /** trail.db にそもそも行が無い（データ欠落・キー破損）。 */
+  /** activity.db にそもそも行が無い（データ欠落・キー破損）。 */
   | { readonly kind: 'not_found' };
 
-/** 取込条件を外して当該メッセージが trail.db に実在するかを見る。 */
+/** 取込条件を外して当該メッセージが activity.db に実在するかを見る。 */
 function messageExistsIgnoringFilter(
   db: MemoryDbConnection,
   session_id: string,
@@ -234,14 +234,14 @@ export interface FailedItemsRetryResult {
 /**
  * Re-runs LLM extraction on previously failed episodes recorded in
  * memory_failed_items. Each item_key is split into (session_id, message_uuid_start),
- * the original episode is reconstructed from the ATTACHed trail.db, and the
+ * the original episode is reconstructed from the ATTACHed activity.db, and the
  * extraction is retried. On success the failed_items row is DELETEd; on failure
  * attempt_count is incremented (existing ON CONFLICT path).
  *
  * Items with attempt_count >= maxAttempts (default 3) are skipped — they require
  * human intervention.
  *
- * The ATTACHed trail.db must already be present as alias "trail" before calling.
+ * The ATTACHed activity.db must already be present as alias "trail" before calling.
  */
 export async function runConversationFailedItemsRetry(opts: {
   db: MemoryDbConnection;
@@ -361,12 +361,12 @@ export async function runConversationFailedItemsRetry(opts: {
           continue;
         }
 
-        // Case 1: episode could not be reconstructed (trail.db missing data, malformed key)
+        // Case 1: episode could not be reconstructed (activity.db missing data, malformed key)
         if (outcome.kind === 'not_found') {
           totals.items_failed += 1;
           consecutiveFailures += 1;
           recordFailedItem(db, item.scope, item.item_key, 'episode_not_found',
-            `episode not reconstructed from trail.db for ${item.item_key}`);
+            `episode not reconstructed from activity.db for ${item.item_key}`);
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
             return enterQuarantine(db, ledger,
               `${QUARANTINE_THRESHOLD} consecutive failures`, totals, recoveredCount, logger);

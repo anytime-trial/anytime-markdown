@@ -111,7 +111,7 @@ export function inferSeverity(chapterBody: string): ParsedFinding['severity'] {
  *
  * バッククォート内容を無検証で返してはならない。`レビュー対象:` 行とセッションの
  * user prompt から呼ばれるため、無検証だと散文・コマンド行・URL がそのまま
- * `target_refs` と既定 target になる（本番 memory-core.db にその実例が残っている）。
+ * `target_refs` と既定 target になる（本番 caravan-book.db にその実例が残っている）。
  * `normalizeTargetPath` を通し、パスとして成立するものだけを返す。
  */
 export function extractBacktickPaths(line: string): string[] {

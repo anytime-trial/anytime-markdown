@@ -22,7 +22,7 @@ export { PIPELINE_SCOPES } from './openMemoryDbSession';
 
 export async function runMemoryCorePipeline(ctx: PipelineRunnerContext): Promise<void> {
   const session = await openMemoryDbSession(ctx);
-  if (!session) return; // trail.db 不在 (openMemoryDbSession が error ログ済み)
+  if (!session) return; // activity.db 不在 (openMemoryDbSession が error ログ済み)
 
   const assertOk = (r: ScopeResult): void => {
     if (r.status === 'error') throw new Error(r.error ?? `${r.scope} failed`);

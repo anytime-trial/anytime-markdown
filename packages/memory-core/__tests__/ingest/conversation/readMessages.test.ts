@@ -23,7 +23,7 @@ function attachAsTrail(memDb: BetterSqlite3MemoryDb, trailDb: BetterSqlite3Memor
   const tempDir = require('node:fs').mkdtempSync(
     require('node:path').join(require('node:os').tmpdir(), 'readMessages-test-'),
   );
-  const tempPath = require('node:path').join(tempDir, 'trail.db');
+  const tempPath = require('node:path').join(tempDir, 'activity.db');
   require('node:fs').writeFileSync(tempPath, trailDb.serialize(), { mode: 0o600 });
   memDb.attach(tempPath, 'trail', true);
 }

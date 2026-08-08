@@ -4,10 +4,18 @@ import { buildNodeLookup, linkEndpoints } from '../render/nodeLookup';
 
 export function hitTestNode(graph: RenderGraph, screenX: number, screenY: number, viewport: ViewportState): RenderNode | null {
   const world = screenToWorld({ x: screenX, y: screenY }, viewport);
+  // カード表示では語は矩形で描かれる（要件書「カード表示（card スキン）」§2.2）。円の判定のままだと
+  // カードの四隅が「見えているのに触れない」領域になる。
+  const halfWidth = graph.cardView === undefined ? undefined : graph.cardView.cardWidth / 2;
+  const halfHeight = graph.cardView === undefined ? undefined : graph.cardView.cardHeight / 2;
   for (let i = graph.nodes.length - 1; i >= 0; i--) {
     const node = graph.nodes[i];
     const dx = world.x - node.x;
     const dy = world.y - node.y;
+    if (halfWidth !== undefined && halfHeight !== undefined) {
+      if (Math.abs(dx) <= halfWidth && Math.abs(dy) <= halfHeight) return node;
+      continue;
+    }
     if (Math.hypot(dx, dy) <= node.radius) return node;
   }
   return null;

@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-08
+
+### Added
+
+- Flight Record gained a Knowledge Graph tab that renders the memory-core knowledge graph as a cooccurrence network.
+
+### Changed
+
+- Database files were renamed to `activity.db` (activity) and `caravan-book.db` (memory). Existing `trail.db` / `memory-core.db` are renamed automatically the first time the extension opens them.
+
+### Fixed
+
+- `daemon_session` rows stuck in the `running` state are now reclaimed by the watchdog, so a database swap no longer leaves the analysis pipeline skipping indefinitely.
+
+### Trail Core (trail-core / trail-server / trail-viewer / mcp-trail)
+
+- Ported the ADR threat taxonomy, detection prompts and schema into trail-core / mcp-trail.
+- Dropped release-scoped analysis and reclaimed the duplicate indexes and raw NUL bytes it left behind.
+- trail-server now serves the memory-core knowledge graph that backs the new tab.
+
+## [0.43.1] - 2026-08-08
+
+### Fixed
+
+- Fixed Flight Record showing only "Cannot read flight records (the Trail server may be stopped)". When 0.43.0 moved Flight Record storage to memory-core.db, that connection alone was opened without an explicit native module path, so it always failed to initialise in the bundled extension. The server was in fact running; only the Flight Record APIs could not answer. Recording was broken for the same reason, so sessions that ended while 0.43.0 was running were never written.
+
+### Trail Core (trail-core / trail-server / trail-viewer)
+
+- Consolidated SQLite connection opening into a single entry point so the bundled native module path is resolved in one place instead of being copied into each class, and a missing bundled binary is now reported instead of failing silently.
+
 ## [0.43.0] - 2026-08-08
 
 ### Added

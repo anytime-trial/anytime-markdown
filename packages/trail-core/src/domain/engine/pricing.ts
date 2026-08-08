@@ -92,7 +92,7 @@ const DEFAULT_MODEL = 'sonnet';
 const DEFAULT_CODEX_MODEL = 'gpt-5.1-codex';
 
 // 旧世代のフル ID パターン。世代情報のない素の family 名（'opus' 等）は現行世代に解決する
-// （trail.db の実データは全行 Opus 4.5 以降のため。旧世代は必ずフル ID で流入する）。
+// （activity.db の実データは全行 Opus 4.5 以降のため。旧世代は必ずフル ID で流入する）。
 const LEGACY_OPUS_RE = /claude-3-opus|opus-4-0|opus-4-1(?![0-9.])|opus-4-2025/;
 const LEGACY_HAIKU_RE = /claude-3-5-haiku|claude-3-haiku/;
 

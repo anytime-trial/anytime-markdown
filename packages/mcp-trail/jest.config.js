@@ -9,6 +9,7 @@ module.exports = {
   moduleNameMapper: {
     '^@anytime-markdown/memory-core$': '<rootDir>/../memory-core/src/index.ts',
     '^@anytime-markdown/doc-core$': '<rootDir>/../doc-core/src/index.ts',
+    '^@anytime-markdown/trail-core$': '<rootDir>/../trail-core/src/index.ts',
   },
   globals: {
     'ts-jest': {

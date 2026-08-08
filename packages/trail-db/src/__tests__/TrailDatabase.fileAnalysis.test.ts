@@ -80,23 +80,12 @@ describe('TrailDatabase: current_file_analysis CRUD', () => {
   });
 });
 
-describe('TrailDatabase: release_file_analysis CRUD', () => {
-  let db: TrailDatabase;
-
-  beforeEach(async () => {
-    db = await createTestTrailDatabase();
-    // release_file_analysis は releases(tag) を FK 参照するので先に INSERT
-    const rawDb = (db as unknown as { ensureDb(): { run(sql: string, params?: unknown[]): void } }).ensureDb();
-    rawDb.run('INSERT INTO releases (tag) VALUES (?)', ['v1.0.0']);
-  });
-
-  it('upsertRelease / getRelease / clearRelease', () => {
-    db.upsertReleaseFileAnalysis('v1.0.0', [sample('a.ts', 70)]);
-    const rows = db.getReleaseFileAnalysis('v1.0.0', 'repo');
-    expect(rows.length).toBe(1);
-    expect(rows[0].deadCodeScore).toBe(70);
-    db.clearReleaseFileAnalysis('v1.0.0', 'repo');
-    expect(db.getReleaseFileAnalysis('v1.0.0', 'repo').length).toBe(0);
+describe('TrailDatabase: release_file_analysis は廃止済み (2026-08-08)', () => {
+  it('init 後に release_file_analysis テーブルが存在しない', async () => {
+    const db = await createTestTrailDatabase();
+    const rawDb = (db as unknown as { ensureDb(): { exec(sql: string): Array<{ values: unknown[][] }> } }).ensureDb();
+    const rows = rawDb.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='release_file_analysis'");
+    expect(rows[0]?.values?.length ?? 0).toBe(0);
   });
 });
 

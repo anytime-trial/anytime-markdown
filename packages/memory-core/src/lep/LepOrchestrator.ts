@@ -21,7 +21,7 @@ export interface LepRunOnceResult {
 
 /**
  * Wave 1/2/4 の analyzer 実行を `pipeline_runs` へ記録するためのファクトリ。
- * null を返すと当該実行は記録しない（memory-core.db 不在時など）。
+ * null を返すと当該実行は記録しない（caravan-book.db 不在時など）。
  */
 export type PipelineRunLedgerFactory = (
   scope: string,
@@ -45,8 +45,8 @@ export type PipelineRunLedgerFactory = (
  *
  * `bus.drain()` は in-flight な publish と subscriber 連鎖を全て完了させる barrier。
  * 各 Wave 境界で drain を挟むことで、当該 Wave のイベント伝播が完了してから次 Wave に進む。
- * これにより Wave 2 の `PersistAnalyzer.onRunEnd` (trail.db save) が完了してから
- * Wave 3 の memory analyzer が trail.db を read-only attach する順序が保証される。
+ * これにより Wave 2 の `PersistAnalyzer.onRunEnd` (activity.db save) が完了してから
+ * Wave 3 の memory analyzer が activity.db を read-only attach する順序が保証される。
  *
  * エラーハンドリング: analyzer の throw は orchestrator が catch し、`result.errors` に
  * `analyzer.id` をキーに保存して run 全体は継続する。上位 (AnalyzeAllRunner 等) が errors を

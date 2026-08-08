@@ -1,5 +1,5 @@
 /**
- * doc-core.db を開く（WAL・FK 有効化・マイグレーション適用）。
+ * catalog.db を開く（WAL・FK 有効化・マイグレーション適用）。
  * DB ドライバは Node 組み込みの `node:sqlite`（native module 不要）。
  */
 
@@ -16,7 +16,7 @@ export interface OpenDocDbOptions {
 }
 
 /**
- * doc-core.db を開いてマイグレーション適用済みのコネクションを返す。
+ * catalog.db を開いてマイグレーション適用済みのコネクションを返す。
  * `:memory:` を渡すとインメモリ DB（テスト用）。
  */
 export function openDocDb(dbPath: string, opts: OpenDocDbOptions = {}): DocDb {

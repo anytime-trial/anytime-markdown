@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * run-verified — 検証コマンドを実行し結果を trail.db (verification_runs) に記録するラッパー。
+ * run-verified — 検証コマンドを実行し結果を activity.db (verification_runs) に記録するラッパー。
  *
  * 使い方:
  *   node scripts/run-verified.mjs <package> <kind> -- <command...>
@@ -82,7 +82,7 @@ export function runVerified(argv, { cwd = process.cwd() } = {}) {
   // Claude Code が実際に渡すのは CLAUDE_CODE_SESSION_ID（scripts/git-activity-report.mjs と同じ）。
   // この ID が Flight Record の指示への唯一の結合キーで、空だと指示へ畳まれない。
   const sessionId = process.env.CLAUDE_CODE_SESSION_ID ?? '';
-  // 記録は副作用であって検証の合否ではない。trail.db は拡張が WAL で同時利用する共有 DB な
+  // 記録は副作用であって検証の合否ではない。activity.db は拡張が WAL で同時利用する共有 DB な
   // ので open / INSERT は競合・保護パス・ディスク枯渇で失敗しうるが、そこで例外を上へ抜くと
   // トップレベルの catch が exit 2 を返し、**成功した検証コマンドが失敗として伝わる**。
   // 失敗は握りつぶさずログに出し、終了コードは検証コマンドのものを透過する。

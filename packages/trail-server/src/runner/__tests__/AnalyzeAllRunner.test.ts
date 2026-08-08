@@ -14,7 +14,7 @@ function makeLogSink(): { lines: string[]; appendLine: (m: string) => void } {
 
 /**
  * Step 3d: Layer 3 は 7 個の memory analyzer が openScopeSession() の scope メソッドを呼ぶ。
- * 実 DB を開かずに fake scope session を注入して検証する。trail.db 取込 (Wave 1/2) は
+ * 実 DB を開かずに fake scope session を注入して検証する。activity.db 取込 (Wave 1/2) は
  * LEP primary analyzer + PersistAnalyzer(save) が担う。
  */
 function makeFakeTrailDb(save: jest.Mock = jest.fn()): TrailDatabase {
@@ -46,7 +46,7 @@ describe('AnalyzeAllRunner', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('runOnce persists trail.db (save) before memory scopes', async () => {
+  it('runOnce persists activity.db (save) before memory scopes', async () => {
     const order: string[] = [];
     const save = jest.fn(() => { order.push('save'); });
     const fake = makeFakeScopeSession({ order, orderLabel: 'memory' });
@@ -123,7 +123,7 @@ describe('AnalyzeAllRunner', () => {
     expect(runner.getStatus().ticksRun).toBe(2);
   });
 
-  it('records lastError when trail.db save throws (memory still runs)', async () => {
+  it('records lastError when activity.db save throws (memory still runs)', async () => {
     const save = jest.fn(() => { throw new Error('save boom'); });
     const fake = makeFakeScopeSession();
     const runner = new AnalyzeAllRunner({

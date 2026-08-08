@@ -672,6 +672,15 @@ export interface TrailI18n {
   // flightReview (Phase 6 S3: Flight Review UI)
   'viewer.tab.flightRecord': string;
   'viewer.tab.chat': string;
+  'viewer.tab.knowledgeGraph': string;
+  'knowledgeGraph.loading': string;
+  'knowledgeGraph.loadFailed': string;
+  'knowledgeGraph.empty': string;
+  'knowledgeGraph.reload': string;
+  'knowledgeGraph.typeFilter': string;
+  'knowledgeGraph.typeAll': string;
+  'knowledgeGraph.nodeLimit': string;
+  'knowledgeGraph.shownCount': string;
   'flightRecord.filter.outcome': string;
   'flightRecord.filter.outcomeAll': string;
   'flightRecord.filter.since': string;

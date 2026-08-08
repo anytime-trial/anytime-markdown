@@ -2,7 +2,7 @@
   "name": "anytime-database",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "license": "MIT",
   "publisher": "anytime-trial",
   "repository": {
@@ -191,7 +191,7 @@
             "postgres"
           ],
           "default": "none",
-          "markdownDescription": "Remote sync provider for the trail database. `supabase` syncs the local `trail.db` to a Supabase project."
+          "markdownDescription": "Remote sync provider for the trail database. `supabase` syncs the local `activity.db` to a Supabase project."
         },
         "anytimeTrail.remote.supabaseUrl": {
           "type": "string",

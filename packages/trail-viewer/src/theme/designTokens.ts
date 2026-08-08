@@ -417,7 +417,7 @@ export const agentPalette = [
 /** Specific chart series color for Lead Time / LOC overlay line (AnalyticsPanel). */
 export const LEAD_TIME_LOC_COLOR = '#F06292';
 
-/** Brand colors keyed by agent source value (sessions.source in trail.db). */
+/** Brand colors keyed by agent source value (sessions.source in activity.db). */
 export const agentBrandColors: Readonly<Record<string, string>> = {
   claude_code: '#CC785C',  // Anthropic / Claude – copper terracotta
   codex:       '#10A37F',  // OpenAI – signature green

@@ -52,7 +52,7 @@ export interface BugHistoryRow {
   /**
    * 関連セッションが属する指示 ID。宣言があればその指示 ID、無ければセッション ID
    * （`flightFindingSourceSql` の暗黙グループと同じ規則）。セッション不明、または
-   * trail.db が ATTACH できていない構成では null。
+   * activity.db が ATTACH できていない構成では null。
    */
   instructionId: string | null;
   precededByFindingIds: string[];
@@ -73,6 +73,22 @@ export interface BugCausalInfo {
   precedingFindings: { findingEntityId: string; targetFilePath: string | null; severity: string }[];
   introducedByCommitSha: string | null;
   introducedByCommitSubject: string | null;
+}
+
+/**
+ * 知識グラフの共起ネットワーク表示用応答（trail-viewer/src/views/knowledgeGraphCoocFile.ts とミラー）。
+ * links / clusters の数値は nodes の添字。
+ */
+export interface KnowledgeGraphResponse {
+  nodes: { label: string; type: string; frequency: number }[];
+  links: { a: number; b: number; strength: number }[];
+  clusters: { label: string; members: number[] }[];
+  /** 種別フィルタ適用後の全エンティティ数（表示が全体の一部であることを示す分母）。 */
+  totalEntityCount: number;
+  /** エッジを持つエンティティが limit を超えて残っているか。 */
+  truncated: boolean;
+  /** 種別フィルタ UI の選択肢（DB に実在する全種別。フィルタの影響を受けない）。 */
+  availableTypes: string[];
 }
 
 export interface UnaddressedReviewFindingRow {
@@ -107,7 +123,7 @@ export interface ReviewHistoryRow {
 /**
  * Flight Record（指示単位の運航記録）へ畳んだレビュー指摘 1 件。
  *
- * `instructionId` は明示宣言（instruction_sessions・memory-core.db 内）があればその指示 ID、無ければ
+ * `instructionId` は明示宣言（instruction_sessions・caravan-book.db 内）があればその指示 ID、無ければ
  * セッション ID そのもの。後者は TrailDatabase が「1 セッション = 1 指示」の暗黙グループへ
  * セッション ID を指示 ID として使うため、同じ値で突き合わせられる。
  */
@@ -248,12 +264,12 @@ export class MemoryApiHandler {
    */
   private cachedReadOnlyDb: MemoryDbConnection | null = null;
 
-  /** trail.db が cachedReadOnlyDb に ATTACH 済みか（session レビューの model 取得用） */
+  /** activity.db が cachedReadOnlyDb に ATTACH 済みか（session レビューの model 取得用） */
   private trailDbAttached = false;
 
   /**
-   * memory-core.db に instruction_sessions が在るか（指示 ID 解決用）。
-   * Flight Record は memory-core.db へ移設済み（2026-08-07）だが、移行前の DB や
+   * caravan-book.db に instruction_sessions が在るか（指示 ID 解決用）。
+   * Flight Record は caravan-book.db へ移設済み（2026-08-07）だが、移行前の DB や
    * FlightRecordDatabase 初期化前はテーブルが無いため、実在を見て縮退を決める。
    * probe は openReadOnly の接続キャッシュ確立時に 1 回だけ走る。TrailDataServer の
    * コンストラクタが FlightRecordDatabase.init()（= ensureTables）を同期完了させてから
@@ -270,7 +286,7 @@ export class MemoryApiHandler {
   private readonly nativeBinding?: string;
 
   /**
-   * @param dbPath memory-core.db の絶対パス。未設定は `null` で**明示**する（全 API
+   * @param dbPath caravan-book.db の絶対パス。未設定は `null` で**明示**する（全 API
    *   レスポンスを "not configured" = exists:false / null として返す縮退に入る）。
    *
    *   省略可にして `getMemoryCoreDbPath()` へ暗黙フォールバックしていたが、解決先が
@@ -322,14 +338,14 @@ export class MemoryApiHandler {
         this.instructionSessionsAvailable = false;
         this.logger.warn(`[MemoryApiHandler.openReadOnly] instruction_sessions probe failed: ${err instanceof Error ? err.message : String(err)}`);
       }
-      const trailDbPath = path.join(path.dirname(this.dbPath), 'trail.db');
+      const trailDbPath = path.join(path.dirname(this.dbPath), 'activity.db');
       if (fs.existsSync(trailDbPath)) {
         // attachTrailDbReadOnly は async。同期 try/catch では reject を捕捉できない (S4822) ため
         // .catch() で拒否を処理する。楽観的に true をセットし、失敗時に false へ戻す。
         this.trailDbAttached = true;
         attachTrailDbReadOnly(this.cachedReadOnlyDb, trailDbPath).catch((err) => {
           this.trailDbAttached = false;
-          this.logger.warn(`[MemoryApiHandler.openReadOnly] trail.db attach failed: ${err instanceof Error ? err.message : String(err)}`);
+          this.logger.warn(`[MemoryApiHandler.openReadOnly] activity.db attach failed: ${err instanceof Error ? err.message : String(err)}`);
         });
       }
       return this.cachedReadOnlyDb;
@@ -403,7 +419,7 @@ export class MemoryApiHandler {
     since?: string;
     /**
      * ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。
-     * memory-core.db は複数ワークスペースを 1 DB に集約するため、これが無いと
+     * caravan-book.db は複数ワークスペースを 1 DB に集約するため、これが無いと
      * Flight Record の Drift タブに他ワークスペースの乖離が混ざる。
      */
     workspace?: string;
@@ -643,7 +659,7 @@ export class MemoryApiHandler {
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
       // 指示 ID は Review タブ（flightFindingSourceSql）と同じ規則で解決する。
-      // instruction_sessions は memory-core.db 内（2026-08-07 移設）。未移行 DB では
+      // instruction_sessions は caravan-book.db 内（2026-08-07 移設）。未移行 DB では
       // テーブルが無いので、行全体を落とさずセッション ID へフォールバックする。
       const instructionIdExpr = this.instructionSessionsAvailable
         ? `COALESCE(
@@ -986,7 +1002,7 @@ export class MemoryApiHandler {
   /**
    * 指示単位の指摘件数。instructionIds 未指定なら全件を返す。
    *
-   * trail.db が ATTACH できていないときは結合キー（instruction_sessions）が引けないため
+   * activity.db が ATTACH できていないときは結合キー（instruction_sessions）が引けないため
    * 空配列を返す。呼び出し側が「0 件」と「引けなかった」を区別できるよう、理由をログへ残す。
    */
   async getFlightReviewFindingCounts(): Promise<FlightReviewFindingCountRow[]> {
@@ -994,7 +1010,7 @@ export class MemoryApiHandler {
     if (!db) return [];
     try {
       if (!this.instructionSessionsAvailable) {
-        this.logger.error('[MemoryApiHandler.getFlightReviewFindingCounts] instruction_sessions table missing in memory-core.db; cannot resolve instruction ids');
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindingCounts] instruction_sessions table missing in caravan-book.db; cannot resolve instruction ids');
         return [];
       }
       const result = db.exec(
@@ -1037,7 +1053,7 @@ export class MemoryApiHandler {
     if (!db) return [];
     try {
       if (!this.instructionSessionsAvailable) {
-        this.logger.error('[MemoryApiHandler.getFlightReviewFindings] instruction_sessions table missing in memory-core.db; cannot resolve instruction ids');
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindings] instruction_sessions table missing in caravan-book.db; cannot resolve instruction ids');
         return [];
       }
       // Review タブは全指示横断の一覧なので、他 API より大きい上限を許す（ルートの
@@ -1383,7 +1399,7 @@ export class MemoryApiHandler {
     const db = this.openReadOnly();
     if (!db) return [];
     if (!this.trailDbAttached) {
-      this.logger.warn('[MemoryApiHandler.listRationaleNodes] trail.db not attached; returning empty');
+      this.logger.warn('[MemoryApiHandler.listRationaleNodes] activity.db not attached; returning empty');
       return [];
     }
     try {
@@ -1463,6 +1479,126 @@ export class MemoryApiHandler {
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.listInvalidations] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  // ---- knowledge graph (共起ネットワーク表示用) ----
+
+  /**
+   * 知識グラフ（memory_entities / memory_edges）を共起ネットワーク描画用に集約して返す。
+   * 画面設計書: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-knowledge-graph.ja.md §2.2
+   *
+   * 全件（実測 2.9 万ノード）は描画できないため、有効エッジ次数の上位 `limit` 件だけを返す。
+   * 有効エッジ = エンティティ間（object_entity_id 非 NULL）・valid_to IS NULL・無効化記録なし。
+   * `types` を指定すると両端がその種別に含まれるエッジだけで次数を数える（片端だけ該当する
+   * エッジを残すと、絞り込んだはずの種別外ノードへの線が図に必要になってしまう）。
+   *
+   * DB 未設定・不在は null（「データ 0 件」と区別する。0 件は正常応答の空配列）。
+   */
+  async getKnowledgeGraph(params: { limit?: number; types?: string[] }): Promise<KnowledgeGraphResponse | null> {
+    const db = this.openReadOnly();
+    if (!db) return null;
+    try {
+      const limit = Math.max(1, clampLimit(params.limit, 150, 500));
+      // 種別はバインドで渡すが、識別子形式に絞って未知の値（空文字・記号）を先に落とす
+      const types = (params.types ?? []).filter((t) => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
+      const typeFilter = types.length > 0
+        ? `AND es.type IN (${types.map(() => '?').join(',')}) AND eo.type IN (${types.map(() => '?').join(',')})`
+        : '';
+      const activeCte = `
+        active AS (
+          SELECT e.subject_entity_id AS s, e.object_entity_id AS o
+          FROM memory_edges e
+          JOIN memory_entities es ON es.id = e.subject_entity_id
+          JOIN memory_entities eo ON eo.id = e.object_entity_id
+          WHERE e.object_entity_id IS NOT NULL
+            AND e.subject_entity_id != e.object_entity_id
+            AND e.valid_to IS NULL
+            AND NOT EXISTS (SELECT 1 FROM memory_edge_invalidations i WHERE i.edge_id = e.id)
+            ${typeFilter}
+        )`;
+      const typeBinds = types.length > 0 ? [...types, ...types] : [];
+
+      const nodeResult = db.exec(
+        `WITH ${activeCte},
+        deg AS (
+          SELECT id, SUM(c) AS d FROM (
+            SELECT s AS id, COUNT(*) AS c FROM active GROUP BY s
+            UNION ALL
+            SELECT o AS id, COUNT(*) AS c FROM active GROUP BY o
+          ) GROUP BY id
+        )
+        SELECT en.id, en.display_name, en.type, deg.d
+        FROM deg JOIN memory_entities en ON en.id = deg.id
+        ORDER BY deg.d DESC, en.id
+        LIMIT ?`,
+        toBindParams([...typeBinds, limit]),
+      );
+      const nodeRows = (nodeResult[0]?.values ?? []).map((row) => ({
+        id: toStr(row[0]),
+        label: toStr(row[1]),
+        type: toStr(row[2]),
+        frequency: Number(row[3] ?? 0),
+      }));
+
+      const indexById = new Map<string, number>(nodeRows.map((row, i) => [row.id, i]));
+      let links: { a: number; b: number; strength: number }[] = [];
+      if (nodeRows.length > 0) {
+        const idPlaceholders = nodeRows.map(() => '?').join(',');
+        const ids = nodeRows.map((row) => row.id);
+        const linkResult = db.exec(
+          `WITH ${activeCte}
+          SELECT MIN(s, o) AS a, MAX(s, o) AS b, COUNT(*) AS strength
+          FROM active
+          WHERE s IN (${idPlaceholders}) AND o IN (${idPlaceholders})
+          GROUP BY MIN(s, o), MAX(s, o)`,
+          toBindParams([...typeBinds, ...ids, ...ids]),
+        );
+        links = (linkResult[0]?.values ?? []).flatMap((row) => {
+          const a = indexById.get(toStr(row[0]));
+          const b = indexById.get(toStr(row[1]));
+          if (a === undefined || b === undefined) return [];
+          return [{ a, b, strength: Number(row[2] ?? 0) }];
+        });
+      }
+
+      const clustersByType = new Map<string, number[]>();
+      nodeRows.forEach((row, i) => {
+        const members = clustersByType.get(row.type) ?? [];
+        members.push(i);
+        clustersByType.set(row.type, members);
+      });
+
+      const countFilter = types.length > 0 ? `WHERE type IN (${types.map(() => '?').join(',')})` : '';
+      const totalResult = db.exec(
+        `SELECT COUNT(*) FROM memory_entities ${countFilter}`,
+        toBindParams([...types]),
+      );
+      const totalEntityCount = Number(totalResult[0]?.values[0]?.[0] ?? 0);
+
+      const connectedResult = db.exec(
+        `WITH ${activeCte}
+        SELECT COUNT(*) FROM (SELECT s AS id FROM active UNION SELECT o FROM active)`,
+        toBindParams([...typeBinds]),
+      );
+      const connectedEntityCount = Number(connectedResult[0]?.values[0]?.[0] ?? 0);
+
+      const availableResult = db.exec(`SELECT DISTINCT type FROM memory_entities ORDER BY type`);
+      const availableTypes = (availableResult[0]?.values ?? []).map((row) => toStr(row[0]));
+
+      return {
+        nodes: nodeRows.map(({ label, type, frequency }) => ({ label, type, frequency })),
+        links,
+        clusters: [...clustersByType.entries()].map(([label, members]) => ({ label, members })),
+        totalEntityCount,
+        truncated: nodeRows.length < connectedEntityCount,
+        availableTypes,
+      };
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.getKnowledgeGraph] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return null;
     } finally {
       this.close(db);
     }

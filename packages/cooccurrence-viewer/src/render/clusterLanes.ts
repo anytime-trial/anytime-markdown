@@ -188,7 +188,7 @@ export function computeClusterLanePlacements(input: ClusterLaneInput): ClusterLa
  * クラスタの `members` だけであり（検証がこの状態を拒否するが、描画側でも所属外の語を
  * レーンへ引き込まない）。
  */
-function subclusterGroups(
+export function subclusterGroups(
   subclusters: ReadonlyArray<readonly number[]> | undefined,
   members: readonly number[],
 ): Array<{ subcluster?: number; members: readonly number[] }> {

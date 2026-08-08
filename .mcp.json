@@ -36,7 +36,7 @@
       "args": ["tsx", "--tsconfig", "packages/mcp-markdown/tsconfig.json", "packages/mcp-markdown/src/stdio.ts"],
       "cwd": "/anytime-markdown",
       "env": {
-        "ANYTIME_MARKDOWN_DOC_DB": "/anytime-markdown/.anytime/markdown/doc-core.db"
+        "ANYTIME_MARKDOWN_DOC_DB": "/anytime-markdown/.anytime/markdown/catalog.db"
       }
     }
   }

@@ -19,7 +19,7 @@ import {
   createPipelineRunLedgerFactory,
 } from '@anytime-markdown/memory-core/pipeline';
 import { makeChildAnalyzeFn } from '../analyze/childAnalyzeFn';
-import { TrailDatabase } from '@anytime-markdown/trail-db';
+import { resolveBundledNativeBinding, TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { checkLlmAvailability } from '../lep/LlmAvailability';
 import { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
@@ -107,7 +107,7 @@ let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
 /**
  * AnalyzeAllRunner の PR レビュー系（PrReviewImporter / PrReviewFindingAnalyzer /
- * CrossSourceCorrelator の PR 相関）が読む memory-core.db 接続。PR レビューの永続化先を
+ * CrossSourceCorrelator の PR 相関）が読む caravan-book.db 接続。PR レビューの永続化先を
  * memory_reviews へ統合（2026-08-07）した配線で、LogService と同じ openMemoryCoreDb 前例。
  * 接続の所有は daemon 側（rebuild ごとに開き直し、disposeAll で閉じる）。
  */
@@ -118,7 +118,7 @@ function closeAnalyzeMemoryCoreDb(): void {
     try {
       analyzeMemoryCoreDb.close();
     } catch (err) {
-      daemonLogger.error(`[daemon] analyze memory-core.db close error: ${formatError(err)}`);
+      daemonLogger.error(`[daemon] analyze caravan-book.db close error: ${formatError(err)}`);
     }
     analyzeMemoryCoreDb = null;
   }
@@ -192,12 +192,18 @@ function emitAnalyzeReleaseProgress(message: string): void {
 let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
 /** startHttpServer() で構築した ChatBridge。dispose() で SQLite WAL をフラッシュする。 */
 let httpChatBridge: ChatBridge | null = null;
-/** startHttpServer() で構築した LogService 用 memory-core.db 接続。 */
+/** startHttpServer() で構築した LogService 用 caravan-book.db 接続。 */
 let httpLogLedgerDb: MemoryCoreDb | null = null;
 /** daemon の生存期間を表す wave='system' の run。disposeAll() で閉じる。 */
 let httpSystemRunLedger: PipelineRunLedger | null = null;
+// daemon_session run の生存証明。これが止まったまま systemTimeoutMinutes を超えると
+// pipelineWatchdog が run をゴーストとして回収する（クラッシュ時の 'running' 恒久残留対策）。
+// 間隔は memory-core pipelineWatchdog の systemTimeoutMinutes 既定 30 分と結合しており、
+// 「間隔 × 3 <= 閾値」を割ると正常稼働中の daemon が偽 timeout になる。変更時は両方を見る。
+let httpSystemRunHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+const SYSTEM_RUN_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 /**
- * Wave 1/2/4 の実行台帳ファクトリ。LogService と同じ memory-core.db 接続を共有するため
+ * Wave 1/2/4 の実行台帳ファクトリ。LogService と同じ caravan-book.db 接続を共有するため
  * startHttpServer() で確定し、その後の rebuildAnalyzeAllRunner() が LepOrchestrator へ注入する。
  */
 let httpPipelineRunLedgerFactory: PipelineRunLedgerFactory | null = null;
@@ -279,7 +285,7 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
   const cfg = lastAnalyzeAllCfg;
   if (!cfg) return;
 
-  // PR レビュー系 analyzer 用の memory-core.db 接続（開けない場合は analyzer 側が
+  // PR レビュー系 analyzer 用の caravan-book.db 接続（開けない場合は analyzer 側が
   // 「memoryDb connection 無し」の info ログを出して skip する — silent skip にしない）
   closeAnalyzeMemoryCoreDb();
   if (cfg.memoryCore) {
@@ -288,7 +294,7 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
         nativeBinding: cfg.memoryCore.nativeBinding,
       });
     } catch (err) {
-      daemonLogger.error(`[daemon] analyze memory-core.db open failed: ${formatError(err)}`);
+      daemonLogger.error(`[daemon] analyze caravan-book.db open failed: ${formatError(err)}`);
     }
   }
 
@@ -401,8 +407,9 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     if (!opts.memoryDbPath) {
       throw new Error('logService requires memoryDbPath');
     }
-    const nativeBinding =
-      lsCfg.nativeBinding ?? path.join(opts.distPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+    // 実在確認込みで解決する。実在しないパスを渡すと openMemoryCoreDb は必ず失敗するため、
+    // 見つからないときは undefined を渡して better-sqlite3 の既定解決へ落とす。
+    const nativeBinding = lsCfg.nativeBinding ?? resolveBundledNativeBinding(opts.distPath) ?? undefined;
     const logLedgerCoreDb = await openMemoryCoreDb(opts.memoryDbPath, { nativeBinding });
     const logLedgerDb = logLedgerCoreDb.conn ?? logLedgerCoreDb.db;
     const systemRunLedger = new PipelineRunLedger({
@@ -414,6 +421,15 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
     });
     const systemRunId = systemRunLedger.start();
     httpSystemRunLedger = systemRunLedger;
+    // 生存 heartbeat。shutdown で finish() できずに死んだ場合も watchdog が回収できるようにする。
+    httpSystemRunHeartbeatTimer = setInterval(() => {
+      try {
+        systemRunLedger.heartbeat();
+      } catch (err) {
+        daemonLogger.error(`[daemon] system run heartbeat error: ${formatError(err)}`);
+      }
+    }, SYSTEM_RUN_HEARTBEAT_INTERVAL_MS);
+    httpSystemRunHeartbeatTimer.unref?.();
     const logService = new LogService(logLedgerDb, systemRunId);
     server.setLogService(logService);
     httpLogLedgerDb = logLedgerCoreDb;
@@ -666,9 +682,13 @@ async function disposeAll(): Promise<void> {
     }
     httpServer = null;
   }
+  if (httpSystemRunHeartbeatTimer) {
+    clearInterval(httpSystemRunHeartbeatTimer);
+    httpSystemRunHeartbeatTimer = null;
+  }
   if (httpSystemRunLedger) {
-    // system run を正常終了として閉じる。閉じないと status='running' のまま残る
-    // （watchdog は system wave を失効させないため自動では回収されない）。
+    // system run を正常終了として閉じる。閉じずに死んだ場合は heartbeat の停止を
+    // pipelineWatchdog (systemTimeoutMinutes) が検知して回収する。
     try {
       httpSystemRunLedger.finish('success');
     } catch (err) {

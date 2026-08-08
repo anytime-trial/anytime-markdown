@@ -5,6 +5,7 @@ import {
   type CooccurrenceFile,
 } from '@anytime-markdown/graph-core';
 import type {
+  RenderCardView,
   RenderClusterLane,
   RenderGraph,
   RenderLayer,
@@ -43,6 +44,14 @@ export interface BuildRenderGraphOptions {
    * 隠すと、レイヤー名の基準だけがレーン化前の座標に取り残される）。
    */
   clusterLanes?: readonly RenderClusterLane[];
+  /**
+   * カード表示の描画情報（要件書「カード表示（card スキン）」§2.2）。
+   *
+   * `positions` にはカードレイアウトの座標が渡されている前提で、ここへ渡すのはカードの寸法と
+   * カラム見出しだけである（クラスタレーンと同じ分担。座標の計算をこの関数へ隠すと、
+   * `graphBounds` が見る座標と食い違う）。
+   */
+  cardView?: RenderCardView;
 }
 
 interface ValueRange {
@@ -197,5 +206,6 @@ export function buildRenderGraph(options: BuildRenderGraphOptions): RenderGraph 
     timeLinks: layered && options.showTimeLinks !== false ? buildTimeLinks(nodesByLayer, placements) : [],
     layers: placements,
     clusterLanes: options.clusterLanes ?? [],
+    ...(options.cardView === undefined ? {} : { cardView: options.cardView }),
   };
 }

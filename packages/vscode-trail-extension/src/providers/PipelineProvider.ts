@@ -37,11 +37,11 @@ const STATIC_ENTRY_DESCRIPTION = '—';
 /**
  * 折りたたみ可能な Wave グループ (親ノード) のラベル。LEP の tier (Wave) モデルに対応する:
  * - `Wave 1 · sources`: ingester 群 (tier=1)。ライブ状態は持たず名称のみ静的表示
- * - `Wave 2 · primary`: trail.db 世代バックアップ + importAll 8 phases (tier=2, 旧 importAll 相当)
+ * - `Wave 2 · primary`: activity.db 世代バックアップ + importAll 8 phases (tier=2, 旧 importAll 相当)
  * - `Wave 3 · memory` : memory backup + memory-core pipelines (tier=3)
  * - `Wave 4 · derived`: aggregator 群 (tier=4)。ライブ状態は持たず名称のみ静的表示
  *
- * trail.db / memory-core.db の世代バックアップは、それぞれを書き込む Wave (2 / 3) の
+ * activity.db / caravan-book.db の世代バックアップは、それぞれを書き込む Wave (2 / 3) の
  * 先頭に置く (書き込み直前の世代を論理的に対応させる)。
  * Wave 1 / Wave 4 は本パネルが読む status ファイルに状態を書かないため、
  * 構造を示す目的で名称のみを静的エントリ (state `—`) として並べる。
@@ -291,12 +291,12 @@ export interface PipelineProviderOptions {
   /** memory-core が書き込む pipeline-status.json の絶対パス */
   statusFilePath?: string;
   /**
-   * trail.db の絶対パス。指定時、先頭に backup ジョブを表示し
+   * activity.db の絶対パス。指定時、先頭に backup ジョブを表示し
    * `${dbFilePath}.bak.1.gz` の存在/mtime/サイズから状態を導出する。
    */
   dbFilePath?: string;
   /**
-   * memory-core.db の絶対パス。指定時、importAll phases と memory-core
+   * caravan-book.db の絶対パス。指定時、importAll phases と memory-core
    * pipelines の間に「memory backup」ジョブを表示し、
    * `${memoryDbFilePath}.bak.1.gz` の存在/mtime/サイズから状態を導出する。
    */
@@ -314,7 +314,7 @@ export interface PipelineProviderOptions {
  * Wave グループ (親ノード) の下に pipeline (子ノード) を並べる 2 階層ツリー:
  *
  *   Wave 1 · sources  ← ingester 群 (静的表示)
- *   Wave 2 · primary  ← trail.db backup + importAll 8 phases
+ *   Wave 2 · primary  ← activity.db backup + importAll 8 phases
  *   Wave 3 · memory   ← memory backup + memory-core pipelines
  *   Wave 4 · derived  ← aggregator 群 (静的表示)
  *
@@ -451,13 +451,13 @@ export class PipelineProvider
       groups.push(new PipelineItem('group', WAVE1_GROUP_LABEL, { children: sourceItems }));
     }
 
-    // Wave 2 · primary — trail.db 世代バックアップ + importAll 8 phases (dbFilePath 指定時のみ)。
-    // trail.db を書き込むのは Wave 2 (PersistAnalyzer.save) なので、その直前の世代
+    // Wave 2 · primary — activity.db 世代バックアップ + importAll 8 phases (dbFilePath 指定時のみ)。
+    // activity.db を書き込むのは Wave 2 (PersistAnalyzer.save) なので、その直前の世代
     // バックアップを Wave 2 の先頭に置く (Wave 3 の memory backup と対称)。
     if (this._dbFilePath) {
       const backup = buildBackupDisplay(this._dbFilePath);
       const wave2: PipelineItem[] = [
-        new PipelineItem('pipeline', 'trail.db backup', {
+        new PipelineItem('pipeline', 'activity.db backup', {
           state: backup.state,
           description: backup.description,
         }),
@@ -476,7 +476,7 @@ export class PipelineProvider
 
     // Wave 3 · memory — memory backup + memory-core pipelines。
     // memory backup を Wave 3 の先頭に置くことで、memory-core pipelines が
-    // memory-core.db を書き換える直前の世代バックアップが論理的に対応する。
+    // caravan-book.db を書き換える直前の世代バックアップが論理的に対応する。
     const wave3: PipelineItem[] = [];
     if (this._memoryDbFilePath) {
       const memBackup = buildBackupDisplay(this._memoryDbFilePath);

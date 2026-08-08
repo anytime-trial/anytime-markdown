@@ -34,8 +34,6 @@
  *  9994-10049   importReleaseCoverageForPackage — main body
  *  10065        importCurrentCoverage       — readdirSync error path
  *  10076        importCurrentCoverage       — JSON parse error continue
- *  10282-10283  upsertReleaseFileAnalysis   — no-release warn path
- *  10457-10458  upsertReleaseFunctionAnalysis — no-release warn path
  *  10549-10689  insertReleaseFiles / backfillExistingRelease / insertNewRelease / resolveReleases  (skipped: require git)
  *  10768-10852  analyzeReleases             (skipped: requires git + analyzeFn)
  *  11436        matchCodexSessionByTime     — binary search hi branch
@@ -703,63 +701,9 @@ describe('importCurrentCoverage', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 13. upsertReleaseFileAnalysis — no-release warn path (lines 10282-10283)
+// 13-14. release_file_analysis / release_function_analysis は 2026-08-08 に廃止
+// （書込未配線のまま利用実績ゼロ。upsert/get/clear の各メソッドも撤去済み）
 // ---------------------------------------------------------------------------
-describe('upsertReleaseFileAnalysis — no release warn path', () => {
-  let db: TrailDatabase;
-  beforeEach(async () => {
-    db = await createTestTrailDatabase();
-  });
-
-  it('does nothing when tag has no release (line 10282)', () => {
-    const row = sampleFileAnalysisRow('src/foo.ts');
-    // Should not throw; logs warn and returns
-    expect(() => db.upsertReleaseFileAnalysis('v999.0.0', [row])).not.toThrow();
-  });
-
-  it('returns [] from getReleaseFileAnalysis when release does not exist', () => {
-    const rows = db.getReleaseFileAnalysis('v999.0.0', 'test-repo');
-    expect(rows).toEqual([]);
-  });
-
-  it('round-trips file analysis through release (when release exists)', () => {
-    insertRelease(db, 'v1.0.0', '2026-04-01T00:00:00.000Z');
-    const row = sampleFileAnalysisRow('src/bar.ts');
-    db.upsertReleaseFileAnalysis('v1.0.0', [row]);
-    const fetched = db.getReleaseFileAnalysis('v1.0.0', 'test-repo');
-    expect(fetched.length).toBeGreaterThanOrEqual(1);
-    expect(fetched[0].filePath).toBe('src/bar.ts');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 14. upsertReleaseFunctionAnalysis — no-release warn path (lines 10457-10458)
-// ---------------------------------------------------------------------------
-describe('upsertReleaseFunctionAnalysis — no release warn path', () => {
-  let db: TrailDatabase;
-  beforeEach(async () => {
-    db = await createTestTrailDatabase();
-  });
-
-  it('does nothing when tag has no release (line 10457)', () => {
-    const row = sampleFunctionAnalysisRow('src/foo.ts', 'myFn');
-    expect(() => db.upsertReleaseFunctionAnalysis('v999.0.0', [row])).not.toThrow();
-  });
-
-  it('returns [] from getReleaseFunctionAnalysis when release does not exist', () => {
-    const rows = db.getReleaseFunctionAnalysis('v999.0.0', 'test-repo');
-    expect(rows).toEqual([]);
-  });
-
-  it('round-trips function analysis through release', () => {
-    insertRelease(db, 'v1.0.0', '2026-04-01T00:00:00.000Z');
-    const row = sampleFunctionAnalysisRow('src/bar.ts', 'helperFn');
-    db.upsertReleaseFunctionAnalysis('v1.0.0', [row]);
-    const fetched = db.getReleaseFunctionAnalysis('v1.0.0', 'test-repo');
-    expect(fetched.length).toBeGreaterThanOrEqual(1);
-    expect(fetched[0].functionName).toBe('helperFn');
-  });
-});
 
 // ---------------------------------------------------------------------------
 // 15. getQualityMetricsInputs — queryCommits with commit files (lines 11541-11545)

@@ -159,10 +159,10 @@ export function createMcpServer(options: McpEditorOptions): McpServer {
     },
   );
 
-  // --- doc-core 検索（markdown 拡張が ingest した doc-core.db を読む） ---
+  // --- doc-core 検索（markdown 拡張が ingest した catalog.db を読む） ---
 
   registerTool(server, 'search_docs',
-    'Search the document index (doc-core.db) by keyword (FTS5) and/or frontmatter facets (category/type/lang). Returns path/title/excerpt (+ snippet for keyword) so you can judge relevance without opening files.',
+    'Search the document index (catalog.db) by keyword (FTS5) and/or frontmatter facets (category/type/lang). Returns path/title/excerpt (+ snippet for keyword) so you can judge relevance without opening files.',
     {
       query: z.string().optional().describe('Free-text keyword query (FTS5). Omit to filter by facets only.'),
       category: z.string().optional().describe('Filter by frontmatter category (exact match)'),

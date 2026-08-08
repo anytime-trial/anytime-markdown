@@ -17,7 +17,7 @@ export interface OpenedDb {
 }
 
 /**
- * trail.db を better-sqlite3 で開く。
+ * activity.db を better-sqlite3 で開く。
  *
  * - readonly: better-sqlite3 の `readonly: true` で開き、SQLite 層で書き込み拒否
  * - readwrite: 通常 open。変更は WAL を経由してメインファイルへ反映される。
@@ -31,7 +31,7 @@ export async function openTrailDb(
   mode: 'readonly' | 'readwrite',
 ): Promise<OpenedDb> {
   if (!fs.existsSync(dbPath)) {
-    throw new Error(`trail.db not found: ${dbPath}`);
+    throw new Error(`activity.db not found: ${dbPath}`);
   }
   const Ctor = loadBetterSqlite3();
   const db = new Ctor(dbPath, { readonly: mode === 'readonly' });
@@ -39,15 +39,15 @@ export async function openTrailDb(
 }
 
 /**
- * memory-core.db を better-sqlite3 で開く。
+ * caravan-book.db を better-sqlite3 で開く。
  *
  * Flight Record（instructions / instruction_sessions / flight_reviews）の移設
  * （2026-08-07）に伴い、指示台帳の直書きはこちらを使う。
  *
  * ファイル不在は原則 throw（fail-closed。場所違いの空 DB を黙って作ると以降の
  * クエリが一律 0 件の偽陰性になる）。**例外は readwrite かつ同ディレクトリに
- * trail.db が実在する場合**で、このときだけ新規作成を許す — 既存ワークスペース
- * （trail.db 実在が正しい `<trailHome>/db` の証左）で、拡張が memory-core.db を
+ * activity.db が実在する場合**で、このときだけ新規作成を許す — 既存ワークスペース
+ * （activity.db 実在が正しい `<trailHome>/db` の証左）で、拡張が caravan-book.db を
  * 作るより先にセッション開始の宣言が届いても記録を落とさないため
  * （「デーモン未起動でも宣言が落ちない」設計要件の維持）。
  *
@@ -59,9 +59,13 @@ export async function openMemoryDb(
   mode: 'readonly' | 'readwrite',
 ): Promise<OpenedDb> {
   if (!fs.existsSync(dbPath)) {
-    const siblingTrailDb = path.join(path.dirname(dbPath), 'trail.db');
-    if (mode !== 'readwrite' || !fs.existsSync(siblingTrailDb)) {
-      throw new Error(`memory-core.db not found: ${dbPath}`);
+    // 移行前ワークスペース（旧名 trail.db のみ実在）も既存ワークスペースとして扱う。
+    const dbDir = path.dirname(dbPath);
+    const hasSiblingTrailDb = ['activity.db', 'trail.db'].some((name) =>
+      fs.existsSync(path.join(dbDir, name)),
+    );
+    if (mode !== 'readwrite' || !hasSiblingTrailDb) {
+      throw new Error(`caravan-book.db not found: ${dbPath}`);
     }
   }
   const Ctor = loadBetterSqlite3();
@@ -70,11 +74,11 @@ export async function openMemoryDb(
     // WAL は前提でなく実装で担保する（新規作成直後は既定の DELETE ジャーナルのため）。
     const journalMode = String(db.pragma('journal_mode = WAL', { simple: true }));
     if (journalMode.toLowerCase() !== 'wal') {
-      console.error(`[mcp-trail] memory-core.db journal_mode=WAL unavailable (got ${journalMode})`);
+      console.error(`[mcp-trail] caravan-book.db journal_mode=WAL unavailable (got ${journalMode})`);
     }
   }
   db.pragma('busy_timeout = 5000');
-  // trail.db 時代と同じく FK は強制しない（better-sqlite3 は既定 ON。
+  // activity.db 時代と同じく FK は強制しない（better-sqlite3 は既定 ON。
   // instruction_sessions の FK は宣言のみの運用 — trail-core tables.ts のコメント参照）
   db.pragma('foreign_keys = OFF');
   return wrapOpenedDb(db, dbPath, mode);

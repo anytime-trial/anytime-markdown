@@ -127,9 +127,7 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     await this.ensureClient().from('trail_daily_counts').delete().gte('date', '0000-01-01');
     await this.deleteAllPaged('trail_release_graphs', 'release_id');
     await this.ensureClient().from('trail_current_file_analysis').delete().gte('repo_id', 0);
-    await this.ensureClient().from('trail_release_file_analysis').delete().gte('release_id', 0);
     await this.ensureClient().from('trail_current_function_analysis').delete().gte('repo_id', 0);
-    await this.ensureClient().from('trail_release_function_analysis').delete().gte('release_id', 0);
   }
 
   private async deleteAllPaged(table: string, pk: string, pageSize = 500): Promise<void> {
@@ -571,37 +569,6 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
     SupabaseTrailStore.throwIfAnyFailed('trail_current_file_analysis', failed, rows.length);
   }
 
-  async unsafeClearReleaseFileAnalysis(): Promise<void> {
-    await this.ensureClient().from('trail_release_file_analysis').delete().gte('release_id', 0);
-  }
-
-  async upsertReleaseFileAnalysis(rows: readonly {
-    release_id: number; file_path: string;
-    importance_score: number; fan_in_total: number; cognitive_complexity_max: number; function_count: number;
-    dead_code_score: number;
-    signal_orphan: number; signal_fan_in_zero: number; signal_no_recent_churn: number;
-    signal_zero_coverage: number; signal_isolated_community: number;
-    is_ignored: number; ignore_reason: string;
-    cross_pkg_in_count: number; external_consumer_pkgs: number; total_in_count: number; is_barrel: number; centrality_score: number;
-    analyzed_at: string;
-    line_count: number; cyclomatic_complexity_max: number;
-    category: string;
-  }[]): Promise<void> {
-    if (rows.length === 0) return;
-    const { failed } = await this.upsertChunked(
-      'upsert trail_release_file_analysis',
-      'trail_release_file_analysis',
-      rows,
-      // additive な release_tag / repo_name を除外して release_id を送る。
-      (row) => {
-        const { release_tag: _t, repo_name: _r, ...rest } = row as Record<string, unknown>;
-        return rest;
-      },
-      { onConflict: 'release_id,file_path' },
-    );
-    SupabaseTrailStore.throwIfAnyFailed('trail_release_file_analysis', failed, rows.length);
-  }
-
   async unsafeClearCurrentFunctionAnalysis(): Promise<void> {
     await this.ensureClient().from('trail_current_function_analysis').delete().gte('repo_id', 0);
   }
@@ -627,33 +594,6 @@ export class SupabaseTrailStore implements IRemoteTrailStore {
       { onConflict: 'repo_id,file_path,function_name,start_line' },
     );
     SupabaseTrailStore.throwIfAnyFailed('trail_current_function_analysis', failed, rows.length);
-  }
-
-  async unsafeClearReleaseFunctionAnalysis(): Promise<void> {
-    await this.ensureClient().from('trail_release_function_analysis').delete().gte('release_id', 0);
-  }
-
-  async upsertReleaseFunctionAnalysis(rows: readonly {
-    release_id: number; file_path: string; function_name: string; start_line: number;
-    end_line: number; language: string;
-    fan_in: number; cognitive_complexity: number; data_mutation_score: number;
-    side_effect_score: number; line_count: number; importance_score: number;
-    signal_fan_in_zero: number; analyzed_at: string;
-    cyclomatic_complexity: number;
-    fan_out: number; distinct_callees: number; function_role: string;
-  }[]): Promise<void> {
-    if (rows.length === 0) return;
-    const { failed } = await this.upsertChunked(
-      'upsert trail_release_function_analysis',
-      'trail_release_function_analysis',
-      rows,
-      (row) => {
-        const { release_tag: _t, repo_name: _r, ...rest } = row as Record<string, unknown>;
-        return rest;
-      },
-      { onConflict: 'release_id,file_path,function_name,start_line' },
-    );
-    SupabaseTrailStore.throwIfAnyFailed('trail_release_function_analysis', failed, rows.length);
   }
 
   async unsafeClearCurrentCodeGraphs(): Promise<void> {

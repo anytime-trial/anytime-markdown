@@ -72,7 +72,7 @@ describe('CrossSourceCorrelator', () => {
     // 行わないこと（設定漏れの 1 run が既存データ削除にならない）
     expect(written).toEqual([]);
     expect(commitFileQueries).toEqual([]); // commit_files は読まない
-    expect(logs.join('\n')).toContain('memory-core.db not configured');
+    expect(logs.join('\n')).toContain('caravan-book.db not configured');
   });
 
   it('short-circuits to empty when there are no PR reviews (no heavy reads)', async () => {

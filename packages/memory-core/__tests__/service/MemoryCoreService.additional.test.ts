@@ -41,8 +41,8 @@ function makeOpts(
 ): MemoryCoreServiceOptions {
   return {
     logSink: makeLogSink(),
-    trailDbPath: join(dir, 'trail.db'),
-    dbPath: join(dir, 'memory-core.db'),
+    trailDbPath: join(dir, 'activity.db'),
+    dbPath: join(dir, 'caravan-book.db'),
     statePath: join(dir, 'memory-core-runner.json'),
     pipelineRunner: jest.fn(async () => undefined),
     ...overrides,
@@ -165,7 +165,7 @@ describe('MemoryCoreService — additional coverage', () => {
       expect(session).toBe(mockSession);
     });
 
-    it('returns null when openMemoryDbSession returns null (trail.db not found)', async () => {
+    it('returns null when openMemoryDbSession returns null (activity.db not found)', async () => {
       mockOpenMemoryDbSession.mockResolvedValue(null);
 
       const svc = new MemoryCoreService(makeOpts(dir));
@@ -239,8 +239,8 @@ describe('MemoryCoreService — additional coverage', () => {
       // pipelineRunner を省略 → defaultPipelineRunner → runMemoryCorePipeline が呼ばれる
       const opts: MemoryCoreServiceOptions = {
         logSink: makeLogSink(),
-        trailDbPath: join(dir, 'trail.db'),
-        dbPath: join(dir, 'memory-core.db'),
+        trailDbPath: join(dir, 'activity.db'),
+        dbPath: join(dir, 'caravan-book.db'),
         statePath: join(dir, 'memory-core-runner.json'),
         // pipelineRunner は省略
       };

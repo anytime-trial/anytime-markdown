@@ -54,7 +54,7 @@ describe('S3BackupUploader', () => {
   });
 
   describe('uploadLatest', () => {
-    const dbPath = '/work/.anytime/trail/db/trail.db';
+    const dbPath = '/work/.anytime/trail/db/activity.db';
     const backupPath = `${dbPath}.bak.1.gz`;
     const bytes = Buffer.from('FAKE_GZIP_BYTES');
 
@@ -73,10 +73,10 @@ describe('S3BackupUploader', () => {
       s3Mock.on(PutObjectCommand).resolves({});
 
       const uploader = new S3BackupUploader(VALID_CONFIG, noopLogger);
-      const result = await uploader.uploadLatest(dbPath, 'trail.db');
+      const result = await uploader.uploadLatest(dbPath, 'activity.db');
 
       expect(result.bucket).toBe('test-bucket');
-      expect(result.key).toBe('anytime-database-backups/trail.db/2026-05-16T12-34-56.789Z.bak.gz');
+      expect(result.key).toBe('anytime-database-backups/activity.db/2026-05-16T12-34-56.789Z.bak.gz');
       expect(result.size).toBe(bytes.byteLength);
       expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(1);
     });
@@ -84,7 +84,7 @@ describe('S3BackupUploader', () => {
     it('throws BackupNotFoundError when .bak.1.gz missing', async () => {
       existsSyncMock.mockReturnValue(false);
       const uploader = new S3BackupUploader(VALID_CONFIG, noopLogger);
-      await expect(uploader.uploadLatest(dbPath, 'trail.db'))
+      await expect(uploader.uploadLatest(dbPath, 'activity.db'))
         .rejects.toBeInstanceOf(BackupNotFoundError);
       expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
     });
@@ -98,11 +98,11 @@ describe('S3BackupUploader', () => {
         .resolves({});
 
       const uploader = new S3BackupUploader(VALID_CONFIG, noopLogger);
-      const promise = uploader.uploadLatest(dbPath, 'trail.db');
+      const promise = uploader.uploadLatest(dbPath, 'activity.db');
       await jest.advanceTimersByTimeAsync(5000);
       const result = await promise;
 
-      expect(result.key).toBe('anytime-database-backups/trail.db/2026-05-16T12-34-56.789Z.bak.gz');
+      expect(result.key).toBe('anytime-database-backups/activity.db/2026-05-16T12-34-56.789Z.bak.gz');
       expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(2);
       expect(noopLogger.warn).toHaveBeenCalled();
       jest.useRealTimers();
@@ -115,7 +115,7 @@ describe('S3BackupUploader', () => {
       s3Mock.on(PutObjectCommand).rejects(new Error('Forbidden'));
 
       const uploader = new S3BackupUploader(VALID_CONFIG, noopLogger);
-      const promise = uploader.uploadLatest(dbPath, 'trail.db');
+      const promise = uploader.uploadLatest(dbPath, 'activity.db');
       promise.catch(() => undefined); // 未処理 reject の警告抑止
       await jest.advanceTimersByTimeAsync(5000);
       await expect(promise).rejects.toBeInstanceOf(S3UploadError);
@@ -129,7 +129,7 @@ describe('S3BackupUploader', () => {
       s3Mock.on(PutObjectCommand).resolves({});
 
       const uploader = new S3BackupUploader(VALID_CONFIG, noopLogger);
-      await uploader.uploadLatest(dbPath, 'trail.db');
+      await uploader.uploadLatest(dbPath, 'activity.db');
 
       const allCalls = [
         ...noopLogger.info.mock.calls,
@@ -146,10 +146,10 @@ describe('S3BackupUploader', () => {
       s3Mock.on(PutObjectCommand).resolves({});
 
       const uploader = new S3BackupUploader(VALID_CONFIG, noopLogger);
-      const result = await uploader.uploadLatest(dbPath, 'trail.db');
+      const result = await uploader.uploadLatest(dbPath, 'activity.db');
 
       // コロンがハイフンに置換されていることを確認
-      expect(result.key).toMatch(/^anytime-database-backups\/trail\.db\/2026-05-16T12-34-56\.789Z\.bak\.gz$/);
+      expect(result.key).toMatch(/^anytime-database-backups\/activity\.db\/2026-05-16T12-34-56\.789Z\.bak\.gz$/);
       expect(result.key).not.toContain(':');
     });
   });

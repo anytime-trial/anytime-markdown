@@ -55,7 +55,7 @@ export class CommitResolver implements Analyzer {
       try {
         const n = this.opts.trailDb.resolveCommits(sessionId, w.gitRoot, w.repoName);
         this.commitsResolved += n;
-        // resolveCommits の戻り値は INSERT 件数。ハッシュ集合の取得は trail.db の別 API が
+        // resolveCommits の戻り値は INSERT 件数。ハッシュ集合の取得は activity.db の別 API が
         // 必要なので、event の `hashes` は概算 (件数だけ) として空配列で残す。下流の
         // MessageCommitMatcher (Step 2d) では session_commits テーブルを直接読むため、
         // hashes の正確性はここで必須ではない。

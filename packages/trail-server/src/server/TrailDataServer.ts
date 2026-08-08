@@ -58,7 +58,7 @@ import {
 // typescript を引く `analyze` は DI（analyzeReleaseFn）に置換済みのため import しない。
 import type { AnalyzeFunction } from '@anytime-markdown/trail-db';
 import type { AnalyticsData, CostOptimizationData,MessageRow, SessionCommitRow, SessionRow, TrailDatabase } from '@anytime-markdown/trail-db';
-import { FlightRecordDatabase, MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
+import { FlightRecordDatabase, MetricsThresholdsLoader, resolveBundledNativeBinding } from '@anytime-markdown/trail-db';
 import { type WebSocket,WebSocketServer } from 'ws';
 
 import type { C4SourceFileInput } from '../analyze/analyzeChildProtocol';
@@ -322,8 +322,8 @@ export class TrailDataServer {
   private readonly emergencyApi: EmergencyApiHandler;
   /**
    * Flight Record（flight_reviews / instructions / instruction_sessions）の永続化層。
-   * 保存先は memory-core.db（2026-08-07 移設）のため memoryDbPath 未注入の構成では null になり、
-   * flight 系エンドポイントはエラーを返す（暗黙の trail.db フォールバックはしない）。
+   * 保存先は caravan-book.db（2026-08-07 移設）のため memoryDbPath 未注入の構成では null になり、
+   * flight 系エンドポイントはエラーを返す（暗黙の activity.db フォールバックはしない）。
    */
   private readonly flightRecordDb: FlightRecordDatabase | null = null;
 
@@ -358,28 +358,21 @@ export class TrailDataServer {
     private readonly analyzeReleaseFn?: AnalyzeFunction,
   ) {
     // webpack-bundled VS Code 拡張では bindings package が call stack から
-    // `.node` を推測できず crash するため、distPath から絶対パスを組み立てて
+    // `.node` を推測できず crash するため、distPath 配下の絶対パスを
     // BetterSqlite3MemoryDb に渡す (memory-core / TrailDatabase と同パターン)。
-    const nativeBinding = path.join(
-      this.distPath,
-      'node_modules',
-      'better-sqlite3',
-      'build',
-      'Release',
-      'better_sqlite3.node',
-    );
-    // バンドル済み .node が distPath 配下に無い環境（テスト・ソース実行）では
-    // better-sqlite3 の既定解決へフォールバックする（実在しないパスを渡すと open が常に失敗する）。
+    // パス構成は trail-db の resolveBundledNativeBinding が唯一の正で、実在しない場合は
+    // null（= better-sqlite3 の既定解決へフォールバック。テスト・ソース実行）。
+    const nativeBinding = resolveBundledNativeBinding(this.distPath);
     this.memoryApi = new MemoryApiHandler(
       this.logger.child('MemoryApiHandler'),
       // 未指定は「未設定」として明示的に伝える。ハンドラ側で cwd 基準の暗黙解決を
       // させない（解決の責務は注入元にある）。
       memoryDbPath ?? null,
-      fs.existsSync(nativeBinding) ? nativeBinding : undefined,
+      nativeBinding ?? undefined,
     );
-    // Flight Record ストア（memory-core.db 主接続 + trail.db ATTACH）。
+    // Flight Record ストア（caravan-book.db 主接続 + activity.db ATTACH）。
     // 初期化失敗・移行失敗は fail-open（他エンドポイントを巻き込まない）。移行は毎起動の
-    // 冪等実行で、trail.db 側に旧テーブルが残っていればコピー検証後に回収する。
+    // 冪等実行で、activity.db 側に旧テーブルが残っていればコピー検証後に回収する。
     if (memoryDbPath !== undefined && memoryDbPath !== '') {
       const flightLogger = this.logger.child('FlightRecordDatabase');
       const flightDbLogger = {
@@ -389,11 +382,12 @@ export class TrailDataServer {
         debugSql: () => {},
       };
       try {
-        const flightDb = new FlightRecordDatabase(
-          memoryDbPath,
-          path.join(path.dirname(memoryDbPath), 'trail.db'),
-          flightDbLogger,
-        );
+        const flightDb = new FlightRecordDatabase(memoryDbPath, {
+          trailDbPath: path.join(path.dirname(memoryDbPath), 'activity.db'),
+          // バンドル済み拡張では distPath 配下の .node を渡さないと init() が必ず throw する。
+          distPath: this.distPath,
+          logger: flightDbLogger,
+        });
         flightDb.init();
         this.flightRecordDb = flightDb;
         try {
@@ -405,7 +399,7 @@ export class TrailDataServer {
             );
           }
         } catch (e) {
-          flightLogger.error('flight record migration from trail.db failed (will retry on next start)', e);
+          flightLogger.error('flight record migration from activity.db failed (will retry on next start)', e);
         }
       } catch (e) {
         flightLogger.error('FlightRecordDatabase init failed; flight record endpoints will be unavailable', e);
@@ -821,7 +815,7 @@ export class TrailDataServer {
       this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(params[0] ?? '')));
     // Flight Record: 指示単位の運航記録。/open は :id パターンより先に登録する
     // （後だと 'open' が指示 ID として食われる）。
-    // Flight Record のワークスペース選択肢。trail.db（指示・運航記録）と memory-core
+    // Flight Record のワークスペース選択肢。activity.db（指示・運航記録）と memory-core
     // （バグ修正・レビュー・乖離）は別 DB なので、両方の distinct を統合して 1 本で返す。
     t.exact('GET', '/api/trail/workspaces', ({ res }) => void this.handleListWorkspaces(res));
     t.exact('GET', '/api/trail/instructions/open', ({ res, url }) => this.handleListOpenInstructions(res, url.searchParams));
@@ -1026,6 +1020,13 @@ export class TrailDataServer {
 
     t.exact('GET', '/api/memory/status', ({ res }) =>
       this.respondMemoryJson(res, '/api/memory/status', this.memoryApi.handleStatus()));
+
+    // 知識グラフ（共起ネットワーク表示用）。DB 未設定・不在は 200 + null（0 件の空配列と区別する）
+    t.exact('GET', '/api/memory/knowledge-graph', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/knowledge-graph', this.memoryApi.getKnowledgeGraph({
+        limit: clampInt(ctx.url.searchParams.get('limit'), 150, 1, 500),
+        types: ctx.url.searchParams.get('types')?.split(',').filter((s) => s !== '') ?? undefined,
+      })));
 
     t.exact('GET', '/api/memory/drift/by-day', (ctx) => {
       void this.memoryApi.listDriftHistoryByDay({
@@ -2160,9 +2161,8 @@ export class TrailDataServer {
       return;
     }
     try {
-      const rows = tag === 'current'
-        ? this.trailDb.getCurrentFileAnalysis(repoName)
-        : this.trailDb.getReleaseFileAnalysis(tag, repoName);
+      // release 分析 (release_file_analysis) は 2026-08-08 に廃止。current 以外のタグは空で返す。
+      const rows = tag === 'current' ? this.trailDb.getCurrentFileAnalysis(repoName) : [];
 
       // C4 model 取得
       const store = this.trailDb.asC4ModelStore();
@@ -2185,9 +2185,7 @@ export class TrailDataServer {
       const centrality = aggregateCentralityToC4(centralityFileScores, elements);
 
       // functionRoles 集計
-      const fnRows = tag === 'current'
-        ? this.trailDb.getCurrentFunctionAnalysis(repoName)
-        : this.trailDb.getReleaseFunctionAnalysis(tag, repoName);
+      const fnRows = tag === 'current' ? this.trailDb.getCurrentFunctionAnalysis(repoName) : [];
       const classified: ClassifiedFunction[] = fnRows.map((r) => ({
         filePath: r.filePath,
         functionName: r.functionName,
@@ -2236,9 +2234,8 @@ export class TrailDataServer {
       return;
     }
     try {
-      const rows = tag === 'current'
-        ? this.trailDb.getCurrentFunctionAnalysis(repoName)
-        : this.trailDb.getReleaseFunctionAnalysis(tag, repoName);
+      // release 分析 (release_function_analysis) は 2026-08-08 に廃止。current 以外のタグは空で返す。
+      const rows = tag === 'current' ? this.trailDb.getCurrentFunctionAnalysis(repoName) : [];
 
       const entries = rows.map((r) => ({
         filePath: r.filePath,
@@ -2877,7 +2874,7 @@ export class TrailDataServer {
   /** transcript 読取の上限。超過時は集計せず最小行に縮退する（Stop フックの fail-open を保つ）。 */
   private static readonly FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES = 50 * 1024 * 1024;
 
-  /** flight record ストア。memoryDbPath 未注入・init 失敗時は明示エラー（暗黙の trail.db フォールバック禁止）。 */
+  /** flight record ストア。memoryDbPath 未注入・init 失敗時は明示エラー（暗黙の activity.db フォールバック禁止）。 */
   private requireFlightRecordDb(): FlightRecordDatabase {
     if (this.flightRecordDb === null) {
       throw new Error('flight record store unavailable (memoryDbPath not configured or init failed)');
@@ -2930,7 +2927,7 @@ export class TrailDataServer {
           if (assessment !== null) {
             flightDb.applySelfAssessmentToFlightReview(sessionId, assessment);
           }
-          // user_feedback_entries は trail.db 残留（移設対象は flight record 3 テーブルのみ）
+          // user_feedback_entries は activity.db 残留（移設対象は flight record 3 テーブルのみ）
           const feedbackEntries = this.trailDb.listUserFeedbackEntries({ sessionId });
           const candidates = extractLessonCandidates({ lines, feedbackEntries });
           if (candidates.length > 0) {
@@ -3188,7 +3185,7 @@ export class TrailDataServer {
   /**
    * Flight Record のワークスペース選択肢（4 サブタブ共通）。
    *
-   * trail.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、memory-core 側は
+   * activity.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、memory-core 側は
    * 取込時に記録した repo_name。どちらもリポジトリ名なので同じ名前空間として統合する。
    * 片方の DB が読めなくても残りを返す（選択肢が空になると絞り込み自体ができなくなるため、
    * 部分的な結果でも出す）。

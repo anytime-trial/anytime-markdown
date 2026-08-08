@@ -83,12 +83,12 @@ function seedMemoryDb(dbPath: string): void {
 }
 
 /**
- * instruction_sessions は memory-core.db 側へ移設済み（2026-08-07）のため、trail.db では
+ * instruction_sessions は caravan-book.db 側へ移設済み（2026-08-07）のため、activity.db では
  * なく memoryDbPath へ FlightRecordDatabase 経由でシードする（openInstruction がテーブルを
  * 冪等作成し、instruction_sessions へ起点セッションを紐付ける）。
  */
 function seedInstructionSession(memoryDbPath: string): void {
-  const flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+  const flightDb = new FlightRecordDatabase(memoryDbPath);
   flightDb.init();
   flightDb.openInstruction({
     id: INSTRUCTION_ID,
@@ -108,11 +108,11 @@ describe('MemoryApiHandler flight review findings', () => {
 
   beforeAll(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-flight-findings-'));
-    const memoryDbPath = path.join(tmpDir, 'memory-core.db');
+    const memoryDbPath = path.join(tmpDir, 'caravan-book.db');
     seedMemoryDb(memoryDbPath);
     seedInstructionSession(memoryDbPath);
     handler = new MemoryApiHandler(makeMockLogger(), memoryDbPath);
-    // trail.db の ATTACH は openReadOnly 内の非同期処理。最初の呼び出しで接続を張り、
+    // activity.db の ATTACH は openReadOnly 内の非同期処理。最初の呼び出しで接続を張り、
     // ATTACH の解決を待ってから本検証に入る（待たないと trail.* が未解決のまま走る）。
     await handler.getFlightReviewFindingCounts();
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -177,7 +177,7 @@ describe('MemoryApiHandler flight review findings', () => {
   // 件数列が非ゼロという矛盾表示になる。共有の 200 キャップへ戻る退行をここで止める。
   it('200 件を超える limit 指定を 200 へ丸めない', async () => {
     const manyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-flight-findings-many-'));
-    const memoryDbPath = path.join(manyDir, 'memory-core.db');
+    const memoryDbPath = path.join(manyDir, 'caravan-book.db');
     seedMemoryDb(memoryDbPath);
     seedInstructionSession(memoryDbPath);
 
@@ -211,9 +211,9 @@ describe('MemoryApiHandler flight review findings', () => {
     }
   }, 30_000);
 
-  it('trail.db が無ければ空を返しログへ理由を残す', async () => {
+  it('activity.db が無ければ空を返しログへ理由を残す', async () => {
     const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-flight-findings-noattach-'));
-    const memoryDbPath = path.join(emptyDir, 'memory-core.db');
+    const memoryDbPath = path.join(emptyDir, 'caravan-book.db');
     seedMemoryDb(memoryDbPath);
     const logger = makeMockLogger();
     const h = new MemoryApiHandler(logger, memoryDbPath);

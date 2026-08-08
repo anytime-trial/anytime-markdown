@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- A Knowledge Graph tab renders the memory-core knowledge graph as a cooccurrence network.
 - The code graph tab gained a Time Scrubber and Auto Playback, so State Replay can be driven at commit granularity. Ticks are fetched per commit and the scrubber zooms.
 - The code graph tab gained a diff view against the previous snapshot.
 - The code graph can be colored by last editor or edit frequency.

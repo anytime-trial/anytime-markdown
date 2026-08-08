@@ -11,7 +11,7 @@ export interface AttachTrailDbFromHandleResult {
 }
 
 /**
- * Attach trail.db to an existing memory-core db in read-only mode.
+ * Attach activity.db to an existing memory-core db in read-only mode.
  *
  * BetterSqlite3MemoryDb 内部の read-only alias 管理 (アプリ層 SQL ガード) で
  * trail.* への INSERT/UPDATE/DELETE/REPLACE を阻止する。SQLite native の URI
@@ -57,7 +57,7 @@ export function attachTrailDbFromHandle(
   // mkdtempSync で OS-secure な乱数ディレクトリを作成し、その配下に固定ファイル名で書く。
   // CodeQL `js/insecure-temporary-file` の対象 (Math.random / Date.now / pid 組合せ) を回避する。
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-core-trail-attach-'));
-  const tempPath = path.join(tempDir, 'trail.db');
+  const tempPath = path.join(tempDir, 'activity.db');
   const cleanup = (): void => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   };

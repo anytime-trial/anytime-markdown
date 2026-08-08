@@ -152,7 +152,7 @@ describe('MemoryApiHandler', () => {
 
   beforeAll(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-api-test-'));
-    dbPath = path.join(tmpDir, 'memory-core.db');
+    dbPath = path.join(tmpDir, 'caravan-book.db');
     await buildTestDb(dbPath);
     handler = new MemoryApiHandler(makeMockLogger(), dbPath);
   });
@@ -261,9 +261,9 @@ describe('MemoryApiHandler', () => {
       expect(rows.length).toBe(2);
     });
 
-    // trail.db が ATTACH できない構成でも一覧そのものは memory-core だけで引ける。
+    // activity.db が ATTACH できない構成でも一覧そのものは memory-core だけで引ける。
     // instruction_sessions を引けないことを理由に行を落とすと、Bug Fixed タブが丸ごと空になる。
-    it('trail.db が無ければ指示 ID をセッション ID へフォールバックし、行は落とさない', async () => {
+    it('activity.db が無ければ指示 ID をセッション ID へフォールバックし、行は落とさない', async () => {
       const rows = await handler.getBugHistory({});
       const byId = new Map(rows.map((r) => [r.id, r]));
       expect(byId.get('bf-2')?.instructionId).toBe('sess-1');

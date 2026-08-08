@@ -122,11 +122,11 @@ describe('AlignmentApiHandler', () => {
     expect(captured.body).toEqual({ error: expect.stringContaining('lep.json') });
   });
 
-  it('returns 409 when a db-backed scope is requested but trail.db is not open', async () => {
+  it('returns 409 when a db-backed scope is requested but activity.db is not open', async () => {
     const captured = await call(createHandler(), 'scope=session&sessionId=abc');
 
     expect(captured.status).toBe(409);
-    expect(captured.body).toEqual({ error: expect.stringContaining('trail.db is not open') });
+    expect(captured.body).toEqual({ error: expect.stringContaining('activity.db is not open') });
   });
 
   it('returns 400 for an unknown scope', async () => {

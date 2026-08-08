@@ -33,7 +33,7 @@ describe('/api/trail/flight-reviews', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-'));
-    const memoryDbPath = path.join(dbDir, 'memory-core.db');
+    const memoryDbPath = path.join(dbDir, 'caravan-book.db');
     server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
     await server.start(0);
     port = server.port;
@@ -325,14 +325,14 @@ describe('/api/trail/flight-reviews/:sessionId PATCH (Phase 6 S3 manual)', () =>
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-'));
-    const memoryDbPath = path.join(dbDir, 'memory-core.db');
+    const memoryDbPath = path.join(dbDir, 'caravan-book.db');
     server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
     await server.start(0);
     port = server.port;
-    // Flight Record は memory-core.db 側（server 内部の flightRecordDb と同一ファイル）。
+    // Flight Record は caravan-book.db 側（server 内部の flightRecordDb と同一ファイル）。
     // シード専用の別接続で upsertFlightReviewFromMachine を叩く（server 内部インスタンスへは
     // アクセスできないため）。
-    flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+    flightDb = new FlightRecordDatabase(memoryDbPath);
     flightDb.init();
   });
 
@@ -465,11 +465,11 @@ describe('/api/trail/flight-reviews/:sessionId PATCH rationaleAuditStatus (Phase
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-'));
-    const memoryDbPath = path.join(dbDir, 'memory-core.db');
+    const memoryDbPath = path.join(dbDir, 'caravan-book.db');
     server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
     await server.start(0);
     port = server.port;
-    flightDb = new FlightRecordDatabase(memoryDbPath, null, undefined);
+    flightDb = new FlightRecordDatabase(memoryDbPath);
     flightDb.init();
   });
 

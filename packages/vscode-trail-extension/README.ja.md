@@ -129,7 +129,7 @@ Marketplace から導入すれば従来通り利用できます。\
 | `Anytime Trail: 全データ解析` | AnalyzeAll パイプラインを実行（`analyzeAll.enabled` が必要） |
 | `Anytime Trail: セーフポイントを記録` / `セーフポイントへロールバック` | HEAD をセーフポイントとして記録し、recover ブランチで復旧 |
 | `Anytime Trail: Kill Switch（Claude ツール実行を遮断）` / `Kill Switch 解除` | 暴走時に Claude のツール実行を緊急遮断・解除 |
-| `Anytime Trail: 知識ベーススナップショットを復元` | `trail.db` 全体をスナップショットから復元 |
+| `Anytime Trail: 知識ベーススナップショットを復元` | `activity.db` 全体をスナップショットから復元 |
 | `Anytime Trail: メモリインデックスを再構築` | memory-core の索引を作り直す |
 | `Anytime Trail: MCP サーバーを登録` | `.mcp.json` に `mcp-trail` を書き出す |
 
@@ -144,9 +144,9 @@ Marketplace から導入すれば従来通り利用できます。\
 | `anytimeTrail.analyzeAll.enabled` | `false` | AnalyzeAll パイプライン（importAll + memory-core runOnce）を有効化する。OFF のときパイプラインツリービューは非表示になり、自動実行・手動実行ともに行われない |
 | `anytimeTrail.lep.configPath` | `""` | `lep.json` の代替パス。指定時はこのファイルのみを読み込む（標準の `.anytime/trail/lep.json` 探索はスキップ）。反映には Reload Window が必要 |
 
-> **DB の保存先について**: `trail.db` ほか各 DB の保存先は VS Code 設定ではなく `lep.json` の
+> **DB の保存先について**: `activity.db` ほか各 DB の保存先は VS Code 設定ではなく `lep.json` の
 > `database.storagePath`（既定 `.anytime/trail/db`）で決まります。既定構成での実体は
-> `<ワークスペース>/.anytime/trail/db/trail.db` です。
+> `<ワークスペース>/.anytime/trail/db/activity.db` です。
 
 > **トークンバジェットの上限値について**: `anytimeAgent.budget.dailyLimitTokens` ほかの
 > バジェット設定は [Anytime Agent](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-agent) 拡張側にあります。

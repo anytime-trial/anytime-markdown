@@ -9,7 +9,7 @@ import type { FlightRecordTestContext } from './support/createTestFlightRecordDb
 import type { FlightRecordDatabase } from '../FlightRecordDatabase';
 
 // セッション由来テーブル（sessions / repos / session_costs / session_commits / commit_files /
-// messages / verification_runs）は trail.db 側に残るため、生 SQL は ctx.trailRun で流す。
+// messages / verification_runs）は activity.db 側に残るため、生 SQL は ctx.trailRun で流す。
 function rawRun(ctx: FlightRecordTestContext, sql: string, params: unknown[] = []): void {
   ctx.trailRun(sql, params);
 }
@@ -144,7 +144,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
   });
 
   describe('指示単位の一覧', () => {
-    // 検証実行（trail.db の verification_runs）は session_id だけで指示へ畳む。宣言済みでも
+    // 検証実行（activity.db の verification_runs）は session_id だけで指示へ畳む。宣言済みでも
     // 暗黙グループでも同じキーで引けることが、指示タブの検証列の前提。
     function insertRun(sessionId: string, kind: string, overrides: Record<string, string | number | null> = {}) {
       rawRun(
@@ -539,7 +539,7 @@ describe('FlightRecordDatabase instructions (Flight Record)', () => {
 
   describe('成果物', () => {
     beforeEach(() => {
-      // このテスト用ファクトリの trail.db 接続は FK 既定 ON（better-sqlite3 のビルド既定）。
+      // このテスト用ファクトリの activity.db 接続は FK 既定 ON（better-sqlite3 のビルド既定）。
       // 旧 TrailDatabase.ensureDb() は init() で foreign_keys=OFF にしていたため、以下の
       // repo_id=1 決め打ち INSERT（repos 行を用意しない）が通っていた。挙動を揃えるため合わせる。
       rawRun(ctx, `PRAGMA foreign_keys = OFF`);

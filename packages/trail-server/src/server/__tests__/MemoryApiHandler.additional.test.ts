@@ -193,7 +193,7 @@ describe('MemoryApiHandler — additional coverage', () => {
 
   beforeAll(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-api-additional-'));
-    dbPath = path.join(tmpDir, 'memory-core.db');
+    dbPath = path.join(tmpDir, 'caravan-book.db');
     buildMinimalDb(dbPath);
     handler = new MemoryApiHandler(makeMockLogger(), dbPath);
   });
@@ -211,13 +211,13 @@ describe('MemoryApiHandler — additional coverage', () => {
     });
 
     it('未設定時に cwd 配下の本番 DB へ暗黙フォールバックしない', async () => {
-      // 実行場所に本番と同じ配置の memory-core.db があっても掴まない。
+      // 実行場所に本番と同じ配置の caravan-book.db があっても掴まない。
       // 掴むと「未設定」の判定が実行場所依存になり、CI では常に不在で pass するため
       // 永久に検知されない（code-quality.md §15 の保護領域フォールバック禁止）。
       const cwdDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-api-cwd-'));
       const prodDbDir = path.join(cwdDir, '.anytime', 'trail', 'db');
       fs.mkdirSync(prodDbDir, { recursive: true });
-      fs.writeFileSync(path.join(prodDbDir, 'memory-core.db'), '');
+      fs.writeFileSync(path.join(prodDbDir, 'caravan-book.db'), '');
       const originalCwd = process.cwd();
       const originalTrailHome = process.env['TRAIL_HOME'];
       delete process.env['TRAIL_HOME'];

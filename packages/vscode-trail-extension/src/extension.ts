@@ -7,6 +7,7 @@ import { checkArchitecturalAlignment } from '@anytime-markdown/trail-core';
 import { seedAnalyzeExclude } from '@anytime-markdown/trail-core/analyzeExclude';
 import {
 	FileChangeResolver,
+	resolveBundledNativeBinding,
 	SpecDocIndex,
 	TrailDatabase,
 	WorkspaceC4ElementProvider,
@@ -150,7 +151,7 @@ const alignmentDbLogger = {
 /**
  * 設計書追随チェックを作業ツリー基準で走らせ、違反を Problems パネルへ出す。
  *
- * trail.db を開かないのは worktree スコープが git だけで完結するため（取込前・未解析でも動く）。
+ * activity.db を開かないのは worktree スコープが git だけで完結するため（取込前・未解析でも動く）。
  * Fail-open: 失敗しても拡張を止めず、診断をクリアして警告を出すだけにする。
  */
 async function runCheckAlignmentCommand(
@@ -379,7 +380,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// どのフォルダを開いていても指定ディレクトリの .anytime/trail/analyze-exclude を全解析経路に適用する
 	// (空なら undefined → 解析対象リポ自身にフォールバック)。相対は wsRootForDb 起点で絶対化。
 	const analyzeExcludeRoot = resolveExcludeRoot(lepConfig, wsRootForDb);
-	// trail.db 保存先は lep.json database.storagePath (旧 anytimeTrail.database.storagePath は廃止)。
+	// activity.db 保存先は lep.json database.storagePath (旧 anytimeTrail.database.storagePath は廃止)。
 	const dbStoragePathSetting = lepConfig.database.storagePath || '.anytime/trail/db';
 
 	// `.anytime/trail/analyze-exclude` を activate 時に seed する。analyze pipeline
@@ -415,14 +416,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	//   - memory chat (ChatBridge / RebuildScheduler)
 	// なので拡張側の責務として早期に解決しておく。
 	const memoryCoreOutputChannel = vscode.window.createOutputChannel('Anytime Memory');
-	const memoryCoreNativeBinding = path.join(
-		extensionDistPath,
-		'node_modules',
-		'better-sqlite3',
-		'build',
-		'Release',
-		'better_sqlite3.node',
-	);
+	// パス構成の正本は trail-db の resolveBundledNativeBinding。実在しなければ undefined を配り、
+	// memory-core 側を better-sqlite3 の既定解決へ落とす（実在しないパスは open を必ず失敗させる）。
+	const memoryCoreNativeBinding = resolveBundledNativeBinding(extensionDistPath) ?? undefined;
 	trailDb.setIntegrityAlertHandler((alerts) => {
 		for (const a of alerts) {
 			TrailLogger.warn(
@@ -578,7 +574,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('anytime-trail.analyzeCurrentCodePickTsconfig', () => runAnalyzeCurrentCommand({ pickTsconfig: true })),
 	);
 
-	// 設計書追随チェック (作業ツリー基準)。git だけで完結するため trail.db の取込状態に依存しない。
+	// 設計書追随チェック (作業ツリー基準)。git だけで完結するため activity.db の取込状態に依存しない。
 	// 結果は Problems パネル (診断) と サイドバーの「設計書追随」ツリーの両方へ出す。
 	const alignmentDiagnostics = new AlignmentDiagnosticsProvider(wsRootForDb ?? '');
 	const alignmentTree = new AlignmentTreeProvider(wsRootForDb ?? '', lepConfig.sources.docs.root.trim());
@@ -638,10 +634,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				TrailLogger.info('[daemon] afterRun received');
 			});
 
-			// trail.db パスは import パイプライン (configure) と Data Server (startHttpServer) の
+			// activity.db パスは import パイプライン (configure) と Data Server (startHttpServer) の
 			// 双方が同一ファイルを指す必要があるため、両者で参照できるよう 1 箇所で導出する。
 			// dbStorageDir はこのブロックの if 条件 (498行) で非 null 保証済み。
-			const trailDbPath = path.join(dbStorageDir, 'trail.db');
+			const trailDbPath = path.join(dbStorageDir, 'activity.db');
 
 			// AnalyzeAllRunner (lep.json stage !== 'disabled' の場合のみ)
 			if (lepStage !== 'disabled') {
@@ -781,7 +777,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				await httpClient.start({
 					distPath: extensionDistPath,
 					// HTTP サーバ (Data Server) は import パイプライン (configure) 非依存で起動する。
-					// trail.db パスを直接渡すことで stage='disabled' でも起動できる (上で導出した定数を共有)。
+					// activity.db パスを直接渡すことで stage='disabled' でも起動できる (上で導出した定数を共有)。
 					trailDbPath,
 					gitRoot: wsRootForDb,
 					memoryDbPath: memoryDbPathForServer,
@@ -1108,7 +1104,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 書き手 (memory-core/defaultMemoryCorePipelineRunner.ts) が trailDbPath と
 	// 同じ dirname に出力するので、reader 側もそれに合わせる。
 	const pipelineStatusPath = dbStorageDir ? path.join(dbStorageDir, 'pipeline-status.json') : undefined;
-	const dbFilePath = dbStorageDir ? path.join(dbStorageDir, 'trail.db') : undefined;
+	const dbFilePath = dbStorageDir ? path.join(dbStorageDir, 'activity.db') : undefined;
 	const importAllStatusFilePath = dbStorageDir
 		? path.join(dbStorageDir, 'importall-phase-status.json')
 		: undefined;

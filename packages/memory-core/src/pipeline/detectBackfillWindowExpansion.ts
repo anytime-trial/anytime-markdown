@@ -2,7 +2,7 @@ import type { MemoryDbConnection } from '../db/connection/types';
 import { ingestableMessageSql } from '../ingest/conversation/messageFilter';
 
 export interface DetectBackfillWindowExpansionInput {
-  /** memory-core.db への接続。trail DB が "trail" として ATTACH 済みであること。 */
+  /** caravan-book.db への接続。trail DB が "trail" として ATTACH 済みであること。 */
   db: MemoryDbConnection;
   /** 現在 config が要求する backfill 期間 (日)。 */
   sinceDays: number;
@@ -17,7 +17,7 @@ export interface DetectBackfillWindowExpansionResult {
 
 /**
  * config の backfillDays が広がった結果、memory_episodes でカバーされていない
- * 過去メッセージが trail.db 側に存在するかを検出する。
+ * 過去メッセージが activity.db 側に存在するかを検出する。
  *
  * - memory_episodes.MIN(valid_from) を「現在カバー済みの最古地点」とみなす
  * - desired_start = now - sinceDays * 1day を「望むカバー開始地点」とする

@@ -449,12 +449,8 @@ export class PostgresTrailStore implements IRemoteTrailStore {
   async upsertReleaseCoverage(): Promise<never> { throw new Error('PostgresTrailStore.upsertReleaseCoverage not implemented'); }
   async unsafeClearCurrentFileAnalysis(): Promise<never> { throw new Error('PostgresTrailStore.unsafeClearCurrentFileAnalysis not implemented'); }
   async upsertCurrentFileAnalysis(): Promise<never> { throw new Error('PostgresTrailStore.upsertCurrentFileAnalysis not implemented'); }
-  async unsafeClearReleaseFileAnalysis(): Promise<never> { throw new Error('PostgresTrailStore.unsafeClearReleaseFileAnalysis not implemented'); }
-  async upsertReleaseFileAnalysis(): Promise<never> { throw new Error('PostgresTrailStore.upsertReleaseFileAnalysis not implemented'); }
   async unsafeClearCurrentFunctionAnalysis(): Promise<never> { throw new Error('PostgresTrailStore.unsafeClearCurrentFunctionAnalysis not implemented'); }
   async upsertCurrentFunctionAnalysis(): Promise<never> { throw new Error('PostgresTrailStore.upsertCurrentFunctionAnalysis not implemented'); }
-  async unsafeClearReleaseFunctionAnalysis(): Promise<never> { throw new Error('PostgresTrailStore.unsafeClearReleaseFunctionAnalysis not implemented'); }
-  async upsertReleaseFunctionAnalysis(): Promise<never> { throw new Error('PostgresTrailStore.upsertReleaseFunctionAnalysis not implemented'); }
   async unsafeClearCurrentCodeGraphs(): Promise<never> { throw new Error('PostgresTrailStore.unsafeClearCurrentCodeGraphs not implemented'); }
   async upsertCurrentCodeGraphs(): Promise<never> { throw new Error('PostgresTrailStore.upsertCurrentCodeGraphs not implemented'); }
   async upsertCurrentCodeGraphCommunities(): Promise<never> { throw new Error('PostgresTrailStore.upsertCurrentCodeGraphCommunities not implemented'); }

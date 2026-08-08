@@ -19,7 +19,7 @@ npx anytime-trail-server stop
 | パス | 内容 |
 | --- | --- |
 | `daemon.json` | デーモンの PID / port / URL |
-| `db/trail.db` | SQLite データベース |
+| `db/activity.db` | SQLite データベース |
 | `logs/daemon-YYYY-MM-DD.log` | 1 日 1 ファイルの動作ログ |
 
 環境変数 `TRAIL_HOME` を設定することで、格納先を変更できる。

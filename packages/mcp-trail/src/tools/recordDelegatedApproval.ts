@@ -39,7 +39,7 @@ export async function handleRecordDelegatedApproval(
   }
   // 既存 MCP ルート (buildRouteOpts) と同じ入口: 引数 > TRAIL_WORKSPACE_PATH > cwd
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  // 保存先は memory-core.db（2026-08-07 に trail.db から移設。旧テーブルは遅延移行で回収）
+  // 保存先は caravan-book.db（2026-08-07 に activity.db から移設。旧テーブルは遅延移行で回収）
   const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
   const opened = await openMemoryDb(dbPath, 'readwrite');
   try {

@@ -77,13 +77,13 @@ describe('getMemoryCoreDbPath', () => {
     }
   });
 
-  it('returns <trail_home>/db/memory-core.db', () => {
+  it('returns <trail_home>/db/caravan-book.db', () => {
     process.env.TRAIL_HOME = '/x/trail';
-    expect(getMemoryCoreDbPath()).toBe('/x/trail/db/memory-core.db');
+    expect(getMemoryCoreDbPath()).toBe('/x/trail/db/caravan-book.db');
   });
 
   it('honors workspaceRoot when TRAIL_HOME is unset', () => {
     delete process.env.TRAIL_HOME;
-    expect(getMemoryCoreDbPath('/ws')).toBe('/ws/.anytime/trail/db/memory-core.db');
+    expect(getMemoryCoreDbPath('/ws')).toBe('/ws/.anytime/trail/db/caravan-book.db');
   });
 });

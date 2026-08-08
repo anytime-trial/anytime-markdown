@@ -12,6 +12,7 @@ import {
 } from '@anytime-markdown/graph-core';
 import type {
   CacheDecision,
+  CardLayoutState,
   CooccurrenceSkin,
   ClusterLaneState,
   ClusterLaneViewState,
@@ -19,6 +20,7 @@ import type {
   CooccurrenceViewerOptions,
   CooccurrenceViewerUpdate,
   LayoutStatus,
+  RenderCardColumn,
   RenderClusterLane,
   RenderGraph,
   RenderLink,
@@ -37,6 +39,12 @@ import {
   computeClusterLanePlacements,
   type ClusterLanePlacement,
 } from './render/clusterLanes';
+import {
+  CARD_HEIGHT,
+  CARD_WIDTH,
+  computeCardLayout,
+  type CardColumnPlacement,
+} from './render/cardLayout';
 import { RADIUS_MAX } from './render/scales';
 import { defaultTimelineViewState, visibleSliceIndexes } from './ui/timelineModel';
 import { clusterLaneAxis, defaultClusterLaneViewState } from './ui/clusterLaneModel';
@@ -195,6 +203,8 @@ export function mountCooccurrenceViewer(
   let scheduler: RenderScheduler | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let skin: CooccurrenceSkin = 'standard';
+  /** カード表示の観測点。card スキンで図を組んだときだけ持つ。 */
+  let cardState: CardLayoutState | null = null;
   let ozView: OzRenderer | null = null;
   let ozContainer: HTMLDivElement | null = null;
   /** WebGL 初期化に一度失敗したら再試行しない（毎トグルで throw を繰り返さないため）。 */
@@ -390,7 +400,13 @@ export function mountCooccurrenceViewer(
     const wordsState = { file, visibleNodeIndexes, selectedNodeIndex, t };
     const linksState = { file, visibleLinkIndexes, selectedNodeIndex, t };
     filterPanel?.update(filterState);
-    clusterListPanel?.update({ file, selectedClusterIndex, laneView: clusterLaneView, t });
+    clusterListPanel?.update({
+      file,
+      selectedClusterIndex,
+      laneView: clusterLaneView,
+      ...(skin === 'card' ? { laneLockedReason: t('clusters.laneUnavailableCard') } : {}),
+      t,
+    });
     timelinePanel?.update({ file, view: timelineView, t });
     wordListPanel?.update(wordsState);
     linkListPanel?.update(linksState);
@@ -596,7 +612,15 @@ export function mountCooccurrenceViewer(
       case 'clusters':
         return { id, label: t('tabs.clusters'), panelId: clustersTabPanel.id };
       case 'timeline':
-        return { id, label: t('tabs.timeline'), panelId: timelineTabPanel.id };
+        // カード表示はレイヤー化しない（要件書「カード表示（card スキン）」§2.5）。押せなくして
+        // 理由を出す（minimap の OZ 無効化と同型）。
+        return {
+          id,
+          label: t('tabs.timeline'),
+          panelId: timelineTabPanel.id,
+          disabled: skin === 'card',
+          disabledReason: t('timeline.unavailableCard'),
+        };
       case 'export':
         return { id, label: t('tabs.export'), panelId: exportTabPanel.id };
     }
@@ -692,10 +716,14 @@ export function mountCooccurrenceViewer(
     if (!editMode) addPopup?.hide();
   }
 
-  /** 3D 表示中は図から足せない。押せないだけにせず、理由を画面に出す（要件書 §2.2）。 */
+  /** 3D・カード表示中は図から足せない。押せないだけにせず、理由を画面に出す（要件書 §2.2）。 */
   function syncEditNotice(): void {
     if (editMode && skin === 'oz') {
       showNotice('edit', t('edit.unavailable3d'));
+      return;
+    }
+    if (editMode && skin === 'card') {
+      showNotice('edit', t('edit.unavailableCard'));
       return;
     }
     hideNotice('edit');
@@ -723,7 +751,8 @@ export function mountCooccurrenceViewer(
     const displayed = displayedTabIds();
     // 選択中のタブが capability の変化で消える・OZ 3D で無効になることがある。放置すると、
     // どのタブも選ばれていない（内容が何も出ない）状態が残る。
-    const selectable = (id: CooccurrenceTabId): boolean => !(id === 'minimap' && skin === 'oz');
+    const selectable = (id: CooccurrenceTabId): boolean =>
+      !(id === 'minimap' && skin === 'oz') && !(id === 'timeline' && skin === 'card');
     if (!displayed.includes(activeTab) || !selectable(activeTab)) {
       activeTab = displayed.find(selectable) ?? displayed[0] ?? 'minimap';
     }
@@ -903,7 +932,63 @@ export function mountCooccurrenceViewer(
     });
   }
 
+  /**
+   * カード表示の図を組む（要件書「カード表示（card スキン）」§2.2）。
+   *
+   * 力学レイアウトの `positions` を使わず、カードレイアウト純関数の座標へ差し替える。
+   * レイアウトの計算状態（running / done）に依存しないため、計算中でもカード図は完成形で出る。
+   * 時間軸はカード表示中レイヤー化しない（全期間合算の単一図。§2.5）。
+   */
+  function rebuildCardGraph(): void {
+    clusterLanes = [];
+    const filtered = filterCooccurrenceFile(file, options.filter);
+    filterCounts = filtered.counts;
+    visibleNodeIndexes = filtered.nodeIndexes;
+    visibleLinkIndexes = filtered.linkIndexes;
+    const layout = computeCardLayout({ file, visibleNodeIndexes: filtered.nodeIndexes });
+    cardState = layout.state;
+    graph = buildRenderGraph({
+      file,
+      positions: layout.positions,
+      themeTarget: root,
+      mode: themeMode,
+      layers: [{ visibleNodeIndexes: filtered.nodeIndexes, visibleLinkIndexes: filtered.linkIndexes }],
+      cardView: { cardWidth: CARD_WIDTH, cardHeight: CARD_HEIGHT, columns: renderCardColumns(layout.columns) },
+    });
+  }
+
+  /** カラム名と色を解決する。無題・未分類の文言はレーン表示（renderClusterLanes）と同じ規則。 */
+  function renderCardColumns(columns: readonly CardColumnPlacement[]): RenderCardColumn[] {
+    return columns.map((column) => {
+      const label =
+        column.cluster === undefined
+          ? t('clusters.unclustered')
+          : file.spec.clusters?.[column.cluster]?.label || t('clusters.untitled', { index: column.cluster + 1 });
+      const subclusters =
+        column.cluster === undefined ? [] : (file.spec.clusters?.[column.cluster]?.subclusters ?? []);
+      return {
+        ...(column.cluster === undefined ? {} : { cluster: column.cluster }),
+        label,
+        color: clusterColor(root, column.cluster),
+        x: column.x,
+        y: column.y,
+        width: column.width,
+        // 名前の無いサブクラスタ見出しは描かない（残余サブレーンに名前を与えないのと同じ理由）。
+        subHeaders: column.subHeaders.flatMap((sub) => {
+          const subLabel = subclusters[sub.subcluster]?.label;
+          return subLabel === undefined || subLabel === '' ? [] : [{ label: subLabel, x: sub.x, y: sub.y }];
+        }),
+      };
+    });
+  }
+
   function rebuildGraph(): void {
+    if (skin === 'card') {
+      rebuildCardGraph();
+      finishRebuildUi();
+      return;
+    }
+    cardState = null;
     clusterLanes = computeLanes();
     const layoutPositions = clusterLanes.length === 0 ? positions : applyClusterLanes(positions, clusterLanes);
     const lanes = renderClusterLanes(clusterLanes);
@@ -942,6 +1027,11 @@ export function mountCooccurrenceViewer(
         clusterLanes: lanes,
       });
     }
+    finishRebuildUi();
+  }
+
+  /** 図の組み直しに連動する共通の後処理（カード表示・円の図で同一）。 */
+  function finishRebuildUi(): void {
     statusEl.textContent = t('status.summary', {
       visibleWords: filterCounts.visibleNodeCount,
       totalWords: filterCounts.totalNodeCount,
@@ -1068,6 +1158,9 @@ export function mountCooccurrenceViewer(
       syncStatusUi();
       return;
     }
+    // カードと円ではレイアウト座標系が別物になる。全体表示をやり直さないと、切替後の図が
+    // 前の座標系の視野のまま画面外に残る。
+    if (next === 'card' || skin === 'card') fitted = false;
     skin = next;
     // 表示形式が変わればどちらの告知も前提を失う（3D へ入れた時点で WebGL の縮退は解けている）。
     hideNotice('webgl');
@@ -1169,6 +1262,16 @@ export function mountCooccurrenceViewer(
     skinButton.setAttribute('aria-pressed', String(skin === 'oz'));
     skinButton.addEventListener('click', () => setSkin(skin === 'oz' ? 'standard' : 'oz'));
     toolbar.appendChild(skinButton);
+
+    // カード表示のトグル（要件書「カード表示（card スキン）」§2.1）。OZ のトグルの後ろへ置く
+    // （既存テストはツールバー先頭の aria-pressed ボタンを OZ トグルとして参照している）。
+    const cardButton = document.createElement('button');
+    cardButton.className = 'cooc-btn cooc-viewer__button';
+    cardButton.type = 'button';
+    cardButton.textContent = t('toolbar.skinCard');
+    cardButton.setAttribute('aria-pressed', String(skin === 'card'));
+    cardButton.addEventListener('click', () => setSkin(skin === 'card' ? 'standard' : 'card'));
+    toolbar.appendChild(cardButton);
 
     if (skin === 'oz') {
       const fit = document.createElement('button');
@@ -1331,7 +1434,8 @@ export function mountCooccurrenceViewer(
   });
   scheduler.invalidate();
   // 初期スキンはトグルと同じ経路で適用する（WebGL 不能環境でも同じ縮退が働く）。
-  if ((options.skin ?? 'standard') === 'oz') setSkin('oz');
+  const initialSkin = options.skin ?? 'standard';
+  if (initialSkin !== 'standard') setSkin(initialSkin);
 
   return {
     update(partial: CooccurrenceViewerUpdate): void {
@@ -1416,10 +1520,13 @@ export function mountCooccurrenceViewer(
         : { axis: timelineView.axis, layerCount: graph.layers.length, timeLinkCount: graph.timeLinks.length },
     getMinimapDrawCount: () => minimapPanel?.getDrawCount() ?? 0,
     getNotePopupState: () => notePopup?.getState() ?? null,
+    // カード表示の観測点。null の意味はレーン・レイヤーと同じく「カード表示でない」。
+    getCardLayoutState: (): CardLayoutState | null => (skin === 'card' ? cardState : null),
     // レイヤー表示と同じく「意図」で null を分ける。レーン化を有効にしたのにレーンが 1 本も
     // できていない（クラスタが無い）ことを、レーン化していない状態と同じ null に潰さない。
+    // カード表示中はレーンを描かない（要件書「カード表示（card スキン）」§2.5）ため null。
     getClusterLaneState: (): ClusterLaneState | null =>
-      !clusterLaneView.enabled
+      !clusterLaneView.enabled || skin === 'card'
         ? null
         : {
             axis: clusterLaneAxis(isLayered() ? timelineView.axis : null),

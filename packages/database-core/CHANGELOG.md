@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-08-08
+
+### Changed
+
+- Documentation comments now refer to `activity.db`, following the Trail database rename.
+
 ## [0.3.7] - 2026-08-03
 
 ### Changed

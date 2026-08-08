@@ -479,36 +479,6 @@ export const CREATE_CURRENT_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS current_
   PRIMARY KEY (repo_id, file_path)
 ) STRICT`;
 
-// Phase H-5: 非正規化キャッシュの repo_name 列を物理撤去。release_id が (repo, tag) を一意に決めるため
-// PK から repo_name を除いた (release_id, file_path) で一意性は保たれる (repo_name は冗長)。read で
-// repo_name が要る箇所 (Supabase trail_release_file_analysis ミラー含む) は releases→repos JOIN で射影。
-export const CREATE_RELEASE_FILE_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_file_analysis (
-  release_id                 INTEGER NOT NULL REFERENCES releases(release_id) ON DELETE CASCADE,
-  file_path                  TEXT NOT NULL,
-  importance_score           REAL    NOT NULL DEFAULT 0,
-  fan_in_total               INTEGER NOT NULL DEFAULT 0,
-  cognitive_complexity_max   INTEGER NOT NULL DEFAULT 0,
-  line_count                 INTEGER NOT NULL DEFAULT 0,
-  cyclomatic_complexity_max  INTEGER NOT NULL DEFAULT 0,
-  function_count             INTEGER NOT NULL DEFAULT 0,
-  dead_code_score            INTEGER NOT NULL DEFAULT 0,
-  signal_orphan              INTEGER NOT NULL DEFAULT 0 CHECK (signal_orphan IN (0, 1)),
-  signal_fan_in_zero         INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
-  signal_no_recent_churn     INTEGER NOT NULL DEFAULT 0 CHECK (signal_no_recent_churn IN (0, 1)),
-  signal_zero_coverage       INTEGER NOT NULL DEFAULT 0 CHECK (signal_zero_coverage IN (0, 1)),
-  signal_isolated_community  INTEGER NOT NULL DEFAULT 0 CHECK (signal_isolated_community IN (0, 1)),
-  is_ignored                 INTEGER NOT NULL DEFAULT 0 CHECK (is_ignored IN (0, 1)),
-  ignore_reason              TEXT NOT NULL DEFAULT '',
-  cross_pkg_in_count     INTEGER NOT NULL DEFAULT 0,
-  external_consumer_pkgs INTEGER NOT NULL DEFAULT 0,
-  total_in_count         INTEGER NOT NULL DEFAULT 0,
-  is_barrel              INTEGER NOT NULL DEFAULT 0 CHECK (is_barrel IN (0, 1)),
-  centrality_score       REAL    NOT NULL DEFAULT 0,
-  category                   TEXT NOT NULL DEFAULT 'logic' CHECK (category IN ('ui', 'logic', 'excluded')),
-  newly_active               INTEGER NOT NULL DEFAULT 0 CHECK (newly_active IN (0, 1)),
-  analyzed_at                TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (release_id, file_path)
-) STRICT`;
 
 // Phase C-2 flip: PK の repo_name → repo_id へ置換。
 // Phase H-3: 非正規化キャッシュの repo_name 列を物理撤去。read で repo_name が要る箇所は JOIN repos。
@@ -534,30 +504,6 @@ export const CREATE_CURRENT_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS curr
   PRIMARY KEY (repo_id, file_path, function_name, start_line)
 ) STRICT`;
 
-// Phase H-5: 非正規化キャッシュの repo_name 列を物理撤去。release_id が (repo, tag) を一意に決めるため
-// PK から repo_name を除いた (release_id, file_path, function_name, start_line) で一意性は保たれる。read で
-// repo_name が要る箇所 (Supabase trail_release_function_analysis ミラー含む) は releases→repos JOIN で射影。
-export const CREATE_RELEASE_FUNCTION_ANALYSIS = `CREATE TABLE IF NOT EXISTS release_function_analysis (
-  release_id             INTEGER NOT NULL REFERENCES releases(release_id) ON DELETE CASCADE,
-  file_path              TEXT NOT NULL,
-  function_name          TEXT NOT NULL,
-  start_line             INTEGER NOT NULL,
-  end_line               INTEGER NOT NULL DEFAULT 0,
-  language               TEXT NOT NULL DEFAULT '',
-  fan_in                 INTEGER NOT NULL DEFAULT 0,
-  cognitive_complexity   INTEGER NOT NULL DEFAULT 0,
-  cyclomatic_complexity  INTEGER NOT NULL DEFAULT 0,
-  data_mutation_score    INTEGER NOT NULL DEFAULT 0,
-  side_effect_score      INTEGER NOT NULL DEFAULT 0,
-  line_count             INTEGER NOT NULL DEFAULT 0,
-  importance_score       REAL    NOT NULL DEFAULT 0,
-  signal_fan_in_zero     INTEGER NOT NULL DEFAULT 0 CHECK (signal_fan_in_zero IN (0, 1)),
-  fan_out          INTEGER NOT NULL DEFAULT 0,
-  distinct_callees INTEGER NOT NULL DEFAULT 0,
-  function_role    TEXT NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
-  analyzed_at            TEXT NOT NULL CHECK (analyzed_at GLOB ${TS_GLOB_MS} OR analyzed_at GLOB ${TS_GLOB_NO_MS}),
-  PRIMARY KEY (release_id, file_path, function_name, start_line)
-) STRICT`;
 
 // Phase C-2 flip: current_* の PK が repo_id 化されたため、先頭列を repo_id へ揃える。
 export const CREATE_FILE_ANALYSIS_INDEXES = [
@@ -574,7 +520,7 @@ export const CREATE_FILE_ANALYSIS_INDEXES = [
 ];
 
 // LEP Layer 4 (Aggregator): DORA 指標の月次集計。`DoraMetricsAggregator` が
-// 既存 trail.db データ (releases / session_commits) のみから算出して書き込む。
+// 既存 activity.db データ (releases / session_commits) のみから算出して書き込む。
 // 本 Step で算出するのは deployment frequency (期間内 release 件数) と
 // lead time for changes (commit → 含有 release の中央値) の 2 指標のみ。
 // change_failure_rate / mttr は bug→release attribution リンクが実データに無いため
@@ -650,7 +596,7 @@ export const CREATE_PR_REVIEW_FINDINGS_INDEXES = [
 ];
 
 // LEP Layer 4 (Aggregator): 複数ソース横断の相関 (Step 4d)。
-// CrossSourceCorrelator が既存 trail.db データ (pr_reviews / pr_review_findings /
+// CrossSourceCorrelator が既存 activity.db データ (pr_reviews / pr_review_findings /
 // session_commits / releases / commit_files) のみを突合して書き込む。新規テーブルのみ。
 // Phase F flip: repo_id を additive 追加 (PK は (correlation_type, source_a_id, source_b_id) の
 // まま不変)。repo は確定しないこともある (source_b が release tag 等で別 repo を指す可能性) ため
@@ -930,7 +876,7 @@ export const CREATE_INSTRUCTIONS = `CREATE TABLE IF NOT EXISTS instructions (
 
 // session_id は PK 単独: 1 セッションは 1 指示にしか属さない。所属替えは UPSERT で上書きする
 // （2 つの指示へ同時に属せると、時間・トークンが二重計上され合計が実測と合わなくなる）。
-// instruction_id の FK は宣言のみで、参照整合は DB では強制されない — trail.db は
+// instruction_id の FK は宣言のみで、参照整合は DB では強制されない — activity.db は
 // foreign_keys=OFF で開くため。指示を削除する経路を足す場合、instruction_sessions の
 // 掃除はアプリ側の責務になる（DDL の ON DELETE CASCADE に頼れない）。
 export const CREATE_INSTRUCTION_SESSIONS = `CREATE TABLE IF NOT EXISTS instruction_sessions (
@@ -949,7 +895,7 @@ export const CREATE_INSTRUCTION_INDEXES = [
 // 検証実施台帳: 1 行 = 検証コマンド 1 回の実行（scripts/run-verified.mjs が書く）。
 // 本定義がスキーマの正本で、writer 側（scripts/verification-db.mjs）はこれを CREATE TABLE IF
 // NOT EXISTS のミラーとして持つ（.mjs から TS を import できないため。verificationStatus.ts が
-// 定数をミラーしているのと同じ方針）。writer は trail.db 側の _migrations（key TEXT PRIMARY KEY）
+// 定数をミラーしているのと同じ方針）。writer は activity.db 側の _migrations（key TEXT PRIMARY KEY）
 // を使わない — 形が非互換で、触ると拡張側のマイグレーション記録を壊すため。
 //
 // session_id は「どの指示の検証か」を解く唯一のキー。instruction_id は非正規化しない:

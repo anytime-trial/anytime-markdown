@@ -29,14 +29,14 @@ function runGroundingDoctrineGap(setup) {
 }
 
 /**
- * grounding が参照する列のみ持つ最小 memory-core.db を <ws>/.anytime/trail/db に作る。
- * trail.db は DB_DIR 解決（trail.db の存在で候補ディレクトリを確定する）のために空で置く。
+ * grounding が参照する列のみ持つ最小 caravan-book.db を <ws>/.anytime/trail/db に作る。
+ * activity.db は DB_DIR 解決（activity.db の存在で候補ディレクトリを確定する）のために空で置く。
  */
 function writeMemoryDb(ws, { withColumn, judgments = [], instructions = [] }) {
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
-  new DatabaseSync(path.join(dbDir, 'trail.db')).close();
-  const db = new DatabaseSync(path.join(dbDir, 'memory-core.db'));
+  new DatabaseSync(path.join(dbDir, 'activity.db')).close();
+  const db = new DatabaseSync(path.join(dbDir, 'caravan-book.db'));
   db.exec(`CREATE TABLE doctrine_judgments (
     id INTEGER PRIMARY KEY,
     session_id TEXT NOT NULL,

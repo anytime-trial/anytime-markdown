@@ -65,7 +65,7 @@ export interface ComputeAndPersistFileAnalysisOpts {
   readonly categoryByFile?: ReadonlyMap<string, FileCategory>;
 }
 
-/** noRecentChurn 判定の "recent" 窓 (日)。trail.db の取り込み履歴が短い (47 日程度) ため
+/** noRecentChurn 判定の "recent" 窓 (日)。activity.db の取り込み履歴が短い (47 日程度) ため
  *  従来の 90 日では everChurned == recentChurn となりシグナルが発火しない。30 日に短縮して
  *  発火可能にする。git 履歴インポート期間が長くなれば再考。 */
 const RECENT_CHURN_WINDOW_DAYS = 30;

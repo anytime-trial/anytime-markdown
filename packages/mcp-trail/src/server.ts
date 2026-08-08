@@ -47,6 +47,7 @@ import {
   EvaluateApprovalPolicyInputSchema,
 } from './tools/oddPolicy.js';
 import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './tools/getDoctrineAgreement.js';
+import { handleGetThreatFramework, GetThreatFrameworkInputSchema } from './tools/getThreatFramework.js';
 import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
@@ -463,7 +464,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   // -------------------------------------------------------------------------
-  //  Doctrine judgment tools (D1 並走記録: trail.db 直書き)
+  //  Doctrine judgment tools (D1 並走記録: activity.db 直書き)
   // -------------------------------------------------------------------------
 
   server.registerTool(
@@ -542,6 +543,17 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     }, },
     async (args) => {
       const result = handleGetOddPolicy(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_threat_framework',
+    { description: "Return the agentic threat framework (5 tactics, 17 techniques ADR.T0001-T0017) ported from Uber's ADR (Apache-2.0). Read-only static data compiled into trail-core — no DB or network access. Use it to ground threat analysis of agent sessions: pass `tactic` to narrow to one tactic's techniques, omit it for the full framework. Each technique carries id / name / jaName / description.", inputSchema: {
+      tactic: GetThreatFrameworkInputSchema.shape.tactic,
+    }, },
+    async (args) => {
+      const result = handleGetThreatFramework(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -805,7 +817,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'get_verification_status',
     {
       description:
-        'Check the verification ledger (trail.db, table verification_runs): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
+        'Check the verification ledger (activity.db, table verification_runs): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
       inputSchema: {
         package: GetVerificationStatusInputSchema.shape.package,
         kinds: GetVerificationStatusInputSchema.shape.kinds,
@@ -883,7 +895,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
     'check_alignment',
     {
       description:
-        'Check whether spec documents kept up with code changes (Architectural Alignment). Maps changed files to C4 elements, reverse-looks-up the spec documents that declare those elements in c4Scope, and reports whether those specs were updated in the same change unit. Returns { scope, checkedFiles, skippedMinor, findings[] } where each finding is { status: stale|ok|undocumented|unknown, elementId, specPath, changedFiles, reason }. stale = code changed but its spec did not. undocumented = no spec declares that element. unknown = the spec repository commits needed for the judgement are not ingested into trail.db, so staleness cannot be determined (do not read this as an update omission; fix ingestion instead). scope: worktree (default; uncommitted changes) | session (sessionId required) | range (fromRef/toRef required). Repository paths come from the server (gitRoot and lep.json sources.docs.root) and cannot be passed in.',
+        'Check whether spec documents kept up with code changes (Architectural Alignment). Maps changed files to C4 elements, reverse-looks-up the spec documents that declare those elements in c4Scope, and reports whether those specs were updated in the same change unit. Returns { scope, checkedFiles, skippedMinor, findings[] } where each finding is { status: stale|ok|undocumented|unknown, elementId, specPath, changedFiles, reason }. stale = code changed but its spec did not. undocumented = no spec declares that element. unknown = the spec repository commits needed for the judgement are not ingested into activity.db, so staleness cannot be determined (do not read this as an update omission; fix ingestion instead). scope: worktree (default; uncommitted changes) | session (sessionId required) | range (fromRef/toRef required). Repository paths come from the server (gitRoot and lep.json sources.docs.root) and cannot be passed in.',
       inputSchema: {
         scope: z
           .enum(['worktree', 'session', 'range'])

@@ -32,6 +32,12 @@ export interface ClusterListPanelState {
    * でも使うためである（時間タブはスライスが無ければ何も設定できないタブである）。
    */
   laneView: ClusterLaneViewState;
+  /**
+   * レーン操作を封じる理由（カード表示中など。要件書「カード表示（card スキン）」§2.5）。
+   * undefined なら通常どおり操作できる。理由ごと渡すのは、押せない理由を tooltip で読める
+   * ようにするため（黙って押せないだけの UI にしない）。
+   */
+  laneLockedReason?: string;
   t: CooccurrenceT;
 }
 
@@ -235,12 +241,14 @@ export function createClusterListPanel(options: ClusterListPanelOptions): Cluste
   function renderLaneControls(): void {
     // クラスタが 1 つも無いとレーンは 1 本しかできず、表示が変わらない。
     const hasClusters = (state.file.spec.clusters?.length ?? 0) > 0;
+    const locked = state.laneLockedReason !== undefined;
     laneToggleText.textContent = t('clusters.lanes');
     laneToggle.checked = state.laneView.enabled;
-    laneToggle.disabled = !hasClusters;
+    laneToggle.disabled = !hasClusters || locked;
+    laneToggleLabel.title = state.laneLockedReason ?? '';
     laneGapText.textContent = t('clusters.laneGap');
     laneGapInput.value = String(state.laneView.gap);
-    laneGapInput.disabled = !hasClusters || !state.laneView.enabled;
+    laneGapInput.disabled = !hasClusters || locked || !state.laneView.enabled;
   }
 
   function render(): void {

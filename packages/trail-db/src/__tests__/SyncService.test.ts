@@ -58,12 +58,8 @@ class FakeRemoteStore implements IRemoteTrailStore {
   }
   async unsafeClearCurrentFileAnalysis(): Promise<void> {}
   async upsertCurrentFileAnalysis(): Promise<void> {}
-  async unsafeClearReleaseFileAnalysis(): Promise<void> {}
-  async upsertReleaseFileAnalysis(): Promise<void> {}
   async unsafeClearCurrentFunctionAnalysis(): Promise<void> {}
   async upsertCurrentFunctionAnalysis(): Promise<void> {}
-  async unsafeClearReleaseFunctionAnalysis(): Promise<void> {}
-  async upsertReleaseFunctionAnalysis(): Promise<void> {}
   async unsafeClearCurrentCodeGraphs(): Promise<void> { this.codeGraphRows = []; this.codeGraphCommunityRows = []; }
   async upsertCurrentCodeGraphs(rows: readonly { repo_id: number; graph_json: string; generated_at: string; updated_at: string }[]): Promise<void> {
     this.codeGraphRows.push(...(rows as typeof this.codeGraphRows));

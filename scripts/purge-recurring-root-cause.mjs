@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * recurring_root_cause の drift イベントと、`caused_by` 述語のエッジを memory-core.db から
+ * recurring_root_cause の drift イベントと、`caused_by` 述語のエッジを caravan-book.db から
  * 削除する 1 回限りのメンテナンススクリプト。
  *
  * エッジ側の削除条件は `predicate = 'caused_by'` の**全件**であり、recurring_root_cause の
@@ -24,7 +24,7 @@ import Database from 'better-sqlite3';
 import { existsSync, copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const DEFAULT_DB = '.anytime/trail/db/memory-core.db';
+const DEFAULT_DB = '.anytime/trail/db/caravan-book.db';
 const DRIFT_TYPE = 'recurring_root_cause';
 const PREDICATE = 'caused_by';
 

@@ -8,6 +8,8 @@
 
 ### 変更
 
+- ADR の脅威分類・検知プロンプトのツールを追加した（スキーマは trail-core 側）。
+- DB 改名に追従し、活動・記憶データベースを `activity.db` / `caravan-book.db` として解決するようにした。
 - ワークスペースルートの解決を `resolveWorkspacePath`（`src/dbPath.ts`）へ一元化した（2026-08-02）。優先順は `workspacePath` 引数 > `TRAIL_WORKSPACE_PATH` > `process.cwd()`。各ツールが個別に `process.env` を読む重複を除去した
 - 全ツールに任意の `workspacePath` 引数を追加した。memory-core 系 13 ツールはこれまで引数を持たず cwd 固定で、別ワークスペースから呼ぶと他プロジェクトの DB を掴み得た
 - cwd へフォールバックした場合に stderr へ警告を出すようにした（暗黙のフォールバックをやめる）

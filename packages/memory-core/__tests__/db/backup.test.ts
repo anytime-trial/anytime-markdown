@@ -19,7 +19,7 @@ describe('backupMemoryCoreDbFile', () => {
   });
 
   test('first call creates .bak.1.gz from existing db file', () => {
-    const dbPath = path.join(tmpDir, 'memory-core.db');
+    const dbPath = path.join(tmpDir, 'caravan-book.db');
     const payload = Buffer.from('SQLite DB body fixture');
     fs.writeFileSync(dbPath, payload);
 
@@ -33,7 +33,7 @@ describe('backupMemoryCoreDbFile', () => {
   });
 
   test('second call within interval is a no-op', () => {
-    const dbPath = path.join(tmpDir, 'memory-core.db');
+    const dbPath = path.join(tmpDir, 'caravan-book.db');
     fs.writeFileSync(dbPath, Buffer.from('v1'));
 
     expect(backupMemoryCoreDbFile(dbPath, { backupIntervalDays: 1 })).toBe(true);
@@ -47,7 +47,7 @@ describe('backupMemoryCoreDbFile', () => {
   });
 
   test('rotates .bak.1.gz → .bak.2.gz when called with new content (interval=0)', () => {
-    const dbPath = path.join(tmpDir, 'memory-core.db');
+    const dbPath = path.join(tmpDir, 'caravan-book.db');
     fs.writeFileSync(dbPath, Buffer.from('gen-A'));
     backupMemoryCoreDbFile(dbPath, { backupGenerations: 2, backupIntervalDays: 0 });
 
@@ -67,7 +67,7 @@ describe('backupMemoryCoreDbFile', () => {
   });
 
   test('backupGenerations <= 0 disables backup', () => {
-    const dbPath = path.join(tmpDir, 'memory-core.db');
+    const dbPath = path.join(tmpDir, 'caravan-book.db');
     fs.writeFileSync(dbPath, Buffer.from('data'));
     const created = backupMemoryCoreDbFile(dbPath, { backupGenerations: 0 });
     expect(created).toBe(false);

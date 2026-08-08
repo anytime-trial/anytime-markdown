@@ -14,12 +14,12 @@ import { handleListBoundaryDrift } from '../../tools/listBoundaryDrift';
 const OLD_RUN = '2026-08-01T00:00:00.000Z';
 const NEW_RUN = '2026-08-02T00:00:00.000Z';
 
-/** workspacePath 直下に trail.db を持つ一時ワークスペースを作る。 */
+/** workspacePath 直下に activity.db を持つ一時ワークスペースを作る。 */
 function createWorkspace(): string {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-bd-'));
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
-  const db = new BetterSqlite3(path.join(dbDir, 'trail.db'));
+  const db = new BetterSqlite3(path.join(dbDir, 'activity.db'));
   try {
     db.exec(
       `CREATE TABLE repos (repo_id INTEGER PRIMARY KEY, repo_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)`,
@@ -75,11 +75,11 @@ describe('handleListBoundaryDrift', () => {
     expect(result.warnings.map((w) => w.target)).toEqual(['99', '3']);
   });
 
-  it('trail.db が無ければ理由付きで失敗する（空結果と取り違えない）', async () => {
+  it('activity.db が無ければ理由付きで失敗する（空結果と取り違えない）', async () => {
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-bd-empty-'));
     try {
       await expect(handleListBoundaryDrift({ workspacePath: empty })).rejects.toThrow(
-        /trail\.db not found/,
+        /activity\.db not found/,
       );
     } finally {
       fs.rmSync(empty, { recursive: true, force: true });

@@ -12,7 +12,7 @@ import type {
 import { computeDoraMetrics } from './computeDoraMetrics';
 
 /**
- * `DoraMetricsAggregator` が trail.db に対して必要とする最小データソース。
+ * `DoraMetricsAggregator` が activity.db に対して必要とする最小データソース。
  *
  * 本番では `TrailDatabase` がこの 3 メソッドを実装する。テストでは fake を注入し、
  * 実 DB 非依存で集計ロジックを検証する。
@@ -30,7 +30,7 @@ export interface DoraMetricsAggregatorOptions {
 }
 
 /**
- * Layer 4 (Aggregator) Analyzer: 既存 trail.db データ (releases / session_commits) のみから
+ * Layer 4 (Aggregator) Analyzer: 既存 activity.db データ (releases / session_commits) のみから
  * DORA 指標 (deployment frequency / lead time) を月次集計し `dora_metrics` に洗い替えで書き込む。
  *
  * - tier=4 / inputMode='self-read': 新規 raw データは取り込まず、既存テーブルを読んで横断指標を算出

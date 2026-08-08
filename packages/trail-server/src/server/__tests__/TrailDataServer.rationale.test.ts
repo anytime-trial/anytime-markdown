@@ -89,10 +89,10 @@ describe('GET /api/memory/rationale (Phase 6 S4)', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rationale-api-test-'));
-    buildMemoryDb(path.join(tmpDir, 'memory-core.db'));
-    buildTrailDbFile(path.join(tmpDir, 'trail.db'));
+    buildMemoryDb(path.join(tmpDir, 'caravan-book.db'));
+    buildTrailDbFile(path.join(tmpDir, 'activity.db'));
     trailDb = await createTestTrailDatabase();
-    server = new TrailDataServer('/tmp', trailDb, makeMockLogger(), undefined, path.join(tmpDir, 'memory-core.db'));
+    server = new TrailDataServer('/tmp', trailDb, makeMockLogger(), undefined, path.join(tmpDir, 'caravan-book.db'));
     await server.start(0);
     port = server.port;
   });

@@ -454,9 +454,9 @@ describe('createC4DataStore', () => {
     store.dispose();
   });
 
-  // Regression: setSelectedRelease は runInitialFetch だけでなく file/function 解析も再取得しないと、
-  // リリース切替後も importance/deadCode/centrality/role マトリクスが切替前リリースのまま残る。
-  it('setSelectedRelease で file/function 解析を新しいリリースの tag で再取得する', async () => {
+  // release 分析の廃止 (2026-08-08) 後、file/function 解析は current 固定のため
+  // リリース切替では再取得しない（切替時に release タグの解析 URL を叩かないこと）。
+  it('setSelectedRelease は file/function 解析を release タグで再取得しない', async () => {
     setupFetch();
     const store = createC4DataStore('http://localhost:3000', true /* no WS */, true);
 
@@ -477,8 +477,8 @@ describe('createC4DataStore', () => {
 
     const fileCalls = analysisCallsFor('file-analysis');
     const funcCalls = analysisCallsFor('function-analysis');
-    expect(fileCalls.some((u) => u.includes('tag=v1.0.0'))).toBe(true);
-    expect(funcCalls.some((u) => u.includes('tag=v1.0.0'))).toBe(true);
+    expect(fileCalls.some((u) => u.includes('tag=v1.0.0'))).toBe(false);
+    expect(funcCalls.some((u) => u.includes('tag=v1.0.0'))).toBe(false);
     store.dispose();
   });
 });

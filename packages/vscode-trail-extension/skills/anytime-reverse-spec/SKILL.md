@@ -234,12 +234,12 @@ for (const f of lepCandidates) {
     }
   } catch {}
 }
-let trailDbPath = path.isAbsolute(dbDir) ? path.join(dbDir, "trail.db") : path.join(ws, dbDir, "trail.db");
+let trailDbPath = path.isAbsolute(dbDir) ? path.join(dbDir, "activity.db") : path.join(ws, dbDir, "activity.db");
 // Fallback: 拡張機能のデフォルト保存先（VS Code globalStorage 経由ではなく ~/.claude/trail/）
 if (!fs.existsSync(trailDbPath)) {
   const fallbacks = [
-    path.join(process.env.HOME || "", ".claude/trail/trail.db"),
-    path.join(process.env.HOME || "", ".vscode-server/data/User/globalStorage/anytime-tools.anytime-trail/trail.db"),
+    path.join(process.env.HOME || "", ".claude/trail/activity.db"),
+    path.join(process.env.HOME || "", ".vscode-server/data/User/globalStorage/anytime-tools.anytime-trail/activity.db"),
   ];
   for (const fb of fallbacks) {
     if (fs.existsSync(fb)) { trailDbPath = fb; break; }
@@ -251,7 +251,7 @@ console.log(JSON.stringify({ trailDbPath, repoName, exists: fs.existsSync(trailD
 '
 ```
 
-`exists: false` が返れば「`lep.json` の `database.storagePath` 設定または `~/.claude/trail/trail.db` を確認してください」と表示して中断する。
+`exists: false` が返れば「`lep.json` の `database.storagePath` 設定または `~/.claude/trail/activity.db` を確認してください」と表示して中断する。
 
 得られたパスを sqlite3 CLI で**読み取り専用**でクエリし、以下を取得する（`sql.js`/`better-sqlite3` が利用できない環境では sqlite3 CLI を使う）。
 

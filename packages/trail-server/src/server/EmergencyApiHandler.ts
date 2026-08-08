@@ -226,7 +226,7 @@ export class EmergencyApiHandler {
     // （cross-review 合意指摘）。
     const recordedCheck = this.isRecordedSafePoint(commitHash);
     if (recordedCheck === 'unavailable') {
-      sendError(res, 409, 'trail.db is not open; safe points cannot be verified');
+      sendError(res, 409, 'activity.db is not open; safe points cannot be verified');
       return;
     }
     if (recordedCheck === 'no') {

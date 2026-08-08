@@ -57,12 +57,12 @@ export async function handleRecordInstruction(
     throw new Error('record_instruction requires summary for mode=new');
   }
   const workspacePath = resolveWorkspacePath(input.workspacePath).path;
-  // Flight Record の台帳は memory-core.db（2026-08-07 に trail.db から移設）。
-  // 書き込みは ForWrite 解決: 拡張未起動で memory-core.db が無くても宣言を落とさない
+  // Flight Record の台帳は caravan-book.db（2026-08-07 に activity.db から移設）。
+  // 書き込みは ForWrite 解決: 拡張未起動で caravan-book.db が無くても宣言を落とさない
   const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
   const opened = await openMemoryDb(dbPath, 'readwrite');
   try {
-    // trail.db に旧台帳が残っていれば回収する（doctrine_judgments と同じ遅延移行。
+    // activity.db に旧台帳が残っていれば回収する（doctrine_judgments と同じ遅延移行。
     // 回収しないと旧指示への continue が「not found」になり、一覧からも消える）
     ensureAndMigrateInstructionTables(opened.db, dbPath);
     if (input.mode === 'close') {
@@ -101,7 +101,7 @@ export type ListOpenInstructionsInput = z.infer<typeof ListOpenInstructionsInput
 
 /**
  * 継続宣言の候補一覧。**読み取り専用**（ensure・移行を起動しない）。
- * 移行過渡期には旧指示が trail.db 側に残るため、memory + trail の両読みを id で
+ * 移行過渡期には旧指示が activity.db 側に残るため、memory + trail の両読みを id で
  * memory 優先に重複排除して返す（get_doctrine_agreement と同方針。移行完了後は
  * trail 側が常に空になり union は no-op）。
  */
@@ -124,7 +124,7 @@ export async function handleListOpenInstructions(
   } catch (err) {
     memoryFailed = err;
     console.error(
-      `[${new Date().toISOString()}] [ERROR] [mcp-trail] list_open_instructions: memory-core.db read failed (workspace=${workspacePath}); falling back to trail.db`,
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] list_open_instructions: caravan-book.db read failed (workspace=${workspacePath}); falling back to activity.db`,
       err instanceof Error ? err.stack : err,
     );
   }
@@ -142,7 +142,7 @@ export async function handleListOpenInstructions(
   } catch (err) {
     trailFailed = err;
     console.error(
-      `[${new Date().toISOString()}] [ERROR] [mcp-trail] list_open_instructions: trail.db read failed (workspace=${workspacePath}); using memory-core.db rows only`,
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] list_open_instructions: activity.db read failed (workspace=${workspacePath}); using caravan-book.db rows only`,
       err instanceof Error ? err.stack : err,
     );
   }
@@ -151,7 +151,7 @@ export async function handleListOpenInstructions(
   // 後者を空配列で返すと、進行中の指示を放置したまま新規宣言が積まれる偽陰性になる
   if (memoryFailed !== null && trailFailed !== null) {
     throw new Error(
-      `list_open_instructions: both memory-core.db and trail.db unreadable (workspace=${workspacePath}): ${String(
+      `list_open_instructions: both caravan-book.db and activity.db unreadable (workspace=${workspacePath}): ${String(
         memoryFailed instanceof Error ? memoryFailed.message : memoryFailed,
       )}`,
     );

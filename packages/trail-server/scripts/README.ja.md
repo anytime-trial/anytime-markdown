@@ -195,7 +195,7 @@ TRAIL_PORT=47823 trail-server.sh up
 
 ### VS Code 拡張との同時起動
 
-VS Code 拡張機能が動いている時、両者は同じ `~/.claude/trail/trail.db` を WAL モードで参照する。
+VS Code 拡張機能が動いている時、両者は同じ `~/.claude/trail/activity.db` を WAL モードで参照する。
 データ破損は起きないが、双方の `importAll` が同時実行されると `SQLITE_BUSY` ログが出る。
 
 **推奨運用**:

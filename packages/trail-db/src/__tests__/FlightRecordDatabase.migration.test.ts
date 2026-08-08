@@ -1,5 +1,5 @@
-// destructiveMigrateFromTrailDb（trail.db → memory-core.db のコピー + アンチ結合検証 +
-// 退避 + DROP）の検証。一時ディレクトリに旧配置（trail.db 内に 3 テーブル）を作り、
+// destructiveMigrateFromTrailDb（activity.db → caravan-book.db のコピー + アンチ結合検証 +
+// 退避 + DROP）の検証。一時ディレクトリに旧配置（activity.db 内に 3 テーブル）を作り、
 // 冪等性・manual 訂正の優先マージ・検証失敗時の非破壊（DROP しない）・退避テーブルの
 // 生成を確かめる。
 
@@ -14,7 +14,7 @@ import {
 } from '@anytime-markdown/trail-core';
 
 import { FlightRecordDatabase } from '../FlightRecordDatabase';
-import { loadBetterSqlite3 } from '../internal/loadBetterSqlite3';
+import { openBetterSqlite3 } from '../internal/loadBetterSqlite3';
 
 const TS = '2026-07-17T10:00:00.000Z';
 
@@ -26,9 +26,8 @@ interface LegacyContext {
 
 function createLegacyTrailDb(): LegacyContext {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
-  const trailDbPath = path.join(tempDir, 'trail.db');
-  const Ctor = loadBetterSqlite3();
-  const trail = new Ctor(trailDbPath);
+  const trailDbPath = path.join(tempDir, 'activity.db');
+  const trail = openBetterSqlite3(trailDbPath);
   trail.pragma('foreign_keys = OFF');
   trail.exec(CREATE_INSTRUCTIONS);
   trail.exec(CREATE_INSTRUCTION_SESSIONS);
@@ -51,12 +50,11 @@ function createLegacyTrailDb(): LegacyContext {
     )
     .run(TS, TS, TS, TS);
   trail.close();
-  return { tempDir, trailDbPath, memoryDbPath: path.join(tempDir, 'memory-core.db') };
+  return { tempDir, trailDbPath, memoryDbPath: path.join(tempDir, 'caravan-book.db') };
 }
 
 function trailTables(trailDbPath: string, like = ''): string[] {
-  const Ctor = loadBetterSqlite3();
-  const trail = new Ctor(trailDbPath, { readonly: true });
+  const trail = openBetterSqlite3(trailDbPath, { readonly: true });
   try {
     return trail
       .prepare(
@@ -76,7 +74,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
 
   beforeEach(() => {
     ctx = createLegacyTrailDb();
-    db = new FlightRecordDatabase(ctx.memoryDbPath, ctx.trailDbPath);
+    db = new FlightRecordDatabase(ctx.memoryDbPath, { trailDbPath: ctx.trailDbPath });
     db.init();
   });
 
@@ -85,7 +83,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     fs.rmSync(ctx.tempDir, { recursive: true, force: true });
   });
 
-  it('trail.db の旧 3 テーブルをコピーし、検証後に退避テーブルへ複製してから DROP する', () => {
+  it('activity.db の旧 3 テーブルをコピーし、検証後に退避テーブルへ複製してから DROP する', () => {
     const result = db.destructiveMigrateFromTrailDb();
     expect(result?.status).toBe('migrated');
     expect(result?.copiedRows).toEqual({ instructions: 1, instruction_sessions: 1, flight_reviews: 1 });
@@ -110,7 +108,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     expect(db.listFlightReviews()).toHaveLength(1);
   });
 
-  it('移行後の新規書き込みは memory-core.db 側へ入り、trail.db に生テーブルは再作成されない', () => {
+  it('移行後の新規書き込みは caravan-book.db 側へ入り、activity.db に生テーブルは再作成されない', () => {
     db.destructiveMigrateFromTrailDb();
     db.upsertFlightReviewFromMachine({
       sessionId: 'sess-2',
@@ -146,8 +144,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
 
   it('trail 側の manual 訂正は memory 側の機械行に勝つ（manual > self > machine を移行経路でも守る）', () => {
     // trail 側の sess-1 行を人手訂正済みにする
-    const Ctor = loadBetterSqlite3();
-    const trail = new Ctor(ctx.trailDbPath);
+    const trail = openBetterSqlite3(ctx.trailDbPath);
     trail
       .prepare(
         `UPDATE flight_reviews SET outcome = 'achieved', outcome_source = 'manual',
@@ -184,9 +181,8 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     // CHECK 制約の無い自作 DDL で trail 側に「新スキーマへコピーできない行」を作る
     // （INSERT OR IGNORE は CHECK 違反を黙って捨てる — その黙殺を検証が捕まえること）
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
-    const trailDbPath = path.join(tempDir, 'trail.db');
-    const Ctor = loadBetterSqlite3();
-    const trail = new Ctor(trailDbPath);
+    const trailDbPath = path.join(tempDir, 'activity.db');
+    const trail = openBetterSqlite3(trailDbPath);
     trail.exec(`CREATE TABLE flight_reviews (
       id INTEGER PRIMARY KEY, session_id TEXT NOT NULL UNIQUE, workspace_path TEXT NOT NULL DEFAULT '',
       started_at TEXT, ended_at TEXT NOT NULL, duration_seconds INTEGER,
@@ -206,7 +202,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
       .run(TS, TS, TS);
     trail.close();
 
-    const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), trailDbPath);
+    const standalone = new FlightRecordDatabase(path.join(tempDir, 'caravan-book.db'), { trailDbPath });
     standalone.init();
     try {
       const result = standalone.destructiveMigrateFromTrailDb();
@@ -220,9 +216,9 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     }
   });
 
-  it('trail.db が無い構成では null を返す', () => {
+  it('activity.db が無い構成では null を返す', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
-    const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), path.join(tempDir, 'trail.db'));
+    const standalone = new FlightRecordDatabase(path.join(tempDir, 'caravan-book.db'), { trailDbPath: path.join(tempDir, 'activity.db') });
     standalone.init();
     try {
       expect(standalone.destructiveMigrateFromTrailDb()).toBeNull();
@@ -238,13 +234,12 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
       run: (db: FlightRecordDatabase, trailDbPath: string) => void,
     ): void {
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
-      const trailDbPath = path.join(tempDir, 'trail.db');
-      const Ctor = loadBetterSqlite3();
-      const trail = new Ctor(trailDbPath);
+      const trailDbPath = path.join(tempDir, 'activity.db');
+      const trail = openBetterSqlite3(trailDbPath);
       trail.pragma('foreign_keys = OFF');
       setup(trail);
       trail.close();
-      const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), trailDbPath);
+      const standalone = new FlightRecordDatabase(path.join(tempDir, 'caravan-book.db'), { trailDbPath });
       standalone.init();
       try {
         run(standalone, trailDbPath);
@@ -280,8 +275,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
           expect(db.listAcceptanceRecords()).toHaveLength(1);
           expect(trailTables(trailDbPath)).toEqual([]);
           // 退避テーブルの実在（trailTables は 3 プレフィクス限定のため直接確認）
-          const Ctor = loadBetterSqlite3();
-          const trail = new Ctor(trailDbPath, { readonly: true });
+          const trail = openBetterSqlite3(trailDbPath, { readonly: true });
           try {
             const backup = trail
               .prepare(`SELECT COUNT(*) c FROM acceptance_records__pre_move_backup`)
@@ -318,8 +312,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
           expect(result?.status).toBe('verification_failed');
           expect(result?.missingRows['acceptance_records']).toBe(1);
           // 非破壊: trail 側テーブルが残る（memory 側の行も上書きされない）
-          const Ctor = loadBetterSqlite3();
-          const trail = new Ctor(trailDbPath, { readonly: true });
+          const trail = openBetterSqlite3(trailDbPath, { readonly: true });
           try {
             expect((trail.prepare(`SELECT COUNT(*) c FROM acceptance_records`).get() as { c: number }).c).toBe(1);
           } finally {
@@ -343,8 +336,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
           // 空の comments / findings は回収、行が残る pr_reviews は手動変換待ちで残る
           expect(result?.status).toBe('verification_failed');
           expect(result?.missingRows['pr_reviews']).toBe(1);
-          const Ctor = loadBetterSqlite3();
-          const trail = new Ctor(trailDbPath, { readonly: true });
+          const trail = openBetterSqlite3(trailDbPath, { readonly: true });
           try {
             const names = (
               trail

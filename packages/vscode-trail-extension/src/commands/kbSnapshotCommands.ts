@@ -1,6 +1,6 @@
 // Phase 5 S3 (KB Persistence): KB スナップショットの復元導線と Shrink 警告通知。
 //
-// - 復元は trail.db 全体を当該時点へ戻す（グラフ以外のテーブルも巻き戻る）ため、
+// - 復元は activity.db 全体を当該時点へ戻す（グラフ以外のテーブルも巻き戻る）ため、
 //   確認 modal でその旨を明示する。
 // - 復元結果の上書き防止: 復元前に管理下の daemon を停止し（stopDaemon）、
 //   TrailDatabase.restoreKnowledgeBaseSnapshot が close → ファイル復元 → 再 init →
@@ -50,7 +50,7 @@ async function restoreKnowledgeBaseSnapshotCommand(deps: KbSnapshotCommandDeps):
 	if (!picked) return;
 	const confirm = await vscode.window.showWarningMessage(
 		vscode.l10n.t(
-			'Restore trail.db from snapshot #{0}? The ENTIRE database (not only graphs) rolls back to that point, and the trail daemon is stopped until the window reloads. A safety copy of the current file is kept.',
+			'Restore activity.db from snapshot #{0}? The ENTIRE database (not only graphs) rolls back to that point, and the trail daemon is stopped until the window reloads. A safety copy of the current file is kept.',
 			picked.generation,
 		),
 		{ modal: true },

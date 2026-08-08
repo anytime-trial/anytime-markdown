@@ -10,6 +10,8 @@ DROP TABLE IF EXISTS trail_release_code_graphs CASCADE;
 DROP TABLE IF EXISTS trail_current_code_graph_communities CASCADE;
 DROP TABLE IF EXISTS trail_current_code_graphs CASCADE;
 DROP TABLE IF EXISTS trail_current_file_analysis CASCADE;
+-- release 分析 (trail_release_file_analysis / trail_release_function_analysis) は 2026-08-08 に廃止。
+-- DROP のみ残し、CREATE / RLS は撤去済み（適用でリモートからも消える）。
 DROP TABLE IF EXISTS trail_release_file_analysis CASCADE;
 DROP TABLE IF EXISTS trail_current_function_analysis CASCADE;
 DROP TABLE IF EXISTS trail_release_function_analysis CASCADE;
@@ -354,34 +356,6 @@ CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_importance
 CREATE INDEX IF NOT EXISTS idx_trail_current_file_analysis_centrality
   ON trail_current_file_analysis (repo_id, centrality_score DESC);
 
--- 未使用コード検出 ファイル単位スコア リリース版（ローカル release_file_analysis と対応）
-CREATE TABLE IF NOT EXISTS trail_release_file_analysis (
-  release_id                 INTEGER          NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
-  file_path                  TEXT             NOT NULL,
-  importance_score           DOUBLE PRECISION NOT NULL DEFAULT 0,
-  fan_in_total               INTEGER          NOT NULL DEFAULT 0,
-  cognitive_complexity_max   INTEGER          NOT NULL DEFAULT 0,
-  line_count                 INTEGER          NOT NULL DEFAULT 0,
-  cyclomatic_complexity_max  INTEGER          NOT NULL DEFAULT 0,
-  function_count             INTEGER          NOT NULL DEFAULT 0,
-  dead_code_score            INTEGER          NOT NULL DEFAULT 0,
-  signal_orphan              INTEGER          NOT NULL DEFAULT 0,
-  signal_fan_in_zero         INTEGER          NOT NULL DEFAULT 0,
-  signal_no_recent_churn     INTEGER          NOT NULL DEFAULT 0,
-  signal_zero_coverage       INTEGER          NOT NULL DEFAULT 0,
-  signal_isolated_community  INTEGER          NOT NULL DEFAULT 0,
-  is_ignored                 INTEGER          NOT NULL DEFAULT 0,
-  ignore_reason              TEXT             NOT NULL DEFAULT '',
-  cross_pkg_in_count         INTEGER          NOT NULL DEFAULT 0,
-  external_consumer_pkgs     INTEGER          NOT NULL DEFAULT 0,
-  total_in_count             INTEGER          NOT NULL DEFAULT 0,
-  is_barrel                  INTEGER          NOT NULL DEFAULT 0,
-  centrality_score           DOUBLE PRECISION NOT NULL DEFAULT 0,
-  category                   TEXT             NOT NULL DEFAULT 'logic'
-                             CHECK (category IN ('ui', 'logic', 'excluded')),
-  analyzed_at                TEXT             NOT NULL,
-  PRIMARY KEY (release_id, file_path)
-);
 
 -- 未使用コード検出 関数単位スコア（ローカル current_function_analysis と対応）
 CREATE TABLE IF NOT EXISTS trail_current_function_analysis (
@@ -406,28 +380,6 @@ CREATE TABLE IF NOT EXISTS trail_current_function_analysis (
   PRIMARY KEY (repo_id, file_path, function_name, start_line)
 );
 
--- 未使用コード検出 関数単位スコア リリース版（ローカル release_function_analysis と対応）
-CREATE TABLE IF NOT EXISTS trail_release_function_analysis (
-  release_id             INTEGER          NOT NULL REFERENCES trail_releases(release_id) ON DELETE CASCADE,
-  file_path              TEXT             NOT NULL,
-  function_name          TEXT             NOT NULL,
-  start_line             INTEGER          NOT NULL,
-  end_line               INTEGER          NOT NULL DEFAULT 0,
-  language               TEXT             NOT NULL DEFAULT '',
-  fan_in                 INTEGER          NOT NULL DEFAULT 0,
-  cognitive_complexity   INTEGER          NOT NULL DEFAULT 0,
-  cyclomatic_complexity  INTEGER          NOT NULL DEFAULT 0,
-  data_mutation_score    INTEGER          NOT NULL DEFAULT 0,
-  side_effect_score      INTEGER          NOT NULL DEFAULT 0,
-  line_count             INTEGER          NOT NULL DEFAULT 0,
-  importance_score       DOUBLE PRECISION NOT NULL DEFAULT 0,
-  signal_fan_in_zero     INTEGER          NOT NULL DEFAULT 0,
-  fan_out                INTEGER          NOT NULL DEFAULT 0,
-  distinct_callees       INTEGER          NOT NULL DEFAULT 0,
-  function_role          TEXT             NOT NULL DEFAULT 'peripheral' CHECK (function_role IN ('hub','leaf','orchestrator','peripheral')),
-  analyzed_at            TEXT             NOT NULL,
-  PRIMARY KEY (release_id, file_path, function_name, start_line)
-);
 
 -- コードグラフ最新スナップショット（ローカル current_code_graphs と対応）
 CREATE TABLE IF NOT EXISTS trail_current_code_graphs (
@@ -603,20 +555,12 @@ DROP POLICY IF EXISTS "trail_current_file_analysis_all" ON trail_current_file_an
 DROP POLICY IF EXISTS "trail_current_file_analysis_select" ON trail_current_file_analysis;
 CREATE POLICY "trail_current_file_analysis_select" ON trail_current_file_analysis FOR SELECT USING (true);
 
-ALTER TABLE trail_release_file_analysis ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "trail_release_file_analysis_all" ON trail_release_file_analysis;
-DROP POLICY IF EXISTS "trail_release_file_analysis_select" ON trail_release_file_analysis;
-CREATE POLICY "trail_release_file_analysis_select" ON trail_release_file_analysis FOR SELECT USING (true);
 
 ALTER TABLE trail_current_function_analysis ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_function_analysis_all" ON trail_current_function_analysis;
 DROP POLICY IF EXISTS "trail_current_function_analysis_select" ON trail_current_function_analysis;
 CREATE POLICY "trail_current_function_analysis_select" ON trail_current_function_analysis FOR SELECT USING (true);
 
-ALTER TABLE trail_release_function_analysis ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "trail_release_function_analysis_all" ON trail_release_function_analysis;
-DROP POLICY IF EXISTS "trail_release_function_analysis_select" ON trail_release_function_analysis;
-CREATE POLICY "trail_release_function_analysis_select" ON trail_release_function_analysis FOR SELECT USING (true);
 
 ALTER TABLE trail_current_code_graphs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "trail_current_code_graphs_all" ON trail_current_code_graphs;
