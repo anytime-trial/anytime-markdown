@@ -7,7 +7,7 @@
  * テーマ変数は mount 自身が root へ適用するため、この要素での自給処理は不要）。
  *
  * I/F（要件書 cooccurrence-viewer-web-component §2.2）:
- * - 属性: `theme`（light/dark）/ `skin`（standard/oz）/ `locale` / `show-panels`
+ * - 属性: `theme`（light/dark）/ `skin`（standard/oz/card）/ `locale` / `show-panels`
  *   （`show-panels` は未指定で mount 既定の true。`show-panels="false"` のみ折り畳み）
  * - プロパティ: `file`（{@link CooccurrenceFile}。長大データのため属性ではなく property）/
  *   `value`（`.cooc.json` の JSON 文字列版。素の HTML からの受け渡し用）
@@ -211,7 +211,9 @@ export class AnytimeCooccurrenceViewerElement extends HTMLElementBase {
   }
 
   private currentSkin(): CooccurrenceSkin {
-    return this.getAttribute('skin') === 'oz' ? 'oz' : 'standard';
+    const raw = this.getAttribute('skin');
+    // 未知の値は standard へ倒す（属性は外部入力。black-box に壊れた値を viewer まで通さない）。
+    return raw === 'oz' || raw === 'card' ? raw : 'standard';
   }
 
   /** 未指定は undefined（mount 既定の true に委ねる）。`"false"` のみ折り畳み。 */

@@ -1,10 +1,11 @@
 import { LINK_DIRECTION } from '@anytime-markdown/graph-core';
-import type { RenderGraph, RenderLink, RenderNode, ViewportState } from '../types';
+import type { RenderCardView, RenderGraph, RenderLink, RenderNode, ViewportState } from '../types';
 import type { CooccurrenceTheme } from '../theme/readTheme';
 import { arrowHeadPoints, type ArrowHead } from './arrow';
+import { cardLinkAnchors, type CardLinkAnchor } from './cardLayout';
 import { computeNeighborhoodHighlight, isNodeLit, timeLinkLit, type HighlightSelection } from './highlight';
 import { selectVisibleLabels } from './labels';
-import { buildNodeLookup, linkEndpoints } from './nodeLookup';
+import { buildNodeLookup, linkEndpoints, type NodeLookup } from './nodeLookup';
 import { worldToScreen } from '../viewport/viewport';
 
 /** レイヤー間の点線の見え方（設計書 §3.6.3）。矢印は持たず、共起の線より低いコントラストで描く。 */
@@ -101,6 +102,186 @@ export function visibleAlpha(
   return isNodeLit(highlight, index, layer) ? 1 : 0.18;
 }
 
+/** カードの角丸半径（世界座標）。 */
+const CARD_CORNER_RADIUS = 8;
+/** カード内の左右の余白。 */
+const CARD_PADDING_X = 10;
+/** カード左端の色ドットの半径。 */
+const CARD_DOT_RADIUS = 4;
+const CARD_LABEL_FONT_SIZE = 12;
+const CARD_FREQUENCY_FONT_SIZE = 11;
+/** カラム見出しの文字の大きさ（画面ピクセル。レーン名と同じ扱い）。 */
+const CARD_COLUMN_HEADER_FONT_SIZE = 13;
+const CARD_SUB_HEADER_FONT_SIZE = 11;
+
+function roundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  // `ctx.roundRect` を使わないのは、テストの ctx モックと古い webview で存在が揃わないため。
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.arcTo(x + width, y, x + width, y + radius, radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+  ctx.lineTo(x + radius, y + height);
+  ctx.arcTo(x, y + height, x, y + height - radius, radius);
+  ctx.lineTo(x, y + radius);
+  ctx.arcTo(x, y, x + radius, y, radius);
+  ctx.closePath();
+}
+
+/** テキストを最大幅へ収まるまで末尾を落とす。二分探索で measureText の回数を抑える。 */
+function truncateToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (maxWidth <= 0) return '';
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  const ellipsis = '…';
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (ctx.measureText(text.slice(0, mid) + ellipsis).width <= maxWidth) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return low === 0 ? '' : text.slice(0, low) + ellipsis;
+}
+
+/** ベジェの制御点の張り出し量。近いカードで巻き込み、遠いカードで間延びしないよう距離で決める。 */
+function bezierReach(from: CardLinkAnchor, to: CardLinkAnchor): number {
+  return Math.max(24, Math.min(120, Math.hypot(to.x - from.x, to.y - from.y) / 2));
+}
+
+function drawCardLinks(
+  ctx: CanvasRenderingContext2D,
+  graph: RenderGraph,
+  cardView: RenderCardView,
+  lookup: NodeLookup,
+  highlight: HighlightSelection | null,
+  theme: CooccurrenceTheme,
+  selectedNodeIndex: number | null,
+): void {
+  const halfWidth = cardView.cardWidth / 2;
+  const halfHeight = cardView.cardHeight / 2;
+  for (const link of graph.links) {
+    const endpoints = linkEndpoints(lookup, link);
+    if (endpoints === null) continue;
+    const { source, target } = endpoints;
+    const { from, to } = cardLinkAnchors(source, target, halfWidth, halfHeight);
+    const reach = bezierReach(from, to);
+    const cp1 = { x: from.x + from.dx * reach, y: from.y + from.dy * reach };
+    const cp2 = { x: to.x + to.dx * reach, y: to.y + to.dy * reach };
+
+    ctx.globalAlpha = selectedNodeIndex === null || highlight?.linkIndexes.has(link.index) ? 1 : LINK_DIM_ALPHA;
+    ctx.strokeStyle = theme.link;
+    ctx.lineWidth = link.width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y);
+    ctx.stroke();
+
+    // 矢頭は端点の接線（制御点 → 端点）に沿わせる。端点はすでにカードの辺の上にあるため
+    // 半径ぶんの後退は不要（radius 0）。
+    if (link.direction === LINK_DIRECTION.forward || link.direction === LINK_DIRECTION.both) {
+      fillArrowHead(ctx, arrowHeadPoints(cp2, { x: to.x, y: to.y }, 0, link.width), theme.link);
+    }
+    if (link.direction === LINK_DIRECTION.backward || link.direction === LINK_DIRECTION.both) {
+      fillArrowHead(ctx, arrowHeadPoints(cp1, { x: from.x, y: from.y }, 0, link.width), theme.link);
+    }
+
+    if (shouldMarkLink(link)) {
+      // 三次ベジェの t=0.5 の点。線の中央に印を置く規則（円の図）と同じ場所に出す。
+      const midX = (from.x + 3 * cp1.x + 3 * cp2.x + to.x) / 8;
+      const midY = (from.y + 3 * cp1.y + 3 * cp2.y + to.y) / 8;
+      drawNoteMark(ctx, midX, midY, NOTE_MARK_MIN_RADIUS, theme.text);
+    }
+  }
+}
+
+function drawCards(
+  ctx: CanvasRenderingContext2D,
+  graph: RenderGraph,
+  cardView: RenderCardView,
+  highlight: HighlightSelection | null,
+  theme: CooccurrenceTheme,
+): void {
+  const halfWidth = cardView.cardWidth / 2;
+  const halfHeight = cardView.cardHeight / 2;
+  for (const node of graph.nodes) {
+    ctx.globalAlpha = visibleAlpha(highlight, node.index, node.layer);
+    const left = node.x - halfWidth;
+    const top = node.y - halfHeight;
+
+    // 下地は不透明にする。共起の線はカードの下に描かれており、透けるとカードの中の文字と混ざる。
+    roundedRectPath(ctx, left, top, cardView.cardWidth, cardView.cardHeight, CARD_CORNER_RADIUS);
+    ctx.fillStyle = theme.surface;
+    ctx.fill();
+    ctx.fillStyle = node.fill;
+    ctx.fill();
+    ctx.strokeStyle = node.stroke;
+    ctx.lineWidth = node.strokeWidth;
+    ctx.stroke();
+
+    // 左端の色ドット。カラム見出しから離れた場所でも所属クラスタを読めるようにする。
+    ctx.fillStyle = node.stroke;
+    ctx.beginPath();
+    ctx.arc(left + CARD_PADDING_X + CARD_DOT_RADIUS, node.y, CARD_DOT_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 頻度は右端へ数値で出す（カードは面積が一定のため。要件書 §2.2）。
+    ctx.font = `${CARD_FREQUENCY_FONT_SIZE}px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = theme.textSecondary;
+    const frequencyText = String(node.frequency);
+    ctx.fillText(frequencyText, left + cardView.cardWidth - CARD_PADDING_X, node.y);
+    const frequencyWidth = ctx.measureText(frequencyText).width;
+
+    ctx.font = `${CARD_LABEL_FONT_SIZE}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = theme.text;
+    const labelLeft = left + CARD_PADDING_X + CARD_DOT_RADIUS * 2 + 6;
+    const labelMax = left + cardView.cardWidth - CARD_PADDING_X - frequencyWidth - 6 - labelLeft;
+    ctx.fillText(truncateToWidth(ctx, node.label, labelMax), labelLeft, node.y);
+
+    if (node.hasNote) {
+      drawNoteMark(ctx, left + cardView.cardWidth - CARD_PADDING_X, top + 8, NOTE_MARK_MIN_RADIUS + 1, theme.text);
+    }
+  }
+}
+
+/** カラム見出し。レイヤー名・レーン名と同じく画面ピクセルの大きさで描く（縮小時に最初に消えない）。 */
+function drawCardColumnHeaders(
+  ctx: CanvasRenderingContext2D,
+  cardView: RenderCardView,
+  viewport: ViewportState,
+  theme: CooccurrenceTheme,
+): void {
+  for (const column of cardView.columns) {
+    const anchor = worldToScreen({ x: column.x, y: column.y }, viewport);
+    ctx.font = `${CARD_COLUMN_HEADER_FONT_SIZE}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = column.color;
+    ctx.fillText(column.label, anchor.x, anchor.y);
+    for (const sub of column.subHeaders) {
+      const subAnchor = worldToScreen({ x: sub.x, y: sub.y }, viewport);
+      ctx.font = `${CARD_SUB_HEADER_FONT_SIZE}px sans-serif`;
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = theme.textSecondary;
+      ctx.fillText(sub.label, subAnchor.x, subAnchor.y - 4);
+    }
+  }
+}
+
 export function drawGraph(opts: DrawGraphOptions): void {
   const { ctx, width, height, graph, viewport, theme, selectedNodeIndex } = opts;
   ctx.save();
@@ -110,6 +291,21 @@ export function drawGraph(opts: DrawGraphOptions): void {
 
   const highlight = computeNeighborhoodHighlight(graph, selectedNodeIndex);
   const lookup = buildNodeLookup(graph.nodes);
+
+  // カード表示（要件書「カード表示（card スキン）」§2.2・§2.3）。語のラベルはカードの中に
+  // 描くため、円の図の重なり回避（selectVisibleLabels）は通らない。
+  if (graph.cardView !== undefined) {
+    ctx.save();
+    ctx.translate(viewport.offsetX, viewport.offsetY);
+    ctx.scale(viewport.scale, viewport.scale);
+    drawCardLinks(ctx, graph, graph.cardView, lookup, highlight, theme, selectedNodeIndex);
+    drawCards(ctx, graph, graph.cardView, highlight, theme);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    drawCardColumnHeaders(ctx, graph.cardView, viewport, theme);
+    ctx.restore();
+    return;
+  }
 
   ctx.save();
   ctx.translate(viewport.offsetX, viewport.offsetY);

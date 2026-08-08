@@ -71,6 +71,7 @@
     "clusters.listLabel": "クラスタ一覧",
     "clusters.empty": "クラスタがありません",
     "clusters.lanes": "クラスタごとにレーンで並べる",
+    "clusters.laneUnavailableCard": "カード表示中はレーン表示を使えません",
     "clusters.laneGap": "レーン間の余白",
     "clusters.unclustered": "未分類",
     "clusters.untitled": "クラスタ {index}",
@@ -82,6 +83,7 @@
     "timeline.axisVertical": "縦（時間が上→下）",
     "timeline.gap": "レイヤー間の余白",
     "timeline.showTimeLinks": "同じ語を点線で結ぶ",
+    "timeline.unavailableCard": "カード表示中はレイヤー表示を使えません",
     "timeline.slicesTitle": "スライス",
     "timeline.sliceLabel": "スライス名",
     "timeline.sliceDate": "日付（任意）",
@@ -98,6 +100,7 @@
     "note.totalFrequency": "全期間の頻度: {value}",
     "note.totalStrength": "全期間の強度: {value}",
     "toolbar.skinOz": "3D",
+    "toolbar.skinCard": "カード",
     "status.webglUnavailable": "WebGL を初期化できないため 2D 表示を継続します",
     "minimap.unavailable3d": "3D 表示中はミニマップを使えません",
     "edit.mode": "編集モード",
@@ -118,6 +121,7 @@
     "edit.errorNoSliceFrequency": "いずれかの期に頻度を入力してください",
     "edit.errorNoSliceStrength": "いずれかの期に強度を入力してください",
     "edit.add": "この語につながる語を追加",
-    "edit.unavailable3d": "3D 表示中は図から追加できません。標準表示へ切り替えてください"
+    "edit.unavailable3d": "3D 表示中は図から追加できません。標準表示へ切り替えてください",
+    "edit.unavailableCard": "カード表示中は図から追加できません。標準表示へ切り替えてください"
   }
 }

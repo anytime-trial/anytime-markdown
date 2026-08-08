@@ -9,8 +9,9 @@ export type ThemeMode = 'dark' | 'light';
 /**
  * 見た目のスキン。`ThemeMode`（ダーク/ライト）と直交する（要件書 OZ 風 3D 表示 §2.1）。
  * `oz` は three.js による 3D 表示、`standard` は従来の 2D canvas。
+ * `card` はクラスタ＝カラムのカードマップ（要件書「カード表示（card スキン）」§2.1。2D canvas）。
  */
-export type CooccurrenceSkin = 'standard' | 'oz';
+export type CooccurrenceSkin = 'standard' | 'oz' | 'card';
 /**
  * `aborted` は利用者の明示的な中断、`failed` は Worker のクラッシュ等の異常終了。
  * 同じ状態にまとめると、原因不明の失敗を「中断しました」と表示してしまう。
@@ -80,6 +81,26 @@ export interface CooccurrenceViewerHandle {
    * 外から読めなければならない（`getTimelineLayerState` を置いたのと同じ理由）。
    */
   getClusterLaneState(): ClusterLaneState | null;
+  /**
+   * 観測点。カード表示の状態（要件書「カード表示（card スキン）」§5）。card 表示でないときは null。
+   *
+   * 「カードが並んで見える図」はカラム割りが壊れても成立してしまう。カラム数・カード総数・
+   * 未分類カラムの有無・サブクラスタ見出しの数を外から読めなければ、その退行を検査で
+   * 捕まえられない（`getClusterLaneState` と同じ理由）。
+   */
+  getCardLayoutState(): CardLayoutState | null;
+}
+
+/** 観測点。カード表示の状態。 */
+export interface CardLayoutState {
+  /** 描いたカラムの本数（未分類カラムを含む）。 */
+  columnCount: number;
+  /** 描いたカードの総数。 */
+  cardCount: number;
+  /** 未分類カラムがあるか。 */
+  hasUnclustered: boolean;
+  /** サブクラスタ見出しの総数（残余グループは見出しを持たず数えない）。 */
+  subHeaderCount: number;
 }
 
 /** 観測点。クラスタレーン表示の状態。 */
@@ -293,6 +314,42 @@ export interface RenderClusterSubLane {
   labelY: number;
 }
 
+/** 描いたカラム見出し 1 つ。残余サブレーンと同じく、名前の無いサブ見出しは作らない。 */
+export interface RenderCardSubHeader {
+  label: string;
+  /** テキストの左下（世界座標）。 */
+  x: number;
+  y: number;
+}
+
+/** 描いたカードカラム 1 本（要件書「カード表示（card スキン）」§2.2）。 */
+export interface RenderCardColumn {
+  /** `spec.clusters` の添字。未分類カラムでは undefined。 */
+  cluster?: number;
+  /** カラム名（クラスタ名。無題・未分類の文言は呼び出し側が決める）。 */
+  label: string;
+  /** カラム名の色（クラスタ色）。 */
+  color: string;
+  /** カラム左端（世界座標）。 */
+  x: number;
+  /** カラム上端（世界座標）。 */
+  y: number;
+  width: number;
+  subHeaders: readonly RenderCardSubHeader[];
+}
+
+/**
+ * カード表示の描画情報。これを持つ RenderGraph は語を円ではなくカードとして描く。
+ *
+ * Why not RenderNode へ寸法を持たせるか: カードの寸法は全語で一定（要件書 §2.2）であり、
+ * 語ごとに持たせると「語によって寸法が違う」状態が型の上で表現できてしまう。
+ */
+export interface RenderCardView {
+  cardWidth: number;
+  cardHeight: number;
+  columns: readonly RenderCardColumn[];
+}
+
 export interface RenderGraph {
   nodes: readonly RenderNode[];
   links: readonly RenderLink[];
@@ -302,4 +359,6 @@ export interface RenderGraph {
   layers: readonly RenderLayer[];
   /** 描いたクラスタレーン。レーン表示でないときは空。 */
   clusterLanes: readonly RenderClusterLane[];
+  /** カード表示の描画情報。card スキンでないときは持たない。 */
+  cardView?: RenderCardView;
 }
