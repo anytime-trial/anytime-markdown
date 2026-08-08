@@ -161,28 +161,42 @@ export function runKnowledgeGraphLayout(opts: {
 
     // 全消し → 全入れ。差分更新にしないのは、レイアウトが全体最適で毎回すべての座標が
     // 変わるため（一部だけ更新すると古い座標と新しい座標が同じ図に混ざる）。
-    db.run(`DELETE FROM caravan_entity_layout`);
+    //
+    // **単一トランザクションで囲む**。囲まないと、書き替えの最中に配信側（読み取り専用接続）が
+    // 空テーブルや途中までの座標を観測する。書き替えは本番規模で数秒、合成 100,000 では
+    // 27 分の計算のあとに来るため、その窓は無視できない（視野配信では空グラフや誤った
+    // truncated としてそのまま画面に出る）。WAL なので読み手は commit まで前の座標を読み続ける。
+    db.run(`BEGIN IMMEDIATE`);
     let stored = 0;
-    graph.forEachNode((nodeId, attrs) => {
-      const x = attrs['x'];
-      const y = attrs['y'];
-      if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) {
-        opts.logger?.error(
-          `[knowledge-graph-layout] skipped entity without finite coordinates id=${nodeId}`,
+    try {
+      db.run(`DELETE FROM caravan_entity_layout`);
+      graph.forEachNode((nodeId, attrs) => {
+        const x = attrs['x'];
+        const y = attrs['y'];
+        if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) {
+          opts.logger?.error(
+            `[knowledge-graph-layout] skipped entity without finite coordinates id=${nodeId}`,
+          );
+          return;
+        }
+        db.run(
+          `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, degree, graph_version, recorded_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(entity_id) DO UPDATE SET
+             x = excluded.x, y = excluded.y, community_id = excluded.community_id,
+             degree = excluded.degree,
+             graph_version = excluded.graph_version, recorded_at = excluded.recorded_at`,
+          [nodeId, x, y, communities[nodeId] ?? 0, degrees.get(nodeId) ?? 0, graphVersion, recordedAt],
         );
-        return;
-      }
-      db.run(
-        `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, degree, graph_version, recorded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(entity_id) DO UPDATE SET
-           x = excluded.x, y = excluded.y, community_id = excluded.community_id,
-           degree = excluded.degree,
-           graph_version = excluded.graph_version, recorded_at = excluded.recorded_at`,
-        [nodeId, x, y, communities[nodeId] ?? 0, degrees.get(nodeId) ?? 0, graphVersion, recordedAt],
-      );
-      stored += 1;
-    });
+        stored += 1;
+      });
+      db.run(`COMMIT`);
+    } catch (error) {
+      // 途中で落ちたら前の座標を残す。中途半端な座標を残すより、古くても揃っている方が
+      // 図として成立する（次の実行で全件書き替わる）。
+      db.run(`ROLLBACK`);
+      throw error;
+    }
 
     const communityCount = new Set(Object.values(communities)).size;
     opts.logger?.info(

@@ -1681,7 +1681,7 @@ export class CaravanApiHandler {
       const types = (params.types ?? []).filter((t) => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
       // 座標が 1 件も無い DB では視野で絞れない。無視した事実は応答の bboxApplied で返す
       // （黙って全体を返すと、クライアントは「この視野には何も無い」と読んでしまう）。
-      const bbox = this.entityLayoutAvailable ? (params.bbox ?? null) : null;
+      const bbox = params.bbox !== undefined && this.hasStoredLayout(db) ? params.bbox : null;
       // 次数を持つ DB では視野の問い合わせを索引駆動へ切り替える（下記メソッドのコメント参照）。
       // 持たない DB（migration 027 未適用）は従来経路で正しく答えられるので縮退する。
       if (bbox !== null && this.entityLayoutDegreeAvailable) {
@@ -1960,6 +1960,31 @@ export class CaravanApiHandler {
       availableTypes: this.listEntityTypes(db),
       bboxApplied: true,
     };
+  }
+
+  /**
+   * 座標が 1 行でも保存されているか。**テーブルの有無ではなく行の有無**を見る。
+   *
+   * migration 026 を当てた直後（パイプライン初回実行前）はテーブルが在って空になる。
+   * テーブルの有無だけで視野を有効にすると、その窓では在るはずのデータが全部落ちて
+   * 「空グラフ ＋ bboxApplied: true」が返り、クライアントは「この視野には何も無い」と
+   * 読んでしまう（Codex レビュー 2026-08-08 指摘 1）。接続確立時の probe に混ぜないのは、
+   * 同じ接続を使い続けている間にパイプラインが行を書くため。
+   *
+   * 既知の限界: 「1 行でもあるか」しか見ないので、エッジ集合が変わってレイアウトが古い間は
+   * 新しいノードが座標を持たず視野に現れない。これは事前計算方式に内在する遅れで、次の
+   * パイプライン実行で解消する。
+   */
+  private hasStoredLayout(db: CaravanDbConnection): boolean {
+    if (!this.entityLayoutAvailable) return false;
+    try {
+      return (db.exec(`SELECT 1 FROM caravan_entity_layout LIMIT 1`)[0]?.values.length ?? 0) > 0;
+    } catch (err) {
+      this.logger.warn(
+        `[CaravanApiHandler.hasStoredLayout] probe failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return false;
+    }
   }
 
   /** 種別フィルタ適用後の全エンティティ数（表示が全体の一部であることを示す分母）。 */

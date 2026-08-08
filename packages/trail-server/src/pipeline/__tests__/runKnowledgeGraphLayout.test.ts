@@ -143,6 +143,34 @@ describe('runKnowledgeGraphLayout', () => {
     expect(countLayout(db)).toBe(0);
   });
 
+  it('keeps the previous coordinates when the rewrite fails partway (Codex 指摘 2)', () => {
+    runKnowledgeGraphLayout({ db, recordedAt: TS });
+    const before = db.exec(`SELECT entity_id, x FROM caravan_entity_layout ORDER BY entity_id`)[0]?.values;
+    expect(before).toHaveLength(4);
+
+    // 書き替えの途中で落ちる接続。トランザクションが無いと DELETE 済み・一部 INSERT 済みの
+    // 中途半端な状態が読み手に見える（視野配信では空グラフや誤った truncated になる）
+    let inserts = 0;
+    const failing: CaravanDbConnection = {
+      ...db,
+      exec: (sql, params) => db.exec(sql, params),
+      prepare: (sql) => db.prepare(sql),
+      run: (sql, params) => {
+        if (sql.includes('INSERT INTO caravan_entity_layout') && ++inserts === 3) {
+          throw new Error('disk full');
+        }
+        db.run(sql, params);
+      },
+    };
+
+    const result = runKnowledgeGraphLayout({ db: failing, recordedAt: TS, force: true });
+
+    expect(result.status).toBe('error');
+    expect(result.detail).toBe('disk full');
+    // 古くても揃っている座標が残る（0 件でも部分でもない）
+    expect(db.exec(`SELECT entity_id, x FROM caravan_entity_layout ORDER BY entity_id`)[0]?.values).toEqual(before);
+  });
+
   it('recomputes when forced even though the graph is unchanged', () => {
     runKnowledgeGraphLayout({ db, recordedAt: TS });
     const forced = runKnowledgeGraphLayout({ db, recordedAt: TS, force: true });

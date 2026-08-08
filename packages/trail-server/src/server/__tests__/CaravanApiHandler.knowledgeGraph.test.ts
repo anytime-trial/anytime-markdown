@@ -422,6 +422,19 @@ describe('CaravanApiHandler.getKnowledgeGraph — server-side layout', () => {
     expect(result?.availableTypes).toEqual(['Bug', 'Concept', 'File']);
   });
 
+  it('ignores the viewport when the layout table exists but is empty (Codex 指摘 1)', async () => {
+    // migration 026 適用直後・パイプライン初回実行前。テーブル有無だけで判定すると
+    // 在るはずのデータが全部落ちて「空グラフ + bboxApplied: true」が返る
+    addLayoutTable(false);
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const result = await handler.getKnowledgeGraph({
+      bbox: { minX: -10, minY: -30, maxX: 20, maxY: 10 },
+    });
+
+    expect(result?.bboxApplied).toBe(false);
+    expect(result?.nodes.length).toBe(4);
+  });
+
   it('ignores the viewport when the layout table is absent instead of returning an empty graph', async () => {
     handler = new CaravanApiHandler(makeMockLogger(), dbPath);
     const result = await handler.getKnowledgeGraph({
@@ -528,6 +541,29 @@ describe('CaravanApiHandler.getKnowledgeGraph — viewport fast path', () => {
     expect(result?.nodes.map((n) => n.label)).toEqual(['TrailDataServer', 'server.ts']);
     expect(result?.links).toEqual([{ a: 0, b: 1, strength: 1 }]);
     expect(result?.truncated).toBe(true);
+  });
+
+  it('starts applying the viewport as soon as the pipeline writes coordinates', async () => {
+    // 空 → 行あり へ変わったとき、同じ接続のまま視野が効くこと（probe を接続確立時に
+    // 1 回だけ走らせると、行が書かれても永久に効かない）
+    const empty = new BetterSqlite3(dbPath);
+    empty.exec('DELETE FROM caravan_entity_layout');
+    empty.close();
+    handler = new CaravanApiHandler(makeMockLogger(), dbPath);
+    const bbox = { minX: -10, minY: -30, maxX: 20, maxY: 10 };
+
+    expect((await handler.getKnowledgeGraph({ bbox }))?.bboxApplied).toBe(false);
+
+    const filled = new BetterSqlite3(dbPath);
+    filled.prepare(
+      `INSERT INTO caravan_entity_layout (entity_id, x, y, community_id, graph_version, recorded_at, degree)
+       VALUES ('e1', 10.5, -20.5, 0, 'v1', ?, 4), ('e3', -5, 5, 0, 'v1', ?, 2)`,
+    ).run(TS, TS);
+    filled.close();
+
+    const after = await handler.getKnowledgeGraph({ bbox });
+    expect(after?.bboxApplied).toBe(true);
+    expect(after?.nodes.map((n) => n.label)).toEqual(['TrailDataServer', 'server.ts']);
   });
 
   it('keeps the whole-database denominator', async () => {
