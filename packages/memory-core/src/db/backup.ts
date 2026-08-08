@@ -11,7 +11,7 @@ export interface BackupMemoryCoreDbOptions {
 }
 
 /**
- * memory-core.db を gzip 圧縮してローテーション保存する。
+ * caravan-book.db を gzip 圧縮してローテーション保存する。
  *
  * trail-db の FileTrailStorage / FileBackupManager と同じ仕組みを memory-core
  * 用に薄くラップしたもの。DB ファイルが存在しない初回起動時は no-op で安全に

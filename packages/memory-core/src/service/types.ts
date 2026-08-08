@@ -52,7 +52,7 @@ export interface PipelineRunnerContext {
   /** Ollama クライアント生成口 (省略時 openMemoryDbSession が createOllamaClient で生成)。 */
   ollamaFactory?: () => OllamaClient;
   /**
-   * memory-core.db の世代バックアップ設定。
+   * caravan-book.db の世代バックアップ設定。
    * - backupGenerations: 保持世代数 (0 以下で無効、既定 1)
    * - backupIntervalDays: 作成間隔 日 (0 で毎回、既定 1)
    * 既存 anytimeDatabase.backup.* 設定を再利用する想定。
@@ -69,9 +69,9 @@ export interface PipelineLogger {
 export interface MemoryCoreServiceOptions {
   /** Pipeline ログの書き込み先 (拡張: OutputChannel, daemon: Logger ラッパ) */
   logSink: MemoryCoreLogSink;
-  /** trail.db 絶対パス */
+  /** activity.db 絶対パス */
   trailDbPath: string;
-  /** memory-core.db 絶対パス (省略時はデフォルト: <workspaceRoot>/.anytime/db/memory-core.db) */
+  /** caravan-book.db 絶対パス (省略時はデフォルト: <workspaceRoot>/.anytime/db/caravan-book.db) */
   dbPath?: string;
   /** better-sqlite3 native binding 絶対パス (拡張に必要) */
   nativeBinding?: string;
@@ -90,7 +90,7 @@ export interface MemoryCoreServiceOptions {
   pipelineRunner?: (ctx: PipelineRunnerContext) => Promise<void>;
   /**
    * 初回 backfill (memory_pipeline_state.last_processed_at が空の場合) で
-   * trail.db から遡って読み込む日数。省略時は 5 日。
+   * activity.db から遡って読み込む日数。省略時は 5 日。
    */
   backfillDays?: number;
   /** LLM 接続先・モデル (lep.json から解決した値)。省略時は env / 内蔵既定。 */
@@ -98,7 +98,7 @@ export interface MemoryCoreServiceOptions {
   /** Ollama クライアント生成口。trail-server が throttle 用 decorator を注入する。 */
   ollamaFactory?: () => OllamaClient;
   /**
-   * memory-core.db の世代バックアップ設定。anytimeDatabase.backup.* と
+   * caravan-book.db の世代バックアップ設定。anytimeDatabase.backup.* と
    * 同じ値を渡す想定。省略時は generations=1, intervalDays=1 (database-core
    * 既定値)。
    */

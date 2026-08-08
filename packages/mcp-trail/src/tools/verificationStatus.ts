@@ -1,5 +1,5 @@
 /**
- * get_verification_status — trail.db の verification_runs（検証実施台帳）の読み取り。
+ * get_verification_status — activity.db の verification_runs（検証実施台帳）の読み取り。
  * 台帳は「何が実施済みか」を答えるだけで実行を決めない。判定不能・記録なしは常に needsRun へ倒す。
  * スキーマ正本は packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS
  * （writer のミラーは scripts/verification-db.mjs）。本ファイルは SELECT のみで作成しない。
@@ -50,7 +50,7 @@ export interface VerificationStatusResult {
 const PROTECTED_ROOT_PATTERNS = [/\/vscode-server\//, /\/\.vscode\b/, /\/\.claude\b/];
 
 /**
- * 共有の `../dbPath` の `resolveDbPath` を使わないのは、あちらが trail.db 不在で throw する
+ * 共有の `../dbPath` の `resolveDbPath` を使わないのは、あちらが activity.db 不在で throw する
  * fail-closed だから。本ツールは「台帳が無い＝needsRun」へ倒す fail-open の契約なので、
  * 不在を例外にせず呼び出し側へ `reason: 'no-db'` として返す必要がある。
  */
@@ -61,14 +61,14 @@ function resolveDbPath(workspaceRoot: string): string {
       `[get_verification_status] refusing protected path "${home}". Set TRAIL_HOME to a workspace-local dir or pass workspacePath.`,
     );
   }
-  return path.join(home, 'db', 'trail.db');
+  return path.join(home, 'db', 'activity.db');
 }
 
 /**
  * 台帳のあるワークスペース根を解く。writer（scripts/verification-db.mjs の
  * resolveWorkspaceRootForLedger）と**同じ規則**でなければならない。
  *
- * worktree から検証を回すと記録は本体（git common dir の親）の trail.db に入る。ここで
+ * worktree から検証を回すと記録は本体（git common dir の親）の activity.db に入る。ここで
  * worktree のパスをそのまま使うと、実施済みでも `no-db` / needsRun に落ちて読み書きが噛み合わない。
  * git 管理外なら渡された値へ縮退する（fail-open の契約を壊さない）。
  */

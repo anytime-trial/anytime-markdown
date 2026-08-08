@@ -18,7 +18,7 @@ function makeInfo(overrides: Partial<DaemonInfo> = {}): DaemonInfo {
     version: '0.18.0',
     startedAt: '2026-05-13T12:34:56.789Z',
     startedBy: 'cli',
-    dbPath: '/tmp/trail.db',
+    dbPath: '/tmp/activity.db',
     gitRoots: ['/repo'],
     viewerDistPath: '/tmp/viewer',
     pidStartTime: 0,

@@ -81,7 +81,7 @@ import { TrailDataServer } from '../../server/TrailDataServer';
 
 /** configure() を成功させるための最小設定。 */
 const MINIMAL_CFG = {
-  trailDbPath: '/tmp/trail.db',
+  trailDbPath: '/tmp/activity.db',
   gitRoot: '/tmp/repo',
   statePath: '/tmp/state',
   stage: 'disabled' as const,
@@ -100,7 +100,7 @@ const BETTER_SQLITE3_BINDING = require.resolve('better-sqlite3/build/Release/bet
 /** startHttpServer() を成功させるための最小オプション。 */
 const MINIMAL_HTTP_OPTS = {
   distPath: '/tmp/dist',
-  trailDbPath: '/tmp/trail.db',
+  trailDbPath: '/tmp/activity.db',
   gitRoot: '/tmp/repo',
   preferredPort: 19841,
 };
@@ -183,7 +183,7 @@ describe('trailDaemonEntry.dispatch — import pipeline wiring (trailDb)', () =>
 
   // 回帰: bb0a0345 で HTTP server を configure から切り離した際、import パイプラインの
   // trailDb 配線が落ち、SessionImporter 等の Layer 1/2 が一切走らなくなった
-  // (trail.db が 0 件のまま)。configure → startHttpServer の順で httpTrailDb を共有し、
+  // (activity.db が 0 件のまま)。configure → startHttpServer の順で httpTrailDb を共有し、
   // 取込が有効化されることを保証する。
   const CFG = { ...MINIMAL_CFG, stage: 'primary' as const };
 
@@ -207,7 +207,7 @@ describe('trailDaemonEntry.dispatch — Wave 1/2/4 実行台帳の配線', () =>
     dir = mkdtempSync(join(tmpdir(), 'daemon-run-ledger-'));
   });
   afterEach(async () => {
-    // memory-core.db の接続を閉じてから temp dir を消す (WAL が残ると後続で開けない)。
+    // caravan-book.db の接続を閉じてから temp dir を消す (WAL が残ると後続で開けない)。
     await dispatch('dispose', {});
     rmSync(dir, { recursive: true, force: true });
   });
@@ -223,13 +223,13 @@ describe('trailDaemonEntry.dispatch — Wave 1/2/4 実行台帳の配線', () =>
     await dispatch('configure', CFG);
     await dispatch('startHttpServer', {
       ...MINIMAL_HTTP_OPTS,
-      memoryDbPath: join(dir, 'memory-core.db'),
+      memoryDbPath: join(dir, 'caravan-book.db'),
       logService: { nativeBinding: BETTER_SQLITE3_BINDING },
     });
     expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(true);
   });
 
-  it('logService 無しでは配線されない (memory-core.db 接続が無いため)', async () => {
+  it('logService 無しでは配線されない (caravan-book.db 接続が無いため)', async () => {
     await dispatch('configure', CFG);
     await dispatch('startHttpServer', MINIMAL_HTTP_OPTS);
     expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(false);
@@ -242,7 +242,7 @@ describe('trailDaemonEntry.dispatch — Wave 1/2/4 実行台帳の配線', () =>
     await dispatch('configure', CFG);
     await dispatch('startHttpServer', {
       ...MINIMAL_HTTP_OPTS,
-      memoryDbPath: join(dir, 'memory-core.db'),
+      memoryDbPath: join(dir, 'caravan-book.db'),
       logService: { nativeBinding: BETTER_SQLITE3_BINDING },
     });
     expect(_getAnalyzeAllRunnerForTest()?.runLedgerEnabled).toBe(true);

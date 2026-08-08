@@ -16,7 +16,7 @@ interface Args { model: string; episodes: number; trailPath: string; }
 function parseArgs(argv: string[]): Args {
   let model = 'qwen2.5:7b';
   let episodes = 20;
-  let trailPath = `${homedir()}/.claude/trail/trail.db`;
+  let trailPath = `${homedir()}/.claude/trail/activity.db`;
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--model') model = argv[++i];

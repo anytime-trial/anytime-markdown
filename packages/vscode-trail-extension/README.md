@@ -129,7 +129,7 @@ Run these from the command palette (`Ctrl+Shift+P`).
 | `Anytime Trail: Analyze All Data` | Run the AnalyzeAll pipeline (requires `analyzeAll.enabled`) |
 | `Anytime Trail: Record Safe Point` / `Rollback to Safe Point` | Record HEAD as a safe point, and restore it via a recovery branch |
 | `Anytime Trail: Kill Switch (Block Claude Tool Execution)` / `Release Kill Switch` | Emergency block or release of Claude's tool execution when it runs away |
-| `Anytime Trail: Restore Knowledge Base Snapshot` | Restore the entire `trail.db` from a snapshot |
+| `Anytime Trail: Restore Knowledge Base Snapshot` | Restore the entire `activity.db` from a snapshot |
 | `Anytime Trail: Rebuild Memory Index` | Rebuild the memory-core index |
 | `Anytime Trail: Register MCP Server` | Write `mcp-trail` to `.mcp.json` |
 
@@ -144,9 +144,9 @@ Run these from the command palette (`Ctrl+Shift+P`).
 | `anytimeTrail.analyzeAll.enabled` | `false` | Enable the AnalyzeAll pipeline (importAll + memory-core runOnce). When off, the Pipelines tree view is hidden and no automatic or manual runs are performed |
 | `anytimeTrail.lep.configPath` | `""` | Alternate path to `lep.json`. When set, only this file is read (the standard `.anytime/trail/lep.json` search is skipped). Reload Window to apply |
 
-> **About the DB storage location**: The storage location for `trail.db` and the other DBs is determined
+> **About the DB storage location**: The storage location for `activity.db` and the other DBs is determined
 > not by VS Code settings but by `database.storagePath` in `lep.json` (default `.anytime/trail/db`). In
-> the default configuration, this resolves to `<workspace>/.anytime/trail/db/trail.db`.
+> the default configuration, this resolves to `<workspace>/.anytime/trail/db/activity.db`.
 
 > **About token budget limits**: `anytimeAgent.budget.dailyLimitTokens` and the other budget settings live
 > in the [Anytime Agent](https://marketplace.visualstudio.com/items?itemName=anytime-trial.anytime-agent) extension.

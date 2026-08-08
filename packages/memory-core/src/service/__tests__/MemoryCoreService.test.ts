@@ -20,8 +20,8 @@ function makeOpts(
 ): MemoryCoreServiceOptions {
   return {
     logSink: makeLogSink(),
-    trailDbPath: join(dir, 'trail.db'),
-    dbPath: join(dir, 'memory-core.db'),
+    trailDbPath: join(dir, 'activity.db'),
+    dbPath: join(dir, 'caravan-book.db'),
     statePath: join(dir, 'memory-core-runner.json'),
     pipelineRunner: jest.fn(async () => undefined),
     ...overrides,

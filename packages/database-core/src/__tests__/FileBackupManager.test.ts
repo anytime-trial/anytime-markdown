@@ -15,7 +15,7 @@ describe('FileBackupManager', () => {
 
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'file-backup-manager-'));
-    dbPath = path.join(dir, 'trail.db');
+    dbPath = path.join(dir, 'activity.db');
   });
 
   afterEach(() => {

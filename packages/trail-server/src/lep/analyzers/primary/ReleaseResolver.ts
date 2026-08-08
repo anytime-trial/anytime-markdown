@@ -113,7 +113,7 @@ export class ReleaseResolver implements Analyzer {
       });
     }
 
-    // 各 tag について release_resolved を emit (releasedAt は trail.db 由来でも良いが、
+    // 各 tag について release_resolved を emit (releasedAt は activity.db 由来でも良いが、
     // 取得 API が無いため空文字。Step 2c の CodeGraphBuilder は tag のみ参照する)
     const set = this.tagsByRoot.get(primary);
     if (set) {

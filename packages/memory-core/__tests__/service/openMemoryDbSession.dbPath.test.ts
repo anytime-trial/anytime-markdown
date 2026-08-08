@@ -38,7 +38,7 @@ function makeLogger() {
   return { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 }
 
-describe('openMemoryDbSession — memory-core.db のパス解決', () => {
+describe('openMemoryDbSession — caravan-book.db のパス解決', () => {
   let gitRoot: string;
   let trailDbPath: string;
   let savedCwd: string;
@@ -49,7 +49,7 @@ describe('openMemoryDbSession — memory-core.db のパス解決', () => {
     gitRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memdbsession-root-'));
     const dbDir = path.join(gitRoot, '.anytime', 'trail', 'db');
     fs.mkdirSync(dbDir, { recursive: true });
-    trailDbPath = path.join(dbDir, 'trail.db');
+    trailDbPath = path.join(dbDir, 'activity.db');
     fs.writeFileSync(trailDbPath, '');
 
     // gitRoot とは別の cwd を用意する。両者が食い違っていても同じ DB を指すことを見る。
@@ -87,12 +87,12 @@ describe('openMemoryDbSession — memory-core.db のパス解決', () => {
     const opened = mockOpenMemoryCoreDb.mock.calls[0]?.[0] as string;
     expect(opened).toBe(backedUp);
     // gitRoot 基準に解決され、cwd 側へは向かわない
-    expect(opened).toBe(path.join(gitRoot, '.anytime', 'trail', 'db', 'memory-core.db'));
+    expect(opened).toBe(path.join(gitRoot, '.anytime', 'trail', 'db', 'caravan-book.db'));
     expect(opened.startsWith(cwdDir)).toBe(false);
   });
 
   it('dbPath 明示時はその値をバックアップ・open の双方へ使う', async () => {
-    const explicit = path.join(gitRoot, 'custom', 'memory-core.db');
+    const explicit = path.join(gitRoot, 'custom', 'caravan-book.db');
 
     await openMemoryDbSession(
       { logger: makeLogger(), trailDbPath, gitRoot, dbPath: explicit },

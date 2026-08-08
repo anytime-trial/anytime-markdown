@@ -1,5 +1,5 @@
 /**
- * doc-core.db（markdown 拡張専用）の ingest ランナー。
+ * catalog.db（markdown 拡張専用）の ingest ランナー。
  *
  * doc-core / node:sqlite を拡張ホスト本体に取り込まず、同梱した node バンドル
  * `dist/doc-ingest.js` を子プロセス（`process.execPath` + `ELECTRON_RUN_AS_NODE`）として

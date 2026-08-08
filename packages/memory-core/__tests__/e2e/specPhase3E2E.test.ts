@@ -35,7 +35,7 @@ c4Scope: ["pkg_memory-core"]
 ---
 必須: sql.js に depends_on する。
 
-禁止: trail.db に書き込んではならない。
+禁止: activity.db に書き込んではならない。
 `;
 
 const TECH_MD = `---
@@ -74,7 +74,7 @@ const MOCK_CLAIMS_RESPONSE = JSON.stringify({
     {
       subject: { type: 'Package', name: 'pkg_memory-core' },
       predicate: 'depends_on',
-      object: { type: 'Library', name: 'trail.db' },
+      object: { type: 'Library', name: 'activity.db' },
       modality: 'forbidden',
       line_hint: 2,
       confidence: 0.95,
@@ -193,8 +193,8 @@ describe('runSpecIncremental E2E — Phase 3', () => {
     expect((rows[0]?.values ?? []).length).toBeGreaterThanOrEqual(1);
   }, 60000);
 
-  it('inserts forbidden edge for trail.db', () => {
-    const trailDbEntityId = makeEntityId('Library', 'trail.db');
+  it('inserts forbidden edge for activity.db', () => {
+    const trailDbEntityId = makeEntityId('Library', 'activity.db');
     const rows = memDb.exec(
       `SELECT modality, predicate, object_entity_id FROM memory_edges
        WHERE source_type = 'spec'

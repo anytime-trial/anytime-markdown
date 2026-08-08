@@ -2,7 +2,7 @@ import type { MemoryDbSession } from '@anytime-markdown/memory-core';
 
 import type { LlmProviderAvailability } from '../../LlmAvailability';
 
-/** Wave 3 開始時に memory-core セッションを open するファクトリ。null = trail.db 不在。 */
+/** Wave 3 開始時に memory-core セッションを open するファクトリ。null = activity.db 不在。 */
 export type MemoryDbSessionFactory = () => Promise<MemoryDbSession | null>;
 
 /** Wave 3 開始前の LLM Pre-flight ヘルスチェック。 */

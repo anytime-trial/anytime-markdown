@@ -50,7 +50,7 @@ export interface ResolveReviewTargetsResult {
  *
  * **既定値による一括フォールバックは持たない**。`WHERE workspace = ''` だけで絞ると
  * DB 内の未解決行**全部**が対象になり、複数ワークスペースを集約している
- * memory-core.db では他ワークスペース由来の行まで取込側のワークスペースとして
+ * caravan-book.db では他ワークスペース由来の行まで取込側のワークスペースとして
  * 刻印される。その値は resolveFindingTargets が同名ファイルの優先先として使うため、
  * 本変更が塞ごうとしている誤リンクを別経路から再導入することになる。
  * 取込側のワークスペースが自明な経路（review_doc / agent）は、その経路の

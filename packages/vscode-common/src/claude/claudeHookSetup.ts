@@ -522,7 +522,7 @@ function airspaceVerdict(mode, input, cwd) {
 // （先頭プロンプトの文面から推測はしない）。未宣言のセッションは 1 セッション 1 指示の
 // 暗黙グループになるため、宣言忘れは記録の欠落ではなく行の分裂として現れる。
 //
-// 候補そのものはここでは引かない。trail.db を読むには sqlite のネイティブ束縛が要り、
+// 候補そのものはここでは引かない。activity.db を読むには sqlite のネイティブ束縛が要り、
 // セッション開始のたびに失敗し得る依存を入口へ持ち込むことになるため、DB 読取は
 // MCP ツール（list_open_instructions）へ委ね、ここは経路の提示だけを行う。
 function instructionPrompt() {

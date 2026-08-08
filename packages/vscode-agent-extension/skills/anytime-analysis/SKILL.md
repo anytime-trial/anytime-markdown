@@ -246,7 +246,7 @@ ADR / RFC / 軽量提案のテンプレート全文は **`references/templates.m
 | 事前反証（発散の前） | **真因を覆す証拠を能動的に探す**: `get_bug_history` / `list_recurring_bugs`（同種が別原因で再発していないか）・`git log -S`（当該挙動が別要因で入っていないか）・実測（テスト・ビルド・実機） |
 | 発散（改善案） | `package.json`（scripts / devDeps）・`eslint.config.*`・`tsconfig.json`・CI（`.github/workflows`）・`suggestion_text`（レビュアー修正案）・`message_commits` / `addresses`（既往修正） |
 | 反証 | 上記設定ファイル群で実行可能性を**実証**（推論で済ませない） |
-| 事実照合 | `trail.db` / `memory-core.db` ＋ 設定ファイル |
+| 事実照合 | `activity.db` / `caravan-book.db` ＋ 設定ファイル |
 
 > 軽量モードでも親はこのマトリクスを**最低限なぞる**（深掘りモードは grounding エージェントが収集して各パネルへ供給する）。\
 > grounding が重くなりすぎないよう、提案に無関係な情報源は外し、結果はそのセッション内で再利用する。

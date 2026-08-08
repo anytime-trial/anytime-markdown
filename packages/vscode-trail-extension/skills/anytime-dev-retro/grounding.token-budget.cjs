@@ -2,7 +2,7 @@
 /**
  * anytime-token-budget: 決定論的 grounding。
  *
- * Trail の trail.db を read-only で集計し、LLM コスト(token budget)の signals snapshot を
+ * Trail の activity.db を read-only で集計し、LLM コスト(token budget)の signals snapshot を
  * JSON で **stdout に出力** する。LLM 非依存・MCP 非依存(node:sqlite)なので headless
  * `claude -p` / cron でも完走する。
  *
@@ -33,7 +33,7 @@ function resolveDbDir() {
   // 配布物として任意ユーザー環境で動くよう、開発機固有の絶対パスは持たない。
   const candidates = [process.argv[2], path.join(process.cwd(), '.anytime', 'trail', 'db')].filter(Boolean);
   for (const c of candidates) {
-    if (fs.existsSync(path.join(c, 'trail.db'))) return c;
+    if (fs.existsSync(path.join(c, 'activity.db'))) return c;
   }
   return candidates.at(-1) ?? path.join(process.cwd(), '.anytime', 'trail', 'db');
 }
@@ -71,7 +71,7 @@ const round2 = (n) => Math.round((n || 0) * 100) / 100;
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
 
 {
-  const { db, error } = open('trail.db');
+  const { db, error } = open('activity.db');
   if (error) snapshot.errors.push(error);
 
   // ── モデル別コスト(session_costs が正準・estimated_cost_usd 算出済み) ──────────

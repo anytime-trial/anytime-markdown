@@ -2,7 +2,7 @@
  * ファイルベースの memory-core DB セッションを 1 回だけ open する。
  *
  * `runMemoryCorePipeline` の冒頭セットアップ (世代バックアップ・openMemoryCoreDb・
- * trail.db ATTACH・watchdog・OllamaClient 生成・PipelineStatusWriter 初期化) を
+ * activity.db ATTACH・watchdog・OllamaClient 生成・PipelineStatusWriter 初期化) を
  * 切り出し、{@link MemoryDbSession} を返す。sql.js / better-sqlite3 / Ollama などの
  * 重い依存をロードするため、index からは遅延 require される。
  */
@@ -35,8 +35,8 @@ export interface OpenMemoryDbSessionOptions {
 }
 
 /**
- * memory-core DB を open し、trail.db を read-only ATTACH した {@link MemoryDbSession}
- * を返す。trail.db が存在しない場合は `null` を返す (呼び出し側で skip する)。
+ * memory-core DB を open し、activity.db を read-only ATTACH した {@link MemoryDbSession}
+ * を返す。activity.db が存在しない場合は `null` を返す (呼び出し側で skip する)。
  *
  * Wave 3 のライフサイクルで 1 回だけ呼び、返ったセッションを全 memory analyzer で共有する。
  * 終了時は `session.close()` を呼ぶこと。

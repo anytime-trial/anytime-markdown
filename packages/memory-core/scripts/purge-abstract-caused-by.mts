@@ -8,12 +8,12 @@
  * (例: drift:<abstract-entity>:caused_by:recurring_root_cause) は candidates
  * に出ず、reportDriftEvents の autoResolveStale により自動で resolved になる。
  *
- * 引数で TRAIL_HOME (= <dir>/db/memory-core.db のあるディレクトリの親) を指定する。
+ * 引数で TRAIL_HOME (= <dir>/db/caravan-book.db のあるディレクトリの親) を指定する。
  * 例: node --experimental-strip-types scripts/purge-abstract-caused-by.mts /anytime-markdown/.anytime/trail
  *
  * 実行前に DB バックアップを推奨:
- *   cp /anytime-markdown/.anytime/trail/db/memory-core.db \
- *      /anytime-markdown/.anytime/trail/db/memory-core.db.before-purge
+ *   cp /anytime-markdown/.anytime/trail/db/caravan-book.db \
+ *      /anytime-markdown/.anytime/trail/db/caravan-book.db.before-purge
  */
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
@@ -32,9 +32,9 @@ if (!trailHome) {
   console.error('Usage: purge-abstract-caused-by.mts <TRAIL_HOME>');
   process.exit(1);
 }
-const memoryDbPath = path.join(trailHome, 'db', 'memory-core.db');
+const memoryDbPath = path.join(trailHome, 'db', 'caravan-book.db');
 if (!fs.existsSync(memoryDbPath)) {
-  console.error(`memory-core.db not found at ${memoryDbPath}`);
+  console.error(`caravan-book.db not found at ${memoryDbPath}`);
   process.exit(1);
 }
 

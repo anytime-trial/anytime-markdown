@@ -54,7 +54,7 @@ Anytime Database は `.db` / `.sqlite` / `.sqlite3` / `.db3` ファイルを Cus
 
 ## 4. Activity Bar（Database パネル）
 
-**Anytime Database** の Activity Bar パネルでは、Anytime Trail 拡張機能のローカル `trail.db` および設定済みリモートバックエンドの状態を確認できます。
+**Anytime Database** の Activity Bar パネルでは、Anytime Trail 拡張機能のローカル `activity.db` および設定済みリモートバックエンドの状態を確認できます。
 
 **現在できること:**
 

@@ -29,7 +29,7 @@ describe('AlignmentDiagnosticsProvider', () => {
         elementId: 'pkg_trail-core',
         specPath: 'spec/31.trail/trail-core.ja.md',
         changedFiles: ['packages/trail-core/src/a.ts'],
-        reason: 'commits missing from trail.db',
+        reason: 'commits missing from activity.db',
       },
     ]));
 

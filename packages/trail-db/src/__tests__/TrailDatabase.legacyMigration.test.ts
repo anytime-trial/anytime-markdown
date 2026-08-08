@@ -1370,7 +1370,7 @@ describe('TrailDatabase: legacy DB migration on init', () => {
     const idxNames = (idx[0]?.values ?? []).map((r: ReadonlyArray<unknown>) => String(r[0]));
     expect(idxNames).not.toContain('idx_pr_reviews_repo_pr');
     // 新 repo_id 先頭索引は CREATE_PR_REVIEW_INDEXES が張っていたが、memory_reviews 統合
-    //（2026-08-07）で trail.db 側の DDL 適用を撤去したため作成されない（残存テーブルは
+    //（2026-08-07）で activity.db 側の DDL 適用を撤去したため作成されない（残存テーブルは
     // FlightRecordDatabase の移行が回収する過渡期のみ存在する）。
 
     // 書き込み API（upsertPrReview）は memory_reviews 統合（2026-08-07）で撤去済のため、

@@ -19,7 +19,7 @@ import type { PrReviewMemorySource } from '../prreview/prReviewMemorySource';
 
 const MS_PER_DAY = 86_400_000;
 
-/** CrossSourceCorrelator が trail.db に必要とする最小データソース (テストで fake 注入)。 */
+/** CrossSourceCorrelator が activity.db に必要とする最小データソース (テストで fake 注入)。 */
 export interface CrossSourceDataSource {
   getCorrelationSessionCommits(sinceCommittedAt?: string): CorrelationSessionCommit[];
   getDoraReleases(): DoraReleaseInput[];
@@ -31,7 +31,7 @@ export interface CrossSourceCorrelatorOptions {
   readonly trailDb: CrossSourceDataSource;
   /**
    * PR review (`memory_reviews` / `memory_review_findings`, source_kind='pr_comment') を
-   * 読む口。memory-core.db 未接続 (Step 5 移行後、memoryDbPath 未構成)ならこの analyzer は
+   * 読む口。caravan-book.db 未接続 (Step 5 移行後、memoryDbPath 未構成)ならこの analyzer は
    * PR review 相関を空 (0 件) として扱う。
    */
   readonly memoryDb?: PrReviewMemorySource | null;
@@ -70,13 +70,13 @@ export class CrossSourceCorrelator implements Analyzer {
 
     try {
       if (!this.opts.memoryDb) {
-        // memory-core.db 未接続は「算出不能」であって「相関 0 件」ではない。ここで空の
+        // caravan-book.db 未接続は「算出不能」であって「相関 0 件」ではない。ここで空の
         // 洗い替えを行うと、設定漏れ・一時的な open 失敗の 1 run で既存の相関データが
         // DELETE される（replaceCrossSourceCorrelations は全削除 + 再挿入）。既存行を
         // 保持したまま info ログだけ残して抜ける。
         this.correlationsComputed = 0;
         ctx.logger.info(
-          '[CrossSourceCorrelator] skipped (memory-core.db not configured; existing correlations preserved)',
+          '[CrossSourceCorrelator] skipped (caravan-book.db not configured; existing correlations preserved)',
         );
         return;
       }

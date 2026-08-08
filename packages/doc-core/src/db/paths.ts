@@ -1,5 +1,5 @@
 /**
- * doc-core.db の物理パス解決。memory-core と同じ TRAIL_HOME 規約に揃える。
+ * catalog.db の物理パス解決。memory-core と同じ TRAIL_HOME 規約に揃える。
  */
 
 import * as path from 'node:path';
@@ -26,7 +26,7 @@ export function getTrailHome(workspaceRoot?: string): string {
   return path.join(root, '.anytime', 'trail');
 }
 
-/** `${TRAIL_HOME}/db/doc-core.db` を返す。テストは openDocDb に任意パスを直接渡す。 */
+/** `${TRAIL_HOME}/db/catalog.db` を返す。テストは openDocDb に任意パスを直接渡す。 */
 export function getDocCoreDbPath(workspaceRoot?: string): string {
-  return path.join(getTrailHome(workspaceRoot), 'db', 'doc-core.db');
+  return path.join(getTrailHome(workspaceRoot), 'db', 'catalog.db');
 }

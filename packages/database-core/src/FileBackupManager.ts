@@ -155,7 +155,7 @@ export class FileBackupManager {
    * DB ファイルを `dest` へ退避する。戻り値は採用した方式。
    *
    * `zlib.gzipSync` は入力を Buffer に載せるため、Node の Buffer 上限（2 GiB）を超える
-   * DB では `fs.readFileSync` の時点で `RangeError` になる（2026-07-17 に trail.db 2.1GB で
+   * DB では `fs.readFileSync` の時点で `RangeError` になる（2026-07-17 に activity.db 2.1GB で
    * 実際に発生し、拡張が起動不能になった）。サイズで崖を作らないため、上限に近い DB は
    * gzip を諦めて `copyFileSync`（Buffer を経由しない）で**バックアップ自体は必ず残す**。
    */

@@ -57,7 +57,7 @@ export class LogService {
    * 保持ポリシーを `run_id = systemRunId` に限定するのが要点。analyzer の run に
    * 紐づく調査用ログは run 件数で自然に上限が付き、かつ「あとから失敗理由を追う」
    * という本機能の目的そのものなので消さない。一方 system run は daemon が動いて
-   * いる限り全ログを集約し続けるため、無制限だと memory-core.db が肥大化する
+   * いる限り全ログを集約し続けるため、無制限だと caravan-book.db が肥大化する
    * （旧 extension_logs が保持期限を持っていた理由）。
    */
   cleanup(now: Date = new Date()): void {

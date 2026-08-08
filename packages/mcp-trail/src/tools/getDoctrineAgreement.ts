@@ -23,7 +23,7 @@ export type GetDoctrineAgreementInput = z.infer<typeof GetDoctrineAgreementInput
  * （監視のつもりの呼び出しが本番 DB のテーブルを DROP しない — getAcceptanceReview と同方針。
  * 移行の起点は書込 3 ツールに限定する）。
  *
- * 保存先は memory-core.db（2026-08-07 移設）。移行過渡期に trail.db 側へ旧レコードが
+ * 保存先は caravan-book.db（2026-08-07 移設）。移行過渡期に activity.db 側へ旧レコードが
  * 残っている間は両方を読み、(session_id, subject) の memory 優先で重複排除して集計する
  * （片側だけを読むと部分データで agreementRate が誤発火し、D2 → D1 の差し戻し判断を狂わせる）。
  */
@@ -48,7 +48,7 @@ export async function handleGetDoctrineAgreement(
     }
   } catch (err) {
     console.error(
-      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_doctrine_agreement: memory-core.db read failed (falling back to trail.db only)`,
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_doctrine_agreement: caravan-book.db read failed (falling back to activity.db only)`,
       err instanceof Error ? err.stack : err,
     );
   }
@@ -65,7 +65,7 @@ export async function handleGetDoctrineAgreement(
     }
   } catch (err) {
     console.error(
-      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_doctrine_agreement: trail.db read failed (using memory-core.db rows only)`,
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_doctrine_agreement: activity.db read failed (using caravan-book.db rows only)`,
       err instanceof Error ? err.stack : err,
     );
   }

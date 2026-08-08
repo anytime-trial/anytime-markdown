@@ -520,7 +520,7 @@ export const CREATE_FILE_ANALYSIS_INDEXES = [
 ];
 
 // LEP Layer 4 (Aggregator): DORA 指標の月次集計。`DoraMetricsAggregator` が
-// 既存 trail.db データ (releases / session_commits) のみから算出して書き込む。
+// 既存 activity.db データ (releases / session_commits) のみから算出して書き込む。
 // 本 Step で算出するのは deployment frequency (期間内 release 件数) と
 // lead time for changes (commit → 含有 release の中央値) の 2 指標のみ。
 // change_failure_rate / mttr は bug→release attribution リンクが実データに無いため
@@ -596,7 +596,7 @@ export const CREATE_PR_REVIEW_FINDINGS_INDEXES = [
 ];
 
 // LEP Layer 4 (Aggregator): 複数ソース横断の相関 (Step 4d)。
-// CrossSourceCorrelator が既存 trail.db データ (pr_reviews / pr_review_findings /
+// CrossSourceCorrelator が既存 activity.db データ (pr_reviews / pr_review_findings /
 // session_commits / releases / commit_files) のみを突合して書き込む。新規テーブルのみ。
 // Phase F flip: repo_id を additive 追加 (PK は (correlation_type, source_a_id, source_b_id) の
 // まま不変)。repo は確定しないこともある (source_b が release tag 等で別 repo を指す可能性) ため
@@ -876,7 +876,7 @@ export const CREATE_INSTRUCTIONS = `CREATE TABLE IF NOT EXISTS instructions (
 
 // session_id は PK 単独: 1 セッションは 1 指示にしか属さない。所属替えは UPSERT で上書きする
 // （2 つの指示へ同時に属せると、時間・トークンが二重計上され合計が実測と合わなくなる）。
-// instruction_id の FK は宣言のみで、参照整合は DB では強制されない — trail.db は
+// instruction_id の FK は宣言のみで、参照整合は DB では強制されない — activity.db は
 // foreign_keys=OFF で開くため。指示を削除する経路を足す場合、instruction_sessions の
 // 掃除はアプリ側の責務になる（DDL の ON DELETE CASCADE に頼れない）。
 export const CREATE_INSTRUCTION_SESSIONS = `CREATE TABLE IF NOT EXISTS instruction_sessions (
@@ -895,7 +895,7 @@ export const CREATE_INSTRUCTION_INDEXES = [
 // 検証実施台帳: 1 行 = 検証コマンド 1 回の実行（scripts/run-verified.mjs が書く）。
 // 本定義がスキーマの正本で、writer 側（scripts/verification-db.mjs）はこれを CREATE TABLE IF
 // NOT EXISTS のミラーとして持つ（.mjs から TS を import できないため。verificationStatus.ts が
-// 定数をミラーしているのと同じ方針）。writer は trail.db 側の _migrations（key TEXT PRIMARY KEY）
+// 定数をミラーしているのと同じ方針）。writer は activity.db 側の _migrations（key TEXT PRIMARY KEY）
 // を使わない — 形が非互換で、触ると拡張側のマイグレーション記録を壊すため。
 //
 // session_id は「どの指示の検証か」を解く唯一のキー。instruction_id は非正規化しない:

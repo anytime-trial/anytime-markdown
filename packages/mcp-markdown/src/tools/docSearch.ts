@@ -1,6 +1,6 @@
 /**
- * doc-core.db（markdown 拡張が ingest で構築）を読み取り専用で開き、検索を提供する。
- * DB パスは env `ANYTIME_MARKDOWN_DOC_DB`、無ければ `<rootDir>/.anytime/markdown/doc-core.db`。
+ * catalog.db（markdown 拡張が ingest で構築）を読み取り専用で開き、検索を提供する。
+ * DB パスは env `ANYTIME_MARKDOWN_DOC_DB`、無ければ `<rootDir>/.anytime/markdown/catalog.db`。
  */
 
 import * as fs from 'node:fs';
@@ -19,13 +19,19 @@ import {
 } from '@anytime-markdown/doc-core';
 
 export function resolveDocDbPath(rootDir: string): string {
-  return process.env.ANYTIME_MARKDOWN_DOC_DB ?? path.join(rootDir, '.anytime', 'markdown', 'doc-core.db');
+  return process.env.ANYTIME_MARKDOWN_DOC_DB ?? path.join(rootDir, '.anytime', 'markdown', 'catalog.db');
 }
 
 let cached: { path: string; db: DocDb } | null = null;
 
 function openReadonly(rootDir: string): DocDb {
-  const dbPath = resolveDocDbPath(rootDir);
+  let dbPath = resolveDocDbPath(rootDir);
+  if (!fs.existsSync(dbPath)) {
+    // DB ファイル名変更（doc-core.db→catalog.db・2026-08-08）移行前のワークスペースでは旧名へ
+    // フォールバックする（読み取り専用サイドカーは物理リネームしない。owner は ingest 側）。
+    const legacyPath = path.join(path.dirname(dbPath), 'doc-core.db');
+    if (fs.existsSync(legacyPath)) dbPath = legacyPath;
+  }
   if (cached && cached.path === dbPath) return cached.db;
   if (!fs.existsSync(dbPath)) {
     throw new Error(

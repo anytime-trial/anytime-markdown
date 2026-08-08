@@ -47,8 +47,8 @@ function skippedDiff(baseRef: string, headRef: string): GitDiffSummary {
  * 1 回の呼び出しで返す。読み取り専用 (判断の記録・更新は行わない)。
  */
 /**
- * セッションの判断記録を読む。正は memory-core.db（2026-08-07 移設）。
- * 移行過渡期（遅延移行の未実行・失敗）には trail.db 側に旧レコードが残るため、
+ * セッションの判断記録を読む。正は caravan-book.db（2026-08-07 移設）。
+ * 移行過渡期（遅延移行の未実行・失敗）には activity.db 側に旧レコードが残るため、
  * **両方を読み subject の memory 優先で重複排除して結合**する — memory 側テーブルの
  * 実在だけで打ち切ると、移行失敗時に trail 残存分が受け入れ確認から消える。
  */
@@ -67,9 +67,9 @@ async function readJudgmentsForSession(
       opened.close();
     }
   } catch (err) {
-    // memory-core.db 未作成（拡張未起動の環境）等。trail 側だけで提示を成立させる
+    // caravan-book.db 未作成（拡張未起動の環境）等。trail 側だけで提示を成立させる
     console.error(
-      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_acceptance_review: memory-core.db read failed (workspace=${workspacePath}); falling back to trail.db`,
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_acceptance_review: caravan-book.db read failed (workspace=${workspacePath}); falling back to activity.db`,
       err instanceof Error ? err.stack : err,
     );
   }
@@ -85,7 +85,7 @@ async function readJudgmentsForSession(
     }
   } catch (err) {
     console.error(
-      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_acceptance_review: trail.db read failed (workspace=${workspacePath}); using memory-core.db rows only`,
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] get_acceptance_review: activity.db read failed (workspace=${workspacePath}); using caravan-book.db rows only`,
       err instanceof Error ? err.stack : err,
     );
   }
@@ -102,9 +102,9 @@ export async function handleGetAcceptanceReview(
   const baseRef = input.base_ref ?? DEFAULT_BASE_REF;
   const headRef = input.head_ref ?? DEFAULT_HEAD_REF;
 
-  // 保存先は memory-core.db（2026-08-07 に trail.db から移設）。提示のためだけに DB を
+  // 保存先は caravan-book.db（2026-08-07 に activity.db から移設）。提示のためだけに DB を
   // 変えない方針は維持し readonly で開く（移行は書き込み系ツールが担う）。移行前 —
-  // memory 側にテーブルがまだ無い間に限り、trail.db 側へ縮退して読む（判断記録が
+  // memory 側にテーブルがまだ無い間に限り、activity.db 側へ縮退して読む（判断記録が
   // 「移行待ちの間だけ受け入れ確認から消える」のを防ぐ）。
   const judgments = await readJudgmentsForSession(workspacePath, input.session_id);
 

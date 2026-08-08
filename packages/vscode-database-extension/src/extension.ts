@@ -66,7 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // dbStorageDir 未解決 (ワークスペース未オープン) の場合は backup 機能を無効化する。
   const backupManager: FileBackupManager | null = dbStorageDir
     ? new FileBackupManager(
-        path.join(dbStorageDir, "trail.db"),
+        path.join(dbStorageDir, "activity.db"),
         backupGenerations,
         backupIntervalDays,
       )
@@ -90,7 +90,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
-  const trailDbPath = dbStorageDir ? path.join(dbStorageDir, "trail.db") : null;
+  const trailDbPath = dbStorageDir ? path.join(dbStorageDir, "activity.db") : null;
   const databaseProvider = new DatabaseProvider(
     backupManager,
     trailDbPath,
@@ -203,7 +203,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  // DB バックアップ復元: BackupTreeItem 経由（特定 DB の特定世代）またはコマンドパレット経由（trail.db フォールバック）
+  // DB バックアップ復元: BackupTreeItem 経由（特定 DB の特定世代）またはコマンドパレット経由（activity.db フォールバック）
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "anytimeDatabase.restoreBackup",
@@ -215,11 +215,11 @@ export function activate(context: vscode.ExtensionContext): void {
           targetDbPath = arg.dbPath;
           generation = arg.generation;
         } else if (typeof arg === "number") {
-          // 後方互換: 旧 API の generation のみ指定 = trail.db
+          // 後方互換: 旧 API の generation のみ指定 = activity.db
           targetDbPath = trailDbPath;
           generation = arg;
         } else {
-          // 引数なし: trail.db を QuickPick
+          // 引数なし: activity.db を QuickPick
           targetDbPath = trailDbPath;
         }
 
@@ -228,7 +228,7 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
-        // BackupManager を取得（trail.db は既存インスタンス、それ以外は新規生成）
+        // BackupManager を取得（activity.db は既存インスタンス、それ以外は新規生成）
         const isTrail = targetDbPath === trailDbPath;
         const mgr = isTrail && backupManager
           ? backupManager
@@ -329,7 +329,7 @@ export function activate(context: vscode.ExtensionContext): void {
       async (arg?: BackupTreeItem | DbFile) => {
         // 対象 DB パスと表示名を解決
         let targetDbPath: string | null = null;
-        let targetDisplayName = "trail.db";
+        let targetDisplayName = "activity.db";
         if (arg instanceof BackupTreeItem) {
           targetDbPath = arg.dbPath;
           targetDisplayName = path.basename(arg.dbPath);

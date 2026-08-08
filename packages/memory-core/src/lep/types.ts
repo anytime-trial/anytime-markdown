@@ -123,7 +123,7 @@ export type DerivedEvent =
   | {
       // PrReviewImporter (Step 4c) が memory_reviews.source_hash と突合し、変更ありと
       // 判定した GitHub PR review 1 件。PrReviewImporter 自身は永続化しない (Step 5:
-      // memory-core.db 付け替えで ingestPrReview の bodyHash 一致 skip と衝突するため)。
+      // caravan-book.db 付け替えで ingestPrReview の bodyHash 一致 skip と衝突するため)。
       // PrReviewFindingAnalyzer が findings 抽出とあわせて ingestPrReview を 1 回で呼ぶのに
       // 必要な情報をここに積む。
       kind: 'pr_review_imported';

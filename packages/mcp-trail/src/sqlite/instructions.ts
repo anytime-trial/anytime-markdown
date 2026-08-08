@@ -1,5 +1,5 @@
 // Flight Record: 指示台帳（instructions / instruction_sessions）への直書き。
-// 保存先は memory-core.db（2026-08-07 に trail.db から移設。openMemoryDb で開く）。
+// 保存先は caravan-book.db（2026-08-07 に activity.db から移設。openMemoryDb で開く）。
 // TrailDataServer を経由しないのは、宣言がセッション開始直後に走り、
 // デーモン未起動でも記録が落ちてはならないため（doctrine_judgments と同方針）。
 
@@ -53,18 +53,18 @@ export function ensureInstructionTables(db: Database): void {
 const ensureTables = ensureInstructionTables;
 
 /**
- * **副作用: 検証通過時に trail.db 側の instructions / instruction_sessions を退避テーブルへ
+ * **副作用: 検証通過時に activity.db 側の instructions / instruction_sessions を退避テーブルへ
  * 複製した上で DROP する。**
  *
- * 台帳移設（trail.db → memory-core.db・2026-08-07）の遅延移行。doctrine_judgments と同じく
- * デーモン非依存で mcp-trail 自身が行う — 旧指示が trail.db に残ったままだと、移設後の
+ * 台帳移設（activity.db → caravan-book.db・2026-08-07）の遅延移行。doctrine_judgments と同じく
+ * デーモン非依存で mcp-trail 自身が行う — 旧指示が activity.db に残ったままだと、移設後の
  * list_open_instructions から消え、continue も成立しない。record_instruction の書込経路が
  * ensure 直後に冪等実行する（読み取り経路では起動しない）。
  *
  * BEGIN IMMEDIATE は**並行移行の直列化**のためであり（存在チェックもロック取得後に行い
- * TOCTOU を避ける）、WAL 下ではファイル間（memory-core.db と ATTACH した trail.db）の
+ * TOCTOU を避ける）、WAL 下ではファイル間（caravan-book.db と ATTACH した activity.db）の
  * コミットは原子的でない。クラッシュ耐性は退避テーブル `*__pre_move_backup`（DROP と
- * 同一の trail.db 内にあり必ず同時確定する）が担保する — **退避を外してはならない**。
+ * 同一の activity.db 内にあり必ず同時確定する）が担保する — **退避を外してはならない**。
  * 検証は id / session_id のアンチ結合。id は UUID で「同一 id = 同一宣言」のため
  * 衝突時の本体マージは不要（INSERT OR IGNORE の先着が正）。session_id 衝突
  * （移行前に同一セッションが memory 側で別指示へ再宣言された場合）は後勝ちの意味論で
@@ -92,7 +92,7 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
         db.exec('COMMIT');
         return null;
       }
-      // コピー列は両側の交差から組み立てる（doctrine 版と同方式）。固定列挙だと旧 trail.db
+      // コピー列は両側の交差から組み立てる（doctrine 版と同方式）。固定列挙だと旧 activity.db
       // との列差 1 つで全体が throw → catch に落ち、旧指示が永久に回収されない
       const intersectCols = (table: string): string[] => {
         const trailCols = (db.prepare(`PRAGMA trail.table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name);
@@ -191,19 +191,19 @@ export function destructiveMigrateInstructionTablesFromTrailDb(
 }
 
 /**
- * 書込ツール共通の前処理: memory-core.db 側に台帳を冪等作成し、trail.db に旧台帳が
+ * 書込ツール共通の前処理: caravan-book.db 側に台帳を冪等作成し、activity.db に旧台帳が
  * 残っていれば遅延移行する。移行失敗は宣言そのものを止めない（error ログの上で続行。
  * doctrine_judgments と同方針・次回呼び出しで冪等に再試行される）。
  */
-// 移行完了（trail 側テーブル不在 = null / migrated）を確認済みの trail.db パス。
-// 完了後も宣言のたびに ATTACH + BEGIN IMMEDIATE（trail.db への書込ロック）を繰り返さない
+// 移行完了（trail 側テーブル不在 = null / migrated）を確認済みの activity.db パス。
+// 完了後も宣言のたびに ATTACH + BEGIN IMMEDIATE（activity.db への書込ロック）を繰り返さない
 // ためのプロセス内メモ化。verification_failed はメモ化せず次回再試行する。
 // プロセス再起動（/mcp reconnect）でリセットされ、再確認は 1 回だけ走る。
 const migratedTrailDbPaths = new Set<string>();
 
 export function ensureAndMigrateInstructionTables(db: Database, memoryDbPath: string): void {
   ensureInstructionTables(db);
-  const trailDbPath = path.join(path.dirname(memoryDbPath), 'trail.db');
+  const trailDbPath = path.join(path.dirname(memoryDbPath), 'activity.db');
   if (migratedTrailDbPaths.has(trailDbPath)) return;
   try {
     const result = destructiveMigrateInstructionTablesFromTrailDb(db, trailDbPath);
@@ -212,7 +212,7 @@ export function ensureAndMigrateInstructionTables(db: Database, memoryDbPath: st
     }
   } catch (err) {
     console.error(
-      `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration failed (declarations continue to memory-core.db; will retry on next call)`,
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] instruction tables migration failed (declarations continue to caravan-book.db; will retry on next call)`,
       err instanceof Error ? err.stack : err,
     );
   }
@@ -303,8 +303,8 @@ export function closeInstructionDirect(db: Database, instructionId: string): { i
  * 未完了の指示（継続宣言の候補）。started_at 降順。
  *
  * **読み取り経路では ensure（CREATE TABLE）を呼ばない** — readonly 接続かつ台帳未作成の
- * memory-core.db で「attempt to write a readonly database」になる（2026-08-07 実測。
- * trail.db 時代はテーブル常在で IF NOT EXISTS が無書き込みのため露見しなかった）。
+ * caravan-book.db で「attempt to write a readonly database」になる（2026-08-07 実測。
+ * activity.db 時代はテーブル常在で IF NOT EXISTS が無書き込みのため露見しなかった）。
  * テーブル不在は「宣言ゼロ」として空配列に縮退する。
  */
 export function listOpenInstructionsDirect(
@@ -313,7 +313,7 @@ export function listOpenInstructionsDirect(
   limit: number,
 ): OpenInstructionRow[] {
   // クエリは instruction_sessions も相関サブクエリで参照するため、両テーブルの実在を要求する
-  // （片方欠けは移行が片テーブルだけ回収した trail.db で起こり得る）
+  // （片方欠けは移行が片テーブルだけ回収した activity.db で起こり得る）
   const tableCount = Number(
     (db
       .prepare(

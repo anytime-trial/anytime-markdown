@@ -39,14 +39,14 @@ const baseRun = {
   finishedAt: '2026-07-06T00:00:01.234Z',
 };
 
-test('resolveTrailDbPath: TRAIL_HOME を優先し db/trail.db を返す（指示と同じ DB ファイル）', () => {
+test('resolveTrailDbPath: TRAIL_HOME を優先し db/activity.db を返す（指示と同じ DB ファイル）', () => {
   process.env.TRAIL_HOME = path.join(tmpDir, 'trail');
-  assert.equal(resolveTrailDbPath(), path.join(tmpDir, 'trail', 'db', 'trail.db'));
+  assert.equal(resolveTrailDbPath(), path.join(tmpDir, 'trail', 'db', 'activity.db'));
 });
 
-// 回帰: worktree から検証を回したとき、worktree 側に空の trail.db を作らせない。
-// 指示台帳は本体の trail.db にしかないため、書き先が分かれると 1 件も紐づかない。
-test('resolveTrailDbPath: worktree からでも本体（git common dir の親）の trail.db を返す', () => {
+// 回帰: worktree から検証を回したとき、worktree 側に空の activity.db を作らせない。
+// 指示台帳は本体の activity.db にしかないため、書き先が分かれると 1 件も紐づかない。
+test('resolveTrailDbPath: worktree からでも本体（git common dir の親）の activity.db を返す', () => {
   const repo = path.join(tmpDir, 'repo');
   fs.mkdirSync(repo, { recursive: true });
   const git = (args, cwd) => execFileSync('git', args, { cwd, encoding: 'utf8' });
@@ -59,7 +59,7 @@ test('resolveTrailDbPath: worktree からでも本体（git common dir の親）
   const wt = path.join(tmpDir, 'wt');
   git(['worktree', 'add', '-q', wt, '-b', 'feature'], repo);
 
-  assert.equal(resolveTrailDbPath(wt), path.join(fs.realpathSync(repo), '.anytime', 'trail', 'db', 'trail.db'));
+  assert.equal(resolveTrailDbPath(wt), path.join(fs.realpathSync(repo), '.anytime', 'trail', 'db', 'activity.db'));
 });
 
 test('resolveTrailDbPath: 保護領域 (.claude) を指す TRAIL_HOME は throw', () => {
@@ -68,7 +68,7 @@ test('resolveTrailDbPath: 保護領域 (.claude) を指す TRAIL_HOME は throw'
 });
 
 test('openVerificationLedger: 二重 open しても DDL は冪等', () => {
-  const dbPath = path.join(tmpDir, 'db', 'trail.db');
+  const dbPath = path.join(tmpDir, 'db', 'activity.db');
   openVerificationLedger(dbPath).close();
   const db = openVerificationLedger(dbPath);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all();

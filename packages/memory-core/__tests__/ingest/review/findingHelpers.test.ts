@@ -316,7 +316,7 @@ describe('extractTargetFromFinding', () => {
   //
   // 旧実装は `PATH_TOKEN_RE.test(inner)` が真なら inner 全体を候補に積んでいた。
   // そのためバッククォート内の複数行シェル実行ログが丸ごと target_file_path として
-  // 保存されていた（本番 memory-core.db に実在）。マッチした部分文字列だけを採る。
+  // 保存されていた（本番 caravan-book.db に実在）。マッチした部分文字列だけを採る。
 
   test('複数行のシェル実行ログからパス部分だけを取り出す', () => {
     const text = [

@@ -34,7 +34,7 @@ interface PendingRow {
  * 節埋め込みが未生成・doc の content_hash 不一致・model 変更の doc だけを
  * 節単位で再埋め込みする（差分 backfill）。
  *
- * @param db    doc-core.db
+ * @param db    catalog.db
  * @param embed 埋め込み生成関数（注入。daemon が ollama を、テストが fake を供給する）
  */
 export async function embedSections(db: DocDb, embed: EmbedFn, opts: EmbedOptions): Promise<EmbedSectionsResult> {

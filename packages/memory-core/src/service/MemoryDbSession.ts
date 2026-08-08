@@ -67,7 +67,7 @@ export interface MemoryCoreScopeRunner {
 }
 
 export interface MemoryDbSessionDeps {
-  /** open 済み memory-core DB (trail.db を ATTACH 済みであること)。 */
+  /** open 済み memory-core DB (activity.db を ATTACH 済みであること)。 */
   memDb: MemoryCoreDb;
   /** chat / embedding 用 Ollama クライアント。LLM 非依存 scope では未使用。 */
   ollama: OllamaClient;
@@ -170,7 +170,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
       c.free?.();
     } catch (err) {
       // 概算 ETA 用なので処理は続行するが、無言で 0 に縮退させない。
-      // trail.db のスキーマ不整合（列欠落）はここが最初に踏む場所になり得る。
+      // activity.db のスキーマ不整合（列欠落）はここが最初に踏む場所になり得る。
       logger.error(
         '[anytime-memory] conversation pre-count failed — ETA 分母を 0 として続行する',
         err,
@@ -369,7 +369,7 @@ export class MemoryDbSession implements MemoryCoreScopeRunner {
         );
         return;
       }
-      // 走査対象が 0 件のときは印を打たない。trail.db の差し替え直後・取込ラグ中は
+      // 走査対象が 0 件のときは印を打たない。activity.db の差し替え直後・取込ラグ中は
       // ブロックが 0 件で「成功」を返すため、ここで印を打つと**何も是正しないまま
       // 一回限りの機会を消費**し、旧行が永久に空のまま残る（失敗ではないのでログにも
       // 出ない）。次回へ持ち越す。

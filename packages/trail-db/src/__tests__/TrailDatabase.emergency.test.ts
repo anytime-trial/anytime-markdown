@@ -205,7 +205,7 @@ describe('emergency_log event kind migration (Phase 5 S4)', () => {
 
     const dir = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'trail-s4-migration-'));
     try {
-      const legacy = new BetterSqlite3(nodePath.join(dir, 'trail.db'));
+      const legacy = new BetterSqlite3(nodePath.join(dir, 'activity.db'));
       legacy.exec(LEGACY_EMERGENCY_LOG);
       legacy
         .prepare(

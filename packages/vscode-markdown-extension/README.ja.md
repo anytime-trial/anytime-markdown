@@ -76,7 +76,7 @@ Claude Code がファイルを編集して自動再読み込みされた際、�
 
 `anytimeMarkdown.docsRoot` にドキュメントリポジトリのルートを設定すると、リポジトリ全体を索引してエディタから横断検索できます。
 
-- **全文検索** — 索引は `doc-core.db` に保存され、`anytimeMarkdown.docSearch.intervalMinutes`（既定 30 分）ごとに自動更新。手動更新はコマンドパレットの `Anytime Markdown: ドキュメント検索インデックスを再構築`
+- **全文検索** — 索引は `catalog.db` に保存され、`anytimeMarkdown.docSearch.intervalMinutes`（既定 30 分）ごとに自動更新。手動更新はコマンドパレットの `Anytime Markdown: ドキュメント検索インデックスを再構築`
 - **ノート網** — フロントマターの `related` ・ `tags` ・ `c4Scope` と本文中の `.md` リンクから文書同士の関係グラフを構築し、サイドツールバーに表示。関連文書をたどって設計書間を移動できる
 - `docsRoot` が空の場合、索引は無効になり、ノート網は現在のドキュメントが属する git リポジトリにフォールバックします
 
@@ -121,7 +121,7 @@ Markdown ファイルを開くと、**Anytime Markdown** サイドバーの **Ti
 | `anytimeMarkdown.themeMode` | `auto` | カラーモード（auto / light / dark） |
 | `anytimeMarkdown.themePreset` | `handwritten` | テーマスタイル（handwritten / professional） |
 | `anytimeMarkdown.docsRoot` | `""` | ドキュメントリポジトリのルート（絶対パス）。ドキュメント検索の索引とノート網パネルで使用（空 = 索引無効・git リポジトリにフォールバック） |
-| `anytimeMarkdown.docSearch.dbPath` | `""` | ドキュメント検索 DB（doc-core.db）のパス（空 = `<workspace>/.anytime/markdown/doc-core.db`） |
+| `anytimeMarkdown.docSearch.dbPath` | `""` | ドキュメント検索 DB（catalog.db）のパス（空 = `<workspace>/.anytime/markdown/catalog.db`） |
 | `anytimeMarkdown.docSearch.intervalMinutes` | `30` | 自動再索引の間隔（分）。0 = 定期再索引を無効化 |
 
 

@@ -12,7 +12,7 @@ import type { RouteOpts } from '../router';
 // Shared mock setup
 // ---------------------------------------------------------------------------
 
-const MOCK_DB_PATH = '/mock/trail.db';
+const MOCK_DB_PATH = '/mock/activity.db';
 const MOCK_REPO = 'mock-repo';
 const SERVER_URL = 'http://localhost:19841';
 

@@ -64,15 +64,15 @@ export function makeFakeScopeSession(opts: FakeScopeSessionOptions = {}): FakeSc
   return state;
 }
 
-/** `openScopeSession` を fake session (または null = trail.db 不在) に差し替えた MemoryCoreService。 */
+/** `openScopeSession` を fake session (または null = activity.db 不在) に差し替えた MemoryCoreService。 */
 export function makeMemoryCoreWithSession(
   dir: string,
   session: MemoryDbSession | null,
 ): MemoryCoreService {
   const mc = new MemoryCoreService({
     logSink: { appendLine: () => {} },
-    trailDbPath: join(dir, 'trail.db'),
-    dbPath: join(dir, 'memory-core.db'),
+    trailDbPath: join(dir, 'activity.db'),
+    dbPath: join(dir, 'caravan-book.db'),
     statePath: join(dir, 'memory-core-runner.json'),
     pipelineRunner: async () => undefined,
   });

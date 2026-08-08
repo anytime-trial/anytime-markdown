@@ -9,7 +9,7 @@ const mockCreateOllamaClient = jest.fn().mockReturnValue({});
 // openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),
-  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/memory-core.db',
+  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
 jest.mock('@anytime-markdown/memory-core/query', () => ({
@@ -46,7 +46,7 @@ describe('handleSearchMemory', () => {
     expect(mockOpenMemoryCoreDb).toHaveBeenCalledTimes(1);
     // 解決したパスが open へ渡っているか（配線切れの検知）。件数だけ見ていると、
     // 解決結果を使わない実装へ変わっても気づけない
-    expect(mockOpenMemoryCoreDb).toHaveBeenCalledWith('/tmp/mcp-trail-test/memory-core.db');
+    expect(mockOpenMemoryCoreDb).toHaveBeenCalledWith('/tmp/mcp-trail-test/caravan-book.db');
     expect(mockSearchMemoryFn).toHaveBeenCalledWith(
       expect.objectContaining({
         input: { query: 'test runner' },

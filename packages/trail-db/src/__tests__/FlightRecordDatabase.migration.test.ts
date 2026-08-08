@@ -1,5 +1,5 @@
-// destructiveMigrateFromTrailDb（trail.db → memory-core.db のコピー + アンチ結合検証 +
-// 退避 + DROP）の検証。一時ディレクトリに旧配置（trail.db 内に 3 テーブル）を作り、
+// destructiveMigrateFromTrailDb（activity.db → caravan-book.db のコピー + アンチ結合検証 +
+// 退避 + DROP）の検証。一時ディレクトリに旧配置（activity.db 内に 3 テーブル）を作り、
 // 冪等性・manual 訂正の優先マージ・検証失敗時の非破壊（DROP しない）・退避テーブルの
 // 生成を確かめる。
 
@@ -26,7 +26,7 @@ interface LegacyContext {
 
 function createLegacyTrailDb(): LegacyContext {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
-  const trailDbPath = path.join(tempDir, 'trail.db');
+  const trailDbPath = path.join(tempDir, 'activity.db');
   const trail = openBetterSqlite3(trailDbPath);
   trail.pragma('foreign_keys = OFF');
   trail.exec(CREATE_INSTRUCTIONS);
@@ -50,7 +50,7 @@ function createLegacyTrailDb(): LegacyContext {
     )
     .run(TS, TS, TS, TS);
   trail.close();
-  return { tempDir, trailDbPath, memoryDbPath: path.join(tempDir, 'memory-core.db') };
+  return { tempDir, trailDbPath, memoryDbPath: path.join(tempDir, 'caravan-book.db') };
 }
 
 function trailTables(trailDbPath: string, like = ''): string[] {
@@ -83,7 +83,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     fs.rmSync(ctx.tempDir, { recursive: true, force: true });
   });
 
-  it('trail.db の旧 3 テーブルをコピーし、検証後に退避テーブルへ複製してから DROP する', () => {
+  it('activity.db の旧 3 テーブルをコピーし、検証後に退避テーブルへ複製してから DROP する', () => {
     const result = db.destructiveMigrateFromTrailDb();
     expect(result?.status).toBe('migrated');
     expect(result?.copiedRows).toEqual({ instructions: 1, instruction_sessions: 1, flight_reviews: 1 });
@@ -108,7 +108,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     expect(db.listFlightReviews()).toHaveLength(1);
   });
 
-  it('移行後の新規書き込みは memory-core.db 側へ入り、trail.db に生テーブルは再作成されない', () => {
+  it('移行後の新規書き込みは caravan-book.db 側へ入り、activity.db に生テーブルは再作成されない', () => {
     db.destructiveMigrateFromTrailDb();
     db.upsertFlightReviewFromMachine({
       sessionId: 'sess-2',
@@ -181,7 +181,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     // CHECK 制約の無い自作 DDL で trail 側に「新スキーマへコピーできない行」を作る
     // （INSERT OR IGNORE は CHECK 違反を黙って捨てる — その黙殺を検証が捕まえること）
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
-    const trailDbPath = path.join(tempDir, 'trail.db');
+    const trailDbPath = path.join(tempDir, 'activity.db');
     const trail = openBetterSqlite3(trailDbPath);
     trail.exec(`CREATE TABLE flight_reviews (
       id INTEGER PRIMARY KEY, session_id TEXT NOT NULL UNIQUE, workspace_path TEXT NOT NULL DEFAULT '',
@@ -202,7 +202,7 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
       .run(TS, TS, TS);
     trail.close();
 
-    const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { trailDbPath });
+    const standalone = new FlightRecordDatabase(path.join(tempDir, 'caravan-book.db'), { trailDbPath });
     standalone.init();
     try {
       const result = standalone.destructiveMigrateFromTrailDb();
@@ -216,9 +216,9 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
     }
   });
 
-  it('trail.db が無い構成では null を返す', () => {
+  it('activity.db が無い構成では null を返す', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
-    const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { trailDbPath: path.join(tempDir, 'trail.db') });
+    const standalone = new FlightRecordDatabase(path.join(tempDir, 'caravan-book.db'), { trailDbPath: path.join(tempDir, 'activity.db') });
     standalone.init();
     try {
       expect(standalone.destructiveMigrateFromTrailDb()).toBeNull();
@@ -234,12 +234,12 @@ describe('FlightRecordDatabase.destructiveMigrateFromTrailDb', () => {
       run: (db: FlightRecordDatabase, trailDbPath: string) => void,
     ): void {
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-migration-'));
-      const trailDbPath = path.join(tempDir, 'trail.db');
+      const trailDbPath = path.join(tempDir, 'activity.db');
       const trail = openBetterSqlite3(trailDbPath);
       trail.pragma('foreign_keys = OFF');
       setup(trail);
       trail.close();
-      const standalone = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { trailDbPath });
+      const standalone = new FlightRecordDatabase(path.join(tempDir, 'caravan-book.db'), { trailDbPath });
       standalone.init();
       try {
         run(standalone, trailDbPath);

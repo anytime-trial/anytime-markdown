@@ -15,13 +15,13 @@ import { AnalyzeAllRunner } from '../AnalyzeAllRunner';
 import { makeFakeScopeSession, makeMemoryCoreWithSession } from './fakeMemoryScopeSession';
 
 /**
- * Step 5 (memory-core.db 付け替え) の PR review analyzer 群 (`PrReviewImporter` /
- * `PrReviewFindingAnalyzer` / `CrossSourceCorrelator`) が使う実 memory-core.db を
+ * Step 5 (caravan-book.db 付け替え) の PR review analyzer 群 (`PrReviewImporter` /
+ * `PrReviewFindingAnalyzer` / `CrossSourceCorrelator`) が使う実 caravan-book.db を
  * `runMigrations` で組み立てる (`~/.claude/rules/bugfix-workflow.md` 系の方針: fake DB でなく
  * 実 SQLite の in-memory/一時ファイルを使う)。
  */
 function buildTestMemoryDb(dir: string): MemoryDbConnection {
-  const db = new BetterSqlite3MemoryDb({ filePath: join(dir, 'memory-core.db') });
+  const db = new BetterSqlite3MemoryDb({ filePath: join(dir, 'caravan-book.db') });
   runMigrations(db);
   return db;
 }
@@ -59,10 +59,10 @@ function makeFakeTrailDb(save: jest.Mock = jest.fn(), extra: Partial<Record<stri
     getDoraReleases: () => [],
     getDoraCommits: () => [],
     replaceDoraMetrics: () => undefined,
-    // Step 5: PR review (pr_reviews / pr_review_findings) は memory-core.db へ移設済み。
+    // Step 5: PR review (pr_reviews / pr_review_findings) は caravan-book.db へ移設済み。
     // trailDb 側の pr 系メソッドは呼ばれなくなったが TrailDatabase から未削除 (別作業者管轄)
     // のため、fake にも残す必要はない。
-    // Step 4d cross-source 相関 (trail.db 側) のデフォルト fake: 空データ
+    // Step 4d cross-source 相関 (activity.db 側) のデフォルト fake: 空データ
     getCorrelationSessionCommits: () => [],
     getCorrelationCommitFiles: () => [],
     replaceCrossSourceCorrelations: () => undefined,
@@ -106,13 +106,13 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     await runner.runOnce('manual');
 
     const allLines = logSink.lines.join('\n');
-    expect(allLines).toContain('[Persist] trail.db saved');
+    expect(allLines).toContain('[Persist] activity.db saved');
     expect(allLines).toContain('[ConversationMemoryAnalyzer] start');
     expect(allLines).toContain('[EmbeddingBackfillAnalyzer] done');
     expect(allLines).not.toContain('[MemoryCoreLegacy]');
   });
 
-  it('memory fires only after trail.db save completes (Wave 2 → Wave 3 barrier)', async () => {
+  it('memory fires only after activity.db save completes (Wave 2 → Wave 3 barrier)', async () => {
     const order: string[] = [];
     const save = jest.fn(() => { order.push('save'); });
     const fake = makeFakeScopeSession({ order, orderLabel: 'memory' });
@@ -194,8 +194,8 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(fake.calls.length).toBe(7);
   });
 
-  it('trail.db missing → session unavailable → memory scopes skipped (no crash)', async () => {
-    // openScopeSession が null を返す (実 trail.db 不在) ケース。
+  it('activity.db missing → session unavailable → memory scopes skipped (no crash)', async () => {
+    // openScopeSession が null を返す (実 activity.db 不在) ケース。
     const runner = new AnalyzeAllRunner({
       logSink: makeLogSink(),
       statePath: join(dir, 'analyze-all-runner.json'),
@@ -235,11 +235,11 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(allLines).toContain('[CommitFilesBackfiller] done');
     expect(allLines).toContain('[SubagentTypeBackfiller] done');
     expect(allLines).toContain('[MessageCommitMatcher] done');
-    expect(allLines).toContain('[Persist] trail.db saved');
+    expect(allLines).toContain('[Persist] activity.db saved');
     expect(allLines).not.toContain('[ImportAllLegacy]');
   });
 
-  it('Step 2d: enableIngesters=false → no trail.db import pipeline (memory only)', async () => {
+  it('Step 2d: enableIngesters=false → no activity.db import pipeline (memory only)', async () => {
     const save = jest.fn();
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
@@ -378,7 +378,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(written[0]).toHaveLength(1); // repoA / 2026-01
   });
 
-  it('stage=all runs Wave 4: CrossSourceCorrelator computes correlations (memory-core.db 経由)', async () => {
+  it('stage=all runs Wave 4: CrossSourceCorrelator computes correlations (caravan-book.db 経由)', async () => {
     const correlationWrites: unknown[][] = [];
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
@@ -406,7 +406,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
         replaceCrossSourceCorrelations: (rows: unknown[]) => { correlationWrites.push([...rows]); },
       }),
       memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
-      memoryDbPath: join(dir, 'memory-core.db'),
+      memoryDbPath: join(dir, 'caravan-book.db'),
       memoryDb,
       stage: 'all',
     });
@@ -436,7 +436,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
 
     await runner.runOnce('manual');
 
-    expect(logSink.lines.join('\n')).toContain('[CrossSourceCorrelator] skipped (memory-core.db not configured; existing correlations preserved)');
+    expect(logSink.lines.join('\n')).toContain('[CrossSourceCorrelator] skipped (caravan-book.db not configured; existing correlations preserved)');
     // 未接続では洗い替え（= 既存行の DELETE）を行わない（設定漏れの 1 run がデータ削除にならない）
     expect(correlationWrites).toEqual([]);
   });
@@ -494,7 +494,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
       memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
-      memoryDbPath: join(dir, 'memory-core.db'),
+      memoryDbPath: join(dir, 'caravan-book.db'),
       memoryDb,
       gitRoots: ['/repo'],
       githubPrReview: {
@@ -534,7 +534,7 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(),
       memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
-      memoryDbPath: join(dir, 'memory-core.db'),
+      memoryDbPath: join(dir, 'caravan-book.db'),
       memoryDb,
       gitRoots: ['/repo'],
       // githubPrReview 未指定 → ingester 登録なし

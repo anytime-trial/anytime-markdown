@@ -53,7 +53,7 @@ Anytime Database opens `.db` / `.sqlite` / `.sqlite3` / `.db3` files in a Custom
 
 ## 4. Activity Bar (Database Panel)
 
-The **Anytime Database** Activity Bar panel surfaces the local Trail SQLite database (`trail.db` from the Anytime Trail extension) and any configured remote backend.
+The **Anytime Database** Activity Bar panel surfaces the local Trail SQLite database (`activity.db` from the Anytime Trail extension) and any configured remote backend.
 
 **What you can do today:**
 

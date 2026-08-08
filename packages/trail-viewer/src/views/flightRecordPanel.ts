@@ -476,7 +476,7 @@ export function mountFlightRecordPanel(
   container.appendChild(root);
 
   // ── ワークスペース選択（サブタブの上）──
-  // 4 サブタブに共通の絞り込み。memory-core.db / trail.db がいずれも複数ワークスペースの
+  // 4 サブタブに共通の絞り込み。caravan-book.db / activity.db がいずれも複数ワークスペースの
   // 記録を 1 つに集約しているため、これが無いと他ワークスペースの行が混ざったまま出る。
   /** 選択中のワークスペース名。空文字は「すべて」（絞り込みなし）。 */
   let workspaceFilter = '';

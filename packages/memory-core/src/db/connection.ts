@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { runMigrations } from './migrations/runner';
+import { resolveDbWithLegacyRename } from './legacyDbRename';
 import { BetterSqlite3MemoryDb } from './connection/BetterSqlite3MemoryDb';
 import type { MemoryDbConnection } from './connection/types';
 
@@ -29,7 +30,7 @@ export interface OpenMemoryCoreDbOptions {
 }
 
 /**
- * memory-core.db を開く（不在なら作成しマイグレーションを流す）。
+ * caravan-book.db を開く（不在なら作成しマイグレーションを流す）。
  *
  * `dbPath` は**必須**。省略時に `getMemoryCoreDbPath()`（= `process.cwd()` 基準）へ
  * フォールバックしていたが、本関数は解決先に `mkdirSync` + マイグレーションを行うため、
@@ -44,15 +45,28 @@ export async function openMemoryCoreDb(
   const dir = path.dirname(dbPath);
   fs.mkdirSync(dir, { recursive: true });
 
+  // DB ファイル名変更（memory-core.db→caravan-book.db・2026-08-08）のレガシー移行。owner は
+  // デーモン/拡張の open 経路のみ（mcp-trail 等のサイドカーは物理リネームしない）。
+  // 任意パス（テスト・明示指定）を巻き込まないよう、新既定名を開くときだけ実施する。
+  const filePath =
+    path.basename(dbPath) === 'caravan-book.db'
+      ? resolveDbWithLegacyRename({
+          dir,
+          current: 'caravan-book.db',
+          legacy: 'memory-core.db',
+          warn: (m) => console.error(`[memory-core] ${m}`),
+        }).path
+      : dbPath;
+
   const conn: MemoryDbConnection = new BetterSqlite3MemoryDb({
-    filePath: dbPath,
+    filePath,
     readOnly: false,
     nativeBinding: opts?.nativeBinding,
   });
 
   conn.run('PRAGMA foreign_keys = ON');
   // 並行アクセス対応: 拡張ホスト内で複数モジュール (memoryCoreRunner /
-  // ChatBridge / RebuildScheduler / MemoryApiHandler) が同じ memory-core.db を
+  // ChatBridge / RebuildScheduler / MemoryApiHandler) が同じ caravan-book.db を
   // 開く可能性があるため WAL モードに切り替える。あわせて busy_timeout=5000 で
   // ロック競合を 5 秒間リトライさせる。
   try {

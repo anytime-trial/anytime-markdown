@@ -10,7 +10,7 @@
  *
  * Optional flags:
  *   --episodes <N>   Sample size (default 20)
- *   --trail <PATH>   Path to trail.db (default ~/.claude/trail/trail.db)
+ *   --trail <PATH>   Path to activity.db (default ~/.claude/trail/activity.db)
  */
 import initSqlJs from 'sql.js';
 import { readFileSync } from 'node:fs';
@@ -26,7 +26,7 @@ interface EvalArgs {
 function parseArgs(argv: string[]): EvalArgs {
   const models: string[] = [];
   let episodes = 20;
-  let trailPath = `${homedir()}/.claude/trail/trail.db`;
+  let trailPath = `${homedir()}/.claude/trail/activity.db`;
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--episodes') {

@@ -2,12 +2,12 @@ import * as path from 'node:path';
 import { isWithinRoot } from '../utils/linkedMdFs';
 
 function defaultDbPath(workspaceRoot: string): string {
-  return path.join(workspaceRoot, '.anytime', 'markdown', 'doc-core.db');
+  return path.join(workspaceRoot, '.anytime', 'markdown', 'catalog.db');
 }
 
 /**
- * 検索側（mcp-markdown）と ingest 側で一致させる doc-core.db パス解決。
- * 既定 `<workspace>/.anytime/markdown/doc-core.db`。
+ * 検索側（mcp-markdown）と ingest 側で一致させる catalog.db パス解決。
+ * 既定 `<workspace>/.anytime/markdown/catalog.db`。
  * doc-core を import しない軽量モジュール（extension.js / provider から参照するため）。
  *
  * `configured`（`anytimeMarkdown.docSearch.dbPath`）はワークスペースルート配下に限定する。

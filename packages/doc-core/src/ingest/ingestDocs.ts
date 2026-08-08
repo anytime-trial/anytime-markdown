@@ -27,9 +27,9 @@ export interface IngestOptions {
 }
 
 /**
- * docsRoot 配下を ingest して doc-core.db を更新する。content_hash 不変はスキップ。
+ * docsRoot 配下を ingest して catalog.db を更新する。content_hash 不変はスキップ。
  *
- * @param db   doc-core.db コネクション
+ * @param db   catalog.db コネクション
  * @param docsRoot ドキュメントリポジトリのルート（relPath の基準）
  */
 export async function ingestDocs(db: DocDb, docsRoot: string, opts: IngestOptions = {}): Promise<IngestResult> {

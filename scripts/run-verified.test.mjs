@@ -25,7 +25,7 @@ function runWrapper(args, envOverrides = {}) {
 }
 
 function readRows() {
-  const db = openVerificationLedger(path.join(tmpTrailHome, 'db', 'trail.db'));
+  const db = openVerificationLedger(path.join(tmpTrailHome, 'db', 'activity.db'));
   const rows = db.prepare('SELECT * FROM verification_runs ORDER BY id').all();
   db.close();
   return rows;
@@ -79,5 +79,5 @@ test('セッション ID が無い実行は空文字で記録し、紐づかな�
 test('不正な kind は exit 2 で何も記録しない', () => {
   const r = runWrapper(['demo-pkg', 'nosuch', '--', 'true']);
   assert.equal(r.status, 2);
-  assert.equal(fs.existsSync(path.join(tmpTrailHome, 'db', 'trail.db')), false);
+  assert.equal(fs.existsSync(path.join(tmpTrailHome, 'db', 'activity.db')), false);
 });

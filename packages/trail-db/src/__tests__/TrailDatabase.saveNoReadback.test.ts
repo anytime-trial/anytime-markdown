@@ -1,7 +1,7 @@
 /**
  * `TrailDatabase.save()` は file-backed のとき DB ファイルを読み戻さない。
  *
- * 事故（2026-07-17）: trail.db が 2 GiB を 1.2MB 超えた時点で拡張が起動不能になった。
+ * 事故（2026-07-17）: activity.db が 2 GiB を 1.2MB 超えた時点で拡張が起動不能になった。
  * 真因は sql.js 時代の名残で、`save()` が `export()`（= file-backed では
  * `fs.readFileSync(dbPath)`）でファイル全体を Buffer に読み、同じ内容を書き戻していたこと。
  * Node の Buffer 上限（2 GiB）を超えた瞬間に `RangeError` で init ごと落ちる。
@@ -29,7 +29,7 @@ describe('TrailDatabase.save() — file-backed では読み戻さない', () => 
 
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trail-save-'));
-    dbPath = path.join(dir, 'trail.db');
+    dbPath = path.join(dir, 'activity.db');
   });
 
   afterEach(() => {

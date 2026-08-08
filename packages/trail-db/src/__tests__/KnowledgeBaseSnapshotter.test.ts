@@ -12,14 +12,14 @@ describe('FileKnowledgeBaseSnapshotter', () => {
 
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-snapshotter-'));
-    dbPath = path.join(dir, 'trail.db');
+    dbPath = path.join(dir, 'activity.db');
   });
 
   afterEach(() => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it('snapshotBeforeDestructiveWrite が書込前状態を trail.db.kb.1.gz へ退避する', () => {
+  it('snapshotBeforeDestructiveWrite が書込前状態を activity.db.kb.1.gz へ退避する', () => {
     fs.writeFileSync(dbPath, 'before-bytes');
     const s = new FileKnowledgeBaseSnapshotter(dbPath, noopDbLogger);
     const r = s.snapshotBeforeDestructiveWrite('current_code_graphs');

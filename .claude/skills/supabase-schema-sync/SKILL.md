@@ -11,7 +11,7 @@ description: anytime-markdown の Supabase スキーマ変更と同期方式の�
 anytime-markdown の Supabase 永続化における**プロジェクト固有の運用規約**。
 
 > [!IMPORTANT]
-> ローカル SQLite（拡張機能の `trail.db`）には本規約を適用しない。trail.db は既存データ保持が前提のため `ALTER TABLE` / 12-step migration を使う（`sqlite-table-definition-trail-core` および global `sqlite-table-definition` を参照）。
+> ローカル SQLite（拡張機能の `activity.db`）には本規約を適用しない。activity.db は既存データ保持が前提のため `ALTER TABLE` / 12-step migration を使う（`sqlite-table-definition-trail-core` および global `sqlite-table-definition` を参照）。
 
 ## 1. スキーマ変更
 
@@ -30,4 +30,4 @@ anytime-markdown の Supabase 永続化における**プロジェクト固有の
 
 - global `~/.claude/rules/code-quality.md` — 汎用コード品質規約
 - global `sqlite-table-definition` — 汎用 SQLite テーブル定義ルール
-- `sqlite-table-definition-trail-core` — trail.db（ローカル SQLite）側の規約。本スキルとは方針が異なる
+- `sqlite-table-definition-trail-core` — activity.db（ローカル SQLite）側の規約。本スキルとは方針が異なる

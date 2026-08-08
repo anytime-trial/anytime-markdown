@@ -1,6 +1,6 @@
 # @anytime-markdown/mcp-trail
 
-Anytime Trail（VS Code 拡張）の Trail DB (`trail.db`) を MCP 経由で操作するためのサーバー。\
+Anytime Trail（VS Code 拡張）の Trail DB (`activity.db`) を MCP 経由で操作するためのサーバー。\
 C4 モデル要素・関係・グループの CRUD と、コード解析パイプラインの起動を MCP ツールとして公開します。
 
 [English](./README.md) | 日本語
@@ -8,7 +8,7 @@ C4 モデル要素・関係・グループの CRUD と、コード解析パイ�
 
 ## 1. 前提
 
-- 読み取り系・書き込み系ツールは `trail.db` (SQLite) に直接アクセスするため、Anytime Trail サイドバーが起動していなくても動作します。
+- 読み取り系・書き込み系ツールは `activity.db` (SQLite) に直接アクセスするため、Anytime Trail サイドバーが起動していなくても動作します。
 - ただし `analyze_*` 系（コード解析パイプライン）は VS Code 拡張側のロジックを呼び出すため、`TrailDataServer` が起動していることが必要です。
     - 既定: `http://localhost:19841`（`anytimeTrail.viewer.port` で変更可）
 - 書き込み系は `TrailDataServer` 起動時は HTTP 経由（in-memory 整合性維持）、未起動時は `better-sqlite3` でファイルを直接開いて WAL モードで書き込み、close 時に checkpoint します。
@@ -43,14 +43,14 @@ C4 モデル要素・関係・グループの CRUD と、コード解析パイ�
 | `OLLAMA_BASE_URL` | Ollama API のベース URL（`search_memory` のベクトル検索で使用。例: `http://localhost:11434`） |
 
 > [!NOTE]
-> `trail.db` / `memory-core.db` の格納先は `${TRAIL_HOME}/db/` に統一されており、個別の `*_DB_PATH` 環境変数は廃止されています。
+> `activity.db` / `caravan-book.db` の格納先は `${TRAIL_HOME}/db/` に統一されており、個別の `*_DB_PATH` 環境変数は廃止されています。
 
 DB パスの解決先:
 
-- `${TRAIL_HOME}/db/trail.db`（既定: `<workspace>/.anytime/trail/db/trail.db`）
+- `${TRAIL_HOME}/db/activity.db`（既定: `<workspace>/.anytime/trail/db/activity.db`）
 - `TRAIL_HOME` 未設定時のワークスペースルートは **`workspacePath` 引数 > `TRAIL_WORKSPACE_PATH` > `process.cwd()`** の順で解決する（`src/dbPath.ts` の `resolveWorkspacePath` が単一の入口）
 - **cwd へ落ちたときは stderr に警告を出す**。cwd 基準の解決は別ワークスペースの DB を掴み得るため、暗黙のまま通さない。`.mcp.json` の `env` で `TRAIL_WORKSPACE_PATH` を明示するのが推奨構成
-- `memory-core.db` は不在なら throw する（**ディレクトリも DB も作らない**）。作ってしまうとスキーマ完備の空 DB になり、以降のクエリが一律 0 件を返して「該当なし」と区別が付かなくなるため
+- `caravan-book.db` は不在なら throw する（**ディレクトリも DB も作らない**）。作ってしまうとスキーマ完備の空 DB になり、以降のクエリが一律 0 件を返して「該当なし」と区別が付かなくなるため
 
 
 ## 3. 共通パラメータ
@@ -142,7 +142,7 @@ VS Code 拡張のコマンド（`Anytime Trail: コード解析` 等）と同じ
 ### 4.7 ドリフト検出（memory-core）
 
 設計仕様とコード実装の乖離（ドリフト）を管理する。\
-memory-core DB（`${TRAIL_HOME}/db/memory-core.db`）を直接読み書きする。TrailDataServer は不要。
+memory-core DB（`${TRAIL_HOME}/db/caravan-book.db`）を直接読み書きする。TrailDataServer は不要。
 
 | ツール | 主要パラメータ | 用途 |
 | --- | --- | --- |

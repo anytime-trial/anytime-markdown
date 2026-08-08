@@ -161,7 +161,7 @@ describe('checkArchitecturalAlignment', () => {
         elementId: 'pkg_trail-core',
         specPath,
         changedFiles: ['packages/trail-core/src/domain/usecase/Foo.ts'],
-        reason: expect.stringContaining('missing from trail.db'),
+        reason: expect.stringContaining('missing from activity.db'),
       },
     ]);
   });

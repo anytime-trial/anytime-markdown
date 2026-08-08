@@ -53,7 +53,7 @@ describe('TrailDaemonHttpClient', () => {
 
     const opts: SerializableHttpServerOptions = {
       distPath: '/ext/dist',
-      trailDbPath: '/ext/dist/trail.db',
+      trailDbPath: '/ext/dist/activity.db',
       preferredPort: 19841,
     };
     await client.start(opts);

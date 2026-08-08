@@ -1,6 +1,6 @@
-// Flight Record 指示台帳の直書きが memory-core.db 上で成立することの検証
-// （2026-08-07 の trail.db → memory-core.db 移設に追随）。
-// mkdtempSync の一時ディレクトリに memory-core.db を作り、本番 DB へ触れない。
+// Flight Record 指示台帳の直書きが caravan-book.db 上で成立することの検証
+// （2026-08-07 の activity.db → caravan-book.db 移設に追随）。
+// mkdtempSync の一時ディレクトリに caravan-book.db を作り、本番 DB へ触れない。
 
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -25,42 +25,42 @@ describe('openMemoryDb', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('ファイル不在は readwrite でも throw する（fail-closed。trail.db も無い場所に空 DB を作らない）', async () => {
-    const missing = path.join(tempDir, 'memory-core.db');
-    await expect(openMemoryDb(missing, 'readwrite')).rejects.toThrow('memory-core.db not found');
+  it('ファイル不在は readwrite でも throw する（fail-closed。activity.db も無い場所に空 DB を作らない）', async () => {
+    const missing = path.join(tempDir, 'caravan-book.db');
+    await expect(openMemoryDb(missing, 'readwrite')).rejects.toThrow('caravan-book.db not found');
     expect(fs.existsSync(missing)).toBe(false);
   });
 
-  it('同ディレクトリに trail.db が実在すれば readwrite は新規作成する（宣言を落とさない既存環境の救済）', async () => {
-    fs.writeFileSync(path.join(tempDir, 'trail.db'), '');
-    const dbPath = path.join(tempDir, 'memory-core.db');
+  it('同ディレクトリに activity.db が実在すれば readwrite は新規作成する（宣言を落とさない既存環境の救済）', async () => {
+    fs.writeFileSync(path.join(tempDir, 'activity.db'), '');
+    const dbPath = path.join(tempDir, 'caravan-book.db');
     const opened = await openMemoryDb(dbPath, 'readwrite');
     try {
       expect(fs.existsSync(dbPath)).toBe(true);
     } finally {
       opened.close();
     }
-    // readonly は trail.db が在っても不在 throw のまま（作成は write 経路だけ）
+    // readonly は activity.db が在っても不在 throw のまま（作成は write 経路だけ）
     fs.rmSync(dbPath);
-    await expect(openMemoryDb(dbPath, 'readonly')).rejects.toThrow('memory-core.db not found');
+    await expect(openMemoryDb(dbPath, 'readonly')).rejects.toThrow('caravan-book.db not found');
   });
 
   it('readonly でファイル不在は throw する', async () => {
-    await expect(openMemoryDb(path.join(tempDir, 'memory-core.db'), 'readonly')).rejects.toThrow(
-      'memory-core.db not found',
+    await expect(openMemoryDb(path.join(tempDir, 'caravan-book.db'), 'readonly')).rejects.toThrow(
+      'caravan-book.db not found',
     );
   });
 });
 
-describe('instructions direct write on memory-core.db', () => {
+describe('instructions direct write on caravan-book.db', () => {
   let tempDir: string;
   let dbPath: string;
   let opened: OpenedDb;
 
   beforeEach(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-trail-memory-db-'));
-    dbPath = path.join(tempDir, 'memory-core.db');
-    // 実運用では拡張が memory-core.db を作る。テストでは空ファイルを先に置く
+    dbPath = path.join(tempDir, 'caravan-book.db');
+    // 実運用では拡張が caravan-book.db を作る。テストでは空ファイルを先に置く
     // （openMemoryDb は fail-closed で自分では作らないため）。
     fs.writeFileSync(dbPath, '');
     opened = await openMemoryDb(dbPath, 'readwrite');

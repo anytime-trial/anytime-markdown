@@ -257,7 +257,7 @@ export class FileChangeResolver implements IFileChangeResolver {
 
   private requireDb(scope: string): Database.Database {
     if (!this.db) {
-      throw new Error(`FileChangeResolver requires a trail.db handle for ${scope} scope`);
+      throw new Error(`FileChangeResolver requires a activity.db handle for ${scope} scope`);
     }
 
     return this.db;

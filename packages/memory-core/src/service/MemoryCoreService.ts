@@ -57,7 +57,7 @@ export class MemoryCoreService extends BaseRunner {
    * LEP Wave 3 用に、scope 単位で実行できる {@link MemoryDbSession} を open する。
    *
    * 7 個の memory analyzer がこの 1 セッションを共有して各 scope メソッドを呼ぶ。
-   * trail.db 不在時は `null` を返す。終了時は呼び出し側で `session.close()` する。
+   * activity.db 不在時は `null` を返す。終了時は呼び出し側で `session.close()` する。
    * 重い依存 (agent-core / better-sqlite3) を eager load しないため遅延 require する。
    */
   async openScopeSession(): Promise<import('./MemoryDbSession').MemoryDbSession | null> {

@@ -32,13 +32,13 @@ export function getTrailHome(workspaceRoot?: string): string {
 }
 
 /**
- * memory-core.db の解決パスを返す。
+ * caravan-book.db の解決パスを返す。
  *
- * `${TRAIL_HOME}/db/memory-core.db`（= `<workspaceRoot>/.anytime/trail/db/memory-core.db`）を返す。
+ * `${TRAIL_HOME}/db/caravan-book.db`（= `<workspaceRoot>/.anytime/trail/db/caravan-book.db`）を返す。
  * テスト等で任意のパスを使いたい場合は `openMemoryCoreDb(dbPath)` に直接渡す。
  *
  * workspaceRoot 未指定でフォールバック先が保護領域だった場合は throw する。
  */
 export function getMemoryCoreDbPath(workspaceRoot?: string): string {
-  return path.join(getTrailHome(workspaceRoot), 'db', 'memory-core.db');
+  return path.join(getTrailHome(workspaceRoot), 'db', 'caravan-book.db');
 }

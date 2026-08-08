@@ -31,9 +31,9 @@
 
 ## Trail DB
 
-- **Trail DB** (`trail.db`): セッション・コミット・コードグラフの調査は `git log` / `*.jsonl` grep より DB を優先。
+- **Trail DB** (`activity.db`): セッション・コミット・コードグラフの調査は `git log` / `*.jsonl` grep より DB を優先。
 
-  保存先は Trail 拡張の設定に依存するため固定パスを前提にしない。`lep.json` の `database.storagePath`（既定 `.anytime/trail/db`）を、`anytimeTrail.workspace.path` が決めるワークスペースルート起点で解決する（`lep.json` 自体の位置は `anytimeTrail.lep.configPath`。旧 `anytimeTrail.database.storagePath` は廃止）。既定構成での実体は `<wsRoot>/.anytime/trail/db/trail.db` で、同ディレクトリに `memory-core.db` / `doc-core.db` / `verification.db` / `extension-logs.db` が並ぶ。参照前に実在を確認する。
+  保存先は Trail 拡張の設定に依存するため固定パスを前提にしない。`lep.json` の `database.storagePath`（既定 `.anytime/trail/db`）を、`anytimeTrail.workspace.path` が決めるワークスペースルート起点で解決する（`lep.json` 自体の位置は `anytimeTrail.lep.configPath`。旧 `anytimeTrail.database.storagePath` は廃止）。既定構成での実体は `<wsRoot>/.anytime/trail/db/activity.db`（旧 trail.db）で、同ディレクトリに `caravan-book.db`（旧 memory-core.db）が並ぶ。ドキュメント検索の `catalog.db`（旧 doc-core.db）は `<wsRoot>/.anytime/markdown/` 配下（markdown 拡張の管理）。旧名 DB が残る環境は owner（拡張・デーモン）の初回 open 時に自動リネームされる。参照前に実在を確認する。
 
   | 用途 | テーブル |
   | --- | --- |

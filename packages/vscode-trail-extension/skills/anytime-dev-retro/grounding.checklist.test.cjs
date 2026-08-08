@@ -29,14 +29,14 @@ function runGroundingQuality(setup) {
   }
 }
 
-// grounding が参照する列のみ持つ最小 memory-core.db を <ws>/.anytime/trail/db に作る。
+// grounding が参照する列のみ持つ最小 caravan-book.db を <ws>/.anytime/trail/db に作る。
 // 他の quality クエリはテーブル不在で失敗するが q() が errors に積んで続行する。
-// trail.db は DB_DIR 解決（trail.db の存在で候補ディレクトリを確定する）のために空で置く。
+// activity.db は DB_DIR 解決（activity.db の存在で候補ディレクトリを確定する）のために空で置く。
 function writeMemoryDb(ws, { withColumn, rows }) {
   const dbDir = path.join(ws, '.anytime', 'trail', 'db');
   fs.mkdirSync(dbDir, { recursive: true });
-  new DatabaseSync(path.join(dbDir, 'trail.db')).close();
-  const db = new DatabaseSync(path.join(dbDir, 'memory-core.db'));
+  new DatabaseSync(path.join(dbDir, 'activity.db')).close();
+  const db = new DatabaseSync(path.join(dbDir, 'caravan-book.db'));
   db.exec(`CREATE TABLE memory_review_findings (
     id TEXT PRIMARY KEY,
     category TEXT,

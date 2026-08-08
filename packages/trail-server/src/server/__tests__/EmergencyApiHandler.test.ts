@@ -354,7 +354,7 @@ describe('EmergencyApiHandler', () => {
       expect(captured.status).toBe(200);
     });
 
-    it('trail.db 未オープンなら 409（照合できないまま switch しない）', async () => {
+    it('activity.db 未オープンなら 409（照合できないまま switch しない）', async () => {
       const noDb = new EmergencyApiHandler(
         {
           recordEmergencyEvent: () => undefined,

@@ -4,7 +4,7 @@ import { handleListUnaddressedReviewFindings } from '../../tools/listUnaddressed
 // openMemoryCoreDb をモックしているため、パス解決も併せてモックする。
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),
-  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/memory-core.db',
+  resolveMemoryDbPath: () => '/tmp/mcp-trail-test/caravan-book.db',
 }));
 
 jest.mock('@anytime-markdown/memory-core/query', () => ({

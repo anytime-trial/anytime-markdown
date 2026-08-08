@@ -106,7 +106,7 @@ describe('better-sqlite3 native binding resolution', () => {
 
   it('FlightRecordDatabase forwards distPath to the connection', () => {
     const distPath = createFakeDist(tempDir, 'not-a-real-addon');
-    const db = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'), { distPath });
+    const db = new FlightRecordDatabase(path.join(tempDir, 'caravan-book.db'), { distPath });
     try {
       expect(() => db.init()).toThrow(/better_sqlite3\.node/);
     } finally {
@@ -115,7 +115,7 @@ describe('better-sqlite3 native binding resolution', () => {
   });
 
   it('FlightRecordDatabase still initializes without distPath', () => {
-    const db = new FlightRecordDatabase(path.join(tempDir, 'memory-core.db'));
+    const db = new FlightRecordDatabase(path.join(tempDir, 'caravan-book.db'));
     try {
       expect(() => db.init()).not.toThrow();
       expect(db.listInstructionRecords({ limit: 1 })).toEqual([]);

@@ -41,17 +41,32 @@ function resolveTrailHome(workspacePath?: string): string {
   return path.join(resolveWorkspacePath(workspacePath).path, '.anytime', 'trail');
 }
 
+/**
+ * 新名を優先し、無ければ旧名（DB ファイル名変更 2026-08-08 の移行前ワークスペース）に
+ * 倒すパス解決。mcp-trail はサイドカーなので**物理リネームはしない**（owner はデーモン/拡張。
+ * 旧ビルドの拡張が稼働中に別プロセスが改名すると、旧ビルドが空の旧名 DB を再作成する
+ * split-brain になるため）。
+ */
+function preferExistingDbFile(dbDir: string, current: string, legacy: string): string {
+  const currentPath = path.join(dbDir, current);
+  if (fs.existsSync(currentPath)) return currentPath;
+  const legacyPath = path.join(dbDir, legacy);
+  if (fs.existsSync(legacyPath)) return legacyPath;
+  return currentPath;
+}
+
 export function resolveDbPath(opts: { workspacePath?: string }): string {
-  const dbPath = path.join(resolveTrailHome(opts.workspacePath), 'db', 'trail.db');
+  const dbDir = path.join(resolveTrailHome(opts.workspacePath), 'db');
+  const dbPath = preferExistingDbFile(dbDir, 'activity.db', 'trail.db');
 
   if (!fs.existsSync(dbPath)) {
-    throw new Error(`trail.db not found at ${dbPath}`);
+    throw new Error(`activity.db not found at ${dbPath}`);
   }
   return dbPath;
 }
 
 /**
- * memory-core.db の解決。**不在なら throw し、ディレクトリも DB も作らない**。
+ * caravan-book.db の解決。**不在なら throw し、ディレクトリも DB も作らない**。
  *
  * `openMemoryCoreDb` は渡されたパスに対して `mkdirSync` + マイグレーションを実行する。
  * 解決をそちらへ委ねると、cwd がずれた場所（worktree 等）から呼んだときにスキーマ完備の
@@ -59,29 +74,38 @@ export function resolveDbPath(opts: { workspacePath?: string }): string {
  * 付かない偽陰性になるため、ここは意図的に fail-closed とする。
  */
 export function resolveMemoryDbPath(opts: { workspacePath?: string }): string {
-  const dbPath = path.join(resolveTrailHome(opts.workspacePath), 'db', 'memory-core.db');
+  const dbDir = path.join(resolveTrailHome(opts.workspacePath), 'db');
+  const dbPath = preferExistingDbFile(dbDir, 'caravan-book.db', 'memory-core.db');
 
   if (!fs.existsSync(dbPath)) {
-    throw new Error(`memory-core.db not found at ${dbPath}`);
+    throw new Error(`caravan-book.db not found at ${dbPath}`);
   }
   return dbPath;
 }
 
 /**
- * Flight Record 直書き（record_instruction）用の memory-core.db 解決。
+ * Flight Record 直書き（record_instruction）用の caravan-book.db 解決。
  *
- * 読み取り系の resolveMemoryDbPath と異なり、**同ディレクトリに trail.db が実在する
- * 既存ワークスペースに限り、memory-core.db 未作成でもパスを返す**（作成は
- * openMemoryDb の readwrite が行う）。拡張が memory-core.db を作るより先に
+ * 読み取り系の resolveMemoryDbPath と異なり、**同ディレクトリに activity.db が実在する
+ * 既存ワークスペースに限り、caravan-book.db 未作成でもパスを返す**（作成は
+ * openMemoryDb の readwrite が行う）。拡張が caravan-book.db を作るより先に
  * セッション開始の宣言が届くと記録が落ちる、という移設起因の隙間を塞ぐ。
- * trail.db も無いディレクトリは未初期化ワークスペースなので従来どおり throw する
+ * activity.db も無いディレクトリは未初期化ワークスペースなので従来どおり throw する
  * （場所違いに空 DB を作る偽陰性を防ぐ fail-closed は維持）。
  */
 export function resolveMemoryDbPathForWrite(opts: { workspacePath?: string }): string {
   const dbDir = path.join(resolveTrailHome(opts.workspacePath), 'db');
-  const dbPath = path.join(dbDir, 'memory-core.db');
-  if (!fs.existsSync(dbPath) && !fs.existsSync(path.join(dbDir, 'trail.db'))) {
-    throw new Error(`memory-core.db not found at ${dbPath} (and no trail.db beside it — workspace not initialized)`);
+  // 旧名の実 DB が残る移行前ワークスペースでは旧名へ直書きする（新名で空 DB を作って
+  // 台帳が二分される split-brain を防ぐ）。
+  const dbPath = preferExistingDbFile(dbDir, 'caravan-book.db', 'memory-core.db');
+  if (!fs.existsSync(dbPath)) {
+    const initialized =
+      fs.existsSync(path.join(dbDir, 'activity.db')) || fs.existsSync(path.join(dbDir, 'trail.db'));
+    if (!initialized) {
+      throw new Error(
+        `caravan-book.db not found at ${dbPath} (and no activity.db beside it — workspace not initialized)`,
+      );
+    }
   }
   return dbPath;
 }

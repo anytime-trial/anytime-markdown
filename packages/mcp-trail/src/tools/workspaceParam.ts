@@ -9,4 +9,4 @@ import { z } from 'zod';
 export const workspacePathParam = z
   .string()
   .optional()
-  .describe('Workspace root used to resolve trail.db / memory-core.db (defaults to TRAIL_WORKSPACE_PATH, then cwd)');
+  .describe('Workspace root used to resolve activity.db / caravan-book.db (defaults to TRAIL_WORKSPACE_PATH, then cwd)');

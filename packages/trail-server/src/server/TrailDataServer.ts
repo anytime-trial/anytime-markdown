@@ -322,8 +322,8 @@ export class TrailDataServer {
   private readonly emergencyApi: EmergencyApiHandler;
   /**
    * Flight Record（flight_reviews / instructions / instruction_sessions）の永続化層。
-   * 保存先は memory-core.db（2026-08-07 移設）のため memoryDbPath 未注入の構成では null になり、
-   * flight 系エンドポイントはエラーを返す（暗黙の trail.db フォールバックはしない）。
+   * 保存先は caravan-book.db（2026-08-07 移設）のため memoryDbPath 未注入の構成では null になり、
+   * flight 系エンドポイントはエラーを返す（暗黙の activity.db フォールバックはしない）。
    */
   private readonly flightRecordDb: FlightRecordDatabase | null = null;
 
@@ -370,9 +370,9 @@ export class TrailDataServer {
       memoryDbPath ?? null,
       nativeBinding ?? undefined,
     );
-    // Flight Record ストア（memory-core.db 主接続 + trail.db ATTACH）。
+    // Flight Record ストア（caravan-book.db 主接続 + activity.db ATTACH）。
     // 初期化失敗・移行失敗は fail-open（他エンドポイントを巻き込まない）。移行は毎起動の
-    // 冪等実行で、trail.db 側に旧テーブルが残っていればコピー検証後に回収する。
+    // 冪等実行で、activity.db 側に旧テーブルが残っていればコピー検証後に回収する。
     if (memoryDbPath !== undefined && memoryDbPath !== '') {
       const flightLogger = this.logger.child('FlightRecordDatabase');
       const flightDbLogger = {
@@ -383,7 +383,7 @@ export class TrailDataServer {
       };
       try {
         const flightDb = new FlightRecordDatabase(memoryDbPath, {
-          trailDbPath: path.join(path.dirname(memoryDbPath), 'trail.db'),
+          trailDbPath: path.join(path.dirname(memoryDbPath), 'activity.db'),
           // バンドル済み拡張では distPath 配下の .node を渡さないと init() が必ず throw する。
           distPath: this.distPath,
           logger: flightDbLogger,
@@ -399,7 +399,7 @@ export class TrailDataServer {
             );
           }
         } catch (e) {
-          flightLogger.error('flight record migration from trail.db failed (will retry on next start)', e);
+          flightLogger.error('flight record migration from activity.db failed (will retry on next start)', e);
         }
       } catch (e) {
         flightLogger.error('FlightRecordDatabase init failed; flight record endpoints will be unavailable', e);
@@ -815,7 +815,7 @@ export class TrailDataServer {
       this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(params[0] ?? '')));
     // Flight Record: 指示単位の運航記録。/open は :id パターンより先に登録する
     // （後だと 'open' が指示 ID として食われる）。
-    // Flight Record のワークスペース選択肢。trail.db（指示・運航記録）と memory-core
+    // Flight Record のワークスペース選択肢。activity.db（指示・運航記録）と memory-core
     // （バグ修正・レビュー・乖離）は別 DB なので、両方の distinct を統合して 1 本で返す。
     t.exact('GET', '/api/trail/workspaces', ({ res }) => void this.handleListWorkspaces(res));
     t.exact('GET', '/api/trail/instructions/open', ({ res, url }) => this.handleListOpenInstructions(res, url.searchParams));
@@ -2874,7 +2874,7 @@ export class TrailDataServer {
   /** transcript 読取の上限。超過時は集計せず最小行に縮退する（Stop フックの fail-open を保つ）。 */
   private static readonly FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES = 50 * 1024 * 1024;
 
-  /** flight record ストア。memoryDbPath 未注入・init 失敗時は明示エラー（暗黙の trail.db フォールバック禁止）。 */
+  /** flight record ストア。memoryDbPath 未注入・init 失敗時は明示エラー（暗黙の activity.db フォールバック禁止）。 */
   private requireFlightRecordDb(): FlightRecordDatabase {
     if (this.flightRecordDb === null) {
       throw new Error('flight record store unavailable (memoryDbPath not configured or init failed)');
@@ -2927,7 +2927,7 @@ export class TrailDataServer {
           if (assessment !== null) {
             flightDb.applySelfAssessmentToFlightReview(sessionId, assessment);
           }
-          // user_feedback_entries は trail.db 残留（移設対象は flight record 3 テーブルのみ）
+          // user_feedback_entries は activity.db 残留（移設対象は flight record 3 テーブルのみ）
           const feedbackEntries = this.trailDb.listUserFeedbackEntries({ sessionId });
           const candidates = extractLessonCandidates({ lines, feedbackEntries });
           if (candidates.length > 0) {
@@ -3185,7 +3185,7 @@ export class TrailDataServer {
   /**
    * Flight Record のワークスペース選択肢（4 サブタブ共通）。
    *
-   * trail.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、memory-core 側は
+   * activity.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、memory-core 側は
    * 取込時に記録した repo_name。どちらもリポジトリ名なので同じ名前空間として統合する。
    * 片方の DB が読めなくても残りを返す（選択肢が空になると絞り込み自体ができなくなるため、
    * 部分的な結果でも出す）。

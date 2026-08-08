@@ -74,10 +74,10 @@ export class AlignmentApiHandler {
       return;
     }
 
-    // session / range スコープは trail.db を読む。worktree は git だけで完結するため未オープンでも動く。
+    // session / range スコープは activity.db を読む。worktree は git だけで完結するため未オープンでも動く。
     const db = this.trailDb.getRawSqliteHandle() ?? undefined;
     if (!db && input.scope !== 'worktree') {
-      sendError(res, 409, `trail.db is not open; scope=${input.scope} requires imported session data`);
+      sendError(res, 409, `activity.db is not open; scope=${input.scope} requires imported session data`);
       return;
     }
 

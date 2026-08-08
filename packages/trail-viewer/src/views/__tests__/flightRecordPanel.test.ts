@@ -206,7 +206,7 @@ describe('flightRecordPanel', () => {
 
   // ── 検証の実施状況（指示 : 検証実行の結合が画面へ出ているか） ──
   //
-  // 台帳（trail.db の verification_runs）は session_id でしか指示へ畳めない。DB 側の結合が
+  // 台帳（activity.db の verification_runs）は session_id でしか指示へ畳めない。DB 側の結合が
   // 落ちると列は静かに空になるため、「バッジが出ること」まで検査する。
   it('指示一覧の検証列と詳細に、実施済みの検証が kind 別に出る', async () => {
     const verifications = [
