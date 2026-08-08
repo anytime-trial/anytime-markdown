@@ -23,15 +23,28 @@ function resolveDbDir() {
   // 配布物(.vsix 同梱)として任意ユーザー環境で動くよう、開発機固有の絶対パスは持たない。
   const candidates = [process.argv[2], path.join(process.cwd(), '.anytime', 'trail', 'db')].filter(Boolean);
   for (const c of candidates) {
-    if (fs.existsSync(path.join(c, 'trail.db'))) return c;
+    if (fs.existsSync(path.join(c, 'activity.db'))) return c;
   }
   return candidates[candidates.length - 1];
 }
 
 const DB_DIR = resolveDbDir();
 
+// catalog.db（ドキュメント検索・旧 doc-core.db）は trail DB 群と別系統で
+// <workspace>/.anytime/markdown に置かれる（owner は markdown 拡張の ingest）。
+// trail 側 DB_DIR から開くと通常環境で常に不在エラーになり docCore 指標が測定不能になる。
+// 移行前ワークスペース（旧名のみ実在）は旧名へフォールバックする。
+function resolveDocDbPath() {
+  const dir = path.join(process.cwd(), '.anytime', 'markdown');
+  const current = path.join(dir, 'catalog.db');
+  if (fs.existsSync(current)) return current;
+  const legacy = path.join(dir, 'doc-core.db');
+  if (fs.existsSync(legacy)) return legacy;
+  return current;
+}
+
 function open(file) {
-  const p = path.join(DB_DIR, file);
+  const p = path.isAbsolute(file) ? file : path.join(DB_DIR, file);
   try {
     return { db: new DatabaseSync(p, { readOnly: true }), error: null };
   } catch (e) {
@@ -82,9 +95,9 @@ const WINDOW_DAYS = 30;
 
 const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors: [] };
 
-// ── trail.db: コスト・活動・hotspot ────────────────────────────────────────────
+// ── activity.db: コスト・活動・hotspot ────────────────────────────────────────────
 {
-  const { db, error } = open('trail.db');
+  const { db, error } = open('activity.db');
   if (error) snapshot.errors.push(error);
 
   // コスト(モデル別・全期間累積)
@@ -206,9 +219,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (db) db.close();
 }
 
-// ── memory-core.db: 品質・drift ────────────────────────────────────────────────
+// ── caravan-book.db: 品質・drift ────────────────────────────────────────────────
 {
-  const { db, error } = open('memory-core.db');
+  const { db, error } = open('caravan-book.db');
   if (error) snapshot.errors.push(error);
 
   const bugFixes = num(q(db, 'SELECT COUNT(*) c FROM memory_bug_fixes'), 'c');
@@ -273,9 +286,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (db) db.close();
 }
 
-// ── doc-core.db: セマンティック検索充足 ────────────────────────────────────────
+// ── catalog.db: セマンティック検索充足 ────────────────────────────────────────
 {
-  const { db, error } = open('doc-core.db');
+  const { db, error } = open(resolveDocDbPath());
   if (error) snapshot.errors.push(error);
 
   const docs = num(q(db, 'SELECT COUNT(*) c FROM doc'), 'c');
@@ -294,19 +307,19 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (db) db.close();
 }
 
-// ── memory-core.db / trail.db(未移行): Flight Record(運航記録・指示台帳) ────────
-// flight_reviews / instructions / instruction_sessions は 2026-08-07 に trail.db から
-// memory-core.db へ移設した。移行前の DB(旧拡張・バックフィル未実行)では trail.db 側に
+// ── caravan-book.db / activity.db(未移行): Flight Record(運航記録・指示台帳) ────────
+// flight_reviews / instructions / instruction_sessions は 2026-08-07 に activity.db から
+// caravan-book.db へ移設した。移行前の DB(旧拡張・バックフィル未実行)では activity.db 側に
 // 残るため、テーブル実在で読み先を選ぶ。どちらにも無ければ null(測定不能。0 と区別する)。
 {
   const hasTable = (db, name) =>
     db != null && rows(q(db, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, [name])).length > 0;
-  const memo = open('memory-core.db');
+  const memo = open('caravan-book.db');
   if (memo.error) snapshot.errors.push(memo.error);
   let trailOpened = null;
   const openTrail = () => {
     if (trailOpened === null) {
-      trailOpened = open('trail.db');
+      trailOpened = open('activity.db');
       if (trailOpened.error) snapshot.errors.push(trailOpened.error);
     }
     return trailOpened.db;
@@ -372,7 +385,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
                  SUM(CASE WHEN cnt > 1 THEN 1 ELSE 0 END) multiSession
                FROM (SELECT COUNT(*) cnt FROM instruction_sessions GROUP BY instruction_id)`),
     ) ?? {};
-    // 指示単位コスト: instruction_sessions(移設先) × trail.session_costs(trail.db 残留)を
+    // 指示単位コスト: instruction_sessions(移設先) × trail.session_costs(activity.db 残留)を
     // JS 側で突合する(ATTACH 非依存。読み先が trail 側でも同一コードで動く)。
     // 対象は直近 30 日に開始した指示のみ。
     let topInstructionsByCost = [];
@@ -435,7 +448,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (trailOpened?.db) trailOpened.db.close();
 }
 
-// ── memory-core.db / trail.db(未移行): 具体化観点の採掘(DCT-14) ────────────────
+// ── caravan-book.db / activity.db(未移行): 具体化観点の採掘(DCT-14) ────────────────
 // 「指示から一意に定まらない論点」の事前申告と、その取りこぼしを集計する。
 // 主材料は **申告が空なのに人が modified した判断**（一意に定まると言い切ったのに覆された）で、
 // これが具体化観点(elaboration checklist)の昇格候補になる。申告できたもの(非空)は既に
@@ -446,9 +459,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     db != null && rows(q(db, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, [name])).length > 0;
   const countRows = (db, table) =>
     hasTable(db, table) ? Number(one(q(db, `SELECT COUNT(*) c FROM ${table}`))?.c ?? 0) : 0;
-  const memo = open('memory-core.db');
+  const memo = open('caravan-book.db');
   if (memo.error) snapshot.errors.push(memo.error);
-  const trailOpened = open('trail.db');
+  const trailOpened = open('activity.db');
   if (trailOpened.error) snapshot.errors.push(trailOpened.error);
   // 読み先は flight record と同じく**行数**で選ぶ（空テーブルが常に作られるため実在判定では選べない）
   const memoCount = countRows(memo.db, 'doctrine_judgments');
@@ -643,7 +656,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
     const staleBefore = Date.now() - STALE_DAYS * 86400000;
     const stale = inventory.filter((s) => s.updated && Date.parse(s.updated) < staleBefore).map((s) => s.name);
 
-    const { db, error } = open('trail.db');
+    const { db, error } = open('activity.db');
     if (error) snapshot.errors.push(error);
     const usage = rows(
       q(db, `SELECT skill, COUNT(*) n FROM messages
@@ -706,7 +719,7 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       noUpdateDate: inventory.filter((s) => !s.updated).length,
       staleOver90: stale.length,
       staleSamples: stale.slice(0, 8),
-      // trail.db 不開時は usage が空になり「全スキル未使用」と誤読されるため測定不能 null にする(brokenRefs と同原則)
+      // activity.db 不開時は usage が空になり「全スキル未使用」と誤読されるため測定不能 null にする(brokenRefs と同原則)
       unused30d: error ? null : inventory.filter((s) => !used.has(s.name)).length,
       unusedSamples: error ? null : inventory.filter((s) => !used.has(s.name)).map((s) => s.name).slice(0, 8),
       usageTop: error ? null : usage.slice(0, 10).map((u) => ({ skill: u.skill, n: u.n })),

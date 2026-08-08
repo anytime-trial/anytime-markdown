@@ -11,7 +11,7 @@
 - docs リポジトリ（`<docsRoot>`）— ドキュメント出力先（`/anytime-markdown/` 内には出力しない）。実パスは `CLAUDE.md` の「ドキュメント保存先（docsRoot）」節（`- docsRoot: <path>` 行）が単一の正で、本ファイル・各スキル内の `<docsRoot>` はその値に読み替える。独立 Git リポジトリのため完了時に `git status` で確認。Git ルールは両リポジトリに適用。
 
 > [!NOTE]
-> 知識の正本（source of truth）は `<docsRoot>/` 配下の Markdown（ベンダー中立な可搬形式）である。Trail DB（`trail.db` / `memory-core.db` / `doc-core.db`）・各種 memory は、その正本から導出される検索インデックスと位置づける（Open Knowledge Format の「プラットフォームでなく形式」原則）。知識をチャットや DB に閉じ込めず、可搬な Markdown へ外部化することを優先する。
+> 知識の正本（source of truth）は `<docsRoot>/` 配下の Markdown（ベンダー中立な可搬形式）である。Trail DB（`activity.db` / `caravan-book.db` / `catalog.db`）・各種 memory は、その正本から導出される検索インデックスと位置づける（Open Knowledge Format の「プラットフォームでなく形式」原則）。知識をチャットや DB に閉じ込めず、可搬な Markdown へ外部化することを優先する。
 
 ## 設計原則
 

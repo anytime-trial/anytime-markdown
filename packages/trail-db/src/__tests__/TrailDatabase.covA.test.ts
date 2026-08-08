@@ -425,7 +425,7 @@ describe('TrailDatabase constructor — string storageDir branch', () => {
 
     const db = await createFileBackedTestDb(nestedDir);
     try {
-      expect(fs.existsSync(path.join(nestedDir, 'trail.db'))).toBe(true);
+      expect(fs.existsSync(path.join(nestedDir, 'activity.db'))).toBe(true);
     } finally {
       db.close();
     }

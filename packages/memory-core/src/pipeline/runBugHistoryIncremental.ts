@@ -79,7 +79,7 @@ interface CommitRow {
 }
 
 /**
- * `memory_bug_fixes.workspace` が空（列追加前に取り込まれた行）を、trail.db 側の
+ * `memory_bug_fixes.workspace` が空（列追加前に取り込まれた行）を、activity.db 側の
  * コミット所属リポジトリから埋める。
  *
  * 既に埋まっている行は触らない（`WHERE workspace = ''`）ので、毎回走らせても

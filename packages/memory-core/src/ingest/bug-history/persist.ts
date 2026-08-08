@@ -60,7 +60,7 @@ export function upsertBugFix(
     sessionId: string | null;
     introducedCommitSha: string | null;
     /**
-     * 取込元リポジトリの repo_name。memory-core.db は複数ワークスペースを 1 つの DB へ
+     * 取込元リポジトリの repo_name。caravan-book.db は複数ワークスペースを 1 つの DB へ
      * 集約するため、これが無いと Flight Record で他ワークスペースのバグが混ざる。
      * '' は未解決（推測で埋めない。016_review_workspace.sql と同じ規約）。
      */

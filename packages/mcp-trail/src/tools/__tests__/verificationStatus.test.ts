@@ -65,7 +65,7 @@ describe('handleGetVerificationStatus', () => {
   });
 
   function seedDb(rows: Array<{ kind: string; status: string; codeStateHash: string | null }>): void {
-    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'trail.db');
+    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'activity.db');
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     const db = new DatabaseSync(dbPath);
     db.exec(FIXTURE_DDL);
@@ -133,7 +133,7 @@ describe('handleGetVerificationStatus', () => {
   });
 
   it('DB ファイルはあるがテーブルが無ければ needsRun (reason: no-table)', async () => {
-    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'trail.db');
+    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'activity.db');
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     new DatabaseSync(dbPath).close(); // テーブル未作成の空 DB
     const result = await handleGetVerificationStatus({ package: 'demo-pkg', workspacePath: workDir });

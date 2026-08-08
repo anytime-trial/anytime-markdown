@@ -107,7 +107,7 @@ export async function handleRecordDoctrineJudgment(
       readFile: readFileTyped,
     }),
   });
-  // 保存先は memory-core.db（2026-08-07 に trail.db から移設。旧テーブルは遅延移行で回収）
+  // 保存先は caravan-book.db（2026-08-07 に activity.db から移設。旧テーブルは遅延移行で回収）
   const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
   const opened = await openMemoryDb(dbPath, 'readwrite');
   try {

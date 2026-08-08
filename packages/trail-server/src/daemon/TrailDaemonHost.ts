@@ -94,7 +94,7 @@ export class TrailDaemonHost {
    * SIGTERM を送り、`timeoutMs` 以内に終了しなければ SIGKILL にエスカレーションする。
    * daemon は同期 better-sqlite3 (重い bug_history スイープ等) でイベントループを
    * ブロックすると SIGTERM/disconnect ハンドラを走らせられず、親 Extension Host が
-   * 先に exit すると child が PPID=1 へ reparent されて孤児化する。孤児は trail.db の
+   * 先に exit すると child が PPID=1 へ reparent されて孤児化する。孤児は activity.db の
    * FD を掴んだまま生き残り、次回リロードで新 daemon 起動を code=1 で阻害する。
    * エスカレーションにより、ブロック中でも child を確実に終了させ孤児化を防ぐ。
    */
@@ -115,7 +115,7 @@ export class TrailDaemonHost {
     const timedOut = await raceTimeout(waitExit, timeoutMs);
     if (timedOut && child.exitCode === null && child.signalCode === null) {
       // SIGTERM が無視された (イベントループブロック等)。SIGKILL は捕捉不能。
-      // trail.db は WAL モードでクラッシュセーフのため、書き込み中の KILL でも
+      // activity.db は WAL モードでクラッシュセーフのため、書き込み中の KILL でも
       // 次回 open 時に自動リカバリされる。
       child.kill('SIGKILL');
       await raceTimeout(waitExit, KILL_REAP_GRACE_MS);

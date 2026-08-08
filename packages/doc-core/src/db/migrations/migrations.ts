@@ -47,7 +47,7 @@ CREATE TABLE doc_embedding (
 -- tokenize='trigram': 既定 unicode61 は CJK を語分割せず日本語コーパスでキーワード検索が
 -- 機能しないため、3 文字以上の substring 一致を行う trigram を使う（日英両対応）。
 -- 注意: トークナイザは v1 を直接変更している。doc-core は未デプロイ（0.1.0/private）で既存 DB が
--- 無い前提のため許容。万一トークナイザ変更前の doc-core.db が手元にある場合は migration が
+-- 無い前提のため許容。万一トークナイザ変更前の catalog.db が手元にある場合は migration が
 -- 適用済 v1 をスキップし旧 doc_fts が残るため、その DB ファイルを削除して再生成（再 ingest）すること。
 CREATE VIRTUAL TABLE doc_fts USING fts5(path, title, excerpt, body, tokenize='trigram');
 `;
@@ -61,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_doc_lang ON doc (lang);
 // search_sections（節粒度 FTS）。doc_fts と同じく trigram で日英両対応。
 // level は検索対象外（UNINDEXED）。snippet は body 列（index 3）から取得する。
 // 注意（移行の罠）: incremental ingest は content_hash 不変の doc をスキップするため、
-// v3 追加後も既存 doc は doc_section_fts が空のまま。doc-core.db を再構築（DB 削除→
+// v3 追加後も既存 doc は doc_section_fts が空のまま。catalog.db を再構築（DB 削除→
 // 拡張「Rebuild Doc Search Index」）して全 doc を再 ingest する必要がある。
 const SECTION_FTS = `
 CREATE VIRTUAL TABLE doc_section_fts USING fts5(

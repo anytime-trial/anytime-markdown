@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 既存 trail.db に `category` 列を追加する。
+ * 既存 activity.db に `category` 列を追加する。
  * - current_file_analysis.category
  * - release_file_analysis.category
  *

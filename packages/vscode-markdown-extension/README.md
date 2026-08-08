@@ -76,7 +76,7 @@ Switch with the mode menu in the toolbar.
 
 Set `anytimeMarkdown.docsRoot` to the root of your documentation repository to index the whole repository and search across it from the editor.
 
-- **Full-text search** — the index is stored in `doc-core.db` and refreshed automatically every `anytimeMarkdown.docSearch.intervalMinutes` (default 30 minutes). Trigger a manual rebuild from the Command Palette: `Anytime Markdown: Rebuild Doc Search Index`
+- **Full-text search** — the index is stored in `catalog.db` and refreshed automatically every `anytimeMarkdown.docSearch.intervalMinutes` (default 30 minutes). Trigger a manual rebuild from the Command Palette: `Anytime Markdown: Rebuild Doc Search Index`
 - **Note Graph** — builds a relationship graph between documents from the frontmatter `related`, `tags`, and `c4Scope` fields plus `.md` links in the body, shown in the side toolbar. Follow related documents to move between specs
 - If `docsRoot` is empty, indexing is disabled and the Note Graph falls back to the git repository that the current document belongs to
 
@@ -121,7 +121,7 @@ To reinstall them, run `Anytime Markdown: Reinstall Markdown Skills (.claude/ski
 | `anytimeMarkdown.themeMode` | `auto` | Color mode (auto / light / dark) |
 | `anytimeMarkdown.themePreset` | `handwritten` | Theme style (handwritten / professional) |
 | `anytimeMarkdown.docsRoot` | `""` | Root of the documentation repository (absolute path). Used by doc search indexing and the Note Graph panel (empty = indexing disabled, falls back to the git repository) |
-| `anytimeMarkdown.docSearch.dbPath` | `""` | Path of the doc search database (doc-core.db) (empty = `<workspace>/.anytime/markdown/doc-core.db`) |
+| `anytimeMarkdown.docSearch.dbPath` | `""` | Path of the doc search database (catalog.db) (empty = `<workspace>/.anytime/markdown/catalog.db`) |
 | `anytimeMarkdown.docSearch.intervalMinutes` | `30` | Auto re-index interval (minutes). 0 = disable periodic re-indexing |
 
 

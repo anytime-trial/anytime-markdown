@@ -107,7 +107,7 @@ async function loadEpisodes(trail: string, count: number): Promise<(Episode & { 
 async function main() {
   const baseUrl = process.env.OLLAMA_BASE_URL ?? 'http://host.docker.internal:11434';
   const targetIdx = (process.argv[2] ?? '0,5,7,19').split(',').map(Number);
-  const eps = await loadEpisodes(`${homedir()}/.claude/trail/trail.db`, 20);
+  const eps = await loadEpisodes(`${homedir()}/.claude/trail/activity.db`, 20);
 
   for (const idx of targetIdx) {
     const ep = eps[idx];

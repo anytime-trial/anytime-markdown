@@ -8,7 +8,7 @@ import type { SqlJsCompatDatabase as Database } from './internal/SqlJsCompatData
  * 組み込み、検出時に警告ログを出すことで、静かに進行するデータ消失を
  * 早期に可視化することが目的。
  *
- * 2026-04-20 の事故（~/.claude/trail/trail.db の sessions 行が全消失）では、
+ * 2026-04-20 の事故（~/.claude/trail/activity.db の sessions 行が全消失）では、
  * 拡張機能側が一切警告を出さずに動作を継続していた。本モニターは同種の
  * 事象を「黙って進行させない」ためのランタイム番人。
  */

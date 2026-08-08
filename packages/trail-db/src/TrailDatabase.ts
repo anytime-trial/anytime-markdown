@@ -23,6 +23,7 @@ import ignore from 'ignore';
 
 import { aggregateCommitPrefixBaseline, aggregateCommitPrefixStats, aggregateQualityRates, type CommitBaselineSummary } from './combinedDataAggregators';
 import { getSqliteTzOffset,toUTC } from './dateUtils';
+import { resolveDbWithLegacyRename } from './legacyDbRename';
 // daemon は analyze-child へ fork する非同期実装を注入するため、同期 (in-process
 // `analyze`: CLI / テスト) と非同期 (child fork) の両方を許容する union とする。
 // 呼び出し側 (analyzeReleases) は常に `await` するため両者を透過的に扱える。
@@ -897,15 +898,22 @@ export class TrailDatabase {
     logger?: DbLogger,
     backupIntervalDays?: number,
   ) {
+    this.logger = logger ?? noopDbLogger;
     if (storageDirOrStorage !== undefined && typeof storageDirOrStorage !== 'string') {
       this.storage = storageDirOrStorage;
       this.dbPath = this.storage.identifier;
     } else {
       const dbDir = storageDirOrStorage ?? DEFAULT_DB_DIR;
-      this.dbPath = path.join(dbDir, 'trail.db');
+      // DB ファイル名変更（trail.db→activity.db・2026-08-08）のレガシー移行。owner は
+      // この open 経路（デーモン/拡張）のみで、mcp-trail 等のサイドカーは物理リネームしない。
+      this.dbPath = resolveDbWithLegacyRename({
+        dir: dbDir,
+        current: 'activity.db',
+        legacy: 'trail.db',
+        warn: (m) => this.logger.warn(m),
+      }).path;
       this.storage = new FileTrailStorage(this.dbPath, backupGenerations, backupIntervalDays);
     }
-    this.logger = logger ?? noopDbLogger;
   }
 
   /** IntegrityMonitor が異常を検知したときに呼ばれるハンドラを登録。 */
@@ -930,7 +938,7 @@ export class TrailDatabase {
   }
 
   /**
-   * KB スナップショットから trail.db 全体を復元する。
+   * KB スナップショットから activity.db 全体を復元する。
    *
    * メモリ上の古い DB が復元結果を上書きしないよう close → ファイル復元 → 再 init の
    * 順で行い、復元後の DB に `rollback_executed`（kind:'kb_restore'）を記録して save する
@@ -3710,7 +3718,7 @@ export class TrailDatabase {
     // LEP Layer 4 (Aggregator) の DORA 指標出力先。新規テーブル追加のみ (既存 DDL 不変)。
     db.run(CREATE_DORA_METRICS);
     // pr_reviews / pr_review_comments / pr_review_findings は memory_reviews 系へ統合（2026-08-07）。
-    // trail.db 側では作成しない（残存する旧テーブルは FlightRecordDatabase の移行が 0 行時のみ回収）。
+    // activity.db 側では作成しない（残存する旧テーブルは FlightRecordDatabase の移行が 0 行時のみ回収）。
     // cross-source 相関 (Step 4d)。新規テーブルのみ。
     db.run(CREATE_CROSS_SOURCE_CORRELATIONS);
     for (const idx of CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES) {
@@ -3727,7 +3735,7 @@ export class TrailDatabase {
       db.run(idx);
     }
     // Flight Review / Flight Record（flight_reviews / instructions / instruction_sessions）は
-    // memory-core.db へ移設した（2026-08-07・FlightRecordDatabase が所有）。trail.db 側では
+    // caravan-book.db へ移設した（2026-08-07・FlightRecordDatabase が所有）。activity.db 側では
     // 作成しない。既存 DB の残存テーブルは FlightRecordDatabase.migrateFromTrailDb が
     // コピー検証後に DROP する。
     // Phase 6 S2 (Debrief / User Feedback)。新規テーブルのみ。
@@ -3742,7 +3750,7 @@ export class TrailDatabase {
       db.run(idx);
     }
     // 受入台帳 (acceptance_records)・ドクトリン接地判断 (doctrine_judgments) は
-    // memory-core.db へ移設した（2026-08-07）。trail.db 側では作成しない。
+    // caravan-book.db へ移設した（2026-08-07）。activity.db 側では作成しない。
     // 残存テーブルは FlightRecordDatabase / mcp-trail の遅延移行が回収する。
     // Architectural Drift Detection (管制塔 §2.3)。新規テーブルのみ。
     // CREATE TABLE IF NOT EXISTS なので既存 DB も次回オープンで冪等に追加される。
@@ -5457,7 +5465,7 @@ export class TrailDatabase {
    * `storage.save()`（同じパスへ `writeFileSync`）は同内容を読んで書き戻すだけの往復だった。
    * これは sql.js（in-memory のため save で書き出す必要があった）時代の名残。
    *
-   * 2026-07-17 の事故: trail.db が 2 GiB を 1.2MB 超えた時点で `readFileSync` が
+   * 2026-07-17 の事故: activity.db が 2 GiB を 1.2MB 超えた時点で `readFileSync` が
    * `RangeError: File size ... is greater than 2 GiB` を投げ、`init()` → `createTables()` →
    * `save()` の経路で拡張が起動不能になった。サイズ依存の崖を作らないため往復自体を断つ。
    * in-memory 経路は読み出しでしか外へ出せないため従来どおり export → save する。
@@ -8850,7 +8858,7 @@ export class TrailDatabase {
 
   // ---------------------------------------------------------------------------
   //  Phase 6 S2: User Feedback (user_feedback_entries)
-  //  ※ Flight Review / Flight Record 系は FlightRecordDatabase（memory-core.db）へ移設（2026-08-07）
+  //  ※ Flight Review / Flight Record 系は FlightRecordDatabase（caravan-book.db）へ移設（2026-08-07）
   // ---------------------------------------------------------------------------
 
   /**
@@ -10809,7 +10817,7 @@ export class TrailDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  //  ※ 受入台帳 (acceptance_records) は FlightRecordDatabase（memory-core.db）へ移設（2026-08-07）
+  //  ※ 受入台帳 (acceptance_records) は FlightRecordDatabase（caravan-book.db）へ移設（2026-08-07）
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------

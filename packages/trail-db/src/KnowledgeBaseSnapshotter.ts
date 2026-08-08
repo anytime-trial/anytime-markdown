@@ -1,4 +1,4 @@
-// Phase 5 S3 (KB Persistence): グラフ系テーブルの破壊的書込直前に trail.db を
+// Phase 5 S3 (KB Persistence): グラフ系テーブルの破壊的書込直前に activity.db を
 // whole-file で世代退避する Pre-write Snapshot の実体。
 // 起動時バックアップ（.bak.N.gz・FileTrailStorage）とは独立した世代系列（.kb.N.gz）を持つ。
 

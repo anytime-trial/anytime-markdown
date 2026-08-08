@@ -321,7 +321,7 @@ describe('reportDriftEvents — workspace', () => {
   });
 
   // 候補側の '' は「今回は解決できなかった」であって「未所属になった」ではない。
-  // 上書きすると、trail.db 未 ATTACH の 1 回の実行で解決済みの行が一斉に消える。
+  // 上書きすると、activity.db 未 ATTACH の 1 回の実行で解決済みの行が一斉に消える。
   it('解決済みの行は workspace 未解決の候補で上書きされない', () => {
     const db = makeDb();
     const subject = insertEntity(db);

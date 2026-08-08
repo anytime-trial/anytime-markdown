@@ -516,7 +516,7 @@ export const ja: TrailI18n = {
   // memory tab
   'viewer.tab.memory': 'Trail Pipeline',
   'memory.loading': 'メモリDBを読み込み中...',
-  'memory.noDb': 'memory-core.db が見つかりません',
+  'memory.noDb': 'caravan-book.db が見つかりません',
   'memory.noDb.description': 'Anytime Memory が起動すると自動的にデータが表示されます。',
   'flightRecord.tab.drift': 'Drift',
   'flightRecord.drift.empty': 'ドリフトイベントはありません',
@@ -736,7 +736,7 @@ export const ja: TrailI18n = {
   'flightRecord.tab.bugfix': 'Bug Fixed',
   'flightRecord.findings.title': 'この指示で出た指摘',
   'flightRecord.findings.none': '指摘はありません',
-  'flightRecord.findings.loadFailed': '指摘を取得できません（Trail サーバー停止、または trail.db 未接続の可能性）。',
+  'flightRecord.findings.loadFailed': '指摘を取得できません（Trail サーバー停止、または activity.db 未接続の可能性）。',
   'flightRecord.findings.unknown': '未取得',
   'flightRecord.findings.targetUnresolved': '対象ファイル未解決',
   'flightRecord.findings.openFile': 'ファイルを開く',

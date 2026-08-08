@@ -15,7 +15,7 @@ import type { ISpecDocIndex, SpecUpdateStatus } from '../port/ISpecDocIndex';
 const DEFAULT_MIN_ADDED_LINES = 20;
 
 /**
- * `unknown` は設計書リポジトリのコミットが trail.db へ取り込まれておらず、更新の
+ * `unknown` は設計書リポジトリのコミットが activity.db へ取り込まれておらず、更新の
  * 有無を判定できない状態。`stale`（更新漏れ）と混同すると、取込が止まっている間
  * 全件が警報になり警報自体が無意味になるため別状態として報告する。
  */
@@ -123,7 +123,7 @@ function describeUpdateStatus(
   }
   if (updateStatus === 'unknown') {
     return `Cannot tell whether spec document ${specPath} was updated in this ${scope}: `
-      + 'the spec repository commits covering it are missing from trail.db '
+      + 'the spec repository commits covering it are missing from activity.db '
       + '(add the spec repository to commit ingestion and re-run the import).';
   }
   // 取込はセッション単位で走るため、どのセッションにも属さない設計書コミットは

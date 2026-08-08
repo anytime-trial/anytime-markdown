@@ -1,7 +1,7 @@
 import { normalizeTargetPath } from '../../../src/ingest/review/normalizeTargetPath';
 
 /**
- * 異常値のケースはすべて本番 memory-core.db の実データ（2026-08-05 時点 1,094 行）から
+ * 異常値のケースはすべて本番 caravan-book.db の実データ（2026-08-05 時点 1,094 行）から
  * 採取した。想像で作った入力ではないため、ここを緩めると実データが再び通り抜ける。
  */
 const file = (path: string) => ({ path, kind: 'file', absolute: false });

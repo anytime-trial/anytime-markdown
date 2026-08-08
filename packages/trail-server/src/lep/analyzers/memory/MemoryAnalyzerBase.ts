@@ -62,7 +62,7 @@ export abstract class MemoryAnalyzerBase implements Analyzer {
 
     const session = await this.provider.ensure();
     if (!session) {
-      ctx.logger.info(`[${this.id}] skip: memory-core session unavailable (trail.db missing)`);
+      ctx.logger.info(`[${this.id}] skip: memory-core session unavailable (activity.db missing)`);
       return;
     }
 

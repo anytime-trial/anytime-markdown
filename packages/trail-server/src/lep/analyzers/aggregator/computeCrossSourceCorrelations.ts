@@ -24,7 +24,7 @@ export const DEFAULT_WINDOW_DAYS = 14;
 const MS_PER_DAY = 86_400_000;
 
 /**
- * 複数ソース横断の相関を算出する純粋関数 (Step 4d)。すべて trail.db のデータのみで突合する。
+ * 複数ソース横断の相関を算出する純粋関数 (Step 4d)。すべて activity.db のデータのみで突合する。
  *
  * 1. **pr_review_session**: PR review ↔ session。同一 repo で、review 提出の直前 windowDays 以内に
  *    commit を作った session を紐づける (「この review はどの session の成果に対するものか」)
@@ -36,7 +36,7 @@ const MS_PER_DAY = 86_400_000;
  * いずれも実証目的であり、相関 0 件でも例外なく [] を返す。
  *
  * > 補足: プラン当初案の「finding ↔ memory_review_findings」「review ↔ memory_drift_findings」は
- * > memory-core の別 DB に依存し Wave 4 (trail.db reader) から到達できないため、trail.db で完結する
+ * > memory-core の別 DB に依存し Wave 4 (activity.db reader) から到達できないため、activity.db で完結する
  * > 上記 3 相関に調整した (lep-step4 §6.4 / フォローアップ)。
  */
 type PushFn = (

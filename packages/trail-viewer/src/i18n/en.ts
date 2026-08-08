@@ -517,7 +517,7 @@ export const en: TrailI18n = {
   // memory tab
   'viewer.tab.memory': 'Trail Pipeline',
   'memory.loading': 'Loading memory DB...',
-  'memory.noDb': 'memory-core.db not found',
+  'memory.noDb': 'caravan-book.db not found',
   'memory.noDb.description': 'Data will appear automatically once Anytime Memory is running.',
   'flightRecord.tab.drift': 'Drift',
   'flightRecord.drift.empty': 'No drift events',
@@ -737,7 +737,7 @@ export const en: TrailI18n = {
   'flightRecord.tab.bugfix': 'Bug Fixed',
   'flightRecord.findings.title': 'Findings from this instruction',
   'flightRecord.findings.none': 'No findings',
-  'flightRecord.findings.loadFailed': 'Cannot load findings (Trail server down, or trail.db not attached).',
+  'flightRecord.findings.loadFailed': 'Cannot load findings (Trail server down, or activity.db not attached).',
   'flightRecord.findings.unknown': 'not loaded',
   'flightRecord.findings.targetUnresolved': 'target file unresolved',
   'flightRecord.findings.openFile': 'Open file',

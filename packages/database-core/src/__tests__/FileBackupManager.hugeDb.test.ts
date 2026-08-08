@@ -1,7 +1,7 @@
 /**
  * FileBackupManager の 2 GiB 崖と、失敗時のバックアップ消失。
  *
- * 事故（2026-07-17）: trail.db が 2 GiB を超え、`rotateBackups()` の
+ * 事故（2026-07-17）: activity.db が 2 GiB を超え、`rotateBackups()` の
  * `fs.readFileSync(dbPath)` が RangeError を投げて `init()` ごと落ちた。
  * さらに generations=1 では「最古世代の削除」が readFileSync より前にあるため、
  * throw すると**唯一のバックアップを消したまま新規も作れない**。
@@ -18,7 +18,7 @@ describe('FileBackupManager — 巨大 DB と失敗時の世代保護', () => {
 
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bak-huge-'));
-    dbPath = path.join(dir, 'trail.db');
+    dbPath = path.join(dir, 'activity.db');
     fs.writeFileSync(dbPath, 'CURRENT-DB-CONTENT');
   });
 

@@ -6,6 +6,8 @@ export { RELATION_TYPES, DEFAULT_RELATION_TYPE, isRelationType, coerceRelationTy
 // DB
 export { openDocDb, type DocDb } from './db/open';
 export { getTrailHome, getDocCoreDbPath } from './db/paths';
+export { resolveDbWithLegacyRename } from './db/legacyDbRename';
+export type { ResolveDbWithLegacyRenameOptions, ResolvedDbFile } from './db/legacyDbRename';
 export { runMigrations } from './db/migrations/runner';
 
 // ingest

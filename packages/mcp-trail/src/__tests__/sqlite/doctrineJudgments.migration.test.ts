@@ -1,4 +1,4 @@
-// destructiveMigrateDoctrineJudgmentsFromTrailDb（trail.db → memory-core.db の遅延移行）の検証。
+// destructiveMigrateDoctrineJudgmentsFromTrailDb（activity.db → caravan-book.db の遅延移行）の検証。
 // mkdtempSync の一時ディレクトリで、id 保持コピー・id 衝突の再採番自己修復・人の判断の
 // 保存確認・検証失敗時の非破壊（DROP しない）・退避テーブル生成を確かめる。
 
@@ -34,8 +34,8 @@ describe('destructiveMigrateDoctrineJudgmentsFromTrailDb', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'doctrine-migration-'));
-    trailDbPath = path.join(tempDir, 'trail.db');
-    memory = new BetterSqlite3(path.join(tempDir, 'memory-core.db'));
+    trailDbPath = path.join(tempDir, 'activity.db');
+    memory = new BetterSqlite3(path.join(tempDir, 'caravan-book.db'));
     ensureDoctrineJudgmentsTable(memory);
   });
 
@@ -96,7 +96,7 @@ describe('destructiveMigrateDoctrineJudgmentsFromTrailDb', () => {
     expect(destructiveMigrateDoctrineJudgmentsFromTrailDb(memory, trailDbPath)).toBeNull();
   });
 
-  it('trail.db が無ければ null', () => {
+  it('activity.db が無ければ null', () => {
     expect(destructiveMigrateDoctrineJudgmentsFromTrailDb(memory, path.join(tempDir, 'nope.db'))).toBeNull();
   });
 

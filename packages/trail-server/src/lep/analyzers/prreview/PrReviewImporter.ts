@@ -6,7 +6,7 @@ import type {
 
 import { buildPrReviewSourceRef } from './prReviewMemorySource';
 
-/** PrReviewImporter が memory-core.db に必要とする最小データソース (テストで fake 注入)。 */
+/** PrReviewImporter が caravan-book.db に必要とする最小データソース (テストで fake 注入)。 */
 export interface PrReviewImporterDataSource {
   /**
    * `memory_reviews.source_hash` を読む (`source_kind='pr_comment'` AND
@@ -20,7 +20,7 @@ export interface PrReviewImporterOptions {
 }
 
 /**
- * Layer 2 Primary Analyzer: `github_pr_review` を購読し memory-core.db への冪等判定のみ行う。
+ * Layer 2 Primary Analyzer: `github_pr_review` を購読し caravan-book.db への冪等判定のみ行う。
  *
  * - tier=2 / subscribes=['github_pr_review'] / emits=['pr_review_imported']
  * - 冪等: `memory_reviews.source_hash`（source_kind='pr_comment'）が一致したら

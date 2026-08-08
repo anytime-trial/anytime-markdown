@@ -8,7 +8,7 @@ import type { PrReviewFindingRow, PrReviewRow } from '@anytime-markdown/trail-db
 
 /**
  * PR review 系 analyzer (`PrReviewImporter` / `PrReviewFindingAnalyzer` /
- * `CrossSourceCorrelator`) が memory-core.db から `PrReviewRow` / `PrReviewFindingRow`
+ * `CrossSourceCorrelator`) が caravan-book.db から `PrReviewRow` / `PrReviewFindingRow`
  * 形状で読み出す薄いアダプタ。
  *
  * `source_ref` の構築・分解は memory-core（ingestPrReview と同一モジュール）の
@@ -39,8 +39,8 @@ export interface PrReviewMemorySource {
 }
 
 /**
- * memory-core.db (`memory_reviews` / `memory_review_findings`, source_kind='pr_comment') を
- * trail.db 時代の `PrReviewRow` / `PrReviewFindingRow` 形状へ射影する読み出しアダプタ。
+ * caravan-book.db (`memory_reviews` / `memory_review_findings`, source_kind='pr_comment') を
+ * activity.db 時代の `PrReviewRow` / `PrReviewFindingRow` 形状へ射影する読み出しアダプタ。
  *
  * `state` は memory_reviews に保存されていない (severity_overall へ置き換わった)ため
  * 空文字を返す。`computeCrossSourceCorrelations` は state を参照しないため実害はない。

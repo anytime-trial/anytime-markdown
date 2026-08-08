@@ -61,7 +61,7 @@ trigger: /anytime-reverse-doctrine
 1. `repoRoot` / `outputDir` / `docsRoot` を解決する。`outputDir` が未存在なら作成する。
 2. **明文規約群の収集**: CLAUDE.md / AGENTS.md / `.claude/rules/` / `.claude/skills/` / CONTRIBUTING / lint 設定など、明文化済み規約のパス一覧を作る（Phase 2 の重複突合対象。この時点で全文は読まない）。
 3. **オプショナルソース検出**（実在を確認できた場合のみ input に加える。無ければ git 履歴・ソース・文書のみで縮退動作する）:
-   - Trail DB: `lep.json` の `database.storagePath` をワークスペースルート起点で解決し、`trail.db` / `memory-core.db` の実在を確認する。使用テーブル: `memory_reviews`（レビュー指摘・却下理由）、`sessions` / `session_commits`（作業実態）、`current_code_graphs`（用語の識別子ソース）。`graph_json` の丸読みは禁止。
+   - Trail DB: `lep.json` の `database.storagePath` をワークスペースルート起点で解決し、`activity.db` / `caravan-book.db` の実在を確認する。使用テーブル: `memory_reviews`（レビュー指摘・却下理由）、`sessions` / `session_commits`（作業実態）、`current_code_graphs`（用語の識別子ソース）。`graph_json` の丸読みは禁止。
 4. **モードの決定**:
    - 全量: 対象は履歴全体（サンプリングは直近 12 か月を厚く）。`commitRange` は `<初回コミット>..HEAD`。
    - `--delta`: 既存 doctrine 文書の frontmatter から `extractedAt` / `commitRange` を読み、対象を前回 HEAD 以降のコミット・変更文書・新規レビューに限定する。既存文書が無ければ全量へフォールバックする。

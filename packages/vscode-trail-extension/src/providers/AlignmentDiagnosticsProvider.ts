@@ -114,7 +114,7 @@ function buildMessage(group: FindingGroup): string {
 
   if (group.status === 'unknown') {
     return `${group.elementId} の設計書 ${group.specPaths.length} 本は追随を判定できません`
-      + `（設計書リポジトリのコミットが trail.db へ未取込）: ${listed}${suffix}`;
+      + `（設計書リポジトリのコミットが activity.db へ未取込）: ${listed}${suffix}`;
   }
 
   return `${group.elementId} の設計書 ${group.specPaths.length} 本が追随していません: ${listed}${suffix}`;

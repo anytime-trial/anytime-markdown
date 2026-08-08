@@ -66,7 +66,7 @@ function buildEmbedText(row: PendingRow, maxChars: number): string {
 /**
  * embedding が未生成・content_hash 不一致・model 変更の doc だけを再 embed する（差分 backfill）。
  *
- * @param db    doc-core.db
+ * @param db    catalog.db
  * @param embed 埋め込み生成関数（注入）
  */
 export async function embedDocs(db: DocDb, embed: EmbedFn, opts: EmbedOptions): Promise<EmbedResult> {

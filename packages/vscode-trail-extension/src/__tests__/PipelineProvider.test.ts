@@ -125,8 +125,8 @@ describe('PipelineProvider.getChildren() — memory-core pipelines (Wave 3)', ()
 
 describe('PipelineProvider.getChildren() — Wave グルーピング', () => {
   let provider: PipelineProvider;
-  const dbFilePath = '/fake/.anytime/trail/db/trail.db';
-  const memDbPath = '/fake/.anytime/trail/db/memory-core.db';
+  const dbFilePath = '/fake/.anytime/trail/db/activity.db';
+  const memDbPath = '/fake/.anytime/trail/db/caravan-book.db';
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -201,13 +201,13 @@ describe('PipelineProvider.getChildren() — Wave グルーピング', () => {
     expect(groups.map((g) => g.label)).toEqual([WAVE3_GROUP_LABEL]);
   });
 
-  it('Wave 2 は先頭に trail.db backup、続いて importAll 8 phases を並べる', async () => {
+  it('Wave 2 は先頭に activity.db backup、続いて importAll 8 phases を並べる', async () => {
     mockExistsSync.mockReturnValue(false);
     provider = new PipelineProvider({ dbFilePath });
 
     const wave2 = await getGroupChildren(provider, WAVE2_GROUP_LABEL);
-    expect(wave2.map((c) => c.label)).toEqual(['trail.db backup', ...IMPORT_ALL_PHASE_ORDER]);
-    expect(wave2[0].label).toBe('trail.db backup');
+    expect(wave2.map((c) => c.label)).toEqual(['activity.db backup', ...IMPORT_ALL_PHASE_ORDER]);
+    expect(wave2[0].label).toBe('activity.db backup');
     expect(wave2[1].label).toBe('import_sessions');
   });
 
@@ -228,7 +228,7 @@ describe('PipelineProvider.getChildren() — Wave グルーピング', () => {
 
 describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
   let provider: PipelineProvider;
-  const dbFilePath = '/fake/.anytime/trail/db/trail.db';
+  const dbFilePath = '/fake/.anytime/trail/db/activity.db';
   const bakPath = `${dbFilePath}.bak.1.gz`;
 
   beforeEach(() => {
@@ -239,19 +239,19 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
     provider?.dispose();
   });
 
-  it('dbFilePath なし: Wave 2 (trail.db backup を含む) を表示しない', async () => {
+  it('dbFilePath なし: Wave 2 (activity.db backup を含む) を表示しない', async () => {
     provider = new PipelineProvider();
     const group = await getGroup(provider, WAVE2_GROUP_LABEL);
     expect(group).toBeUndefined();
   });
 
-  it('dbFilePath あり / .bak.1.gz 不在: Wave 2 先頭 trail.db backup が pending "未作成"', async () => {
+  it('dbFilePath あり / .bak.1.gz 不在: Wave 2 先頭 activity.db backup が pending "未作成"', async () => {
     mockExistsSync.mockReturnValue(false);
 
     provider = new PipelineProvider({ dbFilePath });
     const wave2 = await getGroupChildren(provider, WAVE2_GROUP_LABEL);
 
-    expect(wave2[0].label).toBe('trail.db backup');
+    expect(wave2[0].label).toBe('activity.db backup');
     expect(wave2[0].description).toBe('未作成');
   });
 
@@ -263,11 +263,11 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
     provider = new PipelineProvider({ dbFilePath });
     const wave2 = await getGroupChildren(provider, WAVE2_GROUP_LABEL);
 
-    expect(wave2[0].label).toBe('trail.db backup');
+    expect(wave2[0].label).toBe('activity.db backup');
     expect(wave2[0].description).toBe('12.3 MB · 2026/5/16 19:23');
   });
 
-  it('表示順: Wave 1 → Wave 2[trail.db backup + 8 phases] → Wave 3 → Wave 4', async () => {
+  it('表示順: Wave 1 → Wave 2[activity.db backup + 8 phases] → Wave 3 → Wave 4', async () => {
     const statusPath = '/fake/pipeline-status.json';
     mockExistsSync.mockImplementation((p: string) => p === statusPath || p === bakPath);
     mockStatSync.mockReturnValue({ size: 1024, mtime: new Date() });
@@ -289,13 +289,13 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
       WAVE4_GROUP_LABEL,
     ]);
     expect((await getGroupChildren(provider, WAVE1_GROUP_LABEL)).map((c) => c.label)).toEqual([...WAVE1_SOURCE_IDS]);
-    expect((await getGroupChildren(provider, WAVE2_GROUP_LABEL)).map((c) => c.label)).toEqual(['trail.db backup', ...IMPORT_ALL_PHASE_ORDER]);
+    expect((await getGroupChildren(provider, WAVE2_GROUP_LABEL)).map((c) => c.label)).toEqual(['activity.db backup', ...IMPORT_ALL_PHASE_ORDER]);
     expect((await getGroupChildren(provider, WAVE3_GROUP_LABEL)).map((c) => c.label)).toEqual(['embedding_backfill']);
     expect((await getGroupChildren(provider, WAVE4_GROUP_LABEL)).map((c) => c.label)).toEqual([...WAVE4_DERIVED_IDS]);
   });
 
   it('memoryDbFilePath あり / .bak.1.gz 不在: memory backup を Wave 3 配下に pending 表示', async () => {
-    const memDbPath = '/fake/.anytime/trail/db/memory-core.db';
+    const memDbPath = '/fake/.anytime/trail/db/caravan-book.db';
     mockExistsSync.mockReturnValue(false);
 
     provider = new PipelineProvider({ memoryDbFilePath: memDbPath });
@@ -307,7 +307,7 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
   });
 
   it('memoryDbFilePath あり / .bak.1.gz 存在: success state でサイズ + mtime 表示', async () => {
-    const memDbPath = '/fake/.anytime/trail/db/memory-core.db';
+    const memDbPath = '/fake/.anytime/trail/db/caravan-book.db';
     const memBakPath = `${memDbPath}.bak.1.gz`;
     mockExistsSync.mockImplementation((p: string) => p === memBakPath);
     const fakeMtime = new Date('2026-05-17T03:00:00.000Z');
@@ -323,7 +323,7 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
 
   it('Wave 3 内の順: memory backup → memory pipelines', async () => {
     const statusPath = '/fake/pipeline-status.json';
-    const memDbPath = '/fake/.anytime/trail/db/memory-core.db';
+    const memDbPath = '/fake/.anytime/trail/db/caravan-book.db';
     const memBakPath = `${memDbPath}.bak.1.gz`;
     mockExistsSync.mockImplementation(
       (p: string) => p === statusPath || p === bakPath || p === memBakPath,
@@ -350,7 +350,7 @@ describe('PipelineProvider.getChildren() — backup pipeline entry', () => {
 
 describe('PipelineProvider — importAll phase entries (in-process)', () => {
   let provider: PipelineProvider;
-  const dbFilePath = '/fake/.anytime/trail/db/trail.db';
+  const dbFilePath = '/fake/.anytime/trail/db/activity.db';
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -433,7 +433,7 @@ describe('PipelineProvider — importAll phase entries (in-process)', () => {
 
 describe('PipelineProvider — importAll status file polling', () => {
   let provider: PipelineProvider;
-  const dbFilePath = '/fake/.anytime/trail/db/trail.db';
+  const dbFilePath = '/fake/.anytime/trail/db/activity.db';
   const importAllStatusFilePath = '/fake/.anytime/trail/db/importall-phase-status.json';
 
   beforeEach(() => {
@@ -549,7 +549,7 @@ describe('buildBackupDisplay()', () => {
 
   it('不在 → pending / 未作成', () => {
     mockExistsSync.mockReturnValue(false);
-    expect(buildBackupDisplay('/tmp/trail.db')).toEqual({
+    expect(buildBackupDisplay('/tmp/activity.db')).toEqual({
       scope: 'backup',
       state: 'pending',
       description: '未作成',
@@ -560,7 +560,7 @@ describe('buildBackupDisplay()', () => {
     mockExistsSync.mockReturnValue(true);
     const mtime = new Date('2026-05-16T10:00:00.000Z');
     mockStatSync.mockReturnValue({ size: 5 * 1024 * 1024, mtime });
-    const result = buildBackupDisplay('/tmp/trail.db');
+    const result = buildBackupDisplay('/tmp/activity.db');
     expect(result.scope).toBe('backup');
     expect(result.state).toBe('success');
     expect(result.description).toContain('5.0 MB');
@@ -568,7 +568,7 @@ describe('buildBackupDisplay()', () => {
 
   it('I/O エラー → error / メッセージ切り詰め', () => {
     mockExistsSync.mockImplementation(() => { throw new Error('ENOMEM something'); });
-    const result = buildBackupDisplay('/tmp/trail.db');
+    const result = buildBackupDisplay('/tmp/activity.db');
     expect(result.state).toBe('error');
     expect(result.description).toContain('ENOMEM');
   });

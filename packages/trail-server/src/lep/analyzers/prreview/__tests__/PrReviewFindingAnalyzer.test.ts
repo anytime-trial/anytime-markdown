@@ -69,7 +69,7 @@ describe('PrReviewFindingAnalyzer', () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'pr-review-finding-analyzer-'));
-    memoryDb = new BetterSqlite3MemoryDb({ filePath: join(dir, 'memory-core.db') });
+    memoryDb = new BetterSqlite3MemoryDb({ filePath: join(dir, 'caravan-book.db') });
     runMigrations(memoryDb);
   });
 

@@ -107,7 +107,7 @@ describe('detectBackfillWindowExpansion', () => {
   test('desired_start < earliest but no unprocessed messages in gap → shouldExpand=false', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
-    // 永続化済み: 10 日前のみ。trail.db にも 10 日前のメッセージしかない
+    // 永続化済み: 10 日前のみ。activity.db にも 10 日前のメッセージしかない
     // (ユーザーは 10 日前に install したばかり)。
     const ts10d = new Date(Date.now() - 10 * DAY).toISOString();
     insertTrailUserMessage(trailDb, 'm1', 's1', ts10d);
@@ -123,7 +123,7 @@ describe('detectBackfillWindowExpansion', () => {
   test('desired_start < earliest AND unprocessed messages exist → shouldExpand=true', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
-    // 永続化済みは 10 日前から。trail.db には 40 日前にも data あり。
+    // 永続化済みは 10 日前から。activity.db には 40 日前にも data あり。
     const ts40d = new Date(Date.now() - 40 * DAY).toISOString();
     const ts10d = new Date(Date.now() - 10 * DAY).toISOString();
     insertTrailUserMessage(trailDb, 'old1', 's-old', ts40d);

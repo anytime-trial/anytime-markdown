@@ -8,7 +8,7 @@
  *
  * 運用ループは決定論（LLM 推論なし）。台帳記録は trail-server HTTP が第一経路で、
  * 不達時はローカル JSONL へ退避し **exit 2（not_run 扱い）で終了する** — 台帳へ記録
- * できていない pass をマージ判定の成功にしない（trail.db への直書きは稼働中デーモンの
+ * できていない pass をマージ判定の成功にしない（activity.db への直書きは稼働中デーモンの
  * WAL と競合し得るため行わない）。退避分は次回起動時の drain で再送する。
  *
  * flaky 再現チケットの起票先は環境変数 ACCEPTANCE_TICKETS_DIR で明示指定する。

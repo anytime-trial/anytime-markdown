@@ -113,7 +113,7 @@ export interface SerializableHttpServerOptions {
   /** 拡張の dist ディレクトリ。daemon が better-sqlite3 native binding を解決するのに使う。 */
   readonly distPath: string;
   /**
-   * TrailDatabase を開くための trail.db 絶対パス。daemon は dirname を DB ディレクトリとして使う。
+   * TrailDatabase を開くための activity.db 絶対パス。daemon は dirname を DB ディレクトリとして使う。
    * 旧実装は configure() の lastCfg.trailDbPath を参照していたが、HTTP サーバを
    * インポートパイプライン (AnalyzeAllRunner) から分離するため startHttpServer の opts で直接受け取る。
    */

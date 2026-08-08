@@ -21,11 +21,11 @@ describe('/api/trail/instructions', () => {
   beforeEach(async () => {
     db = await createTestTrailDatabase();
     dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flight-record-'));
-    const memoryDbPath = path.join(dbDir, 'memory-core.db');
+    const memoryDbPath = path.join(dbDir, 'caravan-book.db');
     server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, memoryDbPath);
     await server.start(0);
     port = server.port;
-    // Flight Record は memory-core.db 側（server 内部の flightRecordDb と同一ファイル）。
+    // Flight Record は caravan-book.db 側（server 内部の flightRecordDb と同一ファイル）。
     // シード専用の別接続で upsertFlightReviewFromMachine を叩く（server 内部インスタンスへは
     // アクセスできないため）。
     flightDb = new FlightRecordDatabase(memoryDbPath);
@@ -87,7 +87,7 @@ describe('/api/trail/instructions', () => {
     const body = (await res.json()) as { workspaces: string[]; partial: boolean };
 
     expect(body.workspaces).toContain('anytime-markdown');
-    // memory-core.db が無い環境でも trail.db 側だけで応答する（選択肢を空にしない）
+    // caravan-book.db が無い環境でも activity.db 側だけで応答する（選択肢を空にしない）
     expect(Array.isArray(body.workspaces)).toBe(true);
   });
 

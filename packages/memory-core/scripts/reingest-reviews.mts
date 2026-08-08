@@ -1,7 +1,7 @@
 /**
  * Re-ingest all review_doc + session reviews with force flag enabled.
  *
- * 引数で TRAIL_HOME (= <dir>/db/memory-core.db のあるディレクトリの親) を指定する。
+ * 引数で TRAIL_HOME (= <dir>/db/caravan-book.db のあるディレクトリの親) を指定する。
  * 例: node --experimental-strip-types scripts/reingest-reviews.mts /tmp/reingest-test
  *
  * 必須前提: ollama (qwen2.5:7b) が host.docker.internal:11434 で稼働
@@ -18,16 +18,16 @@ if (!trailHome) {
   console.error('Usage: reingest-reviews.mts <TRAIL_HOME>');
   process.exit(1);
 }
-const memoryDbPath = path.join(trailHome, 'db', 'memory-core.db');
-const trailDbPath = path.join(trailHome, 'db', 'trail.db');
+const memoryDbPath = path.join(trailHome, 'db', 'caravan-book.db');
+const trailDbPath = path.join(trailHome, 'db', 'activity.db');
 const reviewDir = process.env['MEMORY_CORE_REVIEW_DIR'] ?? '/Shared/anytime-markdown-docs/review';
 
 if (!fs.existsSync(memoryDbPath)) {
-  console.error(`memory-core.db not found at ${memoryDbPath}`);
+  console.error(`caravan-book.db not found at ${memoryDbPath}`);
   process.exit(1);
 }
 if (!fs.existsSync(trailDbPath)) {
-  console.error(`trail.db not found at ${trailDbPath}`);
+  console.error(`activity.db not found at ${trailDbPath}`);
   process.exit(1);
 }
 

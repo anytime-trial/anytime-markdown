@@ -90,7 +90,7 @@ export interface AnalyzeAllRunnerOptions {
   statePath?: string;
   /** Git working tree ルート (defaultStatePath のフォールバックで使用) */
   gitRoot?: string;
-  /** trail.db ハンドル (省略時は trail.db import パイプラインをスキップ) */
+  /** activity.db ハンドル (省略時は activity.db import パイプラインをスキップ) */
   trailDb?: TrailDatabase;
   /** 監視対象 gitRoot 集合 (commit / release / coverage / codegraph 解析対象) */
   gitRoots?: readonly string[];
@@ -115,7 +115,7 @@ export interface AnalyzeAllRunnerOptions {
   /** memory-core ingest pipeline を実行する service (省略時は memory-core ステップをスキップ) */
   memoryCoreService?: MemoryCoreService;
   /**
-   * memory-core.db パス (Step 5: PR review analyzer 群 (`PrReviewImporter` /
+   * caravan-book.db パス (Step 5: PR review analyzer 群 (`PrReviewImporter` /
    * `PrReviewFindingAnalyzer` / `CrossSourceCorrelator`) が memory_reviews /
    * memory_review_findings へ読み書きするために使う)。ログ・診断専用で接続そのものは
    * 開かない — 実接続は呼び出し側が `trailDaemonEntry` の LogService 配線
@@ -124,7 +124,7 @@ export interface AnalyzeAllRunnerOptions {
    * 両方省略時は PR review analyzer 群を生成せず info ログを残す (silent skip 禁止)。
    */
   memoryDbPath?: string;
-  /** {@link memoryDbPath} に対応する、呼び出し側が開いた memory-core.db 接続。 */
+  /** {@link memoryDbPath} に対応する、呼び出し側が開いた caravan-book.db 接続。 */
   memoryDb?: MemoryDbConnection;
   /**
    * Wave 1/2/4 の analyzer 実行を `pipeline_runs` へ記録するファクトリ。
@@ -203,20 +203,20 @@ export interface AnalyzeAllRunnerOptions {
   onAfterRun?: () => void;
 
   /**
-   * trail.db import パイプライン (Layer 1 Ingester + Layer 2 primary analyzer) を有効化するか。
-   * デフォルト `true`。`false` の場合、trail.db への取込・解析を一切行わず memory-core ステップのみ実行する
+   * activity.db import パイプライン (Layer 1 Ingester + Layer 2 primary analyzer) を有効化するか。
+   * デフォルト `true`。`false` の場合、activity.db への取込・解析を一切行わず memory-core ステップのみ実行する
    * (ファイル IO を避けたいテスト等)。
    */
   enableIngesters?: boolean;
 }
 
 /**
- * analyzeAll パイプライン (trail.db import → memory-core runOnce) の唯一の orchestrator。
+ * analyzeAll パイプライン (activity.db import → memory-core runOnce) の唯一の orchestrator。
  *
  * BaseRunner を継承し、pause/resume/state/ticks/lastRunAt を一元管理する。
  *
  * 内部実装 (Step 2d 以降): LepOrchestrator に委譲する。`ImportAllLegacyAnalyzer` は廃止され、
- * trail.db への取込・解析は全て個別の LEP analyzer が担う。
+ * activity.db への取込・解析は全て個別の LEP analyzer が担う。
  *
  * - Layer 1 (sources): 4 種 Ingester (`Jsonl/Git/Coverage/MetaJson`) が `onRunStart` で event 発火
  * - Layer 2 (primary):
@@ -317,7 +317,7 @@ export class AnalyzeAllRunner extends BaseRunner {
       });
       const costRebuilder = new CostRebuilder({ trailDb, onPhase, onProgress });
       const countsRebuilder = new CountsRebuilder({ trailDb, onPhase, onProgress });
-      // Step 5: github_pr_review → memory_reviews / memory_review_findings (memory-core.db)。
+      // Step 5: github_pr_review → memory_reviews / memory_review_findings (caravan-book.db)。
       // GitHub source 未設定時は対応 event が来ないため no-op。memoryDbPath / memoryDb が
       // 揃っていない場合は analyzer 自体を生成しない (silent skip を避けて info ログ)。
       let prReviewImporter: PrReviewImporter | null = null;
@@ -415,7 +415,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     this.memoryAnalyzerIds = memoryAnalyzerIds;
     this.memorySessionProvider = memorySessionProvider;
 
-    // Layer 4 (aggregator): trail.db を読んで横断指標を算出する tier=4 analyzer。
+    // Layer 4 (aggregator): activity.db を読んで横断指標を算出する tier=4 analyzer。
     // tier 4 は stage='all' でのみ実行される (LepOrchestrator の STAGE_TIERS)。
     // trailDb が無い場合 (daemon の memory-only 等) は DORA を算出できないため登録しない。
     if (opts.trailDb) {
@@ -491,7 +491,7 @@ export class AnalyzeAllRunner extends BaseRunner {
     }
     if (!disabledAggregators.includes('CrossSourceCorrelator')) {
       // memoryDb 未接続時は CrossSourceCorrelator 自身が info ログを出して PR review 相関を
-      // 空扱いにする (DoraMetricsAggregator と違い PR review 由来の相関は memory-core.db
+      // 空扱いにする (DoraMetricsAggregator と違い PR review 由来の相関は caravan-book.db
       // 前提のため、analyzer 自体は常に登録し内部で silent skip を避ける)。
       const correlator = new CrossSourceCorrelator({
         trailDb,
@@ -513,8 +513,8 @@ export class AnalyzeAllRunner extends BaseRunner {
     try {
       const result = await this.orchestrator.runOnce({ runId: randomUUID(), reason, stage: this.stage });
 
-      // trail.db への永続化 (save) は PersistAnalyzer が Wave 2 末端で実施済み
-      // (memory-core が trail.db をディスクから attach するため Wave 3 より前である必要がある)。
+      // activity.db への永続化 (save) は PersistAnalyzer が Wave 2 末端で実施済み
+      // (memory-core が activity.db をディスクから attach するため Wave 3 より前である必要がある)。
       // ここでは counter を analyzer から集計するのみ。
       if (this.importPipelineEnabled) {
         this.lastImportResult = this.aggregateImportResult();
@@ -523,7 +523,7 @@ export class AnalyzeAllRunner extends BaseRunner {
       // save() 失敗は PersistAnalyzer の throw として errors に収集される
       const importError = result.errors.get('Persist') ?? null;
       if (importError) {
-        this.log(`[ERROR] trail.db save failed: ${importError.message}`);
+        this.log(`[ERROR] activity.db save failed: ${importError.message}`);
         runError = new Error(`importAll: ${importError.message}`);
       }
 
@@ -584,7 +584,7 @@ export class AnalyzeAllRunner extends BaseRunner {
   }
 
   /**
-   * 直近 `runImpl` で実行した import 結果。trail.db パイプライン無効時は常に null。
+   * 直近 `runImpl` で実行した import 結果。activity.db パイプライン無効時は常に null。
    * 失敗時 (save() 例外) は更新されず前回成功時の値が残る。
    */
   getLastImportResult(): ImportAllResult | null {
@@ -592,7 +592,7 @@ export class AnalyzeAllRunner extends BaseRunner {
   }
 
   /**
-   * trail.db import パイプライン (Layer 1 ingester + Layer 2 primary analyzer) が有効か。
+   * activity.db import パイプライン (Layer 1 ingester + Layer 2 primary analyzer) が有効か。
    * `trailDb` 未指定 / `enableIngesters:false` の場合は false (memory-core ステップのみ実行)。
    * daemon の配線検証 (trailDb が runner に届いているか) に使う。
    */

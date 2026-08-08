@@ -25,5 +25,5 @@
   "command.releaseKillSwitch": "Release Kill Switch",
   "command.recordSafePoint": "Record Safe Point",
   "command.rollbackToSafePoint": "Rollback to Safe Point (Create Recovery Branch)",
-  "command.restoreKnowledgeBaseSnapshot": "Restore Knowledge Base Snapshot (Whole trail.db)"
+  "command.restoreKnowledgeBaseSnapshot": "Restore Knowledge Base Snapshot (Whole activity.db)"
 }

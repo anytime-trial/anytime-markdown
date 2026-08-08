@@ -57,7 +57,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	);
 
-	// doc-core: markdown 拡張専用 doc-core.db を ingest（検索は mcp-markdown が読む）。
+	// doc-core: markdown 拡張専用 catalog.db を ingest（検索は mcp-markdown が読む）。
 	// docsRoot 未設定なら無効（既定オフ）。DB ドライバは node:sqlite（native 不要）。
 	// 未信頼ワークスペースでは起動しない: 悪意ある `.vscode/settings.json` が docsRoot/dbPath を
 	// 任意パスへ向けると、フォルダを開いただけでワークスペース外の再帰読取 + DB 書込が成立するため。

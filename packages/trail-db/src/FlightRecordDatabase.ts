@@ -4,6 +4,7 @@ import path from 'node:path';
 import { openBetterSqlite3 } from './internal/loadBetterSqlite3';
 import { SqlJsCompatDatabase } from './internal/SqlJsCompatDatabase';
 import { type DbLogger, noopDbLogger } from './DbLogger';
+import { resolveDbWithLegacyRename } from './legacyDbRename';
 import {
   assembleInstructionRecord,
   foldInstructionDeliverables,
@@ -45,7 +46,7 @@ import {
 type Database = SqlJsCompatDatabase;
 
 export interface FlightRecordDatabaseOptions {
-  /** trail.db の絶対パス。ATTACH できた場合のみセッション由来の列が埋まる。 */
+  /** activity.db の絶対パス。ATTACH できた場合のみセッション由来の列が埋まる。 */
   readonly trailDbPath?: string | null;
   /**
    * 拡張の dist ディレクトリ。バンドル済み better-sqlite3 の native binary 解決に使う。
@@ -233,18 +234,18 @@ function toFlightReview(row: readonly unknown[]): FlightReview {
 /**
  * Flight Record（instructions / instruction_sessions / flight_reviews）の永続化層。
  *
- * 保存先は **memory-core.db**（trail.db からの移設・2026-08-07）。Flight Record は
+ * 保存先は **caravan-book.db**（activity.db からの移設・2026-08-07）。Flight Record は
  * セッションの生ログではなく「振り返りで読む蒸留データ」であり、レビュー・バグ修正・
- * 乖離と同じ memory-core.db 側に置く。セッション由来の参照データ（sessions / repos /
- * session_costs / session_commits / verification_runs 等）は trail.db に残るため、
- * trail.db を `trail` alias で ATTACH して読む（MemoryApiHandler と同型）。
+ * 乖離と同じ caravan-book.db 側に置く。セッション由来の参照データ（sessions / repos /
+ * session_costs / session_commits / verification_runs 等）は activity.db に残るため、
+ * activity.db を `trail` alias で ATTACH して読む（MemoryApiHandler と同型）。
  *
- * - trail.db が ATTACH できない構成では、トークン・成果物・検証・リポジトリ名解決が
+ * - activity.db が ATTACH できない構成では、トークン・成果物・検証・リポジトリ名解決が
  *   縮退する（行そのものは落とさない）。
  * - trail.* への書き込みは移行処理（destructiveMigrateFromTrailDb）の退避・DROP のみ。それ以外の
  *   メソッドは trail.* を SELECT でしか触らない（アプリ層規律。better-sqlite3 は
  *   ATTACH 単位の readonly を強制できないため）。
- * - スキーマ正本は trail-core の DDL 定数。writer が冪等 CREATE する方針は trail.db
+ * - スキーマ正本は trail-core の DDL 定数。writer が冪等 CREATE する方針は activity.db
  *   時代から不変（デーモン未起動でも mcp-trail の直書きが先行しうるため）。
  */
 export class FlightRecordDatabase {
@@ -265,16 +266,28 @@ export class FlightRecordDatabase {
   }
 
   /**
-   * memory-core.db を開き、Flight Record テーブルを冪等作成し、trail.db が在れば ATTACH する。
-   * 副作用: memory-core.db が無い場合はファイルを新規作成する（memory-core の migration は
+   * caravan-book.db を開き、Flight Record テーブルを冪等作成し、activity.db が在れば ATTACH する。
+   * 副作用: caravan-book.db が無い場合はファイルを新規作成する（memory-core の migration は
    * 自前の _migrations で版管理しており、先にこのファイルが出来ていても衝突しない）。
    */
   init(): void {
     if (this.db) return;
+    // DB ファイル名変更（memory-core.db→caravan-book.db・2026-08-08）のレガシー移行。owner は
+    // デーモン/拡張の open 経路のみ（mcp-trail 等のサイドカーは物理リネームしない）。
+    // 任意パス（テスト・明示指定）を巻き込まないよう、新既定名を開くときだけ実施する。
+    const memoryDbPath =
+      path.basename(this.memoryDbPath) === 'caravan-book.db'
+        ? resolveDbWithLegacyRename({
+            dir: path.dirname(this.memoryDbPath),
+            current: 'caravan-book.db',
+            legacy: 'memory-core.db',
+            warn: (m) => this.logger.warn(m),
+          }).path
+        : this.memoryDbPath;
     // native binary の解決は openBetterSqlite3 に集約する。ここで `new Ctor(path)` を直に
     // 書くと、webpack-bundled 拡張で bindings が .node を推測できず init が必ず throw し、
     // flight 系エンドポイントが配布物でだけ全滅する（loadBetterSqlite3.ts の Why not 参照）。
-    const inner = openBetterSqlite3(this.memoryDbPath, {
+    const inner = openBetterSqlite3(memoryDbPath, {
       distPath: this.distPath,
       onBundledBindingMissing: (expected) =>
         this.logger.warn(
@@ -291,11 +304,11 @@ export class FlightRecordDatabase {
     }
     // ロック競合は即時失敗ではなく待つ（書き込みは短時間）。
     inner.pragma('busy_timeout = 5000');
-    // trail.db 時代と同じく FK は強制しない（better-sqlite3 は既定 ON）。
+    // activity.db 時代と同じく FK は強制しない（better-sqlite3 は既定 ON）。
     // instruction_sessions の FK は宣言のみの運用（tables.ts のコメント参照）で、
     // 孤児リンクを含む既存データのバックフィルを FK 違反で止めないため。
     inner.pragma('foreign_keys = OFF');
-    this.db = new SqlJsCompatDatabase(inner, this.memoryDbPath);
+    this.db = new SqlJsCompatDatabase(inner, memoryDbPath);
     this.ensureTables();
     if (this.trailDbPath !== null && fs.existsSync(this.trailDbPath)) {
       try {
@@ -303,7 +316,7 @@ export class FlightRecordDatabase {
         this.trailAttached = true;
       } catch (e) {
         this.logger.error(
-          '[FlightRecordDatabase] trail.db attach failed; session-derived fields will degrade',
+          '[FlightRecordDatabase] activity.db attach failed; session-derived fields will degrade',
           e instanceof Error ? e : new Error(String(e)),
         );
       }
@@ -337,16 +350,16 @@ export class FlightRecordDatabase {
     for (const idx of CREATE_INSTRUCTION_INDEXES) db.run(idx);
     db.run(CREATE_FLIGHT_REVIEWS);
     for (const idx of CREATE_FLIGHT_REVIEW_INDEXES) db.run(idx);
-    // 受入台帳（acceptance_records）も判断記録として memory-core.db 側で所有する（2026-08-07 移設）
+    // 受入台帳（acceptance_records）も判断記録として caravan-book.db 側で所有する（2026-08-07 移設）
     db.run(CREATE_ACCEPTANCE_RECORDS);
     for (const idx of CREATE_ACCEPTANCE_INDEXES) db.run(idx);
   }
 
   /**
-   * **副作用: 検証通過時に trail.db 側の 3 テーブルを退避テーブルへ複製した上で DROP する**
+   * **副作用: 検証通過時に activity.db 側の 3 テーブルを退避テーブルへ複製した上で DROP する**
    * （破壊的操作を含むため destructive プレフィクス。`~/.claude/rules/code-quality.md` §15）。
    *
-   * trail.db に残る旧テーブルから memory-core.db へデータを移設する（冪等・毎起動可）。
+   * activity.db に残る旧テーブルから caravan-book.db へデータを移設する（冪等・毎起動可）。
    *
    * 1. trail 側に対象テーブルが実在する場合のみコピーする
    *    - 新規キーは INSERT OR IGNORE
@@ -357,14 +370,14 @@ export class FlightRecordDatabase {
    * 2. 検証は件数比較ではなく**キー単位のアンチ結合**（trail 側の全キーが memory 側に実在）と
    *    manual 訂正の保存確認で行う。INSERT OR IGNORE は UNIQUE 衝突だけでなく CHECK 制約違反も
    *    黙って捨てるため、件数の大小では喪失を検知できない
-   * 3. 検証を通過したテーブルだけを、trail.db 内の退避テーブル `<name>__pre_move_backup` へ
+   * 3. 検証を通過したテーブルだけを、activity.db 内の退避テーブル `<name>__pre_move_backup` へ
    *    複製してから DROP する（検証をすり抜けた場合の復旧手段を残す。退避の削除は人が行う）
    *
    * blind な drop マイグレーションを作らないのは、コピー前に drop が走る事故を
-   * 構造的に不可能にするため。旧ビルドの mcp-trail が trail.db 側へテーブルを
+   * 構造的に不可能にするため。旧ビルドの mcp-trail が activity.db 側へテーブルを
    * 再作成しても、次回起動の本処理が回収して再 DROP する。
    * 検証不一致時は DROP せず error ログを残して継続する（silent skip 禁止・fail-open:
-   * 移行が止まっても新規記録は memory-core.db 側で継続する）。
+   * 移行が止まっても新規記録は caravan-book.db 側で継続する）。
    *
    * @returns 判別可能な移行結果。trail 未 ATTACH・旧テーブル無しは null。
    */
@@ -1025,7 +1038,7 @@ export class FlightRecordDatabase {
       counts.set(name, (counts.get(name) ?? 0) + count);
     };
 
-    // sessions / repos は trail.db 側。未 ATTACH ではパス由来の名前解決のみで数える
+    // sessions / repos は activity.db 側。未 ATTACH ではパス由来の名前解決のみで数える
     const sqls = this.trailAttached
       ? [
           `SELECT r.repo_name, i.workspace_path, COUNT(*)
@@ -1056,7 +1069,7 @@ export class FlightRecordDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  //  自律受入基盤 S5: 受入台帳 (acceptance_records)（trail.db から移設・2026-08-07）
+  //  自律受入基盤 S5: 受入台帳 (acceptance_records)（activity.db から移設・2026-08-07）
   // ---------------------------------------------------------------------------
 
   /**
@@ -1164,7 +1177,7 @@ export class FlightRecordDatabase {
    * 経路別見逃し率の算出（読み取りのみ・近似指標）。
    * 「合格コミットの変更ファイルと同じファイルに、合格後 windowDays 日以内の regression 系 fix
    * コミット（別 SHA・同一リポジトリ）が触れた」件数を missed と数える。厳密な因果は問わない。
-   * コミット・リポジトリ情報は trail.db 残留テーブル（repos / session_commits / commit_files）を
+   * コミット・リポジトリ情報は activity.db 残留テーブル（repos / session_commits / commit_files）を
    * ATTACH 経由で読む。未 ATTACH では missed を判定できないため missRate=null に縮退する
    * （0 と区別する。acceptedCount は memory 側だけで数えられるので返す）。
    */
@@ -1328,7 +1341,7 @@ export class FlightRecordDatabase {
 
   /**
    * ワークスペース名の正本はセッションが属するリポジトリ名（trail.repos.repo_name）。
-   * セッションが trail.sessions に無い（取込前・machine 記録のみ）行と、trail.db を
+   * セッションが trail.sessions に無い（取込前・machine 記録のみ）行と、activity.db を
    * ATTACH できない構成では、呼び出し側がパス由来へ縮退する（行を落とさない）。
    */
   private repoNamesBySessionIds(sessionIds: readonly string[]): Map<string, string> {

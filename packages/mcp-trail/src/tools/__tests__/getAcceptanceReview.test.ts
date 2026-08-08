@@ -32,7 +32,7 @@ describe('handleGetAcceptanceReview', () => {
     workspace = mkdtempSync(path.join(tmpdir(), 'acceptance-review-ws-'));
     const dbDir = path.join(workspace, '.anytime', 'trail', 'db');
     mkdirSync(dbDir, { recursive: true });
-    const db = new BetterSqlite3(path.join(dbDir, 'trail.db'));
+    const db = new BetterSqlite3(path.join(dbDir, 'activity.db'));
     ensureDoctrineJudgmentsTable(db);
     recordDoctrineJudgmentDirect(db, {
       sessionId: 'session-1',

@@ -161,9 +161,9 @@ export interface DoctrineMigrationResult {
 }
 
 /**
- * **副作用: 検証通過時に trail.db 側の doctrine_judgments を退避テーブルへ複製した上で DROP する。**
+ * **副作用: 検証通過時に activity.db 側の doctrine_judgments を退避テーブルへ複製した上で DROP する。**
  *
- * doctrine_judgments の保存先移設（trail.db → memory-core.db・2026-08-07）の遅延移行。
+ * doctrine_judgments の保存先移設（activity.db → caravan-book.db・2026-08-07）の遅延移行。
  * デーモン非依存で mcp-trail 自身が行う（判断記録はデーモン未起動でも落とせない —
  * 記録経路と同じ理由で移行も同経路に置く）。全 doctrine 系ツールが ensure 直後に
  * 冪等実行する。移行済み（trail 側テーブル不在）なら即 null を返す。
@@ -186,9 +186,9 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
   try {
     // BEGIN IMMEDIATE は**並行移行の直列化**のため（トランザクション外に検証・退避・DROP を
     // 置くと、並行 mcp-trail の同時実行で退避テーブルへの全行二重挿入・後続 DROP の
-    // no such table・中断時の退避重複が起きる）。WAL 下ではファイル間（memory-core.db と
-    // ATTACH した trail.db）のコミットは原子的でない — クラッシュ耐性は退避テーブル
-    // `__pre_move_backup`（DROP と同一の trail.db 内で必ず同時確定）が担保する。退避を外さないこと。
+    // no such table・中断時の退避重複が起きる）。WAL 下ではファイル間（caravan-book.db と
+    // ATTACH した activity.db）のコミットは原子的でない — クラッシュ耐性は退避テーブル
+    // `__pre_move_backup`（DROP と同一の activity.db 内で必ず同時確定）が担保する。退避を外さないこと。
     db.exec('BEGIN IMMEDIATE');
     try {
       // 存在チェックはロック取得後に行う（TOCTOU 回避: 先行プロセスが DROP した直後でもここで抜ける）
@@ -331,8 +331,8 @@ export function destructiveMigrateDoctrineJudgmentsFromTrailDb(
 }
 
 /**
- * 全 doctrine 系ツール共通の前処理: memory-core.db 側にテーブルを冪等作成し、
- * trail.db に旧テーブルが残っていれば遅延移行する（各ツールが open 直後に呼ぶ）。
+ * 全 doctrine 系ツール共通の前処理: caravan-book.db 側にテーブルを冪等作成し、
+ * activity.db に旧テーブルが残っていれば遅延移行する（各ツールが open 直後に呼ぶ）。
  */
 export function ensureAndMigrateDoctrineJudgments(db: Database, memoryDbPath: string): void {
   ensureDoctrineJudgmentsTable(db);
@@ -340,10 +340,10 @@ export function ensureAndMigrateDoctrineJudgments(db: Database, memoryDbPath: st
   // 止めてはならない（CLAUDE.md D2 §4「記録失敗は承認フローを止めない」と同方針）。
   // 冪等なので次回呼び出しで再試行され、回収機会は失われない。
   try {
-    destructiveMigrateDoctrineJudgmentsFromTrailDb(db, path.join(path.dirname(memoryDbPath), 'trail.db'));
+    destructiveMigrateDoctrineJudgmentsFromTrailDb(db, path.join(path.dirname(memoryDbPath), 'activity.db'));
   } catch (err) {
     console.error(
-      `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration failed (records continue to memory-core.db; will retry on next call)`,
+      `[${new Date().toISOString()}] [ERROR] [mcp-trail] doctrine_judgments migration failed (records continue to caravan-book.db; will retry on next call)`,
       err instanceof Error ? err.stack : err,
     );
   }
@@ -699,7 +699,7 @@ export function fetchDoctrineAgreementRows(
   if (columns.size === 0) return [];
   const gateVerdictExpr = columns.has('gate_verdict') ? 'gate_verdict' : 'NULL AS gate_verdict';
   const delegatedAtExpr = columns.has('delegated_at') ? 'delegated_at' : 'NULL AS delegated_at';
-  // 移行過渡期の trail.db 側は列を持たない。空の申告に倒すことで、旧レコードは
+  // 移行過渡期の activity.db 側は列を持たない。空の申告に倒すことで、旧レコードは
   // 従来どおり一致率の分母に入る（遡って分母から外し、自分に有利に再計算しない）
   const underspecifiedExpr = columns.has('underspecified_points_json')
     ? 'underspecified_points_json'

@@ -24,7 +24,7 @@ describe('listReviewTargetHints の優先度配分', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memcore-hints-'));
-    handle = await openMemoryCoreDb(path.join(tmpDir, 'memory-core.db'));
+    handle = await openMemoryCoreDb(path.join(tmpDir, 'caravan-book.db'));
     errors = [];
     logger = {
       info: () => {},

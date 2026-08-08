@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * generate-test-report — trail.db の検証実施台帳から提出用テスト結果書（Markdown）を生成する。
+ * generate-test-report — activity.db の検証実施台帳から提出用テスト結果書（Markdown）を生成する。
  *
  * 使い方:
  *   node scripts/generate-test-report.mjs --commit <hash> [--label "<対象名>"] [--out <path>]
@@ -76,7 +76,7 @@ type: "report"
 lang: "ja"
 author: "generate-test-report.mjs"
 category: "test-report"
-excerpt: "trail.db の検証実施台帳から自動生成したテスト結果書（対象: ${targetLabel}、run 数 ${runs.length}）。"
+excerpt: "activity.db の検証実施台帳から自動生成したテスト結果書（対象: ${targetLabel}、run 数 ${runs.length}）。"
 ---
 
 # テスト結果書: ${targetLabel}

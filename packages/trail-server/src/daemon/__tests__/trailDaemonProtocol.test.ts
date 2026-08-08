@@ -135,7 +135,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
   it('startHttpServer リクエスト (全フィールド) が JSON round-trip 可', () => {
     const params: SerializableHttpServerOptions = {
       distPath: '/ext/dist',
-      trailDbPath: '/workspace/my-repo/.anytime/trail/db/trail.db',
+      trailDbPath: '/workspace/my-repo/.anytime/trail/db/activity.db',
       gitRoot: '/workspace/my-repo',
       memoryDbPath: '/home/user/.anytime/memory.db',
       preferredPort: 19841,
@@ -166,7 +166,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
       method: 'startHttpServer',
       params: {
         distPath: '/ext/dist',
-        trailDbPath: '/ext/dist/trail.db',
+        trailDbPath: '/ext/dist/activity.db',
       } satisfies SerializableHttpServerOptions,
     };
     const roundTripped = JSON.parse(JSON.stringify(msg)) as HostMessage;
@@ -304,7 +304,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
       method: 'startHttpServer',
       params: {
         distPath: '/ext/dist',
-        trailDbPath: '/ext/dist/trail.db',
+        trailDbPath: '/ext/dist/activity.db',
         chatBridge: {
           memoryDbPath: '/home/user/.anytime/memory.db',
           memoryNativeBinding: '/ext/dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
@@ -330,7 +330,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
       method: 'startHttpServer',
       params: {
         distPath: '/ext/dist',
-        trailDbPath: '/ext/dist/trail.db',
+        trailDbPath: '/ext/dist/activity.db',
         logService: {
           nativeBinding: '/ext/dist/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
         },
@@ -346,7 +346,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
       method: 'startHttpServer',
       params: {
         distPath: '/ext/dist',
-        trailDbPath: '/ext/dist/trail.db',
+        trailDbPath: '/ext/dist/activity.db',
         rebuildScheduler: {
           memoryDbPath: '/home/user/.anytime/memory.db',
           intervalMs: 3_600_000,
@@ -363,7 +363,7 @@ describe('trailDaemonProtocol JSON round-trip', () => {
       method: 'startHttpServer',
       params: {
         distPath: '/ext/dist',
-        trailDbPath: '/ext/dist/trail.db',
+        trailDbPath: '/ext/dist/activity.db',
         tokenBudgetConfig: {
           dailyLimitTokens: 2_000_000,
           sessionLimitTokens: 500_000,

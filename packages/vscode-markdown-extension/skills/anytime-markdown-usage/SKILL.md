@@ -39,7 +39,7 @@ mcp-markdown ツールはそれを実現する手段（[[markdown-ext-doc-core-p
 - **重複見出し**: `get_section` / `update_section` は同一 level＋text の見出しが複数あると**曖昧エラー**（行番号一覧つき）。`occurrence: n`（1-based）で指名する。
 - `update_section` / `update_frontmatter` は**実施サマリを返す**（前者: `oldLines/newLines/bytesDelta/warnings`、後者: `setKeys/removedKeys/createdFrontmatter`）。`warnings` に「content が見出し行で始まらない」等が出たら意図どおりか確認する。
 - `doc_backlinks` の `type` フィルタは `references` / `depends-on` / `implements` / `part-of` / `supersedes` / `refines` の 6 値。
-- 検索系は `<workspace>/.anytime/markdown/doc-core.db` を readonly 参照。**未構築なら明示エラー**→拡張コマンド「Rebuild Doc Search Index」で ingest 後に使う。
+- 検索系は `<workspace>/.anytime/markdown/catalog.db` を readonly 参照。**未構築なら明示エラー**→拡張コマンド「Rebuild Doc Search Index」で ingest 後に使う。
 
 ## C. サブエージェントへの委譲（検索・調査）
 

@@ -8,7 +8,7 @@ import { handleGetReviewRunStatus } from '../../tools/getReviewRunStatus';
  * 返しても失敗として現れない（呼び出し側からは「該当なし」と区別が付かない）。
  * 解決関数をモックしているだけの既存テストでは、この配線は検査されない。
  */
-const mockResolveMemoryDbPath = jest.fn((_opts: { workspacePath?: string }) => '/tmp/mcp-trail-test/memory-core.db');
+const mockResolveMemoryDbPath = jest.fn((_opts: { workspacePath?: string }) => '/tmp/mcp-trail-test/caravan-book.db');
 
 jest.mock('../../dbPath', () => ({
   ...jest.requireActual('../../dbPath'),

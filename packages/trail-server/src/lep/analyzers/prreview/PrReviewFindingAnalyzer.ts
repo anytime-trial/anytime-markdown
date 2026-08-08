@@ -13,7 +13,7 @@ import {
 } from './extractPrReviewFindings';
 
 export interface PrReviewFindingAnalyzerOptions {
-  /** review + findings を同時永続化する memory-core.db への書込接続。 */
+  /** review + findings を同時永続化する caravan-book.db への書込接続。 */
   readonly memoryDb: MemoryDbConnection;
   /**
    * severity / category 分類フック (LLM 等)。任意。未指定なら raw コメントのみ保存し分類は skip。
@@ -25,7 +25,7 @@ export interface PrReviewFindingAnalyzerOptions {
 /**
  * `pr_review_imported` を購読し、PR review の body + コメントから finding を抽出して
  * `ingestPrReview`（memory-core）で **review 本体と同時に** `memory_reviews` /
- * `memory_review_findings` へ書き込む (Step 5: trail.db から memory-core.db への付け替え)。
+ * `memory_review_findings` へ書き込む (Step 5: activity.db から caravan-book.db への付け替え)。
  *
  * - `ingestPrReview` は bodyHash 一致で即 skip する冪等 API のため、review 行を先に空
  *   findings で作ってから findings だけを追い書きする 2 段呼び出しは成立しない
@@ -36,8 +36,8 @@ export interface PrReviewFindingAnalyzerOptions {
  *   findings の内容から正しく再計算される。
  * - LLM 任意: `classify` 未指定なら severity / category は null (raw 保存のみ)。
  * - 本 analyzer は tier=2 (Wave 2) で動く。`pr_review_imported` は PrReviewImporter が
- *   Wave 1 の event chain で emit するため、onEvent で書込めば PersistAnalyzer の trail.db
- *   save より前に完結する（trail.db 側への書込は無い）。
+ *   Wave 1 の event chain で emit するため、onEvent で書込めば PersistAnalyzer の activity.db
+ *   save より前に完結する（activity.db 側への書込は無い）。
  */
 export class PrReviewFindingAnalyzer implements Analyzer {
   readonly id = 'PrReviewFindingAnalyzer';

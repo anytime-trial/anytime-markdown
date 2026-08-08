@@ -4,7 +4,7 @@ import type { MemoryLogger } from '../logger';
 import { PipelineRunLedger } from './PipelineRunLedger';
 
 export interface CreatePipelineRunLedgerFactoryOptions {
-  /** Wave 3 のセッションと同じ memory-core.db 接続。migration はここで走らせない。 */
+  /** Wave 3 のセッションと同じ caravan-book.db 接続。migration はここで走らせない。 */
   readonly db: MemoryDbConnection;
   /**
    * 必須。台帳生成は fail-open で null を返すため、logger を省略可能にすると
@@ -18,7 +18,7 @@ export interface CreatePipelineRunLedgerFactoryOptions {
 /**
  * Wave 1/2/4 の実行台帳ファクトリを作る。
  *
- * `pipeline_runs` が未作成の間 (migration 前の memory-core.db) は null を返して記録を諦める。
+ * `pipeline_runs` が未作成の間 (migration 前の caravan-book.db) は null を返して記録を諦める。
  * 台帳は補助機構であり、その不在で ingest 本体を止めないため (fail-open)。
  *
  * ホスト (CLI / daemon) ごとに書き起こさず本関数へ集約するのは、**production 経路である

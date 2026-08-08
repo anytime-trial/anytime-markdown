@@ -17,7 +17,7 @@ jest.mock('@anytime-markdown/memory-core/pipeline', () => {
   };
 });
 
-const TRAIL_DB_PATH = '/fake/trail.db';
+const TRAIL_DB_PATH = '/fake/activity.db';
 
 function makeChannel() {
   return { append: jest.fn(), appendLine: jest.fn() };

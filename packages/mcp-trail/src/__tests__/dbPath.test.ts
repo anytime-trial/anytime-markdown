@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { resolveDbPath, resolveMemoryDbPath, resolveWorkspacePath } from '../dbPath';
+import { resolveDbPath, resolveMemoryDbPath, resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
 
 describe('resolveDbPath', () => {
   let tmpDir: string;
@@ -26,10 +26,10 @@ describe('resolveDbPath', () => {
     }
   });
 
-  it('workspacePath/.anytime/trail/db/trail.db が存在する場合それを返す', () => {
+  it('workspacePath/.anytime/trail/db/activity.db が存在する場合それを返す', () => {
     const dbDir = path.join(tmpDir, '.anytime', 'trail', 'db');
     fs.mkdirSync(dbDir, { recursive: true });
-    const dbFile = path.join(dbDir, 'trail.db');
+    const dbFile = path.join(dbDir, 'activity.db');
     fs.writeFileSync(dbFile, '');
     expect(resolveDbPath({ workspacePath: tmpDir })).toBe(dbFile);
   });
@@ -37,13 +37,13 @@ describe('resolveDbPath', () => {
   it('候補が存在しない場合 Error を throw する', () => {
     const notExistWs = path.join(tmpDir, 'ghost-ws');
     expect(() => resolveDbPath({ workspacePath: notExistWs }))
-      .toThrow(/trail\.db not found at/);
+      .toThrow(/activity\.db not found at/);
   });
 
   it('TRAIL_HOME 環境変数を尊重する', () => {
     const dbDir = path.join(tmpDir, 'custom-home', 'db');
     fs.mkdirSync(dbDir, { recursive: true });
-    const dbFile = path.join(dbDir, 'trail.db');
+    const dbFile = path.join(dbDir, 'activity.db');
     fs.writeFileSync(dbFile, '');
     process.env.TRAIL_HOME = path.join(tmpDir, 'custom-home');
     expect(resolveDbPath({ workspacePath: path.join(tmpDir, 'unused') })).toBe(dbFile);
@@ -53,7 +53,7 @@ describe('resolveDbPath', () => {
     // tmpDir を cwd として設定し、DB ファイルを作成
     const dbDir = path.join(tmpDir, '.anytime', 'trail', 'db');
     fs.mkdirSync(dbDir, { recursive: true });
-    const dbFile = path.join(dbDir, 'trail.db');
+    const dbFile = path.join(dbDir, 'activity.db');
     fs.writeFileSync(dbFile, '');
 
     process.chdir(tmpDir);
@@ -64,7 +64,7 @@ describe('resolveDbPath', () => {
   it('workspacePath 省略 + TRAIL_HOME 設定時は TRAIL_HOME を優先する', () => {
     const customHomeDbDir = path.join(tmpDir, 'trail-home', 'db');
     fs.mkdirSync(customHomeDbDir, { recursive: true });
-    const dbFile = path.join(customHomeDbDir, 'trail.db');
+    const dbFile = path.join(customHomeDbDir, 'activity.db');
     fs.writeFileSync(dbFile, '');
     process.env.TRAIL_HOME = path.join(tmpDir, 'trail-home');
 
@@ -98,12 +98,12 @@ describe('resolveMemoryDbPath', () => {
   function makeDb(root: string): string {
     const dbDir = path.join(root, '.anytime', 'trail', 'db');
     fs.mkdirSync(dbDir, { recursive: true });
-    const dbFile = path.join(dbDir, 'memory-core.db');
+    const dbFile = path.join(dbDir, 'caravan-book.db');
     fs.writeFileSync(dbFile, '');
     return dbFile;
   }
 
-  it('workspacePath 配下の memory-core.db を返す', () => {
+  it('workspacePath 配下の caravan-book.db を返す', () => {
     const dbFile = makeDb(tmpDir);
     expect(resolveMemoryDbPath({ workspacePath: tmpDir })).toBe(dbFile);
   });
@@ -113,7 +113,7 @@ describe('resolveMemoryDbPath', () => {
     // 呼び出し側からは「問題なし」と区別が付かない偽陰性になるため fail-closed とする。
     const ghost = path.join(tmpDir, 'ghost-ws');
     expect(() => resolveMemoryDbPath({ workspacePath: ghost })).toThrow(
-      /memory-core\.db not found at/,
+      /caravan-book\.db not found at/,
     );
     expect(fs.existsSync(path.join(ghost, '.anytime'))).toBe(false);
   });
@@ -121,7 +121,7 @@ describe('resolveMemoryDbPath', () => {
   it('TRAIL_HOME を優先する', () => {
     const dbDir = path.join(tmpDir, 'custom-home', 'db');
     fs.mkdirSync(dbDir, { recursive: true });
-    const dbFile = path.join(dbDir, 'memory-core.db');
+    const dbFile = path.join(dbDir, 'caravan-book.db');
     fs.writeFileSync(dbFile, '');
     process.env.TRAIL_HOME = path.join(tmpDir, 'custom-home');
     expect(resolveMemoryDbPath({ workspacePath: path.join(tmpDir, 'unused') })).toBe(dbFile);
@@ -220,8 +220,8 @@ describe('DB パス解決への TRAIL_WORKSPACE_PATH 反映', () => {
   }
 
   it('workspacePath 省略時に TRAIL_WORKSPACE_PATH を使う（cwd へ落ちない）', () => {
-    const memDb = makeDb(tmpDir, 'memory-core.db');
-    const trailDb = makeDb(tmpDir, 'trail.db');
+    const memDb = makeDb(tmpDir, 'caravan-book.db');
+    const trailDb = makeDb(tmpDir, 'activity.db');
     process.env.TRAIL_WORKSPACE_PATH = tmpDir;
 
     // cwd はリポジトリルートのまま。env が効いていなければ別の DB を指すか throw する。
@@ -231,9 +231,59 @@ describe('DB パス解決への TRAIL_WORKSPACE_PATH 反映', () => {
 
   it('引数は TRAIL_WORKSPACE_PATH より優先する', () => {
     const argRoot = path.join(tmpDir, 'arg-ws');
-    const memDb = makeDb(argRoot, 'memory-core.db');
+    const memDb = makeDb(argRoot, 'caravan-book.db');
     process.env.TRAIL_WORKSPACE_PATH = path.join(tmpDir, 'env-ws');
 
     expect(resolveMemoryDbPath({ workspacePath: argRoot })).toBe(memDb);
+  });
+});
+
+describe('DB ファイル名変更のレガシーフォールバック（サイドカーは物理リネームしない）', () => {
+  let tmpDir: string;
+  let dbDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dbpath-legacy-'));
+    dbDir = path.join(tmpDir, '.anytime', 'trail', 'db');
+    fs.mkdirSync(dbDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('resolveDbPath: activity.db 不在で trail.db 実在なら旧名パスへ倒し、リネームしない', () => {
+    const legacy = path.join(dbDir, 'trail.db');
+    fs.writeFileSync(legacy, '');
+    expect(resolveDbPath({ workspacePath: tmpDir })).toBe(legacy);
+    expect(fs.existsSync(legacy)).toBe(true);
+    expect(fs.existsSync(path.join(dbDir, 'activity.db'))).toBe(false);
+  });
+
+  it('resolveDbPath: 新旧両方実在なら新名を優先する', () => {
+    const current = path.join(dbDir, 'activity.db');
+    fs.writeFileSync(current, '');
+    fs.writeFileSync(path.join(dbDir, 'trail.db'), '');
+    expect(resolveDbPath({ workspacePath: tmpDir })).toBe(current);
+  });
+
+  it('resolveMemoryDbPath: caravan-book.db 不在で memory-core.db 実在なら旧名パスへ倒す', () => {
+    const legacy = path.join(dbDir, 'memory-core.db');
+    fs.writeFileSync(legacy, '');
+    expect(resolveMemoryDbPath({ workspacePath: tmpDir })).toBe(legacy);
+  });
+
+  it('resolveMemoryDbPathForWrite: 旧名の実 DB が残る間は旧名へ直書きする（台帳の split-brain 防止）', () => {
+    const legacy = path.join(dbDir, 'memory-core.db');
+    fs.writeFileSync(legacy, '');
+    fs.writeFileSync(path.join(dbDir, 'trail.db'), '');
+    expect(resolveMemoryDbPathForWrite({ workspacePath: tmpDir })).toBe(legacy);
+  });
+
+  it('resolveMemoryDbPathForWrite: 旧名 trail.db しか無いワークスペースも初期化済みとして新名パスを返す', () => {
+    fs.writeFileSync(path.join(dbDir, 'trail.db'), '');
+    expect(resolveMemoryDbPathForWrite({ workspacePath: tmpDir })).toBe(
+      path.join(dbDir, 'caravan-book.db'),
+    );
   });
 });

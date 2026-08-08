@@ -1,6 +1,6 @@
-// 受入台帳（acceptance_records）は 2026-08-07 に trail.db から memory-core.db
+// 受入台帳（acceptance_records）は 2026-08-07 に activity.db から caravan-book.db
 // （FlightRecordDatabase）へ移設した。旧 TrailDatabase.acceptance.test.ts の移行版。
-// コミット・リポジトリ情報（session_commits / commit_files / repos）は trail.db 残留の
+// コミット・リポジトリ情報（session_commits / commit_files / repos）は activity.db 残留の
 // ため ctx.trailRun でシードする。
 
 import type { AcceptanceRecordInput } from '@anytime-markdown/trail-core';
@@ -156,9 +156,9 @@ describe('FlightRecordDatabase acceptance records (acceptance_records)', () => {
       expect(machine?.acceptedCount).toBe(0);
     });
 
-    it('trail.db 未 ATTACH では missRate=null に縮退する（0 と区別する）', () => {
+    it('activity.db 未 ATTACH では missRate=null に縮退する（0 と区別する）', () => {
       const standalone = createTestFlightRecordDatabase();
-      // trail.db を消して再オープン（ATTACH 不成立の構成を作る）
+      // activity.db を消して再オープン（ATTACH 不成立の構成を作る）
       standalone.db.close();
       const fs = require('node:fs') as typeof import('node:fs');
       fs.rmSync(standalone.trailDbPath);

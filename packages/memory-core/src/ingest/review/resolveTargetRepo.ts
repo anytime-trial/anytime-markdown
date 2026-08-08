@@ -1,7 +1,7 @@
 /**
  * レビュー指摘の対象パスがどのリポジトリのものかを決める。
  *
- * memory-core.db は複数ワークスペース（anytime-markdown / anytime-trade / anytime-lab）の
+ * caravan-book.db は複数ワークスペース（anytime-markdown / anytime-trade / anytime-lab）の
  * レビューを 1 つの DB に集約している。一方 linkAddresses は長らく単一の repoName で
  * 照合していたため、他ワークスペースの指摘は永久にリンクできず、さらに
  * `src/hooks/useHydrated.ts` のようなリポジトリ名を含まない相対パスは
@@ -21,7 +21,7 @@ export interface ResolvedTargetRepo {
 }
 
 export interface ResolveTargetRepoInput {
-  /** trail.db が attach 済みの memory-core 接続。 */
+  /** activity.db が attach 済みの memory-core 接続。 */
   readonly db: MemoryDbConnection;
   readonly target: NormalizedTargetPath;
   /** レビューが行われたワークスペースの repo_name。同名衝突時の優先先になる。 */

@@ -374,7 +374,7 @@ describe('E2E Phase 2: runCodeIncremental', () => {
 
   // ── CP1: full pipeline run → status='success', entities/edges populated ───
   /**
-   * Scenario CP1 – Full pipeline run with synthetic trail.db + real ts.Program.
+   * Scenario CP1 – Full pipeline run with synthetic activity.db + real ts.Program.
    *
    * Verifies:
    *   - status='success'

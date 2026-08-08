@@ -32,7 +32,7 @@ export interface ReviewFindingExtractionResult {
 export interface ReviewFindingExtractionInput {
   db: MemoryDbConnection;
   ollama: OllamaClient;
-  /** 抽出元の本文を review 行から解決する。呼び出し元が trail.db / ファイルから供給する */
+  /** 抽出元の本文を review 行から解決する。呼び出し元が activity.db / ファイルから供給する */
   resolveBody: (review: { id: string; source_kind: string; source_ref: string }) => string | null;
   model?: string;
   recordedAt: string;

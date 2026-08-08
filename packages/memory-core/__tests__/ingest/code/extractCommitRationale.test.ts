@@ -646,7 +646,7 @@ describe('extractCommitRationale', () => {
   test('ECR-15: same commit_hash across multiple sessions → processed once', async () => {
     const memDb = await makeMemoryDb();
     const trailDb = makeTrailDb();
-    // Same commit hash appears in two different sessions (common in trail.db)
+    // Same commit hash appears in two different sessions (common in activity.db)
     insertSession(trailDb, 'session-1');
     insertSession(trailDb, 'session-2');
     insertCommit(trailDb, {

@@ -184,7 +184,7 @@ export interface LepSourcesConfig {
 }
 
 /**
- * trail.db の保存先 (旧 VS Code 設定 `anytimeTrail.database.storagePath` の移行先)。
+ * activity.db の保存先 (旧 VS Code 設定 `anytimeTrail.database.storagePath` の移行先)。
  * 絶対パスまたは workspace ルートからの相対パス。既定 `.anytime/trail/db`。
  */
 export interface LepDatabaseConfig {
@@ -1188,7 +1188,7 @@ export function serializeLepConfigWithComments(config: LepConfig): string {
     },
     database: {
       _comment:
-        'trail.db の保存ディレクトリ。絶対パスまたは workspace ルートからの相対パス。database 拡張は別途 anytimeDatabase.storagePath 設定を持つため両者を揃える。',
+        'activity.db の保存ディレクトリ。絶対パスまたは workspace ルートからの相対パス。database 拡張は別途 anytimeDatabase.storagePath 設定を持つため両者を揃える。',
       ...config.database,
     },
     workspace: {

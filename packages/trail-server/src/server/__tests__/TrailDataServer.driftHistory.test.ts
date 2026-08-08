@@ -57,14 +57,14 @@ describe('GET /api/memory/drift/by-day (Phase 6 S5-C)', () => {
 
   beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-history-test-'));
-    buildMemoryDb(path.join(tmpDir, 'memory-core.db'));
+    buildMemoryDb(path.join(tmpDir, 'caravan-book.db'));
     trailDb = await createTestTrailDatabase();
     server = new TrailDataServer(
       '/tmp',
       trailDb,
       makeMockLogger(),
       undefined,
-      path.join(tmpDir, 'memory-core.db'),
+      path.join(tmpDir, 'caravan-book.db'),
     );
     await server.start(0);
     port = server.port;

@@ -44,7 +44,7 @@ export class RebuildScheduler {
 
   start(intervalMs: number): Disposable {
     // memoryCoreRunner などの他コンシューマが activate 直後に同じ
-    // memory-core.db を開いて migration を走らせるため、startup tick は
+    // caravan-book.db を開いて migration を走らせるため、startup tick は
     // 10 秒遅らせて起動直後の write lock 競合を回避する。WAL +
     // busy_timeout が連携接続を許容しても、初期化シーケンスは可能な限り
     // 直列化したい。

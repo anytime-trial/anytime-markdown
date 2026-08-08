@@ -72,7 +72,7 @@ describe('MemoryApiHandler.getKnowledgeGraph', () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-test-'));
-    dbPath = path.join(tmpDir, 'memory-core.db');
+    dbPath = path.join(tmpDir, 'caravan-book.db');
     buildKnowledgeGraphDb(dbPath);
     handler = new MemoryApiHandler(makeMockLogger(), dbPath);
   });
