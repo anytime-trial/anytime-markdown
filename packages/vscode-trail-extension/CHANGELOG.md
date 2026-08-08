@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-08-08
+
+### Added
+
+- Added a Flight Record tab. Records are now keyed by instruction rather than by session, so one request that spans several sessions stays a single row. Each instruction shows its review findings, fixed bugs, drift, and verification status side by side.
+
+### Changed
+
+- Updated the bundled `anytime-dev-retro` skill to v19: Flight Record metrics, three-period averages for hygiene behaviour, mining queries that separate missing instructions from calibration failures, and observed token-budget values.
+- Updated the bundled `anytime-trail-review` skill to v5.
+- Renamed the Memory tab to Trail Pipeline and moved the Drift sub-tab under Flight Record. The old name did not describe what the tab showed (the state of the ingest pipeline).
+
+### Removed
+
+- Removed the Logs tab. The dedicated extension-log database (`extension-logs.db`) is gone and logs now live in the run ledger (`pipeline_run_logs`), which left the standalone viewer without readers.
+- Removed the document-search (doc-core) ingest wiring from the extension.
+
+### Trail Core (trail-core / trail-server / trail-viewer / memory-core / trail-db / mcp-trail)
+
+- Redesigned Flight Review into a per-instruction Flight Record and moved its three tables from `trail.db` to `memory-core.db`.
+- Promoted doctrine judgment to D2 (delegating low-severity, highly reversible "what" approvals), adding records for each delegation and a path for spot audits. Declaring underspecified points up front (DCT-14) now keeps calibration failures and missing instructions in separate counters.
+- Added an ODD policy registry and approval rule engine, moving "always ask a human" decisions out of prose compliance and into the coverage gate.
+- Consolidated PR reviews into `memory_reviews`, and gave review records a workspace and target repository so they can be matched. The review list gained severity, category, and status filters, and the handled state became three-valued so "unhandled" is no longer misread.
+- Narrowed LLM extraction from conversations to human input only, and closed fabrication, index-collision, and missing-stamp paths to lower the failure rate.
+- Generalised `pipeline_runs` into a run ledger for every LEP wave, and added a wave filter, links to failure reasons, and a per-run log API to the Runs view.
+- Moved the verification ledger into `trail.db` and surfaced verification status on the Flight Record instruction tab.
+- Migrated raw `<select>` elements to the shared ui-core Select. The native popup fell back to the OS default palette and became unreadable in dark themes.
+
 ## [0.42.0] - 2026-08-04
 
 ### Added

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-08-08
+
+### Added
+
+- Added an ODD (operational design domain) policy registry: reading and writing `odd.json`, deciding restricted-area boundaries, and evaluating approval rules (`evaluateApprovalPolicy`).
+- Added the `AssembleInstructionRecord` use case and an instruction model, which build a Flight Record per instruction so that several sessions can hang off a single instruction.
+- Added `underspecified_points` to doctrine judgments. Declaring up front which points the instruction does not determine keeps calibration failures (the agreement rate) separate from missing instructions.
+
+### Fixed
+
+- Closed four holes in the approval rules. If severity, target paths, or operation kind went undeclared, the gate fell through to the permissive side.
+- Writes to the ODD registry itself are now treated as a restricted area, and a registry that cannot be read escalates to a human instead of passing.
+
+### Removed
+
+- Removed the `extension_logs` table definition, which had no remaining readers after logs moved to the run ledger.
+
 ## [0.42.0] - 2026-08-04
 
 ### Added

@@ -100,8 +100,18 @@
     "ws": "8.21.0",
     "markdown-it": "14.2.0",
     "linkify-it": "5.0.2",
-    "dompurify": "3.4.12",
-    "sharp": "0.35.3"
+    "dompurify": "3.4.13",
+    "sharp": "0.35.3",
+    "nanoid": "3.3.17",
+    "gray-matter": {
+      "js-yaml": "3.15.1"
+    },
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "3.15.1"
+    },
+    "@eslint/eslintrc": {
+      "js-yaml": "4.3.1"
+    }
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",

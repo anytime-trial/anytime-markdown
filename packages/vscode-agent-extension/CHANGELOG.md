@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-08-08
+
+### Added
+
+- The SessionStart hook now asks every session to declare which instruction it belongs to. That declaration is the only thing that links instructions to sessions — the opening prompt is never used to guess — so a missed declaration splits one piece of work across several Flight Record rows. The request is emitted whether or not another session is in the way: riding on airspace, which only speaks up on a collision, would mean solo sessions (the majority) never see it.
+
+### Changed
+
+- Renamed the bundled `anytime-debrief` skill to `anytime-session-exit` and updated it to v2, naming it after when it fires rather than what it emits. Copies already installed under the old name are migrated on first activation.
+
 ## [1.13.0] - 2026-08-04
 
 ### Changed
