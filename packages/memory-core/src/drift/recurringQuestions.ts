@@ -63,6 +63,9 @@ function buildRecurringQuestionEvent(
     code_value: null,
     drift_type: 'spec_clarification_recurring',
     severity: 'warn',
+    // Question entity は repo_name を持たない（実測 2026-08-05: memory_entities.repo_name は
+    // 97,340 件が NULL）。推測で埋めず未解決のままにする。
+    workspace: '',
     detail: {
       target_spec_path: qs[0].targetSpecPath,
       group_key: groupKey,

@@ -85,6 +85,8 @@ export interface MemoryDriftEventRow {
   readonly detectedAt: string;
   readonly resolvedAt: string | null;
   readonly resolutionNote: string;
+  /** 出所ワークスペース（repo_name）。'' は未解決。 */
+  readonly workspace: string;
 }
 
 export interface MemoryDriftEventDetail extends MemoryDriftEventRow {
@@ -108,8 +110,16 @@ export interface MemoryBugHistoryRow {
   readonly category: string;
   readonly subjectSummary: string;
   readonly sessionId: string | null;
+  /**
+   * このバグを潰したセッションが属する指示 ID。宣言があればその指示 ID、無ければセッション ID
+   * （Review タブの `MemoryFlightReviewFindingRow.instructionId` と同じ暗黙グループの規則）。
+   * セッション不明のバグ、または trail.db を引けない構成では null。
+   */
+  readonly instructionId: string | null;
   readonly committedAt: string;
   readonly precededByFindingIds: readonly string[];
+  /** 取込元リポジトリ（repo_name）。'' は未解決。 */
+  readonly workspace: string;
 }
 
 export interface MemoryBugCausalInfo {
@@ -150,7 +160,11 @@ export interface MemoryReviewHistoryRow {
   readonly model: string | null;
   readonly sessionId: string | null;
   readonly reviewedAt: string;
+  /** レビューが行われたワークスペース（repo_name）。'' は未解決。 */
+  readonly workspace: string;
   readonly targetFilePath: string | null;
+  /** 実在検査で解決した指摘対象のリポジトリ。null は未解決。 */
+  readonly targetRepo: string | null;
   readonly category: string;
   readonly severity: string;
   readonly findingText: string;
@@ -159,15 +173,74 @@ export interface MemoryReviewHistoryRow {
   readonly precedesBugEntityIds: readonly string[];
 }
 
+/**
+ * Flight Record（指示単位）へ畳んだレビュー指摘 1 件。
+ * `instructionId` は明示宣言があればその指示 ID、無ければセッション ID（暗黙グループ）。
+ */
+export interface MemoryFlightReviewFindingRow {
+  readonly id: string;
+  /** `precedes` エッジ（バグ → 事前指摘）が指すキー。行 id とは別物。 */
+  readonly findingEntityId: string;
+  readonly reviewId: string;
+  readonly instructionId: string;
+  readonly sessionId: string;
+  readonly title: string;
+  readonly reviewer: string;
+  readonly reviewedAt: string;
+  readonly workspace: string;
+  readonly targetFilePath: string | null;
+  readonly targetRepo: string | null;
+  readonly category: string;
+  readonly severity: string;
+  readonly findingText: string;
+  readonly addressedCommitSha: string | null;
+  readonly addressedAt: string | null;
+}
+
+/** 指示単位の指摘件数（SQL 集計。一覧の limit で欠けない）。 */
+export interface MemoryFlightReviewFindingCountRow {
+  readonly instructionId: string;
+  readonly error: number;
+  readonly warn: number;
+  readonly info: number;
+  readonly total: number;
+}
+
 export type MemoryPipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
 
 export interface MemoryPipelineRunStatsByDayRow {
   readonly day: string;
   readonly scope: string;
+  readonly wave: string;
   readonly runs: number;
   readonly durationSec: number;
   readonly itemsProcessed: number;
   readonly worstStatus: MemoryPipelineRunStatus;
+}
+
+export interface MemoryPipelineRunRow {
+  readonly id: string;
+  readonly scope: string;
+  readonly wave: string;
+  readonly tier: number;
+  readonly status: string;
+  readonly startedAt: string;
+  readonly finishedAt: string | null;
+  readonly durationMs: number;
+  readonly itemsProcessed: number;
+  readonly itemsFailed: number;
+  readonly errorDetail: string;
+}
+
+export interface MemoryPipelineRunLogRow {
+  readonly id: number;
+  readonly timestamp: string;
+  readonly level: string;
+  readonly source: string;
+  readonly component: string;
+  readonly message: string;
+  readonly metadata: string | null;
+  readonly stack: string | null;
 }
 
 export interface MemoryFailedItemRow {
@@ -175,15 +248,8 @@ export interface MemoryFailedItemRow {
   readonly itemKey: string;
   readonly failedAt: string;
   readonly reason: string;
+  readonly detail: string;
   readonly attemptCount: number;
-}
-
-export interface MemoryTopEntityRow {
-  readonly id: string;
-  readonly type: string;
-  readonly canonicalName: string;
-  readonly displayName: string;
-  readonly lastUpdatedAt: string;
 }
 
 export interface MemoryInvalidationRow {

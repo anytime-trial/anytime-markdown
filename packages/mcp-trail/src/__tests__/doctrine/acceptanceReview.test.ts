@@ -28,6 +28,8 @@ function judgmentView(overrides: Partial<DoctrineJudgmentView> = {}): DoctrineJu
     humanDecision: 'approve',
     judgedAt: '2026-08-02T01:00:00.000Z',
     decidedAt: '2026-08-02T01:05:00.000Z',
+    delegatedAt: null,
+    underspecifiedPoints: [],
     parseError: null,
     ...overrides,
   };
@@ -149,6 +151,44 @@ describe('buildAcceptanceReview', () => {
     });
     expect(pending.markdown).toContain('**注意**');
     expect(pending.summary.pendingDecisionCount).toBe(1);
+  });
+
+  it('D2 で代行した判断は「未確定」ではなく「代行」と表示し、未記録の注意に数えない', () => {
+    const review = buildAcceptanceReview({
+      sessionId: 'session-1',
+      judgments: [
+        judgmentView({
+          humanDecision: null,
+          decidedAt: null,
+          delegatedAt: '2026-08-05T02:00:00.000Z',
+        }),
+      ],
+      diff: diffSummary(),
+    });
+
+    expect(review.summary.delegatedCount).toBe(1);
+    expect(review.summary.pendingDecisionCount).toBe(0);
+    expect(review.markdown).toContain('代行（人へ聞いていない）');
+    expect(review.markdown).not.toContain('人の判断が未記録');
+    expect(review.markdown).toContain('うち代行 1 件');
+  });
+
+  it('代行後に人が抜き取り監査で判断した場合は監査であることを併記する', () => {
+    const review = buildAcceptanceReview({
+      sessionId: 'session-1',
+      judgments: [
+        judgmentView({
+          humanDecision: 'reject',
+          decidedAt: '2026-08-05T03:00:00.000Z',
+          delegatedAt: '2026-08-05T02:00:00.000Z',
+        }),
+      ],
+      diff: diffSummary(),
+    });
+
+    expect(review.summary.delegatedCount).toBe(1);
+    expect(review.summary.pendingDecisionCount).toBe(0);
+    expect(review.markdown).toContain('（代行後の監査）');
   });
 
   it('ゲート未評価は delegable として扱わず「未評価」と表示する', () => {

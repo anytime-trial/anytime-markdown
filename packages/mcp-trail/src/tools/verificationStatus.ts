@@ -1,7 +1,8 @@
 /**
- * get_verification_status — verification.db（検証実施台帳）の読み取り。
+ * get_verification_status — trail.db の verification_runs（検証実施台帳）の読み取り。
  * 台帳は「何が実施済みか」を答えるだけで実行を決めない。判定不能・記録なしは常に needsRun へ倒す。
- * スキーマ正本は scripts/verification-db.mjs（本ファイルは SELECT のみでスキーマを作成しない）。
+ * スキーマ正本は packages/trail-core/src/domain/schema/tables.ts の CREATE_VERIFICATION_RUNS
+ * （writer のミラーは scripts/verification-db.mjs）。本ファイルは SELECT のみで作成しない。
  */
 
 import { execFile } from 'node:child_process';
@@ -16,7 +17,7 @@ import { resolveWorkspacePath } from '../dbPath';
 
 const execFileAsync = promisify(execFile);
 
-/** scripts/verification-db.mjs の VERIFICATION_KINDS のミラー（reader は .mjs を import できないため）。 */
+/** trail-core の VERIFICATION_KINDS のミラー（mcp-trail は trail-core に依存しないため）。 */
 export const VERIFICATION_KINDS = ['unit', 'build', 'next-build', 'typecheck', 'lint', 'e2e', 'manual'] as const;
 export type VerificationKind = (typeof VERIFICATION_KINDS)[number];
 
@@ -48,14 +49,43 @@ export interface VerificationStatusResult {
  */
 const PROTECTED_ROOT_PATTERNS = [/\/vscode-server\//, /\/\.vscode\b/, /\/\.claude\b/];
 
-function resolveDbPath(workspacePath: string): string {
-  const home = process.env.TRAIL_HOME ?? path.join(workspacePath, '.anytime', 'trail');
+/**
+ * 共有の `../dbPath` の `resolveDbPath` を使わないのは、あちらが trail.db 不在で throw する
+ * fail-closed だから。本ツールは「台帳が無い＝needsRun」へ倒す fail-open の契約なので、
+ * 不在を例外にせず呼び出し側へ `reason: 'no-db'` として返す必要がある。
+ */
+function resolveDbPath(workspaceRoot: string): string {
+  const home = process.env.TRAIL_HOME ?? path.join(workspaceRoot, '.anytime', 'trail');
   if (PROTECTED_ROOT_PATTERNS.some((p) => p.test(home))) {
     throw new Error(
       `[get_verification_status] refusing protected path "${home}". Set TRAIL_HOME to a workspace-local dir or pass workspacePath.`,
     );
   }
-  return path.join(home, 'db', 'verification.db');
+  return path.join(home, 'db', 'trail.db');
+}
+
+/**
+ * 台帳のあるワークスペース根を解く。writer（scripts/verification-db.mjs の
+ * resolveWorkspaceRootForLedger）と**同じ規則**でなければならない。
+ *
+ * worktree から検証を回すと記録は本体（git common dir の親）の trail.db に入る。ここで
+ * worktree のパスをそのまま使うと、実施済みでも `no-db` / needsRun に落ちて読み書きが噛み合わない。
+ * git 管理外なら渡された値へ縮退する（fail-open の契約を壊さない）。
+ */
+async function resolveLedgerWorkspaceRoot(workspacePath: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync(resolveGitExecutable(), ['rev-parse', '--git-common-dir'], {
+      cwd: workspacePath,
+    });
+    const commonDir = stdout.trim();
+    if (commonDir === '') return workspacePath;
+    return path.dirname(path.resolve(workspacePath, commonDir));
+  } catch (err) {
+    console.warn(
+      `[get_verification_status] git root の解決に失敗したため workspacePath を使う (path=${workspacePath}): ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return workspacePath;
+  }
 }
 
 export async function handleGetVerificationStatus(
@@ -63,7 +93,7 @@ export async function handleGetVerificationStatus(
 ): Promise<VerificationStatusResult> {
   const ws = resolveWorkspacePath(input.workspacePath).path;
   const kinds: string[] = input.kinds ? [...input.kinds] : [...VERIFICATION_KINDS];
-  const dbPath = resolveDbPath(ws);
+  const dbPath = resolveDbPath(await resolveLedgerWorkspaceRoot(ws));
   if (!fs.existsSync(dbPath)) {
     return { commitHash: null, treeState: null, verified: {}, needsRun: kinds, reason: 'no-db' };
   }
@@ -77,7 +107,7 @@ export async function handleGetVerificationStatus(
   }
 
   const db = new DatabaseSync(dbPath, { readOnly: true });
-  // run-verified.mjs (writer) の書込直後に読むと SQLITE_BUSY で即失敗し得るため待機を入れる（doc-core と同値）。
+  // run-verified.mjs (writer) の書込直後に読むと SQLITE_BUSY で即失敗し得るため待機を入れる。
   db.exec('PRAGMA busy_timeout = 5000');
   try {
     const rows = db

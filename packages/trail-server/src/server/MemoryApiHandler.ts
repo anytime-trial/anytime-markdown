@@ -24,6 +24,8 @@ export interface DriftEventRow {
   detectedAt: string;
   resolvedAt: string | null;
   resolutionNote: string;
+  /** 出所ワークスペースの repo_name。'' は未解決（020_workspace_scope.sql）。 */
+  workspace: string;
 }
 
 export interface DriftEventDetail extends DriftEventRow {
@@ -47,8 +49,16 @@ export interface BugHistoryRow {
   category: string;
   subjectSummary: string;
   sessionId: string | null;
+  /**
+   * 関連セッションが属する指示 ID。宣言があればその指示 ID、無ければセッション ID
+   * （`flightFindingSourceSql` の暗黙グループと同じ規則）。セッション不明、または
+   * trail.db が ATTACH できていない構成では null。
+   */
+  instructionId: string | null;
   precededByFindingIds: string[];
   committedAt: string;
+  /** 取込元リポジトリの repo_name。'' は未解決（020_workspace_scope.sql）。 */
+  workspace: string;
 }
 
 export interface BugCausalInfo {
@@ -94,15 +104,81 @@ export interface ReviewHistoryRow {
   precedesBugEntityIds: string[];
 }
 
+/**
+ * Flight Record（指示単位の運航記録）へ畳んだレビュー指摘 1 件。
+ *
+ * `instructionId` は明示宣言（instruction_sessions・memory-core.db 内）があればその指示 ID、無ければ
+ * セッション ID そのもの。後者は TrailDatabase が「1 セッション = 1 指示」の暗黙グループへ
+ * セッション ID を指示 ID として使うため、同じ値で突き合わせられる。
+ */
+export interface FlightReviewFindingRow {
+  id: string;
+  /**
+   * memory_edges の `precedes` が指すのは finding の **entity id** であり行 id ではない。
+   * バグ側の「事前指摘」チップから指摘へ絞り込むには両者を同じキーで揃える必要があるため、
+   * 行 id と併せて entity id も返す。
+   */
+  findingEntityId: string;
+  reviewId: string;
+  instructionId: string;
+  sessionId: string;
+  title: string;
+  reviewer: string;
+  reviewedAt: string;
+  workspace: string;
+  targetFilePath: string | null;
+  targetRepo: string | null;
+  category: string;
+  severity: string;
+  findingText: string;
+  addressedCommitSha: string | null;
+  addressedAt: string | null;
+}
+
+/** 指示単位の指摘件数。一覧の列に出すため SQL 側で集計する（limit で欠けさせない）。 */
+export interface FlightReviewFindingCountRow {
+  instructionId: string;
+  error: number;
+  warn: number;
+  info: number;
+  total: number;
+}
+
 export type PipelineRunStatus = 'error' | 'partial' | 'success' | 'running';
 
 export interface PipelineRunStatsByDayRow {
   day: string;
   scope: string;
+  wave: string;
   runs: number;
   durationSec: number;
   itemsProcessed: number;
   worstStatus: PipelineRunStatus;
+}
+
+export interface PipelineRunRow {
+  id: string;
+  scope: string;
+  wave: string;
+  tier: number;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number;
+  itemsProcessed: number;
+  itemsFailed: number;
+  errorDetail: string;
+}
+
+export interface PipelineRunLogRow {
+  id: number;
+  timestamp: string;
+  level: string;
+  source: string;
+  component: string;
+  message: string;
+  metadata: string | null;
+  stack: string | null;
 }
 
 export interface FailedItemRow {
@@ -110,15 +186,8 @@ export interface FailedItemRow {
   itemKey: string;
   failedAt: string;
   reason: string;
+  detail: string;
   attemptCount: number;
-}
-
-export interface TopEntityRow {
-  id: string;
-  type: string;
-  canonicalName: string;
-  displayName: string;
-  lastUpdatedAt: string;
 }
 
 export interface InvalidationRow {
@@ -133,8 +202,12 @@ export interface InvalidationRow {
 //  Helper
 // ---------------------------------------------------------------------------
 
-function clampLimit(limit: number | undefined, def: number): number {
-  return Math.min(limit ?? def, 200);
+/**
+ * 上限は呼び出し側が決める。既定 200 を固定値で埋め込んでいたため、ルートが 1000 まで
+ * 許した指定も無音で 200 へ丸められていた（一覧が欠けても呼び出し側には見えない）。
+ */
+function clampLimit(limit: number | undefined, def: number, max = 200): number {
+  return Math.min(limit ?? def, max);
 }
 
 function toBindParams(arr: unknown[]): SqlValue[] {
@@ -177,6 +250,16 @@ export class MemoryApiHandler {
 
   /** trail.db が cachedReadOnlyDb に ATTACH 済みか（session レビューの model 取得用） */
   private trailDbAttached = false;
+
+  /**
+   * memory-core.db に instruction_sessions が在るか（指示 ID 解決用）。
+   * Flight Record は memory-core.db へ移設済み（2026-08-07）だが、移行前の DB や
+   * FlightRecordDatabase 初期化前はテーブルが無いため、実在を見て縮退を決める。
+   * probe は openReadOnly の接続キャッシュ確立時に 1 回だけ走る。TrailDataServer の
+   * コンストラクタが FlightRecordDatabase.init()（= ensureTables）を同期完了させてから
+   * リスナを立てる配線順序が前提（並べ替えると初回リクエストで恒久 false になりうる）。
+   */
+  private instructionSessionsAvailable = false;
 
   /**
    * better-sqlite3 の native binary 絶対パス。webpack-bundled VS Code 拡張で
@@ -230,6 +313,15 @@ export class MemoryApiHandler {
         readOnly: true,
         ...(this.nativeBinding ? { nativeBinding: this.nativeBinding } : {}),
       });
+      try {
+        const probe = this.cachedReadOnlyDb.exec(
+          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'instruction_sessions'`,
+        );
+        this.instructionSessionsAvailable = (probe[0]?.values.length ?? 0) > 0;
+      } catch (err) {
+        this.instructionSessionsAvailable = false;
+        this.logger.warn(`[MemoryApiHandler.openReadOnly] instruction_sessions probe failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
       const trailDbPath = path.join(path.dirname(this.dbPath), 'trail.db');
       if (fs.existsSync(trailDbPath)) {
         // attachTrailDbReadOnly は async。同期 try/catch では reject を捕捉できない (S4822) ため
@@ -274,11 +366,47 @@ export class MemoryApiHandler {
 
   // ---- drift events ----
 
+  /**
+   * memory-core が保持するワークスペース（repo_name）の一覧。
+   *
+   * Flight Record のワークスペース選択肢に使う。一覧 API の結果から作らないのは、
+   * limit と絞り込みで縮んだ窓に出てこないワークスペースが選択肢から消え、
+   * 「そのワークスペースの記録が無い」と読めてしまうため。
+   * '' （未解決）は選択肢にしない — 絞り込みの対象ではなく取込側の欠損だから。
+   */
+  async listWorkspaces(): Promise<string[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      const names = new Set<string>();
+      for (const sql of [
+        "SELECT DISTINCT workspace FROM memory_reviews WHERE workspace != ''",
+        "SELECT DISTINCT workspace FROM memory_bug_fixes WHERE workspace != ''",
+        "SELECT DISTINCT workspace FROM memory_drift_events WHERE workspace != ''",
+      ]) {
+        const result = db.exec(sql);
+        for (const row of result[0]?.values ?? []) names.add(String(row[0]));
+      }
+      return [...names].sort((a, b) => a.localeCompare(b));
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.listWorkspaces] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
   async listDriftEvents(params: {
     unresolvedOnly?: boolean;
     severity?: string;
     driftType?: string;
     since?: string;
+    /**
+     * ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。
+     * memory-core.db は複数ワークスペースを 1 DB に集約するため、これが無いと
+     * Flight Record の Drift タブに他ワークスペースの乖離が混ざる。
+     */
+    workspace?: string;
     limit?: number;
   }): Promise<DriftEventRow[]> {
     const db = this.openReadOnly();
@@ -303,6 +431,10 @@ export class MemoryApiHandler {
         conditions.push('de.detected_at >= ?');
         bindValues.push(params.since);
       }
+      if (params.workspace) {
+        conditions.push('de.workspace = ?');
+        bindValues.push(params.workspace);
+      }
 
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
@@ -311,7 +443,7 @@ export class MemoryApiHandler {
         SELECT de.id, de.subject_entity_id, COALESCE(e.display_name, e.canonical_name, '') AS subject_display_name,
                de.predicate, de.drift_type, de.severity,
                de.conversation_value, de.spec_value, de.code_value,
-               de.detected_at, de.resolved_at, de.resolution_note
+               de.detected_at, de.resolved_at, de.resolution_note, de.workspace
         FROM memory_drift_events de
         LEFT JOIN memory_entities e ON e.id = de.subject_entity_id
         ${where}
@@ -337,6 +469,7 @@ export class MemoryApiHandler {
           detectedAt: toStr(r['detected_at']),
           resolvedAt: toNullStr(r['resolved_at']),
           resolutionNote: toStr(r['resolution_note']),
+          workspace: toStr(r['workspace']),
         };
       });
     } catch (err) {
@@ -355,7 +488,7 @@ export class MemoryApiHandler {
         `SELECT de.id, de.subject_entity_id, COALESCE(e.display_name, e.canonical_name, '') AS subject_display_name,
                 de.predicate, de.drift_type, de.severity,
                 de.conversation_value, de.spec_value, de.code_value,
-                de.detected_at, de.resolved_at, de.resolution_note, de.detail_json
+                de.detected_at, de.resolved_at, de.resolution_note, de.detail_json, de.workspace
          FROM memory_drift_events de
          LEFT JOIN memory_entities e ON e.id = de.subject_entity_id
          WHERE de.id = ?`,
@@ -383,6 +516,7 @@ export class MemoryApiHandler {
         detectedAt: toStr(r['detected_at']),
         resolvedAt: toNullStr(r['resolved_at']),
         resolutionNote: toStr(r['resolution_note']),
+        workspace: toStr(r['workspace']),
         detailJson,
       };
     } catch (err) {
@@ -412,6 +546,8 @@ export class MemoryApiHandler {
   async listRecurringBugs(params: {
     package?: string;
     windowDays?: number;
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   }): Promise<RecurringBugRow[]> {
     const db = this.openReadOnly();
@@ -419,13 +555,17 @@ export class MemoryApiHandler {
     try {
       const limit = clampLimit(params.limit, 50);
       const conditions: string[] = [
-        `de.drift_type IN ('regression_cluster','spec_violation_cluster','recurring_root_cause')`,
+        `de.drift_type IN ('regression_cluster','spec_violation_cluster')`,
         `de.resolved_at IS NULL`,
       ];
       const bindValues: unknown[] = [];
       if (params.windowDays) {
         conditions.push(`de.detected_at >= datetime('now', '-' || ? || ' days')`);
         bindValues.push(params.windowDays);
+      }
+      if (params.workspace) {
+        conditions.push('de.workspace = ?');
+        bindValues.push(params.workspace);
       }
       bindValues.push(limit);
       const result = db.exec(
@@ -465,6 +605,14 @@ export class MemoryApiHandler {
     package?: string;
     filePath?: string;
     category?: string;
+    /**
+     * 指示に属するセッションで絞る。Flight Record の詳細ペインは「この指示が潰したバグ」を
+     * 出すため、クライアント側で最新 N 件を絞るのではなくここで絞る（limit で先に切られると
+     * 古い指示のバグが「0 件」に化けて、無いのか出ていないのか区別できなくなる）。
+     */
+    sessionIds?: readonly string[];
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   }): Promise<BugHistoryRow[]> {
     const db = this.openReadOnly();
@@ -481,11 +629,33 @@ export class MemoryApiHandler {
         conditions.push('bf.category = ?');
         bindValues.push(params.category);
       }
+      if (params.workspace) {
+        conditions.push('bf.workspace = ?');
+        bindValues.push(params.workspace);
+      }
+      if (params.sessionIds !== undefined) {
+        // 空配列は「絞り込み対象が 0 件」であって「絞り込み無し」ではない。ここで
+        // 条件を落とすと全バグが返り、セッション不明の指示が全件を自分の成果に見せる。
+        if (params.sessionIds.length === 0) return [];
+        conditions.push(`bf.related_session_id IN (${params.sessionIds.map(() => '?').join(',')})`);
+        bindValues.push(...params.sessionIds);
+      }
       const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       bindValues.push(limit);
+      // 指示 ID は Review タブ（flightFindingSourceSql）と同じ規則で解決する。
+      // instruction_sessions は memory-core.db 内（2026-08-07 移設）。未移行 DB では
+      // テーブルが無いので、行全体を落とさずセッション ID へフォールバックする。
+      const instructionIdExpr = this.instructionSessionsAvailable
+        ? `COALESCE(
+             (SELECT i.instruction_id FROM instruction_sessions i
+               WHERE i.session_id = bf.related_session_id),
+             bf.related_session_id
+           )`
+        : 'bf.related_session_id';
       const result = db.exec(
         `SELECT bf.id, bf.commit_sha, bf.bug_entity_id, bf.package, bf.category,
-                bf.subject_summary, bf.related_session_id, bf.committed_at,
+                bf.subject_summary, bf.related_session_id, bf.committed_at, bf.workspace,
+                ${instructionIdExpr} AS instruction_id,
                 (SELECT GROUP_CONCAT(e.subject_entity_id)
                  FROM memory_edges e
                  WHERE e.predicate='precedes' AND e.valid_to IS NULL
@@ -509,8 +679,10 @@ export class MemoryApiHandler {
           category: toStr(r['category']),
           subjectSummary: toStr(r['subject_summary']),
           sessionId: toNullStr(r['related_session_id']),
+          instructionId: toNullStr(r['instruction_id']),
           precededByFindingIds: precededByRaw ? precededByRaw.split(',').filter(Boolean) : [],
           committedAt: toStr(r['committed_at']),
+          workspace: toStr(r['workspace']),
         };
       });
     } catch (err) {
@@ -736,8 +908,8 @@ export class MemoryApiHandler {
                     THEN substr(r.source_ref, 1, instr(r.source_ref, '#') - 1)
                   ELSE NULL
                 END AS session_id,
-                r.reviewed_at,
-                rf.target_file_path, rf.category, rf.severity, rf.finding_text,
+                r.reviewed_at, r.workspace,
+                rf.target_file_path, rf.target_repo, rf.category, rf.severity, rf.finding_text,
                 rf.addressed_commit_sha, rf.addressed_at,
                 (SELECT GROUP_CONCAT(e.object_entity_id)
                  FROM memory_edges e
@@ -766,7 +938,9 @@ export class MemoryApiHandler {
           model: toNullStr(r['model']),
           sessionId: toNullStr(r['session_id']),
           reviewedAt: toStr(r['reviewed_at']),
+          workspace: toStr(r['workspace']),
           targetFilePath: toNullStr(r['target_file_path']),
+          targetRepo: toNullStr(r['target_repo']),
           category: toStr(r['category']),
           severity: toStr(r['severity']),
           findingText: toStr(r['finding_text']),
@@ -777,6 +951,141 @@ export class MemoryApiHandler {
       });
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.getReviewHistory] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  /**
+   * session 経路のレビューを指示（Flight Record の行の単位）へ畳む副問い合わせ。
+   *
+   * `review_doc` / `agent` 経路は session_id を持たないため対象外。SQLite は WHERE 句で
+   * SELECT のエイリアスを参照できないので、instruction_id は必ずこの副問い合わせの
+   * 外側で絞り込む。
+   */
+  private flightFindingSourceSql(): string {
+    return `SELECT f.*,
+                   COALESCE(
+                     (SELECT i.instruction_id FROM instruction_sessions i
+                       WHERE i.session_id = f.session_id),
+                     f.session_id
+                   ) AS instruction_id
+            FROM (
+              SELECT rf.id, rf.finding_entity_id, rf.review_id, rf.target_file_path, rf.target_repo,
+                     rf.category, rf.severity, rf.finding_text,
+                     rf.addressed_commit_sha, rf.addressed_at,
+                     r.title, r.reviewer, r.reviewed_at, r.workspace,
+                     substr(r.source_ref, 1, instr(r.source_ref, '#') - 1) AS session_id
+              FROM memory_review_findings rf
+              JOIN memory_reviews r ON r.id = rf.review_id
+              WHERE r.source_kind = 'session' AND instr(r.source_ref, '#') > 1
+            ) f`;
+  }
+
+  /**
+   * 指示単位の指摘件数。instructionIds 未指定なら全件を返す。
+   *
+   * trail.db が ATTACH できていないときは結合キー（instruction_sessions）が引けないため
+   * 空配列を返す。呼び出し側が「0 件」と「引けなかった」を区別できるよう、理由をログへ残す。
+   */
+  async getFlightReviewFindingCounts(): Promise<FlightReviewFindingCountRow[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      if (!this.instructionSessionsAvailable) {
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindingCounts] instruction_sessions table missing in memory-core.db; cannot resolve instruction ids');
+        return [];
+      }
+      const result = db.exec(
+        `SELECT instruction_id,
+                SUM(CASE WHEN severity = 'error' THEN 1 ELSE 0 END) AS error_count,
+                SUM(CASE WHEN severity = 'warn'  THEN 1 ELSE 0 END) AS warn_count,
+                SUM(CASE WHEN severity = 'info'  THEN 1 ELSE 0 END) AS info_count,
+                COUNT(*) AS total_count
+         FROM (${this.flightFindingSourceSql()})
+         GROUP BY instruction_id`,
+      );
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return {
+          instructionId: toStr(r['instruction_id']),
+          error: toNum(r['error_count']),
+          warn: toNum(r['warn_count']),
+          info: toNum(r['info_count']),
+          total: toNum(r['total_count']),
+        };
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.getFlightReviewFindingCounts] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  /** 指示単位のレビュー指摘一覧。instructionIds を渡すとその指示だけに絞る。 */
+  async getFlightReviewFindings(params: {
+    instructionIds?: readonly string[];
+    /** レビューが行われたワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
+    limit?: number;
+  }): Promise<FlightReviewFindingRow[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      if (!this.instructionSessionsAvailable) {
+        this.logger.error('[MemoryApiHandler.getFlightReviewFindings] instruction_sessions table missing in memory-core.db; cannot resolve instruction ids');
+        return [];
+      }
+      // Review タブは全指示横断の一覧なので、他 API より大きい上限を許す（ルートの
+      // clampInt と同じ 1000）。ここを 200 に固定すると、件数（集計・上限なし）とだけ
+      // 食い違い、詳細ペインが「指摘なし」・件数列が非ゼロという矛盾表示になる。
+      const limit = clampLimit(params.limit, 500, 1000);
+      const ids = params.instructionIds ?? [];
+      const bindValues: unknown[] = [...ids];
+      const conditions: string[] = [];
+      if (ids.length > 0) conditions.push(`instruction_id IN (${ids.map(() => '?').join(',')})`);
+      if (params.workspace) {
+        conditions.push('workspace = ?');
+        bindValues.push(params.workspace);
+      }
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      bindValues.push(limit);
+      const result = db.exec(
+        `SELECT * FROM (${this.flightFindingSourceSql()})
+         ${where}
+         ORDER BY reviewed_at DESC, id ASC
+         LIMIT ?`,
+        toBindParams(bindValues),
+      );
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return {
+          id: toStr(r['id']),
+          findingEntityId: toStr(r['finding_entity_id']),
+          reviewId: toStr(r['review_id']),
+          instructionId: toStr(r['instruction_id']),
+          sessionId: toStr(r['session_id']),
+          title: toStr(r['title']),
+          reviewer: toStr(r['reviewer']),
+          reviewedAt: toStr(r['reviewed_at']),
+          workspace: toStr(r['workspace']),
+          targetFilePath: toNullStr(r['target_file_path']),
+          targetRepo: toNullStr(r['target_repo']),
+          category: toStr(r['category']),
+          severity: toStr(r['severity']),
+          findingText: toStr(r['finding_text']),
+          addressedCommitSha: toNullStr(r['addressed_commit_sha']),
+          addressedAt: toNullStr(r['addressed_at']),
+        };
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.getFlightReviewFindings] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       this.close(db);
@@ -808,6 +1117,7 @@ export class MemoryApiHandler {
       const result = db.exec(
         `SELECT substr(started_at, 1, 10) AS day,
                 scope,
+                wave,
                 COUNT(*) AS runs,
                 COALESCE(SUM(duration_ms), 0) / 1000 AS duration_sec,
                 COALESCE(SUM(items_processed), 0) AS items_processed,
@@ -818,10 +1128,10 @@ export class MemoryApiHandler {
                       WHEN 'running' THEN 0
                       ELSE 0
                     END) AS worst_rank
-         FROM memory_pipeline_runs
+         FROM pipeline_runs
          ${where}
-         GROUP BY day, scope
-         ORDER BY day DESC, scope ASC`,
+         GROUP BY day, scope, wave
+         ORDER BY day DESC, scope ASC, wave ASC`,
         toBindParams(bindValues),
       );
       if (!result[0]) return [];
@@ -836,6 +1146,7 @@ export class MemoryApiHandler {
         return {
           day: toStr(r['day']),
           scope: toStr(r['scope']),
+          wave: toStr(r['wave']),
           runs: toNum(r['runs']),
           durationSec: toNum(r['duration_sec']),
           itemsProcessed: toNum(r['items_processed']),
@@ -844,6 +1155,106 @@ export class MemoryApiHandler {
       });
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.listPipelineRunStatsByDay] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  async listPipelineRuns(params: {
+    since?: string;
+    wave?: string;
+    status?: string;
+    limit?: number;
+  }): Promise<PipelineRunRow[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      const limit = clampLimit(params.limit, 100);
+      const conditions: string[] = [];
+      const bindValues: unknown[] = [];
+      if (params.since) {
+        conditions.push('started_at >= ?');
+        bindValues.push(params.since);
+      }
+      if (params.wave) {
+        conditions.push('wave = ?');
+        bindValues.push(params.wave);
+      }
+      if (params.status) {
+        conditions.push('status = ?');
+        bindValues.push(params.status);
+      }
+      bindValues.push(limit);
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const result = db.exec(
+        `SELECT id, scope, wave, tier, status, started_at, finished_at, duration_ms,
+                items_processed, items_failed, error_detail
+         FROM pipeline_runs
+         ${where}
+         ORDER BY started_at DESC
+         LIMIT ?`,
+        toBindParams(bindValues),
+      );
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return {
+          id: toStr(r['id']),
+          scope: toStr(r['scope']),
+          wave: toStr(r['wave']),
+          tier: toNum(r['tier']),
+          status: toStr(r['status']),
+          startedAt: toStr(r['started_at']),
+          finishedAt: toNullStr(r['finished_at']),
+          durationMs: toNum(r['duration_ms']),
+          itemsProcessed: toNum(r['items_processed']),
+          itemsFailed: toNum(r['items_failed']),
+          errorDetail: toStr(r['error_detail']),
+        };
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.listPipelineRuns] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
+      return [];
+    } finally {
+      this.close(db);
+    }
+  }
+
+  async listPipelineRunLogs(params: {
+    runId: string;
+    limit?: number;
+  }): Promise<PipelineRunLogRow[]> {
+    const db = this.openReadOnly();
+    if (!db) return [];
+    try {
+      const limit = clampLimit(params.limit, 200);
+      const result = db.exec(
+        `SELECT id, timestamp, level, source, component, message, metadata, stack
+         FROM pipeline_run_logs
+         WHERE run_id = ?
+         ORDER BY timestamp ASC, id ASC
+         LIMIT ?`,
+        toBindParams([params.runId, limit]),
+      );
+      if (!result[0]) return [];
+      const { columns, values } = result[0];
+      return values.map((row) => {
+        const r = mapRow<Record<string, unknown>>(columns, row);
+        return {
+          id: toNum(r['id']),
+          timestamp: toStr(r['timestamp']),
+          level: toStr(r['level']),
+          source: toStr(r['source']),
+          component: toStr(r['component']),
+          message: toStr(r['message']),
+          metadata: toNullStr(r['metadata']),
+          stack: toNullStr(r['stack']),
+        };
+      });
+    } catch (err) {
+      this.logger.error(`[MemoryApiHandler.listPipelineRunLogs] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       this.close(db);
@@ -935,7 +1346,7 @@ export class MemoryApiHandler {
       }
       bindValues.push(limit);
       const result = db.exec(
-        `SELECT scope, item_key, failed_at, reason, attempt_count
+        `SELECT scope, item_key, failed_at, reason, detail, attempt_count
          FROM memory_failed_items
          WHERE ${conditions.join(' AND ')}
          ORDER BY failed_at DESC
@@ -951,57 +1362,12 @@ export class MemoryApiHandler {
           itemKey: toStr(r['item_key']),
           failedAt: toStr(r['failed_at']),
           reason: toStr(r['reason']),
+          detail: toStr(r['detail']),
           attemptCount: toNum(r['attempt_count']),
         };
       });
     } catch (err) {
       this.logger.error(`[MemoryApiHandler.listFailedItems] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
-      return [];
-    } finally {
-      this.close(db);
-    }
-  }
-
-  // ---- top entities ----
-
-  async listTopEntities(params: {
-    type?: string;
-    limit?: number;
-  }): Promise<TopEntityRow[]> {
-    const db = this.openReadOnly();
-    if (!db) return [];
-    try {
-      const limit = clampLimit(params.limit, 20);
-      const conditions: string[] = [];
-      const bindValues: unknown[] = [];
-      if (params.type) {
-        conditions.push('type = ?');
-        bindValues.push(params.type);
-      }
-      const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      bindValues.push(limit);
-      const result = db.exec(
-        `SELECT id, type, canonical_name, COALESCE(display_name, canonical_name) AS display_name, last_updated_at
-         FROM memory_entities
-         ${where}
-         ORDER BY last_updated_at DESC
-         LIMIT ?`,
-        toBindParams(bindValues),
-      );
-      if (!result[0]) return [];
-      const { columns, values } = result[0];
-      return values.map((row) => {
-        const r = mapRow<Record<string, unknown>>(columns, row);
-        return {
-          id: toStr(r['id']),
-          type: toStr(r['type']),
-          canonicalName: toStr(r['canonical_name']),
-          displayName: toStr(r['display_name']),
-          lastUpdatedAt: toStr(r['last_updated_at']),
-        };
-      });
-    } catch (err) {
-      this.logger.error(`[MemoryApiHandler.listTopEntities] ${String(err)}, Stack: ${err instanceof Error ? err.stack : ''}`);
       return [];
     } finally {
       this.close(db);
@@ -1052,6 +1418,11 @@ export class MemoryApiHandler {
   }
 
   // ---- edge invalidations ----
+  // 現在 UI の消費者は無い（2026-08-05 に Runs パネルから撤去）。将来のグラフ表示で
+  // 失効エッジの重畳・時点指定に使うため意図的に残す。消費者ゼロを根拠に撤去しないこと。
+  // 失効エッジは valid_to が入って現在断面のグラフから外れるため、この経路以外に
+  // 「何がいつ何に置き換わったか」の供給元が無い。
+  // 経緯: spec/31.trail/02.trail-viewer/trail-viewer-screen/trail-viewer-screen-memory.ja.md §7.1
 
   async listInvalidations(params: {
     since?: string;

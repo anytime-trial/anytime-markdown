@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { Database } from 'better-sqlite3';
 import { loadBetterSqlite3 } from '../internal/loadBetterSqlite3';
 
@@ -34,7 +35,56 @@ export async function openTrailDb(
   }
   const Ctor = loadBetterSqlite3();
   const db = new Ctor(dbPath, { readonly: mode === 'readonly' });
+  return wrapOpenedDb(db, dbPath, mode);
+}
 
+/**
+ * memory-core.db を better-sqlite3 で開く。
+ *
+ * Flight Record（instructions / instruction_sessions / flight_reviews）の移設
+ * （2026-08-07）に伴い、指示台帳の直書きはこちらを使う。
+ *
+ * ファイル不在は原則 throw（fail-closed。場所違いの空 DB を黙って作ると以降の
+ * クエリが一律 0 件の偽陰性になる）。**例外は readwrite かつ同ディレクトリに
+ * trail.db が実在する場合**で、このときだけ新規作成を許す — 既存ワークスペース
+ * （trail.db 実在が正しい `<trailHome>/db` の証左）で、拡張が memory-core.db を
+ * 作るより先にセッション開始の宣言が届いても記録を落とさないため
+ * （「デーモン未起動でも宣言が落ちない」設計要件の維持）。
+ *
+ * 拡張の memory pipeline / デーモンと同一ファイルを共有するため WAL を保証し、
+ * busy_timeout を設定する（書き込みは短時間）。
+ */
+export async function openMemoryDb(
+  dbPath: string,
+  mode: 'readonly' | 'readwrite',
+): Promise<OpenedDb> {
+  if (!fs.existsSync(dbPath)) {
+    const siblingTrailDb = path.join(path.dirname(dbPath), 'trail.db');
+    if (mode !== 'readwrite' || !fs.existsSync(siblingTrailDb)) {
+      throw new Error(`memory-core.db not found: ${dbPath}`);
+    }
+  }
+  const Ctor = loadBetterSqlite3();
+  const db = new Ctor(dbPath, { readonly: mode === 'readonly' });
+  if (mode === 'readwrite') {
+    // WAL は前提でなく実装で担保する（新規作成直後は既定の DELETE ジャーナルのため）。
+    const journalMode = String(db.pragma('journal_mode = WAL', { simple: true }));
+    if (journalMode.toLowerCase() !== 'wal') {
+      console.error(`[mcp-trail] memory-core.db journal_mode=WAL unavailable (got ${journalMode})`);
+    }
+  }
+  db.pragma('busy_timeout = 5000');
+  // trail.db 時代と同じく FK は強制しない（better-sqlite3 は既定 ON。
+  // instruction_sessions の FK は宣言のみの運用 — trail-core tables.ts のコメント参照）
+  db.pragma('foreign_keys = OFF');
+  return wrapOpenedDb(db, dbPath, mode);
+}
+
+function wrapOpenedDb(
+  db: Database,
+  dbPath: string,
+  mode: 'readonly' | 'readwrite',
+): OpenedDb {
   const save = (): void => {
     if (mode !== 'readwrite') {
       throw new Error('Cannot save: db opened in readonly mode');

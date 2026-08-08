@@ -8,7 +8,8 @@ import {
   splitIntoChapters,
   extractProblemSuggestionPairs,
   extractNumberedFindings,
-  extractTargetFromFinding,
+  parseTargetMarker,
+  resolveFindingTarget,
   parseChecklistRefMarker,
 } from './findingHelpers';
 
@@ -27,7 +28,12 @@ export type ParsedReviewDoc = {
   };
   targetRefs: string[];
   findings: ParsedFinding[];
+  /** 本文の保存・表示用（先頭 BODY_EXCERPT_MAX 文字）。指摘抽出には全文を使う。 */
+  bodyExcerpt: string;
 };
+
+/** memory_reviews.body_excerpt に入れる本文の上限（parseReviewSession と揃える）。 */
+const BODY_EXCERPT_MAX = 4096;
 
 export function parseReviewDoc(input: {
   rel_path: string;
@@ -83,30 +89,40 @@ export function parseReviewDoc(input: {
 
   const defaultTarget = allTargetRefs[0] ?? null;
 
-  function pushFinding(
-    findingText: string,
-    suggestionText: string,
-    heading: string,
-    category: ParsedFinding['category'],
-    severity: ParsedFinding['severity'],
-    is_category_inferred: boolean,
-    checklistRef: string | null,
-  ): void {
-    const localTarget =
-      extractTargetFromFinding(heading + '\n' + findingText + '\n' + suggestionText);
+  /** チャプター単位で決まる属性。finding ごとに変わらないものをまとめて渡す。 */
+  type ChapterContext = {
+    readonly heading: string;
+    readonly category: ParsedFinding['category'];
+    readonly severity: ParsedFinding['severity'];
+    readonly is_category_inferred: boolean;
+    readonly checklistRef: string | null;
+    /** チャプター全体から取れた `- **対象**:`。 */
+    readonly chapterTarget: string | null;
+    /** このチャプターが生む finding の件数（対象マーカーの流用可否を決める）。 */
+    readonly findingCount: number;
+  };
+
+  function pushFinding(findingText: string, suggestionText: string, ctx: ChapterContext): void {
+    // 明示された `- **対象**:` を最優先。次に本文からの推測、最後にレビュー全体の
+    // 既定対象。推測を先に置くと、コード例に現れる実在しないパスが明示指定に勝つ。
+    const localTarget = resolveFindingTarget({
+      ownText: ctx.heading + '\n' + findingText + '\n' + suggestionText,
+      chapterTarget: ctx.chapterTarget,
+      chapterFindingCount: ctx.findingCount,
+    });
     findings.push({
       finding_index: findingIndex++,
       target_file_path: localTarget ?? defaultTarget,
       target_symbol: null,
       target_line_start: null,
       target_line_end: null,
-      category,
-      severity,
+      category: ctx.category,
+      severity: ctx.severity,
       finding_text: findingText,
       suggestion_text: suggestionText,
-      chapter_path: heading,
-      is_category_inferred,
-      checklist_ref: checklistRef,
+      chapter_path: ctx.heading,
+      is_category_inferred: ctx.is_category_inferred,
+      checklist_ref: ctx.checklistRef,
     });
   }
 
@@ -121,21 +137,30 @@ export function parseReviewDoc(input: {
     const severity = bodyBasedSeverity === 'info' ? headingSeverity : bodyBasedSeverity;
     // 観点キー（severity と同じ chapter 粒度。マーカー無しは null＝未記録）
     const checklistRef = parseChecklistRefMarker(chapterBody);
+    const chapterTarget = parseTargetMarker(chapterBody);
 
     // Strategy 1: 既存ペア抽出（拡張 marker + bullet 接頭辞対応済み）
     const pairs = extractProblemSuggestionPairs(chapter.lines);
     if (pairs.length > 0) {
+      const ctx: ChapterContext = {
+        heading: chapter.heading, category, severity, is_category_inferred,
+        checklistRef, chapterTarget, findingCount: pairs.length,
+      };
       for (const [findingText, suggestionText] of pairs) {
-        pushFinding(findingText, suggestionText, chapter.heading, category, severity, is_category_inferred, checklistRef);
+        pushFinding(findingText, suggestionText, ctx);
       }
       continue;
     }
 
     // Strategy 2: 番号付き finding（Sample 2/3: 🟡 **N. title** / **N. title**）
     const numbered = extractNumberedFindings(chapter.lines);
+    const ctx: ChapterContext = {
+      heading: chapter.heading, category, severity, is_category_inferred,
+      checklistRef, chapterTarget, findingCount: numbered.length,
+    };
     for (const nf of numbered) {
       const findingText = nf.title + (nf.finding ? `\n\n${nf.finding}` : '');
-      pushFinding(findingText, nf.suggestion, chapter.heading, category, severity, is_category_inferred, checklistRef);
+      pushFinding(findingText, nf.suggestion, ctx);
     }
   }
 
@@ -152,5 +177,7 @@ export function parseReviewDoc(input: {
     },
     targetRefs: allTargetRefs,
     findings,
+    bodyExcerpt:
+      fm.content.length > BODY_EXCERPT_MAX ? fm.content.slice(0, BODY_EXCERPT_MAX) : fm.content,
   };
 }

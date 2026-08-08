@@ -4,9 +4,12 @@ import {
   inferSeverityFromHeading,
   inferSeverity,
   extractTargetFromFinding,
+  extractBacktickPaths,
   maxSeverity,
   parseSeverityMarker,
   parseChecklistRefMarker,
+  parseTargetMarker,
+  resolveFindingTarget,
 } from '../../../src/ingest/review/findingHelpers';
 
 describe('maxSeverity', () => {
@@ -308,6 +311,69 @@ describe('extractTargetFromFinding', () => {
   test('returns null on empty text', () => {
     expect(extractTargetFromFinding('')).toBeNull();
   });
+
+  // ── 退行防止: バッククォート内容を丸ごと積む欠陥 ─────────────────────────────
+  //
+  // 旧実装は `PATH_TOKEN_RE.test(inner)` が真なら inner 全体を候補に積んでいた。
+  // そのためバッククォート内の複数行シェル実行ログが丸ごと target_file_path として
+  // 保存されていた（本番 memory-core.db に実在）。マッチした部分文字列だけを採る。
+
+  test('複数行のシェル実行ログからパス部分だけを取り出す', () => {
+    const text = [
+      '実行結果:',
+      '```',
+      '$ node scripts/check-skill-manifest-bump.mjs 8191c2b8e',
+      '[check-skill-manifest-bump] manifest の版数バンプが漏れています:',
+      'exit 1',
+      '```',
+    ].join('\n');
+    const result = extractTargetFromFinding(text);
+    expect(result).not.toContain('\n');
+    expect(result).not.toContain(' ');
+  });
+
+  test('バッククォート内にパスと散文が混在しても散文を含めない', () => {
+    const text = '`該当は packages/foo/src/bar.ts のあたり`';
+    expect(extractTargetFromFinding(text)).toBe('packages/foo/src/bar.ts');
+  });
+
+  test('URL を target として返さない', () => {
+    const text = '参考: `https://github.com/owner/repo/blob/feature/foo/docs/design.md`';
+    expect(extractTargetFromFinding(text)).toBeNull();
+  });
+
+  test('グロブを target として返さない', () => {
+    expect(extractTargetFromFinding('`packages/*/src/i18n/navigation.ts` が対象')).toBeNull();
+  });
+});
+
+describe('extractBacktickPaths', () => {
+  test('パスとして成立する値だけを返す', () => {
+    const line = 'レビュー対象: `packages/markdown-viewer` `packages/foo/src/bar.ts`';
+    expect(extractBacktickPaths(line)).toEqual([
+      'packages/markdown-viewer',
+      'packages/foo/src/bar.ts',
+    ]);
+  });
+
+  // 退行防止: 旧実装はバッククォート内容を無検証で全部返していたため、
+  // `レビュー対象:` 行やセッションの user prompt にある散文・コマンド・URL が
+  // そのまま target_refs と既定 target になっていた。
+  test('散文・コマンド・URL を除外する', () => {
+    const line =
+      '`レビュー対象` `node --test scripts/x.test.mjs` `https://example.com/a.ts` `packages/foo/src/bar.ts`';
+    expect(extractBacktickPaths(line)).toEqual(['packages/foo/src/bar.ts']);
+  });
+
+  test('行番号サフィックスを落として重複を畳む', () => {
+    const line = '`packages/foo/src/bar.ts:10` と `packages/foo/src/bar.ts:20`';
+    expect(extractBacktickPaths(line)).toEqual(['packages/foo/src/bar.ts']);
+  });
+
+  test('絶対パスは剥がさずそのまま返す', () => {
+    const line = '`/anytime-trade/docs/specs/x.md`';
+    expect(extractBacktickPaths(line)).toEqual(['/anytime-trade/docs/specs/x.md']);
+  });
 });
 
 describe('inferSeverity (keyword expansion)', () => {
@@ -473,5 +539,70 @@ describe('parseChecklistRefMarker', () => {
 
   test('first marker wins when multiple findings concatenated', () => {
     expect(parseChecklistRefMarker('- 観点: §8\n本文\n- 観点: none')).toBe('§8');
+  });
+});
+
+describe('parseTargetMarker', () => {
+  test('スキル書式のメタデータ行からパスを取る', () => {
+    expect(parseTargetMarker('- **対象**: `packages/trail-viewer/src/a.ts:12`')).toBe(
+      'packages/trail-viewer/src/a.ts',
+    );
+  });
+
+  test('bullet・bold・全角コロンの揺れを許容する', () => {
+    expect(parseTargetMarker('**対象**：`packages/x/src/b.ts`')).toBe('packages/x/src/b.ts');
+    expect(parseTargetMarker('対象: `packages/x/src/c.ts`')).toBe('packages/x/src/c.ts');
+    expect(parseTargetMarker('- target: `packages/x/src/d.ts`')).toBe('packages/x/src/d.ts');
+  });
+
+  test('ディレクトリ指定も受ける（ファイル拡張子を要求しない）', () => {
+    expect(parseTargetMarker('- **対象**: `packages/markdown-viewer`')).toBe('packages/markdown-viewer');
+  });
+
+  test('バッククォート無しの素の値も受ける', () => {
+    expect(parseTargetMarker('- **対象**: packages/x/src/e.ts:3-9')).toBe('packages/x/src/e.ts');
+  });
+
+  test('パスとして成立しない値は null（本文推測へ委ねる）', () => {
+    expect(parseTargetMarker('- **対象**: 全体')).toBeNull();
+    expect(parseTargetMarker('- **重大度**: error')).toBeNull();
+  });
+
+  test('コードブロック内の 対象: は拾わない', () => {
+    expect(parseTargetMarker('```\n対象: `packages/x/src/f.ts`\n```')).toBeNull();
+  });
+});
+
+describe('resolveFindingTarget', () => {
+  const own = '### 1. NULL 参照\n`src/foo.ts` を例に説明する。';
+
+  test('finding 自身のマーカーが最優先', () => {
+    expect(
+      resolveFindingTarget({
+        ownText: '- **対象**: `packages/a/src/own.ts`\n' + own,
+        chapterTarget: 'packages/a/src/chapter.ts',
+        chapterFindingCount: 3,
+      }),
+    ).toBe('packages/a/src/own.ts');
+  });
+
+  test('チャプターに finding が 1 件だけならチャプターのマーカーを使う', () => {
+    expect(
+      resolveFindingTarget({ ownText: own, chapterTarget: 'packages/a/src/chapter.ts', chapterFindingCount: 1 }),
+    ).toBe('packages/a/src/chapter.ts');
+  });
+
+  test('複数 finding が同居するチャプターではチャプターのマーカーを流用しない', () => {
+    // 流用すると 2 件目以降が別ファイルの指摘でも同じ対象を持ち、linkAddresses が
+    // 無関係なコミットを addressed として確定させる。本文推測へ落とす（fail-closed）。
+    expect(
+      resolveFindingTarget({ ownText: own, chapterTarget: 'packages/a/src/chapter.ts', chapterFindingCount: 2 }),
+    ).toBe('src/foo.ts');
+  });
+
+  test('マーカーも本文のパスも無ければ null', () => {
+    expect(
+      resolveFindingTarget({ ownText: '対象の書かれていない指摘', chapterTarget: null, chapterFindingCount: 1 }),
+    ).toBeNull();
   });
 });

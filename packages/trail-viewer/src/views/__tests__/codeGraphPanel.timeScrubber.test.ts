@@ -2,6 +2,7 @@
 jest.mock('sigma', () => ({ __esModule: true, default: class {} }));
 jest.mock('sigma/rendering', () => ({ __esModule: true, EdgeArrowProgram: class {} }));
 
+import { chooseOption, comboboxLabel, openOptions } from './comboboxTestUtils';
 import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import {
   CURRENT_RELEASE,
@@ -208,10 +209,11 @@ describe('codeGraphPanel: Time Scrubber', () => {
     const { container, handle } = mount(
       baseProps({ releases: RELEASES, selectedRelease: 'v1.14.0' }),
     );
-    const options = [...container.querySelectorAll('option')];
-    const disabled = options.filter((o) => o.disabled).map((o) => o.value);
+    const disabled = openOptions(container, 'code-graph-color-by')
+      .filter((o) => o.disabled)
+      .map((o) => o.label);
     // diff は baseline 未指定のため不活性（State Replay。最古の時点と同じ扱い）。
-    expect(disabled.sort()).toEqual(['diff', 'editFrequency', 'lastEditor']);
+    expect(disabled.sort()).toEqual(['前版との差分', '最終編集者', '編集頻度'].sort());
     handle.destroy();
   });
 
@@ -220,14 +222,13 @@ describe('codeGraphPanel: Time Scrubber', () => {
     const { container, handle } = mount(
       baseProps({ releases: RELEASES, onColorByChange: (v) => seen.push(v) }),
     );
-    const select = container.querySelector('[data-testid="code-graph-color-by"]') as HTMLSelectElement;
-    select.value = 'lastEditor';
-    select.dispatchEvent(new Event('change'));
+
+    chooseOption(container, 'code-graph-color-by', '最終編集者');
     expect(seen).toEqual(['lastEditor']);
 
     handle.update(baseProps({ releases: RELEASES, selectedRelease: 'v1.14.0', onColorByChange: (v) => seen.push(v) }));
     expect(seen).toEqual(['lastEditor', 'community']);
-    expect(select.value).toBe('community');
+    expect(comboboxLabel(container, 'code-graph-color-by')).toBe('コミュニティ');
     handle.destroy();
   });
 

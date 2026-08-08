@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { resolveGitExecutable } from '@anytime-markdown/trail-core/gitExecutable';
 import type { MemoryDbConnection } from '../db/connection/types';
+import { describeError, PipelineRunLedger } from './PipelineRunLedger';
 import { fromTrailGraph } from '../ingest/code/fromTrailGraph';
 import { ingestAstFacts, type AstFactInput } from '../ingest/code/astFunctionLevel';
 import { ingestDecisionComments, type DecisionCommentItem } from '../ingest/code/extractComments';
@@ -21,13 +21,6 @@ export interface CodeIncrementalResult {
   duration_ms: number;
   /** ingestAstFacts が抽出した Function / File entity ID 集合。reconciliation で使用 */
   current_entity_ids: Set<string>;
-}
-
-function runId(startedAt: string): string {
-  return createHash('sha1')
-    .update(`${SCOPE}:${startedAt}`)
-    .digest('hex')
-    .slice(0, 16);
 }
 
 function readPipelineState(db: MemoryDbConnection): { last_processed_at: string } {
@@ -60,52 +53,6 @@ function upsertPipelineState(
        END,
        error_detail      = excluded.error_detail`,
     [SCOPE, status, last_processed_at ?? '', error_detail ?? '']
-  );
-}
-
-function insertPipelineRun(db: MemoryDbConnection, id: string, startedAt: string): void {
-  db.run(
-    `INSERT INTO memory_pipeline_runs
-       (id, scope, started_at, status,
-        items_processed, entities_inserted, entities_updated,
-        edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
-    [id, SCOPE, startedAt]
-  );
-}
-
-function finalizePipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string,
-  status: 'success' | 'partial' | 'error',
-  totals: {
-    items_processed: number;
-    entities_inserted: number;
-    edges_inserted: number;
-  }
-): void {
-  const finishedAt = new Date().toISOString();
-  const durationMs = Date.now() - new Date(startedAt).getTime();
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       finished_at       = ?,
-       status            = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       edges_inserted    = ?,
-       duration_ms       = ?
-     WHERE id = ?`,
-    [
-      finishedAt,
-      status,
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.edges_inserted,
-      durationMs,
-      id,
-    ]
   );
 }
 
@@ -167,12 +114,15 @@ export async function runCodeIncremental(opts: {
   }
 
   // ── 3. Insert pipeline_run (running) ─────────────────────────────────────
-  const rId = runId(startedAt);
-  insertPipelineRun(db, rId, startedAt);
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
+  ledger.start(startedAt);
   upsertPipelineState(db, { status: 'running' });
 
   const totals = { items_processed: 0, entities_inserted: 0, edges_inserted: 0 };
   let hasIngestFailure = false;
+  // 失敗理由を run 行の error_detail へ残すため蓄積する。旧実装は boolean だけを
+  // 持っており、partial の理由がどこにも残らなかった。
+  const failureDetails: string[] = [];
 
   // ── 4. git rev-parse HEAD ────────────────────────────────────────────────
   let commitSha: string | null = null;
@@ -213,6 +163,7 @@ export async function runCodeIncremental(opts: {
     totals.edges_inserted += stats.edges_inserted;
   } catch (err) {
     logger.error(`[anytime-memory] runCodeIncremental: fromTrailGraph failed`, err);
+    failureDetails.push(`fromTrailGraph: ${describeError(err)}`);
     hasIngestFailure = true;
   }
 
@@ -227,6 +178,7 @@ export async function runCodeIncremental(opts: {
       for (const id of stats.current_entity_ids) currentEntityIds.add(id);
     } catch (err) {
       logger.error(`[anytime-memory] runCodeIncremental: ingestAstFacts failed`, err);
+      failureDetails.push(`ingestAstFacts: ${describeError(err)}`);
       hasIngestFailure = true;
     }
   } else {
@@ -292,7 +244,7 @@ export async function runCodeIncremental(opts: {
   upsertPipelineState(db, { status: 'idle', last_processed_at: graphUpdatedAt });
 
   // ── 11. finalize pipeline_run ────────────────────────────────────────────
-  finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+  ledger.finish(finalStatus, totals, failureDetails.join('\n'));
 
   return {
     status: finalStatus,

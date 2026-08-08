@@ -2,6 +2,10 @@ jest.mock('ws', () => ({
   WebSocketServer: jest.fn(() => ({ on: jest.fn(), close: jest.fn((cb?: () => void) => cb?.()) })),
 }));
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
@@ -13,10 +17,14 @@ describe('/api/trail/acceptance', () => {
   let server: TrailDataServer;
   let db: TrailDatabase;
   let port: number;
+  let tempDir: string;
 
   beforeEach(async () => {
     db = await createTestTrailDatabase();
-    server = new TrailDataServer('/tmp', db, makeMockLogger());
+    // acceptance_records は memory-core.db（FlightRecordDatabase）側（2026-08-07 移設）。
+    // TrailDataServer が memoryDbPath から構築するため一時ディレクトリを注入する
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trail-server-acceptance-'));
+    server = new TrailDataServer('/tmp', db, makeMockLogger(), undefined, path.join(tempDir, 'memory-core.db'));
     await server.start(0);
     port = server.port;
   });
@@ -24,6 +32,7 @@ describe('/api/trail/acceptance', () => {
   afterEach(async () => {
     await server.stop();
     db.close();
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   function postRecord(payload: Record<string, unknown>): Promise<Response> {

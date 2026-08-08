@@ -29,10 +29,12 @@ import { mountC4Viewer } from './c4/c4Viewer';
 import type { C4ViewerViewProps } from './c4/c4Viewer';
 import { mountMemoryPanel } from './memory/memoryPanel';
 import type { MemoryPanelViewProps } from './memory/memoryPanel';
-import { mountLogsTab } from './logs/logsTab';
-import { mountFlightReviewPanel, type FlightReviewPanelProps } from './flightReviewPanel';
+import { mountChatPanel } from './memory/chatPanel';
+import type { ChatPanelProps } from './memory/chatPanel';
+import { mountFlightRecordPanel, type FlightRecordPanelProps } from './flightRecordPanel';
 import { createFlightReviewStore, type FlightReviewStore } from '../data/flightReviewStore';
-import type { LogsTabProps } from './logs/logsTab';
+import { createInstructionStore, type InstructionStore } from '../data/instructionStore';
+import { createFlightFindingStore, type FlightFindingStore } from '../data/flightFindingStore';
 import { mountFilterBar } from './filterBar';
 import type { FilterBarProps } from './filterBar';
 import { mountSessionList } from './sessionList';
@@ -51,7 +53,6 @@ import { mountCallHierarchyPanel } from './c4/panels/callHierarchyPanel';
 import type { CallHierarchyPanelVanillaProps } from './c4/panels/callHierarchyPanel';
 import { getC4Colors } from '../theme/c4Tokens';
 import type { ChatBridge } from '../hooks/useChatBridge';
-import type { WsSubscribe } from '../hooks/useLogsDataSource';
 
 // ---------------------------------------------------------------------------
 // Inline category context value shapes (mirror analyticsPanel.ts)
@@ -94,7 +95,7 @@ export interface TrailViewerViewProps extends TrailViewerCoreProps {
   readonly toolCategory: ToolCategoryContextValue;
   readonly skillCategory: SkillCategoryContextValue;
   readonly commitCategory: CommitCategoryContextValue;
-  /** Optional chat bridge for MemoryPanel (no-op bridge created if absent) */
+  /** Optional chat bridge for the Chat tab (no-op bridge created if absent) */
   readonly bridge?: ChatBridge;
 }
 
@@ -225,10 +226,12 @@ export function mountTrailViewer(
   let analyticsHandle: ReturnType<typeof mountAnalyticsPanel> | null = null;
   let c4Handle: ReturnType<typeof mountC4Viewer> | null = null;
   let memoryHandle: ReturnType<typeof mountMemoryPanel> | null = null;
-  let logsHandle: ReturnType<typeof mountLogsTab> | null = null;
-  let flightReviewHandle: ReturnType<typeof mountFlightReviewPanel> | null = null;
+  let flightRecordHandle: ReturnType<typeof mountFlightRecordPanel> | null = null;
+  let chatHandle: ReturnType<typeof mountChatPanel> | null = null;
   let flightReviewStore: FlightReviewStore | null = null;
-  let flightReviewStoreUrl: string | null = null;
+  let instructionStore: InstructionStore | null = null;
+  let flightFindingStore: FlightFindingStore | null = null;
+  let flightRecordStoreUrl: string | null = null;
   let callHierarchyHandle: ReturnType<typeof mountCallHierarchyPanel> | null = null;
 
   // ── React island handles ──
@@ -265,10 +268,6 @@ export function mountTrailViewer(
   let promptsPopupHost: HTMLDivElement | null = null;
   let messagesPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
   let messagesPopupHost: HTMLDivElement | null = null;
-
-  // ── Stable WebSocket subscribe reference for LogsTab ──
-  let stableSubscribeToLogs: WsSubscribe | null = null;
-  let stableSubscribeUrl: string | null = null;
 
   // ── Tab bar (created once) ──
   let tabsHandle: ReturnType<typeof createTabs> | null = null;
@@ -395,6 +394,7 @@ export function mountTrailViewer(
         }
       },
       t: props.t,
+      locale: props.locale,
     };
   }
 
@@ -423,70 +423,57 @@ export function mountTrailViewer(
       tokens: props.tokens,
       isDark: props.isDark ?? true,
       t: props.t,
-      bridge: props.bridge ?? makeNoopBridge(),
-      onOpenSessionMessages: (sessionId: string) => {
-        const allSessions = props.allSessions ?? props.sessions;
-        const session = allSessions.find((s) => s.id === sessionId);
-        const query = session?.slug || sessionId;
-        props.onFilterChange({
-          ...props.filter,
-          ...(session?.workspace ? { workspace: session.workspace } : {}),
-          searchText: query,
-        });
-        props.onSelectSession(sessionId);
-        openMessagesPopup();
-      },
     };
   }
 
-  // ── Derive FlightReviewPanel props（Phase 6 S3） ──
-  function buildFlightReviewProps(): FlightReviewPanelProps {
+  // ── Derive ChatPanel props ──
+  // Chat は Memory のサブタブから独立したトップレベルタブ（value 10）へ移した。
+  // bridge は Chat タブ初回訪問時にホスト側（trailViewerApp）が生成する。
+  function buildChatProps(): ChatPanelProps {
+    return {
+      t: props.t,
+      bridge: props.bridge ?? makeNoopBridge(),
+    };
+  }
+
+  // ── Derive FlightRecordPanel props ──
+  // 一覧は指示単位（instructionStore）、詳細ペインのセッション振り返り・訂正は
+  // セッション単位（flightReviewStore）。2 つの store は同じ serverUrl を共有する。
+  function buildFlightRecordProps(): FlightRecordPanelProps {
     const serverUrl = props.serverUrl ?? '';
     // serverUrl が変わったら旧接続先の store を破棄して作り直す（panel 側が購読を張り替える）
-    if (flightReviewStore !== null && flightReviewStoreUrl !== serverUrl) {
-      flightReviewStore.dispose();
+    if (flightRecordStoreUrl !== serverUrl) {
+      flightReviewStore?.dispose();
       flightReviewStore = null;
+      instructionStore?.dispose();
+      instructionStore = null;
+      flightFindingStore?.dispose();
+      flightFindingStore = null;
+    }
+    if (instructionStore === null) {
+      instructionStore = createInstructionStore(serverUrl, { enabled: true });
     }
     if (flightReviewStore === null) {
-      flightReviewStore = createFlightReviewStore(serverUrl, { enabled: true });
-      flightReviewStoreUrl = serverUrl;
+      // セッション詳細は行選択のたびに取り直すため、こちらはポーリングしない
+      flightReviewStore = createFlightReviewStore(serverUrl);
     }
+    if (flightFindingStore === null) {
+      flightFindingStore = createFlightFindingStore(serverUrl);
+    }
+    flightRecordStoreUrl = serverUrl;
     return {
       isDark: props.isDark ?? true,
       tokens: props.tokens,
       t: props.t,
-      store: flightReviewStore,
-    };
-  }
-
-  // ── Derive LogsTab props ──
-  function buildLogsProps(): LogsTabProps {
-    const serverUrl = props.serverUrl ?? '';
-    // Recreate subscribe fn only when serverUrl actually changes
-    if (stableSubscribeToLogs === null || serverUrl !== stableSubscribeUrl) {
-      stableSubscribeUrl = serverUrl;
-      stableSubscribeToLogs = (handler) => {
-        if (!serverUrl) return () => {};
-        const wsUrl = serverUrl.replace(/^http/, 'ws');
-        const ws = new WebSocket(wsUrl);
-        ws.addEventListener('message', (ev) => {
-          try {
-            const data = typeof ev.data === 'string' ? ev.data : '';
-            const msg = JSON.parse(data) as { type?: string };
-            if (msg && msg.type === 'log-batch') {
-              handler(msg as never);
-            }
-          } catch {
-            /* noop */
-          }
-        });
-        return () => ws.close();
-      };
-    }
-    return {
-      baseUrl: serverUrl,
-      subscribe: stableSubscribeToLogs,
-      t: props.t,
+      store: instructionStore,
+      reviewStore: flightReviewStore,
+      findingStore: flightFindingStore,
+      // Bug Fixed / Drift サブタブは memory-core を直接読む（指示 store とは別経路）
+      serverUrl,
+      // 指摘の対象ファイルを開けるのは host（VS Code 拡張）が居るときだけ。配線は C4 の
+      // 「ファイルを開く」と同じ props.c4.onOpenFile を共有する（経路を二重に持たない）。
+      // 未配線ならリンクにせずテキストで出す（押せないボタンを出さない）。
+      ...(props.c4?.onOpenFile ? { onOpenFile: props.c4.onOpenFile } : {}),
     };
   }
 
@@ -838,15 +825,15 @@ export function mountTrailViewer(
         }
         break;
       }
-      case 8: {
-        if (!logsHandle && props.serverUrl) {
-          logsHandle = mountLogsTab(panelEl, buildLogsProps());
+      case 9: {
+        if (!flightRecordHandle && props.serverUrl) {
+          flightRecordHandle = mountFlightRecordPanel(panelEl, buildFlightRecordProps());
         }
         break;
       }
-      case 9: {
-        if (!flightReviewHandle && props.serverUrl) {
-          flightReviewHandle = mountFlightReviewPanel(panelEl, buildFlightReviewProps());
+      case 10: {
+        if (!chatHandle) {
+          chatHandle = mountChatPanel(panelEl, buildChatProps());
         }
         break;
       }
@@ -905,11 +892,11 @@ export function mountTrailViewer(
     if (memoryHandle) {
       memoryHandle.update(buildMemoryProps());
     }
-    if (logsHandle) {
-      logsHandle.update(buildLogsProps());
+    if (flightRecordHandle) {
+      flightRecordHandle.update(buildFlightRecordProps());
     }
-    if (flightReviewHandle) {
-      flightReviewHandle.update(buildFlightReviewProps());
+    if (chatHandle) {
+      chatHandle.update(buildChatProps());
     }
     if (callHierarchyHandle) {
       callHierarchyHandle.update(buildCallHierarchyProps());
@@ -942,11 +929,16 @@ export function mountTrailViewer(
     analyticsHandle?.destroy();
     c4Handle?.destroy();
     memoryHandle?.destroy();
-    logsHandle?.destroy();
-    flightReviewHandle?.destroy();
-    flightReviewHandle = null;
+    flightRecordHandle?.destroy();
+    flightRecordHandle = null;
     flightReviewStore?.dispose();
     flightReviewStore = null;
+    instructionStore?.dispose();
+    instructionStore = null;
+    flightFindingStore?.dispose();
+    flightFindingStore = null;
+    chatHandle?.destroy();
+    chatHandle = null;
     callHierarchyHandle?.destroy();
     traceIsland?.destroy();
     traceIsland = null;

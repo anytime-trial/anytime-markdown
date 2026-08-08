@@ -25,9 +25,14 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
     source TEXT NOT NULL DEFAULT 'claude_code'
       CHECK (source IN ('claude_code','codex','gemini','cursor','other'))
   ) STRICT`);
+  // レビュー取込が参照する列まで含めた最小 fixture（本番 trail.messages は 37 列）。
+  // tool_calls / subagent_type / skill が欠けると parseReviewSessions の SELECT が
+  // SQL エラーになり、失敗が catch で握り潰されて経路ごと黙って死ぬ。
   db.run(`CREATE TABLE messages (
     uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT
+    type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT,
+    tool_calls TEXT, subagent_type TEXT, skill TEXT,
+    is_sidechain INTEGER NOT NULL DEFAULT 0
   ) STRICT`);
   return db;
 }

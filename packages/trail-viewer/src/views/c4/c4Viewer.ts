@@ -120,9 +120,10 @@ import { mountMatrixPanel } from './panels/matrixPanel';
 import type { MatrixPanelVanillaProps } from './panels/matrixPanel';
 import { mountScatterPanel } from './panels/scatterPanel';
 import type { ScatterPanelProps } from './panels/scatterPanel';
-import { mountCodeGraphPanel } from '../codeGraphPanel';
-import type { CodeGraphPanelProps } from '../codeGraphPanel';
-import type { CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
+import { mountReactIsland } from '../reactIsland';
+import { CodeGraphPanelIsland } from '../CodeGraphPanelIsland';
+import type { CodeGraphPanelIslandProps } from '../CodeGraphPanelIsland';
+import type { TrailLocale } from '../../i18n';
 import { mountActivityTrendPanel } from './panels/activityTrendPanel';
 import type { ActivityTrendPanelProps } from './panels/activityTrendPanel';
 import { mountDeadCodeDetailPanel } from './panels/deadCodeDetailPanel';
@@ -182,6 +183,11 @@ import type { HotspotResponse } from '../../c4/hooks/fetchHotspotApi';
 export interface C4ViewerViewProps extends C4ViewerCoreProps {
   /** Translation function (e.g. from useTrailI18n). */
   readonly t: (key: string) => string;
+  /**
+   * コードグラフポップアップの React island（`CodeGraphPanelIsland`）が要する。
+   * C4 本体は `t` しか使わないが、島の中は `useTrailI18n` を通るため Provider に locale が要る。
+   */
+  readonly locale?: TrailLocale;
 }
 
 // ---------------------------------------------------------------------------
@@ -860,9 +866,7 @@ export function mountC4Viewer(
   let scatterPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
   let scatterInnerHandle: ReturnType<typeof mountScatterPanel> | null = null;
   let graphPopupHandle: ReturnType<typeof mountResizablePopup> | null = null;
-  let graphInnerHandle: ReturnType<typeof mountCodeGraphPanel> | null = null;
-  let graphPanelHighlighted: ReadonlySet<string> = new Set();
-  let graphPanelSelectedNode: CodeGraphNode | null = null;
+  let graphInnerHandle: { update(props: CodeGraphPanelIslandProps): void; destroy(): void } | null = null;
   let trendPanelHandle: ReturnType<typeof mountActivityTrendPanel> | null = null;
   let deadCodeHandle: ReturnType<typeof mountDeadCodeDetailPanel> | null = null;
   let callHierarchyHandle: ReturnType<typeof mountCallHierarchyPanel> | null = null;
@@ -2528,55 +2532,25 @@ export function mountC4Viewer(
     // ── Graph popup (code graph) ──
     if (showGraphPopup) {
       const repo = getSelectedRepo();
-      const graphState: CodeGraphPanelProps['graphState'] = (() => {
-        if (codeGraphState.loading) return { status: 'loading' };
-        if (!repo) return { status: 'no-repo' };
-        if (!codeGraphState.graph) return { status: 'no-graph' };
-        return { status: 'ready', graph: codeGraphState.graph };
-      })();
-      const runGraphSearch = (query: string): void => {
-        if (!query.trim()) { graphPanelHighlighted = new Set(); scheduleRender(); return; }
-        void (async () => {
-          try {
-            const res = await fetch(`${props.serverUrl}/api/code-graph/query?q=${encodeURIComponent(query)}`);
-            if (!res.ok) return;
-            const data = (await res.json()) as { nodes: string[] };
-            graphPanelHighlighted = new Set(data.nodes);
-            scheduleRender();
-          } catch (err) {
-            console.error('[c4Viewer] code graph search failed', err);
-          }
-        })();
-      };
-      const runGraphNodeClick = (nodeId: string): void => {
-        void (async () => {
-          try {
-            const res = await fetch(`${props.serverUrl}/api/code-graph/explain?id=${encodeURIComponent(nodeId)}`);
-            if (!res.ok) return;
-            const data = (await res.json()) as { node?: CodeGraphNode };
-            graphPanelSelectedNode = data.node ?? null;
-            scheduleRender();
-          } catch (err) {
-            console.error('[c4Viewer] code graph explain failed', err);
-          }
-        })();
-      };
-      const buildGraphProps = (): CodeGraphPanelProps => ({
-        graphState,
-        highlightedNodes: graphPanelHighlighted,
-        selectedNode: graphPanelSelectedNode,
-        // Ghost-edge (temporal coupling) overlay is sourced separately for the
-        // file-level code graph; not wired into this popup yet, so keep it off.
-        showSubagentDirectionalHint: false,
-        ghostEdges: [],
-        ghostEdgesEnabled: false,
-        ghostEdgeGranularity: 'commit',
+      /**
+       * ポップアップの中身は React island（`CodeGraphPanelIsland`）に寄せる。
+       *
+       * ここで props を組み立てていた頃、Time Scrubber / State Replay /
+       * Snapshot per Commit / Auto Playback / Author Heatmap に必要な props を
+       * 渡しておらず、5 機能が実行時に到達できなかった（2026-08-05 実測）。
+       * 供給元を `CodeGraphPanel` 1 本にして、この層は島を立てるだけにする。
+       *
+       * 検索・ノードクリックの実装はラッパ側と同一エンドポイント・同一意味だったため、
+       * こちらの重複実装は削除した。グラフ取得も島が自前で持つ（スクラバが選ぶ時点は
+       * C4 タブのリリース選択とは独立なので、C4 本体の `codeGraphState` とは別物である）。
+       */
+      const buildIslandProps = (): CodeGraphPanelIslandProps => ({
+        serverUrl: props.serverUrl ?? '',
         isDark,
-        onSearch: runGraphSearch,
-        onRefetch: () => { codeGraphEnabled = true; fetchCodeGraph(); },
-        onNodeClick: runGraphNodeClick,
-        communitySummaries: codeGraphState.graph?.communitySummaries,
-        t: props.t,
+        // serverUrl が無い間は repo を渡さない。渡すと島が相対 URL へ取得を投げ、
+        // 従来の「no-repo / no-graph へ縮退」がエラー表示に変わってしまう。
+        repoName: props.serverUrl ? repo || undefined : undefined,
+        locale: props.locale,
       });
       const graphShell = {
         title: props.t('c4.graph.title'),
@@ -2593,7 +2567,9 @@ export function mountC4Viewer(
         i18nClose: props.t('c4.popup.close'),
         i18nResize: props.t('c4.popup.resize'),
         mountContent: (c: HTMLElement) => {
-          const handle = mountCodeGraphPanel(c, buildGraphProps());
+          // 島のハンドルを返すと popup の destroy() が中身の destroy() を呼び、
+          // React root が unmount される（返さないと root が残る）。
+          const handle = mountReactIsland(c, CodeGraphPanelIsland, buildIslandProps());
           graphInnerHandle = handle;
           return handle;
         },
@@ -2602,15 +2578,12 @@ export function mountC4Viewer(
         graphPopupHandle = mountResizablePopup(popupHost, graphShell);
       } else {
         graphPopupHandle.update(graphShell);
-        graphInnerHandle?.update(buildGraphProps());
+        graphInnerHandle?.update(buildIslandProps());
       }
     } else {
       if (graphPopupHandle) { graphPopupHandle.destroy(); graphPopupHandle = null; }
       if (graphInnerHandle) { graphInnerHandle = null; /* destroyed via graphPopupHandle.destroy() */ }
-      // Reset transient search/selection so reopening the popup starts clean
-      // (the React panel got this for free via per-mount state).
-      if (graphPanelHighlighted.size > 0) graphPanelHighlighted = new Set();
-      graphPanelSelectedNode = null;
+      // 検索・選択の一時状態は島（React）が mount 単位で持つため、ここでの後始末は要らない。
     }
 
     // ── Add Element Dialog ──

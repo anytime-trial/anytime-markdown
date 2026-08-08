@@ -27,7 +27,8 @@ export const BUNDLED_STATIC_SKILLS: readonly BundledSkill[] = [
   { name: 'anytime-cross-review' },
   // セッション終了時の構造化自己評価（debrief ブロック）出力ガイド。Phase 6 S2 の機体側。
   // 出力は Stop フック → trail サーバの flight_reviews へ outcome_source='self' として取り込まれる。
-  { name: 'anytime-debrief' },
+  // 2026-08-05 に anytime-debrief からリネーム（出力形式でなく発火タイミングを名前に出した）。
+  { name: 'anytime-session-exit', oldNames: ['anytime-debrief'] },
   // 環境・設定の read-only 診断。trail の DB・MCP に依存しないため、2026-07-16 に
   // trail 拡張同梱から移動した（配置済みコピーは agent marker 未記録 → 初回 activate で上書き）。
   { name: 'anytime-dev-audit' },

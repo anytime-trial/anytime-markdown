@@ -15,6 +15,7 @@ function makeRow(overrides: Partial<MemoryDriftEventRow>): MemoryDriftEventRow {
     detectedAt: '2026-01-01T00:00:00.000Z',
     resolvedAt: null,
     resolutionNote: '',
+    workspace: '',
     ...overrides,
   };
 }
@@ -32,7 +33,6 @@ describe('computeFixTarget', () => {
     ['three_way', 'code'],
     ['regression_cluster', 'code'],
     ['spec_violation_cluster', 'code'],
-    ['recurring_root_cause', 'code'],
     ['review_unfixed', 'code'],
     ['review_vs_code', 'code'],
     ['recurring_review_finding', 'code'],

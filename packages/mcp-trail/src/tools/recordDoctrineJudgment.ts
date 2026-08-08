@@ -2,12 +2,14 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { z } from 'zod';
 import { workspacePathParam } from './workspaceParam';
-import { resolveDbPath, resolveWorkspacePath } from '../dbPath';
-import { openTrailDb } from '../sqlite/openDb';
+import { resolveMemoryDbPathForWrite, resolveWorkspacePath } from '../dbPath';
+import { openMemoryDb } from '../sqlite/openDb';
 import { resolveCitations, type ResolvedCitation } from '../doctrine/resolveCitations';
 import { evaluateCoverageGate, type CoverageGateResult } from '../doctrine/coverageGate';
 import { resolveOddConfig } from '../doctrine/oddRoots';
+import { readFileTyped } from '../doctrine/readFile';
 import {
+  ensureAndMigrateDoctrineJudgments,
   recordDoctrineJudgmentDirect,
   type DoctrineJudgmentRecordResult,
 } from '../sqlite/doctrineJudgments';
@@ -42,6 +44,23 @@ export const RecordDoctrineJudgmentInputSchema = z.object({
     .enum(['low', 'medium', 'high'])
     .optional()
     .describe('Caller-declared severity. Omitted = undecidable, which the coverage gate treats as escalate (fail-closed)'),
+  operation_kind: z
+    .enum([
+      'code_change',
+      'dependency_change',
+      'destructive_git',
+      'remote_push',
+      'production_release',
+      'persistent_data_write',
+    ])
+    .optional()
+    .describe('What kind of operation this approval covers. Omitted = undecidable, which the coverage gate treats as escalate (fail-closed). Everything except code_change always goes to the human: the gate is path-based and cannot see push / release / destructive git in target_paths'),
+  underspecified_points: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Points the human\'s instruction does NOT determine, declared BEFORE asking (DCT-14). Declare here anything you are about to invent on the human\'s behalf (an unstated design fork, an unhandled case, a scope boundary the prompt is silent on). Omitting the field is undecidable and escalates (underspecified_unknown), exactly like omitting severity or operation_kind — pass [] explicitly to claim that the instruction alone fixes the outcome. A non-empty array also escalates: what to build is not yet determined, so no amount of doctrine grounding makes it delegable. Re-recording can add points but cannot empty a non-empty declaration',
+    ),
   judged_at: z.string().optional().describe('ISO 8601 timestamp (defaults to now)'),
   workspacePath: workspacePathParam,
 });
@@ -50,7 +69,7 @@ export type RecordDoctrineJudgmentInput = z.infer<typeof RecordDoctrineJudgmentI
 
 export interface RecordDoctrineJudgmentResult extends DoctrineJudgmentRecordResult {
   readonly citations: ReadonlyArray<ResolvedCitation>;
-  /** カバレッジゲートの判定 (D1 では記録のみ。承認フローは変えない) */
+  /** カバレッジゲートの判定。D2 では delegable + approve が代行の根拠になる */
   readonly gate: CoverageGateResult;
 }
 
@@ -80,15 +99,19 @@ export async function handleRecordDoctrineJudgment(
     citations: resolved,
     targetPaths: input.target_paths,
     severity: input.severity,
+    operationKind: input.operation_kind,
+    underspecifiedPoints: input.underspecified_points,
     odd: resolveOddConfig({
       workspacePath: workspacePath ?? process.cwd(),
       homeDir: os.homedir(),
-      readFile: readTextFile,
+      readFile: readFileTyped,
     }),
   });
-  const dbPath = resolveDbPath({ workspacePath });
-  const opened = await openTrailDb(dbPath, 'readwrite');
+  // 保存先は memory-core.db（2026-08-07 に trail.db から移設。旧テーブルは遅延移行で回収）
+  const dbPath = resolveMemoryDbPathForWrite({ workspacePath });
+  const opened = await openMemoryDb(dbPath, 'readwrite');
   try {
+    ensureAndMigrateDoctrineJudgments(opened.db, dbPath);
     const result = recordDoctrineJudgmentDirect(opened.db, {
       sessionId: input.session_id,
       subject: input.subject,
@@ -96,6 +119,8 @@ export async function handleRecordDoctrineJudgment(
       coverage: input.coverage,
       citations: resolved,
       gate,
+      // 列は NOT NULL。未申告はゲートが escalate 済みなので、保存側は空配列へ落とす
+      underspecifiedPoints: input.underspecified_points ?? [],
       ...(input.judged_at === undefined ? {} : { judgedAt: input.judged_at }),
     });
     opened.save();

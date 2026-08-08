@@ -23,7 +23,8 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
        type TEXT NOT NULL,
        timestamp TEXT NOT NULL,
        text_content TEXT,
-       user_content TEXT
+       user_content TEXT,
+       is_sidechain INTEGER NOT NULL DEFAULT 0
      ) STRICT`
   );
   return trailDb;
@@ -45,6 +46,22 @@ function insertMessage(
   trailDb.run(
     `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
      VALUES (?, ?, ?, ?, ?, ?)`,
+    [uuid, sessionId, type, timestamp, isUser ? null : excerpt, isUser ? excerpt : null]
+  );
+}
+
+function insertSidechainMessage(
+  trailDb: BetterSqlite3MemoryDb,
+  uuid: string,
+  sessionId: string,
+  type: string,
+  timestamp: string,
+  excerpt: string,
+): void {
+  const isUser = type === 'user';
+  trailDb.run(
+    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
+     VALUES (?, ?, ?, ?, ?, ?, 1)`,
     [uuid, sessionId, type, timestamp, isUser ? null : excerpt, isUser ? excerpt : null]
   );
 }
@@ -204,6 +221,73 @@ describe('runConversationFailedItemsRetry', () => {
 
     // Retriable row is gone (recovered)
     expect(getFailedItem(memDb, 'conversation_backfill', 'sess_f3:msg_f3b')).toBeNull();
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── F4b: 取込対象外になったキーは失敗として数えず台帳から落とす ──────────────
+  test('F4b: sidechain 由来のキーは failed ではなく台帳削除で処理される', async () => {
+    // 取込条件を狭めた（sidechain 除外）ため、過去の失敗キーは再構築できない。
+    // これを失敗として数えると 3 件連続で quarantine に入り retry が止まる。
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'sess_sub');
+    const ts = '2026-05-10T10:00:00.000Z';
+    for (let i = 1; i <= 4; i++) {
+      insertSidechainMessage(
+        trailDb, `msg_sub${i}`, 'sess_sub', 'user',
+        `2026-05-10T10:00:0${i}.000Z`, `delegated prompt ${i}`,
+      );
+    }
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    // QUARANTINE_THRESHOLD (3) を超える件数を並べても quarantine に入らないこと
+    for (let i = 1; i <= 4; i++) {
+      insertFailedItem(memDb, 'conversation_backfill', `sess_sub:msg_sub${i}`, 1);
+    }
+
+    const result = await runConversationFailedItemsRetry({
+      db: memDb,
+      ollama: makeValidOllama(),
+      logger: silentLogger,
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.items_failed).toBe(0);
+    expect(result.items_recovered).toBe(0);
+    for (let i = 1; i <= 4; i++) {
+      expect(getFailedItem(memDb, 'conversation_backfill', `sess_sub:msg_sub${i}`)).toBeNull();
+    }
+
+    trailDb.close();
+    memDb.close();
+  }, 30000);
+
+  // ── F4c: 本文が空の user 行のキーも out_of_scope として台帳から落とす ────────
+  test('F4c: 本文ゼロの user 行由来のキーは attempt_count を増やさず削除される', async () => {
+    // 旧実装では後続 assistant の本文で episode 化されていたキーが、user 行のみ
+    // 取り込む新実装では episode にならない。これは失敗ではなく取込対象外。
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'sess_empty');
+    trailDb.run(
+      `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
+       VALUES ('msg_empty', 'sess_empty', 'user', '2026-05-10T10:00:00.000Z', NULL, '', 0)`,
+    );
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    insertFailedItem(memDb, 'conversation_backfill', 'sess_empty:msg_empty', 1);
+
+    const result = await runConversationFailedItemsRetry({
+      db: memDb,
+      ollama: makeValidOllama(),
+      logger: silentLogger,
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.items_failed).toBe(0);
+    expect(getFailedItem(memDb, 'conversation_backfill', 'sess_empty:msg_empty')).toBeNull();
 
     trailDb.close();
     memDb.close();

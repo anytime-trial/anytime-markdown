@@ -5,11 +5,14 @@ import type {
   MemoryDriftEventDetail,
   MemoryDriftEventRow,
   MemoryFailedItemRow,
+  MemoryFlightReviewFindingCountRow,
+  MemoryFlightReviewFindingRow,
   MemoryInvalidationRow,
+  MemoryPipelineRunLogRow,
+  MemoryPipelineRunRow,
   MemoryPipelineRunStatsByDayRow,
   MemoryRecurringBugRow,
   MemoryReviewHistoryRow,
-  MemoryTopEntityRow,
   MemoryUnaddressedReviewFindingRow,
 } from '../types';
 
@@ -32,6 +35,8 @@ export class MemoryReader {
     severity?: string;
     driftType?: string;
     since?: string;
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   } = {}): Promise<readonly MemoryDriftEventRow[]> {
     const q = new URLSearchParams();
@@ -39,6 +44,7 @@ export class MemoryReader {
     if (params.severity) q.set('severity', params.severity);
     if (params.driftType) q.set('driftType', params.driftType);
     if (params.since) q.set('since', params.since);
+    if (params.workspace) q.set('workspace', params.workspace);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryDriftEventRow[]>(`/api/memory/drift/events?${q}`);
   }
@@ -90,11 +96,14 @@ export class MemoryReader {
   async listRecurringBugs(params: {
     pkg?: string;
     windowDays?: number;
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   } = {}): Promise<readonly MemoryRecurringBugRow[]> {
     const q = new URLSearchParams();
     if (params.pkg) q.set('pkg', params.pkg);
     if (params.windowDays !== undefined) q.set('windowDays', String(params.windowDays));
+    if (params.workspace) q.set('workspace', params.workspace);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryRecurringBugRow[]>(`/api/memory/bugs/recurring?${q}`);
   }
@@ -103,14 +112,49 @@ export class MemoryReader {
     pkg?: string;
     filePath?: string;
     category?: string;
+    /**
+     * 指示に属するセッションで絞る。空配列は「該当 0 件」としてサーバへ伝える
+     * （パラメータを落とすと絞り込み無しになり、全バグが 1 指示の成果に見える）。
+     */
+    sessionIds?: readonly string[];
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
     limit?: number;
   } = {}): Promise<readonly MemoryBugHistoryRow[]> {
     const q = new URLSearchParams();
     if (params.pkg) q.set('pkg', params.pkg);
     if (params.filePath) q.set('filePath', params.filePath);
     if (params.category) q.set('category', params.category);
+    if (params.sessionIds !== undefined) q.set('sessionIds', params.sessionIds.join(','));
+    if (params.workspace) q.set('workspace', params.workspace);
     if (params.limit !== undefined) q.set('limit', String(params.limit));
     return this.fetchJson<MemoryBugHistoryRow[]>(`/api/memory/bugs/history?${q}`);
+  }
+
+  /**
+   * `getBugHistory` の失敗を投げる版。
+   *
+   * `fetchJson` は取得失敗を空配列で返すため、呼び出し側からは「0 件」と「取れなかった」が
+   * 区別できない。Flight Record の詳細ペインは障害を実績 0 件として見せてはならないので、
+   * こちらを使って失敗を表に出す。既存パネルの空表示の挙動は変えない。
+   */
+  async getBugHistoryStrict(params: {
+    pkg?: string;
+    category?: string;
+    sessionIds?: readonly string[];
+    /** ワークスペース（repo_name）で絞る。空文字・未指定は絞り込みなし。 */
+    workspace?: string;
+    limit?: number;
+  } = {}): Promise<readonly MemoryBugHistoryRow[]> {
+    const q = new URLSearchParams();
+    if (params.pkg) q.set('pkg', params.pkg);
+    if (params.category) q.set('category', params.category);
+    if (params.sessionIds !== undefined) q.set('sessionIds', params.sessionIds.join(','));
+    if (params.workspace) q.set('workspace', params.workspace);
+    if (params.limit !== undefined) q.set('limit', String(params.limit));
+    const res = await fetch(`${this.serverUrl}/api/memory/bugs/history?${q}`);
+    if (!res.ok) throw new Error(`GET /api/memory/bugs/history failed: ${res.status}`);
+    return await res.json() as MemoryBugHistoryRow[];
   }
 
   async getBugCausalInfo(bugEntityId: string): Promise<MemoryBugCausalInfo | null> {
@@ -148,6 +192,23 @@ export class MemoryReader {
     return this.fetchJson<MemoryReviewHistoryRow[]>(`/api/memory/reviews/history?${q}`);
   }
 
+  /** 指示単位の指摘件数。一覧の列に出すため、件数は専用の集計ルートから取る。 */
+  async getFlightReviewFindingCounts(): Promise<readonly MemoryFlightReviewFindingCountRow[]> {
+    return this.fetchJson<MemoryFlightReviewFindingCountRow[]>('/api/memory/reviews/flight-counts');
+  }
+
+  async getFlightReviewFindings(params: {
+    instructionIds?: readonly string[];
+    limit?: number;
+  } = {}): Promise<readonly MemoryFlightReviewFindingRow[]> {
+    const q = new URLSearchParams();
+    if (params.instructionIds && params.instructionIds.length > 0) {
+      q.set('instructionIds', params.instructionIds.join(','));
+    }
+    if (params.limit !== undefined) q.set('limit', String(params.limit));
+    return this.fetchJson<MemoryFlightReviewFindingRow[]>(`/api/memory/reviews/flight-findings?${q}`);
+  }
+
   async listPipelineRunStatsByDay(params: {
     scope?: string;
     since?: string;
@@ -156,6 +217,29 @@ export class MemoryReader {
     if (params.scope) q.set('scope', params.scope);
     if (params.since) q.set('since', params.since);
     return this.fetchJson<MemoryPipelineRunStatsByDayRow[]>(`/api/memory/pipeline/runs/by-day?${q}`);
+  }
+
+  async listPipelineRuns(params: {
+    since?: string;
+    wave?: string;
+    status?: string;
+    limit?: number;
+  } = {}): Promise<readonly MemoryPipelineRunRow[]> {
+    const q = new URLSearchParams();
+    if (params.since) q.set('since', params.since);
+    if (params.wave) q.set('wave', params.wave);
+    if (params.status) q.set('status', params.status);
+    if (params.limit !== undefined) q.set('limit', String(params.limit));
+    return this.fetchJson<MemoryPipelineRunRow[]>(`/api/memory/pipeline/runs?${q}`);
+  }
+
+  async listPipelineRunLogs(params: {
+    runId: string;
+    limit?: number;
+  }): Promise<readonly MemoryPipelineRunLogRow[]> {
+    const q = new URLSearchParams();
+    if (params.limit !== undefined) q.set('limit', String(params.limit));
+    return this.fetchJson<MemoryPipelineRunLogRow[]>(`/api/memory/pipeline/runs/${encodeURIComponent(params.runId)}/logs?${q}`);
   }
 
   async listFailedItems(params: {
@@ -168,16 +252,10 @@ export class MemoryReader {
     return this.fetchJson<MemoryFailedItemRow[]>(`/api/memory/pipeline/failed?${q}`);
   }
 
-  async listTopEntities(params: {
-    type?: string;
-    limit?: number;
-  } = {}): Promise<readonly MemoryTopEntityRow[]> {
-    const q = new URLSearchParams();
-    if (params.type) q.set('type', params.type);
-    if (params.limit !== undefined) q.set('limit', String(params.limit));
-    return this.fetchJson<MemoryTopEntityRow[]>(`/api/memory/entities/top?${q}`);
-  }
-
+  /**
+   * エッジ無効化履歴。現在は描画するパネルが無いが、グラフ表示（失効エッジの重畳・
+   * 時点指定）で必要になるためデータ経路として残す。
+   */
   async listInvalidations(params: {
     since?: string;
     limit?: number;

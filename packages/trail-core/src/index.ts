@@ -63,3 +63,25 @@ export {
   type ComputeBusFactorOptions,
   type FileAuthorCommitRow,
 } from './busFactor';
+
+export {
+  ALWAYS_RESTRICTED_PATTERNS,
+  ALWAYS_HUMAN_OPERATIONS,
+  OPERATION_KINDS,
+  evaluateApprovalPolicy,
+  evaluateOddBoundary,
+  parseOddRegistry,
+  serializeOddRegistry,
+  type OddBoundaryReason,
+  type ApprovalEvaluation,
+  type ApprovalReason,
+  type ApprovalRequest,
+  type ApprovalVerdict,
+  type NarrowingState,
+  type OddRegistry,
+  type OddRegistryFile,
+  type OddRegistryParseResult,
+  type OddResolution,
+  type OperationKind,
+  type RestrictedEntry,
+} from './odd';

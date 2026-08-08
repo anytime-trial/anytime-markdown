@@ -26,6 +26,12 @@ import { createMenuList } from "./MenuList";
 export interface SelectOption<T extends string> {
   value: T;
   label: string;
+  /**
+   * 無効な選択肢（`createMenuItem` の disabled: opacity 0.38・pointer-events none）。
+   * 「前提が揃っていないので今は選べない」を表すために使う。選択肢ごと消すと
+   * 「その機能が無い」と読めてしまう場面で、存在は見せたまま選ばせない。
+   */
+  disabled?: boolean;
 }
 
 /** {@link createSelect} のオプション。React `SelectProps` の vanilla 再現範囲。 */
@@ -191,11 +197,17 @@ export function createSelect<T extends string>(opts: CreateSelectOptions<T>): {
         children: o.label,
         role: "option",
         dense: false,
+        disabled: o.disabled ?? false,
       });
       li.id = `${baseId}-opt-${i}`;
       li.setAttribute("aria-selected", o.value === value ? "true" : "false");
-      // クリックで確定。
-      li.addEventListener("click", () => choose(o.value));
+      if (o.disabled) li.setAttribute("aria-disabled", "true");
+      // クリックで確定。disabled は pointer-events none で届かないが、
+      // 経路を 1 つに保つためここでも弾く（キーボード選択と同じ判定にする）。
+      li.addEventListener("click", () => {
+        if (o.disabled) return;
+        choose(o.value);
+      });
       return li;
     });
 
@@ -216,7 +228,7 @@ export function createSelect<T extends string>(opts: CreateSelectOptions<T>): {
       },
       onSelect: (index) => {
         const o = options[index];
-        if (o) choose(o.value);
+        if (o && !o.disabled) choose(o.value);
       },
       onCancel: () => close(true),
     });

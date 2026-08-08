@@ -2,7 +2,13 @@
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["@playwright/mcp@latest"]
+      "args": [
+        "@playwright/mcp@latest",
+        "--browser",
+        "chromium",
+        "--executable-path",
+        "/home/user/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome"
+      ]
     },
     "mcp-graph": {
       "command": "npx",

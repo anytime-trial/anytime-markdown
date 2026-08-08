@@ -1,6 +1,7 @@
 export {
-  extractPrReviewFindings,
+  extractPrReviewFindingInputs,
   type PrReviewFindingClassifier,
+  type PrReviewFindingSource,
 } from './extractPrReviewFindings';
 export {
   PrReviewImporter,
@@ -9,6 +10,13 @@ export {
 } from './PrReviewImporter';
 export {
   PrReviewFindingAnalyzer,
-  type PrReviewFindingDataSource,
   type PrReviewFindingAnalyzerOptions,
 } from './PrReviewFindingAnalyzer';
+export {
+  buildPrReviewSourceRef,
+  parsePrReviewSourceRef,
+  readPrReviewSourceHash,
+  createPrReviewMemorySource,
+  type ParsedPrReviewSourceRef,
+  type PrReviewMemorySource,
+} from './prReviewMemorySource';

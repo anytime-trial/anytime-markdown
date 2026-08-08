@@ -16,89 +16,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  AI_FIRST_TRY_FIX_WINDOW_MS,
-  buildReleaseFromGitData,
-  calculateCost,
-  computeConfidenceCoupling,
-  computeSessionConfidenceCoupling,
-  computeSessionCoupling,
-  computeSubagentTypeConfidenceCoupling,
-  computeSubagentTypeCoupling,
-  computeTemporalCoupling,
-  CREATE_C4_MANUAL_ELEMENTS,
-  CREATE_C4_MANUAL_GROUPS,
-  CREATE_C4_MANUAL_INDEXES,
-  CREATE_ACCEPTANCE_INDEXES,
-  CREATE_ACCEPTANCE_RECORDS,
-  boundaryDriftTargetKey,
-  type BoundaryDriftBreakdownEntry,
-  type BoundaryDriftKind,
-  type BoundaryDriftWarning,
-  CREATE_BOUNDARY_DRIFT_INDEXES,
-  CREATE_BOUNDARY_DRIFT_RUNS,
-  CREATE_BOUNDARY_DRIFT_WARNINGS,
-  CREATE_DOCTRINE_JUDGMENTS,
-  CREATE_DOCTRINE_JUDGMENT_INDEXES,
-  CREATE_C4_MANUAL_RELATIONSHIPS,
-  CREATE_CODE_DECISION_COMMENTS,
-  CREATE_COMMIT_FILES,
-  CREATE_CROSS_SOURCE_CORRELATIONS,
-  CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES,
-  CREATE_CURRENT_CODE_GRAPH_COMMUNITIES,
-  CREATE_CURRENT_CODE_GRAPHS,
-  CREATE_CURRENT_COVERAGE,
-  CREATE_CURRENT_COVERAGE_INDEXES,
-  CREATE_CURRENT_FILE_ANALYSIS,
-  CREATE_CURRENT_FUNCTION_ANALYSIS,
-  CREATE_CURRENT_GRAPHS,
-  CREATE_DAILY_COUNTS,
-  CREATE_DORA_METRICS,
-  CREATE_EMERGENCY_INDEXES,
-  CREATE_EMERGENCY_LOG,
-  CREATE_FILE_ANALYSIS_INDEXES,
-  CREATE_FLIGHT_REVIEW_INDEXES,
-  CREATE_FLIGHT_REVIEWS,
-  CREATE_INDEXES,
-  CREATE_USER_FEEDBACK_ENTRIES,
-  CREATE_USER_FEEDBACK_INDEXES,
-  CREATE_MESSAGE_COMMITS,
-  CREATE_MESSAGE_TOOL_CALLS,
-  CREATE_MESSAGE_TOOL_CALLS_INDEXES,
-  CREATE_MESSAGES,
-  CREATE_PR_REVIEW_COMMENTS,
-  CREATE_PR_REVIEW_FINDINGS,
-  CREATE_PR_REVIEW_FINDINGS_INDEXES,
-  CREATE_PR_REVIEW_INDEXES,
-  CREATE_PR_REVIEWS,
-  CREATE_RELEASE_CODE_GRAPH_COMMUNITIES,
-  CREATE_COMMIT_CODE_GRAPHS,
-  CREATE_RELEASE_CODE_GRAPHS,
-  CREATE_RELEASE_COVERAGE,
-  CREATE_RELEASE_FILE_ANALYSIS,
-  CREATE_RELEASE_FILES,
-  CREATE_RELEASE_FUNCTION_ANALYSIS,
-  CREATE_RELEASE_GRAPHS,
-  CREATE_RELEASE_INDEXES,
-  CREATE_RELEASES,
-  CREATE_REPOS,
-  CREATE_SAFE_POINTS,
-  CREATE_SESSION_COMMIT_RESOLUTIONS,
-  CREATE_SESSION_COMMITS,
-  CREATE_SESSION_COSTS,
-  CREATE_SESSIONS,
-  CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE,
-  CREATE_SKILL_MODELS_RESOLVED_VIEW,
-  DEFAULT_SKILL_MODELS,
-  extractSkillName,
-  isAiFirstTryFailureCommit,
-  isCodeFile,
-  isCountableModel,
-  isKnownPricingModel,
-  resolvePricingModelName,
-  trailToC4,
-} from '@anytime-markdown/trail-core';
-import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FlightReview, type FlightReviewFilter, type FileAuthorCommitRow, type FlightReviewMachineInput, type FlightReviewManualPatch, type RationaleAuditStatus, type IC4ModelStore,
-  type LessonCandidate, type SelfAssessment, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
+  AI_FIRST_TRY_FIX_WINDOW_MS, buildReleaseFromGitData, calculateCost, computeConfidenceCoupling, computeSessionConfidenceCoupling, computeSessionCoupling, computeSubagentTypeConfidenceCoupling, computeSubagentTypeCoupling, computeTemporalCoupling, CREATE_C4_MANUAL_ELEMENTS, CREATE_C4_MANUAL_GROUPS, CREATE_C4_MANUAL_INDEXES, CREATE_ACCEPTANCE_INDEXES, CREATE_ACCEPTANCE_RECORDS, boundaryDriftTargetKey, type BoundaryDriftBreakdownEntry, type BoundaryDriftKind, type BoundaryDriftWarning, CREATE_BOUNDARY_DRIFT_INDEXES, CREATE_BOUNDARY_DRIFT_RUNS, CREATE_BOUNDARY_DRIFT_WARNINGS, CREATE_DOCTRINE_JUDGMENTS, CREATE_DOCTRINE_JUDGMENT_INDEXES, CREATE_C4_MANUAL_RELATIONSHIPS, CREATE_CODE_DECISION_COMMENTS, CREATE_COMMIT_FILES, CREATE_CROSS_SOURCE_CORRELATIONS, CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES, CREATE_CURRENT_CODE_GRAPH_COMMUNITIES, CREATE_CURRENT_CODE_GRAPHS, CREATE_CURRENT_COVERAGE, CREATE_CURRENT_COVERAGE_INDEXES, CREATE_CURRENT_FILE_ANALYSIS, CREATE_CURRENT_FUNCTION_ANALYSIS, CREATE_CURRENT_GRAPHS, CREATE_DAILY_COUNTS, CREATE_DORA_METRICS, CREATE_EMERGENCY_INDEXES, CREATE_EMERGENCY_LOG, CREATE_FILE_ANALYSIS_INDEXES, CREATE_INDEXES, CREATE_VERIFICATION_RUN_INDEXES, CREATE_VERIFICATION_RUNS, CREATE_USER_FEEDBACK_ENTRIES, CREATE_USER_FEEDBACK_INDEXES, CREATE_MESSAGE_COMMITS, CREATE_MESSAGE_TOOL_CALLS, CREATE_MESSAGE_TOOL_CALLS_INDEXES, CREATE_MESSAGES, CREATE_PR_REVIEW_COMMENTS, CREATE_PR_REVIEW_FINDINGS, CREATE_PR_REVIEW_FINDINGS_INDEXES, CREATE_PR_REVIEW_INDEXES, CREATE_PR_REVIEWS, CREATE_RELEASE_CODE_GRAPH_COMMUNITIES, CREATE_COMMIT_CODE_GRAPHS, CREATE_RELEASE_CODE_GRAPHS, CREATE_RELEASE_COVERAGE, CREATE_RELEASE_FILE_ANALYSIS, CREATE_RELEASE_FILES, CREATE_RELEASE_FUNCTION_ANALYSIS, CREATE_RELEASE_GRAPHS, CREATE_RELEASE_INDEXES, CREATE_RELEASES, CREATE_REPOS, CREATE_SAFE_POINTS, CREATE_SESSION_COMMIT_RESOLUTIONS, CREATE_SESSION_COMMITS, CREATE_SESSION_COSTS, CREATE_SESSIONS, CREATE_SKILL_MODELS as CREATE_SKILL_MODELS_TABLE, CREATE_SKILL_MODELS_RESOLVED_VIEW, DEFAULT_SKILL_MODELS, extractSkillName, isAiFirstTryFailureCommit, isCodeFile, isCountableModel, isKnownPricingModel, resolvePricingModelName, trailToC4, } from '@anytime-markdown/trail-core';
+import { type AcceptanceMissRate, type AcceptanceRecord, type AcceptanceRecordFilter, type AcceptanceRecordInput, type AcceptanceRoute, type C4ModelEntry, type C4ModelResult, type CommitFileRow, type CommitRiskRow, computeDefectRisk, type ConfidenceCouplingEdge, type CurrentCoverageRow, type DefectRiskEntry, type EmergencyEvent, type EmergencyEventInput, type FileAuthorCommitRow, type IC4ModelStore, type UserFeedbackEntry, type UserFeedbackFilter, type UserFeedbackInput, type IKnowledgeBaseSnapshotter, type KbShrinkAlert, type KnowledgeBaseSnapshotEntry, type KnowledgeBaseWriteTrigger, type ManualElement, type ManualGroup, type ManualRelationship, matchCommitsToMessages, type MessageCommitInput, type PricingSource, type ReleaseCoverageRow, type ReleaseFileRow, type ReleaseRow, type SafePoint, type SafePointInput, type SessionFileRow, type SubagentTypeFileRow, type TemporalCouplingEdge, type TrailGraph, type TrailMessageCommit } from '@anytime-markdown/trail-core';
 import type { AnalyzeOptions } from '@anytime-markdown/trail-core/analyze';
 import ignore from 'ignore';
 
@@ -893,27 +812,7 @@ export interface DoraMetricRow {
 //  GitHub PR review (LEP 新ソース / Step 4b-4c)
 // ---------------------------------------------------------------------------
 
-/** PR review の行コメント (取込入力)。 */
-export interface PrReviewCommentInput {
-  readonly path: string;
-  readonly line: number | null;
-  readonly body: string;
-}
-
-/** {@link TrailDatabase.upsertPrReview} に渡す PR review 1 件。 */
-export interface PrReviewUpsert {
-  readonly reviewId: string;
-  readonly repoName: string;
-  readonly prNumber: number;
-  readonly author: string;
-  readonly state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED';
-  readonly submittedAt: string;
-  readonly body: string;
-  readonly bodyHash: string;
-  readonly comments: readonly PrReviewCommentInput[];
-}
-
-/** {@link TrailDatabase.getPrReviews} の戻り値 (CrossSourceCorrelator 入力)。 */
+/** PR review 1 件の行形状（CrossSourceCorrelator 入力の契約。永続化は memory_reviews 側・2026-08-07 統合）。 */
 export interface PrReviewRow {
   readonly reviewId: string;
   readonly repoName: string;
@@ -924,17 +823,7 @@ export interface PrReviewRow {
   readonly bodyHash: string;
 }
 
-/** {@link TrailDatabase.getPrReviewDetail} の戻り値 (finding 抽出入力)。 */
-export interface PrReviewDetail {
-  readonly reviewId: string;
-  readonly repoName: string;
-  readonly prNumber: number;
-  readonly state: string;
-  readonly body: string;
-  readonly comments: readonly PrReviewCommentInput[];
-}
-
-/** pr_review_findings の 1 行 ({@link TrailDatabase.replacePrReviewFindings} / getter 共通)。 */
+/** PR review finding 1 件の行形状（相関計算の契約。永続化は memory_review_findings 側・2026-08-07 統合）。 */
 export interface PrReviewFindingRow {
   readonly findingId: string;
   readonly reviewId: string;
@@ -3867,17 +3756,8 @@ export class TrailDatabase {
     this.migrateDropDerivedRepoName(db);
     // LEP Layer 4 (Aggregator) の DORA 指標出力先。新規テーブル追加のみ (既存 DDL 不変)。
     db.run(CREATE_DORA_METRICS);
-    // LEP 新ソース参照実装 (Step 4b): GitHub PR review の生データ。新規テーブル追加のみ。
-    db.run(CREATE_PR_REVIEWS);
-    db.run(CREATE_PR_REVIEW_COMMENTS);
-    for (const idx of CREATE_PR_REVIEW_INDEXES) {
-      db.run(idx);
-    }
-    // PR review finding (Step 4c)。memory_review_findings とは独立 (新規テーブルのみ)。
-    db.run(CREATE_PR_REVIEW_FINDINGS);
-    for (const idx of CREATE_PR_REVIEW_FINDINGS_INDEXES) {
-      db.run(idx);
-    }
+    // pr_reviews / pr_review_comments / pr_review_findings は memory_reviews 系へ統合（2026-08-07）。
+    // trail.db 側では作成しない（残存する旧テーブルは FlightRecordDatabase の移行が 0 行時のみ回収）。
     // cross-source 相関 (Step 4d)。新規テーブルのみ。
     db.run(CREATE_CROSS_SOURCE_CORRELATIONS);
     for (const idx of CREATE_CROSS_SOURCE_CORRELATIONS_INDEXES) {
@@ -3893,37 +3773,24 @@ export class TrailDatabase {
     for (const idx of CREATE_EMERGENCY_INDEXES) {
       db.run(idx);
     }
-    // Phase 6 S1 (Flight Review)。新規テーブルのみ。
-    db.run(CREATE_FLIGHT_REVIEWS);
-    for (const idx of CREATE_FLIGHT_REVIEW_INDEXES) {
-      db.run(idx);
-    }
-    // Phase 6 S2 (Debrief / User Feedback)。新規テーブル + flight_reviews への列追加。
-    // 列追加は列ごと独立に columnExists 判定する（まとめ判定は部分適用から復旧できない）。
+    // Flight Review / Flight Record（flight_reviews / instructions / instruction_sessions）は
+    // memory-core.db へ移設した（2026-08-07・FlightRecordDatabase が所有）。trail.db 側では
+    // 作成しない。既存 DB の残存テーブルは FlightRecordDatabase.migrateFromTrailDb が
+    // コピー検証後に DROP する。
+    // Phase 6 S2 (Debrief / User Feedback)。新規テーブルのみ。
     db.run(CREATE_USER_FEEDBACK_ENTRIES);
     for (const idx of CREATE_USER_FEEDBACK_INDEXES) {
       db.run(idx);
     }
-    if (!columnExists(db, 'flight_reviews', 'next_concerns')) {
-      db.run(`ALTER TABLE flight_reviews ADD COLUMN next_concerns TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(next_concerns))`);
-    }
-    if (!columnExists(db, 'flight_reviews', 'lesson_candidates')) {
-      db.run(`ALTER TABLE flight_reviews ADD COLUMN lesson_candidates TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(lesson_candidates))`);
-    }
-    // Phase 6 S4 (Rationale Audit)。列ごと独立 columnExists（S2 と同方針）。
-    if (!columnExists(db, 'flight_reviews', 'rationale_audit_status')) {
-      db.run(`ALTER TABLE flight_reviews ADD COLUMN rationale_audit_status TEXT NOT NULL DEFAULT 'unaudited' CHECK (rationale_audit_status IN ('unaudited', 'valid', 'needs_fix', 'rejected'))`);
-    }
-    // 自律受入基盤 S5 (受入台帳)。新規テーブルのみ。
-    db.run(CREATE_ACCEPTANCE_RECORDS);
-    for (const idx of CREATE_ACCEPTANCE_INDEXES) {
+    // 検証実施台帳。writer は scripts/run-verified.mjs（別プロセス）で、拡張が先に作る保証は無い
+    // ため双方が CREATE TABLE IF NOT EXISTS を持つ。新規テーブルのみ。
+    db.run(CREATE_VERIFICATION_RUNS);
+    for (const idx of CREATE_VERIFICATION_RUN_INDEXES) {
       db.run(idx);
     }
-    // ドクトリン接地判断の並走記録 (D1)。新規テーブルのみ。
-    db.run(CREATE_DOCTRINE_JUDGMENTS);
-    for (const idx of CREATE_DOCTRINE_JUDGMENT_INDEXES) {
-      db.run(idx);
-    }
+    // 受入台帳 (acceptance_records)・ドクトリン接地判断 (doctrine_judgments) は
+    // memory-core.db へ移設した（2026-08-07）。trail.db 側では作成しない。
+    // 残存テーブルは FlightRecordDatabase / mcp-trail の遅延移行が回収する。
     // Architectural Drift Detection (管制塔 §2.3)。新規テーブルのみ。
     // CREATE TABLE IF NOT EXISTS なので既存 DB も次回オープンで冪等に追加される。
     db.run(CREATE_BOUNDARY_DRIFT_WARNINGS);
@@ -5080,168 +4947,9 @@ export class TrailDatabase {
     });
   }
 
-  /**
-   * LEP `PrReviewImporter` (Step 4c) 用: 既存 PR review の body_hash を返す (なければ null)。
-   * Ingester が再 emit した review が未変更かを判定し、冪等に skip するために使う。
-   */
-  getPrReviewBodyHash(reviewId: string): string | null {
-    const db = this.ensureDb();
-    const result = db.exec('SELECT body_hash FROM pr_reviews WHERE review_id = ?', [reviewId]);
-    const row = result[0]?.values[0];
-    return row ? asText(row[0] ?? '') : null;
-  }
-
-  /**
-   * LEP `PrReviewImporter` (Step 4c) 用: PR review 1 件を upsert する (冪等)。
-   * pr_reviews を INSERT OR REPLACE し、pr_review_comments を洗い替えする。
-   */
-  upsertPrReview(review: PrReviewUpsert): void {
-    this.withTransaction((db) => {
-      // Phase F: 外部 API は repo_name を受けるが、内部で repoIdForName により repo_id を解決して
-      // 保存する (PK は review_id のまま不変・repo_id は additive 列)。
-      // Phase H-1: repo_name 列は撤去済。repo_name は repos 経由で復元する (read で JOIN)。
-      const repoId = this.repoIdForName(review.repoName);
-      db.run(
-        `INSERT OR REPLACE INTO pr_reviews
-           (review_id, repo_id, pr_number, author, state, submitted_at, body, body_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          review.reviewId,
-          repoId,
-          review.prNumber,
-          review.author,
-          review.state,
-          review.submittedAt,
-          review.body,
-          review.bodyHash,
-        ],
-      );
-      db.run('DELETE FROM pr_review_comments WHERE review_id = ?', [review.reviewId]);
-      const stmt = db.prepare(
-        `INSERT INTO pr_review_comments (review_id, comment_index, file_path, line_number, body)
-         VALUES (?, ?, ?, ?, ?)`,
-      );
-      try {
-        review.comments.forEach((c, i) => {
-          stmt.run([review.reviewId, i, c.path, c.line, c.body]);
-        });
-      } finally {
-        stmt.free();
-      }
-    });
-  }
-
-  /**
-   * LEP `PrReviewFindingAnalyzer` (Step 4c) 用: review 1 件の body + comments を返す
-   * (finding 抽出入力)。存在しなければ null。
-   */
-  getPrReviewDetail(reviewId: string): PrReviewDetail | null {
-    const db = this.ensureDb();
-    // Phase H-1: repo_name は pr_reviews に無い。repos を LEFT JOIN して射影する (結果キーは不変)。
-    // 未解決 repo_id (0/NULL) 行も相関から落とさないため LEFT JOIN + COALESCE(r.repo_name, '')。
-    const head = db.exec(
-      `SELECT COALESCE(r.repo_name, '') AS repo_name, p.pr_number, p.state, p.body
-       FROM pr_reviews p LEFT JOIN repos r ON r.repo_id = p.repo_id WHERE p.review_id = ?`,
-      [reviewId],
-    );
-    const row = head[0]?.values[0];
-    if (!row) return null;
-    const cres = db.exec(
-      'SELECT file_path, line_number, body FROM pr_review_comments WHERE review_id = ? ORDER BY comment_index',
-      [reviewId],
-    );
-    const comments: PrReviewCommentInput[] = (cres[0]?.values ?? []).map((c) => ({
-      path: asText(c[0] ?? ''),
-      line: c[1] == null ? null : Number(c[1]),
-      body: asText(c[2] ?? ''),
-    }));
-    return {
-      reviewId,
-      repoName: asText(row[0] ?? ''),
-      prNumber: Number(row[1] ?? 0),
-      state: asText(row[2] ?? ''),
-      body: asText(row[3] ?? ''),
-      comments,
-    };
-  }
-
-  /** CrossSourceCorrelator (Step 4d) 用: 全 PR review を返す。 */
-  getPrReviews(): PrReviewRow[] {
-    const db = this.ensureDb();
-    // Phase H-1: repo_name は pr_reviews に無い。repos を LEFT JOIN して射影する (結果キーは不変)。
-    // 未解決 repo_id (0/NULL) 行も相関から落とさないため LEFT JOIN + COALESCE(r.repo_name, '')。
-    const result = db.exec(
-      `SELECT p.review_id, COALESCE(r.repo_name, '') AS repo_name, p.pr_number, p.author, p.state, p.submitted_at, p.body_hash
-       FROM pr_reviews p LEFT JOIN repos r ON r.repo_id = p.repo_id ORDER BY p.submitted_at`,
-    );
-    if (!result[0]) return [];
-    return result[0].values.map((row) => ({
-      reviewId: asText(row[0] ?? ''),
-      repoName: asText(row[1] ?? ''),
-      prNumber: Number(row[2] ?? 0),
-      author: asText(row[3] ?? ''),
-      state: asText(row[4] ?? ''),
-      submittedAt: asText(row[5] ?? ''),
-      bodyHash: asText(row[6] ?? ''),
-    }));
-  }
-
-  /**
-   * LEP `PrReviewFindingAnalyzer` (Step 4c) 用: 指定 review の finding を洗い替えする。
-   * memory_review_findings とは独立した pr_review_findings に書き込む (source_type enum 不変)。
-   */
-  replacePrReviewFindings(reviewId: string, findings: readonly PrReviewFindingRow[]): void {
-    this.withTransaction((db) => {
-      db.run('DELETE FROM pr_review_findings WHERE review_id = ?', [reviewId]);
-      const stmt = db.prepare(
-        `INSERT INTO pr_review_findings
-           (finding_id, review_id, file_path, line_number, severity, category, body, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      );
-      try {
-        for (const f of findings) {
-          stmt.run([
-            f.findingId,
-            f.reviewId,
-            f.filePath,
-            f.lineNumber,
-            f.severity,
-            f.category,
-            f.body,
-            f.createdAt,
-          ]);
-        }
-      } finally {
-        stmt.free();
-      }
-    });
-  }
-
-  /** CrossSourceCorrelator (Step 4d) / テスト用: pr_review_findings を返す (review 指定で絞込)。 */
-  getPrReviewFindings(reviewId?: string): PrReviewFindingRow[] {
-    const db = this.ensureDb();
-    const result = reviewId
-      ? db.exec(
-          `SELECT finding_id, review_id, file_path, line_number, severity, category, body, created_at
-           FROM pr_review_findings WHERE review_id = ? ORDER BY finding_id`,
-          [reviewId],
-        )
-      : db.exec(
-          `SELECT finding_id, review_id, file_path, line_number, severity, category, body, created_at
-           FROM pr_review_findings ORDER BY finding_id`,
-        );
-    if (!result[0]) return [];
-    return result[0].values.map((row) => ({
-      findingId: asText(row[0] ?? ''),
-      reviewId: asText(row[1] ?? ''),
-      filePath: asText(row[2] ?? ''),
-      lineNumber: row[3] == null ? null : Number(row[3]),
-      severity: row[4] == null ? null : (asText(row[4]) as 'error' | 'warn' | 'info'),
-      category: row[5] == null ? null : asText(row[5]),
-      body: asText(row[6] ?? ''),
-      createdAt: asText(row[7] ?? ''),
-    }));
-  }
+  // PR review の永続化（旧 pr_reviews / pr_review_comments / pr_review_findings）は
+  // memory_reviews / memory_review_findings（source_kind='pr_comment'）へ統合した（2026-08-07）。
+  // 取込は memory-core の ingestPrReview、読み出しは trail-server の prReviewMemorySource が担う。
 
   /**
    * CrossSourceCorrelator (Step 4d) 用: committed_at が有効な session_commits を返す。
@@ -6124,8 +5832,19 @@ export class TrailDatabase {
       const { filesChanged, linesAdded, linesDeleted, filePaths } =
         this.parseNumstat(hash, execOpts, gitRoot);
 
+      // commit_message はフルメッセージ（件名＋空行＋本文）を保持する。件名だけを
+      // 格納すると、本文から決定根拠を取り出す extractCommitRationale が「本文なし」
+      // として全件 skip し、Rationale Audit の監査対象が恒久的に 0 件になる。
+      // 件名を取り出す消費側（MetricsReader / *CommitPrefixChart / runBugHistoryIncremental
+      // 等）は split('\n')[0] を通すので影響を受けない。ただし全文を照合する消費側は
+      // 挙動が変わる: memory-core の linkAddresses はメッセージ全体を小文字化して
+      // レビュー指摘と突き合わせるため、照合対象が本文まで広がる。過剰リンクに倒れない
+      // よう、同 PR でキーワード配点を一致数比例へ変更してある。
+      const trimmedBody = body.trimEnd();
+      const fullMessage = trimmedBody === '' ? subject : `${subject}\n\n${trimmedBody}`;
+
       insertStmt.run([
-        sessionId, hash, subject, author, committedAt,
+        sessionId, hash, fullMessage, author, committedAt,
         isAiAssisted, filesChanged, linesAdded, linesDeleted, repoId,
       ]);
 
@@ -9136,208 +8855,9 @@ export class TrailDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  //  Phase 6 S1: Flight Review (flight_reviews)
+  //  Phase 6 S2: User Feedback (user_feedback_entries)
+  //  ※ Flight Review / Flight Record 系は FlightRecordDatabase（memory-core.db）へ移設（2026-08-07）
   // ---------------------------------------------------------------------------
-
-  /**
-   * 副作用: flight_reviews へ UPSERT。永続化は呼び出し側の save() 契約に従う。
-   * session_id キーで冪等。既存行がある場合は機械集計列のみ更新し、
-   * outcome / outcome_source / tags / notes / unresolved_items は変更しない
-   * （Stop フックの再送・多重発火が S2 の自己評価・S3 の手動訂正を上書きしないため）。
-   */
-  upsertFlightReviewFromMachine(input: FlightReviewMachineInput): void {
-    const db = this.ensureDb();
-    const now = new Date().toISOString();
-    const stmt = db.prepare(
-      `INSERT INTO flight_reviews (
-         session_id, workspace_path, started_at, ended_at, duration_seconds,
-         tool_call_count, tool_failure_count, rework_count, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(session_id) DO UPDATE SET
-         workspace_path = excluded.workspace_path,
-         started_at = excluded.started_at,
-         ended_at = excluded.ended_at,
-         duration_seconds = excluded.duration_seconds,
-         tool_call_count = excluded.tool_call_count,
-         tool_failure_count = excluded.tool_failure_count,
-         rework_count = excluded.rework_count,
-         updated_at = excluded.updated_at`,
-    );
-    try {
-      stmt.run([
-        input.sessionId,
-        input.workspacePath,
-        input.startedAt,
-        input.endedAt,
-        input.durationSeconds,
-        input.toolCallCount,
-        input.toolFailureCount,
-        input.reworkCount,
-        now,
-        now,
-      ]);
-    } finally {
-      stmt.free();
-    }
-  }
-
-  /** ended_at 降順。filter 未指定は直近 100 件。 */
-  listFlightReviews(filter: FlightReviewFilter = {}): FlightReview[] {
-    const db = this.ensureDb();
-    const conditions: string[] = [];
-    const params: (string | number)[] = [];
-    if (filter.sessionId !== undefined) {
-      conditions.push('session_id = ?');
-      params.push(filter.sessionId);
-    }
-    if (filter.since !== undefined) {
-      conditions.push('ended_at >= ?');
-      params.push(filter.since);
-    }
-    if (filter.until !== undefined) {
-      conditions.push('ended_at <= ?');
-      params.push(filter.until);
-    }
-    if (filter.outcome !== undefined) {
-      conditions.push('outcome = ?');
-      params.push(filter.outcome);
-    }
-    if (filter.tag !== undefined) {
-      // tags は JSON 文字列配列。json_each で配列要素との等値一致（部分一致させない）
-      conditions.push('EXISTS (SELECT 1 FROM json_each(flight_reviews.tags) WHERE json_each.value = ?)');
-      params.push(filter.tag);
-    }
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    params.push(filter.limit ?? 100);
-    const res = db.exec(
-      `SELECT id, session_id, workspace_path, started_at, ended_at, duration_seconds,
-              outcome, outcome_source, tool_call_count, tool_failure_count, rework_count,
-              unresolved_items, next_concerns, lesson_candidates, tags, notes, rationale_audit_status,
-              created_at, updated_at
-       FROM flight_reviews ${where} ORDER BY ended_at DESC, id DESC LIMIT ?`,
-      params,
-    );
-    if (!res[0]) return [];
-    return res[0].values.map((row) => ({
-      id: row[0] as number,
-      sessionId: row[1] as string,
-      workspacePath: row[2] as string,
-      startedAt: (row[3] as string | null) ?? null,
-      endedAt: row[4] as string,
-      durationSeconds: (row[5] as number | null) ?? null,
-      outcome: row[6] as FlightReview['outcome'],
-      outcomeSource: row[7] as FlightReview['outcomeSource'],
-      toolCallCount: row[8] as number,
-      toolFailureCount: row[9] as number,
-      reworkCount: row[10] as number,
-      unresolvedItems: row[11] as string,
-      nextConcerns: row[12] as string,
-      lessonCandidates: row[13] as string,
-      tags: row[14] as string,
-      notes: row[15] as string,
-      rationaleAuditStatus: row[16] as FlightReview['rationaleAuditStatus'],
-      createdAt: row[17] as string,
-      updatedAt: row[18] as string,
-    }));
-  }
-
-  /**
-   * 副作用: flight_reviews の outcome 系列を自己評価で更新。永続化は呼び出し側の save() 契約に従う。
-   * 優先順位 manual > self > machine を SQL 条件で強制する
-   * （outcome_source='manual' の行は WHERE で除外され、人間の訂正を self が上書きしない）。
-   */
-  applySelfAssessmentToFlightReview(sessionId: string, assessment: SelfAssessment): void {
-    const db = this.ensureDb();
-    const stmt = db.prepare(
-      `UPDATE flight_reviews
-       SET outcome = ?, outcome_source = 'self', unresolved_items = ?, next_concerns = ?, updated_at = ?
-       WHERE session_id = ? AND outcome_source != 'manual'`,
-    );
-    try {
-      stmt.run([
-        assessment.outcome,
-        JSON.stringify(assessment.unresolvedItems),
-        JSON.stringify(assessment.nextConcerns),
-        new Date().toISOString(),
-        sessionId,
-      ]);
-    } finally {
-      stmt.free();
-    }
-  }
-
-  /**
-   * 副作用: flight_reviews を手動訂正で部分更新。永続化は呼び出し側の save() 契約に従う。
-   * 更新時は outcome_source='manual' を設定し、以後は applySelfAssessmentToFlightReview の
-   * WHERE 条件（outcome_source != 'manual'）と機械 UPSERT の列限定により上書きされない。
-   * 対象行が存在しなければ false（行の新規作成はしない）。空 patch は書き込まず存在有無のみ返す。
-   */
-  updateFlightReviewManual(sessionId: string, patch: FlightReviewManualPatch): boolean {
-    const db = this.ensureDb();
-    const exists = db.exec(`SELECT 1 FROM flight_reviews WHERE session_id = ? LIMIT 1`, [sessionId]);
-    if (exists[0]?.values[0] === undefined) return false;
-
-    const sets: string[] = [];
-    const params: string[] = [];
-    if (patch.outcome !== undefined) {
-      sets.push('outcome = ?');
-      params.push(patch.outcome);
-    }
-    if (patch.tags !== undefined) {
-      sets.push('tags = ?');
-      params.push(JSON.stringify(patch.tags));
-    }
-    if (patch.notes !== undefined) {
-      sets.push('notes = ?');
-      params.push(patch.notes);
-    }
-    if (sets.length === 0) return true;
-
-    sets.push(`outcome_source = 'manual'`, 'updated_at = ?');
-    params.push(new Date().toISOString(), sessionId);
-    const stmt = db.prepare(
-      `UPDATE flight_reviews SET ${sets.join(', ')} WHERE session_id = ?`,
-    );
-    try {
-      stmt.run(params);
-    } finally {
-      stmt.free();
-    }
-    return true;
-  }
-
-  /**
-   * 副作用: flight_reviews.rationale_audit_status を更新。永続化は呼び出し側の save() 契約に従う。
-   * outcome_source には触れない（監査は成否訂正と独立。相乗りすると self 反映が以後ブロックされる）。
-   * 対象行が無ければ false（行の新規作成はしない）。
-   */
-  markRationaleAudit(sessionId: string, status: RationaleAuditStatus): boolean {
-    const db = this.ensureDb();
-    const exists = db.exec(`SELECT 1 FROM flight_reviews WHERE session_id = ? LIMIT 1`, [sessionId]);
-    if (exists[0]?.values[0] === undefined) return false;
-    const stmt = db.prepare(
-      `UPDATE flight_reviews SET rationale_audit_status = ?, updated_at = ? WHERE session_id = ?`,
-    );
-    try {
-      stmt.run([status, new Date().toISOString(), sessionId]);
-    } finally {
-      stmt.free();
-    }
-    return true;
-  }
-
-  /** 副作用: flight_reviews.lesson_candidates を更新。永続化は呼び出し側の save() 契約に従う。 */
-  saveFlightReviewLessonCandidates(sessionId: string, candidates: LessonCandidate[]): void {
-    const db = this.ensureDb();
-    const stmt = db.prepare(
-      `UPDATE flight_reviews SET lesson_candidates = ?, updated_at = ? WHERE session_id = ?`,
-    );
-    try {
-      stmt.run([JSON.stringify(candidates), new Date().toISOString(), sessionId]);
-    } finally {
-      stmt.free();
-    }
-  }
 
   /**
    * 副作用: user_feedback_entries へ INSERT。永続化は呼び出し側の save() 契約に従う。
@@ -11295,241 +10815,8 @@ export class TrailDatabase {
   }
 
   // ---------------------------------------------------------------------------
-  //  自律受入基盤 S5: 受入台帳 (acceptance_records)
+  //  ※ 受入台帳 (acceptance_records) は FlightRecordDatabase（memory-core.db）へ移設（2026-08-07）
   // ---------------------------------------------------------------------------
-
-  /**
-   * 副作用: acceptance_records へ UPSERT。永続化は呼び出し側の save() 契約に従う。
-   * (commit_sha, route) キーで冪等（farm の再実行・多重記録を吸収する）。
-   */
-  upsertAcceptanceRecord(input: AcceptanceRecordInput): void {
-    const db = this.ensureDb();
-    const now = new Date().toISOString();
-    const stmt = db.prepare(
-      `INSERT INTO acceptance_records (
-         commit_sha, route, repo_name, verdict, decided_by, decided_at,
-         farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(commit_sha, route) DO UPDATE SET
-         repo_name = excluded.repo_name,
-         verdict = excluded.verdict,
-         decided_by = excluded.decided_by,
-         decided_at = excluded.decided_at,
-         farm_run_ref = excluded.farm_run_ref,
-         failed_tests = excluded.failed_tests,
-         vrt_diff = excluded.vrt_diff,
-         quarantined_count = excluded.quarantined_count,
-         notes = excluded.notes,
-         updated_at = excluded.updated_at`,
-    );
-    try {
-      stmt.run([
-        input.commitSha,
-        input.route,
-        input.repoName ?? '',
-        input.verdict,
-        input.decidedBy,
-        input.decidedAt ?? null,
-        input.farmRunRef ?? '',
-        JSON.stringify(input.failedTests ?? []),
-        input.vrtDiff ? 1 : 0,
-        input.quarantinedCount ?? 0,
-        input.notes ?? '',
-        now,
-        now,
-      ]);
-    } finally {
-      stmt.free();
-    }
-  }
-
-  /** decided_at 降順（NULL は末尾）。filter 未指定は直近 100 件。 */
-  listAcceptanceRecords(filter: AcceptanceRecordFilter = {}): AcceptanceRecord[] {
-    const db = this.ensureDb();
-    const conditions: string[] = [];
-    const params: (string | number)[] = [];
-    if (filter.commitSha !== undefined) {
-      conditions.push('commit_sha = ?');
-      params.push(filter.commitSha);
-    }
-    if (filter.route !== undefined) {
-      conditions.push('route = ?');
-      params.push(filter.route);
-    }
-    if (filter.since !== undefined) {
-      conditions.push('decided_at >= ?');
-      params.push(filter.since);
-    }
-    if (filter.until !== undefined) {
-      conditions.push('decided_at <= ?');
-      params.push(filter.until);
-    }
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    params.push(filter.limit ?? 100);
-    const res = db.exec(
-      `SELECT commit_sha, route, repo_name, verdict, decided_by, decided_at,
-              farm_run_ref, failed_tests, vrt_diff, quarantined_count, notes, created_at, updated_at
-       FROM acceptance_records ${where} ORDER BY decided_at DESC, updated_at DESC LIMIT ?`,
-      params,
-    );
-    if (!res[0]) return [];
-    return res[0].values.map((row) => ({
-      commitSha: row[0] as string,
-      route: row[1] as AcceptanceRecord['route'],
-      repoName: row[2] as string,
-      verdict: row[3] as AcceptanceRecord['verdict'],
-      decidedBy: row[4] as AcceptanceRecord['decidedBy'],
-      decidedAt: (row[5] as string | null) ?? null,
-      farmRunRef: row[6] as string,
-      failedTests: row[7] as string,
-      vrtDiff: (row[8] as number) === 1,
-      quarantinedCount: row[9] as number,
-      notes: row[10] as string,
-      createdAt: row[11] as string,
-      updatedAt: row[12] as string,
-    }));
-  }
-
-  /**
-   * regression 系 fix コミットか（Conventional Commits: `fix(<pkg>/regression):` / `fix(regression):`。
-   * 規約は git-workflow ルール）。見逃し率の突合対象を要件書 §5.2 の定義に限定する —
-   * `fix(typo)` / `fix(deps)` 等まで数えると経路別見逃し率が過大計上され、Level Gate の誤降格につながる。
-   */
-  private static isRegressionFixMessage(message: string): boolean {
-    return /^fix\(([^)]*\/)?regression\):/.test(message);
-  }
-
-  /**
-   * 経路別見逃し率の算出（読み取りのみ・近似指標）。
-   * 「合格コミットの変更ファイルと同じファイルに、合格後 windowDays 日以内の regression 系 fix
-   * コミット（別 SHA・同一リポジトリ）が触れた」件数を missed と数える。厳密な因果は問わない。
-   * リポジトリは acceptance_records.repo_name → repos.repo_id で解決して照合を同一 repo に限定する
-   * （repo_name 未解決の旧レコードのみ全 repo 照合へ縮退）。インシデント記録との突合は S5 残件（要件書 §5.2）。
-   * sql.js のオプティマイザが弱いため、SQL はシンプルスキャンに留め集約は TS 側で行う。
-   */
-  computeAcceptanceMissRate(windowDays = 14): AcceptanceMissRate[] {
-    const db = this.ensureDb();
-    const routes: AcceptanceRoute[] = ['auto', 'machine', 'human'];
-    const passRes = db.exec(
-      `SELECT commit_sha, route, decided_at, repo_name FROM acceptance_records
-       WHERE verdict = 'pass' AND decided_at IS NOT NULL`,
-    );
-    const passRows = (passRes[0]?.values ?? []).map((r) => ({
-      commitSha: r[0] as string,
-      route: r[1] as AcceptanceRoute,
-      decidedAt: r[2] as string,
-      repoName: r[3] as string,
-    }));
-    if (passRows.length === 0) {
-      return routes.map((route) => ({ route, acceptedCount: 0, missedCount: 0, missRate: null, windowDays }));
-    }
-
-    const repoIdByName = new Map<string, number>();
-    for (const row of db.exec(`SELECT repo_id, repo_name FROM repos`)[0]?.values ?? []) {
-      repoIdByName.set(row[1] as string, row[0] as number);
-    }
-
-    const filesByCommit = this.commitFilesByHashes(db, passRows.map((r) => r.commitSha));
-
-    const minDecidedAt = passRows.reduce((min, r) => (r.decidedAt < min ? r.decidedAt : min), passRows[0].decidedAt);
-    const fixRes = db.exec(
-      `SELECT DISTINCT commit_hash, committed_at, repo_id, commit_message FROM session_commits
-       WHERE commit_message GLOB 'fix*' AND committed_at IS NOT NULL AND committed_at >= ?`,
-      [minDecidedAt],
-    );
-    const fixCommits = (fixRes[0]?.values ?? [])
-      .map((r) => ({
-        commitHash: r[0] as string,
-        committedAt: r[1] as string,
-        repoId: r[2] as number,
-        message: r[3] as string,
-      }))
-      .filter((f) => TrailDatabase.isRegressionFixMessage(f.message));
-    const fixFilesByCommit = this.commitFilesByHashes(db, fixCommits.map((f) => f.commitHash));
-
-    const filesFor = (
-      map: Map<string, Map<number, Set<string>>>,
-      hash: string,
-      repoId: number | null,
-    ): Set<string> => {
-      const byRepo = map.get(hash);
-      if (!byRepo) return new Set();
-      if (repoId !== null) return byRepo.get(repoId) ?? new Set();
-      const union = new Set<string>();
-      for (const set of byRepo.values()) {
-        for (const f of set) union.add(f);
-      }
-      return union;
-    };
-
-    const windowMs = windowDays * 24 * 60 * 60 * 1000;
-    const missedByRoute = new Map<AcceptanceRoute, number>();
-    const acceptedByRoute = new Map<AcceptanceRoute, number>();
-    for (const pass of passRows) {
-      acceptedByRoute.set(pass.route, (acceptedByRoute.get(pass.route) ?? 0) + 1);
-      const passRepoId = repoIdByName.get(pass.repoName) ?? null;
-      const passFiles = filesFor(filesByCommit, pass.commitSha, passRepoId);
-      if (passFiles.size === 0) continue;
-      const decidedMs = Date.parse(pass.decidedAt);
-      const missed = fixCommits.some((fix) => {
-        if (fix.commitHash === pass.commitSha) return false;
-        if (passRepoId !== null && fix.repoId !== passRepoId) return false;
-        const fixMs = Date.parse(fix.committedAt);
-        if (Number.isNaN(fixMs) || fixMs <= decidedMs || fixMs > decidedMs + windowMs) return false;
-        const fixFiles = filesFor(fixFilesByCommit, fix.commitHash, passRepoId !== null ? fix.repoId : null);
-        for (const f of fixFiles) {
-          if (passFiles.has(f)) return true;
-        }
-        return false;
-      });
-      if (missed) {
-        missedByRoute.set(pass.route, (missedByRoute.get(pass.route) ?? 0) + 1);
-      }
-    }
-    return routes.map((route) => {
-      const acceptedCount = acceptedByRoute.get(route) ?? 0;
-      const missedCount = missedByRoute.get(route) ?? 0;
-      return {
-        route,
-        acceptedCount,
-        missedCount,
-        missRate: acceptedCount === 0 ? null : missedCount / acceptedCount,
-        windowDays,
-      };
-    });
-  }
-
-  /** commit_files をハッシュ集合で引き、hash → (repo_id → file_path 集合) の Map にする（IN 句はチャンク分割）。 */
-  private commitFilesByHashes(db: Database, hashes: string[]): Map<string, Map<number, Set<string>>> {
-    const result = new Map<string, Map<number, Set<string>>>();
-    const unique = [...new Set(hashes)];
-    const CHUNK = 400;
-    for (let i = 0; i < unique.length; i += CHUNK) {
-      const chunk = unique.slice(i, i + CHUNK);
-      const placeholders = chunk.map(() => '?').join(', ');
-      const res = db.exec(
-        `SELECT commit_hash, file_path, repo_id FROM commit_files WHERE commit_hash IN (${placeholders})`,
-        chunk,
-      );
-      for (const row of res[0]?.values ?? []) {
-        const hash = row[0] as string;
-        const file = row[1] as string;
-        const repoId = row[2] as number;
-        let byRepo = result.get(hash);
-        if (!byRepo) {
-          byRepo = new Map();
-          result.set(hash, byRepo);
-        }
-        let set = byRepo.get(repoId);
-        if (!set) {
-          set = new Set();
-          byRepo.set(repoId, set);
-        }
-        set.add(file);
-      }
-    }
-    return result;
-  }
 
   // ---------------------------------------------------------------------------
   //  File Analysis (Dead Code Detection)

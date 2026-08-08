@@ -185,6 +185,48 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
     'c',
   );
 
+  // ── 衛生行動の減衰(3 期間の平均。T-17 / proposal 20260805-session-hygiene-delegation-decay) ──
+  // 上の expensiveNoCompact は「compact 0 回」の件数しか見ないため、11 回 → 3.7 回のような
+  // 連続的な減衰を捉えられない。高コストセッションに絞って平均値を 3 期間並べる。
+  // 平均メッセージ数を併記するのは、サブエージェント数・compact 回数の低下が
+  // 「セッションが小さくなった」結果なのかを読み手が切り分けられるようにするため。
+  // 期間境界は start_time と同じ ISO(...Z) 書式で作る。datetime() の既定書式は
+  // 'YYYY-MM-DD HH:MM:SS' で区切り文字が異なり、同日内の文字列比較がずれる。
+  const HYGIENE_WINDOWS = [
+    { label: 'last7d', fromDays: 7, toDays: 0 },
+    { label: 'prior7to30d', fromDays: 30, toDays: 7 },
+    { label: 'prior30to60d', fromDays: 60, toDays: 30 },
+  ];
+  const hygieneWindows = HYGIENE_WINDOWS.map((w) => {
+    const r = rows(
+      q(
+        db,
+        `SELECT COUNT(*) sessions,
+                ROUND(AVG(t.cost), 1) avg_cost,
+                ROUND(AVG(COALESCE(s.sub_agent_count, 0)), 1) avg_sub_agents,
+                ROUND(AVG(COALESCE(s.compact_count, 0)), 1) avg_compacts,
+                ROUND(AVG(COALESCE(s.message_count, 0))) avg_messages,
+                ROUND(AVG(COALESCE(s.peak_context_tokens, 0))) avg_peak_context
+         FROM sessions s
+         JOIN (SELECT session_id, SUM(estimated_cost_usd) cost FROM session_costs GROUP BY session_id) t
+           ON t.session_id = s.id
+         WHERE s.start_time >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', ?)
+           AND s.start_time <  strftime('%Y-%m-%dT%H:%M:%SZ', 'now', ?)
+           AND t.cost >= ?`,
+        [`-${w.fromDays} days`, `-${w.toDays} days`, EXPENSIVE_COST_USD],
+      ),
+    )[0] ?? null;
+    return {
+      window: w.label,
+      sessions: r?.sessions ?? 0,
+      avgCostUsd: r?.avg_cost ?? null,
+      avgSubAgents: r?.avg_sub_agents ?? null,
+      avgCompacts: r?.avg_compacts ?? null,
+      avgMessages: r?.avg_messages ?? null,
+      avgPeakContextTokens: r?.avg_peak_context ?? null,
+    };
+  });
+
   // ── 週次トレンド(JST 境界) + 直近 7d / 前 7d ──────────────────────────────────
   const weekly = rows(
     q(
@@ -237,6 +279,7 @@ const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
     expensiveNoCompact,
     longSessions,
     longNoCompact,
+    windows: hygieneWindows,
   };
   snapshot.trend = { last7dCost, prior7dCost, weekly };
 

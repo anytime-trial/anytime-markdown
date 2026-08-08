@@ -7,7 +7,7 @@
  * Data fetching (useCodeGraph, useTemporalCoupling) stays in the thin React
  * wrapper (.tsx); this view receives resolved data and callbacks as props.
  */
-import { createButton, createTextField } from '@anytime-markdown/ui-core';
+import { createButton, createSelect, createTextField } from '@anytime-markdown/ui-core';
 import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import type { VanillaViewHandle } from '../shared/vanillaIsland';
 import {
@@ -34,7 +34,7 @@ import {
   type CodeGraphGhostEdgeGranularity,
 } from './codeGraphCanvas';
 import type { CodeGraphDiff, CodeGraphNodeDiffStatus } from '@anytime-markdown/trail-core/codeGraphDiff';
-import { PLAYBACK_SPEEDS, type CodeGraphPlaybackSpeed } from './codeGraphPlayback';
+import { DEFAULT_PLAYBACK_SPEED, PLAYBACK_SPEEDS, type CodeGraphPlaybackSpeed } from './codeGraphPlayback';
 import { diffNodeColor } from './stateReplayColors';
 
 /** t 未注入時の日本語フォールバック（パネルは元来 JP ハードコード）。 */
@@ -365,21 +365,22 @@ export function mountCodeGraphPanel(
   });
   playbackWrap.appendChild(playButton);
 
-  const speedSelect = document.createElement('select');
-  speedSelect.setAttribute('data-testid', 'code-graph-playback-speed');
-  speedSelect.style.cssText =
-    'padding:2px 4px;border:1px solid var(--am-color-divider);border-radius:4px;' +
-    'background:transparent;color:inherit;font-size:0.7rem;flex-shrink:0;';
-  for (const speed of PLAYBACK_SPEEDS) {
-    const option = document.createElement('option');
-    option.value = speed;
-    option.textContent = speed;
-    speedSelect.appendChild(option);
-  }
-  speedSelect.addEventListener('change', () => {
-    props.onPlaybackSpeedChange?.(speedSelect.value as CodeGraphPlaybackSpeed);
+  /**
+   * 速度セレクタ。生の `<select>` は使わない。
+   *
+   * ネイティブのドロップダウン popup は OS 既定の背景色で描かれるため、
+   * `color:inherit` と組み合わせるとダークテーマで白地に白文字になる（2026-08-05 実測）。
+   * `createSelect` は button + ポータル listbox で、配色は `--am-color-*` に追従する。
+   */
+  const speedSelectHandle = createSelect<CodeGraphPlaybackSpeed>({
+    value: DEFAULT_PLAYBACK_SPEED,
+    options: PLAYBACK_SPEEDS.map((speed) => ({ value: speed, label: speed })),
+    onChange: (speed) => props.onPlaybackSpeedChange?.(speed),
+    fullWidth: false,
+    minWidth: 76,
   });
-  playbackWrap.appendChild(speedSelect);
+  speedSelectHandle.el.setAttribute('data-testid', 'code-graph-playback-speed');
+  playbackWrap.appendChild(speedSelectHandle.el);
 
   /**
    * 再生の帰結を出す行。フレームごとには読み上げず、停止時にだけ出す（機能仕様書 §4.7）。
@@ -460,24 +461,6 @@ export function mountCodeGraphPanel(
   colorByWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--am-color-text-secondary);';
   const colorByLabel = document.createElement('span');
   colorByWrap.appendChild(colorByLabel);
-  const colorBySelect = document.createElement('select');
-  // 再生速度セレクタが同じスクラバ行に増えたため、位置ではなく識別子で引けるようにする。
-  colorBySelect.setAttribute('data-testid', 'code-graph-color-by');
-  colorBySelect.style.cssText =
-    'font-size:0.75rem;padding:2px 4px;background:transparent;color:inherit;' +
-    'border:1px solid var(--am-color-divider);border-radius:4px;';
-  const optCommunity = document.createElement('option');
-  optCommunity.value = 'community';
-  const optLayer = document.createElement('option');
-  optLayer.value = 'layer';
-  const optLastEditor = document.createElement('option');
-  optLastEditor.value = 'lastEditor';
-  const optEditFrequency = document.createElement('option');
-  optEditFrequency.value = 'editFrequency';
-  const optDiff = document.createElement('option');
-  optDiff.value = 'diff';
-  colorBySelect.append(optCommunity, optLayer, optLastEditor, optEditFrequency, optDiff);
-
   const COLOR_BY_VALUES: readonly CodeGraphColorBy[] = [
     'community',
     'layer',
@@ -485,14 +468,43 @@ export function mountCodeGraphPanel(
     'editFrequency',
     'diff',
   ];
-  colorBySelect.addEventListener('change', () => {
-    const selected = COLOR_BY_VALUES.find((v) => v === colorBySelect.value) ?? 'community';
-    if (selected === colorBy) return;
-    colorBy = selected;
-    props.onColorByChange?.(colorBy);
-    renderState();
+  const COLOR_BY_LABEL_KEYS: Record<CodeGraphColorBy, string> = {
+    community: 'codeGraph.colorBy.community',
+    layer: 'codeGraph.colorBy.layer',
+    lastEditor: 'codeGraph.colorBy.lastEditor',
+    editFrequency: 'codeGraph.colorBy.editFrequency',
+    diff: 'codeGraph.colorBy.diff',
+  };
+  /** ベースラインが無い（最古の目盛り）ときだけ `diff` を選ばせない（機能仕様書 State Replay §4.1）。 */
+  let diffSelectable = true;
+  /** 過去の時点では Author Heatmap 系の配色を選ばせない（Time Scrubber 機能仕様書 §4.5）。 */
+  let heatmapSelectable = true;
+
+  function colorByOptions(): ReadonlyArray<{ value: CodeGraphColorBy; label: string; disabled?: boolean }> {
+    return COLOR_BY_VALUES.map((v) => ({
+      value: v,
+      label: tr(COLOR_BY_LABEL_KEYS[v]),
+      disabled:
+        (v === 'diff' && !diffSelectable) ||
+        (isOverrideColorBy(v) && !heatmapSelectable),
+    }));
+  }
+
+  /** 配色セレクタ。生の `<select>` を使わない理由は速度セレクタと同じ。 */
+  const colorBySelectHandle = createSelect<CodeGraphColorBy>({
+    value: colorBy,
+    options: colorByOptions(),
+    onChange: (selected) => {
+      if (selected === colorBy) return;
+      colorBy = selected;
+      props.onColorByChange?.(colorBy);
+      renderState();
+    },
+    fullWidth: false,
+    minWidth: 148,
   });
-  colorByWrap.appendChild(colorBySelect);
+  colorBySelectHandle.el.setAttribute('data-testid', 'code-graph-color-by');
+  colorByWrap.appendChild(colorBySelectHandle.el);
   toolbar.appendChild(colorByWrap);
 
   // --- Layer legend (shown only when colorBy === 'layer') ---
@@ -711,9 +723,14 @@ export function mountCodeGraphPanel(
     playButton.style.cursor = unavailable ? 'not-allowed' : 'pointer';
     playButton.title = unavailable ? tr('codeGraph.playback.unavailable') : '';
 
-    speedSelect.disabled = unavailable;
-    speedSelect.setAttribute('aria-label', tr('codeGraph.playback.speed'));
-    if (playback.status !== 'unavailable') speedSelect.value = playback.speed;
+    // createSelect は disabled 属性を持たないため、不活性は見た目と操作の双方で表す。
+    speedSelectHandle.el.disabled = unavailable;
+    speedSelectHandle.el.style.opacity = unavailable ? '0.5' : '1';
+    speedSelectHandle.el.style.cursor = unavailable ? 'not-allowed' : 'pointer';
+    speedSelectHandle.update({
+      value: playback.status === 'unavailable' ? DEFAULT_PLAYBACK_SPEED : playback.speed,
+      ariaLabel: tr('codeGraph.playback.speed'),
+    });
 
     if (playing) {
       // 除外件数は再生中も常に見せる。飛ばした事実が見えないと、目盛りが等間隔なぶん
@@ -903,11 +920,11 @@ export function mountCodeGraphPanel(
 
   function refreshColorByLabels(): void {
     colorByLabel.textContent = tr('codeGraph.colorBy.label');
-    optCommunity.textContent = tr('codeGraph.colorBy.community');
-    optLayer.textContent = tr('codeGraph.colorBy.layer');
-    optLastEditor.textContent = tr('codeGraph.colorBy.lastEditor');
-    optEditFrequency.textContent = tr('codeGraph.colorBy.editFrequency');
-    optDiff.textContent = tr('codeGraph.colorBy.diff');
+    colorBySelectHandle.update({
+      value: colorBy,
+      options: colorByOptions(),
+      ariaLabel: tr('codeGraph.colorBy.label'),
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -1141,8 +1158,7 @@ export function mountCodeGraphPanel(
     // 選択中だった場合は community へ戻す（§4.5）。コミット粒度は定義上すべて過去の時点。
     const isCurrentRelease =
       granularity() === 'release' && (props.selectedRelease ?? CURRENT_RELEASE) === CURRENT_RELEASE;
-    optLastEditor.disabled = !isCurrentRelease;
-    optEditFrequency.disabled = !isCurrentRelease;
+    heatmapSelectable = isCurrentRelease;
     if (!isCurrentRelease && isOverrideColorBy(colorBy)) {
       colorBy = 'community';
       props.onColorByChange?.(colorBy);
@@ -1150,8 +1166,10 @@ export function mountCodeGraphPanel(
 
     // 最古の時点には前版が無いので差分を取りようがない（§4.1）。
     const hasBaseline = (props.baseline ?? null) !== null;
-    optDiff.disabled = !hasBaseline;
-    optDiff.title = hasBaseline ? '' : tr('codeGraph.diff.noBaseline');
+    diffSelectable = hasBaseline;
+    // 選択肢を消さずに不活性へ落とす（消すと「差分表示という機能が無い」と読める）。
+    // 理由の文言は combobox の title に出す（listbox の項目には title を出す口が無い）。
+    colorBySelectHandle.el.title = hasBaseline ? '' : tr('codeGraph.diff.noBaseline');
     if (!hasBaseline && colorBy === 'diff') {
       colorBy = 'community';
       props.onColorByChange?.(colorBy);
@@ -1159,7 +1177,6 @@ export function mountCodeGraphPanel(
 
     // Color-by toggle / layer legend
     refreshColorByLabels();
-    colorBySelect.value = colorBy;
     if (colorBy === 'layer') {
       renderLegend();
       legendEl.style.display = 'flex';

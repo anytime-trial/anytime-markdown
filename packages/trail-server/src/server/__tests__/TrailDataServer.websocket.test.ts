@@ -12,7 +12,6 @@ import { makeMockLogger } from '../../__test-helpers__/mockLogger';
 import { TrailDataServer, isClientMessage, decodePathParam } from '../TrailDataServer';
 import { createTestTrailDatabase } from '../../__tests__/support/createTestDb';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
-import type { PersistedLogEntry } from '../../services/LogService';
 
 // ---------------------------------------------------------------------------
 //  ヘルパー関数
@@ -290,60 +289,6 @@ describe('TrailDataServer — broadcast メソッド', () => {
   it('notifySessionsUpdated() はクライアント 0 件の場合は早期 return（エラーなし）', () => {
     expect(server.clientCount).toBe(0);
     expect(() => server.notifySessionsUpdated()).not.toThrow();
-  });
-
-  it('notifyLog(entries) が接続クライアントに {type:"log-batch",logs} を送る', async () => {
-    const ws = await connectWs(port);
-    await new Promise((r) => setTimeout(r, 50));
-
-    const entries: PersistedLogEntry[] = [
-      {
-        id: 1,
-        timestamp: '2026-05-21T00:00:00.000Z',
-        level: 'info',
-        component: 'test',
-        message: 'hello log',
-        source: 'extension',
-      },
-    ];
-
-    const msgPromise = nextMessage(ws, 2000);
-    server.notifyLog(entries);
-    const msg = await msgPromise as Record<string, unknown>;
-
-    expect(msg.type).toBe('log-batch');
-    expect(msg.logs).toEqual(entries);
-    await closeWs(ws);
-  });
-
-  it('notifyLog([]) は空配列のため早期 return（クライアントに届かない）', async () => {
-    const ws = await connectWs(port);
-    await new Promise((r) => setTimeout(r, 50));
-
-    server.notifyLog([]);
-
-    let received = false;
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => resolve(), 150);
-      ws.once('message', () => { clearTimeout(timer); received = true; resolve(); });
-    });
-    expect(received).toBe(false);
-    await closeWs(ws);
-  });
-
-  it('notifyLog() はクライアント 0 件の場合は早期 return（エラーなし）', () => {
-    expect(server.clientCount).toBe(0);
-    const entries: PersistedLogEntry[] = [
-      {
-        id: 1,
-        timestamp: '2026-05-21T00:00:00.000Z',
-        level: 'info',
-        component: 'test',
-        message: 'no client',
-        source: 'extension',
-      },
-    ];
-    expect(() => server.notifyLog(entries)).not.toThrow();
   });
 
   it('notify("model-updated") が接続クライアントに {type:"model-updated"} を送る', async () => {

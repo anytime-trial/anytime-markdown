@@ -29,6 +29,19 @@ function truncateToBytes(str: string, maxBytes: number): string {
  * Splits a flat message list into episodes.
  * Each episode starts at a 'user' message and ends just before the next 'user'
  * message in the same session. Leading non-user messages are discarded.
+ *
+ * Blocks whose messages carry no text at all are dropped. trail.messages keeps
+ * tool results in 'user' rows with an empty user_content (328,662 of 352,212
+ * user rows as of 2026-08-06). Joining those produced episodes whose
+ * raw_excerpt was nothing but '\n---\n' separators — 84,365 of 126,101 stored
+ * episodes (67%) — which the LLM extractor then had to read and reject.
+ *
+ * **現在の唯一の呼び出し経路（`readMessagesSince` / `reconstructEpisode`）は
+ * user 行しか渡さない**（`ingest/conversation/messageFilter.ts` の
+ * `ingestTargetSql`）。そのためブロックは 1 メッセージずつになり、
+ * `message_uuid_start === message_uuid_end` が成り立つ。assistant / system を
+ * 扱う分岐と `Message.type` の union はその形状を型で禁じていないだけで、本番
+ * では到達しない。上の件数はいずれも user 行のみへ絞る前の実測値である。
  */
 export function splitEpisodes(messages: Message[]): Episode[] {
   const episodes: Episode[] = [];
@@ -60,18 +73,22 @@ export function splitEpisodes(messages: Message[]): Episode[] {
         const firstMsg = blockMessages[0];
         const lastMsg = blockMessages.at(-1) as Message;
 
-        const joined = blockMessages.map((m) => m.text_excerpt).join('\n---\n');
-        const raw_excerpt = truncateToBytes(joined, MAX_EXCERPT_BYTES);
+        const joined = blockMessages
+          .map((m) => m.text_excerpt)
+          .filter((text) => text.trim() !== '')
+          .join('\n---\n');
+
+        blockStart = i;
+
+        if (joined === '') continue; // 本文ゼロのブロックは episode にしない
 
         episodes.push({
           session_id,
           message_uuid_start: firstMsg.uuid,
           message_uuid_end: lastMsg.uuid,
           valid_from: firstMsg.timestamp,
-          raw_excerpt,
+          raw_excerpt: truncateToBytes(joined, MAX_EXCERPT_BYTES),
         });
-
-        blockStart = i;
       }
     }
   }

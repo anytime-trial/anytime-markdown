@@ -1,3 +1,5 @@
+import { normalizeTargetPath } from './normalizeTargetPath';
+
 // ── Shared types ──────────────────────────────────────────────────────────────
 
 export type ParsedFinding = {
@@ -106,13 +108,22 @@ export function inferSeverity(chapterBody: string): ParsedFinding['severity'] {
 
 /**
  * Extract backtick-enclosed paths from a line.
+ *
+ * バッククォート内容を無検証で返してはならない。`レビュー対象:` 行とセッションの
+ * user prompt から呼ばれるため、無検証だと散文・コマンド行・URL がそのまま
+ * `target_refs` と既定 target になる（本番 memory-core.db にその実例が残っている）。
+ * `normalizeTargetPath` を通し、パスとして成立するものだけを返す。
  */
 export function extractBacktickPaths(line: string): string[] {
   const paths: string[] = [];
+  const seen = new Set<string>();
   const re = /`([^`]+)`/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(line)) !== null) {
-    paths.push(m[1]);
+    const normalized = normalizeTargetPath(m[1]);
+    if (normalized === null || seen.has(normalized.path)) continue;
+    seen.add(normalized.path);
+    paths.push(normalized.path);
   }
   return paths;
 }
@@ -383,6 +394,33 @@ export function parseChecklistRefMarker(body: string): string | null {
   return null;
 }
 
+/**
+ * anytime-trail-review スキルのメタデータ 3 行目 `- **対象**: \`packages/x/y.ts:12\`` を解析する。
+ *
+ * このマーカーはスキルが「必須・順序固定」と宣言しているのに、長らくどのパーサも
+ * 読んでいなかった。対象は 問題/提案 本文からの推測（`extractTargetFromFinding`）だけで
+ * 決まっており、メタデータ行は heading と `**問題:**` の間にあるため本文に含まれない。
+ * 結果として、書式どおり対象を書いたレビューでも `target_file_path` が NULL になり、
+ * 対処コミットの自動リンク（`linkAddresses`）の母集合から外れていた。
+ *
+ * 見つからない・パスとして成立しない値は null を返し、呼び出し側の本文推測へ委ねる。
+ */
+const TARGET_MARKER_RE = new RegExp(
+  String.raw`^${BULLET_PREFIX}\*{0,2}(?:対象|target)\*{0,2}\s*[：:]\s*(.+)$`,
+  'im',
+);
+
+export function parseTargetMarker(body: string): string | null {
+  const m = TARGET_MARKER_RE.exec(body.replace(FENCED_BLOCK_RE, ''));
+  if (!m) return null;
+  const value = m[1].trim();
+  // バッククォート内を優先する。書式は `path:line` を想定しており、
+  // 素の値には「〜の周辺」のような散文が続くことがある。
+  const backticked = extractBacktickPaths(value);
+  if (backticked.length > 0) return backticked[0];
+  return normalizeTargetPath(value)?.path ?? null;
+}
+
 // ── Target file path extraction from finding body ────────────────────────────
 
 /**
@@ -403,8 +441,27 @@ const PATH_TOKEN_RE = new RegExp(
   'g',
 );
 
-function stripLineSuffix(p: string): string {
-  return p.replace(/:\d+(?:-\d+)?$/, '');
+/**
+ * 候補文字列を正規化して積む。`normalizeTargetPath` が拒否した値は積まない。
+ */
+function pushCandidate(candidates: string[], raw: string): void {
+  const normalized = normalizeTargetPath(raw);
+  if (normalized !== null) candidates.push(normalized.path);
+}
+
+/**
+ * URL とグロブを空白で潰してから部分文字列マッチにかける。
+ *
+ * PATH_TOKEN_RE は部分文字列にマッチするため、潰さずに走らせると
+ * `https://github.com/owner/repo/blob/feature/foo/docs/design.md` から `docs/design.md` が、
+ * `packages/*​/src/i18n/navigation.ts` から `src/i18n/navigation.ts` が取れてしまう。
+ * どちらも「実在しそうな別のパス」であり、拒否されるより質が悪い（誤リンクの原因になる）。
+ * 正規化は部分文字列を受け取った時点で文脈を失うので、ここで先に落とす。
+ */
+function maskNonPathTokens(text: string): string {
+  return text
+    .replace(/\b[a-zA-Z][a-zA-Z0-9+.-]*:\/\/\S*/g, ' ')
+    .replace(/\S*[*?]\S*/g, ' ');
 }
 
 export function extractTargetFromFinding(text: string): string | null {
@@ -412,22 +469,26 @@ export function extractTargetFromFinding(text: string): string | null {
 
   const candidates: string[] = [];
 
-  // 1. backtick で囲まれたパス全部
+  // 1. backtick で囲まれた中の「パスにマッチした部分」だけを積む。
+  //    かつては inner 全体を積んでいたため、パスを 1 個含むだけの複数行シェル実行ログが
+  //    丸ごと target_file_path として保存されていた（本番 DB に実在）。
   const btRe = /`([^`]+)`/g;
   let m: RegExpExecArray | null;
   while ((m = btRe.exec(text)) !== null) {
-    const inner = m[1].trim();
-    if (PATH_TOKEN_RE.test(inner)) {
-      PATH_TOKEN_RE.lastIndex = 0;
-      candidates.push(stripLineSuffix(inner));
+    const inner = maskNonPathTokens(m[1].trim());
+    PATH_TOKEN_RE.lastIndex = 0;
+    let hit: RegExpExecArray | null;
+    while ((hit = PATH_TOKEN_RE.exec(inner)) !== null) {
+      pushCandidate(candidates, hit[0]);
     }
   }
 
   // 2. 本文中のパス（backtick 外）
+  const masked = maskNonPathTokens(text);
   PATH_TOKEN_RE.lastIndex = 0;
   let n: RegExpExecArray | null;
-  while ((n = PATH_TOKEN_RE.exec(text)) !== null) {
-    candidates.push(stripLineSuffix(n[0]));
+  while ((n = PATH_TOKEN_RE.exec(masked)) !== null) {
+    pushCandidate(candidates, n[0]);
   }
 
   if (candidates.length === 0) return null;
@@ -438,4 +499,35 @@ export function extractTargetFromFinding(text: string): string | null {
   const srcCand = candidates.find((c) => c.startsWith('src/'));
   if (srcCand) return srcCand;
   return candidates[0];
+}
+
+/**
+ * finding 1 件の対象パスを決める。Route A / Route B の共通ロジック。
+ *
+ * 優先順位:
+ * 1. その finding 自身の本文にある `- **対象**:`
+ * 2. チャプター先頭のマーカー — ただし**そのチャプターが finding を 1 件しか生まないとき
+ *    に限る**
+ * 3. 本文からのパス推測（`extractTargetFromFinding`）
+ *
+ * 2 の条件を付けるのは、`### N.` 見出しを使わない形式（絵文字＋`**N. タイトル**` 等）だと
+ * 複数の finding が 1 チャプターに同居するため。先頭のマーカーを全件へ流用すると、
+ * 2 件目以降が別ファイルの指摘でも同じ対象を持ち、`linkAddresses` が無関係なコミットを
+ * addressed として確定させる。severity / category もチャプター粒度で共有しているが、
+ * それらの取り違えは表示の誤りで済むのに対し、target の取り違えは誤リンクという
+ * 取り消しにくい記録を生む。影響が非対称なので、ここだけ粒度を厳しくする（fail-closed）。
+ */
+export function resolveFindingTarget(input: {
+  /** この finding 自身のテキスト（見出し＋問題本文＋提案本文）。 */
+  readonly ownText: string;
+  /** チャプター全体から取れた `- **対象**:` の値。無ければ null。 */
+  readonly chapterTarget: string | null;
+  /** 同じチャプターから生まれる finding の件数。 */
+  readonly chapterFindingCount: number;
+}): string | null {
+  return (
+    parseTargetMarker(input.ownText) ??
+    (input.chapterFindingCount === 1 ? input.chapterTarget : null) ??
+    extractTargetFromFinding(input.ownText)
+  );
 }

@@ -4,6 +4,7 @@ jest.mock('sigma/rendering', () => ({ __esModule: true, EdgeArrowProgram: class 
 
 import type { CodeGraph, CodeGraphNode } from '@anytime-markdown/trail-core/codeGraph';
 import { diffCodeGraphs } from '@anytime-markdown/trail-core/codeGraphDiff';
+import { chooseOption, comboboxLabel, openOptions } from './comboboxTestUtils';
 import {
   mountCodeGraphPanel,
   type CodeGraphPanelProps,
@@ -69,7 +70,7 @@ function baseProps(overrides: Partial<CodeGraphPanelProps> = {}): CodeGraphPanel
 function mount(props: CodeGraphPanelProps): {
   container: HTMLElement;
   handle: ReturnType<typeof mountCodeGraphPanel>;
-  select: () => HTMLSelectElement;
+  select: () => HTMLElement;
   legend: () => HTMLElement;
 } {
   const container = document.createElement('div');
@@ -78,15 +79,14 @@ function mount(props: CodeGraphPanelProps): {
   return {
     container,
     handle,
-    select: () => container.querySelector('[data-testid="code-graph-color-by"]') as HTMLSelectElement,
+    select: () => container,
     legend: () =>
       container.querySelector('[data-testid="code-graph-legend"]') as HTMLElement,
   };
 }
 
-function selectDiff(select: HTMLSelectElement): void {
-  select.value = 'diff';
-  select.dispatchEvent(new Event('change'));
+function selectDiff(container: HTMLElement): void {
+  chooseOption(container, 'code-graph-color-by', '前版との差分');
 }
 
 afterEach(() => {
@@ -97,8 +97,8 @@ describe('codeGraphPanel — State Replay', () => {
   it('offers a diff colour mode', () => {
     const { select, handle } = mount(baseProps());
 
-    const values = [...select().querySelectorAll('option')].map((o) => o.value);
-    expect(values).toContain('diff');
+    const values = openOptions(select(), 'code-graph-color-by').map((o) => o.label);
+    expect(values).toContain('前版との差分');
 
     handle.destroy();
   });
@@ -106,7 +106,7 @@ describe('codeGraphPanel — State Replay', () => {
   it('disables the diff mode when there is no baseline', () => {
     const { select, handle } = mount(baseProps({ baseline: null }));
 
-    const option = [...select().querySelectorAll('option')].find((o) => o.value === 'diff');
+    const option = openOptions(select(), 'code-graph-color-by').find((o) => o.label === '前版との差分');
     expect(option?.disabled).toBe(true);
 
     handle.destroy();
@@ -118,12 +118,12 @@ describe('codeGraphPanel — State Replay', () => {
       baseProps({ onColorByChange: (mode) => changes.push(mode) }),
     );
     selectDiff(select());
-    expect(select().value).toBe('diff');
+    expect(comboboxLabel(select(), 'code-graph-color-by')).toBe('前版との差分');
 
     // 目盛りを最古へ動かしてベースラインが消えた場合。
     handle.update(baseProps({ baseline: null, onColorByChange: (mode) => changes.push(mode) }));
 
-    expect(select().value).toBe('community');
+    expect(comboboxLabel(select(), 'code-graph-color-by')).toBe('コミュニティ');
     expect(changes).toEqual(['diff', 'community']);
 
     handle.destroy();

@@ -3,11 +3,10 @@ import { Command } from 'commander';
 import { join, basename } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
-import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
-import { type MemoryCoreLogSink, type LepStage, BetterSqlite3MemoryDb, getMemoryCoreDbPath, getTrailHome } from '@anytime-markdown/memory-core';
+import { MemoryCoreService, PipelineRunLedger, createPipelineRunLedgerFactory } from '@anytime-markdown/memory-core/pipeline';
+import { type MemoryCoreLogSink, type LepStage, getMemoryCoreDbPath, getTrailHome, openMemoryCoreDb } from '@anytime-markdown/memory-core';
 import { ChatBridge } from './memory-chat/chatBridge';
 import { RebuildScheduler } from './memory-chat/rebuildScheduler';
-import { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } from '@anytime-markdown/trail-core/domain/schema';
 import { TrailDataServer } from './server/TrailDataServer';
 import { LogService } from './services/LogService';
 import { DaemonLifecycle } from './runtime/DaemonLifecycle';
@@ -28,8 +27,6 @@ import {
   createThrottledOllamaClient,
   OllamaThrottleGovernor,
 } from '@anytime-markdown/agent-core';
-import type { EmbedFn } from '@anytime-markdown/doc-core';
-import { wireDocCoreRunner, type WiredDocCore } from './runtime/docCoreRunner';
 import { checkLlmAvailability } from './lep/LlmAvailability';
 import { AnalyzeAllRunner, type AnalyzeAllRunnerOptions } from './runner/AnalyzeAllRunner';
 import { createFetchGitHubReviewClient } from './lep/ingesters/github/GitHubReviewClient';
@@ -92,9 +89,6 @@ program
     const memoryDbPath = join(dbStorageDir, 'memory-core.db');
     const server = new TrailDataServer(distPath, trailDb, logger, gitRoots[0], memoryDbPath, undefined, analyze);
 
-    // extension_logs 専用 DB を better-sqlite3 で開き、LogService を wire する。
-    // trail.db とは別ファイルとし、WAL 競合と性能影響を避ける。
-    //
     // nativeBinding: webpack-bundled 実行時は bindings package の getFileName が
     // call stack を辿って .node のパスを推測できず crash する。__dirname
     // (= dist/) から native binary の絶対パスを組み立てて回避する
@@ -107,17 +101,6 @@ program
       'Release',
       'better_sqlite3.node',
     );
-    const extensionLogsDbPath = join(dbStorageDir, 'extension-logs.db');
-    const extensionLogsDb = new BetterSqlite3MemoryDb({
-      filePath: extensionLogsDbPath,
-      ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
-    });
-    extensionLogsDb.run(CREATE_EXTENSION_LOGS);
-    for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
-    extensionLogsDb.run('PRAGMA journal_mode=WAL');
-    const logService = new LogService(extensionLogsDb, server);
-    server.setLogService(logService);
-    logger.info('log streaming service wired', { dbPath: extensionLogsDbPath });
 
     // gitRoots の bootstrap (鶏卵回避): CLI --git-roots → home-tier ~/.anytime/trail/lep.json
     // の gitRoots → 空。workspace lep.json は gitRoots 解決後でないと読めないため home-tier を使う。
@@ -342,6 +325,30 @@ program
     // (= VS Code 拡張の anytime-trail.analyzeAll コマンドと同じデータフロー)。
     // メモリ取込が import より先に走ってしまうレースを避けるため 1 runner に統合済。
     // pause/resume は AnalyzeAllRunner が一元管理する (旧 memory-core 側の pause は使われない)。
+    // Wave 1/2/4 の実行台帳。Wave 3 のセッションと同じ memory-core.db を共有するため
+    // WAL で開き、migration はここで走らせない (スキーマの所有は memory-core 側)。
+    // memory-core.db が未作成の間は pipeline_runs が無いので記録を諦める (null 返し)。
+    const ledgerCoreDb = await openMemoryCoreDb(memoryDbPath, {
+      ...(existsSync(cliNativeBinding) ? { nativeBinding: cliNativeBinding } : {}),
+    });
+    const ledgerDb = ledgerCoreDb.conn ?? ledgerCoreDb.db;
+    const openPipelineRunLedger = createPipelineRunLedgerFactory({
+      db: ledgerDb,
+      logger: memoryLogger,
+    });
+
+    const systemRunLedger = new PipelineRunLedger({
+      db: ledgerDb,
+      scope: 'daemon_session',
+      wave: 'system',
+      tier: 0,
+      logger: memoryLogger,
+    });
+    const systemRunId = systemRunLedger.start();
+    const logService = new LogService(ledgerDb, systemRunId);
+    server.setLogService(logService);
+    logger.info('log streaming service wired', { dbPath: memoryDbPath, runId: systemRunId });
+
     const analyzeAllRunner = new AnalyzeAllRunner({
       logSink: { appendLine: (msg: string) => logger.info(msg) },
       statePath: join(TRAIL_HOME, 'analyze-all-runner.json'),
@@ -371,6 +378,7 @@ program
       // stage が memory を含まない run 後に memory scope を skipped 記録する宛先。
       pipelineStatusFilePath: join(dbStorageDir, 'pipeline-status.json'),
       shouldDeferScheduled: () => throttleGovernor.shouldDeferScheduled(),
+      openPipelineRunLedger,
     });
     server.setAnalyzeAllRunner(analyzeAllRunner);
     logger.info('analyze-all runner wired', {
@@ -387,27 +395,6 @@ program
     } else {
       logger.info('scheduler disabled', {
         reason: schedulerDisabledByEnv ? 'TRAIL_DISABLE_SCHEDULER=1' : '--no-scheduler',
-      });
-    }
-
-    // doc-core: ドキュメント検索 DB（doc-core.db）の ingest。memory-core/importAll とは独立した
-    // 疎結合ランナーで、失敗は内部で握り潰す。設定は lep.json の sources.docs.root のみ（空=既定オフ）。
-    const docCoreDocsRoot = lepConfig.sources.docs.root.trim();
-    let docCore: WiredDocCore | null = null;
-    if (docCoreDocsRoot) {
-      const docEmbedClient = throttledOllamaFactory
-        ? throttledOllamaFactory()
-        : createOllamaClient({ baseUrl: resolvedOllamaBaseUrl });
-      const docEmbed: EmbedFn = async (text) =>
-        Array.from((await docEmbedClient.embeddings({ model: lepOllama.models.embedding, prompt: text })).embedding);
-      docCore = wireDocCoreRunner({
-        docsRoot: docCoreDocsRoot,
-        dbPath: join(dbStorageDir, 'doc-core.db'),
-        statusPath: join(dbStorageDir, 'doc-core-status.json'),
-        embed: docEmbed,
-        embedModel: lepOllama.models.embedding,
-        schedulerEnabled,
-        logSink: { appendLine: (msg: string) => logger.info(msg) },
       });
     }
 
@@ -432,7 +419,6 @@ program
       try { await analyzeAllRunner.dispose(); } catch (err) { logger.error('analyze-all runner dispose failed', err); }
       try { await memoryCoreService.dispose(); } catch (err) { logger.error('memory-core dispose failed', err); }
       try { rebuildSchedulerDisposable.dispose(); } catch (err) { logger.error('rebuild scheduler dispose failed', err); }
-      try { docCore?.dispose(); } catch (err) { logger.error('doc-core runner dispose failed', err); }
       // ChatBridge holds WebSocket connections; dispose after scheduler/ingest stop but before server closes.
       try { await chatBridge.dispose(); } catch (err) { logger.error('chat bridge dispose failed', err); }
       try { await server.stop(); } catch (err) { logger.error('server stop failed', err); }
@@ -441,7 +427,10 @@ program
         const closeFn = (trailDb as unknown as { close?: () => Promise<void> | void }).close;
         if (typeof closeFn === 'function') await closeFn.call(trailDb);
       } catch (err) { logger.error('trail db close failed', err); }
-      try { extensionLogsDb.close(); } catch (err) { logger.error('extension-logs.db close failed', err); }
+      // daemon の生存期間を表す system run を正常終了として閉じる。閉じないと
+      // status='running' のまま残る（watchdog は system wave を失効させないため）。
+      try { systemRunLedger.finish('success'); } catch (err) { logger.error('system run finish failed', err); }
+      try { ledgerCoreDb.close(); } catch (err) { logger.error('pipeline run ledger db close failed', err); }
       process.exit(0);
     };
     process.on('SIGTERM', () => void shutdown('SIGTERM'));

@@ -8,154 +8,21 @@ jest.mock('@anytime-markdown/memory-core', () => {
 });
 
 import { makeMockLogger } from '../../__test-helpers__/mockLogger';
+import { BetterSqlite3MemoryDb, runMigrations, type MemoryDbSqlValue } from '@anytime-markdown/memory-core';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import BetterSqlite3 from 'better-sqlite3';
 import { MemoryApiHandler } from '../MemoryApiHandler';
 
 const TS = '2026-05-09T10:00:00.000Z';
 const TS2 = '2026-05-09T11:00:00.000Z';
 
 function buildTestDb(dbPath: string): void {
-  const db = new BetterSqlite3(dbPath);
-  // sql.js 互換のための薄い helper。CREATE は exec、INSERT は prepare().run() に振り分ける。
-  const run = (sql: string, params: readonly unknown[] = []): void => {
-    if (params.length === 0) {
-      db.exec(sql);
-    } else {
-      db.prepare(sql).run(...params);
-    }
+  const db = new BetterSqlite3MemoryDb({ filePath: dbPath });
+  runMigrations(db);
+  const run = (sql: string, params: readonly MemoryDbSqlValue[] = []): void => {
+    db.run(sql, params);
   };
-
-  run(`CREATE TABLE memory_entities (
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    canonical_name TEXT NOT NULL,
-    display_name TEXT NOT NULL,
-    aliases_json TEXT NOT NULL DEFAULT '[]',
-    tags_json TEXT NOT NULL DEFAULT '[]',
-    attributes_json TEXT NOT NULL DEFAULT '{}',
-    summary TEXT NOT NULL DEFAULT '',
-    first_seen_at TEXT NOT NULL,
-    last_updated_at TEXT NOT NULL,
-    recorded_at TEXT NOT NULL,
-    UNIQUE (type, canonical_name)
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_relation_types (
-    predicate TEXT PRIMARY KEY,
-    cardinality TEXT NOT NULL,
-    directionality TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT ''
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_drift_events (
-    id TEXT PRIMARY KEY,
-    subject_entity_id TEXT NOT NULL,
-    predicate TEXT NOT NULL,
-    conversation_value TEXT,
-    spec_value TEXT,
-    code_value TEXT,
-    drift_type TEXT NOT NULL,
-    severity TEXT NOT NULL,
-    detected_at TEXT NOT NULL,
-    resolved_at TEXT,
-    resolution_note TEXT NOT NULL DEFAULT '',
-    detail_json TEXT NOT NULL DEFAULT '{}'
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_bug_fixes (
-    id TEXT PRIMARY KEY,
-    commit_sha TEXT NOT NULL UNIQUE,
-    bug_entity_id TEXT NOT NULL,
-    package TEXT NOT NULL,
-    category TEXT NOT NULL,
-    subject_summary TEXT NOT NULL,
-    body_excerpt TEXT NOT NULL DEFAULT '',
-    affected_file_paths_json TEXT NOT NULL DEFAULT '[]',
-    related_session_id TEXT,
-    introduced_commit_sha TEXT,
-    committed_at TEXT NOT NULL,
-    recorded_at TEXT NOT NULL
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_reviews (
-    id TEXT PRIMARY KEY,
-    source_kind TEXT NOT NULL,
-    source_ref TEXT NOT NULL,
-    review_entity_id TEXT NOT NULL,
-    target_kind TEXT NOT NULL,
-    target_refs_json TEXT NOT NULL DEFAULT '[]',
-    title TEXT NOT NULL,
-    reviewer TEXT NOT NULL DEFAULT '',
-    reviewed_at TEXT NOT NULL,
-    recorded_at TEXT NOT NULL
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_review_findings (
-    id TEXT PRIMARY KEY,
-    review_id TEXT NOT NULL,
-    finding_entity_id TEXT NOT NULL,
-    finding_index INTEGER NOT NULL,
-    target_file_path TEXT,
-    category TEXT NOT NULL DEFAULT 'other',
-    severity TEXT NOT NULL DEFAULT 'info',
-    finding_text TEXT NOT NULL,
-    addressed_commit_sha TEXT,
-    addressed_at TEXT,
-    recorded_at TEXT NOT NULL
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_review_runs (
-    id TEXT PRIMARY KEY,
-    model TEXT NOT NULL DEFAULT ''
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_pipeline_runs (
-    id TEXT PRIMARY KEY,
-    scope TEXT NOT NULL,
-    started_at TEXT NOT NULL,
-    finished_at TEXT,
-    status TEXT NOT NULL,
-    items_processed INTEGER NOT NULL DEFAULT 0,
-    duration_ms INTEGER NOT NULL DEFAULT 0,
-    error_detail TEXT NOT NULL DEFAULT ''
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_failed_items (
-    scope TEXT NOT NULL,
-    item_key TEXT NOT NULL,
-    failed_at TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    attempt_count INTEGER NOT NULL DEFAULT 1,
-    PRIMARY KEY (scope, item_key)
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_edges (
-    id TEXT PRIMARY KEY,
-    subject_entity_id TEXT NOT NULL,
-    predicate TEXT NOT NULL,
-    object_entity_id TEXT,
-    object_literal TEXT,
-    valid_from TEXT NOT NULL,
-    valid_to TEXT,
-    recorded_at TEXT NOT NULL,
-    source_type TEXT NOT NULL,
-    source_ref TEXT NOT NULL,
-    confidence REAL NOT NULL DEFAULT 1.0,
-    confidence_label TEXT NOT NULL DEFAULT 'EXTRACTED',
-    modality TEXT NOT NULL DEFAULT 'asserted',
-    attributes_json TEXT NOT NULL DEFAULT '{}'
-  ) STRICT`);
-
-  run(`CREATE TABLE memory_edge_invalidations (
-    id TEXT PRIMARY KEY,
-    edge_id TEXT NOT NULL,
-    invalidated_at TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    superseding_edge_id TEXT
-  ) STRICT`);
 
   // Seed: entity
   run(
@@ -183,18 +50,30 @@ function buildTestDb(dbPath: string): void {
     ['drift-3', 'ent-1', 'prefers', 'regression_cluster', 'error', TS],
   );
 
+  // Seed: workspace 付きの drift / bug（ワークスペース絞り込みの検査用）
+  run(
+    `INSERT INTO memory_drift_events (id, subject_entity_id, predicate, drift_type, severity, detected_at, resolved_at, resolution_note, detail_json, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, '', '{}', ?)`,
+    ['drift-ws', 'ent-1', 'uses', 'review_unfixed', 'warn', TS, 'anytime-trade'],
+  );
+
   // Seed: bug fixes
   run(
-    `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ['bf-1', 'abc123', 'ent-1', 'trail-viewer', 'logic', 'Fix null ref', TS, TS],
+    `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['bf-1', 'abc123', 'ent-1', 'trail-viewer', 'logic', 'Fix null ref', TS, TS, 'anytime-markdown'],
+  );
+  run(
+    `INSERT INTO memory_bug_fixes (id, commit_sha, bug_entity_id, package, category, subject_summary, committed_at, recorded_at, related_session_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['bf-2', 'def456', 'ent-1', 'trail-server', 'spec', 'Fix aggregation boundary', TS, TS, 'sess-1'],
   );
 
   // Seed: reviews and findings
   run(
-    `INSERT INTO memory_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ['rev-1', 'review_doc', 'doc/r1.md', 'ent-1', 'code', 'Code Review 1', TS, TS],
+    `INSERT INTO memory_reviews (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['rev-1', 'review_doc', 'doc/r1.md', 'ent-1', 'code', 'Code Review 1', TS, TS, 'anytime-lab'],
   );
   run(
     `INSERT INTO memory_review_findings (id, review_id, finding_entity_id, finding_index, target_file_path, category, severity, finding_text, addressed_at, recorded_at)
@@ -209,34 +88,46 @@ function buildTestDb(dbPath: string): void {
 
   // Seed: pipeline runs (multi-day, multi-scope for stats aggregation)
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ['run-1', 'drift', TS, TS2, 'success', 5, 3_600_000],
+    `INSERT INTO pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['run-1', 'drift', 'memory', 3, TS, TS2, 'success', 5, 3_600_000],
   );
   // Same day, same scope, different status (partial) — worst_status should remain 'partial' (>success)
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ['run-2', 'drift', '2026-05-09T12:00:00.000Z', '2026-05-09T12:30:00.000Z', 'partial', 3, 1_800_000],
+    `INSERT INTO pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms, items_failed)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['run-2', 'drift', 'memory', 3, '2026-05-09T12:00:00.000Z', '2026-05-09T12:30:00.000Z', 'partial', 3, 1_800_000, 1],
   );
   // Same day, different scope (review) — separate aggregation row
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ['run-3', 'review', '2026-05-09T13:00:00.000Z', '2026-05-09T13:15:00.000Z', 'success', 10, 900_000],
+    `INSERT INTO pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['run-3', 'review', 'primary', 1, '2026-05-09T13:00:00.000Z', '2026-05-09T13:15:00.000Z', 'success', 10, 900_000],
   );
   // Different day, drift scope with error — worst status for that day
   run(
-    `INSERT INTO memory_pipeline_runs (id, scope, started_at, finished_at, status, items_processed, duration_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ['run-4', 'drift', '2026-05-10T09:00:00.000Z', '2026-05-10T09:45:00.000Z', 'error', 0, 2_700_000],
+    `INSERT INTO pipeline_runs (id, scope, wave, tier, started_at, finished_at, status, items_processed, duration_ms, items_failed, error_detail)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['run-4', 'drift', 'memory', 3, '2026-05-10T09:00:00.000Z', '2026-05-10T09:45:00.000Z', 'error', 0, 2_700_000, 2, 'boom'],
+  );
+
+  // Seed: pipeline run logs
+  run(
+    `INSERT INTO pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['run-4', '2026-05-10T09:01:00.000Z', 'info', 'daemon', 'lep', 'started', '{"step":1}', null],
+  );
+  run(
+    `INSERT INTO pipeline_run_logs (run_id, timestamp, level, source, component, message, metadata, stack)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['run-4', '2026-05-10T09:02:00.000Z', 'error', 'extension', 'lep', 'failed', null, 'Error: boom'],
   );
 
   // Seed: failed items
   run(
-    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, attempt_count)
-     VALUES (?, ?, ?, ?, ?)`,
-    ['drift', 'msg-abc', TS, 'timeout', 2],
+    `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    ['drift', 'msg-abc', TS, 'timeout', 'request timed out', 2],
   );
 
   // Seed: edge + invalidation
@@ -251,7 +142,6 @@ function buildTestDb(dbPath: string): void {
     ['inv-1', 'edge-1', TS2, 'rule_exclusive'],
   );
 
-  // better-sqlite3 はファイルパスで開いた時点でディスクに書かれているので明示的な export 不要。
   db.close();
 }
 
@@ -292,7 +182,18 @@ describe('MemoryApiHandler', () => {
 
     it('returns all events when unresolvedOnly=false', async () => {
       const rows = await handler.listDriftEvents({ unresolvedOnly: false });
-      expect(rows.length).toBe(3);
+      expect(rows.length).toBe(4);
+    });
+
+    it('workspace で絞ると他ワークスペースの乖離が落ちる', async () => {
+      const rows = await handler.listDriftEvents({ unresolvedOnly: false, workspace: 'anytime-trade' });
+      expect(rows.map((r) => r.id)).toEqual(['drift-ws']);
+    });
+
+    it('workspace 未指定なら絞り込まない（未解決の行も混在したまま返る）', async () => {
+      const rows = await handler.listDriftEvents({ unresolvedOnly: false });
+      expect(rows.map((r) => r.workspace)).toContain('anytime-trade');
+      expect(rows.map((r) => r.workspace)).toContain('');
     });
 
     it('filters by severity', async () => {
@@ -325,14 +226,14 @@ describe('MemoryApiHandler', () => {
       const rows = await handler.listRecurringBugs({});
       expect(rows.length).toBeGreaterThanOrEqual(1);
       const types = new Set(rows.map((r) => r.driftType));
-      const allowed = new Set(['regression_cluster', 'spec_violation_cluster', 'recurring_root_cause']);
+      const allowed = new Set(['regression_cluster', 'spec_violation_cluster']);
       for (const t of types) expect(allowed.has(t)).toBe(true);
     });
   });
 
   describe('getBugHistory', () => {
     it('returns bug fix records', async () => {
-      const rows = await handler.getBugHistory({});
+      const rows = await handler.getBugHistory({ package: 'trail-viewer' });
       expect(rows.length).toBe(1);
       expect(rows[0]?.commitSha).toBe('abc123');
       expect(rows[0]?.package).toBe('trail-viewer');
@@ -341,6 +242,58 @@ describe('MemoryApiHandler', () => {
     it('filters by package', async () => {
       const rows = await handler.getBugHistory({ package: 'no-such' });
       expect(rows).toEqual([]);
+    });
+
+    it('filters by sessionIds (Flight Record の指示単位の絞り込み)', async () => {
+      const rows = await handler.getBugHistory({ sessionIds: ['sess-1'] });
+      expect(rows.map((r) => r.commitSha)).toEqual(['def456']);
+    });
+
+    // 空配列は「絞り込み対象が 0 件」。条件を落として全件返すと、セッション不明の指示が
+    // 全バグを自分の成果として表示してしまう。
+    it('sessionIds が空配列なら 0 件を返す（絞り込み無しに退行しない）', async () => {
+      const rows = await handler.getBugHistory({ sessionIds: [] });
+      expect(rows).toEqual([]);
+    });
+
+    it('sessionIds 未指定なら絞り込まない', async () => {
+      const rows = await handler.getBugHistory({});
+      expect(rows.length).toBe(2);
+    });
+
+    // trail.db が ATTACH できない構成でも一覧そのものは memory-core だけで引ける。
+    // instruction_sessions を引けないことを理由に行を落とすと、Bug Fixed タブが丸ごと空になる。
+    it('trail.db が無ければ指示 ID をセッション ID へフォールバックし、行は落とさない', async () => {
+      const rows = await handler.getBugHistory({});
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      expect(byId.get('bf-2')?.instructionId).toBe('sess-1');
+      // related_session_id を持たないバグは指示不明（null）。セッション ID を捏造しない
+      expect(byId.get('bf-1')?.instructionId).toBeNull();
+    });
+
+    it('workspace で絞ると他ワークスペースのバグが落ちる', async () => {
+      const rows = await handler.getBugHistory({ workspace: 'anytime-markdown' });
+      expect(rows.map((r) => r.commitSha)).toEqual(['abc123']);
+    });
+
+    it('未解決（workspace 空文字）の行は workspace 指定で落ちる', async () => {
+      const rows = await handler.getBugHistory({ workspace: 'anytime-trade' });
+      expect(rows).toEqual([]);
+    });
+  });
+
+  describe('listWorkspaces', () => {
+    it('レビュー・バグ・乖離の 3 テーブルから統合して重複なく返す', async () => {
+      expect(await handler.listWorkspaces()).toEqual(['anytime-lab', 'anytime-markdown', 'anytime-trade']);
+    });
+
+    it('未解決（空文字）は選択肢に出さない', async () => {
+      expect(await handler.listWorkspaces()).not.toContain('');
+    });
+
+    it('DB が無ければ空配列を返す', async () => {
+      const h = new MemoryApiHandler(makeMockLogger(), path.join(tmpDir, 'no-such.db'));
+      expect(await h.listWorkspaces()).toEqual([]);
     });
   });
 
@@ -369,10 +322,10 @@ describe('MemoryApiHandler', () => {
   describe('listPipelineRunStatsByDay', () => {
     it('groups runs by (day, scope) and sums duration', async () => {
       const rows = await handler.listPipelineRunStatsByDay({});
-      const byKey = new Map(rows.map((r) => [`${r.day}|${r.scope}`, r]));
+      const byKey = new Map(rows.map((r) => [`${r.day}|${r.scope}|${r.wave}`, r]));
 
       // 2026-05-09 / drift: run-1 (3,600,000ms success) + run-2 (1,800,000ms partial)
-      const drift0509 = byKey.get('2026-05-09|drift');
+      const drift0509 = byKey.get('2026-05-09|drift|memory');
       expect(drift0509).toBeDefined();
       expect(drift0509?.runs).toBe(2);
       expect(drift0509?.durationSec).toBe(5400);
@@ -380,12 +333,12 @@ describe('MemoryApiHandler', () => {
       expect(drift0509?.worstStatus).toBe('partial');
 
       // 2026-05-09 / review: run-3 only
-      const review0509 = byKey.get('2026-05-09|review');
+      const review0509 = byKey.get('2026-05-09|review|primary');
       expect(review0509?.runs).toBe(1);
       expect(review0509?.worstStatus).toBe('success');
 
       // 2026-05-10 / drift: run-4 error
-      const drift0510 = byKey.get('2026-05-10|drift');
+      const drift0510 = byKey.get('2026-05-10|drift|memory');
       expect(drift0510?.runs).toBe(1);
       expect(drift0510?.worstStatus).toBe('error');
     });
@@ -397,11 +350,77 @@ describe('MemoryApiHandler', () => {
 
     it('returns rows ordered by day desc, scope asc', async () => {
       const rows = await handler.listPipelineRunStatsByDay({});
-      expect(rows.map((r) => `${r.day}|${r.scope}`)).toEqual([
-        '2026-05-10|drift',
-        '2026-05-09|drift',
-        '2026-05-09|review',
+      expect(rows.map((r) => `${r.day}|${r.scope}|${r.wave}`)).toEqual([
+        '2026-05-10|drift|memory',
+        '2026-05-09|drift|memory',
+        '2026-05-09|review|primary',
       ]);
+    });
+  });
+
+  describe('listPipelineRuns', () => {
+    it('returns individual runs ordered by started_at desc', async () => {
+      const rows = await handler.listPipelineRuns({});
+      expect(rows.map((r) => r.id)).toEqual(['run-4', 'run-3', 'run-2', 'run-1']);
+      expect(rows[0]).toMatchObject({
+        id: 'run-4',
+        scope: 'drift',
+        wave: 'memory',
+        tier: 3,
+        status: 'error',
+        startedAt: '2026-05-10T09:00:00.000Z',
+        finishedAt: '2026-05-10T09:45:00.000Z',
+        durationMs: 2_700_000,
+        itemsProcessed: 0,
+        itemsFailed: 2,
+        errorDetail: 'boom',
+      });
+    });
+
+    it('filters by since, wave, and status', async () => {
+      const rows = await handler.listPipelineRuns({
+        since: '2026-05-09T12:30:00.000Z',
+        wave: 'memory',
+        status: 'error',
+      });
+      expect(rows.map((r) => r.id)).toEqual(['run-4']);
+    });
+
+    it('applies limit', async () => {
+      const rows = await handler.listPipelineRuns({ limit: 2 });
+      expect(rows.map((r) => r.id)).toEqual(['run-4', 'run-3']);
+    });
+  });
+
+  describe('listPipelineRunLogs', () => {
+    it('returns logs for a run ordered by timestamp then id', async () => {
+      const rows = await handler.listPipelineRunLogs({ runId: 'run-4' });
+      expect(rows).toEqual([
+        {
+          id: 1,
+          timestamp: '2026-05-10T09:01:00.000Z',
+          level: 'info',
+          source: 'daemon',
+          component: 'lep',
+          message: 'started',
+          metadata: '{"step":1}',
+          stack: null,
+        },
+        {
+          id: 2,
+          timestamp: '2026-05-10T09:02:00.000Z',
+          level: 'error',
+          source: 'extension',
+          component: 'lep',
+          message: 'failed',
+          metadata: null,
+          stack: 'Error: boom',
+        },
+      ]);
+    });
+
+    it('returns empty array for unknown run id', async () => {
+      expect(await handler.listPipelineRunLogs({ runId: 'no-such' })).toEqual([]);
     });
   });
 
@@ -410,16 +429,8 @@ describe('MemoryApiHandler', () => {
       const rows = await handler.listFailedItems({});
       expect(rows.length).toBe(1);
       expect(rows[0]?.itemKey).toBe('msg-abc');
+      expect(rows[0]?.detail).toBe('request timed out');
       expect(rows[0]?.attemptCount).toBe(2);
-    });
-  });
-
-  describe('listTopEntities', () => {
-    it('returns entities ordered by last_updated_at desc', async () => {
-      const rows = await handler.listTopEntities({});
-      expect(rows.length).toBe(1);
-      expect(rows[0]?.id).toBe('ent-1');
-      expect(rows[0]?.canonicalName).toBe('trail-viewer');
     });
   });
 

@@ -2,11 +2,29 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { PipelineStatusFile } from '@anytime-markdown/memory-core';
+import {
+  BetterSqlite3MemoryDb,
+  ingestPrReview,
+  runMigrations,
+  type MemoryDbConnection,
+  type PipelineStatusFile,
+} from '@anytime-markdown/memory-core';
 import type { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { AnalyzeAllRunner } from '../AnalyzeAllRunner';
 import { makeFakeScopeSession, makeMemoryCoreWithSession } from './fakeMemoryScopeSession';
+
+/**
+ * Step 5 (memory-core.db 付け替え) の PR review analyzer 群 (`PrReviewImporter` /
+ * `PrReviewFindingAnalyzer` / `CrossSourceCorrelator`) が使う実 memory-core.db を
+ * `runMigrations` で組み立てる (`~/.claude/rules/bugfix-workflow.md` 系の方針: fake DB でなく
+ * 実 SQLite の in-memory/一時ファイルを使う)。
+ */
+function buildTestMemoryDb(dir: string): MemoryDbConnection {
+  const db = new BetterSqlite3MemoryDb({ filePath: join(dir, 'memory-core.db') });
+  runMigrations(db);
+  return db;
+}
 
 /**
  * LEP 経由で AnalyzeAllRunner.runImpl() が委譲動作することを確認する統合テスト。
@@ -41,14 +59,10 @@ function makeFakeTrailDb(save: jest.Mock = jest.fn(), extra: Partial<Record<stri
     getDoraReleases: () => [],
     getDoraCommits: () => [],
     replaceDoraMetrics: () => undefined,
-    // Step 4c PR review のデフォルト fake: no-op
-    getPrReviewBodyHash: () => null,
-    upsertPrReview: () => undefined,
-    getPrReviewDetail: () => null,
-    replacePrReviewFindings: () => undefined,
-    // Step 4d cross-source 相関のデフォルト fake: 空データ
-    getPrReviews: () => [],
-    getPrReviewFindings: () => [],
+    // Step 5: PR review (pr_reviews / pr_review_findings) は memory-core.db へ移設済み。
+    // trailDb 側の pr 系メソッドは呼ばれなくなったが TrailDatabase から未削除 (別作業者管轄)
+    // のため、fake にも残す必要はない。
+    // Step 4d cross-source 相関 (trail.db 側) のデフォルト fake: 空データ
     getCorrelationSessionCommits: () => [],
     getCorrelationCommitFiles: () => [],
     replaceCrossSourceCorrelations: () => undefined,
@@ -364,18 +378,26 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(written[0]).toHaveLength(1); // repoA / 2026-01
   });
 
-  it('stage=all runs Wave 4: CrossSourceCorrelator computes correlations', async () => {
+  it('stage=all runs Wave 4: CrossSourceCorrelator computes correlations (memory-core.db 経由)', async () => {
     const correlationWrites: unknown[][] = [];
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
+    const memoryDb = buildTestMemoryDb(dir);
+    // memory_reviews (source_kind='pr_comment') を実 ingestPrReview で 1 件シード。
+    ingestPrReview(memoryDb, {
+      repoName: 'widget',
+      prNumber: 7,
+      reviewId: 'r1',
+      author: 'a',
+      state: 'CHANGES_REQUESTED',
+      submittedAt: '2026-01-15T00:00:00.000Z',
+      bodyHash: 'h',
+      findings: [],
+    });
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
       trailDb: makeFakeTrailDb(jest.fn(), {
-        getPrReviews: () => [
-          { reviewId: 'r1', repoName: 'widget', prNumber: 7, author: 'a', state: 'CHANGES_REQUESTED', submittedAt: '2026-01-15T00:00:00.000Z', bodyHash: 'h' },
-        ],
-        getPrReviewFindings: () => [],
         getCorrelationSessionCommits: () => [
           { sessionId: 's1', commitHash: 'h1', committedAt: '2026-01-10T00:00:00.000Z', repoName: 'widget' },
         ],
@@ -384,14 +406,39 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
         replaceCrossSourceCorrelations: (rows: unknown[]) => { correlationWrites.push([...rows]); },
       }),
       memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      memoryDbPath: join(dir, 'memory-core.db'),
+      memoryDb,
       stage: 'all',
     });
 
     await runner.runOnce('manual');
+    memoryDb.close();
 
     expect(logSink.lines.join('\n')).toContain('[CrossSourceCorrelator] done');
     expect(correlationWrites).toHaveLength(1);
     expect(correlationWrites[0]).toHaveLength(1); // r1 ↔ s1 (pr_review_session)
+  });
+
+  it('stage=all: CrossSourceCorrelator skips with info log when memoryDb is not configured', async () => {
+    const correlationWrites: unknown[][] = [];
+    const fake = makeFakeScopeSession();
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(jest.fn(), {
+        replaceCrossSourceCorrelations: (rows: unknown[]) => { correlationWrites.push([...rows]); },
+      }),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      stage: 'all',
+      // memoryDbPath / memoryDb 未指定
+    });
+
+    await runner.runOnce('manual');
+
+    expect(logSink.lines.join('\n')).toContain('[CrossSourceCorrelator] skipped (memory-core.db not configured; existing correlations preserved)');
+    // 未接続では洗い替え（= 既存行の DELETE）を行わない（設定漏れの 1 run がデータ削除にならない）
+    expect(correlationWrites).toEqual([]);
   });
 
   it('stage=primary+memory does NOT run Wave 4 (DoraMetricsAggregator skipped)', async () => {
@@ -437,29 +484,18 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(written).toEqual([]);
   });
 
-  it('Step 4c: github_pr_review → PrReviewImporter → PrReviewFindingAnalyzer pipeline', async () => {
-    const reviewStore = new Map<string, { state: string; body: string; comments: { path: string; line: number | null; body: string }[]; repoName: string; prNumber: number }>();
-    const findingWrites: { reviewId: string; count: number }[] = [];
+  it('Step 5: github_pr_review → PrReviewImporter → PrReviewFindingAnalyzer → memory_reviews/memory_review_findings', async () => {
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
-
-    const trailDb = makeFakeTrailDb(jest.fn(), {
-      getPrReviewBodyHash: () => null,
-      upsertPrReview: (r: { reviewId: string; state: string; body: string; comments: { path: string; line: number | null; body: string }[]; repoName: string; prNumber: number }) => {
-        reviewStore.set(r.reviewId, { state: r.state, body: r.body, comments: r.comments, repoName: r.repoName, prNumber: r.prNumber });
-      },
-      getPrReviewDetail: (reviewId: string) => {
-        const r = reviewStore.get(reviewId);
-        return r ? { reviewId, repoName: r.repoName, prNumber: r.prNumber, state: r.state, body: r.body, comments: r.comments } : null;
-      },
-      replacePrReviewFindings: (reviewId: string, findings: unknown[]) => { findingWrites.push({ reviewId, count: findings.length }); },
-    });
+    const memoryDb = buildTestMemoryDb(dir);
 
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb,
+      trailDb: makeFakeTrailDb(),
       memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      memoryDbPath: join(dir, 'memory-core.db'),
+      memoryDb,
       gitRoots: ['/repo'],
       githubPrReview: {
         client: makeFakeGitHubClient() as never,
@@ -473,30 +509,67 @@ describe('AnalyzeAllRunner (LEP integration)', () => {
     expect(allLines).toContain('[GitHubPrReviewIngester] emitted 1 reviews');
     expect(allLines).toContain('[PrReviewImporter] done (imported=1');
     expect(allLines).toContain('[PrReviewFindingAnalyzer] done (reviews=1, findings=1)');
-    expect(reviewStore.has('100')).toBe(true);
-    expect(findingWrites).toEqual([{ reviewId: '100', count: 1 }]);
+
+    // memory_reviews / memory_review_findings に実際に書き込まれたことを実測で確認する。
+    const reviewRows = memoryDb.exec(
+      `SELECT source_ref, reviewer, severity_overall FROM memory_reviews WHERE source_kind='pr_comment'`,
+    );
+    expect(reviewRows[0]?.values).toEqual([['widget#pr7#100', 'alice', 'info']]);
+    const findingRows = memoryDb.exec(
+      `SELECT target_file_path, target_line_start, finding_text
+         FROM memory_review_findings f JOIN memory_reviews r ON r.id = f.review_id
+        WHERE r.source_kind='pr_comment'`,
+    );
+    expect(findingRows[0]?.values).toEqual([['a.ts', 12, 'null check']]);
+
+    memoryDb.close();
   });
 
-  it('Step 4c: PR review pipeline is a no-op when GitHub source is unconfigured', async () => {
-    const findingWrites: unknown[] = [];
+  it('Step 5: PR review pipeline is a no-op when GitHub source is unconfigured', async () => {
     const fake = makeFakeScopeSession();
     const logSink = makeLogSink();
+    const memoryDb = buildTestMemoryDb(dir);
     const runner = new AnalyzeAllRunner({
       logSink,
       statePath: join(dir, 'analyze-all-runner.json'),
-      trailDb: makeFakeTrailDb(jest.fn(), {
-        upsertPrReview: () => findingWrites.push('upsert'),
-        replacePrReviewFindings: () => findingWrites.push('finding'),
-      }),
+      trailDb: makeFakeTrailDb(),
       memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      memoryDbPath: join(dir, 'memory-core.db'),
+      memoryDb,
       gitRoots: ['/repo'],
       // githubPrReview 未指定 → ingester 登録なし
     });
 
     await runner.runOnce('manual');
+    const reviewRows = memoryDb.exec(`SELECT COUNT(*) FROM memory_reviews WHERE source_kind='pr_comment'`);
+    memoryDb.close();
 
     expect(logSink.lines.join('\n')).not.toContain('[GitHubPrReviewIngester]');
-    expect(findingWrites).toEqual([]);
+    expect(reviewRows[0]?.values?.[0]?.[0]).toBe(0);
+  });
+
+  it('Step 5: memoryDbPath not configured → PrReviewImporter / PrReviewFindingAnalyzer are not built (info log, no silent skip)', async () => {
+    const fake = makeFakeScopeSession();
+    const logSink = makeLogSink();
+    const runner = new AnalyzeAllRunner({
+      logSink,
+      statePath: join(dir, 'analyze-all-runner.json'),
+      trailDb: makeFakeTrailDb(),
+      memoryCoreService: makeMemoryCoreWithSession(dir, fake.session),
+      gitRoots: ['/repo'],
+      githubPrReview: {
+        client: makeFakeGitHubClient() as never,
+        gitRemoteReader: { getRemoteUrl: () => 'https://github.com/acme/widget.git' },
+      },
+      // memoryDbPath / memoryDb 未指定
+    });
+
+    await runner.runOnce('manual');
+
+    const allLines = logSink.lines.join('\n');
+    expect(allLines).toContain('[PrReview] memoryDbPath not configured — skipping PrReviewImporter / PrReviewFindingAnalyzer');
+    expect(allLines).not.toContain('[PrReviewImporter] done');
+    expect(allLines).not.toContain('[PrReviewFindingAnalyzer] done');
   });
 
   it('stage=disabled runs nothing', async () => {

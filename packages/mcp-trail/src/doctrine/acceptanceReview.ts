@@ -1,5 +1,6 @@
-import type { GitDiffSummary } from './gitDiffSummary';
 import type { DoctrineJudgmentView } from '../sqlite/doctrineJudgments';
+import type { GateReason } from './coverageGate';
+import type { GitDiffSummary } from './gitDiffSummary';
 
 /**
  * 受け入れ確認インターフェース (DCT-13)。判断記録と差分から、人が判断過程を
@@ -18,6 +19,13 @@ export interface AcceptanceEscalation {
   /** カバレッジゲートが escalate と判定した */
   readonly byGate: boolean;
   readonly gateReasons: readonly string[];
+  /**
+   * 指示から一意に定まらないと申告した論点 (DCT-14)。**理由コードだけでは
+   * 「何が定まっていなかったか」が人に見えない**ため本文へ出す。指示不足の是正は
+   * 運用側（What 承認を出す前に洗い出す）に置くと決めたので、人が読む面に論点が
+   * 出ないと洗い出しへ繋がらない。
+   */
+  readonly underspecifiedPoints: readonly string[];
 }
 
 export interface AcceptanceReviewSummary {
@@ -27,12 +35,16 @@ export interface AcceptanceReviewSummary {
   readonly draftGroundedCount: number;
   /** 解決検査に失敗した引用の件数 */
   readonly unresolvedCitationCount: number;
-  /** 人の判断が未記録の判断の件数 */
+  /** 人へ聞いたが判断がまだ記録されていない件数（D2 で代行したものは含まない） */
   readonly pendingDecisionCount: number;
+  /** D2 で代行し、人へ聞かなかった判断の件数 */
+  readonly delegatedCount: number;
   /** カバレッジゲート未評価（導入前の記録）の件数 */
   readonly ungatedCount: number;
   /** 記録の読み取りに失敗した判断の件数 */
   readonly parseErrorCount: number;
+  /** 指示から一意に定まらない論点を申告した判断の件数 (DCT-14) */
+  readonly underspecifiedCount: number;
   readonly changedFileCount: number;
 }
 
@@ -53,11 +65,23 @@ export interface AcceptanceReviewInput {
   readonly diff: GitDiffSummary;
 }
 
-/** ゲート理由コードの日本語説明。内部コードの読解を人へ要求しないため (仕様 §6) */
-const GATE_REASON_LABELS: Readonly<Record<string, string>> = {
+/**
+ * ゲート理由コードの日本語説明。内部コードの読解を人へ要求しないため (仕様 §6)。
+ *
+ * `Record<GateReason, string>` にしているのは網羅性を型で強制するため。
+ * `Record<string, string>` だと理由コードを足しても型エラーにならず、受入レビュー
+ * 本文に生コードだけが出る（フォールバックが働いて気づけない）。
+ */
+const GATE_REASON_LABELS: Readonly<Record<GateReason, string>> = {
+  odd_registry_invalid: 'ODD レジストリ（odd.json）が壊れており ODD を判定できない',
+  underspecified_unknown: '未確定論点の申告がなく、指示から一意に定まるかを判定できない',
+  underspecified_instruction: '指示から一意に定まらない論点があり、承認する中身が確定していない',
   odd_unknown: '対象パスの申告がなく ODD 内と判定できない',
   odd_out: '対象が ODD（自律運航が許容される範囲）の外にある',
   restricted_area: '対象が制限領域（CI 定義・シークレット・本番設定等）にある',
+  operation_kind_unknown: '操作種別の申告がなく判定できない',
+  always_human_operation:
+    '常に人の承認が要る操作である（パッケージ追加・破壊的操作・push・リリース・永続データ書込）',
   severity_unknown: '重大度の申告がなく判定できない',
   severity_high: '高重大度の変更である',
   doctrine_conflict: '複数の条項が矛盾する判断を与える',
@@ -108,7 +132,9 @@ function renderQuoteBlock(quote: string, indent: string): string[] {
 }
 
 function describeGateReason(code: string): string {
-  const label = GATE_REASON_LABELS[code];
+  // DB に保存された過去の理由コードは現在の GateReason に無いことがあるため、
+  // 未知コードは生のまま出す（表示のために記録を落とさない）
+  const label = (GATE_REASON_LABELS as Readonly<Record<string, string | undefined>>)[code];
   return label === undefined ? code : `${code}（${label}）`;
 }
 
@@ -130,6 +156,7 @@ function collectEscalations(
       byAgent: judgment.agentJudgment === 'escalate',
       byGate: judgment.gateVerdict === 'escalate',
       gateReasons: judgment.gateReasons,
+      underspecifiedPoints: judgment.underspecifiedPoints,
     }));
 }
 
@@ -146,9 +173,16 @@ function summarize(
       (sum, judgment) => sum + judgment.citations.filter((citation) => !citation.resolved).length,
       0,
     ),
-    pendingDecisionCount: judgments.filter((judgment) => judgment.humanDecision === null).length,
+    // D2 で代行した判断は「人に聞かなかった」ものであり、「人がまだ答えていない」ものと
+    // 混ぜると注意行が常時点灯して読み飛ばされる (仕様 §3.2)
+    pendingDecisionCount: judgments.filter(
+      (judgment) => judgment.humanDecision === null && judgment.delegatedAt === null,
+    ).length,
+    delegatedCount: judgments.filter((judgment) => judgment.delegatedAt !== null).length,
     ungatedCount: judgments.filter((judgment) => judgment.gateVerdict === null).length,
     parseErrorCount: judgments.filter((judgment) => judgment.parseError !== null).length,
+    underspecifiedCount: judgments.filter((judgment) => judgment.underspecifiedPoints.length > 0)
+      .length,
     changedFileCount: diff.files.length,
   };
 }
@@ -171,10 +205,25 @@ function renderNotice(summary: AcceptanceReviewSummary, diff: GitDiffSummary): s
   if (summary.parseErrorCount > 0) {
     notes.push(`記録を読み取れなかった判断 ${summary.parseErrorCount} 件`);
   }
+  if (summary.underspecifiedCount > 0) {
+    notes.push(`指示から一意に定まらない論点を申告した判断 ${summary.underspecifiedCount} 件`);
+  }
   if (!diff.available) {
     notes.push('成果物の差分を取得できていない');
   }
   return notes.length === 0 ? [] : [`**注意**: ${notes.join(' / ')}`, ''];
+}
+
+/**
+ * 人の判断欄。D2 で代行したものは「未確定」ではなく「代行」と出す。
+ * 代行後に人が抜き取り監査で判断した場合はその判断を出し、代行済みである旨を併記する。
+ */
+function renderDecisionCell(judgment: DoctrineJudgmentView): string {
+  if (judgment.humanDecision !== null) {
+    const label = DECISION_LABELS[judgment.humanDecision];
+    return judgment.delegatedAt === null ? label : `${label}（代行後の監査）`;
+  }
+  return judgment.delegatedAt === null ? '未確定' : '代行（人へ聞いていない）';
 }
 
 function renderJudgmentTable(judgments: readonly DoctrineJudgmentView[]): string[] {
@@ -188,8 +237,7 @@ function renderJudgmentTable(judgments: readonly DoctrineJudgmentView[]): string
         : judgment.gateVerdict === 'delegable'
           ? '代行可'
           : 'エスカレーション';
-    const decision =
-      judgment.humanDecision === null ? '未確定' : DECISION_LABELS[judgment.humanDecision];
+    const decision = renderDecisionCell(judgment);
     return `| ${judgment.id} | ${escapeTableCell(judgment.subject)} | ${JUDGMENT_LABELS[judgment.agentJudgment]} | ${judgment.coverage} | ${gate} | ${decision} |`;
   });
   return [
@@ -277,6 +325,9 @@ function renderEscalations(escalations: readonly AcceptanceEscalation[]): string
           : escalation.gateReasons.map(describeGateReason).join(' / ');
       lines.push(`- カバレッジゲート: エスカレーション — ${reasons}`);
     }
+    for (const point of escalation.underspecifiedPoints) {
+      lines.push(`  - 指示から定まらない論点: ${singleLine(point)}`);
+    }
     lines.push('');
   }
   return lines;
@@ -289,7 +340,7 @@ export function renderAcceptanceReviewMarkdown(
   const lines: string[] = [
     '## 受け入れ確認',
     '',
-    `セッション \`${review.sessionId}\` / 代行判断 ${summary.judgmentCount} 件 / エスカレーション ${summary.escalationCount} 件 / 変更 ${summary.changedFileCount} ファイル`,
+    `セッション \`${review.sessionId}\` / 接地判断 ${summary.judgmentCount} 件（うち代行 ${summary.delegatedCount} 件） / エスカレーション ${summary.escalationCount} 件 / 変更 ${summary.changedFileCount} ファイル`,
     '',
     ...renderNotice(summary, diff),
     '### 1. 代行した判断',

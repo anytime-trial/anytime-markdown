@@ -1,5 +1,10 @@
 /**
- * BugHistory パネルの vanilla 版（`components/memory/BugHistoryPanel.tsx` の素 DOM 等価）。
+ * BugHistory パネル（Flight Record の Bug Fixed サブタブの中身）。
+ *
+ * 2026-08-05 に Memory の Bugs サブタブから Flight Record へ移設した。パネル実体は複製せず
+ * マウント元だけを移したため、ファイルは `views/memory/` に残っている（データ源が memory-core
+ * であることは変わらない）。React ラッパ `components/memory/BugHistoryPanel.tsx` は消費者が
+ * 無くなったため同日に削除した。
  *
  * - Recurring bugs チップ帯（上部）
  * - Package / Category フィルタバー
@@ -9,13 +14,7 @@
  * フィルタリングはローカル状態で保持する。
  * selectedBugEntityId は presentational な選択状態としてここで保持する。
  */
-import {
-  createChip,
-  createIconButton,
-  createSelect,
-  createTooltip,
-  OpenInNew,
-} from '@anytime-markdown/ui-core';
+import { createChip, createSelect, createTooltip } from '@anytime-markdown/ui-core';
 import type { MemoryBugHistoryRow, MemoryRecurringBugRow } from '../../data/types';
 import type { MemoryReader } from '../../data/readers/MemoryReader';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
@@ -33,10 +32,20 @@ const CATEGORY_COLOR_VAR: Record<string, string> = {
 export interface BugHistoryPanelProps {
   t: (key: string) => string;
   reader: MemoryReader | null;
-  onOpenSessionMessages?: (sessionId: string) => void;
   onOpenPrecedingReviews?: (findingIds: readonly string[]) => void;
   onOpenSiblingBugs?: (bugEntityIds: readonly string[]) => void;
+  /** instructionId → 一覧に出す指示名。未配線ならセル自体を出さない（生 ID を見せない）。 */
+  labelOf?: (instructionId: string) => string;
+  /** 指示名クリックで指示タブへ移り、その指示を選択状態にする（Review タブの行クリックと同じ）。 */
+  onSelectInstruction?: (instructionId: string) => void;
   pendingBugFilter?: { bugEntityIds: readonly string[] } | null;
+  /**
+   * ワークスペース（repo_name）でバグ履歴・再発クラスタを絞る。空文字は「すべて」。
+   *
+   * サーバー側で絞るのは、取得の上限が絞り込み前に効くと、選んだワークスペースのバグが
+   * 窓から溢れて「0 件」に見えるため。
+   */
+  workspace: string;
 }
 
 /** chip を色付きボーダー（outlined 風）で装飾するヘルパー。 */
@@ -72,6 +81,11 @@ export function mountBugHistoryPanel(
 ): VanillaViewHandle<BugHistoryPanelProps> {
   let props = initial;
   let destroyed = false;
+  /**
+   * 取得の世代。reader の同一性では足りない — reader は serverUrl 変更でしか作り直されず、
+   * ワークスペースを続けて切り替えると同じ reader のまま複数本走る。
+   */
+  let loadSeq = 0;
   let recurring: readonly MemoryRecurringBugRow[] = [];
   let history: readonly MemoryBugHistoryRow[] = [];
   let pkgFilter = '';
@@ -104,7 +118,7 @@ export function mountBugHistoryPanel(
   const pkgSelect = createSelect<string>({
     value: '',
     options: [{ value: '', label: 'All' }],
-    ariaLabel: props.t('memory.bug.filterPackage'),
+    ariaLabel: props.t('flightRecord.bugfix.filterPackage'),
     onChange: (v) => {
       pkgFilter = v;
       renderTable();
@@ -118,7 +132,7 @@ export function mountBugHistoryPanel(
   const catSelect = createSelect<string>({
     value: '',
     options: [{ value: '', label: 'All' }],
-    ariaLabel: props.t('memory.bug.filterCategory'),
+    ariaLabel: props.t('flightRecord.bugfix.filterCategory'),
     onChange: (v) => {
       categoryFilter = v;
       renderTable();
@@ -173,7 +187,7 @@ export function mountBugHistoryPanel(
     const label = document.createElement('div');
     label.style.cssText =
       'font-size:0.75rem;font-weight:600;color:var(--am-color-text-secondary);margin-bottom:4px;';
-    label.textContent = props.t('memory.bug.recurring');
+    label.textContent = props.t('flightRecord.bugfix.recurring');
     const chips = document.createElement('div');
     chips.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;';
     for (const r of recurring.slice(0, 10)) {
@@ -195,6 +209,34 @@ export function mountBugHistoryPanel(
 
   const rowHandles: Array<{ destroy(): void }> = [];
 
+  /**
+   * 指示名セル。押すと指示タブへ移りその指示を選択する（Review タブの行クリックと同じ）。
+   *
+   * 遷移先の配線（`onSelectInstruction`）と表示名の解決（`labelOf`）が両方揃ったときだけ
+   * ボタンを出す。片方でも欠けたら押せないボタンや生の指示 ID を見せず、セルを空にする。
+   */
+  function instructionButton(instructionId: string | null): HTMLButtonElement | null {
+    const { labelOf, onSelectInstruction } = props;
+    if (!instructionId) return null;
+    if (labelOf === undefined || onSelectInstruction === undefined) return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset['amBugInstruction'] = instructionId;
+    // UA 既定（buttonface 背景・2px ボーダー・中央寄せ）を打ち消す。`all:unset` は
+    // フォーカスリングまで消してキーボード操作を見えなくするので、個別に上書きする。
+    button.style.cssText =
+      'display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
+      'background:none;border:none;padding:0;margin:0;font:inherit;font-size:0.75rem;' +
+      'text-align:left;cursor:pointer;color:var(--am-color-primary-main);text-decoration:underline;';
+    button.textContent = labelOf(instructionId);
+    button.addEventListener('click', (e) => {
+      // 行クリック（バグ選択・因果ペイン更新）へは伝播させない
+      e.stopPropagation();
+      onSelectInstruction(instructionId);
+    });
+    return button;
+  }
+
   function renderTable(): void {
     for (const h of rowHandles) h.destroy();
     rowHandles.length = 0;
@@ -205,7 +247,7 @@ export function mountBugHistoryPanel(
       const empty = document.createElement('div');
       empty.style.cssText =
         'padding:24px;display:flex;align-items:center;justify-content:center;color:var(--am-color-text-secondary);font-size:0.875rem;';
-      empty.textContent = props.t('memory.bug.empty');
+      empty.textContent = props.t('flightRecord.bugfix.empty');
       empty.setAttribute('aria-label', 'bug-history-empty');
       tablePane.appendChild(empty);
       return;
@@ -218,12 +260,10 @@ export function mountBugHistoryPanel(
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
     headRow.append(
-      th('Package'),
-      th('Category'),
-      th('Commit'),
-      th('Summary'),
-      th('Date'),
-      th(''),
+      th(props.t('flightRecord.bugfix.column.summary')),
+      th(props.t('flightRecord.bugfix.column.date')),
+      th(props.t('flightRecord.bugfix.column.category')),
+      th(props.t('flightRecord.column.instruction')),
       th(''),
     );
     thead.appendChild(headRow);
@@ -263,19 +303,6 @@ export function mountBugHistoryPanel(
         renderTable();
       });
 
-      // Package
-      const pkgCell = td('color:var(--am-color-text-secondary);');
-      pkgCell.textContent = row.package;
-
-      // Category chip
-      const catCell = td();
-      const catColorVar = CATEGORY_COLOR_VAR[row.category] ?? 'var(--am-color-text-secondary)';
-      catCell.appendChild(styledChip(row.category, catColorVar));
-
-      // Commit SHA
-      const shaCell = td('color:var(--am-color-text-secondary);font-family:monospace;');
-      shaCell.textContent = row.commitSha.slice(0, 7);
-
       // Summary
       const summaryCell = td('max-width:280px;color:var(--am-color-text-primary);overflow:hidden;');
       const summaryInner = document.createElement('div');
@@ -287,25 +314,15 @@ export function mountBugHistoryPanel(
       const dateCell = td('color:var(--am-color-text-secondary);white-space:nowrap;');
       dateCell.textContent = row.committedAt.slice(0, 10);
 
-      // Open in messages icon button
-      const openCell = td('padding:2px 4px;text-align:right;');
-      if (props.onOpenSessionMessages && row.sessionId) {
-        const iconBtnHandle = createIconButton({
-          size: 'small',
-          ariaLabel: props.t('memory.bug.openInMessages'),
-          onClick: (e?: MouseEvent) => {
-            e?.stopPropagation();
-            props.onOpenSessionMessages!(row.sessionId!);
-          },
-        });
-        rowHandles.push(iconBtnHandle);
-        const { el: iconBtn } = iconBtnHandle;
-        const { el: icon } = OpenInNew({ fontSize: 'small', color: 'action' });
-        iconBtn.appendChild(icon);
-        const tooltipHandle = createTooltip({ reference: iconBtn, title: props.t('memory.bug.openInMessages') });
-        rowHandles.push(tooltipHandle);
-        openCell.appendChild(iconBtn);
-      }
+      // Category chip
+      const catCell = td();
+      const catColorVar = CATEGORY_COLOR_VAR[row.category] ?? 'var(--am-color-text-secondary)';
+      catCell.appendChild(styledChip(row.category, catColorVar));
+
+      // 指示名（クリックで指示タブへ遷移してその指示を選択）
+      const instructionCell = td('max-width:220px;overflow:hidden;');
+      const instructionCellContent = instructionButton(row.instructionId);
+      if (instructionCellContent !== null) instructionCell.appendChild(instructionCellContent);
 
       // Preceded by chip
       const precededCell = td('padding:2px 4px;text-align:right;white-space:nowrap;');
@@ -322,13 +339,13 @@ export function mountBugHistoryPanel(
         );
         const precededTooltip = createTooltip({
           reference: precededChip as HTMLElement,
-          title: `${props.t('memory.bug.precededByCount')}: ${row.precededByFindingIds.length}`,
+          title: `${props.t('flightRecord.bugfix.precededByCount')}: ${row.precededByFindingIds.length}`,
         });
         rowHandles.push(precededTooltip);
         precededCell.appendChild(precededChip);
       }
 
-      tr.append(pkgCell, catCell, shaCell, summaryCell, dateCell, openCell, precededCell);
+      tr.append(summaryCell, dateCell, catCell, instructionCell, precededCell);
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);
@@ -350,8 +367,8 @@ export function mountBugHistoryPanel(
   }
 
   function renderAll(): void {
-    filterLabel.textContent = props.t('memory.bug.history');
-    causalTitle.textContent = props.t('memory.bug.causedBy.title');
+    filterLabel.textContent = props.t('flightRecord.bugfix.history');
+    causalTitle.textContent = props.t('flightRecord.bugfix.causedBy.title');
 
     if (!props.reader) {
       root.style.display = 'flex';
@@ -360,7 +377,7 @@ export function mountBugHistoryPanel(
       root.replaceChildren();
       const empty = document.createElement('div');
       empty.style.cssText = 'font-size:0.875rem;color:var(--am-color-text-secondary);';
-      empty.textContent = props.t('memory.bug.empty');
+      empty.textContent = props.t('flightRecord.bugfix.empty');
       root.appendChild(empty);
       return;
     }
@@ -384,10 +401,14 @@ export function mountBugHistoryPanel(
       renderAll();
       return;
     }
+    const seq = ++loadSeq;
     void Promise.all([
-      props.reader.listRecurringBugs({}),
-      props.reader.getBugHistory({}),
+      props.reader.listRecurringBugs({ workspace: props.workspace }),
+      props.reader.getBugHistory({ workspace: props.workspace }),
     ]).then(([rec, hist]) => {
+      // 取得中に接続先・絞り込みが差し替わったら旧世代の応答は捨てる。
+      // reader の同一性で判定すると、reader が変わらないワークスペース切替を取りこぼす。
+      if (seq !== loadSeq || destroyed) return;
       if (destroyed) return;
       recurring = rec;
       history = hist;
@@ -400,8 +421,11 @@ export function mountBugHistoryPanel(
   return {
     update(next) {
       const readerChanged = next.reader !== props.reader;
+      const workspaceChanged = next.workspace !== props.workspace;
       props = next;
-      if (readerChanged) {
+      if (readerChanged || workspaceChanged) {
+        // 絞り込みが変わったら取り直す。前の結果を残すと「別のワークスペースの行」を
+        // 今の選択の結果として見せることになる。
         load();
       } else {
         renderAll();

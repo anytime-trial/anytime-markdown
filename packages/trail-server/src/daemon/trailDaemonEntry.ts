@@ -8,13 +8,17 @@
 
 import * as path from 'node:path';
 
-import { BetterSqlite3MemoryDb } from '@anytime-markdown/memory-core';
-import { MemoryCoreService } from '@anytime-markdown/memory-core/pipeline';
-import { makeChildAnalyzeFn } from '../analyze/childAnalyzeFn';
 import {
-  CREATE_EXTENSION_LOGS,
-  CREATE_EXTENSION_LOGS_INDEXES,
-} from '@anytime-markdown/trail-core/domain/schema';
+  openMemoryCoreDb,
+  type MemoryCoreDb,
+  type PipelineRunLedgerFactory,
+} from '@anytime-markdown/memory-core';
+import {
+  MemoryCoreService,
+  PipelineRunLedger,
+  createPipelineRunLedgerFactory,
+} from '@anytime-markdown/memory-core/pipeline';
+import { makeChildAnalyzeFn } from '../analyze/childAnalyzeFn';
 import { TrailDatabase } from '@anytime-markdown/trail-db';
 
 import { checkLlmAvailability } from '../lep/LlmAvailability';
@@ -24,9 +28,7 @@ import { CodeGraphService } from '../analyze/CodeGraphService';
 import { ChatBridge } from '../memory-chat/chatBridge';
 import { RebuildScheduler } from '../memory-chat/rebuildScheduler';
 import { LogService } from '../services/LogService';
-import { wireDocCoreRunner, type WiredDocCore } from '../runtime/docCoreRunner';
 import { createOllamaClient } from '@anytime-markdown/agent-core';
-import type { EmbedFn } from '@anytime-markdown/doc-core';
 import type { Logger } from '../runtime/Logger';
 import {
   resolveGitRootForRepo,
@@ -104,11 +106,23 @@ const childAnalyzeFn = makeChildAnalyzeFn(analyzeChildPath, {
 let memoryCoreService: MemoryCoreService | null = null;
 let analyzeAllRunner: AnalyzeAllRunner | null = null;
 /**
- * doc-core ランナー (ドキュメント検索 DB ingest)。memory pipeline とは独立で、configure() で
- * cfg.docCore.docsRoot が設定されている時のみ配線する。standalone CLI (cli.ts) と同一の
- * wireDocCoreRunner ヘルパを消費し、配線ロジックを単一の真実とする。
+ * AnalyzeAllRunner の PR レビュー系（PrReviewImporter / PrReviewFindingAnalyzer /
+ * CrossSourceCorrelator の PR 相関）が読む memory-core.db 接続。PR レビューの永続化先を
+ * memory_reviews へ統合（2026-08-07）した配線で、LogService と同じ openMemoryCoreDb 前例。
+ * 接続の所有は daemon 側（rebuild ごとに開き直し、disposeAll で閉じる）。
  */
-let docCoreWired: WiredDocCore | null = null;
+let analyzeMemoryCoreDb: MemoryCoreDb | null = null;
+
+function closeAnalyzeMemoryCoreDb(): void {
+  if (analyzeMemoryCoreDb) {
+    try {
+      analyzeMemoryCoreDb.close();
+    } catch (err) {
+      daemonLogger.error(`[daemon] analyze memory-core.db close error: ${formatError(err)}`);
+    }
+    analyzeMemoryCoreDb = null;
+  }
+}
 /**
  * 直近 configure() で受け取った import パイプライン設定。
  *
@@ -178,14 +192,20 @@ function emitAnalyzeReleaseProgress(message: string): void {
 let httpRebuildSchedulerDisposable: { dispose(): void } | null = null;
 /** startHttpServer() で構築した ChatBridge。dispose() で SQLite WAL をフラッシュする。 */
 let httpChatBridge: ChatBridge | null = null;
-/** startHttpServer() で構築した extensionLogsDb。 */
-let httpExtensionLogsDb: BetterSqlite3MemoryDb | null = null;
+/** startHttpServer() で構築した LogService 用 memory-core.db 接続。 */
+let httpLogLedgerDb: MemoryCoreDb | null = null;
+/** daemon の生存期間を表す wave='system' の run。disposeAll() で閉じる。 */
+let httpSystemRunLedger: PipelineRunLedger | null = null;
+/**
+ * Wave 1/2/4 の実行台帳ファクトリ。LogService と同じ memory-core.db 接続を共有するため
+ * startHttpServer() で確定し、その後の rebuildAnalyzeAllRunner() が LepOrchestrator へ注入する。
+ */
+let httpPipelineRunLedgerFactory: PipelineRunLedgerFactory | null = null;
 
 /** テスト用: 状態リセット。 */
 export function _resetForTest(): void {
   memoryCoreService = null;
   analyzeAllRunner = null;
-  docCoreWired = null;
   lastAnalyzeAllCfg = null;
   httpServer = null;
   httpCodeGraphService = null;
@@ -193,17 +213,13 @@ export function _resetForTest(): void {
   httpPort = null;
   httpRebuildSchedulerDisposable = null;
   httpChatBridge = null;
-  httpExtensionLogsDb = null;
+  httpLogLedgerDb = null;
+  httpPipelineRunLedgerFactory = null;
 }
 
 /** テスト用: 現在の AnalyzeAllRunner を返す (import パイプライン配線の検証用)。 */
 export function _getAnalyzeAllRunnerForTest(): AnalyzeAllRunner | null {
   return analyzeAllRunner;
-}
-
-/** テスト用: 現在の doc-core ランナーハンドルを返す (doc-core 配線の検証用)。 */
-export function _getDocCoreWiredForTest(): WiredDocCore | null {
-  return docCoreWired;
 }
 
 function requireRunner(): AnalyzeAllRunner {
@@ -239,32 +255,6 @@ async function configure(cfg: SerializableAnalyzeAllConfig): Promise<void> {
     });
   }
 
-  // doc-core: ドキュメント検索 DB (doc-core.db) の ingest。memory pipeline とは独立した疎結合
-  // ランナーで、cfg.docCore.docsRoot が設定されている時のみ配線する。doc-core.db は trail.db と
-  // 同じ DB ディレクトリ (dirname(trailDbPath)) に置く。embedding は ollama 未到達でも構造+FTS は
-  // 成立し embedding だけスキップされる。re-configure 時は既存ランナーを dispose してから再構築する。
-  if (docCoreWired) {
-    docCoreWired.dispose();
-    docCoreWired = null;
-  }
-  if (cfg.docCore && cfg.docCore.docsRoot.trim()) {
-    const docCoreCfg = cfg.docCore;
-    const docEmbedClient = createOllamaClient({ baseUrl: cfg.ollamaBaseUrl });
-    const docEmbed: EmbedFn = async (text) =>
-      Array.from(
-        (await docEmbedClient.embeddings({ model: docCoreCfg.embedModel, prompt: text })).embedding,
-      );
-    docCoreWired = wireDocCoreRunner({
-      docsRoot: docCoreCfg.docsRoot,
-      dbPath: path.join(path.dirname(cfg.trailDbPath), 'doc-core.db'),
-      statusPath: path.join(path.dirname(cfg.trailDbPath), 'doc-core-status.json'),
-      embed: docEmbed,
-      embedModel: docCoreCfg.embedModel,
-      schedulerEnabled: true,
-      logSink: { appendLine: (m: string) => daemonLogger.info(m) },
-    });
-  }
-
   // import パイプライン設定を保持し、現時点で利用可能な trailDb (= 既に startHttpServer 済みなら
   // httpTrailDb) で runner を構築する。通常順 (configure → startHttpServer) では httpTrailDb は
   // まだ null のため trailDb=undefined となり、startHttpServer() 側で trailDb 付きに再構築される。
@@ -288,6 +278,19 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
   }
   const cfg = lastAnalyzeAllCfg;
   if (!cfg) return;
+
+  // PR レビュー系 analyzer 用の memory-core.db 接続（開けない場合は analyzer 側が
+  // 「memoryDb connection 無し」の info ログを出して skip する — silent skip にしない）
+  closeAnalyzeMemoryCoreDb();
+  if (cfg.memoryCore) {
+    try {
+      analyzeMemoryCoreDb = await openMemoryCoreDb(cfg.memoryCore.dbPath, {
+        nativeBinding: cfg.memoryCore.nativeBinding,
+      });
+    } catch (err) {
+      daemonLogger.error(`[daemon] analyze memory-core.db open failed: ${formatError(err)}`);
+    }
+  }
 
   analyzeAllRunner = new AnalyzeAllRunner({
     logSink: { appendLine: (m: string) => daemonLogger.info(`[runner] ${m}`) },
@@ -315,8 +318,14 @@ async function rebuildAnalyzeAllRunner(trailDb: TrailDatabase | undefined): Prom
     // を区別せず disabledAnalyzerIds の結果)、Layer 2 toggle 用にも同じ全リストを流用する。
     disabledPrimaryAnalyzers: cfg.disabledMemoryAnalyzers,
     githubPrReview: undefined,
+    memoryDbPath: cfg.memoryCore?.dbPath,
+    // openMemoryCoreDb は conn と db に同一参照を入れる。?? で併記すると「2 つの供給元」に
+    // 誤読されるため db（常に存在する側）に一本化する
+    memoryDb: analyzeMemoryCoreDb ? analyzeMemoryCoreDb.db : undefined,
     importAllStatusFilePath: cfg.importAllStatusFilePath,
     pipelineStatusFilePath: cfg.pipelineStatusFilePath,
+    // startHttpServer() 後に呼び直される再構築で確定する (LogService と同じ接続)。
+    openPipelineRunLedger: httpPipelineRunLedgerFactory ?? undefined,
     onImportProgress: (message: string) => sendEvent('progress', { message }),
     // typescript を引き込む同期 `analyze` の代わりに analyze-child へ fork する非同期
     // 実装を注入する。release 解析は TrailGraph のみ使うため child の graph を返す。
@@ -389,16 +398,33 @@ async function startHttpServer(opts: SerializableHttpServerOptions): Promise<voi
   // LogService
   if (opts.logService) {
     const lsCfg = opts.logService;
+    if (!opts.memoryDbPath) {
+      throw new Error('logService requires memoryDbPath');
+    }
     const nativeBinding =
       lsCfg.nativeBinding ?? path.join(opts.distPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
-    const extensionLogsDb = new BetterSqlite3MemoryDb({ filePath: lsCfg.extensionLogsDbPath, nativeBinding });
-    extensionLogsDb.run(CREATE_EXTENSION_LOGS);
-    for (const idx of CREATE_EXTENSION_LOGS_INDEXES) extensionLogsDb.run(idx);
-    extensionLogsDb.run('PRAGMA journal_mode=WAL');
-    const logService = new LogService(extensionLogsDb, server);
+    const logLedgerCoreDb = await openMemoryCoreDb(opts.memoryDbPath, { nativeBinding });
+    const logLedgerDb = logLedgerCoreDb.conn ?? logLedgerCoreDb.db;
+    const systemRunLedger = new PipelineRunLedger({
+      db: logLedgerDb,
+      scope: 'daemon_session',
+      wave: 'system',
+      tier: 0,
+      logger: daemonLoggerAsLogger,
+    });
+    const systemRunId = systemRunLedger.start();
+    httpSystemRunLedger = systemRunLedger;
+    const logService = new LogService(logLedgerDb, systemRunId);
     server.setLogService(logService);
-    httpExtensionLogsDb = extensionLogsDb;
-    daemonLogger.info(`[daemon] LogService wired: ${lsCfg.extensionLogsDbPath}`);
+    httpLogLedgerDb = logLedgerCoreDb;
+    // Wave 1/2/4 の台帳も同じ接続を使う。CLI 経路 (cli.ts) だけがこれを注入しており、
+    // production 経路である daemon では落ちていたため sources / primary / derived の run が
+    // 1 行も残っていなかった。
+    httpPipelineRunLedgerFactory = createPipelineRunLedgerFactory({
+      db: logLedgerDb,
+      logger: daemonLoggerAsLogger,
+    });
+    daemonLogger.info(`[daemon] LogService wired: ${opts.memoryDbPath}`);
   }
 
   // ChatBridge
@@ -613,15 +639,8 @@ async function disposeAll(): Promise<void> {
     await analyzeAllRunner.dispose();
     analyzeAllRunner = null;
   }
+  closeAnalyzeMemoryCoreDb();
   lastAnalyzeAllCfg = null;
-  if (docCoreWired) {
-    try {
-      docCoreWired.dispose();
-    } catch (err) {
-      daemonLogger.error(`[daemon] doc-core dispose error: ${formatError(err)}`);
-    }
-    docCoreWired = null;
-  }
   if (memoryCoreService) {
     await memoryCoreService.dispose();
     memoryCoreService = null;
@@ -647,14 +666,28 @@ async function disposeAll(): Promise<void> {
     }
     httpServer = null;
   }
-  if (httpExtensionLogsDb) {
+  if (httpSystemRunLedger) {
+    // system run を正常終了として閉じる。閉じないと status='running' のまま残る
+    // （watchdog は system wave を失効させないため自動では回収されない）。
     try {
-      httpExtensionLogsDb.close();
+      httpSystemRunLedger.finish('success');
     } catch (err) {
-      daemonLogger.error(`[daemon] extensionLogsDb close error: ${formatError(err)}`);
+      daemonLogger.error(`[daemon] system run finish error: ${formatError(err)}`);
     }
-    httpExtensionLogsDb = null;
+    httpSystemRunLedger = null;
   }
+  if (httpLogLedgerDb) {
+    try {
+      httpLogLedgerDb.close();
+    } catch (err) {
+      daemonLogger.error(`[daemon] log ledger db close error: ${formatError(err)}`);
+    }
+    httpLogLedgerDb = null;
+  }
+  // ファクトリは上の接続をクロージャで掴んでいるため、接続と同時に手放す。残すと次の
+  // startHttpServer() が閉じた接続の台帳を注入し、runLedgerEnabled が true を返したまま
+  // 記録は 1 行も残らない（配線漏れを観測するための getter が嘘をつく）。
+  httpPipelineRunLedgerFactory = null;
   httpCodeGraphService = null;
   httpTrailDb = null;
   httpPort = null;

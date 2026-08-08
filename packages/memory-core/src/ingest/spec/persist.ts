@@ -3,6 +3,7 @@ import type { MemoryDbConnection } from '../../db/connection/types';
 import { entityId } from '../../canonical/entityId';
 import type { ParsedSpec } from './parseFrontmatter';
 import type { Claim } from './extractClaims';
+import { reviveSpecDocValidity } from './reviveValidity';
 
 // ── Type defs ────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,11 @@ export function upsertSpecDoc(input: UpsertSpecDocInput): UpsertSpecDocResult {
      VALUES (?, ?, NULL)`,
     [specDocId, specEntityId],
   );
+
+  // 一度消えて戻ってきた設計書の valid_until / valid_to を剥がす。
+  // 上の INSERT は OR IGNORE / ON CONFLICT で既存行を温存するため、
+  // runSpecReconciliation が立てた無効化フラグはここで明示的に戻す必要がある。
+  reviveSpecDocValidity({ db, specDocId, specEntityId });
 
   return { specDocId, specEntityId };
 }

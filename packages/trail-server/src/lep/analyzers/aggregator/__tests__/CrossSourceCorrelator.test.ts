@@ -6,6 +6,7 @@ import type {
 import type { CrossSourceCorrelationRow } from '@anytime-markdown/trail-db';
 
 import { CrossSourceCorrelator, type CrossSourceDataSource } from '../CrossSourceCorrelator';
+import type { PrReviewMemorySource } from '../../prreview/prReviewMemorySource';
 
 function makeCtx(): { ctx: AnalyzerContext; logs: string[]; errors: string[] } {
   const logs: string[] = [];
@@ -31,8 +32,6 @@ function makeDs(over: Partial<CrossSourceDataSource> = {}): {
   const written: CrossSourceCorrelationRow[][] = [];
   const commitFileQueries: string[][] = [];
   const ds: CrossSourceDataSource = {
-    getPrReviews: () => [],
-    getPrReviewFindings: () => [],
     getCorrelationSessionCommits: () => [],
     getDoraReleases: () => [],
     getCorrelationCommitFiles: (paths) => { commitFileQueries.push([...paths]); return []; },
@@ -40,6 +39,14 @@ function makeDs(over: Partial<CrossSourceDataSource> = {}): {
     ...over,
   };
   return { ds, written, commitFileQueries };
+}
+
+function makeMemoryDs(over: Partial<PrReviewMemorySource> = {}): PrReviewMemorySource {
+  return {
+    getPrReviews: () => [],
+    getPrReviewFindings: () => [],
+    ...over,
+  };
 }
 
 const NOW = () => new Date('2026-05-20T00:00:00.000Z');
@@ -54,9 +61,23 @@ describe('CrossSourceCorrelator', () => {
     expect(c.subscribes).toEqual(['wave_start']);
   });
 
-  it('short-circuits to empty when there are no PR reviews (no heavy reads)', async () => {
+  it('skips with info log when memoryDb is not configured (existing correlations preserved)', async () => {
     const { ds, written, commitFileQueries } = makeDs();
     const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+    const { ctx, logs } = makeCtx();
+
+    await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
+
+    // 未接続は「算出不能」であって「相関 0 件」ではない。空の洗い替え（= 既存行の DELETE）を
+    // 行わないこと（設定漏れの 1 run が既存データ削除にならない）
+    expect(written).toEqual([]);
+    expect(commitFileQueries).toEqual([]); // commit_files は読まない
+    expect(logs.join('\n')).toContain('memory-core.db not configured');
+  });
+
+  it('short-circuits to empty when there are no PR reviews (no heavy reads)', async () => {
+    const { ds, written, commitFileQueries } = makeDs();
+    const c = new CrossSourceCorrelator({ trailDb: ds, memoryDb: makeMemoryDs(), now: NOW });
     const { ctx, logs } = makeCtx();
 
     await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
@@ -69,19 +90,21 @@ describe('CrossSourceCorrelator', () => {
   it('computes and stores correlations when reviews exist', async () => {
     let queriedPaths: string[] = [];
     const { ds, written } = makeDs({
-      getPrReviews: () => [
-        { reviewId: 'r1', repoName: 'widget', prNumber: 7, author: 'a', state: 'CHANGES_REQUESTED', submittedAt: '2026-01-15T00:00:00.000Z', bodyHash: 'h' },
-      ],
-      getPrReviewFindings: () => [
-        { findingId: 'r1#c0', reviewId: 'r1', filePath: 'src/a.ts', lineNumber: 1, severity: null, category: null, body: 'x', createdAt: '2026-01-15T00:00:00.000Z' },
-      ],
       getCorrelationSessionCommits: () => [
         { sessionId: 's1', commitHash: 'h1', committedAt: '2026-01-10T00:00:00.000Z', repoName: 'widget' },
       ],
       getDoraReleases: () => [{ tag: 'v1', releasedAt: '2026-01-20T00:00:00.000Z', repoName: 'widget' }],
       getCorrelationCommitFiles: (paths) => { queriedPaths = [...paths]; return [{ commitHash: 'h1', filePath: 'src/a.ts', repoName: 'widget' }]; },
     });
-    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+    const memoryDb = makeMemoryDs({
+      getPrReviews: () => [
+        { reviewId: 'r1', repoName: 'widget', prNumber: 7, author: 'a', state: 'CHANGES_REQUESTED', submittedAt: '2026-01-15T00:00:00.000Z', bodyHash: 'h' },
+      ],
+      getPrReviewFindings: () => [
+        { findingId: 'r1#c0', reviewId: 'r1', filePath: 'src/a.ts', lineNumber: 1, severity: null, category: null, body: 'x', createdAt: '2026-01-15T00:00:00.000Z' },
+      ],
+    });
+    const c = new CrossSourceCorrelator({ trailDb: ds, memoryDb, now: NOW });
     const { ctx, logs } = makeCtx();
 
     await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
@@ -99,18 +122,17 @@ describe('CrossSourceCorrelator', () => {
 
   it('ignores non-derived waves and unrelated events', async () => {
     const { ds, written } = makeDs();
-    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+    const c = new CrossSourceCorrelator({ trailDb: ds, memoryDb: makeMemoryDs(), now: NOW });
     const { ctx } = makeCtx();
     await c.onEvent({ kind: 'wave_start', wave: 'memory' }, ctx);
     await c.onEvent({ kind: 'release_resolved', tag: 'v1', releasedAt: '2026-01-10T00:00:00.000Z' }, ctx);
     expect(written).toEqual([]);
   });
 
-  it('logs error and does not throw when the data source fails', async () => {
-    const { ds } = makeDs({
-      getPrReviews: () => { throw new Error('db gone'); },
-    });
-    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+  it('logs error and does not throw when the memory data source fails', async () => {
+    const { ds } = makeDs();
+    const memoryDb = makeMemoryDs({ getPrReviews: () => { throw new Error('db gone'); } });
+    const c = new CrossSourceCorrelator({ trailDb: ds, memoryDb, now: NOW });
     const { ctx, errors } = makeCtx();
     await expect(c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx)).resolves.toBeUndefined();
     expect(errors.join('\n')).toContain('[CrossSourceCorrelator] failed: db gone');
@@ -118,27 +140,27 @@ describe('CrossSourceCorrelator', () => {
 
   it('falls back to undefined sinceCommittedAt when all reviews have invalid submittedAt', async () => {
     let queriedSince: string | undefined = 'SENTINEL';
-    const { ds, written } = makeDs({
+    const { ds } = makeDs({
+      getCorrelationSessionCommits: (since) => { queriedSince = since; return []; },
+    });
+    const memoryDb = makeMemoryDs({
       getPrReviews: () => [
         { reviewId: 'r1', repoName: 'w', prNumber: 1, author: 'a', state: 'APPROVED', submittedAt: 'NOT_A_DATE', bodyHash: 'h' },
       ],
-      getCorrelationSessionCommits: (since) => { queriedSince = since; return []; },
     });
-    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+    const c = new CrossSourceCorrelator({ trailDb: ds, memoryDb, now: NOW });
     const { ctx } = makeCtx();
 
     await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
 
     // earliestSince は全 review の submittedAt が NaN → undefined を返す
     expect(queriedSince).toBeUndefined();
-    expect(written).toHaveLength(1);
   });
 
   it('handles non-Error thrown value (string)', async () => {
-    const { ds } = makeDs({
-      getPrReviews: () => { throw 'network-error'; },
-    });
-    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+    const { ds } = makeDs();
+    const memoryDb = makeMemoryDs({ getPrReviews: () => { throw 'network-error'; } });
+    const c = new CrossSourceCorrelator({ trailDb: ds, memoryDb, now: NOW });
     const { ctx, errors } = makeCtx();
     await expect(c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx)).resolves.toBeUndefined();
     expect(errors.join('\n')).toContain('[CrossSourceCorrelator] failed: network-error');
@@ -146,32 +168,35 @@ describe('CrossSourceCorrelator', () => {
 
   it('calls getCorrelationCommitFiles with empty array when all findings have empty filePath', async () => {
     const queriedPaths: string[][] = [];
-    const { ds, written } = makeDs({
+    const { ds } = makeDs({
+      getCorrelationCommitFiles: (paths) => { queriedPaths.push([...paths]); return []; },
+    });
+    const memoryDb = makeMemoryDs({
       getPrReviews: () => [
         { reviewId: 'r1', repoName: 'w', prNumber: 1, author: 'a', state: 'APPROVED', submittedAt: '2026-01-15T00:00:00.000Z', bodyHash: 'h' },
       ],
       getPrReviewFindings: () => [
         { findingId: 'f1', reviewId: 'r1', filePath: '', lineNumber: 0, severity: null, category: null, body: 'b', createdAt: '2026-01-15T00:00:00.000Z' },
       ],
-      getCorrelationCommitFiles: (paths) => { queriedPaths.push([...paths]); return []; },
     });
-    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW });
+    const c = new CrossSourceCorrelator({ trailDb: ds, memoryDb, now: NOW });
     const { ctx } = makeCtx();
     await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
     // 空 filePath は distinct でフィルタされるため [] が渡る
     expect(queriedPaths[0]).toEqual([]);
-    expect(written).toHaveLength(1);
   });
 
   it('uses custom windowDays to compute since', async () => {
     let queriedSince: string | undefined;
     const { ds } = makeDs({
+      getCorrelationSessionCommits: (since) => { queriedSince = since; return []; },
+    });
+    const memoryDb = makeMemoryDs({
       getPrReviews: () => [
         { reviewId: 'r1', repoName: 'w', prNumber: 1, author: 'a', state: 'APPROVED', submittedAt: '2026-01-15T00:00:00.000Z', bodyHash: 'h' },
       ],
-      getCorrelationSessionCommits: (since) => { queriedSince = since; return []; },
     });
-    const c = new CrossSourceCorrelator({ trailDb: ds, now: NOW, windowDays: 7 });
+    const c = new CrossSourceCorrelator({ trailDb: ds, memoryDb, now: NOW, windowDays: 7 });
     const { ctx } = makeCtx();
     await c.onEvent({ kind: 'wave_start', wave: 'derived' }, ctx);
     // 2026-01-15 - 7 days = 2026-01-08

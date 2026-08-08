@@ -7,7 +7,6 @@
  */
 import { mountBugCausalPanel, type BugCausalPanelProps } from '../bugCausalPanel';
 import { mountBugHistoryPanel, type BugHistoryPanelProps } from '../bugHistoryPanel';
-import { mountReviewPanel, type ReviewPanelProps } from '../reviewPanel';
 import type { MemoryReader } from '../../../data/readers/MemoryReader';
 import type {
   MemoryBugCausalInfo,
@@ -40,8 +39,10 @@ function makeBugRow(over: Partial<MemoryBugHistoryRow> = {}): MemoryBugHistoryRo
     category: 'regression',
     subjectSummary: 'Something broke',
     sessionId: 'sess-1',
+    instructionId: 'inst-1',
     committedAt: '2026-01-10T00:00:00.000Z',
     precededByFindingIds: [],
+    workspace: '',
     ...over,
   };
 }
@@ -86,6 +87,8 @@ function makeReviewRow(over: Partial<MemoryReviewHistoryRow> = {}): MemoryReview
     model: 'claude-sonnet-4',
     sessionId: 'sess-2',
     reviewedAt: '2026-01-15T00:00:00.000Z',
+    workspace: 'anytime-markdown',
+    targetRepo: 'anytime-markdown',
     targetFilePath: 'packages/trail-viewer/src/foo.ts',
     category: 'logic',
     severity: 'warn',
@@ -142,13 +145,13 @@ describe('mountBugCausalPanel', () => {
       reader: makeReader(),
       bugEntityId: null,
     });
-    expect(c.textContent).toContain('memory.bug.causedBy.empty');
+    expect(c.textContent).toContain('flightRecord.bugfix.causedBy.empty');
   });
 
   it('reader が null でも empty メッセージを表示する', () => {
     const c = document.createElement('div');
     mountBugCausalPanel(c, { t, reader: null, bugEntityId: 'entity-1' });
-    expect(c.textContent).toContain('memory.bug.causedBy.empty');
+    expect(c.textContent).toContain('flightRecord.bugfix.causedBy.empty');
   });
 
   it('読み込み中は loading メッセージを表示する', () => {
@@ -177,7 +180,7 @@ describe('mountBugCausalPanel', () => {
     const reader = makeReader({ getBugCausalInfo: () => Promise.resolve(info) });
     mountBugCausalPanel(c, { t, reader, bugEntityId: 'entity-1' });
     await flush();
-    expect(c.textContent).toContain('memory.bug.causal.sibling');
+    expect(c.textContent).toContain('flightRecord.bugfix.causal.sibling');
     expect(c.textContent).toContain('2');
   });
 
@@ -195,7 +198,7 @@ describe('mountBugCausalPanel', () => {
     });
     await flush();
     const siblingChip = [...c.querySelectorAll('[role="button"]')].find((el) =>
-      el.textContent?.includes('memory.bug.causal.bugsUnit'),
+      el.textContent?.includes('flightRecord.bugfix.causal.bugsUnit'),
     ) as HTMLElement | undefined;
     expect(siblingChip).toBeDefined();
     siblingChip!.click();
@@ -212,7 +215,7 @@ describe('mountBugCausalPanel', () => {
     const reader = makeReader({ getBugCausalInfo: () => Promise.resolve(info) });
     mountBugCausalPanel(c, { t, reader, bugEntityId: 'entity-1' });
     await flush();
-    expect(c.textContent).toContain('memory.bug.causal.preceding');
+    expect(c.textContent).toContain('flightRecord.bugfix.causal.preceding');
     expect(c.textContent).toContain('packages/foo.ts');
   });
 
@@ -225,7 +228,7 @@ describe('mountBugCausalPanel', () => {
     const reader = makeReader({ getBugCausalInfo: () => Promise.resolve(info) });
     mountBugCausalPanel(c, { t, reader, bugEntityId: 'entity-1' });
     await flush();
-    expect(c.textContent).toContain('memory.bug.causal.introducedBy');
+    expect(c.textContent).toContain('flightRecord.bugfix.causal.introducedBy');
     // slice(0,7) of 'deadbeef1234' = 'deadbee'
     expect(c.textContent).toContain('deadbee');
     expect(c.textContent).toContain('Fix something');
@@ -239,7 +242,7 @@ describe('mountBugCausalPanel', () => {
     const reader = makeReader({ getBugCausalInfo: () => Promise.resolve(info) });
     mountBugCausalPanel(c, { t, reader, bugEntityId: 'entity-1' });
     await flush();
-    expect(c.textContent).toContain('memory.bug.causal.affectedFiles');
+    expect(c.textContent).toContain('flightRecord.bugfix.causal.affectedFiles');
     expect(c.textContent).toContain('packages/foo.ts');
   });
 
@@ -251,7 +254,7 @@ describe('mountBugCausalPanel', () => {
     const reader = makeReader({ getBugCausalInfo: () => Promise.resolve(info) });
     mountBugCausalPanel(c, { t, reader, bugEntityId: 'entity-1' });
     await flush();
-    expect(c.textContent).toContain('memory.bug.causal.rootCauses');
+    expect(c.textContent).toContain('flightRecord.bugfix.causal.rootCauses');
     expect(c.textContent).toContain('Missing guard');
   });
 
@@ -261,7 +264,7 @@ describe('mountBugCausalPanel', () => {
     const reader = makeReader({ getBugCausalInfo: () => Promise.resolve(info) });
     mountBugCausalPanel(c, { t, reader, bugEntityId: 'entity-1' });
     await flush();
-    expect(c.textContent).toContain('memory.bug.causal.noCauses');
+    expect(c.textContent).toContain('flightRecord.bugfix.causal.noCauses');
   });
 
   it('bugEntityId が変わると再ロードする', async () => {
@@ -299,13 +302,13 @@ describe('mountBugCausalPanel', () => {
 
 describe('mountBugHistoryPanel', () => {
   function baseProps(over: Partial<BugHistoryPanelProps> = {}): BugHistoryPanelProps {
-    return { t, reader: null, ...over };
+    return { t, reader: null, workspace: '', ...over };
   }
 
   it('reader が null なら empty メッセージを表示する', () => {
     const c = document.createElement('div');
     mountBugHistoryPanel(c, baseProps());
-    expect(c.textContent).toContain('memory.bug.empty');
+    expect(c.textContent).toContain('flightRecord.bugfix.empty');
   });
 
   it('reader がいてバグ履歴があればテーブルを描画する', async () => {
@@ -318,9 +321,9 @@ describe('mountBugHistoryPanel', () => {
     await flush();
     const table = c.querySelector('[aria-label="bug-history-table"]');
     expect(table).not.toBeNull();
-    expect(table?.textContent).toContain('trail-viewer');
+    expect(table?.textContent).toContain('Something broke');
+    expect(table?.textContent).toContain('2026-01-10');
     expect(table?.textContent).toContain('regression');
-    expect(table?.textContent).toContain('abc1234'.slice(0, 7));
   });
 
   it('バグ履歴が空なら empty メッセージを表示する', async () => {
@@ -332,7 +335,7 @@ describe('mountBugHistoryPanel', () => {
     mountBugHistoryPanel(c, baseProps({ reader }));
     await flush();
     expect(c.querySelector('[aria-label="bug-history-table"]')).toBeNull();
-    expect(c.textContent).toContain('memory.bug.empty');
+    expect(c.textContent).toContain('flightRecord.bugfix.empty');
   });
 
   it('recurring bugs があれば recurring セクションを表示する', async () => {
@@ -345,7 +348,7 @@ describe('mountBugHistoryPanel', () => {
     await flush();
     const section = c.querySelector('[aria-label="recurring-bugs"]');
     expect(section).not.toBeNull();
-    expect(section?.textContent).toContain('memory.bug.recurring');
+    expect(section?.textContent).toContain('flightRecord.bugfix.recurring');
     expect(section?.textContent).toContain('TrailDataServer');
   });
 
@@ -389,25 +392,65 @@ describe('mountBugHistoryPanel', () => {
     expect(trs.length).toBe(1);
   });
 
-  it('openInMessages ボタンクリックで onOpenSessionMessages を呼ぶ', async () => {
+  it('列は Summary / Date / Category / 指示 の順で、Package・Commit を出さない', async () => {
     const c = document.createElement('div');
-    let openedId: string | null = null;
     const reader = makeReader({
-      getBugHistory: () => Promise.resolve([makeBugRow({ sessionId: 'sess-42' })]),
+      getBugHistory: () => Promise.resolve([makeBugRow({ package: 'trail-viewer', commitSha: 'deadbeef123' })]),
+      listRecurringBugs: () => Promise.resolve([]),
+    });
+    mountBugHistoryPanel(c, baseProps({ reader }));
+    await flush();
+
+    const heads = [...c.querySelectorAll('[aria-label="bug-history-table"] thead th')]
+      .map((el) => el.textContent);
+    expect(heads.slice(0, 4)).toEqual([
+      'flightRecord.bugfix.column.summary',
+      'flightRecord.bugfix.column.date',
+      'flightRecord.bugfix.column.category',
+      'flightRecord.column.instruction',
+    ]);
+
+    const rowText = c.querySelector('[aria-label="bug-history-table"] tbody tr')?.textContent ?? '';
+    expect(rowText).not.toContain('trail-viewer');
+    expect(rowText).not.toContain('deadbeef');
+  });
+
+  it('指示名セルのクリックで onSelectInstruction を呼び、行選択は起きない', async () => {
+    const c = document.createElement('div');
+    let selectedInstructionId: string | null = null;
+    const reader = makeReader({
+      getBugHistory: () => Promise.resolve([makeBugRow({ instructionId: 'inst-42' })]),
       listRecurringBugs: () => Promise.resolve([]),
     });
     mountBugHistoryPanel(
       c,
-      baseProps({ reader, onOpenSessionMessages: (id) => { openedId = id; } }),
+      baseProps({
+        reader,
+        labelOf: (id) => `label:${id}`,
+        onSelectInstruction: (id) => { selectedInstructionId = id; },
+      }),
     );
     await flush();
 
-    const openBtn = c.querySelector(
-      `[aria-label="${t('memory.bug.openInMessages')}"]`,
-    ) as HTMLElement | null;
-    expect(openBtn).not.toBeNull();
-    openBtn!.click();
-    expect(openedId).toBe('sess-42');
+    const cell = c.querySelector('[data-am-bug-instruction]') as HTMLElement | null;
+    expect(cell).not.toBeNull();
+    expect(cell!.textContent).toBe('label:inst-42');
+    cell!.click();
+    expect(selectedInstructionId).toBe('inst-42');
+    // 行クリック（バグ選択）へは伝播させない
+    const row = c.querySelector('[aria-label="bug-history-table"] tbody tr') as HTMLElement;
+    expect(row.getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('instructionId が無い行は押せない指示名を出さない', async () => {
+    const c = document.createElement('div');
+    const reader = makeReader({
+      getBugHistory: () => Promise.resolve([makeBugRow({ instructionId: null })]),
+      listRecurringBugs: () => Promise.resolve([]),
+    });
+    mountBugHistoryPanel(c, baseProps({ reader, onSelectInstruction: () => {} }));
+    await flush();
+    expect(c.querySelector('[data-am-bug-instruction]')).toBeNull();
   });
 
   it('precededByFindingIds チップクリックで onOpenPrecedingReviews を呼ぶ', async () => {
@@ -440,157 +483,3 @@ describe('mountBugHistoryPanel', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// mountReviewPanel
-// ---------------------------------------------------------------------------
-
-describe('mountReviewPanel', () => {
-  function baseProps(over: Partial<ReviewPanelProps> = {}): ReviewPanelProps {
-    return { t, reader: null, ...over };
-  }
-
-  it('reader が null なら empty メッセージを表示する', () => {
-    const c = document.createElement('div');
-    mountReviewPanel(c, baseProps());
-    expect(c.textContent).toContain('memory.review.empty');
-  });
-
-  it('reader がいてレビュー履歴があればテーブルを描画する', async () => {
-    const c = document.createElement('div');
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve([makeReviewRow()]),
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    });
-    mountReviewPanel(c, baseProps({ reader }));
-    await flush();
-    const table = c.querySelector('[aria-label="review-history-table"]');
-    expect(table).not.toBeNull();
-    expect(table?.textContent).toContain('Potential null dereference');
-    expect(table?.textContent).toContain('logic');
-    expect(table?.textContent).toContain('warn');
-  });
-
-  it('レビュー履歴が空なら empty メッセージを表示する', async () => {
-    const c = document.createElement('div');
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve([]),
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    });
-    mountReviewPanel(c, baseProps({ reader }));
-    await flush();
-    expect(c.querySelector('[aria-label="review-history-table"]')).toBeNull();
-    expect(c.textContent).toContain('memory.review.empty');
-  });
-
-  it('unaddressed findings があれば severity チップを表示する', async () => {
-    const c = document.createElement('div');
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve([]),
-      listUnaddressedReviewFindings: () =>
-        Promise.resolve([
-          makeUnaddressedRow({ severity: 'error' }),
-          makeUnaddressedRow({ id: 'u2', severity: 'warn' }),
-        ]),
-    });
-    mountReviewPanel(c, baseProps({ reader }));
-    await flush();
-    expect(c.textContent).toContain('memory.review.unaddressed');
-    expect(c.textContent).toContain('error: 1');
-    expect(c.textContent).toContain('warn: 1');
-  });
-
-  it('pendingReviewFilter でテーブルが絞り込まれる', async () => {
-    const c = document.createElement('div');
-    const rows = [
-      makeReviewRow({ id: 'r1', findingEntityId: 'f1' }),
-      makeReviewRow({ id: 'r2', findingEntityId: 'f2' }),
-    ];
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve(rows),
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    });
-    mountReviewPanel(c, baseProps({ reader, pendingReviewFilter: { findingEntityIds: ['f1'] } }));
-    await flush();
-
-    const trs = c.querySelectorAll('[aria-label="review-history-table"] tbody tr');
-    expect(trs.length).toBe(1);
-  });
-
-  it('addressed 行は addressed チップを表示する', async () => {
-    const c = document.createElement('div');
-    const row = makeReviewRow({
-      addressedCommitSha: 'abc123',
-      addressedAt: '2026-02-01T00:00:00.000Z',
-    });
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve([row]),
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    });
-    mountReviewPanel(c, baseProps({ reader }));
-    await flush();
-    expect(c.textContent).toContain('memory.review.flow.addressed');
-    expect(c.textContent).toContain('2026-02-01');
-  });
-
-  it('openInMessages ボタンクリックで onOpenSessionMessages を呼ぶ', async () => {
-    const c = document.createElement('div');
-    let openedId: string | null = null;
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve([makeReviewRow({ sessionId: 'sess-99' })]),
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    });
-    mountReviewPanel(
-      c,
-      baseProps({ reader, onOpenSessionMessages: (id) => { openedId = id; } }),
-    );
-    await flush();
-
-    const openBtn = c.querySelector(
-      `[aria-label="${t('memory.review.openInMessages')}"]`,
-    ) as HTMLElement | null;
-    expect(openBtn).not.toBeNull();
-    openBtn!.click();
-    expect(openedId).toBe('sess-99');
-  });
-
-  it('precedesBugEntityIds チップクリックで onOpenPrecedingBugs を呼ぶ', async () => {
-    const c = document.createElement('div');
-    let openedIds: readonly string[] | null = null;
-    const row = makeReviewRow({ precedesBugEntityIds: ['b1', 'b2'] });
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve([row]),
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    });
-    mountReviewPanel(
-      c,
-      baseProps({ reader, onOpenPrecedingBugs: (ids) => { openedIds = ids; } }),
-    );
-    await flush();
-
-    const chip = [...c.querySelectorAll('[role="button"]')].find((el) =>
-      el.textContent?.includes('⚠ 2'),
-    ) as HTMLElement | undefined;
-    expect(chip).toBeDefined();
-    chip!.click();
-    expect(openedIds).toEqual(['b1', 'b2']);
-  });
-
-  it('formatReviewer: sourceKind=agent は Claude Code (model) を表示する', async () => {
-    const c = document.createElement('div');
-    const row = makeReviewRow({ sourceKind: 'agent', model: 'claude-sonnet-4', reviewer: '' });
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve([row]),
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    });
-    mountReviewPanel(c, baseProps({ reader }));
-    await flush();
-    expect(c.textContent).toContain('Claude Code (claude-sonnet-4)');
-  });
-
-  it('destroy で DOM が除去される', () => {
-    const c = document.createElement('div');
-    const handle = mountReviewPanel(c, baseProps());
-    handle.destroy();
-    expect(c.childElementCount).toBe(0);
-  });
-});

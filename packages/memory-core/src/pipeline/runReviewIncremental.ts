@@ -2,10 +2,18 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { MemoryDbConnection } from '../db/connection/types';
+import { PipelineRunLedger } from './PipelineRunLedger';
 import { parseReviewDoc } from '../ingest/review/parseReviewDoc';
+import { entityId } from '../canonical/entityId';
 import { parseReviewSessions } from '../ingest/review/parseReviewSession';
 import { refineCategories } from '../ingest/review/extractFindings';
-import { upsertReviewDoc, upsertReviewSession } from '../ingest/review/persist';
+import {
+  upsertReviewDoc,
+  upsertReviewSession,
+  reconcileExistingReviewRow,
+  needsReviewRowReconcile,
+} from '../ingest/review/persist';
+import { resolveReviewTargets } from '../ingest/review/resolveReviewTargets';
 import { linkAddresses } from '../ingest/review/linkAddresses';
 import { linkPrecedesBugs } from '../ingest/review/linkPrecedesBugs';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
@@ -60,48 +68,6 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(db: MemoryDbConnection, id: string, scope: string, startedAt: string): void {
-  db.run(
-    `INSERT INTO memory_pipeline_runs
-       (id, scope, started_at, status,
-        items_processed, entities_inserted, entities_updated,
-        edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
-    [id, scope, startedAt],
-  );
-}
-
-function finalizePipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string,
-  status: 'success' | 'partial' | 'error',
-  totals: { items_processed: number; entities_inserted: number; edges_inserted: number },
-): void {
-  const finishedAt = new Date().toISOString();
-  const durationMs = Date.now() - new Date(startedAt).getTime();
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       finished_at       = ?,
-       status            = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       edges_inserted    = ?,
-       duration_ms       = ?
-     WHERE id = ?`,
-    [
-      finishedAt,
-      status,
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.edges_inserted,
-      durationMs,
-      id,
-    ],
-  );
-}
-
 function recordFailedItem(
   db: MemoryDbConnection,
   scope: string,
@@ -138,6 +104,8 @@ async function processRouteADoc(opts: {
   force: boolean;
   ollama: OllamaClient;
   model: string;
+  /** 取込を実行しているワークスペースの repo_name。自分が書いた行にだけ設定する。 */
+  workspace: string;
   logger: MemoryLogger;
 }): Promise<RouteADocResult> {
   const { db, filePath, relPath, recordedAt, force, ollama, model, logger } = opts;
@@ -146,15 +114,33 @@ async function processRouteADoc(opts: {
     const sha1 = createHash('sha1').update(content).digest('hex').slice(0, 16);
 
     const existingRows = db.exec(
-      `SELECT source_hash FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?`,
+      `SELECT source_hash, body_excerpt, workspace FROM memory_reviews
+        WHERE source_kind='review_doc' AND source_ref=?`,
       [relPath],
     );
-    const existingHash =
-      existingRows[0]?.values?.[0]?.[0] == null
-        ? null
-        : String(existingRows[0].values[0][0]);
+    const existingRow = existingRows[0]?.values?.[0];
+    const existingHash = existingRow?.[0] == null ? null : String(existingRow[0]);
+    // body_excerpt / summary / workspace は後から足した列で、内容が変わっていない
+    // 既存行は空のまま残っている。ハッシュ一致の skip はこの補完より手前にあるため、
+    // ここで塞がないと下流（upsertReviewDoc・:176 の workspace UPDATE）へ到達しない。
+    const needsReconcile =
+      existingRow !== undefined &&
+      needsReviewRowReconcile(String(existingRow[1] ?? ''), String(existingRow[2] ?? ''));
 
     if (!force && existingHash !== null && existingHash === sha1) {
+      if (needsReconcile) {
+        // LLM を使う refineCategories は通さない。埋めるのは後から足した列だけで、
+        // 指摘は既存行のものをそのまま使う。
+        const parsed = parseReviewDoc({ rel_path: relPath, content });
+        if (parsed !== null) {
+          reconcileExistingReviewRow(db, entityId('Review', relPath), {
+            summary: parsed.frontmatter.excerpt ?? '',
+            bodyExcerpt: parsed.bodyExcerpt,
+            workspace: opts.workspace,
+          });
+          logger.info(`[anytime-memory] runReviewIncremental: reconciled existing row file=${relPath}`);
+        }
+      }
       logger.info(`[anytime-memory] runReviewIncremental: skip unchanged file=${relPath}`);
       return { outcome: 'skipped' };
     }
@@ -188,6 +174,13 @@ async function processRouteADoc(opts: {
     doc.findings.splice(0, doc.findings.length, ...refined.findings);
 
     const result = upsertReviewDoc(db, doc, relPath, sha1, recordedAt, logger);
+    // 取込側のワークスペースが自明なのは「いま自分が書いた行」だけ。
+    // 未解決行を一括で埋めると他ワークスペース由来の行まで刻印してしまう。
+    db.run(
+      `UPDATE memory_reviews SET workspace = ?
+        WHERE source_kind = 'review_doc' AND source_ref = ? AND workspace = ''`,
+      [opts.workspace, relPath],
+    );
     return {
       outcome: 'processed',
       is_new: result.is_new,
@@ -231,12 +224,8 @@ export async function runReviewIncremental(input: {
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
 
-  const runIdHash = createHash('sha1')
-    .update(`${SCOPE_DOC}:${startedAt}`)
-    .digest('hex')
-    .slice(0, 16);
-
-  insertPipelineRun(db, runIdHash, SCOPE_DOC, startedAt);
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE_DOC, wave: 'memory', tier: 3, logger });
+  ledger.start(startedAt);
   upsertPipelineState(db, SCOPE_DOC, { status: 'running' });
 
   const totals = {
@@ -274,7 +263,8 @@ export async function runReviewIncremental(input: {
       }
 
       const docResult = await processRouteADoc({
-        db, filePath, relPath, reviewDir, recordedAt, force, ollama, model, logger,
+        db, filePath, relPath, reviewDir, recordedAt, force, ollama, model,
+        workspace: repoName, logger,
       });
 
       if (docResult.outcome === 'skipped') {
@@ -385,12 +375,33 @@ export async function runReviewIncremental(input: {
     itemsFailed += 1;
   }
 
-  // ── Post-processing: linkAddresses + linkPrecedesBugs ─────────────────────
+  // ── Post-processing: resolveReviewTargets → linkAddresses + linkPrecedesBugs ──
+  //
+  // 対象パスの正規化とリポジトリ解決は linkAddresses より **前** に置く。
+  // linkAddresses は target_repo を照合キーに使うため、解決前に走らせると
+  // 今回取り込んだ指摘が 1 サイクル遅れてしかリンクされない。
+
+  try {
+    const resolveResult = resolveReviewTargets({
+      db,
+      logger: {
+        warn: (msg: string) => logger.info(msg),
+        error: (msg: string, err?: unknown) => logger.error(msg, err),
+        info: (msg: string) => logger.info(msg),
+      },
+    });
+    logger.info(
+      `[anytime-memory] runReviewIncremental: resolveReviewTargets ` +
+        `workspaces=${resolveResult.workspacesFilled} targets=${resolveResult.targetsResolved} ` +
+        `normalized=${resolveResult.pathsNormalized} rejected=${resolveResult.pathsRejected}`,
+    );
+  } catch (err) {
+    logger.error(`[anytime-memory] runReviewIncremental: resolveReviewTargets failed`, err);
+  }
 
   try {
     const linkResult = linkAddresses({
       db,
-      repoName,
       windowDays: 30,
       logger: {
         warn: (msg: string) => logger.info(msg),
@@ -421,7 +432,11 @@ export async function runReviewIncremental(input: {
     itemsFailed > 0 && totals.items_processed === itemsFailed ? 'error' : partialOrSuccess;
 
   upsertPipelineState(db, SCOPE_DOC, { status: 'idle' });
-  finalizePipelineRun(db, runIdHash, startedAt, finalStatus, totals);
+  ledger.finish(
+    finalStatus,
+    totals,
+    itemsFailed > 0 ? `${itemsFailed} item(s) failed to ingest` : '',
+  );
 
   const durationMs = Date.now() - startMs;
 

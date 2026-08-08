@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import { type AcceptanceDecidedBy, type AcceptanceRoute, type AcceptanceVerdict, computeBusFactor, computeFlightOutcome, type CurrentCoverageRow, detectUserFeedback, extractLessonCandidates, extractSelfAssessment, type FlightOutcome, type FlightReviewManualPatch, type RationaleAuditStatus, type ReleaseCoverageRow, type TrailGraph } from '@anytime-markdown/trail-core';
 import type { C4Model, C4ModelPayload, DsmMatrix, FeatureMatrix,MessageInput } from '@anytime-markdown/trail-core/c4';
@@ -57,7 +58,7 @@ import {
 // typescript を引く `analyze` は DI（analyzeReleaseFn）に置換済みのため import しない。
 import type { AnalyzeFunction } from '@anytime-markdown/trail-db';
 import type { AnalyticsData, CostOptimizationData,MessageRow, SessionCommitRow, SessionRow, TrailDatabase } from '@anytime-markdown/trail-db';
-import { MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
+import { FlightRecordDatabase, MetricsThresholdsLoader } from '@anytime-markdown/trail-db';
 import { type WebSocket,WebSocketServer } from 'ws';
 
 import type { C4SourceFileInput } from '../analyze/analyzeChildProtocol';
@@ -71,7 +72,7 @@ import type { CodeGraphService } from '../analyze/CodeGraphService';
 import { runC4SourceAnalyze } from '../analyze/runC4SourceAnalyze';
 import type { AnalyzeAllRunner } from '../runner/AnalyzeAllRunner';
 import type { Logger, LogLevel } from '../runtime/Logger';
-import type { LogService, PersistedLogEntry } from '../services/LogService';
+import type { LogService } from '../services/LogService';
 import { combineLoggers,LogSink } from '../services/LogSink';
 import { AlignmentApiHandler } from './AlignmentApiHandler';
 import { EmergencyApiHandler } from './EmergencyApiHandler';
@@ -79,7 +80,7 @@ import { C4ManualApiHandler } from './C4ManualApiHandler';
 import { CodeGraphApiHandler } from './CodeGraphApiHandler';
 import { DocsApiHandler } from './DocsApiHandler';
 import { sendServerError } from './errorResponse';
-import { handleGetLogs, handlePostLogs } from './logsApi';
+import { handlePostLogs } from './logsApi';
 import { MemoryApiHandler } from './MemoryApiHandler';
 import { PromptsApiHandler } from './PromptsApiHandler';
 import { ANY_METHOD, createRouteContext, type RouteDescriptor, RouteTable } from './routing';
@@ -319,6 +320,12 @@ export class TrailDataServer {
   private readonly docsApi: DocsApiHandler;
   private readonly alignmentApi: AlignmentApiHandler;
   private readonly emergencyApi: EmergencyApiHandler;
+  /**
+   * Flight Record（flight_reviews / instructions / instruction_sessions）の永続化層。
+   * 保存先は memory-core.db（2026-08-07 移設）のため memoryDbPath 未注入の構成では null になり、
+   * flight 系エンドポイントはエラーを返す（暗黙の trail.db フォールバックはしない）。
+   */
+  private readonly flightRecordDb: FlightRecordDatabase | null = null;
 
   constructor(
     private readonly distPath: string,
@@ -370,6 +377,40 @@ export class TrailDataServer {
       memoryDbPath ?? null,
       fs.existsSync(nativeBinding) ? nativeBinding : undefined,
     );
+    // Flight Record ストア（memory-core.db 主接続 + trail.db ATTACH）。
+    // 初期化失敗・移行失敗は fail-open（他エンドポイントを巻き込まない）。移行は毎起動の
+    // 冪等実行で、trail.db 側に旧テーブルが残っていればコピー検証後に回収する。
+    if (memoryDbPath !== undefined && memoryDbPath !== '') {
+      const flightLogger = this.logger.child('FlightRecordDatabase');
+      const flightDbLogger = {
+        info: (msg: string) => flightLogger.info(msg),
+        warn: (msg: string) => flightLogger.warn(msg),
+        error: (msg: string, err?: unknown) => flightLogger.error(msg, err),
+        debugSql: () => {},
+      };
+      try {
+        const flightDb = new FlightRecordDatabase(
+          memoryDbPath,
+          path.join(path.dirname(memoryDbPath), 'trail.db'),
+          flightDbLogger,
+        );
+        flightDb.init();
+        this.flightRecordDb = flightDb;
+        try {
+          const migration = flightDb.destructiveMigrateFromTrailDb();
+          if (migration?.status === 'verification_failed') {
+            flightLogger.error(
+              `flight record migration verification failed; trail-side tables kept (missing: ${JSON.stringify(migration.missingRows)})`,
+              new Error('flight record migration verification failed'),
+            );
+          }
+        } catch (e) {
+          flightLogger.error('flight record migration from trail.db failed (will retry on next start)', e);
+        }
+      } catch (e) {
+        flightLogger.error('FlightRecordDatabase init failed; flight record endpoints will be unavailable', e);
+      }
+    }
     this.promptsApi = new PromptsApiHandler(this.logger.child('PromptsApiHandler'));
     this.c4ManualApi = new C4ManualApiHandler(
       this.trailDb,
@@ -456,9 +497,9 @@ export class TrailDataServer {
   }
 
   /**
-   * extension_logs ストリーミング用の LogService を wire する。設定後は
-   * `POST /api/logs` と `GET /api/logs` が有効化され、内部 logger が
-   * composite (OutputChannel + extension_logs) に置き換わる。未設定のうちは 503 を返す。
+   * pipeline_run_logs 永続化用の LogService を wire する。設定後は
+   * `POST /api/logs` が有効化され、内部 logger が
+   * composite (OutputChannel + pipeline_run_logs) に置き換わる。未設定のうちは 503 を返す。
    *
    * `TRAIL_LOGS_MIN_LEVEL` 環境変数で LogSink の閾値を制御できる ('info'/'warn'/'error'/'debug')。
    */
@@ -472,17 +513,6 @@ export class TrailDataServer {
       this.logger,
       new LogSink({ service, scope: 'TrailDataServer', minLevel }),
     );
-  }
-
-  /** Broadcast log-batch to all connected WebSocket clients. */
-  notifyLog(entries: PersistedLogEntry[]): void {
-    if (this.clients.size === 0 || entries.length === 0) return;
-    const payload = JSON.stringify({ type: 'log-batch', logs: entries });
-    for (const ws of this.clients) {
-      if (ws.readyState === 1 /* OPEN */) {
-        ws.send(payload);
-      }
-    }
   }
 
   // -------------------------------------------------------------------------
@@ -539,6 +569,10 @@ export class TrailDataServer {
     });
   }
 
+  /**
+   * live ログの刈り込みタイマー。刈るのは system run（daemon / 拡張の垂れ流し）に
+   * 限られ、analyzer の run に紐づく調査用ログは対象外（LogService.cleanup 参照）。
+   */
   private startLogCleanupTimer(): void {
     if (this.logCleanupTimer) return;
     // 起動直後 1 回 + 24h 周期で cleanup
@@ -561,6 +595,7 @@ export class TrailDataServer {
       this.logCleanupTimer = null;
     }
     this.memoryApi.dispose();
+    this.flightRecordDb?.close();
     for (const ws of this.clients) {
       ws.close();
     }
@@ -784,6 +819,16 @@ export class TrailDataServer {
     t.exact('GET', '/api/trail/flight-reviews', ({ res, url }) => this.handleListFlightReviews(res, url.searchParams));
     t.pattern('PATCH', /^\/api\/trail\/flight-reviews\/([^/]+)$/, ({ req, res, params }) =>
       this.handleUpdateFlightReviewManual(req, res, decodeURIComponent(params[0] ?? '')));
+    // Flight Record: 指示単位の運航記録。/open は :id パターンより先に登録する
+    // （後だと 'open' が指示 ID として食われる）。
+    // Flight Record のワークスペース選択肢。trail.db（指示・運航記録）と memory-core
+    // （バグ修正・レビュー・乖離）は別 DB なので、両方の distinct を統合して 1 本で返す。
+    t.exact('GET', '/api/trail/workspaces', ({ res }) => void this.handleListWorkspaces(res));
+    t.exact('GET', '/api/trail/instructions/open', ({ res, url }) => this.handleListOpenInstructions(res, url.searchParams));
+    t.exact('GET', '/api/trail/instructions', ({ res, url }) => this.handleListInstructionRecords(res, url.searchParams));
+    t.exact('POST', '/api/trail/instructions', ({ req, res }) => this.handleDeclareInstruction(req, res));
+    t.pattern('GET', /^\/api\/trail\/instructions\/([^/]+)\/sessions$/, ({ res, params }) =>
+      this.handleListInstructionSessions(res, decodeURIComponent(params[0] ?? '')));
     t.exact('POST', '/api/trail/user-feedback', ({ req, res }) => this.handleRecordUserFeedback(req, res));
     t.exact('GET', '/api/trail/user-feedback', ({ res, url }) => this.handleListUserFeedback(res, url.searchParams));
     // 自律受入基盤 S5: 受入台帳（farm と人手記録の書き込み・retro の参照経路）
@@ -811,7 +856,6 @@ export class TrailDataServer {
   /** ログ・設定・トレースファイル。 */
   private registerOpsRoutes(t: RouteTable): void {
     t.exact('POST', '/api/logs', ({ req, res }) => this.handlePostLogsRoute(req, res));
-    t.exact('GET', '/api/logs', ({ res, url }) => this.handleGetLogsRoute(res, url.searchParams));
     t.exact('GET', '/api/trace/list', ({ res }) => this.handleTraceList(res));
     t.exact('GET', '/api/trace/file', (ctx) => this.handleTraceFile(ctx.res, ctx.query('name', '')));
     t.exact('GET', '/api/config/commit-categories', ({ res }) =>
@@ -1005,6 +1049,7 @@ export class TrailDataServer {
         severity: ctx.queryOpt('severity'),
         driftType: ctx.queryOpt('driftType'),
         since: ctx.queryOpt('since'),
+        workspace: ctx.queryOpt('workspace'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
 
@@ -1045,16 +1090,26 @@ export class TrailDataServer {
         windowDays: ctx.queryOpt('windowDays')
           ? clampInt(ctx.url.searchParams.get('windowDays'), 90, 1, 365)
           : undefined,
+        workspace: ctx.queryOpt('workspace'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 20, 1, 200),
       })));
 
-    t.exact('GET', '/api/memory/bugs/history', (ctx) =>
+    t.exact('GET', '/api/memory/bugs/history', (ctx) => {
+      // sessionIds は「指定なし（絞り込み無し）」と「指定したが 0 件」を区別する。
+      // パラメータ自体が無いときだけ undefined にする（空文字は 0 件の絞り込み）。
+      const rawSessionIds = ctx.queryOpt('sessionIds');
+      const sessionIds = rawSessionIds === undefined
+        ? undefined
+        : rawSessionIds.split(',').map((s) => s.trim()).filter(Boolean);
       this.respondMemoryJson(ctx.res, '/api/memory/bugs/history', this.memoryApi.getBugHistory({
         package: ctx.queryOpt('pkg'),
         filePath: ctx.queryOpt('filePath'),
         category: ctx.queryOpt('category'),
+        sessionIds,
+        workspace: ctx.queryOpt('workspace'),
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
-      })));
+      }));
+    });
 
     t.exact('GET', '/api/memory/bugs/causal', (ctx) => {
       const bugEntityId = ctx.queryOpt('bugEntityId');
@@ -1083,10 +1138,41 @@ export class TrailDataServer {
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
 
+    // Flight Record（指示単位）へ畳んだレビュー指摘。件数は一覧の列に出すため、
+    // limit で欠ける一覧クエリではなく SQL 集計の専用ルートから取る。
+    t.exact('GET', '/api/memory/reviews/flight-counts', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/reviews/flight-counts',
+        this.memoryApi.getFlightReviewFindingCounts()));
+
+    t.exact('GET', '/api/memory/reviews/flight-findings', (ctx) => {
+      const raw = ctx.queryOpt('instructionIds');
+      const instructionIds = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+      this.respondMemoryJson(ctx.res, '/api/memory/reviews/flight-findings',
+        this.memoryApi.getFlightReviewFindings({
+          instructionIds,
+          workspace: ctx.queryOpt('workspace'),
+          limit: clampInt(ctx.url.searchParams.get('limit'), 200, 1, 1000),
+        }));
+    });
+
     t.exact('GET', '/api/memory/pipeline/runs/by-day', (ctx) =>
       this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs/by-day', this.memoryApi.listPipelineRunStatsByDay({
         scope: ctx.queryOpt('scope'),
         since: ctx.queryOpt('since'),
+      })));
+
+    t.exact('GET', '/api/memory/pipeline/runs', (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs', this.memoryApi.listPipelineRuns({
+        since: ctx.queryOpt('since'),
+        wave: ctx.queryOpt('wave'),
+        status: ctx.queryOpt('status'),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 100, 1, 200),
+      })));
+
+    t.pattern('GET', /^\/api\/memory\/pipeline\/runs\/([^/]+)\/logs$/, (ctx) =>
+      this.respondMemoryJson(ctx.res, '/api/memory/pipeline/runs/:runId/logs', this.memoryApi.listPipelineRunLogs({
+        runId: decodeURIComponent(ctx.params[0] ?? ''),
+        limit: clampInt(ctx.url.searchParams.get('limit'), 200, 1, 200),
       })));
 
     t.exact('GET', '/api/memory/pipeline/failed', (ctx) =>
@@ -1095,12 +1181,7 @@ export class TrailDataServer {
         limit: clampInt(ctx.url.searchParams.get('limit'), 50, 1, 200),
       })));
 
-    t.exact('GET', '/api/memory/entities/top', (ctx) =>
-      this.respondMemoryJson(ctx.res, '/api/memory/entities/top', this.memoryApi.listTopEntities({
-        type: ctx.queryOpt('type'),
-        limit: clampInt(ctx.url.searchParams.get('limit'), 20, 1, 200),
-      })));
-
+    // 消費者は将来のグラフ表示。撤去可否は MemoryApiHandler.listInvalidations のコメント参照
     t.exact('GET', '/api/memory/edges/invalidations', (ctx) =>
       this.respondMemoryJson(ctx.res, '/api/memory/edges/invalidations', this.memoryApi.listInvalidations({
         since: ctx.queryOpt('since'),
@@ -2596,8 +2677,12 @@ export class TrailDataServer {
           this.onTokenBudgetExceeded?.(status);
         }
 
+        // 応答に観測値を載せるのは、フック（~/.claude/scripts/session-hygiene.sh）が同じ値で
+        // 衛生の閾値判定をするため。値を JSONL から二重に数え直すと、集計条件のずれが
+        // 「viewer とフックで違う数字が出る」形で表面化する（T-17 / proposal
+        // 20260805-session-hygiene-delegation-decay）。ok は既存クライアント互換のため残す。
         res.writeHead(200, JSON_HEADERS);
-        res.end(JSON.stringify({ ok: true }));
+        res.end(JSON.stringify({ ok: true, ...status }));
       } catch (err) {
         this.logger.warn(`[handleTokenBudget] non-critical error, returning ok anyway: ${err instanceof Error ? err.message : String(err)}`);
         res.writeHead(200, JSON_HEADERS);
@@ -2792,6 +2877,14 @@ export class TrailDataServer {
   /** transcript 読取の上限。超過時は集計せず最小行に縮退する（Stop フックの fail-open を保つ）。 */
   private static readonly FLIGHT_REVIEW_TRANSCRIPT_MAX_BYTES = 50 * 1024 * 1024;
 
+  /** flight record ストア。memoryDbPath 未注入・init 失敗時は明示エラー（暗黙の trail.db フォールバック禁止）。 */
+  private requireFlightRecordDb(): FlightRecordDatabase {
+    if (this.flightRecordDb === null) {
+      throw new Error('flight record store unavailable (memoryDbPath not configured or init failed)');
+    }
+    return this.flightRecordDb;
+  }
+
   private handleRecordFlightReview(req: http.IncomingMessage, res: http.ServerResponse): void {
     if (!this.requireJsonContentType(req, res)) {
       return;
@@ -2819,7 +2912,8 @@ export class TrailDataServer {
         const workspacePath = typeof parsed['cwd'] === 'string' ? parsed['cwd'] : '';
         const lines = this.readFlightTranscriptLines(transcriptPath);
         const aggregate = computeFlightOutcome(lines);
-        this.trailDb.upsertFlightReviewFromMachine({
+        const flightDb = this.requireFlightRecordDb();
+        flightDb.upsertFlightReviewFromMachine({
           sessionId,
           workspacePath,
           startedAt: aggregate.startedAt,
@@ -2834,12 +2928,13 @@ export class TrailDataServer {
         try {
           const assessment = extractSelfAssessment(lines);
           if (assessment !== null) {
-            this.trailDb.applySelfAssessmentToFlightReview(sessionId, assessment);
+            flightDb.applySelfAssessmentToFlightReview(sessionId, assessment);
           }
+          // user_feedback_entries は trail.db 残留（移設対象は flight record 3 テーブルのみ）
           const feedbackEntries = this.trailDb.listUserFeedbackEntries({ sessionId });
           const candidates = extractLessonCandidates({ lines, feedbackEntries });
           if (candidates.length > 0) {
-            this.trailDb.saveFlightReviewLessonCandidates(sessionId, candidates);
+            flightDb.saveFlightReviewLessonCandidates(sessionId, candidates);
           }
         } catch (e) {
           this.logger.warn(`[handleRecordFlightReview] debrief enrichment failed for ${sessionId}: ${e instanceof Error ? e.message : String(e)}`);
@@ -2993,7 +3088,7 @@ export class TrailDataServer {
         }
         const notes = typeof parsed['notes'] === 'string' ? parsed['notes'].slice(0, TrailDataServer.ACCEPTANCE_NOTES_MAX_CHARS) : undefined;
         const quarantinedCountRaw = parsed['quarantinedCount'];
-        this.trailDb.upsertAcceptanceRecord({
+        this.requireFlightRecordDb().upsertAcceptanceRecord({
           commitSha,
           route: route as AcceptanceRoute,
           verdict: verdict as AcceptanceVerdict,
@@ -3024,7 +3119,7 @@ export class TrailDataServer {
         return;
       }
       const limit = Number.parseInt(params.get('limit') ?? '100', 10);
-      const acceptanceRecords = this.trailDb.listAcceptanceRecords({
+      const acceptanceRecords = this.requireFlightRecordDb().listAcceptanceRecords({
         commitSha: params.get('commitSha') ?? undefined,
         route: (routeParam as AcceptanceRoute | null) ?? undefined,
         since: params.get('since') ?? undefined,
@@ -3048,7 +3143,7 @@ export class TrailDataServer {
         res.end(JSON.stringify({ error: 'windowDays must be 1..365' }));
         return;
       }
-      const missRates = this.trailDb.computeAcceptanceMissRate(windowDays);
+      const missRates = this.requireFlightRecordDb().computeAcceptanceMissRate(windowDays);
       res.writeHead(200, JSON_HEADERS);
       res.end(JSON.stringify({ missRates }));
     } catch (e) {
@@ -3066,7 +3161,7 @@ export class TrailDataServer {
         return;
       }
       const limit = Number.parseInt(params.get('limit') ?? '100', 10);
-      const flightReviews = this.trailDb.listFlightReviews({
+      const flightReviews = this.requireFlightRecordDb().listFlightReviews({
         sessionId: params.get('sessionId') ?? undefined,
         since: params.get('since') ?? undefined,
         until: params.get('until') ?? undefined,
@@ -3080,6 +3175,209 @@ export class TrailDataServer {
       this.logger.error('handleListFlightReviews failed', e);
       sendServerError(res, 'Failed to list flight reviews');
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Flight Record: 指示（instructions）
+  // ---------------------------------------------------------------------------
+
+  private static readonly INSTRUCTION_SUMMARY_MAX_CHARS = 500;
+
+  private static readonly INSTRUCTION_PROMPT_MAX_CHARS = 2000;
+
+  /**
+   * Flight Record のワークスペース選択肢（4 サブタブ共通）。
+   *
+   * trail.db 側は cwd 由来の workspace_path を作業ツリー根へ解決した名前、memory-core 側は
+   * 取込時に記録した repo_name。どちらもリポジトリ名なので同じ名前空間として統合する。
+   * 片方の DB が読めなくても残りを返す（選択肢が空になると絞り込み自体ができなくなるため、
+   * 部分的な結果でも出す）。
+   */
+  private async handleListWorkspaces(res: http.ServerResponse): Promise<void> {
+    const names = new Set<string>();
+    let partial = false;
+    try {
+      for (const w of this.requireFlightRecordDb().listInstructionWorkspaces()) names.add(w.name);
+    } catch (e) {
+      this.logger.error('handleListWorkspaces: flight record side failed', e);
+      partial = true;
+    }
+    try {
+      for (const name of await this.memoryApi.listWorkspaces()) names.add(name);
+    } catch (e) {
+      this.logger.error('handleListWorkspaces: memory-core side failed', e);
+      partial = true;
+    }
+    res.writeHead(200, JSON_HEADERS);
+    res.end(JSON.stringify({ workspaces: [...names].sort((a, b) => a.localeCompare(b)), partial }));
+  }
+
+  private handleListInstructionRecords(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const outcomeParam = params.get('outcome');
+      if (outcomeParam !== null && !TrailDataServer.FLIGHT_REVIEW_FILTER_OUTCOMES.includes(outcomeParam)) {
+        res.writeHead(400, JSON_HEADERS);
+        res.end(JSON.stringify({ error: 'invalid outcome' }));
+        return;
+      }
+      const limit = Number.parseInt(params.get('limit') ?? '100', 10);
+      const instructions = this.requireFlightRecordDb().listInstructionRecords({
+        since: params.get('since') ?? undefined,
+        until: params.get('until') ?? undefined,
+        outcome: (outcomeParam as FlightOutcome | null) ?? undefined,
+        tag: params.get('tag') ?? undefined,
+        workspacePath: params.get('workspacePath') ?? undefined,
+        workspaceName: params.get('workspace') ?? undefined,
+        limit: Number.isNaN(limit) ? 100 : limit,
+      });
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ instructions }));
+    } catch (e) {
+      this.logger.error('handleListInstructionRecords failed', e);
+      sendServerError(res, 'Failed to list instruction records');
+    }
+  }
+
+  /** 継続宣言の候補（未完了の指示）。 */
+  private handleListOpenInstructions(res: http.ServerResponse, params: URLSearchParams): void {
+    try {
+      const limit = Number.parseInt(params.get('limit') ?? '10', 10);
+      const instructions = this.requireFlightRecordDb().listOpenInstructions(
+        params.get('workspacePath') ?? undefined,
+        Number.isNaN(limit) ? 10 : limit,
+      );
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ instructions }));
+    } catch (e) {
+      this.logger.error('handleListOpenInstructions failed', e);
+      sendServerError(res, 'Failed to list open instructions');
+    }
+  }
+
+  private handleListInstructionSessions(res: http.ServerResponse, instructionId: string): void {
+    try {
+      const sessions = this.requireFlightRecordDb().listInstructionSessions(instructionId);
+      res.writeHead(200, JSON_HEADERS);
+      res.end(JSON.stringify({ sessions }));
+    } catch (e) {
+      this.logger.error('handleListInstructionSessions failed', e);
+      sendServerError(res, 'Failed to list instruction sessions');
+    }
+  }
+
+  /**
+   * 指示の宣言（mode=new / continue / close）。
+   * 検証はサーバー側が正 — MCP ツールの zod スキーマを境界と見なさない（flight-reviews と同方針）。
+   */
+  private handleDeclareInstruction(req: http.IncomingMessage, res: http.ServerResponse): void {
+    if (!this.requireJsonContentType(req, res)) {
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(body) as Record<string, unknown>;
+        } catch {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'invalid JSON body' }));
+          return;
+        }
+        const mode = parsed['mode'];
+        if (mode !== 'new' && mode !== 'continue' && mode !== 'close') {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'mode must be one of new|continue|close' }));
+          return;
+        }
+        const now = new Date().toISOString();
+
+        const flightDb = this.requireFlightRecordDb();
+        if (mode === 'close') {
+          const instructionId = parsed['instructionId'];
+          if (typeof instructionId !== 'string' || instructionId === '') {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'instructionId required' }));
+            return;
+          }
+          if (!flightDb.closeInstruction(instructionId, now)) {
+            res.writeHead(404, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'instruction not found' }));
+            return;
+          }
+          flightDb.save();
+          res.writeHead(200, JSON_HEADERS);
+          res.end(JSON.stringify({ ok: true, instructionId }));
+          return;
+        }
+
+        const sessionId = parsed['sessionId'];
+        if (typeof sessionId !== 'string' || sessionId === '') {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'sessionId required' }));
+          return;
+        }
+
+        if (mode === 'continue') {
+          const instructionId = parsed['instructionId'];
+          if (typeof instructionId !== 'string' || instructionId === '') {
+            res.writeHead(400, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'instructionId required' }));
+            return;
+          }
+          const declaredWorkspace = typeof parsed['workspacePath'] === 'string' ? parsed['workspacePath'] : '';
+          if (!flightDb.continueInstruction({
+            instructionId,
+            sessionId,
+            declaredAt: now,
+            ...(declaredWorkspace === '' ? {} : { workspacePath: declaredWorkspace }),
+          })) {
+            // 存在しない指示・別ワークスペースの指示を黙って受け入れない
+            // （取り違えた ID がそのまま台帳に増え、混入行は絞り込みでも落とせない）
+            res.writeHead(404, JSON_HEADERS);
+            res.end(JSON.stringify({ error: 'instruction not found in this workspace' }));
+            return;
+          }
+          flightDb.save();
+          res.writeHead(200, JSON_HEADERS);
+          res.end(JSON.stringify({ ok: true, instructionId }));
+          return;
+        }
+
+        const summary = parsed['summary'];
+        if (typeof summary !== 'string' || summary.trim() === '') {
+          res.writeHead(400, JSON_HEADERS);
+          res.end(JSON.stringify({ error: 'summary required' }));
+          return;
+        }
+        const workspacePath = typeof parsed['workspacePath'] === 'string' ? parsed['workspacePath'] : '';
+        const providedId = parsed['instructionId'];
+        const instructionId =
+          typeof providedId === 'string' && providedId !== '' ? providedId : randomUUID();
+        flightDb.openInstruction({
+          id: instructionId,
+          sessionId,
+          workspacePath,
+          workspaceName:
+            typeof parsed['workspaceName'] === 'string' && parsed['workspaceName'] !== ''
+              ? parsed['workspaceName']
+              : path.basename(workspacePath),
+          summary: summary.slice(0, TrailDataServer.INSTRUCTION_SUMMARY_MAX_CHARS),
+          originPrompt:
+            typeof parsed['originPrompt'] === 'string'
+              ? parsed['originPrompt'].slice(0, TrailDataServer.INSTRUCTION_PROMPT_MAX_CHARS)
+              : '',
+          startedAt: now,
+        });
+        flightDb.save();
+        res.writeHead(200, JSON_HEADERS);
+        res.end(JSON.stringify({ ok: true, instructionId }));
+      } catch (e) {
+        this.logger.error('handleDeclareInstruction failed', e);
+        sendServerError(res, 'Failed to declare instruction');
+      }
+    });
   }
 
   /** GET フィルタで受け付ける outcome（unknown を含む全 enum。手動訂正の入力とは別物）。 */
@@ -3173,9 +3471,10 @@ export class TrailDataServer {
           res.end(JSON.stringify({ error: 'no updatable field (outcome / tags / notes / rationaleAuditStatus)' }));
           return;
         }
-        const manualOk = hasManualField ? this.trailDb.updateFlightReviewManual(sessionId, patch) : true;
+        const flightDb = this.requireFlightRecordDb();
+        const manualOk = hasManualField ? flightDb.updateFlightReviewManual(sessionId, patch) : true;
         const auditOk = auditStatus !== undefined
-          ? this.trailDb.markRationaleAudit(sessionId, auditStatus as RationaleAuditStatus)
+          ? flightDb.markRationaleAudit(sessionId, auditStatus as RationaleAuditStatus)
           : true;
         if (!manualOk || !auditOk) {
           res.writeHead(404, JSON_HEADERS);
@@ -4038,19 +4337,6 @@ export class TrailDataServer {
         // best-effort
       }
     });
-  }
-
-  private handleGetLogsRoute(res: http.ServerResponse, params: URLSearchParams): void {
-    if (!this.logService) {
-      res.writeHead(503, JSON_HEADERS);
-      res.end(JSON.stringify({ error: 'log service not registered' }));
-      return;
-    }
-    const result = handleGetLogs(params, this.logService);
-    const headers = result.headers ?? {};
-    res.writeHead(result.status, headers);
-    if (result.body) res.end(result.body);
-    else res.end();
   }
 
   /**

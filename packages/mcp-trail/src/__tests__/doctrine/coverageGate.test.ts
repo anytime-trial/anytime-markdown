@@ -1,13 +1,22 @@
-import {
-  evaluateCoverageGate,
-  type CoverageGateInput,
-  type OddConfig,
-} from '../../doctrine/coverageGate';
+import { evaluateCoverageGate, type CoverageGateInput } from '../../doctrine/coverageGate';
+import type { OddResolution } from '@anytime-markdown/trail-core';
 
-const ODD: OddConfig = {
-  roots: ['/anytime-markdown', '/Shared/anytime-markdown-docs'],
-  restrictedPrefixes: ['/home/user/.claude', '/home/user/.config'],
-  restrictedPatterns: ['/.github/workflows/', '/.env'],
+const ODD: OddResolution = {
+  kind: 'derived',
+  registry: {
+    version: 1,
+    roots: ['/anytime-markdown', '/Shared/anytime-markdown-docs'],
+    restricted: [
+      { kind: 'prefix', value: '/home/user/.claude' },
+      { kind: 'prefix', value: '/home/user/.config' },
+      { kind: 'pattern', value: '/.github/workflows/' },
+      { kind: 'pattern', value: '/.env' },
+    ],
+    languages: null,
+    operations: {},
+    narrowing: 'normal',
+    godNodePercentile: 5,
+  },
 };
 
 function input(overrides: Partial<CoverageGateInput> = {}): CoverageGateInput {
@@ -16,6 +25,8 @@ function input(overrides: Partial<CoverageGateInput> = {}): CoverageGateInput {
     citations: [{ resolved: true, approval: 'canon' }],
     targetPaths: ['/anytime-markdown/packages/mcp-trail/src/server.ts'],
     severity: 'low',
+    operationKind: 'code_change',
+    underspecifiedPoints: [],
     odd: ODD,
     ...overrides,
   };
@@ -24,6 +35,23 @@ function input(overrides: Partial<CoverageGateInput> = {}): CoverageGateInput {
 describe('evaluateCoverageGate', () => {
   it('ODD 内・低重大度・covered・canon 引用ありは delegable', () => {
     expect(evaluateCoverageGate(input())).toEqual({ verdict: 'delegable', reasons: [] });
+  });
+
+  it('operationKind 未指定は operation_kind_unknown で escalate（fail-closed）', () => {
+    const result = evaluateCoverageGate(input({ operationKind: undefined }));
+    expect(result).toEqual({ verdict: 'escalate', reasons: ['operation_kind_unknown'] });
+  });
+
+  it.each([
+    'dependency_change',
+    'destructive_git',
+    'remote_push',
+    'production_release',
+    'persistent_data_write',
+  ] as const)('%s は他の条件を満たしても always_human_operation で escalate', (kind) => {
+    // パスに現れない操作種別。targetPaths の判定を通っても代行させない
+    const result = evaluateCoverageGate(input({ operationKind: kind }));
+    expect(result).toEqual({ verdict: 'escalate', reasons: ['always_human_operation'] });
   });
 
   it('targetPaths 未指定は odd_unknown で escalate（fail-closed）', () => {
@@ -118,5 +146,56 @@ describe('evaluateCoverageGate', () => {
       input({ targetPaths: ['/other-repo/a.ts'], severity: 'high' }),
     );
     expect(result.reasons).toEqual(['odd_out']);
+  });
+
+  describe('未確定論点の事前申告（DCT-14）', () => {
+    it('申告が非空なら underspecified_instruction で escalate', () => {
+      const result = evaluateCoverageGate(
+        input({ underspecifiedPoints: ['workspace 列を持たないタブの扱い'] }),
+      );
+      expect(result).toEqual({ verdict: 'escalate', reasons: ['underspecified_instruction'] });
+    });
+
+    it('空配列を明示したときだけ他の規則の判定を変えない', () => {
+      const result = evaluateCoverageGate(input({ underspecifiedPoints: [] }));
+      expect(result).toEqual({ verdict: 'delegable', reasons: [] });
+    });
+
+    it('未指定は underspecified_unknown で escalate（severity・operationKind と同じ fail-closed）', () => {
+      const result = evaluateCoverageGate(input({ underspecifiedPoints: undefined }));
+      expect(result).toEqual({ verdict: 'escalate', reasons: ['underspecified_unknown'] });
+    });
+
+    it.each([
+      ['odd_out', { targetPaths: ['/other-repo/a.ts'] }],
+      ['restricted_area', { targetPaths: ['/anytime-markdown/.github/workflows/ci.yml'] }],
+      ['always_human_operation', { operationKind: 'remote_push' as const }],
+      ['severity_high', { severity: 'high' as const }],
+    ])(
+      '指示を明確化しても代行できない軸（%s）は未確定論点より先に記録される',
+      (reason, overrides) => {
+        const result = evaluateCoverageGate(
+          input({ underspecifiedPoints: ['指示に無い設計の分岐'], ...overrides }),
+        );
+        expect(result.reasons).toEqual([reason]);
+      },
+    );
+
+    it('ドクトリン接地の不足（silent）より先に評価する（何を作るかが先に定まる必要がある）', () => {
+      const result = evaluateCoverageGate(
+        input({ underspecifiedPoints: ['指示に無い設計の分岐'], coverage: 'silent', citations: [] }),
+      );
+      expect(result.reasons).toEqual(['underspecified_instruction']);
+    });
+
+    it('レジストリが壊れている場合はゲート自体が信用できないので odd_registry_invalid が優先する', () => {
+      const result = evaluateCoverageGate(
+        input({
+          underspecifiedPoints: ['指示に無い設計の分岐'],
+          odd: { kind: 'invalid', reason: 'parse_error' } as CoverageGateInput['odd'],
+        }),
+      );
+      expect(result.reasons).toEqual(['odd_registry_invalid']);
+    });
   });
 });

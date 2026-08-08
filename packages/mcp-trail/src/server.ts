@@ -33,11 +33,23 @@ import { toCodeGraphNodeId } from './tools/nodeId.js';
 import { handleResolveDrift,ResolveDriftInputSchema } from './tools/resolveDrift.js';
 import { handleRecordDoctrineJudgment, RecordDoctrineJudgmentInputSchema } from './tools/recordDoctrineJudgment.js';
 import { handleRecordHumanDecision, RecordHumanDecisionInputSchema } from './tools/recordHumanDecision.js';
+import {
+  handleListOpenInstructions,
+  handleRecordInstruction,
+  ListOpenInstructionsInputSchema,
+  RecordInstructionInputSchema,
+} from './tools/recordInstruction.js';
+import { handleRecordDelegatedApproval, RecordDelegatedApprovalInputSchema } from './tools/recordDelegatedApproval.js';
+import {
+  handleGetOddPolicy,
+  handleEvaluateApprovalPolicy,
+  GetOddPolicyInputSchema,
+  EvaluateApprovalPolicyInputSchema,
+} from './tools/oddPolicy.js';
 import { handleGetDoctrineAgreement, GetDoctrineAgreementInputSchema } from './tools/getDoctrineAgreement.js';
 import { handleGetAcceptanceReview, GetAcceptanceReviewInputSchema } from './tools/getAcceptanceReview.js';
 import { handleListBoundaryDrift, ListBoundaryDriftInputSchema } from './tools/listBoundaryDrift.js';
 import { handleRunReviewAgent,RunReviewAgentInputSchema } from './tools/runReviewAgent.js';
-import { handleSearchDocs,SearchDocsInputSchema } from './tools/searchDocs.js';
 import { handleSearchMemory,SearchMemoryInputSchema } from './tools/searchMemory.js';
 import { GetVerificationStatusInputSchema, handleGetVerificationStatus } from './tools/verificationStatus.js';
 
@@ -456,7 +468,7 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
 
   server.registerTool(
     'record_doctrine_judgment',
-    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) also evaluates whether the judgment would have been delegable under D2 and stores the verdict — it does NOT change the approval flow (shadow mode); omitting target_paths or severity makes the verdict escalate (fail-closed). Re-recording the same session_id + subject overwrites and resets any recorded human decision.', inputSchema: {
+    { description: 'Record the agent\'s doctrine-grounded judgment BEFORE asking a human for an intermediate (What) approval. Citations are resolution-checked (file exists + verbatim quote matches) and the per-citation result is stored; unresolved citations do not reject the record (D1 measures hallucinated-citation frequency). The coverage gate (DCT-10..12) evaluates whether the judgment may be delegated and stores the verdict; omitting target_paths, severity or operation_kind makes the verdict escalate (fail-closed), so always declare all three. Also declare underspecified_points (DCT-14): the points the human\'s instruction does not determine. Leaving it empty is a positive claim that the instruction alone fixes the outcome, and a non-empty array escalates — an approval whose content you had to invent is not delegable no matter how well grounded it is. D2 is ACTIVE (since 2026-08-05): act on the returned gate.verdict — if it is "delegable" AND your judgment is "approve", proceed WITHOUT asking the human and immediately call record_delegated_approval; otherwise ask the human and then call record_human_decision. Package add/update, destructive operations, remote push and production release always escalate — declare them via operation_kind so the gate enforces it rather than relying on prose. Re-recording the same session_id + subject overwrites and resets any recorded human decision and delegation.', inputSchema: {
       session_id: RecordDoctrineJudgmentInputSchema.shape.session_id,
       subject: RecordDoctrineJudgmentInputSchema.shape.subject,
       judgment: RecordDoctrineJudgmentInputSchema.shape.judgment,
@@ -464,11 +476,45 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
       citations: RecordDoctrineJudgmentInputSchema.shape.citations,
       target_paths: RecordDoctrineJudgmentInputSchema.shape.target_paths,
       severity: RecordDoctrineJudgmentInputSchema.shape.severity,
+      operation_kind: RecordDoctrineJudgmentInputSchema.shape.operation_kind,
+      underspecified_points: RecordDoctrineJudgmentInputSchema.shape.underspecified_points,
       judged_at: RecordDoctrineJudgmentInputSchema.shape.judged_at,
       workspacePath: RecordDoctrineJudgmentInputSchema.shape.workspacePath,
     }, },
     async (args) => {
       const result = await handleRecordDoctrineJudgment(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  //  Flight Record: 指示（instruction）の宣言
+  // -------------------------------------------------------------------------
+
+  server.registerTool(
+    'list_open_instructions',
+    { description: 'List instructions that are still open in this workspace, newest first. Call this at the start of a session, BEFORE record_instruction, to see whether the work you are about to do continues an existing instruction (a "keep going" / "next one" style prompt almost always does). Returns instruction_id, its one-line summary, the human\'s opening prompt and how many sessions it already spans.', inputSchema: {
+      limit: ListOpenInstructionsInputSchema.shape.limit,
+      workspacePath: ListOpenInstructionsInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleListOpenInstructions(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'record_instruction',
+    { description: 'Declare which instruction (unit of work the human asked for) this session belongs to. Flight Record groups its rows by instruction, not by session, and ONLY this declaration creates that grouping — nothing infers it from the prompt text. Call it once per session, before doing the work: mode="continue" with the instruction_id from list_open_instructions when the session carries on earlier work, otherwise mode="new" with a one-line summary of what was asked. A session that never declares is shown as its own single-session instruction, so forgetting splits the work across rows rather than losing it. Use mode="close" when the instruction is finished so it stops being offered as a candidate. One session belongs to exactly one instruction; re-declaring moves it.', inputSchema: {
+      mode: RecordInstructionInputSchema.shape.mode,
+      session_id: RecordInstructionInputSchema.shape.session_id,
+      instruction_id: RecordInstructionInputSchema.shape.instruction_id,
+      summary: RecordInstructionInputSchema.shape.summary,
+      origin_prompt: RecordInstructionInputSchema.shape.origin_prompt,
+      workspacePath: RecordInstructionInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleRecordInstruction(args);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -490,8 +536,48 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   server.registerTool(
+    'get_odd_policy',
+    { description: "Resolve the ODD (Operational Design Domain) policy registry for the workspace and report where it came from: 'registry' (.anytime/trail/odd.json parsed), 'derived' (no registry file — built-in default, identical to pre-registry behaviour), or 'invalid' (the file exists but is broken). An invalid registry is NOT silently replaced by the default: a protection someone tried to add must not disappear because of a syntax error. Returns both `registry` (the resolved internal shape) and `registrySource` (the same policy in odd.json file format). Use `registrySource` — not `registry` — when seeding or editing .anytime/trail/odd.json: the internal shape differs at `narrowing` and `godNodePercentile`, and copying it produces a registry that is either rejected as invalid or silently falls back to the default percentile.", inputSchema: {
+      workspacePath: GetOddPolicyInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = handleGetOddPolicy(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'evaluate_approval_policy',
+    { description: "Evaluate whether an operation is allow / confirm / deny under the ODD policy registry (Phase 7-A Approval Rule Engine). Rules, in order: broken registry, ODD boundary / restricted area, language outside ODD, dynamic narrowing (release freeze / incident), God Node impact, then the declared per-operation policy. An operation kind with no declared policy resolves to confirm, never allow. declaredVerdict reports what the registry said even when a higher rule overrode it.", inputSchema: {
+      operation_kind: EvaluateApprovalPolicyInputSchema.shape.operation_kind,
+      target_paths: EvaluateApprovalPolicyInputSchema.shape.target_paths,
+      language: EvaluateApprovalPolicyInputSchema.shape.language,
+      is_god_node: EvaluateApprovalPolicyInputSchema.shape.is_god_node,
+      workspacePath: EvaluateApprovalPolicyInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = handleEvaluateApprovalPolicy(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'record_delegated_approval',
+    { description: "Record that the agent delegated (auto-approved) a What approval under D2, instead of asking the human. Refuses unless the stored coverage gate verdict is 'delegable', the agent judgment is 'approve', and no human decision exists yet — a delegation record that could be fabricated after the fact would make both the agreement rate and the delegation rate useless for audit. The timestamp is always server-side now and cannot be supplied by the caller. Calling again on an already-delegated judgment is a no-op that returns the original timestamp (alreadyDelegated: true). A human may still record a decision afterwards as a sampling audit.", inputSchema: {
+      id: RecordDelegatedApprovalInputSchema.shape.id,
+      session_id: RecordDelegatedApprovalInputSchema.shape.session_id,
+      subject: RecordDelegatedApprovalInputSchema.shape.subject,
+      workspacePath: RecordDelegatedApprovalInputSchema.shape.workspacePath,
+    }, },
+    async (args) => {
+      const result = await handleRecordDelegatedApproval(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
     'get_doctrine_agreement',
-    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), and pending (undecided) count. Gate metrics for D2 promotion.', inputSchema: {
+    { description: 'Aggregate doctrine judgment metrics: agreement rate (covered + human-decided, escalate excluded), escalation rate, citation resolution rate, canon-grounded rate (covered judgments citing at least one approved clause), delegable rate (coverage gate verdicts that would have allowed delegation), delegated / delegatedAudited counts (D2 delegations and their sampling audits), and pending (neither decided nor delegated) count. Also instructionGapRate / underspecified (DCT-14 declarations of points the instruction did not determine; denominator = all judgments) and unreadableDeclarations. Judgments recorded before 2026-08-07 were backfilled as empty declarations and stay in the agreement-rate denominator, so pass since="2026-08-07" when reading instructionGapRate as a live signal. A non-zero unreadableDeclarations means the other two rates are not yet interpretable.', inputSchema: {
       since: GetDoctrineAgreementInputSchema.shape.since,
       until: GetDoctrineAgreementInputSchema.shape.until,
       workspacePath: GetDoctrineAgreementInputSchema.shape.workspacePath,
@@ -716,26 +802,10 @@ export function createMcpServer(options: McpTrailOptions = {}): McpServer {
   );
 
   server.registerTool(
-    'search_docs',
-    { description: 'Search the spec documentation index (doc-core.db): typed relations (backlinks/neighbors), keyword (FTS5), and semantic (cosine, needs ollama)', inputSchema: {
-      query: SearchDocsInputSchema.shape.query,
-      mode: SearchDocsInputSchema.shape.mode,
-      path: SearchDocsInputSchema.shape.path,
-      type: SearchDocsInputSchema.shape.type,
-      hops: SearchDocsInputSchema.shape.hops,
-      limit: SearchDocsInputSchema.shape.limit,
-    }, },
-    async (args) => {
-      const result = await handleSearchDocs(args);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.registerTool(
     'get_verification_status',
     {
       description:
-        'Check the verification ledger (verification.db): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
+        'Check the verification ledger (trail.db, table verification_runs): which verification kinds (unit/build/next-build/typecheck/lint/e2e/manual) already have a pass record for the current clean commit. Ledger answers "what has been run", never "what must run" — missing/dirty/no-db always falls back to needsRun. Records are written by scripts/run-verified.mjs.',
       inputSchema: {
         package: GetVerificationStatusInputSchema.shape.package,
         kinds: GetVerificationStatusInputSchema.shape.kinds,

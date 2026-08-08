@@ -27,7 +27,7 @@ describe('migrations', () => {
     expect(names).toContain('memory_edge_invalidations');
     expect(names).toContain('memory_episode_entities');
     expect(names).toContain('memory_pipeline_state');
-    expect(names).toContain('memory_pipeline_runs');
+    expect(names).toContain('pipeline_runs');
     expect(names).toContain('memory_failed_items');
     expect(names).toContain('memory_relation_types');
     expect(names).toContain('_migrations');

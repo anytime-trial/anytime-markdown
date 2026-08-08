@@ -3,7 +3,6 @@ import { runMigrations } from '../../src/db/migrations/runner';
 import {
   detectRegressionClusters,
   detectSpecViolationClusters,
-  detectRecurringRootCauses,
 } from '../../src/drift/recurringBugs';
 import type { MemoryLogger } from '../../src/logger';
 
@@ -40,6 +39,7 @@ function insertBugFix(
     category: string;
     affectedPaths?: string[];
     committedAt?: string;
+    workspace?: string;
   },
 ): void {
   const id = opts.id ?? `bf-${opts.commitSha}`;
@@ -47,10 +47,17 @@ function insertBugFix(
   const committedAt = opts.committedAt ?? TS;
   db.run(
     `INSERT INTO memory_bug_fixes
-       (id, commit_sha, bug_entity_id, package, category, subject_summary, affected_file_paths_json, committed_at, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, opts.commitSha, opts.bugEntityId, opts.package ?? 'web-app', opts.category, 'summary', paths, committedAt, TS],
+       (id, commit_sha, bug_entity_id, package, category, subject_summary, affected_file_paths_json, committed_at, recorded_at, workspace)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, opts.commitSha, opts.bugEntityId, opts.package ?? 'web-app', opts.category, 'summary', paths, committedAt, TS, opts.workspace ?? ''],
   );
+}
+
+/** 直近（ウィンドウ内）の committed_at。 */
+function recentIso(daysAgo = 10): string {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().replace(/\.\d{3}Z$/, '.000Z');
 }
 
 describe('detectRegressionClusters', () => {
@@ -133,58 +140,67 @@ describe('detectSpecViolationClusters', () => {
   });
 });
 
-describe('detectRecurringRootCauses', () => {
-  it('I14: 同 caused_by 先 entity に Bug 2 件 → drift_event 1 行', () => {
+describe('ワークスペースの解決', () => {
+  it('regression クラスタのバグが 1 ワークスペースへ収束すれば workspace が付く', () => {
     const db = makeDb();
-    // root cause entity
-    const rootCause = insertEntity(db, 'root-concept-1');
+    const e1 = insertEntity(db);
+    const e2 = insertEntity(db);
+    const recent = recentIso();
 
-    // Bug entity 2件
-    const bug1 = insertEntity(db, 'bug-entity-1');
-    const bug2 = insertEntity(db, 'bug-entity-2');
+    insertBugFix(db, { commitSha: 'ws-sha1', bugEntityId: e1, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-trade' });
+    insertBugFix(db, { commitSha: 'ws-sha2', bugEntityId: e2, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-trade' });
 
-    // caused_by edges
-    db.run(
-      `INSERT INTO memory_edges
-         (id, subject_entity_id, predicate, object_entity_id, source_type, source_ref, confidence, confidence_label, modality, valid_from, recorded_at)
-       VALUES (?, ?, 'caused_by', ?, 'bug_history', 'ref-1', 0.8, 'EXTRACTED', 'asserted', ?, ?)`,
-      ['edge-1', bug1, rootCause, TS, TS],
-    );
-    db.run(
-      `INSERT INTO memory_edges
-         (id, subject_entity_id, predicate, object_entity_id, source_type, source_ref, confidence, confidence_label, modality, valid_from, recorded_at)
-       VALUES (?, ?, 'caused_by', ?, 'bug_history', 'ref-2', 0.8, 'EXTRACTED', 'asserted', ?, ?)`,
-      ['edge-2', bug2, rootCause, TS, TS],
-    );
-
-    const results = detectRecurringRootCauses({ db, minBugs: 2, logger: silentLogger });
+    const results = detectRegressionClusters({ db, windowDays: 90, minCount: 2, logger: silentLogger });
 
     expect(results).toHaveLength(1);
-    expect(results[0].drift_type).toBe('recurring_root_cause');
-    expect(results[0].subject_entity_id).toBe(rootCause);
-    expect(results[0].severity).toBe('warn');
+    expect(results[0].workspace).toBe('anytime-trade');
   });
 
-  it('AMBIGUOUS edge は除外される', () => {
+  // '' は「別のワークスペース」ではなく「未解決」。数に入れると、未解決が 1 件混ざった
+  // だけでクラスタ全体が未解決へ落ち、そのワークスペースで絞ったとき画面から消える。
+  it('未解決（空文字）が混ざっても解決済みのワークスペースへ寄せる', () => {
     const db = makeDb();
-    const rootCause = insertEntity(db, 'root-concept-2');
-    const bug1 = insertEntity(db, 'bug-entity-3');
-    const bug2 = insertEntity(db, 'bug-entity-4');
+    const e1 = insertEntity(db);
+    const e2 = insertEntity(db);
+    const recent = recentIso();
 
-    db.run(
-      `INSERT INTO memory_edges
-         (id, subject_entity_id, predicate, object_entity_id, source_type, source_ref, confidence, confidence_label, modality, valid_from, recorded_at)
-       VALUES (?, ?, 'caused_by', ?, 'bug_history', 'ref-amb-1', 0.3, 'AMBIGUOUS', 'asserted', ?, ?)`,
-      ['edge-amb-1', bug1, rootCause, TS, TS],
-    );
-    db.run(
-      `INSERT INTO memory_edges
-         (id, subject_entity_id, predicate, object_entity_id, source_type, source_ref, confidence, confidence_label, modality, valid_from, recorded_at)
-       VALUES (?, ?, 'caused_by', ?, 'bug_history', 'ref-amb-2', 0.3, 'AMBIGUOUS', 'asserted', ?, ?)`,
-      ['edge-amb-2', bug2, rootCause, TS, TS],
-    );
+    insertBugFix(db, { commitSha: 'blank-sha1', bugEntityId: e1, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-trade' });
+    insertBugFix(db, { commitSha: 'blank-sha2', bugEntityId: e2, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: '' });
 
-    const results = detectRecurringRootCauses({ db, minBugs: 2, logger: silentLogger });
-    expect(results).toHaveLength(0);
+    const results = detectRegressionClusters({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-trade');
   });
+
+  it('regression クラスタが 2 ワークスペースに跨るなら workspace は未解決のまま', () => {
+    const db = makeDb();
+    const e1 = insertEntity(db);
+    const e2 = insertEntity(db);
+    const recent = recentIso();
+
+    insertBugFix(db, { commitSha: 'mix-sha1', bugEntityId: e1, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-trade' });
+    insertBugFix(db, { commitSha: 'mix-sha2', bugEntityId: e2, category: 'regression', affectedPaths: ['src/foo.ts'], committedAt: recent, workspace: 'anytime-markdown' });
+
+    const results = detectRegressionClusters({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('');
+  });
+
+  it('spec_violation クラスタは対象パッケージのバグから workspace を引く', () => {
+    const db = makeDb();
+    const recent = recentIso();
+    for (let i = 0; i < 3; i++) {
+      const e = insertEntity(db, `ws-spec-bug-${i}`);
+      insertBugFix(db, { commitSha: `ws-spec-sha${i}`, bugEntityId: e, package: 'web-app', category: 'spec', affectedPaths: [], committedAt: recent, workspace: 'anytime-lab' });
+    }
+
+    const results = detectSpecViolationClusters({ db, windowDays: 90, minCount: 3, minRatio: 0.3, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-lab');
+  });
+
 });
+

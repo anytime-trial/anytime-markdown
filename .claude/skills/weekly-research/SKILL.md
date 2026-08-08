@@ -210,7 +210,7 @@ Trail は **エージェントによるソフトウェア開発プロセスそ�
 
 - コードグラフ生成・コミュニティ要約（`current_code_graphs` / community mappings / reverse-spec）
 - セッション・コミット・レビューの記録と因果追跡（`messages` / `session_commits` / `memory_reviews`）
-- doc-core 検索（構造 + FTS + embedding）・mcp-trail（`search_docs` / `search_memory`）
+- メモリグラフ検索（`search_memory`）。設計書検索（doc-core: 構造 + FTS + embedding）は mcp-markdown 側のみ（trail 側の doc-core は 2026-08-06 に廃止）
 - メモリ蒸留（auto memory）・drift 検知
 
 **生成手順:**

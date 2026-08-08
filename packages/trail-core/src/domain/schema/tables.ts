@@ -573,29 +573,6 @@ export const CREATE_FILE_ANALYSIS_INDEXES = [
     ON current_file_analysis (repo_id, centrality_score DESC)`,
 ];
 
-// Extension and daemon logs for live streaming and history search.
-// Persisted to trail.db, inserted by daemon via LogService, broadcast via WebSocket.
-export const CREATE_EXTENSION_LOGS = `CREATE TABLE IF NOT EXISTS extension_logs (
-  id INTEGER PRIMARY KEY,
-  timestamp TEXT NOT NULL
-    CHECK (timestamp GLOB ${TS_GLOB_MS} OR timestamp GLOB ${TS_GLOB_NO_MS}),
-  level TEXT NOT NULL
-    CHECK (level IN ('debug', 'info', 'warn', 'error')),
-  source TEXT NOT NULL
-    CHECK (source IN ('extension', 'daemon')),
-  component TEXT NOT NULL DEFAULT '',
-  message TEXT NOT NULL,
-  metadata TEXT
-    CHECK (metadata IS NULL OR json_valid(metadata)),
-  stack TEXT
-) STRICT`;
-
-export const CREATE_EXTENSION_LOGS_INDEXES = [
-  `CREATE INDEX IF NOT EXISTS idx_extension_logs_timestamp ON extension_logs(timestamp)`,
-  `CREATE INDEX IF NOT EXISTS idx_extension_logs_level_timestamp ON extension_logs(level, timestamp)`,
-  `CREATE INDEX IF NOT EXISTS idx_extension_logs_source ON extension_logs(source)`,
-];
-
 // LEP Layer 4 (Aggregator): DORA 指標の月次集計。`DoraMetricsAggregator` が
 // 既存 trail.db データ (releases / session_commits) のみから算出して書き込む。
 // 本 Step で算出するのは deployment frequency (期間内 release 件数) と
@@ -813,6 +790,23 @@ export const CREATE_ACCEPTANCE_INDEXES = [
 // ドクトリン接地判断の並走記録 (D1)。中間承認の直前のエージェント判断と人の判断を
 // 突合し一致率を計測する。session_id は sessions(id) への FK を張らない
 // (セッション取込は import ラグで数十分遅延し、判断記録が先行するため)。
+/**
+ * `delegated_at` の CHECK 式。CREATE と ALTER の**両方**がこの 1 つを参照する。
+ * 式を二重に書くと、片方だけ直したときに新規 DB と移行 DB で受理される値が食い違う。
+ */
+const DELEGATED_AT_CHECK = `CHECK (delegated_at IS NULL OR delegated_at GLOB ${TS_GLOB_MS} OR delegated_at GLOB ${TS_GLOB_NO_MS})`;
+
+/**
+ * 「指示から一意に定まらない論点」の事前申告列の**列定義まるごと**。CREATE と ALTER の
+ * 両方がこれを参照する（CHECK だけ共有した `delegated_at` と違い、NOT NULL と DEFAULT も
+ * 揃っていないと意味が変わるため定義全体を共有する）。
+ *
+ * 他の後付け列と違い NULL 許容にしない。既存行へ ALTER の DEFAULT で `'[]'` を入れることで、
+ * 「申告が無い記録は空（＝指示から一意に定まると宣言した）」という扱いをスキーマの事実にする。
+ * NULL 許容にすると読み取り側ごとに「NULL は空か未申告か」の解釈が分岐する。
+ */
+const UNDERSPECIFIED_POINTS_COLUMN = `underspecified_points_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(underspecified_points_json))`;
+
 export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_judgments (
   id INTEGER PRIMARY KEY,
   session_id TEXT NOT NULL,
@@ -831,8 +825,27 @@ export const CREATE_DOCTRINE_JUDGMENTS = `CREATE TABLE IF NOT EXISTS doctrine_ju
   -- 中間に挿入すると新規 DB と移行 DB で列順が食い違う
   gate_verdict TEXT CHECK (gate_verdict IS NULL OR gate_verdict IN ('delegable', 'escalate')),
   gate_reasons_json TEXT CHECK (gate_reasons_json IS NULL OR json_valid(gate_reasons_json)),
+  -- D2: ゲートが delegable と判定した What 承認をエージェントが代行した時刻。
+  -- human_decision が NULL のまま「人の判断待ち」に見えるのを防ぐために分ける
+  delegated_at TEXT ${DELEGATED_AT_CHECK},
+  -- DCT-14: 判断を記録する時点で申告する「指示から一意に定まらない論点」(JSON 文字列配列)。
+  -- 空 = 「この指示だけで結論は一意に定まる」と言い切った宣言。事後に原因を分類させると
+  -- 測られる側が自分に有利な原因を選べるため、事前申告に倒して後から覆せなくする
+  ${UNDERSPECIFIED_POINTS_COLUMN},
   UNIQUE (session_id, subject)
 ) STRICT`;
+
+/**
+ * 既存 DB へ `delegated_at` を足す ALTER。CHECK 制約を CREATE 側と同一に保つため、
+ * GLOB 定義を共有するここで組み立てる（手書きすると新規 DB と移行 DB で制約が食い違う）。
+ */
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_DELEGATED_AT = `ALTER TABLE doctrine_judgments ADD COLUMN delegated_at TEXT ${DELEGATED_AT_CHECK}`;
+
+/**
+ * 既存 DB へ `underspecified_points_json` を足す ALTER。NOT NULL + DEFAULT `'[]'` なので、
+ * **既存行はこの ALTER の時点で「空の申告」に確定する**（遡って原因を分類し直さない）。
+ */
+export const ALTER_DOCTRINE_JUDGMENTS_ADD_UNDERSPECIFIED_POINTS = `ALTER TABLE doctrine_judgments ADD COLUMN ${UNDERSPECIFIED_POINTS_COLUMN}`;
 
 export const CREATE_DOCTRINE_JUDGMENT_INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_doctrine_judgments_judged_at ON doctrine_judgments(judged_at)`,
@@ -892,4 +905,76 @@ export const CREATE_BOUNDARY_DRIFT_INDEXES = [
   // (別経路の書き手・一括投入でも守られるように)。
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_warnings_key ON boundary_drift_warnings(repo_id, detected_at, kind, target_key)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_boundary_drift_runs_key ON boundary_drift_runs(repo_id, detected_at)`,
+];
+
+// Flight Record: 「指示（instruction）」の台帳と、指示 : セッションの対応。
+//
+// 指示は人が出した 1 つの作業依頼で、1 指示は複数セッションにまたがりうる。対応付けは
+// エージェントの明示宣言（MCP record_instruction）だけが作る — 先頭プロンプトの継続表現から
+// 自動判定する方式は「進めて」で始まる新規指示と継続を原理的に区別できないため採らない。
+//
+// sessions への FK を張らない: 宣言はセッション取込（import ラグ数十分）より先行して届く
+// （flight_reviews / user_feedback_entries / acceptance_records と同方針）。表示側は欠損に耐える。
+export const CREATE_INSTRUCTIONS = `CREATE TABLE IF NOT EXISTS instructions (
+  id TEXT PRIMARY KEY,
+  workspace_path TEXT NOT NULL DEFAULT '',
+  workspace_name TEXT NOT NULL DEFAULT '',
+  summary TEXT NOT NULL DEFAULT '',
+  origin_prompt TEXT NOT NULL DEFAULT '',
+  origin_session_id TEXT NOT NULL,
+  started_at TEXT NOT NULL CHECK (started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
+  closed_at TEXT CHECK (closed_at IS NULL OR closed_at GLOB ${TS_GLOB_MS} OR closed_at GLOB ${TS_GLOB_NO_MS}),
+  created_at TEXT NOT NULL CHECK (created_at GLOB ${TS_GLOB_MS} OR created_at GLOB ${TS_GLOB_NO_MS}),
+  updated_at TEXT NOT NULL CHECK (updated_at GLOB ${TS_GLOB_MS} OR updated_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+// session_id は PK 単独: 1 セッションは 1 指示にしか属さない。所属替えは UPSERT で上書きする
+// （2 つの指示へ同時に属せると、時間・トークンが二重計上され合計が実測と合わなくなる）。
+// instruction_id の FK は宣言のみで、参照整合は DB では強制されない — trail.db は
+// foreign_keys=OFF で開くため。指示を削除する経路を足す場合、instruction_sessions の
+// 掃除はアプリ側の責務になる（DDL の ON DELETE CASCADE に頼れない）。
+export const CREATE_INSTRUCTION_SESSIONS = `CREATE TABLE IF NOT EXISTS instruction_sessions (
+  session_id TEXT PRIMARY KEY,
+  instruction_id TEXT NOT NULL REFERENCES instructions(id) ON DELETE CASCADE,
+  sequence INTEGER NOT NULL CHECK (sequence >= 1),
+  declared_at TEXT NOT NULL CHECK (declared_at GLOB ${TS_GLOB_MS} OR declared_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_INSTRUCTION_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_instructions_started_at ON instructions(started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_instructions_workspace_open ON instructions(workspace_path, closed_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_instruction_sessions_instruction ON instruction_sessions(instruction_id, sequence)`,
+];
+
+// 検証実施台帳: 1 行 = 検証コマンド 1 回の実行（scripts/run-verified.mjs が書く）。
+// 本定義がスキーマの正本で、writer 側（scripts/verification-db.mjs）はこれを CREATE TABLE IF
+// NOT EXISTS のミラーとして持つ（.mjs から TS を import できないため。verificationStatus.ts が
+// 定数をミラーしているのと同じ方針）。writer は trail.db 側の _migrations（key TEXT PRIMARY KEY）
+// を使わない — 形が非互換で、触ると拡張側のマイグレーション記録を壊すため。
+//
+// session_id は「どの指示の検証か」を解く唯一のキー。instruction_id は非正規化しない:
+// 宣言が無いセッションは instruction_sessions に行を持たず、その場合の指示 ID は session_id
+// そのもの（1 セッション = 1 指示の暗黙グループ）なので、読み出し側で COALESCE すれば足りる。
+// 帰属不明（CLAUDE_CODE_SESSION_ID の無い手動実行）は '' で記録し、指示へは畳まれない。
+export const CREATE_VERIFICATION_RUNS = `CREATE TABLE IF NOT EXISTS verification_runs (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL DEFAULT '',
+  workspace_path TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL CHECK (kind IN ('unit','build','next-build','typecheck','lint','e2e','manual')),
+  package TEXT NOT NULL,
+  command TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pass','fail','error')),
+  duration_ms INTEGER NOT NULL CHECK (duration_ms >= 0),
+  commit_hash TEXT NOT NULL,
+  tree_state TEXT NOT NULL CHECK (tree_state IN ('clean','dirty')),
+  code_state_hash TEXT,
+  environment TEXT CHECK (environment IS NULL OR json_valid(environment)),
+  started_at TEXT NOT NULL CHECK (started_at GLOB ${TS_GLOB_MS} OR started_at GLOB ${TS_GLOB_NO_MS}),
+  finished_at TEXT NOT NULL CHECK (finished_at GLOB ${TS_GLOB_MS} OR finished_at GLOB ${TS_GLOB_NO_MS})
+) STRICT`;
+
+export const CREATE_VERIFICATION_RUN_INDEXES = [
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_session ON verification_runs(session_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_pkg_state ON verification_runs(package, code_state_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_runs_started ON verification_runs(started_at)`,
 ];

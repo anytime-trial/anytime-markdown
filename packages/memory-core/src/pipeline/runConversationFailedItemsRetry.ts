@@ -1,8 +1,9 @@
-import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
+import { PipelineRunLedger } from './PipelineRunLedger';
 import { splitEpisodes, type Message } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { persistEpisodeFacts, type PersistStats } from '../ingest/conversation/persist';
+import { ingestTargetSql } from '../ingest/conversation/messageFilter';
 import { noopLogger, type MemoryLogger } from '../logger';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 
@@ -32,13 +33,6 @@ function resolveExtractConcurrency(): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 1) return DEFAULT_EXTRACT_CONCURRENCY;
   return Math.floor(n);
-}
-
-function runId(startedAt: string): string {
-  return createHash('sha1')
-    .update(`${RETRY_SCOPE}:${startedAt}`)
-    .digest('hex')
-    .slice(0, 16);
 }
 
 interface FailedItemRow {
@@ -85,11 +79,38 @@ function parseItemKey(item_key: string): { session_id: string; message_uuid_star
   };
 }
 
+/**
+ * 再構築の結果。「取込対象から外れた」を「失敗」と区別するために判別子を持つ。
+ *
+ * 両者を null で潰すと、取込条件を狭めた（sidechain 除外・本文ゼロ除外）ときに
+ * 過去の失敗キーが必ず episode_not_found になり、3 件連続で並ぶだけで
+ * QUARANTINE_THRESHOLD に触れて retry スコープ全体が止まる。
+ */
+type ReconstructOutcome =
+  | { readonly kind: 'ok'; readonly episode: ReconstructedEpisode }
+  /** trail.db に行はあるが、現在の取込条件では episode にならない（対象外）。 */
+  | { readonly kind: 'out_of_scope' }
+  /** trail.db にそもそも行が無い（データ欠落・キー破損）。 */
+  | { readonly kind: 'not_found' };
+
+/** 取込条件を外して当該メッセージが trail.db に実在するかを見る。 */
+function messageExistsIgnoringFilter(
+  db: MemoryDbConnection,
+  session_id: string,
+  message_uuid_start: string,
+): boolean {
+  const rows = db.exec(
+    `SELECT 1 FROM trail.messages WHERE session_id = ? AND uuid = ? LIMIT 1`,
+    [session_id, message_uuid_start],
+  );
+  return (rows[0]?.values?.length ?? 0) > 0;
+}
+
 function reconstructEpisode(
   db: MemoryDbConnection,
   session_id: string,
   message_uuid_start: string,
-): ReconstructedEpisode | null {
+): ReconstructOutcome {
   // ATTACHed trail DB から該当 session の messages を取得し、splitEpisodes で
   // 元 episode を再構築する。message_uuid_start が一致する episode を返す。
   const rows = db.exec(
@@ -99,11 +120,18 @@ function reconstructEpisode(
                      '') AS text_excerpt
      FROM trail.messages m
      WHERE m.session_id = ? AND m.timestamp IS NOT NULL
-       AND m.type IN ('user', 'assistant', 'system')
+       AND ${ingestTargetSql('m')}
      ORDER BY m.timestamp`,
     [session_id]
   );
-  if (rows.length === 0 || !rows[0].values || rows[0].values.length === 0) return null;
+  const notFoundOrOutOfScope = (): ReconstructOutcome =>
+    messageExistsIgnoringFilter(db, session_id, message_uuid_start)
+      ? { kind: 'out_of_scope' }
+      : { kind: 'not_found' };
+
+  if (rows.length === 0 || !rows[0].values || rows[0].values.length === 0) {
+    return notFoundOrOutOfScope();
+  }
   const messages: Message[] = [];
   for (const r of rows[0].values) {
     const t = r[2] as string;
@@ -117,7 +145,8 @@ function reconstructEpisode(
     });
   }
   const eps = splitEpisodes(messages);
-  return eps.find((e) => e.message_uuid_start === message_uuid_start) ?? null;
+  const found = eps.find((e) => e.message_uuid_start === message_uuid_start);
+  return found ? { kind: 'ok', episode: found } : notFoundOrOutOfScope();
 }
 
 function deleteFailedItem(db: MemoryDbConnection, scope: string, item_key: string): void {
@@ -163,46 +192,6 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(db: MemoryDbConnection, id: string, startedAt: string): void {
-  db.run(
-    `INSERT INTO memory_pipeline_runs
-       (id, scope, started_at, status,
-        items_processed, entities_inserted, entities_updated,
-        edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms, last_heartbeat_at)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0, ?)`,
-    [id, RETRY_SCOPE, startedAt, startedAt]
-  );
-}
-
-function updateHeartbeatAndProgress(
-  db: MemoryDbConnection,
-  id: string,
-  totals: PersistStats & { items_processed: number; items_failed: number },
-): void {
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       last_heartbeat_at = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       entities_updated  = ?,
-       edges_inserted    = ?,
-       edges_invalidated = ?,
-       items_failed      = ?
-     WHERE id = ?`,
-    [
-      new Date().toISOString(),
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.entities_updated,
-      totals.edges_inserted,
-      totals.edges_invalidated,
-      totals.items_failed,
-      id,
-    ]
-  );
-}
-
 type PartialReturnPayload = {
   status: 'partial';
   items_retried: number;
@@ -216,8 +205,7 @@ type PartialReturnPayload = {
  */
 function enterQuarantine(
   db: MemoryDbConnection,
-  rId: string,
-  startedAt: string,
+  ledger: PipelineRunLedger,
   errorDetail: string,
   totals: PersistStats & { items_processed: number; items_failed: number },
   recoveredCount: number,
@@ -227,49 +215,13 @@ function enterQuarantine(
     `[anytime-memory] failed-items retry: ${QUARANTINE_THRESHOLD} consecutive failures — entering quarantine`
   );
   upsertPipelineState(db, { status: 'quarantine', error_detail: errorDetail });
-  finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+  ledger.finish('partial', totals, errorDetail);
   return {
     status: 'partial',
     items_retried: totals.items_processed,
     items_recovered: recoveredCount,
     items_failed: totals.items_failed,
   };
-}
-
-function finalizePipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string,
-  status: PipelineStatus,
-  totals: PersistStats & { items_processed: number; items_failed: number },
-): void {
-  const finishedAt = new Date().toISOString();
-  const durationMs = Date.now() - new Date(startedAt).getTime();
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       finished_at       = ?,
-       status            = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       entities_updated  = ?,
-       edges_inserted    = ?,
-       edges_invalidated = ?,
-       items_failed      = ?,
-       duration_ms       = ?
-     WHERE id = ?`,
-    [
-      finishedAt,
-      status,
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.entities_updated,
-      totals.edges_inserted,
-      totals.edges_invalidated,
-      totals.items_failed,
-      durationMs,
-      id,
-    ]
-  );
 }
 
 export interface FailedItemsRetryResult {
@@ -319,9 +271,9 @@ export async function runConversationFailedItemsRetry(opts: {
   const extractConcurrency = resolveExtractConcurrency();
 
   const startedAt = new Date().toISOString();
-  const rId = runId(startedAt);
+  const ledger = new PipelineRunLedger({ db, scope: RETRY_SCOPE, wave: 'memory', tier: 3, logger });
 
-  insertPipelineRun(db, rId, startedAt);
+  ledger.start(startedAt);
   upsertPipelineState(db, { status: 'running' });
 
   const items = loadFailedItems(db, sourceScopes, maxAttempts);
@@ -334,6 +286,8 @@ export async function runConversationFailedItemsRetry(opts: {
     items_failed: 0,
   };
   let recoveredCount = 0;
+  /** 取込対象から外れて台帳から落としたキーの数（失敗ではないが黙って消さない）。 */
+  let droppedCount = 0;
   let consecutiveFailures = 0;
   let finalStatus: 'success' | 'partial' | 'error' = 'success';
 
@@ -342,7 +296,7 @@ export async function runConversationFailedItemsRetry(opts: {
       `[anytime-memory] failed-items retry: no items to retry (source=${sourceLabel}, maxAttempts=${maxAttempts})`
     );
     upsertPipelineState(db, { status: 'idle' });
-    finalizePipelineRun(db, rId, startedAt, 'success', totals);
+    ledger.finish('success', totals);
     return { status: 'success', items_retried: 0, items_recovered: 0, items_failed: 0 };
   }
 
@@ -354,16 +308,17 @@ export async function runConversationFailedItemsRetry(opts: {
     for (let batchStart = 0; batchStart < items.length; batchStart += extractConcurrency) {
       const batch = items.slice(batchStart, batchStart + extractConcurrency);
 
-      const episodes: (ReconstructedEpisode | null)[] = batch.map((item) => {
+      const outcomes: ReconstructOutcome[] = batch.map((item) => {
         const parsed = parseItemKey(item.item_key);
-        if (!parsed) return null;
+        if (!parsed) return { kind: 'not_found' };
         return reconstructEpisode(db, parsed.session_id, parsed.message_uuid_start);
       });
 
       const extracted = await Promise.all(
         batch.map(async (item, i) => {
-          const ep = episodes[i];
-          if (!ep) return null;
+          const outcome = outcomes[i];
+          if (outcome.kind !== 'ok') return null;
+          const ep = outcome.episode;
           try {
             return await extractFactsFromEpisode({
               ollama,
@@ -383,7 +338,7 @@ export async function runConversationFailedItemsRetry(opts: {
 
       for (let j = 0; j < batch.length; j++) {
         const item = batch[j];
-        const ep = episodes[j];
+        const outcome = outcomes[j];
         const ex = extracted[j];
 
         totals.items_processed += 1;
@@ -392,18 +347,28 @@ export async function runConversationFailedItemsRetry(opts: {
           logger.info(
             `[anytime-memory] failed-items retry progress: ${totals.items_processed}/${items.length}`
           );
-          updateHeartbeatAndProgress(db, rId, totals);
+          ledger.heartbeat(totals);
           save?.();
         }
 
+        // Case 0: 取込対象から外れたキー (sidechain / 本文ゼロ)。失敗ではないので
+        // 台帳から落とすだけにし、連続失敗カウンタを進めない。ここを失敗として
+        // 数えると、取込条件を狭めた直後に retry スコープが quarantine で止まる。
+        if (outcome.kind === 'out_of_scope') {
+          droppedCount += 1;
+          deleteFailedItem(db, item.scope, item.item_key);
+          consecutiveFailures = 0;
+          continue;
+        }
+
         // Case 1: episode could not be reconstructed (trail.db missing data, malformed key)
-        if (!ep) {
+        if (outcome.kind === 'not_found') {
           totals.items_failed += 1;
           consecutiveFailures += 1;
           recordFailedItem(db, item.scope, item.item_key, 'episode_not_found',
             `episode not reconstructed from trail.db for ${item.item_key}`);
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-            return enterQuarantine(db, rId, startedAt,
+            return enterQuarantine(db, ledger,
               `${QUARANTINE_THRESHOLD} consecutive failures`, totals, recoveredCount, logger);
           }
           continue;
@@ -416,7 +381,7 @@ export async function runConversationFailedItemsRetry(opts: {
           recordFailedItem(db, item.scope, item.item_key, 'extraction_failed',
             `retry attempt ${item.attempt_count + 1} failed`);
           if (consecutiveFailures >= QUARANTINE_THRESHOLD) {
-            return enterQuarantine(db, rId, startedAt,
+            return enterQuarantine(db, ledger,
               `${QUARANTINE_THRESHOLD} consecutive extraction failures`, totals, recoveredCount, logger);
           }
           continue;
@@ -428,7 +393,7 @@ export async function runConversationFailedItemsRetry(opts: {
         try {
           const persisted = persistEpisodeFacts({
             db,
-            episode: ep,
+            episode: outcome.episode,
             extracted: ex,
             recordedAt,
             logger,
@@ -462,7 +427,7 @@ export async function runConversationFailedItemsRetry(opts: {
       status: 'error',
       error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
-    finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+    ledger.fail(err, totals);
     return {
       status: finalStatus,
       items_retried: totals.items_processed,
@@ -472,7 +437,13 @@ export async function runConversationFailedItemsRetry(opts: {
   }
 
   upsertPipelineState(db, { status: 'idle' });
-  finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+  ledger.finish(finalStatus, totals);
+
+  logger.info(
+    `[anytime-memory] failed-items retry: retried=${totals.items_processed} ` +
+      `recovered=${recoveredCount} failed=${totals.items_failed} ` +
+      `dropped_out_of_scope=${droppedCount}`
+  );
 
   return {
     status: finalStatus,

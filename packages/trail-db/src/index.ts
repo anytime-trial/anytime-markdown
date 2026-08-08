@@ -1,3 +1,4 @@
+export { FlightRecordDatabase } from './FlightRecordDatabase';
 export {
   TrailDatabase,
   InMemoryTrailStorage,
@@ -27,10 +28,7 @@ export type {
   DoraReleaseInput,
   DoraCommitInput,
   DoraMetricRow,
-  PrReviewCommentInput,
-  PrReviewUpsert,
   PrReviewRow,
-  PrReviewDetail,
   PrReviewFindingRow,
   CorrelationSessionCommit,
   CorrelationCommitFile,

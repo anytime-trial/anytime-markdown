@@ -85,6 +85,7 @@ function makeDriftEvent(targetSpecPath: string | null): DriftEventInput {
     code_value: null,
     drift_type: 'spec_clarification_recurring',
     severity: 'warn',
+    workspace: '',
     detail: {
       target_spec_path: targetSpecPath,
       group_key: groupKey,
@@ -155,6 +156,7 @@ describe('postProcessF22', () => {
         code_value: null,
         drift_type: 'regression_cluster',
         severity: 'error',
+        workspace: '',
         detail: { target_spec_path: 'spec/api.md' },
       },
     ];

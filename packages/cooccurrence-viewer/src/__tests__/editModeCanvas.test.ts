@@ -2,6 +2,7 @@
  * @jest-environment jsdom
  */
 import type { CooccurrenceFile } from '@anytime-markdown/graph-core';
+import ja from '../i18n/ja.json';
 import { mountCooccurrenceViewer } from '../mountCooccurrenceViewer';
 import { createOzRenderer } from '../scene3d/ozRenderer';
 
@@ -220,7 +221,9 @@ describe('図からの要素追加', () => {
     });
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     const { container, handle } = mount();
-    [...container.querySelectorAll('button')].find((button) => button.textContent === 'OZ 風 3D')?.click();
+    [...container.querySelectorAll('button')]
+      .find((button) => button.textContent === ja.Cooccurrence['toolbar.skinOz'])
+      ?.click();
     expect(container.textContent).toContain('WebGL を初期化できない');
 
     enterEditMode(container);

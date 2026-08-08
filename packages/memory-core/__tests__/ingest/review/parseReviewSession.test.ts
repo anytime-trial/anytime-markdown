@@ -39,7 +39,8 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
       text_content TEXT,
       tool_calls TEXT,
       subagent_type TEXT,
-      skill TEXT
+      skill TEXT,
+      is_sidechain INTEGER NOT NULL DEFAULT 0
     )
   `);
   return db;
@@ -54,22 +55,31 @@ type InsertMsgOpts = {
   tool_calls?: string | null;
   subagent_type?: string | null;
   skill?: string | null;
+  is_sidechain?: number;
 };
+
+/**
+ * 既定の本文。空本文のブロックは「レビュー結果ではない」として登録対象外になるため、
+ * 本文の有無が論点でないテストでは最低限の本文を持たせる（実データでもレビューの
+ * メッセージ列には必ず何らかの本文がある）。
+ */
+const DEFAULT_TEXT = 'レビュー本文';
 
 function insertMsg(trailDb: BetterSqlite3MemoryDb, opts: InsertMsgOpts): void {
   trailDb.run(
     `INSERT INTO messages
-      (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (uuid, session_id, type, timestamp, text_content, tool_calls, subagent_type, skill, is_sidechain)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       opts.uuid,
       opts.session_id,
       opts.type ?? 'user',
       opts.timestamp,
-      opts.text_content ?? null,
+      opts.text_content ?? DEFAULT_TEXT,
       opts.tool_calls ?? null,
       opts.subagent_type ?? null,
       opts.skill ?? null,
+      opts.is_sidechain ?? 0,
     ],
   );
 }
@@ -80,6 +90,155 @@ const silentLogger = { warn: (_msg: string) => {} };
 
 describe('parseReviewSessions', () => {
   // Test 1: empty DB → []
+  test('本文が 1 文字も無いブロックは登録しない（スキル起動だけの痕跡）', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    insertMsg(trailDb, {
+      uuid: 'skill-only',
+      session_id: 'sess-skill',
+      type: 'user',
+      timestamp: '2026-03-02T08:00:00.000Z',
+      text_content: '',
+      skill: 'superpowers:requesting-code-review',
+    });
+    insertMsg(trailDb, {
+      uuid: 'real-review',
+      session_id: 'sess-skill',
+      type: 'assistant',
+      timestamp: '2026-03-02T08:01:00.000Z',
+      text_content: '### 1. 指摘\n\n**問題:** あれ\n**提案:** これ',
+      subagent_type: 'pr-review-toolkit:code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].reviewer).toBe('pr-review-toolkit:code-reviewer');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  test('30 分以上空いた同ラベルのメッセージは別レビューとして分割する', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    insertMsg(trailDb, {
+      uuid: 'morning-1',
+      session_id: 'sess-long',
+      type: 'assistant',
+      timestamp: '2026-03-02T01:00:00.000Z',
+      text_content: '午前のレビュー本文',
+      subagent_type: 'code-reviewer',
+    });
+    insertMsg(trailDb, {
+      uuid: 'afternoon-1',
+      session_id: 'sess-long',
+      type: 'assistant',
+      timestamp: '2026-03-02T05:00:00.000Z',
+      text_content: '午後のレビュー本文',
+      subagent_type: 'code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results).toHaveLength(2);
+    expect(results.map((r) => r.message_uuid_start)).toEqual(['morning-1', 'afternoon-1']);
+    expect(results[0].body_excerpt).toBe('午前のレビュー本文');
+    expect(results[1].body_excerpt).toBe('午後のレビュー本文');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  test('30 分以内の同ラベルは 1 ブロックにまとめる', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    insertMsg(trailDb, {
+      uuid: 'part-1',
+      session_id: 'sess-near',
+      type: 'assistant',
+      timestamp: '2026-03-02T01:00:00.000Z',
+      text_content: '前半',
+      subagent_type: 'code-reviewer',
+    });
+    insertMsg(trailDb, {
+      uuid: 'part-2',
+      session_id: 'sess-near',
+      type: 'assistant',
+      timestamp: '2026-03-02T01:20:00.000Z',
+      text_content: '後半',
+      subagent_type: 'code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].body_excerpt).toBe('前半\n---\n後半');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  test('summary に指摘の内訳と本文長を機械生成する', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    insertMsg(trailDb, {
+      uuid: 'with-findings',
+      session_id: 'sess-sum',
+      type: 'assistant',
+      timestamp: '2026-03-02T01:00:00.000Z',
+      text_content: '### 1. こわれている\n\n- **重大度**: error\n\n**問題:** 落ちる\n**提案:** 直す',
+      subagent_type: 'code-reviewer',
+    });
+    insertMsg(trailDb, {
+      uuid: 'no-findings',
+      session_id: 'sess-sum2',
+      type: 'assistant',
+      timestamp: '2026-03-02T01:00:00.000Z',
+      text_content: '指摘はありませんでした。',
+      subagent_type: 'code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    const withFindings = results.find((r) => r.session_id === 'sess-sum')!;
+    const without = results.find((r) => r.session_id === 'sess-sum2')!;
+    expect(withFindings.summary).toMatch(/^指摘 1 件（error 1 \/ warn 0 \/ info 0）・本文 \d+ 文字$/);
+    // 「指摘なし」と「本文を取り込めていない」を区別できること
+    expect(without.summary).toBe('指摘なし（本文 12 文字）');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
   test('returns [] when no matching messages', async () => {
     const mainDb = makeMainDb();
     const trailDb = makeTrailDb();
@@ -128,6 +287,48 @@ describe('parseReviewSessions', () => {
     });
 
     expect(results).toHaveLength(1);
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  // 会話取込は is_sidechain=1 を除外するが、レビュー取込は **除外してはならない**。
+  // code-reviewer subagent の往復はすべて sidechain として記録されるため、
+  // ここへ同じ条件が混入すると findings が 1 件も取り込まれなくなる。
+  // messageFilter.ts の警告コメントを、実際に落ちる検査へ変換したもの。
+  test('sidechain(is_sidechain=1) の code-reviewer メッセージを取り込む', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    insertMsg(trailDb, {
+      uuid: 'sc-1',
+      session_id: 'sess-sidechain',
+      type: 'user',
+      timestamp: '2026-03-01T10:00:00.000Z',
+      text_content: 'レビューをお願いします',
+      subagent_type: 'code-reviewer',
+      is_sidechain: 1,
+    });
+    insertMsg(trailDb, {
+      uuid: 'sc-2',
+      session_id: 'sess-sidechain',
+      type: 'assistant',
+      timestamp: '2026-03-01T10:01:00.000Z',
+      text_content: 'レビュー結果です',
+      subagent_type: 'code-reviewer',
+      is_sidechain: 1,
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].session_id).toBe('sess-sidechain');
 
     mainDb.close();
     trailDb.close();
@@ -556,6 +757,50 @@ describe('parseReviewSessions', () => {
     expect(results[0].findings[0].category).toBe('security');
     expect(results[0].findings[0].finding_text).toContain('XSS 脆弱性がある');
     expect(results[0].findings[0].suggestion_text).toContain('DOMPurify');
+
+    mainDb.close();
+    trailDb.close();
+  }, 30000);
+
+  // session 経路（code-reviewer subagent 出力）でもメタデータ行の 対象 を読む。
+  // これを読まないと、書式どおり対象を書いたレビューでも target_file_path が NULL になり、
+  // 対処コミットの自動リンク（linkAddresses）の母集合から外れる。
+  test('メタデータ行の 対象 を target_file_path に採る（本文推測より優先）', async () => {
+    const mainDb = makeMainDb();
+    const trailDb = makeTrailDb();
+
+    const reviewText = `## レビュー指摘事項
+
+### 1. NULL 参照
+
+- **重大度**: error
+- **カテゴリ**: logic
+- **対象**: \`packages/trail-viewer/src/views/a.ts:12\`
+- **観点**: §8
+
+**問題:** \`src/foo.ts\` のようなコード例を含む本文。
+
+**提案:** optional chaining を使う。
+`;
+
+    insertMsg(trailDb, {
+      uuid: 'target-marker-uuid',
+      session_id: 'sess-target-marker',
+      type: 'assistant',
+      timestamp: '2026-04-25T11:00:00.000Z',
+      text_content: reviewText,
+      subagent_type: 'code-reviewer',
+    });
+
+    attachTrailDbFromHandle(mainDb, trailDb);
+
+    const results = parseReviewSessions({
+      db: mainDb,
+      sinceISO: '2026-01-01T00:00:00.000Z',
+      logger: silentLogger,
+    });
+
+    expect(results[0].findings[0].target_file_path).toBe('packages/trail-viewer/src/views/a.ts');
 
     mainDb.close();
     trailDb.close();

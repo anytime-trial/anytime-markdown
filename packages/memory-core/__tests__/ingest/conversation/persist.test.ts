@@ -219,7 +219,7 @@ describe('persistEpisodeFacts', () => {
     }
   });
 
-  test('question entity → asked_by + answered_in edges', () => {
+  test('question entity → asked_by edge のみ（answered_in は書かない）', () => {
     const db = makeDb();
     try {
       const logger = makeLogger();
@@ -230,15 +230,15 @@ describe('persistEpisodeFacts', () => {
 
       const stats = persistEpisodeFacts({ db, episode, extracted, recordedAt: TS, logger });
 
-      // 2 edges: asked_by + answered_in
-      expect(stats.edges_inserted).toBe(2);
+      // 人間の発言だけを取り込むため回答は episode 内に無い。answered_in は書かない。
+      expect(stats.edges_inserted).toBe(1);
 
       const edgeRows = db.exec(
         `SELECT predicate FROM memory_edges ORDER BY predicate`,
       );
       const predicates = edgeRows[0]?.values.map((r) => r[0]);
       expect(predicates).toContain('asked_by');
-      expect(predicates).toContain('answered_in');
+      expect(predicates).not.toContain('answered_in');
 
       // Question entity exists
       const qRows = db.exec(
@@ -286,8 +286,8 @@ describe('persistEpisodeFacts', () => {
       });
 
       const s1 = persistEpisodeFacts({ db, episode: episode1, extracted, recordedAt: TS, logger });
-      // asked_by + answered_in = 2 edges
-      expect(s1.edges_inserted).toBeGreaterThanOrEqual(2);
+      // asked_by のみ
+      expect(s1.edges_inserted).toBeGreaterThanOrEqual(1);
 
       // Episode 2: same question again in a new episode
       const episode2 = makeEpisode({

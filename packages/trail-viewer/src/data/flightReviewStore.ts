@@ -92,6 +92,12 @@ export interface FlightReviewViewState {
   readonly reviews: readonly FlightReviewDto[];
   readonly filter: FlightReviewFilterState;
   readonly selectedSessionId: string | null;
+  /**
+   * 選択セッションの flight_review。一覧（reviews）から引かずに単独で取り直す —
+   * Flight Record では一覧の単位が指示になり、選択されたセッションが
+   * 現在の一覧ページに載っているとは限らないため。
+   */
+  readonly selectedReview: FlightReviewDto | null;
   /** 選択セッションの user_feedback_entries（S2 データ。未取得・0 件は空配列）。 */
   readonly selectedFeedback: readonly UserFeedbackDto[];
   /** 選択セッションのコミットに紐付く Rationale ノード（S4。未取得・0 件は空配列）。 */
@@ -144,6 +150,7 @@ export function createFlightReviewStore(
     reviews: [],
     filter: {},
     selectedSessionId: null,
+    selectedReview: null,
     selectedFeedback: [],
     selectedRationale: [],
     saving: false,
@@ -210,6 +217,18 @@ export function createFlightReviewStore(
     }
   }
 
+  async function fetchReview(sessionId: string): Promise<FlightReviewDto | null> {
+    try {
+      const res = await request(`/api/trail/flight-reviews?sessionId=${encodeURIComponent(sessionId)}&limit=1`);
+      if (!res.ok) return null;
+      const json = (await res.json()) as { flightReviews?: FlightReviewDto[] };
+      return json.flightReviews?.[0] ?? null;
+    } catch (err) {
+      console.warn(`[flightReview] failed to fetch review for ${sessionId}: ${errorMessage(err)}`);
+      return null;
+    }
+  }
+
   async function fetchFeedback(sessionId: string): Promise<readonly UserFeedbackDto[]> {
     try {
       const res = await request(`/api/trail/user-feedback?sessionId=${encodeURIComponent(sessionId)}`);
@@ -253,14 +272,18 @@ export function createFlightReviewStore(
     },
     async select(sessionId) {
       if (sessionId === null) {
-        setState({ selectedSessionId: null, selectedFeedback: [], selectedRationale: [], editing: false });
+        setState({ selectedSessionId: null, selectedReview: null, selectedFeedback: [], selectedRationale: [], editing: false });
         return;
       }
       // 行切替は編集の離脱（editing ラッチを解消しポーリングを再開する）
-      setState({ selectedSessionId: sessionId, selectedFeedback: [], selectedRationale: [], editing: false });
-      const [feedback, rationale] = await Promise.all([fetchFeedback(sessionId), fetchRationale(sessionId)]);
+      setState({ selectedSessionId: sessionId, selectedReview: null, selectedFeedback: [], selectedRationale: [], editing: false });
+      const [review, feedback, rationale] = await Promise.all([
+        fetchReview(sessionId),
+        fetchFeedback(sessionId),
+        fetchRationale(sessionId),
+      ]);
       if (disposed || state.selectedSessionId !== sessionId) return;
-      setState({ selectedFeedback: feedback, selectedRationale: rationale });
+      setState({ selectedReview: review, selectedFeedback: feedback, selectedRationale: rationale });
     },
     setEditing(editing) {
       setState({ editing });
@@ -281,7 +304,8 @@ export function createFlightReviewStore(
           return { ok: false, error: json.error ?? `HTTP ${res.status}` };
         }
         setState({ saving: false, editing: false });
-        await refresh();
+        const [, review] = await Promise.all([refresh(), fetchReview(sessionId)]);
+        if (!disposed && state.selectedSessionId === sessionId) setState({ selectedReview: review });
         return { ok: true };
       } catch (err) {
         setState({ saving: false });

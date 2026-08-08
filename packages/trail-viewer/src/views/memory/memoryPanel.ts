@@ -1,27 +1,23 @@
 /**
- * MemoryPanel の vanilla DOM 版。
+ * MemoryPanel（表示名 Trail Pipeline）の vanilla DOM 版。
  *
- * サブタブ状態・hash routing・MemoryReader・dbExists probe・driftRows・
- * pendingBugFilter / pendingReviewFilter を所有し、対応する vanilla サブビューを
- * 直接マウントする（React の `.tsx` ラッパは経由しない）。
+ * 中身は pipeline runs の 1 枚だけである。かつては Drift / Bugs / Reviews / Chat をサブタブで
+ * 切り替えていたが、2026-08-05 に Chat をトップレベルタブへ、残り 3 つを Flight Record へ移設し、
+ * 同日サブタブバーも畳んだ。選択肢が 1 つしかないタブバーは操作の余地が無く、押しても何も
+ * 変わらないコントロールを画面に残すだけになるため。
+ *
+ * したがって本パネルが持つのは `MemoryReader` と DB 存在プローブ（loading / noDb / 本体の
+ * 3 状態）だけで、サブタブ状態・hash routing・サブビューの出し分けは持たない。
+ * `#memory/<tab>` の hash も解釈しない（対応する選択肢が無い）。
  *
  * 呼び出し側（components/MemoryPanel.tsx）は thin React wrapper として
- * useTrailTheme / useTrailI18n / useChatBridge を解決し、
- * tokens / isDark / t / bridge を props に含めてこのビューに渡す。
+ * useTrailTheme / useTrailI18n を解決し、
+ * tokens / isDark / t を props に含めてこのビューに渡す。
  */
-import { createTabs } from '@anytime-markdown/ui-core';
 import type { TrailThemeTokens } from '../../theme/designTokens';
 import type { VanillaViewHandle } from '../../shared/vanillaIsland';
-import { MEMORY_TAB_DEFS, type MemoryTabValue } from '../../components/memoryTabs';
 import { MemoryReader } from '../../data/readers/MemoryReader';
-import type { MemoryDriftEventRow } from '../../data/types';
-import type { ChatBridge } from '../../hooks/useChatBridge';
-import type { DriftHistoryPoint } from '@anytime-markdown/trail-core';
-import { mountDriftPanel } from './driftPanel';
-import { mountBugHistoryPanel } from './bugHistoryPanel';
-import { mountReviewPanel } from './reviewPanel';
 import { mountPipelineRunsPanel } from './pipelineRunsPanel';
-import { mountChatPanel } from './chatPanel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,21 +28,9 @@ export interface MemoryPanelViewProps {
   readonly tokens: TrailThemeTokens;
   readonly isDark: boolean;
   readonly t: (key: string) => string;
-  readonly bridge: ChatBridge;
-  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function parseHashSubTab(hash: string): MemoryTabValue | null {
-  const match = /^#memory\/(drift|bug|review|runs|chat)/.exec(hash);
-  if (!match) return null;
-  return match[1] as MemoryTabValue;
-}
-
-type SubHandle = VanillaViewHandle<unknown> | null;
+type RunsHandle = VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>;
 
 // ---------------------------------------------------------------------------
 // Mount
@@ -60,13 +44,7 @@ export function mountMemoryPanel(
   let destroyed = false;
 
   // --- State -----------------------------------------------------------------
-  let activeTab: MemoryTabValue =
-    parseHashSubTab(globalThis.location?.hash ?? '') ?? 'drift';
   let dbExists: boolean | null = null;
-  let driftRows: readonly MemoryDriftEventRow[] = [];
-  let driftHistory: readonly DriftHistoryPoint[] = [];
-  let pendingBugFilter: { bugEntityIds: readonly string[] } | null = null;
-  let pendingReviewFilter: { findingEntityIds: readonly string[] } | null = null;
 
   const reader = new MemoryReader(props.serverUrl);
   let currentServerUrl = props.serverUrl;
@@ -114,220 +92,23 @@ export function mountMemoryPanel(
   noDbDesc.textContent = props.t('memory.noDb.description');
   noDbEl.append(noDbTitle, noDbDesc);
 
-  // --- Tab bar ---------------------------------------------------------------
-  const tabBarWrap = document.createElement('div');
-  tabBarWrap.style.cssText =
-    'border-bottom:1px solid var(--am-color-divider);flex-shrink:0;';
-
-  const tabs = createTabs({
-    value: activeTab,
-    tabs: MEMORY_TAB_DEFS.map((d) => ({
-      value: d.value,
-      label: props.t(d.i18nKey),
-      id: d.id,
-      ariaControls: d.panelId,
-    })),
-    ariaLabel: 'memory sub-tabs',
-    onChange: (v) => {
-      switchTab(v as MemoryTabValue);
-    },
-  });
-  tabBarWrap.appendChild(tabs.el);
-
   // --- Panel host ------------------------------------------------------------
+  // 一度マウントしたら破棄しない（展開行・スクロール位置などの下位 UI 状態を保つ）。
   const panelHost = document.createElement('div');
   panelHost.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;';
 
-  // --- Sub-view handles ------------------------------------------------------
-  // 旧 MemoryPanel.tsx は 5 サブパネルを常時マウントし CSS display のみで切替えて
-  // 下位のローカル UI 状態（Chat 入力・展開行・スクロール位置）を保持していた。
-  // vanilla でも初回訪問で mount したパネルは保持し、切替は display で行う（毎回破棄しない）。
-  const subHosts = new Map<MemoryTabValue, HTMLElement>();
-  const subHandles = new Map<MemoryTabValue, SubHandle>();
-  let mountedTab: MemoryTabValue | null = null;
+  let runsHandle: RunsHandle | null = null;
 
-  function buildSubForTab(tab: MemoryTabValue, host: HTMLElement): SubHandle {
-    const tStr = props.t;
-    if (tab === 'drift') {
-      return mountDriftPanel(host, {
-        t: tStr,
-        rows: driftRows,
-        historyPoints: driftHistory,
-        isDark: props.isDark,
-        onResolve: handleResolve,
-        onLoadDetail: (id) => reader.getDriftEventDetail(id),
-      }) as SubHandle;
-    }
-    if (tab === 'bug') {
-      return mountBugHistoryPanel(host, {
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingReviews: handleOpenPrecedingReviews,
-        onOpenSiblingBugs: handleOpenPrecedingBugs,
-        pendingBugFilter,
-      }) as SubHandle;
-    }
-    if (tab === 'review') {
-      return mountReviewPanel(host, {
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingBugs: handleOpenPrecedingBugs,
-        pendingReviewFilter,
-      }) as SubHandle;
-    }
-    if (tab === 'runs') {
-      return mountPipelineRunsPanel(host, {
-        t: tStr,
-        reader,
-        isDark: props.isDark,
-      }) as SubHandle;
-    }
-    // chat
-    return mountChatPanel(host, {
-      t: tStr,
-      bridge: props.bridge,
-    }) as SubHandle;
+  function runsProps(): Parameters<typeof mountPipelineRunsPanel>[1] {
+    return { t: props.t, reader, isDark: props.isDark };
   }
 
-  function updateSubForTab(tab: MemoryTabValue): void {
-    const handle = subHandles.get(tab);
-    if (!handle) return;
-    const tStr = props.t;
-    if (tab === 'drift') {
-      (handle as VanillaViewHandle<Parameters<typeof mountDriftPanel>[1]>).update({
-        t: tStr,
-        rows: driftRows,
-        historyPoints: driftHistory,
-        isDark: props.isDark,
-        onResolve: handleResolve,
-        onLoadDetail: (id) => reader.getDriftEventDetail(id),
-      });
-    } else if (tab === 'bug') {
-      (handle as VanillaViewHandle<Parameters<typeof mountBugHistoryPanel>[1]>).update({
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingReviews: handleOpenPrecedingReviews,
-        onOpenSiblingBugs: handleOpenPrecedingBugs,
-        pendingBugFilter,
-      });
-    } else if (tab === 'review') {
-      (handle as VanillaViewHandle<Parameters<typeof mountReviewPanel>[1]>).update({
-        t: tStr,
-        reader,
-        onOpenSessionMessages: props.onOpenSessionMessages,
-        onOpenPrecedingBugs: handleOpenPrecedingBugs,
-        pendingReviewFilter,
-      });
-    } else if (tab === 'runs') {
-      (handle as VanillaViewHandle<Parameters<typeof mountPipelineRunsPanel>[1]>).update({
-        t: tStr,
-        reader,
-        isDark: props.isDark,
-      });
-    } else {
-      (handle as VanillaViewHandle<Parameters<typeof mountChatPanel>[1]>).update({
-        t: tStr,
-        bridge: props.bridge,
-      });
+  function mountRuns(): void {
+    if (runsHandle === null) {
+      runsHandle = mountPipelineRunsPanel(panelHost, runsProps());
+      return;
     }
-  }
-
-  function destroySub(): void {
-    for (const handle of subHandles.values()) {
-      if (handle) (handle as VanillaViewHandle<unknown>).destroy();
-    }
-    subHandles.clear();
-    subHosts.clear();
-    mountedTab = null;
-    panelHost.replaceChildren();
-  }
-
-  /** 初回はマウント、以降は display 切替で表示する（状態保持）。 */
-  function mountSubForTab(tab: MemoryTabValue): void {
-    let host = subHosts.get(tab);
-    const fresh = !host;
-    if (!host) {
-      host = document.createElement('div');
-      host.style.cssText = 'flex:1;overflow:hidden;flex-direction:column;';
-      host.setAttribute('data-memory-tab-host', tab);
-      panelHost.appendChild(host);
-      subHosts.set(tab, host);
-      subHandles.set(tab, buildSubForTab(tab, host));
-    }
-    for (const [k, h] of subHosts) {
-      h.style.display = k === tab ? 'flex' : 'none';
-    }
-    mountedTab = tab;
-    // 既マウントのタブへ切替える場合は最新 props / pending filter（cross-tab 遷移）を反映する。
-    // 新規マウント時は build 時点で反映済みのため不要。
-    if (!fresh) updateSubForTab(tab);
-  }
-
-  function updateSub(): void {
-    // マウント済みの全サブパネルを最新 props で更新する（旧: 全マウントで全 re-render）。
-    for (const tab of subHandles.keys()) updateSubForTab(tab);
-  }
-
-  // --- Tab switch ------------------------------------------------------------
-  function switchTab(tab: MemoryTabValue, updateHash = true): void {
-    activeTab = tab;
-    pendingBugFilter = null;
-    pendingReviewFilter = null;
-
-    tabs.update({ value: tab });
-
-    if (updateHash && typeof globalThis.history !== 'undefined') {
-      globalThis.history.replaceState(null, '', `#memory/${tab}`);
-    }
-
-    if (dbExists === true) {
-      mountSubForTab(tab);
-    }
-  }
-
-  // --- Cross-tab filter callbacks --------------------------------------------
-  function handleOpenPrecedingBugs(bugEntityIds: readonly string[]): void {
-    pendingBugFilter = { bugEntityIds };
-    pendingReviewFilter = null;
-    activeTab = 'bug';
-    tabs.update({ value: 'bug' });
-    if (typeof globalThis.history !== 'undefined') {
-      globalThis.history.replaceState(null, '', '#memory/bug');
-    }
-    if (dbExists === true) {
-      mountSubForTab('bug');
-    }
-  }
-
-  function handleOpenPrecedingReviews(findingEntityIds: readonly string[]): void {
-    pendingReviewFilter = { findingEntityIds };
-    pendingBugFilter = null;
-    activeTab = 'review';
-    tabs.update({ value: 'review' });
-    if (typeof globalThis.history !== 'undefined') {
-      globalThis.history.replaceState(null, '', '#memory/review');
-    }
-    if (dbExists === true) {
-      mountSubForTab('review');
-    }
-  }
-
-  // --- Resolve drift event ---------------------------------------------------
-  async function handleResolve(id: string, note: string): Promise<void> {
-    await reader.resolveDriftEvent(id, note);
-    const [updated, points] = await Promise.all([
-      reader.listDriftEvents({ unresolvedOnly: false, limit: 200 }),
-      reader.getDriftHistoryByDay(),
-    ]);
-    if (destroyed) return;
-    driftRows = updated;
-    driftHistory = points;
-    if (mountedTab === 'drift') {
-      updateSub();
-    }
+    runsHandle.update(runsProps());
   }
 
   // --- Root render -----------------------------------------------------------
@@ -349,35 +130,14 @@ export function mountMemoryPanel(
     }
 
     // dbExists === true
-    root.append(tabBarWrap, panelHost);
-    mountSubForTab(activeTab);
+    root.appendChild(panelHost);
+    mountRuns();
   }
 
   // --- Probe on mount --------------------------------------------------------
   void reader.probe().then((exists) => {
     if (destroyed) return;
     dbExists = exists;
-
-    if (exists) {
-      // Load drift rows immediately
-      void reader.listDriftEvents({ unresolvedOnly: false, limit: 200 }).then((rows) => {
-        if (destroyed) return;
-        driftRows = rows;
-        // If drift tab is already visible, update it
-        if (mountedTab === 'drift') {
-          updateSub();
-        }
-      });
-      // Phase 6 S5-C: 推移は一覧（limit 200）と別経路のサーバ側集計から取る
-      void reader.getDriftHistoryByDay().then((points) => {
-        if (destroyed) return;
-        driftHistory = points;
-        if (mountedTab === 'drift') {
-          updateSub();
-        }
-      });
-    }
-
     render();
   });
 
@@ -390,21 +150,10 @@ export function mountMemoryPanel(
       const urlChanged = next.serverUrl !== currentServerUrl;
       props = next;
 
-      // Update tab labels in case t() changed
-      tabs.update({
-        tabs: MEMORY_TAB_DEFS.map((d) => ({
-          value: d.value,
-          label: props.t(d.i18nKey),
-          id: d.id,
-          ariaControls: d.panelId,
-        })),
-        value: activeTab,
-      });
-
       if (urlChanged) {
         // serverUrl changed: re-probe with new reader is not worth the complexity;
         // the React wrapper recreates the whole island if serverUrl changes.
-        // For now reflect only t/isDark/bridge changes to the active sub-view.
+        // For now reflect only t/isDark changes to the mounted panel.
         currentServerUrl = next.serverUrl;
       }
 
@@ -413,13 +162,12 @@ export function mountMemoryPanel(
       noDbTitle.textContent = props.t('memory.noDb');
       noDbDesc.textContent = props.t('memory.noDb.description');
 
-      // Propagate to current sub-view
-      updateSub();
+      if (runsHandle !== null) runsHandle.update(runsProps());
     },
     destroy() {
       destroyed = true;
-      destroySub();
-      tabs.destroy();
+      runsHandle?.destroy();
+      runsHandle = null;
       root.remove();
     },
   };

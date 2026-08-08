@@ -37,11 +37,24 @@ jest.mock('../../src/pipeline/runCodeReconciliation', () => ({
 jest.mock('../../src/pipeline/runBugHistoryIncremental', () => ({
   runBugHistoryIncremental: jest.fn(),
 }));
+// 既定では実装をそのまま通す（実 DB への出力で検証する本スイートの方針を保つ）。
+// jest.fn で包むのは呼び出し回数を数えるため。個々のテストで mockImplementation を
+// 差し替えれば、失敗・例外の握り潰し経路も検証できる。
+jest.mock('../../src/pipeline/runReviewBackfill', () => {
+  const actual = jest.requireActual('../../src/pipeline/runReviewBackfill');
+  return { runReviewBackfill: jest.fn((...args: unknown[]) => actual.runReviewBackfill(...args)) };
+});
 jest.mock('../../src/pipeline/runReviewIncremental', () => ({
   runReviewIncremental: jest.fn(),
 }));
 jest.mock('../../src/pipeline/runSpecIncremental', () => ({
   runSpecIncremental: jest.fn(),
+}));
+// runSpecIncremental とセットでモックする。実装は specRoot（既定は開発機の
+// /Shared/anytime-markdown-docs/spec）を実際に読むため、モックし忘れると
+// そのパスを持つ環境でだけ通り、持たない CI でだけ落ちる。
+jest.mock('../../src/pipeline/runSpecReconciliation', () => ({
+  runSpecReconciliation: jest.fn(),
 }));
 jest.mock('../../src/pipeline/runDriftDetection', () => ({
   runDriftDetection: jest.fn(),
@@ -60,7 +73,9 @@ import { runCodeIncremental } from '../../src/pipeline/runCodeIncremental';
 import { runCodeReconciliation } from '../../src/pipeline/runCodeReconciliation';
 import { runBugHistoryIncremental } from '../../src/pipeline/runBugHistoryIncremental';
 import { runReviewIncremental } from '../../src/pipeline/runReviewIncremental';
+import { runReviewBackfill } from '../../src/pipeline/runReviewBackfill';
 import { runSpecIncremental } from '../../src/pipeline/runSpecIncremental';
+import { runSpecReconciliation } from '../../src/pipeline/runSpecReconciliation';
 import { runDriftDetection } from '../../src/pipeline/runDriftDetection';
 import { runEmbeddingBackfill } from '../../src/pipeline/runEmbeddingBackfill';
 
@@ -72,7 +87,21 @@ const mockRunCodeIncremental = runCodeIncremental as jest.MockedFunction<typeof 
 const mockRunCodeReconciliation = runCodeReconciliation as jest.MockedFunction<typeof runCodeReconciliation>;
 const mockRunBugHistoryIncremental = runBugHistoryIncremental as jest.MockedFunction<typeof runBugHistoryIncremental>;
 const mockRunReviewIncremental = runReviewIncremental as jest.MockedFunction<typeof runReviewIncremental>;
+const mockRunReviewBackfill = runReviewBackfill as jest.MockedFunction<typeof runReviewBackfill>;
 const mockRunSpecIncremental = runSpecIncremental as jest.MockedFunction<typeof runSpecIncremental>;
+const mockRunSpecReconciliation = runSpecReconciliation as jest.MockedFunction<typeof runSpecReconciliation>;
+
+/** runSpecReconciliation の成功戻り値。件数はすべて 0（掃除対象なし）。 */
+const specReconciliationOk = {
+  status: 'success',
+  scanned: 0,
+  removed_docs: 0,
+  soft_deleted_doc_entities: 0,
+  invalidated_edges: 0,
+  soft_deleted_orphan_entities: 0,
+  error_detail: '',
+  duration_ms: 0,
+} as const;
 const mockRunDriftDetection = runDriftDetection as jest.MockedFunction<typeof runDriftDetection>;
 const mockRunEmbeddingBackfill = runEmbeddingBackfill as jest.MockedFunction<typeof runEmbeddingBackfill>;
 
@@ -88,9 +117,14 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
     source TEXT NOT NULL DEFAULT 'claude_code'
       CHECK (source IN ('claude_code','codex','gemini','cursor','other'))
   ) STRICT`);
+  // レビュー取込が参照する列まで含めた最小 fixture（本番 trail.messages は 37 列）。
+  // tool_calls / subagent_type / skill が欠けると parseReviewSessions の SELECT が
+  // SQL エラーになり、失敗が catch で握り潰されて経路ごと黙って死ぬ。
   db.run(`CREATE TABLE messages (
     uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT
+    type TEXT NOT NULL, timestamp TEXT, text_content TEXT, user_content TEXT,
+    tool_calls TEXT, subagent_type TEXT, skill TEXT,
+    is_sidechain INTEGER NOT NULL DEFAULT 0
   ) STRICT`);
   return db;
 }
@@ -131,6 +165,8 @@ describe('MemoryDbSession', () => {
       items_retried: 0,
       items_failed: 0,
     });
+    // デフォルト: spec の掃除は成功 no-op（失敗経路は個別テストで差し替える）
+    mockRunSpecReconciliation.mockReturnValue({ ...specReconciliationOk });
   });
 
   // ── close() ────────────────────────────────────────────────────────────
@@ -538,6 +574,104 @@ describe('MemoryDbSession', () => {
       trailDb.close();
     });
 
+    // runReviewBackfillOnce の失敗は「取込は継続」の設計で握り潰されるため、
+    // 完了印と呼び出し回数を見ないと壊れていても気づけない（実測: scope の CHECK 制約に
+    // 新スコープが無く、印の書き込みが毎回例外になっていた）。
+    it('review_body_backfill の完了印を残し、2 回目は本体を呼ばない', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      // 走査対象を 1 件用意する（0 件だと印を保留する仕様）。
+      // attach はハンドルの内容を取り込むため、**makeSession より前**に入れる。
+      trailDb.run("INSERT INTO sessions (id) VALUES ('s1')");
+      trailDb.run(
+        `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, subagent_type)
+         VALUES ('m1', 's1', 'assistant', '2026-03-02T00:00:00.000Z', 'レビュー本文', 'code-reviewer')`,
+      );
+      const session = makeSession(memDb, trailDb);
+      mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 0 });
+
+      await session.runReview();
+
+      expect(mockRunReviewBackfill).toHaveBeenCalledTimes(1);
+      const first = memDb.db.exec(
+        "SELECT last_processed_at FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+      );
+      expect(String(first[0]?.values?.[0]?.[0] ?? '')).not.toBe('');
+
+      await session.runReview();
+
+      // 実行時間が 0ms でも成立するよう、時刻比較ではなく呼び出し回数で判定する
+      expect(mockRunReviewBackfill).toHaveBeenCalledTimes(1);
+
+      trailDb.close();
+    });
+
+    it('走査対象が 0 件のときは完了印を残さない（次回再試行できる）', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+      mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 0 });
+      // trail.messages が空 = 差し替え直後・取込ラグ中。何も是正できていない
+
+      await session.runReview();
+
+      const rows = memDb.db.exec(
+        "SELECT scope FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+      );
+      expect(rows[0]?.values ?? []).toEqual([]);
+
+      await session.runReview();
+      expect(mockRunReviewBackfill).toHaveBeenCalledTimes(2);
+
+      trailDb.close();
+    });
+
+    it('backfill が error を返したら印を残さずログを出す（取込は継続）', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const logger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() };
+      const session = makeSession(memDb, trailDb, { logger });
+      mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 0 });
+      mockRunReviewBackfill.mockReturnValueOnce({
+        status: 'error',
+        parsed_blocks: 0,
+        bodies_filled: 0,
+        shells_removed: 0,
+        shell_entities_invalidated: 0,
+        error_detail: 'boom',
+      });
+
+      const result = await session.runReview();
+
+      expect(result.status).toBe('success');
+      expect(logger.error).toHaveBeenCalled();
+      const rows = memDb.db.exec(
+        "SELECT scope FROM memory_pipeline_state WHERE scope = 'review_body_backfill'",
+      );
+      expect(rows[0]?.values ?? []).toEqual([]);
+
+      trailDb.close();
+    });
+
+    it('backfill が例外を投げても取込は完走し、ログを出す', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const logger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() };
+      const session = makeSession(memDb, trailDb, { logger });
+      mockRunReviewIncremental.mockResolvedValue({ status: 'success', items_processed: 3 });
+      mockRunReviewBackfill.mockImplementationOnce(() => {
+        throw new Error('CHECK constraint failed');
+      });
+
+      const result = await session.runReview();
+
+      expect(result.status).toBe('success');
+      expect(result.itemsProcessed).toBe(3);
+      expect(logger.error).toHaveBeenCalled();
+
+      trailDb.close();
+    });
+
     it('uses MEMORY_CORE_REVIEW_DIR env var', async () => {
       const memDb = await makeMemoryDb();
       const trailDb = makeTrailDb();
@@ -626,7 +760,31 @@ describe('MemoryDbSession', () => {
 
       const callArg = mockRunSpecIncremental.mock.calls[0]?.[0];
       expect(callArg?.specRoot).toBe('/custom/spec');
+      expect(mockRunSpecReconciliation.mock.calls[0]?.[0]?.specRoot).toBe('/custom/spec');
       delete process.env.MEMORY_CORE_SPEC_DIR;
+
+      trailDb.close();
+    });
+
+    // 掃除の失敗は取込が成功していても error として上げる。ここを緩めると
+    // specRoot が読めない状態が続いてもパイプラインは success を報告し続ける。
+    it('reports error when reconciliation fails even if the incremental run succeeded', async () => {
+      const memDb = await makeMemoryDb();
+      const trailDb = makeTrailDb();
+      const session = makeSession(memDb, trailDb);
+
+      mockRunSpecIncremental.mockResolvedValue({ status: 'ok', items_processed: 3 });
+      mockRunSpecReconciliation.mockReturnValue({
+        ...specReconciliationOk,
+        status: 'error',
+        error_detail: 'specRoot unreadable',
+      });
+
+      const result = await session.runSpec();
+
+      expect(result.status).toBe('error');
+      expect(result.error).toBe('specRoot unreadable');
+      expect(result.itemsProcessed).toBe(3);
 
       trailDb.close();
     });
@@ -714,16 +872,18 @@ describe('MemoryDbSession', () => {
       const session = makeSession(memDb, trailDb);
 
       mockRunEmbeddingBackfill.mockResolvedValue({
-        status: 'ok',
+        status: 'success',
         items_processed: 10,
         items_failed: 1,
+        items_skipped: 0,
+        processed_by_target: { entities: 10, episodes: 0, spec_documents: 0 },
       });
 
       const result = await session.runEmbeddingBackfill();
 
       expect(mockRunEmbeddingBackfill).toHaveBeenCalledTimes(1);
       expect(result.scope).toBe('embedding_backfill');
-      expect(result.status).toBe('ok');
+      expect(result.status).toBe('success');
       expect(result.itemsProcessed).toBe(10);
       expect(result.itemsFailed).toBe(1);
       expect(memDb.save).toHaveBeenCalled();
@@ -743,7 +903,7 @@ describe('MemoryDbSession', () => {
         embedModel: 'my-embed-model',
       });
 
-      mockRunEmbeddingBackfill.mockResolvedValue({ status: 'ok', items_processed: 0, items_failed: 0 });
+      mockRunEmbeddingBackfill.mockResolvedValue({ status: 'success', items_processed: 0, items_failed: 0, items_skipped: 0, processed_by_target: { entities: 0, episodes: 0, spec_documents: 0 } });
 
       await session.runEmbeddingBackfill();
 
@@ -1074,7 +1234,13 @@ describe('MemoryDbSession', () => {
       mockRunEmbeddingBackfill.mockImplementation(async (opts) => {
         opts.onTotal?.(5);
         opts.progress?.(2, 0);
-        return { status: 'ok', items_processed: 2, items_failed: 0 };
+        return {
+          status: 'success',
+          items_processed: 2,
+          items_failed: 0,
+          items_skipped: 0,
+          processed_by_target: { entities: 2, episodes: 0, spec_documents: 0 },
+        };
       });
 
       await session.runEmbeddingBackfill();

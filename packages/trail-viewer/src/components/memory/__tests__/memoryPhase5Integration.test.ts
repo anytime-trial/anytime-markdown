@@ -9,11 +9,11 @@ import type { MemoryDriftEventRow, MemoryBugHistoryRow, MemoryReviewHistoryRow, 
 // ---- Synthetic dataset ----
 
 const DRIFT_EVENTS: readonly MemoryDriftEventRow[] = [
-  { id: 'd1', subjectEntityId: 'e1', subjectDisplayName: 'TrailDataServer', predicate: 'has_impl', driftType: 'spec_vs_code', severity: 'error', conversationValue: null, specValue: 'expected', codeValue: 'actual', detectedAt: '2026-01-10T00:00:00.000Z', resolvedAt: null, resolutionNote: '' },
-  { id: 'd2', subjectEntityId: 'e2', subjectDisplayName: 'MemoryReader', predicate: 'has_test', driftType: 'test_missing', severity: 'warn', conversationValue: null, specValue: null, codeValue: null, detectedAt: '2026-01-11T00:00:00.000Z', resolvedAt: null, resolutionNote: '' },
-  { id: 'd3', subjectEntityId: 'e3', subjectDisplayName: 'BugPanel', predicate: 'has_impl', driftType: 'spec_vs_code', severity: 'info', conversationValue: null, specValue: null, codeValue: null, detectedAt: '2026-01-12T00:00:00.000Z', resolvedAt: '2026-01-15T00:00:00.000Z', resolutionNote: 'Fixed' },
-  { id: 'd4', subjectEntityId: 'e4', subjectDisplayName: 'ReviewPanel', predicate: 'has_impl', driftType: 'spec_vs_code', severity: 'warn', conversationValue: null, specValue: null, codeValue: null, detectedAt: '2026-01-13T00:00:00.000Z', resolvedAt: null, resolutionNote: '' },
-  { id: 'd5', subjectEntityId: 'e5', subjectDisplayName: 'PipelineRuns', predicate: 'has_test', driftType: 'test_missing', severity: 'error', conversationValue: null, specValue: null, codeValue: null, detectedAt: '2026-01-14T00:00:00.000Z', resolvedAt: null, resolutionNote: '' },
+  { id: 'd1', subjectEntityId: 'e1', subjectDisplayName: 'TrailDataServer', predicate: 'has_impl', driftType: 'spec_vs_code', severity: 'error', conversationValue: null, specValue: 'expected', codeValue: 'actual', detectedAt: '2026-01-10T00:00:00.000Z', resolvedAt: null, resolutionNote: '', workspace: '' },
+  { id: 'd2', subjectEntityId: 'e2', subjectDisplayName: 'MemoryReader', predicate: 'has_test', driftType: 'test_missing', severity: 'warn', conversationValue: null, specValue: null, codeValue: null, detectedAt: '2026-01-11T00:00:00.000Z', resolvedAt: null, resolutionNote: '', workspace: '' },
+  { id: 'd3', subjectEntityId: 'e3', subjectDisplayName: 'BugPanel', predicate: 'has_impl', driftType: 'spec_vs_code', severity: 'info', conversationValue: null, specValue: null, codeValue: null, detectedAt: '2026-01-12T00:00:00.000Z', resolvedAt: '2026-01-15T00:00:00.000Z', resolutionNote: 'Fixed', workspace: '' },
+  { id: 'd4', subjectEntityId: 'e4', subjectDisplayName: 'ReviewPanel', predicate: 'has_impl', driftType: 'spec_vs_code', severity: 'warn', conversationValue: null, specValue: null, codeValue: null, detectedAt: '2026-01-13T00:00:00.000Z', resolvedAt: null, resolutionNote: '', workspace: '' },
+  { id: 'd5', subjectEntityId: 'e5', subjectDisplayName: 'PipelineRuns', predicate: 'has_test', driftType: 'test_missing', severity: 'error', conversationValue: null, specValue: null, codeValue: null, detectedAt: '2026-01-14T00:00:00.000Z', resolvedAt: null, resolutionNote: '', workspace: '' },
 ];
 
 const BUG_HISTORY: readonly MemoryBugHistoryRow[] = Array.from({ length: 10 }, (_, i) => ({
@@ -24,8 +24,10 @@ const BUG_HISTORY: readonly MemoryBugHistoryRow[] = Array.from({ length: 10 }, (
   category: i < 3 ? 'regression' : i < 5 ? 'spec' : 'logic',
   subjectSummary: `Bug fix #${i}: something broke`,
   sessionId: `sess-${i}`,
+  instructionId: `inst-${i}`,
   committedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
   precededByFindingIds: [],
+  workspace: '',
 }));
 
 const REVIEW_HISTORY: readonly MemoryReviewHistoryRow[] = Array.from({ length: 8 }, (_, i) => ({
@@ -38,6 +40,8 @@ const REVIEW_HISTORY: readonly MemoryReviewHistoryRow[] = Array.from({ length: 8
   model: null,
   sessionId: `sess-${i}`,
   reviewedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
+  workspace: 'anytime-markdown',
+  targetRepo: 'anytime-markdown',
   targetFilePath: i % 2 === 0 ? `src/file${i}.ts` : null,
   category: i < 4 ? 'security' : 'performance',
   severity: i < 2 ? 'error' : i < 6 ? 'warn' : 'info',
@@ -52,6 +56,7 @@ const PIPELINE_STATS: readonly MemoryPipelineRunStatsByDayRow[] = ['drift', 'spe
   Array.from({ length: 4 }, (_, i) => ({
     day: `2026-01-${String(si * 4 + i + 1).padStart(2, '0')}`,
     scope,
+    wave: 'memory',
     runs: 1,
     durationSec: 10 + i,
     itemsProcessed: 5 + i,

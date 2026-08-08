@@ -35,6 +35,7 @@ function makeRow(over: Partial<MemoryDriftEventRow> = {}): MemoryDriftEventRow {
     detectedAt: '2026-06-01T00:00:00.000Z',
     resolvedAt: null,
     resolutionNote: '',
+    workspace: '',
     ...over,
   };
 }
@@ -57,7 +58,7 @@ describe('mountDriftPanel', () => {
   it('rows が空なら empty メッセージを表示する', () => {
     const c = document.createElement('div');
     mountDriftPanel(c, basePanelProps());
-    expect(c.textContent).toContain('memory.drift.empty');
+    expect(c.textContent).toContain('flightRecord.drift.empty');
     expect(c.querySelector('table')).toBeNull();
   });
 
@@ -115,7 +116,7 @@ describe('mountDriftPanel', () => {
 
     // "Detail" ボタンを押す
     const detailBtn = [...c.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('memory.drift.detail'),
+      b.textContent?.includes('flightRecord.drift.detail'),
     ) as HTMLButtonElement | undefined;
     expect(detailBtn).toBeDefined();
     detailBtn?.click();
@@ -147,9 +148,9 @@ describe('mountDriftPanel', () => {
     expect(c.querySelector('tbody')?.children.length).toBe(1);
 
     // resolved chip が表示され Detail ボタンはない
-    expect(c.textContent).toContain('memory.drift.resolved');
+    expect(c.textContent).toContain('flightRecord.drift.resolved');
     const hasDetail = [...c.querySelectorAll('button')].some((b) =>
-      b.textContent?.includes('memory.drift.detail'),
+      b.textContent?.includes('flightRecord.drift.detail'),
     );
     expect(hasDetail).toBe(false);
   });
@@ -157,7 +158,7 @@ describe('mountDriftPanel', () => {
   it('update() で rows を差し替えると再描画される', () => {
     const c = document.createElement('div');
     const handle = mountDriftPanel(c, basePanelProps());
-    expect(c.textContent).toContain('memory.drift.empty');
+    expect(c.textContent).toContain('flightRecord.drift.empty');
 
     handle.update(basePanelProps({ rows: [makeRow()] }));
     expect(c.querySelector('table')).not.toBeNull();
@@ -343,7 +344,7 @@ describe('mountDriftDetailDialog', () => {
     mountDriftDetailDialog(document.body, baseDialogProps());
     await flush();
     const buttons = [...document.body.querySelectorAll('button')];
-    const resolveBtn = buttons.find((b) => b.textContent?.includes('memory.drift.resolve'));
+    const resolveBtn = buttons.find((b) => b.textContent?.includes('flightRecord.drift.resolve'));
     expect(resolveBtn).toBeDefined();
   });
 
@@ -361,7 +362,7 @@ describe('mountDriftDetailDialog', () => {
     );
     await flush();
     const buttons = [...document.body.querySelectorAll('button')];
-    const resolveBtn = buttons.find((b) => b.textContent?.includes('memory.drift.resolve')) as
+    const resolveBtn = buttons.find((b) => b.textContent?.includes('flightRecord.drift.resolve')) as
       | HTMLButtonElement
       | undefined;
     expect(resolveBtn).toBeDefined();
@@ -385,7 +386,7 @@ describe('mountDriftDetailDialog', () => {
     await flush();
     const buttons = [...document.body.querySelectorAll('button')];
     // resolve ボタンは存在するが display:none で非表示
-    const resolveBtn = buttons.find((b) => b.textContent?.includes('memory.drift.resolve')) as
+    const resolveBtn = buttons.find((b) => b.textContent?.includes('flightRecord.drift.resolve')) as
       | HTMLButtonElement
       | undefined;
     // 非表示（display:none）であること

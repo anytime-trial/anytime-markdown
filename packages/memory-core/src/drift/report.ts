@@ -12,6 +12,13 @@ export type DriftEventInput = {
   code_value: string | null;
   drift_type: DriftType;
   severity: Severity;
+  /**
+   * 出所ワークスペースの repo_name。'' は未解決（推測で埋めない）。
+   *
+   * optional にしないのは、渡し忘れが「黙って全ワークスペース横断の行になる」形で
+   * 縮退するため。値を持たない検出器も `''` を明示して、未解決であることを宣言する。
+   */
+  workspace: string;
   detail: Record<string, unknown>;
 };
 
@@ -69,7 +76,7 @@ function ensureEntity(
  *   既存の実 File/Package entity に**連結**する（無ければ正準スキームで作成）。
  * - `spec_clarification:` は対応する実 entity が無いので、接頭辞付き id をそのまま Question entity として
  *   確保する（canonical_name も接頭辞付きで実 Question と衝突しない）。
- * - 接頭辞無し（recurring_root_cause 等の実 entity id）はそのまま返す（既存なら no-op）。
+ * - 接頭辞無し（review_unfixed 等の実 entity id）はそのまま返す（既存なら no-op）。
  */
 function resolveSubjectEntity(db: MemoryDbConnection, subjectId: string, recordedAt: string): string {
   if (subjectId.startsWith('file:')) {
@@ -161,11 +168,18 @@ export function reportDriftEvents(input: {
     const detailJson = JSON.stringify({ ...candidate.detail, policy_version: 'phase4-v1' });
 
     if (existing) {
-      // severity と detail_json のみ更新（detected_at は変えない）
+      // severity・detail_json・workspace のみ更新（detected_at は変えない）。
+      // workspace を更新対象に含めるのは、列追加前に作られた既存行（'' のまま）が
+      // 再検出で埋まるようにするため。ただし埋める方向にだけ効かせる:
+      // 候補側の '' は「今回は解決できなかった」であって「未所属になった」ではない。
+      // 無条件に書くと、trail.db が ATTACH されていない 1 回の実行で解決済みの行が
+      // 一斉に '' へ落ち、どのワークスペースで絞っても画面から消える。
       try {
         db.run(
-          `UPDATE memory_drift_events SET severity = ?, detail_json = ? WHERE id = ?`,
-          [candidate.severity, detailJson, existing.id],
+          `UPDATE memory_drift_events
+              SET severity = ?, detail_json = ?, workspace = COALESCE(NULLIF(?, ''), workspace)
+            WHERE id = ?`,
+          [candidate.severity, detailJson, candidate.workspace, existing.id],
         );
         result.events_updated++;
       } catch (err) {
@@ -178,8 +192,8 @@ export function reportDriftEvents(input: {
         db.run(
           `INSERT INTO memory_drift_events
              (id, subject_entity_id, predicate, conversation_value, spec_value, code_value,
-              drift_type, severity, detected_at, detail_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              drift_type, severity, detected_at, detail_json, workspace)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             eventId(candidate.subject_entity_id, candidate.predicate, candidate.drift_type),
             candidate.subject_entity_id,
@@ -191,6 +205,7 @@ export function reportDriftEvents(input: {
             candidate.severity,
             recordedAt,
             detailJson,
+            candidate.workspace,
           ],
         );
         result.events_inserted++;

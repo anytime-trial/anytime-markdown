@@ -11,7 +11,8 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
        type TEXT NOT NULL,
        timestamp TEXT NOT NULL,
        text_content TEXT,
-       user_content TEXT
+       user_content TEXT,
+       is_sidechain INTEGER NOT NULL DEFAULT 0
      ) STRICT`,
   );
   return trailDb;
@@ -38,11 +39,12 @@ function insertMsg(
   type: 'user' | 'assistant' | 'system',
   timestamp: string,
   excerpt: string,
+  isSidechain = 0,
 ): void {
   const isUser = type === 'user';
   trailDb.run(
-    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       uuid,
       sessionId,
@@ -50,6 +52,7 @@ function insertMsg(
       timestamp,
       isUser ? null : excerpt,
       isUser ? excerpt : null,
+      isSidechain,
     ],
   );
 }
@@ -68,7 +71,7 @@ describe('readMessagesSince', () => {
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-a');
     insertSession(trailDb, 'sess-b');
-    insertMsg(trailDb, 'msg-a2', 'sess-a', 'assistant', '2026-05-10T10:00:01.000Z', 'a-assistant');
+    insertMsg(trailDb, 'msg-a2', 'sess-a', 'user', '2026-05-10T10:00:01.000Z', 'a-user-2');
     insertMsg(trailDb, 'msg-a1', 'sess-a', 'user', '2026-05-10T10:00:00.000Z', 'a-user');
     insertMsg(trailDb, 'msg-b1', 'sess-b', 'user', '2026-05-10T11:00:00.000Z', 'b-user');
     attachAsTrail(memDb, trailDb);
@@ -79,7 +82,7 @@ describe('readMessagesSince', () => {
     const sessA = sessions.find((s) => s.session_id === 'sess-a')!;
     expect(sessA.messages.map((m) => m.uuid)).toEqual(['msg-a1', 'msg-a2']);
     expect(sessA.messages[0].text_excerpt).toBe('a-user');
-    expect(sessA.messages[1].text_excerpt).toBe('a-assistant');
+    expect(sessA.messages[1].text_excerpt).toBe('a-user-2');
 
     const sessB = sessions.find((s) => s.session_id === 'sess-b')!;
     expect(sessB.messages.map((m) => m.uuid)).toEqual(['msg-b1']);
@@ -100,6 +103,7 @@ describe('readMessagesSince', () => {
   });
 
   test('handles 100 sessions × 10 messages without materializing into a single Map', () => {
+    // 10 件中 user は 5 件（偶数 index）。取込対象は user 行のみ。
     const memDb = BetterSqlite3MemoryDb.openInMemory();
     const trailDb = makeTrailDb();
     for (let s = 0; s < 100; s++) {
@@ -121,7 +125,7 @@ describe('readMessagesSince', () => {
     }
     expect(collected).toHaveLength(100);
     for (const entry of collected) {
-      expect(entry.count).toBe(10);
+      expect(entry.count).toBe(5);
     }
   });
 
@@ -183,7 +187,38 @@ describe('readMessagesSince', () => {
     expect(sessions.map((s) => s.session_id)).toEqual(['sess-A', 'sess-B']);
   });
 
-  test('excludes types other than user/assistant/system', () => {
+  test('取り込むのは user 行だけ（assistant / system は除外する）', () => {
+    // エージェントの応答は最終的にコード・ドキュメント・コミットログへ落ちるため
+    // 知識グラフへは取り込まない（2026-08-06 ユーザー判断）。
+    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'sess-a');
+    insertMsg(trailDb, 'u1', 'sess-a', 'user', '2026-05-10T10:00:00.000Z', 'これを直して');
+    insertMsg(trailDb, 'a1', 'sess-a', 'assistant', '2026-05-10T10:00:01.000Z', '直しました');
+    insertMsg(trailDb, 's1', 'sess-a', 'system', '2026-05-10T10:00:02.000Z', 'hook output');
+    insertMsg(trailDb, 'u2', 'sess-a', 'user', '2026-05-10T10:00:03.000Z', '次はこれ');
+    attachAsTrail(memDb, trailDb);
+
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].messages.map((m) => m.uuid)).toEqual(['u1', 'u2']);
+    expect(sessions[0].messages.map((m) => m.text_excerpt)).toEqual(['これを直して', '次はこれ']);
+  });
+
+  test('assistant 行しか無いセッションは yield しない', () => {
+    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'sess-human');
+    insertSession(trailDb, 'sess-agent-only');
+    insertMsg(trailDb, 'h1', 'sess-human', 'user', '2026-05-10T10:00:00.000Z', 'q');
+    insertMsg(trailDb, 'g1', 'sess-agent-only', 'assistant', '2026-05-10T11:00:00.000Z', 'a');
+    attachAsTrail(memDb, trailDb);
+
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    expect(sessions.map((s) => s.session_id)).toEqual(['sess-human']);
+  });
+
+  test('excludes every type other than user', () => {
     const memDb = BetterSqlite3MemoryDb.openInMemory();
     const trailDb = makeTrailDb();
     insertSession(trailDb, 'sess-mixed');
@@ -199,6 +234,37 @@ describe('readMessagesSince', () => {
 
     const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
     expect(sessions).toHaveLength(1);
-    expect(sessions[0].messages.map((m) => m.uuid)).toEqual(['u1', 'a1', 's1']);
+    expect(sessions[0].messages.map((m) => m.uuid)).toEqual(['u1']);
+  });
+
+  test('excludes sidechain (subagent) messages from the same session', () => {
+    // サブエージェントの往復はメインスレッドと同じ session_id を持ち、
+    // is_sidechain=1 でのみ区別できる。知識グラフへはメインスレッドだけを入れる。
+    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'sess-mixed');
+    insertMsg(trailDb, 'main-u', 'sess-mixed', 'user', '2026-05-10T10:00:00.000Z', 'main question');
+    insertMsg(trailDb, 'sub-u', 'sess-mixed', 'user', '2026-05-10T10:00:01.000Z', 'delegated prompt', 1);
+    insertMsg(trailDb, 'sub-a', 'sess-mixed', 'assistant', '2026-05-10T10:00:02.000Z', 'subagent report', 1);
+    insertMsg(trailDb, 'main-a', 'sess-mixed', 'assistant', '2026-05-10T10:00:03.000Z', 'main answer');
+    attachAsTrail(memDb, trailDb);
+
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].messages.map((m) => m.uuid)).toEqual(['main-u']);
+  });
+
+  test('drops a session that has only sidechain messages', () => {
+    const memDb = BetterSqlite3MemoryDb.openInMemory();
+    const trailDb = makeTrailDb();
+    insertSession(trailDb, 'sess-main');
+    insertSession(trailDb, 'sess-sub-only');
+    insertMsg(trailDb, 'm1', 'sess-main', 'user', '2026-05-10T10:00:00.000Z', 'q');
+    insertMsg(trailDb, 's1', 'sess-sub-only', 'user', '2026-05-10T11:00:00.000Z', 'sub q', 1);
+    insertMsg(trailDb, 's2', 'sess-sub-only', 'assistant', '2026-05-10T11:00:01.000Z', 'sub a', 1);
+    attachAsTrail(memDb, trailDb);
+
+    const sessions = [...readMessagesSince(memDb, '2026-01-01T00:00:00.000Z')];
+    expect(sessions.map((s) => s.session_id)).toEqual(['sess-main']);
   });
 });

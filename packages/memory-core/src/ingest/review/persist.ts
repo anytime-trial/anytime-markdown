@@ -16,7 +16,7 @@ export type PersistReviewStats = {
  * If already in ISO 8601 + Z format, returns as-is.
  * If YYYY-MM-DD, appends T00:00:00.000Z.
  */
-function toReviewedAt(dateStr: string): string {
+export function toReviewedAt(dateStr: string): string {
   if (!dateStr) {
     return new Date().toISOString();
   }
@@ -44,6 +44,12 @@ export function upsertReviewFinding(
   finding: ParsedFinding,
   recordedAt: string,
   logger: MemoryLogger,
+  /**
+   * 抽出元。既定の '' は「書式準拠のパーサが抽出」を意味する。
+   * INSERT に含めるのは、後から UPDATE で刻むと失敗時に LLM 由来の行が
+   * 書式準拠を装って残り、一括取り消しが効かなくなるため。
+   */
+  extractedBy = '',
 ): { finding_entity_id: string; inserted: boolean } {
   const findingCanonicalName = `${reviewEntityId}:${finding.finding_index}`;
   const findingEntityId = entityId('ReviewFinding', findingCanonicalName);
@@ -72,8 +78,8 @@ export function upsertReviewFinding(
          (id, review_id, finding_entity_id, finding_index,
           target_file_path, target_symbol, target_line_start, target_line_end,
           category, severity, finding_text, suggestion_text,
-          checklist_ref, recorded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          checklist_ref, extracted_by, recorded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         findingId,
         reviewEntityId,
@@ -88,6 +94,7 @@ export function upsertReviewFinding(
         finding.finding_text,
         finding.suggestion_text,
         finding.checklist_ref ?? null,
+        extractedBy,
         recordedAt,
       ],
     );
@@ -120,6 +127,43 @@ export function upsertReviewFinding(
     );
     return { finding_entity_id: findingEntityId, inserted: false };
   }
+}
+
+/**
+ * 既存 memory_reviews 行の「後から足した列」を補う。
+ *
+ * 対象は本文列（summary / body_excerpt）と workspace。列ごとに CASE で閉じるのは、
+ * 片方だけ空の行に対して既に埋まっている方を空文字で潰さないため（frontmatter に
+ * excerpt が無い .md で summary が消える）。
+ *
+ * **補完が要るかの判定は {@link needsReviewRowReconcile} に集約する**。判定と WHERE が
+ * 割れると、片方だけを直したときに「呼ばれるのに何も起きない」状態になる。
+ */
+export function reconcileExistingReviewRow(
+  db: MemoryDbConnection,
+  reviewId: string,
+  fields: { summary: string; bodyExcerpt: string; workspace?: string },
+): void {
+  db.run(
+    `UPDATE memory_reviews
+        SET summary      = CASE WHEN summary = '' THEN ? ELSE summary END,
+            body_excerpt = CASE WHEN body_excerpt = '' THEN ? ELSE body_excerpt END,
+            workspace    = CASE WHEN workspace = '' THEN ? ELSE workspace END
+      WHERE id = ? AND (body_excerpt = '' OR workspace = '')`,
+    [fields.summary, fields.bodyExcerpt, fields.workspace ?? '', reviewId],
+  );
+}
+
+/**
+ * 既存行に補完が要るか。{@link reconcileExistingReviewRow} の WHERE と同一条件。
+ *
+ * summary を判定に含めないのは、供給源が frontmatter の optional な `excerpt` だけで、
+ * 空であることが異常ではないため。含めると excerpt を持たない doc（実測 52 件中 30 件）
+ * が毎回「未補完」と判定され、実行のたびに本文の再パースと no-op UPDATE と
+ * 「補完した」ログを繰り返す。
+ */
+export function needsReviewRowReconcile(bodyExcerpt: string, workspace: string): boolean {
+  return bodyExcerpt === '' || workspace === '';
 }
 
 /**
@@ -159,17 +203,28 @@ export function upsertReviewDoc(
       [doc.frontmatter.title ?? relPath, recordedAt, reviewEntityId],
     );
 
-    // Check existing source_hash
+    // Check existing source_hash（後から足した列の欠落も同時に見る）
     const existingRows = db.exec(
-      `SELECT source_hash FROM memory_reviews WHERE source_kind='review_doc' AND source_ref=?`,
+      `SELECT source_hash, body_excerpt, workspace FROM memory_reviews
+        WHERE source_kind='review_doc' AND source_ref=?`,
       [relPath],
     );
-    const existingHash =
-      existingRows[0]?.values?.[0]?.[0] == null
-        ? null
-        : String(existingRows[0].values[0][0]);
+    const existingRow = existingRows[0]?.values?.[0];
+    const existingHash = existingRow?.[0] == null ? null : String(existingRow[0]);
+    // ハッシュ一致で早期 return すると後から足した列が永久に埋まらないので、
+    // 補完だけ行って返す。呼び出し元 processRouteADoc にも同じ判定があり、
+    // 通常はそちらが先に skip する（ここは直接呼ぶ経路のための同じ契約）。
+    const needsReconcile =
+      existingRow !== undefined &&
+      needsReviewRowReconcile(String(existingRow[1] ?? ''), String(existingRow[2] ?? ''));
 
     if (existingHash !== null && existingHash === sourceHash) {
+      if (needsReconcile) {
+        reconcileExistingReviewRow(db, reviewEntityId, {
+          summary: doc.frontmatter.excerpt ?? '',
+          bodyExcerpt: doc.bodyExcerpt ?? '',
+        });
+      }
       return { review_id: reviewEntityId, is_new: false, findings_inserted: 0, edges_inserted: 0 };
     }
 
@@ -178,10 +233,10 @@ export function upsertReviewDoc(
       `INSERT OR IGNORE INTO memory_reviews
          (id, source_kind, source_ref, source_hash, review_entity_id,
           target_kind, target_refs_json, title, reviewer, severity_overall,
-          reviewed_at, recorded_at)
+          summary, body_excerpt, reviewed_at, recorded_at)
        VALUES (?, 'review_doc', ?, ?, ?,
                ?, ?, ?, ?, ?,
-               ?, ?)`,
+               ?, ?, ?, ?)`,
       [
         reviewEntityId,
         relPath,
@@ -193,6 +248,8 @@ export function upsertReviewDoc(
         doc.frontmatter.reviewer ?? '',
         // frontmatter.severity を優先し、無ければ指摘群の最大重大度を採用。
         doc.frontmatter.severity ?? maxSeverity(doc.findings),
+        doc.frontmatter.excerpt ?? '',
+        doc.bodyExcerpt ?? '',
         reviewedAt,
         recordedAt,
       ],
@@ -205,6 +262,14 @@ export function upsertReviewDoc(
         `UPDATE memory_reviews SET source_hash=? WHERE source_kind='review_doc' AND source_ref=?`,
         [sourceHash, relPath],
       );
+    }
+
+    // 本文列は後から追加されたため、既存行は空のまま残っている。再 ingest で補う。
+    if (!reviewInserted) {
+      reconcileExistingReviewRow(db, reviewEntityId, {
+        summary: doc.frontmatter.excerpt ?? '',
+        bodyExcerpt: doc.bodyExcerpt ?? '',
+      });
     }
 
     // Insert findings
@@ -296,10 +361,10 @@ export function upsertReviewSession(
       `INSERT OR IGNORE INTO memory_reviews
          (id, source_kind, source_ref, source_hash, review_entity_id,
           target_kind, target_refs_json, title, reviewer, severity_overall,
-          reviewed_at, recorded_at)
+          summary, body_excerpt, reviewed_at, recorded_at)
        VALUES (?, 'session', ?, '', ?,
                ?, ?, ?, ?, ?,
-               ?, ?)`,
+               ?, ?, ?, ?)`,
       [
         reviewEntityId,
         sourceRef,
@@ -309,11 +374,23 @@ export function upsertReviewSession(
         `Session review ${session.session_id.slice(0, 8)}`,
         session.reviewer,
         maxSeverity(session.findings),
+        session.summary ?? '',
+        session.body_excerpt ?? '',
         session.reviewed_at,
         recordedAt,
       ],
     );
     const reviewInserted = db.getRowsModified() > 0;
+
+    // 既存行（INSERT OR IGNORE で素通りしたもの）にも本文を補う。
+    // カーソルより古い行はここに来ないため、その是正は runReviewBackfill が担う
+    // （MemoryDbSession.runReview から 1 回だけ起動する）。
+    if (!reviewInserted) {
+      reconcileExistingReviewRow(db, reviewEntityId, {
+        summary: session.summary ?? '',
+        bodyExcerpt: session.body_excerpt ?? '',
+      });
+    }
 
     // Insert findings
     for (const finding of session.findings) {

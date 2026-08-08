@@ -134,8 +134,14 @@ export abstract class BaseRunner {
   }
 
   /**
-   * 起動時 tick + 周期 setInterval を仕掛ける。多重呼び出し時は既存タイマーを
+   * 初回 tick + 周期 setInterval を仕掛ける。多重呼び出し時は既存タイマーを
    * クリアして上書きする (idempotent)。
+   *
+   * 初回 tick までの待ち時間は**永続化済みの `lastRunAt` を起点**に決める。
+   * プロセス起動時点から interval を張り直すと、ホストの再起動 (VS Code リロードごとの
+   * daemon 再生成) が interval のカウントダウンを毎回 0 へ巻き戻し、再起動間隔が
+   * interval より短い環境では periodic tick が永久に来ない (2026-08-05 に実測。
+   * 30 分間隔に対し 12/26/29 分でリロードが入り、80 分にわたり 1 Wave も走らなかった)。
    */
   start(intervalMs: number, options: RunnerStartOptions = {}): void {
     const runOnStart = options.runOnStart ?? true;
@@ -145,23 +151,63 @@ export abstract class BaseRunner {
     if (this.intervalTimer) clearInterval(this.intervalTimer);
     if (this.startupTimer) clearTimeout(this.startupTimer);
 
-    if (runOnStart) {
-      this.startupTimer = setTimeout(() => {
-        if (this.stopRequested) return;
-        void this.runOnce('startup');
-      }, startupDelayMs);
-    }
+    const firstReason: RunReason = runOnStart ? 'startup' : 'periodic';
+    const firstDelayMs = runOnStart
+      ? startupDelayMs
+      : this.dueDelayMs(intervalMs, startupDelayMs);
 
-    if (intervalMs > 0) {
+    // 周期タイマーは初回 tick を基点に張る。start 時点を基点にすると初回 tick との
+    // 間隔が interval より短くなり、catch-up 直後に二重で走る。
+    const startIntervalTimer = (): void => {
+      if (intervalMs <= 0) return;
+      if (this.intervalTimer) clearInterval(this.intervalTimer);
       this.intervalTimer = setInterval(() => {
         if (this.stopRequested) return;
         void this.runOnce('periodic');
       }, intervalMs);
+    };
+
+    if (firstDelayMs === null) {
+      startIntervalTimer();
+    } else {
+      this.startupTimer = setTimeout(() => {
+        this.startupTimer = null;
+        if (this.stopRequested) return;
+        startIntervalTimer();
+        void this.runOnce(firstReason);
+      }, firstDelayMs);
     }
 
     this.log(
-      `[INFO] start intervalMs=${intervalMs} runOnStart=${runOnStart} startupDelayMs=${startupDelayMs}`,
+      `[INFO] start intervalMs=${intervalMs} runOnStart=${runOnStart} ` +
+        `startupDelayMs=${startupDelayMs} firstDelayMs=${String(firstDelayMs)} ` +
+        `lastRunAt=${String(this.status.lastRunAt)}`,
     );
+  }
+
+  /**
+   * `runOnStart=false` のときの初回 periodic tick までの待ち時間 (ms)。
+   *
+   * - `lastRunAt` 無し (未実行) / `intervalMs<=0` → `null` (初回 tick を仕掛けない。
+   *   周期 setInterval だけに委ねる従来挙動)
+   * - 期日まで残りがある → その残り時間。ただし起動直後の輻輳を避けるため
+   *   `startupDelayMs` を下限にする
+   * - 期日超過 (再起動で取りこぼした場合を含む) → `startupDelayMs` 後に catch-up
+   *
+   * `lastRunAt` が未来 (時刻巻き戻し) のときは `intervalMs` で頭打ちにする。
+   */
+  private dueDelayMs(intervalMs: number, startupDelayMs: number): number | null {
+    if (intervalMs <= 0) return null;
+    const lastRunAt = this.status.lastRunAt;
+    if (!lastRunAt) return null;
+    const lastRunMs = Date.parse(lastRunAt);
+    if (Number.isNaN(lastRunMs)) {
+      this.log(`[WARN] unparsable lastRunAt=${lastRunAt}; falling back to interval scheduling`);
+      return null;
+    }
+    const elapsedMs = Date.now() - lastRunMs;
+    const remainingMs = Math.min(intervalMs, intervalMs - elapsedMs);
+    return Math.max(startupDelayMs, remainingMs);
   }
 
   /**

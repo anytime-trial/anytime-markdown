@@ -1,12 +1,21 @@
-import * as path from 'node:path';
+import type { OddResolution, OperationKind } from '@anytime-markdown/trail-core';
+import { ALWAYS_HUMAN_OPERATIONS, evaluateOddBoundary } from '@anytime-markdown/trail-core';
+
 import type { CitationApproval } from './resolveCitations';
+
+export type { OperationKind };
 
 export type GateVerdict = 'delegable' | 'escalate';
 
 export type GateReason =
+  | 'odd_registry_invalid'
+  | 'underspecified_unknown'
+  | 'underspecified_instruction'
   | 'odd_unknown'
   | 'odd_out'
   | 'restricted_area'
+  | 'operation_kind_unknown'
+  | 'always_human_operation'
   | 'severity_unknown'
   | 'severity_high'
   | 'doctrine_conflict'
@@ -16,15 +25,6 @@ export type GateReason =
 export type GateCoverage = 'covered' | 'silent' | 'conflict' | 'odd_out';
 export type GateSeverity = 'low' | 'medium' | 'high';
 
-/** ODD（Operational Design Domain）の境界定義。全体要件 §3.2 を機械判定へ落としたもの */
-export interface OddConfig {
-  /** 自律運航が許容される対象リポジトリのルート（絶対パス） */
-  readonly roots: readonly string[];
-  /** ODD 内でも代行対象外の領域（絶対パス前置） */
-  readonly restrictedPrefixes: readonly string[];
-  /** ODD 内でも代行対象外のパス断片（CI 定義・シークレット等） */
-  readonly restrictedPatterns: readonly string[];
-}
 
 export interface GateCitation {
   readonly resolved: boolean;
@@ -38,7 +38,16 @@ export interface CoverageGateInput {
   readonly targetPaths?: ReadonlyArray<string> | undefined;
   /** 呼び出し側の重大度申告。未指定は判定不能として escalate */
   readonly severity?: GateSeverity | undefined;
-  readonly odd: OddConfig;
+  /** 呼び出し側の操作種別申告。未指定は判定不能として escalate */
+  readonly operationKind?: OperationKind | undefined;
+  /** ODD Policy Registry の解決結果（Phase 7-A）。`invalid` は判定不能として escalate */
+  readonly odd: OddResolution;
+  /**
+   * 指示から一意に定まらない論点の事前申告 (DCT-14)。非空は escalate。
+   * **未指定は判定不能として escalate**（他 3 軸と同じ fail-closed）。空配列を
+   * 明示して初めて「指示から一意に定まる」という宣言になる。
+   */
+  readonly underspecifiedPoints?: ReadonlyArray<string> | undefined;
 }
 
 export interface CoverageGateResult {
@@ -49,45 +58,6 @@ export interface CoverageGateResult {
 
 function escalate(reason: GateReason): CoverageGateResult {
   return { verdict: 'escalate', reasons: [reason] };
-}
-
-function isWithin(target: string, root: string): boolean {
-  const relative = path.relative(root, target);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
-/**
- * ODD 境界の判定 (DCT-12)。制限領域は ODD 内であっても代行対象外のため、
- * 対象リポジトリ内かどうかより先に判定する。
- */
-function evaluateOdd(
-  targetPaths: ReadonlyArray<string> | undefined,
-  odd: OddConfig,
-): GateReason | null {
-  // 空文字列は path.resolve で cwd (＝ワークスペース内) へ解決してしまい ODD 判定を
-  // すり抜けるため、申告の欠落として扱う
-  if (
-    targetPaths === undefined ||
-    targetPaths.length === 0 ||
-    targetPaths.some((target) => target.trim() === '')
-  ) {
-    return 'odd_unknown';
-  }
-  // 前方一致の前に正規化する。`..` を含むパスをそのまま比較すると境界をすり抜ける
-  const normalized = targetPaths.map((target) => path.resolve(target));
-  if (
-    normalized.some(
-      (target) =>
-        odd.restrictedPrefixes.some((prefix) => isWithin(target, prefix)) ||
-        odd.restrictedPatterns.some((pattern) => target.includes(pattern)),
-    )
-  ) {
-    return 'restricted_area';
-  }
-  if (normalized.some((target) => !odd.roots.some((root) => isWithin(target, root)))) {
-    return 'odd_out';
-  }
-  return null;
 }
 
 function hasCanonGrounding(citations: ReadonlyArray<GateCitation>): boolean {
@@ -110,15 +80,41 @@ function hasCanonGrounding(citations: ReadonlyArray<GateCitation>): boolean {
  * D1 の段階では判定結果を記録・集計するのみで、承認フローは変更しない。
  */
 export function evaluateCoverageGate(input: CoverageGateInput): CoverageGateResult {
-  const oddReason = evaluateOdd(input.targetPaths, input.odd);
+  if (input.odd.kind === 'invalid') {
+    // 壊れたレジストリを既定へ縮退させると、「制限領域を足したつもりが構文エラーで
+    // 無効化されていた」状態が黙って代行を許す (Phase 7-A 仕様 §3.3)
+    return escalate('odd_registry_invalid');
+  }
+  const oddReason = evaluateOddBoundary(input.odd.registry, input.targetPaths);
   if (oddReason !== null) {
     return escalate(oddReason);
+  }
+  // 操作種別はパスに現れない軸なので、targetPaths の判定を通っても別途評価する。
+  // ここを「申告が無ければ素通り」にすると、push・リリース・破壊的 git が
+  // 「判定していない＝代行可」として通る (この軸だけ fail-open になる)
+  if (input.operationKind === undefined) {
+    return escalate('operation_kind_unknown');
+  }
+  if (ALWAYS_HUMAN_OPERATIONS.has(input.operationKind)) {
+    return escalate('always_human_operation');
   }
   if (input.severity === undefined) {
     return escalate('severity_unknown');
   }
   if (input.severity === 'high') {
     return escalate('severity_high');
+  }
+  // DCT-14: ここまでの規則は「指示を明確化しても代行できない」絶対軸 (ODD 外・制限領域・
+  // 常に人へ聞く操作・高重大度) であり、それらを先に評価しないと理由コードから消える
+  // (verdict は同じ escalate でも、事後分析で「push だから人へ聞いた」事実が失われる)。
+  // 未確定論点は「明確化すれば代行できる」側なので、絶対軸の後・ドクトリン接地の前に置く。
+  if (input.underspecifiedPoints === undefined) {
+    // 他 3 軸と同じ fail-closed。省略を空扱いにすると、この軸だけ「言及しなかった」が
+    // 「一意に定まると宣言した」に化け、嘘をつかずにゲートを素通りできてしまう
+    return escalate('underspecified_unknown');
+  }
+  if (input.underspecifiedPoints.length > 0) {
+    return escalate('underspecified_instruction');
   }
   if (input.coverage === 'conflict') {
     return escalate('doctrine_conflict');

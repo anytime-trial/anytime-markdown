@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import type { MemoryDbConnection } from '../db/connection/types';
 import { discoverChangedSpecs } from '../ingest/spec/discoverSpecDocs';
@@ -11,6 +10,7 @@ import { upsertSpecDoc, upsertSpecClaims, updateSpecDocSummary } from '../ingest
 import { summarizeSpecDoc } from '../ingest/spec/summarizeSpecDoc';
 import type { OllamaClient } from '@anytime-markdown/agent-core';
 import { noopLogger, type MemoryLogger } from '../logger';
+import { PipelineRunLedger } from './PipelineRunLedger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,60 +39,6 @@ const MAX_CONSECUTIVE_FAILURES = 5;
 const PROGRESS_LOG_INTERVAL = 50;
 
 // ── Private helpers ───────────────────────────────────────────────────────────
-
-function startPipelineRun(db: MemoryDbConnection, scope: string, startedAt: string): string {
-  const runId = createHash('sha1')
-    .update(`${scope}:${startedAt}`)
-    .digest('hex')
-    .slice(0, 16);
-  db.run(
-    `INSERT OR REPLACE INTO memory_pipeline_runs
-      (id, scope, started_at, status, items_processed, entities_inserted, entities_updated,
-       edges_inserted, edges_invalidated, drifts_detected, items_failed, duration_ms, error_detail)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0, '')`,
-    [runId, scope, startedAt],
-  );
-  return runId;
-}
-
-function finalizePipelineRun(
-  db: MemoryDbConnection,
-  runId: string,
-  opts: {
-    status: string;
-    finishedAt: string;
-    durationMs: number;
-    itemsProcessed: number;
-    entitiesInserted: number;
-    edgesInserted: number;
-    itemsFailed: number;
-    errorDetail?: string;
-  },
-): void {
-  db.run(
-    `UPDATE memory_pipeline_runs
-     SET finished_at = ?,
-         status = ?,
-         duration_ms = ?,
-         items_processed = ?,
-         entities_inserted = ?,
-         edges_inserted = ?,
-         items_failed = ?,
-         error_detail = ?
-     WHERE id = ?`,
-    [
-      opts.finishedAt,
-      opts.status,
-      opts.durationMs,
-      opts.itemsProcessed,
-      opts.entitiesInserted,
-      opts.edgesInserted,
-      opts.itemsFailed,
-      opts.errorDetail ?? '',
-      runId,
-    ],
-  );
-}
 
 function upsertPipelineState(
   db: MemoryDbConnection,
@@ -181,8 +127,9 @@ export async function runSpecIncremental(
 
   logger.info(`[${startedAt}] [INFO] [anytime-memory] runSpecIncremental: starting (specRoot=${specRoot})`);
 
-  // 1. Insert running row into memory_pipeline_runs
-  const runId = startPipelineRun(db, SCOPE, startedAt);
+  // 1. Insert running row into pipeline_runs
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
+  ledger.start(startedAt);
 
   let items_processed = 0;
   let items_skipped = 0;
@@ -397,16 +344,16 @@ export async function runSpecIncremental(
   const finishedAt = new Date().toISOString();
   const durationMs = Date.now() - startTime;
 
-  finalizePipelineRun(db, runId, {
-    status: finalStatus,
-    finishedAt,
-    durationMs,
-    itemsProcessed: items_processed,
-    entitiesInserted: entities_inserted,
-    edgesInserted: edges_inserted,
-    itemsFailed: items_failed,
+  ledger.finish(
+    finalStatus,
+    {
+      items_processed,
+      entities_inserted,
+      edges_inserted,
+      items_failed,
+    },
     errorDetail,
-  });
+  );
 
   // 7. Upsert pipeline state
   upsertPipelineState(db, SCOPE, {

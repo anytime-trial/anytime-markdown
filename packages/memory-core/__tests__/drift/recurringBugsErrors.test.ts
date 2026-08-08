@@ -1,11 +1,10 @@
 /**
  * recurringBugs の SQL エラーパス (各関数の catch ブロック) をカバーするテスト。
- * src/drift/recurringBugs.ts L32-35, L96-99, L145-148
+ * src/drift/recurringBugs.ts の各 catch ブロック
  */
 import {
   detectRegressionClusters,
   detectSpecViolationClusters,
-  detectRecurringRootCauses,
 } from '../../src/drift/recurringBugs';
 import type { MemoryLogger } from '../../src/logger';
 import type { MemoryDbConnection } from '../../src/db/connection/types';
@@ -63,21 +62,3 @@ describe('detectSpecViolationClusters - SQL エラーパス', () => {
   });
 });
 
-describe('detectRecurringRootCauses - SQL エラーパス', () => {
-  it('exec で例外が発生したとき空配列を返す', () => {
-    const errors: string[] = [];
-    const logger: MemoryLogger = {
-      info: () => {},
-      error: (msg: string) => { errors.push(msg); },
-    };
-
-    const result = detectRecurringRootCauses({
-      db: makeBrokenDb(),
-      logger,
-    });
-
-    expect(result).toEqual([]);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toContain('[detectRecurringRootCauses]');
-  });
-});

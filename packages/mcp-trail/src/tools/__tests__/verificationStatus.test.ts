@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { handleGetVerificationStatus } from '../verificationStatus';
 
-// スキーマ正本は scripts/verification-db.mjs。テスト fixture 用の複製(列は読取対象のみ揃える)。
+// スキーマ正本は packages/trail-core の CREATE_VERIFICATION_RUNS。テスト fixture 用の複製(列は読取対象のみ揃える)。
 const FIXTURE_DDL = `
 CREATE TABLE verification_runs (
   id INTEGER PRIMARY KEY,
@@ -49,8 +49,23 @@ describe('handleGetVerificationStatus', () => {
     fs.rmSync(workDir, { recursive: true, force: true });
   });
 
+  // 回帰: writer（run-verified）は git common dir の親へ記録する。reader が workspacePath を
+  // そのまま使うと、worktree からの照会が別の（存在しない）DB を見て実施済みを取りこぼす。
+  it('worktree から照会しても本体リポジトリの台帳を読む', async () => {
+    delete process.env.TRAIL_HOME; // 台帳パスの解決規則そのものを検査する
+    const head = git(['rev-parse', 'HEAD']);
+    const worktree = path.join(workDir, 'wt');
+    git(['worktree', 'add', '-q', worktree, '-b', 'feature-x']);
+    seedDb([{ kind: 'unit', status: 'pass', codeStateHash: head }]);
+
+    const result = await handleGetVerificationStatus({ package: 'demo-pkg', workspacePath: worktree });
+
+    expect(result.reason).toBeUndefined();
+    expect(result.verified['unit']?.status).toBe('pass');
+  });
+
   function seedDb(rows: Array<{ kind: string; status: string; codeStateHash: string | null }>): void {
-    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'verification.db');
+    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'trail.db');
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     const db = new DatabaseSync(dbPath);
     db.exec(FIXTURE_DDL);
@@ -118,7 +133,7 @@ describe('handleGetVerificationStatus', () => {
   });
 
   it('DB ファイルはあるがテーブルが無ければ needsRun (reason: no-table)', async () => {
-    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'verification.db');
+    const dbPath = path.join(workDir, '.anytime', 'trail', 'db', 'trail.db');
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     new DatabaseSync(dbPath).close(); // テーブル未作成の空 DB
     const result = await handleGetVerificationStatus({ package: 'demo-pkg', workspacePath: workDir });

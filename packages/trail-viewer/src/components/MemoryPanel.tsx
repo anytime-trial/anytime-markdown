@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { useTrailI18n } from '../i18n';
 import { useTrailTheme } from './TrailThemeContext';
-import { useChatBridge } from '../hooks/useChatBridge';
 import { VanillaIsland } from '../shared/vanillaIsland';
 import {
   mountMemoryPanel,
@@ -10,14 +9,12 @@ import {
 
 export interface MemoryPanelProps {
   readonly serverUrl: string;
-  readonly onOpenSessionMessages?: (sessionId: string) => void;
 }
 
-export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<MemoryPanelProps>) {
+export function MemoryPanel({ serverUrl }: Readonly<MemoryPanelProps>) {
   const { t } = useTrailI18n();
   const tokens = useTrailTheme();
   const { isDark } = tokens;
-  const bridge = useChatBridge(serverUrl);
 
   const tStr = useCallback((key: string): string => t(key as Parameters<typeof t>[0]), [t]);
 
@@ -26,8 +23,6 @@ export function MemoryPanel({ serverUrl, onOpenSessionMessages }: Readonly<Memor
     tokens,
     isDark,
     t: tStr,
-    bridge,
-    onOpenSessionMessages,
   };
 
   return <VanillaIsland mount={mountMemoryPanel} props={viewProps} />;

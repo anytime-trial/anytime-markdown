@@ -28,7 +28,7 @@ import type { TrailFilter } from '../domain/parser/types';
 import type { ElementFormData, RelationshipFormData } from '../c4/components/dialogs/C4EditDialogs';
 import { mountTrailViewer } from './trailViewer';
 import type { TrailViewerViewProps } from './trailViewer';
-import { isC4RelatedTab, isMemoryTab } from '../components/trailTabs';
+import { isC4RelatedTab, isChatTab } from '../components/trailTabs';
 import { createChatBridge, type ChatBridgeStore } from '../hooks/createChatBridge';
 import { createTrailI18n } from '../i18n/createTrailI18n';
 import { createEmergencyStore, type EmergencyStore } from '../data/emergencyStore';
@@ -151,7 +151,7 @@ export function mountTrailViewerApp(
   let c4Enabled = false;
   let promptsEnabled = false;
 
-  // ── Chat bridge（Memory タブ初回訪問で遅延生成。旧 MemoryPanel の useChatBridge 相当） ──
+  // ── Chat bridge（Chat タブ初回訪問で遅延生成。旧 MemoryPanel の useChatBridge 相当） ──
   let chatBridgeStore: ChatBridgeStore | null = null;
 
   // ── Category state ──
@@ -349,8 +349,8 @@ export function mountTrailViewerApp(
           // 初回 fetch + WS 接続を起動する（これが無いと C4 モデルが永久に空になる）。
           c4Store.setEnabled(true);
         }
-        if (isMemoryTab(tab)) {
-          // Memory タブ初回訪問で ChatBridge を生成し WS 接続する（これが無いと Chat タブが
+        if (isChatTab(tab)) {
+          // Chat タブ初回訪問で ChatBridge を生成し WS 接続する（これが無いと Chat タブが
           // 常時「接続不可」になる。旧 MemoryPanel の useChatBridge(serverUrl) 相当）。
           ensureChatBridge();
         }

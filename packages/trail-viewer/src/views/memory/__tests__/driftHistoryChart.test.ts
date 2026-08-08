@@ -20,9 +20,9 @@ describe('buildDriftHistorySpec', () => {
     expect(spec.kind).toBe('line');
     expect(spec.categories).toEqual(['2026-07-01', '2026-07-02']);
     expect(spec.series.map((s) => s.name)).toEqual([
-      'memory.drift.history.detected',
-      'memory.drift.history.resolved',
-      'memory.drift.history.unresolved',
+      'flightRecord.drift.history.detected',
+      'flightRecord.drift.history.resolved',
+      'flightRecord.drift.history.unresolved',
     ]);
     expect(spec.series[0].values).toEqual([2, 0]);
     expect(spec.series[1].values).toEqual([0, 1]);
@@ -50,7 +50,7 @@ describe('mountDriftHistoryChart', () => {
   test('データが無ければ空状態メッセージへ縮退する', () => {
     const host = document.createElement('div');
     const handle = mountDriftHistoryChart(host, { t, points: [] });
-    expect(host.textContent).toContain('memory.drift.history.empty');
+    expect(host.textContent).toContain('flightRecord.drift.history.empty');
     handle.destroy();
   });
 
@@ -58,7 +58,7 @@ describe('mountDriftHistoryChart', () => {
     const host = document.createElement('div');
     const handle = mountDriftHistoryChart(host, { t, points: [] });
     handle.update({ t, points: points() });
-    expect(host.textContent).not.toContain('memory.drift.history.empty');
+    expect(host.textContent).not.toContain('flightRecord.drift.history.empty');
     handle.destroy();
   });
 
@@ -72,7 +72,7 @@ describe('mountDriftHistoryChart', () => {
   test('aria-label が付く', () => {
     const host = document.createElement('div');
     const handle = mountDriftHistoryChart(host, { t, points: points() });
-    expect(host.querySelector('[aria-label="memory.drift.history.title"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="flightRecord.drift.history.title"]')).not.toBeNull();
     handle.destroy();
   });
 });

@@ -123,7 +123,7 @@ The extension installs Claude Code skills into your workspace `.claude/skills/` 
 | `anytime-cross-review` | Claude and Codex review the same diff independently and cross-check each other's findings |
 | `anytime-impl-test-design` | Decides which tests to write after implementing (wiring / mount / i18n coverage gaps) |
 | `anytime-analysis` | Analyzes a subject with a thinking-method guide and outputs the result as a proposal (RFC / ADR / lightweight) or a co-occurrence graph (`.cooc.json`) |
-| `anytime-debrief` | Closes out a session with a structured debrief (progress / open items / concerns) |
+| `anytime-session-exit` | Closes out a session with a structured debrief (progress / open items / concerns) |
 | `anytime-dev-audit` | Diagnoses the PC environment and Claude Code configuration read-only and proposes an optimization plan |
 | `anytime-build-webapp` | Scaffolds a new web app / full-stack MVP |
 | `anytime-loop-start` / `anytime-loop-stop` | Starts/stops a loop that automatically executes `.tickets/` tickets one at a time |

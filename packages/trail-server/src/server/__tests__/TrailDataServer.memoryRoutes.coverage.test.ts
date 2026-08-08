@@ -312,36 +312,6 @@ describe('GET /api/memory/pipeline/failed', () => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/memory/entities/top
-// ---------------------------------------------------------------------------
-
-describe('GET /api/memory/entities/top', () => {
-  let server: TrailDataServer;
-  let db: TrailDatabase;
-  let port: number;
-
-  beforeEach(async () => { ({ server, db, port } = await makeServer()); });
-  afterEach(async () => { await server.stop(); db.close(); });
-
-  it('returns 200 with top entities', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/entities/top`);
-    expect(res.status).toBe(200);
-    const body = await res.json() as unknown;
-    expect(body).toBeDefined();
-  });
-
-  it('returns 200 with type filter', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/entities/top?type=bug`);
-    expect(res.status).toBe(200);
-  });
-
-  it('returns 200 with limit filter', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/entities/top?limit=10`);
-    expect(res.status).toBe(200);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // GET /api/memory/edges/invalidations
 // ---------------------------------------------------------------------------
 

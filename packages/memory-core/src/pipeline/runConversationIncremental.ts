@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
+import { PipelineRunLedger } from './PipelineRunLedger';
 import { splitEpisodes } from '../canonical/splitEpisodes';
 import { extractFactsFromEpisode } from '../ingest/conversation/extractFacts';
 import { readMessagesSince } from '../ingest/conversation/readMessages';
@@ -23,16 +23,6 @@ export interface IncrementalResult {
   edges_inserted: number;
   edges_invalidated: number;
   items_failed: number;
-}
-
-function runId(startedAt: string): string {
-  // better-sqlite3 移行で 1 プロセス内 2 連続実行が同一 ms に着地して UNIQUE
-  // 衝突するケースが出たため、nonce (高精度時刻) を加えてユニーク性を確保する。
-  const nonce = process.hrtime.bigint().toString(36);
-  return createHash('sha1')
-    .update(`${SCOPE}:${startedAt}:${nonce}`)
-    .digest('hex')
-    .slice(0, 16);
 }
 
 function readPipelineState(db: MemoryDbConnection): {
@@ -77,92 +67,6 @@ function upsertPipelineState(
        END,
        error_detail      = excluded.error_detail`,
     [SCOPE, status, last_processed_at ?? '', error_detail ?? '']
-  );
-}
-
-function insertPipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string
-): void {
-  // last_heartbeat_at is seeded to started_at so pipelineWatchdog has a valid
-  // signal even before the first checkpoint. Mirrors runConversationBackfill.
-  db.run(
-    `INSERT INTO memory_pipeline_runs
-       (id, scope, started_at, status,
-        items_processed, entities_inserted, entities_updated,
-        edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms, last_heartbeat_at)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0, ?)`,
-    [id, SCOPE, startedAt, startedAt]
-  );
-}
-
-function updatePipelineRunProgress(
-  db: MemoryDbConnection,
-  id: string,
-  totals: PersistStats & { items_processed: number; items_failed: number }
-): void {
-  // Refresh last_heartbeat_at so pipelineWatchdog keeps long-running incremental
-  // runs alive across its 10-minute timeout window. Without this, the watchdog
-  // falls back to started_at and either times out a healthy run or, after a
-  // reload, fails to clean up an actually-dead one within the window.
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       last_heartbeat_at = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       entities_updated  = ?,
-       edges_inserted    = ?,
-       edges_invalidated = ?,
-       items_failed      = ?
-     WHERE id = ?`,
-    [
-      new Date().toISOString(),
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.entities_updated,
-      totals.edges_inserted,
-      totals.edges_invalidated,
-      totals.items_failed,
-      id,
-    ]
-  );
-}
-
-function finalizePipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string,
-  status: 'success' | 'partial' | 'error',
-  totals: PersistStats & { items_processed: number; items_failed: number }
-): void {
-  const finishedAt = new Date().toISOString();
-  const durationMs = Date.now() - new Date(startedAt).getTime();
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       finished_at       = ?,
-       status            = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       entities_updated  = ?,
-       edges_inserted    = ?,
-       edges_invalidated = ?,
-       items_failed      = ?,
-       duration_ms       = ?
-     WHERE id = ?`,
-    [
-      finishedAt,
-      status,
-      totals.items_processed,
-      totals.entities_inserted,
-      totals.entities_updated,
-      totals.edges_inserted,
-      totals.edges_invalidated,
-      totals.items_failed,
-      durationMs,
-      id,
-    ]
   );
 }
 
@@ -292,14 +196,14 @@ export async function runConversationIncremental(opts: {
   const shouldStop = opts.shouldStop;
 
   const startedAt = new Date().toISOString();
-  const rId = runId(startedAt);
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
 
   // ── 1. Read pipeline state ───────────────────────────────────────────────
   const { last_processed_at } = readPipelineState(db);
   const sinceISO = last_processed_at || DEFAULT_SINCE;
 
   // ── 2. Insert pipeline_run + mark state as running ───────────────────────
-  insertPipelineRun(db, rId, startedAt);
+  ledger.start(startedAt);
   upsertPipelineState(db, { status: 'running' });
 
   // Preload episode ids already in memory_episodes within the sinceISO window.
@@ -385,7 +289,7 @@ export async function runConversationIncremental(opts: {
           // session_id ordering ≠ timestamp ordering (UUIDs) — advancing
           // mid-session could skip ahead of later-iterated sessions with
           // earlier timestamps.
-          updatePipelineRunProgress(db, rId, totals);
+          ledger.heartbeat(totals);
           if (save) {
             const t0 = Date.now();
             save();
@@ -408,7 +312,11 @@ export async function runConversationIncremental(opts: {
             last_processed_at: result.quarantineCursor,
             error_detail: `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
           });
-          finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+          ledger.finish(
+            'partial',
+            totals,
+            `${QUARANTINE_THRESHOLD} consecutive extraction failures`,
+          );
           return { status: 'partial', ...totals };
         }
 
@@ -451,7 +359,7 @@ export async function runConversationIncremental(opts: {
       status: 'error',
       error_detail: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
-    finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+    ledger.fail(err, totals);
     return { status: finalStatus, ...totals };
   }
 
@@ -465,7 +373,7 @@ export async function runConversationIncremental(opts: {
         `(processed=${totals.items_processed}, failed=${totals.items_failed}), cursor unchanged`
     );
     upsertPipelineState(db, { status: 'idle', last_processed_at: '' });
-    finalizePipelineRun(db, rId, startedAt, 'partial', totals);
+    ledger.finish('partial', totals, 'throttle COOLING — stopped early, cursor unchanged');
     return { status: 'partial', ...totals };
   }
 
@@ -481,7 +389,7 @@ export async function runConversationIncremental(opts: {
     status: 'idle',
     last_processed_at: nextSince,
   });
-  finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+  ledger.finish(finalStatus, totals);
 
   return { status: finalStatus, ...totals };
 }

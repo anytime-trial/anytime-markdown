@@ -160,8 +160,10 @@ export interface LepCodexSourceConfig {
 }
 
 /**
- * ドキュメント検索（doc-core）の取込元。`root` はドキュメントリポジトリのルート
- * （例 `/Shared/anytime-markdown-docs`）。空文字は doc-core ingest を無効化（既定オフ）。
+ * 設計書リポジトリの所在。`root` はドキュメントリポジトリのルート
+ * （例 `/Shared/anytime-markdown-docs`）。空文字は未設定（既定オフ）。
+ * check_alignment の設計書解決（AlignmentApiHandler）と、コミット取込だけを行う
+ * 追加リポジトリの指定（AnalyzeAllRunner）に使う。
  */
 export interface LepDocsSourceConfig {
   root: string;
@@ -1179,7 +1181,7 @@ export function serializeLepConfigWithComments(config: LepConfig): string {
       },
       docs: {
         _comment:
-          'ドキュメント検索(doc-core)の取込元ルート。例 /Shared/anytime-markdown-docs。空文字=無効(既定オフ)。設定すると daemon が spec を ingest し doc-core.db(構造/FTS/embedding)を作る。git リポジトリなら commit 取込の監視対象にもなる(check_alignment の設計書更新判定に必要。gitRoots へ二重に書かない)。',
+          '設計書リポジトリのルート。例 /Shared/anytime-markdown-docs。空文字=未設定(既定オフ)。check_alignment の設計書更新判定に必要で、git リポジトリならコミット取込の監視対象にもなる(gitRoots へ二重に書かない)。',
         ...config.sources.docs,
       },
       gitRoots: [...config.sources.gitRoots],

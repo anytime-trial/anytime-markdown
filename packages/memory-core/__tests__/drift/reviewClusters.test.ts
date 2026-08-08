@@ -30,14 +30,14 @@ function insertEntity(db: BetterSqlite3MemoryDb, id?: string, type = 'Bug'): str
   return eid;
 }
 
-function insertReview(db: BetterSqlite3MemoryDb, id?: string): string {
+function insertReview(db: BetterSqlite3MemoryDb, id?: string, workspace = ''): string {
   const rid = id ?? `rev-${++seq}`;
   const reviewEntity = insertEntity(db, `rev-ent-${rid}`, 'Review');
   db.run(
     `INSERT INTO memory_reviews
-       (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at)
-     VALUES (?, 'review_doc', ?, ?, 'code', 'Test Review', ?, ?)`,
-    [rid, rid, reviewEntity, TS, TS],
+       (id, source_kind, source_ref, review_entity_id, target_kind, title, reviewed_at, recorded_at, workspace)
+     VALUES (?, 'review_doc', ?, ?, 'code', 'Test Review', ?, ?, ?)`,
+    [rid, rid, reviewEntity, TS, TS, workspace],
   );
   return rid;
 }
@@ -336,5 +336,104 @@ describe('detectRecurringReviewFindings', () => {
 
     const results = detectRecurringReviewFindings({ db, windowDays: 30, minCount: 3, logger: silentLogger });
     expect(results).toHaveLength(0);
+  });
+});
+
+describe('ワークスペースの解決', () => {
+  it('review_unfixed はレビューの workspace を引き継ぐ', () => {
+    const db = makeDb();
+    const reviewId = insertReview(db, 'ws-rev-1', 'anytime-trade');
+    const findingEntity = insertEntity(db, 'ws-finding-ent-1', 'ReviewFinding');
+    insertReviewFinding(db, {
+      id: 'ws-rf-1',
+      reviewId,
+      findingEntityId: findingEntity,
+      severity: 'error',
+      recordedAt: TS,
+      addressedAt: null,
+    });
+
+    const results = detectReviewUnfixed({ db, daysOld: 30, minSeverity: 'warn', logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-trade');
+  });
+
+  it('recurring_review_finding は指摘が 2 ワークスペースに跨ると未解決のまま', () => {
+    const db = makeDb();
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - 5);
+    const recent = recentDate.toISOString().replace(/\.\d{3}Z$/, '.000Z');
+
+    const reviewA = insertReview(db, 'ws-rev-a', 'anytime-trade');
+    const reviewB = insertReview(db, 'ws-rev-b', 'anytime-markdown');
+    for (const [id, reviewId] of [['ws-rf-a', reviewA], ['ws-rf-b', reviewB]] as const) {
+      const entity = insertEntity(db, `ws-fe-${id}`, 'ReviewFinding');
+      insertReviewFinding(db, {
+        id,
+        reviewId,
+        findingEntityId: entity,
+        targetFilePath: 'src/mixed.ts',
+        category: 'perf',
+        recordedAt: recent,
+      });
+    }
+
+    const results = detectRecurringReviewFindings({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('');
+  });
+
+  it('未解決（空文字）の指摘が混ざっても解決済みのワークスペースへ寄せる', () => {
+    const db = makeDb();
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - 5);
+    const recent = recentDate.toISOString().replace(/\.\d{3}Z$/, '.000Z');
+
+    const reviewA = insertReview(db, 'ws-rev-blank-a', 'anytime-trade');
+    const reviewB = insertReview(db, 'ws-rev-blank-b', '');
+    for (const [id, reviewId] of [['ws-rf-ba', reviewA], ['ws-rf-bb', reviewB]] as const) {
+      const entity = insertEntity(db, `ws-fe-${id}`, 'ReviewFinding');
+      insertReviewFinding(db, {
+        id,
+        reviewId,
+        findingEntityId: entity,
+        targetFilePath: 'src/blank.ts',
+        category: 'perf',
+        recordedAt: recent,
+      });
+    }
+
+    const results = detectRecurringReviewFindings({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-trade');
+  });
+
+  it('recurring_review_finding は指摘が単一ワークスペースなら確定する', () => {
+    const db = makeDb();
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - 5);
+    const recent = recentDate.toISOString().replace(/\.\d{3}Z$/, '.000Z');
+
+    const reviewId = insertReview(db, 'ws-rev-single', 'anytime-lab');
+    for (const [index, id] of ['ws-rf-s1', 'ws-rf-s2'].entries()) {
+      const entity = insertEntity(db, `ws-fe-${id}`, 'ReviewFinding');
+      insertReviewFinding(db, {
+        id,
+        reviewId,
+        findingIndex: index,
+        findingEntityId: entity,
+        targetFilePath: 'src/single.ts',
+        category: 'perf',
+        recordedAt: recent,
+      });
+    }
+
+    const results = detectRecurringReviewFindings({ db, windowDays: 90, minCount: 2, logger: silentLogger });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].workspace).toBe('anytime-lab');
   });
 });

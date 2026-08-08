@@ -294,6 +294,249 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
   if (db) db.close();
 }
 
+// ── memory-core.db / trail.db(未移行): Flight Record(運航記録・指示台帳) ────────
+// flight_reviews / instructions / instruction_sessions は 2026-08-07 に trail.db から
+// memory-core.db へ移設した。移行前の DB(旧拡張・バックフィル未実行)では trail.db 側に
+// 残るため、テーブル実在で読み先を選ぶ。どちらにも無ければ null(測定不能。0 と区別する)。
+{
+  const hasTable = (db, name) =>
+    db != null && rows(q(db, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, [name])).length > 0;
+  const memo = open('memory-core.db');
+  if (memo.error) snapshot.errors.push(memo.error);
+  let trailOpened = null;
+  const openTrail = () => {
+    if (trailOpened === null) {
+      trailOpened = open('trail.db');
+      if (trailOpened.error) snapshot.errors.push(trailOpened.error);
+    }
+    return trailOpened.db;
+  };
+  // 読み先は「テーブル実在」でなく**行数**で選ぶ。FlightRecordDatabase.ensureTables は
+  // 空テーブルを常に作るため、実在判定だと移行未完了（行は trail 側に残存）の DB で
+  // 空の memory-core 側を読み、0 件を測定不能でなく実測 0 として出してしまう。
+  const countRows = (db, table) =>
+    hasTable(db, table) ? Number(one(q(db, `SELECT COUNT(*) c FROM ${table}`))?.c ?? 0) : 0;
+  const memoFr = countRows(memo.db, 'flight_reviews');
+  const memoIns = countRows(memo.db, 'instructions');
+  const trailFr = countRows(openTrail(), 'flight_reviews');
+  const trailIns = countRows(trailOpened?.db ?? null, 'instructions');
+  let frDb = null;
+  let frSource = null;
+  let residualTrail = null;
+  if (memoFr + memoIns > 0) {
+    frDb = memo.db;
+    if (trailFr + trailIns > 0) {
+      // 両在は移行未完了の異常。合算はしない（AVG 系の二重計上を避け、異常として見せる）
+      frSource = 'both(migration incomplete)';
+      residualTrail = { flightReviews: trailFr, instructions: trailIns };
+    } else {
+      frSource = 'memory-core';
+    }
+  } else if (trailFr + trailIns > 0) {
+    frDb = trailOpened.db;
+    frSource = 'trail(pre-migration)';
+  } else if (hasTable(memo.db, 'flight_reviews')) {
+    frDb = memo.db;
+    frSource = 'memory-core(empty)';
+  }
+  if (frDb === null) {
+    snapshot.flightRecord = null;
+  } else {
+    const outcomeRows = rows(
+      q(frDb, `SELECT outcome, COUNT(*) c FROM flight_reviews
+               WHERE ended_at >= datetime('now','-${WINDOW_DAYS} days') GROUP BY outcome`),
+    );
+    const outcomes = { achieved: 0, partial: 0, unachieved: 0, unknown: 0 };
+    for (const r of outcomeRows) if (r.outcome in outcomes) outcomes[r.outcome] = r.c;
+    const agg = one(
+      q(frDb, `SELECT COUNT(*) total,
+                 ROUND(AVG(rework_count), 2) avgRework,
+                 SUM(tool_failure_count) failures, SUM(tool_call_count) calls,
+                 SUM(CASE WHEN outcome_source != 'machine' THEN 1 ELSE 0 END) assessed,
+                 SUM(CASE WHEN lesson_candidates != '[]' THEN 1 ELSE 0 END) lessonReviews,
+                 SUM(CASE WHEN unresolved_items != '[]' THEN 1 ELSE 0 END) unresolvedReviews
+               FROM flight_reviews WHERE ended_at >= datetime('now','-${WINDOW_DAYS} days')`),
+    ) ?? {};
+    const total = agg.total ?? 0;
+    const instr = one(
+      q(frDb, `SELECT
+                 SUM(CASE WHEN started_at >= datetime('now','-${WINDOW_DAYS} days') THEN 1 ELSE 0 END) started30d,
+                 SUM(CASE WHEN closed_at IS NOT NULL AND closed_at >= datetime('now','-${WINDOW_DAYS} days') THEN 1 ELSE 0 END) closed30d,
+                 SUM(CASE WHEN closed_at IS NULL THEN 1 ELSE 0 END) openTotal,
+                 SUM(CASE WHEN closed_at IS NULL AND started_at < datetime('now','-7 days') THEN 1 ELSE 0 END) openOver7d,
+                 COUNT(*) declaredTotal
+               FROM instructions`),
+    ) ?? {};
+    const sessionsPer = one(
+      q(frDb, `SELECT ROUND(AVG(cnt), 1) avgSessions,
+                 SUM(CASE WHEN cnt > 1 THEN 1 ELSE 0 END) multiSession
+               FROM (SELECT COUNT(*) cnt FROM instruction_sessions GROUP BY instruction_id)`),
+    ) ?? {};
+    // 指示単位コスト: instruction_sessions(移設先) × trail.session_costs(trail.db 残留)を
+    // JS 側で突合する(ATTACH 非依存。読み先が trail 側でも同一コードで動く)。
+    // 対象は直近 30 日に開始した指示のみ。
+    let topInstructionsByCost = [];
+    const links = rows(
+      q(frDb, `SELECT s.instruction_id id, s.session_id sid, i.summary summary
+               FROM instruction_sessions s JOIN instructions i ON i.id = s.instruction_id
+               WHERE i.started_at >= datetime('now','-${WINDOW_DAYS} days')`),
+    );
+    const costDb = openTrail();
+    if (links.length > 0 && costDb != null) {
+      const ids = [...new Set(links.map((l) => l.sid))];
+      const placeholders = ids.map(() => '?').join(', ');
+      const costRows = rows(
+        q(costDb, `SELECT session_id, SUM(estimated_cost_usd) c FROM session_costs
+                   WHERE session_id IN (${placeholders}) GROUP BY session_id`, ids),
+      );
+      const costBySession = new Map(costRows.map((r) => [r.session_id, r.c ?? 0]));
+      const byInstruction = new Map();
+      for (const l of links) {
+        const entry = byInstruction.get(l.id) ?? { instructionId: l.id, summary: l.summary, sessions: 0, cost: 0 };
+        entry.sessions += 1;
+        entry.cost += costBySession.get(l.sid) ?? 0;
+        byInstruction.set(l.id, entry);
+      }
+      topInstructionsByCost = [...byInstruction.values()]
+        .map((e) => ({ ...e, cost: Math.round(e.cost * 100) / 100 }))
+        .sort((a, b) => b.cost - a.cost)
+        .slice(0, 5);
+    }
+    snapshot.flightRecord = {
+      source: frSource,
+      // 移行未完了（both）のとき trail 側に残っている行数。null は残存なし
+      residualTrail,
+      windowDays: WINDOW_DAYS,
+      reviews30d: {
+        total,
+        outcomes,
+        // 自己評価カバレッジ: machine のまま(unknown 固定)の行は成否を語れないため、
+        // 未達成率は assessed(self/manual)を分母にする
+        selfAssessedPct: pct(agg.assessed ?? 0, total),
+        unachievedSharePct: pct((outcomes.unachieved ?? 0) + (outcomes.partial ?? 0), agg.assessed ?? 0),
+        avgReworkCount: agg.avgRework ?? null,
+        toolFailureRatePct: pct(agg.failures ?? 0, agg.calls ?? 0),
+        lessonCandidateReviews: agg.lessonReviews ?? 0,
+        unresolvedReviews: agg.unresolvedReviews ?? 0,
+      },
+      instructions: {
+        started30d: instr.started30d ?? 0,
+        closed30d: instr.closed30d ?? 0,
+        openTotal: instr.openTotal ?? 0,
+        openOver7d: instr.openOver7d ?? 0,
+        declaredTotal: instr.declaredTotal ?? 0,
+        avgSessionsPerInstruction: sessionsPer.avgSessions ?? null,
+        multiSessionInstructions: sessionsPer.multiSession ?? 0,
+      },
+      topInstructionsByCost30d: topInstructionsByCost,
+    };
+  }
+  if (memo.db) memo.db.close();
+  if (trailOpened?.db) trailOpened.db.close();
+}
+
+// ── memory-core.db / trail.db(未移行): 具体化観点の採掘(DCT-14) ────────────────
+// 「指示から一意に定まらない論点」の事前申告と、その取りこぼしを集計する。
+// 主材料は **申告が空なのに人が modified した判断**（一意に定まると言い切ったのに覆された）で、
+// これが具体化観点(elaboration checklist)の昇格候補になる。申告できたもの(非空)は既に
+// 運用が働いた記録なので、学ぶべきは取りこぼした側にある。
+// 正本: <docsRoot>/proposal/20260807-elaboration-checklist.ja.md
+{
+  const hasTable = (db, name) =>
+    db != null && rows(q(db, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, [name])).length > 0;
+  const countRows = (db, table) =>
+    hasTable(db, table) ? Number(one(q(db, `SELECT COUNT(*) c FROM ${table}`))?.c ?? 0) : 0;
+  const memo = open('memory-core.db');
+  if (memo.error) snapshot.errors.push(memo.error);
+  const trailOpened = open('trail.db');
+  if (trailOpened.error) snapshot.errors.push(trailOpened.error);
+  // 読み先は flight record と同じく**行数**で選ぶ（空テーブルが常に作られるため実在判定では選べない）
+  const memoCount = countRows(memo.db, 'doctrine_judgments');
+  const trailCount = countRows(trailOpened.db, 'doctrine_judgments');
+  const djDb = memoCount > 0 ? memo.db : trailCount > 0 ? trailOpened.db : hasTable(memo.db, 'doctrine_judgments') ? memo.db : null;
+  const djSource = memoCount > 0 ? (trailCount > 0 ? 'both(migration incomplete)' : 'memory-core')
+    : trailCount > 0 ? 'trail(pre-migration)'
+      : djDb != null ? 'memory-core(empty)' : null;
+
+  if (djDb === null) {
+    snapshot.doctrineGap = null;
+  } else if (!rows(q(djDb, `PRAGMA table_info(doctrine_judgments)`)).some((c) => c.name === 'underspecified_points_json')) {
+    // DCT-14 未マイグレーション。0 件ではなく**測定不能**として出す
+    snapshot.doctrineGap = { source: djSource, available: false, reason: 'underspecified_points_json 列が無い(DCT-14 未マイグレーション)' };
+  } else {
+    // DCT-14 以前の行は ALTER の DEFAULT で空の申告に確定しているため、生きた信号は導入日以降に絞る。
+    // ここを全期間にすると指示不足率が構造的に低く出る（spec 16 §3.3 の注記と同じ理由）。
+    const SINCE = '2026-08-07';
+    const all = rows(
+      q(djDb, `SELECT id, session_id, subject, agent_judgment, human_decision, judged_at, underspecified_points_json points
+               FROM doctrine_judgments WHERE judged_at >= ? ORDER BY judged_at DESC`, [SINCE]),
+    );
+    // 申告の 3 状態。破損を空にも非空にも倒さない（[[metric-conflates-causes-with-different-remedies]]）
+    const declarationOf = (raw) => {
+      try {
+        const v = JSON.parse(raw);
+        if (!Array.isArray(v)) return { state: 'unreadable', points: [] };
+        return { state: v.length > 0 ? 'declared' : 'empty', points: v };
+      } catch {
+        return { state: 'unreadable', points: [] };
+      }
+    };
+    // 指示の型（決定論の近似。E-1/E-2/E-3 の分類は LLM が本文で精緻化する）
+    const promptShape = (prompt) => {
+      if (prompt == null) return 'undeclared';
+      const t = String(prompt).trim();
+      if (/[?？]\s*$/.test(t)) return 'question';
+      if ([...t].length <= 15) return 'terse';
+      return 'other';
+    };
+    // 指示の全文は同一 DB の instructions から引く（無ければ undeclared へ縮退）
+    const promptBySession = new Map();
+    if (hasTable(djDb, 'instruction_sessions') && hasTable(djDb, 'instructions')) {
+      for (const r of rows(
+        q(djDb, `SELECT s.session_id sid, i.origin_prompt prompt, i.summary summary
+                 FROM instruction_sessions s JOIN instructions i ON i.id = s.instruction_id`),
+      )) {
+        promptBySession.set(r.sid, { prompt: r.prompt, summary: r.summary });
+      }
+    }
+    const enriched = all.map((r) => {
+      const d = declarationOf(r.points);
+      const link = promptBySession.get(r.session_id) ?? null;
+      return { ...r, state: d.state, points: d.points, originPrompt: link?.prompt ?? null, promptShape: promptShape(link?.prompt ?? null) };
+    });
+    // 取りこぼし: escalate 以外（＝自分で決めた）で、申告が空なのに人が修正した判断
+    const missed = enriched.filter((r) => r.state === 'empty' && r.human_decision === 'modified' && r.agent_judgment !== 'escalate');
+    const declared = enriched.filter((r) => r.state === 'declared');
+    const unreadable = enriched.filter((r) => r.state === 'unreadable');
+    const byShape = { terse: 0, question: 0, other: 0, undeclared: 0 };
+    for (const r of missed) byShape[r.promptShape] += 1;
+    const sample = (r) => ({
+      subject: String(r.subject ?? '').slice(0, 100),
+      judgedAt: r.judged_at,
+      promptShape: r.promptShape,
+      originPrompt: r.originPrompt == null ? null : String(r.originPrompt).replace(/\s+/g, ' ').slice(0, 120),
+      points: r.points.map((p) => String(p).slice(0, 100)),
+    });
+    snapshot.doctrineGap = {
+      source: djSource,
+      available: true,
+      since: SINCE,
+      total: enriched.length,
+      declaredCount: declared.length,
+      missedCount: missed.length,
+      unreadableDeclarations: unreadable.length,
+      // 申告できた割合。0 へ張り付くのは「代行したいから空で出す」形骸化のサイン
+      instructionGapRatePct: pct(declared.length, enriched.length),
+      // 昇格判定の突合キー。同じ shape が前回スナップショットにも在れば「2 回目」
+      missedByPromptShape: byShape,
+      missedSamples: missed.slice(0, 5).map(sample),
+      declaredSamples: declared.slice(0, 5).map(sample),
+    };
+  }
+  if (memo.db) memo.db.close();
+  if (trailOpened.db) trailOpened.db.close();
+}
+
 // ── source: SHORTCUT 技術負債マーカー(read-only 走査) ──────────────────────────
 // DB 非依存。ソースの意図的簡略化マーカーを台帳化し no-trigger(昇格経路欠落)を高リスクとして数える。
 // 走査基点は cwd(ワークスペースルート。SKILL.md 記載の起動方法では cwd=workspace)。
@@ -550,7 +793,9 @@ const snapshot = { generatedAt: new Date().toISOString(), dbDir: DB_DIR, errors:
       const round2 = (x) => Math.round(x * 100) / 100;
       const groups = {};
       for (const p of pairs) {
-        const k = `${p.category} ${p.model}`;
+        // 可逆な複合キー。単純連結だと区切り文字を含む値同士で別組が同一キーへ衝突する
+        // （かつ NUL 区切りはファイル全体を grep のバイナリ判定に落とす前科がある）
+        const k = JSON.stringify([p.category, p.model]);
         (groups[k] = groups[k] ?? []).push(p);
       }
       const referenceClass = Object.values(groups)

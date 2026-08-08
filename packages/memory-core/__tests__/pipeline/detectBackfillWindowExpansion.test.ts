@@ -22,7 +22,8 @@ function makeTrailDb(): BetterSqlite3MemoryDb {
        type TEXT NOT NULL,
        timestamp TEXT NOT NULL,
        text_content TEXT,
-       user_content TEXT
+       user_content TEXT,
+       is_sidechain INTEGER NOT NULL DEFAULT 0
      ) STRICT`,
   );
   return trailDb;
@@ -42,6 +43,21 @@ function insertTrailUserMessage(
     `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content)
      VALUES (?, ?, 'user', ?, NULL, ?)`,
     [uuid, sessionId, timestamp, `body ${uuid}`],
+  );
+}
+
+function insertTrailMessageRaw(
+  trailDb: BetterSqlite3MemoryDb,
+  uuid: string,
+  sessionId: string,
+  timestamp: string,
+  opts: { userContent: string | null; isSidechain?: number },
+): void {
+  trailDb.run(`INSERT OR IGNORE INTO sessions VALUES (?)`, [sessionId]);
+  trailDb.run(
+    `INSERT INTO messages (uuid, session_id, type, timestamp, text_content, user_content, is_sidechain)
+     VALUES (?, ?, 'user', ?, NULL, ?, ?)`,
+    [uuid, sessionId, timestamp, opts.userContent, opts.isSidechain ?? 0],
   );
 }
 
@@ -101,7 +117,7 @@ describe('detectBackfillWindowExpansion', () => {
     // 60 日に拡張するが、trail には拡張区間のデータがない
     const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60 });
     expect(result.shouldExpand).toBe(false);
-    expect(result.reason).toMatch(/no unprocessed/);
+    expect(result.reason).toMatch(/no ingestable/);
   });
 
   test('desired_start < earliest AND unprocessed messages exist → shouldExpand=true', async () => {
@@ -120,6 +136,43 @@ describe('detectBackfillWindowExpansion', () => {
     const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60 });
     expect(result.shouldExpand).toBe(true);
     expect(result.reason).toMatch(/2 user messages/);
+  });
+
+  test('拡張区間が sidechain のみ → shouldExpand=false（カーソル reset の空転を防ぐ）', async () => {
+    // sidechain は取り込まないので、reset して再 backfill してもエピソードは
+    // 増えず earliest が動かない。拡張と判定すると毎 run 空転する。
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+    const ts10d = new Date(Date.now() - 10 * DAY).toISOString();
+    insertTrailMessageRaw(trailDb, 'sub1', 's-old', new Date(Date.now() - 40 * DAY).toISOString(), {
+      userContent: 'delegated prompt',
+      isSidechain: 1,
+    });
+    insertTrailUserMessage(trailDb, 'new1', 's-new', ts10d);
+    preInsertEpisode(memDb, 's-new', 'new1', ts10d);
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60 });
+    expect(result.shouldExpand).toBe(false);
+  });
+
+  test('拡張区間が本文ゼロの user 行のみ → shouldExpand=false', async () => {
+    // tool_result の入れ物（user_content 空）は episode にならない。
+    const memDb = await makeMemoryDb();
+    const trailDb = makeTrailDb();
+    const ts10d = new Date(Date.now() - 10 * DAY).toISOString();
+    insertTrailMessageRaw(trailDb, 'empty1', 's-old', new Date(Date.now() - 40 * DAY).toISOString(), {
+      userContent: null,
+    });
+    insertTrailMessageRaw(trailDb, 'empty2', 's-old', new Date(Date.now() - 35 * DAY).toISOString(), {
+      userContent: '   ',
+    });
+    insertTrailUserMessage(trailDb, 'new1', 's-new', ts10d);
+    preInsertEpisode(memDb, 's-new', 'new1', ts10d);
+    attachTrailDbFromHandle(memDb, trailDb);
+
+    const result = detectBackfillWindowExpansion({ db: memDb, sinceDays: 60 });
+    expect(result.shouldExpand).toBe(false);
   });
 
   test('desired_start equal to earliest persisted → shouldExpand=false (no widening)', async () => {

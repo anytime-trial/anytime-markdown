@@ -74,6 +74,7 @@ function makeDoc(overrides: Partial<ParsedReviewDoc> = {}): ParsedReviewDoc {
     },
     findings: [makeFinding()],
     targetRefs: ['src/foo.ts'],
+    bodyExcerpt: '## レビュー本文\n\n**問題:** これ\n**提案:** あれ',
     ...overrides,
   };
 }
@@ -88,6 +89,7 @@ function makeSession(overrides: Partial<ParsedReviewSession> = {}): ParsedReview
     target_kind: 'code',
     target_refs: ['src/bar.ts'],
     body_excerpt: 'review body',
+    summary: '指摘 1 件（error 0 / warn 0 / info 1）・本文 11 文字',
     reviewed_at: TS,
     findings: [makeFinding({ finding_index: 0 })],
     ...overrides,
@@ -611,6 +613,42 @@ describe('upsertReviewSession', () => {
       expect(result.findings_inserted).toBe(2);
       const count = db.exec(`SELECT COUNT(*) FROM memory_review_findings WHERE review_id = ?`, [result.review_id]);
       expect(count[0]?.values[0][0]).toBe(2);
+    } finally {
+      close();
+    }
+  });
+  test('source_hash 一致でも本文列が空なら補完する（早期 return で素通りさせない）', async () => {
+    const { db, close } = await openFresh();
+    const logger = makeLogger();
+    const doc = makeDoc();
+    try {
+      upsertReviewDoc(db, doc, 'review/backfill.md', 'hash-1', TS, logger);
+      // 修正前の取込が作った状態（本文列が空）を再現する
+      db.run("UPDATE memory_reviews SET summary = '', body_excerpt = '' WHERE source_ref = 'review/backfill.md'");
+
+      const result = upsertReviewDoc(db, doc, 'review/backfill.md', 'hash-1', TS, logger);
+
+      expect(result.is_new).toBe(false);
+      const rows = db.exec("SELECT body_excerpt FROM memory_reviews WHERE source_ref = 'review/backfill.md'");
+      expect(String(rows[0]?.values[0][0]).length).toBeGreaterThan(0);
+    } finally {
+      close();
+    }
+  });
+
+  test('既に埋まっている summary を空の excerpt で潰さない', async () => {
+    const { db, close } = await openFresh();
+    const logger = makeLogger();
+    const doc = makeDoc();
+    try {
+      upsertReviewDoc(db, doc, 'review/keep-summary.md', 'hash-1', TS, logger);
+      db.run("UPDATE memory_reviews SET summary = '既存の要約', body_excerpt = '' WHERE source_ref = 'review/keep-summary.md'");
+
+      upsertReviewDoc(db, doc, 'review/keep-summary.md', 'hash-1', TS, logger);
+
+      const rows = db.exec("SELECT summary, body_excerpt FROM memory_reviews WHERE source_ref = 'review/keep-summary.md'");
+      expect(rows[0]?.values[0][0]).toBe('既存の要約');
+      expect(String(rows[0]?.values[0][1]).length).toBeGreaterThan(0);
     } finally {
       close();
     }

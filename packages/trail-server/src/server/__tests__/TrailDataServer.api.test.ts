@@ -346,6 +346,25 @@ describe('POST /api/trail/token-budget', () => {
     const body = await res.json() as { ok: boolean };
     expect(body.ok).toBe(true);
   });
+
+  it('returns the observed session stats so hooks can evaluate hygiene thresholds', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/trail/token-budget`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: 'valid-session-123' }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      sessionId?: string;
+      sessionTokens?: number;
+      turnCount?: number;
+      messageCount?: number;
+    };
+    expect(body.sessionId).toBe('valid-session-123');
+    expect(typeof body.sessionTokens).toBe('number');
+    expect(typeof body.turnCount).toBe('number');
+    expect(typeof body.messageCount).toBe('number');
+  });
 });
 
 describe('POST /api/message-commits', () => {
@@ -705,7 +724,7 @@ describe('GET /api/analyze-all/* — runner not registered', () => {
   });
 });
 
-describe('GET /api/logs — service not registered', () => {
+describe('POST /api/logs — service not registered', () => {
   let server: TrailDataServer;
   let db: TrailDatabase;
   let port: number;
@@ -720,11 +739,6 @@ describe('GET /api/logs — service not registered', () => {
   afterEach(async () => {
     await server.stop();
     db.close();
-  });
-
-  it('returns 503 for GET /api/logs when log service not set', async () => {
-    const res = await fetch(`http://127.0.0.1:${port}/api/logs`);
-    expect(res.status).toBe(503);
   });
 
   it('returns 503 for POST /api/logs when log service not set', async () => {

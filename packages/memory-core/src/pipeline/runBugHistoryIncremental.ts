@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 import type { MemoryDbConnection } from '../db/connection/types';
+import { describeError, PipelineRunLedger } from './PipelineRunLedger';
 import { parseFixCommit } from '../ingest/bug-history/parseFixCommit';
 import { buildBugEntity } from '../ingest/bug-history/buildBugEntity';
 import { linkAffectedFiles } from '../ingest/bug-history/linkAffectedFiles';
@@ -27,10 +27,6 @@ export interface BugHistoryIncrementalResult {
   bugs_inserted: number;
   edges_inserted: number;
   duration_ms: number;
-}
-
-function runId(startedAt: string): string {
-  return createHash('sha1').update(`${SCOPE}:${startedAt}`).digest('hex').slice(0, 16);
 }
 
 function readPipelineState(db: MemoryDbConnection): string {
@@ -62,40 +58,6 @@ function upsertPipelineState(
   );
 }
 
-function insertPipelineRun(db: MemoryDbConnection, id: string, startedAt: string): void {
-  db.run(
-    `INSERT INTO memory_pipeline_runs
-       (id, scope, started_at, status,
-        items_processed, entities_inserted, entities_updated,
-        edges_inserted, edges_invalidated, drifts_detected,
-        items_failed, duration_ms)
-     VALUES (?, ?, ?, 'running', 0, 0, 0, 0, 0, 0, 0, 0)`,
-    [id, SCOPE, startedAt]
-  );
-}
-
-function finalizePipelineRun(
-  db: MemoryDbConnection,
-  id: string,
-  startedAt: string,
-  status: 'success' | 'partial' | 'error',
-  totals: { items_processed: number; entities_inserted: number; edges_inserted: number }
-): void {
-  const finishedAt = new Date().toISOString();
-  const durationMs = Date.now() - new Date(startedAt).getTime();
-  db.run(
-    `UPDATE memory_pipeline_runs SET
-       finished_at       = ?,
-       status            = ?,
-       items_processed   = ?,
-       entities_inserted = ?,
-       edges_inserted    = ?,
-       duration_ms       = ?
-     WHERE id = ?`,
-    [finishedAt, status, totals.items_processed, totals.entities_inserted, totals.edges_inserted, durationMs, id]
-  );
-}
-
 function recordFailedItem(db: MemoryDbConnection, itemKey: string, reason: string, detail: string): void {
   db.run(
     `INSERT INTO memory_failed_items (scope, item_key, failed_at, reason, detail, attempt_count)
@@ -116,6 +78,36 @@ interface CommitRow {
   session_id: string | null;
 }
 
+/**
+ * `memory_bug_fixes.workspace` が空（列追加前に取り込まれた行）を、trail.db 側の
+ * コミット所属リポジトリから埋める。
+ *
+ * 既に埋まっている行は触らない（`WHERE workspace = ''`）ので、毎回走らせても
+ * 実質 1 度きりで、以降は 0 件更新になる。失敗しても取込本体は続ける
+ * （選択肢の欠けは表示の劣化であって、取込を止める理由にならない）。
+ */
+function backfillBugFixWorkspace(db: MemoryDbConnection, repoName: string, logger: MemoryLogger): void {
+  try {
+    db.run(
+      `UPDATE memory_bug_fixes
+         SET workspace = ?
+       WHERE workspace = ''
+         AND commit_sha IN (
+           SELECT sc.commit_hash
+           FROM trail.session_commits sc
+           JOIN trail.repos r ON r.repo_id = sc.repo_id
+           WHERE r.repo_name = ?
+         )`,
+      [repoName, repoName],
+    );
+  } catch (err) {
+    logger.error(
+      `[anytime-memory] backfillBugFixWorkspace failed for repo=${repoName}: ${String(err)}, ` +
+        `Stack: ${err instanceof Error ? err.stack : ''}`,
+    );
+  }
+}
+
 export async function runBugHistoryIncremental(opts: {
   db: MemoryDbConnection;
   repoName: string;
@@ -126,6 +118,13 @@ export async function runBugHistoryIncremental(opts: {
   const logger = opts.logger ?? noopLogger;
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
+
+  // ── 0. workspace 列の backfill ───────────────────────────────────────────
+  // 020_workspace_scope.sql で足した列を既存行へ埋める。増分取込は last_processed_at より
+  // 新しいコミットしか見ないため、ここで埋めないと過去分（実測 1,361 件）は永久に未解決の
+  // ままになり、Flight Record でどのワークスペースを選んでも Bug Fixed が 0 件になる。
+  // 埋めるのはこの repo のコミットに紐づく行だけ（他リポジトリの行には触らない）。
+  backfillBugFixWorkspace(db, repoName, logger);
 
   // ── 1. Read last_processed_at ────────────────────────────────────────────
   const lastProcessedAt = readPipelineState(db);
@@ -157,8 +156,8 @@ export async function runBugHistoryIncremental(opts: {
   }
 
   // ── 3. Insert pipeline_run (running) ─────────────────────────────────────
-  const rId = runId(startedAt);
-  insertPipelineRun(db, rId, startedAt);
+  const ledger = new PipelineRunLedger({ db, scope: SCOPE, wave: 'memory', tier: 3, logger });
+  ledger.start(startedAt);
   upsertPipelineState(db, { status: 'running' });
 
   const totals = { items_processed: 0, entities_inserted: 0, edges_inserted: 0 };
@@ -166,6 +165,8 @@ export async function runBugHistoryIncremental(opts: {
   let consecutiveFailures = 0;
   let maxCommittedAt = lastProcessedAt;
   let hasPartialFailure = false;
+  // 失敗理由を run 行の error_detail へ残すため蓄積する。
+  const failureDetails: string[] = [];
 
   // ── 4. Process each commit ────────────────────────────────────────────────
   logger.info(`[anytime-memory] bug history incremental: ${rows.length} fix commits to process`);
@@ -180,6 +181,7 @@ export async function runBugHistoryIncremental(opts: {
     }
     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
       logger.info(`[anytime-memory] runBugHistoryIncremental: quarantine threshold reached`);
+      failureDetails.push(`quarantine threshold reached after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`);
       hasPartialFailure = true;
       break;
     }
@@ -266,6 +268,7 @@ export async function runBugHistoryIncremental(opts: {
         recordedAt,
         sessionId,
         introducedCommitSha: introResult.introduced_commit_sha,
+        workspace: row.repo_name,
       });
 
       // h. Link root cause episode
@@ -280,6 +283,7 @@ export async function runBugHistoryIncremental(opts: {
         `[anytime-memory] runBugHistoryIncremental: failed to process commit=${commitSha}`, err
       );
       recordFailedItem(db, commitSha, 'process_failed', detail);
+      failureDetails.push(`commit=${commitSha}: ${detail}`);
       consecutiveFailures += 1;
       hasPartialFailure = true;
     }
@@ -291,7 +295,7 @@ export async function runBugHistoryIncremental(opts: {
   upsertPipelineState(db, { status: 'idle', last_processed_at: maxCommittedAt });
 
   // ── 6. Finalize pipeline_run ─────────────────────────────────────────────
-  finalizePipelineRun(db, rId, startedAt, finalStatus, totals);
+  ledger.finish(finalStatus, totals, failureDetails.join('\n'));
 
   return {
     status: finalStatus,

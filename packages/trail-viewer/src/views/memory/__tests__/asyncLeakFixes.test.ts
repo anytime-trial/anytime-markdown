@@ -7,7 +7,6 @@
  *  2. renderTable() leaks Tooltip/IconButton handles on filter change
  */
 import { mountBugHistoryPanel, type BugHistoryPanelProps } from '../bugHistoryPanel';
-import { mountReviewPanel, type ReviewPanelProps } from '../reviewPanel';
 import { mountPipelineRunsPanel, type PipelineRunsPanelProps } from '../pipelineRunsPanel';
 import type { MemoryReader } from '../../../data/readers/MemoryReader';
 import type {
@@ -15,8 +14,9 @@ import type {
   MemoryRecurringBugRow,
   MemoryReviewHistoryRow,
   MemoryUnaddressedReviewFindingRow,
+  MemoryPipelineRunLogRow,
+  MemoryPipelineRunRow,
   MemoryPipelineRunStatsByDayRow,
-  MemoryTopEntityRow,
   MemoryInvalidationRow,
   MemoryFailedItemRow,
 } from '../../../data/types';
@@ -49,8 +49,10 @@ function makeBugRow(over: Partial<MemoryBugHistoryRow> = {}): MemoryBugHistoryRo
     category: 'regression',
     subjectSummary: 'Something broke',
     sessionId: 'sess-1',
+    instructionId: 'inst-1',
     committedAt: '2026-01-10T00:00:00.000Z',
     precededByFindingIds: [],
+    workspace: '',
     ...over,
   };
 }
@@ -66,6 +68,8 @@ function makeReviewRow(over: Partial<MemoryReviewHistoryRow> = {}): MemoryReview
     model: 'claude-sonnet-4',
     sessionId: 'sess-2',
     reviewedAt: '2026-01-15T00:00:00.000Z',
+    workspace: 'anytime-markdown',
+    targetRepo: 'anytime-markdown',
     targetFilePath: 'packages/trail-viewer/src/foo.ts',
     category: 'logic',
     severity: 'warn',
@@ -87,7 +91,8 @@ function makeReader(overrides: Partial<MemoryReader> = {}): MemoryReader {
     getReviewHistory: () => Promise.resolve([] as readonly MemoryReviewHistoryRow[]),
     listPipelineRunStatsByDay: () =>
       Promise.resolve([] as readonly MemoryPipelineRunStatsByDayRow[]),
-    listTopEntities: () => Promise.resolve([] as readonly MemoryTopEntityRow[]),
+    listPipelineRuns: () => Promise.resolve([] as readonly MemoryPipelineRunRow[]),
+    listPipelineRunLogs: () => Promise.resolve([] as readonly MemoryPipelineRunLogRow[]),
     listInvalidations: () => Promise.resolve([] as readonly MemoryInvalidationRow[]),
     listFailedItems: () => Promise.resolve([] as readonly MemoryFailedItemRow[]),
     ...overrides,
@@ -123,31 +128,37 @@ describe('mountBugHistoryPanel — Fix A: destroy guard', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Fix A: mountReviewPanel — late async does not mutate after destroy
-// ---------------------------------------------------------------------------
 
-describe('mountReviewPanel — Fix A: destroy guard', () => {
-  it('late-resolving load() does not mutate container after destroy()', async () => {
-    const { promise, resolve } = deferred<readonly MemoryReviewHistoryRow[]>();
+describe('mountBugHistoryPanel — ワークスペース切替の世代ガード', () => {
+  // reader の同一性で世代を判定すると、reader が変わらないワークスペース切替を取りこぼす。
+  // A→B と切り替えたあとに A の応答が遅れて着弾すると、B を選んでいるのに A の行が並ぶ。
+  it('切替前のワークスペースの応答が遅れて届いても表示に反映しない', async () => {
+    const slowA = deferred<readonly MemoryBugHistoryRow[]>();
     const reader = makeReader({
-      getReviewHistory: () => promise,
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
+      listRecurringBugs: () => Promise.resolve([]),
+      getBugHistory: (params?: { workspace?: string }) =>
+        params?.workspace === 'ws-a'
+          ? slowA.promise
+          : Promise.resolve([makeBugRow({ id: 'b-new', subjectSummary: 'B の結果' })]),
     } as Partial<MemoryReader>);
 
     const c = document.createElement('div');
-    const handle = mountReviewPanel(c, { t, reader } as ReviewPanelProps);
-
-    handle.destroy();
-    expect(c.childElementCount).toBe(0);
-
-    resolve([makeReviewRow()]);
+    const handle = mountBugHistoryPanel(c, { t, reader, workspace: 'ws-a' } as BugHistoryPanelProps);
+    handle.update({ t, reader, workspace: 'ws-b' } as BugHistoryPanelProps);
     await flush();
 
-    expect(c.childElementCount).toBe(0);
-    expect(c.querySelector('[aria-label="review-history-table"]')).toBeNull();
+    expect(c.textContent).toContain('B の結果');
+
+    // ここで A（切替前）の応答が着弾する
+    slowA.resolve([makeBugRow({ id: 'b-old', subjectSummary: 'A の結果' })]);
+    await flush();
+
+    expect(c.textContent).not.toContain('A の結果');
+    expect(c.textContent).toContain('B の結果');
+    handle.destroy();
   });
 });
+
 
 // ---------------------------------------------------------------------------
 // Fix A: mountPipelineRunsPanel — late async does not mutate after destroy
@@ -232,8 +243,10 @@ describe('mountBugHistoryPanel — Fix B: row handle cleanup', () => {
     const props: BugHistoryPanelProps = {
       t,
       reader,
-      onOpenSessionMessages: () => {},
+      workspace: '',
       onOpenPrecedingReviews: () => {},
+      labelOf: (id) => id,
+      onSelectInstruction: () => {},
     };
     const handle = mountBugHistoryPanel(c, props);
     await flush();
@@ -264,46 +277,3 @@ describe('mountBugHistoryPanel — Fix B: row handle cleanup', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Fix B: mountReviewPanel — renderTable does not accumulate row handles
-// ---------------------------------------------------------------------------
-
-describe('mountReviewPanel — Fix B: row handle cleanup', () => {
-  it('tooltip/iconButton handles are destroyed on re-render and destroy()', async () => {
-    const row1 = makeReviewRow({ id: 'r1', findingEntityId: 'f1', sessionId: 'sess-1', precedesBugEntityIds: ['b1'] });
-    const row2 = makeReviewRow({ id: 'r2', findingEntityId: 'f2', severity: 'error' });
-    const reader = makeReader({
-      getReviewHistory: () => Promise.resolve([row1, row2]),
-      listUnaddressedReviewFindings: () => Promise.resolve([]),
-    } as Partial<MemoryReader>);
-
-    const c = document.createElement('div');
-    const props: ReviewPanelProps = {
-      t,
-      reader,
-      onOpenSessionMessages: () => {},
-      onOpenPrecedingBugs: () => {},
-    };
-    const handle = mountReviewPanel(c, props);
-    await flush();
-
-    expect(c.querySelector('[aria-label="review-history-table"]')).not.toBeNull();
-
-    // Trigger re-render via filter (pending filter for f1 only)
-    handle.update({ ...props, pendingReviewFilter: { findingEntityIds: ['f1'] } });
-    await flush();
-
-    let trs = c.querySelectorAll('[aria-label="review-history-table"] tbody tr');
-    expect(trs.length).toBe(1);
-
-    // Clear filter — second re-render, must not throw
-    handle.update({ ...props });
-    await flush();
-
-    trs = c.querySelectorAll('[aria-label="review-history-table"] tbody tr');
-    expect(trs.length).toBe(2);
-
-    // Destroy must not throw even with accumulated handles from multiple renders
-    expect(() => handle.destroy()).not.toThrow();
-  });
-});

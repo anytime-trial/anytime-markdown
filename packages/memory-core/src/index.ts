@@ -1,6 +1,9 @@
 export { searchMemory, vectorTopK } from './retrieve/searchMemory';
 export type { SearchInput, SearchResult, SearchEntity, SearchEdge, SearchEpisode } from './retrieve/searchMemory';
 export { openMemoryCoreDb } from './db/connection';
+// テストが実 migration でスキーマを組めるようにする（手書き DDL だと
+// migration 側の変更に追随せず、乖離を検知できないまま緑になる）。
+export { runMigrations } from './db/migrations/runner';
 export type { MemoryCoreDb, OpenMemoryCoreDbOptions } from './db/connection';
 export { getMemoryCoreDbPath, getTrailHome } from './db/paths';
 export { attachTrailDbReadOnly, attachTrailDbFromHandle } from './db/attach';
@@ -46,6 +49,13 @@ export { runReviewIncremental } from './pipeline/runReviewIncremental';
 export type { ReviewIncrementalResult } from './pipeline/runReviewIncremental';
 export { ingestAgentReviewResult } from './ingest/review/ingestAgentReviewResult';
 export type { IngestAgentReviewResult } from './ingest/review/ingestAgentReviewResult';
+export { ingestPrReview, buildPrReviewSourceRef, parsePrReviewSourceRef } from './ingest/pr-review/ingestPrReview';
+export type {
+  PrReviewIngestInput,
+  PrReviewIngestResult,
+  PrReviewFindingInput,
+  ParsedPrReviewSourceRef,
+} from './ingest/pr-review/ingestPrReview';
 export { runAgentRunWatchdog } from './ingest/review/agentRunWatchdog';
 export type { AgentRunWatchdogResult } from './ingest/review/agentRunWatchdog';
 export { AgentReviewInputSchema, AgentReviewFindingSchema } from './types/AgentReviewInput';
@@ -53,6 +63,12 @@ export type { AgentReviewInput, AgentReviewFinding } from './types/AgentReviewIn
 
 export { runSpecIncremental } from './pipeline/runSpecIncremental';
 export type { SpecIncrementalResult } from './pipeline/runSpecIncremental';
+export { runReviewBackfill } from './pipeline/runReviewBackfill';
+export { runReviewFindingExtraction } from './pipeline/runReviewFindingExtraction';
+export type { ReviewFindingExtractionResult } from './pipeline/runReviewFindingExtraction';
+export type { ReviewBackfillResult } from './pipeline/runReviewBackfill';
+export { runSpecReconciliation } from './pipeline/runSpecReconciliation';
+export type { SpecReconciliationResult } from './pipeline/runSpecReconciliation';
 
 export { listRecurringBugs } from './retrieve/listRecurringBugs';
 export type { RecurringBugGroup, BugFixSummary } from './retrieve/listRecurringBugs';
@@ -169,6 +185,7 @@ export {
   topoSortByDependsOn,
 } from './lep';
 export type {
+  PipelineRunLedgerFactory,
   AnalyzerEvent,
   Analyzer,
   AnalyzerContext,

@@ -130,14 +130,6 @@ describe('Memory API error paths', () => {
     expect([200, 500]).toContain(res.status);
   });
 
-  it('GET /api/memory/entities/top returns 500 when handler throws', async () => {
-    const memApi = getMemoryApi(server);
-    jest.spyOn(memApi, 'listTopEntities').mockRejectedValue(new Error('top entities error'));
-    const res = await fetch(`http://127.0.0.1:${port}/api/memory/entities/top`);
-    await new Promise<void>((r) => setTimeout(r, 50));
-    expect([200, 500]).toContain(res.status);
-  });
-
   it('GET /api/memory/edges/invalidations returns 500 when handler throws', async () => {
     const memApi = getMemoryApi(server);
     jest.spyOn(memApi, 'listInvalidations').mockRejectedValue(new Error('invalidations error'));
@@ -180,34 +172,5 @@ describe('GET /trailstandalone.js — file exists', () => {
   it('returns 200 when static file exists in distPath', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/trailstandalone.js`);
     expect([200, 404]).toContain(res.status);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// handleGetLogsRoute — result.body path (GET /api/logs with registered service)
-// ---------------------------------------------------------------------------
-
-describe('GET /api/logs — response with body', () => {
-  let server: TrailDataServer;
-  let db: TrailDatabase;
-  let port: number;
-
-  beforeEach(async () => { ({ server, db, port } = await makeServer()); });
-  afterEach(async () => { await server.stop(); db.close(); });
-
-  it('returns 400 with JSON body when log service registered and invalid level filter', async () => {
-    const { LogService } = await import('../../services/LogService');
-    const { BetterSqlite3MemoryDb } = await import('@anytime-markdown/memory-core');
-    const { CREATE_EXTENSION_LOGS, CREATE_EXTENSION_LOGS_INDEXES } = await import('@anytime-markdown/trail-core/domain/schema');
-    const memDb = BetterSqlite3MemoryDb.openInMemory();
-    memDb.run(CREATE_EXTENSION_LOGS);
-    for (const idx of CREATE_EXTENSION_LOGS_INDEXES) memDb.run(idx);
-    const logSvc = new LogService(memDb, { notifyLog: jest.fn() });
-    server.setLogService(logSvc);
-    // invalid level → 400 with body (exercises the res.end(result.body) branch)
-    const res = await fetch(`http://127.0.0.1:${port}/api/logs?level=badlevel`);
-    expect([400, 200]).toContain(res.status);
-    const text = await res.text();
-    expect(text.length).toBeGreaterThan(0);
   });
 });

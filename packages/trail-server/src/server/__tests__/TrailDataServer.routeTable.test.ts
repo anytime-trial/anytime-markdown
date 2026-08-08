@@ -55,6 +55,12 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "POST", kind: "exact", path: "/api/trail/flight-reviews" },
   { method: "GET", kind: "exact", path: "/api/trail/flight-reviews" },
   { method: "PATCH", kind: "pattern", path: "^\\/api\\/trail\\/flight-reviews\\/([^/]+)$" },
+  // Flight Record: /open は :id パターンより先（後だと 'open' が指示 ID として食われる）
+  { method: "GET", kind: "exact", path: "/api/trail/workspaces" },
+  { method: "GET", kind: "exact", path: "/api/trail/instructions/open" },
+  { method: "GET", kind: "exact", path: "/api/trail/instructions" },
+  { method: "POST", kind: "exact", path: "/api/trail/instructions" },
+  { method: "GET", kind: "pattern", path: "^\\/api\\/trail\\/instructions\\/([^/]+)\\/sessions$" },
   { method: "POST", kind: "exact", path: "/api/trail/user-feedback" },
   { method: "GET", kind: "exact", path: "/api/trail/user-feedback" },
   { method: "POST", kind: "exact", path: "/api/trail/acceptance" },
@@ -66,7 +72,6 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "POST", kind: "exact", path: "/api/trail/emergency/release" },
   { method: "POST", kind: "exact", path: "/api/trail/emergency/rollback" },
   { method: "POST", kind: "exact", path: "/api/logs" },
-  { method: "GET", kind: "exact", path: "/api/logs" },
   { method: "GET", kind: "exact", path: "/api/trace/list" },
   { method: "GET", kind: "exact", path: "/api/trace/file" },
   { method: "GET", kind: "exact", path: "/api/config/commit-categories" },
@@ -126,9 +131,13 @@ const EXPECTED_ROUTES: RouteDescriptor[] = [
   { method: "GET", kind: "exact", path: "/api/memory/bugs/causal" },
   { method: "GET", kind: "exact", path: "/api/memory/reviews/unaddressed" },
   { method: "GET", kind: "exact", path: "/api/memory/reviews/history" },
+  { method: "GET", kind: "exact", path: "/api/memory/reviews/flight-counts" },
+  { method: "GET", kind: "exact", path: "/api/memory/reviews/flight-findings" },
   { method: "GET", kind: "exact", path: "/api/memory/pipeline/runs/by-day" },
+  { method: "GET", kind: "exact", path: "/api/memory/pipeline/runs" },
+  { method: "GET", kind: "pattern", path: "^\\/api\\/memory\\/pipeline\\/runs\\/([^/]+)\\/logs$" },
   { method: "GET", kind: "exact", path: "/api/memory/pipeline/failed" },
-  { method: "GET", kind: "exact", path: "/api/memory/entities/top" },
+  // UI の消費者が無くても撤去しない経路。理由は MemoryApiHandler.listInvalidations のコメント参照
   { method: "GET", kind: "exact", path: "/api/memory/edges/invalidations" },
 ];
 
